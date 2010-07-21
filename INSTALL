@@ -1,0 +1,58 @@
+                    Finite Element Discretization Library
+                                 version 1.0
+                                   __
+                       _ __ ___   / _|  ___  _ __ ___
+                      | '_ ` _ \ | |_  / _ \| '_ ` _ \
+                      | | | | | ||  _||  __/| | | | | |
+                      |_| |_| |_||_|   \___||_| |_| |_|
+
+                         http://mfem.googlecode.com
+
+The only prerequisite for building MFEM is a (modern) C++ compiler, such as
+g++. Some of the dense linear algebra functionality in MFEM requires the LAPACK
+and BLAS libraries from http://www.netlib.org/lapack. If LAPACK is not provided,
+the corresponding MFEM functions will either use a simple internal version, or
+generate run-time errors when used.
+
+Three build systems are supported, based on make, GNU make (gmake) and SCons, as
+described below.
+
+
+Building with 'make'
+====================
+MFEM comes with a standard makefile which can be modified as needed, e.g. to
+enable the use of LAPACK and specify its location. The makefile also generates
+the "mfem_defs.hpp" header file which lists all "define" symbols from the build.
+
+Some of the available 'make' targets are:
+
+make       -> Builds the libmfem.a library
+make debug -> Builds a debug version
+make clean -> Cleans the build
+
+
+Building with 'gmake'
+=====================
+MFEM also comes with a GNUmakefile for GNU make (gmake) which follows closely
+the makefile and provides some additional functionality. On many Linux systems
+the installed copy of make is actually a version of gmake; in this case the
+GNUmakefile will be used instead of the makefile.
+
+Some of the available 'gmake' targets are:
+
+gmake       -> Builds the libmfem.a library
+gmake debug -> Builds a debug version
+gmake clean -> Cleans the build
+
+
+Building with 'SCons'
+====================
+SCons is a Python-based next generation build system from http://www.scons.org/,
+which combines the capabilities of make and configure. The included SConstruct
+file will automatically detect the availability of LAPACK.
+
+Some of the available 'SCons' targets are:
+
+scons         -> Builds the libmfem.a library
+scons debug=1 -> Builds a debug version
+scons -c      -> Cleans the build
