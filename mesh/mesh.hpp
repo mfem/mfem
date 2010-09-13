@@ -81,7 +81,9 @@ protected:
        reference element at the center of the element. */
    void GetElementJacobian(int i, DenseMatrix &J);
 
-   void MarkTetMeshForRefinement();
+   void MarkForRefinement();
+   void MarkTriMeshForRefinement();
+   void MarkTetMeshForRefinement(int mark_faces = 0);
 
    STable3D *GetElementToFaceTable (int ret_ftbl = 0);
 
@@ -467,9 +469,15 @@ public:
        coordinate system of the coarse element. Clear, isn't it? :-) */
    ElementTransformation * GetFineElemTrans (int i, int j);
 
-   /** Print the mesh in file given by f_name in netgen format. If
-       f_name == NULL (default) the mesh is printed on the terminal. */
+   /// Print the mesh to the given stream using Netgen/Truegrid format.
+   void PrintXG(ostream &out = cout) const;
+
+   /// Print the mesh to the given stream using the default MFEM mesh format.
    void Print(ostream &out = cout) const;
+
+   /** Print the mesh in VTK format. The parameter ref specifies an element
+       subdivision number (useful for high order fields and curved meshes). */
+   void PrintVTK(ostream &out, int ref);
 
    void GetElementColoring(Array<int> &colors, int el0 = 0);
 
@@ -485,6 +493,8 @@ public:
 
    void ScaleSubdomains (double sf);
    void ScaleElements (double sf);
+
+   void Transform(void (*f)(const Vector&, Vector&));
 
    /** Get the size of the i-th element relative to the perfect
        reference element. */

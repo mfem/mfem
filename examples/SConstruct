@@ -1,0 +1,49 @@
+# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
+# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
+# See file COPYRIGHT for details.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability see http://mfem.googlecode.com.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the GNU Lesser General Public License (as published by the Free
+# Software Foundation) version 2.1 dated February 1999.
+
+Help("""
+       Type: 'scons' to build the production library,
+             'scons -c' to clean the build,
+             'scons debug=1' to build the debug version.
+       """)
+
+import os
+
+env = Environment()
+
+CC_OPTS    = '-O3'
+DEBUG_OPTS = '-g -Wall'
+
+# Debug options
+debug = ARGUMENTS.get('debug', 0)
+if int(debug):
+   env.Append(CCFLAGS = DEBUG_OPTS)
+else:
+   env.Append(CCFLAGS = CC_OPTS)
+
+conf = Configure(env)
+
+# Check for LAPACK
+if conf.CheckLib('lapack', 'dsyevr_'):
+   env.Append(LIBS = ['blas'])
+   print 'Using LAPACK'
+else:
+   print 'Did not find LAPACK, continuing without it'
+
+env = conf.Finish()
+
+env.Append(LIBS = ['mfem'])
+env.Append(LIBPATH = ['..'])
+env.Append(CPPPATH = ['..'])
+
+# libmfem.a library
+ex1 = env.Program('ex1',['ex1.cpp'])
+ex2 = env.Program('ex2',['ex2.cpp'])

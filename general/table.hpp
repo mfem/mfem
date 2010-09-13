@@ -33,7 +33,7 @@ protected:
 
 public:
    /// Creates an empty table
-   Table() { size = 0; I = J = NULL; }
+   Table() { size = -1; I = J = NULL; }
 
    /// Create a table with a fixed number of connections.
    Table (int dim, int connections_per_row = 3);
@@ -102,7 +102,7 @@ public:
    int Width() const;
 
    /// Call this if data has been stolen.
-   void LoseData() { I=0; J=0; }
+   void LoseData() { size = -1; I = J = NULL; }
 
    /// Prints the table to stream out.
    void Print(ostream & out = cout, int width = 4);

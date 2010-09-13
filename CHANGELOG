@@ -1,0 +1,39 @@
+                    Finite Element Discretization Library
+                                   __
+                       _ __ ___   / _|  ___  _ __ ___
+                      | '_ ` _ \ | |_  / _ \| '_ ` _ \
+                      | | | | | ||  _||  __/| | | | | |
+                      |_| |_| |_||_|   \___||_| |_| |_|
+
+                         http://mfem.googlecode.com
+
+
+Version 1.1, released on Sep 13, 2010
+=====================================
+
+- New MFEM mesh v1.0 format with uniform structure for any dimension and support
+  for curved meshes including in 3D.  Class Mesh will recognize and read the new
+  format (in addition to all previously used formats) and Mesh::Print uses the
+  new format by default. The old print function was renamed to Mesh::PrintXG.
+
+- Added an example code for linear elasticity with (high-order) vector finite
+  elements (Example 2).
+
+- Added Mesh::PrintVTK and GridFunction::SaveVTK methods for output in VTK
+  format.
+
+- Implemented GeometryRefiner::Refine for CUBE and TETRAHEDRON geometries. This
+  allows for saving curved meshes in the VTK format.
+
+- Added SConstruct file for mfem/examples.
+
+- Various small fixes and styling updates.
+
+
+Version 1.0, released on Jul 21, 2010
+=====================================
+
+- Uploaded to http://mfem.googlecode.com.
+
+- Initial release.
+

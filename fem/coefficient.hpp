@@ -146,19 +146,22 @@ class DeltaCoefficient : public Coefficient
 {
 private:
    double center[3], scale;
+   Coefficient *weight;
 
 public:
    DeltaCoefficient();
    DeltaCoefficient(double x, double y, double s)
-   { center[0] = x; center[1] = y; center[2] = 0.; scale = s; }
+   { center[0] = x; center[1] = y; center[2] = 0.; scale = s; weight = NULL; }
    DeltaCoefficient(double x, double y, double z, double s)
-   { center[0] = x; center[1] = y; center[2] = z; scale = s; }
+   { center[0] = x; center[1] = y; center[2] = z; scale = s; weight = NULL; }
+   void SetWeight(Coefficient *w) { weight = w; }
    const double *Center() { return center; }
    double Scale() { return scale; }
+   Coefficient *Weight() { return weight; }
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    { mfem_error("DeltaCoefficient::Eval"); return 0.; }
    virtual void Read(istream &in) { }
-   virtual ~DeltaCoefficient() { }
+   virtual ~DeltaCoefficient() { delete weight; }
 };
 
 class VectorCoefficient
@@ -180,6 +183,17 @@ public:
                       const IntegrationPoint &ip) = 0;
 
    virtual ~VectorCoefficient() { };
+};
+
+class VectorConstantCoefficient : public VectorCoefficient
+{
+private:
+   Vector vec;
+public:
+   VectorConstantCoefficient(const Vector &v)
+      : VectorCoefficient(v.Size()), vec(v) { }
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip) { V = vec; }
 };
 
 class VectorFunctionCoefficient : public VectorCoefficient

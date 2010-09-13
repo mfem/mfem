@@ -462,7 +462,7 @@ void FiniteElementSpace::Constructor()
    {
       // Here we assume that all faces in the mesh have the same base
       // geometry -- the base geometry of the 0-th face element.
-      // The class DMesh assumes the same inside GetFaceBaseGeometry(...).
+      // The class Mesh assumes the same inside GetFaceBaseGeometry(...).
       // Thus we do not need to generate all the faces in the mesh
       // if we do not need them.
       int fdof = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));

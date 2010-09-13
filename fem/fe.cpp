@@ -3894,7 +3894,7 @@ void RT0TetFiniteElement::Project (
 }
 
 RotTriLinearHexFiniteElement::RotTriLinearHexFiniteElement()
-   : NodalFiniteElement(3, Geometry::CUBE, 6, 2)
+   : NodalFiniteElement(3, Geometry::CUBE, 6, 2, FunctionSpace::Qk)
 {
    Nodes.IntPoint(0).x = 0.5;
    Nodes.IntPoint(0).y = 0.5;

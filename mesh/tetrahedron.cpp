@@ -18,10 +18,12 @@ const int Tetrahedron::edges[6][2] =
 {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};
 
 void Tetrahedron::ParseRefinementFlag(int refinement_edges[2], int &type,
-                                      int &flag){
+                                      int &flag)
+{
    int i, f = refinement_flag;
 
-   for(i=0; i<2; i++){
+   for (i = 0; i < 2; i++)
+   {
       refinement_edges[i] = f & 7;
       f = f >> 3;
    }
@@ -30,7 +32,8 @@ void Tetrahedron::ParseRefinementFlag(int refinement_edges[2], int &type,
 }
 
 void Tetrahedron::CreateRefinementFlag(int refinement_edges[2], int type,
-                                       int flag){
+                                       int flag)
+{
 // Check for correct type
 #ifdef MFEM_DEBUG
    int e1, e2;
@@ -92,60 +95,68 @@ void Tetrahedron::CreateRefinementFlag(int refinement_edges[2], int type,
    refinement_flag = refinement_flag | refinement_edges[0];
 }
 
-Tetrahedron::Tetrahedron( int *ind,
-                          int attr ) : Element(Geometry::TETRAHEDRON) {
+Tetrahedron::Tetrahedron(int *ind, int attr)
+   : Element(Geometry::TETRAHEDRON)
+{
    attribute = attr;
    for (int i=0; i<4; i++)
       indices[i] = ind[i];
+   refinement_flag = 0;
 }
 
-Tetrahedron::Tetrahedron( int ind1, int ind2, int ind3, int ind4,
-                          int attr ) : Element(Geometry::TETRAHEDRON) {
+Tetrahedron::Tetrahedron(int ind1, int ind2, int ind3, int ind4, int attr)
+   : Element(Geometry::TETRAHEDRON)
+{
    attribute  = attr;
    indices[0] = ind1;
    indices[1] = ind2;
    indices[2] = ind3;
    indices[3] = ind4;
+   refinement_flag = 0;
 }
 
-int Tetrahedron::NeedRefinement ( DSTable &v_to_v, int *middle) const{
+int Tetrahedron::NeedRefinement(DSTable &v_to_v, int *middle) const
+{
    int m;
 
-   if ((m = v_to_v(indices[0], indices[1]))!=-1)
-      if (middle[m]!=-1) return 1;
-   if ((m = v_to_v(indices[1], indices[2]))!=-1)
-      if (middle[m]!=-1) return 1;
-   if ((m = v_to_v(indices[2], indices[0]))!=-1)
-      if (middle[m]!=-1) return 1;
-   if ((m = v_to_v(indices[0], indices[3]))!=-1)
-      if (middle[m]!=-1) return 1;
-   if ((m = v_to_v(indices[1], indices[3]))!=-1)
-      if (middle[m]!=-1) return 1;
-   if ((m = v_to_v(indices[2], indices[3]))!=-1)
-      if (middle[m]!=-1) return 1;
+   if ((m = v_to_v(indices[0], indices[1])) != -1)
+      if (middle[m] != -1) return 1;
+   if ((m = v_to_v(indices[1], indices[2])) != -1)
+      if (middle[m] != -1) return 1;
+   if ((m = v_to_v(indices[2], indices[0])) != -1)
+      if (middle[m] != -1) return 1;
+   if ((m = v_to_v(indices[0], indices[3])) != -1)
+      if (middle[m] != -1) return 1;
+   if ((m = v_to_v(indices[1], indices[3])) != -1)
+      if (middle[m] != -1) return 1;
+   if ((m = v_to_v(indices[2], indices[3])) != -1)
+      if (middle[m] != -1) return 1;
    return 0;
 }
 
-void Tetrahedron::SetVertices(const int *ind){
-   for(int i=0; i<4; i++)
+void Tetrahedron::SetVertices(const int *ind)
+{
+   for (int i = 0; i < 4; i++)
       indices[i] = ind[i];
 }
 
-void Tetrahedron::MarkEdge(const DSTable &v_to_v, const int *length){
+void Tetrahedron::MarkEdge(const DSTable &v_to_v, const int *length)
+{
    int ind[4], i, j, l, L, type;
 
    // determine the longest edge
-   L = length[ v_to_v(indices[0], indices[1] ) ]; j = 0;
-   if ( (l = length[ v_to_v(indices[1], indices[2] ) ]) > L ){ L = l; j = 1;}
-   if ( (l = length[ v_to_v(indices[2], indices[0] ) ]) > L ){ L = l; j = 2;}
-   if ( (l = length[ v_to_v(indices[0], indices[3] ) ]) > L ){ L = l; j = 3;}
-   if ( (l = length[ v_to_v(indices[1], indices[3] ) ]) > L ){ L = l; j = 4;}
-   if ( (l = length[ v_to_v(indices[2], indices[3] ) ]) > L ){ L = l; j = 5;}
+   L = length[v_to_v(indices[0], indices[1])]; j = 0;
+   if ((l = length[v_to_v(indices[1], indices[2])]) > L) { L = l; j = 1; }
+   if ((l = length[v_to_v(indices[2], indices[0])]) > L) { L = l; j = 2; }
+   if ((l = length[v_to_v(indices[0], indices[3])]) > L) { L = l; j = 3; }
+   if ((l = length[v_to_v(indices[1], indices[3])]) > L) { L = l; j = 4; }
+   if ((l = length[v_to_v(indices[2], indices[3])]) > L) { L = l; j = 5; }
 
-   for(i=0; i<4; i++)
+   for (i = 0; i < 4; i++)
       ind[i] = indices[i];
 
-   switch ( j ) {
+   switch (j)
+   {
    case 1:
       indices[0] = ind[1]; indices[1] = ind[2];
       indices[2] = ind[0]; indices[3] = ind[3];
@@ -171,13 +182,13 @@ void Tetrahedron::MarkEdge(const DSTable &v_to_v, const int *length){
    // Determine the two longest edges for the other two faces and
    // store them in ind[0] and ind[1]
    ind[0] = 2; ind[1] = 1;
-   L = length[ v_to_v(indices[0], indices[2] ) ];
-   if ((l=length[ v_to_v(indices[0], indices[3] ) ]) > L){ L=l; ind[0]=3;}
-   if ((l=length[ v_to_v(indices[2], indices[3] ) ]) > L){ L=l; ind[0]=5;}
+   L = length[v_to_v(indices[0], indices[2])];
+   if ((l = length[v_to_v(indices[0], indices[3])]) > L) { L = l; ind[0] = 3; }
+   if ((l = length[v_to_v(indices[2], indices[3])]) > L) { L = l; ind[0] = 5; }
 
-   L = length[ v_to_v(indices[1], indices[2] ) ];
-   if ((l=length[ v_to_v(indices[1], indices[3] ) ]) > L){ L=l; ind[1]=4;}
-   if ((l=length[ v_to_v(indices[2], indices[3] ) ]) > L){ L=l; ind[1]=5;}
+   L = length[v_to_v(indices[1], indices[2])];
+   if ((l = length[v_to_v(indices[1], indices[3])]) > L) { L = l; ind[1] = 4; }
+   if ((l = length[v_to_v(indices[2], indices[3])]) > L) { L = l; ind[1] = 5; }
 
    j = 0;
    switch (ind[0])
@@ -219,9 +230,11 @@ void Tetrahedron::MarkEdge(const DSTable &v_to_v, const int *length){
    CreateRefinementFlag(ind, type);
 }
 
-void Tetrahedron::GetVertices( Array<int> &v ) const {
-   v.SetSize( 4 );
-   for (int i=0; i<4; i++){
+void Tetrahedron::GetVertices(Array<int> &v) const
+{
+   v.SetSize(4);
+   for (int i = 0; i < 4; i++)
+   {
       v[i] = indices[i];
    }
 }
@@ -233,9 +246,9 @@ Element *Tetrahedron::Duplicate() const
 #else
    Tetrahedron *tet = new Tetrahedron;
 #endif
-   tet -> SetVertices (indices);
-   tet -> SetAttribute (attribute);
-   tet -> SetRefinementFlag (refinement_flag);
+   tet->SetVertices(indices);
+   tet->SetAttribute(attribute);
+   tet->SetRefinementFlag(refinement_flag);
    return tet;
 }
 

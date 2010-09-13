@@ -14,6 +14,7 @@
 
 #include <iostream>
 #include <cstdlib>
+#include <cstring>
 
 #include "error.hpp"
 
@@ -122,6 +123,9 @@ public:
 
    /// Delete the last entry
    inline void DeleteLast() { size--; }
+
+   /// Delete the first 'el' entry
+   inline void DeleteFirst(const T &el);
 
    /// Delete whole array
    inline void DeleteAll();
@@ -253,6 +257,19 @@ inline int Array<T> :: Union (const T & el)
    if (i==size)
       Append(el);
    return i;
+}
+
+template <class T>
+inline void Array<T>::DeleteFirst(const T &el)
+{
+   for (int i = 0; i < size; i++)
+      if (((T*)data)[i] == el)
+      {
+         for (i++; i < size; i++)
+            ((T*)data)[i-1] = ((T*)data)[i];
+         size--;
+         return;
+      }
 }
 
 template <class T>

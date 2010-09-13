@@ -17,7 +17,7 @@ MFEM_DIR = ..
 MFEM_LIB = -L$(MFEM_DIR) -lmfem
 
 # Link with LAPACK? (needed if MFEM was compiled with LAPACK support)
-USE_LAPACK = NO
+USE_LAPACK = YES
 
 # LAPACK and BLAS
 LAPACK_DIR = $(HOME)/lapack
@@ -32,13 +32,16 @@ LAPACK_LIBS     = $(LAPACK_LIBS_$(USE_LAPACK))
 
 LIBS = $(MFEM_LIB) $(LAPACK_LIBS)
 
-all: ex1
+all: ex1 ex2
 
 ex1: ex1.cpp
 	$(CC) $(OPTS) -I$(MFEM_DIR) ex1.cpp -o ex1 $(LIBS)
+
+ex2: ex2.cpp
+	$(CC) $(OPTS) -I$(MFEM_DIR) ex2.cpp -o ex2 $(LIBS)
 
 debug:
 	make "OPTS=$(DEBUG_OPTS)"
 
 clean:
-	rm -f *.o ex1 sol.gf *~
+	rm -f *.o ex1 ex2 refined.mesh displaced.mesh sol.gf *~

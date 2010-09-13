@@ -327,9 +327,6 @@ void Vector::AddElementVector(const Array<int> & dofs, const double a,
 
 void Vector::Print (ostream & out, int width)
 {
-   ios::fmtflags old_fmt = out.setf(ios::scientific);
-   int old_prec = out.precision(14);
-
    for (int i = 0; 1; )
    {
       out << data[i];
@@ -341,10 +338,7 @@ void Vector::Print (ostream & out, int width)
       else
          out << ' ';
    }
-   out << endl;
-
-   out.precision(old_prec);
-   out.setf(old_fmt);
+   out << '\n';
 }
 
 void Vector::Print_HYPRE (ostream &out)

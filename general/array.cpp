@@ -34,7 +34,7 @@ BaseArray::BaseArray(int asize, int ainc, int elementsize)
 BaseArray::~BaseArray()
 {
    if (allocsize > 0)
-      delete (char*)data;
+      delete [] (char*)data;
 }
 
 void BaseArray::GrowSize (int minsize, int elementsize)
@@ -47,7 +47,7 @@ void BaseArray::GrowSize (int minsize, int elementsize)
    if (size > 0)
       memcpy (p, data, size * elementsize);
    if (allocsize > 0)
-      delete (char*)data;
+      delete [] (char*)data;
    data = p;
    allocsize = nsize;
 }

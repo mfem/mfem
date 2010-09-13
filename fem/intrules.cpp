@@ -1524,7 +1524,7 @@ void IntegrationRules::CubeIntegrationRules()
 {
    int i, k, l, m, np;
 
-   CubeIntRules.SetSize(8);
+   CubeIntRules.SetSize(20);
 
    for (i = 0; i < CubeIntRules.Size(); i++)
       CubeIntRules[i] = NULL;

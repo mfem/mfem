@@ -34,13 +34,13 @@ public:
    /// Constants for different types of tetrahedrons.
    enum { TYPE_PU=0, TYPE_A=1, TYPE_PF=2, TYPE_O=3, TYPE_M=4 };
 
-   Tetrahedron() : Element(Geometry::TETRAHEDRON) {}
+   Tetrahedron() : Element(Geometry::TETRAHEDRON) { refinement_flag = 0; }
 
    /// Constructs tetrahedron by specifying the indices and the attribute.
-   Tetrahedron( int *ind, int attr = 1 );
+   Tetrahedron(int *ind, int attr = 1);
 
    /// Constructs tetrahedron by specifying the indices and the attribute.
-   Tetrahedron( int ind1, int ind2, int ind3, int ind4, int attr = 1 );
+   Tetrahedron(int ind1, int ind2, int ind3, int ind4, int attr = 1);
 
    void  ParseRefinementFlag(int refinement_edges[2], int &type, int &flag);
    void CreateRefinementFlag(int refinement_edges[2], int  type, int  flag=0);

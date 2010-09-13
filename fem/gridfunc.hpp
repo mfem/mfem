@@ -85,6 +85,9 @@ public:
 
    void GetGradient(ElementTransformation &tr, Vector &grad);
 
+   void GetGradients(const int elem, const IntegrationRule &ir,
+                     DenseMatrix &grad);
+
    void GetVectorGradient(ElementTransformation &tr, DenseMatrix &grad);
 
    /** Compute \f$ (\int_{\Omega} (*this) \psi_i)/(\int_{\Omega} \psi_i) \f$,
@@ -145,6 +148,11 @@ public:
 
    /// Save the GridFunction to an output stream.
    void Save (ostream &out);
+
+   /** Write the GridFunction in VTK format. Note that Mesh::PrintVTK must be
+       called first. The parameter ref must match the one used in
+       Mesh::PrintVTK. */
+   void SaveVTK(ostream &out, const string &field_name, int ref);
 
    void SaveSTL (ostream &out, int TimesToRefine = 1);
 

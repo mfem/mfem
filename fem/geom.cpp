@@ -401,6 +401,157 @@ RefinedGeometry * GeometryRefiner::Refine (int Geom, int Times, int ETimes)
       return RGeom[3];
    }
 
+   case Geometry::CUBE:
+   {
+      const int g = Geometry::CUBE;
+      if (RGeom[g] != NULL && RGeom[g]->Times == Times &&
+          RGeom[g]->ETimes == ETimes)
+         return RGeom[g];
+
+      if (RGeom[g] != NULL)
+         delete RGeom[g];
+      RGeom[g] = new RefinedGeometry ((Times+1)*(Times+1)*(Times+1),
+                                      8*Times*Times*Times, 0);
+      RGeom[g]->Times = Times;
+      RGeom[g]->ETimes = ETimes;
+      for (l = k = 0; k <= Times; k++)
+         for (j = 0; j <= Times; j++)
+            for (i = 0; i <= Times; i++, l++)
+            {
+               IntegrationPoint &ip = RGeom[g]->RefPts.IntPoint(l);
+               ip.x = double(i) / Times;
+               ip.y = double(j) / Times;
+               ip.z = double(k) / Times;
+            }
+      Array<int> &G = RGeom[g]->RefGeoms;
+      for (l = k = 0; k < Times; k++)
+         for (j = 0; j < Times; j++)
+            for (i = 0; i < Times; i++)
+            {
+               G[l++] = i+0 + (j+0 + (k+0) * (Times+1)) * (Times+1);
+               G[l++] = i+1 + (j+0 + (k+0) * (Times+1)) * (Times+1);
+               G[l++] = i+1 + (j+1 + (k+0) * (Times+1)) * (Times+1);
+               G[l++] = i+0 + (j+1 + (k+0) * (Times+1)) * (Times+1);
+               G[l++] = i+0 + (j+0 + (k+1) * (Times+1)) * (Times+1);
+               G[l++] = i+1 + (j+0 + (k+1) * (Times+1)) * (Times+1);
+               G[l++] = i+1 + (j+1 + (k+1) * (Times+1)) * (Times+1);
+               G[l++] = i+0 + (j+1 + (k+1) * (Times+1)) * (Times+1);
+            }
+
+      return RGeom[g];
+   }
+
+   case Geometry::TETRAHEDRON:
+   {
+      const int g = Geometry::TETRAHEDRON;
+      if (RGeom[g] != NULL && RGeom[g]->Times == Times &&
+          RGeom[g]->ETimes == ETimes)
+         return RGeom[g];
+
+      if (RGeom[g] != NULL)
+         delete RGeom[g];
+
+      // subdivide the tetrahedron with vertices
+      // (0,0,0), (0,0,1), (1,1,1), (0,1,1)
+
+      // vertices: 0 <= i <= j <= k <= Times
+      // (3-combination with repetitions)
+      // number of vertices: (n+3)*(n+2)*(n+1)/6, n = Times
+
+      // elements: the vertices are: v1=(i,j,k), v2=v1+u1, v3=v2+u2, v4=v3+u3
+      // where 0 <= i <= j <= k <= n-1 and
+      // u1,u2,u3 is a permutation of (1,0,0),(0,1,0),(0,0,1)
+      // such that all v2,v3,v4 have non-decreasing components
+      // number of elements: n^3
+
+      const int n = Times;
+      RGeom[g] = new RefinedGeometry((n+3)*(n+2)*(n+1)/6, 4*n*n*n, 0);
+      // enumerate and define the vertices
+      Array<int> vi((n+1)*(n+1)*(n+1));
+      vi = -1;
+      int m = 0;
+      for (k = 0; k <= n; k++)
+         for (j = 0; j <= k; j++)
+            for (i = 0; i <= j; i++)
+            {
+               IntegrationPoint &ip = RGeom[g]->RefPts.IntPoint(m);
+               // map the coordinates to the reference tetrahedron
+               // (0,0,0) -> (0,0,0)
+               // (0,0,1) -> (1,0,0)
+               // (1,1,1) -> (0,1,0)
+               // (0,1,1) -> (0,0,1)
+               ip.x = double(k - j) / n;
+               ip.y = double(i) / n;
+               ip.z = double(j - i) / n;
+               l = i + (j + k * (n+1)) * (n+1);
+               vi[l] = m;
+               m++;
+            }
+      if (m != (n+3)*(n+2)*(n+1)/6)
+         mfem_error("GeometryRefiner::Refine() for TETRAHEDRON #1");
+      // elements
+      Array<int> &G = RGeom[g]->RefGeoms;
+      m = 0;
+      for (k = 0; k < n; k++)
+         for (j = 0; j <= k; j++)
+            for (i = 0; i <= j; i++)
+            {
+               // the ordering of the vertices is chosen to ensure:
+               // 1) correct orientation
+               // 2) the x,y,z edges are in the set of edges
+               //    {(0,1),(2,3), (0,2),(1,3)}
+               //    (goal is to ensure that subsequent refinement using
+               //    this procedure preserves the six tetrahedral shapes)
+
+               // zyx: (i,j,k)-(i,j,k+1)-(i+1,j+1,k+1)-(i,j+1,k+1)
+               G[m++] = vi[i+0 + (j+0 + (k+0) * (n+1)) * (n+1)];
+               G[m++] = vi[i+0 + (j+0 + (k+1) * (n+1)) * (n+1)];
+               G[m++] = vi[i+1 + (j+1 + (k+1) * (n+1)) * (n+1)];
+               G[m++] = vi[i+0 + (j+1 + (k+1) * (n+1)) * (n+1)];
+               if (j < k)
+               {
+                  // yzx: (i,j,k)-(i+1,j+1,k+1)-(i,j+1,k)-(i,j+1,k+1)
+                  G[m++] = vi[i+0 + (j+0 + (k+0) * (n+1)) * (n+1)];
+                  G[m++] = vi[i+1 + (j+1 + (k+1) * (n+1)) * (n+1)];
+                  G[m++] = vi[i+0 + (j+1 + (k+0) * (n+1)) * (n+1)];
+                  G[m++] = vi[i+0 + (j+1 + (k+1) * (n+1)) * (n+1)];
+                  // yxz: (i,j,k)-(i,j+1,k)-(i+1,j+1,k+1)-(i+1,j+1,k)
+                  G[m++] = vi[i+0 + (j+0 + (k+0) * (n+1)) * (n+1)];
+                  G[m++] = vi[i+0 + (j+1 + (k+0) * (n+1)) * (n+1)];
+                  G[m++] = vi[i+1 + (j+1 + (k+1) * (n+1)) * (n+1)];
+                  G[m++] = vi[i+1 + (j+1 + (k+0) * (n+1)) * (n+1)];
+               }
+               if (i < j)
+               {
+                  // xzy: (i,j,k)-(i+1,j,k)-(i+1,j+1,k+1)-(i+1,j,k+1)
+                  G[m++] = vi[i+0 + (j+0 + (k+0) * (n+1)) * (n+1)];
+                  G[m++] = vi[i+1 + (j+0 + (k+0) * (n+1)) * (n+1)];
+                  G[m++] = vi[i+1 + (j+1 + (k+1) * (n+1)) * (n+1)];
+                  G[m++] = vi[i+1 + (j+0 + (k+1) * (n+1)) * (n+1)];
+                  if (j < k)
+                  {
+                     // xyz: (i,j,k)-(i+1,j+1,k+1)-(i+1,j,k)-(i+1,j+1,k)
+                     G[m++] = vi[i+0 + (j+0 + (k+0) * (n+1)) * (n+1)];
+                     G[m++] = vi[i+1 + (j+1 + (k+1) * (n+1)) * (n+1)];
+                     G[m++] = vi[i+1 + (j+0 + (k+0) * (n+1)) * (n+1)];
+                     G[m++] = vi[i+1 + (j+1 + (k+0) * (n+1)) * (n+1)];
+                  }
+                  // zxy: (i,j,k)-(i+1,j+1,k+1)-(i,j,k+1)-(i+1,j,k+1)
+                  G[m++] = vi[i+0 + (j+0 + (k+0) * (n+1)) * (n+1)];
+                  G[m++] = vi[i+1 + (j+1 + (k+1) * (n+1)) * (n+1)];
+                  G[m++] = vi[i+0 + (j+0 + (k+1) * (n+1)) * (n+1)];
+                  G[m++] = vi[i+1 + (j+0 + (k+1) * (n+1)) * (n+1)];
+               }
+            }
+      if (m != 4*n*n*n)
+         mfem_error("GeometryRefiner::Refine() for TETRAHEDRON #2");
+      for (i = 0; i < m; i++)
+         if (G[i] < 0)
+            mfem_error("GeometryRefiner::Refine() for TETRAHEDRON #3");
+
+      return RGeom[g];
+   }
+
    default:
 
       return RGeom[0];
