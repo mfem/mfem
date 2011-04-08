@@ -56,6 +56,8 @@ public:
    void SetDataAndSize(double *d, int s)
    { data = d; size = s; allocsize = -s; }
 
+   void MakeDataOwner() { allocsize = abs(allocsize); }
+
    /// Destroy a vector
    void Destroy();
 

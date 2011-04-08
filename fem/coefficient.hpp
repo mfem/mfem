@@ -318,4 +318,7 @@ public:
    virtual ~MatrixArrayCoefficient();
 };
 
+double ComputeLpNorm(double p, Coefficient &coeff, Mesh &mesh,
+                     const IntegrationRule *irs[]);
+
 #endif

@@ -23,10 +23,10 @@ public:
    Segment() : Element(Geometry::SEGMENT) {}
 
    /// Constructs triangle by specifying the indices and the attribute.
-   Segment( const int *ind, int attr = -1 );
+   Segment(const int *ind, int attr = 1);
 
    /// Constructs triangle by specifying the indices and the attribute.
-   Segment( int ind1, int ind2, int attr = -1 );
+   Segment(int ind1, int ind2, int attr = 1);
 
    /// Set the indices the element according to the input.
    virtual void SetVertices(const int *ind);
@@ -35,18 +35,18 @@ public:
    virtual int GetType() const { return Element::SEGMENT; }
 
    /// Returns the indices of the element's  vertices.
-   virtual void GetVertices( Array<int> &v ) const;
+   virtual void GetVertices(Array<int> &v) const;
 
-   virtual int * GetVertices () { return indices; };
+   virtual int *GetVertices() { return indices; }
 
-   virtual int GetNVertices() const { return 2; };
+   virtual int GetNVertices() const { return 2; }
 
    virtual int GetNEdges() const { return(0); }
 
    virtual const int *GetEdgeVertices(int ei) const { return(NULL); }
 
    virtual Element *Duplicate() const
-   { return new Segment (indices, attribute); };
+   { return new Segment(indices, attribute); }
 
    virtual ~Segment() { }
 };

@@ -2,10 +2,12 @@
 //
 // Compile with: make ex1
 //
-// Sample runs:  ex1 square-disc.mesh2d
-//               ex1 star.mesh2d
-//               ex1 escher.mesh3d
-//               ex1 fichera.mesh3d
+// Sample runs:  ex1 ../data/square-disc.mesh
+//               ex1 ../data/star.mesh
+//               ex1 ../data/escher.mesh
+//               ex1 ../data/fichera.mesh
+//               ex1 ../data/square-disc-p2.vtk
+//               ex1 ../data/square-disc-p3.mesh
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple linear finite element discretization of the Laplace
@@ -28,7 +30,7 @@ int main (int argc, char *argv[])
 
    if (argc == 1)
    {
-      cout << "Usage: ex1 <mesh_file>" << endl;
+      cout << "\nUsage: ex1 <mesh_file>\n" << endl;
       return 1;
    }
 
@@ -37,7 +39,7 @@ int main (int argc, char *argv[])
    ifstream imesh(argv[1]);
    if (!imesh)
    {
-      cerr << "can not open mesh file: " << argv[1] << endl;
+      cerr << "\nCan not open mesh file: " << argv[1] << '\n' << endl;
       return 2;
    }
    mesh = new Mesh(imesh, 1, 1);
@@ -120,4 +122,6 @@ int main (int argc, char *argv[])
    delete fespace;
    delete fec;
    delete mesh;
+
+   return 0;
 }

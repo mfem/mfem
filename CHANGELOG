@@ -8,6 +8,39 @@
                          http://mfem.googlecode.com
 
 
+Version 1.2, released on Apr 08, 2011
+=====================================
+
+- New MPI parallel version of the library based on the ParCSR parallel matrix
+  format from hypre and the metis graph partitioning library. This version
+  supports parallel local refinement and parallel curved meshes, as well as
+  several solvers from hypre.
+
+- Added a new example code describing an electromagnetic diffusion problem
+  discretized with lowest order Nedelec finite elements (Example 3).
+
+- Added parallel versions of all examples codes (files ex1p.cpp, ex2p.cpp and
+  ex3p.cpp) based on hypre's BoomerAMG and AMS preconditioners.
+
+- Added support for saving and reading linear and curved quadratic meshes in VTK
+  format. The format is automatically recognized when opening a mesh file, and
+  the boundary is reconstructed based on the actual domain boundary.
+
+- The 'data' directory now contains a collection of various mesh files in the
+  MFEM and VTK formats, including curved meshes and the mesh files that were
+  previously in the 'examples' directory.
+
+- Updated the default integration rule order for most of the linear form
+  integrators.
+
+- Added support for cubic hex elements.
+
+- Bugfixes in the face orientation of 3D RT0 elements and in the VectorFEDomain
+  linear form integrator.
+
+- Various small fixes and styling updates.
+
+
 Version 1.1, released on Sep 13, 2010
 =====================================
 

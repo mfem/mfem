@@ -806,7 +806,7 @@ void FiniteElementSpace::ConstructRefinementData (int k, int num_c_dofs,
    RefData.Append(data);
 }
 
-void FiniteElementSpace::Save (ostream &out)
+void FiniteElementSpace::Save (ostream &out) const
 {
    out << "FiniteElementSpace\n"
        << "FiniteElementCollection: " << fec -> Name() << '\n'

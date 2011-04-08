@@ -148,10 +148,10 @@ public:
    int GetBdrAttribute(int i) { return mesh -> GetBdrAttribute(i); };
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
-   void GetElementDofs (int i, Array<int> &dofs) const;
+   virtual void GetElementDofs (int i, Array<int> &dofs) const;
 
    /// Returns indexes of degrees of freedom for i'th boundary element.
-   void GetBdrElementDofs (int i, Array<int> &dofs) const;
+   virtual void GetBdrElementDofs (int i, Array<int> &dofs) const;
 
    /** Returns the indexes of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */
@@ -204,22 +204,20 @@ public:
    /// Returns pointer to the FiniteElement for the i'th boundary element.
    const FiniteElement * GetBE (int i) const;
 
-   /** Return the restriction matrix from this FE space to the
-       coarse FE space 'cfes'. Both FE spaces must use the same FE
-       collection and be defined on the same Mesh which must be in
-       TWO_LEVEL_* state.  When vdim > 1, 'one_vdim' specifies
-       whether the restriction matrix built should be the scalar
-       restriction (one_vdim=1) or the full vector restriction
-       (one_vdim=0); if one_vdim=-1 then the behavior depends on
-       the ordering of this FE space: if ordering=byNodes then the
-       scalar restriction matrix is built and if ordering=byVDim --
-       the full vector restriction matrix.  */
+   /** Return the restriction matrix from this FE space to the coarse FE space
+       'cfes'. Both FE spaces must use the same FE collection and be defined on
+       the same Mesh which must be in TWO_LEVEL_* state.  When vdim > 1,
+       'one_vdim' specifies whether the restriction matrix built should be the
+       scalar restriction (one_vdim=1) or the full vector restriction
+       (one_vdim=0); if one_vdim=-1 then the behavior depends on the ordering of
+       this FE space: if ordering=byNodes then the scalar restriction matrix is
+       built and if ordering=byVDim -- the full vector restriction matrix.  */
    SparseMatrix * GlobalRestrictionMatrix (FiniteElementSpace *cfes,
                                            int one_vdim = -1);
 
    /// Determine the boundary degrees of freedom
-   void GetEssentialVDofs (Array<int> &bdr_attr_is_ess,
-                           Array<int> &ess_dofs);
+   virtual void GetEssentialVDofs(Array<int> &bdr_attr_is_ess,
+                                  Array<int> &ess_dofs);
 
    void EliminateEssentialBCFromGRM (FiniteElementSpace *cfes,
                                      Array<int> &bdr_attr_is_ess,
@@ -243,13 +241,13 @@ public:
        is defined on the same mesh. */
    SparseMatrix * H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes);
 
-   void Update();
+   virtual void Update();
    /// Return a copy of the current FE space and update
-   FiniteElementSpace *SaveUpdate();
+   virtual FiniteElementSpace *SaveUpdate();
 
-   void Save (ostream &out);
+   void Save (ostream &out) const;
 
-   ~FiniteElementSpace();
+   virtual ~FiniteElementSpace();
 };
 
 #endif

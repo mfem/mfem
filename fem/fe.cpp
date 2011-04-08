@@ -313,7 +313,7 @@ void GaussLinear2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 }
 
 
-//  0.5-0.5/sqrt(3) and 0.5+0.5/sqrt(3)
+// 0.5-0.5/sqrt(3) and 0.5+0.5/sqrt(3)
 const double GaussBiLinear2DFiniteElement::p[] =
 { 0.2113248654051871177454256, 0.7886751345948128822545744 };
 
@@ -821,6 +821,25 @@ void BiQuadPos2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
    dshape(2,0) = d3x * l3y;
    dshape(2,1) = l3x * d3y;
+}
+
+void BiQuadPos2DFiniteElement::Project(
+   Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
+{
+   double *d = dofs;
+
+   for (int i = 0; i < 9; i++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(i);
+      Trans.SetIntPoint(&ip);
+      d[i] = coeff.Eval(Trans, ip);
+   }
+   d[4] = 2. * d[4] - 0.5 * (d[0] + d[1]);
+   d[5] = 2. * d[5] - 0.5 * (d[1] + d[2]);
+   d[6] = 2. * d[6] - 0.5 * (d[2] + d[3]);
+   d[7] = 2. * d[7] - 0.5 * (d[3] + d[0]);
+   d[8] = 4. * d[8] - 0.5 * (d[4] + d[5] + d[6] + d[7]) -
+      0.25 * (d[0] + d[1] + d[2] + d[3]);
 }
 
 void BiQuadPos2DFiniteElement::Project (
@@ -2442,7 +2461,8 @@ LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
    : NodalFiniteElement(3, Geometry::CUBE, (degree+1)*(degree+1)*(degree+1),
                         degree, FunctionSpace::Qk)
 {
-   if (degree == 2) {
+   if (degree == 2)
+   {
       I = new int[Dof];
       J = new int[Dof];
       K = new int[Dof];
@@ -2477,7 +2497,83 @@ LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
       I[25] = 2; J[25] = 2; K[25] = 1;
       // element
       I[26] = 2; J[26] = 2; K[26] = 2;
-   } else  {
+   }
+   else if (degree == 3)
+   {
+      I = new int[Dof];
+      J = new int[Dof];
+      K = new int[Dof];
+      // nodes
+      I[ 0] = 0; J[ 0] = 0; K[ 0] = 0;
+      I[ 1] = 1; J[ 1] = 0; K[ 1] = 0;
+      I[ 2] = 1; J[ 2] = 1; K[ 2] = 0;
+      I[ 3] = 0; J[ 3] = 1; K[ 3] = 0;
+      I[ 4] = 0; J[ 4] = 0; K[ 4] = 1;
+      I[ 5] = 1; J[ 5] = 0; K[ 5] = 1;
+      I[ 6] = 1; J[ 6] = 1; K[ 6] = 1;
+      I[ 7] = 0; J[ 7] = 1; K[ 7] = 1;
+      // edges
+      I[ 8] = 2; J[ 8] = 0; K[ 8] = 0;
+      I[ 9] = 3; J[ 9] = 0; K[ 9] = 0;
+      I[10] = 1; J[10] = 2; K[10] = 0;
+      I[11] = 1; J[11] = 3; K[11] = 0;
+      I[12] = 2; J[12] = 1; K[12] = 0;
+      I[13] = 3; J[13] = 1; K[13] = 0;
+      I[14] = 0; J[14] = 2; K[14] = 0;
+      I[15] = 0; J[15] = 3; K[15] = 0;
+      I[16] = 2; J[16] = 0; K[16] = 1;
+      I[17] = 3; J[17] = 0; K[17] = 1;
+      I[18] = 1; J[18] = 2; K[18] = 1;
+      I[19] = 1; J[19] = 3; K[19] = 1;
+      I[20] = 2; J[20] = 1; K[20] = 1;
+      I[21] = 3; J[21] = 1; K[21] = 1;
+      I[22] = 0; J[22] = 2; K[22] = 1;
+      I[23] = 0; J[23] = 3; K[23] = 1;
+      I[24] = 0; J[24] = 0; K[24] = 2;
+      I[25] = 0; J[25] = 0; K[25] = 3;
+      I[26] = 1; J[26] = 0; K[26] = 2;
+      I[27] = 1; J[27] = 0; K[27] = 3;
+      I[28] = 1; J[28] = 1; K[28] = 2;
+      I[29] = 1; J[29] = 1; K[29] = 3;
+      I[30] = 0; J[30] = 1; K[30] = 2;
+      I[31] = 0; J[31] = 1; K[31] = 3;
+      // faces
+      I[32] = 2; J[32] = 3; K[32] = 0;
+      I[33] = 3; J[33] = 3; K[33] = 0;
+      I[34] = 2; J[34] = 2; K[34] = 0;
+      I[35] = 3; J[35] = 2; K[35] = 0;
+      I[36] = 2; J[36] = 0; K[36] = 2;
+      I[37] = 3; J[37] = 0; K[37] = 2;
+      I[38] = 2; J[38] = 0; K[38] = 3;
+      I[39] = 3; J[39] = 0; K[39] = 3;
+      I[40] = 1; J[40] = 2; K[40] = 2;
+      I[41] = 1; J[41] = 3; K[41] = 2;
+      I[42] = 1; J[42] = 2; K[42] = 3;
+      I[43] = 1; J[43] = 3; K[43] = 3;
+      I[44] = 3; J[44] = 1; K[44] = 2;
+      I[45] = 2; J[45] = 1; K[45] = 2;
+      I[46] = 3; J[46] = 1; K[46] = 3;
+      I[47] = 2; J[47] = 1; K[47] = 3;
+      I[48] = 0; J[48] = 3; K[48] = 2;
+      I[49] = 0; J[49] = 2; K[49] = 2;
+      I[50] = 0; J[50] = 3; K[50] = 3;
+      I[51] = 0; J[51] = 2; K[51] = 3;
+      I[52] = 2; J[52] = 2; K[52] = 1;
+      I[53] = 3; J[53] = 2; K[53] = 1;
+      I[54] = 2; J[54] = 3; K[54] = 1;
+      I[55] = 3; J[55] = 3; K[55] = 1;
+      // element
+      I[56] = 2; J[56] = 2; K[56] = 2;
+      I[57] = 3; J[57] = 2; K[57] = 2;
+      I[58] = 3; J[58] = 3; K[58] = 2;
+      I[59] = 2; J[59] = 3; K[59] = 2;
+      I[60] = 2; J[60] = 2; K[60] = 3;
+      I[61] = 3; J[61] = 2; K[61] = 3;
+      I[62] = 3; J[62] = 3; K[62] = 3;
+      I[63] = 2; J[63] = 3; K[63] = 3;
+   }
+   else
+   {
       mfem_error ("LagrangeHexFiniteElement::LagrangeHexFiniteElement");
    }
 
@@ -2492,7 +2588,8 @@ LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
    dshape1dy.SetSize(dof1d,1);
    dshape1dz.SetSize(dof1d,1);
 
-   for (int n = 0; n < Dof; n++) {
+   for (int n = 0; n < Dof; n++)
+   {
       Nodes.IntPoint(n).x = fe1d -> GetNodes().IntPoint(I[n]).x;
       Nodes.IntPoint(n).y = fe1d -> GetNodes().IntPoint(J[n]).x;
       Nodes.IntPoint(n).z = fe1d -> GetNodes().IntPoint(K[n]).x;

@@ -222,7 +222,6 @@ void BilinearForm::EliminateEssentialBC (
    Array<int> &bdr_attr_is_ess, Vector &sol, Vector &rhs, int d )
 {
    int i, j, k;
-   Array<int> vdofs;
 
    for (i = 0; i < fes -> GetNBE(); i++)
       if (bdr_attr_is_ess[fes -> GetBdrAttribute (i)-1])

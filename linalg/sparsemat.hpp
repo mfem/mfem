@@ -172,19 +172,19 @@ public:
    SparseMatrix & operator= (double a);
 
    /// Prints matrix to stream out.
-   void Print(ostream & out = cout, int width = 4);
+   void Print(ostream & out = cout, int width = 4) const;
 
    /// Prints matrix in matlab format.
-   void PrintMatlab(ostream & out = cout);
+   void PrintMatlab(ostream & out = cout) const;
 
    /// Prints matrix in Matrix Market sparse format.
-   void PrintMM(ostream & out = cout);
+   void PrintMM(ostream & out = cout) const;
 
    /// Prints matrix to stream out in hypre_CSRMatrix format.
-   void PrintCSR(ostream & out);
+   void PrintCSR(ostream & out) const;
 
    /// Prints a sparse matrix to stream out in CSR format.
-   void PrintCSR2(ostream & out);
+   void PrintCSR2(ostream & out) const;
 
    /// Walks the sparse matrix
    int Walk (int & i, int & j, double & a);
@@ -196,7 +196,7 @@ public:
    void Symmetrize();
 
    /// Returns the number of the nonzero elements in the matrix
-   int NumNonZeroElems ();
+   int NumNonZeroElems() const;
 
    /// Count the number of entries with |a_ij| < tol
    int CountSmallElems (double tol);
@@ -208,14 +208,14 @@ public:
    virtual ~SparseMatrix();
 };
 
-// Applies f() to each element of the matrix (after it is finalized).
+/// Applies f() to each element of the matrix (after it is finalized).
 void SparseMatrixFunction (SparseMatrix & S, double (*f)(double));
 
 
-/*  Transpose of a sparse matrix. A must be finalized.  */
+/// Transpose of a sparse matrix. A must be finalized.
 SparseMatrix *Transpose (SparseMatrix &A);
 
-/*  Matrix product A.B.
+/** Matrix product A.B.
     If OAB is not NULL, we assume it has the structure
     of A.B and store the result in OAB.
     If OAB is NULL, we create a new SparseMatrix to store
@@ -225,12 +225,12 @@ SparseMatrix *Mult (SparseMatrix &A, SparseMatrix &B,
                     SparseMatrix *OAB = NULL);
 
 
-/*  RAP matrix product. ORAP is like OAB above.
+/** RAP matrix product. ORAP is like OAB above.
     All matrices must be finalized.  */
 SparseMatrix *RAP (SparseMatrix &A, SparseMatrix &R,
                    SparseMatrix *ORAP = NULL);
 
-/*  Matrix multiplication A^t D A.
+/** Matrix multiplication A^t D A.
     All matrices must be finalized.  */
 SparseMatrix *Mult_AtDA (SparseMatrix &A, Vector &D,
                          SparseMatrix *OAtDA = NULL);

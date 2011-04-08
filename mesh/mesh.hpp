@@ -17,8 +17,15 @@
 class FiniteElementSpace;
 class GridFunction;
 
+#ifdef MFEM_USE_MPI
+class ParMesh;
+#endif
+
 class Mesh
 {
+#ifdef MFEM_USE_MPI
+   friend class ParMesh;
+#endif
 protected:
    int Dim;
 
@@ -83,9 +90,9 @@ protected:
 
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
-   void MarkTetMeshForRefinement(int mark_faces = 0);
+   void MarkTetMeshForRefinement();
 
-   STable3D *GetElementToFaceTable (int ret_ftbl = 0);
+   STable3D *GetElementToFaceTable(int ret_ftbl = 0);
 
    /** Red refinement. Element with index i is refined. The default
        red refinement for now is Uniform. */
@@ -116,14 +123,10 @@ protected:
    void UpdateNodes();
 
    /// Refine quadrilateral mesh.
-   void QuadUniformRefinement();
+   virtual void QuadUniformRefinement();
 
    /// Refine hexahedral mesh.
-   void HexUniformRefinement();
-
-   /** Mark the edges in the elements, boundary elements and faces for
-       refinement. */
-   void MarkEdges();
+   virtual void HexUniformRefinement();
 
    void BisectTriTrans (DenseMatrix &pointmat, Triangle *tri,
                         int child);
@@ -294,6 +297,8 @@ public:
 
    const Element *GetBdrElement (int i) const { return boundary[i]; };
 
+   Element *GetBdrElement (int i) { return boundary[i]; };
+
    const Element *GetFace (int i) const { return faces[i]; };
 
    int GetFaceBaseGeometry(int i) const;
@@ -417,7 +422,8 @@ public:
    ///  The returned Table must be destroyed by the caller
    Table *GetVertexToElementTable();
 
-   void CheckPartitioning (int *partitioning);
+   int *GeneratePartitioning(int nparts, int part_method = 1);
+   void CheckPartitioning(int *partitioning);
 
    void CheckDisplacements(const Vector &displacements, double &tmax);
    void MoveVertices(const Vector &displacements);
@@ -437,11 +443,11 @@ public:
    void NewNodes(GridFunction &nodes);
 
    /// Refine the marked elements.
-   void LocalRefinement(const Array<int> &marked_el, int type = 3);
+   virtual void LocalRefinement(const Array<int> &marked_el, int type = 3);
 
    void UniformRefinement();
 
-   /** Sets or clears the flag that indicates that 'LocalRefinement (...)'
+   /** Sets or clears the flag that indicates that mesh refinement methods
        should put the mesh in two-level state. */
    void UseTwoLevelState (int use)
    {
@@ -473,7 +479,10 @@ public:
    void PrintXG(ostream &out = cout) const;
 
    /// Print the mesh to the given stream using the default MFEM mesh format.
-   void Print(ostream &out = cout) const;
+   virtual void Print(ostream &out = cout) const;
+
+   /// Print the mesh in VTK format (linear and quadratic meshes only).
+   void PrintVTK(ostream &out);
 
    /** Print the mesh in VTK format. The parameter ref specifies an element
        subdivision number (useful for high order fields and curved meshes). */
@@ -507,7 +516,7 @@ public:
    void PrintCharacteristics (Vector *Vh = NULL, Vector *Vk = NULL);
 
    /// Destroys mesh.
-   ~Mesh();
+   virtual ~Mesh();
 };
 
 #endif

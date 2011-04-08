@@ -16,8 +16,7 @@
 class BilinearFormIntegrator
 {
 public:
-   /** Given a particular Finite Element
-       computes the element matrix elmat. */
+   /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
@@ -255,7 +254,7 @@ private:
 
 public:
    CurlCurlIntegrator() { Q = NULL; };
-   // Construct a bilinear form integrator for Nedelec elements
+   /// Construct a bilinear form integrator for Nedelec elements
    CurlCurlIntegrator(Coefficient &q):Q(&q) {};
 
    /* Given a particular Finite Element, compute the
@@ -311,7 +310,7 @@ public:
                                        DenseMatrix &elmat);
 };
 
-///  (Q div u, div v) for RT elements
+/// (Q div u, div v) for RT elements
 class DivDivIntegrator: public BilinearFormIntegrator
 {
 private:

@@ -9,33 +9,42 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
+# Serial compiler
 CC         = g++
 CCOPTS     =
 DEBUG_OPTS = -g -DMFEM_DEBUG
 OPTIM_OPTS = -O3
-DEPCC      = g++
+DEPCC      = $(CC)
 
-# internal mfem options
-USE_MEMALLOC     = YES
-USE_LAPACK       = YES
+# Parallel compiler
+MPICC      = mpiCC
+MPIOPTS    = $(CCOPTS) -I$(HYPRE_DIR)/include
 
-USE_MEMALLOC_NO  =
-USE_MEMALLOC_YES = -DMFEM_USE_MEMALLOC
-USE_MEMALLOC_DEF = $(USE_MEMALLOC_$(USE_MEMALLOC))
+# The HYPRE library (needed to build the parallel version)
+HYPRE_DIR  = ../../hypre-2.7.0b/src/hypre
+
+# Internal mfem options
+USE_LAPACK   = YES
+USE_MEMALLOC = YES
 
 USE_LAPACK_NO  =
 USE_LAPACK_YES = -DMFEM_USE_LAPACK
 USE_LAPACK_DEF = $(USE_LAPACK_$(USE_LAPACK))
 
-DEFS = $(USE_MEMALLOC_DEF) $(USE_LAPACK_DEF)
+USE_MEMALLOC_NO  =
+USE_MEMALLOC_YES = -DMFEM_USE_MEMALLOC
+USE_MEMALLOC_DEF = $(USE_MEMALLOC_$(USE_MEMALLOC))
 
-CCC    = $(CC) $(CCOPTS) $(MODE_OPTS) $(DEFS)
-# compiler and options used for generating deps.mk
+DEFS = $(USE_LAPACK_DEF) $(USE_MEMALLOC_DEF)
+
+CCC = $(CC) $(MODE_OPTS) $(DEFS) $(CCOPTS)
+
+# Compiler and options used for generating deps.mk
 DEPCCC = $(DEPCC) $(CCOPTS) $(MODE_OPTS) $(DEFS)
 
 DEFINES = $(subst -D,,$(filter -D%,$(CCC)))
 
-# source dirs in logical order
+# Source dirs in logical order
 DIRS = general linalg mesh fem
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(dir)/*.cpp))
 OBJECT_FILES = $(SOURCE_FILES:.cpp=.o)
@@ -44,15 +53,21 @@ OBJECT_FILES = $(SOURCE_FILES:.cpp=.o)
 .cpp.o:
 	cd $(<D); $(CCC) -c $(<F)
 
-default: opt
+# Serial build
+serial: opt
 
-lib:	libmfem.a mfem_defs.hpp
+# Parallel build
+parallel pdebug: CCC=$(MPICC) $(MODE_OPTS) $(DEFS) -DMFEM_USE_MPI $(MPIOPTS)
+parallel: opt
+pdebug: debug
+
+lib: libmfem.a mfem_defs.hpp
 
 debug deps_debug: MODE_OPTS = $(DEBUG_OPTS)
-debug:	lib
+debug: lib
 
 opt deps_opt: MODE_OPTS = $(OPTIM_OPTS)
-opt:	lib
+opt: lib
 
 -include deps.mk
 

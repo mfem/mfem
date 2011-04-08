@@ -22,4 +22,9 @@
 #include "densemat.hpp"
 #include "solvers.hpp"
 
+#ifdef MFEM_USE_MPI
+#include <mpi.h>
+#include "hypre.hpp"
+#endif
+
 #endif

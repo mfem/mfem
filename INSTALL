@@ -1,5 +1,5 @@
                     Finite Element Discretization Library
-                                 version 1.1
+                                 version 1.2
                                    __
                        _ __ ___   / _|  ___  _ __ ___
                       | '_ ` _ \ | |_  / _ \| '_ ` _ \
@@ -8,11 +8,25 @@
 
                          http://mfem.googlecode.com
 
-The only prerequisite for building MFEM is a (modern) C++ compiler, such as
-g++. Some of the dense linear algebra functionality in MFEM requires the LAPACK
-and BLAS libraries from http://www.netlib.org/lapack. If LAPACK is not provided,
-the corresponding MFEM functions will either use a simple internal version, or
-generate run-time errors when used.
+The MFEM library has a serial and a MPI-based parallel version, which largely
+share the same code base. Note that the two versions don't mix (you can't build
+the serial examples with the parallel library or vice-versa). Note also that the
+GLVis visualization tool requires the serial version.
+
+The only prerequisite for building the serial version of MFEM is a (modern) C++
+compiler, such as g++. Some of the dense linear algebra functionality in MFEM
+requires the LAPACK and BLAS libraries from http://www.netlib.org/lapack. If
+LAPACK is not provided, the corresponding MFEM functions will either use a
+simple internal version, or generate run-time errors when used.
+
+The parallel version of MFEM requires a MPI C++ compiler, as well as the
+following external libraries:
+
+- hypre (a library of high-performance preconditioners)
+  http://www.llnl.gov/CASC/hypre
+
+- metis (a family of multilevel partitioning algorithms)
+  http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
 
 Three build systems are supported, based on make, GNU make (gmake) and SCons, as
 described below.
@@ -26,9 +40,11 @@ the "mfem_defs.hpp" header file which lists all "define" symbols from the build.
 
 Some of the available 'make' targets are:
 
-make       -> Builds the libmfem.a library
-make debug -> Builds a debug version
-make clean -> Cleans the build
+make          -> Builds the serial libmfem.a library
+make debug    -> Builds a serial debug version
+make parallel -> Builds the parallel libmfem.a library
+make pdebug   -> Builds a parallel debug version
+make clean    -> Cleans the build
 
 
 Building with 'gmake'
@@ -40,9 +56,11 @@ GNUmakefile will be used instead of the makefile.
 
 Some of the available 'gmake' targets are:
 
-gmake       -> Builds the libmfem.a library
-gmake debug -> Builds a debug version
-gmake clean -> Cleans the build
+gmake          -> Builds the serial libmfem.a library
+gmake debug    -> Builds a serial debug version
+gmake parallel -> Builds the parallel libmfem.a library
+gmake pdebug   -> Builds a parallel debug version
+gmake clean    -> Cleans the build
 
 
 Building with 'SCons'
@@ -53,6 +71,7 @@ file will automatically detect the availability of LAPACK.
 
 Some of the available 'SCons' targets are:
 
-scons         -> Builds the libmfem.a library
-scons debug=1 -> Builds a debug version
-scons -c      -> Cleans the build
+scons            -> Builds the serial libmfem.a library
+scons debug=1    -> Builds a serial debug version
+scons parallel=1 -> Builds the parallel libmfem.a library
+scons -c         -> Cleans the build

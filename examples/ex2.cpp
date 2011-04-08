@@ -2,7 +2,10 @@
 //
 // Compile with: make ex2
 //
-// Sample runs:  ex2 beam.mesh3d
+// Sample runs:  ex2 ../data/beam-tri.mesh
+//               ex2 ../data/beam-quad.mesh
+//               ex2 ../data/beam-tet.mesh
+//               ex2 ../data/beam-hex.mesh
 //
 // Description:  This example code solves a simple linear elasticity problem
 //               describing a multi-material Cantilever beam.
@@ -38,7 +41,7 @@ int main (int argc, char *argv[])
 
    if (argc == 1)
    {
-      cout << "Usage: ex2 <mesh_file>" << endl;
+      cout << "\nUsage: ex2 <mesh_file>\n" << endl;
       return 1;
    }
 
@@ -47,7 +50,7 @@ int main (int argc, char *argv[])
    ifstream imesh(argv[1]);
    if (!imesh)
    {
-      cerr << "can not open mesh file: " << argv[1] << endl;
+      cerr << "\nCan not open mesh file: " << argv[1] << '\n' << endl;
       return 2;
    }
    mesh = new Mesh(imesh, 1, 1);
@@ -61,7 +64,7 @@ int main (int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(5000./mesh->GetNE())/log(2.)/mesh->Dimension());
+         (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
          mesh->UniformRefinement();
    }
@@ -99,17 +102,15 @@ int main (int argc, char *argv[])
    //    which is a vector of Coefficient objects. The fact that f is non-zero
    //    on boundary attribute 2 is indicated by the use of piece-wise constants
    //    coefficient for its last component.
-   Coefficient *f_coeff[dim];
-   for (int i = 0; i < dim-1; i++)
-      f_coeff[i] = new ConstantCoefficient(0.0);
-   Vector pull_force(mesh->bdr_attributes.Max());
-   pull_force = 0.0;
-   pull_force(1) = -1.0e-2;
-   f_coeff[dim-1] = new PWConstCoefficient(pull_force);
-
    VectorArrayCoefficient f(dim);
-   for (int i = 0; i < dim; i++)
-      f.Set(i,f_coeff[i]);
+   for (int i = 0; i < dim-1; i++)
+      f.Set(i, new ConstantCoefficient(0.0));
+   {
+      Vector pull_force(mesh->bdr_attributes.Max());
+      pull_force = 0.0;
+      pull_force(1) = -1.0e-2;
+      f.Set(dim-1, new PWConstCoefficient(pull_force));
+   }
 
    LinearForm *b = new LinearForm(fespace);
    b->AddDomainIntegrator(new VectorBoundaryLFIntegrator(f));
@@ -181,7 +182,7 @@ int main (int argc, char *argv[])
    char vishost[] = "localhost";
    int  visport   = 19916;
    osockstream sol_sock (visport, vishost);
-   if (mesh->Dimension() == 2)
+   if (dim == 2)
       sol_sock << "vfem2d_gf_data\n";
    else
       sol_sock << "vfem3d_gf_data\n";
@@ -195,4 +196,6 @@ int main (int argc, char *argv[])
    delete fespace;
    delete fec;
    delete mesh;
+
+   return 0;
 }

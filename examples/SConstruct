@@ -10,17 +10,23 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 Help("""
-       Type: 'scons' to build the production library,
+       Type: 'scons' to build the example codes,
              'scons -c' to clean the build,
-             'scons debug=1' to build the debug version.
+             'scons debug=1' to build the debug version,
+             'scons parallel=1' to build the parallel version.
        """)
 
 import os
 
-env = Environment()
+# Export the shell environment variables
+env = Environment(ENV=os.environ)
 
 CC_OPTS    = '-O3'
 DEBUG_OPTS = '-g -Wall'
+
+# External libraries
+HYPRE_DIR  = "../../hypre-2.7.0b/src/hypre"
+METIS_DIR  = "../../metis-4.0"
 
 # Debug options
 debug = ARGUMENTS.get('debug', 0)
@@ -28,6 +34,23 @@ if int(debug):
    env.Append(CCFLAGS = DEBUG_OPTS)
 else:
    env.Append(CCFLAGS = CC_OPTS)
+
+env.Append(LIBS = ['mfem'])
+env.Append(LIBPATH = ['..'])
+env.Append(CPPPATH = ['..'])
+
+# Parallel version
+parallel = ARGUMENTS.get('parallel', 0)
+if int(parallel):
+   env.Replace(CXX = 'mpiCC')
+   env.Append(LIBS = ['HYPRE'])
+   env.Append(CPPPATH = [HYPRE_DIR+"/include"])
+   env.Append(LIBPATH = [HYPRE_DIR+"/lib"])
+   env.Append(LIBS = ['metis'])
+   env.Append(LIBPATH = [METIS_DIR])
+   print 'Building parallel version'
+else:
+   print 'Building serial version'
 
 conf = Configure(env)
 
@@ -40,10 +63,12 @@ else:
 
 env = conf.Finish()
 
-env.Append(LIBS = ['mfem'])
-env.Append(LIBPATH = ['..'])
-env.Append(CPPPATH = ['..'])
-
-# libmfem.a library
-ex1 = env.Program('ex1',['ex1.cpp'])
-ex2 = env.Program('ex2',['ex2.cpp'])
+# Example codes
+if int(parallel):
+   ex1p = env.Program('ex1p',['ex1p.cpp'])
+   ex2p = env.Program('ex2p',['ex2p.cpp'])
+   ex3p = env.Program('ex3p',['ex3p.cpp'])
+else:
+   ex1 = env.Program('ex1',['ex1.cpp'])
+   ex2 = env.Program('ex2',['ex2.cpp'])
+   ex3 = env.Program('ex3',['ex3.cpp'])

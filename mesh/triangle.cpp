@@ -14,15 +14,15 @@
 
 const int Triangle::edges[3][2] = {{0, 1}, {1, 2}, {2, 0}};
 
-Triangle::Triangle( const int *ind, int attr ) : Element(Geometry::TRIANGLE)
+Triangle::Triangle(const int *ind, int attr) : Element(Geometry::TRIANGLE)
 {
    attribute = attr;
-   for (int i=0; i<3; i++)
+   for (int i = 0; i < 3; i++)
       indices[i] = ind[i];
 }
 
-Triangle::Triangle( int ind1, int ind2, int ind3,
-                    int attr ) : Element(Geometry::TRIANGLE)
+Triangle::Triangle(int ind1, int ind2, int ind3, int attr)
+   : Element(Geometry::TRIANGLE)
 {
    attribute  = attr;
    indices[0] = ind1;
@@ -30,19 +30,19 @@ Triangle::Triangle( int ind1, int ind2, int ind3,
    indices[2] = ind3;
 }
 
-int Triangle::NeedRefinement ( DSTable &v_to_v, int *middle) const
+int Triangle::NeedRefinement(DSTable &v_to_v, int *middle) const
 {
    int m;
 
-   if ((m = v_to_v(indices[0], indices[1]))!=-1 && middle[m]!=-1) return 1;
-   if ((m = v_to_v(indices[1], indices[2]))!=-1 && middle[m]!=-1) return 1;
-   if ((m = v_to_v(indices[2], indices[0]))!=-1 && middle[m]!=-1) return 1;
+   if ((m = v_to_v(indices[0], indices[1])) != -1 && middle[m] != -1) return 1;
+   if ((m = v_to_v(indices[1], indices[2])) != -1 && middle[m] != -1) return 1;
+   if ((m = v_to_v(indices[2], indices[0])) != -1 && middle[m] != -1) return 1;
    return 0;
 }
 
 void Triangle::SetVertices(const int *ind)
 {
-   for(int i=0; i<3; i++)
+   for (int i = 0; i < 3; i++)
       indices[i] = ind[i];
 }
 
@@ -65,7 +65,8 @@ void Triangle::MarkEdge(DenseMatrix &pmat)
       if (d[1] >= d[2]) shift = 1;
       else              shift = 2;
 
-   switch (shift) {
+   switch (shift)
+   {
    case 0:
       break;
    case 1:
@@ -87,14 +88,15 @@ void Triangle::MarkEdge(const DSTable &v_to_v, const int *length)
 {
    int l, L, j, ind[3], i;
 
-   L = length[ v_to_v(indices[0], indices[1] ) ]; j = 0;
-   if ( (l = length[ v_to_v(indices[1], indices[2] ) ]) > L ){ L = l; j = 1;}
-   if ( (l = length[ v_to_v(indices[2], indices[0] ) ]) > L ){ L = l; j = 2;}
+   L = length[ v_to_v(indices[0], indices[1]) ]; j = 0;
+   if ( (l = length[ v_to_v(indices[1], indices[2]) ]) > L ) { L = l; j = 1; }
+   if ( (l = length[ v_to_v(indices[2], indices[0]) ]) > L ) { L = l; j = 2; }
 
-   for(i=0; i<3; i++)
+   for (i = 0; i < 3; i++)
       ind[i] = indices[i];
 
-   switch ( j ) {
+   switch (j)
+   {
    case 1:
       indices[0] = ind[1]; indices[1] = ind[2]; indices[2] = ind[0];
       break;
@@ -104,10 +106,10 @@ void Triangle::MarkEdge(const DSTable &v_to_v, const int *length)
    }
 }
 
-void Triangle::GetVertices( Array<int> &v ) const
+void Triangle::GetVertices(Array<int> &v) const
 {
-   v.SetSize( 3 );
-   for (int i=0; i<3; i++)
+   v.SetSize(3);
+   for (int i = 0; i < 3; i++)
       v[i] = indices[i];
 }
 

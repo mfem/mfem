@@ -37,10 +37,10 @@ public:
    virtual MatrixInverse * Inverse() const = 0;
 
    /// Finalizes the matrix initialization.
-   virtual void Finalize() { }
+   virtual void Finalize(int) { }
 
    /// Prints matrix to stream out.
-   virtual void Print (ostream & out = cout, int width = 4);
+   virtual void Print (ostream & out = cout, int width = 4) const;
 
    /// Destroys matrix.
    virtual ~Matrix() { }

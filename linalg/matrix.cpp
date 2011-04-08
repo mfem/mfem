@@ -16,7 +16,7 @@
 
 #include "matrix.hpp"
 
-void Matrix::Print (ostream & out, int width)
+void Matrix::Print (ostream & out, int width) const
 {
    // output flags = scientific + show sign
    out << setiosflags(ios::scientific | ios::showpos);

@@ -37,4 +37,9 @@
 #include "tetrahedron.hpp"
 #include "mesh.hpp"
 
+#ifdef MFEM_USE_MPI
+#include <mpi.h>
+#include "pmesh.hpp"
+#endif
+
 #endif

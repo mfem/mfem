@@ -12,7 +12,7 @@
 #include <math.h>
 #include "mesh_headers.hpp"
 
-void Element::SetVertices (const int *ind)
+void Element::SetVertices(const int *ind)
 {
    int i, n, *v;
 

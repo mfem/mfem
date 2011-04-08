@@ -17,7 +17,7 @@ class Element
 {
 protected:
 
-   /* Element's attribute (specifying material property, etc). */
+   /// Element's attribute (specifying material property, etc).
    int attribute, base_geom;
 
 public:
@@ -27,18 +27,18 @@ public:
                HEXAHEDRON, BISECTED, QUADRISECTED, OCTASECTED };
 
    /// Default element constructor.
-   Element (int bg = Geometry::POINT) { attribute = -1; base_geom = bg; }
+   Element(int bg = Geometry::POINT) { attribute = -1; base_geom = bg; }
 
    /// Set the indices the element according to the input.
-   virtual void SetVertices (const int *ind);
+   virtual void SetVertices(const int *ind);
 
    /// Returns element's type
    virtual int GetType() const = 0;
 
-   int GetGeometryType() const { return base_geom; };
+   int GetGeometryType() const { return base_geom; }
 
    /// Returns element's vertices.
-   virtual void GetVertices ( Array<int> &v ) const = 0;
+   virtual void GetVertices(Array<int> &v) const = 0;
 
    virtual int *GetVertices() = 0;
 
@@ -55,20 +55,20 @@ public:
    virtual void MarkEdge(const DSTable &v_to_v, const int *length) {}
 
    /// Return 1 if the element needs refinement in order to get conforming mesh.
-   virtual int NeedRefinement ( DSTable &v_to_v, int *middle) const {return 0;}
+   virtual int NeedRefinement(DSTable &v_to_v, int *middle) const { return 0; }
 
    /// Return element's attribute.
    inline int GetAttribute() const { return attribute; }
 
    /// Set element's attribute.
-   inline void SetAttribute (const int attr) { attribute = attr; }
+   inline void SetAttribute(const int attr) { attribute = attr; }
 
-   virtual int GetRefinementFlag() { return 0; };
+   virtual int GetRefinementFlag() { return 0; }
 
    virtual Element *Duplicate() const = 0;
 
    /// Destroys element.
-   virtual ~Element() {};
+   virtual ~Element() { }
 };
 
 class RefinedElement : public Element
@@ -82,54 +82,51 @@ public:
 
    Element *CoarseElem, *FirstChild;
 
-   RefinedElement () { };
+   RefinedElement() { }
 
-   RefinedElement (Element *ce)
-      : Element (ce->GetGeometryType())
-   { attribute = ce->GetAttribute(); CoarseElem = ce; };
+   RefinedElement(Element *ce) : Element(ce->GetGeometryType())
+   { attribute = ce->GetAttribute(); CoarseElem = ce; }
    // Assumes that the coarse element and its first child have the
    // same attribute and the same base geometry ...
 
-   void SetCoarseElem (Element *ce)
+   void SetCoarseElem(Element *ce)
    {
       base_geom = ce->GetGeometryType();
       attribute = ce->GetAttribute();
       CoarseElem = ce;
-   };
+   }
 
    Element *IAm()
    {
       if (State == RefinedElement::COARSE) return CoarseElem;
       return FirstChild;
-   };
+   }
    const Element *IAm() const
    {
       if (State == RefinedElement::COARSE) return CoarseElem;
       return FirstChild;
-   };
+   }
 
-   virtual void SetVertices(const int *ind) { IAm()->SetVertices (ind); };
+   virtual void SetVertices(const int *ind) { IAm()->SetVertices(ind); }
 
-   virtual void GetVertices ( Array<int> &v ) const
-   { IAm()->GetVertices (v); };
+   virtual void GetVertices(Array<int> &v) const { IAm()->GetVertices(v); }
 
-   virtual int * GetVertices () { return IAm()->GetVertices(); };
+   virtual int *GetVertices() { return IAm()->GetVertices(); }
 
-   virtual int GetNVertices() const { return IAm()->GetNVertices(); };
+   virtual int GetNVertices() const { return IAm()->GetNVertices(); }
 
    virtual int GetNEdges() const { return(IAm()->GetNEdges()); }
 
    virtual const int *GetEdgeVertices(int ei) const
    { return(IAm()->GetEdgeVertices(ei)); }
 
-   virtual void MarkEdge(DenseMatrix &pmat)
-   { IAm()->MarkEdge (pmat); };
+   virtual void MarkEdge(DenseMatrix &pmat) { IAm()->MarkEdge(pmat); }
 
    virtual void MarkEdge(const DSTable &v_to_v, const int *length)
-   { IAm()->MarkEdge (v_to_v, length); };
+   { IAm()->MarkEdge(v_to_v, length); }
 
-   virtual int NeedRefinement ( DSTable &v_to_v, int *middle) const
-   { return IAm()->NeedRefinement (v_to_v, middle); };
+   virtual int NeedRefinement(DSTable &v_to_v, int *middle) const
+   { return IAm()->NeedRefinement(v_to_v, middle); }
 };
 
 class BisectedElement : public RefinedElement
@@ -137,13 +134,13 @@ class BisectedElement : public RefinedElement
 public:
    int SecondChild;
 
-   BisectedElement () { };
-   BisectedElement (Element *ce) : RefinedElement (ce) { };
+   BisectedElement() { }
+   BisectedElement(Element *ce) : RefinedElement(ce) { }
 
-   virtual int GetType() const { return Element::BISECTED; };
+   virtual int GetType() const { return Element::BISECTED; }
 
    virtual Element *Duplicate() const
-   { mfem_error ("BisectedElement::Duplicate()"); return NULL; };
+   { mfem_error("BisectedElement::Duplicate()"); return NULL; }
 };
 
 class QuadrisectedElement : public RefinedElement
@@ -151,12 +148,12 @@ class QuadrisectedElement : public RefinedElement
 public:
    int Child2, Child3, Child4;
 
-   QuadrisectedElement (Element *ce) : RefinedElement (ce) { };
+   QuadrisectedElement(Element *ce) : RefinedElement(ce) { }
 
-   virtual int GetType() const { return Element::QUADRISECTED; };
+   virtual int GetType() const { return Element::QUADRISECTED; }
 
    virtual Element *Duplicate() const
-   { mfem_error ("QuadrisectedElement::Duplicate()"); return NULL; };
+   { mfem_error("QuadrisectedElement::Duplicate()"); return NULL; }
 };
 
 class OctasectedElement : public RefinedElement
@@ -164,12 +161,12 @@ class OctasectedElement : public RefinedElement
 public:
    int Child[7];
 
-   OctasectedElement (Element *ce) : RefinedElement (ce) { };
+   OctasectedElement(Element *ce) : RefinedElement(ce) { }
 
-   virtual int GetType() const { return Element::OCTASECTED; };
+   virtual int GetType() const { return Element::OCTASECTED; }
 
    virtual Element *Duplicate() const
-   { mfem_error ("OctasectedElement::Duplicate()"); return NULL; };
+   { mfem_error("OctasectedElement::Duplicate()"); return NULL; }
 };
 
 #ifdef MFEM_USE_MEMALLOC

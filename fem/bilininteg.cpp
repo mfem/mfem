@@ -475,7 +475,7 @@ void CurlCurlIntegrator::AssembleElementMatrix
 {
    int nd = el.GetDof();
    int dim = el.GetDim();
-   double det, constant;
+   double w;
 
    elmat.SetSize(nd);
    Curlshape.SetSize(nd,dim);
@@ -490,23 +490,21 @@ void CurlCurlIntegrator::AssembleElementMatrix
    const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), order);
 
    elmat = 0.0;
-   for(int i=0;i<ir.GetNPoints();i++)
+   for (int i = 0; i < ir.GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
       el.CalcCurlShape(ip, Curlshape);
 
       Trans.SetIntPoint (&ip);
 
-      det = Trans.Weight();
+      w = ip.weight / Trans.Weight();
 
-      MultABt(Curlshape,Trans.Jacobian(),Curlshape_dFt);
+      MultABt(Curlshape, Trans.Jacobian(), Curlshape_dFt);
 
       if (Q)
-         constant = Q -> Eval(Trans,ip);
-      else
-         constant = 1.0;
+         w *= Q->Eval(Trans, ip);
 
-      AddMult_a_AAt (constant*ip.weight/det, Curlshape_dFt, elmat);
+      AddMult_a_AAt(w, Curlshape_dFt, elmat);
    }
 }
 

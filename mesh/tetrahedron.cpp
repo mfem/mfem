@@ -22,6 +22,10 @@ void Tetrahedron::ParseRefinementFlag(int refinement_edges[2], int &type,
 {
    int i, f = refinement_flag;
 
+   if (f == 0)
+      mfem_error("Tetrahedron::ParseRefinementFlag :"
+                 " tetrahedron is not marked");
+
    for (i = 0; i < 2; i++)
    {
       refinement_edges[i] = f & 7;
@@ -45,7 +49,7 @@ void Tetrahedron::CreateRefinementFlag(int refinement_edges[2], int type,
    case Tetrahedron::TYPE_PU:
       if (e1 == 2 && e2 == 1) break;
       // if (e1 == 3 && e2 == 4) break;
-      mfem_error ("Error in Tetrahedron::CreateRefinementFlag(...) #1");
+      mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #1");
       break;
    case Tetrahedron::TYPE_A:
       if (e1 == 3 && e2 == 1) break;
@@ -54,7 +58,7 @@ void Tetrahedron::CreateRefinementFlag(int refinement_edges[2], int type,
       //   if (e2 == 5)
       //      if (e1 >= 1 && e1 <= 5) break; // type is actually O or M
       //                                     //   ==>  ok for generation = 0
-      mfem_error ("Error in Tetrahedron::CreateRefinementFlag(...) #2");
+      mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #2");
       break;
    case Tetrahedron::TYPE_PF:
       if (flag > 0)  // PF is ok only for generation > 0
@@ -62,12 +66,12 @@ void Tetrahedron::CreateRefinementFlag(int refinement_edges[2], int type,
          if (e1 == 2 && e2 == 1) break;
          // if (e1 == 3 && e2 == 4) break;
       }
-      mfem_error ("Error in Tetrahedron::CreateRefinementFlag(...) #3");
+      mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #3");
       break;
    case Tetrahedron::TYPE_O:
       if (flag == 0 && e1 == 5 && e2 == 5)
          break;
-      mfem_error ("Error in Tetrahedron::CreateRefinementFlag(...) #4");
+      mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #4");
       break;
    case Tetrahedron::TYPE_M:
       if (flag == 0)
@@ -75,10 +79,10 @@ void Tetrahedron::CreateRefinementFlag(int refinement_edges[2], int type,
          if (e1 == 5 && e2 == 1)  break;
          if (e1 == 2 && e2 == 5)  break;
       }
-      mfem_error ("Error in Tetrahedron::CreateRefinementFlag(...) #5");
+      mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #5");
       break;
    default:
-      mfem_error ("Error in Tetrahedron::CreateRefinementFlag(...) #6");
+      mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #6");
       break;
    }
 #endif
@@ -95,11 +99,10 @@ void Tetrahedron::CreateRefinementFlag(int refinement_edges[2], int type,
    refinement_flag = refinement_flag | refinement_edges[0];
 }
 
-Tetrahedron::Tetrahedron(int *ind, int attr)
-   : Element(Geometry::TETRAHEDRON)
+Tetrahedron::Tetrahedron(int *ind, int attr) : Element(Geometry::TETRAHEDRON)
 {
    attribute = attr;
-   for (int i=0; i<4; i++)
+   for (int i = 0; i < 4; i++)
       indices[i] = ind[i];
    refinement_flag = 0;
 }

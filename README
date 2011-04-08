@@ -1,5 +1,5 @@
                     Finite Element Discretization Library
-                                 version 1.1
+                                 version 1.2
                                    __
                        _ __ ___   / _|  ___  _ __ ___
                       | '_ ` _ \ | |_  / _ \| '_ ` _ \
@@ -8,7 +8,7 @@
 
                          http://mfem.googlecode.com
 
-MFEM is a general, modular C++ library for finite element methods.
+MFEM is a general, modular, parallel C++ library for finite element methods.
 
 For building instructions, see the file INSTALL. Copyright information and
 licensing restrictions can be found in the file COPYRIGHT.
@@ -29,6 +29,10 @@ produce the corresponding linear algebra vectors and sparse matrices. In order
 to facilitate this, MFEM uses compressed sparse row (CSR) sparse matrix storage
 and includes simple smoothers and Krylov solvers, such as PCG, GMRES and
 BiCGStab.
+
+The MPI-based parallel version of MFEM can be used as a scalable unstructured
+finite element problem generator, which supports parallel local refinement and
+parallel curved meshes, as well as several solvers from the hypre library.
 
 For examples of using MFEM, see the examples/ directory, as well as the OpenGL
 visualization tool GLVis which is available at http://glvis.googlecode.com.

@@ -13,10 +13,10 @@
 #include <math.h>
 #include "fem.hpp"
 
-void LinearFormIntegrator::AssembleRHSElementVect (const FiniteElement &el,
-                                                   FaceElementTransformations &Tr, Vector &elvect)
+void LinearFormIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
 {
-   mfem_error ("LinearFormIntegrator::AssembleRHSElementVect (...)");
+   mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
 }
 
 
@@ -37,8 +37,9 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
    }
    else
    {
-      ir = &IntRules.Get(el.GetGeomType(),
-                         oa * el.GetOrder() + ob + Tr.OrderW());
+      // ir = &IntRules.Get(el.GetGeomType(),
+      //                    oa * el.GetOrder() + ob + Tr.OrderW());
+      ir = &IntRules.Get(el.GetGeomType(), oa * el.GetOrder() + ob);
    }
 
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -59,8 +60,8 @@ inline double sqr(double x)
    return x * x;
 }
 
-void BoundaryLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
-                                                  ElementTransformation &Tr, Vector &elvect)
+void BoundaryLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
    int dof  = el.GetDof();
 
@@ -84,8 +85,8 @@ void BoundaryLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
    }
 }
 
-void VectorDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
-                                                      ElementTransformation &Tr, Vector &elvect)
+void VectorDomainLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
    int vdim = Q.GetVDim();
    int dof  = el.GetDof();
@@ -97,7 +98,7 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
    elvect.SetSize(dof * vdim);
    elvect = 0.0;
 
-   int intorder = el.GetOrder();
+   int intorder = el.GetOrder() + 1;
    const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), intorder);
 
    for (int i = 0; i < ir.GetNPoints(); i++)
@@ -132,7 +133,7 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof * vdim);
    elvect = 0.0;
 
-   int intorder = el.GetOrder();
+   int intorder = el.GetOrder() + 1;
    const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), intorder);
 
    for (int i = 0; i < ir.GetNPoints(); i++)
@@ -155,14 +156,14 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
    int dof = el.GetDof();
    int dim = el.GetDim();
 
-   Jinv.SetSize(dim);
    vshape.SetSize(dof,dim);
    vec.SetSize(dim);
 
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), el.GetOrder());
+   const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                            el.GetOrder() + 1);
 
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
@@ -172,7 +173,7 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
       el.CalcVShape(Tr, vshape);
 
       QF.Eval (vec, Tr, ip);
-      vec *= ip.weight;
+      vec *= ip.weight * Tr.Weight();
 
       vshape.AddMult (vec, elvect);
    }
@@ -192,7 +193,7 @@ void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir;
 
    if (!IntRule)
-      ir = &IntRules.Get(el.GetGeomType(), el.GetOrder());
+      ir = &IntRules.Get(el.GetGeomType(), el.GetOrder() + 1);
    else
       ir = IntRule;
 

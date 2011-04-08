@@ -11,6 +11,7 @@
 
 #include "fem.hpp"
 #include <stdlib.h>
+#include <string.h>
 
 int FiniteElementCollection::HasFaceDofs (int GeomType) const
 {
@@ -23,6 +24,53 @@ int FiniteElementCollection::HasFaceDofs (int GeomType) const
                   " unknown geometry type.");
    }
    return 0;
+}
+
+FiniteElementCollection *FiniteElementCollection::New(const char *name)
+{
+   FiniteElementCollection *fec = NULL;
+
+   if (!strcmp(name, "Linear"))
+      fec = new LinearFECollection;
+   else if (!strcmp(name, "Quadratic"))
+      fec = new QuadraticFECollection;
+   else if (!strcmp(name, "QuadraticPos"))
+      fec = new QuadraticPosFECollection;
+   else if (!strcmp(name, "Cubic"))
+      fec = new CubicFECollection;
+   else if (!strcmp(name, "Const3D"))
+      fec = new Const3DFECollection;
+   else if (!strcmp(name, "Const2D"))
+      fec = new Const2DFECollection;
+   else if (!strcmp(name, "LinearDiscont2D"))
+      fec = new LinearDiscont2DFECollection;
+   else if (!strcmp(name, "GaussLinearDiscont2D"))
+      fec = new GaussLinearDiscont2DFECollection;
+   else if (!strcmp(name, "P1OnQuad"))
+      fec = new P1OnQuadFECollection;
+   else if (!strcmp(name, "QuadraticDiscont2D"))
+      fec = new QuadraticDiscont2DFECollection;
+   else if (!strcmp(name, "QuadraticPosDiscont2D"))
+      fec = new QuadraticPosDiscont2DFECollection;
+   else if (!strcmp(name, "GaussQuadraticDiscont2D"))
+      fec = new GaussQuadraticDiscont2DFECollection;
+   else if (!strcmp(name, "CubicDiscont2D"))
+      fec = new CubicDiscont2DFECollection;
+   else if (!strcmp(name, "LinearDiscont3D"))
+      fec = new LinearDiscont3DFECollection;
+   else if (!strcmp(name, "QuadraticDiscont3D"))
+      fec = new QuadraticDiscont3DFECollection;
+   else if (!strcmp(name, "LinearNonConf3D"))
+      fec = new LinearNonConf3DFECollection;
+   else if (!strcmp(name, "CrouzeixRaviart"))
+      fec = new CrouzeixRaviartFECollection;
+   else if (!strcmp(name, "ND1_3D"))
+      fec = new ND1_3DFECollection;
+   else
+      mfem_error ("FiniteElementCollection::New : "
+                  "Unknown FiniteElementCollection!");
+
+   return fec;
 }
 
 const FiniteElement *
@@ -150,7 +198,7 @@ CubicFECollection::FiniteElementForGeometry(int GeomType) const
    case Geometry::TRIANGLE:    return &TriangleFE;
    case Geometry::SQUARE:      return &QuadrilateralFE;
    case Geometry::TETRAHEDRON: return &TetrahedronFE;
-      // case Geometry::CUBE:        return &ParallelepipedFE;
+   case Geometry::CUBE:        return &ParallelepipedFE;
    default:
       mfem_error ("CubicFECollection: unknown geometry type.");
    }
@@ -166,7 +214,7 @@ int CubicFECollection::DofForGeometry(int GeomType) const
    case Geometry::TRIANGLE:    return 1;
    case Geometry::SQUARE:      return 4;
    case Geometry::TETRAHEDRON: return 0;
-      // case Geometry::CUBE:        return 8;
+   case Geometry::CUBE:        return 8;
    default:
       mfem_error ("CubicFECollection: unknown geometry type.");
    }
@@ -175,13 +223,7 @@ int CubicFECollection::DofForGeometry(int GeomType) const
 
 int * CubicFECollection::DofOrderForOrientation(int GeomType, int Or) const
 {
-   if (GeomType == Geometry::TRIANGLE)
-   {
-      static int indexes[] = { 0 };
-
-      return indexes;
-   }
-   else if (GeomType == Geometry::SEGMENT)
+   if (GeomType == Geometry::SEGMENT)
    {
       static int ind_pos[] = { 0, 1 };
       static int ind_neg[] = { 1, 0 };
@@ -189,6 +231,20 @@ int * CubicFECollection::DofOrderForOrientation(int GeomType, int Or) const
       if (Or < 0)
          return ind_neg;
       return ind_pos;
+   }
+   else if (GeomType == Geometry::TRIANGLE)
+   {
+      static int indexes[] = { 0 };
+
+      return indexes;
+   }
+   else if (GeomType == Geometry::SQUARE)
+   {
+      static int sq_ind[8][4] = {{0, 1, 2, 3}, {0, 2, 1, 3},
+                                 {1, 3, 0, 2}, {1, 0, 3, 2},
+                                 {3, 2, 1, 0}, {3, 1, 2, 0},
+                                 {2, 0, 3, 1}, {2, 3, 0, 1}};
+      return sq_ind[Or];
    }
 
    return NULL;
@@ -875,7 +931,11 @@ int * RT0_3DFECollection::DofOrderForOrientation(int GeomType, int Or)
    static int ind_pos[] = { 0 };
    static int ind_neg[] = { -1 };
 
-   if (Or > 0)
-      return ind_pos;
-   return ind_neg;
+   if (GeomType == Geometry::TRIANGLE)
+   {
+      if (Or % 2 == 0)
+         return ind_pos;
+      return ind_neg;
+   }
+   return NULL;
 }

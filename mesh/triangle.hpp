@@ -21,16 +21,16 @@ protected:
 
 public:
 
-   Triangle() : Element(Geometry::TRIANGLE) {}
+   Triangle() : Element(Geometry::TRIANGLE) { }
 
    /// Constructs triangle by specifying the indices and the attribute.
-   Triangle( const int *ind, int attr = 1 );
+   Triangle(const int *ind, int attr = 1);
 
    /// Constructs triangle by specifying the indices and the attribute.
-   Triangle( int ind1, int ind2, int ind3, int attr = 1 );
+   Triangle(int ind1, int ind2, int ind3, int attr = 1);
 
    /// Return 1 if the element needs refinement in order to get conforming mesh.
-   int NeedRefinement ( DSTable &v_to_v, int *middle) const;
+   int NeedRefinement(DSTable &v_to_v, int *middle) const;
 
    /// Set the vertices according to the given input.
    virtual void SetVertices(const int *ind);
@@ -47,19 +47,18 @@ public:
    virtual int GetType() const { return Element::TRIANGLE; }
 
    /// Returns the indices of the element's  vertices.
-   virtual void GetVertices( Array<int> &v ) const;
+   virtual void GetVertices(Array<int> &v) const;
 
-   virtual int *GetVertices () { return indices; };
+   virtual int *GetVertices() { return indices; }
 
-   virtual int GetNVertices() const { return 3; };
+   virtual int GetNVertices() const { return 3; }
 
    virtual int GetNEdges() const { return(3); }
 
-   virtual const int *GetEdgeVertices(int ei) const
-   { return(edges[ei]); }
+   virtual const int *GetEdgeVertices(int ei) const { return(edges[ei]); }
 
    virtual Element *Duplicate() const
-   { return new Triangle (indices, attribute); };
+   { return new Triangle(indices, attribute); }
 
    virtual ~Triangle() { }
 };

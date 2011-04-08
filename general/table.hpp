@@ -75,14 +75,17 @@ public:
    /// Return row i in array row (the Table must be finalized)
    void GetRow(int i, Array<int> &row) const;
 
-   int RowSize (int i) const { return I[i+1]-I[i]; };
+   int RowSize(int i) const { return I[i+1]-I[i]; }
 
-   const int *GetRow (int i) const { return J+I[i]; };
+   const int *GetRow(int i) const { return J+I[i]; }
+   int *GetRow(int i) { return J+I[i]; }
 
    int *GetI() { return I; };
    int *GetJ() { return J; };
    const int *GetI() const { return I; };
    const int *GetJ() const { return J; };
+
+   void SetIJ(int *newI, int *newJ, int newsize = -1);
 
    /** Establish connection between element i and element j in the table.
        The return value is the index of the connection. It returns -1 if it
@@ -105,9 +108,9 @@ public:
    void LoseData() { size = -1; I = J = NULL; }
 
    /// Prints the table to stream out.
-   void Print(ostream & out = cout, int width = 4);
+   void Print(ostream & out = cout, int width = 4) const;
 
-   void Save(ostream & out);
+   void Save(ostream & out) const;
 
    /// Destroys Table.
    ~Table();

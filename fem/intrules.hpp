@@ -22,7 +22,7 @@ public:
    double x, y, z, weight;
 };
 
-// Class for integration rule
+/// Class for integration rule
 class IntegrationRule
 {
 private:

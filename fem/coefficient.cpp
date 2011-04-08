@@ -12,6 +12,7 @@
 // Implementation of Coefficient class
 
 #include <math.h>
+#include <limits>
 #include "fem.hpp"
 
 double PWConstCoefficient::Eval(ElementTransformation & T,
@@ -134,4 +135,43 @@ void MatrixArrayCoefficient::Eval (DenseMatrix &K, ElementTransformation &T,
    for (i = 0; i < vdim; i++)
       for (j = 0; j < vdim; j++)
          K(i,j) = Coeff[i*vdim+j] -> Eval(T, ip);
+}
+
+double ComputeLpNorm(double p, Coefficient &coeff, Mesh &mesh,
+                     const IntegrationRule *irs[])
+{
+   double norm = 0.0;
+   ElementTransformation *tr;
+
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      tr = mesh.GetElementTransformation(i);
+      const IntegrationRule &ir = *irs[mesh.GetElementType(i)];
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         tr->SetIntPoint(&ip);
+         double val = fabs(coeff.Eval(*tr, ip));
+         if (p < numeric_limits<double>::infinity())
+         {
+            norm += ip.weight * tr->Weight() * pow(val, p);
+         }
+         else
+         {
+            if (norm < val)
+               norm = val;
+         }
+      }
+   }
+
+   if (p < numeric_limits<double>::infinity())
+   {
+      // negative quadrature weights may cause norm to be negative
+      if (norm < 0.)
+         norm = -pow(-norm, 1. / p);
+      else
+         norm = pow(norm, 1. / p);
+   }
+
+   return norm;
 }

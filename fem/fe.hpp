@@ -399,8 +399,12 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-   void Project(VectorCoefficient &vc, ElementTransformation &Trans,
-                Vector &dofs) const;
+   virtual void Project(Coefficient &coeff, ElementTransformation &Trans,
+                        Vector &dofs) const;
+   virtual void Project(VectorCoefficient &vc, ElementTransformation &Trans,
+                        Vector &dofs) const;
+   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   { dofs = 0.; dofs(vertex) = 1.; }
 };
 
 /// Bi-quadratic element on quad with nodes at the 9 Gaussian points
@@ -606,6 +610,8 @@ public:
    virtual void GetLocalInterpolation (ElementTransformation &Trans,
                                        DenseMatrix &I) const;
 
+   using FiniteElement::Project;
+
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
 };
@@ -630,6 +636,8 @@ public:
 
    virtual void GetLocalInterpolation (ElementTransformation &Trans,
                                        DenseMatrix &I) const;
+
+   using FiniteElement::Project;
 
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
@@ -861,6 +869,7 @@ public:
                               DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation (ElementTransformation &Trans,
                                        DenseMatrix &I) const;
+   using FiniteElement::Project;
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
 };
@@ -882,6 +891,7 @@ public:
                               DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation (ElementTransformation &Trans,
                                        DenseMatrix &I) const;
+   using FiniteElement::Project;
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
 };
@@ -907,6 +917,8 @@ public:
 
    virtual void GetLocalInterpolation (ElementTransformation &Trans,
                                        DenseMatrix &I) const;
+
+   using FiniteElement::Project;
 
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;

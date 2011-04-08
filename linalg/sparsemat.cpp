@@ -326,7 +326,7 @@ void SparseMatrix::Symmetrize()
          }
 }
 
-int SparseMatrix::NumNonZeroElems ()
+int SparseMatrix::NumNonZeroElems() const
 {
    if (A != NULL)  //  matrix is finalized
       return I[size];
@@ -994,7 +994,7 @@ SparseMatrix & SparseMatrix::operator= (double a)
    return (*this);
 }
 
-void SparseMatrix::Print(ostream & out, int _width)
+void SparseMatrix::Print(ostream & out, int _width) const
 {
    int i, j;
 
@@ -1015,7 +1015,7 @@ void SparseMatrix::Print(ostream & out, int _width)
    out << endl;
 }
 
-void SparseMatrix::PrintMatlab(ostream & out)
+void SparseMatrix::PrintMatlab(ostream & out) const
 {
    int i, j;
    ios::fmtflags old_fmt = out.setf(ios::scientific);
@@ -1028,7 +1028,7 @@ void SparseMatrix::PrintMatlab(ostream & out)
    out.setf(old_fmt);
 }
 
-void SparseMatrix::PrintMM(ostream & out)
+void SparseMatrix::PrintMM(ostream & out) const
 {
    int i, j;
    ios::fmtflags old_fmt = out.setf(ios::scientific);
@@ -1045,7 +1045,7 @@ void SparseMatrix::PrintMM(ostream & out)
    out.setf(old_fmt);
 }
 
-void SparseMatrix::PrintCSR(ostream & out)
+void SparseMatrix::PrintCSR(ostream & out) const
 {
    if (A == NULL)
       mfem_error ("SparseMatrix::PrintCSR()");
@@ -1069,7 +1069,7 @@ void SparseMatrix::PrintCSR(ostream & out)
    out.setf(old_fmt);
 }
 
-void SparseMatrix::PrintCSR2(ostream & out)
+void SparseMatrix::PrintCSR2(ostream & out) const
 {
    if (A == NULL)
       mfem_error ("SparseMatrix::PrintCSR2()");

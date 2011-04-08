@@ -92,16 +92,17 @@ double Vector::operator*(const Vector & v) const{
 
 Vector & Vector::operator=(const Vector &v)
 {
-   SetSize (v.Size());
-   for(int i=0; i<size; i++)
+   SetSize(v.Size());
+   for (int i = 0; i < size; i++)
       data[i] = v.data[i];
    return *this;
 }
 
-Vector & Vector::operator=(double value){
+Vector & Vector::operator=(double value)
+{
    register int i, s = size;
    register double *p = data, v = value;
-   for(i = 0; i < s; i++)
+   for (i = 0; i < s; i++)
       *(p++) = v;
    return *this;
 }

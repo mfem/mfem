@@ -17,7 +17,7 @@ const int Hexahedron::edges[12][2] =
  {4, 5}, {5, 6}, {7, 6}, {4, 7},
  {0, 4}, {1, 5}, {2, 6}, {3, 7}};
 
-Hexahedron::Hexahedron( const int *ind, int attr )
+Hexahedron::Hexahedron(const int *ind, int attr)
    : Element(Geometry::CUBE)
 {
    attribute = attr;
@@ -25,9 +25,10 @@ Hexahedron::Hexahedron( const int *ind, int attr )
       indices[i] = ind[i];
 }
 
-Hexahedron::Hexahedron( int ind1, int ind2, int ind3, int ind4,
-                        int ind5, int ind6, int ind7, int ind8,
-                        int attr ) : Element(Geometry::CUBE) {
+Hexahedron::Hexahedron(int ind1, int ind2, int ind3, int ind4,
+                       int ind5, int ind6, int ind7, int ind8,
+                       int attr) : Element(Geometry::CUBE)
+{
    attribute  = attr;
    indices[0] = ind1;
    indices[1] = ind2;
@@ -39,7 +40,8 @@ Hexahedron::Hexahedron( int ind1, int ind2, int ind3, int ind4,
    indices[7] = ind8;
 }
 
-void Hexahedron::GetVertices( Array<int> &v ) const {
+void Hexahedron::GetVertices(Array<int> &v) const
+{
    v.SetSize( 8 );
    for (int i=0; i<8; i++)
       v[i] = indices[i];

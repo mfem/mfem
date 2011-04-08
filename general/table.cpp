@@ -149,6 +149,16 @@ void Table::GetRow(int i, Array<int> &row) const
       row[i] = jp[i];
 }
 
+void Table::SetIJ(int *newI, int *newJ, int newsize)
+{
+   delete [] I;
+   delete [] J;
+   I = newI;
+   J = newJ;
+   if (newsize >= 0)
+      size = newsize;
+}
+
 int Table::Push(int i, int j)
 {
 #ifdef MFEM_DEBUG
@@ -214,7 +224,7 @@ int Table::Width() const
    return width + 1;
 }
 
-void Table::Print(ostream & out, int width)
+void Table::Print(ostream & out, int width) const
 {
    int i, j;
 
@@ -232,7 +242,7 @@ void Table::Print(ostream & out, int width)
    out << endl;
 }
 
-void Table::Save(ostream & out)
+void Table::Save(ostream & out) const
 {
    int i;
 

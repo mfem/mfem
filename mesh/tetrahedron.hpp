@@ -43,20 +43,20 @@ public:
    Tetrahedron(int ind1, int ind2, int ind3, int ind4, int attr = 1);
 
    void  ParseRefinementFlag(int refinement_edges[2], int &type, int &flag);
-   void CreateRefinementFlag(int refinement_edges[2], int  type, int  flag=0);
+   void CreateRefinementFlag(int refinement_edges[2], int  type, int  flag = 0);
 
-   virtual int GetRefinementFlag() { return refinement_flag; };
+   virtual int GetRefinementFlag() { return refinement_flag; }
 
-   void SetRefinementFlag (int rf) { refinement_flag = rf; };
+   void SetRefinementFlag(int rf) { refinement_flag = rf; }
 
    /// Return 1 if the element needs refinement in order to get conforming mesh.
-   virtual int NeedRefinement ( DSTable &v_to_v, int *middle) const;
+   virtual int NeedRefinement(DSTable &v_to_v, int *middle) const;
 
    /// Set the vertices according to the given input.
    virtual void SetVertices(const int *ind);
 
    /// Mark the longest edge by assuming/changing the order of the vertices.
-   virtual void MarkEdge(DenseMatrix &pmat) {}
+   virtual void MarkEdge(DenseMatrix &pmat) { }
 
    /** Reorder the vertices so that the longest edge is from vertex 0
        to vertex 1. If called it should be once from the mesh constructor,
@@ -67,16 +67,15 @@ public:
    virtual int GetType() const { return Element::TETRAHEDRON; }
 
    /// Returns the indices of the element's  vertices.
-   virtual void GetVertices( Array<int> &v ) const;
+   virtual void GetVertices(Array<int> &v) const;
 
-   virtual int *GetVertices () { return indices; }
+   virtual int *GetVertices() { return indices; }
 
    virtual int GetNVertices() const { return 4; }
 
    virtual int GetNEdges() const { return(6); }
 
-   virtual const int *GetEdgeVertices(int ei) const
-   { return(edges[ei]); }
+   virtual const int *GetEdgeVertices(int ei) const { return(edges[ei]); }
 
    virtual Element *Duplicate() const;
 

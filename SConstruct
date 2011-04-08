@@ -12,13 +12,20 @@
 Help("""
        Type: 'scons' to build the production library,
              'scons -c' to clean the build,
-             'scons debug=1' to build the debug version.
+             'scons debug=1' to build the debug version,
+             'scons parallel=1' to build the parallel version.
        """)
 
-env = Environment()
+import os
+
+# Export the shell environment variables
+env = Environment(ENV=os.environ)
 
 CC_OPTS    = '-O3'
 DEBUG_OPTS = '-g -Wall'
+
+# External libraries
+HYPRE_DIR  = "../hypre-2.7.0b/src/hypre"
 
 # MFEM-specific options
 env.Append(CPPDEFINES = ['MFEM_USE_MEMALLOC'])
@@ -30,6 +37,16 @@ if int(debug):
    env.Append(CCFLAGS = DEBUG_OPTS)
 else:
    env.Append(CCFLAGS = CC_OPTS)
+
+# Parallel version
+parallel = ARGUMENTS.get('parallel', 0)
+if int(parallel):
+   env.Append(CPPDEFINES = ['MFEM_USE_MPI'])
+   env.Replace(CXX = 'mpiCC')
+   env.Append(CPPPATH = [HYPRE_DIR+"/include"])
+   print 'Building parallel version'
+else:
+   print 'Building serial version'
 
 conf = Configure(env)
 

@@ -21,13 +21,13 @@ protected:
 
 public:
 
-   Quadrilateral () : Element(Geometry::SQUARE) {}
+   Quadrilateral() : Element(Geometry::SQUARE) {}
 
    /// Constructs quadrilateral by specifying the indices and the attribute.
-   Quadrilateral ( const int *ind, int attr = 1 );
+   Quadrilateral(const int *ind, int attr = 1);
 
    /// Constructs quadrilateral by specifying the indices and the attribute.
-   Quadrilateral( int ind1, int ind2, int ind3, int ind4, int attr = 1 );
+   Quadrilateral(int ind1, int ind2, int ind3, int ind4, int attr = 1);
 
    /// Return element's type
    int GetType() const { return Element::QUADRILATERAL; }
@@ -36,11 +36,11 @@ public:
    virtual void SetVertices(const int *ind);
 
    /// Returns the indices of the element's vertices.
-   virtual void GetVertices ( Array<int> &v ) const;
+   virtual void GetVertices(Array<int> &v) const;
 
-   virtual int * GetVertices () { return indices; };
+   virtual int *GetVertices() { return indices; }
 
-   virtual int GetNVertices() const { return 4; };
+   virtual int GetNVertices() const { return 4; }
 
    virtual int GetNEdges() const { return(4); }
 
@@ -48,7 +48,7 @@ public:
    { return(edges[ei]); }
 
    virtual Element *Duplicate() const
-   { return new Quadrilateral (indices, attribute); };
+   { return new Quadrilateral(indices, attribute); }
 
    virtual ~Quadrilateral() { }
 };

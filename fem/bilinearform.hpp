@@ -19,13 +19,13 @@ class BilinearForm : public Matrix
 {
 protected:
    /// Sparse matrix to be associated with the form.
-   SparseMatrix * mat;
+   SparseMatrix *mat;
 
    // Matrix used to eliminate b.c.
    SparseMatrix *mat_e;
 
    /// FE space on which the form lives.
-   FiniteElementSpace * fes;
+   FiniteElementSpace *fes;
 
    int extern_bfs;
 
@@ -54,59 +54,64 @@ public:
 
    BilinearForm (FiniteElementSpace * f, BilinearForm * bf);
 
-   Array<BilinearFormIntegrator*> *GetDBFI() { return &dbfi; };
+   Array<BilinearFormIntegrator*> *GetDBFI() { return &dbfi; }
 
-   Array<BilinearFormIntegrator*> *GetBBFI() { return &bbfi; };
+   Array<BilinearFormIntegrator*> *GetBBFI() { return &bbfi; }
 
-   Array<BilinearFormIntegrator*> *GetFBFI() { return &fbfi; };
+   Array<BilinearFormIntegrator*> *GetFBFI() { return &fbfi; }
 
-   Array<BilinearFormIntegrator*> *GetBFBFI() { return &bfbfi; };
+   Array<BilinearFormIntegrator*> *GetBFBFI() { return &bfbfi; }
 
-   const double &operator() (int i, int j) { return (*mat)(i,j); }
+   const double &operator()(int i, int j) { return (*mat)(i,j); }
 
    /// Returns reference to a_{ij}.  Index i, j = 0 .. size-1
-   virtual double& Elem (int i, int j);
+   virtual double &Elem(int i, int j);
 
    /// Returns constant reference to a_{ij}.  Index i, j = 0 .. size-1
-   virtual const double& Elem (int i, int j) const;
+   virtual const double &Elem(int i, int j) const;
 
    /// Matrix vector multiplication.
-   virtual void Mult (const Vector & x, Vector & y) const;
+   virtual void Mult(const Vector &x, Vector &y) const;
 
-   virtual void AddMult (const Vector & x, Vector & y,
-                         const double a = 1.0) const
+   void FullMult(const Vector &x, Vector &y) const
+   { mat->Mult(x, y); mat_e->AddMult(x, y); }
+
+   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const
    { mat -> AddMult (x, y, a); }
 
-   double InnerProduct (const Vector &x, const Vector &y) const
-   { return mat -> InnerProduct (x, y); }
+   void FullAddMult(const Vector &x, Vector &y) const
+   { mat->AddMult(x, y); mat_e->AddMult(x, y); }
+
+   double InnerProduct(const Vector &x, const Vector &y) const
+   { return mat->InnerProduct (x, y); }
 
    /// Returns a pointer to (approximation) of the matrix inverse.
-   virtual MatrixInverse * Inverse() const;
+   virtual MatrixInverse *Inverse() const;
 
    /// Finalizes the matrix initialization.
-   virtual void Finalize (int skip_zeros = 1);
+   virtual void Finalize(int skip_zeros = 1);
 
    /// Returns a reference to the sparse martix
-   const SparseMatrix &SpMat() const { return *mat; };
-   SparseMatrix &SpMat() { return *mat; };
+   const SparseMatrix &SpMat() const { return *mat; }
+   SparseMatrix &SpMat() { return *mat; }
 
    /// Adds new Domain Integrator.
-   void AddDomainIntegrator (BilinearFormIntegrator * bfi);
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi);
 
    /// Adds new Boundary Integrator.
-   void AddBoundaryIntegrator (BilinearFormIntegrator * bfi);
+   void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
 
    /// Adds new interior Face Integrator.
-   void AddInteriorFaceIntegrator (BilinearFormIntegrator * bfi);
+   void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
 
    /// Adds new boundary Face Integrator.
-   void AddBdrFaceIntegrator (BilinearFormIntegrator * bfi);
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
 
-   void operator= (const double a)
+   void operator=(const double a)
    { if (mat != NULL) *mat = a; if (mat_e != NULL) *mat_e = a; }
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
-   virtual void Assemble (int skip_zeros = 1);
+   void Assemble(int skip_zeros = 1);
 
    void ComputeElementMatrix(int i, DenseMatrix &elmat);
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
@@ -114,29 +119,37 @@ public:
 
    /** If d == 0 the diagonal at the ess. b.c. is set to 1.0,
        otherwise leave it the same.      */
-   void EliminateEssentialBC (Array<int> &bdr_attr_is_ess,
-                              Vector &sol, Vector &rhs, int d = 0);
+   void EliminateEssentialBC(Array<int> &bdr_attr_is_ess,
+                             Vector &sol, Vector &rhs, int d = 0);
 
-   void EliminateVDofs (Array<int> &vdofs,
-                        Vector &sol, Vector &rhs, int d = 0);
+   /// Here, vdofs is a list of DOFs.
+   void EliminateVDofs(Array<int> &vdofs, Vector &sol, Vector &rhs, int d = 0);
 
-   // Eliminate the given vdofs storing the eliminated part internally
+   /** Eliminate the given vdofs storing the eliminated part internally;
+       vdofs is a list of DOFs. */
    void EliminateVDofs(Array<int> &vdofs, int d = 0);
-   // Use the stored eliminated part of the matrix to modify r.h.s.
+
+   /** Use the stored eliminated part of the matrix to modify r.h.s.;
+       vdofs is a list of DOFs (non-directional, i.e. >= 0). */
    void EliminateVDofsInRHS(Array<int> &vdofs, const Vector &x, Vector &b);
+
    double FullInnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
 
-   virtual void EliminateEssentialBC (Array<int> &bdr_attr_is_ess, int d = 0);
+   void EliminateEssentialBC(Array<int> &bdr_attr_is_ess, int d = 0);
 
-   void EliminateEssentialBCFromDofs (Array<int> &ess_dofs,
-                                      Vector &sol, Vector &rhs, int d = 0);
+   /** Similar to EliminateVDofs but here ess_dofs is a marker
+       (boolean) array on all vdofs (ess_dofs[i] < 0 is true). */
+   void EliminateEssentialBCFromDofs(Array<int> &ess_dofs, Vector &sol,
+                                     Vector &rhs, int d = 0);
 
-   virtual void EliminateEssentialBCFromDofs (Array<int> &ess_dofs, int d = 0);
+   /** Similar to EliminateVDofs but here ess_dofs is a marker
+       (boolean) array on all vdofs (ess_dofs[i] < 0 is true). */
+   void EliminateEssentialBCFromDofs(Array<int> &ess_dofs, int d = 0);
 
-   void Update (FiniteElementSpace *nfes = NULL);
+   void Update(FiniteElementSpace *nfes = NULL);
 
-   FiniteElementSpace *GetFES() { return fes; };
+   FiniteElementSpace *GetFES() { return fes; }
 
    /// Destroys bilinear form.
    virtual ~BilinearForm();
