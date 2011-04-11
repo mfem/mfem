@@ -56,6 +56,14 @@ int main (int argc, char *argv[])
    mesh = new Mesh(imesh, 1, 1);
    imesh.close();
 
+   if (mesh->attributes.Max() < 2 || mesh->bdr_attributes.Max() < 2)
+   {
+      cerr << "\nInput mesh should have at least two materials and "
+           << "two boundary attributes! (See schematic in ex2.cpp)\n"
+           << endl;
+      return 3;
+   }
+
    int dim = mesh->Dimension();
 
    // 2. Refine the mesh to increase the resolution. In this example we do
@@ -170,8 +178,10 @@ int main (int argc, char *argv[])
       *nodes += x;
       x *= -1;
       ofstream mesh_ofs("displaced.mesh");
+      mesh_ofs.precision(8);
       mesh->Print(mesh_ofs);
       ofstream sol_ofs("sol.gf");
+      sol_ofs.precision(8);
       x.Save(sol_ofs);
    }
 
@@ -181,11 +191,12 @@ int main (int argc, char *argv[])
    //     the displacements.
    char vishost[] = "localhost";
    int  visport   = 19916;
-   osockstream sol_sock (visport, vishost);
+   osockstream sol_sock(visport, vishost);
    if (dim == 2)
       sol_sock << "vfem2d_gf_data\n";
    else
       sol_sock << "vfem3d_gf_data\n";
+   sol_sock.precision(8);
    mesh->Print(sol_sock);
    x.Save(sol_sock);
    sol_sock.send();

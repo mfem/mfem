@@ -164,6 +164,7 @@ public:
                      double alpha = 1.0, double beta = 0.0);
 
    virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
 
    /// Prints the locally owned rows in parallel
    void Print(const char *fname, int offi = 0, int offj = 0);
@@ -247,6 +248,7 @@ public:
 
    /// Solve Ax=b with hypre's PCG
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
+   using HypreSolver::Mult;
 
    virtual ~HyprePCG();
 };
@@ -285,6 +287,7 @@ public:
 
    /// Solve Ax=b with hypre's GMRES
    virtual void Mult (const HypreParVector &b, HypreParVector &x) const;
+   using HypreSolver::Mult;
 
    virtual ~HypreGMRES();
 };

@@ -1756,6 +1756,14 @@ void Mesh::Load(istream &input, int generate_edges, int refine)
       }
    }
 
+   if (NumOfBdrElements == 0 && Dim > 2)
+   {
+      // in 3D, generate boundary elements before we 'MarkForRefinement'
+      GetElementToFaceTable();
+      GenerateFaces();
+      GenerateBoundaryElements();
+   }
+
    if (!curved)
    {
       // check and fix element orientation
@@ -1770,8 +1778,6 @@ void Mesh::Load(istream &input, int generate_edges, int refine)
    {
       GetElementToFaceTable();
       GenerateFaces();
-      if (NumOfBdrElements == 0)
-         GenerateBoundaryElements();
       // check and fix boundary element orientation
       if ( !(curved && (meshgen & 1)) )
          CheckBdrElementOrientation();
@@ -3029,6 +3035,35 @@ void Mesh::GenerateFaces()
          }
       }
    }
+}
+
+STable3D *Mesh::GetFacesTable()
+{
+   STable3D *faces_tbl = new STable3D(NumOfVertices);
+   for (int i = 0; i < NumOfElements; i++)
+   {
+      const int *v = elements[i]->GetVertices();
+      switch (GetElementType(i))
+      {
+      case Element::TETRAHEDRON:
+         faces_tbl->Push(v[1], v[2], v[3]);
+         faces_tbl->Push(v[0], v[3], v[2]);
+         faces_tbl->Push(v[0], v[1], v[3]);
+         faces_tbl->Push(v[0], v[2], v[1]);
+         break;
+      case Element::HEXAHEDRON:
+         // find the face by the vertices with the smallest 3 numbers
+         // z = 0, y = 0, x = 1, y = 1, x = 0, z = 1
+         faces_tbl->Push4(v[3], v[2], v[1], v[0]);
+         faces_tbl->Push4(v[0], v[1], v[5], v[4]);
+         faces_tbl->Push4(v[1], v[2], v[6], v[5]);
+         faces_tbl->Push4(v[2], v[3], v[7], v[6]);
+         faces_tbl->Push4(v[3], v[0], v[4], v[7]);
+         faces_tbl->Push4(v[4], v[5], v[6], v[7]);
+         break;
+      }
+   }
+   return faces_tbl;
 }
 
 STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)

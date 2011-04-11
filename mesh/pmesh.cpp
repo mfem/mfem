@@ -1396,6 +1396,8 @@ void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
 
 void ParMesh::QuadUniformRefinement()
 {
+   SetState(Mesh::NORMAL);
+
    int oedge = NumOfVertices, wtls = WantTwoLevelState;
 
    if (Nodes)  // curved mesh
@@ -1484,13 +1486,15 @@ void ParMesh::QuadUniformRefinement()
 
 void ParMesh::HexUniformRefinement()
 {
+   SetState(Mesh::NORMAL);
+
    int wtls = WantTwoLevelState;
    int oedge = NumOfVertices;
    int oface = oedge + NumOfEdges;
 
    DSTable v_to_v(NumOfVertices);
    GetVertexToVertexTable(v_to_v);
-   STable3D *faces_tbl = GetElementToFaceTable(1);
+   STable3D *faces_tbl = GetFacesTable();
 
    if (Nodes)  // curved mesh
       UseTwoLevelState(1);
@@ -1611,7 +1615,7 @@ void ParMesh::HexUniformRefinement()
       }
 
       delete faces_tbl;
-      faces_tbl = GetElementToFaceTable(1);
+      faces_tbl = GetFacesTable();
       for (i = 0; i < shared_faces.Size(); i++)
       {
          shared_faces[i]->GetVertices(v);

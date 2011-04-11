@@ -68,6 +68,15 @@ int main (int argc, char *argv[])
    mesh = new Mesh(imesh, 1, 1);
    imesh.close();
 
+   if (mesh->attributes.Max() < 2 || mesh->bdr_attributes.Max() < 2)
+   {
+      if (myid == 0)
+         cerr << "\nInput mesh should have at least two materials and "
+              << "two boundary attributes! (See schematic in ex2.cpp)\n"
+              << endl;
+      MPI_Finalize();
+      return 3;
+   }
    int dim = mesh->Dimension();
 
    // 3. Refine the serial mesh on all processors to increase the resolution. In
@@ -228,6 +237,7 @@ int main (int argc, char *argv[])
       ofstream mesh_ofs;
       if (myid == 0)
          mesh_ofs.open("displaced.mesh");
+      mesh_ofs.precision(8);
       pmesh->PrintAsOne(mesh_ofs);
       if (myid == 0)
          mesh_ofs.close();
@@ -235,6 +245,7 @@ int main (int argc, char *argv[])
       ofstream sol_ofs;
       if (myid == 0)
          sol_ofs.open("sol.gf");
+      sol_ofs.precision(8);
       x.SaveAsOne(sol_ofs);
       if (myid == 0)
          sol_ofs.close();
@@ -254,6 +265,7 @@ int main (int argc, char *argv[])
          *sol_sock << "vfem2d_gf_data\n";
       else
          *sol_sock << "vfem3d_gf_data\n";
+      sol_sock->precision(8);
    }
    pmesh->PrintAsOne(*sol_sock);
    x.SaveAsOne(*sol_sock);

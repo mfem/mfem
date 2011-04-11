@@ -92,6 +92,7 @@ protected:
    void MarkTriMeshForRefinement();
    void MarkTetMeshForRefinement();
 
+   STable3D *GetFacesTable();
    STable3D *GetElementToFaceTable(int ret_ftbl = 0);
 
    /** Red refinement. Element with index i is refined. The default

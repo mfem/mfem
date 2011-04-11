@@ -455,6 +455,26 @@ void HypreParMatrix::Mult(const Vector &x, Vector &y) const
    hypre_ParCSRMatrixMatvec(1.0, A, *X, 0.0, *Y);
 }
 
+void HypreParMatrix::MultTranspose(const Vector &x, Vector &y) const
+{
+   if (X == NULL)
+   {
+      X = new HypreParVector(GetGlobalNumCols(),
+                             x.GetData(),
+                             GetColStarts());
+      Y = new HypreParVector(GetGlobalNumRows(),
+                             y.GetData(),
+                             GetRowStarts());
+   }
+   else
+   {
+      X -> SetData(x.GetData());
+      Y -> SetData(y.GetData());
+   }
+
+   hypre_ParCSRMatrixMatvecT(1.0, A, *X, 0.0, *Y);
+}
+
 int HypreParMatrix::Mult(HYPRE_ParVector x, HYPRE_ParVector y,
                          double a, double b)
 {

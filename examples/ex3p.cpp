@@ -185,6 +185,7 @@ int main (int argc, char *argv[])
       ofstream mesh_ofs;
       if (myid == 0)
          mesh_ofs.open("refined.mesh");
+      mesh_ofs.precision(8);
       pmesh->PrintAsOne(mesh_ofs);
       if (myid == 0)
          mesh_ofs.close();
@@ -192,6 +193,7 @@ int main (int argc, char *argv[])
       ofstream sol_ofs;
       if (myid == 0)
          sol_ofs.open("sol.gf");
+      sol_ofs.precision(8);
       dx.SaveAsOne(sol_ofs);
       if (myid == 0)
          sol_ofs.close();
@@ -205,6 +207,7 @@ int main (int argc, char *argv[])
    {
       sol_sock = new osockstream(visport, vishost);
       *sol_sock << "vfem3d_gf_data\n";
+      sol_sock->precision(8);
    }
    pmesh->PrintAsOne(*sol_sock);
    dx.SaveAsOne(*sol_sock);

@@ -99,19 +99,22 @@ int main (int argc, char *argv[])
    //    using GLVis: "glvis -m refined.mesh -g sol.gf".
    {
       ofstream mesh_ofs("refined.mesh");
+      mesh_ofs.precision(8);
       mesh->Print(mesh_ofs);
       ofstream sol_ofs("sol.gf");
+      sol_ofs.precision(8);
       x.Save(sol_ofs);
    }
 
    // 9. (Optional) Send the solution by socket to a GLVis server.
    char vishost[] = "localhost";
    int  visport   = 19916;
-   osockstream sol_sock (visport, vishost);
+   osockstream sol_sock(visport, vishost);
    if (mesh->Dimension() == 2)
       sol_sock << "fem2d_gf_data\n";
    else
       sol_sock << "fem3d_gf_data\n";
+   sol_sock.precision(8);
    mesh->Print(sol_sock);
    x.Save(sol_sock);
    sol_sock.send();
