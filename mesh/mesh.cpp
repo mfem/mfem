@@ -1462,6 +1462,7 @@ void Mesh::Load(istream &input, int generate_edges, int refine)
       // Reading VTK mesh
 
       string buff;
+      input >> ws;
       getline(input, buff); // "# vtk DataFile Version 3.0"
       getline(input, buff); // comment line
       getline(input, buff);
@@ -4953,7 +4954,8 @@ void Mesh::SetState(int s)
 
       NumOfVertices    = f_NumOfVertices;
       NumOfEdges       = f_NumOfEdges;
-      NumOfFaces       = f_NumOfFaces;
+      if (Dim == 3)
+         NumOfFaces    = f_NumOfFaces;
       NumOfElements    = f_NumOfElements;
       NumOfBdrElements = f_NumOfBdrElements;
       RefinedElement::State = RefinedElement::FINE;
@@ -4976,7 +4978,8 @@ void Mesh::SetState(int s)
       }
       NumOfVertices    = f_NumOfVertices;
       NumOfEdges       = f_NumOfEdges;
-      NumOfFaces       = f_NumOfFaces;
+      if (Dim == 3)
+         NumOfFaces    = f_NumOfFaces;
       NumOfElements    = f_NumOfElements;
       NumOfBdrElements = f_NumOfBdrElements;
       RefinedElement::State = RefinedElement::FINE;
@@ -4999,7 +5002,8 @@ void Mesh::SetState(int s)
       }
       NumOfVertices    = c_NumOfVertices;
       NumOfEdges       = c_NumOfEdges;
-      NumOfFaces       = c_NumOfFaces;
+      if (Dim == 3)
+         NumOfFaces    = c_NumOfFaces;
       NumOfElements    = c_NumOfElements;
       NumOfBdrElements = c_NumOfBdrElements;
       RefinedElement::State = RefinedElement::COARSE;
