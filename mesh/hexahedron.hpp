@@ -21,34 +21,34 @@ protected:
 
 public:
 
-   Hexahedron() : Element(Geometry::CUBE) {}
+   Hexahedron() : Element(Geometry::CUBE) { }
 
    /// Constructs hexahedron by specifying the indices and the attribute.
-   Hexahedron ( const int *ind, int attr = 1 );
+   Hexahedron(const int *ind, int attr = 1);
 
    /// Constructs hexahedron by specifying the indices and the attribute.
-   Hexahedron( int ind1, int ind2, int ind3, int ind4,
-               int ind5, int ind6, int ind7, int ind8, int attr = 1 );
+   Hexahedron(int ind1, int ind2, int ind3, int ind4,
+              int ind5, int ind6, int ind7, int ind8, int attr = 1);
 
    /// Return element's type
    int GetType() const { return Element::HEXAHEDRON; }
 
    /// Returns the indices of the element's vertices.
-   virtual void GetVertices ( Array<int> &v ) const;
+   virtual void GetVertices(Array<int> &v) const;
 
-   virtual int *GetVertices() { return indices; };
+   virtual int *GetVertices() { return indices; }
 
-   virtual int GetNVertices() const { return 8; };
+   virtual int GetNVertices() const { return 8; }
 
    virtual int GetNEdges() const { return(12); }
 
    virtual const int *GetEdgeVertices(int ei) const
    { return(edges[ei]); }
 
-   virtual Element *Duplicate() const
-   { return new Hexahedron (indices, attribute); };
+   virtual Element *Duplicate(Mesh *m) const
+   { return new Hexahedron(indices, attribute); }
 
-   virtual ~Hexahedron() { };
+   virtual ~Hexahedron() { }
 };
 
 extern TriLinear3DFiniteElement HexahedronFE;

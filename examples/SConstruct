@@ -13,6 +13,7 @@ Help("""
        Type: 'scons' to build the example codes,
              'scons -c' to clean the build,
              'scons debug=1' to build the debug version,
+             'scons openmp=1' to enable OpenMP support,
              'scons parallel=1' to build the parallel version.
        """)
 
@@ -25,7 +26,7 @@ CC_OPTS    = '-O3'
 DEBUG_OPTS = '-g -Wall'
 
 # External libraries
-HYPRE_DIR  = "../../hypre-2.7.0b/src/hypre"
+HYPRE_DIR  = "../../hypre-2.8.0b/src/hypre"
 METIS_DIR  = "../../metis-4.0"
 
 # Debug options
@@ -39,10 +40,17 @@ env.Append(LIBS = ['mfem'])
 env.Append(LIBPATH = ['..'])
 env.Append(CPPPATH = ['..'])
 
+# OpenMP options
+openmp = ARGUMENTS.get('openmp', 0)
+if int(openmp):
+   env.Append(CCFLAGS = '-fopenmp')
+   env.Append(LINKFLAGS = '-fopenmp')
+   print 'Enabled OpenMP'
+
 # Parallel version
 parallel = ARGUMENTS.get('parallel', 0)
 if int(parallel):
-   env.Replace(CXX = 'mpiCC')
+   env.Replace(CXX = 'mpicxx')
    env.Append(LIBS = ['HYPRE'])
    env.Append(CPPPATH = [HYPRE_DIR+"/include"])
    env.Append(LIBPATH = [HYPRE_DIR+"/lib"])
@@ -68,7 +76,9 @@ if int(parallel):
    ex1p = env.Program('ex1p',['ex1p.cpp'])
    ex2p = env.Program('ex2p',['ex2p.cpp'])
    ex3p = env.Program('ex3p',['ex3p.cpp'])
+   ex4p = env.Program('ex4p',['ex4p.cpp'])
 else:
    ex1 = env.Program('ex1',['ex1.cpp'])
    ex2 = env.Program('ex2',['ex2.cpp'])
    ex3 = env.Program('ex3',['ex3.cpp'])
+   ex4 = env.Program('ex4',['ex4.cpp'])

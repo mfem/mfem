@@ -11,6 +11,9 @@
 
 #include "fem.hpp"
 
+const char *Geometry::Name[NumGeom] =
+{ "Point", "Segment", "Triangle", "Square", "Tetrahedron", "Cube" };
+
 Geometry::Geometry()
 {
    // Vertices for Geometry::POINT
@@ -260,6 +263,7 @@ Geometry Geometries;
 
 GeometryRefiner::GeometryRefiner()
 {
+   type = 0;
    for (int i = 0; i < Geometry::NumGeom; i++)
    {
       RGeom[i] = NULL;
@@ -280,8 +284,36 @@ RefinedGeometry * GeometryRefiner::Refine (int Geom, int Times, int ETimes)
 {
    int i, j, k, l;
 
+   const double *cp = NULL;
+   if (type)
+      cp = poly1d.ClosedPoints(Times);
+
    switch (Geom)
    {
+   case Geometry::SEGMENT:
+   {
+      const int g = Geometry::SEGMENT;
+      if (RGeom[g] != NULL && RGeom[g]->Times == Times)
+         return RGeom[g];
+      delete RGeom[g];
+      RGeom[g] = new RefinedGeometry(Times+1, 2*Times, 0);
+      RGeom[g]->Times = Times;
+      RGeom[g]->ETimes = 0;
+      for (i = 0; i <= Times; i++)
+      {
+         IntegrationPoint &ip = RGeom[g]->RefPts.IntPoint(i);
+         ip.x = (type == 0) ? double(i) / Times : cp[i];
+      }
+      Array<int> &G = RGeom[g]->RefGeoms;
+      for (i = 0; i < Times; i++)
+      {
+         G[2*i+0] = i;
+         G[2*i+1] = i+1;
+      }
+
+      return RGeom[g];
+   }
+
    case Geometry::TRIANGLE:
    {
       if (RGeom[2] != NULL && RGeom[2]->Times == Times &&
@@ -298,8 +330,16 @@ RefinedGeometry * GeometryRefiner::Refine (int Geom, int Times, int ETimes)
          for (i = 0; i <= Times-j; i++, k++)
          {
             IntegrationPoint &ip = RGeom[2]->RefPts.IntPoint(k);
-            ip.x = double(i) / Times;
-            ip.y = double(j) / Times;
+            if (type == 0)
+            {
+               ip.x = double(i) / Times;
+               ip.y = double(j) / Times;
+            }
+            else
+            {
+               ip.x = cp[i]/(cp[i] + cp[j] + cp[Times-i-j]);
+               ip.y = cp[j]/(cp[i] + cp[j] + cp[Times-i-j]);
+            }
          }
       Array<int> &G = RGeom[2]->RefGeoms;
       for (l = k = j = 0; j < Times; j++, k++)
@@ -366,8 +406,16 @@ RefinedGeometry * GeometryRefiner::Refine (int Geom, int Times, int ETimes)
          for (i = 0; i <= Times; i++, k++)
          {
             IntegrationPoint &ip = RGeom[3]->RefPts.IntPoint(k);
-            ip.x = double(i) / Times;
-            ip.y = double(j) / Times;
+            if (type == 0)
+            {
+               ip.x = double(i) / Times;
+               ip.y = double(j) / Times;
+            }
+            else
+            {
+               ip.x = cp[i];
+               ip.y = cp[j];
+            }
          }
       Array<int> &G = RGeom[3]->RefGeoms;
       for (l = k = j = 0; j < Times; j++, k++)
@@ -419,9 +467,18 @@ RefinedGeometry * GeometryRefiner::Refine (int Geom, int Times, int ETimes)
             for (i = 0; i <= Times; i++, l++)
             {
                IntegrationPoint &ip = RGeom[g]->RefPts.IntPoint(l);
-               ip.x = double(i) / Times;
-               ip.y = double(j) / Times;
-               ip.z = double(k) / Times;
+               if (type == 0)
+               {
+                  ip.x = double(i) / Times;
+                  ip.y = double(j) / Times;
+                  ip.z = double(k) / Times;
+               }
+               else
+               {
+                  ip.x = cp[i];
+                  ip.y = cp[j];
+                  ip.z = cp[k];
+               }
             }
       Array<int> &G = RGeom[g]->RefGeoms;
       for (l = k = 0; k < Times; k++)
@@ -480,9 +537,19 @@ RefinedGeometry * GeometryRefiner::Refine (int Geom, int Times, int ETimes)
                // (0,0,1) -> (1,0,0)
                // (1,1,1) -> (0,1,0)
                // (0,1,1) -> (0,0,1)
-               ip.x = double(k - j) / n;
-               ip.y = double(i) / n;
-               ip.z = double(j - i) / n;
+               if (type == 0)
+               {
+                  ip.x = double(k - j) / n;
+                  ip.y = double(i) / n;
+                  ip.z = double(j - i) / n;
+               }
+               else
+               {
+                  double w = cp[k-j] + cp[i] + cp[j-i] + cp[Times-k];
+                  ip.x = cp[k-j]/w;
+                  ip.y = cp[i]/w;
+                  ip.z = cp[j-i]/w;
+               }
                l = i + (j + k * (n+1)) * (n+1);
                vi[l] = m;
                m++;

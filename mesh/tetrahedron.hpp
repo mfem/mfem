@@ -77,15 +77,11 @@ public:
 
    virtual const int *GetEdgeVertices(int ei) const { return(edges[ei]); }
 
-   virtual Element *Duplicate() const;
+   virtual Element *Duplicate(Mesh *m) const;
 
    virtual ~Tetrahedron() { }
 };
 
 extern Linear3DFiniteElement TetrahedronFE;
-
-#ifdef MFEM_USE_MEMALLOC
-extern MemAlloc <Tetrahedron, 1024> TetMemory;
-#endif
 
 #endif

@@ -36,11 +36,11 @@ public:
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
-                                   Vector &flux, int wcoef = 1) { };
+                                   Vector &flux, int wcoef = 1) { }
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
-                                    Vector &flux) { return 0.0; };
-   virtual ~BilinearFormIntegrator() { };
+                                    Vector &flux) { return 0.0; }
+   virtual ~BilinearFormIntegrator() { }
 };
 
 class TransposeIntegrator : public BilinearFormIntegrator
@@ -88,16 +88,18 @@ class DiffusionIntegrator: public BilinearFormIntegrator
 {
 private:
    Vector vec, pointflux, shape;
+#ifndef MFEM_USE_OPENMP
    DenseMatrix dshape, dshapedxt, invdfdx;
+#endif
    Coefficient *Q;
    MatrixCoefficient *MQ;
 
 public:
    /// Construct a diffusion integrator with a scalar coefficient q
-   DiffusionIntegrator (Coefficient &q) : Q(&q) { MQ = NULL; };
+   DiffusionIntegrator (Coefficient &q) : Q(&q) { MQ = NULL; }
 
    /// Construct a diffusion integrator with a matrix coefficient q
-   DiffusionIntegrator (MatrixCoefficient &q) : MQ(&q) { Q = NULL; };
+   DiffusionIntegrator (MatrixCoefficient &q) : MQ(&q) { Q = NULL; }
 
    /** Given a particular Finite Element
        computes the element stiffness matrix elmat. */
@@ -143,7 +145,7 @@ public:
 class BoundaryMassIntegrator : public MassIntegrator
 {
 public:
-   BoundaryMassIntegrator(Coefficient &q) : MassIntegrator(q) { };
+   BoundaryMassIntegrator(Coefficient &q) : MassIntegrator(q) { }
 };
 
 /// (q . grad u, v)
@@ -156,7 +158,7 @@ private:
    Vector BdFidxT;
    VectorCoefficient &Q;
 public:
-   ConvectionIntegrator(VectorCoefficient &q) : Q(q) { };
+   ConvectionIntegrator(VectorCoefficient &q) : Q(q) { }
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);
@@ -213,17 +215,45 @@ public:
 class VectorFEDivergenceIntegrator : public BilinearFormIntegrator
 {
 private:
+   Coefficient *Q;
+#ifndef MFEM_USE_OPENMP
    Vector divshape, shape;
+#endif
 public:
-   VectorFEDivergenceIntegrator() { };
+   VectorFEDivergenceIntegrator() { Q = NULL; }
+   VectorFEDivergenceIntegrator(Coefficient &q) { Q = &q; }
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
-                                      DenseMatrix &elmat) { };
+                                      DenseMatrix &elmat) { }
    virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 };
+
+
+/// Integrator for (curl u, v) for Nedelec and RT elements
+class VectorFECurlIntegrator: public BilinearFormIntegrator
+{
+private:
+   Coefficient *Q;
+#ifndef MFEM_USE_OPENMP
+   DenseMatrix curlshapeTrial;
+   DenseMatrix vshapeTest;
+   DenseMatrix curlshapeTrial_dFT;
+#endif
+public:
+   VectorFECurlIntegrator() { Q = NULL; }
+   VectorFECurlIntegrator(Coefficient &q) { Q = &q; }
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat) { }
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+};
+
 
 /// Class for integrating (Q D_i(u), v); u and v are scalars
 class DerivativeIntegrator : public BilinearFormIntegrator
@@ -234,11 +264,11 @@ private:
    DenseMatrix dshape, dshapedxt, invdfdx;
    Vector shape, dshapedxi;
 public:
-   DerivativeIntegrator(Coefficient &q, int i) : Q(q), xi(i) {};
+   DerivativeIntegrator(Coefficient &q, int i) : Q(q), xi(i) { }
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat)
-   { AssembleElementMatrix2(el,el,Trans,elmat); } ;
+   { AssembleElementMatrix2(el,el,Trans,elmat); }
    virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
@@ -249,13 +279,15 @@ public:
 class CurlCurlIntegrator: public BilinearFormIntegrator
 {
 private:
+#ifndef MFEM_USE_OPENMP
    DenseMatrix Curlshape, Curlshape_dFt;
+#endif
    Coefficient *Q;
 
 public:
-   CurlCurlIntegrator() { Q = NULL; };
+   CurlCurlIntegrator() { Q = NULL; }
    /// Construct a bilinear form integrator for Nedelec elements
-   CurlCurlIntegrator(Coefficient &q):Q(&q) {};
+   CurlCurlIntegrator(Coefficient &q) : Q(&q) { }
 
    /* Given a particular Finite Element, compute the
       element curl-curl matrix elmat */
@@ -269,13 +301,20 @@ class VectorFEMassIntegrator: public BilinearFormIntegrator
 {
 private:
    Coefficient *Q;
+   VectorCoefficient *VQ;
 
+#ifndef MFEM_USE_OPENMP
    Vector shape;
-   DenseMatrix  vshape;
+   Vector D;
+   DenseMatrix vshape;
+#endif
 
 public:
-   VectorFEMassIntegrator() { Q = NULL; };
-   VectorFEMassIntegrator (Coefficient *_q) { Q = _q; };
+   VectorFEMassIntegrator() { Q = NULL; VQ= NULL; }
+   VectorFEMassIntegrator(Coefficient *_q) { Q = _q; VQ= NULL; }
+   VectorFEMassIntegrator(Coefficient &q) { Q = &q; VQ= NULL; }
+   VectorFEMassIntegrator(VectorCoefficient *_vq) { VQ = _vq; Q = NULL; }
+   VectorFEMassIntegrator(VectorCoefficient &vq) { VQ = &vq; Q = NULL; }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -301,8 +340,9 @@ private:
    DenseMatrix Jadj;
 
 public:
-   VectorDivergenceIntegrator() { Q = NULL; };
-   VectorDivergenceIntegrator (Coefficient *_q) { Q = _q; };
+   VectorDivergenceIntegrator() { Q = NULL; }
+   VectorDivergenceIntegrator(Coefficient *_q) { Q = _q; }
+   VectorDivergenceIntegrator(Coefficient &q) { Q = &q; }
 
    virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
                                        const FiniteElement &test_fe,
@@ -316,11 +356,13 @@ class DivDivIntegrator: public BilinearFormIntegrator
 private:
    Coefficient *Q;
 
+#ifndef MFEM_USE_OPENMP
    Vector divshape;
+#endif
 
 public:
-   DivDivIntegrator() { Q = NULL; };
-   DivDivIntegrator(Coefficient &q) : Q(&q) { };
+   DivDivIntegrator() { Q = NULL; }
+   DivDivIntegrator(Coefficient &q) : Q(&q) { }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -340,8 +382,8 @@ private:
    DenseMatrix pelmat;
 
 public:
-   VectorDiffusionIntegrator() { Q = NULL; };
-   VectorDiffusionIntegrator (Coefficient &q) { Q = &q; };
+   VectorDiffusionIntegrator() { Q = NULL; }
+   VectorDiffusionIntegrator(Coefficient &q) { Q = &q; }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -359,8 +401,10 @@ private:
    double q_lambda, q_mu;
    Coefficient *lambda, *mu;
 
+#ifndef MFEM_USE_OPENMP
    DenseMatrix dshape, Jinv, gshape, pelmat;
    Vector divshape;
+#endif
 
 public:
    ElasticityIntegrator(Coefficient &l, Coefficient &m)
@@ -373,6 +417,72 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);
+};
+
+
+/** Abstract class to serve as a base for local interpolators to be used in
+    the DiscreteLinearOperator class. */
+class DiscreteInterpolator : public BilinearFormIntegrator { };
+
+
+/** Class for constructing the gradient as a DiscreteLinearOperator from an
+    H1-conforming space to an H(curl)-conforming space. The range space can
+    be vector L2 space as well. */
+class GradientInterpolator : public DiscreteInterpolator
+{
+public:
+   virtual void AssembleElementMatrix2(const FiniteElement &h1_fe,
+                                       const FiniteElement &nd_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat)
+   { nd_fe.ProjectGrad(h1_fe, Trans, elmat); }
+};
+
+
+/** Class for constructing the identity map as a DiscreteLinearOperator. This
+    is the discrete embedding matrix when the domain space is a subspace of
+    the range space. Otherwise, a dof projection matrix is constructed. */
+class IdentityInterpolator : public DiscreteInterpolator
+{
+public:
+   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                                       const FiniteElement &ran_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat)
+   { ran_fe.Project(dom_fe, Trans, elmat); }
+};
+
+
+/** Class for constructing the (local) discrete curl matrix which can be used
+    as an integrator in a DiscreteLinearOperator object to assemble the global
+    discrete curl matrix. */
+class CurlInterpolator : public DiscreteInterpolator
+{
+public:
+   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                                       const FiniteElement &ran_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat)
+   { ran_fe.ProjectCurl(dom_fe, Trans, elmat); }
+};
+
+
+/** Class for constructing the (local) discrete divergence matrix which can
+    be used as an integrator in a DiscreteLinearOperator object to assemble
+    the global discrete divergence matrix.
+
+    Note: Since the dofs in the L2_FECollection are nodal values, the local
+    discrete divergence matrix (with an RT-type domain space) will depend on
+    the transformation. On the other hand, the local matrix returned by
+    VectorFEDivergenceInterpolator is independent of the transformation. */
+class DivergenceInterpolator : public DiscreteInterpolator
+{
+public:
+   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                                       const FiniteElement &ran_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat)
+   { ran_fe.ProjectDiv(dom_fe, Trans, elmat); }
 };
 
 #endif

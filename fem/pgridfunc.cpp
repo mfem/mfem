@@ -34,50 +34,59 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, GridFunction *gf)
    SetSize(pfes->GetVSize());
 }
 
-void ParGridFunction::Distribute(HypreParVector *tv)
+void ParGridFunction::Update(ParFiniteElementSpace *f)
 {
-   int  nproc   = pfes->GetNRanks();
-   int *dof_off = pfes->GetDofOffsets();
-
-   // vector on (all) dofs
-   HypreParVector *v;
-   if (HYPRE_AssumedPartitionCheck())
-      v = new HypreParVector(dof_off[2], data, dof_off);
-   else
-      v = new HypreParVector(dof_off[nproc], data, dof_off);
-
-   pfes->Dof_TrueDof_Matrix()->Mult(*tv, *v);
-
-   delete v;
+   GridFunction::Update(f);
+   pfes = f;
 }
 
-HypreParVector * ParGridFunction::ParallelAverage()
+void ParGridFunction::Update(ParFiniteElementSpace *f, Vector &v, int v_offset)
 {
-   int  nproc    = pfes->GetNRanks();
-   int *dof_off  = pfes->GetDofOffsets();
-   int *tdof_off = pfes->GetTrueDofOffsets();
+   GridFunction::Update(f, v, v_offset);
+   pfes = f;
+}
 
-   // vector on true dofs
-   HypreParVector *tv;
-   if (HYPRE_AssumedPartitionCheck())
-      tv = new HypreParVector(tdof_off[2], tdof_off);
-   else
-      tv = new HypreParVector(tdof_off[nproc], tdof_off);
+void ParGridFunction::Distribute(HypreParVector *tv)
+{
+   pfes->Dof_TrueDof_Matrix()->Mult(*tv, *this);
+}
 
-   // vector on (all) dofs
-   HypreParVector *v;
-   if (HYPRE_AssumedPartitionCheck())
-      v = new HypreParVector(dof_off[2], data, dof_off);
-   else
-      v = new HypreParVector(dof_off[nproc], data, dof_off);
+void ParGridFunction::ParallelAverage(HypreParVector &tv)
+{
+   pfes->Dof_TrueDof_Matrix()->MultTranspose(*this, tv);
+   pfes->DivideByGroupSize(tv);
+}
 
-   pfes->Dof_TrueDof_Matrix()->MultTranspose(*v, *tv);
-
-   delete v;
-
-   pfes->DivideByGroupSize(*tv);
-
+HypreParVector *ParGridFunction::ParallelAverage()
+{
+   HypreParVector *tv = new HypreParVector(pfes->GlobalTrueVSize(),
+                                           pfes->GetTrueDofOffsets());
+   ParallelAverage(*tv);
    return tv;
+}
+
+double ParGridFunction::ComputeL1Error(Coefficient *exsol[],
+                                       const IntegrationRule *irs[]) const
+{
+   double lerr, gerr;
+
+   lerr = GridFunction::ComputeW11Error(*exsol, NULL, 1, NULL, irs);
+
+   MPI_Allreduce(&lerr, &gerr, 1, MPI_DOUBLE, MPI_SUM, pfes->GetComm());
+
+   return gerr;
+}
+
+double ParGridFunction::ComputeL1Error(VectorCoefficient &exsol,
+                                       const IntegrationRule *irs[]) const
+{
+   double lerr, gerr;
+
+   lerr = GridFunction::ComputeL1Error(exsol, irs);
+
+   MPI_Allreduce(&lerr, &gerr, 1, MPI_DOUBLE, MPI_SUM, pfes->GetComm());
+
+   return gerr;
 }
 
 double ParGridFunction::ComputeL2Error(Coefficient *exsol[],
@@ -105,6 +114,43 @@ double ParGridFunction::ComputeL2Error(VectorCoefficient &exsol,
    MPI_Allreduce(&lerr, &gerr, 1, MPI_DOUBLE, MPI_SUM, pfes->GetComm());
 
    return sqrt(gerr);
+}
+
+double ParGridFunction::ComputeMaxError(Coefficient *exsol[],
+                                        const IntegrationRule *irs[]) const
+{
+   double lerr, gerr;
+
+   lerr = GridFunction::ComputeMaxError(exsol, irs);
+
+   MPI_Allreduce(&lerr, &gerr, 1, MPI_DOUBLE, MPI_MAX, pfes->GetComm());
+
+   return gerr;
+}
+
+double ParGridFunction::ComputeMaxError(VectorCoefficient &exsol,
+                                        const IntegrationRule *irs[]) const
+{
+   double lerr, gerr;
+
+   lerr = GridFunction::ComputeMaxError(exsol, irs);
+
+   MPI_Allreduce(&lerr, &gerr, 1, MPI_DOUBLE, MPI_MAX, pfes->GetComm());
+
+   return gerr;
+}
+
+void ParGridFunction::Save(ostream &out)
+{
+   for (int i = 0; i < size; i++)
+      if (pfes->GetDofSign(i) < 0)
+         data[i] = -data[i];
+
+   GridFunction::Save(out);
+
+   for (int i = 0; i < size; i++)
+      if (pfes->GetDofSign(i) < 0)
+         data[i] = -data[i];
 }
 
 void ParGridFunction::SaveAsOne(ostream &out)
@@ -136,7 +182,7 @@ void ParGridFunction::SaveAsOne(ostream &out)
    if (MyRank == 0)
    {
       pfes -> Save(out);
-      out << endl;
+      out << '\n';
 
       for (p = 1; p < NRanks; p++)
       {
@@ -159,19 +205,19 @@ void ParGridFunction::SaveAsOne(ostream &out)
          {
             for (p = 0; p < NRanks; p++)
                for (i = 0; i < nvdofs[p]; i++)
-                  out << *values[p]++ << endl;
+                  out << *values[p]++ << '\n';
 
             for (p = 0; p < NRanks; p++)
                for (i = 0; i < nedofs[p]; i++)
-                  out << *values[p]++ << endl;
+                  out << *values[p]++ << '\n';
 
             for (p = 0; p < NRanks; p++)
                for (i = 0; i < nfdofs[p]; i++)
-                  out << *values[p]++ << endl;
+                  out << *values[p]++ << '\n';
 
             for (p = 0; p < NRanks; p++)
                for (i = 0; i < nrdofs[p]; i++)
-                  out << *values[p]++ << endl;
+                  out << *values[p]++ << '\n';
          }
       }
       else
@@ -179,22 +225,22 @@ void ParGridFunction::SaveAsOne(ostream &out)
          for (p = 0; p < NRanks; p++)
             for (i = 0; i < nvdofs[p]; i++)
                for (int d = 0; d < vdim; d++)
-                  out << *values[p]++ << endl;
+                  out << *values[p]++ << '\n';
 
          for (p = 0; p < NRanks; p++)
             for (i = 0; i < nedofs[p]; i++)
                for (int d = 0; d < vdim; d++)
-                  out << *values[p]++ << endl;
+                  out << *values[p]++ << '\n';
 
          for (p = 0; p < NRanks; p++)
             for (i = 0; i < nfdofs[p]; i++)
                for (int d = 0; d < vdim; d++)
-                  out << *values[p]++ << endl;
+                  out << *values[p]++ << '\n';
 
          for (p = 0; p < NRanks; p++)
             for (i = 0; i < nrdofs[p]; i++)
                for (int d = 0; d < vdim; d++)
-                  out << *values[p]++ << endl;
+                  out << *values[p]++ << '\n';
       }
 
       for (p = 1; p < NRanks; p++)

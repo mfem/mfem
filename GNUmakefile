@@ -17,14 +17,20 @@ OPTIM_OPTS = -O3
 DEPCC      = $(CC)
 
 # Parallel compiler
-MPICC      = mpiCC
+MPICC      = mpicxx
 MPIOPTS    = $(CCOPTS) -I$(HYPRE_DIR)/include
 
 # The HYPRE library (needed to build the parallel version)
-HYPRE_DIR  = ../../hypre-2.7.0b/src/hypre
+HYPRE_DIR  = ../../hypre-2.8.0b/src/hypre
+
+# Enable experimental OpenMP support
+USE_OPENMP = NO
+
+# Which version of the METIS library should be used, 4 (default) or 5?
+USE_METIS_5 = NO
 
 # Internal mfem options
-USE_LAPACK   = YES
+USE_LAPACK   = NO
 USE_MEMALLOC = YES
 
 USE_LAPACK_NO  =
@@ -35,7 +41,16 @@ USE_MEMALLOC_NO  =
 USE_MEMALLOC_YES = -DMFEM_USE_MEMALLOC
 USE_MEMALLOC_DEF = $(USE_MEMALLOC_$(USE_MEMALLOC))
 
-DEFS = $(USE_LAPACK_DEF) $(USE_MEMALLOC_DEF)
+USE_OPENMP_NO  =
+USE_OPENMP_YES = -fopenmp -DMFEM_USE_OPENMP
+USE_OPENMP_DEF = $(USE_OPENMP_$(USE_OPENMP))
+
+USE_METIS_5_NO  =
+USE_METIS_5_YES = -DMFEM_USE_METIS_5
+USE_METIS_5_DEF = $(USE_METIS_5_$(USE_METIS_5))
+
+DEFS = $(USE_LAPACK_DEF) $(USE_MEMALLOC_DEF) $(USE_OPENMP_DEF) \
+       $(USE_METIS_5_DEF)
 
 CCC = $(CC) $(MODE_OPTS) $(DEFS) $(CCOPTS)
 

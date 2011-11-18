@@ -66,7 +66,7 @@ public:
    friend void Swap<T>(Array<T> &, Array<T> &);
 
    /// Creates array of asize elements
-   inline Array(int asize = 0, int ainc = 0)
+   explicit inline Array(int asize = 0, int ainc = 0)
       : BaseArray(asize, ainc, sizeof (T)) { }
 
    /** Creates array using an existing c-array of asize elements;
@@ -80,6 +80,9 @@ public:
 
    /// Return the data as 'T *'
    inline operator T *() { return (T *)data; }
+
+   /// Return the data as 'const T *'
+   inline operator const T *() const { return (const T *)data; }
 
    /// Returns the data
    inline T *GetData() { return (T *)data; }
@@ -121,6 +124,9 @@ public:
    /// Append element when it is not yet in the array, return index
    inline int Union(const T & el);
 
+   /// Return the first index where 'el' is found; return -1 if not found
+   inline int Find(const T &el) const;
+
    /// Delete the last entry
    inline void DeleteLast() { size--; }
 
@@ -131,11 +137,14 @@ public:
    inline void DeleteAll();
 
    /// Create a copy of the current array
-   inline void Copy(Array &copy)
+   inline void Copy(Array &copy) const
    {
       copy.SetSize(Size());
-      memcpy(copy.GetData(), GetData(), Size()*sizeof(T));
+      memcpy(copy.GetData(), data, Size()*sizeof(T));
    }
+
+   /// Make this Array a reference to 'master'
+   inline void MakeRef(const Array &master);
 
    inline void GetSubArray(int offset, int sa_size, Array<T> &sa);
 
@@ -147,7 +156,7 @@ public:
 
    /** Finds the maximal element in the array.
        (uses the comparison operator '<' for class T)  */
-   T Max();
+   T Max() const;
 
    /// Sorts the array.
    void Sort();
@@ -161,6 +170,74 @@ private:
    Array(const Array<T> &);
 };
 
+template <class T>
+class Array2D;
+
+template <class T>
+void Swap(Array2D<T> &, Array2D<T> &);
+
+template <class T>
+class Array2D
+{
+private:
+   friend void Swap<T>(Array2D<T> &, Array2D<T> &);
+
+   Array<T> array1d;
+   int N;
+
+public:
+   Array2D() { N = 0; }
+   Array2D(int m, int n) : array1d(m*n) { N = n; }
+
+   void SetSize(int m, int n) { array1d.SetSize(m*n); N = n; }
+
+   int NumRows() const { return array1d.Size()/N; }
+   int NumCols() const { return N; }
+
+   inline const T &operator()(int i, int j) const;
+   inline       T &operator()(int i, int j);
+
+   inline const T *operator[](int i) const;
+   inline T       *operator[](int i);
+
+   const T *operator()(int i) const { return (*this)[i]; }
+   T       *operator()(int i)       { return (*this)[i]; }
+
+   const T *GetRow(int i) const { return (*this)[i]; }
+   T       *GetRow(int i)       { return (*this)[i]; }
+
+   void Copy(Array2D &copy) const
+   { copy.N = N; array1d.Copy(copy.array1d); }
+};
+
+
+template <class T>
+class Array3D
+{
+private:
+   Array<T> array1d;
+   int N2, N3;
+
+public:
+   Array3D() { N2 = N3 = 0; }
+   Array3D(int n1, int n2, int n3)
+      : array1d(n1*n2*n3) { N2 = n2; N3 = n3; }
+
+   void SetSize(int n1, int n2, int n3)
+   { array1d.SetSize(n1*n2*n3); N2 = n2; N3 = n3; }
+
+   inline const T &operator()(int i, int j, int k) const;
+   inline       T &operator()(int i, int j, int k);
+};
+
+
+template <class T>
+inline void Swap(T &a, T &b)
+{
+   T c = a;
+   a = b;
+   b = c;
+}
 
 template <class T>
 inline void Swap(Array<T> &a, Array<T> &b)
@@ -177,6 +254,10 @@ inline void Swap(Array<T> &a, Array<T> &b)
 template <class T>
 inline void Array<T>::SetSize(int nsize)
 {
+#ifdef MFEM_DEBUG
+   if (nsize < 0)
+      mfem_error("Array::SetSize : negative size!");
+#endif
    if (nsize > abs(allocsize))
       GrowSize(nsize, sizeof(T));
    size = nsize;
@@ -260,6 +341,15 @@ inline int Array<T>::Union(const T &el)
 }
 
 template <class T>
+inline int Array<T>::Find(const T &el) const
+{
+   for (int i = 0; i < size; i++)
+      if (((T*)data)[i] == el)
+         return i;
+   return -1;
+}
+
+template <class T>
 inline void Array<T>::DeleteFirst(const T &el)
 {
    for (int i = 0; i < size; i++)
@@ -282,6 +372,17 @@ inline void Array<T>::DeleteAll()
 }
 
 template <class T>
+inline void Array<T>::MakeRef(const Array &master)
+{
+   if (allocsize > 0)
+      delete [] (char*)data;
+   data = master.data;
+   size = master.size;
+   allocsize = -abs(master.allocsize);
+   inc = master.inc;
+}
+
+template <class T>
 inline void Array<T>::GetSubArray(int offset, int sa_size, Array<T> &sa)
 {
    sa.SetSize(sa_size);
@@ -294,6 +395,107 @@ inline void Array<T>::operator=(const T &a)
 {
    for (int i = 0; i < size; i++)
       ((T*)data)[i] = a;
+}
+
+
+template <class T>
+inline const T &Array2D<T>::operator()(int i, int j) const
+{
+#ifdef MFEM_DEBUG
+   if (i < 0 || i >= array1d.Size()/N || j < 0 || j >= N)
+   {
+      cerr << "Array2D: invalid access of element (" << i << ',' << j
+           << ") in array of size (" << array1d.Size()/N << ',' << N
+           << ")." << endl;
+      mfem_error();
+   }
+#endif
+   return array1d[i*N+j];
+}
+
+template <class T>
+inline T &Array2D<T>::operator()(int i, int j)
+{
+#ifdef MFEM_DEBUG
+   if (i < 0 || i >= array1d.Size()/N || j < 0 || j >= N)
+   {
+      cerr << "Array2D: invalid access of element (" << i << ',' << j
+           << ") in array of size (" << array1d.Size()/N << ',' << N
+           << ")." << endl;
+      mfem_error();
+   }
+#endif
+   return array1d[i*N+j];
+}
+
+template <class T>
+inline const T *Array2D<T>::operator[](int i) const
+{
+#ifdef MFEM_DEBUG
+   if (i < 0 || i >= array1d.Size()/N)
+   {
+      cerr << "Array2D: invalid access of row " << i << " in array with "
+           << array1d.Size()/N << " rows." << endl;
+      mfem_error();
+   }
+#endif
+   return &array1d[i*N];
+}
+
+template <class T>
+inline T *Array2D<T>::operator[](int i)
+{
+#ifdef MFEM_DEBUG
+   if (i < 0 || i >= array1d.Size()/N)
+   {
+      cerr << "Array2D: invalid access of row " << i << " in array with "
+           << array1d.Size()/N << " rows." << endl;
+      mfem_error();
+   }
+#endif
+   return &array1d[i*N];
+}
+
+
+template <class T>
+inline void Swap(Array2D<T> &a, Array2D<T> &b)
+{
+   int s;
+   Swap(a.array1d, b.array1d);
+   s = a.N;  a.N = b.N;  b.N = s;
+}
+
+
+template <class T>
+inline const T &Array3D<T>::operator()(int i, int j, int k) const
+{
+#ifdef MFEM_DEBUG
+   int N1 = array1d.Size()/N2/N3;
+   if (i < 0 || i >= N1 || j < 0 || j >= N2 || k < 0 || k >= N3)
+   {
+      cerr << "Array3D: invalid access of element ("
+           << i << ',' << j << ',' << k << ") in array of size ("
+           << N1 << ',' << N2 << ',' << N3 << ")." << endl;
+      mfem_error();
+   }
+#endif
+   return array1d[(i*N2+j)*N3+k];
+}
+
+template <class T>
+inline T &Array3D<T>::operator()(int i, int j, int k)
+{
+#ifdef MFEM_DEBUG
+   int N1 = array1d.Size()/N2/N3;
+   if (i < 0 || i >= N1 || j < 0 || j >= N2 || k < 0 || k >= N3)
+   {
+      cerr << "Array3D: invalid access of element ("
+           << i << ',' << j << ',' << k << ") in array of size ("
+           << N1 << ',' << N2 << ',' << N3 << ")." << endl;
+      mfem_error();
+   }
+#endif
+   return array1d[(i*N2+j)*N3+k];
 }
 
 #endif

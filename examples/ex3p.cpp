@@ -8,19 +8,19 @@
 //               mpirun -np 4 ex3p ../data/fichera.mesh
 //               mpirun -np 4 ex3p ../data/fichera-q2.vtk
 //               mpirun -np 4 ex3p ../data/fichera-q3.mesh
+//               mpirun -np 4 ex3p ../data/beam-hex-nurbs.mesh
 //
 // Description:  This example code solves a simple 3D electromagnetic diffusion
 //               problem corresponding to the second order definite Maxwell
 //               equation curl curl E + E = f with boundary condition
 //               E x n = <given tangential field>. Here, we use a given exact
 //               solution E and compute the corresponding r.h.s. f.
-//               We discretize with the lowest order Nedelec finite elements.
+//               We discretize with Nedelec finite elements.
 //
 //               The example demonstrates the use of H(curl) finite element
 //               spaces with the curl-curl and the (vector finite element) mass
-//               bilinear form, the projection of grid functions between finite
-//               element spaces and the computation of discretization error when
-//               the exact solution is known.
+//               bilinear form, as well as the computation of discretization
+//               error when the exact solution is known.
 //
 //               We recommend viewing examples 1-2 before viewing this example.
 
@@ -45,7 +45,7 @@ int main (int argc, char *argv[])
    if (argc == 1)
    {
       if (myid == 0)
-         cout << "\nUsage: ex3 <mesh_file>\n" << endl;
+         cout << "\nUsage: mpirun -np <np> ex3p <mesh_file>\n" << endl;
       MPI_Finalize();
       return 1;
    }
@@ -84,7 +84,9 @@ int main (int argc, char *argv[])
 
    // 4. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
-   //    parallel mesh is defined, the serial mesh can be deleted.
+   //    parallel mesh is defined, the serial mesh can be deleted. Tetrahedral
+   //    meshes need to be reoriented before we can define high-order Nedelec
+   //    spaces on them.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
@@ -92,11 +94,17 @@ int main (int argc, char *argv[])
       for (int l = 0; l < par_ref_levels; l++)
          pmesh->UniformRefinement();
    }
+   pmesh->ReorientTetMesh();
 
    // 5. Define a parallel finite element space on the parallel mesh. Here we
-   //    use the lowest order Nedelec finite elements.
-   FiniteElementCollection *fec = new ND1_3DFECollection;
+   //    use the lowest order Nedelec finite elements, but we can easily swich
+   //    to higher-order spaces by changing the value of p.
+   int p = 1;
+   FiniteElementCollection *fec = new ND_FECollection(p, pmesh -> Dimension());
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+   int size = fespace->GlobalTrueVSize();
+   if (myid == 0)
+      cout << "Number of unknowns: " << size << endl;
 
    // 6. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
@@ -127,7 +135,7 @@ int main (int argc, char *argv[])
    Coefficient *sigma = new ConstantCoefficient(1.0);
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
-   a->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
+   a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
    a->Assemble();
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
@@ -171,55 +179,34 @@ int main (int argc, char *argv[])
          cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
    }
 
-   // 13. In order to visualize the solution, we first represent it in the space
-   //     of linear discontinuous vector finite elements. The representation in
-   //     this space is given by (exact) projection with ProjectVectorFieldOn.
-   FiniteElementCollection *dfec = new LinearDiscont3DFECollection;
-   ParFiniteElementSpace *dfespace = new ParFiniteElementSpace(pmesh, dfec, 3);
-   ParGridFunction dx(dfespace);
-   x.ProjectVectorFieldOn(dx);
-
-   // 14. Save the refined mesh and the solution. This output can be viewed
-   //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
+   // 13. Save the refined mesh and the solution in parallel. This output can
+   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
-      ofstream mesh_ofs;
-      if (myid == 0)
-         mesh_ofs.open("refined.mesh");
-      mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
-      if (myid == 0)
-         mesh_ofs.close();
+      ostringstream mesh_name, sol_name;
+      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "sol." << setfill('0') << setw(6) << myid;
 
-      ofstream sol_ofs;
-      if (myid == 0)
-         sol_ofs.open("sol.gf");
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      pmesh->Print(mesh_ofs);
+
+      ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
-      dx.SaveAsOne(sol_ofs);
-      if (myid == 0)
-         sol_ofs.close();
+      x.Save(sol_ofs);
    }
 
-   // 15. (Optional) Send the solution by socket to a GLVis server.
+   // 14. (Optional) Send the solution by socket to a GLVis server.
    char vishost[] = "localhost";
    int  visport   = 19916;
-   osockstream *sol_sock;
-   if (myid == 0)
-   {
-      sol_sock = new osockstream(visport, vishost);
-      *sol_sock << "vfem3d_gf_data\n";
-      sol_sock->precision(8);
-   }
-   pmesh->PrintAsOne(*sol_sock);
-   dx.SaveAsOne(*sol_sock);
-   if (myid == 0)
-   {
-      sol_sock->send();
-      delete sol_sock;
-   }
+   osockstream sol_sock(visport, vishost);
+   sol_sock << "parallel " << num_procs << " " << myid << "\n";
+   sol_sock << "solution\n";
+   sol_sock.precision(8);
+   pmesh->Print(sol_sock);
+   x.Save(sol_sock);
+   sol_sock.send();
 
-   // 16. Free the used memory.
-   delete dfespace;
-   delete dfec;
+   // 15. Free the used memory.
    delete pcg;
    delete ams;
    delete X;

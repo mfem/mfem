@@ -14,6 +14,7 @@
 
 // Data type mesh
 
+class NURBSExtension;
 class FiniteElementSpace;
 class GridFunction;
 
@@ -26,6 +27,8 @@ class Mesh
 #ifdef MFEM_USE_MPI
    friend class ParMesh;
 #endif
+   friend class NURBSExtension;
+
 protected:
    int Dim;
 
@@ -71,6 +74,15 @@ protected:
    GridFunction *Nodes;
    int own_nodes;
 
+#ifdef MFEM_USE_MEMALLOC
+   friend class Tetrahedron;
+
+   MemAlloc <Tetrahedron, 1024> TetMemory;
+   MemAlloc <BisectedElement, 1024> BEMemory;
+#endif
+
+   Element *NewElement(int geom);
+
    void Init();
 
    void InitTables();
@@ -80,6 +92,9 @@ protected:
    /** Delete the 'el_to_el', 'face_edge' and 'edge_vertex' tables.
        Usefull in refinement methods to destroy the coarse tables. */
    void DeleteCoarseTables();
+
+   Element *ReadElement(istream &);
+   static void PrintElement(Element *, ostream &);
 
    /// Return the length of the segment from node i to node j.
    double GetLength(int i, int j) const;
@@ -129,6 +144,16 @@ protected:
    /// Refine hexahedral mesh.
    virtual void HexUniformRefinement();
 
+   /// Refine NURBS mesh.
+   virtual void NURBSUniformRefinement();
+
+   /// Read NURBS patch/macro-element mesh
+   void LoadPatchTopo(istream &input, Array<int> &edge_to_knot);
+
+   void UpdateNURBS();
+
+   void PrintTopo(ostream &out, const Array<int> &e_to_k) const;
+
    void BisectTriTrans (DenseMatrix &pointmat, Triangle *tri,
                         int child);
 
@@ -140,8 +165,6 @@ protected:
    int GetBisectionHierarchy (Element *E);
 
    FiniteElement *GetTransformationFEforElementType (int);
-
-   void GetElementTransformation (int i, IsoparametricTransformation *ElTr);
 
    /// Used in GetFaceElementTransformations (...)
    void GetLocalSegToTriTransformation (IsoparametricTransformation &loc,
@@ -185,6 +208,11 @@ protected:
    void AddQuadFaceElement (int lf, int gf, int el,
                             int v0, int v1, int v2, int v3);
 
+   // shift cyclically 3 integers left-to-right
+   inline static void ShiftL2R(int &, int &, int &);
+   // shift cyclically 3 integers so that the smallest is first
+   inline static void Rotate3(int &, int &, int &);
+
    void FreeElement (Element *E);
 
    void GenerateFaces();
@@ -195,6 +223,8 @@ public:
 
    Array<int> attributes;
    Array<int> bdr_attributes;
+
+   NURBSExtension *NURBSext;
 
    Mesh() { Init(); InitTables(); meshgen = 0; Dim = 0; }
 
@@ -225,38 +255,21 @@ public:
         double sx = 1.0, double sy = 1.0);
 
    /** Creates 1D mesh , divided into n equal intervals. */
-   Mesh (int n);
+   explicit Mesh(int n);
 
    /** Creates mesh by reading data stream in netgen format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges
        are generated. */
    Mesh ( istream &input, int generate_edges = 0, int refine = 1);
 
-   /** Start creating a mesh by reading data stream in netgen format. If
-       generate_edges = 0 (default) edges are not generated, if 1 edges
-       are generated. Used with consecutive load calls. */
-   Mesh ( istream &input, Vector **data, int nprocessors,
-          int currentprocessor, int generate_edges = 0 );
-
-   /** Creating a mesh from array of nprocessors input streams. The meshes
-       are read in the array order. The nodes in the consecutive meshes are
-       properly shifted. dim is output array of dimension nprocessors and
-       gives the number of vertices in the different subdomains. The obtained
-       global mesh is nonconforming between the subdomains in the sence that
-       the same nodes on the boundary have different indices (from the
-       different subdomains. */
-   Mesh ( istream ** input, int nprocessors, int * dim);
+   /// Create a disjoint mesh from the given mesh array
+   Mesh(Mesh *mesh_array[], int num_pieces);
 
    /* This is similar to the above mesh constructor, but here the current
       mesh is destroyed and another one created based on the data stream
       again given in netgen format. If generate_edges = 0 (default) edges
       are not generated, if 1 edges are generated. */
    void Load ( istream &input, int generate_edges = 0, int refine = 1);
-
-   /* Continue loading a mesh - started by the constructor that takes as
-      argument number of processors. */
-   void Load ( istream &input, Vector **data, int nprocessors,
-               int currentprocessor, int generate_edges = 0);
 
    void SetNodalFESpace(FiniteElementSpace *nfes);
    void SetNodalGridFunction(GridFunction *nodes);
@@ -266,60 +279,60 @@ public:
    inline int MeshGenerator() { return meshgen; }
 
    /// Returns number of vertices.
-   inline int GetNV() const {return NumOfVertices;}
+   inline int GetNV() const { return NumOfVertices; }
 
    /// Returns number of elements.
-   inline int GetNE() const {return NumOfElements;}
+   inline int GetNE() const { return NumOfElements; }
 
    /// Returns number of boundary elements.
-   inline int GetNBE() const {return NumOfBdrElements;}
+   inline int GetNBE() const { return NumOfBdrElements; }
 
    /// Return the number of edges.
-   inline int GetNEdges () const { return NumOfEdges;}
+   inline int GetNEdges() const { return NumOfEdges; }
 
-   inline int GetNFaces () const { return NumOfFaces; };
+   inline int GetNFaces() const { return NumOfFaces; }
 
    /// Equals 1 + num_holes - num_loops
-   inline int  EulerNumber () const
-   { return NumOfVertices - NumOfEdges + NumOfFaces - NumOfElements; };
+   inline int EulerNumber() const
+   { return NumOfVertices - NumOfEdges + NumOfFaces - NumOfElements; }
    /// Equals 1 - num_holes
-   inline int  EulerNumber2D () const
-   { return NumOfVertices - NumOfEdges + NumOfElements; };
+   inline int EulerNumber2D() const
+   { return NumOfVertices - NumOfEdges + NumOfElements; }
 
-   int Dimension() const { return Dim; };
+   int Dimension() const { return Dim; }
 
    /// Return pointer to vertex i's coordinates
    const double *GetVertex(int i) const { return vertices[i](); }
    double *GetVertex(int i) { return vertices[i](); }
 
-   const Element *GetElement (int i) const { return elements[i]; };
+   const Element *GetElement(int i) const { return elements[i]; }
 
-   Element *GetElement (int i) { return elements[i]; };
+   Element *GetElement(int i) { return elements[i]; }
 
-   const Element *GetBdrElement (int i) const { return boundary[i]; };
+   const Element *GetBdrElement(int i) const { return boundary[i]; }
 
-   Element *GetBdrElement (int i) { return boundary[i]; };
+   Element *GetBdrElement(int i) { return boundary[i]; }
 
-   const Element *GetFace (int i) const { return faces[i]; };
+   const Element *GetFace(int i) const { return faces[i]; }
 
    int GetFaceBaseGeometry(int i) const;
 
    int GetElementBaseGeometry(int i) const
-   { return elements[i]->GetGeometryType(); };
+   { return elements[i]->GetGeometryType(); }
 
    int GetBdrElementBaseGeometry(int i) const
-   { return boundary[i]->GetGeometryType(); };
+   { return boundary[i]->GetGeometryType(); }
 
    /// Returns the indices of the dofs of element i.
-   void GetElementVertices ( int i, Array<int> &dofs ) const
-   { elements[i] -> GetVertices (dofs); }
+   void GetElementVertices(int i, Array<int> &dofs) const
+   { elements[i]->GetVertices(dofs); }
 
    /// Returns the indices of the dofs of boundary element i.
-   void GetBdrElementVertices ( int i, Array<int> &dofs ) const
-   { boundary[i]->GetVertices( dofs ); }
+   void GetBdrElementVertices(int i, Array<int> &dofs) const
+   { boundary[i]->GetVertices(dofs); }
 
    /// Return the indices and the orientations of all edges of element i.
-   void GetElementEdges (int i, Array<int> &, Array<int> &) const;
+   void GetElementEdges(int i, Array<int> &, Array<int> &) const;
 
    /// Return the indices and the orientations of all edges of bdr element i.
    void GetBdrElementEdges(int i, Array<int> &, Array<int> &) const;
@@ -328,11 +341,11 @@ public:
    void GetFaceEdges(int i, Array<int> &, Array<int> &) const;
 
    /// Returns the indices of the vertices of face i.
-   void GetFaceVertices (int i, Array<int> &vert) const
+   void GetFaceVertices(int i, Array<int> &vert) const
    { faces[i] -> GetVertices (vert); }
 
    /// Returns the indices of the vertices of edge i.
-   void GetEdgeVertices (int i, Array<int> &vert) const;
+   void GetEdgeVertices(int i, Array<int> &vert) const;
 
    /// Returns the face-to-edge Table (3D)
    Table *GetFaceEdgeTable() const;
@@ -341,41 +354,52 @@ public:
    Table *GetEdgeVertexTable() const;
 
    /// Return the indices and the orientations of all faces of element i.
-   void GetElementFaces (int i, Array<int> &, Array<int> &) const;
+   void GetElementFaces(int i, Array<int> &, Array<int> &) const;
 
    /// Return the index and the orientation of the face of bdr element i. (3D)
-   void GetBdrElementFace (int i, int *, int *) const;
+   void GetBdrElementFace(int i, int *, int *) const;
 
    /** Return the edge index of boundary element i. (2D)
        return the face index of boundary element i. (3D) */
-   int GetBdrElementEdgeIndex (int i) const;
+   int GetBdrElementEdgeIndex(int i) const;
 
    /// Returns the type of element i.
-   int GetElementType (int i) const;
+   int GetElementType(int i) const;
 
    /// Returns the type of boundary element i.
-   int GetBdrElementType (int i) const;
+   int GetBdrElementType(int i) const;
 
    /* Return point matrix of element i of dimension Dim X #dofs, where for
       every degree of freedom we give its coordinates in space of dimension
       Dim. */
-   void GetPointMatrix( int i, DenseMatrix &pointmat ) const;
+   void GetPointMatrix(int i, DenseMatrix &pointmat) const;
 
    /* Return point matrix of boundary element i of dimension Dim X #dofs,
       where for every degree of freedom we give its coordinates in space
       of dimension Dim. */
-   void GetBdrPointMatrix( int i, DenseMatrix &pointmat ) const;
+   void GetBdrPointMatrix(int i, DenseMatrix &pointmat) const;
+
+   /** Builds the transformation defining the i-th element in the user-defined
+       variable. */
+   void GetElementTransformation(int i, IsoparametricTransformation *ElTr);
 
    /// Returns the transformation defining the i-th element
-   ElementTransformation * GetElementTransformation (int i);
+   ElementTransformation *GetElementTransformation(int i);
 
    /** Return the transformation defining the i-th element assuming
        the position of the vertices/nodes are given by 'nodes'. */
-   void GetElementTransformation (int i, const Vector &nodes,
-                                  IsoparametricTransformation *ElTr);
+   void GetElementTransformation(int i, const Vector &nodes,
+                                 IsoparametricTransformation *ElTr);
 
    /// Returns the transformation defining the i-th boundary element
    ElementTransformation * GetBdrElementTransformation(int i);
+
+   /** Returns the transformation defining the given face element.
+       The transformation is stored in a user-defined variable. */
+   void GetFaceTransformation(int i, IsoparametricTransformation *FTr);
+
+   /// Returns the transformation defining the given face element
+   ElementTransformation *GetFaceTransformation(int FaceNo);
 
    /** Returns (a poiter to a structure containing) the following data:
        1) Elem1No - the index of the first element that contains this face
@@ -391,8 +415,12 @@ public:
        face coordinate system to the element coordinate system
        (both in their reference elements). Used to transform
        IntegrationPoints from face to element.
-       6) FaceGeom - the base geometry for the face. */
-   FaceElementTransformations *GetFaceElementTransformations (int FaceNo);
+       6) FaceGeom - the base geometry for the face.
+       The mask specifies which fields in the structure to return:
+       mask & 1 - Elem1, mask & 2 - Elem2, mask & 4 - Loc1, mask & 8 - Loc2,
+       mask & 16 - Face. */
+   FaceElementTransformations *GetFaceElementTransformations(int FaceNo,
+                                                             int mask = 31);
 
    FaceElementTransformations *GetInteriorFaceTransformations (int FaceNo)
    { if (faces_info[FaceNo].Elem2No < 0) return NULL;
@@ -423,6 +451,17 @@ public:
    ///  The returned Table must be destroyed by the caller
    Table *GetVertexToElementTable();
 
+   /** This method modifies a tetrahedral mesh so that Nedelec spaces of order
+       greater than 1 can be defined on the mesh. Specifically, we
+       1) rotate all tets in the mesh so that the vertices {v0, v1, v2, v3}
+       satisfy: v0 < v1 < min(v2, v3).
+       2) rotate all boundary triangles so that the vertices {v0, v1, v2}
+       satisfy: v0 < min(v1, v2).
+
+       Note: refinement does not work after a call to this method! */
+   virtual void ReorientTetMesh();
+
+   int *CartesianPartitioning(int nxyz[]);
    int *GeneratePartitioning(int nparts, int part_method = 1);
    void CheckPartitioning(int *partitioning);
 
@@ -447,6 +486,10 @@ public:
    virtual void LocalRefinement(const Array<int> &marked_el, int type = 3);
 
    void UniformRefinement();
+
+   // NURBS mesh refinement methods
+   void KnotInsert(Array<KnotVector *> &kv);
+   void DegreeElevate(int t);
 
    /** Sets or clears the flag that indicates that mesh refinement methods
        should put the mesh in two-level state. */
@@ -477,7 +520,7 @@ public:
    ElementTransformation * GetFineElemTrans (int i, int j);
 
    /// Print the mesh to the given stream using Netgen/Truegrid format.
-   void PrintXG(ostream &out = cout) const;
+   virtual void PrintXG(ostream &out = cout) const;
 
    /// Print the mesh to the given stream using the default MFEM mesh format.
    virtual void Print(ostream &out = cout) const;
@@ -486,8 +529,10 @@ public:
    void PrintVTK(ostream &out);
 
    /** Print the mesh in VTK format. The parameter ref specifies an element
-       subdivision number (useful for high order fields and curved meshes). */
-   void PrintVTK(ostream &out, int ref);
+       subdivision number (useful for high order fields and curved meshes).
+       If the optional field_data is set, we also add a FIELD section in the
+       beginning of the file with additional dataset information. */
+   void PrintVTK(ostream &out, int ref, int field_data=0);
 
    void GetElementColoring(Array<int> &colors, int el0 = 0);
 
@@ -495,7 +540,7 @@ public:
        the subdomains, so that the boundary of subdomain i has bdr
        attribute i. */
    void PrintWithPartitioning (int *partitioning,
-                               ostream &out) const;
+                               ostream &out, int elem_attr = 0) const;
 
    void PrintElementsWithPartitioning (int *partitioning,
                                        ostream &out,
@@ -514,10 +559,34 @@ public:
 
    double GetElementVolume(int i);
 
-   void PrintCharacteristics (Vector *Vh = NULL, Vector *Vk = NULL);
+   void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL);
 
    /// Destroys mesh.
    virtual ~Mesh();
 };
+
+
+// inline functions
+inline void Mesh::ShiftL2R(int &a, int &b, int &c)
+{
+   int t = a;
+   a = c;  c = b;  b = t;
+}
+
+inline void Mesh::Rotate3(int &a, int &b, int &c)
+{
+   if (a < b)
+   {
+      if (a > c)
+         ShiftL2R(a, b, c);
+   }
+   else
+   {
+      if (b < c)
+         ShiftL2R(c, b, a);
+      else
+         ShiftL2R(a, b, c);
+   }
+}
 
 #endif

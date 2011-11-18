@@ -33,7 +33,7 @@ private:
 #endif
 
 public:
-   STable3D (int nr);
+   explicit STable3D (int nr);
 
    int Push (int r, int c, int f);
 

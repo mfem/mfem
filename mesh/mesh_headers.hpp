@@ -39,7 +39,11 @@
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
+#include "../general/sets.hpp"
+#include "../general/communication.hpp"
 #include "pmesh.hpp"
 #endif
+
+#include "nurbs.hpp"
 
 #endif

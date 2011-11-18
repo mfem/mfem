@@ -22,7 +22,7 @@ protected:
 
 public:
    /// Construct Operator with given size s (default 0)
-   Operator (int s = 0) { size = s; }
+   explicit Operator (int s = 0) { size = s; }
 
    /// Returns the size of the input
    inline int Size() const { return size; }
@@ -46,7 +46,7 @@ class IdentityOperator : public Operator
 {
 public:
    /// Creates I_{nxn}
-   IdentityOperator (int n) { size = n; }
+   explicit IdentityOperator (int n) { size = n; }
 
    /// Operator application
    virtual void Mult (const Vector & x, Vector & y) const { y = x; }

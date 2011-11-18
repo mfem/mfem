@@ -8,19 +8,19 @@
 //               ex3 ../data/fichera.mesh
 //               ex3 ../data/fichera-q2.vtk
 //               ex3 ../data/fichera-q3.mesh
+//               ex3 ../data/beam-hex-nurbs.mesh
 //
 // Description:  This example code solves a simple 3D electromagnetic diffusion
 //               problem corresponding to the second order definite Maxwell
 //               equation curl curl E + E = f with boundary condition
 //               E x n = <given tangential field>. Here, we use a given exact
 //               solution E and compute the corresponding r.h.s. f.
-//               We discretize with the lowest order Nedelec finite elements.
+//               We discretize with Nedelec finite elements.
 //
 //               The example demonstrates the use of H(curl) finite element
 //               spaces with the curl-curl and the (vector finite element) mass
-//               bilinear form, the projection of grid functions between finite
-//               element spaces and the computation of discretization error when
-//               the exact solution is known.
+//               bilinear form, as well as the computation of discretization
+//               error when the exact solution is known.
 //
 //               We recommend viewing examples 1-2 before viewing this example.
 
@@ -69,9 +69,12 @@ int main (int argc, char *argv[])
    }
 
    // 3. Define a finite element space on the mesh. Here we use the lowest order
-   //    Nedelec finite elements.
-   FiniteElementCollection *fec = new ND1_3DFECollection;
+   //    Nedelec finite elements, but we can easily swich to higher-order spaces
+   //    by changing the value of p.
+   int p = 1;
+   FiniteElementCollection *fec = new ND_FECollection(p, mesh -> Dimension());
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   cout << "Number of unknowns: " << fespace->GetVSize() << endl;
 
    // 4. Set up the linear form b(.) which corresponds to the right-hand side
    //    of the FEM linear system, which in this case is (f,phi_i) where f is
@@ -101,7 +104,7 @@ int main (int argc, char *argv[])
    Coefficient *sigma = new ConstantCoefficient(1.0);
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
-   a->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
+   a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
    a->Assemble();
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
@@ -118,38 +121,28 @@ int main (int argc, char *argv[])
    // 8. Compute and print the L^2 norm of the error.
    cout << "\n|| E_h - E ||_{L^2} = " << x.ComputeL2Error(E) << '\n' << endl;
 
-   // 9. In order to visualize the solution, we first represent it in the space
-   //    of linear discontinuous vector finite elements. The representation in
-   //    this space is obtained by (exact) projection with ProjectVectorFieldOn.
-   FiniteElementCollection *dfec = new LinearDiscont3DFECollection;
-   FiniteElementSpace *dfespace = new FiniteElementSpace(mesh, dfec, 3);
-   GridFunction dx(dfespace);
-   x.ProjectVectorFieldOn(dx);
-
-   // 10. Save the refined mesh and the solution. This output can be viewed
-   //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
+   // 9. Save the refined mesh and the solution. This output can be viewed
+   //    later using GLVis: "glvis -m refined.mesh -g sol.gf".
    {
       ofstream mesh_ofs("refined.mesh");
       mesh_ofs.precision(8);
       mesh->Print(mesh_ofs);
       ofstream sol_ofs("sol.gf");
       sol_ofs.precision(8);
-      dx.Save(sol_ofs);
+      x.Save(sol_ofs);
    }
 
-   // 11. (Optional) Send the solution by socket to a GLVis server.
+   // 10. (Optional) Send the solution by socket to a GLVis server.
    char vishost[] = "localhost";
    int  visport   = 19916;
    osockstream sol_sock(visport, vishost);
-   sol_sock << "vfem3d_gf_data\n";
+   sol_sock << "solution\n";
    sol_sock.precision(8);
    mesh->Print(sol_sock);
-   dx.Save(sol_sock);
+   x.Save(sol_sock);
    sol_sock.send();
 
-   // 12. Free the used memory.
-   delete dfespace;
-   delete dfec;
+   // 11. Free the used memory.
    delete a;
    delete sigma;
    delete muinv;

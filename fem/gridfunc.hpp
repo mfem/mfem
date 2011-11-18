@@ -36,9 +36,13 @@ public:
 
    GridFunction(Mesh *m, istream &input);
 
+   GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces);
+
    /// Make the GridFunction the owner of 'fec' and 'fes'
    void MakeOwner(FiniteElementCollection *_fec)
    { fec = _fec; }
+
+   FiniteElementCollection *OwnFEC() { return fec; }
 
    int VectorDim() const;
 
@@ -104,7 +108,32 @@ public:
 
    void ProjectCoefficient(Coefficient *coeff[]);
 
+   void ProjectBdrCoefficient(Coefficient &coeff, Array<int> &attr)
+   {
+      Coefficient *coeff_p = &coeff;
+      ProjectBdrCoefficient(&coeff_p, attr);
+   }
+
    void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr);
+
+   /** Project the normal component of the given VectorCoefficient on
+       the boundary. Only boundary attributes that are marked in
+       'bdr_attr' are projected. Assumes RT-type VectorFE GridFunction. */
+   void ProjectBdrCoefficientNormal(VectorCoefficient &vcoeff,
+                                    Array<int> &bdr_attr);
+
+   /** Project the tangential components of the given VectorCoefficient on
+       the boundary. Only boundary attributes that are marked in
+       'bdr_attr' are projected. Assumes ND-type VectorFE GridFunction. */
+   void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
+                                     Array<int> &bdr_attr);
+
+   double ComputeL2Error(Coefficient &exsol,
+                         const IntegrationRule *irs[] = NULL) const
+   {
+      Coefficient *exsol_p = &exsol;
+      return ComputeL2Error(&exsol_p, irs);
+   }
 
    double ComputeL2Error(Coefficient *exsol[],
                          const IntegrationRule *irs[] = NULL) const;
@@ -146,7 +175,7 @@ public:
    void Update(FiniteElementSpace *f, Vector &v, int v_offset);
 
    /// Save the GridFunction to an output stream.
-   void Save(ostream &out);
+   virtual void Save(ostream &out);
 
    /** Write the GridFunction in VTK format. Note that Mesh::PrintVTK must be
        called first. The parameter ref must match the one used in

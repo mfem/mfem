@@ -6,9 +6,11 @@
 //               mpirun -np 4 ex2p ../data/beam-quad.mesh
 //               mpirun -np 4 ex2p ../data/beam-tet.mesh
 //               mpirun -np 4 ex2p ../data/beam-hex.mesh
+//               mpirun -np 4 ex2p ../data/beam-quad-nurbs.mesh
+//               mpirun -np 4 ex2p ../data/beam-hex-nurbs.mesh
 //
 // Description:  This example code solves a simple linear elasticity problem
-//               describing a multi-material Cantilever beam.
+//               describing a multi-material cantilever beam.
 //
 //               Specifically, we approximate the weak form of -div(sigma(u))=0
 //               where sigma(u)=lambda*div(u)*I+mu*(grad*u+u*grad) is the stress
@@ -25,10 +27,10 @@
 //                    attribute 1  |    1     |    2     |     attribute 2
 //                    (fixed)      +----------+----------+     (pull down)
 //
-//               The example demonstrates the use of (high-order) vector finite
-//               element spaces with the linear elasticity bilinear form, meshes
-//               with curved elements, and the definition of piece-wise constant
-//               and vector coefficient objects.
+//               The example demonstrates the use of high-order and NURBS vector
+//               finite element spaces with the linear elasticity bilinear form,
+//               meshes with curved elements, and the definition of piece-wise
+//               constant and vector coefficient objects.
 //
 //               We recommend viewing example 1 before viewing this example.
 
@@ -79,7 +81,20 @@ int main (int argc, char *argv[])
    }
    int dim = mesh->Dimension();
 
-   // 3. Refine the serial mesh on all processors to increase the resolution. In
+   // 3. Select the order of the finite element discretization space. For NURBS
+   //    meshes, we increase the order by degree elevation.
+   int p;
+   if (myid == 0)
+   {
+      cout << "Enter finite element space order --> " << flush;
+      cin >> p;
+   }
+   MPI_Bcast(&p, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+   if (mesh->NURBSext && p > mesh->NURBSext->GetOrder())
+      mesh->DegreeElevate(p - mesh->NURBSext->GetOrder());
+
+   // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
@@ -90,7 +105,7 @@ int main (int argc, char *argv[])
          mesh->UniformRefinement();
    }
 
-   // 4. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -101,39 +116,30 @@ int main (int argc, char *argv[])
          pmesh->UniformRefinement();
    }
 
-   // 5. Define a parallel finite element space on the parallel mesh. Here we
+   // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use vector finite elements, i.e. dim copies of a scalar finite element
    //    space. We use the ordering by vector dimension (the last argument of
    //    the FiniteElementSpace constructor) which is expected in the systems
-   //    version of BoomerAMG preconditioner.
+   //    version of BoomerAMG preconditioner. For NURBS meshes, we use the
+   //    (degree elevated) NURBS space associated with the mesh nodes.
    FiniteElementCollection *fec;
-   int fec_type;
-   if (myid == 0)
+   ParFiniteElementSpace *fespace;
+   if (pmesh->NURBSext)
    {
-      cout << "Choose the finite element space:\n"
-           << " 1) Linear\n"
-           << " 2) Quadratic\n"
-           << " 3) Cubic\n"
-           << " ---> ";
-      cin >> fec_type;
+      fec = NULL;
+      fespace = (ParFiniteElementSpace *)pmesh->GetNodes()->FESpace();
    }
-   MPI_Bcast(&fec_type, 1, MPI_INT, 0, MPI_COMM_WORLD);
-   switch (fec_type)
+   else
    {
-   default:
-   case 1:
-      fec = new LinearFECollection; break;
-   case 2:
-      fec = new QuadraticFECollection; break;
-   case 3:
-      fec = new CubicFECollection; break;
+      fec = new H1_FECollection(p, dim);
+      fespace = new ParFiniteElementSpace(pmesh, fec, dim, Ordering::byVDIM);
    }
+   int size = fespace->GlobalTrueVSize();
    if (myid == 0)
-      cout << "Assembling: " << flush;
-   ParFiniteElementSpace *fespace =
-      new ParFiniteElementSpace(pmesh, fec, dim, Ordering::byVDIM);
+      cout << "Number of unknowns: " << size << endl
+           << "Assembling: " << flush;
 
-   // 6. Set up the parallel linear form b(.) which corresponds to the
+   // 7. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system. In this case, b_i equals the
    //    boundary integral of f*phi_i where f represents a "pull down" force on
    //    the Neumann part of the boundary and phi_i are the basis functions in
@@ -152,18 +158,18 @@ int main (int argc, char *argv[])
    }
 
    ParLinearForm *b = new ParLinearForm(fespace);
-   b->AddDomainIntegrator(new VectorBoundaryLFIntegrator(f));
+   b->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
    if (myid == 0)
       cout << "r.h.s. ... " << flush;
    b->Assemble();
 
-   // 7. Define the solution vector x as a parallel finite element grid function
+   // 8. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    ParGridFunction x(fespace);
-   (Vector &)x = 0.0;
+   x = 0.0;
 
-   // 8. Set up the parallel bilinear form a(.,.) on the finite element space
+   // 9. Set up the parallel bilinear form a(.,.) on the finite element space
    //    corresponding to the linear elasticity integrator with piece-wise
    //    constants coefficient lambda and mu. The boundary conditions are
    //    implemented by marking only boundary attribute 1 as essential. After
@@ -194,8 +200,8 @@ int main (int argc, char *argv[])
    if (myid == 0)
       cout << "done." << endl;
 
-   // 9. Define the parallel (hypre) matrix and vectors representing a(.,.),
-   //    b(.) and the finite element approximation.
+   // 10. Define the parallel (hypre) matrix and vectors representing a(.,.),
+   //     b(.) and the finite element approximation.
    HypreParMatrix *A = a->ParallelAssemble();
    HypreParVector *B = b->ParallelAssemble();
    HypreParVector *X = x.ParallelAverage();
@@ -203,7 +209,7 @@ int main (int argc, char *argv[])
    delete a;
    delete b;
 
-   // 10. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
+   // 11. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
    //     preconditioner from hypre.
    HypreBoomerAMG *amg = new HypreBoomerAMG(*A);
    amg->SetSystemsOptions(dim);
@@ -214,76 +220,66 @@ int main (int argc, char *argv[])
    pcg->SetPreconditioner(*amg);
    pcg->Mult(*B, *X);
 
-   // 11. Extract the parallel grid function corresponding to the finite element
+   // 12. Extract the parallel grid function corresponding to the finite element
    //     approximation X. This is the local solution on each processor.
    x = *X;
 
-   // 12. Make the mesh curved based on the finite element space. This means
-   //     that we define the mesh elements through a fespace-based
-   //     transformation of the reference element.  This allows us to save the
-   //     displaced mesh as a curved mesh when using high-order finite element
-   //     displacement field. We assume that the initial mesh (read from the
-   //     file) is not higher order curved mesh compared to the FE space chosen
-   //     from the menu.
-   pmesh->SetNodalFESpace(fespace);
+   // 13. For non-NURBS meshes, make the mesh curved based on the finite element
+   //     space. This means that we define the mesh elements through a fespace
+   //     based transformation of the reference element.  This allows us to save
+   //     the displaced mesh as a curved mesh when using high-order finite
+   //     element displacement field. We assume that the initial mesh (read from
+   //     the file) is not higher order curved mesh compared to the chosen FE
+   //     space.
+   if (!pmesh->NURBSext)
+      pmesh->SetNodalFESpace(fespace);
 
-   // 13. Save the displaced mesh and the inverted solution (which gives the
-   //     backward displacements to the original grid). This output can be
-   //     viewed later using GLVis: "glvis -m displaced.mesh -g sol.gf".
+   // 14. Save in parallel the displaced mesh and the inverted solution (which
+   //     gives the backward displacements to the original grid). This output
+   //     can be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       GridFunction *nodes = pmesh->GetNodes();
       *nodes += x;
       x *= -1;
-      ofstream mesh_ofs;
-      if (myid == 0)
-         mesh_ofs.open("displaced.mesh");
-      mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
-      if (myid == 0)
-         mesh_ofs.close();
 
-      ofstream sol_ofs;
-      if (myid == 0)
-         sol_ofs.open("sol.gf");
+      ostringstream mesh_name, sol_name;
+      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "sol." << setfill('0') << setw(6) << myid;
+
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      pmesh->Print(mesh_ofs);
+
+      ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
-      x.SaveAsOne(sol_ofs);
-      if (myid == 0)
-         sol_ofs.close();
+      x.Save(sol_ofs);
    }
 
-   // 14. (Optional) Send the above data by socket to a GLVis server. Note that
-   //     we use "vfem" instead of "fem" in the initial string, to indicate
-   //     vector grid function. Use the "n" and "b" keys in GLVis to visualize
-   //     the displacements.
+   // 15. (Optional) Send the above data by socket to a GLVis server.
+   //     Use the "n" and "b" keys in GLVis to visualize the displacements.
    char vishost[] = "localhost";
    int  visport   = 19916;
-   osockstream *sol_sock;
-   if (myid == 0)
-   {
-      sol_sock = new osockstream(visport, vishost);
-      if (dim == 2)
-         *sol_sock << "vfem2d_gf_data\n";
-      else
-         *sol_sock << "vfem3d_gf_data\n";
-      sol_sock->precision(8);
-   }
-   pmesh->PrintAsOne(*sol_sock);
-   x.SaveAsOne(*sol_sock);
-   if (myid == 0)
-   {
-      sol_sock->send();
-      delete sol_sock;
-   }
+   osockstream sol_sock(visport, vishost);
+   sol_sock << "parallel " << num_procs << " " << myid << "\n";
+   sol_sock << "solution\n";
+   sol_sock.precision(8);
+   pmesh->Print(sol_sock);
+   x.Save(sol_sock);
+   sol_sock.send();
 
-   // 15. Free the used memory.
+   // 16. Free the used memory.
    delete pcg;
    delete amg;
    delete X;
    delete B;
    delete A;
 
-   delete fespace;
-   delete fec;
+   if (fec)
+   {
+      delete fespace;
+      delete fec;
+   }
+   delete pmesh;
 
    MPI_Finalize();
 

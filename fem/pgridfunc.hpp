@@ -19,6 +19,8 @@ protected:
    ParFiniteElementSpace *pfes;
 
 public:
+   ParGridFunction() { pfes = NULL; }
+
    ParGridFunction(ParFiniteElementSpace *pf) : GridFunction(pf), pfes(pf) { }
 
    /** Construct a ParGridFunction corresponding to *pf and the data from *gf
@@ -33,6 +35,18 @@ public:
        The data from 'gf' is NOT copied. */
    ParGridFunction(ParMesh *pmesh, GridFunction *gf);
 
+   ParGridFunction &operator=(double value)
+   { GridFunction::operator=(value); return *this; }
+
+   ParGridFunction &operator=(const Vector &v)
+   { GridFunction::operator=(v); return *this; }
+
+   ParFiniteElementSpace *ParFESpace() { return pfes; }
+
+   void Update(ParFiniteElementSpace *f);
+
+   void Update(ParFiniteElementSpace *f, Vector &v, int v_offset);
+
    /** Set the grid function on (all) dofs from a given vector on the
        true dofs, i.e. P tv. */
    void Distribute(HypreParVector *tv);
@@ -42,7 +56,16 @@ public:
    { Distribute(&tv); return (*this); }
 
    /// Returns the vector averaged on the true dofs.
+   void ParallelAverage(HypreParVector &tv);
+
+   /// Returns a new vector averaged on the true dofs.
    HypreParVector *ParallelAverage();
+
+   double ComputeL1Error(Coefficient *exsol[],
+                         const IntegrationRule *irs[] = NULL) const;
+
+   double ComputeL1Error(VectorCoefficient &exsol,
+                         const IntegrationRule *irs[] = NULL) const;
 
    double ComputeL2Error(Coefficient *exsol[],
                          const IntegrationRule *irs[] = NULL) const;
@@ -50,6 +73,17 @@ public:
    double ComputeL2Error(VectorCoefficient &exsol,
                          const IntegrationRule *irs[] = NULL,
                          Array<int> *elems = NULL) const;
+
+   double ComputeMaxError(Coefficient *exsol[],
+                          const IntegrationRule *irs[] = NULL) const;
+
+   double ComputeMaxError(VectorCoefficient &exsol,
+                          const IntegrationRule *irs[] = NULL) const;
+
+   /** Save the local portion of the ParGridFunction. It differs from the
+       serial GridFunction::Save in that it takes into account the signs of
+       the local dofs. */
+   virtual void Save(ostream &out);
 
    /// Merge the local grid functions
    void SaveAsOne(ostream &out = cout);

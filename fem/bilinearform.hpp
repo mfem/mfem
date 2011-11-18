@@ -44,9 +44,11 @@ protected:
    DenseMatrix elemmat;
    Array<int>  vdofs;
 
+   DenseTensor *element_matrices;
+
    // may be used in the construction of derived classes
    BilinearForm() : Matrix (0)
-   { fes = NULL; mat = mat_e = NULL; extern_bfs = 0; };
+   { fes = NULL; mat = mat_e = NULL; extern_bfs = 0; element_matrices = NULL; }
 
 public:
    /// Creates bilinear form associated with FE space *f.
@@ -113,6 +115,13 @@ public:
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
 
+   /// Compute and store internally all element matrices.
+   void ComputeElementMatrices();
+
+   /// Free the memory used by the element matrices.
+   void FreeElementMatrices()
+   { delete element_matrices; element_matrices = NULL; }
+
    void ComputeElementMatrix(int i, DenseMatrix &elmat);
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
                               Array<int> &vdofs, int skip_zeros = 1);
@@ -172,7 +181,7 @@ public:
 */
 class MixedBilinearForm : public Matrix
 {
-private:
+protected:
    SparseMatrix *mat;
 
    FiniteElementSpace *trial_fes, *test_fes;
@@ -180,7 +189,6 @@ private:
    Array<BilinearFormIntegrator*> dom;
    Array<BilinearFormIntegrator*> bdr;
 
-protected:
    int width;
 
 public:
@@ -208,6 +216,11 @@ public:
 
    virtual void Finalize (int skip_zeros = 1);
 
+   /** Extract the associated matrix as SparseMatrix blocks. The number of
+       block rows and columns is given by the vector dimensions (vdim) of the
+       test and trial spaces, respectively. */
+   void GetBlocks(Array2D<SparseMatrix *> &blocks) const;
+
    const SparseMatrix &SpMat() const { return *mat; };
    SparseMatrix &SpMat() { return *mat; };
 
@@ -227,6 +240,50 @@ public:
    void Update();
 
    virtual ~MixedBilinearForm();
+};
+
+
+/**
+   Class for constructing the matrix representation of a linear operator,
+   v = L u, from one FiniteElementSpace (domain) to another FiniteElementSpace
+   (range). The constructed matrix A is such that
+
+   V = A U
+
+   where U and V are the vectors of degrees of freedom representing the
+   functions u and v, respectively. The dimensions of A are
+
+   number of rows of A = dimension of the range space and
+   number of cols of A = dimension of the domain space.
+
+   This class is very similar to MixedBilinearForm. One difference is that
+   the linear operator L is defined using a special kind of
+   BilinearFormIntegrator (we reuse its functionality instead of defining a
+   new class). The other difference with the MixedBilinearForm class is that
+   the "assembly" process overwrites the global matrix entries using the
+   local element matrices instead of adding them.
+
+   Note that if we define the bilinear form b(u,v) := (Lu,v) using an inner
+   product in the range space, then its matrix representation, B, is
+
+   B = M A, (since V^t B U = b(u,v) = (Lu,v) = V^t M A U)
+
+   where M denotes the mass matrix for the inner product in the range space:
+   V1^t M V2 = (v1,v2). Similarly, if c(u,w) := (Lu,Lw) then
+
+   C = A^t M A.
+*/
+class DiscreteLinearOperator : public MixedBilinearForm
+{
+public:
+   DiscreteLinearOperator(FiniteElementSpace *domain_fes,
+                          FiniteElementSpace *range_fes)
+      : MixedBilinearForm(domain_fes, range_fes) { }
+
+   void AddDomainInterpolator(DiscreteInterpolator *di)
+   { AddDomainIntegrator(di); }
+
+   virtual void Assemble(int skip_zeros = 1);
 };
 
 #endif

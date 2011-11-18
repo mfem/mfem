@@ -25,8 +25,8 @@ public:
    enum Type { POINT, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE };
 
    static const int NumGeom = 6;
-
    static const int NumBdrArray[];
+   static const char *Name[NumGeom];
 
 private:
    IntegrationRule *GeomVert[NumGeom];
@@ -43,6 +43,8 @@ public:
    const IntegrationPoint &GetCenter(int GeomType)
    { return GeomCenter[GeomType]; }
 
+   DenseMatrix *GetPerfGeomToGeomJac(int GeomType)
+   { return PerfGeomToGeomJac[GeomType]; }
    void GetPerfPointMat (int GeomType, DenseMatrix &pm);
    void JacToPerfJac(int GeomType, const DenseMatrix &J,
                      DenseMatrix &PJ) const;
@@ -66,11 +68,13 @@ public:
 class GeometryRefiner
 {
 private:
+   int type; // 0 - uniform points, otherwise - poly1d.ClosedPoints
    RefinedGeometry *RGeom[Geometry::NumGeom];
    IntegrationRule *IntPts[Geometry::NumGeom];
 public:
    GeometryRefiner();
 
+   void SetType(const int t) { type = t; }
    RefinedGeometry *Refine (int Geom, int Times, int ETimes = 1);
    const IntegrationRule *RefineInterior(int Geom, int Times);
 

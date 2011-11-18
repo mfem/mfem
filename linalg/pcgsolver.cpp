@@ -46,7 +46,8 @@ void PCG ( const Operator &A, const Operator &B,
    A.Mult(d, z);
    den = z * d;
 
-   if (den < 0.0) {
+   if (den < 0.0)
+   {
       cout << "Negative denominator in step 0 of PCG: ";
       cout << den << endl;
       //    return;
@@ -56,27 +57,29 @@ void PCG ( const Operator &A, const Operator &B,
       return;
 
    // start iteration
-   for(i= 1; i <= max_num_iter ; i++) {
-
+   for (i = 1; i <= max_num_iter; i++)
+   {
       if (save)
-         if (i % save == 0) {
+         if (i % save == 0)
+         {
             cout << "saving the solution vector on iteration " << i << endl;
             ofstream out("pcg.x");
-            x.Print (out,1);
+            x.Print(out, 1);
          }
 
       alpha = nom/den;
       add(x, alpha, d, x);                  //  x = x + alpha d
       add(r,-alpha, z, r);                  //  r = r - alpha z
 
-      B.Mult( r, z);                        //  z = B r
+      B.Mult(r, z);                         //  z = B r
       betanom = r * z;
 
       if (print_iter == 1)
          cout << "   Iteration : " << setw(3) << i << "  (B r, r) = "
               << betanom << endl;
 
-      if ( betanom < r0) {
+      if (betanom < r0)
+      {
          if (print_iter == 2)
             cout << "Number of PCG iterations: " << i << endl;
          else

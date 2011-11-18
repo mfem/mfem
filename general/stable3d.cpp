@@ -46,6 +46,7 @@ inline void Sort3 (int &r, int &c, int &f)
          }
    else
       if (c > f)
+      {
          if (r > f)
          {
             t = f;  f = c;  c = r;  r = t;  //  (r,c,f) --> (f,r,c)
@@ -54,6 +55,7 @@ inline void Sort3 (int &r, int &c, int &f)
          {
             t = c;  c = f;  f = t;  //  (r,c,f) --> (r,f,c)
          }
+      }
 }
 
 int STable3D::Push (int r, int c, int f)

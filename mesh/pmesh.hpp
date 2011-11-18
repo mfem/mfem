@@ -37,6 +37,14 @@ private:
    /// Return a number(0-4) identifying how the given face has been split
    int GetFaceSplittings(Element *face, const DSTable &v_to_v, int *middle);
 
+   /// Refine quadrilateral mesh.
+   virtual void QuadUniformRefinement();
+
+   /// Refine a hexahedral mesh.
+   virtual void HexUniformRefinement();
+
+   virtual void NURBSUniformRefinement();
+
 public:
    ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
            int part_method = 1);
@@ -45,19 +53,9 @@ public:
    int GetNRanks() { return NRanks; }
    int GetMyRank() { return MyRank; }
 
-   /** The shared vertices, faces and edges are split into groups, each group
-       determined by the set of participating processors, proc.  They are
-       numbered locally in lproc. Assumptions:
-       - group 0 is the 'local' group
-       - groupmaster_lproc[0] = 0
-       - lproc_proc[0] = MyRank */
-   Table group_lproc;
-   Array<int> groupmaster_lproc;
-   Array<int> lproc_proc;
-   /// for each group gives the group number in the master
-   Array<int> group_mgroup;
+   GroupTopology gtopo;
 
-   int GetNGroups() { return group_lproc.Size(); }
+   int GetNGroups() { return gtopo.NGroups(); }
 
    // next 6 methods do not work for the 'local' group 0
    int GroupNVertices(int group) { return group_svert.RowSize(group-1); }
@@ -69,21 +67,22 @@ public:
    void GroupEdge(int group, int i, int &edge, int &o);
    void GroupFace(int group, int i, int &face, int &o);
 
+   /// See the remarks for the serial version in mesh.hpp
+   virtual void ReorientTetMesh();
+
    /// Refine the marked elements.
    virtual void LocalRefinement(const Array<int> &marked_el, int type = 3);
 
    /// Update the groups after tet refinement
    void RefineGroups(const DSTable &v_to_v, int *middle);
 
-   /// Refine quadrilateral mesh.
-   virtual void QuadUniformRefinement();
-
-   /// Refine a hexahedral mesh.
-   virtual void HexUniformRefinement();
-
-   /** Print the part of the mesh in the calling processor
-       adding the interface as boundary (for visualization purposes) */
+   /** Print the part of the mesh in the calling processor adding the interface
+       as boundary (for visualization purposes) using the default format. */
    virtual void Print(ostream &out = cout) const;
+
+   /** Print the part of the mesh in the calling processor adding the interface
+       as boundary (for visualization purposes) using Netgen/Truegrid format .*/
+   virtual void PrintXG(ostream &out = cout) const;
 
    /** Write the mesh to the stream 'out' on Process 0 in a form
        suitable for visualization: the mesh is written as a disjoint
@@ -94,6 +93,9 @@ public:
 
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
    void PrintAsOneXG(ostream &out = cout);
+
+   /// Print various parallel mesh stats
+   void PrintInfo(ostream &out = cout);
 
    virtual ~ParMesh();
 };

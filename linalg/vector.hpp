@@ -34,7 +34,7 @@ public:
    Vector(const Vector &);
 
    /// Creates vector of size s.
-   Vector (int s);
+   explicit Vector (int s);
 
    Vector (double *_data, int _size)
    { data = _data; size = _size; allocsize = -size; }
@@ -90,7 +90,7 @@ public:
    double operator*(const double *) const;
 
    /// Return the inner-product.
-   double operator*(const Vector & v) const;
+   double operator*(const Vector &v) const;
 
    /// Redefine '=' for vector = vector.
    Vector & operator=(const Vector &v);
@@ -143,19 +143,22 @@ public:
                         const Vector &y, Vector &z);
 
    void GetSubVector(const Array<int> &dofs, Vector &elemvect) const;
+   void GetSubVector(const Array<int> &dofs, double *elem_data) const;
 
    void SetSubVector(const Array<int> &dofs, const Vector &elemvect);
+   void SetSubVector(const Array<int> &dofs, double *elem_data);
 
    /// Add (element) subvector to the vector.
    void AddElementVector(const Array<int> & dofs, const Vector & elemvect);
+   void AddElementVector(const Array<int> & dofs, double *elem_data);
    void AddElementVector(const Array<int> & dofs, const double a,
                          const Vector & elemvect);
 
    /// Prints vector to stream out.
-   void Print (ostream & out = cout, int width = 8);
+   void Print(ostream & out = cout, int width = 8) const;
 
    /// Prints vector to stream out in HYPRE_Vector format.
-   void Print_HYPRE (ostream &out);
+   void Print_HYPRE(ostream &out) const;
 
    /// Set random values in the vector.
    void Randomize(int seed = 0);

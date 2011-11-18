@@ -242,10 +242,10 @@ void Tetrahedron::GetVertices(Array<int> &v) const
    }
 }
 
-Element *Tetrahedron::Duplicate() const
+Element *Tetrahedron::Duplicate(Mesh *m) const
 {
 #ifdef MFEM_USE_MEMALLOC
-   Tetrahedron *tet = TetMemory.Alloc();
+   Tetrahedron *tet = m->TetMemory.Alloc();
 #else
    Tetrahedron *tet = new Tetrahedron;
 #endif
@@ -256,8 +256,3 @@ Element *Tetrahedron::Duplicate() const
 }
 
 Linear3DFiniteElement TetrahedronFE;
-
-#ifdef MFEM_USE_MEMALLOC
-MemAlloc <Tetrahedron, 1024> TetMemory;
-MemAlloc <BisectedElement, 1024> BEMemory;
-#endif

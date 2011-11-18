@@ -18,10 +18,10 @@ class GSSmoother : public MatrixInverse
 public:
 
    /// Create GSSmoother.
-   GSSmoother (const SparseMatrix & a);
+   GSSmoother(const SparseMatrix &a);
 
    /// Matrix vector multiplication with GS Smoother.
-   virtual void Mult (const Vector & x, Vector & y) const;
+   virtual void Mult(const Vector &x, Vector &y) const;
 
    /// Destroys the GS Smoother.
    virtual ~GSSmoother();
@@ -37,10 +37,10 @@ private:
 public:
 
    /// Create the diagonal smoother.
-   DSmoother (const SparseMatrix & a, double scale = 1.);
+   DSmoother(const SparseMatrix &a, double scale = 1.);
 
    /// Matrix vector multiplication with Diagonal smoother.
-   virtual void Mult (const Vector & x, Vector & y) const;
+   virtual void Mult(const Vector &x, Vector &y) const;
 
    /// Destroys the Diagonal smoother.
    virtual ~DSmoother();

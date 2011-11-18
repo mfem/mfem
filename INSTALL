@@ -1,5 +1,5 @@
                     Finite Element Discretization Library
-                                 version 1.2
+                                 version 2.0
                                    __
                        _ __ ___   / _|  ___  _ __ ___
                       | '_ ` _ \ | |_  / _ \| '_ ` _ \
@@ -11,7 +11,7 @@
 The MFEM library has a serial and a MPI-based parallel version, which largely
 share the same code base. Note that the two versions don't mix (you can't build
 the serial examples with the parallel library or vice-versa). Note also that the
-GLVis visualization tool requires the serial version.
+GLVis visualization tool requires the serial version (without MPI or OpenMP).
 
 The only prerequisite for building the serial version of MFEM is a (modern) C++
 compiler, such as g++. Some of the dense linear algebra functionality in MFEM
@@ -35,8 +35,9 @@ described below.
 Building with 'make'
 ====================
 MFEM comes with a standard makefile which can be modified as needed, e.g. to
-enable the use of LAPACK and specify its location. The makefile also generates
-the "mfem_defs.hpp" header file which lists all "define" symbols from the build.
+enable the use of LAPACK and to specify its location. The makefile also
+generates the "mfem_defs.hpp" header file which lists all "define" symbols from
+the build.
 
 Some of the available 'make' targets are:
 
@@ -75,3 +76,18 @@ scons            -> Builds the serial libmfem.a library
 scons debug=1    -> Builds a serial debug version
 scons parallel=1 -> Builds the parallel libmfem.a library
 scons -c         -> Cleans the build
+
+
+Some building considerations:
+
+- By default MFEM supports metis version 4.0. For version 5.0 set USE_METIS_5 to
+  YES in the makefiles or define MFEM_USE_METIS_5 in the SConstruct file.
+
+- Both the serial and the parallel MFEM builds include basic experimental OpenMP
+  support, which can be enabled by setting USE_OPENMP to YES in the makefiles or
+  by using the scons option 'openmp=1'.
+
+- The MFEM example codes have their own make/scons build files in the examples/
+  directory which contain similar compile options plus some linking options.
+  Make sure to propagate changes from the top-level to the example build files,
+  e.g. when enabling OpenMP.

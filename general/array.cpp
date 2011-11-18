@@ -74,12 +74,14 @@ void Array<T>::Save(ostream &out)
 }
 
 template <class T>
-T Array<T>::Max()
+T Array<T>::Max() const
 {
-   T max;
+#ifdef MFEM_DEBUG
+   if (size <= 0)
+      mfem_error("Array::Max : empty array!");
+#endif
 
-   if (size > 0)
-      max = operator[](0);
+   T max = operator[](0);
    for (int i = 1; i < size; i++)
       if (max < operator[](i))
          max = operator[](i);

@@ -45,7 +45,7 @@ public:
 
    virtual const int *GetEdgeVertices(int ei) const { return(NULL); }
 
-   virtual Element *Duplicate() const
+   virtual Element *Duplicate(Mesh *m) const
    { return new Segment(indices, attribute); }
 
    virtual ~Segment() { }

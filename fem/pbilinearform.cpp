@@ -13,23 +13,114 @@
 
 #include "fem.hpp"
 
-HypreParMatrix *ParBilinearForm::ParallelAssemble()
+HypreParMatrix *ParBilinearForm::ParallelAssemble(SparseMatrix *m)
 {
-   int  nproc   = pfes -> GetNRanks();
-   int *dof_off = pfes -> GetDofOffsets();
+   if (m == NULL)
+      return NULL;
 
-   // construct the block-diagonal matrix A
-   HypreParMatrix *A;
-   if (HYPRE_AssumedPartitionCheck())
-      A = new HypreParMatrix(dof_off[2], dof_off, mat);
-   else
-      A = new HypreParMatrix(dof_off[nproc], dof_off, mat);
+   // construct a parallel block-diagonal wrapper matrix A based on m
+   HypreParMatrix *A = new HypreParMatrix(pfes->GlobalVSize(),
+                                          pfes->GetDofOffsets(), m);
 
-   HypreParMatrix *rap = RAP(A, pfes -> Dof_TrueDof_Matrix());
+   HypreParMatrix *rap = RAP(A, pfes->Dof_TrueDof_Matrix());
 
    delete A;
 
    return rap;
+}
+
+HypreParMatrix *ParDiscreteLinearOperator::ParallelAssemble(SparseMatrix *m)
+{
+   if (m == NULL)
+      return NULL;
+
+   int *I = m->GetI();
+   int *J = m->GetJ();
+   double *data = m->GetData();
+
+   // remap to tdof local row and tdof global column indices
+   SparseMatrix local(range_fes->TrueVSize(), domain_fes->GlobalTrueVSize());
+   for (int i = 0; i < m->Size(); i++)
+   {
+      int lti = range_fes->GetLocalTDofNumber(i);
+      if (lti >= 0)
+         for (int j = I[i]; j < I[i+1]; j++)
+            local.Set(lti, domain_fes->GetGlobalTDofNumber(J[j]), data[j]);
+   }
+   local.Finalize();
+
+   // construct and return a global ParCSR matrix by splitting the local matrix
+   // into diag and offd parts
+   return new HypreParMatrix(range_fes->GetComm(),
+                             range_fes->TrueVSize(),
+                             range_fes->GlobalTrueVSize(),
+                             domain_fes->GlobalTrueVSize(),
+                             local.GetI(), local.GetJ(), local.GetData(),
+                             range_fes->GetTrueDofOffsets(),
+                             domain_fes->GetTrueDofOffsets());
+}
+
+void ParDiscreteLinearOperator::GetParBlocks(Array2D<HypreParMatrix *> &blocks) const
+{
+   int rdim = range_fes->GetVDim();
+   int ddim = domain_fes->GetVDim();
+
+   blocks.SetSize(rdim, ddim);
+
+   int i, j, n;
+
+   // construct the scalar versions of the row/coll offset arrays
+   int *row_starts, *col_starts;
+   if (HYPRE_AssumedPartitionCheck())
+      n = 2;
+   else
+      n = range_fes->GetNRanks()+1;
+   row_starts = new int[n];
+   col_starts = new int[n];
+   for (i = 0; i < n; i++)
+   {
+      row_starts[i] = (range_fes->GetTrueDofOffsets())[i] / rdim;
+      col_starts[i] = (domain_fes->GetTrueDofOffsets())[i] / ddim;
+   }
+
+   Array2D<SparseMatrix *> lblocks;
+   GetBlocks(lblocks);
+
+   for (int bi = 0; bi < rdim; bi++)
+      for (int bj = 0; bj < ddim; bj++)
+      {
+         int *I = lblocks(bi,bj)->GetI();
+         int *J = lblocks(bi,bj)->GetJ();
+         double *data = lblocks(bi,bj)->GetData();
+
+         // remap to tdof local row and tdof global column indices
+         SparseMatrix local(range_fes->TrueVSize()/rdim,
+                            domain_fes->GlobalTrueVSize()/ddim);
+         for (i = 0; i < lblocks(bi,bj)->Size(); i++)
+         {
+            int lti = range_fes->GetLocalTDofNumber(i);
+            if (lti >= 0)
+               for (j = I[i]; j < I[i+1]; j++)
+                  local.Set(lti,
+                            domain_fes->GetGlobalScalarTDofNumber(J[j]),
+                            data[j]);
+         }
+         local.Finalize();
+
+         delete lblocks(bi,bj);
+
+         // construct and return a global ParCSR matrix by splitting the local
+         // matrix into diag and offd parts
+         blocks(bi,bj) = new HypreParMatrix(range_fes->GetComm(),
+                                            range_fes->TrueVSize()/rdim,
+                                            range_fes->GlobalTrueVSize()/rdim,
+                                            domain_fes->GlobalTrueVSize()/ddim,
+                                            local.GetI(), local.GetJ(), local.GetData(),
+                                            row_starts, col_starts);
+      }
+
+   delete row_starts;
+   delete col_starts;
 }
 
 #endif

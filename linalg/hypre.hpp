@@ -115,6 +115,13 @@ public:
                   int *i_diag, int *j_diag, int *i_offd, int *j_offd,
                   int *cmap, int cmap_size);
 
+   /** Creates a general parallel matrix from a local CSR matrix on each
+       processor described by the I, J and data arrays. The local matrix should
+       be of size (local) nrows by (global) glob_ncols. The parallel matrix
+       contains copies of the rows and cols arrays (so they can be deleted). */
+   HypreParMatrix(MPI_Comm comm, int nrows, int glob_nrows, int glob_ncols,
+                  int *I, int *J, double *data, int *rows, int *cols);
+
    // hypre's communication package object
    void SetCommPkg(hypre_ParCSRCommPkg *comm_pkg);
    void CheckCommPkg();
@@ -138,6 +145,8 @@ public:
    /// Returns the global number of columns
    inline int N() { return A -> global_num_cols; }
 
+   /// Get the diagonal of the matrix
+   void GetDiag(Vector &diag);
    /// Returns the transpose of *this
    HypreParMatrix * Transpose();
 
@@ -181,6 +190,12 @@ HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B);
 /// Returns the matrix P^t * A * P
 HypreParMatrix * RAP(HypreParMatrix *A, HypreParMatrix *P);
 
+/** Eliminate essential b.c. specified by ess_dof_list from the solution x to
+    the r.h.s. b. Here A is matrix with eliminated b.c., while Ae is such that
+    (A+Ae) is the original (Neumann) matrix before elimination. */
+void EliminateBC(HypreParMatrix &A, HypreParMatrix &Ae,
+                 Array<int> &ess_dof_list,
+                 HypreParVector &x, HypreParVector &b);
 
 /// Abstract class for hypre's solvers and preconditioners
 class HypreSolver : public Operator
@@ -233,8 +248,16 @@ public:
    /// Set the hypre solver to be used as a preconditioner
    void SetPreconditioner(HypreSolver &precond);
 
+   /** Use the L2 norm of the residual for measuring PCG convergence, plus
+       (optionally) 1) periodically recompute true residuals from scratch; and
+       2) enable residual-based stopping criteria. */
+   void SetResidualConvergenceOptions(int res_frequency=-1, double rtol=0.0);
+
    /// non-hypre setting
    void SetZeroInintialIterate() { use_zero_initial_iterate = 1; }
+
+   void GetNumIterations(int &num_iterations)
+   { HYPRE_ParCSRPCGGetNumIterations(pcg_solver, &num_iterations); }
 
    /// The typecast to HYPRE_Solver returns the internal pcg_solver
    virtual operator HYPRE_Solver() const { return pcg_solver; }
@@ -317,6 +340,7 @@ public:
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRDiagScale; }
 
+   HypreParMatrix* GetData() { return A; }
    virtual ~HypreDiagScale() { }
 };
 
@@ -369,6 +393,13 @@ public:
 
 class ParFiniteElementSpace;
 
+/// Compute the discrete gradient matrix between the nodal linear and ND1 spaces
+HypreParMatrix* DiscreteGrad(ParFiniteElementSpace *edge_fespace,
+                             ParFiniteElementSpace *vert_fespace);
+/// Compute the discrete curl matrix between the ND1 and RT0 spaces
+HypreParMatrix* DiscreteCurl(ParFiniteElementSpace *face_fespace,
+                             ParFiniteElementSpace *edge_fespace);
+
 /// The Auxiliary-space Maxwell Solver in hypre
 class HypreAMS : public HypreSolver
 {
@@ -379,6 +410,8 @@ private:
    HypreParVector *x, *y, *z;
    /// Discrete gradient matrix
    HypreParMatrix *G;
+   /// Nedelec interpolation matrix and its components
+   HypreParMatrix *Pi, *Pix, *Piy, *Piz;
 
 public:
    HypreAMS(HypreParMatrix &A, ParFiniteElementSpace *edge_fespace);
@@ -392,6 +425,37 @@ public:
    { return (HYPRE_PtrToParSolverFcn) HYPRE_AMSSolve; }
 
    virtual ~HypreAMS();
+};
+
+/// The Auxiliary-space Divergence Solver in hypre
+class HypreADS : public HypreSolver
+{
+private:
+   HYPRE_Solver ads;
+
+   /// Vertex coordinates
+   HypreParVector *x, *y, *z;
+   /// Discrete gradient matrix
+   HypreParMatrix *G;
+   /// Discrete curl matrix
+   HypreParMatrix *C;
+   /// Nedelec interpolation matrix and its components
+   HypreParMatrix *ND_Pi, *ND_Pix, *ND_Piy, *ND_Piz;
+   /// Raviart-Thomas interpolation matrix and its components
+   HypreParMatrix *RT_Pi, *RT_Pix, *RT_Piy, *RT_Piz;
+
+public:
+   HypreADS(HypreParMatrix &A, ParFiniteElementSpace *face_fespace);
+
+   /// The typecast to HYPRE_Solver returns the internal ads object
+   virtual operator HYPRE_Solver() const { return ads; }
+
+   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ADSSetup; }
+   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ADSSolve; }
+
+   virtual ~HypreADS();
 };
 
 #endif

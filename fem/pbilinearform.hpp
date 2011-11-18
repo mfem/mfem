@@ -18,6 +18,8 @@ class ParBilinearForm : public BilinearForm
 protected:
    ParFiniteElementSpace *pfes;
 
+   HypreParMatrix *ParallelAssemble(SparseMatrix *m);
+
 public:
    ParBilinearForm(ParFiniteElementSpace *pf)
       : BilinearForm(pf) { pfes = pf; }
@@ -26,9 +28,37 @@ public:
       : BilinearForm(pf, bf) { pfes = pf; }
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
-   HypreParMatrix *ParallelAssemble();
+   HypreParMatrix *ParallelAssemble() { return ParallelAssemble(mat); }
+
+   /// Returns the eliminated matrix assembled on the true dofs, i.e. P^t A_e P.
+   HypreParMatrix *ParallelAssembleElim() { return ParallelAssemble(mat_e); }
 
    virtual ~ParBilinearForm() { }
+};
+
+/** The parallel matrix representation a linear operator between parallel finite
+    element spaces */
+class ParDiscreteLinearOperator : public DiscreteLinearOperator
+{
+protected:
+   ParFiniteElementSpace *domain_fes;
+   ParFiniteElementSpace *range_fes;
+
+   HypreParMatrix *ParallelAssemble(SparseMatrix *m);
+
+public:
+   ParDiscreteLinearOperator(ParFiniteElementSpace *dfes,
+                             ParFiniteElementSpace *rfes)
+      : DiscreteLinearOperator(dfes, rfes) { domain_fes=dfes; range_fes=rfes; }
+
+   /// Returns the matrix "assembled" on the true dofs
+   HypreParMatrix *ParallelAssemble() { return ParallelAssemble(mat); }
+
+   /** Extract the parallel blocks corresponding to the vector dimensions of the
+       domain and range parallel finite element spaces */
+   void GetParBlocks(Array2D<HypreParMatrix *> &blocks) const;
+
+   virtual ~ParDiscreteLinearOperator() { }
 };
 
 #endif

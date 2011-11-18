@@ -20,6 +20,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f)
    fes = f;
    mat = mat_e = NULL;
    extern_bfs = 0;
+   element_matrices = NULL;
 }
 
 BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf)
@@ -32,6 +33,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf)
    mat = new SparseMatrix (size);
    mat_e = NULL;
    extern_bfs = 1;
+   element_matrices = NULL;
 
    bfi = bf->GetDBFI();
    dbfi.SetSize (bfi->Size());
@@ -103,6 +105,15 @@ void BilinearForm::AddBdrFaceIntegrator (BilinearFormIntegrator * bfi)
 
 void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
 {
+   if (element_matrices)
+   {
+      DenseMatrix tmp(element_matrices->GetData(i),
+                      element_matrices->SizeI(),
+                      element_matrices->SizeJ());
+      elmat = tmp;
+      return;
+   }
+
    if (dbfi.Size())
    {
       const FiniteElement &fe = *fes->GetFE(i);
@@ -141,16 +152,32 @@ void BilinearForm::Assemble (int skip_zeros)
    if (mat == NULL)
       mat = new SparseMatrix(size);
 
+#ifdef MFEM_USE_OPENMP
+   int free_element_matrices = 0;
+   if (!element_matrices)
+   {
+      ComputeElementMatrices();
+      free_element_matrices = 1;
+   }
+#endif
+
    if (dbfi.Size())
       for (i = 0; i < fes -> GetNE(); i++)
       {
-         const FiniteElement &fe = *fes->GetFE(i);
-         fes -> GetElementVDofs (i, vdofs);
-         eltrans = fes -> GetElementTransformation (i);
-         for (int k=0; k < dbfi.Size(); k++)
+         fes->GetElementVDofs(i, vdofs);
+         if (element_matrices)
          {
-            dbfi[k] -> AssembleElementMatrix (fe, *eltrans, elemmat);
-            mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
+            mat->AddSubMatrix(vdofs, vdofs, (*element_matrices)(i), skip_zeros);
+         }
+         else
+         {
+            const FiniteElement &fe = *fes->GetFE(i);
+            eltrans = fes->GetElementTransformation(i);
+            for (int k = 0; k < dbfi.Size(); k++)
+            {
+               dbfi[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
+               mat->AddSubMatrix(vdofs, vdofs, elemmat, skip_zeros);
+            }
          }
       }
 
@@ -215,6 +242,51 @@ void BilinearForm::Assemble (int skip_zeros)
             }
          }
       }
+   }
+
+#ifdef MFEM_USE_OPENMP
+   if (free_element_matrices)
+      FreeElementMatrices();
+#endif
+}
+
+void BilinearForm::ComputeElementMatrices()
+{
+   if (element_matrices || dbfi.Size() == 0)
+      return;
+
+   int num_elements = fes->GetNE();
+   int num_dofs_per_el = fes->GetFE(0)->GetDof() * fes->GetVDim();
+
+   element_matrices = new DenseTensor(num_dofs_per_el, num_dofs_per_el,
+                                      num_elements);
+
+   DenseMatrix tmp;
+   IsoparametricTransformation eltrans;
+
+#ifdef MFEM_USE_OPENMP
+#pragma omp parallel for private(tmp,eltrans)
+#endif
+   for (int i = 0; i < num_elements; i++)
+   {
+      DenseMatrix elmat(element_matrices->GetData(i),
+                        num_dofs_per_el, num_dofs_per_el);
+      const FiniteElement &fe = *fes->GetFE(i);
+#ifdef MFEM_DEBUG
+      if (num_dofs_per_el != fe.GetDof()*fes->GetVDim())
+         mfem_error("BilinearForm::ComputeElementMatrices:"
+                    " all elements must have same number of dofs");
+#endif
+      fes->GetElementTransformation(i, &eltrans);
+
+      dbfi[0]->AssembleElementMatrix(fe, eltrans, elmat);
+      for (int k = 1; k < dbfi.Size(); k++)
+      {
+         // note: some integrators may not be thread-safe
+         dbfi[k]->AssembleElementMatrix(fe, eltrans, tmp);
+         elmat += tmp;
+      }
+      elmat.ClearExternalData();
    }
 }
 
@@ -308,6 +380,7 @@ void BilinearForm::Update (FiniteElementSpace *nfes)
 
    delete mat_e;
    delete mat;
+   FreeElementMatrices();
 
    size = fes->GetVSize();
 
@@ -318,6 +391,7 @@ BilinearForm::~BilinearForm()
 {
    delete mat_e;
    delete mat;
+   delete element_matrices;
 
    if (!extern_bfs)
    {
@@ -375,6 +449,18 @@ MatrixInverse * MixedBilinearForm::Inverse() const
 void MixedBilinearForm::Finalize (int skip_zeros)
 {
    mat -> Finalize (skip_zeros);
+}
+
+void MixedBilinearForm::GetBlocks(Array2D<SparseMatrix *> &blocks) const
+{
+   if (trial_fes->GetOrdering() != Ordering::byNODES ||
+       test_fes->GetOrdering() != Ordering::byNODES)
+      mfem_error("MixedBilinearForm::GetBlocks :\n"
+                 " Both trial and test spaces must use Ordering::byNODES!");
+
+   blocks.SetSize(test_fes->GetVDim(), trial_fes->GetVDim());
+
+   mat->GetBlocks(blocks);
 }
 
 void MixedBilinearForm::AddDomainIntegrator (BilinearFormIntegrator * bfi)
@@ -482,4 +568,34 @@ MixedBilinearForm::~MixedBilinearForm()
    if (mat)  delete mat;
    for (i = 0; i < dom.Size(); i++)  delete dom[i];
    for (i = 0; i < bdr.Size(); i++)  delete bdr[i];
+}
+
+
+void DiscreteLinearOperator::Assemble(int skip_zeros)
+{
+   Array<int> dom_vdofs, ran_vdofs;
+   ElementTransformation *T;
+   const FiniteElement *dom_fe, *ran_fe;
+   DenseMatrix totelmat, elmat;
+
+   if (mat == NULL)
+      mat = new SparseMatrix(size, width);
+
+   if (dom.Size() > 0)
+      for (int i = 0; i < test_fes->GetNE(); i++)
+      {
+         trial_fes->GetElementVDofs(i, dom_vdofs);
+         test_fes->GetElementVDofs(i, ran_vdofs);
+         T = test_fes->GetElementTransformation(i);
+         dom_fe = trial_fes->GetFE(i);
+         ran_fe = test_fes->GetFE(i);
+
+         dom[0]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T, totelmat);
+         for (int j = 1; j < dom.Size(); j++)
+         {
+            dom[j]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T, elmat);
+            totelmat += elmat;
+         }
+         mat->SetSubMatrix(ran_vdofs, dom_vdofs, totelmat, skip_zeros);
+      }
 }

@@ -12,13 +12,14 @@
 #ifndef MFEM_ISOCKSTREAM
 #define MFEM_ISOCKSTREAM
 
-#include <signal.h>
 #include <sstream>
 using namespace std;
 
 /** Data type for input socket stream class. The class is used as server
     to receive data from a client on specified port number. The user gets
-    data from the stream as from any other input stream. */
+    data from the stream as from any other input stream.
+    This class is DEPRECATED. New code should use class socketserver (see
+    "socketstream.hpp"). */
 class isockstream
 {
 private:
@@ -32,7 +33,7 @@ public:
 
    /** The constructor takes as input the portnumber port on which
        it establishes a server. */
-   isockstream(int port);
+   explicit isockstream(int port);
 
    bool good() { return (!error); }
 
@@ -44,4 +45,3 @@ public:
 };
 
 #endif
-

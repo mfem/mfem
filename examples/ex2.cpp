@@ -6,9 +6,11 @@
 //               ex2 ../data/beam-quad.mesh
 //               ex2 ../data/beam-tet.mesh
 //               ex2 ../data/beam-hex.mesh
+//               ex2 ../data/beam-quad-nurbs.mesh
+//               ex2 ../data/beam-hex-nurbs.mesh
 //
 // Description:  This example code solves a simple linear elasticity problem
-//               describing a multi-material Cantilever beam.
+//               describing a multi-material cantilever beam.
 //
 //               Specifically, we approximate the weak form of -div(sigma(u))=0
 //               where sigma(u)=lambda*div(u)*I+mu*(grad*u+u*grad) is the stress
@@ -25,10 +27,10 @@
 //                    attribute 1  |    1     |    2     |     attribute 2
 //                    (fixed)      +----------+----------+     (pull down)
 //
-//               The example demonstrates the use of (high-order) vector finite
-//               element spaces with the linear elasticity bilinear form, meshes
-//               with curved elements, and the definition of piece-wise constant
-//               and vector coefficient objects.
+//               The example demonstrates the use of high-order and NURBS vector
+//               finite element spaces with the linear elasticity bilinear form,
+//               meshes with curved elements, and the definition of piece-wise
+//               constant and vector coefficient objects.
 //
 //               We recommend viewing example 1 before viewing this example.
 
@@ -66,7 +68,16 @@ int main (int argc, char *argv[])
 
    int dim = mesh->Dimension();
 
-   // 2. Refine the mesh to increase the resolution. In this example we do
+   // 2. Select the order of the finite element discretization space. For NURBS
+   //    meshes, we increase the order by degree elevation.
+   int p;
+   cout << "Enter finite element space order --> " << flush;
+   cin >> p;
+
+   if (mesh->NURBSext && p > mesh->NURBSext->GetOrder())
+      mesh->DegreeElevate(p - mesh->NURBSext->GetOrder());
+
+   // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 5,000
    //    elements.
@@ -77,32 +88,27 @@ int main (int argc, char *argv[])
          mesh->UniformRefinement();
    }
 
-   // 3. Define a finite element space on the mesh. Here we use vector finite
+   // 4. Define a finite element space on the mesh. Here we use vector finite
    //    elements, i.e. dim copies of a scalar finite element space. The vector
    //    dimension is specified by the last argument of the FiniteElementSpace
-   //    constructor.
+   //    constructor. For NURBS meshes, we use the (degree elevated) NURBS space
+   //    associated with the mesh nodes.
    FiniteElementCollection *fec;
-   int fec_type;
-   cout << "Choose the finite element space:\n"
-        << " 1) Linear\n"
-        << " 2) Quadratic\n"
-        << " 3) Cubic\n"
-        << " ---> ";
-   cin >> fec_type;
-   switch (fec_type)
+   FiniteElementSpace *fespace;
+   if (mesh->NURBSext)
    {
-   default:
-   case 1:
-      fec = new LinearFECollection; break;
-   case 2:
-      fec = new QuadraticFECollection; break;
-   case 3:
-      fec = new CubicFECollection; break;
+      fec = NULL;
+      fespace = mesh->GetNodes()->FESpace();
    }
-   cout << "Assembling: " << flush;
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim);
+   else
+   {
+      fec = new H1_FECollection(p, dim);
+      fespace = new FiniteElementSpace(mesh, fec, dim);
+   }
+   cout << "Number of unknowns: " << fespace->GetVSize() << endl
+        << "Assembling: " << flush;
 
-   // 4. Set up the linear form b(.) which corresponds to the right-hand side of
+   // 5. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system. In this case, b_i equals the boundary integral
    //    of f*phi_i where f represents a "pull down" force on the Neumann part
    //    of the boundary and phi_i are the basis functions in the finite element
@@ -121,17 +127,17 @@ int main (int argc, char *argv[])
    }
 
    LinearForm *b = new LinearForm(fespace);
-   b->AddDomainIntegrator(new VectorBoundaryLFIntegrator(f));
+   b->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
    cout << "r.h.s. ... " << flush;
    b->Assemble();
 
-   // 5. Define the solution vector x as a finite element grid function
+   // 6. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    GridFunction x(fespace);
    x = 0.0;
 
-   // 6. Set up the bilinear form a(.,.) on the finite element space
+   // 7. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the linear elasticity integrator with piece-wise
    //    constants coefficient lambda and mu. The boundary conditions are
    //    implemented by marking only boundary attribute 1 as essential. After
@@ -157,22 +163,24 @@ int main (int argc, char *argv[])
    cout << "done." << endl;
    const SparseMatrix &A = a->SpMat();
 
-   // 7. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG.
    GSSmoother M(A);
    PCG(A, M, *b, x, 1, 500, 1e-8, 0.0);
 
-   // 8. Make the mesh curved based on the finite element space. This means that
-   //    we define the mesh elements through a fespace-based transformation of
-   //    the reference element.  This allows us to save the displaced mesh as a
-   //    curved mesh when using high-order finite element displacement field.
-   //    We assume that the initial mesh (read from the file) is not higher
-   //    order curved mesh compared to the FE space chosen from the menu.
-   mesh->SetNodalFESpace(fespace);
+   // 9. For non-NURBS meshes, make the mesh curved based on the finite element
+   //    space. This means that we define the mesh elements through a fespace
+   //    based transformation of the reference element. This allows us to save
+   //    the displaced mesh as a curved mesh when using high-order finite
+   //    element displacement field. We assume that the initial mesh (read from
+   //    the file) is not higher order curved mesh compared to the chosen FE
+   //    space.
+   if (!mesh->NURBSext)
+      mesh->SetNodalFESpace(fespace);
 
-   // 9. Save the displaced mesh and the inverted solution (which gives the
-   //    backward displacements to the original grid). This output can be viewed
-   //    later using GLVis: "glvis -m displaced.mesh -g sol.gf".
+   // 10. Save the displaced mesh and the inverted solution (which gives the
+   //     backward displacements to the original grid). This output can be
+   //     viewed later using GLVis: "glvis -m displaced.mesh -g sol.gf".
    {
       GridFunction *nodes = mesh->GetNodes();
       *nodes += x;
@@ -185,27 +193,25 @@ int main (int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 10. (Optional) Send the above data by socket to a GLVis server. Note that
-   //     we use "vfem" instead of "fem" in the initial string, to indicate
-   //     vector grid function. Use the "n" and "b" keys in GLVis to visualize
-   //     the displacements.
+   // 11. (Optional) Send the above data by socket to a GLVis server. Use the
+   //     "n" and "b" keys in GLVis to visualize the displacements.
    char vishost[] = "localhost";
    int  visport   = 19916;
    osockstream sol_sock(visport, vishost);
-   if (dim == 2)
-      sol_sock << "vfem2d_gf_data\n";
-   else
-      sol_sock << "vfem3d_gf_data\n";
+   sol_sock << "solution\n";
    sol_sock.precision(8);
    mesh->Print(sol_sock);
    x.Save(sol_sock);
    sol_sock.send();
 
-   // 11. Free the used memory.
+   // 12. Free the used memory.
    delete a;
    delete b;
-   delete fespace;
-   delete fec;
+   if (fec)
+   {
+      delete fespace;
+      delete fec;
+   }
    delete mesh;
 
    return 0;

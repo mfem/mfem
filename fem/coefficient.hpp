@@ -26,14 +26,14 @@ public:
 
 
 /// Subclass constant coefficient.
-class ConstantCoefficient: public Coefficient
+class ConstantCoefficient : public Coefficient
 {
 public:
 
    double constant;
 
    /// c is value of constant function
-   ConstantCoefficient(double c = 1.0) { constant=c; };
+   explicit ConstantCoefficient(double c = 1.0) { constant=c; };
 
    /// Evaluate the coefficient
    virtual double Eval(ElementTransformation &T,
@@ -52,7 +52,7 @@ private:
 public:
 
    /// Constructs a piecewise constant coefficient in NumOfSubD subdomains
-   PWConstCoefficient(int NumOfSubD = 0) : constants(NumOfSubD)
+   explicit PWConstCoefficient(int NumOfSubD = 0) : constants(NumOfSubD)
    { constants = 0.0; };
 
    /** c should be a vector defined by attributes, so for region with
@@ -77,11 +77,10 @@ public:
 };
 
 /// class for C-function coefficient
-class FunctionCoefficient:public Coefficient
+class FunctionCoefficient : public Coefficient
 {
 private:
    double (*Function)(Vector &);
-   Vector transip;
 
 public:
 
@@ -145,23 +144,44 @@ public:
 class DeltaCoefficient : public Coefficient
 {
 private:
-   double center[3], scale;
+   double center[3], scale, tol;
    Coefficient *weight;
 
 public:
    DeltaCoefficient();
    DeltaCoefficient(double x, double y, double s)
-   { center[0] = x; center[1] = y; center[2] = 0.; scale = s; weight = NULL; }
+   { center[0] = x; center[1] = y; center[2] = 0.; scale = s; tol = 1e-12;
+      weight = NULL; }
    DeltaCoefficient(double x, double y, double z, double s)
-   { center[0] = x; center[1] = y; center[2] = z; scale = s; weight = NULL; }
+   { center[0] = x; center[1] = y; center[2] = z; scale = s; tol = 1e-12;
+      weight = NULL; }
+   void SetTol(double _tol) { tol = _tol; }
    void SetWeight(Coefficient *w) { weight = w; }
    const double *Center() { return center; }
    double Scale() { return scale; }
+   double Tol() { return tol; }
    Coefficient *Weight() { return weight; }
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    { mfem_error("DeltaCoefficient::Eval"); return 0.; }
    virtual void Read(istream &in) { }
    virtual ~DeltaCoefficient() { delete weight; }
+};
+
+/// Coefficient defined on a subset of domain or boundary attributes
+class RestrictedCoefficient : public Coefficient
+{
+private:
+   Coefficient *c;
+   Array<int> active_attr;
+
+public:
+   RestrictedCoefficient(Coefficient &_c, Array<int> &attr)
+   { c = &_c; attr.Copy(active_attr); }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   { return active_attr[T.Attribute-1] ? c->Eval(T, ip) : 0.0; }
+
+   virtual void Read(istream &in) { }
 };
 
 class VectorCoefficient
@@ -201,7 +221,6 @@ class VectorFunctionCoefficient : public VectorCoefficient
 private:
    void (*Function)(const Vector &, Vector &);
    Coefficient *Q;
-   Vector transip;
 
 public:
    VectorFunctionCoefficient (
@@ -222,7 +241,7 @@ private:
 
 public:
    /// Construct vector of dim coefficients.
-   VectorArrayCoefficient (int dim);
+   explicit VectorArrayCoefficient (int dim);
 
    /// Returns i'th coefficient.
    Coefficient & GetCoeff (int i) { return *Coeff[i]; }
@@ -242,7 +261,7 @@ public:
    /// Reads vector coefficient.
    void Read (int i, istream &in)  { Coeff[i] -> Read(in); }
 
-   /// Destriys vector coefficient.
+   /// Destroys vector coefficient.
    virtual ~VectorArrayCoefficient();
 };
 
@@ -261,6 +280,22 @@ public:
    virtual ~VectorGridFunctionCoefficient() { };
 };
 
+/// VectorCoefficient defined on a subset of domain or boundary attributes
+class VectorRestrictedCoefficient : public VectorCoefficient
+{
+private:
+   VectorCoefficient *c;
+   Array<int> active_attr;
+
+public:
+   VectorRestrictedCoefficient(VectorCoefficient &vc, Array<int> &attr)
+      : VectorCoefficient(vc.GetVDim())
+   { c = &vc; attr.Copy(active_attr); }
+
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
 
 class MatrixCoefficient
 {
@@ -268,7 +303,7 @@ protected:
    int vdim;
 
 public:
-   MatrixCoefficient (int dim) { vdim = dim; };
+   explicit MatrixCoefficient (int dim) { vdim = dim; };
 
    int GetVDim() { return vdim; };
 
@@ -282,7 +317,6 @@ class MatrixFunctionCoefficient : public MatrixCoefficient
 {
 private:
    void (*Function)(const Vector &, DenseMatrix &);
-   Vector transip;
 
 public:
    MatrixFunctionCoefficient (int dim, void (*F)(const Vector &,
@@ -302,7 +336,7 @@ private:
 
 public:
 
-   MatrixArrayCoefficient (int dim);
+   explicit MatrixArrayCoefficient (int dim);
 
    Coefficient & GetCoeff (int i, int j) { return *Coeff[i*vdim+j]; }
 

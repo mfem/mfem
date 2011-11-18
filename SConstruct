@@ -13,6 +13,7 @@ Help("""
        Type: 'scons' to build the production library,
              'scons -c' to clean the build,
              'scons debug=1' to build the debug version,
+             'scons openmp=1' to enable OpenMP support,
              'scons parallel=1' to build the parallel version.
        """)
 
@@ -25,7 +26,10 @@ CC_OPTS    = '-O3'
 DEBUG_OPTS = '-g -Wall'
 
 # External libraries
-HYPRE_DIR  = "../hypre-2.7.0b/src/hypre"
+HYPRE_DIR  = "../hypre-2.8.0b/src/hypre"
+
+# Which version of the METIS library should be used, 4 (default) or 5?
+# env.Append(CPPDEFINES = ['MFEM_USE_METIS_5'])
 
 # MFEM-specific options
 env.Append(CPPDEFINES = ['MFEM_USE_MEMALLOC'])
@@ -38,11 +42,18 @@ if int(debug):
 else:
    env.Append(CCFLAGS = CC_OPTS)
 
+# OpenMP options
+openmp = ARGUMENTS.get('openmp', 0)
+if int(openmp):
+   env.Prepend(CPPDEFINES = ['MFEM_USE_OPENMP'])
+   env.Append(CCFLAGS = '-fopenmp')
+   print 'Enabled OpenMP'
+
 # Parallel version
 parallel = ARGUMENTS.get('parallel', 0)
 if int(parallel):
    env.Append(CPPDEFINES = ['MFEM_USE_MPI'])
-   env.Replace(CXX = 'mpiCC')
+   env.Replace(CXX = 'mpicxx')
    env.Append(CPPPATH = [HYPRE_DIR+"/include"])
    print 'Building parallel version'
 else:

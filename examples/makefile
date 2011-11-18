@@ -13,10 +13,10 @@
 CC = g++
 OPTS = -O3 -I$(MFEM_DIR)
 DEBUG_OPTS = -g -I$(MFEM_DIR)
-LIBS = $(MFEM_LIB) $(LAPACK_LIBS)
+LIBS = $(MFEM_LIB) $(LAPACK_LIBS) $(OPENMP_LIBS)
 
 # Parallel compiler
-MPICC = mpiCC
+MPICC = mpicxx
 MPIOPTS = $(OPTS) -I$(HYPRE_DIR)/include
 MPIDEBUG_OPTS = $(DEBUG_OPTS) -I$(HYPRE_DIR)/include
 MPILIBS = $(LIBS) -L$(METIS_DIR) -lmetis -L$(HYPRE_DIR)/lib -lHYPRE
@@ -27,10 +27,16 @@ MFEM_LIB = -L$(MFEM_DIR) -lmfem
 
 # The METIS and HYPRE libraries (needed for the parallel examples)
 METIS_DIR = ../../metis-4.0
-HYPRE_DIR = ../../hypre-2.7.0b/src/hypre
+HYPRE_DIR = ../../hypre-2.8.0b/src/hypre
+
+# Enable experimental OpenMP support
+USE_OPENMP = NO
+OPENMP_LIBS_NO  =
+OPENMP_LIBS_YES = -fopenmp
+OPENMP_LIBS     = $(OPENMP_LIBS_$(USE_OPENMP))
 
 # The LAPACK and BLAS libraries (needed if MFEM was compiled with LAPACK support)
-USE_LAPACK = YES
+USE_LAPACK = NO
 LAPACK_DIR = $(HOME)/lapack
 LAPACK_LIB = -L$(LAPACK_DIR) -llapack
 BLAS_DIR   = $(HOME)/lapack
@@ -41,9 +47,9 @@ LAPACK_LIBS_NO  =
 LAPACK_LIBS_YES = $(LAPACK_LIB) $(BLAS_LIB)
 LAPACK_LIBS     = $(LAPACK_LIBS_$(USE_LAPACK))
 
-serial: ex1 ex2 ex3
+serial: ex1 ex2 ex3 ex4
 
-parallel: ex1p ex2p ex3p
+parallel: ex1p ex2p ex3p ex4p
 
 ex1: ex1.cpp
 	$(CC) $(OPTS) ex1.cpp -o ex1 $(LIBS)
@@ -63,6 +69,12 @@ ex3: ex3.cpp
 ex3p: ex3p.cpp
 	$(MPICC) $(MPIOPTS) ex3p.cpp -o ex3p $(MPILIBS)
 
+ex4: ex4.cpp
+	$(CC) $(OPTS) ex4.cpp -o ex4 $(LIBS)
+
+ex4p: ex4p.cpp
+	$(MPICC) $(MPIOPTS) ex4p.cpp -o ex4p $(MPILIBS)
+
 debug:
 	make "OPTS=$(DEBUG_OPTS)" serial
 
@@ -70,5 +82,5 @@ pdebug:
 	make "MPIOPTS=$(MPIDEBUG_OPTS)" parallel
 
 clean:
-	rm -f *.o *~ ex1 ex1p ex2 ex2p ex3 ex3p
-	rm -f refined.mesh displaced.mesh sol.gf
+	rm -f *.o *~ ex1 ex1p ex2 ex2p ex3 ex3p ex4 ex4p
+	rm -f refined.mesh displaced.mesh sol.* mesh.*

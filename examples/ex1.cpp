@@ -8,11 +8,16 @@
 //               ex1 ../data/fichera.mesh
 //               ex1 ../data/square-disc-p2.vtk
 //               ex1 ../data/square-disc-p3.mesh
+//               ex1 ../data/square-disc-nurbs.mesh
+//               ex1 ../data/disc-nurbs.mesh
+//               ex1 ../data/pipe-nurbs.mesh
 //
 // Description:  This example code demonstrates the use of MFEM to define a
-//               simple linear finite element discretization of the Laplace
-//               problem -Delta u = 1 with homogeneous Dirichlet boundary
-//               conditions.
+//               simple isoparametric finite element discretization of the
+//               Laplace problem -Delta u = 1 with homogeneous Dirichlet
+//               boundary conditions. Specifically, we discretize with the
+//               FE space coming from the mesh (linear by default, quadratic
+//               for quadratic curvilinear mesh, NURBS for NURBS mesh, etc.)
 //
 //               The example highlights the use of mesh refinement, finite
 //               element grid functions, as well as linear and bilinear forms
@@ -56,10 +61,15 @@ int main (int argc, char *argv[])
          mesh->UniformRefinement();
    }
 
-   // 3. Define a finite element space on the mesh. Here we use linear finite
-   //    elements.
-   FiniteElementCollection *fec = new LinearFECollection;
+   // 3. Define a finite element space on the mesh. Here we use isoparametric
+   //    finite elements coming from the mesh nodes (linear by default).
+   FiniteElementCollection *fec;
+   if (mesh->GetNodes())
+      fec = mesh->GetNodes()->OwnFEC();
+   else
+      fec = new LinearFECollection;
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   cout << "Number of unknowns: " << fespace->GetVSize() << endl;
 
    // 4. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
@@ -110,10 +120,7 @@ int main (int argc, char *argv[])
    char vishost[] = "localhost";
    int  visport   = 19916;
    osockstream sol_sock(visport, vishost);
-   if (mesh->Dimension() == 2)
-      sol_sock << "fem2d_gf_data\n";
-   else
-      sol_sock << "fem3d_gf_data\n";
+   sol_sock << "solution\n";
    sol_sock.precision(8);
    mesh->Print(sol_sock);
    x.Save(sol_sock);
@@ -123,7 +130,8 @@ int main (int argc, char *argv[])
    delete a;
    delete b;
    delete fespace;
-   delete fec;
+   if (!mesh->GetNodes())
+      delete fec;
    delete mesh;
 
    return 0;

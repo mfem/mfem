@@ -31,16 +31,16 @@ public:
    /// Returns the indices of the element's  vertices.
    virtual void GetVertices( Array<int> &v ) const;
 
-   virtual int * GetVertices () { return indices; };
+   virtual int * GetVertices () { return indices; }
 
-   virtual int GetNVertices() const { return 1; };
+   virtual int GetNVertices() const { return 1; }
 
    virtual int GetNEdges() const { return(0); }
 
    virtual const int *GetEdgeVertices(int ei) const { return(NULL); }
 
-   virtual Element *Duplicate() const
-   { return new Point (indices, attribute); };
+   virtual Element *Duplicate(Mesh *m) const
+   { return new Point (indices, attribute); }
 
    virtual ~Point() { }
 };

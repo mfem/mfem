@@ -46,6 +46,7 @@ public:
    ~RefinementData() { delete fl_to_fc; delete I;}
 };
 
+class NURBSExtension;
 
 /// Abstract finite element space.
 class FiniteElementSpace
@@ -73,7 +74,13 @@ protected:
    Array<RefinementData *> RefData;
 
    Table *elem_dof;
+   Table *bdrElem_dof;
    Array<int> dof_elem_array, dof_ldof_array;
+
+   NURBSExtension *NURBSext;
+   int own_ext;
+
+   void UpdateNURBS();
 
    void Constructor();
    void Destructor();   // does not destroy 'RefData'
@@ -97,8 +104,13 @@ public:
    /// Returns the mesh
    inline Mesh * GetMesh() const { return mesh; };
 
+   NURBSExtension *GetNURBSext() { return NURBSext; }
+
    /// Returns vector dimension.
    inline int GetVDim() const { return vdim; };
+
+   /// Returns the order of the i'th finite element
+   int GetOrder(int i) const;
 
    /// Returns number of degrees of freedom.
    inline int GetNDofs() const { return ndofs; };
@@ -139,6 +151,11 @@ public:
    ElementTransformation * GetElementTransformation(int i) const
    { return mesh -> GetElementTransformation(i); };
 
+   /** Returns the transformation defining the i-th element in the user-defined
+       variable. */
+   void GetElementTransformation(int i, IsoparametricTransformation *ElTr)
+   { mesh->GetElementTransformation(i, ElTr); }
+
    /// Returns ElementTransformation for the i'th boundary element.
    ElementTransformation * GetBdrElementTransformation(int i) const
    { return mesh -> GetBdrElementTransformation(i); };
@@ -170,6 +187,9 @@ public:
    void DofsToVDofs (int vd, Array<int> &dofs) const;
 
    int DofToVDof (int dof, int vd) const;
+
+   int VDofToDof(int vdof) const
+   { return (ordering == Ordering::byNODES) ? (vdof%ndofs) : (vdof/vdim); }
 
    static void AdjustVDofs (Array<int> &vdofs);
 

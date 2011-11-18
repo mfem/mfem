@@ -14,3 +14,4 @@
 #include "general/tic_toc.hpp"
 #include "general/isockstream.hpp"
 #include "general/osockstream.hpp"
+#include "general/socketstream.hpp"

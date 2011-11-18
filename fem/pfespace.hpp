@@ -23,6 +23,9 @@ private:
    /// Parallel mesh.
    ParMesh *pmesh;
 
+   /// GroupCommunicator on the local VDofs
+   GroupCommunicator *gcomm;
+
    /// Number of true dofs in this processor (local true dofs).
    int ltdof_size;
 
@@ -38,15 +41,35 @@ private:
    /// Offsets for the true dofs in each processor in global numbering.
    Array<int> tdof_offsets;
 
-   /// The sign of the basis functions at the local dofs.
+   /// Offsets for the true dofs in neighbor processor in global numbering.
+   Array<int> tdof_nb_offsets;
+
+   /// The sign of the basis functions at the scalar local dofs.
    Array<int> ldof_sign;
 
    /// The matrix P (interpolation from true dof to dof).
    HypreParMatrix *P;
 
+   ParNURBSExtension *pNURBSext()
+   { return dynamic_cast<ParNURBSExtension *>(NURBSext); }
+
+   GroupTopology &GetGroupTopo()
+   { return (NURBSext) ? pNURBSext()->gtopo : pmesh->gtopo; }
+
    /** Create a parallel FE space stealing all data (except RefData) from the
        given FE space. This is used in SaveUpdate(). */
    ParFiniteElementSpace(ParFiniteElementSpace &pf);
+
+   // ldof_type = 0 : DOFs communicator, otherwise VDOFs communicator
+   void GetGroupComm(GroupCommunicator &gcomm, int ldof_type,
+                     Array<int> *ldof_sign = NULL);
+
+   /// Construct dof_offsets and tdof_offsets using global communication.
+   void GenerateGlobalOffsets();
+
+   /// Construct ldof_group and ldof_ltdof.
+   void ConstructTrueDofs();
+   void ConstructTrueNURBSDofs();
 
 public:
    ParFiniteElementSpace(ParMesh *pm, FiniteElementCollection *f,
@@ -59,7 +82,9 @@ public:
    int TrueVSize()          { return ltdof_size; }
    int *GetDofOffsets()     { return dof_offsets; }
    int *GetTrueDofOffsets() { return tdof_offsets; }
-   int GetDofSign(int i)    { return ldof_sign[i]; }
+   int GlobalVSize()        { return Dof_TrueDof_Matrix()->GetGlobalNumRows(); }
+   int GlobalTrueVSize()    { return Dof_TrueDof_Matrix()->GetGlobalNumCols(); }
+   int GetDofSign(int i)    { return NURBSext ? 1 : ldof_sign[VDofToDof(i)]; }
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
    virtual void GetElementDofs(int i, Array<int> &dofs) const;
@@ -67,17 +92,21 @@ public:
    /// Returns indexes of degrees of freedom for i'th boundary element.
    virtual void GetBdrElementDofs(int i, Array<int> &dofs) const;
 
-   /// Construct dof_offsets and tdof_offsets using global communication.
-   void GenerateGlobalOffsets();
-
-   /// Construct ldof_group and ldof_ltdof.
-   void ConstructTrueDofs();
-
-   /// The dof-to-true dof interpolation matrix
+   /// The true dof-to-dof interpolation matrix
    HypreParMatrix *Dof_TrueDof_Matrix();
 
-   /// Scale a vector in the range of P
-   void DivideByGroupSize(double * vec);
+   /// Scale a vector of true dofs
+   void DivideByGroupSize(double *vec);
+
+   /// Return a reference to the internal GroupCommunicator (on VDofs)
+   GroupCommunicator &GroupComm() { return *gcomm; }
+
+   /// Return a new GroupCommunicator on Dofs
+   GroupCommunicator *ScalarGroupComm();
+
+   /** Given an integer array on the local degrees of freedom, perform
+       a bitwise OR between the shared dofs. */
+   void Synchronize(Array<int> &ldof_marker);
 
    /// Determine the boundary degrees of freedom
    virtual void GetEssentialVDofs(Array<int> &bdr_attr_is_ess,
@@ -88,6 +117,10 @@ public:
    int GetLocalTDofNumber(int ldof);
    /// Returns the global tdof number of the given local degree of freedom
    int GetGlobalTDofNumber(int ldof);
+   /** Returns the global tdof number of the given local degree of freedom in
+       the scalar vesion of the current finite element space. The input should
+       be a scalar local dof. */
+   int GetGlobalScalarTDofNumber(int sldof);
 
    void Lose_Dof_TrueDof_Matrix();
    void LoseDofOffsets() { dof_offsets.LoseData(); }
@@ -97,7 +130,7 @@ public:
    /// Return a copy of the current FE space and update
    virtual FiniteElementSpace *SaveUpdate();
 
-   virtual ~ParFiniteElementSpace() { if (P) delete P; }
+   virtual ~ParFiniteElementSpace() { delete gcomm; delete P; }
 };
 
 #endif

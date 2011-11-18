@@ -12,7 +12,7 @@
 #ifndef MFEM_OSOCKSTREAM
 #define MFEM_OSOCKSTREAM
 
-#include <sstream>
+#include "socketstream.hpp"
 using namespace std;
 
 /** Data type for output socket stream class. The class is used as client
@@ -20,20 +20,11 @@ using namespace std;
     class can be used for one time send of data to the server. The user
     writes in the stream, as in any other output stream and when the data
     is ready to be send function send() has to be executed. Otherwise (if
-    not executed) the destructor will send the data. */
-class osockstream : public ostringstream
+    not executed) the destructor will send the data.
+    This class is DEPRECATED. New code should use class socketstream (see
+    "socketstream.hpp"). */
+class osockstream : public socketstream
 {
-private:
-   int portnum, sent;
-   char machine[128];
-
-   // return socket number;
-   // (-1) for unknown machine;
-   // (-2) for socket fail;
-   // (-3) for connect fail.
-   int call_socket();
-   int send_through_socket(int s, const char *Buf, int size);
-
 public:
 
    /** The constructor takes as input the name of the server and the
@@ -43,10 +34,10 @@ public:
    /** Send the current in the stream data to the server specified by
        name "hostname" (in the constructor) on port number "port".
        Return -1 if data has already been sent or 0 for success. */
-   int send();
+   int send() { (*this) << std::flush; return 0; }
 
    /** Virtual destructor. If the data hasn't been sent it sends it. */
-   ~osockstream();
+   virtual ~osockstream() { }
 };
 
 #endif

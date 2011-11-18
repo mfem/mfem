@@ -14,6 +14,13 @@
 #include "fem.hpp"
 #include <math.h>
 
+int FiniteElementSpace::GetOrder(int i) const
+{
+   int GeomType = mesh->GetElementBaseGeometry(i);
+   return fec->FiniteElementForGeometry(GeomType)->GetOrder();
+}
+
+
 void FiniteElementSpace::DofsToVDofs (Array<int> &dofs) const
 {
    int i, j, size;
@@ -78,10 +85,12 @@ int FiniteElementSpace::DofToVDof (int dof, int vd) const
    if (vdim == 1)
       return dof;
    if (ordering == Ordering::byNODES)
+   {
       if (dof < 0)
          return -1 - ((-1-dof) + vd * ndofs);
       else
          return dof + vd * ndofs;
+   }
    if (dof < 0)
       return -1 - ((-1-dof) * vdim + vd);
    else
@@ -423,12 +432,17 @@ FiniteElementSpace::FiniteElementSpace(FiniteElementSpace &fes)
    bdofs = fes.bdofs;
    // keep 'RefData' in 'fes'
    elem_dof = fes.elem_dof;
+   bdrElem_dof = fes.bdrElem_dof;
    Swap(dof_elem_array, fes.dof_elem_array);
    Swap(dof_ldof_array, fes.dof_ldof_array);
+
+   NURBSext = fes.NURBSext;
+   own_ext = 0;
 
    fes.bdofs = NULL;
    fes.fdofs = NULL;
    fes.elem_dof = NULL;
+   fes.bdrElem_dof = NULL;
 }
 
 FiniteElementSpace::FiniteElementSpace(Mesh *m,
@@ -440,7 +454,55 @@ FiniteElementSpace::FiniteElementSpace(Mesh *m,
    vdim = dim;
    ordering = order;
 
-   Constructor();
+   const NURBSFECollection *nurbs_fec =
+      dynamic_cast<const NURBSFECollection *>(fec);
+   if (nurbs_fec)
+   {
+      if (!mesh->NURBSext)
+      {
+         mfem_error("FiniteElementSpace::FiniteElementSpace :\n"
+                    "   NURBS FE space requires NURBS mesh.");
+      }
+      else
+      {
+         int Order = nurbs_fec->GetOrder();
+         if (mesh->NURBSext->GetOrder() == Order)
+         {
+            NURBSext = mesh->NURBSext;
+            own_ext = 0;
+         }
+         else
+         {
+            NURBSext = new NURBSExtension(mesh->NURBSext, Order);
+            own_ext = 1;
+         }
+         UpdateNURBS();
+      }
+   }
+   else
+   {
+      NURBSext = NULL;
+      own_ext = 0;
+      Constructor();
+   }
+}
+
+void FiniteElementSpace::UpdateNURBS()
+{
+   nvdofs = 0;
+   nedofs = 0;
+   nfdofs = 0;
+   nbdofs = 0;
+   fdofs = NULL;
+   bdofs = NULL;
+
+   dynamic_cast<const NURBSFECollection *>(fec)->Reset();
+
+   ndofs = NURBSext->GetNDof();
+
+   elem_dof = NURBSext->GetElementDofTable();
+
+   bdrElem_dof = NURBSext->GetBdrElementDofTable();
 }
 
 void FiniteElementSpace::Constructor()
@@ -448,6 +510,7 @@ void FiniteElementSpace::Constructor()
    int i;
 
    elem_dof = NULL;
+   bdrElem_dof = NULL;
 
    nvdofs = mesh->GetNV() * fec->DofForGeometry(Geometry::POINT);
 
@@ -567,63 +630,76 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
    }
 }
 
-const FiniteElement *FiniteElementSpace::GetFE (int i) const
+const FiniteElement *FiniteElementSpace::GetFE(int i) const
 {
-   return fec->FiniteElementForGeometry(mesh->GetElementBaseGeometry(i));
+   const FiniteElement *FE =
+      fec->FiniteElementForGeometry(mesh->GetElementBaseGeometry(i));
+
+   if (NURBSext)
+      NURBSext->LoadFE(i, FE);
+
+   return FE;
 }
 
 void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 {
-   Array<int> V, E, Eo;
-   int k, j, nv, ne, nf, nd, iF, oF;
-   int *ind, dim;
+   if (bdrElem_dof)
+   {
+      bdrElem_dof->GetRow(i, dofs);
+   }
+   else
+   {
+      Array<int> V, E, Eo;
+      int k, j, nv, ne, nf, nd, iF, oF;
+      int *ind, dim;
 
-   dim = mesh->Dimension();
-   nv = fec->DofForGeometry(Geometry::POINT);
-   if (nv > 0)
-      mesh->GetBdrElementVertices(i, V);
-   ne = (dim > 1) ? ( fec->DofForGeometry(Geometry::SEGMENT) ) : ( 0 );
-   if (ne > 0)
-      mesh->GetBdrElementEdges(i, E, Eo);
-   nd = V.Size() * nv + E.Size() * ne;
-   nf = (dim == 3) ? (fec->DofForGeometry(
-                         mesh->GetBdrElementBaseGeometry(i))) : (0);
-   if (nf > 0)
-   {
-      nd += nf;
-      mesh->GetBdrElementFace(i, &iF, &oF);
-   }
-   dofs.SetSize(nd);
-   if (nv > 0)
-   {
-      for (k = 0; k < V.Size(); k++)
-         for (j = 0; j < nv; j++)
-            dofs[k*nv+j] = V[k]*nv+j;
-      nv *= V.Size();
-   }
-   if (ne > 0)
-      // if (dim > 1)
-      for (k = 0; k < E.Size(); k++)
+      dim = mesh->Dimension();
+      nv = fec->DofForGeometry(Geometry::POINT);
+      if (nv > 0)
+         mesh->GetBdrElementVertices(i, V);
+      ne = (dim > 1) ? ( fec->DofForGeometry(Geometry::SEGMENT) ) : ( 0 );
+      if (ne > 0)
+         mesh->GetBdrElementEdges(i, E, Eo);
+      nd = V.Size() * nv + E.Size() * ne;
+      nf = (dim == 3) ? (fec->DofForGeometry(
+                            mesh->GetBdrElementBaseGeometry(i))) : (0);
+      if (nf > 0)
       {
-         ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[k]);
-         for (j = 0; j < ne; j++)
-            if (ind[j] < 0)
-               dofs[nv+k*ne+j] = -1 - ( nvdofs+E[k]*ne+(-1-ind[j]) );
-            else
-               dofs[nv+k*ne+j] = nvdofs+E[k]*ne+ind[j];
+         nd += nf;
+         mesh->GetBdrElementFace(i, &iF, &oF);
       }
-   if (nf > 0)
-      // if (dim == 3)
-   {
-      ne = nv + ne * E.Size();
-      ind = (fec->DofOrderForOrientation(
-                mesh->GetBdrElementBaseGeometry(i), oF));
-      for (j = 0; j < nf; j++)
+      dofs.SetSize(nd);
+      if (nv > 0)
       {
-         if (ind[j] < 0)
-            dofs[ne+j] = -1 - ( nvdofs+nedofs+fdofs[iF]+(-1-ind[j]) );
-         else
-            dofs[ne+j] = nvdofs+nedofs+fdofs[iF]+ind[j];
+         for (k = 0; k < V.Size(); k++)
+            for (j = 0; j < nv; j++)
+               dofs[k*nv+j] = V[k]*nv+j;
+         nv *= V.Size();
+      }
+      if (ne > 0)
+         // if (dim > 1)
+         for (k = 0; k < E.Size(); k++)
+         {
+            ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[k]);
+            for (j = 0; j < ne; j++)
+               if (ind[j] < 0)
+                  dofs[nv+k*ne+j] = -1 - ( nvdofs+E[k]*ne+(-1-ind[j]) );
+               else
+                  dofs[nv+k*ne+j] = nvdofs+E[k]*ne+ind[j];
+         }
+      if (nf > 0)
+         // if (dim == 3)
+      {
+         ne = nv + ne * E.Size();
+         ind = (fec->DofOrderForOrientation(
+                   mesh->GetBdrElementBaseGeometry(i), oF));
+         for (j = 0; j < nf; j++)
+         {
+            if (ind[j] < 0)
+               dofs[ne+j] = -1 - ( nvdofs+nedofs+fdofs[iF]+(-1-ind[j]) );
+            else
+               dofs[ne+j] = nvdofs+nedofs+fdofs[iF]+ind[j];
+         }
       }
    }
 }
@@ -701,17 +777,23 @@ void FiniteElementSpace::GetEdgeInteriorDofs (int i, Array<int> &dofs) const
 
 const FiniteElement *FiniteElementSpace::GetBE (int i) const
 {
+   const FiniteElement *BE;
+
    switch ( mesh->Dimension() )
    {
    case 1:
-      return fec->FiniteElementForGeometry(Geometry::POINT);
+      BE = fec->FiniteElementForGeometry(Geometry::POINT);
    case 2:
-      return fec->FiniteElementForGeometry(Geometry::SEGMENT);
+      BE = fec->FiniteElementForGeometry(Geometry::SEGMENT);
    case 3:
-      return fec->FiniteElementForGeometry(
+      BE = fec->FiniteElementForGeometry(
          mesh->GetBdrElementBaseGeometry(i));
    }
-   return fec->FiniteElementForGeometry(Geometry::POINT);
+
+   if (NURBSext)
+      NURBSext->LoadBE(i, BE);
+
+   return BE;
 }
 
 FiniteElementSpace::~FiniteElementSpace()
@@ -726,16 +808,32 @@ void FiniteElementSpace::Destructor()
 {
    dof_elem_array.DeleteAll();
    dof_ldof_array.DeleteAll();
-   delete elem_dof;
-   delete [] bdofs;
-   if (fdofs != NULL)
+
+   if (NURBSext)
+   {
+      if (own_ext) delete NURBSext;
+   }
+   else
+   {
+      delete elem_dof;
+      delete bdrElem_dof;
+
+      delete [] bdofs;
       delete [] fdofs;
+   }
 }
 
 void FiniteElementSpace::Update()
 {
-   Destructor();   // keeps RefData
-   Constructor();
+   if (NURBSext)
+   {
+      UpdateNURBS();
+   }
+   else
+   {
+      Destructor();   // keeps RefData
+      Constructor();
+   }
 }
 
 FiniteElementSpace *FiniteElementSpace::SaveUpdate()
@@ -806,10 +904,10 @@ void FiniteElementSpace::ConstructRefinementData (int k, int num_c_dofs,
    RefData.Append(data);
 }
 
-void FiniteElementSpace::Save (ostream &out) const
+void FiniteElementSpace::Save(ostream &out) const
 {
    out << "FiniteElementSpace\n"
-       << "FiniteElementCollection: " << fec -> Name() << '\n'
+       << "FiniteElementCollection: " << fec->Name() << '\n'
        << "VDim: " << vdim << '\n'
-       << "Ordering: " << ordering << endl;
+       << "Ordering: " << ordering << '\n';
 }

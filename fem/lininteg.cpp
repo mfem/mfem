@@ -55,15 +55,10 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
    }
 }
 
-inline double sqr(double x)
-{
-   return x * x;
-}
-
 void BoundaryLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   int dof  = el.GetDof();
+   int dof = el.GetDof();
 
    shape.SetSize(dof);        // vector of size dof
    elvect.SetSize(dof);
@@ -162,8 +157,9 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
-                                            el.GetOrder() + 1);
+   // int intorder = 2*el.GetOrder() - 1; // <-- ok for O(h^{k+1}) conv. in L2
+   int intorder = 2*el.GetOrder();
+   const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), intorder);
 
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
@@ -205,8 +201,8 @@ void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
       const DenseMatrix &Jac = Tr.Jacobian();
       if (dim == 2)
       {
-         nor(0) = -Jac (1,0);
-         nor(1) =  Jac (0,0);
+         nor(0) =  Jac (1,0);
+         nor(1) = -Jac (0,0);
       }
       else if (dim == 3)
       {
@@ -219,5 +215,31 @@ void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
       for (int j = 0; j < dof; j++)
          for (int k = 0; k < dim; k++)
             elvect(dof*k+j) += nor(k) * shape(j);
+   }
+}
+
+
+void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   int dof = el.GetDof();
+
+   shape.SetSize(dof);
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   int intorder = 2*el.GetOrder();  // <----------
+   const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), intorder);
+
+   for (int i = 0; i < ir.GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+
+      Tr.SetIntPoint (&ip);
+      double val = ip.weight*F.Eval(Tr, ip);
+
+      el.CalcShape(ip, shape);
+
+      add(elvect, val, shape, elvect);
    }
 }

@@ -22,28 +22,9 @@ void ParLinearForm::Update(ParFiniteElementSpace *pf)
 
 HypreParVector *ParLinearForm::ParallelAssemble()
 {
-   int  nproc    = pfes -> GetNRanks();
-   int *dof_off  = pfes -> GetDofOffsets();
-   int *tdof_off = pfes -> GetTrueDofOffsets();
-
-   // vector on (all) dofs
-   HypreParVector *v;
-   if (HYPRE_AssumedPartitionCheck())
-      v = new HypreParVector(dof_off[2], data, dof_off);
-   else
-      v = new HypreParVector(dof_off[nproc], data, dof_off);
-
-   // vector on true dofs
-   HypreParVector *tv;
-   if (HYPRE_AssumedPartitionCheck())
-      tv = new HypreParVector(tdof_off[2], tdof_off);
-   else
-      tv = new HypreParVector(tdof_off[nproc], tdof_off);
-
-   pfes -> Dof_TrueDof_Matrix() -> MultTranspose(*v,*tv);
-
-   delete v;
-
+   HypreParVector *tv = new HypreParVector(pfes->GlobalTrueVSize(),
+                                           pfes->GetTrueDofOffsets());
+   pfes->Dof_TrueDof_Matrix()->MultTranspose(*this, *tv);
    return tv;
 }
 

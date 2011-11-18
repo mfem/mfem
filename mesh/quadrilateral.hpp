@@ -47,7 +47,7 @@ public:
    virtual const int *GetEdgeVertices(int ei) const
    { return(edges[ei]); }
 
-   virtual Element *Duplicate() const
+   virtual Element *Duplicate(Mesh *m) const
    { return new Quadrilateral(indices, attribute); }
 
    virtual ~Quadrilateral() { }

@@ -309,10 +309,12 @@ aGMRES(const Operator &A, Vector &x, const Vector &b,
       }
 
       if (beta/r1 > cf)
+      {
          if (m - m_step >= m_min)
             m -= m_step;
          else
             m = m_max;
+      }
 
       j++;
    }

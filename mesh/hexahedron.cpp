@@ -21,7 +21,7 @@ Hexahedron::Hexahedron(const int *ind, int attr)
    : Element(Geometry::CUBE)
 {
    attribute = attr;
-   for (int i=0; i<8; i++)
+   for (int i = 0; i < 8; i++)
       indices[i] = ind[i];
 }
 
@@ -42,8 +42,8 @@ Hexahedron::Hexahedron(int ind1, int ind2, int ind3, int ind4,
 
 void Hexahedron::GetVertices(Array<int> &v) const
 {
-   v.SetSize( 8 );
-   for (int i=0; i<8; i++)
+   v.SetSize(8);
+   for (int i = 0; i < 8; i++)
       v[i] = indices[i];
 }
 

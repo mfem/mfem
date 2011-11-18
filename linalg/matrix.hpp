@@ -25,7 +25,7 @@ class Matrix : public Operator
    friend class MatrixInverse;
 public:
    /// Creates matrix of width s.
-   Matrix (int s) { size=s; }
+   explicit Matrix (int s) { size=s; }
 
    /// Returns reference to a_{ij}.  Index i, j = 0 .. size-1
    virtual double& Elem (int i, int j) = 0;

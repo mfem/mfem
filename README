@@ -1,5 +1,5 @@
                     Finite Element Discretization Library
-                                 version 1.2
+                                 version 2.0
                                    __
                        _ __ ___   / _|  ___  _ __ ___
                       | '_ ` _ \ | |_  / _ \| '_ ` _ \
@@ -15,13 +15,14 @@ licensing restrictions can be found in the file COPYRIGHT.
 
 Conceptually, MFEM can be viewed as a finite element toolbox, that provides the
 building blocks for developing finite element algorithms in a manner similar to
-that of MATLAB for linear algebra methods. In particular, MFEM supports a wide
-variety of finite element spaces in 2D and 3D, as well as many bilinear and
-linear forms defined on them. It includes classes for dealing with various types
-of triangular, quadrilateral, tetrahedral and hexahedral meshes and their global
-and, in the case of triangular and tetrahedral meshes, local refinement. General
-element transformations, allowing for elements with curved boundaries are also
-supported.
+that of MATLAB for linear algebra methods. In particular, MFEM provides support
+foe arbitrary high-order H1-conforming, discontinuous (L2), H(div)-conforming,
+H(curl)-conforming and NURBS finite element spaces in 2D and 3D, as well as many
+bilinear and linear forms defined on them. It includes classes for dealing with
+various types of triangular, quadrilateral, tetrahedral and hexahedral meshes
+and their global and, in the case of triangular and tetrahedral meshes, local
+refinement. General element transformations, allowing for elements with curved
+boundaries are also supported.
 
 MFEM is commonly used as a "finite element to linear algebra translator", since
 it can take a problem described in terms of finite element-type objects, and
@@ -32,7 +33,8 @@ BiCGStab.
 
 The MPI-based parallel version of MFEM can be used as a scalable unstructured
 finite element problem generator, which supports parallel local refinement and
-parallel curved meshes, as well as several solvers from the hypre library.
+parallel curved meshes, as well as several solvers from the hypre library. An
+experimental support for OpenMP acceleration is also included.
 
 For examples of using MFEM, see the examples/ directory, as well as the OpenGL
 visualization tool GLVis which is available at http://glvis.googlecode.com.

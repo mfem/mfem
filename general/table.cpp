@@ -228,18 +228,18 @@ void Table::Print(ostream & out, int width) const
 {
    int i, j;
 
-   out << setiosflags(ios::scientific | ios::showpos);
-   for(i = 0; i < size; i++) {
+   for (i = 0; i < size; i++)
+   {
       out << "[row " << i << "]\n";
       for (j = I[i]; j < I[i+1]; j++)
       {
-         out << setw(3) << J[j] << "  ";
+         out << setw(5) << J[j];
          if ( !((j+1-I[i]) % width) )
-            out << endl;
+            out << '\n';
       }
-      out << endl;
+      if ((j-I[i]) % width)
+         out << '\n';
    }
-   out << endl;
 }
 
 void Table::Save(ostream & out) const
@@ -288,6 +288,17 @@ void Transpose (const Table &A, Table &At, int _ncols_A)
    i_At[0] = 0;
 }
 
+void Transpose(const Array<int> &A, Table &At, int _ncols_A)
+{
+   At.MakeI((_ncols_A < 0) ? (A.Max() + 1) : _ncols_A);
+   for (int i = 0; i < A.Size(); i++)
+      At.AddAColumnInRow(A[i]);
+   At.MakeJ();
+   for (int i = 0; i < A.Size(); i++)
+      At.AddConnection(A[i], i);
+   At.ShiftUpI();
+}
+
 void Mult (const Table &A, const Table &B, Table &C)
 {
    int  i, j, k, l, m;
@@ -300,7 +311,7 @@ void Mult (const Table &A, const Table &B, Table &C)
    const int  ncols_A = A.Width();
    const int  ncols_B = B.Width();
 
-   if (ncols_A != nrows_B)
+   if (ncols_A > nrows_B)
       mfem_error ("Mult (Table &A, Table &B, Table &C)");
 
    Array<int> B_marker (ncols_B);
