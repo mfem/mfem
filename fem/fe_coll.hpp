@@ -12,8 +12,15 @@
 #ifndef MFEM_FE_COLLECTION
 #define MFEM_FE_COLLECTION
 
+#include "../config/config.hpp"
+#include "geom.hpp"
+#include "fe.hpp"
+
+namespace mfem
+{
+
 /** Collection of finite elements from the same family in multiple dimensions.
-    This class is used to match the degrees of fredom of a FiniteElementSpace
+    This class is used to match the degrees of freedom of a FiniteElementSpace
     between elements, and to provide the finite element restriction from an
     element to its boundary. */
 class FiniteElementCollection
@@ -26,11 +33,17 @@ public:
 
    virtual int * DofOrderForOrientation(int GeomType, int Or) const = 0;
 
-   virtual const char * Name() const { return "Undefined"; };
+   virtual const char * Name() const { return "Undefined"; }
 
    int HasFaceDofs(int GeomType) const;
 
-   virtual ~FiniteElementCollection() { };
+   virtual const FiniteElement *TraceFiniteElementForGeometry(
+      int GeomType) const
+   {
+      return FiniteElementForGeometry(GeomType);
+   }
+
+   virtual ~FiniteElementCollection() { }
 
    static FiniteElementCollection *New(const char *name);
 };
@@ -45,7 +58,7 @@ private:
    int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
 
 public:
-   explicit H1_FECollection(const int p, const int dim = 3);
+   explicit H1_FECollection(const int p, const int dim = 3, const int type = 0);
 
    virtual const FiniteElement *FiniteElementForGeometry(int GeomType) const
    { return H1_Elements[GeomType]; }
@@ -57,15 +70,27 @@ public:
    virtual ~H1_FECollection();
 };
 
+/** Arbitrary order H1-conforming (continuous) finite elements with positive
+    basis functions. */
+class H1Pos_FECollection : public H1_FECollection
+{
+public:
+   explicit H1Pos_FECollection(const int p, const int dim = 3)
+      : H1_FECollection(p, dim, 1) { }
+};
+
 /// Arbitrary order "L2-conforming" discontinuous finite elements.
 class L2_FECollection : public FiniteElementCollection
 {
 private:
    char d_name[32];
    FiniteElement *L2_Elements[Geometry::NumGeom];
+   FiniteElement *Tr_Elements[Geometry::NumGeom];
+   int *SegDofOrd[2]; // for rotating segment dofs in 1D
+   int *TriDofOrd[6]; // for rotating triangle dofs in 2D
 
 public:
-   L2_FECollection(const int p, const int dim);
+   L2_FECollection(const int p, const int dim, const int type = 0);
 
    virtual const FiniteElement *FiniteElementForGeometry(int GeomType) const
    { return L2_Elements[GeomType]; }
@@ -75,21 +100,36 @@ public:
          return L2_Elements[GeomType]->GetDof();
       return 0;
    }
-   virtual int *DofOrderForOrientation(int GeomType, int Or) const
-   { return NULL; }
+   virtual int *DofOrderForOrientation(int GeomType, int Or) const;
    virtual const char *Name() const { return d_name; }
+
+   virtual const FiniteElement *TraceFiniteElementForGeometry(
+      int GeomType) const
+   {
+      return Tr_Elements[GeomType];
+   }
 
    virtual ~L2_FECollection();
 };
 
+// Declare an alternative name for L2_FECollection = DG_FECollection
+typedef L2_FECollection DG_FECollection;
+
 /// Arbitrary order H(div)-conforming Raviart-Thomas finite elements.
 class RT_FECollection : public FiniteElementCollection
 {
-private:
+protected:
    char rt_name[32];
    FiniteElement *RT_Elements[Geometry::NumGeom];
    int RT_dof[Geometry::NumGeom];
    int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
+
+   // Initialize only the face elements
+   void InitFaces(const int p, const int dim, const int map_type);
+
+   // Constructor used by the constructor of RT_Trace_FECollection
+   RT_FECollection(const int p, const int dim, const int map_type)
+   { InitFaces(p, dim, map_type); }
 
 public:
    RT_FECollection(const int p, const int dim);
@@ -102,6 +142,16 @@ public:
    virtual const char *Name() const { return rt_name; }
 
    virtual ~RT_FECollection();
+};
+
+/** Arbitrary order "H^{-1/2}-conforming" face finite elements defined on the
+    interface between mesh elements (faces); these are the normal trace FEs of
+    the H(div)-conforming FEs. */
+class RT_Trace_FECollection : public RT_FECollection
+{
+public:
+   RT_Trace_FECollection(const int p, const int dim,
+                         const int map_type = FiniteElement::INTEGRAL);
 };
 
 /// Arbitrary order H(curl)-conforming Nedelec finite elements.
@@ -691,5 +741,7 @@ public:
 
    virtual ~Local_FECollection() { delete Local_Element; }
 };
+
+}
 
 #endif

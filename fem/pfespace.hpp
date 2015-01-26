@@ -12,6 +12,18 @@
 #ifndef MFEM_PFESPACE
 #define MFEM_PFESPACE
 
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_MPI
+
+#include "../linalg/hypre.hpp"
+#include "../mesh/pmesh.hpp"
+#include "../mesh/nurbs.hpp"
+#include "fespace.hpp"
+
+namespace mfem
+{
+
 /// Abstract parallel finite element space.
 class ParFiniteElementSpace : public FiniteElementSpace
 {
@@ -71,13 +83,24 @@ private:
    void ConstructTrueDofs();
    void ConstructTrueNURBSDofs();
 
+   void ApplyLDofSigns(Array<int> &dofs) const;
+
 public:
-   ParFiniteElementSpace(ParMesh *pm, FiniteElementCollection *f,
+   // Face-neighbor data
+   int num_face_nbr_dofs;
+   Table face_nbr_element_dof;
+   Table face_nbr_gdof;
+   // Local face-neighbor data
+   Table send_face_nbr_ldof;
+
+   ParFiniteElementSpace(ParMesh *pm, const FiniteElementCollection *f,
                          int dim = 1, int order = Ordering::byNODES);
 
    MPI_Comm GetComm() { return MyComm; }
    int GetNRanks() { return NRanks; }
    int GetMyRank() { return MyRank; }
+
+   inline ParMesh *GetParMesh() { return pmesh; }
 
    int TrueVSize()          { return ltdof_size; }
    int *GetDofOffsets()     { return dof_offsets; }
@@ -92,8 +115,17 @@ public:
    /// Returns indexes of degrees of freedom for i'th boundary element.
    virtual void GetBdrElementDofs(int i, Array<int> &dofs) const;
 
+   /** Returns the indexes of the degrees of freedom for i'th face
+       including the dofs for the edges and the vertices of the face. */
+   virtual void GetFaceDofs(int i, Array<int> &dofs) const;
+
    /// The true dof-to-dof interpolation matrix
    HypreParMatrix *Dof_TrueDof_Matrix();
+
+   /** Create and return a new HypreParVector on the true dofs, which is
+       owned by (i.e. it must be destroyed by) the calling function. */
+   HypreParVector *NewTrueDofVector()
+   { return (new HypreParVector(MyComm,GlobalTrueVSize(),GetTrueDofOffsets()));}
 
    /// Scale a vector of true dofs
    void DivideByGroupSize(double *vec);
@@ -106,11 +138,11 @@ public:
 
    /** Given an integer array on the local degrees of freedom, perform
        a bitwise OR between the shared dofs. */
-   void Synchronize(Array<int> &ldof_marker);
+   void Synchronize(Array<int> &ldof_marker) const;
 
    /// Determine the boundary degrees of freedom
-   virtual void GetEssentialVDofs(Array<int> &bdr_attr_is_ess,
-                                  Array<int> &ess_dofs);
+   virtual void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
+                                  Array<int> &ess_dofs) const;
 
    /** If the given ldof is owned by the current processor, return its local
        tdof number, otherwise return -1 */
@@ -121,6 +153,14 @@ public:
        the scalar vesion of the current finite element space. The input should
        be a scalar local dof. */
    int GetGlobalScalarTDofNumber(int sldof);
+   int GetMyDofOffset();
+
+   // Face-neighbor functions
+   void ExchangeFaceNbrData();
+   int GetFaceNbrVSize() const { return num_face_nbr_dofs; }
+   void GetFaceNbrElementVDofs(int i, Array<int> &vdofs) const;
+   const FiniteElement *GetFaceNbrFE(int i) const;
+   int *GetFaceNbrGlobalDofMap() { return face_nbr_gdof.GetJ(); }
 
    void Lose_Dof_TrueDof_Matrix();
    void LoseDofOffsets() { dof_offsets.LoseData(); }
@@ -132,5 +172,9 @@ public:
 
    virtual ~ParFiniteElementSpace() { delete gcomm; delete P; }
 };
+
+}
+
+#endif // MFEM_USE_MPI
 
 #endif

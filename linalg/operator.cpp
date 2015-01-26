@@ -15,10 +15,14 @@
 #include "vector.hpp"
 #include "operator.hpp"
 
-void Operator::PrintMatlab (ostream & out, int n, int m)
+namespace mfem
 {
-   if (n == 0) n = size;
-   if (m == 0) m = size;
+
+void Operator::PrintMatlab (std::ostream & out, int n, int m)
+{
+   using namespace std;
+   if (n == 0) n = width;
+   if (m == 0) m = height;
 
    Vector x(n), y(m);
    x = 0.0;
@@ -32,6 +36,8 @@ void Operator::PrintMatlab (ostream & out, int n, int m)
       Mult(x,y);
       for (j = 0; j < m; j++)
          if (y(j))
-            out << j+1 << " " << i+1 << " " << y(j) << endl;
+            out << j+1 << " " << i+1 << " " << y(j) << '\n';
    }
+}
+
 }

@@ -12,6 +12,12 @@
 #ifndef MFEM_TRIANGLE
 #define MFEM_TRIANGLE
 
+#include "../config/config.hpp"
+#include "element.hpp"
+
+namespace mfem
+{
+
 /// Data type triangle element
 class Triangle : public Element
 {
@@ -37,7 +43,7 @@ public:
 
    /** Reorder the vertices so that the longest edge is from vertex 0
        to vertex 0. If called it should be once from the mesh constructor,
-       becouse the order may be used later for setting the edges. **/
+       because the order may be used later for setting the edges. **/
    virtual void MarkEdge(DenseMatrix & pmat);
 
    /// Mark the longest edge by assuming/changing the order of the vertices.
@@ -57,6 +63,12 @@ public:
 
    virtual const int *GetEdgeVertices(int ei) const { return(edges[ei]); }
 
+   virtual int GetNFaces(int &nFaceVertices) const
+   { nFaceVertices = 0; return 0; }
+
+   virtual const int *GetFaceVertices(int fi) const
+   { MFEM_ABORT("not implemented"); return NULL; }
+
    virtual Element *Duplicate(Mesh *m) const
    { return new Triangle(indices, attribute); }
 
@@ -64,5 +76,7 @@ public:
 };
 
 extern Linear2DFiniteElement TriangleFE;
+
+}
 
 #endif

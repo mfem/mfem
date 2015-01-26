@@ -15,6 +15,10 @@
 // Data types for Table.
 
 #include "mem_alloc.hpp"
+#include "array.hpp"
+
+namespace mfem
+{
 
 /** Data type Table. Table stores the connectivity of elements of TYPE I
     to elements of TYPE II, for example, it may be Element-To-Face
@@ -48,7 +52,7 @@ public:
    void AddColumnsInRow (int r, int ncol) { I[r] += ncol; }
    void MakeJ();
    void AddConnection (int r, int c) { J[I[r]++] = c; }
-   void AddConnections (int r, int *c, int nc);
+   void AddConnections (int r, const int *c, int nc);
    void ShiftUpI();
 
    /// Set the size and the number of connections for the table.
@@ -108,9 +112,14 @@ public:
    void LoseData() { size = -1; I = J = NULL; }
 
    /// Prints the table to stream out.
-   void Print(ostream & out = cout, int width = 4) const;
+   void Print(std::ostream & out = std::cout, int width = 4) const;
+   void PrintMatlab(std::ostream & out) const;
 
-   void Save(ostream & out) const;
+   void Save(std::ostream & out) const;
+   void Copy(Table & copy) const;
+   void Swap(Table & other);
+
+   void Clear();
 
    /// Destroys Table.
    ~Table();
@@ -118,12 +127,14 @@ public:
 
 ///  Transpose a Table
 void Transpose (const Table &A, Table &At, int _ncols_A = -1);
+Table * Transpose (const Table &A);
 
 ///  Transpose an Array<int>
 void Transpose(const Array<int> &A, Table &At, int _ncols_A = -1);
 
 ///  C = A * B  (as boolean matrices)
 void Mult (const Table &A, const Table &B, Table &C);
+Table * Mult (const Table &A, const Table &B);
 
 
 /** Data type STable. STable is similar to Table, but it's for symmetric
@@ -194,5 +205,7 @@ public:
       int Index() { return(n->Index); }
    };
 };
+
+}
 
 #endif

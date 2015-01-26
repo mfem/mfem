@@ -16,7 +16,12 @@
 
 #include "array.hpp"
 #include "table.hpp"
+#include "error.hpp"
 
+namespace mfem
+{
+
+using namespace std;
 
 Table::Table (int dim, int connections_per_row)
 {
@@ -67,7 +72,7 @@ void Table::MakeJ()
    J = new int[I[size]=k];
 }
 
-void Table::AddConnections (int r, int *c, int nc)
+void Table::AddConnections (int r, const int *c, int nc)
 {
    int *jp = J+I[r];
 
@@ -161,13 +166,7 @@ void Table::SetIJ(int *newI, int *newJ, int newsize)
 
 int Table::Push(int i, int j)
 {
-#ifdef MFEM_DEBUG
-   if (i >= size || i < 0)
-   {
-      cerr << "Table::Push() i = " << i << endl;
-      mfem_error();
-   }
-#endif
+   MFEM_ASSERT( i >=0 && i<size, "Index out of bounds.  i = "<<i);
 
    for(int k = I[i], end = I[i+1]; k < end; k++)
       if (J[k] == j)
@@ -177,8 +176,9 @@ int Table::Push(int i, int j)
          J[k] = j;
          return k;
       }
-   cerr << "Table::Push() : (i,j) = (" << i << ", " << j << ")" << endl;
-   mfem_error();
+
+   MFEM_ABORT("Reached end of loop unexpectedly: (i,j) = (" << i << ", " << j
+              << ")");
 
    return -1;
 }
@@ -209,10 +209,7 @@ void Table::Finalize()
 
       J = NewJ;
 
-#ifdef MFEM_DEBUG
-      if (sum != n)
-         mfem_error ("Table::Finalize");
-#endif
+      MFEM_ASSERT(sum == n, "sum = " << sum << ", n = " << n);
    }
 }
 
@@ -224,7 +221,7 @@ int Table::Width() const
    return width + 1;
 }
 
-void Table::Print(ostream & out, int width) const
+void Table::Print(std::ostream & out, int width) const
 {
    int i, j;
 
@@ -242,7 +239,18 @@ void Table::Print(ostream & out, int width) const
    }
 }
 
-void Table::Save(ostream & out) const
+void Table::PrintMatlab(std::ostream & out) const
+{
+   int i, j;
+
+   for (i = 0; i < size; i++)
+      for (j = I[i]; j < I[i+1]; j++)
+         out << i << " " << J[j] << " 1. \n";
+
+   out << flush;
+}
+
+void Table::Save(std::ostream & out) const
 {
    int i;
 
@@ -252,6 +260,40 @@ void Table::Save(ostream & out) const
       out << I[i] << '\n';
    for (i = 0; i < I[size]; i++)
       out << J[i] << '\n';
+}
+
+void Table::Clear()
+{
+   delete [] I;
+   delete [] J;
+   size = -1;
+   I = J = NULL;
+}
+
+void Table::Copy(Table & copy) const
+{
+   int * i_copy = new int[size+1];
+   int * j_copy = new int[I[size]];
+
+   memcpy(i_copy, I, sizeof(int)*(size+1) );
+   memcpy(j_copy, J, sizeof(int)*size);
+
+   copy.SetIJ(i_copy, j_copy, size);
+}
+
+void Table::Swap(Table & other)
+{
+   int * I_backup = I;
+   int * J_backup = J;
+   int size_backup = size;
+
+   I = other.I;
+   J = other.J;
+   size = other.size;
+
+   other.I = I_backup;
+   other.J = J_backup;
+   other.size = size_backup;
 }
 
 Table::~Table ()
@@ -288,6 +330,13 @@ void Transpose (const Table &A, Table &At, int _ncols_A)
    i_At[0] = 0;
 }
 
+Table * Transpose(const Table &A)
+{
+   Table * At = new Table;
+   Transpose(A, *At);
+   return At;
+}
+
 void Transpose(const Array<int> &A, Table &At, int _ncols_A)
 {
    At.MakeI((_ncols_A < 0) ? (A.Max() + 1) : _ncols_A);
@@ -311,8 +360,8 @@ void Mult (const Table &A, const Table &B, Table &C)
    const int  ncols_A = A.Width();
    const int  ncols_B = B.Width();
 
-   if (ncols_A > nrows_B)
-      mfem_error ("Mult (Table &A, Table &B, Table &C)");
+   MFEM_VERIFY( ncols_A <= nrows_B, "Table size mismatch: ncols_A = " << ncols_A
+                << ", nrows_B = " << nrows_B);
 
    Array<int> B_marker (ncols_B);
 
@@ -366,6 +415,13 @@ void Mult (const Table &A, const Table &B, Table &C)
 }
 
 
+Table * Mult (const Table &A, const Table &B)
+{
+   Table * C = new Table;
+   Mult(A,B,*C);
+   return C;
+}
+
 STable::STable (int dim, int connections_per_row) :
    Table(dim, connections_per_row)
 {}
@@ -399,10 +455,8 @@ DSTable::DSTable(int nrows)
 
 int DSTable::Push_(int r, int c)
 {
-#ifdef MFEM_DEBUG
-   if (r < 0 || r >= NumRows)
-      mfem_error("DSTable::Push_()");
-#endif
+   MFEM_ASSERT(r >= 0 && r < NumRows,
+               "Row out of bounds: r = " << r << ", NumRows = " << NumRows);
    Node *n;
    for (n = Rows[r]; n != NULL; n = n->Prev)
    {
@@ -425,10 +479,7 @@ int DSTable::Push_(int r, int c)
 
 int DSTable::Index(int r, int c) const
 {
-#ifdef MFEM_DEBUG
-   if (r < 0)
-      mfem_error("DSTable::Index()");
-#endif
+   MFEM_ASSERT( r>=0, "Row index must be non-negative, not "<<r);
    if (r >= NumRows)
       return(-1);
    for (Node *n = Rows[r]; n != NULL; n = n->Prev)
@@ -458,4 +509,6 @@ DSTable::~DSTable()
    }
 #endif
    delete [] Rows;
+}
+
 }

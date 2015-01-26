@@ -12,7 +12,9 @@
 // Implementation of class Tetrahedron
 
 #include "mesh_headers.hpp"
-#include <math.h>
+
+namespace mfem
+{
 
 const int Tetrahedron::edges[6][2] =
 {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};
@@ -99,7 +101,8 @@ void Tetrahedron::CreateRefinementFlag(int refinement_edges[2], int type,
    refinement_flag = refinement_flag | refinement_edges[0];
 }
 
-Tetrahedron::Tetrahedron(int *ind, int attr) : Element(Geometry::TETRAHEDRON)
+Tetrahedron::Tetrahedron(const int *ind, int attr)
+   : Element(Geometry::TETRAHEDRON)
 {
    attribute = attr;
    for (int i = 0; i < 4; i++)
@@ -201,7 +204,8 @@ void Tetrahedron::MarkEdge(const DSTable &v_to_v, const int *length)
       {
       case 1:  type = Tetrahedron::TYPE_PU; break;
       case 4:  type = Tetrahedron::TYPE_A;  break;
-      case 5:  type = Tetrahedron::TYPE_M;
+      case 5:
+      default: type = Tetrahedron::TYPE_M;
       }
       break;
    case 3:
@@ -210,17 +214,20 @@ void Tetrahedron::MarkEdge(const DSTable &v_to_v, const int *length)
       case 1:  type = Tetrahedron::TYPE_A;  break;
       case 4:  type = Tetrahedron::TYPE_PU;
          j = 1; ind[0] = 2; ind[1] = 1; break;
-      case 5:  type = Tetrahedron::TYPE_M;
+      case 5:
+      default: type = Tetrahedron::TYPE_M;
          j = 1; ind[0] = 5; ind[1] = 1;
       }
       break;
    case 5:
+   default:
       switch (ind[1])
       {
       case 1:  type = Tetrahedron::TYPE_M;  break;
       case 4:  type = Tetrahedron::TYPE_M;
          j = 1; ind[0] = 2; ind[1] = 5; break;
-      case 5:  type = Tetrahedron::TYPE_O;
+      case 5:
+      default: type = Tetrahedron::TYPE_O;
       }
    }
 
@@ -256,3 +263,5 @@ Element *Tetrahedron::Duplicate(Mesh *m) const
 }
 
 Linear3DFiniteElement TetrahedronFE;
+
+}

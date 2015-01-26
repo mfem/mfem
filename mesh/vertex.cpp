@@ -12,8 +12,13 @@
 
 #include "vertex.hpp"
 
+namespace mfem
+{
+
 Vertex::Vertex (double *xx, int dim)
 {
    for (int i = 0; i < dim; i++)
       coord[i] = xx[i];
+}
+
 }

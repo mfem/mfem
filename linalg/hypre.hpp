@@ -12,6 +12,12 @@
 #ifndef MFEM_HYPRE
 #define MFEM_HYPRE
 
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_MPI
+
+#include <mpi.h>
+
 // Enable internal hypre timing routines
 #define HYPRE_TIMING
 
@@ -19,6 +25,14 @@
 #include "seq_mv.h"
 #include "_hypre_parcsr_mv.h"
 #include "_hypre_parcsr_ls.h"
+
+#include "sparsemat.hpp"
+
+namespace mfem
+{
+
+class ParFiniteElementSpace;
+class HypreParMatrix;
 
 /// Wrapper for hypre's parallel vector class
 class HypreParVector : public Vector
@@ -34,19 +48,25 @@ private:
 public:
    /** Creates vector with given global size and partitioning of the columns.
        Processor P owns columns [col[P],col[P+1]) */
-   HypreParVector(int glob_size, int *col);
+   HypreParVector(MPI_Comm comm, int glob_size, int *col);
    /** Creates vector with given global size, partitioning of the columns,
        and data. The data must be allocated and destroyed outside. */
-   HypreParVector(int glob_size, double *_data, int *col);
+   HypreParVector(MPI_Comm comm, int glob_size, double *_data, int *col);
    /// Creates vector compatible with y
    HypreParVector(const HypreParVector &y);
+   /// Creates vector compatible with (i.e. in the domain of) A or A^T
+   HypreParVector(HypreParMatrix &A, int tr = 0);
    /// Creates vector wrapping y
    HypreParVector(HYPRE_ParVector y);
+   /// Create a true dof parallel vector on a given ParFiniteElementSpace
+   HypreParVector(ParFiniteElementSpace *pfes);
 
    /// Typecasting to hypre's hypre_ParVector*
    operator hypre_ParVector*() const;
+#ifndef HYPRE_PAR_VECTOR_STRUCT
    /// Typecasting to hypre's HYPRE_ParVector, a.k.a. void *
    operator HYPRE_ParVector() const;
+#endif
    /// Changes the ownership of the the vector
    hypre_ParVector *StealParVector() { own_ParVector = 0; return x; }
 
@@ -95,21 +115,26 @@ private:
 public:
    /// Converts hypre's format to HypreParMatrix
    HypreParMatrix(hypre_ParCSRMatrix *a) : A(a)
-   { X = Y = 0; CommPkg = 0; }
+   { height = GetNumRows(); width = GetNumCols(); X = Y = 0; CommPkg = 0; }
    /// Creates block-diagonal square parallel matrix. Diagonal given by diag.
-   HypreParMatrix(int size, int *row, SparseMatrix *diag);
+   HypreParMatrix(MPI_Comm comm, int glob_size, int *row_starts,
+                  SparseMatrix *diag);
    /** Creates block-diagonal rectangular parallel matrix. Diagonal
        given by diag. */
-   HypreParMatrix(int M, int N, int *row, int *col, SparseMatrix *diag);
+   HypreParMatrix(MPI_Comm comm, int global_num_rows, int global_num_cols,
+                  int *row_starts, int *col_starts, SparseMatrix *diag);
    /// Creates general (rectangular) parallel matrix
-   HypreParMatrix(int M, int N, int *row, int *col, SparseMatrix *diag,
-                  SparseMatrix *offd, int *cmap);
+   HypreParMatrix(MPI_Comm comm, int global_num_rows, int global_num_cols,
+                  int *row_starts, int *col_starts,
+                  SparseMatrix *diag, SparseMatrix *offd, int *cmap);
 
    /// Creates a parallel matrix from SparseMatrix on processor 0.
-   HypreParMatrix(int *row, int *col, SparseMatrix *a);
+   HypreParMatrix(MPI_Comm comm, int *row_starts, int *col_starts,
+                  SparseMatrix *a);
 
    /// Creates boolean block-diagonal rectangular parallel matrix.
-   HypreParMatrix(int M, int N, int *row, int *col, Table *diag);
+   HypreParMatrix(MPI_Comm comm, int global_num_rows, int global_num_cols,
+                  int *row_starts, int *col_starts, Table *diag);
    /// Creates boolean rectangular parallel matrix (which owns its data)
    HypreParMatrix(MPI_Comm comm, int id, int np, int *row, int *col,
                   int *i_diag, int *j_diag, int *i_offd, int *j_offd,
@@ -127,10 +152,15 @@ public:
    void CheckCommPkg();
    void DestroyCommPkg();
 
+   /// MPI communicator
+   MPI_Comm GetComm() { return A->comm; }
+
    /// Typecasting to hypre's hypre_ParCSRMatrix*
    operator hypre_ParCSRMatrix*();
+#ifndef HYPRE_PAR_CSR_MATRIX_STRUCT
    /// Typecasting to hypre's HYPRE_ParCSRMatrix, a.k.a. void *
    operator HYPRE_ParCSRMatrix();
+#endif
    /// Changes the ownership of the the matrix
    hypre_ParCSRMatrix* StealData();
 
@@ -138,7 +168,7 @@ public:
    inline int NNZ() { return A->num_nonzeros; }
    /// Returns the row partitioning
    inline int * RowPart() { return A->row_starts; }
-   /// Returns the row partitioning
+   /// Returns the column partitioning
    inline int * ColPart() { return A->col_starts; }
    /// Returns the global number of rows
    inline int M() { return A -> global_num_rows; }
@@ -153,6 +183,10 @@ public:
    /// Returns the number of rows in the diagonal block of the ParCSRMatrix
    int GetNumRows() const
    { return hypre_CSRMatrixNumRows(hypre_ParCSRMatrixDiag(A)); }
+
+   /// Returns the number of columns in the diagonal block of the ParCSRMatrix
+   int GetNumCols() const
+   { return hypre_CSRMatrixNumCols(hypre_ParCSRMatrixDiag(A)); }
 
    int GetGlobalNumRows() const { return hypre_ParCSRMatrixGlobalNumRows(A); }
 
@@ -172,13 +206,25 @@ public:
    int MultTranspose(HypreParVector &x, HypreParVector &y,
                      double alpha = 1.0, double beta = 0.0);
 
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void MultTranspose(const Vector &x, Vector &y) const;
+   void Mult(double a, const Vector &x, double b, Vector &y) const;
+   void MultTranspose(double a, const Vector &x, double b, Vector &y) const;
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   { Mult(1.0, x, 0.0, y); }
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   { MultTranspose(1.0, x, 0.0, y); }
+
+   /// Scale the local row i by s(i).
+   void ScaleRows(const Vector & s);
+   /// Scale the local row i by 1./s(i)
+   void InvScaleRows(const Vector & s);
+   /// Scale all entries by s: A_scaled = s*A.
+   void operator*=(double s);
 
    /// Prints the locally owned rows in parallel
    void Print(const char *fname, int offi = 0, int offj = 0);
    /// Reads the matrix from a file
-   void Read(const char *fname);
+   void Read(MPI_Comm comm, const char *fname);
 
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix();
@@ -189,6 +235,8 @@ HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B);
 
 /// Returns the matrix P^t * A * P
 HypreParMatrix * RAP(HypreParMatrix *A, HypreParMatrix *P);
+/// Returns the matrix Rt^t * A * P
+HypreParMatrix * RAP(HypreParMatrix * Rt, HypreParMatrix *A, HypreParMatrix *P);
 
 /** Eliminate essential b.c. specified by ess_dof_list from the solution x to
     the r.h.s. b. Here A is matrix with eliminated b.c., while Ae is such that
@@ -197,8 +245,104 @@ void EliminateBC(HypreParMatrix &A, HypreParMatrix &Ae,
                  Array<int> &ess_dof_list,
                  HypreParVector &x, HypreParVector &b);
 
+
+/// Parallel smoothers in hypre
+class HypreSmoother : public Solver
+{
+protected:
+   /// The linear system matrix
+   HypreParMatrix *A;
+   /// Right-hand side and solution vectors
+   mutable HypreParVector *B, *X;
+   /// Temporary vectors
+   mutable HypreParVector *V, *Z;
+   /// FIR Filter Temporary Vectors
+   mutable HypreParVector *X0, *X1;
+
+   /** Smoother type from hypre_ParCSRRelax() in ams.c plus extensions, see the
+       enumeartion Type below. */
+   int type;
+   /// Number of relaxation sweeps
+   int relax_times;
+   /// Damping coefficient (usually <= 1)
+   double relax_weight;
+   /// SOR parameter (usually in (0,2))
+   double omega;
+   /// Order of the smoothing polynomial
+   int poly_order;
+   /// Fraction of spectrum to smooth for polynomial relaxation
+   double poly_fraction;
+   /// Apply the polynomial smoother to A or D^{-1/2} A D^{-1/2}
+   int poly_scale;
+
+   /// Taubin's lambda-mu method parameters
+   double lambda;
+   double mu;
+   int taubin_iter;
+
+   /// l1 norms of the rows of A
+   double *l1_norms;
+   /// Maximal eigenvalue estimate for polynomial smoothing
+   double max_eig_est;
+   /// Minimal eigenvalue estimate for polynomial smoothing
+   double min_eig_est;
+   /// Paramters for windowing function of FIR filter
+   double window_params[3];
+
+   /// Combined coefficients for windowing and Chebyshev polynomials.
+   double* fir_coeffs;
+
+public:
+   /** Hypre smoother types:
+       0    = Jacobi
+       1    = l1-scaled Jacobi
+       2    = l1-scaled block Gauss-Seidel/SSOR
+       4    = truncated l1-scaled block Gauss-Seidel/SSOR
+       5    = lumped Jacobi
+       6    = Gauss-Seidel
+       16   = Chebyshev
+       1001 = Taubin polynomial smoother
+       1002 = FIR polynomial smoother. */
+   enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, l1GStr = 4, lumpedJacobi = 5,
+               GS = 6, Chebyshev = 16, Taubin = 1001, FIR = 1002 };
+
+   HypreSmoother();
+
+   HypreSmoother(HypreParMatrix &_A, int type = l1GS,
+                 int relax_times = 1, double relax_weight = 1.0,
+                 double omega = 1.0, int poly_order = 2,
+                 double poly_fraction = .3);
+
+   /// Set the relaxation type and number of sweeps
+   void SetType(HypreSmoother::Type type, int relax_times = 1);
+   /// Set SOR-related parameters
+   void SetSOROptions(double relax_weight, double omega);
+   /// Set parameters for polynomial smoothing
+   void SetPolyOptions(int poly_order, double poly_fraction);
+   /// Set parameters for Taubin's lambda-mu method
+   void SetTaubinOptions(double lambda, double mu, int iter);
+
+   /// Convenience function for setting canonical windowing parameters
+   void SetWindowByName(const char* window_name);
+   /// Set parameters for windowing function for FIR smoother.
+   void SetWindowParameters(double a, double b, double c);
+   /// Compute window and Chebyshev coefficients for given polynomial order.
+   void SetFIRCoefficients(double max_eig);
+
+   /** Set/update the associated operator. Mult be called after setting the
+       HypreSmoother type and options. */
+   virtual void SetOperator(const Operator &op);
+
+   /// Relax the linear system Ax=b
+   virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
+   virtual void Mult(const Vector &b, Vector &x) const;
+
+   virtual ~HypreSmoother();
+};
+
+
 /// Abstract class for hypre's solvers and preconditioners
-class HypreSolver : public Operator
+class HypreSolver : public Solver
 {
 protected:
    /// The linear system matrix
@@ -223,6 +367,9 @@ public:
    /// hypre's internal Solve function
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const = 0;
 
+   virtual void SetOperator(const Operator &op)
+   { mfem_error("HypreSolvers do not support SetOperator!"); }
+
    /// Solve the linear system Ax=b
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
    virtual void Mult(const Vector &b, Vector &x) const;
@@ -234,7 +381,7 @@ public:
 class HyprePCG : public HypreSolver
 {
 private:
-   int print_level, use_zero_initial_iterate;
+   int print_level;
    HYPRE_Solver pcg_solver;
 
 public:
@@ -254,7 +401,7 @@ public:
    void SetResidualConvergenceOptions(int res_frequency=-1, double rtol=0.0);
 
    /// non-hypre setting
-   void SetZeroInintialIterate() { use_zero_initial_iterate = 1; }
+   void SetZeroInintialIterate() { iterative_mode = false; }
 
    void GetNumIterations(int &num_iterations)
    { HYPRE_ParCSRPCGGetNumIterations(pcg_solver, &num_iterations); }
@@ -280,7 +427,7 @@ public:
 class HypreGMRES : public HypreSolver
 {
 private:
-   int print_level, use_zero_initial_iterate;
+   int print_level;
    HYPRE_Solver gmres_solver;
 
 public:
@@ -296,7 +443,7 @@ public:
    void SetPreconditioner(HypreSolver &precond);
 
    /// non-hypre setting
-   void SetZeroInintialIterate() { use_zero_initial_iterate = 1; }
+   void SetZeroInintialIterate() { iterative_mode = false; }
 
    /// The typecast to HYPRE_Solver returns the internal gmres_solver
    virtual operator HYPRE_Solver() const  { return gmres_solver; }
@@ -333,6 +480,8 @@ public:
 class HypreDiagScale : public HypreSolver
 {
 public:
+   HypreDiagScale() : HypreSolver() { }
+   explicit HypreDiagScale(HypreParMatrix &A) : HypreSolver(&A) { }
    virtual operator HYPRE_Solver() const { return NULL; }
 
    virtual HYPRE_PtrToParSolverFcn SetupFcn() const
@@ -380,6 +529,9 @@ public:
        matrix A. */
    void SetSystemsOptions(int dim);
 
+   void SetPrintLevel(int print_level)
+   { HYPRE_BoomerAMGSetPrintLevel(amg_precond, print_level); }
+
    /// The typecast to HYPRE_Solver returns the internal amg_precond
    virtual operator HYPRE_Solver() const { return amg_precond; }
 
@@ -390,8 +542,6 @@ public:
 
    virtual ~HypreBoomerAMG();
 };
-
-class ParFiniteElementSpace;
 
 /// Compute the discrete gradient matrix between the nodal linear and ND1 spaces
 HypreParMatrix* DiscreteGrad(ParFiniteElementSpace *edge_fespace,
@@ -457,5 +607,9 @@ public:
 
    virtual ~HypreADS();
 };
+
+}
+
+#endif // MFEM_USE_MPI
 
 #endif

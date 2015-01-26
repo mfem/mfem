@@ -12,6 +12,12 @@
 #ifndef MFEM_POINT
 #define MFEM_POINT
 
+#include "../config/config.hpp"
+#include "element.hpp"
+
+namespace mfem
+{
+
 /// Data type point element
 class Point : public Element
 {
@@ -37,7 +43,12 @@ public:
 
    virtual int GetNEdges() const { return(0); }
 
-   virtual const int *GetEdgeVertices(int ei) const { return(NULL); }
+   virtual const int *GetEdgeVertices(int ei) const { return NULL; }
+
+   virtual int GetNFaces(int &nFaceVertices) const
+   { nFaceVertices = 0; return 0; }
+
+   virtual const int *GetFaceVertices(int fi) const { return NULL; }
 
    virtual Element *Duplicate(Mesh *m) const
    { return new Point (indices, attribute); }
@@ -46,5 +57,7 @@ public:
 };
 
 extern PointFiniteElement PointFE;
+
+}
 
 #endif

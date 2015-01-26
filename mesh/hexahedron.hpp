@@ -12,14 +12,21 @@
 #ifndef MFEM_HEXAHEDRON
 #define MFEM_HEXAHEDRON
 
+#include "../config/config.hpp"
+#include "element.hpp"
+
+namespace mfem
+{
+
 /// Data type hexahedron element
 class Hexahedron : public Element
 {
 protected:
    int indices[8];
-   static const int edges[12][2];
 
 public:
+   static const int edges[12][2];
+   static const int faces[6][4];  // same as Mesh::hex_faces
 
    Hexahedron() : Element(Geometry::CUBE) { }
 
@@ -40,10 +47,16 @@ public:
 
    virtual int GetNVertices() const { return 8; }
 
-   virtual int GetNEdges() const { return(12); }
+   virtual int GetNEdges() const { return 12; }
 
    virtual const int *GetEdgeVertices(int ei) const
-   { return(edges[ei]); }
+   { return edges[ei]; }
+
+   virtual int GetNFaces(int &nFaceVertices) const
+   { nFaceVertices = 4; return 6; }
+
+   virtual const int *GetFaceVertices(int fi) const
+   { return faces[fi]; }
 
    virtual Element *Duplicate(Mesh *m) const
    { return new Hexahedron(indices, attribute); }
@@ -52,5 +65,7 @@ public:
 };
 
 extern TriLinear3DFiniteElement HexahedronFE;
+
+}
 
 #endif

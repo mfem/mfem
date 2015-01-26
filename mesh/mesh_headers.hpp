@@ -14,10 +14,6 @@
 
 // Mesh header file
 
-#include <iostream>
-#include <iomanip>
-#include <stdlib.h>
-
 #include "../general/array.hpp"
 #include "../general/table.hpp"
 #include "../general/stable3d.hpp"
@@ -26,6 +22,7 @@
 #include "../fem/geom.hpp"
 #include "../fem/fe.hpp"
 #include "../fem/eltrans.hpp"
+#include "../fem/coefficient.hpp"
 
 #include "vertex.hpp"
 #include "element.hpp"
@@ -35,6 +32,7 @@
 #include "quadrilateral.hpp"
 #include "hexahedron.hpp"
 #include "tetrahedron.hpp"
+#include "ncmesh.hpp"
 #include "mesh.hpp"
 
 #ifdef MFEM_USE_MPI

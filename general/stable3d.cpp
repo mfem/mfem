@@ -10,10 +10,14 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 
+#include <iostream>
 #include "error.hpp"
 #include "stable3d.hpp"
 
 using namespace std;
+
+namespace mfem
+{
 
 STable3D::STable3D (int nr)
 {
@@ -62,14 +66,8 @@ int STable3D::Push (int r, int c, int f)
 {
    STable3DNode *node;
 
-#ifdef MFEM_DEBUG
-   if (r == c || c == f || f == r)
-   {
-      cerr << "STable3D::Push : r = " << r << ", c = " << c << ", f = "
-           << f << endl;
-      mfem_error();
-   }
-#endif
+   MFEM_ASSERT(r != c && c != f && f != r,
+               "STable3D::Push : r = " << r << ", c = " << c << ", f = " << f);
 
    Sort3 (r, c, f);
 
@@ -108,9 +106,7 @@ int STable3D::operator() (int r, int c, int f) const
             return node->Number;
    }
 
-   cerr << "STable3D::operator(): (r,c,f) = (" << r << "," << c << ","
-        << f << ")" << endl;
-   mfem_error();
+   MFEM_ABORT("(r,c,f) = (" << r << "," << c << "," << f << ")");
 
    return 0;
 }
@@ -133,14 +129,8 @@ int STable3D::Index (int r, int c, int f) const
 
 int STable3D::Push4 (int r, int c, int f, int t)
 {
-#ifdef MFEM_DEBUG
-   if (r == c || r == f || r == t || c == f || c == t || f == t)
-   {
-      cerr << "STable3D::Push4 : r = " << r << ", c = " << c << ", f = "
-           << f << ", t = " << t << endl;
-      mfem_error();
-   }
-#endif
+   MFEM_ASSERT(r != c && r != f && r != t && c != f && c != t && f != t,
+               " r = " << r << ", c = " << c << ", f = " << f << ", t = " << t);
 
    int i = 0;
    int max = r;
@@ -203,4 +193,6 @@ STable3D::~STable3D ()
    }
 #endif
    delete [] Rows;
+}
+
 }

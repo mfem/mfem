@@ -13,8 +13,9 @@
 // Abstract array data type
 
 #include "array.hpp"
-#include <string.h>
-#include <stdlib.h>
+
+namespace mfem
+{
 
 BaseArray::BaseArray(int asize, int ainc, int elementsize)
 {
@@ -53,7 +54,7 @@ void BaseArray::GrowSize(int minsize, int elementsize)
 }
 
 template <class T>
-void Array<T>::Print(ostream &out, int width)
+void Array<T>::Print(std::ostream &out, int width)
 {
    for (int i = 0; i < size; i++)
    {
@@ -66,7 +67,7 @@ void Array<T>::Print(ostream &out, int width)
 }
 
 template <class T>
-void Array<T>::Save(ostream &out)
+void Array<T>::Save(std::ostream &out)
 {
    out << size << '\n';
    for (int i = 0; i < size; i++)
@@ -76,10 +77,7 @@ void Array<T>::Save(ostream &out)
 template <class T>
 T Array<T>::Max() const
 {
-#ifdef MFEM_DEBUG
-   if (size <= 0)
-      mfem_error("Array::Max : empty array!");
-#endif
+   MFEM_ASSERT(size > 0, "Array is empty with size " << size);
 
    T max = operator[](0);
    for (int i = 1; i < size; i++)
@@ -87,6 +85,19 @@ T Array<T>::Max() const
          max = operator[](i);
 
    return max;
+}
+
+template <class T>
+T Array<T>::Min() const
+{
+   MFEM_ASSERT(size > 0, "Array is empty with size " << size);
+
+   T min = operator[](0);
+   for (int i = 1; i < size; i++)
+      if (operator[](i) < min)
+         min = operator[](i);
+
+   return min;
 }
 
 template <class T>
@@ -104,5 +115,45 @@ void Array<T>::Sort()
    qsort(data, size, sizeof(T), Compare<T>);  // use qsort from stdlib.h
 }
 
+// Partial Sum
+template <class T>
+void Array<T>::PartialSum()
+{
+   T sum = static_cast<T>(0);
+   for (int i = 0; i < size; i++)
+   {
+      sum+=operator[](i);
+      operator[](i) = sum;
+   }
+}
+
+// Sum
+template <class T>
+T Array<T>::Sum()
+{
+   T sum = static_cast<T>(0);
+   for (int i = 0; i < size; i++)
+      sum+=operator[](i);
+
+   return sum;
+}
+
+template <class T>
+int Array<T>::IsSorted()
+{
+   T val_prev = operator[](0), val;
+   for (int i = 1; i < size; i++)
+   {
+      val=operator[](i);
+      if (val < val_prev)
+         return 0;
+      val_prev = val;
+   }
+
+   return 1;
+}
+
 template class Array<int>;
 template class Array<double>;
+
+}

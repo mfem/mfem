@@ -23,18 +23,22 @@
 #include "eltrans.hpp"
 #include "coefficient.hpp"
 #include "lininteg.hpp"
+#include "nonlininteg.hpp"
 #include "bilininteg.hpp"
 #include "fespace.hpp"
 #include "gridfunc.hpp"
 #include "linearform.hpp"
+#include "nonlinearform.hpp"
 #include "bilinearform.hpp"
+#include "datacollection.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #include "pfespace.hpp"
+#include "pgridfunc.hpp"
 #include "plinearform.hpp"
 #include "pbilinearform.hpp"
-#include "pgridfunc.hpp"
+#include "pnonlinearform.hpp"
 #endif
 
 #endif

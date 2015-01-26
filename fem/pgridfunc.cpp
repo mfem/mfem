@@ -9,9 +9,17 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#include "../config/config.hpp"
+
 #ifdef MFEM_USE_MPI
 
 #include "fem.hpp"
+#include <iostream>
+#include <limits>
+using namespace std;
+
+namespace mfem
+{
 
 ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf, GridFunction *gf)
 {
@@ -25,122 +33,221 @@ ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf, HypreParVector *tv)
    Distribute(tv);
 }
 
-ParGridFunction::ParGridFunction(ParMesh *pmesh, GridFunction *gf)
+ParGridFunction::ParGridFunction(ParMesh *pmesh, GridFunction *gf, int * partitioning)
 {
    // duplicate the FiniteElementCollection from 'gf'
    fec = FiniteElementCollection::New(gf->FESpace()->FEColl()->Name());
    fes = pfes = new ParFiniteElementSpace(pmesh, fec, gf->FESpace()->GetVDim(),
                                           gf->FESpace()->GetOrdering());
    SetSize(pfes->GetVSize());
+
+   if(partitioning)
+   {
+      Array<int> gvdofs, lvdofs;
+      Vector lnodes;
+      int element_counter = 0;
+      Mesh & mesh(*gf->FESpace()->GetMesh());
+      int MyRank;
+      MPI_Comm_rank(pfes->GetComm(), &MyRank);
+      for (int i = 0; i < mesh.GetNE(); i++)
+         if (partitioning[i] == MyRank)
+         {
+            pfes->GetElementVDofs(element_counter, lvdofs);
+            gf->FESpace()->GetElementVDofs(i, gvdofs);
+            gf->GetSubVector(gvdofs, lnodes);
+            SetSubVector(lvdofs, lnodes);
+            element_counter++;
+         }
+   }
 }
 
 void ParGridFunction::Update(ParFiniteElementSpace *f)
 {
+   face_nbr_data.Destroy();
    GridFunction::Update(f);
    pfes = f;
 }
 
 void ParGridFunction::Update(ParFiniteElementSpace *f, Vector &v, int v_offset)
 {
+   face_nbr_data.Destroy();
    GridFunction::Update(f, v, v_offset);
    pfes = f;
 }
 
-void ParGridFunction::Distribute(HypreParVector *tv)
+void ParGridFunction::Distribute(const Vector *tv)
 {
    pfes->Dof_TrueDof_Matrix()->Mult(*tv, *this);
 }
 
-void ParGridFunction::ParallelAverage(HypreParVector &tv)
+void ParGridFunction::GetTrueDofs(Vector &tv) const
+{
+#if 0
+   for (int i = 0; i < size; i++)
+   {
+      int tdof = pfes->GetLocalTDofNumber(i);
+      if (tdof >= 0)
+         tv(tdof) = (*this)(i);
+   }
+#else
+   hypre_ParCSRMatrix *P = *pfes->Dof_TrueDof_Matrix();
+   hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(P);
+   int *I = hypre_CSRMatrixI(diag) + 1;
+   int *J = hypre_CSRMatrixJ(diag);
+   for (int i = 0, j = 0; i < size; i++)
+      if (j < I[i])
+         tv(J[j++]) = (*this)(i);
+#endif
+}
+
+HypreParVector *ParGridFunction::GetTrueDofs() const
+{
+   HypreParVector *tv = pfes->NewTrueDofVector();
+   GetTrueDofs(*tv);
+   return tv;
+}
+
+void ParGridFunction::ParallelAverage(Vector &tv) const
 {
    pfes->Dof_TrueDof_Matrix()->MultTranspose(*this, tv);
    pfes->DivideByGroupSize(tv);
 }
 
-HypreParVector *ParGridFunction::ParallelAverage()
+void ParGridFunction::ParallelAverage(HypreParVector &tv) const
 {
-   HypreParVector *tv = new HypreParVector(pfes->GlobalTrueVSize(),
-                                           pfes->GetTrueDofOffsets());
+   pfes->Dof_TrueDof_Matrix()->MultTranspose(*this, tv);
+   pfes->DivideByGroupSize(tv);
+}
+
+HypreParVector *ParGridFunction::ParallelAverage() const
+{
+   HypreParVector *tv = pfes->NewTrueDofVector();
    ParallelAverage(*tv);
    return tv;
 }
 
-double ParGridFunction::ComputeL1Error(Coefficient *exsol[],
-                                       const IntegrationRule *irs[]) const
+void ParGridFunction::ParallelAssemble(Vector &tv) const
 {
-   double lerr, gerr;
-
-   lerr = GridFunction::ComputeW11Error(*exsol, NULL, 1, NULL, irs);
-
-   MPI_Allreduce(&lerr, &gerr, 1, MPI_DOUBLE, MPI_SUM, pfes->GetComm());
-
-   return gerr;
+   pfes->Dof_TrueDof_Matrix()->MultTranspose(*this, tv);
 }
 
-double ParGridFunction::ComputeL1Error(VectorCoefficient &exsol,
-                                       const IntegrationRule *irs[]) const
+void ParGridFunction::ParallelAssemble(HypreParVector &tv) const
 {
-   double lerr, gerr;
-
-   lerr = GridFunction::ComputeL1Error(exsol, irs);
-
-   MPI_Allreduce(&lerr, &gerr, 1, MPI_DOUBLE, MPI_SUM, pfes->GetComm());
-
-   return gerr;
+   pfes->Dof_TrueDof_Matrix()->MultTranspose(*this, tv);
 }
 
-double ParGridFunction::ComputeL2Error(Coefficient *exsol[],
-                                       const IntegrationRule *irs[]) const
+HypreParVector *ParGridFunction::ParallelAssemble() const
 {
-   double lerr, gerr;
-
-   lerr = GridFunction::ComputeL2Error(exsol, irs);
-   lerr *= lerr;
-
-   MPI_Allreduce(&lerr, &gerr, 1, MPI_DOUBLE, MPI_SUM, pfes->GetComm());
-
-   return sqrt(gerr);
+   HypreParVector *tv = pfes->NewTrueDofVector();
+   ParallelAssemble(*tv);
+   return tv;
 }
 
-double ParGridFunction::ComputeL2Error(VectorCoefficient &exsol,
-                                       const IntegrationRule *irs[],
-                                       Array<int> *elems) const
+void ParGridFunction::ExchangeFaceNbrData()
 {
-   double lerr, gerr;
+   pfes->ExchangeFaceNbrData();
 
-   lerr = GridFunction::ComputeL2Error(exsol, irs, elems);
-   lerr *= lerr;
+   if (pfes->GetFaceNbrVSize() <= 0)
+      return;
 
-   MPI_Allreduce(&lerr, &gerr, 1, MPI_DOUBLE, MPI_SUM, pfes->GetComm());
+   ParMesh *pmesh = pfes->GetParMesh();
 
-   return sqrt(gerr);
+   face_nbr_data.SetSize(pfes->GetFaceNbrVSize());
+   Vector send_data(pfes->send_face_nbr_ldof.Size_of_connections());
+
+   int *send_offset = pfes->send_face_nbr_ldof.GetI();
+   int *send_ldof = pfes->send_face_nbr_ldof.GetJ();
+   int *recv_offset = pfes->face_nbr_gdof.GetI();
+   MPI_Comm MyComm = pfes->GetComm();
+
+   int num_face_nbrs = pmesh->GetNFaceNeighbors();
+   MPI_Request *requests = new MPI_Request[2*num_face_nbrs];
+   MPI_Request *send_requests = requests;
+   MPI_Request *recv_requests = requests + num_face_nbrs;
+   MPI_Status  *statuses = new MPI_Status[num_face_nbrs];
+
+   for (int i = 0; i < send_data.Size(); i++)
+      send_data[i] = data[send_ldof[i]];
+
+   for (int fn = 0; fn < num_face_nbrs; fn++)
+   {
+      int nbr_rank = pmesh->GetFaceNbrRank(fn);
+      int tag = 0;
+
+      MPI_Isend(&send_data(send_offset[fn]),
+                send_offset[fn+1] - send_offset[fn],
+                MPI_DOUBLE, nbr_rank, tag, MyComm, &send_requests[fn]);
+
+      MPI_Irecv(&face_nbr_data(recv_offset[fn]),
+                recv_offset[fn+1] - recv_offset[fn],
+                MPI_DOUBLE, nbr_rank, tag, MyComm, &recv_requests[fn]);
+   }
+
+   MPI_Waitall(num_face_nbrs, send_requests, statuses);
+   MPI_Waitall(num_face_nbrs, recv_requests, statuses);
+
+   delete [] statuses;
+   delete [] requests;
 }
 
-double ParGridFunction::ComputeMaxError(Coefficient *exsol[],
-                                        const IntegrationRule *irs[]) const
+double ParGridFunction::GetValue(int i, const IntegrationPoint &ip, int vdim)
+   const
 {
-   double lerr, gerr;
+   Array<int> dofs;
+   Vector DofVal, LocVec;
+   int nbr_el_no = i - pfes->GetParMesh()->GetNE();
+   if (nbr_el_no >= 0)
+   {
+      int fes_vdim = pfes->GetVDim();
+      pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+      if (fes_vdim > 1)
+      {
+         int s = dofs.Size()/fes_vdim;
+         Array<int> _dofs(&dofs[(vdim-1)*s], s);
+         face_nbr_data.GetSubVector(_dofs, LocVec);
+         DofVal.SetSize(s);
+      }
+      else
+      {
+         face_nbr_data.GetSubVector(dofs, LocVec);
+         DofVal.SetSize(dofs.Size());
+      }
+      pfes->GetFaceNbrFE(nbr_el_no)->CalcShape(ip, DofVal);
+   }
+   else
+   {
+      fes->GetElementDofs(i, dofs);
+      fes->DofsToVDofs(vdim-1, dofs);
+      DofVal.SetSize(dofs.Size());
+      fes->GetFE(i)->CalcShape(ip, DofVal);
+      GetSubVector(dofs, LocVec);
+   }
 
-   lerr = GridFunction::ComputeMaxError(exsol, irs);
-
-   MPI_Allreduce(&lerr, &gerr, 1, MPI_DOUBLE, MPI_MAX, pfes->GetComm());
-
-   return gerr;
+   return (DofVal * LocVec);
 }
 
-double ParGridFunction::ComputeMaxError(VectorCoefficient &exsol,
-                                        const IntegrationRule *irs[]) const
+void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
 {
-   double lerr, gerr;
+   DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
 
-   lerr = GridFunction::ComputeMaxError(exsol, irs);
+   if (delta_c == NULL)
+   {
+      GridFunction::ProjectCoefficient(coeff);
+   }
+   else
+   {
+      double loc_integral, glob_integral;
 
-   MPI_Allreduce(&lerr, &gerr, 1, MPI_DOUBLE, MPI_MAX, pfes->GetComm());
+      ProjectDeltaCoefficient(*delta_c, loc_integral);
 
-   return gerr;
+      MPI_Allreduce(&loc_integral, &glob_integral, 1, MPI_DOUBLE, MPI_SUM,
+                    pfes->GetComm());
+
+      (*this) *= (delta_c->Scale() / glob_integral);
+   }
 }
 
-void ParGridFunction::Save(ostream &out)
+void ParGridFunction::Save(std::ostream &out) const
 {
    for (int i = 0; i < size; i++)
       if (pfes->GetDofSign(i) < 0)
@@ -153,7 +260,7 @@ void ParGridFunction::Save(ostream &out)
          data[i] = -data[i];
 }
 
-void ParGridFunction::SaveAsOne(ostream &out)
+void ParGridFunction::SaveAsOne(std::ostream &out)
 {
    int i, p;
 
@@ -264,6 +371,35 @@ void ParGridFunction::SaveAsOne(ostream &out)
    delete [] nedofs;
    delete [] nfdofs;
    delete [] nrdofs;
+}
+
+double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm)
+{
+   double glob_norm;
+
+   if (p < numeric_limits<double>::infinity())
+   {
+      // negative quadrature weights may cause the error to be negative
+      if (loc_norm < 0.0)
+         loc_norm = -pow(-loc_norm, p);
+      else
+         loc_norm = pow(loc_norm, p);
+
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPI_DOUBLE, MPI_SUM, comm);
+
+      if (glob_norm < 0.0)
+         glob_norm = -pow(-glob_norm, 1.0/p);
+      else
+         glob_norm = pow(glob_norm, 1.0/p);
+   }
+   else
+   {
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPI_DOUBLE, MPI_MAX, comm);
+   }
+
+   return glob_norm;
+}
+
 }
 
 #endif

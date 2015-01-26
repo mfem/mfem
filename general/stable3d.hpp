@@ -14,6 +14,9 @@
 
 #include "mem_alloc.hpp"
 
+namespace mfem
+{
+
 class STable3DNode
 {
 public:
@@ -49,5 +52,7 @@ public:
 
    ~STable3D ();
 };
+
+}
 
 #endif

@@ -10,10 +10,37 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "error.hpp"
+#include <cstdlib>
+#include <iostream>
 
-void mfem_error (const char *msg)
+#ifdef MFEM_USE_MPI
+#include <mpi.h>
+#endif
+
+namespace mfem
+{
+
+void mfem_error(const char *msg)
 {
    if (msg)
-      std::cerr << msg << std::endl;
-   *((int *)NULL) = 0; // force crash by causing segmentation fault
+   {
+      // NOTE: This endl also flushes the I/O stream, which can be a very bad
+      // thing if all your processors try to do it at the same time.
+      std::cerr << "\n\n" << msg << std::endl;
+   }
+#ifdef MFEM_USE_MPI
+   MPI_Abort(MPI_COMM_WORLD, 1);
+#else
+   std::abort(); // force crash by calling abort
+#endif
+}
+
+void mfem_warning(const char *msg)
+{
+   if (msg)
+   {
+      std::cout << "\n\n" << msg << std::endl;
+   }
+}
+
 }

@@ -1,0 +1,35 @@
+# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
+# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
+# See file COPYRIGHT for details.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability see http://mfem.googlecode.com.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the GNU Lesser General Public License (as published by the Free
+# Software Foundation) version 2.1 dated February 1999.
+
+# Variables corresponding to defines in config.hpp (YES, NO, or value)
+MFEM_USE_MPI         = @MFEM_USE_MPI@
+MFEM_USE_METIS_5     = @MFEM_USE_METIS_5@
+MFEM_DEBUG           = @MFEM_DEBUG@
+MFEM_USE_LAPACK      = @MFEM_USE_LAPACK@
+MFEM_THREAD_SAFE     = @MFEM_THREAD_SAFE@
+MFEM_USE_OPENMP      = @MFEM_USE_OPENMP@
+MFEM_USE_MESQUITE    = @MFEM_USE_MESQUITE@
+MFEM_USE_SUITESPARSE = @MFEM_USE_SUITESPARSE@
+MFEM_USE_MEMALLOC    = @MFEM_USE_MEMALLOC@
+MFEM_TIMER_TYPE      = @MFEM_TIMER_TYPE@
+
+# Compiler, compile options, and link options
+MFEM_CXX       = @MFEM_CXX@
+MFEM_CPPFLAGS  = @MFEM_CPPFLAGS@
+MFEM_CXXFLAGS  = @MFEM_CXXFLAGS@
+MFEM_INCFLAGS  = @MFEM_INCFLAGS@
+MFEM_FLAGS     = @MFEM_FLAGS@
+MFEM_LIBS      = @MFEM_LIBS@
+MFEM_LIB_FILE  = @MFEM_LIB_FILE@
+MFEM_BUILD_TAG = @MFEM_BUILD_TAG@
+MFEM_PREFIX    = @MFEM_PREFIX@
+MFEM_INC_DIR   = @MFEM_INC_DIR@
+MFEM_LIB_DIR   = @MFEM_LIB_DIR@

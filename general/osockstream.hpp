@@ -13,7 +13,9 @@
 #define MFEM_OSOCKSTREAM
 
 #include "socketstream.hpp"
-using namespace std;
+
+namespace mfem
+{
 
 /** Data type for output socket stream class. The class is used as client
     to send data to a server on a specified port number. One object of the
@@ -39,5 +41,7 @@ public:
    /** Virtual destructor. If the data hasn't been sent it sends it. */
    virtual ~osockstream() { }
 };
+
+}
 
 #endif

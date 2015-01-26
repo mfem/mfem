@@ -12,6 +12,12 @@
 #ifndef MFEM_TETRAHEDRON
 #define MFEM_TETRAHEDRON
 
+#include "../config/config.hpp"
+#include "element.hpp"
+
+namespace mfem
+{
+
 /// Data type tetrahedron element
 class Tetrahedron : public Element
 {
@@ -37,7 +43,7 @@ public:
    Tetrahedron() : Element(Geometry::TETRAHEDRON) { refinement_flag = 0; }
 
    /// Constructs tetrahedron by specifying the indices and the attribute.
-   Tetrahedron(int *ind, int attr = 1);
+   Tetrahedron(const int *ind, int attr = 1);
 
    /// Constructs tetrahedron by specifying the indices and the attribute.
    Tetrahedron(int ind1, int ind2, int ind3, int ind4, int attr = 1);
@@ -77,11 +83,19 @@ public:
 
    virtual const int *GetEdgeVertices(int ei) const { return(edges[ei]); }
 
+   virtual int GetNFaces(int &nFaceVertices) const
+   { nFaceVertices = 3; return 4; }
+
+   virtual const int *GetFaceVertices(int fi) const
+   { MFEM_ABORT("not implemented"); return NULL; }
+
    virtual Element *Duplicate(Mesh *m) const;
 
    virtual ~Tetrahedron() { }
 };
 
 extern Linear3DFiniteElement TetrahedronFE;
+
+}
 
 #endif

@@ -12,25 +12,40 @@
 #ifndef MFEM_TIC_TOC
 #define MFEM_TIC_TOC
 
-#include <sys/times.h>
+#include "../config/config.hpp"
+
+#ifndef MFEM_TIMER_TYPE
+#ifndef _WIN32
+#define MFEM_TIMER_TYPE 0
+#else
+#define MFEM_TIMER_TYPE 3
+#endif
+#endif
+
+namespace mfem
+{
+
+namespace internal
+{
+class StopWatch;
+}
 
 /// Timing object
 class StopWatch
 {
 private:
-   clock_t real_time, user_time, syst_time;
-   clock_t start_rtime, start_utime, start_stime;
-   long my_CLK_TCK;
-   short Running;
-   void Current(clock_t *, clock_t *, clock_t *);
+   internal::StopWatch *M;
+
 public:
-   StopWatch();  // determines my_CLK_TCK
+   StopWatch();
    void Clear();
    void Start();
    void Stop();
+   double Resolution();
    double RealTime();
    double UserTime();
    double SystTime();
+   ~StopWatch();
 };
 
 
@@ -41,5 +56,7 @@ extern void tic();
 
 /// End timing
 extern double toc();
+
+}
 
 #endif

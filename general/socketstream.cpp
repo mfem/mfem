@@ -12,11 +12,23 @@
 #include "socketstream.hpp"
 
 #include <cstring>      // memset, memcpy
+#ifndef _WIN32
 #include <netdb.h>      // gethostbyname
 #include <arpa/inet.h>  // htons
 #include <sys/types.h>  // socket, setsockopt, connect, recv, send
 #include <sys/socket.h> // socket, setsockopt, connect, recv, send
 #include <unistd.h>     // close
+#include <netinet/in.h> // sockaddr_in
+#define closesocket (::close)
+#else
+#include <winsock.h>
+typedef int ssize_t;
+// Link with ws2_32.lib
+#pragma comment(lib, "ws2_32.lib")
+#endif
+
+namespace mfem
+{
 
 int socketbuf::attach(int sd)
 {
@@ -53,7 +65,7 @@ int socketbuf::open(const char hostname[], int port)
    if (connect(socket_descriptor,
                (const struct sockaddr *)&sa, sizeof(sa)) < 0)
    {
-      ::close(socket_descriptor);
+      closesocket(socket_descriptor);
       socket_descriptor = -2;
       return -1;
    }
@@ -65,7 +77,7 @@ int socketbuf::close()
    if (is_open())
    {
       pubsync();
-      int err = ::close(socket_descriptor);
+      int err = closesocket(socket_descriptor);
       socket_descriptor = -1;
       return err;
    }
@@ -191,9 +203,9 @@ socketserver::socketserver(int port)
    }
    int on = 1;
    if (setsockopt(listen_socket, SOL_SOCKET, SO_REUSEADDR,
-                  &on, sizeof(on)) < 0)
+                  (char *)(&on), sizeof(on)) < 0)
    {
-      ::close(listen_socket);
+      closesocket(listen_socket);
       listen_socket = -2;
       return;
    }
@@ -204,14 +216,14 @@ socketserver::socketserver(int port)
    sa.sin_addr.s_addr = INADDR_ANY;
    if (bind(listen_socket, (const struct sockaddr *)&sa, sizeof(sa)))
    {
-      ::close(listen_socket);
+      closesocket(listen_socket);
       listen_socket = -3;
       return;
    }
    const int backlog = 4;
    if (listen(listen_socket, backlog) < 0)
    {
-      ::close(listen_socket);
+      closesocket(listen_socket);
       listen_socket = -4;
       return;
    }
@@ -221,7 +233,7 @@ int socketserver::close()
 {
    if (!good())
       return 0;
-   int err = ::close(listen_socket);
+   int err = closesocket(listen_socket);
    listen_socket = -1;
    return err;
 }
@@ -237,4 +249,6 @@ int socketserver::accept(socketstream &sockstr)
       sockstr.rdbuf()->attach(socketd);
    }
    return socketd;
+}
+
 }

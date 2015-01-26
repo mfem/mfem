@@ -12,6 +12,14 @@
 #ifndef MFEM_ELEMENTTRANSFORM
 #define MFEM_ELEMENTTRANSFORM
 
+#include "../config/config.hpp"
+#include "../linalg/linalg.hpp"
+#include "intrules.hpp"
+#include "fe.hpp"
+
+namespace mfem
+{
+
 class ElementTransformation
 {
 protected:
@@ -21,21 +29,26 @@ protected:
 
 public:
    int Attribute, ElementNo;
+   ElementTransformation();
    void SetIntPoint(const IntegrationPoint *ip)
    { IntPoint = ip; WeightIsEvaluated = JacobianIsEvaluated = 0; }
    const IntegrationPoint &GetIntPoint() { return *IntPoint; }
 
    virtual void Transform(const IntegrationPoint &, Vector &) = 0;
    virtual void Transform(const IntegrationRule &, DenseMatrix &) = 0;
-   /** Return the jacobian of the transformation at the IntPoint.
+   /** Return the Jacobian of the transformation at the IntPoint.
        The first column contains the x derivatives of the
        transformation, the second -- the y derivatives, etc.  */
    virtual const DenseMatrix & Jacobian() = 0;
    virtual double Weight() = 0;
+   virtual int Order() = 0;
    virtual int OrderJ() = 0;
    virtual int OrderW() = 0;
    /// order of adj(J)^t.grad(fi)
    virtual int OrderGrad(const FiniteElement *fe) = 0;
+   /** Get dimension of target space (we support 2D meshes embedded in 3D; in
+       this case the function should return "3"). */
+   virtual int GetSpaceDim() = 0;
 
    virtual ~ElementTransformation() { }
 };
@@ -54,13 +67,21 @@ public:
    void SetFE(const FiniteElement *FE) { FElem = FE; };
    DenseMatrix &GetPointMat () { return PointMat; };
 
+   void SetIdentityTransformation(int GeomType);
+
    virtual void Transform(const IntegrationPoint &, Vector &);
    virtual void Transform(const IntegrationRule &, DenseMatrix &);
    virtual const DenseMatrix & Jacobian();
    virtual double Weight();
+   virtual int Order() { return FElem->GetOrder(); }
    virtual int OrderJ();
    virtual int OrderW();
    virtual int OrderGrad(const FiniteElement *fe);
+   virtual int GetSpaceDim()
+   {
+      // this function should only be called after PointMat is initialised
+      return PointMat.Height();
+   }
 
    virtual ~IsoparametricTransformation() { }
 };
@@ -80,5 +101,7 @@ public:
    ElementTransformation *Elem1, *Elem2, *Face;
    IntegrationPointTransformation Loc1, Loc2;
 };
+
+}
 
 #endif

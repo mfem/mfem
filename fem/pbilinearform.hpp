@@ -12,20 +12,48 @@
 #ifndef MFEM_PBILINEARFORM
 #define MFEM_PBILINEARFORM
 
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_MPI
+
+#include <mpi.h>
+#include "../linalg/hypre.hpp"
+#include "pfespace.hpp"
+#include "bilinearform.hpp"
+
+namespace mfem
+{
+
 /// Class for parallel bilinear form
 class ParBilinearForm : public BilinearForm
 {
 protected:
    ParFiniteElementSpace *pfes;
+   mutable ParGridFunction X, Y; // used in TrueAddMult
 
-   HypreParMatrix *ParallelAssemble(SparseMatrix *m);
+   bool keep_nbr_block;
+
+   // called when (mat == NULL && fbfi.Size() > 0)
+   void pAllocMat();
+
+   void AssembleSharedFaces(int skip_zeros = 1);
 
 public:
    ParBilinearForm(ParFiniteElementSpace *pf)
-      : BilinearForm(pf) { pfes = pf; }
+      : BilinearForm(pf), pfes(pf)
+   { keep_nbr_block = false; }
 
    ParBilinearForm(ParFiniteElementSpace *pf, ParBilinearForm *bf)
-      : BilinearForm(pf, bf) { pfes = pf; }
+      : BilinearForm(pf, bf) { pfes = pf; keep_nbr_block = false; }
+
+   /** When set to true and the ParBilinearForm has interior face integrators,
+       the local SparseMatrix will include the rows (in addition to the columns)
+       corresponding to face-neighbor dofs. The default behavior is to disregard
+       those rows. Must be called before the first Assemble call. */
+   void KeepNbrBlock(bool knb = true) { keep_nbr_block = knb; }
+
+   /// Assemble the local matrix
+   void Assemble(int skip_zeros = 1);
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    HypreParMatrix *ParallelAssemble() { return ParallelAssemble(mat); }
@@ -33,7 +61,37 @@ public:
    /// Returns the eliminated matrix assembled on the true dofs, i.e. P^t A_e P.
    HypreParMatrix *ParallelAssembleElim() { return ParallelAssemble(mat_e); }
 
+   /// Return the matrix m assembled on the true dofs, i.e. P^t A P
+   HypreParMatrix *ParallelAssemble(SparseMatrix *m);
+
+   /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
+   void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+
+   ParFiniteElementSpace *ParFESpace() const { return pfes; }
+
    virtual ~ParBilinearForm() { }
+};
+
+/// Class for parallel bilinear form
+class ParMixedBilinearForm : public MixedBilinearForm
+{
+protected:
+   ParFiniteElementSpace *trial_pfes;
+   ParFiniteElementSpace *test_pfes;
+
+public:
+   ParMixedBilinearForm(ParFiniteElementSpace *trial_fes,
+                        ParFiniteElementSpace *test_fes)
+      : MixedBilinearForm(trial_fes, test_fes)
+   {
+      trial_pfes = trial_fes;
+      test_pfes  = test_fes;
+   }
+
+   /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
+   HypreParMatrix *ParallelAssemble();
+
+   virtual ~ParMixedBilinearForm() { }
 };
 
 /** The parallel matrix representation a linear operator between parallel finite
@@ -60,5 +118,9 @@ public:
 
    virtual ~ParDiscreteLinearOperator() { }
 };
+
+}
+
+#endif // MFEM_USE_MPI
 
 #endif

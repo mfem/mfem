@@ -12,9 +12,21 @@
 #ifndef MFEM_BILININTEG
 #define MFEM_BILININTEG
 
-/// Abstract base class BilinearFormIntegrator
-class BilinearFormIntegrator
+#include "../config/config.hpp"
+#include "nonlininteg.hpp"
+
+namespace mfem
 {
+
+/// Abstract base class BilinearFormIntegrator
+class BilinearFormIntegrator : public NonlinearFormIntegrator
+{
+protected:
+   const IntegrationRule *IntRule;
+
+   BilinearFormIntegrator(const IntegrationRule *ir = NULL)
+   { IntRule = ir; }
+
 public:
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
@@ -32,6 +44,21 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+   /** Abstract method used for assembling TraceFaceIntegrators in a
+       MixedBilinearForm. */
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &test_fe2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+   /// Perform the local action of the BilinearFormIntegrator
+   virtual void AssembleElementVector(const FiniteElement &el,
+                                      ElementTransformation &Tr,
+                                      const Vector &elfun, Vector &elvect);
+   virtual void AssembleElementGrad(const FiniteElement &el,
+                                    ElementTransformation &Tr,
+                                    const Vector &elfun, DenseMatrix &elmat)
+   { AssembleElementMatrix(el, Tr, elmat); }
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u,
@@ -40,6 +67,9 @@ public:
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux) { return 0.0; }
+
+   void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
+
    virtual ~BilinearFormIntegrator() { }
 };
 
@@ -62,6 +92,11 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
    virtual ~TransposeIntegrator() { if (own_bfi) delete bfi; }
 };
 
@@ -82,19 +117,62 @@ public:
    virtual ~LumpedIntegrator() { if (own_bfi) delete bfi; }
 };
 
+/// Integrator that inverts the matrix assembled by another integrator.
+class InverseIntegrator : public BilinearFormIntegrator
+{
+private:
+   int own_integrator;
+   BilinearFormIntegrator *integrator;
+
+public:
+   InverseIntegrator(BilinearFormIntegrator *integ, int own_integ = 1)
+   { integrator = integ; own_integrator = own_integ; }
+
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat);
+
+   virtual ~InverseIntegrator() { if (own_integrator) delete integrator; }
+};
+
+/// Integrator defining a sum of multiple Integrators.
+class SumIntegrator : public BilinearFormIntegrator
+{
+private:
+   int own_integrators;
+   DenseMatrix elem_mat;
+   Array<BilinearFormIntegrator*> integrators;
+
+public:
+   SumIntegrator(int own_integs = 1) { own_integrators = own_integs; }
+
+   void AddIntegrator(BilinearFormIntegrator *integ)
+   { integrators.Append(integ); }
+
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat);
+
+   virtual ~SumIntegrator();
+};
+
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, grad v)
     where Q can be a scalar or a matrix coefficient. */
 class DiffusionIntegrator: public BilinearFormIntegrator
 {
 private:
    Vector vec, pointflux, shape;
-#ifndef MFEM_USE_OPENMP
-   DenseMatrix dshape, dshapedxt, invdfdx;
+#ifndef MFEM_THREAD_SAFE
+   DenseMatrix dshape, dshapedxt, invdfdx, mq;
+   DenseMatrix te_dshape, te_dshapedxt;
 #endif
    Coefficient *Q;
    MatrixCoefficient *MQ;
 
 public:
+   /// Construct a diffusion integrator with coefficient Q = 1
+   DiffusionIntegrator() { Q = NULL; MQ = NULL; }
+
    /// Construct a diffusion integrator with a scalar coefficient q
    DiffusionIntegrator (Coefficient &q) : Q(&q) { MQ = NULL; }
 
@@ -106,6 +184,16 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+   /** Given a trial and test Finite Element computes the element stiffness
+       matrix elmat. */
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+   /// Perform the local action of the BilinearFormIntegrator
+   virtual void AssembleElementVector(const FiniteElement &el,
+                                      ElementTransformation &Tr,
+                                      const Vector &elfun, Vector &elvect);
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u,
@@ -122,14 +210,13 @@ class MassIntegrator: public BilinearFormIntegrator
 private:
    Vector shape, te_shape;
    Coefficient *Q;
-   const IntegrationRule *IntRule;
 
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
-   { Q = NULL; IntRule = ir; }
+      : BilinearFormIntegrator(ir) { Q = NULL; }
    /// Construct a mass integrator with coefficient q
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
-      : Q(&q) { IntRule = ir; }
+      : BilinearFormIntegrator(ir), Q(&q) { }
 
    /** Given a particular Finite Element
        computes the element mass matrix elmat. */
@@ -148,17 +235,35 @@ public:
    BoundaryMassIntegrator(Coefficient &q) : MassIntegrator(q) { }
 };
 
-/// (q . grad u, v)
+/// alpha (q . grad u, v)
 class ConvectionIntegrator : public BilinearFormIntegrator
 {
 private:
-   DenseMatrix dshape;
-   DenseMatrix invdfdx;
-   Vector shape, vec1, vec2;
-   Vector BdFidxT;
+   DenseMatrix dshape, adjJ, Q_ir;
+   Vector shape, vec2, BdFidxT;
    VectorCoefficient &Q;
+   double alpha;
+
 public:
-   ConvectionIntegrator(VectorCoefficient &q) : Q(q) { }
+   ConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
+      : Q(q) { alpha = a; }
+   virtual void AssembleElementMatrix(const FiniteElement &,
+                                      ElementTransformation &,
+                                      DenseMatrix &);
+};
+
+/// alpha (q . grad u, v) using the "group" FE discretization
+class GroupConvectionIntegrator : public BilinearFormIntegrator
+{
+private:
+   DenseMatrix dshape, adjJ, Q_nodal, grad;
+   Vector shape;
+   VectorCoefficient &Q;
+   double alpha;
+
+public:
+   GroupConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
+      : Q(q) { alpha = a; }
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);
@@ -170,38 +275,42 @@ public:
 class VectorMassIntegrator: public BilinearFormIntegrator
 {
 private:
-   Vector shape, vec;
+   Vector shape, te_shape, vec;
    DenseMatrix partelmat;
    DenseMatrix mcoeff;
    Coefficient *Q;
    VectorCoefficient *VQ;
    MatrixCoefficient *MQ;
 
-   const IntegrationRule *IntRule;
    int Q_order;
 
 public:
    /// Construct an integrator with coefficient 1.0
    VectorMassIntegrator()
-   { Q = NULL; VQ = NULL; MQ = NULL; IntRule = NULL; Q_order = 0; }
+   { Q = NULL; VQ = NULL; MQ = NULL; Q_order = 0; }
    /** Construct an integrator with scalar coefficient q.
        If possible, save memory by using a scalar integrator since
        the resulting matrix is block diagonal with the same diagonal
-       block repeated. ;-)   */
+       block repeated. */
    VectorMassIntegrator(Coefficient &q, int qo = 0)
-      : Q(&q) { VQ = NULL; MQ = NULL; IntRule = NULL; Q_order = qo; }
+      : Q(&q) { VQ = NULL; MQ = NULL; Q_order = qo; }
    VectorMassIntegrator(Coefficient &q, const IntegrationRule *ir)
-      : Q(&q) { VQ = NULL; MQ = NULL; IntRule = ir; Q_order = 0; }
+      : BilinearFormIntegrator(ir), Q(&q)
+   { VQ = NULL; MQ = NULL; Q_order = 0; }
    /// Construct an integrator with diagonal coefficient q
    VectorMassIntegrator(VectorCoefficient &q, int qo = 0)
-      : VQ(&q) { Q = NULL; MQ = NULL; IntRule = NULL; Q_order = qo; }
+      : VQ(&q) { Q = NULL; MQ = NULL; Q_order = qo; }
    /// Construct an integrator with matrix coefficient q
    VectorMassIntegrator(MatrixCoefficient &q, int qo = 0)
-      : MQ(&q) { Q = NULL; VQ = NULL; IntRule = NULL; Q_order = qo; }
+      : MQ(&q) { Q = NULL; VQ = NULL; Q_order = qo; }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
 };
 
 
@@ -216,7 +325,7 @@ class VectorFEDivergenceIntegrator : public BilinearFormIntegrator
 {
 private:
    Coefficient *Q;
-#ifndef MFEM_USE_OPENMP
+#ifndef MFEM_THREAD_SAFE
    Vector divshape, shape;
 #endif
 public:
@@ -237,7 +346,7 @@ class VectorFECurlIntegrator: public BilinearFormIntegrator
 {
 private:
    Coefficient *Q;
-#ifndef MFEM_USE_OPENMP
+#ifndef MFEM_THREAD_SAFE
    DenseMatrix curlshapeTrial;
    DenseMatrix vshapeTest;
    DenseMatrix curlshapeTrial_dFT;
@@ -279,7 +388,7 @@ public:
 class CurlCurlIntegrator: public BilinearFormIntegrator
 {
 private:
-#ifndef MFEM_USE_OPENMP
+#ifndef MFEM_THREAD_SAFE
    DenseMatrix Curlshape, Curlshape_dFt;
 #endif
    Coefficient *Q;
@@ -296,25 +405,56 @@ public:
                                       DenseMatrix &elmat);
 };
 
+/** Integrator for (curl u, curl v) for FE spaces defined by 'dim' copies of a
+    scalar FE space. */
+class VectorCurlCurlIntegrator: public BilinearFormIntegrator
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   DenseMatrix dshape_hat, dshape, curlshape, Jadj, grad_hat, grad;
+#endif
+   Coefficient *Q;
+
+public:
+   VectorCurlCurlIntegrator() { Q = NULL; }
+
+   VectorCurlCurlIntegrator(Coefficient &q) : Q(&q) { }
+
+   /// Assemble an element matrix
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat);
+   /// Compute element energy: (1/2) (curl u, curl u)_E
+   virtual double GetElementEnergy(const FiniteElement &el,
+                                   ElementTransformation &Tr,
+                                   const Vector &elfun);
+};
+
 /// Integrator for (Q u, v) for VectorFiniteElements
 class VectorFEMassIntegrator: public BilinearFormIntegrator
 {
 private:
    Coefficient *Q;
    VectorCoefficient *VQ;
+   MatrixCoefficient *MQ;
+   void Init(Coefficient *q, VectorCoefficient *vq, MatrixCoefficient *mq)
+   { Q = q; VQ = vq; MQ = mq; }
 
-#ifndef MFEM_USE_OPENMP
+#ifndef MFEM_THREAD_SAFE
    Vector shape;
    Vector D;
+   DenseMatrix K;
    DenseMatrix vshape;
 #endif
 
 public:
-   VectorFEMassIntegrator() { Q = NULL; VQ= NULL; }
-   VectorFEMassIntegrator(Coefficient *_q) { Q = _q; VQ= NULL; }
-   VectorFEMassIntegrator(Coefficient &q) { Q = &q; VQ= NULL; }
-   VectorFEMassIntegrator(VectorCoefficient *_vq) { VQ = _vq; Q = NULL; }
-   VectorFEMassIntegrator(VectorCoefficient &vq) { VQ = &vq; Q = NULL; }
+   VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }
+   VectorFEMassIntegrator(Coefficient *_q) { Init(_q, NULL, NULL); }
+   VectorFEMassIntegrator(Coefficient &q) { Init(&q, NULL, NULL); }
+   VectorFEMassIntegrator(VectorCoefficient *_vq) { Init(NULL, _vq, NULL); }
+   VectorFEMassIntegrator(VectorCoefficient &vq) { Init(NULL, &vq, NULL); }
+   VectorFEMassIntegrator(MatrixCoefficient *_mq) { Init(NULL, NULL, _mq); }
+   VectorFEMassIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq); }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -356,7 +496,7 @@ class DivDivIntegrator: public BilinearFormIntegrator
 private:
    Coefficient *Q;
 
-#ifndef MFEM_USE_OPENMP
+#ifndef MFEM_THREAD_SAFE
    Vector divshape;
 #endif
 
@@ -401,7 +541,7 @@ private:
    double q_lambda, q_mu;
    Coefficient *lambda, *mu;
 
-#ifndef MFEM_USE_OPENMP
+#ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape, Jinv, gshape, pelmat;
    Vector divshape;
 #endif
@@ -419,6 +559,93 @@ public:
                                       DenseMatrix &);
 };
 
+/** Integrator for the DG form:
+    alpha < rho_u (u.n) {v},[w] > + beta < rho_u |u.n| [v],[w] >,
+    where v and w are the trial and test variables, respectively, and rho/u are
+    given scalar/vector coefficients. The vector coefficient, u, is assumed to
+    be continuous across the faces and when given the scalar coefficient, rho,
+    is assumed to be discontinuous. The integrator uses the upwind value of rho,
+    rho_u, which is value from the side into which the vector coefficient, u,
+    points. */
+class DGTraceIntegrator : public BilinearFormIntegrator
+{
+private:
+   Coefficient *rho;
+   VectorCoefficient *u;
+   double alpha, beta;
+
+   Vector shape1, shape2;
+
+public:
+   /// Construct integrator with rho = 1.
+   DGTraceIntegrator(VectorCoefficient &_u, double a, double b)
+   { rho = NULL; u = &_u; alpha = a; beta = b; }
+
+   DGTraceIntegrator(Coefficient &_rho, VectorCoefficient &_u,
+                     double a, double b)
+   { rho = &_rho; u = &_u; alpha = a; beta = b; }
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
+/** Integrator for the DG form:
+
+    - < {(Q grad(u)).n}, [v] > + sigma < [u], {(Q grad(v)).n} >
+    + kappa < {h^{-1} Q} [u], [v] >,
+
+    where Q is a scalar or matrix diffusion coefficient and u, v are the trial
+    and test spaces, respectively. The parameters sigma and kappa determine the
+    DG method to be used (when this integrator is added to the "broken"
+    DiffusionIntegrator):
+    * sigma = -1, kappa >= kappa0: symm. interior penalty (IP or SIPG) method,
+    * sigma = +1, kappa > 0: non-symmetric interior penalty (NIPG) method,
+    * sigma = +1, kappa = 0: the method of Baumann and Oden. */
+class DGDiffusionIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+   MatrixCoefficient *MQ;
+   double sigma, kappa;
+
+   // these are not thread-safe!
+   Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
+   DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
+
+public:
+   DGDiffusionIntegrator(const double s, const double k)
+      : Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
+   DGDiffusionIntegrator(Coefficient &q, const double s, const double k)
+      : Q(&q), MQ(NULL), sigma(s), kappa(k) { }
+   DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k)
+      : Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
+/** Integrator for the DPG form: < v, [w] > over all faces (the interface) where
+    the trial variable v is defined on the inteface and the test variable w is
+    defined inside the elements, generally in a DG space. */
+class TraceJumpIntegrator : public BilinearFormIntegrator
+{
+private:
+   Vector face_shape, shape1, shape2;
+
+public:
+   TraceJumpIntegrator() { }
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &test_fe2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
 
 /** Abstract class to serve as a base for local interpolators to be used in
     the DiscreteLinearOperator class. */
@@ -474,7 +701,7 @@ public:
     Note: Since the dofs in the L2_FECollection are nodal values, the local
     discrete divergence matrix (with an RT-type domain space) will depend on
     the transformation. On the other hand, the local matrix returned by
-    VectorFEDivergenceInterpolator is independent of the transformation. */
+    VectorFEDivergenceIntegrator is independent of the transformation. */
 class DivergenceInterpolator : public DiscreteInterpolator
 {
 public:
@@ -484,5 +711,7 @@ public:
                                        DenseMatrix &elmat)
    { ran_fe.ProjectDiv(dom_fe, Trans, elmat); }
 };
+
+}
 
 #endif

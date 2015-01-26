@@ -12,6 +12,15 @@
 #ifndef MFEM_ELEMENT
 #define MFEM_ELEMENT
 
+#include "../config/config.hpp"
+#include "../general/array.hpp"
+#include "../general/table.hpp"
+#include "../linalg/densemat.hpp"
+#include "../fem/geom.hpp"
+
+namespace mfem
+{
+
 class Mesh;
 
 /// Abstract data type element
@@ -44,11 +53,18 @@ public:
 
    virtual int *GetVertices() = 0;
 
+   const int *GetVertices() const
+   { return const_cast<Element *>(this)->GetVertices(); }
+
    virtual int GetNVertices() const = 0;
 
    virtual int GetNEdges() const = 0;
 
    virtual const int *GetEdgeVertices(int) const = 0;
+
+   virtual int GetNFaces(int &nFaceVertices) const = 0;
+
+   virtual const int *GetFaceVertices(int fi) const = 0;
 
    /// Mark the longest edge by assuming/changing the order of the vertices.
    virtual void MarkEdge(DenseMatrix &pmat) {}
@@ -122,6 +138,12 @@ public:
    virtual const int *GetEdgeVertices(int ei) const
    { return(IAm()->GetEdgeVertices(ei)); }
 
+   virtual int GetNFaces(int &nFaceVertices) const
+   { return IAm()->GetNFaces(nFaceVertices); }
+
+   virtual const int *GetFaceVertices(int fi) const
+   { return IAm()->GetFaceVertices(fi); };
+
    virtual void MarkEdge(DenseMatrix &pmat) { IAm()->MarkEdge(pmat); }
 
    virtual void MarkEdge(const DSTable &v_to_v, const int *length)
@@ -175,5 +197,7 @@ public:
 // defined in tetrahedron.cpp
 extern MemAlloc <BisectedElement, 1024> BEMemory;
 #endif
+
+}
 
 #endif

@@ -12,6 +12,10 @@
 #ifndef MFEM_MEM_ALLOC
 #define MFEM_MEM_ALLOC
 
+#include "../config/config.hpp"
+
+namespace mfem
+{
 
 template <class Elem, int Num>
 class StackPart
@@ -147,5 +151,6 @@ void MemAlloc <Elem, Num>::Clear()
    UsedMem.Clear();
 }
 
+}
 
 #endif

@@ -12,6 +12,11 @@
 #ifndef MFEM_VERTEX
 #define MFEM_VERTEX
 
+#include "../config/config.hpp"
+
+namespace mfem
+{
+
 /// Data type for vertex
 class Vertex
 {
@@ -40,5 +45,7 @@ public:
 
    ~Vertex() { }
 };
+
+}
 
 #endif

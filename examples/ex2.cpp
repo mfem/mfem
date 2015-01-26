@@ -2,12 +2,12 @@
 //
 // Compile with: make ex2
 //
-// Sample runs:  ex2 ../data/beam-tri.mesh
-//               ex2 ../data/beam-quad.mesh
-//               ex2 ../data/beam-tet.mesh
-//               ex2 ../data/beam-hex.mesh
-//               ex2 ../data/beam-quad-nurbs.mesh
-//               ex2 ../data/beam-hex-nurbs.mesh
+// Sample runs:  ex2 -m ../data/beam-tri.mesh
+//               ex2 -m ../data/beam-quad.mesh
+//               ex2 -m ../data/beam-tet.mesh
+//               ex2 -m ../data/beam-hex.mesh
+//               ex2 -m ../data/beam-quad-nurbs.mesh
+//               ex2 -m ../data/beam-hex-nurbs.mesh
 //
 // Description:  This example code solves a simple linear elasticity problem
 //               describing a multi-material cantilever beam.
@@ -32,31 +32,50 @@
 //               meshes with curved elements, and the definition of piece-wise
 //               constant and vector coefficient objects.
 //
-//               We recommend viewing example 1 before viewing this example.
+//               We recommend viewing Example 1 before viewing this example.
 
-#include <fstream>
 #include "mfem.hpp"
+#include <fstream>
+#include <iostream>
 
-int main (int argc, char *argv[])
+using namespace std;
+using namespace mfem;
+
+int main(int argc, char *argv[])
 {
-   Mesh *mesh;
+   // 1. Parse command-line options.
+   const char *mesh_file = "../data/beam-tri.mesh";
+   int order = 1;
+   bool visualization = 1;
 
-   if (argc == 1)
+   OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
+   args.AddOption(&order, "-o", "--order",
+                  "Finite element order (polynomial degree).");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
+   args.Parse();
+   if (!args.Good())
    {
-      cout << "\nUsage: ex2 <mesh_file>\n" << endl;
+      args.PrintUsage(cout);
       return 1;
    }
+   args.PrintOptions(cout);
 
-   // 1. Read the mesh from the given mesh file. We can handle triangular,
+   // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral or hexahedral elements with the same code.
-   ifstream imesh(argv[1]);
+   Mesh *mesh;
+   ifstream imesh(mesh_file);
    if (!imesh)
    {
-      cerr << "\nCan not open mesh file: " << argv[1] << '\n' << endl;
+      cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
       return 2;
    }
    mesh = new Mesh(imesh, 1, 1);
    imesh.close();
+   int dim = mesh->Dimension();
 
    if (mesh->attributes.Max() < 2 || mesh->bdr_attributes.Max() < 2)
    {
@@ -66,18 +85,12 @@ int main (int argc, char *argv[])
       return 3;
    }
 
-   int dim = mesh->Dimension();
-
-   // 2. Select the order of the finite element discretization space. For NURBS
+   // 3. Select the order of the finite element discretization space. For NURBS
    //    meshes, we increase the order by degree elevation.
-   int p;
-   cout << "Enter finite element space order --> " << flush;
-   cin >> p;
+   if (mesh->NURBSext && order > mesh->NURBSext->GetOrder())
+      mesh->DegreeElevate(order - mesh->NURBSext->GetOrder());
 
-   if (mesh->NURBSext && p > mesh->NURBSext->GetOrder())
-      mesh->DegreeElevate(p - mesh->NURBSext->GetOrder());
-
-   // 3. Refine the mesh to increase the resolution. In this example we do
+   // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 5,000
    //    elements.
@@ -88,7 +101,7 @@ int main (int argc, char *argv[])
          mesh->UniformRefinement();
    }
 
-   // 4. Define a finite element space on the mesh. Here we use vector finite
+   // 5. Define a finite element space on the mesh. Here we use vector finite
    //    elements, i.e. dim copies of a scalar finite element space. The vector
    //    dimension is specified by the last argument of the FiniteElementSpace
    //    constructor. For NURBS meshes, we use the (degree elevated) NURBS space
@@ -102,13 +115,13 @@ int main (int argc, char *argv[])
    }
    else
    {
-      fec = new H1_FECollection(p, dim);
+      fec = new H1_FECollection(order, dim);
       fespace = new FiniteElementSpace(mesh, fec, dim);
    }
    cout << "Number of unknowns: " << fespace->GetVSize() << endl
         << "Assembling: " << flush;
 
-   // 5. Set up the linear form b(.) which corresponds to the right-hand side of
+   // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system. In this case, b_i equals the boundary integral
    //    of f*phi_i where f represents a "pull down" force on the Neumann part
    //    of the boundary and phi_i are the basis functions in the finite element
@@ -131,13 +144,13 @@ int main (int argc, char *argv[])
    cout << "r.h.s. ... " << flush;
    b->Assemble();
 
-   // 6. Define the solution vector x as a finite element grid function
+   // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    GridFunction x(fespace);
    x = 0.0;
 
-   // 7. Set up the bilinear form a(.,.) on the finite element space
+   // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the linear elasticity integrator with piece-wise
    //    constants coefficient lambda and mu. The boundary conditions are
    //    implemented by marking only boundary attribute 1 as essential. After
@@ -163,22 +176,30 @@ int main (int argc, char *argv[])
    cout << "done." << endl;
    const SparseMatrix &A = a->SpMat();
 
-   // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+#ifndef MFEM_USE_SUITESPARSE
+   // 9. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG.
    GSSmoother M(A);
    PCG(A, M, *b, x, 1, 500, 1e-8, 0.0);
+#else
+   // 9. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   UMFPackSolver umf_solver;
+   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   umf_solver.SetOperator(A);
+   umf_solver.Mult(*b, x);
+#endif
 
-   // 9. For non-NURBS meshes, make the mesh curved based on the finite element
-   //    space. This means that we define the mesh elements through a fespace
-   //    based transformation of the reference element. This allows us to save
-   //    the displaced mesh as a curved mesh when using high-order finite
-   //    element displacement field. We assume that the initial mesh (read from
-   //    the file) is not higher order curved mesh compared to the chosen FE
-   //    space.
+   // 10. For non-NURBS meshes, make the mesh curved based on the finite element
+   //     space. This means that we define the mesh elements through a fespace
+   //     based transformation of the reference element. This allows us to save
+   //     the displaced mesh as a curved mesh when using high-order finite
+   //     element displacement field. We assume that the initial mesh (read from
+   //     the file) is not higher order curved mesh compared to the chosen FE
+   //     space.
    if (!mesh->NURBSext)
       mesh->SetNodalFESpace(fespace);
 
-   // 10. Save the displaced mesh and the inverted solution (which gives the
+   // 11. Save the displaced mesh and the inverted solution (which gives the
    //     backward displacements to the original grid). This output can be
    //     viewed later using GLVis: "glvis -m displaced.mesh -g sol.gf".
    {
@@ -193,18 +214,18 @@ int main (int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 11. (Optional) Send the above data by socket to a GLVis server. Use the
-   //     "n" and "b" keys in GLVis to visualize the displacements.
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   osockstream sol_sock(visport, vishost);
-   sol_sock << "solution\n";
-   sol_sock.precision(8);
-   mesh->Print(sol_sock);
-   x.Save(sol_sock);
-   sol_sock.send();
+   // 12. Send the above data by socket to a GLVis server. Use the "n" and "b"
+   //     keys in GLVis to visualize the displacements.
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << *mesh << x << flush;
+   }
 
-   // 12. Free the used memory.
+   // 13. Free the used memory.
    delete a;
    delete b;
    if (fec)

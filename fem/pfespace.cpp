@@ -9,10 +9,15 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#include "../config/config.hpp"
+
 #ifdef MFEM_USE_MPI
 
 #include "fem.hpp"
 #include "../general/sort_pairs.hpp"
+
+namespace mfem
+{
 
 ParFiniteElementSpace::ParFiniteElementSpace(ParFiniteElementSpace &pf)
    : FiniteElementSpace(pf)
@@ -32,10 +37,15 @@ ParFiniteElementSpace::ParFiniteElementSpace(ParFiniteElementSpace &pf)
    Swap(ldof_sign, pf.ldof_sign);
    P = pf.P;
    pf.P = NULL;
+   num_face_nbr_dofs = pf.num_face_nbr_dofs;
+   pf.num_face_nbr_dofs = -1;
+   Swap<Table>(face_nbr_element_dof, pf.face_nbr_element_dof);
+   Swap<Table>(face_nbr_gdof, pf.face_nbr_gdof);
+   Swap<Table>(send_face_nbr_ldof, pf.send_face_nbr_ldof);
 }
 
 ParFiniteElementSpace::ParFiniteElementSpace(
-   ParMesh *pm, FiniteElementCollection *f, int dim, int order)
+   ParMesh *pm, const FiniteElementCollection *f, int dim, int order)
    : FiniteElementSpace(pm, f, dim, order)
 {
    mesh = pmesh = pm;
@@ -68,6 +78,8 @@ ParFiniteElementSpace::ParFiniteElementSpace(
    }
 
    GenerateGlobalOffsets();
+
+   num_face_nbr_dofs = -1;
 }
 
 void ParFiniteElementSpace::GetGroupComm(
@@ -193,15 +205,9 @@ void ParFiniteElementSpace::GetGroupComm(
    gc.Finalize();
 }
 
-void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
+void ParFiniteElementSpace::ApplyLDofSigns(Array<int> &dofs) const
 {
-   if (elem_dof)
-   {
-      elem_dof->GetRow(i, dofs);
-      return;
-   }
-   FiniteElementSpace::GetElementDofs(i, dofs);
-   for (i = 0; i < dofs.Size(); i++)
+   for (int i = 0; i < dofs.Size(); i++)
       if (dofs[i] < 0)
       {
          if (ldof_sign[-1-dofs[i]] < 0)
@@ -214,6 +220,17 @@ void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
       }
 }
 
+void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
+{
+   if (elem_dof)
+   {
+      elem_dof->GetRow(i, dofs);
+      return;
+   }
+   FiniteElementSpace::GetElementDofs(i, dofs);
+   ApplyLDofSigns(dofs);
+}
+
 void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 {
    if (bdrElem_dof)
@@ -222,17 +239,13 @@ void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
       return;
    }
    FiniteElementSpace::GetBdrElementDofs(i, dofs);
-   for (i = 0; i < dofs.Size(); i++)
-      if (dofs[i] < 0)
-      {
-         if (ldof_sign[-1-dofs[i]] < 0)
-            dofs[i] = -1-dofs[i];
-      }
-      else
-      {
-         if (ldof_sign[dofs[i]] < 0)
-            dofs[i] = -1-dofs[i];
-      }
+   ApplyLDofSigns(dofs);
+}
+
+void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
+{
+   FiniteElementSpace::GetFaceDofs(i, dofs);
+   ApplyLDofSigns(dofs);
 }
 
 void ParFiniteElementSpace::GenerateGlobalOffsets()
@@ -247,7 +260,7 @@ void ParFiniteElementSpace::GenerateGlobalOffsets()
       dof_offsets.SetSize(3);
       tdof_offsets.SetSize(3);
 
-      MPI_Scan(&ldof, &dof_offsets[0], 2, MPI_INT, MPI_SUM, MyComm);
+      MPI_Scan(ldof, &dof_offsets[0], 2, MPI_INT, MPI_SUM, MyComm);
 
       tdof_offsets[1] = dof_offsets[1];
       tdof_offsets[0] = tdof_offsets[1] - ldof[1];
@@ -262,7 +275,7 @@ void ParFiniteElementSpace::GenerateGlobalOffsets()
          ldof[1] = tdof_offsets[1];
       }
 
-      MPI_Bcast(&ldof, 2, MPI_INT, NRanks-1, MyComm);
+      MPI_Bcast(ldof, 2, MPI_INT, NRanks-1, MyComm);
       dof_offsets[2] = ldof[0];
       tdof_offsets[2] = ldof[1];
    }
@@ -404,18 +417,18 @@ GroupCommunicator *ParFiniteElementSpace::ScalarGroupComm()
    return gc;
 }
 
-void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker)
+void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
 {
    if (ldof_marker.Size() != GetVSize())
       mfem_error("ParFiniteElementSpace::Synchronize");
 
    // implement allreduce(|) as reduce(|) + broadcast
-   gcomm->Reduce(ldof_marker);
+   gcomm->Reduce<int>(ldof_marker, GroupCommunicator::BitOR);
    gcomm->Bcast(ldof_marker);
 }
 
-void ParFiniteElementSpace::GetEssentialVDofs(Array<int> &bdr_attr_is_ess,
-                                              Array<int> &ess_dofs)
+void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
+                                              Array<int> &ess_dofs) const
 {
    FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
 
@@ -470,6 +483,226 @@ int ParFiniteElementSpace::GetGlobalScalarTDofNumber(int sldof)
       return (ldof_ltdof[sldof*vdim] +
               tdof_offsets[GetGroupTopo().GetGroupMasterRank(
                     ldof_group[sldof*vdim])]) / vdim;
+}
+
+int ParFiniteElementSpace::GetMyDofOffset()
+{
+   if (HYPRE_AssumedPartitionCheck())
+      return dof_offsets[0];
+   else
+      return dof_offsets[MyRank];
+}
+
+void ParFiniteElementSpace::ExchangeFaceNbrData()
+{
+   if (num_face_nbr_dofs >= 0)
+      return;
+
+   pmesh->ExchangeFaceNbrData();
+
+   int num_face_nbrs = pmesh->GetNFaceNeighbors();
+
+   if (num_face_nbrs == 0)
+   {
+      num_face_nbr_dofs = 0;
+      return;
+   }
+
+   MPI_Request *requests = new MPI_Request[2*num_face_nbrs];
+   MPI_Request *send_requests = requests;
+   MPI_Request *recv_requests = requests + num_face_nbrs;
+   MPI_Status  *statuses = new MPI_Status[num_face_nbrs];
+
+   Array<int> ldofs;
+   Array<int> ldof_marker(GetVSize());
+   ldof_marker = -1;
+
+   Table send_nbr_elem_dof;
+
+   send_nbr_elem_dof.MakeI(pmesh->send_face_nbr_elements.Size_of_connections());
+   send_face_nbr_ldof.MakeI(num_face_nbrs);
+   face_nbr_gdof.MakeI(num_face_nbrs);
+   int *send_el_off = pmesh->send_face_nbr_elements.GetI();
+   int *recv_el_off = pmesh->face_nbr_elements_offset;
+   for (int fn = 0; fn < num_face_nbrs; fn++)
+   {
+      int *my_elems = pmesh->send_face_nbr_elements.GetRow(fn);
+      int  num_my_elems = pmesh->send_face_nbr_elements.RowSize(fn);
+
+      for (int i = 0; i < num_my_elems; i++)
+      {
+         GetElementVDofs(my_elems[i], ldofs);
+         for (int j = 0; j < ldofs.Size(); j++)
+            if (ldof_marker[ldofs[j]] != fn)
+            {
+               ldof_marker[ldofs[j]] = fn;
+               send_face_nbr_ldof.AddAColumnInRow(fn);
+            }
+         send_nbr_elem_dof.AddColumnsInRow(send_el_off[fn] + i, ldofs.Size());
+      }
+
+      int nbr_rank = pmesh->GetFaceNbrRank(fn);
+      int tag = 0;
+      MPI_Isend(&send_face_nbr_ldof.GetI()[fn], 1, MPI_INT, nbr_rank, tag,
+                MyComm, &send_requests[fn]);
+
+      MPI_Irecv(&face_nbr_gdof.GetI()[fn], 1, MPI_INT, nbr_rank, tag,
+                MyComm, &recv_requests[fn]);
+   }
+
+   MPI_Waitall(num_face_nbrs, recv_requests, statuses);
+   face_nbr_gdof.MakeJ();
+
+   num_face_nbr_dofs = face_nbr_gdof.Size_of_connections();
+
+   MPI_Waitall(num_face_nbrs, send_requests, statuses);
+   send_face_nbr_ldof.MakeJ();
+
+   // send/receive the I arrays of send_nbr_elem_dof/face_nbr_element_dof,
+   // respectively (they contain the number of dofs for each face-neighbor
+   // element)
+   face_nbr_element_dof.MakeI(recv_el_off[num_face_nbrs]);
+
+   int *send_I = send_nbr_elem_dof.GetI();
+   int *recv_I = face_nbr_element_dof.GetI();
+   for (int fn = 0; fn < num_face_nbrs; fn++)
+   {
+      int nbr_rank = pmesh->GetFaceNbrRank(fn);
+      int tag = 0;
+      MPI_Isend(send_I + send_el_off[fn], send_el_off[fn+1] - send_el_off[fn],
+                MPI_INT, nbr_rank, tag, MyComm, &send_requests[fn]);
+
+      MPI_Irecv(recv_I + recv_el_off[fn], recv_el_off[fn+1] - recv_el_off[fn],
+                MPI_INT, nbr_rank, tag, MyComm, &recv_requests[fn]);
+   }
+
+   MPI_Waitall(num_face_nbrs, send_requests, statuses);
+   send_nbr_elem_dof.MakeJ();
+
+   ldof_marker = -1;
+
+   for (int fn = 0; fn < num_face_nbrs; fn++)
+   {
+      int *my_elems = pmesh->send_face_nbr_elements.GetRow(fn);
+      int  num_my_elems = pmesh->send_face_nbr_elements.RowSize(fn);
+
+      for (int i = 0; i < num_my_elems; i++)
+      {
+         GetElementVDofs(my_elems[i], ldofs);
+         for (int j = 0; j < ldofs.Size(); j++)
+            if (ldof_marker[ldofs[j]] != fn)
+            {
+               ldof_marker[ldofs[j]] = fn;
+               send_face_nbr_ldof.AddConnection(fn, ldofs[j]);
+            }
+         send_nbr_elem_dof.AddConnections(
+            send_el_off[fn] + i, ldofs, ldofs.Size());
+      }
+   }
+   send_face_nbr_ldof.ShiftUpI();
+   send_nbr_elem_dof.ShiftUpI();
+
+   // convert the ldof indices in send_nbr_elem_dof
+   int *send_J = send_nbr_elem_dof.GetJ();
+   for (int fn = 0, j = 0; fn < num_face_nbrs; fn++)
+   {
+      int  num_ldofs = send_face_nbr_ldof.RowSize(fn);
+      int *ldofs     = send_face_nbr_ldof.GetRow(fn);
+      int  j_end     = send_I[send_el_off[fn+1]];
+
+      for (int i = 0; i < num_ldofs; i++)
+         ldof_marker[ldofs[i]] = i;
+
+      for ( ; j < j_end; j++)
+         send_J[j] = ldof_marker[send_J[j]];
+   }
+
+   MPI_Waitall(num_face_nbrs, recv_requests, statuses);
+   face_nbr_element_dof.MakeJ();
+
+   // send/receive the J arrays of send_nbr_elem_dof/face_nbr_element_dof,
+   // respectively (they contain the element dofs in enumeration local for
+   // the face-neighbor pair)
+   int *recv_J = face_nbr_element_dof.GetJ();
+   for (int fn = 0; fn < num_face_nbrs; fn++)
+   {
+      int nbr_rank = pmesh->GetFaceNbrRank(fn);
+      int tag = 0;
+
+      MPI_Isend(send_J + send_I[send_el_off[fn]],
+                send_I[send_el_off[fn+1]] - send_I[send_el_off[fn]],
+                MPI_INT, nbr_rank, tag, MyComm, &send_requests[fn]);
+
+      MPI_Irecv(recv_J + recv_I[recv_el_off[fn]],
+                recv_I[recv_el_off[fn+1]] - recv_I[recv_el_off[fn]],
+                MPI_INT, nbr_rank, tag, MyComm, &recv_requests[fn]);
+   }
+
+   MPI_Waitall(num_face_nbrs, recv_requests, statuses);
+
+   // shift the J array of face_nbr_element_dof
+   for (int fn = 0, j = 0; fn < num_face_nbrs; fn++)
+   {
+      int shift = face_nbr_gdof.GetI()[fn];
+      int j_end = recv_I[recv_el_off[fn+1]];
+
+      for ( ; j < j_end; j++)
+         recv_J[j] += shift;
+   }
+
+   MPI_Waitall(num_face_nbrs, send_requests, statuses);
+
+   // send/receive the J arrays of send_face_nbr_ldof/face_nbr_gdof,
+   // respectively
+   send_J = send_face_nbr_ldof.GetJ();
+   // switch to global dof numbers
+   int my_dof_offset = GetMyDofOffset();
+   int tot_send_dofs = send_face_nbr_ldof.Size_of_connections();
+   for (int i = 0; i < tot_send_dofs; i++)
+      send_J[i] += my_dof_offset;
+   for (int fn = 0; fn < num_face_nbrs; fn++)
+   {
+      int nbr_rank = pmesh->GetFaceNbrRank(fn);
+      int tag = 0;
+
+      MPI_Isend(send_face_nbr_ldof.GetRow(fn),
+                send_face_nbr_ldof.RowSize(fn),
+                MPI_INT, nbr_rank, tag, MyComm, &send_requests[fn]);
+
+      MPI_Irecv(face_nbr_gdof.GetRow(fn),
+                face_nbr_gdof.RowSize(fn),
+                MPI_INT, nbr_rank, tag, MyComm, &recv_requests[fn]);
+   }
+
+   MPI_Waitall(num_face_nbrs, send_requests, statuses);
+
+   // switch back to local dof numbers
+   for (int i = 0; i < tot_send_dofs; i++)
+      send_J[i] -= my_dof_offset;
+
+   MPI_Waitall(num_face_nbrs, recv_requests, statuses);
+
+   delete [] statuses;
+   delete [] requests;
+}
+
+void ParFiniteElementSpace::GetFaceNbrElementVDofs(
+   int i, Array<int> &vdofs) const
+{
+   face_nbr_element_dof.GetRow(i, vdofs);
+}
+
+const FiniteElement *ParFiniteElementSpace::GetFaceNbrFE(int i) const
+{
+   const FiniteElement *FE =
+      fec->FiniteElementForGeometry(
+         pmesh->face_nbr_elements[i]->GetGeometryType());
+
+   if (NURBSext)
+      mfem_error("ParFiniteElementSpace::GetFaceNbrFE"
+                 " does not support NURBS!");
+
+   return FE;
 }
 
 void ParFiniteElementSpace::Lose_Dof_TrueDof_Matrix()
@@ -579,6 +812,10 @@ void ParFiniteElementSpace::Update()
    P = NULL;
    delete gcomm;
    gcomm = NULL;
+   num_face_nbr_dofs = -1;
+   face_nbr_element_dof.Clear();
+   face_nbr_gdof.Clear();
+   send_face_nbr_ldof.Clear();
    ConstructTrueDofs();
    GenerateGlobalOffsets();
 }
@@ -590,6 +827,8 @@ FiniteElementSpace *ParFiniteElementSpace::SaveUpdate()
    ConstructTrueDofs();
    GenerateGlobalOffsets();
    return cpfes;
+}
+
 }
 
 #endif

@@ -8,6 +8,146 @@
                          http://mfem.googlecode.com
 
 
+Version 3.0, released on Jan 26, 2015
+=====================================
+
+Improved documentation and build system
+---------------------------------------
+- Added interactive example documentation in examples/README.html. This should
+  be the starting point for new users interested in MFEM's features.
+
+- New Doxygen-based code documentation. Due to its size, users are expected to
+  build this documentation themselves by typing make in the doc/ directory.
+  (Alternatively, the pre-build documentation can be browsed online).
+
+- New build system, based on GNU make which consists of configuration and build
+  steps: "make config; make". The MFEM build options are exported, and can be
+  included in external makefiles. Library installation is also supported. See
+  "make help" and the INSTALL file for details.
+
+- To build the examples use 'make' or 'make -j <np>' in the examples/ directory.
+  Based on the current MFEM configuration this will build the serial or the
+  parallel examples using the same config options as the library.
+
+New and updated examples
+------------------------
+- Six new serial/parallel example codes that demonstrate:
+  * mixed pressure-velocity FEM for Darcy (Example 5)
+  * non-conforming adaptive mesh refinement for Laplace (Example 6)
+  * Laplace problem on a surface (Example 7)
+  * Discontinuous Petrov-Galerkin (DPG) for Laplace (Example 8)
+  * Discontinuous Galerkin (DG) time-dependent advection (Example 9)
+  * time-dependent implicit nonlinear elasticity (Example 10)
+
+- Added command line options to all examples and modified several of the serial
+  ones to optionally use the serial direct solver UMFPACK.
+
+- Simplified the elimination of Dirichlet boundary conditions in parallel.
+
+- Grouped and documented the example code features in examples/README.html
+
+Serial non-conforming adaptive mesh refinement
+----------------------------------------------
+- Added support for general, isotropic and anisotropic, local non-conforming
+  mesh refinement (using hanging nodes) in 2D and 3D, on quadrilateral,
+  triangular and hexahedral meshes. High-order curved and surface meshes are
+  also supported.
+
+- The current implementation supports serial meshes (see example 6). Extension
+  to parallel meshes is in active development.
+
+- The mesh is refined with Mesh::GeneralRefinement. The non-conforming mesh is
+  represented as a mesh that is "cut" along non-conforming edges and faces in
+  the internal NCMesh class. The only thing the user has to do to obtain a
+  continuous solution is to call BilinearForm::ConformingAssemble and
+  GridFunction::ConformingProlongate before and after solving the linear system.
+  The finite element space and grid functions are then updated with
+  FiniteElementSpace::UpdateAndInterpolate().
+
+Time-dependent problems, non-linear operators and ODE integrators
+-----------------------------------------------------------------
+- Added new abstract base class TimeDependentOperator and a set of explicit
+  Runge-Kutta time integration classes in linalg/ode.?pp.
+
+- Added classes for diagonally implicit Runge-Kutta (DIRK) time integrators
+  based on the ImplicitSolve() method of TimeDependentOperator.
+
+- Extended all coefficient classes to be optionally time-dependent.
+
+- Added classes for general nonlinear finite element operators (deriving from
+  NonlinearForm/ParNonlinearForm). Such operators have assemble-based action and
+  also support assembly of the gradient operator to enable inversion with Newton
+  iteration.
+
+Discontinuous Galerkin and Discontinuous Petrov-Galerkin methods
+----------------------------------------------------------------
+- Added support Discontinuous Galerkin (DG) face integrators in parallel by
+  extending ParMesh with information for face-neighboring processors. Added DG
+  support in ParFiniteElementSpace, ParBilinearForm and ParGridFunction.
+
+- Introduced a new class of integrators for forms defined on the faces of the
+  mesh (including interior and boundary faces), mainly intended for hybrid
+  methods like HDG and DPG that employ facet (numerical trace) spaces.
+
+Block systems and rectangular operators
+---------------------------------------
+- Added classes BlockOperator, BlockVector and BlockMatrix for handling block
+  systems with different components (e.g., pressure and velocity).
+
+- New abstract class AbstractSparseMatrix, between Matrix and SparseMatrix
+
+- Modified class Operator to have two separate sizes: "height" and "width" for
+  the output and input sizes, respectively. The Size method was removed.
+
+- For backward compatibility, the method Size is still present in the classes
+  DenseMatrix (returns width as before), SparseMatrix (returns height as
+  before), DenseMatrixInverse (square matrix) and BilinearForm (square matrix).
+
+Linear and non-linear solvers
+-----------------------------
+- New abstract class Solver, with sub-classes for sparse smoothers, dense matrix
+  inverse, iterative solvers (Krylov methods and Newton) and the hypre solvers.
+  All Krylov methods were consolidated in linalg/solver.cpp and extended to work
+  in parallel.
+
+- Added several new classes of solvers and smoothers:
+  * serial sparse direct solvers from the SuiteSparse library (UMFPACK)
+  * HypreSmoother, giving access to the parallel ParCSR smoothers in hypre
+  * polynomial smoothers: Chebyshev, Taubin and FIR
+  * stationary linear iteration (SLI)
+  * quadratic single linearly-constrained optimization problems with bounds
+
+Miscellaneous
+-------------
+- Wrapped all classes/functions/objects in a namespace called "mfem".
+
+- Automated the creation of quadrature rules to enable on-demand generation of
+  arbitrary order rules for all geometries 1D/2D/3D geometries.
+
+- Added support for saving collections of grid functions in format suitable for
+  visualization with VisIt (visit.llnl.gov). See examples 5 and 9.
+
+- Added support for 1D, surface and topologically periodic meshes, as well as a
+  simple inline mesh format. See the data/ directory for examples.
+
+- Added support for serial mesh optimization using the Mesquite mesh quality
+  improvement toolkit (see mesh/mesquite.?pp and INSTALL for details).
+
+- Made sure that MFEM can work in parallel with empty processors and with any
+  MPI communicator.
+
+- Improved high-order Bernstein basis support.
+
+- Support for high-resolution timers (e.g. POSIX clocks).
+
+- Improved error messages with several macros, such as MFEM_ABORT, MFEM_VERIFY,
+  MFEM_ASSERT, MFEM_WARNING, etc.
+
+- Improved portability for Windows (Visual Studio) and Mac OS X.
+
+- Various simplifications, extensions, and bugfixes in the code.
+
+
 Version 2.0, released on Nov 18, 2011
 =====================================
 

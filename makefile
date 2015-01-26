@@ -9,116 +9,326 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-# Serial compiler
-CC         = g++
-CCOPTS     = -O3
-DEBUG_OPTS = -g -DMFEM_DEBUG
+define MFEM_HELP_MSG
 
-# Parallel compiler
-MPICC      = mpicxx
-MPIOPTS    = $(CCOPTS) -I$(HYPRE_DIR)/include
-MPIDEBUG   = $(DEBUG_OPTS) -I$(HYPRE_DIR)/include
+MFEM makefile targets:
 
-# The HYPRE library (needed to build the parallel version)
-HYPRE_DIR  = ../../hypre-2.8.0b/src/hypre
+   make config
+   make
+   make status/info
+   make serial
+   make parallel
+   make debug
+   make pdebug
+   make install
+   make clean
+   make distclean
 
-# Enable experimental OpenMP support
-USE_OPENMP = NO
+Examples:
 
-# Which version of the METIS library should be used, 4 (default) or 5?
-USE_METIS_5 = NO
+make config MFEM_USE_MPI=YES MFEM_DEBUG=YES MPICXX=mpiCC
+   Configure the make system for subsequent runs (analogous to a configure script).
+   The available options are documented in the INSTALL file.
+make -j 4
+   Build the code (in parallel) using the current configuration options.
+make status
+   Display information about the current configuration.
+make serial
+   A shortcut to configure and build the serial optimized version of the library.
+make parallel
+   A shortcut to configure and build the parallel optimized version of the library.
+make debug
+   A shortcut to configure and build the serial debug version of the library.
+make pdebug
+   A shortcut to configure and build the parallel debug version of the library.
+make install PREFIX=<dir>
+   Install the library and headers in <dir>/lib and <dir>/include.
+make clean
+   Clean the library and object files, but keep configuration.
+make distclean
+   Clean the library, object files and configuration.
 
-# Internal mfem options
-USE_MEMALLOC     = YES
-USE_LAPACK       = NO
+endef
 
-USE_MEMALLOC_NO  =
-USE_MEMALLOC_YES = -DMFEM_USE_MEMALLOC
-USE_MEMALLOC_DEF = $(USE_MEMALLOC_$(USE_MEMALLOC))
+# Path to the mfem directory relative to the compile directory:
+MFEM_DIR = ..
+# ... or simply an absolute path
+# MFEM_DIR = $(realpath .)
 
-USE_LAPACK_NO  =
-USE_LAPACK_YES = -DMFEM_USE_LAPACK
-USE_LAPACK_DEF = $(USE_LAPACK_$(USE_LAPACK))
+CONFIG_MK = config/config.mk
 
-USE_OPENMP_NO  =
-USE_OPENMP_YES = -fopenmp -DMFEM_USE_OPENMP
-USE_OPENMP_DEF = $(USE_OPENMP_$(USE_OPENMP))
+# Optional user config file, see config/user.mk.in
+USER_CONFIG = config/user.mk
+-include $(USER_CONFIG)
 
-USE_METIS_5_NO  =
-USE_METIS_5_YES = -DMFEM_USE_METIS_5
-USE_METIS_5_DEF = $(USE_METIS_5_$(USE_METIS_5))
+# Helper print-info function
+mfem-info = $(if $(filter YES,$(VERBOSE)),$(info *** [info]$(1)),)
 
-DEFS = $(USE_LAPACK_DEF) $(USE_MEMALLOC_DEF) $(USE_OPENMP_DEF) \
-       $(USE_METIS_5_DEF)
+$(call mfem-info, MAKECMDGOALS = $(MAKECMDGOALS))
 
-CCC = $(CC) $(CCOPTS) $(DEFS)
+# Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
+SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug
+HAVE_SKIP_INCLUDE_TARGET = $(filter $(SKIP_INCLUDE_TARGETS),$(MAKECMDGOALS))
+ifeq (,$(HAVE_SKIP_INCLUDE_TARGET))
+   $(call mfem-info, Including $(CONFIG_MK))
+   -include $(CONFIG_MK)
+else
+   # Do not allow skip-include targets to be combined with other targets
+   ifneq (1,$(words $(MAKECMDGOALS)))
+      $(error Target '$(firstword $(HAVE_SKIP_INCLUDE_TARGET))' can not be\
+      combined with other targets)
+   endif
+   $(call mfem-info, NOT including $(CONFIG_MK))
+endif
 
-# Generate with 'echo general/*.cpp linalg/*.cpp mesh/*.cpp fem/*.cpp'
-SOURCE_FILES = general/array.cpp general/communication.cpp general/error.cpp   \
-general/isockstream.cpp general/osockstream.cpp general/sets.cpp               \
-general/socketstream.cpp general/sort_pairs.cpp general/stable3d.cpp           \
-general/table.cpp general/tic_toc.cpp linalg/bicgstab.cpp linalg/cgsolver.cpp  \
-linalg/densemat.cpp linalg/gmres.cpp linalg/hypre.cpp linalg/matrix.cpp        \
-linalg/operator.cpp linalg/pcgsolver.cpp linalg/sparsemat.cpp                  \
-linalg/sparsesmoothers.cpp linalg/vector.cpp mesh/element.cpp                  \
-mesh/hexahedron.cpp mesh/mesh.cpp mesh/nurbs.cpp mesh/pmesh.cpp mesh/point.cpp \
-mesh/quadrilateral.cpp mesh/segment.cpp mesh/tetrahedron.cpp mesh/triangle.cpp \
-mesh/vertex.cpp fem/bilinearform.cpp fem/bilininteg.cpp fem/coefficient.cpp    \
-fem/eltrans.cpp fem/fe_coll.cpp fem/fe.cpp fem/fespace.cpp fem/geom.cpp        \
-fem/gridfunc.cpp fem/intrules.cpp fem/linearform.cpp fem/lininteg.cpp          \
-fem/pbilinearform.cpp fem/pfespace.cpp fem/pgridfunc.cpp fem/plinearform.cpp
+# Default installation location
+PREFIX ?= ./mfem
+INSTALL ?= /usr/bin/install
+
+# Default serial and parallel compilers
+CXX ?= g++
+MPICXX ?= mpicxx
+OPTIM_FLAGS ?= -O3
+DEBUG_FLAGS ?= -g -Wall
+# Compile flags used by MFEM: CPPFLAGS, CXXFLAGS, plus library flags
+INCFLAGS = -I@MFEM_INC_DIR@
+# Link flags used by MFEM: library link flags plus LDFLAGS (added last)
+ALL_LIBS = -L@MFEM_LIB_DIR@ -lmfem
+
+# The default value of CXXFLAGS is based on the value of MFEM_DEBUG
+MFEM_DEBUG ?= NO
+ifeq ($(MFEM_DEBUG),YES)
+   CXXFLAGS ?= $(DEBUG_FLAGS)
+endif
+CXXFLAGS ?= $(OPTIM_FLAGS)
+
+# HYPRE library configuration (needed to build the parallel version)
+HYPRE_DIR ?= @MFEM_DIR@/../hypre-2.10.0b/src/hypre
+HYPRE_OPT ?= -I$(HYPRE_DIR)/include
+HYPRE_LIB ?= -L$(HYPRE_DIR)/lib -lHYPRE
+
+# METIS library configuration
+METIS_DIR ?= @MFEM_DIR@/../metis-4.0
+METIS_OPT ?=
+METIS_LIB ?= -L$(METIS_DIR) -lmetis
+
+MFEM_USE_METIS_5 ?= NO
+
+MFEM_USE_MPI ?= NO
+ifneq ($(MFEM_USE_MPI),YES)
+   MFEM_CXX ?= $(CXX)
+else
+   MFEM_CXX ?= $(MPICXX)
+   INCFLAGS += $(METIS_OPT) $(HYPRE_OPT)
+   ALL_LIBS += $(METIS_LIB) $(HYPRE_LIB)
+endif
+
+DEP_CXX ?= $(MFEM_CXX)
+
+MFEM_USE_LAPACK ?= NO
+# LAPACK library configuration
+LAPACK_OPT ?=
+LAPACK_LIB ?= -llapack
+ifeq ($(MFEM_USE_LAPACK),YES)
+   INCFLAGS += $(LAPACK_OPT)
+   ALL_LIBS += $(LAPACK_LIB)
+endif
+
+MFEM_USE_OPENMP ?= NO
+# OpenMP configuration
+OPENMP_OPT ?= -fopenmp
+OPENMP_LIB ?=
+ifeq ($(MFEM_USE_OPENMP),YES)
+   MFEM_THREAD_SAFE ?= YES
+   ifneq ($(MFEM_THREAD_SAFE),YES)
+      $(error Incompatible config: MFEM_USE_OPENMP requires MFEM_THREAD_SAFE)
+   endif
+   INCFLAGS += $(OPENMP_OPT)
+   ALL_LIBS += $(OPENMP_LIB)
+else
+   MFEM_THREAD_SAFE ?= NO
+endif
+
+MFEM_USE_MESQUITE ?= NO
+# MESQUITE library configuration
+MESQUITE_DIR ?= @MFEM_DIR@/../mesquite-2.99
+MESQUITE_OPT ?= -I$(MESQUITE_DIR)/include
+MESQUITE_LIB ?= -L$(MESQUITE_DIR)/lib -lmesquite
+ifeq ($(MFEM_USE_MESQUITE),YES)
+   INCFLAGS += $(MESQUITE_OPT)
+   ALL_LIBS += $(MESQUITE_LIB)
+endif
+
+MFEM_USE_SUITESPARSE ?= NO
+# SuiteSparse library configuration
+SUITESPARSE_DIR ?= @MFEM_DIR@/../SuiteSparse
+SUITESPARSE_OPT ?= -I$(SUITESPARSE_DIR)/include
+SUITESPARSE_LIB ?= -L$(SUITESPARSE_DIR)/lib -lumfpack -lcholmod -lcolamd -lamd\
+ -lcamd -lccolamd -lsuitesparseconfig -lrt $(METIS_LIB) $(LAPACK_LIB)
+ifeq ($(MFEM_USE_SUITESPARSE),YES)
+   INCFLAGS += $(SUITESPARSE_OPT)
+   ALL_LIBS += $(SUITESPARSE_LIB)
+endif
+
+MFEM_USE_MEMALLOC ?= YES
+
+# Use POSIX clocks for timing unless kernel-name is 'Darwin' (mac)
+ifeq ($(shell uname -s),Darwin)
+   MFEM_TIMER_TYPE ?= 0
+else
+   MFEM_TIMER_TYPE ?= 2
+endif
+POSIX_CLOCKS_LIB ?= -lrt
+ifeq ($(MFEM_TIMER_TYPE),2)
+   ALL_LIBS += $(POSIX_CLOCKS_LIB)
+endif
+
+# List of all defines that may be enabled in config.hpp and config.mk:
+MFEM_DEFINES = MFEM_USE_MPI MFEM_USE_METIS_5 MFEM_DEBUG MFEM_TIMER_TYPE\
+ MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP MFEM_USE_MESQUITE\
+ MFEM_USE_SUITESPARSE MFEM_USE_MEMALLOC
+
+# List of makefile variables that will be written to config.mk:
+MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
+ MFEM_INCFLAGS MFEM_FLAGS MFEM_LIB_DIR MFEM_LIBS MFEM_LIB_FILE MFEM_BUILD_TAG\
+ MFEM_PREFIX
+
+# Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
+MFEM_CPPFLAGS  ?= $(CPPFLAGS)
+MFEM_CXXFLAGS  ?= $(CXXFLAGS)
+MFEM_INCFLAGS  ?= $(INCFLAGS)
+MFEM_FLAGS     ?= @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
+MFEM_LIBS      ?= $(ALL_LIBS) $(LDFLAGS)
+MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.a
+MFEM_BUILD_TAG ?= $(shell uname -snm)
+MFEM_PREFIX    ?= $(PREFIX)
+MFEM_INC_DIR   ?= @MFEM_DIR@
+MFEM_LIB_DIR   ?= @MFEM_DIR@
+
+# If we have 'config' target, export variables used by config/makefile
+ifneq (,$(filter config,$(MAKECMDGOALS)))
+   export $(MFEM_DEFINES) MFEM_DEFINES $(MFEM_CONFIG_VARS) MFEM_CONFIG_VARS
+   export VERBOSE
+endif
+
+# If we have 'install' target, export variables used by config/makefile
+ifneq (,$(filter install,$(MAKECMDGOALS)))
+   ifneq (install,$(MAKECMDGOALS))
+      $(error Target 'install' can not be combined with other targets)
+   endif
+   # Allow changing the PREFIX during install with: make install PREFIX=<dir>
+   PREFIX := $(MFEM_PREFIX)
+   PREFIX_INC := $(PREFIX)/include
+   PREFIX_LIB := $(PREFIX)/lib
+   MFEM_PREFIX := $(abspath $(PREFIX))
+   MFEM_DIR := $(abspath .)
+   MFEM_INC_DIR = $(abspath $(PREFIX_INC))
+   MFEM_LIB_DIR = $(abspath $(PREFIX_LIB))
+   export $(MFEM_DEFINES) MFEM_DEFINES $(MFEM_CONFIG_VARS) MFEM_CONFIG_VARS
+   export VERBOSE
+endif
+
+# Source dirs in logical order
+DIRS = general linalg mesh fem
+SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(dir)/*.cpp))
 OBJECT_FILES = $(SOURCE_FILES:.cpp=.o)
-# Generated with 'echo general/*.hpp linalg/*.hpp mesh/*.hpp fem/*.hpp'
-HEADER_FILES = general/array.hpp general/communication.hpp general/error.hpp   \
-general/isockstream.hpp general/mem_alloc.hpp general/osockstream.hpp          \
-general/sets.hpp general/socketstream.hpp general/sort_pairs.hpp               \
-general/stable3d.hpp general/table.hpp general/tic_toc.hpp linalg/densemat.hpp \
-linalg/hypre.hpp linalg/linalg.hpp linalg/matrix.hpp linalg/operator.hpp       \
-linalg/solvers.hpp linalg/sparsemat.hpp linalg/sparsesmoothers.hpp             \
-linalg/vector.hpp mesh/element.hpp mesh/hexahedron.hpp mesh/mesh_headers.hpp   \
-mesh/mesh.hpp mesh/nurbs.hpp mesh/pmesh.hpp mesh/point.hpp                     \
-mesh/quadrilateral.hpp mesh/segment.hpp mesh/tetrahedron.hpp mesh/triangle.hpp \
-mesh/vertex.hpp fem/bilinearform.hpp fem/bilininteg.hpp fem/coefficient.hpp    \
-fem/eltrans.hpp fem/fe_coll.hpp fem/fe.hpp fem/fem.hpp fem/fespace.hpp         \
-fem/geom.hpp fem/gridfunc.hpp fem/intrules.hpp fem/linearform.hpp              \
-fem/lininteg.hpp fem/pbilinearform.hpp fem/pfespace.hpp fem/pgridfunc.hpp      \
-fem/plinearform.hpp
+
+.PHONY: all clean distclean install config status info deps serial parallel\
+ debug pdebug
 
 .SUFFIXES: .cpp .o
 .cpp.o:
-	cd $(<D); $(CCC) -c $(<F)
+	cd $(<D); $(MFEM_CXX) $(MFEM_FLAGS) -c $(<F)
 
-serial:
-	$(MAKE) "CCC=$(CC) $(DEFS) $(CCOPTS)" lib
 
-parallel:
-	$(MAKE) "CCC=$(MPICC) $(DEFS) -DMFEM_USE_MPI $(MPIOPTS)" lib
+all: libmfem.a
 
-lib: libmfem.a mfem_defs.hpp
+-include deps.mk
 
-debug:
-	$(MAKE) "CCOPTS=$(DEBUG_OPTS)"
-
-pdebug:
-	$(MAKE) "CCC=$(MPICC) $(DEFS) -DMFEM_USE_MPI $(MPIDEBUG)" lib
-
-opt: serial
-
-$(OBJECT_FILES): $(HEADER_FILES)
+$(OBJECT_FILES): $(CONFIG_MK)
 
 libmfem.a: $(OBJECT_FILES)
 	ar cruv libmfem.a $(OBJECT_FILES)
 	ranlib libmfem.a
 
-mfem_defs.hpp:
-	@echo "Generating 'mfem_defs.hpp' ..."
-	@echo "// Auto-generated file." > mfem_defs.hpp
-	for i in $(CCC); do \
-		case x$${i} in\
-		   x-D*) echo -n "#define " >> mfem_defs.hpp;\
-		         echo $${i} | sed -e 's/-D//' >> mfem_defs.hpp;;\
-		esac; done
+serial:
+	$(MAKE) config MFEM_USE_MPI=NO MFEM_DEBUG=NO && $(MAKE)
+
+parallel:
+	$(MAKE) config MFEM_USE_MPI=YES MFEM_DEBUG=NO && $(MAKE)
+
+debug:
+	$(MAKE) config MFEM_USE_MPI=NO MFEM_DEBUG=YES && $(MAKE)
+
+pdebug:
+	$(MAKE) config MFEM_USE_MPI=YES MFEM_DEBUG=YES && $(MAKE)
+
+deps:
+	rm -f deps.mk
+	for i in $(SOURCE_FILES:.cpp=); do \
+	   $(DEP_CXX) $(MFEM_FLAGS) -MM -MT $${i}.o $${i}.cpp >> deps.mk; done
 
 clean:
-	rm -f */*.o */*~ *~ libmfem.a mfem_defs.hpp deps.mk
-	cd examples; $(MAKE) clean
+	rm -f */*.o */*~ *~ libmfem.a deps.mk
+	$(MAKE) -C examples clean
+
+distclean: clean
+	$(MAKE) -C config clean
+	$(MAKE) -C doc clean
+
+install: libmfem.a
+# install static library
+	mkdir -p $(PREFIX_LIB)
+	$(INSTALL) -m 640 libmfem.a $(PREFIX_LIB)
+# install top level includes
+	mkdir -p $(PREFIX_INC)
+	$(INSTALL) -m 640 mfem.hpp $(PREFIX_INC)
+# install config include
+	mkdir -p $(PREFIX_INC)/config
+	$(INSTALL) -m 640 config/config.hpp $(PREFIX_INC)/config
+# install remaining includes in each subdirectory
+	for dir in $(DIRS); do \
+	   mkdir -p $(PREFIX_INC)/$$dir && \
+	   $(INSTALL) -m 640 $$dir/*.hpp $(PREFIX_INC)/$$dir; done
+# install config.mk at root of install tree
+	$(MAKE) -C config config-mk CONFIG_MK=config-install.mk
+	$(INSTALL) -m 640 config/config-install.mk $(PREFIX)/config.mk
+	rm -f config/config-install.mk
+
+$(CONFIG_MK):
+	$(info )
+	$(info MFEM is not configured.)
+	$(info Run "make config" first, or see "make help".)
+	$(info )
+	$(error )
+
+config:
+	$(MAKE) -C config all
+
+help:
+	$(info $(value MFEM_HELP_MSG))
+	@true
+
+status info:
+	$(info MFEM_USE_MPI         = $(MFEM_USE_MPI))
+	$(info MFEM_USE_METIS_5     = $(MFEM_USE_METIS_5))
+	$(info MFEM_DEBUG           = $(MFEM_DEBUG))
+	$(info MFEM_USE_LAPACK      = $(MFEM_USE_LAPACK))
+	$(info MFEM_THREAD_SAFE     = $(MFEM_THREAD_SAFE))
+	$(info MFEM_USE_OPENMP      = $(MFEM_USE_OPENMP))
+	$(info MFEM_USE_MESQUITE    = $(MFEM_USE_MESQUITE))
+	$(info MFEM_USE_SUITESPARSE = $(MFEM_USE_SUITESPARSE))
+	$(info MFEM_USE_MEMALLOC    = $(MFEM_USE_MEMALLOC))
+	$(info MFEM_TIMER_TYPE      = $(MFEM_TIMER_TYPE))
+	$(info MFEM_CXX             = $(value MFEM_CXX))
+	$(info MFEM_CPPFLAGS        = $(value MFEM_CPPFLAGS))
+	$(info MFEM_CXXFLAGS        = $(value MFEM_CXXFLAGS))
+	$(info MFEM_INCFLAGS        = $(value MFEM_INCFLAGS))
+	$(info MFEM_FLAGS           = $(value MFEM_FLAGS))
+	$(info MFEM_LIBS            = $(value MFEM_LIBS))
+	$(info MFEM_LIB_FILE        = $(value MFEM_LIB_FILE))
+	$(info MFEM_BUILD_TAG       = $(value MFEM_BUILD_TAG))
+	$(info MFEM_PREFIX          = $(value MFEM_PREFIX))
+	$(info MFEM_INC_DIR         = $(value MFEM_INC_DIR))
+	$(info MFEM_LIB_DIR         = $(value MFEM_LIB_DIR))
+	@true

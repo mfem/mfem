@@ -12,9 +12,21 @@
 #ifndef MFEM_LININTEG
 #define MFEM_LININTEG
 
+#include "../config/config.hpp"
+#include "coefficient.hpp"
+
+namespace mfem
+{
+
 /// Abstract base class LinearFormIntegrator
 class LinearFormIntegrator
 {
+protected:
+   const IntegrationRule *IntRule;
+
+   LinearFormIntegrator(const IntegrationRule *ir = NULL)
+   { IntRule = ir; }
+
 public:
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element vector, elvect. */
@@ -24,6 +36,9 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
+
    virtual ~LinearFormIntegrator() { };
 };
 
@@ -33,18 +48,17 @@ class DomainLFIntegrator : public LinearFormIntegrator
 {
    Vector shape;
    Coefficient &Q;
-   const IntegrationRule *IntRule;
    int oa, ob;
 public:
    /// Constructs a domain integrator with a given Coefficient
    DomainLFIntegrator(Coefficient &QF, int a = 2, int b = 0)
       // the old default was a = 1, b = 1
       // for simple elliptic problems a = 2, b = -2 is ok
-      : Q(QF), oa(a), ob(b) { IntRule = NULL; }
+      : Q(QF), oa(a), ob(b) { }
 
    /// Constructs a domain integrator with a given Coefficient
    DomainLFIntegrator(Coefficient &QF, const IntegrationRule *ir)
-      : Q(QF), oa(1), ob(1) { IntRule = ir; }
+      : LinearFormIntegrator(ir), Q(QF), oa(1), ob(1) { }
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -68,6 +82,42 @@ public:
 
    /** Given a particular boundary Finite Element and a transformation (Tr)
        computes the element boundary vector, elvect. */
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+/// Class for boundary integration \f$ L(v) = (g \cdot n, v) \f$
+class BoundaryNormalLFIntegrator : public LinearFormIntegrator
+{
+   Vector shape;
+   VectorCoefficient &Q;
+   int oa, ob;
+public:
+   /// Constructs a boundary integrator with a given Coefficient QG
+   BoundaryNormalLFIntegrator(VectorCoefficient &QG, int a = 1, int b = 1)
+      : Q(QG), oa(a), ob(b) {};
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+/// Class for boundary integration \f$ L(v) = (g \dot tau, v) \f$ in 2D
+class BoundaryTangentialLFIntegrator : public LinearFormIntegrator
+{
+   Vector shape;
+   VectorCoefficient &Q;
+   int oa, ob;
+public:
+   /// Constructs a boundary integrator with a given Coefficient QG
+   BoundaryTangentialLFIntegrator(VectorCoefficient &QG, int a = 1, int b = 1)
+      : Q(QG), oa(a), ob(b) {};
+
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
@@ -145,11 +195,11 @@ private:
    double Sign;
    Coefficient *F;
    Vector shape, nor;
-   const IntegrationRule *IntRule;
 
 public:
-   VectorBoundaryFluxLFIntegrator (Coefficient &f, double s = 1.0, const IntegrationRule *ir = NULL)
-      : Sign(s), F(&f), IntRule(ir) { };
+   VectorBoundaryFluxLFIntegrator(Coefficient &f, double s = 1.0,
+                                  const IntegrationRule *ir = NULL)
+      : LinearFormIntegrator(ir), Sign(s), F(&f) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -176,5 +226,89 @@ public:
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
+
+/// Class for boundary integration \f$ L(v) = (n \times f, v) \f$
+class VectorFEBoundaryTangentLFIntegrator : public LinearFormIntegrator
+{
+private:
+   VectorCoefficient &f;
+
+public:
+   VectorFEBoundaryTangentLFIntegrator(VectorCoefficient &QG) : f(QG) { }
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+
+/** Class for boundary integration of the linear form:
+    (alpha/2) < (u.n) f, w > - beta < |u.n| f, w >,
+    where f and u are given sclar and vector coefficients, respectively,
+    and w is the scalar test function. */
+class BoundaryFlowIntegrator : public LinearFormIntegrator
+{
+private:
+   Coefficient *f;
+   VectorCoefficient *u;
+   double alpha, beta;
+
+   Vector shape;
+
+public:
+   BoundaryFlowIntegrator(Coefficient &_f, VectorCoefficient &_u,
+                          double a, double b)
+   { f = &_f; u = &_u; alpha = a; beta = b; }
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
+};
+
+/** Boundary linear integrator for imposing non-zero Dirichlet boundary
+    conditions, to be used in conjunction with DGDiffusionIntegrator.
+    Specifically, given the Dirichlet data u_D, the linear form assembles the
+    following integrals on the boundary:
+
+    sigma < u_D, (Q grad(v)).n > + kappa < {h^{-1} Q} u_D, v >,
+
+    where Q is a scalar or matrix diffusion coefficient and v is the test
+    function. The parameters sigma and kappa should be the same as the ones
+    used in the DGDiffusionIntegrator. */
+class DGDirichletLFIntegrator : public LinearFormIntegrator
+{
+protected:
+   Coefficient *uD, *Q;
+   MatrixCoefficient *MQ;
+   double sigma, kappa;
+
+   // these are not thread-safe!
+   Vector shape, dshape_dn, nor, nh, ni;
+   DenseMatrix dshape, mq, adjJ;
+
+public:
+   DGDirichletLFIntegrator(Coefficient &u, const double s, const double k)
+      : uD(&u), Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
+   DGDirichletLFIntegrator(Coefficient &u, Coefficient &q,
+                           const double s, const double k)
+      : uD(&u), Q(&q), MQ(NULL), sigma(s), kappa(k) { }
+   DGDirichletLFIntegrator(Coefficient &u, MatrixCoefficient &q,
+                           const double s, const double k)
+      : uD(&u), Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
+};
+
+}
 
 #endif

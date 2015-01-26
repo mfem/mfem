@@ -11,8 +11,14 @@
 
 #include "fem.hpp"
 
+namespace mfem
+{
+
 const char *Geometry::Name[NumGeom] =
 { "Point", "Segment", "Triangle", "Square", "Tetrahedron", "Cube" };
+
+const double Geometry::Volume[NumGeom] =
+{ 1.0, 1.0, 0.5, 1.0, 1./6, 1.0 };
 
 Geometry::Geometry()
 {
@@ -180,7 +186,7 @@ const IntegrationRule * Geometry::GetVertices(int GeomType)
    return GeomVert[0];
 }
 
-void Geometry::GetPerfPointMat (int GeomType, DenseMatrix &pm)
+void Geometry::GetPerfPointMat(int GeomType, DenseMatrix &pm)
 {
    switch (GeomType)
    {
@@ -698,3 +704,5 @@ const IntegrationRule *GeometryRefiner::RefineInterior(int Geom, int Times)
 }
 
 GeometryRefiner GlobGeometryRefiner;
+
+}

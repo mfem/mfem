@@ -12,7 +12,14 @@
 #ifndef MFEM_LINEARFORM
 #define MFEM_LINEARFORM
 
-/// Class for linear form - Vector with asociated FE space and LFIntegrators.
+#include "../config/config.hpp"
+#include "lininteg.hpp"
+#include "fespace.hpp"
+
+namespace mfem
+{
+
+/// Class for linear form - Vector with associated FE space and LFIntegrators.
 class LinearForm : public Vector
 {
 private:
@@ -33,6 +40,8 @@ public:
    LinearForm (FiniteElementSpace * f) : Vector (f -> GetVSize())
    { fes = f; };
 
+   LinearForm(){ fes = NULL; }
+
    FiniteElementSpace * GetFES() { return fes; };
 
    /// Adds new Domain Integrator.
@@ -47,12 +56,22 @@ public:
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();
 
-   void Update() { SetSize(fes -> GetVSize()); };
+   /// Apply the conforming interpolation matrix and return 'b': b = P'*this.
+   void ConformingAssemble(Vector &b) const;
 
-   void Update(FiniteElementSpace * f) { fes = f; SetSize(f -> GetVSize()); };
+   /// Apply the conforming interpolation matrix to 'this': this = P'*this
+   void ConformingAssemble();
+
+   void Update() { SetSize(fes->GetVSize()); }
+
+   void Update(FiniteElementSpace *f) { fes = f; SetSize(f->GetVSize()); }
+
+   void Update(FiniteElementSpace *f, Vector &v, int v_offset);
 
    /// Destroys linear form.
    ~LinearForm();
 };
+
+}
 
 #endif

@@ -1,0 +1,46 @@
+                    Finite Element Discretization Library
+                                 version 3.0
+                                   __
+                       _ __ ___   / _|  ___  _ __ ___
+                      | '_ ` _ \ | |_  / _ \| '_ ` _ \
+                      | | | | | ||  _||  __/| | | | | |
+                      |_| |_| |_||_|   \___||_| |_| |_|
+
+                         http://mfem.googlecode.com
+
+This directory contains Doxygen configuration files for building HTML
+documentation of the MFEM sources (including the example codes).
+
+If not already available, Doxygen can be downloaded from
+
+   http://www.doxygen.org
+
+We recommend using version 1.8 or later.
+
+To build the documentation, simply type "make" in the doc/ directory. This will
+create the file CodeDocumentation.html, which can be viewed in any web browser.
+
+Alternatively, the (pre-build) documentation can be browsed directly online at
+
+   http://doxygen.mfem.googlecode.com/hg/html/index.html
+
+
+Some building considerations:
+
+- To clean the (large) CodeDocumentation/ directory, type "make clean".
+
+- On Mac OS X, the command line executable "doxygen", required to build the code
+  documentation, can be found inside the Doxygen application in
+
+     Doxygen.app/Contents/Resources/doxygen
+
+- The class inheritance and collaboration diagrams in the code documentation use
+  the directed graph visualization tool, DOT, which is part of the Graphviz
+  package. If not available (e.g. on Mac OS X), Graphviz can be downloaded from
+
+     http://www.graphviz.org
+
+- Formulas in the documentation are rendered using LaTeX. A popular choice for
+  TeX typesetting is the TeX Live distribution
+
+     http://www.tug.org/texlive/

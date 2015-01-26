@@ -13,6 +13,8 @@
 
 #include "fem.hpp"
 
+namespace mfem
+{
 
 void LinearForm::AddDomainIntegrator (LinearFormIntegrator * lfi)
 {
@@ -84,10 +86,42 @@ void LinearForm::Assemble()
    }
 }
 
+void LinearForm::ConformingAssemble(Vector &b) const
+{
+   SparseMatrix *P = fes->GetConformingProlongation();
+   if (P)
+   {
+      b.SetSize(P->Width());
+      P->MultTranspose(*this, b);
+   }
+   else
+   {
+      b = *this;
+   }
+}
+
+void LinearForm::ConformingAssemble()
+{
+   if (fes->GetConformingProlongation())
+   {
+      Vector b;
+      ConformingAssemble(b);
+      static_cast<Vector&>(*this) = b;
+   }
+}
+
+void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
+{
+   fes = f;
+   NewDataAndSize((double *)v + v_offset, fes->GetVSize());
+}
+
 LinearForm::~LinearForm()
 {
    int k;
    for (k=0; k < dlfi.Size(); k++) delete dlfi[k];
    for (k=0; k < blfi.Size(); k++) delete blfi[k];
    for (k=0; k < flfi.Size(); k++) delete flfi[k];
+}
+
 }

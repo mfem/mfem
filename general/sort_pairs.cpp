@@ -10,9 +10,11 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 
-#include <stdlib.h>
+#include <cstdlib>
 #include "sort_pairs.hpp"
 
+namespace mfem
+{
 
 template <class A, class B>
 int ComparePairs (const void *_p, const void *_q)
@@ -35,8 +37,12 @@ void SortPairs (Pair<A, B> *pairs, int size)
 }
 
 
-// Instantiate int-int and double-int pairs
+// Instantiate int-int, double-int pairs, and int-double pairs
 template int ComparePairs<int, int> (const void *, const void *);
 template int ComparePairs<double, int> (const void *, const void *);
+template int ComparePairs<int, double> (const void *, const void *);
 template void SortPairs<int, int> (Pair<int, int> *, int );
 template void SortPairs<double, int> (Pair<double, int> *, int );
+template void SortPairs<int, double> (Pair<int, double> *, int );
+
+}

@@ -11,15 +11,28 @@
 
 #include "isockstream.hpp"
 #include <iostream>
-#include <string.h>
-#include <stdlib.h>
+#include <cstring>
+#include <cstdlib>
 #include <errno.h>
+#ifndef _WIN32
 #include <netinet/in.h>
 #include <netdb.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#else
+#include <winsock.h>
+typedef int ssize_t;
+typedef int socklen_t;
+#define close closesocket
+// Link with ws2_32.lib
+#pragma comment(lib, "ws2_32.lib")
+#endif
 
+using namespace std;
+
+namespace mfem
+{
 
 isockstream::isockstream(int port)
 {
@@ -63,9 +76,9 @@ int isockstream::establish()
    }
 
    int on=1;
-   setsockopt(port, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+   setsockopt(port, SOL_SOCKET, SO_REUSEADDR, (char *)(&on), sizeof(on));
 
-   if (bind(port,(const sockaddr*)&sa,sizeof(struct sockaddr_in)) < 0)
+   if (bind(port,(const sockaddr*)&sa,(socklen_t)sizeof(struct sockaddr_in)) < 0)
    {
       cerr << "isockstream::establish(): bind() failed!" << endl;
       close(port);
@@ -84,8 +97,10 @@ int isockstream::read_data(int s, char *buf, int n){
 
    bcount= 0;
    br= 0;
-   while (bcount < n) {             // loop until full buffer
-      if ((br= read(s,buf,n-bcount)) > 0) {
+   while (bcount < n)               // loop until full buffer
+   {
+      if ((br = recv(s, buf, n - bcount, 0)) > 0)
+      {
          bcount += br;                // increment byte counter
          buf += br;                   // move buffer ptr for next read
       }
@@ -98,7 +113,7 @@ int isockstream::read_data(int s, char *buf, int n){
    return(bcount);
 }
 
-void isockstream::receive(istringstream **in)
+void isockstream::receive(std::istringstream **in)
 {
    int size;
    char length[32];
@@ -116,7 +131,7 @@ void isockstream::receive(istringstream **in)
       return;
    }
 
-   if (read(socketID, length, 32) < 0)
+   if (recv(socketID, length, 32, 0) < 0)
    {
       error = 6;
       return;
@@ -144,4 +159,6 @@ isockstream::~isockstream()
       delete [] Buf;
    if (portID != -1)
       close(portID);
+}
+
 }

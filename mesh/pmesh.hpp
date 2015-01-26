@@ -12,6 +12,17 @@
 #ifndef MFEM_PMESH
 #define MFEM_PMESH
 
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_MPI
+
+#include "../general/communication.hpp"
+#include "mesh.hpp"
+#include <iostream>
+
+namespace mfem
+{
+
 /// Class for parallel meshes
 class ParMesh : public Mesh
 {
@@ -37,6 +48,9 @@ private:
    /// Return a number(0-4) identifying how the given face has been split
    int GetFaceSplittings(Element *face, const DSTable &v_to_v, int *middle);
 
+   void GetFaceNbrElementTransformation(
+      int i, IsoparametricTransformation *ElTr);
+
    /// Refine quadrilateral mesh.
    virtual void QuadUniformRefinement();
 
@@ -44,6 +58,8 @@ private:
    virtual void HexUniformRefinement();
 
    virtual void NURBSUniformRefinement();
+
+   void DeleteFaceNbrData();
 
 public:
    ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
@@ -54,6 +70,17 @@ public:
    int GetMyRank() { return MyRank; }
 
    GroupTopology gtopo;
+
+   // Face-neighbor elements and vertices
+   bool             have_face_nbr_data;
+   Array<int>       face_nbr_group;
+   Array<int>       face_nbr_elements_offset;
+   Array<int>       face_nbr_vertices_offset;
+   Array<Element *> face_nbr_elements;
+   Array<Vertex>    face_nbr_vertices;
+   // Local face-neighbor elements and vertices ordered by face-neighbor
+   Table            send_face_nbr_elements;
+   Table            send_face_nbr_vertices;
 
    int GetNGroups() { return gtopo.NGroups(); }
 
@@ -67,6 +94,23 @@ public:
    void GroupEdge(int group, int i, int &edge, int &o);
    void GroupFace(int group, int i, int &face, int &o);
 
+   void ExchangeFaceNbrData();
+   void ExchangeFaceNbrNodes();
+   int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
+   int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
+   int GetFaceNbrRank(int fn) const;
+   /** Similar to Mesh::GetFaceToElementTable with added face-neighbor elements
+       with indices offset by the local number of elements. */
+   Table *GetFaceToAllElementTable() const;
+
+   /** Get the FaceElementTransformations for the given shared face (edge 2D).
+       In the returned object, 1 and 2 refer to the local and the neighbor
+       elements, respectively. */
+   FaceElementTransformations *GetSharedFaceTransformations(int);
+
+   /// Return the number of shared faces (3D), edges (2D), vertices (1D)
+   int GetNSharedFaces() const;
+
    /// See the remarks for the serial version in mesh.hpp
    virtual void ReorientTetMesh();
 
@@ -78,26 +122,30 @@ public:
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using the default format. */
-   virtual void Print(ostream &out = cout) const;
+   virtual void Print(std::ostream &out = std::cout) const;
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using Netgen/Truegrid format .*/
-   virtual void PrintXG(ostream &out = cout) const;
+   virtual void PrintXG(std::ostream &out = std::cout) const;
 
    /** Write the mesh to the stream 'out' on Process 0 in a form
        suitable for visualization: the mesh is written as a disjoint
        mesh and the shared boundary is added to the actual boundary;
        both the element and boundary attributes are set to the
        precessor number.  */
-   void PrintAsOne(ostream &out = cout);
+   void PrintAsOne(std::ostream &out = std::cout);
 
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
-   void PrintAsOneXG(ostream &out = cout);
+   void PrintAsOneXG(std::ostream &out = std::cout);
 
    /// Print various parallel mesh stats
-   void PrintInfo(ostream &out = cout);
+   void PrintInfo(std::ostream &out = std::cout);
 
    virtual ~ParMesh();
 };
+
+}
+
+#endif // MFEM_USE_MPI
 
 #endif

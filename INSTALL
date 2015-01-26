@@ -1,5 +1,5 @@
                     Finite Element Discretization Library
-                                 version 2.0
+                                 version 3.0
                                    __
                        _ __ ___   / _|  ___  _ __ ___
                       | '_ ` _ \ | |_  / _ \| '_ ` _ \
@@ -8,86 +8,230 @@
 
                          http://mfem.googlecode.com
 
-The MFEM library has a serial and a MPI-based parallel version, which largely
-share the same code base. Note that the two versions don't mix (you can't build
-the serial examples with the parallel library or vice-versa). Note also that the
-GLVis visualization tool requires the serial version (without MPI or OpenMP).
-
-The only prerequisite for building the serial version of MFEM is a (modern) C++
-compiler, such as g++. Some of the dense linear algebra functionality in MFEM
-requires the LAPACK and BLAS libraries from http://www.netlib.org/lapack. If
-LAPACK is not provided, the corresponding MFEM functions will either use a
-simple internal version, or generate run-time errors when used.
-
-The parallel version of MFEM requires a MPI C++ compiler, as well as the
-following external libraries:
+The MFEM library has a serial and an MPI-based parallel version, which largely
+share the same code base. The only prerequisite for building the serial version
+of MFEM is a (modern) C++ compiler, such as g++. The parallel version of MFEM
+requires an MPI C++ compiler, as well as the following external libraries:
 
 - hypre (a library of high-performance preconditioners)
   http://www.llnl.gov/CASC/hypre
 
-- metis (a family of multilevel partitioning algorithms)
+- METIS (a family of multilevel partitioning algorithms)
   http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
 
-Three build systems are supported, based on make, GNU make (gmake) and SCons, as
-described below.
+The build system is based on GNU make, as described below.
 
 
-Building with 'make'
-====================
-MFEM comes with a standard makefile which can be modified as needed, e.g. to
-enable the use of LAPACK and to specify its location. The makefile also
-generates the "mfem_defs.hpp" header file which lists all "define" symbols from
-the build.
+Quick start
+===========
+Serial build:
+   make serial -j 4
 
-Some of the available 'make' targets are:
+Parallel build:
+   (download hypre 2.10.0b and METIS 4 from above URLs)
+   (build METIS 4 in ../metis-4.0 relative to mfem/)
+   (build hypre 2.10.0b in ../hypre-2.10.0b relative to mfem/)
+   make parallel -j 4
 
-make          -> Builds the serial libmfem.a library
-make debug    -> Builds a serial debug version
-make parallel -> Builds the parallel libmfem.a library
-make pdebug   -> Builds a parallel debug version
-make clean    -> Cleans the build
+Example codes (serial/parallel, depending on the build):
+   cd examples
+   make -j 4
 
 
-Building with 'gmake'
+Building with GNU make
+======================
+The MFEM build system consists of two steps: configuration and compilation.
+
+The configuration step can be used to adjust paths to external libraries,
+compilers, flags, etc, similar to "./configure". It is performed by running
+
+   make config [OPTIONS] ...
+
+The OPTIONS are of the form VARIABLE=VALUE. Detailed description of the
+configuration options is given below. Alternatively, the options can be
+specified with an input file:
+
+   cp config/user.mk.in config/user.mk
+   (edit config/user.mk)
+   make config
+
+The default configuration file (config/user.mk) can be changed with
+
+   make config USER_CONFIG=user_config_file
+
+Once configured, the library can be built simply with
+
+   make
+
+Note that re-configuration is only needed to change the currently configured
+options. Several shortcut targets combining (re-)configuration and compilation
+are also defined:
+
+   make serial   -> Builds serial optimized version of the library
+   make parallel -> Builds parallel optimized version of the library
+   make debug    -> Builds serial debug version of the library
+   make pdebug   -> Builds parallel debug version of the library
+
+Note that any of the above shortcuts accept configuration options, either at the
+command line or through a user configuration file.
+
+An optional installation of the library and the headers can be performed with
+
+   make install [PREFIX=<dir>]
+
+The library will be installed in $(PREFIX)/lib, the headers in
+$(PREFIX)/include, and the configuration makefile (config.mk) in $(PREFIX).
+The PREFIX option can also be set during configuration.
+
+Information about the current build configuration can be viewed using
+
+   make status
+   make info
+
+To clean the library and object files, but keep the current configuration, use
+
+   make clean
+
+To clean everything, including the current configuration, use
+
+   make distclean
+
+For a short help message, use
+
+   make help
+
+The build process creates the MFEM library (libmfem.a) and the include file
+(mfem.hpp) needed in MFEM-based applications, see e.g. the example codes in the
+examples/ directory. A selected subset of configuration options and derived
+makefile variables are also written to the file config/config.mk. This file can
+be included by other makefiles to obtain information about the MFEM
+configuration, see e.g. the makefile in the examples/ directory.
+
+
+Configuration options
 =====================
-MFEM also comes with a GNUmakefile for GNU make (gmake) which follows closely
-the makefile and provides some additional functionality. On many Linux systems
-the installed copy of make is actually a version of gmake; in this case the
-GNUmakefile will be used instead of the makefile.
+Compilers:
+   CXX    - C++ compiler, serial build
+   MPICXX - MPI C++ compiler, parallel build
 
-Some of the available 'gmake' targets are:
+Compiler options:
+   OPTIM_FLAGS - Options for optimized build
+   DEBUG_FLAGS - Options for debug build
+   CXXFLAGS    - If not set, defined based on the above optimized/debug flags
+   CPPFLAGS    - Additional compiler options
 
-gmake          -> Builds the serial libmfem.a library
-gmake debug    -> Builds a serial debug version
-gmake parallel -> Builds the parallel libmfem.a library
-gmake pdebug   -> Builds a parallel debug version
-gmake clean    -> Cleans the build
+Installation options:
+   PREFIX  - Specify the installation directory. The library (libmfem.a) will be
+             installed in $(PREFIX)/lib, the headers in $(PREFIX)/include, and
+             the configuration makefile (config.mk) in $(PREFIX).
+   INSTALL - Specify the install program, e.g /usr/bin/install
+
+MFEM library features/options
+-----------------------------
+MFEM_USE_MPI = YES/NO
+   Choose parallel/serial build. The parallel build requires proper setup of the
+   HYPRE_* and METIS_* library options, see below.
+
+MFEM_DEBUG = YES/NO
+   Choose debug/optimized build. The debug build enables a number of messages
+   and consistency checks that may simplify bug-hunting.
+
+MFEM_USE_METIS_5 = YES/NO
+   Specify the version of the METIS library - 5 (YES) or 4 (NO).
+
+MFEM_USE_LAPACK = YES/NO
+   Use LAPACK routines for various dense linear algebra operations. When
+   enabled, this option uses the LAPACK_* library options, see below. (When not
+   enabled MFEM provides simple internal implementations where appropriate.)
+
+MFEM_THREAD_SAFE = YES/NO
+   Use thread-safe implementation for some classes/methods. This comes at the
+   cost of extra memory allocation and de-allocation.
+
+MFEM_USE_OPENMP = YES/NO
+   Enable (basic) experimental OpenMP support. Requires MFEM_THREAD_SAFE.
+
+MFEM_USE_MESQUITE = YES/NO
+   Enable MFEM functionality based on the Mesquite library. When enabled, this
+   option uses the MESQUITE_* library options, see below.
+
+MFEM_USE_SUITESPARSE = YES/NO
+   Enable MFEM functionality based on the SuiteSparse library. Currently, this
+   option adds the class UMFPackSolver (a sparse direct solver). When enabled,
+   this option uses the SUITESPARSE_* library options, see below.
+
+MFEM_USE_MEMALLOC = YES/NO
+   Internal MFEM option: enable batch allocation for some small objects.
+   Recommended value is YES.
+
+MFEM_TIMER_TYPE = 0/1/2/3/NO
+   Specify which library functions to use in the class StopWatch used for
+   measuring time. The available options are:
+      0  - use std::clock from <ctime>, standard C++
+      1  - use times from <sys/times.h>
+      2  - use high-resolution POSIX clocks (see option POSIX_CLOCKS_LIB)
+      3  - use QueryPerformanceCounter from <windows.h>
+      NO - use option 3 if the compiler macro _WIN32 is defined, 0 otherwise
+
+MFEM_BUILD_TAG = (any value)
+   An optional tag to characterize the build. Exported to config/config.mk.
+   Can be used to identify the MFEM build from other makefiles.
+
+VERBOSE = YES/NO
+   Print some informational messages when building.
+
+External libraries:
+-------------------
+Two types of library configuration options are used:
+   <LIBNAME>_OPT - for compiler options which usually specify an include path,
+                   e.g.: -I/home/user/hypre/include
+   <LIBNAME>_LIB - for link options which usually specify link path and library
+                   name, e.g.: -L/home/user/hypre/lib -lHYPRE
+
+If specifying relative paths, they should be relative to the top-level MFEM
+directory and use the string @MFEM_DIR@, e.g. HYPRE_OPT = -I@MFEM_DIR@/../hypre.
+
+The specific libraries and their options are:
+
+- HYPRE, required for the parallel build, i.e. when MFEM_USE_MPI = YES.
+  URL: http://www.llnl.gov/CASC/hypre
+  Options: HYPRE_OPT, HYPRE_LIB.
+
+- METIS, required for the parallel build, i.e. when MFEM_USE_MPI = YES. If using
+  METIS 5, set MFEM_USE_METIS_5 = YES (default is to use METIS 4).
+  URL: http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
+  Options: METIS_OPT (currently not used/needed), METIS_LIB.
+
+- LAPACK (optional), used when MFEM_USE_LAPACK = YES. Alternative, optimized
+  implementations can also be used, e.g. the ATLAS project.
+  URL: http://www.netlib.org/lapack (LAPACK)
+       http://math-atlas.sourceforge.net (ATLAS)
+  Options: LAPACK_OPT (currently not used/needed), LAPACK_LIB.
+
+- OpenMP (optional), usually part of compiler, used when MFEM_USE_OPENMP = YES.
+  Options: OPENMP_OPT, OPENMP_LIB.
+
+- Mesquite (optional), used when MFEM_USE_MESQUITE = YES.
+  URL: http://trilinos.org/oldsite/packages/mesquite
+  Options: MESQUITE_OPT, MESQUITE_LIB.
+
+- SuiteSparse (optional), used when MFEM_USE_SUITESPARSE = YES.
+  URL: http://www.cise.ufl.edu/research/sparse/SuiteSparse
+  Options: SUITESPARSE_OPT, SUITESPARSE_LIB.
+
+- High-resolution POSIX clocks: when using MFEM_TIMER_TYPE = 2, it may be
+  necessary to link with a system library (e.g. librt.so).
+  Option: POSIX_CLOCKS_LIB (default = -lrt).
 
 
-Building with 'SCons'
-====================
-SCons is a Python-based next generation build system from http://www.scons.org/,
-which combines the capabilities of make and configure. The included SConstruct
-file will automatically detect the availability of LAPACK.
+Building without GNU make
+=========================
+Before using another build system (e.g. Visual Studio) it is necessary to create
+a proper configuration header file, config/config.hpp, using the template from
+config/config.hpp.in:
 
-Some of the available 'SCons' targets are:
+   cp config/config.hpp.in config/config.hpp
 
-scons            -> Builds the serial libmfem.a library
-scons debug=1    -> Builds a serial debug version
-scons parallel=1 -> Builds the parallel libmfem.a library
-scons -c         -> Cleans the build
-
-
-Some building considerations:
-
-- By default MFEM supports metis version 4.0. For version 5.0 set USE_METIS_5 to
-  YES in the makefiles or define MFEM_USE_METIS_5 in the SConstruct file.
-
-- Both the serial and the parallel MFEM builds include basic experimental OpenMP
-  support, which can be enabled by setting USE_OPENMP to YES in the makefiles or
-  by using the scons option 'openmp=1'.
-
-- The MFEM example codes have their own make/scons build files in the examples/
-  directory which contain similar compile options plus some linking options.
-  Make sure to propagate changes from the top-level to the example build files,
-  e.g. when enabling OpenMP.
+The file config/config.hpp can then be edited to enable desired options.  The
+MFEM library is simply a combination of all object files obtained by compiling
+the .cpp source files in the source directories: general, linalg, mesh, and fem.

@@ -12,6 +12,20 @@
 #ifndef MFEM_NURBS
 #define MFEM_NURBS
 
+#include "../config/config.hpp"
+#include "../general/table.hpp"
+#include "../general/communication.hpp"
+#include "../linalg/vector.hpp"
+#include "element.hpp"
+#include "mesh.hpp"
+#include <iostream>
+
+namespace mfem
+{
+
+class GridFunction;
+
+
 class KnotVector
 {
 protected:
@@ -23,7 +37,7 @@ protected:
 public:
    /// Create KnotVector
    KnotVector() { }
-   KnotVector(istream &input);
+   KnotVector(std::istream &input);
    KnotVector(int Order_, int NCP);
    KnotVector(const KnotVector &kv){ (*this) = kv; }
 
@@ -56,7 +70,7 @@ public:
 
    void Flip();
 
-   void Print(ostream &out) const;
+   void Print(std::ostream &out) const;
 
    /// Destroys KnotVector
    ~KnotVector() { }
@@ -88,14 +102,14 @@ protected:
    NURBSPatch(NURBSPatch *parent, int dir, int Order, int NCP);
 
 public:
-   NURBSPatch(istream &input);
+   NURBSPatch(std::istream &input);
    NURBSPatch(KnotVector *kv0, KnotVector *kv1, int dim_);
    NURBSPatch(KnotVector *kv0, KnotVector *kv1, KnotVector *kv2, int dim_);
    NURBSPatch(Array<KnotVector *> &kv, int dim_);
 
    ~NURBSPatch();
 
-   void Print(ostream &out);
+   void Print(std::ostream &out);
 
    void DegreeElevate(int dir, int t);
    void KnotInsert   (int dir, const KnotVector &knot);
@@ -248,7 +262,7 @@ protected:
 
 public:
    /// Read-in a NURBSExtension
-   NURBSExtension(istream &input);
+   NURBSExtension(std::istream &input);
    /** Create a NURBSExtension with elevated order by repeating the endpoints
        of the knot vectors and using uniform weights of 1. */
    NURBSExtension(NURBSExtension *parent, int Order);
@@ -262,8 +276,8 @@ public:
    virtual ~NURBSExtension();
 
    // Print functions
-   void Print(ostream &out) const;
-   void PrintCharacteristics(ostream &out);
+   void Print(std::ostream &out) const;
+   void PrintCharacteristics(std::ostream &out);
 
    // Meta data functions
    int Dimension() { return patchTopo->Dimension(); }
@@ -570,6 +584,8 @@ inline int NURBSPatchMap::operator()(const int i, const int j, const int k)
    mfem_error("NURBSPatchMap::operator() const 3D");
 #endif
    return -1;
+}
+
 }
 
 #endif
