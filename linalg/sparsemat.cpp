@@ -14,6 +14,7 @@
 #include <iostream>
 #include <iomanip>
 #include <cmath>
+#include <algorithm>
 
 #include "linalg.hpp"
 #include "../general/table.hpp"
@@ -719,7 +720,7 @@ double SparseMatrix::MaxNorm() const
       int nnz = I[height];
       for (int j = 0; j < nnz; j++)
       {
-         m = fmax(m, fabs(A[j]));
+         m = std::max(m, fabs(A[j]));
       }
    }
    else
@@ -727,7 +728,7 @@ double SparseMatrix::MaxNorm() const
       for (int i = 0; i < height; i++)
          for (RowNode *n_p = Rows[i]; n_p != NULL; n_p = n_p->Prev)
          {
-            m = fmax(m, fabs(n_p->Value));
+            m = std::max(m, fabs(n_p->Value));
          }
    }
    return m;

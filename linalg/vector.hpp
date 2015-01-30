@@ -17,6 +17,10 @@
 #include "../general/array.hpp"
 #include <cmath>
 #include <iostream>
+#if defined(_MSC_VER) && (_MSC_VER < 1800)
+#include <float.h>
+#define isfinite _finite
+#endif
 
 namespace mfem
 {

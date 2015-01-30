@@ -16,6 +16,7 @@
 #include <string>
 #include <cmath>
 #include <iostream>
+#include <algorithm>
 #include "fem.hpp"
 
 namespace mfem
@@ -1630,7 +1631,7 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
          {
             if (weight)
                err *= weight->Eval(*T, ip);
-            error = fmax(error, err);
+            error = std::max(error, err);
          }
       }
    }
@@ -1711,7 +1712,7 @@ double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
          {
             if (weight)
                err *= weight->Eval(*T, ip);
-            error = fmax(error, err);
+            error = std::max(error, err);
          }
       }
    }

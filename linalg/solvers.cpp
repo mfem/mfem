@@ -175,7 +175,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       cout << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
            << nom << '\n';
 
-   r0 = fmax(nom*rel_tol*rel_tol, abs_tol*abs_tol);
+   r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
    if (nom <= r0)
    {
       converged = 1;
@@ -313,7 +313,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       cout << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
            << nom << '\n';
 
-   r0 = fmax(nom*rel_tol*rel_tol, abs_tol*abs_tol);
+   r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
    if (nom <= r0)
    {
       converged = 1;
@@ -520,7 +520,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
    }
    double beta = Norm(r);  // beta = ||r||
 
-   final_norm = fmax(rel_tol*beta, abs_tol);
+   final_norm = std::max(rel_tol*beta, abs_tol);
 
    if (beta <= final_norm)
    {
@@ -647,7 +647,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    }
    double beta = Norm(r);  // beta = ||r||
 
-   final_norm = fmax(rel_tol*beta, abs_tol);
+   final_norm = std::max(rel_tol*beta, abs_tol);
 
    if (beta <= final_norm)
    {
@@ -820,7 +820,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       cout << "   Iteration : " << setw(3) << 0
            << "   ||r|| = " << resid << '\n';
 
-   tol_goal = fmax(resid*rel_tol, abs_tol);
+   tol_goal = std::max(resid*rel_tol, abs_tol);
 
    if (resid <= tol_goal)
    {
@@ -974,7 +974,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
    gamma0 = gamma1 = 1.;
    sigma0 = sigma1 = 0.;
 
-   norm_goal = fmax(rel_tol*eta, abs_tol);
+   norm_goal = std::max(rel_tol*eta, abs_tol);
 
    if (print_level == 1 || print_level == 3)
       cout << "MINRES: iteration " << setw(3) << 0 << ": ||r||_B = "
@@ -1125,7 +1125,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       r -= b;
 
    norm = Norm(r);
-   norm_goal = fmax(rel_tol*norm, abs_tol);
+   norm_goal = std::max(rel_tol*norm, abs_tol);
 
    prec->iterative_mode = false;
 

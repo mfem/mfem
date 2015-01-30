@@ -260,8 +260,6 @@ void Geometry::JacToPerfJac(int GeomType, const DenseMatrix &J,
    }
 }
 
-const int Geometry::NumGeom;
-
 const int Geometry::NumBdrArray[] = { 0, 2, 3, 4, 4, 6 };
 
 Geometry Geometries;
