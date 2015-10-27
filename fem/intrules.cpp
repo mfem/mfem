@@ -46,6 +46,34 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
    }
 }
 
+IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
+                                 IntegrationRule &irz)
+{
+   const int nx = irx.GetNPoints();
+   const int ny = iry.GetNPoints();
+   const int nz = irz.GetNPoints();
+   SetSize(nx*ny*nz);
+
+   for (int iz = 0; iz < nz; ++iz)
+   {
+      IntegrationPoint &ipz = irz.IntPoint(iz);
+      for (int iy = 0; iy < ny; ++iy)
+      {
+         IntegrationPoint &ipy = iry.IntPoint(iy);
+         for (int ix = 0; ix < nx; ++ix)
+         {
+            IntegrationPoint &ipx = irx.IntPoint(ix);
+            IntegrationPoint &ip  = IntPoint(iz*nx*ny + iy*nx + ix);
+
+            ip.x = ipx.x;
+            ip.y = ipy.x;
+            ip.z = ipz.x;
+            ip.weight = ipx.weight*ipy.weight*ipz.weight;
+         }
+      }
+   }
+}
+
 void IntegrationRule::GaussianRule()
 {
    int n = Size();

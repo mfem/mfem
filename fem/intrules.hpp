@@ -198,6 +198,10 @@ public:
    /// Tensor product of two 1D integration rules
    IntegrationRule(IntegrationRule &irx, IntegrationRule &iry);
 
+   /// Tensor product of three 1D integration rules
+   IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
+                   IntegrationRule &irz);
+
    /// Returns the number of the points in the integration rule
    int GetNPoints() const { return Size(); }
 
