@@ -861,32 +861,13 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
 /// Integration rules for reference cube
 IntegrationRule *IntegrationRules::CubeIntegrationRule(int Order)
 {
-   int k, l, m, np;
    int i = (Order / 2) * 2 + 1;   // Get closest odd # >= Order
 
    if (!HaveIntRule(SegmentIntRules, i))
       SegmentIntegrationRule(i);
    AllocIntRule(CubeIntRules, i);
-   np = SegmentIntRules[i] -> GetNPoints();
-   CubeIntRules[i-1] = CubeIntRules[i] = new IntegrationRule(np*np*np);
-   for (k = 0; k < np; k++)
-      for (l = 0; l < np; l++)
-         for (m = 0; m < np; m++)
-         {
-            CubeIntRules[i] -> IntPoint((k*np+l)*np+m).x =
-               SegmentIntRules[i] -> IntPoint(m).x;
-
-            CubeIntRules[i] -> IntPoint((k*np+l)*np+m).y =
-               SegmentIntRules[i] -> IntPoint(l).x;
-
-            CubeIntRules[i] -> IntPoint((k*np+l)*np+m).z =
-               SegmentIntRules[i] -> IntPoint(k).x;
-
-            CubeIntRules[i] -> IntPoint((k*np+l)*np+m).weight =
-               SegmentIntRules[i] -> IntPoint(k).weight *
-               SegmentIntRules[i] -> IntPoint(l).weight *
-               SegmentIntRules[i] -> IntPoint(m).weight;
-         }
+   CubeIntRules[i-1] = CubeIntRules[i] =
+       new IntegrationRule(*SegmentIntRules[i], *SegmentIntRules[i], *SegmentIntRules[i]);
    return CubeIntRules[i];
 }
 
