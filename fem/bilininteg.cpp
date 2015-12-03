@@ -616,12 +616,12 @@ void VectorMassIntegrator::AssembleElementMatrix
   DenseMatrix &elmat )
 {
    int nd = el.GetDof();
+   int spaceDim = Trans.GetSpaceDim();
 
    double norm;
 
-   int vdim = Trans.GetSpaceDim();
-   if (VQ) MFEM_ASSERT(VQ->GetVDim() == vdim, "Dimensions mismatch");
-   if (MQ) MFEM_ASSERT(MQ->GetVDim() == vdim, "Dimensions mismatch");
+   // Get vdim from VQ, MQ, or the space dimension
+   int vdim = (VQ) ? (VQ -> GetVDim()) : ((MQ) ? (MQ -> GetVDim()) : spaceDim);
 
    elmat.SetSize(nd*vdim);
    shape.SetSize(nd);
