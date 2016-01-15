@@ -1,4 +1,7 @@
 language: cpp
+compiler:
+   - clang
+   - gcc
 script:
-   - make config MFEM_USE_MPI=NO MFEM_DEBUG=NO && make
-   - make config MFEM_USE_MPI=NO MFEM_DEBUG=YES && make
+   - make config MFEM_USE_MPI=NO MFEM_DEBUG=NO MFEM_CXX=$CXX && make
+   - make config MFEM_USE_MPI=NO MFEM_DEBUG=YES MFEM_CXX=$CXX && make
