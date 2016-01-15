@@ -1,0 +1,4 @@
+language: cpp
+script:
+   - make config MFEM_USE_MPI=NO MFEM_DEBUG=NO && make
+   - make config MFEM_USE_MPI=NO MFEM_DEBUG=YES && make
