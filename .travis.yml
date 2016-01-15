@@ -1,7 +1,14 @@
 language: cpp
+before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get install -y openmpi-bin openmpi-common openssh-client openssh-server libopenmpi1.3 libopenmpi-dbg libopenmpi-dev
+  - test -n $CC && unset CC   #Fix for MPI trouble
 compiler:
    - clang
    - gcc
+   - mpic++
+   - mpicxx
+   - mpiCC
 script:
    - make config MFEM_USE_MPI=NO MFEM_DEBUG=NO MFEM_CXX=$CXX && make
    - make config MFEM_USE_MPI=NO MFEM_DEBUG=YES MFEM_CXX=$CXX && make
