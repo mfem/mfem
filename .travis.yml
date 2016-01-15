@@ -7,9 +7,12 @@ install:
 compiler:
    - clang
    - gcc
-   - mpic++
-   - mpicxx
-   - mpiCC
 script:
    - make config MFEM_USE_MPI=NO MFEM_DEBUG=NO MFEM_CXX=$CXX && make
    - make config MFEM_USE_MPI=NO MFEM_DEBUG=YES MFEM_CXX=$CXX && make
+   - mpic++ --version
+   - mpicxx --version
+   - mpiCC --version
+   - make config MFEM_USE_MPI=NO MFEM_DEBUG=YES MFEM_CXX=mpic++ && make
+   - make config MFEM_USE_MPI=NO MFEM_DEBUG=YES MFEM_CXX=mpicxx && make
+   - make config MFEM_USE_MPI=NO MFEM_DEBUG=YES MFEM_CXX=mpiCC && make
