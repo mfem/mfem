@@ -1,9 +1,20 @@
 language: cpp
 before_install:
    - sudo apt-get -qq update
-   - test -n $CC && unset CC   #Fix for MPI trouble
+#   - test -n $CC && unset CC   #Fix for MPI trouble
 install:
    - sudo apt-get install -y openmpi-bin openmpi-common openssh-client openssh-server libopenmpi1.3 libopenmpi-dbg libopenmpi-dev
+   - wget https://computation.llnl.gov/project/linear_solvers/download/hypre-2.10.0b.tar.gz
+   - tar xvzf hypre-2.10.0b.tar.gz
+   - cd hypre-2.10.0b/src
+   - ./configure --disable-fortran
+   - cd ../..
+   - wget http://glaros.dtc.umn.edu/gkhome/fetch/sw/metis/OLD/metis-4.0.3.tar.gz
+   - tar xvzf metis-4.0.3.tar.gz
+   - cd metis-4.0.3
+   - make
+   - cd ..
+   - ln -s metis-4.0.3 metis-4.0
 compiler:
    - clang
    - gcc
@@ -15,8 +26,6 @@ env:
    - DEBUG=NO MPI=YES
    - DEBUG=YES MPI=NO 
    - DEBUG=NO MPI=NO
-before_script:
-   - 
 script:
    - test $MPI=="YES" && export CXX=mpic++ || true
    - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX=$CXX && make
