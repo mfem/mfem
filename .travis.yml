@@ -27,7 +27,7 @@ env:
    - DEBUG=YES MPI=NO 
    - DEBUG=NO MPI=NO
 script:
-   - if test $MPI=="YES"; then export MYCXX=mpic++; else export MYCXX=$CXX; fi || true
+   - if test $MPI == "YES"; then export MYCXX=mpic++; else export MYCXX=$CXX; fi || true
    - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX=$MYCXX && make
 matrix:
    exclude:
