@@ -4,7 +4,7 @@ before_install:
 #   - test -n $CC && unset CC   #Fix for MPI trouble
 install:
    - sudo apt-get install -y openmpi-bin openmpi-common openssh-client openssh-server libopenmpi1.3 libopenmpi-dbg libopenmpi-dev
-   - wget https://computation.llnl.gov/project/linear_solvers/download/hypre-2.10.0b.tar.gz
+   - wget https://computation.llnl.gov/project/linear_solvers/download/hypre-2.10.0b.tar.gz --no-check-certificate
    - tar xvzf hypre-2.10.0b.tar.gz
    - cd hypre-2.10.0b/src
    - ./configure --disable-fortran
