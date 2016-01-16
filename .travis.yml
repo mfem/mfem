@@ -11,12 +11,14 @@ os:
    - linux
    - osx
 env:
-   - DEBUG=YES
-   - DEBUG=NO
-   - MPI=YES 
-   - MPI=NO
+   - DEBUG=YES MPI=YES 
+   - DEBUG=NO MPI=YES
+   - DEBUG=YES MPI=NO 
+   - DEBUG=NO MPI=NO
+before_script:
+   - 
 script:
-   - if [[ $MPI == 'YES' ]]; then $CXX "mpic++" ; fi
+   - test $MPI == "YES" && setenv CXX mpic++
    - make config MFEM_USE_MPI=NO MFEM_DEBUG=$DEBUG MFEM_CXX=$CXX && make
 matrix:
    exclude:
