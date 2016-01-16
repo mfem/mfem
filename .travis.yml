@@ -7,6 +7,9 @@ install:
 compiler:
    - clang
    - gcc
+os:
+   - linux
+   - osx
 env:
    - DEBUG=YES
    - DEBUG=NO
@@ -15,3 +18,7 @@ env:
 script:
    - if [[ $MPI == 'YES' ]]; then $CXX "mpic++" ; fi
    - make config MFEM_USE_MPI=NO MFEM_DEBUG=$DEBUG MFEM_CXX=$CXX && make
+matrix:
+   exclude:
+      - compiler: clang
+        env: MPI=YES
