@@ -3,7 +3,11 @@ before_install:
    - sudo apt-get -qq update
 #   - test -n $CC && unset CC   #Fix for MPI trouble
 install:
-   - sudo apt-get install -y openmpi-bin openmpi-common openssh-client openssh-server libopenmpi1.3 libopenmpi-dbg libopenmpi-dev
+   - wget http://www.open-mpi.org/software/ompi/v1.10/downloads/openmpi-1.10.1.tar.gz
+   - tar xvzf openmpi-1.10.1.tar.gz
+   - cd openmpi-1.10.1
+   - ./configure --prefix=/usr/local
+   - make all install
    - wget https://computation.llnl.gov/project/linear_solvers/download/hypre-2.10.0b.tar.gz --no-check-certificate
    - tar xvzf hypre-2.10.0b.tar.gz
    - cd hypre-2.10.0b/src
