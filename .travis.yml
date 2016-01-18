@@ -1,16 +1,7 @@
 language: cpp
 install:
 #    OpenMPI install
-   - wget http://www.open-mpi.org/software/ompi/v1.10/downloads/openmpi-1.10.1.tar.gz
-   - tar xvzf openmpi-1.10.1.tar.gz
-   - cd openmpi-1.10.1
-   - ./configure --prefix=/usr/local CC=$CC CXX=$CXX FC=$FC
-   - sudo make all install
-   - cd ..
-   - PATH=$PATH:/usr/local/lib
-   - LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
-   - export PATH
-   - export LD_LIBRARY_PATH
+   - if test $TRAVIS_OS_NAME == "linux"; then sudo apt-get install openmpi-bin openmpi-common openssh-client openssh-server libopenmpi1.3 libopenmpi-dbg libopenmpi-dev; else sudo brew install open-mpi; fi || true
 #    Hypre install   
    - wget https://computation.llnl.gov/project/linear_solvers/download/hypre-2.10.0b.tar.gz --no-check-certificate
    - tar xvzf hypre-2.10.0b.tar.gz
