@@ -7,6 +7,7 @@ install:
    - tar xvzf hypre-2.10.0b.tar.gz
    - cd hypre-2.10.0b/src
    - ./configure --disable-fortran
+   - make
    - cd ../..
 #    Metis install   
    - wget http://glaros.dtc.umn.edu/gkhome/fetch/sw/metis/OLD/metis-4.0.3.tar.gz
