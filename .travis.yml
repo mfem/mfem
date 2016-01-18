@@ -7,8 +7,10 @@ install:
    - ./configure --prefix=/usr/local CC=$CC CXX=$CXX FC=$FC
    - sudo make all install
    - cd ..
-   - export PATH=$PATH;/usr/local/lib
-   - export LD_LIBRARY_PATH=$LD_LIBRARY_PATH;/usr/local/lib
+   - PATH=$PATH:/usr/local/lib
+   - LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
+   - export PATH
+   - export LD_LIBRARY_PATH
 #    Hypre install   
    - wget https://computation.llnl.gov/project/linear_solvers/download/hypre-2.10.0b.tar.gz --no-check-certificate
    - tar xvzf hypre-2.10.0b.tar.gz
