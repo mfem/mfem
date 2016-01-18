@@ -7,7 +7,7 @@ install:
    - wget https://computation.llnl.gov/project/linear_solvers/download/hypre-2.10.0b.tar.gz --no-check-certificate
    - tar xvzf hypre-2.10.0b.tar.gz
    - cd hypre-2.10.0b/src
-   - ./configure --disable-fortran
+   - ./configure --disable-fortran CC=mpicc CXX=mpic++
    - make
    - cd ../..
 #    Metis install   
