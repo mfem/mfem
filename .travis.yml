@@ -1,6 +1,24 @@
 language: cpp
+compiler:
+   - clang
+   - gcc
+os:
+   - linux
+   - osx
+env:
+   - DEBUG=YES MPI=YES 
+   - DEBUG=NO MPI=YES
+   - DEBUG=YES MPI=NO 
+   - DEBUG=NO MPI=NO
+matrix:
+   exclude:
+      - compiler: clang
+        env: DEBUG=NO MPI=YES
+      - compiler: clang
+        env: DEBUG=YES MPI=YES
 install:
 #    Back out of the mfem directory to install the libraries
+   - pwd
    - cd ..
 #    OpenMPI install
    - if test $TRAVIS_OS_NAME == "linux"; then sudo apt-get update; fi || true
@@ -19,26 +37,8 @@ install:
    - make
    - cd ..
    - ln -s metis-4.0.3 metis-4.0
-   - pwd
-   - cd $TRAVIS_BUILD_DIR
-   - pwd
-compiler:
-   - clang
-   - gcc
-os:
-   - linux
-   - osx
-env:
-   - DEBUG=YES MPI=YES 
-   - DEBUG=NO MPI=YES
-   - DEBUG=YES MPI=NO 
-   - DEBUG=NO MPI=NO
 script:
+   - pwd
    - if test $MPI == "YES"; then export MYCXX=mpic++; else export MYCXX=$CXX; fi || true
    - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX=$MYCXX && make
-matrix:
-   exclude:
-      - compiler: clang
-        env: DEBUG=NO MPI=YES
-      - compiler: clang
-        env: DEBUG=YES MPI=YES
+
