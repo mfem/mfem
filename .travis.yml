@@ -38,7 +38,7 @@ install:
    - cd ..
    - ln -s metis-4.0.3 metis-4.0
 script:
-   - pwd
+   - cd $TRAVIS_BUILD_DIR
    - if test $MPI == "YES"; then export MYCXX=mpic++; else export MYCXX=$CXX; fi || true
    - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX=$MYCXX && make
 
