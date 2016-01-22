@@ -17,6 +17,10 @@ install:
    - make
    - cd ..
    - ln -s metis-4.0.3 metis-4.0
+   - ls 
+   - ls hypre-2.10.0b/
+   - ls hypre-2.10.0b/src/
+   - ls hypre-2.10.0b/src/hypre/
 compiler:
    - clang
    - gcc
