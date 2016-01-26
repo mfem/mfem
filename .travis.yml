@@ -48,11 +48,11 @@ script:
    - cd ..
 #    Build and run the unit tests
    - cd unit-test.code
-   - if test ($MYCXX == "g++" -a $DEBUG == "YES"); then make MFEM_DIR=..; fi || true
-   - if test ($MYCXX == "g++" -a $DEBUG == "YES"); then ./test; fi || true
+   - if test $MYCXX == "g++" -a $DEBUG == "YES"; then make MFEM_DIR=..; fi || true
+   - if test $MYCXX == "g++" -a $DEBUG == "YES"; then ./test; fi || true
    - cd ..
 #    Get the unit test coverage data
-   - if test ($MYCXX == "g++" -a $DEBUG == "YES"); then make unittestcov; fi || true
-   - if test ($MYCXX == "g++" -a $DEBUG == "YES"); then bash <(curl -s https://codecov.io/bash); fi || true
+   - if test $MYCXX == "g++" -a $DEBUG == "YES"; then make unittestcov; fi || true
+   - if test $MYCXX == "g++" -a $DEBUG == "YES"; then bash <(curl -s https://codecov.io/bash); fi || true
 
 
