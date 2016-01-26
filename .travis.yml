@@ -38,16 +38,21 @@ install:
    - cd ..
    - ln -s metis-4.0.3 metis-4.0
 script:
+#    Build MFEM and the examples
    - cd $TRAVIS_BUILD_DIR
    - if test $MPI == "YES"; then export MYCXX=mpic++; else export MYCXX=$CXX; fi || true
    - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX=$MYCXX
    - make
    - cd examples
    - make
-   - cd ../unit-test.code
-   - make MFEM_DIR=..
-   - ./test
-after_success:
-   - make unittestcov
-   - bash <(curl -s https://codecov.io/bash)
+   - cd ..
+#    Build and run the unit tests
+   - cd unit-test.code
+   - if test ($MYCXX == "g++" -a $DEBUG == "YES"); then make MFEM_DIR=..; fi || true
+   - if test ($MYCXX == "g++" -a $DEBUG == "YES"); then ./test; fi || true
+   - cd ..
+#    Get the unit test coverage data
+   - if test ($MYCXX == "g++" -a $DEBUG == "YES"); then make unittestcov; fi || true
+   - if test ($MYCXX == "g++" -a $DEBUG == "YES"); then bash <(curl -s https://codecov.io/bash); fi || true
+
 
