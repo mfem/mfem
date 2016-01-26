@@ -44,4 +44,10 @@ script:
    - make
    - cd examples
    - make
+   - cd ../unit-test.code
+   - make MFEM_DIR=..
+   - ./test
+after_success:
+   - make unittestcov
+   - bash <(curl -s https://codecov.io/bash)
 
