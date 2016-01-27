@@ -257,7 +257,7 @@ unittestcov:
 	$(MAKE)
 	cd unit-test.code; make MFEM_DIR=.. COVERAGE=YES; cd ..
 	unit-test.code/test
-	gcov $(SOURCE_FILES)
+	gcov -o $(SOURCE_FILES)
 
 serial:
 	$(MAKE) config MFEM_USE_MPI=NO MFEM_DEBUG=NO && $(MAKE)
@@ -277,7 +277,7 @@ deps:
 	   $(DEP_CXX) $(MFEM_FLAGS) -MM -MT $${i}.o $${i}.cpp >> deps.mk; done
 
 clean:
-	rm -f */*.o */*.gcno */*.gcda */*~ *~ libmfem.a deps.mk
+	rm -f */*.o */*.gcno */*.gcda *.gcov */*~ *~ libmfem.a deps.mk
 	$(MAKE) -C examples clean
 
 distclean: clean
