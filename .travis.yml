@@ -52,9 +52,9 @@ script:
    - if test $MYCXX == "g++" -a $DEBUG == "YES"; then ./test; fi || true
    - cd ..
 #    Get the unit test coverage data
-   - if test $MYCXX == "g++" -a $DEBUG == "YES"; then g++ --version; fi || true
-   - if test $MYCXX == "g++" -a $DEBUG == "YES"; then gcov --version; fi || true
-   - if test $MYCXX == "g++" -a $DEBUG == "YES"; then make unittestcov; fi || true
-   - if test $MYCXX == "g++" -a $DEBUG == "YES"; then bash <(curl -s https://codecov.io/bash); fi || true
+   - if test $MYCXX == "g++" -a $DEBUG == "YES" -a $TRAVIS_OS_NAME == "linux"; then g++ --version; fi || true
+   - if test $MYCXX == "g++" -a $DEBUG == "YES" -a $TRAVIS_OS_NAME == "linux"; then gcov --version; fi || true
+   - if test $MYCXX == "g++" -a $DEBUG == "YES" -a $TRAVIS_OS_NAME == "linux"; then make unittestcov; fi || true
+   - if test $MYCXX == "g++" -a $DEBUG == "YES" -a $TRAVIS_OS_NAME == "linux"; then bash <(curl -s https://codecov.io/bash); fi || true
 
 
