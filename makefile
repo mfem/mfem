@@ -257,7 +257,7 @@ unittestcov:
 	$(MAKE)
 	cd unit-test.code; make MFEM_DIR=.. COVERAGE=YES; cd ..
 	unit-test.code/test
-	gcov -o general -o linalg -o mesh -o fem $(SOURCE_FILES)
+	gcov -o general -o linalg -o mesh -o fem $(notdir $(SOURCE_FILES))
 
 serial:
 	$(MAKE) config MFEM_USE_MPI=NO MFEM_DEBUG=NO && $(MAKE)
