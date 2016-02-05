@@ -17,12 +17,14 @@ matrix:
       - compiler: clang
         env: DEBUG=YES MPI=YES
 install:
+#    Disable the travis output timeout for the next 20 minutes
+   - travis_wait mvn install
 #    Back out of the mfem directory to install the libraries
    - pwd
    - cd ..
 #    OpenMPI install
    - if test $TRAVIS_OS_NAME == "linux"; then sudo apt-get update; fi || true
-   - if test $TRAVIS_OS_NAME == "linux"; then sudo apt-get install openmpi-bin openmpi-common openssh-client openssh-server libopenmpi1.3 libopenmpi-dbg libopenmpi-dev; else brew install -v open-mpi; fi || true
+   - if test $TRAVIS_OS_NAME == "linux"; then sudo apt-get install openmpi-bin openmpi-common openssh-client openssh-server libopenmpi1.3 libopenmpi-dbg libopenmpi-dev; else brew install open-mpi; fi || true
 #    Hypre install   
    - wget https://computation.llnl.gov/project/linear_solvers/download/hypre-2.10.0b.tar.gz --no-check-certificate
    - tar xvzf hypre-2.10.0b.tar.gz
