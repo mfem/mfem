@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -40,7 +40,7 @@ void Tetrahedron::ParseRefinementFlag(int refinement_edges[2], int &type,
 void Tetrahedron::CreateRefinementFlag(int refinement_edges[2], int type,
                                        int flag)
 {
-// Check for correct type
+   // Check for correct type
 #ifdef MFEM_DEBUG
    int e1, e2;
    e1 = refinement_edges[0];
@@ -48,44 +48,46 @@ void Tetrahedron::CreateRefinementFlag(int refinement_edges[2], int type,
    // if (e1 > e2)  e1 = e2, e2 = refinement_edges[0];
    switch (type)
    {
-   case Tetrahedron::TYPE_PU:
-      if (e1 == 2 && e2 == 1) break;
-      // if (e1 == 3 && e2 == 4) break;
-      mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #1");
-      break;
-   case Tetrahedron::TYPE_A:
-      if (e1 == 3 && e2 == 1) break;
-      if (e1 == 2 && e2 == 4) break;
-      // if (flag == 0)  // flag is assumed to be the generation
-      //   if (e2 == 5)
-      //      if (e1 >= 1 && e1 <= 5) break; // type is actually O or M
-      //                                     //   ==>  ok for generation = 0
-      mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #2");
-      break;
-   case Tetrahedron::TYPE_PF:
-      if (flag > 0)  // PF is ok only for generation > 0
-      {
-         if (e1 == 2 && e2 == 1) break;
+      case Tetrahedron::TYPE_PU:
+         if (e1 == 2 && e2 == 1) { break; }
          // if (e1 == 3 && e2 == 4) break;
-      }
-      mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #3");
-      break;
-   case Tetrahedron::TYPE_O:
-      if (flag == 0 && e1 == 5 && e2 == 5)
+         mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #1");
          break;
-      mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #4");
-      break;
-   case Tetrahedron::TYPE_M:
-      if (flag == 0)
-      {
-         if (e1 == 5 && e2 == 1)  break;
-         if (e1 == 2 && e2 == 5)  break;
-      }
-      mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #5");
-      break;
-   default:
-      mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #6");
-      break;
+      case Tetrahedron::TYPE_A:
+         if (e1 == 3 && e2 == 1) { break; }
+         if (e1 == 2 && e2 == 4) { break; }
+         // if (flag == 0)  // flag is assumed to be the generation
+         //   if (e2 == 5)
+         //      if (e1 >= 1 && e1 <= 5) break; // type is actually O or M
+         //                                     //   ==>  ok for generation = 0
+         mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #2");
+         break;
+      case Tetrahedron::TYPE_PF:
+         if (flag > 0)  // PF is ok only for generation > 0
+         {
+            if (e1 == 2 && e2 == 1) { break; }
+            // if (e1 == 3 && e2 == 4) break;
+         }
+         mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #3");
+         break;
+      case Tetrahedron::TYPE_O:
+         if (flag == 0 && e1 == 5 && e2 == 5)
+         {
+            break;
+         }
+         mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #4");
+         break;
+      case Tetrahedron::TYPE_M:
+         if (flag == 0)
+         {
+            if (e1 == 5 && e2 == 1) { break; }
+            if (e1 == 2 && e2 == 5) { break; }
+         }
+         mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #5");
+         break;
+      default:
+         mfem_error("Error in Tetrahedron::CreateRefinementFlag(...) #6");
+         break;
    }
 #endif
 
@@ -106,7 +108,9 @@ Tetrahedron::Tetrahedron(const int *ind, int attr)
 {
    attribute = attr;
    for (int i = 0; i < 4; i++)
+   {
       indices[i] = ind[i];
+   }
    refinement_flag = 0;
 }
 
@@ -126,24 +130,26 @@ int Tetrahedron::NeedRefinement(DSTable &v_to_v, int *middle) const
    int m;
 
    if ((m = v_to_v(indices[0], indices[1])) != -1)
-      if (middle[m] != -1) return 1;
+      if (middle[m] != -1) { return 1; }
    if ((m = v_to_v(indices[1], indices[2])) != -1)
-      if (middle[m] != -1) return 1;
+      if (middle[m] != -1) { return 1; }
    if ((m = v_to_v(indices[2], indices[0])) != -1)
-      if (middle[m] != -1) return 1;
+      if (middle[m] != -1) { return 1; }
    if ((m = v_to_v(indices[0], indices[3])) != -1)
-      if (middle[m] != -1) return 1;
+      if (middle[m] != -1) { return 1; }
    if ((m = v_to_v(indices[1], indices[3])) != -1)
-      if (middle[m] != -1) return 1;
+      if (middle[m] != -1) { return 1; }
    if ((m = v_to_v(indices[2], indices[3])) != -1)
-      if (middle[m] != -1) return 1;
+      if (middle[m] != -1) { return 1; }
    return 0;
 }
 
 void Tetrahedron::SetVertices(const int *ind)
 {
    for (int i = 0; i < 4; i++)
+   {
       indices[i] = ind[i];
+   }
 }
 
 void Tetrahedron::MarkEdge(const DSTable &v_to_v, const int *length)
@@ -159,30 +165,32 @@ void Tetrahedron::MarkEdge(const DSTable &v_to_v, const int *length)
    if ((l = length[v_to_v(indices[2], indices[3])]) > L) { L = l; j = 5; }
 
    for (i = 0; i < 4; i++)
+   {
       ind[i] = indices[i];
+   }
 
    switch (j)
    {
-   case 1:
-      indices[0] = ind[1]; indices[1] = ind[2];
-      indices[2] = ind[0]; indices[3] = ind[3];
-      break;
-   case 2:
-      indices[0] = ind[2]; indices[1] = ind[0];
-      indices[2] = ind[1]; indices[3] = ind[3];
-      break;
-   case 3:
-      indices[0] = ind[3]; indices[1] = ind[0];
-      indices[2] = ind[2]; indices[3] = ind[1];
-      break;
-   case 4:
-      indices[0] = ind[1]; indices[1] = ind[3];
-      indices[2] = ind[2]; indices[3] = ind[0];
-      break;
-   case 5:
-      indices[0] = ind[2]; indices[1] = ind[3];
-      indices[2] = ind[0]; indices[3] = ind[1];
-      break;
+      case 1:
+         indices[0] = ind[1]; indices[1] = ind[2];
+         indices[2] = ind[0]; indices[3] = ind[3];
+         break;
+      case 2:
+         indices[0] = ind[2]; indices[1] = ind[0];
+         indices[2] = ind[1]; indices[3] = ind[3];
+         break;
+      case 3:
+         indices[0] = ind[3]; indices[1] = ind[0];
+         indices[2] = ind[2]; indices[3] = ind[1];
+         break;
+      case 4:
+         indices[0] = ind[1]; indices[1] = ind[3];
+         indices[2] = ind[2]; indices[3] = ind[0];
+         break;
+      case 5:
+         indices[0] = ind[2]; indices[1] = ind[3];
+         indices[2] = ind[0]; indices[3] = ind[1];
+         break;
    }
 
    // Determine the two longest edges for the other two faces and
@@ -199,36 +207,36 @@ void Tetrahedron::MarkEdge(const DSTable &v_to_v, const int *length)
    j = 0;
    switch (ind[0])
    {
-   case 2:
-      switch (ind[1])
-      {
-      case 1:  type = Tetrahedron::TYPE_PU; break;
-      case 4:  type = Tetrahedron::TYPE_A;  break;
+      case 2:
+         switch (ind[1])
+         {
+            case 1:  type = Tetrahedron::TYPE_PU; break;
+            case 4:  type = Tetrahedron::TYPE_A;  break;
+            case 5:
+            default: type = Tetrahedron::TYPE_M;
+         }
+         break;
+      case 3:
+         switch (ind[1])
+         {
+            case 1:  type = Tetrahedron::TYPE_A;  break;
+            case 4:  type = Tetrahedron::TYPE_PU;
+               j = 1; ind[0] = 2; ind[1] = 1; break;
+            case 5:
+            default: type = Tetrahedron::TYPE_M;
+               j = 1; ind[0] = 5; ind[1] = 1;
+         }
+         break;
       case 5:
-      default: type = Tetrahedron::TYPE_M;
-      }
-      break;
-   case 3:
-      switch (ind[1])
-      {
-      case 1:  type = Tetrahedron::TYPE_A;  break;
-      case 4:  type = Tetrahedron::TYPE_PU;
-         j = 1; ind[0] = 2; ind[1] = 1; break;
-      case 5:
-      default: type = Tetrahedron::TYPE_M;
-         j = 1; ind[0] = 5; ind[1] = 1;
-      }
-      break;
-   case 5:
-   default:
-      switch (ind[1])
-      {
-      case 1:  type = Tetrahedron::TYPE_M;  break;
-      case 4:  type = Tetrahedron::TYPE_M;
-         j = 1; ind[0] = 2; ind[1] = 5; break;
-      case 5:
-      default: type = Tetrahedron::TYPE_O;
-      }
+      default:
+         switch (ind[1])
+         {
+            case 1:  type = Tetrahedron::TYPE_M;  break;
+            case 4:  type = Tetrahedron::TYPE_M;
+               j = 1; ind[0] = 2; ind[1] = 5; break;
+            case 5:
+            default: type = Tetrahedron::TYPE_O;
+         }
    }
 
    if (j)

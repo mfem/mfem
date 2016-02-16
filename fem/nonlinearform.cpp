@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -26,17 +26,23 @@ void NonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
    nv = 0;
    for (i = 0; i < vsize; i++)
       if (vdof_marker[i])
+      {
          nv++;
+      }
 
    ess_vdofs.SetSize(nv);
 
    for (i = j = 0; i < vsize; i++)
       if (vdof_marker[i])
+      {
          ess_vdofs[j++] = i;
+      }
 
    if (rhs)
       for (i = 0; i < nv; i++)
+      {
          (*rhs)(ess_vdofs[i]) = 0.0;
+      }
 }
 
 double NonlinearForm::GetEnergy(const Vector &x) const
@@ -87,7 +93,9 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
       }
 
    for (int i = 0; i < ess_vdofs.Size(); i++)
+   {
       y(ess_vdofs[i]) = 0.0;
+   }
    // y(ess_vdofs[i]) = x(ess_vdofs[i]);
 }
 
@@ -101,9 +109,13 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    ElementTransformation *T;
 
    if (Grad == NULL)
+   {
       Grad = new SparseMatrix(fes->GetVSize());
+   }
    else
+   {
       *Grad = 0.0;
+   }
 
    if (dfi.Size())
       for (int i = 0; i < fes->GetNE(); i++)
@@ -121,10 +133,14 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
       }
 
    for (int i = 0; i < ess_vdofs.Size(); i++)
+   {
       Grad->EliminateRowCol(ess_vdofs[i]);
+   }
 
    if (!Grad->Finalized())
+   {
       Grad->Finalize(skip_zeros);
+   }
 
    return *Grad;
 }
@@ -133,7 +149,9 @@ NonlinearForm::~NonlinearForm()
 {
    delete Grad;
    for (int i = 0; i < dfi.Size(); i++)
+   {
       delete dfi[i];
+   }
 }
 
 }

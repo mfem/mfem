@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -61,9 +61,9 @@ public:
    void SetMaxIter(int max_it) { max_iter = max_it; }
    void SetPrintLevel(int print_lvl);
 
-   int GetNumIterations() { return final_iter; }
-   int GetConverged() { return converged; }
-   double GetFinalNorm() { return final_norm; }
+   int GetNumIterations() const { return final_iter; }
+   int GetConverged() const { return converged; }
+   double GetFinalNorm() const { return final_norm; }
 
    /// This should be called before SetOperator
    virtual void SetPreconditioner(Solver &pr);
@@ -229,7 +229,10 @@ public:
 #endif
 
    virtual void SetPreconditioner(Solver &pr)
-   { IterativeSolver::SetPreconditioner(pr); if (oper) u1.SetSize(width); }
+   {
+      IterativeSolver::SetPreconditioner(pr);
+      if (oper) { u1.SetSize(width); }
+   }
 
    virtual void SetOperator(const Operator &op);
 

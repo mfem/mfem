@@ -3,7 +3,7 @@
 # See file COPYRIGHT for details.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.googlecode.com.
+# availability see http://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
 # terms of the GNU Lesser General Public License (as published by the Free
@@ -15,6 +15,7 @@ MFEM makefile targets:
 
    make config
    make
+   make all
    make status/info
    make serial
    make parallel
@@ -23,6 +24,7 @@ MFEM makefile targets:
    make install
    make clean
    make distclean
+   make style
 
 Examples:
 
@@ -30,7 +32,9 @@ make config MFEM_USE_MPI=YES MFEM_DEBUG=YES MPICXX=mpiCC
    Configure the make system for subsequent runs (analogous to a configure script).
    The available options are documented in the INSTALL file.
 make -j 4
-   Build the code (in parallel) using the current configuration options.
+   Build the library (in parallel) using the current configuration options.
+make all
+   Build the library, the examples and the miniapps using the current configuration.
 make status
    Display information about the current configuration.
 make serial
@@ -46,7 +50,10 @@ make install PREFIX=<dir>
 make clean
    Clean the library and object files, but keep configuration.
 make distclean
-   Clean the library, object files and configuration.
+   In addition to "make clean", clean the configuration and remove the local
+   installation directory.
+make style
+   Format the MFEM C++ source files using Artistic Style (astyle).
 
 endef
 
@@ -67,7 +74,8 @@ mfem-info = $(if $(filter YES,$(VERBOSE)),$(info *** [info]$(1)),)
 $(call mfem-info, MAKECMDGOALS = $(MAKECMDGOALS))
 
 # Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
-SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug
+SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug\
+ style
 HAVE_SKIP_INCLUDE_TARGET = $(filter $(SKIP_INCLUDE_TARGETS),$(MAKECMDGOALS))
 ifeq (,$(HAVE_SKIP_INCLUDE_TARGET))
    $(call mfem-info, Including $(CONFIG_MK))
@@ -172,6 +180,15 @@ endif
 
 MFEM_USE_MEMALLOC ?= YES
 
+MFEM_USE_GECKO ?= NO
+GECKO_DIR ?= @MFEM_DIR@/../gecko
+GECKO_OPT ?= -I$(GECKO_DIR)/inc
+GECKO_LIB ?= -L$(GECKO_DIR)/lib -lgecko
+ifeq ($(MFEM_USE_GECKO),YES)
+   INCFLAGS += $(GECKO_OPT)
+   ALL_LIBS += $(GECKO_LIB)
+endif
+
 # Use POSIX clocks for timing unless kernel-name is 'Darwin' (mac)
 ifeq ($(shell uname -s),Darwin)
    MFEM_TIMER_TYPE ?= 0
@@ -186,7 +203,7 @@ endif
 # List of all defines that may be enabled in config.hpp and config.mk:
 MFEM_DEFINES = MFEM_USE_MPI MFEM_USE_METIS_5 MFEM_DEBUG MFEM_TIMER_TYPE\
  MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP MFEM_USE_MESQUITE\
- MFEM_USE_SUITESPARSE MFEM_USE_MEMALLOC
+ MFEM_USE_SUITESPARSE MFEM_USE_MEMALLOC MFEM_USE_GECKO
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -233,15 +250,21 @@ DIRS = general linalg mesh fem
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(dir)/*.cpp))
 OBJECT_FILES = $(SOURCE_FILES:.cpp=.o)
 
-.PHONY: all clean distclean install config status info deps serial parallel\
- debug pdebug
+.PHONY: lib all clean distclean install config status info deps serial parallel\
+ debug pdebug style
 
 .SUFFIXES: .cpp .o
 .cpp.o:
 	cd $(<D); $(MFEM_CXX) $(MFEM_FLAGS) -c $(<F)
 
 
-all: libmfem.a
+lib: libmfem.a
+
+all: lib
+	$(MAKE) -C examples
+	$(MAKE) -C miniapps/common
+	$(MAKE) -C miniapps/meshing
+	$(MAKE) -C miniapps/electromagnetics
 
 -include deps.mk
 
@@ -263,6 +286,7 @@ debug:
 pdebug:
 	$(MAKE) config MFEM_USE_MPI=YES MFEM_DEBUG=YES && $(MAKE)
 
+deps: MFEM_DIR = .
 deps:
 	rm -f deps.mk
 	for i in $(SOURCE_FILES:.cpp=); do \
@@ -271,8 +295,12 @@ deps:
 clean:
 	rm -f */*.o */*~ *~ libmfem.a deps.mk
 	$(MAKE) -C examples clean
+	$(MAKE) -C miniapps/common clean
+	$(MAKE) -C miniapps/meshing clean
+	$(MAKE) -C miniapps/electromagnetics clean
 
 distclean: clean
+	rm -rf mfem/
 	$(MAKE) -C config clean
 	$(MAKE) -C doc clean
 
@@ -319,6 +347,7 @@ status info:
 	$(info MFEM_USE_MESQUITE    = $(MFEM_USE_MESQUITE))
 	$(info MFEM_USE_SUITESPARSE = $(MFEM_USE_SUITESPARSE))
 	$(info MFEM_USE_MEMALLOC    = $(MFEM_USE_MEMALLOC))
+	$(info MFEM_USE_GECKO       = $(MFEM_USE_GECKO))
 	$(info MFEM_TIMER_TYPE      = $(MFEM_TIMER_TYPE))
 	$(info MFEM_CXX             = $(value MFEM_CXX))
 	$(info MFEM_CPPFLAGS        = $(value MFEM_CPPFLAGS))
@@ -332,3 +361,11 @@ status info:
 	$(info MFEM_INC_DIR         = $(value MFEM_INC_DIR))
 	$(info MFEM_LIB_DIR         = $(value MFEM_LIB_DIR))
 	@true
+
+ASTYLE = astyle --options=config/mfem.astylerc
+FORMAT_FILES = $(foreach dir,$(DIRS) examples $(wildcard miniapps/*),"$(dir)/*.?pp")
+
+style:
+	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\
+	   echo "No source files were changed.";\
+	fi

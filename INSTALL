@@ -1,12 +1,11 @@
                     Finite Element Discretization Library
-                                 version 3.0
                                    __
                        _ __ ___   / _|  ___  _ __ ___
                       | '_ ` _ \ | |_  / _ \| '_ ` _ \
                       | | | | | ||  _||  __/| | | | | |
                       |_| |_| |_||_|   \___||_| |_| |_|
 
-                         http://mfem.googlecode.com
+                               http://mfem.org
 
 The MFEM library has a serial and an MPI-based parallel version, which largely
 share the same code base. The only prerequisite for building the serial version
@@ -36,6 +35,9 @@ Parallel build:
 Example codes (serial/parallel, depending on the build):
    cd examples
    make -j 4
+
+Build everything (library, examples and miniapps) with current configuration:
+   make all -j 4
 
 
 Building with GNU make
@@ -102,10 +104,11 @@ For a short help message, use
 
 The build process creates the MFEM library (libmfem.a) and the include file
 (mfem.hpp) needed in MFEM-based applications, see e.g. the example codes in the
-examples/ directory. A selected subset of configuration options and derived
-makefile variables are also written to the file config/config.mk. This file can
-be included by other makefiles to obtain information about the MFEM
-configuration, see e.g. the makefile in the examples/ directory.
+examples/ directory or the miniapps in the miniapps/ directory. A selected
+subset of configuration options and derived makefile variables are also written
+to the file config/config.mk. This file can be included by other makefiles to
+obtain information about the MFEM configuration, see e.g. the makefile in the
+examples/ directory.
 
 
 Configuration options
@@ -216,7 +219,7 @@ The specific libraries and their options are:
   Options: MESQUITE_OPT, MESQUITE_LIB.
 
 - SuiteSparse (optional), used when MFEM_USE_SUITESPARSE = YES.
-  URL: http://www.cise.ufl.edu/research/sparse/SuiteSparse
+  URL: http://faculty.cse.tamu.edu/davis/suitesparse.html
   Options: SUITESPARSE_OPT, SUITESPARSE_LIB.
 
 - High-resolution POSIX clocks: when using MFEM_TIMER_TYPE = 2, it may be

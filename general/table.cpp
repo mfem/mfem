@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -22,6 +22,23 @@ namespace mfem
 {
 
 using namespace std;
+
+Table::Table(const Table &table)
+{
+   size = table.size;
+   if (size >= 0)
+   {
+      const int nnz = table.I[size];
+      I = new int[size+1];
+      J = new int[nnz];
+      memcpy(I, table.I, sizeof(int)*(size+1));
+      memcpy(J, table.J, sizeof(int)*nnz);
+   }
+   else
+   {
+      I = J = NULL;
+   }
+}
 
 Table::Table (int dim, int connections_per_row)
 {
@@ -59,7 +76,9 @@ void Table::MakeI (int nrows)
    SetDims (nrows, 0);
 
    for (int i = 0; i <= nrows; i++)
+   {
       I[i] = 0;
+   }
 }
 
 void Table::MakeJ()
@@ -67,7 +86,9 @@ void Table::MakeJ()
    int i, j, k;
 
    for (k = i = 0; i < size; i++)
+   {
       j = I[i], I[i] = k, k += j;
+   }
 
    J = new int[I[size]=k];
 }
@@ -77,14 +98,18 @@ void Table::AddConnections (int r, const int *c, int nc)
    int *jp = J+I[r];
 
    for (int i = 0; i < nc; i++)
+   {
       jp[i] = c[i];
+   }
    I[r] += nc;
 }
 
 void Table::ShiftUpI()
 {
    for (int i = size; i > 0; i--)
+   {
       I[i] = I[i-1];
+   }
    I[0] = 0;
 }
 
@@ -99,7 +124,7 @@ void Table::SetSize(int dim, int connections_per_row)
       {
          int end = I[i] + connections_per_row;
          I[i+1] = end;
-         for ( ; j < end; j++) J[j] = -1;
+         for ( ; j < end; j++) { J[j] = -1; }
       }
    }
 }
@@ -112,13 +137,13 @@ void Table::SetDims(int rows, int nnz)
    if (size != rows)
    {
       size = rows;
-      if (I) delete [] I;
+      if (I) { delete [] I; }
       I = (rows >= 0) ? (new int[rows+1]) : (NULL);
    }
 
    if (j != nnz)
    {
-      if (J) delete [] J;
+      if (J) { delete [] J; }
       J = (nnz > 0) ? (new int[nnz]) : (NULL);
    }
 
@@ -132,26 +157,36 @@ void Table::SetDims(int rows, int nnz)
 int Table::operator() (int i, int j) const
 {
    if ( i>=size || i<0 )
+   {
       return -1;
+   }
 
    int k, end = I[i+1];
-
-   for(k=I[i]; k<end; k++)
-      if (J[k]==j)
+   for (k = I[i]; k < end; k++)
+   {
+      if (J[k] == j)
+      {
          return k;
-      else if (J[k]==-1)
+      }
+      else if (J[k] == -1)
+      {
          return -1;
-
+      }
+   }
    return -1;
 }
 
 void Table::GetRow(int i, Array<int> &row) const
 {
+   MFEM_ASSERT(i >= 0 && i < size, "Row index " << i << " is out of range [0,"
+               << size << ')');
    const int *jp = GetRow(i), n = RowSize(i);
 
    row.SetSize(n);
-   for(int i = 0; i < n; i++)
-      row[i] = jp[i];
+   for (int j = 0; j < n; j++)
+   {
+      row[j] = jp[j];
+   }
 }
 
 void Table::SetIJ(int *newI, int *newJ, int newsize)
@@ -161,16 +196,20 @@ void Table::SetIJ(int *newI, int *newJ, int newsize)
    I = newI;
    J = newJ;
    if (newsize >= 0)
+   {
       size = newsize;
+   }
 }
 
 int Table::Push(int i, int j)
 {
    MFEM_ASSERT( i >=0 && i<size, "Index out of bounds.  i = "<<i);
 
-   for(int k = I[i], end = I[i+1]; k < end; k++)
+   for (int k = I[i], end = I[i+1]; k < end; k++)
       if (J[k] == j)
+      {
          return k;
+      }
       else if (J[k] == -1)
       {
          J[k] = j;
@@ -187,17 +226,22 @@ void Table::Finalize()
 {
    int i, j, end, sum = 0, n = 0, newI = 0;
 
-   for(i=0; i<I[size]; i++)
+   for (i=0; i<I[size]; i++)
       if (J[i] != -1)
+      {
          sum++;
+      }
 
-   if (sum != I[size]){
+   if (sum != I[size])
+   {
       int *NewJ = new int[sum];
 
-      for(i=0; i<size; i++){
+      for (i=0; i<size; i++)
+      {
          end = I[i+1];
-         for(j=I[i]; j<end; j++){
-            if (J[j] == -1) break;
+         for (j=I[i]; j<end; j++)
+         {
+            if (J[j] == -1) { break; }
             NewJ[ n++ ] = J[j];
          }
          I[i] = newI;
@@ -213,11 +257,32 @@ void Table::Finalize()
    }
 }
 
+void Table::MakeFromList(int nrows, const Array<Connection> &list)
+{
+   Clear();
+
+   size = nrows;
+   int nnz = list.Size();
+
+   I = new int[size+1];
+   J = new int[nnz];
+
+   for (int i = 0, k = 0; i <= size; i++)
+   {
+      I[i] = k;
+      while (k < nnz && list[k].from == i)
+      {
+         J[k] = list[k].to;
+         k++;
+      }
+   }
+}
+
 int Table::Width() const
 {
-   int width = -1, nnz = I[size];
+   int width = -1, nnz = (size >= 0) ? I[size] : 0;
    for (int k = 0; k < nnz; k++)
-      if (J[k] > width) width = J[k];
+      if (J[k] > width) { width = J[k]; }
    return width + 1;
 }
 
@@ -232,10 +297,14 @@ void Table::Print(std::ostream & out, int width) const
       {
          out << setw(5) << J[j];
          if ( !((j+1-I[i]) % width) )
+         {
             out << '\n';
+         }
       }
       if ((j-I[i]) % width)
+      {
          out << '\n';
+      }
    }
 }
 
@@ -245,7 +314,9 @@ void Table::PrintMatlab(std::ostream & out) const
 
    for (i = 0; i < size; i++)
       for (j = I[i]; j < I[i+1]; j++)
+      {
          out << i << " " << J[j] << " 1. \n";
+      }
 
    out << flush;
 }
@@ -257,9 +328,13 @@ void Table::Save(std::ostream & out) const
    out << size << '\n';
 
    for (i = 0; i <= size; i++)
+   {
       out << I[i] << '\n';
+   }
    for (i = 0; i < I[size]; i++)
+   {
       out << J[i] << '\n';
+   }
 }
 
 void Table::Clear()
@@ -272,34 +347,39 @@ void Table::Clear()
 
 void Table::Copy(Table & copy) const
 {
-   int * i_copy = new int[size+1];
-   int * j_copy = new int[I[size]];
+   if (size >= 0)
+   {
+      int * i_copy = new int[size+1];
+      int * j_copy = new int[I[size]];
 
-   memcpy(i_copy, I, sizeof(int)*(size+1) );
-   memcpy(j_copy, J, sizeof(int)*size);
+      memcpy(i_copy, I, sizeof(int)*(size+1));
+      memcpy(j_copy, J, sizeof(int)*I[size]);
 
-   copy.SetIJ(i_copy, j_copy, size);
+      copy.SetIJ(i_copy, j_copy, size);
+   }
+   else
+   {
+      copy.Clear();
+   }
 }
 
 void Table::Swap(Table & other)
 {
-   int * I_backup = I;
-   int * J_backup = J;
-   int size_backup = size;
+   mfem::Swap(size, other.size);
+   mfem::Swap(I, other.I);
+   mfem::Swap(J, other.J);
+}
 
-   I = other.I;
-   J = other.J;
-   size = other.size;
-
-   other.I = I_backup;
-   other.J = J_backup;
-   other.size = size_backup;
+long Table::MemoryUsage() const
+{
+   if (size < 0 || I == NULL) { return 0; }
+   return (size+1 + I[size]) * sizeof(int);
 }
 
 Table::~Table ()
 {
-   if (I) delete [] I;
-   if (J) delete [] J;
+   if (I) { delete [] I; }
+   if (J) { delete [] J; }
 }
 
 void Transpose (const Table &A, Table &At, int _ncols_A)
@@ -316,17 +396,27 @@ void Transpose (const Table &A, Table &At, int _ncols_A)
    int *j_At = At.GetJ();
 
    for (int i = 0; i <= ncols_A; i++)
+   {
       i_At[i] = 0;
+   }
    for (int i = 0; i < nnz_A; i++)
+   {
       i_At[j_A[i]+1]++;
+   }
    for (int i = 1; i < ncols_A; i++)
+   {
       i_At[i+1] += i_At[i];
+   }
 
    for (int i = 0; i < nrows_A; i++)
       for (int j = i_A[i]; j < i_A[i+1]; j++)
+      {
          j_At[i_At[j_A[j]]++] = i;
+      }
    for (int i = ncols_A; i > 0; i--)
+   {
       i_At[i] = i_At[i-1];
+   }
    i_At[0] = 0;
 }
 
@@ -341,10 +431,14 @@ void Transpose(const Array<int> &A, Table &At, int _ncols_A)
 {
    At.MakeI((_ncols_A < 0) ? (A.Max() + 1) : _ncols_A);
    for (int i = 0; i < A.Size(); i++)
+   {
       At.AddAColumnInRow(A[i]);
+   }
    At.MakeJ();
    for (int i = 0; i < A.Size(); i++)
+   {
       At.AddConnection(A[i], i);
+   }
    At.ShiftUpI();
 }
 
@@ -366,7 +460,9 @@ void Mult (const Table &A, const Table &B, Table &C)
    Array<int> B_marker (ncols_B);
 
    for (i = 0; i < ncols_B; i++)
+   {
       B_marker[i] = -1;
+   }
 
    int counter = 0;
    for (i = 0; i < nrows_A; i++)
@@ -389,7 +485,9 @@ void Mult (const Table &A, const Table &B, Table &C)
    C.SetDims (nrows_A, counter);
 
    for (i = 0; i < ncols_B; i++)
+   {
       B_marker[i] = -1;
+   }
 
    int *i_C = C.GetI();
    int *j_C = C.GetJ();
@@ -429,16 +527,25 @@ STable::STable (int dim, int connections_per_row) :
 int STable::operator() (int i, int j) const
 {
    if (i < j)
+   {
       return Table::operator()(i,j);
+   }
    else
+   {
       return Table::operator()(j,i);
+   }
 }
 
-int STable::Push( int i, int j ){
+int STable::Push( int i, int j )
+{
    if (i < j)
+   {
       return Table::Push(i, j);
+   }
    else
+   {
       return Table::Push(j, i);
+   }
 }
 
 
@@ -462,7 +569,7 @@ int DSTable::Push_(int r, int c)
    {
       if (n->Column == c)
       {
-         return(n->Index);
+         return (n->Index);
       }
    }
 #ifdef MFEM_USE_MEMALLOC
@@ -474,22 +581,24 @@ int DSTable::Push_(int r, int c)
    n->Index  = NumEntries;
    n->Prev   = Rows[r];
    Rows[r]   = n;
-   return(NumEntries++);
+   return (NumEntries++);
 }
 
 int DSTable::Index(int r, int c) const
 {
    MFEM_ASSERT( r>=0, "Row index must be non-negative, not "<<r);
    if (r >= NumRows)
-      return(-1);
+   {
+      return (-1);
+   }
    for (Node *n = Rows[r]; n != NULL; n = n->Prev)
    {
       if (n->Column == c)
       {
-         return(n->Index);
+         return (n->Index);
       }
    }
-   return(-1);
+   return (-1);
 }
 
 DSTable::~DSTable()

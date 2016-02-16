@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -18,6 +18,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <cstring>
+#include <algorithm>
 
 namespace mfem
 {
@@ -107,15 +108,19 @@ public:
    /// Logical size of the array
    inline int Size() const { return size; }
 
-   /** Maximum number of entries the array can store without allocating more
-       memory. */
-   inline int Capacity() const { return abs(allocsize); }
-
    /// Change logical size of the array, keep existing entries
    inline void SetSize(int nsize);
 
    /// Same as SetSize(int) plus initialize new entries with 'initval'
    inline void SetSize(int nsize, const T &initval);
+
+   /** Maximum number of entries the array can store without allocating more
+       memory. */
+   inline int Capacity() const { return abs(allocsize); }
+
+   /// Ensures that the allocated size is at least the given size.
+   inline void Reserve(int capacity)
+   { if (capacity > abs(allocsize)) { GrowSize(capacity, sizeof(T)); } }
 
    /// Access element
    inline T & operator[](int i);
@@ -143,7 +148,7 @@ public:
    inline int Find(const T &el) const;
 
    /// Delete the last entry
-   inline void DeleteLast() { if (size > 0) size--; }
+   inline void DeleteLast() { if (size > 0) { size--; } }
 
    /// Delete the first 'el' entry
    inline void DeleteFirst(const T &el);
@@ -158,7 +163,7 @@ public:
       memcpy(copy.GetData(), data, Size()*sizeof(T));
    }
 
-   /// Make this Array a reference to a poiter
+   /// Make this Array a reference to a pointer
    inline void MakeRef(T *, int);
 
    /// Make this Array a reference to 'master'
@@ -167,7 +172,7 @@ public:
    inline void GetSubArray(int offset, int sa_size, Array<T> &sa);
 
    /// Prints array to stream with width elements per row
-   void Print(std::ostream &out, int width);
+   void Print(std::ostream &out = std::cout, int width = 4);
 
    /// Prints array to stream out
    void Save(std::ostream &out);
@@ -180,8 +185,16 @@ public:
        (uses the comparison operator '<' for class T)  */
    T Min() const;
 
-   /// Sorts the array.
-   void Sort();
+   /// Sorts the array. This requires operator< to be defined for T.
+   void Sort() { std::sort((T*) data, (T*) data + size); }
+
+   /** Removes duplicities from a sorted array. This requires operator== to be
+       defined for T. */
+   void Unique()
+   {
+      T* end = std::unique((T*) data, (T*) data + size);
+      SetSize(end - (T*) data);
+   }
 
    /// return true if the array is sorted.
    int IsSorted();
@@ -197,12 +210,29 @@ public:
    /// Copy data from a pointer. Size() elements are copied.
    inline void Assign(const T *);
 
+   long MemoryUsage() const { return Capacity() * sizeof(T); }
+
 private:
    /// Array copy is not supported
    Array<T> &operator=(Array<T> &);
    /// Array copy is not supported
    Array(const Array<T> &);
 };
+
+template <class T>
+inline bool operator==(const Array<T> &LHS, const Array<T> &RHS)
+{
+   if ( LHS.Size() != RHS.Size() ) { return false; }
+   for (int i=0; i<LHS.Size(); i++)
+      if ( LHS[i] != RHS[i] ) { return false; }
+   return true;
+}
+
+template <class T>
+inline bool operator!=(const Array<T> &LHS, const Array<T> &RHS)
+{
+   return !( LHS == RHS );
+}
 
 template <class T>
 class Array2D;
@@ -294,7 +324,9 @@ inline void Array<T>::SetSize(int nsize)
 {
    MFEM_ASSERT( nsize>=0, "Size must be non-negative.  It is " << nsize );
    if (nsize > abs(allocsize))
+   {
       GrowSize(nsize, sizeof(T));
+   }
    size = nsize;
 }
 
@@ -305,9 +337,13 @@ inline void Array<T>::SetSize(int nsize, const T &initval)
    if (nsize > size)
    {
       if (nsize > abs(allocsize))
+      {
          GrowSize(nsize, sizeof(T));
+      }
       for (int i = size; i < nsize; i++)
+      {
          ((T*)data)[i] = initval;
+      }
    }
    size = nsize;
 }
@@ -315,14 +351,16 @@ inline void Array<T>::SetSize(int nsize, const T &initval)
 template <class T>
 inline T &Array<T>::operator[](int i)
 {
-   MFEM_ASSERT( i>=0 && i<size, "Access element " << i << " of array, size = " << size );
+   MFEM_ASSERT( i>=0 && i<size,
+                "Access element " << i << " of array, size = " << size );
    return ((T*)data)[i];
 }
 
 template <class T>
 inline const T &Array<T>::operator[](int i) const
 {
-   MFEM_ASSERT( i>=0 && i<size, "Access element " << i << " of array, size = " << size );
+   MFEM_ASSERT( i>=0 && i<size,
+                "Access element " << i << " of array, size = " << size );
    return ((T*)data)[i];
 }
 
@@ -341,7 +379,9 @@ inline int Array<T>::Append(const Array<T> & els)
 
    SetSize(size + els.Size());
    for (int i = 0; i < els.Size(); i++)
+   {
       ((T*)data)[old_size+i] = els[i];
+   }
    return size;
 }
 
@@ -351,7 +391,9 @@ inline int Array<T>::Prepend(const T &el)
 {
    SetSize(size+1);
    for (int i = size-1; i > 0; i--)
+   {
       ((T*)data)[i] = ((T*)data)[i-1];
+   }
    ((T*)data)[0] = el;
    return size;
 }
@@ -375,9 +417,11 @@ template <class T>
 inline int Array<T>::Union(const T &el)
 {
    int i = 0;
-   while ((i < size) && (((T*)data)[i] != el)) i++;
+   while ((i < size) && (((T*)data)[i] != el)) { i++; }
    if (i == size)
+   {
       Append(el);
+   }
    return i;
 }
 
@@ -386,7 +430,9 @@ inline int Array<T>::Find(const T &el) const
 {
    for (int i = 0; i < size; i++)
       if (((T*)data)[i] == el)
+      {
          return i;
+      }
    return -1;
 }
 
@@ -397,7 +443,9 @@ inline void Array<T>::DeleteFirst(const T &el)
       if (((T*)data)[i] == el)
       {
          for (i++; i < size; i++)
+         {
             ((T*)data)[i-1] = ((T*)data)[i];
+         }
          size--;
          return;
       }
@@ -407,7 +455,9 @@ template <class T>
 inline void Array<T>::DeleteAll()
 {
    if (allocsize > 0)
+   {
       delete [] (char*)data;
+   }
    data = NULL;
    size = allocsize = 0;
 }
@@ -416,7 +466,9 @@ template <class T>
 inline void Array<T>::MakeRef(T *p, int s)
 {
    if (allocsize > 0)
+   {
       delete [] (char*)data;
+   }
    data = p;
    size = s;
    allocsize = -s;
@@ -426,7 +478,9 @@ template <class T>
 inline void Array<T>::MakeRef(const Array &master)
 {
    if (allocsize > 0)
+   {
       delete [] (char*)data;
+   }
    data = master.data;
    size = master.size;
    allocsize = -abs(master.allocsize);
@@ -438,14 +492,18 @@ inline void Array<T>::GetSubArray(int offset, int sa_size, Array<T> &sa)
 {
    sa.SetSize(sa_size);
    for (int i = 0; i < sa_size; i++)
+   {
       sa[i] = (*this)[offset+i];
+   }
 }
 
 template <class T>
 inline void Array<T>::operator=(const T &a)
 {
    for (int i = 0; i < size; i++)
+   {
       ((T*)data)[i] = a;
+   }
 }
 
 template <class T>

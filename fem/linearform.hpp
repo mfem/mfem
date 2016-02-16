@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -38,11 +38,11 @@ private:
 public:
    /// Creates linear form associated with FE space *f.
    LinearForm (FiniteElementSpace * f) : Vector (f -> GetVSize())
-   { fes = f; };
+   { fes = f; }
 
-   LinearForm(){ fes = NULL; }
+   LinearForm() { fes = NULL; }
 
-   FiniteElementSpace * GetFES() { return fes; };
+   FiniteElementSpace * GetFES() { return fes; }
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator (LinearFormIntegrator * lfi);

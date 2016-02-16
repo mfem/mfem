@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -18,6 +18,8 @@
 #include "gridfunc.hpp"
 #include "linearform.hpp"
 #include "bilininteg.hpp"
+#include "staticcond.hpp"
+#include "hybridization.hpp"
 
 namespace mfem
 {
@@ -55,14 +57,20 @@ protected:
 
    DenseTensor *element_matrices;
 
+   StaticCondensation *static_cond;
+   Hybridization *hybridization;
+
    int precompute_sparsity;
    // Allocate appropriate SparseMatrix and assign it to mat
    void AllocMat();
 
    // may be used in the construction of derived classes
    BilinearForm() : Matrix (0)
-   { fes = NULL; mat = mat_e = NULL; extern_bfs = 0; element_matrices = NULL;
-      precompute_sparsity = 0; }
+   {
+      fes = NULL; mat = mat_e = NULL; extern_bfs = 0; element_matrices = NULL;
+      static_cond = NULL; hybridization = NULL;
+      precompute_sparsity = 0;
+   }
 
 public:
    /// Creates bilinear form associated with FE space *f.
@@ -73,6 +81,27 @@ public:
    /// Get the size of the BilinearForm as a square matrix.
    int Size() const { return height; }
 
+   /** Enable the use of static condensation. For details see the description
+       for class StaticCondensation in fem/staticcond.hpp This method should be
+       called before assembly. If the number of unknowns after static
+       condensation is not reduced, it is not enabled. */
+   void EnableStaticCondensation();
+
+   /** Check if static condensation was actually enabled by a previous call to
+       EnableStaticCondensation. */
+   bool StaticCondensationIsEnabled() const { return static_cond; }
+
+   /// Return the trace FE space associated with static condensation.
+   FiniteElementSpace *SCFESpace() const
+   { return static_cond->GetTraceFESpace(); }
+
+   /** Enable hybridization; for details see the description for class
+       Hybridization in fem/hybridization.hpp. This method should be called
+       before assembly. */
+   void EnableHybridization(FiniteElementSpace *constr_space,
+                            BilinearFormIntegrator *constr_integ,
+                            const Array<int> &ess_tdof_list);
+
    /** For scalar FE spaces, precompute the sparsity pattern of the matrix
        (assuming dense element matrices) based on the types of integrators
        present in the bilinear form. */
@@ -81,7 +110,7 @@ public:
    /** Pre-allocate the internal SparseMatrix before assembly. If the flag
        'precompute sparsity' is set, the matrix is allocated in CSR format (i.e.
        finalized) and the entries are initialized with zeros. */
-   void AllocateMatrix() { if (mat == NULL) AllocMat(); }
+   void AllocateMatrix() { if (mat == NULL) { AllocMat(); } }
 
    Array<BilinearFormIntegrator*> *GetDBFI() { return &dbfi; }
 
@@ -120,7 +149,7 @@ public:
    /// Finalizes the matrix initialization.
    virtual void Finalize(int skip_zeros = 1);
 
-   /// Returns a reference to the sparse martix
+   /// Returns a reference to the sparse matrix
    const SparseMatrix &SpMat() const { return *mat; }
    SparseMatrix &SpMat() { return *mat; }
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
@@ -138,7 +167,10 @@ public:
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
 
    void operator=(const double a)
-   { if (mat != NULL) *mat = a; if (mat_e != NULL) *mat_e = a; }
+   {
+      if (mat != NULL) { *mat = a; }
+      if (mat_e != NULL) { *mat_e = a; }
+   }
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
@@ -157,6 +189,35 @@ public:
       sol.ConformingProject();
    }
 
+   /** Form the linear system A X = B, corresponding to the current bilinear
+       form and b(.), by applying any necessary transformations such as:
+       eliminating boundary conditions; applying conforming constraints for
+       non-conforming AMR; static condensation; hybridization.
+
+       The GridFunction-size vector x must contain the essential b.c. The
+       BilinearForm and the LinearForm-size vector b must be assembled.
+
+       The vector X is initialized with a suitable initial guess: when using
+       hybridization, the vector X is set to zero; otherwise, the essential
+       entries of X are set to the corresponding b.c. and all other entries are
+       set to zero (copy_interior == 0) or copied from x (copy_interior != 0).
+
+       This method can be called multiple times (with the same ess_tdof_list
+       array) to initialize different right-hand sides and boundary condition
+       values.
+
+       After solving the linear system, the finite element solution x can be
+       recovered by calling RecoverFEMSolution (with the same vectors X, b, and
+       x). */
+   void FormLinearSystem(Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                         SparseMatrix &A, Vector &X, Vector &B,
+                         int copy_interior = 0);
+
+   /** Call this method after solving a linear system constructed using the
+       FormLinearSystem method to recover the solution as a GridFunction-size
+       vector in x. */
+   void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+
    /// Compute and store internally all element matrices.
    void ComputeElementMatrices();
 
@@ -168,26 +229,25 @@ public:
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
                               Array<int> &vdofs, int skip_zeros = 1);
 
-   /** If d == 0 the diagonal at the ess. b.c. is set to 1.0,
-       otherwise leave it the same.      */
+   /** Eliminate essential boundary DOFs from the system. The array
+       'bdr_attr_is_ess' marks boundary attributes that constitute the essential
+       part of the boundary. If d == 0, the diagonal at the essential DOFs is
+       set to 1.0, otherwise it is left the same. */
    void EliminateEssentialBC(Array<int> &bdr_attr_is_ess,
                              Vector &sol, Vector &rhs, int d = 0);
 
-   /// Here, vdofs is a list of DOFs.
+   void EliminateEssentialBC(Array<int> &bdr_attr_is_ess, int d = 0);
+   /// Perform elimination and set the diagonal entry to the given value
+   void EliminateEssentialBCDiag(Array<int> &bdr_attr_is_ess, double value);
+
+   /// Eliminate the given vdofs. NOTE: here, vdofs is a list of DOFs.
    void EliminateVDofs(Array<int> &vdofs, Vector &sol, Vector &rhs, int d = 0);
 
-   /** Eliminate the given vdofs storing the eliminated part internally;
-       vdofs is a list of DOFs. */
+   /** Eliminate the given vdofs storing the eliminated part internally; this
+       method works in conjunction with EliminateVDofsInRHS and allows
+       elimination of boundary conditions in multiple right-hand sides. In this
+       method, vdofs is a list of DOFs. */
    void EliminateVDofs(Array<int> &vdofs, int d = 0);
-
-   /** Use the stored eliminated part of the matrix to modify r.h.s.;
-       vdofs is a list of DOFs (non-directional, i.e. >= 0). */
-   void EliminateVDofsInRHS(Array<int> &vdofs, const Vector &x, Vector &b);
-
-   double FullInnerProduct(const Vector &x, const Vector &y) const
-   { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
-
-   void EliminateEssentialBC(Array<int> &bdr_attr_is_ess, int d = 0);
 
    /** Similar to EliminateVDofs but here ess_dofs is a marker
        (boolean) array on all vdofs (ess_dofs[i] < 0 is true). */
@@ -197,9 +257,19 @@ public:
    /** Similar to EliminateVDofs but here ess_dofs is a marker
        (boolean) array on all vdofs (ess_dofs[i] < 0 is true). */
    void EliminateEssentialBCFromDofs(Array<int> &ess_dofs, int d = 0);
+   /// Perform elimination and set the diagonal entry to the given value
+   void EliminateEssentialBCFromDofsDiag(Array<int> &ess_dofs, double value);
 
-   void Update(FiniteElementSpace *nfes = NULL);
+   /** Use the stored eliminated part of the matrix (see EliminateVDofs) to
+       modify r.h.s.; vdofs is a list of DOFs (non-directional, i.e. >= 0). */
+   void EliminateVDofsInRHS(Array<int> &vdofs, const Vector &x, Vector &b);
 
+   double FullInnerProduct(const Vector &x, const Vector &y) const
+   { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
+
+   virtual void Update(FiniteElementSpace *nfes = NULL);
+
+   /// Return the FE space associated with the BilinearForm.
    FiniteElementSpace *GetFES() { return fes; }
 
    /// Destroys bilinear form.
@@ -343,6 +413,9 @@ public:
 
    void AddDomainInterpolator(DiscreteInterpolator *di)
    { AddDomainIntegrator(di); }
+
+   void AddTraceFaceInterpolator(DiscreteInterpolator *di)
+   { AddTraceFaceIntegrator(di); }
 
    Array<BilinearFormIntegrator*> *GetDI() { return &dom; }
 

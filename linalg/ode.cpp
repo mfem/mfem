@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -145,7 +145,9 @@ void ExplicitRKSolver::Init(TimeDependentOperator &_f)
    int n = f->Width();
    y.SetSize(n);
    for (int i = 0; i < s; i++)
+   {
       k[i].SetSize(n);
+   }
 }
 
 void ExplicitRKSolver::Step(Vector &x, double &t, double &dt)
@@ -164,13 +166,17 @@ void ExplicitRKSolver::Step(Vector &x, double &t, double &dt)
    {
       add(x, a[l++]*dt, k[0], y);
       for (int j = 1; j < i; j++)
+      {
          y.Add(a[l++]*dt, k[j]);
+      }
 
       f->SetTime(t + c[i-1]*dt);
       f->Mult(y, k[i]);
    }
    for (int i = 0; i < s; i++)
+   {
       x.Add(b[i]*dt, k[i]);
+   }
    t += dt;
 }
 
@@ -179,7 +185,8 @@ ExplicitRKSolver::~ExplicitRKSolver()
    delete [] k;
 }
 
-const double RK6Solver::a[] = {
+const double RK6Solver::a[] =
+{
    .6e-1,
    .1923996296296296296296296296296296296296e-1,
    .7669337037037037037037037037037037037037e-1,
@@ -209,7 +216,8 @@ const double RK6Solver::a[] = {
    -.1833878590504572306472782005141738268361e-1,
    -.5119484997882099077875432497245168395840e-3
 };
-const double RK6Solver::b[] = {
+const double RK6Solver::b[] =
+{
    .3438957868357036009278820124728322386520e-1,
    0.,
    0.,
@@ -219,7 +227,8 @@ const double RK6Solver::b[] = {
    -176.4831190242986576151740942499002125029,
    172.3641334014150730294022582711902413315
 };
-const double RK6Solver::c[] = {
+const double RK6Solver::c[] =
+{
    .6e-1,
    .9593333333333333333333333333333333333333e-1,
    .1439,
@@ -229,7 +238,8 @@ const double RK6Solver::c[] = {
    1.,
 };
 
-const double RK8Solver::a[] = {
+const double RK8Solver::a[] =
+{
    .5e-1,
    -.69931640625e-2,
    .1135556640625,
@@ -297,7 +307,8 @@ const double RK8Solver::a[] = {
    4.527592100324618189451265339351129035325,
    -5.828495485811622963193088019162985703755
 };
-const double RK8Solver::b[] = {
+const double RK8Solver::b[] =
+{
    .4427989419007951074716746668098518862111e-1,
    0.,
    0.,
@@ -311,7 +322,8 @@ const double RK8Solver::b[] = {
    22.93828327398878395231483560344797018313,
    -.2361324633071542145259900641263517600737
 };
-const double RK8Solver::c[] = {
+const double RK8Solver::c[] =
+{
    .5e-1,
    .1065625,
    .15984375,
@@ -359,13 +371,21 @@ void ImplicitMidpointSolver::Step(Vector &x, double &t, double &dt)
 SDIRK23Solver::SDIRK23Solver(int gamma_opt)
 {
    if (gamma_opt == 0)
-      gamma = (3. - sqrt(3.))/6.; // not A-stable, order 3
+   {
+      gamma = (3. - sqrt(3.))/6.;   // not A-stable, order 3
+   }
    else if (gamma_opt == 2)
-      gamma = (2. - sqrt(2.))/2.; // L-stable, order 2
+   {
+      gamma = (2. - sqrt(2.))/2.;   // L-stable, order 2
+   }
    else if (gamma_opt == 3)
-      gamma = (2. + sqrt(2.))/2.; // L-stable, order 2
+   {
+      gamma = (2. + sqrt(2.))/2.;   // L-stable, order 2
+   }
    else
-      gamma = (3. + sqrt(3.))/6.; // A-stable, order 3
+   {
+      gamma = (3. + sqrt(3.))/6.;   // A-stable, order 3
+   }
 }
 
 void SDIRK23Solver::Init(TimeDependentOperator &_f)

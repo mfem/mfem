@@ -82,7 +82,7 @@ protected:
 
 public:
    HyperelasticOperator(ParFiniteElementSpace &f, Array<int> &ess_bdr,
-                        double visc);
+                        double visc, double mu, double K);
 
    virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
    /** Solve the Backward-Euler equation: k = f(x + dt*k, t), for the unknown k.
@@ -159,8 +159,10 @@ int main(int argc, char *argv[])
    int order = 2;
    int ode_solver_type = 3;
    double t_final = 300.0;
-   double dt = 3;
+   double dt = 3.0;
    double visc = 1e-2;
+   double mu = 0.25;
+   double K = 5.0;
    bool visualization = true;
    int vis_steps = 1;
 
@@ -182,6 +184,10 @@ int main(int argc, char *argv[])
                   "Time step.");
    args.AddOption(&visc, "-v", "--viscosity",
                   "Viscosity coefficient.");
+   args.AddOption(&mu, "-mu", "--shear-modulus",
+                  "Shear modulus in the Neo-Hookean hyperelastic model.");
+   args.AddOption(&K, "-K", "--bulk-modulus",
+                  "Bulk modulus in the Neo-Hookean hyperelastic model.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -191,12 +197,16 @@ int main(int argc, char *argv[])
    if (!args.Good())
    {
       if (myid == 0)
+      {
          args.PrintUsage(cout);
+      }
       MPI_Finalize();
       return 1;
    }
    if (myid == 0)
+   {
       args.PrintOptions(cout);
+   }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle triangular, quadrilateral, tetrahedral and hexahedral meshes
@@ -206,7 +216,9 @@ int main(int argc, char *argv[])
    if (!imesh)
    {
       if (myid == 0)
+      {
          cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
+      }
       MPI_Finalize();
       return 2;
    }
@@ -220,31 +232,35 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver;
    switch (ode_solver_type)
    {
-   // Implicit L-stable methods
-   case 1:  ode_solver = new BackwardEulerSolver; break;
-   case 2:  ode_solver = new SDIRK23Solver(2); break;
-   case 3:  ode_solver = new SDIRK33Solver; break;
-   // Explicit methods
-   case 11: ode_solver = new ForwardEulerSolver; break;
-   case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
-   case 13: ode_solver = new RK3SSPSolver; break;
-   case 14: ode_solver = new RK4Solver; break;
-   // Implicit A-stable methods (not L-stable)
-   case 22: ode_solver = new ImplicitMidpointSolver; break;
-   case 23: ode_solver = new SDIRK23Solver; break;
-   case 24: ode_solver = new SDIRK34Solver; break;
-   default:
-      if (myid == 0)
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-      MPI_Finalize();
-      return 3;
+      // Implicit L-stable methods
+      case 1:  ode_solver = new BackwardEulerSolver; break;
+      case 2:  ode_solver = new SDIRK23Solver(2); break;
+      case 3:  ode_solver = new SDIRK33Solver; break;
+      // Explicit methods
+      case 11: ode_solver = new ForwardEulerSolver; break;
+      case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
+      case 13: ode_solver = new RK3SSPSolver; break;
+      case 14: ode_solver = new RK4Solver; break;
+      // Implicit A-stable methods (not L-stable)
+      case 22: ode_solver = new ImplicitMidpointSolver; break;
+      case 23: ode_solver = new SDIRK23Solver; break;
+      case 24: ode_solver = new SDIRK34Solver; break;
+      default:
+         if (myid == 0)
+         {
+            cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         }
+         MPI_Finalize();
+         return 3;
    }
 
    // 5. Refine the mesh in serial to increase the resolution. In this example
    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
    //    a command-line parameter.
    for (int lev = 0; lev < ser_ref_levels; lev++)
+   {
       mesh->UniformRefinement();
+   }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
@@ -252,7 +268,9 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    for (int lev = 0; lev < par_ref_levels; lev++)
+   {
       pmesh->UniformRefinement();
+   }
 
    // 7. Define the parallel vector finite element spaces representing the mesh
    //    deformation x_gf, the velocity v_gf, and the initial configuration,
@@ -263,9 +281,11 @@ int main(int argc, char *argv[])
    H1_FECollection fe_coll(order, dim);
    ParFiniteElementSpace fespace(pmesh, &fe_coll, dim);
 
-   int glob_size = fespace.GlobalTrueVSize();
+   HYPRE_Int glob_size = fespace.GlobalTrueVSize();
    if (myid == 0)
+   {
       cout << "Number of velocity/deformation unknowns: " << glob_size << endl;
+   }
    int true_size = fespace.TrueVSize();
    Array<int> true_offset(3);
    true_offset[0] = 0;
@@ -298,7 +318,7 @@ int main(int argc, char *argv[])
 
    // 9. Initialize the hyperelastic operator, the GLVis visualization and print
    //    the initial energies.
-   HyperelasticOperator oper(fespace, ess_bdr, visc);
+   HyperelasticOperator oper(fespace, ess_bdr, visc, mu, K);
 
    socketstream vis_v, vis_w;
    if (visualization)
@@ -338,7 +358,9 @@ int main(int argc, char *argv[])
    for (int ti = 1; !last_step; ti++)
    {
       if (t + dt >= t_final - dt/2)
+      {
          last_step = true;
+      }
 
       ode_solver->Step(vx, t, dt);
 
@@ -403,7 +425,9 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name, bool init_vis)
 {
    if (!out)
+   {
       return;
+   }
 
    GridFunction *nodes = deformed_nodes;
    int owns_nodes = 0;
@@ -472,7 +496,8 @@ BackwardEulerOperator::~BackwardEulerOperator()
 
 
 HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
-                                           Array<int> &ess_bdr, double visc)
+                                           Array<int> &ess_bdr, double visc,
+                                           double mu, double K)
    : TimeDependentOperator(2*f.TrueVSize(), 0.0), fespace(f),
      M(&fespace), S(&fespace), H(&fespace), M_solver(f.GetComm()),
      newton_solver(f.GetComm()), z(height/2)
@@ -497,8 +522,6 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(*Mmat);
 
-   double mu = 0.25; // shear modulus
-   double K  = 5.0;  // bulk modulus
    model = new NeoHookeanModel(mu, K);
    H.AddDomainIntegrator(new HyperelasticNLFIntegrator(model));
    H.SetEssentialBC(ess_bdr);
@@ -544,7 +567,9 @@ void HyperelasticOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 
    H.Mult(x, z);
    if (viscosity != 0.0)
+   {
       S.TrueAddMult(v, z);
+   }
    z.Neg(); // z = -z
    M_solver.Mult(z, dv_dt);
 

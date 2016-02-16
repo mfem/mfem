@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -40,17 +40,18 @@ void mfem_warning(const char *msg = NULL);
 // Common error message and abort macro
 #define _MFEM_MESSAGE(msg, warn)                                        \
    {                                                                    \
-      std::ostringstream s;                                             \
-      s << std::setprecision(16);                                       \
-      s << std::setiosflags(std::ios_base::scientific);                 \
-      s << msg << '\n';                                                 \
-      s << " ... at line " << __LINE__;                                 \
-      s << " in " << _MFEM_FUNC_NAME << " of file " << __FILE__ << "."; \
-      s << std::ends;                                                   \
+      std::ostringstream mfemMsgStream;                                 \
+      mfemMsgStream << std::setprecision(16);                           \
+      mfemMsgStream << std::setiosflags(std::ios_base::scientific);     \
+      mfemMsgStream << msg << '\n';                                     \
+      mfemMsgStream << " ... at line " << __LINE__;                     \
+      mfemMsgStream << " in " << _MFEM_FUNC_NAME << " of file ";        \
+      mfemMsgStream << __FILE__ << ".";                                 \
+      mfemMsgStream << std::ends;                                       \
       if (!(warn))                                                      \
-         mfem::mfem_error(s.str().c_str());                             \
+         mfem::mfem_error(mfemMsgStream.str().c_str());                 \
       else                                                              \
-         mfem::mfem_warning(s.str().c_str());                           \
+         mfem::mfem_warning(mfemMsgStream.str().c_str());               \
    }
 
 // Outputs lots of useful information and aborts.

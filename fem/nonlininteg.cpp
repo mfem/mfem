@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -49,7 +49,9 @@ void InverseHarmonicModel::EvalP(const DenseMatrix &J, DenseMatrix &P) const
    MultAAt(Z, S);
    t = 0.5*S.Trace();
    for (int i = 0; i < dim; i++)
+   {
       S(i,i) -= t;
+   }
    t = J.Det();
    S *= -1.0/(t*t);
    Mult(S, Z, P);
@@ -84,7 +86,9 @@ void InverseHarmonicModel::AssembleH(
       {
          double a = 0.0;
          for (int d = 0; d < dim; d++)
+         {
             a += G(i,d)*G(j,d);
+         }
          a *= weight;
          for (int k = 0; k < dim; k++)
             for (int l = 0; l <= k; l++)
@@ -92,12 +96,16 @@ void InverseHarmonicModel::AssembleH(
                double b = a*S(k,l);
                A(i+k*dof,j+l*dof) += b;
                if (i != j)
+               {
                   A(j+k*dof,i+l*dof) += b;
+               }
                if (k != l)
                {
                   A(i+l*dof,j+k*dof) += b;
                   if (i != j)
+                  {
                      A(j+l*dof,i+k*dof) += b;
+                  }
                }
             }
       }
@@ -129,7 +137,9 @@ inline void NeoHookeanModel::EvalCoeffs() const
    mu = c_mu->Eval(*T, T->GetIntPoint());
    K = c_K->Eval(*T, T->GetIntPoint());
    if (c_g)
+   {
       g = c_g->Eval(*T, T->GetIntPoint());
+   }
 }
 
 double NeoHookeanModel::EvalW(const DenseMatrix &J) const
@@ -137,7 +147,9 @@ double NeoHookeanModel::EvalW(const DenseMatrix &J) const
    int dim = J.Width();
 
    if (have_coeffs)
+   {
       EvalCoeffs();
+   }
 
    double dJ = J.Det();
    double sJ = dJ/g;
@@ -151,7 +163,9 @@ void NeoHookeanModel::EvalP(const DenseMatrix &J, DenseMatrix &P) const
    int dim = J.Width();
 
    if (have_coeffs)
+   {
       EvalCoeffs();
+   }
 
    Z.SetSize(dim);
    CalcAdjugateTranspose(J, Z);
@@ -171,7 +185,9 @@ void NeoHookeanModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
    int dof = DS.Height(), dim = DS.Width();
 
    if (have_coeffs)
+   {
       EvalCoeffs();
+   }
 
    Z.SetSize(dim);
    G.SetSize(dof, dim);
@@ -200,15 +216,21 @@ void NeoHookeanModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
       {
          double s = 0.0;
          for (int d = 0; d < dim; d++)
+         {
             s += DS(i,d)*DS(k,d);
+         }
          s *= a;
 
          for (int d = 0; d < dim; d++)
+         {
             A(i+d*dof,k+d*dof) += s;
+         }
 
          if (k != i)
             for (int d = 0; d < dim; d++)
+            {
                A(k+d*dof,i+d*dof) += s;
+            }
       }
 
    a *= (-2.0/dim);

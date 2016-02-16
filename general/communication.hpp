@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -44,6 +44,9 @@ private:
 
 public:
    GroupTopology(MPI_Comm comm) { MyComm = comm; }
+
+   /// Copy constructor
+   GroupTopology(const GroupTopology &gt);
 
    MPI_Comm GetComm() { return MyComm; }
    int MyRank() { int r; MPI_Comm_rank(MyComm, &r); return r; }
@@ -131,6 +134,122 @@ public:
    template <class T> static void BitOR(OpData<T>);
 
    ~GroupCommunicator();
+};
+
+
+/// \brief Variable-length MPI message containing unspecific binary data.
+template<int Tag>
+struct VarMessage
+{
+   std::string data;
+   MPI_Request send_request;
+
+   /// Non-blocking send to processor 'rank'.
+   void Isend(int rank, MPI_Comm comm)
+   {
+      Encode();
+      MPI_Isend((void*) data.data(), data.length(), MPI_BYTE, rank, Tag, comm,
+                &send_request);
+   }
+
+   /// Helper to send all messages in a rank-to-message map container.
+   template<typename MapT>
+   static void IsendAll(MapT& rank_msg, MPI_Comm comm)
+   {
+      typename MapT::iterator it;
+      for (it = rank_msg.begin(); it != rank_msg.end(); ++it)
+      {
+         it->second.Isend(it->first, comm);
+      }
+   }
+
+   /// Helper to wait for all messages in a map container to be sent.
+   template<typename MapT>
+   static void WaitAllSent(MapT& rank_msg)
+   {
+      typename MapT::iterator it;
+      for (it = rank_msg.begin(); it != rank_msg.end(); ++it)
+      {
+         MPI_Wait(&it->second.send_request, MPI_STATUS_IGNORE);
+         it->second.Clear();
+      }
+   }
+
+   /** Blocking probe for incoming message of this type from any rank.
+       Returns the rank and message size. */
+   static void Probe(int &rank, int &size, MPI_Comm comm)
+   {
+      MPI_Status status;
+      MPI_Probe(MPI_ANY_SOURCE, Tag, comm, &status);
+      rank = status.MPI_SOURCE;
+      MPI_Get_count(&status, MPI_BYTE, &size);
+   }
+
+   /** Non-blocking probe for incoming message of this type from any rank.
+       If there is an incoming message, returns true and sets 'rank' and 'size'.
+       Otherwise returns false. */
+   static bool IProbe(int &rank, int &size, MPI_Comm comm)
+   {
+      int flag;
+      MPI_Status status;
+      MPI_Iprobe(MPI_ANY_SOURCE, Tag, comm, &flag, &status);
+      if (!flag) { return false; }
+
+      rank = status.MPI_SOURCE;
+      MPI_Get_count(&status, MPI_BYTE, &size);
+      return true;
+   }
+
+   /// Post-probe receive from processor 'rank' of message size 'size'.
+   void Recv(int rank, int size, MPI_Comm comm)
+   {
+      MFEM_ASSERT(size >= 0, "");
+      data.resize(size);
+      MPI_Status status;
+      MPI_Recv((void*) data.data(), size, MPI_BYTE, rank, Tag, comm, &status);
+#ifdef MFEM_DEBUG
+      int count;
+      MPI_Get_count(&status, MPI_BYTE, &count);
+      MFEM_VERIFY(count == size, "");
+#endif
+      Decode();
+   }
+
+   /// Helper to receive all messages in a rank-to-message map container.
+   template<typename MapT>
+   static void RecvAll(MapT& rank_msg, MPI_Comm comm)
+   {
+      int recv_left = rank_msg.size();
+      while (recv_left > 0)
+      {
+         int rank, size;
+         Probe(rank, size, comm);
+         MFEM_ASSERT(rank_msg.find(rank) != rank_msg.end(), "");
+         // No guard against receiving two messages from the same rank
+         rank_msg[rank].Recv(rank, size, comm);
+         --recv_left;
+      }
+   }
+
+   VarMessage() : send_request(MPI_REQUEST_NULL) {}
+   void Clear() { data.clear(); send_request = MPI_REQUEST_NULL; }
+
+   virtual ~VarMessage()
+   {
+      MFEM_ASSERT(send_request == MPI_REQUEST_NULL,
+                  "WaitAllSent was not called after Isend");
+   }
+
+   VarMessage(const VarMessage &other)
+      : data(other.data), send_request(other.send_request)
+   {
+      MFEM_ASSERT(send_request == MPI_REQUEST_NULL,
+                  "Cannot copy message with a pending send.");
+   }
+
+protected:
+   virtual void Encode() {}
+   virtual void Decode() {}
 };
 
 }

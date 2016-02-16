@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -65,7 +65,7 @@ public:
    /// Evaluate the coefficient
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
-   { return(constant); }
+   { return (constant); }
 };
 
 /// class for piecewise constant coefficient
@@ -103,22 +103,36 @@ public:
 class FunctionCoefficient : public Coefficient
 {
 protected:
-   double (*Function)(Vector &);
-   double (*TDFunction)(Vector &, double);
+   double (*Function)(const Vector &);
+   double (*TDFunction)(const Vector &, double);
 
 public:
    /// Define a time-independent coefficient from a C-function
-   FunctionCoefficient(double (*f)(Vector &))
+   FunctionCoefficient(double (*f)(const Vector &))
    {
       Function = f;
       TDFunction = NULL;
    }
 
    /// Define a time-dependent coefficient from a C-function
-   FunctionCoefficient(double (*tdf)(Vector &, double))
+   FunctionCoefficient(double (*tdf)(const Vector &, double))
    {
       Function = NULL;
       TDFunction = tdf;
+   }
+
+   /// (DEPRECATED) Define a time-independent coefficient from a C-function
+   FunctionCoefficient(double (*f)(Vector &))
+   {
+      Function = reinterpret_cast<double(*)(const Vector&)>(f);
+      TDFunction = NULL;
+   }
+
+   /// (DEPRECATED) Define a time-dependent coefficient from a C-function
+   FunctionCoefficient(double (*tdf)(Vector &, double))
+   {
+      Function = NULL;
+      TDFunction = reinterpret_cast<double(*)(const Vector&,double)>(tdf);
    }
 
    /// Evaluate coefficient
@@ -176,11 +190,15 @@ private:
 public:
    DeltaCoefficient();
    DeltaCoefficient(double x, double y, double s)
-   { center[0] = x; center[1] = y; center[2] = 0.; scale = s; tol = 1e-12;
-      weight = NULL; }
+   {
+      center[0] = x; center[1] = y; center[2] = 0.; scale = s; tol = 1e-12;
+      weight = NULL;
+   }
    DeltaCoefficient(double x, double y, double z, double s)
-   { center[0] = x; center[1] = y; center[2] = z; scale = s; tol = 1e-12;
-      weight = NULL; }
+   {
+      center[0] = x; center[1] = y; center[2] = z; scale = s; tol = 1e-12;
+      weight = NULL;
+   }
    void SetTol(double _tol) { tol = _tol; }
    void SetWeight(Coefficient *w) { weight = w; }
    const double *Center() { return center; }

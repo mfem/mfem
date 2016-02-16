@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -33,7 +33,10 @@ BlockVector::BlockVector(const Array<int> & bOffsets):
    tmp_block(numBlocks)
 {
    for (int i = 0; i < numBlocks; ++i)
-      tmp_block[i] =  new Vector(data+blockOffsets[i], blockOffsets[i+1]-blockOffsets[i]);
+   {
+      tmp_block[i] =  new Vector(data+blockOffsets[i],
+                                 blockOffsets[i+1]-blockOffsets[i]);
+   }
 }
 
 //! Copy constructor
@@ -44,7 +47,10 @@ BlockVector::BlockVector(const BlockVector & v):
    tmp_block(numBlocks)
 {
    for (int i = 0; i < numBlocks; ++i)
-      tmp_block[i] =  new Vector(data+blockOffsets[i], blockOffsets[i+1]-blockOffsets[i]);
+   {
+      tmp_block[i] =  new Vector(data+blockOffsets[i],
+                                 blockOffsets[i+1]-blockOffsets[i]);
+   }
 }
 
 //! View constructor
@@ -55,7 +61,10 @@ BlockVector::BlockVector(double *data, const Array<int> & bOffsets):
    tmp_block(numBlocks)
 {
    for (int i = 0; i < numBlocks; ++i)
-      tmp_block[i] =  new Vector(data+blockOffsets[i], blockOffsets[i+1]-blockOffsets[i]);
+   {
+      tmp_block[i] =  new Vector(data+blockOffsets[i],
+                                 blockOffsets[i+1]-blockOffsets[i]);
+   }
 }
 
 void BlockVector::Update(double *data, const Array<int> & bOffsets)
@@ -66,24 +75,35 @@ void BlockVector::Update(double *data, const Array<int> & bOffsets)
 
    int oldNumBlocks = tmp_block.Size();
    for (int i = numBlocks; i < oldNumBlocks; ++i)
+   {
       delete tmp_block[i];
+   }
 
    tmp_block.SetSize(numBlocks);
    for (int i = oldNumBlocks; i < numBlocks; ++i)
-      tmp_block[i] =  new Vector(data+blockOffsets[i], blockOffsets[i+1]-blockOffsets[i]);
+   {
+      tmp_block[i] =  new Vector(data+blockOffsets[i],
+                                 blockOffsets[i+1]-blockOffsets[i]);
+   }
 }
 
 BlockVector & BlockVector::operator=(const BlockVector & original)
 {
-   if(numBlocks!=original.numBlocks)
+   if (numBlocks!=original.numBlocks)
+   {
       mfem_error("Number of Blocks don't match in BlockVector::operator=");
+   }
 
    for (int i(0); i <= numBlocks; ++i)
-      if(blockOffsets[i]!=original.blockOffsets[i])
+      if (blockOffsets[i]!=original.blockOffsets[i])
+      {
          mfem_error("Size of Blocks don't match in BlockVector::operator=");
+      }
 
    for (int i = 0; i < original.size; i++)
+   {
       data[i] = original.data[i];
+   }
 
    return *this;
 }
@@ -98,24 +118,29 @@ BlockVector & BlockVector::operator=(double val)
 BlockVector::~BlockVector()
 {
    for (int i = 0; i < tmp_block.Size(); ++i)
+   {
       delete tmp_block[i];
+   }
 }
 
 Vector & BlockVector::GetBlock(int i)
 {
-   tmp_block[i]->NewDataAndSize(data+blockOffsets[i], blockOffsets[i+1]-blockOffsets[i]);
+   tmp_block[i]->NewDataAndSize(data+blockOffsets[i],
+                                blockOffsets[i+1]-blockOffsets[i]);
    return *(tmp_block[i]);
 }
 
 const Vector &  BlockVector::GetBlock(int i) const
 {
-   tmp_block[i]->NewDataAndSize(data+blockOffsets[i], blockOffsets[i+1]-blockOffsets[i]);
+   tmp_block[i]->NewDataAndSize(data+blockOffsets[i],
+                                blockOffsets[i+1]-blockOffsets[i]);
    return *(tmp_block[i]);
 }
 
 void BlockVector::GetBlockView(int i, Vector & blockView)
 {
-   blockView.NewDataAndSize(data+blockOffsets[i], blockOffsets[i+1]-blockOffsets[i]);
+   blockView.NewDataAndSize(data+blockOffsets[i],
+                            blockOffsets[i+1]-blockOffsets[i]);
 }
 
 }

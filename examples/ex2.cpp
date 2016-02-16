@@ -6,6 +6,7 @@
 //               ex2 -m ../data/beam-quad.mesh
 //               ex2 -m ../data/beam-tet.mesh
 //               ex2 -m ../data/beam-hex.mesh
+//               ex2 -m ../data/beam-quad.mesh -o 3 -sc
 //               ex2 -m ../data/beam-quad-nurbs.mesh
 //               ex2 -m ../data/beam-hex-nurbs.mesh
 //
@@ -30,7 +31,8 @@
 //               The example demonstrates the use of high-order and NURBS vector
 //               finite element spaces with the linear elasticity bilinear form,
 //               meshes with curved elements, and the definition of piece-wise
-//               constant and vector coefficient objects.
+//               constant and vector coefficient objects. Static condensation is
+//               also illustrated.
 //
 //               We recommend viewing Example 1 before viewing this example.
 
@@ -46,6 +48,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/beam-tri.mesh";
    int order = 1;
+   bool static_cond = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -53,6 +56,8 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
+                  "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -88,7 +93,9 @@ int main(int argc, char *argv[])
    // 3. Select the order of the finite element discretization space. For NURBS
    //    meshes, we increase the order by degree elevation.
    if (mesh->NURBSext && order > mesh->NURBSext->GetOrder())
+   {
       mesh->DegreeElevate(order - mesh->NURBSext->GetOrder());
+   }
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
@@ -98,7 +105,9 @@ int main(int argc, char *argv[])
       int ref_levels =
          (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
+      {
          mesh->UniformRefinement();
+      }
    }
 
    // 5. Define a finite element space on the mesh. Here we use vector finite
@@ -118,10 +127,19 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order, dim);
       fespace = new FiniteElementSpace(mesh, fec, dim);
    }
-   cout << "Number of unknowns: " << fespace->GetVSize() << endl
-        << "Assembling: " << flush;
+   cout << "Number of finite element unknowns: " << fespace->GetTrueVSize()
+        << endl << "Assembling: " << flush;
 
-   // 6. Set up the linear form b(.) which corresponds to the right-hand side of
+   // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
+   //    In this example, the boundary conditions are defined by marking only
+   //    boundary attribute 1 from the mesh as essential and converting it to a
+   //    list of true dofs.
+   Array<int> ess_tdof_list, ess_bdr(mesh->bdr_attributes.Max());
+   ess_bdr = 0;
+   ess_bdr[0] = 1;
+   fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system. In this case, b_i equals the boundary integral
    //    of f*phi_i where f represents a "pull down" force on the Neumann part
    //    of the boundary and phi_i are the basis functions in the finite element
@@ -131,7 +149,9 @@ int main(int argc, char *argv[])
    //    coefficient for its last component.
    VectorArrayCoefficient f(dim);
    for (int i = 0; i < dim-1; i++)
+   {
       f.Set(i, new ConstantCoefficient(0.0));
+   }
    {
       Vector pull_force(mesh->bdr_attributes.Max());
       pull_force = 0.0;
@@ -144,17 +164,15 @@ int main(int argc, char *argv[])
    cout << "r.h.s. ... " << flush;
    b->Assemble();
 
-   // 7. Define the solution vector x as a finite element grid function
+   // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    GridFunction x(fespace);
    x = 0.0;
 
-   // 8. Set up the bilinear form a(.,.) on the finite element space
+   // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the linear elasticity integrator with piece-wise
-   //    constants coefficient lambda and mu. The boundary conditions are
-   //    implemented by marking only boundary attribute 1 as essential. After
-   //    assembly and finalizing we extract the corresponding sparse matrix A.
+   //    constants coefficient lambda and mu.
    Vector lambda(mesh->attributes.Max());
    lambda = 1.0;
    lambda(0) = lambda(1)*50;
@@ -166,30 +184,39 @@ int main(int argc, char *argv[])
 
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(lambda_func,mu_func));
+
+   // 10. Assemble the bilinear form and the corresponding linear system,
+   //     applying any necessary transformations such as: eliminating boundary
+   //     conditions, applying conforming constraints for non-conforming AMR,
+   //     static condensation, etc.
    cout << "matrix ... " << flush;
+   if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
-   Array<int> ess_bdr(mesh->bdr_attributes.Max());
-   ess_bdr = 0;
-   ess_bdr[0] = 1;
-   a->EliminateEssentialBC(ess_bdr, x, *b);
-   a->Finalize();
+
+   SparseMatrix A;
+   Vector B, X;
+   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
    cout << "done." << endl;
-   const SparseMatrix &A = a->SpMat();
+
+   cout << "Size of linear system: " << A.Height() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
-   // 9. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-   //    solve the system Ax=b with PCG.
+   // 11. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   //     solve the system Ax=b with PCG.
    GSSmoother M(A);
-   PCG(A, M, *b, x, 1, 500, 1e-8, 0.0);
+   PCG(A, M, B, X, 1, 500, 1e-8, 0.0);
 #else
-   // 9. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   // 11. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
    umf_solver.SetOperator(A);
-   umf_solver.Mult(*b, x);
+   umf_solver.Mult(B, X);
 #endif
 
-   // 10. For non-NURBS meshes, make the mesh curved based on the finite element
+   // 12. Recover the solution as a finite element grid function.
+   a->RecoverFEMSolution(X, *b, x);
+
+   // 13. For non-NURBS meshes, make the mesh curved based on the finite element
    //     space. This means that we define the mesh elements through a fespace
    //     based transformation of the reference element. This allows us to save
    //     the displaced mesh as a curved mesh when using high-order finite
@@ -197,9 +224,11 @@ int main(int argc, char *argv[])
    //     the file) is not higher order curved mesh compared to the chosen FE
    //     space.
    if (!mesh->NURBSext)
+   {
       mesh->SetNodalFESpace(fespace);
+   }
 
-   // 11. Save the displaced mesh and the inverted solution (which gives the
+   // 14. Save the displaced mesh and the inverted solution (which gives the
    //     backward displacements to the original grid). This output can be
    //     viewed later using GLVis: "glvis -m displaced.mesh -g sol.gf".
    {
@@ -214,7 +243,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 12. Send the above data by socket to a GLVis server. Use the "n" and "b"
+   // 15. Send the above data by socket to a GLVis server. Use the "n" and "b"
    //     keys in GLVis to visualize the displacements.
    if (visualization)
    {
@@ -225,7 +254,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 13. Free the used memory.
+   // 16. Free the used memory.
    delete a;
    delete b;
    if (fec)

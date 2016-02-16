@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -15,27 +15,35 @@
 namespace mfem
 {
 
-Segment::Segment( const int *ind, int attr ) : Element(Geometry::SEGMENT) {
+Segment::Segment( const int *ind, int attr ) : Element(Geometry::SEGMENT)
+{
    attribute = attr;
    for (int i=0; i<2; i++)
+   {
       indices[i] = ind[i];
+   }
 }
 
-Segment::Segment( int ind1, int ind2, int attr ) : Element(Geometry::SEGMENT) {
+Segment::Segment( int ind1, int ind2, int attr ) : Element(Geometry::SEGMENT)
+{
    attribute  = attr;
    indices[0] = ind1;
    indices[1] = ind2;
 }
 
-void Segment::SetVertices(const int *ind){
+void Segment::SetVertices(const int *ind)
+{
    indices[0] = ind[0];
    indices[1] = ind[1];
 }
 
-void Segment::GetVertices( Array<int> &v ) const {
+void Segment::GetVertices( Array<int> &v ) const
+{
    v.SetSize( 2 );
    for (int i=0; i<2; i++)
+   {
       v[i] = indices[i];
+   }
 }
 
 Linear1DFiniteElement SegmentFE;

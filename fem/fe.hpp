@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -24,9 +24,11 @@ namespace mfem
 // Base and derived classes for finite elements
 
 /// Describes the space on each element
-class FunctionSpace {
+class FunctionSpace
+{
 public:
-   enum {
+   enum
+   {
       Pk, // polynomials of order k
       Qk, // tensor products of polynomials of order k
       rQk // refined tensor products of polynomials of order k
@@ -60,7 +62,7 @@ public:
 
        where
 
-       x = T(xh) is the image of the reference point xh,
+       x = T(xh) is the image of the reference point xh ("x hat"),
        J = J(xh) is the Jacobian matrix of the transformation T, and
        w = w(xh) = / det(J),           for square J,
        .           \ det(J^t*J)^{1/2}, for general J,
@@ -107,6 +109,7 @@ public:
        so that each row contains the derivatives of one shape function */
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const = 0;
+
    const IntegrationRule & GetNodes() const { return Nodes; }
 
    // virtual functions for finite elements on vector spaces
@@ -200,6 +203,10 @@ protected:
                                  DenseMatrix &I,
                                  const NodalFiniteElement &fine_fe) const;
 
+   void ProjectCurl_2D(const FiniteElement &fe,
+                       ElementTransformation &Trans,
+                       DenseMatrix &curl) const;
+
 #ifndef MFEM_THREAD_SAFE
    mutable Vector c_shape;
 #endif
@@ -269,8 +276,8 @@ private:
 
 protected:
 #ifndef MFEM_THREAD_SAFE
-   mutable DenseMatrix Jinv;
-   mutable DenseMatrix vshape;
+   mutable DenseMatrix J, Jinv;
+   mutable DenseMatrix vshape, curlshape, curlshape_J;
 #endif
 
    void CalcVShape_RT(ElementTransformation &Trans,
@@ -291,6 +298,10 @@ protected:
    void ProjectGrad_RT(const double *nk, const Array<int> &d2n,
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &grad) const;
+
+   void ProjectCurl_ND(const double *tk, const Array<int> &d2t,
+                       const FiniteElement &fe, ElementTransformation &Trans,
+                       DenseMatrix &curl) const;
 
    void ProjectCurl_RT(const double *nk, const Array<int> &d2n,
                        const FiniteElement &fe, ElementTransformation &Trans,
@@ -321,10 +332,11 @@ public:
                         int F = FunctionSpace::Pk) :
 #ifdef MFEM_THREAD_SAFE
       FiniteElement(D, G, Do, O, F)
+   { RangeType = VECTOR; MapType = M; }
 #else
       FiniteElement(D, G, Do, O, F), Jinv(D), vshape(Do, D)
-#endif
    { RangeType = VECTOR; MapType = M; }
+#endif
 };
 
 class PointFiniteElement : public NodalFiniteElement
@@ -402,7 +414,7 @@ public:
                              DenseMatrix &h) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const
    { dofs = 0.0; dofs(vertex) = 1.0; }
-//      { dofs = 1.0; }
+   //      { dofs = 1.0; }
 };
 
 /// Class for linear FE on triangle with nodes at the 3 "Gaussian" points
@@ -557,7 +569,7 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-//   virtual void ProjectDelta(int vertex, Vector &dofs) const { dofs = 1.; }
+   //   virtual void ProjectDelta(int vertex, Vector &dofs) const { dofs = 1.; }
 };
 
 class BiCubic2DFiniteElement : public NodalFiniteElement
@@ -744,7 +756,7 @@ public:
 
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
-   { CalcVShape_RT(Trans, shape); };
+   { CalcVShape_RT(Trans, shape); }
 
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
@@ -771,7 +783,7 @@ public:
 
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
-   { CalcVShape_RT(Trans, shape); };
+   { CalcVShape_RT(Trans, shape); }
 
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
@@ -798,7 +810,7 @@ public:
 
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
-   { CalcVShape_RT(Trans, shape); };
+   { CalcVShape_RT(Trans, shape); }
 
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
@@ -825,7 +837,7 @@ public:
 
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
-   { CalcVShape_RT(Trans, shape); };
+   { CalcVShape_RT(Trans, shape); }
 
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
@@ -851,7 +863,7 @@ public:
 
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
-   { CalcVShape_RT(Trans, shape); };
+   { CalcVShape_RT(Trans, shape); }
 
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
@@ -872,7 +884,7 @@ public:
 
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
-   { CalcVShape_RT(Trans, shape); };
+   { CalcVShape_RT(Trans, shape); }
 
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
@@ -1077,7 +1089,7 @@ public:
                            DenseMatrix &shape) const;
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
-   { CalcVShape_ND(Trans, shape); };
+   { CalcVShape_ND(Trans, shape); }
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation (ElementTransformation &Trans,
@@ -1099,7 +1111,7 @@ public:
                            DenseMatrix &shape) const;
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
-   { CalcVShape_ND(Trans, shape); };
+   { CalcVShape_ND(Trans, shape); }
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation (ElementTransformation &Trans,
@@ -1123,7 +1135,7 @@ public:
 
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
-   { CalcVShape_RT(Trans, shape); };
+   { CalcVShape_RT(Trans, shape); }
 
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
@@ -1151,7 +1163,7 @@ public:
 
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
-   { CalcVShape_RT(Trans, shape); };
+   { CalcVShape_RT(Trans, shape); }
 
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
@@ -1179,7 +1191,7 @@ public:
 
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
-   { CalcVShape_RT(Trans, shape); };
+   { CalcVShape_RT(Trans, shape); }
 
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
@@ -1211,8 +1223,8 @@ public:
    {
    private:
       int mode; // 0 - use change of basis, O(p^2) Evals
-                // 1 - use barycentric Lagrangian interpolation, O(p) Evals
-      DenseMatrix A;
+      // 1 - use barycentric Lagrangian interpolation, O(p) Evals
+      DenseMatrixInverse Ai;
       mutable Vector x, w;
 
    public:
@@ -1413,7 +1425,7 @@ private:
    mutable Vector shape_x, shape_y, shape_l, dshape_x, dshape_y, dshape_l, u;
    mutable DenseMatrix du;
 #endif
-   DenseMatrix T;
+   DenseMatrixInverse Ti;
 
 public:
    H1_TriangleElement(const int p);
@@ -1431,7 +1443,7 @@ private:
    mutable Vector dshape_x, dshape_y, dshape_z, dshape_l, u;
    mutable DenseMatrix du;
 #endif
-   DenseMatrix T;
+   DenseMatrixInverse Ti;
 
 public:
    H1_TetrahedronElement(const int p);
@@ -1493,6 +1505,10 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const
+   { ProjectCurl_2D(fe, Trans, curl); }
 };
 
 
@@ -1554,7 +1570,7 @@ private:
    mutable Vector shape_x, shape_y, shape_l, dshape_x, dshape_y, dshape_l, u;
    mutable DenseMatrix du;
 #endif
-   DenseMatrix T;
+   DenseMatrixInverse Ti;
 
 public:
    L2_TriangleElement(const int p, const int _type = 0);
@@ -1562,6 +1578,10 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const
+   { ProjectCurl_2D(fe, Trans, curl); }
 };
 
 
@@ -1590,7 +1610,7 @@ private:
    mutable Vector dshape_x, dshape_y, dshape_z, dshape_l, u;
    mutable DenseMatrix du;
 #endif
-   DenseMatrix T;
+   DenseMatrixInverse Ti;
 
 public:
    L2_TetrahedronElement(const int p, const int _type = 0);
@@ -1703,7 +1723,7 @@ class RT_TriangleElement : public VectorFiniteElement
    mutable Vector divu;
 #endif
    Array<int> dof2nk;
-   DenseMatrix T;
+   DenseMatrixInverse Ti;
 
 public:
    RT_TriangleElement(const int p);
@@ -1742,7 +1762,7 @@ class RT_TetrahedronElement : public VectorFiniteElement
    mutable Vector divu;
 #endif
    Array<int> dof2nk;
-   DenseMatrix T;
+   DenseMatrixInverse Ti;
 
 public:
    RT_TetrahedronElement(const int p);
@@ -1783,28 +1803,41 @@ class ND_HexahedronElement : public VectorFiniteElement
 
 public:
    ND_HexahedronElement(const int p);
+
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
+
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_ND(Trans, shape); }
+
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
+
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { LocalInterpolation_ND(tk, dof2tk, Trans, I); }
+
    using FiniteElement::Project;
+
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+
    virtual void Project(const FiniteElement &fe,
                         ElementTransformation &Trans,
                         DenseMatrix &I) const
    { Project_ND(tk, dof2tk, fe, Trans, I); }
+
    virtual void ProjectGrad(const FiniteElement &fe,
                             ElementTransformation &Trans,
                             DenseMatrix &grad) const
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const
+   { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
 };
 
 
@@ -1856,7 +1889,7 @@ class ND_TetrahedronElement : public VectorFiniteElement
    mutable DenseMatrix u;
 #endif
    Array<int> dof2tk;
-   DenseMatrix T;
+   DenseMatrixInverse Ti;
 
 public:
    ND_TetrahedronElement(const int p);
@@ -1882,6 +1915,11 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &grad) const
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const
+   { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
 };
 
 class ND_TriangleElement : public VectorFiniteElement
@@ -1892,9 +1930,10 @@ class ND_TriangleElement : public VectorFiniteElement
    mutable Vector shape_x, shape_y, shape_l;
    mutable Vector dshape_x, dshape_y, dshape_l;
    mutable DenseMatrix u;
+   mutable Vector curlu;
 #endif
    Array<int> dof2tk;
-   DenseMatrix T;
+   DenseMatrixInverse Ti;
 
 public:
    ND_TriangleElement(const int p);
@@ -1905,6 +1944,42 @@ public:
    { CalcVShape_ND(Trans, shape); }
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_ND(tk, dof2tk, Trans, I); }
+   using FiniteElement::Project;
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const
+   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   virtual void Project(const FiniteElement &fe,
+                        ElementTransformation &Trans,
+                        DenseMatrix &I) const
+   { Project_ND(tk, dof2tk, fe, Trans, I); }
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const
+   { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+};
+
+
+class ND_SegmentElement : public VectorFiniteElement
+{
+   static const double tk[1];
+
+   Poly_1D::Basis &obasis1d;
+   Array<int> dof2tk;
+
+public:
+   ND_SegmentElement(const int p);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const
+   { obasis1d.Eval(ip.x, shape); }
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_ND(Trans, shape); }
+   // virtual void CalcCurlShape(const IntegrationPoint &ip,
+   //                            DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { LocalInterpolation_ND(tk, dof2tk, Trans, I); }

@@ -27,6 +27,7 @@ namespace mfem {
  *
  * <H3>Main parallel classes</H3>
  * - ParMesh
+ * - ParNCMesh
  * - ParFiniteElementSpace
  * - ParGridFunction
  * - ParBilinearForm and ParLinearForm
@@ -45,6 +46,7 @@ namespace mfem {
  * - <a class="el" href="ex5_8cpp_source.html">Example 5</a>: mixed pressure-velocity FEM for the Darcy problem
  * - <a class="el" href="ex5p_8cpp_source.html">Example 5p</a>: parallel mixed pressure-velocity FEM for the Darcy problem
  * - <a class="el" href="ex6_8cpp_source.html">Example 6</a>: non-conforming adaptive mesh refinement for the Laplace problem
+ * - <a class="el" href="ex6p_8cpp_source.html">Example 6p</a>: parallel non-conforming adaptive mesh refinement for the Laplace problem
  * - <a class="el" href="ex7_8cpp_source.html">Example 7</a>: Laplace problem on a surface (the unit sphere)
  * - <a class="el" href="ex7p_8cpp_source.html">Example 7p</a>: parallel Laplace problem on a surface (the unit sphere)
  * - <a class="el" href="ex8_8cpp_source.html">Example 8</a>: Discontinuous Petrov-Galerkin (DPG) for the Laplace problem
@@ -53,7 +55,20 @@ namespace mfem {
  * - <a class="el" href="ex9p_8cpp_source.html">Example 9p</a>: parallel Discontinuous Galerkin (DG) time-dependent advection
  * - <a class="el" href="ex10_8cpp_source.html">Example 10</a>: time-dependent implicit nonlinear elasticity
  * - <a class="el" href="ex10p_8cpp_source.html">Example 10p</a>: parallel time-dependent implicit nonlinear elasticity
- * - see also the <a class="el" href="../../../examples/README_files/index.html">README</a> in the <code>examples/</code> directory
+ * - <a class="el" href="ex11p_8cpp_source.html">Example 11p</a>: parallel Laplace eigensolver
+ * - <a class="el" href="ex12p_8cpp_source.html">Example 12p</a>: parallel linear elasticity eigensolver
+ * - <a class="el" href="ex13p_8cpp_source.html">Example 13p</a>: parallel Maxwell eigensolver
+ * - <a class="el" href="ex14_8cpp_source.html">Example 14</a>: Discontinuous Galerkin (DG) for the Laplace problem
+ * - <a class="el" href="ex14p_8cpp_source.html">Example 14p</a>: parallel Discontinuous Galerkin (DG) for the Laplace problem
+ *
+ * <H3>Miniapps</H3>
+ * - <a class="el" href="volta_8cpp_source.html">Volta</a>: simple electrostatics simulation code
+ * - <a class="el" href="tesla_8cpp_source.html">Tesla</a>: simple magnetostatics simulation code
+ * - <a class="el" href="mobius-strip_8cpp_source.html">Mobius Strip</a>: generate various Mobius strip-like meshes
+ * - <a class="el" href="klein-bottle_8cpp_source.html">Klein Bottle</a>: generate three types of Klein bottle surfaces
+ * - <a class="el" href="mesh-explorer_8cpp_source.html">Mesh Explorer</a>: visualize and manipulate meshes
+ *
+ * See also the <a class="el" href="../../../examples/README.html">README</a> in the <code>examples/</code> directory
  */
 
 }

@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -21,7 +21,9 @@ Triangle::Triangle(const int *ind, int attr) : Element(Geometry::TRIANGLE)
 {
    attribute = attr;
    for (int i = 0; i < 3; i++)
+   {
       indices[i] = ind[i];
+   }
 }
 
 Triangle::Triangle(int ind1, int ind2, int ind3, int attr)
@@ -37,16 +39,18 @@ int Triangle::NeedRefinement(DSTable &v_to_v, int *middle) const
 {
    int m;
 
-   if ((m = v_to_v(indices[0], indices[1])) != -1 && middle[m] != -1) return 1;
-   if ((m = v_to_v(indices[1], indices[2])) != -1 && middle[m] != -1) return 1;
-   if ((m = v_to_v(indices[2], indices[0])) != -1 && middle[m] != -1) return 1;
+   if ((m = v_to_v(indices[0], indices[1])) != -1 && middle[m] != -1) { return 1; }
+   if ((m = v_to_v(indices[1], indices[2])) != -1 && middle[m] != -1) { return 1; }
+   if ((m = v_to_v(indices[2], indices[0])) != -1 && middle[m] != -1) { return 1; }
    return 0;
 }
 
 void Triangle::SetVertices(const int *ind)
 {
    for (int i = 0; i < 3; i++)
+   {
       indices[i] = ind[i];
+   }
 }
 
 void Triangle::MarkEdge(DenseMatrix &pmat)
@@ -70,28 +74,27 @@ void Triangle::MarkEdge(DenseMatrix &pmat)
    }
 
    if (d[0] >= d[1])
-      if (d[0] >= d[2]) shift = 0;
-      else              shift = 2;
-   else
-      if (d[1] >= d[2]) shift = 1;
-      else              shift = 2;
+      if (d[0] >= d[2]) { shift = 0; }
+      else { shift = 2; }
+   else if (d[1] >= d[2]) { shift = 1; }
+   else { shift = 2; }
 
    switch (shift)
    {
-   case 0:
-      break;
-   case 1:
-      v = indices[0];
-      indices[0] = indices[1];
-      indices[1] = indices[2];
-      indices[2] = v;
-      break;
-   case 2:
-      v = indices[0];
-      indices[0] = indices[2];
-      indices[2] = indices[1];
-      indices[1] = v;
-      break;
+      case 0:
+         break;
+      case 1:
+         v = indices[0];
+         indices[0] = indices[1];
+         indices[1] = indices[2];
+         indices[2] = v;
+         break;
+      case 2:
+         v = indices[0];
+         indices[0] = indices[2];
+         indices[2] = indices[1];
+         indices[1] = v;
+         break;
    }
 }
 
@@ -104,16 +107,18 @@ void Triangle::MarkEdge(const DSTable &v_to_v, const int *length)
    if ( (l = length[ v_to_v(indices[2], indices[0]) ]) > L ) { L = l; j = 2; }
 
    for (i = 0; i < 3; i++)
+   {
       ind[i] = indices[i];
+   }
 
    switch (j)
    {
-   case 1:
-      indices[0] = ind[1]; indices[1] = ind[2]; indices[2] = ind[0];
-      break;
-   case 2:
-      indices[0] = ind[2]; indices[1] = ind[0]; indices[2] = ind[1];
-      break;
+      case 1:
+         indices[0] = ind[1]; indices[1] = ind[2]; indices[2] = ind[0];
+         break;
+      case 2:
+         indices[0] = ind[2]; indices[1] = ind[0]; indices[2] = ind[1];
+         break;
    }
 }
 
@@ -121,7 +126,9 @@ void Triangle::GetVertices(Array<int> &v) const
 {
    v.SetSize(3);
    for (int i = 0; i < 3; i++)
+   {
       v[i] = indices[i];
+   }
 }
 
 Linear2DFiniteElement TriangleFE;

@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -62,7 +62,7 @@ int isockstream::establish()
            << "isockstream::establish(): gethostname() returned: '"
            << myname << "'" << endl;
       error = 1;
-      return(-1);
+      return (-1);
    }
 
    sa.sin_family= hp->h_addrtype;
@@ -72,7 +72,7 @@ int isockstream::establish()
    {
       cerr << "isockstream::establish(): socket() failed!" << endl;
       error = 2;
-      return(-1);
+      return (-1);
    }
 
    int on=1;
@@ -83,15 +83,16 @@ int isockstream::establish()
       cerr << "isockstream::establish(): bind() failed!" << endl;
       close(port);
       error = 3;
-      return(-1);
+      return (-1);
    }
 
    listen(port, 4);
    error = 0;
-   return(port);
+   return (port);
 }
 
-int isockstream::read_data(int s, char *buf, int n){
+int isockstream::read_data(int s, char *buf, int n)
+{
    int bcount;                      // counts bytes read
    int br;                          // bytes read this pass
 
@@ -107,10 +108,10 @@ int isockstream::read_data(int s, char *buf, int n){
       else if (br < 0)               // signal an error to the caller
       {
          error = 4;
-         return(-1);
+         return (-1);
       }
    }
-   return(bcount);
+   return (bcount);
 }
 
 void isockstream::receive(std::istringstream **in)
@@ -119,10 +120,14 @@ void isockstream::receive(std::istringstream **in)
    char length[32];
 
    if ((*in) != NULL)
+   {
       delete (*in), *in = NULL;
+   }
 
    if (portID == -1)
+   {
       return;
+   }
 
    if ((socketID = accept(portID, NULL, NULL)) < 0)
    {
@@ -139,13 +144,19 @@ void isockstream::receive(std::istringstream **in)
    size = atoi(length);
 
    if (Buf != NULL)
+   {
       delete [] Buf;
+   }
    Buf = new char[size+1];
    if (size != read_data(socketID, Buf, size))
+   {
       cout << "Not all the data has been read" << endl;
+   }
 #ifdef DEBUG
    else
+   {
       cout << "Reading " << size << " bytes is successful" << endl;
+   }
 #endif
    Buf[size] = '\0';
 
@@ -156,9 +167,13 @@ void isockstream::receive(std::istringstream **in)
 isockstream::~isockstream()
 {
    if (Buf != NULL)
+   {
       delete [] Buf;
+   }
    if (portID != -1)
+   {
       close(portID);
+   }
 }
 
 }

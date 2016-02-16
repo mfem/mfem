@@ -5,7 +5,140 @@
                       | | | | | ||  _||  __/| | | | | |
                       |_| |_| |_||_|   \___||_| |_| |_|
 
-                         http://mfem.googlecode.com
+                               http://mfem.org
+
+
+Version 3.1, released on Feb 16, 2016
+=====================================
+
+Substantially improved non-conforming adaptive mesh refinement
+---------------------------------------------------------------
+- Added support for parallel non-conforming mesh refinement, including a new
+  example code with adaptive mesh refinement for the Laplace problem (Example
+  6p). Most of the example codes can now work on non-conforming meshes in serial
+  and in parallel.
+
+- Added simple ZZ-type error estimators, including an anisotropic one in serial,
+  and one based on Raviart-Thomas flux projection in parallel, to the AMR
+  examples 6 and 6p. These seem to perform quite reasonably, even for
+  higher-order discretizations on 2D, 3D and surface meshes.
+
+- The MFEM mesh format has a new version(1.1) that supports non-conforming
+  meshes. The format is an extension of 1.0 that includes a vertex_parents and
+  an optional coarse_elements section. See the example meshes amr-quad.mesh,
+  amr-hex.mesh and fichera-amr.mesh in the data/ directory.
+
+- Added support for DG discretizations on non-conforming meshes in serial. See
+  the sample runs in Example 14.
+
+- A new function, ParGridFunction::ParallelProject() directly returns a hypre
+  vector restricted to the true degrees of freedom (and supports non-conforming
+  meshes). In most cases, this should be preferred to the ParallelAverage()
+  function.
+
+- When using non-conforming meshes, the essential boundary condition elimination
+  has to be applied at the end of the (parallel) assembly. Furthermore, in
+  serial, the bilinear form needs to call ConformingAssemble() after assembly
+  and the solution should call ConformingProlongate() after the solve (these are
+  not necessary in parallel). Note that these could also be handled
+  automatically by the new FEM <-> linear system interface, see below.
+
+General finite element spaces and solvers on surfaces/skeletons
+---------------------------------------------------------------
+- Added support for arbitrary high-order finite element spaces on the mesh
+  skeleton (the faces, edges, and vertices between mesh elements) that are the
+  traces of the H1 and H(curl) spaces defined on the mesh. With the previously
+  existing H(div) trace space, the full de Rham sequence on the skeleton is now
+  supported.
+
+- Updated integrators and discrete interpolators to work correctly for H(curl)
+  and H(div) spaces defined on surface meshes, or the mesh skeleton.
+
+Hybridization, static condensation and a new FEM <-> linear system interface
+----------------------------------------------------------------------------
+- The BilinearForm/ParBilinearForm classes now support static condensation, as
+  well as hybridization (based on given constraint space and trace integrator).
+  These are illustrated in Examples 1-4.
+
+- Added a new interface for transitioning between the finite element objects and
+  their corresponding linear algebra objects, which supports abstracts
+  transformations such as: parallel assembly, eliminating boundary conditions,
+  applying conforming constraints for non-conforming AMR, hybridization, static
+  condensation, back substitution, etc. Changed several of the example codes
+  accordingly.
+
+New eigensolvers and improved solvers
+-------------------------------------
+- Added support for the scalable Locally Optimal Block Preconditioned Conjugate
+  Gradient (LOBPCG) eigenvalue solver and the Auxiliary-space Maxwell
+  Eigensolver (AME) from hypre.
+
+- Added 3 new example codes to demonstrate the LOBPCG and AME applications to
+  the Laplace (Example 11p), Elasticity (Example 12p) and Maxwell (Example 13p)
+  eigenproblems.
+
+- Updated the HypreAMS and HypreADS solvers to work for H(curl) and H(div)
+  problems defined on surface meshes, or the mesh skeleton.
+
+- Added support for a discretization-enhanced version of hypre's BoomerAMG
+  designed specifically for linear elasticity problems, see Example 2p.
+
+- The HypreAMS solver can now be used to solve singular curl-curl problems.
+
+New and updated examples
+------------------------
+- Six new serial and parallel example codes that demonstrate:
+  * parallel conforming and non-conforming adaptive mesh refinement (Example 6p)
+  * hypre's LOBPCG eigensolver for the Laplace eigenproblem (Example 11p)
+  * hypre's LOBPCG eigensolver for the elasticity eigenproblem (Example 12p)
+  * hypre's AME eigensolver for the Maxwell eigenproblem (Example 13p)
+  * DG diffusion discretizations for the Laplace equation (Example 14/14p)
+
+- Examples 1-4 now support static condensation, and Example 4/4p supports H(div)
+  hybridization, leading to much improved solve times. These examples also
+  illustrate the new interface for linear system assembly (see also Examples 6
+  and 7).
+
+- Significantly improved the DPG preconditioner in Example 8p, which is now
+  scalable in parallel and uses the HypreADS solver to precondition the
+  interfacial block as an H(div) problem reduced to the mesh skeleton.
+
+- Example 7/7p has a new option, -amr, showcasing simple local conforming and
+  non-conforming mesh refinements.
+
+- Example 3/3p now works in both 2D and 3D.
+
+
+New miniapps
+------------
+- Electromagnetic miniapps:
+  * Volta - simple electrostatics simulation code.
+  * Tesla - simple magnetostatics simulation code.
+  See also the README file in miniapps/electromagnetics.
+
+- Meshing miniapps:
+  * Mobius Strip  - generate various Mobius strip-like meshes.
+  * Klein Bottle  - generate three types of Klein bottle surfaces.
+  * Mesh Explorer - visualize and manipulate meshes.
+  See also the README file in miniapps/meshing.
+
+Miscellaneous
+-------------
+- Moved MFEM from Google Code to GitHub. New website: http://mfem.org.
+
+- Formatted the code with Artistic Style, see the "make style" target.
+
+- Added support for 64-bit integers in global size variables, enabling
+  simulations with >2B unknowns. (This requires that hypre is configured with
+  the --enable-bigint option.)
+
+- Added optional support for the Gecko graph reordering library.
+
+- Updated the implementation of some operations in DenseMatrix for better
+  auto-vectorization. Added a new class LUFactors that computes LU factorization
+  (with pivoting) and perform various operations with the factored data.
+
+- Various other simplifications, extensions, and bugfixes in the code.
 
 
 Version 3.0, released on Jan 26, 2015
