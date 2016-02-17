@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -127,7 +127,9 @@ void BoundaryTangentialLFIntegrator::AssembleRHSElementVect(
    elvect = 0.0;
 
    if (dim != 2)
+   {
       mfem_error("These methods make sense only in 2D problems.");
+   }
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -188,7 +190,9 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
          cf = val * Qvec(k);
 
          for (int s = 0; s < dof; s++)
+         {
             elvect(dof*k+s) += ip.weight * cf * shape(s);
+         }
       }
    }
 }
@@ -222,7 +226,9 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
       el.CalcShape(ip, shape);
       for (int k = 0; k < vdim; k++)
          for (int s = 0; s < dof; s++)
+         {
             elvect(dof*k+s) += vec(k) * shape(s);
+         }
    }
 }
 
@@ -230,10 +236,10 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
    int dof = el.GetDof();
-   int dim = el.GetDim();
+   int spaceDim = Tr.GetSpaceDim();
 
-   vshape.SetSize(dof,dim);
-   vec.SetSize(dim);
+   vshape.SetSize(dof,spaceDim);
+   vec.SetSize(spaceDim);
 
    elvect.SetSize(dof);
    elvect = 0.0;
@@ -273,7 +279,9 @@ void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
+   {
       ir = &IntRules.Get(el.GetGeomType(), el.GetOrder() + 1);
+   }
 
    elvect = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -285,7 +293,9 @@ void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
       nor *= Sign * ip.weight * F -> Eval (Tr, ip);
       for (int j = 0; j < dof; j++)
          for (int k = 0; k < dim; k++)
+         {
             elvect(dof*k+j) += nor(k) * shape(j);
+         }
    }
 }
 
@@ -380,7 +390,9 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
       // Assuming order(u)==order(mesh)
       order = Tr.Elem1->OrderW() + 2*el.GetOrder();
       if (el.Space() == FunctionSpace::Pk)
+      {
          order++;
+      }
       ir = &IntRules.Get(Tr.FaceGeom, order);
    }
 
@@ -400,9 +412,13 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
       u->Eval(vu, *Tr.Elem1, eip);
 
       if (dim == 1)
+      {
          nor(0) = 2*eip.x - 1.0;
+      }
       else
+      {
          CalcOrtho(Tr.Face->Jacobian(), nor);
+      }
 
       un = vu * nor;
       w = 0.5*alpha*un - beta*fabs(un);
@@ -433,7 +449,9 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
    ni.SetSize(dim);
    adjJ.SetSize(dim);
    if (MQ)
+   {
       mq.SetSize(dim);
+   }
 
    shape.SetSize(ndof);
    dshape.SetSize(ndof, dim);
@@ -458,9 +476,13 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
       Tr.Loc1.Transform(ip, eip);
       Tr.Face->SetIntPoint(&ip);
       if (dim == 1)
+      {
          nor(0) = 2*eip.x - 1.0;
+      }
       else
+      {
          CalcOrtho(Tr.Face->Jacobian(), nor);
+      }
 
       el.CalcShape(eip, shape);
       el.CalcDShape(eip, dshape);
@@ -470,7 +492,9 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
       if (!MQ)
       {
          if (Q)
+         {
             w *= Q->Eval(*Tr.Elem1, eip);
+         }
          ni.Set(w, nor);
       }
       else
@@ -486,7 +510,9 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
       elvect.Add(sigma, dshape_dn);
 
       if (kappa_is_nonzero)
+      {
          elvect.Add(kappa*(ni*nor), shape);
+      }
    }
 }
 

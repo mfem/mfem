@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -23,11 +23,14 @@ Quadrilateral::Quadrilateral( const int *ind, int attr )
 {
    attribute = attr;
    for (int i=0; i<4; i++)
+   {
       indices[i] = ind[i];
+   }
 }
 
 Quadrilateral::Quadrilateral( int ind1, int ind2, int ind3, int ind4,
-                              int attr ) : Element(Geometry::SQUARE) {
+                              int attr ) : Element(Geometry::SQUARE)
+{
    attribute  = attr;
    indices[0] = ind1;
    indices[1] = ind2;
@@ -35,15 +38,21 @@ Quadrilateral::Quadrilateral( int ind1, int ind2, int ind3, int ind4,
    indices[3] = ind4;
 }
 
-void Quadrilateral::SetVertices(const int *ind){
-   for(int i=0; i<4; i++)
+void Quadrilateral::SetVertices(const int *ind)
+{
+   for (int i=0; i<4; i++)
+   {
       indices[i] = ind[i];
+   }
 }
 
-void Quadrilateral::GetVertices( Array<int> &v ) const {
+void Quadrilateral::GetVertices( Array<int> &v ) const
+{
    v.SetSize( 4 );
    for (int i=0; i<4; i++)
+   {
       v[i] = indices[i];
+   }
 }
 
 BiLinear2DFiniteElement QuadrilateralFE;

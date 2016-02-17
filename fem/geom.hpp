@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -50,6 +50,17 @@ public:
    const IntegrationRule *GetVertices(int GeomType);
    const IntegrationPoint &GetCenter(int GeomType)
    { return GeomCenter[GeomType]; }
+   /** Get a random point in the reference element specified by GeomType.
+       This method uses the function rand() for random number generation. */
+   static void GetRandomPoint(int GeomType, IntegrationPoint &ip);
+   /// Check if the given point is inside the given reference element.
+   static bool CheckPoint(int GeomType, const IntegrationPoint &ip);
+   /** Check if the end point is inside the reference element, if not overwrite
+       it with the point on the boundary that lies on the line segment between
+       beg and end (beg must be inside the element). Return true if end is
+       inside the element, and false otherwise. */
+   static bool ProjectPoint(int GeomType, const IntegrationPoint &beg,
+                            IntegrationPoint &end);
 
    DenseMatrix *GetPerfGeomToGeomJac(int GeomType)
    { return PerfGeomToGeomJac[GeomType]; }

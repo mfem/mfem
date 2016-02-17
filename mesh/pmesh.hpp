@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -18,6 +18,7 @@
 
 #include "../general/communication.hpp"
 #include "mesh.hpp"
+#include "pncmesh.hpp"
 #include <iostream>
 
 namespace mfem
@@ -43,6 +44,9 @@ private:
    Array<int> sedge_ledge;
    Array<int> sface_lface;
 
+   /// Create from a nonconforming mesh.
+   ParMesh(const ParNCMesh &pncmesh);
+
    /// Return a number(0-1) identifying how the given edge has been split
    int GetEdgeSplittings(Element *edge, const DSTable &v_to_v, int *middle);
    /// Return a number(0-4) identifying how the given face has been split
@@ -59,15 +63,29 @@ private:
 
    virtual void NURBSUniformRefinement();
 
+   /// This function is not public anymore. Use GeneralRefinement instead.
+   virtual void LocalRefinement(const Array<int> &marked_el, int type = 3);
+
+   /// This function is not public anymore. Use GeneralRefinement instead.
+   virtual void NonconformingRefinement(const Array<Refinement> &refinements,
+                                        int nc_limit = 0);
+
    void DeleteFaceNbrData();
 
 public:
+   /** Copy constructor. Performs a deep copy of (almost) all data, so that the
+       source mesh can be modified (e.g. deleted, refined) without affecting the
+       new mesh. The source mesh has to be in a NORMAL, i.e. not TWO_LEVEL_*,
+       state. If 'copy_nodes' is false, use a shallow (pointer) copy for the
+       nodes, if present. */
+   explicit ParMesh(const ParMesh &pmesh, bool copy_nodes = true);
+
    ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
            int part_method = 1);
 
-   MPI_Comm GetComm() { return MyComm; }
-   int GetNRanks() { return NRanks; }
-   int GetMyRank() { return MyRank; }
+   MPI_Comm GetComm() const { return MyComm; }
+   int GetNRanks() const { return NRanks; }
+   int GetMyRank() const { return MyRank; }
 
    GroupTopology gtopo;
 
@@ -81,6 +99,8 @@ public:
    // Local face-neighbor elements and vertices ordered by face-neighbor
    Table            send_face_nbr_elements;
    Table            send_face_nbr_vertices;
+
+   ParNCMesh* pncmesh;
 
    int GetNGroups() { return gtopo.NGroups(); }
 
@@ -111,11 +131,11 @@ public:
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
 
+   /// Return the local face index for the given shared face.
+   int GetSharedFace(int sface) const;
+
    /// See the remarks for the serial version in mesh.hpp
    virtual void ReorientTetMesh();
-
-   /// Refine the marked elements.
-   virtual void LocalRefinement(const Array<int> &marked_el, int type = 3);
 
    /// Update the groups after tet refinement
    void RefineGroups(const DSTable &v_to_v, int *middle);
@@ -128,18 +148,17 @@ public:
        as boundary (for visualization purposes) using Netgen/Truegrid format .*/
    virtual void PrintXG(std::ostream &out = std::cout) const;
 
-   /** Write the mesh to the stream 'out' on Process 0 in a form
-       suitable for visualization: the mesh is written as a disjoint
-       mesh and the shared boundary is added to the actual boundary;
-       both the element and boundary attributes are set to the
-       precessor number.  */
+   /** Write the mesh to the stream 'out' on Process 0 in a form suitable for
+       visualization: the mesh is written as a disjoint mesh and the shared
+       boundary is added to the actual boundary; both the element and boundary
+       attributes are set to the processor number.  */
    void PrintAsOne(std::ostream &out = std::cout);
 
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
    void PrintAsOneXG(std::ostream &out = std::cout);
 
    /// Print various parallel mesh stats
-   void PrintInfo(std::ostream &out = std::cout);
+   virtual void PrintInfo(std::ostream &out = std::cout);
 
    virtual ~ParMesh();
 };

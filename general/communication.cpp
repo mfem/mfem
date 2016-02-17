@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -20,35 +20,56 @@
 #include "sets.hpp"
 #include "communication.hpp"
 #include <iostream>
+#include <map>
+
 using namespace std;
 
 namespace mfem
 {
+
+GroupTopology::GroupTopology(const GroupTopology &gt)
+   : MyComm(gt.MyComm),
+     group_lproc(gt.group_lproc)
+{
+   gt.groupmaster_lproc.Copy(groupmaster_lproc);
+   gt.lproc_proc.Copy(lproc_proc);
+   gt.group_mgroup.Copy(group_mgroup);
+}
 
 void GroupTopology::ProcToLProc()
 {
    int NRanks;
    MPI_Comm_size(MyComm, &NRanks);
 
-   Array<int> proc_lproc(NRanks); // array of size number of processors!
-   proc_lproc = -1;
+   map<int, int> proc_lproc;
 
    int lproc_counter = 0;
    for (int i = 0; i < group_lproc.Size_of_connections(); i++)
-      if (proc_lproc[group_lproc.GetJ()[i]] < 0)
-         proc_lproc[group_lproc.GetJ()[i]] = lproc_counter++;
+   {
+      const pair<const int, int> p(group_lproc.GetJ()[i], lproc_counter);
+      if (proc_lproc.insert(p).second)
+      {
+         lproc_counter++;
+      }
+   }
    // Note: group_lproc.GetJ()[0] == MyRank --> proc_lproc[MyRank] == 0
 
    lproc_proc.SetSize(lproc_counter);
-   for (int i = 0; i < NRanks; i++)
-      if (proc_lproc[i] >= 0)
-         lproc_proc[proc_lproc[i]] = i;
+   for (map<int, int>::iterator it = proc_lproc.begin();
+        it != proc_lproc.end(); ++it)
+   {
+      lproc_proc[it->second] = it->first;
+   }
 
    for (int i = 0; i < group_lproc.Size_of_connections(); i++)
+   {
       group_lproc.GetJ()[i] = proc_lproc[group_lproc.GetJ()[i]];
+   }
 
    for (int i = 0; i < NGroups(); i++)
+   {
       groupmaster_lproc[i] = proc_lproc[groupmaster_lproc[i]];
+   }
 }
 
 void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
@@ -66,7 +87,9 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
       j++;
       for (int k = group_lproc.GetI()[i];
            j < group_mgroupandproc.GetI()[i+1]; j++, k++)
+      {
          group_mgroupandproc.GetJ()[j] = group_lproc.GetJ()[k];
+      }
    }
 
    // build groupmaster_lproc with lproc = proc
@@ -74,7 +97,9 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
 
    // simplest choice of the group owner
    for (int i = 0; i < NGroups(); i++)
+   {
       groupmaster_lproc[i] = groups.PickElementInSet(i);
+   }
 
    // load-balanced choice of the group owner, which however can lead to
    // isolated dofs
@@ -90,9 +115,13 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
    int recv_counter = 0;
    for (int i = 1; i < NGroups(); i++)
       if (groupmaster_lproc[i] != 0) // we are not the master
+      {
          recv_counter++;
+      }
       else
+      {
          send_counter += group_lproc.RowSize(i)-1;
+      }
 
    MPI_Request *requests = new MPI_Request[send_counter];
    MPI_Status  *statuses = new MPI_Status[send_counter];
@@ -123,7 +152,9 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
       }
       else // we are not the master
          if (max_recv_size < group_lproc.RowSize(i))
+         {
             max_recv_size = group_lproc.RowSize(i);
+         }
    }
    max_recv_size++;
 
@@ -176,7 +207,9 @@ void GroupCommunicator::Create(Array<int> &ldof_group)
    {
       int group = ldof_group[i];
       if (group != 0)
+      {
          group_ldof.AddAColumnInRow(group);
+      }
    }
    group_ldof.MakeJ();
 
@@ -184,7 +217,9 @@ void GroupCommunicator::Create(Array<int> &ldof_group)
    {
       int group = ldof_group[i];
       if (group != 0)
+      {
          group_ldof.AddConnection(group, i);
+      }
    }
    group_ldof.ShiftUpI();
 
@@ -200,9 +235,13 @@ void GroupCommunicator::Finalize()
       {
          int gr_requests;
          if (!gtopo.IAmMaster(gr)) // we are not the master
+         {
             gr_requests = 1;
+         }
          else
+         {
             gr_requests = gtopo.GetGroupSize(gr)-1;
+         }
 
          request_counter += gr_requests;
          group_buf_size += gr_requests * group_ldof.RowSize(gr);
@@ -216,7 +255,9 @@ template <class T>
 void GroupCommunicator::Bcast(T *ldata)
 {
    if (group_buf_size == 0)
+   {
       return;
+   }
 
    group_buf.SetSize(group_buf_size*sizeof(T));
    T *buf = (T *)group_buf.GetData();
@@ -229,7 +270,9 @@ void GroupCommunicator::Bcast(T *ldata)
 
       // ignore groups without dofs
       if (nldofs == 0)
+      {
          continue;
+      }
 
       if (!gtopo.IAmMaster(gr)) // we are not the master
       {
@@ -247,7 +290,9 @@ void GroupCommunicator::Bcast(T *ldata)
          // fill send buffer
          const int *ldofs = group_ldof.GetRow(gr);
          for (i = 0; i < nldofs; i++)
+         {
             buf[i] = ldata[ldofs[i]];
+         }
 
          const int  gs  = gtopo.GetGroupSize(gr);
          const int *nbs = gtopo.GetGroup(gr);
@@ -279,13 +324,17 @@ void GroupCommunicator::Bcast(T *ldata)
 
       // ignore groups without dofs
       if (nldofs == 0)
+      {
          continue;
+      }
 
       if (!gtopo.IAmMaster(gr)) // we are not the master
       {
          const int *ldofs = group_ldof.GetRow(gr);
          for (i = 0; i < nldofs; i++)
+         {
             ldata[ldofs[i]] = buf[i];
+         }
       }
       buf += nldofs;
    }
@@ -295,7 +344,9 @@ template <class T>
 void GroupCommunicator::Reduce(T *ldata, void (*Op)(OpData<T>))
 {
    if (group_buf_size == 0)
+   {
       return;
+   }
 
    int i, gr, request_counter = 0;
    OpData<T> opd;
@@ -309,14 +360,18 @@ void GroupCommunicator::Reduce(T *ldata, void (*Op)(OpData<T>))
 
       // ignore groups without dofs
       if (opd.nldofs == 0)
+      {
          continue;
+      }
 
       opd.ldofs = group_ldof.GetRow(gr);
 
       if (!gtopo.IAmMaster(gr)) // we are not the master
       {
          for (i = 0; i < opd.nldofs; i++)
+         {
             opd.buf[i] = ldata[opd.ldofs[i]];
+         }
 
          MPI_Isend(opd.buf,
                    opd.nldofs,
@@ -360,7 +415,9 @@ void GroupCommunicator::Reduce(T *ldata, void (*Op)(OpData<T>))
 
       // ignore groups without dofs
       if (opd.nldofs == 0)
+      {
          continue;
+      }
 
       if (!gtopo.IAmMaster(gr)) // we are not the master
       {
@@ -383,7 +440,9 @@ void GroupCommunicator::Sum(OpData<T> opd)
    {
       T data = opd.ldata[opd.ldofs[i]];
       for (int j = 0; j < opd.nb; j++)
+      {
          data += opd.buf[j*opd.nldofs+i];
+      }
       opd.ldata[opd.ldofs[i]] = data;
    }
 }
@@ -398,7 +457,9 @@ void GroupCommunicator::Min(OpData<T> opd)
       {
          T b = opd.buf[j*opd.nldofs+i];
          if (data > b)
+         {
             data = b;
+         }
       }
       opd.ldata[opd.ldofs[i]] = data;
    }
@@ -414,7 +475,9 @@ void GroupCommunicator::Max(OpData<T> opd)
       {
          T b = opd.buf[j*opd.nldofs+i];
          if (data < b)
+         {
             data = b;
+         }
       }
       opd.ldata[opd.ldofs[i]] = data;
    }
@@ -427,7 +490,9 @@ void GroupCommunicator::BitOR(OpData<T> opd)
    {
       T data = opd.ldata[opd.ldofs[i]];
       for (int j = 0; j < opd.nb; j++)
+      {
          data |= opd.buf[j*opd.nldofs+i];
+      }
       opd.ldata[opd.ldofs[i]] = data;
    }
 }
@@ -449,6 +514,8 @@ template <> inline MPI_Datatype GroupCommunicator::Get_MPI_Datatype<double>()
    return MPI_DOUBLE;
 }
 
+// @cond DOXYGEN_SKIP
+
 // instantiate GroupCommunicator::Bcast and Reduce for int and double
 template void GroupCommunicator::Bcast<int>(int *);
 template void GroupCommunicator::Reduce<int>(int *, void (*)(OpData<int>));
@@ -456,6 +523,8 @@ template void GroupCommunicator::Reduce<int>(int *, void (*)(OpData<int>));
 template void GroupCommunicator::Bcast<double>(double *);
 template void GroupCommunicator::Reduce<double>(
    double *, void (*)(OpData<double>));
+
+// @endcond
 
 // instantiate reduce operators for int and double
 template void GroupCommunicator::Sum<int>(OpData<int>);

@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -79,7 +79,7 @@ public:
    //! Get the i-th vector in the block
    void GetBlockView(int i, Vector & blockView);
 
-   int BlockSize(int i){ return blockOffsets[i+1] - blockOffsets[i];}
+   int BlockSize(int i) { return blockOffsets[i+1] - blockOffsets[i];}
 
    //! Update method
    /**

@@ -81,7 +81,7 @@ protected:
 
 public:
    HyperelasticOperator(FiniteElementSpace &f, Array<int> &ess_bdr,
-                        double visc);
+                        double visc, double mu, double K);
 
    virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
    /** Solve the Backward-Euler equation: k = f(x + dt*k, t), for the unknown k.
@@ -150,8 +150,10 @@ int main(int argc, char *argv[])
    int order = 2;
    int ode_solver_type = 3;
    double t_final = 300.0;
-   double dt = 3;
+   double dt = 3.0;
    double visc = 1e-2;
+   double mu = 0.25;
+   double K = 5.0;
    bool visualization = true;
    int vis_steps = 1;
 
@@ -171,6 +173,10 @@ int main(int argc, char *argv[])
                   "Time step.");
    args.AddOption(&visc, "-v", "--viscosity",
                   "Viscosity coefficient.");
+   args.AddOption(&mu, "-mu", "--shear-modulus",
+                  "Shear modulus in the Neo-Hookean hyperelastic model.");
+   args.AddOption(&K, "-K", "--bulk-modulus",
+                  "Bulk modulus in the Neo-Hookean hyperelastic model.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -203,29 +209,31 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver;
    switch (ode_solver_type)
    {
-   // Implicit L-stable methods
-   case 1:  ode_solver = new BackwardEulerSolver; break;
-   case 2:  ode_solver = new SDIRK23Solver(2); break;
-   case 3:  ode_solver = new SDIRK33Solver; break;
-   // Explicit methods
-   case 11: ode_solver = new ForwardEulerSolver; break;
-   case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
-   case 13: ode_solver = new RK3SSPSolver; break;
-   case 14: ode_solver = new RK4Solver; break;
-   // Implicit A-stable methods (not L-stable)
-   case 22: ode_solver = new ImplicitMidpointSolver; break;
-   case 23: ode_solver = new SDIRK23Solver; break;
-   case 24: ode_solver = new SDIRK34Solver; break;
-   default:
-      cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-      return 3;
+      // Implicit L-stable methods
+      case 1:  ode_solver = new BackwardEulerSolver; break;
+      case 2:  ode_solver = new SDIRK23Solver(2); break;
+      case 3:  ode_solver = new SDIRK33Solver; break;
+      // Explicit methods
+      case 11: ode_solver = new ForwardEulerSolver; break;
+      case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
+      case 13: ode_solver = new RK3SSPSolver; break;
+      case 14: ode_solver = new RK4Solver; break;
+      // Implicit A-stable methods (not L-stable)
+      case 22: ode_solver = new ImplicitMidpointSolver; break;
+      case 23: ode_solver = new SDIRK23Solver; break;
+      case 24: ode_solver = new SDIRK34Solver; break;
+      default:
+         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         return 3;
    }
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
    //    command-line parameter.
    for (int lev = 0; lev < ref_levels; lev++)
+   {
       mesh->UniformRefinement();
+   }
 
    // 5. Define the vector finite element spaces representing the mesh
    //    deformation x, the velocity v, and the initial configuration, x_ref.
@@ -268,7 +276,7 @@ int main(int argc, char *argv[])
 
    // 7. Initialize the hyperelastic operator, the GLVis visualization and print
    //    the initial energies.
-   HyperelasticOperator oper(fespace, ess_bdr, visc);
+   HyperelasticOperator oper(fespace, ess_bdr, visc, mu, K);
 
    socketstream vis_v, vis_w;
    if (visualization)
@@ -302,7 +310,9 @@ int main(int argc, char *argv[])
    for (int ti = 1; !last_step; ti++)
    {
       if (t + dt >= t_final - dt/2)
+      {
          last_step = true;
+      }
 
       ode_solver->Step(vx, t, dt);
 
@@ -355,7 +365,9 @@ void visualize(ostream &out, Mesh *mesh, GridFunction *deformed_nodes,
                GridFunction *field, const char *field_name, bool init_vis)
 {
    if (!out)
+   {
       return;
+   }
 
    GridFunction *nodes = deformed_nodes;
    int owns_nodes = 0;
@@ -422,7 +434,8 @@ BackwardEulerOperator::~BackwardEulerOperator()
 
 
 HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
-                                           Array<int> &ess_bdr, double visc)
+                                           Array<int> &ess_bdr, double visc,
+                                           double mu, double K)
    : TimeDependentOperator(2*f.GetVSize(), 0.0), fespace(f),
      M(&fespace), S(&fespace), H(&fespace), z(height/2)
 {
@@ -444,8 +457,6 @@ HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M.SpMat());
 
-   double mu = 0.25; // shear modulus
-   double K  = 5.0;  // bulk modulus
    model = new NeoHookeanModel(mu, K);
    H.AddDomainIntegrator(new HyperelasticNLFIntegrator(model));
    H.SetEssentialBC(ess_bdr);
@@ -493,7 +504,9 @@ void HyperelasticOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 
    H.Mult(x, z);
    if (viscosity != 0.0)
+   {
       S.AddMult(v, z);
+   }
    z.Neg(); // z = -z
    M_solver.Mult(z, dv_dt);
 

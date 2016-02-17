@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -177,7 +177,7 @@ public:
     0 - 3rd order method, not A-stable
     1 - 3rd order method, A-stable, not L-stable (default)
     2 - 2nd order method, L-stable
-    3 - 2nd order method, L-stable (has solves ouside [t,t+dt]). */
+    3 - 2nd order method, L-stable (has solves outside [t,t+dt]). */
 class SDIRK23Solver : public ODESolver
 {
 protected:

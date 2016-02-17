@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -35,7 +35,8 @@ public:
 
    /// Constants for the classes derived from Element.
    enum Type { POINT, SEGMENT, TRIANGLE, QUADRILATERAL, TETRAHEDRON,
-               HEXAHEDRON, BISECTED, QUADRISECTED, OCTASECTED };
+               HEXAHEDRON, BISECTED, QUADRISECTED, OCTASECTED
+             };
 
    /// Default element constructor.
    explicit Element(int bg = Geometry::POINT) { attribute = -1; base_geom = bg; }
@@ -116,12 +117,12 @@ public:
 
    Element *IAm()
    {
-      if (State == RefinedElement::COARSE) return CoarseElem;
+      if (State == RefinedElement::COARSE) { return CoarseElem; }
       return FirstChild;
    }
    const Element *IAm() const
    {
-      if (State == RefinedElement::COARSE) return CoarseElem;
+      if (State == RefinedElement::COARSE) { return CoarseElem; }
       return FirstChild;
    }
 
@@ -133,16 +134,16 @@ public:
 
    virtual int GetNVertices() const { return IAm()->GetNVertices(); }
 
-   virtual int GetNEdges() const { return(IAm()->GetNEdges()); }
+   virtual int GetNEdges() const { return (IAm()->GetNEdges()); }
 
    virtual const int *GetEdgeVertices(int ei) const
-   { return(IAm()->GetEdgeVertices(ei)); }
+   { return (IAm()->GetEdgeVertices(ei)); }
 
    virtual int GetNFaces(int &nFaceVertices) const
    { return IAm()->GetNFaces(nFaceVertices); }
 
    virtual const int *GetFaceVertices(int fi) const
-   { return IAm()->GetFaceVertices(fi); };
+   { return IAm()->GetFaceVertices(fi); }
 
    virtual void MarkEdge(DenseMatrix &pmat) { IAm()->MarkEdge(pmat); }
 

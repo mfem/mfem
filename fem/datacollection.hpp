@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -47,9 +47,13 @@ protected:
    /// Number of MPI ranks (in parallel)
    int num_procs;
 
+   /// Precision (number of digits) used for the text output of doubles
+   int precision;
    /// Number of digits used for the cycle and MPI rank in filenames
    int pad_digits;
 
+   /// Default value for precision
+   static const int precision_default = 6;
    /// Default value for pad_digits
    static const int pad_digits_default = 6;
 
@@ -66,19 +70,25 @@ protected:
    /// Delete data owned by the DataCollection including field information
    void DeleteAll();
 
+   /// Save one field to disk, assuming the collection directory exists
+   void SaveOneField(const std::map<std::string,GridFunction*>::iterator &it);
+
 public:
    /// Initialize the collection with its name and Mesh.
    DataCollection(const char *collection_name, Mesh *_mesh);
 
    /// Add a grid function to the collection
    virtual void RegisterField(const char *field_name, GridFunction *gf);
-   /// Get a pointer to a grid function in the collection
+   /** Get a pointer to a grid function in the collection. Returns NULL if
+       'field_name' is not in the collection. */
    GridFunction *GetField(const char *field_name);
    /// Check if a grid function is part of the collection
    bool HasField(const char *name) { return field_map.count(name) == 1; }
 
    /// Get a pointer to the mesh in the collection
    Mesh *GetMesh() { return mesh; }
+   /// Set/change the mesh associated with the collection
+   virtual void SetMesh(Mesh *new_mesh);
 
    /// Set time cycle (for time-dependent simulations)
    void SetCycle(int c) { cycle = c; }
@@ -94,6 +104,8 @@ public:
    /// Set the ownership of collection data
    void SetOwnData(bool o) { own_data = o; }
 
+   /// Set the precision (number of digits) used for the text output of doubles
+   void SetPrecision(int prec) { precision = prec; }
    /// Set the number of digits used for the cycle and MPI rank in filenames
    void SetPadDigits(int digits) { pad_digits = digits; }
 
@@ -101,6 +113,10 @@ public:
        directory with name "collection_name" or "collection_name_cycle" for
        time-dependent simulations. */
    virtual void Save();
+   /// Save the mesh, creating the collection directory.
+   virtual void SaveMesh();
+   /// Save one field, assuming the collection directory already exists.
+   virtual void SaveField(const char *field_name);
 
    /// Delete the mesh and fields if owned by the collection
    virtual ~DataCollection();
@@ -153,6 +169,9 @@ public:
    /// Initialize the collection with its mesh, fill-in the extra VisIt data
    VisItDataCollection(const char *collection_name, Mesh *_mesh);
 
+   /// Set/change the mesh associated with the collection
+   virtual void SetMesh(Mesh *new_mesh);
+
    /// Add a grid function to the collection and update the root file
    virtual void RegisterField(const char *field_name, GridFunction *gf);
 
@@ -165,6 +184,9 @@ public:
 
    /// Save the collection and a VisIt root file
    virtual void Save();
+
+   /// Save a VisIt root file for the collection
+   void SaveRootFile();
 
    /// Load the collection based on its VisIt data (described in its root file)
    void Load(int _cycle = 0);

@@ -39,10 +39,10 @@ int problem;
 void velocity_function(const Vector &x, Vector &v);
 
 // Initial condition
-double u0_function(Vector &x);
+double u0_function(const Vector &x);
 
 // Inflow boundary condition
-double inflow_function(Vector &x);
+double inflow_function(const Vector &x);
 
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
@@ -123,12 +123,16 @@ int main(int argc, char *argv[])
    if (!args.Good())
    {
       if (myid == 0)
+      {
          args.PrintUsage(cout);
+      }
       MPI_Finalize();
       return 1;
    }
    if (myid == 0)
+   {
       args.PrintOptions(cout);
+   }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle geometrically periodic meshes in this code.
@@ -137,7 +141,9 @@ int main(int argc, char *argv[])
    if (!imesh)
    {
       if (myid == 0)
+      {
          cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
+      }
       MPI_Finalize();
       return 2;
    }
@@ -150,16 +156,18 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
    {
-   case 1: ode_solver = new ForwardEulerSolver; break;
-   case 2: ode_solver = new RK2Solver(1.0); break;
-   case 3: ode_solver = new RK3SSPSolver; break;
-   case 4: ode_solver = new RK4Solver; break;
-   case 6: ode_solver = new RK6Solver; break;
-   default:
-      if (myid == 0)
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-      MPI_Finalize();
-      return 3;
+      case 1: ode_solver = new ForwardEulerSolver; break;
+      case 2: ode_solver = new RK2Solver(1.0); break;
+      case 3: ode_solver = new RK3SSPSolver; break;
+      case 4: ode_solver = new RK4Solver; break;
+      case 6: ode_solver = new RK6Solver; break;
+      default:
+         if (myid == 0)
+         {
+            cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         }
+         MPI_Finalize();
+         return 3;
    }
 
    // 5. Refine the mesh in serial to increase the resolution. In this example
@@ -167,7 +175,9 @@ int main(int argc, char *argv[])
    //    a command-line parameter. If the mesh is of NURBS type, we convert it
    //    to a (piecewise-polynomial) high-order mesh.
    for (int lev = 0; lev < ser_ref_levels; lev++)
+   {
       mesh->UniformRefinement();
+   }
 
    if (mesh->NURBSext)
    {
@@ -184,16 +194,20 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    for (int lev = 0; lev < par_ref_levels; lev++)
+   {
       pmesh->UniformRefinement();
+   }
 
    // 7. Define the parallel discontinuous DG finite element space on the
    //    parallel refined mesh of the given polynomial order.
    DG_FECollection fec(order, dim);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
-   int global_vSize = fes->GlobalTrueVSize();
+   HYPRE_Int global_vSize = fes->GlobalTrueVSize();
    if (myid == 0)
+   {
       cout << "Number of unknowns: " << global_vSize << endl;
+   }
 
    // 8. Set up and assemble the parallel bilinear and linear forms (and the
    //    parallel hypre matrices) corresponding to the DG discretization. The
@@ -267,7 +281,9 @@ int main(int argc, char *argv[])
                  << vishost << ':' << visport << endl;
          visualization = false;
          if (myid == 0)
+         {
             cout << "GLVis visualization disabled.\n";
+         }
       }
       else
       {
@@ -292,7 +308,9 @@ int main(int argc, char *argv[])
    for (int ti = 0; true; )
    {
       if (t >= t_final - dt/2)
+      {
          break;
+      }
 
       ode_solver->Step(*U, t, dt);
       ti++;
@@ -300,7 +318,9 @@ int main(int argc, char *argv[])
       if (ti % vis_steps == 0)
       {
          if (myid == 0)
+         {
             cout << "time step: " << ti << ", time: " << t << endl;
+         }
 
          // 11. Extract the parallel grid function corresponding to the finite
          //     element approximation U (the local solution on each processor).
@@ -351,7 +371,8 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b)
+FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
+                           const Vector &_b)
    : TimeDependentOperator(_M.Height()),
      M(_M), K(_K), b(_b), M_solver(M.GetComm()), z(_M.Height())
 {
@@ -382,102 +403,103 @@ void velocity_function(const Vector &x, Vector &v)
 
    switch (problem)
    {
-   case 0:
-   {
-      // Translations in 1D, 2D, and 3D
-      switch (dim)
+      case 0:
       {
-      case 1: v(0) = 1.0; break;
-      case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
-      case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.); break;
+         // Translations in 1D, 2D, and 3D
+         switch (dim)
+         {
+            case 1: v(0) = 1.0; break;
+            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
+            case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
+               break;
+         }
+         break;
       }
-      break;
-   }
-   case 1:
-   case 2:
-   {
-      // Clockwise rotation in 2D around the origin
-      const double w = M_PI/2;
-      switch (dim)
+      case 1:
+      case 2:
       {
-      case 1: v(0) = 1.0; break;
-      case 2: v(0) = w*x(1); v(1) = -w*x(0); break;
-      case 3: v(0) = w*x(1); v(1) = -w*x(0); v(2) = 0.0; break;
+         // Clockwise rotation in 2D around the origin
+         const double w = M_PI/2;
+         switch (dim)
+         {
+            case 1: v(0) = 1.0; break;
+            case 2: v(0) = w*x(1); v(1) = -w*x(0); break;
+            case 3: v(0) = w*x(1); v(1) = -w*x(0); v(2) = 0.0; break;
+         }
+         break;
       }
-      break;
-   }
-   case 3:
-   {
-      // Clockwise twisting rotation in 2D around the origin
-      const double w = M_PI/2;
-      double d = max((x(0)+1.)*(1.-x(0)),0.) * max((x(1)+1.)*(1.-x(1)),0.);
-      d = d*d;
-      switch (dim)
+      case 3:
       {
-      case 1: v(0) = 1.0; break;
-      case 2: v(0) = d*w*x(1); v(1) = -d*w*x(0); break;
-      case 3: v(0) = d*w*x(1); v(1) = -d*w*x(0); v(2) = 0.0; break;
+         // Clockwise twisting rotation in 2D around the origin
+         const double w = M_PI/2;
+         double d = max((x(0)+1.)*(1.-x(0)),0.) * max((x(1)+1.)*(1.-x(1)),0.);
+         d = d*d;
+         switch (dim)
+         {
+            case 1: v(0) = 1.0; break;
+            case 2: v(0) = d*w*x(1); v(1) = -d*w*x(0); break;
+            case 3: v(0) = d*w*x(1); v(1) = -d*w*x(0); v(2) = 0.0; break;
+         }
+         break;
       }
-      break;
-   }
    }
 }
 
 // Initial condition
-double u0_function(Vector &x)
+double u0_function(const Vector &x)
 {
    int dim = x.Size();
 
    switch (problem)
    {
-   case 0:
-   case 1:
-   {
-      switch (dim)
-      {
+      case 0:
       case 1:
-         return exp(-40.*pow(x(0)-0.5,2));
+      {
+         switch (dim)
+         {
+            case 1:
+               return exp(-40.*pow(x(0)-0.5,2));
+            case 2:
+            case 3:
+            {
+               double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
+               if (dim == 3)
+               {
+                  const double s = (1. + 0.25*cos(2*M_PI*x(2)));
+                  rx *= s;
+                  ry *= s;
+               }
+               return ( erfc(w*(x(0)-cx-rx))*erfc(-w*(x(0)-cx+rx)) *
+                        erfc(w*(x(1)-cy-ry))*erfc(-w*(x(1)-cy+ry)) )/16;
+            }
+         }
+      }
       case 2:
+      {
+         const double r = sqrt(8.);
+         double x_ = x(0), y_ = x(1), rho, phi;
+         rho = hypot(x_, y_) / r;
+         phi = atan2(y_, x_);
+         return pow(sin(M_PI*rho),2)*sin(3*phi);
+      }
       case 3:
       {
-         double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
-         if (dim == 3)
-         {
-            const double s = (1. + 0.25*cos(2*M_PI*x(2)));
-            rx *= s;
-            ry *= s;
-         }
-         return ( erfc(w*(x(0)-cx-rx))*erfc(-w*(x(0)-cx+rx)) *
-                  erfc(w*(x(1)-cy-ry))*erfc(-w*(x(1)-cy+ry)) )/16;
+         const double f = M_PI;
+         return sin(f*x(0))*sin(f*x(1));
       }
-      }
-   }
-   case 2:
-   {
-      const double r = sqrt(8.);
-      double x_ = x(0), y_ = x(1), rho, phi;
-      rho = hypot(x_, y_) / r;
-      phi = atan2(y_, x_);
-      return pow(sin(M_PI*rho),2)*sin(3*phi);
-   }
-   case 3:
-   {
-      const double f = M_PI;
-      return sin(f*x(0))*sin(f*x(1));
-   }
    }
    return 0.0;
 }
 
 // Inflow boundary condition (zero for the problems considered in this example)
-double inflow_function(Vector &x)
+double inflow_function(const Vector &x)
 {
    switch (problem)
    {
-   case 0:
-   case 1:
-   case 2:
-   case 3: return 0.0;
+      case 0:
+      case 1:
+      case 2:
+      case 3: return 0.0;
    }
    return 0.0;
 }

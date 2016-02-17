@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -13,6 +13,7 @@
 #define MFEM_MEM_ALLOC
 
 #include "../config/config.hpp"
+#include <cstddef>
 
 namespace mfem
 {
@@ -32,12 +33,12 @@ private:
    StackPart <Elem, Num> *TopPart, *TopFreePart;
    int UsedInTop, SSize;
 public:
-   Stack() { TopPart = TopFreePart = NULL; UsedInTop = Num; SSize = 0; };
-   int Size() { return SSize; };
+   Stack() { TopPart = TopFreePart = NULL; UsedInTop = Num; SSize = 0; }
+   int Size() { return SSize; }
    void Push (Elem E);
    Elem Pop();
    void Clear();
-   ~Stack() { Clear(); };
+   ~Stack() { Clear(); }
 };
 
 template <class Elem, int Num>
@@ -47,9 +48,13 @@ void Stack <Elem, Num>::Push (Elem E)
    if (UsedInTop == Num)
    {
       if (TopFreePart == NULL)
+      {
          aux = new StackPart <Elem, Num>;
+      }
       else
+      {
          TopFreePart = (aux = TopFreePart)->Prev;
+      }
       aux->Prev = TopPart;
       TopPart = aux;
       UsedInTop = 0;
@@ -108,11 +113,11 @@ private:
    int AllocatedInLast;
    Stack <Elem *, Num> UsedMem;
 public:
-   MemAlloc() { Last = NULL; AllocatedInLast = Num; };
+   MemAlloc() { Last = NULL; AllocatedInLast = Num; }
    Elem *Alloc();
    void Free (Elem *);
    void Clear();
-   ~MemAlloc() { Clear(); };
+   ~MemAlloc() { Clear(); }
 };
 
 template <class Elem, int Num>
@@ -120,7 +125,9 @@ Elem *MemAlloc <Elem, Num>::Alloc()
 {
    MemAllocNode <Elem, Num> *aux;
    if (UsedMem.Size() > 0)
+   {
       return UsedMem.Pop();
+   }
    if (AllocatedInLast == Num)
    {
       aux = Last;

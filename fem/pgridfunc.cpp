@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -33,7 +33,8 @@ ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf, HypreParVector *tv)
    Distribute(tv);
 }
 
-ParGridFunction::ParGridFunction(ParMesh *pmesh, GridFunction *gf, int * partitioning)
+ParGridFunction::ParGridFunction(ParMesh *pmesh, GridFunction *gf,
+                                 int * partitioning)
 {
    // duplicate the FiniteElementCollection from 'gf'
    fec = FiniteElementCollection::New(gf->FESpace()->FEColl()->Name());
@@ -41,7 +42,7 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, GridFunction *gf, int * partiti
                                           gf->FESpace()->GetOrdering());
    SetSize(pfes->GetVSize());
 
-   if(partitioning)
+   if (partitioning)
    {
       Array<int> gvdofs, lvdofs;
       Vector lnodes;
@@ -80,24 +81,14 @@ void ParGridFunction::Distribute(const Vector *tv)
    pfes->Dof_TrueDof_Matrix()->Mult(*tv, *this);
 }
 
+void ParGridFunction::AddDistribute(double a, const Vector *tv)
+{
+   pfes->Dof_TrueDof_Matrix()->Mult(a, *tv, 1.0, *this);
+}
+
 void ParGridFunction::GetTrueDofs(Vector &tv) const
 {
-#if 0
-   for (int i = 0; i < size; i++)
-   {
-      int tdof = pfes->GetLocalTDofNumber(i);
-      if (tdof >= 0)
-         tv(tdof) = (*this)(i);
-   }
-#else
-   hypre_ParCSRMatrix *P = *pfes->Dof_TrueDof_Matrix();
-   hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(P);
-   int *I = hypre_CSRMatrixI(diag) + 1;
-   int *J = hypre_CSRMatrixJ(diag);
-   for (int i = 0, j = 0; i < size; i++)
-      if (j < I[i])
-         tv(J[j++]) = (*this)(i);
-#endif
+   pfes->GetRestrictionMatrix()->Mult(*this, tv);
 }
 
 HypreParVector *ParGridFunction::GetTrueDofs() const
@@ -126,6 +117,23 @@ HypreParVector *ParGridFunction::ParallelAverage() const
    return tv;
 }
 
+void ParGridFunction::ParallelProject(Vector &tv) const
+{
+   pfes->GetRestrictionMatrix()->Mult(*this, tv);
+}
+
+void ParGridFunction::ParallelProject(HypreParVector &tv) const
+{
+   pfes->GetRestrictionMatrix()->Mult(*this, tv);
+}
+
+HypreParVector *ParGridFunction::ParallelProject() const
+{
+   HypreParVector *tv = pfes->NewTrueDofVector();
+   ParallelProject(*tv);
+   return tv;
+}
+
 void ParGridFunction::ParallelAssemble(Vector &tv) const
 {
    pfes->Dof_TrueDof_Matrix()->MultTranspose(*this, tv);
@@ -148,7 +156,9 @@ void ParGridFunction::ExchangeFaceNbrData()
    pfes->ExchangeFaceNbrData();
 
    if (pfes->GetFaceNbrVSize() <= 0)
+   {
       return;
+   }
 
    ParMesh *pmesh = pfes->GetParMesh();
 
@@ -157,7 +167,7 @@ void ParGridFunction::ExchangeFaceNbrData()
 
    int *send_offset = pfes->send_face_nbr_ldof.GetI();
    int *send_ldof = pfes->send_face_nbr_ldof.GetJ();
-   int *recv_offset = pfes->face_nbr_gdof.GetI();
+   int *recv_offset = pfes->face_nbr_ldof.GetI();
    MPI_Comm MyComm = pfes->GetComm();
 
    int num_face_nbrs = pmesh->GetNFaceNeighbors();
@@ -167,7 +177,9 @@ void ParGridFunction::ExchangeFaceNbrData()
    MPI_Status  *statuses = new MPI_Status[num_face_nbrs];
 
    for (int i = 0; i < send_data.Size(); i++)
+   {
       send_data[i] = data[send_ldof[i]];
+   }
 
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
@@ -191,7 +203,7 @@ void ParGridFunction::ExchangeFaceNbrData()
 }
 
 double ParGridFunction::GetValue(int i, const IntegrationPoint &ip, int vdim)
-   const
+const
 {
    Array<int> dofs;
    Vector DofVal, LocVec;
@@ -247,17 +259,63 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
    }
 }
 
+void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
+{
+   // local maximal element attribute for each dof
+   Array<int> ldof_attr;
+
+   // local projection
+   GridFunction::ProjectDiscCoefficient(coeff, ldof_attr);
+
+   // global maximal element attribute for each dof
+   Array<int> gdof_attr;
+   ldof_attr.Copy(gdof_attr);
+   GroupCommunicator &gcomm = pfes->GroupComm();
+   gcomm.Reduce<int>(gdof_attr, GroupCommunicator::Max);
+   gcomm.Bcast(gdof_attr);
+
+   // set local value to zero if global maximal element attribute is larger than
+   // the local one, and mark (in gdof_attr) if we have the correct value
+   for (int i = 0; i < pfes->GetVSize(); i++)
+   {
+      if (gdof_attr[i] > ldof_attr[i])
+      {
+         (*this)(i) = 0.0;
+         gdof_attr[i] = 0;
+      }
+      else
+      {
+         gdof_attr[i] = 1;
+      }
+   }
+
+   // parallel averaging plus interpolation to determine final values
+   HypreParVector *tv = pfes->NewTrueDofVector();
+   gcomm.Reduce<int>(gdof_attr, GroupCommunicator::Sum);
+   gcomm.Bcast(gdof_attr);
+   for (int i = 0; i < fes->GetVSize(); i++)
+   {
+      (*this)(i) /= gdof_attr[i];
+   }
+   this->ParallelAssemble(*tv);
+   this->Distribute(tv);
+   delete tv;
+}
+
+
 void ParGridFunction::Save(std::ostream &out) const
 {
    for (int i = 0; i < size; i++)
-      if (pfes->GetDofSign(i) < 0)
-         data[i] = -data[i];
+   {
+      if (pfes->GetDofSign(i) < 0) { data[i] = -data[i]; }
+   }
 
    GridFunction::Save(out);
 
    for (int i = 0; i < size; i++)
-      if (pfes->GetDofSign(i) < 0)
-         data[i] = -data[i];
+   {
+      if (pfes->GetDofSign(i) < 0) { data[i] = -data[i]; }
+   }
 }
 
 void ParGridFunction::SaveAsOne(std::ostream &out)
@@ -304,7 +362,9 @@ void ParGridFunction::SaveAsOne(std::ostream &out)
       int vdim = pfes -> GetVDim();
 
       for (p = 0; p < NRanks; p++)
+      {
          nrdofs[p] = nv[p]/vdim - nvdofs[p] - nedofs[p] - nfdofs[p];
+      }
 
       if (pfes->GetOrdering() == Ordering::byNODES)
       {
@@ -312,19 +372,27 @@ void ParGridFunction::SaveAsOne(std::ostream &out)
          {
             for (p = 0; p < NRanks; p++)
                for (i = 0; i < nvdofs[p]; i++)
+               {
                   out << *values[p]++ << '\n';
+               }
 
             for (p = 0; p < NRanks; p++)
                for (i = 0; i < nedofs[p]; i++)
+               {
                   out << *values[p]++ << '\n';
+               }
 
             for (p = 0; p < NRanks; p++)
                for (i = 0; i < nfdofs[p]; i++)
+               {
                   out << *values[p]++ << '\n';
+               }
 
             for (p = 0; p < NRanks; p++)
                for (i = 0; i < nrdofs[p]; i++)
+               {
                   out << *values[p]++ << '\n';
+               }
          }
       }
       else
@@ -332,22 +400,30 @@ void ParGridFunction::SaveAsOne(std::ostream &out)
          for (p = 0; p < NRanks; p++)
             for (i = 0; i < nvdofs[p]; i++)
                for (int d = 0; d < vdim; d++)
+               {
                   out << *values[p]++ << '\n';
+               }
 
          for (p = 0; p < NRanks; p++)
             for (i = 0; i < nedofs[p]; i++)
                for (int d = 0; d < vdim; d++)
+               {
                   out << *values[p]++ << '\n';
+               }
 
          for (p = 0; p < NRanks; p++)
             for (i = 0; i < nfdofs[p]; i++)
                for (int d = 0; d < vdim; d++)
+               {
                   out << *values[p]++ << '\n';
+               }
 
          for (p = 0; p < NRanks; p++)
             for (i = 0; i < nrdofs[p]; i++)
                for (int d = 0; d < vdim; d++)
+               {
                   out << *values[p]++ << '\n';
+               }
       }
 
       for (p = 1; p < NRanks; p++)
@@ -381,16 +457,24 @@ double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm)
    {
       // negative quadrature weights may cause the error to be negative
       if (loc_norm < 0.0)
+      {
          loc_norm = -pow(-loc_norm, p);
+      }
       else
+      {
          loc_norm = pow(loc_norm, p);
+      }
 
       MPI_Allreduce(&loc_norm, &glob_norm, 1, MPI_DOUBLE, MPI_SUM, comm);
 
       if (glob_norm < 0.0)
+      {
          glob_norm = -pow(-glob_norm, 1.0/p);
+      }
       else
+      {
          glob_norm = pow(glob_norm, 1.0/p);
+      }
    }
    else
    {
@@ -398,6 +482,143 @@ double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm)
    }
 
    return glob_norm;
+}
+
+
+void ParGridFunction::ComputeFlux(
+   BilinearFormIntegrator &blfi,
+   GridFunction &flux_, int wcoef, int subdomain)
+{
+   // In this context we know that flux should be a ParGridFunction
+   ParGridFunction& flux = dynamic_cast<ParGridFunction&>(flux_);
+
+   ParFiniteElementSpace *ffes = flux.ParFESpace();
+
+   Array<int> count(flux.Size());
+   SumFluxAndCount(blfi, flux, count, 0, subdomain);
+
+   if (ffes->Conforming()) // FIXME: nonconforming
+   {
+      // Accumulate flux and counts in parallel
+
+      ffes->GroupComm().Reduce<double>(flux, GroupCommunicator::Sum);
+      ffes->GroupComm().Bcast<double>(flux);
+
+      ffes->GroupComm().Reduce<int>(count, GroupCommunicator::Sum);
+      ffes->GroupComm().Bcast<int>(count);
+   }
+   else
+   {
+      MFEM_WARNING("Averaging on processor boundaries not implemented for "
+                   "NC meshes yet.");
+   }
+
+   // complete averaging
+   for (int i = 0; i < count.Size(); i++)
+   {
+      if (count[i] != 0) { flux(i) /= count[i]; }
+   }
+
+   if (ffes->Nonconforming())
+   {
+      // On a partially conforming flux space, project on the conforming space.
+      // Using this code may lead to worse refinements in ex6, so we do not use
+      // it by default.
+
+      // Vector conf_flux;
+      // flux.ConformingProject(conf_flux);
+      // flux.ConformingProlongate(conf_flux);
+   }
+}
+
+
+void L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
+                        ParGridFunction &x,
+                        ParFiniteElementSpace &smooth_flux_fes,
+                        ParFiniteElementSpace &flux_fes,
+                        Vector &errors,
+                        int norm_p, double solver_tol, int solver_max_it)
+{
+   // Compute fluxes in discontinuous space
+   GridFunction flux(&flux_fes);
+   flux = 0.0;
+
+   FiniteElementSpace *xfes = x.FESpace();
+   Array<int> xdofs, fdofs;
+   Vector el_x, el_f;
+
+   for (int i = 0; i < xfes->GetNE(); i++)
+   {
+      xfes->GetElementVDofs(i, xdofs);
+      x.GetSubVector(xdofs, el_x);
+
+      ElementTransformation *Transf = xfes->GetElementTransformation(i);
+      flux_integrator.ComputeElementFlux(*xfes->GetFE(i), *Transf, el_x,
+                                         *flux_fes.GetFE(i), el_f, false);
+
+      flux_fes.GetElementVDofs(i, fdofs);
+      flux.AddElementVector(fdofs, el_f);
+   }
+
+   // Assemble the linear system for L2 projection into the "smooth" space
+   ParBilinearForm *a = new ParBilinearForm(&smooth_flux_fes);
+   ParLinearForm *b = new ParLinearForm(&smooth_flux_fes);
+   VectorGridFunctionCoefficient f(&flux);
+
+   if (smooth_flux_fes.GetFE(0)->GetRangeType() == FiniteElement::SCALAR)
+   {
+      a->AddDomainIntegrator(new VectorMassIntegrator);
+      b->AddDomainIntegrator(new VectorDomainLFIntegrator(f));
+   }
+   else
+   {
+      a->AddDomainIntegrator(new VectorFEMassIntegrator);
+      b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
+   }
+
+   b->Assemble();
+   a->Assemble();
+   a->Finalize();
+
+   // The destination of the projected discontinuous flux
+   ParGridFunction smooth_flux(&smooth_flux_fes);
+   smooth_flux = 0.0;
+
+   HypreParMatrix* A = a->ParallelAssemble();
+   HypreParVector* B = b->ParallelAssemble();
+   HypreParVector* X = smooth_flux.ParallelProject();
+
+   delete a;
+   delete b;
+
+   // Define and apply a parallel PCG solver for AX=B with the BoomerAMG
+   // preconditioner from hypre.
+   HypreBoomerAMG *amg = new HypreBoomerAMG(*A);
+   amg->SetPrintLevel(0);
+   HyprePCG *pcg = new HyprePCG(*A);
+   pcg->SetTol(solver_tol);
+   pcg->SetMaxIter(solver_max_it);
+   pcg->SetPrintLevel(0);
+   pcg->SetPreconditioner(*amg);
+   pcg->Mult(*B, *X);
+
+   // Extract the parallel grid function corresponding to the finite element
+   // approximation X. This is the local solution on each processor.
+   smooth_flux = *X;
+
+   // Proceed through the elements one by one, and find the Lp norm differences
+   // between the flux as computed per element and the flux projected onto the
+   // smooth_flux_fes space.
+   for (int i = 0; i < xfes->GetNE(); i++)
+   {
+      errors(i) = ComputeElementLpDistance(norm_p, i, smooth_flux, flux);
+   }
+
+   delete A;
+   delete B;
+   delete X;
+   delete amg;
+   delete pcg;
 }
 
 }

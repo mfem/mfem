@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -116,11 +116,14 @@ BlockOperator::~BlockOperator()
    if (owns_blocks)
       for (int iRow=0; iRow < nRowBlocks; ++iRow)
          for (int jCol=0; jCol < nColBlocks; ++jCol)
+         {
             delete op(jCol,iRow);
+         }
 }
 
 //-----------------------------------------------------------------------
-BlockDiagonalPreconditioner::BlockDiagonalPreconditioner(const Array<int> & offsets_):
+BlockDiagonalPreconditioner::BlockDiagonalPreconditioner(
+   const Array<int> & offsets_):
    Solver(offsets_.Last()),
    owns_blocks(0),
    nBlocks(offsets_.Size() - 1),
@@ -152,13 +155,18 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
 
    for (int i=0; i<nBlocks; ++i)
       if (op[i])
+      {
          op[i]->Mult(xblock.GetBlock(i), yblock.GetBlock(i));
+      }
       else
+      {
          yblock.GetBlock(i) = xblock.GetBlock(i);
+      }
 }
 
 // Action of the transpose operator
-void BlockDiagonalPreconditioner::MultTranspose (const Vector & x, Vector & y) const
+void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
+                                                 Vector & y) const
 {
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
@@ -168,16 +176,22 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x, Vector & y) c
 
    for (int i=0; i<nBlocks; ++i)
       if (op[i])
+      {
          (op[i])->MultTranspose(xblock.GetBlock(i), yblock.GetBlock(i));
+      }
       else
+      {
          yblock.GetBlock(i) = xblock.GetBlock(i);
+      }
 }
 
 BlockDiagonalPreconditioner::~BlockDiagonalPreconditioner()
 {
    if (owns_blocks)
       for (int i=0; i<nBlocks; ++i)
+      {
          delete op[i];
+      }
 }
 
 }

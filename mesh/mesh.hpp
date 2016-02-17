@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -35,12 +35,14 @@ struct Refinement;
 
 #ifdef MFEM_USE_MPI
 class ParMesh;
+class ParNCMesh;
 #endif
 
 class Mesh
 {
 #ifdef MFEM_USE_MPI
    friend class ParMesh;
+   friend class ParNCMesh;
 #endif
    friend class NURBSExtension;
 
@@ -68,8 +70,29 @@ protected:
    Array<Element *> boundary;
    Array<Element *> faces;
 
-   class FaceInfo { public: int Elem1No, Elem2No, Elem1Inf, Elem2Inf; };
+   struct FaceInfo
+   {
+      int Elem1No, Elem2No, Elem1Inf, Elem2Inf;
+      int NCFace; /* -1 if this is a regular conforming/boundary face;
+                     index into 'nc_faces_info' if >= 0. */
+   };
+   // NOTE: in NC meshes, master faces have Elem2No == -1. Slave faces on the
+   // other hand have Elem2No and Elem2Inf set to the master face's element and
+   // its local face number.
+
+   struct NCFaceInfo
+   {
+      bool Slave; // true if this is a slave face, false if master face
+      int MasterFace; // if Slave, this is the index of the master face
+      const DenseMatrix* PointMatrix; // if Slave, position within master face
+      // (NOTE: PointMatrix points to a matrix owned by NCMesh.)
+
+      NCFaceInfo(bool slave, int master, const DenseMatrix* pm)
+         : Slave(slave), MasterFace(master), PointMatrix(pm) {}
+   };
+
    Array<FaceInfo> faces_info;
+   Array<NCFaceInfo> nc_faces_info;
 
    Table *el_to_edge;
    Table *el_to_face;
@@ -90,7 +113,7 @@ protected:
    FaceElementTransformations FaceElemTr;
 
    // Nodes are only active for higher order meshes, and share locations with
-   // the vertecies, plus all the higher- order control points within the
+   // the vertices, plus all the higher- order control points within the
    // element and along the edges and on the faces.
    GridFunction *Nodes;
    int own_nodes;
@@ -112,14 +135,23 @@ protected:
    MemAlloc <BisectedElement, 1024> BEMemory;
 #endif
 
+public:
+   Array<int> attributes;
+   Array<int> bdr_attributes;
+
+   NURBSExtension *NURBSext;
+   NCMesh *ncmesh;
+
+protected:
    void Init();
 
    void InitTables();
 
    void DeleteTables();
 
-   /** Delete the 'el_to_el', 'face_edge' and 'edge_vertex' tables.
-       Usefull in refinement methods to destroy the coarse tables. */
+   /** Delete the 'el_to_el', 'face_edge' and 'edge_vertex' tables, and the
+       coarse non-conforming Mesh 'nc_coarse_level'. Useful in refinement
+       methods to destroy these data members. */
    void DeleteCoarseTables();
 
    Element *ReadElementWithoutAttr(std::istream &);
@@ -169,7 +201,7 @@ protected:
    /** Uniform Refinement. Element with index i is refined uniformly. */
    void UniformRefinement(int i, const DSTable &, int *, int *, int *);
 
-   /** Averages the vertices with given indexes and save the result in
+   /** Averages the vertices with given indexes and saves the result in
        vertices[result]. */
    void AverageVertices (int * indexes, int n, int result);
 
@@ -189,8 +221,8 @@ protected:
    virtual void LocalRefinement(const Array<int> &marked_el, int type = 3);
 
    /// This function is not public anymore. Use GeneralRefinement instead.
-   void NonconformingRefinement(const Array<Refinement> &refinements,
-                                int nc_limit = 0);
+   virtual void NonconformingRefinement(const Array<Refinement> &refinements,
+                                        int nc_limit = 0);
 
    /// Read NURBS patch/macro-element mesh
    void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
@@ -221,6 +253,11 @@ protected:
    /// Used in GetFaceElementTransformations (...)
    void GetLocalQuadToHexTransformation (IsoparametricTransformation &loc,
                                          int i);
+   /** Used in GetFaceElementTransformations to account for the fact that a
+       slave face occupies only a portion of its master face. */
+   void ApplySlaveTransformation(IsoparametricTransformation &transf,
+                                 const FaceInfo &fi);
+   bool IsSlaveFace(const FaceInfo &fi);
 
    /// Returns the orientation of "test" relative to "base"
    static int GetTriOrientation (const int * base, const int * test);
@@ -236,7 +273,7 @@ protected:
        in the table, then (j, i) is not stored. */
    void GetVertexToVertexTable(DSTable &) const;
 
-   /** Return element to edge table and the indeces for the boundary edges.
+   /** Return element to edge table and the indices for the boundary edges.
        The entries in the table are ordered according to the order of the
        nodes in the elements. For example, if T is the element to edge table
        T(i, 0) gives the index of edge in element i that connects vertex 0
@@ -269,6 +306,7 @@ protected:
    void FreeElement (Element *E);
 
    void GenerateFaces();
+   void GenerateNCFaceInfo();
 
    /// Begin construction of a mesh
    void InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem);
@@ -290,8 +328,11 @@ protected:
    /// Creates a 1D mesh for the interval [0,sx] divided into n equal intervals.
    void Make1D(int n, double sx = 1.0);
 
+   /// Initialize vertices/elements/boundary/tables from a nonconforming mesh.
+   void InitFromNCMesh(const NCMesh &ncmesh);
+
    /// Create from a nonconforming mesh.
-   Mesh(NCMesh& ncmesh);
+   Mesh(const NCMesh &ncmesh);
 
    /// Swaps internal data with another mesh. By default, non-geometry members
    /// like 'ncmesh' and 'NURBSExt' are only swapped when 'non_geometry' is set.
@@ -301,18 +342,21 @@ public:
 
    enum { NORMAL, TWO_LEVEL_COARSE, TWO_LEVEL_FINE };
 
-   Array<int> attributes;
-   Array<int> bdr_attributes;
-
-   NURBSExtension *NURBSext;
-   NCMesh *ncmesh;
-
    Mesh() { Init(); InitTables(); meshgen = 0; Dim = 0; }
+
+   /** Copy constructor. Performs a deep copy of (almost) all data, so that the
+       source mesh can be modified (e.g. deleted, refined) without affecting the
+       new mesh. The source mesh has to be in a NORMAL, i.e. not TWO_LEVEL_*,
+       state. If 'copy_nodes' is false, use a shallow (pointer) copy for the
+       nodes, if present. */
+   explicit Mesh(const Mesh &mesh, bool copy_nodes = true);
 
    Mesh(int _Dim, int NVert, int NElem, int NBdrElem = 0, int _spaceDim= -1)
    {
       if (_spaceDim == -1)
+      {
          _spaceDim = _Dim;
+      }
       InitMesh(_Dim, _spaceDim, NVert, NElem, NBdrElem);
    }
 
@@ -326,7 +370,8 @@ public:
    void AddHex(const int *vi, int attr = 1);
    void AddHexAsTets(const int *vi, int attr = 1);
    // 'elem' should be allocated using the NewElement method
-   void AddElement(Element *elem)  { elements[NumOfElements++] = elem; }
+   void AddElement(Element *elem)     { elements[NumOfElements++] = elem; }
+   void AddBdrElement(Element *elem)  { boundary[NumOfBdrElements++] = elem; }
    void AddBdrSegment(const int *vi, int attr = 1);
    void AddBdrTriangle(const int *vi, int attr = 1);
    void AddBdrQuad(const int *vi, int attr = 1);
@@ -342,6 +387,19 @@ public:
                         bool fix_orientation = true);
 
    void SetAttributes();
+
+#ifdef MFEM_USE_GECKO
+   /** This is our integration with the Gecko library.  This will call the
+       Gecko library to find an element ordering that will increase memory
+       coherency by putting elements that are in physical proximity closer in
+       memory. */
+   void GetGeckoElementReordering(Array<int> &ordering);
+#endif
+
+   /** Rebuilds the mesh with a different order of elements.  The ordering
+       vector maps the old element number to the new element number.  This also
+       reorders the vertices and nodes edges and faces along with the elements.  */
+   void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
        nx*ny*nz hexahedrals if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons
@@ -448,10 +506,10 @@ public:
    { boundary[i]->GetVertices(dofs); }
 
    /// Return the indices and the orientations of all edges of element i.
-   void GetElementEdges(int i, Array<int> &, Array<int> &) const;
+   void GetElementEdges(int i, Array<int> &edges, Array<int> &cor) const;
 
    /// Return the indices and the orientations of all edges of bdr element i.
-   void GetBdrElementEdges(int i, Array<int> &, Array<int> &) const;
+   void GetBdrElementEdges(int i, Array<int> &edges, Array<int> &cor) const;
 
    /** Return the indices and the orientations of all edges of face i.
        Works for both 2D (face=edge) and 3D faces. */
@@ -465,7 +523,9 @@ public:
          vert.SetSize(1); vert[0] = i;
       }
       else
+      {
          faces[i]->GetVertices(vert);
+      }
    }
 
    /// Returns the indices of the vertices of edge i.
@@ -483,8 +543,9 @@ public:
    /// Return the index and the orientation of the face of bdr element i. (3D)
    void GetBdrElementFace(int i, int *, int *) const;
 
-   /** Return the edge index of boundary element i. (2D)
-       return the face index of boundary element i. (3D) */
+   /** Return the vertex index of boundary element i. (1D)
+       Return the edge index of boundary element i. (2D)
+       Return the face index of boundary element i. (3D) */
    int GetBdrElementEdgeIndex(int i) const;
 
    /// Returns the type of element i.
@@ -535,7 +596,7 @@ public:
    /// Returns the transformation defining the given face element
    ElementTransformation *GetEdgeTransformation(int EdgeNo);
 
-   /** Returns (a poiter to a structure containing) the following data:
+   /** Returns (a pointer to a structure containing) the following data:
        1) Elem1No - the index of the first element that contains this face
        this is the element that has the same outward unit normal
        vector as the face;
@@ -550,7 +611,7 @@ public:
        (both in their reference elements). Used to transform
        IntegrationPoints from face to element. More formally, let:
        TL1, TL2 be the transformations represented by Loc1, Loc2,
-       TE1, TE2 - the transformations represented by Eleme1, Elem2,
+       TE1, TE2 - the transformations represented by Elem1, Elem2,
        TF - the transformation represented by Face, then
        TF(x) = TE1(TL1(x)) = TE2(TL2(x)) for all x in the reference face.
        6) FaceGeom - the base geometry for the face.
@@ -561,8 +622,10 @@ public:
                                                              int mask = 31);
 
    FaceElementTransformations *GetInteriorFaceTransformations (int FaceNo)
-   { if (faces_info[FaceNo].Elem2No < 0) return NULL;
-      return GetFaceElementTransformations (FaceNo); }
+   {
+      if (faces_info[FaceNo].Elem2No < 0) { return NULL; }
+      return GetFaceElementTransformations (FaceNo);
+   }
 
    FaceElementTransformations *GetBdrFaceTransformations (int BdrElemNo);
 
@@ -622,8 +685,8 @@ public:
    void SetVertices(const Vector &vert_coord);
 
    // Nodes are only active for higher order meshes, and share locations with
-   // the vertecies, plus all the higher- order control points within the
-   // element and along the edges and on the faces.
+   // the vertices, plus all the higher- order control points within the element
+   // and along the edges and on the faces.
    void GetNode(int i, double *coord);
    void SetNode(int i, const double *coord);
 
@@ -638,7 +701,7 @@ public:
    GridFunction *GetNodes() { return Nodes; }
    /// Replace the internal node GridFunction with the given GridFunction.
    void NewNodes(GridFunction &nodes, bool make_owner = false);
-   /** Swap the internal node GridFunction pointer and onwership flag members
+   /** Swap the internal node GridFunction pointer and ownership flag members
        with the given ones. */
    void SwapNodes(GridFunction *&nodes, int &own_nodes_);
 
@@ -656,6 +719,12 @@ public:
        defined or NULL if the mesh does not have nodes. */
    const FiniteElementSpace *GetNodalFESpace();
 
+   /** Set the curvature of the mesh nodes using the given polynomial degree,
+       'order', and optionally: discontinuous or continuous FE space, 'discont',
+       new space dimension, 'space_dim' (if != -1), and 'ordering'. */
+   void SetCurvature(int order, bool discont = false, int space_dim = -1,
+                     int ordering = 1);
+
    /** Refine all mesh elements. */
    void UniformRefinement();
 
@@ -667,13 +736,26 @@ public:
        refinement for triangles). Use noncoforming = 0/1 to force the method.
        For nonconforming refinements, nc_limit optionally specifies the maximum
        level of hanging nodes (unlimited by default). */
-   void GeneralRefinement(Array<Refinement> &refinements,
+   void GeneralRefinement(const Array<Refinement> &refinements,
                           int nonconforming = -1, int nc_limit = 0);
 
    /** Simplified version of GeneralRefinement taking a simple list of elements
        to refine, without refinement types. */
-   void GeneralRefinement(Array<int> &el_to_refine,
+   void GeneralRefinement(const Array<int> &el_to_refine,
                           int nonconforming = -1, int nc_limit = 0);
+
+   /** Ensure that a quad/hex mesh is considered to be non-conforming (i.e. has
+       an associated NCMesh object). */
+   void EnsureNCMesh();
+
+   /// Refine each element with 1/frac probability, repeat 'levels' times.
+   void RandomRefinement(int levels, int frac = 2, bool aniso = false,
+                         int nonconforming = -1, int nc_limit = -1,
+                         int seed = 0 /* should be the same on all CPUs */);
+
+   /// Refine elements sharing the specified vertex, 'levels' times.
+   void RefineAtVertex(const Vertex& vert, int levels,
+                       double eps = 0.0, int nonconforming = -1);
 
    // NURBS mesh refinement methods
    void KnotInsert(Array<KnotVector *> &kv);
@@ -684,7 +766,9 @@ public:
    void UseTwoLevelState (int use)
    {
       if (!use && State != Mesh::NORMAL)
+      {
          SetState (Mesh::NORMAL);
+      }
       WantTwoLevelState = use;
    }
 
@@ -747,6 +831,14 @@ public:
    void ScaleElements (double sf);
 
    void Transform(void (*f)(const Vector&, Vector&));
+   void Transform(VectorCoefficient &deformation);
+
+   /// Remove unused vertices and rebuild mesh connectivity.
+   void RemoveUnusedVertices();
+
+   /** Remove boundary elements that lie in the interior of the mesh, i.e. that
+       have two adjacent faces in 3D, or edges in 2D. */
+   void RemoveInternalBoundaries();
 
    /** Get the size of the i-th element relative to the perfect
        reference element. */
@@ -756,7 +848,13 @@ public:
 
    double GetElementVolume(int i);
 
-   void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL);
+   void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL,
+                             std::ostream &out = std::cout);
+
+   virtual void PrintInfo(std::ostream &out = std::cout)
+   {
+      PrintCharacteristics(NULL, NULL, out);
+   }
 
    void MesquiteSmooth(const int mesquite_option = 0);
 
@@ -769,7 +867,7 @@ public:
 std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
 
 
-/// Class used to exrude the nodes of a mesh
+/// Class used to extrude the nodes of a mesh
 class NodeExtrudeCoefficient : public VectorCoefficient
 {
 private:
@@ -803,14 +901,20 @@ inline void Mesh::Rotate3(int &a, int &b, int &c)
    if (a < b)
    {
       if (a > c)
+      {
          ShiftL2R(a, b, c);
+      }
    }
    else
    {
       if (b < c)
+      {
          ShiftL2R(c, b, a);
+      }
       else
+      {
          ShiftL2R(a, b, c);
+      }
    }
 }
 

@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -13,6 +13,7 @@
 #define MFEM_SORT_PAIRS
 
 #include "../config/config.hpp"
+#include <cstdlib>
 
 namespace mfem
 {
@@ -52,12 +53,12 @@ int CompareTriple (const void *_p, const void *_q)
    p = static_cast< const Triple<A, B, C>* >(_p);
    q = static_cast< const Triple<A, B, C>* >(_q);
 
-   if (p -> one < q -> one)  return -1;
-   if (q -> one < p -> one)  return +1;
-   if (p -> two < q -> two)  return -1;
-   if (q -> two < p -> two)  return +1;
-   if (p -> three < q -> three)  return -1;
-   if (q -> three < p -> three)  return +1;
+   if (p -> one < q -> one) { return -1; }
+   if (q -> one < p -> one) { return +1; }
+   if (p -> two < q -> two) { return -1; }
+   if (q -> two < p -> two) { return +1; }
+   if (p -> three < q -> three) { return -1; }
+   if (q -> three < p -> three) { return +1; }
    return 0;
 }
 
@@ -65,7 +66,9 @@ template <class A, class B, class C>
 void SortTriple (Triple<A, B, C> *triples, int size)
 {
    if (size > 0)
+   {
       qsort (triples, size, sizeof(Triple<A, B, C>), CompareTriple<A, B, C>);
+   }
 }
 
 }

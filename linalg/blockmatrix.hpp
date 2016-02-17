@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -108,7 +108,8 @@ public:
    /// MatrixTranspose-Vector Multiplication y = A'*x
    virtual void MultTranspose(const Vector & x, Vector & y) const;
    /// MatrixTranspose-Vector Multiplication y = y + val*A'*x
-   virtual void AddMultTranspose(const Vector & x, Vector & y, const double val = 1.) const;
+   virtual void AddMultTranspose(const Vector & x, Vector & y,
+                                 const double val = 1.) const;
    //@}
 
    //! Destructor
@@ -140,26 +141,36 @@ BlockMatrix * Transpose(const BlockMatrix & A);
 //! Multiply BlockMatrix matrices: result = A*B
 BlockMatrix * Mult(const BlockMatrix & A, const BlockMatrix & B);
 
-inline void BlockMatrix::findGlobalRow(int iglobal, int & iblock, int & iloc) const
+inline void BlockMatrix::findGlobalRow(int iglobal, int & iblock,
+                                       int & iloc) const
 {
-   if(iglobal > row_offsets[nRowBlocks])
+   if (iglobal > row_offsets[nRowBlocks])
+   {
       mfem_error("BlockMatrix::findGlobalRow");
+   }
 
-   for(iblock = 0; iblock < nRowBlocks; ++iblock)
-      if(row_offsets[iblock+1] > iglobal)
+   for (iblock = 0; iblock < nRowBlocks; ++iblock)
+      if (row_offsets[iblock+1] > iglobal)
+      {
          break;
+      }
 
    iloc = iglobal - row_offsets[iblock];
 }
 
-inline void BlockMatrix::findGlobalCol(int jglobal, int & jblock, int & jloc) const
+inline void BlockMatrix::findGlobalCol(int jglobal, int & jblock,
+                                       int & jloc) const
 {
-   if(jglobal > col_offsets[nColBlocks])
+   if (jglobal > col_offsets[nColBlocks])
+   {
       mfem_error("BlockMatrix::findGlobalCol");
+   }
 
-   for(jblock = 0; jblock < nColBlocks; ++jblock)
-      if(col_offsets[jblock+1] > jglobal)
+   for (jblock = 0; jblock < nColBlocks; ++jblock)
+      if (col_offsets[jblock+1] > jglobal)
+      {
          break;
+      }
 
    jloc = jglobal - col_offsets[jblock];
 }

@@ -4,6 +4,8 @@
 //
 // Sample runs:  ex7 -e 0 -o 2 -r 4
 //               ex7 -e 1 -o 2 -r 4 -snap
+//               ex7 -e 0 -amr 1
+//               ex7 -e 1 -amr 2 -o 2
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               triangulation of a unit sphere and a simple isoparametric
@@ -14,7 +16,7 @@
 //               refinement, high-order meshes and finite elements, as well as
 //               surface-based linear and bilinear forms corresponding to the
 //               left-hand side and right-hand side of the discrete linear
-//               system.
+//               system. Simple local mesh refinement is also demonstrated.
 //
 //               We recommend viewing Example 1 before viewing this example.
 
@@ -26,8 +28,8 @@ using namespace std;
 using namespace mfem;
 
 // Exact solution and r.h.s., see below for implementation.
-double analytic_solution(Vector &x);
-double analytic_rhs(Vector &x);
+double analytic_solution(const Vector &x);
+double analytic_rhs(const Vector &x);
 void SnapNodes(Mesh &mesh);
 
 int main(int argc, char *argv[])
@@ -35,6 +37,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    int elem_type = 1;
    int ref_levels = 2;
+   int amr = 0;
    int order = 2;
    bool always_snap = false;
    bool visualization = 1;
@@ -46,6 +49,9 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
+   args.AddOption(&amr, "-amr", "--refine-locally",
+                  "Additional local (non-conforming) refinement:"
+                  " 1 = refine around north pole, 2 = refine randomly.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -76,11 +82,15 @@ int main(int argc, char *argv[])
    if (elem_type == 0) // inscribed octahedron
    {
       const double tri_v[6][3] =
-         {{ 1,  0,  0}, { 0,  1,  0}, {-1,  0,  0},
-          { 0, -1,  0}, { 0,  0,  1}, { 0,  0, -1}};
+      {
+         { 1,  0,  0}, { 0,  1,  0}, {-1,  0,  0},
+         { 0, -1,  0}, { 0,  0,  1}, { 0,  0, -1}
+      };
       const int tri_e[8][3] =
-         {{0, 1, 4}, {1, 2, 4}, {2, 3, 4}, {3, 0, 4},
-          {1, 0, 5}, {2, 1, 5}, {3, 2, 5}, {0, 3, 5}};
+      {
+         {0, 1, 4}, {1, 2, 4}, {2, 3, 4}, {3, 0, 4},
+         {1, 0, 5}, {2, 1, 5}, {3, 2, 5}, {0, 3, 5}
+      };
 
       for (int j = 0; j < Nvert; j++)
       {
@@ -96,11 +106,15 @@ int main(int argc, char *argv[])
    else // inscribed cube
    {
       const double quad_v[8][3] =
-         {{-1, -1, -1}, {+1, -1, -1}, {+1, +1, -1}, {-1, +1, -1},
-          {-1, -1, +1}, {+1, -1, +1}, {+1, +1, +1}, {-1, +1, +1}};
+      {
+         {-1, -1, -1}, {+1, -1, -1}, {+1, +1, -1}, {-1, +1, -1},
+         {-1, -1, +1}, {+1, -1, +1}, {+1, +1, +1}, {-1, +1, +1}
+      };
       const int quad_e[6][4] =
-         {{3, 2, 1, 0}, {0, 1, 5, 4}, {1, 2, 6, 5},
-          {2, 3, 7, 6}, {3, 0, 4, 7}, {4, 5, 6, 7}};
+      {
+         {3, 2, 1, 0}, {0, 1, 5, 4}, {1, 2, 6, 5},
+         {2, 3, 7, 6}, {3, 0, 4, 7}, {4, 5, 6, 7}
+      };
 
       for (int j = 0; j < Nvert; j++)
       {
@@ -123,17 +137,32 @@ int main(int argc, char *argv[])
    for (int l = 0; l <= ref_levels; l++)
    {
       if (l > 0) // for l == 0 just perform snapping
+      {
          mesh->UniformRefinement();
+      }
 
       // Snap the nodes of the refined mesh back to sphere surface.
       if (always_snap || l == ref_levels)
+      {
          SnapNodes(*mesh);
+      }
+   }
+
+   if (amr == 1)
+   {
+      mesh->RefineAtVertex(Vertex(0, 0, 1), 5); // 5 levels
+      SnapNodes(*mesh);
+   }
+   else if (amr == 2)
+   {
+      mesh->RandomRefinement(4, 2); // 4 levels, 1/2 of the elements
+      SnapNodes(*mesh);
    }
 
    // 4. Define a finite element space on the mesh. Here we use isoparametric
    //    finite elements -- the same as the mesh nodes.
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, &fec);
-   cout << "Number of unknowns: " << fespace->GetVSize() << endl;
+   cout << "Number of unknowns: " << fespace->GetTrueVSize() << endl;
 
    // 5. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
@@ -146,41 +175,44 @@ int main(int argc, char *argv[])
    b->Assemble();
 
    // 6. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace. Initialize x with initial guess of zero,
-   //    which satisfies the boundary conditions.
+   //    corresponding to fespace. Initialize x with initial guess of zero.
    GridFunction x(fespace);
    x = 0.0;
 
    // 7. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   //    domain integrator and imposing homogeneous Dirichlet boundary
-   //    conditions. The boundary conditions are implemented by marking all the
-   //    boundary attributes from the mesh as essential (Dirichlet). After
-   //    assembly and finalizing we extract the corresponding sparse matrix A.
+   //    and Mass domain integrators.
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
    a->AddDomainIntegrator(new MassIntegrator(one));
+
+   // 8. Assemble the linear system, apply conforming constraints, etc.
    a->Assemble();
-   a->Finalize();
-   const SparseMatrix &A = a->SpMat();
+   SparseMatrix A;
+   Vector B, X;
+   Array<int> empty_tdof_list;
+   a->FormLinearSystem(empty_tdof_list, x, *b, A, X, B);
 
 #ifndef MFEM_USE_SUITESPARSE
-   // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-   //    solve the system Ax=b with PCG.
+   // 9. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   //    solve the system AX=B with PCG.
    GSSmoother M(A);
-   PCG(A, M, *b, x, 1, 200, 1e-12, 0.0);
+   PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
 #else
-   // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   // 9. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
    umf_solver.SetOperator(A);
-   umf_solver.Mult(*b, x);
+   umf_solver.Mult(B, X);
 #endif
 
-   // 9. Compute and print the L^2 norm of the error.
+   // 10. Recover the solution as a finite element grid function.
+   a->RecoverFEMSolution(X, *b, x);
+
+   // 11. Compute and print the L^2 norm of the error.
    cout<<"\nL2 norm of error: " << x.ComputeL2Error(sol_coef) << endl;
 
-   // 10. Save the refined mesh and the solution. This output can be viewed
+   // 12. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m sphere_refined.mesh -g sol.gf".
    {
       ofstream mesh_ofs("sphere_refined.mesh");
@@ -191,7 +223,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 11. Send the solution by socket to a GLVis server.
+   // 13. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -201,7 +233,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 12. Free the used memory.
+   // 14. Free the used memory.
    delete a;
    delete b;
    delete fespace;
@@ -210,13 +242,13 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-double analytic_solution(Vector &x)
+double analytic_solution(const Vector &x)
 {
    double l2 = x(0)*x(0) + x(1)*x(1) + x(2)*x(2);
    return x(0)*x(1)/l2;
 }
 
-double analytic_rhs(Vector &x)
+double analytic_rhs(const Vector &x)
 {
    double l2 = x(0)*x(0) + x(1)*x(1) + x(2)*x(2);
    return 7*x(0)*x(1)/l2;
@@ -229,11 +261,15 @@ void SnapNodes(Mesh &mesh)
    for (int i = 0; i < nodes.FESpace()->GetNDofs(); i++)
    {
       for (int d = 0; d < mesh.SpaceDimension(); d++)
+      {
          node(d) = nodes(nodes.FESpace()->DofToVDof(i, d));
+      }
 
       node /= node.Norml2();
 
       for (int d = 0; d < mesh.SpaceDimension(); d++)
+      {
          nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d);
+      }
    }
 }

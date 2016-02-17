@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -48,6 +48,7 @@ public:
    /// Creates vector of size s.
    explicit Vector (int s);
 
+   /// Creates a vector referencing an array of doubles, owned by someone else.
    Vector (double *_data, int _size)
    { data = _data; size = _size; allocsize = -size; }
 
@@ -69,7 +70,10 @@ public:
    { data = d; size = s; allocsize = -s; }
 
    void NewDataAndSize(double *d, int s)
-   { if (allocsize > 0) delete [] data; SetDataAndSize(d, s); }
+   {
+      if (allocsize > 0) { delete [] data; }
+      SetDataAndSize(d, s);
+   }
 
    void MakeDataOwner() { allocsize = abs(allocsize); }
 
@@ -142,8 +146,8 @@ public:
    /// (*this) = -(*this)
    void Neg();
 
-   /// Swap v1 and v2.
-   friend void swap(Vector *v1, Vector *v2);
+   /// Swap the contents of two Vectors
+   inline void Swap(Vector &other);
 
    /// Do v = v1 + v2.
    friend void add(const Vector &v1, const Vector &v2, Vector &v);
@@ -180,6 +184,9 @@ public:
    void AddElementVector(const Array<int> & dofs, const double a,
                          const Vector & elemvect);
 
+   /// Set all vector entries NOT in the 'dofs' array to the given 'val'.
+   void SetSubVectorComplement(const Array<int> &dofs, const double val);
+
    /// Prints vector to stream out.
    void Print(std::ostream & out = std::cout, int width = 8) const;
 
@@ -202,7 +209,7 @@ public:
    double Min() const;
    /// Return the sum of the vector entries
    double Sum() const;
-   /// Compute the Euclidian distance to another vector.
+   /// Compute the Euclidean distance to another vector.
    double DistanceTo (const double *p) const;
 
    /** Count the number of entries in the Vector for which isfinite
@@ -210,7 +217,7 @@ public:
    int CheckFinite() const { return mfem::CheckFinite(data, size); }
 
    /// Destroys vector.
-   ~Vector ();
+   virtual ~Vector ();
 };
 
 // Inline methods
@@ -226,11 +233,11 @@ inline int CheckFinite(const double *v, const int n)
 #ifdef isfinite
       if (!isfinite(v[i]))
 #else
-         if (!std::isfinite(v[i]))
+      if (!std::isfinite(v[i]))
 #endif
-         {
-            bad++;
-         }
+      {
+         bad++;
+      }
    }
    return bad;
 }
@@ -252,14 +259,18 @@ inline Vector::Vector (int s)
 inline void Vector::SetSize(int s)
 {
    if (s == size)
+   {
       return;
+   }
    if (s <= abs(allocsize))
    {
       size = s;
       return;
    }
    if (allocsize > 0)
+   {
       delete [] data;
+   }
    allocsize = size = s;
    data = new double[s];
 }
@@ -267,35 +278,48 @@ inline void Vector::SetSize(int s)
 inline void Vector::Destroy()
 {
    if (allocsize > 0)
+   {
       delete [] data;
+   }
    allocsize = size = 0;
    data = NULL;
 }
 
 inline double & Vector::operator() (int i)
 {
-#ifdef MFEM_DEBUG
-   if (data == 0 || i < 0 || i >= size)
-      mfem_error ("Vector::operator()");
-#endif
+   MFEM_ASSERT(data && i >= 0 && i < size,
+               "index [" << i << "] is out of range [0," << size << ")");
 
    return data[i];
 }
 
 inline const double & Vector::operator() (int i) const
 {
-#ifdef MFEM_DEBUG
-   if (data == 0 || i < 0 || i >= size)
-      mfem_error ("Vector::operator() const");
-#endif
+   MFEM_ASSERT(data && i >= 0 && i < size,
+               "index [" << i << "] is out of range [0," << size << ")");
 
    return data[i];
+}
+
+inline void Vector::Swap(Vector &other)
+{
+   mfem::Swap(size, other.size);
+   mfem::Swap(allocsize, other.allocsize);
+   mfem::Swap(data, other.data);
+}
+
+/// Specialization of the template function Swap<> for class Vector
+template<> inline void Swap<Vector>(Vector &a, Vector &b)
+{
+   a.Swap(b);
 }
 
 inline Vector::~Vector()
 {
    if (allocsize > 0)
+   {
       delete [] data;
+   }
 }
 
 inline double Distance(const double *x, const double *y, const int n)
@@ -304,7 +328,9 @@ inline double Distance(const double *x, const double *y, const int n)
    double d = 0.0;
 
    for (int i = 0; i < n; i++)
+   {
       d += (x[i]-y[i])*(x[i]-y[i]);
+   }
 
    return sqrt(d);
 }

@@ -40,10 +40,10 @@ int problem;
 void velocity_function(const Vector &x, Vector &v);
 
 // Initial condition
-double u0_function(Vector &x);
+double u0_function(const Vector &x);
 
 // Inflow boundary condition
-double inflow_function(Vector &x);
+double inflow_function(const Vector &x);
 
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
@@ -137,14 +137,14 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
    {
-   case 1: ode_solver = new ForwardEulerSolver; break;
-   case 2: ode_solver = new RK2Solver(1.0); break;
-   case 3: ode_solver = new RK3SSPSolver; break;
-   case 4: ode_solver = new RK4Solver; break;
-   case 6: ode_solver = new RK6Solver; break;
-   default:
-      cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-      return 3;
+      case 1: ode_solver = new ForwardEulerSolver; break;
+      case 2: ode_solver = new RK2Solver(1.0); break;
+      case 3: ode_solver = new RK3SSPSolver; break;
+      case 4: ode_solver = new RK4Solver; break;
+      case 6: ode_solver = new RK6Solver; break;
+      default:
+         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         return 3;
    }
 
    // 4. Refine the mesh to increase the resolution. In this example we do
@@ -152,7 +152,9 @@ int main(int argc, char *argv[])
    //    command-line parameter. If the mesh is of NURBS type, we convert it to
    //    a (piecewise-polynomial) high-order mesh.
    for (int lev = 0; lev < ref_levels; lev++)
+   {
       mesh->UniformRefinement();
+   }
 
    if (mesh->NURBSext)
    {
@@ -255,7 +257,9 @@ int main(int argc, char *argv[])
    for (int ti = 0; true; )
    {
       if (t >= t_final - dt/2)
+      {
          break;
+      }
 
       ode_solver->Step(u, t, dt);
       ti++;
@@ -265,7 +269,9 @@ int main(int argc, char *argv[])
          cout << "time step: " << ti << ", time: " << t << endl;
 
          if (visualization)
+         {
             sout << "solution\n" << *mesh << u << flush;
+         }
 
          if (visit)
          {
@@ -322,102 +328,103 @@ void velocity_function(const Vector &x, Vector &v)
 
    switch (problem)
    {
-   case 0:
-   {
-      // Translations in 1D, 2D, and 3D
-      switch (dim)
+      case 0:
       {
-      case 1: v(0) = 1.0; break;
-      case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
-      case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.); break;
+         // Translations in 1D, 2D, and 3D
+         switch (dim)
+         {
+            case 1: v(0) = 1.0; break;
+            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
+            case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
+               break;
+         }
+         break;
       }
-      break;
-   }
-   case 1:
-   case 2:
-   {
-      // Clockwise rotation in 2D around the origin
-      const double w = M_PI/2;
-      switch (dim)
+      case 1:
+      case 2:
       {
-      case 1: v(0) = 1.0; break;
-      case 2: v(0) = w*x(1); v(1) = -w*x(0); break;
-      case 3: v(0) = w*x(1); v(1) = -w*x(0); v(2) = 0.0; break;
+         // Clockwise rotation in 2D around the origin
+         const double w = M_PI/2;
+         switch (dim)
+         {
+            case 1: v(0) = 1.0; break;
+            case 2: v(0) = w*x(1); v(1) = -w*x(0); break;
+            case 3: v(0) = w*x(1); v(1) = -w*x(0); v(2) = 0.0; break;
+         }
+         break;
       }
-      break;
-   }
-   case 3:
-   {
-      // Clockwise twisting rotation in 2D around the origin
-      const double w = M_PI/2;
-      double d = max((x(0)+1.)*(1.-x(0)),0.) * max((x(1)+1.)*(1.-x(1)),0.);
-      d = d*d;
-      switch (dim)
+      case 3:
       {
-      case 1: v(0) = 1.0; break;
-      case 2: v(0) = d*w*x(1); v(1) = -d*w*x(0); break;
-      case 3: v(0) = d*w*x(1); v(1) = -d*w*x(0); v(2) = 0.0; break;
+         // Clockwise twisting rotation in 2D around the origin
+         const double w = M_PI/2;
+         double d = max((x(0)+1.)*(1.-x(0)),0.) * max((x(1)+1.)*(1.-x(1)),0.);
+         d = d*d;
+         switch (dim)
+         {
+            case 1: v(0) = 1.0; break;
+            case 2: v(0) = d*w*x(1); v(1) = -d*w*x(0); break;
+            case 3: v(0) = d*w*x(1); v(1) = -d*w*x(0); v(2) = 0.0; break;
+         }
+         break;
       }
-      break;
-   }
    }
 }
 
 // Initial condition
-double u0_function(Vector &x)
+double u0_function(const Vector &x)
 {
    int dim = x.Size();
 
    switch (problem)
    {
-   case 0:
-   case 1:
-   {
-      switch (dim)
-      {
+      case 0:
       case 1:
-         return exp(-40.*pow(x(0)-0.5,2));
+      {
+         switch (dim)
+         {
+            case 1:
+               return exp(-40.*pow(x(0)-0.5,2));
+            case 2:
+            case 3:
+            {
+               double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
+               if (dim == 3)
+               {
+                  const double s = (1. + 0.25*cos(2*M_PI*x(2)));
+                  rx *= s;
+                  ry *= s;
+               }
+               return ( erfc(w*(x(0)-cx-rx))*erfc(-w*(x(0)-cx+rx)) *
+                        erfc(w*(x(1)-cy-ry))*erfc(-w*(x(1)-cy+ry)) )/16;
+            }
+         }
+      }
       case 2:
+      {
+         const double r = sqrt(8.);
+         double x_ = x(0), y_ = x(1), rho, phi;
+         rho = hypot(x_, y_) / r;
+         phi = atan2(y_, x_);
+         return pow(sin(M_PI*rho),2)*sin(3*phi);
+      }
       case 3:
       {
-         double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
-         if (dim == 3)
-         {
-            const double s = (1. + 0.25*cos(2*M_PI*x(2)));
-            rx *= s;
-            ry *= s;
-         }
-         return ( erfc(w*(x(0)-cx-rx))*erfc(-w*(x(0)-cx+rx)) *
-                  erfc(w*(x(1)-cy-ry))*erfc(-w*(x(1)-cy+ry)) )/16;
+         const double f = M_PI;
+         return sin(f*x(0))*sin(f*x(1));
       }
-      }
-   }
-   case 2:
-   {
-      const double r = sqrt(8.);
-      double x_ = x(0), y_ = x(1), rho, phi;
-      rho = hypot(x_, y_) / r;
-      phi = atan2(y_, x_);
-      return pow(sin(M_PI*rho),2)*sin(3*phi);
-   }
-   case 3:
-   {
-      const double f = M_PI;
-      return sin(f*x(0))*sin(f*x(1));
-   }
    }
    return 0.0;
 }
 
 // Inflow boundary condition (zero for the problems considered in this example)
-double inflow_function(Vector &x)
+double inflow_function(const Vector &x)
 {
    switch (problem)
    {
-   case 0:
-   case 1:
-   case 2:
-   case 3: return 0.0;
+      case 0:
+      case 1:
+      case 2:
+      case 3: return 0.0;
    }
    return 0.0;
 }

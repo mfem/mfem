@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -24,11 +24,17 @@ using namespace std;
 MesquiteMesh::MeshTags::TagData::~TagData()
 {
    if (elementData)
+   {
       free(elementData);
+   }
    if (vertexData)
+   {
       free(vertexData);
+   }
    if (defaultValue)
+   {
       free(defaultValue);
+   }
 }
 
 
@@ -37,21 +43,24 @@ void MesquiteMesh::MeshTags::clear()
    for (std::vector<TagData*>::iterator iter = tagList.begin();
         iter != tagList.end(); ++iter)
       if (*iter)
+      {
          delete *iter;
+      }
 
    tagList.clear();
 }
 
 size_t MesquiteMesh::MeshTags::size_from_tag_type( Mesh::TagType type )
 {
-   switch( type ) {
-   case Mesh::BYTE:   return 1;
-   case Mesh::BOOL:   return sizeof(bool);
-   case Mesh::DOUBLE: return sizeof(double);
-   case Mesh::INT:    return sizeof(int);
-   case Mesh::HANDLE: return sizeof(void*);
-   case Mesh::LONG_LONG: return sizeof(long long);
-   default: assert(0); return 0;
+   switch ( type )
+   {
+      case Mesh::BYTE:   return 1;
+      case Mesh::BOOL:   return sizeof(bool);
+      case Mesh::DOUBLE: return sizeof(double);
+      case Mesh::INT:    return sizeof(int);
+      case Mesh::HANDLE: return sizeof(void*);
+      case Mesh::LONG_LONG: return sizeof(long long);
+      default: assert(0); return 0;
    }
 }
 
@@ -131,16 +140,20 @@ void MesquiteMesh::MeshTags::destroy( size_t tag_index, MsqError& err )
    tagList[tag_index] = 0;
 }
 
-size_t MesquiteMesh::MeshTags::handle( const std::string& name, MsqError& err ) const
+size_t MesquiteMesh::MeshTags::handle( const std::string& name,
+                                       MsqError& err ) const
 {
    for (size_t i = 0; i < tagList.size(); ++i)
       if (tagList[i] && tagList[i]->desc.name == name)
+      {
          return i+1;
+      }
 
    return 0;
 }
 
-const MesquiteMesh::MfemTagDescription& MesquiteMesh::MeshTags::properties( size_t tag_index, MsqError& err ) const
+const MesquiteMesh::MfemTagDescription& MesquiteMesh::MeshTags::properties(
+   size_t tag_index, MsqError& err ) const
 {
    static MfemTagDescription dummy_desc;
    --tag_index;
@@ -176,7 +189,9 @@ void MesquiteMesh::MeshTags::set_element_data( size_t tag_index,
    size_t total = tag->elementCount;
    for (i = 0; i < num_indices; ++i)
       if (index_array[i] >= total)
+      {
          total = index_array[i] + 1;
+      }
 
    // If need more space
    if (total > tag->elementCount)
@@ -273,7 +288,9 @@ void MesquiteMesh::MeshTags::set_vertex_data( size_t tag_index,
    size_t total = tag->vertexCount;
    for (i = 0; i < num_indices; ++i)
       if (index_array[i] >= total)
+      {
          total = index_array[i] + 1;
+      }
 
    // If need more space
    if (total > tag->vertexCount)
@@ -349,7 +366,8 @@ void MesquiteMesh::MeshTags::get_vertex_data( size_t tag_index,
    }
 }
 
-bool MesquiteMesh::MeshTags::tag_has_vertex_data( size_t tag_index, MsqError& err )
+bool MesquiteMesh::MeshTags::tag_has_vertex_data( size_t tag_index,
+                                                  MsqError& err )
 {
    --tag_index;
    if (tag_index >= tagList.size() || !tagList[tag_index])
@@ -362,7 +380,8 @@ bool MesquiteMesh::MeshTags::tag_has_vertex_data( size_t tag_index, MsqError& er
    return 0 != tag->vertexData || tag->defaultValue;
 }
 
-bool MesquiteMesh::MeshTags::tag_has_element_data( size_t tag_index, MsqError& err )
+bool MesquiteMesh::MeshTags::tag_has_element_data( size_t tag_index,
+                                                   MsqError& err )
 {
    --tag_index;
    if (tag_index >= tagList.size() || !tagList[tag_index])
@@ -379,41 +398,55 @@ MesquiteMesh::MeshTags::TagIterator MesquiteMesh::MeshTags::tag_begin()
 {
    size_t index = 0;
    while (index < tagList.size() && tagList[index] == NULL)
+   {
       ++index;
+   }
    return TagIterator( this, index );
 }
 
-MesquiteMesh::MeshTags::TagIterator MesquiteMesh::MeshTags::TagIterator::operator++()
+MesquiteMesh::MeshTags::TagIterator
+MesquiteMesh::MeshTags::TagIterator::operator++()
 {
    ++index;
    while (index < tags->tagList.size() && NULL == tags->tagList[index])
+   {
       ++index;
+   }
    return TagIterator( tags, index );
 }
 
-MesquiteMesh::MeshTags::TagIterator MesquiteMesh::MeshTags::TagIterator::operator--()
+MesquiteMesh::MeshTags::TagIterator
+MesquiteMesh::MeshTags::TagIterator::operator--()
 {
    --index;
    while (index < tags->tagList.size() && NULL == tags->tagList[index])
+   {
       --index;
+   }
    return TagIterator( tags, index );
 }
 
-MesquiteMesh::MeshTags::TagIterator MesquiteMesh::MeshTags::TagIterator::operator++(int)
+MesquiteMesh::MeshTags::TagIterator
+MesquiteMesh::MeshTags::TagIterator::operator++(int)
 {
    size_t old = index;
    ++index;
    while (index < tags->tagList.size() && NULL == tags->tagList[index])
+   {
       ++index;
+   }
    return TagIterator( tags, old );
 }
 
-MesquiteMesh::MeshTags::TagIterator MesquiteMesh::MeshTags::TagIterator::operator--(int)
+MesquiteMesh::MeshTags::TagIterator
+MesquiteMesh::MeshTags::TagIterator::operator--(int)
 {
    size_t old = index;
    --index;
    while (index < tags->tagList.size() && NULL == tags->tagList[index])
+   {
       --index;
+   }
    return TagIterator( tags, old );
 }
 
@@ -450,11 +483,17 @@ MesquiteMesh::MesquiteMesh(mfem::Mesh *mfem_mesh)
    for (int i = 0; i < mesh->GetNBE(); i++)
    {
       if (nodes)
+      {
          fes->GetBdrElementDofs(i, bdofs);
+      }
       else
+      {
          mesh->GetBdrElementVertices(i, bdofs);
+      }
       for (int j = 0; j < bdofs.Size(); j++)
+      {
          mFixed[bdofs[j]] = true;
+      }
    }
 
 }
@@ -469,7 +508,9 @@ void MesquiteMesh::get_all_elements(std::vector<ElementHandle>& elements,
 {
    elements.resize(nelems);
    for (int i = 0; i < nelems; i++)
+   {
       elements[i] = (ElementHandle) i;
+   }
 }
 
 void MesquiteMesh::get_all_vertices(std::vector<VertexHandle>& vertices,
@@ -477,7 +518,9 @@ void MesquiteMesh::get_all_vertices(std::vector<VertexHandle>& vertices,
 {
    vertices.resize(ndofs);
    for (int i = 0; i < ndofs; i++)
+   {
       vertices[i] = (VertexHandle) i;
+   }
 }
 
 void MesquiteMesh::vertices_get_coordinates(const VertexHandle vert_array[],
@@ -494,9 +537,13 @@ void MesquiteMesh::vertices_get_coordinates(const VertexHandle vert_array[],
       coordinates[i].x(coords[0]);
       coordinates[i].y(coords[1]);
       if (mesh->Dimension() == 3 )
+      {
          coordinates[i].z(coords[2]);
+      }
       else
+      {
          coordinates[i].z(0.0);
+      }
    }
 }
 
@@ -526,7 +573,9 @@ void MesquiteMesh::vertices_set_byte(const VertexHandle *vert_array,
 {
    const size_t* indices = (const size_t*) vert_array;
    for (int i = 0; i < array_size; i++)
+   {
       mByte[indices[i]] = byte_array[i];
+   }
 }
 
 void MesquiteMesh::vertex_get_byte(const VertexHandle vertex,
@@ -543,7 +592,9 @@ void MesquiteMesh::vertices_get_byte(const VertexHandle *vertex,
 {
    const size_t* indices = (const size_t*) vertex;
    for (int i = 0; i < array_size; i++)
+   {
       byte_array[i] = mByte[indices[i]];
+   }
 }
 
 void MesquiteMesh::vertices_get_fixed_flag(const VertexHandle vert_array[],
@@ -554,7 +605,9 @@ void MesquiteMesh::vertices_get_fixed_flag(const VertexHandle vert_array[],
    fixed_flag_array.resize(num_vtx + 1);
    const size_t* indices = (const size_t*) vert_array;
    for (int i = 0; i < num_vtx; i++)
+   {
       fixed_flag_array[i] = mFixed[indices[i]];
+   }
 }
 
 void MesquiteMesh::vertices_set_fixed_flag(const VertexHandle vert_array[],
@@ -564,10 +617,13 @@ void MesquiteMesh::vertices_set_fixed_flag(const VertexHandle vert_array[],
 {
    const size_t* indices = (const size_t*) vert_array;
    for (int i = 0; i < num_vtx; i++)
+   {
       mFixed[indices[i]] = fixed_flag_array[i];
+   }
 }
 
-void MesquiteMesh::elements_get_attached_vertices(const ElementHandle *elem_handles,
+void MesquiteMesh::elements_get_attached_vertices(const ElementHandle
+                                                  *elem_handles,
                                                   size_t num_elems,
                                                   std::vector<VertexHandle>& vert_handles,
                                                   std::vector<size_t>& offsets,
@@ -584,9 +640,13 @@ void MesquiteMesh::elements_get_attached_vertices(const ElementHandle *elem_hand
       offsets[i] = vert_handles.size();
       elem = mesh->GetElement(indices[i]);
       if (nodes)
+      {
          fes->GetElementDofs(indices[i],elem_dofs);
+      }
       else
+      {
          elem->GetVertices(elem_dofs);
+      }
 
       for (int j = 0; j < elem_dofs.Size(); j++)
       {
@@ -598,7 +658,8 @@ void MesquiteMesh::elements_get_attached_vertices(const ElementHandle *elem_hand
    offsets[num_elems] = vert_handles.size();
 }
 
-void MesquiteMesh::vertices_get_attached_elements(const VertexHandle* vertex_array,
+void MesquiteMesh::vertices_get_attached_elements(const VertexHandle*
+                                                  vertex_array,
                                                   size_t num_vertex,
                                                   std::vector<ElementHandle>& elements,
                                                   std::vector<size_t>& offsets,
@@ -613,12 +674,15 @@ void MesquiteMesh::vertices_get_attached_elements(const VertexHandle* vertex_arr
       offsets[i] = elements.size();
       int* vertex_elems = dof_elem->GetRow(indices[i]);
       for (int j = 0; j < dof_elem->RowSize(indices[i]); j++)
+      {
          elements.push_back( (ElementHandle) vertex_elems[j] );
+      }
    }
    offsets[num_vertex] = elements.size();
 }
 
-void MesquiteMesh::elements_get_topologies(const ElementHandle *element_handle_array,
+void MesquiteMesh::elements_get_topologies(const ElementHandle
+                                           *element_handle_array,
                                            EntityTopology *element_topologies,
                                            size_t num_elements,
                                            MsqError &err)
@@ -643,7 +707,10 @@ void MesquiteMesh::elements_get_topologies(const ElementHandle *element_handle_a
    int mfem_to_mesquite[9] = {0,0,8,9,11,12,0,0,0};
    const size_t* indices = (const size_t*) element_handle_array;
    for (int i = 0; i < num_elements; i++)
-      element_topologies[i] = (EntityTopology) mfem_to_mesquite[mesh->GetElementType(indices[i])];
+   {
+      element_topologies[i] = (EntityTopology) mfem_to_mesquite[mesh->GetElementType(
+                                                                   indices[i])];
+   }
 }
 
 MesquiteMesh::~MesquiteMesh()
@@ -663,7 +730,7 @@ MesquiteMesh::tag_attributes()
    TagHandle attributeTagHandle = tag_create( "material", Mesh::INT, 1, 0, err );
 
    int *materialValues = new int[nelems];
-   for(int i=0;i<nelems;i++)
+   for (int i=0; i<nelems; i++)
    {
       materialValues[i] = mesh->GetAttribute(i);
    }
@@ -702,7 +769,10 @@ TagHandle MesquiteMesh::tag_get( const std::string& name, MsqError& err )
 {
    size_t index = myTags->handle( name, err ); MSQ_ERRZERO(err);
    if (!index)
-      MSQ_SETERR(err)( MsqError::TAG_NOT_FOUND, "could not find tag \"%s\"", name.c_str() );
+   {
+      MSQ_SETERR(err)( MsqError::TAG_NOT_FOUND, "could not find tag \"%s\"",
+                       name.c_str() );
+   }
    return (TagHandle)index;
 }
 
@@ -800,10 +870,11 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
 
    for (int i = 0; i < num_vertices; i++)
    {
-      if (app_fixed[i]) num_app_fixed++;
+      if (app_fixed[i]) { num_app_fixed++; }
    }
 
-   std::cout << "mesh has " << num_vertices << " vertices and " << num_app_fixed << " are app fixed. ";
+   std::cout << "mesh has " << num_vertices << " vertices and " << num_app_fixed <<
+             " are app fixed. ";
 
    // create planar domain for interior and assessor queues
    Mesquite::PlanarDomain geom( PlanarDomain::XY );
@@ -812,8 +883,9 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
    mesh.tag_attributes();
 
    // create boundary domain and find mesh boundary
-   Mesquite::MeshBoundaryDomain2D* mesh_domain = new Mesquite::MeshBoundaryDomain2D( MeshBoundaryDomain2D::XY, 0.0, project_gradient,
-                                                                                     Mesquite::MeshBoundaryDomain2D::QUADRATIC);
+   Mesquite::MeshBoundaryDomain2D* mesh_domain = new
+   Mesquite::MeshBoundaryDomain2D( MeshBoundaryDomain2D::XY, 0.0, project_gradient,
+                                   Mesquite::MeshBoundaryDomain2D::QUADRATIC);
    mesh_domain->skin_area_mesh(&mesh,cos_crease_angle,"material");
 
    std::vector<Mesquite::Mesh::VertexHandle> theBoundaryVertices;
@@ -829,15 +901,17 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
 
    // get application fixed boundary vertices
    std::vector<bool> app_fixed_boundary(num_boundary_vertices);
-   mesh.vertices_get_fixed_flag(&(theBoundaryVertices[0]),app_fixed_boundary,num_boundary_vertices, err);
+   mesh.vertices_get_fixed_flag(&(theBoundaryVertices[0]),app_fixed_boundary,
+                                num_boundary_vertices, err);
 
    int num_app_fixed_boundary = 0;
    for (int i = 0; i < num_boundary_vertices; i++)
    {
-      if (app_fixed_boundary[i]) num_app_fixed_boundary++;
+      if (app_fixed_boundary[i]) { num_app_fixed_boundary++; }
    }
 
-   std::cout << "mesh has " << num_boundary_vertices << " boundary vertices and " << num_app_fixed_boundary << " are app fixed" << std::endl;
+   std::cout << "mesh has " << num_boundary_vertices << " boundary vertices and "
+             << num_app_fixed_boundary << " are app fixed" << std::endl;
 
 
    // only fix  boundary vertices along corners
@@ -851,9 +925,13 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
    for (int i = 0; i < num_boundary_vertices; i++)
    {
       if (!mFixBndryInInterfaceSmooth)
+      {
          fixed_flags_boundary[i] = false;
+      }
       else
+      {
          fixed_flags_boundary[i] = app_fixed_boundary[i];
+      }
 
       for (int j = 0; j < theCornerVertices.size(); j++)
       {
@@ -866,7 +944,8 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
          }
       }
    }
-   printf("fixed %d of %d boundary vertices (those classified corner)\n", num_fixed_boundary_flags, num_boundary_vertices);
+   printf("fixed %d of %d boundary vertices (those classified corner)\n",
+          num_fixed_boundary_flags, num_boundary_vertices);
 
 
    // creates three intruction queues
@@ -883,7 +962,8 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
 
    TQualityMetric metric( &tc, &targetMetric );
 
-   Mesquite::LPtoPTemplate* obj_func = new Mesquite::LPtoPTemplate(&metric, pOrder, err);
+   Mesquite::LPtoPTemplate* obj_func = new Mesquite::LPtoPTemplate(&metric, pOrder,
+                                                                   err);
    if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
 
    Mesquite::QuasiNewton* boundary_alg = new Mesquite::QuasiNewton( obj_func);
@@ -899,8 +979,10 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
    int boundary_inner = 3;
 
    // for boundary
-   Mesquite::TerminationCriterion* boundaryTermInner = new Mesquite::TerminationCriterion();
-   Mesquite::TerminationCriterion* boundaryTermOuter = new Mesquite::TerminationCriterion();
+   Mesquite::TerminationCriterion* boundaryTermInner = new
+   Mesquite::TerminationCriterion();
+   Mesquite::TerminationCriterion* boundaryTermOuter = new
+   Mesquite::TerminationCriterion();
    // boundaryTermInner->add_absolute_gradient_L2_norm(grad_norm);
    // boundaryTermInner->add_relative_successive_improvement(successiveEps);
    boundaryTermOuter->add_relative_successive_improvement(successiveEps);
@@ -914,8 +996,10 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
    boundary_alg->set_inner_termination_criterion(boundaryTermInner);
 
    // for interior
-   Mesquite::TerminationCriterion* interiorTermInner = new Mesquite::TerminationCriterion();
-   Mesquite::TerminationCriterion* interiorTermOuter = new Mesquite::TerminationCriterion();
+   Mesquite::TerminationCriterion* interiorTermInner = new
+   Mesquite::TerminationCriterion();
+   Mesquite::TerminationCriterion* interiorTermOuter = new
+   Mesquite::TerminationCriterion();
    interiorTermInner->add_absolute_gradient_L2_norm(grad_norm);
    interiorTermInner->add_relative_successive_improvement(successiveEps);
    // interiorTermInner->add_iteration_limit(3); // for element_on_vertex_patch mode
@@ -954,16 +1038,18 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
 
    std::vector<bool> fixed_flags(num_vertices);
 
-   for (int j=0; j<mNumInterfaceSmoothIters; j++) {
+   for (int j=0; j<mNumInterfaceSmoothIters; j++)
+   {
 
       cout<<" Boundary + Interior smoothing pass "<< j<<"....."<<endl;
 
       // smooth boundary only
-      for (int i = 0; i < num_vertices; i++) fixed_flags[i] = true;
+      for (int i = 0; i < num_vertices; i++) { fixed_flags[i] = true; }
       mesh.vertices_set_fixed_flag(&(vertices[0]),fixed_flags,num_vertices, err);
       if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
 
-      mesh.vertices_set_fixed_flag(&(theBoundaryVertices[0]),fixed_flags_boundary,num_boundary_vertices, err);
+      mesh.vertices_set_fixed_flag(&(theBoundaryVertices[0]),fixed_flags_boundary,
+                                   num_boundary_vertices, err);
       if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
 
       // -----------------------------------------------------
@@ -974,10 +1060,11 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
       int num_fixed = 0;
       for (int i = 0; i < num_vertices; i++)
       {
-         if (fixed_flags[i]) num_fixed++;
+         if (fixed_flags[i]) { num_fixed++; }
       }
 
-      std::cout << "   For Boundary smooth, mesh has " << num_vertices << " vertices and " << num_fixed << " are fixed. "<<endl;
+      std::cout << "   For Boundary smooth, mesh has " << num_vertices <<
+                " vertices and " << num_fixed << " are fixed. "<<endl;
       //
       // debug
       // -----------------------------------------------------
@@ -985,7 +1072,9 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
 
       boundary_queue.run_instructions(&mesh, mesh_domain, err);
       if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
-      cout<<" boundary smooth completed in "<<boundaryTermOuter->get_iteration_count()<<" outer and "<<boundaryTermInner->get_iteration_count()<<" inner iterations."<<endl;
+      cout<<" boundary smooth completed in "<<boundaryTermOuter->get_iteration_count()
+          <<" outer and "<<boundaryTermInner->get_iteration_count()
+          <<" inner iterations."<<endl;
 
 
       // smooth interior only
@@ -995,7 +1084,7 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
          //
          // let all interior vertices float during the interior smooth.
          //
-         for (int i = 0; i < num_vertices; i++) fixed_flags[i] = false;
+         for (int i = 0; i < num_vertices; i++) { fixed_flags[i] = false; }
          mesh.vertices_set_fixed_flag(&(vertices[0]),fixed_flags,num_vertices, err);
       }
       else
@@ -1006,9 +1095,10 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
          mesh.vertices_set_fixed_flag(&(vertices[0]),app_fixed,num_vertices, err);
       }
       if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
-      for (int i = 0; i < num_boundary_vertices; i++) fixed_flags[i] = true;
+      for (int i = 0; i < num_boundary_vertices; i++) { fixed_flags[i] = true; }
 
-      mesh.vertices_set_fixed_flag(&(theBoundaryVertices[0]),fixed_flags,num_boundary_vertices, err);
+      mesh.vertices_set_fixed_flag(&(theBoundaryVertices[0]),fixed_flags,
+                                   num_boundary_vertices, err);
       if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
 
       // -----------------------------------------------------
@@ -1019,17 +1109,20 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
       num_fixed = 0;
       for (int i = 0; i < num_vertices; i++)
       {
-         if (fixed_flags[i]) num_fixed++;
+         if (fixed_flags[i]) { num_fixed++; }
       }
 
-      std::cout << "    For Interior smooth, mesh has " << num_vertices << " vertices and " << num_fixed << " are fixed. "<<endl;
+      std::cout << "    For Interior smooth, mesh has " << num_vertices <<
+                " vertices and " << num_fixed << " are fixed. "<<endl;
       //
       // debug
       // -----------------------------------------------------
 
       interior_queue.run_instructions(&mesh, &geom, err);
       if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
-      cout<<" interior smooth completed in "<<interiorTermOuter->get_iteration_count()<<" outer and "<<interiorTermInner->get_iteration_count()<<" inner iterations."<<endl;
+      cout<<" interior smooth completed in "<<interiorTermOuter->get_iteration_count()
+          <<" outer and "<<interiorTermInner->get_iteration_count()
+          <<" inner iterations."<<endl;
 
    }
 
@@ -1060,19 +1153,21 @@ void mfem::Mesh::MesquiteSmooth(const int mesquite_option)
 
    switch (mesquite_option)
    {
-   case 0:  method = new LaplaceWrapper(); break;
-   case 1:  method = new UntangleWrapper(); break;
-   case 2:  method = new ShapeImprover(); break;
-   case 3:  method = new PaverMinEdgeLengthWrapper(vert_move_tol); break;
+      case 0:  method = new LaplaceWrapper(); break;
+      case 1:  method = new UntangleWrapper(); break;
+      case 2:  method = new ShapeImprover(); break;
+      case 3:  method = new PaverMinEdgeLengthWrapper(vert_move_tol); break;
    }
 
-   if( mesquite_option < 4 )
+   if ( mesquite_option < 4 )
    {
       // Specify SLAVE_NONE for high order node positions
       method->set_slaved_ho_node_mode(Settings::SLAVE_NONE);
 
-      if( this->Dimension() == 3 )
+      if ( this->Dimension() == 3 )
+      {
          method->run_instructions(&msq_mesh, err);
+      }
       else
       {
          Vector3D normal(0,0,1);

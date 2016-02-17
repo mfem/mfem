@@ -3,7 +3,7 @@
 // reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.googlecode.com.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
@@ -16,15 +16,19 @@ namespace mfem
 {
 
 const int Hexahedron::edges[12][2] =
-{{0, 1}, {1, 2}, {3, 2}, {0, 3},
- {4, 5}, {5, 6}, {7, 6}, {4, 7},
- {0, 4}, {1, 5}, {2, 6}, {3, 7}};
+{
+   {0, 1}, {1, 2}, {3, 2}, {0, 3},
+   {4, 5}, {5, 6}, {7, 6}, {4, 7},
+   {0, 4}, {1, 5}, {2, 6}, {3, 7}
+};
 
 // same as Mesh::hex_faces
 const int Hexahedron::faces[6][4] =
-{{3, 2, 1, 0}, {0, 1, 5, 4},
- {1, 2, 6, 5}, {2, 3, 7, 6},
- {3, 0, 4, 7}, {4, 5, 6, 7}};
+{
+   {3, 2, 1, 0}, {0, 1, 5, 4},
+   {1, 2, 6, 5}, {2, 3, 7, 6},
+   {3, 0, 4, 7}, {4, 5, 6, 7}
+};
 
 
 Hexahedron::Hexahedron(const int *ind, int attr)
@@ -32,7 +36,9 @@ Hexahedron::Hexahedron(const int *ind, int attr)
 {
    attribute = attr;
    for (int i = 0; i < 8; i++)
+   {
       indices[i] = ind[i];
+   }
 }
 
 Hexahedron::Hexahedron(int ind1, int ind2, int ind3, int ind4,
@@ -54,7 +60,9 @@ void Hexahedron::GetVertices(Array<int> &v) const
 {
    v.SetSize(8);
    for (int i = 0; i < 8; i++)
+   {
       v[i] = indices[i];
+   }
 }
 
 TriLinear3DFiniteElement HexahedronFE;

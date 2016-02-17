@@ -35,10 +35,10 @@ using namespace mfem;
 
 // Define the analytical solution and forcing terms / boundary conditions
 void uFun_ex(const Vector & x, Vector & u);
-double pFun_ex(Vector & x);
+double pFun_ex(const Vector & x);
 void fFun(const Vector & x, Vector & f);
-double gFun(Vector & x);
-double f_natural(Vector & x);
+double gFun(const Vector & x);
+double f_natural(const Vector & x);
 
 int main(int argc, char *argv[])
 {
@@ -87,7 +87,9 @@ int main(int argc, char *argv[])
       int ref_levels =
          (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
+      {
          mesh->UniformRefinement();
+      }
    }
 
    // 4. Define a finite element space on the mesh. Here we use the
@@ -126,7 +128,7 @@ int main(int argc, char *argv[])
    // 7. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction u,p for the finite element solution and
    //    linear forms fform and gform for the right hand side.  The data
-   //    allocated by x and rhs are passed as a reference to the grid fuctions
+   //    allocated by x and rhs are passed as a reference to the grid functions
    //    (u,p) and the linear forms (fform, gform).
    BlockVector x(block_offsets), rhs(block_offsets);
 
@@ -180,7 +182,9 @@ int main(int argc, char *argv[])
    Vector Md(M.Height());
    M.GetDiag(Md);
    for (int i = 0; i < Md.Size(); i++)
+   {
       MinvBt->ScaleRow(i, 1./Md(i));
+   }
    SparseMatrix *S = Mult(B, *MinvBt);
 
    Solver *invM, *invS;
@@ -233,7 +237,9 @@ int main(int argc, char *argv[])
    int order_quad = max(2, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
    for (int i=0; i < Geometry::NumGeom; ++i)
+   {
       irs[i] = &(IntRules.Get(i, order_quad));
+   }
 
    double err_u  = u.ComputeL2Error(ucoeff, irs);
    double norm_u = ComputeLpNorm(2., ucoeff, *mesh, irs);
@@ -305,24 +311,30 @@ void uFun_ex(const Vector & x, Vector & u)
    double yi(x(1));
    double zi(0.0);
    if (x.Size() == 3)
+   {
       zi = x(2);
+   }
 
    u(0) = - exp(xi)*sin(yi)*cos(zi);
    u(1) = - exp(xi)*cos(yi)*cos(zi);
 
    if (x.Size() == 3)
+   {
       u(2) = exp(xi)*sin(yi)*sin(zi);
+   }
 }
 
 // Change if needed
-double pFun_ex(Vector & x)
+double pFun_ex(const Vector & x)
 {
    double xi(x(0));
    double yi(x(1));
    double zi(0.0);
 
    if (x.Size() == 3)
+   {
       zi = x(2);
+   }
 
    return exp(xi)*sin(yi)*cos(zi);
 }
@@ -332,15 +344,19 @@ void fFun(const Vector & x, Vector & f)
    f = 0.0;
 }
 
-double gFun(Vector & x)
+double gFun(const Vector & x)
 {
    if (x.Size() == 3)
+   {
       return -pFun_ex(x);
+   }
    else
+   {
       return 0;
+   }
 }
 
-double f_natural(Vector & x)
+double f_natural(const Vector & x)
 {
    return (-pFun_ex(x));
 }
