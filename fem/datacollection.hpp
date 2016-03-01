@@ -63,8 +63,12 @@ protected:
    /// Error state
    int error;
 
+   /// A path where the directory with results is saved
+   std::string prefix_path;
+
    /// Create an empty collection with the given name.
-   DataCollection(const char *collection_name);
+   DataCollection(const char *collection_name,
+                  const char *prefix = NULL);
    /// Delete data owned by the DataCollection keeping field information
    void DeleteData();
    /// Delete data owned by the DataCollection including field information
@@ -75,7 +79,8 @@ protected:
 
 public:
    /// Initialize the collection with its name and Mesh.
-   DataCollection(const char *collection_name, Mesh *_mesh);
+   DataCollection(const char *collection_name, Mesh *_mesh,
+                  const char *prefix = NULL);
 
    /// Add a grid function to the collection
    virtual void RegisterField(const char *field_name, GridFunction *gf);
@@ -165,9 +170,11 @@ protected:
 public:
    /** Create an empty collection with the given name, that will be filled in
        later with the Load() function. Currently this only works in serial! */
-   VisItDataCollection(const char *collection_name);
+   VisItDataCollection(const char *collection_name,
+                       const char *prefix = NULL);
    /// Initialize the collection with its mesh, fill-in the extra VisIt data
-   VisItDataCollection(const char *collection_name, Mesh *_mesh);
+   VisItDataCollection(const char *collection_name, Mesh *_mesh,
+                       const char *prefix = NULL);
 
    /// Set/change the mesh associated with the collection
    virtual void SetMesh(Mesh *new_mesh);
