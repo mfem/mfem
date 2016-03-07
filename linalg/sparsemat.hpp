@@ -396,6 +396,11 @@ SparseMatrix *Mult(const SparseMatrix &A, const SparseMatrix &B,
 SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
                                         const AbstractSparseMatrix &B);
 
+/// Matrix product A.B
+DenseMatrix *Mult(const SparseMatrix &A, DenseMatrix &B);
+
+/// RAP matrix product (with R=P^T)
+DenseMatrix *RAP(const SparseMatrix &A, DenseMatrix &P);
 
 /** RAP matrix product (with P=R^T). ORAP is like OAB above.
     All matrices must be finalized. */
