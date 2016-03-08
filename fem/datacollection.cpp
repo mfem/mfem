@@ -55,7 +55,7 @@ int to_int(string str)
 
 // class DataCollection implementation
 
-DataCollection::DataCollection(const char *collection_name)
+DataCollection::DataCollection(const char *collection_name, const char *prefix)
 {
    name = collection_name;
    mesh = NULL;
@@ -68,9 +68,18 @@ DataCollection::DataCollection(const char *collection_name)
    precision = precision_default;
    pad_digits = pad_digits_default;
    error = NO_ERROR;
+   if (prefix)
+   {
+      prefix_path = prefix;
+      if (prefix_path[prefix_path.size()-1] != '/')
+         prefix_path += "/";
+   }
+   else
+     prefix_path = "";
 }
 
-DataCollection::DataCollection(const char *collection_name, Mesh *_mesh)
+DataCollection::DataCollection(const char *collection_name, Mesh *_mesh,
+                               const char *prefix)
 {
    name = collection_name;
    mesh = _mesh;
@@ -92,6 +101,14 @@ DataCollection::DataCollection(const char *collection_name, Mesh *_mesh)
    precision = precision_default;
    pad_digits = pad_digits_default;
    error = NO_ERROR;
+   if (prefix)
+   {
+      prefix_path = prefix;
+      if (prefix_path[prefix_path.size()-1] != '/')
+         prefix_path += "/";
+   }
+   else
+     prefix_path = "";
 }
 
 void DataCollection::SetMesh(Mesh *new_mesh)
@@ -146,23 +163,14 @@ void DataCollection::Save()
    }
 }
 
-void DataCollection::SaveMesh()
+int create_directory(const string &dir_name, const Mesh *mesh, int myid)
 {
-   string dir_name;
-   if (cycle == -1)
-   {
-      dir_name = name;
-   }
-   else
-   {
-      dir_name = name + "_" + to_padded_string(cycle, pad_digits);
-   }
    int err;
 #ifndef MFEM_USE_MPI
    err = mkdir(dir_name.c_str(), 0777);
    err = (err && (errno != EEXIST)) ? 1 : 0;
 #else
-   ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+   const ParMesh *pmesh = dynamic_cast<const ParMesh*>(mesh);
    if (myid == 0 || pmesh == NULL)
    {
       err = mkdir(dir_name.c_str(), 0777);
@@ -178,6 +186,33 @@ void DataCollection::SaveMesh()
       MPI_Bcast(&err, 1, MPI_INT, 0, pmesh->GetComm());
    }
 #endif
+   return err;
+}
+
+void DataCollection::SaveMesh()
+{
+   int err;
+   if (!prefix_path.empty())
+   {
+     err = create_directory(prefix_path, mesh, myid);
+     if (err)
+     {
+        error = WRITE_ERROR;
+        MFEM_WARNING("Error creating directory: " << prefix_path);
+        return; // do not even try to write the mesh
+     }
+   }
+
+   string dir_name = prefix_path;
+   if (cycle == -1)
+   {
+      dir_name += name;
+   }
+   else
+   {
+      dir_name += name + "_" + to_padded_string(cycle, pad_digits);
+   }
+   err = create_directory(dir_name, mesh, myid);
    if (err)
    {
       error = WRITE_ERROR;
@@ -207,14 +242,14 @@ void DataCollection::SaveMesh()
 void DataCollection::SaveOneField(
    const std::map<std::string,GridFunction*>::iterator &it)
 {
-   string dir_name;
+   string dir_name = prefix_path;
    if (cycle == -1)
    {
-      dir_name = name;
+      dir_name += name;
    }
    else
    {
-      dir_name = name + "_" + to_padded_string(cycle, pad_digits);
+      dir_name += name + "_" + to_padded_string(cycle, pad_digits);
    }
 
    string file_name;
@@ -285,8 +320,9 @@ DataCollection::~DataCollection()
 
 // class VisItDataCollection implementation
 
-VisItDataCollection::VisItDataCollection(const char *collection_name)
-   : DataCollection(collection_name)
+VisItDataCollection::VisItDataCollection(const char *collection_name,
+                                         const char *prefix)
+   : DataCollection(collection_name, prefix)
 {
    serial = false; // always include rank in file names
    cycle  = 0;     // always include cycle in directory names
@@ -297,8 +333,9 @@ VisItDataCollection::VisItDataCollection(const char *collection_name)
 }
 
 VisItDataCollection::VisItDataCollection(const char *collection_name,
-                                         Mesh *mesh)
-   : DataCollection(collection_name, mesh)
+                                         Mesh *mesh,
+                                         const char *prefix)
+   : DataCollection(collection_name, mesh, prefix)
 {
    serial = false; // always include rank in file names
    cycle  = 0;     // always include cycle in directory names
@@ -344,8 +381,8 @@ void VisItDataCollection::SaveRootFile()
 {
    if (myid == 0)
    {
-      string root_name = name + "_" + to_padded_string(cycle, pad_digits) +
-                         ".mfem_root";
+      string root_name = prefix_path + name + "_" +
+                         to_padded_string(cycle, pad_digits) + ".mfem_root";
       ofstream root_file(root_name.c_str());
       root_file << GetVisItRootString();
       if (!root_file)
@@ -360,8 +397,8 @@ void VisItDataCollection::Load(int _cycle)
 {
    DeleteAll();
    cycle = _cycle;
-   string root_name = name + "_" + to_padded_string(cycle, pad_digits) +
-                      ".mfem_root";
+   string root_name = prefix_path + name + "_" +
+                      to_padded_string(cycle, pad_digits) + ".mfem_root";
    LoadVisItRootFile(root_name);
    if (!error)
    {
