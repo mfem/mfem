@@ -278,9 +278,9 @@ libmfem.a: $(OBJECT_FILES)
 unittestcov:
 	$(MAKE) config MFEM_USE_MPI=NO MFEM_DEBUG=YES CXXFLAGS="-g -Wall --coverage" 
 	$(MAKE)
-	cd unit-test.code; make MFEM_DIR=.. COVERAGE=YES; cd ..
+	cd unit-test.code; make MFEM_DIR=.. COVERAGE=YES; cd .. 
 	unit-test.code/test
-	gcov -o general -o linalg -o mesh -o fem $(notdir $(SOURCE_FILES)) $(SOURCE_FILES)
+	gcov -l -p $(addprefix -o , $(DIRS)) $(notdir $(SOURCE_FILES))
 
 serial:
 	$(MAKE) config MFEM_USE_MPI=NO MFEM_DEBUG=NO && $(MAKE)
