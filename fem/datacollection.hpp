@@ -29,6 +29,9 @@ protected:
    /// Name of the collection, used as a directory name when saving
    std::string name;
 
+   /// A path where the directory with results is saved
+   std::string prefix_path;
+
    /// The fields and their names (used when saving)
    std::map<std::string, GridFunction*> field_map;
    /// The (common) mesh for the collected fields
@@ -108,6 +111,8 @@ public:
    void SetPrecision(int prec) { precision = prec; }
    /// Set the number of digits used for the cycle and MPI rank in filenames
    void SetPadDigits(int digits) { pad_digits = digits; }
+   /// Set the path where the DataCollection will be saved.
+   void SetPrefixPath(const char *prefix);
 
    /** Save the collection to disk. By default, everything is saved in a
        directory with name "collection_name" or "collection_name_cycle" for
