@@ -280,6 +280,8 @@ unittestcov:
 	$(MAKE)
 	cd unit-test.code; make MFEM_DIR=.. COVERAGE=YES; cd .. 
 	unit-test.code/test
+	pwd
+	ls fem/
 	gcov -l -p $(addprefix -o , $(DIRS)) $(notdir $(SOURCE_FILES))
 
 serial:
