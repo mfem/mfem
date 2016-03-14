@@ -276,7 +276,7 @@ libmfem.a: $(OBJECT_FILES)
 	ranlib libmfem.a
 
 unittestcov:
-	$(MAKE) config MFEM_USE_MPI=NO MFEM_DEBUG=YES CXXFLAGS="-g -Wall --coverage" 
+	$(MAKE) config MFEM_USE_MPI=NO MFEM_DEBUG=YES CXXFLAGS="-g -Wall --coverage -fprofile-arcs -ftest-coverage" 
 	$(MAKE)
 	cd unit-test.code; make MFEM_DIR=.. COVERAGE=YES; cd .. 
 	unit-test.code/test
