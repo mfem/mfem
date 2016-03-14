@@ -278,14 +278,23 @@ libmfem.a: $(OBJECT_FILES)
 unittestcov:
 	$(MAKE) config MFEM_USE_MPI=NO MFEM_DEBUG=YES CXXFLAGS="-g -Wall --coverage -fprofile-arcs -ftest-coverage" 
 	$(MAKE)
-	cd unit-test.code; make MFEM_DIR=.. COVERAGE=YES; cd .. 
-	unit-test.code/test
+	mkdir codecov
+	cd unit-test.code; make MFEM_DIR=.. COVERAGE=YES
+	cp unit-test.code/test codecov/
+	cp libmfem.a codecov/
 	for dir in $(DIRS); do \
-	   cp $${dir}/*.gcno .; \
-	   cp $${dir}/*.gcda .; done
-	   
-	for file in $(notdir $(SOURCE_FILES)); do \
-	   gcov -l -p $(addprefix -o , $(DIRS)) $${file}; done
+	   cp $${dir}/*.cpp codecov/; \
+	   cp $${dir}/*.hpp codecov/; done
+	cd codecov; ./test
+	for dir in $(DIRS); do \
+	   cp $${dir}/*.gcno codecov/; \
+	   cp $${dir}/*.gcda codecov/; done
+	ls codecov/intrules.*
+	cd codecov; for file in $(notdir $(SOURCE_FILES)); do \
+	   gcov -o . $${file} > /dev/null; done
+	ls -1 codecov/*.gcov | wc -l
+	ls -1 codecov/*.gcda | wc -l
+	ls -1 codecov/*.gcno | wc -l
 
 serial:
 	$(MAKE) config MFEM_USE_MPI=NO MFEM_DEBUG=NO && $(MAKE)
@@ -307,6 +316,7 @@ deps:
 
 clean:
 	rm -f */*.o */*.gcno */*.gcda *.gcda *.gcno *.gcov */*~ *~ libmfem.a deps.mk ..*.gcov
+	rm -rf codecov
 	$(MAKE) -C examples clean
 	$(MAKE) -C miniapps/common clean
 	$(MAKE) -C miniapps/meshing clean
