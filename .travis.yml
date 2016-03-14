@@ -16,6 +16,8 @@ matrix:
         env: DEBUG=NO MPI=YES
       - compiler: clang
         env: DEBUG=YES MPI=YES
+before_install:
+   - sudo pip install codecov
 install:
 #    Back out of the mfem directory to install the libraries
    - pwd
