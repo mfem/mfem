@@ -282,7 +282,9 @@ unittestcov:
 	unit-test.code/test
 	pwd
 	ls fem/
-	gcov -l -p $(addprefix -o , $(DIRS)) $(notdir $(SOURCE_FILES))
+#	#gcov -l -p $(addprefix -o , $(DIRS)) $(notdir $(SOURCE_FILES))
+	for file in $(SOURCE_FILES); do \
+	   gcov -l -p $(addprefix -o , $(DIRS)) $${file}; done
 
 serial:
 	$(MAKE) config MFEM_USE_MPI=NO MFEM_DEBUG=NO && $(MAKE)
@@ -303,7 +305,7 @@ deps:
 	   $(DEP_CXX) $(MFEM_FLAGS) -MM -MT $${i}.o $${i}.cpp >> deps.mk; done
 
 clean:
-	rm -f */*.o */*.gcno */*.gcda *.gcov */*~ *~ libmfem.a deps.mk
+	rm -f */*.o */*.gcno */*.gcda *.gcov */*~ *~ libmfem.a deps.mk ..*.gcov
 	$(MAKE) -C examples clean
 	$(MAKE) -C miniapps/common clean
 	$(MAKE) -C miniapps/meshing clean
