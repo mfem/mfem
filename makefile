@@ -280,10 +280,11 @@ unittestcov:
 	$(MAKE)
 	cd unit-test.code; make MFEM_DIR=.. COVERAGE=YES; cd .. 
 	unit-test.code/test
-	pwd
-	ls fem/
-#	#gcov -l -p $(addprefix -o , $(DIRS)) $(notdir $(SOURCE_FILES))
-	for file in $(SOURCE_FILES); do \
+	for dir in $(DIRS); do \
+	   cp $${dir}/*.gcno .; \
+	   cp $${dir}/*.gcda .; done
+	   
+	for file in $(notdir $(SOURCE_FILES)); do \
 	   gcov -l -p $(addprefix -o , $(DIRS)) $${file}; done
 
 serial:
@@ -305,7 +306,7 @@ deps:
 	   $(DEP_CXX) $(MFEM_FLAGS) -MM -MT $${i}.o $${i}.cpp >> deps.mk; done
 
 clean:
-	rm -f */*.o */*.gcno */*.gcda *.gcov */*~ *~ libmfem.a deps.mk ..*.gcov
+	rm -f */*.o */*.gcno */*.gcda *.gcda *.gcno *.gcov */*~ *~ libmfem.a deps.mk ..*.gcov
 	$(MAKE) -C examples clean
 	$(MAKE) -C miniapps/common clean
 	$(MAKE) -C miniapps/meshing clean
