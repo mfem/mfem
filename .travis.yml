@@ -53,6 +53,8 @@ script:
    - cd ..
 #    Get the unit test coverage data
    - if test $MYCXX == "g++" -a $DEBUG == "YES" -a $TRAVIS_OS_NAME == "linux"; then make unittestcov; fi || true
-   - if test $MYCXX == "g++" -a $DEBUG == "YES" -a $TRAVIS_OS_NAME == "linux"; then bash <(curl -s https://codecov.io/bash); fi || true
+   - if test $MYCXX == "g++" -a $DEBUG == "YES" -a $TRAVIS_OS_NAME == "linux"; then cd codecov; fi || true
+   - if test $MYCXX == "g++" -a $DEBUG == "YES" -a $TRAVIS_OS_NAME == "linux"; then codecov; fi || true
+#   - if test $MYCXX == "g++" -a $DEBUG == "YES" -a $TRAVIS_OS_NAME == "linux"; then bash <(curl -s https://codecov.io/bash); fi || true
 
 
