@@ -43,6 +43,7 @@ private:
    void ProcToLProc();
 
 public:
+   GroupTopology() : MyComm(0) {;}
    GroupTopology(MPI_Comm comm) { MyComm = comm; }
 
    /// Copy constructor
