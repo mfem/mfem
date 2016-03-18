@@ -73,7 +73,7 @@ protected:
    void DeleteFaceNbrData();
 
 public:
-   ParMesh() {;}
+   ParMesh() : MyComm(0), NRanks(0), MyRank(-1) {}
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
        source mesh can be modified (e.g. deleted, refined) without affecting the
        new mesh. The source mesh has to be in a NORMAL, i.e. not TWO_LEVEL_*,
