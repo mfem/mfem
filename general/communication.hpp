@@ -76,7 +76,7 @@ public:
    // neighbor 0 is the local processor
    const int *GetGroup(int g) const { return group_lproc.GetRow(g); }
 
-   virtual ~GroupTopology() {;}
+   virtual ~GroupTopology() {}
 };
 
 class GroupCommunicator
