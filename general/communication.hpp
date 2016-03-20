@@ -43,10 +43,12 @@ private:
    void ProcToLProc();
 
 public:
+   GroupTopology() : MyComm(0) {;}
    GroupTopology(MPI_Comm comm) { MyComm = comm; }
 
    /// Copy constructor
    GroupTopology(const GroupTopology &gt);
+   void SetComm(MPI_Comm comm) { MyComm = comm;}
 
    MPI_Comm GetComm() { return MyComm; }
    int MyRank() { int r; MPI_Comm_rank(MyComm, &r); return r; }
@@ -73,6 +75,8 @@ public:
    // return a pointer to a list of neighbors for a given group.
    // neighbor 0 is the local processor
    const int *GetGroup(int g) const { return group_lproc.GetRow(g); }
+
+   virtual ~GroupTopology() {}
 };
 
 class GroupCommunicator

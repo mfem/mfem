@@ -27,7 +27,9 @@ namespace mfem
 /// Class for parallel meshes
 class ParMesh : public Mesh
 {
-private:
+protected:
+   ParMesh() : MyComm(0), NRanks(0), MyRank(-1), have_face_nbr_data(false), pncmesh(NULL) {}
+   
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
