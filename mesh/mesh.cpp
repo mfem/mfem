@@ -3136,6 +3136,341 @@ void Mesh::Load(std::istream &input, int generate_edges, int refine,
       }
       return; // done with inline mesh construction
    }
+   else if (mesh_type == "$MeshFormat")
+   {
+     // Reading Gmsh mesh
+
+     string buff;
+     double version;
+     int binary, dsize;
+     input >> version >> binary >> dsize;
+     if (version < 2.2)
+     {
+       mfem_error("Mesh::Load : Gmsh file version < 2.2");
+       return;
+     }
+     if (dsize != sizeof(double))
+     {
+       mfem_error("Mesh::Load : Gmsh file : dsize != sizeof(double)");
+       return;
+     }
+     getline(input, buff);
+     // There is a number 1 in binary format
+     if (binary)
+     {
+       int one;
+       input.read(reinterpret_cast<char*>(&one), sizeof(one));
+       if (one != 1)
+       {
+         mfem_error("Mesh::Load : Gmsh file : wrong binary format");
+         return;
+       }
+     }
+
+     // A map between a serial number of the vertex and its number in the
+     // file (there may be gaps in numeration, and also Gmsh numerates vertices
+     // starting from 1, not 0)
+     map<int, int> vertices_map;
+     // Read lines of mesh file. If we face specific keyword, we'll treat the
+     // section.
+     while (input >> buff)
+     {
+       if (buff == "$Nodes") // reading mesh vertices
+       {
+         input >> NumOfVertices;
+         getline(input, buff);
+         vertices.SetSize(NumOfVertices);
+         int serial_number;
+         const int gmsh_dim = 3; // Gmsh always outputs 3 coordinates
+         double coord[gmsh_dim];
+         for (int ver = 0; ver < NumOfVertices; ++ver)
+         {
+           if (binary)
+           {
+             input.read(reinterpret_cast<char*>(&serial_number), sizeof(int));
+             input.read(reinterpret_cast<char*>(coord), gmsh_dim*sizeof(double));
+           }
+           else // ASCII
+           {
+             input >> serial_number;
+             for (int ci = 0; ci < gmsh_dim; ++ci)
+               input >> coord[ci];
+           }
+           vertices[ver] = Vertex(coord, gmsh_dim);
+           vertices_map[serial_number] = ver;
+         }
+         if (static_cast<int>(vertices_map.size()) != NumOfVertices)
+         {
+           mfem_error("Mesh::Load : Gmsh file : vertices indices are not unique");
+           return;
+         }
+       } // section '$Nodes'
+       else if (buff == "$Elements") // reading mesh elements
+       {
+         int num_of_all_elements;
+         input >> num_of_all_elements; // = NumOfElements + NumOfBdrElements + (maybe, PhysicalPoints)
+         getline(input, buff);
+
+         int serial_number; // serial number of an element
+         int type_of_element; // ID describing a type of a mesh element
+         int n_tags; // number of different tags describing an element
+         int phys_domain; // element's attribute
+         int elem_domain; // another element's attribute (rarely used)
+         int n_partitions; // number of partitions where an element takes place
+         // number of nodes for each type of Gmsh elements, type is the index
+         // of the array + 1
+         int nodes_of_gmsh_element[] = {
+           2, // 2-node line.
+           3, // 3-node triangle.
+           4, // 4-node quadrangle.
+           4, // 4-node tetrahedron.
+           8, // 8-node hexahedron.
+           6, // 6-node prism.
+           5, // 5-node pyramid.
+           3, // 3-node second order line (2 nodes associated with the vertices and 1 with the edge).
+           6, // 6-node second order triangle (3 nodes associated with the vertices and 3 with the edges).
+           9, // 9-node second order quadrangle (4 nodes associated with the vertices, 4 with the edges and 1 with the face).
+           10,// 10-node second order tetrahedron (4 nodes associated with the vertices and 6 with the edges).
+           27,// 27-node second order hexahedron (8 nodes associated with the vertices, 12 with the edges, 6 with the faces and 1 with the volume).
+           18,// 18-node second order prism (6 nodes associated with the vertices, 9 with the edges and 3 with the quadrangular faces).
+           14,// 14-node second order pyramid (5 nodes associated with the vertices, 8 with the edges and 1 with the quadrangular face).
+           1, // 1-node point.
+           8, // 8-node second order quadrangle (4 nodes associated with the vertices and 4 with the edges).
+           20,// 20-node second order hexahedron (8 nodes associated with the vertices and 12 with the edges).
+           15,// 15-node second order prism (6 nodes associated with the vertices and 9 with the edges).
+           13,// 13-node second order pyramid (5 nodes associated with the vertices and 8 with the edges).
+           9, // 9-node third order incomplete triangle (3 nodes associated with the vertices, 6 with the edges)
+           10,// 10-node third order triangle (3 nodes associated with the vertices, 6 with the edges, 1 with the face)
+           12,// 12-node fourth order incomplete triangle (3 nodes associated with the vertices, 9 with the edges)
+           15,// 15-node fourth order triangle (3 nodes associated with the vertices, 9 with the edges, 3 with the face)
+           15,// 15-node fifth order incomplete triangle (3 nodes associated with the vertices, 12 with the edges)
+           21,// 21-node fifth order complete triangle (3 nodes associated with the vertices, 12 with the edges, 6 with the face)
+           4, // 4-node third order edge (2 nodes associated with the vertices, 2 internal to the edge)
+           5, // 5-node fourth order edge (2 nodes associated with the vertices, 3 internal to the edge)
+           6, // 6-node fifth order edge (2 nodes associated with the vertices, 4 internal to the edge)
+           20 // 20-node third order tetrahedron (4 nodes associated with the vertices, 12 with the edges, 4 with the faces)
+         };
+
+         vector<Element*> elements_0D, elements_1D, elements_2D, elements_3D;
+         elements_0D.reserve(num_of_all_elements);
+         elements_1D.reserve(num_of_all_elements);
+         elements_2D.reserve(num_of_all_elements);
+         elements_3D.reserve(num_of_all_elements);
+
+         if (binary)
+         {
+           int n_elem_part = 0; // partial sum of elements that are read
+           const int header_size = 3; // header consists of 3 numbers: type of the
+                                      // element, number of elements of this type,
+                                      // and number of tags
+           int header[header_size];
+           int n_elem_one_type; // number of elements of a specific type
+
+           while (n_elem_part < num_of_all_elements)
+           {
+             input.read(reinterpret_cast<char*>(header), header_size*sizeof(int));
+             type_of_element = header[0];
+             n_elem_one_type = header[1];
+             n_tags          = header[2];
+
+             n_elem_part += n_elem_one_type;
+
+             const int n_elem_nodes = nodes_of_gmsh_element[type_of_element-1];
+             vector<int> data(1+n_tags+n_elem_nodes);
+             for (int el = 0; el < n_elem_one_type; ++el)
+             {
+               input.read(reinterpret_cast<char*>(&data[0]),
+                          data.size()*sizeof(int));
+               int dd = 0; // index for data array
+               serial_number = data[dd++];
+               // physical domain - the most important value (to distinguish
+               // materials with different properties)
+               phys_domain = (n_tags > 0) ? data[dd++] : 0;
+               // elementary domain - to distinguish different geometrical
+               // domains (typically, it's used rarely)
+               elem_domain = (n_tags > 1) ? data[dd++] : 0;
+               // the number of tags is bigger than 2 if there are some
+               // partitions (domain decompositions)
+               n_partitions = (n_tags > 2) ? data[dd++] : 0;
+               // we currently just skip the partitions if they exist, and go
+               // directly to vertices describing the mesh element
+               vector<int> vert_indices(n_elem_nodes);
+               for (int vi = 0; vi < n_elem_nodes; ++vi)
+               {
+                 map<int, int>::const_iterator it = vertices_map.find(data[1+n_tags+vi]);
+                 if (it == vertices_map.end())
+                 {
+                   mfem_error("Mesh::Load : Gmsh file : vertex index doesn't exist");
+                   return;
+                 }
+                 vert_indices[vi] = it->second;
+               }
+               // initialize the mesh element
+               switch (type_of_element)
+               {
+                 case 1: // 2-node line
+                 {
+                   elements_1D.push_back(new Segment(&vert_indices[0], phys_domain));
+                   break;
+                 }
+                 case 2: // 3-node triangle
+                 {
+                   elements_2D.push_back(new Triangle(&vert_indices[0], phys_domain));
+                   break;
+                 }
+                 case 3: // 4-node quadrangle
+                 {
+                   elements_2D.push_back(new Quadrilateral(&vert_indices[0], phys_domain));
+                   break;
+                 }
+                 case 4: // 4-node tetrahedron
+                 {
+                   elements_3D.push_back(new Tetrahedron(&vert_indices[0], phys_domain));
+                   break;
+                 }
+                 case 5: // 8-node hexahedron
+                 {
+                   elements_3D.push_back(new Hexahedron(&vert_indices[0], phys_domain));
+                   break;
+                 }
+                 case 15: // 1-node point
+                 {
+                   elements_0D.push_back(new Point(&vert_indices[0], phys_domain));
+                   break;
+                 }
+                 default: // any other element
+                   // just skip it silently, or another action?
+                   break;
+
+               } // switch (type_of_element)
+             } // el (elements of one type)
+           } // all elements
+         } // if binary
+         else // ASCII
+         {
+           for (int el = 0; el < num_of_all_elements; ++el)
+           {
+             input >> serial_number >> type_of_element >> n_tags;
+             vector<int> data(n_tags);
+             for (int i = 0; i < n_tags; ++i) input >> data[i];
+             // physical domain - the most important value (to distinguish
+             // materials with different properties)
+             phys_domain = (n_tags > 0) ? data[0] : 0;
+             // elementary domain - to distinguish different geometrical
+             // domains (typically, it's used rarely)
+             elem_domain = (n_tags > 1) ? data[1] : 0;
+             // the number of tags is bigger than 2 if there are some
+             // partitions (domain decompositions)
+             n_partitions = (n_tags > 2) ? data[2] : 0;
+             // we currently just skip the partitions if they exist, and go
+             // directly to vertices describing the mesh element
+             const int n_elem_nodes = nodes_of_gmsh_element[type_of_element-1];
+             vector<int> vert_indices(n_elem_nodes);
+             int index;
+             for (int vi = 0; vi < n_elem_nodes; ++vi)
+             {
+               input >> index;
+               map<int, int>::const_iterator it = vertices_map.find(index);
+               if (it == vertices_map.end())
+               {
+                 mfem_error("Mesh::Load : Gmsh file : vertex index doesn't exist");
+                 return;
+               }
+               vert_indices[vi] = it->second;
+             }
+             // initialize the mesh element
+             switch (type_of_element)
+             {
+               case 1: // 2-node line
+               {
+                 elements_1D.push_back(new Segment(&vert_indices[0], phys_domain));
+                 break;
+               }
+               case 2: // 3-node triangle
+               {
+                 elements_2D.push_back(new Triangle(&vert_indices[0], phys_domain));
+                 break;
+               }
+               case 3: // 4-node quadrangle
+               {
+                 elements_2D.push_back(new Quadrilateral(&vert_indices[0], phys_domain));
+                 break;
+               }
+               case 4: // 4-node tetrahedron
+               {
+                 elements_3D.push_back(new Tetrahedron(&vert_indices[0], phys_domain));
+                 break;
+               }
+               case 5: // 8-node hexahedron
+               {
+                 elements_3D.push_back(new Hexahedron(&vert_indices[0], phys_domain));
+                 break;
+               }
+               case 15: // 1-node point
+               {
+                 elements_0D.push_back(new Point(&vert_indices[0], phys_domain));
+                 break;
+               }
+               default: // any other element
+                 // the same as for the binary file (see above)
+                 break;
+
+             } // switch (type_of_element)
+           } // el (all elements)
+         } // if ASCII
+
+         if (!elements_3D.empty())
+         {
+           Dim = 3;
+           NumOfElements = elements_3D.size();
+           elements.SetSize(NumOfElements);
+           for (int el = 0; el < NumOfElements; ++el)
+             elements[el] = elements_3D[el];
+           NumOfBdrElements = elements_2D.size();
+           boundary.SetSize(NumOfBdrElements);
+           for (int el = 0; el < NumOfBdrElements; ++el)
+             boundary[el] = elements_2D[el];
+           // discard other elements
+           for (size_t el = 0; el < elements_1D.size(); ++el)
+             delete elements_1D[el];
+           for (size_t el = 0; el < elements_0D.size(); ++el)
+             delete elements_0D[el];
+         }
+         else if (!elements_2D.empty())
+         {
+           Dim = 2;
+           NumOfElements = elements_2D.size();
+           elements.SetSize(NumOfElements);
+           for (int el = 0; el < NumOfElements; ++el)
+             elements[el] = elements_2D[el];
+           NumOfBdrElements = elements_1D.size();
+           boundary.SetSize(NumOfBdrElements);
+           for (int el = 0; el < NumOfBdrElements; ++el)
+             boundary[el] = elements_1D[el];
+           // discard other elements
+           for (size_t el = 0; el < elements_0D.size(); ++el)
+             delete elements_1D[el];
+         }
+         else if (!elements_1D.empty())
+         {
+           Dim = 1;
+           NumOfElements = elements_1D.size();
+           elements.SetSize(NumOfElements);
+           for (int el = 0; el < NumOfElements; ++el)
+             elements[el] = elements_1D[el];
+           NumOfBdrElements = elements_0D.size();
+           boundary.SetSize(NumOfBdrElements);
+           for (int el = 0; el < NumOfBdrElements; ++el)
+             boundary[el] = elements_0D[el];
+         }
+         else
+         {
+           mfem_error("Mesh::Load : Gmsh file : no elements found");
+           return;
+         }
+       } // section '$Elements'
+     } // we reach the end of the file
+   }
    else
    {
       MFEM_ABORT("Unknown input mesh format");
