@@ -3449,7 +3449,7 @@ void Mesh::Load(std::istream &input, int generate_edges, int refine,
              boundary[el] = elements_1D[el];
            // discard other elements
            for (size_t el = 0; el < elements_0D.size(); ++el)
-             delete elements_1D[el];
+             delete elements_0D[el];
          }
          else if (!elements_1D.empty())
          {
