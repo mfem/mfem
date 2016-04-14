@@ -2109,7 +2109,7 @@ void SparseMatrix::ScaleColumns(const Vector & sr)
    }
 }
 
-SparseMatrix &SparseMatrix::operator+=(SparseMatrix &B)
+SparseMatrix &SparseMatrix::operator+=(const SparseMatrix &B)
 {
    MFEM_ASSERT(height == B.height && width == B.width,
                "Mismatch of this matrix size and rhs.  This height = "

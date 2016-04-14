@@ -314,7 +314,7 @@ public:
 
    /** Add the sparse matrix 'B' to '*this'. This operation will cause an error
        if '*this' is finalized and 'B' has larger sparsity pattern. */
-   SparseMatrix &operator+=(SparseMatrix &B);
+   SparseMatrix &operator+=(const SparseMatrix &B);
 
    /** Add the sparse matrix 'B' scaled by the scalar 'a' into '*this'.
        Only entries in the sparsity pattern of '*this' are added. */
