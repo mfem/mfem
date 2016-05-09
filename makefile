@@ -95,9 +95,10 @@ INSTALL ?= /usr/bin/install
 
 # Default serial and parallel compilers
 CXX ?= g++
-MPICXX ?= mpicxx
+MPICXX ?= mpig++
 OPTIM_FLAGS ?= -O3
 DEBUG_FLAGS ?= -g -Wall
+
 # Compile flags used by MFEM: CPPFLAGS, CXXFLAGS, plus library flags
 INCFLAGS = -I@MFEM_INC_DIR@
 # Link flags used by MFEM: library link flags plus LDFLAGS (added last)
@@ -274,6 +275,27 @@ libmfem.a: $(OBJECT_FILES)
 	ar cruv libmfem.a $(OBJECT_FILES)
 	ranlib libmfem.a
 
+unittestcov:
+	$(MAKE) config MFEM_USE_MPI=NO MFEM_DEBUG=YES CXXFLAGS="-g -Wall --coverage -fprofile-arcs -ftest-coverage" 
+	$(MAKE)
+	mkdir codecov
+	cd unit-test.code; make MFEM_DIR=.. COVERAGE=YES
+	cp unit-test.code/test codecov/
+	cp libmfem.a codecov/
+	for dir in $(DIRS); do \
+	   cp $${dir}/*.cpp codecov/; \
+	   cp $${dir}/*.hpp codecov/; done
+	cd codecov; ./test
+	for dir in $(DIRS); do \
+	   cp $${dir}/*.gcno codecov/; \
+	   cp $${dir}/*.gcda codecov/; done
+	ls codecov/intrules.*
+	cd codecov; for file in $(notdir $(SOURCE_FILES)); do \
+	   gcov -o . $${file} > /dev/null; done
+	ls -1 codecov/*.gcov | wc -l
+	ls -1 codecov/*.gcda | wc -l
+	ls -1 codecov/*.gcno | wc -l
+
 serial:
 	$(MAKE) config MFEM_USE_MPI=NO MFEM_DEBUG=NO && $(MAKE)
 
@@ -293,7 +315,8 @@ deps:
 	   $(DEP_CXX) $(MFEM_FLAGS) -MM -MT $${i}.o $${i}.cpp >> deps.mk; done
 
 clean:
-	rm -f */*.o */*~ *~ libmfem.a deps.mk
+	rm -f */*.o */*.gcno */*.gcda *.gcda *.gcno *.gcov */*~ *~ libmfem.a deps.mk ..*.gcov
+	rm -rf codecov
 	$(MAKE) -C examples clean
 	$(MAKE) -C miniapps/common clean
 	$(MAKE) -C miniapps/meshing clean

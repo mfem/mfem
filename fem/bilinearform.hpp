@@ -32,7 +32,7 @@ protected:
    /// Sparse matrix to be associated with the form.
    SparseMatrix *mat;
 
-   // Matrix used to eliminate b.c.
+   /// Matrix used to eliminate b.c.
    SparseMatrix *mat_e;
 
    /// FE space on which the form lives.
@@ -153,6 +153,10 @@ public:
    const SparseMatrix &SpMat() const { return *mat; }
    SparseMatrix &SpMat() { return *mat; }
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
+
+   /// Returns a reference to the sparse matrix of eliminated b.c.
+   const SparseMatrix &SpMatElim() const { return *mat_e; }
+   SparseMatrix &SpMatElim() { return *mat_e; }
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
