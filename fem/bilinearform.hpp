@@ -150,13 +150,29 @@ public:
    virtual void Finalize(int skip_zeros = 1);
 
    /// Returns a reference to the sparse matrix
-   const SparseMatrix &SpMat() const { return *mat; }
-   SparseMatrix &SpMat() { return *mat; }
+   const SparseMatrix &SpMat() const
+   {
+     MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+     return *mat;
+   }
+   SparseMatrix &SpMat()
+   {
+     MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+     return *mat;
+   }
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
    /// Returns a reference to the sparse matrix of eliminated b.c.
-   const SparseMatrix &SpMatElim() const { return *mat_e; }
-   SparseMatrix &SpMatElim() { return *mat_e; }
+   const SparseMatrix &SpMatElim() const
+   {
+     MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
+     return *mat_e;
+   }
+   SparseMatrix &SpMatElim()
+   {
+     MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
+     return *mat_e;
+   }
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
