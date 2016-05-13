@@ -2190,7 +2190,7 @@ void DenseMatrix::CalcEigenvalues(double *lambda, double *vec) const
    }
 }
 
-void DenseMatrix::GetColumn(int c, Vector &col)
+void DenseMatrix::GetColumn(int c, Vector &col) const
 {
    int n;
    double *cp, *vp;
@@ -2206,7 +2206,7 @@ void DenseMatrix::GetColumn(int c, Vector &col)
    }
 }
 
-void DenseMatrix::GetDiag(Vector &d)
+void DenseMatrix::GetDiag(Vector &d) const
 {
    if (height != width)
    {
@@ -2220,7 +2220,7 @@ void DenseMatrix::GetDiag(Vector &d)
    }
 }
 
-void DenseMatrix::Getl1Diag(Vector &l)
+void DenseMatrix::Getl1Diag(Vector &l) const
 {
    if (height != width)
    {

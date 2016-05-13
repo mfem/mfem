@@ -195,15 +195,15 @@ public:
        2x2 or 3x3 symmetric matrix. */
    void CalcEigenvalues(double *lambda, double *vec) const;
 
-   void GetColumn(int c, Vector &col);
+   void GetColumn(int c, Vector &col) const;
 
    void GetColumnReference(int c, Vector &col)
    { col.SetDataAndSize(data + c * height, height); }
 
    /// Returns the diagonal of the matrix
-   void GetDiag(Vector &d);
+   void GetDiag(Vector &d) const;
    /// Returns the l1 norm of the rows of the matrix v_i = sum_j |a_ij|
-   void Getl1Diag(Vector &l);
+   void Getl1Diag(Vector &l) const;
    /// Compute the row sums of the DenseMatrix
    void GetRowSums(Vector &l) const;
 
