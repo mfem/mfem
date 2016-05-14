@@ -2429,8 +2429,8 @@ void DenseMatrix::CopyRows(const DenseMatrix &A, int row1, int row2)
 {
    SetSize(row2 - row1 + 1, A.Width());
 
-   for (int i = row1; i <= row2; i++)
-      for (int j = 0; j < Width(); j++)
+   for (int j = 0; j < Width(); j++)
+      for (int i = row1; i <= row2; i++)
       {
          (*this)(i-row1,j) = A(i,j);
       }
@@ -2440,8 +2440,8 @@ void DenseMatrix::CopyCols(const DenseMatrix &A, int col1, int col2)
 {
    SetSize(A.Height(), col2 - col1 + 1);
 
-   for (int i = 0; i < Height(); i++)
-      for (int j = col1; j <= col2; j++)
+   for (int j = col1; j <= col2; j++)
+      for (int i = 0; i < Height(); i++)
       {
          (*this)(i,j-col1) = A(i,j);
       }
@@ -2477,8 +2477,8 @@ void DenseMatrix::CopyMNt(const DenseMatrix &A, int row_offset, int col_offset)
    int i, j;
    double *v = A.data;
 
-   for (i = 0; i < A.Width(); i++)
-      for (j = 0; j < A.Height(); j++)
+   for (j = 0; j < A.Height(); j++)
+      for (i = 0; i < A.Width(); i++)
       {
          (*this)(row_offset+i,col_offset+j) = *(v++);
       }
