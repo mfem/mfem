@@ -2477,8 +2477,8 @@ void DenseMatrix::CopyMNt(const DenseMatrix &A, int row_offset, int col_offset)
    int i, j;
    double *v = A.data;
 
-   for (j = 0; j < A.Height(); j++)
-      for (i = 0; i < A.Width(); i++)
+   for (i = 0; i < A.Width(); i++)
+      for (j = 0; j < A.Height(); j++)
       {
          (*this)(row_offset+i,col_offset+j) = *(v++);
       }
