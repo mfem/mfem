@@ -437,6 +437,22 @@ public:
    virtual ~MatrixArrayCoefficient();
 };
 
+/// MatrixCoefficient defined on a subset of domain or boundary attributes
+class MatrixRestrictedCoefficient : public MatrixCoefficient
+{
+private:
+   MatrixCoefficient *c;
+   Array<int> active_attr;
+
+public:
+   MatrixRestrictedCoefficient(MatrixCoefficient &mc, Array<int> &attr)
+      : MatrixCoefficient(mc.GetVDim())
+   { c = &mc; attr.Copy(active_attr); }
+
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
 /** Compute the Lp norm of a function f.
     \f$ \| f \|_{Lp} = ( \int_\Omega | f |^p d\Omega)^{1/p} \f$ */
 double ComputeLpNorm(double p, Coefficient &coeff, Mesh &mesh,
