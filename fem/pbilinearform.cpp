@@ -37,7 +37,6 @@ void ParBilinearForm::pAllocMat()
    }
 
    // the sparsity pattern is defined from the map: face->element->dof
-   fes->BuildElementToDofTable();
    const Table &lelem_ldof = fes->GetElementToDofTable(); // <-- dofs
    const Table &nelem_ndof = pfes->face_nbr_element_dof; // <-- vdofs
    Table elem_dof; // element + nbr-element <---> dof
@@ -146,6 +145,7 @@ HypreParMatrix *ParBilinearForm::ParallelAssemble(SparseMatrix *m)
       Array<HYPRE_Int> glob_J(m->NumNonZeroElems());
       int *J = m->GetJ();
       for (int i = 0; i < glob_J.Size(); i++)
+      {
          if (J[i] < lvsize)
          {
             glob_J[i] = J[i] + ldof_offset;
@@ -154,6 +154,7 @@ HypreParMatrix *ParBilinearForm::ParallelAssemble(SparseMatrix *m)
          {
             glob_J[i] = face_nbr_glob_ldof[J[i] - lvsize];
          }
+      }
 
       A = new HypreParMatrix(pfes->GetComm(), lvsize, pfes->GlobalVSize(),
                              pfes->GlobalVSize(), m->GetI(), glob_J,
@@ -252,8 +253,8 @@ const
 
    if (X.ParFESpace() != pfes)
    {
-      X.Update(pfes);
-      Y.Update(pfes);
+      X.SetSpace(pfes);
+      Y.SetSpace(pfes);
    }
 
    X.Distribute(&x);
@@ -282,6 +283,9 @@ void ParBilinearForm::FormLinearSystem(
    }
    else if (mat)
    {
+      MFEM_VERIFY(p_mat == NULL && p_mat_e == NULL,
+                  "The ParBilinearForm must be updated with Update() before "
+                  "re-assembling the ParBilinearForm.");
       Finalize();
       p_mat = ParallelAssemble();
       delete mat;
@@ -430,8 +434,8 @@ void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
 {
    if (X.ParFESpace() != trial_pfes)
    {
-      X.Update(trial_pfes);
-      Y.Update(test_pfes);
+      X.SetSpace(trial_pfes);
+      Y.SetSpace(test_pfes);
    }
 
    X.Distribute(&x);

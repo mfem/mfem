@@ -31,17 +31,13 @@ using miniapps::ParDiscreteGradOperator;
 namespace electromagnetics
 {
 
-// Physical Constants
-// Permittivity of Free Space (units F/m)
-static double epsilon0_ = 8.8541878176e-12;
-
 class VoltaSolver
 {
 public:
    VoltaSolver(ParMesh & pmesh, int order,
                Array<int> & dbcs, Vector & dbcv,
                Array<int> & nbcs, Vector & nbcv,
-               double (*eps    )(const Vector&),
+               Coefficient & epsCoef,
                double (*phi_bc )(const Vector&),
                double (*rho_src)(const Vector&),
                void   (*p_src  )(const Vector&, Vector&));
@@ -50,6 +46,8 @@ public:
    HYPRE_Int GetProblemSize();
 
    void PrintSizes();
+
+   void Assemble();
 
    void Update();
 
@@ -108,7 +106,6 @@ private:
    Coefficient       * rhoCoef_;
    VectorCoefficient * pCoef_;
 
-   double (*eps_    )(const Vector&);
    double (*phi_bc_ )(const Vector&);
    double (*rho_src_)(const Vector&);
    void   (*p_src_  )(const Vector&, Vector&);

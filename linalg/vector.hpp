@@ -39,13 +39,14 @@ protected:
 
 public:
 
-   /// Default constructor for Vector. Sets size = 0 and data = NULL
+   /// Default constructor for Vector. Sets size = 0 and data = NULL.
    Vector () { allocsize = size = 0; data = 0; }
 
    /// Copy constructor
    Vector(const Vector &);
 
-   /// Creates vector of size s.
+   /// @brief Creates vector of size s.
+   /// @warning Entries are not initialized to zero!
    explicit Vector (int s);
 
    /// Creates a vector referencing an array of doubles, owned by someone else.
@@ -61,7 +62,8 @@ public:
    /// Load a vector from an input stream.
    void Load(std::istream &in) { int s; in >> s; Load (in, s); }
 
-   /// Resizes the vector if the new size is different
+   /// @brief Resize the vector if the new size is different.
+   /// @warning New entries are not initialized!
    void SetSize(int s);
 
    void SetData(double *d) { data = d; }
@@ -222,22 +224,24 @@ public:
 
 // Inline methods
 
-inline int CheckFinite(const double *v, const int n)
+inline bool IsFinite(const double &val)
 {
    // isfinite didn't appear in a standard until C99, and later C++11
    // It wasn't standard in C89 or C++98.  PGI as of 14.7 still defines
    // it as a macro, which sort of screws up everybody else.
+#ifdef isfinite
+   return isfinite(val);
+#else
+   return std::isfinite(val);
+#endif
+}
+
+inline int CheckFinite(const double *v, const int n)
+{
    int bad = 0;
    for (int i = 0; i < n; i++)
    {
-#ifdef isfinite
-      if (!isfinite(v[i]))
-#else
-      if (!std::isfinite(v[i]))
-#endif
-      {
-         bad++;
-      }
+      if (!IsFinite(v[i])) { bad++; }
    }
    return bad;
 }

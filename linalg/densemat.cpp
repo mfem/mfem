@@ -415,12 +415,10 @@ MatrixInverse *DenseMatrix::Inverse() const
 
 double DenseMatrix::Det() const
 {
-#ifdef MFEM_DEBUG
-   if (Height() != Width() || Height() < 1 || Height() > 3)
-   {
-      mfem_error("DenseMatrix::Det");
-   }
-#endif
+   MFEM_ASSERT(Height() == Width() && Height() > 0 && Height() < 4,
+               "The matrix must be square and sized 1, 2, or 3 to compute the determinate."
+               << "  Height() = " << Height()
+               << ", Width() = " << Width());
 
    switch (Height())
    {
@@ -1653,12 +1651,10 @@ inline void GetScalingFactor(const double &d_max, double &mult)
 
 double DenseMatrix::CalcSingularvalue(const int i) const
 {
-#ifdef MFEM_DEBUG
-   if (Height() != Width() || Height() < 1 || Height() > 3)
-   {
-      mfem_error("DenseMatrix::CalcSingularvalue");
-   }
-#endif
+   MFEM_ASSERT(Height() == Width() && Height() > 0 && Height() < 4,
+               "The matrix must be square and sized 1, 2, or 3 to compute the singular values."
+               << "  Height() = " << Height()
+               << ", Width() = " << Width());
 
    const int n = Height();
    const double *d = data;
@@ -2190,17 +2186,31 @@ void DenseMatrix::CalcEigenvalues(double *lambda, double *vec) const
    }
 }
 
-void DenseMatrix::GetColumn(int c, Vector &col) const
+void DenseMatrix::GetRow(int r, Vector &row)
 {
-   int n;
-   double *cp, *vp;
+   int m = Height();
+   int n = Width();
+   row.SetSize(n);
 
-   n = Height();
-   col.SetSize(n);
-   cp = data + c * n;
-   vp = col.GetData();
+   double* rp = data + r;
+   double* vp = row.GetData();
 
    for (int i = 0; i < n; i++)
+   {
+      vp[i] = *rp;
+      rp += m;
+   }
+}
+
+void DenseMatrix::GetColumn(int c, Vector &col) const
+{
+   int m = Height();
+   col.SetSize(m);
+
+   double *cp = data + c * m;
+   double *vp = col.GetData();
+
+   for (int i = 0; i < m; i++)
    {
       vp[i] = cp[i];
    }
@@ -2490,9 +2500,23 @@ void DenseMatrix::CopyMN(const DenseMatrix &A, int m, int n, int Aro, int Aco,
    int i, j;
 
    MFEM_VERIFY(row_offset+m <= this->Height() && col_offset+n <= this->Width(),
-               "this DenseMatrix is too small to accomodate the submatrix.");
+               "this DenseMatrix is too small to accomodate the submatrix.  "
+               << "row_offset = " << row_offset
+               << ", m = " << m
+               << ", this->Height() = " << this->Height()
+               << ", col_offset = " << col_offset
+               << ", n = " << n
+               << ", this->Width() = " << this->Width()
+              );
    MFEM_VERIFY(Aro+m <= A.Height() && Aco+n <= A.Width(),
-               "The A DenseMatrix is too small to accomodate the submatrix.");
+               "The A DenseMatrix is too small to accomodate the submatrix.  "
+               << "Aro = " << Aro
+               << ", m = " << m
+               << ", A.Height() = " << A.Height()
+               << ", Aco = " << Aco
+               << ", n = " << n
+               << ", A.Width() = " << A.Width()
+              );
 
    for (j = 0; j < n; j++)
       for (i = 0; i < m; i++)
@@ -2654,6 +2678,22 @@ void DenseMatrix::SetCol(int col, double value)
    for (int i = 0; i < Height(); i++)
    {
       (*this)(i, col) = value;
+   }
+}
+
+void DenseMatrix::SetRow(int r, const Vector &row)
+{
+   for (int j = 0; j < Width(); j++)
+   {
+      (*this)(r, j) = row[j];
+   }
+}
+
+void DenseMatrix::SetCol(int c, const Vector &col)
+{
+   for (int i = 0; i < Height(); i++)
+   {
+      (*this)(i, c) = col[i];
    }
 }
 
@@ -2971,12 +3011,7 @@ void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat)
 
 void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
 {
-#ifdef MFEM_DEBUG
-   if (a.Width() > a.Height() || a.Width() < 1 || a.Height() > 3)
-   {
-      mfem_error("CalcInverse(...)");
-   }
-#endif
+   MFEM_ASSERT(a.Width() <= a.Height() && a.Width() >= 1 && a.Height() <= 3, "");
    MFEM_ASSERT(inva.Height() == a.Width(), "incorrect dimensions");
    MFEM_ASSERT(inva.Width() == a.Height(), "incorrect dimensions");
 
@@ -3023,10 +3058,9 @@ void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
 
 #ifdef MFEM_DEBUG
    t = a.Det();
-   if (fabs(t) < 1.0e-14 * pow(a.FNorm()/a.Width(), a.Width()))
-      cerr << "CalcInverse(...) : singular matrix!"
-           << endl;
-   t = 1. / t;
+   MFEM_ASSERT(std::abs(t) > 1.0e-14 * pow(a.FNorm()/a.Width(), a.Width()),
+               "singular matrix!");
+   t = 1.0 / t;
 #else
    t = 1.0 / a.Det();
 #endif
@@ -3099,13 +3133,15 @@ void CalcInverseTranspose(const DenseMatrix &a, DenseMatrix &inva)
 
 void CalcOrtho(const DenseMatrix &J, Vector &n)
 {
-#ifdef MFEM_DEBUG
-   if (((J.Height() != 2 || J.Width() != 1) &&
-        (J.Height() != 3 || J.Width() != 2)) || (J.Height() != n.Size()))
-   {
-      mfem_error("CalcNormal(...)");
-   }
-#endif
+   MFEM_ASSERT( ((J.Height() == 2 && J.Width() == 1)
+                 || (J.Height() == 3 && J.Width() == 2))
+                && (J.Height() == n.Size()),
+                "Matrix must be 3x2 or 2x1, "
+                << "and the Vector must be sized with the rows. "
+                << " J.Height() = " << J.Height()
+                << ", J.Width() = " << J.Width()
+                << ", n.Size() = " << n.Size()
+              );
 
    const double *d = J.Data();
    if (J.Height() == 2)

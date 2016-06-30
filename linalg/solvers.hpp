@@ -21,6 +21,7 @@
 
 #ifdef MFEM_USE_SUITESPARSE
 #include <umfpack.h>
+#include <klu.h>
 #endif
 
 namespace mfem
@@ -276,7 +277,7 @@ public:
 /** Adaptive restarted GMRES.
     m_max and m_min(=1) are the maximal and minimal restart parameters.
     m_step(=1) is the step to use for going from m_max and m_min.
-    cf(=0.4) is a desired convergance factor. */
+    cf(=0.4) is a desired convergence factor. */
 int aGMRES(const Operator &A, Vector &x, const Vector &b,
            const Operator &M, int &max_iter,
            int m_max, int m_min, int m_step, double cf,
@@ -357,6 +358,35 @@ public:
    virtual void MultTranspose(const Vector &b, Vector &x) const;
 
    virtual ~UMFPackSolver();
+};
+
+/// Direct sparse solver using KLU
+class KLUSolver : public Solver
+{
+protected:
+   SparseMatrix *mat;
+   klu_symbolic *Symbolic;
+   klu_numeric *Numeric;
+
+   void Init();
+
+public:
+   KLUSolver()
+      : mat(0),Symbolic(0),Numeric(0)
+   { Init(); }
+   KLUSolver(SparseMatrix &A)
+      : mat(0),Symbolic(0),Numeric(0)
+   { Init(); SetOperator(A); }
+
+   // Works on sparse matrices only; calls SparseMatrix::SortColumnIndices().
+   virtual void SetOperator(const Operator &op);
+
+   virtual void Mult(const Vector &b, Vector &x) const;
+   virtual void MultTranspose(const Vector &b, Vector &x) const;
+
+   virtual ~KLUSolver();
+
+   mutable klu_common Common;
 };
 
 #endif // MFEM_USE_SUITESPARSE

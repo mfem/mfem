@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-void Operator::PrintMatlab (std::ostream & out, int n, int m)
+void Operator::PrintMatlab (std::ostream & out, int n, int m) const
 {
    using namespace std;
    if (n == 0) { n = width; }

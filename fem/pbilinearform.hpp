@@ -106,7 +106,7 @@ public:
 
    /// Return the parallel trace FE space associated with static condensation.
    ParFiniteElementSpace *SCParFESpace() const
-   { return static_cond->GetParTraceFESpace(); }
+   { return static_cond ? static_cond->GetParTraceFESpace() : NULL; }
 
    /** Form the linear system A X = B, corresponding to the current bilinear
        form and b(.), by applying any necessary transformations such as:
@@ -135,7 +135,7 @@ public:
 
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem method to recover the solution as a ParGridFunction-size
-       vector in x. */
+       vector in x. Use the same arguments as in the FormLinearSystem call. */
    void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
 
    virtual void Update(FiniteElementSpace *nfes = NULL);

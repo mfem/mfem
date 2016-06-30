@@ -95,7 +95,7 @@ public:
    /// Return true if the data will be deleted by the array
    inline bool OwnsData() const { return (allocsize > 0); }
 
-   /// Changes the ownership of the the data
+   /// Changes the ownership of the data
    inline void StealData(T **p)
    { *p = (T*)data; data = 0; size = allocsize = 0; }
 
@@ -188,6 +188,10 @@ public:
    /// Sorts the array. This requires operator< to be defined for T.
    void Sort() { std::sort((T*) data, (T*) data + size); }
 
+   /// Sorts the array using the supplied comparison function object.
+   template<class Compare>
+   void Sort(Compare cmp) { std::sort((T*) data, (T*) data + size, cmp); }
+
    /** Removes duplicities from a sorted array. This requires operator== to be
        defined for T. */
    void Unique()
@@ -209,6 +213,10 @@ public:
 
    /// Copy data from a pointer. Size() elements are copied.
    inline void Assign(const T *);
+
+   // STL-like begin/end
+   inline T* begin() const { return (T*) data; }
+   inline T* end() const { return (T*) data + size; }
 
    long MemoryUsage() const { return Capacity() * sizeof(T); }
 

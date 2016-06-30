@@ -58,7 +58,7 @@ public:
    }
 
    /// Prints operator with input size n and output size m in matlab format.
-   void PrintMatlab (std::ostream & out, int n = 0, int m = 0);
+   void PrintMatlab (std::ostream & out, int n = 0, int m = 0) const;
 
    virtual ~Operator() { }
 };
@@ -177,13 +177,46 @@ public:
         Px(P.Height()), APx(A.Height()) { }
 
    /// Operator application
-   void Mult(const Vector & x, Vector & y) const
+   virtual void Mult(const Vector & x, Vector & y) const
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
-   void MultTranspose(const Vector & x, Vector & y) const
+   virtual void MultTranspose(const Vector & x, Vector & y) const
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
 
-   ~RAPOperator() { }
+   virtual ~RAPOperator() { }
+};
+
+
+/// General triple product operator x -> A*B*C*x, with ownership of the factors
+class TripleProductOperator : public Operator
+{
+   Operator *A;
+   Operator *B;
+   Operator *C;
+   bool ownA, ownB, ownC;
+   mutable Vector t1, t2;
+
+public:
+   TripleProductOperator(Operator *A, Operator *B, Operator *C,
+                         bool ownA, bool ownB, bool ownC)
+      : Operator(A->Height(), C->Width())
+      , A(A), B(B), C(C)
+      , ownA(ownA), ownB(ownB), ownC(ownC)
+      , t1(C->Height()), t2(B->Height())
+   {}
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   { C->Mult(x, t1); B->Mult(t1, t2); A->Mult(t2, y); }
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   { A->MultTranspose(x, t2); B->MultTranspose(t2, t1); C->MultTranspose(t1, y); }
+
+   virtual ~TripleProductOperator()
+   {
+      if (ownA) { delete A; }
+      if (ownB) { delete B; }
+      if (ownC) { delete C; }
+   }
 };
 
 }

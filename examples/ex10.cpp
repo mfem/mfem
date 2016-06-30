@@ -192,15 +192,7 @@ int main(int argc, char *argv[])
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
-   Mesh *mesh;
-   ifstream imesh(mesh_file);
-   if (!imesh)
-   {
-      cerr << "Can not open mesh: " << mesh_file << endl;
-      return 2;
-   }
-   mesh = new Mesh(imesh, 1, 1);
-   imesh.close();
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
    // 3. Define the ODE solver used for time integration. Several implicit
@@ -253,8 +245,8 @@ int main(int argc, char *argv[])
 
    BlockVector vx(fe_offset);
    GridFunction v, x;
-   v.Update(&fespace, vx.GetBlock(0), 0);
-   x.Update(&fespace, vx.GetBlock(1), 0);
+   v.MakeRef(&fespace, vx.GetBlock(0), 0);
+   x.MakeRef(&fespace, vx.GetBlock(1), 0);
 
    GridFunction x_ref(&fespace);
    mesh->GetNodes(x_ref);

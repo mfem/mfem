@@ -413,8 +413,7 @@ public:
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &h) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const
-   { dofs = 0.0; dofs(vertex) = 1.0; }
-   //      { dofs = 1.0; }
+   { dofs = 0.0; dofs(vertex) = 1.0; } // { dofs = 1.0; }
 };
 
 /// Class for linear FE on triangle with nodes at the 3 "Gaussian" points
@@ -569,7 +568,7 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-   //   virtual void ProjectDelta(int vertex, Vector &dofs) const { dofs = 1.; }
+   // virtual void ProjectDelta(int vertex, Vector &dofs) const { dofs = 1.; }
 };
 
 class BiCubic2DFiniteElement : public NodalFiniteElement
@@ -1314,6 +1313,7 @@ private:
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, dshape_x;
 #endif
+   Array<int> dof_map;
 
 public:
    H1_SegmentElement(const int p);
@@ -1321,6 +1321,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   const Array<int> &GetDofMap() const { return dof_map; }
 };
 
 
@@ -1372,6 +1373,7 @@ private:
    // thread private thing.  Brunner, Jan 2014
    mutable Vector shape_x, dshape_x;
 #endif
+   Array<int> dof_map;
 
 public:
    H1Pos_SegmentElement(const int p);
@@ -1379,6 +1381,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   const Array<int> &GetDofMap() const { return dof_map; }
 };
 
 
@@ -1397,6 +1400,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   const Array<int> &GetDofMap() const { return dof_map; }
 };
 
 
@@ -1415,6 +1419,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   const Array<int> &GetDofMap() const { return dof_map; }
 };
 
 
@@ -1453,7 +1458,56 @@ public:
 };
 
 
-// TODO: define H1Pos_ FEs on triangle and tetrahedron
+class H1Pos_TriangleElement : public PositiveFiniteElement
+{
+protected:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector m_shape, dshape_1d;
+   mutable DenseMatrix m_dshape;
+#endif
+   Array<int> dof_map;
+
+public:
+   H1Pos_TriangleElement(const int p);
+
+   // The size of shape is (p+1)(p+2)/2 (dof).
+   static void CalcShape(const int p, const double x, const double y,
+                         double *shape);
+
+   // The size of dshape_1d is p+1; the size of dshape is (dof x dim).
+   static void CalcDShape(const int p, const double x, const double y,
+                          double *dshape_1d, double *dshape);
+
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+};
+
+
+class H1Pos_TetrahedronElement : public PositiveFiniteElement
+{
+protected:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector m_shape, dshape_1d;
+   mutable DenseMatrix m_dshape;
+#endif
+   Array<int> dof_map;
+
+public:
+   H1Pos_TetrahedronElement(const int p);
+
+   // The size of shape is (p+1)(p+2)(p+3)/6 (dof).
+   static void CalcShape(const int p, const double x, const double y,
+                         const double z, double *shape);
+
+   // The size of dshape_1d is p+1; the size of dshape is (dof x dim).
+   static void CalcDShape(const int p, const double x, const double y,
+                          const double z, double *dshape_1d, double *dshape);
+
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+};
 
 
 class L2_SegmentElement : public NodalFiniteElement

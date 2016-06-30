@@ -162,6 +162,7 @@ int main(int argc, char *argv[])
    }
 
    delete mesh;
+   return 0;
 }
 
 void figure8_trans(const Vector &x, Vector &p)

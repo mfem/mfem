@@ -6,7 +6,7 @@
 //               ex6 -m ../data/square-disc.mesh -o 2
 //               ex6 -m ../data/square-disc-nurbs.mesh -o 2
 //               ex6 -m ../data/star.mesh -o 3
-//               ex6 -m ../data/escher.mesh -o 1
+//               ex6 -m ../data/escher.mesh -o 2
 //               ex6 -m ../data/fichera.mesh -o 2
 //               ex6 -m ../data/disc-nurbs.mesh -o 2
 //               ex6 -m ../data/ball-nurbs.mesh
@@ -64,14 +64,7 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   ifstream imesh(mesh_file);
-   if (!imesh)
-   {
-      cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
-      return 2;
-   }
-   Mesh mesh(imesh, 1, 1);
-   imesh.close();
+   Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
    int sdim = mesh.SpaceDimension();
 
@@ -101,13 +94,14 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
 
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   BilinearFormIntegrator *integ = new DiffusionIntegrator(one);
+   a.AddDomainIntegrator(integ);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
 
    // 6. The solution vector x and the associated finite element grid function
    //    will be maintained over the AMR iterations. We initialize it to zero.
    GridFunction x(&fespace);
-   x = 0;
+   x = 0.0;
 
    // 7. All boundary attributes will be used for essential (Dirichlet) BC.
    MFEM_VERIFY(mesh.bdr_attributes.Size() > 0,
@@ -124,44 +118,56 @@ int main(int argc, char *argv[])
       sol_sock.open(vishost, visport);
    }
 
-   // 9. The main AMR loop. In each iteration we solve the problem on the
-   //    current mesh, visualize the solution, estimate the error on all
-   //    elements, refine the worst elements and update all objects to work
-   //    with the new mesh.
+   // 9. Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
+   //    that uses the ComputeElementFlux method of the DiffusionIntegrator to
+   //    recover a smoothed flux (gradient) that is subtracted from the element
+   //    flux to get an error indicator. We need to supply the space for the
+   //    smoothed flux: an (H1)^sdim (i.e., vector-valued) space is used here.
+   FiniteElementSpace flux_fespace(&mesh, &fec, sdim);
+   ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
+   estimator.SetAnisotropic();
+
+   // 10. A refiner selects and refines elements based on a refinement strategy.
+   //     The strategy here is to refine elements with errors larger than a
+   //     fraction of the maximum element error. Other strategies are possible.
+   //     The refiner will call the given error estimator.
+   ThresholdRefiner refiner(estimator);
+   refiner.SetTotalErrorFraction(0.7);
+
+   // 11. The main AMR loop. In each iteration we solve the problem on the
+   //     current mesh, visualize the solution, and refine the mesh.
    const int max_dofs = 50000;
    for (int it = 0; ; it++)
    {
       int cdofs = fespace.GetTrueVSize();
-      cout << "\nIteration " << it << endl;
+      cout << "\nAMR iteration " << it << endl;
       cout << "Number of unknowns: " << cdofs << endl;
 
-      // 10. Assemble the stiffness matrix and the right-hand side. Note that
-      //     MFEM doesn't care at this point if the mesh is nonconforming (i.e.,
-      //     contains hanging nodes). The FE space is considered 'cut' along
-      //     hanging edges/faces.
+      // 12. Assemble the stiffness matrix and the right-hand side.
       a.Assemble();
       b.Assemble();
 
-      // 11. Set Dirichlet boundary values in the GridFunction x.
+      // 13. Set Dirichlet boundary values in the GridFunction x.
       //     Determine the list of Dirichlet true DOFs in the linear system.
       Array<int> ess_tdof_list;
       x.ProjectBdrCoefficient(zero, ess_bdr);
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-      // 12. Create the linear system: eliminate boundary conditions, constrain
+      // 14. Create the linear system: eliminate boundary conditions, constrain
       //     hanging nodes and possibly apply other transformations. The system
       //     will be solved for true (unconstrained) DOFs only.
       SparseMatrix A;
       Vector B, X;
-      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, 1);
+      const int copy_interior = 1;
+      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
 
 #ifndef MFEM_USE_SUITESPARSE
-      // 13. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+      // 15. Define a simple symmetric Gauss-Seidel preconditioner and use it to
       //     solve the linear system with PCG.
       GSSmoother M(A);
-      PCG(A, M, B, X, 2, 200, 1e-12, 0.0);
+      PCG(A, M, B, X, 3, 200, 1e-12, 0.0);
 #else
-      // 13. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the
+      // 15. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the
       //     the linear system.
       UMFPackSolver umf_solver;
       umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
@@ -169,12 +175,12 @@ int main(int argc, char *argv[])
       umf_solver.Mult(B, X);
 #endif
 
-      // 14. After solving the linear system, reconstruct the solution as a finite
-      //     element grid function. Constrained nodes are interpolated from true
-      //     DOFs (it may therefore happen that dim(x) >= dim(X)).
+      // 16. After solving the linear system, reconstruct the solution as a
+      //     finite element GridFunction. Constrained nodes are interpolated
+      //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
       a.RecoverFEMSolution(X, b, x);
 
-      // 15. Send solution by socket to the GLVis server.
+      // 17. Send solution by socket to the GLVis server.
       if (visualization && sol_sock.good())
       {
          sol_sock.precision(8);
@@ -183,55 +189,29 @@ int main(int argc, char *argv[])
 
       if (cdofs > max_dofs)
       {
+         cout << "Reached the maximum number of dofs. Stop." << endl;
          break;
       }
 
-      // 16. Estimate element errors using the Zienkiewicz-Zhu error estimator.
-      //     The bilinear form integrator must have the 'ComputeElementFlux'
-      //     method defined.
-      Vector errors(mesh.GetNE());
-      Array<int> aniso_flags;
+      // 18. Call the refiner to modify the mesh. The refiner calls the error
+      //     estimator to obtain element errors, then it selects elements to be
+      //     refined and finally it modifies the mesh. The Stop() method can be
+      //     used to determine if a stopping criterion was met.
+      refiner.Apply(mesh);
+      if (refiner.Stop())
       {
-         DiffusionIntegrator flux_integrator(one);
-         FiniteElementSpace flux_fespace(&mesh, &fec, sdim);
-         GridFunction flux(&flux_fespace);
-         ZZErrorEstimator(flux_integrator, x, flux, errors, &aniso_flags);
+         cout << "Stopping criterion satisfied. Stop." << endl;
+         break;
       }
-
-      // 17. Make a list of elements whose error is larger than a fraction (0.7)
-      //     of the maximum element error. These elements will be refined.
-      Array<Refinement> ref_list;
-      const double frac = 0.7;
-      // the 'errors' are squared, so we need to square the fraction
-      double threshold = (frac*frac) * errors.Max();
-      for (int i = 0; i < errors.Size(); i++)
-      {
-         if (errors[i] >= threshold)
-         {
-            ref_list.Append(Refinement(i, aniso_flags[i]));
-         }
-      }
-
-      // 18. Refine the selected elements. Since we are going to transfer the
-      //     grid function x from the coarse mesh to the new fine mesh in the
-      //     next step, we need to request the "two-level state" of the mesh.
-      mesh.UseTwoLevelState(1);
-      mesh.GeneralRefinement(ref_list);
 
       // 19. Update the space to reflect the new state of the mesh. Also,
       //     interpolate the solution x so that it lies in the new space but
-      //     represents the same function. This saves solver iterations since
-      //     we'll have a good initial guess of x in the next step.
-      //     The interpolation algorithm needs the mesh to hold some information
-      //     about the previous state, which is why the call UseTwoLevelState
-      //     above is required.
-      fespace.UpdateAndInterpolate(&x);
-
-      // Note: If interpolation was not needed, we could just use the following
-      //     two calls to update the space and the grid function. (No need to
-      //     call UseTwoLevelState in this case.)
-      // fespace.Update();
-      // x.Update();
+      //     represents the same function. This saves solver iterations later
+      //     since we'll have a good initial guess of x in the next step.
+      //     Internally, FiniteElementSpace::Update() calculates an
+      //     interpolation matrix which is then used by GridFunction::Update().
+      fespace.Update();
+      x.Update();
 
       // 20. Inform also the bilinear and linear forms that the space has
       //     changed.

@@ -127,14 +127,7 @@ int main (int argc, char *argv[])
    Mesh *mesh;
    if (np <= 0)
    {
-      ifstream imesh(mesh_file);
-      if (!imesh)
-      {
-         cerr << "can not open mesh file: " << mesh_file << endl;
-         return 2;
-      }
-      mesh = new Mesh(imesh, 1, 1);
-      imesh.close();
+      mesh = new Mesh(mesh_file, 1, 1);
    }
    else
    {

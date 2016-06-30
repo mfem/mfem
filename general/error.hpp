@@ -37,17 +37,17 @@ void mfem_warning(const char *msg = NULL);
 #endif
 #endif
 
+#define MFEM_LOCATION \
+   "\n ... in function: " << _MFEM_FUNC_NAME << \
+   "\n ... at line " << __LINE__ << " of file: " << __FILE__ << '\n'
+
 // Common error message and abort macro
 #define _MFEM_MESSAGE(msg, warn)                                        \
    {                                                                    \
       std::ostringstream mfemMsgStream;                                 \
       mfemMsgStream << std::setprecision(16);                           \
       mfemMsgStream << std::setiosflags(std::ios_base::scientific);     \
-      mfemMsgStream << msg << '\n';                                     \
-      mfemMsgStream << " ... at line " << __LINE__;                     \
-      mfemMsgStream << " in " << _MFEM_FUNC_NAME << " of file ";        \
-      mfemMsgStream << __FILE__ << ".";                                 \
-      mfemMsgStream << std::ends;                                       \
+      mfemMsgStream << msg << MFEM_LOCATION;                            \
       if (!(warn))                                                      \
          mfem::mfem_error(mfemMsgStream.str().c_str());                 \
       else                                                              \

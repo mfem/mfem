@@ -73,17 +73,19 @@ public:
        Processor P owns columns [col[P],col[P+1]) */
    HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
    /** Creates vector with given global size, partitioning of the columns,
-       and data. The data must be allocated and destroyed outside. */
+       and data. The data must be allocated and destroyed outside.
+       If _data is NULL, a dummy vector without a valid data array will
+       be created. */
    HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, double *_data,
                   HYPRE_Int *col);
    /// Creates vector compatible with y
    HypreParVector(const HypreParVector &y);
    /// Creates vector compatible with (i.e. in the domain of) A or A^T
-   HypreParVector(HypreParMatrix &A, int tr = 0);
+   explicit HypreParVector(const HypreParMatrix &A, int transpose = 0);
    /// Creates vector wrapping y
-   HypreParVector(HYPRE_ParVector y);
+   explicit HypreParVector(HYPRE_ParVector y);
    /// Create a true dof parallel vector on a given ParFiniteElementSpace
-   HypreParVector(ParFiniteElementSpace *pfes);
+   explicit HypreParVector(ParFiniteElementSpace *pfes);
 
    /// MPI communicator
    MPI_Comm GetComm() { return x->comm; }
@@ -139,6 +141,11 @@ double InnerProduct(HypreParVector &x, HypreParVector &y);
 double InnerProduct(HypreParVector *x, HypreParVector *y);
 
 
+/** @brief Compute the l_p norm of the Vector which is split without overlap
+    across the given communicator. */
+double ParNormlp(const Vector &vec, double p, MPI_Comm comm);
+
+
 /// Wrapper for hypre's ParCSR matrix class
 class HypreParMatrix : public Operator
 {
@@ -192,7 +199,7 @@ public:
    HypreParMatrix();
 
    /// Converts hypre's format to HypreParMatrix
-   HypreParMatrix(hypre_ParCSRMatrix *a)
+   explicit HypreParMatrix(hypre_ParCSRMatrix *a)
    {
       Init();
       A = a;
@@ -506,7 +513,7 @@ public:
    /// Compute window and Chebyshev coefficients for given polynomial order.
    void SetFIRCoefficients(double max_eig);
 
-   /** Set/update the associated operator. Mult be called after setting the
+   /** Set/update the associated operator. Must be called after setting the
        HypreSmoother type and options. */
    virtual void SetOperator(const Operator &op);
 

@@ -29,7 +29,9 @@ protected:
 
 public:
    int Attribute, ElementNo;
+
    ElementTransformation();
+
    void SetIntPoint(const IntegrationPoint *ip)
    { IntPoint = ip; WeightIsEvaluated = JacobianIsEvaluated = 0; }
    const IntegrationPoint &GetIntPoint() { return *IntPoint; }
@@ -57,7 +59,7 @@ public:
    virtual int GetSpaceDim() = 0;
 
    /** Attempt to find the IntegrationPoint that is transformed into the given
-       point in physical space. If the invesion fails a non-zero value is
+       point in physical space. If the inversion fails a non-zero value is
        returned. This method is not 100 percent reliable for non-linear
        transformations. */
    virtual int TransformBack(const Vector &, IntegrationPoint &) = 0;
@@ -77,6 +79,8 @@ private:
 
 public:
    void SetFE(const FiniteElement *FE) { FElem = FE; }
+   const FiniteElement* GetFE() const { return FElem; }
+
    DenseMatrix &GetPointMat () { return PointMat; }
 
    void SetIdentityTransformation(int GeomType);
@@ -119,6 +123,38 @@ public:
    ElementTransformation *Elem1, *Elem2, *Face;
    IntegrationPointTransformation Loc1, Loc2;
 };
+
+/*                 Elem1(Loc1(x)) = Face(x) = Elem2(Loc2(x))
+
+
+                                Physical Space
+
+               *--------*             ^            *--------*
+    Elem1No   /        / \           / \          / \        \   Elem2No
+             /        /   \         /   \        /   \        \
+            /        /  n  \       /     \      /     \        \
+           *--------*   ==> *     (       )    *       *--------*
+            \        \     /       \     /      \     /        /
+             \        \   /         \   /        \   /        /
+              \        \ /           \ /          \ /        /
+               *--------*             v            *--------*
+
+              ^                                              ^
+              |                       ^                      |
+        Elem1 |                       |                      | Elem2
+              |                       | Face                 |
+                                      |
+        *--------*                                          *--------*
+       /        /|                                         /        /|
+    1 *--------* |              1 *--------*            1 *--------* |
+      |        | |     Loc1       |        |     Loc2     |        | |
+      |        | *    <-----      |    x   |    ----->    |        | *
+      |        |/                 |        |              |        |/
+      *--------*                  *--------*              *--------*
+     0         1                 0         1             0         1
+
+                               Reference Space
+*/
 
 }
 

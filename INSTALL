@@ -39,6 +39,9 @@ Example codes (serial/parallel, depending on the build):
 Build everything (library, examples and miniapps) with current configuration:
    make all -j 4
 
+Quick-check the build by running Example 1/1p (optional):
+   make check
+
 
 Building with GNU make
 ======================
@@ -53,11 +56,12 @@ The OPTIONS are of the form VARIABLE=VALUE. Detailed description of the
 configuration options is given below. Alternatively, the options can be
 specified with an input file:
 
-   cp config/user.mk.in config/user.mk
+   cp config/defaults.mk config/user.mk
    (edit config/user.mk)
    make config
 
-The default configuration file (config/user.mk) can be changed with
+Note that config/user.mk, if present, is loaded after config/defaults.mk and
+its path/name can be changed with
 
    make config USER_CONFIG=user_config_file
 
@@ -76,6 +80,19 @@ are also defined:
 
 Note that any of the above shortcuts accept configuration options, either at the
 command line or through a user configuration file.
+
+The build can be quick-tested by running
+
+   make check
+
+which will simply compile and run Example 1/1p. For more extensive tests that
+check the results from all the serial/parallel MFEM examples and miniapps use:
+
+   make test
+
+Note that running all the tests may take a while. Implementation details about
+the check and test targets can be found in the top-level makefile and the
+config/test.mk file.
 
 An optional installation of the library and the headers can be performed with
 
@@ -154,15 +171,6 @@ MFEM_THREAD_SAFE = YES/NO
 MFEM_USE_OPENMP = YES/NO
    Enable (basic) experimental OpenMP support. Requires MFEM_THREAD_SAFE.
 
-MFEM_USE_MESQUITE = YES/NO
-   Enable MFEM functionality based on the Mesquite library. When enabled, this
-   option uses the MESQUITE_* library options, see below.
-
-MFEM_USE_SUITESPARSE = YES/NO
-   Enable MFEM functionality based on the SuiteSparse library. Currently, this
-   option adds the class UMFPackSolver (a sparse direct solver). When enabled,
-   this option uses the SUITESPARSE_* library options, see below.
-
 MFEM_USE_MEMALLOC = YES/NO
    Internal MFEM option: enable batch allocation for some small objects.
    Recommended value is YES.
@@ -175,6 +183,41 @@ MFEM_TIMER_TYPE = 0/1/2/3/NO
       2  - use high-resolution POSIX clocks (see option POSIX_CLOCKS_LIB)
       3  - use QueryPerformanceCounter from <windows.h>
       NO - use option 3 if the compiler macro _WIN32 is defined, 0 otherwise
+
+MFEM_USE_MESQUITE = YES/NO
+   Enable MFEM functionality based on the Mesquite library. When enabled, this
+   option uses the MESQUITE_* library options, see below.
+
+MFEM_USE_SUITESPARSE = YES/NO
+   Enable MFEM functionality based on the SuiteSparse library. Currently, this
+   option adds the classes UMFPackSolver and KLUSolver (both sparse serial
+   direct solvers). When enabled, this option uses the SUITESPARSE_* library
+   options, see below.
+
+MFEM_USE_SUPERLU = YES/NO
+   Enable MFEM functionality based on the SuperLU_DIST library. Currently, this
+   option adds the classes SuperLUSolver (a parallel sparse direct solver) and
+   SuperLURowLocMatrix a distributed CSR matrix class needed by SuperLU. When
+   enabled, this option uses the SUPERLU_* library options, see below.
+
+MFEM_USE_GNUTLS = YES/NO
+   Enable secure socket support in class socketstream, using the auxiliary
+   GnuTLS_* classes, based on the GnuTLS library. This option may be useful in
+   multi-user environment to prevent users from sending/receiving visualization
+   data to/from other users. When this option is enabled, the default behavior
+   in class socketstream is to use secure sockets, e.g. when connecting to a
+   GLVis visualization server. In order for this to work, one needs to generate
+   GLVis server/client key pairs (in ~/.config/glvis), similar to ssh keys --
+   the script 'glvis-keygen.sh' in the main GLVis directory can be used to do
+   that:
+      bash glvis-keygen.sh ["Your Name"] ["Your Email"]
+   When MFEM_USE_GNUTLS is enabled, the additional build options, GNUTLS_*, are
+   also used, see below.
+
+MFEM_USE_NETCDF = YES/NO
+   NetCDF is the library that is used by the SNL Cubit mesh generator to create
+   Genesis mesh files. This option enables a reader for these files, which
+   requires that NetCDF be installed, see the NETCDF_* build options below.
 
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
@@ -214,6 +257,10 @@ The specific libraries and their options are:
 - OpenMP (optional), usually part of compiler, used when MFEM_USE_OPENMP = YES.
   Options: OPENMP_OPT, OPENMP_LIB.
 
+- High-resolution POSIX clocks: when using MFEM_TIMER_TYPE = 2, it may be
+  necessary to link with a system library (e.g. librt.so).
+  Option: POSIX_CLOCKS_LIB (default = -lrt).
+
 - Mesquite (optional), used when MFEM_USE_MESQUITE = YES.
   URL: http://trilinos.org/oldsite/packages/mesquite
   Options: MESQUITE_OPT, MESQUITE_LIB.
@@ -222,9 +269,23 @@ The specific libraries and their options are:
   URL: http://faculty.cse.tamu.edu/davis/suitesparse.html
   Options: SUITESPARSE_OPT, SUITESPARSE_LIB.
 
-- High-resolution POSIX clocks: when using MFEM_TIMER_TYPE = 2, it may be
-  necessary to link with a system library (e.g. librt.so).
-  Option: POSIX_CLOCKS_LIB (default = -lrt).
+- SuperLU_DIST (optional), used when MFEM_USE_SUPERLU = YES. Note that
+  SuperLU_DIST requires ParMETIS which, in turn, requires METIS (see above URL).
+  URL: http://crd-legacy.lbl.gov/~xiaoye/SuperLU
+  Options: SUPERLU_OPT, SUPERLU_LIB.
+
+- GnuTLS (optional), used when MFEM_USE_GNUTLS = YES. On most Linux systems,
+  GnuTLS is available as a development package, e.g. gnutls-devel. On Mac OS X,
+  one can get the library through the Homebrew package manager (http://brew.sh).
+  URL: http://gnutls.org
+  Options: GNUTLS_OPT, GNUTLS_LIB.
+
+- NetCDF (optional), used when MFEM_USE_NETCDF = YES, required for reading Cubit
+  mesh files. Also requires installation of HDF5 and ZLIB, as explained at the
+  NetCDF web site. Note that we use the plain vanilla "C" version of NetCDF, you
+  don't need the C++ or parallel versions.
+  URL: www.unidata.ucar.edu/software/netcdf
+  Options: NETCDF_OPT, NETCDF_LIB.
 
 
 Building without GNU make

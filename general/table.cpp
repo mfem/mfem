@@ -180,12 +180,16 @@ void Table::GetRow(int i, Array<int> &row) const
 {
    MFEM_ASSERT(i >= 0 && i < size, "Row index " << i << " is out of range [0,"
                << size << ')');
-   const int *jp = GetRow(i), n = RowSize(i);
 
-   row.SetSize(n);
-   for (int j = 0; j < n; j++)
+   row.SetSize(RowSize(i));
+   row.Assign(GetRow(i));
+}
+
+void Table::SortRows()
+{
+   for (int r = 0; r < size; r++)
    {
-      row[j] = jp[j];
+      std::sort(J + I[r], J + I[r+1]);
    }
 }
 
@@ -282,7 +286,9 @@ int Table::Width() const
 {
    int width = -1, nnz = (size >= 0) ? I[size] : 0;
    for (int k = 0; k < nnz; k++)
+   {
       if (J[k] > width) { width = J[k]; }
+   }
    return width + 1;
 }
 

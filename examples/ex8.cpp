@@ -62,15 +62,7 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   Mesh *mesh;
-   ifstream imesh(mesh_file);
-   if (!imesh)
-   {
-      cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
-      return 2;
-   }
-   mesh = new Mesh(imesh, 1, 1);
-   imesh.close();
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
    // 3. Refine the mesh to increase the resolution. In this example we do
@@ -250,7 +242,7 @@ int main(int argc, char *argv[])
    }
 
    GridFunction x0;
-   x0.Update(x0_space, x.GetBlock(x0_var), 0);
+   x0.MakeRef(x0_space, x.GetBlock(x0_var), 0);
 
    // 11. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m refined.mesh -g sol.gf".

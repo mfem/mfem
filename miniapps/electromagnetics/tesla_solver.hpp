@@ -43,7 +43,7 @@ class TeslaSolver
 public:
    TeslaSolver(ParMesh & pmesh, int order, Array<int> & kbcs,
                Array<int> & vbcs, Vector & vbcv,
-               double (*muInv)(const Vector&),
+               Coefficient & muInvCoef,
                void   (*a_bc )(const Vector&, Vector&),
                void   (*j_src)(const Vector&, Vector&),
                void   (*m_src)(const Vector&, Vector&));
@@ -52,6 +52,8 @@ public:
    HYPRE_Int GetProblemSize();
 
    void PrintSizes();
+
+   void Assemble();
 
    void Update();
 
@@ -106,7 +108,6 @@ private:
    VectorCoefficient * jCoef_;     // Volume Current Density Function
    VectorCoefficient * mCoef_;     // Magnetization Vector Function
 
-   double (*muInv_)(const Vector&);
    void   (*a_bc_ )(const Vector&, Vector&);
    void   (*j_src_)(const Vector&, Vector&);
    void   (*m_src_)(const Vector&, Vector&);

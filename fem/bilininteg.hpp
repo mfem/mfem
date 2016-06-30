@@ -220,7 +220,7 @@ public:
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
 class MassIntegrator: public BilinearFormIntegrator
 {
-private:
+protected:
    Vector shape, te_shape;
    Coefficient *Q;
 
@@ -246,6 +246,13 @@ class BoundaryMassIntegrator : public MassIntegrator
 {
 public:
    BoundaryMassIntegrator(Coefficient &q) : MassIntegrator(q) { }
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
 };
 
 /// alpha (q . grad u, v)

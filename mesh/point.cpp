@@ -29,6 +29,4 @@ void Point::GetVertices( Array<int> &v ) const
 
 PointFiniteElement PointFE;
 
-int RefinedElement::State = RefinedElement::FINE;
-
 }

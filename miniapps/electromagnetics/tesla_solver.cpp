@@ -28,7 +28,7 @@ namespace electromagnetics
 TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
                          Array<int> & kbcs,
                          Array<int> & vbcs, Vector & vbcv,
-                         double (*muInv)(const Vector&),
+                         Coefficient & muInvCoef,
                          void   (*a_bc )(const Vector&, Vector&),
                          void   (*j_src)(const Vector&, Vector&),
                          void   (*m_src)(const Vector&, Vector&))
@@ -54,11 +54,10 @@ TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
      m_(NULL),
      DivFreeProj_(NULL),
      SurfCur_(NULL),
-     muInvCoef_(NULL),
+     muInvCoef_(&muInvCoef),
      aBCCoef_(NULL),
      jCoef_(NULL),
      mCoef_(NULL),
-     muInv_(muInv),
      a_bc_(a_bc),
      j_src_(j_src),
      m_src_(m_src)
@@ -100,16 +99,6 @@ TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
                                                *a_bc_);
    }
 
-   // Inverse of the magnetic permeability
-   if ( muInv_ == NULL )
-   {
-      muInvCoef_ = new ConstantCoefficient(1.0/mu0_);
-   }
-   else
-   {
-      muInvCoef_ = new FunctionCoefficient(muInv_);
-   }
-
    // Volume Current Density
    if ( j_src_ != NULL )
    {
@@ -133,16 +122,6 @@ TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
 
    hDivHCurlMuInv_ = new ParMixedBilinearForm(HDivFESpace_, HCurlFESpace_);
    hDivHCurlMuInv_->AddDomainIntegrator(new VectorFEMassIntegrator(*muInvCoef_));
-
-   // Assemble Matrices
-   curlMuInvCurl_->Assemble();
-   curlMuInvCurl_->Finalize();
-
-   hCurlMass_->Assemble();
-   hCurlMass_->Finalize();
-
-   hDivHCurlMuInv_->Assemble();
-   hDivHCurlMuInv_->Finalize();
 
    // Discrete Curl operator
    Curl_ = new ParDiscreteCurlOperator(HCurlFESpace_, HDivFESpace_);
@@ -179,14 +158,11 @@ TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
       hDivMassMuInv_ = new ParBilinearForm(HDivFESpace_);
       hDivMassMuInv_->AddDomainIntegrator(
          new VectorFEMassIntegrator(*muInvCoef_));
-      hDivMassMuInv_->Assemble();
-      hDivMassMuInv_->Finalize();
    }
 }
 
 TeslaSolver::~TeslaSolver()
 {
-   delete muInvCoef_;
    delete jCoef_;
    delete mCoef_;
    delete aBCCoef_;
@@ -236,19 +212,48 @@ TeslaSolver::PrintSizes()
    {
       cout << "Number of H1      unknowns: " << size_h1 << endl;
       cout << "Number of H(Curl) unknowns: " << size_nd << endl;
-      cout << "Number of H(Div)  unknowns: " << size_rt << endl << flush;
+      cout << "Number of H(Div)  unknowns: " << size_rt << endl;
    }
+}
+
+void
+TeslaSolver::Assemble()
+{
+   if (myid_ == 0) { cout << "Assembling ..." << flush; }
+
+   curlMuInvCurl_->Assemble();
+   curlMuInvCurl_->Finalize();
+
+   if ( hCurlMass_ )
+   {
+      hCurlMass_->Assemble();
+      hCurlMass_->Finalize();
+   }
+   if ( hDivMassMuInv_ )
+   {
+      hDivMassMuInv_->Assemble();
+      hDivMassMuInv_->Finalize();
+   }
+   if ( hDivHCurlMuInv_ )
+   {
+      hDivHCurlMuInv_->Assemble();
+      hDivHCurlMuInv_->Finalize();
+   }
+
+   if (myid_ == 0) { cout << " done." << endl; }
 }
 
 void
 TeslaSolver::Update()
 {
-   if (myid_ == 0) { cout << " Assembly ... " << flush; }
+   if (myid_ == 0) { cout << "Updating ..." << endl; }
 
    // Inform the spaces that the mesh has changed
-   H1FESpace_->Update();
-   HCurlFESpace_->Update();
-   HDivFESpace_->Update();
+   // Note: we don't need to interpolate any GridFunctions on the new mesh
+   // so we pass 'false' to skip creation of any transformation matrices.
+   H1FESpace_->Update(false);
+   HCurlFESpace_->Update(false);
+   HDivFESpace_->Update(false);
 
    // Inform the grid functions that the space has changed.
    a_->Update();
@@ -260,43 +265,21 @@ TeslaSolver::Update()
 
    // Inform the bilinear forms that the space has changed.
    curlMuInvCurl_->Update();
-   curlMuInvCurl_->Assemble();
-   curlMuInvCurl_->Finalize();
-
-   if ( hCurlMass_ )
-   {
-      hCurlMass_->Update();
-      hCurlMass_->Assemble();
-      hCurlMass_->Finalize();
-   }
-
-   if ( hDivMassMuInv_ )
-   {
-      hDivMassMuInv_->Update();
-      hDivMassMuInv_->Assemble();
-      hDivMassMuInv_->Finalize();
-   }
-
-   if ( hDivHCurlMuInv_ )
-   {
-      hDivHCurlMuInv_->Update();
-      hDivHCurlMuInv_->Assemble();
-      hDivHCurlMuInv_->Finalize();
-   }
+   if ( hCurlMass_      ) { hCurlMass_->Update(); }
+   if ( hDivMassMuInv_  ) { hDivMassMuInv_->Update(); }
+   if ( hDivHCurlMuInv_ ) { hDivHCurlMuInv_->Update(); }
 
    // Inform the other objects that the space has changed.
    Curl_->Update();
    if ( Grad_        ) { Grad_->Update(); }
    if ( DivFreeProj_ ) { DivFreeProj_->Update(); }
    if ( SurfCur_     ) { SurfCur_->Update(); }
-
-   if (myid_ == 0) { cout << "done." << flush; }
 }
 
 void
 TeslaSolver::Solve()
 {
-   if (myid_ == 0) { cout << "Running solver ... " << endl << flush; }
+   if (myid_ == 0) { cout << "Running solver ... " << endl; }
 
    // Initialize the magnetic vector potential with its boundary conditions
    *a_ = 0.0;
@@ -315,19 +298,19 @@ TeslaSolver::Solve()
    HypreParVector *RHS = new HypreParVector(HCurlFESpace_);
    *RHS = 0.0;
 
-   HypreParMatrix *MassHCurl = hCurlMass_->ParallelAssemble();
-
    // Initialize the volumetric current density
    if ( j_ )
    {
       j_->ProjectCoefficient(*jCoef_);
 
+      HypreParMatrix *MassHCurl = hCurlMass_->ParallelAssemble();
       HypreParVector *J    = j_->ParallelProject();
       HypreParVector *JD   = new HypreParVector(HCurlFESpace_);
 
       MassHCurl->Mult(*J,*JD);
       DivFreeProj_->Mult(*JD, *RHS);
 
+      delete MassHCurl;
       delete J;
       delete JD;
    }
@@ -390,40 +373,37 @@ TeslaSolver::Solve()
    // Compute magnetic field (H) from B and M
    if (myid_ == 0) { cout << "Computing H ... " << flush; }
 
-   HypreParMatrix *HDivHCurlMuInv = hDivHCurlMuInv_->ParallelAssemble();
-   HypreParVector *BD = new HypreParVector(HCurlFESpace_);
-   HypreParVector *H  = new HypreParVector(HCurlFESpace_);
-
-   HDivHCurlMuInv->Mult(*B,*BD);
-
-   if ( M )
+   ParGridFunction bd(HCurlFESpace_);
+   hDivHCurlMuInv_->Mult(*b_, bd);
+   if ( m_ )
    {
-      HDivHCurlMuInv->Mult(*M,*BD,-1.0*mu0_,1.0);
+      hDivHCurlMuInv_->AddMult(*m_, bd, -1.0 * mu0_);
    }
 
-   HyprePCG * pcgM = new HyprePCG(*MassHCurl);
+   HypreParMatrix MassHCurl;
+   Vector BD, H;
+
+   Array<int> dbc_dofs_h;
+   hCurlMass_->FormLinearSystem(dbc_dofs_h, *h_, bd, MassHCurl, H, BD);
+
+   HyprePCG * pcgM = new HyprePCG(MassHCurl);
    pcgM->SetTol(1e-12);
    pcgM->SetMaxIter(500);
    pcgM->SetPrintLevel(0);
-   HypreDiagScale *diagM = new HypreDiagScale;
-   pcgM->SetPreconditioner(*diagM);
-   pcgM->Mult(*BD,*H);
+   HypreDiagScale diagM;
+   pcgM->SetPreconditioner(diagM);
+   pcgM->Mult(BD,H);
 
-   *h_ = *H;
+   hCurlMass_->RecoverFEMSolution(H, bd, *h_);
 
    if (myid_ == 0) { cout << "done." << flush; }
 
-   delete diagM;
    delete pcgM;
-   delete HDivHCurlMuInv;
-   delete MassHCurl;
    delete A;
    delete B;
-   delete BD;
-   delete H;
    delete M;
 
-   if (myid_ == 0) { cout << " Solver done. " << flush; }
+   if (myid_ == 0) { cout << " Solver done. " << endl; }
 }
 
 void
@@ -444,7 +424,7 @@ TeslaSolver::GetErrorEstimates(Vector & errors)
    L2ZZErrorEstimator(flux_integrator, *a_,
                       smooth_flux_fes, flux_fes, errors, norm_p);
 
-   if (myid_ == 0) { cout << "done." << flush; }
+   if (myid_ == 0) { cout << "done." << endl; }
 }
 
 void
@@ -473,14 +453,14 @@ TeslaSolver::WriteVisItFields(int it)
       visit_dc_->SetTime(prob_size);
       visit_dc_->Save();
 
-      if (myid_ == 0) { cout << " " << flush; }
+      if (myid_ == 0) { cout << " done." << endl; }
    }
 }
 
 void
 TeslaSolver::InitializeGLVis()
 {
-   if ( myid_ == 0 ) { cout << "Opening GLVis sockets." << endl << flush; }
+   if ( myid_ == 0 ) { cout << "Opening GLVis sockets." << endl; }
 
    socks_["A"] = new socketstream;
    socks_["A"]->precision(8);
@@ -509,7 +489,7 @@ TeslaSolver::InitializeGLVis()
       socks_["M"] = new socketstream;
       socks_["M"]->precision(8);
    }
-   if ( myid_ == 0 ) { cout << "GLVis sockets open." << endl << flush; }
+   if ( myid_ == 0 ) { cout << "GLVis sockets open." << endl; }
 }
 
 void
@@ -561,7 +541,7 @@ TeslaSolver::DisplayToGLVis()
                      *m_, "Magnetization (M)", Wx, Wy, Ww, Wh);
       Wx += offx;
    }
-   if (myid_ == 0) { cout << " " << flush; }
+   if (myid_ == 0) { cout << " done." << endl; }
 }
 
 SurfaceCurrent::SurfaceCurrent(ParFiniteElementSpace & H1FESpace,
@@ -658,7 +638,7 @@ SurfaceCurrent::ComputeSurfaceCurrent(ParGridFunction & k)
    VectorConstantCoefficient Zero(vZero);
    k.ProjectBdrCoefficientTangent(Zero,non_k_bdr_);
 
-   if (myid_ == 0) { cout << "done." << endl << flush; }
+   if (myid_ == 0) { cout << "done." << endl; }
 }
 
 void

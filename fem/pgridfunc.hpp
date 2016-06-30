@@ -58,13 +58,13 @@ public:
    ParGridFunction &operator=(const Vector &v)
    { GridFunction::operator=(v); return *this; }
 
-   ParFiniteElementSpace *ParFESpace() { return pfes; }
+   ParFiniteElementSpace *ParFESpace() const { return pfes; }
 
-   void Update() { Update(pfes); }
+   void Update();
 
-   void Update(ParFiniteElementSpace *f);
+   void SetSpace(ParFiniteElementSpace *f);
 
-   void Update(ParFiniteElementSpace *f, Vector &v, int v_offset);
+   void MakeRef(ParFiniteElementSpace *f, Vector &v, int v_offset);
 
    /** Set the grid function on (all) dofs from a given vector on the
        true dofs, i.e. P tv. */
@@ -226,13 +226,13 @@ public:
     from supplied discontinuous space into supplied smooth (continuous, or at
     least conforming) space, and computes the Lp norms of the differences
     between them on each element. This is one approach to handling conforming
-    and non-conforming elements in parallel. */
-void L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
-                        ParGridFunction &x,
-                        ParFiniteElementSpace &smooth_flux_fes,
-                        ParFiniteElementSpace &flux_fes,
-                        Vector &errors, int norm_p = 2, double solver_tol = 1e-12,
-                        int solver_max_it = 200);
+    and non-conforming elements in parallel. Returns the total error estimate. */
+double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
+                          const ParGridFunction &x,
+                          ParFiniteElementSpace &smooth_flux_fes,
+                          ParFiniteElementSpace &flux_fes,
+                          Vector &errors, int norm_p = 2, double solver_tol = 1e-12,
+                          int solver_max_it = 200);
 
 }
 

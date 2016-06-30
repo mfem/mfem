@@ -16,6 +16,7 @@
 //               mpirun -np 4 ex4p -m ../data/periodic-cube.mesh -no-bc
 //               mpirun -np 4 ex4p -m ../data/amr-quad.mesh
 //               mpirun -np 4 ex4p -m ../data/amr-hex.mesh -o 2 -sc
+//               mpirun -np 4 ex4p -m ../data/amr-hex.mesh -o 2 -hb
 //               mpirun -np 4 ex4p -m ../data/star-surf.mesh -o 3 -hb
 //
 // Description:  This example code solves a simple 2D/3D H(div) diffusion
@@ -96,19 +97,7 @@ int main(int argc, char *argv[])
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume, as well as periodic meshes with the same code.
-   Mesh *mesh;
-   ifstream imesh(mesh_file);
-   if (!imesh)
-   {
-      if (myid == 0)
-      {
-         cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
-      }
-      MPI_Finalize();
-      return 2;
-   }
-   mesh = new Mesh(imesh, 1, 1);
-   imesh.close();
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 

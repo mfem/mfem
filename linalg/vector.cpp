@@ -11,14 +11,14 @@
 
 // Implementation of data type vector
 
+#include "vector.hpp"
+
 #include <iostream>
 #include <iomanip>
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
 #include <limits>
-
-#include "vector.hpp"
 
 namespace mfem
 {
@@ -648,26 +648,21 @@ double Vector::Norml2() const
 
 double Vector::Normlinf() const
 {
-   double max = fabs(data[0]);
-
-   for (int i = 1; i < size; i++)
-      if (fabs(data[i]) > max)
-      {
-         max = fabs(data[i]);
-      }
-
+   double max = 0.0;
+   for (int i = 0; i < size; i++)
+   {
+      max = std::max(std::abs(data[i]), max);
+   }
    return max;
 }
 
 double Vector::Norml1() const
 {
    double sum = 0.0;
-
    for (int i = 0; i < size; i++)
    {
-      sum += fabs (data[i]);
+      sum += std::abs(data[i]);
    }
-
    return sum;
 }
 

@@ -56,12 +56,6 @@ public:
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();
 
-   /// Apply the conforming interpolation matrix and return 'b': b = P'*this.
-   void ConformingAssemble(Vector &b) const;
-
-   /// Apply the conforming interpolation matrix to 'this': this = P'*this
-   void ConformingAssemble();
-
    void Update() { SetSize(fes->GetVSize()); }
 
    void Update(FiniteElementSpace *f) { fes = f; SetSize(f->GetVSize()); }

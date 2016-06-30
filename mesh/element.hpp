@@ -35,19 +35,25 @@ public:
 
    /// Constants for the classes derived from Element.
    enum Type { POINT, SEGMENT, TRIANGLE, QUADRILATERAL, TETRAHEDRON,
-               HEXAHEDRON, BISECTED, QUADRISECTED, OCTASECTED
+               HEXAHEDRON
              };
 
    /// Default element constructor.
    explicit Element(int bg = Geometry::POINT) { attribute = -1; base_geom = bg; }
 
-   /// Set the indices the element according to the input.
-   virtual void SetVertices(const int *ind);
-
    /// Returns element's type
    virtual int GetType() const = 0;
 
    int GetGeometryType() const { return base_geom; }
+
+   /// Return element's attribute.
+   inline int GetAttribute() const { return attribute; }
+
+   /// Set element's attribute.
+   inline void SetAttribute(const int attr) { attribute = attr; }
+
+   /// Set the indices the element according to the input.
+   virtual void SetVertices(const int *ind);
 
    /// Returns element's vertices.
    virtual void GetVertices(Array<int> &v) const = 0;
@@ -76,11 +82,14 @@ public:
    /// Return 1 if the element needs refinement in order to get conforming mesh.
    virtual int NeedRefinement(DSTable &v_to_v, int *middle) const { return 0; }
 
-   /// Return element's attribute.
-   inline int GetAttribute() const { return attribute; }
+   /// Set current coarse-fine transformation number.
+   virtual void ResetTransform(int tr) {}
 
-   /// Set element's attribute.
-   inline void SetAttribute(const int attr) { attribute = attr; }
+   /// Add 'tr' to the current chain of coarse-fine transformations.
+   virtual void PushTransform(int tr) {}
+
+   /// Return current coarse-fine transformation.
+   virtual unsigned GetTransform() const { return 0; }
 
    virtual int GetRefinementFlag() { return 0; }
 
@@ -89,115 +98,6 @@ public:
    /// Destroys element.
    virtual ~Element() { }
 };
-
-class RefinedElement : public Element
-{
-public:
-
-   enum { COARSE = 0, FINE = 1 };
-
-   // The default value is set in the file 'point.cpp'
-   static int State;
-
-   Element *CoarseElem, *FirstChild;
-
-   RefinedElement() { }
-
-   RefinedElement(Element *ce) : Element(ce->GetGeometryType())
-   { attribute = ce->GetAttribute(); CoarseElem = ce; }
-   // Assumes that the coarse element and its first child have the
-   // same attribute and the same base geometry ...
-
-   void SetCoarseElem(Element *ce)
-   {
-      base_geom = ce->GetGeometryType();
-      attribute = ce->GetAttribute();
-      CoarseElem = ce;
-   }
-
-   Element *IAm()
-   {
-      if (State == RefinedElement::COARSE) { return CoarseElem; }
-      return FirstChild;
-   }
-   const Element *IAm() const
-   {
-      if (State == RefinedElement::COARSE) { return CoarseElem; }
-      return FirstChild;
-   }
-
-   virtual void SetVertices(const int *ind) { IAm()->SetVertices(ind); }
-
-   virtual void GetVertices(Array<int> &v) const { IAm()->GetVertices(v); }
-
-   virtual int *GetVertices() { return IAm()->GetVertices(); }
-
-   virtual int GetNVertices() const { return IAm()->GetNVertices(); }
-
-   virtual int GetNEdges() const { return (IAm()->GetNEdges()); }
-
-   virtual const int *GetEdgeVertices(int ei) const
-   { return (IAm()->GetEdgeVertices(ei)); }
-
-   virtual int GetNFaces(int &nFaceVertices) const
-   { return IAm()->GetNFaces(nFaceVertices); }
-
-   virtual const int *GetFaceVertices(int fi) const
-   { return IAm()->GetFaceVertices(fi); }
-
-   virtual void MarkEdge(DenseMatrix &pmat) { IAm()->MarkEdge(pmat); }
-
-   virtual void MarkEdge(const DSTable &v_to_v, const int *length)
-   { IAm()->MarkEdge(v_to_v, length); }
-
-   virtual int NeedRefinement(DSTable &v_to_v, int *middle) const
-   { return IAm()->NeedRefinement(v_to_v, middle); }
-};
-
-class BisectedElement : public RefinedElement
-{
-public:
-   int SecondChild;
-
-   BisectedElement() { }
-   BisectedElement(Element *ce) : RefinedElement(ce) { }
-
-   virtual int GetType() const { return Element::BISECTED; }
-
-   virtual Element *Duplicate(Mesh *m) const
-   { mfem_error("BisectedElement::Duplicate()"); return NULL; }
-};
-
-class QuadrisectedElement : public RefinedElement
-{
-public:
-   int Child2, Child3, Child4;
-
-   QuadrisectedElement(Element *ce) : RefinedElement(ce) { }
-
-   virtual int GetType() const { return Element::QUADRISECTED; }
-
-   virtual Element *Duplicate(Mesh *m) const
-   { mfem_error("QuadrisectedElement::Duplicate()"); return NULL; }
-};
-
-class OctasectedElement : public RefinedElement
-{
-public:
-   int Child[7];
-
-   OctasectedElement(Element *ce) : RefinedElement(ce) { }
-
-   virtual int GetType() const { return Element::OCTASECTED; }
-
-   virtual Element *Duplicate(Mesh *m) const
-   { mfem_error("OctasectedElement::Duplicate()"); return NULL; }
-};
-
-#ifdef MFEM_USE_MEMALLOC
-// defined in tetrahedron.cpp
-extern MemAlloc <BisectedElement, 1024> BEMemory;
-#endif
 
 }
 

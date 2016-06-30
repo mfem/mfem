@@ -85,19 +85,7 @@ int main(int argc, char *argv[])
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
-   Mesh *mesh;
-   ifstream imesh(mesh_file);
-   if (!imesh)
-   {
-      if (myid == 0)
-      {
-         cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
-      }
-      MPI_Finalize();
-      return 2;
-   }
-   mesh = new Mesh(imesh, 1, 1);
-   imesh.close();
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
    // 4. Refine the serial mesh on all processors to increase the resolution. In
@@ -165,7 +153,7 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 7. Set up the parallel linear form b(.) which corresponds to the
+   // 8. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (1,phi_i) where phi_i are the basis functions in fespace.
    ParLinearForm *b = new ParLinearForm(fespace);
@@ -173,19 +161,19 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   // 8. Define the solution vector x as a parallel finite element grid function
+   // 9. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    ParGridFunction x(fespace);
    x = 0.0;
 
-   // 9. Set up the parallel bilinear form a(.,.) on the finite element space
-   //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   //    domain integrator.
+   // 10. Set up the parallel bilinear form a(.,.) on the finite element space
+   //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
+   //     domain integrator.
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
-   // 10. Assemble the parallel bilinear form and the corresponding linear
+   // 11. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
@@ -201,7 +189,7 @@ int main(int argc, char *argv[])
       cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
    }
 
-   // 11. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
+   // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
    //     preconditioner from hypre.
    HypreSolver *amg = new HypreBoomerAMG(A);
    HyprePCG *pcg = new HyprePCG(A);
@@ -211,11 +199,11 @@ int main(int argc, char *argv[])
    pcg->SetPreconditioner(*amg);
    pcg->Mult(B, X);
 
-   // 12. Recover the parallel grid function corresponding to X. This is the
+   // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 13. Save the refined mesh and the solution in parallel. This output can
+   // 14. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
@@ -231,7 +219,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 14. Send the solution by socket to a GLVis server.
+   // 15. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -242,7 +230,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // 15. Free the used memory.
+   // 16. Free the used memory.
    delete pcg;
    delete amg;
    delete a;

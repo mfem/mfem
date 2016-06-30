@@ -2,12 +2,19 @@ body {
     padding-top: 70px;
 }
 
-/*h1[id]:before, h2[id]:before, h3[id]:before, h4[id]:before, h5[id]:before, h6[id]:before {
+/* hack to increase height of headers to make #anchors work with the top nav-bar,
+   (note: we only want this on pages with TOC, otherwise there are other problems) */
+div.col-md-9 h1[id]::before,
+div.col-md-9 h2[id]::before,
+div.col-md-9 h3[id]::before,
+div.col-md-9 h4[id]::before,
+div.col-md-9 h5[id]::before,
+div.col-md-9 h6[id]::before {
     content: "";
     display: block;
-    margin-top: -65px;
+    margin-top: -75px;
     height: 75px;
-}*/
+}
 
 img {
     max-width: 100%;
@@ -161,4 +168,41 @@ p.centered {
     .bs-sidebar.affix {
         width: 263px;
     }
+}
+
+
+/* Sticky footer styles
+-------------------------------------------------- */
+html {
+  position: relative;
+  min-height: 100%;
+}
+body {
+  /* Margin bottom by footer height */
+  margin-bottom: 50px;
+}
+.footer {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  /* Set the fixed height of the footer here */
+  height: 50px;
+  background-color: #eeeeee;
+  overflow: hidden;
+}
+
+
+/* Custom page CSS
+-------------------------------------------------- */
+/* Not required for template or sticky footer method. */
+
+.container .text-muted {
+  margin-top: 17px;
+  margin-bottom: 0;
+}
+.container .alignleft {
+  float: left;
+}
+.container .alignright {
+  float: right;
 }

@@ -16,6 +16,7 @@
 //               ex4 -m ../data/periodic-cube.mesh -no-bc
 //               ex4 -m ../data/amr-quad.mesh
 //               ex4 -m ../data/amr-hex.mesh
+//               ex4 -m ../data/amr-hex.mesh -o 2 -hb
 //               ex4 -m ../data/fichera-amr.mesh -o 2 -sc
 //               ex4 -m ../data/star-surf.mesh -o 1
 //
@@ -84,15 +85,7 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume, as well as
    //    periodic meshes with the same code.
-   Mesh *mesh;
-   ifstream imesh(mesh_file);
-   if (!imesh)
-   {
-      cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
-      return 2;
-   }
-   mesh = new Mesh(imesh, 1, 1);
-   imesh.close();
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 

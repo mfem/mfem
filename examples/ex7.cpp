@@ -150,12 +150,18 @@ int main(int argc, char *argv[])
 
    if (amr == 1)
    {
-      mesh->RefineAtVertex(Vertex(0, 0, 1), 5); // 5 levels
+      for (int l = 0; l < 5; l++)
+      {
+         mesh->RefineAtVertex(Vertex(0, 0, 1));
+      }
       SnapNodes(*mesh);
    }
    else if (amr == 2)
    {
-      mesh->RandomRefinement(4, 2); // 4 levels, 1/2 of the elements
+      for (int l = 0; l < 4; l++)
+      {
+         mesh->RandomRefinement(0.5); // 50% probability
+      }
       SnapNodes(*mesh);
    }
 
