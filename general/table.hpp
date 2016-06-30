@@ -109,6 +109,9 @@ public:
    const int *GetI() const { return I; }
    const int *GetJ() const { return J; }
 
+   /// @brief Sort the column (TYPE II) indices in each row.
+   void SortRows();
+
    void SetIJ(int *newI, int *newJ, int newsize = -1);
 
    /** Establish connection between element i and element j in the table.

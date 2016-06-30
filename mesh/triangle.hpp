@@ -24,11 +24,13 @@ class Triangle : public Element
 {
 protected:
    int indices[3];
-   static const int edges[3][2];
+
+   unsigned transform;
 
 public:
+   typedef Geometry::Constants<Geometry::TRIANGLE> geom_t;
 
-   Triangle() : Element(Geometry::TRIANGLE) { }
+   Triangle() : Element(Geometry::TRIANGLE) { transform = 0; }
 
    /// Constructs triangle by specifying the indices and the attribute.
    Triangle(const int *ind, int attr = 1);
@@ -36,22 +38,32 @@ public:
    /// Constructs triangle by specifying the indices and the attribute.
    Triangle(int ind1, int ind2, int ind3, int attr = 1);
 
+   /// Return element's type.
+   virtual int GetType() const { return Element::TRIANGLE; }
+
    /// Return 1 if the element needs refinement in order to get conforming mesh.
-   int NeedRefinement(DSTable &v_to_v, int *middle) const;
+   virtual int NeedRefinement(DSTable &v_to_v, int *middle) const;
 
    /// Set the vertices according to the given input.
    virtual void SetVertices(const int *ind);
 
    /** Reorder the vertices so that the longest edge is from vertex 0
-       to vertex 0. If called it should be once from the mesh constructor,
+       to vertex 1. If called it should be once from the mesh constructor,
        because the order may be used later for setting the edges. **/
    virtual void MarkEdge(DenseMatrix & pmat);
 
    /// Mark the longest edge by assuming/changing the order of the vertices.
    virtual void MarkEdge(const DSTable &v_to_v, const int *length);
 
-   /// Return element's type.
-   virtual int GetType() const { return Element::TRIANGLE; }
+   virtual void ResetTransform(int tr) { transform = tr; }
+   virtual unsigned GetTransform() const { return transform; }
+
+   /// Add 'tr' to the current chain of coarse-fine transformations.
+   virtual void PushTransform(int tr)
+   { transform = (transform << 3) | (tr + 1); }
+
+   /// Calculate point matrix corresponding to a chain of transformations.
+   static void GetPointMatrix(unsigned transform, DenseMatrix &pm);
 
    /// Returns the indices of the element's  vertices.
    virtual void GetVertices(Array<int> &v) const;
@@ -62,7 +74,8 @@ public:
 
    virtual int GetNEdges() const { return (3); }
 
-   virtual const int *GetEdgeVertices(int ei) const { return (edges[ei]); }
+   virtual const int *GetEdgeVertices(int ei) const
+   { return geom_t::Edges[ei]; }
 
    virtual int GetNFaces(int &nFaceVertices) const
    { nFaceVertices = 0; return 0; }

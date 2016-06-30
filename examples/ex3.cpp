@@ -12,7 +12,6 @@
 //               ex3 -m ../data/fichera-q3.mesh
 //               ex3 -m ../data/square-disc-nurbs.mesh
 //               ex3 -m ../data/beam-hex-nurbs.mesh
-//               ex3 -m ../data/amr-quad.mesh -o 2
 //               ex3 -m ../data/amr-hex.mesh
 //               ex3 -m ../data/fichera-amr.mesh
 //               ex3 -m ../data/star-surf.mesh -o 1
@@ -79,15 +78,7 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   Mesh *mesh;
-   ifstream imesh(mesh_file);
-   if (!imesh)
-   {
-      cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
-      return 2;
-   }
-   mesh = new Mesh(imesh, 1, 1);
-   imesh.close();
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 

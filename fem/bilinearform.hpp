@@ -32,11 +32,15 @@ protected:
    /// Sparse matrix to be associated with the form.
    SparseMatrix *mat;
 
-   // Matrix used to eliminate b.c.
+   /// Matrix used to eliminate b.c.
    SparseMatrix *mat_e;
 
    /// FE space on which the form lives.
    FiniteElementSpace *fes;
+
+   /// Indicates the Mesh::sequence corresponding to the current state of the
+   /// BilinearForm.
+   long sequence;
 
    int extern_bfs;
 
@@ -64,10 +68,13 @@ protected:
    // Allocate appropriate SparseMatrix and assign it to mat
    void AllocMat();
 
+   void ConformingAssemble();
+
    // may be used in the construction of derived classes
    BilinearForm() : Matrix (0)
    {
-      fes = NULL; mat = mat_e = NULL; extern_bfs = 0; element_matrices = NULL;
+      fes = NULL; sequence = -1;
+      mat = mat_e = NULL; extern_bfs = 0; element_matrices = NULL;
       static_cond = NULL; hybridization = NULL;
       precompute_sparsity = 0;
    }
@@ -93,7 +100,7 @@ public:
 
    /// Return the trace FE space associated with static condensation.
    FiniteElementSpace *SCFESpace() const
-   { return static_cond->GetTraceFESpace(); }
+   { return static_cond ? static_cond->GetTraceFESpace() : NULL; }
 
    /** Enable hybridization; for details see the description for class
        Hybridization in fem/hybridization.hpp. This method should be called
@@ -150,9 +157,29 @@ public:
    virtual void Finalize(int skip_zeros = 1);
 
    /// Returns a reference to the sparse matrix
-   const SparseMatrix &SpMat() const { return *mat; }
-   SparseMatrix &SpMat() { return *mat; }
+   const SparseMatrix &SpMat() const
+   {
+      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+      return *mat;
+   }
+   SparseMatrix &SpMat()
+   {
+      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+      return *mat;
+   }
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
+
+   /// Returns a reference to the sparse matrix of eliminated b.c.
+   const SparseMatrix &SpMatElim() const
+   {
+      MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
+      return *mat_e;
+   }
+   SparseMatrix &SpMatElim()
+   {
+      MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
+      return *mat_e;
+   }
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
@@ -175,20 +202,6 @@ public:
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
 
-   /** For partially conforming FE spaces, complete the assembly process by
-       performing A := P^t A P where A is the internal sparse matrix and P is
-       the conforming prolongation of the FE space. After this call the
-       BilinearForm becomes an operator on the conforming FE space. */
-   void ConformingAssemble();
-
-   /** A shortcut for converting the whole linear system to conforming DOFs. */
-   void ConformingAssemble(GridFunction& sol, LinearForm& rhs)
-   {
-      ConformingAssemble();
-      rhs.ConformingAssemble();
-      sol.ConformingProject();
-   }
-
    /** Form the linear system A X = B, corresponding to the current bilinear
        form and b(.), by applying any necessary transformations such as:
        eliminating boundary conditions; applying conforming constraints for
@@ -208,14 +221,16 @@ public:
 
        After solving the linear system, the finite element solution x can be
        recovered by calling RecoverFEMSolution (with the same vectors X, b, and
-       x). */
+       x).
+
+       NOTE: If there are no transformations, X simply reuses the data of x. */
    void FormLinearSystem(Array<int> &ess_tdof_list, Vector &x, Vector &b,
                          SparseMatrix &A, Vector &X, Vector &B,
                          int copy_interior = 0);
 
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem method to recover the solution as a GridFunction-size
-       vector in x. */
+       vector in x. Use the same arguments as in the FormLinearSystem call. */
    void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
 
    /// Compute and store internally all element matrices.
@@ -228,6 +243,8 @@ public:
    void ComputeElementMatrix(int i, DenseMatrix &elmat);
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
                               Array<int> &vdofs, int skip_zeros = 1);
+   void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
+                                 Array<int> &vdofs, int skip_zeros = 1);
 
    /** Eliminate essential boundary DOFs from the system. The array
        'bdr_attr_is_ess' marks boundary attributes that constitute the essential

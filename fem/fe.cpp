@@ -6617,7 +6617,8 @@ Array2D<int> Poly_1D::binom;
 
 H1_SegmentElement::H1_SegmentElement(const int p)
    : NodalFiniteElement(1, Geometry::SEGMENT, p + 1, p, FunctionSpace::Pk),
-     basis1d(poly1d.ClosedBasis(p))
+     basis1d(poly1d.ClosedBasis(p)),
+     dof_map(Dof)
 {
    const double *cp = poly1d.ClosedPoints(p);
 
@@ -6628,9 +6629,12 @@ H1_SegmentElement::H1_SegmentElement(const int p)
 
    Nodes.IntPoint(0).x = cp[0];
    Nodes.IntPoint(1).x = cp[p];
+   dof_map[0] = 0;
+   dof_map[p] = 1;
    for (int i = 1; i < p; i++)
    {
       Nodes.IntPoint(i+1).x = cp[i];
+      dof_map[i] = i+1;
    }
 }
 
@@ -7103,7 +7107,8 @@ void H1_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1Pos_SegmentElement::H1Pos_SegmentElement(const int p)
-   : PositiveFiniteElement(1, Geometry::SEGMENT, p + 1, p, FunctionSpace::Pk)
+   : PositiveFiniteElement(1, Geometry::SEGMENT, p + 1, p, FunctionSpace::Pk),
+     dof_map(Dof)
 {
 #ifndef MFEM_THREAD_SAFE
    // thread private versions; see class header.
@@ -7114,9 +7119,12 @@ H1Pos_SegmentElement::H1Pos_SegmentElement(const int p)
    // Endpoints need to be first in the list, so reorder them.
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(1).x = 1.0;
+   dof_map[0] = 0;
+   dof_map[p] = 1;
    for (int i = 1; i < p; i++)
    {
       Nodes.IntPoint(i+1).x = double(i)/p;
+      dof_map[i] = i+1;
    }
 }
 
@@ -7734,6 +7742,403 @@ void H1_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
          }
 
    Ti.Mult(du, dshape);
+}
+
+
+H1Pos_TriangleElement::H1Pos_TriangleElement(const int p)
+   : PositiveFiniteElement(2, Geometry::TRIANGLE, ((p + 1)*(p + 2))/2, p,
+                           FunctionSpace::Pk)
+{
+#ifndef MFEM_THREAD_SAFE
+   m_shape.SetSize(Dof);
+   dshape_1d.SetSize(p + 1);
+   m_dshape.SetSize(Dof, Dim);
+#endif
+   dof_map.SetSize(Dof);
+
+   struct Index
+   {
+      int p2p3;
+      Index(int p) { p2p3 = 2*p + 3; }
+      int operator()(int i, int j) { return ((p2p3-j)*j)/2+i; }
+   };
+   Index idx(p);
+
+   // vertices
+   dof_map[idx(0,0)] = 0;
+   Nodes.IntPoint(0).Set2(0., 0.);
+   dof_map[idx(p,0)] = 1;
+   Nodes.IntPoint(1).Set2(1., 0.);
+   dof_map[idx(0,p)] = 2;
+   Nodes.IntPoint(2).Set2(0., 1.);
+
+   // edges
+   int o = 3;
+   for (int i = 1; i < p; i++)
+   {
+      dof_map[idx(i,0)] = o;
+      Nodes.IntPoint(o++).Set2(double(i)/p, 0.);
+   }
+   for (int i = 1; i < p; i++)
+   {
+      dof_map[idx(p-i,i)] = o;
+      Nodes.IntPoint(o++).Set2(double(p-i)/p, double(i)/p);
+   }
+   for (int i = 1; i < p; i++)
+   {
+      dof_map[idx(0,p-i)] = o;
+      Nodes.IntPoint(o++).Set2(0., double(p-i)/p);
+   }
+
+   // interior
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)
+      {
+         dof_map[idx(i,j)] = o;
+         Nodes.IntPoint(o++).Set2(double(i)/p, double(j)/p);
+      }
+}
+
+// static method
+void H1Pos_TriangleElement::CalcShape(
+   const int p, const double l1, const double l2, double *shape)
+{
+   const double l3 = 1. - l1 - l2;
+
+   // The (i,j) basis function is given by: T(i,j,p-i-j) l1^i l2^j l3^{p-i-j},
+   // where T(i,j,k) = (i+j+k)! / (i! j! k!)
+   // Another expression is given by the terms of the expansion:
+   //    (l1 + l2 + l3)^p =
+   //       \sum_{j=0}^p \binom{p}{j} l2^j
+   //          \sum_{i=0}^{p-j} \binom{p-j}{i} l1^i l3^{p-j-i}
+   const int *bp = Poly_1D::Binom(p);
+   double z = 1.;
+   for (int o = 0, j = 0; j <= p; j++)
+   {
+      Poly_1D::CalcBinomTerms(p - j, l1, l3, &shape[o]);
+      double s = bp[j]*z;
+      for (int i = 0; i <= p - j; i++)
+      {
+         shape[o++] *= s;
+      }
+      z *= l2;
+   }
+}
+
+// static method
+void H1Pos_TriangleElement::CalcDShape(
+   const int p, const double l1, const double l2,
+   double *dshape_1d, double *dshape)
+{
+   const int dof = ((p + 1)*(p + 2))/2;
+   const double l3 = 1. - l1 - l2;
+
+   const int *bp = Poly_1D::Binom(p);
+   double z = 1.;
+   for (int o = 0, j = 0; j <= p; j++)
+   {
+      Poly_1D::CalcDBinomTerms(p - j, l1, l3, dshape_1d);
+      double s = bp[j]*z;
+      for (int i = 0; i <= p - j; i++)
+      {
+         dshape[o++] = s*dshape_1d[i];
+      }
+      z *= l2;
+   }
+   z = 1.;
+   for (int i = 0; i <= p; i++)
+   {
+      Poly_1D::CalcDBinomTerms(p - i, l2, l3, dshape_1d);
+      double s = bp[i]*z;
+      for (int o = i, j = 0; j <= p - i; j++)
+      {
+         dshape[dof + o] = s*dshape_1d[j];
+         o += p + 1 - j;
+      }
+      z *= l1;
+   }
+}
+
+void H1Pos_TriangleElement::CalcShape(const IntegrationPoint &ip,
+                                      Vector &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector m_shape(Dof);
+#endif
+   CalcShape(Order, ip.x, ip.y, m_shape.GetData());
+   for (int i = 0; i < Dof; i++)
+   {
+      shape(dof_map[i]) = m_shape(i);
+   }
+}
+
+void H1Pos_TriangleElement::CalcDShape(const IntegrationPoint &ip,
+                                       DenseMatrix &dshape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector dshape_1d(Order + 1);
+   DenseMatrix m_dshape(Dof, Dim);
+#endif
+   CalcDShape(Order, ip.x, ip.y, dshape_1d.GetData(), m_dshape.Data());
+   for (int d = 0; d < 2; d++)
+   {
+      for (int i = 0; i < Dof; i++)
+      {
+         dshape(dof_map[i],d) = m_dshape(i,d);
+      }
+   }
+}
+
+
+H1Pos_TetrahedronElement::H1Pos_TetrahedronElement(const int p)
+   : PositiveFiniteElement(3, Geometry::TETRAHEDRON,
+                           ((p + 1)*(p + 2)*(p + 3))/6, p, FunctionSpace::Pk)
+{
+#ifndef MFEM_THREAD_SAFE
+   m_shape.SetSize(Dof);
+   dshape_1d.SetSize(p + 1);
+   m_dshape.SetSize(Dof, Dim);
+#endif
+   dof_map.SetSize(Dof);
+
+   struct Index
+   {
+      int p, dof;
+      int tri(int k) { return (k*(k + 1))/2; }
+      int tet(int k) { return (k*(k + 1)*(k + 2))/6; }
+      Index(int p_) { p = p_; dof = tet(p + 1); }
+      int operator()(int i, int j, int k)
+      { return dof - tet(p - k) - tri(p + 1 - k - j) + i; }
+   };
+   Index idx(p);
+
+   // vertices
+   dof_map[idx(0,0,0)] = 0;
+   Nodes.IntPoint(0).Set3(0., 0., 0.);
+   dof_map[idx(p,0,0)] = 1;
+   Nodes.IntPoint(1).Set3(1., 0., 0.);
+   dof_map[idx(0,p,0)] = 2;
+   Nodes.IntPoint(2).Set3(0., 1., 0.);
+   dof_map[idx(0,0,p)] = 3;
+   Nodes.IntPoint(3).Set3(0., 0., 1.);
+
+   // edges (see Tetrahedron::edges in mesh/tetrahedron.cpp)
+   int o = 4;
+   for (int i = 1; i < p; i++)  // (0,1)
+   {
+      dof_map[idx(i,0,0)] = o;
+      Nodes.IntPoint(o++).Set3(double(i)/p, 0., 0.);
+   }
+   for (int i = 1; i < p; i++)  // (0,2)
+   {
+      dof_map[idx(0,i,0)] = o;
+      Nodes.IntPoint(o++).Set3(0., double(i)/p, 0.);
+   }
+   for (int i = 1; i < p; i++)  // (0,3)
+   {
+      dof_map[idx(0,0,i)] = o;
+      Nodes.IntPoint(o++).Set3(0., 0., double(i)/p);
+   }
+   for (int i = 1; i < p; i++)  // (1,2)
+   {
+      dof_map[idx(p-i,i,0)] = o;
+      Nodes.IntPoint(o++).Set3(double(p-i)/p, double(i)/p, 0.);
+   }
+   for (int i = 1; i < p; i++)  // (1,3)
+   {
+      dof_map[idx(p-i,0,i)] = o;
+      Nodes.IntPoint(o++).Set3(double(p-i)/p, 0., double(i)/p);
+   }
+   for (int i = 1; i < p; i++)  // (2,3)
+   {
+      dof_map[idx(0,p-i,i)] = o;
+      Nodes.IntPoint(o++).Set3(0., double(p-i)/p, double(i)/p);
+   }
+
+   // faces (see Mesh::GenerateFaces in mesh/mesh.cpp)
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (1,2,3)
+      {
+         dof_map[idx(p-i-j,i,j)] = o;
+         Nodes.IntPoint(o++).Set3(double(p-i-j)/p, double(i)/p, double(j)/p);
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (0,3,2)
+      {
+         dof_map[idx(0,j,i)] = o;
+         Nodes.IntPoint(o++).Set3(0., double(j)/p, double(i)/p);
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (0,1,3)
+      {
+         dof_map[idx(i,0,j)] = o;
+         Nodes.IntPoint(o++).Set3(double(i)/p, 0., double(j)/p);
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (0,2,1)
+      {
+         dof_map[idx(j,i,0)] = o;
+         Nodes.IntPoint(o++).Set3(double(j)/p, double(i)/p, 0.);
+      }
+
+   // interior
+   for (int k = 1; k < p; k++)
+      for (int j = 1; j + k < p; j++)
+         for (int i = 1; i + j + k < p; i++)
+         {
+            dof_map[idx(i,j,k)] = o;
+            Nodes.IntPoint(o++).Set3(double(i)/p, double(j)/p, double(k)/p);
+         }
+}
+
+// static method
+void H1Pos_TetrahedronElement::CalcShape(
+   const int p, const double l1, const double l2, const double l3,
+   double *shape)
+{
+   const double l4 = 1. - l1 - l2 - l3;
+
+   // The basis functions are the terms in the expansion:
+   //   (l1 + l2 + l3 + l4)^p =
+   //      \sum_{k=0}^p \binom{p}{k} l3^k
+   //         \sum_{j=0}^{p-k} \binom{p-k}{j} l2^j
+   //            \sum_{i=0}^{p-k-j} \binom{p-k-j}{i} l1^i l4^{p-k-j-i}
+   const int *bp = Poly_1D::Binom(p);
+   double l3k = 1.;
+   for (int o = 0, k = 0; k <= p; k++)
+   {
+      const int *bpk = Poly_1D::Binom(p - k);
+      const double ek = bp[k]*l3k;
+      double l2j = 1.;
+      for (int j = 0; j <= p - k; j++)
+      {
+         Poly_1D::CalcBinomTerms(p - k - j, l1, l4, &shape[o]);
+         double ekj = ek*bpk[j]*l2j;
+         for (int i = 0; i <= p - k - j; i++)
+         {
+            shape[o++] *= ekj;
+         }
+         l2j *= l2;
+      }
+      l3k *= l3;
+   }
+}
+
+// static method
+void H1Pos_TetrahedronElement::CalcDShape(
+   const int p, const double l1, const double l2, const double l3,
+   double *dshape_1d, double *dshape)
+{
+   const int dof = ((p + 1)*(p + 2)*(p + 3))/6;
+   const double l4 = 1. - l1 - l2 - l3;
+
+   // For the x derivatives, differentiate the terms of the expression:
+   //   \sum_{k=0}^p \binom{p}{k} l3^k
+   //      \sum_{j=0}^{p-k} \binom{p-k}{j} l2^j
+   //         \sum_{i=0}^{p-k-j} \binom{p-k-j}{i} l1^i l4^{p-k-j-i}
+   const int *bp = Poly_1D::Binom(p);
+   double l3k = 1.;
+   for (int o = 0, k = 0; k <= p; k++)
+   {
+      const int *bpk = Poly_1D::Binom(p - k);
+      const double ek = bp[k]*l3k;
+      double l2j = 1.;
+      for (int j = 0; j <= p - k; j++)
+      {
+         Poly_1D::CalcDBinomTerms(p - k - j, l1, l4, dshape_1d);
+         double ekj = ek*bpk[j]*l2j;
+         for (int i = 0; i <= p - k - j; i++)
+         {
+            dshape[o++] = dshape_1d[i]*ekj;
+         }
+         l2j *= l2;
+      }
+      l3k *= l3;
+   }
+   // For the y derivatives, differentiate the terms of the expression:
+   //   \sum_{k=0}^p \binom{p}{k} l3^k
+   //      \sum_{i=0}^{p-k} \binom{p-k}{i} l1^i
+   //         \sum_{j=0}^{p-k-i} \binom{p-k-i}{j} l2^j l4^{p-k-j-i}
+   l3k = 1.;
+   for (int ok = 0, k = 0; k <= p; k++)
+   {
+      const int *bpk = Poly_1D::Binom(p - k);
+      const double ek = bp[k]*l3k;
+      double l1i = 1.;
+      for (int i = 0; i <= p - k; i++)
+      {
+         Poly_1D::CalcDBinomTerms(p - k - i, l2, l4, dshape_1d);
+         double eki = ek*bpk[i]*l1i;
+         int o = ok + i;
+         for (int j = 0; j <= p - k - i; j++)
+         {
+            dshape[dof + o] = dshape_1d[j]*eki;
+            o += p - k - j + 1;
+         }
+         l1i *= l1;
+      }
+      l3k *= l3;
+      ok += ((p - k + 2)*(p - k + 1))/2;
+   }
+   // For the z derivatives, differentiate the terms of the expression:
+   //   \sum_{j=0}^p \binom{p}{j} l2^j
+   //      \sum_{i=0}^{p-j} \binom{p-j}{i} l1^i
+   //         \sum_{k=0}^{p-j-i} \binom{p-j-i}{k} l3^k l4^{p-k-j-i}
+   double l2j = 1.;
+   for (int j = 0; j <= p; j++)
+   {
+      const int *bpj = Poly_1D::Binom(p - j);
+      const double ej = bp[j]*l2j;
+      double l1i = 1.;
+      for (int i = 0; i <= p - j; i++)
+      {
+         Poly_1D::CalcDBinomTerms(p - j - i, l3, l4, dshape_1d);
+         double eji = ej*bpj[i]*l1i;
+         int m = ((p + 2)*(p + 1))/2;
+         int n = ((p - j + 2)*(p - j + 1))/2;
+         for (int o = i, k = 0; k <= p - j - i; k++)
+         {
+            // m = ((p - k + 2)*(p - k + 1))/2;
+            // n = ((p - k - j + 2)*(p - k - j + 1))/2;
+            o += m;
+            dshape[2*dof + o - n] = dshape_1d[k]*eji;
+            m -= p - k + 1;
+            n -= p - k - j + 1;
+         }
+         l1i *= l1;
+      }
+      l2j *= l2;
+   }
+}
+
+void H1Pos_TetrahedronElement::CalcShape(const IntegrationPoint &ip,
+                                         Vector &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector m_shape(Dof);
+#endif
+   CalcShape(Order, ip.x, ip.y, ip.z, m_shape.GetData());
+   for (int i = 0; i < Dof; i++)
+   {
+      shape(dof_map[i]) = m_shape(i);
+   }
+}
+
+void H1Pos_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
+                                          DenseMatrix &dshape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector dshape_1d(Order + 1);
+   DenseMatrix m_dshape(Dof, Dim);
+#endif
+   CalcDShape(Order, ip.x, ip.y, ip.z, dshape_1d.GetData(), m_dshape.Data());
+   for (int d = 0; d < 3; d++)
+   {
+      for (int i = 0; i < Dof; i++)
+      {
+         dshape(dof_map[i],d) = m_dshape(i,d);
+      }
+   }
 }
 
 
@@ -8490,63 +8895,18 @@ L2Pos_TriangleElement::L2Pos_TriangleElement(const int p)
 void L2Pos_TriangleElement::CalcShape(const IntegrationPoint &ip,
                                       Vector &shape) const
 {
-   const int p = Order;
-   const double l1 = ip.x, l2 = ip.y, l3 = 1. - l1 - l2;
-
-   // The (i,j) basis function is given by: T(i,j,p-i-j) l1^i l2^j l3^{p-i-j},
-   // where T(i,j,k) = (i+j+k)! / (i! j! k!)
-   // Another expression is given by the terms of the expansion:
-   //    (l1 + l2 + l3)^p =
-   //       \sum_{j=0}^p \binom{p}{j} l2^j
-   //          \sum_{i=0}^{p-j} \binom{p-j}{i} l1^i l3^{p-j-i}
-   const int *bp = Poly_1D::Binom(p);
-   double z = 1.;
-   for (int o = 0, j = 0; j <= p; j++)
-   {
-      Poly_1D::CalcBinomTerms(p - j, l1, l3, &shape(o));
-      double s = bp[j]*z;
-      for (int i = 0; i <= p - j; i++)
-      {
-         shape(o++) *= s;
-      }
-      z *= l2;
-   }
+   H1Pos_TriangleElement::CalcShape(Order, ip.x, ip.y, shape.GetData());
 }
 
 void L2Pos_TriangleElement::CalcDShape(const IntegrationPoint &ip,
                                        DenseMatrix &dshape) const
 {
-   const int p = Order;
-   const double l1 = ip.x, l2 = ip.y, l3 = 1. - l1 - l2;
-
 #ifdef MFEM_THREAD_SAFE
-   Vector dshape_1d(p + 1);
+   Vector dshape_1d(Order + 1);
 #endif
 
-   const int *bp = Poly_1D::Binom(p);
-   double z = 1.;
-   for (int o = 0, j = 0; j <= p; j++)
-   {
-      Poly_1D::CalcDBinomTerms(p - j, l1, l3, dshape_1d);
-      double s = bp[j]*z;
-      for (int i = 0; i <= p - j; i++)
-      {
-         dshape(o++,0) = s*dshape_1d(i);
-      }
-      z *= l2;
-   }
-   z = 1.;
-   for (int i = 0; i <= p; i++)
-   {
-      Poly_1D::CalcDBinomTerms(p - i, l2, l3, dshape_1d);
-      double s = bp[i]*z;
-      for (int o = i, j = 0; j <= p - i; j++)
-      {
-         dshape(o,1) = s*dshape_1d(j);
-         o += p + 1 - j;
-      }
-      z *= l1;
-   }
+   H1Pos_TriangleElement::CalcDShape(Order, ip.x, ip.y, dshape_1d.GetData(),
+                                     dshape.Data());
 }
 
 void L2Pos_TriangleElement::ProjectDelta(int vertex, Vector &dofs) const
@@ -8738,122 +9098,19 @@ L2Pos_TetrahedronElement::L2Pos_TetrahedronElement(const int p)
 void L2Pos_TetrahedronElement::CalcShape(const IntegrationPoint &ip,
                                          Vector &shape) const
 {
-   const int p = Order;
-   const double l1 = ip.x, l2 = ip.y, l3 = ip.z, l4 = 1. - l1 - l2 - l3;
-
-   // The basis functions are the terms in the expansion:
-   //   (l1 + l2 + l3 + l4)^p =
-   //      \sum_{k=0}^p \binom{p}{k} l3^k
-   //         \sum_{j=0}^{p-k} \binom{p-k}{j} l2^j
-   //            \sum_{i=0}^{p-k-j} \binom{p-k-j}{i} l1^i l4^{p-k-j-i}
-   const int *bp = Poly_1D::Binom(p);
-   double l3k = 1.;
-   for (int o = 0, k = 0; k <= p; k++)
-   {
-      const int *bpk = Poly_1D::Binom(p - k);
-      const double ek = bp[k]*l3k;
-      double l2j = 1.;
-      for (int j = 0; j <= p - k; j++)
-      {
-         Poly_1D::CalcBinomTerms(p - k - j, l1, l4, &shape(o));
-         double ekj = ek*bpk[j]*l2j;
-         for (int i = 0; i <= p - k - j; i++)
-         {
-            shape(o++) *= ekj;
-         }
-         l2j *= l2;
-      }
-      l3k *= l3;
-   }
+   H1Pos_TetrahedronElement::CalcShape(Order, ip.x, ip.y, ip.z,
+                                       shape.GetData());
 }
 
 void L2Pos_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
                                           DenseMatrix &dshape) const
 {
-   const int p = Order;
-   const double l1 = ip.x, l2 = ip.y, l3 = ip.z, l4 = 1. - l1 - l2 - l3;
-
 #ifdef MFEM_THREAD_SAFE
-   Vector dshape_1d(p + 1);
+   Vector dshape_1d(Order + 1);
 #endif
 
-   // For the x derivatives, differentiate the terms of the expression:
-   //   \sum_{k=0}^p \binom{p}{k} l3^k
-   //      \sum_{j=0}^{p-k} \binom{p-k}{j} l2^j
-   //         \sum_{i=0}^{p-k-j} \binom{p-k-j}{i} l1^i l4^{p-k-j-i}
-   const int *bp = Poly_1D::Binom(p);
-   double l3k = 1.;
-   for (int o = 0, k = 0; k <= p; k++)
-   {
-      const int *bpk = Poly_1D::Binom(p - k);
-      const double ek = bp[k]*l3k;
-      double l2j = 1.;
-      for (int j = 0; j <= p - k; j++)
-      {
-         Poly_1D::CalcDBinomTerms(p - k - j, l1, l4, dshape_1d);
-         double ekj = ek*bpk[j]*l2j;
-         for (int i = 0; i <= p - k - j; i++)
-         {
-            dshape(o++,0) = dshape_1d(i)*ekj;
-         }
-         l2j *= l2;
-      }
-      l3k *= l3;
-   }
-   // For the y derivatives, differentiate the terms of the expression:
-   //   \sum_{k=0}^p \binom{p}{k} l3^k
-   //      \sum_{i=0}^{p-k} \binom{p-k}{i} l1^i
-   //         \sum_{j=0}^{p-k-i} \binom{p-k-i}{j} l2^j l4^{p-k-j-i}
-   l3k = 1.;
-   for (int ok = 0, k = 0; k <= p; k++)
-   {
-      const int *bpk = Poly_1D::Binom(p - k);
-      const double ek = bp[k]*l3k;
-      double l1i = 1.;
-      for (int i = 0; i <= p - k; i++)
-      {
-         Poly_1D::CalcDBinomTerms(p - k - i, l2, l4, dshape_1d);
-         double eki = ek*bpk[i]*l1i;
-         int o = ok + i;
-         for (int j = 0; j <= p - k - i; j++)
-         {
-            dshape(o,1) = dshape_1d(j)*eki;
-            o += p - k - j + 1;
-         }
-         l1i *= l1;
-      }
-      l3k *= l3;
-      ok += ((p - k + 2)*(p - k + 1))/2;
-   }
-   // For the z derivatives, differentiate the terms of the expression:
-   //   \sum_{j=0}^p \binom{p}{j} l2^j
-   //      \sum_{i=0}^{p-j} \binom{p-j}{i} l1^i
-   //         \sum_{k=0}^{p-j-i} \binom{p-j-i}{k} l3^k l4^{p-k-j-i}
-   double l2j = 1.;
-   for (int j = 0; j <= p; j++)
-   {
-      const int *bpj = Poly_1D::Binom(p - j);
-      const double ej = bp[j]*l2j;
-      double l1i = 1.;
-      for (int i = 0; i <= p - j; i++)
-      {
-         Poly_1D::CalcDBinomTerms(p - j - i, l3, l4, dshape_1d);
-         double eji = ej*bpj[i]*l1i;
-         int m = ((p + 2)*(p + 1))/2;
-         int n = ((p - j + 2)*(p - j + 1))/2;
-         for (int o = i, k = 0; k <= p - j - i; k++)
-         {
-            // m = ((p - k + 2)*(p - k + 1))/2;
-            // n = ((p - k - j + 2)*(p - k - j + 1))/2;
-            o += m;
-            dshape(o - n,2) = dshape_1d(k)*eji;
-            m -= p - k + 1;
-            n -= p - k - j + 1;
-         }
-         l1i *= l1;
-      }
-      l2j *= l2;
-   }
+   H1Pos_TetrahedronElement::CalcDShape(Order, ip.x, ip.y, ip.z,
+                                        dshape_1d.GetData(), dshape.Data());
 }
 
 void L2Pos_TetrahedronElement::ProjectDelta(int vertex, Vector &dofs) const

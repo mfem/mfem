@@ -195,15 +195,24 @@ public:
        2x2 or 3x3 symmetric matrix. */
    void CalcEigenvalues(double *lambda, double *vec) const;
 
-   void GetColumn(int c, Vector &col);
+   void GetRow(int r, Vector &row);
+   void GetColumn(int c, Vector &col) const;
 
    void GetColumnReference(int c, Vector &col)
    { col.SetDataAndSize(data + c * height, height); }
 
+   void SetRow(int r, const Vector &row);
+   void SetCol(int c, const Vector &col);
+
+   /// Set all entries of a row to the specified value.
+   void SetRow(int row, double value);
+   /// Set all entries of a column to the specified value.
+   void SetCol(int col, double value);
+
    /// Returns the diagonal of the matrix
-   void GetDiag(Vector &d);
+   void GetDiag(Vector &d) const;
    /// Returns the l1 norm of the rows of the matrix v_i = sum_j |a_ij|
-   void Getl1Diag(Vector &l);
+   void Getl1Diag(Vector &l) const;
    /// Compute the row sums of the DenseMatrix
    void GetRowSums(Vector &l) const;
 
@@ -263,11 +272,6 @@ public:
    /** If (dofs[i] < 0 and dofs[j] >= 0) or (dofs[i] >= 0 and dofs[j] < 0)
        then (*this)(i,j) = -(*this)(i,j).  */
    void AdjustDofDirection(Array<int> &dofs);
-
-   /// Set all entries of a row to the specified value.
-   void SetRow(int row, double value);
-   /// Set all entries of a column to the specified value.
-   void SetCol(int col, double value);
 
    /// Replace small entries, abs(a_ij) <= eps, with zero.
    void Threshold(double eps);
@@ -568,13 +572,23 @@ private:
    DenseMatrix Mk;
    double *tdata;
    int nk;
+   bool own_data;
 
 public:
-   DenseTensor() { nk = 0; tdata = NULL; }
+   DenseTensor()
+   {
+      nk = 0;
+      tdata = NULL;
+      own_data = true;
+   }
 
    DenseTensor(int i, int j, int k)
       : Mk(NULL, i, j)
-   { nk = k; tdata = new double[i*j*k]; }
+   {
+      nk = k;
+      tdata = new double[i*j*k];
+      own_data = true;
+   }
 
    int SizeI() const { return Mk.Height(); }
    int SizeJ() const { return Mk.Width(); }
@@ -582,10 +596,20 @@ public:
 
    void SetSize(int i, int j, int k)
    {
-      delete [] tdata;
+      if (own_data) { delete [] tdata; }
       Mk.UseExternalData(NULL, i, j);
       nk = k;
       tdata = new double[i*j*k];
+      own_data = true;
+   }
+
+   void UseExternalData(double *ext_data, int i, int j, int k)
+   {
+      if (own_data) { delete [] tdata; }
+      Mk.UseExternalData(NULL, i, j);
+      nk = k;
+      tdata = ext_data;
+      own_data = false;
    }
 
    DenseMatrix &operator()(int k) { Mk.data = GetData(k); return Mk; }
@@ -605,7 +629,10 @@ public:
        'x' and 'y' use the same elem_dof table. */
    void AddMult(const Table &elem_dof, const Vector &x, Vector &y) const;
 
-   ~DenseTensor() { delete [] tdata; }
+   ~DenseTensor()
+   {
+      if (own_data) { delete [] tdata; }
+   }
 };
 
 
@@ -613,28 +640,16 @@ public:
 
 inline double &DenseMatrix::operator()(int i, int j)
 {
-#ifdef MFEM_DEBUG
-   if ( data == 0 || i < 0 || i >= height || j < 0 || j >= width )
-   {
-      mfem_error("DenseMatrix::operator()");
-   }
-#endif
-
+   MFEM_ASSERT(data && i >= 0 && i < height && j >= 0 && j < width, "");
    return data[i+j*height];
 }
 
 inline const double &DenseMatrix::operator()(int i, int j) const
 {
-#ifdef MFEM_DEBUG
-   if ( data == 0 || i < 0 || i >= height || j < 0 || j >= width )
-   {
-      mfem_error("DenseMatrix::operator() const");
-   }
-#endif
-
+   MFEM_ASSERT(data && i >= 0 && i < height && j >= 0 && j < width, "");
    return data[i+j*height];
 }
 
-}
+} // namespace mfem
 
 #endif

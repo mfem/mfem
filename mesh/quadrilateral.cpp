@@ -15,9 +15,6 @@
 namespace mfem
 {
 
-const int Quadrilateral::edges[4][2] =
-{{0, 1}, {1, 2}, {2, 3}, {3, 0}};
-
 Quadrilateral::Quadrilateral( const int *ind, int attr )
    : Element(Geometry::SQUARE)
 {

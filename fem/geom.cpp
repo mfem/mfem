@@ -439,6 +439,107 @@ void Geometry::JacToPerfJac(int GeomType, const DenseMatrix &J,
 }
 
 const int Geometry::NumBdrArray[] = { 0, 2, 3, 4, 4, 6 };
+const int Geometry::Dimension[NumGeom] = { 0, 1, 2, 2, 3, 3 };
+const int Geometry::NumVerts[NumGeom] = { 1, 2, 3, 4, 4, 8 };
+const int Geometry::NumEdges[NumGeom] = { 0, 1, 3, 4, 6, 12 };
+const int Geometry::NumFaces[NumGeom] = { 0, 0, 1, 1, 4, 6 };
+
+const int Geometry::
+Constants<Geometry::POINT>::Orient[1][1] = {{0}};
+const int Geometry::
+Constants<Geometry::POINT>::InvOrient[1] = {0};
+
+const int Geometry::
+Constants<Geometry::SEGMENT>::Edges[1][2] = { {0, 1} };
+const int Geometry::
+Constants<Geometry::SEGMENT>::Orient[2][2] = { {0, 1}, {1, 0} };
+const int Geometry::
+Constants<Geometry::SEGMENT>::InvOrient[2] = { 0, 1 };
+
+const int Geometry::
+Constants<Geometry::TRIANGLE>::Edges[3][2] = {{0, 1}, {1, 2}, {2, 0}};
+const int Geometry::
+Constants<Geometry::TRIANGLE>::VertToVert::I[3] = {0, 2, 3};
+const int Geometry::
+Constants<Geometry::TRIANGLE>::VertToVert::J[3][2] = {{1, 0}, {2, -3}, {2, 1}};
+const int Geometry::
+Constants<Geometry::TRIANGLE>::FaceVert[1][3] = {{0, 1, 2}};
+const int Geometry::
+Constants<Geometry::TRIANGLE>::Orient[6][3] =
+{
+   {0, 1, 2}, {1, 0, 2}, {2, 0, 1},
+   {2, 1, 0}, {1, 2, 0}, {0, 2, 1}
+};
+const int Geometry::
+Constants<Geometry::TRIANGLE>::InvOrient[6] = { 0, 1, 4, 3, 2, 5 };
+
+const int Geometry::
+Constants<Geometry::SQUARE>::Edges[4][2] = {{0, 1}, {1, 2}, {2, 3}, {3, 0}};
+const int Geometry::
+Constants<Geometry::SQUARE>::VertToVert::I[4] = {0, 2, 3, 4};
+const int Geometry::
+Constants<Geometry::SQUARE>::VertToVert::J[4][2] =
+{{1, 0}, {3, -4}, {2, 1}, {3, 2}};
+const int Geometry::
+Constants<Geometry::SQUARE>::FaceVert[1][4] = {{0, 1, 2, 3}};
+const int Geometry::
+Constants<Geometry::SQUARE>::Orient[8][4] =
+{
+   {0, 1, 2, 3}, {0, 3, 2, 1}, {1, 2, 3, 0}, {1, 0, 3, 2},
+   {2, 3, 0, 1}, {2, 1, 0, 3}, {3, 0, 1, 2}, {3, 2, 1, 0}
+};
+const int Geometry::
+Constants<Geometry::SQUARE>::InvOrient[8] = { 0, 1, 6, 3, 4, 5, 2, 7 };
+
+const int Geometry::
+Constants<Geometry::TETRAHEDRON>::Edges[6][2] =
+{{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};
+const int Geometry::
+Constants<Geometry::TETRAHEDRON>::FaceTypes[4] =
+{
+   Geometry::TRIANGLE, Geometry::TRIANGLE,
+   Geometry::TRIANGLE, Geometry::TRIANGLE
+};
+const int Geometry::
+Constants<Geometry::TETRAHEDRON>::FaceVert[4][3] =
+{{1, 2, 3}, {0, 3, 2}, {0, 1, 3}, {0, 2, 1}};
+const int Geometry::
+Constants<Geometry::TETRAHEDRON>::VertToVert::I[4] = {0, 3, 5, 6};
+const int Geometry::
+Constants<Geometry::TETRAHEDRON>::VertToVert::J[6][2] =
+{{1, 0}, {2, 1}, {3, 2}, {2, 3}, {3, 4}, {3, 5}};
+
+const int Geometry::
+Constants<Geometry::CUBE>::Edges[12][2] =
+{
+   {0, 1}, {1, 2}, {3, 2}, {0, 3}, {4, 5}, {5, 6},
+   {7, 6}, {4, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7}
+};
+const int Geometry::
+Constants<Geometry::CUBE>::FaceTypes[6] =
+{
+   Geometry::SQUARE, Geometry::SQUARE, Geometry::SQUARE,
+   Geometry::SQUARE, Geometry::SQUARE, Geometry::SQUARE
+};
+const int Geometry::
+Constants<Geometry::CUBE>::FaceVert[6][4] =
+{
+   {3, 2, 1, 0}, {0, 1, 5, 4}, {1, 2, 6, 5},
+   {2, 3, 7, 6}, {3, 0, 4, 7}, {4, 5, 6, 7}
+};
+const int Geometry::
+Constants<Geometry::CUBE>::VertToVert::I[8] = {0, 3, 5, 7, 8, 10, 11, 12};
+const int Geometry::
+Constants<Geometry::CUBE>::VertToVert::J[12][2] =
+{
+   {1, 0}, {3, 3}, {4, 8}, // 0,1:0   0,3:3   0,4:8
+   {2, 1}, {5, 9},         // 1,2:1   1,5:9
+   {3,-3}, {6,10},         // 2,3:-3  2,6:10
+   {7,11},                 // 3,7:11
+   {5, 4}, {7, 7},         // 4,5:4   4,7:7
+   {6, 5},                 // 5,6:5
+   {7,-7}                  // 6,7:-7
+};
 
 Geometry Geometries;
 

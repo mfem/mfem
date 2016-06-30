@@ -24,6 +24,31 @@
 namespace mfem
 {
 
+/** @brief A simple convenience class that calls MPI_Init() at construction and
+    MPI_Finalize() at destruction. It also provides easy access to
+    MPI_COMM_WORLD's rank and size. */
+class MPI_Session
+{
+protected:
+   int world_rank, world_size;
+   void GetRankAndSize()
+   {
+      MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+      MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+   }
+public:
+   MPI_Session() { MPI_Init(NULL, NULL); GetRankAndSize(); }
+   MPI_Session(int &argc, char **&argv)
+   { MPI_Init(&argc, &argv); GetRankAndSize(); }
+   ~MPI_Session() { MPI_Finalize(); }
+   /// Return MPI_COMM_WORLD's rank.
+   int WorldRank() const { return world_rank; }
+   /// Return MPI_COMM_WORLD's size.
+   int WorldSize() const { return world_size; }
+   /// Return true if WorldRank() == 0.
+   bool Root() const { return world_rank == 0; }
+};
+
 class GroupTopology
 {
 private:
@@ -43,10 +68,12 @@ private:
    void ProcToLProc();
 
 public:
+   GroupTopology() : MyComm(0) {}
    GroupTopology(MPI_Comm comm) { MyComm = comm; }
 
    /// Copy constructor
    GroupTopology(const GroupTopology &gt);
+   void SetComm(MPI_Comm comm) { MyComm = comm; }
 
    MPI_Comm GetComm() { return MyComm; }
    int MyRank() { int r; MPI_Comm_rank(MyComm, &r); return r; }
@@ -73,6 +100,8 @@ public:
    // return a pointer to a list of neighbors for a given group.
    // neighbor 0 is the local processor
    const int *GetGroup(int g) const { return group_lproc.GetRow(g); }
+
+   virtual ~GroupTopology() {}
 };
 
 class GroupCommunicator
@@ -84,10 +113,6 @@ private:
    Array<char> group_buf;
    MPI_Request *requests;
    MPI_Status  *statuses;
-
-   /** Function template that returns the MPI_Datatype for a given C++ type.
-       We explicitly define this function for int and double. */
-   template <class T> static inline MPI_Datatype Get_MPI_Datatype();
 
 public:
    GroupCommunicator(GroupTopology &gt);
@@ -224,8 +249,9 @@ struct VarMessage
       {
          int rank, size;
          Probe(rank, size, comm);
-         MFEM_ASSERT(rank_msg.find(rank) != rank_msg.end(), "");
-         // No guard against receiving two messages from the same rank
+         MFEM_ASSERT(rank_msg.find(rank) != rank_msg.end(), "Unexpected message"
+                     " (tag " << Tag << ") from rank " << rank);
+         // NOTE: no guard against receiving two messages from the same rank
          rank_msg[rank].Recv(rank, size, comm);
          --recv_left;
       }
@@ -252,7 +278,19 @@ protected:
    virtual void Decode() {}
 };
 
-}
+
+/// Helper struct to convert a C++ type to an MPI type
+template <typename Type>
+struct MPITypeMap { static const MPI_Datatype mpi_type; };
+
+
+/** Reorder MPI ranks to follow the Z-curve within the physical machine topology
+    (provided that functions to query physical node coordinates are available).
+    Returns a new communicator with reordered ranks. */
+MPI_Comm ReorderRanksZCurve(MPI_Comm comm);
+
+
+} // namespace mfem
 
 #endif
 

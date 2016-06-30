@@ -34,6 +34,7 @@
 #include "tetrahedron.hpp"
 #include "ncmesh.hpp"
 #include "mesh.hpp"
+#include "mesh_operators.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>

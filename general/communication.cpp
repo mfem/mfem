@@ -14,6 +14,9 @@
 #ifdef MFEM_USE_MPI
 
 #include <mpi.h>
+#ifdef __bgq__
+#include <mpix.h>
+#endif
 
 #include "array.hpp"
 #include "table.hpp"
@@ -192,6 +195,11 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
 }
 
 
+// specializations of the MPITypeMap static member
+template<> const MPI_Datatype MPITypeMap<int>::mpi_type = MPI_INT;
+template<> const MPI_Datatype MPITypeMap<double>::mpi_type = MPI_DOUBLE;
+
+
 GroupCommunicator::GroupCommunicator(GroupTopology &gt)
    : gtopo(gt)
 {
@@ -278,7 +286,7 @@ void GroupCommunicator::Bcast(T *ldata)
       {
          MPI_Irecv(buf,
                    nldofs,
-                   Get_MPI_Datatype<T>(),
+                   MPITypeMap<T>::mpi_type,
                    gtopo.GetGroupMasterRank(gr),
                    40822 + gtopo.GetGroupMasterGroup(gr),
                    gtopo.GetComm(),
@@ -302,7 +310,7 @@ void GroupCommunicator::Bcast(T *ldata)
             {
                MPI_Isend(buf,
                          nldofs,
-                         Get_MPI_Datatype<T>(),
+                         MPITypeMap<T>::mpi_type,
                          gtopo.GetNeighborRank(nbs[i]),
                          40822 + gtopo.GetGroupMasterGroup(gr),
                          gtopo.GetComm(),
@@ -375,7 +383,7 @@ void GroupCommunicator::Reduce(T *ldata, void (*Op)(OpData<T>))
 
          MPI_Isend(opd.buf,
                    opd.nldofs,
-                   Get_MPI_Datatype<T>(),
+                   MPITypeMap<T>::mpi_type,
                    gtopo.GetGroupMasterRank(gr),
                    43822 + gtopo.GetGroupMasterGroup(gr),
                    gtopo.GetComm(),
@@ -393,7 +401,7 @@ void GroupCommunicator::Reduce(T *ldata, void (*Op)(OpData<T>))
             {
                MPI_Irecv(opd.buf,
                          opd.nldofs,
-                         Get_MPI_Datatype<T>(),
+                         MPITypeMap<T>::mpi_type,
                          gtopo.GetNeighborRank(nbs[i]),
                          43822 + gtopo.GetGroupMasterGroup(gr),
                          gtopo.GetComm(),
@@ -503,17 +511,6 @@ GroupCommunicator::~GroupCommunicator()
    delete [] requests;
 }
 
-// explicitly define GroupCommunicator::Get_MPI_Datatype for int and double
-template <> inline MPI_Datatype GroupCommunicator::Get_MPI_Datatype<int>()
-{
-   return MPI_INT;
-}
-
-template <> inline MPI_Datatype GroupCommunicator::Get_MPI_Datatype<double>()
-{
-   return MPI_DOUBLE;
-}
-
 // @cond DOXYGEN_SKIP
 
 // instantiate GroupCommunicator::Bcast and Reduce for int and double
@@ -536,6 +533,118 @@ template void GroupCommunicator::Sum<double>(OpData<double>);
 template void GroupCommunicator::Min<double>(OpData<double>);
 template void GroupCommunicator::Max<double>(OpData<double>);
 
+
+#ifdef __bgq__
+static void DebugRankCoords(int** coords, int dim, int size)
+{
+   for (int i = 0; i < size; i++)
+   {
+      std::cout << "Rank " << i << " coords: ";
+      for (int j = 0; j < dim; j++)
+      {
+         std::cout << coords[i][j] << " ";
+      }
+      std::cout << endl;
+   }
 }
+
+struct CompareCoords
+{
+   CompareCoords(int coord) : coord(coord) {}
+   int coord;
+
+   bool operator()(int* const &a, int* const &b) const
+   { return a[coord] < b[coord]; }
+};
+
+void KdTreeSort(int** coords, int d, int dim, int size)
+{
+   if (size > 1)
+   {
+      bool all_same = true;
+      for (int i = 1; i < size && all_same; i++)
+      {
+         for (int j = 0; j < dim; j++)
+         {
+            if (coords[i][j] != coords[0][j]) { all_same = false; break; }
+         }
+      }
+      if (all_same) { return; }
+
+      // sort by coordinate 'd'
+      std::sort(coords, coords + size, CompareCoords(d));
+      int next = (d + 1) % dim;
+
+      if (coords[0][d] < coords[size-1][d])
+      {
+         KdTreeSort(coords, next, dim, size/2);
+         KdTreeSort(coords + size/2, next, dim, size - size/2);
+      }
+      else
+      {
+         // skip constant dimension
+         KdTreeSort(coords, next, dim, size);
+      }
+   }
+}
+
+MPI_Comm ReorderRanksZCurve(MPI_Comm comm)
+{
+   MPI_Status status;
+
+   int rank, size;
+   MPI_Comm_rank(comm, &rank);
+   MPI_Comm_size(comm, &size);
+
+   int dim;
+   MPIX_Torus_ndims(&dim);
+
+   int* mycoords = new int[dim + 1];
+   MPIX_Rank2torus(rank, mycoords);
+
+   MPI_Send(mycoords, dim, MPI_INT, 0, 111, comm);
+   delete [] mycoords;
+
+   if (rank == 0)
+   {
+      int** coords = new int*[size];
+      for (int i = 0; i < size; i++)
+      {
+         coords[i] = new int[dim + 1];
+         coords[i][dim] = i;
+         MPI_Recv(coords[i], dim, MPI_INT, i, 111, comm, &status);
+      }
+
+      KdTreeSort(coords, 0, dim, size);
+
+      //DebugRankCoords(coords, dim, size);
+
+      for (int i = 0; i < size; i++)
+      {
+         MPI_Send(&coords[i][dim], 1, MPI_INT, i, 112, comm);
+         delete [] coords[i];
+      }
+      delete [] coords;
+   }
+
+   int new_rank;
+   MPI_Recv(&new_rank, 1, MPI_INT, 0, 112, comm, &status);
+
+   MPI_Comm new_comm;
+   MPI_Comm_split(comm, 0, new_rank, &new_comm);
+   return new_comm;
+}
+
+#else // __bgq__
+
+MPI_Comm ReorderRanksZCurve(MPI_Comm comm)
+{
+   // pass
+   return comm;
+}
+#endif // __bgq__
+
+
+} // namespace mfem
 
 #endif

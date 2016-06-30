@@ -60,6 +60,8 @@ namespace mfem {
  * - <a class="el" href="ex13p_8cpp_source.html">Example 13p</a>: parallel Maxwell eigensolver
  * - <a class="el" href="ex14_8cpp_source.html">Example 14</a>: Discontinuous Galerkin (DG) for the Laplace problem
  * - <a class="el" href="ex14p_8cpp_source.html">Example 14p</a>: parallel Discontinuous Galerkin (DG) for the Laplace problem
+ * - <a class="el" href="ex15_8cpp_source.html">Example 15</a>: dynamic AMR for Laplace with prescribed time-dependent source
+ * - <a class="el" href="ex15p_8cpp_source.html">Example 15p</a>: parallel dynamic AMR for Laplace with prescribed time-dependent source
  *
  * <H3>Miniapps</H3>
  * - <a class="el" href="volta_8cpp_source.html">Volta</a>: simple electrostatics simulation code
@@ -67,6 +69,8 @@ namespace mfem {
  * - <a class="el" href="mobius-strip_8cpp_source.html">Mobius Strip</a>: generate various Mobius strip-like meshes
  * - <a class="el" href="klein-bottle_8cpp_source.html">Klein Bottle</a>: generate three types of Klein bottle surfaces
  * - <a class="el" href="mesh-explorer_8cpp_source.html">Mesh Explorer</a>: visualize and manipulate meshes
+ * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Laplace problem
+ * - <a class="el" href="miniapps_2performance_2ex1p_8cpp_source.html">HPC Example 1p</a>: high-performance parallel nodal H1 FEM for the Laplace problem
  *
  * See also the <a class="el" href="../../../examples/README.html">README</a> in the <code>examples/</code> directory
  */

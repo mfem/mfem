@@ -25,6 +25,20 @@ namespace mfem
     element to its boundary. */
 class FiniteElementCollection
 {
+protected:
+   template <Geometry::Type geom>
+   static inline void GetNVE(int &nv, int &ne);
+
+   template <Geometry::Type geom, typename v_t>
+   static inline void GetEdge(int &nv, v_t &v, int &ne, int &e, int &eo,
+                              const int edge_info);
+
+   template <Geometry::Type geom, Geometry::Type f_geom,
+             typename v_t, typename e_t, typename eo_t>
+   static inline void GetFace(int &nv, v_t &v, int &ne, e_t &e, eo_t &eo,
+                              int &nf, int &f, int &fg, int &fo,
+                              const int face_info);
+
 public:
    virtual const FiniteElement *
    FiniteElementForGeometry(int GeomType) const = 0;
@@ -48,19 +62,37 @@ public:
    virtual ~FiniteElementCollection() { }
 
    static FiniteElementCollection *New(const char *name);
+
+   /** @brief Get the local dofs for a given sub-manifold.
+
+      Return the local dofs for a SDim-dimensional sub-manifold (0D - vertex,
+      1D - edge, 2D - face) including those on its boundary. The local index of
+      the sub-manifold (inside Geom) and its orientation are given by the
+      parameter Info = 64 * SubIndex + SubOrientation. Naturally, it is assumed
+      that 0 <= SDim <= Dim(Geom). */
+   void SubDofOrder(int Geom, int SDim, int Info, Array<int> &dofs) const;
 };
 
 /// Arbitrary order H1-conforming (continuous) finite elements.
 class H1_FECollection : public FiniteElementCollection
 {
+public:
+   enum BasisType
+   {
+      GaussLobatto = 0, // Nodal basis, with nodes at the Gauss-Lobatto points
+      Positive     = 1  // Positive basis, Bernstein polynomials
+   };
+
 protected:
+   BasisType m_type;
    char h1_name[32];
    FiniteElement *H1_Elements[Geometry::NumGeom];
    int H1_dof[Geometry::NumGeom];
    int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
 
 public:
-   explicit H1_FECollection(const int p, const int dim = 3, const int type = 0);
+   explicit H1_FECollection(const int p, const int dim = 3,
+                            const int type = GaussLobatto);
 
    virtual const FiniteElement *FiniteElementForGeometry(int GeomType) const
    { return H1_Elements[GeomType]; }
@@ -69,6 +101,8 @@ public:
    virtual int *DofOrderForOrientation(int GeomType, int Or) const;
    virtual const char *Name() const { return h1_name; }
    FiniteElementCollection *GetTraceCollection() const;
+
+   BasisType GetBasisType() const { return m_type; }
 
    virtual ~H1_FECollection();
 };
@@ -79,7 +113,7 @@ class H1Pos_FECollection : public H1_FECollection
 {
 public:
    explicit H1Pos_FECollection(const int p, const int dim = 3)
-      : H1_FECollection(p, dim, 1) { }
+      : H1_FECollection(p, dim, Positive) { }
 };
 
 /** Arbitrary order "H^{1/2}-conforming" trace finite elements defined on the
@@ -88,13 +122,23 @@ public:
 class H1_Trace_FECollection : public H1_FECollection
 {
 public:
-   H1_Trace_FECollection(const int p, const int dim, const int type = 0);
+   H1_Trace_FECollection(const int p, const int dim,
+                         const int type = GaussLobatto);
 };
 
 /// Arbitrary order "L2-conforming" discontinuous finite elements.
 class L2_FECollection : public FiniteElementCollection
 {
+public:
+   enum BasisType
+   {
+      GaussLegendre = 0, // Nodal basis, with nodes at the Gauss-Legendre points
+      GaussLobatto  = 1, // Nodal basis, with nodes at the Gauss-Lobatto points
+      Positive      = 2  // Positive basis, Bernstein polynomials
+   };
+
 private:
+   BasisType m_type;
    char d_name[32];
    FiniteElement *L2_Elements[Geometry::NumGeom];
    FiniteElement *Tr_Elements[Geometry::NumGeom];
@@ -102,7 +146,7 @@ private:
    int *TriDofOrd[6]; // for rotating triangle dofs in 2D
 
 public:
-   L2_FECollection(const int p, const int dim, const int type = 0);
+   L2_FECollection(const int p, const int dim, const int type = GaussLegendre);
 
    virtual const FiniteElement *FiniteElementForGeometry(int GeomType) const
    { return L2_Elements[GeomType]; }
@@ -122,6 +166,8 @@ public:
    {
       return Tr_Elements[GeomType];
    }
+
+   BasisType GetBasisType() const { return m_type; }
 
    virtual ~L2_FECollection();
 };

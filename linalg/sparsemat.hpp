@@ -78,7 +78,7 @@ public:
        linked list format. New entries are added as needed by methods like
        AddSubMatrix, SetSubMatrix, etc. Calling Finalize() will convert the
        SparseMatrix to the more compact compressed sparse row (CSR) format. */
-   explicit SparseMatrix(int nrows, int ncols = 0);
+   explicit SparseMatrix(int nrows, int ncols = -1);
 
    /** Create a sparse matrix in CSR format. Ownership of i, j, and data is
        transferred to the SparseMatrix. */
@@ -88,6 +88,11 @@ public:
        optionally transferred to the SparseMatrix. */
    SparseMatrix(int *i, int *j, double *data, int m, int n, bool ownij,
                 bool owna, bool issorted);
+
+   /** Create a sparse matrix in CSR format where each row has space allocated
+       for exactly 'rowsize' entries. SetRow can then be called or the I, J, A
+       arrays can be used directly. */
+   SparseMatrix(int nrows, int ncols, int rowsize);
 
    /** Copy constructor (deep copy). If mat is finalized and copy_graph is
        false, the I and J arrays will use a shallow copy (copy the pointers
@@ -314,7 +319,7 @@ public:
 
    /** Add the sparse matrix 'B' to '*this'. This operation will cause an error
        if '*this' is finalized and 'B' has larger sparsity pattern. */
-   SparseMatrix &operator+=(SparseMatrix &B);
+   SparseMatrix &operator+=(const SparseMatrix &B);
 
    /** Add the sparse matrix 'B' scaled by the scalar 'a' into '*this'.
        Only entries in the sparsity pattern of '*this' are added. */
@@ -396,6 +401,11 @@ SparseMatrix *Mult(const SparseMatrix &A, const SparseMatrix &B,
 SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
                                         const AbstractSparseMatrix &B);
 
+/// Matrix product A.B
+DenseMatrix *Mult(const SparseMatrix &A, DenseMatrix &B);
+
+/// RAP matrix product (with R=P^T)
+DenseMatrix *RAP(const SparseMatrix &A, DenseMatrix &P);
 
 /** RAP matrix product (with P=R^T). ORAP is like OAB above.
     All matrices must be finalized. */

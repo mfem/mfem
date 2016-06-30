@@ -28,7 +28,7 @@ Some building considerations:
 
 - To clean the (large) CodeDocumentation/ directory, type "make clean".
 
-- On Mac OS X, the command line executable "doxygen", required to build the code
+- On Mac OS X, the command-line executable "doxygen", required to build the code
   documentation, can be found inside the Doxygen application in
 
      Doxygen.app/Contents/Resources/doxygen

@@ -75,10 +75,17 @@ protected:
    int *Af_ipiv;
 
 #ifdef MFEM_USE_MPI
+   HypreParMatrix *pC, *P_pc; // for parallel non-conforming meshes
    HypreParMatrix *pH;
 #endif
 
+   void ConstructC();
+
    void GetIBDofs(int el, Array<int> &i_dofs, Array<int> &b_dofs) const;
+
+   void GetBDofs(int el, int &num_idofs, Array<int> &b_dofs) const;
+
+   void ComputeH();
 
    // Compute depending on mode:
    // - mode 0: bf = Af^{-1} Rf^t b, where
@@ -108,6 +115,9 @@ public:
    /// Assemble the element matrix A into the hybridized system matrix.
    void AssembleMatrix(int el, const DenseMatrix &A);
 
+   /// Assemble the boundary element matrix A into the hybridized system matrix.
+   void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
+
    /// Finalize the construction of the hybridized matrix.
    void Finalize();
 
@@ -128,6 +138,14 @@ public:
        It is assumed that the vector sol has the right essential b.c. */
    void ComputeSolution(const Vector &b, const Vector &sol_r,
                         Vector &sol) const;
+
+   /** @brief Destroy the current hybridization matrix while preserving the
+       computed constraint matrix and the set of essential true dofs. After
+       Reset(), a new hybridized matrix can be assembled via AssembleMatrix()
+       and Finalize(). The Mesh and FiniteElementSpace objects are assumed to be
+       un-modified. If that is not the case, a new Hybridization object must be
+       created. */
+   void Reset();
 };
 
 }

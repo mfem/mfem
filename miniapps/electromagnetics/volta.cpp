@@ -50,6 +50,10 @@
 //   A dielectric sphere suspended in a uniform electric field:
 //      mpirun -np 4 volta -dbcs 1 -dbcg -ds '0.0 0.0 0.0 0.2 8.0'
 //
+//   An example using piecewise constant permittivity values
+//       mpirun -np 4 volta -m llnl.mesh -dbcs '4' -dbcv '0'
+//                          -cs '8.5 8.5 17 1.57' -pwe '1 1 1 0.001'
+//
 //   By default the sources and fields are all zero:
 //      mpirun -np 4 volta
 
@@ -61,7 +65,14 @@ using namespace std;
 using namespace mfem;
 using namespace mfem::electromagnetics;
 
-// Permittivity Function
+// Physical Constants
+// Permittivity of Free Space (units F/m)
+static double epsilon0_ = 8.8541878176e-12;
+
+// Permittivity Functions
+Coefficient * SetupPermittivityCoefficient();
+
+static Vector pw_eps_(0);     // Piecewise permittivity values
 static Vector ds_params_(0);  // Center, Radius, and Permittivity
 //                               of dielectric sphere
 double dielectric_sphere(const Vector &);
@@ -85,18 +96,16 @@ void display_banner(ostream & os);
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   MPI_Session mpi(argc, argv);
 
-   if ( myid == 0 ) { display_banner(cout); }
+   if ( mpi.Root() ) { display_banner(cout); }
 
    // Parse command-line options.
-   const char *mesh_file = "butterfly_3d.mesh";
+   const char *mesh_file = "../../data/ball-nurbs.mesh";
    int order = 1;
-   int sr = 0, pr = 0;
+   int maxit = 100;
+   int serial_ref_levels = 0;
+   int parallel_ref_levels = 0;
    bool visualization = true;
    bool visit = true;
 
@@ -113,12 +122,14 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&sr, "-rs", "--serial-ref-levels",
+   args.AddOption(&serial_ref_levels, "-rs", "--serial-ref-levels",
                   "Number of serial refinement levels.");
-   args.AddOption(&pr, "-rp", "--parallel-ref-levels",
+   args.AddOption(&parallel_ref_levels, "-rp", "--parallel-ref-levels",
                   "Number of parallel refinement levels.");
    args.AddOption(&e_uniform_, "-uebc", "--uniform-e-bc",
                   "Specify if the three components of the constant electric field");
+   args.AddOption(&pw_eps_, "-pwe", "--piecewise-eps",
+                  "Piecewise values of Permittivity");
    args.AddOption(&ds_params_, "-ds", "--dielectric-sphere-params",
                   "Center, Radius, and Permittivity of Dielectric Sphere");
    args.AddOption(&cs_params_, "-cs", "--charged-sphere-params",
@@ -136,6 +147,8 @@ int main(int argc, char *argv[])
                   "Neumann Boundary Condition Surfaces");
    args.AddOption(&nbcv, "-nbcv", "--neumann-bc-vals",
                   "Neumann Boundary Condition Values");
+   args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
+                  "Max number of iterations in the main AMR loop.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -144,14 +157,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0)
+      if (mpi.Root())
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
-   if (myid == 0)
+   if (mpi.Root())
    {
       args.PrintOptions(cout);
    }
@@ -159,45 +171,33 @@ int main(int argc, char *argv[])
    // Read the (serial) mesh from the given mesh file on all processors.  We
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    // and volume meshes with the same code.
-   Mesh *mesh;
-   ifstream imesh(mesh_file);
-   if (!imesh)
-   {
-      if (myid == 0)
-      {
-         cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
-      }
-      MPI_Finalize();
-      return 2;
-   }
-   mesh = new Mesh(imesh, 1, 1);
-   imesh.close();
-
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int sdim = mesh->SpaceDimension();
+
+   if (mpi.Root())
+   {
+      cout << "Starting initialization." << endl;
+   }
+
+   // Project a NURBS mesh to a piecewise-quadratic curved mesh
+   if (mesh->NURBSext)
+   {
+      mesh->UniformRefinement();
+      if (serial_ref_levels > 0) { serial_ref_levels--; }
+
+      mesh->SetCurvature(2);
+   }
+
+   // Ensure that quad and hex meshes are treated as non-conforming.
+   mesh->EnsureNCMesh();
 
    // Refine the serial mesh on all processors to increase the resolution. In
    // this example we do 'ref_levels' of uniform refinement. NURBS meshes are
    // refined at least twice, as they are typically coarse.
-   if (myid == 0) { cout << "Starting initialization." << endl; }
+   for (int l = 0; l < serial_ref_levels; l++)
    {
-      int ref_levels = sr;
-      if (mesh->NURBSext && ref_levels < 2)
-      {
-         ref_levels = 2;
-      }
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh->UniformRefinement();
-      }
+      mesh->UniformRefinement();
    }
-
-   // Project a NURBS mesh to a piecewise-quadratic curved mesh. Make sure that
-   // the mesh is non-conforming.
-   if (mesh->NURBSext)
-   {
-      mesh->SetCurvature(2);
-   }
-   mesh->EnsureNCMesh();
 
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
    // this mesh further in parallel to increase the resolution. Once the
@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
    delete mesh;
 
    // Refine this mesh in parallel to increase the resolution.
-   int par_ref_levels = pr;
+   int par_ref_levels = parallel_ref_levels;
    for (int l = 0; l < par_ref_levels; l++)
    {
       pmesh.UniformRefinement();
@@ -235,9 +235,11 @@ int main(int argc, char *argv[])
       nbcv = 0.0;
    }
 
+   // Create a coefficient describing the dielectric permittivity
+   Coefficient * epsCoef = SetupPermittivityCoefficient();
+
    // Create the Electrostatic solver
-   VoltaSolver Volta(pmesh, order, dbcs, dbcv, nbcs, nbcv,
-                     ( ds_params_.Size() > 0 ) ? dielectric_sphere : NULL,
+   VoltaSolver Volta(pmesh, order, dbcs, dbcv, nbcs, nbcv, *epsCoef,
                      ( e_uniform_.Size() > 0 ) ? phi_bc_uniform    : NULL,
                      ( cs_params_.Size() > 0 ) ? charged_sphere    : NULL,
                      ( vp_params_.Size() > 0 ) ? voltaic_pile      : NULL);
@@ -255,7 +257,7 @@ int main(int argc, char *argv[])
    {
       Volta.RegisterVisItFields(visit_dc);
    }
-   if (myid == 0) { cout << "Initialization done." << endl; }
+   if (mpi.Root()) { cout << "Initialization done." << endl; }
 
    // The main AMR loop. In each iteration we solve the problem on the current
    // mesh, visualize the solution, estimate the error on all elements, refine
@@ -263,15 +265,18 @@ int main(int argc, char *argv[])
    // refine until the maximum number of dofs in the nodal finite element space
    // reaches 10 million.
    const int max_dofs = 10000000;
-   for (int it = 1; it <= 100; it++)
+   for (int it = 1; it <= maxit; it++)
    {
-      if (myid == 0)
+      if (mpi.Root())
       {
          cout << "\nAMR Iteration " << it << endl;
       }
 
       // Display the current number of DoFs in each finite element space
       Volta.PrintSizes();
+
+      // Assemble all forms
+      Volta.Assemble();
 
       // Solve the system and compute any auxiliary fields
       Volta.Solve();
@@ -290,9 +295,8 @@ int main(int argc, char *argv[])
       {
          Volta.DisplayToGLVis();
       }
-      if (myid == 0 && (visit || visualization)) { cout << "done." << endl; }
 
-      if (myid == 0)
+      if (mpi.Root())
       {
          cout << "AMR iteration " << it << " complete." << endl;
       }
@@ -300,7 +304,7 @@ int main(int argc, char *argv[])
       // Check stopping criteria
       if (prob_size > max_dofs)
       {
-         if (myid == 0)
+         if (mpi.Root())
          {
             cout << "Reached maximum number of dofs, exiting..." << endl;
          }
@@ -309,7 +313,7 @@ int main(int argc, char *argv[])
 
       // Wait for user input. Ask every 10th iteration.
       char c = 'c';
-      if (myid == 0 && (it % 10 == 0))
+      if (mpi.Root() && (it % 10 == 0))
       {
          cout << "press (q)uit or (c)ontinue --> " << flush;
          cin >> c;
@@ -330,27 +334,27 @@ int main(int argc, char *argv[])
       MPI_Allreduce(&local_max_err, &global_max_err, 1,
                     MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
 
-      // Make a list of elements whose error is larger than a fraction
-      // of the maximum element error. These elements will be refined.
-      Array<int> ref_list;
+      // Refine the elements whose error is larger than a fraction of the
+      // maximum element error.
       const double frac = 0.7;
       double threshold = frac * global_max_err;
-      for (int i = 0; i < errors.Size(); i++)
-      {
-         if (errors[i] >= threshold) { ref_list.Append(i); }
-      }
-
-      // Refine the selected elements. Since we are going to transfer the
-      // grid function x from the coarse mesh to the new fine mesh in the
-      // next step, we need to request the "two-level state" of the mesh.
-      if (myid == 0) { cout << " Refinement ..." << flush; }
-      pmesh.GeneralRefinement(ref_list);
+      if (mpi.Root()) { cout << "Refining ..." << endl; }
+      pmesh.RefineByError(errors, threshold);
 
       // Update the electrostatic solver to reflect the new state of the mesh.
       Volta.Update();
+
+      if (pmesh.Nonconforming())
+      {
+         if (mpi.Root()) { cout << "Rebalancing ..." << endl; }
+         pmesh.Rebalance();
+
+         // Update again after rebalancing
+         Volta.Update();
+      }
    }
 
-   MPI_Finalize();
+   delete epsCoef;
 
    return 0;
 }
@@ -364,6 +368,29 @@ void display_banner(ostream & os)
       << "    \\     (  <_> )  |_|  |  / __ \\_  " << endl
       << "     \\___/ \\____/|____/__| (____  /  " << endl
       << "                                \\/   " << endl << flush;
+}
+
+// The Permittivity is a required coefficient which may be defined in
+// various ways so we'll determine the appropriate coefficient type here.
+Coefficient *
+SetupPermittivityCoefficient()
+{
+   Coefficient * coef = NULL;
+
+   if ( ds_params_.Size() > 0 )
+   {
+      coef = new FunctionCoefficient(dielectric_sphere);
+   }
+   else if ( pw_eps_.Size() > 0 )
+   {
+      coef = new PWConstCoefficient(pw_eps_);
+   }
+   else
+   {
+      coef = new ConstantCoefficient(epsilon0_);
+   }
+
+   return coef;
 }
 
 // A sphere with constant permittivity.  The sphere has a radius,

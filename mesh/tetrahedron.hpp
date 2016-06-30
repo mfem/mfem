@@ -23,7 +23,6 @@ class Tetrahedron : public Element
 {
 protected:
    int indices[4];
-   static const int edges[6][2];
 
    /** The refinement flag keeps (in order) :
        1. Two marked edges given with local index (0..5) for the two faces
@@ -35,18 +34,25 @@ protected:
        3. The rest is free for now. **/
    int refinement_flag;
 
+   unsigned transform;
+
 public:
+   typedef Geometry::Constants<Geometry::TETRAHEDRON> geom_t;
 
    /// Constants for different types of tetrahedrons.
    enum { TYPE_PU=0, TYPE_A=1, TYPE_PF=2, TYPE_O=3, TYPE_M=4 };
 
-   Tetrahedron() : Element(Geometry::TETRAHEDRON) { refinement_flag = 0; }
+   Tetrahedron() : Element(Geometry::TETRAHEDRON)
+   { refinement_flag = 0; transform = 0; }
 
    /// Constructs tetrahedron by specifying the indices and the attribute.
    Tetrahedron(const int *ind, int attr = 1);
 
    /// Constructs tetrahedron by specifying the indices and the attribute.
    Tetrahedron(int ind1, int ind2, int ind3, int ind4, int attr = 1);
+
+   /// Return element's type.
+   virtual int GetType() const { return Element::TETRAHEDRON; }
 
    void  ParseRefinementFlag(int refinement_edges[2], int &type, int &flag);
    void CreateRefinementFlag(int refinement_edges[2], int  type, int  flag = 0);
@@ -69,8 +75,15 @@ public:
        because the order may be used later for setting the edges. **/
    virtual void MarkEdge(const DSTable &v_to_v, const int *length);
 
-   /// Return element's type.
-   virtual int GetType() const { return Element::TETRAHEDRON; }
+   virtual void ResetTransform(int tr) { transform = tr; }
+   virtual unsigned GetTransform() const { return transform; }
+
+   /// Add 'tr' to the current chain of coarse-fine transformations.
+   virtual void PushTransform(int tr)
+   { transform = (transform << 3) | (tr + 1); }
+
+   /// Calculate point matrix corresponding to a chain of transformations.
+   static void GetPointMatrix(unsigned transform, DenseMatrix &pm);
 
    /// Returns the indices of the element's  vertices.
    virtual void GetVertices(Array<int> &v) const;
@@ -81,7 +94,8 @@ public:
 
    virtual int GetNEdges() const { return (6); }
 
-   virtual const int *GetEdgeVertices(int ei) const { return (edges[ei]); }
+   virtual const int *GetEdgeVertices(int ei) const
+   { return geom_t::Edges[ei]; }
 
    virtual int GetNFaces(int &nFaceVertices) const
    { nFaceVertices = 3; return 4; }

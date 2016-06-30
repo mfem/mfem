@@ -224,6 +224,21 @@ void MatrixArrayCoefficient::Eval (DenseMatrix &K, ElementTransformation &T,
       }
 }
 
+void MatrixRestrictedCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
+                                       const IntegrationPoint &ip)
+{
+   if (active_attr[T.Attribute-1])
+   {
+      c->SetTime(GetTime());
+      c->Eval(K, T, ip);
+   }
+   else
+   {
+      K.SetSize(vdim);
+      K = 0.0;
+   }
+}
+
 double LpNormLoop(double p, Coefficient &coeff, Mesh &mesh,
                   const IntegrationRule *irs[])
 {

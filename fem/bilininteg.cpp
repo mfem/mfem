@@ -569,6 +569,47 @@ void MassIntegrator::AssembleElementMatrix2(
 }
 
 
+void BoundaryMassIntegrator::AssembleFaceMatrix(
+   const FiniteElement &el1, const FiniteElement &el2,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+   MFEM_ASSERT(Trans.Elem2No < 0,
+               "support for interior faces is not implemented");
+
+   int nd1 = el1.GetDof();
+   double w;
+
+   elmat.SetSize(nd1);
+   shape.SetSize(nd1);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order = 2 * el1.GetOrder();
+
+      ir = &IntRules.Get(Trans.FaceGeom, order);
+   }
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      IntegrationPoint eip;
+      Trans.Loc1.Transform(ip, eip);
+      el1.CalcShape(eip, shape);
+
+      Trans.Face->SetIntPoint(&ip);
+      w = Trans.Face->Weight() * ip.weight;
+      if (Q)
+      {
+         w *= Q -> Eval(*Trans.Face, ip);
+      }
+
+      AddMult_a_VVt(w, shape, elmat);
+   }
+}
+
+
 void ConvectionIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
 {

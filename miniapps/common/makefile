@@ -27,23 +27,20 @@ else
    MINIOBJS = $(SEQ_MINIOBJS) pfem_extras.o
 endif
 
-.PHONY: all clean style
+.PHONY: all clean
 
 # Remove built-in rule
-%: %.cpp
+%.o: %.cpp
 
 # Replace the default implicit rule for *.cpp files
+%.o: %.cpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
+
 all: $(MINIOBJS)
 
-fem_extras.o: fem_extras.cpp $(CONFIG_MK) $(MFEM_LIB_FILE)
-	$(MFEM_CXX) -c $(MFEM_FLAGS) fem_extras.cpp -o $@ $(MFEM_LIBS)
-
-pfem_extras.o: pfem_extras.cpp $(CONFIG_MK) $(MFEM_LIB_FILE)
-	$(MFEM_CXX) -c $(MFEM_FLAGS) pfem_extras.cpp -o $@ $(MFEM_LIBS)
-
-# Generate an error message if the MFEM library is not built and exit
-$(CONFIG_MK) $(MFEM_LIB_FILE):
-	$(error The MFEM library is not built)
+# Generate an error message if the MFEM library is not configured and exit
+$(CONFIG_MK):
+	$(error The MFEM library is not configured)
 
 clean:
 	rm -f *.o *~

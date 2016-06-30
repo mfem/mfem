@@ -164,12 +164,18 @@ int main(int argc, char *argv[])
 
    if (amr == 1)
    {
-      mesh->RefineAtVertex(Vertex(0, 0, 1), 3); // 3 levels
+      for (int l = 0; l < 3; l++)
+      {
+         mesh->RefineAtVertex(Vertex(0, 0, 1));
+      }
       SnapNodes(*mesh);
    }
    else if (amr == 2)
    {
-      mesh->RandomRefinement(2, 2); // 2 levels, 1/2 of the elements
+      for (int l = 0; l < 2; l++)
+      {
+         mesh->RandomRefinement(0.5); // 50% probability
+      }
       SnapNodes(*mesh);
    }
 
@@ -195,12 +201,18 @@ int main(int argc, char *argv[])
 
    if (amr == 1)
    {
-      pmesh->RefineAtVertex(Vertex(0, 0, 1), 2); // 2 levels
+      for (int l = 0; l < 2; l++)
+      {
+         pmesh->RefineAtVertex(Vertex(0, 0, 1));
+      }
       SnapNodes(*pmesh);
    }
    else if (amr == 2)
    {
-      pmesh->RandomRefinement(2, 2); // 2 levels, 1/2 of the elements
+      for (int l = 0; l < 2; l++)
+      {
+         pmesh->RandomRefinement(0.5); // 50% probability
+      }
       SnapNodes(*pmesh);
    }
 

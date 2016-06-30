@@ -205,6 +205,251 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    return fec;
 }
 
+template <Geometry::Type geom>
+inline void FiniteElementCollection::GetNVE(int &nv, int &ne)
+{
+   typedef typename Geometry::Constants<geom> g_consts;
+
+   nv = g_consts::NumVert;
+   ne = g_consts::NumEdges;
+}
+
+template <Geometry::Type geom, typename v_t>
+inline void FiniteElementCollection::
+GetEdge(int &nv, v_t &v, int &ne, int &e, int &eo, const int edge_info)
+{
+   typedef typename Geometry::Constants<Geometry::SEGMENT> e_consts;
+   typedef typename Geometry::Constants<geom> g_consts;
+
+   nv = e_consts::NumVert;
+   ne = 1;
+   e = edge_info/64;
+   eo = edge_info%64;
+   MFEM_ASSERT(0 <= e && e < g_consts::NumEdges, "");
+   MFEM_ASSERT(0 <= eo && eo < e_consts::NumOrient, "");
+   v[0] = g_consts::Edges[e][0];
+   v[1] = g_consts::Edges[e][1];
+   v[0] = e_consts::Orient[eo][v[0]];
+   v[1] = e_consts::Orient[eo][v[1]];
+}
+
+template <Geometry::Type geom, Geometry::Type f_geom,
+          typename v_t, typename e_t, typename eo_t>
+inline void FiniteElementCollection::
+GetFace(int &nv, v_t &v, int &ne, e_t &e, eo_t &eo,
+        int &nf, int &f, int &fg, int &fo, const int face_info)
+{
+   typedef typename Geometry::Constants<  geom> g_consts;
+   typedef typename Geometry::Constants<f_geom> f_consts;
+
+   nv = f_consts::NumVert;
+   nf = 1;
+   f = face_info/64;
+   fg = f_geom;
+   fo = face_info%64;
+   MFEM_ASSERT(0 <= f && f < g_consts::NumFaces, "");
+   MFEM_ASSERT(0 <= fo && fo < f_consts::NumOrient, "");
+   for (int i = 0; i < f_consts::NumVert; i++)
+   {
+      v[i] = f_consts::Orient[fo][i];
+      v[i] = g_consts::FaceVert[f][v[i]];
+   }
+   ne = f_consts::NumEdges;
+   for (int i = 0; i < f_consts::NumEdges; i++)
+   {
+      int v0 = v[f_consts::Edges[i][0]];
+      int v1 = v[f_consts::Edges[i][1]];
+      int eor = 0;
+      if (v0 > v1) { swap(v0, v1); eor = 1; }
+      for (int j = g_consts::VertToVert::I[v0]; true; j++)
+      {
+         MFEM_ASSERT(j < g_consts::VertToVert::I[v0+1],
+                     "internal error, edge not found");
+         if (v1 == g_consts::VertToVert::J[j][0])
+         {
+            int en = g_consts::VertToVert::J[j][1];
+            if (en < 0)
+            {
+               en = -1-en;
+               eor = 1-eor;
+            }
+            e[i] = en;
+            eo[i] = eor;
+            break;
+         }
+      }
+   }
+}
+
+void FiniteElementCollection::SubDofOrder(int Geom, int SDim, int Info,
+                                          Array<int> &dofs) const
+{
+   // Info = 64 * SubIndex + SubOrientation
+   MFEM_ASSERT(0 <= Geom && Geom < Geometry::NumGeom,
+               "invalid Geom = " << Geom);
+   const int Dim = Geometry::Dimension[Geom];
+   MFEM_ASSERT(0 <= SDim && SDim <= Dim, "invalid SDim = " << SDim
+               << " for Geom = " << Geometry::Name[Geom]);
+
+   const int nvd = DofForGeometry(Geometry::POINT);
+   if (SDim == 0) // vertex
+   {
+      const int off = nvd*(Info/64);
+      dofs.SetSize(nvd);
+      for (int i = 0; i < nvd; i++)
+      {
+         dofs[i] = off + i;
+      }
+   }
+   else
+   {
+      int v[4], e[4], eo[4], f[1], fg[1], fo[1];
+      int av = 0, nv = 0, ae = 0, ne = 0, nf = 0;
+
+      switch (Geom)
+      {
+         case Geometry::SEGMENT:
+         {
+            GetNVE<Geometry::SEGMENT>(av, ae);
+            GetEdge<Geometry::SEGMENT>(nv, v, ne, e[0], eo[0], Info);
+            break;
+         }
+
+         case Geometry::TRIANGLE:
+         {
+            GetNVE<Geometry::TRIANGLE>(av, ae);
+            switch (SDim)
+            {
+               case 1:
+                  GetEdge<Geometry::TRIANGLE>(nv, v, ne, e[0], eo[0], Info);
+                  break;
+               case 2:
+                  GetFace<Geometry::TRIANGLE,Geometry::TRIANGLE>(
+                     nv, v, ne, e, eo, nf, f[0], fg[0], fo[0], Info);
+                  break;
+               default:
+                  goto not_supp;
+            }
+            break;
+         }
+
+         case Geometry::SQUARE:
+         {
+            GetNVE<Geometry::SQUARE>(av, ae);
+            switch (SDim)
+            {
+               case 1:
+                  GetEdge<Geometry::SQUARE>(nv, v, ne, e[0], eo[0], Info);
+                  break;
+               case 2:
+                  GetFace<Geometry::SQUARE,Geometry::SQUARE>(
+                     nv, v, ne, e, eo, nf, f[0], fg[0], fo[0], Info);
+                  break;
+               default:
+                  goto not_supp;
+            }
+            break;
+         }
+
+         case Geometry::TETRAHEDRON:
+         {
+            GetNVE<Geometry::TETRAHEDRON>(av, ae);
+            switch (SDim)
+            {
+               case 1:
+                  GetEdge<Geometry::TETRAHEDRON>(nv, v, ne, e[0], eo[0], Info);
+                  break;
+               case 2:
+                  GetFace<Geometry::TETRAHEDRON,Geometry::TRIANGLE>(
+                     nv, v, ne, e, eo, nf, f[0], fg[0], fo[0], Info);
+                  break;
+               default:
+                  goto not_supp;
+            }
+            break;
+         }
+
+         case Geometry::CUBE:
+         {
+            GetNVE<Geometry::CUBE>(av, ae);
+            switch (SDim)
+            {
+               case 1:
+                  GetEdge<Geometry::CUBE>(nv, v, ne, e[0], eo[0], Info);
+                  break;
+               case 2:
+                  GetFace<Geometry::CUBE,Geometry::SQUARE>(
+                     nv, v, ne, e, eo, nf, f[0], fg[0], fo[0], Info);
+                  break;
+               default:
+                  goto not_supp;
+            }
+            break;
+         }
+
+         default:
+            MFEM_ABORT("invalid Geom = " << Geom);
+      }
+
+      int ned = (ne > 0) ? DofForGeometry(Geometry::SEGMENT) : 0;
+
+      // add vertex dofs
+      dofs.SetSize(nv*nvd+ne*ned);
+      for (int i = 0; i < nv; i++)
+      {
+         for (int j = 0; j < nvd; j++)
+         {
+            dofs[i*nvd+j] = v[i]*nvd+j;
+         }
+      }
+      int l_off = nv*nvd, g_off = av*nvd;
+
+      // add edge dofs
+      if (ned > 0)
+      {
+         for (int i = 0; i < ne; i++)
+         {
+            const int *ed = DofOrderForOrientation(Geometry::SEGMENT,
+                                                   eo[i] ? -1 : 1);
+            for (int j = 0; j < ned; j++)
+            {
+               dofs[l_off+i*ned+j] =
+                  ed[j] >= 0 ?
+                  g_off+e[i]*ned+ed[j] :
+                  -1-(g_off+e[i]*ned+(-1-ed[j]));
+            }
+         }
+         l_off += ne*ned;
+         g_off += ae*ned;
+      }
+
+      // add face dofs
+      if (nf > 0)
+      {
+         const int nfd = DofForGeometry(fg[0]); // assume same face geometry
+         dofs.SetSize(dofs.Size()+nf*nfd);
+         for (int i = 0; i < nf; i++)
+         {
+            const int *fd = DofOrderForOrientation(fg[i], fo[i]);
+            for (int j = 0; j < nfd; j++)
+            {
+               dofs[l_off+i*nfd+j] =
+                  fd[j] >= 0 ?
+                  g_off+f[i]*nfd+fd[j] :
+                  -1-(g_off+f[i]*nfd+(-1-fd[j]));
+            }
+         }
+      }
+
+      // add volume dofs ...
+   }
+   return;
+
+not_supp:
+   MFEM_ABORT("Geom = " << Geometry::Name[Geom] <<
+              ", SDim = " << SDim << " is not supported");
+}
+
 const FiniteElement *
 LinearFECollection::FiniteElementForGeometry(int GeomType) const
 {
@@ -1148,7 +1393,8 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
 {
    const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1;
 
-   if (type == 0)
+   m_type = (BasisType)type;
+   if (type == GaussLobatto)
    {
       snprintf(h1_name, 32, "H1_%dD_P%d", dim, p);
    }
@@ -1181,7 +1427,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
    if (dim >= 1)
    {
       H1_dof[Geometry::SEGMENT] = pm1;
-      if (type == 0)
+      if (type == GaussLobatto)
       {
          H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p);
       }
@@ -1203,14 +1449,14 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
    {
       H1_dof[Geometry::TRIANGLE] = (pm1*pm2)/2;
       H1_dof[Geometry::SQUARE] = pm1*pm1;
-      if (type == 0)
+      if (type == GaussLobatto)
       {
          H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p);
          H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p);
       }
       else
       {
-         H1_Elements[Geometry::TRIANGLE] = NULL; // TODO
+         H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
          H1_Elements[Geometry::SQUARE] = new H1Pos_QuadrilateralElement(p);
       }
 
@@ -1259,14 +1505,14 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
       {
          H1_dof[Geometry::TETRAHEDRON] = (TriDof*pm3)/3;
          H1_dof[Geometry::CUBE] = QuadDof*pm1;
-         if (type == 0)
+         if (type == GaussLobatto)
          {
             H1_Elements[Geometry::TETRAHEDRON] = new H1_TetrahedronElement(p);
             H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p);
          }
          else
          {
-            H1_Elements[Geometry::TETRAHEDRON] = NULL; // TODO
+            H1_Elements[Geometry::TETRAHEDRON] = new H1Pos_TetrahedronElement(p);
             H1_Elements[Geometry::CUBE] = new H1Pos_HexahedronElement(p);
          }
       }
@@ -1337,6 +1583,7 @@ H1_Trace_FECollection::H1_Trace_FECollection(const int p, const int dim,
 
 L2_FECollection::L2_FECollection(const int p, const int dim, const int type)
 {
+   m_type = (BasisType)type;
    if (type == 0)
    {
       snprintf(d_name, 32, "L2_%dD_P%d", dim, p);

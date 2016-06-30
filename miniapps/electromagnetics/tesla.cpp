@@ -41,8 +41,12 @@
 //   A ring of current in a metal sphere:
 //      mpirun -np 4 tesla -cr '0 0 -0.2 0 0 0.2 0.2 0.4 1'
 //
+//   A Halbach array of permanent magnets:
+//      mpirun -np 4 tesla -m ../../data/beam-hex.mesh -rs 2
+//                         -ha '1 0.1 0.3 7 0.9 0.7 0 1 12'
+//
 //   An example demonstrating the use of surface currents:
-//      mpirun -np 4 tesla -m ./square-angled-pipe.mesh
+//      mpirun -np 4 tesla -m square-angled-pipe.mesh
 //                         -kbcs '3' -vbcs '1 2' -vbcv '-0.5 0.5'
 //
 //   An example combining the paramagnetic shell, permanent magnet,
@@ -64,10 +68,14 @@ using namespace mfem;
 using namespace mfem::electromagnetics;
 
 // Permeability Function
+Coefficient * SetupInvPermeabilityCoefficient();
+
+static Vector pw_mu_(0);      // Piecewise permeability values
+static Vector pw_mu_inv_(0);  // Piecewise inverse permeability values
 static Vector ms_params_(0);  // Center, Inner and Outer Radii, and
 //                               Permeability of magnetic shell
 double magnetic_shell(const Vector &);
-double muInv(const Vector & x) { return 1.0/magnetic_shell(x); }
+double magnetic_shell_inv(const Vector & x) { return 1.0/magnetic_shell(x); }
 
 // Current Density Function
 static Vector cr_params_(0);  // Axis Start, Axis End, Inner Ring Radius,
@@ -79,6 +87,12 @@ void current_ring(const Vector &, Vector &);
 static Vector bm_params_(0);  // Axis Start, Axis End, Bar Radius,
 //                               and Magnetic Field Magnitude
 void bar_magnet(const Vector &, Vector &);
+
+static Vector ha_params_(0);  // Bounding box,
+//                               axis index (0->'x', 1->'y', 2->'z'),
+//                               rotation axis index
+//                               and number of segments
+void halbach_array(const Vector &, Vector &);
 
 // A Field Boundary Condition for B = (Bx,By,Bz)
 static Vector b_uniform_(0);
@@ -92,18 +106,16 @@ void display_banner(ostream & os);
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   MPI_Session mpi(argc, argv);
 
-   if ( myid == 0 ) { display_banner(cout); }
+   if ( mpi.Root() ) { display_banner(cout); }
 
    // Parse command-line options.
-   const char *mesh_file = "butterfly_3d.mesh";
+   const char *mesh_file = "../../data/ball-nurbs.mesh";
    int order = 1;
-   int sr = 0, pr = 0;
+   int maxit = 100;
+   int serial_ref_levels = 0;
+   int parallel_ref_levels = 0;
    bool visualization = true;
    bool visit = true;
 
@@ -117,24 +129,30 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&sr, "-rs", "--serial-ref-levels",
+   args.AddOption(&serial_ref_levels, "-rs", "--serial-ref-levels",
                   "Number of serial refinement levels.");
-   args.AddOption(&pr, "-rp", "--parallel-ref-levels",
+   args.AddOption(&parallel_ref_levels, "-rp", "--parallel-ref-levels",
                   "Number of parallel refinement levels.");
    args.AddOption(&b_uniform_, "-ubbc", "--uniform-b-bc",
                   "Specify if the three components of the constant magnetic flux density");
+   args.AddOption(&pw_mu_, "-pwm", "--piecewise-mu",
+                  "Piecewise values of Permeability");
    args.AddOption(&ms_params_, "-ms", "--magnetic-shell-params",
                   "Center, Inner Radius, Outer Radius, and Permeability of Magnetic Shell");
    args.AddOption(&cr_params_, "-cr", "--current-ring-params",
                   "Axis End Points, Inner Radius, Outer Radius and Total Current of Annulus");
    args.AddOption(&bm_params_, "-bm", "--bar-magnet-params",
                   "Axis End Points, Radius, and Magnetic Field of Cylindrical Magnet");
+   args.AddOption(&ha_params_, "-ha", "--halbach-array-params",
+                  "Bounding Box Corners and Number of Segments");
    args.AddOption(&kbcs, "-kbcs", "--surface-current-bc",
                   "Surfaces for the Surface Current (K) Boundary Condition");
    args.AddOption(&vbcs, "-vbcs", "--voltage-bc-surf",
                   "Voltage Boundary Condition Surfaces (to drive K)");
    args.AddOption(&vbcv, "-vbcv", "--voltage-bc-vals",
                   "Voltage Boundary Condition Values (to drive K)");
+   args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
+                  "Max number of iterations in the main AMR loop.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -143,14 +161,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0)
+      if (mpi.Root())
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
-   if (myid == 0)
+   if (mpi.Root())
    {
       args.PrintOptions(cout);
    }
@@ -158,43 +175,31 @@ int main(int argc, char *argv[])
    // Read the (serial) mesh from the given mesh file on all processors.  We
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    // and volume meshes with the same code.
-   Mesh *mesh;
-   ifstream imesh(mesh_file);
-   if (!imesh)
-   {
-      if (myid == 0)
-      {
-         cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
-      }
-      MPI_Finalize();
-      return 2;
-   }
-   mesh = new Mesh(imesh, 1, 1);
-   imesh.close();
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
 
-   // Refine the serial mesh on all processors to increase the resolution. In
-   // this example we do 'ref_levels' of uniform refinement. NURBS meshes are
-   // refined at least twice, as they are typically coarse.
-   if (myid == 0) { cout << "Starting initialization." << endl; }
+   if (mpi.Root())
    {
-      int ref_levels = sr;
-      if (mesh->NURBSext && ref_levels < 2)
-      {
-         ref_levels = 2;
-      }
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh->UniformRefinement();
-      }
+      cout << "Starting initialization." << endl;
    }
 
-   // Project a NURBS mesh to a piecewise-quadratic curved mesh. Make sure that
-   // the mesh is non-conforming.
+   // Project a NURBS mesh to a piecewise-quadratic curved mesh
    if (mesh->NURBSext)
    {
+      mesh->UniformRefinement();
+      if (serial_ref_levels > 0) { serial_ref_levels--; }
+
       mesh->SetCurvature(2);
    }
+
+   // Ensure that quad and hex meshes are treated as non-conforming.
    mesh->EnsureNCMesh();
+
+   // Refine the serial mesh on all processors to increase the resolution. In
+   // this example we do 'ref_levels' of uniform refinement.
+   for (int l = 0; l < serial_ref_levels; l++)
+   {
+      mesh->UniformRefinement();
+   }
 
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
    // this mesh further in parallel to increase the resolution. Once the
@@ -203,7 +208,7 @@ int main(int argc, char *argv[])
    delete mesh;
 
    // Refine this mesh in parallel to increase the resolution.
-   int par_ref_levels = pr;
+   int par_ref_levels = parallel_ref_levels;
    for (int l = 0; l < par_ref_levels; l++)
    {
       pmesh.UniformRefinement();
@@ -214,7 +219,7 @@ int main(int argc, char *argv[])
         ( kbcs.Size() > 0 && vbcs.Size() == 0 ) ||
         ( vbcv.Size() < vbcs.Size() ) )
    {
-      if ( myid == 0 )
+      if ( mpi.Root() )
       {
          cout << "The surface current (K) boundary condition requires "
               << "surface current boundary condition surfaces (with -kbcs), "
@@ -222,16 +227,18 @@ int main(int argc, char *argv[])
               << "and voltage boundary condition values (with -vbcv)."
               << endl;
       }
-      MPI_Finalize();
       return 3;
    }
 
+   // Create a coefficient describing the magnetic permeability
+   Coefficient * muInvCoef = SetupInvPermeabilityCoefficient();
+
    // Create the Magnetostatic solver
-   TeslaSolver Tesla(pmesh, order, kbcs, vbcs, vbcv,
-                     (ms_params_.Size() > 0 ) ? muInv        : NULL,
-                     (b_uniform_.Size() > 0 ) ? a_bc_uniform : NULL,
-                     (cr_params_.Size() > 0 ) ? current_ring : NULL,
-                     (bm_params_.Size() > 0 ) ? bar_magnet   : NULL);
+   TeslaSolver Tesla(pmesh, order, kbcs, vbcs, vbcv, *muInvCoef,
+                     (b_uniform_.Size() > 0 ) ? a_bc_uniform  : NULL,
+                     (cr_params_.Size() > 0 ) ? current_ring  : NULL,
+                     (bm_params_.Size() > 0 ) ? bar_magnet    :
+                     (ha_params_.Size() > 0 ) ? halbach_array : NULL);
 
    // Initialize GLVis visualization
    if (visualization)
@@ -246,7 +253,7 @@ int main(int argc, char *argv[])
    {
       Tesla.RegisterVisItFields(visit_dc);
    }
-   if (myid == 0) { cout << "Initialization done." << endl; }
+   if (mpi.Root()) { cout << "Initialization done." << endl; }
 
    // The main AMR loop. In each iteration we solve the problem on the current
    // mesh, visualize the solution, estimate the error on all elements, refine
@@ -254,15 +261,18 @@ int main(int argc, char *argv[])
    // refine until the maximum number of dofs in the Nedelec finite element
    // space reaches 10 million.
    const int max_dofs = 10000000;
-   for (int it = 1; it <= 100; it++)
+   for (int it = 1; it <= maxit; it++)
    {
-      if (myid == 0)
+      if (mpi.Root())
       {
          cout << "\nAMR Iteration " << it << endl;
       }
 
       // Display the current number of DoFs in each finite element space
       Tesla.PrintSizes();
+
+      // Assemble all forms
+      Tesla.Assemble();
 
       // Solve the system and compute any auxiliary fields
       Tesla.Solve();
@@ -281,9 +291,8 @@ int main(int argc, char *argv[])
       {
          Tesla.DisplayToGLVis();
       }
-      if (myid == 0 && (visit || visualization)) { cout << "done." << endl; }
 
-      if (myid == 0)
+      if (mpi.Root())
       {
          cout << "AMR iteration " << it << " complete." << endl;
       }
@@ -291,7 +300,7 @@ int main(int argc, char *argv[])
       // Check stopping criteria
       if (prob_size > max_dofs)
       {
-         if (myid == 0)
+         if (mpi.Root())
          {
             cout << "Reached maximum number of dofs, exiting..." << endl;
          }
@@ -300,7 +309,7 @@ int main(int argc, char *argv[])
 
       // Wait for user input. Ask every 10th iteration.
       char c = 'c';
-      if (myid == 0 && (it % 10 == 0))
+      if (mpi.Root() && (it % 10 == 0))
       {
          cout << "press (q)uit or (c)ontinue --> " << flush;
          cin >> c;
@@ -321,27 +330,25 @@ int main(int argc, char *argv[])
       MPI_Allreduce(&local_max_err, &global_max_err, 1,
                     MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
 
-      // Make a list of elements whose error is larger than a fraction
-      // of the maximum element error. These elements will be refined.
-      Array<int> ref_list;
+      // Refine the elements whose error is larger than a fraction of the
+      // maximum element error.
       const double frac = 0.5;
       double threshold = frac * global_max_err;
-      for (int i = 0; i < errors.Size(); i++)
-      {
-         if (errors[i] >= threshold) { ref_list.Append(i); }
-      }
-
-      // Refine the selected elements. Since we are going to transfer the
-      // grid function x from the coarse mesh to the new fine mesh in the
-      // next step, we need to request the "two-level state" of the mesh.
-      if (myid == 0) { cout << " Refinement ..." << flush; }
-      pmesh.GeneralRefinement(ref_list);
+      if (mpi.Root()) { cout << "Refining ..." << endl; }
+      pmesh.RefineByError(errors, threshold);
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
       Tesla.Update();
-   }
 
-   MPI_Finalize();
+      if (pmesh.Nonconforming())
+      {
+         if (mpi.Root()) { cout << "Rebalancing ..." << endl; }
+         pmesh.Rebalance();
+
+         // Update again after rebalancing
+         Tesla.Update();
+      }
+   }
 
    return 0;
 }
@@ -357,6 +364,35 @@ void display_banner(ostream & os)
       << "               \\/     \\/          \\/   " << endl << flush;
 }
 
+// The Permeability is a required coefficient which may be defined in
+// various ways so we'll determine the appropriate coefficient type here.
+Coefficient *
+SetupInvPermeabilityCoefficient()
+{
+   Coefficient * coef = NULL;
+
+   if ( ms_params_.Size() > 0 )
+   {
+      coef = new FunctionCoefficient(magnetic_shell_inv);
+   }
+   else if ( pw_mu_.Size() > 0 )
+   {
+      pw_mu_inv_.SetSize(pw_mu_.Size());
+      for (int i = 0; i < pw_mu_.Size(); i++)
+      {
+         MFEM_ASSERT( pw_mu_[i] > 0.0, "permeability values must be positive" );
+         pw_mu_inv_[i] = 1.0/pw_mu_[i];
+      }
+      coef = new PWConstCoefficient(pw_mu_inv_);
+   }
+   else
+   {
+      coef = new ConstantCoefficient(1.0/mu0_);
+   }
+
+   return coef;
+}
+
 // A spherical shell with constant permeability.  The sphere has inner
 // and outer radii, center, and relative permeability specified on the
 // command line and stored in ms_params_.
@@ -364,9 +400,9 @@ double magnetic_shell(const Vector &x)
 {
    double r2 = 0.0;
 
-   for (int i=0; i<x.Size(); i++)
+   for (int i = 0; i < x.Size(); i++)
    {
-      r2 += (x(i)-ms_params_(i))*(x(i)-ms_params_(i));
+      r2 += (x(i) - ms_params_(i))*(x(i) - ms_params_(i));
    }
 
    if ( sqrt(r2) >= ms_params_(x.Size()) &&
@@ -473,6 +509,32 @@ void bar_magnet(const Vector &x, Vector &m)
    {
       m.Add(bm_params_[2*x.Size()+1]/h,a);
    }
+}
+
+// A Square Rod of rotating magnetized segments.  The rod is defined
+// by a bounding box and a number of segments.  The magnetization in
+// each segment is constant and follows a rotating pattern.
+void halbach_array(const Vector &x, Vector &m)
+{
+   m.SetSize(x.Size());
+   m = 0.0;
+
+   // Check Bounding Box
+   if ( x[0] < ha_params_[0] || x[0] > ha_params_[3] ||
+        x[1] < ha_params_[1] || x[1] > ha_params_[4] ||
+        x[2] < ha_params_[2] || x[2] > ha_params_[5] )
+   {
+      return;
+   }
+
+   int ai = (int)ha_params_[6];
+   int ri = (int)ha_params_[7];
+   int n  = (int)ha_params_[8];
+
+   int i = (int)n * (x[ai] - ha_params_[ai]) /
+           (ha_params_[ai+3] - ha_params_[ai]);
+
+   m[(ri + 1 + (i % 2)) % 3] = pow(-1.0,i/2);
 }
 
 // To produce a uniform magnetic flux the vector potential can be set

@@ -13,7 +13,7 @@
 #define MFEM_SORT_PAIRS
 
 #include "../config/config.hpp"
-#include <cstdlib>
+#include <algorithm>
 
 namespace mfem
 {
@@ -27,13 +27,19 @@ public:
    B two;
 };
 
-/// Compare the first element of the pairs
+/// @brief Comparison operator for class Pair, based on the first element only.
 template <class A, class B>
-int ComparePairs (const void *_p, const void *_q);
+bool operator<(const Pair<A,B> &p, const Pair<A,B> &q)
+{
+   return (p.one < q.one);
+}
 
-/// Sort with respect to the first element
+/// Sort an array of Pairs with respect to the first element
 template <class A, class B>
-void SortPairs (Pair<A, B> *pairs, int size);
+void SortPairs (Pair<A, B> *pairs, int size)
+{
+   std::sort(pairs, pairs + size);
+}
 
 
 template <class A, class B, class C>
@@ -45,30 +51,20 @@ public:
    C three;
 };
 
+/// @brief Lexicographic comparison operator for class Triple.
 template <class A, class B, class C>
-int CompareTriple (const void *_p, const void *_q)
+bool operator<(const Triple<A,B,C> &p, const Triple<A,B,C> &q)
 {
-   const Triple<A, B, C> *p, *q;
-
-   p = static_cast< const Triple<A, B, C>* >(_p);
-   q = static_cast< const Triple<A, B, C>* >(_q);
-
-   if (p -> one < q -> one) { return -1; }
-   if (q -> one < p -> one) { return +1; }
-   if (p -> two < q -> two) { return -1; }
-   if (q -> two < p -> two) { return +1; }
-   if (p -> three < q -> three) { return -1; }
-   if (q -> three < p -> three) { return +1; }
-   return 0;
+   return (p.one < q.one ||
+           (!(q.one < p.one) &&
+            (p.two < q.two || (!(q.two < p.two) && p.three < q.three))));
 }
 
+/// @brief Lexicographic sort for arrays of class Triple.
 template <class A, class B, class C>
 void SortTriple (Triple<A, B, C> *triples, int size)
 {
-   if (size > 0)
-   {
-      qsort (triples, size, sizeof(Triple<A, B, C>), CompareTriple<A, B, C>);
-   }
+   std::sort(triples, triples + size);
 }
 
 }

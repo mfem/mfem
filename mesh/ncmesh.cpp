@@ -12,9 +12,10 @@
 #include "../fem/fem.hpp"
 #include "ncmesh.hpp"
 
+#include <string>
 #include <algorithm>
 #include <cmath>
-#include <limits>
+#include <climits> // INT_MAX
 
 namespace mfem
 {
@@ -46,6 +47,18 @@ void NCMesh::GeomInfo::Initialize(const mfem::Element* elem)
       {
          faces[i][j] = elem->GetFaceVertices(i)[j];
       }
+   }
+
+   // in 2D we pretend to have faces too, so we can use Face::elem[2]
+   if (!nf)
+   {
+      for (int i = 0; i < ne; i++)
+      {
+         // make a degenerate face
+         faces[i][0] = faces[i][1] = edges[i][0];
+         faces[i][2] = faces[i][3] = edges[i][1];
+      }
+      nf = ne;
    }
 
    initialized = true;
@@ -268,12 +281,12 @@ void NCMesh::Node::UnrefVertex(HashTable<Node> &nodes)
    if (!vertex && !edge) { nodes.Delete(this); }
 }
 
-void NCMesh::Node::UnrefEdge(HashTable<Node> &nodes)
+void NCMesh::Node::UnrefEdge(Node *node, HashTable<Node> &nodes)
 {
-   MFEM_ASSERT(this, "node not found.");
-   MFEM_ASSERT(edge, "cannot unref a nonexistent edge.");
-   if (!edge->Unref()) { edge = NULL; }
-   if (!vertex && !edge) { nodes.Delete(this); }
+   MFEM_ASSERT(node, "node not found.");
+   MFEM_ASSERT(node->edge, "cannot unref a nonexistent edge.");
+   if (!node->edge->Unref()) { node->edge = NULL; }
+   if (!node->vertex && !node->edge) { nodes.Delete(node); }
 }
 
 NCMesh::Node::Node(const Node& other)
@@ -338,7 +351,7 @@ void NCMesh::UnrefElementNodes(Element *elem)
    {
       const int* ev = gi.edges[i];
       //nodes.Peek(node[ev[0]], node[ev[1]])->UnrefEdge(nodes); -- pre-aniso
-      PeekAltParents(node[ev[0]], node[ev[1]])->UnrefEdge(nodes);
+      Node::UnrefEdge(PeekAltParents(node[ev[0]], node[ev[1]]), nodes);
    }
 
    // unref all vertices (possibly destroying them)
@@ -375,15 +388,20 @@ void NCMesh::Face::ForgetElement(Element* e)
    else { MFEM_ABORT("element not found in Face::elem[]."); }
 }
 
+NCMesh::Face* NCMesh::GetFace(Element* elem, int face_no)
+{
+   GeomInfo& gi = GI[(int) elem->geom];
+   const int* fv = gi.faces[face_no];
+   Node** node = elem->node;
+   return faces.Peek(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]]);
+}
+
 void NCMesh::RegisterFaces(Element* elem, int* fattr)
 {
-   Node** node = elem->node;
    GeomInfo& gi = GI[(int) elem->geom];
-
    for (int i = 0; i < gi.nf; i++)
    {
-      const int* fv = gi.faces[i];
-      Face* face = faces.Peek(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]]);
+      Face* face = GetFace(elem, i);
       face->RegisterElement(elem);
       if (fattr) { face->attribute = fattr[i]; }
    }
@@ -406,7 +424,7 @@ NCMesh::Element* NCMesh::Face::GetSingleElement() const
 NCMesh::Node* NCMesh::PeekAltParents(Node* v1, Node* v2)
 {
    Node* mid = nodes.Peek(v1, v2);
-   if (!mid)
+   if (!mid) // TODO: && !Iso ?
    {
       // In rare cases, a mid-face node exists under alternate parents w1, w2
       // (see picture) instead of the requested parents v1, v2. This is an
@@ -458,7 +476,8 @@ NCMesh::Node* NCMesh::PeekAltParents(Node* v1, Node* v2)
 //// Refinement & Derefinement /////////////////////////////////////////////////
 
 NCMesh::Element::Element(int geom, int attr)
-   : geom(geom), ref_type(0), index(-1), rank(-1), attribute(attr), parent(NULL)
+   : geom(geom), ref_type(0), flag(0), index(-1), rank(0), attribute(attr)
+   , parent(NULL)
 {
    memset(node, 0, sizeof(node));
 
@@ -693,10 +712,23 @@ void NCMesh::CheckAnisoFace(Node* v1, Node* v2, Node* v3, Node* v4,
       }
    }
 
-   /* Also, this is the place where forced refinements begin. In the picture,
-      the edges mid12-midf and midf-mid34 should actually exist in the
-      neighboring elements, otherwise the mesh is inconsistent and needs to be
-      fixed. */
+   // Also, this is the place where forced refinements begin. In the picture
+   // above, edges mid12-midf and midf-mid34 should actually exist in the
+   // neighboring elements, otherwise the mesh is inconsistent and needs to be
+   // fixed. Example: suppose an element is being refined isotropically (!)
+   // whose neighbors across some face look like this:
+   //
+   //                         *--------*--------*
+   //                         |   d    |    e   |
+   //                         *--------*--------*
+   //                         |      c          |
+   //                         *--------*--------*
+   //                         |        |        |
+   //                         |   a    |    b   |
+   //                         |        |        |
+   //                         *--------*--------*
+   //
+   // Element 'c' needs to be refined vertically for the mesh to remain valid.
 
    if (level > 0)
    {
@@ -710,9 +742,8 @@ void NCMesh::CheckIsoFace(Node* v1, Node* v2, Node* v3, Node* v4,
    if (!Iso)
    {
       /* If anisotropic refinements are present in the mesh, we need to check
-         isotropically split faces as well. The iso face can be thought to
-         contain four anisotropic cases as in the function CheckAnisoFace, that
-         still need to be checked for the correct parents. */
+         isotropically split faces as well, see second comment in
+         CheckAnisoFace above. */
 
       CheckAnisoFace(v1, v2, e2, e4, e1, midf);
       CheckAnisoFace(e4, e2, v3, v4, midf, e3);
@@ -1132,7 +1163,6 @@ void NCMesh::RefineElement(Element* elem, char ref_type)
    // finish the refinement
    elem->ref_type = ref_type;
    memcpy(elem->child, child, sizeof(elem->child));
-   elem->rank = -1;
 }
 
 
@@ -1176,6 +1206,8 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 }
 
 
+//// Derefinement //////////////////////////////////////////////////////////////
+
 void NCMesh::DerefineElement(Element* elem)
 {
    if (!elem->ref_type) { return; }
@@ -1193,7 +1225,7 @@ void NCMesh::DerefineElement(Element* elem)
    }
 
    // retrieve original corner nodes and face attributes from the children
-   int fa[6], ea[4];
+   int fa[6];
    if (elem->geom == Geometry::CUBE)
    {
       const int table[7][8 + 6] =
@@ -1234,7 +1266,7 @@ void NCMesh::DerefineElement(Element* elem)
       {
          Element* ch = child[table[elem->ref_type - 1][i + 4]];
          const int* ev = gi_quad.edges[i];
-         ea[i] = nodes.Peek(ch->node[ev[0]], ch->node[ev[1]])->edge->attribute;
+         fa[i] = nodes.Peek(ch->node[ev[0]], ch->node[ev[1]])->edge->attribute;
       }
    }
    else if (elem->geom == Geometry::TRIANGLE)
@@ -1244,7 +1276,7 @@ void NCMesh::DerefineElement(Element* elem)
          Element* ch = child[i];
          elem->node[i] = child[i]->node[i];
          const int* ev = gi_tri.edges[i];
-         ea[i] = nodes.Peek(ch->node[ev[0]], ch->node[ev[1]])->edge->attribute;
+         fa[i] = nodes.Peek(ch->node[ev[0]], ch->node[ev[1]])->edge->attribute;
       }
    }
    else
@@ -1256,33 +1288,179 @@ void NCMesh::DerefineElement(Element* elem)
    RefElementNodes(elem);
 
    // delete children, determine rank
-   elem->rank = std::numeric_limits<int>::max();
+   elem->rank = INT_MAX;
    for (int i = 0; i < 8; i++)
    {
       if (child[i])
       {
-         elem->rank = std::min(elem->rank, child[i]->rank); // TODO: ???
+         elem->rank = std::min(elem->rank, child[i]->rank);
          DeleteHierarchy(child[i]);
       }
    }
 
-   // set boundary attributes, register faces (3D)
-   if (elem->geom == Geometry::CUBE)
-   {
-      RegisterFaces(elem, fa);
-   }
-   else
+   RegisterFaces(elem, fa);
+
+   // set edge attributes (2D)
+   // TODO: Edge::attribute should be removed
+   if (Dim < 3)
    {
       Node** node = elem->node;
       GeomInfo& gi = GI[(int) elem->geom];
       for (int i = 0; i < gi.ne; i++)
       {
          const int* ev = gi.edges[i];
-         nodes.Peek(node[ev[0]], node[ev[1]])->edge->attribute = ea[i];
+         nodes.Peek(node[ev[0]], node[ev[1]])->edge->attribute = fa[i];
       }
    }
 
    elem->ref_type = 0;
+}
+
+
+void NCMesh::CollectDerefinements(Element* elem, Array<Connection> &list)
+{
+   if (!elem->ref_type) { return; }
+
+   int total = 0, ref = 0, ghost = 0;
+   for (int i = 0; i < 8; i++)
+   {
+      Element* ch = elem->child[i];
+      if (ch)
+      {
+         total++;
+         if (ch->ref_type) { ref++; break; }
+         if (IsGhost(ch)) { ghost++; }
+      }
+   }
+
+   if (!ref && ghost < total)
+   {
+      // can be derefined, add to list
+      int next_row = list.Size() ? (list.Last().from + 1) : 0;
+      for (int i = 0; i < 8; i++)
+      {
+         Element* ch = elem->child[i];
+         if (ch) { list.Append(Connection(next_row, ch->index)); }
+      }
+   }
+   else
+   {
+      for (int i = 0; i < 8; i++)
+      {
+         Element* ch = elem->child[i];
+         if (ch) { CollectDerefinements(ch, list); }
+      }
+   }
+}
+
+const Table& NCMesh::GetDerefinementTable()
+{
+   Array<Connection> list;
+   list.Reserve(leaf_elements.Size());
+
+   for (int i = 0; i < root_elements.Size(); i++)
+   {
+      CollectDerefinements(root_elements[i], list);
+   }
+
+   int size = list.Size() ? (list.Last().from + 1) : 0;
+   derefinements.MakeFromList(size, list);
+   return derefinements;
+}
+
+void NCMesh::CheckDerefinementNCLevel(const Table &deref_table,
+                                      Array<int> &level_ok, int max_nc_level)
+{
+   level_ok.SetSize(deref_table.Size());
+   for (int i = 0; i < deref_table.Size(); i++)
+   {
+      const int* fine = deref_table.GetRow(i), size = deref_table.RowSize(i);
+      Element* parent = leaf_elements[fine[0]]->parent;
+
+      int ok = 1;
+      for (int j = 0; j < size; j++)
+      {
+         int splits[3];
+         CountSplits(leaf_elements[fine[j]], splits);
+
+         for (int k = 0; k < Dim; k++)
+         {
+            if ((parent->ref_type & (1 << k)) &&
+                splits[k] >= max_nc_level)
+            {
+               ok = 0; break;
+            }
+         }
+         if (!ok) { break; }
+      }
+      level_ok[i] = ok;
+   }
+}
+
+void NCMesh::Derefine(const Array<int> &derefs)
+{
+   MFEM_VERIFY(Dim < 3 || Iso,
+               "derefinement of 3D anisotropic meshes not implemented yet.");
+
+   InitDerefTransforms();
+
+   Array<Element*> coarse;
+   leaf_elements.Copy(coarse);
+
+   // perform the derefinements
+   for (int i = 0; i < derefs.Size(); i++)
+   {
+      int row = derefs[i];
+      MFEM_VERIFY(row >= 0 && row < derefinements.Size(),
+                  "invalid derefinement number.");
+
+      const int* fine = derefinements.GetRow(row);
+      Element* parent = leaf_elements[fine[0]]->parent;
+
+      // record the relation of the fine elements to their parent
+      SetDerefMatrixCodes(parent, coarse);
+
+      DerefineElement(parent);
+   }
+
+   // update leaf_elements, Element::index etc.
+   Update();
+
+   // link old fine elements to the new coarse elements
+   for (int i = 0; i < coarse.Size(); i++)
+   {
+      transforms.embeddings[i].parent = coarse[i]->index;
+   }
+}
+
+void NCMesh::InitDerefTransforms()
+{
+   int nfine = leaf_elements.Size();
+
+   transforms.embeddings.SetSize(nfine);
+   for (int i = 0; i < nfine; i++)
+   {
+      transforms.embeddings[i].parent = -1;
+      transforms.embeddings[i].matrix = 0;
+   }
+
+   // this will tell GetDerefinementTransforms that transforms are not finished
+   transforms.point_matrices.SetSize(0, 0, 0);
+}
+
+void NCMesh::SetDerefMatrixCodes(Element* parent, Array<Element*> &coarse)
+{
+   // encode the ref_type and child number for GetDerefinementTransforms()
+   for (int i = 0; i < 8; i++)
+   {
+      Element* ch = parent->child[i];
+      if (ch && ch->index >= 0)
+      {
+         int code = (parent->ref_type << 3) + i;
+         transforms.embeddings[ch->index].matrix = code;
+         coarse[ch->index] = parent;
+      }
+   }
 }
 
 
@@ -1306,19 +1484,77 @@ void NCMesh::UpdateVertices()
    }
 }
 
-void NCMesh::CollectLeafElements(Element* elem)
+static char quad_hilbert_child_order[8][4] =
+{
+   {0,1,2,3}, {0,3,2,1}, {1,2,3,0}, {1,0,3,2},
+   {2,3,0,1}, {2,1,0,3}, {3,0,1,2}, {3,2,1,0}
+};
+static char quad_hilbert_child_state[8][4] =
+{
+   {1,0,0,5}, {0,1,1,4}, {3,2,2,7}, {2,3,3,6},
+   {5,4,4,1}, {4,5,5,0}, {7,6,6,3}, {6,7,7,2}
+};
+static char hex_hilbert_child_order[24][8] =
+{
+   {0,1,2,3,7,6,5,4}, {0,3,7,4,5,6,2,1}, {0,4,5,1,2,6,7,3},
+   {1,0,3,2,6,7,4,5}, {1,2,6,5,4,7,3,0}, {1,5,4,0,3,7,6,2},
+   {2,1,5,6,7,4,0,3}, {2,3,0,1,5,4,7,6}, {2,6,7,3,0,4,5,1},
+   {3,0,4,7,6,5,1,2}, {3,2,1,0,4,5,6,7}, {3,7,6,2,1,5,4,0},
+   {4,0,1,5,6,2,3,7}, {4,5,6,7,3,2,1,0}, {4,7,3,0,1,2,6,5},
+   {5,1,0,4,7,3,2,6}, {5,4,7,6,2,3,0,1}, {5,6,2,1,0,3,7,4},
+   {6,2,3,7,4,0,1,5}, {6,5,1,2,3,0,4,7}, {6,7,4,5,1,0,3,2},
+   {7,3,2,6,5,1,0,4}, {7,4,0,3,2,1,5,6}, {7,6,5,4,0,1,2,3}
+};
+static char hex_hilbert_child_state[24][8] =
+{
+   {1,2,2,7,7,21,21,17},     {2,0,0,22,22,16,16,8},    {0,1,1,15,15,6,6,23},
+   {4,5,5,10,10,18,18,14},   {5,3,3,19,19,13,13,11},   {3,4,4,12,12,9,9,20},
+   {8,7,7,17,17,23,23,2},    {6,8,8,0,0,15,15,22},     {7,6,6,21,21,1,1,16},
+   {11,10,10,14,14,20,20,5}, {9,11,11,3,3,12,12,19},   {10,9,9,18,18,4,4,13},
+   {13,14,14,5,5,19,19,10},  {14,12,12,20,20,11,11,4}, {12,13,13,9,9,3,3,18},
+   {16,17,17,2,2,22,22,7},   {17,15,15,23,23,8,8,1},   {15,16,16,6,6,0,0,21},
+   {20,19,19,11,11,14,14,3}, {18,20,20,4,4,10,10,12},  {19,18,18,13,13,5,5,9},
+   {23,22,22,8,8,17,17,0},   {21,23,23,1,1,7,7,15},    {22,21,21,16,16,2,2,6}
+};
+
+void NCMesh::CollectLeafElements(Element* elem, int state)
 {
    if (!elem->ref_type)
    {
-      leaf_elements.Append(elem);
+      if (elem->rank >= 0) // skip elements beyond ghost layer in parallel
+      {
+         leaf_elements.Append(elem);
+      }
    }
    else
    {
-      for (int i = 0; i < 8; i++)
+      if (elem->geom == Geometry::SQUARE && elem->ref_type == 3)
       {
-         if (elem->child[i]) { CollectLeafElements(elem->child[i]); }
+         for (int i = 0; i < 4; i++)
+         {
+            int ch = quad_hilbert_child_order[state][i];
+            int st = quad_hilbert_child_state[state][i];
+            CollectLeafElements(elem->child[ch], st);
+         }
+      }
+      else if (elem->geom == Geometry::CUBE && elem->ref_type == 7)
+      {
+         for (int i = 0; i < 8; i++)
+         {
+            int ch = hex_hilbert_child_order[state][i];
+            int st = hex_hilbert_child_state[state][i];
+            CollectLeafElements(elem->child[ch], st);
+         }
+      }
+      else
+      {
+         for (int i = 0; i < 8; i++)
+         {
+            if (elem->child[i]) { CollectLeafElements(elem->child[i], state); }
+         }
       }
    }
+   elem->index = -1;
 }
 
 void NCMesh::UpdateLeafElements()
@@ -1327,7 +1563,10 @@ void NCMesh::UpdateLeafElements()
    leaf_elements.SetSize(0);
    for (int i = 0; i < root_elements.Size(); i++)
    {
-      CollectLeafElements(root_elements[i]);
+      CollectLeafElements(root_elements[i], 0);
+      // TODO: root state should not always be 0, we need a precomputed array
+      // with root element states to ensure continuity where possible, also
+      // optimized ordering of the root elements themselves (Gecko?)
    }
    AssignLeafIndices();
 }
@@ -1339,6 +1578,18 @@ void NCMesh::AssignLeafIndices()
    {
       leaf_elements[i]->index = i;
    }
+}
+
+mfem::Element* NCMesh::NewMeshElement(int geom) const
+{
+   switch (geom)
+   {
+      case Geometry::CUBE: return new mfem::Hexahedron;
+      case Geometry::SQUARE: return new mfem::Quadrilateral;
+      case Geometry::TRIANGLE: return new mfem::Triangle;
+   }
+   MFEM_ABORT("invalid geometry");
+   return NULL;
 }
 
 void NCMesh::GetMeshComponents(Array<mfem::Vertex>& vertices,
@@ -1367,15 +1618,9 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex>& vertices,
       Node** node = nc_elem->node;
       GeomInfo& gi = GI[(int) nc_elem->geom];
 
-      mfem::Element* elem = NULL;
-      switch (nc_elem->geom)
-      {
-         case Geometry::CUBE: elem = new Hexahedron; break;
-         case Geometry::SQUARE: elem = new Quadrilateral; break;
-         case Geometry::TRIANGLE: elem = new Triangle; break;
-      }
-
+      mfem::Element* elem = NewMeshElement(nc_elem->geom);
       elements.Append(elem);
+
       elem->SetAttribute(nc_elem->attribute);
       for (int j = 0; j < gi.nv; j++)
       {
@@ -1427,6 +1672,7 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
 {
    Table *edge_vertex = mesh->GetEdgeVertexTable();
 
+   // get edge enumeration from the Mesh
    for (int i = 0; i < edge_vertex->Size(); i++)
    {
       const int *ev = edge_vertex->GetRow(i);
@@ -1436,12 +1682,30 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       node->edge->index = i;
    }
 
-   for (int i = 0; i < mesh->GetNFaces(); i++)
+   // get face enumeration from the Mesh
+   for (int i = 0; i < mesh->GetNumFaces(); i++)
    {
       const int* fv = mesh->GetFace(i)->GetVertices();
-      Face* face = faces.Peek(vertex_nodeId[fv[0]], vertex_nodeId[fv[1]],
-                              vertex_nodeId[fv[2]], vertex_nodeId[fv[3]]);
+      Face* face;
+      if (Dim == 3)
+      {
+         MFEM_ASSERT(mesh->GetFace(i)->GetNVertices() == 4, "");
+         face = faces.Peek(vertex_nodeId[fv[0]], vertex_nodeId[fv[1]],
+                           vertex_nodeId[fv[2]], vertex_nodeId[fv[3]]);
+      }
+      else
+      {
+         MFEM_ASSERT(mesh->GetFace(i)->GetNVertices() == 2, "");
+         int n0 = vertex_nodeId[fv[0]], n1 = vertex_nodeId[fv[1]];
+         face = faces.Peek(n0, n0, n1, n1); // look up degenerate face
 
+#ifdef MFEM_DEBUG
+         // (non-ghost) edge and face numbers must match in 2D
+         const int *ev = edge_vertex->GetRow(i);
+         MFEM_ASSERT((ev[0] == fv[0] && ev[1] == fv[1]) ||
+                     (ev[1] == fv[0] && ev[0] == fv[1]), "");
+#endif
+      }
       MFEM_ASSERT(face, "face not found.");
       face->index = i;
    }
@@ -1453,6 +1717,8 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
 int NCMesh::FaceSplitType(Node* v1, Node* v2, Node* v3, Node* v4,
                           Node* mid[4]) const
 {
+   MFEM_ASSERT(Dim >= 3, "");
+
    // find edge nodes
    Node* e1 = nodes.Peek(v1, v2);
    Node* e2 = nodes.Peek(v2, v3);
@@ -1494,6 +1760,22 @@ int NCMesh::find_node(Element* elem, int node_id)
    return -1;
 }
 
+int NCMesh::find_element_edge(Element* elem, int v0, int v1)
+{
+   MFEM_ASSERT(!elem->ref_type, "");
+   GeomInfo &gi = GI[(int) elem->geom];
+   for (int i = 0; i < gi.ne; i++)
+   {
+      const int* ev = gi.edges[i];
+      int n0 = elem->node[ev[0]]->id;
+      int n1 = elem->node[ev[1]]->id;
+      if ((n0 == v0 && n1 == v1) ||
+          (n0 == v1 && n1 == v0)) { return i; }
+   }
+   MFEM_ABORT("Edge not found");
+   return -1;
+}
+
 int NCMesh::find_hex_face(int a, int b, int c)
 {
    for (int i = 0; i < 6; i++)
@@ -1510,8 +1792,8 @@ int NCMesh::find_hex_face(int a, int b, int c)
    return -1;
 }
 
-void NCMesh::ReorderFacePointMat(Node* v0, Node* v1, Node* v2, Node* v3,
-                                 Element* elem, DenseMatrix& mat) const
+int NCMesh::ReorderFacePointMat(Node* v0, Node* v1, Node* v2, Node* v3,
+                                Element* elem, DenseMatrix& mat) const
 {
    int master[4] =
    {
@@ -1519,8 +1801,8 @@ void NCMesh::ReorderFacePointMat(Node* v0, Node* v1, Node* v2, Node* v3,
       find_node(elem, v2), find_node(elem, v3)
    };
 
-   int fi = find_hex_face(master[0], master[1], master[2]);
-   const int* fv = gi_hex.faces[fi];
+   int local = find_hex_face(master[0], master[1], master[2]);
+   const int* fv = gi_hex.faces[local];
 
    DenseMatrix tmp(mat);
    for (int i = 0, j; i < 4; i++)
@@ -1539,6 +1821,7 @@ void NCMesh::ReorderFacePointMat(Node* v0, Node* v1, Node* v2, Node* v3,
       }
       MFEM_ASSERT(j != 4, "node not found.");
    }
+   return local;
 }
 
 void NCMesh::TraverseFace(Node* v0, Node* v1, Node* v2, Node* v3,
@@ -1551,12 +1834,14 @@ void NCMesh::TraverseFace(Node* v0, Node* v1, Node* v2, Node* v3,
       if (face)
       {
          // we have a slave face, add it to the list
-         face_list.slaves.push_back(Slave(face->index));
-         DenseMatrix &mat(face_list.slaves.back().point_matrix);
+         Element* elem = face->GetSingleElement();
+         face_list.slaves.push_back(Slave(face->index, elem, -1));
+         DenseMatrix &mat = face_list.slaves.back().point_matrix;
          pm.GetMatrix(mat);
 
          // reorder the point matrix according to slave face orientation
-         ReorderFacePointMat(v0, v1, v2, v3, face->GetSingleElement(), mat);
+         int local = ReorderFacePointMat(v0, v1, v2, v3, elem, mat);
+         face_list.slaves.back().local = local;
 
          return;
       }
@@ -1630,7 +1915,7 @@ void NCMesh::BuildFaceList()
          }
          processed_faces[index] = 1;
 
-         if (face->ref_count == 2 || face->Boundary())
+         if (face->ref_count == 2)
          {
             // this is a conforming face, add it to the list
             face_list.conforming.push_back(MeshId(index, elem, j));
@@ -1663,7 +1948,8 @@ void NCMesh::BuildFaceList()
    }
 }
 
-void NCMesh::TraverseEdge(Node* v0, Node* v1, double t0, double t1, int level)
+void NCMesh::TraverseEdge(Node* v0, Node* v1, double t0, double t1, int flags,
+                          int level)
 {
    Node* mid = nodes.Peek(v0, v1);
    if (!mid) { return; }
@@ -1671,23 +1957,31 @@ void NCMesh::TraverseEdge(Node* v0, Node* v1, double t0, double t1, int level)
    if (mid->edge && level > 0)
    {
       // we have a slave edge, add it to the list
-      edge_list.slaves.push_back(Slave(mid->edge->index));
+      edge_list.slaves.push_back(Slave(mid->edge->index, NULL, -1));
+      Slave &sl = edge_list.slaves.back();
 
-      DenseMatrix& mat = edge_list.slaves.back().point_matrix;
-      mat.SetSize(1, 2);
-      mat(0,0) = t0, mat(0,1) = t1;
+      sl.point_matrix.SetSize(1, 2);
+      sl.point_matrix(0,0) = t0;
+      sl.point_matrix(0,1) = t1;
 
       // handle slave edge orientation
-      if (v0->vertex->index > v1->vertex->index)
+      sl.edge_flags = flags;
+      if (v0->vertex->index > v1->vertex->index) { sl.edge_flags |= 2; }
+
+      // in 2D, get the element/local info from the degenerate face
+      if (Dim == 2)
       {
-         std::swap(mat(0,0), mat(0,1));
+         Face* face = faces.Peek(v0, v0, v1, v1);
+         MFEM_ASSERT(face != NULL, "");
+         sl.element = face->GetSingleElement();
+         sl.local = find_element_edge(sl.element, v0->id, v1->id);
       }
    }
 
    // recurse deeper
    double tmid = (t0 + t1) / 2;
-   TraverseEdge(v0, mid, t0, tmid, level+1);
-   TraverseEdge(mid, v1, tmid, t1, level+1);
+   TraverseEdge(v0, mid, t0, tmid, flags, level+1);
+   TraverseEdge(mid, v1, tmid, t1, flags, level+1);
 }
 
 void NCMesh::BuildEdgeList()
@@ -1735,14 +2029,11 @@ void NCMesh::BuildEdgeList()
 
          // prepare edge interval for slave traversal, handle orientation
          double t0 = 0.0, t1 = 1.0;
-         if (node[0]->vertex->index > node[1]->vertex->index)
-         {
-            std::swap(t0, t1);
-         }
+         int flags = (node[0]->vertex->index > node[1]->vertex->index) ? 1 : 0;
 
          // try traversing the edge to find slave edges
          int sb = edge_list.slaves.size();
-         TraverseEdge(node[0], node[1], t0, t1, 0);
+         TraverseEdge(node[0], node[1], t0, t1, flags, 0);
 
          int se = edge_list.slaves.size();
          if (sb < se)
@@ -1761,6 +2052,27 @@ void NCMesh::BuildEdgeList()
             // no slaves, this is a conforming edge
             edge_list.conforming.push_back(MeshId(index, elem, j));
          }
+      }
+   }
+}
+
+void NCMesh::Slave::OrientedPointMatrix(DenseMatrix &oriented_matrix) const
+{
+   oriented_matrix = point_matrix;
+
+   if (edge_flags)
+   {
+      MFEM_ASSERT(oriented_matrix.Height() == 1 &&
+                  oriented_matrix.Width() == 2, "not an edge point matrix");
+
+      if (edge_flags & 1) // master inverted
+      {
+         oriented_matrix(0,0) = 1.0 - oriented_matrix(0,0);
+         oriented_matrix(0,1) = 1.0 - oriented_matrix(0,1);
+      }
+      if (edge_flags & 2) // slave inverted
+      {
+         std::swap(oriented_matrix(0,0), oriented_matrix(0,1));
       }
    }
 }
@@ -1834,11 +2146,14 @@ void NCMesh::BuildElementToVertexTable()
          CollectEdgeVertices(node[ev[0]], node[ev[1]], indices);
       }
 
-      for (int j = 0; j < gi.nf; j++)
+      if (Dim >= 3)
       {
-         const int* fv = gi.faces[j];
-         CollectFaceVertices(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]],
-                             indices);
+         for (int j = 0; j < gi.nf; j++)
+         {
+            const int* fv = gi.faces[j];
+            CollectFaceVertices(node[fv[0]], node[fv[1]],
+                                node[fv[2]], node[fv[3]], indices);
+         }
       }
 
       // temporarily store one row of the table
@@ -1966,12 +2281,45 @@ void NCMesh::FindNeighbors(const Element* elem,
                            Array<Element*> &neighbors,
                            const Array<Element*> *search_set)
 {
-   MFEM_ASSERT(!elem->ref_type, "not a leaf.");
-
    UpdateElementToVertexTable();
 
-   int *v1 = element_vertex.GetRow(elem->index);
-   int nv1 = element_vertex.RowSize(elem->index);
+   Array<int> vert, tmp;
+
+   int *v1, nv1;
+   if (!elem->ref_type)
+   {
+      v1 = element_vertex.GetRow(elem->index);
+      nv1 = element_vertex.RowSize(elem->index);
+   }
+   else // support for non-leaf 'elem', collect vertices of all children
+   {
+      Array<const Element*> stack;
+      stack.Reserve(32);
+      stack.Append(elem);
+
+      while (stack.Size())
+      {
+         const Element* e = stack.Last();
+         stack.DeleteLast();
+         if (!e->ref_type)
+         {
+            element_vertex.GetRow(e->index, tmp);
+            vert.Append(tmp);
+         }
+         else
+         {
+            for (int i = 0; i < 8; i++)
+            {
+               if (e->child[i]) { stack.Append(e->child[i]); }
+            }
+         }
+      }
+      vert.Sort();
+      vert.Unique();
+
+      v1 = vert.GetData();
+      nv1 = vert.Size();
+   }
 
    if (!search_set) { search_set = &leaf_elements; }
 
@@ -1991,6 +2339,48 @@ void NCMesh::FindNeighbors(const Element* elem,
    }
 }
 
+void NCMesh::NeighborExpand(const Array<Element*> &elements,
+                            Array<Element*> &expanded,
+                            const Array<Element*> *search_set)
+{
+   UpdateElementToVertexTable();
+
+   Array<char> vertices(num_vertices);
+   vertices = 0;
+
+   for (int i = 0; i < elements.Size(); i++)
+   {
+      int index = elements[i]->index;
+      int *v = element_vertex.GetRow(index);
+      int nv = element_vertex.RowSize(index);
+      for (int j = 0; j < nv; j++)
+      {
+         vertices[v[j]] = 1;
+      }
+   }
+
+   if (!search_set)
+   {
+      search_set = &leaf_elements;
+   }
+
+   expanded.SetSize(0);
+   for (int i = 0; i < search_set->Size(); i++)
+   {
+      Element* testme = (*search_set)[i];
+      int *v = element_vertex.GetRow(testme->index);
+      int nv = element_vertex.RowSize(testme->index);
+      for (int j = 0; j < nv; j++)
+      {
+         if (vertices[v[j]])
+         {
+            expanded.Append(testme);
+            break;
+         }
+      }
+   }
+}
+
 #ifdef MFEM_DEBUG
 void NCMesh::DebugNeighbors(Array<char> &elem_set)
 {
@@ -2005,7 +2395,7 @@ void NCMesh::DebugNeighbors(Array<char> &elem_set)
 #endif
 
 
-//// Coarse to fine transformations ////////////////////////////////////////////
+//// Coarse/fine transformations ///////////////////////////////////////////////
 
 void NCMesh::PointMatrix::GetMatrix(DenseMatrix& point_matrix) const
 {
@@ -2019,249 +2409,323 @@ void NCMesh::PointMatrix::GetMatrix(DenseMatrix& point_matrix) const
    }
 }
 
-void NCMesh::GetFineTransforms(Element* elem, int coarse_index,
-                               FineTransform* transforms,
-                               const PointMatrix& pm)
+NCMesh::PointMatrix NCMesh::pm_tri_identity(
+   Point(0, 0), Point(1, 0), Point(0, 1)
+);
+NCMesh::PointMatrix NCMesh::pm_quad_identity(
+   Point(0, 0), Point(1, 0), Point(1, 1), Point(0, 1)
+);
+NCMesh::PointMatrix NCMesh::pm_hex_identity(
+   Point(0, 0, 0), Point(1, 0, 0), Point(1, 1, 0), Point(0, 1, 0),
+   Point(0, 0, 1), Point(1, 0, 1), Point(1, 1, 1), Point(0, 1, 1)
+);
+
+const NCMesh::PointMatrix& NCMesh::GetGeomIdentity(int geom)
 {
-   if (!elem->ref_type)
+   switch (geom)
    {
-      // we got to a leaf, store the fine element transformation
-      if (!IsGhost(elem))
+      case Geometry::TRIANGLE: return pm_tri_identity;
+      case Geometry::SQUARE:   return pm_quad_identity;
+      case Geometry::CUBE:     return pm_hex_identity;
+      default:
+         MFEM_ABORT("unsupported geometry."); throw;
+   }
+}
+
+void NCMesh::GetPointMatrix(int geom, const char* ref_path, DenseMatrix& matrix)
+{
+   PointMatrix pm = GetGeomIdentity(geom);
+
+   while (*ref_path)
+   {
+      int ref_type = *ref_path++;
+      int child = *ref_path++;
+
+      if (geom == Geometry::CUBE)
       {
-         FineTransform& ft = transforms[elem->index];
-         ft.coarse_index = coarse_index;
-         pm.GetMatrix(ft.point_matrix);
+         if (ref_type == 1) // split along X axis
+         {
+            Point mid01(pm(0), pm(1)), mid23(pm(2), pm(3));
+            Point mid67(pm(6), pm(7)), mid45(pm(4), pm(5));
+
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), mid01, mid23, pm(3),
+                                pm(4), mid45, mid67, pm(7));
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid01, pm(1), pm(2), mid23,
+                                mid45, pm(5), pm(6), mid67);
+            }
+         }
+         else if (ref_type == 2) // split along Y axis
+         {
+            Point mid12(pm(1), pm(2)), mid30(pm(3), pm(0));
+            Point mid56(pm(5), pm(6)), mid74(pm(7), pm(4));
+
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), pm(1), mid12, mid30,
+                                pm(4), pm(5), mid56, mid74);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid30, mid12, pm(2), pm(3),
+                                mid74, mid56, pm(6), pm(7));
+            }
+         }
+         else if (ref_type == 4) // split along Z axis
+         {
+            Point mid04(pm(0), pm(4)), mid15(pm(1), pm(5));
+            Point mid26(pm(2), pm(6)), mid37(pm(3), pm(7));
+
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), pm(1), pm(2), pm(3),
+                                mid04, mid15, mid26, mid37);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid04, mid15, mid26, mid37,
+                                pm(4), pm(5), pm(6), pm(7));
+            }
+         }
+         else if (ref_type == 3) // XY split
+         {
+            Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2));
+            Point mid23(pm(2), pm(3)), mid30(pm(3), pm(0));
+            Point mid45(pm(4), pm(5)), mid56(pm(5), pm(6));
+            Point mid67(pm(6), pm(7)), mid74(pm(7), pm(4));
+
+            Point midf0(mid23, mid12, mid01, mid30);
+            Point midf5(mid45, mid56, mid67, mid74);
+
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), mid01, midf0, mid30,
+                                pm(4), mid45, midf5, mid74);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid01, pm(1), mid12, midf0,
+                                mid45, pm(5), mid56, midf5);
+            }
+            else if (child == 2)
+            {
+               pm = PointMatrix(midf0, mid12, pm(2), mid23,
+                                midf5, mid56, pm(6), mid67);
+            }
+            else if (child == 3)
+            {
+               pm = PointMatrix(mid30, midf0, mid23, pm(3),
+                                mid74, midf5, mid67, pm(7));
+            }
+         }
+         else if (ref_type == 5) // XZ split
+         {
+            Point mid01(pm(0), pm(1)), mid23(pm(2), pm(3));
+            Point mid45(pm(4), pm(5)), mid67(pm(6), pm(7));
+            Point mid04(pm(0), pm(4)), mid15(pm(1), pm(5));
+            Point mid26(pm(2), pm(6)), mid37(pm(3), pm(7));
+
+            Point midf1(mid01, mid15, mid45, mid04);
+            Point midf3(mid23, mid37, mid67, mid26);
+
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), mid01, mid23, pm(3),
+                                mid04, midf1, midf3, mid37);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid01, pm(1), pm(2), mid23,
+                                midf1, mid15, mid26, midf3);
+            }
+            else if (child == 2)
+            {
+               pm = PointMatrix(midf1, mid15, mid26, midf3,
+                                mid45, pm(5), pm(6), mid67);
+            }
+            else if (child == 3)
+            {
+               pm = PointMatrix(mid04, midf1, midf3, mid37,
+                                pm(4), mid45, mid67, pm(7));
+            }
+         }
+         else if (ref_type == 6) // YZ split
+         {
+            Point mid12(pm(1), pm(2)), mid30(pm(3), pm(0));
+            Point mid56(pm(5), pm(6)), mid74(pm(7), pm(4));
+            Point mid04(pm(0), pm(4)), mid15(pm(1), pm(5));
+            Point mid26(pm(2), pm(6)), mid37(pm(3), pm(7));
+
+            Point midf2(mid12, mid26, mid56, mid15);
+            Point midf4(mid30, mid04, mid74, mid37);
+
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), pm(1), mid12, mid30,
+                                mid04, mid15, midf2, midf4);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid30, mid12, pm(2), pm(3),
+                                midf4, midf2, mid26, mid37);
+            }
+            else if (child == 2)
+            {
+               pm = PointMatrix(mid04, mid15, midf2, midf4,
+                                pm(4), pm(5), mid56, mid74);
+            }
+            else if (child == 3)
+            {
+               pm = PointMatrix(midf4, midf2, mid26, mid37,
+                                mid74, mid56, pm(6), pm(7));
+            }
+         }
+         else if (ref_type == 7) // full isotropic refinement
+         {
+            Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2));
+            Point mid23(pm(2), pm(3)), mid30(pm(3), pm(0));
+            Point mid45(pm(4), pm(5)), mid56(pm(5), pm(6));
+            Point mid67(pm(6), pm(7)), mid74(pm(7), pm(4));
+            Point mid04(pm(0), pm(4)), mid15(pm(1), pm(5));
+            Point mid26(pm(2), pm(6)), mid37(pm(3), pm(7));
+
+            Point midf0(mid23, mid12, mid01, mid30);
+            Point midf1(mid01, mid15, mid45, mid04);
+            Point midf2(mid12, mid26, mid56, mid15);
+            Point midf3(mid23, mid37, mid67, mid26);
+            Point midf4(mid30, mid04, mid74, mid37);
+            Point midf5(mid45, mid56, mid67, mid74);
+
+            Point midel(midf1, midf3);
+
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), mid01, midf0, mid30,
+                                mid04, midf1, midel, midf4);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid01, pm(1), mid12, midf0,
+                                midf1, mid15, midf2, midel);
+            }
+            else if (child == 2)
+            {
+               pm = PointMatrix(midf0, mid12, pm(2), mid23,
+                                midel, midf2, mid26, midf3);
+            }
+            else if (child == 3)
+            {
+               pm = PointMatrix(mid30, midf0, mid23, pm(3),
+                                midf4, midel, midf3, mid37);
+            }
+            else if (child == 4)
+            {
+               pm = PointMatrix(mid04, midf1, midel, midf4,
+                                pm(4), mid45, midf5, mid74);
+            }
+            else if (child == 5)
+            {
+               pm = PointMatrix(midf1, mid15, midf2, midel,
+                                mid45, pm(5), mid56, midf5);
+            }
+            else if (child == 6)
+            {
+               pm = PointMatrix(midel, midf2, mid26, midf3,
+                                midf5, mid56, pm(6), mid67);
+            }
+            else if (child == 7)
+            {
+               pm = PointMatrix(midf4, midel, midf3, mid37,
+                                mid74, midf5, mid67, pm(7));
+            }
+         }
       }
-      return;
+      else if (geom == Geometry::SQUARE)
+      {
+         if (ref_type == 1) // X split
+         {
+            Point mid01(pm(0), pm(1)), mid23(pm(2), pm(3));
+
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), mid01, mid23, pm(3));
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid01, pm(1), pm(2), mid23);
+            }
+         }
+         else if (ref_type == 2) // Y split
+         {
+            Point mid12(pm(1), pm(2)), mid30(pm(3), pm(0));
+
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), pm(1), mid12, mid30);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid30, mid12, pm(2), pm(3));
+            }
+         }
+         else if (ref_type == 3) // iso split
+         {
+            Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2));
+            Point mid23(pm(2), pm(3)), mid30(pm(3), pm(0));
+            Point midel(mid01, mid23);
+
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), mid01, midel, mid30);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid01, pm(1), mid12, midel);
+            }
+            else if (child == 2)
+            {
+               pm = PointMatrix(midel, mid12, pm(2), mid23);
+            }
+            else if (child == 3)
+            {
+               pm = PointMatrix(mid30, midel, mid23, pm(3));
+            }
+         }
+      }
+      else if (geom == Geometry::TRIANGLE)
+      {
+         Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2)), mid20(pm(2), pm(0));
+
+         if (child == 0)
+         {
+            pm = PointMatrix(pm(0), mid01, mid20);
+         }
+         else if (child == 1)
+         {
+            pm = PointMatrix(mid01, pm(1), mid12);
+         }
+         else if (child == 2)
+         {
+            pm = PointMatrix(mid20, mid12, pm(2));
+         }
+         else if (child == 3)
+         {
+            pm = PointMatrix(mid01, mid12, mid20);
+         }
+      }
    }
 
-   // recurse into the finer children, adjusting the point matrix
-   if (elem->geom == Geometry::CUBE)
+   // write the points to the matrix
+   for (int i = 0; i < pm.np; i++)
    {
-      if (elem->ref_type == 1) // split along X axis
+      for (int j = 0; j < pm(i).dim; j++)
       {
-         Point mid01(pm(0), pm(1)), mid23(pm(2), pm(3));
-         Point mid67(pm(6), pm(7)), mid45(pm(4), pm(5));
-
-         GetFineTransforms(elem->child[0], coarse_index, transforms,
-                           PointMatrix(pm(0), mid01, mid23, pm(3),
-                                       pm(4), mid45, mid67, pm(7)));
-
-         GetFineTransforms(elem->child[1], coarse_index, transforms,
-                           PointMatrix(mid01, pm(1), pm(2), mid23,
-                                       mid45, pm(5), pm(6), mid67));
+         matrix(j, i) = pm(i).coord[j];
       }
-      else if (elem->ref_type == 2) // split along Y axis
-      {
-         Point mid12(pm(1), pm(2)), mid30(pm(3), pm(0));
-         Point mid56(pm(5), pm(6)), mid74(pm(7), pm(4));
-
-         GetFineTransforms(elem->child[0], coarse_index, transforms,
-                           PointMatrix(pm(0), pm(1), mid12, mid30,
-                                       pm(4), pm(5), mid56, mid74));
-
-         GetFineTransforms(elem->child[1], coarse_index, transforms,
-                           PointMatrix(mid30, mid12, pm(2), pm(3),
-                                       mid74, mid56, pm(6), pm(7)));
-      }
-      else if (elem->ref_type == 4) // split along Z axis
-      {
-         Point mid04(pm(0), pm(4)), mid15(pm(1), pm(5));
-         Point mid26(pm(2), pm(6)), mid37(pm(3), pm(7));
-
-         GetFineTransforms(elem->child[0], coarse_index, transforms,
-                           PointMatrix(pm(0), pm(1), pm(2), pm(3),
-                                       mid04, mid15, mid26, mid37));
-
-         GetFineTransforms(elem->child[1], coarse_index, transforms,
-                           PointMatrix(mid04, mid15, mid26, mid37,
-                                       pm(4), pm(5), pm(6), pm(7)));
-      }
-      else if (elem->ref_type == 3) // XY split
-      {
-         Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2));
-         Point mid23(pm(2), pm(3)), mid30(pm(3), pm(0));
-         Point mid45(pm(4), pm(5)), mid56(pm(5), pm(6));
-         Point mid67(pm(6), pm(7)), mid74(pm(7), pm(4));
-
-         Point midf0(mid23, mid12, mid01, mid30);
-         Point midf5(mid45, mid56, mid67, mid74);
-
-         GetFineTransforms(elem->child[0], coarse_index, transforms,
-                           PointMatrix(pm(0), mid01, midf0, mid30,
-                                       pm(4), mid45, midf5, mid74));
-
-         GetFineTransforms(elem->child[1], coarse_index, transforms,
-                           PointMatrix(mid01, pm(1), mid12, midf0,
-                                       mid45, pm(5), mid56, midf5));
-
-         GetFineTransforms(elem->child[2], coarse_index, transforms,
-                           PointMatrix(midf0, mid12, pm(2), mid23,
-                                       midf5, mid56, pm(6), mid67));
-
-         GetFineTransforms(elem->child[3], coarse_index, transforms,
-                           PointMatrix(mid30, midf0, mid23, pm(3),
-                                       mid74, midf5, mid67, pm(7)));
-      }
-      else if (elem->ref_type == 5) // XZ split
-      {
-         Point mid01(pm(0), pm(1)), mid23(pm(2), pm(3));
-         Point mid45(pm(4), pm(5)), mid67(pm(6), pm(7));
-         Point mid04(pm(0), pm(4)), mid15(pm(1), pm(5));
-         Point mid26(pm(2), pm(6)), mid37(pm(3), pm(7));
-
-         Point midf1(mid01, mid15, mid45, mid04);
-         Point midf3(mid23, mid37, mid67, mid26);
-
-         GetFineTransforms(elem->child[0], coarse_index, transforms,
-                           PointMatrix(pm(0), mid01, mid23, pm(3),
-                                       mid04, midf1, midf3, mid37));
-
-         GetFineTransforms(elem->child[1], coarse_index, transforms,
-                           PointMatrix(mid01, pm(1), pm(2), mid23,
-                                       midf1, mid15, mid26, midf3));
-
-         GetFineTransforms(elem->child[2], coarse_index, transforms,
-                           PointMatrix(midf1, mid15, mid26, midf3,
-                                       mid45, pm(5), pm(6), mid67));
-
-         GetFineTransforms(elem->child[3], coarse_index, transforms,
-                           PointMatrix(mid04, midf1, midf3, mid37,
-                                       pm(4), mid45, mid67, pm(7)));
-      }
-      else if (elem->ref_type == 6) // YZ split
-      {
-         Point mid12(pm(1), pm(2)), mid30(pm(3), pm(0));
-         Point mid56(pm(5), pm(6)), mid74(pm(7), pm(4));
-         Point mid04(pm(0), pm(4)), mid15(pm(1), pm(5));
-         Point mid26(pm(2), pm(6)), mid37(pm(3), pm(7));
-
-         Point midf2(mid12, mid26, mid56, mid15);
-         Point midf4(mid30, mid04, mid74, mid37);
-
-         GetFineTransforms(elem->child[0], coarse_index, transforms,
-                           PointMatrix(pm(0), pm(1), mid12, mid30,
-                                       mid04, mid15, midf2, midf4));
-
-         GetFineTransforms(elem->child[1], coarse_index, transforms,
-                           PointMatrix(mid30, mid12, pm(2), pm(3),
-                                       midf4, midf2, mid26, mid37));
-
-         GetFineTransforms(elem->child[2], coarse_index, transforms,
-                           PointMatrix(mid04, mid15, midf2, midf4,
-                                       pm(4), pm(5), mid56, mid74));
-
-         GetFineTransforms(elem->child[3], coarse_index, transforms,
-                           PointMatrix(midf4, midf2, mid26, mid37,
-                                       mid74, mid56, pm(6), pm(7)));
-      }
-      else if (elem->ref_type == 7) // full isotropic refinement
-      {
-         Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2));
-         Point mid23(pm(2), pm(3)), mid30(pm(3), pm(0));
-         Point mid45(pm(4), pm(5)), mid56(pm(5), pm(6));
-         Point mid67(pm(6), pm(7)), mid74(pm(7), pm(4));
-         Point mid04(pm(0), pm(4)), mid15(pm(1), pm(5));
-         Point mid26(pm(2), pm(6)), mid37(pm(3), pm(7));
-
-         Point midf0(mid23, mid12, mid01, mid30);
-         Point midf1(mid01, mid15, mid45, mid04);
-         Point midf2(mid12, mid26, mid56, mid15);
-         Point midf3(mid23, mid37, mid67, mid26);
-         Point midf4(mid30, mid04, mid74, mid37);
-         Point midf5(mid45, mid56, mid67, mid74);
-
-         Point midel(midf1, midf3);
-
-         GetFineTransforms(elem->child[0], coarse_index, transforms,
-                           PointMatrix(pm(0), mid01, midf0, mid30,
-                                       mid04, midf1, midel, midf4));
-
-         GetFineTransforms(elem->child[1], coarse_index, transforms,
-                           PointMatrix(mid01, pm(1), mid12, midf0,
-                                       midf1, mid15, midf2, midel));
-
-         GetFineTransforms(elem->child[2], coarse_index, transforms,
-                           PointMatrix(midf0, mid12, pm(2), mid23,
-                                       midel, midf2, mid26, midf3));
-
-         GetFineTransforms(elem->child[3], coarse_index, transforms,
-                           PointMatrix(mid30, midf0, mid23, pm(3),
-                                       midf4, midel, midf3, mid37));
-
-         GetFineTransforms(elem->child[4], coarse_index, transforms,
-                           PointMatrix(mid04, midf1, midel, midf4,
-                                       pm(4), mid45, midf5, mid74));
-
-         GetFineTransforms(elem->child[5], coarse_index, transforms,
-                           PointMatrix(midf1, mid15, midf2, midel,
-                                       mid45, pm(5), mid56, midf5));
-
-         GetFineTransforms(elem->child[6], coarse_index, transforms,
-                           PointMatrix(midel, midf2, mid26, midf3,
-                                       midf5, mid56, pm(6), mid67));
-
-         GetFineTransforms(elem->child[7], coarse_index, transforms,
-                           PointMatrix(midf4, midel, midf3, mid37,
-                                       mid74, midf5, mid67, pm(7)));
-      }
-   }
-   else if (elem->geom == Geometry::SQUARE)
-   {
-      if (elem->ref_type == 1) // X split
-      {
-         Point mid01(pm(0), pm(1)), mid23(pm(2), pm(3));
-
-         GetFineTransforms(elem->child[0], coarse_index, transforms,
-                           PointMatrix(pm(0), mid01, mid23, pm(3)));
-
-         GetFineTransforms(elem->child[1], coarse_index, transforms,
-                           PointMatrix(mid01, pm(1), pm(2), mid23));
-      }
-      else if (elem->ref_type == 2) // Y split
-      {
-         Point mid12(pm(1), pm(2)), mid30(pm(3), pm(0));
-
-         GetFineTransforms(elem->child[0], coarse_index, transforms,
-                           PointMatrix(pm(0), pm(1), mid12, mid30));
-
-         GetFineTransforms(elem->child[1], coarse_index, transforms,
-                           PointMatrix(mid30, mid12, pm(2), pm(3)));
-      }
-      else if (elem->ref_type == 3) // iso split
-      {
-         Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2));
-         Point mid23(pm(2), pm(3)), mid30(pm(3), pm(0));
-         Point midel(mid01, mid23);
-
-         GetFineTransforms(elem->child[0], coarse_index, transforms,
-                           PointMatrix(pm(0), mid01, midel, mid30));
-
-         GetFineTransforms(elem->child[1], coarse_index, transforms,
-                           PointMatrix(mid01, pm(1), mid12, midel));
-
-         GetFineTransforms(elem->child[2], coarse_index, transforms,
-                           PointMatrix(midel, mid12, pm(2), mid23));
-
-         GetFineTransforms(elem->child[3], coarse_index, transforms,
-                           PointMatrix(mid30, midel, mid23, pm(3)));
-      }
-   }
-   else if (elem->geom == Geometry::TRIANGLE)
-   {
-      Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2)), mid20(pm(2), pm(0));
-
-      GetFineTransforms(elem->child[0], coarse_index, transforms,
-                        PointMatrix(pm(0), mid01, mid20));
-
-      GetFineTransforms(elem->child[1], coarse_index, transforms,
-                        PointMatrix(mid01, pm(1), mid12));
-
-      GetFineTransforms(elem->child[2], coarse_index, transforms,
-                        PointMatrix(mid20, mid12, pm(2)));
-
-      GetFineTransforms(elem->child[3], coarse_index, transforms,
-                        PointMatrix(mid01, mid12, mid20));
    }
 }
 
@@ -2275,55 +2739,124 @@ void NCMesh::MarkCoarseLevel()
       Element* e = leaf_elements[i];
       if (!IsGhost(e)) { coarse_elements.Append(e); }
    }
+
+   transforms.embeddings.DeleteAll();
 }
 
-NCMesh::FineTransform* NCMesh::GetFineTransforms()
+void NCMesh::TraverseRefinements(Element* elem, int coarse_index,
+                                 std::string &ref_path, RefPathMap &map)
 {
-   if (!coarse_elements.Size())
+   if (!elem->ref_type)
    {
-      MFEM_ABORT("You need to call MarkCoarseLevel before calling Refine and "
-                 "GetFineTransforms.");
+      int &matrix = map[ref_path];
+      if (!matrix) { matrix = map.size(); }
+
+      Embedding &emb = transforms.embeddings[elem->index];
+      emb.parent = coarse_index;
+      emb.matrix = matrix - 1;
    }
-
-   FineTransform* transforms = new FineTransform[leaf_elements.Size()];
-
-   // get transformations for fine elements, starting from coarse elements
-   for (int i = 0; i < coarse_elements.Size(); i++)
+   else
    {
-      Element* c_elem = coarse_elements[i];
-      if (c_elem->ref_type)
+      ref_path.push_back(elem->ref_type);
+      ref_path.push_back(0);
+
+      for (int i = 0; i < 8; i++)
       {
-         if (c_elem->geom == Geometry::CUBE)
+         if (elem->child[i])
          {
-            PointMatrix pm
-            (Point(0,0,0), Point(1,0,0), Point(1,1,0), Point(0,1,0),
-             Point(0,0,1), Point(1,0,1), Point(1,1,1), Point(0,1,1));
-            GetFineTransforms(c_elem, i, transforms, pm);
-         }
-         else if (c_elem->geom == Geometry::SQUARE)
-         {
-            PointMatrix pm(Point(0,0), Point(1,0), Point(1,1), Point(0,1));
-            GetFineTransforms(c_elem, i, transforms, pm);
-         }
-         else if (c_elem->geom == Geometry::TRIANGLE)
-         {
-            PointMatrix pm(Point(0,0), Point(1,0), Point(0,1));
-            GetFineTransforms(c_elem, i, transforms, pm);
-         }
-         else
-         {
-            MFEM_ABORT("Bad geometry.");
+            ref_path[ref_path.length()-1] = i;
+            TraverseRefinements(elem->child[i], coarse_index, ref_path, map);
          }
       }
-      else
+      ref_path.resize(ref_path.length()-2);
+   }
+}
+
+const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
+{
+   MFEM_VERIFY(coarse_elements.Size() || !leaf_elements.Size(),
+               "GetRefinementTransforms() must be preceded by MarkCoarseLevel()"
+               " and Refine().");
+
+   if (!transforms.embeddings.Size())
+   {
+      transforms.embeddings.SetSize(leaf_elements.Size());
+
+      std::string ref_path;
+      ref_path.reserve(100);
+
+      RefPathMap map;
+      map[ref_path] = 1; // identity
+
+      for (int i = 0; i < coarse_elements.Size(); i++)
       {
-         // element not refined, return identity transform
-         transforms[c_elem->index].coarse_index = i;
-         // leave point_matrix empty...
+         TraverseRefinements(coarse_elements[i], i, ref_path, map);
+      }
+
+      MFEM_ASSERT(root_elements.Size(), "");
+      int geom = root_elements[0]->geom;
+      const PointMatrix &identity = GetGeomIdentity(geom);
+
+      transforms.point_matrices.SetSize(Dim, identity.np, map.size());
+
+      // calculate the point matrices
+      for (RefPathMap::iterator it = map.begin(); it != map.end(); ++it)
+      {
+         GetPointMatrix(geom, it->first.c_str(),
+                        transforms.point_matrices(it->second-1));
       }
    }
-
    return transforms;
+}
+
+const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
+{
+   MFEM_VERIFY(transforms.embeddings.Size() || !leaf_elements.Size(),
+               "GetDerefinementTransforms() must be preceded by Derefine().");
+
+   if (!transforms.point_matrices.SizeK())
+   {
+      std::map<int, int> mat_no;
+      mat_no[0] = 1; // identity
+
+      // assign numbers to the different matrices used
+      for (int i = 0; i < transforms.embeddings.Size(); i++)
+      {
+         int code = transforms.embeddings[i].matrix;
+         if (code)
+         {
+            int &matrix = mat_no[code];
+            if (!matrix) { matrix = mat_no.size(); }
+            transforms.embeddings[i].matrix = matrix - 1;
+         }
+      }
+
+      MFEM_ASSERT(root_elements.Size(), "");
+      int geom = root_elements[0]->geom;
+      const PointMatrix &identity = GetGeomIdentity(geom);
+
+      transforms.point_matrices.SetSize(Dim, identity.np, mat_no.size());
+
+      std::map<int, int>::iterator it;
+      for (it = mat_no.begin(); it != mat_no.end(); ++it)
+      {
+         char path[3];
+         int code = it->first;
+         path[0] = code >> 3; // ref_type (see SetDerefMatrixCodes())
+         path[1] = code & 7;  // child
+         path[2] = 0;
+
+         GetPointMatrix(geom, path, transforms.point_matrices(it->second-1));
+      }
+   }
+   return transforms;
+}
+
+void NCMesh::ClearTransforms()
+{
+   coarse_elements.DeleteAll();
+   transforms.embeddings.DeleteAll();
+   transforms.point_matrices.SetSize(0, 0, 0);
 }
 
 
@@ -2362,6 +2895,18 @@ int NCMesh::GetEdgeMaster(int v1, int v2) const
 
    Node* master = GetEdgeMaster(node);
    return master ? master->edge->index : -1;
+}
+
+int NCMesh::GetElementDepth(int i) const
+{
+   Element* elem = leaf_elements[i];
+   int depth = 0;
+   while (elem->parent)
+   {
+      elem = elem->parent;
+      depth++;
+   }
+   return depth;
 }
 
 void NCMesh::find_face_nodes(const Face *face, Node* node[4])
@@ -2492,16 +3037,16 @@ void NCMesh::CountSplits(Element* elem, int splits[3]) const
       elevel[i] = EdgeSplitLevel(node[ev[0]], node[ev[1]]);
    }
 
-   int flevel[6][2];
-   for (int i = 0; i < gi.nf; i++)
-   {
-      const int* fv = gi.faces[i];
-      FaceSplitLevel(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]],
-                     flevel[i][1], flevel[i][0]);
-   }
-
    if (elem->geom == Geometry::CUBE)
    {
+      int flevel[6][2];
+      for (int i = 0; i < gi.nf; i++)
+      {
+         const int* fv = gi.faces[i];
+         FaceSplitLevel(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]],
+                        flevel[i][1], flevel[i][0]);
+      }
+
       splits[0] = max8(flevel[0][0], flevel[1][0], flevel[3][0], flevel[5][0],
                        elevel[0], elevel[2], elevel[4], elevel[6]);
 
@@ -2527,37 +3072,44 @@ void NCMesh::CountSplits(Element* elem, int splits[3]) const
    }
 }
 
-void NCMesh::LimitNCLevel(int max_level)
+void NCMesh::GetLimitRefinements(Array<Refinement> &refinements, int max_level)
 {
-   MFEM_VERIFY(max_level >= 1, "'max_level' must be 1 or greater.");
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      if (IsGhost(leaf_elements[i])) { break; }
+
+      int splits[3];
+      CountSplits(leaf_elements[i], splits);
+
+      char ref_type = 0;
+      for (int k = 0; k < Dim; k++)
+      {
+         if (splits[k] > max_level)
+         {
+            ref_type |= (1 << k);
+         }
+      }
+
+      if (ref_type)
+      {
+         if (Iso)
+         {
+            // iso meshes should only be modified by iso refinements
+            ref_type = 7;
+         }
+         refinements.Append(Refinement(i, ref_type));
+      }
+   }
+}
+
+void NCMesh::LimitNCLevel(int max_nc_level)
+{
+   MFEM_VERIFY(max_nc_level >= 1, "'max_nc_level' must be 1 or greater.");
 
    while (1)
    {
       Array<Refinement> refinements;
-      for (int i = 0; i < leaf_elements.Size(); i++)
-      {
-         int splits[3];
-         CountSplits(leaf_elements[i], splits);
-
-         char ref_type = 0;
-         for (int k = 0; k < Dim; k++)
-         {
-            if (splits[k] > max_level)
-            {
-               ref_type |= (1 << k);
-            }
-         }
-
-         if (ref_type)
-         {
-            if (Iso)
-            {
-               // iso meshes should only be modified by iso refinements
-               ref_type = 7;
-            }
-            refinements.Append(Refinement(i, ref_type));
-         }
-      }
+      GetLimitRefinements(refinements, max_nc_level);
 
       if (!refinements.Size()) { break; }
 
@@ -2710,6 +3262,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
 
          MFEM_VERIFY(child, "element " << id << " cannot have two parents.");
          elem->child[i] = child;
+         child->parent = elem;
          child = NULL; // make sure the child can't be used again
 
          if (!i) // copy geom and attribute from first child
@@ -2827,5 +3380,30 @@ void NCMesh::PrintMemoryDetail() const
              << coarse_elements.MemoryUsage() << " coarse_elements\n"
              << sizeof(*this) << " NCMesh" << std::endl;
 }
+
+#ifdef MFEM_DEBUG
+void NCMesh::DebugLeafOrder() const
+{
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      Element* elem = leaf_elements[i];
+      for (int j = 0; j < Dim; j++)
+      {
+         double sum = 0.0;
+         int count = 0;
+         for (int k = 0; k < 8; k++)
+         {
+            if (elem->node[k])
+            {
+               sum += elem->node[k]->vertex->pos[j];
+               count++;
+            }
+         }
+         std::cout << sum / count << " ";
+      }
+      std::cout << "\n";
+   }
+}
+#endif
 
 } // namespace mfem

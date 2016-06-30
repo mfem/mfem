@@ -116,6 +116,12 @@
                     
                         
                             <li>
+                                 <a href="http://mfem.org/performance/">Performance</a>
+                            </li>
+                        
+                    
+                        
+                            <li>
                                  <a href="http://mfem.org/publications/">Publications</a>
                             </li>
                         
@@ -191,6 +197,8 @@
 <li>MFEM's own <a href="http://mfem.org/mesh-formats/#mfem-mesh-v10">mesh v1.0 format</a>, which can describe both <a href="http://mfem.org/mesh-formats/#straight-meshes">straight</a> as well as <a href="http://mfem.org/mesh-formats/#curvilinear-and-more-general-meshes">arbitrary high-order curvilinear</a> and <a href="http://mfem.org/mesh-formats/#curvilinear-and-more-general-meshes">more general</a> meshes,</li>
 <li>MFEM's own format for <a href="http://mfem.org/mesh-formats/#nurbs-meshes">NURBS</a> meshes,</li>
 <li>The <a href="http://mfem.org/mesh-formats/#curvilinear-vtk-meshes">VTK</a> unstructured mesh format, for triangular, quadrilateral, tetrahedral and hexahedral meshes,</li>
+<li>The <a href="http://gmsh.info/">Gmsh</a> ASCII and binary formats for 2D and 3D meshes.</li>
+<li>The <a href="https://cubit.sandia.gov/">CUBIT</a> meshes through the Genesis (NetCDF) binary format.</li>
 <li>The <a href="http://sourceforge.net/projects/netgen-mesher/">NETGEN</a> triangular and tetrahedral mesh formats,</li>
 <li>The <a href="http://www.truegrid.com/">TrueGrid</a> hexahedral mesh format.</li>
 </ul>
@@ -205,20 +213,20 @@ start with the example codes before moving to the miniapps.</p>
 <h3 id="mobius-strip">Mobius Strip</h3>
 <p>This miniapp generates various Mobius strip-like surface meshes. It is a good
 way to generate complex surface meshes.</p>
-<p><img alt="" src="../../doc/web/mobius-strip.png"></p>
+<p><img alt="" src="../../doc/web/examples/mobius-strip.png"></p>
 <p>Manipulating the mesh topology and
 performing mesh transformation are demonstrated. The <code>mobius-strip</code> mesh in the
 <code>data</code> directory was generated with this miniapp.</p>
 <h3 id="klein-bottle">Klein Bottle</h3>
 <p>This miniapp generates three types of Klein bottle surfaces. It is similar to
 the mobius-strip miniapp.</p>
-<p><img alt="" src="../../doc/web/klein-bottle.png"></p>
+<p><img alt="" src="../../doc/web/examples/klein-bottle.png"></p>
 <p>The <code>klein-bottle</code> and <code>klein-donut</code> meshes in the
 <code>data</code> directory were generated with this miniapp.</p>
 <h3 id="mesh-explorer">Mesh Explorer</h3>
 <p>This miniapp is a handy tool to examine, visualize and manipulate a given
 mesh.</p>
-<p><img alt="" src="../../doc/web/mesh-explorer.png"></p>
+<p><img alt="" src="../../doc/web/examples/mesh-explorer.png"></p>
 <p>Some of its features are:</p>
 <ul>
 <li>visualizing of mesh materials and individual mesh elements</li>
@@ -243,10 +251,21 @@ mesh.</p>
             
         </div>
 
+        <footer class="footer">
+           <div class="container">
+              <p class="text-muted alignright">LLNL-WEB-676715</p>
+              <p class="text-muted alignleft">
+                  Developed by the <a href="/about/">MFEM team</a> at
+                  <a href="http://computation.llnl.gov/casc/">CASC</a>,
+                  <a href="https://www.llnl.gov/">LLNL</a></p>
+           </div>
+        </footer>
+
         <script src="../../doc/web/jquery-1.10.2.min.js"></script>
         <script src="../../doc/web/bootstrap-3.0.3.min.js"></script>
         <script src="../../doc/web/highlight.pack.js"></script>
         <script src="../../doc/web/base.js"></script>
         <script src="../../doc/web/retina.min.js"></script>
     
+
 </body></html>

@@ -1157,9 +1157,6 @@ NURBSPatch *Revolve3D(NURBSPatch &patch, double n[], double ang, int times)
 }
 
 
-// from mesh.cpp
-extern void skip_comment_lines(std::istream &, const char);
-
 NURBSExtension::NURBSExtension(std::istream &input)
 {
    // Read topology
@@ -1170,7 +1167,7 @@ NURBSExtension::NURBSExtension(std::istream &input)
    CheckPatches();
    // CheckBdrPatches();
 
-   skip_comment_lines(input, '#');
+   Mesh::skip_comment_lines(input, '#');
 
    // Read knotvectors or patches
    string ident;
@@ -1193,7 +1190,7 @@ NURBSExtension::NURBSExtension(std::istream &input)
       patches.SetSize(GetNP());
       for (int p = 0; p < patches.Size(); p++)
       {
-         skip_comment_lines(input, '#');
+         Mesh::skip_comment_lines(input, '#');
          patches[p] = new NURBSPatch(input);
       }
 
@@ -1241,7 +1238,7 @@ NURBSExtension::NURBSExtension(std::istream &input)
    CountBdrElements();
    // NumOfVertices, NumOfElements, NumOfBdrElements, NumOfDofs
 
-   skip_comment_lines(input, '#');
+   Mesh::skip_comment_lines(input, '#');
 
    // Check for a list of mesh elements
    if (patches.Size() == 0)
@@ -1260,7 +1257,7 @@ NURBSExtension::NURBSExtension(std::istream &input)
          activeElem[glob_elem] = true;
       }
 
-      skip_comment_lines(input, '#');
+      Mesh::skip_comment_lines(input, '#');
       input >> ws >> ident;
    }
    else

@@ -62,17 +62,23 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, GridFunction *gf,
    }
 }
 
-void ParGridFunction::Update(ParFiniteElementSpace *f)
+void ParGridFunction::Update()
 {
    face_nbr_data.Destroy();
-   GridFunction::Update(f);
+   GridFunction::Update();
+}
+
+void ParGridFunction::SetSpace(ParFiniteElementSpace *f)
+{
+   face_nbr_data.Destroy();
+   GridFunction::SetSpace(f);
    pfes = f;
 }
 
-void ParGridFunction::Update(ParFiniteElementSpace *f, Vector &v, int v_offset)
+void ParGridFunction::MakeRef(ParFiniteElementSpace *f, Vector &v, int v_offset)
 {
    face_nbr_data.Destroy();
-   GridFunction::Update(f, v, v_offset);
+   GridFunction::MakeRef(f, v, v_offset);
    pfes = f;
 }
 
@@ -431,6 +437,7 @@ void ParGridFunction::SaveAsOne(std::ostream &out)
          values[p] -= nv[p];
          delete [] values[p];
       }
+      out.flush();
    }
    else
    {
@@ -487,15 +494,14 @@ double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm)
 
 void ParGridFunction::ComputeFlux(
    BilinearFormIntegrator &blfi,
-   GridFunction &flux_, int wcoef, int subdomain)
+   GridFunction &flux, int wcoef, int subdomain)
 {
-   // In this context we know that flux should be a ParGridFunction
-   ParGridFunction& flux = dynamic_cast<ParGridFunction&>(flux_);
-
-   ParFiniteElementSpace *ffes = flux.ParFESpace();
+   ParFiniteElementSpace *ffes =
+      dynamic_cast<ParFiniteElementSpace*>(flux.FESpace());
+   MFEM_VERIFY(ffes, "the flux FE space must be ParFiniteElementSpace");
 
    Array<int> count(flux.Size());
-   SumFluxAndCount(blfi, flux, count, 0, subdomain);
+   SumFluxAndCount(blfi, flux, count, wcoef, subdomain);
 
    if (ffes->Conforming()) // FIXME: nonconforming
    {
@@ -509,8 +515,9 @@ void ParGridFunction::ComputeFlux(
    }
    else
    {
-      MFEM_WARNING("Averaging on processor boundaries not implemented for "
-                   "NC meshes yet.");
+      MFEM_ABORT("Averaging on processor boundaries not implemented for "
+                 "NC meshes yet.\n"
+                 "Use L2ZZErrorEstimator() instead of ZZErrorEstimator().");
    }
 
    // complete averaging
@@ -532,18 +539,18 @@ void ParGridFunction::ComputeFlux(
 }
 
 
-void L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
-                        ParGridFunction &x,
-                        ParFiniteElementSpace &smooth_flux_fes,
-                        ParFiniteElementSpace &flux_fes,
-                        Vector &errors,
-                        int norm_p, double solver_tol, int solver_max_it)
+double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
+                          const ParGridFunction &x,
+                          ParFiniteElementSpace &smooth_flux_fes,
+                          ParFiniteElementSpace &flux_fes,
+                          Vector &errors,
+                          int norm_p, double solver_tol, int solver_max_it)
 {
    // Compute fluxes in discontinuous space
    GridFunction flux(&flux_fes);
    flux = 0.0;
 
-   FiniteElementSpace *xfes = x.FESpace();
+   ParFiniteElementSpace *xfes = x.ParFESpace();
    Array<int> xdofs, fdofs;
    Vector el_x, el_f;
 
@@ -606,21 +613,30 @@ void L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
    // approximation X. This is the local solution on each processor.
    smooth_flux = *X;
 
-   // Proceed through the elements one by one, and find the Lp norm differences
-   // between the flux as computed per element and the flux projected onto the
-   // smooth_flux_fes space.
-   for (int i = 0; i < xfes->GetNE(); i++)
-   {
-      errors(i) = ComputeElementLpDistance(norm_p, i, smooth_flux, flux);
-   }
-
    delete A;
    delete B;
    delete X;
    delete amg;
    delete pcg;
+
+   // Proceed through the elements one by one, and find the Lp norm differences
+   // between the flux as computed per element and the flux projected onto the
+   // smooth_flux_fes space.
+   double total_error = 0.0;
+   errors.SetSize(xfes->GetNE());
+   for (int i = 0; i < xfes->GetNE(); i++)
+   {
+      errors(i) = ComputeElementLpDistance(norm_p, i, smooth_flux, flux);
+      total_error += pow(errors(i), norm_p);
+   }
+
+   double glob_error;
+   MPI_Allreduce(&total_error, &glob_error, 1, MPI_DOUBLE, MPI_SUM,
+                 xfes->GetComm());
+
+   return pow(glob_error, 1.0/norm_p);
 }
 
 }
 
-#endif
+#endif // MFEM_USE_MPI

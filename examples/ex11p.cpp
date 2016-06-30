@@ -31,9 +31,10 @@
 //               NURBS mesh, etc.)
 //
 //               The example highlights the use of the LOBPCG eigenvalue solver
-//               together with the BoomerAMG preconditioner in HYPRE. Reusing a
-//               single GLVis visualization window for multiple eigenfunctions
-//               is also illustrated.
+//               together with the BoomerAMG preconditioner in HYPRE, as well as
+//               optionally the SuperLU parallel direct solver. Reusing a single
+//               GLVis visualization window for multiple eigenfunctions is also
+//               illustrated.
 //
 //               We recommend viewing Example 1 before viewing this example.
 
@@ -58,6 +59,7 @@ int main(int argc, char *argv[])
    int par_ref_levels = 1;
    int order = 1;
    int nev = 5;
+   bool slu_solver  = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -72,6 +74,10 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&nev, "-n", "--num-eigs",
                   "Number of desired eigenmodes.");
+#ifdef MFEM_USE_SUPERLU
+   args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu",
+                  "--no-superlu", "Use the SuperLU Solver.");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -93,19 +99,7 @@ int main(int argc, char *argv[])
    // 3. Read the (serial) mesh from the given mesh file on all processors. We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
-   Mesh *mesh;
-   ifstream imesh(mesh_file);
-   if (!imesh)
-   {
-      if (myid == 0)
-      {
-         cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
-      }
-      MPI_Finalize();
-      return 2;
-   }
-   mesh = new Mesh(imesh, 1, 1);
-   imesh.close();
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
    // 4. Refine the serial mesh on all processors to increase the resolution. In
@@ -188,19 +182,43 @@ int main(int argc, char *argv[])
    HypreParMatrix *A = a->ParallelAssemble();
    HypreParMatrix *M = m->ParallelAssemble();
 
+#ifdef MFEM_USE_SUPERLU
+   Operator * Arow = NULL;
+   if (slu_solver)
+   {
+      Arow = new SuperLURowLocMatrix(*A);
+   }
+#endif
+
    delete a;
    delete m;
 
    // 8. Define and configure the LOBPCG eigensolver and the BoomerAMG
    //    preconditioner for A to be used within the solver. Set the matrices
    //    which define the generalized eigenproblem A x = lambda M x.
-   HypreBoomerAMG * amg = new HypreBoomerAMG(*A);
-   amg->SetPrintLevel(0);
+   Solver * precond = NULL;
+   if (!slu_solver)
+   {
+      HypreBoomerAMG * amg = new HypreBoomerAMG(*A);
+      amg->SetPrintLevel(0);
+      precond = amg;
+   }
+#ifdef MFEM_USE_SUPERLU
+   else
+   {
+      SuperLUSolver * superlu = new SuperLUSolver(MPI_COMM_WORLD);
+      superlu->SetPrintStatistics(false);
+      superlu->SetSymmetricPattern(true);
+      superlu->SetColumnPermutation(superlu::PARMETIS);
+      superlu->SetOperator(*Arow);
+      precond = superlu;
+   }
+#endif
 
    HypreLOBPCG * lobpcg = new HypreLOBPCG(MPI_COMM_WORLD);
    lobpcg->SetNumModes(nev);
-   lobpcg->SetPreconditioner(*amg);
-   lobpcg->SetMaxIter(100);
+   lobpcg->SetPreconditioner(*precond);
+   lobpcg->SetMaxIter(200);
    lobpcg->SetTol(1e-8);
    lobpcg->SetPrecondUsageMode(1);
    lobpcg->SetPrintLevel(1);
@@ -282,9 +300,12 @@ int main(int argc, char *argv[])
 
    // 12. Free the used memory.
    delete lobpcg;
-   delete amg;
+   delete precond;
    delete M;
    delete A;
+#ifdef MFEM_USE_SUPERLU
+   delete Arow;
+#endif
 
    delete fespace;
    if (order > 0)

@@ -12,6 +12,8 @@
 //               mpirun -np 4 ex14p -m ../data/disc-nurbs.mesh -rs 4 -o 2 -s 1 -k 0
 //               mpirun -np 4 ex14p -m ../data/pipe-nurbs.mesh -o 1
 //               mpirun -np 4 ex14p -m ../data/inline-segment.mesh -rs 5
+//               mpirun -np 4 ex14p -m ../data/amr-quad.mesh -rs 3
+//               mpirun -np 4 ex14p -m ../data/amr-hex.mesh
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               discontinuous Galerkin (DG) finite element discretization of
@@ -60,7 +62,7 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree) >= 0.");
    args.AddOption(&sigma, "-s", "--sigma",
                   "One of the two DG penalty parameters, typically +1/-1."
-                  " See the documentation of class DiffusionIntegrator.");
+                  " See the documentation of class DGDiffusionIntegrator.");
    args.AddOption(&kappa, "-k", "--kappa",
                   "One of the two DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
@@ -89,24 +91,8 @@ int main(int argc, char *argv[])
    // 3. Read the (serial) mesh from the given mesh file on all processors. We
    //    can handle triangular, quadrilateral, tetrahedral and hexahedral meshes
    //    with the same code. NURBS meshes are projected to second order meshes.
-   Mesh *mesh;
-   ifstream imesh(mesh_file);
-   if (!imesh)
-   {
-      if (myid == 0)
-      {
-         cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
-      }
-      MPI_Finalize();
-      return 2;
-   }
-   mesh = new Mesh(imesh, 1, 1);
-   imesh.close();
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-   if (mesh->NURBSext)
-   {
-      mesh->SetCurvature(2);
-   }
 
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ser_ref_levels' of uniform refinement. By default,
@@ -121,6 +107,10 @@ int main(int argc, char *argv[])
       {
          mesh->UniformRefinement();
       }
+   }
+   if (mesh->NURBSext)
+   {
+      mesh->SetCurvature(max(order, 1));
    }
 
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine

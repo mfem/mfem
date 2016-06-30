@@ -27,7 +27,10 @@ namespace mfem
 /// Class for parallel meshes
 class ParMesh : public Mesh
 {
-private:
+protected:
+   ParMesh() : MyComm(0), NRanks(0), MyRank(-1),
+      have_face_nbr_data(false), pncmesh(NULL) {}
+
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
@@ -55,6 +58,9 @@ private:
    void GetFaceNbrElementTransformation(
       int i, IsoparametricTransformation *ElTr);
 
+   ElementTransformation* GetGhostFaceTransformation(
+      FaceElementTransformations* FETr, int face_type, int face_geom);
+
    /// Refine quadrilateral mesh.
    virtual void QuadUniformRefinement();
 
@@ -70,13 +76,17 @@ private:
    virtual void NonconformingRefinement(const Array<Refinement> &refinements,
                                         int nc_limit = 0);
 
+   virtual bool NonconformingDerefinement(Array<double> &elem_error,
+                                          double threshold, int nc_limit = 0,
+                                          int op = 1);
    void DeleteFaceNbrData();
+
+   bool WantSkipSharedMaster(const NCMesh::Master &master) const;
 
 public:
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
        source mesh can be modified (e.g. deleted, refined) without affecting the
-       new mesh. The source mesh has to be in a NORMAL, i.e. not TWO_LEVEL_*,
-       state. If 'copy_nodes' is false, use a shallow (pointer) copy for the
+       new mesh. If 'copy_nodes' is false, use a shallow (pointer) copy for the
        nodes, if present. */
    explicit ParMesh(const ParMesh &pmesh, bool copy_nodes = true);
 
@@ -114,11 +124,16 @@ public:
    void GroupEdge(int group, int i, int &edge, int &o);
    void GroupFace(int group, int i, int &face, int &o);
 
+   void GenerateOffsets(int N, HYPRE_Int loc_sizes[],
+                        Array<HYPRE_Int> *offsets[]) const;
+
    void ExchangeFaceNbrData();
    void ExchangeFaceNbrNodes();
+
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
    int GetFaceNbrRank(int fn) const;
+
    /** Similar to Mesh::GetFaceToElementTable with added face-neighbor elements
        with indices offset by the local number of elements. */
    Table *GetFaceToAllElementTable() const;
@@ -126,7 +141,8 @@ public:
    /** Get the FaceElementTransformations for the given shared face (edge 2D).
        In the returned object, 1 and 2 refer to the local and the neighbor
        elements, respectively. */
-   FaceElementTransformations *GetSharedFaceTransformations(int);
+   FaceElementTransformations *
+   GetSharedFaceTransformations(int sf, bool fill2 = true);
 
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
@@ -137,8 +153,14 @@ public:
    /// See the remarks for the serial version in mesh.hpp
    virtual void ReorientTetMesh();
 
+   /// Utility function: sum integers from all processors (Allreduce).
+   virtual long ReduceInt(int value) const;
+
    /// Update the groups after tet refinement
    void RefineGroups(const DSTable &v_to_v, int *middle);
+
+   /// Load balance the mesh. NC meshes only.
+   void Rebalance();
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using the default format. */

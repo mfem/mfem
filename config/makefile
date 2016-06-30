@@ -28,6 +28,7 @@ CONFIG_HPP = config.hpp
 # Output path + file name for the config makefile
 CONFIG_MK = config.mk
 
+.SUFFIXES:
 .PHONY: all header config-mk
 
 all: header config-mk

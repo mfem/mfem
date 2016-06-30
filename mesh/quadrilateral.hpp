@@ -23,9 +23,9 @@ class Quadrilateral : public Element
 {
 protected:
    int indices[4];
-   static const int edges[4][2];
 
 public:
+   typedef Geometry::Constants<Geometry::SQUARE> geom_t;
 
    Quadrilateral() : Element(Geometry::SQUARE) {}
 
@@ -51,7 +51,7 @@ public:
    virtual int GetNEdges() const { return (4); }
 
    virtual const int *GetEdgeVertices(int ei) const
-   { return (edges[ei]); }
+   { return geom_t::Edges[ei]; }
 
    virtual int GetNFaces(int &nFaceVertices) const
    { nFaceVertices = 0; return 0; }
