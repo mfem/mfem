@@ -17,6 +17,10 @@ matrix:
       - compiler: clang
         env: DEBUG=YES MPI=YES
 before_install:
+   # g++4.8.1
+   - if [ "$CXX" == "g++" ]; then sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test; fi
+
+   - sudo apt-get update -qq
    - sudo pip install codecov
 install:
    # g++4.8.1
