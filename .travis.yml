@@ -19,6 +19,10 @@ matrix:
 before_install:
    - sudo pip install codecov
 install:
+   # g++4.8.1
+   - if [ "$CXX" = "g++" ]; then sudo apt-get install -qq g++-4.8; fi
+   - if [ "$CXX" = "g++" ]; then export CXX="g++-4.8"; fi
+
 #    Back out of the mfem directory to install the libraries
    - pwd
    - cd ..
