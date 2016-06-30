@@ -310,7 +310,7 @@ test: lib
 	@echo "Done."
 
 clean:
-	rm -f */*.o */*.gcno */*.gcda *.gcda *.gcno *.gcov */*~ *~ libmfem.a deps.mk ..*.gcov
+	rm -f */*.o */*/*.gcno */*/*.gcda */*.gcno */*.gcda *.gcda *.gcno *.gcov */*~ *~ libmfem.a deps.mk ..*.gcov
 	rm -rf codecov
 	$(MAKE) -C examples clean
 	$(MAKE) -C miniapps/common clean
