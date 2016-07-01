@@ -18,20 +18,19 @@ matrix:
         env: DEBUG=YES MPI=YES
 before_install:
    # g++4.8.1
-   - if [ "$CXX" == "g++" ]; then sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test; fi
+   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" ]; then sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test; fi
+   - if [ $TRAVIS_OS_NAME == "linux" ]; then sudo apt-get update; fi || true
 
-   - sudo apt-get update -qq
    - sudo pip install codecov
 install:
    # g++4.8.1
-   - if [ "$CXX" = "g++" ]; then sudo apt-get install -qq g++-4.8; fi
-   - if [ "$CXX" = "g++" ]; then export CXX="g++-4.8"; fi
+   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" = "g++" ]; then sudo apt-get install -qq g++-4.8; fi
+   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" = "g++" ]; then export CXX="g++-4.8"; fi
 
 #    Back out of the mfem directory to install the libraries
    - pwd
    - cd ..
 #    OpenMPI install
-   - if test $TRAVIS_OS_NAME == "linux"; then sudo apt-get update; fi || true
    - if test $TRAVIS_OS_NAME == "linux"; then sudo apt-get install openmpi-bin openmpi-common openssh-client openssh-server libopenmpi1.3 libopenmpi-dbg libopenmpi-dev; else travis_wait brew install open-mpi; fi || true
 #    Hypre install   
    - wget https://computation.llnl.gov/project/linear_solvers/download/hypre-2.10.0b.tar.gz --no-check-certificate
