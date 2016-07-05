@@ -16,6 +16,11 @@ matrix:
         env: DEBUG=NO MPI=YES
       - compiler: clang
         env: DEBUG=YES MPI=YES
+      - os: osx
+        env: DEBUG=NO MPI=YES
+      - os: osx
+        env: DEBUG=YES MPI=YES
+
 before_install:
    # g++4.8.1
    - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" ]; then sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test; fi
