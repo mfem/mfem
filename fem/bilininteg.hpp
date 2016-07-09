@@ -661,6 +661,89 @@ public:
                                    DenseMatrix &elmat);
 };
 
+/** Integrator for the DG form (taken from the PhD Thesis of Jonas De Basabe
+    High-Order Finite %Element Methods for Seismic Wave Propagation, UT Austin,
+    2009, p. 23)
+
+    \f[
+    - < \{ \tau(u) \}, [v] > + sigma < \{ \tau(v) \}, [u] >
+    + kappa < \{ \lambda + 2 \mu \} [u], [v] >
+    \f]
+
+    where \f$ <u, v> = \int_{F} u \cdot v \f$, and \f$ F \f$ is a face which is
+    either a boundary face \f$ F_b \f$ of an element \f$ K \f$ or an interior
+    face \f$ F_i \f$ separating elements \f$ K_1 \f$ and \f$ K_2 \f$.
+
+    In the bilinear form above \f$ \tau(u) \f$ is traction, and it's also
+    \f$ \tau(u) = \sigma(u) \cdot \vec{n} \f$, where \f$ \sigma(u) \f$
+    is stress, and \f$ \vec{n} \f$ is the unit normal vector w.r.t. to \f$ F \f$
+
+    In other words, we have
+    \f[
+    - < \{ \sigma(u) \cdot \vec{n} \}, [v] > + sigma < \{ \sigma(v) \cdot \vec{n} \}, [u] >
+    + kappa < \{ \lambda + 2 \mu \} [u], [v] >
+    \f]
+
+    For isotropic media
+    \f[
+    \begin{split}
+    \sigma(u) &= \lambda \nabla \cdot u I + 2 \mu \varepsilon(u) \\
+              &= \lambda \nabla \cdot u I + 2 \mu \frac{1}{2} (\nabla u + \nabla u^T) \\
+              &= \lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)
+    \end{split}
+    \f]
+
+    where \f$ I \f$ is identity matrix, \f$ \lambda \f$ and \f$ \mu \f$ are Lame
+    coefficients (see ElasticityIntegrator), \f$ u, v \f$ are the trial and test
+    spaces, respectively. The parameters \f$ sigma \f$ and \f$ kappa \f$
+    determine the DG method to be used (when this integrator is added to the
+    "broken" ElasticityIntegrator):
+
+    - sigma = 0, IIPG (Dawson, C., Sun, S., & Wheeler, M., 2004. Compatible
+    algorithms for coupled flow and transport, Computer Methods in Applied
+    Mechanics and Engineering, 193(23-26), 2565-2580.)
+
+    - sigma = -1, SIPG (Grote, M., Schneebeli, A., & Schotzau, D., 2006.
+    Discontinuous Galerkin Finite %Element Method for the Wave Equation, SIAM
+    Journal on Numerical Analysis, 44(6), 2408-2431.)
+
+    - sigma = 1, NIPG (Riviere, B., Wheeler, M., & Girault, V., 2001. A Priori
+    Error Estimates for Finite %Element Methods Based on Discontinuous
+    Approximation Spaces for Elliptic Problems, SIAM Journal on Numerical
+    Analysis, 39(3), 902-931.)
+
+    This is a '%Vector' integrator, i.e. defined for FE spaces using multiple
+    copies of a scalar FE space.
+ */
+class DGElasticityIntegrator : public BilinearFormIntegrator
+{
+public:
+   DGElasticityIntegrator(double sigma_, double kappa_)
+      : lambda(NULL), mu(NULL), sigma(sigma_), kappa(kappa_) {}
+
+   DGElasticityIntegrator(Coefficient &lambda_, Coefficient &mu_,
+                          double sigma_, double kappa_)
+      : lambda(&lambda_), mu(&mu_), sigma(sigma_), kappa(kappa_) {}
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+
+protected:
+   Coefficient *lambda, *mu;
+   double sigma, kappa;
+
+   void AssembleBoundaryFaceMatrix(const FiniteElement &el,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+   void AssembleInteriorFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
 /** Integrator for the DPG form: < v, [w] > over all faces (the interface) where
     the trial variable v is defined on the interface and the test variable w is
     defined inside the elements, generally in a DG space. */
