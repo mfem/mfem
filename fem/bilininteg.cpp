@@ -2336,10 +2336,13 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
       for (int d = 0; d < dim; ++d) {
          for (int i = 0; i < ndofs; ++i) {
             for (int r = 0; r < dim; ++r) {
-               for (int t = 0; t < dim; ++t) {
-                  vDshape[ndofs*d + i][r][t] = 0.0;
+               if (r == d) {
+                  for (int t = 0; t < dim; ++t)
+                     vDshape[ndofs*d + i][r][t] = dshape(i, t);
+               } else {
+                  for (int t = 0; t < dim; ++t)
+                     vDshape[ndofs*d + i][r][t] = 0.0;
                }
-               vDshape[ndofs*d + i][d][r] = dshape(i, r);
             }
          }
       }
@@ -2414,12 +2417,13 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
      Therefore, the computation of the elmat matrix follows this:
      \f[
      \begin{split}
-       elmat = \int_F & 0.5 *(\lambda_1 \nabla \cdot u_1 I + \mu_1 (\nabla u_1 + \nabla u_1^T) \cdot \vec{n_1} \cdot v_1 \\
-                    + & 0.5 *(\lambda_1 \nabla \cdot u_1 I + \mu_1 (\nabla u_1 + \nabla u_1^T) \cdot \vec{n_1} \cdot v_2 \\
-                    - & 0.5 *(\lambda_2 \nabla \cdot u_2 I + \mu_2 (\nabla u_2 + \nabla u_2^T) \cdot \vec{n_2} \cdot v_1 \\
-                    - & 0.5 *(\lambda_2 \nabla \cdot u_2 I + \mu_2 (\nabla u_2 + \nabla u_2^T) \cdot \vec{n_2} \cdot v_2 \\
+       elmat = \int_F & 0.5 *(\lambda_1 \nabla \cdot u_1 I + \mu_1 (\nabla u_1 + \nabla u_1^T) \cdot \vec{n} \cdot v_1 \\
+                    - & 0.5 *(\lambda_1 \nabla \cdot u_1 I + \mu_1 (\nabla u_1 + \nabla u_1^T) \cdot \vec{n} \cdot v_2 \\
+                    + & 0.5 *(\lambda_2 \nabla \cdot u_2 I + \mu_2 (\nabla u_2 + \nabla u_2^T) \cdot \vec{n} \cdot v_1 \\
+                    - & 0.5 *(\lambda_2 \nabla \cdot u_2 I + \mu_2 (\nabla u_2 + \nabla u_2^T) \cdot \vec{n} \cdot v_2 \\
      \end{split}
      \f]
+     where \f$ \vec{n} \f$ is a normal of face F from el1 to el2.
 
      Each term of the integral above can be computed in the same way as in
      AssembleBoundaryFaceMatrix - one only needs to take into account from which
@@ -2486,10 +2490,13 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       for (int d = 0; d < dim; ++d) {
          for (int i = 0; i < ndof1; ++i) {
             for (int r = 0; r < dim; ++r) {
-               for (int t = 0; t < dim; ++t) {
-                  vDshape1[ndof1*d + i][r][t] = 0.0;
+               if (r == d) {
+                  for (int t = 0; t < dim; ++t)
+                     vDshape1[ndof1*d + i][r][t] = dshape1(i, t);
+               } else {
+                  for (int t = 0; t < dim; ++t)
+                     vDshape1[ndof1*d + i][r][t] = 0.0;
                }
-               vDshape1[ndof1*d + i][d][r] = dshape1(i, r);
             }
          }
       }
@@ -2527,10 +2534,13 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       for (int d = 0; d < dim; ++d) {
          for (int i = 0; i < ndof2; ++i) {
             for (int r = 0; r < dim; ++r) {
-               for (int t = 0; t < dim; ++t) {
-                  vDshape2[ndof2*d + i][r][t] = 0.0;
+               if (r == d) {
+                  for (int t = 0; t < dim; ++t)
+                     vDshape2[ndof2*d + i][r][t] = dshape2(i, t);
+               } else {
+                  for (int t = 0; t < dim; ++t)
+                     vDshape2[ndof2*d + i][r][t] = 0.0;
                }
-               vDshape2[ndof2*d + i][d][r] = dshape2(i, r);
             }
          }
       }
@@ -2547,22 +2557,13 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       // using Jacobian matrix of transformation of coordinates on the face of
       // the el1
       const double detJ1 = Trans.Elem1->Weight();
+      const double detJ2 = Trans.Elem2->Weight();
       DenseMatrix adjJ1(dim);
       CalcAdjugate(Trans.Elem1->Jacobian(), adjJ1);
 
       Vector nh1(dim); // normal vector in reference space of element el1
       adjJ1.Mult(nor, nh1);
       nh1 /= detJ1;
-
-      // using Jacobian matrix of transformation of coordinates on the face of
-      // the el2
-      const double detJ2 = Trans.Elem2->Weight();
-      DenseMatrix adjJ2(dim);
-      CalcAdjugate(Trans.Elem2->Jacobian(), adjJ2);
-
-      Vector nh2(dim); // normal vector in reference space of element el2
-      adjJ2.Mult(nor, nh2);
-      nh2 /= detJ2;
 
       const double L1 = lambda->Eval(*Trans.Elem1, eip1);
       const double L2 = lambda->Eval(*Trans.Elem2, eip2);
@@ -2583,9 +2584,9 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
             for (int d = 0; d < dim; ++d)
                for (int r = 0; r < dim; ++r)
                   elmat(i, dim*ndof1 + j) += vShape1[i][d] * 0.5 *
-                     ( L2 * w * vDshape2[j][r][r] * nh2(d) +
-                       M2 * w * vDshape2[j][d][r] * nh2(r) +
-                       M2 * w * vDshape2[j][r][d] * nh2(r) );
+                     ( L2 * w * vDshape2[j][r][r] * nh1(d) +
+                       M2 * w * vDshape2[j][d][r] * nh1(r) +
+                       M2 * w * vDshape2[j][r][d] * nh1(r) );
 
       for (int i = 0; i < dim*ndof2; ++i)
          for (int j = 0; j < dim*ndof1; ++j)
@@ -2601,9 +2602,9 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
             for (int d = 0; d < dim; ++d)
                for (int r = 0; r < dim; ++r)
                   elmat(dim*ndof1 + i, dim*ndof1 + j) -= vShape2[i][d] * 0.5 *
-                     ( L2 * w * vDshape2[j][r][r] * nh2(d) +
-                       M2 * w * vDshape2[j][d][r] * nh2(r) +
-                       M2 * w * vDshape2[j][r][d] * nh2(r) );
+                     ( L2 * w * vDshape2[j][r][r] * nh1(d) +
+                       M2 * w * vDshape2[j][d][r] * nh1(r) +
+                       M2 * w * vDshape2[j][r][d] * nh1(r) );
 
       const double coef = (w/detJ1 + w/detJ2) * sqrt(nor * nor) *
                           0.5 * (L1 + 2.0*M1 + L2 + 2.0*M2);
