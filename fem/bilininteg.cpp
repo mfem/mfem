@@ -2239,10 +2239,12 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
      u and v are a linear combination of the vector basis functions \f$ \vec{\phi} \f$
      that are copies of scalar basis functions \f$ \psi \f$. For example, in 2D:
      \f[
-       \vec{\phi_0} = ( \psi_0, 0 ) \\
-       \vec{\phi_1} = ( 0, \psi_0 ) \\
-       \vec{\phi_2} = ( \psi_1, 0 ) \\
-       \vec{\phi_3} = ( 0, \psi_1 ) \\
+       \vec{\phi_0}     = ( \psi_0, 0 ) \\
+       \vec{\phi_1}     = ( \psi_1, 0 ) \\
+       \vec{\phi_{N-1}} = ( \psi_{N-1}, 0 ) \\
+       \vec{\phi_N}     = ( 0, \psi_0 ) \\
+       \vec{\phi_{N+1}} = ( 0, \psi_1 ) \\
+       \vec{\phi_{2N-1}}= ( 0, \psi_{N-1} ) \\
        \mbox{and so on}
      \f]
 
@@ -2314,9 +2316,14 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
       // values of the vector basis functions approximating u at the integration
       // point in the reference space
       double vShape[dim*ndofs][dim];
-      for (int i = 0; i < ndofs; ++i)
-         for (int d = 0; d < dim; ++d)
-            vShape[dim*i + d][d] = shape(i);
+      for (int d = 0; d < dim; ++d) {
+         for (int i = 0; i < ndofs; ++i) {
+            for (int r = 0; r < dim; ++r) {
+               vShape[ndofs*d + i][r] = 0.0;
+            }
+            vShape[ndofs*d + i][d] = shape(i);
+         }
+      }
 
       // values of derivatives of all scalar basis functions for one component
       // of u (which is a vector) at the integration point in the reference space
@@ -2326,10 +2333,16 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
       // values of derivatives of vector basis functions approximating u at the
       // integration point in the reference space
       double vDshape[dim*ndofs][dim][dim];
-      for (int i = 0; i < ndofs; ++i)
-         for (int d = 0; d < dim; ++d)
-            for (int r = 0; r < dim; ++r)
-               vDshape[dim*i + d][d][r] = dshape(i, r);
+      for (int d = 0; d < dim; ++d) {
+         for (int i = 0; i < ndofs; ++i) {
+            for (int r = 0; r < dim; ++r) {
+               for (int t = 0; t < dim; ++t) {
+                  vDshape[ndofs*d + i][r][t] = 0.0;
+               }
+               vDshape[ndofs*d + i][d][r] = dshape(i, r);
+            }
+         }
+      }
 
       // using Jacobian matrix of transformation of coordinates
       const double detJ = Trans.Elem1->Weight();
@@ -2382,7 +2395,6 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
 
    const int ndof1 = el1.GetDof();
    const int ndof2 = el2.GetDof();
-   const int ndofs = ndof1 + ndof2;
 
    /**
      Initially elmat corresponds to the term:
@@ -2414,7 +2426,7 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
      element the basis functions come from - el1 or el2.
    */
 
-   elmat.SetSize(dim*ndofs);
+   elmat.SetSize(dim * (ndof1 + ndof2));
    elmat = 0.;
 
    /**
@@ -2425,7 +2437,7 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
      The computation of these terms is similar to the one used in AssembleBoundaryFaceMatrix.
    */
 
-   DenseMatrix jmat(dim*ndofs);
+   DenseMatrix jmat(dim * (ndof1 + ndof2));
    jmat = 0.;
 
    const IntegrationRule *ir = IntRule;
@@ -2453,9 +2465,14 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       // values of the vector basis functions approximating u at the integration
       // point in the reference space of finite element el1
       double vShape1[dim*ndof1][dim];
-      for (int i = 0; i < ndof1; ++i)
-         for (int d = 0; d < dim; ++d)
-            vShape1[dim*i + d][d] = shape1(i);
+      for (int d = 0; d < dim; ++d) {
+         for (int i = 0; i < ndof1; ++i) {
+            for (int r = 0; r < dim; ++r) {
+               vShape1[ndof1*d + i][r] = 0.0;
+            }
+            vShape1[ndof1*d + i][d] = shape1(i);
+         }
+      }
 
       // values of derivatives of all scalar basis functions for one component
       // of u (which is a vector) at the integration point in the reference space
@@ -2466,10 +2483,16 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       // values of derivatives of vector basis functions approximating u at the
       // integration point in the reference space of finite element el1
       double vDshape1[dim*ndof1][dim][dim];
-      for (int i = 0; i < ndof1; ++i)
-         for (int d = 0; d < dim; ++d)
-            for (int r = 0; r < dim; ++r)
-               vDshape1[dim*i + d][d][r] = dshape1(i, r);
+      for (int d = 0; d < dim; ++d) {
+         for (int i = 0; i < ndof1; ++i) {
+            for (int r = 0; r < dim; ++r) {
+               for (int t = 0; t < dim; ++t) {
+                  vDshape1[ndof1*d + i][r][t] = 0.0;
+               }
+               vDshape1[ndof1*d + i][d][r] = dshape1(i, r);
+            }
+         }
+      }
 
       IntegrationPoint eip2; // integration point in the reference space on the face of el2
       Trans.Loc2.Transform(ip, eip2);
@@ -2483,9 +2506,14 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       // values of the vector basis functions approximating u at the integration
       // point in the reference space of finite element el2
       double vShape2[dim*ndof2][dim];
-      for (int i = 0; i < ndof2; ++i)
-         for (int d = 0; d < dim; ++d)
-            vShape2[dim*i + d][d] = shape2(i);
+      for (int d = 0; d < dim; ++d) {
+         for (int i = 0; i < ndof2; ++i) {
+            for (int r = 0; r < dim; ++r) {
+               vShape2[ndof2*d + i][r] = 0.0;
+            }
+            vShape2[ndof2*d + i][d] = shape2(i);
+         }
+      }
 
       // values of derivatives of all scalar basis functions for one component
       // of u (which is a vector) at the integration point in the reference space
@@ -2496,10 +2524,16 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       // values of derivatives of vector basis functions approximating u at the
       // integration point in the reference space of finite element el2
       double vDshape2[dim*ndof2][dim][dim];
-      for (int i = 0; i < ndof2; ++i)
-         for (int d = 0; d < dim; ++d)
-            for (int r = 0; r < dim; ++r)
-               vDshape2[dim*i + d][d][r] = dshape2(i, r);
+      for (int d = 0; d < dim; ++d) {
+         for (int i = 0; i < ndof2; ++i) {
+            for (int r = 0; r < dim; ++r) {
+               for (int t = 0; t < dim; ++t) {
+                  vDshape2[ndof2*d + i][r][t] = 0.0;
+               }
+               vDshape2[ndof2*d + i][d][r] = dshape2(i, r);
+            }
+         }
+      }
 
       // weight of the quadrature rule for numerical integration
       const double w = ip.weight;
@@ -2596,8 +2630,8 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
    }
 
    // elmat := -elmat + sigma*elmat^t + kappa*jmat
-   for (int i = 0; i < dim*ndofs; ++i)
-      for (int j = 0; j < dim*ndofs; ++j)
+   for (int i = 0; i < dim*(ndof1+ndof2); ++i)
+      for (int j = 0; j < dim*(ndof1+ndof2); ++j)
          elmat(i, j) = -elmat(i, j) + sigma*elmat(j, i) + kappa*jmat(i, j);
 }
 
