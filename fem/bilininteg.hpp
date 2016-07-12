@@ -695,7 +695,7 @@ public:
 
     where \f$ I \f$ is identity matrix, \f$ \lambda \f$ and \f$ \mu \f$ are Lame
     coefficients (see ElasticityIntegrator), \f$ u, v \f$ are the trial and test
-    spaces, respectively. The parameters \f$ sigma \f$ and \f$ kappa \f$
+    functions, respectively. The parameters \f$ sigma \f$ and \f$ kappa \f$
     determine the DG method to be used (when this integrator is added to the
     "broken" ElasticityIntegrator):
 

@@ -2215,14 +2215,14 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
        elmat = \int_F (\lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)) \cdot \vec{n} \cdot v
      \f]
 
-     Taking into account that \f$ \nabla u = J^{-T} \hat{\nabla u} \f$ and
-     \f$ \int_F \vec{f} \cdot \vec{n} = \int_{\hat{F}} \vec{f} \cdot {nor} \f$,
-     where \f$ \hat{*} \f$ denotes the reference coordinate, function, gradient,
-     etc, and \f$ \vec{nor} \f$ is a (not necessarily unit) normal to the face
-     \f$ F \f$ (in contrast to \f$ \vec{n} \f$ which is a unit normal vector),
-     we get
+     Taking into account that \f$ \nabla u = J^{-1} \hat{\nabla}\hat{u} \f$ and
+     \f$ \int_F \vec{f} \cdot \vec{n} = \int_{\hat{F}} \vec{f} \cdot {n} |detJ|
+     = \int_{\hat{F}} \vec{f} \cdot {nor} \f$, where \f$ \hat{*} \f$ denotes the
+     reference coordinate, function, gradient, etc, and \f$ \vec{nor} \f$ is a
+     (not necessarily unit) normal to the face \f$ F \f$ (in contrast to \f$ \vec{n} \f$
+     which is a unit normal vector), we get
      \f[
-       elmat = \int_{\hat{F}} J^{-T} (\lambda \hat{\nabla \cdot u} I + \mu (\hat{\nabla u} + \hat{\nabla u}^T)) \cdot \vec{nor} \cdot v
+       elmat = \int_{\hat{F}} J^{-1} (\lambda \hat{\nabla} \cdot \hat{u} I + \mu (\hat{\nabla}\hat{u} + \hat{\nabla}\hat{u}^T)) \cdot \vec{nor} \cdot v
      \f]
    */
 
@@ -2310,11 +2310,6 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
      \f]
    */
 
-   DenseMatrix delta(dim);
-   delta = 0.0;
-   for (int i = 0; i < dim; ++i)
-      delta(i, i) = 1.0;
-
    for (int pind = 0; pind < ir->GetNPoints(); ++pind)
    {
       const IntegrationPoint &ip = ir->IntPoint(pind);
@@ -2333,10 +2328,13 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
       DenseMatrix dshape(ndofs, dim);
       el.CalcDShape(eip, dshape);
 
+      // Jacobian of transformation of coordinates: J^{-1} = adjJ / detJ
       const double detJ = Trans.Elem1->Weight();
       DenseMatrix adjJ(dim);
       CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
 
+      // gradient of shape functions in the real (physical, not reference)
+      // coordinates : dshape_phys(j1,j2) = sum_{t} (1/detJ)*adjJ(t,j2)*dshape(j1,t)
       DenseMatrix dshape_phys(ndofs, dim);
       Mult(dshape, adjJ, dshape_phys);
       dshape_phys *= 1.0 / detJ;
@@ -2370,7 +2368,7 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
                   elmat(i, j) += shape(i1) * M * w * dshape_phys(j1, i2) * nor(j2);
                   // jmat
                   if (i2 == j2) {
-                     jmat(i, j) += (L + 2.0*M) * w * shape(i1) * shape(j1);
+                     jmat(i, j) += (L + 2.0*M) * w * detJ * shape(i1) * shape(j1);
                   }
                }
             }
@@ -2467,9 +2465,13 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       DenseMatrix dshape1(ndof1, dim);
       el1.CalcDShape(eip1, dshape1);
 
+      // Jacobian of transformation of coordinates
       const double detJ1 = Trans.Elem1->Weight();
       DenseMatrix adjJ1(dim);
       CalcAdjugate(Trans.Elem1->Jacobian(), adjJ1);
+
+      // gradient of shape functions in the real (physical, not reference)
+      // coordinates : dshape_phys(j1,j2) = sum_{t} (1/detJ)*adjJ(t,j2)*dshape(j1,t)
       DenseMatrix dshape_phys1(ndof1, dim);
       Mult(dshape1, adjJ1, dshape_phys1);
       dshape_phys1 *= 1.0 / detJ1;
@@ -2489,9 +2491,13 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       DenseMatrix dshape2(ndof2, dim);
       el2.CalcDShape(eip2, dshape2);
 
+      // Jacobian of transformation of coordinates
       const double detJ2 = Trans.Elem2->Weight();
       DenseMatrix adjJ2(dim);
       CalcAdjugate(Trans.Elem2->Jacobian(), adjJ2);
+
+      // gradient of shape functions in the real (physical, not reference)
+      // coordinates
       DenseMatrix dshape_phys2(ndof2, dim);
       Mult(dshape2, adjJ2, dshape_phys2);
       dshape_phys2 *= 1.0 / detJ2;
@@ -2510,8 +2516,7 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       const double M1 = mu->Eval(*Trans.Elem1, eip1);
       const double M2 = mu->Eval(*Trans.Elem2, eip2);
 
-      const double coef = /*(w/detJ1 + w/detJ2) * sqrt(nor * nor)*/ w *
-                          0.5 * (L1 + 2.0*M1 + L2 + 2.0*M2);
+      const double jmatcoef = w * detJ1 * 0.5 * (L1 + 2.0*M1 + L2 + 2.0*M2);
 
       for (int j2 = 0; j2 < dim; ++j2) {
          for (int j1 = 0; j1 < ndof1; ++j1) {
@@ -2530,7 +2535,7 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
                   elmat(i, j) += shape1(i1) * M1 * w * dshape_phys1(j1, i2) * nor(j2);
                   // jmat
                   if (i2 == j2) {
-                     jmat(i, j) += coef * shape1(i1) * shape1(j1);
+                     jmat(i, j) += jmatcoef * shape1(i1) * shape1(j1);
                   }
                }
             }
@@ -2554,7 +2559,7 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
                   elmat(i, j) -= shape2(i1) * M1 * w * dshape_phys1(j1, i2) * nor(j2);
                   // jmat
                   if (i2 == j2) {
-                     jmat(i, j) -= coef * shape2(i1) * shape1(j1);
+                     jmat(i, j) -= jmatcoef * shape2(i1) * shape1(j1);
                   }
                }
             }
@@ -2578,7 +2583,7 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
                   elmat(i, j) += shape1(i1) * M2 * w * dshape_phys2(j1, i2) * nor(j2);
                   // jmat
                   if (i2 == j2) {
-                     jmat(i, j) -= coef * shape1(i1) * shape2(j1);
+                     jmat(i, j) -= jmatcoef * shape1(i1) * shape2(j1);
                   }
                }
             }
@@ -2602,7 +2607,7 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
                   elmat(i, j) -= shape2(i1) * M2 * w * dshape_phys2(j1, i2) * nor(j2);
                   // jmat
                   if (i2 == j2) {
-                     jmat(i, j) += coef * shape2(i1) * shape2(j1);
+                     jmat(i, j) += jmatcoef * shape2(i1) * shape2(j1);
                   }
                }
             }
