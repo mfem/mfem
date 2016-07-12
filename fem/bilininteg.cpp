@@ -2377,9 +2377,14 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
    }
 
    // elmat := -elmat + sigma*elmat^t + kappa*jmat
-   for (int i = 0; i < dim*ndofs; ++i)
-      for (int j = 0; j < dim*ndofs; ++j)
-         elmat(i, j) = -elmat(i, j) + sigma*elmat(j, i) + kappa*jmat(i, j);
+   for (int i = 0; i < dim*ndofs; ++i) {
+      for (int j = 0; j < i; ++j) {
+         double aij = elmat(i,j), aji = elmat(j,i), mij = kappa*jmat(i,j);
+         elmat(i,j) = sigma*aji - aij + mij;
+         elmat(j,i) = sigma*aij - aji + mij;
+      }
+      elmat(i,i) = (sigma - 1.)*elmat(i,i) + kappa*jmat(i,i);
+   }
 }
 
 void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
@@ -2502,8 +2507,9 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       Mult(dshape2, adjJ2, dshape_phys2);
       dshape_phys2 *= 1.0 / detJ2;
 
-      // weight of the quadrature rule for numerical integration
-      const double w = ip.weight;
+      // weight of the quadrature rule for numerical integration multiplied by
+      // 0.5 (see the bilinear form)
+      const double w = 0.5 * ip.weight;
 
       Vector nor(dim); // normal vector (not unit)
       if (dim == 1)
@@ -2516,7 +2522,7 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       const double M1 = mu->Eval(*Trans.Elem1, eip1);
       const double M2 = mu->Eval(*Trans.Elem2, eip2);
 
-      const double jmatcoef = w * detJ1 * 0.5 * (L1 + 2.0*M1 + L2 + 2.0*M2);
+      const double jmatcoef = w * detJ1 * (L1 + 2.0*M1 + L2 + 2.0*M2);
 
       for (int j2 = 0; j2 < dim; ++j2) {
          for (int j1 = 0; j1 < ndof1; ++j1) {
@@ -2616,9 +2622,14 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
    }
 
    // elmat := -elmat + sigma*elmat^t + kappa*jmat
-   for (int i = 0; i < dim*(ndof1+ndof2); ++i)
-      for (int j = 0; j < dim*(ndof1+ndof2); ++j)
-         elmat(i, j) = -elmat(i, j) + sigma*elmat(j, i) + kappa*jmat(i, j);
+   for (int i = 0; i < dim*(ndof1+ndof2); ++i) {
+      for (int j = 0; j < i; ++j) {
+         double aij = elmat(i,j), aji = elmat(j,i), mij = kappa*jmat(i,j);
+         elmat(i,j) = sigma*aji - aij + mij;
+         elmat(j,i) = sigma*aij - aji + mij;
+      }
+      elmat(i,i) = (sigma - 1.)*elmat(i,i) + kappa*jmat(i,i);
+   }
 }
 
 void TraceJumpIntegrator::AssembleFaceMatrix(
