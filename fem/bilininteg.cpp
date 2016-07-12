@@ -2214,6 +2214,16 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
      \f[
        elmat = \int_F (\lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)) \cdot \vec{n} \cdot v
      \f]
+
+     Taking into account that \f$ \nabla u = J^{-T} \hat{\nabla u} \f$ and
+     \f$ \int_F \vec{f} \cdot \vec{n} = \int_{\hat{F}} \vec{f} \cdot {nor} \f$,
+     where \f$ \hat{*} \f$ denotes the reference coordinate, function, gradient,
+     etc, and \f$ \vec{nor} \f$ is a (not necessarily unit) normal to the face
+     \f$ F \f$ (in contrast to \f$ \vec{n} \f$ which is a unit normal vector),
+     we get
+     \f[
+       elmat = \int_{\hat{F}} J^{-T} (\lambda \hat{\nabla \cdot u} I + \mu (\hat{\nabla u} + \hat{\nabla u}^T)) \cdot \vec{nor} \cdot v
+     \f]
    */
 
    elmat.SetSize(dim*ndofs);
@@ -2253,52 +2263,57 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
      First term
      \f[
        \int_F \lambda \nabla \cdot u I \cdot \vec{n} \cdot v =
-       \sum_{p}^{I_p} \lambda_p w_p \sum_{i}^{N_{dofs}} \sum_{j}^{N_{dofs}} E_{ij}
+       \sum_{p}^{I_p} \lambda_p w_p E^1
      \f]
      where \f$ I_p \f$ are integration points, \f$ w_p \f$ are weights of
      numerical integration rules.
      \f[
-       E_{ij} = \vec{\phi_i} \cdot \nabla \cdot \vec{\phi_j} I \cdot \vec{n} = |\mbox{in 2D}|
-              = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \frac{\partial \phi_j^x}{\partial x} + \frac{\partial \phi_j^y}{\partial y} & 0 \\ 0 & \frac{\partial \phi_j^x}{\partial x} + \frac{\partial \phi_j^y}{\partial y} \end{matrix} \right) \left( \begin{matrix} n_x \\ n_y \end{matrix} \right)
-              = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \sum_r^D \frac{\partial \phi_j^r}{\partial r} n_x \\ \sum_r^D \frac{\partial \phi_j^r}{\partial r} n_y \end{matrix} \right)
-              = |\mbox{in arbitrary Dimension}| = \sum_d^D \phi_i^d \sum_r^D \frac{\partial \phi_j^r}{\partial r} n_d
+       E_{ij}^1 = \vec{\phi_i} \cdot \nabla \cdot \vec{\phi_j} I \cdot \vec{n} = |\mbox{in 2D}|
+                = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \frac{\partial \phi_j^x}{\partial x} + \frac{\partial \phi_j^y}{\partial y} & 0 \\ 0 & \frac{\partial \phi_j^x}{\partial x} + \frac{\partial \phi_j^y}{\partial y} \end{matrix} \right) \left( \begin{matrix} n_x \\ n_y \end{matrix} \right)
+                = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \sum_r^D \frac{\partial \phi_j^r}{\partial r} n_x \\ \sum_r^D \frac{\partial \phi_j^r}{\partial r} n_y \end{matrix} \right)
+                = |\mbox{in arbitrary Dimension}| = \sum_d^D \phi_i^d \sum_r^D \frac{\partial \phi_j^r}{\partial r} n_d
      \f]
 
      Second term
      \f[
        \int_F \mu \nabla u \cdot \vec{n} \cdot v =
-       \sum_{p}^{I_p} \mu_p w_p \sum_{i}^{N_{dofs}} \sum_{j}^{N_{dofs}} E_{ij}
+       \sum_{p}^{I_p} \mu_p w_p E^2
      \f]
      \f[
-       E_{ij} = \vec{\phi_i} \cdot \nabla \vec{\phi_j} \cdot \vec{n} = |\mbox{in 2D}|
-              = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \frac{\partial \phi_j^x}{\partial x} & \frac{\partial \phi_j^x}{\partial y} \\ \frac{\partial \phi_j^y}{\partial x} & \frac{\partial \phi_j^y}{\partial y} \end{matrix} \right) \left( \begin{matrix} n_x \\ n_y \end{matrix} \right)
-              = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \sum_r^D \frac{\partial \phi_j^x}{\partial r} n_r \\ \sum_r^D \frac{\partial \phi_j^y}{\partial r} n_r \end{matrix} \right)
-              = |\mbox{in arbitrary Dimension}| = \sum_d^D \phi_i^d \sum_r^D \frac{\partial \phi_j^d}{\partial r} n_r
+       E_{ij}^2 = \vec{\phi_i} \cdot \nabla \vec{\phi_j} \cdot \vec{n} = |\mbox{in 2D}|
+                = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \frac{\partial \phi_j^x}{\partial x} & \frac{\partial \phi_j^x}{\partial y} \\ \frac{\partial \phi_j^y}{\partial x} & \frac{\partial \phi_j^y}{\partial y} \end{matrix} \right) \left( \begin{matrix} n_x \\ n_y \end{matrix} \right)
+                = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \sum_r^D \frac{\partial \phi_j^x}{\partial r} n_r \\ \sum_r^D \frac{\partial \phi_j^y}{\partial r} n_r \end{matrix} \right)
+                = |\mbox{in arbitrary Dimension}| = \sum_d^D \phi_i^d \sum_r^D \frac{\partial \phi_j^d}{\partial r} n_r
      \f]
 
      Third term
      \f[
        \int_F \mu \nabla u^T \cdot \vec{n} \cdot v =
-       \sum_{p}^{I_p} \mu_p w_p \sum_{i}^{N_{dofs}} \sum_{j}^{N_{dofs}} E_{ij}
+       \sum_{p}^{I_p} \mu_p w_p E^3
      \f]
      \f[
-       E_{ij} = \vec{\phi_i} \cdot \nabla \vec{\phi_j}^T \cdot \vec{n} = |\mbox{in 2D}|
-              = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \frac{\partial \phi_j^x}{\partial x} & \frac{\partial \phi_j^y}{\partial x} \\ \frac{\partial \phi_j^x}{\partial y} & \frac{\partial \phi_j^y}{\partial y} \end{matrix} \right) \left( \begin{matrix} n_x \\ n_y \end{matrix} \right)
-              = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \sum_r^D \frac{\partial \phi_j^r}{\partial x} n_r \\ \sum_r^D \frac{\partial \phi_j^r}{\partial y} n_r \end{matrix} \right)
-              = |\mbox{in arbitrary Dimension}| = \sum_d^D \phi_i^d \sum_r^D \frac{\partial \phi_j^r}{\partial d} n_r
+       E_{ij}^3 = \vec{\phi_i} \cdot \nabla \vec{\phi_j}^T \cdot \vec{n} = |\mbox{in 2D}|
+                = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \frac{\partial \phi_j^x}{\partial x} & \frac{\partial \phi_j^y}{\partial x} \\ \frac{\partial \phi_j^x}{\partial y} & \frac{\partial \phi_j^y}{\partial y} \end{matrix} \right) \left( \begin{matrix} n_x \\ n_y \end{matrix} \right)
+                = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \sum_r^D \frac{\partial \phi_j^r}{\partial x} n_r \\ \sum_r^D \frac{\partial \phi_j^r}{\partial y} n_r \end{matrix} \right)
+                = |\mbox{in arbitrary Dimension}| = \sum_d^D \phi_i^d \sum_r^D \frac{\partial \phi_j^r}{\partial d} n_r
      \f]
 
      The penalty term is computed this way:
      \f[
        \int_F (\lambda + 2 \mu) u \cdot v =
-       \sum_p^{I_p} (\lambda_p + 2 \mu_p) w_p \sum_i^{N_{dofs}} \sum_j^{N_{dofs}} E_{ij}
+       \sum_p^{I_p} (\lambda_p + 2 \mu_p) w_p E^4
      \f]
      \f[
-       E_{ij} = \vec{\phi_i} \cdot \vec{\phi_j} = |\mbox{in 2D}|
-              = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \phi_j^x \\ \phi_j^y \end{matrix} \right)
-              = |\mbox{in any Dimension}| = \sum_d^D \phi_i^d \phi_j^d
+       E_{ij}^4 = \vec{\phi_i} \cdot \vec{\phi_j} = |\mbox{in 2D}|
+                = (\phi_i^x, \phi_i^y) \left( \begin{matrix} \phi_j^x \\ \phi_j^y \end{matrix} \right)
+                = |\mbox{in any Dimension}| = \sum_d^D \phi_i^d \phi_j^d
      \f]
    */
+
+   DenseMatrix delta(dim);
+   delta = 0.0;
+   for (int i = 0; i < dim; ++i)
+      delta(i, i) = 1.0;
 
    for (int pind = 0; pind < ir->GetNPoints(); ++pind)
    {
@@ -2313,48 +2328,21 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
       Vector shape(ndofs);
       el.CalcShape(eip, shape);
 
-      // values of the vector basis functions approximating u at the integration
-      // point in the reference space
-      double vShape[dim*ndofs][dim];
-      for (int d = 0; d < dim; ++d) {
-         for (int i = 0; i < ndofs; ++i) {
-            for (int r = 0; r < dim; ++r) {
-               vShape[ndofs*d + i][r] = 0.0;
-            }
-            vShape[ndofs*d + i][d] = shape(i);
-         }
-      }
-
       // values of derivatives of all scalar basis functions for one component
       // of u (which is a vector) at the integration point in the reference space
       DenseMatrix dshape(ndofs, dim);
       el.CalcDShape(eip, dshape);
 
-      // values of derivatives of vector basis functions approximating u at the
-      // integration point in the reference space
-      double vDshape[dim*ndofs][dim][dim];
-      for (int d = 0; d < dim; ++d) {
-         for (int i = 0; i < ndofs; ++i) {
-            for (int r = 0; r < dim; ++r) {
-               if (r == d) {
-                  for (int t = 0; t < dim; ++t)
-                     vDshape[ndofs*d + i][r][t] = dshape(i, t);
-               } else {
-                  for (int t = 0; t < dim; ++t)
-                     vDshape[ndofs*d + i][r][t] = 0.0;
-               }
-            }
-         }
-      }
-
-      // using Jacobian matrix of transformation of coordinates
       const double detJ = Trans.Elem1->Weight();
       DenseMatrix adjJ(dim);
       CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
 
-      // weight of the quadrature rule for numerical integration scaled w.r.t.
-      // the transformation of coordinates
-      const double w = ip.weight / detJ;
+      DenseMatrix dshape_phys(ndofs, dim);
+      Mult(dshape, adjJ, dshape_phys);
+      dshape_phys *= 1.0 / detJ;
+
+      // weight of the quadrature rule for numerical integration
+      const double w = ip.weight;
 
       Vector nor(dim); // normal vector (not unit)
       if (dim == 1)
@@ -2362,25 +2350,32 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
       else
          CalcOrtho(Trans.Face->Jacobian(), nor);
 
-      Vector nh(dim); // normal vector in reference space
-      adjJ.Mult(nor, nh);
-
       const double L = lambda->Eval(*Trans.Elem1, eip);
       const double M = mu->Eval(*Trans.Elem1, eip);
 
-      for (int i = 0; i < dim*ndofs; ++i)
-         for (int j = 0; j < dim*ndofs; ++j)
-            for (int d = 0; d < dim; ++d)
-               for (int r = 0; r < dim; ++r)
-                  elmat(i, j) += vShape[i][d] *
-                     ( L * w * vDshape[j][r][r] * nh(d) +
-                       M * w * vDshape[j][d][r] * nh(r) +
-                       M * w * vDshape[j][r][d] * nh(r) );
-
-      for (int i = 0; i < dim*ndofs; ++i)
-         for (int j = 0; j < dim*ndofs; ++j)
-            for (int d = 0; d < dim; ++d)
-               jmat(i, j) += (L + 2.0*M) * w * vShape[i][d] * vShape[j][d];
+      for (int j2 = 0; j2 < dim; ++j2) {
+         for (int j1 = 0; j1 < ndofs; ++j1) {
+            const int j = j2*ndofs + j1;
+            for (int i2 = 0; i2 < dim; ++i2) {
+               for (int i1 = 0; i1 < ndofs; ++i1) {
+                  const int i = i2*ndofs + i1;
+                  // first term
+                  elmat(i, j) += shape(i1) * L * w * dshape_phys(j1, j2) * nor(i2);
+                  // second term
+                  if (i2 == j2) {
+                     for (int r = 0; r < dim; ++r)
+                        elmat(i, j) += shape(i1) * M * w * dshape_phys(j1, r) * nor(r);
+                  }
+                  // third term
+                  elmat(i, j) += shape(i1) * M * w * dshape_phys(j1, i2) * nor(j2);
+                  // jmat
+                  if (i2 == j2) {
+                     jmat(i, j) += (L + 2.0*M) * w * shape(i1) * shape(j1);
+                  }
+               }
+            }
+         }
+      }
    }
 
    // elmat := -elmat + sigma*elmat^t + kappa*jmat
@@ -2466,40 +2461,18 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       Vector shape1(ndof1);
       el1.CalcShape(eip1, shape1);
 
-      // values of the vector basis functions approximating u at the integration
-      // point in the reference space of finite element el1
-      double vShape1[dim*ndof1][dim];
-      for (int d = 0; d < dim; ++d) {
-         for (int i = 0; i < ndof1; ++i) {
-            for (int r = 0; r < dim; ++r) {
-               vShape1[ndof1*d + i][r] = 0.0;
-            }
-            vShape1[ndof1*d + i][d] = shape1(i);
-         }
-      }
-
       // values of derivatives of all scalar basis functions for one component
       // of u (which is a vector) at the integration point in the reference space
       // of finite element el1
       DenseMatrix dshape1(ndof1, dim);
       el1.CalcDShape(eip1, dshape1);
 
-      // values of derivatives of vector basis functions approximating u at the
-      // integration point in the reference space of finite element el1
-      double vDshape1[dim*ndof1][dim][dim];
-      for (int d = 0; d < dim; ++d) {
-         for (int i = 0; i < ndof1; ++i) {
-            for (int r = 0; r < dim; ++r) {
-               if (r == d) {
-                  for (int t = 0; t < dim; ++t)
-                     vDshape1[ndof1*d + i][r][t] = dshape1(i, t);
-               } else {
-                  for (int t = 0; t < dim; ++t)
-                     vDshape1[ndof1*d + i][r][t] = 0.0;
-               }
-            }
-         }
-      }
+      const double detJ1 = Trans.Elem1->Weight();
+      DenseMatrix adjJ1(dim);
+      CalcAdjugate(Trans.Elem1->Jacobian(), adjJ1);
+      DenseMatrix dshape_phys1(ndof1, dim);
+      Mult(dshape1, adjJ1, dshape_phys1);
+      dshape_phys1 *= 1.0 / detJ1;
 
       IntegrationPoint eip2; // integration point in the reference space on the face of el2
       Trans.Loc2.Transform(ip, eip2);
@@ -2510,40 +2483,18 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       Vector shape2(ndof2);
       el2.CalcShape(eip2, shape2);
 
-      // values of the vector basis functions approximating u at the integration
-      // point in the reference space of finite element el2
-      double vShape2[dim*ndof2][dim];
-      for (int d = 0; d < dim; ++d) {
-         for (int i = 0; i < ndof2; ++i) {
-            for (int r = 0; r < dim; ++r) {
-               vShape2[ndof2*d + i][r] = 0.0;
-            }
-            vShape2[ndof2*d + i][d] = shape2(i);
-         }
-      }
-
       // values of derivatives of all scalar basis functions for one component
       // of u (which is a vector) at the integration point in the reference space
       // of finite element el2
       DenseMatrix dshape2(ndof2, dim);
       el2.CalcDShape(eip2, dshape2);
 
-      // values of derivatives of vector basis functions approximating u at the
-      // integration point in the reference space of finite element el2
-      double vDshape2[dim*ndof2][dim][dim];
-      for (int d = 0; d < dim; ++d) {
-         for (int i = 0; i < ndof2; ++i) {
-            for (int r = 0; r < dim; ++r) {
-               if (r == d) {
-                  for (int t = 0; t < dim; ++t)
-                     vDshape2[ndof2*d + i][r][t] = dshape2(i, t);
-               } else {
-                  for (int t = 0; t < dim; ++t)
-                     vDshape2[ndof2*d + i][r][t] = 0.0;
-               }
-            }
-         }
-      }
+      const double detJ2 = Trans.Elem2->Weight();
+      DenseMatrix adjJ2(dim);
+      CalcAdjugate(Trans.Elem2->Jacobian(), adjJ2);
+      DenseMatrix dshape_phys2(ndof2, dim);
+      Mult(dshape2, adjJ2, dshape_phys2);
+      dshape_phys2 *= 1.0 / detJ2;
 
       // weight of the quadrature rule for numerical integration
       const double w = ip.weight;
@@ -2554,80 +2505,109 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       else
          CalcOrtho(Trans.Face->Jacobian(), nor);
 
-      // using Jacobian matrix of transformation of coordinates on the face of
-      // the el1
-      const double detJ1 = Trans.Elem1->Weight();
-      const double detJ2 = Trans.Elem2->Weight();
-      DenseMatrix adjJ1(dim);
-      CalcAdjugate(Trans.Elem1->Jacobian(), adjJ1);
-
-      Vector nh1(dim); // normal vector in reference space of element el1
-      adjJ1.Mult(nor, nh1);
-      nh1 /= detJ1;
-
       const double L1 = lambda->Eval(*Trans.Elem1, eip1);
       const double L2 = lambda->Eval(*Trans.Elem2, eip2);
       const double M1 = mu->Eval(*Trans.Elem1, eip1);
       const double M2 = mu->Eval(*Trans.Elem2, eip2);
 
-      for (int i = 0; i < dim*ndof1; ++i)
-         for (int j = 0; j < dim*ndof1; ++j)
-            for (int d = 0; d < dim; ++d)
-               for (int r = 0; r < dim; ++r)
-                  elmat(i, j) += vShape1[i][d] * 0.5 *
-                     ( L1 * w * vDshape1[j][r][r] * nh1(d) +
-                       M1 * w * vDshape1[j][d][r] * nh1(r) +
-                       M1 * w * vDshape1[j][r][d] * nh1(r) );
-
-      for (int i = 0; i < dim*ndof1; ++i)
-         for (int j = 0; j < dim*ndof2; ++j)
-            for (int d = 0; d < dim; ++d)
-               for (int r = 0; r < dim; ++r)
-                  elmat(i, dim*ndof1 + j) += vShape1[i][d] * 0.5 *
-                     ( L2 * w * vDshape2[j][r][r] * nh1(d) +
-                       M2 * w * vDshape2[j][d][r] * nh1(r) +
-                       M2 * w * vDshape2[j][r][d] * nh1(r) );
-
-      for (int i = 0; i < dim*ndof2; ++i)
-         for (int j = 0; j < dim*ndof1; ++j)
-            for (int d = 0; d < dim; ++d)
-               for (int r = 0; r < dim; ++r)
-                  elmat(dim*ndof1 + i, j) -= vShape2[i][d] * 0.5 *
-                     ( L1 * w * vDshape1[j][r][r] * nh1(d) +
-                       M1 * w * vDshape1[j][d][r] * nh1(r) +
-                       M1 * w * vDshape1[j][r][d] * nh1(r) );
-
-      for (int i = 0; i < dim*ndof2; ++i)
-         for (int j = 0; j < dim*ndof2; ++j)
-            for (int d = 0; d < dim; ++d)
-               for (int r = 0; r < dim; ++r)
-                  elmat(dim*ndof1 + i, dim*ndof1 + j) -= vShape2[i][d] * 0.5 *
-                     ( L2 * w * vDshape2[j][r][r] * nh1(d) +
-                       M2 * w * vDshape2[j][d][r] * nh1(r) +
-                       M2 * w * vDshape2[j][r][d] * nh1(r) );
-
-      const double coef = (w/detJ1 + w/detJ2) * sqrt(nor * nor) *
+      const double coef = /*(w/detJ1 + w/detJ2) * sqrt(nor * nor)*/ w *
                           0.5 * (L1 + 2.0*M1 + L2 + 2.0*M2);
 
-      for (int i = 0; i < dim*ndof1; ++i)
-         for (int j = 0; j < dim*ndof1; ++j)
-            for (int d = 0; d < dim; ++d)
-               jmat(i, j) += coef * vShape1[i][d] * vShape1[j][d];
+      for (int j2 = 0; j2 < dim; ++j2) {
+         for (int j1 = 0; j1 < ndof1; ++j1) {
+            const int j = j2*ndof1 + j1;
+            for (int i2 = 0; i2 < dim; ++i2) {
+               for (int i1 = 0; i1 < ndof1; ++i1) {
+                  const int i = i2*ndof1 + i1;
+                  // first term
+                  elmat(i, j) += shape1(i1) * L1 * w * dshape_phys1(j1, j2) * nor(i2);
+                  // second term
+                  if (i2 == j2) {
+                     for (int r = 0; r < dim; ++r)
+                        elmat(i, j) += shape1(i1) * M1 * w * dshape_phys1(j1, r) * nor(r);
+                  }
+                  // third term
+                  elmat(i, j) += shape1(i1) * M1 * w * dshape_phys1(j1, i2) * nor(j2);
+                  // jmat
+                  if (i2 == j2) {
+                     jmat(i, j) += coef * shape1(i1) * shape1(j1);
+                  }
+               }
+            }
+         }
+      }
 
-      for (int i = 0; i < dim*ndof1; ++i)
-         for (int j = 0; j < dim*ndof2; ++j)
-            for (int d = 0; d < dim; ++d)
-               jmat(i, dim*ndof1 + j) -= coef * vShape1[i][d] * vShape2[j][d];
+      for (int j2 = 0; j2 < dim; ++j2) {
+         for (int j1 = 0; j1 < ndof1; ++j1) {
+            const int j = j2*ndof1 + j1;
+            for (int i2 = 0; i2 < dim; ++i2) {
+               for (int i1 = 0; i1 < ndof2; ++i1) {
+                  const int i = dim*ndof1 + i2*ndof2 + i1;
+                  // first term
+                  elmat(i, j) -= shape2(i1) * L1 * w * dshape_phys1(j1, j2) * nor(i2);
+                  // second term
+                  if (i2 == j2) {
+                     for (int r = 0; r < dim; ++r)
+                        elmat(i, j) -= shape2(i1) * M1 * w * dshape_phys1(j1, r) * nor(r);
+                  }
+                  // third term
+                  elmat(i, j) -= shape2(i1) * M1 * w * dshape_phys1(j1, i2) * nor(j2);
+                  // jmat
+                  if (i2 == j2) {
+                     jmat(i, j) -= coef * shape2(i1) * shape1(j1);
+                  }
+               }
+            }
+         }
+      }
 
-      for (int i = 0; i < dim*ndof2; ++i)
-         for (int j = 0; j < dim*ndof1; ++j)
-            for (int d = 0; d < dim; ++d)
-               jmat(dim*ndof1 + i, j) -= coef * vShape2[i][d] * vShape1[j][d];
+      for (int j2 = 0; j2 < dim; ++j2) {
+         for (int j1 = 0; j1 < ndof2; ++j1) {
+            const int j = dim*ndof1 + j2*ndof2 + j1;
+            for (int i2 = 0; i2 < dim; ++i2) {
+               for (int i1 = 0; i1 < ndof1; ++i1) {
+                  const int i = i2*ndof1 + i1;
+                  // first term
+                  elmat(i, j) += shape1(i1) * L2 * w * dshape_phys2(j1, j2) * nor(i2);
+                  // second term
+                  if (i2 == j2) {
+                     for (int r = 0; r < dim; ++r)
+                        elmat(i, j) += shape1(i1) * M2 * w * dshape_phys2(j1, r) * nor(r);
+                  }
+                  // third term
+                  elmat(i, j) += shape1(i1) * M2 * w * dshape_phys2(j1, i2) * nor(j2);
+                  // jmat
+                  if (i2 == j2) {
+                     jmat(i, j) -= coef * shape1(i1) * shape2(j1);
+                  }
+               }
+            }
+         }
+      }
 
-      for (int i = 0; i < dim*ndof2; ++i)
-         for (int j = 0; j < dim*ndof2; ++j)
-            for (int d = 0; d < dim; ++d)
-               jmat(dim*ndof1 + i, dim*ndof1 + j) += coef * vShape2[i][d] * vShape2[j][d];
+      for (int j2 = 0; j2 < dim; ++j2) {
+         for (int j1 = 0; j1 < ndof2; ++j1) {
+            const int j = dim*ndof1 + j2*ndof2 + j1;
+            for (int i2 = 0; i2 < dim; ++i2) {
+               for (int i1 = 0; i1 < ndof2; ++i1) {
+                  const int i = dim*ndof1 + i2*ndof2 + i1;
+                  // first term
+                  elmat(i, j) -= shape2(i1) * L2 * w * dshape_phys2(j1, j2) * nor(i2);
+                  // second term
+                  if (i2 == j2) {
+                     for (int r = 0; r < dim; ++r)
+                        elmat(i, j) -= shape2(i1) * M2 * w * dshape_phys2(j1, r) * nor(r);
+                  }
+                  // third term
+                  elmat(i, j) -= shape2(i1) * M2 * w * dshape_phys2(j1, i2) * nor(j2);
+                  // jmat
+                  if (i2 == j2) {
+                     jmat(i, j) += coef * shape2(i1) * shape2(j1);
+                  }
+               }
+            }
+         }
+      }
    }
 
    // elmat := -elmat + sigma*elmat^t + kappa*jmat
