@@ -2368,7 +2368,7 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
                   elmat(i, j) += shape(i1) * M * w * dshape_phys(j1, i2) * nor(j2);
                   // jmat
                   if (i2 == j2) {
-                     jmat(i, j) += (L + 2.0*M) * w * detJ * shape(i1) * shape(j1);
+                     jmat(i, j) += (L + 2.0*M) * w * (nor*nor)/detJ * shape(i1) * shape(j1);
                   }
                }
             }
@@ -2522,7 +2522,7 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       const double M1 = mu->Eval(*Trans.Elem1, eip1);
       const double M2 = mu->Eval(*Trans.Elem2, eip2);
 
-      const double jmatcoef = w * detJ1 * (L1 + 2.0*M1 + L2 + 2.0*M2);
+      const double jmatcoef = w * (nor*nor) * ((L1+2.0*M1)/detJ1 + (L2+2.0*M2)/detJ2);
 
       for (int j2 = 0; j2 < dim; ++j2) {
          for (int j1 = 0; j1 < ndof1; ++j1) {
