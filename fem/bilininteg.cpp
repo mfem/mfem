@@ -2336,6 +2336,23 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
      \f]
    */
 
+   // values of all scalar basis functions for one component of u (which is a
+   // vector) at the integration point in the reference space
+   Vector shape(ndofs);
+
+   // values of derivatives of all scalar basis functions for one component
+   // of u (which is a vector) at the integration point in the reference space
+   DenseMatrix dshape(ndofs, dim);
+
+   // Jacobian of transformation of coordinates: J^{-1} = (1/detJ)*adjJ
+   DenseMatrix adjJ(dim);
+
+   // gradient of shape functions in the real (physical, not reference)
+   // coordinates : dshape_phys(j1,j2) = sum_{t} (1/detJ)*adjJ(t,j2)*dshape(j1,t)
+   DenseMatrix dshape_phys(ndofs, dim);
+
+   Vector nor(dim); // normal vector (not unit)
+
    for (int pind = 0; pind < ir->GetNPoints(); ++pind)
    {
       const IntegrationPoint &ip = ir->IntPoint(pind);
@@ -2344,31 +2361,18 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
       Trans.Face->SetIntPoint(&ip);
       Trans.Elem1->SetIntPoint(&eip);
 
-      // values of all scalar basis functions for one component of u (which is a
-      // vector) at the integration point in the reference space
-      Vector shape(ndofs);
       el.CalcShape(eip, shape);
-
-      // values of derivatives of all scalar basis functions for one component
-      // of u (which is a vector) at the integration point in the reference space
-      DenseMatrix dshape(ndofs, dim);
       el.CalcDShape(eip, dshape);
 
-      // Jacobian of transformation of coordinates: J^{-1} = (1/detJ)*adjJ
       const double detJ = Trans.Elem1->Weight();
-      DenseMatrix adjJ(dim);
       CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
 
-      // gradient of shape functions in the real (physical, not reference)
-      // coordinates : dshape_phys(j1,j2) = sum_{t} (1/detJ)*adjJ(t,j2)*dshape(j1,t)
-      DenseMatrix dshape_phys(ndofs, dim);
       Mult(dshape, adjJ, dshape_phys);
       dshape_phys *= 1.0 / detJ;
 
       // weight of the quadrature rule for numerical integration
       const double w = ip.weight;
 
-      Vector nor(dim); // normal vector (not unit)
       if (dim == 1)
          nor(0) = 2*eip.x - 1.0;
       else
@@ -2469,6 +2473,25 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       ir = &IntRules.Get(Trans.FaceGeom, order);
    }
 
+   // values of all scalar basis functions for one component of u (which is a
+   // vector) at an integration point in the reference space of finite elements
+   // el1 and el2
+   Vector shape1(ndof1), shape2(ndof2);
+
+   // values of derivatives of all scalar basis functions for one component
+   // of u (which is a vector) at an integration point in the reference space
+   // of finite elements el1 and el2
+   DenseMatrix dshape1(ndof1, dim), dshape2(ndof2, dim);
+
+   // Jacobians of transformation of coordinates for finite elements el1 and el2
+   DenseMatrix adjJ1(dim), adjJ2(dim);
+
+   // gradient of shape functions in the real (physical, not reference)
+   // coordinates : dshape_phys(j1,j2) = sum_{t} (1/detJ)*adjJ(t,j2)*dshape(j1,t)
+   DenseMatrix dshape_phys1(ndof1, dim), dshape_phys2(ndof2, dim);
+
+   Vector nor(dim); // normal vector (not unit)
+
    for (int pind = 0; pind < ir->GetNPoints(); ++pind)
    {
       const IntegrationPoint &ip = ir->IntPoint(pind);
@@ -2478,25 +2501,12 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       Trans.Loc1.Transform(ip, eip1);
       Trans.Elem1->SetIntPoint(&eip1);
 
-      // values of all scalar basis functions for one component of u (which is a
-      // vector) at the integration point in the reference space of finite element el1
-      Vector shape1(ndof1);
       el1.CalcShape(eip1, shape1);
-
-      // values of derivatives of all scalar basis functions for one component
-      // of u (which is a vector) at the integration point in the reference space
-      // of finite element el1
-      DenseMatrix dshape1(ndof1, dim);
       el1.CalcDShape(eip1, dshape1);
 
-      // Jacobian of transformation of coordinates
       const double detJ1 = Trans.Elem1->Weight();
-      DenseMatrix adjJ1(dim);
       CalcAdjugate(Trans.Elem1->Jacobian(), adjJ1);
 
-      // gradient of shape functions in the real (physical, not reference)
-      // coordinates : dshape_phys(j1,j2) = sum_{t} (1/detJ)*adjJ(t,j2)*dshape(j1,t)
-      DenseMatrix dshape_phys1(ndof1, dim);
       Mult(dshape1, adjJ1, dshape_phys1);
       dshape_phys1 *= 1.0 / detJ1;
 
@@ -2504,25 +2514,12 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       Trans.Loc2.Transform(ip, eip2);
       Trans.Elem2->SetIntPoint(&eip2);
 
-      // values of all scalar basis functions for one component of u (which is a
-      // vector) at the integration point in the reference space of finite element el2
-      Vector shape2(ndof2);
       el2.CalcShape(eip2, shape2);
-
-      // values of derivatives of all scalar basis functions for one component
-      // of u (which is a vector) at the integration point in the reference space
-      // of finite element el2
-      DenseMatrix dshape2(ndof2, dim);
       el2.CalcDShape(eip2, dshape2);
 
-      // Jacobian of transformation of coordinates
       const double detJ2 = Trans.Elem2->Weight();
-      DenseMatrix adjJ2(dim);
       CalcAdjugate(Trans.Elem2->Jacobian(), adjJ2);
 
-      // gradient of shape functions in the real (physical, not reference)
-      // coordinates
-      DenseMatrix dshape_phys2(ndof2, dim);
       Mult(dshape2, adjJ2, dshape_phys2);
       dshape_phys2 *= 1.0 / detJ2;
 
@@ -2530,7 +2527,6 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       // 0.5 (see the bilinear form)
       const double w = 0.5 * ip.weight;
 
-      Vector nor(dim); // normal vector (not unit)
       if (dim == 1)
          nor(0) = 2*eip1.x - 1.0;
       else
