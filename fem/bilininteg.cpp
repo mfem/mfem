@@ -2188,6 +2188,30 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
       AssembleBoundaryFaceMatrix(el1, Trans, elmat);
    else
       AssembleInteriorFaceMatrix(el1, el2, Trans, elmat);
+
+   // elmat := -elmat + sigma*elmat^t + jmat
+   if (kappa != 0.0)
+   {
+      for (int i = 0; i < elmat.Height(); ++i) {
+         for (int j = 0; j < i; ++j) {
+            double aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
+            elmat(i,j) = sigma*aji - aij + mij;
+            elmat(j,i) = sigma*aij - aji + mij;
+         }
+         elmat(i,i) = (sigma - 1.)*elmat(i,i) + jmat(i,i);
+      }
+   }
+   else
+   {
+      for (int i = 0; i < elmat.Height(); ++i) {
+         for (int j = 0; j < i; ++j) {
+            double aij = elmat(i,j), aji = elmat(j,i);
+            elmat(i,j) = sigma*aji - aij;
+            elmat(j,i) = sigma*aij - aji;
+         }
+         elmat(i,i) *= (sigma - 1.);
+      }
+   }
 }
 
 void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
@@ -2203,7 +2227,7 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
        elmat = < \{ (\lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)) \cdot \vec{n} \}, [v] >
      \f]
      But eventually, it's going to be:
-     elmat := -elmat + sigma*elmat^t + kappa*jmat
+     elmat := -elmat + sigma*elmat^t + jmat
 
      For the boundary faces, the averages and jumps over the face F of the
      element are defined this way:
@@ -2225,7 +2249,6 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
        elmat = \int_{\hat{F}} J^{-1} (\lambda \hat{\nabla} \cdot \hat{u} I + \mu (\hat{\nabla}\hat{u} + \hat{\nabla}\hat{u}^T)) \cdot \vec{nor} \cdot v
      \f]
    */
-
    elmat.SetSize(dim*ndofs);
    elmat = 0.;
 
@@ -2233,9 +2256,7 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
      jmat corresponds to the term: \f$ kappa < h^{-1} \{ \lambda + 2 \mu \} [u], [v] > \f$,
      which in case of the boundary face becomes: \f$ kappa \int_F h_F^{-1} (\lambda + 2 \mu) u \cdot v \f$
    */
-
    const bool kappa_is_nonzero = (kappa != 0.0);
-   DenseMatrix jmat;
    if (kappa_is_nonzero)
    {
       jmat.SetSize(dim*ndofs);
@@ -2381,30 +2402,6 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
          }
       }
    }
-
-   // elmat := -elmat + sigma*elmat^t + kappa*jmat
-   if (kappa_is_nonzero)
-   {
-      for (int i = 0; i < dim*ndofs; ++i) {
-         for (int j = 0; j < i; ++j) {
-            double aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
-            elmat(i,j) = sigma*aji - aij + mij;
-            elmat(j,i) = sigma*aij - aji + mij;
-         }
-         elmat(i,i) = (sigma - 1.)*elmat(i,i) + jmat(i,i);
-      }
-   }
-   else
-   {
-      for (int i = 0; i < dim*ndofs; ++i) {
-         for (int j = 0; j < i; ++j) {
-            double aij = elmat(i,j), aji = elmat(j,i);
-            elmat(i,j) = sigma*aji - aij;
-            elmat(j,i) = sigma*aij - aji;
-         }
-         elmat(i,i) *= (sigma - 1.);
-      }
-   }
 }
 
 void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
@@ -2423,7 +2420,7 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
        elmat = < \{ (\lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)) \cdot \vec{n} \}, [v] >
      \f]
      But eventually, it's going to be:
-     elmat := -elmat + sigma*elmat^t + kappa*jmat
+     elmat := -elmat + sigma*elmat^t + jmat
 
      For the interior faces, the averages and jumps over the face F separating
      elements el1 and el2 are defined this way:
@@ -2447,7 +2444,6 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
      AssembleBoundaryFaceMatrix - one only needs to take into account from which
      element the basis functions come from - el1 or el2.
    */
-
    elmat.SetSize(dim * (ndof1 + ndof2));
    elmat = 0.;
 
@@ -2458,9 +2454,7 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
 
      The computation of these terms is similar to the one used in AssembleBoundaryFaceMatrix.
    */
-
    const bool kappa_is_nonzero = (kappa != 0.0);
-   DenseMatrix jmat;
    if (kappa_is_nonzero)
    {
       jmat.SetSize(dim * (ndof1 + ndof2));
@@ -2640,30 +2634,6 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
                }
             }
          }
-      }
-   }
-
-   // elmat := -elmat + sigma*elmat^t + kappa*jmat
-   if (kappa_is_nonzero)
-   {
-      for (int i = 0; i < dim*(ndof1+ndof2); ++i) {
-         for (int j = 0; j < i; ++j) {
-            double aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
-            elmat(i,j) = sigma*aji - aij + mij;
-            elmat(j,i) = sigma*aij - aji + mij;
-         }
-         elmat(i,i) = (sigma - 1.)*elmat(i,i) + jmat(i,i);
-      }
-   }
-   else
-   {
-      for (int i = 0; i < dim*(ndof1+ndof2); ++i) {
-         for (int j = 0; j < i; ++j) {
-            double aij = elmat(i,j), aji = elmat(j,i);
-            elmat(i,j) = sigma*aji - aij;
-            elmat(j,i) = sigma*aij - aji;
-         }
-         elmat(i,i) *= (sigma - 1.);
       }
    }
 }

@@ -737,6 +737,8 @@ protected:
    Coefficient *lambda, *mu;
    double sigma, kappa;
 
+   DenseMatrix jmat;
+
    void AssembleBoundaryFaceMatrix(const FiniteElement &el,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
