@@ -661,13 +661,15 @@ public:
                                    DenseMatrix &elmat);
 };
 
-/** Integrator for the DG form (taken from the PhD Thesis of Jonas De Basabe
-    High-Order Finite %Element Methods for Seismic Wave Propagation, UT Austin,
-    2009, p. 23)
+/** Integrator for the DG form, for the formulations see:
+    - PhD Thesis of Jonas De Basabe High-Order Finite %Element Methods for
+      Seismic Wave Propagation, UT Austin, 2009, p. 23) and references therein
+    - Peter Hansbo and Mats G. Larson Discontinuous Galerkin and the
+      Crouzeix-Raviart Element: Application to Elasticity, PREPRINT 2000-09, p.3
 
     \f[
     - < \{ \tau(u) \}, [v] > + sigma < \{ \tau(v) \}, [u] >
-    + kappa < \{ \lambda + 2 \mu \} [u], [v] >
+    + kappa < h^{-1} \{ \lambda + 2 \mu \} [u], [v] >
     \f]
 
     where \f$ <u, v> = \int_{F} u \cdot v \f$, and \f$ F \f$ is a face which is
@@ -681,7 +683,7 @@ public:
     In other words, we have
     \f[
     - < \{ \sigma(u) \cdot \vec{n} \}, [v] > + sigma < \{ \sigma(v) \cdot \vec{n} \}, [u] >
-    + kappa < \{ \lambda + 2 \mu \} [u], [v] >
+    + kappa < h^{-1} \{ \lambda + 2 \mu \} [u], [v] >
     \f]
 
     For isotropic media

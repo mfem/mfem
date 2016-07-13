@@ -2230,12 +2230,17 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
    elmat = 0.;
 
    /**
-     jmat corresponds to the term: \f$ < \{ \lambda + 2 \mu \} [u], [v] > \f$,
-     which in case of the boundary face becomes: \f$ \int_F (\lambda + 2 \mu) u \cdot v \f$
+     jmat corresponds to the term: \f$ kappa < h^{-1} \{ \lambda + 2 \mu \} [u], [v] > \f$,
+     which in case of the boundary face becomes: \f$ kappa \int_F h_F^{-1} (\lambda + 2 \mu) u \cdot v \f$
    */
 
-   DenseMatrix jmat(dim*ndofs);
-   jmat = 0.;
+   const bool kappa_is_nonzero = (kappa != 0.0);
+   DenseMatrix jmat;
+   if (kappa_is_nonzero)
+   {
+      jmat.SetSize(dim*ndofs);
+      jmat = 0.;
+   }
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -2300,8 +2305,8 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
 
      The penalty term is computed this way:
      \f[
-       \int_F (\lambda + 2 \mu) u \cdot v =
-       \sum_p^{I_p} (\lambda_p + 2 \mu_p) w_p E^4
+       kappa \int_F h_F^{-1} (\lambda + 2 \mu) u \cdot v =
+       kappa h_F^{-1} \sum_p^{I_p} (\lambda_p + 2 \mu_p) w_p E^4
      \f]
      \f[
        E_{ij}^4 = \vec{\phi_i} \cdot \vec{\phi_j} = |\mbox{in 2D}|
@@ -2328,7 +2333,7 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
       DenseMatrix dshape(ndofs, dim);
       el.CalcDShape(eip, dshape);
 
-      // Jacobian of transformation of coordinates: J^{-1} = adjJ / detJ
+      // Jacobian of transformation of coordinates: J^{-1} = (1/detJ)*adjJ
       const double detJ = Trans.Elem1->Weight();
       DenseMatrix adjJ(dim);
       CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
@@ -2350,6 +2355,7 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
 
       const double L = lambda->Eval(*Trans.Elem1, eip);
       const double M = mu->Eval(*Trans.Elem1, eip);
+      const double jmatcoef = kappa * (L + 2.0*M) * w * (nor*nor)/detJ;
 
       for (int j2 = 0; j2 < dim; ++j2) {
          for (int j1 = 0; j1 < ndofs; ++j1) {
@@ -2366,9 +2372,9 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
                   }
                   // third term
                   elmat(i, j) += shape(i1) * M * w * dshape_phys(j1, i2) * nor(j2);
-                  // jmat
-                  if (i2 == j2) {
-                     jmat(i, j) += (L + 2.0*M) * w * (nor*nor)/detJ * shape(i1) * shape(j1);
+                  // jmat (only lower triangle)
+                  if (kappa_is_nonzero && i2 == j2 && i >= j) {
+                     jmat(i, j) += jmatcoef * shape(i1) * shape(j1);
                   }
                }
             }
@@ -2377,13 +2383,27 @@ void DGElasticityIntegrator::AssembleBoundaryFaceMatrix(
    }
 
    // elmat := -elmat + sigma*elmat^t + kappa*jmat
-   for (int i = 0; i < dim*ndofs; ++i) {
-      for (int j = 0; j < i; ++j) {
-         double aij = elmat(i,j), aji = elmat(j,i), mij = kappa*jmat(i,j);
-         elmat(i,j) = sigma*aji - aij + mij;
-         elmat(j,i) = sigma*aij - aji + mij;
+   if (kappa_is_nonzero)
+   {
+      for (int i = 0; i < dim*ndofs; ++i) {
+         for (int j = 0; j < i; ++j) {
+            double aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
+            elmat(i,j) = sigma*aji - aij + mij;
+            elmat(j,i) = sigma*aij - aji + mij;
+         }
+         elmat(i,i) = (sigma - 1.)*elmat(i,i) + jmat(i,i);
       }
-      elmat(i,i) = (sigma - 1.)*elmat(i,i) + kappa*jmat(i,i);
+   }
+   else
+   {
+      for (int i = 0; i < dim*ndofs; ++i) {
+         for (int j = 0; j < i; ++j) {
+            double aij = elmat(i,j), aji = elmat(j,i);
+            elmat(i,j) = sigma*aji - aij;
+            elmat(j,i) = sigma*aij - aji;
+         }
+         elmat(i,i) *= (sigma - 1.);
+      }
    }
 }
 
@@ -2432,15 +2452,20 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
    elmat = 0.;
 
    /**
-     jmat corresponds to the term: \f$ kappa < \{ \lambda + 2 \mu \} [u], [v] > \f$,
+     jmat corresponds to the term: \f$ kappa < h^{-1} \{ \lambda + 2 \mu \} [u], [v] > \f$,
      which in case of the interior face becomes:
-     \f$ kappa \int_F 0.5 * (\lambda_1 + 2 \mu_1 + \lambda_2 + 2 \mu_2) (u_1 \cdot v_1 - u_1 \cdot v_2 - u_2 \cdot v_1 + u_2 \cdot v_2) \f$
+     \f$ kappa \int_F 0.5 * h_F^{-1} (\lambda_1 + 2 \mu_1 + \lambda_2 + 2 \mu_2) (u_1 \cdot v_1 - u_1 \cdot v_2 - u_2 \cdot v_1 + u_2 \cdot v_2) \f$
 
      The computation of these terms is similar to the one used in AssembleBoundaryFaceMatrix.
    */
 
-   DenseMatrix jmat(dim * (ndof1 + ndof2));
-   jmat = 0.;
+   const bool kappa_is_nonzero = (kappa != 0.0);
+   DenseMatrix jmat;
+   if (kappa_is_nonzero)
+   {
+      jmat.SetSize(dim * (ndof1 + ndof2));
+      jmat = 0.;
+   }
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -2522,7 +2547,7 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
       const double M1 = mu->Eval(*Trans.Elem1, eip1);
       const double M2 = mu->Eval(*Trans.Elem2, eip2);
 
-      const double jmatcoef = w * (nor*nor) * ((L1+2.0*M1)/detJ1 + (L2+2.0*M2)/detJ2);
+      const double jmatcoef = kappa * w * (nor*nor) * ((L1+2.0*M1)/detJ1 + (L2+2.0*M2)/detJ2);
 
       for (int j2 = 0; j2 < dim; ++j2) {
          for (int j1 = 0; j1 < ndof1; ++j1) {
@@ -2539,8 +2564,8 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
                   }
                   // third term
                   elmat(i, j) += shape1(i1) * M1 * w * dshape_phys1(j1, i2) * nor(j2);
-                  // jmat
-                  if (i2 == j2) {
+                  // jmat (only lower triangle)
+                  if (kappa_is_nonzero && i2 == j2 && i >= j) {
                      jmat(i, j) += jmatcoef * shape1(i1) * shape1(j1);
                   }
                }
@@ -2563,8 +2588,8 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
                   }
                   // third term
                   elmat(i, j) -= shape2(i1) * M1 * w * dshape_phys1(j1, i2) * nor(j2);
-                  // jmat
-                  if (i2 == j2) {
+                  // jmat (only lower triangle)
+                  if (kappa_is_nonzero && i2 == j2) {
                      jmat(i, j) -= jmatcoef * shape2(i1) * shape1(j1);
                   }
                }
@@ -2587,10 +2612,7 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
                   }
                   // third term
                   elmat(i, j) += shape1(i1) * M2 * w * dshape_phys2(j1, i2) * nor(j2);
-                  // jmat
-                  if (i2 == j2) {
-                     jmat(i, j) -= jmatcoef * shape1(i1) * shape2(j1);
-                  }
+                  // jmat (only lower triangle) : no contribution as j > i
                }
             }
          }
@@ -2611,8 +2633,8 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
                   }
                   // third term
                   elmat(i, j) -= shape2(i1) * M2 * w * dshape_phys2(j1, i2) * nor(j2);
-                  // jmat
-                  if (i2 == j2) {
+                  // jmat (only lower triangle)
+                  if (kappa_is_nonzero && i2 == j2 && i >= j) {
                      jmat(i, j) += jmatcoef * shape2(i1) * shape2(j1);
                   }
                }
@@ -2622,13 +2644,27 @@ void DGElasticityIntegrator::AssembleInteriorFaceMatrix(
    }
 
    // elmat := -elmat + sigma*elmat^t + kappa*jmat
-   for (int i = 0; i < dim*(ndof1+ndof2); ++i) {
-      for (int j = 0; j < i; ++j) {
-         double aij = elmat(i,j), aji = elmat(j,i), mij = kappa*jmat(i,j);
-         elmat(i,j) = sigma*aji - aij + mij;
-         elmat(j,i) = sigma*aij - aji + mij;
+   if (kappa_is_nonzero)
+   {
+      for (int i = 0; i < dim*(ndof1+ndof2); ++i) {
+         for (int j = 0; j < i; ++j) {
+            double aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
+            elmat(i,j) = sigma*aji - aij + mij;
+            elmat(j,i) = sigma*aij - aji + mij;
+         }
+         elmat(i,i) = (sigma - 1.)*elmat(i,i) + jmat(i,i);
       }
-      elmat(i,i) = (sigma - 1.)*elmat(i,i) + kappa*jmat(i,i);
+   }
+   else
+   {
+      for (int i = 0; i < dim*(ndof1+ndof2); ++i) {
+         for (int j = 0; j < i; ++j) {
+            double aij = elmat(i,j), aji = elmat(j,i);
+            elmat(i,j) = sigma*aji - aij;
+            elmat(j,i) = sigma*aij - aji;
+         }
+         elmat(i,i) *= (sigma - 1.);
+      }
    }
 }
 
