@@ -89,7 +89,7 @@ endif
 
 # LAPACK library configuration
 LAPACK_OPT =
-LAPACK_LIB = -llapack
+LAPACK_LIB = -llapack -lblas
 ifeq ($(SYSNAME),Darwin)
    LAPACK_LIB = -framework Accelerate
 endif
