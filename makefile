@@ -341,6 +341,8 @@ install: libmfem.a
 	$(MAKE) -C config config-mk CONFIG_MK=config-install.mk
 	$(INSTALL) -m 640 config/config-install.mk $(PREFIX)/config.mk
 	rm -f config/config-install.mk
+# install test.mk at root of install tree
+	$(INSTALL) -m 640 config/test.mk $(PREFIX)/test.mk
 
 $(CONFIG_MK):
 	$(info )

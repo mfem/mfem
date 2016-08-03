@@ -16,6 +16,7 @@ TEST_MK = $(MFEM_DIR)/config/test.mk
 # Use the MFEM install directory
 # MFEM_DIR = ../mfem
 # CONFIG_MK = $(MFEM_DIR)/config.mk
+# TEST_MK = $(MFEM_DIR)/test.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
