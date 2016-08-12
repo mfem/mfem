@@ -13,6 +13,10 @@
 #include <cstdlib>
 #include <iostream>
 
+#if defined(__linux__)
+#include <execinfo.h>
+#endif
+
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #endif
@@ -24,10 +28,24 @@ void mfem_error(const char *msg)
 {
    if (msg)
    {
-      // NOTE: This endl also flushes the I/O stream, which can be a very bad
-      // thing if all your processors try to do it at the same time.
-      std::cerr << "\n\n" << msg << std::endl;
+      // NOTE: By default, each call of the "operator <<" method of the
+      // std::cerr object results in flushing the I/O stream, which can be a
+      // very bad thing if all your processors try to do it at the same time.
+      std::cerr << "\n\n" << msg << "\n";
+#if defined(__linux__)
+      const int backtraceSize = 20;
+      void *array[backtraceSize];
+      int size = backtrace(array, backtraceSize);
+      char **strings = backtrace_symbols(array, size);
+
+      std::cerr << "backtrace:\nsize = " << size << "\n";
+      for (int i = 0; i < size; ++i)
+         std::cerr << strings[i] << "\n";
+
+      free(strings);
+#endif
    }
+
 #ifdef MFEM_USE_MPI
    MPI_Abort(MPI_COMM_WORLD, 1);
 #else
