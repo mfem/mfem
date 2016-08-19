@@ -56,6 +56,7 @@ endif
 MFEM_USE_MPI         = NO
 MFEM_USE_METIS_5     = NO
 MFEM_DEBUG           = NO
+MFEM_USE_LIBUNWIND   = NO
 MFEM_USE_LAPACK      = NO
 MFEM_THREAD_SAFE     = NO
 MFEM_USE_OPENMP      = NO
@@ -67,6 +68,9 @@ MFEM_USE_SUPERLU     = NO
 MFEM_USE_GECKO       = NO
 MFEM_USE_GNUTLS      = NO
 MFEM_USE_NETCDF      = NO
+
+LIBUNWIND_OPT =
+LIBUNWIND_LIB = -lunwind
 
 # HYPRE library configuration (needed to build the parallel version)
 HYPRE_DIR = @MFEM_DIR@/../hypre-2.10.0b/src/hypre
