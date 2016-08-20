@@ -70,7 +70,11 @@ MFEM_USE_GNUTLS      = NO
 MFEM_USE_NETCDF      = NO
 
 LIBUNWIND_OPT =
-LIBUNWIND_LIB = -lunwind
+ifneq ($(SYSNAME),Darwin)
+   LIBUNWIND_LIB = -lunwind
+else
+   LIBUNWIND_LIB =
+endif
 
 # HYPRE library configuration (needed to build the parallel version)
 HYPRE_DIR = @MFEM_DIR@/../hypre-2.10.0b/src/hypre
