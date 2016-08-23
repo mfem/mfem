@@ -45,7 +45,7 @@ void mfem_error(const char *msg)
    unw_getcontext(&uc);
    unw_init_local(&cursor, &uc);
 
-   std::cout << "libunwind backtrace:" << std::endl;
+   std::cerr << "libunwind backtrace:" << std::endl;
    while (unw_step(&cursor) > 0)
    {
       unw_get_proc_name (&cursor, name, UNW_NAME_LEN, &offp);
@@ -56,7 +56,7 @@ void mfem_error(const char *msg)
       char *name_demangle = abi::__cxa_demangle(name, NULL, NULL, &demangle_status);
       if (demangle_status == 0) // default to mangled name if something goes wrong
          name_p = name_demangle;
-      std::cout << "(" << name_p << "+0x" << std::hex << offp - 1 << ") [0x"
+      std::cerr << "(" << name_p << "+0x" << std::hex << offp - 1 << ") [0x"
          << ip - 1 << "]" << std::endl;
    }
 #endif
