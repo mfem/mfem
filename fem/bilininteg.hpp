@@ -496,7 +496,34 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 };
+/*  (grad u v), where u is H1 and v is Nedelec */
+class GradientVectorFEIntegrator : public BilinearFormIntegrator
+{
+private:
+   Coefficient *Q;
+   VectorCoefficient *VQ;
+   MatrixCoefficient *MQ;
 
+   DenseMatrix Jinv;
+   DenseMatrix dshape;
+   DenseMatrix gshape;
+   DenseMatrix elmat;
+#ifndef MFEM_THREAD_SAFE
+   Vector shape;
+   Vector D;
+   DenseMatrix K;
+   DenseMatrix test_vshape;
+   DenseMatrix trial_vshape;
+#endif
+public:
+   GradientVectorFEIntegrator() { Q = NULL; VQ = NULL; MQ = NULL;}
+   GradientVectorFEIntegrator(Coefficient *_q) { Q = _q;  VQ = NULL; MQ = NULL;}
+   GradientVectorFEIntegrator(Coefficient &q) { Q = &q; VQ = NULL; MQ = NULL;}
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_el,
+                                       const FiniteElement &test_el,
+                                      ElementTransformation &Trans,
+				       DenseMatrix &elmat);
+};     
 /** Integrator for (Q div u, p) where u=(v1,...,vn) and all
     vi are in the same scalar FE space; p is also in
     a (different) scalar FE space.  */
