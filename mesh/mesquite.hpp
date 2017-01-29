@@ -13,9 +13,10 @@
 #define MFEM_MESQUITE
 
 #include "../config/config.hpp"
-#include"mesh.hpp"
 
 #ifdef MFEM_USE_MESQUITE
+
+#include "mesh.hpp"
 
 #include "Mesquite_all_headers.hpp"
 

@@ -147,11 +147,22 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    }
    else if (!strncmp(name, "H1Pos_Trace_", 12))
    {
-      fec = new H1_Trace_FECollection(atoi(name + 16), atoi(name + 12), 1);
+      fec = new H1_Trace_FECollection(atoi(name + 16), atoi(name + 12),
+                                      BasisType::Positive);
    }
    else if (!strncmp(name, "H1Pos_", 6))
    {
       fec = new H1Pos_FECollection(atoi(name + 10), atoi(name + 6));
+   }
+   else if (!strncmp(name, "H1_Trace@", 9))
+   {
+      fec = new H1_Trace_FECollection(atoi(name + 15), atoi(name + 11),
+                                      BasisType::GetType(name[9]));
+   }
+   else if (!strncmp(name, "H1@", 3))
+   {
+      fec = new H1_FECollection(atoi(name + 9), atoi(name + 5),
+                                BasisType::GetType(name[3]));
    }
    else if (!strncmp(name, "L2_T", 4))
       fec = new L2_FECollection(atoi(name + 10), atoi(name + 6),
@@ -159,6 +170,17 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    else if (!strncmp(name, "L2_", 3))
    {
       fec = new L2_FECollection(atoi(name + 7), atoi(name + 3));
+   }
+   else if (!strncmp(name, "L2Int_T", 7))
+   {
+      fec = new L2_FECollection(atoi(name + 13), atoi(name + 9),
+                                atoi(name + 7), FiniteElement::INTEGRAL);
+   }
+   else if (!strncmp(name, "L2Int_", 6))
+   {
+      fec = new L2_FECollection(atoi(name + 10), atoi(name + 6),
+                                BasisType::GaussLegendre,
+                                FiniteElement::INTEGRAL);
    }
    else if (!strncmp(name, "RT_Trace_", 9))
    {
@@ -169,18 +191,48 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
       fec = new RT_Trace_FECollection(atoi(name + 16), atoi(name + 12),
                                       FiniteElement::VALUE);
    }
+   else if (!strncmp(name, "RT_Trace@", 9))
+   {
+      fec = new RT_Trace_FECollection(atoi(name + 15), atoi(name + 11),
+                                      FiniteElement::INTEGRAL,
+                                      BasisType::GetType(name[9]));
+   }
+   else if (!strncmp(name, "RT_ValTrace@", 12))
+   {
+      fec = new RT_Trace_FECollection(atoi(name + 18), atoi(name + 14),
+                                      FiniteElement::VALUE,
+                                      BasisType::GetType(name[12]));
+   }
    else if (!strncmp(name, "DG_Iface_", 9))
    {
       fec = new DG_Interface_FECollection(atoi(name + 13), atoi(name + 9));
+   }
+   else if (!strncmp(name, "DG_Iface@", 9))
+   {
+      fec = new DG_Interface_FECollection(atoi(name + 15), atoi(name + 11),
+                                          FiniteElement::VALUE,
+                                          BasisType::GetType(name[9]));
    }
    else if (!strncmp(name, "DG_IntIface_", 12))
    {
       fec = new DG_Interface_FECollection(atoi(name + 16), atoi(name + 12),
                                           FiniteElement::INTEGRAL);
    }
+   else if (!strncmp(name, "DG_IntIface@", 12))
+   {
+      fec = new DG_Interface_FECollection(atoi(name + 18), atoi(name + 14),
+                                          FiniteElement::INTEGRAL,
+                                          BasisType::GetType(name[12]));
+   }
    else if (!strncmp(name, "RT_", 3))
    {
       fec = new RT_FECollection(atoi(name + 7), atoi(name + 3));
+   }
+   else if (!strncmp(name, "RT@", 3))
+   {
+      fec = new RT_FECollection(atoi(name + 10), atoi(name + 6),
+                                BasisType::GetType(name[3]),
+                                BasisType::GetType(name[4]));
    }
    else if (!strncmp(name, "ND_Trace_", 9))
    {
@@ -189,6 +241,18 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    else if (!strncmp(name, "ND_", 3))
    {
       fec = new ND_FECollection(atoi(name + 7), atoi(name + 3));
+   }
+   else if (!strncmp(name, "ND_Trace@", 9))
+   {
+      fec = new ND_Trace_FECollection(atoi(name + 16), atoi(name + 12),
+                                      BasisType::GetType(name[9]),
+                                      BasisType::GetType(name[10]));
+   }
+   else if (!strncmp(name, "ND@", 3))
+   {
+      fec = new ND_FECollection(atoi(name + 10), atoi(name + 6),
+                                BasisType::GetType(name[3]),
+                                BasisType::GetType(name[4]));
    }
    else if (!strncmp(name, "Local_", 6))
    {
@@ -199,8 +263,13 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
       fec = new NURBSFECollection(atoi(name + 5));
    }
    else
-      mfem_error ("FiniteElementCollection::New : "
-                  "Unknown FiniteElementCollection!");
+   {
+      mfem_error("FiniteElementCollection::New : "
+                 "Unknown FiniteElementCollection!");
+   }
+   MFEM_VERIFY(!strcmp(fec->Name(), name), "input name: \"" << name
+               << "\" does not match the created collection name: \""
+               << fec->Name() << '"');
 
    return fec;
 }
@@ -287,9 +356,9 @@ void FiniteElementCollection::SubDofOrder(int Geom, int SDim, int Info,
    // Info = 64 * SubIndex + SubOrientation
    MFEM_ASSERT(0 <= Geom && Geom < Geometry::NumGeom,
                "invalid Geom = " << Geom);
-   const int Dim = Geometry::Dimension[Geom];
-   MFEM_ASSERT(0 <= SDim && SDim <= Dim, "invalid SDim = " << SDim
-               << " for Geom = " << Geometry::Name[Geom]);
+   MFEM_ASSERT(0 <= SDim && SDim <= Geometry::Dimension[Geom],
+               "invalid SDim = " << SDim <<
+               " for Geom = " << Geometry::Name[Geom]);
 
    const int nvd = DofForGeometry(Geometry::POINT);
    if (SDim == 0) // vertex
@@ -1393,14 +1462,29 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
 {
    const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1;
 
-   m_type = (BasisType)type;
-   if (type == GaussLobatto)
+   int pt_type = BasisType::GetQuadrature1D(type);
+   m_type = BasisType::Check(type);
+   switch (type)
    {
-      snprintf(h1_name, 32, "H1_%dD_P%d", dim, p);
-   }
-   else
-   {
-      snprintf(h1_name, 32, "H1Pos_%dD_P%d", dim, p);
+      case BasisType::GaussLobatto:
+      {
+         snprintf(h1_name, 32, "H1_%dD_P%d", dim, p);
+         break;
+      }
+      case BasisType::Positive:
+      {
+         snprintf(h1_name, 32, "H1Pos_%dD_P%d", dim, p);
+         break;
+      }
+      default:
+      {
+         MFEM_VERIFY(Quadrature1D::CheckClosed(pt_type) !=
+                     Quadrature1D::Invalid,
+                     "unsupported BasisType: " << BasisType::Name(type));
+
+         snprintf(h1_name, 32, "H1@%c_%dD_P%d",
+                  (int)BasisType::GetChar(type), dim, p);
+      }
    }
 
    for (int g = 0; g < Geometry::NumGeom; g++)
@@ -1427,13 +1511,13 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
    if (dim >= 1)
    {
       H1_dof[Geometry::SEGMENT] = pm1;
-      if (type == GaussLobatto)
+      if (m_type == BasisType::Positive)
       {
-         H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p);
+         H1_Elements[Geometry::SEGMENT] = new H1Pos_SegmentElement(p);
       }
       else
       {
-         H1_Elements[Geometry::SEGMENT] = new H1Pos_SegmentElement(p);
+         H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p, pt_type);
       }
 
       SegDofOrd[0] = new int[2*pm1];
@@ -1449,15 +1533,15 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
    {
       H1_dof[Geometry::TRIANGLE] = (pm1*pm2)/2;
       H1_dof[Geometry::SQUARE] = pm1*pm1;
-      if (type == GaussLobatto)
-      {
-         H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p);
-         H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p);
-      }
-      else
+      if (m_type == BasisType::Positive)
       {
          H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
          H1_Elements[Geometry::SQUARE] = new H1Pos_QuadrilateralElement(p);
+      }
+      else
+      {
+         H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, pt_type);
+         H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p,pt_type);
       }
 
       const int &TriDof = H1_dof[Geometry::TRIANGLE];
@@ -1469,6 +1553,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
       }
       // see Mesh::GetTriOrientation in mesh/mesh.cpp
       for (int j = 0; j < pm2; j++)
+      {
          for (int i = 0; i + j < pm2; i++)
          {
             int o = TriDof - ((pm1 - j)*(pm2 - j))/2 + i;
@@ -1480,6 +1565,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
             TriDofOrd[4][o] = TriDof - ((pm1-k)*(pm2-k))/2 + j;  // (1,2,0)
             TriDofOrd[5][o] = TriDof - ((pm1-i)*(pm2-i))/2 + j;  // (0,2,1)
          }
+      }
 
       QuadDofOrd[0] = new int[8*QuadDof];
       for (int i = 1; i < 8; i++)
@@ -1488,6 +1574,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
       }
       // see Mesh::GetQuadOrientation in mesh/mesh.cpp
       for (int j = 0; j < pm1; j++)
+      {
          for (int i = 0; i < pm1; i++)
          {
             int o = i + j*pm1;
@@ -1500,20 +1587,22 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
             QuadDofOrd[6][o] = (pm2 - j) + i*pm1;  // (3,0,1,2)
             QuadDofOrd[7][o] = i + (pm2 - j)*pm1;  // (3,2,1,0)
          }
+      }
 
       if (dim >= 3)
       {
          H1_dof[Geometry::TETRAHEDRON] = (TriDof*pm3)/3;
          H1_dof[Geometry::CUBE] = QuadDof*pm1;
-         if (type == GaussLobatto)
-         {
-            H1_Elements[Geometry::TETRAHEDRON] = new H1_TetrahedronElement(p);
-            H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p);
-         }
-         else
+         if (m_type == BasisType::Positive)
          {
             H1_Elements[Geometry::TETRAHEDRON] = new H1Pos_TetrahedronElement(p);
             H1_Elements[Geometry::CUBE] = new H1Pos_HexahedronElement(p);
+         }
+         else
+         {
+            H1_Elements[Geometry::TETRAHEDRON] =
+               new H1_TetrahedronElement(p, pt_type);
+            H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, pt_type);
          }
       }
    }
@@ -1523,11 +1612,7 @@ int *H1_FECollection::DofOrderForOrientation(int GeomType, int Or) const
 {
    if (GeomType == Geometry::SEGMENT)
    {
-      if (Or > 0)
-      {
-         return SegDofOrd[0];
-      }
-      return SegDofOrd[1];
+      return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
    }
    else if (GeomType == Geometry::TRIANGLE)
    {
@@ -1543,15 +1628,46 @@ int *H1_FECollection::DofOrderForOrientation(int GeomType, int Or) const
 FiniteElementCollection *H1_FECollection::GetTraceCollection() const
 {
    int p = H1_dof[Geometry::SEGMENT] + 1;
+   int dim = -1;
    if (!strncmp(h1_name, "H1_", 3))
    {
-      return new H1_Trace_FECollection(p, atoi(h1_name + 3));
+      dim = atoi(h1_name + 3);
    }
    else if (!strncmp(h1_name, "H1Pos_", 6))
    {
-      return new H1_Trace_FECollection(p, atoi(h1_name + 6), 1);
+      dim = atoi(h1_name + 6);
    }
-   return NULL;
+   else if (!strncmp(h1_name, "H1@", 3))
+   {
+      dim = atoi(h1_name + 5);
+   }
+   return (dim < 0) ? NULL : new H1_Trace_FECollection(p, dim, m_type);
+}
+
+const int *H1_FECollection::GetDofMap(int GeomType) const
+{
+   MFEM_ASSERT(m_type != BasisType::Positive, "");
+   const int *dof_map = NULL;
+   const FiniteElement *fe = H1_Elements[GeomType];
+   switch (GeomType)
+   {
+      case Geometry::SEGMENT:
+         dof_map = dynamic_cast<const H1_SegmentElement *>(fe)
+                   ->GetDofMap().GetData();
+         break;
+      case Geometry::SQUARE:
+         dof_map = dynamic_cast<const H1_QuadrilateralElement *>(fe)
+                   ->GetDofMap().GetData();
+         break;
+      case Geometry::CUBE:
+         dof_map = dynamic_cast<const H1_HexahedronElement *>(fe)
+                   ->GetDofMap().GetData();
+         break;
+      default:
+         MFEM_ABORT("Geometry type " << Geometry::Name[GeomType] << " is not "
+                    "implemented");
+   }
+   return dof_map;
 }
 
 H1_FECollection::~H1_FECollection()
@@ -1570,27 +1686,45 @@ H1_Trace_FECollection::H1_Trace_FECollection(const int p, const int dim,
                                              const int type)
    : H1_FECollection(p, dim-1, type)
 {
-   if (type == 0)
+   if (type == BasisType::GaussLobatto)
    {
       snprintf(h1_name, 32, "H1_Trace_%dD_P%d", dim, p);
    }
-   else
+   else if (type == BasisType::Positive)
    {
       snprintf(h1_name, 32, "H1Pos_Trace_%dD_P%d", dim, p);
+   }
+   else // base class checks that type is closed
+   {
+      snprintf(h1_name, 32, "H1_Trace@%c_%dD_P%d",
+               (int)BasisType::GetChar(type), dim, p);
    }
 }
 
 
-L2_FECollection::L2_FECollection(const int p, const int dim, const int type)
+L2_FECollection::L2_FECollection(const int p, const int dim, const int type,
+                                 const int map_type)
 {
-   m_type = (BasisType)type;
-   if (type == 0)
+   int pt_type = BasisType::GetQuadrature1D(type);
+   m_type = BasisType::Check(type);
+   MFEM_VERIFY(pt_type != Quadrature1D::Invalid ||
+               m_type == BasisType::Positive,
+               "unsupported L2 basis type = " << BasisType::Name(type));
+   const char *prefix = NULL;
+   switch (map_type)
    {
-      snprintf(d_name, 32, "L2_%dD_P%d", dim, p);
+      case FiniteElement::VALUE:    prefix = "L2";    break;
+      case FiniteElement::INTEGRAL: prefix = "L2Int"; break;
+      default:
+         MFEM_ABORT("invalid map_type: " << map_type);
    }
-   else
+   switch (type)
    {
-      snprintf(d_name, 32, "L2_T%d_%dD_P%d", type, dim, p);
+      case BasisType::GaussLegendre:
+         snprintf(d_name, 32, "%s_%dD_P%d", prefix, dim, p);
+         break;
+      default:
+         snprintf(d_name, 32, "%s_T%d_%dD_P%d", prefix, type, dim, p);
    }
 
    for (int g = 0; g < Geometry::NumGeom; g++)
@@ -1606,19 +1740,22 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type)
    {
       TriDofOrd[i] = NULL;
    }
+   OtherDofOrd = NULL;
 
    if (dim == 1)
    {
-      if (type == 0 || type == 1)
-      {
-         L2_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p, type);
-      }
-      else
+      if (m_type == BasisType::Positive)
       {
          L2_Elements[Geometry::SEGMENT] = new L2Pos_SegmentElement(p);
       }
+      else
+      {
+         L2_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p, pt_type);
+      }
+      L2_Elements[Geometry::SEGMENT]->SetMapType(map_type);
 
       Tr_Elements[Geometry::POINT] = new PointFiniteElement;
+      // No need to set the map_type for Tr_Elements.
 
       const int pp1 = p + 1;
       SegDofOrd[0] = new int[2*pp1];
@@ -1631,17 +1768,20 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type)
    }
    else if (dim == 2)
    {
-      if (type == 0 || type == 1)
-      {
-         L2_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p, type);
-         L2_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p, type);
-      }
-      else
+      if (m_type == BasisType::Positive)
       {
          L2_Elements[Geometry::TRIANGLE] = new L2Pos_TriangleElement(p);
          L2_Elements[Geometry::SQUARE] = new L2Pos_QuadrilateralElement(p);
       }
-      Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p, 0);
+      else
+      {
+         L2_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p, pt_type);
+         L2_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p, pt_type);
+      }
+      L2_Elements[Geometry::TRIANGLE]->SetMapType(map_type);
+      L2_Elements[Geometry::SQUARE]->SetMapType(map_type);
+      // All trace elements use the default Gauss-Legendre points
+      Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p);
 
       const int TriDof = L2_Elements[Geometry::TRIANGLE]->GetDof();
       TriDofOrd[0] = new int[6*TriDof];
@@ -1651,6 +1791,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type)
       }
       const int pp1 = p + 1, pp2 = pp1 + 1;
       for (int j = 0; j <= p; j++)
+      {
          for (int i = 0; i + j <= p; i++)
          {
             int o = TriDof - ((pp2 - j)*(pp1 - j))/2 + i;
@@ -1662,22 +1803,41 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type)
             TriDofOrd[4][o] = TriDof - ((pp2-k)*(pp1-k))/2 + j;  // (1,2,0)
             TriDofOrd[5][o] = TriDof - ((pp2-i)*(pp1-i))/2 + j;  // (0,2,1)
          }
+      }
+      const int QuadDof = L2_Elements[Geometry::SQUARE]->GetDof();
+      OtherDofOrd = new int[QuadDof];
+      for (int j = 0; j < QuadDof; j++)
+      {
+         OtherDofOrd[j] = j; // for Or == 0
+      }
    }
    else if (dim == 3)
    {
-      if (type == 0 || type == 1)
-      {
-         L2_Elements[Geometry::TETRAHEDRON] =
-            new L2_TetrahedronElement(p, type);
-         L2_Elements[Geometry::CUBE] = new L2_HexahedronElement(p, type);
-      }
-      else
+      if (m_type == BasisType::Positive)
       {
          L2_Elements[Geometry::TETRAHEDRON] = new L2Pos_TetrahedronElement(p);
          L2_Elements[Geometry::CUBE] = new L2Pos_HexahedronElement(p);
       }
-      Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p, 0);
-      Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p, 0);
+      else
+      {
+         L2_Elements[Geometry::TETRAHEDRON] =
+            new L2_TetrahedronElement(p, pt_type);
+         L2_Elements[Geometry::CUBE] = new L2_HexahedronElement(p, pt_type);
+      }
+      L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);
+      L2_Elements[Geometry::CUBE]->SetMapType(map_type);
+      // All trace element use the default Gauss-Legendre nodal points
+      Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p);
+      Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p);
+
+      const int TetDof = L2_Elements[Geometry::TETRAHEDRON]->GetDof();
+      const int HexDof = L2_Elements[Geometry::CUBE]->GetDof();
+      const int MaxDof = std::max(TetDof, HexDof);
+      OtherDofOrd = new int[MaxDof];
+      for (int j = 0; j < MaxDof; j++)
+      {
+         OtherDofOrd[j] = j; // for Or == 0
+      }
    }
    else
    {
@@ -1689,23 +1849,22 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type)
 
 int *L2_FECollection::DofOrderForOrientation(int GeomType, int Or) const
 {
-   if (GeomType == Geometry::SEGMENT)
+   switch (GeomType)
    {
-      if (Or > 0)
-      {
-         return SegDofOrd[0];
-      }
-      return SegDofOrd[1];
+      case Geometry::SEGMENT:
+         return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
+
+      case Geometry::TRIANGLE:
+         return TriDofOrd[Or%6];
+
+      default:
+         return (Or == 0) ? OtherDofOrd : NULL;
    }
-   else if (GeomType == Geometry::TRIANGLE)
-   {
-      return TriDofOrd[Or%6];
-   }
-   return NULL;
 }
 
 L2_FECollection::~L2_FECollection()
 {
+   delete [] OtherDofOrd;
    delete [] SegDofOrd[0];
    delete [] TriDofOrd[0];
    for (int i = 0; i < Geometry::NumGeom; i++)
@@ -1716,39 +1875,87 @@ L2_FECollection::~L2_FECollection()
 }
 
 
-RT_FECollection::RT_FECollection(const int p, const int dim)
+RT_FECollection::RT_FECollection(const int p, const int dim,
+                                 const int cb_type, const int ob_type)
+   : ob_type(ob_type)
 {
+   int cp_type = BasisType::GetQuadrature1D(cb_type);
+   int op_type = BasisType::GetQuadrature1D(ob_type);
+
+   if (Quadrature1D::CheckClosed(cp_type) == Quadrature1D::Invalid)
+   {
+      const char *cb_name = BasisType::Name(cb_type); // this may abort
+      MFEM_ABORT("unknown closed BasisType: " << cb_name);
+   }
+   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid)
+   {
+      const char *ob_name = BasisType::Name(ob_type); // this may abort
+      MFEM_ABORT("unknown open BasisType: " << ob_name);
+   }
+
    InitFaces(p, dim, FiniteElement::INTEGRAL, true);
 
-   snprintf(rt_name, 32, "RT_%dD_P%d", dim, p);
+   if (cb_type == BasisType::GaussLobatto &&
+       ob_type == BasisType::GaussLegendre)
+   {
+      snprintf(rt_name, 32, "RT_%dD_P%d", dim, p);
+   }
+   else
+   {
+      snprintf(rt_name, 32, "RT@%c%c_%dD_P%d", (int)BasisType::GetChar(cb_type),
+               (int)BasisType::GetChar(ob_type), dim, p);
+   }
 
    const int pp1 = p + 1;
    if (dim == 2)
    {
+      // TODO: cp_type, op_type for triangles
       RT_Elements[Geometry::TRIANGLE] = new RT_TriangleElement(p);
       RT_dof[Geometry::TRIANGLE] = p*pp1;
 
-      RT_Elements[Geometry::SQUARE] = new RT_QuadrilateralElement(p);
+      RT_Elements[Geometry::SQUARE] = new RT_QuadrilateralElement(p, cp_type,
+                                                                  op_type);
+      // two vector components * n_unk_face *
       RT_dof[Geometry::SQUARE] = 2*p*pp1;
    }
    else if (dim == 3)
    {
+      // TODO: cp_type, op_type for tets
       RT_Elements[Geometry::TETRAHEDRON] = new RT_TetrahedronElement(p);
       RT_dof[Geometry::TETRAHEDRON] = p*pp1*(p + 2)/2;
 
-      RT_Elements[Geometry::CUBE] = new RT_HexahedronElement(p);
+      RT_Elements[Geometry::CUBE] = new RT_HexahedronElement(p, cp_type, op_type);
       RT_dof[Geometry::CUBE] = 3*p*pp1*pp1;
    }
    else
    {
-      cerr << "RT_FECollection::RT_FECollection : dim = " << dim << endl;
-      mfem_error();
+      MFEM_ABORT("invalid dim = " << dim);
    }
+}
+
+// This is a special protected constructor only used by RT_Trace_FECollection
+// and DG_Interface_FECollection
+RT_FECollection::RT_FECollection(const int p, const int dim, const int map_type,
+                                 const bool signs, const int ob_type)
+   : ob_type(ob_type)
+{
+   if (Quadrature1D::CheckOpen(BasisType::GetQuadrature1D(ob_type)) ==
+       Quadrature1D::Invalid)
+   {
+      const char *ob_name = BasisType::Name(ob_type); // this may abort
+      MFEM_ABORT("Invalid open basis type: " << ob_name);
+   }
+   InitFaces(p, dim, map_type, signs);
 }
 
 void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
                                 const bool signs)
 {
+   int op_type = BasisType::GetQuadrature1D(ob_type);
+
+   MFEM_VERIFY(Quadrature1D::CheckOpen(op_type) != Quadrature1D::Invalid,
+               "invalid open point type");
+
    const int pp1 = p + 1, pp2 = p + 2;
 
    for (int g = 0; g < Geometry::NumGeom; g++)
@@ -1756,6 +1963,7 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
       RT_Elements[g] = NULL;
       RT_dof[g] = 0;
    }
+   // Degree of Freedom orderings
    for (int i = 0; i < 2; i++)
    {
       SegDofOrd[i] = NULL;
@@ -1771,7 +1979,7 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
 
    if (dim == 2)
    {
-      L2_SegmentElement *l2_seg = new L2_SegmentElement(p);
+      L2_SegmentElement *l2_seg = new L2_SegmentElement(p, op_type);
       l2_seg->SetMapType(map_type);
       RT_Elements[Geometry::SEGMENT] = l2_seg;
       RT_dof[Geometry::SEGMENT] = pp1;
@@ -1786,12 +1994,12 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
    }
    else if (dim == 3)
    {
-      L2_TriangleElement *l2_tri = new L2_TriangleElement(p);
+      L2_TriangleElement *l2_tri = new L2_TriangleElement(p, op_type);
       l2_tri->SetMapType(map_type);
       RT_Elements[Geometry::TRIANGLE] = l2_tri;
       RT_dof[Geometry::TRIANGLE] = pp1*pp2/2;
 
-      L2_QuadrilateralElement *l2_quad = new L2_QuadrilateralElement(p);
+      L2_QuadrilateralElement *l2_quad = new L2_QuadrilateralElement(p, op_type);
       l2_quad->SetMapType(map_type);
       RT_Elements[Geometry::SQUARE] = l2_quad;
       RT_dof[Geometry::SQUARE] = pp1*pp1;
@@ -1805,6 +2013,7 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
       // see Mesh::GetTriOrientation in mesh/mesh.cpp,
       // the constructor of H1_FECollection
       for (int j = 0; j <= p; j++)
+      {
          for (int i = 0; i + j <= p; i++)
          {
             int o = TriDof - ((pp2 - j)*(pp1 - j))/2 + i;
@@ -1823,6 +2032,7 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
                }
             }
          }
+      }
 
       int QuadDof = RT_dof[Geometry::SQUARE];
       QuadDofOrd[0] = new int[8*QuadDof];
@@ -1832,6 +2042,7 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
       }
       // see Mesh::GetQuadOrientation in mesh/mesh.cpp
       for (int j = 0; j <= p; j++)
+      {
          for (int i = 0; i <= p; i++)
          {
             int o = i + j*pp1;
@@ -1851,6 +2062,7 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
                }
             }
          }
+      }
    }
 }
 
@@ -1858,11 +2070,7 @@ int *RT_FECollection::DofOrderForOrientation(int GeomType, int Or) const
 {
    if (GeomType == Geometry::SEGMENT)
    {
-      if (Or > 0)
-      {
-         return SegDofOrd[0];
-      }
-      return SegDofOrd[1];
+      return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
    }
    else if (GeomType == Geometry::TRIANGLE)
    {
@@ -1877,7 +2085,18 @@ int *RT_FECollection::DofOrderForOrientation(int GeomType, int Or) const
 
 FiniteElementCollection *RT_FECollection::GetTraceCollection() const
 {
-   return new RT_Trace_FECollection(atoi(rt_name + 7), atoi(rt_name + 3));
+   int dim, p;
+   if (!strncmp(rt_name, "RT_", 3))
+   {
+      dim = atoi(rt_name + 3);
+      p = atoi(rt_name + 7);
+   }
+   else // rt_name = RT@.._.D_P*
+   {
+      dim = atoi(rt_name + 6);
+      p = atoi(rt_name + 10);
+   }
+   return new RT_Trace_FECollection(p, dim, FiniteElement::INTEGRAL, ob_type);
 }
 
 RT_FECollection::~RT_FECollection()
@@ -1891,43 +2110,62 @@ RT_FECollection::~RT_FECollection()
    }
 }
 
+
 RT_Trace_FECollection::RT_Trace_FECollection(const int p, const int dim,
-                                             const int map_type)
-   : RT_FECollection(p, dim, map_type, true)
+                                             const int map_type,
+                                             const int ob_type)
+   : RT_FECollection(p, dim, map_type, true, ob_type)
 {
-   if (map_type == FiniteElement::INTEGRAL)
+   const char *prefix =
+      (map_type == FiniteElement::INTEGRAL) ? "RT_Trace" : "RT_ValTrace";
+   char ob_str[3] = { '\0', '\0', '\0' };
+
+   if (ob_type != BasisType::GaussLegendre)
    {
-      snprintf(rt_name, 32, "RT_Trace_%dD_P%d", dim, p);
+      ob_str[0] = '@';
+      ob_str[1] = BasisType::GetChar(ob_type);
    }
-   else
-   {
-      snprintf(rt_name, 32, "RT_ValTrace_%dD_P%d", dim, p);
-   }
+   snprintf(rt_name, 32, "%s%s_%dD_P%d", prefix, ob_str, dim, p);
 
    MFEM_VERIFY(dim == 2 || dim == 3, "Wrong dimension, dim = " << dim);
 }
+
 
 DG_Interface_FECollection::DG_Interface_FECollection(const int p, const int dim,
-                                                     const int map_type)
-   : RT_FECollection(p, dim, map_type, false)
+                                                     const int map_type,
+                                                     const int ob_type)
+   : RT_FECollection(p, dim, map_type, false, ob_type)
 {
-   if (map_type == FiniteElement::VALUE)
+   MFEM_VERIFY(dim == 2 || dim == 3, "Wrong dimension, dim = " << dim);
+
+   const char *prefix =
+      (map_type == FiniteElement::VALUE) ? "DG_Iface" : "DG_IntIface";
+   if (ob_type == BasisType::GaussLegendre)
    {
-      snprintf(rt_name, 32, "DG_Iface_%dD_P%d", dim, p);
+      snprintf(rt_name, 32, "%s_%dD_P%d", prefix, dim, p);
    }
    else
    {
-      snprintf(rt_name, 32, "DG_IntIface_%dD_P%d", dim, p);
+      snprintf(rt_name, 32, "%s@%c_%dD_P%d", prefix,
+               (int)BasisType::GetChar(ob_type), dim, p);
    }
-
-   MFEM_VERIFY(dim == 2 || dim == 3, "Wrong dimension, dim = " << dim);
 }
 
-ND_FECollection::ND_FECollection(const int p, const int dim)
+ND_FECollection::ND_FECollection(const int p, const int dim,
+                                 const int cb_type, const int ob_type)
 {
    const int pm1 = p - 1, pm2 = p - 2;
 
-   snprintf(nd_name, 32, "ND_%dD_P%d", dim, p);
+   if (cb_type == BasisType::GaussLobatto &&
+       ob_type == BasisType::GaussLegendre)
+   {
+      snprintf(nd_name, 32, "ND_%dD_P%d", dim, p);
+   }
+   else
+   {
+      snprintf(nd_name, 32, "ND@%c%c_%dD_P%d", (int)BasisType::GetChar(cb_type),
+               (int)BasisType::GetChar(ob_type), dim, p);
+   }
 
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
@@ -1947,9 +2185,24 @@ ND_FECollection::ND_FECollection(const int p, const int dim)
       QuadDofOrd[i] = NULL;
    }
 
+   int op_type = BasisType::GetQuadrature1D(ob_type);
+   int cp_type = BasisType::GetQuadrature1D(cb_type);
+
+   // Error checking
+   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid)
+   {
+      const char *ob_name = BasisType::Name(ob_type);
+      MFEM_ABORT("Invalid open basis point type: " << ob_name);
+   }
+   if (Quadrature1D::CheckClosed(cp_type) == Quadrature1D::Invalid)
+   {
+      const char *cb_name = BasisType::Name(cb_type);
+      MFEM_ABORT("Invalid closed basis point type: " << cb_name);
+   }
+
    if (dim >= 1)
    {
-      ND_Elements[Geometry::SEGMENT] = new ND_SegmentElement(p);
+      ND_Elements[Geometry::SEGMENT] = new ND_SegmentElement(p, op_type);
       ND_dof[Geometry::SEGMENT] = p;
 
       SegDofOrd[0] = new int[2*p];
@@ -1963,9 +2216,11 @@ ND_FECollection::ND_FECollection(const int p, const int dim)
 
    if (dim >= 2)
    {
-      ND_Elements[Geometry::SQUARE] = new ND_QuadrilateralElement(p);
+      ND_Elements[Geometry::SQUARE] = new ND_QuadrilateralElement(p, cp_type,
+                                                                  op_type);
       ND_dof[Geometry::SQUARE] = 2*p*pm1;
 
+      // TODO: cp_type and op_type for triangles
       ND_Elements[Geometry::TRIANGLE] = new ND_TriangleElement(p);
       ND_dof[Geometry::TRIANGLE] = p*pm1;
 
@@ -2043,9 +2298,10 @@ ND_FECollection::ND_FECollection(const int p, const int dim)
 
    if (dim >= 3)
    {
-      ND_Elements[Geometry::CUBE] = new ND_HexahedronElement(p);
+      ND_Elements[Geometry::CUBE] = new ND_HexahedronElement(p, cp_type, op_type);
       ND_dof[Geometry::CUBE] = 3*p*pm1*pm1;
 
+      // TODO: cp_type and op_type for tets
       ND_Elements[Geometry::TETRAHEDRON] = new ND_TetrahedronElement(p);
       ND_dof[Geometry::TETRAHEDRON] = p*pm1*pm2/2;
    }
@@ -2055,11 +2311,7 @@ int *ND_FECollection::DofOrderForOrientation(int GeomType, int Or) const
 {
    if (GeomType == Geometry::SEGMENT)
    {
-      if (Or > 0)
-      {
-         return SegDofOrd[0];
-      }
-      return SegDofOrd[1];
+      return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
    }
    else if (GeomType == Geometry::TRIANGLE)
    {
@@ -2080,8 +2332,22 @@ int *ND_FECollection::DofOrderForOrientation(int GeomType, int Or) const
 
 FiniteElementCollection *ND_FECollection::GetTraceCollection() const
 {
-   return new ND_Trace_FECollection(ND_dof[Geometry::SEGMENT],
-                                    atoi(nd_name + 3));
+   int p, dim, cb_type, ob_type;
+
+   p = ND_dof[Geometry::SEGMENT];
+   if (nd_name[2] == '_') // ND_
+   {
+      dim = atoi(nd_name + 3);
+      cb_type = BasisType::GaussLobatto;
+      ob_type = BasisType::GaussLegendre;
+   }
+   else // ND@
+   {
+      dim = atoi(nd_name + 6);
+      cb_type = BasisType::GetType(nd_name[3]);
+      ob_type = BasisType::GetType(nd_name[4]);
+   }
+   return new ND_Trace_FECollection(p, dim, cb_type, ob_type);
 }
 
 ND_FECollection::~ND_FECollection()
@@ -2096,10 +2362,22 @@ ND_FECollection::~ND_FECollection()
 }
 
 
-ND_Trace_FECollection::ND_Trace_FECollection(const int p, const int dim)
-   : ND_FECollection(p, dim-1)
+ND_Trace_FECollection::ND_Trace_FECollection(const int p, const int dim,
+                                             const int cb_type,
+                                             const int ob_type)
+   : ND_FECollection(p, dim-1, cb_type, ob_type)
 {
-   snprintf(nd_name, 32, "ND_Trace_%dD_P%d", dim, p);
+   if (cb_type == BasisType::GaussLobatto &&
+       ob_type == BasisType::GaussLegendre)
+   {
+      snprintf(nd_name, 32, "ND_Trace_%dD_P%d", dim, p);
+   }
+   else
+   {
+      snprintf(nd_name, 32, "ND_Trace@%c%c_%dD_P%d",
+               (int)BasisType::GetChar(cb_type),
+               (int)BasisType::GetChar(ob_type), dim, p);
+   }
 }
 
 
@@ -2125,6 +2403,11 @@ Local_FECollection::Local_FECollection(const char *fe_name)
    {
       GeomType = Geometry::SQUARE;
       Local_Element = new H1_QuadrilateralElement(atoi(fe_name + 7));
+   }
+   else if (!strncmp(fe_name, "H1Pos_", 6))
+   {
+      GeomType = Geometry::SQUARE;
+      Local_Element = new H1Pos_QuadrilateralElement(atoi(fe_name + 10));
    }
    else if (!strncmp(fe_name, "L2_", 3))
    {

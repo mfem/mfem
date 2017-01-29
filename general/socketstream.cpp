@@ -639,6 +639,7 @@ void GnuTLS_socketbuf::end_session()
 
    if (is_open() && status.good())
    {
+      pubsync();
 #ifdef MFEM_USE_GNUTLS_DEBUG
       std::cout << "[GnuTLS_socketbuf::end_session: gnutls_bye]" << std::endl;
 #endif
@@ -975,10 +976,10 @@ int socketstream::open(const char hostname[], int port)
 
 socketstream::~socketstream()
 {
+   delete buf__;
 #ifdef MFEM_USE_GNUTLS
    if (glvis_client) { remove_socket(); }
 #endif
-   delete buf__;
 }
 
 } // namespace mfem

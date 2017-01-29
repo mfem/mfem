@@ -11,7 +11,8 @@
 
 // Implementation of GridFunction
 
-#include "fem.hpp"
+#include "gridfunc.hpp"
+#include "../mesh/nurbs.hpp"
 
 #include <limits>
 #include <cstring>
@@ -35,8 +36,10 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
    input >> std::ws;
    input.getline(buff, bufflen);  // 'FiniteElementSpace'
    if (strcmp(buff, "FiniteElementSpace"))
+   {
       mfem_error("GridFunction::GridFunction():"
                  " input stream is not a GridFunction!");
+   }
    input.getline(buff, bufflen, ' '); // 'FiniteElementCollection:'
    input >> std::ws;
    input.getline(buff, bufflen);
@@ -173,6 +176,14 @@ void GridFunction::SetSpace(FiniteElementSpace *f)
    sequence = fes->GetSequence();
 }
 
+void GridFunction::MakeRef(FiniteElementSpace *f, double *v)
+{
+   Destroy();
+   fes = f;
+   NewDataAndSize(v, fes->GetVSize());
+   sequence = fes->GetSequence();
+}
+
 void GridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
 {
    MFEM_ASSERT(v.Size() >= v_offset + f->GetVSize(), "");
@@ -247,18 +258,55 @@ void GridFunction::ComputeFlux(BilinearFormIntegrator &blfi,
 
 int GridFunction::VectorDim() const
 {
+   const FiniteElement *fe;
    if (!fes->GetNE())
    {
-      return 0;
+      const FiniteElementCollection *fec = fes->FEColl();
+      static const int geoms[3] =
+      { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
+      fe = fec->FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
    }
-
-   const FiniteElement *fe = fes->GetFE(0);
-
+   else
+   {
+      fe = fes->GetFE(0);
+   }
    if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       return fes->GetVDim();
    }
-   return fes->GetMesh()->SpaceDimension();
+   return fes->GetVDim()*fes->GetMesh()->SpaceDimension();
+}
+
+void GridFunction::GetTrueDofs(Vector &tv) const
+{
+   const SparseMatrix *R = fes->GetRestrictionMatrix();
+   if (!R)
+   {
+      // R is identity -> make tv a reference to *this
+      tv.NewDataAndSize(data, size);
+   }
+   else
+   {
+      tv.SetSize(R->Height());
+      R->Mult(*this, tv);
+   }
+}
+
+void GridFunction::SetFromTrueDofs(const Vector &tv)
+{
+   MFEM_ASSERT(tv.Size() == fes->GetTrueVSize(), "invalid input");
+   const SparseMatrix *cP = fes->GetConformingProlongation();
+   if (!cP)
+   {
+      if (tv.GetData() != data)
+      {
+         *this = tv;
+      }
+   }
+   else
+   {
+      cP->Mult(tv, *this);
+   }
 }
 
 void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
@@ -280,6 +328,8 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
 
    if (FElem->GetRangeType() == FiniteElement::SCALAR)
    {
+      MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
+                  "invalid FE map type");
       Vector shape(dof);
       for (k = 0; k < n; k++)
       {
@@ -307,7 +357,9 @@ const
    fes->GetElementDofs(i, dofs);
    fes->DofsToVDofs(vdim-1, dofs);
    Vector DofVal(dofs.Size()), LocVec;
-   fes->GetFE(i)->CalcShape(ip, DofVal);
+   const FiniteElement *fe = fes->GetFE(i);
+   MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
+   fe->CalcShape(ip, DofVal);
    GetSubVector(dofs, LocVec);
 
    return (DofVal * LocVec);
@@ -324,6 +376,8 @@ void GridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
    GetSubVector(vdofs, loc_data);
    if (FElem->GetRangeType() == FiniteElement::SCALAR)
    {
+      MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
+                  "invalid FE map type");
       Vector shape(dof);
       FElem->CalcShape(ip, shape);
       int vdim = fes->GetVDim();
@@ -355,6 +409,8 @@ const
    fes->GetElementDofs(i, dofs);
    fes->DofsToVDofs(vdim-1, dofs);
    const FiniteElement *FElem = fes->GetFE(i);
+   MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
+               "invalid FE map type");
    int dof = FElem->GetDof();
    Vector DofVal(dof), loc_data(dof);
    GetSubVector(dofs, loc_data);
@@ -439,6 +495,8 @@ void GridFunction::GetVectorValues(ElementTransformation &T,
    int nip = ir.GetNPoints();
    if (FElem->GetRangeType() == FiniteElement::SCALAR)
    {
+      MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
+                  "invalid FE map type");
       Vector shape(dof);
       int vdim = fes->GetVDim();
       vals.SetSize(vdim, nip);
@@ -810,7 +868,7 @@ void GridFunction::GetVectorGradientHat(
    DenseMatrix dshape(dof, dim);
    FElem->CalcDShape(T.GetIntPoint(), dshape);
    gh.SetSize(vdim, dim);
-   DenseMatrix loc_data_mat(loc_data.StealData(), dof, vdim);
+   DenseMatrix loc_data_mat(loc_data.GetData(), dof, vdim);
    MultAtB(loc_data_mat, dshape, gh);
 }
 
@@ -821,6 +879,8 @@ double GridFunction::GetDivergence(ElementTransformation &tr)
    const FiniteElement *FElem = fes->GetFE(elNo);
    if (FElem->GetRangeType() == FiniteElement::SCALAR)
    {
+      MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
+                  "invalid FE map type");
       DenseMatrix grad_hat;
       GetVectorGradientHat(tr, grad_hat);
       const DenseMatrix &J = tr.Jacobian();
@@ -828,10 +888,12 @@ double GridFunction::GetDivergence(ElementTransformation &tr)
       CalcInverse(J, Jinv);
       div_v = 0.0;
       for (int i = 0; i < Jinv.Width(); i++)
+      {
          for (int j = 0; j < Jinv.Height(); j++)
          {
             div_v += grad_hat(i, j) * Jinv(j, i);
          }
+      }
    }
    else
    {
@@ -852,6 +914,8 @@ void GridFunction::GetCurl(ElementTransformation &tr, Vector &curl)
    const FiniteElement *FElem = fes->GetFE(elNo);
    if (FElem->GetRangeType() == FiniteElement::SCALAR)
    {
+      MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
+                  "invalid FE map type");
       DenseMatrix grad_hat;
       GetVectorGradientHat(tr, grad_hat);
       const DenseMatrix &J = tr.Jacobian();
@@ -901,6 +965,7 @@ void GridFunction::GetGradient(ElementTransformation &tr, Vector &grad)
 {
    int elNo = tr.ElementNo;
    const FiniteElement *fe = fes->GetFE(elNo);
+   MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
    int dim = fe->GetDim(), dof = fe->GetDof();
    DenseMatrix dshape(dof, dim), Jinv(dim);
    Vector lval, gh(dim);
@@ -919,6 +984,7 @@ void GridFunction::GetGradients(const int elem, const IntegrationRule &ir,
                                 DenseMatrix &grad)
 {
    const FiniteElement *fe = fes->GetFE(elem);
+   MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
    ElementTransformation *Tr = fes->GetElementTransformation(elem);
    DenseMatrix dshape(fe->GetDof(), fe->GetDim());
    DenseMatrix Jinv(fe->GetDim());
@@ -942,6 +1008,8 @@ void GridFunction::GetGradients(const int elem, const IntegrationRule &ir,
 void GridFunction::GetVectorGradient(
    ElementTransformation &tr, DenseMatrix &grad)
 {
+   MFEM_ASSERT(fes->GetFE(tr.ElementNo)->GetMapType() == FiniteElement::VALUE,
+               "invalid FE map type");
    DenseMatrix grad_hat;
    GetVectorGradientHat(tr, grad_hat);
    const DenseMatrix &J = tr.Jacobian();
@@ -2100,6 +2168,7 @@ GridFunction & GridFunction::operator=(double value)
 
 GridFunction & GridFunction::operator=(const Vector &v)
 {
+   MFEM_ASSERT(fes && v.Size() == fes->GetVSize(), "");
    SetSize(v.Size());
    for (int i = 0; i < size; i++)
    {
@@ -2326,6 +2395,35 @@ std::ostream &operator<<(std::ostream &out, const GridFunction &sol)
 }
 
 
+QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
+{
+   const char *msg = "invalid input stream";
+   string ident;
+
+   qspace = new QuadratureSpace(mesh, in);
+   own_qspace = true;
+
+   in >> ident; MFEM_VERIFY(ident == "VDim:", msg);
+   in >> vdim;
+
+   Load(in, vdim*qspace->GetSize());
+}
+
+void QuadratureFunction::Save(std::ostream &out) const
+{
+   qspace->Save(out);
+   out << "VDim: " << vdim << '\n'
+       << '\n';
+   Vector::Print(out, vdim);
+   out.flush();
+}
+
+std::ostream &operator<<(std::ostream &out, const QuadratureFunction &qf)
+{
+   qf.Save(out);
+   return out;
+}
+
 
 double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &u,
@@ -2504,6 +2602,11 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
    else if (!strncmp(name, "H1_", 3))
    {
       solfec2d = new H1_FECollection(atoi(name + 7), 2);
+   }
+   else if (!strncmp(name, "H1Pos_", 6))
+   {
+      // use regular (nodal) H1_FECollection
+      solfec2d = new H1_FECollection(atoi(name + 10), 2);
    }
    else if (!strncmp(name, "L2_T", 4))
    {

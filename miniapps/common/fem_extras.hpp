@@ -29,7 +29,8 @@ class H1_FESpace : public FiniteElementSpace
 {
 public:
    H1_FESpace(Mesh *m,
-              const int p, const int space_dim = 3, const int type = 0,
+              const int p, const int space_dim = 3,
+              const int type = BasisType::GaussLobatto,
               int vdim = 1, int order = Ordering::byNODES);
    ~H1_FESpace();
 private:
@@ -63,6 +64,15 @@ public:
 private:
    const FiniteElementCollection *FEC_;
 };
+
+
+/// Visualize the given grid function, using a GLVis server on the
+/// specified host and port. Set the visualization window title, and optionally,
+/// its geometry.
+void VisualizeField(socketstream &sock, const char *vishost, int visport,
+                    GridFunction &gf, const char *title,
+                    int x = 0, int y = 0, int w = 400, int h = 400,
+                    bool vec = false);
 
 } // namespace miniapps
 

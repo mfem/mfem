@@ -27,6 +27,7 @@ void ParNonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
 
    // ess_vdofs is a list of local vdofs
    if (rhs)
+   {
       for (int i = 0; i < ess_vdofs.Size(); i++)
       {
          int tdof = pfes->GetLocalTDofNumber(ess_vdofs[i]);
@@ -35,6 +36,7 @@ void ParNonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
             (*rhs)(tdof) = 0.0;
          }
       }
+   }
 }
 
 double ParNonlinearForm::GetEnergy(const ParGridFunction &x) const
@@ -70,7 +72,7 @@ const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
 {
    X.Distribute(&x);
 
-   NonlinearForm::GetGradient(X); // (re)assemble Grad
+   NonlinearForm::GetGradient(X); // (re)assemble Grad with b.c.
 
    return *Grad;
 }
@@ -79,22 +81,20 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
 {
    ParFiniteElementSpace *pfes = ParFESpace();
 
-   delete pGrad;
+   pGrad.Clear();
 
    X.Distribute(&x);
 
-   NonlinearForm::GetGradient(X); // (re)assemble Grad
+   NonlinearForm::GetGradient(X); // (re)assemble Grad with b.c.
 
-   // construct a parallel block-diagonal wrapper matrix A based on Grad
-   HypreParMatrix *A =
-      new HypreParMatrix(pfes->GetComm(),
-                         pfes->GlobalVSize(), pfes->GetDofOffsets(), Grad);
+   OperatorHandle dA(pGrad.Type()), Ph(pGrad.Type());
+   dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
+                          pfes->GetDofOffsets(), Grad);
+   // TODO - construct Dof_TrueDof_Matrix directly in the pGrad format
+   Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
+   pGrad.MakePtAP(dA, Ph);
 
-   pGrad = RAP(A, pfes->Dof_TrueDof_Matrix());
-
-   delete A;
-
-   return *pGrad;
+   return *pGrad.Ptr();
 }
 
 }

@@ -12,11 +12,10 @@
 #ifndef MFEM_PFEM_EXTRAS
 #define MFEM_PFEM_EXTRAS
 
-#include "../../config/config.hpp"
+#include "mfem.hpp"
 
 #ifdef MFEM_USE_MPI
 
-#include "mfem.hpp"
 #include <cstddef>
 
 namespace mfem
@@ -33,7 +32,8 @@ class H1_ParFESpace : public ParFiniteElementSpace
 {
 public:
    H1_ParFESpace(ParMesh *m,
-                 const int p, const int space_dim = 3, const int type = 0,
+                 const int p, const int space_dim = 3,
+                 const int type = BasisType::GaussLobatto,
                  int vdim = 1, int order = Ordering::byNODES);
    ~H1_ParFESpace();
 private:
@@ -82,45 +82,13 @@ private:
    const FiniteElementCollection *FEC_;
 };
 
-class ParDiscreteInterpolationOperator
+class ParDiscreteInterpolationOperator : public ParDiscreteLinearOperator
 {
 public:
+   ParDiscreteInterpolationOperator(ParFiniteElementSpace *dfes,
+                                    ParFiniteElementSpace *rfes)
+      : ParDiscreteLinearOperator(dfes, rfes) {}
    virtual ~ParDiscreteInterpolationOperator();
-
-   /// Computes y = alpha * A * x + beta * y
-   HYPRE_Int Mult(HypreParVector &x, HypreParVector &y,
-                  double alpha = 1.0, double beta = 0.0);
-   /// Computes y = alpha * A * x + beta * y
-   HYPRE_Int Mult(HYPRE_ParVector x, HYPRE_ParVector y,
-                  double alpha = 1.0, double beta = 0.0);
-
-   /// Computes y = alpha * A^t * x + beta * y
-   HYPRE_Int MultTranspose(HypreParVector &x, HypreParVector &y,
-                           double alpha = 1.0, double beta = 0.0);
-
-   /// Computes y = alpha * A * x + beta * y
-   void Mult(double a, const Vector &x, double b, Vector &y) const;
-   /// Computes y = alpha * A^t * x + beta * y
-   void MultTranspose(double a, const Vector &x, double b, Vector &y) const;
-
-   /// Computes y = A * x
-   void Mult(const Vector &x, Vector &y) const;
-   /// Computes y = A^t * x
-   void MultTranspose(const Vector &x, Vector &y) const;
-
-   void Update();
-
-   const HypreParMatrix & GetMatrix() const { return *mat_; }
-
-   HypreParMatrix * ParallelAssemble();
-
-protected:
-   ParDiscreteInterpolationOperator() : pdlo_(NULL), mat_(NULL) {}
-
-   void createMatrix() const;
-
-   ParDiscreteLinearOperator *pdlo_;
-   mutable HypreParMatrix    *mat_;
 };
 
 class ParDiscreteGradOperator : public ParDiscreteInterpolationOperator
@@ -150,37 +118,47 @@ public:
 class IrrotationalProjector : public Operator
 {
 public:
-   IrrotationalProjector(ParFiniteElementSpace & H1FESpace,
-                         ParFiniteElementSpace & HCurlFESpace,
-                         ParDiscreteInterpolationOperator & Grad);
+   IrrotationalProjector(ParFiniteElementSpace   & H1FESpace,
+                         ParFiniteElementSpace   & HCurlFESpace,
+                         const int               & irOrder,
+                         ParBilinearForm         * s0 = NULL,
+                         ParMixedBilinearForm    * weakDiv = NULL,
+                         ParDiscreteGradOperator * grad = NULL);
    virtual ~IrrotationalProjector();
 
-   // Given a vector 'x' of Nedelec DoFs for an arbitrary vector field,
+   // Given a GridFunction 'x' of Nedelec DoFs for an arbitrary vector field,
    // compute the Nedelec DoFs of the irrotational portion, 'y', of
-   // this vector field.  The resulting vector will satisfy Curl y = 0
+   // this vector field.  The resulting GridFunction will satisfy Curl y = 0
    // to machine precision.
    virtual void Mult(const Vector &x, Vector &y) const;
 
    void Update();
 
 private:
+   void InitSolver() const;
+
    ParFiniteElementSpace * H1FESpace_;
    ParFiniteElementSpace * HCurlFESpace_;
 
-   ParBilinearForm * s0_;
-   ParBilinearForm * m1_;
+   ParBilinearForm         * s0_;
+   ParMixedBilinearForm    * weakDiv_;
+   ParDiscreteGradOperator * grad_;
 
-   HypreBoomerAMG * amg_;
-   HyprePCG       * pcg_;
+   ParGridFunction * psi_;
+   ParGridFunction * xDiv_;
+
    HypreParMatrix * S0_;
-   HypreParMatrix * M1_;
-   ParDiscreteInterpolationOperator * Grad_;
-   HypreParVector * gradYPot_;
-   HypreParVector * yPot_;
-   HypreParVector * xDiv_;
+   mutable Vector Psi_;
+   mutable Vector RHS_;
 
-   // Array<int> dof_list_;
-   Array<int> ess_bdr_;
+   mutable HypreBoomerAMG * amg_;
+   mutable HyprePCG       * pcg_;
+
+   Array<int> ess_bdr_, ess_bdr_tdofs_;
+
+   bool ownsS0_;
+   bool ownsWeakDiv_;
+   bool ownsGrad_;
 };
 
 /// This class computes the divergence free portion of a vector field.
@@ -189,9 +167,12 @@ private:
 class DivergenceFreeProjector : public IrrotationalProjector
 {
 public:
-   DivergenceFreeProjector(ParFiniteElementSpace & H1FESpace,
-                           ParFiniteElementSpace & HCurlFESpace,
-                           ParDiscreteInterpolationOperator & Grad);
+   DivergenceFreeProjector(ParFiniteElementSpace   & H1FESpace,
+                           ParFiniteElementSpace   & HCurlFESpace,
+                           const int               & irOrder,
+                           ParBilinearForm         * s0 = NULL,
+                           ParMixedBilinearForm    * weakDiv = NULL,
+                           ParDiscreteGradOperator * grad = NULL);
    virtual ~DivergenceFreeProjector();
 
    // Given a vector 'x' of Nedelec DoFs for an arbitrary vector field,
@@ -201,10 +182,6 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
 
    void Update();
-
-private:
-   ParFiniteElementSpace * HCurlFESpace_;
-   HypreParVector        * xIrr_;
 };
 
 
@@ -213,7 +190,8 @@ private:
 /// its geometry.
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
                     ParGridFunction &gf, const char *title,
-                    int x = 0, int y = 0, int w = 400, int h = 400);
+                    int x = 0, int y = 0, int w = 400, int h = 400,
+                    bool vec = false);
 
 } // namespace miniapps
 

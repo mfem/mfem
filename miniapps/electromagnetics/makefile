@@ -10,47 +10,49 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 # Use the MFEM build directory
-MFEM_DIR = ../..
-CONFIG_MK = $(MFEM_DIR)/config/config.mk
+MFEM_DIR ?= ../..
+MFEM_BUILD_DIR ?= ../..
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/electromagnetics/,)
+CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 TEST_MK = $(MFEM_DIR)/config/test.mk
 # Use the MFEM install directory
 # MFEM_DIR = ../../mfem
 # CONFIG_MK = $(MFEM_DIR)/config.mk
+# TEST_MK = $(MFEM_DIR)/test.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = volta tesla
+PAR_MINIAPPS = volta tesla joule
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
    MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
+.SUFFIXES:
+.SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
 .PRECIOUS: %.o
 
-COMMON_HPP=../common/pfem_extras.hpp
-COMMON_O=$(COMMON_HPP:.hpp=.o)
+COMMON_O=../common/pfem_extras.o
 
-.PRECIOUS: %.o
-
-# Remove built-in rule
+# Remove built-in rules
 %: %.cpp
-
-# Replace the default implicit rule for *.cpp files
-%: %.cpp %_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $@_solver.o $(COMMON_O) $(MFEM_LIBS)
-
-# Remove built-in rule
 %.o: %.cpp
 
-# Replace the default implicit rule for *.cpp files
-%.o: %.cpp %.hpp $(COMMON_HPP) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
-
 all: $(MINIAPPS)
+
+# Rules for building the miniapps
+$(MINIAPPS): \
+%: $(SRC)%.cpp %_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $@_solver.o $(COMMON_O) $(MFEM_LIBS)
+
+# Rules for compiling miniapp dependencies
+$(COMMON_O) $(addsuffix _solver.o,$(MINIAPPS)): \
+%.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
 MFEM_TESTS = MINIAPPS
 include $(TEST_MK)
@@ -62,6 +64,9 @@ volta-test-par: volta
 tesla-test-par: tesla
 	@$(call mfem-test,$<, mpirun -np 4, Electromagnetic miniapp,\
 	-maxit 2 -cr '0 0 -0.2 0 0 0.2 0.2 0.4 1')
+joule-test-par: joule
+	@$(call mfem-test,$<, mpirun -np 4, Electromagnetic miniapp,\
+	-p rod -tf 3 -m $(SRC)cylinder-hex.mesh)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
@@ -72,8 +77,8 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ volta tesla
+	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf Volta-AMR* Tesla-AMR*
+	@rm -rf Volta-AMR* Tesla-AMR* Joule_*

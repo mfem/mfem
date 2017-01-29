@@ -9,8 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_SPARSEMAT
-#define MFEM_SPARSEMAT
+#ifndef MFEM_SPARSEMAT_HPP
+#define MFEM_SPARSEMAT_HPP
 
 // Data types for sparse matrix
 
@@ -37,17 +37,27 @@ public:
 /// Data type sparse matrix
 class SparseMatrix : public AbstractSparseMatrix
 {
-private:
-
-   /** Arrays for the connectivity information in the CSR storage.
-       I is of size "height+1", J is of size the number of nonzero entries
-       in the Sparse matrix (actually stored I[height]) */
-   int *I, *J;
-
-   /// The nonzero entries in the Sparse matrix with size I[height].
+protected:
+   /// @name Arrays used by the CSR storage format.
+   /** */
+   ///@{
+   /// @brief %Array with size (#height+1) containing the row offsets.
+   /** The data for row r, 0 <= r < height, is at offsets j, I[r] <= j < I[r+1].
+       The offsets, j, are indices in the #J and #A arrays. The first entry in
+       this array is always zero, I[0] = 0, and the last entry, I[height], gives
+       the total number of entries stored (at a minimum, all nonzeros must be
+       represented) in the sparse matrix. */
+   int *I;
+   /** @brief %Array with size #I[#height], containing the column indices for
+       all matrix entries, as indexed by the #I array. */
+   int *J;
+   /** @brief %Array with size #I[#height], containing the actual entries of the
+       sparse matrix, as indexed by the #I array. */
    double *A;
+   ///@}
 
-   /// Array of linked lists, one for every row.
+   /** @brief %Array of linked lists, one for every row. This array represents
+       the linked list (LIL) storage format. */
    RowNode **Rows;
 
    mutable int current_row;
@@ -74,52 +84,56 @@ public:
    /// Create an empty SparseMatrix.
    SparseMatrix() { SetEmpty(); }
 
-   /** Create a sparse matrix with flexible sparsity structure using a row-wise
-       linked list format. New entries are added as needed by methods like
-       AddSubMatrix, SetSubMatrix, etc. Calling Finalize() will convert the
-       SparseMatrix to the more compact compressed sparse row (CSR) format. */
+   /** @brief Create a sparse matrix with flexible sparsity structure using a
+       row-wise linked list (LIL) format. */
+   /** New entries are added as needed by methods like AddSubMatrix(),
+       SetSubMatrix(), etc. Calling Finalize() will convert the SparseMatrix to
+       the more compact compressed sparse row (CSR) format. */
    explicit SparseMatrix(int nrows, int ncols = -1);
 
-   /** Create a sparse matrix in CSR format. Ownership of i, j, and data is
-       transferred to the SparseMatrix. */
+   /** @brief Create a sparse matrix in CSR format. Ownership of @a i, @a j, and
+       @a data is transferred to the SparseMatrix. */
    SparseMatrix(int *i, int *j, double *data, int m, int n);
 
-   /** Create a sparse matrix in CSR format. Ownership of i, j, and data is
-       optionally transferred to the SparseMatrix. */
+   /** @brief Create a sparse matrix in CSR format. Ownership of @a i, @a j, and
+       @a data is optionally transferred to the SparseMatrix. */
    SparseMatrix(int *i, int *j, double *data, int m, int n, bool ownij,
                 bool owna, bool issorted);
 
-   /** Create a sparse matrix in CSR format where each row has space allocated
-       for exactly 'rowsize' entries. SetRow can then be called or the I, J, A
-       arrays can be used directly. */
+   /** @brief Create a sparse matrix in CSR format where each row has space
+       allocated for exactly @a rowsize entries. */
+   /** SetRow() can then be called or the #I, #J, #A arrays can be used
+       directly. */
    SparseMatrix(int nrows, int ncols, int rowsize);
 
-   /** Copy constructor (deep copy). If mat is finalized and copy_graph is
-       false, the I and J arrays will use a shallow copy (copy the pointers
-       only) without transferring ownership. */
+   /// Copy constructor (deep copy).
+   /** If @a mat is finalized and @a copy_graph is false, the #I and #J arrays
+       will use a shallow copy (copy the pointers only) without transferring
+       ownership. */
    SparseMatrix(const SparseMatrix &mat, bool copy_graph = true);
 
-   /** Clear the contents of the SparseMatrix and make it a reference to
-       'master', i.e. it will point to the same data as 'master' but it will not
-       own its data. The 'master' must be finalized. */
+   /** @brief Clear the contents of the SparseMatrix and make it a reference to
+       @a master */
+   /** After this call, the matrix will point to the same data as @a master but
+       it will not own its data. The @a master must be finalized. */
    void MakeRef(const SparseMatrix &master);
 
-   /// For backward compatibility define Size to be synonym of Height()
+   /// For backward compatibility, define Size() to be synonym of Height().
    int Size() const { return Height(); }
 
    /// Clear the contents of the SparseMatrix.
    void Clear() { Destroy(); SetEmpty(); }
 
    /// Check if the SparseMatrix is empty.
-   bool Empty() { return (A == NULL) && (Rows == NULL); }
+   bool Empty() const { return (A == NULL) && (Rows == NULL); }
 
-   /// Return the array I
+   /// Return the array #I
    inline int *GetI() const { return I; }
-   /// Return the array J
+   /// Return the array #J
    inline int *GetJ() const { return J; }
-   /// Return element data
+   /// Return element data, i.e. array #A
    inline double *GetData() const { return A; }
-   /// Returns the number of elements in row i
+   /// Returns the number of elements in row @a i
    int RowSize(const int i) const;
    /// Returns the maximum number of elements among all rows
    int MaxRowSize() const;
@@ -140,12 +154,16 @@ public:
     */
    void SetWidth(int width_ = -1);
 
-   /// Returns the actual Width of the matrix
+   /// Returns the actual Width of the matrix.
    /*! This method can be called for matrices finalized or not. */
    int ActualWidth();
 
-   /// Sort the column indices corresponding to each row
+   /// Sort the column indices corresponding to each row.
    void SortColumnIndices();
+
+   /** @brief Move the diagonal entry to the first position in each row,
+       preserving the order of the rest of the columns. */
+   void MoveDiagonalFirst();
 
    /// Returns reference to a_{ij}.
    virtual double &Elem(int i, int j);
@@ -215,8 +233,8 @@ public:
        If d != 0 then the element (rc,rc) remains the same. */
    void EliminateRowCol(int rc, const double sol, Vector &rhs, int d = 0);
 
-   /** Like previous one, but multiple values for eliminated dofs are accepted,
-       and accordingly multiple right-hand-sides are used. */
+   /** Like previous one, but multiple values for eliminated unknowns are
+       accepted, and accordingly multiple right-hand-sides are used. */
    void EliminateRowColMultipleRHS(int rc, const Vector &sol,
                                    DenseMatrix &rhs, int d = 0);
 
@@ -252,11 +270,15 @@ public:
    void Jacobi3(const Vector &b, const Vector &x0, Vector &x1,
                 double sc = 1.0) const;
 
-   /** Finalize the matrix initialization. The function should be called
-       only once, after the matrix has been initialized. Internally, this
-       method converts the matrix from row-wise linked list format into
-       CSR (compressed sparse row) format. */
-   virtual void Finalize(int skip_zeros = 1);
+   /** @brief Finalize the matrix initialization, switching the storage format
+       from LIL to CSR. */
+   /** This method should be called once, after the matrix has been initialized.
+       Internally, this method converts the matrix from row-wise linked list
+       (LIL) format into CSR (compressed sparse row) format. */
+   virtual void Finalize(int skip_zeros = 1) { Finalize(skip_zeros, false); }
+
+   /// A slightly more general version of the Finalize(int) method.
+   void Finalize(int skip_zeros, bool fix_empty_rows);
 
    bool Finalized() const { return (A != NULL); }
    bool areColumnsSorted() const { return isSorted; }
@@ -298,14 +320,14 @@ public:
 
    bool RowIsEmpty(const int row) const;
 
-   /** Extract all column indices and values from a given row.  If the matrix is
-       finalized (i.e. in CSR format), 'cols' and 'srow' will simply be
-       references to the specific portion of the J and A arrays.
+   /// Extract all column indices and values from a given row.
+   /** If the matrix is finalized (i.e. in CSR format), @a cols and @a srow will
+       simply be references to the specific portion of the #J and #A arrays.
        As required by the AbstractSparseMatrix interface this method returns:
-         0, if cols and srow are copies of the values in the matrix, i.e. when
-            the matrix is open.
-         1, if cols and srow are views of the values in the matrix, i.e. when
-            the matrix is finalized. */
+       - 0, if @a cols and @a srow are copies of the values in the matrix, i.e.
+         when the matrix is open.
+       - 1, if @a cols and @a srow are views of the values in the matrix, i.e.
+         when the matrix is finalized. */
    virtual int GetRow(const int row, Array<int> &cols, Vector &srow) const;
 
    void SetRow(const int row, const Array<int> &cols, const Vector &srow);
@@ -344,6 +366,9 @@ public:
    /// Prints a sparse matrix to stream out in CSR format.
    void PrintCSR2(std::ostream &out) const;
 
+   /// Print various sparse matrix staticstics.
+   void PrintInfo(std::ostream &out) const;
+
    /// Walks the sparse matrix
    int Walk(int &i, int &j, double &a);
 
@@ -358,8 +383,11 @@ public:
 
    double MaxNorm() const;
 
-   /// Count the number of entries with |a_ij| < tol
+   /// Count the number of entries with |a_ij| <= tol.
    int CountSmallElems(double tol) const;
+
+   /// Count the number of entries that are NOT finite, i.e. Inf or Nan.
+   int CheckFinite() const;
 
    /// Set the graph ownership flag (I and J arrays).
    void SetGraphOwner(bool ownij) { ownGraph = ownij; }
@@ -376,6 +404,8 @@ public:
 
    /// Destroys sparse matrix.
    virtual ~SparseMatrix() { Destroy(); }
+
+   Type GetType() const { return MFEM_SPARSEMAT; }
 };
 
 /// Applies f() to each element of the matrix (after it is finalized).

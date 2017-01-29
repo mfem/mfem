@@ -9,11 +9,9 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../../config/config.hpp"
+#include "tesla_solver.hpp"
 
 #ifdef MFEM_USE_MPI
-
-#include "tesla_solver.hpp"
 
 using namespace std;
 
@@ -42,16 +40,19 @@ TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
      HDivFESpace_(NULL),
      curlMuInvCurl_(NULL),
      hCurlMass_(NULL),
-     hDivMassMuInv_(NULL),
      hDivHCurlMuInv_(NULL),
-     Grad_(NULL),
-     Curl_(NULL),
+     weakCurlMuInv_(NULL),
+     grad_(NULL),
+     curl_(NULL),
      a_(NULL),
      b_(NULL),
      h_(NULL),
+     jr_(NULL),
      j_(NULL),
      k_(NULL),
      m_(NULL),
+     bd_(NULL),
+     jd_(NULL),
      DivFreeProj_(NULL),
      SurfCur_(NULL),
      muInvCoef_(&muInvCoef),
@@ -72,6 +73,11 @@ TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
    H1FESpace_    = new H1_ParFESpace(pmesh_,order,pmesh_->Dimension());
    HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
    HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
+
+   int irOrder = H1FESpace_->GetElementTransformation(0)->OrderW()
+                 + 2 * order;
+   int geom = H1FESpace_->GetFE(0)->GetGeomType();
+   const IntegrationRule * ir = &IntRules.Get(geom, irOrder);
 
    // Select surface attributes for Dirichlet BCs
    ess_bdr_.SetSize(pmesh.bdr_attributes.Max());
@@ -117,29 +123,37 @@ TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
    curlMuInvCurl_  = new ParBilinearForm(HCurlFESpace_);
    curlMuInvCurl_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_));
 
+   BilinearFormIntegrator * hCurlMassInteg = new VectorFEMassIntegrator;
+   hCurlMassInteg->SetIntRule(ir);
    hCurlMass_      = new ParBilinearForm(HCurlFESpace_);
-   hCurlMass_->AddDomainIntegrator(new VectorFEMassIntegrator);
+   hCurlMass_->AddDomainIntegrator(hCurlMassInteg);
 
+   BilinearFormIntegrator * hDivHCurlInteg =
+      new VectorFEMassIntegrator(*muInvCoef_);
+   hDivHCurlInteg->SetIntRule(ir);
    hDivHCurlMuInv_ = new ParMixedBilinearForm(HDivFESpace_, HCurlFESpace_);
-   hDivHCurlMuInv_->AddDomainIntegrator(new VectorFEMassIntegrator(*muInvCoef_));
+   hDivHCurlMuInv_->AddDomainIntegrator(hDivHCurlInteg);
 
    // Discrete Curl operator
-   Curl_ = new ParDiscreteCurlOperator(HCurlFESpace_, HDivFESpace_);
+   curl_ = new ParDiscreteCurlOperator(HCurlFESpace_, HDivFESpace_);
 
    // Build grid functions
-   a_ = new ParGridFunction(HCurlFESpace_);
-   b_ = new ParGridFunction(HDivFESpace_);
-   h_ = new ParGridFunction(HCurlFESpace_);
+   a_  = new ParGridFunction(HCurlFESpace_);
+   b_  = new ParGridFunction(HDivFESpace_);
+   h_  = new ParGridFunction(HCurlFESpace_);
+   bd_ = new ParGridFunction(HCurlFESpace_);
+   jd_ = new ParGridFunction(HCurlFESpace_);
 
    if ( jCoef_ || kbcs.Size() > 0 )
    {
-      Grad_ = new ParDiscreteGradOperator(H1FESpace_, HCurlFESpace_);
+      grad_ = new ParDiscreteGradOperator(H1FESpace_, HCurlFESpace_);
    }
    if ( jCoef_ )
    {
+      jr_          = new ParGridFunction(HCurlFESpace_);
       j_           = new ParGridFunction(HCurlFESpace_);
       DivFreeProj_ = new DivergenceFreeProjector(*H1FESpace_, *HCurlFESpace_,
-                                                 *Grad_);
+                                                 irOrder, NULL, NULL, grad_);
    }
 
    if ( kbcs.Size() > 0 )
@@ -147,7 +161,7 @@ TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
       k_ = new ParGridFunction(HCurlFESpace_);
 
       // Object to solve the subproblem of computing surface currents
-      SurfCur_ = new SurfaceCurrent(*H1FESpace_, *HCurlFESpace_, *Grad_,
+      SurfCur_ = new SurfaceCurrent(*H1FESpace_, *grad_,
                                     kbcs, vbcs, vbcv);
    }
 
@@ -155,9 +169,9 @@ TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
    {
       m_ = new ParGridFunction(HDivFESpace_);
 
-      hDivMassMuInv_ = new ParBilinearForm(HDivFESpace_);
-      hDivMassMuInv_->AddDomainIntegrator(
-         new VectorFEMassIntegrator(*muInvCoef_));
+      weakCurlMuInv_ = new ParMixedBilinearForm(HDivFESpace_, HCurlFESpace_);
+      weakCurlMuInv_->AddDomainIntegrator(
+         new VectorFECurlIntegrator(*muInvCoef_));
    }
 }
 
@@ -173,17 +187,20 @@ TeslaSolver::~TeslaSolver()
    delete a_;
    delete b_;
    delete h_;
+   delete jr_;
    delete j_;
    delete k_;
    delete m_;
+   delete bd_;
+   delete jd_;
 
-   delete Grad_;
-   delete Curl_;
+   delete grad_;
+   delete curl_;
 
    delete curlMuInvCurl_;
    delete hCurlMass_;
-   delete hDivMassMuInv_;
    delete hDivHCurlMuInv_;
+   delete weakCurlMuInv_;
 
    delete H1FESpace_;
    delete HCurlFESpace_;
@@ -224,20 +241,24 @@ TeslaSolver::Assemble()
    curlMuInvCurl_->Assemble();
    curlMuInvCurl_->Finalize();
 
-   if ( hCurlMass_ )
+   hDivHCurlMuInv_->Assemble();
+   hDivHCurlMuInv_->Finalize();
+
+   hCurlMass_->Assemble();
+   hCurlMass_->Finalize();
+
+   curl_->Assemble();
+   curl_->Finalize();
+
+   if ( grad_ )
    {
-      hCurlMass_->Assemble();
-      hCurlMass_->Finalize();
+      grad_->Assemble();
+      grad_->Finalize();
    }
-   if ( hDivMassMuInv_ )
+   if ( weakCurlMuInv_ )
    {
-      hDivMassMuInv_->Assemble();
-      hDivMassMuInv_->Finalize();
-   }
-   if ( hDivHCurlMuInv_ )
-   {
-      hDivHCurlMuInv_->Assemble();
-      hDivHCurlMuInv_->Finalize();
+      weakCurlMuInv_->Assemble();
+      weakCurlMuInv_->Finalize();
    }
 
    if (myid_ == 0) { cout << " done." << endl; }
@@ -255,23 +276,28 @@ TeslaSolver::Update()
    HCurlFESpace_->Update(false);
    HDivFESpace_->Update(false);
 
+   HCurlFESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
+
    // Inform the grid functions that the space has changed.
    a_->Update();
    h_->Update();
    b_->Update();
-   if ( j_ ) { j_->Update(); }
-   if ( k_ ) { k_->Update(); }
-   if ( m_ ) { m_->Update(); }
+   bd_->Update();
+   jd_->Update();
+   if ( jr_ ) { jr_->Update(); }
+   if ( j_  ) {  j_->Update(); }
+   if ( k_  ) {  k_->Update(); }
+   if ( m_  ) {  m_->Update(); }
 
    // Inform the bilinear forms that the space has changed.
    curlMuInvCurl_->Update();
-   if ( hCurlMass_      ) { hCurlMass_->Update(); }
-   if ( hDivMassMuInv_  ) { hDivMassMuInv_->Update(); }
-   if ( hDivHCurlMuInv_ ) { hDivHCurlMuInv_->Update(); }
+   hCurlMass_->Update();
+   hDivHCurlMuInv_->Update();
+   if ( weakCurlMuInv_ ) { weakCurlMuInv_->Update(); }
 
    // Inform the other objects that the space has changed.
-   Curl_->Update();
-   if ( Grad_        ) { Grad_->Update(); }
+   curl_->Update();
+   if ( grad_        ) { grad_->Update(); }
    if ( DivFreeProj_ ) { DivFreeProj_->Update(); }
    if ( SurfCur_     ) { SurfCur_->Update(); }
 }
@@ -294,114 +320,85 @@ TeslaSolver::Solve()
    // Apply uniform B boundary condition on remaining surfaces
    a_->ProjectBdrCoefficientTangent(*aBCCoef_, non_k_bdr_);
 
-   // Initialize the RHS vector
-   HypreParVector *RHS = new HypreParVector(HCurlFESpace_);
-   *RHS = 0.0;
+   // Initialize the RHS vector to zero
+   *jd_ = 0.0;
 
    // Initialize the volumetric current density
-   if ( j_ )
+   if ( jr_ )
    {
-      j_->ProjectCoefficient(*jCoef_);
+      jr_->ProjectCoefficient(*jCoef_);
 
-      HypreParMatrix *MassHCurl = hCurlMass_->ParallelAssemble();
-      HypreParVector *J    = j_->ParallelProject();
-      HypreParVector *JD   = new HypreParVector(HCurlFESpace_);
+      // Compute the discretely divergence-free portion of jr_
+      DivFreeProj_->Mult(*jr_, *j_);
 
-      MassHCurl->Mult(*J,*JD);
-      DivFreeProj_->Mult(*JD, *RHS);
-
-      delete MassHCurl;
-      delete J;
-      delete JD;
+      // Compute the dual of j_
+      hCurlMass_->AddMult(*j_, *jd_);
    }
 
    // Initialize the Magnetization
-   HypreParVector *M = NULL;
    if ( m_ )
    {
       m_->ProjectCoefficient(*mCoef_);
-      M = m_->ParallelProject();
-
-      HypreParMatrix *MassHDiv = hDivMassMuInv_->ParallelAssemble();
-      HypreParVector *MD   = new HypreParVector(HDivFESpace_);
-
-      MassHDiv->Mult(*M,*MD);
-      Curl_->MultTranspose(*MD,*RHS,mu0_,1.0);
-
-      delete MassHDiv;
-      delete MD;
+      weakCurlMuInv_->AddMult(*m_, *jd_, mu0_);
    }
 
-   // Apply Dirichlet BCs to matrix and right hand side
-   HypreParMatrix *CurlMuInvCurl = curlMuInvCurl_->ParallelAssemble();
-   HypreParVector *A             = a_->ParallelProject();
+   // Apply Dirichlet BCs to matrix and right hand side and otherwise
+   // prepare the linear system
+   HypreParMatrix CurlMuInvCurl;
+   HypreParVector A(HCurlFESpace_);
+   HypreParVector RHS(HCurlFESpace_);
 
-   // Apply the boundary conditions to the assembled matrix and vectors
-   curlMuInvCurl_->ParallelEliminateEssentialBC(ess_bdr_,
-                                                *CurlMuInvCurl,
-                                                *A, *RHS);
+   curlMuInvCurl_->FormLinearSystem(ess_bdr_tdofs_, *a_, *jd_, CurlMuInvCurl,
+                                    A, RHS);
 
    // Define and apply a parallel PCG solver for AX=B with the AMS
    // preconditioner from hypre.
-   HypreAMS *ams = new HypreAMS(*CurlMuInvCurl, HCurlFESpace_);
-   ams->SetSingularProblem();
+   HypreAMS ams(CurlMuInvCurl, HCurlFESpace_);
+   ams.SetSingularProblem();
 
-   HyprePCG *pcg = new HyprePCG(*CurlMuInvCurl);
-   pcg->SetTol(1e-12);
-   pcg->SetMaxIter(500);
-   pcg->SetPrintLevel(2);
-   pcg->SetPreconditioner(*ams);
-   pcg->Mult(*RHS, *A);
-
-   delete ams;
-   delete pcg;
-   delete CurlMuInvCurl;
-   delete RHS;
+   HyprePCG pcg (CurlMuInvCurl);
+   pcg.SetTol(1e-12);
+   pcg.SetMaxIter(50);
+   pcg.SetPrintLevel(2);
+   pcg.SetPreconditioner(ams);
+   pcg.Mult(RHS, A);
 
    // Extract the parallel grid function corresponding to the finite
-   // element approximation Phi. This is the local solution on each
+   // element approximation A. This is the local solution on each
    // processor.
-   *a_ = *A;
+   curlMuInvCurl_->RecoverFEMSolution(A, *jd_, *a_);
 
    // Compute the negative Gradient of the solution vector.  This is
    // the magnetic field corresponding to the scalar potential
    // represented by phi.
-   HypreParVector *B = new HypreParVector(HDivFESpace_);
-   Curl_->Mult(*A,*B);
-   *b_ = *B;
+   curl_->Mult(*a_, *b_);
 
    // Compute magnetic field (H) from B and M
    if (myid_ == 0) { cout << "Computing H ... " << flush; }
 
-   ParGridFunction bd(HCurlFESpace_);
-   hDivHCurlMuInv_->Mult(*b_, bd);
+   hDivHCurlMuInv_->Mult(*b_, *bd_);
    if ( m_ )
    {
-      hDivHCurlMuInv_->AddMult(*m_, bd, -1.0 * mu0_);
+      hDivHCurlMuInv_->AddMult(*m_, *bd_, -1.0 * mu0_);
    }
 
    HypreParMatrix MassHCurl;
    Vector BD, H;
 
    Array<int> dbc_dofs_h;
-   hCurlMass_->FormLinearSystem(dbc_dofs_h, *h_, bd, MassHCurl, H, BD);
+   hCurlMass_->FormLinearSystem(dbc_dofs_h, *h_, *bd_, MassHCurl, H, BD);
 
-   HyprePCG * pcgM = new HyprePCG(MassHCurl);
-   pcgM->SetTol(1e-12);
-   pcgM->SetMaxIter(500);
-   pcgM->SetPrintLevel(0);
+   HyprePCG pcgM(MassHCurl);
+   pcgM.SetTol(1e-12);
+   pcgM.SetMaxIter(500);
+   pcgM.SetPrintLevel(0);
    HypreDiagScale diagM;
-   pcgM->SetPreconditioner(diagM);
-   pcgM->Mult(BD,H);
+   pcgM.SetPreconditioner(diagM);
+   pcgM.Mult(BD, H);
 
-   hCurlMass_->RecoverFEMSolution(H, bd, *h_);
+   hCurlMass_->RecoverFEMSolution(H, *bd_, *h_);
 
    if (myid_ == 0) { cout << "done." << flush; }
-
-   delete pcgM;
-   delete A;
-   delete B;
-   delete M;
 
    if (myid_ == 0) { cout << " Solver done. " << endl; }
 }
@@ -545,16 +542,17 @@ TeslaSolver::DisplayToGLVis()
 }
 
 SurfaceCurrent::SurfaceCurrent(ParFiniteElementSpace & H1FESpace,
-                               ParFiniteElementSpace & HCurlFESpace,
-                               ParDiscreteGradOperator & Grad,
+                               ParDiscreteGradOperator & grad,
                                Array<int> & kbcs,
                                Array<int> & vbcs, Vector & vbcv)
    : H1FESpace_(&H1FESpace),
-     HCurlFESpace_(&HCurlFESpace),
-     Grad_(&Grad),
+     grad_(&grad),
      kbcs_(&kbcs),
      vbcs_(&vbcs),
-     vbcv_(&vbcv)
+     vbcv_(&vbcv),
+     s0_(NULL),
+     psi_(NULL),
+     rhs_(NULL)
 {
    // Initialize MPI variables
    MPI_Comm_rank(H1FESpace_->GetParMesh()->GetComm(), &myid_);
@@ -563,16 +561,7 @@ SurfaceCurrent::SurfaceCurrent(ParFiniteElementSpace & H1FESpace,
    s0_->AddBoundaryIntegrator(new DiffusionIntegrator);
    s0_->Assemble();
    s0_->Finalize();
-   S0_ = s0_->ParallelAssemble();
-
-   amg_ = new HypreBoomerAMG(*S0_);
-   amg_->SetPrintLevel(0);
-
-   pcg_ = new HyprePCG(*S0_);
-   pcg_->SetTol(1e-12);
-   pcg_->SetMaxIter(200);
-   pcg_->SetPrintLevel(0);
-   pcg_->SetPreconditioner(*amg_);
+   S0_ = new HypreParMatrix;
 
    ess_bdr_.SetSize(H1FESpace_->GetParMesh()->bdr_attributes.Max());
    ess_bdr_ = 0;
@@ -580,6 +569,7 @@ SurfaceCurrent::SurfaceCurrent(ParFiniteElementSpace & H1FESpace,
    {
       ess_bdr_[(*vbcs_)[i]-1] = 1;
    }
+   H1FESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
 
    non_k_bdr_.SetSize(H1FESpace_->GetParMesh()->bdr_attributes.Max());
    non_k_bdr_ = 1;
@@ -589,37 +579,38 @@ SurfaceCurrent::SurfaceCurrent(ParFiniteElementSpace & H1FESpace,
    }
 
    psi_ = new ParGridFunction(H1FESpace_);
-   *psi_ = 0.0;
+   rhs_ = new ParGridFunction(H1FESpace_);
 
-   // Apply piecewise constant voltage boundary condition
-   Array<int> vbc_bdr_attr(H1FESpace_->GetParMesh()->bdr_attributes.Max());
-   for (int i=0; i<vbcs_->Size(); i++)
-   {
-      ConstantCoefficient voltage((*vbcv_)[i]);
-      vbc_bdr_attr = 0;
-      vbc_bdr_attr[(*vbcs_)[i]-1] = 1;
-      psi_->ProjectBdrCoefficient(voltage, vbc_bdr_attr);
-   }
-
-   PSI_ = psi_->ParallelProject();
-   RHS_ = new HypreParVector(H1FESpace_);
-   K_   = new HypreParVector(HCurlFESpace_);
-
-   s0_->ParallelEliminateEssentialBC(ess_bdr_,
-                                     *S0_,
-                                     *PSI_, *RHS_);
+   pcg_ = NULL;
+   amg_ = NULL;
 }
 
 SurfaceCurrent::~SurfaceCurrent()
 {
+   delete psi_;
+   delete rhs_;
+
    delete pcg_;
    delete amg_;
+
    delete S0_;
-   delete PSI_;
-   delete RHS_;
-   delete K_;
+
    delete s0_;
-   delete psi_;
+}
+
+void
+SurfaceCurrent::InitSolver() const
+{
+   delete pcg_;
+   delete amg_;
+
+   amg_ = new HypreBoomerAMG(*S0_);
+   amg_->SetPrintLevel(0);
+   pcg_ = new HyprePCG(*S0_);
+   pcg_->SetTol(1e-14);
+   pcg_->SetMaxIter(200);
+   pcg_->SetPrintLevel(0);
+   pcg_->SetPreconditioner(*amg_);
 }
 
 void
@@ -627,48 +618,9 @@ SurfaceCurrent::ComputeSurfaceCurrent(ParGridFunction & k)
 {
    if (myid_ == 0) { cout << "Computing K ... " << flush; }
 
-   k = 0.0;
-   pcg_->Mult(*RHS_, *PSI_);
-   *psi_ = *PSI_;
-
-   Grad_->Mult(*PSI_,*K_);
-   k = *K_;
-
-   Vector vZero(3); vZero = 0.0;
-   VectorConstantCoefficient Zero(vZero);
-   k.ProjectBdrCoefficientTangent(Zero,non_k_bdr_);
-
-   if (myid_ == 0) { cout << "done." << endl; }
-}
-
-void
-SurfaceCurrent::Update()
-{
-   delete pcg_;
-   delete amg_;
-   delete S0_;
-   delete PSI_;
-   delete RHS_;
-   delete K_;
-
-   psi_->Update();
-   *psi_ = 0.0;
-
-   s0_->Update();
-   s0_->Assemble();
-   s0_->Finalize();
-   S0_ = s0_->ParallelAssemble();
-
-   amg_ = new HypreBoomerAMG(*S0_);
-   amg_->SetPrintLevel(0);
-
-   pcg_ = new HyprePCG(*S0_);
-   pcg_->SetTol(1e-12);
-   pcg_->SetMaxIter(200);
-   pcg_->SetPrintLevel(0);
-   pcg_->SetPreconditioner(*amg_);
-
    // Apply piecewise constant voltage boundary condition
+   *psi_ = 0.0;
+   *rhs_ = 0.0;
    Array<int> vbc_bdr_attr(H1FESpace_->GetParMesh()->bdr_attributes.Max());
    for (int i=0; i<vbcs_->Size(); i++)
    {
@@ -678,13 +630,42 @@ SurfaceCurrent::Update()
       psi_->ProjectBdrCoefficient(voltage, vbc_bdr_attr);
    }
 
-   PSI_ = psi_->ParallelProject();
-   RHS_ = new HypreParVector(H1FESpace_);
-   K_   = new HypreParVector(HCurlFESpace_);
+   // Apply essential BC and form linear system
+   s0_->FormLinearSystem(ess_bdr_tdofs_, *psi_, *rhs_, *S0_, Psi_, RHS_);
 
-   s0_->ParallelEliminateEssentialBC(ess_bdr_,
-                                     *S0_,
-                                     *PSI_, *RHS_);
+   // Solve the linear system for Psi
+   if ( pcg_ == NULL ) { this->InitSolver(); }
+   pcg_->Mult(RHS_, Psi_);
+
+   // Compute the parallel grid function corresponding to Psi
+   s0_->RecoverFEMSolution(Psi_, *rhs_, *psi_);
+
+   // Compute the surface current from psi
+   grad_->Mult(*psi_, k);
+
+   // Force the tangential part of k to be zero away from the intended surfaces
+   Vector vZero(3); vZero = 0.0;
+   VectorConstantCoefficient Zero(vZero);
+   k.ProjectBdrCoefficientTangent(Zero, non_k_bdr_);
+
+   if (myid_ == 0) { cout << "done." << endl; }
+}
+
+void
+SurfaceCurrent::Update()
+{
+   delete pcg_; pcg_ = NULL;
+   delete amg_; amg_ = NULL;
+   delete S0_;  S0_  = new HypreParMatrix;
+
+   psi_->Update();
+   rhs_->Update();
+
+   s0_->Update();
+   s0_->Assemble();
+   s0_->Finalize();
+
+   H1FESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
 }
 
 } // namespace electromagnetics

@@ -121,29 +121,30 @@ void ParBilinearForm::pAllocMat()
    dof_dof.LoseData();
 }
 
-HypreParMatrix *ParBilinearForm::ParallelAssemble(SparseMatrix *m)
+void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
 {
-   if (m == NULL) { return NULL; }
+   A.Clear();
 
-   MFEM_VERIFY(m->Finalized(), "local matrix needs to be finalized for "
-               "ParallelAssemble");
+   if (A_local == NULL) { return; }
+   MFEM_VERIFY(A_local->Finalized(), "the local matrix must be finalized");
 
-   HypreParMatrix *A;
+   OperatorHandle dA(A.Type()), Ph(A.Type()), hdA;
+
    if (fbfi.Size() == 0)
    {
-      // construct a parallel block-diagonal wrapper matrix A based on m
-      A = new HypreParMatrix(pfes->GetComm(),
-                             pfes->GlobalVSize(), pfes->GetDofOffsets(), m);
+      // construct a parallel block-diagonal matrix 'A' based on 'a'
+      dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
+                             pfes->GetDofOffsets(), A_local);
    }
    else
    {
-      // handle the case when 'm' contains offdiagonal
+      // handle the case when 'a' contains offdiagonal
       int lvsize = pfes->GetVSize();
       const HYPRE_Int *face_nbr_glob_ldof = pfes->GetFaceNbrGlobalDofMap();
       HYPRE_Int ldof_offset = pfes->GetMyDofOffset();
 
-      Array<HYPRE_Int> glob_J(m->NumNonZeroElems());
-      int *J = m->GetJ();
+      Array<HYPRE_Int> glob_J(A_local->NumNonZeroElems());
+      int *J = A_local->GetJ();
       for (int i = 0; i < glob_J.Size(); i++)
       {
          if (J[i] < lvsize)
@@ -156,17 +157,30 @@ HypreParMatrix *ParBilinearForm::ParallelAssemble(SparseMatrix *m)
          }
       }
 
-      A = new HypreParMatrix(pfes->GetComm(), lvsize, pfes->GlobalVSize(),
-                             pfes->GlobalVSize(), m->GetI(), glob_J,
-                             m->GetData(), pfes->GetDofOffsets(),
-                             pfes->GetDofOffsets());
+      // TODO - construct dA directly in the A format
+      hdA.Reset(
+         new HypreParMatrix(pfes->GetComm(), lvsize, pfes->GlobalVSize(),
+                            pfes->GlobalVSize(), A_local->GetI(), glob_J,
+                            A_local->GetData(), pfes->GetDofOffsets(),
+                            pfes->GetDofOffsets()));
+      // - hdA owns the new HypreParMatrix
+      // - the above constructor copies all input arrays
+      glob_J.DeleteAll();
+      dA.ConvertFrom(hdA);
    }
 
-   HypreParMatrix *rap = RAP(A, pfes->Dof_TrueDof_Matrix());
+   // TODO - assemble the Dof_TrueDof_Matrix directly in the required format?
+   Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
 
-   delete A;
+   A.MakePtAP(dA, Ph);
+}
 
-   return rap;
+HypreParMatrix *ParBilinearForm::ParallelAssemble(SparseMatrix *m)
+{
+   OperatorHandle Mh(Operator::HYPRE_PARCSR);
+   ParallelAssemble(Mh, m);
+   Mh.SetOperatorOwner(false);
+   return Mh.As<HypreParMatrix>();
 }
 
 void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
@@ -263,37 +277,15 @@ const
 }
 
 void ParBilinearForm::FormLinearSystem(
-   Array<int> &ess_tdof_list, Vector &x, Vector &b,
-   HypreParMatrix &A, Vector &X, Vector &B, int copy_interior)
+   const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+   OperatorHandle &A, Vector &X, Vector &B, int copy_interior)
 {
-   HypreParMatrix &P = *pfes->Dof_TrueDof_Matrix();
-   const SparseMatrix &R = *pfes->GetRestrictionMatrix();
-   Array<int> ess_rtdof_list;
-
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
-   if (static_cond)
-   {
-      static_cond->ConvertListToReducedTrueDofs(ess_tdof_list, ess_rtdof_list);
-      if (!static_cond->HasEliminatedBC())
-      {
-         static_cond->Finalize();
-         static_cond->EliminateReducedTrueDofs(ess_rtdof_list, 0);
-      }
-   }
-   else if (mat)
-   {
-      MFEM_VERIFY(p_mat == NULL && p_mat_e == NULL,
-                  "The ParBilinearForm must be updated with Update() before "
-                  "re-assembling the ParBilinearForm.");
-      Finalize();
-      p_mat = ParallelAssemble();
-      delete mat;
-      mat = NULL;
-      delete mat_e;
-      mat_e = NULL;
-      p_mat_e = p_mat->EliminateRowsCols(ess_tdof_list);
-   }
+   FormSystemMatrix(ess_tdof_list, A);
+
+   HypreParMatrix &P = *pfes->Dof_TrueDof_Matrix();
+   const SparseMatrix &R = *pfes->GetRestrictionMatrix();
 
    // Transform the system and perform the elimination in B, based on the
    // essential BC values from x. Restrict the BC part of x in X, and set the
@@ -302,13 +294,7 @@ void ParBilinearForm::FormLinearSystem(
    if (static_cond)
    {
       // Schur complement reduction to the exposed dofs
-      static_cond->ReduceRHS(b, B);
-      static_cond->ReduceSolution(x, X);
-      EliminateBC(static_cond->GetParallelMatrix(),
-                  static_cond->GetParallelMatrixElim(),
-                  ess_rtdof_list, X, B);
-      if (!copy_interior) { X.SetSubVectorComplement(ess_rtdof_list, 0.0); }
-      A.MakeRef(static_cond->GetParallelMatrix());
+      static_cond->ReduceSystem(x, b, X, B, copy_interior);
    }
    else if (hybridization)
    {
@@ -316,12 +302,11 @@ void ParBilinearForm::FormLinearSystem(
       HypreParVector true_X(pfes), true_B(pfes);
       P.MultTranspose(b, true_B);
       R.Mult(x, true_X);
-      EliminateBC(*p_mat, *p_mat_e, ess_tdof_list, true_X, true_B);
+      p_mat.EliminateBC(p_mat_e, ess_tdof_list, true_X, true_B);
       R.MultTranspose(true_B, b);
       hybridization->ReduceRHS(true_B, B);
       X.SetSize(B.Size());
       X = 0.0;
-      A.MakeRef(hybridization->GetParallelMatrix());
    }
    else
    {
@@ -330,9 +315,50 @@ void ParBilinearForm::FormLinearSystem(
       B.SetSize(X.Size());
       P.MultTranspose(b, B);
       R.Mult(x, X);
-      EliminateBC(*p_mat, *p_mat_e, ess_tdof_list, X, B);
+      p_mat.EliminateBC(p_mat_e, ess_tdof_list, X, B);
       if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
-      A.MakeRef(*p_mat);
+   }
+}
+
+void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                       OperatorHandle &A)
+{
+   // Finish the matrix assembly and perform BC elimination, storing the
+   // eliminated part of the matrix.
+   if (static_cond)
+   {
+      if (!static_cond->HasEliminatedBC())
+      {
+         static_cond->SetEssentialTrueDofs(ess_tdof_list);
+         static_cond->Finalize();
+         static_cond->EliminateReducedTrueDofs(0);
+      }
+      static_cond->GetParallelMatrix(A);
+   }
+   else
+   {
+      if (mat)
+      {
+         const int remove_zeros = 0;
+         Finalize(remove_zeros);
+         MFEM_VERIFY(p_mat.Ptr() == NULL && p_mat_e.Ptr() == NULL,
+                     "The ParBilinearForm must be updated with Update() before "
+                     "re-assembling the ParBilinearForm.");
+         ParallelAssemble(p_mat, mat);
+         delete mat;
+         mat = NULL;
+         delete mat_e;
+         mat_e = NULL;
+         p_mat_e.EliminateRowsCols(p_mat, ess_tdof_list);
+      }
+      if (hybridization)
+      {
+         hybridization->GetParallelMatrix(A);
+      }
+      else
+      {
+         A = p_mat;
+      }
    }
 }
 
@@ -375,9 +401,63 @@ void ParBilinearForm::Update(FiniteElementSpace *nfes)
       MFEM_VERIFY(pfes != NULL, "nfes must be a ParFiniteElementSpace!");
    }
 
-   delete p_mat;
-   delete p_mat_e;
-   p_mat = p_mat_e = NULL;
+   p_mat.Clear();
+   p_mat_e.Clear();
+}
+
+
+HypreParMatrix *ParMixedBilinearForm::ParallelAssemble()
+{
+   // construct the block-diagonal matrix A
+   HypreParMatrix *A =
+      new HypreParMatrix(trial_pfes->GetComm(),
+                         test_pfes->GlobalVSize(),
+                         trial_pfes->GlobalVSize(),
+                         test_pfes->GetDofOffsets(),
+                         trial_pfes->GetDofOffsets(),
+                         mat);
+
+   HypreParMatrix *rap = RAP(test_pfes->Dof_TrueDof_Matrix(), A,
+                             trial_pfes->Dof_TrueDof_Matrix());
+
+   delete A;
+
+   return rap;
+}
+
+void ParMixedBilinearForm::ParallelAssemble(OperatorHandle &A)
+{
+   // construct the rectangular block-diagonal matrix dA
+   OperatorHandle dA(A.Type());
+   dA.MakeRectangularBlockDiag(trial_pfes->GetComm(),
+                               test_pfes->GlobalVSize(),
+                               trial_pfes->GlobalVSize(),
+                               test_pfes->GetDofOffsets(),
+                               trial_pfes->GetDofOffsets(),
+                               mat);
+
+   OperatorHandle P_test(A.Type()), P_trial(A.Type());
+
+   // TODO - construct the Dof_TrueDof_Matrix directly in the required format.
+   P_test.ConvertFrom(test_pfes->Dof_TrueDof_Matrix());
+   P_trial.ConvertFrom(trial_pfes->Dof_TrueDof_Matrix());
+
+   A.MakeRAP(P_test, dA, P_trial);
+}
+
+/// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
+void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
+                                       const double a) const
+{
+   if (X.ParFESpace() != trial_pfes)
+   {
+      X.SetSpace(trial_pfes);
+      Y.SetSpace(test_pfes);
+   }
+
+   X.Distribute(&x);
+   mat->Mult(X, Y);
+   test_pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Y, 1.0, y);
 }
 
 
@@ -407,40 +487,6 @@ const
                   domain_fes->GetOrdering() == Ordering::byVDIM);
 
    delete RLP;
-}
-
-HypreParMatrix *ParMixedBilinearForm::ParallelAssemble()
-{
-   // construct the block-diagonal matrix A
-   HypreParMatrix *A =
-      new HypreParMatrix(trial_pfes->GetComm(),
-                         test_pfes->GlobalVSize(),
-                         trial_pfes->GlobalVSize(),
-                         test_pfes->GetDofOffsets(),
-                         trial_pfes->GetDofOffsets(),
-                         mat);
-
-   HypreParMatrix *rap = RAP(test_pfes->Dof_TrueDof_Matrix(), A,
-                             trial_pfes->Dof_TrueDof_Matrix());
-
-   delete A;
-
-   return rap;
-}
-
-/// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
-void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
-                                       const double a) const
-{
-   if (X.ParFESpace() != trial_pfes)
-   {
-      X.SetSpace(trial_pfes);
-      Y.SetSpace(test_pfes);
-   }
-
-   X.Distribute(&x);
-   mat->Mult(X, Y);
-   test_pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Y, 1.0, y);
 }
 
 }

@@ -9,11 +9,9 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../../config/config.hpp"
+#include "volta_solver.hpp"
 
 #ifdef MFEM_USE_MPI
-
-#include "volta_solver.hpp"
 
 using namespace std;
 namespace mfem
@@ -45,13 +43,14 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
      divEpsGrad_(NULL),
      h1Mass_(NULL),
      h1SurfMass_(NULL),
-     hCurlMass_(NULL),
      hDivMass_(NULL),
      hCurlHDivEps_(NULL),
      hCurlHDiv_(NULL),
-     Grad_(NULL),
+     weakDiv_(NULL),
+     grad_(NULL),
      phi_(NULL),
      rho_(NULL),
+     rhod_(NULL),
      sigma_(NULL),
      e_(NULL),
      d_(NULL),
@@ -115,12 +114,13 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
    hCurlHDivEps_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsCoef_));
 
    // Discrete Grad operator
-   Grad_ = new ParDiscreteGradOperator(H1FESpace_, HCurlFESpace_);
+   grad_ = new ParDiscreteGradOperator(H1FESpace_, HCurlFESpace_);
 
    // Build grid functions
-   phi_ = new ParGridFunction(H1FESpace_);
-   d_   = new ParGridFunction(HDivFESpace_);
-   e_   = new ParGridFunction(HCurlFESpace_);
+   phi_  = new ParGridFunction(H1FESpace_);
+   rhod_ = new ParGridFunction(H1FESpace_);
+   d_    = new ParGridFunction(HDivFESpace_);
+   e_    = new ParGridFunction(HCurlFESpace_);
 
    if ( rho_src_ )
    {
@@ -134,11 +134,12 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
    {
       p_ = new ParGridFunction(HCurlFESpace_);
 
-      hCurlMass_ = new ParBilinearForm(HCurlFESpace_);
-      hCurlMass_->AddDomainIntegrator(new VectorFEMassIntegrator);
-
       hCurlHDiv_ = new ParMixedBilinearForm(HCurlFESpace_, HDivFESpace_);
       hCurlHDiv_->AddDomainIntegrator(new VectorFEMassIntegrator);
+
+      weakDiv_ = new ParMixedBilinearForm(HCurlFESpace_, H1FESpace_);
+      weakDiv_->AddDomainIntegrator(new VectorFEWeakDivergenceIntegrator);
+
    }
 
    if ( nbcs_->Size() > 0 )
@@ -158,23 +159,25 @@ VoltaSolver::~VoltaSolver()
 
    delete phi_;
    delete rho_;
+   delete rhod_;
    delete sigma_;
    delete d_;
    delete e_;
    delete p_;
 
-   delete Grad_;
+   delete grad_;
 
    delete divEpsGrad_;
    delete h1Mass_;
    delete h1SurfMass_;
-   delete hCurlMass_;
    delete hDivMass_;
    delete hCurlHDivEps_;
    delete hCurlHDiv_;
+   delete weakDiv_;
 
    delete H1FESpace_;
    delete HCurlFESpace_;
+   delete HDivFESpace_;
 
    map<string,socketstream*>::iterator mit;
    for (mit=socks_.begin(); mit!=socks_.end(); mit++)
@@ -216,6 +219,9 @@ void VoltaSolver::Assemble()
    hCurlHDivEps_->Assemble();
    hCurlHDivEps_->Finalize();
 
+   grad_->Assemble();
+   grad_->Finalize();
+
    if ( h1Mass_ )
    {
       h1Mass_->Assemble();
@@ -226,15 +232,15 @@ void VoltaSolver::Assemble()
       h1SurfMass_->Assemble();
       h1SurfMass_->Finalize();
    }
-   if ( hCurlMass_ )
-   {
-      hCurlMass_->Assemble();
-      hCurlMass_->Finalize();
-   }
    if ( hCurlHDiv_ )
    {
       hCurlHDiv_->Assemble();
       hCurlHDiv_->Finalize();
+   }
+   if ( weakDiv_ )
+   {
+      weakDiv_->Assemble();
+      weakDiv_->Finalize();
    }
 
    if (myid_ == 0) { cout << "done." << endl << flush; }
@@ -254,6 +260,7 @@ VoltaSolver::Update()
 
    // Inform the grid functions that the space has changed.
    phi_->Update();
+   rhod_->Update();
    d_->Update();
    e_->Update();
    if ( rho_   ) { rho_->Update(); }
@@ -267,11 +274,11 @@ VoltaSolver::Update()
 
    if ( h1Mass_ )     { h1Mass_->Update(); }
    if ( h1SurfMass_ ) { h1SurfMass_->Update(); }
-   if ( hCurlMass_ )  { hCurlMass_->Update(); }
    if ( hCurlHDiv_ )  { hCurlHDiv_->Update(); }
+   if ( weakDiv_ )    { weakDiv_->Update(); }
 
    // Inform the other objects that the space has changed.
-   Grad_->Update();
+   grad_->Update();
 }
 
 void
@@ -281,6 +288,9 @@ VoltaSolver::Solve()
 
    // Initialize the electric potential with its boundary conditions
    *phi_ = 0.0;
+
+   // Initialize the charge density dual vector (rhs) to zero
+   *rhod_ = 0.0;
 
    if ( dbcs_->Size() > 0 )
    {
@@ -303,40 +313,18 @@ VoltaSolver::Solve()
       }
    }
 
-   // Initialize the RHS vector
-   HypreParVector *RHS = new HypreParVector(H1FESpace_);
-   *RHS = 0.0;
-
    // Initialize the volumetric charge density
    if ( rho_ )
    {
       rho_->ProjectCoefficient(*rhoCoef_);
-
-      HypreParMatrix *MassH1 = h1Mass_->ParallelAssemble();
-      HypreParVector *Rho    = rho_->ParallelProject();
-
-      MassH1->Mult(*Rho,*RHS);
-
-      delete MassH1;
-      delete Rho;
+      h1Mass_->AddMult(*rho_, *rhod_);
    }
 
    // Initialize the Polarization
-   HypreParVector *P = NULL;
    if ( p_ )
    {
       p_->ProjectCoefficient(*pCoef_);
-      P = p_->ParallelProject();
-
-      HypreParMatrix *MassHCurl = hCurlMass_->ParallelAssemble();
-      HypreParVector *PD        = new HypreParVector(HCurlFESpace_);
-
-      MassHCurl->Mult(*P,*PD);
-      Grad_->MultTranspose(*PD,*RHS,-1.0,1.0);
-
-      delete MassHCurl;
-      delete PD;
-
+      weakDiv_->AddMult(*p_, *rhod_);
    }
 
    // Initialize the surface charge density
@@ -352,70 +340,54 @@ VoltaSolver::Solve()
          nbc_bdr_attr[(*nbcs_)[i]-1] = 1;
          sigma_->ProjectBdrCoefficient(sigma_coef, nbc_bdr_attr);
       }
-
-      HypreParMatrix *MassS = h1SurfMass_->ParallelAssemble();
-      HypreParVector *Sigma = sigma_->ParallelProject();
-
-      MassS->Mult(*Sigma,*RHS,1.0,1.0);
-
-      delete MassS;
-      delete Sigma;
+      h1SurfMass_->AddMult(*sigma_, *rhod_);
    }
 
-   // Apply Dirichlet BCs to matrix and right hand side
-   HypreParMatrix *DivEpsGrad = divEpsGrad_->ParallelAssemble();
-   HypreParVector *Phi        = phi_->ParallelProject();
-
-   // Apply the boundary conditions to the assembled matrix and vectors
+   // Determine the essential BC degrees of freedom
    if ( dbcs_->Size() > 0 )
    {
-      // According to the selected surfaces
-      divEpsGrad_->ParallelEliminateEssentialBC(ess_bdr_,
-                                                *DivEpsGrad,
-                                                *Phi, *RHS);
+      // From user supplied boundary attributes
+      H1FESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
    }
    else
    {
-      // No surfaces were labeled as Dirichlet so eliminate one DoF
-      Array<int> dof_list(0);
+      // Use the first DoF on processor zero by default
       if ( myid_ == 0 )
       {
-         dof_list.SetSize(1);
-         dof_list[0] = 0;
+         ess_bdr_tdofs_.SetSize(1);
+         ess_bdr_tdofs_[0] = 0;
       }
-      DivEpsGrad->EliminateRowsCols(dof_list, *Phi, *RHS);
    }
+
+   // Apply essential BC and form linear system
+   HypreParMatrix DivEpsGrad;
+   HypreParVector Phi(H1FESpace_);
+   HypreParVector RHS(H1FESpace_);
+
+   divEpsGrad_->FormLinearSystem(ess_bdr_tdofs_, *phi_, *rhod_, DivEpsGrad,
+                                 Phi, RHS);
 
    // Define and apply a parallel PCG solver for AX=B with the AMG
    // preconditioner from hypre.
-   HypreSolver *amg = new HypreBoomerAMG(*DivEpsGrad);
-   HyprePCG *pcg = new HyprePCG(*DivEpsGrad);
-   pcg->SetTol(1e-12);
-   pcg->SetMaxIter(500);
-   pcg->SetPrintLevel(2);
-   pcg->SetPreconditioner(*amg);
-   pcg->Mult(*RHS, *Phi);
-
-   delete amg;
-   delete pcg;
-   delete DivEpsGrad;
-   delete RHS;
+   HypreBoomerAMG amg(DivEpsGrad);
+   HyprePCG pcg(DivEpsGrad);
+   pcg.SetTol(1e-12);
+   pcg.SetMaxIter(500);
+   pcg.SetPrintLevel(2);
+   pcg.SetPreconditioner(amg);
+   pcg.Mult(RHS, Phi);
 
    // Extract the parallel grid function corresponding to the finite
    // element approximation Phi. This is the local solution on each
    // processor.
-   *phi_ = *Phi;
+   divEpsGrad_->RecoverFEMSolution(Phi, *rhod_, *phi_);
 
    // Compute the negative Gradient of the solution vector.  This is
    // the magnetic field corresponding to the scalar potential
    // represented by phi.
-   HypreParVector *E = new HypreParVector(HCurlFESpace_);
-   Grad_->Mult(*Phi,*E,-1.0);
-   *e_ = *E;
+   grad_->Mult(*phi_, *e_); *e_ *= -1.0;
 
-   delete Phi;
-
-   // Compute electric displacement (D) from E and P
+   // Compute electric displacement (D) from E and P (if present)
    if (myid_ == 0) { cout << "Computing D ..." << flush; }
 
    ParGridFunction ed(HDivFESpace_);
@@ -431,21 +403,17 @@ VoltaSolver::Solve()
    Array<int> dbc_dofs_d;
    hDivMass_->FormLinearSystem(dbc_dofs_d, *d_, ed, MassHDiv, D, ED);
 
-   HyprePCG *pcgM = new HyprePCG(MassHDiv);
-   pcgM->SetTol(1e-12);
-   pcgM->SetMaxIter(500);
-   pcgM->SetPrintLevel(0);
+   HyprePCG pcgM(MassHDiv);
+   pcgM.SetTol(1e-12);
+   pcgM.SetMaxIter(500);
+   pcgM.SetPrintLevel(0);
    HypreDiagScale diagM;
-   pcgM->SetPreconditioner(diagM);
-   pcgM->Mult(ED, D);
+   pcgM.SetPreconditioner(diagM);
+   pcgM.Mult(ED, D);
 
    hDivMass_->RecoverFEMSolution(D, ed, *d_);
 
    if (myid_ == 0) { cout << "done." << flush; }
-
-   delete pcgM;
-   delete E;
-   delete P;
 
    if (myid_ == 0) { cout << "Solver done. " << endl; }
 }

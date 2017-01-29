@@ -2,26 +2,17 @@
 //
 // Compile with: make ex1
 //
-// Sample runs:  ex1 -perf -m ../../data/fichera.mesh
-//               ex1 -perf -m ../../data/amr-hex.mesh -sc
-//               ex1 -perf -m ../../data/ball-nurbs.mesh -sc
-//               ex1 -perf -m ../../data/pipe-nurbs.mesh
-//               ex1 -std -m ../../data/square-disc.mesh
-//               ex1 -std -m ../../data/star.mesh
-//               ex1 -std -m ../../data/escher.mesh
-//               ex1 -std -m ../../data/square-disc-p2.vtk -o 2
-//               ex1 -std -m ../../data/square-disc-p3.mesh -o 3
-//               ex1 -std -m ../../data/square-disc-nurbs.mesh -o -1
-//               ex1 -std -m ../../data/disc-nurbs.mesh -o -1
-//               ex1 -std -m ../../data/pipe-nurbs.mesh -o -1
-//               ex1 -std -m ../../data/star-surf.mesh
-//               ex1 -std -m ../../data/square-disc-surf.mesh
-//               ex1 -std -m ../../data/inline-segment.mesh
-//               ex1 -std -m ../../data/amr-quad.mesh
-//               ex1 -std -m ../../data/amr-hex.mesh
-//               ex1 -std -m ../../data/fichera-amr.mesh
-//               ex1 -std -m ../../data/mobius-strip.mesh
-//               ex1 -std -m ../../data/mobius-strip.mesh -o -1 -sc
+// Sample runs:  ex1 -m ../../data/fichera.mesh -perf -mf  -pc lor
+//               ex1 -m ../../data/fichera.mesh -perf -asm -pc ho
+//               ex1 -m ../../data/fichera.mesh -perf -asm -pc ho -sc
+//               ex1 -m ../../data/fichera.mesh -std  -asm -pc ho
+//               ex1 -m ../../data/fichera.mesh -std  -asm -pc ho -sc
+//               ex1 -m ../../data/amr-hex.mesh -perf -asm -pc ho -sc
+//               ex1 -m ../../data/amr-hex.mesh -std  -asm -pc ho -sc
+//               ex1 -m ../../data/ball-nurbs.mesh -perf -asm -pc ho  -sc
+//               ex1 -m ../../data/ball-nurbs.mesh -std  -asm -pc ho  -sc
+//               ex1 -m ../../data/pipe-nurbs.mesh -perf -mf  -pc lor
+//               ex1 -m ../../data/pipe-nurbs.mesh -std  -asm -pc ho  -sc
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -67,16 +58,19 @@ typedef TConstantCoefficient<>                coeff_t;
 typedef TIntegrator<coeff_t,TDiffusionKernel> integ_t;
 
 // Static bilinear form type, combining the above types
-typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t> oper_t;
+typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t> HPCBilinearForm;
 
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/fichera.mesh";
    int order = sol_p;
+   const char *basis_type = "G"; // Gauss-Lobatto
    bool static_cond = false;
-   bool visualization = 1;
+   const char *pc = "none";
    bool perf = true;
+   bool matrix_free = true;
+   bool visualization = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -84,8 +78,16 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&basis_type, "-b", "--basis-type",
+                  "Basis: G - Gauss-Lobatto, P - Positive, U - Uniform");
    args.AddOption(&perf, "-perf", "--hpc-version", "-std", "--standard-version",
-                  "Enable high-performance, tensor-based, assembly.");
+                  "Enable high-performance, tensor-based, assembly/evaluation.");
+   args.AddOption(&matrix_free, "-mf", "--matrix-free", "-asm", "--assembly",
+                  "Use matrix-free evaluation or efficient matrix assembly in "
+                  "the high-performance version.");
+   args.AddOption(&pc, "-pc", "--preconditioner",
+                  "Preconditioner: lor - low-order-refined (matrix-free) GS, "
+                  "ho - high-order (assembled) GS, none.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -97,7 +99,30 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
+   if (static_cond && perf && matrix_free)
+   {
+      cout << "\nStatic condensation can not be used with matrix-free"
+           " evaluation!\n" << endl;
+      return 2;
+   }
+   MFEM_VERIFY(perf || !matrix_free,
+               "--standard-version is not compatible with --matrix-free");
    args.PrintOptions(cout);
+
+   enum PCType { NONE, LOR, HO };
+   PCType pc_choice;
+   if (!strcmp(pc, "ho")) { pc_choice = HO; }
+   else if (!strcmp(pc, "lor")) { pc_choice = LOR; }
+   else if (!strcmp(pc, "none")) { pc_choice = NONE; }
+   else
+   {
+      mfem_error("Invalid Preconditioner specified");
+      return 3;
+   }
+
+   // See class BasisType in fem/fe_coll.hpp for available basis types
+   int basis = BasisType::GetType(basis_type[0]);
+   cout << "Using " << BasisType::Name(basis) << " basis ..." << endl;
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
@@ -115,7 +140,7 @@ int main(int argc, char *argv[])
          cout << "The given mesh does not match the optimized 'geom' parameter.\n"
               << "Recompile with suitable 'geom' value." << endl;
          delete mesh;
-         return 3;
+         return 4;
       }
       else if (!mesh_t::MatchesNodes(*mesh))
       {
@@ -137,6 +162,11 @@ int main(int argc, char *argv[])
          mesh->UniformRefinement();
       }
    }
+   if (mesh->MeshGenerator() & 1) // simplex mesh
+   {
+      MFEM_VERIFY(pc_choice != LOR, "triangle and tet meshes do not support"
+                  " the LOR preconditioner yet");
+   }
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -144,7 +174,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec;
    if (order > 0)
    {
-      fec = new H1_FECollection(order, dim);
+      fec = new H1_FECollection(order, dim, basis);
    }
    else if (mesh->GetNodes())
    {
@@ -153,11 +183,25 @@ int main(int argc, char *argv[])
    }
    else
    {
-      fec = new H1_FECollection(order = 1, dim);
+      fec = new H1_FECollection(order = 1, dim, basis);
    }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
+
+   // Create the LOR mesh and finite element space. In the settings of this
+   // example, we can transfer between HO and LOR with the identity operator.
+   Mesh *mesh_lor = NULL;
+   FiniteElementCollection *fec_lor = NULL;
+   FiniteElementSpace *fespace_lor = NULL;
+   if (pc_choice == LOR)
+   {
+      int basis_lor = basis;
+      if (basis == BasisType::Positive) { basis_lor=BasisType::ClosedUniform; }
+      mesh_lor = new Mesh(mesh, order, basis_lor);
+      fec_lor = new H1_FECollection(1, dim);
+      fespace_lor = new FiniteElementSpace(mesh_lor, fec_lor);
+   }
 
    // 6. Check if the optimized version matches the given space
    if (perf && !sol_fes_t::Matches(*fespace))
@@ -167,7 +211,7 @@ int main(int argc, char *argv[])
       delete fespace;
       delete fec;
       delete mesh;
-      return 4;
+      return 5;
    }
 
    // 7. Determine the list of true (i.e. conforming) essential boundary dofs.
@@ -198,19 +242,32 @@ int main(int argc, char *argv[])
 
    // 10. Set up the bilinear form a(.,.) on the finite element space that will
    //     hold the matrix corresponding to the Laplacian operator -Delta.
+   //     Optionally setup a form to be assembled for preconditioning (a_pc).
    BilinearForm *a = new BilinearForm(fespace);
+   BilinearForm *a_pc = NULL;
+   if (pc_choice == LOR) { a_pc = new BilinearForm(fespace_lor); }
+   if (pc_choice == HO)  { a_pc = new BilinearForm(fespace); }
 
    // 11. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
    //     conditions, applying conforming constraints for non-conforming AMR,
    //     static condensation, etc.
-   if (static_cond) { a->EnableStaticCondensation(); }
+   if (static_cond)
+   {
+      a->EnableStaticCondensation();
+      MFEM_VERIFY(pc_choice != LOR,
+                  "cannot use LOR preconditioner with static condensation");
+   }
 
-   cout << "Assembling the matrix ..." << flush;
+   cout << "Assembling the bilinear form ..." << flush;
    tic_toc.Clear();
    tic_toc.Start();
    // Pre-allocate sparsity assuming dense element matrices
    a->UsePrecomputedSparsity();
+
+   HPCBilinearForm *a_hpc = NULL;
+   Operator *a_oper = NULL;
+
    if (!perf)
    {
       // Standard assembly using a diffusion domain integrator
@@ -219,34 +276,89 @@ int main(int argc, char *argv[])
    }
    else
    {
-      // High-performance assembly using the templated operator type
-      oper_t a_oper(integ_t(coeff_t(1.0)), *fespace);
-      a_oper.AssembleBilinearForm(*a);
+      // High-performance assembly/evaluation using the templated operator type
+      a_hpc = new HPCBilinearForm(integ_t(coeff_t(1.0)), *fespace);
+      if (matrix_free)
+      {
+         a_hpc->Assemble(); // partial assembly
+      }
+      else
+      {
+         a_hpc->AssembleBilinearForm(*a); // full matrix assembly
+      }
    }
    tic_toc.Stop();
    cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
+   // 12. Solve the system A X = B with CG. In the standard case, use a simple
+   //     symmetric Gauss-Seidel preconditioner.
+
+   // Setup the operator matrix (if applicable)
    SparseMatrix A;
    Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   if (perf && matrix_free)
+   {
+      a_hpc->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
+      cout << "Size of linear system: " << a_hpc->Height() << endl;
+   }
+   else
+   {
+      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+      cout << "Size of linear system: " << A.Height() << endl;
+      a_oper = &A;
+   }
 
-   cout << "Size of linear system: " << A.Height() << endl;
+   // Setup the matrix used for preconditioning
+   cout << "Assembling the preconditioning matrix ..." << flush;
+   tic_toc.Clear();
+   tic_toc.Start();
 
-#ifndef MFEM_USE_SUITESPARSE
-   // 12. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-   //     solve the system A X = B with PCG.
-   GSSmoother M(A);
-   PCG(A, M, B, X, 1, 500, 1e-12, 0.0);
-#else
-   // 12. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-   UMFPackSolver umf_solver;
-   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   umf_solver.SetOperator(A);
-   umf_solver.Mult(B, X);
-#endif
+   SparseMatrix A_pc;
+   if (pc_choice == LOR)
+   {
+      // TODO: assemble the LOR matrix using the performance code
+      a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
+      a_pc->UsePrecomputedSparsity();
+      a_pc->Assemble();
+      a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
+   }
+   else if (pc_choice == HO)
+   {
+      if (!matrix_free)
+      {
+         A_pc.MakeRef(A); // matrix already assembled, reuse it
+      }
+      else
+      {
+         a_pc->UsePrecomputedSparsity();
+         a_hpc->AssembleBilinearForm(*a_pc);
+         a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
+      }
+   }
+
+   tic_toc.Stop();
+   cout << " done, " << tic_toc.RealTime() << "s." << endl;
+
+   // Solve with CG or PCG, depending if the matrix A_pc is available
+   if (pc_choice != NONE)
+   {
+      GSSmoother M(A_pc);
+      PCG(*a_oper, M, B, X, 1, 500, 1e-12, 0.0);
+   }
+   else
+   {
+      CG(*a_oper, B, X, 1, 500, 1e-12, 0.0);
+   }
 
    // 13. Recover the solution as a finite element grid function.
-   a->RecoverFEMSolution(X, *b, x);
+   if (perf && matrix_free)
+   {
+      a_hpc->RecoverFEMSolution(X, *b, x);
+   }
+   else
+   {
+      a->RecoverFEMSolution(X, *b, x);
+   }
 
    // 14. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -269,8 +381,14 @@ int main(int argc, char *argv[])
 
    // 16. Free the used memory.
    delete a;
+   delete a_hpc;
+   if (a_oper != &A) { delete a_oper; }
+   delete a_pc;
    delete b;
    delete fespace;
+   delete fespace_lor;
+   delete fec_lor;
+   delete mesh_lor;
    if (order > 0) { delete fec; }
    delete mesh;
 

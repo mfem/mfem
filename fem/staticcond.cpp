@@ -35,7 +35,8 @@ StaticCondensation::StaticCondensation(FiniteElementSpace *fespace)
                                           ordering);
       tr_fes = tr_pfes;
    }
-   pS = pS_e = NULL;
+   pS.SetType(Operator::HYPRE_PARCSR);
+   pS_e.SetType(Operator::HYPRE_PARCSR);
 #endif
    S = S_e = NULL;
    symm = false;
@@ -104,8 +105,7 @@ StaticCondensation::StaticCondensation(FiniteElementSpace *fespace)
 StaticCondensation::~StaticCondensation()
 {
 #ifdef MFEM_USE_MPI
-   delete pS_e;
-   delete pS;
+   // pS, pS_e are automatically destroyed
 #endif
    delete S_e;
    delete S;
@@ -234,9 +234,9 @@ void StaticCondensation::AssembleBdrMatrix(int el, const DenseMatrix &elmat)
 
 void StaticCondensation::Finalize()
 {
+   const int skip_zeros = 0;
    if (!Parallel())
    {
-      const int skip_zeros = 0;
       S->Finalize(skip_zeros);
       if (S_e) { S_e->Finalize(skip_zeros); }
       const SparseMatrix *cP = tr_fes->GetConformingProlongation();
@@ -259,23 +259,25 @@ void StaticCondensation::Finalize()
    else // parallel
    {
 #ifdef MFEM_USE_MPI
-      if (!S) { return; }  // already finalized
-      S->Finalize();
-      if (S_e) { S_e->Finalize(); }
-      HypreParMatrix *dS =
-         new HypreParMatrix(tr_pfes->GetComm(), tr_pfes->GlobalVSize(),
-                            tr_pfes->GetDofOffsets(), S);
-      pS = RAP(dS, tr_pfes->Dof_TrueDof_Matrix());
-      delete dS;
+      if (!S) { return; } // already finalized
+      S->Finalize(skip_zeros);
+      if (S_e) { S_e->Finalize(skip_zeros); }
+      OperatorHandle dS(pS.Type()), pP(pS.Type());
+      dS.MakeSquareBlockDiag(tr_pfes->GetComm(), tr_pfes->GlobalVSize(),
+                             tr_pfes->GetDofOffsets(), S);
+      // TODO - construct Dof_TrueDof_Matrix directly in the pS format
+      pP.ConvertFrom(tr_pfes->Dof_TrueDof_Matrix());
+      pS.MakePtAP(dS, pP);
+      dS.Clear();
       delete S;
       S = NULL;
       if (S_e)
       {
-         HypreParMatrix *dS_e =
-            new HypreParMatrix(tr_pfes->GetComm(), tr_pfes->GlobalVSize(),
-                               tr_pfes->GetDofOffsets(), S_e);
-         pS_e = RAP(dS_e, tr_pfes->Dof_TrueDof_Matrix());
-         delete dS_e;
+         OperatorHandle dS_e(pS_e.Type());
+         dS_e.MakeSquareBlockDiag(tr_pfes->GetComm(), tr_pfes->GlobalVSize(),
+                                  tr_pfes->GetDofOffsets(), S_e);
+         pS_e.MakePtAP(dS_e, pP);
+         dS_e.Clear();
          delete S_e;
          S_e = NULL;
       }
@@ -300,8 +302,8 @@ void StaticCondensation::EliminateReducedTrueDofs(
    else // parallel and finalized
    {
 #ifdef MFEM_USE_MPI
-      MFEM_ASSERT(pS_e == NULL, "essential b.c. already eliminated");
-      pS_e = pS->EliminateRowsCols(ess_rtdof_list);
+      MFEM_ASSERT(pS_e.Ptr() == NULL, "essential b.c. already eliminated");
+      pS_e.EliminateRowsCols(pS, ess_rtdof_list);
 #endif
    }
 }
@@ -409,6 +411,29 @@ void StaticCondensation::ReduceSolution(const Vector &sol, Vector &sc_sol) const
    {
       sc_sol.SetSize(tr_R->Height());
       tr_R->Mult(sol_r, sc_sol);
+   }
+}
+
+void StaticCondensation::ReduceSystem(Vector &x, Vector &b, Vector &X,
+                                      Vector &B, int copy_interior) const
+{
+   ReduceRHS(b, B);
+   ReduceSolution(x, X);
+   if (!Parallel())
+   {
+      S_e->AddMult(X, B, -1.);
+      S->PartMult(ess_rtdof_list, X, B);
+   }
+   else
+   {
+#ifdef MFEM_USE_MPI
+      MFEM_ASSERT(pS.Type() == pS_e.Type(), "type id mismatch");
+      pS.EliminateBC(pS_e, ess_rtdof_list, X, B);
+#endif
+   }
+   if (!copy_interior)
+   {
+      X.SetSubVectorComplement(ess_rtdof_list, 0.0);
    }
 }
 

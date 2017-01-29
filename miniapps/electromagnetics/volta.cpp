@@ -127,7 +127,8 @@ int main(int argc, char *argv[])
    args.AddOption(&parallel_ref_levels, "-rp", "--parallel-ref-levels",
                   "Number of parallel refinement levels.");
    args.AddOption(&e_uniform_, "-uebc", "--uniform-e-bc",
-                  "Specify if the three components of the constant electric field");
+                  "Specify if the three components of the constant "
+                  "electric field");
    args.AddOption(&pw_eps_, "-pwe", "--piecewise-eps",
                   "Piecewise values of Permittivity");
    args.AddOption(&ds_params_, "-ds", "--dielectric-sphere-params",
@@ -135,7 +136,8 @@ int main(int argc, char *argv[])
    args.AddOption(&cs_params_, "-cs", "--charged-sphere-params",
                   "Center, Radius, and Total Charge of Charged Sphere");
    args.AddOption(&vp_params_, "-vp", "--voltaic-pile-params",
-                  "Axis End Points, Radius, and Polarization of Cylindrical Voltaic Pile");
+                  "Axis End Points, Radius, and "
+                  "Polarization of Cylindrical Voltaic Pile");
    args.AddOption(&dbcs, "-dbcs", "--dirichlet-bc-surf",
                   "Dirichlet Boundary Condition Surfaces");
    args.AddOption(&dbcv, "-dbcv", "--dirichlet-bc-vals",
@@ -310,6 +312,10 @@ int main(int argc, char *argv[])
          }
          break;
       }
+      if (it == maxit)
+      {
+         break;
+      }
 
       // Wait for user input. Ask every 10th iteration.
       char c = 'c';
@@ -344,7 +350,7 @@ int main(int argc, char *argv[])
       // Update the electrostatic solver to reflect the new state of the mesh.
       Volta.Update();
 
-      if (pmesh.Nonconforming())
+      if (pmesh.Nonconforming() && mpi.WorldSize() > 1)
       {
          if (mpi.Root()) { cout << "Rebalancing ..." << endl; }
          pmesh.Rebalance();
@@ -425,10 +431,12 @@ double charged_sphere(const Vector &x)
       switch ( x.Size() )
       {
          case 2:
-            rho = cs_params_(x.Size()+1)/(M_PI*pow(cs_params_(x.Size()),2));
+            rho = cs_params_(x.Size()+1) /
+                  (M_PI * pow(cs_params_(x.Size()), 2));
             break;
          case 3:
-            rho = 0.75*cs_params_(x.Size()+1)/(M_PI*pow(cs_params_(x.Size()),3));
+            rho = 0.75 * cs_params_(x.Size()+1) /
+                  (M_PI * pow(cs_params_(x.Size()), 3));
             break;
          default:
             rho = 0.0;
@@ -437,7 +445,7 @@ double charged_sphere(const Vector &x)
 
    for (int i=0; i<x.Size(); i++)
    {
-      r2 += (x(i)-cs_params_(i))*(x(i)-cs_params_(i));
+      r2 += (x(i) - cs_params_(i)) * (x(i) - cs_params_(i));
    }
 
    if ( sqrt(r2) <= cs_params_(x.Size()) )
@@ -473,19 +481,19 @@ void voltaic_pile(const Vector &x, Vector &p)
       return;
    }
 
-   double  r = vp_params_[2*x.Size()];
-   double xa = xu*a;
+   double  r = vp_params_[2 * x.Size()];
+   double xa = xu * a;
 
    if ( h > 0.0 )
    {
-      xu.Add(-xa/(h*h),a);
+      xu.Add(-xa / (h * h), a);
    }
 
    double xp = xu.Norml2();
 
    if ( xa >= 0.0 && xa <= h*h && xp <= r )
    {
-      p.Add(vp_params_[2*x.Size()+1]/h,a);
+      p.Add(vp_params_[2 * x.Size() + 1] / h, a);
    }
 }
 

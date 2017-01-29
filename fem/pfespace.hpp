@@ -68,10 +68,10 @@ private:
    /// The (block-diagonal) matrix R (restriction of dof to true dof)
    SparseMatrix *R;
 
-   ParNURBSExtension *pNURBSext()
+   ParNURBSExtension *pNURBSext() const
    { return dynamic_cast<ParNURBSExtension *>(NURBSext); }
 
-   GroupTopology &GetGroupTopo()
+   GroupTopology &GetGroupTopo() const
    { return (NURBSext) ? pNURBSext()->gtopo : pmesh->gtopo; }
 
    void Construct();
@@ -120,6 +120,9 @@ private:
 
    void GetDofs(int type, int index, Array<int>& dofs);
    void ReorderFaceDofs(Array<int> &dofs, int orient);
+
+   /// Build the P and R matrices.
+   void Build_Dof_TrueDof_Matrix();
 
    // Used when the ParMesh is non-conforming, i.e. pmesh->pncmesh != NULL.
    // Constructs the matrices P and R. Determines ltdof_size. Calls
@@ -183,8 +186,12 @@ public:
        including the dofs for the edges and the vertices of the face. */
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
 
+   void GetSharedEdgeDofs(int group, int ei, Array<int> &dofs) const;
+   void GetSharedFaceDofs(int group, int fi, Array<int> &dofs) const;
+
    /// The true dof-to-dof interpolation matrix
-   HypreParMatrix *Dof_TrueDof_Matrix();
+   HypreParMatrix *Dof_TrueDof_Matrix()
+   { if (!P) { Build_Dof_TrueDof_Matrix(); } return P; }
 
    /** @brief For a non-conforming mesh, construct and return the interpolation
        matrix from the partially conforming true dofs to the local dofs. The
@@ -231,9 +238,11 @@ public:
    HYPRE_Int GetMyDofOffset() const;
    HYPRE_Int GetMyTDofOffset() const;
 
+   virtual const Operator *GetProlongationMatrix()
+   { return Dof_TrueDof_Matrix(); }
    /// Get the R matrix which restricts a local dof vector to true dof vector.
    virtual const SparseMatrix *GetRestrictionMatrix()
-   { if (!R) { Dof_TrueDof_Matrix(); } return R; }
+   { Dof_TrueDof_Matrix(); return R; }
 
    // Face-neighbor functions
    void ExchangeFaceNbrData();

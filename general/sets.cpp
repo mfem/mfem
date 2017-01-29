@@ -100,7 +100,7 @@ int ListOfIntegerSets::Lookup(IntegerSet &s)
          return i;
       }
 
-   mfem_error("ListOfIntegerSets::Lookup ()");
+   mfem_error("ListOfIntegerSets::Lookup (), integer set not found.");
    return -1;
 }
 

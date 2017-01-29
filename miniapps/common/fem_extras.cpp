@@ -56,6 +56,43 @@ RT_FESpace::~RT_FESpace()
    delete FEC_;
 }
 
+void VisualizeField(socketstream &sock, const char *vishost, int visport,
+                    GridFunction &gf, const char *title,
+                    int x, int y, int w, int h, bool vec)
+{
+   Mesh &mesh = *gf.FESpace()->GetMesh();
+
+   bool newly_opened = false;
+   int connection_failed;
+
+   do
+   {
+      if (!sock.is_open() || !sock)
+      {
+         sock.open(vishost, visport);
+         sock.precision(8);
+         newly_opened = true;
+      }
+      sock << "solution\n";
+
+      mesh.Print(sock);
+      gf.Save(sock);
+
+      if (newly_opened)
+      {
+         sock << "window_title '" << title << "'\n"
+              << "window_geometry "
+              << x << " " << y << " " << w << " " << h << "\n"
+              << "keys maaAc";
+         if ( vec ) { sock << "vvv"; }
+         sock << endl;
+      }
+
+      connection_failed = !sock && !newly_opened;
+   }
+   while (connection_failed);
+}
+
 } // namespace miniapps
 
 } // namespace mfem

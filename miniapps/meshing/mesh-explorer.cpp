@@ -54,12 +54,11 @@ Mesh *read_par_mesh(int np, const char *mesh_prefix)
    Array<Mesh *> mesh_array;
 
    mesh_array.SetSize(np);
-   ifstream meshin;
    for (int p = 0; p < np; p++)
    {
       ostringstream fname;
       fname << mesh_prefix << '.' << setfill('0') << setw(6) << p;
-      meshin.open(fname.str().c_str());
+      ifgzstream meshin(fname.str().c_str());
       if (!meshin)
       {
          cerr << "Can not open mesh file: " << fname.str().c_str()
@@ -83,7 +82,6 @@ Mesh *read_par_mesh(int np, const char *mesh_prefix)
             mesh_array[p]->GetBdrElement(i)->SetAttribute(p+1);
          }
       }
-      meshin.close();
    }
    mesh = new Mesh(mesh_array, np);
 
@@ -207,7 +205,34 @@ int main (int argc, char *argv[])
 
       if (mk == 'r')
       {
-         mesh->UniformRefinement();
+         cout <<
+              "Choose type of refinement:\n"
+              "s) standard refinement with Mesh::UniformRefinement()\n"
+              "u) uniform refinement with a factor\n"
+              "g) non-uniform refinement (Gauss-Lobatto) with a factor\n"
+              "--> " << flush;
+         char sk;
+         cin >> sk;
+         switch (sk)
+         {
+            case 's':
+               mesh->UniformRefinement();
+               break;
+            case 'u':
+            case 'g':
+            {
+               cout << "enter refinement factor --> " << flush;
+               int ref_factor;
+               cin >> ref_factor;
+               if (ref_factor <= 1 || ref_factor > 32) { break; }
+               int ref_type = (sk == 'u') ? BasisType::ClosedUniform :
+                              BasisType::GaussLobatto;
+               Mesh *rmesh = new Mesh(mesh, ref_factor, ref_type);
+               delete mesh;
+               mesh = rmesh;
+               break;
+            }
+         }
          print_char = 1;
       }
 
@@ -396,8 +421,8 @@ int main (int argc, char *argv[])
          if (mk == 'e')
          {
             Array<int> coloring;
-            srandom(time(0));
-            double a = double(random()) / (double(RAND_MAX) + 1.);
+            srand(time(0));
+            double a = double(rand()) / (double(RAND_MAX) + 1.);
             int el0 = (int)floor(a * mesh->GetNE());
             cout << "Generating coloring starting with element " << el0+1
                  << " / " << mesh->GetNE() << endl;
@@ -628,8 +653,10 @@ int main (int argc, char *argv[])
             sol_sock << flush;
          }
          else
+         {
             cout << "Unable to connect to "
                  << vishost << ':' << visport << endl;
+         }
          delete attr_fespace;
       }
 
@@ -637,6 +664,8 @@ int main (int argc, char *argv[])
       {
          const char mesh_file[] = "mesh-explorer.mesh";
          ofstream omesh(mesh_file);
+         // Save gzip-ed mesh, requires MFEM_USE_GZSTREAM = YES
+         // ofgzstream omesh(mesh_file, "zwb9");
          omesh.precision(14);
          mesh->Print(omesh);
          cout << "New mesh file: " << mesh_file << endl;

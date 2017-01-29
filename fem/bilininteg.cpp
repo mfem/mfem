@@ -126,6 +126,240 @@ SumIntegrator::~SumIntegrator()
    }
 }
 
+void MixedScalarIntegrator::AssembleElementMatrix2(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe,
+   ElementTransformation &Trans, DenseMatrix &elmat)
+{
+   MFEM_ASSERT(this->VerifyFiniteElementTypes(trial_fe, test_fe),
+               this->FiniteElementTypeFailureMessage());
+
+   int trial_nd = trial_fe.GetDof(), test_nd = test_fe.GetDof(), i;
+   bool same_shapes = same_calc_shape && (&trial_fe == &test_fe);
+
+#ifdef MFEM_THREAD_SAFE
+   Vector test_shape(test_nd);
+   Vector trial_shape;
+#else
+   test_shape.SetSize(test_nd);
+#endif
+   if (same_shapes)
+   {
+      trial_shape.NewDataAndSize(test_shape.GetData(), trial_nd);
+   }
+   else
+   {
+      trial_shape.SetSize(trial_nd);
+   }
+
+   elmat.SetSize(test_nd, trial_nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int ir_order = this->GetIntegrationOrder(trial_fe, test_fe, Trans);
+      ir = &IntRules.Get(trial_fe.GetGeomType(), ir_order);
+   }
+
+   elmat = 0.0;
+   for (i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Trans.SetIntPoint(&ip);
+
+      this->CalcTestShape(test_fe, Trans, test_shape);
+      this->CalcTrialShape(trial_fe, Trans, trial_shape);
+
+      double w = Trans.Weight() * ip.weight;
+
+      if (Q)
+      {
+         w *= Q->Eval(Trans, ip);
+      }
+      AddMult_a_VWt(w, test_shape, trial_shape, elmat);
+   }
+#ifndef MFEM_THREAD_SAFE
+   if (same_shapes)
+   {
+      trial_shape.SetDataAndSize(NULL, 0);
+   }
+#endif
+}
+
+void MixedVectorIntegrator::AssembleElementMatrix2(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe,
+   ElementTransformation &Trans, DenseMatrix &elmat)
+{
+   MFEM_ASSERT(this->VerifyFiniteElementTypes(trial_fe, test_fe),
+               this->FiniteElementTypeFailureMessage());
+
+   int trial_nd = trial_fe.GetDof(), test_nd = test_fe.GetDof(), i;
+   int spaceDim = Trans.GetSpaceDim();
+   bool same_shapes = same_calc_shape && (&trial_fe == &test_fe);
+
+#ifdef MFEM_THREAD_SAFE
+   Vector V(VQ ? VQ->GetVDim() : 0);
+   Vector D(DQ ? DQ->GetVDim() : 0);
+   DenseMatrix M(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
+   DenseMatrix test_shape(test_nd, spaceDim);
+   DenseMatrix trial_shape;
+   DenseMatrix test_shape_tmp(test_nd, spaceDim);
+#else
+   V.SetSize(VQ ? VQ->GetVDim() : 0);
+   D.SetSize(DQ ? DQ->GetVDim() : 0);
+   M.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
+   test_shape.SetSize(test_nd, spaceDim);
+   test_shape_tmp.SetSize(test_nd, spaceDim);
+#endif
+   if (same_shapes)
+   {
+      trial_shape.Reset(test_shape.Data(), trial_nd, spaceDim);
+   }
+   else
+   {
+      trial_shape.SetSize(trial_nd, spaceDim);
+   }
+
+   elmat.SetSize(test_nd, trial_nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int ir_order = this->GetIntegrationOrder(trial_fe, test_fe, Trans);
+      ir = &IntRules.Get(trial_fe.GetGeomType(), ir_order);
+   }
+
+   elmat = 0.0;
+   for (i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Trans.SetIntPoint(&ip);
+
+      this->CalcTestShape(test_fe, Trans, test_shape);
+      if (!same_shapes)
+      {
+         this->CalcTrialShape(trial_fe, Trans, trial_shape);
+      }
+
+      double w = Trans.Weight() * ip.weight;
+
+      if (MQ)
+      {
+         MQ->Eval(M, Trans, ip);
+         M *= w;
+         Mult(test_shape, M, test_shape_tmp);
+         AddMultABt(test_shape_tmp, trial_shape, elmat);
+      }
+      else if (DQ)
+      {
+         DQ->Eval(D, Trans, ip);
+         D *= w;
+         AddMultADBt(test_shape, D, trial_shape, elmat);
+      }
+      else if (VQ)
+      {
+         VQ->Eval(V, Trans, ip);
+         V *= w;
+         for (int j=0; j<test_nd; j++)
+         {
+            test_shape_tmp(j,0) = test_shape(j,1) * V(2) -
+                                  test_shape(j,2) * V(1);
+            test_shape_tmp(j,1) = test_shape(j,2) * V(0) -
+                                  test_shape(j,0) * V(2);
+            test_shape_tmp(j,2) = test_shape(j,0) * V(1) -
+                                  test_shape(j,1) * V(0);
+         }
+         AddMultABt(test_shape_tmp, trial_shape, elmat);
+      }
+      else
+      {
+         if (Q)
+         {
+            w *= Q -> Eval (Trans, ip);
+         }
+         if (same_shapes)
+         {
+            AddMult_a_AAt (w, test_shape, elmat);
+         }
+         else
+         {
+            AddMult_a_ABt (w, test_shape, trial_shape, elmat);
+         }
+      }
+   }
+#ifndef MFEM_THREAD_SAFE
+   if (same_shapes)
+   {
+      trial_shape.ClearExternalData();
+   }
+#endif
+}
+
+void MixedScalarVectorIntegrator::AssembleElementMatrix2(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe,
+   ElementTransformation &Trans, DenseMatrix &elmat)
+{
+   MFEM_ASSERT(this->VerifyFiniteElementTypes(trial_fe, test_fe),
+               this->FiniteElementTypeFailureMessage());
+
+   const FiniteElement * vec_fe = transpose?&trial_fe:&test_fe;
+   const FiniteElement * sca_fe = transpose?&test_fe:&trial_fe;
+
+   int trial_nd = trial_fe.GetDof(), test_nd = test_fe.GetDof(), i;
+   int sca_nd = sca_fe->GetDof();
+   int vec_nd = vec_fe->GetDof();
+   int spaceDim = Trans.GetSpaceDim();
+   double vtmp;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector V(VQ ? VQ->GetVDim() : 0);
+   DenseMatrix vshape(vec_nd, spaceDim);
+   Vector      shape(sca_nd);
+   Vector      vshape_tmp(vec_nd);
+#else
+   V.SetSize(VQ ? VQ->GetVDim() : 0);
+   vshape.SetSize(vec_nd, spaceDim);
+   shape.SetSize(sca_nd);
+   vshape_tmp.SetSize(vec_nd);
+#endif
+
+   Vector V_test(transpose?shape.GetData():vshape_tmp.GetData(),test_nd);
+   Vector W_trial(transpose?vshape_tmp.GetData():shape.GetData(),trial_nd);
+
+   elmat.SetSize(test_nd, trial_nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int ir_order = this->GetIntegrationOrder(trial_fe, test_fe, Trans);
+      ir = &IntRules.Get(trial_fe.GetGeomType(), ir_order);
+   }
+
+   elmat = 0.0;
+   for (i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Trans.SetIntPoint(&ip);
+
+      this->CalcShape(*sca_fe, Trans, shape);
+      this->CalcVShape(*vec_fe, Trans, vshape);
+
+      double w = Trans.Weight() * ip.weight;
+
+      VQ->Eval(V, Trans, ip);
+      V *= w;
+
+      if ( vec_fe->GetDim() == 2 && cross_2d )
+      {
+         vtmp = V[0];
+         V[0] = -V[1];
+         V[1] = vtmp;
+      }
+
+      vshape.Mult(V,vshape_tmp);
+
+      AddMultVWt(V_test, W_trial, elmat);
+   }
+}
 
 void DiffusionIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,
@@ -177,12 +411,11 @@ void DiffusionIntegrator::AssembleElementMatrix
       el.CalcDShape(ip, dshape);
 
       Trans.SetIntPoint(&ip);
-      // Compute invdfdx = / adj(J),         if J is square
-      //                   \ adj(J^t.J).J^t, otherwise
-      CalcAdjugate(Trans.Jacobian(), invdfdx);
       w = Trans.Weight();
       w = ip.weight / (square ? w : w*w*w);
-      Mult(dshape, invdfdx, dshapedxt);
+      // AdjugateJacobian = / adj(J),         if J is square
+      //                    \ adj(J^t.J).J^t, otherwise
+      Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
       if (!MQ)
       {
          if (Q)
@@ -915,22 +1148,122 @@ void VectorFEDivergenceIntegrator::AssembleElementMatrix2(
    }
 }
 
-void VectorFECurlIntegrator::AssembleElementMatrix2(
+void VectorFEWeakDivergenceIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe, const FiniteElement &test_fe,
    ElementTransformation &Trans, DenseMatrix &elmat)
 {
    int trial_nd = trial_fe.GetDof(), test_nd = test_fe.GetDof(), i;
    int dim = trial_fe.GetDim();
 
+   MFEM_ASSERT(test_fe.GetRangeType() == mfem::FiniteElement::SCALAR &&
+               test_fe.GetMapType()   == mfem::FiniteElement::VALUE &&
+               trial_fe.GetMapType()  == mfem::FiniteElement::H_CURL,
+               "Trial space must be H(Curl) and test space must be H_1");
+
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix curlshapeTrial(trial_nd, dim);
-   DenseMatrix curlshapeTrial_dFT(trial_nd, dim);
-   DenseMatrix vshapeTest(test_nd, dim);
+   DenseMatrix dshape(test_nd, dim);
+   DenseMatrix dshapedxt(test_nd, dim);
+   DenseMatrix vshape(trial_nd, dim);
+   DenseMatrix invdfdx(dim);
 #else
-   curlshapeTrial.SetSize(trial_nd, dim);
-   curlshapeTrial_dFT.SetSize(trial_nd, dim);
-   vshapeTest.SetSize(test_nd, dim);
+   dshape.SetSize(test_nd, dim);
+   dshapedxt.SetSize(test_nd, dim);
+   vshape.SetSize(trial_nd, dim);
+   invdfdx.SetSize(dim);
 #endif
+
+   elmat.SetSize(test_nd, trial_nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // The integrand on the reference element is:
+      //    -( Q/det(J) ) u_hat^T adj(J) adj(J)^T grad_hat(v_hat).
+      //
+      // For Trans in (P_k)^d, v_hat in P_l, u_hat in ND_m, and dim=sdim=d>=1
+      // - J_{ij} is in P_{k-1}, so adj(J)_{ij} is in P_{(d-1)*(k-1)}
+      // - so adj(J)^T grad_hat(v_hat) is in (P_{(d-1)*(k-1)+(l-1)})^d
+      // - u_hat is in (P_m)^d
+      // - adj(J)^T u_hat is in (P_{(d-1)*(k-1)+m})^d
+      // - and u_hat^T adj(J) adj(J)^T grad_hat(v_hat) is in P_n with
+      //   n = 2*(d-1)*(k-1)+(l-1)+m
+      //
+      // For Trans in (Q_k)^d, v_hat in Q_l, u_hat in ND_m, and dim=sdim=d>1
+      // - J_{i*}, J's i-th row, is in ( Q_{k-1,k,k}, Q_{k,k-1,k}, Q_{k,k,k-1} )
+      // - adj(J)_{*j} is in ( Q_{s,s-1,s-1}, Q_{s-1,s,s-1}, Q_{s-1,s-1,s} )
+      //   with s = (d-1)*k
+      // - adj(J)^T grad_hat(v_hat) is in Q_{(d-1)*k+(l-1)}
+      // - u_hat is in ( Q_{m-1,m,m}, Q_{m,m-1,m}, Q_{m,m,m-1} )
+      // - adj(J)^T u_hat is in Q_{(d-1)*k+(m-1)}
+      // - and u_hat^T adj(J) adj(J)^T grad_hat(v_hat) is in Q_n with
+      //   n = 2*(d-1)*k+(l-1)+(m-1)
+      //
+      // In the next formula we use the expressions for n with k=1, which means
+      // that the term Q/det(J) is disregard:
+      int ir_order = (trial_fe.Space() == FunctionSpace::Pk) ?
+                     (trial_fe.GetOrder() + test_fe.GetOrder() - 1) :
+                     (trial_fe.GetOrder() + test_fe.GetOrder() + 2*(dim-2));
+      ir = &IntRules.Get(trial_fe.GetGeomType(), ir_order);
+   }
+
+   elmat = 0.0;
+   for (i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      test_fe.CalcDShape(ip, dshape);
+
+      Trans.SetIntPoint(&ip);
+      CalcAdjugate(Trans.Jacobian(), invdfdx);
+      Mult(dshape, invdfdx, dshapedxt);
+
+      trial_fe.CalcVShape(Trans, vshape);
+
+      double w = ip.weight;
+
+      if (Q)
+      {
+         w *= Q->Eval(Trans, ip);
+      }
+      dshapedxt *= -w;
+
+      AddMultABt(dshapedxt, vshape, elmat);
+   }
+}
+
+void VectorFECurlIntegrator::AssembleElementMatrix2(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe,
+   ElementTransformation &Trans, DenseMatrix &elmat)
+{
+   int trial_nd = trial_fe.GetDof(), test_nd = test_fe.GetDof(), i;
+   int dim = trial_fe.GetDim();
+   int dimc = (dim == 3) ? 3 : 1;
+
+   MFEM_ASSERT(trial_fe.GetMapType() == mfem::FiniteElement::H_CURL ||
+               test_fe.GetMapType() == mfem::FiniteElement::H_CURL,
+               "At least one of the finite elements must be in H(Curl)");
+
+   int curl_nd, vec_nd;
+   if ( trial_fe.GetMapType() == mfem::FiniteElement::H_CURL )
+   {
+      curl_nd = trial_nd;
+      vec_nd  = test_nd;
+   }
+   else
+   {
+      curl_nd = test_nd;
+      vec_nd  = trial_nd;
+   }
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix curlshapeTrial(curl_nd, dimc);
+   DenseMatrix curlshapeTrial_dFT(curl_nd, dimc);
+   DenseMatrix vshapeTest(vec_nd, dimc);
+#else
+   curlshapeTrial.SetSize(curl_nd, dimc);
+   curlshapeTrial_dFT.SetSize(curl_nd, dimc);
+   vshapeTest.SetSize(vec_nd, dimc);
+#endif
+   Vector shapeTest(vshapeTest.GetData(), vec_nd);
 
    elmat.SetSize(test_nd, trial_nd);
 
@@ -947,17 +1280,50 @@ void VectorFECurlIntegrator::AssembleElementMatrix2(
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Trans.SetIntPoint(&ip);
-      trial_fe.CalcCurlShape(ip, curlshapeTrial);
-      MultABt(curlshapeTrial, Trans.Jacobian(), curlshapeTrial_dFT);
-      test_fe.CalcVShape(Trans, vshapeTest);
+      if (dim == 3)
+      {
+         if ( trial_fe.GetMapType() == mfem::FiniteElement::H_CURL )
+         {
+            trial_fe.CalcCurlShape(ip, curlshapeTrial);
+            test_fe.CalcVShape(Trans, vshapeTest);
+         }
+         else
+         {
+            test_fe.CalcCurlShape(ip, curlshapeTrial);
+            trial_fe.CalcVShape(Trans, vshapeTest);
+         }
+         MultABt(curlshapeTrial, Trans.Jacobian(), curlshapeTrial_dFT);
+      }
+      else
+      {
+         if ( trial_fe.GetMapType() == mfem::FiniteElement::H_CURL )
+         {
+            trial_fe.CalcCurlShape(ip, curlshapeTrial_dFT);
+            test_fe.CalcShape(ip, shapeTest);
+         }
+         else
+         {
+            test_fe.CalcCurlShape(ip, curlshapeTrial_dFT);
+            trial_fe.CalcShape(ip, shapeTest);
+         }
+      }
+
       double w = ip.weight;
 
       if (Q)
       {
          w *= Q->Eval(Trans, ip);
       }
+      // Note: shapeTest points to the same data as vshapeTest
       vshapeTest *= w;
-      AddMultABt(vshapeTest, curlshapeTrial_dFT, elmat);
+      if ( trial_fe.GetMapType() == mfem::FiniteElement::H_CURL )
+      {
+         AddMultABt(vshapeTest, curlshapeTrial_dFT, elmat);
+      }
+      else
+      {
+         AddMultABt(curlshapeTrial_dFT, vshapeTest, elmat);
+      }
    }
 }
 
@@ -1731,11 +2097,61 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    }
 }
 
+void VectorDiffusionIntegrator::AssembleElementVector(
+   const FiniteElement &el, ElementTransformation &Tr,
+   const Vector &elfun, Vector &elvect)
+{
+   int dim = el.GetDim(); // assuming vector_dim == reference_dim
+   int dof = el.GetDof();
+   double w;
+
+   Jinv.SetSize(dim);
+   dshape.SetSize(dof, dim);
+   pelmat.SetSize(dim);
+   gshape.SetSize(dim);
+
+   elvect.SetSize(dim*dof);
+   DenseMatrix mat_in(elfun.GetData(), dof, dim);
+   DenseMatrix mat_out(elvect.GetData(), dof, dim);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // integrant is rational function if det(J) is not constant
+      int order = 2 * Tr.OrderGrad(&el); // order of the numerator
+      ir = (el.Space() == FunctionSpace::rQk) ?
+           &RefinedIntRules.Get(el.GetGeomType(), order) :
+           &IntRules.Get(el.GetGeomType(), order);
+   }
+
+   elvect = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint(&ip);
+      CalcAdjugate(Tr.Jacobian(), Jinv);
+      w = ip.weight / Tr.Weight();
+      if (Q)
+      {
+         w *= Q->Eval(Tr, ip);
+      }
+      MultAAt(Jinv, gshape);
+      gshape *= w;
+
+      el.CalcDShape(ip, dshape);
+
+      MultAtB(mat_in, dshape, pelmat);
+      MultABt(pelmat, gshape, Jinv);
+      AddMultABt(dshape, Jinv, mat_out);
+   }
+}
+
 
 void ElasticityIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
 {
-   int dof  = el.GetDof();
+   int dof = el.GetDof();
    int dim = el.GetDim();
    double w, L, M;
 
@@ -2179,6 +2595,229 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       }
    }
 }
+
+
+// static method
+void DGElasticityIntegrator::AssembleBlock(
+   const int dim, const int row_ndofs, const int col_ndofs,
+   const int row_offset, const int col_offset,
+   const double jmatcoef, const Vector &col_nL, const Vector &col_nM,
+   const Vector &row_shape, const Vector &col_shape,
+   const Vector &col_dshape_dnM, const DenseMatrix &col_dshape,
+   DenseMatrix &elmat, DenseMatrix &jmat)
+{
+   for (int jm = 0, j = col_offset; jm < dim; ++jm)
+   {
+      for (int jdof = 0; jdof < col_ndofs; ++jdof, ++j)
+      {
+         const double t2 = col_dshape_dnM(jdof);
+         for (int im = 0, i = row_offset; im < dim; ++im)
+         {
+            const double t1 = col_dshape(jdof, jm) * col_nL(im);
+            const double t3 = col_dshape(jdof, im) * col_nM(jm);
+            const double tt = t1 + ((im == jm) ? t2 : 0.0) + t3;
+            for (int idof = 0; idof < row_ndofs; ++idof, ++i)
+            {
+               elmat(i, j) += row_shape(idof) * tt;
+            }
+         }
+      }
+   }
+
+   if (jmatcoef == 0.0) { return; }
+
+   for (int d = 0; d < dim; ++d)
+   {
+      const int jo = col_offset + d*col_ndofs;
+      const int io = row_offset + d*row_ndofs;
+      for (int jdof = 0, j = jo; jdof < col_ndofs; ++jdof, ++j)
+      {
+         const double sj = jmatcoef * col_shape(jdof);
+         for (int i = max(io,j), idof = i - io; idof < row_ndofs; ++idof, ++i)
+         {
+            jmat(i, j) += row_shape(idof) * sj;
+         }
+      }
+   }
+}
+
+void DGElasticityIntegrator::AssembleFaceMatrix(
+   const FiniteElement &el1, const FiniteElement &el2,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+#ifdef MFEM_THREAD_SAFE
+   // For descriptions of these variables, see the class declaration.
+   Vector shape1, shape2;
+   DenseMatrix dshape1, dshape2;
+   DenseMatrix adjJ;
+   DenseMatrix dshape1_ps, dshape2_ps;
+   Vector nor;
+   Vector nL1, nL2;
+   Vector nM1, nM2;
+   Vector dshape1_dnM, dshape2_dnM;
+   DenseMatrix jmat;
+#endif
+
+   const int dim = el1.GetDim();
+   const int ndofs1 = el1.GetDof();
+   const int ndofs2 = (Trans.Elem2No >= 0) ? el2.GetDof() : 0;
+   const int nvdofs = dim*(ndofs1 + ndofs2);
+
+   // Initially 'elmat' corresponds to the term:
+   //    < { sigma(u) . n }, [v] > =
+   //    < { (lambda div(u) I + mu (grad(u) + grad(u)^T)) . n }, [v] >
+   // But eventually, it's going to be replaced by:
+   //    elmat := -elmat + alpha*elmat^T + jmat
+   elmat.SetSize(nvdofs);
+   elmat = 0.;
+
+   const bool kappa_is_nonzero = (kappa != 0.0);
+   if (kappa_is_nonzero)
+   {
+      jmat.SetSize(nvdofs);
+      jmat = 0.;
+   }
+
+   adjJ.SetSize(dim);
+   shape1.SetSize(ndofs1);
+   dshape1.SetSize(ndofs1, dim);
+   dshape1_ps.SetSize(ndofs1, dim);
+   nor.SetSize(dim);
+   nL1.SetSize(dim);
+   nM1.SetSize(dim);
+   dshape1_dnM.SetSize(ndofs1);
+
+   if (ndofs2)
+   {
+      shape2.SetSize(ndofs2);
+      dshape2.SetSize(ndofs2, dim);
+      dshape2_ps.SetSize(ndofs2, dim);
+      nL2.SetSize(dim);
+      nM2.SetSize(dim);
+      dshape2_dnM.SetSize(ndofs2);
+   }
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // a simple choice for the integration order; is this OK?
+      const int order = 2 * max(el1.GetOrder(), ndofs2 ? el2.GetOrder() : 0);
+      ir = &IntRules.Get(Trans.FaceGeom, order);
+   }
+
+   for (int pind = 0; pind < ir->GetNPoints(); ++pind)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(pind);
+      IntegrationPoint eip1, eip2; // integration point in the reference space
+      Trans.Loc1.Transform(ip, eip1);
+      Trans.Face->SetIntPoint(&ip);
+      Trans.Elem1->SetIntPoint(&eip1);
+
+      el1.CalcShape(eip1, shape1);
+      el1.CalcDShape(eip1, dshape1);
+
+      CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
+      Mult(dshape1, adjJ, dshape1_ps);
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Trans.Face->Jacobian(), nor);
+      }
+
+      double w, wLM;
+      if (ndofs2)
+      {
+         Trans.Loc2.Transform(ip, eip2);
+         Trans.Elem2->SetIntPoint(&eip2);
+         el2.CalcShape(eip2, shape2);
+         el2.CalcDShape(eip2, dshape2);
+         CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
+         Mult(dshape2, adjJ, dshape2_ps);
+
+         w = ip.weight/2;
+         const double w2 = w / Trans.Elem2->Weight();
+         const double wL2 = w2 * lambda->Eval(*Trans.Elem2, eip2);
+         const double wM2 = w2 * mu->Eval(*Trans.Elem2, eip2);
+         nL2.Set(wL2, nor);
+         nM2.Set(wM2, nor);
+         wLM = (wL2 + 2.0*wM2);
+         dshape2_ps.Mult(nM2, dshape2_dnM);
+      }
+      else
+      {
+         w = ip.weight;
+         wLM = 0.0;
+      }
+
+      {
+         const double w1 = w / Trans.Elem1->Weight();
+         const double wL1 = w1 * lambda->Eval(*Trans.Elem1, eip1);
+         const double wM1 = w1 * mu->Eval(*Trans.Elem1, eip1);
+         nL1.Set(wL1, nor);
+         nM1.Set(wM1, nor);
+         wLM += (wL1 + 2.0*wM1);
+         dshape1_ps.Mult(nM1, dshape1_dnM);
+      }
+
+      const double jmatcoef = kappa * (nor*nor) * wLM;
+
+      // (1,1) block
+      AssembleBlock(
+         dim, ndofs1, ndofs1, 0, 0, jmatcoef, nL1, nM1,
+         shape1, shape1, dshape1_dnM, dshape1_ps, elmat, jmat);
+
+      if (ndofs2 == 0) { continue; }
+
+      // In both elmat and jmat, shape2 appears only with a minus sign.
+      shape2.Neg();
+
+      // (1,2) block
+      AssembleBlock(
+         dim, ndofs1, ndofs2, 0, dim*ndofs1, jmatcoef, nL2, nM2,
+         shape1, shape2, dshape2_dnM, dshape2_ps, elmat, jmat);
+      // (2,1) block
+      AssembleBlock(
+         dim, ndofs2, ndofs1, dim*ndofs1, 0, jmatcoef, nL1, nM1,
+         shape2, shape1, dshape1_dnM, dshape1_ps, elmat, jmat);
+      // (2,2) block
+      AssembleBlock(
+         dim, ndofs2, ndofs2, dim*ndofs1, dim*ndofs1, jmatcoef, nL2, nM2,
+         shape2, shape2, dshape2_dnM, dshape2_ps, elmat, jmat);
+   }
+
+   // elmat := -elmat + alpha*elmat^t + jmat
+   if (kappa_is_nonzero)
+   {
+      for (int i = 0; i < nvdofs; ++i)
+      {
+         for (int j = 0; j < i; ++j)
+         {
+            double aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
+            elmat(i,j) = alpha*aji - aij + mij;
+            elmat(j,i) = alpha*aij - aji + mij;
+         }
+         elmat(i,i) = (alpha - 1.)*elmat(i,i) + jmat(i,i);
+      }
+   }
+   else
+   {
+      for (int i = 0; i < nvdofs; ++i)
+      {
+         for (int j = 0; j < i; ++j)
+         {
+            double aij = elmat(i,j), aji = elmat(j,i);
+            elmat(i,j) = alpha*aji - aij;
+            elmat(j,i) = alpha*aij - aji;
+         }
+         elmat(i,i) *= (alpha - 1.);
+      }
+   }
+}
+
 
 void TraceJumpIntegrator::AssembleFaceMatrix(
    const FiniteElement &trial_face_fe, const FiniteElement &test_fe1,

@@ -18,6 +18,8 @@
 #include "intrules.hpp"
 #include "geom.hpp"
 
+#include <map>
+
 namespace mfem
 {
 
@@ -29,9 +31,9 @@ class FunctionSpace
 public:
    enum
    {
-      Pk, // polynomials of order k
-      Qk, // tensor products of polynomials of order k
-      rQk // refined tensor products of polynomials of order k
+      Pk, ///< Polynomials of order k
+      Qk, ///< Tensor products of polynomials of order k
+      rQk ///< Refined tensor products of polynomials of order k
    };
 };
 
@@ -44,47 +46,78 @@ class KnotVector;
 class FiniteElement
 {
 protected:
-   int Dim, GeomType, Dof, Order, FuncSpace, RangeType, MapType;
+   int Dim,      ///< Dimension of reference space
+       GeomType, ///< Geometry::Type of the reference element
+       Dof,      ///< Number of degrees of freedom
+       Order,    ///< Order/degree of the shape functions
+       FuncSpace, RangeType, MapType,
+       DerivType, DerivRangeType, DerivMapType;
    IntegrationRule Nodes;
+#ifndef MFEM_THREAD_SAFE
+   mutable DenseMatrix vshape; // Dof x Dim
+#endif
 
 public:
-   /// Enumeration for RangeType
+   /// Enumeration for RangeType and DerivRangeType
    enum { SCALAR, VECTOR };
 
-   /** Enumeration for MapType: defines how reference functions, uh(xh), are
-       mapped to functions on a general element, u(x):
+   /** @brief Enumeration for MapType: defines how reference functions are
+       mapped to physical space.
 
-       VALUE       u(x) = uh(xh)
-       INTEGRAL    u(x) = (1/w) * uh(xh)
-       H_DIV       u(x) = (J/w) * uh(xh)
-       H_CURL      u(x) = J^{-t} * uh(xh)           (square J)
-       H_CURL      u(x) = J*(J^t*J)^{-1} * uh(xh)   (general J)
+       A reference function, `uh(xh)`, can be mapped to a function, `u(x)`, on a
+       general physical element in following ways:
+
+           VALUE       u(x) = uh(xh)
+           INTEGRAL    u(x) = (1/w) * uh(xh)
+           H_DIV       u(x) = (J/w) * uh(xh)
+           H_CURL      u(x) = J^{-t} * uh(xh)           (square J)
+           H_CURL      u(x) = J*(J^t*J)^{-1} * uh(xh)   (general J)
 
        where
 
-       x = T(xh) is the image of the reference point xh ("x hat"),
-       J = J(xh) is the Jacobian matrix of the transformation T, and
-       w = w(xh) = / det(J),           for square J,
-       .           \ det(J^t*J)^{1/2}, for general J,
-       is the transformation weight factor.
+           x = T(xh) is the image of the reference point xh ("x hat"),
+           J = J(xh) is the Jacobian matrix of the transformation T, and
+           w = w(xh) = / det(J),           for square J,
+                       \ det(J^t*J)^{1/2}, for general J,
+                     is the transformation weight factor.
    */
-   enum { VALUE, INTEGRAL, H_DIV, H_CURL };
+   enum { VALUE,     ///< For scalar fields; preserves point values
+          INTEGRAL,  ///< For scalar fields; preserves volume integrals
+          H_DIV,     /**< For vector fields; preserves surface integrals of the
+                          normal component */
+          H_CURL     /**< For vector fields; preserves line integrals of the
+                          tangential component */
+        };
 
-   /** Construct Finite Element with given
-       (D)im      - space dimension,
-       (G)eomType - geometry type (of type Geometry::Type),
-       (Do)f      - degrees of freedom in the FE space, and
-       (O)rder    - order of the FE space
-       (F)uncSpace- type of space on each element */
+   /** @brief Enumeration for DerivType: defines which derivative method
+       is implemented.
+
+       Each FiniteElement class implements only one type of derivative.  The
+       value returned by GetDerivType() indicates which derivative method is
+       implemented.
+   */
+   enum { NONE, ///< No derivatives implemented
+          GRAD, ///< Implements CalcDShape methods
+          DIV,  ///< Implements CalcDivShape methods
+          CURL  ///< Implements CalcCurlShape methods
+        };
+
+   /** Construct FiniteElement with given
+       @param D    Reference space dimension
+       @param G    Geometry type (of type Geometry::Type)
+       @param Do   Number of degrees of freedom in the FiniteElement
+       @param O    Order/degree of the FiniteElement
+       @param F    FunctionSpace type of the FiniteElement
+    */
    FiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk);
 
-   /// Returns the space dimension for the finite element
+   /// Returns the reference space dimension for the finite element
    int GetDim() const { return Dim; }
 
-   /// Returns the geometry type:
+   /// Returns the Geometry::Type of the reference element
    int GetGeomType() const { return GeomType; }
 
-   /// Returns the degrees of freedom in the FE space
+   /// Returns the number of degrees of freedom in the finite element
    int GetDof() const { return Dof; }
 
    /// Returns the order of the finite element
@@ -95,47 +128,96 @@ public:
 
    int GetRangeType() const { return RangeType; }
 
+   int GetDerivRangeType() const { return DerivRangeType; }
+
    int GetMapType() const { return MapType; }
 
-   /** pure virtual function which evaluates the values of all
-       shape functions at a given point ip and stores
-       them in the vector shape of dimension Dof */
+   int GetDerivType() const { return DerivType; }
+
+   int GetDerivMapType() const { return DerivMapType; }
+
+   /** @brief Evaluate the values of all shape functions of a scalar finite
+       element in reference space at the given point @a ip. */
+   /** The size (#Dof) of the result Vector @a shape must be set in advance. */
    virtual void CalcShape(const IntegrationPoint &ip,
                           Vector &shape) const = 0;
 
-   /** pure virtual function which evaluates the values of all
-       partial derivatives of all shape functions at a given
-       point ip and stores them in the matrix dshape (Dof x Dim)
-       so that each row contains the derivatives of one shape function */
+   /** @brief Evaluate the values of all shape functions of a scalar finite
+       element in physical space at the point described by @a Trans. */
+   /** The size (#Dof) of the result Vector @a shape must be set in advance. */
+   void CalcPhysShape(ElementTransformation &Trans, Vector &shape) const;
+
+   /** @brief Evaluate the gradients of all shape functions of a scalar finite
+       element in reference space at the given point @a ip. */
+   /** Each row of the result DenseMatrix @a dshape contains the derivatives of
+       one shape function. The size (#Dof x #Dim) of @a dshape must be set in
+       advance.  */
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const = 0;
+
+   /** @brief Evaluate the gradients of all shape functions of a scalar finite
+       element in physical space at the point described by @a Trans. */
+   /** Each row of the result DenseMatrix @a dshape contains the derivatives of
+       one shape function. The size (#Dof x SDim) of @a dshape must be set in
+       advance, where SDim >= #Dim is the physical space dimension as described
+       by @a Trans. */
+   void CalcPhysDShape(ElementTransformation &Trans, DenseMatrix &dshape) const;
 
    const IntegrationRule & GetNodes() const { return Nodes; }
 
    // virtual functions for finite elements on vector spaces
 
-   /** This virtual function evaluates the values of all components of
-       all shape functions at the given IntegrationPoint.
-       The result is stored in the DenseMatrix shape (Dof x Dim)
-       so that each row contains the components of one shape function.  */
+   /** @brief Evaluate the values of all shape functions of a *vector* finite
+       element in reference space at the given point @a ip. */
+   /** Each row of the result DenseMatrix @a shape contains the components of
+       one vector shape function. The size (#Dof x #Dim) of @a shape must be set
+       in advance. */
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
+   /** @brief Evaluate the values of all shape functions of a *vector* finite
+       element in physical space at the point described by @a Trans. */
+   /** Each row of the result DenseMatrix @a shape contains the components of
+       one vector shape function. The size (#Dof x SDim) of @a shape must be set
+       in advance, where SDim >= #Dim is the physical space dimension as
+       described by @a Trans. */
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const;
 
-   /** This virtual function evaluates the divergence of all shape
-       functions at the given IntegrationPoint.
-       The result is stored in the Vector divshape (of size Dof).  */
+   /// Equivalent to the CalcVShape() method with the same arguments.
+   void CalcPhysVShape(ElementTransformation &Trans, DenseMatrix &shape) const
+   { CalcVShape(Trans, shape); }
+
+   /** @brief Evaluate the divergence of all shape functions of a *vector*
+       finite element in reference space at the given point @a ip. */
+   /** The size (#Dof) of the result Vector @a divshape must be set in advance.
+    */
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
 
-   /** pure virtual function which evaluates the values of the curl
-       all shape functions at a given point ip and stores them in
-       the matrix curl_shape (Dof x Dim) so that each row contains
-       the curl of one shape function */
+   /** @brief Evaluate the divergence of all shape functions of a *vector*
+       finite element in physical space at the point described by @a Trans. */
+   /** The size (#Dof) of the result Vector @a divshape must be set in advance.
+    */
+   void CalcPhysDivShape(ElementTransformation &Trans, Vector &divshape) const;
+
+   /** @brief Evaluate the curl of all shape functions of a *vector* finite
+       element in reference space at the given point @a ip. */
+   /** Each row of the result DenseMatrix @a curl_shape contains the components
+       of the curl of one vector shape function. The size (#Dof x CDim) of
+       @a curl_shape must be set in advance, where CDim = 3 for #Dim = 3 and
+       CDim = 1 for #Dim = 2. */
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
+
+   /** @brief Evaluate the curl of all shape functions of a *vector* finite
+       element in physical space at the point described by @a Trans. */
+   /** Each row of the result DenseMatrix @a curl_shape contains the components
+       of the curl of one vector shape function. The size (#Dof x CDim) of
+       @a curl_shape must be set in advance, where CDim = 3 for #Dim = 3 and
+       CDim = 1 for #Dim = 2. */
+   void CalcPhysCurlShape(ElementTransformation &Trans,
+                          DenseMatrix &curl_shape) const;
 
    virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
 
@@ -194,9 +276,39 @@ public:
                            DenseMatrix &div) const;
 
    virtual ~FiniteElement () { }
+
+   static int VerifyClosed(int pt_type)
+   {
+      int cp_type = Quadrature1D::CheckClosed(pt_type);
+      MFEM_VERIFY(cp_type != Quadrature1D::Invalid,
+                  "invalid closed point type: " << pt_type);
+      return cp_type;
+   }
+   static int VerifyOpen(int pt_type)
+   {
+      int op_type = Quadrature1D::CheckOpen(pt_type);
+      MFEM_VERIFY(op_type != Quadrature1D::Invalid,
+                  "invalid open point type: " << pt_type);
+      return op_type;
+   }
 };
 
-class NodalFiniteElement : public FiniteElement
+class ScalarFiniteElement : public FiniteElement
+{
+public:
+   ScalarFiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk)
+      : FiniteElement(D, G, Do, O, F)
+   { DerivType = GRAD; DerivRangeType = VECTOR; DerivMapType = H_CURL; }
+
+   void SetMapType(int M)
+   {
+      MFEM_VERIFY(M == VALUE || M == INTEGRAL, "unknown MapType");
+      MapType = M;
+      DerivType = (M == VALUE) ? GRAD : NONE;
+   }
+};
+
+class NodalFiniteElement : public ScalarFiniteElement
 {
 protected:
    void NodalLocalInterpolation (ElementTransformation &Trans,
@@ -212,20 +324,13 @@ protected:
 #endif
 
 public:
-   NodalFiniteElement(int D, int G, int Do, int O,
-                      int F = FunctionSpace::Pk) :
 #ifdef MFEM_THREAD_SAFE
-      FiniteElement(D, G, Do, O, F)
+   NodalFiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk)
+      : ScalarFiniteElement(D, G, Do, O, F) { }
 #else
-      FiniteElement(D, G, Do, O, F), c_shape(Do)
+   NodalFiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk)
+      : ScalarFiniteElement(D, G, Do, O, F), c_shape(Do) { }
 #endif
-   { }
-
-   void SetMapType(int M)
-   {
-      MFEM_VERIFY(M == VALUE || M == INTEGRAL, "unknown MapType");
-      MapType = M;
-   }
 
    virtual void GetLocalInterpolation (ElementTransformation &Trans,
                                        DenseMatrix &I) const
@@ -250,14 +355,30 @@ public:
 };
 
 
-class PositiveFiniteElement : public FiniteElement
+class PositiveFiniteElement : public ScalarFiniteElement
 {
+protected:
+   void PositiveLocalInterpolation(ElementTransformation &Trans,
+                                   DenseMatrix &I,
+                                   const PositiveFiniteElement &fine_fe) const;
+
 public:
-   PositiveFiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk)
-      : FiniteElement(D, G, Do, O, F) { }
+   PositiveFiniteElement(int D, int G, int Do, int O,
+                         int F = FunctionSpace::Pk) :
+      ScalarFiniteElement(D, G, Do, O, F)
+   { }
+
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { PositiveLocalInterpolation(Trans, I, *this); }
+
    using FiniteElement::Project;
+
+   // Low-order monotone "projection" (actually it is not a projection): the
+   // dofs are set to be the Coefficient values at the nodes.
    virtual void Project(Coefficient &coeff,
                         ElementTransformation &Trans, Vector &dofs) const;
+
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const;
 };
@@ -277,8 +398,9 @@ private:
 protected:
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix J, Jinv;
-   mutable DenseMatrix vshape, curlshape, curlshape_J;
+   mutable DenseMatrix curlshape, curlshape_J;
 #endif
+   void SetDerivMembers();
 
    void CalcVShape_RT(ElementTransformation &Trans,
                       DenseMatrix &shape) const;
@@ -299,6 +421,8 @@ protected:
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &grad) const;
 
+   // Compute the curl as a discrete operator from ND FE (fe) to ND FE (this).
+   // The natural FE for the range is RT, so this is an approximation.
    void ProjectCurl_ND(const double *tk, const Array<int> &d2t,
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &curl) const;
@@ -332,10 +456,10 @@ public:
                         int F = FunctionSpace::Pk) :
 #ifdef MFEM_THREAD_SAFE
       FiniteElement(D, G, Do, O, F)
-   { RangeType = VECTOR; MapType = M; }
+   { RangeType = VECTOR; MapType = M; SetDerivMembers(); }
 #else
-      FiniteElement(D, G, Do, O, F), Jinv(D), vshape(Do, D)
-   { RangeType = VECTOR; MapType = M; }
+      FiniteElement(D, G, Do, O, F), Jinv(D)
+   { RangeType = VECTOR; MapType = M; SetDerivMembers(); }
 #endif
 };
 
@@ -472,7 +596,7 @@ public:
                            DenseMatrix &dshape) const;
 };
 
-class QuadPos1DFiniteElement : public FiniteElement
+class QuadPos1DFiniteElement : public PositiveFiniteElement
 {
 public:
    QuadPos1DFiniteElement();
@@ -542,7 +666,7 @@ public:
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
-class BiQuadPos2DFiniteElement : public FiniteElement
+class BiQuadPos2DFiniteElement : public PositiveFiniteElement
 {
 public:
    BiQuadPos2DFiniteElement();
@@ -1221,8 +1345,8 @@ public:
    class Basis
    {
    private:
-      int mode; // 0 - use change of basis, O(p^2) Evals
-      // 1 - use barycentric Lagrangian interpolation, O(p) Evals
+      int mode; /* 0 - use change of basis, O(p^2) Evals
+                   1 - use barycentric Lagrangian interpolation, O(p) Evals */
       DenseMatrixInverse Ai;
       mutable Vector x, w;
 
@@ -1233,8 +1357,8 @@ public:
    };
 
 private:
-   Array<double *> open_pts, closed_pts;
-   Array<Basis *> open_basis, closed_basis;
+   std::map< int, Array<double*>* > points_container;
+   std::map< int, Array<Basis*>* >  bases_container;
 
    static Array2D<int> binom;
 
@@ -1247,16 +1371,41 @@ private:
    static void CalcChebyshev(const int p, const double x, double *u);
    static void CalcChebyshev(const int p, const double x, double *u, double *d);
 
+   QuadratureFunctions1D quad_func;
+
 public:
    Poly_1D() { }
 
+   /** @brief Get a poiner to an array containing the binomial coefficients "p
+       choose k" for k=0,...,p for the given p. */
    static const int *Binom(const int p);
 
-   const double *OpenPoints(const int p);
-   const double *ClosedPoints(const int p);
+   /** @brief Get the coordinates of the points of the given Quadrature1D type.
+       @param p    the polynomial degree; the number of points is `p+1`.
+       @param type the Quadrature1D type.
+       @return a pointer to an array containing the `p+1` coordiantes of the
+               quadrature points. */
+   const double *GetPoints(const int p, const int type);
+   const double *OpenPoints(const int p,
+                            const int type = Quadrature1D::GaussLegendre)
+   { return GetPoints(p, type); }
+   const double *ClosedPoints(const int p,
+                              const int type = Quadrature1D::GaussLobatto)
+   { return GetPoints(p, type); }
 
-   Basis &OpenBasis(const int p);
-   Basis &ClosedBasis(const int p);
+   /** @brief Get a Poly_1D::Basis object of the given degree and Quadrature1D
+       type.
+       @param p    the polynomial degree of the basis.
+       @param type the Quadrature1D type.
+       @return a reference to an object of type Poly_1D::Basis that represents
+       the requested nodal basis. */
+   Basis &GetBasis(const int p, const int type);
+   Basis &OpenBasis(const int p,
+                    const int type = Quadrature1D::GaussLegendre)
+   { return GetBasis(p, type); }
+   Basis &ClosedBasis(const int p,
+                      const int type = Quadrature1D::GaussLobatto)
+   { return GetBasis(p, type); }
 
    // Evaluate the values of a hierarchical 1D basis at point x
    // hierarchical = k-th basis function is degree k polynomial
@@ -1279,9 +1428,6 @@ public:
    static double CalcDelta(const int p, const double x)
    { return pow(x, (double) p); }
 
-   static void UniformPoints(const int p, double *x);
-   static void GaussPoints(const int p, double *x);
-   static void GaussLobattoPoints(const int p, double *x);
    static void ChebyshevPoints(const int p, double *x);
 
    /// Compute the terms in the expansion of the binomial (x + y)^p
@@ -1309,6 +1455,7 @@ extern Poly_1D poly1d;
 class H1_SegmentElement : public NodalFiniteElement
 {
 private:
+   int pt_type;
    Poly_1D::Basis &basis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, dshape_x;
@@ -1316,7 +1463,7 @@ private:
    Array<int> dof_map;
 
 public:
-   H1_SegmentElement(const int p);
+   H1_SegmentElement(const int p, const int type = Quadrature1D::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1328,6 +1475,7 @@ public:
 class H1_QuadrilateralElement : public NodalFiniteElement
 {
 private:
+   int pt_type;
    Poly_1D::Basis &basis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, dshape_x, dshape_y;
@@ -1335,7 +1483,8 @@ private:
    Array<int> dof_map;
 
 public:
-   H1_QuadrilateralElement(const int p);
+   H1_QuadrilateralElement(const int p,
+                           const int type = Quadrature1D::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1347,6 +1496,7 @@ public:
 class H1_HexahedronElement : public NodalFiniteElement
 {
 private:
+   int pt_type;
    Poly_1D::Basis &basis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
@@ -1354,7 +1504,7 @@ private:
    Array<int> dof_map;
 
 public:
-   H1_HexahedronElement(const int p);
+   H1_HexahedronElement(const int p, const int type = Quadrature1D::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1433,7 +1583,7 @@ private:
    DenseMatrixInverse Ti;
 
 public:
-   H1_TriangleElement(const int p);
+   H1_TriangleElement(const int p, const int type = Quadrature1D::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1451,7 +1601,8 @@ private:
    DenseMatrixInverse Ti;
 
 public:
-   H1_TetrahedronElement(const int p);
+   H1_TetrahedronElement(const int p,
+                         const int type = Quadrature1D::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1514,13 +1665,13 @@ class L2_SegmentElement : public NodalFiniteElement
 {
 private:
    int type;
-   Poly_1D::Basis *basis1d;
+   Poly_1D::Basis &basis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, dshape_x;
 #endif
 
 public:
-   L2_SegmentElement(const int p, const int _type = 0);
+   L2_SegmentElement(const int p, const int type = Quadrature1D::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1548,13 +1699,14 @@ class L2_QuadrilateralElement : public NodalFiniteElement
 {
 private:
    int type;
-   Poly_1D::Basis *basis1d;
+   Poly_1D::Basis &basis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, dshape_x, dshape_y;
 #endif
 
 public:
-   L2_QuadrilateralElement(const int p, const int _type = 0);
+   L2_QuadrilateralElement(const int p,
+                           const int _type = Quadrature1D::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1586,13 +1738,14 @@ class L2_HexahedronElement : public NodalFiniteElement
 {
 private:
    int type;
-   Poly_1D::Basis *basis1d;
+   Poly_1D::Basis &basis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
 #endif
 
 public:
-   L2_HexahedronElement(const int p, const int _type = 0);
+   L2_HexahedronElement(const int p,
+                        const int _type = Quadrature1D::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1619,7 +1772,6 @@ public:
 class L2_TriangleElement : public NodalFiniteElement
 {
 private:
-   int type;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_l, dshape_x, dshape_y, dshape_l, u;
    mutable DenseMatrix du;
@@ -1627,7 +1779,8 @@ private:
    DenseMatrixInverse Ti;
 
 public:
-   L2_TriangleElement(const int p, const int _type = 0);
+   L2_TriangleElement(const int p,
+                      const int type = Quadrature1D::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1658,7 +1811,6 @@ public:
 class L2_TetrahedronElement : public NodalFiniteElement
 {
 private:
-   int type;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, shape_l;
    mutable Vector dshape_x, dshape_y, dshape_z, dshape_l, u;
@@ -1667,7 +1819,8 @@ private:
    DenseMatrixInverse Ti;
 
 public:
-   L2_TetrahedronElement(const int p, const int _type = 0);
+   L2_TetrahedronElement(const int p,
+                         const int type = Quadrature1D::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1704,7 +1857,9 @@ private:
    Array<int> dof_map, dof2nk;
 
 public:
-   RT_QuadrilateralElement(const int p);
+   RT_QuadrilateralElement(const int p,
+                           const int cp_type = Quadrature1D::GaussLobatto,
+                           const int op_type = Quadrature1D::GaussLegendre);
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
    virtual void CalcVShape(ElementTransformation &Trans,
@@ -1722,10 +1877,16 @@ public:
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const
    { Project_RT(nk, dof2nk, fe, Trans, I); }
+   // Gradient + rotation = Curl: H1 -> H(div)
    virtual void ProjectGrad(const FiniteElement &fe,
                             ElementTransformation &Trans,
                             DenseMatrix &grad) const
    { ProjectGrad_RT(nk, dof2nk, fe, Trans, grad); }
+   // Curl = Gradient + rotation: H1 -> H(div)
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const
+   { ProjectGrad_RT(nk, dof2nk, fe, Trans, curl); }
 };
 
 
@@ -1741,7 +1902,10 @@ class RT_HexahedronElement : public VectorFiniteElement
    Array<int> dof_map, dof2nk;
 
 public:
-   RT_HexahedronElement(const int p);
+   RT_HexahedronElement(const int p,
+                        const int cp_type = Quadrature1D::GaussLobatto,
+                        const int op_type = Quadrature1D::GaussLegendre);
+
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
    virtual void CalcVShape(ElementTransformation &Trans,
@@ -1798,10 +1962,16 @@ public:
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const
    { Project_RT(nk, dof2nk, fe, Trans, I); }
+   // Gradient + rotation = Curl: H1 -> H(div)
    virtual void ProjectGrad(const FiniteElement &fe,
                             ElementTransformation &Trans,
                             DenseMatrix &grad) const
    { ProjectGrad_RT(nk, dof2nk, fe, Trans, grad); }
+   // Curl = Gradient + rotation: H1 -> H(div)
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const
+   { ProjectGrad_RT(nk, dof2nk, fe, Trans, curl); }
 };
 
 
@@ -1856,7 +2026,9 @@ class ND_HexahedronElement : public VectorFiniteElement
    Array<int> dof_map, dof2tk;
 
 public:
-   ND_HexahedronElement(const int p);
+   ND_HexahedronElement(const int p,
+                        const int cp_type = Quadrature1D::GaussLobatto,
+                        const int op_type = Quadrature1D::GaussLegendre);
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -1907,7 +2079,9 @@ class ND_QuadrilateralElement : public VectorFiniteElement
    Array<int> dof_map, dof2tk;
 
 public:
-   ND_QuadrilateralElement(const int p);
+   ND_QuadrilateralElement(const int p,
+                           const int cp_type = Quadrature1D::GaussLobatto,
+                           const int op_type = Quadrature1D::GaussLegendre);
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
    virtual void CalcVShape(ElementTransformation &Trans,
@@ -2024,7 +2198,8 @@ class ND_SegmentElement : public VectorFiniteElement
    Array<int> dof2tk;
 
 public:
-   ND_SegmentElement(const int p);
+   ND_SegmentElement(const int p,
+                     const int op_type = Quadrature1D::GaussLegendre );
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const
    { obasis1d.Eval(ip.x, shape); }
    virtual void CalcVShape(const IntegrationPoint &ip,
@@ -2052,7 +2227,7 @@ public:
 };
 
 
-class NURBSFiniteElement : public FiniteElement
+class NURBSFiniteElement : public ScalarFiniteElement
 {
 protected:
    mutable Array <KnotVector*> kv;
@@ -2061,7 +2236,7 @@ protected:
 
 public:
    NURBSFiniteElement(int D, int G, int Do, int O, int F)
-      : FiniteElement(D, G, Do, O, F)
+      : ScalarFiniteElement(D, G, Do, O, F)
    {
       ijk = NULL;
       patch = elem = -1;
@@ -2128,6 +2303,6 @@ public:
                            DenseMatrix &dshape) const;
 };
 
-}
+} // namespace mfem
 
 #endif

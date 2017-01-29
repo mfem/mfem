@@ -306,6 +306,10 @@ int main(int argc, char *argv[])
          }
          break;
       }
+      if ( it == maxit )
+      {
+         break;
+      }
 
       // Wait for user input. Ask every 10th iteration.
       char c = 'c';
@@ -340,7 +344,7 @@ int main(int argc, char *argv[])
       // Update the magnetostatic solver to reflect the new state of the mesh.
       Tesla.Update();
 
-      if (pmesh.Nonconforming())
+      if (pmesh.Nonconforming() && mpi.WorldSize() > 1)
       {
          if (mpi.Root()) { cout << "Rebalancing ..." << endl; }
          pmesh.Rebalance();
@@ -349,6 +353,8 @@ int main(int argc, char *argv[])
          Tesla.Update();
       }
    }
+
+   delete muInvCoef;
 
    return 0;
 }

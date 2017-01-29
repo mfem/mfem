@@ -50,6 +50,10 @@ protected:
    /// Create from a nonconforming mesh.
    ParMesh(const ParNCMesh &pncmesh);
 
+   // Mark all tets to ensure consistency across MPI tasks; also mark the
+   // shared and boundary triangle faces using the consistently marked tets.
+   virtual void MarkTetMeshForRefinement(DSTable &v_to_v);
+
    /// Return a number(0-1) identifying how the given edge has been split
    int GetEdgeSplittings(Element *edge, const DSTable &v_to_v, int *middle);
    /// Return a number(0-4) identifying how the given face has been split
@@ -93,6 +97,22 @@ public:
    ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
            int part_method = 1);
 
+   /// Read a parallel mesh, each MPI rank from its own file/stream.
+   ParMesh(MPI_Comm comm, std::istream &input);
+
+   /// Create a uniformly refined (by any factor) version of @a orig_mesh.
+   /** @param[in] orig_mesh  The starting coarse mesh.
+       @param[in] ref_factor The refinement factor, an integer > 1.
+       @param[in] ref_type   Specify the positions of the new vertices. The
+                             options are BasisType::ClosedUniform or
+                             BasisType::GaussLobatto.
+
+       The refinement data which can be accessed with GetRefinementTransforms()
+       is set to reflect the performed refinements.
+
+       @note The constructed ParMesh is linear, i.e. it does not have nodes. */
+   ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
+
    MPI_Comm GetComm() const { return MyComm; }
    int GetNRanks() const { return NRanks; }
    int GetMyRank() const { return MyRank; }
@@ -112,17 +132,18 @@ public:
 
    ParNCMesh* pncmesh;
 
-   int GetNGroups() { return gtopo.NGroups(); }
+   int GetNGroups() const { return gtopo.NGroups(); }
 
-   // next 6 methods do not work for the 'local' group 0
+   ///@{ @name These methods require group > 0
    int GroupNVertices(int group) { return group_svert.RowSize(group-1); }
    int GroupNEdges(int group)    { return group_sedge.RowSize(group-1); }
    int GroupNFaces(int group)    { return group_sface.RowSize(group-1); }
 
    int GroupVertex(int group, int i)
-   { return svert_lvert[group_svert.GetJ()[group_svert.GetI()[group-1]+i]]; }
+   { return svert_lvert[group_svert.GetRow(group-1)[i]]; }
    void GroupEdge(int group, int i, int &edge, int &o);
    void GroupFace(int group, int i, int &face, int &o);
+   ///@}
 
    void GenerateOffsets(int N, HYPRE_Int loc_sizes[],
                         Array<HYPRE_Int> *offsets[]) const;
@@ -163,7 +184,7 @@ public:
    void Rebalance();
 
    /** Print the part of the mesh in the calling processor adding the interface
-       as boundary (for visualization purposes) using the default format. */
+       as boundary (for visualization purposes) using the mfem v1.0 format. */
    virtual void Print(std::ostream &out = std::cout) const;
 
    /** Print the part of the mesh in the calling processor adding the interface
@@ -181,6 +202,9 @@ public:
 
    /// Print various parallel mesh stats
    virtual void PrintInfo(std::ostream &out = std::cout);
+
+   /// Save the mesh in a parallel mesh format.
+   void ParPrint(std::ostream &out) const;
 
    virtual ~ParMesh();
 };

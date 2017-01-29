@@ -122,6 +122,37 @@ void Tetrahedron::CreateRefinementFlag(int refinement_edges[2], int type,
    refinement_flag |= refinement_edges[0];
 }
 
+void Tetrahedron::GetMarkedFace(const int face, int *fv)
+{
+   int re[2], type, flag, *tv = this->indices;
+   ParseRefinementFlag(re, type, flag);
+   switch (face)
+   {
+      case 0:
+         switch (re[1])
+         {
+            case 1: fv[0] = tv[1]; fv[1] = tv[2]; fv[2] = tv[3]; break;
+            case 4: fv[0] = tv[3]; fv[1] = tv[1]; fv[2] = tv[2]; break;
+            case 5: fv[0] = tv[2]; fv[1] = tv[3]; fv[2] = tv[1]; break;
+         }
+         break;
+      case 1:
+         switch (re[0])
+         {
+            case 2: fv[0] = tv[2]; fv[1] = tv[0]; fv[2] = tv[3]; break;
+            case 3: fv[0] = tv[0]; fv[1] = tv[3]; fv[2] = tv[2]; break;
+            case 5: fv[0] = tv[3]; fv[1] = tv[2]; fv[2] = tv[0]; break;
+         }
+         break;
+      case 2:
+         fv[0] = tv[0]; fv[1] = tv[1]; fv[2] = tv[3];
+         break;
+      case 3:
+         fv[0] = tv[1]; fv[1] = tv[0]; fv[2] = tv[2];
+         break;
+   }
+}
+
 int Tetrahedron::NeedRefinement(DSTable &v_to_v, int *middle) const
 {
    int m;

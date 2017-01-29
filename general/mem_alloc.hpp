@@ -34,10 +34,11 @@ private:
    int UsedInTop, SSize;
 public:
    Stack() { TopPart = TopFreePart = NULL; UsedInTop = Num; SSize = 0; }
-   int Size() { return SSize; }
+   int Size() const { return SSize; }
    void Push (Elem E);
    Elem Pop();
    void Clear();
+   size_t MemoryUsage() const;
    ~Stack() { Clear(); }
 };
 
@@ -96,6 +97,26 @@ void Stack <Elem, Num>::Clear()
    SSize = 0;
 }
 
+template <class Elem, int Num>
+size_t Stack <Elem, Num>::MemoryUsage() const
+{
+   size_t used_mem = 0;
+   StackPart <Elem, Num> *aux = TopPart;
+   while (aux != NULL)
+   {
+      used_mem += sizeof(StackPart <Elem, Num>);
+      aux = aux->Prev;
+   }
+   aux = TopFreePart;
+   while (aux != NULL)
+   {
+      used_mem += sizeof(StackPart <Elem, Num>);
+      aux = aux->Prev;
+   }
+   // Not counting sizeof(Stack <Elem, Num>)
+   return used_mem;
+}
+
 
 template <class Elem, int Num>
 class MemAllocNode
@@ -117,6 +138,7 @@ public:
    Elem *Alloc();
    void Free (Elem *);
    void Clear();
+   size_t MemoryUsage() const;
    ~MemAlloc() { Clear(); }
 };
 
@@ -156,6 +178,20 @@ void MemAlloc <Elem, Num>::Clear()
    }
    AllocatedInLast = Num;
    UsedMem.Clear();
+}
+
+template <class Elem, int Num>
+size_t MemAlloc <Elem, Num>::MemoryUsage() const
+{
+   size_t used_mem = UsedMem.MemoryUsage();
+   MemAllocNode <Elem, Num> *aux = Last;
+   while (aux != NULL)
+   {
+      used_mem += sizeof(MemAllocNode <Elem, Num>);
+      aux = aux->Prev;
+   }
+   // Not counting sizeof(MemAlloc <Elem, Num>)
+   return used_mem;
 }
 
 }

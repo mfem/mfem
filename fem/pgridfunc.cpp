@@ -75,6 +75,13 @@ void ParGridFunction::SetSpace(ParFiniteElementSpace *f)
    pfes = f;
 }
 
+void ParGridFunction::MakeRef(ParFiniteElementSpace *f, double *v)
+{
+   face_nbr_data.Destroy();
+   GridFunction::MakeRef(f, v);
+   pfes = f;
+}
+
 void ParGridFunction::MakeRef(ParFiniteElementSpace *f, Vector &v, int v_offset)
 {
    face_nbr_data.Destroy();
@@ -90,11 +97,6 @@ void ParGridFunction::Distribute(const Vector *tv)
 void ParGridFunction::AddDistribute(double a, const Vector *tv)
 {
    pfes->Dof_TrueDof_Matrix()->Mult(a, *tv, 1.0, *this);
-}
-
-void ParGridFunction::GetTrueDofs(Vector &tv) const
-{
-   pfes->GetRestrictionMatrix()->Mult(*this, tv);
 }
 
 HypreParVector *ParGridFunction::GetTrueDofs() const

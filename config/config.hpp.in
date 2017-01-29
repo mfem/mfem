@@ -19,6 +19,12 @@
 // Enable debug checks in MFEM.
 // #define MFEM_DEBUG
 
+// Enable gzstream in MFEM.
+// #define MFEM_USE_GZSTREAM
+
+// Enable backtraces for mfem_error through libunwind.
+// #define MFEM_USE_LIBUNWIND
+
 // Enable this option if linking with METIS version 5 (parallel MFEM).
 // #define MFEM_USE_METIS_5
 
@@ -44,6 +50,9 @@
 // If not defined, an option is selected automatically.
 // #define MFEM_TIMER_TYPE @MFEM_TIMER_TYPE@
 
+// Enable MFEM functionality based on the SUNDIALS libraries.
+// #define MFEM_USE_SUNDIALS
+
 // Enable MFEM functionality based on the Mesquite library.
 // #define MFEM_USE_MESQUITE
 
@@ -59,8 +68,17 @@
 // Enable secure socket streams based on the GNUTLS library
 // #define MFEM_USE_GNUTLS
 
+// Enable Sidre support
+// #define MFEM_USE_SIDRE
+
 // Enable functionality based on the NetCDF library (reading CUBIT files)
 // #define MFEM_USE_NETCDF
+
+// Enable functionality based on the PETSc library
+// #define MFEM_USE_PETSC
+
+// Enable functionality based on the MPFR library.
+// #define MFEM_USE_MPFR
 
 // Windows specific options
 #ifdef _WIN32
@@ -68,4 +86,4 @@
 #define _USE_MATH_DEFINES
 #endif
 
-#endif
+#endif // MFEM_CONFIG_HEADER

@@ -13,10 +13,10 @@
 #define MFEM_SUPERLU
 
 #include "../config/config.hpp"
-#include "operator.hpp"
 
 #ifdef MFEM_USE_SUPERLU
 #ifdef MFEM_USE_MPI
+#include "operator.hpp"
 #include "hypre.hpp"
 
 #include <mpi.h>

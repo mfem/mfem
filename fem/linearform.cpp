@@ -28,7 +28,15 @@ void LinearForm::AddBoundaryIntegrator (LinearFormIntegrator * lfi)
 
 void LinearForm::AddBdrFaceIntegrator (LinearFormIntegrator * lfi)
 {
-   flfi.Append (lfi);
+   flfi.Append(lfi);
+   flfi_marker.Append(NULL); // NULL -> all attributes are active
+}
+
+void LinearForm::AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
+                                      Array<int> &bdr_attr_marker)
+{
+   flfi.Append(lfi);
+   flfi_marker.Append(&bdr_attr_marker);
 }
 
 void LinearForm::Assemble()
@@ -68,15 +76,43 @@ void LinearForm::Assemble()
    if (flfi.Size())
    {
       FaceElementTransformations *tr;
-      Mesh *mesh = fes -> GetMesh();
-      for (i = 0; i < mesh -> GetNBE(); i++)
+      Mesh *mesh = fes->GetMesh();
+
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < flfi.Size(); k++)
       {
-         tr = mesh -> GetBdrFaceTransformations (i);
+         if (flfi_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *flfi_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary face integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      for (i = 0; i < mesh->GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         tr = mesh->GetBdrFaceTransformations(i);
          if (tr != NULL)
          {
             fes -> GetElementVDofs (tr -> Elem1No, vdofs);
             for (int k = 0; k < flfi.Size(); k++)
             {
+               if (flfi_marker[k] &&
+                   (*flfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
                flfi[k] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
                                                   *tr, elemvect);
                AddElementVector (vdofs, elemvect);

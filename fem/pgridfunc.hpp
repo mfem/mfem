@@ -40,8 +40,20 @@ public:
 
    ParGridFunction(ParFiniteElementSpace *pf) : GridFunction(pf), pfes(pf) { }
 
-   /** Construct a ParGridFunction corresponding to *pf and the data from *gf
-       which is a local GridFunction on each processor. */
+   /// Construct a ParGridFunction using previously allocated array @a data.
+   /** The ParGridFunction does not assume ownership of @a data which is assumed
+       to be of size at least `pf->GetVSize()`. Similar to the GridFunction and
+       Vector constructors for externally allocated array, the pointer @a data
+       can be NULL. The data array can be replaced later using the method
+       SetData().
+    */
+   ParGridFunction(ParFiniteElementSpace *pf, double *data) :
+      GridFunction(pf, data), pfes(pf) { }
+
+   /// Construct a ParGridFunction using a GridFunction as external data.
+   /** The parallel space @a *pf and the space used by @a *gf should match. The
+       data from @a *gf is used as the local data of the ParGridFunction on each
+       processor. The ParGridFunction does not assume ownership of the data. */
    ParGridFunction(ParFiniteElementSpace *pf, GridFunction *gf);
 
    /** Creates grid function on (all) dofs from a given vector on the true dofs,
@@ -52,9 +64,11 @@ public:
        If partitioning == NULL (default), the data from 'gf' is NOT copied. */
    ParGridFunction(ParMesh *pmesh, GridFunction *gf, int * partitioning = NULL);
 
+   /// Assign constant values to the ParGridFunction data.
    ParGridFunction &operator=(double value)
    { GridFunction::operator=(value); return *this; }
 
+   /// Copy the data from a Vector to the ParGridFunction data.
    ParGridFunction &operator=(const Vector &v)
    { GridFunction::operator=(v); return *this; }
 
@@ -64,6 +78,20 @@ public:
 
    void SetSpace(ParFiniteElementSpace *f);
 
+   /** @brief Make the ParGridFunction reference external data on a new
+       ParFiniteElementSpace. */
+   /** This method changes the ParFiniteElementSpace associated with the
+       ParGridFunction and sets the pointer @a v as external data in the
+       ParGridFunction. */
+   void MakeRef(ParFiniteElementSpace *f, double *v);
+
+   /** @brief Make the ParGridFunction reference external data on a new
+       ParFiniteElementSpace. */
+   /** This method changes the ParFiniteElementSpace associated with the
+       ParGridFunction and sets the data of the Vector @a v (plus the
+       @a v_offset) as external data in the ParGridFunction.
+       @note This version of the method will also perform bounds checks when
+       the build option MFEM_DEBUG is enabled. */
    void MakeRef(ParFiniteElementSpace *f, Vector &v, int v_offset);
 
    /** Set the grid function on (all) dofs from a given vector on the
@@ -71,15 +99,16 @@ public:
    void Distribute(const Vector *tv);
    void Distribute(const Vector &tv) { Distribute(&tv); }
    void AddDistribute(double a, const Vector *tv);
-   void AddDistribute(double a, const Vector &tv)
-   { AddDistribute(a, &tv); }
+   void AddDistribute(double a, const Vector &tv) { AddDistribute(a, &tv); }
+
+   /// Set the GridFunction from the given true-dof vector.
+   virtual void SetFromTrueDofs(const Vector &tv) { Distribute(tv); }
 
    /// Short semantic for Distribute
    ParGridFunction &operator=(const HypreParVector &tv)
    { Distribute(&tv); return (*this); }
 
-   /// Returns the true dofs in a Vector
-   void GetTrueDofs(Vector &tv) const;
+   using GridFunction::GetTrueDofs;
 
    /// Returns the true dofs in a new HypreParVector
    HypreParVector *GetTrueDofs() const;

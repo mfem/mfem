@@ -27,12 +27,12 @@ class ParNonlinearForm : public NonlinearForm
 {
 protected:
    mutable ParGridFunction X, Y;
-   mutable HypreParMatrix *pGrad;
+   mutable OperatorHandle pGrad;
 
 public:
    ParNonlinearForm(ParFiniteElementSpace *pf)
-      : NonlinearForm(pf), X(pf), Y(pf)
-   { height = width = pf->TrueVSize(); pGrad = NULL; }
+      : NonlinearForm(pf), X(pf), Y(pf), pGrad(Operator::HYPRE_PARCSR)
+   { height = width = pf->TrueVSize(); }
 
    ParFiniteElementSpace *ParFESpace() const
    { return (ParFiniteElementSpace *)fes; }
@@ -54,7 +54,10 @@ public:
 
    virtual Operator &GetGradient(const Vector &x) const;
 
-   virtual ~ParNonlinearForm() { delete pGrad; }
+   /// Set the operator type id for the parallel gradient matrix/operator.
+   void SetGradientType(Operator::Type tid) { pGrad.SetType(tid); }
+
+   virtual ~ParNonlinearForm() { }
 };
 
 }

@@ -12,11 +12,10 @@
 #ifndef MFEM_VOLTA_SOLVER
 #define MFEM_VOLTA_SOLVER
 
-#include "../../config/config.hpp"
+#include "../common/pfem_extras.hpp"
 
 #ifdef MFEM_USE_MPI
 
-#include "../common/pfem_extras.hpp"
 #include <string>
 #include <map>
 
@@ -67,52 +66,55 @@ public:
 
 private:
 
-   int myid_;
-   int num_procs_;
-   int order_;
+   int myid_;      // Local processor rank
+   int num_procs_; // Number of processors
+   int order_;     // Basis function order
 
    ParMesh * pmesh_;
 
-   Array<int> * dbcs_;
-   Vector     * dbcv_;
-   Array<int> * nbcs_;
-   Vector     * nbcv_;
+   Array<int> * dbcs_; // Dirichlet BC Surface Attribute IDs
+   Vector     * dbcv_; // Corresponding Dirichlet Values
+   Array<int> * nbcs_; // Neumann BC Surface Attribute IDs
+   Vector     * nbcv_; // Corresponding Neumann Values
 
-   VisItDataCollection * visit_dc_;
+   VisItDataCollection * visit_dc_; // To prepare fields for VisIt viewing
 
-   H1_ParFESpace * H1FESpace_;
-   ND_ParFESpace * HCurlFESpace_;
-   RT_ParFESpace * HDivFESpace_;
+   H1_ParFESpace * H1FESpace_;    // Continuous space for phi
+   ND_ParFESpace * HCurlFESpace_; // Tangentially continuous space for E
+   RT_ParFESpace * HDivFESpace_;  // Normally continuous space for D
 
-   ParBilinearForm * divEpsGrad_;
-   ParBilinearForm * h1Mass_;
-   ParBilinearForm * h1SurfMass_;
-   ParBilinearForm * hCurlMass_;
-   ParBilinearForm * hDivMass_;
-   ParMixedBilinearForm * hCurlHDivEps_;
-   ParMixedBilinearForm * hCurlHDiv_;
+   ParBilinearForm * divEpsGrad_; // Laplacian operator
+   ParBilinearForm * h1Mass_;     // For Volumetric Charge Density Source
+   ParBilinearForm * h1SurfMass_; // For Surface Charge Density Source
+   ParBilinearForm * hDivMass_;   // For Computing D from E
 
-   ParDiscreteGradOperator * Grad_;
+   ParMixedBilinearForm * hCurlHDivEps_; // For computing D from E
+   ParMixedBilinearForm * hCurlHDiv_;    // For computing D from E and P
+   ParMixedBilinearForm * weakDiv_;      // For computing the source term from P
 
-   ParGridFunction * phi_;
-   ParGridFunction * rho_;
-   ParGridFunction * sigma_;
-   ParGridFunction * e_;
-   ParGridFunction * d_;
-   ParGridFunction * p_;
+   ParDiscreteGradOperator * grad_; // For Computing E from phi
 
-   Coefficient       * epsCoef_;
-   Coefficient       * phiBCCoef_;
-   Coefficient       * rhoCoef_;
-   VectorCoefficient * pCoef_;
+   ParGridFunction * phi_; // Electric Scalar Potential
+   ParGridFunction * rho_; // Volumetric Charge Density
+   ParGridFunction * rhod_; // Dual of Volumetric Charge Density
+   ParGridFunction * sigma_; // Surface Charge Density
+   ParGridFunction * e_; // Electric Field
+   ParGridFunction * d_; // Electric Flux Density (aka Dielectric Flux)
+   ParGridFunction * p_; // Polarization Field
 
-   double (*phi_bc_ )(const Vector&);
-   double (*rho_src_)(const Vector&);
-   void   (*p_src_  )(const Vector&, Vector&);
+   Coefficient       * epsCoef_;   // Dielectric Permittivity Coefficient
+   Coefficient       * phiBCCoef_; // Scalar Potential Boundary Condition
+   Coefficient       * rhoCoef_;   // Charge Density Coefficient
+   VectorCoefficient * pCoef_;     // Polarization Vector Field Coefficient
 
-   std::map<std::string,socketstream*> socks_;
+   // Source functions
+   double (*phi_bc_ )(const Vector&);          // Scalar Potential BC
+   double (*rho_src_)(const Vector&);          // Volumetric Charge Density
+   void   (*p_src_  )(const Vector&, Vector&); // Polarization Field
 
-   Array<int> ess_bdr_;
+   std::map<std::string,socketstream*> socks_; // Visualization sockets
+
+   Array<int> ess_bdr_, ess_bdr_tdofs_; // Essential Boundary Condition DoFs
 };
 
 } // namespace electromagnetics

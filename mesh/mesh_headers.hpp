@@ -14,16 +14,6 @@
 
 // Mesh header file
 
-#include "../general/array.hpp"
-#include "../general/table.hpp"
-#include "../general/stable3d.hpp"
-#include "../linalg/linalg.hpp"
-#include "../fem/intrules.hpp"
-#include "../fem/geom.hpp"
-#include "../fem/fe.hpp"
-#include "../fem/eltrans.hpp"
-#include "../fem/coefficient.hpp"
-
 #include "vertex.hpp"
 #include "element.hpp"
 #include "point.hpp"
@@ -35,14 +25,15 @@
 #include "ncmesh.hpp"
 #include "mesh.hpp"
 #include "mesh_operators.hpp"
+#include "nurbs.hpp"
 
-#ifdef MFEM_USE_MPI
-#include <mpi.h>
-#include "../general/sets.hpp"
-#include "../general/communication.hpp"
-#include "pmesh.hpp"
+#ifdef MFEM_USE_MESQUITE
+#include "mesquite.hpp"
 #endif
 
-#include "nurbs.hpp"
+#ifdef MFEM_USE_MPI
+#include "pncmesh.hpp"
+#include "pmesh.hpp"
+#endif
 
 #endif

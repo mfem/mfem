@@ -23,7 +23,8 @@ namespace mfem {
  * - Operator and BilinearForm
  * - Vector and LinearForm
  * - DenseMatrix and SparseMatrix
- * - Sparse \link sparsesmoothers.hpp smoothers\endlink and linear \link solvers.hpp solvers\endlink.
+ * - Sparse \link sparsesmoothers.hpp smoothers\endlink and linear
+ *   \link solvers.hpp solvers\endlink
  *
  * <H3>Main parallel classes</H3>
  * - ParMesh
@@ -32,7 +33,7 @@ namespace mfem {
  * - ParGridFunction
  * - ParBilinearForm and ParLinearForm
  * - HypreParMatrix and HypreParVector
- * - HypreSolver
+ * - HypreSolver and other \link hypre.hpp hypre classes\endlink
  *
  * <H3>Example codes</H3>
  * - <a class="el" href="ex1_8cpp_source.html">Example 1</a>: nodal H1 FEM for the Laplace problem
@@ -62,13 +63,41 @@ namespace mfem {
  * - <a class="el" href="ex14p_8cpp_source.html">Example 14p</a>: parallel Discontinuous Galerkin (DG) for the Laplace problem
  * - <a class="el" href="ex15_8cpp_source.html">Example 15</a>: dynamic AMR for Laplace with prescribed time-dependent source
  * - <a class="el" href="ex15p_8cpp_source.html">Example 15p</a>: parallel dynamic AMR for Laplace with prescribed time-dependent source
+ * - <a class="el" href="ex16_8cpp_source.html">Example 16</a>: time-dependent nonlinear heat equation
+ * - <a class="el" href="ex16p_8cpp_source.html">Example 16p</a>: parallel time-dependent nonlinear heat equation
+ * - <a class="el" href="ex17_8cpp_source.html">Example 17</a>: Discontinuous Galerkin (DG) for linear elasticity
+ * - <a class="el" href="ex17p_8cpp_source.html">Example 17p</a>: parallel Discontinuous Galerkin (DG) for linear elasticity
+ *
+ * <H4>SUNDIALS Examples</H4>
+ * - Variants of Examples
+ *   <a class="el" href="sundials_2ex9_8cpp_source.html">9</a>,
+ *   <a class="el" href="sundials_2ex9p_8cpp_source.html">9p</a>,
+ *   <a class="el" href="sundials_2ex10_8cpp_source.html">10</a>,
+ *   and
+ *   <a class="el" class="el" href="sundials_2ex10p_8cpp_source.html">10p</a>
+ *   demonstrating the use of MFEM's \link sundials.hpp SUNDIALS classes\endlink
+ *
+ * <H4>PETSc Examples</H4>
+ * - Variants of Examples
+ *   <a class="el" href="examples_2petsc_2ex1p_8cpp_source.html">1p</a>,
+ *   <a class="el" href="petsc_2ex2p_8cpp_source.html">2p</a>,
+ *   <a class="el" href="petsc_2ex3p_8cpp_source.html">3p</a>,
+ *   <a class="el" href="petsc_2ex4p_8cpp_source.html">4p</a>,
+ *   <a class="el" href="petsc_2ex5p_8cpp_source.html">5p</a>,
+ *   <a class="el" href="petsc_2ex6p_8cpp_source.html">6p</a>,
+ *   <a class="el" href="petsc_2ex9p_8cpp_source.html">9p</a>,
+ *   and
+ *   <a class="el" href="petsc_2ex10p_8cpp_source.html">10p</a>
+ *   demonstrating the use of MFEM's \link petsc.hpp PETSc classes\endlink
  *
  * <H3>Miniapps</H3>
  * - <a class="el" href="volta_8cpp_source.html">Volta</a>: simple electrostatics simulation code
  * - <a class="el" href="tesla_8cpp_source.html">Tesla</a>: simple magnetostatics simulation code
+ * - <a class="el" href="joule_8cpp_source.html">Joule</a>: transient magnetics and Joule heating miniapp
  * - <a class="el" href="mobius-strip_8cpp_source.html">Mobius Strip</a>: generate various Mobius strip-like meshes
  * - <a class="el" href="klein-bottle_8cpp_source.html">Klein Bottle</a>: generate three types of Klein bottle surfaces
  * - <a class="el" href="mesh-explorer_8cpp_source.html">Mesh Explorer</a>: visualize and manipulate meshes
+ * - <a class="el" href="display-basis_8cpp_source.html">Display Basis</a>: visualize finite element basis functions
  * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Laplace problem
  * - <a class="el" href="miniapps_2performance_2ex1p_8cpp_source.html">HPC Example 1p</a>: high-performance parallel nodal H1 FEM for the Laplace problem
  *

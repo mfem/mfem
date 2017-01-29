@@ -825,16 +825,14 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
            << M << "/" << N << endl;
       mfem_error();
    }
-   for (IL = 0; IL < N; IL++)
-      if (!finite(W[IL]))
-      {
-         mfem_error("dsyevr_Eigensystem(...): !finite value in W");
-      }
-   for (IL = 0; IL < N*N; IL++)
-      if (!finite(Z[IL]))
-      {
-         mfem_error("dsyevr_Eigensystem(...): !finite value in Z");
-      }
+   if (CheckFinite(W, N) > 0)
+   {
+      mfem_error("dsyevr_Eigensystem(...): inf/nan values in W");
+   }
+   if (CheckFinite(Z, N*N) > 0)
+   {
+      mfem_error("dsyevr_Eigensystem(...): inf/nan values in Z");
+   }
    VU = 0.0;
    for (IL = 0; IL < N; IL++)
       for (IU = 0; IU <= IL; IU++)
@@ -3395,6 +3393,101 @@ void AddMultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
 #endif
 }
 
+void AddMultADBt(const DenseMatrix &A, const Vector &D,
+                 const DenseMatrix &B, DenseMatrix &ADBt)
+{
+#ifdef MFEM_DEBUG
+   if (A.Height() != ADBt.Height() || B.Height() != ADBt.Width() ||
+       A.Width() != B.Width() || A.Width() != D.Size())
+   {
+      mfem_error("AddMultADBt(...)");
+   }
+#endif
+
+   const int ah = A.Height();
+   const int bh = B.Height();
+   const int aw = A.Width();
+   const double *ad = A.Data();
+   const double *bd = B.Data();
+   const double *dd = D.GetData();
+   double *cd = ADBt.Data();
+
+   for (int k = 0; k < aw; k++)
+   {
+      double *cp = cd;
+      for (int j = 0; j < bh; j++)
+      {
+         const double dk_bjk = dd[k] * bd[j];
+         for (int i = 0; i < ah; i++)
+         {
+            cp[i] += ad[i] * dk_bjk;
+         }
+         cp += ah;
+      }
+      ad += ah;
+      bd += bh;
+   }
+}
+
+void AddMult_a_ABt(double a, const DenseMatrix &A, const DenseMatrix &B,
+                   DenseMatrix &ABt)
+{
+#ifdef MFEM_DEBUG
+   if (A.Height() != ABt.Height() || B.Height() != ABt.Width() ||
+       A.Width() != B.Width())
+   {
+      mfem_error("AddMult_a_ABt(...)");
+   }
+#endif
+
+#ifdef MFEM_USE_LAPACK
+   static char transa = 'N', transb = 'T';
+   double alpha = a;
+   static double beta = 1.0;
+   int m = A.Height(), n = B.Height(), k = A.Width();
+
+   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
+          B.Data(), &n, &beta, ABt.Data(), &m);
+#elif 1
+   const int ah = A.Height();
+   const int bh = B.Height();
+   const int aw = A.Width();
+   const double *ad = A.Data();
+   const double *bd = B.Data();
+   double *cd = ABt.Data();
+
+   for (int k = 0; k < aw; k++)
+   {
+      double *cp = cd;
+      for (int j = 0; j < bh; j++)
+      {
+         const double bjk = a * bd[j];
+         for (int i = 0; i < ah; i++)
+         {
+            cp[i] += ad[i] * bjk;
+         }
+         cp += ah;
+      }
+      ad += ah;
+      bd += bh;
+   }
+#else
+   int i, j, k;
+   double d;
+
+   for (i = 0; i < A.Height(); i++)
+      for (j = 0; j < B.Height(); j++)
+      {
+         d = 0.0;
+         for (k = 0; k < A.Width(); k++)
+         {
+            d += A(i, k) * B(j, k);
+         }
+         ABt(i, j) += a * d;
+      }
+#endif
+}
+
 void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB)
 {
 #ifdef MFEM_DEBUG
@@ -3551,16 +3644,16 @@ void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
 #ifdef MFEM_DEBUG
    if (VWt.Height() != m || VWt.Width() != n)
    {
-      mfem_error("AddMultVWt(...)");
+      mfem_error("AddMult_a_VWt(...)");
    }
 #endif
 
-   for (int i = 0; i < m; i++)
+   for (int j = 0; j < n; j++)
    {
-      double avi = a * v(i);
-      for (int j = 0; j < n; j++)
+      const double awj = a * w(j);
+      for (int i = 0; i < m; i++)
       {
-         VWt(i, j) += avi * w(j);
+         VWt(i, j) += v(i) * awj;
       }
    }
 }
@@ -3593,9 +3686,9 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
 void LUFactors::Factor(int m)
 {
 #ifdef MFEM_USE_LAPACK
-   int info;
-   dgetrf_(&m, &m, data, &m, ipiv, &info);
-   MFEM_VERIFY(!info, "LAPACK: error in DGETRF")
+   int info = 0;
+   if (m) { dgetrf_(&m, &m, data, &m, ipiv, &info); }
+   MFEM_VERIFY(!info, "LAPACK: error in DGETRF");
 #else
    // compiling without LAPACK
    double *data = this->data;
@@ -3726,9 +3819,9 @@ void LUFactors::Solve(int m, int n, double *X) const
 {
 #ifdef MFEM_USE_LAPACK
    char trans = 'N';
-   int  info;
-   dgetrs_(&trans, &m, &n, data, &m, ipiv, X, &m, &info);
-   MFEM_VERIFY(!info, "LAPACK: error in DGETRS")
+   int  info = 0;
+   if (m > 0 && n > 0) { dgetrs_(&trans, &m, &n, data, &m, ipiv, X, &m, &info); }
+   MFEM_VERIFY(!info, "LAPACK: error in DGETRS");
 #else
    // compiling without LAPACK
    LSolve(m, n, X);

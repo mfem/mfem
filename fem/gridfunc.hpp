@@ -62,10 +62,27 @@ public:
 
    GridFunction() { fes = NULL; fec = NULL; sequence = 0; }
 
-   /// Creates grid function associated with *f.
+   /// Copy constructor.
+   GridFunction(const GridFunction &orig)
+      : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence) { }
+
+   /// Construct a GridFunction associated with the FiniteElementSpace @a *f.
    GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
    { fes = f; fec = NULL; sequence = f->GetSequence(); }
 
+   /// Construct a GridFunction using previously allocated array @a data.
+   /** The GridFunction does not assume ownership of @a data which is assumed to
+       be of size at least `f->GetVSize()`. Similar to the Vector constructor
+       for externally allocated array, the pointer @a data can be NULL. The data
+       array can be replaced later using the method SetData().
+    */
+   GridFunction(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
+   { fes = f; fec = NULL; sequence = f->GetSequence(); }
+
+   /// Construct a GridFunction on the given Mesh, using the data from @a input.
+   /** The content of @a input should be in the format created by the method
+       Save(). The reconstructed FiniteElementSpace and FiniteElementCollection
+       are owned by the GridFunction. */
    GridFunction(Mesh *m, std::istream &input);
 
    GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces);
@@ -76,6 +93,13 @@ public:
    FiniteElementCollection *OwnFEC() { return fec; }
 
    int VectorDim() const;
+
+   /// @brief Extract the true-dofs from the GridFunction. If all dofs are true,
+   /// then `tv` will be set to point to the data of `*this`.
+   void GetTrueDofs(Vector &tv) const;
+
+   /// Set the GridFunction from the given true-dof vector.
+   virtual void SetFromTrueDofs(const Vector &tv);
 
    /// Returns the values in the vertices of i'th element for dimension vdim.
    void GetNodalValues(int i, Array<double> &nval, int vdim = 1) const;
@@ -253,8 +277,14 @@ public:
    /// Redefine '=' for GridFunction = constant.
    GridFunction &operator=(double value);
 
+   /// Copy the data from @a v.
+   /** The size of @a v must be equal to the size of the FiniteElementSpace
+       @a fes. */
    GridFunction &operator=(const Vector &v);
 
+   /// Copy the data from @a v.
+   /** The GridFunctions @a v and @a *this must have FiniteElementSpaces with
+       the same size. */
    GridFunction &operator=(const GridFunction &v);
 
    /// Transform by the Space UpdateMatrix (e.g., on Mesh change).
@@ -265,6 +295,20 @@ public:
 
    void SetSpace(FiniteElementSpace *f);
 
+   /** @brief Make the GridFunction reference external data on a new
+       FiniteElementSpace. */
+   /** This method changes the FiniteElementSpace associated with the
+       GridFunction and sets the pointer @a v as external data in the
+       GridFunction. */
+   void MakeRef(FiniteElementSpace *f, double *v);
+
+   /** @brief Make the GridFunction reference external data on a new
+       FiniteElementSpace. */
+   /** This method changes the FiniteElementSpace associated with the
+       GridFunction and sets the data of the Vector @a v (plus the @a v_offset)
+       as external data in the GridFunction.
+       @note This version of the method will also perform bounds checks when
+       the build option MFEM_DEBUG is enabled. */
    void MakeRef(FiniteElementSpace *f, Vector &v, int v_offset);
 
    /// Save the GridFunction to an output stream.
@@ -285,6 +329,112 @@ public:
 /** Overload operator<< for std::ostream and GridFunction; valid also for the
     derived class ParGridFunction */
 std::ostream &operator<<(std::ostream &out, const GridFunction &sol);
+
+
+/** @brief Class representing a function through its values (scalar or vector)
+    at quadrature points. */
+class QuadratureFunction : public Vector
+{
+protected:
+   QuadratureSpace *qspace; ///< Associated QuadratureSpace
+   int vdim;                ///< Vector dimension
+   bool own_qspace;         ///< QuadratureSpace ownership flag
+
+public:
+   /// Create an empty QuadratureFunction.
+   /** The object can be initialized later using the SetSpace() methods. */
+   QuadratureFunction()
+      : qspace(NULL), vdim(0), own_qspace(false) { }
+
+   /// Create a QuadratureFunction based on the given QuadratureSpace.
+   /** The QuadratureFunction does not assume ownership of the QuadratureSpace.
+       @note The Vector data is not initialized. */
+   QuadratureFunction(QuadratureSpace *qspace_, int vdim_ = 1)
+      : Vector(vdim_*qspace_->GetSize()),
+        qspace(qspace_), vdim(vdim_), own_qspace(false) { }
+
+   /** @brief Create a QuadratureFunction based on the given QuadratureSpace,
+       using the external data, @a qf_data. */
+   /** The QuadratureFunction does not assume ownership of neither the
+       QuadratureSpace nor the external data. */
+   QuadratureFunction(QuadratureSpace *qspace_, double *qf_data, int vdim_ = 1)
+      : Vector(qf_data, vdim_*qspace_->GetSize()),
+        qspace(qspace_), vdim(vdim_), own_qspace(false) { }
+
+   /// Read a QuadratureFunction from the stream @a in.
+   /** The QuadratureFunction assumes ownership of the read QuadratureSpace. */
+   QuadratureFunction(Mesh *mesh, std::istream &in);
+
+   virtual ~QuadratureFunction() { if (own_qspace) { delete qspace; } }
+
+   /// Get the associated QuadratureSpace.
+   QuadratureSpace *GetSpace() const { return qspace; }
+
+   /// Change the QuadratureSpace and optionally the vector dimension.
+   /** If the new QuadratureSpace is different from the current one, the
+       QuadratureFunction will not assume ownership of the new space; otherwise,
+       the ownership flag remains the same.
+
+       If the new vector dimension @a vdim_ < 0, the vector dimension remains
+       the same.
+
+       The data size is updated by calling Vector::SetSize(). */
+   inline void SetSpace(QuadratureSpace *qspace_, int vdim_ = -1);
+
+   /** @brief Change the QuadratureSpace, the data array, and optionally the
+       vector dimension. */
+   /** If the new QuadratureSpace is different from the current one, the
+       QuadratureFunction will not assume ownership of the new space; otherwise,
+       the ownership flag remains the same.
+
+       If the new vector dimension @a vdim_ < 0, the vector dimension remains
+       the same.
+
+       The data array is replaced by calling Vector::NewDataAndSize(). */
+   inline void SetSpace(QuadratureSpace *qspace_, double *qf_data,
+                        int vdim_ = -1);
+
+   /// Get the vector dimension.
+   int GetVDim() const { return vdim; }
+
+   /// Set the vector dimension, updating the size by calling Vector::SetSize().
+   void SetVDim(int vdim_)
+   { vdim = vdim_; SetSize(vdim*qspace->GetSize()); }
+
+   /// Get the QuadratureSpace ownership flag.
+   bool OwnsSpace() { return own_qspace; }
+
+   /// Set the QuadratureSpace ownership flag.
+   void SetOwnsSpace(bool own) { own_qspace = own; }
+
+   /// Get the IntegrationRule associated with mesh element @a idx.
+   const IntegrationRule &GetElementIntRule(int idx)
+   { return qspace->GetElementIntRule(idx); }
+
+   /// Return all values associated with mesh element @a idx in a Vector.
+   /** The result is stored in the Vector @a values as a reference to the
+       global values.
+
+       Inside the Vector @a values, the index `i+vdim*j` corresponds to the
+       `i`-th vector component at the `j`-th quadrature point.
+    */
+   inline void GetElementValues(int idx, Vector &values);
+
+   /// Return all values associated with mesh element @a idx in a DenseMatrix.
+   /** The result is stored in the DenseMatrix @a values as a reference to the
+       global values.
+
+       Inside the DenseMatrix @a values, the `(i,j)` entry corresponds to the
+       `i`-th vector component at the `j`-th quadrature point.
+    */
+   inline void GetElementValues(int idx, DenseMatrix &values);
+
+   /// Write the QuadratureFunction to the stream @a out.
+   void Save(std::ostream &out) const;
+};
+
+/// Overload operator<< for std::ostream and QuadratureFunction.
+std::ostream &operator<<(std::ostream &out, const QuadratureFunction &qf);
 
 
 double ZZErrorEstimator(BilinearFormIntegrator &blfi,
@@ -317,6 +467,48 @@ public:
 GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
                                     GridFunction *sol, const int ny);
 
+
+// Inline methods
+
+inline void QuadratureFunction::SetSpace(QuadratureSpace *qspace_, int vdim_)
+{
+   if (qspace_ != qspace)
+   {
+      if (own_qspace) { delete qspace; }
+      qspace = qspace_;
+      own_qspace = false;
+   }
+   vdim = (vdim_ < 0) ? vdim : vdim_;
+   SetSize(vdim*qspace->GetSize());
 }
+
+inline void QuadratureFunction::SetSpace(QuadratureSpace *qspace_,
+                                         double *qf_data, int vdim_)
+{
+   if (qspace_ != qspace)
+   {
+      if (own_qspace) { delete qspace; }
+      qspace = qspace_;
+      own_qspace = false;
+   }
+   vdim = (vdim_ < 0) ? vdim : vdim_;
+   NewDataAndSize(qf_data, vdim*qspace->GetSize());
+}
+
+inline void QuadratureFunction::GetElementValues(int idx, Vector &values)
+{
+   const int s_offset = qspace->element_offsets[idx];
+   const int sl_size = qspace->element_offsets[idx+1] - s_offset;
+   values.NewDataAndSize(data + vdim*s_offset, vdim*sl_size);
+}
+
+inline void QuadratureFunction::GetElementValues(int idx, DenseMatrix &values)
+{
+   const int s_offset = qspace->element_offsets[idx];
+   const int sl_size = qspace->element_offsets[idx+1] - s_offset;
+   values.Reset(data + vdim*s_offset, vdim, sl_size);
+}
+
+} // namespace mfem
 
 #endif

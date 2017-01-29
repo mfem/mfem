@@ -144,7 +144,9 @@ public:
    void Print(std::ostream & out = std::cout, int width = 4) const;
    void PrintMatlab(std::ostream & out) const;
 
-   void Save(std::ostream & out) const;
+   void Save(std::ostream &out) const;
+   void Load(std::istream &in);
+
    void Copy(Table & copy) const;
    void Swap(Table & other);
 

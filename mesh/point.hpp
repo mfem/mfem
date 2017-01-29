@@ -57,6 +57,7 @@ public:
    virtual ~Point() { }
 };
 
+class PointFiniteElement;
 extern PointFiniteElement PointFE;
 
 }

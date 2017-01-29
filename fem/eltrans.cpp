@@ -9,21 +9,48 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-
-#include <cmath>
+#include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
+#include <cmath>
 
 namespace mfem
 {
 
-ElementTransformation::ElementTransformation():
-   JacobianIsEvaluated(0),
-   WeightIsEvaluated(0),
-   IntPoint(static_cast<IntegrationPoint *>(NULL)),
-   Attribute(-1),
-   ElementNo(-1)
-{
+ElementTransformation::ElementTransformation()
+   : IntPoint(static_cast<IntegrationPoint *>(NULL)),
+     EvalState(0),
+     Attribute(-1),
+     ElementNo(-1)
+{ }
 
+double ElementTransformation::EvalWeight()
+{
+   MFEM_ASSERT((EvalState & WEIGHT_MASK) == 0, "");
+   Jacobian();
+   EvalState |= WEIGHT_MASK;
+   return (Wght = (dFdx.Width() == 0) ? 1.0 : dFdx.Weight());
+}
+
+const DenseMatrix &ElementTransformation::EvalAdjugateJ()
+{
+   MFEM_ASSERT((EvalState & ADJUGATE_MASK) == 0, "");
+   Jacobian();
+   adjJ.SetSize(dFdx.Width(), dFdx.Height());
+   if (dFdx.Width() > 0) { CalcAdjugate(dFdx, adjJ); }
+   EvalState |= ADJUGATE_MASK;
+   return adjJ;
+}
+
+const DenseMatrix &ElementTransformation::EvalInverseJ()
+{
+   // TODO: compute as invJ = / adjJ/Weight,    if J is square,
+   //                         \ adjJ/Weight^2,  otherwise.
+   MFEM_ASSERT((EvalState & INVERSE_MASK) == 0, "");
+   Jacobian();
+   invJ.SetSize(dFdx.Width(), dFdx.Height());
+   if (dFdx.Width() > 0) { CalcInverse(dFdx, invJ); }
+   EvalState |= INVERSE_MASK;
+   return invJ;
 }
 
 void IsoparametricTransformation::SetIdentityTransformation(int GeomType)
@@ -49,34 +76,20 @@ void IsoparametricTransformation::SetIdentityTransformation(int GeomType)
    }
 }
 
-const DenseMatrix & IsoparametricTransformation::Jacobian()
+const DenseMatrix &IsoparametricTransformation::EvalJacobian()
 {
-   if (JacobianIsEvaluated) { return dFdx; }
+   MFEM_ASSERT((EvalState & JACOBIAN_MASK) == 0, "");
 
    dshape.SetSize(FElem->GetDof(), FElem->GetDim());
    dFdx.SetSize(PointMat.Height(), dshape.Width());
-
-   FElem -> CalcDShape(*IntPoint, dshape);
-   Mult(PointMat, dshape, dFdx);
-
-   JacobianIsEvaluated = 1;
+   if (dshape.Width() > 0)
+   {
+      FElem->CalcDShape(*IntPoint, dshape);
+      Mult(PointMat, dshape, dFdx);
+   }
+   EvalState |= JACOBIAN_MASK;
 
    return dFdx;
-}
-
-double IsoparametricTransformation::Weight()
-{
-   if (FElem->GetDim() == 0)
-   {
-      return 1.0;
-   }
-   if (WeightIsEvaluated)
-   {
-      return Wght;
-   }
-   Jacobian();
-   WeightIsEvaluated = 1;
-   return (Wght = dFdx.Weight());
 }
 
 int IsoparametricTransformation::OrderJ()
@@ -247,9 +260,7 @@ void IntegrationPointTransformation::Transform (const IntegrationPoint &ip1,
    Vector v (vec, Transf.GetPointMat().Height());
 
    Transf.Transform (ip1, v);
-   ip2.x = vec[0];
-   ip2.y = vec[1];
-   ip2.z = vec[2];
+   ip2.Set(vec, v.Size());
 }
 
 void IntegrationPointTransformation::Transform (const IntegrationRule &ir1,

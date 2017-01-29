@@ -22,6 +22,8 @@
 #include "table.hpp"
 #include "sets.hpp"
 #include "communication.hpp"
+#include "text.hpp"
+
 #include <iostream>
 #include <map>
 
@@ -113,6 +115,7 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
 
    // build group_mgroup
    group_mgroup.SetSize(NGroups());
+   group_mgroup[0] = 0; // the local group
 
    int send_counter = 0;
    int recv_counter = 0;
@@ -194,6 +197,65 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
    delete [] requests;
 }
 
+void GroupTopology::Save(ostream &out) const
+{
+   out << "\ncommunication_groups\n";
+   out << "number_of_groups " << NGroups() << "\n\n";
+
+   out << "# number of entities in each group, followed by group ids in group\n";
+   for (int group_id = 0; group_id < NGroups(); ++group_id)
+   {
+      int group_size = GetGroupSize(group_id);
+      const int * group_ptr = GetGroup(group_id);
+      out << group_size;
+      for ( int group_member_index = 0; group_member_index < group_size;
+            ++group_member_index)
+      {
+         out << " " << GetNeighborRank( group_ptr[group_member_index] );
+      }
+      out << "\n";
+   }
+
+   // For future use, optional ownership strategy.
+   // out << "# ownership";
+}
+
+void GroupTopology::Load(istream &in)
+{
+   // Load in group topology and create list of integer sets.  Use constructor
+   // that uses list of integer sets.
+   std::string ident;
+
+   // Read in number of groups
+   int number_of_groups = -1;
+   in >> ident;
+   MFEM_VERIFY(ident == "number_of_groups",
+               "GroupTopology::Load - expected 'number_of_groups' entry.");
+   in >> number_of_groups;
+
+   // Skip number of entries in each group comment.
+   skip_comment_lines(in, '#');
+
+   ListOfIntegerSets integer_sets;
+   for (int group_id = 0; group_id < number_of_groups; ++group_id)
+   {
+      IntegerSet integer_set;
+      Array<int>& array = integer_set;
+      int group_size;
+      in >> group_size;
+      array.Reserve(group_size);
+      for ( int index = 0; index < group_size; ++index )
+      {
+         int value;
+         in >> value;
+         array.Append(value);
+      }
+      integer_sets.Insert(integer_set);
+   }
+
+   Create(integer_sets, 823);
+}
+
 
 // specializations of the MPITypeMap static member
 template<> const MPI_Datatype MPITypeMap<int>::mpi_type = MPI_INT;
@@ -260,15 +322,20 @@ void GroupCommunicator::Finalize()
 }
 
 template <class T>
-void GroupCommunicator::Bcast(T *ldata)
+void GroupCommunicator::Bcast(T *ldata, int layout)
 {
-   if (group_buf_size == 0)
-   {
-      return;
-   }
+   if (group_buf_size == 0) { return; }
 
-   group_buf.SetSize(group_buf_size*sizeof(T));
-   T *buf = (T *)group_buf.GetData();
+   T *buf;
+   if (layout == 0)
+   {
+      group_buf.SetSize(group_buf_size*sizeof(T));
+      buf = (T *)group_buf.GetData();
+   }
+   else
+   {
+      buf = ldata;
+   }
 
    int i, gr, request_counter = 0;
 
@@ -277,10 +344,7 @@ void GroupCommunicator::Bcast(T *ldata)
       const int nldofs = group_ldof.RowSize(gr);
 
       // ignore groups without dofs
-      if (nldofs == 0)
-      {
-         continue;
-      }
+      if (nldofs == 0) { continue; }
 
       if (!gtopo.IAmMaster(gr)) // we are not the master
       {
@@ -295,11 +359,14 @@ void GroupCommunicator::Bcast(T *ldata)
       }
       else // we are the master
       {
-         // fill send buffer
-         const int *ldofs = group_ldof.GetRow(gr);
-         for (i = 0; i < nldofs; i++)
+         if (layout == 0)
          {
-            buf[i] = ldata[ldofs[i]];
+            // fill send buffer
+            const int *ldofs = group_ldof.GetRow(gr);
+            for (i = 0; i < nldofs; i++)
+            {
+               buf[i] = ldata[ldofs[i]];
+            }
          }
 
          const int  gs  = gtopo.GetGroupSize(gr);
@@ -324,37 +391,34 @@ void GroupCommunicator::Bcast(T *ldata)
 
    MPI_Waitall(request_counter, requests, statuses);
 
-   // copy the received data from the buffer to ldata
-   buf = (T *)group_buf.GetData();
-   for (gr = 1; gr < group_ldof.Size(); gr++)
+   if (layout == 0)
    {
-      const int nldofs = group_ldof.RowSize(gr);
-
-      // ignore groups without dofs
-      if (nldofs == 0)
+      // copy the received data from the buffer to ldata
+      buf = (T *)group_buf.GetData();
+      for (gr = 1; gr < group_ldof.Size(); gr++)
       {
-         continue;
-      }
+         const int nldofs = group_ldof.RowSize(gr);
 
-      if (!gtopo.IAmMaster(gr)) // we are not the master
-      {
-         const int *ldofs = group_ldof.GetRow(gr);
-         for (i = 0; i < nldofs; i++)
+         // ignore groups without dofs
+         if (nldofs == 0) { continue; }
+
+         if (!gtopo.IAmMaster(gr)) // we are not the master
          {
-            ldata[ldofs[i]] = buf[i];
+            const int *ldofs = group_ldof.GetRow(gr);
+            for (i = 0; i < nldofs; i++)
+            {
+               ldata[ldofs[i]] = buf[i];
+            }
          }
+         buf += nldofs;
       }
-      buf += nldofs;
    }
 }
 
 template <class T>
 void GroupCommunicator::Reduce(T *ldata, void (*Op)(OpData<T>))
 {
-   if (group_buf_size == 0)
-   {
-      return;
-   }
+   if (group_buf_size == 0) { return; }
 
    int i, gr, request_counter = 0;
    OpData<T> opd;
@@ -367,10 +431,7 @@ void GroupCommunicator::Reduce(T *ldata, void (*Op)(OpData<T>))
       opd.nldofs = group_ldof.RowSize(gr);
 
       // ignore groups without dofs
-      if (opd.nldofs == 0)
-      {
-         continue;
-      }
+      if (opd.nldofs == 0) { continue; }
 
       opd.ldofs = group_ldof.GetRow(gr);
 
@@ -422,10 +483,7 @@ void GroupCommunicator::Reduce(T *ldata, void (*Op)(OpData<T>))
       opd.nldofs = group_ldof.RowSize(gr);
 
       // ignore groups without dofs
-      if (opd.nldofs == 0)
-      {
-         continue;
-      }
+      if (opd.nldofs == 0) { continue; }
 
       if (!gtopo.IAmMaster(gr)) // we are not the master
       {
@@ -515,9 +573,11 @@ GroupCommunicator::~GroupCommunicator()
 
 // instantiate GroupCommunicator::Bcast and Reduce for int and double
 template void GroupCommunicator::Bcast<int>(int *);
+template void GroupCommunicator::Bcast<int>(int *, int);
 template void GroupCommunicator::Reduce<int>(int *, void (*)(OpData<int>));
 
 template void GroupCommunicator::Bcast<double>(double *);
+template void GroupCommunicator::Bcast<double>(double *, int);
 template void GroupCommunicator::Reduce<double>(
    double *, void (*)(OpData<double>));
 

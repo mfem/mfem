@@ -88,6 +88,7 @@ int main(int argc, char *argv[])
    double dt = 0.01;
    bool visualization = true;
    bool visit = false;
+   bool binary = false;
    int vis_steps = 5;
 
    int precision = 8;
@@ -103,8 +104,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Forward Euler, 2 - RK2 SSP, 3 - RK3 SSP,"
-                  " 4 - RK4, 6 - RK6.");
+                  "ODE solver: 1 - Forward Euler,\n\t"
+                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -115,6 +116,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
+   args.AddOption(&binary, "-binary", "--binary-datafiles", "-ascii",
+                  "--ascii-datafiles",
+                  "Use binary (Sidre) or ascii format for VisIt data files.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.Parse();
@@ -208,13 +212,28 @@ int main(int argc, char *argv[])
       u.Save(osol);
    }
 
-   VisItDataCollection visit_dc("Example9", mesh);
-   visit_dc.RegisterField("solution", &u);
+   // Create data collection for solution output: either VisItDataCollection for
+   // ascii data files, or SidreDataCollection for binary data files.
+   DataCollection *dc = NULL;
    if (visit)
    {
-      visit_dc.SetCycle(0);
-      visit_dc.SetTime(0.0);
-      visit_dc.Save();
+      if (binary)
+      {
+#ifdef MFEM_USE_SIDRE
+         dc = new SidreDataCollection("Example9", mesh);
+#else
+         MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
+#endif
+      }
+      else
+      {
+         dc = new VisItDataCollection("Example9", mesh);
+         dc->SetPrecision(precision);
+      }
+      dc->RegisterField("solution", &u);
+      dc->SetCycle(0);
+      dc->SetTime(0.0);
+      dc->Save();
    }
 
    socketstream sout;
@@ -245,20 +264,21 @@ int main(int argc, char *argv[])
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
    FE_Evolution adv(m.SpMat(), k.SpMat(), b);
-   ode_solver->Init(adv);
 
    double t = 0.0;
-   for (int ti = 0; true; )
-   {
-      if (t >= t_final - dt/2)
-      {
-         break;
-      }
+   adv.SetTime(t);
+   ode_solver->Init(adv);
 
-      ode_solver->Step(u, t, dt);
+   bool done = false;
+   for (int ti = 0; !done; )
+   {
+      double dt_real = min(dt, t_final - t);
+      ode_solver->Step(u, t, dt_real);
       ti++;
 
-      if (ti % vis_steps == 0)
+      done = (t >= t_final - 1e-8*dt);
+
+      if (done || ti % vis_steps == 0)
       {
          cout << "time step: " << ti << ", time: " << t << endl;
 
@@ -269,9 +289,9 @@ int main(int argc, char *argv[])
 
          if (visit)
          {
-            visit_dc.SetCycle(ti);
-            visit_dc.SetTime(t);
-            visit_dc.Save();
+            dc->SetCycle(ti);
+            dc->SetTime(t);
+            dc->Save();
          }
       }
    }
@@ -286,7 +306,7 @@ int main(int argc, char *argv[])
 
    // 10. Free the used memory.
    delete ode_solver;
-   delete mesh;
+   delete dc;
 
    return 0;
 }
@@ -327,6 +347,7 @@ void velocity_function(const Vector &x, Vector &v)
       double center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
+
    switch (problem)
    {
       case 0:
@@ -375,6 +396,7 @@ void velocity_function(const Vector &x, Vector &v)
 double u0_function(const Vector &x)
 {
    int dim = x.Size();
+
    // map to the reference [-1,1] domain
    Vector X(dim);
    for (int i = 0; i < dim; i++)
@@ -382,6 +404,7 @@ double u0_function(const Vector &x)
       double center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
+
    switch (problem)
    {
       case 0:
@@ -409,7 +432,7 @@ double u0_function(const Vector &x)
       case 2:
       {
          double x_ = X(0), y_ = X(1), rho, phi;
-         rho = hypot(x_, y_)    ;
+         rho = hypot(x_, y_);
          phi = atan2(y_, x_);
          return pow(sin(M_PI*rho),2)*sin(3*phi);
       }

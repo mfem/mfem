@@ -148,6 +148,32 @@ void BilinearForm::EnableHybridization(FiniteElementSpace *constr_space,
    hybridization->Init(ess_tdof_list);
 }
 
+void BilinearForm::UseSparsity(int *I, int *J, bool isSorted)
+{
+   if (static_cond) { return; }
+
+   if (mat)
+   {
+      if (mat->Finalized() && mat->GetI() == I && mat->GetJ() == J)
+      {
+         return; // mat is already using the given sparsity
+      }
+      delete mat;
+   }
+   height = width = fes->GetVSize();
+   mat = new SparseMatrix(I, J, NULL, height, width, false, true, isSorted);
+}
+
+void BilinearForm::UseSparsity(SparseMatrix &A)
+{
+   MFEM_ASSERT(A.Height() == fes->GetVSize() && A.Width() == fes->GetVSize(),
+               "invalid matrix A dimensions: "
+               << A.Height() << " x " << A.Width());
+   MFEM_ASSERT(A.Finalized(), "matrix A must be Finalized");
+
+   UseSparsity(A.GetI(), A.GetJ(), A.areColumnsSorted());
+}
+
 double& BilinearForm::Elem (int i, int j)
 {
    return mat -> Elem(i,j);
@@ -191,9 +217,17 @@ void BilinearForm::AddInteriorFaceIntegrator (BilinearFormIntegrator * bfi)
    fbfi.Append (bfi);
 }
 
-void BilinearForm::AddBdrFaceIntegrator (BilinearFormIntegrator * bfi)
+void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi)
 {
-   bfbfi.Append (bfi);
+   bfbfi.Append(bfi);
+   bfbfi_marker.Append(NULL); // NULL marker means apply everywhere
+}
+
+void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
+                                        Array<int> &bdr_marker)
+{
+   bfbfi.Append(bfi);
+   bfbfi_marker.Append(&bdr_marker);
 }
 
 void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
@@ -384,8 +418,32 @@ void BilinearForm::Assemble (int skip_zeros)
       FaceElementTransformations *tr;
       const FiniteElement *fe1, *fe2;
 
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < bfbfi.Size(); k++)
+      {
+         if (bfbfi_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *bfbfi_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary face integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
       for (i = 0; i < fes -> GetNBE(); i++)
       {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
          tr = mesh -> GetBdrFaceTransformations (i);
          if (tr != NULL)
          {
@@ -397,6 +455,9 @@ void BilinearForm::Assemble (int skip_zeros)
             fe2 = fe1;
             for (int k = 0; k < bfbfi.Size(); k++)
             {
+               if (bfbfi_marker[k] &&
+                   (*bfbfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
                bfbfi[k] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
                mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
             }
@@ -419,7 +480,7 @@ void BilinearForm::ConformingAssemble()
    // matrix. This ensures that subsequent calls to EliminateRowCol will work
    // correctly.
    Finalize(0);
-   MFEM_ASSERT(mat, "the BilinearForm is not assembled")
+   MFEM_ASSERT(mat, "the BilinearForm is not assembled");
 
    const SparseMatrix *P = fes->GetConformingProlongation();
    if (!P) { return; } // conforming mesh
@@ -447,34 +508,14 @@ void BilinearForm::ConformingAssemble()
    width = mat->Width();
 }
 
-void BilinearForm::FormLinearSystem(Array<int> &ess_tdof_list,
+void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                     Vector &x, Vector &b,
                                     SparseMatrix &A, Vector &X, Vector &B,
                                     int copy_interior)
 {
    const SparseMatrix *P = fes->GetConformingProlongation();
-   Array<int> ess_rtdof_list;
 
-   // Finish the matrix assembly and perform BC elimination, storing the
-   // eliminated part of the matrix.
-   const int keep_diag = 1;
-   if (static_cond)
-   {
-      static_cond->ConvertListToReducedTrueDofs(ess_tdof_list, ess_rtdof_list);
-      if (!static_cond->HasEliminatedBC())
-      {
-         static_cond->Finalize(); // finalize Schur complement (to true dofs)
-         static_cond->EliminateReducedTrueDofs(ess_rtdof_list, keep_diag);
-         static_cond->Finalize(); // finalize eliminated part
-      }
-   }
-   else if (!mat_e)
-   {
-      if (P) { ConformingAssemble(); }
-      EliminateVDofs(ess_tdof_list, keep_diag);
-      const int remove_zeros = 0;
-      Finalize(remove_zeros);
-   }
+   FormSystemMatrix(ess_tdof_list, A);
 
    // Transform the system and perform the elimination in B, based on the
    // essential BC values from x. Restrict the BC part of x in X, and set the
@@ -483,12 +524,7 @@ void BilinearForm::FormLinearSystem(Array<int> &ess_tdof_list,
    if (static_cond)
    {
       // Schur complement reduction to the exposed dofs
-      static_cond->ReduceRHS(b, B);
-      static_cond->ReduceSolution(x, X);
-      static_cond->GetMatrixElim().AddMult(X, B, -1.);
-      static_cond->GetMatrix().PartMult(ess_rtdof_list, X, B);
-      if (!copy_interior) { X.SetSubVectorComplement(ess_rtdof_list, 0.0); }
-      A.MakeRef(static_cond->GetMatrix());
+      static_cond->ReduceSystem(x, b, X, B, copy_interior);
    }
    else if (!P) // conforming space
    {
@@ -499,7 +535,6 @@ void BilinearForm::FormLinearSystem(Array<int> &ess_tdof_list,
          hybridization->ReduceRHS(b, B);
          X.SetSize(B.Size());
          X = 0.0;
-         A.MakeRef(hybridization->GetMatrix());
       }
       else
       {
@@ -508,7 +543,6 @@ void BilinearForm::FormLinearSystem(Array<int> &ess_tdof_list,
          X.NewDataAndSize(x.GetData(), x.Size());
          B.NewDataAndSize(b.GetData(), b.Size());
          if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
-         A.MakeRef(*mat);
       }
    }
    else // non-conforming space
@@ -525,7 +559,6 @@ void BilinearForm::FormLinearSystem(Array<int> &ess_tdof_list,
          hybridization->ReduceRHS(conf_b, B);
          X.SetSize(B.Size());
          X = 0.0;
-         A.MakeRef(hybridization->GetMatrix());
       }
       else
       {
@@ -537,6 +570,43 @@ void BilinearForm::FormLinearSystem(Array<int> &ess_tdof_list,
          R->Mult(x, X);
          EliminateVDofsInRHS(ess_tdof_list, X, B);
          if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+      }
+   }
+}
+
+void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                    SparseMatrix &A)
+{
+   // Finish the matrix assembly and perform BC elimination, storing the
+   // eliminated part of the matrix.
+   const int keep_diag = 1;
+   if (static_cond)
+   {
+      if (!static_cond->HasEliminatedBC())
+      {
+         static_cond->SetEssentialTrueDofs(ess_tdof_list);
+         static_cond->Finalize(); // finalize Schur complement (to true dofs)
+         static_cond->EliminateReducedTrueDofs(keep_diag);
+         static_cond->Finalize(); // finalize eliminated part
+      }
+      A.MakeRef(static_cond->GetMatrix());
+   }
+   else
+   {
+      if (!mat_e)
+      {
+         const SparseMatrix *P = fes->GetConformingProlongation();
+         if (P) { ConformingAssemble(); }
+         EliminateVDofs(ess_tdof_list, keep_diag);
+         const int remove_zeros = 0;
+         Finalize(remove_zeros);
+      }
+      if (hybridization)
+      {
+         A.MakeRef(hybridization->GetMatrix());
+      }
+      else
+      {
          A.MakeRef(*mat);
       }
    }
@@ -632,7 +702,7 @@ void BilinearForm::ComputeElementMatrices()
    }
 }
 
-void BilinearForm::EliminateEssentialBC(Array<int> &bdr_attr_is_ess,
+void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
                                         Vector &sol, Vector &rhs, int d)
 {
    Array<int> ess_dofs, conf_ess_dofs;
@@ -649,7 +719,8 @@ void BilinearForm::EliminateEssentialBC(Array<int> &bdr_attr_is_ess,
    }
 }
 
-void BilinearForm::EliminateEssentialBC(Array<int> &bdr_attr_is_ess, int d)
+void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
+                                        int d)
 {
    Array<int> ess_dofs, conf_ess_dofs;
    fes->GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
@@ -665,7 +736,7 @@ void BilinearForm::EliminateEssentialBC(Array<int> &bdr_attr_is_ess, int d)
    }
 }
 
-void BilinearForm::EliminateEssentialBCDiag (Array<int> &bdr_attr_is_ess,
+void BilinearForm::EliminateEssentialBCDiag (const Array<int> &bdr_attr_is_ess,
                                              double value)
 {
    Array<int> ess_dofs, conf_ess_dofs;
@@ -682,7 +753,7 @@ void BilinearForm::EliminateEssentialBCDiag (Array<int> &bdr_attr_is_ess,
    }
 }
 
-void BilinearForm::EliminateVDofs(Array<int> &vdofs,
+void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
                                   Vector &sol, Vector &rhs, int d)
 {
    for (int i = 0; i < vdofs.Size(); i++)
@@ -699,7 +770,7 @@ void BilinearForm::EliminateVDofs(Array<int> &vdofs,
    }
 }
 
-void BilinearForm::EliminateVDofs(Array<int> &vdofs, int d)
+void BilinearForm::EliminateVDofs(const Array<int> &vdofs, int d)
 {
    if (mat_e == NULL)
    {
@@ -721,7 +792,7 @@ void BilinearForm::EliminateVDofs(Array<int> &vdofs, int d)
 }
 
 void BilinearForm::EliminateEssentialBCFromDofs(
-   Array<int> &ess_dofs, Vector &sol, Vector &rhs, int d)
+   const Array<int> &ess_dofs, Vector &sol, Vector &rhs, int d)
 {
    MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
    MFEM_ASSERT(sol.Size() == height, "incorrect sol Vector size");
@@ -734,7 +805,8 @@ void BilinearForm::EliminateEssentialBCFromDofs(
       }
 }
 
-void BilinearForm::EliminateEssentialBCFromDofs (Array<int> &ess_dofs, int d)
+void BilinearForm::EliminateEssentialBCFromDofs (const Array<int> &ess_dofs,
+                                                 int d)
 {
    MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
 
@@ -745,7 +817,7 @@ void BilinearForm::EliminateEssentialBCFromDofs (Array<int> &ess_dofs, int d)
       }
 }
 
-void BilinearForm::EliminateEssentialBCFromDofsDiag (Array<int> &ess_dofs,
+void BilinearForm::EliminateEssentialBCFromDofsDiag (const Array<int> &ess_dofs,
                                                      double value)
 {
    MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
@@ -758,7 +830,7 @@ void BilinearForm::EliminateEssentialBCFromDofsDiag (Array<int> &ess_dofs,
 }
 
 void BilinearForm::EliminateVDofsInRHS(
-   Array<int> &vdofs, const Vector &x, Vector &b)
+   const Array<int> &vdofs, const Vector &x, Vector &b)
 {
    mat_e->AddMult(x, b, -1.);
    mat->PartMult(vdofs, x, b);

@@ -15,6 +15,9 @@
 // Data type vector
 
 #include "../general/array.hpp"
+#ifdef MFEM_USE_SUNDIALS
+#include <nvector/nvector_serial.h>
+#endif
 #include <cmath>
 #include <iostream>
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
@@ -42,7 +45,7 @@ public:
    /// Default constructor for Vector. Sets size = 0 and data = NULL.
    Vector () { allocsize = size = 0; data = 0; }
 
-   /// Copy constructor
+   /// Copy constructor. Allocates a new data array and copies the data.
    Vector(const Vector &);
 
    /// @brief Creates vector of size s.
@@ -50,6 +53,8 @@ public:
    explicit Vector (int s);
 
    /// Creates a vector referencing an array of doubles, owned by someone else.
+   /** The pointer @a _data can be NULL. The data array can be replaced later
+       with SetData(). */
    Vector (double *_data, int _size)
    { data = _data; size = _size; allocsize = -size; }
 
@@ -59,18 +64,33 @@ public:
    /// Load a vector from an input stream.
    void Load(std::istream &in, int Size);
 
-   /// Load a vector from an input stream.
+   /// Load a vector from an input stream, reading the size from the stream.
    void Load(std::istream &in) { int s; in >> s; Load (in, s); }
 
-   /// @brief Resize the vector if the new size is different.
-   /// @warning New entries are not initialized!
+   /// @brief Resize the vector to size @a s.
+   /** If the new size is less than or equal to Capacity() then the internal
+       data array remains the same. Otherwise, the old array is deleted, if
+       owned, and a new array of size @a s is allocated without copying the
+       previous content of the Vector.
+       @warning New entries are not initialized! */
    void SetSize(int s);
 
+   /// Set the Vector data.
+   /// @warning This method should be called only when OwnsData() is false.
    void SetData(double *d) { data = d; }
 
+   /// Set the Vector data and size.
+   /** The Vector does not assume ownership of the new data. The new size is
+       also used as the new Capacity().
+       @warning This method should be called only when OwnsData() is false.
+       @sa NewDataAndSize(). */
    void SetDataAndSize(double *d, int s)
    { data = d; size = s; allocsize = -s; }
 
+   /// Set the Vector data and size, deleting the old data, if owned.
+   /** The Vector does not assume ownership of the new data. The new size is
+       also used as the new Capacity().
+       @sa SetDataAndSize(). */
    void NewDataAndSize(double *d, int s)
    {
       if (allocsize > 0) { delete [] data; }
@@ -85,12 +105,22 @@ public:
    /// Returns the size of the vector.
    inline int Size() const { return size; }
 
+   /// Return the size of the currently allocated data array.
+   /** It is always true that Capacity() >= Size(). */
+   inline int Capacity() const { return abs(allocsize); }
+
    // double *GetData() { return data; }
 
    inline double *GetData() const { return data; }
 
+   /// Conversion to `double *`.
+   /** @note This conversion function makes it possible to use [] for indexing
+       in addition to the overloaded operator()(int). */
    inline operator double *() { return data; }
 
+   /// Conversion to `const double *`.
+   /** @note This conversion function makes it possible to use [] for indexing
+       in addition to the overloaded operator()(int). */
    inline operator const double *() const { return data; }
 
    inline bool OwnsData() const { return (allocsize > 0); }
@@ -102,18 +132,21 @@ public:
    /// Changes the ownership of the data; after the call the Vector is empty
    inline double *StealData() { double *p; StealData(&p); return p; }
 
-   /// Sets value in vector. Index i = 0 .. size-1
+   /// Access Vector entries. Index i = 0 .. size-1.
    double & Elem (int i);
 
-   /// Sets value in vector. Index i = 0 .. size-1
+   /// Read only access to Vector entries. Index i = 0 .. size-1.
    const double & Elem (int i) const;
 
-   /// Sets value in vector. Index i = 0 .. size-1
+   /// Access Vector entries using () for 0-based indexing.
+   /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
    inline double & operator() (int i);
 
-   /// Sets value in vector. Index i = 0 .. size-1
+   /// Read only access to Vector entries using () for 0-based indexing.
+   /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
    inline const double & operator() (int i) const;
 
+   /// Dot product with a `double *` array.
    double operator*(const double *) const;
 
    /// Return the inner-product.
@@ -151,10 +184,10 @@ public:
    /// Swap the contents of two Vectors
    inline void Swap(Vector &other);
 
-   /// Do v = v1 + v2.
+   /// Set v = v1 + v2.
    friend void add(const Vector &v1, const Vector &v2, Vector &v);
 
-   /// Do v = v1 + alpha * v2.
+   /// Set v = v1 + alpha * v2.
    friend void add(const Vector &v1, double alpha, const Vector &v2, Vector &v);
 
    /// z = a * (x + y)
@@ -164,7 +197,7 @@ public:
    friend void add (const double a, const Vector &x,
                     const double b, const Vector &y, Vector &z);
 
-   /// Do v = v1 - v2.
+   /// Set v = v1 - v2.
    friend void subtract(const Vector &v1, const Vector &v2, Vector &v);
 
    /// z = a * (x - y)
@@ -177,6 +210,8 @@ public:
    void GetSubVector(const Array<int> &dofs, Vector &elemvect) const;
    void GetSubVector(const Array<int> &dofs, double *elem_data) const;
 
+   /// Set the entries listed in `dofs` to the given `value`.
+   void SetSubVector(const Array<int> &dofs, const double value);
    void SetSubVector(const Array<int> &dofs, const Vector &elemvect);
    void SetSubVector(const Array<int> &dofs, double *elem_data);
 
@@ -220,15 +255,27 @@ public:
 
    /// Destroys vector.
    virtual ~Vector ();
+
+#ifdef MFEM_USE_SUNDIALS
+   /// Construct a wrapper Vector from SUNDIALS N_Vector.
+   explicit Vector(N_Vector nv);
+
+   /// Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_SERIAL.
+   /** The returned N_Vector must be destroyed by the caller. */
+   virtual N_Vector ToNVector() { return N_VMake_Serial(Size(), GetData()); }
+
+   /** @brief Update an existing wrapper SUNDIALS N_Vector to point to this
+       Vector. */
+   virtual void ToNVector(N_Vector &nv);
+#endif
 };
 
 // Inline methods
 
 inline bool IsFinite(const double &val)
 {
-   // isfinite didn't appear in a standard until C99, and later C++11
-   // It wasn't standard in C89 or C++98.  PGI as of 14.7 still defines
-   // it as a macro, which sort of screws up everybody else.
+   // isfinite didn't appear in a standard until C99, and later C++11. It wasn't
+   // standard in C89 or C++98. PGI as of 14.7 still defines it as a macro.
 #ifdef isfinite
    return isfinite(val);
 #else

@@ -9,7 +9,10 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
+#include "../general/text.hpp"
+
 #include <algorithm>
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
 #include <float.h>
@@ -1167,7 +1170,7 @@ NURBSExtension::NURBSExtension(std::istream &input)
    CheckPatches();
    // CheckBdrPatches();
 
-   Mesh::skip_comment_lines(input, '#');
+   skip_comment_lines(input, '#');
 
    // Read knotvectors or patches
    string ident;
@@ -1190,7 +1193,7 @@ NURBSExtension::NURBSExtension(std::istream &input)
       patches.SetSize(GetNP());
       for (int p = 0; p < patches.Size(); p++)
       {
-         Mesh::skip_comment_lines(input, '#');
+         skip_comment_lines(input, '#');
          patches[p] = new NURBSPatch(input);
       }
 
@@ -1238,7 +1241,7 @@ NURBSExtension::NURBSExtension(std::istream &input)
    CountBdrElements();
    // NumOfVertices, NumOfElements, NumOfBdrElements, NumOfDofs
 
-   Mesh::skip_comment_lines(input, '#');
+   skip_comment_lines(input, '#');
 
    // Check for a list of mesh elements
    if (patches.Size() == 0)
@@ -1257,7 +1260,7 @@ NURBSExtension::NURBSExtension(std::istream &input)
          activeElem[glob_elem] = true;
       }
 
-      Mesh::skip_comment_lines(input, '#');
+      skip_comment_lines(input, '#');
       input >> ws >> ident;
    }
    else

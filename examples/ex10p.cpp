@@ -24,7 +24,7 @@
 //               class HyperelasticOperator defining H(x)), as well as their
 //               implicit time integration using a Newton method for solving an
 //               associated reduced backward-Euler type nonlinear equation
-//               (class BackwardEulerOperator). Each Newton step requires the
+//               (class ReducedSystemOperator). Each Newton step requires the
 //               inversion of a Jacobian matrix, which is done through a
 //               (preconditioned) inner solver. Note that implementing the
 //               method HyperelasticOperator::ImplicitSolve is the only
@@ -32,7 +32,6 @@
 //
 //               We recommend viewing examples 2 and 9 before viewing this
 //               example.
-
 
 #include "mfem.hpp"
 #include <memory>
@@ -42,7 +41,7 @@
 using namespace std;
 using namespace mfem;
 
-class BackwardEulerOperator;
+class ReducedSystemOperator;
 
 /** After spatial discretization, the hyperelastic model can be written as a
  *  system of ODEs:
@@ -70,12 +69,14 @@ protected:
 
    /** Nonlinear operator defining the reduced backward Euler equation for the
        velocity. Used in the implementation of method ImplicitSolve. */
-   BackwardEulerOperator *backward_euler_oper;
-   /// Newton solver for the backward Euler equation
+   ReducedSystemOperator *reduced_oper;
+
+   /// Newton solver for the reduced backward Euler equation
    NewtonSolver newton_solver;
+
    /// Solver for the Jacobian solve in the Newton method
    Solver *J_solver;
-   /// Preconditioner for the Jacobian
+   /// Preconditioner for the Jacobian solve in the Newton method
    Solver *J_prec;
 
    mutable Vector z; // auxiliary vector
@@ -84,6 +85,7 @@ public:
    HyperelasticOperator(ParFiniteElementSpace &f, Array<int> &ess_bdr,
                         double visc, double mu, double K);
 
+   /// Compute the right-hand side of the ODE system.
    virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
    /** Solve the Backward-Euler equation: k = f(x + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
@@ -96,28 +98,36 @@ public:
    virtual ~HyperelasticOperator();
 };
 
-// Nonlinear operator of the form:
-//       k --> (M + dt*S)*k + H(x + dt*v + dt^2*k) + S*v,
-// where M and S are given BilinearForms, H is a given NonlinearForm, v and x
-// are given vectors, and dt is a scalar.
-class BackwardEulerOperator : public Operator
+/** Nonlinear operator of the form:
+    k --> (M + dt*S)*k + H(x + dt*v + dt^2*k) + S*v,
+    where M and S are given BilinearForms, H is a given NonlinearForm, v and x
+    are given vectors, and dt is a scalar. */
+class ReducedSystemOperator : public Operator
 {
 private:
    ParBilinearForm *M, *S;
    ParNonlinearForm *H;
    mutable HypreParMatrix *Jacobian;
-   const Vector *v, *x;
    double dt;
+   const Vector *v, *x;
    mutable Vector w, z;
 
 public:
-   BackwardEulerOperator(ParBilinearForm *M_, ParBilinearForm *S_,
+   ReducedSystemOperator(ParBilinearForm *M_, ParBilinearForm *S_,
                          ParNonlinearForm *H_);
+
+   /// Set current dt, v, x values - needed to compute action and Jacobian.
    void SetParameters(double dt_, const Vector *v_, const Vector *x_);
+
+   /// Compute y = H(x + dt (v + dt k)) + M k + S (v + dt k).
    virtual void Mult(const Vector &k, Vector &y) const;
+
+   /// Compute J = M + dt S + dt^2 grad_H(x + dt (v + dt k)).
    virtual Operator &GetGradient(const Vector &k) const;
-   virtual ~BackwardEulerOperator();
+
+   virtual ~ReducedSystemOperator();
 };
+
 
 /** Function representing the elastic energy density for the given hyperelastic
     model+deformation. Used in HyperelasticOperator::GetElasticEnergyDensity. */
@@ -177,7 +187,8 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
-                  "\t   11 - Forward Euler, 12 - RK2, 13 - RK3 SSP, 14 - RK4.");
+                  "            11 - Forward Euler, 12 - RK2,\n\t"
+                  "            13 - RK3 SSP, 14 - RK4.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -337,20 +348,20 @@ int main(int argc, char *argv[])
       cout << "initial   total energy (TE) = " << (ee0 + ke0) << endl;
    }
 
-   // 10. Perform time-integration (looping over the time iterations, ti, with a
-   //     time-step dt).
-   ode_solver->Init(oper);
    double t = 0.0;
+   oper.SetTime(t);
+   ode_solver->Init(oper);
 
+   // 10. Perform time-integration
+   //     (looping over the time iterations, ti, with a time-step dt).
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
-      if (t + dt >= t_final - dt/2)
-      {
-         last_step = true;
-      }
+      double dt_real = min(dt, t_final - t);
 
-      ode_solver->Step(vx, t, dt);
+      ode_solver->Step(vx, t, dt_real);
+
+      last_step = (t >= t_final - 1e-8*dt);
 
       if (last_step || (ti % vis_steps) == 0)
       {
@@ -361,8 +372,10 @@ int main(int argc, char *argv[])
          double ke = oper.KineticEnergy(v_gf);
 
          if (myid == 0)
+         {
             cout << "step " << ti << ", t = " << t << ", EE = " << ee
                  << ", KE = " << ke << ", ΔTE = " << (ee+ke)-(ee0+ke0) << endl;
+         }
 
          if (visualization)
          {
@@ -443,19 +456,20 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
    out << flush;
 }
 
-BackwardEulerOperator::BackwardEulerOperator(
+
+ReducedSystemOperator::ReducedSystemOperator(
    ParBilinearForm *M_, ParBilinearForm *S_, ParNonlinearForm *H_)
    : Operator(M_->ParFESpace()->TrueVSize()), M(M_), S(S_), H(H_),
-     Jacobian(NULL), v(NULL), x(NULL), dt(0.0), w(height), z(height)
+     Jacobian(NULL), dt(0.0), v(NULL), x(NULL), w(height), z(height)
 { }
 
-void BackwardEulerOperator::SetParameters(double dt_, const Vector *v_,
+void ReducedSystemOperator::SetParameters(double dt_, const Vector *v_,
                                           const Vector *x_)
 {
    dt = dt_;  v = v_;  x = x_;
 }
 
-void BackwardEulerOperator::Mult(const Vector &k, Vector &y) const
+void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
 {
    // compute: y = H(x + dt*(v + dt*k)) + M*k + S*(v + dt*k)
    add(*v, dt, k, w);
@@ -465,7 +479,7 @@ void BackwardEulerOperator::Mult(const Vector &k, Vector &y) const
    S->TrueAddMult(w, y);
 }
 
-Operator &BackwardEulerOperator::GetGradient(const Vector &k) const
+Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 {
    delete Jacobian;
    SparseMatrix *localJ = Add(1.0, M->SpMat(), dt, S->SpMat());
@@ -477,7 +491,7 @@ Operator &BackwardEulerOperator::GetGradient(const Vector &k) const
    return *Jacobian;
 }
 
-BackwardEulerOperator::~BackwardEulerOperator()
+ReducedSystemOperator::~ReducedSystemOperator()
 {
    delete Jacobian;
 }
@@ -487,8 +501,9 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
                                            Array<int> &ess_bdr, double visc,
                                            double mu, double K)
    : TimeDependentOperator(2*f.TrueVSize(), 0.0), fespace(f),
-     M(&fespace), S(&fespace), H(&fespace), M_solver(f.GetComm()),
-     newton_solver(f.GetComm()), z(height/2)
+     M(&fespace), S(&fespace), H(&fespace),
+     viscosity(visc), M_solver(f.GetComm()), newton_solver(f.GetComm()),
+     z(height/2)
 {
    const double rel_tol = 1e-8;
    const int skip_zero_entries = 0;
@@ -514,17 +529,17 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    H.AddDomainIntegrator(new HyperelasticNLFIntegrator(model));
    H.SetEssentialBC(ess_bdr);
 
-   viscosity = visc;
    ConstantCoefficient visc_coeff(viscosity);
    S.AddDomainIntegrator(new VectorDiffusionIntegrator(visc_coeff));
    S.Assemble(skip_zero_entries);
    S.EliminateEssentialBC(ess_bdr);
    S.Finalize(skip_zero_entries);
 
-   backward_euler_oper = new BackwardEulerOperator(&M, &S, &H);
+   reduced_oper = new ReducedSystemOperator(&M, &S, &H);
 
    HypreSmoother *J_hypreSmoother = new HypreSmoother;
    J_hypreSmoother->SetType(HypreSmoother::l1Jacobi);
+   J_hypreSmoother->SetPositiveDiagonal(true);
    J_prec = J_hypreSmoother;
 
    MINRESSolver *J_minres = new MINRESSolver(f.GetComm());
@@ -537,7 +552,7 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
 
    newton_solver.iterative_mode = false;
    newton_solver.SetSolver(*J_solver);
-   newton_solver.SetOperator(*backward_euler_oper);
+   newton_solver.SetOperator(*reduced_oper);
    newton_solver.SetPrintLevel(1); // print Newton iterations
    newton_solver.SetRelTol(rel_tol);
    newton_solver.SetAbsTol(0.0);
@@ -577,14 +592,13 @@ void HyperelasticOperator::ImplicitSolve(const double dt,
    //    kv = -M^{-1}*[H(x + dt*kx) + S*(v + dt*kv)]
    //    kx = v + dt*kv
    // we reduce it to a nonlinear equation for kv, represented by the
-   // backward_euler_oper. This equation is solved with the newton_solver
+   // reduced_oper. This equation is solved with the newton_solver
    // object (using J_solver and J_prec internally).
-   backward_euler_oper->SetParameters(dt, &v, &x);
+   reduced_oper->SetParameters(dt, &v, &x);
    Vector zero; // empty vector is interpreted as zero r.h.s. by NewtonSolver
    newton_solver.Mult(zero, dv_dt);
+   MFEM_VERIFY(newton_solver.GetConverged(), "Newton solver did not converge.");
    add(v, dt, dv_dt, dx_dt);
-
-   MFEM_VERIFY(newton_solver.GetConverged(), "Newton Solver did not converge.");
 }
 
 double HyperelasticOperator::ElasticEnergy(ParGridFunction &x) const
@@ -610,10 +624,10 @@ void HyperelasticOperator::GetElasticEnergyDensity(
 
 HyperelasticOperator::~HyperelasticOperator()
 {
-   delete model;
-   delete backward_euler_oper;
    delete J_solver;
    delete J_prec;
+   delete reduced_oper;
+   delete model;
    delete Mmat;
 }
 

@@ -37,4 +37,6 @@ mfem-test-file = \
 # What sets of tests to run in serial and parallel
 test-par-YES: $(PAR_$(MFEM_TESTS):=-test-par) $(SEQ_$(MFEM_TESTS):=-test-seq)
 test-par-NO:  $(SEQ_$(MFEM_TESTS):=-test-seq)
+test-ser:     test-par-NO
+test-par:     test-par-YES
 test:         all test-par-$(MFEM_USE_MPI) clean-exec

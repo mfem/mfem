@@ -1,0 +1,12 @@
+# KSP
+-ksp_type minres
+-ksp_view
+
+# PCFIELDSPLIT
+-prec_pc_fieldsplit_type schur
+-prec_pc_fieldsplit_schur_fact_type diag
+-prec_pc_fieldsplit_schur_precondition selfp
+-prec_fieldsplit_0_ksp_type preonly
+-prec_fieldsplit_0_pc_type jacobi
+-prec_fieldsplit_1_ksp_type preonly
+-prec_fieldsplit_1_pc_type hypre

@@ -88,6 +88,8 @@ protected:
 
    p_assembled_t *assembled_data;
 
+   const FiniteElementSpace &in_fes;
+
 public:
    TBilinearForm(const IntegratorType &integ, const FiniteElementSpace &sol_fes)
       : Operator(sol_fes.GetNDofs()*vdim),
@@ -99,13 +101,21 @@ public:
         solVecLayout(sol_fes),
         int_rule(),
         coeff(integ.coeff),
-        assembled_data(NULL)
+        assembled_data(NULL),
+        in_fes(sol_fes)
    { }
 
    virtual ~TBilinearForm()
    {
       delete [] assembled_data;
    }
+
+   /// Get the input finite element space prolongation matrix
+   virtual const Operator *GetProlongation() const
+   { return ((FiniteElementSpace &)in_fes).GetProlongationMatrix(); }
+   /// Get the input finite element space restriction matrix
+   virtual const Operator *GetRestriction() const
+   { return ((FiniteElementSpace &)in_fes).GetRestrictionMatrix(); }
 
    virtual void Mult(const Vector &x, Vector &y) const
    {

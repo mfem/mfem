@@ -16,10 +16,6 @@
 #include "fespace.hpp"
 #include "bilininteg.hpp"
 
-#ifdef MFEM_USE_MPI
-#include "../linalg/hypre.hpp"
-#endif
-
 namespace mfem
 {
 
@@ -76,7 +72,7 @@ protected:
 
 #ifdef MFEM_USE_MPI
    HypreParMatrix *pC, *P_pc; // for parallel non-conforming meshes
-   HypreParMatrix *pH;
+   OperatorHandle pH;
 #endif
 
    void ConstructC();
@@ -126,7 +122,14 @@ public:
 
 #ifdef MFEM_USE_MPI
    /// Return the parallel hybridized matrix.
-   HypreParMatrix &GetParallelMatrix() { return *pH; }
+   HypreParMatrix &GetParallelMatrix() { return *pH.Is<HypreParMatrix>(); }
+
+   /** @brief Return the parallel hybridized matrix in the format specified by
+       SetOperatorType(). */
+   void GetParallelMatrix(OperatorHandle &H_h) const { H_h = pH; }
+
+   /// Set the operator type id for the parallel hybridized matrix/operator.
+   void SetOperatorType(Operator::Type tid) { pH.SetType(tid); }
 #endif
 
    /** Perform the reduction of the given r.h.s. vector, b, to a r.h.s vector,

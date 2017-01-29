@@ -36,7 +36,7 @@ public:
     At a minimum, an ErrorEstimator must be able compute one non-negative real
     (double) number for each element in the Mesh.
  */
-class ErrorEstimator : AbstractErrorEstimator
+class ErrorEstimator : public AbstractErrorEstimator
 {
 public:
    /// Get a Vector with all element errors.

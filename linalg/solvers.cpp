@@ -528,6 +528,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
    DenseMatrix H(m+1, m);
    Vector s(m+1), cs(m+1), sn(m+1);
    Vector r(n), w(n);
+   Array<Vector *> v;
 
    double resid;
    int i, j, k;
@@ -565,6 +566,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       }
    }
    double beta = Norm(r);  // beta = ||r||
+   MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
 
@@ -573,16 +575,17 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       final_norm = beta;
       final_iter = 0;
       converged = 1;
-      return;
+      goto finish;
    }
 
-   if (print_level >= 0)
+   if (print_level == 1 || print_level == 3)
+   {
       cout << "   Pass : " << setw(2) << 1
            << "   Iteration : " << setw(3) << 0
-           << "  ||B r|| = " << beta << '\n';
+           << "  ||B r|| = " << beta << (print_level == 3 ? " ...\n" : "\n");
+   }
 
-   Array<Vector *> v(m+1);
-   v = NULL;
+   v.SetSize(m+1, NULL);
 
    for (j = 1; j <= max_iter; )
    {
@@ -609,6 +612,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          }
 
          H(i+1,i) = Norm(w);           // H(i+1,i) = ||w||
+         MFEM_ASSERT(IsFinite(H(i+1,i)), "Norm(w) = " << H(i+1,i));
          if (v[i+1] == NULL) { v[i+1] = new Vector(n); }
          v[i+1]->Set(1.0/H(i+1,i), w); // v[i+1] = w / H(i+1,i)
 
@@ -622,26 +626,26 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
 
          resid = fabs(s(i+1));
-         if (print_level >= 0)
-            cout << "   Pass : " << setw(2) << (j-1)/m+1
-                 << "   Iteration : " << setw(3) << j
-                 << "  ||B r|| = " << resid << '\n';
+         MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
 
          if (resid <= final_norm)
          {
             Update(x, i, H, s, v);
             final_norm = resid;
             final_iter = j;
-            for (i = 0; i <= m; i++)
-            {
-               delete v[i];
-            }
             converged = 1;
-            return;
+            goto finish;
+         }
+
+         if (print_level == 1)
+         {
+            cout << "   Pass : " << setw(2) << (j-1)/m+1
+                 << "   Iteration : " << setw(3) << j
+                 << "  ||B r|| = " << resid << '\n';
          }
       }
 
-      if (print_level >= 0 && j <= max_iter)
+      if (print_level == 1 && j <= max_iter)
       {
          cout << "Restarting..." << '\n';
       }
@@ -659,33 +663,45 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          subtract(b, r, r);
       }
       beta = Norm(r);         // beta = ||r||
+      MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
       if (beta <= final_norm)
       {
          final_norm = beta;
          final_iter = j;
-         for (i = 0; i <= m; i++)
-         {
-            delete v[i];
-         }
          converged = 1;
-         return;
+         goto finish;
       }
    }
 
    final_norm = beta;
    final_iter = max_iter;
-   for (i = 0; i <= m; i++)
+   converged = 0;
+
+finish:
+   if (print_level == 1 || print_level == 3)
+   {
+      cout << "   Pass : " << setw(2) << (final_iter-1)/m+1
+           << "   Iteration : " << setw(3) << final_iter
+           << "  ||B r|| = " << final_norm << '\n';
+   }
+   else if (print_level == 2)
+   {
+      cout << "GMRES: Number of iterations: " << final_iter << '\n';
+   }
+   if (print_level >= 0 && !converged)
+   {
+      cout << "GMRES: No convergence!\n";
+   }
+   for (i = 0; i < v.Size(); i++)
    {
       delete v[i];
    }
-   converged = 0;
 }
 
 void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 {
    DenseMatrix H(m+1,m);
    Vector s(m+1), cs(m+1), sn(m+1);
-   Vector av(b.Size());
    Vector r(b.Size());
 
    int i, j, k;
@@ -702,6 +718,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       r = b;
    }
    double beta = Norm(r);  // beta = ||r||
+   MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
 
@@ -764,6 +781,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
 
          double resid = fabs(s(i+1));
+         MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
          if (print_level >= 0)
             cout << "   Pass : " << setw(2) << j
                  << "   Iteration : " << setw(3) << i+1
@@ -794,6 +812,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       oper->Mult(x, r);
       subtract(b,r,r);
       beta = Norm(r);
+      MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
       if ( beta <= final_norm)
       {
          final_norm = beta;
@@ -879,6 +898,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    rtilde = r;
 
    resid = Norm(r);
+   MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
    if (print_level >= 0)
       cout << "   Iteration : " << setw(3) << 0
            << "   ||r|| = " << resid << '\n';
@@ -928,6 +948,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       alpha = rho_1 / Dot(rtilde, v);
       add(r, -alpha, v, s); //  s = r - alpha * v
       resid = Norm(s);
+      MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
       if (resid < tol_goal)
       {
          x.Add(alpha, phat);  //  x = x + alpha * phat
@@ -958,6 +979,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
 
       rho_2 = rho_1;
       resid = Norm(r);
+      MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
       if (print_level >= 0)
       {
          cout << "   ||r|| = " << resid << '\n';
@@ -1050,19 +1072,22 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       prec->Mult(v1, u1);
    }
    eta = beta = sqrt(Dot(*z, v1));
+   MFEM_ASSERT(IsFinite(eta), "eta = " << eta);
    gamma0 = gamma1 = 1.;
    sigma0 = sigma1 = 0.;
 
    norm_goal = std::max(rel_tol*eta, abs_tol);
 
-   if (print_level == 1 || print_level == 3)
-      cout << "MINRES: iteration " << setw(3) << 0 << ": ||r||_B = "
-           << eta << '\n';
-
    if (eta <= norm_goal)
    {
       it = 0;
       goto loop_end;
+   }
+
+   if (print_level == 1 || print_level == 3)
+   {
+      cout << "MINRES: iteration " << setw(3) << 0 << ": ||r||_B = "
+           << eta << (print_level == 3 ? " ...\n" : "\n");
    }
 
    for (it = 1; it <= max_iter; it++)
@@ -1074,6 +1099,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       }
       oper->Mult(*z, q);
       alpha = Dot(*z, q);
+      MFEM_ASSERT(IsFinite(alpha), "alpha = " << alpha);
       if (it > 1) // (v0 == 0) for (it == 1)
       {
          q.Add(-beta, v0);
@@ -1092,6 +1118,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
          prec->Mult(v0, q);
          beta = sqrt(Dot(v0, q));
       }
+      MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
       rho1 = hypot(delta, beta);
 
       if (it == 1)
@@ -1117,14 +1144,17 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       sigma1 = beta/rho1;
 
       eta = -sigma1*eta;
-
-      if (print_level == 1)
-         cout << "MINRES: iteration " << setw(3) << it << ": ||r||_B = "
-              << fabs(eta) << '\n';
+      MFEM_ASSERT(IsFinite(eta), "eta = " << eta);
 
       if (fabs(eta) <= norm_goal)
       {
          goto loop_end;
+      }
+
+      if (print_level == 1)
+      {
+         cout << "MINRES: iteration " << setw(3) << it << ": ||r||_B = "
+              << fabs(eta) << '\n';
       }
 
       if (prec)
@@ -1141,13 +1171,15 @@ loop_end:
    final_iter = it;
    final_norm = fabs(eta);
 
-   if (print_level == 2)
+   if (print_level == 1 || print_level == 3)
    {
-      cout << "MINRES: number of iterations: " << it << '\n';
+      cout << "MINRES: iteration " << setw(3) << final_iter << ": ||r||_B = "
+           << final_norm << '\n';
    }
-   else if (print_level == 3)
-      cout << "MINRES: iteration " << setw(3) << it << ": ||r||_B = "
-           << fabs(eta) << '\n';
+   else if (print_level == 2)
+   {
+      cout << "MINRES: number of iterations: " << final_iter << '\n';
+   }
 #if 0
    if (print_level >= 1)
    {
@@ -1164,7 +1196,7 @@ loop_end:
 #endif
    if (!converged && print_level >= 0)
    {
-      cerr << "MINRES: No convergence!" << '\n';
+      cout << "MINRES: No convergence!\n";
    }
 }
 
@@ -1233,6 +1265,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    // x_{i+1} = x_i - [DF(x_i)]^{-1} [F(x_i)-b]
    for (it = 0; true; it++)
    {
+      MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
       if (print_level >= 0)
          cout << "Newton iteration " << setw(2) << it
               << " : ||r|| = " << norm << '\n';

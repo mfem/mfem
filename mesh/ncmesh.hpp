@@ -12,16 +12,16 @@
 #ifndef MFEM_NCMESH
 #define MFEM_NCMESH
 
-#include <vector>
-#include <map>
-#include <iostream>
-
 #include "../config/config.hpp"
 #include "../general/hash.hpp"
 #include "../linalg/densemat.hpp"
 #include "element.hpp"
 #include "vertex.hpp"
 #include "../fem/geom.hpp"
+
+#include <vector>
+#include <map>
+#include <iostream>
 
 namespace mfem
 {
@@ -52,6 +52,7 @@ struct CoarseFineTransformations
 {
    DenseTensor point_matrices;  ///< matrices for IsoparametricTransformation
    Array<Embedding> embeddings; ///< fine element positions in their parents
+   void Clear() { point_matrices.Clear(); embeddings.DeleteAll(); }
 };
 
 

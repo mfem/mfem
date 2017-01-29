@@ -33,6 +33,9 @@
 
 #include "sparsemat.hpp"
 #include "hypre_parcsr.hpp"
+#ifdef MFEM_USE_SUNDIALS
+#include <nvector/nvector_parhyp.h>
+#endif
 
 namespace mfem
 {
@@ -43,14 +46,25 @@ class HypreParMatrix;
 namespace internal
 {
 
-// Convert a HYPRE_Int to int
-inline int to_int(HYPRE_Int i)
+template <typename int_type>
+inline int to_int(int_type i)
 {
-#ifdef HYPRE_BIGINT
-   MFEM_ASSERT(HYPRE_Int(int(i)) == i, "overflow converting HYPRE_Int to int");
-#endif
+   MFEM_ASSERT(int_type(int(i)) == i, "overflow converting int_type to int");
    return int(i);
 }
+
+// Specialization for to_int(int)
+template <> inline int to_int(int i) { return i; }
+
+// Convert a HYPRE_Int to int
+#ifdef HYPRE_BIGINT
+template <>
+inline int to_int(HYPRE_Int i)
+{
+   MFEM_ASSERT(HYPRE_Int(int(i)) == i, "overflow converting HYPRE_Int to int");
+   return int(i);
+}
+#endif
 
 }
 
@@ -97,10 +111,10 @@ public:
    inline HYPRE_Int GlobalSize() { return x->global_size; }
 
    /// Typecasting to hypre's hypre_ParVector*
-   operator hypre_ParVector*() const;
+   operator hypre_ParVector*() const { return x; }
 #ifndef HYPRE_PAR_VECTOR_STRUCT
    /// Typecasting to hypre's HYPRE_ParVector, a.k.a. void *
-   operator HYPRE_ParVector() const;
+   operator HYPRE_ParVector() const { return (HYPRE_ParVector) x; }
 #endif
    /// Changes the ownership of the the vector
    hypre_ParVector *StealParVector() { own_ParVector = 0; return x; }
@@ -134,6 +148,16 @@ public:
 
    /// Calls hypre's destroy function
    ~HypreParVector();
+
+#ifdef MFEM_USE_SUNDIALS
+   /// Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_PARHYP.
+   /** The returned N_Vector must be destroyed by the caller. */
+   virtual N_Vector ToNVector() { return N_VMake_ParHyp(x); }
+
+   /** @brief Update an existing wrapper SUNDIALS N_Vector of type
+       SUNDIALS_NVEC_PARHYP to point to this Vector. */
+   virtual void ToNVector(N_Vector &nv);
+#endif
 };
 
 /// Returns the inner product of x and y
@@ -170,10 +194,10 @@ private:
    //   0: prevent hypre from destroying A->col_map_offd
    //   1: same as 0, plus take ownership of A->col_map_offd
    // All owned arrays are destroyed with 'delete []'.
-   char diagOwner, offdOwner, colMapOwner;
+   signed char diagOwner, offdOwner, colMapOwner;
 
    // Does the object own the pointer A?
-   char ParCSROwner;
+   signed char ParCSROwner;
 
    // Initialize with defaults. Does not initialize inherited members.
    void Init();
@@ -209,7 +233,10 @@ public:
 
    /** Creates block-diagonal square parallel matrix. Diagonal is given by diag
        which must be in CSR format (finalized). The new HypreParMatrix does not
-       take ownership of any of the input arrays. */
+       take ownership of any of the input arrays.
+       @warning The ordering of the columns in each row in @a *diag may be
+       changed by this constructor to ensure that the first entry in each row is
+       the diagonal one. This is expected by most hypre functions. */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *row_starts,
                   SparseMatrix *diag);
 
@@ -268,7 +295,7 @@ public:
    MPI_Comm GetComm() const { return A->comm; }
 
    /// Typecasting to hypre's hypre_ParCSRMatrix*
-   operator hypre_ParCSRMatrix*() { return A; }
+   operator hypre_ParCSRMatrix*() const { return A; }
 #ifndef HYPRE_PAR_CSR_MATRIX_STRUCT
    /// Typecasting to hypre's HYPRE_ParCSRMatrix, a.k.a. void *
    operator HYPRE_ParCSRMatrix() { return (HYPRE_ParCSRMatrix) A; }
@@ -277,15 +304,15 @@ public:
    hypre_ParCSRMatrix* StealData();
 
    /// Explicitly set the three ownership flags, see docs for diagOwner etc.
-   void SetOwnerFlags(char diag, char offd, char colmap)
+   void SetOwnerFlags(signed char diag, signed char offd, signed char colmap)
    { diagOwner = diag, offdOwner = offd, colMapOwner = colmap; }
 
    /// Get diag ownership flag
-   char OwnsDiag() const { return diagOwner; }
+   signed char OwnsDiag() const { return diagOwner; }
    /// Get offd ownership flag
-   char OwnsOffd() const { return offdOwner; }
+   signed char OwnsOffd() const { return offdOwner; }
    /// Get colmap ownership flag
-   char OwnsColMap() const { return colMapOwner; }
+   signed char OwnsColMap() const { return colMapOwner; }
 
    /** If the HypreParMatrix does not own the row-starts array, make a copy of
        it that the HypreParMatrix will own. If the col-starts array is the same
@@ -297,15 +324,19 @@ public:
    void CopyColStarts();
 
    /// Returns the global number of nonzeros
-   inline HYPRE_Int NNZ() { return A->num_nonzeros; }
+   inline HYPRE_Int NNZ() const { return A->num_nonzeros; }
    /// Returns the row partitioning
    inline HYPRE_Int *RowPart() { return A->row_starts; }
    /// Returns the column partitioning
    inline HYPRE_Int *ColPart() { return A->col_starts; }
+   /// Returns the row partitioning (const version)
+   inline const HYPRE_Int *RowPart() const { return A->row_starts; }
+   /// Returns the column partitioning (const version)
+   inline const HYPRE_Int *ColPart() const { return A->col_starts; }
    /// Returns the global number of rows
-   inline HYPRE_Int M() { return A->global_num_rows; }
+   inline HYPRE_Int M() const { return A->global_num_rows; }
    /// Returns the global number of columns
-   inline HYPRE_Int N() { return A->global_num_cols; }
+   inline HYPRE_Int N() const { return A->global_num_cols; }
 
    /// Get the local diagonal of the matrix.
    void GetDiag(Vector &diag) const;
@@ -372,6 +403,25 @@ public:
       internal::hypre_ParCSRMatrixBooleanMatvec(A, alpha, x, beta, y);
    }
 
+   /// Initialize all entries with value.
+   HypreParMatrix &operator=(double value)
+   { internal::hypre_ParCSRMatrixSetConstantValues(A, value); return *this; }
+
+   /** Perform the operation `*this += B`, assuming that both matrices use the
+       same row and column partitions and the same col_map_offd arrays. We also
+       assume that the sparsity pattern of `*this` contains that of `B`. */
+   HypreParMatrix &operator+=(const HypreParMatrix &B) { return Add(1.0, B); }
+
+   /** Perform the operation `*this += beta*B`, assuming that both matrices use
+       the same row and column partitions and the same col_map_offd arrays. We
+       also assume that the sparsity pattern of `*this` contains that of `B`. */
+   HypreParMatrix &Add(const double beta, const HypreParMatrix &B)
+   {
+      MFEM_VERIFY(internal::hypre_ParCSRMatrixSum(A, beta, B.A) == 0,
+                  "error in hypre_ParCSRMatrixSum");
+      return *this;
+   }
+
    /** Multiply A on the left by a block-diagonal parallel matrix D. Return
        a new parallel matrix, D*A. If D has a different number of rows than A,
        D's row starts array needs to be given (as returned by the methods
@@ -412,7 +462,15 @@ public:
 
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }
+
+   Type GetType() const { return HYPRE_PARCSR; }
 };
+
+/** @brief Return a new matrix `C = alpha*A + beta*B`, assuming that both `A`
+    and `B` use the same row and column partitions and the same `col_map_offd`
+    arrays. */
+HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
+                    double beta,  const HypreParMatrix &B);
 
 /// Returns the matrix A * B
 HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B);
@@ -465,6 +523,8 @@ protected:
 
    /// l1 norms of the rows of A
    double *l1_norms;
+   /// If set, take absolute values of the computed l1_norms
+   bool pos_l1_norms;
    /// Maximal eigenvalue estimate for polynomial smoothing
    double max_eig_est;
    /// Minimal eigenvalue estimate for polynomial smoothing
@@ -512,6 +572,11 @@ public:
    void SetWindowParameters(double a, double b, double c);
    /// Compute window and Chebyshev coefficients for given polynomial order.
    void SetFIRCoefficients(double max_eig);
+
+   /// After computing l1-norms, replace them with their absolute values.
+   /** By default, the l1-norms take their sign from the corresponding diagonal
+       entries in the associated matrix. */
+   void SetPositiveDiagonal(bool pos = true) { pos_l1_norms = pos; }
 
    /** Set/update the associated operator. Must be called after setting the
        HypreSmoother type and options. */

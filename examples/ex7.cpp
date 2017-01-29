@@ -150,9 +150,10 @@ int main(int argc, char *argv[])
 
    if (amr == 1)
    {
+      Vertex target(0.0, 0.0, 1.0);
       for (int l = 0; l < 5; l++)
       {
-         mesh->RefineAtVertex(Vertex(0, 0, 1));
+         mesh->RefineAtVertex(target);
       }
       SnapNodes(*mesh);
    }

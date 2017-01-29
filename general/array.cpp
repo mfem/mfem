@@ -77,12 +77,30 @@ void Array<T>::Print(std::ostream &out, int width)
 }
 
 template <class T>
-void Array<T>::Save(std::ostream &out)
+void Array<T>::Save(std::ostream &out, int fmt) const
 {
-   out << size << '\n';
+   if (fmt == 0)
+   {
+      out << size << '\n';
+   }
    for (int i = 0; i < size; i++)
    {
       out << operator[](i) << '\n';
+   }
+}
+
+template <class T>
+void Array<T>::Load(std::istream &in, int fmt)
+{
+   if (fmt == 0)
+   {
+      int new_size;
+      in >> new_size;
+      SetSize(new_size);
+   }
+   for (int i = 0; i < size; i++)
+   {
+      in >> operator[](i);
    }
 }
 

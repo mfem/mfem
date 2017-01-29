@@ -63,6 +63,7 @@ public:
    virtual ~Segment() { }
 };
 
+class Linear1DFiniteElement;
 extern Linear1DFiniteElement SegmentFE;
 
 }

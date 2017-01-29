@@ -24,13 +24,25 @@
 #include "sparsesmoothers.hpp"
 #include "densemat.hpp"
 #include "ode.hpp"
+#include "solvers.hpp"
+#include "handle.hpp"
 
-#ifdef MFEM_USE_MPI
-#include <mpi.h>
-#include "hypre.hpp"
+#ifdef MFEM_USE_SUNDIALS
+#include "sundials.hpp"
 #endif
 
-#include "solvers.hpp"
+#ifdef MFEM_USE_MPI
+#include "hypre_parcsr.hpp"
+#include "hypre.hpp"
+
+#ifdef MFEM_USE_PETSC
+#include "petsc.hpp"
+#endif
+
+#ifdef MFEM_USE_SUPERLU
 #include "superlu.hpp"
+#endif
+
+#endif // MFEM_USE_MPI
 
 #endif

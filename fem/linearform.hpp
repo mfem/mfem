@@ -34,6 +34,7 @@ private:
 
    /// Set of Boundary Face Integrators to be applied.
    Array<LinearFormIntegrator*> flfi;
+   Array<Array<int>*>           flfi_marker;
 
 public:
    /// Creates linear form associated with FE space *f.
@@ -52,6 +53,11 @@ public:
 
    /// Adds new Boundary Face Integrator.
    void AddBdrFaceIntegrator (LinearFormIntegrator * lfi);
+
+   /** @brief Add new Boundary Face Integrator, restricted to the given boundary
+       attributes. */
+   void AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
+                             Array<int> &bdr_attr_marker);
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();

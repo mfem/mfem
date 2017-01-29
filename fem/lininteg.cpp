@@ -232,6 +232,46 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
    }
 }
 
+void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   int vdim = Q.GetVDim();
+   int dof  = el.GetDof();
+
+   shape.SetSize(dof);
+   vec.SetSize(vdim);
+
+   elvect.SetSize(dof * vdim);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = el.GetOrder() + 1;
+      ir = &IntRules.Get(Tr.FaceGeom, intorder);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      IntegrationPoint eip;
+      Tr.Loc1.Transform(ip, eip);
+
+      Tr.Face->SetIntPoint(&ip);
+      Q.Eval(vec, *Tr.Face, ip);
+      vec *= Tr.Face->Weight() * ip.weight;
+      el.CalcShape(eip, shape);
+      for (int k = 0; k < vdim; k++)
+      {
+         for (int s = 0; s < dof; s++)
+         {
+            elvect(dof*k+s) += vec(k) * shape(s);
+         }
+      }
+   }
+}
+
+
 void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
@@ -512,6 +552,141 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
       if (kappa_is_nonzero)
       {
          elvect.Add(kappa*(ni*nor), shape);
+      }
+   }
+}
+
+
+void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   mfem_error("DGElasticityDirichletLFIntegrator::AssembleRHSElementVect");
+}
+
+void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   MFEM_ASSERT(Tr.Elem2No < 0, "interior boundary is not supported");
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape;
+   DenseMatrix dshape;
+   DenseMatrix adjJ;
+   DenseMatrix dshape_ps;
+   Vector nor;
+   Vector dshape_dn;
+   Vector dshape_du;
+   Vector u_dir;
+#endif
+
+   const int dim = el.GetDim();
+   const int ndofs = el.GetDof();
+   const int nvdofs = dim*ndofs;
+
+   elvect.SetSize(nvdofs);
+   elvect = 0.0;
+
+   adjJ.SetSize(dim);
+   shape.SetSize(ndofs);
+   dshape.SetSize(ndofs, dim);
+   dshape_ps.SetSize(ndofs, dim);
+   nor.SetSize(dim);
+   dshape_dn.SetSize(ndofs);
+   dshape_du.SetSize(ndofs);
+   u_dir.SetSize(dim);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      const int order = 2*el.GetOrder(); // <-----
+      ir = &IntRules.Get(Tr.FaceGeom, order);
+   }
+
+   for (int pi = 0; pi < ir->GetNPoints(); ++pi)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(pi);
+      IntegrationPoint eip;
+      Tr.Loc1.Transform(ip, eip);
+      Tr.Face->SetIntPoint(&ip);
+      Tr.Elem1->SetIntPoint(&eip);
+
+      // Evaluate the Dirichlet b.c. using the face transformation.
+      uD.Eval(u_dir, *Tr.Face, ip);
+
+      el.CalcShape(eip, shape);
+      el.CalcDShape(eip, dshape);
+
+      CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
+      Mult(dshape, adjJ, dshape_ps);
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Face->Jacobian(), nor);
+      }
+
+      double wL, wM, jcoef;
+      {
+         const double w = ip.weight / Tr.Elem1->Weight();
+         wL = w * lambda->Eval(*Tr.Elem1, eip);
+         wM = w * mu->Eval(*Tr.Elem1, eip);
+         jcoef = kappa * (wL + 2.0*wM) * (nor*nor);
+         dshape_ps.Mult(nor, dshape_dn);
+         dshape_ps.Mult(u_dir, dshape_du);
+      }
+
+      // alpha < uD, (lambda div(v) I + mu (grad(v) + grad(v)^T)) . n > +
+      //   + kappa < h^{-1} (lambda + 2 mu) uD, v >
+
+      // i = idof + ndofs * im
+      // v_phi(i,d) = delta(im,d) phi(idof)
+      // div(v_phi(i)) = dphi(idof,im)
+      // (grad(v_phi(i)))(k,l) = delta(im,k) dphi(idof,l)
+      //
+      // term 1:
+      //   alpha < uD, lambda div(v_phi(i)) n >
+      //   alpha lambda div(v_phi(i)) (uD.n) =
+      //   alpha lambda dphi(idof,im) (uD.n) --> quadrature -->
+      //   ip.weight/det(J1) alpha lambda (uD.nor) dshape_ps(idof,im) =
+      //   alpha * wL * (u_dir*nor) * dshape_ps(idof,im)
+      // term 2:
+      //   < alpha uD, mu grad(v_phi(i)).n > =
+      //   alpha mu uD^T grad(v_phi(i)) n =
+      //   alpha mu uD(k) delta(im,k) dphi(idof,l) n(l) =
+      //   alpha mu uD(im) dphi(idof,l) n(l) --> quadrature -->
+      //   ip.weight/det(J1) alpha mu uD(im) dshape_ps(idof,l) nor(l) =
+      //   alpha * wM * u_dir(im) * dshape_dn(idof)
+      // term 3:
+      //   < alpha uD, mu (grad(v_phi(i)))^T n > =
+      //   alpha mu n^T grad(v_phi(i)) uD =
+      //   alpha mu n(k) delta(im,k) dphi(idof,l) uD(l) =
+      //   alpha mu n(im) dphi(idof,l) uD(l) --> quadrature -->
+      //   ip.weight/det(J1) alpha mu nor(im) dshape_ps(idof,l) uD(l) =
+      //   alpha * wM * nor(im) * dshape_du(idof)
+      // term j:
+      //   < kappa h^{-1} (lambda + 2 mu) uD, v_phi(i) > =
+      //   kappa/h (lambda + 2 mu) uD(k) v_phi(i,k) =
+      //   kappa/h (lambda + 2 mu) uD(k) delta(im,k) phi(idof) =
+      //   kappa/h (lambda + 2 mu) uD(im) phi(idof) --> quadrature -->
+      //      [ 1/h = |nor|/det(J1) ]
+      //   ip.weight/det(J1) |nor|^2 kappa (lambda + 2 mu) uD(im) phi(idof) =
+      //   jcoef * u_dir(im) * shape(idof)
+
+      wM *= alpha;
+      const double t1 = alpha * wL * (u_dir*nor);
+      for (int im = 0, i = 0; im < dim; ++im)
+      {
+         const double t2 = wM * u_dir(im);
+         const double t3 = wM * nor(im);
+         const double tj = jcoef * u_dir(im);
+         for (int idof = 0; idof < ndofs; ++idof, ++i)
+         {
+            elvect(i) += (t1*dshape_ps(idof,im) + t2*dshape_dn(idof) +
+                          t3*dshape_du(idof) + tj*shape(idof));
+         }
       }
    }
 }

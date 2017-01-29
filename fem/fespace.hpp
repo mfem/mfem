@@ -144,6 +144,8 @@ public:
    const SparseMatrix *GetConformingProlongation();
    const SparseMatrix *GetConformingRestriction();
 
+   virtual const Operator *GetProlongationMatrix()
+   { return GetConformingProlongation(); }
    virtual const SparseMatrix *GetRestrictionMatrix()
    { return GetConformingRestriction(); }
 
@@ -234,6 +236,8 @@ public:
 
    void GetElementInteriorDofs(int i, Array<int> &dofs) const;
 
+   void GetFaceInteriorDofs(int i, Array<int> &dofs) const;
+
    int GetNumElementInteriorDofs(int i) const
    { return fec->DofForGeometry(mesh->GetElementBaseGeometry(i)); }
 
@@ -270,13 +274,22 @@ public:
 
    void RebuildElementToDofTable();
 
+   /** @brief Reorder the scalar DOFs based on the element ordering.
+
+       The new ordering is constructed as follows: 1) loop over all elements as
+       ordered in the Mesh; 2) for each element, assign new indices to all of
+       its current DOFs that are still unassigned; the new indices we assign are
+       simply the sequence `0,1,2,...`; if there are any signed DOFs their sign
+       is preserved. */
+   void ReorderElementToDofTable();
+
    void BuildDofToArrays();
 
    const Table &GetElementToDofTable() const { return *elem_dof; }
    const Table &GetBdrElementToDofTable() const { return *bdrElem_dof; }
 
-   int GetElementForDof(int i) { return dof_elem_array[i]; }
-   int GetLocalDofForDof(int i) { return dof_ldof_array[i]; }
+   int GetElementForDof(int i) const { return dof_elem_array[i]; }
+   int GetLocalDofForDof(int i) const { return dof_ldof_array[i]; }
 
    /// Returns pointer to the FiniteElement associated with i'th element.
    const FiniteElement *GetFE(int i) const;
@@ -359,6 +372,48 @@ public:
    void Save(std::ostream &out) const;
 
    virtual ~FiniteElementSpace();
+};
+
+
+/// Class representing the storage layout of a QuadratureFunction.
+/** Multiple QuadratureFunction%s can share the same QuadratureSpace. */
+class QuadratureSpace
+{
+protected:
+   friend class QuadratureFunction; // Uses the element_offsets.
+
+   Mesh *mesh;
+   int order;
+   int size;
+
+   const IntegrationRule *int_rule[Geometry::NumGeom];
+   int *element_offsets; // scalar offsets; size = number of elements + 1
+
+   // protected functions
+
+   // Assuming mesh and order are set, construct the members: int_rule,
+   // element_offsets, and size.
+   void Construct();
+
+public:
+   /// Create a QuadratureSpace based on the global rules from #IntRules.
+   QuadratureSpace(Mesh *mesh_, int order_)
+      : mesh(mesh_), order(order_) { Construct(); }
+
+   /// Read a QuadratureSpace from the stream @a in.
+   QuadratureSpace(Mesh *mesh_, std::istream &in);
+
+   virtual ~QuadratureSpace() { delete [] element_offsets; }
+
+   /// Return the total number of quadrature points.
+   int GetSize() { return size; }
+
+   /// Get the IntegrationRule associated with mesh element @a idx.
+   const IntegrationRule &GetElementIntRule(int idx)
+   { return *int_rule[mesh->GetElementBaseGeometry(idx)]; }
+
+   /// Write the QuadratureSpace to the stream @a out.
+   void Save(std::ostream &out) const;
 };
 
 }

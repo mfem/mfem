@@ -48,8 +48,10 @@ MFEM supports MPI-based parallelism throughout the library, and can readily be
 used as a scalable unstructured finite element problem generator. MFEM-based
 applications require minimal changes to transition from a serial to a
 high-performing parallel version of the code, where they can take advantage of
-the integrated scalable linear solvers from the hypre library. An experimental
-support for OpenMP acceleration is also included.
+the integrated scalable linear solvers from the hypre library. Comprehensive
+support for other external packages, e.g. PETSc and SUNDIALS is also included,
+giving access to many additional linear and nonlinear solvers, preconditioners,
+time integrators, etc.
 
 For examples of using MFEM, see the examples/ and miniapps/ directories, as well
 as the OpenGL visualization tool GLVis which is available at http://glvis.org.

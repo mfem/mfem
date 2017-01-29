@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
       gmres.SetRelTol(1e-12);
       gmres.SetMaxIter(200);
       gmres.SetKDim(10);
-      gmres.SetPrintLevel(2);
+      gmres.SetPrintLevel(1);
       gmres.SetOperator(*A);
       gmres.SetPreconditioner(*amg);
       gmres.Mult(*B, *X);

@@ -9,12 +9,18 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
+MFEM_DIR ?= ..
+DOXYGEN_CONG = CodeDocumentation.conf
+
 # doxygen uses: graphviz, latex
-html: CodeDocumentation.conf
-	doxygen CodeDocumentation.conf
+html: $(DOXYGEN_CONG)
+	doxygen $(DOXYGEN_CONG)
 	rm -f CodeDocumentation.html
 	ln -s CodeDocumentation/html/index.html CodeDocumentation.html
 
 clean:
-	rm -rf CodeDocumentation CodeDocumentation.html *~
+	rm -rf $(DOXYGEN_CONG) CodeDocumentation CodeDocumentation.html *~
 
+$(DOXYGEN_CONG): $(MFEM_DIR)/doc/$(DOXYGEN_CONG).in
+	sed -e 's%@MFEM_SOURCE_DIR@%$(MFEM_DIR)%g' $(<) \
+	  > $(DOXYGEN_CONG)

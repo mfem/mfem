@@ -14,10 +14,12 @@
 
 #include "../config/config.hpp"
 #include "../general/table.hpp"
-#include "../general/communication.hpp"
 #include "../linalg/vector.hpp"
 #include "element.hpp"
 #include "mesh.hpp"
+#ifdef MFEM_USE_MPI
+#include "../general/communication.hpp"
+#endif
 #include <iostream>
 
 namespace mfem

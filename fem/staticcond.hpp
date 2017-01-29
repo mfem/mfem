@@ -74,7 +74,7 @@ class StaticCondensation
    SparseMatrix *S, *S_e;
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pfes, *tr_pfes;
-   HypreParMatrix *pS, *pS_e;
+   OperatorHandle pS, pS_e;
    bool Parallel() const { return (tr_pfes != NULL); }
 #else
    bool Parallel() const { return false; }
@@ -84,6 +84,8 @@ class StaticCondensation
    Array<int> A_offsets, A_ipiv_offsets;
    double *A_data;
    int *A_ipiv;
+
+   Array<int> ess_rtdof_list;
 
 public:
    /// Construct a StaticCondensation object.
@@ -122,18 +124,27 @@ public:
    /// Finalize the construction of the Schur complement matrix.
    void Finalize();
 
+   /// Determine and save internally essential reduced true dofs.
+   void SetEssentialTrueDofs(const Array<int> &ess_tdof_list)
+   { ConvertListToReducedTrueDofs(ess_tdof_list, ess_rtdof_list); }
+
    /// Eliminate the given reduced true dofs from the Schur complement matrix S.
    void EliminateReducedTrueDofs(const Array<int> &ess_rtdof_list,
                                  int keep_diagonal);
 
-   /** Return true if essential boundary conditions have been eliminated from
-       the Schur complement matrix. */
+   /// @brief Eliminate the internal reduced true dofs (set using
+   /// SetEssentialTrueDofs()) from the Schur complement matrix S.
+   void EliminateReducedTrueDofs(int keep_diagonal)
+   { EliminateReducedTrueDofs(ess_rtdof_list, keep_diagonal); }
+
+   /** @brief Return true if essential boundary conditions have been eliminated
+       from the Schur complement matrix. */
    bool HasEliminatedBC() const
    {
 #ifndef MFEM_USE_MPI
       return S_e;
 #else
-      return S_e || pS_e;
+      return S_e || pS_e.Ptr();
 #endif
    }
 
@@ -145,10 +156,23 @@ public:
 
 #ifdef MFEM_USE_MPI
    /// Return the parallel Schur complement matrix.
-   HypreParMatrix &GetParallelMatrix() { return *pS; }
+   HypreParMatrix &GetParallelMatrix() { return *pS.Is<HypreParMatrix>(); }
 
    /// Return the eliminated part of the parallel Schur complement matrix.
-   HypreParMatrix &GetParallelMatrixElim() { return *pS_e; }
+   HypreParMatrix &GetParallelMatrixElim()
+   { return *pS_e.Is<HypreParMatrix>(); }
+
+   /** @brief Return the parallel Schur complement matrix in the format
+       specified by SetOperatorType(). */
+   void GetParallelMatrix(OperatorHandle &S_h) const { S_h = pS; }
+
+   /** @brief Return the eliminated part of the parallel Schur complement matrix
+       in the format specified by SetOperatorType(). */
+   void GetParallelMatrixElim(OperatorHandle &S_e_h) const { S_e_h = pS_e; }
+
+   /// Set the operator type id for the parallel reduced matrix/operator.
+   void SetOperatorType(Operator::Type tid)
+   { pS.SetType(tid); pS_e.SetType(tid); }
 #endif
 
    /** Given a RHS vector for the full linear system, compute the RHS for the
@@ -158,6 +182,15 @@ public:
    /** Restrict a solution vector on the full FE space dofs to a vector on the
        reduced/trace true FE space dofs. */
    void ReduceSolution(const Vector &sol, Vector &sc_sol) const;
+
+   /** @brief Set the reduced solution `X` and r.h.s `B` vectors from the full
+       linear system solution `x` and r.h.s. `b` vectors.
+
+       This method should be called after the internal reduced essential dofs
+       have been set using SetEssentialTrueDofs() and both the Schur complement
+       and its eliminated part have been finalized. */
+   void ReduceSystem(Vector &x, Vector &b, Vector &X, Vector &B,
+                     int copy_interior = 0) const;
 
    /** Restrict a marker Array on the true FE space dofs to a marker Array on
        the reduced/trace true FE space dofs. */

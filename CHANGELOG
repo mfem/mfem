@@ -7,8 +7,188 @@
 
                                http://mfem.org
 
-Version 3.2, released on June 30, 2016
-======================================
+
+Version 3.3, released on Jan 28, 2017
+=====================================
+
+FEM <-> linear system interface for action-only linear operators
+----------------------------------------------------------------
+- Added a new class, ConstrainedOperator, which can impose essential boundary
+  conditions using only the action, Mult(), of a given square linear Operator.
+
+- Added a FormLinearSystem + RecoverFEMSolution functionality for square linear
+  Operators that are available only through their action. This includes all
+  necessary transformations, such as: parallel assembly, conforming constraints
+  for non-conforming AMR and eliminating boundary conditions. (Hybridization and
+  static condensation are not supported.) See examples in miniapps/performance.
+
+Matrix-free preconditioning and low-order-refined spaces
+--------------------------------------------------------
+- The HPC examples in miniapps/performance now support efficient preconditioning
+  in matrix-free mode based on applying a standard (e.g. AMG) preconditioner to
+  a sparsified version of the operator. The sparsification is obtained by
+  rediscretizing with a low-order refined spaces, currently at the high-order
+  degrees of freedom.
+
+- New mesh constructors support the creation of low-order-refined version of a
+  given mesh, both in serial and in parallel. These are illustrated in the HPC
+  examples in miniapp/performance (option -pc lor), as well as in mesh-explorer
+  miniapp, which now supports Gauss-Lobatto refinement and uniform refinement,
+  both for any factor > 1.
+
+Comprehensive PETSc and SUNDIALS interfaces
+-------------------------------------------
+- Added support for many linear and nonlinear solvers, preconditioners, time
+  integrators and other features from the PETSc suite (version 3.8 or higher of
+  the PETSc dev branch is required). The new features include:
+  * support for PETSc matrices in MATAIJ, MATIS, MATSHELL and MATNEST formats.
+  * PETSc linear solvers can take any mfem Operator and support user-defined
+    monitoring routines (see examples/petsc/ex1p).
+  * BDDC preconditioners for H1, H(curl) and H(div), including with static
+    condensation/hybridization, FieldSplit preconditioner for BlockOperators.
+  * PETSc non-linear solvers can take any mfem Operator that implements the
+    GetGradient() method.
+  * PETSc ODE solvers are supported for mfem's TimeDependentOperators.
+  The use of these features is illustrated in the new examples/petsc directory.
+
+- Added a new class, OperarorHandle, that provides a common interface for
+  global, matrix-type operators to be used in bilinear forms, gradients of
+  nonlinear forms, static condensation, hybridization, etc.
+  The following backends are currently supported:
+  * HYPRE parallel sparse matrix (HYPRE_PARCSR)
+  * PETSC globally assembled parallel sparse matrix (PETSC_MATAIJ)
+  * PETSC parallel matrix assembled on each processor (PETSC_MATIS)
+
+- Added support for the time integrators and non-linear solvers from the CVODE,
+  ARKODE and KINSOL libraries of the SUNDIALS suite (version 2.7 or higher of
+  SUNDIALS is required). The use of these features is illustrated in the new
+  examples/sundials directory.
+
+Scalable parallel mesh support
+------------------------------
+- Introduced a new mesh format (v1.2) that can describe/recover MFEM parallel
+  meshes. This way, computations can start directly in parallel without serial
+  refinement and splitting. Non-conforming meshes are currently supported only
+  in serial.
+
+General quadrature and nodal finite element basis types
+-------------------------------------------------------
+- Added support for different numerical quadrature schemes and finite element
+  basis points. Different basis points can be selected via optional integer
+  argument(s) to the finite element collection constructor of type BasisType:
+  * H1 elements can use GaussLobatto (default), Positive, or ClosedUniform;
+  * L2 elements can use GaussLegendre (default), GaussLobatto, Positive,
+       ClosedUniform, OpenUniform or OpenHalfUniform;
+  * RT can now use open basis that is GaussLegendre (default), GaussLobatto,
+       ClosedUniform, OpenUniform, or OpenHalfUniform, and closed basis that is
+       GaussLobatto (default) or ClosedUniform;
+  * ND elements can use the same BasisType's as RT elements.
+
+- GaussLegendre, GaussLobatto, ClosedUniform, OpenUniform, and OpenHalfUniform
+  integration rules can be directly constructed with an optional parameter of
+  type Quadrature1D:
+     IntegrationRules gl(0, Quadrature1D::GaussLobatto);
+     const IntegrationRule *ir = gl(Geometry::SEGMENT, 5); // 4pt 1D rule
+  The global IntRules object continues to use GaussLegendre.
+
+New integrators for common families of operators
+------------------------------------------------
+- Added MixedScalarIntegrator and 7 derived classes for integrating products of
+  two scalar basis functions and optional scalar coefficients.
+
+- Added MixedVectorIntegrator and 16 derived classes for integrating the inner
+  product of two vector basis functions with optional scalar, vector, or matrix
+  coefficients.
+
+- Added MixedScalarVectorIntegrator and 13 derived classes for integrating the
+  product of a scalar basis function with the inner product of a vector basis
+  function with a vector coefficient. In 2D the inner product can optionally be
+  replaced with a cross product.
+
+- Added a new class DGElasticityIntegrator that supports a few types of DG
+  formulations for linear elasticity and a new linear form integrator,
+  DGElasticityDirichletLFIntegrator, that implements non-homogeneous BCs.
+
+- Added support for DG spaces in class VectorBoundaryLFIntegrator.
+
+- In classes BilinearForm and LinearForm, added support for boundary face
+  integrators applied to a subset of the boundary, see AddBdrFaceIntegrator.
+
+New and updated examples and miniapps
+-------------------------------------
+- Sixteen new serial and parallel example codes that demonstrate:
+  * solution of a time-dependent nonlinear heat equation (Example 16/16p)
+  * DG formulations of static linear elasticity (Example 17/17p)
+  * the use of PETSc solvers and preconditioners (Examples 1p, 2p, 3p, 4p, 5p,
+    6p, 9p and 10p in examples/petsc)
+  * the use of SUNDIALS time integrators and nonlinear solvers (Examples 9/9p
+    and 10/10p in examples/sundials)
+
+- The HPC examples in miniapps/performance now have a -mf/--matrix-free option
+  illustrating optimized "partial assembly" operator evaluation. This is now the
+  default in these examples, to switch to optimized matrix assembly instead use
+  the -asm/--assembly option.
+
+- Added a new electromagnetic miniapp, Joule, illustrating the simulation of
+  transient magnetics and joule heating. This is a comprehensive miniapp that
+  uses finite element spaces and solvers for the whole de Rham sequence.
+
+- Added a simple miniapp, display-basis, for displaying the various types
+  of finite element basis functions within single elements. This is part of
+  the new miniapps/tools directory.
+
+- Rewrote the Volta and Tesla solver classes to avoid using linear algebra
+  objects when possible. This greatly simplifies the code, reduces memory
+  requirements, and eliminates unnecessary computation. It also fixed a bug
+  with divergence cleaning in the Tesla miniapp.
+
+- Added an option to Example 9/9p to save a binary visualization file using the
+  Conduit mesh blueprint/hdf5 format.
+
+Improved building options
+-------------------------
+- Added a new CMake build system, that can be used as an alternative to the GNU
+  make-based build system (e.g. for out-of-source building). For more details,
+  see the INSTALL file and the config/cmake directory.
+
+- Added support for out-of-source builds with GNU make, see the INSTALL file.
+
+Improved file output
+--------------------
+- Added on-the-fly compression of file streams input and output via gzstream,
+  see the MFEM_USE_GZSTREAM option.
+
+- Added experimental support for an HDF5-based output file format following the
+  Conduit (https://github.com/LLNL/conduit) mesh blueprint specification for
+  visualization and/or restart capability. This functionality is aimed primarily
+  at user of LLNL's ASC Toolkit (Sidre component) that run problems at extreme
+  scales. Users desiring a small scale binary format may want to look at the
+  gzstream functionality instead.
+
+Miscellaneous
+-------------
+- Added optional support for software-based higher-precision arithmetic with
+  the MPFR library. When MFEM_USE_MPFR is enabled, the 1D quadrature rules will
+  be computed precisely, at least for rules with up to 65-points.
+
+- Better support for METIS version 5 and above.
+
+- Provide an informative backtrace in mfem_error based on the cross-platform
+  libunwind library (requires MFEM_USE_LIBUNWIND=YES).
+
+- In class SparseMatrix, added methods PrintInfo and CheckFinite.
+
+- GMRESSolver and MINRESSolver now support the same print levels as CGSolver.
+
+- Added method MemoryUsage to the classes Stack and MemAlloc.
+
+- Improved Doxygen formatting of code comments.
+
+- Various other simplifications, extensions, and bugfixes in the code.
+
+
+Version 3.2, released on Jun 30, 2016
+=====================================
 
 Dynamic AMR with parallel load balancing, derefinement of non-conforming meshes
 -------------------------------------------------------------------------------

@@ -327,19 +327,36 @@ void Table::PrintMatlab(std::ostream & out) const
    out << flush;
 }
 
-void Table::Save(std::ostream & out) const
+void Table::Save(std::ostream &out) const
 {
-   int i;
-
    out << size << '\n';
 
-   for (i = 0; i <= size; i++)
+   for (int i = 0; i <= size; i++)
    {
       out << I[i] << '\n';
    }
-   for (i = 0; i < I[size]; i++)
+   for (int i = 0, nnz = I[size]; i < nnz; i++)
    {
       out << J[i] << '\n';
+   }
+}
+
+void Table::Load(istream &in)
+{
+   delete [] I;
+   delete [] J;
+
+   in >> size;
+   I = new int[size+1];
+   for (int i = 0; i <= size; i++)
+   {
+      in >> I[i];
+   }
+   int nnz = I[size];
+   J = new int[nnz];
+   for (int j = 0; j < nnz; j++)
+   {
+      in >> J[j];
    }
 }
 

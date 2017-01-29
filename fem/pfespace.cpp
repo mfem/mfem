@@ -13,8 +13,9 @@
 
 #ifdef MFEM_USE_MPI
 
-#include "fem.hpp"
+#include "pfespace.hpp"
 #include "../general/sort_pairs.hpp"
+#include "../mesh/mesh_headers.hpp"
 
 #include <climits> // INT_MAX
 #include <limits>
@@ -294,6 +295,52 @@ void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
    }
 }
 
+void ParFiniteElementSpace::GetSharedEdgeDofs(
+   int group, int ei, Array<int> &dofs) const
+{
+   int l_edge, ori;
+   MFEM_ASSERT(0 <= ei && ei < pmesh->GroupNEdges(group), "invalid edge index");
+   pmesh->GroupEdge(group, ei, l_edge, ori);
+   if (ori > 0) // ori = +1 or -1
+   {
+      GetEdgeDofs(l_edge, dofs);
+   }
+   else
+   {
+      Array<int> rdofs;
+      fec->SubDofOrder(Geometry::SEGMENT, 1, 1, dofs);
+      GetEdgeDofs(l_edge, rdofs);
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         const int di = dofs[i];
+         dofs[i] = (di >= 0) ? rdofs[di] : -1-rdofs[-1-di];
+      }
+   }
+}
+
+void ParFiniteElementSpace::GetSharedFaceDofs(
+   int group, int fi, Array<int> &dofs) const
+{
+   int l_face, ori;
+   MFEM_ASSERT(0 <= fi && fi < pmesh->GroupNFaces(group), "invalid face index");
+   pmesh->GroupFace(group, fi, l_face, ori);
+   if (ori == 0)
+   {
+      GetFaceDofs(l_face, dofs);
+   }
+   else
+   {
+      Array<int> rdofs;
+      fec->SubDofOrder(pmesh->GetFaceBaseGeometry(l_face), 2, ori, dofs);
+      GetFaceDofs(l_face, rdofs);
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         const int di = dofs[i];
+         dofs[i] = (di >= 0) ? rdofs[di] : -1-rdofs[-1-di];
+      }
+   }
+}
+
 void ParFiniteElementSpace::GenerateGlobalOffsets()
 {
    HYPRE_Int ldof[2];
@@ -342,17 +389,14 @@ void ParFiniteElementSpace::GenerateGlobalOffsets()
    }
 }
 
-HypreParMatrix *ParFiniteElementSpace::Dof_TrueDof_Matrix() // matrix P
+void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() // matrix P
 {
-   if (P)
-   {
-      return P;
-   }
+   if (P) { return; }
 
    if (Nonconforming())
    {
       GetParallelConformingInterpolation();
-      return P;
+      return;
    }
 
    int ldof  = GetVSize();
@@ -406,8 +450,6 @@ HypreParMatrix *ParFiniteElementSpace::Dof_TrueDof_Matrix() // matrix P
    SparseMatrix Pdiag;
    P->GetDiag(Pdiag);
    R = Transpose(Pdiag);
-
-   return P;
 }
 
 void ParFiniteElementSpace::DivideByGroupSize(double *vec)
@@ -490,8 +532,7 @@ int ParFiniteElementSpace::GetLocalTDofNumber(int ldof)
 {
    if (Nonconforming())
    {
-      MFEM_VERIFY(P, "Dof_TrueDof_Matrix() needs to be called before "
-                  "GetLocalTDofNumber()");
+      Dof_TrueDof_Matrix(); // inline method
 
       return ldof_ltdof[ldof]; // NOTE: contains -1 for slaves/DOFs we don't own
    }
@@ -1633,7 +1674,7 @@ HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
    // *** STEP 4: iteratively build the P matrix ***
 
    // DOFs that stayed independent or are ours are true DOFs
-   int ltdof_sz = 0;
+   HYPRE_Int ltdof_sz = 0;
    for (int i = 0; i < num_dofs; i++)
    {
       if (deps[i].IsTrueDof(MyRank)) { ltdof_sz++; }
@@ -1653,7 +1694,8 @@ HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
    MFEM_VERIFY(glob_true_dofs >= 0,
                "overflow of non-conforming P matrix columns.");
 #endif
-   SparseMatrix localP(num_dofs, glob_true_dofs); // TODO bigint
+   // TODO bigint
+   SparseMatrix localP(num_dofs, internal::to_int(glob_true_dofs));
 
    Array<bool> finalized(num_dofs);
    finalized = false;
@@ -1777,6 +1819,7 @@ HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
                            dof_offsets.GetData(), tdof_off.GetData());
 #else
    (void) glob_cdofs;
+   PP = NULL;
    MFEM_ABORT("HYPRE_BIGINT not supported yet.");
 #endif
 
@@ -1795,7 +1838,7 @@ HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
 
 static HYPRE_Int* make_i_array(int nrows)
 {
-   int *I = new HYPRE_Int[nrows+1];
+   HYPRE_Int *I = new HYPRE_Int[nrows+1];
    for (int i = 0; i <= nrows; i++) { I[i] = -1; }
    return I;
 }
@@ -1807,7 +1850,7 @@ static HYPRE_Int* make_j_array(HYPRE_Int* I, int nrows)
    {
       if (I[i] >= 0) { nnz++; }
    }
-   int *J = new HYPRE_Int[nnz];
+   HYPRE_Int *J = new HYPRE_Int[nnz];
 
    I[nrows] = -1;
    for (int i = 0, k = 0; i <= nrows; i++)

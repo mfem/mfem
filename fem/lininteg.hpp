@@ -78,7 +78,7 @@ class BoundaryLFIntegrator : public LinearFormIntegrator
 public:
    /// Constructs a boundary integrator with a given Coefficient QG
    BoundaryLFIntegrator(Coefficient &QG, int a = 1, int b = 1)
-      : Q(QG), oa(a), ob(b) {};
+      : Q(QG), oa(a), ob(b) { }
 
    /** Given a particular boundary Finite Element and a transformation (Tr)
        computes the element boundary vector, elvect. */
@@ -98,7 +98,7 @@ class BoundaryNormalLFIntegrator : public LinearFormIntegrator
 public:
    /// Constructs a boundary integrator with a given Coefficient QG
    BoundaryNormalLFIntegrator(VectorCoefficient &QG, int a = 1, int b = 1)
-      : Q(QG), oa(a), ob(b) {};
+      : Q(QG), oa(a), ob(b) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -107,7 +107,7 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/// Class for boundary integration \f$ L(v) = (g \dot tau, v) \f$ in 2D
+/// Class for boundary integration \f$ L(v) = (g \cdot \tau, v) \f$ in 2D
 class BoundaryTangentialLFIntegrator : public LinearFormIntegrator
 {
    Vector shape;
@@ -116,7 +116,7 @@ class BoundaryTangentialLFIntegrator : public LinearFormIntegrator
 public:
    /// Constructs a boundary integrator with a given Coefficient QG
    BoundaryTangentialLFIntegrator(VectorCoefficient &QG, int a = 1, int b = 1)
-      : Q(QG), oa(a), ob(b) {};
+      : Q(QG), oa(a), ob(b) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -135,7 +135,7 @@ private:
 
 public:
    /// Constructs a domain integrator with a given VectorCoefficient
-   VectorDomainLFIntegrator(VectorCoefficient &QF) : Q(QF) {};
+   VectorDomainLFIntegrator(VectorCoefficient &QF) : Q(QF) { }
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -156,12 +156,17 @@ private:
 
 public:
    /// Constructs a boundary integrator with a given VectorCoefficient QG
-   VectorBoundaryLFIntegrator(VectorCoefficient &QG) : Q(QG) {};
+   VectorBoundaryLFIntegrator(VectorCoefficient &QG) : Q(QG) { }
 
    /** Given a particular boundary Finite Element and a transformation (Tr)
        computes the element boundary vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   // For DG spaces
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
                                        Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
@@ -300,6 +305,49 @@ public:
    DGDirichletLFIntegrator(Coefficient &u, MatrixCoefficient &q,
                            const double s, const double k)
       : uD(&u), Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
+};
+
+
+/** Boundary linear form integrator for imposing non-zero Dirichlet boundary
+    conditions, in a DG elasticity formulation. Specifically, the linear form is
+    given by
+
+    alpha < u_D, (lambda div(v) I + mu (grad(v) + grad(v)^T)) . n > +
+      + kappa < h^{-1} (lambda + 2 mu) u_D, v >,
+
+    where u_D is the given Dirichlet data. The parameters alpha, kappa, lambda
+    and mu, should match the parameters with the same names used in the bilinear
+    form integrator, DGElasticityIntegrator. */
+class DGElasticityDirichletLFIntegrator : public LinearFormIntegrator
+{
+protected:
+   VectorCoefficient &uD;
+   Coefficient *lambda, *mu;
+   double alpha, kappa;
+
+#ifndef MFEM_THRAED_SAFE
+   Vector shape;
+   DenseMatrix dshape;
+   DenseMatrix adjJ;
+   DenseMatrix dshape_ps;
+   Vector nor;
+   Vector dshape_dn;
+   Vector dshape_du;
+   Vector u_dir;
+#endif
+
+public:
+   DGElasticityDirichletLFIntegrator(VectorCoefficient &uD_,
+                                     Coefficient &lambda_, Coefficient &mu_,
+                                     double alpha_, double kappa_)
+      : uD(uD_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,

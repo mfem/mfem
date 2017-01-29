@@ -189,9 +189,10 @@ public:
    int Times, ETimes;
    IntegrationRule RefPts;
    Array<int> RefGeoms, RefEdges;
+   int NumBdrEdges; // at the begining of RefEdges
 
-   RefinedGeometry (int NPts, int NRefG, int NRefE) :
-      RefPts (NPts), RefGeoms (NRefG), RefEdges (NRefE) { }
+   RefinedGeometry(int NPts, int NRefG, int NRefE, int NBdrE = 0) :
+      RefPts(NPts), RefGeoms(NRefG), RefEdges(NRefE), NumBdrEdges(NBdrE) { }
 };
 
 class GeometryRefiner

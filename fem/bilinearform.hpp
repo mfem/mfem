@@ -55,6 +55,7 @@ protected:
 
    /// Set of boundary face Integrators to be applied.
    Array<BilinearFormIntegrator*> bfbfi;
+   Array<Array<int>*>             bfbfi_marker;
 
    DenseMatrix elemmat;
    Array<int>  vdofs;
@@ -113,6 +114,20 @@ public:
        (assuming dense element matrices) based on the types of integrators
        present in the bilinear form. */
    void UsePrecomputedSparsity(int ps = 1) { precompute_sparsity = ps; }
+
+   /** @brief Use the given CSR sparsity pattern to allocate the internal
+       SparseMatrix.
+
+       - The @a I and @a J arrays must define a square graph with size equal to
+         GetVSize() of the associated FiniteElementSpace.
+       - This method should be called after enabling static condensation or
+         hybridization, if used.
+       - In the case of static condensation, @a I and @a J are not used.
+       - The ownership of the arrays @a I and @a J remains with the caller. */
+   void UseSparsity(int *I, int *J, bool isSorted);
+
+   /// Use the sparsity of @a A to allocate the internal SparseMatrix.
+   void UseSparsity(SparseMatrix &A);
 
    /** Pre-allocate the internal SparseMatrix before assembly. If the flag
        'precompute sparsity' is set, the matrix is allocated in CSR format (i.e.
@@ -193,6 +208,11 @@ public:
    /// Adds new boundary Face Integrator.
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
 
+   /** @brief Adds new boundary Face Integrator, restricted to specific boundary
+       attributes. */
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
+                             Array<int> &bdr_marker);
+
    void operator=(const double a)
    {
       if (mat != NULL) { *mat = a; }
@@ -201,6 +221,13 @@ public:
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
+
+   /// Get the finite element space prolongation matrix
+   virtual const Operator *GetProlongation() const
+   { return fes->GetConformingProlongation(); }
+   /// Get the finite element space restriction matrix
+   virtual const Operator *GetRestriction() const
+   { return fes->GetConformingRestriction(); }
 
    /** Form the linear system A X = B, corresponding to the current bilinear
        form and b(.), by applying any necessary transformations such as:
@@ -224,14 +251,17 @@ public:
        x).
 
        NOTE: If there are no transformations, X simply reuses the data of x. */
-   void FormLinearSystem(Array<int> &ess_tdof_list, Vector &x, Vector &b,
+   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
                          SparseMatrix &A, Vector &X, Vector &B,
                          int copy_interior = 0);
+
+   /// Form the linear system matrix A, see FormLinearSystem for details.
+   void FormSystemMatrix(const Array<int> &ess_tdof_list, SparseMatrix &A);
 
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem method to recover the solution as a GridFunction-size
        vector in x. Use the same arguments as in the FormLinearSystem call. */
-   void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+   virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
 
    /// Compute and store internally all element matrices.
    void ComputeElementMatrices();
@@ -250,36 +280,40 @@ public:
        'bdr_attr_is_ess' marks boundary attributes that constitute the essential
        part of the boundary. If d == 0, the diagonal at the essential DOFs is
        set to 1.0, otherwise it is left the same. */
-   void EliminateEssentialBC(Array<int> &bdr_attr_is_ess,
+   void EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
                              Vector &sol, Vector &rhs, int d = 0);
 
-   void EliminateEssentialBC(Array<int> &bdr_attr_is_ess, int d = 0);
+   void EliminateEssentialBC(const Array<int> &bdr_attr_is_ess, int d = 0);
    /// Perform elimination and set the diagonal entry to the given value
-   void EliminateEssentialBCDiag(Array<int> &bdr_attr_is_ess, double value);
+   void EliminateEssentialBCDiag(const Array<int> &bdr_attr_is_ess,
+                                 double value);
 
    /// Eliminate the given vdofs. NOTE: here, vdofs is a list of DOFs.
-   void EliminateVDofs(Array<int> &vdofs, Vector &sol, Vector &rhs, int d = 0);
+   void EliminateVDofs(const Array<int> &vdofs, Vector &sol, Vector &rhs,
+                       int d = 0);
 
    /** Eliminate the given vdofs storing the eliminated part internally; this
        method works in conjunction with EliminateVDofsInRHS and allows
        elimination of boundary conditions in multiple right-hand sides. In this
        method, vdofs is a list of DOFs. */
-   void EliminateVDofs(Array<int> &vdofs, int d = 0);
+   void EliminateVDofs(const Array<int> &vdofs, int d = 0);
 
    /** Similar to EliminateVDofs but here ess_dofs is a marker
        (boolean) array on all vdofs (ess_dofs[i] < 0 is true). */
-   void EliminateEssentialBCFromDofs(Array<int> &ess_dofs, Vector &sol,
+   void EliminateEssentialBCFromDofs(const Array<int> &ess_dofs, Vector &sol,
                                      Vector &rhs, int d = 0);
 
    /** Similar to EliminateVDofs but here ess_dofs is a marker
        (boolean) array on all vdofs (ess_dofs[i] < 0 is true). */
-   void EliminateEssentialBCFromDofs(Array<int> &ess_dofs, int d = 0);
+   void EliminateEssentialBCFromDofs(const Array<int> &ess_dofs, int d = 0);
    /// Perform elimination and set the diagonal entry to the given value
-   void EliminateEssentialBCFromDofsDiag(Array<int> &ess_dofs, double value);
+   void EliminateEssentialBCFromDofsDiag(const Array<int> &ess_dofs,
+                                         double value);
 
    /** Use the stored eliminated part of the matrix (see EliminateVDofs) to
        modify r.h.s.; vdofs is a list of DOFs (non-directional, i.e. >= 0). */
-   void EliminateVDofsInRHS(Array<int> &vdofs, const Vector &x, Vector &b);
+   void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x,
+                            Vector &b);
 
    double FullInnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
@@ -294,17 +328,17 @@ public:
 };
 
 /**
-   Class for assembling of bilinear forms a(u,v) defined on different
-   trial and test spaces. The assembled matrix A is such that
+   Class for assembling of bilinear forms `a(u,v)` defined on different
+   trial and test spaces. The assembled matrix `A` is such that
 
-   a(u,v) = V^t A U
+       a(u,v) = V^t A U
 
-   where U and V are the vectors representing the function u and v,
-   respectively.  The first argument, u, of a(,) is in the trial space
-   and the second argument, v, is in the test space. Thus,
+   where `U` and `V` are the vectors representing the functions `u` and `v`,
+   respectively.  The first argument, `u`, of `a(,)` is in the trial space
+   and the second argument, `v`, is in the test space. Thus,
 
-   # of rows of A = dimension of the test space and
-   # of cols of A = dimension of the trial space.
+       # of rows of A = dimension of the test space and
+       # of cols of A = dimension of the trial space.
 
    Both trial and test spaces should be defined on the same mesh.
 */
@@ -393,33 +427,33 @@ public:
 
 /**
    Class for constructing the matrix representation of a linear operator,
-   v = L u, from one FiniteElementSpace (domain) to another FiniteElementSpace
-   (range). The constructed matrix A is such that
+   `v = L u`, from one FiniteElementSpace (domain) to another FiniteElementSpace
+   (range). The constructed matrix `A` is such that
 
-   V = A U
+       V = A U
 
-   where U and V are the vectors of degrees of freedom representing the
-   functions u and v, respectively. The dimensions of A are
+   where `U` and `V` are the vectors of degrees of freedom representing the
+   functions `u` and `v`, respectively. The dimensions of `A` are
 
-   number of rows of A = dimension of the range space and
-   number of cols of A = dimension of the domain space.
+       number of rows of A = dimension of the range space and
+       number of cols of A = dimension of the domain space.
 
    This class is very similar to MixedBilinearForm. One difference is that
-   the linear operator L is defined using a special kind of
+   the linear operator `L` is defined using a special kind of
    BilinearFormIntegrator (we reuse its functionality instead of defining a
    new class). The other difference with the MixedBilinearForm class is that
    the "assembly" process overwrites the global matrix entries using the
    local element matrices instead of adding them.
 
-   Note that if we define the bilinear form b(u,v) := (Lu,v) using an inner
-   product in the range space, then its matrix representation, B, is
+   Note that if we define the bilinear form `b(u,v) := (Lu,v)` using an inner
+   product in the range space, then its matrix representation, `B`, is
 
-   B = M A, (since V^t B U = b(u,v) = (Lu,v) = V^t M A U)
+       B = M A, (since V^t B U = b(u,v) = (Lu,v) = V^t M A U)
 
-   where M denotes the mass matrix for the inner product in the range space:
-   V1^t M V2 = (v1,v2). Similarly, if c(u,w) := (Lu,Lw) then
+   where `M` denotes the mass matrix for the inner product in the range space:
+   `V1^t M V2 = (v1,v2)`. Similarly, if `c(u,w) := (Lu,Lw)` then
 
-   C = A^t M A.
+       C = A^t M A.
 */
 class DiscreteLinearOperator : public MixedBilinearForm
 {

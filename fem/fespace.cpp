@@ -11,6 +11,7 @@
 
 // Implementation of FiniteElementSpace
 
+#include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
 
 #include <cmath>
@@ -198,6 +199,26 @@ void FiniteElementSpace::RebuildElementToDofTable()
    delete elem_dof;
    elem_dof = NULL;
    BuildElementToDofTable();
+}
+
+void FiniteElementSpace::ReorderElementToDofTable()
+{
+   Array<int> dof_marker(ndofs);
+
+   dof_marker = -1;
+
+   int *J = elem_dof->GetJ(), nnz = elem_dof->Size_of_connections();
+   for (int k = 0, dof_counter = 0; k < nnz; k++)
+   {
+      const int sdof = J[k]; // signed dof
+      const int dof = (sdof < 0) ? -1-sdof : sdof;
+      int new_dof = dof_marker[dof];
+      if (new_dof < 0)
+      {
+         dof_marker[dof] = new_dof = dof_counter++;
+      }
+      J[k] = (sdof < 0) ? -1-new_dof : new_dof; // preserve the sign of sdof
+   }
 }
 
 void FiniteElementSpace::BuildDofToArrays()
@@ -1330,6 +1351,21 @@ void FiniteElementSpace::GetEdgeInteriorDofs (int i, Array<int> &dofs) const
    }
 }
 
+void FiniteElementSpace::GetFaceInteriorDofs (int i, Array<int> &dofs) const
+{
+   int j, k, nf;
+
+   nf = (fdofs) ? (fdofs[i+1]-fdofs[i]) : (0);
+   dofs.SetSize (nf);
+   if (nf > 0)
+   {
+      for (j = 0, k = nvdofs+nedofs+fdofs[i]; j < nf; j++, k++)
+      {
+         dofs[j] = k;
+      }
+   }
+}
+
 const FiniteElement *FiniteElementSpace::GetBE (int i) const
 {
    const FiniteElement *BE;
@@ -1490,4 +1526,59 @@ void FiniteElementSpace::Save(std::ostream &out) const
        << "Ordering: " << ordering << '\n';
 }
 
+
+void QuadratureSpace::Construct()
+{
+   // protected method
+   int offset = 0;
+   const int num_elem = mesh->GetNE();
+   element_offsets = new int[num_elem + 1];
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      int_rule[g] = NULL;
+   }
+   for (int i = 0; i < num_elem; i++)
+   {
+      element_offsets[i] = offset;
+      int geom = mesh->GetElementBaseGeometry(i);
+      if (int_rule[geom] == NULL)
+      {
+         int_rule[geom] = &IntRules.Get(geom, order);
+      }
+      offset += int_rule[geom]->GetNPoints();
+   }
+   element_offsets[num_elem] = size = offset;
 }
+
+QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in)
+   : mesh(mesh_)
+{
+   const char *msg = "invalid input stream";
+   string ident;
+
+   in >> ident; MFEM_VERIFY(ident == "QuadratureSpace", msg);
+   in >> ident; MFEM_VERIFY(ident == "Type:", msg);
+   in >> ident;
+   if (ident == "default_quadrature")
+   {
+      in >> ident; MFEM_VERIFY(ident == "Order:", msg);
+      in >> order;
+   }
+   else
+   {
+      MFEM_ABORT("unknown QuadratureSpace type: " << ident);
+      return;
+   }
+
+   Construct();
+}
+
+void QuadratureSpace::Save(std::ostream &out) const
+{
+   out << "QuadratureSpace\n"
+       << "Type: default_quadrature\n"
+       << "Order: " << order << '\n';
+}
+
+
+} // namespace mfem

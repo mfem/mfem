@@ -57,6 +57,8 @@ public:
    void  ParseRefinementFlag(int refinement_edges[2], int &type, int &flag);
    void CreateRefinementFlag(int refinement_edges[2], int  type, int  flag = 0);
 
+   void GetMarkedFace(const int face, int *fv);
+
    virtual int GetRefinementFlag() { return refinement_flag; }
 
    void SetRefinementFlag(int rf) { refinement_flag = rf; }

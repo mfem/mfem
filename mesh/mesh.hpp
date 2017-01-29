@@ -20,9 +20,9 @@
 #include "ncmesh.hpp"
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
+#include "../general/gzstream.hpp"
 #include <iostream>
 #include <fstream>
-#include <limits>
 
 namespace mfem
 {
@@ -34,7 +34,6 @@ class NURBSExtension;
 class FiniteElementSpace;
 class GridFunction;
 struct Refinement;
-class named_ifstream;
 
 #ifdef MFEM_USE_MPI
 class ParMesh;
@@ -137,20 +136,24 @@ public:
 
    enum Operation { NONE, REFINE, DEREFINE, REBALANCE };
 
+   /// A list of all unique element attributes used by the Mesh.
    Array<int> attributes;
+   /// A list of all unique boundary attributes used by the Mesh.
    Array<int> bdr_attributes;
 
-   NURBSExtension *NURBSext;
-   NCMesh *ncmesh;
+   NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
+   NCMesh *ncmesh;           ///< Optional non-conforming mesh extension.
 
 protected:
    Operation last_operation;
 
    void Init();
-
    void InitTables();
-
-   void DeleteTables();
+   void SetEmpty();  // Init all data members with empty values
+   void DestroyTables();
+   void DeleteTables() { DestroyTables(); InitTables(); }
+   void DestroyPointers(); // Delete data specifically allocated by class Mesh.
+   void Destroy();         // Delete all owned data.
 
    Element *ReadElementWithoutAttr(std::istream &);
    static void PrintElementWithoutAttr(const Element *, std::ostream &);
@@ -171,26 +174,11 @@ protected:
    void ReadGmshMesh(std::istream &input);
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
-   void ReadCubit(named_ifstream &input, int &curved, int &read_gf);
+   void ReadCubit(const char *filename, int &curved, int &read_gf);
 #endif
 
-   static void skip_comment_lines(std::istream &is, const char comment_char)
-   {
-      while (1)
-      {
-         is >> std::ws;
-         if (is.peek() != comment_char) { break; }
-         is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-      }
-   }
-   // Check for, and remove, a trailing '\r'.
-   static void filter_dos(std::string &line)
-   {
-      if (!line.empty() && *line.rbegin() == '\r')
-      { line.resize(line.size()-1); }
-   }
-
-   void SetMeshGen(); // set 'meshgen'
+   /// Determine the mesh generator bitmask #meshgen, see MeshGenerator().
+   void SetMeshGen();
 
    /// Return the length of the segment from node i to node j.
    double GetLength(int i, int j) const;
@@ -202,7 +190,7 @@ protected:
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
    void GetEdgeOrdering(DSTable &v_to_v, Array<int> &order);
-   void MarkTetMeshForRefinement();
+   virtual void MarkTetMeshForRefinement(DSTable &v_to_v);
 
    void PrepareNodeReorder(DSTable **old_v_to_v, Table **old_elem_vert);
    void DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert);
@@ -338,7 +326,7 @@ protected:
    // shift cyclically 3 integers so that the smallest is first
    inline static void Rotate3(int &, int &, int &);
 
-   void FreeElement (Element *E);
+   void FreeElement(Element *E);
 
    void GenerateFaces();
    void GenerateNCFaceInfo();
@@ -347,6 +335,18 @@ protected:
    void InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem);
 
    void InitBaseGeom();
+
+   // Used in the methods FinalizeXXXMesh() and FinalizeTopology()
+   void FinalizeCheck();
+
+   void Loader(std::istream &input, int generate_edges = 0,
+               std::string parse_tag = "");
+
+   // If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1 format.
+   // If section_delimiter is empty, write mfem v1.0 format. Otherwise, write
+   // mfem v1.2 format with the given section_delimiter at the end.
+   void Printer(std::ostream &out = std::cout,
+                std::string section_delimiter = "") const;
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
        nx*ny*nz hexahedrals if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons
@@ -375,9 +375,13 @@ protected:
    /// like 'ncmesh' and 'NURBSExt' are only swapped when 'non_geometry' is set.
    void Swap(Mesh& other, bool non_geometry = false);
 
+   // used in GetElementData() and GetBdrElementData()
+   void GetElementData(const Array<Element*> &elem_array, int geom,
+                       Array<int> &elem_vtx, Array<int> &attr) const;
+
 public:
 
-   Mesh() { Init(); InitTables(); meshgen = 0; Dim = 0; }
+   Mesh() { SetEmpty(); }
 
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
        source mesh can be modified (e.g. deleted, refined) without affecting the
@@ -385,7 +389,26 @@ public:
        nodes, if present. */
    explicit Mesh(const Mesh &mesh, bool copy_nodes = true);
 
-   Mesh(int _Dim, int NVert, int NElem, int NBdrElem = 0, int _spaceDim= -1)
+   /// Construct a Mesh from the given primary data.
+   /** The array @a vertices is used as external data, i.e. the Mesh does not
+       copy the data and will not delete the pointer.
+
+       The data from the other arrays is copied into the internal Mesh data
+       structures.
+
+       This method calls the method FinalizeTopology(). The method Finalize()
+       may be called after this constructor and after optionally setting the
+       Mesh nodes. */
+   Mesh(double *vertices, int num_vertices,
+        int *element_indices, Geometry::Type element_type,
+        int *element_attributes, int num_elements,
+        int *boundary_indices, Geometry::Type boundary_type,
+        int *boundary_attributes, int num_boundary_elements,
+        int dimension, int space_dimension= -1);
+
+   /** @anchor mfem_Mesh_init_ctor
+       @brief _Init_ constructor: begin the construction of a Mesh object. */
+   Mesh(int _Dim, int NVert, int NElem, int NBdrElem = 0, int _spaceDim = -1)
    {
       if (_spaceDim == -1)
       {
@@ -393,6 +416,12 @@ public:
       }
       InitMesh(_Dim, _spaceDim, NVert, NElem, NBdrElem);
    }
+
+   /** @name Methods for Mesh construction.
+
+       These methods are intended to be used with the @ref mfem_Mesh_init_ctor
+       "init constructor". */
+   ///@{
 
    Element *NewElement(int geom);
 
@@ -410,15 +439,49 @@ public:
    void AddBdrTriangle(const int *vi, int attr = 1);
    void AddBdrQuad(const int *vi, int attr = 1);
    void AddBdrQuadAsTriangles(const int *vi, int attr = 1);
+
    void GenerateBoundaryElements();
+   /// Finalize the construction of a triangular Mesh.
    void FinalizeTriMesh(int generate_edges = 0, int refine = 0,
                         bool fix_orientation = true);
+   /// Finalize the construction of a quadrilateral Mesh.
    void FinalizeQuadMesh(int generate_edges = 0, int refine = 0,
                          bool fix_orientation = true);
+   /// Finalize the construction of a tetrahedral Mesh.
    void FinalizeTetMesh(int generate_edges = 0, int refine = 0,
                         bool fix_orientation = true);
+   /// Finalize the construction of a hexahedral Mesh.
    void FinalizeHexMesh(int generate_edges = 0, int refine = 0,
                         bool fix_orientation = true);
+
+   ///@}
+
+   /** @brief Finalize the construction of the secondary topology (connectivity)
+       data of a Mesh. */
+   /** This method does not require any actual coordinate data (either vertex
+       coordinates for linear meshes or node coordinates for meshes with nodes)
+       to be available. However, the data generated by this method is generally
+       required by the FiniteElementSpace class.
+
+       After calling this method, setting the Mesh vertices or nodes, it may be
+       appropriate to call the method Finalize(). */
+   void FinalizeTopology();
+
+   /// Finalize the construction of a general Mesh.
+   /** This method will:
+       - check and optionally fix the orientation of regular elements
+       - check and fix the orientation of boundary elements
+       - assume that #vertices are defined, if #Nodes == NULL
+       - assume that #Nodes are defined, if #Nodes != NULL.
+       @param[in] refine  If true, prepare the Mesh for conforming refinement of
+                          triangular or tetrahedral meshes.
+       @param[in] fix_orientation
+                          If true, fix the orientation of inverted mesh elements
+                          by permuting their vertices.
+
+       Before calling this method, call FinalizeTopology() and ensure that the
+       Mesh vertices or nodes are set. */
+   void Finalize(bool refine = false, bool fix_orientation = false);
 
    void SetAttributes();
 
@@ -476,19 +539,44 @@ public:
    /// Create a disjoint mesh from the given mesh array
    Mesh(Mesh *mesh_array[], int num_pieces);
 
-   /* This is similar to the above mesh constructor, but here the current
-      mesh is destroyed and another one created based on the data stream
-      again given in MFEM, netgen, or VTK format. If generate_edges = 0
-      (default) edges are not generated, if 1 edges are generated. */
-   void Load(std::istream &input, int generate_edges = 0, int refine = 1,
-             bool fix_orientation = true);
+   /// Create a uniformly refined (by any factor) version of @a orig_mesh.
+   /** @param[in] orig_mesh  The starting coarse mesh.
+       @param[in] ref_factor The refinement factor, an integer > 1.
+       @param[in] ref_type   Specify the positions of the new vertices. The
+                             options are BasisType::ClosedUniform or
+                             BasisType::GaussLobatto.
 
-   /** Return a bitmask:
-       bit 0 - simplices are present in the mesh (triangles, tets),
-       bit 1 - tensor product elements are present in the mesh (quads, hexes).*/
+       The refinement data which can be accessed with GetRefinementTransforms()
+       is set to reflect the performed refinements.
+
+       @note The constructed Mesh is linear, i.e. it does not have nodes. */
+   Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
+
+   /** This is similar to the mesh constructor with the same arguments, but here
+       the current mesh is destroyed and another one created based on the data
+       stream again given in MFEM, netgen, or VTK format. If generate_edges = 0
+       (default) edges are not generated, if 1 edges are generated. */
+   /// \see mfem::igzstream() for on-the-fly decompression of compressed ascii
+   /// inputs.
+   virtual void Load(std::istream &input, int generate_edges = 0,
+                     int refine = 1, bool fix_orientation = true)
+   {
+      Loader(input, generate_edges);
+      Finalize(refine, fix_orientation);
+   }
+
+   /// Clear the contents of the Mesh.
+   void Clear() { Destroy(); SetEmpty(); }
+
+   /** @brief Get the mesh generator/type.
+
+       @return A bitmask:
+       - bit 0 - simplices are present in the mesh (triangles, tets),
+       - bit 1 - tensor product elements are present in the mesh (quads, hexes).
+   */
    inline int MeshGenerator() { return meshgen; }
 
-   /** Returns number of vertices.  Vertices are only at the corners of
+   /** @brief Returns number of vertices.  Vertices are only at the corners of
        elements, where you would expect them in the lowest-order mesh. */
    inline int GetNV() const { return NumOfVertices; }
 
@@ -524,14 +612,29 @@ public:
    int SpaceDimension() const { return spaceDim; }
 
    /// @brief Return pointer to vertex i's coordinates.
-   /// @warning For high-order meshes (when Nodes != NULL) vertices may not
-   /// being updated and should not be used!
+   /// @warning For high-order meshes (when #Nodes != NULL) vertices may not be
+   /// updated and should not be used!
    const double *GetVertex(int i) const { return vertices[i](); }
 
    /// @brief Return pointer to vertex i's coordinates.
    /// @warning For high-order meshes (when Nodes != NULL) vertices may not
    /// being updated and should not be used!
    double *GetVertex(int i) { return vertices[i](); }
+
+   void GetElementData(int geom, Array<int> &elem_vtx, Array<int> &attr) const
+   { GetElementData(elements, geom, elem_vtx, attr); }
+
+   void GetBdrElementData(int geom, Array<int> &bdr_elem_vtx,
+                          Array<int> &bdr_attr) const
+   { GetElementData(boundary, geom, bdr_elem_vtx, bdr_attr); }
+
+   /** @brief Set the internal Vertex array to point to the given @a vertices
+       array without assuming ownership of the pointer. */
+   /** If @a zerocopy is `true`, the vertices must be given as an array of 3
+       doubles per vertex. If @a zerocopy is `false` then the current Vertex
+       data is first copied to the @a vertices array. */
+   void ChangeVertexDataOwnership(double *vertices, int len_vertices,
+                                  bool zerocopy = false);
 
    const Element* const *GetElementsArray() const
    { return elements.GetData(); }
@@ -708,9 +811,11 @@ public:
    int GetFaceElementType(int Face) const;
 
    /// Check the orientation of the elements
-   void CheckElementOrientation(bool fix_it = true);
+   /** @return The number of elements with wrong orientation. */
+   int CheckElementOrientation(bool fix_it = true);
    /// Check the orientation of the boundary elements
-   void CheckBdrElementOrientation(bool fix_it = true);
+   /** @return The number of boundary elements with wrong orientation. */
+   int CheckBdrElementOrientation(bool fix_it = true);
 
    /// Return the attribute of element i.
    int GetAttribute(int i) const { return elements[i]->GetAttribute();}
@@ -739,7 +844,7 @@ public:
        2) rotate all boundary triangles so that the vertices {v0, v1, v2}
        satisfy: v0 < min(v1, v2).
 
-       Note: refinement does not work after a call to this method! */
+       @note Refinement does not work after a call to this method! */
    virtual void ReorientTetMesh();
 
    int *CartesianPartitioning(int nxyz[]);
@@ -770,6 +875,10 @@ public:
    /// Return a pointer to the internal node GridFunction (may be NULL).
    GridFunction *GetNodes() { return Nodes; }
    const GridFunction *GetNodes() const { return Nodes; }
+   /// Return the mesh nodes ownership flag.
+   bool OwnsNodes() const { return own_nodes; }
+   /// Set the mesh nodes ownership flag.
+   void SetNodesOwner(bool nodes_owner) { own_nodes = nodes_owner; }
    /// Replace the internal node GridFunction with the given GridFunction.
    void NewNodes(GridFunction &nodes, bool make_owner = false);
    /** Swap the internal node GridFunction pointer and ownership flag members
@@ -845,9 +954,10 @@ public:
    bool DerefineByError(const Vector &elem_error, double threshold,
                         int nc_limit = 0, int op = 1);
 
-   // NURBS mesh refinement methods
+   ///@{ @name NURBS mesh refinement methods
    void KnotInsert(Array<KnotVector *> &kv);
    void DegreeElevate(int t);
+   ///@}
 
    /** Make sure that a quad/hex mesh is considered to be non-conforming (i.e.,
        has an associated NCMesh object). Triangles meshes can be both conforming
@@ -874,15 +984,18 @@ public:
    virtual void PrintXG(std::ostream &out = std::cout) const;
 
    /// Print the mesh to the given stream using the default MFEM mesh format.
-   virtual void Print(std::ostream &out = std::cout) const;
+   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
+   virtual void Print(std::ostream &out = std::cout) const { Printer(out); }
 
    /// Print the mesh in VTK format (linear and quadratic meshes only).
+   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out);
 
    /** Print the mesh in VTK format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes).
        If the optional field_data is set, we also add a FIELD section in the
        beginning of the file with additional dataset information. */
+   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out, int ref, int field_data=0);
 
    void GetElementColoring(Array<int> &colors, int el0 = 0);
@@ -890,6 +1003,7 @@ public:
    /** Prints the mesh with bdr elements given by the boundary of
        the subdomains, so that the boundary of subdomain i has bdr
        attribute i+1. */
+   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
    void PrintWithPartitioning (int *partitioning,
                                std::ostream &out, int elem_attr = 0) const;
 
@@ -939,8 +1053,8 @@ public:
 
    void MesquiteSmooth(const int mesquite_option = 0);
 
-   /// Destroys mesh.
-   virtual ~Mesh();
+   /// Destroys Mesh.
+   virtual ~Mesh() { DestroyPointers(); }
 };
 
 /** Overload operator<< for std::ostream and Mesh; valid also for the derived
@@ -970,14 +1084,14 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy,
                 const bool closed = false);
 
 
-/// Input file stream that remembers the input file name (used for reading
-/// NetCDF meshes).
-class named_ifstream : public std::ifstream
+/// Input file stream that remembers the input file name (useful for example
+/// when reading NetCDF meshes) and supports optional gzstream decompression.
+class named_ifgzstream : public mfem::ifgzstream
 {
 public:
    const char *filename;
-   named_ifstream(const char *mesh_name) :
-      std::ifstream(mesh_name), filename(mesh_name) {}
+   named_ifgzstream(const char *mesh_name) :
+      mfem::ifgzstream(mesh_name), filename(mesh_name) {}
 };
 
 

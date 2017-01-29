@@ -174,15 +174,33 @@ public:
    /// Prints array to stream with width elements per row
    void Print(std::ostream &out = std::cout, int width = 4);
 
-   /// Prints array to stream out
-   void Save(std::ostream &out);
+   /** @brief Save the Array to the stream @a out using the format @a fmt.
+       The format @a fmt can be:
 
-   /** Finds the maximal element in the array.
-       (uses the comparison operator '<' for class T)  */
+          0 - write the size followed by all entries
+          1 - write only the entries
+   */
+   void Save(std::ostream &out, int fmt = 0) const;
+
+   /** @brief Read an Array from the stream @a in using format @a fmt.
+       The format @a fmt can be:
+
+          0 - read the size then the entries
+          1 - read Size() entries
+   */
+   void Load(std::istream &in, int fmt = 0);
+
+   /** @brief Set the Array size to @a new_size and read that many entries from
+       the stream @a in. */
+   void Load(int new_size, std::istream &in)
+   { SetSize(new_size); Load(in, 1); }
+
+   /** @brief Find the maximal element in the array, using the comparison
+       operator `<` for class T. */
    T Max() const;
 
-   /** Finds the minimal element in the array.
-       (uses the comparison operator '<' for class T)  */
+   /** @brief Find the minimal element in the array, using the comparison
+       operator `<` for class T. */
    T Min() const;
 
    /// Sorts the array. This requires operator< to be defined for T.

@@ -9,12 +9,12 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#include "mesquite.hpp"
+
 #ifdef MFEM_USE_MESQUITE
 
-#include <iostream>
-
 #include "../fem/fem.hpp"
-#include "mesquite.hpp"
+#include <iostream>
 
 namespace mfem
 {

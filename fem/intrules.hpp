@@ -79,17 +79,11 @@ public:
    void Set1w(const double *p) { x = p[0]; weight = p[1]; }
 };
 
-/// Class for integration rule
+/// Class for an integration rule - an Array of IntegrationPoint.
 class IntegrationRule : public Array<IntegrationPoint>
 {
 private:
    friend class IntegrationRules;
-
-   /// Computes Gaussian integration rule on (0,1) with NPoints
-   void GaussianRule();
-
-   /// Defines composite trapezoidal integration rule on [0,1]
-   void UniformRule();
 
    /// Define n-simplex rule (triangle/tetrahedron for n=2/3) of order (2s+1)
    void GrundmannMollerSimplexRule(int s, int n = 3);
@@ -237,11 +231,63 @@ public:
    ~IntegrationRule() { }
 };
 
+/// A Class that defines 1-D numerical quadrature rules on [0,1].
+class QuadratureFunctions1D
+{
+public:
+   /** @name Methods for calculating quadrature rules.
+       These methods calculate the actual points and weights for the different
+       types of quadrature rules. */
+   ///@{
+   void GaussLegendre(const int np, IntegrationRule* ir);
+   void GaussLobatto(const int np, IntegrationRule *ir);
+   void OpenUniform(const int np, IntegrationRule *ir);
+   void ClosedUniform(const int np, IntegrationRule *ir);
+   void OpenHalfUniform(const int np, IntegrationRule *ir);
+   ///@}
+
+   /// A helper function that will play nice with Poly_1D::OpenPoints and
+   /// Poly_1D::ClosedPoints
+   void GivePolyPoints(const int np, double *pts, const int type);
+
+private:
+   void CalculateUniformWeights(IntegrationRule *ir, const int type);
+};
+
+/// A class container for 1D quadrature type constants.
+class Quadrature1D
+{
+public:
+   enum
+   {
+      Invalid         = -1,
+      GaussLegendre   = 0,
+      GaussLobatto    = 1,
+      OpenUniform     = 2,  ///< aka open Newton-Cotes
+      ClosedUniform   = 3,  ///< aka closed Newton-Cotes
+      OpenHalfUniform = 4   ///< aka "open half" Newton-Cotes
+   };
+   /** @brief If the Quadrature1D type is not closed return Invalid; otherwise
+       return type. */
+   static int CheckClosed(int type);
+   /** @brief If the Quadrature1D type is not open return Invalid; otherwise
+       return type. */
+   static int CheckOpen(int type);
+};
+
 /// Container class for integration rules
 class IntegrationRules
 {
 private:
+   /// Taken from the Quadrature1D class anonymous enum
+   /// Determines the type of numerical quadrature used for
+   /// segment, square, and cube geometries
+   const int quad_type;
+
    int own_rules, refined;
+
+   /// Function that generates quadrature points and weights on [0,1]
+   QuadratureFunctions1D quad_func;
 
    Array<IntegrationRule *> PointIntRules;
    Array<IntegrationRule *> SegmentIntRules;
@@ -261,6 +307,10 @@ private:
    {
       return (ir_array.Size() > Order && ir_array[Order] != NULL);
    }
+   int GetSegmentRealOrder(int Order) const
+   {
+      return Order | 1; // valid for all quad_type's
+   }
 
    IntegrationRule *GenerateIntegrationRule(int GeomType, int Order);
    IntegrationRule *PointIntegrationRule(int Order);
@@ -275,7 +325,8 @@ private:
 public:
    /// Sets initial sizes for the integration rule arrays, but rules
    /// are defined the first time they are requested with the Get method.
-   explicit IntegrationRules(int Ref = 0);
+   explicit IntegrationRules(int Ref = 0,
+                             int type = Quadrature1D::GaussLegendre);
 
    /// Returns an integration rule for given GeomType and Order.
    const IntegrationRule &Get(int GeomType, int Order);
