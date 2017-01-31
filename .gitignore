@@ -1,0 +1,17 @@
+# Config files setup during compilation
+config/_config.hpp
+config/config.mk
+
+# Intermediate compilation objects
+*.o
+
+# Compiled library
+libmfem.a
+
+# Example executables
+examples/ex*
+!examples/ex*.cpp
+
+# Example outputs
+examples/*.mesh
+examples/*.gf

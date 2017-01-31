@@ -18,42 +18,6 @@
 namespace mfem
 {
 
-void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                Vector &x, Vector &b,
-                                Operator* &Aout, Vector &X, Vector &B,
-                                int copy_interior)
-{
-   const Operator *P = this->GetProlongation();
-   const Operator *R = this->GetRestriction();
-   Operator *rap;
-
-   if (P)
-   {
-      // Variational restriction with P
-      B.SetSize(P->Width());
-      P->MultTranspose(b, B);
-      X.SetSize(R->Height());
-      R->Mult(x, X);
-      rap = new RAPOperator(*P, *this, *P);
-   }
-   else
-   {
-      // rap, X and B point to the same data as this, x and b
-      X.NewDataAndSize(x.GetData(), x.Size());
-      B.NewDataAndSize(b.GetData(), b.Size());
-      rap = this;
-   }
-
-   if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
-
-   // Impose the boundary conditions through a ConstrainedOperator, which owns
-   // the rap operator when P and R are non-trivial
-   ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
-                                                    rap != this);
-   A->EliminateRHS(X, B);
-   Aout = A;
-}
-
 void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
 {
    const Operator *P = this->GetProlongation();

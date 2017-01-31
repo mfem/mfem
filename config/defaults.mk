@@ -79,6 +79,7 @@ MFEM_USE_NETCDF      = NO
 MFEM_USE_PETSC       = NO
 MFEM_USE_MPFR        = NO
 MFEM_USE_SIDRE       = NO
+MFEM_USE_OCCA        = NO
 
 LIBUNWIND_OPT = -g
 LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
@@ -196,6 +197,15 @@ SIDRE_LIB = -L$(SIDRE_DIR)/lib \
 
 ifeq ($(MFEM_USE_MPI),YES)
    SIDRE_LIB += -lspio -lcommon
+endif
+
+# OCCA library configuration
+ifeq ($(MFEM_USE_OCCA),YES)
+  ifndef OCCA_DIR
+    OCCA_DIR := $(MFEM_DIR)/../occa
+  endif
+  OCCA_OPT := -I$(OCCA_DIR)/include
+  OCCA_LIB := -L$(OCCA_DIR)/lib -locca
 endif
 
 # If YES, enable some informational messages

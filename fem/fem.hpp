@@ -43,4 +43,8 @@
 #include "sidredatacollection.hpp"
 #endif
 
+#ifdef MFEM_USE_OCCA
+#include "obilinearform.hpp"
+#endif
+
 #endif

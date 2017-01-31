@@ -28,6 +28,13 @@ protected:
    { IntRule = ir; }
 
 public:
+   /// Name of the integrator
+  inline virtual std::string Name()
+  { return ""; }
+
+   virtual const IntegrationRule &GetIntegrationRule(const FiniteElement &trial_fe,
+                                                     const FiniteElement &test_fe );
+
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -1594,6 +1601,19 @@ public:
 
    /// Construct a diffusion integrator with a matrix coefficient q
    DiffusionIntegrator (MatrixCoefficient &q) : MQ(&q) { Q = NULL; }
+
+  static std::string StaticName()
+  { return "DiffusionIntegrator"; }
+
+  inline virtual std::string Name()
+  { return StaticName(); }
+
+  inline const Coefficient *GetCoefficient()
+  { return Q; };
+
+   /// Return IntRule or the default integration rule
+  virtual const IntegrationRule &GetIntegrationRule(const FiniteElement &trial_fe,
+                                                    const FiniteElement &test_fe );
 
    /** Given a particular Finite Element
        computes the element stiffness matrix elmat. */

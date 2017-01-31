@@ -309,6 +309,10 @@ MFEM_USE_GZSTREAM = YES/NO
    the solution is to uncompress the file with an external tool (such as gunzip)
    before attempting to use it with MFEM.
 
+MFEM_USE_OCCA = YES/NO
+   Enables the use of OCCA. With this feature enabled (YES), MFEM can make use of
+   heterogeneous devices supported in OCCA (e.g. OpenMP, CUDA, OpenCL).
+
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
    Can be used to identify the MFEM build from other makefiles.

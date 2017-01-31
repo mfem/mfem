@@ -12,7 +12,12 @@
 #ifndef MFEM_OPERATOR
 #define MFEM_OPERATOR
 
+#include "../config/config.hpp"
 #include "vector.hpp"
+
+#ifdef MFEM_USE_OCCA
+#include "ovector.hpp"
+#endif
 
 namespace mfem
 {
@@ -45,12 +50,25 @@ public:
    inline int NumCols() const { return width; }
 
    /// Operator application: `y=A(x)`.
-   virtual void Mult(const Vector &x, Vector &y) const = 0;
+   virtual void Mult(const Vector &x, Vector &y) const {
+    mfem_error("Operator::Mult(Vector) is not overloaded!");
+  }
+
+#ifdef MFEM_USE_OCCA
+  inline virtual void Mult(const OccaVector &x, OccaVector &y) const {
+    mfem_error("Operator::Mult(OccaVector) is not overloaded!");
+  }
+#endif
 
    /** @brief Action of the transpose operator: `y=A^t(x)`. The default behavior
        in class Operator is to generate an error. */
    virtual void MultTranspose(const Vector &x, Vector &y) const
    { mfem_error("Operator::MultTranspose() is not overloaded!"); }
+
+#ifdef MFEM_USE_OCCA
+   inline virtual void MultTranspose(const OccaVector &x, OccaVector &y) const
+   { mfem_error("Operator::MultTranspose() is not overloaded!"); }
+#endif
 
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
@@ -97,10 +115,21 @@ public:
        @note The caller is responsible for destroying the output operator @a A!
        @note If there are no transformations, @a X simply reuses the data of @a
        x. */
-   void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x, Vector &b,
-                         Operator* &A, Vector &X, Vector &B,
-                         int copy_interior = 0);
+   template <class TVector>
+   void TFormLinearSystem(const Array<int> &ess_tdof_list,
+                          TVector &x, TVector &b,
+                          Operator* &Aout, TVector &X, TVector &B,
+                          int copy_interior = 0);
+
+   inline void FormLinearSystem(const Array<int> &ess_tdof_list,
+                                Vector &x, Vector &b,
+                                Operator* &Aout, Vector &X, Vector &B,
+                                int copy_interior = 0)
+   {
+     TFormLinearSystem<Vector>(ess_tdof_list,
+                               x, b, Aout, X, B,
+                               copy_interior);
+   }
 
    /** @brief Reconstruct a solution vector @a x (e.g. a GridFunction) from the
        solution @a X of a constrained linear system obtained from
@@ -410,6 +439,11 @@ public:
        the vectors, and "_i" -- the rest of the entries. */
    void EliminateRHS(const Vector &x, Vector &b) const;
 
+#ifdef MFEM_USE_OCCA
+   inline virtual void EliminateRHS(const OccaVector &x, OccaVector &b) const
+   { mfem_error("Operator::EliminateRHS(OccaVector) is not overloaded!"); }
+#endif
+
    /** @brief Constrained operator action.
 
        Performs the following steps:
@@ -423,6 +457,45 @@ public:
    /// Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
    virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
 };
+
+
+template <class TVector>
+void Operator::TFormLinearSystem(const Array<int> &ess_tdof_list,
+                                 TVector &x, TVector &b,
+                                 Operator* &Aout, TVector &X, TVector &B,
+                                 int copy_interior)
+{
+  const Operator *P = this->GetProlongation();
+  const Operator *R = this->GetRestriction();
+  Operator *rap;
+
+  if (P)
+    {
+      // Variational restriction with P
+      B.SetSize(P->Width());
+      P->MultTranspose(b, B);
+      X.SetSize(R->Height());
+      R->Mult(x, X);
+      rap = new RAPOperator(*P, *this, *P);
+    }
+  else
+    {
+      // rap, X and B point to the same data as this, x and b
+      X = TVector(x);
+      B = TVector(b);
+      rap = this;
+    }
+
+  // [-]
+  // if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+
+  // Impose the boundary conditions through a ConstrainedOperator, which owns
+  // the rap operator when P and R are non-trivial
+  ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
+                                                   rap != this);
+  A->EliminateRHS(X, B);
+  Aout = A;
+}
 
 }
 
