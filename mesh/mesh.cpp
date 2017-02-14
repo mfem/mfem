@@ -6137,7 +6137,8 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
 
    DeleteTables();
 
-   ncmesh.GetMeshComponents(vertices, elements, boundary);
+   bool linear = (Nodes == NULL);
+   ncmesh.GetMeshComponents(vertices, elements, boundary, linear);
 
    NumOfVertices = vertices.Size();
    NumOfElements = elements.Size();

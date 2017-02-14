@@ -35,6 +35,8 @@
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
 
+#define protected public // need to access NCMesh internals from here
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -45,7 +47,7 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../data/amr-hex.mesh";
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
@@ -75,18 +77,75 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
+   mesh->EnsureNCMesh();
+
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = 5;
       for (int l = 0; l < ref_levels; l++)
       {
+         cout << mesh->GetNE() << " elements" << endl;
          mesh->UniformRefinement();
       }
    }
+   cout << mesh->GetNE() << " elements" << endl << endl;
+
+   NCMesh* ncmesh = mesh->ncmesh;
+
+   ncmesh->face_list.Clear();
+   tic();
+   ncmesh->GetFaceList();
+   cout << "Face list time: " << toc() << " s" << endl;
+
+   ncmesh->edge_list.Clear();
+   tic();
+   ncmesh->GetEdgeList();
+   cout << "Edge list time: " << toc() << " s" << endl;
+
+   tic();
+   ncmesh->UpdateElementToVertexTable();
+   cout << "Neighbor table time: " << toc() << " s" << endl;
+
+#if 0
+   Array<int> neighbors;
+   tic();
+   for (int i = 0; i < ncmesh->leaf_elements.Size(); i++)
+   {
+      neighbors.SetSize(0);
+      ncmesh->FindNeighbors(ncmesh->leaf_elements[i], neighbors);
+   }
+   cout << "Neighbor search time: " << toc() << " s" << endl;
+#endif
+
+   cout << endl;
+   cout << "sizeof(Node) = " << sizeof(NCMesh::Node) << endl;
+   cout << "sizeof(Face) = " << sizeof(NCMesh::Face) << endl;
+   cout << "sizeof(Element) = " << sizeof(NCMesh::Element) << endl;
+
+   /*cout << "sizeof(MeshId) = " << sizeof(NCMesh::MeshId) << endl;
+   cout << "sizeof(Slave) = " << sizeof(NCMesh::Slave) << endl;
+   cout << "sizeof(Master) = " << sizeof(NCMesh::Master) << endl;*/
+
+   cout << endl << "NCMesh memory usage: " << endl;
+   ncmesh->PrintMemoryDetail();
+
+   int ne = mesh->GetNE();
+   long total = ncmesh->MemoryUsage();
+   long total2 = total - ncmesh->face_list.MemoryUsage() -
+                 ncmesh->edge_list.MemoryUsage();
+
+   cout << endl;
+   cout << "total: " << total << endl;
+   cout << "per element: " << double(total) / ne << endl;
+   cout << "per element, without NCLists: " << double(total2) / ne << endl;
+
+   cout << endl;
+
+   delete mesh;
+   exit(0);
 
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -135,6 +194,7 @@ int main(int argc, char *argv[])
    GridFunction x(fespace);
    x = 0.0;
 
+#if 1
    // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
@@ -169,6 +229,7 @@ int main(int argc, char *argv[])
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
+#endif
 
    // 12. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".

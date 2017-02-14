@@ -260,6 +260,7 @@ inline bool operator!=(const Array<T> &LHS, const Array<T> &RHS)
    return !( LHS == RHS );
 }
 
+
 template <class T>
 class Array2D;
 
@@ -327,6 +328,102 @@ public:
    inline       T &operator()(int i, int j, int k);
 };
 
+
+/** A container for items of type T. Dynamically grows as items are added.
+ *  Each item is accessible by its index. Items are allocated in larger chunks
+ *  (blocks), so the 'New' method is very fast on average. It is also possible
+ *  to "deallocate" individual items by calling 'Delete'. No memory is freed
+ *  however, previously deleted items are just reused on next call to 'New'.
+ */
+template<typename T>
+class BlockArray
+{
+public:
+   BlockArray(int block_size = 16*1024);
+   BlockArray(const BlockArray<T> &other); // deep copy
+   ~BlockArray();
+
+   /// Allocate and construct a new item in the array, return its index.
+   int New();
+
+   /// Allocate and copy-construct a new item in the array, return its index.
+   int New(const T &item);
+
+   /// Access item of the array.
+   inline T& At(int index)
+   {
+      CheckIndex(index);
+      return blocks[index >> shift][index & mask];
+   }
+   inline const T& At(int index) const
+   {
+      CheckIndex(index);
+      return blocks[index >> shift][index & mask];
+   }
+
+   /// Access item of the array.
+   inline T& operator[](int index) { return At(index); }
+   inline const T& operator[](int index) const { return At(index); }
+
+   /** Destruct and mark item as deleted. Item will be reused by a future
+       call to New(). */
+   void Delete(int index);
+
+   /// Return true if item 'index' does not exist.
+   bool IsDeleted(int index) const
+   {
+      CheckIndex(index);
+      return unused.Find(index) >= 0;
+   }
+
+   /// Return the number of items actually stored.
+   int Size() const { return size - unused.Size(); }
+
+   /// Return the current upper bound for item index.
+   int Bound() const { return size; }
+
+   /// Iterator over items contained in the BlockArray.
+   class Iterator
+   {
+   public:
+      Iterator(const BlockArray<T>& array);
+
+      operator T*() const { return cur_item; }
+      T& operator*() const { return *cur_item; }
+      T* operator->() const { return cur_item; }
+
+      Iterator &operator++() { next(); return *this; }
+
+      int Index() const { return cur_index; }
+
+   protected:
+      const BlockArray<T>& array;
+      int cur_index, cur_unused;
+      T* cur_item;
+
+      void next();
+   };
+
+   void Swap(BlockArray<T> &other);
+
+   long MemoryUsage() const;
+
+protected:
+   Array<T*> blocks;
+   mutable Array<int> unused;
+   int size, shift, mask;
+
+   int Alloc();
+
+   inline void CheckIndex(int index) const
+   {
+      MFEM_ASSERT(index >= 0 && index < size,
+                  "Out of bounds access: " << index << ", size = " << size);
+   }
+};
+
+
+/// inlines ///
 
 template <class T>
 inline void Swap(T &a, T &b)
@@ -411,7 +508,6 @@ inline int Array<T>::Append(const Array<T> & els)
    return size;
 }
 
-
 template <class T>
 inline int Array<T>::Prepend(const T &el)
 {
@@ -423,7 +519,6 @@ inline int Array<T>::Prepend(const T &el)
    ((T*)data)[0] = el;
    return size;
 }
-
 
 template <class T>
 inline T &Array<T>::Last()
@@ -608,6 +703,139 @@ inline T &Array3D<T>::operator()(int i, int j, int k)
    return array1d[(i*N2+j)*N3+k];
 }
 
+
+template<typename T>
+BlockArray<T>::BlockArray(int block_size)
+{
+   mask = block_size-1;
+   MFEM_VERIFY(!(block_size & mask), "block_size must be a power of two.");
+
+   size = shift = 0;
+   while ((1 << shift) < block_size) { shift++; }
 }
+
+template<typename T>
+BlockArray<T>::BlockArray(const BlockArray<T> &other)
+{
+   blocks.SetSize(other.blocks.Size());
+   other.unused.Copy(unused);
+
+   size = other.size;
+   shift = other.shift;
+   mask = other.mask;
+
+   int bsize = mask+1;
+   for (int i = 0; i < blocks.Size(); i++)
+   {
+      blocks[i] = (T*) new char[bsize * sizeof(T)];
+   }
+
+   // copy all items
+   for (Iterator it(other); it; ++it)
+   {
+      new (&At(it.Index())) T(other.At(it.Index()));
+   }
+}
+
+template<typename T>
+int BlockArray<T>::Alloc()
+{
+   if (unused.Size())
+   {
+      int index = unused.Last();
+      unused.DeleteLast();
+      return index;
+   }
+
+   int bsize = mask+1;
+   if (size >= blocks.Size() * bsize)
+   {
+      T* new_block = (T*) new char[bsize * sizeof(T)];
+      blocks.Append(new_block);
+   }
+
+   return size++;
+}
+
+template<typename T>
+int BlockArray<T>::New()
+{
+   int index = Alloc();
+   new (&At(index)) T();
+   return index;
+}
+
+template<typename T>
+int BlockArray<T>::New(const T &item)
+{
+   int index = Alloc();
+   new (&At(index)) T(item);
+   return index;
+}
+
+template<typename T>
+void BlockArray<T>::Delete(int index)
+{
+   At(index).~T();
+   unused.Append(index);
+}
+
+template<typename T>
+void BlockArray<T>::Swap(BlockArray<T> &other)
+{
+   mfem::Swap(blocks, other.blocks);
+   mfem::Swap(unused, other.unused);
+   std::swap(size, other.size);
+   std::swap(shift, other.shift);
+   std::swap(mask, other.mask);
+}
+
+template<typename T>
+long BlockArray<T>::MemoryUsage() const
+{
+   return blocks.Size()*(mask+1)*sizeof(T) +
+          blocks.MemoryUsage() + unused.MemoryUsage();
+}
+
+template<typename T>
+BlockArray<T>::~BlockArray()
+{
+   for (int i = 0; i < blocks.Size(); i++)
+   {
+      delete [] (char*) blocks[i];
+   }
+}
+
+template<typename T>
+BlockArray<T>::Iterator::Iterator(const BlockArray<T>& array)
+   : array(array), cur_index(-1), cur_unused(0), cur_item(NULL)
+{
+   array.unused.Sort();
+   next();
+}
+
+template<typename T>
+void BlockArray<T>::Iterator::next()
+{
+   while (cur_index < array.size-1)
+   {
+      ++cur_index;
+
+      if (cur_unused >= array.unused.Size() ||
+          cur_index < array.unused[cur_unused])
+      {
+         cur_item = const_cast<T*>( &(array.At(cur_index)) );
+         return;
+      }
+
+      // skip deleted item
+      ++cur_unused;
+   }
+
+   // no more items
+   cur_item = NULL;
+}
+
+} // namespace mfem
 
 #endif

@@ -760,7 +760,7 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
             if (!mark[m])
             {
                lP.GetRow(i, row);
-               P->SetRow(r, old_vdofs, row);
+               P->SetRow(r, old_vdofs, row); // TODO: profiler says this is slow!
                mark[m] = 1;
             }
          }
