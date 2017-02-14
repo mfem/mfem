@@ -145,7 +145,7 @@ protected:
    TVector<Q,real_t> weights_1d;
 
 public:
-   // Multi-component weight assignment. qpt_layout_t must be (qpts x n1 x ...)
+   /// Multi-component weight assignment. qpt_layout_t must be (qpts x n1 x ...)
    template <AssignOp::Type Op, typename qpt_layout_t, typename qpt_data_t>
    void AssignWeights(const qpt_layout_t &qpt_layout,
                       qpt_data_t &qpt_data) const
@@ -249,10 +249,11 @@ template <int Order, typename real_t>
 class TIntegrationRule<Geometry::CUBE, Order, real_t>
    : public GaussIntegrationRule<3, Order/2+1, real_t> { };
 
-// Triangle integration rules (based on intrules.cpp)
-// These specializations define the number of quadrature points for each rule as
-// a compile-time constant.
-// TODO: add higher order rules
+/// @name Triangle integration rules (based on intrules.cpp)
+/// These specializations define the number of quadrature points for each rule as
+/// a compile-time constant.
+/// TODO: add higher order rules
+///@{
 template <typename real_t>
 class TIntegrationRule<Geometry::TRIANGLE, 0, real_t>
    : public GenericIntegrationRule<Geometry::TRIANGLE, 1, 0, real_t> { };
@@ -277,11 +278,13 @@ class TIntegrationRule<Geometry::TRIANGLE, 6, real_t>
 template <typename real_t>
 class TIntegrationRule<Geometry::TRIANGLE, 7, real_t>
    : public GenericIntegrationRule<Geometry::TRIANGLE, 12, 7, real_t> { };
+///@}
 
-// Tetrahedron integration rules (based on intrules.cpp)
-// These specializations define the number of quadrature points for each rule as
-// a compile-time constant.
-// TODO: add higher order rules
+/// @name Tetrahedron integration rules (based on intrules.cpp)
+/// These specializations define the number of quadrature points for each rule as
+/// a compile-time constant.
+/// TODO: add higher order rules
+///@{
 template <typename real_t>
 class TIntegrationRule<Geometry::TETRAHEDRON, 0, real_t>
    : public GenericIntegrationRule<Geometry::TETRAHEDRON, 1, 0, real_t> { };
@@ -306,6 +309,7 @@ class TIntegrationRule<Geometry::TETRAHEDRON, 6, real_t>
 template <typename real_t>
 class TIntegrationRule<Geometry::TETRAHEDRON, 7, real_t>
    : public GenericIntegrationRule<Geometry::TETRAHEDRON, 31, 7, real_t> { };
+///@}
 
 } // namespace mfem
 

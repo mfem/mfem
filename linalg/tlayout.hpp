@@ -508,8 +508,8 @@ public:
    }
 };
 
-// The default value (NumComp = 0) indicates that the number of components is
-// dynamic, i.e. it will be specified at run-time.
+/// The default value (NumComp = 0) indicates that the number of components is
+/// dynamic, i.e. it will be specified at run-time.
 template <Ordering::Type Ord, int NumComp = 0>
 class VectorLayout
 {

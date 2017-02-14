@@ -13,6 +13,7 @@
 //               mpirun -np 4 ex1p -m ../../data/ball-nurbs.mesh -std  -asm -pc ho  -sc
 //               mpirun -np 4 ex1p -m ../../data/pipe-nurbs.mesh -perf -mf  -pc lor
 //               mpirun -np 4 ex1p -m ../../data/pipe-nurbs.mesh -std  -asm -pc ho  -sc
+//               mpirun -np 4 ex1p -m ../../data/fichera.mesh -perf -mf -pc sparse1d
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -40,8 +41,21 @@ using namespace mfem;
 const Geometry::Type geom     = Geometry::CUBE; // mesh elements  (default: hex)
 const int            mesh_p   = 3;              // mesh curvature (default: 3)
 const int            sol_p    = 3;              // solution order (default: 3)
+const int            mesh_lor_p   = 1;          // mesh curvature (default: 3)
+const int            sol_lor_p    = 1;          // solution order (default: 3)
 const int            rdim     = Geometry::Constants<geom>::Dimension;
 const int            ir_order = 2*sol_p+rdim-1;
+const int            ir_order_lor = 2*sol_lor_p+rdim-1;
+
+/*
+   Sparsification strategies: (these all apply to -pc sparse1d)
+    -1: keep nonzeros corresponding to strategy 0, but use high-order values
+        with renormalization/scaling (stencil)
+     0: low order finite elements on nodes in 1D (lor-1d)
+   n>0: keep n largest (in absolute value) entries in each row of B1d, G1d
+        with some renormalization/scaling (algebraic)
+*/
+const int sparsify_strategy = 0;
 
 // Static mesh type
 typedef H1_FiniteElement<geom,mesh_p>         mesh_fe_t;
@@ -52,6 +66,10 @@ typedef TMesh<mesh_fes_t>                     mesh_t;
 typedef H1_FiniteElement<geom,sol_p>          sol_fe_t;
 typedef H1_FiniteElementSpace<sol_fe_t>       sol_fes_t;
 
+// Static 1d-sparsified finite element space type
+typedef Sparsified_H1_FE<geom,sol_p,sparsify_strategy>  sparse_fe_t;
+typedef H1_FiniteElementSpace<sparse_fe_t>              sparse_fes_t;
+
 // Static quadrature, coefficient and integrator types
 typedef TIntegrationRule<geom,ir_order>       int_rule_t;
 typedef TConstantCoefficient<>                coeff_t;
@@ -59,6 +77,27 @@ typedef TIntegrator<coeff_t,TDiffusionKernel> integ_t;
 
 // Static bilinear form type, combining the above types
 typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t> HPCBilinearForm;
+
+// Static bilinear form with 1d-sparsified elements
+typedef TBilinearForm<mesh_t,sparse_fes_t,int_rule_t,integ_t> SparsifiedBilinearForm;
+
+// Low order refined types
+
+// Static mesh type
+typedef H1_FiniteElement<geom,mesh_lor_p>         mesh_lor_fe_t;
+typedef H1_FiniteElementSpace<mesh_lor_fe_t>      mesh_lor_fes_t;
+typedef TMesh<mesh_lor_fes_t>                     mesh_lor_t;
+
+// Static solution finite element space type
+typedef H1_FiniteElement<geom,sol_lor_p>          sol_fe_lor_t;
+typedef H1_FiniteElementSpace<sol_fe_lor_t>       sol_fes_lor_t;
+
+// Static quadrature, coefficient and integrator types
+typedef TIntegrationRule<geom,ir_order_lor>       int_rule_lor_t;
+
+// Static bilinear form type, combining the above types
+typedef TBilinearForm<mesh_lor_t,sol_fes_lor_t,int_rule_lor_t,integ_t>
+HPCBilinearForm_lor;
 
 int main(int argc, char *argv[])
 {
@@ -77,6 +116,7 @@ int main(int argc, char *argv[])
    bool perf = true;
    bool matrix_free = true;
    bool visualization = 1;
+   bool exact_pc = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -92,13 +132,16 @@ int main(int argc, char *argv[])
                   "Use matrix-free evaluation or efficient matrix assembly in "
                   "the high-performance version.");
    args.AddOption(&pc, "-pc", "--preconditioner",
-                  "Preconditioner: lor - low-order-refined (matrix-free) AMG, "
-                  "ho - high-order (assembled) AMG, none.");
+                  "Preconditioner to use: `lor' for LOR BoomerAMG Prec., "
+                  "`ho' for Dense BoomerAMG Prec., `none',"
+                  "`sparse1d' for 1d-sparsification.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&exact_pc, "-epc", "--exact-pc", "-no-epc", "--no-exact-pc",
+                  "Wrap preconditioner with CG so it is `exact'.");
    args.Parse();
    if (!args.Good())
    {
@@ -125,12 +168,35 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+   if (myid == 0)
+   {
+      if (!strcmp(pc, "sparse1d"))
+      {
+         cout << "Preconditioning strategy: " << pc << sparsify_strategy << endl;
+      }
+      else
+      {
+         cout << "Preconditioning strategy: " << pc << endl;
+      }
+   }
 
-   enum PCType { NONE, LOR, HO };
+   enum PCType { NONE, LOR, HO, SPARSE1D };
    PCType pc_choice;
    if (!strcmp(pc, "ho")) { pc_choice = HO; }
    else if (!strcmp(pc, "lor")) { pc_choice = LOR; }
    else if (!strcmp(pc, "none")) { pc_choice = NONE; }
+   else if (!strcmp(pc, "sparse1d")) { pc_choice = SPARSE1D; }
+   else if (!strcmp(pc,"default"))
+   {
+      if (matrix_free)
+      {
+         pc_choice = NONE;
+      }
+      else
+      {
+         pc_choice = HO;
+      }
+   }
    else
    {
       mfem_error("Invalid Preconditioner specified");
@@ -185,8 +251,10 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
+      double b_num_elements = 10000.0;
+      if (dim == 3) b_num_elements = 500.0;
       int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(b_num_elements/mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -305,8 +373,14 @@ int main(int argc, char *argv[])
    //     that will hold the matrix corresponding to the Laplacian operator.
    ParBilinearForm *a = new ParBilinearForm(fespace);
    ParBilinearForm *a_pc = NULL;
-   if (pc_choice == LOR) { a_pc = new ParBilinearForm(fespace_lor); }
-   if (pc_choice == HO)  { a_pc = new ParBilinearForm(fespace); }
+   if (pc_choice == LOR)
+   {
+      a_pc = new ParBilinearForm(fespace_lor);
+   }
+   else if (pc_choice != NONE)
+   {
+      a_pc = new ParBilinearForm(fespace);
+   }
 
    // 13. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
@@ -329,6 +403,8 @@ int main(int argc, char *argv[])
    a->UsePrecomputedSparsity();
 
    HPCBilinearForm *a_hpc = NULL;
+   HPCBilinearForm_lor *a_hpc_lor = NULL;
+   SparsifiedBilinearForm *a_sparse1d = NULL;
    Operator *a_oper = NULL;
 
    if (!perf)
@@ -391,31 +467,43 @@ int main(int argc, char *argv[])
    tic_toc.Start();
 
    HypreParMatrix A_pc;
-   if (pc_choice == LOR)
+   if (pc_choice != NONE)
    {
-      // TODO: assemble the LOR matrix using the performance code
-      a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
-      a_pc->UsePrecomputedSparsity();
-      a_pc->Assemble();
-      a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
-   }
-   else if (pc_choice == HO)
-   {
-      if (!matrix_free)
+      tic_toc.Clear();
+      tic_toc.Start();
+
+      Vector X_pc, B_pc; // only for FormLinearSystem()
+      if (pc_choice == LOR)
       {
-         A_pc.MakeRef(A); // matrix already assembled, reuse it
+         a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
+         a_pc->Assemble();
+         a_pc->FormLinearSystem(ess_tdof_list, x, *b, A_pc, X_pc, B_pc);
       }
-      else
+      else if (pc_choice == HO)
       {
-         a_pc->UsePrecomputedSparsity();
-         a_hpc->AssembleBilinearForm(*a_pc);
-         a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
+         if (!perf)
+         {
+            A_pc.MakeRef(A); // matrix already assembled, reuse it
+         }
+         else
+         {
+            a_hpc->AssembleBilinearForm(*a_pc);
+            a_pc->FormLinearSystem(ess_tdof_list, x, *b, A_pc, X_pc, B_pc);
+         }
       }
+      else if (pc_choice == SPARSE1D)
+      {
+         a_sparse1d = new SparsifiedBilinearForm(integ_t(coeff_t(1.0)), *fespace);
+         a_sparse1d->AssembleBilinearForm(*a_pc);
+         a_pc->FormLinearSystem(ess_tdof_list, x, *b, A_pc, X_pc, B_pc);
+      }
+      tic_toc.Stop();
    }
-   tic_toc.Stop();
    if (myid == 0)
    {
       cout << " done, " << tic_toc.RealTime() << "s." << endl;
+      if (pc_choice != NONE)
+         cout << "Preconditioning matrix has " << A_pc.NNZ() << " NNZ." << endl;
    }
 
    // Solve with CG or PCG, depending if the matrix A_pc is available
@@ -425,23 +513,37 @@ int main(int argc, char *argv[])
    pcg->SetMaxIter(500);
    pcg->SetPrintLevel(1);
 
-   HypreSolver *amg = NULL;
-
-   pcg->SetOperator(*a_oper);
-   if (pc_choice != NONE)
-   {
-      amg = new HypreBoomerAMG(A_pc);
-      pcg->SetPreconditioner(*amg);
-   }
-
    tic_toc.Clear();
    tic_toc.Start();
 
+   Solver *preconditioner = NULL;
+   Solver *sub_pc = NULL;
+   pcg->SetOperator(*a_oper);
+   if (pc_choice != NONE)
+   {
+      if (exact_pc)
+      {
+         CGSolver * cg_pc = new CGSolver(MPI_COMM_WORLD);
+         cg_pc->SetOperator(A_pc);
+         sub_pc = new HypreBoomerAMG(A_pc);
+         cg_pc->SetRelTol(1e-8);
+         cg_pc->SetMaxIter(1000);
+         cg_pc->SetPrintLevel(0);
+         cg_pc->SetPreconditioner(*sub_pc);
+         preconditioner = cg_pc;
+      }
+      else
+      {
+         preconditioner = new HypreBoomerAMG(A_pc);
+      }
+      pcg->SetPreconditioner(*preconditioner);
+   }
    pcg->Mult(B, X);
 
    tic_toc.Stop();
-   delete amg;
-
+   delete preconditioner;
+   if (exact_pc)
+     delete sub_pc;
    if (myid == 0)
    {
       // Note: In the pcg algorithm, the number of operator Mult() calls is
@@ -491,7 +593,9 @@ int main(int argc, char *argv[])
    // 18. Free the used memory.
    delete a;
    delete a_hpc;
-   if (a_oper != &A) { delete a_oper; }
+   delete a_hpc_lor;
+   delete a_sparse1d;
+   delete a_oper;
    delete a_pc;
    delete b;
    delete fespace;

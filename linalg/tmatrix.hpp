@@ -20,7 +20,7 @@ namespace mfem
 
 // Matrix-matrix products
 
-// C  {=|+=}  A.B -- simple version (no blocks)
+/// C  {=|+=}  A.B -- simple version (no blocks)
 template <bool Add,
           typename A_layout_t, typename A_data_t,
           typename B_layout_t, typename B_data_t,
@@ -65,7 +65,7 @@ void sMult_AB(const A_layout_t &A_layout, const A_data_t &A_data,
    }
 }
 
-// C  {=|+=}  A.B -- block version
+/// C  {=|+=}  A.B -- block version
 template <int bA1, int bA2, int bB2, // block sizes
           bool Add,
           typename A_layout_t, typename A_data_t,
@@ -233,7 +233,7 @@ struct MatrixOps { };
 template <>
 struct MatrixOps<1,1>
 {
-   // Compute det(A).
+   /// Compute det(A).
    template <typename scalar_t, typename layout_t, typename data_t>
    static inline scalar_t Det(const layout_t &a, const data_t &A)
    {
@@ -252,7 +252,7 @@ struct MatrixOps<1,1>
       }
    }
 
-   // Compute B = adj(A).
+   /// Compute B = adj(A).
    template <typename scalar_t,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
@@ -262,7 +262,7 @@ struct MatrixOps<1,1>
       B[b.ind(0,0)] = scalar_t(1);
    }
 
-   // Compute adj(A) and det(A).
+   /// Compute adj(A) and det(A).
    template <typename scalar_t,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
@@ -277,7 +277,7 @@ struct MatrixOps<1,1>
 template <>
 struct MatrixOps<2,2>
 {
-   // Compute det(A).
+   /// Compute det(A).
    template <typename scalar_t, typename layout_t, typename data_t>
    static inline scalar_t Det(const layout_t &a, const data_t &A)
    {
@@ -286,7 +286,7 @@ struct MatrixOps<2,2>
               A[a.ind(1,0)]*A[a.ind(0,1)]);
    }
 
-   // Compute det(A). Batched version: D[i] {=,+=,*=} det(A[i,*,*])
+   /// Compute det(A). Batched version: D[i] {=,+=,*=} det(A[i,*,*])
    template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
              typename D_data_t>
    static inline void Det(const A_layout_t &a, const A_data_t &A, D_data_t &D)
@@ -300,7 +300,7 @@ struct MatrixOps<2,2>
       }
    }
 
-   // Compute B = adj(A).
+   /// Compute B = adj(A).
    template <typename scalar_t,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
@@ -313,7 +313,7 @@ struct MatrixOps<2,2>
       B[b.ind(1,1)] =  A[a.ind(0,0)];
    }
 
-   // Compute adj(A) and det(A).
+   /// Compute adj(A) and det(A).
    template <typename scalar_t,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
@@ -359,7 +359,7 @@ struct MatrixOps<2,2>::Symm<false>
 template <>
 struct MatrixOps<3,3>
 {
-   // Compute det(A).
+   /// Compute det(A).
    template <typename scalar_t, typename layout_t, typename data_t>
    static inline scalar_t Det(const layout_t &a, const data_t &A)
    {
@@ -372,7 +372,7 @@ struct MatrixOps<3,3>
                              A[a.ind(1,1)]*A[a.ind(0,2)]));
    }
 
-   // Compute det(A). Batched version: D[i] {=,+=,*=} det(A[i,*,*])
+   /// Compute det(A). Batched version: D[i] {=,+=,*=} det(A[i,*,*])
    template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
              typename D_data_t>
    static inline void Det(const A_layout_t &a, const A_data_t &A, D_data_t &D)
@@ -392,7 +392,7 @@ struct MatrixOps<3,3>
       }
    }
 
-   // Compute B = adj(A).
+   /// Compute B = adj(A).
    template <typename scalar_t,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
@@ -411,7 +411,7 @@ struct MatrixOps<3,3>
       B[b.ind(2,2)] = A[a.ind(0,0)]*A[a.ind(1,1)] - A[a.ind(0,1)]*A[a.ind(1,0)];
    }
 
-   // Compute adj(A) and det(A).
+   /// Compute adj(A) and det(A).
    template <typename scalar_t,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
@@ -469,7 +469,7 @@ struct MatrixOps<3,3>::Symm<false>
 
 } // namespace mfem::internal
 
-// Compute the determinant of a (small) matrix: det(A).
+/// Compute the determinant of a (small) matrix: det(A).
 template <typename scalar_t, typename layout_t, typename data_t>
 inline scalar_t TDet(const layout_t &a, const data_t &A)
 {
@@ -483,8 +483,8 @@ inline scalar_t TDet(const layout_t &a, const data_t &A)
 #endif
 }
 
-// Compute the determinants of a set of (small) matrices: D[i] = det(A[i,*,*]).
-// The layout of A is (M x N1 x N2) and the size of D is M.
+/** Compute the determinants of a set of (small) matrices: D[i] = det(A[i,*,*]).
+    The layout of A is (M x N1 x N2) and the size of D is M. */
 template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
           typename D_data_t>
 inline void TDet(const A_layout_t &a, const A_data_t &A, D_data_t &D)
@@ -499,7 +499,7 @@ inline void TDet(const A_layout_t &a, const A_data_t &A, D_data_t &D)
 #endif
 }
 
-// Compute the adjugate matrix of a (small) matrix: B = adj(A).
+/// Compute the adjugate matrix of a (small) matrix: B = adj(A).
 template <typename scalar_t,
           typename A_layout_t, typename A_data_t,
           typename B_layout_t, typename B_data_t>
@@ -512,8 +512,8 @@ inline void TAdjugate(const A_layout_t &a, const A_data_t &A,
    template Adjugate<scalar_t>(a, A, b, B);
 }
 
-// Compute the adjugate and the determinant of a (small) matrix: B = adj(A),
-// return det(A).
+/** Compute the adjugate and the determinant of a (small) matrix: B = adj(A),
+    return det(A). */
 template <typename scalar_t,
           typename A_layout_t, typename A_data_t,
           typename B_layout_t, typename B_data_t>

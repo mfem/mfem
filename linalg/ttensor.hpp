@@ -33,7 +33,7 @@ struct TensorOps;
 template <>
 struct TensorOps<1> // rank = 1
 {
-   // Assign: A {=,+=,*=} scalar_value
+   /// Assign: A {=,+=,*=} scalar_value
    template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
              typename scalar_t>
    static void Assign(const A_layout_t &A_layout, A_data_t &A_data,
@@ -46,7 +46,7 @@ struct TensorOps<1> // rank = 1
       }
    }
 
-   // Assign: A {=,+=,*=} B
+   /// Assign: A {=,+=,*=} B
    template <AssignOp::Type Op,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
@@ -83,7 +83,7 @@ struct TensorOps<2> // rank = 2
       }
    }
 
-   // Assign: A {=,+=,*=} B
+   /// Assign: A {=,+=,*=} B
    template <AssignOp::Type Op,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
@@ -109,7 +109,7 @@ struct TensorOps<2> // rank = 2
 template <>
 struct TensorOps<3> // rank = 3
 {
-   // Assign: A {=,+=,*=} scalar_value
+   /// Assign: A {=,+=,*=} scalar_value
    template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
              typename scalar_t>
    static void Assign(const A_layout_t &A_layout, A_data_t &A_data,
@@ -128,7 +128,7 @@ struct TensorOps<3> // rank = 3
       }
    }
 
-   // Assign: A {=,+=,*=} B
+   /// Assign: A {=,+=,*=} B
    template <AssignOp::Type Op,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
@@ -158,7 +158,7 @@ struct TensorOps<3> // rank = 3
 template <>
 struct TensorOps<4> // rank = 4
 {
-   // Assign: A {=,+=,*=} scalar_value
+   /// Assign: A {=,+=,*=} scalar_value
    template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
              typename scalar_t>
    static void Assign(const A_layout_t &A_layout, A_data_t &A_data,
@@ -180,7 +180,7 @@ struct TensorOps<4> // rank = 4
       }
    }
 
-   // Assign: A {=,+=,*=} B
+   /// Assign: A {=,+=,*=} B
    template <AssignOp::Type Op,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
@@ -213,7 +213,7 @@ struct TensorOps<4> // rank = 4
 
 } // namespace mfem::internal
 
-// Tensor or sub-tensor assign function: A {=,+=,*=} scalar_value.
+/// Tensor or sub-tensor assign function: A {=,+=,*=} scalar_value.
 template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
           typename scalar_t>
 inline void TAssign(const A_layout_t &A_layout, A_data_t &A_data,
@@ -223,9 +223,9 @@ inline void TAssign(const A_layout_t &A_layout, A_data_t &A_data,
    template Assign<Op>(A_layout, A_data, value);
 }
 
-// Tensor assign function: A {=,+=,*=} B that allows different input and output
-// layouts. With suitable layouts this function can be used to permute
-// (transpose) tensors, extract sub-tensors, etc.
+/** Tensor assign function: A {=,+=,*=} B that allows different input and output
+    layouts. With suitable layouts this function can be used to permute
+    (transpose) tensors, extract sub-tensors, etc. */
 template <AssignOp::Type Op,
           typename A_layout_t, typename A_data_t,
           typename B_layout_t, typename B_data_t>
@@ -324,7 +324,7 @@ struct TMatrix : public TVector<N1*N2,data_t,align>
       TAdjugate<data_t>(layout, data, layout, adj.data);
    }
 
-   // Compute the adjugate and the determinant of a (small) matrix.
+   /// Compute the adjugate and the determinant of a (small) matrix.
    inline data_t AdjDet(TMatrix<N2,N1,data_t> &adj) const
    {
       return TAdjDet<data_t>(layout, data, layout, adj.data);
@@ -383,7 +383,7 @@ TTensor4<N1,N2,N3,N4,data_t,align>::layout = layout_type();
 
 // Tensor products
 
-// C_{i,j,k}  {=|+=}  \sum_s A_{s,j} B_{i,s,k}
+/// C_{i,j,k}  {=|+=}  \sum_s A_{s,j} B_{i,s,k}
 template <bool Add,
           typename A_layout_t, typename A_data_t,
           typename B_layout_t, typename B_data_t,
@@ -406,7 +406,7 @@ void Mult_1_2(const A_layout_t &A_layout, const A_data_t &A_data,
    }
 }
 
-// C_{i,j,k}  {=|+=}  \sum_s A_{i,s} B_{s,j,k}
+/// C_{i,j,k}  {=|+=}  \sum_s A_{i,s} B_{s,j,k}
 template <bool Add,
           typename A_layout_t, typename A_data_t,
           typename B_layout_t, typename B_data_t,
@@ -423,7 +423,7 @@ void Mult_2_1(const A_layout_t &A_layout, const A_data_t &A_data,
                 C_layout.merge_23(), C_data);
 }
 
-// C_{i,k,j,l}  {=|+=}  \sum_s A_{s,i} A_{s,j} B_{k,s,l}
+/// C_{i,k,j,l}  {=|+=}  \sum_s A_{s,i} A_{s,j} B_{k,s,l}
 template <bool Add,
           typename A_layout_t, typename A_data_t,
           typename B_layout_t, typename B_data_t,
@@ -497,7 +497,7 @@ void TensorAssemble(const A_layout_t &A_layout, const A_data_t &A_data,
 #endif
 }
 
-// D_{i,k,j,l}  {=|+=}  \sum_s A_{i,s} B_{s,j} C_{k,s,l}
+/// D_{i,k,j,l}  {=|+=}  \sum_s A_{i,s} B_{s,j} C_{k,s,l}
 template <bool Add,
           typename A_layout_t, typename A_data_t,
           typename B_layout_t, typename B_data_t,
@@ -589,7 +589,7 @@ void TensorAssemble(const A_layout_t &A_layout, const A_data_t &A_data,
 }
 
 
-// C_{i,j,k,l}  {=|+=}  A_{i,j,k} B_{j,l}
+/// C_{i,j,k,l}  {=|+=}  A_{i,j,k} B_{j,l}
 template <AssignOp::Type Op,
           typename A_layout_t, typename A_data_t,
           typename B_layout_t, typename B_data_t,

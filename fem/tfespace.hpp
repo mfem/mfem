@@ -32,10 +32,10 @@ namespace mfem
 // - int map(int loc_dof_idx, int elem_offset) const --> glob_dof_idx, for
 //   single component; elem_offset is relative to the currently set element.
 
-// Index type based on an array listing the dofs for each element where all
-// elements are assumed to have the same number of dofs. Such an array is
-// constructed from the J array of an element-to-dof Table with optional local
-// renumbering to ensure tensor-product local dof ordering when needed.
+/// Index type based on an array listing the dofs for each element where all
+/// elements are assumed to have the same number of dofs. Such an array is
+/// constructed from the J array of an element-to-dof Table with optional local
+/// renumbering to ensure tensor-product local dof ordering when needed.
 template <typename FE>
 class ElementDofIndexer
 {
@@ -106,8 +106,8 @@ public:
 };
 
 
-// Simple template Finite Element Space, built using an IndexType. For a
-// description of the requirements on IndexType, see above.
+/// Simple template Finite Element Space, built using an IndexType. For a
+/// description of the requirements on IndexType, see above.
 template <typename FE, typename IndexType>
 class TFiniteElementSpace_simple
 {
@@ -126,10 +126,11 @@ public:
 
    void SetElement(int el) { ind.SetElement(el); }
 
-   // Multi-element Extract:
-   // Extract dofs for multiple elements starting with the current element.
-   // The number of elements to extract is given by the second dimension of
-   // dof_layout_t: dof_layout is (DOFS x NumElems).
+   /** @brief Multi-element Extract:
+
+       Extract dofs for multiple elements starting with the current element.
+       The number of elements to extract is given by the second dimension of
+       dof_layout_t: dof_layout is (DOFS x NumElems). */
    template <AssignOp::Type Op, typename glob_dof_data_t,
              typename dof_layout_t, typename dof_data_t>
    inline MFEM_ALWAYS_INLINE
@@ -160,7 +161,7 @@ public:
       Extract<AssignOp::Set>(glob_dof_data, dof_layout, dof_data);
    }
 
-   // Multi-element assemble.
+   /// Multi-element assemble.
    template <AssignOp::Type Op,
              typename dof_layout_t, typename dof_data_t,
              typename glob_dof_data_t>
@@ -192,7 +193,7 @@ public:
       Assemble<AssignOp::Add>(dof_layout, dof_data, glob_dof_data);
    }
 
-   // Multi-element VectorExtract: vdof_layout is (DOFS x NumComp x NumElems).
+   /// Multi-element VectorExtract: vdof_layout is (DOFS x NumComp x NumElems).
    template <AssignOp::Type Op,
              typename vec_layout_t, typename glob_vdof_data_t,
              typename vdof_layout_t, typename vdof_data_t>
@@ -231,7 +232,7 @@ public:
       VectorExtract<AssignOp::Set>(vl, glob_vdof_data, vdof_layout, vdof_data);
    }
 
-   // Multi-element VectorAssemble: vdof_layout is (DOFS x NumComp x NumElems).
+   /// Multi-element VectorAssemble: vdof_layout is (DOFS x NumComp x NumElems).
    template <AssignOp::Type Op,
              typename vdof_layout_t, typename vdof_data_t,
              typename vec_layout_t, typename glob_vdof_data_t>
@@ -270,9 +271,9 @@ public:
       VectorAssemble<AssignOp::Add>(vdof_layout, vdof_data, vl, glob_vdof_data);
    }
 
-   // Extract a static number of consecutive components; vdof_layout is
-   // (dofs x NC x NE), where NC is the number of components to extract. It is
-   // assumed that: first_comp + NC <= vl.NumComponents().
+   /// Extract a static number of consecutive components; vdof_layout is
+   /// (dofs x NC x NE), where NC is the number of components to extract. It is
+   /// assumed that: first_comp + NC <= vl.NumComponents().
    template <typename vdof_layout_t, typename vdof_data_t,
              typename vec_layout_t, typename glob_vdof_data_t>
    inline MFEM_ALWAYS_INLINE
@@ -302,9 +303,9 @@ public:
       }
    }
 
-   // Assemble a static number of consecutive components; vdof_layout is
-   // (dofs x NC x NE), where NC is the number of components to add. It is
-   // assumed that: first_comp + NC <= vl.NumComponents().
+   /// Assemble a static number of consecutive components; vdof_layout is
+   /// (dofs x NC x NE), where NC is the number of components to add. It is
+   /// assumed that: first_comp + NC <= vl.NumComponents().
    template <typename vdof_layout_t, typename vdof_data_t,
              typename vec_layout_t, typename glob_vdof_data_t>
    inline MFEM_ALWAYS_INLINE
@@ -402,8 +403,8 @@ public:
 };
 
 
-// Simple index type for DG spaces, where the map method is given by:
-// glob_dof_idx = loc_dof_idx + elem_idx * num_dofs.
+/// Simple index type for DG spaces, where the map method is given by:
+/// glob_dof_idx = loc_dof_idx + elem_idx * num_dofs.
 template <typename FE>
 class DGIndexer
 {
