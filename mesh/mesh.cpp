@@ -148,13 +148,13 @@ void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
    }
 }
 
-void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &out)
+void Mesh::GetCharacteristics(double &h_min, double &h_max,
+                              double &kappa_min, double &kappa_max,
+                              Vector *Vh, Vector *Vk)
 {
    int i, dim, sdim;
    DenseMatrix J;
-   double h_min, h_max, kappa_min, kappa_max, h, kappa;
-
-   out << "Mesh Characteristics:";
+   double h, kappa;
 
    dim = Dimension();
    sdim = SpaceDimension();
@@ -179,7 +179,18 @@ void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &out)
       if (kappa < kappa_min) { kappa_min = kappa; }
       if (kappa > kappa_max) { kappa_max = kappa; }
    }
+}
 
+void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &out)
+{
+   int i, dim, sdim;
+   double h_min, h_max, kappa_min, kappa_max, h, kappa;
+
+   out << "Mesh Characteristics:";
+
+   this->GetCharacteristics(h_min, h_max, kappa_min, kappa_max, Vh, Vk);
+
+   dim = Dimension();
    if (dim == 1)
    {
       out << '\n'

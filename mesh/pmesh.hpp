@@ -200,6 +200,13 @@ public:
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
    void PrintAsOneXG(std::ostream &out = std::cout);
 
+   /// Returns the minimum and maximum corners of the mesh bounding box. For
+   /// high-order meshes, the geometry is refined first "ref" times.
+   void GetBoundingBox(Vector &p_min, Vector &p_max, int ref = 2);
+
+   void GetCharacteristics(double &h_min, double &h_max,
+                           double &kappa_min, double &kappa_max);
+
    /// Print various parallel mesh stats
    virtual void PrintInfo(std::ostream &out = std::cout);
 
