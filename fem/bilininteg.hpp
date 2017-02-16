@@ -15,6 +15,10 @@
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
 
+#ifdef MFEM_USE_ACROTENSOR
+#include "AcroTensor.hpp"
+#endif
+
 namespace mfem
 {
 
@@ -32,6 +36,9 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+   virtual void TensorAssembleMatrices(FiniteElementSpace *fes,
+                                       DenseTensor *element_matrices,
+                                       bool use_gpu);
 
    /** Compute the local matrix representation of a bilinear form
        a(u,v) defined on different trial (given by u) and test
@@ -79,6 +86,10 @@ public:
    void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
 
    virtual ~BilinearFormIntegrator() { }
+
+#ifdef MFEM_USE_ACROTENSOR
+   acrobatic::TensorEngine TE;
+#endif
 };
 
 class TransposeIntegrator : public BilinearFormIntegrator
@@ -1600,6 +1611,12 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+#ifdef MFEM_USE_ACROTENSOR
+   virtual void TensorAssembleMatrices(FiniteElementSpace *fes,
+                                       DenseTensor *element_matrices,
+                                       bool use_gpu);
+#endif   
+
    /** Given a trial and test Finite Element computes the element stiffness
        matrix elmat. */
    virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
@@ -1641,6 +1658,11 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+#ifdef MFEM_USE_ACROTENSOR
+   virtual void TensorAssembleMatrices(FiniteElementSpace *fes,
+                                       DenseTensor *element_matrices,
+                                       bool use_gpu);
+#endif
    virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,

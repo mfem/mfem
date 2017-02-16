@@ -35,6 +35,18 @@ FiniteElement::FiniteElement(int D, int G, int Do, int O, int F)
 #endif
 }
 
+void FiniteElement::CalcShape1D(const IntegrationPoint &ip, Vector &shape) const
+{
+   mfem_error ("FiniteElement::CalcShape1D (...)\n"
+               "   is not implemented for this class!");
+}
+
+void FiniteElement::CalcDShape1D(const IntegrationPoint &ip, DenseMatrix &dshape) const
+{
+   mfem_error ("FiniteElement::CalcDShape1D (...)\n"
+               "   is not implemented for this class!");
+}
+
 void FiniteElement::CalcVShape (
    const IntegrationPoint &ip, DenseMatrix &shape) const
 {
@@ -6579,6 +6591,12 @@ void H1_SegmentElement::CalcShape(const IntegrationPoint &ip,
    }
 }
 
+void H1_SegmentElement::CalcShape1D(const IntegrationPoint &ip,
+                                    Vector &shape) const
+{
+   basis1d.Eval(ip.x, shape);
+}
+
 void H1_SegmentElement::CalcDShape(const IntegrationPoint &ip,
                                    DenseMatrix &dshape) const
 {
@@ -6595,6 +6613,22 @@ void H1_SegmentElement::CalcDShape(const IntegrationPoint &ip,
    for (int i = 1; i < p; i++)
    {
       dshape(i+1,0) = dshape_x(i);
+   }
+}
+
+void H1_SegmentElement::CalcDShape1D(const IntegrationPoint &ip,
+                                     DenseMatrix &dshape) const
+{
+   const int p = Order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_x(p+1), dshape_x(p+1);
+#endif
+
+   basis1d.Eval(ip.x, shape_x, dshape_x);
+   for (int i = 0; i < p+1; i++)
+   {
+      dshape(i,0) = dshape_x(i);
    }
 }
 
@@ -6705,6 +6739,14 @@ void H1_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
       }
 }
 
+
+void H1_QuadrilateralElement::CalcShape1D(const IntegrationPoint &ip,
+                                          Vector &shape) const
+{
+   basis1d.Eval(ip.x, shape);
+}
+
+
 void H1_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
                                          DenseMatrix &dshape) const
 {
@@ -6724,6 +6766,23 @@ void H1_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
          dshape(dof_map[o],0) = dshape_x(i)* shape_y(j);
          dshape(dof_map[o],1) =  shape_x(i)*dshape_y(j);  o++;
       }
+   }
+}
+
+void H1_QuadrilateralElement::CalcDShape1D(const IntegrationPoint &ip,
+                                           DenseMatrix &dshape) const
+{
+   const int p = Order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_x(p+1), dshape_x(p+1);
+#endif
+
+   basis1d.Eval(ip.x, shape_x, dshape_x);
+
+   for (int i = 0; i < p+1; i++)
+   {
+      dshape(i,0) = dshape_x(i);
    }
 }
 
@@ -6927,6 +6986,12 @@ void H1_HexahedronElement::CalcShape(const IntegrationPoint &ip,
          }
 }
 
+void H1_HexahedronElement::CalcShape1D(const IntegrationPoint &ip,
+                                       Vector &shape) const
+{
+   basis1d.Eval(ip.x, shape);
+}
+
 void H1_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
                                       DenseMatrix &dshape) const
 {
@@ -6951,6 +7016,22 @@ void H1_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
          }
 }
 
+void H1_HexahedronElement::CalcDShape1D(const IntegrationPoint &ip,
+                                        DenseMatrix &dshape) const
+{
+   const int p = Order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_x(p+1), dshape_x(p+1);
+#endif
+
+   basis1d.Eval(ip.x, shape_x, dshape_x);
+   for (int i = 0; i < p+1; i++)
+   {
+      dshape(i,0) = dshape_x(i);
+   }
+}
+
 void H1_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    const int p = Order;
@@ -6959,7 +7040,7 @@ void H1_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1);
 #endif
-
+   
    for (int i = 0; i <= p; i++)
    {
       shape_x(i) = poly1d.CalcDelta(p, (1.0 - cp[i]));

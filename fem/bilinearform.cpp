@@ -12,6 +12,7 @@
 // Implementation of class BilinearForm
 
 #include "fem.hpp"
+#include "../general/tic_toc.hpp"
 #include <cmath>
 
 namespace mfem
@@ -73,6 +74,9 @@ BilinearForm::BilinearForm (FiniteElementSpace * f)
    static_cond = NULL;
    hybridization = NULL;
    precompute_sparsity = 0;
+   use_acrotensor = false;
+   acrotensor_gpu = false;
+   acrotensor_matrixfree = false;   
 }
 
 BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
@@ -89,6 +93,9 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    static_cond = NULL;
    hybridization = NULL;
    precompute_sparsity = ps;
+   use_acrotensor = false;
+   acrotensor_gpu = false;
+   acrotensor_matrixfree = false;     
 
    bfi = bf->GetDBFI();
    dbfi.SetSize (bfi->Size());
@@ -324,6 +331,15 @@ void BilinearForm::Assemble (int skip_zeros)
    }
 #endif
 
+#ifdef MFEM_USE_ACROTENSOR
+   int free_element_matrices = 0;
+   if (use_acrotensor && !element_matrices)
+   {
+      ComputeElementMatricesAcroTensor();
+      free_element_matrices = 1;
+   }
+#endif
+
    if (dbfi.Size())
    {
       for (i = 0; i < fes -> GetNE(); i++)
@@ -469,6 +485,15 @@ void BilinearForm::Assemble (int skip_zeros)
    if (free_element_matrices)
    {
       FreeElementMatrices();
+      free_element_matrices = 0;
+   }
+#endif
+
+#ifdef MFEM_USE_ACROTENSOR
+   if (free_element_matrices)
+   {
+      FreeElementMatrices();
+      free_element_matrices = 0;
    }
 #endif
 }
@@ -701,6 +726,32 @@ void BilinearForm::ComputeElementMatrices()
       elmat.ClearExternalData();
    }
 }
+
+#ifdef MFEM_USE_ACROTENSOR
+void BilinearForm::ComputeElementMatricesAcroTensor()
+{
+   if (element_matrices || dbfi.Size() == 0 || fes->GetNE() == 0)
+   {
+      return;
+   }
+
+   int num_elements = fes->GetNE();
+   int num_dofs_per_el = fes->GetFE(0)->GetDof() * fes->GetVDim();
+   int dim = fes->GetMesh()->Dimension();
+   int p = fes->GetOrder(0);
+
+   element_matrices = new DenseTensor(num_dofs_per_el, num_dofs_per_el,
+                                      num_elements);
+
+   dbfi[0]->TensorAssembleMatrices(fes, element_matrices, acrotensor_gpu);
+   for (int k = 1; k < dbfi.Size(); k++)
+   {
+      dbfi[k]->TensorAssembleMatrices(*fes, element_matrices);
+      element_matrices += tmp;
+   }
+}
+#endif
+
 
 void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
                                         Vector &sol, Vector &rhs, int d)

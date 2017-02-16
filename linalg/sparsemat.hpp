@@ -352,7 +352,7 @@ public:
    SparseMatrix &operator*=(double a);
 
    /// Prints matrix to stream out.
-   void Print(std::ostream &out = std::cout, int width_ = 4) const;
+   void Print(std::ostream &out = std::cout, int width_ = 4, double tol = -1.0) const;
 
    /// Prints matrix in matlab format.
    void PrintMatlab(std::ostream &out = std::cout) const;

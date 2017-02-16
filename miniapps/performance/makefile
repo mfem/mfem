@@ -25,7 +25,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 # Compiler specific optimizations.
 # For best performance, GCC 5 (or newer) is recommended.
-ifneq (,$(findstring $(MFEM_CXX),g++ mpicxx))
+ifneq (,$(findstring $(MFEM_CXX),g++ mpicxx nvcc))
    MFEM_CXXFLAGS += -march=native
    # MFEM_CXXFLAGS += -std=c++03
    MFEM_CXXFLAGS += -std=c++11

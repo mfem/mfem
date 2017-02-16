@@ -146,7 +146,10 @@ int main(int argc, char *argv[])
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
+   tic();
    a->Assemble();
+   double assembly_time = toc();
+   std::cout << "Assembly time:  " << assembly_time << std::endl;
 
    SparseMatrix A;
    Vector B, X;

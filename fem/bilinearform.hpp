@@ -78,6 +78,9 @@ protected:
       mat = mat_e = NULL; extern_bfs = 0; element_matrices = NULL;
       static_cond = NULL; hybridization = NULL;
       precompute_sparsity = 0;
+      use_acrotensor = false;
+      acrotensor_gpu = false;
+      acrotensor_matrixfree = false;
    }
 
 public:
@@ -94,6 +97,15 @@ public:
        called before assembly. If the number of unknowns after static
        condensation is not reduced, it is not enabled. */
    void EnableStaticCondensation();
+
+#ifdef MFEM_USE_ACROTENSOR
+   void SetAcrotensorMode(bool use_acro, bool use_gpu, bool use_matrixfree)
+   {
+      use_acrotensor = use_acro;
+      acrotensor_gpu = use_gpu;
+      acrotensor_matrixfree = use_matrixfree;
+   }
+#endif
 
    /** Check if static condensation was actually enabled by a previous call to
        EnableStaticCondensation. */
@@ -265,6 +277,7 @@ public:
 
    /// Compute and store internally all element matrices.
    void ComputeElementMatrices();
+   void ComputeElementMatricesAcroTensor();
 
    /// Free the memory used by the element matrices.
    void FreeElementMatrices()
@@ -325,6 +338,10 @@ public:
 
    /// Destroys bilinear form.
    virtual ~BilinearForm();
+
+   bool use_acrotensor;
+   bool acrotensor_gpu;
+   bool acrotensor_matrixfree;
 };
 
 /**
