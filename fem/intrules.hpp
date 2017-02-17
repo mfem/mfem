@@ -341,6 +341,7 @@ public:
 
 /// A global object with all integration rules (defined in intrules.cpp)
 extern IntegrationRules IntRules;
+extern IntegrationRules IntRulesLo;
 
 /// A global object with all refined integration rules
 extern IntegrationRules RefinedIntRules;

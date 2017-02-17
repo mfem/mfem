@@ -825,6 +825,7 @@ int Quadrature1D::CheckOpen(int type)
 
 
 IntegrationRules IntRules(0, Quadrature1D::GaussLegendre);
+IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 
 IntegrationRules RefinedIntRules(1, Quadrature1D::GaussLegendre);
 
