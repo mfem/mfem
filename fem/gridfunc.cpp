@@ -1166,6 +1166,44 @@ void GridFunction::GetNodalValues(Vector &nval, int vdim) const
    }
 }
 
+void GridFunction::AccumulateAndCountZones(Coefficient &coeff,
+                                           AvgType type,
+                                           Array<int> &zones_per_vdof)
+{
+   zones_per_vdof.SetSize(fes->GetVSize());
+   zones_per_vdof = 0.0;
+
+   // Local interpolation
+   Array<int> vdofs;
+   Vector vals;
+   *this = 0.0;
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fes->GetElementVDofs(i, vdofs);
+      // Local interpolation of coeff.
+      vals.SetSize(vdofs.Size());
+      fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
+
+      // Accumulate values in all dofs, count the zones.
+      for (int j = 0; j < vdofs.Size(); j++)
+      {
+         if (type == HARMONIC)
+         {
+            MFEM_VERIFY(vals[j] != 0.0,
+                        "Coefficient has zeros, harmonic avg is undefined!");
+            (*this)(vdofs[j]) += 1.0 / vals[j];
+         }
+         else if (type == ARITHMETIC)
+         {
+            (*this)(vdofs[j]) += vals[j];
+         }
+         else { MFEM_ABORT("Not implemented"); }
+
+         zones_per_vdof[vdofs[j]]++;
+      }
+   }
+}
+
 void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
                                            double &integral)
 {
@@ -1393,6 +1431,24 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
 {
    Array<int> dof_attr;
    ProjectDiscCoefficient(coeff, dof_attr);
+}
+
+void GridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
+{
+   // Harmonic  (x1 ... xn) = [ (1/x1 + ... + 1/xn) / n ]^-1.
+   // Arithmetic(x1 ... xn) = (x1 + ... + xn) / n.
+
+   Array<int> zones_per_vdof;
+   AccumulateAndCountZones(coeff, type, zones_per_vdof);
+
+   for (int i = 0; i < fes->GetVSize(); i++)
+   {
+      (*this)(i) /= zones_per_vdof[i];
+      if (type == HARMONIC)
+      {
+         (*this)(i) = 1.0 / (*this)(i);
+      }
+   }
 }
 
 void GridFunction::ProjectBdrCoefficient(

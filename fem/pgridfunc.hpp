@@ -74,16 +74,16 @@ public:
 
    ParFiniteElementSpace *ParFESpace() const { return pfes; }
 
-   void Update();
+   virtual void Update();
 
-   void SetSpace(ParFiniteElementSpace *f);
+   virtual void SetSpace(ParFiniteElementSpace *f);
 
    /** @brief Make the ParGridFunction reference external data on a new
        ParFiniteElementSpace. */
    /** This method changes the ParFiniteElementSpace associated with the
        ParGridFunction and sets the pointer @a v as external data in the
        ParGridFunction. */
-   void MakeRef(ParFiniteElementSpace *f, double *v);
+   virtual void MakeRef(ParFiniteElementSpace *f, double *v);
 
    /** @brief Make the ParGridFunction reference external data on a new
        ParFiniteElementSpace. */
@@ -92,7 +92,7 @@ public:
        @a v_offset) as external data in the ParGridFunction.
        @note This version of the method will also perform bounds checks when
        the build option MFEM_DEBUG is enabled. */
-   void MakeRef(ParFiniteElementSpace *f, Vector &v, int v_offset);
+   virtual void MakeRef(ParFiniteElementSpace *f, Vector &v, int v_offset);
 
    /** Set the grid function on (all) dofs from a given vector on the
        true dofs, i.e. P tv. */
@@ -151,73 +151,75 @@ public:
    { return GetValue(T.ElementNo, T.GetIntPoint()); }
 
    using GridFunction::ProjectCoefficient;
-   void ProjectCoefficient(Coefficient &coeff);
+   virtual void ProjectCoefficient(Coefficient &coeff);
 
    using GridFunction::ProjectDiscCoefficient;
-   /** Project a discontinuous vector coefficient as a grid function on a
-       continuous parallel finite element space. The values in shared dofs are
+   /** @brief Project a discontinuous vector coefficient as a grid function on
+       a continuous finite element space. The values in shared dofs are
        determined from the element with maximal attribute. */
-   void ProjectDiscCoefficient(VectorCoefficient &coeff);
+   virtual void ProjectDiscCoefficient(VectorCoefficient &coeff);
 
-   double ComputeL1Error(Coefficient *exsol[],
-                         const IntegrationRule *irs[] = NULL) const
+   virtual void ProjectDiscCoefficient(Coefficient &coeff, AvgType type);
+
+   virtual double ComputeL1Error(Coefficient *exsol[],
+                                 const IntegrationRule *irs[] = NULL) const
    {
       return GlobalLpNorm(1.0, GridFunction::ComputeW11Error(
                              *exsol, NULL, 1, NULL, irs), pfes->GetComm());
    }
 
-   double ComputeL1Error(Coefficient &exsol,
-                         const IntegrationRule *irs[] = NULL) const
+   virtual double ComputeL1Error(Coefficient &exsol,
+                                 const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, irs); }
 
-   double ComputeL1Error(VectorCoefficient &exsol,
-                         const IntegrationRule *irs[] = NULL) const
+   virtual double ComputeL1Error(VectorCoefficient &exsol,
+                                 const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
 
-   double ComputeL2Error(Coefficient *exsol[],
-                         const IntegrationRule *irs[] = NULL) const
+   virtual double ComputeL2Error(Coefficient *exsol[],
+                                 const IntegrationRule *irs[] = NULL) const
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeL2Error(exsol, irs),
                           pfes->GetComm());
    }
 
-   double ComputeL2Error(Coefficient &exsol,
-                         const IntegrationRule *irs[] = NULL) const
+   virtual double ComputeL2Error(Coefficient &exsol,
+                                 const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(2.0, exsol, NULL, irs); }
 
-   double ComputeL2Error(VectorCoefficient &exsol,
-                         const IntegrationRule *irs[] = NULL,
-                         Array<int> *elems = NULL) const
+   virtual double ComputeL2Error(VectorCoefficient &exsol,
+                                 const IntegrationRule *irs[] = NULL,
+                                 Array<int> *elems = NULL) const
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeL2Error(exsol, irs, elems),
                           pfes->GetComm());
    }
 
-   double ComputeMaxError(Coefficient *exsol[],
-                          const IntegrationRule *irs[] = NULL) const
+   virtual double ComputeMaxError(Coefficient *exsol[],
+                                  const IntegrationRule *irs[] = NULL) const
    {
       return GlobalLpNorm(std::numeric_limits<double>::infinity(),
                           GridFunction::ComputeMaxError(exsol, irs),
                           pfes->GetComm());
    }
 
-   double ComputeMaxError(Coefficient &exsol,
-                          const IntegrationRule *irs[] = NULL) const
+   virtual double ComputeMaxError(Coefficient &exsol,
+                                  const IntegrationRule *irs[] = NULL) const
    {
       return ComputeLpError(std::numeric_limits<double>::infinity(),
                             exsol, NULL, irs);
    }
 
-   double ComputeMaxError(VectorCoefficient &exsol,
-                          const IntegrationRule *irs[] = NULL) const
+   virtual double ComputeMaxError(VectorCoefficient &exsol,
+                                  const IntegrationRule *irs[] = NULL) const
    {
       return ComputeLpError(std::numeric_limits<double>::infinity(),
                             exsol, NULL, NULL, irs);
    }
 
-   double ComputeLpError(const double p, Coefficient &exsol,
-                         Coefficient *weight = NULL,
-                         const IntegrationRule *irs[] = NULL) const
+   virtual double ComputeLpError(const double p, Coefficient &exsol,
+                                 Coefficient *weight = NULL,
+                                 const IntegrationRule *irs[] = NULL) const
    {
       return GlobalLpNorm(p, GridFunction::ComputeLpError(
                              p, exsol, weight, irs), pfes->GetComm());
@@ -226,10 +228,10 @@ public:
    /** When given a vector weight, compute the pointwise (scalar) error as the
        dot product of the vector error with the vector weight. Otherwise, the
        scalar error is the l_2 norm of the vector error. */
-   double ComputeLpError(const double p, VectorCoefficient &exsol,
-                         Coefficient *weight = NULL,
-                         VectorCoefficient *v_weight = NULL,
-                         const IntegrationRule *irs[] = NULL) const
+   virtual double ComputeLpError(const double p, VectorCoefficient &exsol,
+                                 Coefficient *weight = NULL,
+                                 VectorCoefficient *v_weight = NULL,
+                                 const IntegrationRule *irs[] = NULL) const
    {
       return GlobalLpNorm(p, GridFunction::ComputeLpError(
                              p, exsol, weight, v_weight, irs), pfes->GetComm());

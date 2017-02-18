@@ -311,6 +311,33 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
 }
 
 
+void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
+{
+   // Harmonic  (x1 ... xn) = [ (1/x1 + ... + 1/xn) / n ]^-1.
+   // Arithmetic(x1 ... xn) = (x1 + ... + xn) / n.
+
+   // Number of zones that contain a given dof.
+   Array<int> zones_per_vdof;
+   AccumulateAndCountZones(coeff, type, zones_per_vdof);
+
+   // Count the zones globally.
+   GroupCommunicator &gcomm = pfes->GroupComm();
+   gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
+   gcomm.Bcast(zones_per_vdof);
+   // Accumulate for all tdofs.
+   HypreParVector *tv = this->ParallelAssemble();
+   this->Distribute(tv);
+   delete tv;
+   for (int i = 0; i < fes->GetVSize(); i++)
+   {
+      (*this)(i) /= zones_per_vdof[i];
+      if (type == HARMONIC)
+      {
+         (*this)(i) = 1.0 / (*this)(i);
+      }
+   }
+}
+
 void ParGridFunction::Save(std::ostream &out) const
 {
    for (int i = 0; i < size; i++)
