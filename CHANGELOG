@@ -8,6 +8,14 @@
                                http://mfem.org
 
 
+Not released yet
+================
+- Memory optimizations in the NCMesh class, which now uses 50% less memory in
+  total. The average cost of an NC element (including the refinement hierarchy,
+  but not including the temporary face_list and edge_list) is now only about 290
+  bytes, resulting e.g. in 30-40% timing improvement in ex1.
+
+
 Version 3.3, released on Jan 28, 2017
 =====================================
 
