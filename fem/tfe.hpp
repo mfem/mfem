@@ -189,9 +189,13 @@ void CalcPatternSparsifiedShapeMatrix(
          last_xid = xid;
          xid = next_xid;
          if (id < dof-1)
+         {
             next_xid = fe.GetNodes().IntPoint(id+1).x;
+         }
          else
+         {
             next_xid = 2.0;
+         }
 
          if (xip > last_xid && xip <= next_xid)
          {
@@ -214,7 +218,8 @@ void CalcPatternSparsifiedShapeMatrix(
    Sparsify B1d based on a first-order basis function on the 1D nodes.
 */
 template <typename real_t>
-void CalcSparsifiedShapeMatrix(const FiniteElement &fe, const IntegrationRule &ir,
+void CalcSparsifiedShapeMatrix(const FiniteElement &fe,
+                               const IntegrationRule &ir,
                                real_t *B, const Array<int> *dof_map = NULL,
                                int sparsification_parameter = 2)
 {
@@ -233,15 +238,23 @@ void CalcSparsifiedShapeMatrix(const FiniteElement &fe, const IntegrationRule &i
          last_xid = xid;
          xid = next_xid;
          if (id < dof-1)
+         {
             next_xid = fe.GetNodes().IntPoint(id+1).x;
+         }
          else
+         {
             next_xid = 2.0;
+         }
 
          real_t val = 0.0;
          if (xip > last_xid && xip <= xid)
+         {
             val = (1.0 / (xid - last_xid)) * (xip - last_xid);
+         }
          else if (xip > xid && xip <= next_xid)
+         {
             val = (-1.0 / (next_xid - xid)) * (xip - next_xid);
+         }
 
          B[ip+nip*id] = val;
       }
@@ -250,7 +263,7 @@ void CalcSparsifiedShapeMatrix(const FiniteElement &fe, const IntegrationRule &i
 
 template <typename real_t>
 void CalcAlgSparsifiedGradTensor(
-   const FiniteElement &fe, const IntegrationRule &ir, real_t *G, 
+   const FiniteElement &fe, const IntegrationRule &ir, real_t *G,
    const Array<int> *dof_map = NULL, int sparsification_parameter = 2)
 {
    // - G must be (nip x dim x dof) with column major storage
@@ -298,23 +311,31 @@ void CalcAlgSparsifiedGradTensor(
             int orig_id = dof_map ? (*dof_map)[id] : id;
             real_t val = dshape(orig_id, 0);
             if (val > 0.0)
+            {
                sum_positive += val;
+            }
             else
+            {
                sum_negative += (-val);
+            }
          }
          real_t positive_scale = (sum_positive + sum_negative) /
-            (2.0 * sum_positive);
+                                 (2.0 * sum_positive);
          real_t negative_scale = (sum_positive + sum_negative) /
-            (2.0 * sum_negative);
+                                 (2.0 * sum_negative);
          for (int i=0; i<sc; ++i)
          {
             int id = pairs.at(dof-i-1).second;
             int orig_id = dof_map ? (*dof_map)[id] : id;
             real_t val = dshape(orig_id, 0);
             if (val > 0.0)
+            {
                G[ip+nip*(d+dim*id)] = positive_scale * val;
+            }
             else
+            {
                G[ip+nip*(d+dim*id)] = negative_scale * val;
+            }
          }
       }
    }
@@ -352,41 +373,54 @@ void CalcPatternSparsifiedGradTensor(
             last_xid = xid;
             xid = next_xid;
             if (id < dof-1)
+            {
                next_xid = fe.GetNodes().IntPoint(id+1).x;
+            }
             else
+            {
                next_xid = 2.0;
+            }
 
             if (xip > last_xid && xip <= next_xid)
             {
                real_t val = dshape(orig_id, d);
                if (val > 0.0)
+               {
                   sum_positive += val;
+               }
                else
+               {
                   sum_negative += (-val);
+               }
                pairs.push_back(std::make_pair(val, id));
             }
             G[ip+nip*(d+dim*id)] = 0.0;
          }
 
          real_t positive_scale = (sum_positive + sum_negative) /
-            (2.0 * sum_positive);
+                                 (2.0 * sum_positive);
          real_t negative_scale = (sum_positive + sum_negative) /
-            (2.0 * sum_negative);
+                                 (2.0 * sum_negative);
          for (unsigned int k=0; k<pairs.size(); ++k)
          {
             real_t val = pairs.at(k).first;
             int id = pairs.at(k).second;
             if (val > 0.0)
+            {
                G[ip+nip*(d+dim*id)] = positive_scale * val;
+            }
             else
+            {
                G[ip+nip*(d+dim*id)] = negative_scale * val;
+            }
          }
       }
    }
 }
 
 template <typename real_t>
-void CalcSparsifiedGradTensor(const FiniteElement &fe, const IntegrationRule &ir,
+void CalcSparsifiedGradTensor(const FiniteElement &fe,
+                              const IntegrationRule &ir,
                               real_t *G, const Array<int> *dof_map = NULL,
                               int sparsification_parameter = 2)
 {
@@ -408,15 +442,23 @@ void CalcSparsifiedGradTensor(const FiniteElement &fe, const IntegrationRule &ir
          xid = next_xid;
          if (id < dof-1)
             // next_xid = fe.GetNodes().IntPoint(0).x;
+         {
             next_xid = fe.GetNodes().IntPoint(id+1).x;
+         }
          else
+         {
             next_xid = 2.0;
+         }
 
          real_t val = 0.0;
          if (xip > last_xid && xip <= xid)
+         {
             val = 1.0 / (xid - last_xid);
+         }
          else if (xip > xid && xip <= next_xid)
+         {
             val = -1.0 / (next_xid - xid);
+         }
 
          for (int d = 0; d < dim; d++)
          {
@@ -803,7 +845,7 @@ public:
 /// specialized for segment, because it doesn't have my_fe_1d
 template <int P, int SP>
 class Sparsified_H1_FE<Geometry::SEGMENT, P, SP> :
-      public H1_FiniteElement<Geometry::SEGMENT, P>
+   public H1_FiniteElement<Geometry::SEGMENT, P>
 {
 public:
    typedef H1_FiniteElement<Geometry::SEGMENT, P> base_class;

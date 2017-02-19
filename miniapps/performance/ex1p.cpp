@@ -79,7 +79,8 @@ typedef TIntegrator<coeff_t,TDiffusionKernel> integ_t;
 typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t> HPCBilinearForm;
 
 // Static bilinear form with 1d-sparsified elements
-typedef TBilinearForm<mesh_t,sparse_fes_t,int_rule_t,integ_t> SparsifiedBilinearForm;
+typedef TBilinearForm<mesh_t,sparse_fes_t,int_rule_t,integ_t>
+SparsifiedBilinearForm;
 
 // Low order refined types
 
@@ -252,7 +253,7 @@ int main(int argc, char *argv[])
    //    more than 10,000 elements.
    {
       double b_num_elements = 10000.0;
-      if (dim == 3) b_num_elements = 500.0;
+      if (dim == 3) { b_num_elements = 500.0; }
       int ref_levels =
          (int)floor(log(b_num_elements/mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
@@ -503,7 +504,9 @@ int main(int argc, char *argv[])
    {
       cout << " done, " << tic_toc.RealTime() << "s." << endl;
       if (pc_choice != NONE)
+      {
          cout << "Preconditioning matrix has " << A_pc.NNZ() << " NNZ." << endl;
+      }
    }
 
    // Solve with CG or PCG, depending if the matrix A_pc is available
@@ -543,7 +546,9 @@ int main(int argc, char *argv[])
    tic_toc.Stop();
    delete preconditioner;
    if (exact_pc)
-     delete sub_pc;
+   {
+      delete sub_pc;
+   }
    if (myid == 0)
    {
       // Note: In the pcg algorithm, the number of operator Mult() calls is
