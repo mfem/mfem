@@ -69,16 +69,16 @@ int main(int argc, char *argv[])
    const int dim = dest_mesh->Dimension();
 
    dest_mesh->Transform(&slave_transform);
-   
+
    Vector box_min(dim), box_max(dim), range(dim);
    dest_mesh->GetBoundingBox(box_min, box_max);
    range = box_max;
    range -= box_min;
 
-   
+
 
    imesh.open(source_mesh_file);
-   
+
    if (imesh)
    {
       src_mesh = make_shared<Mesh>(imesh, 1, 1);
@@ -91,16 +91,22 @@ int main(int argc, char *argv[])
                    << source_mesh_file << "\n"
                    << "Using default box mesh.\n";
 
-      if(dim == 2) {
+      if (dim == 2)
+      {
          src_mesh = make_shared<Mesh>(4, 4, Element::TRIANGLE, 1, range[0], range[1]);
-      } else if(dim == 3) {
-         src_mesh = make_shared<Mesh>(4, 4, 4, Element::TETRAHEDRON, 1, range[0], range[1], range[2]);
+      }
+      else if (dim == 3)
+      {
+         src_mesh = make_shared<Mesh>(4, 4, 4, Element::TETRAHEDRON, 1, range[0],
+                                      range[1], range[2]);
       }
 
-      for(int i = 0; i < src_mesh->GetNV(); ++i) {
+      for (int i = 0; i < src_mesh->GetNV(); ++i)
+      {
          double * v = src_mesh->GetVertex(i);
 
-         for(int d = 0; d < dim; ++d) {
+         for (int d = 0; d < dim; ++d)
+         {
             v[d] += box_min[d];
          }
       }
