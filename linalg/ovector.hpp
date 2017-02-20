@@ -18,9 +18,9 @@
 #include "stdint.h"
 
 #include "vector.hpp"
-#include "../general/otypes.hpp"
 
 #include "occa.hpp"
+#include "occa/array/linalg.hpp"
 #include "occa/tools/sys.hpp"
 
 namespace mfem
@@ -82,17 +82,17 @@ namespace mfem
     OccaTVector<TM>& operator = (const OccaTVector<TM> &v);
 
     /// Redefine '=' for vector = constant.
-    //OccaTVector<TM>& operator = (TM value);
+    OccaTVector<TM>& operator = (TM value);
 
-    //OccaTVector<TM>& operator *= (double c);
+    OccaTVector<TM>& operator *= (double c);
 
-    //OccaTVector<TM>& operator /= (double c);
+    OccaTVector<TM>& operator /= (double c);
 
-    //OccaTVector<TM>& operator -= (TM c);
+    OccaTVector<TM>& operator -= (TM c);
 
-    //OccaTVector<TM>& operator -= (const OccaTVector<TM> &v);
+    OccaTVector<TM>& operator -= (const OccaTVector<TM> &v);
 
-    //OccaTVector<TM>& operator += (const OccaTVector<TM> &v);
+    OccaTVector<TM>& operator += (const OccaTVector<TM> &v);
 
     /// (*this) += a * Va
     //OccaTVector<TM>& Add(const TM a, const OccaTVector<TM> &Va);
@@ -114,27 +114,28 @@ namespace mfem
     void Print(std::ostream & out = std::cout, int width = 8) const;
 
     /// Set random values in the vector.
-    //void Randomize(int seed = 0);
+    // void Randomize(int seed = 0);
     /// Returns the l2 norm of the vector.
-    //double Norml2() const;
+    double Norml2() const;
     /// Returns the l_infinity norm of the vector.
-    //double Normlinf() const;
+    double Normlinf() const;
     /// Returns the l_1 norm of the vector.
-    //double Norml1() const;
+    double Norml1() const;
     /// Returns the l_p norm of the vector.
-    //double Normlp(double p) const;
+    double Normlp(double p) const;
     /// Returns the maximal element of the vector.
-    //TM Max() const;
+    TM Max() const;
     /// Returns the minimal element of the vector.
-    //TM Min() const;
+    TM Min() const;
     /// Return the sum of the vector entries
-    //TM Sum() const;
+    TM Sum() const;
     /// Compute the Euclidean distance to another vector.
-    //double DistanceTo(const OccaTVector<TM> &other) const;
+    double DistanceTo(const OccaTVector<TM> &other) const;
 
     /// Destroys vector.
     inline virtual ~OccaTVector()
     { size_ = 0; data.free(); }
+
     ///---[ Addition ]------------------
     /// Set out = v1 + v2.
     template <class TM2>
@@ -197,13 +198,8 @@ namespace mfem
   };
 
   template <class TM>
-  inline const occa::properties& VecOpKernelProps() {
-    static occa::properties props;
-    if (!props.isInitialized()) {
-      props["kernel/defines/VTYPE"] = typeToString<TM>();
-    }
-    return props;
-  }
+  occa::kernelBuilder makeCustomBuilder(const std::string &kernelName,
+                                        const std::string &formula);
 
   typedef OccaTVector<double> OccaVector;
 }

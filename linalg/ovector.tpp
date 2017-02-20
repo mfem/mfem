@@ -70,11 +70,7 @@ namespace mfem {
 
   template <class TM>
   TM OccaTVector<TM>::operator * (const OccaTVector<TM> &v) const {
-    static occa::kernelBuilder kernel("vectorops.okl",
-                                      "dot",
-                                      VecOpKernelProps<TM>());
-    kernel[v.data.getDevice()](data, v.data);
-    return 10;
+    return occa::linalg::dot<TM, TM, TM>(data, v.data);
   }
 
   /// Redefine '=' for vector = vector.
@@ -86,23 +82,41 @@ namespace mfem {
   }
 
   /// Redefine '=' for vector = constant.
-  // template <class TM>
-  // OccaTVector<TM>& OccaTVector<TM>::operator = (TM value);
+  template <class TM>
+  OccaTVector<TM>& OccaTVector<TM>::operator = (TM value) {
+    occa::linalg::operator_eq<TM>(data, value);
+    return *this;
+  }
 
-  // template <class TM>
-  // OccaTVector<TM>& OccaTVector<TM>::operator *= (double c);
+  template <class TM>
+  OccaTVector<TM>& OccaTVector<TM>::operator *= (double c) {
+    occa::linalg::operator_mult_eq<TM>(data, c);
+    return *this;
+  }
 
-  // template <class TM>
-  // OccaTVector<TM>& OccaTVector<TM>::operator /= (double c);
+  template <class TM>
+  OccaTVector<TM>& OccaTVector<TM>::operator /= (double c) {
+    occa::linalg::operator_div_eq<TM>(data, c);
+    return *this;
+  }
 
-  // template <class TM>
-  // OccaTVector<TM>& OccaTVector<TM>::operator -= (TM c);
+  template <class TM>
+  OccaTVector<TM>& OccaTVector<TM>::operator -= (TM c) {
+    occa::linalg::operator_sub_eq<TM>(data, c);
+    return *this;
+  }
 
-  // template <class TM>
-  // OccaTVector<TM>& OccaTVector<TM>::operator -= (const OccaTVector<TM> &v);
+  template <class TM>
+  OccaTVector<TM>& OccaTVector<TM>::operator -= (const OccaTVector<TM> &v) {
+    occa::linalg::operator_sub_eq<TM, TM>(v.data, data);
+    return *this;
+  }
 
-  // template <class TM>
-  // OccaTVector<TM>& OccaTVector<TM>::operator += (const OccaTVector<TM> &v);
+  template <class TM>
+  OccaTVector<TM>& OccaTVector<TM>::operator += (const OccaTVector<TM> &v) {
+    occa::linalg::operator_plus_eq<TM, TM>(v.data, data);
+    return *this;
+  }
 
   /// (*this) += a * Va
   // template <class TM>
@@ -133,37 +147,67 @@ namespace mfem {
   // template <class TM>
   // void OccaTVector<TM>::Randomize(int seed = 0);
 
-  /// Returns the l2 norm of the vector.
-  // template <class TM>
-  // double OccaTVector<TM>::Norml2() const;
+  // Returns the l2 norm of the vector.
+  template <class TM>
+  double OccaTVector<TM>::Norml2() const {
+    return occa::linalg::l2Norm<TM, double>(data);
+  }
 
-  /// Returns the l_infinity norm of the vector.
-  // template <class TM>
-  // double OccaTVector<TM>::Normlinf() const;
+  // Returns the l_infinity norm of the vector.
+  template <class TM>
+  double OccaTVector<TM>::Normlinf() const {
+    return occa::linalg::lInfNorm<TM, double>(data);
+  }
 
-  /// Returns the l_1 norm of the vector.
-  // template <class TM>
-  // double OccaTVector<TM>::Norml1() const;
+  // Returns the l_1 norm of the vector.
+  template <class TM>
+  double OccaTVector<TM>::Norml1() const {
+    return occa::linalg::l1Norm<TM, double>(data);
+  }
 
-  /// Returns the l_p norm of the vector.
-  // template <class TM>
-  // double OccaTVector<TM>::Normlp(double p) const;
+  // Returns the l_p norm of the vector.
+  template <class TM>
+  double OccaTVector<TM>::Normlp(double p) const {
+    return occa::linalg::lpNorm<TM, double>(p, data);
+  }
 
-  /// Returns the maximal element of the vector.
-  // template <class TM>
-  // TM OccaTVector<TM>::Max() const;
+  // Returns the maximal element of the vector.
+  template <class TM>
+  TM OccaTVector<TM>::Max() const {
+    return occa::linalg::max<TM, double>(data);
+  }
 
-  /// Returns the minimal element of the vector.
-  // template <class TM>
-  // TM OccaTVector<TM>::Min() const;
+  // Returns the minimal element of the vector.
+  template <class TM>
+  TM OccaTVector<TM>::Min() const {
+    return occa::linalg::min<TM, double>(data);
+  }
 
-  /// Return the sum of the vector entries
-  // template <class TM>
-  // TM OccaTVector<TM>::Sum() const;
+  // Return the sum of the vector entries
+  template <class TM>
+  TM OccaTVector<TM>::Sum() const {
+    return occa::linalg::sum<TM, double>(data);
+  }
 
   /// Compute the Euclidean distance to another vector.
-  // template <class TM>
-  // double OccaTVector<TM>::DistanceTo(const OccaTVector<TM> &other) const;
+  template <class TM>
+  double OccaTVector<TM>::DistanceTo(const OccaTVector<TM> &other) const {
+    return occa::linalg::distance<TM, TM, TM>(data, other.data);
+  }
+
+  template <class TM>
+  occa::kernelBuilder makeCustomBuilder(const std::string &kernelName,
+                                        const std::string &formula) {
+    return occa::linalg::customLinearMethod(kernelName, formula,
+                                            "defines: {"
+                                            "  CTYPE0: 'double',"
+                                            "  CTYPE1: 'double',"
+                                            "  VTYPE0: '" + occa::primitiveinfo<TM>::name + "',"
+                                            "  VTYPE1: '" + occa::primitiveinfo<TM>::name + "',"
+                                            "  VTYPE2: '" + occa::primitiveinfo<TM>::name + "',"
+                                            "  TILESIZE: 128,"
+                                            "}");
+  }
 
   ///---[ Addition ]--------------------
   /// Set out = v1 + v2.
@@ -171,10 +215,11 @@ namespace mfem {
   void add(const OccaTVector<TM> &v1,
            const OccaTVector<TM> &v2,
            OccaTVector<TM> &out) {
-    static occa::kernelBuilder kernel("vertorops.okl",
-                                      "add_vv",
-                                      VecOpKernelProps<TM>());
-    kernel[out.data.getDevice()](v1.data, v2.data, out.data);
+    static occa::kernelBuilder builder =
+      makeCustomBuilder<TM>("vector_xpy", "v0[i] = v1[i] + v2[i]");
+
+    occa::kernel kernel = builder.build(v1.data.getDevice());
+    kernel((int) v1.Size(), out.data, v1.data, v2.data);
   }
 
   /// Set v = v1 + alpha * v2.
@@ -183,10 +228,11 @@ namespace mfem {
            double alpha,
            const OccaTVector<TM> &v2,
            OccaTVector<TM> &out) {
-    static occa::kernelBuilder kernel("vectorops.okl",
-                                      "add_vcv",
-                                      VecOpKernelProps<TM>());
-    kernel[out.data.getDevice()](v1.data, alpha, v2.data, out.data);
+    static occa::kernelBuilder builder =
+      makeCustomBuilder<TM>("vector_xpay", "v0[i] = v1[i] + (c0 * v2[i])");
+
+    occa::kernel kernel = builder.build(v1.data.getDevice());
+    kernel((int) v1.Size(), out.data, v1.data, v2.data);
   }
 
   /// z = a * (x + y)
@@ -195,10 +241,11 @@ namespace mfem {
            const OccaTVector<TM> &v1,
            const OccaTVector<TM> &v2,
            OccaTVector<TM> &out) {
-    static occa::kernelBuilder kernel("vectorops.okl",
-                                      "add_cvv",
-                                      VecOpKernelProps<TM>());
-    kernel[out.data.getDevice()](alpha, v1.data, v2.data, out.data);
+    static occa::kernelBuilder builder =
+      makeCustomBuilder<TM>("vector_amxpy", "v0[i] = c0 * (v1[i] + v2[i])");
+
+    occa::kernel kernel = builder.build(v1.data.getDevice());
+    kernel((int) v1.Size(), out.data, v1.data, v2.data);
   }
 
   /// z = a * x + b * y
@@ -208,10 +255,11 @@ namespace mfem {
            const double beta,
            const OccaTVector<TM> &v2,
            OccaTVector<TM> &out) {
-    static occa::kernelBuilder kernel("vectorops.okl",
-                                      "add_cvcv",
-                                      VecOpKernelProps<TM>());
-    kernel[out.data.getDevice()](alpha, v1.data, beta, v2.data, out.data);
+    static occa::kernelBuilder builder =
+      makeCustomBuilder<TM>("vector_axpby", "v0[i] = (c0 * v1[i]) + (c1 * v2[i])");
+
+    occa::kernel kernel = builder.build(v1.data.getDevice());
+    kernel((int) v1.Size(), out.data, v1.data, v2.data);
   }
   ///===================================
 
@@ -221,10 +269,11 @@ namespace mfem {
   void subtract(const OccaTVector<TM> &v1,
                 const OccaTVector<TM> &v2,
                 OccaTVector<TM> &out) {
-    static occa::kernelBuilder kernel("vectorops.okl",
-                                      "subtract_vv",
-                                      VecOpKernelProps<TM>());
-    kernel[out.data.getDevice()](v1.data, v2.data, out.data);
+    static occa::kernelBuilder builder =
+      makeCustomBuilder<TM>("vector_xsy", "v0[i] = v1[i] - v2[i]");
+
+    occa::kernel kernel = builder.build(v1.data.getDevice());
+    kernel((int) v1.Size(), out.data, v1.data, v2.data);
   }
 
   /// Set out = v1 - alpha * v2.
@@ -233,10 +282,11 @@ namespace mfem {
                 double alpha,
                 const OccaTVector<TM> &v2,
                 OccaTVector<TM> &out) {
-    static occa::kernelBuilder kernel("vectorops.okl",
-                                      "subtract_vcv",
-                                      VecOpKernelProps<TM>());
-    kernel[out.data.getDevice()](v1.data, alpha, v2.data, out.data);
+    static occa::kernelBuilder builder =
+      makeCustomBuilder<TM>("vector_xsay", "v0[i] = v1[i] - (c0 * v2[i])");
+
+    occa::kernel kernel = builder.build(v1.data.getDevice());
+    kernel((int) v1.Size(), out.data, v1.data, v2.data);
   }
 
   /// out = alpha * (v1 - v2)
@@ -245,10 +295,11 @@ namespace mfem {
                 const OccaTVector<TM> &v1,
                 const OccaTVector<TM> &v2,
                 OccaTVector<TM> &out) {
-    static occa::kernelBuilder kernel("vectorops.okl",
-                                      "subtract_cvv",
-                                      VecOpKernelProps<TM>());
-    kernel[out.data.getDevice()](alpha, v1.data, v2.data, out.data);
+    static occa::kernelBuilder builder =
+      makeCustomBuilder<TM>("vector_amxsy", "v0[i] = c0 * (v1[i] - v2[i])");
+
+    occa::kernel kernel = builder.build(v1.data.getDevice());
+    kernel((int) v1.Size(), out.data, v1.data, v2.data);
   }
 
   /// out = alpha * v1 - beta * v2
@@ -258,10 +309,11 @@ namespace mfem {
                 const double beta,
                 const OccaTVector<TM> &v2,
                 OccaTVector<TM> &out) {
-    static occa::kernelBuilder kernel("vectorops.okl",
-                                      "subtract_cvcv",
-                                      VecOpKernelProps<TM>());
-    kernel[out.data.getDevice()](alpha, v1.data, beta, v2.data, out.data);
+    static occa::kernelBuilder builder =
+      makeCustomBuilder<TM>("vector_axsby", "v0[i] = (c0 * v1[i]) - (c1 * v2[i])");
+
+    occa::kernel kernel = builder.build(v1.data.getDevice());
+    kernel((int) v1.Size(), out.data, v1.data, v2.data);
   }
   ///===================================
 }
