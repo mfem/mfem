@@ -27,6 +27,7 @@
 #include "general/osockstream.hpp"
 #include "general/socketstream.hpp"
 #include "general/optparser.hpp"
+#include "transfer/transfer.hpp"
 #include "general/gzstream.hpp"
 #ifdef MFEM_USE_MPI
 #include "general/communication.hpp"

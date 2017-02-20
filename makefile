@@ -202,7 +202,7 @@ MFEM_DEFINES = MFEM_USE_MPI MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_GZSTREAM\
  MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP\
  MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS MFEM_USE_MESQUITE\
  MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU MFEM_USE_GNUTLS\
- MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE
+ MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_MOONOLITH
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -248,9 +248,31 @@ endif
 
 # Source dirs in logical order
 DIRS = general linalg mesh fem
+<<<<<<< HEAD
+
+
+#MOONOLITH begin
+ifeq ($(MFEM_USE_MOONOLITH),YES)
+	ifneq ($(MFEM_USE_MPI), YES)
+		$(error Moonolith requires MPI)
+	endif
+endif
+
+ifeq ($(MFEM_USE_MOONOLITH),YES)
+	MFEM_FLAGS += -std=c++11 -DWITH_AUTOMATIC_DIFFERENTIATION -DWITH_MPI -DPLAIN_INSTALLATION
+	MFEM_INCFLAGS += -I$(MFEM_DIR)/transfer/moonolith/headers -I$(MFEM_DIR)/transfer/moonolith/kernels -I$(MFEM_DIR)/transfer/moonolith/external -I$(MFEM_DIR)/transfer
+	DIRS += $(MFEM_DIR)/transfer $(MFEM_DIR)/transfer/moonolith/sources
+endif
+#MOONOLITH end
+
+
+SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(dir)/*.cpp))
+OBJECT_FILES = $(SOURCE_FILES:.cpp=.o)
+=======
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
+>>>>>>> master
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
  debug pdebug style check test

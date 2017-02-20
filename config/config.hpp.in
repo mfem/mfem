@@ -62,10 +62,10 @@
 // Enable MFEM functionality based on the SuperLU library.
 // #define MFEM_USE_SUPERLU
 
-// Enable functionality based on the Gecko library
+// Enable functionality based on the Gecko library.
 // #define MFEM_USE_GECKO
 
-// Enable secure socket streams based on the GNUTLS library
+// Enable secure socket streams based on the GNUTLS library.
 // #define MFEM_USE_GNUTLS
 
 // Enable Sidre support
@@ -79,6 +79,9 @@
 
 // Enable functionality based on the MPFR library.
 // #define MFEM_USE_MPFR
+
+// Enable the moonolith transfer.
+// #define MFEM_USE_MOONOLITH
 
 // Windows specific options
 #ifdef _WIN32
