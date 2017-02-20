@@ -248,8 +248,6 @@ endif
 
 # Source dirs in logical order
 DIRS = general linalg mesh fem
-<<<<<<< HEAD
-
 
 #MOONOLITH begin
 ifeq ($(MFEM_USE_MOONOLITH),YES)
@@ -265,14 +263,9 @@ ifeq ($(MFEM_USE_MOONOLITH),YES)
 endif
 #MOONOLITH end
 
-
-SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(dir)/*.cpp))
-OBJECT_FILES = $(SOURCE_FILES:.cpp=.o)
-=======
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
->>>>>>> master
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
  debug pdebug style check test

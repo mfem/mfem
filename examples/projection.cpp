@@ -34,62 +34,68 @@ int main(int argc, char *argv[])
    ///////////////////////////////////////////////////
 
 
-  ///////////////////////////////////////////////////
-  shared_ptr<Mesh> src_mesh, dest_mesh;
+   ///////////////////////////////////////////////////
+   shared_ptr<Mesh> src_mesh, dest_mesh;
 
-  ifstream imesh;
+   ifstream imesh;
 
-  imesh.open(destination_mesh_file);
-  if (imesh)
-  {
-     dest_mesh = make_shared<Mesh>(imesh, 1, 1);
-     imesh.close();
-  }
-  else
-  {
-     if (rank == 0)
-        std::cerr << "WARNING: Destination mesh file not found: "
-                  << destination_mesh_file << "\n"
-                  << "Using default 2D quad mesh.";
+   imesh.open(destination_mesh_file);
+   if (imesh)
+   {
+      dest_mesh = make_shared<Mesh>(imesh, 1, 1);
+      imesh.close();
+   }
+   else
+   {
+      if (rank == 0)
+         std::cerr << "WARNING: Destination mesh file not found: "
+                   << destination_mesh_file << "\n"
+                   << "Using default 2D quad mesh.";
 
-     dest_mesh = make_shared<Mesh>(4, 4, Element::QUADRILATERAL, 1);
-  }
+      dest_mesh = make_shared<Mesh>(4, 4, Element::QUADRILATERAL, 1);
+   }
 
-  const int dim = dest_mesh->Dimension();
-  
-  Vector box_min(dim), box_max(dim), range(dim);
-  dest_mesh->GetBoundingBox(box_min, box_max);
-  range = box_max;
-  range -= box_min;
+   const int dim = dest_mesh->Dimension();
 
-  imesh.open(source_mesh_file);
-  
-  if (imesh)
-  {
-     src_mesh = make_shared<Mesh>(imesh, 1, 1);
-     imesh.close();
-  }
-  else
-  {
-     if (rank == 0)
-        std::cerr << "WARNING: Source mesh file not found: "
-                  << source_mesh_file << "\n"
-                  << "Using default box mesh.\n";
+   Vector box_min(dim), box_max(dim), range(dim);
+   dest_mesh->GetBoundingBox(box_min, box_max);
+   range = box_max;
+   range -= box_min;
 
-     if(dim == 2) {
-        src_mesh = make_shared<Mesh>(4, 4, Element::TRIANGLE, 1, range[0], range[1]);
-     } else if(dim == 3) {
-        src_mesh = make_shared<Mesh>(4, 4, 4, Element::TETRAHEDRON, 1, range[0], range[1], range[2]);
-     }
+   imesh.open(source_mesh_file);
 
-     for(int i = 0; i < src_mesh->GetNV(); ++i) {
-        double * v = src_mesh->GetVertex(i);
+   if (imesh)
+   {
+      src_mesh = make_shared<Mesh>(imesh, 1, 1);
+      imesh.close();
+   }
+   else
+   {
+      if (rank == 0)
+         std::cerr << "WARNING: Source mesh file not found: "
+                   << source_mesh_file << "\n"
+                   << "Using default box mesh.\n";
 
-        for(int d = 0; d < dim; ++d) {
-           v[d] += box_min[d];
-        }
-     }
-  }
+      if (dim == 2)
+      {
+         src_mesh = make_shared<Mesh>(4, 4, Element::TRIANGLE, 1, range[0], range[1]);
+      }
+      else if (dim == 3)
+      {
+         src_mesh = make_shared<Mesh>(4, 4, 4, Element::TETRAHEDRON, 1, range[0],
+                                      range[1], range[2]);
+      }
+
+      for (int i = 0; i < src_mesh->GetNV(); ++i)
+      {
+         double * v = src_mesh->GetVertex(i);
+
+         for (int d = 0; d < dim; ++d)
+         {
+            v[d] += box_min[d];
+         }
+      }
+   }
 
    for (int i = 0; i < src_n_refinements;  ++i)
    {
