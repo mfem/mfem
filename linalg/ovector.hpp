@@ -106,18 +106,24 @@ namespace mfem
     inline void Swap(OccaVector &other)
     { data.swap(other.data); }
 
+    template <class TM>
+    occa::memory occafy(const Array<TM> &array) const {
+      return data.getDevice().malloc(array.Size() * sizeof(TM),
+                                     array.GetData());
+    }
+
     /// v = median(v,lo,hi) entrywise.  Implementation assumes lo <= hi.
     void median(const OccaVector &lo, const OccaVector &hi);
 
     void GetSubVector(const Array<int> &dofs, Vector &elemvect) const;
-    void GetSubVector(const Array<int> &dofs, OccaVector &elemvect) const;
     void GetSubVector(const Array<int> &dofs, double *elem_data) const;
+    void GetSubVector(const Array<int> &dofs, OccaVector &elemvect) const;
 
     /// Set the entries listed in `dofs` to the given `value`.
-    void SetSubVector(const Array<int> &dofs, const double value);
     void SetSubVector(const Array<int> &dofs, const Vector &elemvect);
-    void SetSubVector(const Array<int> &dofs, const OccaVector &elemvect);
     void SetSubVector(const Array<int> &dofs, double *elem_data);
+    void SetSubVector(const Array<int> &dofs, const OccaVector &elemvect);
+    void SetSubVector(const Array<int> &dofs, const double value);
 
     /// Set all vector entries NOT in the 'dofs' array to the given 'val'.
     void SetSubVectorComplement(const Array<int> &dofs, const double val);

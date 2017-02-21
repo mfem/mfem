@@ -54,11 +54,11 @@ namespace mfem {
   {
     if (data.size() < size)
       {
-        size_ = size;
         occa::device device = data.getDevice();
         data.free();
         data = device.malloc(size_ * sizeof(double));
       }
+    size_ = size;
   }
 
   /// Destroy a vector
@@ -72,7 +72,7 @@ namespace mfem {
   /// Redefine '=' for vector = vector.
   OccaVector& OccaVector::operator = (const OccaVector &v)
   {
-    occa::memcpy(data, v.data);
+    occa::memcpy(data, v.data, size_ * sizeof(double));
     return *this;
   }
 
@@ -140,9 +140,9 @@ namespace mfem {
   void OccaVector::median(const OccaVector &lo, const OccaVector &hi) {
     static occa::kernelBuilder builder =
       makeCustomBuilder("vector_median",
-                        "const double val = v0[i];\n"
-                        "const double lo  = v1[i];\n"
-                        "const double hi  = v2[i];\n"
+                        "const double val = v0[i];"
+                        "const double lo  = v1[i];"
+                        "const double hi  = v2[i];"
                         "v0[i] = (val < lo) ? lo : ((hi < val) ? hi : val)");
 
     occa::kernel kernel = builder.build(data.getDevice());
@@ -151,49 +151,103 @@ namespace mfem {
 
   void OccaVector::GetSubVector(const Array<int> &dofs,
                                 Vector &elemvect) const {
+    elemvect.SetSize(dofs.Size());
+    GetSubVector(dofs, elemvect.GetData());
+  }
+
+  void OccaVector::GetSubVector(const Array<int> &dofs,
+                                double *elem_data) const {
     const int dofCount = dofs.Size();
     OccaVector buffer(dofCount);
     GetSubVector(dofs, buffer);
 
-    elemvect.SetSize(dofCount);
-    occa::memcpy(elemvect.data, buffer.data);
+    occa::memcpy(elem_data, buffer.data, dofCount * sizeof(double));
     buffer.data.free();
   }
 
   void OccaVector::GetSubVector(const Array<int> &dofs,
                                 OccaVector &elemvect) const {
-  }
+    static occa::kernelBuilder builder =
+      makeCustomBuilder("vector_get_subvector",
+                        "const int dof_i = v2[i];"
+                        "v0[i] = dof_i >= 0 ? v1[dof_i] : -v1[-dof_i - 1]");
 
-  void OccaVector::GetSubVector(const Array<int> &dofs,
-                                double *elem_data) const {
+    occa::device dev = data.getDevice();
+    occa::kernel kernel = builder.build(dev);
+
+    const int dofCount = dofs.Size();
+    elemvect.SetSize(dofCount);
+
+    occa::memory o_dofs = occafy(dofs);
+    kernel(dofCount, elemvect.data, data, o_dofs);
+    o_dofs.free();
   }
 
   /// Set the entries listed in `dofs` to the given `value`.
-  void OccaVector::SetSubVector(const Array<int> &dofs,
-                                const double value) {
-  }
 
   void OccaVector::SetSubVector(const Array<int> &dofs,
                                 const Vector &elemvect) {
-  }
 
-  void OccaVector::SetSubVector(const Array<int> &dofs,
-                                const OccaVector &elemvect) {
+    SetSubVector(dofs, elemvect.GetData());
   }
 
   void OccaVector::SetSubVector(const Array<int> &dofs,
                                 double *elem_data) {
+    const int dofCount = dofs.Size();
+
+    OccaVector buffer(dofCount);
+    occa::memcpy(buffer.data, elem_data, dofCount * sizeof(double));
+
+    SetSubVector(dofs, buffer);
+
+    buffer.data.free();
+  }
+
+  void OccaVector::SetSubVector(const Array<int> &dofs,
+                                const OccaVector &elemvect) {
+    static occa::kernelBuilder builder =
+      makeCustomBuilder("vector_set_subvector",
+                        "const int dof_i = v2[i];"
+                        "if (dof_i >= 0) { v0[dof_i]      += v1[i]; }"
+                        "else            { v0[-dof_i - 1] -= v1[i]; }");
+
+    occa::device dev = data.getDevice();
+    occa::kernel kernel = builder.build(dev);
+
+    occa::memory o_dofs = occafy(dofs);
+    kernel((int) dofs.Size(), data, elemvect.data, o_dofs);
+    o_dofs.free();
+  }
+
+  void OccaVector::SetSubVector(const Array<int> &dofs,
+                                const double value) {
+    static occa::kernelBuilder builder =
+      makeCustomBuilder("vector_set_subvector_const",
+                        "const int dof_i = v1[i];"
+                        "if (dof_i >= 0) { v0[dof_i]      =  c0; }"
+                        "else            { v0[-dof_i - 1] = -c0; }");
+
+    occa::device dev = data.getDevice();
+    occa::kernel kernel = builder.build(data.getDevice());
+
+    occa::memory o_dofs = occafy(dofs);
+    kernel((int) dofs.Size(), value, data, o_dofs);
+    o_dofs.free();
   }
 
   /// Set all vector entries NOT in the 'dofs' array to the given 'val'.
   void OccaVector::SetSubVectorComplement(const Array<int> &dofs, const double val) {
+    Vector dofs_vals;
+    GetSubVector(dofs, dofs_vals);
+    *this = val;
+    SetSubVector(dofs, dofs_vals);
   }
 
   /// Prints vector to stream out.
   void OccaVector::Print(std::ostream & out, int width) const
   {
     Vector v(size_);
-    occa::memcpy(v.GetData(), data);
+    occa::memcpy(v.GetData(), data, size_ * sizeof(double));
     v.Print(out, width);
   }
 

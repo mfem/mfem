@@ -46,10 +46,6 @@ protected:
 
 public:
 
-#ifdef MFEM_USE_OCCA
-  friend class OccaVector;
-#endif
-
    /// Default constructor for Vector. Sets size = 0 and data = NULL.
    Vector () { allocsize = size = 0; data = 0; }
 
