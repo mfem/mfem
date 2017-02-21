@@ -18,6 +18,26 @@
 namespace mfem
 {
 
+void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
+                                Vector &x, Vector &b,
+                                Operator* &Aout, Vector &X, Vector &B,
+                                int copy_interior)
+{
+  TFormLinearSystem<Vector>(ess_tdof_list,
+                            x, b, Aout, X, B,
+                            copy_interior);
+}
+
+void Operator::ImposeBoundaryConditions(const Array<int> &ess_tdof_list,
+                                        Operator *rap,
+                                        Operator* &Aout, Vector &X, Vector &B)
+{
+  ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
+                                                   rap != this);
+  A->EliminateRHS(X, B);
+  Aout = A;
+}
+
 void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
 {
    const Operator *P = this->GetProlongation();

@@ -121,15 +121,10 @@ public:
                           Operator* &Aout, TVector &X, TVector &B,
                           int copy_interior = 0);
 
-   inline void FormLinearSystem(const Array<int> &ess_tdof_list,
-                                Vector &x, Vector &b,
-                                Operator* &Aout, Vector &X, Vector &B,
-                                int copy_interior = 0)
-   {
-     TFormLinearSystem<Vector>(ess_tdof_list,
-                               x, b, Aout, X, B,
-                               copy_interior);
-   }
+   void FormLinearSystem(const Array<int> &ess_tdof_list,
+                         Vector &x, Vector &b,
+                         Operator* &Aout, Vector &X, Vector &B,
+                         int copy_interior = 0);
 
    /** @brief Reconstruct a solution vector @a x (e.g. a GridFunction) from the
        solution @a X of a constrained linear system obtained from
@@ -140,7 +135,21 @@ public:
        @a x, for this Operator (presumably a finite element grid function). This
        method has identical signature to the analogous method for bilinear
        forms, though currently @a b is not used in the implementation. */
-   virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+   void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+
+  /** @brief Impose the boundary conditions through a constrained operator,
+      which owns the rap operator when P and R are non-trivial */
+   void ImposeBoundaryConditions(const Array<int> &ess_tdof_list,
+                                 Operator *rap,
+                                 Operator* &Aout, Vector &X, Vector &B);
+
+#ifdef MFEM_USE_OCCA
+   inline virtual void ImposeBoundaryConditions(const Array<int> &ess_tdof_list,
+                                                Operator *rap,
+                                                Operator* &Aout, OccaVector &X, OccaVector &B)
+   { mfem_error("Operator::ImposeBoundaryConditions() is not overloaded!"); }
+#endif
+
 
    /// Prints operator with input size n and output size m in Matlab format.
    void PrintMatlab(std::ostream & out, int n = 0, int m = 0) const;
@@ -439,11 +448,6 @@ public:
        the vectors, and "_i" -- the rest of the entries. */
    void EliminateRHS(const Vector &x, Vector &b) const;
 
-#ifdef MFEM_USE_OCCA
-   inline virtual void EliminateRHS(const OccaVector &x, OccaVector &b) const
-   { mfem_error("Operator::EliminateRHS(OccaVector) is not overloaded!"); }
-#endif
-
    /** @brief Constrained operator action.
 
        Performs the following steps:
@@ -457,7 +461,6 @@ public:
    /// Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
    virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
 };
-
 
 template <class TVector>
 void Operator::TFormLinearSystem(const Array<int> &ess_tdof_list,
@@ -486,15 +489,12 @@ void Operator::TFormLinearSystem(const Array<int> &ess_tdof_list,
       rap = this;
     }
 
-  // [-]
-  // if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+  if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
 
   // Impose the boundary conditions through a ConstrainedOperator, which owns
   // the rap operator when P and R are non-trivial
-  ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
-                                                   rap != this);
-  A->EliminateRHS(X, B);
-  Aout = A;
+  ImposeBoundaryConditions(ess_tdof_list, rap,
+                           Aout, X, B);
 }
 
 }

@@ -26,8 +26,7 @@
 namespace mfem
 {
   /// Vector data type.
-  template <class TM>
-  class OccaTVector
+  class OccaVector
   {
   protected:
     uint64_t size_;
@@ -35,27 +34,27 @@ namespace mfem
 
   public:
     /// Default constructor for Vector. Sets size = 0 and data = NULL.
-    inline OccaTVector() {}
+    inline OccaVector() {}
 
     /// Copy constructor.
     /// @warning Uses the same memory
-    inline OccaTVector(const OccaTVector<TM> &other) :
+    inline OccaVector(const OccaVector &other) :
       size_(other.size_),
       data(other.data) {}
 
     /// @brief Creates vector of size s using the current OCCA device
     /// @warning Entries are not initialized to zero!
-    OccaTVector(const int64_t size);
+    OccaVector(const int64_t size);
 
     /// @brief Creates vector of size s using the passed OCCA device
     /// @warning Entries are not initialized to zero!
-    OccaTVector(occa::device device, const int64_t size);
+    OccaVector(occa::device device, const int64_t size);
 
     /// Creates vector based on Vector using the current OCCA device
-    OccaTVector(const Vector &v);
+    OccaVector(const Vector &v);
 
     /// Creates vector based on Vector using the passed OCCA device
-    OccaTVector(occa::device device, const Vector &v);
+    OccaVector(occa::device device, const Vector &v);
 
     /// @brief Resize the vector to size @a s.
     /** If the new size is less than or equal to Capacity() then the internal
@@ -73,42 +72,55 @@ namespace mfem
 
     /// Return the size of the currently allocated data array.
     /** It is always true that Capacity() >= Size(). */
-    inline uint64_t Capacity() const { return data.size() / sizeof(TM); }
+    inline uint64_t Capacity() const { return data.size() / sizeof(double); }
 
     /// Return the inner-product.
-    TM operator * (const OccaTVector<TM> &v) const;
+    double operator * (const OccaVector &v) const;
 
     /// Redefine '=' for vector = vector.
-    OccaTVector<TM>& operator = (const OccaTVector<TM> &v);
+    OccaVector& operator = (const OccaVector &v);
 
     /// Redefine '=' for vector = constant.
-    OccaTVector<TM>& operator = (TM value);
+    OccaVector& operator = (double value);
 
-    OccaTVector<TM>& operator *= (double c);
+    OccaVector& operator *= (double c);
 
-    OccaTVector<TM>& operator /= (double c);
+    OccaVector& operator /= (double c);
 
-    OccaTVector<TM>& operator -= (TM c);
+    OccaVector& operator -= (double c);
 
-    OccaTVector<TM>& operator -= (const OccaTVector<TM> &v);
+    OccaVector& operator -= (const OccaVector &v);
 
-    OccaTVector<TM>& operator += (const OccaTVector<TM> &v);
+    OccaVector& operator += (const OccaVector &v);
 
     /// (*this) += a * Va
-    //OccaTVector<TM>& Add(const TM a, const OccaTVector<TM> &Va);
+    OccaVector& Add(const double a, const OccaVector &Va);
 
     /// (*this) = a * x
-    //OccaTVector<TM>& Set(const TM a, const OccaTVector<TM> &x);
+    OccaVector& Set(const double a, const OccaVector &x);
 
     /// (*this) = -(*this)
-    //void Neg();
+    void Neg();
 
     /// Swap the contents of two Vectors
-    inline void Swap(OccaTVector<TM> &other)
+    inline void Swap(OccaVector &other)
     { data.swap(other.data); }
 
     /// v = median(v,lo,hi) entrywise.  Implementation assumes lo <= hi.
-    //void median(const OccaTVector<TM> &lo, const OccaTVector<TM> &hi);
+    void median(const OccaVector &lo, const OccaVector &hi);
+
+    void GetSubVector(const Array<int> &dofs, Vector &elemvect) const;
+    void GetSubVector(const Array<int> &dofs, OccaVector &elemvect) const;
+    void GetSubVector(const Array<int> &dofs, double *elem_data) const;
+
+    /// Set the entries listed in `dofs` to the given `value`.
+    void SetSubVector(const Array<int> &dofs, const double value);
+    void SetSubVector(const Array<int> &dofs, const Vector &elemvect);
+    void SetSubVector(const Array<int> &dofs, const OccaVector &elemvect);
+    void SetSubVector(const Array<int> &dofs, double *elem_data);
+
+    /// Set all vector entries NOT in the 'dofs' array to the given 'val'.
+    void SetSubVectorComplement(const Array<int> &dofs, const double val);
 
     /// Prints vector to stream out.
     void Print(std::ostream & out = std::cout, int width = 8) const;
@@ -124,87 +136,74 @@ namespace mfem
     /// Returns the l_p norm of the vector.
     double Normlp(double p) const;
     /// Returns the maximal element of the vector.
-    TM Max() const;
+    double Max() const;
     /// Returns the minimal element of the vector.
-    TM Min() const;
+    double Min() const;
     /// Return the sum of the vector entries
-    TM Sum() const;
+    double Sum() const;
     /// Compute the Euclidean distance to another vector.
-    double DistanceTo(const OccaTVector<TM> &other) const;
+    double DistanceTo(const OccaVector &other) const;
 
     /// Destroys vector.
-    inline virtual ~OccaTVector()
+    inline virtual ~OccaVector()
     { size_ = 0; data.free(); }
 
     ///---[ Addition ]------------------
     /// Set out = v1 + v2.
-    template <class TM2>
-    friend void add(const OccaTVector<TM2> &v1,
-                    const OccaTVector<TM2> &v2,
-                    OccaTVector<TM2> &out);
+    friend void add(const OccaVector &v1,
+                    const OccaVector &v2,
+                    OccaVector &out);
 
     /// Set out = v1 + alpha * v2.
-    template <class TM2>
-    friend void add(const OccaTVector<TM2> &v1,
+    friend void add(const OccaVector &v1,
                     double alpha,
-                    const OccaTVector<TM2> &v2,
-                    OccaTVector<TM2> &out);
+                    const OccaVector &v2,
+                    OccaVector &out);
 
     /// out = alpha * (v1 + v2)
-    template <class TM2>
     friend void add(const double alpha,
-                    const OccaTVector<TM2> &v1,
-                    const OccaTVector<TM2> &v2,
-                    OccaTVector<TM2> &out);
+                    const OccaVector &v1,
+                    const OccaVector &v2,
+                    OccaVector &out);
 
     /// out = alpha * v1 + beta * v2
-    template <class TM2>
     friend void add(const double alpha,
-                    const OccaTVector<TM2> &v1,
+                    const OccaVector &v1,
                     const double beta,
-                    const OccaTVector<TM2> &v2,
-                    OccaTVector<TM2> &out);
+                    const OccaVector &v2,
+                    OccaVector &out);
     ///=================================
 
     ///---[ Subtraction ]---------------
     /// Set out = v1 - v2.
-    template <class TM2>
-    friend void subtract(const OccaTVector<TM2> &v1,
-                         const OccaTVector<TM2> &v2,
-                         OccaTVector<TM2> &out);
+    friend void subtract(const OccaVector &v1,
+                         const OccaVector &v2,
+                         OccaVector &out);
 
     /// Set out = v1 - alpha * v2.
-    template <class TM2>
-    friend void subtract(const OccaTVector<TM2> &v1,
+    friend void subtract(const OccaVector &v1,
                          double alpha,
-                         const OccaTVector<TM2> &v2,
-                         OccaTVector<TM2> &out);
+                         const OccaVector &v2,
+                         OccaVector &out);
 
     /// out = alpha * (v1 - v2)
-    template <class TM2>
     friend void subtract(const double alpha,
-                         const OccaTVector<TM2> &v1,
-                         const OccaTVector<TM2> &v2,
-                         OccaTVector<TM2> &out);
+                         const OccaVector &v1,
+                         const OccaVector &v2,
+                         OccaVector &out);
 
     /// out = alpha * v1 - beta * v2
-    template <class TM2>
     friend void subtract(const double alpha,
-                         const OccaTVector<TM2> &v1,
+                         const OccaVector &v1,
                          const double beta,
-                         const OccaTVector<TM2> &v2,
-                         OccaTVector<TM2> &out);
+                         const OccaVector &v2,
+                         OccaVector &out);
     ///=================================
   };
 
-  template <class TM>
   occa::kernelBuilder makeCustomBuilder(const std::string &kernelName,
                                         const std::string &formula);
-
-  typedef OccaTVector<double> OccaVector;
 }
-
-#include "ovector.tpp"
 
 #  endif
 #endif

@@ -111,6 +111,15 @@ namespace mfem {
     /// Matrix vector multiplication.
     virtual void MultTranspose(const OccaVector &x, OccaVector &y) const;
 
+    void FormLinearSystem(const Array<int> &ess_tdof_list,
+                                  OccaVector &x, OccaVector &b,
+                                  Operator* &Aout, OccaVector &X, OccaVector &B,
+                                  int copy_interior = 0);
+
+    virtual void ImposeBoundaryConditions(const Array<int> &ess_tdof_list,
+                                          Operator *rap,
+                                          Operator* &Aout, OccaVector &X, OccaVector &B);
+
     /** @brief Eliminate "essential boundary condition" values specified in @a x
         from the given right-hand side @a b.
 
