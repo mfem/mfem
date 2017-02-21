@@ -23,6 +23,7 @@
 #include "bilinearform.hpp"
 
 #include "occa.hpp"
+#include "occa/array.hpp"
 
 namespace mfem {
   /** Class for bilinear form - "Matrix" with associated FE space and
@@ -112,13 +113,52 @@ namespace mfem {
     virtual void MultTranspose(const OccaVector &x, OccaVector &y) const;
 
     void FormLinearSystem(const Array<int> &ess_tdof_list,
-                                  OccaVector &x, OccaVector &b,
-                                  Operator* &Aout, OccaVector &X, OccaVector &B,
-                                  int copy_interior = 0);
+                          OccaVector &x, OccaVector &b,
+                          Operator* &Aout, OccaVector &X, OccaVector &B,
+                          int copy_interior = 0);
 
     virtual void ImposeBoundaryConditions(const Array<int> &ess_tdof_list,
                                           Operator *rap,
                                           Operator* &Aout, OccaVector &X, OccaVector &B);
+
+    /// Destroys bilinear form.
+    ~OccaBilinearForm();
+  };
+
+  /// Based on ConstrainedOperator
+  class OccaConstrainedOperator : public Operator {
+  protected:
+    occa::device device;
+
+    Operator *A;                   ///< The unconstrained Operator.
+    bool own_A;                    ///< Ownership flag for A.
+    occa::memory constraint_list;  ///< List of constrained indices/dofs.
+    int constraint_indices;
+    mutable OccaVector z, w;       ///< Auxiliary vectors.
+
+    static occa::kernelBuilder map_dof_builder, clear_dof_builder;
+
+  public:
+    /** @brief Constructor from a general Operator and a list of essential
+        indices/dofs.
+
+        Specify the unconstrained operator @a *A and a @a list of indices to
+        constrain, i.e. each entry @a list[i] represents an essential-dof. If the
+        ownership flag @a own_A is true, the operator @a *A will be destroyed
+        when this object is destroyed. */
+    OccaConstrainedOperator(Operator *A_,
+                            const Array<int> &constraint_list_,
+                            bool own_A_ = false);
+
+    OccaConstrainedOperator(occa::device device_,
+                            Operator *A_,
+                            const Array<int> &constraint_list_,
+                            bool own_A_ = false);
+
+    void setup(occa::device device_,
+               Operator *A_,
+               const Array<int> &constraint_list_,
+               bool own_A_ = false);
 
     /** @brief Eliminate "essential boundary condition" values specified in @a x
         from the given right-hand side @a b.
@@ -129,11 +169,22 @@ namespace mfem {
 
         where the "_b" subscripts denote the essential (boundary) indices/dofs of
         the vectors, and "_i" -- the rest of the entries. */
-    virtual void EliminateRHS(const OccaVector &x, OccaVector &b) const;
+    void EliminateRHS(const OccaVector &x, OccaVector &b) const;
 
-    /// Destroys bilinear form.
-    ~OccaBilinearForm();
+    /** @brief Constrained operator action.
+
+        Performs the following steps:
+
+        z = A((x_i,0));  y_i = z_i;  y_b = x_b;
+
+        where the "_b" subscripts denote the essential (boundary) indices/dofs of
+        the vectors, and "_i" -- the rest of the entries. */
+    virtual void Mult(const OccaVector &x, OccaVector &y) const;
+
+    /// Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
+    virtual ~OccaConstrainedOperator();
   };
+  //====================================
 }
 
 #  endif

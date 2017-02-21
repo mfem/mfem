@@ -110,7 +110,8 @@ namespace mfem {
   /// (*this) += a * Va
   OccaVector& OccaVector::Add(const double a, const OccaVector &Va) {
     static occa::kernelBuilder builder =
-      makeCustomBuilder("vector_axpy", "v0[i] += c0 * v1[i]");
+      makeCustomBuilder("vector_axpy",
+                        "v0[i] += c0 * v1[i];");
 
     occa::kernel kernel = builder.build(data.getDevice());
     kernel((int) Size(), a, data, Va.data);
@@ -120,7 +121,8 @@ namespace mfem {
   /// (*this) = a * x
   OccaVector& OccaVector::Set(const double a, const OccaVector &x) {
     static occa::kernelBuilder builder =
-      makeCustomBuilder("vector_ax", "v0[i] = c0 * v1[i]");
+      makeCustomBuilder("vector_ax",
+                        "v0[i] = c0 * v1[i];");
 
     occa::kernel kernel = builder.build(data.getDevice());
     kernel((int) Size(), a, data, x.data);
@@ -130,7 +132,8 @@ namespace mfem {
   /// (*this) = -(*this)
   void OccaVector::Neg() {
     static occa::kernelBuilder builder =
-      makeCustomBuilder("vector_ax", "v0[i] *= -1.0");
+      makeCustomBuilder("vector_ax",
+                        "v0[i] *= -1.0;");
 
     occa::kernel kernel = builder.build(data.getDevice());
     kernel((int) Size(), data);
@@ -143,7 +146,7 @@ namespace mfem {
                         "const double val = v0[i];"
                         "const double lo  = v1[i];"
                         "const double hi  = v2[i];"
-                        "v0[i] = (val < lo) ? lo : ((hi < val) ? hi : val)");
+                        "v0[i] = (val < lo) ? lo : ((hi < val) ? hi : val);");
 
     occa::kernel kernel = builder.build(data.getDevice());
     kernel((int) Size(), data, lo.data, hi.data);
@@ -170,7 +173,7 @@ namespace mfem {
     static occa::kernelBuilder builder =
       makeCustomBuilder("vector_get_subvector",
                         "const int dof_i = v2[i];"
-                        "v0[i] = dof_i >= 0 ? v1[dof_i] : -v1[-dof_i - 1]");
+                        "v0[i] = dof_i >= 0 ? v1[dof_i] : -v1[-dof_i - 1];");
 
     occa::device dev = data.getDevice();
     occa::kernel kernel = builder.build(dev);
@@ -304,7 +307,7 @@ namespace mfem {
                                             "  VTYPE1: 'double',"
                                             "  VTYPE2: 'double',"
                                             "  TILESIZE: 128,"
-                                            "}");
+                                            "};");
   }
 
   ///---[ Addition ]--------------------
@@ -313,7 +316,8 @@ namespace mfem {
            const OccaVector &v2,
            OccaVector &out) {
     static occa::kernelBuilder builder =
-      makeCustomBuilder("vector_xpy", "v0[i] = v1[i] + v2[i]");
+      makeCustomBuilder("vector_xpy",
+                        "v0[i] = v1[i] + v2[i];");
 
     occa::kernel kernel = builder.build(out.data.getDevice());
     kernel((int) out.Size(), out.data, v1.data, v2.data);
@@ -325,7 +329,8 @@ namespace mfem {
            const OccaVector &v2,
            OccaVector &out) {
     static occa::kernelBuilder builder =
-      makeCustomBuilder("vector_xpay", "v0[i] = v1[i] + (c0 * v2[i])");
+      makeCustomBuilder("vector_xpay",
+                        "v0[i] = v1[i] + (c0 * v2[i]);");
 
     occa::kernel kernel = builder.build(out.data.getDevice());
     kernel((int) out.Size(), alpha, out.data, v1.data, v2.data);
@@ -337,7 +342,8 @@ namespace mfem {
            const OccaVector &v2,
            OccaVector &out) {
     static occa::kernelBuilder builder =
-      makeCustomBuilder("vector_amxpy", "v0[i] = c0 * (v1[i] + v2[i])");
+      makeCustomBuilder("vector_amxpy",
+                        "v0[i] = c0 * (v1[i] + v2[i]);");
 
     occa::kernel kernel = builder.build(out.data.getDevice());
     kernel((int) out.Size(), alpha, out.data, v1.data, v2.data);
@@ -350,7 +356,8 @@ namespace mfem {
            const OccaVector &v2,
            OccaVector &out) {
     static occa::kernelBuilder builder =
-      makeCustomBuilder("vector_axpby", "v0[i] = (c0 * v1[i]) + (c1 * v2[i])");
+      makeCustomBuilder("vector_axpby",
+                        "v0[i] = (c0 * v1[i]) + (c1 * v2[i]);");
 
     occa::kernel kernel = builder.build(out.data.getDevice());
     kernel((int) out.Size(), alpha, beta, out.data, v1.data, v2.data);
@@ -363,7 +370,8 @@ namespace mfem {
                 const OccaVector &v2,
                 OccaVector &out) {
     static occa::kernelBuilder builder =
-      makeCustomBuilder("vector_xsy", "v0[i] = v1[i] - v2[i]");
+      makeCustomBuilder("vector_xsy",
+                        "v0[i] = v1[i] - v2[i];");
 
     occa::kernel kernel = builder.build(out.data.getDevice());
     kernel((int) out.Size(), out.data, v1.data, v2.data);
@@ -375,7 +383,8 @@ namespace mfem {
                 const OccaVector &v2,
                 OccaVector &out) {
     static occa::kernelBuilder builder =
-      makeCustomBuilder("vector_xsay", "v0[i] = v1[i] - (c0 * v2[i])");
+      makeCustomBuilder("vector_xsay",
+                        "v0[i] = v1[i] - (c0 * v2[i]);");
 
     occa::kernel kernel = builder.build(out.data.getDevice());
     kernel((int) out.Size(), alpha, out.data, v1.data, v2.data);
@@ -387,7 +396,8 @@ namespace mfem {
                 const OccaVector &v2,
                 OccaVector &out) {
     static occa::kernelBuilder builder =
-      makeCustomBuilder("vector_amxsy", "v0[i] = c0 * (v1[i] - v2[i])");
+      makeCustomBuilder("vector_amxsy",
+                        "v0[i] = c0 * (v1[i] - v2[i]);");
 
     occa::kernel kernel = builder.build(out.data.getDevice());
     kernel((int) out.Size(), alpha, out.data, v1.data, v2.data);
@@ -400,7 +410,8 @@ namespace mfem {
                 const OccaVector &v2,
                 OccaVector &out) {
     static occa::kernelBuilder builder =
-      makeCustomBuilder("vector_axsby", "v0[i] = (c0 * v1[i]) - (c1 * v2[i])");
+      makeCustomBuilder("vector_axsby",
+                        "v0[i] = (c0 * v1[i]) - (c1 * v2[i]);");
 
     occa::kernel kernel = builder.build(out.data.getDevice());
     kernel((int) out.Size(), alpha, beta, out.data, v1.data, v2.data);

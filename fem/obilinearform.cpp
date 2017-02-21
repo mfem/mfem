@@ -15,6 +15,7 @@
 #include "obilinearform.hpp"
 
 namespace mfem {
+  //---[ Bilinear Form ]----------------
   OccaBilinearForm::KernelBuilderCollection OccaBilinearForm::kernelBuilderCollection;
 
   OccaBilinearForm::OccaBilinearForm(FiniteElementSpace *f) :
@@ -182,16 +183,15 @@ namespace mfem {
                                   copy_interior);
   }
 
-  /** @brief Eliminate "essential boundary condition" values specified in @a x
-      from the given right-hand side @a b.
-
-      Performs the following steps:
-
-      z = A((0,x_b));  b_i -= z_i;  b_b = x_b;
-
-      where the "_b" subscripts denote the essential (boundary) indices/dofs of
-      the vectors, and "_i" -- the rest of the entries. */
-  void OccaBilinearForm::EliminateRHS(const OccaVector &x, OccaVector &b) const {
+  void OccaBilinearForm::ImposeBoundaryConditions(const Array<int> &ess_tdof_list,
+                                                  Operator *rap,
+                                                  Operator* &Aout,
+                                                  OccaVector &X, OccaVector &B) {
+    OccaConstrainedOperator *A = new OccaConstrainedOperator(device,
+                                                             rap, ess_tdof_list,
+                                                             rap != this);
+    A->EliminateRHS(X, B);
+    Aout = A;
   }
 
   /// Destroys bilinear form.
@@ -209,6 +209,98 @@ namespace mfem {
     // Free device
     device.free();
   }
+  //====================================
+
+  //---[ Constrained Operator ]---------
+  occa::kernelBuilder OccaConstrainedOperator::map_dof_builder =
+    makeCustomBuilder("vector_map_dofs",
+                      "const int idx = v2[i];"
+                      "v0[idx] = v1[idx];");
+
+  occa::kernelBuilder OccaConstrainedOperator::clear_dof_builder =
+    makeCustomBuilder("vector_map_dofs",
+                      "v0[v1[i]] = 0.0;");
+
+  OccaConstrainedOperator::OccaConstrainedOperator(Operator *A_,
+                                                   const Array<int> &constraint_list_,
+                                                   bool own_A_) :
+    Operator(A_->Height(), A_->Width()) {
+    setup(occa::currentDevice(), A, constraint_list_, own_A_);
+  }
+
+  OccaConstrainedOperator::OccaConstrainedOperator(occa::device device_,
+                                                   Operator *A_,
+                                                   const Array<int> &constraint_list_,
+                                                   bool own_A_) :
+    Operator(A_->Height(), A_->Width()) {
+    setup(device_, A, constraint_list_, own_A_);
+  }
+
+  void OccaConstrainedOperator::setup(occa::device device_,
+                                      Operator *A_,
+                                      const Array<int> &constraint_list_,
+                                      bool own_A_) {
+    device = device_;
+
+    A = A_;
+    own_A = own_A_;
+
+    constraint_indices = constraint_list_.Size();
+    if (constraint_indices) {
+      constraint_list = device.malloc(constraint_indices * sizeof(int),
+                                      constraint_list_.GetData());
+    }
+
+    z.SetSize(height);
+    w.SetSize(height);
+  }
+
+  void OccaConstrainedOperator::EliminateRHS(const OccaVector &x, OccaVector &b) const {
+    if (constraint_indices == 0) {
+      return;
+    }
+
+    occa::kernel map_dofs = map_dof_builder.build(device);
+
+    w = 0.0;
+
+    if (constraint_indices) {
+      map_dofs(constraint_indices, w.GetData(), x.GetData(), constraint_list);
+    }
+
+    A->Mult(w, z);
+
+    b -= z;
+
+    if (constraint_indices) {
+      map_dofs(constraint_indices, b.GetData(), x.GetData(), constraint_list);
+    }
+  }
+
+  void OccaConstrainedOperator::Mult(const OccaVector &x, OccaVector &y) const {
+    if (constraint_indices == 0) {
+      A->Mult(x, y);
+      return;
+    }
+
+    occa::kernel map_dofs = map_dof_builder.build(device);
+    occa::kernel clear_dofs = clear_dof_builder.build(device);
+
+    z = x;
+
+    clear_dofs(constraint_indices, z.GetData(), constraint_list);
+
+    A->Mult(z, y);
+
+    map_dofs(constraint_indices, y.GetData(), x.GetData(), constraint_list);
+  }
+
+  OccaConstrainedOperator::~OccaConstrainedOperator() {
+    if (own_A) {
+      delete A;
+    }
+  }
+  //====================================
 }
 
 #endif

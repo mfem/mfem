@@ -74,6 +74,9 @@ namespace mfem
     /** It is always true that Capacity() >= Size(). */
     inline uint64_t Capacity() const { return data.size() / sizeof(double); }
 
+    inline occa::memory GetData() { return data; };
+    inline const occa::memory GetData() const { return data; };
+
     /// Return the inner-product.
     double operator * (const OccaVector &v) const;
 
