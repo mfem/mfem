@@ -2611,8 +2611,11 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    {
       ReadGmshMesh(input);
    }
-   else if (mesh_type.size() > 2 &&
-            mesh_type[0] == 'C' && mesh_type[1] == 'D' && mesh_type[2] == 'F')
+   else if
+     ((mesh_type.size() > 2 &&
+       mesh_type[0] == 'C' && mesh_type[1] == 'D' && mesh_type[2] == 'F') ||
+      (mesh_type.size() > 3 &&
+       mesh_type[1] == 'H' && mesh_type[2] == 'D' && mesh_type[3] == 'F'))
    {
       named_ifgzstream *mesh_input = dynamic_cast<named_ifgzstream *>(&input);
       if (mesh_input)
