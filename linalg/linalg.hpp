@@ -43,6 +43,10 @@
 #include "superlu.hpp"
 #endif
 
+#ifdef MFEM_USE_ARPACK
+#include "arpack.hpp"
+#endif
+
 #endif // MFEM_USE_MPI
 
 #endif
