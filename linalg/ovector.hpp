@@ -34,7 +34,8 @@ namespace mfem
 
   public:
     /// Default constructor for Vector. Sets size = 0 and data = NULL.
-    inline OccaVector() {}
+    inline OccaVector() :
+      size_(0) {}
 
     /// Copy constructor.
     OccaVector(const OccaVector &other);
@@ -72,8 +73,10 @@ namespace mfem
     /** It is always true that Capacity() >= Size(). */
     inline uint64_t Capacity() const { return data.size() / sizeof(double); }
 
-    inline occa::memory GetData() { return data; };
-    inline const occa::memory GetData() const { return data; };
+    inline occa::memory GetData() { return data; }
+    inline const occa::memory GetData() const { return data; }
+
+    inline occa::device GetDevice() { return data.getDevice(); }
 
     /// Return the inner-product.
     double operator * (const OccaVector &v) const;
@@ -84,11 +87,11 @@ namespace mfem
     /// Redefine '=' for vector = constant.
     OccaVector& operator = (double value);
 
-    OccaVector& operator *= (double c);
+    OccaVector& operator *= (double value);
 
-    OccaVector& operator /= (double c);
+    OccaVector& operator /= (double value);
 
-    OccaVector& operator -= (double c);
+    OccaVector& operator -= (double value);
 
     OccaVector& operator -= (const OccaVector &v);
 
@@ -119,11 +122,13 @@ namespace mfem
     void GetSubVector(const Array<int> &dofs, Vector &elemvect) const;
     void GetSubVector(const Array<int> &dofs, double *elem_data) const;
     void GetSubVector(const Array<int> &dofs, OccaVector &elemvect) const;
+    void GetSubVector(occa::memory dofs, OccaVector &elemvect) const;
 
     /// Set the entries listed in `dofs` to the given `value`.
     void SetSubVector(const Array<int> &dofs, const Vector &elemvect);
     void SetSubVector(const Array<int> &dofs, double *elem_data);
     void SetSubVector(const Array<int> &dofs, const OccaVector &elemvect);
+    void SetSubVector(occa::memory dofs, const OccaVector &elemvect);
     void SetSubVector(const Array<int> &dofs, const double value);
 
     /// Set all vector entries NOT in the 'dofs' array to the given 'val'.
@@ -154,63 +159,63 @@ namespace mfem
     /// Destroys vector.
     inline virtual ~OccaVector()
     { size_ = 0; data.free(); }
-
-    ///---[ Addition ]------------------
-    /// Set out = v1 + v2.
-    friend void add(const OccaVector &v1,
-                    const OccaVector &v2,
-                    OccaVector &out);
-
-    /// Set out = v1 + alpha * v2.
-    friend void add(const OccaVector &v1,
-                    double alpha,
-                    const OccaVector &v2,
-                    OccaVector &out);
-
-    /// out = alpha * (v1 + v2)
-    friend void add(const double alpha,
-                    const OccaVector &v1,
-                    const OccaVector &v2,
-                    OccaVector &out);
-
-    /// out = alpha * v1 + beta * v2
-    friend void add(const double alpha,
-                    const OccaVector &v1,
-                    const double beta,
-                    const OccaVector &v2,
-                    OccaVector &out);
-    ///=================================
-
-    ///---[ Subtraction ]---------------
-    /// Set out = v1 - v2.
-    friend void subtract(const OccaVector &v1,
-                         const OccaVector &v2,
-                         OccaVector &out);
-
-    /// Set out = v1 - alpha * v2.
-    friend void subtract(const OccaVector &v1,
-                         double alpha,
-                         const OccaVector &v2,
-                         OccaVector &out);
-
-    /// out = alpha * (v1 - v2)
-    friend void subtract(const double alpha,
-                         const OccaVector &v1,
-                         const OccaVector &v2,
-                         OccaVector &out);
-
-    /// out = alpha * v1 - beta * v2
-    friend void subtract(const double alpha,
-                         const OccaVector &v1,
-                         const double beta,
-                         const OccaVector &v2,
-                         OccaVector &out);
-    ///=================================
   };
 
   occa::kernelBuilder makeCustomBuilder(const std::string &kernelName,
                                         const std::string &formula,
                                         occa::properties props = occa::properties());
+
+  ///---[ Addition ]------------------
+  /// Set out = v1 + v2.
+  void add(const OccaVector &v1,
+           const OccaVector &v2,
+           OccaVector &out);
+
+  /// Set out = v1 + alpha * v2.
+  void add(const OccaVector &v1,
+           const double alpha,
+           const OccaVector &v2,
+           OccaVector &out);
+
+  /// out = alpha * (v1 + v2)
+  void add(const double alpha,
+           const OccaVector &v1,
+           const OccaVector &v2,
+           OccaVector &out);
+
+  /// out = alpha * v1 + beta * v2
+  void add(const double alpha,
+           const OccaVector &v1,
+           const double beta,
+           const OccaVector &v2,
+           OccaVector &out);
+  ///=================================
+
+  ///---[ Subtraction ]---------------
+  /// Set out = v1 - v2.
+  void subtract(const OccaVector &v1,
+                const OccaVector &v2,
+                OccaVector &out);
+
+  /// Set out = v1 - alpha * v2.
+  void subtract(const OccaVector &v1,
+                const double alpha,
+                const OccaVector &v2,
+                OccaVector &out);
+
+  /// out = alpha * (v1 - v2)
+  void subtract(const double alpha,
+                const OccaVector &v1,
+                const OccaVector &v2,
+                OccaVector &out);
+
+  /// out = alpha * v1 - beta * v2
+  void subtract(const double alpha,
+                const OccaVector &v1,
+                const double beta,
+                const OccaVector &v2,
+                OccaVector &out);
+  ///=================================
 }
 
 #  endif
