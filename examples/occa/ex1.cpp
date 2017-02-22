@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
   Operator *A;
   OccaVector B, X;
 
-  a->TFormLinearSystem(ess_tdof_list, x, b, A, X, B);
+  a->FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
   cout << "Size of linear system: " << A->Height() << endl;
 
@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
         {
           a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
           a_pc->Assemble();
-          a_pc->TFormLinearSystem(ess_tdof_list, x, b, A_pc, X_pc, B_pc);
+          a_pc->FormLinearSystem(ess_tdof_list, x, b, A_pc, X_pc, B_pc);
         }
       else if (pc_choice == HO)
         {
@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
     }
 
   // 11. Recover the solution as a finite element grid function.
-  // a->RecoverFEMSolution(X, *b, x);
+  a->RecoverFEMSolution(X, *b, x);
 
   // 12. Save the refined mesh and the solution. This output can be viewed later
   //     using GLVis: "glvis -m refined.mesh -g sol.gf".

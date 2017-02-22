@@ -1,17 +1,16 @@
 /*
   ---[ Defines Known At Compile-Time ]------------
-  NUM_ELEMENTS  : Number of elements
   ELEMENT_BATCH : How many elements are in each
-  computation batch
+  .               computation batch
   NUM_DOFS      : Dofs per element
   NUM_QPTS      : Quadrature points per element
   NUM_VDIM      : Solution vector dimensions (number of fields)
   COEFF_EVAL    : Coefficient evaluator for each
-  quadrature point
+  .               quadrature point
   ================================================
 */
 
-#if IN_GPU == 1
+#if OCCA_USING_GPU
 #  define JT_IDX_ORDER   idxOrder(2,0,1)
 #  define GRAD_IDX_ORDER idxOrder(3,2,0,1)
 #else
@@ -19,13 +18,13 @@
 #  define GRAD_IDX_ORDER idxOrder(3,2,1,0)
 #endif
 
-typedef double* Jt_1D_t @(dim(NUM_ELEMENTS, NUM_QPTS, 1), JT_IDX_ORDER);
-typedef double* Jt_2D_t @(dim(NUM_ELEMENTS, NUM_QPTS, 4), JT_IDX_ORDER);
-typedef double* Jt_3D_t @(dim(NUM_ELEMENTS, NUM_QPTS, 9), JT_IDX_ORDER);
+typedef double* Jt_1D_t @(dim(numElements, NUM_QPTS, 1), JT_IDX_ORDER);
+typedef double* Jt_2D_t @(dim(numElements, NUM_QPTS, 4), JT_IDX_ORDER);
+typedef double* Jt_3D_t @(dim(numElements, NUM_QPTS, 9), JT_IDX_ORDER);
 
-typedef double* grad_1D_t @(dim(NUM_ELEMENTS, NUM_QPTS, NUM_VDIM, 1), GRAD_IDX_ORDER);
-typedef double* grad_2D_t @(dim(NUM_ELEMENTS, NUM_QPTS, NUM_VDIM, 2), GRAD_IDX_ORDER);
-typedef double* grad_3D_t @(dim(NUM_ELEMENTS, NUM_QPTS, NUM_VDIM, 3), GRAD_IDX_ORDER);
+typedef double* grad_1D_t @(dim(numElements, NUM_QPTS, NUM_VDIM, 1), GRAD_IDX_ORDER);
+typedef double* grad_2D_t @(dim(numElements, NUM_QPTS, NUM_VDIM, 2), GRAD_IDX_ORDER);
+typedef double* grad_3D_t @(dim(numElements, NUM_QPTS, NUM_VDIM, 3), GRAD_IDX_ORDER);
 
 // Make the integrators methods
 // 1 kernel iterates over elements
@@ -51,12 +50,14 @@ kernel () {
   }
 }
 
-kernel void DiffusionIntegrator1D(const Jt_1D_t restrict Jt,
+kernel void DiffusionIntegrator1D(const int numElements,
+                                  const Jt_1D_t restrict Jt,
                                   grad_1D_t restrict grad) {
 
-  for (int eb = 0; eb < NUM_ELEMENTS; eb += ELEMENT_BATCH; outer0) {
+  for (int eb = 0; eb < numElements; eb += ELEMENT_BATCH; outer0) {
     for (int el = eb; el < (eb + ELEMENT_BATCH); ++el; inner1) {
       // Apply B (solFEval)
+
       // Over QPTS (all domain integrators)
       for (int q = 0; q < NUM_QPTS; ++q; inner0) {
         const double w = COEFF_EVAL(el, q) / Jt(el, q, 0);
@@ -66,15 +67,17 @@ kernel void DiffusionIntegrator1D(const Jt_1D_t restrict Jt,
           grad(el, q, f, 0) *= w;
         }
       }
+
       // Apply B^T (solFEval)
     }
   }
 }
 
-kernel void DiffusionIntegrator2D(const Jt_2D_t restrict Jt,
+kernel void DiffusionIntegrator2D(const int numElements,
+                                  const Jt_2D_t restrict Jt,
                                   grad_2D_t restrict grad) {
 
-  for (int eb = 0; eb < NUM_ELEMENTS; eb += ELEMENT_BATCH; outer0) {
+  for (int eb = 0; eb < numElements; eb += ELEMENT_BATCH; outer0) {
     for (int el = eb; el < (eb + ELEMENT_BATCH); ++el; inner1) {
       for (int q = 0; q < NUM_QPTS; ++q; inner0) {
         const int id = el * NUM_QPTS + q;
@@ -97,10 +100,11 @@ kernel void DiffusionIntegrator2D(const Jt_2D_t restrict Jt,
   }
 }
 
-kernel void DiffusionIntegrator3D(const Jt_3D_t restrict Jt,
+kernel void DiffusionIntegrator3D(const int numElements,
+                                  const Jt_3D_t restrict Jt,
                                   grad_3D_t restrict grad) {
 
-  for (int eb = 0; eb < NUM_ELEMENTS; eb += ELEMENT_BATCH; outer0) {
+  for (int eb = 0; eb < numElements; eb += ELEMENT_BATCH; outer0) {
     for (int el = eb; el < (eb + ELEMENT_BATCH); ++el; inner1) {
       for (int q = 0; q < NUM_QPTS; ++q; inner0) {
         const int id = el * NUM_QPTS + q;

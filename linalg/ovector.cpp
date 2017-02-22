@@ -121,7 +121,7 @@ namespace mfem {
   /// (*this) = a * x
   OccaVector& OccaVector::Set(const double a, const OccaVector &x) {
     static occa::kernelBuilder builder =
-      makeCustomBuilder("vector_ax",
+      makeCustomBuilder("vector_set",
                         "v0[i] = c0 * v1[i];");
 
     occa::kernel kernel = builder.build(data.getDevice());
@@ -132,7 +132,7 @@ namespace mfem {
   /// (*this) = -(*this)
   void OccaVector::Neg() {
     static occa::kernelBuilder builder =
-      makeCustomBuilder("vector_ax",
+      makeCustomBuilder("vector_neg",
                         "v0[i] *= -1.0;");
 
     occa::kernel kernel = builder.build(data.getDevice());

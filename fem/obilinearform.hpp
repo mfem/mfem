@@ -26,32 +26,30 @@
 #include "occa/array.hpp"
 
 namespace mfem {
+  enum IntegratorType {
+    DomainIntegrator       = 0,
+    BoundaryIntegrator     = 1,
+    InteriorFaceIntegrator = 2,
+    BoundaryFaceIntegrator = 3,
+  };
+
   /** Class for bilinear form - "Matrix" with associated FE space and
       BLFIntegrators. */
-  class OccaBilinearForm : public Operator
-  {
-  public:
-    enum IntegratorType {
-      DomainIntegrator       = 0,
-      BoundaryIntegrator     = 1,
-      InteriorFaceIntegrator = 2,
-      BoundaryFaceIntegrator = 3,
-    };
-
+  class OccaBilinearForm : public Operator {
   protected:
     typedef std::vector<occa::kernel> IntegratorVector;
-    typedef occa::kernel (OccaBilinearForm::*KernelBuilder)(
-                                                            BilinearFormIntegrator &bfi,
-                                                            const occa::properties &props,
-                                                            const IntegratorType itype);
-    typedef std::map<std::string,KernelBuilder> KernelBuilderCollection;
+    typedef occa::kernel (*IntegratorBuilder)(OccaBilinearForm &bf,
+                                                    BilinearFormIntegrator &bfi,
+                                                    const occa::properties &props,
+                                                    const IntegratorType itype);
+    typedef std::map<std::string,IntegratorBuilder> IntegratorBuilderMap;
 
     /// State information
     FiniteElementSpace *fes;
     Mesh *mesh;
 
     /// Group of integrators used to build kernels
-    static KernelBuilderCollection kernelBuilderCollection;
+    static IntegratorBuilderMap integratorBuilders;
     IntegratorVector integrators;
 
     // Device data
@@ -66,16 +64,20 @@ namespace mfem {
     OccaBilinearForm(occa::device dev, FiniteElementSpace *f);
 
     // Setup the kernel builder collection
-    void SetupKernelBuilderCollection();
+    void SetupIntegratorBuilderMap();
 
     /// Setup kernel properties
     void SetupBaseKernelProps();
+
+    occa::device getDevice();
 
     /// Useful FE information
     int GetDim();
     int64_t GetNE();
     int64_t GetNDofs();
     int64_t GetVSize();
+
+    const FiniteElement& GetFE(const int i);
 
     /// Adds new Domain Integrator.
     void AddDomainIntegrator(BilinearFormIntegrator *bfi,
@@ -98,10 +100,10 @@ namespace mfem {
                        const occa::properties &props,
                        const IntegratorType itype);
 
-    /// Builds the DiffusionIntegrator
-    occa::kernel BuildDiffusionIntegrator(BilinearFormIntegrator &bfi,
-                                          const occa::properties &props,
-                                          const IntegratorType itype);
+    /// Get the finite element space prolongation matrix
+    virtual const Operator *GetProlongation() const;
+    /// Get the finite element space restriction matrix
+    virtual const Operator *GetRestriction() const;
 
     /// Assembles the form i.e. sums over all domain/bdr integrators.
     virtual void Assemble();

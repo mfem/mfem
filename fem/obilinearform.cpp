@@ -12,18 +12,20 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_OCCA
+
 #include "obilinearform.hpp"
+#include "obilininteg.hpp"
 
 namespace mfem {
   //---[ Bilinear Form ]----------------
-  OccaBilinearForm::KernelBuilderCollection OccaBilinearForm::kernelBuilderCollection;
+  OccaBilinearForm::IntegratorBuilderMap OccaBilinearForm::integratorBuilders;
 
   OccaBilinearForm::OccaBilinearForm(FiniteElementSpace *f) :
     fes(f),
     mesh(fes->GetMesh()),
     device(occa::currentDevice()) {
 
-    SetupKernelBuilderCollection();
+    SetupIntegratorBuilderMap();
     SetupBaseKernelProps();
   }
 
@@ -32,27 +34,28 @@ namespace mfem {
     mesh(fes->GetMesh()),
     device(dev) {
 
-    SetupKernelBuilderCollection();
+    SetupIntegratorBuilderMap();
     SetupBaseKernelProps();
   }
 
-  void OccaBilinearForm::SetupKernelBuilderCollection() {
-    if (0 < kernelBuilderCollection.size()) {
+  void OccaBilinearForm::SetupIntegratorBuilderMap() {
+    if (0 < integratorBuilders.size()) {
       return;
     }
-    kernelBuilderCollection[DiffusionIntegrator::StaticName()] =
-      &OccaBilinearForm::BuildDiffusionIntegrator;
+    integratorBuilders[DiffusionIntegrator::StaticName()] =
+      &DiffusionIntegratorBuilder;
   }
 
   void OccaBilinearForm::SetupBaseKernelProps() {
     const std::string &mode = device.properties()["mode"];
-    const bool inGPU = (mode == "CUDA") || (mode == "OpenCL");
 
-    baseKernelProps["kernel/defines/NUM_ELEMENTS"]  = GetNE();
     baseKernelProps["kernel/defines/ELEMENT_BATCH"] = 1;
     baseKernelProps["kernel/defines/NUM_DOFS"]      = GetNDofs();
     baseKernelProps["kernel/defines/NUM_VDIM"]      = GetVSize();
-    baseKernelProps["kernel/defines/IN_GPU"]        = inGPU ? 1 : 0;
+  }
+
+  occa::device OccaBilinearForm::getDevice() {
+    return device;
   }
 
   int OccaBilinearForm::GetDim()
@@ -66,6 +69,10 @@ namespace mfem {
 
   int64_t OccaBilinearForm::GetVSize()
   { return fes->GetVDim(); }
+
+  const FiniteElement& OccaBilinearForm::GetFE(const int i) {
+    return *(fes->GetFE(i));
+  }
 
   /// Adds new Domain Integrator.
   void OccaBilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi,
@@ -95,8 +102,8 @@ namespace mfem {
   void OccaBilinearForm::AddIntegrator(BilinearFormIntegrator &bfi,
                                        const occa::properties &props,
                                        const IntegratorType itype) {
-    KernelBuilder kernelBuilder = kernelBuilderCollection[bfi.Name()];
-    if (kernelBuilder == NULL) {
+    IntegratorBuilder builder = integratorBuilders[bfi.Name()];
+    if (builder == NULL) {
       std::stringstream error_ss;
       error_ss << "OccaBilinearForm::";
       switch (itype) {
@@ -110,37 +117,26 @@ namespace mfem {
       const std::string error = error_ss.str();
       mfem_error(error.c_str());
     }
-    integrators.push_back((this->*kernelBuilder)(bfi,
-                                                 baseKernelProps + props,
-                                                 itype));
+    integrators.push_back(builder(*this,
+                                  bfi,
+                                  baseKernelProps + props,
+                                  itype));
   }
 
-  /// Builds the DiffusionIntegrator
-  occa::kernel OccaBilinearForm::BuildDiffusionIntegrator(BilinearFormIntegrator &bfi,
-                                                          const occa::properties &props,
-                                                          const IntegratorType itype) {
-    DiffusionIntegrator &integ = (DiffusionIntegrator&) bfi;
+  /// Get the finite element space prolongation matrix
+  const Operator* OccaBilinearForm::GetProlongation() const {
+    if (fes->GetConformingProlongation() != NULL) {
+      mfem_error("OccaBilinearForm::GetProlongation() is not overloaded!");
+    }
+    return NULL;
+  }
 
-    // Get kernel name
-    std::string kernelName = integ.Name();
-    // Append 1D, 2D, or 3D
-    kernelName += '0' + (char) GetDim();
-    kernelName += 'D';
-
-    occa::properties kernelProps = props;
-    // Add quadrature points
-    const FiniteElement &fe = *fes->GetFE(0);
-    const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
-    kernelProps["kernel/defines/NUM_QPTS"] = ir.GetNPoints();
-
-    // Hard-coded to ConstantCoefficient for now
-    const ConstantCoefficient* coeff =
-      (const ConstantCoefficient*) integ.GetCoefficient();
-    kernelProps["kernel/defines/COEFF_EVAL(el,q)"] = coeff->constant;
-
-    return device.buildKernel("occaBilinearIntegrators.okl",
-                              kernelName,
-                              kernelProps);
+  /// Get the finite element space restriction matrix
+  const Operator* OccaBilinearForm::GetRestriction() const {
+    if (fes->GetConformingRestriction() != NULL) {
+      mfem_error("OccaBilinearForm::GetRestriction() is not overloaded!");
+    }
+    return NULL;
   }
 
   /// Assembles the Jacobian information
@@ -166,10 +162,68 @@ namespace mfem {
 
   /// Matrix vector multiplication.
   void OccaBilinearForm::Mult(const OccaVector &x, OccaVector &y) const {
+    y = 0.0;
+
+    // tevaluator.hpp:982
+    // typedef FieldEvaluator<solFESpace,
+    //                        solVecLayout_t,
+    //                        IR,
+    //                        complex_t,
+    //                        real_t> solFieldEval;
+
+    // solFieldEval solFEval(solFES, solEval, solVecLayout,
+    //                       x.GetData(), y.GetData());
+
+    // for (int el = 0; el < NE; el++) {
+    //   typename S_spec<BE = 1>::DataType R; <-- InData/OutData
+    //   -> Spec = solFieldEval::Spec<diffusion integrator kernel, BE>
+    //   -> DataType = Spec::DataType
+    //     tevaluator.hpp:1408
+    //       tevaluator.hpp:1132
+    //       -> Values    = 1
+    //       -> Gradients = 2
+    //     -> InData  = Values*kernel_t::in_values  + Gradients*kernel_t::in_gradients;
+    //                = (1 * false) + (2 * true)
+    //                = 2
+    //     -> OutData = Values*kernel_t::out_values + Gradients*kernel_t::out_gradients;
+    //                = (1 * false) + (2 * true)
+    //                = 2
+    //     -> Spec::Datatype = BData<InData,OutData,NE>
+    //                       = BData<2,2,NE>
+    //
+    //   tevaluator.hpp:1089
+    //   solFEval.Eval(el, R); {
+    //     SetElement(el);
+    //     Action<DataType::InData,true>::Eval(vec_layout, *this, R);
+    //       tevaluator.hpp:654
+    //       -> T.shapeEval.Calc<Add = false>
+    //       tevaluator.hpp:702
+    //       -> T.shapeEval.CalcGrad<Add = true>
+    //   }
+    //
+    //   for (int i = 0; i < NUM_QPTS; i++) {
+    //     for (int j = 0; j < NUM_VDIM; j++) {
+    //       R.grad_qpts(i,0,j,0) *= assembled_data[el](i,0);
+    //     }
+    //   }
+    //
+    //   tevaluator.hpp:1097
+    //   solFEval.Assemble<true>(R); {
+    //     tevaluator.hpp:1331
+    //     Action<DataType::OutData,true>::Assemble<Add>(vec_layout, *this, R);
+    //       tevaluator.hpp:691
+    //       -> T.shapeEval.CalcT<Add = false>
+    //       tevaluator.hpp:724
+    //       -> T.shapeEval.CalcGradT<Add = true>
+    //       tfespace.hpp:239
+    //       -> T.fespace.VectorAssemble<Op = Add>
+    //   }
+    // }
   }
 
   /// Matrix transpose vector multiplication.
   void OccaBilinearForm::MultTranspose(const OccaVector &x, OccaVector &y) const {
+    mfem_error("OccaBilinearForm::MultTranspose() is not overloaded!");
   }
 
 
@@ -187,6 +241,7 @@ namespace mfem {
                                                   Operator *rap,
                                                   Operator* &Aout,
                                                   OccaVector &X, OccaVector &B) {
+
     OccaConstrainedOperator *A = new OccaConstrainedOperator(device,
                                                              rap, ess_tdof_list,
                                                              rap != this);
@@ -205,9 +260,6 @@ namespace mfem {
       it->free();
       ++it;
     }
-
-    // Free device
-    device.free();
   }
   //====================================
 
@@ -218,7 +270,7 @@ namespace mfem {
                       "v0[idx] = v1[idx];");
 
   occa::kernelBuilder OccaConstrainedOperator::clear_dof_builder =
-    makeCustomBuilder("vector_map_dofs",
+    makeCustomBuilder("vector_clear_dofs",
                       "v0[v1[i]] = 0.0;");
 
   OccaConstrainedOperator::OccaConstrainedOperator(Operator *A_,
@@ -264,17 +316,13 @@ namespace mfem {
 
     w = 0.0;
 
-    if (constraint_indices) {
-      map_dofs(constraint_indices, w.GetData(), x.GetData(), constraint_list);
-    }
+    map_dofs(constraint_indices, w.GetData(), x.GetData(), constraint_list);
 
     A->Mult(w, z);
 
     b -= z;
 
-    if (constraint_indices) {
-      map_dofs(constraint_indices, b.GetData(), x.GetData(), constraint_list);
-    }
+    map_dofs(constraint_indices, b.GetData(), x.GetData(), constraint_list);
   }
 
   void OccaConstrainedOperator::Mult(const OccaVector &x, OccaVector &y) const {
@@ -299,6 +347,7 @@ namespace mfem {
     if (own_A) {
       delete A;
     }
+    constraint_list.free();
   }
   //====================================
 }
