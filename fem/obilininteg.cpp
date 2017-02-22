@@ -33,15 +33,16 @@ namespace mfem {
     // Add quadrature points
     const FiniteElement &fe = bf.GetFE(0);
     const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
-    kernelProps["kernel/defines/NUM_QPTS"] = ir.GetNPoints();
+    kernelProps["defines/NUM_QPTS"] = ir.GetNPoints();
 
     // Hard-coded to ConstantCoefficient for now
     const ConstantCoefficient* coeff =
       (const ConstantCoefficient*) integ.GetCoefficient();
 
-    kernelProps["kernel/defines/COEFF_EVAL(el,q)"] = coeff->constant;
+    kernelProps["defines/COEFF_EVAL(el,q)"] = coeff->constant;
 
-    return bf.getDevice().buildKernel("occaBilinearIntegrators.okl",
+    // [-] Missing a good way of fetching the kernel
+    return bf.getDevice().buildKernel("obilininteg.okl",
                                       kernelName,
                                       kernelProps);
   }

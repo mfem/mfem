@@ -135,6 +135,9 @@ public:
        @a x, for this Operator (presumably a finite element grid function). This
        method has identical signature to the analogous method for bilinear
        forms, though currently @a b is not used in the implementation. */
+   template <class TVector>
+   void TRecoverFEMSolution(const TVector &X, const TVector &b, TVector &x);
+
    void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
 
   /** @brief Impose the boundary conditions through a constrained operator,
@@ -495,6 +498,19 @@ void Operator::TFormLinearSystem(const Array<int> &ess_tdof_list,
   // the rap operator when P and R are non-trivial
   ImposeBoundaryConditions(ess_tdof_list, rap,
                            Aout, X, B);
+}
+
+template <class TVector>
+void Operator::TRecoverFEMSolution(const TVector &X, const TVector &b, TVector &x)
+{
+  const Operator *P = this->GetProlongation();
+  if (P)
+  {
+    // Apply conforming prolongation
+    x.SetSize(P->Height());
+    P->Mult(X, x);
+  }
+  // Otherwise X and x point to the same data
 }
 
 }

@@ -119,6 +119,8 @@ namespace mfem {
                           Operator* &Aout, OccaVector &X, OccaVector &B,
                           int copy_interior = 0);
 
+    void RecoverFEMSolution(const OccaVector &X, const OccaVector &b, OccaVector &x);
+
     virtual void ImposeBoundaryConditions(const Array<int> &ess_tdof_list,
                                           Operator *rap,
                                           Operator* &Aout, OccaVector &X, OccaVector &B);

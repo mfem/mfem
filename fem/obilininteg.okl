@@ -41,7 +41,7 @@ typedef double* grad_3D_t @(dim(numElements, NUM_QPTS, NUM_VDIM, 3), GRAD_IDX_OR
                         const int el,
                         const int q)
 */
-
+/*
 kernel () {
   for (element) {
     // Compute Jacobian, deter ... (only what is needed)
@@ -49,6 +49,7 @@ kernel () {
     }
   }
 }
+*/
 
 kernel void DiffusionIntegrator1D(const int numElements,
                                   const Jt_1D_t restrict Jt,

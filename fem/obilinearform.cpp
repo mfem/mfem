@@ -21,6 +21,7 @@ namespace mfem {
   OccaBilinearForm::IntegratorBuilderMap OccaBilinearForm::integratorBuilders;
 
   OccaBilinearForm::OccaBilinearForm(FiniteElementSpace *f) :
+    Operator(f->GetVSize()),
     fes(f),
     mesh(fes->GetMesh()),
     device(occa::currentDevice()) {
@@ -49,9 +50,9 @@ namespace mfem {
   void OccaBilinearForm::SetupBaseKernelProps() {
     const std::string &mode = device.properties()["mode"];
 
-    baseKernelProps["kernel/defines/ELEMENT_BATCH"] = 1;
-    baseKernelProps["kernel/defines/NUM_DOFS"]      = GetNDofs();
-    baseKernelProps["kernel/defines/NUM_VDIM"]      = GetVSize();
+    baseKernelProps["defines/ELEMENT_BATCH"] = 1;
+    baseKernelProps["defines/NUM_DOFS"]      = GetNDofs();
+    baseKernelProps["defines/NUM_VDIM"]      = GetVSize();
   }
 
   occa::device OccaBilinearForm::getDevice() {
@@ -237,6 +238,13 @@ namespace mfem {
                                   copy_interior);
   }
 
+
+  void OccaBilinearForm::RecoverFEMSolution(const OccaVector &X,
+                                            const OccaVector &b,
+                                            OccaVector &x) {
+    TRecoverFEMSolution<OccaVector>(X, b, x);
+  }
+
   void OccaBilinearForm::ImposeBoundaryConditions(const Array<int> &ess_tdof_list,
                                                   Operator *rap,
                                                   Operator* &Aout,
@@ -267,17 +275,19 @@ namespace mfem {
   occa::kernelBuilder OccaConstrainedOperator::map_dof_builder =
     makeCustomBuilder("vector_map_dofs",
                       "const int idx = v2[i];"
-                      "v0[idx] = v1[idx];");
+                      "v0[idx] = v1[idx];",
+                      "defines: { VTYPE2: 'int' }");
 
   occa::kernelBuilder OccaConstrainedOperator::clear_dof_builder =
     makeCustomBuilder("vector_clear_dofs",
-                      "v0[v1[i]] = 0.0;");
+                      "v0[v1[i]] = 0.0;",
+                      "defines: { VTYPE1: 'int' }");
 
   OccaConstrainedOperator::OccaConstrainedOperator(Operator *A_,
                                                    const Array<int> &constraint_list_,
                                                    bool own_A_) :
     Operator(A_->Height(), A_->Width()) {
-    setup(occa::currentDevice(), A, constraint_list_, own_A_);
+    setup(occa::currentDevice(), A_, constraint_list_, own_A_);
   }
 
   OccaConstrainedOperator::OccaConstrainedOperator(occa::device device_,
@@ -285,7 +295,7 @@ namespace mfem {
                                                    const Array<int> &constraint_list_,
                                                    bool own_A_) :
     Operator(A_->Height(), A_->Width()) {
-    setup(device_, A, constraint_list_, own_A_);
+    setup(device_, A_, constraint_list_, own_A_);
   }
 
   void OccaConstrainedOperator::setup(occa::device device_,
@@ -303,8 +313,8 @@ namespace mfem {
                                       constraint_list_.GetData());
     }
 
-    z.SetSize(height);
-    w.SetSize(height);
+    z.SetSize(device, height);
+    w.SetSize(device, height);
   }
 
   void OccaConstrainedOperator::EliminateRHS(const OccaVector &x, OccaVector &b) const {

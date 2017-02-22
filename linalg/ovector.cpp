@@ -18,30 +18,31 @@
 namespace mfem {
   /// @brief Creates vector of size s using the current OCCA device
   /// @warning Entries are not initialized to zero!
-  OccaVector::OccaVector(const int64_t size)
-  {
-    size_ = size;
-    data = occa::currentDevice().malloc(size_ * sizeof(double));
+  OccaVector::OccaVector(const int64_t size) {
+    SetSize(size);
+  }
+
+  /// Copy constructor.
+  OccaVector::OccaVector(const OccaVector &other) {
+    const int entries = other.Size();
+    SetSize(other.data.getDevice(), entries);
+    occa::memcpy(data, other.data, entries * sizeof(double));
   }
 
   /// @brief Creates vector of size s using the default OCCA device
   /// @warning Entries are not initialized to zero!
-  OccaVector::OccaVector(occa::device device, const int64_t size)
-  {
-    size_ = size;
-    data = device.malloc(size_ * sizeof(double));
+  OccaVector::OccaVector(occa::device device, const int64_t size) {
+    SetSize(device, size);
   }
 
   /// Creates vector based on Vector using the current OCCA device
   OccaVector::OccaVector(const Vector &v) {
-    size_ = v.Size();
-    data = occa::currentDevice().malloc(size_ * sizeof(double), v.GetData());
+    SetSize(v.Size(), v.GetData());
   }
 
   /// Creates vector based on Vector using the passed OCCA device
   OccaVector::OccaVector(occa::device device, const Vector &v) {
-    size_ = v.Size();
-    data = device.malloc(size_ * sizeof(double), v.GetData());
+    SetSize(device, v.Size(), v.GetData());
   }
 
   /// @brief Resize the vector to size @a s.
@@ -50,14 +51,23 @@ namespace mfem {
       owned, and a new array of size @a s is allocated without copying the
       previous content of the Vector.
       @warning New entries are not initialized! */
-  void OccaVector::SetSize(const int64_t size)
-  {
-    if (data.size() < size)
-      {
-        occa::device device = data.getDevice();
+  void OccaVector::SetSize(const int64_t size, const void *src) {
+    if (data.isInitialized()) {
+      SetSize(data.getDevice(), size, src);
+    } else {
+      SetSize(occa::currentDevice(), size, src);
+    }
+  }
+
+  void OccaVector::SetSize(occa::device device, const int64_t size, const void *src) {
+    if (size) {
+      if (data.size() < size) {
         data.free();
-        data = device.malloc(size_ * sizeof(double));
+        data = device.malloc(size * sizeof(double), src);
+      } else if (src) {
+        occa::memcpy(data, src, size * sizeof(double));
       }
+    }
     size_ = size;
   }
 
@@ -72,6 +82,7 @@ namespace mfem {
   /// Redefine '=' for vector = vector.
   OccaVector& OccaVector::operator = (const OccaVector &v)
   {
+    SetSize(v.Size());
     occa::memcpy(data, v.data, size_ * sizeof(double));
     return *this;
   }
@@ -173,7 +184,8 @@ namespace mfem {
     static occa::kernelBuilder builder =
       makeCustomBuilder("vector_get_subvector",
                         "const int dof_i = v2[i];"
-                        "v0[i] = dof_i >= 0 ? v1[dof_i] : -v1[-dof_i - 1];");
+                        "v0[i] = dof_i >= 0 ? v1[dof_i] : -v1[-dof_i - 1];",
+                        "defines: { VTYPE2: 'int' }");
 
     occa::device dev = data.getDevice();
     occa::kernel kernel = builder.build(dev);
@@ -212,7 +224,8 @@ namespace mfem {
       makeCustomBuilder("vector_set_subvector",
                         "const int dof_i = v2[i];"
                         "if (dof_i >= 0) { v0[dof_i]      += v1[i]; }"
-                        "else            { v0[-dof_i - 1] -= v1[i]; }");
+                        "else            { v0[-dof_i - 1] -= v1[i]; }",
+                        "defines: { VTYPE2: 'int' }");
 
     occa::device dev = data.getDevice();
     occa::kernel kernel = builder.build(dev);
@@ -228,7 +241,8 @@ namespace mfem {
       makeCustomBuilder("vector_set_subvector_const",
                         "const int dof_i = v1[i];"
                         "if (dof_i >= 0) { v0[dof_i]      =  c0; }"
-                        "else            { v0[-dof_i - 1] = -c0; }");
+                        "else            { v0[-dof_i - 1] = -c0; }",
+                        "defines: { VTYPE1: 'int' }");
 
     occa::device dev = data.getDevice();
     occa::kernel kernel = builder.build(data.getDevice());
@@ -298,16 +312,20 @@ namespace mfem {
   }
 
   occa::kernelBuilder makeCustomBuilder(const std::string &kernelName,
-                                        const std::string &formula) {
-    return occa::linalg::customLinearMethod(kernelName, formula,
-                                            "defines: {"
-                                            "  CTYPE0: 'double',"
-                                            "  CTYPE1: 'double',"
-                                            "  VTYPE0: 'double',"
-                                            "  VTYPE1: 'double',"
-                                            "  VTYPE2: 'double',"
-                                            "  TILESIZE: 128,"
-                                            "};");
+                                        const std::string &formula,
+                                        occa::properties props) {
+    static occa::properties defaults("defines: {"
+                                     "  CTYPE0: 'double',"
+                                     "  CTYPE1: 'double',"
+                                     "  VTYPE0: 'double',"
+                                     "  VTYPE1: 'double',"
+                                     "  VTYPE2: 'double',"
+                                     "  TILESIZE: 128,"
+                                     "}");
+
+    return occa::linalg::customLinearMethod(kernelName,
+                                            formula,
+                                            defaults + props);
   }
 
   ///---[ Addition ]--------------------

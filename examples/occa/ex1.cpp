@@ -80,6 +80,7 @@ int main(int argc, char *argv[])
 
   // Set the OCCA device to run example in
   occa::setDevice(device_info);
+  occa::settings()["verboseCompilation"] = true;
 
   enum PCType { NONE, LOR, HO };
   PCType pc_choice;
@@ -237,7 +238,7 @@ int main(int argc, char *argv[])
     }
 
   // 11. Recover the solution as a finite element grid function.
-  a->RecoverFEMSolution(X, *b, x);
+  a->RecoverFEMSolution(X, b, x);
 
   // 12. Save the refined mesh and the solution. This output can be viewed later
   //     using GLVis: "glvis -m refined.mesh -g sol.gf".

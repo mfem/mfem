@@ -40,17 +40,7 @@ void Operator::ImposeBoundaryConditions(const Array<int> &ess_tdof_list,
 
 void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
 {
-   const Operator *P = this->GetProlongation();
-   if (P)
-   {
-      // Apply conforming prolongation
-      x.SetSize(P->Height());
-      P->Mult(X, x);
-   }
-   else
-   {
-      // X and x point to the same data
-   }
+  TRecoverFEMSolution(X, b, x);
 }
 
 void Operator::PrintMatlab(std::ostream & out, int n, int m) const

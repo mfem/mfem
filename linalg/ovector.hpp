@@ -37,10 +37,7 @@ namespace mfem
     inline OccaVector() {}
 
     /// Copy constructor.
-    /// @warning Uses the same memory
-    inline OccaVector(const OccaVector &other) :
-      size_(other.size_),
-      data(other.data) {}
+    OccaVector(const OccaVector &other);
 
     /// @brief Creates vector of size s using the current OCCA device
     /// @warning Entries are not initialized to zero!
@@ -62,7 +59,8 @@ namespace mfem
         owned, and a new array of size @a s is allocated without copying the
         previous content of the Vector.
         @warning New entries are not initialized! */
-    void SetSize(const int64_t size);
+    void SetSize(const int64_t size, const void *src = NULL);
+    void SetSize(occa::device device, const int64_t size, const void *src = NULL);
 
     /// Destroy a vector
     void Destroy();
@@ -211,7 +209,8 @@ namespace mfem
   };
 
   occa::kernelBuilder makeCustomBuilder(const std::string &kernelName,
-                                        const std::string &formula);
+                                        const std::string &formula,
+                                        occa::properties props = occa::properties());
 }
 
 #  endif
