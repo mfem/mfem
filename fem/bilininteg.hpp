@@ -2322,6 +2322,222 @@ public:
                                        DenseMatrix &elmat);
 };
 
+/** Class for constructing the scalar product as a
+    DiscreteLinearOperator.  This can be used to map a scalar
+    coefficient multiplied by a scalar field onto another scalar
+    field.  Note that this can produce very inaccurate fields unless
+    the target field is sufficiently high order. */
+class ScalarProductInterpolator : public DiscreteInterpolator
+{
+public:
+   ScalarProductInterpolator(Coefficient & sc)
+      : sp_(sc) {}
+
+   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                                       const FiniteElement &ran_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+private:
+
+   class ScalarProduct_ : public Coefficient
+   {
+   public:
+      ScalarProduct_(Coefficient & sc)
+         : sc_(&sc), fe_(NULL), ind_(0)
+      {}
+
+      void SetBasis(const FiniteElement & fe)
+      {
+         fe_ = &fe;
+         shape_.SetSize(fe.GetDof());
+      }
+      void SetIndex(int ind) { ind_ = ind; }
+      double Eval(ElementTransformation &T,
+                  const IntegrationPoint &ip);
+
+   private:
+      Coefficient * sc_;
+      const FiniteElement * fe_;
+      Vector shape_;
+      int ind_;
+   };
+
+   ScalarProduct_ sp_;
+};
+
+/** Class for constructing the scalar product as a
+    DiscreteLinearOperator.  This can be used to map a scalar
+    coefficient multiplied by a vector field onto another vector
+    field.  Note that this can produce very inaccurate fields unless
+    the target field is sufficiently high order. */
+class ScalarVectorProductInterpolator : public DiscreteInterpolator
+{
+public:
+   ScalarVectorProductInterpolator(int vdim, Coefficient & sc)
+      : sp_(vdim, sc) {}
+
+   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                                       const FiniteElement &ran_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+private:
+
+   class ScalarProduct_ : public VectorCoefficient
+   {
+   public:
+      ScalarProduct_(int vdim, Coefficient & sc)
+         : VectorCoefficient(vdim), sc_(&sc), fe_(NULL), ind_(0)
+      {}
+
+      void SetBasis(const FiniteElement & fe)
+      {
+         fe_ = &fe;
+         vshape_.SetSize(fe.GetDof(), vdim);
+      }
+      void SetIndex(int ind) { ind_ = ind; }
+      void Eval(Vector & vs, ElementTransformation &T,
+                const IntegrationPoint &ip);
+
+   private:
+      Coefficient * sc_;
+      const FiniteElement * fe_;
+      DenseMatrix vshape_;
+      int ind_;
+   };
+
+   ScalarProduct_ sp_;
+};
+
+/** Class for constructing the vector product as a
+    DiscreteLinearOperator.  This can be used to map a vector
+    coefficient multiplied by a scalar field onto another vector
+    field.  Note that this can produce very inaccurate fields unless
+    the target field is sufficiently high order. */
+class VectorScalarProductInterpolator : public DiscreteInterpolator
+{
+public:
+   VectorScalarProductInterpolator(VectorCoefficient & vc)
+      : sp_(vc) {}
+
+   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                                       const FiniteElement &ran_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+private:
+
+   class ScalarProduct_ : public VectorCoefficient
+   {
+   public:
+      ScalarProduct_(VectorCoefficient & vc)
+         : VectorCoefficient(vc.GetVDim()), vc_(&vc), fe_(NULL), ind_(0)
+      {}
+
+      void SetBasis(const FiniteElement & fe)
+      {
+         fe_ = &fe;
+         shape_.SetSize(fe.GetDof());
+      }
+      void SetIndex(int ind) { ind_ = ind; }
+      void Eval(Vector & vs, ElementTransformation &T,
+                const IntegrationPoint &ip);
+
+   private:
+      VectorCoefficient * vc_;
+      Vector v_;
+      const FiniteElement * fe_;
+      Vector shape_;
+      int ind_;
+   };
+
+   ScalarProduct_ sp_;
+};
+
+/** Class for constructing the vector cross product as a DiscreteLinearOperator
+    from an H(curl)-conforming space to an H(div)-conforming space. The range
+    space can be vector L2 space as well. */
+class VectorCrossProductInterpolator : public DiscreteInterpolator
+{
+public:
+   VectorCrossProductInterpolator(VectorCoefficient & vc)
+      : cp_(vc) {}
+
+   virtual void AssembleElementMatrix2(const FiniteElement &nd_fe,
+                                       const FiniteElement &rt_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+private:
+
+   class CrossProduct_ : public VectorCoefficient
+   {
+   public:
+      CrossProduct_(VectorCoefficient & vc)
+         : VectorCoefficient(3), vc_(&vc), fe_(NULL), ind_(0)
+      {
+         MFEM_ASSERT( vc.GetVDim() == 3,
+                      "Vector Cross products are only defined in three dimensions");
+      }
+      void SetBasis(const FiniteElement & fe)
+      {
+         fe_ = &fe;
+         vshape_.SetSize(fe.GetDof(),vc_->GetVDim());
+      }
+      void SetIndex(int ind) { ind_ = ind; }
+      void Eval(Vector & vxw, ElementTransformation &T,
+                const IntegrationPoint &ip);
+
+   private:
+      VectorCoefficient * vc_;
+      Vector v_;
+      const FiniteElement * fe_;
+      DenseMatrix vshape_;
+      int ind_;
+   };
+
+   CrossProduct_ cp_;
+};
+
+/** Class for constructing the vector inner product as a DiscreteLinearOperator
+    from an H(div)-conforming space to an L2-conforming space. The range
+    space can be vector H1 space as well. */
+class VectorInnerProductInterpolator : public DiscreteInterpolator
+{
+public:
+   VectorInnerProductInterpolator(VectorCoefficient & vc)
+      : ip_(vc) {}
+
+   virtual void AssembleElementMatrix2(const FiniteElement &rt_fe,
+                                       const FiniteElement &l2_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+private:
+
+   class InnerProduct_ : public Coefficient
+   {
+   public:
+      InnerProduct_(VectorCoefficient & vc)
+         : vc_(&vc), fe_(NULL), ind_(0)
+      {
+      }
+      void SetBasis(const FiniteElement & fe)
+      {
+         fe_ = &fe;
+         vshape_.SetSize(fe.GetDof(),vc_->GetVDim());
+      }
+      void SetIndex(int ind) { ind_ = ind; }
+      double Eval(ElementTransformation &T,
+                  const IntegrationPoint &ip);
+
+   private:
+      VectorCoefficient * vc_;
+      Vector v_;
+      const FiniteElement * fe_;
+      DenseMatrix vshape_;
+      int ind_;
+   };
+
+   InnerProduct_ ip_;
+};
+
 }
 
 #endif

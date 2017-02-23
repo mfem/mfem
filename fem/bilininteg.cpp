@@ -3021,4 +3021,199 @@ void NormalInterpolator::AssembleElementMatrix2(
    }
 }
 
+void
+ScalarProductInterpolator::AssembleElementMatrix2(const FiniteElement &dom_fe,
+                                                  const FiniteElement &ran_fe,
+                                                  ElementTransformation &Trans,
+                                                  DenseMatrix &elmat)
+{
+   Vector ran_proj(ran_fe.GetDof());
+
+   sp_.SetBasis(dom_fe);
+
+   elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
+   for (int k = 0; k < dom_fe.GetDof(); k++)
+   {
+      sp_.SetIndex(k);
+
+      ran_fe.Project(sp_,Trans,ran_proj);
+
+      for (int j = 0; j < ran_fe.GetDof(); j++)
+      {
+         elmat(j,k) = ran_proj(j);
+      }
+   }
+}
+
+double
+ScalarProductInterpolator::ScalarProduct_::Eval(ElementTransformation &T,
+                                                const IntegrationPoint &ip)
+{
+   fe_->CalcPhysShape(T, shape_);
+   return sc_->Eval(T, ip) * shape_(ind_);
+}
+
+void
+ScalarVectorProductInterpolator::AssembleElementMatrix2(
+   const FiniteElement &dom_fe,
+   const FiniteElement &ran_fe,
+   ElementTransformation &Trans,
+   DenseMatrix &elmat)
+{
+   Vector ran_proj(ran_fe.GetDof());
+
+   sp_.SetBasis(dom_fe);
+
+   elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
+   for (int k = 0; k < dom_fe.GetDof(); k++)
+   {
+      sp_.SetIndex(k);
+
+      ran_fe.Project(sp_,Trans,ran_proj);
+
+      for (int j = 0; j < ran_fe.GetDof(); j++)
+      {
+         elmat(j,k) = ran_proj(j);
+      }
+   }
+}
+
+void
+ScalarVectorProductInterpolator::ScalarProduct_::Eval(
+   Vector & vs,
+   ElementTransformation &T,
+   const IntegrationPoint &ip)
+{
+   vs.SetSize(vdim);
+
+   fe_->CalcVShape(T, vshape_);
+   double s = sc_->Eval(T, ip);
+
+   for (int i=0; i<vdim; i++)
+   {
+      vs(i) = s * vshape_(ind_,i);
+   }
+}
+
+void
+VectorScalarProductInterpolator::AssembleElementMatrix2(
+   const FiniteElement &dom_fe,
+   const FiniteElement &ran_fe,
+   ElementTransformation &Trans,
+   DenseMatrix &elmat)
+{
+   Vector ran_proj(ran_fe.GetDof());
+
+   sp_.SetBasis(dom_fe);
+
+   elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
+   for (int k = 0; k < dom_fe.GetDof(); k++)
+   {
+      sp_.SetIndex(k);
+
+      ran_fe.Project(sp_,Trans,ran_proj);
+
+      for (int j = 0; j < ran_fe.GetDof(); j++)
+      {
+         elmat(j,k) = ran_proj(j);
+      }
+   }
+}
+
+void
+VectorScalarProductInterpolator::ScalarProduct_::Eval(
+   Vector & vs,
+   ElementTransformation &T,
+   const IntegrationPoint &ip)
+{
+   vs.SetSize(vc_->GetVDim());
+
+   fe_->CalcPhysShape(T, shape_);
+   vc_->Eval(v_, T, ip);
+
+   for (int i=0; i<v_.Size(); i++)
+   {
+      vs(i) = v_(i) * shape_(ind_);
+   }
+}
+
+void
+VectorCrossProductInterpolator::AssembleElementMatrix2(
+   const FiniteElement &dom_fe,
+   const FiniteElement &ran_fe,
+   ElementTransformation &Trans,
+   DenseMatrix &elmat)
+{
+   Vector ran_proj(ran_fe.GetDof());
+
+   cp_.SetBasis(dom_fe);
+
+   elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
+   for (int k = 0; k < dom_fe.GetDof(); k++)
+   {
+      cp_.SetIndex(k);
+
+      ran_fe.Project(cp_,Trans,ran_proj);
+
+      for (int j = 0; j < ran_fe.GetDof(); j++)
+      {
+         elmat(j,k) = ran_proj(j);
+      }
+   }
+}
+
+void
+VectorCrossProductInterpolator::CrossProduct_::Eval(Vector & vxw,
+                                                    ElementTransformation &T,
+                                                    const IntegrationPoint &ip)
+{
+   vxw.SetSize(3);
+
+   fe_->CalcVShape(T, vshape_);
+   vc_->Eval(v_, T, ip);
+
+   vxw(0) = v_(1) * vshape_(ind_,2) - v_(2) * vshape_(ind_,1);
+   vxw(1) = v_(2) * vshape_(ind_,0) - v_(0) * vshape_(ind_,2);
+   vxw(2) = v_(0) * vshape_(ind_,1) - v_(1) * vshape_(ind_,0);
+}
+
+void
+VectorInnerProductInterpolator::AssembleElementMatrix2(
+   const FiniteElement &dom_fe,
+   const FiniteElement &ran_fe,
+   ElementTransformation &Trans,
+   DenseMatrix &elmat)
+{
+   Vector ran_proj(ran_fe.GetDof());
+
+   ip_.SetBasis(dom_fe);
+
+   elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
+   for (int k = 0; k < dom_fe.GetDof(); k++)
+   {
+      ip_.SetIndex(k);
+
+      ran_fe.Project(ip_,Trans,ran_proj);
+
+      for (int j = 0; j < ran_fe.GetDof(); j++)
+      {
+         elmat(j,k) = ran_proj(j);
+      }
+   }
+}
+
+double
+VectorInnerProductInterpolator::InnerProduct_::Eval(ElementTransformation &T,
+                                                    const IntegrationPoint &ip)
+{
+   fe_->CalcVShape(T, vshape_);
+   vc_->Eval(v_, T, ip);
+
+   double val = 0.0;
+
+   for (int i=0; i<v_.Size(); i++) { val += v_[i] * vshape_(ind_, i); }
+
+   return val;
+}
+
 }
