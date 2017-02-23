@@ -196,12 +196,12 @@ int main(int argc, char *argv[])
    std::streamsize old_prec = cout.precision(14);
    for (int i=0; i<nev; i++)
    {
-     cout << "Eigenvalue lambda   " << eigenvalues[i] << endl;
+      cout << "Eigenvalue lambda   " << eigenvalues[i] << endl;
    }
    cout.precision(old_prec);
    cout.flags(old_fmt);
    cout << endl;
-   
+
    GridFunction x(fespace);
 
    // 9. Save the refined mesh and the modes in parallel. This output can be

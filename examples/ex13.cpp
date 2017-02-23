@@ -94,8 +94,8 @@ int main(int argc, char *argv[])
 
    cout << "Number of unknowns: " << size << endl;
    cout << "Number of boundary attributes: " << mesh->bdr_attributes.Max()
-	<< endl;
-   
+        << endl;
+
    // 5. Set up the parallel bilinear form corresponding to the EM diffusion
    //    operator curl muinv curl - sigma I, by adding the curl-curl and the
    //    mass domain integrators and finally imposing homogeneous Dirichlet
@@ -134,30 +134,30 @@ int main(int argc, char *argv[])
    Solver    * solver = NULL;
    if ( false )
    {
-     GMRESSolver *  gmres = new GMRESSolver();
+      GMRESSolver *  gmres = new GMRESSolver();
 
-     gmres->SetOperator(*a);
-     gmres->SetRelTol(1e-8);
-     gmres->SetMaxIter(1000);
-     gmres->SetPrintLevel(0);
-     solver = gmres;
+      gmres->SetOperator(*a);
+      gmres->SetRelTol(1e-8);
+      gmres->SetMaxIter(1000);
+      gmres->SetPrintLevel(0);
+      solver = gmres;
    }
    else
    {
 #ifndef MFEM_USE_SUITESPARSE
-     cout << "Building MINRESSolver" << endl;
-     MINRESSolver * minres = new MINRESSolver();
+      cout << "Building MINRESSolver" << endl;
+      MINRESSolver * minres = new MINRESSolver();
 
-     minres->SetRelTol(1e-12);
-     minres->SetMaxIter(1000);
-     minres->SetPrintLevel(0);
-     solver = minres;
+      minres->SetRelTol(1e-12);
+      minres->SetMaxIter(1000);
+      minres->SetPrintLevel(0);
+      solver = minres;
 #else
-   // 7. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-   cout << "Building UMFPackSolver" << endl;
-   UMFPackSolver * umf_solver = new UMFPackSolver;
-   umf_solver->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   solver = umf_solver;
+      // 7. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+      cout << "Building UMFPackSolver" << endl;
+      UMFPackSolver * umf_solver = new UMFPackSolver;
+      umf_solver->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      solver = umf_solver;
 #endif
    }
    solver->SetOperator(a->SpMat());
@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
    std::streamsize old_prec = cout.precision(14);
    for (int i=0; i<min(nev,eigenvalues.Size()); i++)
    {
-     cout << "Eigenvalue lambda   " << eigenvalues[i] << endl;
+      cout << "Eigenvalue lambda   " << eigenvalues[i] << endl;
    }
    cout.precision(old_prec);
    cout.flags(old_fmt);
@@ -218,7 +218,7 @@ int main(int argc, char *argv[])
       {
          x = arpack->GetEigenvector(i);
 
-	 ostringstream modeName;
+         ostringstream modeName;
          modeName << "mode_" << setfill('0') << setw(2) << i;
 
          ofstream mode_ofs(modeName.str().c_str());
@@ -243,8 +243,8 @@ int main(int argc, char *argv[])
          mode_sock << "solution\n" << *mesh << x << flush;
 
          char c;
-	 cout << "press (q)uit or (c)ontinue --> " << flush;
-	 cin >> c;
+         cout << "press (q)uit or (c)ontinue --> " << flush;
+         cin >> c;
 
          if (c != 'c')
          {
