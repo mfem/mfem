@@ -68,6 +68,14 @@ void ParGridFunction::Update()
    GridFunction::Update();
 }
 
+void ParGridFunction::SetSpace(FiniteElementSpace *f)
+{
+   face_nbr_data.Destroy();
+   GridFunction::SetSpace(f);
+   pfes = dynamic_cast<ParFiniteElementSpace*>(f);
+   MFEM_ASSERT(pfes != NULL, "not a ParFiniteElementSpace");
+}
+
 void ParGridFunction::SetSpace(ParFiniteElementSpace *f)
 {
    face_nbr_data.Destroy();
@@ -75,11 +83,27 @@ void ParGridFunction::SetSpace(ParFiniteElementSpace *f)
    pfes = f;
 }
 
+void ParGridFunction::MakeRef(FiniteElementSpace *f, double *v)
+{
+   face_nbr_data.Destroy();
+   GridFunction::MakeRef(f, v);
+   pfes = dynamic_cast<ParFiniteElementSpace*>(f);
+   MFEM_ASSERT(pfes != NULL, "not a ParFiniteElementSpace");
+}
+
 void ParGridFunction::MakeRef(ParFiniteElementSpace *f, double *v)
 {
    face_nbr_data.Destroy();
    GridFunction::MakeRef(f, v);
    pfes = f;
+}
+
+void ParGridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
+{
+   face_nbr_data.Destroy();
+   GridFunction::MakeRef(f, v, v_offset);
+   pfes = dynamic_cast<ParFiniteElementSpace*>(f);
+   MFEM_ASSERT(pfes != NULL, "not a ParFiniteElementSpace");
 }
 
 void ParGridFunction::MakeRef(ParFiniteElementSpace *f, Vector &v, int v_offset)
@@ -328,14 +352,8 @@ void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
    HypreParVector *tv = this->ParallelAssemble();
    this->Distribute(tv);
    delete tv;
-   for (int i = 0; i < fes->GetVSize(); i++)
-   {
-      (*this)(i) /= zones_per_vdof[i];
-      if (type == HARMONIC)
-      {
-         (*this)(i) = 1.0 / (*this)(i);
-      }
-   }
+
+   ComputeMeans(type, zones_per_vdof);
 }
 
 void ParGridFunction::Save(std::ostream &out) const

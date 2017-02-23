@@ -76,14 +76,38 @@ public:
 
    virtual void Update();
 
-   virtual void SetSpace(ParFiniteElementSpace *f);
+   /// Associate a new FiniteElementSpace with the ParGridFunction.
+   /** The ParGridFunction is resized using the SetSize() method. The new space
+       @a f is expected to be a ParFiniteElementSpace. */
+   virtual void SetSpace(FiniteElementSpace *f);
+
+   /// Associate a new parallel space with the ParGridFunction.
+   void SetSpace(ParFiniteElementSpace *f);
+
+   /** @brief Make the ParGridFunction reference external data on a new
+       FiniteElementSpace. */
+   /** This method changes the FiniteElementSpace associated with the
+       ParGridFunction and sets the pointer @a v as external data in the
+       ParGridFunction. The new space @a f is expected to be a
+       ParFiniteElementSpace. */
+   virtual void MakeRef(FiniteElementSpace *f, double *v);
 
    /** @brief Make the ParGridFunction reference external data on a new
        ParFiniteElementSpace. */
    /** This method changes the ParFiniteElementSpace associated with the
        ParGridFunction and sets the pointer @a v as external data in the
        ParGridFunction. */
-   virtual void MakeRef(ParFiniteElementSpace *f, double *v);
+   void MakeRef(ParFiniteElementSpace *f, double *v);
+
+   /** @brief Make the ParGridFunction reference external data on a new
+       FiniteElementSpace. */
+   /** This method changes the FiniteElementSpace associated with the
+       ParGridFunction and sets the data of the Vector @a v (plus the @a
+       v_offset) as external data in the ParGridFunction. The new space @a f is
+       expected to be a ParFiniteElementSpace.
+       @note This version of the method will also perform bounds checks when
+       the build option MFEM_DEBUG is enabled. */
+   virtual void MakeRef(FiniteElementSpace *f, Vector &v, int v_offset);
 
    /** @brief Make the ParGridFunction reference external data on a new
        ParFiniteElementSpace. */
@@ -92,7 +116,7 @@ public:
        @a v_offset) as external data in the ParGridFunction.
        @note This version of the method will also perform bounds checks when
        the build option MFEM_DEBUG is enabled. */
-   virtual void MakeRef(ParFiniteElementSpace *f, Vector &v, int v_offset);
+   void MakeRef(ParFiniteElementSpace *f, Vector &v, int v_offset);
 
    /** Set the grid function on (all) dofs from a given vector on the
        true dofs, i.e. P tv. */

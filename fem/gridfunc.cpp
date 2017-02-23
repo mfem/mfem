@@ -1171,7 +1171,7 @@ void GridFunction::AccumulateAndCountZones(Coefficient &coeff,
                                            Array<int> &zones_per_vdof)
 {
    zones_per_vdof.SetSize(fes->GetVSize());
-   zones_per_vdof = 0.0;
+   zones_per_vdof = 0;
 
    // Local interpolation
    Array<int> vdofs;
@@ -1201,6 +1201,29 @@ void GridFunction::AccumulateAndCountZones(Coefficient &coeff,
 
          zones_per_vdof[vdofs[j]]++;
       }
+   }
+}
+
+void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
+{
+   switch (type)
+   {
+      case ARITHMETIC:
+         for (int i = 0; i < size; i++)
+         {
+            (*this)(i) /= zones_per_vdof[i];
+         }
+         break;
+
+      case HARMONIC:
+         for (int i = 0; i < size; i++)
+         {
+            (*this)(i) = zones_per_vdof[i]/(*this)(i);
+         }
+         break;
+
+      default:
+         MFEM_ABORT("invalud AvgType");
    }
 }
 
@@ -1441,14 +1464,7 @@ void GridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
    Array<int> zones_per_vdof;
    AccumulateAndCountZones(coeff, type, zones_per_vdof);
 
-   for (int i = 0; i < fes->GetVSize(); i++)
-   {
-      (*this)(i) /= zones_per_vdof[i];
-      if (type == HARMONIC)
-      {
-         (*this)(i) = 1.0 / (*this)(i);
-      }
-   }
+   ComputeMeans(type, zones_per_vdof);
 }
 
 void GridFunction::ProjectBdrCoefficient(

@@ -205,6 +205,10 @@ protected:
    void AccumulateAndCountZones(Coefficient &coeff, AvgType type,
                                 Array<int> &zones_per_vdof);
 
+   // Complete the computation of averages; called e.g. after
+   // AccumulateAndCountZones().
+   void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
+
 public:
    void ProjectBdrCoefficient(Coefficient &coeff, Array<int> &attr)
    {
@@ -305,6 +309,8 @@ public:
    FiniteElementSpace *FESpace() { return fes; }
    const FiniteElementSpace *FESpace() const { return fes; }
 
+   /// Associate a new FiniteElementSpace with the GridFunction.
+   /** The GridFunction is resized using the SetSize() method. */
    virtual void SetSpace(FiniteElementSpace *f);
 
    /** @brief Make the GridFunction reference external data on a new
