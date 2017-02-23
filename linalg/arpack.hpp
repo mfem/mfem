@@ -79,7 +79,7 @@ class ArPackSym
 public:
 
    ArPackSym();
-   ~ArPackSym();
+   virtual ~ArPackSym();
 
    /** ARPACK modes are described in section 3.5 of the ARPACK manual.
        Mode 1: regular mode to solve A x = lambda x
@@ -93,7 +93,7 @@ public:
                sigma, also needs to be set with SetShift().
        Mode 4: Buckling mode to solve K x = lambda K_G x
                K is set using SetMassMatrix(), K_G is set using SetOperator(),
-	       and the solver should compute (K-sigma K_G)^{-1}.  The shift
+          and the solver should compute (K-sigma K_G)^{-1}.  The shift
                parameter, sigma, also needs to be set with SetShift().
        Mode 5: Cayley mode to solve A x = lambda M x
                Both A and M are needed and the solver should compute
@@ -108,17 +108,17 @@ public:
    inline void SetShift(double sigma)     {    sigma_ = sigma;    }
    inline void SetNumModes(int num_eigs)  {      nev_ = num_eigs; }
 
-   void SetSolver(Solver & solver);
-   void SetOperator(Operator & A);
-   void SetMassMatrix(Operator & M);
+   virtual void SetSolver(Solver & solver);
+   virtual void SetOperator(Operator & A);
+   virtual void SetMassMatrix(Operator & M);
 
    void Solve();
 
    /// Collect the converged eigenvalues
-   void GetEigenvalues(Array<double> & eigenvalues);
+   virtual void GetEigenvalues(Array<double> & eigenvalues);
 
    /// Extract a single eigenvector
-   Vector & GetEigenvector(unsigned int i);
+   virtual Vector & GetEigenvector(unsigned int i);
 
    /// Transfer ownership of the converged eigenvectors
    Vector ** StealEigenvectors();
@@ -176,7 +176,7 @@ protected:
    int reverseCommMode4();
    int reverseCommMode5();
 
-   void prepareEigenvectors();
+   virtual void prepareEigenvectors();
 
    void printErrors(const int & info, const int iparam[],
                     const char & bmat, const int & n,
@@ -186,9 +186,9 @@ protected:
 
 private:
 
-   inline int computeNlocf() { return nloc_+1; }
-   int computeIter(int & ido);
-   int computeEigs();
+   virtual int computeNlocf() { return nloc_; }
+   virtual int computeIter(int & ido);
+   virtual int computeEigs();
 
 };
 
@@ -202,8 +202,6 @@ public:
 
    void SetOperator(Operator & A);
    void SetMassMatrix(Operator & M);
-
-   void Solve();
 
    /// Collect the converged eigenvalues
    void GetEigenvalues(Array<double> & eigenvalues);

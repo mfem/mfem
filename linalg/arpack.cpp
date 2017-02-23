@@ -606,8 +606,8 @@ ArPackSym::reverseComm()
 
    ncv_ = max(2*nev_,20);
 
-   int nevf = nev_ + 1;
-   int ncvf = ncv_ + 1;
+   int nevf = nev_;
+   int ncvf = ncv_;
 
    // Initializes the vectors dv and v.
    // these are used to store the eigenvalues
@@ -618,7 +618,7 @@ ArPackSym::reverseComm()
    // the following vectors are work space for PDSAUPD
    resid_  = new double[nlocf];      // initial vector, and residual vector
    workd_  = new double[3*nlocf];    // workspace for reverse communication
-   lworkl_ = (ncvf*ncvf)+(ncvf*8);   // length of workl_ array
+   lworkl_ = ncvf * (ncvf + 8);      // length of workl_ array
    workl_  = new double[lworkl_];    // workspace for tridiagnonal system
 
    ////////////////////////////////////////////////////////////////////////////
@@ -697,9 +697,14 @@ ArPackSym::reverseComm()
 void
 ArPackSym::Solve()
 {
+   if ( myid_ == 0 && logging_ >= 3 )
+   {
+      cout<<"Running reverse communication loop ..."<<endl;
+   }
+
    this->reverseComm();
 
-   if ( myid_ == 0 && logging_ >= 0 )
+   if ( myid_ == 0 && logging_ >= 3 )
    {
       cout<<"Computing eigenvalues and eigenvectors ..."<<endl;
    }
@@ -711,6 +716,11 @@ ArPackSym::Solve()
    if (info < 0)
    {
       printErrors(info,iparam_,bmat_,nloc_,which_,nev_,ncv_,lworkl_);
+   }
+
+   if ( myid_ == 0 && logging_ >= 3 )
+   {
+      cout<<"Done computing eigenvalues and eigenvectors ..."<<endl;
    }
 }
 
@@ -728,6 +738,11 @@ void ArPackSym::GetEigenvalues(Array<double> & eigenvalues)
 void
 ArPackSym::prepareEigenvectors()
 {
+   if ( myid_ == 0 && logging_ >= 3 )
+   {
+      cout<<"Entering ArPAckSym::prepareEigenvectors ..."<<endl;
+   }
+
    if ( eigenvectors_ )
    {
       for (int i=0; i<nev_; i++)
@@ -753,6 +768,11 @@ ArPackSym::prepareEigenvectors()
       {
          (*eigenvectors_[i])(j) = v_[nloc_*i+j];
       }
+   }
+
+   if ( myid_ == 0 && logging_ >= 3 )
+   {
+      cout<<"Leaving ArPAckSym::prepareEigenvectors ..."<<endl;
    }
 }
 
@@ -943,30 +963,6 @@ ParArPackSym::SetMassMatrix(Operator & B)
    }
 }
 
-
-void
-ParArPackSym::Solve()
-{
-   this->reverseComm();
-
-   if ( myid_ == 0 && logging_ >= 0 )
-   {
-      cout<<"Computing eigenvalues and eigenvectors ..."<<endl;
-   }
-
-   // if we got to here, we are ready to compute the eigenvalues and eigenvectors
-   int info;
-   rvec_ = 1; // compute eigenvectors
-   select_ = new int[ncv_]; // not really used since we want all eigenvectors
-
-   info = this->computeEigs();
-
-   if (info < 0)
-   {
-      printErrors(info,iparam_,bmat_,nloc_,which_,nev_,ncv_,lworkl_);
-   }
-}
-
 void ParArPackSym::GetEigenvalues(Array<double> & eigenvalues)
 {
    eigenvalues.SetSize(nev_);
@@ -981,6 +977,11 @@ void ParArPackSym::GetEigenvalues(Array<double> & eigenvalues)
 void
 ParArPackSym::prepareEigenvectors()
 {
+   if ( myid_ == 0 && logging_ >= 3 )
+   {
+      cout<<"Entering ParArPAckSym::prepareEigenvectors ..."<<endl;
+   }
+
    if ( eigenvectors_ )
    {
       for (int i=0; i<nev_; i++)
@@ -1000,7 +1001,6 @@ ParArPackSym::prepareEigenvectors()
       MPI_Scan(&locSize, &part_[1], 1, HYPRE_MPI_INT, MPI_SUM, comm_);
 
       part_[0] = part_[1] - locSize;
-      part_[1]++;
 
       MPI_Allreduce(&locSize, &glbSize, 1, HYPRE_MPI_INT, MPI_SUM, comm_);
    }
@@ -1039,10 +1039,19 @@ ParArPackSym::prepareEigenvectors()
       eigenvectors_[i] = (Vector*)vec;
    }
 
+   if ( myid_ == 0 && logging_ >= 3 )
+   {
+      cout<<"Leaving ParArPAckSym::prepareEigenvectors ..."<<endl;
+   }
 }
 
 HypreParVector & ParArPackSym::GetEigenvector(unsigned int i)
 {
+   if ( myid_ == 0 && logging_ >= 3 )
+   {
+      cout << "Entering ParArPackSym::GetEigenvector" << endl;
+   }
+
    if ( !eigenvectors_ )
    {
       this->prepareEigenvectors();
@@ -1050,6 +1059,10 @@ HypreParVector & ParArPackSym::GetEigenvector(unsigned int i)
 
    HypreParVector * vec = dynamic_cast<HypreParVector*>(eigenvectors_[i]);
 
+   if ( myid_ == 0 && logging_ >= 3 )
+   {
+      cout << "Leaving ParArPackSym::GetEigenvector" << endl;
+   }
    return *vec;
 }
 
@@ -1072,7 +1085,7 @@ ParArPackSym::computeIter(int & ido)
    int info = 0;
 
    PDSAUPD(&commf_, &ido, &bmat_, &nloc_, which_, &nev_, &tol_,
-           resid_,&ncv_, v_, &nloc_, iparam_, ipntr_,
+           resid_, &ncv_, v_, &nloc_, iparam_, ipntr_,
            workd_, workl_, &lworkl_, &info );
 
    return info;
@@ -1085,7 +1098,7 @@ ParArPackSym::computeNlocf()
 
    MPI_Allreduce((void*) &nloc_,(void*) &nlocf,1,MPI_INT,MPI_MAX,comm_);
 
-   return nlocf+1;
+   return nlocf;
 }
 
 int
