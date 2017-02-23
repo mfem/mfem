@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
    //    default, or specified on the command line with -rp). Once the parallel
    //    mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   delete mesh; mesh = NULL;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh->UniformRefinement();
@@ -206,14 +206,15 @@ int main(int argc, char *argv[])
    m->Assemble();
    // shift the eigenvalue corresponding to eliminated dofs to a large value
    // m->EliminateEssentialBCDiag(ess_bdr, 1.0/lam_max);
-   m->EliminateEssentialBCDiag(ess_bdr, numeric_limits<double>::min());
+   // m->EliminateEssentialBCDiag(ess_bdr, numeric_limits<double>::min());
+   m->EliminateEssentialBCDiag(ess_bdr, 1.0e-6);
    m->Finalize();
 
    HypreParMatrix *A = a->ParallelAssemble();
    HypreParMatrix *M = m->ParallelAssemble();
 
    cout << "A size: " << A->Height() << " x " << A->Width() << endl;
-   
+
    delete a;
    delete m;
 
@@ -242,13 +243,14 @@ int main(int argc, char *argv[])
    // pcg->SetPreconditioner(diag);
    pcg->SetPreconditioner(*amg);
    pcg->SetPrintLevel(0);
+
    ParArPackSym * arpack = new ParArPackSym(MPI_COMM_WORLD);
 
    arpack->SetNumModes(nev);
    arpack->SetMaxIter(100);
    arpack->SetTol(1e-8);
    arpack->SetMode(3);
-   arpack->SetPrintLevel(2);
+   arpack->SetPrintLevel(1);
 
    arpack->SetMassMatrix(*M);
    arpack->SetOperator(*A);
@@ -260,6 +262,16 @@ int main(int argc, char *argv[])
    Array<double> eigenvalues;
    arpack->Solve();
    arpack->GetEigenvalues(eigenvalues);
+
+   if ( myid == 0 )
+   {
+      cout << endl;
+      for (int i=0; i<eigenvalues.Size(); i++)
+      {
+         cout << "Eigenvalue lambda " << eigenvalues[i] << endl;
+      }
+      cout << endl;
+   }
 
    ParGridFunction x(fespace);
 
