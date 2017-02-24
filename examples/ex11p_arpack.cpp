@@ -17,6 +17,8 @@
 //               mpirun -np 4 ex11p -m ../data/inline-segment.mesh
 //               mpirun -np 4 ex11p -m ../data/amr-quad.mesh
 //               mpirun -np 4 ex11p -m ../data/amr-hex.mesh
+//               mpirun -np 4 ex11p -m ../data/mobius-strip.mesh -n 8
+//               mpirun -np 4 ex11p -m ../data/klein-bottle.mesh -n 10
 //
 // Description:  This example code demonstrates the use of MFEM to solve the
 //               eigenvalue problem -Delta u = lambda u with homogeneous
@@ -28,10 +30,11 @@
 //               order < 1 (quadratic for quadratic curvilinear mesh, NURBS for
 //               NURBS mesh, etc.)
 //
-//               The example highlights the use of the LOBPCG eigenvalue solver
-//               together with the BoomerAMG preconditioner in HYPRE. Reusing a
-//               single GLVis visualization window for multiple eigenfunctions
-//               is also illustrated.
+//               The example highlights the use of the LOBPCG and ARPACK
+//               eigenvalue solvers together with the BoomerAMG preconditioner
+//               in HYPRE, as well as optionally the SuperLU parallel direct
+//               solver. Reusing a single GLVis visualization window for
+//               multiple eigenfunctions is also illustrated.
 //
 //               We recommend viewing Example 1 before viewing this example.
 
@@ -56,6 +59,8 @@ int main(int argc, char *argv[])
    int par_ref_levels = 1;
    int order = 1;
    int nev = 5;
+   bool slu_solver = false;
+   bool use_arpack = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -70,6 +75,15 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&nev, "-n", "--num-eigs",
                   "Number of desired eigenmodes.");
+#ifdef MFEM_USE_SUPERLU
+   args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu",
+                  "--no-superlu", "Use the SuperLU Solver.");
+#endif
+#ifdef MFEM_USE_ARPACK
+   args.AddOption(&use_arpack, "-arpack", "--use-arpack", "-no-arpack",
+                  "--no-arpack",
+                  "Enable or disable the use of ARPACK.");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -119,37 +133,12 @@ int main(int argc, char *argv[])
    //    default, or specified on the command line with -rp). Once the parallel
    //    mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh; mesh = NULL;
+   delete mesh;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh->UniformRefinement();
    }
 
-   // int sdim = pmesh->SpaceDimension();
-   /*
-   double h_min, h_max, kappa_min, kappa_max;
-   Vector min_extents, max_extents;
-
-   pmesh->GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
-   pmesh->GetExtents(min_extents, max_extents);
-
-   // Approximate the range of wave numbers supported by this mesh
-   double k_max = M_PI/h_min;
-   double lam_max = k_max * k_max * sdim;
-   double lam_min = 0.0;
-   for (int i=0; i<sdim; i++)
-   {
-      double k_min = M_PI/(max_extents(i)-min_extents(i));
-      lam_min += k_min*k_min;
-   }
-
-   // The eigenvalues are related to the wave number squared
-   if ( myid == 0 )
-   {
-      cout << "Approximate range of eigenvalues:  "
-           << lam_min << " to " << lam_max << endl;
-   }
-   */
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
@@ -182,7 +171,7 @@ int main(int argc, char *argv[])
    //    serial and parallel assembly we extract the corresponding parallel
    //    matrices A and M.
    ConstantCoefficient one(1.0);
-   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+   Array<int> ess_bdr;
    if (pmesh->bdr_attributes.Size())
    {
       ess_bdr.SetSize(pmesh->bdr_attributes.Max());
@@ -205,15 +194,19 @@ int main(int argc, char *argv[])
    m->AddDomainIntegrator(new MassIntegrator(one));
    m->Assemble();
    // shift the eigenvalue corresponding to eliminated dofs to a large value
-   // m->EliminateEssentialBCDiag(ess_bdr, 1.0/lam_max);
-   // m->EliminateEssentialBCDiag(ess_bdr, numeric_limits<double>::min());
-   m->EliminateEssentialBCDiag(ess_bdr, 1.0e-6);
+   m->EliminateEssentialBCDiag(ess_bdr, numeric_limits<double>::min());
    m->Finalize();
 
    HypreParMatrix *A = a->ParallelAssemble();
    HypreParMatrix *M = m->ParallelAssemble();
 
-   cout << "A size: " << A->Height() << " x " << A->Width() << endl;
+#ifdef MFEM_USE_SUPERLU
+   Operator * Arow = NULL;
+   if (slu_solver)
+   {
+      Arow = new SuperLURowLocMatrix(*A);
+   }
+#endif
 
    delete a;
    delete m;
@@ -221,49 +214,77 @@ int main(int argc, char *argv[])
    // 8. Define and configure the LOBPCG eigensolver and the BoomerAMG
    //    preconditioner for A to be used within the solver. Set the matrices
    //    which define the generalized eigenproblem A x = lambda M x.
-   /*
-   HypreBoomerAMG * amg = new HypreBoomerAMG(*A);
-   amg->SetPrintLevel(0);
-   HypreLOBPCG * lobpcg = new HypreLOBPCG(MPI_COMM_WORLD);
-   lobpcg->SetNumModes(nev);
-   lobpcg->SetPreconditioner(*amg);
-   lobpcg->SetMaxIter(100);
-   lobpcg->SetTol(1e-8);
-   lobpcg->SetPrecondUsageMode(1);
-   lobpcg->SetPrintLevel(1);
-   lobpcg->SetMassMatrix(*M);
-   lobpcg->SetOperator(*A);
-   */
-   HypreBoomerAMG * amg = new HypreBoomerAMG(*A);
-   amg->SetPrintLevel(0);
-   HyprePCG * pcg = new HyprePCG(*A);
-   // HypreDiagScale diag(*A);
-   pcg->SetTol(1e-12);
-   pcg->SetMaxIter(200);
-   // pcg->SetPreconditioner(diag);
-   pcg->SetPreconditioner(*amg);
-   pcg->SetPrintLevel(0);
+   Eigensolver * esolver = NULL;
+   Solver      *  solver = NULL;
+   Solver      * precond = NULL;
 
-   ParArPackSym * arpack = new ParArPackSym(MPI_COMM_WORLD);
+   if (!slu_solver)
+   {
+      HypreBoomerAMG * amg = new HypreBoomerAMG(*A);
+      amg->SetPrintLevel(0);
+      precond = amg;
 
-   arpack->SetNumModes(nev);
-   arpack->SetMaxIter(100);
-   arpack->SetTol(1e-8);
-   arpack->SetMode(3);
-   arpack->SetPrintLevel(1);
+#ifdef MFEM_USE_ARPACK
+      if ( use_arpack )
+      {
+         HyprePCG * pcg = new HyprePCG(*A);
+         pcg->SetTol(1e-12);
+         pcg->SetMaxIter(200);
+         pcg->SetPreconditioner(*amg);
+         pcg->SetPrintLevel(0);
 
-   arpack->SetMassMatrix(*M);
-   arpack->SetOperator(*A);
-   arpack->SetSolver(*pcg);
+         solver = pcg;
+      }
+#endif
+   }
+#ifdef MFEM_USE_SUPERLU
+   else
+   {
+      SuperLUSolver * superlu = new SuperLUSolver(MPI_COMM_WORLD);
+      superlu->SetPrintStatistics(false);
+      superlu->SetSymmetricPattern(true);
+      superlu->SetColumnPermutation(superlu::PARMETIS);
+      superlu->SetOperator(*Arow);
+
+      solver  = use_arpack?superlu:NULL;
+      precond = use_arpack?NULL:suprelu;
+   }
+#endif
+
+   if ( use_arpack )
+   {
+      ParArPackSym * arpack = new ParArPackSym(MPI_COMM_WORLD);
+      arpack->SetMode(3);
+      arpack->SetPrintLevel(2);
+      arpack->SetSolver(*solver);
+
+      esolver = arpack;
+   }
+   else
+   {
+      HypreLOBPCG * lobpcg = new HypreLOBPCG(MPI_COMM_WORLD);
+      lobpcg->SetPreconditioner(*precond);
+      lobpcg->SetPrecondUsageMode(1);
+      lobpcg->SetPrintLevel(1);
+
+      esolver = lobpcg;
+   }
+
+   esolver->SetNumModes(nev);
+   esolver->SetMaxIter(100);
+   esolver->SetTol(1e-8);
+
+   esolver->SetMassMatrix(*M);
+   esolver->SetOperator(*A);
 
    // 9. Compute the eigenmodes and extract the array of eigenvalues. Define a
    //    parallel grid function to represent each of the eigenmodes returned by
    //    the solver.
    Array<double> eigenvalues;
-   arpack->Solve();
-   arpack->GetEigenvalues(eigenvalues);
+   esolver->Solve();
+   esolver->GetEigenvalues(eigenvalues);
 
-   if ( myid == 0 )
+   if ( myid == 0 && use_arpack )
    {
       cout << endl;
       for (int i=0; i<eigenvalues.Size(); i++)
@@ -288,7 +309,7 @@ int main(int argc, char *argv[])
       for (int i=0; i<nev; i++)
       {
          // convert eigenvector from HypreParVector to ParGridFunction
-         x = arpack->GetEigenvector(i);
+         x = esolver->GetEigenvector(i);
 
          mode_name << "mode_" << setfill('0') << setw(2) << i << "."
                    << setfill('0') << setw(6) << myid;
@@ -317,7 +338,7 @@ int main(int argc, char *argv[])
          }
 
          // convert eigenvector from HypreParVector to ParGridFunction
-         x = arpack->GetEigenvector(i);
+         x = esolver->GetEigenvector(i);
 
          mode_sock << "parallel " << num_procs << " " << myid << "\n"
                    << "solution\n" << *pmesh << x << flush
@@ -341,9 +362,9 @@ int main(int argc, char *argv[])
    }
 
    // 12. Free the used memory.
-   delete arpack;
-   delete pcg;
-   // delete amg;
+   delete esolver;
+   delete solver;
+   delete precond;
    delete M;
    delete A;
 
