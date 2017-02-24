@@ -91,6 +91,7 @@ public:
    int FindId(int p1, int p2) const;
    int FindId(int p1, int p2, int p3, int p4) const;
 
+   // FIXME - unused?
    /// Return true if item 'id' exists in the container.
    bool Exists(int id) const
    { return id >= 0 && id < Base::Bound() && !Base::IsDeleted(id); }

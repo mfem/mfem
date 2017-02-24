@@ -369,6 +369,7 @@ public:
        call to New(). */
    void Delete(int index);
 
+   // FIXME - unused? (used only by HashTable::Exists() which is unused)
    /// Return true if item 'index' does not exist.
    bool IsDeleted(int index) const
    {
@@ -386,6 +387,7 @@ public:
    class Iterator
    {
    public:
+      // FIXME - remove the 'const' - this is not a const_iterator?
       Iterator(const BlockArray<T>& array);
 
       operator T*() const { return cur_item; }
@@ -397,7 +399,7 @@ public:
       int Index() const { return cur_index; }
 
    protected:
-      const BlockArray<T>& array;
+      const BlockArray<T>& array; // FIXME - remove 'const'?
       int cur_index, cur_unused;
       T* cur_item;
 
@@ -800,6 +802,7 @@ long BlockArray<T>::MemoryUsage() const
 template<typename T>
 BlockArray<T>::~BlockArray()
 {
+   // FIXME - invoke the destructors of the entries?
    for (int i = 0; i < blocks.Size(); i++)
    {
       delete [] (char*) blocks[i];
