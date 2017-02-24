@@ -53,6 +53,23 @@ void testVectorConstructors() {
                       v4, v4_.GetData());
 }
 
+void testVectorOwnership() {
+  mfem::OccaVector v1(3);
+  v1.Destroy();
+  OCCA_ERROR("void OccaVector::Destroy()",
+             !v1.GetData().isInitialized());
+
+  mfem::OccaVector v2(3);
+  v2.StealData(v1);
+  v2.Destroy();
+  OCCA_ERROR("void OccaVector::StealData",
+             v2.GetData().isInitialized());
+  v2.MakeDataOwner();
+  v2.Destroy();
+  OCCA_ERROR("void OccaVector::MakeDataOwner()",
+             !v2.GetData().isInitialized());
+}
+
 void testVectorResize() {
   mfem::OccaVector v1(10);
   v1.SetSize(20);
@@ -241,6 +258,89 @@ void testVectorSubVectorMethods() {
                       v1, v1_.GetData());
 }
 
+void testVectorAddElementVectorMethods() {
+  mfem::OccaVector v1, v2;
+  mfem::Vector v1_(6), v2_(3), zero_(3);
+  mfem::Array<int> indices(3);
+
+  v2_(0) = 3; v2_(1) = -1; v2_(2) = 5;
+  v2 = v2_;
+
+  indices[0] = 3;
+  indices[1] = -2;
+  indices[2] = 5;
+
+  v1_(0) = 0; v1_(1) = 1; v1_(2) = 2;
+  v1_(3) = 3; v1_(4) = 4; v1_(5) = 5;
+  v1 = v1_;
+  v1_(0) = 0; v1_(1) = 2; v1_(2) = 2;
+  v1_(3) = 6; v1_(4) = 4; v1_(5) = 10;
+  v1.AddElementVector(indices, v2);
+  compareVectorAndPtr("void OccaVector::AddElementVector("
+                      "const Array<int> &dofs, "
+                      "const OccaVector &elemvect);",
+                      v1, v1_.GetData());
+
+  v1_(0) = 0; v1_(1) = 1; v1_(2) = 2;
+  v1_(3) = 3; v1_(4) = 4; v1_(5) = 5;
+  v1 = v1_;
+  v1_(0) = 0; v1_(1) = 2; v1_(2) = 2;
+  v1_(3) = 6; v1_(4) = 4; v1_(5) = 10;
+  v1.AddElementVector(indices, v2_);
+  compareVectorAndPtr("void OccaVector::AddElementVector("
+                      "const Array<int> &dofs, "
+                      "const Vector &elemvect);",
+                      v1, v1_.GetData());
+
+  v1_(0) = 0; v1_(1) = 1; v1_(2) = 2;
+  v1_(3) = 3; v1_(4) = 4; v1_(5) = 5;
+  v1 = v1_;
+  v1_(0) = 0; v1_(1) = 2; v1_(2) = 2;
+  v1_(3) = 6; v1_(4) = 4; v1_(5) = 10;
+  v1.AddElementVector(indices, v2_.GetData());
+  compareVectorAndPtr("void OccaVector::AddElementVector("
+                      "const Array<int> &dofs, "
+                      "double *elem_data);",
+                      v1, v1_.GetData());
+
+
+  v1_(0) = 0; v1_(1) = 1; v1_(2) = 2;
+  v1_(3) = 3; v1_(4) = 4; v1_(5) = 5;
+  v1 = v1_;
+  v1_(0) = 0; v1_(1) = 0; v1_(2) = 2;
+  v1_(3) = 0; v1_(4) = 4; v1_(5) = 0;
+  v1.AddElementVector(indices, -1, v2);
+  compareVectorAndPtr("void OccaVector::AddElementVector("
+                      "const Array<int> &dofs, "
+                      "const double a, "
+                      "const OccaVector &elemvect);",
+                      v1, v1_.GetData());
+
+  v1_(0) = 0; v1_(1) = 1; v1_(2) = 2;
+  v1_(3) = 3; v1_(4) = 4; v1_(5) = 5;
+  v1 = v1_;
+  v1_(0) = 0; v1_(1) = 2; v1_(2) = 2;
+  v1_(3) = 6; v1_(4) = 4; v1_(5) = 10;
+  v1.AddElementVector(indices, 1, v2_);
+  compareVectorAndPtr("void OccaVector::AddElementVector("
+                      "const Array<int> &dofs, "
+                      "const double a, "
+                      "const Vector &elemvect);",
+                      v1, v1_.GetData());
+
+  v1_(0) = 0; v1_(1) = 1; v1_(2) = 2;
+  v1_(3) = 3; v1_(4) = 4; v1_(5) = 5;
+  v1 = v1_;
+  v1_(0) = 0; v1_(1) = 3; v1_(2) = 2;
+  v1_(3) = 9; v1_(4) = 4; v1_(5) = 15;
+  v1.AddElementVector(indices, 2, v2_.GetData());
+  compareVectorAndPtr("void OccaVector::AddElementVector("
+                      "const Array<int> &dofs, "
+                      "const double a, "
+                      "double *elem_data);",
+                      v1, v1_.GetData());
+}
+
 void testVectorLinalgMethods() {
   mfem::OccaVector v1, v2;
   mfem::Vector v1_(3), v2_(3);
@@ -387,9 +487,11 @@ void testVectorAddSubtractMethods() {
 
 void testVector() {
   testVectorConstructors();
+  testVectorOwnership();
   testVectorResize();
   testVectorAssignmentOperators();
   testVectorSubVectorMethods();
+  testVectorAddElementVectorMethods();
   testVectorLinalgMethods();
   testVectorAddSubtractMethods();
 }

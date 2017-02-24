@@ -31,11 +31,11 @@ namespace mfem
   protected:
     uint64_t size_;
     occa::memory data;
+    bool ownsData;
 
   public:
     /// Default constructor for Vector. Sets size = 0 and data = NULL.
-    inline OccaVector() :
-      size_(0) {}
+    OccaVector();
 
     /// Copy constructor.
     OccaVector(const OccaVector &other);
@@ -54,6 +54,19 @@ namespace mfem
     /// Creates vector based on Vector using the passed OCCA device
     OccaVector(occa::device device, const Vector &v);
 
+    /// Reads a vector from multiple files
+    void Load(std::istream **in, int np, int *dim);
+
+    /// Load a vector from an input stream.
+    void Load(std::istream &in, int Size);
+
+    /// Load a vector from an input stream, reading the size from the stream.
+    inline void Load(std::istream &in) {
+      int s;
+      in >> s;
+      Load(in, s);
+    }
+
     /// @brief Resize the vector to size @a s.
     /** If the new size is less than or equal to Capacity() then the internal
         data array remains the same. Otherwise, the old array is deleted, if
@@ -63,23 +76,59 @@ namespace mfem
     void SetSize(const int64_t size, const void *src = NULL);
     void SetSize(occa::device device, const int64_t size, const void *src = NULL);
 
+    inline void MakeDataOwner() {
+      ownsData = true;
+    }
+
     /// Destroy a vector
     void Destroy();
 
     /// Returns the size of the vector.
-    inline uint64_t Size() const { return size_; }
+    inline uint64_t Size() const {
+      return size_;
+    }
 
     /// Return the size of the currently allocated data array.
     /** It is always true that Capacity() >= Size(). */
-    inline uint64_t Capacity() const { return data.size() / sizeof(double); }
+    inline uint64_t Capacity() const {
+      return data.size() / sizeof(double);
+    }
 
-    inline occa::memory GetData() { return data; }
-    inline const occa::memory GetData() const { return data; }
+    inline occa::memory GetData() {
+      return data;
+    }
 
-    inline occa::device GetDevice() { return data.getDevice(); }
+    inline const occa::memory GetData() const {
+      return data;
+    }
+
+    inline occa::device GetDevice() {
+      return data.getDevice();
+    }
+
+    inline bool OwnsData() const {
+      return ownsData;
+    }
+
+    /// Changes the ownership of the data; after the call the Vector is empty
+    inline void StealData(OccaVector &v) {
+      v.data = data;
+      size_ = 0;
+      ownsData = false;
+    }
+
+    /// Changes the ownership of the data; after the call the Vector is empty
+    inline OccaVector StealData() {
+      OccaVector v;
+      StealData(v);
+      return v;
+    }
 
     /// Return the inner-product.
     double operator * (const OccaVector &v) const;
+
+    /// Redefine '=' for vector = vector.
+    OccaVector& operator = (const Vector &v);
 
     /// Redefine '=' for vector = vector.
     OccaVector& operator = (const OccaVector &v);
@@ -107,8 +156,11 @@ namespace mfem
     void Neg();
 
     /// Swap the contents of two Vectors
-    inline void Swap(OccaVector &other)
-    { data.swap(other.data); }
+    inline void Swap(OccaVector &other) {
+      mfem::Swap(size_, other.size_);
+      mfem::Swap(data, other.data);
+      mfem::Swap(ownsData, other.ownsData);
+    }
 
     template <class TM>
     occa::memory occafy(const Array<TM> &array) const {
@@ -130,6 +182,17 @@ namespace mfem
     void SetSubVector(const Array<int> &dofs, const OccaVector &elemvect);
     void SetSubVector(occa::memory dofs, const OccaVector &elemvect);
     void SetSubVector(const Array<int> &dofs, const double value);
+
+    /// Add (element) subvector to the vector.
+    void AddElementVector(const Array<int> &dofs, const Vector &elemvect);
+    void AddElementVector(const Array<int> &dofs, double *elem_data);
+    void AddElementVector(const Array<int> &dofs, const OccaVector &elemvect);
+    void AddElementVector(occa::memory dofs, const OccaVector &elemvect);
+
+    void AddElementVector(const Array<int> &dofs, const double a, const Vector &elemvect);
+    void AddElementVector(const Array<int> &dofs, const double a, double *elem_data);
+    void AddElementVector(const Array<int> &dofs, const double a, const OccaVector &elemvect);
+    void AddElementVector(occa::memory dofs, const double a, const OccaVector &elemvect);
 
     /// Set all vector entries NOT in the 'dofs' array to the given 'val'.
     void SetSubVectorComplement(const Array<int> &dofs, const double val);
@@ -156,9 +219,16 @@ namespace mfem
     /// Compute the Euclidean distance to another vector.
     double DistanceTo(const OccaVector &other) const;
 
+    // int CheckFinite() const;
+
     /// Destroys vector.
-    inline virtual ~OccaVector()
-    { size_ = 0; data.free(); }
+    inline virtual ~OccaVector() {
+      size_ = 0;
+      if (ownsData) {
+        data.free();
+        ownsData = false;
+      }
+    }
   };
 
   occa::kernelBuilder makeCustomBuilder(const std::string &kernelName,

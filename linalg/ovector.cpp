@@ -16,14 +16,20 @@
 #include "ovector.hpp"
 
 namespace mfem {
+  OccaVector::OccaVector() :
+    size_(0),
+    ownsData(false) {}
+
   /// @brief Creates vector of size s using the current OCCA device
   /// @warning Entries are not initialized to zero!
-  OccaVector::OccaVector(const int64_t size) {
+  OccaVector::OccaVector(const int64_t size) :
+    size_(0) {
     SetSize(size);
   }
 
   /// Copy constructor.
-  OccaVector::OccaVector(const OccaVector &other) {
+  OccaVector::OccaVector(const OccaVector &other) :
+    size_(0) {
     const int entries = other.Size();
     SetSize(other.data.getDevice(), entries);
     occa::memcpy(data, other.data, entries * sizeof(double));
@@ -31,18 +37,34 @@ namespace mfem {
 
   /// @brief Creates vector of size s using the default OCCA device
   /// @warning Entries are not initialized to zero!
-  OccaVector::OccaVector(occa::device device, const int64_t size) {
+  OccaVector::OccaVector(occa::device device, const int64_t size) :
+    size_(0) {
     SetSize(device, size);
   }
 
   /// Creates vector based on Vector using the current OCCA device
-  OccaVector::OccaVector(const Vector &v) {
+  OccaVector::OccaVector(const Vector &v) :
+    size_(0) {
     SetSize(v.Size(), v.GetData());
   }
 
   /// Creates vector based on Vector using the passed OCCA device
-  OccaVector::OccaVector(occa::device device, const Vector &v) {
+  OccaVector::OccaVector(occa::device device, const Vector &v) :
+    size_(0) {
     SetSize(device, v.Size(), v.GetData());
+  }
+  /// Reads a vector from multiple files
+  void OccaVector::Load(std::istream **in, int np, int *dim) {
+    Vector v;
+    v.Load(in, np, dim);
+    *this = v;
+  }
+
+  /// Load a vector from an input stream.
+  void OccaVector::Load(std::istream &in, int Size) {
+    Vector v;
+    v.Load(in, Size);
+    *this = v;
   }
 
   /// @brief Resize the vector to size @a s.
@@ -60,23 +82,35 @@ namespace mfem {
   }
 
   void OccaVector::SetSize(occa::device device, const int64_t size, const void *src) {
-    if (size) {
-      if (Capacity() < size) {
-        data.free();
-        data = device.malloc(size * sizeof(double), src);
-      } else if (src) {
-        occa::memcpy(data, src, size * sizeof(double));
-      }
-    }
     size_ = size;
+    if (size > Capacity()) {
+      if (ownsData) {
+        data.free();
+      }
+      data = device.malloc(size * sizeof(double), src);
+      ownsData = true;
+    } else if (size && src) {
+      occa::memcpy(data, src, size * sizeof(double));
+    }
   }
 
   /// Destroy a vector
-  void OccaVector::Destroy()
-  { size_ = 0; data.free(); }
+  void OccaVector::Destroy() {
+    size_ = 0;
+    if (ownsData) {
+      data.free();
+      ownsData = false;
+    }
+  }
 
   double OccaVector::operator * (const OccaVector &v) const {
     return occa::linalg::dot<double, double, double>(data, v.data);
+  }
+
+  /// Redefine '=' for vector = vector.
+  OccaVector& OccaVector::operator = (const Vector &v) {
+    SetSize(v.Size(), v.GetData());
+    return *this;
   }
 
   /// Redefine '=' for vector = vector.
@@ -261,6 +295,93 @@ namespace mfem {
     occa::memory o_dofs = occafy(dofs);
     kernel((int) dofs.Size(), value, data, o_dofs);
     o_dofs.free();
+  }
+
+  /// Add (element) subvector to the vector.
+  void OccaVector::AddElementVector(const Array<int> &dofs,
+                                    const Vector &elemvect) {
+
+    AddElementVector(dofs, elemvect.GetData());
+  }
+
+  void OccaVector::AddElementVector(const Array<int> &dofs,
+                                    double *elem_data) {
+    const int dofCount = dofs.Size();
+
+    OccaVector buffer(dofCount);
+    occa::memcpy(buffer.data, elem_data, dofCount * sizeof(double));
+
+    AddElementVector(dofs, buffer);
+
+    buffer.data.free();
+  }
+
+  void OccaVector::AddElementVector(const Array<int> &dofs,
+                                    const OccaVector &elemvect) {
+    occa::memory o_dofs = occafy(dofs);
+    AddElementVector(o_dofs, elemvect);
+    o_dofs.free();
+  }
+
+  void OccaVector::AddElementVector(occa::memory dofs,
+                                    const OccaVector &elemvect) {
+    static occa::kernelBuilder builder =
+      makeCustomBuilder("vector_add_vec",
+                        "const int dof_i = v2[i];"
+                        "if (dof_i >= 0) { v0[dof_i]      += v1[i]; }"
+                        "else            { v0[-dof_i - 1] -= v1[i]; }",
+                        "defines: { VTYPE2: 'int' }");
+
+    occa::device dev = data.getDevice();
+    occa::kernel kernel = builder.build(dev);
+
+    const int dofCount = dofs.size() / sizeof(int);
+    kernel(dofCount, data, elemvect.data, dofs);
+  }
+
+  void OccaVector::AddElementVector(const Array<int> &dofs,
+                                    const double a,
+                                    const Vector &elemvect) {
+
+    AddElementVector(dofs, a, elemvect.GetData());
+  }
+
+  void OccaVector::AddElementVector(const Array<int> &dofs,
+                                    const double a,
+                                    double *elem_data) {
+    const int dofCount = dofs.Size();
+
+    OccaVector buffer(dofCount);
+    occa::memcpy(buffer.data, elem_data, dofCount * sizeof(double));
+
+    AddElementVector(dofs, a, buffer);
+
+    buffer.data.free();
+  }
+
+  void OccaVector::AddElementVector(const Array<int> &dofs,
+                                    const double a,
+                                    const OccaVector &elemvect) {
+    occa::memory o_dofs = occafy(dofs);
+    AddElementVector(o_dofs, a, elemvect);
+    o_dofs.free();
+  }
+
+  void OccaVector::AddElementVector(occa::memory dofs,
+                                    const double a,
+                                    const OccaVector &elemvect) {
+    static occa::kernelBuilder builder =
+      makeCustomBuilder("vector_add_a_vec",
+                        "const int dof_i = v2[i];"
+                        "if (dof_i >= 0) { v0[dof_i]      += c0 * v1[i]; }"
+                        "else            { v0[-dof_i - 1] -= c0 * v1[i]; }",
+                        "defines: { VTYPE2: 'int' }");
+
+    occa::device dev = data.getDevice();
+    occa::kernel kernel = builder.build(dev);
+
+    const int dofCount = dofs.size() / sizeof(int);
+    kernel(dofCount, a, data, elemvect.data, dofs);
   }
 
   /// Set all vector entries NOT in the 'dofs' array to the given 'val'.
