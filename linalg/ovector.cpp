@@ -53,6 +53,14 @@ namespace mfem {
     size_(0) {
     SetSize(device, v.Size(), v.GetData());
   }
+
+  /// Convert to Vector
+  OccaVector::operator Vector() const {
+    Vector v(size_);
+    occa::memcpy(v.GetData(), data, size_ * sizeof(double));
+    return v;
+  }
+
   /// Reads a vector from multiple files
   void OccaVector::Load(std::istream **in, int np, int *dim) {
     Vector v;

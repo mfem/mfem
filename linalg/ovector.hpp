@@ -54,6 +54,9 @@ namespace mfem
     /// Creates vector based on Vector using the passed OCCA device
     OccaVector(occa::device device, const Vector &v);
 
+    /// Convert to Vector
+    operator Vector() const;
+
     /// Reads a vector from multiple files
     void Load(std::istream **in, int np, int *dim);
 

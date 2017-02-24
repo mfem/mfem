@@ -107,6 +107,12 @@ void testVectorAssignmentOperators() {
   compareVectorAndPtr("OccaVector& OccaVector::operator = (const OccaVector &v)",
                       v1, v2_.GetData());
 
+  v1 = v2_;
+  v1_(0) = 0; v1_(1) = 0; v1_(2) = 0;
+  v1_ = v1;
+  compareVectorAndPtr("Vector& Vector::operator = (const OccaVector &ov)",
+                      v1, v1_.GetData());
+
   v1 *= 2;
   v1_(0) = 8; v1_(1) = 10; v1_(2) = 12;
   compareVectorAndPtr("OccaVector& OccaVector::operator *= (double value)",

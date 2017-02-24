@@ -32,6 +32,10 @@
 namespace mfem
 {
 
+#ifdef MFEM_USE_OCCA
+  class OccaVector;
+#endif
+
 /** Count the number of entries in an array of doubles for which isfinite
     is false, i.e. the entry is a NaN or +/-Inf. */
 inline int CheckFinite(const double *v, const int n);
@@ -163,6 +167,11 @@ public:
 
    /// Redefine '=' for vector = constant.
    Vector & operator=(double value);
+
+#ifdef MFEM_USE_OCCA
+   /// Copy data from OccaVector
+   Vector & operator=(const OccaVector &ov);
+#endif
 
    Vector & operator*=(double c);
 

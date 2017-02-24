@@ -42,7 +42,7 @@ namespace mfem {
     kernelProps["defines/COEFF_EVAL(el,q)"] = coeff->constant;
 
     // [-] Missing a good way of fetching the kernel
-    return bf.getDevice().buildKernel("obilininteg.okl",
+    return bf.getDevice().buildKernel("occa://mfem/obilininteg.okl",
                                       kernelName,
                                       kernelProps);
   }

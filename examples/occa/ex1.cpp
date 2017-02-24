@@ -47,8 +47,8 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
   // 1. Parse command-line options.
-  const char *mesh_file = "../../data/star.mesh";
-  int order = 1;
+  const char *mesh_file = "../../data/fichera.mesh";
+  int order = 3;
   const char *basis_type = "G"; // Gauss-Lobatto
    const char *pc = "none";
   bool visualization = 1;
@@ -166,6 +166,7 @@ int main(int argc, char *argv[])
   // 6. Set up the linear form b(.) which corresponds to the right-hand side of
   //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
   //    the basis functions in the finite element fespace.
+  // [MISSING] Setting up the RHS
   LinearForm lf_b(fespace);
   ConstantCoefficient one(1.0);
   lf_b.AddDomainIntegrator(new DomainLFIntegrator(one));
@@ -176,7 +177,8 @@ int main(int argc, char *argv[])
   // 7. Define the solution vector x as a finite element grid function
   //    corresponding to fespace. Initialize x with initial guess of zero,
   //    which satisfies the boundary conditions.
-  OccaVector x = GridFunction(fespace);
+  //OccaVector x = GridFunction(fespace);
+  OccaVector x(fespace->GetVSize());
   x = 0.0;
 
   // 8. Set up the bilinear form a(.,.) on the finite element space that will
@@ -227,6 +229,7 @@ int main(int argc, char *argv[])
   cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
   // Solve with CG or PCG, depending if the matrix A_pc is available
+  // [MISSING] Need a parallel preconditioner
   if (pc_choice != NONE)
     {
       //GSSmoother M(*A_pc);
@@ -247,7 +250,10 @@ int main(int argc, char *argv[])
   mesh->Print(mesh_ofs);
   ofstream sol_ofs("sol.gf");
   sol_ofs.precision(8);
-  // x.Save(sol_ofs);
+  // Reuse GridFunction's Save
+  GridFunction gf_x(fespace);
+  gf_x = x;
+  gf_x.Save(sol_ofs);
 
   // 13. Send the solution by socket to a GLVis server.
   if (visualization)
