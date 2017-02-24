@@ -52,8 +52,8 @@ int main(int argc, char *argv[])
   const char *basis_type = "G"; // Gauss-Lobatto
    const char *pc = "none";
   bool visualization = 1;
-
   const char *device_info = "mode: 'Serial'";
+  bool occa_verbose = false;
 
   OptionsParser args(argc, argv);
   args.AddOption(&mesh_file, "-m", "--mesh",
@@ -68,6 +68,10 @@ int main(int argc, char *argv[])
                  "ho - high-order (assembled) GS, none.");
   args.AddOption(&device_info, "-d", "--device-info",
                  "Device information to run example on (default: \"mode: 'Serial'\").");
+  args.AddOption(&occa_verbose,
+                 "-ov", "--occa-verbose",
+                 "--no-ov", "--no-occa-verbose",
+                 "Print verbose information about OCCA kernel compilation.");
   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                  "--no-visualization",
                  "Enable or disable GLVis visualization.");
@@ -80,7 +84,7 @@ int main(int argc, char *argv[])
 
   // Set the OCCA device to run example in
   occa::setDevice(device_info);
-  occa::settings()["verboseCompilation"] = true;
+  occa::settings()["verboseCompilation"] = occa_verbose;
 
   enum PCType { NONE, LOR, HO };
   PCType pc_choice;
@@ -184,6 +188,9 @@ int main(int argc, char *argv[])
   // 8. Set up the bilinear form a(.,.) on the finite element space that will
   //    hold the matrix corresponding to the Laplacian operator -Delta.
   //    Optionally setup a form to be assembled for preconditioning (a_pc).
+  cout << "Assembling the bilinear form ..." << flush;
+  tic_toc.Clear();
+  tic_toc.Start();
   OccaBilinearForm *a = new OccaBilinearForm(fespace);
   a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
@@ -196,6 +203,8 @@ int main(int argc, char *argv[])
   //    conditions, applying conforming constraints for non-conforming AMR,
   //    static condensation, etc.
   a->Assemble();
+  tic_toc.Stop();
+  cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
   Operator *A;
   OccaVector B, X;
@@ -228,6 +237,10 @@ int main(int argc, char *argv[])
   tic_toc.Stop();
   cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
+  cout << "Running " << (pc_choice == NONE ? "CG" : "PCG")
+       << " ..." << flush;
+  tic_toc.Clear();
+  tic_toc.Start();
   // Solve with CG or PCG, depending if the matrix A_pc is available
   // [MISSING] Need a parallel preconditioner
   if (pc_choice != NONE)
@@ -239,6 +252,9 @@ int main(int argc, char *argv[])
     {
       CG(*A, B, X, 1, 500, 1e-12, 0.0);
     }
+  occa::finish();
+  tic_toc.Stop();
+  cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
   // 11. Recover the solution as a finite element grid function.
   a->RecoverFEMSolution(X, b, x);
@@ -262,7 +278,7 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      // sol_sock << "solution\n" << *mesh << x << flush;
+      sol_sock << "solution\n" << *mesh << gf_x << flush;
     }
 
   // 14. Free the used memory.

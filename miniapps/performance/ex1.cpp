@@ -339,6 +339,10 @@ int main(int argc, char *argv[])
    tic_toc.Stop();
    cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
+   cout << "Running " << (pc_choice == NONE ? "CG" : "PCG")
+        << " ..." << flush;
+   tic_toc.Clear();
+   tic_toc.Start();
    // Solve with CG or PCG, depending if the matrix A_pc is available
    if (pc_choice != NONE)
    {
@@ -349,6 +353,8 @@ int main(int argc, char *argv[])
    {
       CG(*a_oper, B, X, 1, 500, 1e-12, 0.0);
    }
+   tic_toc.Stop();
+   cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
    // 13. Recover the solution as a finite element grid function.
    if (perf && matrix_free)
