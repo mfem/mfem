@@ -3179,7 +3179,7 @@ HypreLOBPCG::GetEigenvalues(Array<double> & eigs)
    }
 }
 
-HypreParVector &
+Vector &
 HypreLOBPCG::GetEigenvector(unsigned int i)
 {
    return multi_vec->GetVector(i);
@@ -3420,7 +3420,7 @@ HypreAME::createDummyVectors()
 
 }
 
-HypreParVector &
+Vector &
 HypreAME::GetEigenvector(unsigned int i)
 {
    if ( eigenvectors == NULL )
@@ -3431,7 +3431,7 @@ HypreAME::GetEigenvector(unsigned int i)
    return *eigenvectors[i];
 }
 
-HypreParVector **
+Vector **
 HypreAME::StealEigenvectors()
 {
    if ( eigenvectors == NULL )
@@ -3444,7 +3444,7 @@ HypreAME::StealEigenvectors()
    eigenvectors = NULL;
    multi_vec = NULL;
 
-   return vecs;
+   return (Vector**)vecs;
 }
 
 }

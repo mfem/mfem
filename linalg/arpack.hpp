@@ -74,7 +74,7 @@ extern "C" {
 namespace mfem
 {
 
-class ArPackSym
+class ArPackSym : public Eigensolver
 {
 public:
 
@@ -207,10 +207,11 @@ public:
    void GetEigenvalues(Array<double> & eigenvalues);
 
    /// Extract a single eigenvector
-   HypreParVector & GetEigenvector(unsigned int i);
+   Vector & GetEigenvector(unsigned int i);
 
    /// Transfer ownership of the converged eigenvectors
-   HypreParVector ** StealEigenvectors();
+   // HypreParVector ** StealEigenvectors();
+   Vector ** StealEigenvectors();
 
 protected:
 

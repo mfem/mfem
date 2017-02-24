@@ -916,7 +916,7 @@ public:
     A. Knyazev, M. Argentati, I. Lashuk, and E. Ovtchinnikov, SISC, 29(5),
     2224-2239, 2007.
 */
-class HypreLOBPCG
+class HypreLOBPCG : public Eigensolver
 {
 private:
    MPI_Comm comm;
@@ -1022,10 +1022,10 @@ public:
    void GetEigenvalues(Array<double> & eigenvalues);
 
    /// Extract a single eigenvector
-   HypreParVector & GetEigenvector(unsigned int i);
+   Vector & GetEigenvector(unsigned int i);
 
    /// Transfer ownership of the converged eigenvectors
-   HypreParVector ** StealEigenvectors() { return multi_vec->StealVectors(); }
+   Vector ** StealEigenvectors() { return (Vector**)multi_vec->StealVectors(); }
 };
 
 /** AME eigenvalue solver in hypre
@@ -1050,7 +1050,7 @@ public:
     mass matrix but it seems unlikely that this would be useful so it is not the
     default behavior.
 */
-class HypreAME
+class HypreAME : public Eigensolver
 {
 private:
    int myid;
@@ -1095,10 +1095,10 @@ public:
    void GetEigenvalues(Array<double> & eigenvalues);
 
    /// Extract a single eigenvector
-   HypreParVector & GetEigenvector(unsigned int i);
+   Vector & GetEigenvector(unsigned int i);
 
    /// Transfer ownership of the converged eigenvectors
-   HypreParVector ** StealEigenvectors();
+   Vector ** StealEigenvectors();
 };
 
 }

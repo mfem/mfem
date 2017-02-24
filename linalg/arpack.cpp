@@ -25,17 +25,17 @@ namespace mfem
 
 ArPackSym::ArPackSym()
    : myid_(0),
-     max_iter_(100),
-     logging_(0),
+     // max_iter_(100),
+     // logging_(0),
      nloc_(-1),
-     nev_(10),
+     // nev_(10),
      ncv_(20),
      rvec_(0),
      mode_(1),
      lworkl_(-1),
      bmat_('I'),
      hwmny_('A'),
-     tol_(1e-4),
+     // tol_(1e-4),
      sigma_(0.0),
      select_(NULL),
      dv_(NULL),
@@ -1045,7 +1045,8 @@ ParArPackSym::prepareEigenvectors()
    }
 }
 
-HypreParVector & ParArPackSym::GetEigenvector(unsigned int i)
+//HypreParVector & ParArPackSym::GetEigenvector(unsigned int i)
+Vector & ParArPackSym::GetEigenvector(unsigned int i)
 {
    if ( myid_ == 0 && logging_ >= 3 )
    {
@@ -1066,7 +1067,8 @@ HypreParVector & ParArPackSym::GetEigenvector(unsigned int i)
    return *vec;
 }
 
-HypreParVector ** ParArPackSym::StealEigenvectors()
+//HypreParVector ** ParArPackSym::StealEigenvectors()
+Vector ** ParArPackSym::StealEigenvectors()
 {
    if ( !eigenvectors_ )
    {
@@ -1076,7 +1078,7 @@ HypreParVector ** ParArPackSym::StealEigenvectors()
    HypreParVector ** vecs = (HypreParVector**)eigenvectors_;
    eigenvectors_ = NULL;
 
-   return vecs;
+   return (Vector**)vecs;
 }
 
 int
