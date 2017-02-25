@@ -56,46 +56,58 @@ public:
 class HyperelasticModel
 {
 protected:
-   ElementTransformation *T;
-   const DenseMatrix *W;
+   ElementTransformation *Trt;
+   const DenseMatrix *Jrt;
 
-   static double Invariant1(const DenseMatrix &M);
-   static double Invariant2(const DenseMatrix &M);
+   static double Dim2Invariant1(const DenseMatrix &M);
+   static double Dim2Invariant2(const DenseMatrix &M);
 
-   static void Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM);
-   static void Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM);
+   static void Dim2Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM);
+   static void Dim2Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM);
 
-   static void Invariant1_dMdM(const DenseMatrix &M, int i, int j,
-                               DenseMatrix &dMdM);
-   static void Invariant2_dMdM(const DenseMatrix &M, int i, int j,
-                               DenseMatrix &dMdM);
+   static void Dim2Invariant1_dMdM(const DenseMatrix &M, int i, int j,
+                                   DenseMatrix &dMdM);
+   static void Dim2Invariant2_dMdM(const DenseMatrix &M, int i, int j,
+                                   DenseMatrix &dMdM);
 
 public:
-   HyperelasticModel() : T(NULL), W(NULL) { }
+   HyperelasticModel() : Trt(NULL), Jrt(NULL) { }
    virtual ~HyperelasticModel() { }
 
    /// A ref->target transformation that can be used to evaluate coefficients.
-   /** @note It's assumed that T.SetIntPoint() is already called for
+   /** @note It's assumed that _Trt.SetIntPoint() is already called for
        the point of interest. */
-   void SetTransformation(ElementTransformation &_T) { T = &_T; }
+   void SetTransformation(ElementTransformation &_Trt) { Trt = &_Trt; }
 
-   /// Ref->target transformation's Jacobian matrix for the point of interest.
-   /** Using @a #W is an alternative to using @a #T, when one cannot define
+   /** @brief Specify the ref->target transformation Jacobian matrix for the
+       point of interest.
+
+       Using @a Jrt is an alternative to using @a T, when one cannot define
        the target Jacobians by a single ElementTransformation for the whole
        zone, e.g., in the TMOP paradigm. */
-   void SetTargetJacobian(const DenseMatrix &_W) { W = &_W; }
+   void SetTargetJacobian(const DenseMatrix &_Jrt) { Jrt = &_Jrt; }
 
-   /// Evaluate the strain energy density function, W=W(J).
-   virtual double EvalW(const DenseMatrix &J) const = 0;
+   /** @brief Evaluate the strain energy density function, W = W(Jtp).
+       @param[in] Jtp  Represents the target->physical transformation
+                       Jacobian matrix. */
+   virtual double EvalW(const DenseMatrix &Jtp) const = 0;
 
-   /// Evaluate the 1st Piola-Kirchhoff stress tensor, P=P(J).
-   virtual void EvalP(const DenseMatrix &J, DenseMatrix &P) const = 0;
+   /** @brief Evaluate the 1st Piola-Kirchhoff stress tensor, P = P(Jtp).
+       @param[in] Jtp  Represents the target->physical transformation
+                       Jacobian matrix. */
+   virtual void EvalP(const DenseMatrix &Jtp, DenseMatrix &P) const = 0;
 
-   /** Evaluate the derivative of the 1st Piola-Kirchhoff stress tensor
+   /** @brief Evaluate the derivative of the 1st Piola-Kirchhoff stress tensor
        and assemble its contribution to the local gradient matrix 'A'.
-       'DS' is the gradient of the basis matrix (dof x dim), and 'weight'
-       is the quadrature weight. */
-   virtual void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
+       @param[in] Jtp     Represents the target->physical transformation
+                          Jacobian matrix.
+       @param[in] DS      Gradient of the basis matrix (dof x dim).
+       @param[in] weight  Quadrature weight coefficient for the point.
+
+       Computes weight * d(dW_dxi)_d(xj) at the current point,
+       for all i and j, where x1 ... xn are the FE dofs.
+  */
+   virtual void AssembleH(const DenseMatrix &Jtp, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const = 0;
 };
 
@@ -155,38 +167,38 @@ public:
 class TMOPHyperelasticModel001 : public HyperelasticModel
 {
 public:
-   virtual double EvalW(const DenseMatrix &J) const;
+   virtual double EvalW(const DenseMatrix &Jtp) const;
 
-   virtual void EvalP(const DenseMatrix &J, DenseMatrix &P) const;
+   virtual void EvalP(const DenseMatrix &Jtp, DenseMatrix &P) const;
 
-   virtual void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
+   virtual void AssembleH(const DenseMatrix &Jtp, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 };
 
 class TMOPHyperelasticModel002 : public HyperelasticModel
 {
 public:
-   virtual double EvalW(const DenseMatrix &J) const;
+   virtual double EvalW(const DenseMatrix &Jtp) const;
 
-   virtual void EvalP(const DenseMatrix &J, DenseMatrix &P) const;
+   virtual void EvalP(const DenseMatrix &Jtp, DenseMatrix &P) const;
 
-   virtual void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
+   virtual void AssembleH(const DenseMatrix &Jtp, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 };
 
 class TMOPHyperelasticModel007 : public HyperelasticModel
 {
 public:
-   virtual double EvalW(const DenseMatrix &J) const;
+   virtual double EvalW(const DenseMatrix &Jtp) const;
 
-   virtual void EvalP(const DenseMatrix &J, DenseMatrix &P) const;
+   virtual void EvalP(const DenseMatrix &Jtp, DenseMatrix &P) const;
 
-   virtual void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
+   virtual void AssembleH(const DenseMatrix &Jtp, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 };
 
 /** Used to compute ref->target transformation Jacobian for different target
-    options, used in class HyperelasticNLFIntegrator. */
+    options; used in class HyperelasticNLFIntegrator. */
 class TargetJacobian
 {
 private:
@@ -217,10 +229,11 @@ public:
    void SetInitialNodes(const GridFunction &n0) { nodes0 = &n0; }
    void SetTargetNodes(const GridFunction &tn)  { tnodes = &tn; }
 
-   /** @brief Given an element and quadrature rule, computes Jacobian
-       matrices for each quadrature point in the element. */
+   /** @brief Given an element and quadrature rule, computes ref->target
+       transformation Jacobians for each quadrature point in the element. */
    void ComputeElementTargets(int e_id, const FiniteElement &fe,
-                              const IntegrationRule &ir, DenseTensor &W) const;
+                              const IntegrationRule &ir,
+                              DenseTensor &Jrt) const;
 };
 
 /** Hyperelastic integrator for any given HyperelasticModel.
@@ -241,15 +254,15 @@ private:
    // Can be used to create "composite" integrators for the TMOP purposes.
    Coefficient *coeff;
 
-   //   J0i: the inverse of the ref->target transformation Jacobian.
-   //    J1: the ref->physical transformation Jacobian.
-   //     J: the target->physical transformation Jacobians.
-   //     P: represents DF_dJ (dim x dim).
+   //   Jtr: the inverse of the ref->target transformation Jacobian.
+   //   Jrp: the ref->physical transformation Jacobian.
+   //   Jtp: the target->physical transformation Jacobians.
+   //     P: represents dW_d(Jtp) (dim x dim).
    //   DSh: gradients of reference shape functions (dof x dim).
-   //    DS: represents DJ_dx (dof x dim).
+   //    DS: represents d(Jtp)_dx (dof x dim).
    // PMatI: current coordinates of the nodes (dof x dim).
-   // PMat0: represents DF_dx (dof x dim).
-   DenseMatrix DSh, DS, J0i, J1, J, P, PMatI, PMatO;
+   // PMat0: represents dW_dx (dof x dim).
+   DenseMatrix DSh, DS, Jtr, Jrp, Jtp, P, PMatI, PMatO;
 
 public:
    /** @param[in] m  HyperelasticModel that defines F(T).
@@ -277,20 +290,20 @@ public:
    /// Sets a scaling Coefficient for the integral.
    void SetCoefficient(Coefficient &c) { coeff = &c; }
 
-   /** @brief Computes the integral of F(T) over a target zone
-       @param[in] el    Type of FiniteElement.
-       @param[in] Tr    Represents reference->target coordinates transformation.
-       @param[in] elfun Physical coordinates of the zone. */
+   /** @brief Computes the integral of W(Jacobian(Trt)) over a target zone
+       @param[in] el     Type of FiniteElement.
+       @param[in] Trt    Represents ref->target coordinates transformation.
+       @param[in] elfun  Physical coordinates of the zone. */
    virtual double GetElementEnergy(const FiniteElement &el,
-                                   ElementTransformation &Tr,
+                                   ElementTransformation &Trt,
                                    const Vector &elfun);
 
    virtual void AssembleElementVector(const FiniteElement &el,
-                                      ElementTransformation &Tr,
+                                      ElementTransformation &Trt,
                                       const Vector &elfun, Vector &elvect);
 
    virtual void AssembleElementGrad(const FiniteElement &el,
-                                    ElementTransformation &Tr,
+                                    ElementTransformation &Trt,
                                     const Vector &elfun, DenseMatrix &elmat);
 
    virtual ~HyperelasticNLFIntegrator();
