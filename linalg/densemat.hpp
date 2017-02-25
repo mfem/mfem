@@ -658,8 +658,7 @@ public:
    void Clear()
    { UseExternalData(NULL, 0, 0, 0); }
 
-   // FIXME - multiply by 'nk'?
-   long MemoryUsage() const { return Mk.MemoryUsage(); }
+   long MemoryUsage() const { return nk*Mk.MemoryUsage(); }
 
    ~DenseTensor()
    {

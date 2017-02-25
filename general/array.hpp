@@ -387,10 +387,9 @@ public:
    class Iterator
    {
    public:
-      // FIXME - remove the 'const' - this is not a const_iterator?
-      Iterator(const BlockArray<T>& array);
+      Iterator(BlockArray<T>& array);
 
-      operator T*() const { return cur_item; }
+      operator bool() const { return cur_item != NULL; }
       T& operator*() const { return *cur_item; }
       T* operator->() const { return cur_item; }
 
@@ -399,11 +398,27 @@ public:
       int Index() const { return cur_index; }
 
    protected:
-      const BlockArray<T>& array; // FIXME - remove 'const'?
+      BlockArray<T>& array;
       int cur_index, cur_unused;
       T* cur_item;
 
       void next();
+   };
+
+   /// Iterator (constant access only) over items contained in the BlockArray.
+   class ConstIterator : private Iterator
+   {
+   public:
+      ConstIterator(const BlockArray<T>& array)
+         : Iterator(const_cast<BlockArray<T>&>(array)) { }
+
+      operator bool() const { return Iterator::cur_item != NULL; }
+      const T& operator*() const { return *Iterator::cur_item; }
+      const T* operator->() const { return Iterator::cur_item; }
+
+      ConstIterator &operator++() { Iterator::next(); return *this; }
+
+      int Index() const { return Iterator::cur_index; }
    };
 
    void Swap(BlockArray<T> &other);
@@ -733,9 +748,9 @@ BlockArray<T>::BlockArray(const BlockArray<T> &other)
    }
 
    // copy all items
-   for (Iterator it(other); it; ++it)
+   for (ConstIterator it(other); it; ++it)
    {
-      new (&At(it.Index())) T(other.At(it.Index()));
+      new (&At(it.Index())) T(*it);
    }
 }
 
@@ -810,7 +825,7 @@ BlockArray<T>::~BlockArray()
 }
 
 template<typename T>
-BlockArray<T>::Iterator::Iterator(const BlockArray<T>& array)
+BlockArray<T>::Iterator::Iterator(BlockArray<T>& array)
    : array(array), cur_index(-1), cur_unused(0), cur_item(NULL)
 {
    array.unused.Sort();
@@ -827,7 +842,7 @@ void BlockArray<T>::Iterator::next()
       if (cur_unused >= array.unused.Size() ||
           cur_index < array.unused[cur_unused])
       {
-         cur_item = const_cast<T*>( &(array.At(cur_index)) );
+         cur_item = &(array.At(cur_index));
          return;
       }
 

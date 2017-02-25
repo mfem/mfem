@@ -3083,14 +3083,14 @@ void NCMesh::PrintVertexParents(std::ostream &out) const
 {
    // count vertices with parents
    int nv = 0;
-   for (HashTable<Node>::Iterator it(nodes); it; ++it)
+   for (HashTable<Node>::ConstIterator it(nodes); it; ++it)
    {
       if (it->HasVertex() && it->p1 != it->p2) { nv++; }
    }
    out << nv << "\n";
 
    // print the relations
-   for (HashTable<Node>::Iterator it(nodes); it; ++it)
+   for (HashTable<Node>::ConstIterator it(nodes); it; ++it)
    {
       if (it->HasVertex() && it->p1 != it->p2)
       {
