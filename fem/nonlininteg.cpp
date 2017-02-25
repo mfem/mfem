@@ -46,8 +46,6 @@ double HyperelasticModel::Dim2Invariant2(const DenseMatrix &M)
 // dI1_dM = [ 2 det(M) M - |M|^2 adj(M)^T ] / det(T)^2.
 void HyperelasticModel::Dim2Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM)
 {
-   if (M.Size() == 3) { MFEM_ABORT("3D is not implemented yet."); }
-
    double fnorm = M.FNorm();
    double det   = M.Det();
 
@@ -61,8 +59,6 @@ void HyperelasticModel::Dim2Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM)
 // dI2_dM = d(det(M))_dM = adj(M)^T.
 void HyperelasticModel::Dim2Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM)
 {
-   if (M.Size() == 3) { MFEM_ABORT("3D is not implemented yet."); }
-
    dM(0, 0) =  M(1, 1); dM(0, 1) = -M(1, 0);
    dM(1, 0) = -M(0, 1); dM(1, 1) =  M(0, 0);
 }
@@ -71,8 +67,6 @@ void HyperelasticModel::Dim2Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM)
 void HyperelasticModel::Dim2Invariant1_dMdM(const DenseMatrix &M, int i, int j,
                                         DenseMatrix &dMdM)
 {
-   if (M.Size() == 3) { MFEM_ABORT("3D is not implemented yet."); }
-
    // Compute d(det(M))_d(Mij), d(|M|^2)_d(Mij).
    DenseMatrix dI(2);
    Dim2Invariant2_dM(M, dI);
@@ -102,8 +96,6 @@ void HyperelasticModel::Dim2Invariant1_dMdM(const DenseMatrix &M, int i, int j,
 void HyperelasticModel::Dim2Invariant2_dMdM(const DenseMatrix &M, int i, int j,
                                         DenseMatrix &dMdM)
 {
-   if (M.Size() == 3) { MFEM_ABORT("3D is not implemented yet."); }
-
    dMdM(i, j) = 0.0;
 }
 
