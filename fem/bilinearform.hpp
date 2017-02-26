@@ -162,6 +162,15 @@ public:
    void FullAddMult(const Vector &x, Vector &y) const
    { mat->AddMult(x, y); mat_e->AddMult(x, y); }
 
+   virtual void AddMultTranspose (const Vector & x, Vector & y,
+                                  const double a = 1.0) const;
+
+   void FullAddMultTranspose (const Vector & x, Vector & y) const
+   { mat->AddMultTranspose(x, y); mat_e->AddMultTranspose(x, y); }
+
+   virtual void MultTranspose (const Vector & x, Vector & y) const
+   { y = 0.0; AddMultTranspose (x, y); }
+
    double InnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct (x, y); }
 

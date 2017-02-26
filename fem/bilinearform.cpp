@@ -189,6 +189,12 @@ void BilinearForm::Mult (const Vector & x, Vector & y) const
    mat -> Mult (x, y);
 }
 
+void BilinearForm::AddMultTranspose (const Vector & x, Vector & y,
+                                     const double a) const
+{
+   mat -> AddMultTranspose (x, y, a);
+}
+
 MatrixInverse * BilinearForm::Inverse() const
 {
    return mat -> Inverse();
