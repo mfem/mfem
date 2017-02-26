@@ -42,6 +42,9 @@ public:
 
    /// Returns the vector assembled on the true dofs, i.e. P^t v.
    HypreParVector *ParallelAssemble();
+
+   /// Return the inner-product.
+   double operator*(const Vector &v) const;
 };
 
 }
