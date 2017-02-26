@@ -402,23 +402,38 @@ class MatrixFunctionCoefficient : public MatrixCoefficient
 private:
    void (*Function)(const Vector &, DenseMatrix &);
    void (*TDFunction)(const Vector &, double, DenseMatrix &);
+   Coefficient *Q;
+   DenseMatrix mat;
 
 public:
    /// Construct a time-independent matrix coefficient from a C-function
-   MatrixFunctionCoefficient(int dim, void (*F)(const Vector &, DenseMatrix &))
-      : MatrixCoefficient(dim)
+   MatrixFunctionCoefficient(int dim, void (*F)(const Vector &, DenseMatrix &),
+                             Coefficient *q = NULL)
+      : MatrixCoefficient(dim), Q(q)
    {
       Function = F;
       TDFunction = NULL;
+      mat.SetSize(0);
+   }
+
+   /// Construct a vector coefficient from a scalar coefficient
+   MatrixFunctionCoefficient(const DenseMatrix &m, Coefficient &q)
+      : MatrixCoefficient(m.Size()), Q(&q)
+   {
+      Function = NULL;
+      TDFunction = NULL;
+      mat = m;
    }
 
    /// Construct a time-dependent matrix coefficient from a C-function
    MatrixFunctionCoefficient(int dim,
-                             void (*TDF)(const Vector &, double, DenseMatrix &))
-      : MatrixCoefficient(dim)
+                             void (*TDF)(const Vector &, double, DenseMatrix &),
+                             Coefficient *q = NULL)
+      : MatrixCoefficient(dim), Q(q)
    {
       Function = NULL;
       TDFunction = TDF;
+      mat.SetSize(0);
    }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
