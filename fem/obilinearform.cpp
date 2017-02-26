@@ -80,18 +80,15 @@ namespace mfem {
     dofMap = occafy(device, el->GetDofMap());
 
     const Poly_1D::Basis &basis = el->GetBasis();
-    const int dofs = fe.GetOrder() + 1;
+    const int order = fe.GetOrder();
+    const int dofs = order + 1;
 
     // Get propertly ordered IntegrationRule
     H1_SegmentElement se(dofs - 1, el->GetBasisType());
-    const IntegrationRule &seIr = se.GetNodes();
+    // [MISSING] This should be done on an integrator-by-integrator basis
+    const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, 2*order);
     const Array<int> &seDofMap = se.GetDofMap();
-    const int quadPoints = seIr.GetNPoints();
-
-    IntegrationRule ir(quadPoints);
-    for (int i = 0; i < quadPoints; ++i) {
-      ir.IntPoint(seDofMap[i]) = seIr[i];
-    }
+    const int quadPoints = ir.GetNPoints();
 
     // Initialize the dof -> quad mapping
     const int d2qEntries = quadPoints * dofs;
