@@ -385,6 +385,18 @@ public:
    virtual ~MatrixCoefficient() { }
 };
 
+class MatrixConstantCoefficient : public MatrixCoefficient
+{
+private:
+   DenseMatrix mat;
+public:
+   MatrixConstantCoefficient(const DenseMatrix &m)
+      : MatrixCoefficient(m.Size()), mat(m) { }
+   using MatrixCoefficient::Eval;
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip) { M = mat; }
+};
+
 class MatrixFunctionCoefficient : public MatrixCoefficient
 {
 private:
