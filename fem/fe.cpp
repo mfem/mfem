@@ -6532,12 +6532,24 @@ Poly_1D::~Poly_1D()
 Poly_1D poly1d;
 Array2D<int> Poly_1D::binom;
 
+H1_TensorBasisElement::H1_TensorBasisElement(const int dims,
+                                             const int p,
+                                             const int dofs,
+                                             const int type) :
+  NodalFiniteElement(dims,
+                     dims == 1
+                     ? Geometry::SEGMENT
+                     : (dims == 2
+                        ? Geometry::SQUARE
+                        : Geometry::CUBE),
+                     dofs, p,
+                     dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
+  pt_type(VerifyClosed(type)),
+  basis1d(poly1d.ClosedBasis(p, pt_type)),
+  dof_map(dofs) {}
 
 H1_SegmentElement::H1_SegmentElement(const int p, const int type)
-   : NodalFiniteElement(1, Geometry::SEGMENT, p + 1, p, FunctionSpace::Pk),
-     pt_type(VerifyClosed(type)),
-     basis1d(poly1d.ClosedBasis(p, pt_type)),
-     dof_map(Dof)
+  : H1_TensorBasisElement(1, p, p + 1, type)
 {
    const double *cp = poly1d.ClosedPoints(p, pt_type);
 
@@ -6624,11 +6636,7 @@ void H1_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1_QuadrilateralElement::H1_QuadrilateralElement(const int p, const int type)
-   : NodalFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
-                        FunctionSpace::Qk),
-     pt_type(VerifyClosed(type)),
-     basis1d(poly1d.ClosedBasis(p, pt_type)),
-     dof_map((p + 1)*(p + 1))
+  : H1_TensorBasisElement(2, p, (p + 1)*(p + 1), type)
 {
    const double *cp = poly1d.ClosedPoints(p, pt_type);
 
@@ -6774,11 +6782,7 @@ void H1_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1_HexahedronElement::H1_HexahedronElement(const int p, const int type)
-   : NodalFiniteElement(3, Geometry::CUBE, (p + 1)*(p + 1)*(p + 1), p,
-                        FunctionSpace::Qk),
-     pt_type(VerifyClosed(type)),
-     basis1d(poly1d.ClosedBasis(p, pt_type)),
-     dof_map((p + 1)*(p + 1)*(p + 1))
+  : H1_TensorBasisElement(3, p, (p + 1)*(p + 1)*(p + 1), type)
 {
    const double *cp = poly1d.ClosedPoints(p, pt_type);
 

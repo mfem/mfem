@@ -16,27 +16,30 @@
 #include "obilinearform.hpp"
 #include "obilininteg.hpp"
 
+#include "tfe.hpp"
+
 namespace mfem {
   //---[ Bilinear Form ]----------------
   OccaBilinearForm::IntegratorBuilderMap OccaBilinearForm::integratorBuilders;
 
   OccaBilinearForm::OccaBilinearForm(FiniteElementSpace *f) :
-    Operator(f->GetVSize()),
-    fes(f),
-    mesh(fes->GetMesh()),
-    device(occa::currentDevice()) {
-
-    SetupIntegratorBuilderMap();
-    SetupBaseKernelProps();
+    Operator(f->GetVSize()) {
+    init(occa::currentDevice(), f);
   }
 
-  OccaBilinearForm::OccaBilinearForm(occa::device dev, FiniteElementSpace *f) :
-    fes(f),
-    mesh(fes->GetMesh()),
-    device(dev) {
+  OccaBilinearForm::OccaBilinearForm(occa::device device_, FiniteElementSpace *f) :
+    Operator(f->GetVSize()) {
+    init(device, f);
+  }
+
+  void OccaBilinearForm::init(occa::device device_, FiniteElementSpace *f) {
+    fes = f;
+    mesh = fes->GetMesh();
+    device = device_;
 
     SetupIntegratorBuilderMap();
     SetupBaseKernelProps();
+    SetupIntegratorData();
   }
 
   void OccaBilinearForm::SetupIntegratorBuilderMap() {
@@ -55,8 +58,85 @@ namespace mfem {
     baseKernelProps["defines/NUM_VDIM"]      = GetVSize();
   }
 
+  void OccaBilinearForm::SetupIntegratorData() {
+    // Right now we are only supporting tensor-based basis
+    const int geom = BaseGeom();
+    if ((geom != Geometry::SEGMENT) &&
+        (geom != Geometry::SQUARE) &&
+        (geom != Geometry::CUBE)) {
+      mfem_error("OccaBilinearForm can only handle Geometry::{SEGMENT,SQUARE,CUBE}");
+    }
+
+    const FiniteElement &fe = GetFE(0);
+    const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
+    if (!el) {
+      mfem_error("OccaBilinearForm can only handle H1_TensorBasisElement element types. "
+                 "These include:"
+                 " H1_SegmentElement,"
+                 " H1_QuadrilateralElement,"
+                 " H1_HexahedronElement.");
+    }
+
+    dofMap = occafy(device, el->GetDofMap());
+
+    const Poly_1D::Basis &basis = el->GetBasis();
+    const int dofs = fe.GetOrder() + 1;
+
+    // Get propertly ordered IntegrationRule
+    H1_SegmentElement se(dofs - 1, el->GetBasisType());
+    const IntegrationRule &seIr = se.GetNodes();
+    const Array<int> &seDofMap = se.GetDofMap();
+    const int quadPoints = seIr.GetNPoints();
+
+    IntegrationRule ir(quadPoints);
+    for (int i = 0; i < quadPoints; ++i) {
+      ir.IntPoint(seDofMap[i]) = seIr[i];
+    }
+
+    // Initialize the dof -> quad mapping
+    const int d2qEntries = quadPoints * dofs;
+    double *dofToQuadData = new double[d2qEntries];
+    double *dofToQuadDData = new double[d2qEntries];
+    dofToQuad.allocate(device, d2qEntries);
+    dofToQuadD.allocate(device, d2qEntries);
+
+    for (int q = 0; q < quadPoints; ++q) {
+      Vector d2q(dofToQuadData + q*dofs, dofs);
+      Vector d2qD(dofToQuadDData + q*dofs, dofs);
+      basis.Eval(ir.IntPoint(q).x, d2q, d2qD);
+    }
+
+    occa::memcpy(dofToQuad.memory(), dofToQuadData);
+    occa::memcpy(dofToQuadD.memory(), dofToQuadDData);
+
+    // Initialize the quad -> dof mapping
+    double *quadToDofData = new double[d2qEntries];
+    double *quadToDofDData = new double[d2qEntries];
+    quadToDof.allocate(device, d2qEntries);
+    quadToDofD.allocate(device, d2qEntries);
+
+    for (int q = 0; q < quadPoints; ++q) {
+      for (int p = 0; p < dofs; ++p) {
+        quadToDofData[q + p*quadPoints] = dofToQuadData[p + q*dofs];
+        quadToDofDData[q + p*quadPoints] = dofToQuadDData[p + q*dofs];
+      }
+    }
+
+    occa::memcpy(quadToDof.memory(), quadToDofData);
+    occa::memcpy(quadToDofD.memory(), quadToDofDData);
+
+    delete [] dofToQuadData;
+    delete [] dofToQuadDData;
+    delete [] quadToDofData;
+    delete [] quadToDofDData;
+  }
+
   occa::device OccaBilinearForm::getDevice() {
     return device;
+  }
+
+  int OccaBilinearForm::BaseGeom() {
+    return mesh->GetElementBaseGeometry();
   }
 
   int OccaBilinearForm::GetDim()
@@ -144,21 +224,45 @@ namespace mfem {
   void OccaBilinearForm::Assemble() {
     // Allocate memory in device if needed
     const int64_t entries  = GetNE() * GetNDofs() * GetVSize();
-    const int64_t gf_bytes = entries * sizeof(double);
 
     if ((0 < geometricFactors.size()) &&
-        (geometricFactors.size() < gf_bytes)) {
+        (geometricFactors.size() < entries)) {
       geometricFactors.free();
     }
     if (geometricFactors.size() == 0) {
-      geometricFactors = device.malloc(gf_bytes);
+      geometricFactors.allocate(device, entries);
     }
+
+    // Requirements:
+    //  - Calculate Jacobian/Jacobian Det
 
     // Global -> Local kernel
     // Look at tfespace.hpp:53
     // Assumptions:
     //  - Element types are fixed for mesh
     //  - Same FE space throughout the mesh (same dofs per element)
+
+    // Assemble:
+    //   tbilininteg.hpp:354
+    // Mult:
+    //   tbilininteg.hpp:387
+
+    // Gradient calculation:
+    //   tfe.hpp:319
+    //   tfe.hpp:350
+    //       int pt_type = BasisType::GetQuadrature1D(type);
+    //       H1_HexahedronElement *fe = new H1_HexahedronElement(P, pt_type);
+    //       my_fe = fe;
+    //       my_dof_map = &fe->GetDofMap();
+    //       my_fe_1d = new L2_SegmentElement(P, pt_type);
+
+    // fe.cpp:6779 (H1_HexahedronElement constructor)
+    //   dof_map
+    //     Vertices   : 8
+    //     -> Edges   : 8*(p - 1)
+    //     -> Faces   : (p - 1) * (p - 1)
+    //     -> Interior: (p - 1) * (p - 1) * (p - 1)
+    // basis/grad inner product: CalcShape, CalcDShape
   }
 
   /// Matrix vector multiplication.

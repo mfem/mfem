@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
   FiniteElementCollection *fec;
   if (order > 0)
     {
-      fec = new H1_FECollection(order, dim);
+      fec = new H1_FECollection(order, dim, basis);
     }
   else if (mesh->GetNodes())
     {
@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
     }
   else
     {
-      fec = new H1_FECollection(order = 1, dim);
+      fec = new H1_FECollection(order = 1, dim, basis);
     }
   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
   cout << "Number of finite element unknowns: "

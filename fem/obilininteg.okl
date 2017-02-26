@@ -93,8 +93,8 @@ kernel void DiffusionIntegrator2D(const int numElements,
           const double z1 = (J22 * x1) - (J21 * x2);
           const double z2 = (J11 * x2) - (J12 * x1);
           // grad_qpts = (w/det(J)) (adj(J) adj(J)^T grad_qpts)
-          grad(el, q, f, 0)  = w_detJ * ((J22 * z1) - (J12 * z2));
-          grad(el, q, f, 1)  = w_detJ * ((J11 * z2) - (J21 * z1));
+          grad(el, q, f, 0) = w_detJ * ((J22 * z1) - (J12 * z2));
+          grad(el, q, f, 1) = w_detJ * ((J11 * z2) - (J21 * z1));
         }
       }
     }

@@ -1451,16 +1451,37 @@ public:
 
 extern Poly_1D poly1d;
 
+class H1_TensorBasisElement : public NodalFiniteElement {
+protected:
+  int pt_type;
+  Poly_1D::Basis &basis1d;
+  Array<int> dof_map;
 
-class H1_SegmentElement : public NodalFiniteElement
+public:
+  H1_TensorBasisElement(const int dims,
+                        const int p,
+                        const int dofs,
+                        const int type);
+
+  inline int GetBasisType() const {
+    return pt_type;
+  }
+
+  inline const Poly_1D::Basis& GetBasis() const {
+    return basis1d;
+  }
+
+  inline const Array<int> &GetDofMap() const {
+    return dof_map;
+  }
+};
+
+class H1_SegmentElement : public H1_TensorBasisElement
 {
 private:
-   int pt_type;
-   Poly_1D::Basis &basis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, dshape_x;
 #endif
-   Array<int> dof_map;
 
 public:
    H1_SegmentElement(const int p, const int type = Quadrature1D::GaussLobatto);
@@ -1468,19 +1489,15 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
-   const Array<int> &GetDofMap() const { return dof_map; }
 };
 
 
-class H1_QuadrilateralElement : public NodalFiniteElement
+class H1_QuadrilateralElement : public H1_TensorBasisElement
 {
 private:
-   int pt_type;
-   Poly_1D::Basis &basis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, dshape_x, dshape_y;
 #endif
-   Array<int> dof_map;
 
 public:
    H1_QuadrilateralElement(const int p,
@@ -1489,19 +1506,15 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
-   const Array<int> &GetDofMap() const { return dof_map; }
 };
 
 
-class H1_HexahedronElement : public NodalFiniteElement
+class H1_HexahedronElement : public H1_TensorBasisElement
 {
 private:
-   int pt_type;
-   Poly_1D::Basis &basis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
 #endif
-   Array<int> dof_map;
 
 public:
    H1_HexahedronElement(const int p, const int type = Quadrature1D::GaussLobatto);
@@ -1509,7 +1522,6 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
-   const Array<int> &GetDofMap() const { return dof_map; }
 };
 
 class H1Pos_SegmentElement : public PositiveFiniteElement

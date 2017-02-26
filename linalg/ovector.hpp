@@ -18,6 +18,7 @@
 #include "stdint.h"
 
 #include "vector.hpp"
+#include "../general/occa_utils.hpp"
 
 #include "occa.hpp"
 #include "occa/array/linalg.hpp"
@@ -163,12 +164,6 @@ namespace mfem
       mfem::Swap(size_, other.size_);
       mfem::Swap(data, other.data);
       mfem::Swap(ownsData, other.ownsData);
-    }
-
-    template <class TM>
-    occa::memory occafy(const Array<TM> &array) const {
-      return data.getDevice().malloc(array.Size() * sizeof(TM),
-                                     array.GetData());
     }
 
     /// v = median(v,lo,hi) entrywise.  Implementation assumes lo <= hi.

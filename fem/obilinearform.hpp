@@ -19,6 +19,7 @@
 #include <map>
 #include "stdint.h"
 
+#include "../general/occa_utils.hpp"
 #include "../linalg/operator.hpp"
 #include "bilinearform.hpp"
 
@@ -56,12 +57,20 @@ namespace mfem {
     occa::device device;
     occa::properties baseKernelProps;
 
-    // Partially assembled data
-    occa::memory geometricFactors;
+    // Local stiffness matrices (B and B^T operators)
+    occa::array<int> dofMap;
+    occa::array<double> dofToQuad, dofToQuadD; // B
+    occa::array<double> quadToDof, quadToDofD; // B^T
+
+    // Store geometric factors per element that are needed by the integrators
+    // For example: Jacobian, Jacobian determinant, etc
+    occa::array<double> geometricFactors;
 
   public:
     OccaBilinearForm(FiniteElementSpace *f);
-    OccaBilinearForm(occa::device dev, FiniteElementSpace *f);
+    OccaBilinearForm(occa::device device_, FiniteElementSpace *f);
+
+    void init(occa::device device_, FiniteElementSpace *f);
 
     // Setup the kernel builder collection
     void SetupIntegratorBuilderMap();
@@ -69,14 +78,19 @@ namespace mfem {
     /// Setup kernel properties
     void SetupBaseKernelProps();
 
+    // Setup device data needed for applying integrators
+    void SetupIntegratorData();
+
     occa::device getDevice();
+
+    /// Useful mesh Information
+    int BaseGeom();
 
     /// Useful FE information
     int GetDim();
     int64_t GetNE();
     int64_t GetNDofs();
     int64_t GetVSize();
-
     const FiniteElement& GetFE(const int i);
 
     /// Adds new Domain Integrator.
