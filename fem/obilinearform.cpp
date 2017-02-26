@@ -47,7 +47,7 @@ namespace mfem {
       return;
     }
     integratorBuilders[DiffusionIntegrator::StaticName()] =
-      &DiffusionIntegratorBuilder;
+      new OccaDiffusionIntegrator(*this);
   }
 
   void OccaBilinearForm::SetupBaseKernelProps() {
@@ -64,13 +64,13 @@ namespace mfem {
     if ((geom != Geometry::SEGMENT) &&
         (geom != Geometry::SQUARE) &&
         (geom != Geometry::CUBE)) {
-      mfem_error("OccaBilinearForm can only handle Geometry::{SEGMENT,SQUARE,CUBE}");
+      mfem_error("occa::OccaBilinearForm can only handle Geometry::{SEGMENT,SQUARE,CUBE}");
     }
 
     const FiniteElement &fe = GetFE(0);
     const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
     if (!el) {
-      mfem_error("OccaBilinearForm can only handle H1_TensorBasisElement element types. "
+      mfem_error("occa::OccaBilinearForm can only handle H1_TensorBasisElement element types. "
                  "These include:"
                  " H1_SegmentElement,"
                  " H1_QuadrilateralElement,"
@@ -78,54 +78,6 @@ namespace mfem {
     }
 
     dofMap = occafy(device, el->GetDofMap());
-
-    const Poly_1D::Basis &basis = el->GetBasis();
-    const int order = fe.GetOrder();
-    const int dofs = order + 1;
-
-    // Get propertly ordered IntegrationRule
-    H1_SegmentElement se(dofs - 1, el->GetBasisType());
-    // [MISSING] This should be done on an integrator-by-integrator basis
-    const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, 2*order);
-    const Array<int> &seDofMap = se.GetDofMap();
-    const int quadPoints = ir.GetNPoints();
-
-    // Initialize the dof -> quad mapping
-    const int d2qEntries = quadPoints * dofs;
-    double *dofToQuadData = new double[d2qEntries];
-    double *dofToQuadDData = new double[d2qEntries];
-    dofToQuad.allocate(device, d2qEntries);
-    dofToQuadD.allocate(device, d2qEntries);
-
-    for (int q = 0; q < quadPoints; ++q) {
-      Vector d2q(dofToQuadData + q*dofs, dofs);
-      Vector d2qD(dofToQuadDData + q*dofs, dofs);
-      basis.Eval(ir.IntPoint(q).x, d2q, d2qD);
-    }
-
-    occa::memcpy(dofToQuad.memory(), dofToQuadData);
-    occa::memcpy(dofToQuadD.memory(), dofToQuadDData);
-
-    // Initialize the quad -> dof mapping
-    double *quadToDofData = new double[d2qEntries];
-    double *quadToDofDData = new double[d2qEntries];
-    quadToDof.allocate(device, d2qEntries);
-    quadToDofD.allocate(device, d2qEntries);
-
-    for (int q = 0; q < quadPoints; ++q) {
-      for (int p = 0; p < dofs; ++p) {
-        quadToDofData[q + p*quadPoints] = dofToQuadData[p + q*dofs];
-        quadToDofDData[q + p*quadPoints] = dofToQuadDData[p + q*dofs];
-      }
-    }
-
-    occa::memcpy(quadToDof.memory(), quadToDofData);
-    occa::memcpy(quadToDofD.memory(), quadToDofDData);
-
-    delete [] dofToQuadData;
-    delete [] dofToQuadDData;
-    delete [] quadToDofData;
-    delete [] quadToDofDData;
   }
 
   occa::device OccaBilinearForm::getDevice() {
@@ -176,11 +128,11 @@ namespace mfem {
     AddIntegrator(*bfi, props, BoundaryFaceIntegrator);
   }
 
-  /// Adds Integrator based on IntegratorType
+  /// Adds Integrator based on OccaIntegratorType
   void OccaBilinearForm::AddIntegrator(BilinearFormIntegrator &bfi,
                                        const occa::properties &props,
-                                       const IntegratorType itype) {
-    IntegratorBuilder builder = integratorBuilders[bfi.Name()];
+                                       const OccaIntegratorType itype) {
+    OccaIntegrator *builder = integratorBuilders[bfi.Name()];
     if (builder == NULL) {
       std::stringstream error_ss;
       error_ss << "OccaBilinearForm::";
@@ -191,20 +143,19 @@ namespace mfem {
       case BoundaryFaceIntegrator: error_ss << "AddBoundaryFaceIntegrator"; break;
       }
       error_ss << " (...):\n"
-               << "  No kernel builder for BilinearFormIntegrator '" << bfi.Name() << "'";
+               << "  No kernel builder for occa::BilinearFormIntegrator '" << bfi.Name() << "'";
       const std::string error = error_ss.str();
       mfem_error(error.c_str());
     }
-    integrators.push_back(builder(*this,
-                                  bfi,
-                                  baseKernelProps + props,
-                                  itype));
+    integrators.push_back(builder->CreateInstance(bfi,
+                                                  baseKernelProps + props,
+                                                  itype));
   }
 
   /// Get the finite element space prolongation matrix
   const Operator* OccaBilinearForm::GetProlongation() const {
     if (fes->GetConformingProlongation() != NULL) {
-      mfem_error("OccaBilinearForm::GetProlongation() is not overloaded!");
+      mfem_error("occa::OccaBilinearForm::GetProlongation() is not overloaded!");
     }
     return NULL;
   }
@@ -212,7 +163,7 @@ namespace mfem {
   /// Get the finite element space restriction matrix
   const Operator* OccaBilinearForm::GetRestriction() const {
     if (fes->GetConformingRestriction() != NULL) {
-      mfem_error("OccaBilinearForm::GetRestriction() is not overloaded!");
+      mfem_error("occa::OccaBilinearForm::GetRestriction() is not overloaded!");
     }
     return NULL;
   }
@@ -222,6 +173,9 @@ namespace mfem {
     // Allocate memory in device if needed
     const int64_t entries  = GetNE() * GetNDofs() * GetVSize();
 
+    // Requirements:
+    //  - Calculate Jacobian/Jacobian Det
+
     if ((0 < geometricFactors.size()) &&
         (geometricFactors.size() < entries)) {
       geometricFactors.free();
@@ -230,102 +184,29 @@ namespace mfem {
       geometricFactors.allocate(device, entries);
     }
 
-    // Requirements:
-    //  - Calculate Jacobian/Jacobian Det
-
-    // Global -> Local kernel
-    // Look at tfespace.hpp:53
-    // Assumptions:
-    //  - Element types are fixed for mesh
-    //  - Same FE space throughout the mesh (same dofs per element)
-
-    // Assemble:
-    //   tbilininteg.hpp:354
-    // Mult:
-    //   tbilininteg.hpp:387
-
-    // Gradient calculation:
-    //   tfe.hpp:319
-    //   tfe.hpp:350
-    //       int pt_type = BasisType::GetQuadrature1D(type);
-    //       H1_HexahedronElement *fe = new H1_HexahedronElement(P, pt_type);
-    //       my_fe = fe;
-    //       my_dof_map = &fe->GetDofMap();
-    //       my_fe_1d = new L2_SegmentElement(P, pt_type);
-
-    // fe.cpp:6779 (H1_HexahedronElement constructor)
-    //   dof_map
-    //     Vertices   : 8
-    //     -> Edges   : 8*(p - 1)
-    //     -> Faces   : (p - 1) * (p - 1)
-    //     -> Interior: (p - 1) * (p - 1) * (p - 1)
-    // basis/grad inner product: CalcShape, CalcDShape
+    const int integratorCount = (int) integrators.size();
+    for (int i = 0; i < integratorCount; ++i) {
+      integrators[i]->Assemble();
+    }
   }
 
   /// Matrix vector multiplication.
   void OccaBilinearForm::Mult(const OccaVector &x, OccaVector &y) const {
     y = 0.0;
 
-    // tevaluator.hpp:982
-    // typedef FieldEvaluator<solFESpace,
-    //                        solVecLayout_t,
-    //                        IR,
-    //                        complex_t,
-    //                        real_t> solFieldEval;
+    // [MISSING] Scatter to local vector
 
-    // solFieldEval solFEval(solFES, solEval, solVecLayout,
-    //                       x.GetData(), y.GetData());
+    const int integratorCount = (int) integrators.size();
+    for (int i = 0; i < integratorCount; ++i) {
+      integrators[i]->Mult();
+    }
 
-    // for (int el = 0; el < NE; el++) {
-    //   typename S_spec<BE = 1>::DataType R; <-- InData/OutData
-    //   -> Spec = solFieldEval::Spec<diffusion integrator kernel, BE>
-    //   -> DataType = Spec::DataType
-    //     tevaluator.hpp:1408
-    //       tevaluator.hpp:1132
-    //       -> Values    = 1
-    //       -> Gradients = 2
-    //     -> InData  = Values*kernel_t::in_values  + Gradients*kernel_t::in_gradients;
-    //                = (1 * false) + (2 * true)
-    //                = 2
-    //     -> OutData = Values*kernel_t::out_values + Gradients*kernel_t::out_gradients;
-    //                = (1 * false) + (2 * true)
-    //                = 2
-    //     -> Spec::Datatype = BData<InData,OutData,NE>
-    //                       = BData<2,2,NE>
-    //
-    //   tevaluator.hpp:1089
-    //   solFEval.Eval(el, R); {
-    //     SetElement(el);
-    //     Action<DataType::InData,true>::Eval(vec_layout, *this, R);
-    //       tevaluator.hpp:654
-    //       -> T.shapeEval.Calc<Add = false>
-    //       tevaluator.hpp:702
-    //       -> T.shapeEval.CalcGrad<Add = true>
-    //   }
-    //
-    //   for (int i = 0; i < NUM_QPTS; i++) {
-    //     for (int j = 0; j < NUM_VDIM; j++) {
-    //       R.grad_qpts(i,0,j,0) *= assembled_data[el](i,0);
-    //     }
-    //   }
-    //
-    //   tevaluator.hpp:1097
-    //   solFEval.Assemble<true>(R); {
-    //     tevaluator.hpp:1331
-    //     Action<DataType::OutData,true>::Assemble<Add>(vec_layout, *this, R);
-    //       tevaluator.hpp:691
-    //       -> T.shapeEval.CalcT<Add = false>
-    //       tevaluator.hpp:724
-    //       -> T.shapeEval.CalcGradT<Add = true>
-    //       tfespace.hpp:239
-    //       -> T.fespace.VectorAssemble<Op = Add>
-    //   }
-    // }
+    // [MISSING] Gather to global vector (y)
   }
 
   /// Matrix transpose vector multiplication.
   void OccaBilinearForm::MultTranspose(const OccaVector &x, OccaVector &y) const {
-    mfem_error("OccaBilinearForm::MultTranspose() is not overloaded!");
+    mfem_error("occa::OccaBilinearForm::MultTranspose() is not overloaded!");
   }
 
 
@@ -366,7 +247,7 @@ namespace mfem {
     // Free all integrator kernels
     IntegratorVector::iterator it = integrators.begin();
     while (it != integrators.end()) {
-      it->free();
+      delete *it;
       ++it;
     }
   }
@@ -374,15 +255,15 @@ namespace mfem {
 
   //---[ Constrained Operator ]---------
   occa::kernelBuilder OccaConstrainedOperator::map_dof_builder =
-    makeCustomBuilder("vector_map_dofs",
-                      "const int idx = v2[i];"
-                      "v0[idx] = v1[idx];",
-                      "defines: { VTYPE2: 'int' }");
+                  makeCustomBuilder("vector_map_dofs",
+                                    "const int idx = v2[i];"
+                                    "v0[idx] = v1[idx];",
+                                    "defines: { VTYPE2: 'int' }");
 
   occa::kernelBuilder OccaConstrainedOperator::clear_dof_builder =
-    makeCustomBuilder("vector_clear_dofs",
-                      "v0[v1[i]] = 0.0;",
-                      "defines: { VTYPE1: 'int' }");
+                  makeCustomBuilder("vector_clear_dofs",
+                                    "v0[v1[i]] = 0.0;",
+                                    "defines: { VTYPE1: 'int' }");
 
   OccaConstrainedOperator::OccaConstrainedOperator(Operator *A_,
                                                    const Array<int> &constraint_list_,

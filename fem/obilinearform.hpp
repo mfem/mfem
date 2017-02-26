@@ -27,23 +27,21 @@
 #include "occa/array.hpp"
 
 namespace mfem {
-  enum IntegratorType {
+  enum OccaIntegratorType {
     DomainIntegrator       = 0,
     BoundaryIntegrator     = 1,
     InteriorFaceIntegrator = 2,
     BoundaryFaceIntegrator = 3,
   };
 
+  class OccaIntegrator;
+
   /** Class for bilinear form - "Matrix" with associated FE space and
       BLFIntegrators. */
   class OccaBilinearForm : public Operator {
   protected:
-    typedef std::vector<occa::kernel> IntegratorVector;
-    typedef occa::kernel (*IntegratorBuilder)(OccaBilinearForm &bf,
-                                                    BilinearFormIntegrator &bfi,
-                                                    const occa::properties &props,
-                                                    const IntegratorType itype);
-    typedef std::map<std::string,IntegratorBuilder> IntegratorBuilderMap;
+    typedef std::vector<OccaIntegrator*> IntegratorVector;
+    typedef std::map<std::string,OccaIntegrator*> IntegratorBuilderMap;
 
     /// State information
     FiniteElementSpace *fes;
@@ -57,10 +55,7 @@ namespace mfem {
     occa::device device;
     occa::properties baseKernelProps;
 
-    // Local stiffness matrices (B and B^T operators)
     occa::array<int> dofMap;
-    occa::array<double> dofToQuad, dofToQuadD; // B
-    occa::array<double> quadToDof, quadToDofD; // B^T
 
     // Store geometric factors per element that are needed by the integrators
     // For example: Jacobian, Jacobian determinant, etc
@@ -109,10 +104,10 @@ namespace mfem {
     void AddBoundaryFaceIntegrator(BilinearFormIntegrator *bfi,
                                    const occa::properties &props = occa::properties());
 
-    /// Adds Integrator based on IntegratorType
+    /// Adds Integrator based on OccaIntegratorType
     void AddIntegrator(BilinearFormIntegrator &bfi,
                        const occa::properties &props,
-                       const IntegratorType itype);
+                       const OccaIntegratorType itype);
 
     /// Get the finite element space prolongation matrix
     virtual const Operator *GetProlongation() const;
@@ -143,7 +138,7 @@ namespace mfem {
     ~OccaBilinearForm();
   };
 
-  /// Based on ConstrainedOperator
+  /// Based on OccaConstrainedOperator
   class OccaConstrainedOperator : public Operator {
   protected:
     occa::device device;
