@@ -474,6 +474,8 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
 
 /// Returns the matrix A * B
 HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B);
+/// Returns the matrix A + B
+HypreParMatrix * ParAdd(HypreParMatrix *A, HypreParMatrix *B);
 
 /// Returns the matrix P^t * A * P
 HypreParMatrix * RAP(HypreParMatrix *A, HypreParMatrix *P);

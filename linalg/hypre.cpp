@@ -1382,6 +1382,17 @@ HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B)
    return new HypreParMatrix(ab);
 }
 
+HypreParMatrix * ParAdd(HypreParMatrix *A, HypreParMatrix *B)
+{
+   hypre_ParCSRMatrix * C;
+
+   internal::hypre_ParCSRMatrixAdd(*A,*B,&C);
+
+   hypre_MatvecCommPkgCreate(C);
+
+   return new HypreParMatrix(C);
+}
+
 HypreParMatrix * RAP(HypreParMatrix *A, HypreParMatrix *P)
 {
    HYPRE_Int P_owns_its_col_starts =
