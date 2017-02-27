@@ -1450,8 +1450,17 @@ void CurlCurlIntegrator::AssembleElementMatrix
       {
          w *= Q->Eval(Trans, ip);
       }
+      if ( MQ )
+      {
+         DenseMatrix M;
+         MQ->Eval(M, Trans, ip);
 
-      AddMult_a_AAt(w, curlshape_dFt, elmat);
+         AddMult_a_ABAt(w, curlshape_dFt, M, elmat);
+      }
+      else
+      {
+         AddMult_a_AAt(w, curlshape_dFt, elmat);
+      }
    }
 }
 
