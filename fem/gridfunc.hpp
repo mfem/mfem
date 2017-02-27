@@ -177,7 +177,7 @@ public:
        all element use the same projection matrix. */
    void ProjectGridFunction(const GridFunction &src);
 
-   void ProjectCoefficient(Coefficient &coeff);
+   virtual void ProjectCoefficient(Coefficient &coeff);
 
    // call fes -> BuildDofToArrays() before using this projection
    void ProjectCoefficient(Coefficient &coeff, Array<int> &dofs, int vd = 0);
@@ -189,11 +189,27 @@ public:
 
    void ProjectCoefficient(Coefficient *coeff[]);
 
-   /** Project a discontinuous vector coefficient as a grid function on a
-       continuous finite element space. The values in shared dofs are determined
-       from the element with maximal attribute. */
-   void ProjectDiscCoefficient(VectorCoefficient &coeff);
+   /** @brief Project a discontinuous vector coefficient as a grid function on
+       a continuous finite element space. The values in shared dofs are
+       determined from the element with maximal attribute. */
+   virtual void ProjectDiscCoefficient(VectorCoefficient &coeff);
 
+   enum AvgType {ARITHMETIC, HARMONIC};
+   /** @brief Projects a discontinuous coefficient so that the values in shared
+       vdofs are computed by taking an average of the possible values. */
+   virtual void ProjectDiscCoefficient(Coefficient &coeff, AvgType type);
+
+protected:
+   /** @brief Accumulates (depending on @a type) the values of @a coeff at all
+       shared vdofs and counts in how many zones each vdof appears. */
+   void AccumulateAndCountZones(Coefficient &coeff, AvgType type,
+                                Array<int> &zones_per_vdof);
+
+   // Complete the computation of averages; called e.g. after
+   // AccumulateAndCountZones().
+   void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
+
+public:
    void ProjectBdrCoefficient(Coefficient &coeff, Array<int> &attr)
    {
       Coefficient *coeff_p = &coeff;
@@ -214,61 +230,61 @@ public:
    void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                      Array<int> &bdr_attr);
 
-   double ComputeL2Error(Coefficient &exsol,
-                         const IntegrationRule *irs[] = NULL) const
+   virtual double ComputeL2Error(Coefficient &exsol,
+                                 const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(2.0, exsol, NULL, irs); }
 
-   double ComputeL2Error(Coefficient *exsol[],
-                         const IntegrationRule *irs[] = NULL) const;
+   virtual double ComputeL2Error(Coefficient *exsol[],
+                                 const IntegrationRule *irs[] = NULL) const;
 
-   double ComputeL2Error(VectorCoefficient &exsol,
-                         const IntegrationRule *irs[] = NULL,
-                         Array<int> *elems = NULL) const;
+   virtual double ComputeL2Error(VectorCoefficient &exsol,
+                                 const IntegrationRule *irs[] = NULL,
+                                 Array<int> *elems = NULL) const;
 
-   double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
-                         Coefficient *ell_coef, double Nu,
-                         int norm_type) const;
+   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                                 Coefficient *ell_coef, double Nu,
+                                 int norm_type) const;
 
-   double ComputeMaxError(Coefficient &exsol,
-                          const IntegrationRule *irs[] = NULL) const
+   virtual double ComputeMaxError(Coefficient &exsol,
+                                  const IntegrationRule *irs[] = NULL) const
    {
       return ComputeLpError(std::numeric_limits<double>::infinity(),
                             exsol, NULL, irs);
    }
 
-   double ComputeMaxError(Coefficient *exsol[],
-                          const IntegrationRule *irs[] = NULL) const;
+   virtual double ComputeMaxError(Coefficient *exsol[],
+                                  const IntegrationRule *irs[] = NULL) const;
 
-   double ComputeMaxError(VectorCoefficient &exsol,
-                          const IntegrationRule *irs[] = NULL) const
+   virtual double ComputeMaxError(VectorCoefficient &exsol,
+                                  const IntegrationRule *irs[] = NULL) const
    {
       return ComputeLpError(std::numeric_limits<double>::infinity(),
                             exsol, NULL, NULL, irs);
    }
 
-   double ComputeL1Error(Coefficient &exsol,
-                         const IntegrationRule *irs[] = NULL) const
+   virtual double ComputeL1Error(Coefficient &exsol,
+                                 const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, irs); }
 
-   double ComputeW11Error(Coefficient *exsol, VectorCoefficient *exgrad,
-                          int norm_type, Array<int> *elems = NULL,
-                          const IntegrationRule *irs[] = NULL) const;
+   virtual double ComputeW11Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                                  int norm_type, Array<int> *elems = NULL,
+                                  const IntegrationRule *irs[] = NULL) const;
 
-   double ComputeL1Error(VectorCoefficient &exsol,
-                         const IntegrationRule *irs[] = NULL) const
+   virtual double ComputeL1Error(VectorCoefficient &exsol,
+                                 const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
 
-   double ComputeLpError(const double p, Coefficient &exsol,
-                         Coefficient *weight = NULL,
-                         const IntegrationRule *irs[] = NULL) const;
+   virtual double ComputeLpError(const double p, Coefficient &exsol,
+                                 Coefficient *weight = NULL,
+                                 const IntegrationRule *irs[] = NULL) const;
 
    /** When given a vector weight, compute the pointwise (scalar) error as the
        dot product of the vector error with the vector weight. Otherwise, the
        scalar error is the l_2 norm of the vector error. */
-   double ComputeLpError(const double p, VectorCoefficient &exsol,
-                         Coefficient *weight = NULL,
-                         VectorCoefficient *v_weight = NULL,
-                         const IntegrationRule *irs[] = NULL) const;
+   virtual double ComputeLpError(const double p, VectorCoefficient &exsol,
+                                 Coefficient *weight = NULL,
+                                 VectorCoefficient *v_weight = NULL,
+                                 const IntegrationRule *irs[] = NULL) const;
 
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,
                             GridFunction &flux,
@@ -288,19 +304,21 @@ public:
    GridFunction &operator=(const GridFunction &v);
 
    /// Transform by the Space UpdateMatrix (e.g., on Mesh change).
-   void Update();
+   virtual void Update();
 
    FiniteElementSpace *FESpace() { return fes; }
    const FiniteElementSpace *FESpace() const { return fes; }
 
-   void SetSpace(FiniteElementSpace *f);
+   /// Associate a new FiniteElementSpace with the GridFunction.
+   /** The GridFunction is resized using the SetSize() method. */
+   virtual void SetSpace(FiniteElementSpace *f);
 
    /** @brief Make the GridFunction reference external data on a new
        FiniteElementSpace. */
    /** This method changes the FiniteElementSpace associated with the
        GridFunction and sets the pointer @a v as external data in the
        GridFunction. */
-   void MakeRef(FiniteElementSpace *f, double *v);
+   virtual void MakeRef(FiniteElementSpace *f, double *v);
 
    /** @brief Make the GridFunction reference external data on a new
        FiniteElementSpace. */
@@ -309,7 +327,7 @@ public:
        as external data in the GridFunction.
        @note This version of the method will also perform bounds checks when
        the build option MFEM_DEBUG is enabled. */
-   void MakeRef(FiniteElementSpace *f, Vector &v, int v_offset);
+   virtual void MakeRef(FiniteElementSpace *f, Vector &v, int v_offset);
 
    /// Save the GridFunction to an output stream.
    virtual void Save(std::ostream &out) const;
