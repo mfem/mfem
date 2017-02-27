@@ -202,7 +202,8 @@ public:
     *  block (size nColBlocks+1).  Note: BlockLowerTriangularPreconditioner will not own/copy the
     *  data contained in offsets.
     */
-   BlockLowerTriangularPreconditioner(const Array<int> & row_offsets, const Array<int> & col_offsets);
+   BlockLowerTriangularPreconditioner(const Array<int> & row_offsets,
+                                      const Array<int> & col_offsets);
 
    //! Add block op in the block-entry (iblock, iblock).
    /**
@@ -223,7 +224,7 @@ public:
    int NumBlocks() const { return nRowBlocks; }
 
    //! Return a reference to block i,j.
-  Operator & GetBlock(int iblock, int jblock)
+   Operator & GetBlock(int iblock, int jblock)
    { MFEM_VERIFY(op(iblock,jblock), ""); return *op(iblock,jblock); }
 
    //! Return the offsets for block starts
@@ -254,7 +255,7 @@ private:
    //! 2D array that stores each block of the operator.
    Array2D<Operator *> op;
 
-  //! Temporary Vectors used to efficiently apply the Mult and MultTranspose
+   //! Temporary Vectors used to efficiently apply the Mult and MultTranspose
    //! methods.
    mutable BlockVector xblock;
    mutable BlockVector yblock;

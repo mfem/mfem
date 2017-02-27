@@ -194,7 +194,8 @@ BlockDiagonalPreconditioner::~BlockDiagonalPreconditioner()
       }
 }
 
-BlockLowerTriangularPreconditioner::BlockLowerTriangularPreconditioner(const Array<int> & offsets)
+BlockLowerTriangularPreconditioner::BlockLowerTriangularPreconditioner(
+   const Array<int> & offsets)
    : Solver(offsets.Last()),
      owns_blocks(0),
      nRowBlocks(offsets.Size() - 1),
@@ -208,8 +209,9 @@ BlockLowerTriangularPreconditioner::BlockLowerTriangularPreconditioner(const Arr
    col_offsets.MakeRef(offsets);
 }
 
-BlockLowerTriangularPreconditioner::BlockLowerTriangularPreconditioner(const Array<int> & row_offsets_,
-                             const Array<int> & col_offsets_)
+BlockLowerTriangularPreconditioner::BlockLowerTriangularPreconditioner(
+   const Array<int> & row_offsets_,
+   const Array<int> & col_offsets_)
    : Solver(row_offsets_.Last(), col_offsets_.Last()),
      owns_blocks(0),
      nRowBlocks(row_offsets_.Size()-1),
@@ -223,12 +225,14 @@ BlockLowerTriangularPreconditioner::BlockLowerTriangularPreconditioner(const Arr
    col_offsets.MakeRef(col_offsets_);
 }
 
-void BlockLowerTriangularPreconditioner::SetDiagonalBlock(int iblock, Operator *op)
+void BlockLowerTriangularPreconditioner::SetDiagonalBlock(int iblock,
+                                                          Operator *op)
 {
    SetBlock(iblock, iblock, op);
 }
 
-void BlockLowerTriangularPreconditioner::SetBlock(int iRow, int iCol, Operator *opt)
+void BlockLowerTriangularPreconditioner::SetBlock(int iRow, int iCol,
+                                                  Operator *opt)
 {
    op(iRow, iCol) = opt;
 
@@ -238,7 +242,8 @@ void BlockLowerTriangularPreconditioner::SetBlock(int iRow, int iCol, Operator *
 }
 
 // Operator application
-void BlockLowerTriangularPreconditioner::Mult (const Vector & x, Vector & y) const
+void BlockLowerTriangularPreconditioner::Mult (const Vector & x,
+                                               Vector & y) const
 {
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
@@ -263,11 +268,11 @@ void BlockLowerTriangularPreconditioner::Mult (const Vector & x, Vector & y) con
       }
       if (op(iRow,iRow))
       {
-	op(iRow,iRow)->Mult(tmp2, yblock.GetBlock(iRow));
+         op(iRow,iRow)->Mult(tmp2, yblock.GetBlock(iRow));
       }
       else
       {
-	yblock.GetBlock(iRow) = tmp2;
+         yblock.GetBlock(iRow) = tmp2;
       }
 
    }
@@ -275,7 +280,7 @@ void BlockLowerTriangularPreconditioner::Mult (const Vector & x, Vector & y) con
 
 // Action of the transpose operator
 void BlockLowerTriangularPreconditioner::MultTranspose (const Vector & x,
-                                                 Vector & y) const
+                                                        Vector & y) const
 {
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
@@ -300,11 +305,11 @@ void BlockLowerTriangularPreconditioner::MultTranspose (const Vector & x,
       }
       if (op(iRow,iRow))
       {
-	op(iRow,iRow)->MultTranspose(tmp2, yblock.GetBlock(iRow));
+         op(iRow,iRow)->MultTranspose(tmp2, yblock.GetBlock(iRow));
       }
       else
       {
-	yblock.GetBlock(iRow) = tmp2;
+         yblock.GetBlock(iRow) = tmp2;
       }
 
    }
