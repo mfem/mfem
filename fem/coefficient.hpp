@@ -157,6 +157,7 @@ public:
    { GridF = gf; Component = comp; }
 
    void SetGridFunction(GridFunction *gf) { GridF = gf; }
+   GridFunction * GetGridFunction() const { return GridF; }
 
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
@@ -335,6 +336,9 @@ private:
 
 public:
    VectorGridFunctionCoefficient(GridFunction *gf);
+
+   void SetGridFunction(GridFunction *gf) { GridFunc = gf; }
+   GridFunction * GetGridFunction() const { return GridFunc; }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
