@@ -4293,4 +4293,14 @@ const
    }
 }
 
+DenseTensor &DenseTensor::operator=(double c)
+{
+   int s = SizeI() * SizeJ() * SizeK();
+   for (int i=0; i<s; i++)
+   {
+      tdata[i] = c;
+   }
+   return *this;
+}
+
 }

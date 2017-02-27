@@ -642,6 +642,9 @@ public:
       own_data = false;
    }
 
+   /// Sets the tensor elements equal to constant c
+   DenseTensor &operator=(double c);
+
    DenseMatrix &operator()(int k) { Mk.data = GetData(k); return Mk; }
    const DenseMatrix &operator()(int k) const
    { return const_cast<DenseTensor&>(*this)(k); }
