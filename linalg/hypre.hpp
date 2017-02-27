@@ -1009,6 +1009,7 @@ public:
    ~HypreLOBPCG();
 
    void SetTol(double tol);
+   void SetRelTol(double rel_tol);
    void SetMaxIter(int max_iter);
    void SetPrintLevel(int logging);
    void SetNumModes(int num_eigs) { nev = num_eigs; }
@@ -1086,6 +1087,7 @@ public:
    ~HypreAME();
 
    void SetTol(double tol);
+   void SetRelTol(double rel_tol);
    void SetMaxIter(int max_iter);
    void SetPrintLevel(int logging);
    void SetNumModes(int num_eigs);

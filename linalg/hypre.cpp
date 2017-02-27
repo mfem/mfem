@@ -3100,6 +3100,12 @@ HypreLOBPCG::SetTol(double tol)
 }
 
 void
+HypreLOBPCG::SetRelTol(double rel_tol)
+{
+   HYPRE_LOBPCGSetRTol(lobpcg_solver, rel_tol);
+}
+
+void
 HypreLOBPCG::SetMaxIter(int max_iter)
 {
    HYPRE_LOBPCGSetMaxIter(lobpcg_solver, max_iter);
@@ -3403,6 +3409,12 @@ void
 HypreAME::SetTol(double tol)
 {
    HYPRE_AMESetTol(ame_solver, tol);
+}
+
+void
+HypreAME::SetRelTol(double rel_tol)
+{
+   HYPRE_AMESetRTol(ame_solver, rel_tol);
 }
 
 void
