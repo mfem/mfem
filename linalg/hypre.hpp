@@ -951,6 +951,9 @@ private:
    // Empty vectors used to setup the matrices and preconditioner
    HypreParVector * x;
 
+   // An optional operator which projects vectors into a desired subspace
+   Operator * subSpaceProj;
+
    /// Internal class to represent a set of eigenvectors
    class HypreMultiVector
    {
@@ -1016,6 +1019,7 @@ public:
    void SetPreconditioner(Solver & precond);
    void SetOperator(Operator & A);
    void SetMassMatrix(Operator & M);
+   void SetSubSpaceProjector(Operator & proj) { subSpaceProj = &proj; }
 
    /// Solve the eigenproblem
    void Solve();

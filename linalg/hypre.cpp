@@ -3067,7 +3067,8 @@ HypreLOBPCG::HypreLOBPCG(MPI_Comm c)
      glbSize(-1),
      part(NULL),
      multi_vec(NULL),
-     x(NULL)
+     x(NULL),
+     subSpaceProj(NULL)
 {
    MPI_Comm_size(comm,&numProcs);
    MPI_Comm_rank(comm,&myid);
@@ -3206,6 +3207,19 @@ HypreLOBPCG::Solve()
 
       multi_vec = new HypreMultiVector(nev, *x, interpreter);
       multi_vec->Randomize(seed);
+
+      if ( subSpaceProj != NULL )
+      {
+         HypreParVector y(*x);
+         y = multi_vec->GetVector(0);
+
+         for (int i=1; i<nev; i++)
+         {
+            subSpaceProj->Mult(multi_vec->GetVector(i),
+                               multi_vec->GetVector(i-1));
+         }
+         subSpaceProj->Mult(y, multi_vec->GetVector(nev-1));
+      }
    }
 
    eigenvalues.SetSize(nev);
