@@ -1014,6 +1014,7 @@ public:
    void SetNumModes(int num_eigs) { nev = num_eigs; }
    void SetPrecondUsageMode(int pcg_mode);
    void SetRandomSeed(int s) { seed = s; }
+   void SetInitialVectors(int num_vecs, HypreParVector ** vecs);
 
    // The following four methods support general operators
    void SetPreconditioner(Solver & precond);

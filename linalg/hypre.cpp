@@ -3198,6 +3198,45 @@ HypreLOBPCG::GetEigenvector(unsigned int i)
 }
 
 void
+HypreLOBPCG::SetInitialVectors(int num_vecs, HypreParVector ** vecs)
+{
+   // Initialize HypreMultiVector object if necessary
+   if ( multi_vec == NULL )
+   {
+      MFEM_ASSERT(x != NULL, "In HypreLOBPCG::SetInitialVectors()");
+
+      multi_vec = new HypreMultiVector(nev, *x, interpreter);
+   }
+
+   // Copy the vectors provided
+   for (int i=0; i < min(num_vecs,nev); i++)
+   {
+      multi_vec->GetVector(i) = *vecs[i];
+   }
+
+   // Randomize any remaining vectors
+   for (int i=min(num_vecs,nev); i < nev; i++)
+   {
+      multi_vec->GetVector(i).Randomize(seed);
+   }
+
+   // Ensure all vectors are in the proper subspace
+   if ( subSpaceProj != NULL )
+   {
+      HypreParVector y(*x);
+      y = multi_vec->GetVector(0);
+
+      for (int i=1; i<nev; i++)
+      {
+         subSpaceProj->Mult(multi_vec->GetVector(i),
+                            multi_vec->GetVector(i-1));
+      }
+      subSpaceProj->Mult(y,
+                         multi_vec->GetVector(nev-1));
+   }
+}
+
+void
 HypreLOBPCG::Solve()
 {
    // Initialize HypreMultiVector object if necessary
