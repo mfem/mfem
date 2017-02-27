@@ -159,7 +159,8 @@ public:
    /// Replaces the current matrix with its inverse
    void Invert();
 
-   /// Calculates the determinant of the matrix (for 2x2 or 3x3 matrices)
+   /// Calculates the determinant of the matrix
+   /// (optimized for 2x2, 3x3, and 4x4 matrices)
    double Det() const;
 
    double Weight() const;
@@ -278,6 +279,8 @@ public:
    void CopyMNDiag(double c, int n, int row_offset, int col_offset);
    /// Copy diag on the diagonal of size n to *this at row_offset, col_offset
    void CopyMNDiag(double *diag, int n, int row_offset, int col_offset);
+   /// Copy All rows and columns except m and n from A
+   void CopyExceptMN(const DenseMatrix &A, int m, int n);
 
    /// Perform (ro+i,co+j)+=A(i,j) for 0<=i<A.Height, 0<=j<A.Width
    void AddMatrix(DenseMatrix &A, int ro, int co);
