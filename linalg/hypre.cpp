@@ -1390,9 +1390,7 @@ HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B)
 
 HypreParMatrix * ParAdd(HypreParMatrix *A, HypreParMatrix *B)
 {
-   hypre_ParCSRMatrix * C;
-
-   internal::hypre_ParCSRMatrixAdd(*A,*B,&C);
+   hypre_ParCSRMatrix * C = internal::hypre_ParCSRMatrixAdd(*A,*B);
 
    hypre_MatvecCommPkgCreate(C);
 
