@@ -379,6 +379,14 @@ void AddMult_a_AAt(double a, const DenseMatrix &A, DenseMatrix &AAt);
 /// AAt = a * A * A^t
 void Mult_a_AAt(double a, const DenseMatrix &A, DenseMatrix &AAt);
 
+/// ABAt += a * A * B * A^t
+void AddMult_a_ABAt(double a, const DenseMatrix &A, const DenseMatrix &B,
+                    DenseMatrix &ABAt);
+
+/// ABAt = a * A * B * A^t
+void Mult_a_ABAt(double a, const DenseMatrix &A, const DenseMatrix &B,
+                 DenseMatrix &ABAt);
+
 /// Make a matrix from a vector V.Vt
 void MultVVt(const Vector &v, DenseMatrix &vvt);
 
