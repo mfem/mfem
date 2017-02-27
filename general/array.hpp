@@ -305,6 +305,9 @@ public:
    /// Make this Array a reference to 'master'
    inline void MakeRef(const Array2D &master)
    { N = master.N; array1d.MakeRef(master.array1d);}
+
+   /// Prints array to stream with width elements per row
+   void Print(std::ostream &out = std::cout, int width = 4);
 };
 
 
