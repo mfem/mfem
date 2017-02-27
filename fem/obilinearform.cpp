@@ -55,7 +55,7 @@ namespace mfem {
 
     baseKernelProps["defines/ELEMENT_BATCH"] = 1;
     baseKernelProps["defines/NUM_DOFS"]      = GetNDofs();
-    baseKernelProps["defines/NUM_VDIM"]      = GetVSize();
+    baseKernelProps["defines/NUM_VDIM"]      = GetVDim();
   }
 
   void OccaBilinearForm::SetupIntegratorData() {
@@ -77,7 +77,72 @@ namespace mfem {
                  " H1_HexahedronElement.");
     }
 
-    dofMap = occafy(device, el->GetDofMap());
+    const Table &e2dMap = fes->GetElementToDofTable();
+    const int *dofMap = el->GetDofMap().GetData();
+
+    const int dim = GetDim();
+    const int order = el->GetOrder();
+    const int elements = GetNE();
+    const int fields = GetVDim();
+    const int ndofs = GetNDofs();
+
+    int ldofs = (order + 1);
+    if (dim == 2) {
+      ldofs *= ldofs;
+    } else if (dim == 3) {
+      ldofs *= ldofs*ldofs;
+    }
+
+    int *offsets = new int[ndofs + 1];
+    int *indices = new int[elements * ldofs];
+
+    // We'll be keeping a count of how many local nodes point
+    //   to its global dof
+    for (int i = 0; i <= ndofs; ++i) {
+      offsets[i] = 0;
+    }
+
+    for (int e = 0; e < elements; ++e) {
+      const int *elementMap = e2dMap.GetJ();
+      for (int d = 0; d < ldofs; ++d) {
+        const int gid = elementMap[ldofs*e + d];
+        ++offsets[gid + 1];
+      }
+    }
+    // Aggregate to find offsets for each global dof
+    for (int i = 1; i <= ndofs; ++i) {
+      offsets[i] += offsets[i - 1];
+    }
+    // For each global dof, fill in all local nodes that point
+    //   to it
+    for (int e = 0; e < elements; ++e) {
+      const int *elementMap = e2dMap.GetJ();
+      for (int d = 0; d < ldofs; ++d) {
+        const int gid = elementMap[ldofs*e + d];
+        const int lid = ldofs*e + dofMap[d];
+        indices[offsets[gid]++] = lid;
+      }
+    }
+    // We essentially shifted the offsets vector by 1 by
+    //   using it as a counter. Shift it back.
+    for (int i = ndofs; i > 0; --i) {
+      offsets[i] = offsets[i - 1];
+    }
+    offsets[0] = 0;
+
+    // Allocate device offsets and indices
+    globalToLocalOffsets.allocate(device, ndofs);
+    globalToLocalIndices.allocate(device, elements * ldofs);
+
+    occa::memcpy(globalToLocalOffsets.memory(), offsets);
+    occa::memcpy(globalToLocalIndices.memory(), indices);
+
+    delete [] offsets;
+    delete [] indices;
+
+    // Allocate a temporary vector where local element operations
+    //   will be handled.
+    localX.allocate(device, elements * ldofs);
   }
 
   occa::device OccaBilinearForm::getDevice() {
@@ -97,7 +162,7 @@ namespace mfem {
   int64_t OccaBilinearForm::GetNDofs()
   { return fes->GetNDofs(); }
 
-  int64_t OccaBilinearForm::GetVSize()
+  int64_t OccaBilinearForm::GetVDim()
   { return fes->GetVDim(); }
 
   const FiniteElement& OccaBilinearForm::GetFE(const int i) {
@@ -171,7 +236,7 @@ namespace mfem {
   /// Assembles the Jacobian information
   void OccaBilinearForm::Assemble() {
     // Allocate memory in device if needed
-    const int64_t entries  = GetNE() * GetNDofs() * GetVSize();
+    const int64_t entries  = GetNE() * GetNDofs() * GetVDim();
 
     // Requirements:
     //  - Calculate Jacobian/Jacobian Det
@@ -184,6 +249,29 @@ namespace mfem {
       geometricFactors.allocate(device, entries);
     }
 
+    /*
+      bilinearform.cpp:244
+      | const FiniteElement &fe = *fes->GetFE(i);
+      | ElementTransformation *eltrans = fes->GetElementTransformation(i);
+      | dbfi[0]->AssembleElementMatrix(fe, *eltrans, elmat);
+      | for (int k = 1; k < dbfi.Size(); k++)
+      | {
+      |   dbfi[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
+      |   elmat += elemmat;
+      | }
+
+      bilininteg.cpp:425
+      | Trans.SetIntPoint(&ip);
+      | w = Trans.Weight();
+      | w = ip.weight / (square ? w : w*w*w);
+      | // AdjugateJacobian = / adj(J),         if J is square
+      | //                    \ adj(J^t.J).J^t, otherwise
+      | Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
+
+      mesh.cpp:238
+      | void Mesh::GetElementTransformation(int i, IsoparametricTransformation *ElTr)
+    */
+
     const int integratorCount = (int) integrators.size();
     for (int i = 0; i < integratorCount; ++i) {
       integrators[i]->Assemble();
@@ -195,6 +283,16 @@ namespace mfem {
     y = 0.0;
 
     // [MISSING] Scatter to local vector
+    // tfespace.hpp:216
+    // | G_IJ  = ind.map(i,j) <-- GetDofMap()
+    // | G_IJK = vl.ind(IJ, k)
+    // | L_IJK = vdof_layout.ind(i,k,j)
+    // | vdof_data[L_IJK] = glob_vdof_data[G_IJK]
+
+    // tbilinearform.hpp:245
+    // | Seems to be doing the gather scatter
+    // | Scatter: FieldEvaluator::VectorExtract
+    // | Gather : FieldEvaluator::VectorAssemble
 
     const int integratorCount = (int) integrators.size();
     for (int i = 0; i < integratorCount; ++i) {
@@ -242,9 +340,12 @@ namespace mfem {
   /// Destroys bilinear form.
   OccaBilinearForm::~OccaBilinearForm() {
     // Free memory
+    globalToLocalOffsets.free();
+    globalToLocalIndices.free();
+    localX.free();
     geometricFactors.free();
 
-    // Free all integrator kernels
+    // Free all integrators
     IntegratorVector::iterator it = integrators.begin();
     while (it != integrators.end()) {
       delete *it;

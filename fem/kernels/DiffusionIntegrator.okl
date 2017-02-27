@@ -113,7 +113,7 @@ kernel void Assemble3D(const int numElements,
   }
 }
 
-kernel void Eval1D(const int numElements,
+kernel void Mult1D(const int numElements,
                    const Operator1D_t oper,
                    Grad1D_t restrict sol) {
   // Iterate over elements
@@ -129,7 +129,7 @@ kernel void Eval1D(const int numElements,
   }
 }
 
-kernel void Eval2D(const int numElements,
+kernel void Mult2D(const int numElements,
                    const Operator2D_t oper,
                    Grad2D_t restrict sol) {
   // Iterate over elements
@@ -153,7 +153,7 @@ kernel void Eval2D(const int numElements,
   }
 }
 
-kernel void Eval3D(const int numElements,
+kernel void Mult3D(const int numElements,
                    const Operator3D_t oper,
                    Grad3D_t restrict sol) {
   // Iterate over elements

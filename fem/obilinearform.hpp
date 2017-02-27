@@ -55,7 +55,11 @@ namespace mfem {
     occa::device device;
     occa::properties baseKernelProps;
 
-    occa::array<int> dofMap;
+    // Sparse storage for the global dof -> local node mapping
+    occa::array<int> globalToLocalOffsets, globalToLocalIndices;
+    // The input vector is mapped to local nodes for easy and efficient operations
+    // The size is: (number of elements) * (nodes in element)
+    occa::array<double> localX;
 
     // Store geometric factors per element that are needed by the integrators
     // For example: Jacobian, Jacobian determinant, etc
@@ -85,7 +89,7 @@ namespace mfem {
     int GetDim();
     int64_t GetNE();
     int64_t GetNDofs();
-    int64_t GetVSize();
+    int64_t GetVDim();
     const FiniteElement& GetFE(const int i);
 
     /// Adds new Domain Integrator.
