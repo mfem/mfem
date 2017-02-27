@@ -231,6 +231,24 @@ void DenseMatrix::AddMult(const Vector &x, Vector &y) const
    }
 }
 
+void DenseMatrix::AddMultTranspose(const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(height == x.Size() && width == y.Size(),
+               "incompatible dimensions");
+
+   double *d_col = data;
+   for (int col = 0; col < width; col++)
+   {
+      double y_col = 0.0;
+      for (int row = 0; row < height; row++)
+      {
+         y_col += x[row]*d_col[row];
+      }
+      y[col] += y_col;
+      d_col += height;
+   }
+}
+
 void DenseMatrix::AddMult_a(double a, const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
