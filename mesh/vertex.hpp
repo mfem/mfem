@@ -40,8 +40,13 @@ public:
    /// Returns the i'th coordinate of the vertex.
    inline const double & operator() (int i) const { return coord[i]; }
 
+   /// Safe in any dimension when argument is mesh.GetVertex()
    void SetCoords(const double *p)
    { coord[0] = p[0]; coord[1] = p[1]; coord[2] = p[2]; }
+
+   /// Should be used if p[] is not guaranteed to have length 3
+   void SetCoords(int dim, const double *p)
+   { for (int i = 0; i < dim; i++) coord[i] = p[i]; }
 
    ~Vertex() { }
 };
