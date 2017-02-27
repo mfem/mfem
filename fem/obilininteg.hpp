@@ -61,7 +61,7 @@ namespace mfem {
 
     virtual void Setup();
     virtual void Assemble() = 0;
-    virtual void Mult() = 0;
+    virtual void Mult(OccaVector &x) = 0;
 
     occa::kernel GetAssembleKernel(const occa::properties &props);
     occa::kernel GetMultKernel(const occa::properties &props);
@@ -89,7 +89,7 @@ namespace mfem {
     virtual void Setup();
 
     virtual void Assemble();
-    virtual void Mult();
+    virtual void Mult(OccaVector &x);
   };
   //====================================
 }

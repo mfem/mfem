@@ -144,7 +144,7 @@ namespace mfem {
     dimSuffix += '0' + (char) bilinearForm.GetDim();
     dimSuffix += 'D';
 
-    return device.buildKernel("occa://mfem/" + filename,
+    return device.buildKernel("occa://mfem/fem/" + filename,
                               kernelName + dimSuffix,
                               props);
   }
@@ -195,7 +195,7 @@ namespace mfem {
   void OccaDiffusionIntegrator::Assemble() {
   }
 
-  void OccaDiffusionIntegrator::Mult() {
+  void OccaDiffusionIntegrator::Mult(OccaVector &x) {
   }
   //====================================
 }

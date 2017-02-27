@@ -59,7 +59,10 @@ namespace mfem {
     occa::array<int> globalToLocalOffsets, globalToLocalIndices;
     // The input vector is mapped to local nodes for easy and efficient operations
     // The size is: (number of elements) * (nodes in element)
-    occa::array<double> localX;
+    mutable OccaVector localX;
+
+    // Kernels to do the global -> local and local -> global mappings
+    occa::kernel VectorExtractKernel, VectorAssembleKernel;
 
     // Store geometric factors per element that are needed by the integrators
     // For example: Jacobian, Jacobian determinant, etc
@@ -74,8 +77,8 @@ namespace mfem {
     // Setup the kernel builder collection
     void SetupIntegratorBuilderMap();
 
-    /// Setup kernel properties
-    void SetupBaseKernelProps();
+    /// Setup kernels and  properties
+    void SetupKernels();
 
     // Setup device data needed for applying integrators
     void SetupIntegratorData();
@@ -117,6 +120,12 @@ namespace mfem {
     virtual const Operator *GetProlongation() const;
     /// Get the finite element space restriction matrix
     virtual const Operator *GetRestriction() const;
+
+    // Map the global dofs to local nodes
+    void VectorExtract(const OccaVector &globalVec, OccaVector &localVec) const;
+
+    // Aggregate local node values to their respective global dofs
+    void VectorAssemble(const OccaVector &localVec, OccaVector &globalVec) const;
 
     /// Assembles the form i.e. sums over all domain/bdr integrators.
     virtual void Assemble();

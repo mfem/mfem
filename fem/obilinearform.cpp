@@ -38,7 +38,7 @@ namespace mfem {
     device = device_;
 
     SetupIntegratorBuilderMap();
-    SetupBaseKernelProps();
+    SetupKernels();
     SetupIntegratorData();
   }
 
@@ -50,12 +50,24 @@ namespace mfem {
       new OccaDiffusionIntegrator(*this);
   }
 
-  void OccaBilinearForm::SetupBaseKernelProps() {
+  void OccaBilinearForm::SetupKernels() {
     const std::string &mode = device.properties()["mode"];
 
     baseKernelProps["defines/ELEMENT_BATCH"] = 1;
     baseKernelProps["defines/NUM_DOFS"]      = GetNDofs();
     baseKernelProps["defines/NUM_VDIM"]      = GetVDim();
+
+    occa::properties mapProps("defines: {"
+                              "  NUM_DOFS: " + occa::toString(GetNDofs()) + ","
+                              "  TILESIZE: 256,"
+                              "}");
+
+    VectorExtractKernel = device.buildKernel("occa://mfem/fem/Mappings.okl",
+                                             "VectorExtract",
+                                             mapProps);
+    VectorAssembleKernel = device.buildKernel("occa://mfem/fem/Mappings.okl",
+                                              "VectorAssemble",
+                                              mapProps);
   }
 
   void OccaBilinearForm::SetupIntegratorData() {
@@ -142,7 +154,7 @@ namespace mfem {
 
     // Allocate a temporary vector where local element operations
     //   will be handled.
-    localX.allocate(device, elements * ldofs);
+    localX.SetSize(device, elements * ldofs);
   }
 
   occa::device OccaBilinearForm::getDevice() {
@@ -233,6 +245,26 @@ namespace mfem {
     return NULL;
   }
 
+  // Map the global dofs to local nodes
+  void OccaBilinearForm::VectorExtract(const OccaVector &globalVec,
+                                       OccaVector &localVec) const {
+
+    VectorExtractKernel(globalToLocalOffsets.memory(),
+                        globalToLocalIndices.memory(),
+                        globalVec.GetData(),
+                        localVec.GetData());
+  }
+
+  // Aggregate local node values to their respective global dofs
+  void OccaBilinearForm::VectorAssemble(const OccaVector &localVec,
+                                        OccaVector &globalVec) const {
+
+    VectorAssembleKernel(globalToLocalOffsets.memory(),
+                         globalToLocalIndices.memory(),
+                         localVec.GetData(),
+                         globalVec.GetData());
+  }
+
   /// Assembles the Jacobian information
   void OccaBilinearForm::Assemble() {
     // Allocate memory in device if needed
@@ -281,25 +313,14 @@ namespace mfem {
   /// Matrix vector multiplication.
   void OccaBilinearForm::Mult(const OccaVector &x, OccaVector &y) const {
     y = 0.0;
-
-    // [MISSING] Scatter to local vector
-    // tfespace.hpp:216
-    // | G_IJ  = ind.map(i,j) <-- GetDofMap()
-    // | G_IJK = vl.ind(IJ, k)
-    // | L_IJK = vdof_layout.ind(i,k,j)
-    // | vdof_data[L_IJK] = glob_vdof_data[G_IJK]
-
-    // tbilinearform.hpp:245
-    // | Seems to be doing the gather scatter
-    // | Scatter: FieldEvaluator::VectorExtract
-    // | Gather : FieldEvaluator::VectorAssemble
+    VectorExtract(x, localX);
 
     const int integratorCount = (int) integrators.size();
     for (int i = 0; i < integratorCount; ++i) {
-      integrators[i]->Mult();
+      integrators[i]->Mult(localX);
     }
 
-    // [MISSING] Gather to global vector (y)
+    VectorAssemble(localX, y);
   }
 
   /// Matrix transpose vector multiplication.
@@ -342,7 +363,6 @@ namespace mfem {
     // Free memory
     globalToLocalOffsets.free();
     globalToLocalIndices.free();
-    localX.free();
     geometricFactors.free();
 
     // Free all integrators

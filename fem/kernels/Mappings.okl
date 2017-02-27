@@ -1,0 +1,52 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+/*
+  ---[ Defines Known At Compile-Time ]------------
+  NUM_DOFS : Dofs per element
+  TILESIZE : Tilesize for iterating over dofs
+  ================================================
+*/
+
+kernel void VectorExtract(const int * restrict offsets,
+                          const int * restrict indices,
+                          const double * restrict globalX,
+                          double * restrict localX) {
+
+  for (int i = 0; i < NUM_DOFS; ++i; tile(TILESIZE)) {
+    if (i < NUM_DOFS) {
+      const int offset = offsets[i];
+      const int nextOffset = offsets[i + 1];
+      const double dofValue = globalX[i];
+      for (int j = offset; j < nextOffset; ++j) {
+        localX[j] = dofValue;
+      }
+    }
+  }
+}
+
+kernel void VectorAssemble(const int * restrict offsets,
+                           const int * restrict indices,
+                           const double * restrict localX,
+                           double * restrict globalX) {
+
+  for (int i = 0; i < NUM_DOFS; ++i; tile(TILESIZE)) {
+    if (i < NUM_DOFS) {
+      const int offset = offsets[i];
+      const int nextOffset = offsets[i + 1];
+      double dofValue = 0;
+      for (int j = offset; j < nextOffset; ++j) {
+        dofValue += localX[j];
+      }
+      globalX[i] = dofValue;
+    }
+  }
+}
