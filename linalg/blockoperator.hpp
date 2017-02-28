@@ -179,6 +179,8 @@ private:
  * Usage:
  * - Use the constructors to define the block structure
  * - Use SetBlock to fill the BlockOperator
+ * - Diagonal blocks of the preconditioner should approximate the inverses of the diagonal block of the matrix
+ * - Off-diagonal blocks of the preconditioner should match/approximate those of the original matrix
  * - Use the method Mult and MultTranspose to apply the operator to a vector.
  *
  * If a diagonal block is not set, it is assumed it is an identity block, if an off-diagonal block is not set, it is assumed to be a zero block.
@@ -191,19 +193,10 @@ public:
    //! columns.
    /**
     *  offsets: offsets that mark the start of each row/column block (size
-    *  nRowBlocks+1).  Note: BlockLowerTriangularPreconditioner will not own/copy the data contained
+    *  nBlocks+1).  Note: BlockLowerTriangularPreconditioner will not own/copy the data contained
     *  in offsets.
     */
    BlockLowerTriangularPreconditioner(const Array<int> & offsets);
-   //! Constructor for general BlockLowerTriangularPreconditioners.
-   /**
-    *  row_offsets: offsets that mark the start of each row block (size
-    *  nRowBlocks+1).  col_offsets: offsets that mark the start of each column
-    *  block (size nColBlocks+1).  Note: BlockLowerTriangularPreconditioner will not own/copy the
-    *  data contained in offsets.
-    */
-   BlockLowerTriangularPreconditioner(const Array<int> & row_offsets,
-                                      const Array<int> & col_offsets);
 
    //! Add block op in the block-entry (iblock, iblock).
    /**
@@ -221,14 +214,14 @@ public:
    virtual void SetOperator(const Operator &op) { }
 
    //! Return the number of blocks
-   int NumBlocks() const { return nRowBlocks; }
+   int NumBlocks() const { return nBlocks; }
 
    //! Return a reference to block i,j.
    Operator & GetBlock(int iblock, int jblock)
    { MFEM_VERIFY(op(iblock,jblock), ""); return *op(iblock,jblock); }
 
    //! Return the offsets for block starts
-   Array<int> & Offsets() { return row_offsets; }
+   Array<int> & Offsets() { return offsets; }
 
    /// Operator application
    virtual void Mult (const Vector & x, Vector & y) const;
@@ -244,14 +237,10 @@ public:
    int owns_blocks;
 
 private:
-   //! Number of block rows
-   int nRowBlocks;
-   //! Number of block columns
-   int nColBlocks;
-   //! Row offsets for the starting position of each block
-   Array<int> row_offsets;
-   //! Column offsets for the starting position of each block
-   Array<int> col_offsets;
+   //! Number of block rows/columns
+   int nBlocks;
+   //! Offsets for the starting position of each block
+   Array<int> offsets;
    //! 2D array that stores each block of the operator.
    Array2D<Operator *> op;
 
