@@ -46,7 +46,7 @@ public:
 
    /// Sets vertex location based on given point p
    void SetCoords(int dim, const double *p)
-   { for (int i = 0; i < dim; i++) coord[i] = p[i]; }
+   { for (int i = 0; i < dim; i++) { coord[i] = p[i]; } }
 
    ~Vertex() { }
 };
