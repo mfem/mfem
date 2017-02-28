@@ -1601,7 +1601,7 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex>& vertices,
    for (int i = 0; i < vertices.Size(); i++)
    {
       Node* node = nodes.Peek(vertex_nodeId[i]);
-      vertices[i].SetCoords(node->vertex->pos);
+      vertices[i].SetCoords(spaceDim, node->vertex->pos);
    }
 
    elements.SetSize(leaf_elements.Size() - GetNumGhosts());

@@ -2768,7 +2768,8 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
          // copy the vertices
          for (j = 0; j < m->GetNV(); j++)
          {
-            vertices[lvert_vert[j]].SetCoords(m->GetVertex(j));
+            vertices[lvert_vert[j]].SetCoords(m->SpaceDimension(),
+                                              m->GetVertex(j));
          }
       }
    }
@@ -2818,7 +2819,7 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
          // copy the vertices
          for (j = 0; j < m->GetNV(); j++)
          {
-            vertices[iv++].SetCoords(m->GetVertex(j));
+            vertices[iv++].SetCoords(m->SpaceDimension(), m->GetVertex(j));
          }
       }
    }
