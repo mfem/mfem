@@ -48,14 +48,10 @@ const int            ir_order = 2*sol_p+rdim-1;
 const int            ir_order_lor = 2*sol_lor_p+rdim-1;
 
 /*
-   Sparsification strategies: (these all apply to -pc sparse1d)
-    -1: keep nonzeros corresponding to strategy 0, but use high-order values
-        with renormalization/scaling (stencil)
-     0: low order finite elements on nodes in 1D (lor-1d)
-   n>0: keep n largest (in absolute value) entries in each row of B1d, G1d
-        with some renormalization/scaling (algebraic)
+  For -pc sparse1d, this is the number of nonzeros to keep in the 1D
+  stencil of the B1d, G1d operators. (2, 3, or 4 are reasonable choices)
 */
-const int sparsify_strategy = 0;
+const int sparsify_strategy = 2;
 
 // Static mesh type
 typedef H1_FiniteElement<geom,mesh_p>         mesh_fe_t;

@@ -104,8 +104,6 @@ bool absolute_comparison(const std::pair<real_t, int>& a,
    Find largest entries, normalize, put them in B1d
 
    This particular implementation is quite inefficient.
-
-   Should we try to make nonzeros same in Shape and Grad matrices?
 */
 template <typename real_t>
 void CalcAlgSparsifiedShapeMatrix(
@@ -157,108 +155,6 @@ void CalcAlgSparsifiedShapeMatrix(
    }
 
    delete [] Btemp;
-}
-
-/**
-   Sparsify B1d based on a given sparsity pattern.
-
-   (here we use the 1D nodal pattern)
-*/
-template <typename real_t>
-void CalcPatternSparsifiedShapeMatrix(
-   const FiniteElement &fe, const IntegrationRule &ir, real_t *B,
-   const Array<int> *dof_map = NULL, int sparsification_parameter = 2)
-{
-   int nip = ir.GetNPoints();
-   int dof = fe.GetDof();
-   Vector shape(dof);
-
-   for (int ip = 0; ip < nip; ip++)
-   {
-      fe.CalcShape(ir.IntPoint(ip), shape);
-      real_t xip = ir.IntPoint(ip).x;
-
-      real_t last_xid;
-      real_t xid = -1.0;
-      real_t next_xid = fe.GetNodes().IntPoint(0).x;
-      real_t sum = 0.0;
-      std::vector<std::pair<real_t,int> > pairs;
-      for (int id = 0; id < dof; id++)
-      {
-         int orig_id = dof_map ? (*dof_map)[id] : id;
-         last_xid = xid;
-         xid = next_xid;
-         if (id < dof-1)
-         {
-            next_xid = fe.GetNodes().IntPoint(id+1).x;
-         }
-         else
-         {
-            next_xid = 2.0;
-         }
-
-         if (xip > last_xid && xip <= next_xid)
-         {
-            real_t val = shape(orig_id);
-            sum += val;
-            pairs.push_back(std::make_pair(val, id));
-         }
-         B[ip+nip*id] = 0.0;
-      }
-
-      for (unsigned int k=0; k<pairs.size(); ++k)
-      {
-         int id = pairs.at(k).second;
-         B[ip+nip*id] = pairs.at(k).first / sum;
-      }
-   }
-}
-
-/**
-   Sparsify B1d based on a first-order basis function on the 1D nodes.
-*/
-template <typename real_t>
-void CalcSparsifiedShapeMatrix(const FiniteElement &fe,
-                               const IntegrationRule &ir,
-                               real_t *B, const Array<int> *dof_map = NULL,
-                               int sparsification_parameter = 2)
-{
-   int nip = ir.GetNPoints();
-   int dof = fe.GetDof();
-
-   for (int ip = 0; ip < nip; ip++)
-   {
-      real_t xip = ir.IntPoint(ip).x;
-
-      real_t last_xid;
-      real_t xid = -1.0;
-      real_t next_xid = fe.GetNodes().IntPoint(0).x;
-      for (int id = 0; id < dof; id++)
-      {
-         last_xid = xid;
-         xid = next_xid;
-         if (id < dof-1)
-         {
-            next_xid = fe.GetNodes().IntPoint(id+1).x;
-         }
-         else
-         {
-            next_xid = 2.0;
-         }
-
-         real_t val = 0.0;
-         if (xip > last_xid && xip <= xid)
-         {
-            val = (1.0 / (xid - last_xid)) * (xip - last_xid);
-         }
-         else if (xip > xid && xip <= next_xid)
-         {
-            val = (-1.0 / (next_xid - xid)) * (xip - next_xid);
-         }
-
-         B[ip+nip*id] = val;
-      }
-   }
 }
 
 template <typename real_t>
@@ -344,131 +240,6 @@ void CalcAlgSparsifiedGradTensor(
 }
 
 template <typename real_t>
-void CalcPatternSparsifiedGradTensor(
-   const FiniteElement &fe, const IntegrationRule &ir, real_t *G,
-   const Array<int> *dof_map = NULL, int sparsification_parameter = 2)
-{
-   int nip = ir.GetNPoints();
-   int dof = fe.GetDof();
-   int dim = fe.GetDim();
-   DenseMatrix dshape(dof, dim);
-   MFEM_ASSERT(dim == 1,"Expect to use this in 1D!");
-
-   for (int ip = 0; ip < nip; ip++)
-   {
-      for (int d = 0; d < dim; d++)
-      {
-         fe.CalcDShape(ir.IntPoint(ip), dshape);
-         real_t xip = ir.IntPoint(ip).x;
-
-         real_t last_xid;
-         real_t xid = -1.0;
-         real_t next_xid = fe.GetNodes().IntPoint(0).x;
-         real_t sum_positive = 0.0;
-         real_t sum_negative = 0.0;
-         std::vector<std::pair<real_t,int> > pairs;
-         for (int id = 0; id < dof; id++)
-         {
-            int orig_id = dof_map ? (*dof_map)[id] : id;
-            last_xid = xid;
-            xid = next_xid;
-            if (id < dof-1)
-            {
-               next_xid = fe.GetNodes().IntPoint(id+1).x;
-            }
-            else
-            {
-               next_xid = 2.0;
-            }
-
-            if (xip > last_xid && xip <= next_xid)
-            {
-               real_t val = dshape(orig_id, d);
-               if (val > 0.0)
-               {
-                  sum_positive += val;
-               }
-               else
-               {
-                  sum_negative += (-val);
-               }
-               pairs.push_back(std::make_pair(val, id));
-            }
-            G[ip+nip*(d+dim*id)] = 0.0;
-         }
-
-         real_t positive_scale = (sum_positive + sum_negative) /
-                                 (2.0 * sum_positive);
-         real_t negative_scale = (sum_positive + sum_negative) /
-                                 (2.0 * sum_negative);
-         for (unsigned int k=0; k<pairs.size(); ++k)
-         {
-            real_t val = pairs.at(k).first;
-            int id = pairs.at(k).second;
-            if (val > 0.0)
-            {
-               G[ip+nip*(d+dim*id)] = positive_scale * val;
-            }
-            else
-            {
-               G[ip+nip*(d+dim*id)] = negative_scale * val;
-            }
-         }
-      }
-   }
-}
-
-template <typename real_t>
-void CalcSparsifiedGradTensor(const FiniteElement &fe,
-                              const IntegrationRule &ir,
-                              real_t *G, const Array<int> *dof_map = NULL,
-                              int sparsification_parameter = 2)
-{
-   int dim = fe.GetDim();
-   int nip = ir.GetNPoints();
-   int dof = fe.GetDof();
-
-   MFEM_ASSERT(dim == 1,"Expect to use this in 1D!");
-   for (int ip = 0; ip < nip; ip++)
-   {
-      real_t xip = ir.IntPoint(ip).x;
-
-      real_t last_xid;
-      real_t xid = -1.0;
-      real_t next_xid = fe.GetNodes().IntPoint(0).x;
-      for (int id = 0; id < dof; id++)
-      {
-         last_xid = xid;
-         xid = next_xid;
-         if (id < dof-1)
-            // next_xid = fe.GetNodes().IntPoint(0).x;
-         {
-            next_xid = fe.GetNodes().IntPoint(id+1).x;
-         }
-         else
-         {
-            next_xid = 2.0;
-         }
-
-         real_t val = 0.0;
-         if (xip > last_xid && xip <= xid)
-         {
-            val = 1.0 / (xid - last_xid);
-         }
-         else if (xip > xid && xip <= next_xid)
-         {
-            val = -1.0 / (next_xid - xid);
-         }
-
-         for (int d = 0; d < dim; d++)
-         {
-            G[ip+nip*(d+dim*id)] = val;
-         }
-      }
-   }
-}
-
-template <typename real_t>
 void CalcShapes(const FiniteElement &fe, const IntegrationRule &ir,
                 real_t *B, real_t *G, const Array<int> *dof_map)
 {
@@ -476,34 +247,15 @@ void CalcShapes(const FiniteElement &fe, const IntegrationRule &ir,
    if (G) { mfem::CalcGradTensor(fe, ir, G, dof_map); }
 }
 
-/**
-   sparsification strategies:
-    -1: keep nonzeros corresponding to strategy 0, but use high-order values
-        with renormalization/scaling (stencil)
-     0: low order finite elements on nodes in 1D (lor-1d)
-   n>0: keep n largest (in absolute value) entries in each row of B1d, G1d
-        with some renormalization/scaling (algebraic)
-*/
 template <typename real_t>
 void CalcSparsifiedShapes(const FiniteElement &fe, const IntegrationRule &ir,
                           real_t *B, real_t *G, const Array<int> *dof_map,
                           int sp_strategy)
 {
-   if (sp_strategy == 0)
-   {
-      if (B) { mfem::CalcSparsifiedShapeMatrix(fe, ir, B, dof_map, sp_strategy); }
-      if (G) { mfem::CalcSparsifiedGradTensor(fe, ir, G, dof_map, sp_strategy); }
-   }
-   else if (sp_strategy < 0)
-   {
-      if (B) { mfem::CalcPatternSparsifiedShapeMatrix(fe, ir, B, dof_map, sp_strategy); }
-      if (G) { mfem::CalcPatternSparsifiedGradTensor(fe, ir, G, dof_map, sp_strategy); }
-   }
-   else
-   {
-      if (B) { mfem::CalcAlgSparsifiedShapeMatrix(fe, ir, B, dof_map, sp_strategy); }
-      if (G) { mfem::CalcAlgSparsifiedGradTensor(fe, ir, G, dof_map, sp_strategy); }
-   }
+   MFEM_ASSERT(sp_strategy > 0, "sp_strategy must be positive!");
+
+   if (B) { mfem::CalcAlgSparsifiedShapeMatrix(fe, ir, B, dof_map, sp_strategy); }
+   if (G) { mfem::CalcAlgSparsifiedGradTensor(fe, ir, G, dof_map, sp_strategy); }
 }
 
 /// H1 finite elements, templated on geometry and order
