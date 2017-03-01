@@ -55,8 +55,9 @@ struct Hashed4
  *  exist, the methods creates a new one. The Find(...) methods, on the other
  *  hand, just return NULL or -1 if the item doesn't exist.
  *
- *  Each new item is automatically assigned a unique ID. The IDs may (but
- *  need not) be used as p1, p2, ... of other items.
+ *  Each new item is automatically assigned a unique ID - the index of the item
+ *  inside the BlockArray. The IDs may (but need not) be used as p1, p2, ... of
+ *  other items.
  *
  *  The item type (T) needs to follow either the Hashed2 or the Hashed4
  *  concept. It is easiest to just inherit from these structs.
@@ -84,7 +85,7 @@ public:
    T* Find(int p1, int p2);
    T* Find(int p1, int p2, int p3, int p4);
 
-   const T* Find(int p1, int p2) const ;
+   const T* Find(int p1, int p2) const;
    const T* Find(int p1, int p2, int p3, int p4) const;
 
    /// Find id of item whose parents are p1, p2... Return -1 if it doesn't exist.
