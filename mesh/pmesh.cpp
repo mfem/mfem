@@ -183,7 +183,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    for (i = 0; i < vert_global_local.Size(); i++)
       if (vert_global_local[i] >= 0)
       {
-         vertices[vert_global_local[i]].SetCoords(mesh.GetVertex(i));
+         vertices[vert_global_local[i]].SetCoords(mesh.SpaceDimension(),
+                                                  mesh.GetVertex(i));
       }
 
    // determine elements

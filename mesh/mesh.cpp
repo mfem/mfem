@@ -2781,7 +2781,8 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
          // copy the vertices
          for (j = 0; j < m->GetNV(); j++)
          {
-            vertices[lvert_vert[j]].SetCoords(m->GetVertex(j));
+            vertices[lvert_vert[j]].SetCoords(m->SpaceDimension(),
+                                              m->GetVertex(j));
          }
       }
    }
@@ -2831,7 +2832,7 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
          // copy the vertices
          for (j = 0; j < m->GetNV(); j++)
          {
-            vertices[iv++].SetCoords(m->GetVertex(j));
+            vertices[iv++].SetCoords(m->SpaceDimension(), m->GetVertex(j));
          }
       }
    }
@@ -2938,7 +2939,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       const int *c2h_map = rfec.GetDofMap(geom);
       for (int i = 0; i < phys_pts.Width(); i++)
       {
-         vertices[rdofs[i]].SetCoords(phys_pts.GetColumn(i));
+         vertices[rdofs[i]].SetCoords(spaceDim, phys_pts.GetColumn(i));
       }
       for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
       {
