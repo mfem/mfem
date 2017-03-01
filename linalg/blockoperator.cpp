@@ -210,9 +210,9 @@ void BlockLowerTriangularPreconditioner::SetDiagonalBlock(int iblock,
                                                           Operator *op)
 {
 
-  MFEM_VERIFY(offsets[iblock+1] - offsets[iblock] == op->Height() &&
-	      offsets[iblock+1] - offsets[iblock] == op->Width(),
-	      "incompatible Operator dimensions");
+   MFEM_VERIFY(offsets[iblock+1] - offsets[iblock] == op->Height() &&
+               offsets[iblock+1] - offsets[iblock] == op->Width(),
+               "incompatible Operator dimensions");
 
    SetBlock(iblock, iblock, op);
 }
@@ -226,7 +226,7 @@ void BlockLowerTriangularPreconditioner::SetBlock(int iRow, int iCol,
                offsets[iCol+1] - offsets[iCol] == opt->NumCols(),
                "incompatible Operator dimensions");
 
-   
+
    op(iRow, iCol) = opt;
 
 }

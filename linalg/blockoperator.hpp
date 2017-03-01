@@ -174,40 +174,46 @@ private:
 
 //! @class BlockLowerTriangularPreconditioner
 /**
- * \brief A class to handle Block lower triangular preconditioners in a matrix-free implementation.
+ * \brief A class to handle Block lower triangular preconditioners in a
+ * matrix-free implementation.
  *
  * Usage:
  * - Use the constructors to define the block structure
- * - Use SetBlock to fill the BlockOperator
- * - Diagonal blocks of the preconditioner should approximate the inverses of the diagonal block of the matrix
- * - Off-diagonal blocks of the preconditioner should match/approximate those of the original matrix
- * - Use the method Mult and MultTranspose to apply the operator to a vector.
+ * - Use SetBlock() to fill the BlockOperator
+ * - Diagonal blocks of the preconditioner should approximate the inverses of
+ *   the diagonal block of the matrix
+ * - Off-diagonal blocks of the preconditioner should match/approximate those of
+ *   the original matrix
+ * - Use the method Mult() and MultTranspose() to apply the operator to a vector.
  *
- * If a diagonal block is not set, it is assumed it is an identity block, if an off-diagonal block is not set, it is assumed to be a zero block.
+ * If a diagonal block is not set, it is assumed it is an identity block, if an
+ * off-diagonal block is not set, it is assumed to be a zero block.
  *
  */
 class BlockLowerTriangularPreconditioner : public Solver
 {
 public:
-   //! Constructor for BlockLowerTriangularPreconditioners with the same block-structure for rows and
-   //! columns.
+   //! Constructor for BlockLowerTriangularPreconditioners with the same
+   //! block-structure for rows and columns.
    /**
-    *  offsets: offsets that mark the start of each row/column block (size
-    *  nBlocks+1).  Note: BlockLowerTriangularPreconditioner will not own/copy the data contained
-    *  in offsets.
+    *  @param offsets  Offsets that mark the start of each row/column block
+    *                  (size nBlocks+1).
+    *
+    *  @note BlockLowerTriangularPreconditioner will not own/copy the data
+    *  contained in @a offsets.
     */
    BlockLowerTriangularPreconditioner(const Array<int> & offsets);
 
    //! Add block op in the block-entry (iblock, iblock).
    /**
-    * iblock: The block will be inserted in location (iblock, iblock).
-    * op: the Operator to be inserted.
+    * @param iblock  The block will be inserted in location (iblock, iblock).
+    * @param op      The Operator to be inserted.
     */
    void SetDiagonalBlock(int iblock, Operator *op);
    //! Add a block op in the block-entry (iblock, jblock).
    /**
-    * irow, icol: The block will be inserted in location (irow, icol).
-    * op: the Operator to be inserted.
+    * @param irow, icol  The block will be inserted in location (irow, icol).
+    * @param op          The Operator to be inserted.
     */
    void SetBlock(int iRow, int iCol, Operator *op);
    //! This method is present since required by the abstract base class Solver
