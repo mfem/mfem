@@ -65,6 +65,7 @@ public:
    ParGridFunction(ParMesh *pmesh, GridFunction *gf, int * partitioning = NULL);
 
    /// Return the inner-product.
+   /** The input vector, can be a dual dof vector, e.g. from a ParLinearForm. */
    double operator*(const Vector &v) const;
 
    /// Assign constant values to the ParGridFunction data.

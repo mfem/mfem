@@ -44,6 +44,7 @@ public:
    HypreParVector *ParallelAssemble();
 
    /// Return the inner-product.
+   /** The input vector, can be a primal dof vector, e.g. from a ParGridFunction. */
    double operator*(const Vector &v) const;
 };
 
