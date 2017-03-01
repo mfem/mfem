@@ -209,17 +209,26 @@ BlockLowerTriangularPreconditioner::BlockLowerTriangularPreconditioner(
 void BlockLowerTriangularPreconditioner::SetDiagonalBlock(int iblock,
                                                           Operator *op)
 {
+
+  MFEM_VERIFY(offsets[iblock+1] - offsets[iblock] == op->Height() &&
+	      offsets[iblock+1] - offsets[iblock] == op->Width(),
+	      "incompatible Operator dimensions");
+
    SetBlock(iblock, iblock, op);
 }
 
 void BlockLowerTriangularPreconditioner::SetBlock(int iRow, int iCol,
                                                   Operator *opt)
 {
-   op(iRow, iCol) = opt;
 
+   MFEM_VERIFY(iRow >= iCol,"cannot set block in upper triangle");
    MFEM_VERIFY(offsets[iRow+1] - offsets[iRow] == opt->NumRows() &&
                offsets[iCol+1] - offsets[iCol] == opt->NumCols(),
                "incompatible Operator dimensions");
+
+   
+   op(iRow, iCol) = opt;
+
 }
 
 // Operator application
