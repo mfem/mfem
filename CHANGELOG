@@ -8,6 +8,12 @@
                                http://mfem.org
 
 
+Miscellaneous
+-------------
+- Add class BlockLowerTriangularPreconditioner - a block lower triangular
+  preconditioner using a matrix-free implementation.
+
+
 Version 3.3, released on Jan 28, 2017
 =====================================
 
