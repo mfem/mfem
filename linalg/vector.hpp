@@ -25,6 +25,10 @@
 #define isfinite _finite
 #endif
 
+#ifdef MFEM_USE_MPI
+#include <mpi.h>
+#endif
+
 namespace mfem
 {
 
@@ -269,6 +273,20 @@ public:
    virtual void ToNVector(N_Vector &nv);
 #endif
 };
+
+/// Returns the inner product of x and y
+/** In parallel this computes the inner product of the local vectors,
+    producing different results on each MPI rank.
+*/
+double InnerProduct(Vector &x, Vector &y);
+
+#ifdef MFEM_USE_MPI
+/// Returns the inner product of x and y in parallel
+/** In parallel this computes the inner product of the global vectors,
+    producing identical results on each MPI rank.
+*/
+double InnerProduct(MPI_Comm comm, Vector &x, Vector &y);
+#endif
 
 // Inline methods
 
