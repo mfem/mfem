@@ -29,7 +29,7 @@ namespace mfem
  * - Use SetDiagonalBlock or SetBlock to fill the BlockOperator
  * - Use the method Mult and MultTranspose to apply the operator to a vector.
  *
- * If a block is not set, it is assumed to be a zero block
+ * If a block is not set, it is assumed to be a zero block.
  */
 class BlockOperator : public Operator
 {
@@ -119,7 +119,7 @@ private:
  * - Use SetDiagonalBlock to fill the BlockOperator
  * - Use the method Mult and MultTranspose to apply the operator to a vector.
  *
- * If a block is not set, it is assumed it is an identity block
+ * If a block is not set, it is assumed to be an identity block.
  *
  */
 class BlockDiagonalPreconditioner : public Solver
@@ -186,7 +186,7 @@ private:
  *   the original matrix
  * - Use the method Mult() and MultTranspose() to apply the operator to a vector.
  *
- * If a diagonal block is not set, it is assumed it is an identity block, if an
+ * If a diagonal block is not set, it is assumed to be an identity block, if an
  * off-diagonal block is not set, it is assumed to be a zero block.
  *
  */
