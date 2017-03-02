@@ -62,14 +62,6 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, GridFunction *gf,
    }
 }
 
-double ParGridFunction::operator*(const Vector &v) const
-{
-   double loc_prod = this->Vector::operator*(v);
-   double glb_prod;
-   MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_DOUBLE, MPI_SUM, pfes->GetComm());
-   return glb_prod;
-}
-
 void ParGridFunction::Update()
 {
    face_nbr_data.Destroy();

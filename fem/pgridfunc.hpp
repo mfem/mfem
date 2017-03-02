@@ -64,10 +64,6 @@ public:
        If partitioning == NULL (default), the data from 'gf' is NOT copied. */
    ParGridFunction(ParMesh *pmesh, GridFunction *gf, int * partitioning = NULL);
 
-   /// Return the inner-product.
-   /** The input vector can be a dual dof vector, e.g. a ParLinearForm. */
-   double operator*(const Vector &v) const;
-
    /// Assign constant values to the ParGridFunction data.
    ParGridFunction &operator=(double value)
    { GridFunction::operator=(value); return *this; }
