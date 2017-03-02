@@ -306,8 +306,6 @@ void BlockLowerTriangularPreconditioner::MultTranspose (const Vector & x,
 
 }
 
-
-
 BlockLowerTriangularPreconditioner::~BlockLowerTriangularPreconditioner()
 {
    if (owns_blocks)
@@ -317,7 +315,5 @@ BlockLowerTriangularPreconditioner::~BlockLowerTriangularPreconditioner()
             delete op(jCol,iRow);
          }
 }
-
-
 
 }
