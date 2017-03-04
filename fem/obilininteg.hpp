@@ -77,8 +77,11 @@ namespace mfem {
     OccaDofQuadMaps maps;
 
     occa::kernel assembleKernel, multKernel;
-    occa::array<double> coefficient;
-    occa::array<double> assembledOperator;
+
+    occa::array<double> coefficients;
+    occa::array<double> jacobian, assembledOperator;
+
+    bool hasConstantCoefficient;
 
   public:
     OccaDiffusionIntegrator(OccaBilinearForm &bilinearForm_);

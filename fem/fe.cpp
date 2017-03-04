@@ -6537,10 +6537,8 @@ H1_TensorBasisElement::H1_TensorBasisElement(const int dims,
                                              const int dofs,
                                              const int type) :
   NodalFiniteElement(dims,
-                     dims == 1
-                     ? Geometry::SEGMENT
-                     : (dims == 2
-                        ? Geometry::SQUARE
+                     dims == 1 ? Geometry::SEGMENT
+                     : ((dims == 2) ? Geometry::SQUARE
                         : Geometry::CUBE),
                      dofs, p,
                      dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),

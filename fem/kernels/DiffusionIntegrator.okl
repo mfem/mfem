@@ -11,184 +11,327 @@
 
 /*
   ---[ Defines Known At Compile-Time ]------------
-  ELEMENT_BATCH : How many elements are in each
-  .               computation batch
-  NUM_DOFS      : Dofs per element
-  NUM_QPTS      : Quadrature points per element
-  CONST_COEFF   : If the coefficient is constant, pass it
-  .               as a define
+  ELEMENT_BATCH   : How many elements are in each
+  .                   computation batch
+  NUM_DOFS_1D     : Dofs in the 1D segments
+  NUM_DOFS_2D     : Dofs in the 2D faces
+  NUM_DOFS_3D     : Dofs in the 3D domain
+  NUM_QUAD_1D     : Dofs in the 1D segments
+  NUM_QUAD_2D     : Dofs in the 2D faces
+  NUM_QUAD_3D     : Dofs in the 3D domain
+  NUM_MAX_1D      : max(NUM_QUAD_1D, NUM_DOFS_1D)
+  NUM_QUAD_DOFS_1D: NUM_QUAD_1D * NUM_DOFS_1D
+  CONST_COEFF     : If the coefficient is constant, pass it
+  .                   as a define
   ================================================
+
+  [MISSING]
+  - Add support to auto-pick @dim and use @idxOrder on stack arrays
+  |   double a[2][2];
+  |   a[0][1]; <-- regular index
+  |   a(0,1);  <-- uses @idxOrder a[0][1] or a[1][0]
+  - Add support for @idxOrder to change indexing order after allocation
+  |   double a[2][2] @idxOrder(0,1);
+  |   a(0,1) -> a[1][0]
+  |   @set(a, idxOrder(1,0));
+  |   a(0,1) -> a[0][1]
+  - Add support to iterate over loop depending on mode
+  |   for(i; inner) {
+  |     for(0 < j < N) {} <-- ++j or j += block?
+  |   }
 */
 
+// macro isn't expanding right
+/*
 #if OCCA_USING_GPU
-#  define TUPLE3_ORDER idxOrder(2,0,1)
-#  define TUPLE4_ORDER idxOrder(3,0,1,2)
+#  define GPU_ORDER_3(I0, I1, I2)     idxOrder(I0, I1, I2)
+#  define GPU_ORDER_4(I0, I1, I2, I3) idxOrder(I0, I1, I2, I3)
 #else
-#  define TUPLE3_ORDER idxOrder(2,1,0)
-#  define TUPLE4_ORDER idxOrder(3,2,1,0)
+#  define GPU_ORDER_3(I0, I1, I2)     idxOrder(0, 1, 2)
+#  define GPU_ORDER_4(I0, I1, I2, I3) idxOrder(0, 1, 2, 3)
 #endif
+*/
+#define GPU_ORDER_2(I0, I1)         idxOrder(0, 1)
+#define GPU_ORDER_3(I0, I1, I2)     idxOrder(0, 1, 2)
+#define GPU_ORDER_4(I0, I1, I2, I3) idxOrder(0, 1, 2, 3)
 
-typedef double* Jacobian1D_t @(dim(numElements, NUM_QPTS, 1, 1), TUPLE4_ORDER);
-typedef double* Jacobian2D_t @(dim(numElements, NUM_QPTS, 2, 2), TUPLE4_ORDER);
-typedef double* Jacobian3D_t @(dim(numElements, NUM_QPTS, 3, 3), TUPLE4_ORDER);
+#define NUM_QUAD_DOFS_1D (NUM_QUAD_1D * NUM_DOFS_1D)
 
-typedef double* Operator1D_t @(dim(numElements, NUM_QPTS, 1), TUPLE3_ORDER);
-typedef double* Operator2D_t @(dim(numElements, NUM_QPTS, 3), TUPLE3_ORDER);
-typedef double* Operator3D_t @(dim(numElements, NUM_QPTS, 6), TUPLE3_ORDER);
+#if NUM_QUAD_1D < NUM_DOFS_1D
+#  define NUM_MAX_1D NUM_DOFS_1D
+#else
+#  define NUM_MAX_1D NUM_QUAD_1D
+#endif
+#define NUM_MAX_2D (NUM_MAX_1D * NUM_MAX_1D)
 
-typedef double* Grad1D_t @(dim(numElements, NUM_QPTS, 1), TUPLE3_ORDER);
-typedef double* Grad2D_t @(dim(numElements, NUM_QPTS, 2), TUPLE3_ORDER);
-typedef double* Grad3D_t @(dim(numElements, NUM_QPTS, 3), TUPLE3_ORDER);
+#define QUAD_ID(X, Y, Z) ((Z) * NUM_QUAD_2D + (Y) * NUM_QUAD_1D + X)
+#define DOFS_ID(X, Y, Z) ((Z) * NUM_DOFS_2D + (Y) * NUM_DOFS_1D + X)
 
-#ifndef CONST_COEFF
+typedef double* DofToQuad_t @dim(NUM_QUAD_1D, NUM_DOFS_1D);
+typedef double* QuadToDof_t @dim(NUM_DOFS_1D, NUM_QUAD_1D);
+
+typedef double* Jacobian1D_t @(dim(1, 1, NUM_QUAD_1D, numElements), GPU_ORDER_4(1,2,0,3));
+typedef double* Jacobian2D_t @(dim(2, 2, NUM_QUAD_2D, numElements), GPU_ORDER_4(1,2,0,3));
+typedef double* Jacobian3D_t @(dim(3, 3, NUM_QUAD_3D, numElements), GPU_ORDER_4(1,2,0,3));
+
+typedef double* Operator1D_t @(dim(1, NUM_QUAD_1D, numElements), GPU_ORDER_3(1,0,2));
+typedef double* Operator2D_t @(dim(3, NUM_QUAD_2D, numElements), GPU_ORDER_3(1,0,2));
+typedef double* Operator3D_t @(dim(6, NUM_QUAD_3D, numElements), GPU_ORDER_3(1,0,2));
+
+typedef double* Local1D_t @dim(NUM_DOFS_1D, numElements);
+typedef double* Local2D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, numElements);
+typedef double* Local3D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, NUM_DOFS_1D, numElements);
+
+#ifdef CONST_COEFF
 typedef double Coeff_t;
 #  define COEFF(E, Q) CONST_COEFF
 #else
-typedef double* Coeff_t @(dim(numElements, NUM_QPTS));
+typedef double* Coeff_t @(dim(numElements, NUM_QUAD_3D));
 #  define COEFF(E, Q) coeff(E, Q)
 #endif
 
-kernel void Assemble1D(const int numElements,
-                       const Jacobian1D_t Jt,
-                       const Coeff_t coeff,
-                       const Operator1D_t oper) {
-
-  for (int eb = 0; eb < numElements; eb += ELEMENT_BATCH; outer) {
-    for (int el = eb; el < (eb + ELEMENT_BATCH); ++el; inner) {
-      for (int q = 0; q < NUM_QPTS; ++q; inner) {
-        oper(el, q, 0) = COEFF(el, q) / Jt(el, q, 0, 0);
-      }
-    }
-  }
-}
-
-kernel void Assemble2D(const int numElements,
-                       const Jacobian2D_t Jt,
-                       const Coeff_t coeff,
-                       const Operator2D_t oper) {
-
-  for (int eb = 0; eb < numElements; eb += ELEMENT_BATCH; outer) {
-    for (int el = eb; el < (eb + ELEMENT_BATCH); ++el; inner) {
-      for (int q = 0; q < NUM_QPTS; ++q; inner) {
-        const double J11 = Jt(el, q, 0, 0), J12 = Jt(el, q, 0, 1);
-        const double J21 = Jt(el, q, 1, 0), J22 = Jt(el, q, 1, 1);
-        const double c_detJ = COEFF(el, q) / ((J11 * J22) - (J21 * J12));
-
-        oper(el, q, 0) =  c_detJ * (J12*J12 + J22*J22); // (1,1)
-        oper(el, q, 1) = -c_detJ * (J12*J11 + J22*J21); // (1,2) + (2,1)
-        oper(el, q, 2) =  c_detJ * (J11*J11 + J21*J21); // (2,2)
-      }
-    }
-  }
-}
-
 kernel void Assemble3D(const int numElements,
-                       const Jacobian3D_t Jt,
+                       const Jacobian3D_t J,
                        const Coeff_t coeff,
-                       const Operator3D_t oper) {
+                       Operator3D_t oper) {
+  for (int eOff = 0; eOff < numElements; eOff += ELEMENT_BATCH; outer) {
+    for (int e = eOff; e < (eOff + ELEMENT_BATCH); ++e; inner) {
+      if (e < numElements) {
+        for (int qOff = 0; qOff < QUAD_BATCH; ++qOff; inner) {
+          for (int q = qOff; q < NUM_QUAD_3D; q += QUAD_BATCH) {
+            const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e), J13 = J(2, 0, q, e);
+            const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e), J23 = J(2, 1, q, e);
+            const double J31 = J(0, 2, q, e), J32 = J(1, 2, q, e), J33 = J(2, 2, q, e);
 
-  for (int eb = 0; eb < numElements; eb += ELEMENT_BATCH; outer) {
-    for (int el = eb; el < (eb + ELEMENT_BATCH); ++el; inner) {
-      for (int q = 0; q < NUM_QPTS; ++q; inner) {
-        const int id = el * NUM_QPTS + q;
-        const double J11 = Jt(el, q, 0, 0), J12 = Jt(el, q, 0, 1), J13 = Jt(el, q, 0, 2);
-        const double J21 = Jt(el, q, 1, 0), J22 = Jt(el, q, 1, 1), J23 = Jt(el, q, 1, 2);
-        const double J31 = Jt(el, q, 2, 0), J32 = Jt(el, q, 2, 1), J33 = Jt(el, q, 2, 2);
+            const double detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
+                                 (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
+            const double c_detJ = COEFF(q, e) / detJ;
 
-        const double detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
-                             (J13 * J22 * J31) - (J12 * J21 * J33) + (J11 * J23 * J32));
-        const double c_detJ = COEFF(el, q) / detJ;
+            // adj(J)
+            const double A11 = (J22 * J33) - (J23 * J32);
+            const double A12 = (J23 * J31) - (J21 * J33);
+            const double A13 = (J21 * J32) - (J22 * J31);
 
-        // adj(J)
-        const double A11 = (J22 * J33) - (J23 * J32);
-        const double A12 = (J23 * J31) - (J21 * J33);
-        const double A13 = (J21 * J32) - (J22 * J31);
+            const double A21 = (J13 * J32) - (J12 * J33);
+            const double A22 = (J11 * J33) - (J13 * J31);
+            const double A23 = (J12 * J31) - (J11 * J32);
 
-        const double A21 = (J13 * J32) - (J12 * J33);
-        const double A22 = (J11 * J33) - (J13 * J31);
-        const double A23 = (J12 * J31) - (J11 * J32);
+            const double A31 = (J12 * J23) - (J13 * J22);
+            const double A32 = (J13 * J21) - (J11 * J23);
+            const double A33 = (J11 * J22) - (J12 * J21);
 
-        const double A31 = (J12 * J23) - (J13 * J22);
-        const double A32 = (J13 * J21) - (J11 * J21);
-        const double A33 = (J11 * J22) - (J12 * J23);
-
-        // adj(J)^Tadj(J)
-        oper(el, q, 0) = c_detJ * (A11*A11 + A21*A21 + A31*A31); // (1,1)
-        oper(el, q, 1) = c_detJ * (A11*A12 + A21*A22 + A31*A32); // (1,2) + (2,1)
-        oper(el, q, 2) = c_detJ * (A11*A13 + A21*A23 + A31*A33); // (1,3) + (3,1)
-        oper(el, q, 3) = c_detJ * (A12*A12 + A22*A22 + A32*A32); // (2,2)
-        oper(el, q, 4) = c_detJ * (A12*A13 + A22*A23 + A32*A33); // (2,3) + (3,2)
-        oper(el, q, 5) = c_detJ * (A13*A13 + A23*A23 + A33*A33); // (3,3)
+            // adj(J)^Tadj(J)
+            oper(0, q, e) = c_detJ * (A11*A11 + A21*A21 + A31*A31); // (1,1)
+            oper(1, q, e) = c_detJ * (A11*A12 + A21*A22 + A31*A32); // (1,2) + (2,1)
+            oper(2, q, e) = c_detJ * (A11*A13 + A21*A23 + A31*A33); // (1,3) + (3,1)
+            oper(3, q, e) = c_detJ * (A12*A12 + A22*A22 + A32*A32); // (2,2)
+            oper(4, q, e) = c_detJ * (A12*A13 + A22*A23 + A32*A33); // (2,3) + (3,2)
+            oper(5, q, e) = c_detJ * (A13*A13 + A23*A23 + A33*A33); // (3,3)
+          }
+        }
       }
-    }
-  }
-}
-
-kernel void Mult1D(const int numElements,
-                   const Operator1D_t oper,
-                   Grad1D_t restrict sol) {
-  // Iterate over elements
-  for (int eb = 0; eb < numElements; eb += ELEMENT_BATCH; outer) {
-    for (int el = eb; el < (eb + ELEMENT_BATCH); ++el; inner) {
-      // Element computation
-      // [MISSING] B*sol
-      for (int q = 0; q < NUM_QPTS; ++q; inner) {
-        sol(el, q, 0) *= oper(el, q, 0);
-      }
-      // [MISSING] B^T*sol
-    }
-  }
-}
-
-kernel void Mult2D(const int numElements,
-                   const Operator2D_t oper,
-                   Grad2D_t restrict sol) {
-  // Iterate over elements
-  for (int eb = 0; eb < numElements; eb += ELEMENT_BATCH; outer) {
-    for (int el = eb; el < (eb + ELEMENT_BATCH); ++el; inner) {
-      // Element computation
-      // [MISSING] B*sol
-      for (int q = 0; q < NUM_QPTS; ++q; inner) {
-        const double O11 = oper(el, q, 0);
-        const double O12 = oper(el, q, 1);
-        const double O22 = oper(el, q, 2);
-
-        const double x = sol(el, q, 0);
-        const double y = sol(el, q, 1);
-
-        sol(el, q, 0) = (O11 * x) + (O12 * y);
-        sol(el, q, 1) = (O12 * x) + (O12 * y);
-      }
-      // [MISSING] B^T*sol
     }
   }
 }
 
 kernel void Mult3D(const int numElements,
+                   const DofToQuad_t dofToQuad,
+                   const DofToQuad_t dofToQuadD,
+                   const QuadToDof_t quadToDof,
+                   const QuadToDof_t quadToDofD,
                    const Operator3D_t oper,
-                   Grad3D_t restrict sol) {
+                   Local3D_t restrict sol) {
   // Iterate over elements
-  for (int eb = 0; eb < numElements; eb += ELEMENT_BATCH; outer) {
-    for (int el = eb; el < (eb + ELEMENT_BATCH); ++el; inner) {
-      // Element computation
-      // [MISSING] B*sol
-      for (int q = 0; q < NUM_QPTS; ++q; inner) {
-        const double O11 = oper(el, q, 0);
-        const double O12 = oper(el, q, 1);
-        const double O13 = oper(el, q, 2);
-        const double O22 = oper(el, q, 3);
-        const double O23 = oper(el, q, 4);
-        const double O33 = oper(el, q, 5);
+  for (int e = 0; e < numElements; ++e; outer) {
+    // Store dof <--> quad mappings
+    shared double s_dofToQuad[NUM_QUAD_DOFS_1D] @(dim(NUM_QUAD_1D, NUM_DOFS_1D),
+                                                  GPU_ORDER_2(1,0));
+    shared double s_dofToQuadD[NUM_QUAD_DOFS_1D] @(dim(NUM_QUAD_1D, NUM_DOFS_1D),
+                                                   GPU_ORDER_2(1,0));
+    shared double s_quadToDof[NUM_QUAD_DOFS_1D] @(dim(NUM_DOFS_1D, NUM_QUAD_1D),
+                                                  GPU_ORDER_2(1,0));
+    shared double s_quadToDofD[NUM_QUAD_DOFS_1D] @(dim(NUM_DOFS_1D, NUM_QUAD_1D),
+                                                   GPU_ORDER_2(1,0));
 
-        const double x = sol(el, q, 0);
-        const double y = sol(el, q, 1);
-        const double z = sol(el, q, 2);
+    // Store xy planes in shared memory
+    shared double s_z[NUM_MAX_2D] @(dim(NUM_MAX_1D, NUM_MAX_1D),
+                                    GPU_ORDER_2(1,0));
+    shared double s_Dz[NUM_MAX_2D] @(dim(NUM_MAX_1D, NUM_MAX_1D),
+                                     GPU_ORDER_2(1,0));
 
-        sol(el, q, 0) = (O11 * x) + (O12 * y) + (O13 * z);
-        sol(el, q, 1) = (O12 * x) + (O22 * y) + (O23 * z);
-        sol(el, q, 2) = (O13 * x) + (O23 * y) + (O33 * z);
+    // Store z axis as registers
+    exclusive double r_qz[NUM_QUAD_1D];
+    exclusive double r_qDz[NUM_QUAD_1D];
+    exclusive double r_dz[NUM_DOFS_1D];
+    exclusive double r_dDz[NUM_DOFS_1D];
+
+    for (int y = 0; y < NUM_MAX_1D; ++y; inner) {
+      for (int x = 0; x < NUM_MAX_1D; ++x; inner) {
+        const int id = (y * NUM_MAX_1D) + x;
+        // Fetch Q <--> D maps
+        for (int i = id; i < NUM_QUAD_DOFS_1D; i += NUM_MAX_2D) {
+          s_dofToQuad[i]  = dofToQuad[i];
+          s_dofToQuadD[i] = dofToQuadD[i];
+          s_quadToDof[i]  = quadToDof[i];
+          s_quadToDofD[i] = quadToDofD[i];
+        }
+        // Initialize our Z axis
+        for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+          r_qz[qz] = 0;
+          r_qDz[qz] = 0;
+        }
+        // Initialize our solution updates in the Z axis
+        for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
+          r_dz[dz] = 0;
+          r_dDz[dz] = 0;
+        }
       }
-      // [MISSING] B^T*sol
+    }
+
+    for (int dy = 0; dy < NUM_MAX_1D; ++dy; inner) {
+      for (int dx = 0; dx < NUM_MAX_1D; ++dx; inner) {
+        if ((dx < NUM_DOFS_1D) && (dy < NUM_DOFS_1D)) {
+          for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
+            const double s = sol(dx, dy, dz, e);
+            // Calculate D -> Q in the Z axis
+            for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+              r_qz[qz]  += s * s_dofToQuad(qz, dz);
+              r_qDz[qz] += s * s_dofToQuadD(qz, dz);
+            }
+          }
+        }
+      }
+    }
+    // For each xy plane
+    for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+      // Fill xy plane at given z position
+      for (int dy = 0; dy < NUM_MAX_1D; ++dy; inner) {
+        for (int dx = 0; dx < NUM_MAX_1D; ++dx; inner) {
+          if ((dx < NUM_DOFS_1D) && (dy < NUM_DOFS_1D)) {
+            s_z(dx, dy)  = r_qz[qz];
+            s_Dz(dx, dy) = r_qDz[qz];
+          }
+        }
+      }
+      // Calculate Dxyz, xDyz, xyDz in plane
+      for (int qy = 0; qy < NUM_MAX_1D; ++qy; inner) {
+        for (int qx = 0; qx < NUM_MAX_1D; ++qx; inner) {
+          if ((qx < NUM_QUAD_1D) && (qy < NUM_QUAD_1D)) {
+            double Dxyz = 0;
+            double xDyz = 0;
+            double xyDz = 0;
+            for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+              const double wy  = s_dofToQuad(qy, dy);
+              const double wDy = s_dofToQuadD(qy, dy);
+              for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+                const double wx  = s_dofToQuad(qx, dx);
+                const double wDx = s_dofToQuadD(qx, dx);
+                const double z  = s_z(dx, dy);
+                const double Dz = s_Dz(dx, dy);
+                Dxyz += wDx * wy  * z;
+                xDyz += wx  * wDy * z;
+                xyDz += wx  * wy  * Dz;
+              }
+            }
+            const int q = QUAD_ID(qx, qy, qz);
+            const double O11 = oper(0, q, e);
+            const double O12 = oper(1, q, e);
+            const double O13 = oper(2, q, e);
+            const double O22 = oper(3, q, e);
+            const double O23 = oper(4, q, e);
+            const double O33 = oper(5, q, e);
+
+            const double qDxyz = (O11 * Dxyz) + (O12 * xDyz) + (O13 * xyDz);
+            const double qxDyz = (O12 * Dxyz) + (O22 * xDyz) + (O23 * xyDz);
+            const double qxyDz = (O13 * Dxyz) + (O23 * xDyz) + (O33 * xyDz);
+
+            for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
+              const double wz  = s_quadToDof(dz, qz);
+              const double wDz = s_quadToDofD(dz, qz);
+              r_dz[dz]  += wz  * (qDxyz + qxDyz);
+              r_dDz[dz] += wDz * qxyDz;
+            }
+          }
+        }
+      }
+    }
+    // Iterate over xy planes to compute solution
+    for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
+      // Place xy plane in shared memory
+      for (int qy = 0; qy < NUM_MAX_1D; ++qy; inner) {
+        for (int qx = 0; qx < NUM_MAX_1D; ++qx; inner) {
+          if ((qx < NUM_QUAD_1D) && (qy < NUM_QUAD_1D)) {
+            s_z(qx, qy)  = r_dz[dz];
+            s_Dz(qx, qy) = r_dDz[dz];
+          }
+        }
+      }
+      // Finalize solution in xy plane
+      for (int dy = 0; dy < NUM_MAX_1D; ++dy; inner) {
+        for (int dx = 0; dx < NUM_MAX_1D; ++dx; inner) {
+          if ((dx < NUM_DOFS_1D) && (dy < NUM_DOFS_1D)) {
+            double solZ = 0;
+            for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+              const double wy  = s_quadToDof(dy, qy);
+              const double wDy = s_quadToDofD(dy, qy);
+              for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+                const double wx  = s_quadToDof(dx, qx);
+                const double wDx = s_quadToDofD(dx, qx);
+                const double z  = s_z(qx, qy);
+                const double Dz = s_Dz(qx, qy);
+                solZ += ((wDx * wy  * z) +
+                         (wx  * wDy * z) +
+                         (wx  * wy  * Dz));
+              }
+            }
+            sol(dx, dy, dz, e) = solZ;
+          }
+        }
+      }
     }
   }
 }
+#if 0
+// Proposed format assumming a lot of features are added
+kernel void Mult3D(const int numElements,
+                   const DofToQuad_t dofToQuad,
+                   const DofToQuad_t dofToQuadD,
+                   const QuadToDof_t quadToDof,
+                   const QuadToDof_t quadToDofD,
+                   const Operator3D_t oper,
+                   Local3D_t restrict sol) {
+  for (int e = 0; e < numElements; ++e; outer) {
+    shared tensorData_t tensorData @(quad(NUM_QUAD_1D), dof(NUM_DOFS_1D));
+
+    initTensorData(tensorData, sol);
+
+    for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+      initDofXYPlane(tensorData);
+      for (int qy = 0; qy < NUM_MAX_1D; ++qy; inner) {
+        for (int qx = 0; qx < NUM_MAX_1D; ++qx; inner) {
+          if ((qx < NUM_QUAD_1D) && (qy < NUM_QUAD_1D)) {
+            tensorOperator(tensorData, (qz, qy, qx,
+                                        Dxyz, xDyz, xyDz) => {
+                const int q = QUAD_ID(qz,qy,qx);
+                const double O11 = oper(e, q, 0);
+                const double O12 = oper(e, q, 1);
+                const double O13 = oper(e, q, 2);
+                const double O22 = oper(e, q, 3);
+                const double O23 = oper(e, q, 4);
+                const double O33 = oper(e, q, 5);
+
+                const double qDxyz = (O11 * Dxyz) + (O12 * xDyz) + (O13 * xyDz);
+                const double qxDyz = (O12 * Dxyz) + (O22 * xDyz) + (O13 * xyDz);
+                const double qxyDz = (O13 * Dxyz) + (O13 * xDyz) + (O33 * xyDz);
+
+                return {qDxyz, qxDyz, qxyDz};
+            });
+          }
+        }
+      }
+    }
+
+    updateSolution(sol, tensorData);
+  }
+}
+#endif

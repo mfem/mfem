@@ -27,7 +27,7 @@ kernel void VectorExtract(const int * restrict offsets,
       const int nextOffset = offsets[i + 1];
       const double dofValue = globalX[i];
       for (int j = offset; j < nextOffset; ++j) {
-        localX[j] = dofValue;
+        localX[indices[j]] = dofValue;
       }
     }
   }
@@ -44,7 +44,7 @@ kernel void VectorAssemble(const int * restrict offsets,
       const int nextOffset = offsets[i + 1];
       double dofValue = 0;
       for (int j = offset; j < nextOffset; ++j) {
-        dofValue += localX[j];
+        dofValue += localX[indices[j]];
       }
       globalX[i] = dofValue;
     }

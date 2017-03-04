@@ -243,6 +243,10 @@ int main(int argc, char *argv[])
    // 10. Set up the bilinear form a(.,.) on the finite element space that will
    //     hold the matrix corresponding to the Laplacian operator -Delta.
    //     Optionally setup a form to be assembled for preconditioning (a_pc).
+   cout << "Assembling the bilinear form ..." << flush;
+   tic_toc.Clear();
+   tic_toc.Start();
+
    BilinearForm *a = new BilinearForm(fespace);
    BilinearForm *a_pc = NULL;
    if (pc_choice == LOR) { a_pc = new BilinearForm(fespace_lor); }
@@ -259,9 +263,6 @@ int main(int argc, char *argv[])
                   "cannot use LOR preconditioner with static condensation");
    }
 
-   cout << "Assembling the bilinear form ..." << flush;
-   tic_toc.Clear();
-   tic_toc.Start();
    // Pre-allocate sparsity assuming dense element matrices
    a->UsePrecomputedSparsity();
 

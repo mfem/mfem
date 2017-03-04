@@ -43,11 +43,11 @@ namespace mfem {
     typedef std::vector<OccaIntegrator*> IntegratorVector;
     typedef std::map<std::string,OccaIntegrator*> IntegratorBuilderMap;
 
-    /// State information
+    // State information
     FiniteElementSpace *fes;
-    Mesh *mesh;
+    mutable Mesh *mesh;
 
-    /// Group of integrators used to build kernels
+    // Group of integrators used to build kernels
     static IntegratorBuilderMap integratorBuilders;
     IntegratorVector integrators;
 
@@ -64,10 +64,6 @@ namespace mfem {
     // Kernels to do the global -> local and local -> global mappings
     occa::kernel VectorExtractKernel, VectorAssembleKernel;
 
-    // Store geometric factors per element that are needed by the integrators
-    // For example: Jacobian, Jacobian determinant, etc
-    occa::array<double> geometricFactors;
-
   public:
     OccaBilinearForm(FiniteElementSpace *f);
     OccaBilinearForm(occa::device device_, FiniteElementSpace *f);
@@ -77,7 +73,7 @@ namespace mfem {
     // Setup the kernel builder collection
     void SetupIntegratorBuilderMap();
 
-    /// Setup kernels and  properties
+    // Setup kernels and  properties
     void SetupKernels();
 
     // Setup device data needed for applying integrators
@@ -85,40 +81,41 @@ namespace mfem {
 
     occa::device getDevice();
 
-    /// Useful mesh Information
-    int BaseGeom();
+    // Useful mesh Information
+    int BaseGeom() const;
+    Mesh& GetMesh() const;
 
-    /// Useful FE information
-    int GetDim();
-    int64_t GetNE();
-    int64_t GetNDofs();
-    int64_t GetVDim();
-    const FiniteElement& GetFE(const int i);
+    // Useful FE information
+    int GetDim() const;
+    int64_t GetNE() const;
+    int64_t GetNDofs() const;
+    int64_t GetVDim() const;
+    const FiniteElement& GetFE(const int i) const;
 
-    /// Adds new Domain Integrator.
+    // Adds new Domain Integrator.
     void AddDomainIntegrator(BilinearFormIntegrator *bfi,
                              const occa::properties &props = occa::properties());
 
-    /// Adds new Boundary Integrator.
+    // Adds new Boundary Integrator.
     void AddBoundaryIntegrator(BilinearFormIntegrator *bfi,
                                const occa::properties &props = occa::properties());
 
-    /// Adds new interior Face Integrator.
+    // Adds new interior Face Integrator.
     void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi,
                                    const occa::properties &props = occa::properties());
 
-    /// Adds new boundary Face Integrator.
+    // Adds new boundary Face Integrator.
     void AddBoundaryFaceIntegrator(BilinearFormIntegrator *bfi,
                                    const occa::properties &props = occa::properties());
 
-    /// Adds Integrator based on OccaIntegratorType
+    // Adds Integrator based on OccaIntegratorType
     void AddIntegrator(BilinearFormIntegrator &bfi,
                        const occa::properties &props,
                        const OccaIntegratorType itype);
 
-    /// Get the finite element space prolongation matrix
+    // Get the finite element space prolongation matrix
     virtual const Operator *GetProlongation() const;
-    /// Get the finite element space restriction matrix
+    // Get the finite element space restriction matrix
     virtual const Operator *GetRestriction() const;
 
     // Map the global dofs to local nodes
@@ -127,13 +124,13 @@ namespace mfem {
     // Aggregate local node values to their respective global dofs
     void VectorAssemble(const OccaVector &localVec, OccaVector &globalVec) const;
 
-    /// Assembles the form i.e. sums over all domain/bdr integrators.
+    // Assembles the form i.e. sums over all domain/bdr integrators.
     virtual void Assemble();
 
-    /// Matrix vector multiplication.
+    // Matrix vector multiplication.
     virtual void Mult(const OccaVector &x, OccaVector &y) const;
 
-    /// Matrix vector multiplication.
+    // Matrix vector multiplication.
     virtual void MultTranspose(const OccaVector &x, OccaVector &y) const;
 
     void FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -147,20 +144,20 @@ namespace mfem {
                                           Operator *rap,
                                           Operator* &Aout, OccaVector &X, OccaVector &B);
 
-    /// Destroys bilinear form.
+    // Destroys bilinear form.
     ~OccaBilinearForm();
   };
 
-  /// Based on OccaConstrainedOperator
+  // Based on OccaConstrainedOperator
   class OccaConstrainedOperator : public Operator {
   protected:
     occa::device device;
 
-    Operator *A;                   ///< The unconstrained Operator.
-    bool own_A;                    ///< Ownership flag for A.
-    occa::memory constraint_list;  ///< List of constrained indices/dofs.
+    Operator *A;                   //< The unconstrained Operator.
+    bool own_A;                    //< Ownership flag for A.
+    occa::memory constraint_list;  //< List of constrained indices/dofs.
     int constraint_indices;
-    mutable OccaVector z, w;       ///< Auxiliary vectors.
+    mutable OccaVector z, w;       //< Auxiliary vectors.
 
     static occa::kernelBuilder map_dof_builder, clear_dof_builder;
 
@@ -207,7 +204,7 @@ namespace mfem {
         the vectors, and "_i" -- the rest of the entries. */
     virtual void Mult(const OccaVector &x, OccaVector &y) const;
 
-    /// Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
+    // Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
     virtual ~OccaConstrainedOperator();
   };
   //====================================

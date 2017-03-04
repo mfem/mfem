@@ -54,8 +54,8 @@ namespace mfem {
     const std::string &mode = device.properties()["mode"];
 
     baseKernelProps["defines/ELEMENT_BATCH"] = 1;
-    baseKernelProps["defines/NUM_DOFS"]      = GetNDofs();
-    baseKernelProps["defines/NUM_VDIM"]      = GetVDim();
+    baseKernelProps["defines/NUM_DOFS"] = GetNDofs();
+    baseKernelProps["defines/NUM_VDIM"] = GetVDim();
 
     occa::properties mapProps("defines: {"
                               "  NUM_DOFS: " + occa::toString(GetNDofs()) + ","
@@ -130,20 +130,20 @@ namespace mfem {
     for (int e = 0; e < elements; ++e) {
       const int *elementMap = e2dMap.GetJ();
       for (int d = 0; d < ldofs; ++d) {
-        const int gid = elementMap[ldofs*e + d];
-        const int lid = ldofs*e + dofMap[d];
+        const int gid = elementMap[ldofs*e + dofMap[d]];
+        const int lid = ldofs*e + d;
         indices[offsets[gid]++] = lid;
       }
     }
-    // We essentially shifted the offsets vector by 1 by
-    //   using it as a counter. Shift it back.
+    // We shifted the offsets vector by 1 by using it
+    //   as a counter. Now we shift it back.
     for (int i = ndofs; i > 0; --i) {
       offsets[i] = offsets[i - 1];
     }
     offsets[0] = 0;
 
     // Allocate device offsets and indices
-    globalToLocalOffsets.allocate(device, ndofs);
+    globalToLocalOffsets.allocate(device, ndofs + 1);
     globalToLocalIndices.allocate(device, elements * ldofs);
 
     occa::memcpy(globalToLocalOffsets.memory(), offsets);
@@ -161,51 +161,55 @@ namespace mfem {
     return device;
   }
 
-  int OccaBilinearForm::BaseGeom() {
+  int OccaBilinearForm::BaseGeom() const {
     return mesh->GetElementBaseGeometry();
   }
 
-  int OccaBilinearForm::GetDim()
+  Mesh& OccaBilinearForm::GetMesh() const {
+    return *mesh;
+  }
+
+  int OccaBilinearForm::GetDim() const
   { return mesh->Dimension(); }
 
-  int64_t OccaBilinearForm::GetNE()
+  int64_t OccaBilinearForm::GetNE() const
   { return mesh->GetNE(); }
 
-  int64_t OccaBilinearForm::GetNDofs()
+  int64_t OccaBilinearForm::GetNDofs() const
   { return fes->GetNDofs(); }
 
-  int64_t OccaBilinearForm::GetVDim()
+  int64_t OccaBilinearForm::GetVDim() const
   { return fes->GetVDim(); }
 
-  const FiniteElement& OccaBilinearForm::GetFE(const int i) {
+  const FiniteElement& OccaBilinearForm::GetFE(const int i) const {
     return *(fes->GetFE(i));
   }
 
-  /// Adds new Domain Integrator.
+  // Adds new Domain Integrator.
   void OccaBilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi,
                                              const occa::properties &props) {
     AddIntegrator(*bfi, props, DomainIntegrator);
   }
 
-  /// Adds new Boundary Integrator.
+  // Adds new Boundary Integrator.
   void OccaBilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi,
                                                const occa::properties &props) {
     AddIntegrator(*bfi, props, BoundaryIntegrator);
   }
 
-  /// Adds new interior Face Integrator.
+  // Adds new interior Face Integrator.
   void OccaBilinearForm::AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi,
                                                    const occa::properties &props) {
     AddIntegrator(*bfi, props, InteriorFaceIntegrator);
   }
 
-  /// Adds new boundary Face Integrator.
+  // Adds new boundary Face Integrator.
   void OccaBilinearForm::AddBoundaryFaceIntegrator(BilinearFormIntegrator *bfi,
                                                    const occa::properties &props) {
     AddIntegrator(*bfi, props, BoundaryFaceIntegrator);
   }
 
-  /// Adds Integrator based on OccaIntegratorType
+  // Adds Integrator based on OccaIntegratorType
   void OccaBilinearForm::AddIntegrator(BilinearFormIntegrator &bfi,
                                        const occa::properties &props,
                                        const OccaIntegratorType itype) {
@@ -229,7 +233,7 @@ namespace mfem {
                                                   itype));
   }
 
-  /// Get the finite element space prolongation matrix
+  // Get the finite element space prolongation matrix
   const Operator* OccaBilinearForm::GetProlongation() const {
     if (fes->GetConformingProlongation() != NULL) {
       mfem_error("occa::OccaBilinearForm::GetProlongation() is not overloaded!");
@@ -237,7 +241,7 @@ namespace mfem {
     return NULL;
   }
 
-  /// Get the finite element space restriction matrix
+  // Get the finite element space restriction matrix
   const Operator* OccaBilinearForm::GetRestriction() const {
     if (fes->GetConformingRestriction() != NULL) {
       mfem_error("occa::OccaBilinearForm::GetRestriction() is not overloaded!");
@@ -265,54 +269,18 @@ namespace mfem {
                          globalVec.GetData());
   }
 
-  /// Assembles the Jacobian information
+  //
   void OccaBilinearForm::Assemble() {
-    // Allocate memory in device if needed
-    const int64_t entries  = GetNE() * GetNDofs() * GetVDim();
-
-    // Requirements:
-    //  - Calculate Jacobian/Jacobian Det
-
-    if ((0 < geometricFactors.size()) &&
-        (geometricFactors.size() < entries)) {
-      geometricFactors.free();
-    }
-    if (geometricFactors.size() == 0) {
-      geometricFactors.allocate(device, entries);
-    }
-
-    /*
-      bilinearform.cpp:244
-      | const FiniteElement &fe = *fes->GetFE(i);
-      | ElementTransformation *eltrans = fes->GetElementTransformation(i);
-      | dbfi[0]->AssembleElementMatrix(fe, *eltrans, elmat);
-      | for (int k = 1; k < dbfi.Size(); k++)
-      | {
-      |   dbfi[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
-      |   elmat += elemmat;
-      | }
-
-      bilininteg.cpp:425
-      | Trans.SetIntPoint(&ip);
-      | w = Trans.Weight();
-      | w = ip.weight / (square ? w : w*w*w);
-      | // AdjugateJacobian = / adj(J),         if J is square
-      | //                    \ adj(J^t.J).J^t, otherwise
-      | Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
-
-      mesh.cpp:238
-      | void Mesh::GetElementTransformation(int i, IsoparametricTransformation *ElTr)
-    */
-
+    // [MISSING] Find geometric information that is needed by intergrators
+    //             to share between integrators.
     const int integratorCount = (int) integrators.size();
     for (int i = 0; i < integratorCount; ++i) {
       integrators[i]->Assemble();
     }
   }
 
-  /// Matrix vector multiplication.
+  // Matrix vector multiplication.
   void OccaBilinearForm::Mult(const OccaVector &x, OccaVector &y) const {
-    y = 0.0;
     VectorExtract(x, localX);
 
     const int integratorCount = (int) integrators.size();
@@ -323,7 +291,7 @@ namespace mfem {
     VectorAssemble(localX, y);
   }
 
-  /// Matrix transpose vector multiplication.
+  // Matrix transpose vector multiplication.
   void OccaBilinearForm::MultTranspose(const OccaVector &x, OccaVector &y) const {
     mfem_error("occa::OccaBilinearForm::MultTranspose() is not overloaded!");
   }
@@ -350,22 +318,25 @@ namespace mfem {
                                                   Operator *rap,
                                                   Operator* &Aout,
                                                   OccaVector &X, OccaVector &B) {
-
     OccaConstrainedOperator *A = new OccaConstrainedOperator(device,
                                                              rap, ess_tdof_list,
                                                              rap != this);
+
     A->EliminateRHS(X, B);
     Aout = A;
   }
 
-  /// Destroys bilinear form.
+  // Frees memory bilinear form.
   OccaBilinearForm::~OccaBilinearForm() {
     // Free memory
     globalToLocalOffsets.free();
     globalToLocalIndices.free();
-    geometricFactors.free();
 
-    // Free all integrators
+    // Free kernels
+    VectorExtractKernel.free();
+    VectorAssembleKernel.free();
+
+    // Make sure all integrators free their data
     IntegratorVector::iterator it = integrators.begin();
     while (it != integrators.end()) {
       delete *it;
@@ -424,7 +395,6 @@ namespace mfem {
     if (constraint_indices == 0) {
       return;
     }
-
     occa::kernel map_dofs = map_dof_builder.build(device);
 
     w = 0.0;

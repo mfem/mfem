@@ -13,6 +13,8 @@
 
 #ifdef MFEM_USE_OCCA
 
+#include <cmath>
+
 #include "obilininteg.hpp"
 
 namespace mfem {
@@ -38,10 +40,10 @@ namespace mfem {
                                         const H1_TensorBasisElement &el,
                                         const IntegrationRule &ir) {
 
-    occa::hash_t hash = (occa::hash(device) ^
-                         ("BasisType" + occa::toString(el.GetBasisType())) ^
-                         ("Order" + occa::toString(el.GetOrder())) ^
-                         ("Quad" + occa::toString(ir.GetNPoints())));
+    occa::hash_t hash = (occa::hash(device)
+                         ^ ("BasisType" + occa::toString(el.GetBasisType()))
+                         ^ ("Order" + occa::toString(el.GetOrder()))
+                         ^ ("Quad" + occa::toString(ir.GetNPoints())));
 
     // If we've already made the dof-quad maps, reuse them
     OccaDofQuadMaps &maps = AllDofQuadMaps[hash];
@@ -59,8 +61,7 @@ namespace mfem {
     // Create the dof -> quadrature point map
     // [MISSING] Use the ir rule
     H1_SegmentElement se(dofs - 1, el.GetBasisType());
-    const IntegrationRule &ir2 = IntRules.Get(Geometry::SEGMENT, 2*order);
-    const Array<int> &seDofMap = se.GetDofMap();
+    const IntegrationRule &ir2 = IntRules.Get(Geometry::SEGMENT, 2*dofs);
     const int quadPoints = ir2.GetNPoints();
 
     // Initialize the dof -> quad mapping
@@ -154,7 +155,14 @@ namespace mfem {
   OccaDiffusionIntegrator::OccaDiffusionIntegrator(OccaBilinearForm &bilinearForm_) :
     OccaIntegrator(bilinearForm_) {}
 
-  OccaDiffusionIntegrator::~OccaDiffusionIntegrator() {}
+  OccaDiffusionIntegrator::~OccaDiffusionIntegrator() {
+    assembleKernel.free();
+    multKernel.free();
+
+    coefficients.free();
+    jacobian.free();
+    assembledOperator.free();
+  }
 
   OccaIntegrator* OccaDiffusionIntegrator::CreateInstance() {
     return new OccaDiffusionIntegrator(bilinearForm);
@@ -180,22 +188,106 @@ namespace mfem {
       mfem_error("OccaDiffusionIntegrator can only handle ConstantCoefficients");
     }
 
+    hasConstantCoefficient = true;
+
+    // Setup kernel compiled defines
+    const int dims = bilinearForm.GetDim();
+    const int elements = bilinearForm.GetNE();
+    const int quadraturePoints = ir.GetNPoints();
+
+    const int dofs1D = el.GetOrder() + 1;
+    int dofsND = dofs1D;
+
     occa::properties kernelProps = props;
-    kernelProps["defines/NUM_QPTS"] = ir.GetNPoints();
+    for (int d = 0; d < dims; ++d) {
+      std::string define = "defines/NUM_DOFS_";
+      define += ('1' + d);
+      define += 'D';
+      kernelProps[define] = dofsND;
+      dofsND *= dofs1D;
+    }
+
+    // [MISSING] Use the ir rule
+    const IntegrationRule &ir2 = IntRules.Get(Geometry::SEGMENT, 2*dofs1D);
+    const int quad1D = ir2.GetNPoints();
+    int quadND = quad1D;
+
+    for (int d = 0; d < dims; ++d) {
+      std::string define = "defines/NUM_QUAD_";
+      define += ('1' + d);
+      define += 'D';
+      kernelProps[define] = quadND;
+      quadND *= quad1D;
+    }
+
+    // [MISSING] Logic based on quadrature points
+    // If quadrature is small, we can process assembly in batches
+    kernelProps["defines/QUAD_BATCH"] = 1;
 
     // Redundant, but for future codes
     if (coeff) {
       kernelProps["defines/CONST_COEFF"] = coeff->constant;
     }
 
-    multKernel = GetMultKernel(kernelProps);
+    const int dims2 = dims * dims;
+    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
+
+    assembledOperator.allocate(device,
+                               elements * quadraturePoints * symmDims);
+
+    const int jacobianEntries = elements * quadraturePoints * dims2;
+    jacobian.allocate(device, jacobianEntries);
+    double *jacobianData = new double[jacobianEntries];
+    double *eJacobian = jacobianData;
+
+    Mesh &mesh = bilinearForm.GetMesh();
+    for (int e = 0; e < elements; ++e) {
+      ElementTransformation &trans = *(mesh.GetElementTransformation(e));
+      for (int q = 0; q < ir.GetNPoints(); ++q) {
+        const IntegrationPoint &ip = ir.IntPoint(q);
+        trans.SetIntPoint(&ip);
+        const DenseMatrix &qJ = trans.Jacobian();
+        for (int j = 0; j < dims; ++j) {
+          for (int i = 0; i < dims; ++i) {
+            // Column-major -> Row-major
+            eJacobian[j + i*dims] = qJ(i,j);
+          }
+        }
+        eJacobian += dims2;
+      }
+    }
+
+    occa::memcpy(jacobian.memory(), jacobianData);
+    delete [] jacobianData;
+
+    // Setup assemble and mult kernels
     assembleKernel = GetAssembleKernel(kernelProps);
+    multKernel = GetMultKernel(kernelProps);
   }
 
   void OccaDiffusionIntegrator::Assemble() {
+    if (hasConstantCoefficient) {
+      // Dummy coefficient since we're defining it at compile time
+      assembleKernel((int) bilinearForm.GetNE(),
+                     jacobian.memory(),
+                     (double) 0,
+                     assembledOperator.memory());
+    } else {
+      assembleKernel((int) bilinearForm.GetNE(),
+                     jacobian.memory(),
+                     coefficients.memory(),
+                     assembledOperator.memory());
+    }
   }
 
   void OccaDiffusionIntegrator::Mult(OccaVector &x) {
+    multKernel((int) bilinearForm.GetNE(),
+               maps.dofToQuad.memory(),
+               maps.dofToQuadD.memory(),
+               maps.quadToDof.memory(),
+               maps.quadToDofD.memory(),
+               assembledOperator.memory(),
+               x.GetData());
   }
   //====================================
 }
