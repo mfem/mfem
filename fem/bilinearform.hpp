@@ -151,7 +151,7 @@ public:
    virtual const double &Elem(int i, int j) const;
 
    /// Matrix vector multiplication.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void Mult(const Vector &x, Vector &y) const { mat->Mult(x, y); }
 
    void FullMult(const Vector &x, Vector &y) const
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
@@ -162,8 +162,9 @@ public:
    void FullAddMult(const Vector &x, Vector &y) const
    { mat->AddMult(x, y); mat_e->AddMult(x, y); }
 
-   virtual void AddMultTranspose (const Vector & x, Vector & y,
-                                  const double a = 1.0) const;
+   virtual void AddMultTranspose(const Vector & x, Vector & y,
+                                 const double a = 1.0) const
+   { mat->AddMultTranspose(x, y, a); }
 
    void FullAddMultTranspose (const Vector & x, Vector & y) const
    { mat->AddMultTranspose(x, y); mat_e->AddMultTranspose(x, y); }
