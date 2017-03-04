@@ -128,11 +128,6 @@ void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
    NewDataAndSize((double *)v + v_offset, fes->GetVSize());
 }
 
-double LinearForm::operator()(const GridFunction &gf) const
-{
-   return this->Vector::operator*(gf);
-}
-
 LinearForm::~LinearForm()
 {
    int k;

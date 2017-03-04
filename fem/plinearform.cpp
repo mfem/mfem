@@ -43,14 +43,6 @@ HypreParVector *ParLinearForm::ParallelAssemble()
    return tv;
 }
 
-double ParLinearForm::operator()(const ParGridFunction &gf) const
-{
-   double loc_prod = this->Vector::operator*(gf);
-   double glb_prod;
-   MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_DOUBLE, MPI_SUM, pfes->GetComm());
-   return glb_prod;
-}
-
 }
 
 #endif

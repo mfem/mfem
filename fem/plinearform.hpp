@@ -16,7 +16,7 @@
 
 #ifdef MFEM_USE_MPI
 
-#include "pfespace.hpp"
+#include "pgridfunc.hpp"
 #include "linearform.hpp"
 
 namespace mfem
@@ -48,7 +48,10 @@ public:
        the real numbers.  This method performs this mapping which in
        this case is equivalent as an inner product of the ParLinearForm
        and ParGridFunction. */
-   double operator()(const ParGridFunction &gf) const;
+   double operator()(const ParGridFunction &gf) const
+   {
+      return InnerProduct(pfes->GetComm(), *this, gf);
+   }
 };
 
 }

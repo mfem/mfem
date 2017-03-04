@@ -14,7 +14,7 @@
 
 #include "../config/config.hpp"
 #include "lininteg.hpp"
-#include "fespace.hpp"
+#include "gridfunc.hpp"
 
 namespace mfem
 {
@@ -73,7 +73,7 @@ public:
        the real numbers.  This method performs this mapping which in
        this case is equivalent as an inner product of the LinearForm
        and GridFunction. */
-   double operator()(const GridFunction &gf) const;
+   double operator()(const GridFunction &gf) const { return (*this)*gf; }
 
    /// Destroys linear form.
    ~LinearForm();

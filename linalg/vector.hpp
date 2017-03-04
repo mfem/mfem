@@ -274,20 +274,6 @@ public:
 #endif
 };
 
-/// Returns the inner product of x and y
-/** In parallel this computes the inner product of the local vectors,
-    producing different results on each MPI rank.
-*/
-double InnerProduct(Vector &x, Vector &y);
-
-#ifdef MFEM_USE_MPI
-/// Returns the inner product of x and y in parallel
-/** In parallel this computes the inner product of the global vectors,
-    producing identical results on each MPI rank.
-*/
-double InnerProduct(MPI_Comm comm, Vector &x, Vector &y);
-#endif
-
 // Inline methods
 
 inline bool IsFinite(const double &val)
@@ -403,6 +389,29 @@ inline double Distance(const double *x, const double *y, const int n)
 
    return sqrt(d);
 }
+
+/// Returns the inner product of x and y
+/** In parallel this computes the inner product of the local vectors,
+    producing different results on each MPI rank.
+*/
+inline double InnerProduct(const Vector &x, const Vector &y)
+{
+   return x * y;
+}
+
+#ifdef MFEM_USE_MPI
+/// Returns the inner product of x and y in parallel
+/** In parallel this computes the inner product of the global vectors,
+    producing identical results on each MPI rank.
+*/
+inline double InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
+{
+   double loc_prod = x * y;
+   double glb_prod;
+   MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_DOUBLE, MPI_SUM, comm);
+   return glb_prod;
+}
+#endif
 
 }
 
