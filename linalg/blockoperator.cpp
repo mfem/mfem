@@ -82,8 +82,7 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
          if (op(iRow,jCol))
          {
             op(iRow,jCol)->Mult(xblock.GetBlock(jCol), tmp);
-            tmp *= coef(iRow,jCol);
-            yblock.GetBlock(iRow) += tmp;
+            yblock.GetBlock(iRow).Add(coef(iRow,jCol), tmp);
          }
       }
    }
@@ -108,8 +107,7 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
          if (op(jCol,iRow))
          {
             op(jCol,iRow)->MultTranspose(xblock.GetBlock(jCol), tmp);
-            tmp *= coef(jCol,iRow);
-            yblock.GetBlock(iRow) += tmp;
+            yblock.GetBlock(iRow).Add(coef(jCol,iRow), tmp);
          }
       }
    }

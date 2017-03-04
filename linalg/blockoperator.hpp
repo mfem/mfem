@@ -77,8 +77,11 @@ public:
    Operator & GetBlock(int i, int j)
    { MFEM_VERIFY(op(i,j), ""); return *op(i,j); }
    //! Return the coefficient for block i,j
-   double GetBlockCoef(int i, int j)
+   double GetBlockCoef(int i, int j) const
    { MFEM_VERIFY(op(i,j), ""); return coef(i,j); }
+   //! Set the coefficient for block i,j
+   void SetBlockCoef(int i, int j, double c)
+   { MFEM_VERIFY(op(i,j), ""); coef(i,j) = c; }
 
    //! Return the row offsets for block starts
    Array<int> & RowOffsets() { return row_offsets; }
