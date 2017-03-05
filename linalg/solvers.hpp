@@ -160,8 +160,14 @@ public:
 
       if (iterative_mode)
       {
-         oper->Mult(x, r);
-         subtract(b, r, r); // r = b - A x
+        oper->Mult(x, r);
+        std::cout << "1. r.Min()     = " << r.Min() << '\n'
+                  << "1. r.Max()     = " << r.Max() << '\n'
+                  << "1. r.Norml2()  = " << r.Norml2() << '\n';
+        subtract(b, r, r); // r = b - A x
+        std::cout << "2. r.Min()     = " << r.Min() << '\n'
+                  << "2. r.Max()     = " << r.Max() << '\n'
+                  << "2. r.Norml2()  = " << r.Norml2() << '\n';
       }
       else
       {
@@ -180,6 +186,7 @@ public:
       }
       nom0 = nom = Dot(d, r);
       MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
+      std::cout << "3. nom         = " << nom << '\n';
 
       if (print_level == 1 || print_level == 3)
       {
@@ -197,8 +204,13 @@ public:
       }
 
       oper->Mult(d, z);  // z = A d
+      std::cout << "4. z.Min()     = " << z.Min() << '\n'
+                << "4. z.Max()     = " << z.Max() << '\n'
+                << "4. z.Norml2()  = " << z.Norml2() << '\n';
       den = Dot(z, d);
       MFEM_ASSERT(IsFinite(den), "den = " << den);
+
+      std::cout << "5. den         = " << den << '\n';
 
       if (print_level >= 0 && den < 0.0)
       {
@@ -219,8 +231,15 @@ public:
       for (i = 1; true; )
       {
          alpha = nom/den;
+         std::cout << "I1. alph       = " << alpha << '\n';
          add(x,  alpha, d, x);     //  x = x + alpha d
+         std::cout << "I2. x.Min()    = " << x.Min() << '\n'
+                   << "I2. x.Max()    = " << x.Max() << '\n'
+                   << "I2. x.Norml2() = " << x.Norml2() << '\n';
          add(r, -alpha, z, r);     //  r = r - alpha A d
+         std::cout << "I3. r.Min()    = " << r.Min() << '\n'
+                   << "I3. r.Max()    = " << r.Max() << '\n'
+                   << "I3. r.Norml2() = " << r.Norml2() << '\n';
 
          if (prec)
          {

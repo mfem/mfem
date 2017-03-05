@@ -28,12 +28,14 @@ namespace mfem {
     // Local stiffness matrices (B and B^T operators)
     occa::array<double> dofToQuad, dofToQuadD; // B
     occa::array<double> quadToDof, quadToDofD; // B^T
+    occa::array<double> quadWeights;
 
     OccaDofQuadMaps();
     OccaDofQuadMaps(const OccaDofQuadMaps &maps);
     OccaDofQuadMaps& operator = (const OccaDofQuadMaps &maps);
 
     static OccaDofQuadMaps& Get(occa::device device,
+                                const OccaBilinearForm &bilinearForm,
                                 const H1_TensorBasisElement &el,
                                 const IntegrationRule &ir);
   };

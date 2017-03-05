@@ -90,7 +90,10 @@ typedef double* Coeff_t @(dim(numElements, NUM_QUAD_3D));
 #  define COEFF(E, Q) coeff(E, Q)
 #endif
 
+#define QUAD_BATCH 1
+
 kernel void Assemble3D(const int numElements,
+                       const double *quadWeights,
                        const Jacobian3D_t J,
                        const Coeff_t coeff,
                        Operator3D_t oper) {
@@ -105,7 +108,8 @@ kernel void Assemble3D(const int numElements,
 
             const double detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
                                  (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
-            const double c_detJ = COEFF(q, e) / detJ;
+
+            const double c_detJ = quadWeights[q] * COEFF(q, e) / detJ;
 
             // adj(J)
             const double A11 = (J22 * J33) - (J23 * J32);
@@ -233,6 +237,7 @@ kernel void Mult3D(const int numElements,
                 xyDz += wx  * wy  * Dz;
               }
             }
+
             const int q = QUAD_ID(qx, qy, qz);
             const double O11 = oper(0, q, e);
             const double O12 = oper(1, q, e);

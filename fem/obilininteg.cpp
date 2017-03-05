@@ -29,14 +29,16 @@ namespace mfem {
 
   OccaDofQuadMaps& OccaDofQuadMaps::operator = (const OccaDofQuadMaps &maps) {
     hash = maps.hash;
-    dofToQuad  = maps.dofToQuad;
-    dofToQuadD = maps.dofToQuadD;
-    quadToDof  = maps.quadToDof;
-    quadToDofD = maps.quadToDofD;
+    dofToQuad   = maps.dofToQuad;
+    dofToQuadD  = maps.dofToQuadD;
+    quadToDof   = maps.quadToDof;
+    quadToDofD  = maps.quadToDofD;
+    quadWeights = maps.quadWeights;
     return *this;
   }
 
   OccaDofQuadMaps& OccaDofQuadMaps::Get(occa::device device,
+                                        const OccaBilinearForm &bilinearForm,
                                         const H1_TensorBasisElement &el,
                                         const IntegrationRule &ir) {
 
@@ -57,12 +59,17 @@ namespace mfem {
     const Poly_1D::Basis &basis = el.GetBasis();
     const int order = el.GetOrder();
     const int dofs = order + 1;
+    const int dims = bilinearForm.GetDim();
 
     // Create the dof -> quadrature point map
     // [MISSING] Use the ir rule
     H1_SegmentElement se(dofs - 1, el.GetBasisType());
     const IntegrationRule &ir2 = IntRules.Get(Geometry::SEGMENT, 2*dofs);
     const int quadPoints = ir2.GetNPoints();
+    const int quadPoints2D = quadPoints*quadPoints;
+    const int quadPoints3D = quadPoints2D*quadPoints;
+    const int quadPointsND = ((dims == 1) ? quadPoints :
+                              ((dims == 2) ? quadPoints2D : quadPoints3D));
 
     // Initialize the dof -> quad mapping
     const int d2qEntries = quadPoints * dofs;
@@ -70,15 +77,35 @@ namespace mfem {
     double *dofToQuadDData = new double[d2qEntries];
     maps.dofToQuad.allocate(device, d2qEntries);
     maps.dofToQuadD.allocate(device, d2qEntries);
+    // Initialize quad weights
+    double *quadWeights1DData = new double[quadPoints];
+    double *quadWeightsData = new double[quadPointsND];
+    maps.quadWeights.allocate(device, quadPointsND);
 
     for (int q = 0; q < quadPoints; ++q) {
       mfem::Vector d2q(dofToQuadData + q*dofs, dofs);
       mfem::Vector d2qD(dofToQuadDData + q*dofs, dofs);
-      basis.Eval(ir2.IntPoint(q).x, d2q, d2qD);
+      const IntegrationPoint &ip = ir2.IntPoint(q);
+      basis.Eval(ip.x, d2q, d2qD);
+      quadWeights1DData[q] = ip.weight;
+    }
+
+    for (int q = 0; q < quadPointsND; ++q) {
+      const int qx = q % quadPoints;
+      const int qz = q / quadPoints2D;
+      const int qy = (q - qz*quadPoints2D) / quadPoints;
+      quadWeightsData[q] = quadWeights1DData[qx];
+      if (dims > 1) {
+        quadWeightsData[q] *= quadWeights1DData[qy];
+      }
+      if(dims > 2) {
+        quadWeightsData[q] *= quadWeights1DData[qz];
+      }
     }
 
     occa::memcpy(maps.dofToQuad.memory(), dofToQuadData);
     occa::memcpy(maps.dofToQuadD.memory(), dofToQuadDData);
+    occa::memcpy(maps.quadWeights.memory(), quadWeightsData);
 
     // Create the quadrature -> dof point map
     double *quadToDofData = new double[d2qEntries];
@@ -100,6 +127,9 @@ namespace mfem {
     delete [] dofToQuadDData;
     delete [] quadToDofData;
     delete [] quadToDofDData;
+
+    delete [] quadWeights1DData;
+    delete [] quadWeightsData;
 
     return maps;
   }
@@ -177,7 +207,7 @@ namespace mfem {
     DiffusionIntegrator &integ = (DiffusionIntegrator&) *integrator;
     const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
 
-    maps = OccaDofQuadMaps::Get(device, el, ir);
+    maps = OccaDofQuadMaps::Get(device, bilinearForm, el, ir);
 
     // Get coefficient from integrator
     // [MISSING] Hard-coded to ConstantCoefficient for now
@@ -269,11 +299,13 @@ namespace mfem {
     if (hasConstantCoefficient) {
       // Dummy coefficient since we're defining it at compile time
       assembleKernel((int) bilinearForm.GetNE(),
+                     maps.quadWeights.memory(),
                      jacobian.memory(),
                      (double) 0,
                      assembledOperator.memory());
     } else {
       assembleKernel((int) bilinearForm.GetNE(),
+                     maps.quadWeights.memory(),
                      jacobian.memory(),
                      coefficients.memory(),
                      assembledOperator.memory());

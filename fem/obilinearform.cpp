@@ -283,10 +283,30 @@ namespace mfem {
   void OccaBilinearForm::Mult(const OccaVector &x, OccaVector &y) const {
     VectorExtract(x, localX);
 
+    double *foo = new double[64];
+    occa::memcpy(foo, localX.GetData(),
+                 64 * sizeof(double),
+                 730 * 64 * sizeof(double));
+    for (int i = 0; i < 64; ++i) {
+      if (foo[i] != 0) {
+        std::cout << "1. foo[" << i << "] = " << foo[i] << '\n';
+      }
+    }
+
     const int integratorCount = (int) integrators.size();
     for (int i = 0; i < integratorCount; ++i) {
       integrators[i]->Mult(localX);
     }
+
+    occa::memcpy(foo, localX.GetData(),
+                 64 * sizeof(double),
+                 730 * 64 * sizeof(double));
+    for (int i = 0; i < 64; ++i) {
+      if (foo[i] != 0) {
+        std::cout << "2. foo[" << i << "] = " << foo[i] << '\n';
+      }
+    }
+    delete [] foo;
 
     VectorAssemble(localX, y);
   }
@@ -318,12 +338,13 @@ namespace mfem {
                                                   Operator *rap,
                                                   Operator* &Aout,
                                                   OccaVector &X, OccaVector &B) {
-    OccaConstrainedOperator *A = new OccaConstrainedOperator(device,
-                                                             rap, ess_tdof_list,
-                                                             rap != this);
+    Aout = this;
+    // OccaConstrainedOperator *A = new OccaConstrainedOperator(device,
+    //                                                          rap, ess_tdof_list,
+    //                                                          rap != this);
 
-    A->EliminateRHS(X, B);
-    Aout = A;
+    // A->EliminateRHS(X, B);
+    // Aout = A;
   }
 
   // Frees memory bilinear form.
