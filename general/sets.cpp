@@ -134,4 +134,33 @@ ListOfIntegerSets::~ListOfIntegerSets()
    }
 }
 
+
+void Set_PrintStats(std::ostream &out, int size, int idx_size, int num_bins,
+                    Array<int> &bin_sz_cnt, long mem_usage)
+{
+   out << "Set statistics:\n"
+       << "----------------\n"
+       << "   number of indices:  " << idx_size << '\n'
+       << "   number of elements: " << size << '\n'
+       << "   number of bins:     " << num_bins << '\n'
+       << "   average bin size:   " << 1.*size/num_bins << '\n'
+       << "   dynamic memory use: " << mem_usage << " ("
+       << mem_usage/(1024.*1024.) << " MiB)\n"
+       << "   ----------+------------+----------\n"
+       << "    bin size |  num bins  |  % bins\n"
+       << "   ----------+------------+----------\n";
+   std::ios::fmtflags old_fmt = out.flags();
+   out.setf(std::ios::fixed);
+   std::streamsize old_prec = out.precision(5);
+   for (int sz = 0; sz < bin_sz_cnt.Size(); sz++)
+   {
+      out << std::setw(9) << sz << "    | "
+          << std::setw(10) << bin_sz_cnt[sz] << " | "
+          << std::setw(8) << 100.*bin_sz_cnt[sz]/num_bins << "\n";
+   }
+   out << "   ----------+------------+----------" << std::endl;
+   out.precision(old_prec);
+   out.flags(old_fmt);
+}
+
 }
