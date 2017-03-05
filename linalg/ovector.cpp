@@ -131,32 +131,93 @@ namespace mfem {
 
   /// Redefine '=' for vector = constant.
   OccaVector& OccaVector::operator = (double value) {
-    occa::linalg::operator_eq(data, value);
+    static occa::kernelBuilder builder =
+      makeCustomBuilder("vector_op_eq",
+                        "v0[i] = c0;");
+
+    occa::device dev = data.getDevice();
+    occa::kernel kernel = builder.build(dev);
+
+    kernel((int) Size(), value, data);
+
     return *this;
   }
 
   OccaVector& OccaVector::operator *= (double value) {
-    occa::linalg::operator_mult_eq(data, value);
+    static occa::kernelBuilder builder =
+      makeCustomBuilder("vector_op_mult",
+                        "v0[i] *= c0;");
+
+    occa::device dev = data.getDevice();
+    occa::kernel kernel = builder.build(dev);
+
+    kernel((int) Size(), value, data);
+
     return *this;
   }
 
   OccaVector& OccaVector::operator /= (double value) {
-    occa::linalg::operator_div_eq(data, value);
+    static occa::kernelBuilder builder =
+      makeCustomBuilder("vector_op_div",
+                        "v0[i] /= c0;");
+
+    occa::device dev = data.getDevice();
+    occa::kernel kernel = builder.build(dev);
+
+    kernel((int) Size(), value, data);
+
     return *this;
   }
 
   OccaVector& OccaVector::operator -= (double value) {
-    occa::linalg::operator_sub_eq(data, value);
+    static occa::kernelBuilder builder =
+      makeCustomBuilder("vector_op_sub",
+                        "v0[i] -= c0;");
+
+    occa::device dev = data.getDevice();
+    occa::kernel kernel = builder.build(dev);
+
+    kernel((int) Size(), value, data);
+
+    return *this;
+  }
+
+  OccaVector& OccaVector::operator += (double value) {
+    static occa::kernelBuilder builder =
+      makeCustomBuilder("vector_op_add",
+                        "v0[i] += c0;");
+
+    occa::device dev = data.getDevice();
+    occa::kernel kernel = builder.build(dev);
+
+    kernel((int) Size(), value, data);
+
     return *this;
   }
 
   OccaVector& OccaVector::operator -= (const OccaVector &v) {
-    occa::linalg::operator_sub_eq<double, double>(v.data, data);
+    static occa::kernelBuilder builder =
+      makeCustomBuilder("vector_vec_sub",
+                        "v0[i] -= v1[i];");
+
+    occa::device dev = data.getDevice();
+    occa::kernel kernel = builder.build(dev);
+
+    kernel((int) Size(), data, v.data);
+
     return *this;
   }
 
   OccaVector& OccaVector::operator += (const OccaVector &v) {
-    occa::linalg::operator_plus_eq<double, double>(v.data, data);
+    static occa::kernelBuilder builder =
+      makeCustomBuilder("vector_vec_add",
+                        "v0[i] += v1[i];");
+
+    occa::device dev = data.getDevice();
+    occa::kernel kernel = builder.build(dev);
+
+    kernel((int) Size(), data, v.data);
+
     return *this;
   }
 

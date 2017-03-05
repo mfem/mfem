@@ -83,11 +83,15 @@ namespace mfem {
     maps.quadWeights.allocate(device, quadPointsND);
 
     for (int q = 0; q < quadPoints; ++q) {
-      mfem::Vector d2q(dofToQuadData + q*dofs, dofs);
-      mfem::Vector d2qD(dofToQuadDData + q*dofs, dofs);
+      mfem::Vector d2q(dofs);
+      mfem::Vector d2qD(dofs);
       const IntegrationPoint &ip = ir2.IntPoint(q);
       basis.Eval(ip.x, d2q, d2qD);
       quadWeights1DData[q] = ip.weight;
+      for (int d = 0; d < dofs; ++d) {
+        dofToQuadData[q + d*quadPoints]  = d2q[d];
+        dofToQuadDData[q + d*quadPoints] = d2qD[d];
+      }
     }
 
     for (int q = 0; q < quadPointsND; ++q) {
@@ -114,9 +118,9 @@ namespace mfem {
     maps.quadToDofD.allocate(device, d2qEntries);
 
     for (int q = 0; q < quadPoints; ++q) {
-      for (int p = 0; p < dofs; ++p) {
-        quadToDofData[q + p*quadPoints] = dofToQuadData[p + q*dofs];
-        quadToDofDData[q + p*quadPoints] = dofToQuadDData[p + q*dofs];
+      for (int d = 0; d < dofs; ++d) {
+        quadToDofData[d + q*dofs] = dofToQuadData[q + d*quadPoints];
+        quadToDofDData[d + q*dofs] = dofToQuadDData[q + d*quadPoints];
       }
     }
 

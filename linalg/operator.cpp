@@ -32,11 +32,10 @@ void Operator::ImposeBoundaryConditions(const Array<int> &ess_tdof_list,
                                         Operator *rap,
                                         Operator* &Aout, Vector &X, Vector &B)
 {
-  Aout = this;
-  // ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
-  //                                                  rap != this);
-  // A->EliminateRHS(X, B);
-  // Aout = A;
+  ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
+                                                   rap != this);
+  A->EliminateRHS(X, B);
+  Aout = A;
 }
 
 void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)

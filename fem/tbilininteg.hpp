@@ -547,9 +547,9 @@ struct TDiffusionKernel<3,3,complex_t>
             const complex_t x2 = R.grad_qpts(i,1,j,k);
             const complex_t x3 = R.grad_qpts(i,2,j,k);
 
-            R.grad_qpts(i,0,j,k) = A11*x1 + A21*x2 + A31*x3;
-            R.grad_qpts(i,1,j,k) = A21*x1 + A22*x2 + A32*x3;
-            R.grad_qpts(i,2,j,k) = A31*x1 + A32*x2 + A33*x3;
+            R.grad_qpts(i,0,j,0) = A11*x1 + A21*x2 + A31*x3;
+            R.grad_qpts(i,1,j,0) = A21*x1 + A22*x2 + A32*x3;
+            R.grad_qpts(i,2,j,0) = A31*x1 + A32*x2 + A33*x3;
          }
       }
    }

@@ -214,19 +214,6 @@ public:
       for (int k = 0; k < num_elem; k++)
       {
         kernel_t::MultAssembled(k, assembled_data[el+k], R);
-        if (el == 730) {
-          for (int q = 0; q < 125; ++q) {
-            const int qx = q % 5;
-            const int qz = q / 25;
-            const int qy = (q - qz*25) / 5;
-            const complex_t x1 = R.grad_qpts(q,0,0,0);
-            const complex_t x2 = R.grad_qpts(q,1,0,0);
-            const complex_t x3 = R.grad_qpts(q,2,0,0);
-            printf("Grad(%d,%d,%d) = [%lf,%lf%lf]\n",
-                   qx, qy, qz,
-                   x1, x2, x3);
-          }
-        }
       }
 
       solFEval.template Assemble<true>(R);
