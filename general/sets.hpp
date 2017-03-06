@@ -141,9 +141,15 @@ public:
 
    void Pop(T &item) { item = base::Last(); base::DeleteLast(); }
 
+   void Pop() { base::DeleteLast(); }
+
    // void Reserve(int);
 
+   void Clear() { base::SetSize(0); }
+
    // void DeleteAll();
+
+   // void Sort();
 
    // long MemoryUsage() const;
 };
@@ -169,9 +175,15 @@ public:
 
    void Pop(T &item) { item = base::back(); base::pop_back(); }
 
+   void Pop() { base::pop_back(); }
+
    void Reserve(int capacity) { base::reserve(capacity); }
 
+   void Clear() { base::clear(); }
+
    void DeleteAll() { base a; base::swap(a); }
+
+   void Sort() { std::sort(base::begin(), base::end()); }
 
    long MemoryUsage() const { return base::capacity()*sizeof(T); }
 };
@@ -198,9 +210,15 @@ public:
    void Pop(T &item)
    { int n = base::Size(); item = base::At(n-1); base::Delete(n-1); }
 
+   void Pop() { base::Delete(base::Size()-1); }
+
    void Reserve(int capacity) { MFEM_ABORT("TODO"); /* TODO */ }
 
+   void Clear() { MFEM_ABORT("TODO"); /* TODO */ }
+
    void DeleteAll() { base a; base::Swap(a); }
+
+   void Sort() { MFEM_ABORT("TODO"); /* TODO */ }
 
    // long MemoryUsage() const;
 };
@@ -216,18 +234,26 @@ void Set_PrintStats(std::ostream &out, int size, int idx_size, int num_bins,
     elements. Uses a hash function to distribute the elements into bins. */
 // NodeIdxArray<T> needs to implement (used with T = int):
 //   * int Size() const;
-//   * void Pop(T &item);
-//   * void Append(const T &item);
-//   * void DeleteAll();
-//   * long MemoryUsage() const;
+//   * void Pop(T &item);             [used by Insert(), Sort()]
+//   * void Append(const T &item);    [used by Remove()]
+//   * void Clear();                  [used by Clear()]
+//   * void DeleteAll();              [used by DeleteAll()]
+//   * long MemoryUsage() const;      [used by MemoryUsage()]
 // NodeArray<T> needs to implement (used with T = Node):
 //   * int Size() const;
 //   * T &operator[](int)
 //   * const T &operator[](int) const;
-//   * int Append();
-//   * void Reserve(int);
-//   * void DeleteAll();
-//   * long MemoryUsage() const;
+//   * int Append();                     [used by Insert()]
+//   * void Pop();                       [used by Sort()]
+//   * void Reserve(int);                [used by Reserve()]
+//   * void Clear();                     [used by Clear()]
+//   * void DeleteAll();                 [used by DeleteAll()]
+//   * Sort();                           [used by Sort()]
+//   * long MemoryUsage() const;         [used by MemoryUsage()]
+// Class T needs to implement:
+//   * T &operator=(const T &);
+//   * bool operator==(const T &) const;
+//   * ...
 template <typename T,
           template <typename> class Hash = THash,
           template <typename> class NodeArray = ArraySetAdaptor,
@@ -465,20 +491,35 @@ public:
    /** @sa GetBinStart(). */
    int GetNextIndex(int idx) const { return nodes[idx].next_node_index; }
 
-   /// Sort the content of the set. Requires Size() == IndexSize().
+   /// Sort the content of the set.
+   /** The set is compacted into the first Size() indices. */
    void Sort()
    {
+      // Compact the 'nodes' into the first Size() entries:
+      const int size = Size();
+      while (nodes.Size() != size)
+      {
+         Node &node = nodes[nodes.Size()-1];
+         if (node.next_node_idx != -2)
+         {
+            int idx;
+            do { unused_nodes.Pop(idx); } while (idx >= size);
+            nodes[idx].element = node.element;
+         }
+         nodes.Pop();
+      }
       nodes.Sort();
       SetBins();
    }
 
-   /// A "soft" reset of the set: Size() and IndexSize() are set to zero.
-   /** The number of bins remains the same if @a number_of_bins is -1.
-       The reserved capacity of the set is not changed. */
-   void Reset(int number_of_bins = -1)
+   /// Clear the content of the set: Size() and IndexSize() are set to zero.
+   /** The number of bins is set to @a max(2, number_of_bins) except when
+       @a number_of_bins is -1, in which case, the number of bins is left
+       unchanged. The reserved capacity of the set is not changed. */
+   void Clear(int number_of_bins = -1)
    {
-      nodes.SetSize(0);
-      unused_nodes.SetSize(0);
+      nodes.Clear();
+      unused_nodes.Clear();
       if (number_of_bins == -1 || number_of_bins == NumBins())
       {
          ClearBins();
@@ -490,9 +531,11 @@ public:
       }
    }
 
-   /// Clear the contents of the set. The number of bins is reduced to 2.
-   /** The reserved capacity of the set is reset to zero. */
-   void Clear()
+   /// Delete the contents of the set. The number of bins is reduced to 2.
+   /** After this call, the state of the object is the same as after default
+       construction, in particular, the reserved capacity of the set is reset to
+       zero. */
+   void DeleteAll()
    {
       nodes.DeleteAll();
       unused_nodes.DeleteAll();

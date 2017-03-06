@@ -2,7 +2,9 @@
 #include "mfem.hpp"
 #include <ctime>
 #include <set>
+// Requires C++11:
 #include <unordered_set>
+
 
 using namespace std;
 using namespace mfem;
@@ -103,7 +105,7 @@ int main()
 
    my_set.PrintStats();
 
-   cout << "Sorting the set ..." << flush;
+   cout << "\nSorting the set ..." << flush;
    tic_toc.Clear();
    tic_toc.Start();
    my_set.Sort();
