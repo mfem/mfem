@@ -26,9 +26,9 @@ namespace mfem {
 
   public:
     // Local stiffness matrices (B and B^T operators)
-    occa::array<double> dofToQuad, dofToQuadD; // B
-    occa::array<double> quadToDof, quadToDofD; // B^T
-    occa::array<double> quadWeights;
+    occa::memory dofToQuad, dofToQuadD; // B
+    occa::memory quadToDof, quadToDofD; // B^T
+    occa::memory quadWeights;
 
     OccaDofQuadMaps();
     OccaDofQuadMaps(const OccaDofQuadMaps &maps);
@@ -80,8 +80,8 @@ namespace mfem {
 
     occa::kernel assembleKernel, multKernel;
 
-    occa::array<double> coefficients;
-    occa::array<double> jacobian, assembledOperator;
+    occa::memory coefficients;
+    occa::memory jacobian, assembledOperator;
 
     bool hasConstantCoefficient;
 

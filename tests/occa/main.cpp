@@ -19,6 +19,7 @@ bool doublesAreEqualish(const double a, const double b) {
 void compareVectorAndPtr(const std::string &message,
                          mfem::OccaVector &v, double *array) {
 
+  occa::finish();
   double *tmp = new double[v.Size()];
   occa::memcpy(tmp, v.GetData(), v.Size() * sizeof(double));
   for (int i = 0; i < v.Size(); ++i) {
@@ -126,6 +127,11 @@ void testVectorAssignmentOperators() {
   v1 -= 2;
   v1_(0) = 0; v1_(1) = 0.5; v1_(2) = 1;
   compareVectorAndPtr("OccaVector& OccaVector::operator -= (double value)",
+                      v1, v1_.GetData());
+
+  v1 += 2;
+  v1_(0) = 2; v1_(1) = 2.5; v1_(2) = 3;
+  compareVectorAndPtr("OccaVector& OccaVector::operator += (double value)",
                       v1, v1_.GetData());
 
   v1 -= v1;

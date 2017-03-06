@@ -18,7 +18,6 @@
 #include "stdint.h"
 
 #include "vector.hpp"
-#include "../general/occa_utils.hpp"
 
 #include "occa.hpp"
 #include "occa/array/linalg.hpp"

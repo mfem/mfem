@@ -143,11 +143,10 @@ namespace mfem {
     offsets[0] = 0;
 
     // Allocate device offsets and indices
-    globalToLocalOffsets.allocate(device, ndofs + 1);
-    globalToLocalIndices.allocate(device, elements * ldofs);
-
-    occa::memcpy(globalToLocalOffsets.memory(), offsets);
-    occa::memcpy(globalToLocalIndices.memory(), indices);
+    globalToLocalOffsets = device.malloc((ndofs + 1) * sizeof(int),
+                                         offsets);
+    globalToLocalIndices = device.malloc((elements * ldofs) * sizeof(int),
+                                         indices);
 
     delete [] offsets;
     delete [] indices;
@@ -253,8 +252,8 @@ namespace mfem {
   void OccaBilinearForm::VectorExtract(const OccaVector &globalVec,
                                        OccaVector &localVec) const {
 
-    VectorExtractKernel(globalToLocalOffsets.memory(),
-                        globalToLocalIndices.memory(),
+    VectorExtractKernel(globalToLocalOffsets,
+                        globalToLocalIndices,
                         globalVec.GetData(),
                         localVec.GetData());
   }
@@ -263,8 +262,8 @@ namespace mfem {
   void OccaBilinearForm::VectorAssemble(const OccaVector &localVec,
                                         OccaVector &globalVec) const {
 
-    VectorAssembleKernel(globalToLocalOffsets.memory(),
-                         globalToLocalIndices.memory(),
+    VectorAssembleKernel(globalToLocalOffsets,
+                         globalToLocalIndices,
                          localVec.GetData(),
                          globalVec.GetData());
   }

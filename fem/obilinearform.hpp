@@ -19,7 +19,6 @@
 #include <map>
 #include "stdint.h"
 
-#include "../general/occa_utils.hpp"
 #include "../linalg/operator.hpp"
 #include "bilinearform.hpp"
 
@@ -56,7 +55,7 @@ namespace mfem {
     occa::properties baseKernelProps;
 
     // Sparse storage for the global dof -> local node mapping
-    occa::array<int> globalToLocalOffsets, globalToLocalIndices;
+    occa::memory globalToLocalOffsets, globalToLocalIndices;
     // The input vector is mapped to local nodes for easy and efficient operations
     // The size is: (number of elements) * (nodes in element)
     mutable OccaVector localX;

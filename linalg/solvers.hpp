@@ -197,9 +197,9 @@ public:
       }
 
       oper->Mult(d, z);  // z = A d
+
       den = Dot(z, d);
       MFEM_ASSERT(IsFinite(den), "den = " << den);
-
 
       if (print_level >= 0 && den < 0.0)
       {
