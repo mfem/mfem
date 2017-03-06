@@ -150,9 +150,8 @@ private:
    int Component;
 
 public:
-   /** Construct GridFunctionCoefficient from a given GridFunction
-       and optionally which component to use if it is a vector
-       gridfunction. */
+   /** Construct GridFunctionCoefficient from a given GridFunction, and
+       optionally specify a component to use if it is a vector GridFunction. */
    GridFunctionCoefficient (GridFunction *gf, int comp = 1)
    { GridF = gf; Component = comp; }
 
@@ -420,7 +419,7 @@ public:
       mat.SetSize(0);
    }
 
-   /// Construct a vector coefficient from a scalar coefficient
+   /// Construct a constant matrix coefficient
    MatrixFunctionCoefficient(const DenseMatrix &m, Coefficient &q)
       : MatrixCoefficient(m.Size()), Q(&q)
    {
