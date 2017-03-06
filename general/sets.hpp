@@ -18,6 +18,7 @@
 
 #include <vector>
 #include <utility> // for std::pair
+#include <algorithm> // for std::max, std::fill
 
 namespace mfem
 {
@@ -249,18 +250,21 @@ protected:
       value_type element;  // the stored element
       int next_node_idx;   /* an index into 'nodes', or -1 for end of list,
                               or -2 to mark the node as not used */
+      bool operator<(const Node &other) const
+      { return element < other.element; }
    };
 
    NodeArray<Node> nodes;
    NodeIdxArray<int> unused_nodes; // used as a stack
 
-   void UpdateBins()
+   void ClearBins()
    {
-      const int num_bins = NumBins();
-      // std::cout << "Updating number of bins to " << num_bins << std::endl;
-      delete [] bins;
-      bins = new int[num_bins];
-      for (int i = 0; i < num_bins; i++) { bins[i] = -1; }
+      std::fill(bins, bins + NumBins(), -1);
+   }
+
+   void SetBins()
+   {
+      ClearBins();
       const int idx_size = IndexSize();
       for (int node_idx = 0; node_idx < idx_size; node_idx++)
       {
@@ -274,6 +278,14 @@ protected:
       }
    }
 
+   void UpdateBins()
+   {
+      // std::cout << "Updating number of bins to " << NumBins() << std::endl;
+      delete [] bins;
+      bins = new int[NumBins()];
+      SetBins();
+   }
+
 public:
    /** @brief Create an empty set with at initial number of bins equal to
        max(2, @a number_of_bins). */
@@ -284,7 +296,7 @@ public:
       : hash(std::max(2, number_of_bins))
    {
       bins = new int[NumBins()];
-      for (int i = 0; i < NumBins(); i++) { bins[i] = -1; }
+      ClearBins();
    }
 
    /// Destructor.
@@ -370,7 +382,7 @@ public:
    }
 
    /// Change the number of bins. Return true iff the actual number changed.
-   bool Reset(int number_of_bins)
+   bool Rehash(int number_of_bins)
    {
       int num_bins = NumBins();
       hash.Reset(std::max(2, number_of_bins));
@@ -380,7 +392,7 @@ public:
 
    /** @brief Optimize the set for faster access by setting the number of bins
        equal to the number of elements. */
-   bool Optimize() { return Reset(Size()); }
+   bool Optimize() { return Rehash(Size()); }
 
    /// Reserve (pre-allocate) memory for at least @a capacity number of entries.
    /** Use this call right after construction to optimize the speed and memory
@@ -453,7 +465,33 @@ public:
    /** @sa GetBinStart(). */
    int GetNextIndex(int idx) const { return nodes[idx].next_node_index; }
 
-   /// Empty the contents of the set. The number of bins is reduced to 2.
+   /// Sort the content of the set. Requires Size() == IndexSize().
+   void Sort()
+   {
+      nodes.Sort();
+      SetBins();
+   }
+
+   /// A "soft" reset of the set: Size() and IndexSize() are set to zero.
+   /** The number of bins remains the same if @a number_of_bins is -1.
+       The reserved capacity of the set is not changed. */
+   void Reset(int number_of_bins = -1)
+   {
+      nodes.SetSize(0);
+      unused_nodes.SetSize(0);
+      if (number_of_bins == -1 || number_of_bins == NumBins())
+      {
+         ClearBins();
+      }
+      else
+      {
+         hash.Reset(std::max(2, number_of_bins));
+         UpdateBins();
+      }
+   }
+
+   /// Clear the contents of the set. The number of bins is reduced to 2.
+   /** The reserved capacity of the set is reset to zero. */
    void Clear()
    {
       nodes.DeleteAll();

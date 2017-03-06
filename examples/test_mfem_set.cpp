@@ -14,6 +14,14 @@ int main()
    const int num_entries = 5*1024*1024; // avg bin size = 1.25 (with defaults)
    // const int num_entries = 50*1024*1024;
 
+   // const int range = 300*1000;
+   struct func
+   {
+      // int operator()(int n) { return n%range; }
+      int operator()(int n) { return n; }
+   };
+   func fn;
+
    time_t seed = time(NULL);
 
    Set<int> my_set;
@@ -33,7 +41,7 @@ int main()
    srand(seed);
    for (int i = 0; i < num_entries; i++)
    {
-      my_set.Insert(rand());
+      my_set.Insert(fn(rand()));
    }
    tic_toc.Stop();
    cout << " done (" << tic_toc.RealTime() << " sec).\n" << endl;
@@ -45,7 +53,7 @@ int main()
    srand(seed);
    for (int i = 0; i < num_entries; i++)
    {
-      my_set.Insert(rand());
+      my_set.Insert(fn(rand()));
    }
    tic_toc.Stop();
    cout << " done (" << tic_toc.RealTime() << " sec).\n" << endl;
@@ -56,7 +64,7 @@ int main()
    srand(seed);
    for (int i = 0; i < num_entries; i++)
    {
-      MFEM_VERIFY(my_set.Find(rand()) != -1, "entry not found");
+      MFEM_VERIFY(my_set.Find(fn(rand())) != -1, "entry not found");
    }
    tic_toc.Stop();
    cout << " done (" << tic_toc.RealTime() << " sec).\n" << endl;
@@ -77,7 +85,7 @@ int main()
    srand(seed);
    for (int i = 0; i < num_entries; i++)
    {
-      my_set.Insert(rand());
+      my_set.Insert(fn(rand()));
    }
    tic_toc.Stop();
    cout << " done (" << tic_toc.RealTime() << " sec).\n" << endl;
@@ -88,12 +96,31 @@ int main()
    srand(seed);
    for (int i = 0; i < num_entries; i++)
    {
-      MFEM_VERIFY(my_set.Find(rand()) != -1, "entry not found");
+      MFEM_VERIFY(my_set.Find(fn(rand())) != -1, "entry not found");
    }
    tic_toc.Stop();
    cout << " done (" << tic_toc.RealTime() << " sec).\n" << endl;
 
    my_set.PrintStats();
+
+   cout << "Sorting the set ..." << flush;
+   tic_toc.Clear();
+   tic_toc.Start();
+   my_set.Sort();
+   tic_toc.Stop();
+   cout << " done (" << tic_toc.RealTime() << " sec).\n" << endl;
+
+   cout << "Verifying all entries in the Set ..." << flush;
+   tic_toc.Clear();
+   tic_toc.Start();
+   srand(seed);
+   for (int i = 0; i < num_entries; i++)
+   {
+      MFEM_VERIFY(my_set.Find(fn(rand())) != -1, "entry not found");
+   }
+   tic_toc.Stop();
+   cout << " done (" << tic_toc.RealTime() << " sec).\n" << endl;
+
    my_set.Clear();
 
 
@@ -109,7 +136,7 @@ int main()
    srand(seed);
    for (int i = 0; i < num_entries; i++)
    {
-      std_set.insert(rand());
+      std_set.insert(fn(rand()));
    }
    tic_toc.Stop();
    cout << " done (" << tic_toc.RealTime() << " sec).\n" << endl;
@@ -120,7 +147,7 @@ int main()
    srand(seed);
    for (int i = 0; i < num_entries; i++)
    {
-      MFEM_VERIFY(std_set.find(rand()) != std_set.end(), "entry not found");
+      MFEM_VERIFY(std_set.find(fn(rand())) != std_set.end(), "entry not found");
    }
    tic_toc.Stop();
    cout << " done (" << tic_toc.RealTime() << " sec).\n" << endl;
@@ -139,7 +166,7 @@ int main()
    srand(seed);
    for (int i = 0; i < num_entries; i++)
    {
-      uo_set.insert(rand());
+      uo_set.insert(fn(rand()));
    }
    tic_toc.Stop();
    cout << " done (" << tic_toc.RealTime() << " sec).\n" << endl;
@@ -150,7 +177,7 @@ int main()
    srand(seed);
    for (int i = 0; i < num_entries; i++)
    {
-      MFEM_VERIFY(uo_set.find(rand()) != uo_set.end(), "entry not found");
+      MFEM_VERIFY(uo_set.find(fn(rand())) != uo_set.end(), "entry not found");
    }
    tic_toc.Stop();
    cout << " done (" << tic_toc.RealTime() << " sec).\n" << endl;
