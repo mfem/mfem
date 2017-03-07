@@ -419,7 +419,7 @@ public:
       mat.SetSize(0);
    }
 
-   /// Construct a constant matrix coefficient
+   /// Construct a constant matrix coefficient times a scalar Coefficient
    MatrixFunctionCoefficient(const DenseMatrix &m, Coefficient &q)
       : MatrixCoefficient(m.Size()), Q(&q)
    {
