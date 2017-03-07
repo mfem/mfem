@@ -234,9 +234,9 @@ void Set_PrintStats(std::ostream &out, int size, int idx_size, int num_bins,
     elements. Uses a hash function to distribute the elements into bins. */
 // NodeIdxArray<T> needs to implement (used with T = int):
 //   * int Size() const;
-//   * void Pop(T &item);             [used by Insert(), Sort()]
+//   * void Pop(T &item);             [used by Insert(), Sort(), Compact()]
 //   * void Append(const T &item);    [used by Remove()]
-//   * void Clear();                  [used by Clear()]
+//   * void Clear();                  [used by Clear(), Sort(), Compact()]
 //   * void DeleteAll();              [used by DeleteAll()]
 //   * long MemoryUsage() const;      [used by MemoryUsage()]
 // NodeArray<T> needs to implement (used with T = Node):
@@ -244,7 +244,7 @@ void Set_PrintStats(std::ostream &out, int size, int idx_size, int num_bins,
 //   * T &operator[](int)
 //   * const T &operator[](int) const;
 //   * int Append();                     [used by Insert()]
-//   * void Pop();                       [used by Sort()]
+//   * void Pop();                       [used by Sort(), Compact()]
 //   * void Reserve(int);                [used by Reserve()]
 //   * void Clear();                     [used by Clear()]
 //   * void DeleteAll();                 [used by DeleteAll()]
@@ -491,6 +491,41 @@ public:
    /** @sa GetBinStart(). */
    int GetNextIndex(int idx) const { return nodes[idx].next_node_index; }
 
+   /// Compact the set into the first Size() indices.
+   /** This method moves all elements with index >= Size() to unused indices
+       that are < Size(). At the same time, the bins containing the moved
+       elements are updated with the new indices. */
+   void Compact()
+   {
+      const int size = Size();
+      while (nodes.Size() != size)
+      {
+         const int orig_idx = nodes.Size()-1;
+         Node &node = nodes[orig_idx];
+         if (node.next_node_idx != -2)
+         {
+            int new_idx, idx, *idx_ptr;
+            do
+            {
+               unused_nodes.Pop(new_idx);
+            }
+            while (new_idx >= size);
+            // copy the element and update the bin containing it:
+            idx_ptr =
+               &bins[hash.GetBin(
+                        nodes[new_idx].element = node.element)];
+            while ((idx = *idx_ptr) != orig_idx)
+            {
+               MFEM_ASSERT(idx >= 0, "invalid index");
+               idx_ptr = &nodes[idx].next_node_idx;
+            }
+            *idx_ptr = new_idx;
+         }
+         nodes.Pop();
+      }
+      unused_nodes.Clear();
+   }
+
    /// Sort the content of the set.
    /** The set is compacted into the first Size() indices. */
    void Sort()
@@ -503,11 +538,16 @@ public:
          if (node.next_node_idx != -2)
          {
             int idx;
-            do { unused_nodes.Pop(idx); } while (idx >= size);
+            do
+            {
+               unused_nodes.Pop(idx);
+            }
+            while (idx >= size);
             nodes[idx].element = node.element;
          }
          nodes.Pop();
       }
+      unused_nodes.Clear();
       nodes.Sort();
       SetBins();
    }
