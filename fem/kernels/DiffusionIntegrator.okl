@@ -41,7 +41,7 @@
   |   }
 */
 
-// macro isn't expanding right
+// Change index reordering in the host as well
 /*
 #if OCCA_USING_GPU
 #  define GPU_ORDER_3(I0, I1, I2)     idxOrder(I0, I1, I2)

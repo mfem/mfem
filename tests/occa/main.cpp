@@ -23,7 +23,9 @@ void compareVectorAndPtr(const std::string &message,
   double *tmp = new double[v.Size()];
   occa::memcpy(tmp, v.GetData(), v.Size() * sizeof(double));
   for (int i = 0; i < v.Size(); ++i) {
-    OCCA_ERROR(message, doublesAreEqualish(array[i], tmp[i]));
+    OCCA_ERROR(message << '\n'
+               << array[i] << " != " << tmp[i] << '\n',
+               doublesAreEqualish(array[i], tmp[i]));
   }
   delete [] tmp;
 }
