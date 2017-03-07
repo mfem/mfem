@@ -212,7 +212,7 @@ public:
    void SetDiagonalBlock(int iblock, Operator *op);
    //! Add a block op in the block-entry (iblock, jblock).
    /**
-    * @param irow, icol  The block will be inserted in location (irow, icol).
+    * @param iRow, iCol  The block will be inserted in location (iRow, iCol).
     * @param op          The Operator to be inserted.
     */
    void SetBlock(int iRow, int iCol, Operator *op);
