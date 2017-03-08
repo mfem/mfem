@@ -219,7 +219,6 @@ foreach(TPL IN LISTS MFEM_TPLS)
   if (${TPL}_FOUND)
     message(STATUS "MFEM: using package ${TPL}")
     list(APPEND TPL_LIBRARIES ${${TPL}_LIBRARIES})
-    list(APPEND TPL_INCLUDE_DIRS ${${TPL}_INCLUDE_DIRS})
   endif()
 endforeach(TPL)
 
