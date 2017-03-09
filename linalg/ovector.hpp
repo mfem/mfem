@@ -79,12 +79,29 @@ namespace mfem
     void SetSize(const int64_t size, const void *src = NULL);
     void SetSize(occa::device device, const int64_t size, const void *src = NULL);
 
+    inline void SetDataAndSize(occa::memory newData, int size) {
+      data = newData;
+      size_ = size;
+      ownsData = false;
+    }
+
+    inline void NewDataAndSize(occa::memory newData, int size) {
+      Destroy();
+      SetDataAndSize(newData, size);
+    }
+
     inline void MakeDataOwner() {
       ownsData = true;
     }
 
     /// Destroy a vector
-    void Destroy();
+    inline void Destroy() {
+      size_ = 0;
+      if (ownsData) {
+        data.free();
+        ownsData = false;
+      }
+    }
 
     /// Returns the size of the vector.
     inline uint64_t Size() const {
@@ -222,11 +239,7 @@ namespace mfem
 
     /// Destroys vector.
     inline virtual ~OccaVector() {
-      size_ = 0;
-      if (ownsData) {
-        data.free();
-        ownsData = false;
-      }
+      Destroy();
     }
   };
 

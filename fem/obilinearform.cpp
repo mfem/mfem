@@ -51,8 +51,6 @@ namespace mfem {
   }
 
   void OccaBilinearForm::SetupKernels() {
-    const std::string &mode = device.properties()["mode"];
-
     baseKernelProps["defines/ELEMENT_BATCH"] = 1;
     baseKernelProps["defines/NUM_DOFS"] = GetNDofs();
     baseKernelProps["defines/NUM_VDIM"] = GetVDim();
@@ -95,7 +93,6 @@ namespace mfem {
     const int dim = GetDim();
     const int order = el->GetOrder();
     const int elements = GetNE();
-    const int fields = GetVDim();
     const int ndofs = GetNDofs();
 
     int ldofs = (order + 1);

@@ -487,8 +487,8 @@ void Operator::TFormLinearSystem(const Array<int> &ess_tdof_list,
   else
     {
       // rap, X and B point to the same data as this, x and b
-      X = TVector(x);
-      B = TVector(b);
+      X.NewDataAndSize(x.GetData(), x.Size());
+      B.NewDataAndSize(b.GetData(), b.Size());
       rap = this;
     }
 

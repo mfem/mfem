@@ -91,7 +91,7 @@ namespace mfem {
 
   void OccaVector::SetSize(occa::device device, const int64_t size, const void *src) {
     size_ = size;
-    if (size > Capacity()) {
+    if (size > (int64_t) Capacity()) {
       if (ownsData) {
         data.free();
       }
@@ -99,15 +99,6 @@ namespace mfem {
       ownsData = true;
     } else if (size && src) {
       occa::memcpy(data, src, size * sizeof(double));
-    }
-  }
-
-  /// Destroy a vector
-  void OccaVector::Destroy() {
-    size_ = 0;
-    if (ownsData) {
-      data.free();
-      ownsData = false;
     }
   }
 
@@ -361,10 +352,10 @@ namespace mfem {
                         "defines: { VTYPE1: 'int' }");
 
     occa::device dev = data.getDevice();
-    occa::kernel kernel = builder.build(data.getDevice());
+    occa::kernel kernel = builder.build(dev);
 
-    occa::memory o_dofs = data.getDevice().malloc(dofs.Size() * sizeof(int),
-                                                  dofs.GetData());
+    occa::memory o_dofs = dev.malloc(dofs.Size() * sizeof(int),
+                                     dofs.GetData());
     kernel((int) dofs.Size(), value, data, o_dofs);
     o_dofs.free();
   }
