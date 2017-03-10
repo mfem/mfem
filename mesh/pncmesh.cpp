@@ -106,9 +106,9 @@ void ParNCMesh::UpdateVertices()
    // The remaining (ghost) vertices are assigned indices greater or equal to
    // Mesh::GetNV().
 
-   for (HashTable<Node>::Iterator it(nodes); it; ++it)
+   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
    {
-      if (it->HasVertex()) { it->vert_index = -1; }
+      if (node->HasVertex()) { node->vert_index = -1; }
    }
 
    NVertices = 0;
@@ -126,20 +126,20 @@ void ParNCMesh::UpdateVertices()
    }
 
    vertex_nodeId.SetSize(NVertices);
-   for (HashTable<Node>::Iterator it(nodes); it; ++it)
+   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
    {
-      if (it->HasVertex() && it->vert_index >= 0)
+      if (node->HasVertex() && node->vert_index >= 0)
       {
-         vertex_nodeId[it->vert_index] = it.Index();
+         vertex_nodeId[node->vert_index] = node.index();
       }
    }
 
    NGhostVertices = 0;
-   for (HashTable<Node>::Iterator it(nodes); it; ++it)
+   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
    {
-      if (it->HasVertex() && it->vert_index < 0)
+      if (node->HasVertex() && node->vert_index < 0)
       {
-         it->vert_index = NVertices + (NGhostVertices++);
+         node->vert_index = NVertices + (NGhostVertices++);
       }
    }
 }
@@ -151,13 +151,13 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    // assign indices to ghost edges/faces that don't exist in the 'mesh'.
 
    // clear edge_index and Face::index
-   for (HashTable<Node>::Iterator it(nodes); it; ++it)
+   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
    {
-      if (it->HasEdge()) { it->edge_index = -1; }
+      if (node->HasEdge()) { node->edge_index = -1; }
    }
-   for (HashTable<Face>::Iterator it(faces); it; ++it)
+   for (face_iterator face = faces.begin(); face != faces.end(); ++face)
    {
-      it->index = -1;
+      face->index = -1;
    }
 
    // go assign existing edge/face indices
@@ -166,20 +166,20 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    // assign ghost edge indices
    NEdges = mesh->GetNEdges();
    NGhostEdges = 0;
-   for (HashTable<Node>::Iterator it(nodes); it; ++it)
+   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
    {
-      if (it->HasEdge() && it->edge_index < 0)
+      if (node->HasEdge() && node->edge_index < 0)
       {
-         it->edge_index = NEdges + (NGhostEdges++);
+         node->edge_index = NEdges + (NGhostEdges++);
       }
    }
 
    // assign ghost face indices
    NFaces = mesh->GetNumFaces();
    NGhostFaces = 0;
-   for (HashTable<Face>::Iterator it(faces); it; ++it)
+   for (face_iterator face = faces.begin(); face != faces.end(); ++face)
    {
-      if (it->index < 0) { it->index = NFaces + (NGhostFaces++); }
+      if (face->index < 0) { face->index = NFaces + (NGhostFaces++); }
    }
 
    if (Dim == 2)
@@ -458,17 +458,17 @@ void ParNCMesh::CalcFaceOrientations()
    face_orient.SetSize(NFaces);
    face_orient = 0;
 
-   for (HashTable<Face>::Iterator it(faces); it; ++it)
+   for (face_iterator face = faces.begin(); face != faces.end(); ++face)
    {
-      if (it->elem[0] >= 0 && it->elem[1] >= 0 && it->index < NFaces)
+      if (face->elem[0] >= 0 && face->elem[1] >= 0 && face->index < NFaces)
       {
-         Element *e1 = &elements[it->elem[0]];
-         Element *e2 = &elements[it->elem[1]];
+         Element *e1 = &elements[face->elem[0]];
+         Element *e2 = &elements[face->elem[1]];
 
          if (e1->rank == e2->rank) { continue; }
          if (e1->rank > e2->rank) { std::swap(e1, e2); }
 
-         face_orient[it->index] = get_face_orientation(*it, *e1, *e2);
+         face_orient[face->index] = get_face_orientation(*face, *e1, *e2);
       }
    }
 }
@@ -713,7 +713,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    // create vertices in 'face_nbr_vertices'
    {
       pmesh.face_nbr_vertices.SetSize(vert_map.size());
-      tmp_vertex = new TmpVertex[nodes.Bound()]; // TODO: something cheaper?
+      tmp_vertex = new TmpVertex[nodes.NumIds()]; // TODO: something cheaper?
 
       std::map<int, int>::iterator it;
       for (it = vert_map.begin(); it != vert_map.end(); ++it)

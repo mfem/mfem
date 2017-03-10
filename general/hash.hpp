@@ -68,6 +68,9 @@ struct Hashed4
 template<typename T>
 class HashTable : public BlockArray<T>
 {
+protected:
+   typedef BlockArray<T> Base;
+
 public:
    HashTable(int block_size = 16*1024, int init_hash_size = 32*1024);
    HashTable(const HashTable& other); // deep copy
@@ -92,30 +95,72 @@ public:
    int FindId(int p1, int p2) const;
    int FindId(int p1, int p2, int p3, int p4) const;
 
-   // FIXME - unused?
-   /// Return true if item 'id' exists in the container.
-   bool Exists(int id) const
-   { return id >= 0 && id < Base::Bound() && !Base::IsDeleted(id); }
+   /// Return the number of elements currently stored in the HashTable.
+   int Size() const { return Base::Size()-unused.Size(); }
 
-   /// Remove an item from both the hash table and the underlying BlockArray.
+   /// Return the total number of ids (used and unused) in the HashTable.
+   int NumIds() const { return Base::Size(); }
+
+   /// Return the number of free/unused ids in the HashTable.
+   int NumFreeIds() const { return unused.Size(); }
+
+   /// Return true if item 'id' exists in (is used by) the container.
+   /** It is assumed that 0 <= id < NumIds(). */
+   bool IdExists(int id) const { return (Base::At(id).next != -2); }
+
+   /// Remove an item from the hash table.
+   /** Its id will be reused by newly added items. */
    void Delete(int id);
 
    /// Make an item hashed under different parent IDs.
    void Reparent(int id, int new_p1, int new_p2);
    void Reparent(int id, int new_p1, int new_p2, int new_p3, int new_p4);
 
-   typedef typename BlockArray<T>::Iterator Iterator;
-
    /// Return total size of allocated memory (tables plus items), in bytes.
    long MemoryUsage() const;
 
    void PrintMemoryDetail() const;
 
-protected:
-   typedef BlockArray<T> Base;
+   class iterator : public Base::iterator
+   {
+   protected:
+      typedef typename Base::iterator base;
 
+   public:
+      iterator(const base &it) : base(it) { }
+
+      iterator &operator++()
+      {
+         while (base::next(), base::good() && (*this)->next == -2) { }
+         return *this;
+      }
+   };
+
+   class const_iterator : public Base::const_iterator
+   {
+   protected:
+      typedef typename Base::const_iterator base;
+
+   public:
+      const_iterator(const base &it) : base(it) { }
+
+      const_iterator &operator++()
+      {
+         while (base::next(), base::good() && (*this)->next == -2) { }
+         return *this;
+      }
+   };
+
+   iterator begin() { return iterator(Base::begin()); }
+   iterator end() { return iterator(Base::end()); }
+
+   const_iterator cbegin() const { return const_iterator(Base::cbegin()); }
+   const_iterator cend() const { return const_iterator(Base::cend()); }
+
+protected:
    int* table;
    int mask;
+   Array<int> unused;
 
    // hash functions (NOTE: the constants are arbitrary)
    inline int Hash(int p1, int p2) const
@@ -134,11 +179,12 @@ protected:
    int SearchList(int id, int p1, int p2) const;
    int SearchList(int id, int p1, int p2, int p3) const;
 
-   void Insert(int idx, int id);
+   inline void Insert(int idx, int id, T &item);
    void Unlink(int idx, int id);
 
    /// Check table load factor and resize if necessary
-   void CheckRehash();
+   inline void CheckRehash();
+   void DoRehash();
 };
 
 
@@ -162,6 +208,7 @@ HashTable<T>::HashTable(const HashTable& other)
    int size = mask+1;
    table = new int[size];
    memcpy(table, other.table, size*sizeof(int));
+   other.unused.Copy(unused);
 }
 
 template<typename T>
@@ -211,14 +258,23 @@ int HashTable<T>::GetId(int p1, int p2)
    int id = SearchList(table[idx], p1, p2);
    if (id >= 0) { return id; }
 
-   // not found - create a new one
-   int new_id = Base::New();
+   // not found - use an unused item or create a new one
+   int new_id;
+   if (unused.Size())
+   {
+      new_id = unused.Last();
+      unused.DeleteLast();
+   }
+   else
+   {
+      new_id = Base::Append();
+   }
    T& item = Base::At(new_id);
    item.p1 = p1;
    item.p2 = p2;
 
    // insert into hashtable
-   Insert(idx, new_id);
+   Insert(idx, new_id, item);
    CheckRehash();
 
    return new_id;
@@ -233,15 +289,24 @@ int HashTable<T>::GetId(int p1, int p2, int p3, int p4)
    int id = SearchList(table[idx], p1, p2, p3);
    if (id >= 0) { return id; }
 
-   // not found - create a new one
-   int new_id = Base::New();
+   // not found - use an unused item or create a new one
+   int new_id;
+   if (unused.Size())
+   {
+      new_id = unused.Last();
+      unused.DeleteLast();
+   }
+   else
+   {
+      new_id = Base::Append();
+   }
    T& item = Base::At(new_id);
    item.p1 = p1;
    item.p2 = p2;
    item.p3 = p3;
 
    // insert into hashtable
-   Insert(idx, new_id);
+   Insert(idx, new_id, item);
    CheckRehash();
 
    return new_id;
@@ -314,40 +379,45 @@ int HashTable<T>::SearchList(int id, int p1, int p2, int p3) const
 }
 
 template<typename T>
-void HashTable<T>::CheckRehash()
+inline void HashTable<T>::CheckRehash()
 {
    const int fill_factor = 2;
-   int cur_table_size = mask+1;
 
    // is the table overfull?
-   if (Base::Size() > cur_table_size * fill_factor)
+   if (Base::Size() > (mask+1) * fill_factor)
    {
-      delete [] table;
-
-      // double the table size
-      int new_table_size = 2*cur_table_size;
-      table = new int[new_table_size];
-      for (int i = 0; i < new_table_size; i++) { table[i] = -1; }
-      mask = new_table_size-1;
-
-#if defined(MFEM_DEBUG) && !defined(MFEM_USE_MPI)
-      std::cout << _MFEM_FUNC_NAME << ": rehashing to size " << new_table_size
-                << std::endl;
-#endif
-
-      // reinsert all items
-      for (Iterator it(*this); it; ++it)
-      {
-         Insert(Hash(*it), it.Index());
-      }
+      DoRehash();
    }
 }
 
 template<typename T>
-void HashTable<T>::Insert(int idx, int id)
+void HashTable<T>::DoRehash()
+{
+   delete [] table;
+
+   // double the table size
+   int new_table_size = 2*(mask+1);
+   table = new int[new_table_size];
+   for (int i = 0; i < new_table_size; i++) { table[i] = -1; }
+   mask = new_table_size-1;
+
+#if defined(MFEM_DEBUG) && !defined(MFEM_USE_MPI)
+   std::cout << _MFEM_FUNC_NAME << ": rehashing to size " << new_table_size
+             << std::endl;
+#endif
+
+   // reinsert all items
+   for (iterator it = begin(); it != end(); ++it)
+   {
+      Insert(Hash(*it), it.index(), *it);
+   }
+}
+
+template<typename T>
+inline void HashTable<T>::Insert(int idx, int id, T &item)
 {
    // add item at the beginning of the linked list
-   Base::At(id).next = table[idx];
+   item.next = table[idx];
    table[idx] = id;
 }
 
@@ -374,8 +444,8 @@ void HashTable<T>::Delete(int id)
 {
    T& item = Base::At(id);
    Unlink(Hash(item), id);
-
-   Base::Delete(id);
+   item.next = -2;    // mark item as unused
+   unused.Append(id); // add its id to the unused ids
 }
 
 template<typename T>
@@ -390,7 +460,7 @@ void HashTable<T>::Reparent(int id, int new_p1, int new_p2)
 
    // reinsert under new parent IDs
    int new_idx = Hash(new_p1, new_p2);
-   Insert(new_idx, id);
+   Insert(new_idx, id, item);
 }
 
 template<typename T>
@@ -407,19 +477,20 @@ void HashTable<T>::Reparent(int id,
 
    // reinsert under new parent IDs
    int new_idx = Hash(new_p1, new_p2, new_p3);
-   Insert(new_idx, id);
+   Insert(new_idx, id, item);
 }
 
 template<typename T>
 long HashTable<T>::MemoryUsage() const
 {
-   return (mask+1) * sizeof(int) + Base::MemoryUsage();
+   return (mask+1) * sizeof(int) + Base::MemoryUsage() + unused.MemoryUsage();
 }
 
 template<typename T>
 void HashTable<T>::PrintMemoryDetail() const
 {
-   std::cout << Base::MemoryUsage() << " + " << (mask+1) * sizeof(int);
+   std::cout << Base::MemoryUsage() << " + " << (mask+1) * sizeof(int)
+             << " + " << unused.MemoryUsage();
 }
 
 } // namespace mfem

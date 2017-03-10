@@ -172,6 +172,8 @@ public:
 
       void Clear() { conforming.clear(); masters.clear(); slaves.clear(); }
       bool Empty() const { return !conforming.size() && !masters.size(); }
+      std::size_t TotalSize() const
+      { return conforming.size() + masters.size() + slaves.size(); }
       long MemoryUsage() const;
    };
 
@@ -253,6 +255,8 @@ public:
    long MemoryUsage() const;
 
    int PrintMemoryDetail() const;
+
+   void PrintStats(std::ostream &out = std::cout) const;
 
 
 protected: // interface for Mesh to be able to construct itself from NCMesh
@@ -338,7 +342,7 @@ protected: // implementation
          int node[8];  ///< element corners (if ref_type == 0)
          int child[8]; ///< 2-8 children (if ref_type != 0)
       };
-      int parent; ///< parent element, -1 if this is a root element
+      int parent; ///< parent element, -1 if this is a root element, -2 if free
 
       Element(int geom, int attr);
    };
@@ -349,7 +353,14 @@ protected: // implementation
    HashTable<Node> nodes; // associative container holding all Nodes
    HashTable<Face> faces; // associative container holding all Faces
 
+   typedef HashTable<Node>::iterator node_iterator;
+   typedef HashTable<Node>::const_iterator node_const_iterator;
+   typedef HashTable<Face>::iterator face_iterator;
+
    BlockArray<Element> elements; // storage for all Elements
+   Array<int> free_element_ids;  // free element ids - indices into 'elements'
+
+   typedef BlockArray<Element>::iterator elem_iterator;
 
    // the first 'root_count' entries of 'elements' is the coarse mesh
    int root_count;
@@ -398,6 +409,23 @@ protected: // implementation
 
    void RefineElement(int elem, char ref_type);
    void DerefineElement(int elem);
+
+   int AddElement(const Element &el)
+   {
+      if (free_element_ids.Size())
+      {
+         int idx = free_element_ids.Last();
+         free_element_ids.DeleteLast();
+         elements[idx] = el;
+         return idx;
+      }
+      return elements.Append(el);
+   }
+   void FreeElement(int id)
+   {
+      free_element_ids.Append(id);
+      elements[id].parent = -2; // mark the element as free
+   }
 
    int NewHexahedron(int n0, int n1, int n2, int n3,
                      int n4, int n5, int n6, int n7,

@@ -89,6 +89,7 @@ int main(int argc, char *argv[])
       {
          cout << mesh->GetNE() << " elements" << endl;
          mesh->UniformRefinement();
+         // mesh->RandomRefinement(0.75);
       }
    }
    cout << mesh->GetNE() << " elements" << endl << endl;
@@ -120,6 +121,9 @@ int main(int argc, char *argv[])
    cout << "Neighbor search time: " << toc() << " s" << endl;
 #endif
 
+   cout << "\n";
+   ncmesh->PrintStats();
+
    cout << endl;
    cout << "sizeof(Node) = " << sizeof(NCMesh::Node) << endl;
    cout << "sizeof(Face) = " << sizeof(NCMesh::Face) << endl;
@@ -145,7 +149,8 @@ int main(int argc, char *argv[])
    cout << endl;
 
    delete mesh;
-   exit(0);
+   // exit(0);
+   return 0;
 
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
