@@ -406,8 +406,11 @@ export(TARGETS ${PROJECT_NAME}
 # with a global CMake-registry)
 export(PACKAGE ${PROJECT_NAME})
 
+# Extract the include directories required to use MFEM
+get_target_property(MFEM_TPL_INCLUDE_DIRS mfem INCLUDE_DIRECTORIES)
+
 # This is the build-tree version
-set(INCLUDE_INSTALL_DIRS ${PROJECT_BINARY_DIR})
+set(INCLUDE_INSTALL_DIRS ${PROJECT_BINARY_DIR} ${MFEM_TPL_INCLUDE_DIRS})
 set(LIB_INSTALL_DIR ${PROJECT_BINARY_DIR})
 configure_package_config_file(config/cmake/MFEMConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/MFEMConfig.cmake
@@ -415,7 +418,7 @@ configure_package_config_file(config/cmake/MFEMConfig.cmake.in
   PATH_VARS INCLUDE_INSTALL_DIRS LIB_INSTALL_DIR)
 
 # This is the version that will be installed
-set(INCLUDE_INSTALL_DIRS ${INSTALL_INCLUDE_DIR})
+set(INCLUDE_INSTALL_DIRS ${INSTALL_INCLUDE_DIR}  ${MFEM_TPL_INCLUDE_DIRS})
 set(LIB_INSTALL_DIR ${INSTALL_LIB_DIR})
 configure_package_config_file(config/cmake/MFEMConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/MFEMConfig.cmake
