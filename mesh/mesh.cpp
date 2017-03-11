@@ -87,13 +87,13 @@ double Mesh::GetElementVolume(int i)
 // Similar to VisualizationSceneSolution3d::FindNewBox in GLVis
 void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
 {
-   min.SetSize(Dim);
-   max.SetSize(Dim);
+   min.SetSize(spaceDim);
+   max.SetSize(spaceDim);
 
-   for (int d = 0; d < Dim; d++)
+   for (int d = 0; d < spaceDim; d++)
    {
-      min[d] = numeric_limits<double>::infinity();
-      max[d] = -numeric_limits<double>::infinity();
+      min(d) = numeric_limits<double>::infinity();
+      max(d) = -numeric_limits<double>::infinity();
    }
 
    if (Nodes == NULL)
@@ -102,16 +102,17 @@ void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
       for (int i = 0; i < NumOfVertices; i++)
       {
          coord = GetVertex(i);
-         for (int d = 0; d < Dim; d++)
+         for (int d = 0; d < spaceDim; d++)
          {
-            if (coord[d] < min[d]) { min[d] = coord[d]; }
-            if (coord[d] > max[d]) { max[d] = coord[d]; }
+            if (coord[d] < min(d)) { min(d) = coord[d]; }
+            if (coord[d] > max(d)) { max(d) = coord[d]; }
          }
       }
    }
    else
    {
-      int ne = (Dim == 3) ? GetNBE() : GetNE();
+      const bool use_boundary = false; // make this a parameter?
+      int ne = use_boundary ? GetNBE() : GetNE();
       int fn, fo;
       DenseMatrix pointmat;
       RefinedGeometry *RefG;
@@ -121,7 +122,7 @@ void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
 
       for (int i = 0; i < ne; i++)
       {
-         if (Dim == 3)
+         if (use_boundary)
          {
             GetBdrElementFace(i, &fn, &fo);
             RefG = GlobGeometryRefiner.Refine(GetFaceBaseGeometry(fn), ref);
@@ -138,23 +139,23 @@ void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
          }
          for (int j = 0; j < pointmat.Width(); j++)
          {
-            for (int d = 0; d < Dim; d++)
+            for (int d = 0; d < pointmat.Height(); d++)
             {
-               if (pointmat(d,j) < min[d]) { min[d] = pointmat(d,j); }
-               if (pointmat(d,j) > max[d]) { max[d] = pointmat(d,j); }
+               if (pointmat(d,j) < min(d)) { min(d) = pointmat(d,j); }
+               if (pointmat(d,j) > max(d)) { max(d) = pointmat(d,j); }
             }
          }
       }
    }
 }
 
-void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &out)
+void Mesh::GetCharacteristics(double &h_min, double &h_max,
+                              double &kappa_min, double &kappa_max,
+                              Vector *Vh, Vector *Vk)
 {
    int i, dim, sdim;
    DenseMatrix J;
-   double h_min, h_max, kappa_min, kappa_max, h, kappa;
-
-   out << "Mesh Characteristics:";
+   double h, kappa;
 
    dim = Dimension();
    sdim = SpaceDimension();
@@ -179,8 +180,17 @@ void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &out)
       if (kappa < kappa_min) { kappa_min = kappa; }
       if (kappa > kappa_max) { kappa_max = kappa; }
    }
+}
 
-   if (dim == 1)
+void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &out)
+{
+   double h_min, h_max, kappa_min, kappa_max;
+
+   out << "Mesh Characteristics:";
+
+   this->GetCharacteristics(h_min, h_max, kappa_min, kappa_max, Vh, Vk);
+
+   if (Dim == 1)
    {
       out << '\n'
           << "Number of vertices : " << GetNV() << '\n'
@@ -189,7 +199,7 @@ void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &out)
           << "h_min              : " << h_min << '\n'
           << "h_max              : " << h_max << '\n';
    }
-   else if (dim == 2)
+   else if (Dim == 2)
    {
       out << '\n'
           << "Number of vertices : " << GetNV() << '\n'
