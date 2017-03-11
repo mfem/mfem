@@ -25,7 +25,8 @@ BlockOperator::BlockOperator(const Array<int> & offsets)
      nColBlocks(offsets.Size() - 1),
      row_offsets(0),
      col_offsets(0),
-     op(nRowBlocks, nRowBlocks)
+     op(nRowBlocks, nRowBlocks),
+     coef(nRowBlocks, nColBlocks)
 {
    op = static_cast<Operator *>(NULL);
    row_offsets.MakeRef(offsets);
@@ -40,21 +41,23 @@ BlockOperator::BlockOperator(const Array<int> & row_offsets_,
      nColBlocks(col_offsets_.Size()-1),
      row_offsets(0),
      col_offsets(0),
-     op(nRowBlocks, nColBlocks)
+     op(nRowBlocks, nColBlocks),
+     coef(nRowBlocks, nColBlocks)
 {
    op = static_cast<Operator *>(NULL);
    row_offsets.MakeRef(row_offsets_);
    col_offsets.MakeRef(col_offsets_);
 }
 
-void BlockOperator::SetDiagonalBlock(int iblock, Operator *op)
+void BlockOperator::SetDiagonalBlock(int iblock, Operator *op, double c)
 {
-   SetBlock(iblock, iblock, op);
+   SetBlock(iblock, iblock, op, c);
 }
 
-void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt)
+void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, double c)
 {
    op(iRow, iCol) = opt;
+   coef(iRow, iCol) = c;
 
    MFEM_VERIFY(row_offsets[iRow+1] - row_offsets[iRow] == opt->NumRows() &&
                col_offsets[iCol+1] - col_offsets[iCol] == opt->NumCols(),
@@ -79,7 +82,7 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
          if (op(iRow,jCol))
          {
             op(iRow,jCol)->Mult(xblock.GetBlock(jCol), tmp);
-            yblock.GetBlock(iRow) += tmp;
+            yblock.GetBlock(iRow).Add(coef(iRow,jCol), tmp);
          }
       }
    }
@@ -104,7 +107,7 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
          if (op(jCol,iRow))
          {
             op(jCol,iRow)->MultTranspose(xblock.GetBlock(jCol), tmp);
-            yblock.GetBlock(iRow) += tmp;
+            yblock.GetBlock(iRow).Add(coef(jCol,iRow), tmp);
          }
       }
    }
