@@ -150,13 +150,13 @@ private:
    int Component;
 
 public:
-   /** Construct GridFunctionCoefficient from a given GridFunction
-       and optionally which component to use if it is a vector
-       gridfunction. */
+   /** Construct GridFunctionCoefficient from a given GridFunction, and
+       optionally specify a component to use if it is a vector GridFunction. */
    GridFunctionCoefficient (GridFunction *gf, int comp = 1)
    { GridF = gf; Component = comp; }
 
    void SetGridFunction(GridFunction *gf) { GridF = gf; }
+   GridFunction * GetGridFunction() const { return GridF; }
 
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
@@ -336,6 +336,9 @@ private:
 public:
    VectorGridFunctionCoefficient(GridFunction *gf);
 
+   void SetGridFunction(GridFunction *gf) { GridFunc = gf; }
+   GridFunction * GetGridFunction() const { return GridFunc; }
+
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
@@ -385,28 +388,55 @@ public:
    virtual ~MatrixCoefficient() { }
 };
 
+class MatrixConstantCoefficient : public MatrixCoefficient
+{
+private:
+   DenseMatrix mat;
+public:
+   MatrixConstantCoefficient(const DenseMatrix &m)
+      : MatrixCoefficient(m.Size()), mat(m) { }
+   using MatrixCoefficient::Eval;
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip) { M = mat; }
+};
+
 class MatrixFunctionCoefficient : public MatrixCoefficient
 {
 private:
    void (*Function)(const Vector &, DenseMatrix &);
    void (*TDFunction)(const Vector &, double, DenseMatrix &);
+   Coefficient *Q;
+   DenseMatrix mat;
 
 public:
    /// Construct a time-independent matrix coefficient from a C-function
-   MatrixFunctionCoefficient(int dim, void (*F)(const Vector &, DenseMatrix &))
-      : MatrixCoefficient(dim)
+   MatrixFunctionCoefficient(int dim, void (*F)(const Vector &, DenseMatrix &),
+                             Coefficient *q = NULL)
+      : MatrixCoefficient(dim), Q(q)
    {
       Function = F;
       TDFunction = NULL;
+      mat.SetSize(0);
+   }
+
+   /// Construct a constant matrix coefficient times a scalar Coefficient
+   MatrixFunctionCoefficient(const DenseMatrix &m, Coefficient &q)
+      : MatrixCoefficient(m.Size()), Q(&q)
+   {
+      Function = NULL;
+      TDFunction = NULL;
+      mat = m;
    }
 
    /// Construct a time-dependent matrix coefficient from a C-function
    MatrixFunctionCoefficient(int dim,
-                             void (*TDF)(const Vector &, double, DenseMatrix &))
-      : MatrixCoefficient(dim)
+                             void (*TDF)(const Vector &, double, DenseMatrix &),
+                             Coefficient *q = NULL)
+      : MatrixCoefficient(dim), Q(q)
    {
       Function = NULL;
       TDFunction = TDF;
+      mat.SetSize(0);
    }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
