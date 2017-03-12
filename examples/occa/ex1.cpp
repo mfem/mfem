@@ -36,25 +36,33 @@
 //               optional connection to the GLVis tool for visualization.
 
 /*
+  |---------------------------|
+  |          Status           |
+  |---------------------------|
+  | C : CPU Kernel            |
+  | H : High-order GPU Kernel |
+  | L : Low-order GPU Kernel  |
+  |---------------------------|
+
   |--------+------------------------+--------------|
   | Status | Mesh                   | Element Type |
   |--------+------------------------+--------------|
-  | Done   | fichera.mesh           | Cube         |
-  |        | pipe-nurbs.mesh        | Cube         |
+  |        | inline-segment.mesh    | Segment?     |
+  | C      | star.mesh              | Square       |
+  | C      | square-disc-nurbs.mesh | Square       |
+  | C      | disc-nurbs.mesh        | Square       |
+  |        | star-surf.mesh         | Square       |
+  |        | mobius-strip.mesh      | Square       |
+  |        | amr-quad.mesh          | Square       |
+  | C,H    | fichera.mesh           | Cube         |
+  | C      | pipe-nurbs.mesh        | Cube         |
   |        | amr-hex.mesh           | Cube         |
   |        | fichera-amr.mesh       | Cube         |
-  |        | inline-segment.mesh    | Segment?     |
-  |        | star.mesh              | Square       |
-  |        | square-disc-nurbs.mesh | Square       |
-  |        | disc-nurbs.mesh        | Square       |
-  |        | star-surf.mesh         | Square       |
-  |        | amr-quad.mesh          | Square       |
-  |        | mobius-strip.mesh      | Square       |
-  |        | escher.mesh            | Tet          |
   |        | square-disc.mesh       | Triangle     |
   |        | square-disc-p2.vtk     | Triangle     |
   |        | square-disc-p3.mesh    | Triangle     |
   |        | square-disc-surf.mesh  | Triangle     |
+  |        | escher.mesh            | Tet          |
   |--------+------------------------+--------------|
 */
 
