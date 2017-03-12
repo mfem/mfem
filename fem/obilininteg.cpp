@@ -246,7 +246,7 @@ namespace mfem {
     const int quad1D = ir2.GetNPoints();
     int quadND = quad1D;
 
-    for (int d = 0; d < dims; ++d) {
+    for (int d = 0; d < 3; ++d) {
       if (d) {
         quadND *= quad1D;
       }

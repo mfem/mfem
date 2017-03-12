@@ -78,6 +78,13 @@ OKL_CACHED_KERNELS := $(subst kernels/,,$(subst $(MFEM_REAL_DIR)/,$(OCCA_LIB_CAC
 .PHONY: cache-kernels
 cache-kernels: $(OKL_CACHED_KERNELS)
 
+.PHONY: clear-cache
+clear-kernels: clear-mfem-kernels $(OKL_CACHED_KERNELS)
+
+.PHONY: clear-cache
+clear-mfem-kernels:
+	@echo y | occa clear -l mfem
+
 $(OCCA_LIB_CACHE_DIR)/mfem/fem/%.okl: $(MFEM_REAL_DIR)/fem/kernels/%.okl
 	@echo "Caching: $(subst $(MFEM_REAL_DIR)/,,$<)"
 	@occa cache -l mfem/$(subst $(OCCA_LIB_CACHE_DIR)/mfem/,,$(dir $@)) $<

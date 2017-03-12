@@ -35,6 +35,29 @@
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
 
+/*
+  |--------+------------------------+--------------|
+  | Status | Mesh                   | Element Type |
+  |--------+------------------------+--------------|
+  | Done   | fichera.mesh           | Cube         |
+  |        | pipe-nurbs.mesh        | Cube         |
+  |        | amr-hex.mesh           | Cube         |
+  |        | fichera-amr.mesh       | Cube         |
+  |        | inline-segment.mesh    | Segment?     |
+  |        | star.mesh              | Square       |
+  |        | square-disc-nurbs.mesh | Square       |
+  |        | disc-nurbs.mesh        | Square       |
+  |        | star-surf.mesh         | Square       |
+  |        | amr-quad.mesh          | Square       |
+  |        | mobius-strip.mesh      | Square       |
+  |        | escher.mesh            | Tet          |
+  |        | square-disc.mesh       | Triangle     |
+  |        | square-disc-p2.vtk     | Triangle     |
+  |        | square-disc-p3.mesh    | Triangle     |
+  |        | square-disc-surf.mesh  | Triangle     |
+  |--------+------------------------+--------------|
+*/
+
 #include <fstream>
 #include <iostream>
 

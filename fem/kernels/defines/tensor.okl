@@ -19,8 +19,11 @@
 
 #define NUM_QUAD_DOFS_1D (NUM_QUAD_1D * NUM_DOFS_1D)
 
-#define QUAD_ID(X, Y, Z) (X + ((Y) * NUM_QUAD_1D) + ((Z) * NUM_QUAD_2D))
-#define DOFS_ID(X, Y, Z) (X + ((Y) * NUM_DOFS_1D) + ((Z) * NUM_DOFS_2D))
+#define QUAD_2D_ID(X, Y) (X + ((Y) * NUM_QUAD_1D))
+#define DOFS_2D_ID(X, Y) (X + ((Y) * NUM_DOFS_1D))
+
+#define QUAD_3D_ID(X, Y, Z) (X + ((Y) * NUM_QUAD_1D) + ((Z) * NUM_QUAD_2D))
+#define DOFS_3D_ID(X, Y, Z) (X + ((Y) * NUM_DOFS_1D) + ((Z) * NUM_DOFS_2D))
 
 #if NUM_MAX_1D < 8
 #  define USING_LOW_ORDER 1
@@ -33,11 +36,11 @@
 typedef double* DofToQuad_t @dim(NUM_QUAD_1D, NUM_DOFS_1D);
 typedef double* QuadToDof_t @dim(NUM_DOFS_1D, NUM_QUAD_1D);
 
-typedef double* Jacobian1D_t @dim(1, 1, NUM_QUAD_1D, numElements);
+typedef double* Jacobian1D_t @dim(NUM_QUAD_1D, numElements);
 typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
 typedef double* Jacobian3D_t @dim(3, 3, NUM_QUAD_3D, numElements);
 
-typedef double* SymmOperator1D_t @dim(1, NUM_QUAD_1D, numElements);
+typedef double* SymmOperator1D_t @dim(NUM_QUAD_1D, numElements);
 typedef double* SymmOperator2D_t @dim(3, NUM_QUAD_2D, numElements);
 typedef double* SymmOperator3D_t @dim(6, NUM_QUAD_3D, numElements);
 

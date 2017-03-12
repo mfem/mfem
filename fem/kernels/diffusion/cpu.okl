@@ -11,6 +11,169 @@
 
 #include "occa://mfem/fem/defines.okl"
 
+//---[ 1D ]-----------------------------
+kernel void Assemble1D(const int numElements,
+                       const double *quadWeights,
+                       const Jacobian1D_t J,
+                       const Coeff_t coeff,
+                       SymmOperator1D_t oper) {
+  for (int e = 0; e < numElements; ++e; outer) {
+    for (int q = 0; q < NUM_QUAD_1D; ++q; inner) {
+      oper(q, e) = quadWeights[q] * COEFF(q, e) / J(q, e);
+    }
+  }
+}
+
+kernel void Mult1D(const int numElements,
+                   const DofToQuad_t dofToQuad,
+                   const DofToQuad_t dofToQuadD,
+                   const QuadToDof_t quadToDof,
+                   const QuadToDof_t quadToDofD,
+                   const SymmOperator1D_t oper,
+                   Local1D_t restrict sol) {
+  // Iterate over elements
+  for (int e = 0; e < numElements; ++e; outer) {
+    for (int dummy = 0; dummy < 1; ++dummy; inner) {
+      double grad[NUM_QUAD_1D];
+      for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+        grad[qx] = 0;
+      }
+      for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+        const double s = sol(dx, e);
+        sol(dx, e) = 0;
+        for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+          grad[qx] += s * dofToQuadD(qx, dx);
+        }
+      }
+      for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+        grad[qx] *= oper(qx, e);
+      }
+      for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+        const double gradX = grad[qx];
+        for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+          sol(dx, e) += gradX * quadToDofD(dx, qx);
+        }
+      }
+    }
+  }
+}
+//======================================
+
+
+//---[ 2D ]-----------------------------
+kernel void Assemble2D(const int numElements,
+                       const double *quadWeights,
+                       const Jacobian2D_t J,
+                       const Coeff_t coeff,
+                       SymmOperator2D_t oper) {
+  for (int e = 0; e < numElements; ++e; outer) {
+    for (int q = 0; q < NUM_QUAD_2D; ++q; inner) {
+      const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e);
+      const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e);
+
+      const double c_detJ = quadWeights[q] * COEFF(q, e) / ((J11 * J22) - (J21 * J12));
+
+      oper(0, q, e) =  c_detJ * (J12*J12 + J22*J22); // (1,1)
+      oper(1, q, e) = -c_detJ * (J12*J11 + J22*J21); // (1,2) + (2,1)
+      oper(2, q, e) =  c_detJ * (J11*J11 + J21*J21); // (2,2)
+    }
+  }
+}
+
+kernel void Mult2D(const int numElements,
+                   const DofToQuad_t dofToQuad,
+                   const DofToQuad_t dofToQuadD,
+                   const QuadToDof_t quadToDof,
+                   const QuadToDof_t quadToDofD,
+                   const SymmOperator2D_t oper,
+                   Local2D_t restrict sol) {
+  // Iterate over elements
+  for (int e = 0; e < numElements; ++e; outer) {
+    for (int dummy = 0; dummy < 1; ++dummy; inner) {
+      double grad[NUM_QUAD_1D][NUM_QUAD_1D][2];
+      for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+        for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+          grad[qy][qx][0] = 0;
+          grad[qy][qx][1] = 0;
+        }
+      }
+
+      for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+        double gradX[NUM_QUAD_1D][2];
+        for (int q = 0; q < NUM_QUAD_1D; ++q) {
+          gradX[q][0] = 0;
+          gradX[q][1] = 0;
+        }
+
+        for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+          const double s = sol(dx, dy, e);
+          sol(dx, dy, e) = 0;
+          for (int q = 0; q < NUM_QUAD_1D; ++q) {
+            gradX[q][0] += s * dofToQuad(q, dx);
+            gradX[q][1] += s * dofToQuadD(q, dx);
+          }
+        }
+
+        for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+          const double wy  = dofToQuad(qy, dy);
+          const double wDy = dofToQuadD(qy, dy);
+          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            grad[qy][qx][0] += gradX[qx][1] * wy;
+            grad[qy][qx][1] += gradX[qx][0] * wDy;
+          }
+        }
+      }
+
+      // Calculate Dxy, xDy in plane
+      for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+        for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+          const int q = QUAD_2D_ID(qx, qy);
+          const double O11 = oper(0, q, e);
+          const double O12 = oper(1, q, e);
+          const double O22 = oper(2, q, e);
+
+          const double gradX = grad[qy][qx][0];
+          const double gradY = grad[qy][qx][1];
+
+          grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
+          grad[qy][qx][1] = (O12 * gradX) + (O22 * gradY);
+        }
+      }
+
+      for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+        double gradX[NUM_DOFS_1D][2];
+        for (int d = 0; d < NUM_DOFS_1D; ++d) {
+          gradX[d][0] = 0;
+          gradX[d][1] = 0;
+        }
+
+        for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+          const double gX = grad[qy][qx][0];
+          const double gY = grad[qy][qx][1];
+          for (int d = 0; d < NUM_DOFS_1D; ++d) {
+            const double wx  = quadToDof(d, qx);
+            const double wDx = quadToDofD(d, qx);
+            gradX[d][0] += gX * wDx;
+            gradX[d][1] += gY * wx;
+          }
+        }
+
+        for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+          const double wy  = quadToDof(dy, qy);
+          const double wDy = quadToDofD(dy, qy);
+          for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+            sol(dx, dy, e) += ((gradX[dx][0] * wy) +
+                               (gradX[dx][1] * wDy));
+          }
+        }
+      }
+    }
+  }
+}
+//======================================
+
+
+//---[ 3D ]-----------------------------
 kernel void Assemble3D(const int numElements,
                        const double *quadWeights,
                        const Jacobian3D_t J,
@@ -126,7 +289,7 @@ kernel void Mult3D(const int numElements,
       for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
           for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-            const int q = QUAD_ID(qx, qy, qz);
+            const int q = QUAD_3D_ID(qx, qy, qz);
             const double O11 = oper(0, q, e);
             const double O12 = oper(1, q, e);
             const double O13 = oper(2, q, e);
@@ -202,3 +365,4 @@ kernel void Mult3D(const int numElements,
     }
   }
 }
+//======================================
