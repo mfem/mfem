@@ -60,10 +60,10 @@ namespace mfem {
                               "  TILESIZE: 256,"
                               "}");
 
-    VectorExtractKernel = device.buildKernel("occa://mfem/fem/Mappings.okl",
+    VectorExtractKernel = device.buildKernel("occa://mfem/fem/mappings.okl",
                                              "VectorExtract",
                                              mapProps);
-    VectorAssembleKernel = device.buildKernel("occa://mfem/fem/Mappings.okl",
+    VectorAssembleKernel = device.buildKernel("occa://mfem/fem/mappings.okl",
                                               "VectorAssemble",
                                               mapProps);
   }

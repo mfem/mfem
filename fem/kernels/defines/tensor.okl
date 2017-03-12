@@ -1,0 +1,46 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+#if NUM_QUAD_1D < NUM_DOFS_1D
+#  define NUM_MAX_1D NUM_DOFS_1D
+#else
+#  define NUM_MAX_1D NUM_QUAD_1D
+#endif
+
+#define NUM_MAX_2D (NUM_MAX_1D * NUM_MAX_1D)
+
+#define NUM_QUAD_DOFS_1D (NUM_QUAD_1D * NUM_DOFS_1D)
+
+#define QUAD_ID(X, Y, Z) (X + ((Y) * NUM_QUAD_1D) + ((Z) * NUM_QUAD_2D))
+#define DOFS_ID(X, Y, Z) (X + ((Y) * NUM_DOFS_1D) + ((Z) * NUM_DOFS_2D))
+
+#if NUM_MAX_1D < 8
+#  define USING_LOW_ORDER 1
+#  define USING_HI_ORDER  0
+#else
+#  define USING_LOW_ORDER 0
+#  define USING_HI_ORDER  1
+#endif
+
+typedef double* DofToQuad_t @dim(NUM_QUAD_1D, NUM_DOFS_1D);
+typedef double* QuadToDof_t @dim(NUM_DOFS_1D, NUM_QUAD_1D);
+
+typedef double* Jacobian1D_t @dim(1, 1, NUM_QUAD_1D, numElements);
+typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
+typedef double* Jacobian3D_t @dim(3, 3, NUM_QUAD_3D, numElements);
+
+typedef double* SymmOperator1D_t @dim(1, NUM_QUAD_1D, numElements);
+typedef double* SymmOperator2D_t @dim(3, NUM_QUAD_2D, numElements);
+typedef double* SymmOperator3D_t @dim(6, NUM_QUAD_3D, numElements);
+
+typedef double* Local1D_t @dim(NUM_DOFS_1D, numElements);
+typedef double* Local2D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, numElements);
+typedef double* Local3D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, NUM_DOFS_1D, numElements);

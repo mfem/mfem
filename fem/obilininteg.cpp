@@ -247,16 +247,18 @@ namespace mfem {
     int quadND = quad1D;
 
     for (int d = 0; d < dims; ++d) {
+      if (d) {
+        quadND *= quad1D;
+      }
       std::string define = "defines/NUM_QUAD_";
       define += ('1' + d);
       define += 'D';
       kernelProps[define] = quadND;
-      quadND *= quad1D;
     }
 
     // [MISSING] Logic based on quadrature points
     // If quadrature is small, we can process assembly in batches
-    kernelProps["defines/QUAD_BATCH"] = 1;
+    kernelProps["defines/QUAD_BATCH"] = std::min(256, quadND);
 
     // Redundant, but for future codes
     if (coeff) {
