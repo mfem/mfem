@@ -138,6 +138,158 @@ kernel void Assemble3D(const int numElements,
   }
 }
 
+kernel void Mult3D_CPU(const int numElements,
+                       const DofToQuad_t dofToQuad,
+                       const DofToQuad_t dofToQuadD,
+                       const QuadToDof_t quadToDof,
+                       const QuadToDof_t quadToDofD,
+                       const Operator3D_t oper,
+                       Local3D_t restrict sol) {
+  // Iterate over elements
+  for (int e = 0; e < numElements; ++e; outer) {
+    for (int dummy = 0; dummy < 1; ++dummy; inner) {
+      double grad[NUM_QUAD_1D][NUM_QUAD_1D][NUM_QUAD_1D][4];
+      for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+        for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            grad[qz][qy][qx][0] = 0;
+            grad[qz][qy][qx][1] = 0;
+            grad[qz][qy][qx][2] = 0;
+          }
+        }
+      }
+
+      for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
+        double gradXY[NUM_QUAD_1D][NUM_QUAD_1D][4];
+        for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            gradXY[qy][qx][0] = 0;
+            gradXY[qy][qx][1] = 0;
+            gradXY[qy][qx][2] = 0;
+          }
+        }
+
+        for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+          double gradX[NUM_QUAD_1D][2];
+          for (int q = 0; q < NUM_QUAD_1D; ++q) {
+            gradX[q][0] = 0;
+            gradX[q][1] = 0;
+          }
+
+          for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+            const double s = sol(dx, dy, dz, e);
+            sol(dx, dy, dz, e) = 0;
+            for (int q = 0; q < NUM_QUAD_1D; ++q) {
+              gradX[q][0] += s * dofToQuad(q, dx);
+              gradX[q][1] += s * dofToQuadD(q, dx);
+            }
+          }
+
+          for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+            const double wy  = dofToQuad(qy, dy);
+            const double wDy = dofToQuadD(qy, dy);
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+              gradXY[qy][qx][0] += gradX[qx][1] * wy;
+              gradXY[qy][qx][1] += gradX[qx][0] * wDy;
+              gradXY[qy][qx][2] += gradX[qx][0] * wy;
+            }
+          }
+        }
+
+        for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+          const double wz  = dofToQuad(qz, dz);
+          const double wDz = dofToQuadD(qz, dz);
+          for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+              grad[qz][qy][qx][0] += gradXY[qy][qx][0] * wz;
+              grad[qz][qy][qx][1] += gradXY[qy][qx][1] * wz;
+              grad[qz][qy][qx][2] += gradXY[qy][qx][2] * wDz;
+            }
+          }
+        }
+      }
+
+      // Calculate Dxyz, xDyz, xyDz in plane
+      for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+        for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            const int q = QUAD_ID(qx, qy, qz);
+            const double O11 = oper(0, q, e);
+            const double O12 = oper(1, q, e);
+            const double O13 = oper(2, q, e);
+            const double O22 = oper(3, q, e);
+            const double O23 = oper(4, q, e);
+            const double O33 = oper(5, q, e);
+
+            const double gradX = grad[qz][qy][qx][0];
+            const double gradY = grad[qz][qy][qx][1];
+            const double gradZ = grad[qz][qy][qx][2];
+
+            grad[qz][qy][qx][0] = (O11 * gradX) + (O12 * gradY) + (O13 * gradZ);
+            grad[qz][qy][qx][1] = (O12 * gradX) + (O22 * gradY) + (O23 * gradZ);
+            grad[qz][qy][qx][2] = (O13 * gradX) + (O23 * gradY) + (O33 * gradZ);
+          }
+        }
+      }
+
+      for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+        double gradXY[NUM_DOFS_1D][NUM_DOFS_1D][4];
+        for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+          for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+            gradXY[dy][dx][0] = 0;
+            gradXY[dy][dx][1] = 0;
+            gradXY[dy][dx][2] = 0;
+          }
+        }
+
+        for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+          double gradX[NUM_DOFS_1D][4];
+          for (int d = 0; d < NUM_DOFS_1D; ++d) {
+            gradX[d][0] = 0;
+            gradX[d][1] = 0;
+            gradX[d][2] = 0;
+          }
+
+          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            const double gX = grad[qz][qy][qx][0];
+            const double gY = grad[qz][qy][qx][1];
+            const double gZ = grad[qz][qy][qx][2];
+            for (int d = 0; d < NUM_DOFS_1D; ++d) {
+              const double wx  = quadToDof(d, qx);
+              const double wDx = quadToDofD(d, qx);
+              gradX[d][0] += gX * wDx;
+              gradX[d][1] += gY * wx;
+              gradX[d][2] += gZ * wx;
+            }
+          }
+
+          for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+            const double wy  = quadToDof(dy, qy);
+            const double wDy = quadToDofD(dy, qy);
+            for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+              gradXY[dy][dx][0] += gradX[dx][0] * wy;
+              gradXY[dy][dx][1] += gradX[dx][1] * wDy;
+              gradXY[dy][dx][2] += gradX[dx][2] * wy;
+            }
+          }
+        }
+
+        for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
+          const double wz  = quadToDof(dz, qz);
+          const double wDz = quadToDofD(dz, qz);
+          for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+            for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+              sol(dx, dy, dz, e) += ((gradXY[dy][dx][0] * wz) +
+                                     (gradXY[dy][dx][1] * wz) +
+                                     (gradXY[dy][dx][2] * wDz));
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 kernel void Mult3D(const int numElements,
                    const DofToQuad_t dofToQuad,
                    const DofToQuad_t dofToQuadD,
