@@ -1404,12 +1404,13 @@ void CurlCurlIntegrator::AssembleElementMatrix
    double w;
 
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix curlshape(nd,dimc), curlshape_dFt(nd,dimc);
+   DenseMatrix curlshape(nd,dimc), curlshape_dFt(nd,dimc), M;
 #else
    curlshape.SetSize(nd,dimc);
    curlshape_dFt.SetSize(nd,dimc);
 #endif
    elmat.SetSize(nd);
+   if (MQ) { M.SetSize(dimc); }
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -1449,17 +1450,14 @@ void CurlCurlIntegrator::AssembleElementMatrix
       if (Q)
       {
          w *= Q->Eval(Trans, ip);
-      }
-      if ( MQ )
-      {
-         DenseMatrix M;
-         MQ->Eval(M, Trans, ip);
-
-         AddMult_a_ABAt(w, curlshape_dFt, M, elmat);
+         AddMult_a_AAt(w, curlshape_dFt, elmat);
       }
       else
       {
-         AddMult_a_AAt(w, curlshape_dFt, elmat);
+         MQ->Eval(M, Trans, ip);
+         M *= w;
+         Mult(curlshape_dFt, M, curlshape);
+         AddMultABt(curlshape, curlshape_dFt, elmat);
       }
    }
 }

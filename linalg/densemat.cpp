@@ -3584,50 +3584,6 @@ void Mult_a_AAt(double a, const DenseMatrix &A, DenseMatrix &AAt)
       }
 }
 
-void AddMult_a_ABAt(double a, const DenseMatrix &A, const DenseMatrix &B,
-                    DenseMatrix &ABAt)
-{
-   double d, dd;
-
-   for (int i = 0; i < A.Height(); i++)
-   {
-      for (int j = 0; j < A.Height(); j++)
-      {
-         d = 0.;
-         for (int k = 0; k < A.Width(); k++)
-         {
-            dd = 0.;
-            for (int l = 0; l < A.Width(); l++)
-            {
-               dd += B(k,l) * A(j,l);
-            }
-            d += A(i,k) * dd;
-         }
-         ABAt(i, j) += a * d;
-      }
-   }
-}
-
-void Mult_a_ABAt(double a, const DenseMatrix &A, const DenseMatrix &B,
-                 DenseMatrix &ABAt)
-{
-   for (int i = 0; i < A.Height(); i++)
-      for (int j = 0; j < A.Height(); j++)
-      {
-         double d = 0.;
-         for (int k = 0; k < A.Width(); k++)
-         {
-            double dd = 0.;
-            for (int l = 0; l < A.Width(); l++)
-            {
-               dd += B(k,l) * A(j,l);
-            }
-            d += A(i,k) * dd;
-         }
-         ABAt(i, j) = a * d;
-      }
-}
-
 void MultVVt(const Vector &v, DenseMatrix &vvt)
 {
    for (int i = 0; i < v.Size(); i++)

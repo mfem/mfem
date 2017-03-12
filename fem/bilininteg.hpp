@@ -1840,7 +1840,7 @@ class CurlCurlIntegrator: public BilinearFormIntegrator
 private:
    Vector vec, pointflux;
 #ifndef MFEM_THREAD_SAFE
-   DenseMatrix curlshape, curlshape_dFt;
+   DenseMatrix curlshape, curlshape_dFt, M;
    DenseMatrix vshape, projcurl;
 #endif
    Coefficient *Q;
