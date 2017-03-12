@@ -889,6 +889,7 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
          if (!HaveIntRule(*ir_array, Order))
          {
             GenerateIntegrationRule(GeomType, Order);
+            (*ir_array)[Order]->SetOrder(Order);
          }
       }
    }

@@ -62,10 +62,8 @@ namespace mfem {
     const int dims = bilinearForm.GetDim();
 
     // Create the dof -> quadrature point map
-    // [MISSING] Use the ir rule
-    H1_SegmentElement se(dofs - 1, el.GetBasisType());
-    const IntegrationRule &ir2 = IntRules.Get(Geometry::SEGMENT, 2*dofs);
-    const int quadPoints = ir2.GetNPoints();
+    const IntegrationRule &ir1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder());
+    const int quadPoints = ir1D.GetNPoints();
     const int quadPoints2D = quadPoints*quadPoints;
     const int quadPoints3D = quadPoints2D*quadPoints;
     const int quadPointsND = ((dims == 1) ? quadPoints :
@@ -82,7 +80,7 @@ namespace mfem {
     for (int q = 0; q < quadPoints; ++q) {
       mfem::Vector d2q(dofs);
       mfem::Vector d2qD(dofs);
-      const IntegrationPoint &ip = ir2.IntPoint(q);
+      const IntegrationPoint &ip = ir1D.IntPoint(q);
       basis.Eval(ip.x, d2q, d2qD);
       quadWeights1DData[q] = ip.weight;
       for (int d = 0; d < dofs; ++d) {
@@ -241,9 +239,8 @@ namespace mfem {
       dofsND *= dofs1D;
     }
 
-    // [MISSING] Use the ir rule
-    const IntegrationRule &ir2 = IntRules.Get(Geometry::SEGMENT, 2*dofs1D);
-    const int quad1D = ir2.GetNPoints();
+    const IntegrationRule &ir1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder());
+    const int quad1D = ir1D.GetNPoints();
     int quadND = quad1D;
 
     for (int d = 0; d < 3; ++d) {
