@@ -35,8 +35,6 @@
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
 
-#define protected public // need to access NCMesh internals from here
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -44,17 +42,73 @@
 using namespace std;
 using namespace mfem;
 
+
+void TestContinuity(const GridFunction &gf, int depth, double tol)
+{
+   const FiniteElementSpace* fes = gf.FESpace();
+
+   int n = 1 << depth;
+   double value[n+1][n+1][n+1];
+
+   for (int i = 0; i < (n+1)*(n+1)*(n+1); i++)
+   {
+      ((double*) value)[i] = INFINITY;
+   }
+
+   Vector phys(3);
+   IntegrationPoint ip;
+
+   for (int k = 0; k <= n; k++)
+   for (int j = 0; j <= n; j++)
+   for (int i = 0; i <= n; i++)
+   {
+      phys(0) = (double) i / n;
+      phys(1) = (double) j / n;
+      phys(2) = (double) k / n;
+
+      for (int m = 0; m < fes->GetNE(); m++)
+      {
+         ElementTransformation* tr = fes->GetElementTransformation(m);
+         if (tr->TransformBack(phys, ip) == 0)
+         {
+            double v_new = gf.GetValue(m, ip);
+            double &v_old = value[i][j][k];
+
+            if (!std::isfinite(v_old))
+            {
+               v_old = v_new;
+            }
+            else
+            {
+               MFEM_VERIFY(std::abs(v_new - v_old) < tol,
+                           "Discontinuous solution at ["
+                           << phys(0) << ", "
+                           << phys(1) << ", "
+                           << phys(2) << "], element " << m);
+            }
+         }
+      }
+   }
+}
+
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/amr-hex.mesh";
    int order = 1;
+   int ref_levels = 3;
+   int seed = 1;
    bool static_cond = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh.");
+   args.AddOption(&seed, "-s", "--seed",
+                  "Random seed.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -84,73 +138,13 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels = 5;
+      srand(seed);
       for (int l = 0; l < ref_levels; l++)
       {
-         cout << mesh->GetNE() << " elements" << endl;
-         mesh->UniformRefinement();
-         // mesh->RandomRefinement(0.75);
+         //mesh->UniformRefinement();
+         mesh->RandomRefinement(0.7, true);
       }
    }
-   cout << mesh->GetNE() << " elements" << endl << endl;
-
-   NCMesh* ncmesh = mesh->ncmesh;
-
-   ncmesh->face_list.Clear();
-   tic();
-   ncmesh->GetFaceList();
-   cout << "Face list time: " << toc() << " s" << endl;
-
-   ncmesh->edge_list.Clear();
-   tic();
-   ncmesh->GetEdgeList();
-   cout << "Edge list time: " << toc() << " s" << endl;
-
-   tic();
-   ncmesh->UpdateElementToVertexTable();
-   cout << "Neighbor table time: " << toc() << " s" << endl;
-
-#if 0
-   Array<int> neighbors;
-   tic();
-   for (int i = 0; i < ncmesh->leaf_elements.Size(); i++)
-   {
-      neighbors.SetSize(0);
-      ncmesh->FindNeighbors(ncmesh->leaf_elements[i], neighbors);
-   }
-   cout << "Neighbor search time: " << toc() << " s" << endl;
-#endif
-
-   cout << "\n";
-   ncmesh->PrintStats();
-
-   cout << endl;
-   cout << "sizeof(Node) = " << sizeof(NCMesh::Node) << endl;
-   cout << "sizeof(Face) = " << sizeof(NCMesh::Face) << endl;
-   cout << "sizeof(Element) = " << sizeof(NCMesh::Element) << endl;
-
-   /*cout << "sizeof(MeshId) = " << sizeof(NCMesh::MeshId) << endl;
-   cout << "sizeof(Slave) = " << sizeof(NCMesh::Slave) << endl;
-   cout << "sizeof(Master) = " << sizeof(NCMesh::Master) << endl;*/
-
-   cout << endl << "NCMesh memory usage: " << endl;
-   ncmesh->PrintMemoryDetail();
-
-   int ne = mesh->GetNE();
-   long total = ncmesh->MemoryUsage();
-   long total2 = total - ncmesh->face_list.MemoryUsage() -
-                 ncmesh->edge_list.MemoryUsage();
-
-   cout << endl;
-   cout << "total: " << total << endl;
-   cout << "per element: " << double(total) / ne << endl;
-   cout << "per element, without NCLists: " << double(total2) / ne << endl;
-
-   cout << endl;
-
-   delete mesh;
-   // exit(0);
-   return 0;
 
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -238,12 +232,15 @@ int main(int argc, char *argv[])
 
    // 12. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
-   ofstream mesh_ofs("refined.mesh");
+   /*ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
    mesh->Print(mesh_ofs);
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
-   x.Save(sol_ofs);
+   x.Save(sol_ofs);*/
+
+
+   //mesh->ncmesh = NULL;
 
    // 13. Send the solution by socket to a GLVis server.
    if (visualization)
@@ -253,6 +250,10 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x << flush;
+   }
+   else
+   {
+      //TestContinuity(x, ref_levels + 1, 1e-12);
    }
 
    // 14. Free the used memory.

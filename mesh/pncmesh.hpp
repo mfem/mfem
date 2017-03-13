@@ -407,7 +407,7 @@ protected:
    /** Used by ParNCMesh::Refine() to inform neighbors about refinements at
     *  the processor boundary. This keeps their ghost layers synchronized.
     */
-   class NeighborRefinementMessage : public ElementValueMessage<char, false, 289>
+   class NeighborRefinementMessage : public ElementValueMessage<char, true, 289>
    {
    public:
       void AddRefinement(int elem, char ref_type) { Add(elem, ref_type); }

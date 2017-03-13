@@ -14,6 +14,7 @@
 
 #include <string>
 #include <algorithm>
+#include <set>
 #include <cmath>
 #include <climits> // INT_MAX
 
@@ -183,8 +184,7 @@ NCMesh::NCMesh(const NCMesh &other)
 {
    other.free_element_ids.Copy(free_element_ids);
    other.top_vertex_pos.Copy(top_vertex_pos);
-   other.leaf_elements.Copy(leaf_elements);
-   other.vertex_nodeId.Copy(vertex_nodeId);
+   Update();
 }
 
 void NCMesh::Update()
@@ -216,6 +216,49 @@ NCMesh::Node::~Node()
                << (int) edge_refc);
 }
 
+int NCMesh::FindMidEdgeNode(int node1, int node2) const
+{
+   int mid = nodes.FindId(node1, node2);
+   if (mid >= 0)
+   {
+      const Node &nd = nodes[mid];
+      if (nd.Shadow())
+      {
+         // this is a shadow node, switch to the actual (shadowed) node
+         mid = nd.ShadowTarget();
+         MFEM_ASSERT(!nodes[mid].Shadow(), "");
+      }
+   }
+   return mid;
+}
+
+int NCMesh::GetMidEdgeNode(int node1, int node2)
+{
+   int mid = nodes.GetId(node1, node2);
+   const Node &nd = nodes[mid];
+   if (nd.Shadow())
+   {
+      // switch to the actual (shadowed) node
+      mid = nd.ShadowTarget();
+      MFEM_ASSERT(!nodes[mid].Shadow(), "");
+   }
+   return mid;
+}
+
+int NCMesh::GetMidFaceNode(int en1, int en2, int en3, int en4)
+{
+   // mid-face node can be created either from (en1, en3) or from (en2, en4)
+   int midf = FindMidEdgeNode(en1, en3);
+   if (midf >= 0) { return midf; }
+   return nodes.GetId(en2, en4);
+}
+
+int NCMesh::FindShadowNode(const Node &nd) const
+{
+   // TODO
+   return 0;
+}
+
 void NCMesh::RefElement(int elem)
 {
    Element &el = elements[elem];
@@ -232,7 +275,7 @@ void NCMesh::RefElement(int elem)
    for (int i = 0; i < gi.ne; i++)
    {
       const int* ev = gi.edges[i];
-      nodes.Get(node[ev[0]], node[ev[1]])->edge_refc++;
+      nodes[GetMidEdgeNode(node[ev[0]], node[ev[1]])].edge_refc++;
    }
 
    // get all faces (possibly creating them)
@@ -271,7 +314,7 @@ void NCMesh::UnrefElement(int elem, Array<int> &elemFaces)
    for (int i = 0; i < gi.ne; i++)
    {
       const int* ev = gi.edges[i];
-      int enode = FindAltParents(node[ev[0]], node[ev[1]]);
+      int enode = FindMidEdgeNode(node[ev[0]], node[ev[1]]);
       MFEM_ASSERT(enode >= 0, "edge not found.");
       MFEM_ASSERT(nodes.IdExists(enode), "edge does not exist.");
       if (!nodes[enode].UnrefEdge())
@@ -349,60 +392,6 @@ int NCMesh::Face::GetSingleElement() const
       MFEM_ASSERT(elem[1] >= 0, "no elements in face.");
       return elem[1];
    }
-}
-
-int NCMesh::FindAltParents(int node1, int node2)
-{
-   int mid = nodes.FindId(node1, node2);
-   if (mid < 0 && Dim >= 3 && !Iso)
-   {
-      // In rare cases, a mid-face node exists under alternate parents a1, a2
-      // (see picture) instead of the requested parents n1, n2. This is an
-      // inconsistent situation that may exist temporarily as a result of
-      // "nodes.Reparent" while doing anisotropic splits, before forced
-      // refinements are all processed. This function attempts to retrieve such
-      // a node. An extra twist is that w1 and w2 may themselves need to be
-      // obtained using this very function.
-      //
-      //                 n1.p1      n1       n1.p2
-      //                      *------*------*
-      //                      |      |      |
-      //                      |      |mid   |
-      //                   a1 *------*------* a2
-      //                      |      |      |
-      //                      |      |      |
-      //                      *------*------*
-      //                 n2.p1      n2       n2.p2
-      //
-      // NOTE: this function would not be needed if the elements remembered
-      // their edge nodes. We have however opted to save memory at the cost of
-      // this computation, which is only necessary when forced refinements are
-      // being done.
-
-      Node &n1 = nodes[node1], &n2 = nodes[node2];
-
-      int n1p1 = n1.p1, n1p2 = n1.p2;
-      int n2p1 = n2.p1, n2p2 = n2.p2;
-
-      if ((n1p1 != n1p2) && (n2p1 != n2p2)) // non-top-level nodes?
-      {
-         int a1 = FindAltParents(n1p1, n2p1);
-         int a2 = (a1 >= 0) ? FindAltParents(n1p2, n2p2) : -1 /*optimization*/;
-
-         if (a1 < 0 || a2 < 0)
-         {
-            // one more try may be needed as p1, p2 are unordered
-            a1 = FindAltParents(n1p1, n2p2);
-            a2 = (a1 >= 0) ? FindAltParents(n1p2, n2p1) : -1 /*optimization*/;
-         }
-
-         if (a1 >= 0 && a2 >= 0) // got both alternate parents?
-         {
-            mid = nodes.FindId(a1, a2);
-         }
-      }
-   }
-   return mid;
 }
 
 
@@ -498,22 +487,6 @@ int NCMesh::NewTriangle(int n0, int n1, int n2,
    return new_id;
 }
 
-int NCMesh::GetMidEdgeNode(int vn1, int vn2)
-{
-   // in 3D we must be careful about getting the mid-edge node
-   int mid = FindAltParents(vn1, vn2);
-   if (mid < 0) { mid = nodes.GetId(vn1, vn2); } // create if not found
-   return mid;
-}
-
-int NCMesh::GetMidFaceNode(int en1, int en2, int en3, int en4)
-{
-   // mid-face node can be created either from (en1, en3) or from (en2, en4)
-   int midf = nodes.FindId(en1, en3);
-   if (midf >= 0) { return midf; }
-   return nodes.GetId(en2, en4);
-}
-
 //
 inline bool NCMesh::NodeSetX1(int node, int* n)
 { return node == n[0] || node == n[3] || node == n[4] || node == n[7]; }
@@ -549,17 +522,17 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    if ((NodeSetX1(vn1, nodes) && NodeSetX2(vn2, nodes)) ||
        (NodeSetX1(vn2, nodes) && NodeSetX2(vn1, nodes)))
    {
-      ref_stack.Append(Refinement(elem, 1)); // X split
+      ref_queue.Append(Refinement(elem, 1)); // X split
    }
    else if ((NodeSetY1(vn1, nodes) && NodeSetY2(vn2, nodes)) ||
             (NodeSetY1(vn2, nodes) && NodeSetY2(vn1, nodes)))
    {
-      ref_stack.Append(Refinement(elem, 2)); // Y split
+      ref_queue.Append(Refinement(elem, 2)); // Y split
    }
    else if ((NodeSetZ1(vn1, nodes) && NodeSetZ2(vn2, nodes)) ||
             (NodeSetZ1(vn2, nodes) && NodeSetZ2(vn1, nodes)))
    {
-      ref_stack.Append(Refinement(elem, 4)); // Z split
+      ref_queue.Append(Refinement(elem, 4)); // Z split
    }
    else
    {
@@ -568,16 +541,18 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
 }
 
 
-void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
+int NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
                             int mid12, int mid34, int level)
 {
+   // TODO: update this documentation
+   //
    // When a face is getting split anisotropically (without loss of generality
    // we assume a "vertical" split here, see picture), it is important to make
-   // sure that the mid-face vertex node (midf) has mid34 and mid12 as parents.
+   // sure that the mid-face vertex node (midf) has mid12 and mid34 as parents.
    // This is necessary for the face traversal algorithm and at places like
    // Refine() that assume the mid-edge nodes to be accessible through the right
-   // parents. However, midf may already exist under the parents mid41 and
-   // mid23. In that case we need to "reparent" midf, i.e., reinsert it to the
+   // parents. However, midf may already exist under the parents mid23 and
+   // mid41. In that case we need to "reparent" midf, i.e., reinsert it to the
    // hash-table under the correct parents. This doesn't affect other nodes as
    // all IDs stay the same, only the face refinement "tree" is affected.
    //
@@ -595,18 +570,47 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
    // the middle vertical edge. The function calls itself again for the bottom
    // and upper half of the above picture.
 
-   int mid23 = nodes.FindId(vn2, vn3);
-   int mid41 = nodes.FindId(vn4, vn1);
+   int mid23 = FindMidEdgeNode(vn2, vn3);
+   int mid41 = FindMidEdgeNode(vn4, vn1);
    if (mid23 >= 0 && mid41 >= 0)
    {
-      int midf = nodes.FindId(mid23, mid41);
-      if (midf >= 0)
+      int midf1 = nodes.FindId(mid23, mid41);
+      if (midf1 >= 0 && !nodes[midf1].Shadow())
       {
-         nodes.Reparent(midf, mid12, mid34);
+         int midf2 = nodes.FindId(mid12, mid34);
+         if (midf2 < 0)
+         {
+            nodes.Reparent(midf1, mid12, mid34);
 
-         CheckAnisoFace(vn1, vn2, mid23, mid41, mid12, midf, level+1);
-         CheckAnisoFace(mid41, mid23, vn3, vn4, midf, mid34, level+1);
-         return;
+            // leave a shadow node in place of the original 'midf1'
+            // and link it to 'midf1'
+            midf2 = nodes.GetId(mid23, mid41);
+            nodes[midf2].SetShadow(midf1);
+            nodes[midf1].SetShadowed();
+         }
+         else
+         {
+            MFEM_ASSERT(nodes[midf2].Shadow(), midf1 << " " << midf2);
+
+            // just swap the shadow and shadowed node pair
+            nodes.Reparent(midf1, mid12, mid34);
+            nodes.Reparent(midf2, mid23, mid41);
+         }
+
+         if (!CheckAnisoFace(vn1, vn2, mid23, mid41, mid12, midf1, level+1))
+         {
+            // forced refinements will happen later (see 'ref_queue'), but we
+            // need to make an empty node here to keep the data structure
+            // consistent
+            GetMidEdgeNode(mid12, midf1);
+         }
+
+         if (!CheckAnisoFace(mid41, mid23, vn3, vn4, midf1, mid34, level+1))
+         {
+            // same as above
+            GetMidEdgeNode(midf1, mid34);
+         }
+         return 1;
       }
    }
 
@@ -632,6 +636,7 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
    {
       ForceRefinement(vn1, vn2, vn3, vn4);
    }
+   return 0;
 }
 
 void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
@@ -649,7 +654,6 @@ void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
       CheckAnisoFace(en3, en1, vn2, vn3, midf, en2);
    }
 }
-
 
 void NCMesh::RefineElement(int elem, char ref_type)
 {
@@ -948,7 +952,6 @@ void NCMesh::RefineElement(int elem, char ref_type)
       {
          MFEM_ABORT("invalid refinement type.");
       }
-
       if (ref_type != 7) { Iso = false; }
    }
    else if (el.geom == Geometry::SQUARE)
@@ -1062,6 +1065,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
 
 void NCMesh::Refine(const Array<Refinement>& refinements)
 {
+#if 0
    // push all refinements on the stack in reverse order
    ref_stack.Reserve(refinements.Size());
    for (int i = refinements.Size()-1; i >= 0; i--)
@@ -1071,34 +1075,59 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    }
 
    // keep refining as long as the stack contains something
-   int nforced = 0;
+   int total = 0;
    while (ref_stack.Size())
    {
       Refinement ref = ref_stack.Last();
       ref_stack.DeleteLast();
 
-      int size = ref_stack.Size();
       RefineElement(ref.index, ref.ref_type);
-      nforced += ref_stack.Size() - size;
+      total++;
+   }
+#else
+   // push all refinements in a FIFO
+   ref_queue.Reserve(refinements.Size());
+   for (int i = 0; i < refinements.Size(); i++)
+   {
+      const Refinement& ref = refinements[i];
+      ref_queue.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
    }
 
-   /* TODO: the current algorithm of forced refinements is not optimal. As
-      forced refinements spread through the mesh, some may not be necessary
-      in the end, since the affected elements may still be scheduled for
-      refinement that could stop the propagation. We should introduce the
-      member Element::ref_pending that would show the intended refinement in
-      the batch. A forced refinement would be combined with ref_pending to
-      (possibly) stop the propagation earlier.
+   /*std::cout << "---" << std::endl;
+   static int iter = 0;*/
 
-      Update: what about a FIFO instead of ref_stack? */
+   // keep refining as long as the queue contains something
+   int total = 0;
+   while (ref_queue.Size())
+   {
+      Refinement ref = ref_queue[0];
+      ref_queue.DeleteFirst(); // TODO: fix O(N) time
+
+      /*std::cout << iter << ((total < refinements.Size()) ? " refining element "
+                   : " force refining ") << ref.index
+                << " (ref_type " << int(ref.ref_type) << ")" << std::endl;*/
+
+      RefineElement(ref.index, ref.ref_type);
+      total++;
+
+      /*{char fname[100];
+      sprintf(fname, "ncmesh-%03d.dbg", iter++);
+      std::ofstream f(fname);
+      Update();
+      DebugDump(f);}
+      DebugCheckConsistency();*/
+   }
+#endif
 
 #if defined(MFEM_DEBUG) && !defined(MFEM_USE_MPI)
-   std::cout << "Refined " << refinements.Size() << " + " << nforced
-             << " elements" << std::endl;
+   std::cout << "Refined " << refinements.Size() << " + "
+             << total - refinements.Size() << " elements" << std::endl;
 #endif
-   ref_stack.DeleteAll();
+   ref_queue.DeleteAll();
 
    Update();
+
+   DebugCheckConsistency();
 }
 
 
@@ -1422,6 +1451,7 @@ void NCMesh::CollectLeafElements(int elem, int state)
    {
       if (el.geom == Geometry::SQUARE && el.ref_type == 3)
       {
+         // Hilbert space-filling curve for quads
          for (int i = 0; i < 4; i++)
          {
             int ch = quad_hilbert_child_order[state][i];
@@ -1431,6 +1461,7 @@ void NCMesh::CollectLeafElements(int elem, int state)
       }
       else if (el.geom == Geometry::CUBE && el.ref_type == 7)
       {
+         // Hilbert space-filling curve for hexes
          for (int i = 0; i < 8; i++)
          {
             int ch = hex_hilbert_child_order[state][i];
@@ -1440,6 +1471,7 @@ void NCMesh::CollectLeafElements(int elem, int state)
       }
       else
       {
+         // fallback for all other types (triangles, aniso refinements)
          for (int i = 0; i < 8; i++)
          {
             if (el.child[i] >= 0) { CollectLeafElements(el.child[i], state); }
@@ -1492,7 +1524,11 @@ const double* NCMesh::CalcVertexPos(int node) const
       return &top_vertex_pos[3*nd.p1];
    }
 
+#ifdef MFEM_DEBUG
+   TmpVertex &tv = tmp_vertex[node]; // to make DebugDump work
+#else
    TmpVertex &tv = tmp_vertex[nd.vert_index];
+#endif
    if (tv.valid) { return tv.pos; }
 
    MFEM_VERIFY(tv.visited == false, "cyclic vertex dependencies.");
@@ -1589,10 +1625,10 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
    for (int i = 0; i < edge_vertex->Size(); i++)
    {
       const int *ev = edge_vertex->GetRow(i);
-      Node* node = nodes.Find(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
+      int node = FindMidEdgeNode(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
 
-      MFEM_ASSERT(node && node->HasEdge(), "edge not found.");
-      node->edge_index = i;
+      MFEM_ASSERT(node >= 0 && nodes[node].HasEdge(), "edge not found.");
+      nodes[node].edge_index = i;
    }
 
    // get face enumeration from the Mesh
@@ -1633,10 +1669,10 @@ int NCMesh::FaceSplitType(int v1, int v2, int v3, int v4,
    MFEM_ASSERT(Dim >= 3, "");
 
    // find edge nodes
-   int e1 = nodes.FindId(v1, v2);
-   int e2 = nodes.FindId(v2, v3);
-   int e3 = (e1 >= 0 && nodes[e1].HasVertex()) ? nodes.FindId(v3, v4) : -1;
-   int e4 = (e2 >= 0 && nodes[e2].HasVertex()) ? nodes.FindId(v4, v1) : -1;
+   int e1 = FindMidEdgeNode(v1, v2);
+   int e2 = FindMidEdgeNode(v2, v3);
+   int e3 = (e1 >= 0 && nodes[e1].HasVertex()) ? FindMidEdgeNode(v3, v4) : -1;
+   int e4 = (e2 >= 0 && nodes[e2].HasVertex()) ? FindMidEdgeNode(v4, v1) : -1;
 
    // optional: return the mid-edge nodes if requested
    if (mid) { mid[0] = e1, mid[1] = e2, mid[2] = e3, mid[3] = e4; }
@@ -1645,6 +1681,9 @@ int NCMesh::FaceSplitType(int v1, int v2, int v3, int v4,
    int midf1 = -1, midf2 = -1;
    if (e1 >= 0 && e3 >= 0) { midf1 = nodes.FindId(e1, e3); }
    if (e2 >= 0 && e4 >= 0) { midf2 = nodes.FindId(e2, e4); }
+
+   if (midf1 >= 0 && nodes[midf1].Shadow()) { midf1 = -1; }
+   if (midf2 >= 0 && nodes[midf2].Shadow()) { midf2 = -1; }
 
    // only one way to access the mid-face node must always exist
    MFEM_ASSERT(!(midf1 >= 0 && midf2 >= 0), "incorrectly split face!");
@@ -1732,6 +1771,11 @@ int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
 void NCMesh::TraverseFace(int vn0, int vn1, int vn2, int vn3,
                           const PointMatrix& pm, int level)
 {
+   MFEM_ASSERT(!nodes[vn0].Shadow(), "");
+   MFEM_ASSERT(!nodes[vn1].Shadow(), "");
+   MFEM_ASSERT(!nodes[vn2].Shadow(), "");
+   MFEM_ASSERT(!nodes[vn3].Shadow(), "");
+
    if (level > 0)
    {
       // check if we made it to a face that is not split further
@@ -1852,7 +1896,10 @@ void NCMesh::BuildFaceList()
 void NCMesh::TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
                           int level)
 {
-   int mid = nodes.FindId(vn0, vn1);
+   MFEM_ASSERT(!nodes[vn0].Shadow(), "");
+   MFEM_ASSERT(!nodes[vn1].Shadow(), "");
+
+   int mid = FindMidEdgeNode(vn0, vn1);
    if (mid < 0) { return; }
 
    Node &nd = nodes[mid];
@@ -1910,7 +1957,7 @@ void NCMesh::BuildEdgeList()
          const int* ev = gi.edges[j];
          int node[2] = { el.node[ev[0]], el.node[ev[1]] };
 
-         int enode = nodes.FindId(node[0], node[1]);
+         int enode = FindMidEdgeNode(node[0], node[1]);
          MFEM_ASSERT(enode >= 0, "edge node not found!");
 
          Node &nd = nodes[enode];
@@ -2224,7 +2271,7 @@ void NCMesh::FindNeighbors(int elem, Array<int> &neighbors,
       Element &el = elements[stack.Last()];
       stack.DeleteLast();
 
-      if (!el.ref_type)
+      if (!el.ref_type) // (el.index >= 0) ?? {par-aniso-ref-dev}
       {
          int *v = element_vertex.GetRow(el.index);
          int nv = element_vertex.RowSize(el.index);
@@ -3251,7 +3298,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
          input >> id;
          MFEM_VERIFY(id >= 0, "");
          MFEM_VERIFY(id < leaf_elements.Size() ||
-                     id < elements.Size()-free_element_ids.Size(),
+                     id < elements.Size() - free_element_ids.Size(),
                      "coarse element cannot be referenced before it is "
                      "defined (id=" << id << ").");
 
@@ -3347,7 +3394,7 @@ long NCMesh::MemoryUsage() const
           edge_list.MemoryUsage() +
           boundary_faces.MemoryUsage() +
           element_vertex.MemoryUsage() +
-          ref_stack.MemoryUsage() +
+          ref_queue.MemoryUsage() +
           derefinements.MemoryUsage() +
           transforms.MemoryUsage() +
           coarse_elements.MemoryUsage() +
@@ -3368,7 +3415,7 @@ int NCMesh::PrintMemoryDetail() const
              << edge_list.MemoryUsage() << " edge_list\n"
              << boundary_faces.MemoryUsage() << " boundary_faces\n"
              << element_vertex.MemoryUsage() << " element_vertex\n"
-             << ref_stack.MemoryUsage() << " ref_stack\n"
+             << ref_queue.MemoryUsage() << " ref_stack\n"
              << coarse_elements.MemoryUsage() << " coarse_elements\n"
              << sizeof(*this) << " NCMesh" << std::endl;
 
@@ -3448,6 +3495,129 @@ void NCMesh::DebugLeafOrder() const
          std::cout << sum / count << " ";
       }
       std::cout << "\n";
+   }
+}
+#endif
+
+#ifdef MFEM_DEBUG
+void NCMesh::DebugDump(std::ostream &out) const
+{
+   // dump nodes
+   tmp_vertex = new TmpVertex[nodes.NumIds()];
+   out << nodes.Size() << "\n";
+   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
+   {
+      const double *pos = CalcVertexPos(node.index());
+      out << pos[0] << " " << pos[1] << " " << pos[2] << " "
+          << node->p1 << " " << node->p2 << " " << int(node->flags) << "\n";
+   }
+   delete [] tmp_vertex;
+   out << "\n";
+
+   // dump elements
+   out << leaf_elements.Size() << "\n";
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      const Element &el = elements[leaf_elements[i]];
+      const GeomInfo& gi = GI[(int) el.geom];
+      out << gi.nv << " ";
+      for (int j = 0; j < gi.nv; j++)
+      {
+         out << el.node[j] << " ";
+      }
+      out << el.attribute << " " << /*el.rank*/ leaf_elements[i] << "\n";
+   }
+   out << "\n";
+
+   // dump faces
+   out << faces.Size() << "\n";
+   for (face_const_iterator face = faces.cbegin(); face != faces.cend(); ++face)
+   {
+      int elem = face->elem[0];
+      if (elem < 0) { elem = face->elem[1]; }
+      MFEM_ASSERT(elem >= 0, "");
+      const Element &el = elements[elem];
+
+      int lf = find_hex_face(find_node(el, face->p1),
+                             find_node(el, face->p2),
+                             find_node(el, face->p3));
+
+      out << "4";
+      const int* fv = GI[Geometry::CUBE].faces[lf];
+      for (int i = 0; i < 4; i++)
+      {
+         out << " " << el.node[fv[i]];
+      }
+      out << "\n";
+   }
+}
+
+struct CheckPt
+{
+   double pos[3];
+   int index;
+
+   CheckPt(const double* p, int index)
+   {
+      for (int i = 0; i < 3; i++) { pos[i] = p[i]; }
+      this->index = index;
+   }
+
+   bool operator<(const CheckPt &other) const
+   {
+      if (pos[0] != other.pos[0]) { return pos[0] < other.pos[0]; }
+      if (pos[1] != other.pos[1]) { return pos[1] < other.pos[1]; }
+      return pos[2] < other.pos[2];
+   }
+};
+
+void NCMesh::DebugCheckConsistency() const
+{
+   // check shadow nodes
+   int nshadow = 0;
+   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
+   {
+      MFEM_ASSERT(!nodes[node->p1].Shadow() && !nodes[node->p2].Shadow(),
+                  "shadow node cannot be used as parent.");
+
+      if (node->Shadow())
+      {
+         MFEM_ASSERT(!nodes[node->ShadowTarget()].Shadow(), "");
+         MFEM_ASSERT(nodes[node->ShadowTarget()].Shadowed(), "");
+         nshadow++;
+      }
+      else
+      {
+         MFEM_ASSERT(node->vert_refc || node->edge_refc,
+                     "unused node " << node.index());
+      }
+   }
+   std::cout << nshadow << " shadow nodes exist out of "
+             << nodes.Size() << " nodes total." << std::endl;
+
+   // check double nodes
+   tmp_vertex = new TmpVertex[nodes.NumIds()];
+   std::set<CheckPt> points;
+   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
+   {
+      if (node->Shadow()) { continue; }
+      CheckPt pt(CalcVertexPos(node.index()), node.index());
+      if (points.find(pt) == points.end())
+      {
+         points.insert(pt);
+      }
+      else
+      {
+         MFEM_ABORT("Node inconsistency: node " << pt.index << " at the same "
+                    "place as node " << points.find(pt)->index);
+      }
+   }
+   delete [] tmp_vertex;
+
+   // check that shadow nodes can be reached from shadowed nodes
+   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
+   {
+      if (node->Shadowed()) { FindShadowNode(*node); }
    }
 }
 #endif

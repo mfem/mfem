@@ -283,16 +283,15 @@ protected: // implementation
        their corner nodes, but edge nodes also exist and can be accessed using
        a hash-table given their two end-point node IDs. All nodes can be
        accessed in this way, with the exception of top-level vertex nodes.
-       When an element is being refined, the mid-edge nodes are readily
-       available with this mechanism. The new elements "sign in" to the nodes
-       by increasing the reference counts of their vertices and edges. The
-       parent element "signs off" its nodes by decrementing the ref counts. */
+       New elements "sign in" to the nodes by increasing the reference counts.
+       Elements being refined or deleted decrement their nodes ref counts. */
    struct Node : public Hashed2
    {
-      char vert_refc, edge_refc;
-      int vert_index, edge_index;
+      int vert_index, edge_index; ///< vertex/edge number in Mesh
+      char vert_refc, edge_refc;  ///< reference counts
+      char flags;                 ///< shadow node flags (aniso)
 
-      Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1) {}
+      Node() : vert_index(-1), edge_index(-1), vert_refc(0), edge_refc(0), flags(0) {}
       ~Node();
 
       bool HasVertex() const { return vert_refc > 0; }
@@ -301,6 +300,15 @@ protected: // implementation
       // decrease vertex/edge ref count, return false if Node should be deleted
       bool UnrefVertex() { --vert_refc; return vert_refc || edge_refc; }
       bool UnrefEdge()   { --edge_refc; return vert_refc || edge_refc; }
+
+      // check/set shadow/shadowed status (mid-face node with alternate parents)
+      bool Shadow() const { return flags & 1; }
+      bool Shadowed() const { return flags & 2; }
+
+      void SetShadow(int target) { flags |= 1; vert_index = target; }
+      void SetShadowed() { flags |= 2; }
+
+      int ShadowTarget() const { MFEM_ASSERT(Shadow(), ""); return vert_index; }
    };
 
    /** Similarly to nodes, faces can be accessed by hashing their four vertex
@@ -354,8 +362,9 @@ protected: // implementation
    HashTable<Face> faces; // associative container holding all Faces
 
    typedef HashTable<Node>::iterator node_iterator;
-   typedef HashTable<Node>::const_iterator node_const_iterator;
    typedef HashTable<Face>::iterator face_iterator;
+   typedef HashTable<Node>::const_iterator node_const_iterator;
+   typedef HashTable<Face>::const_iterator face_const_iterator;
 
    BlockArray<Element> elements; // storage for all Elements
    Array<int> free_element_ids;  // free element ids - indices into 'elements'
@@ -403,7 +412,7 @@ protected: // implementation
 
    // refinement/derefinement
 
-   Array<Refinement> ref_stack; ///< stack of scheduled refinements (temporary)
+   Array<Refinement> ref_queue; ///< stack of scheduled refinements (temporary)
 
    Table derefinements; ///< possible derefinements, see GetDerefinementTable
 
@@ -442,19 +451,23 @@ protected: // implementation
 
    mfem::Element* NewMeshElement(int geom) const;
 
-   int GetMidEdgeNode(int vn1, int vn2);
-   int GetMidFaceNode(int en1, int en2, int en3, int en4);
-
    int FaceSplitType(int v1, int v2, int v3, int v4, int mid[4]
                      = NULL /*optional output of mid-edge nodes*/) const;
 
    void ForceRefinement(int vn1, int vn2, int vn3, int vn4);
 
-   void CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
-                       int mid12, int mid34, int level = 0);
+   int CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
+                      int mid12, int mid34, int level = 0);
 
    void CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
                      int en1, int en2, int en3, int en4, int midf);
+
+   int FindMidEdgeNode(int node1, int node2) const;
+   int GetMidEdgeNode(int node1, int node2);
+
+   int GetMidFaceNode(int en1, int en2, int en3, int en4);
+
+   int FindShadowNode(const Node &nd) const;
 
    void RefElement(int elem);
    void UnrefElement(int elem, Array<int> &elemFaces);
@@ -462,8 +475,6 @@ protected: // implementation
    Face* GetFace(Element &elem, int face_no);
    void RegisterFaces(int elem, int *fattr = NULL);
    void DeleteUnusedFaces(const Array<int> &elemFaces);
-
-   int FindAltParents(int node1, int node2);
 
    bool NodeSetX1(int node, int* n);
    bool NodeSetX2(int node, int* n);
@@ -684,6 +695,12 @@ public:
 
    /// Print the space-filling curve formed by the sequence of leaf elements.
    void DebugLeafOrder() const;
+
+   /// Dump the data structure for external visualization.
+   void DebugDump(std::ostream &out) const;
+
+   /// Check data structure consistency.
+   void DebugCheckConsistency() const;
 #endif
 
    friend class ParNCMesh; // for ParNCMesh::ElementSet

@@ -55,6 +55,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
+   int ref_levels = 3;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -62,6 +63,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -88,18 +91,20 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
+   mesh->EnsureNCMesh(true);
+
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
-   {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh->UniformRefinement();
-      }
-   }
+//   {
+//      int ref_levels =
+//         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+//      for (int l = 0; l < ref_levels; l++)
+//      {
+//         mesh->UniformRefinement();
+//      }
+//   }
 
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
@@ -107,12 +112,46 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 2;
-      for (int l = 0; l < par_ref_levels; l++)
+      srand(myid+1);
+      for (int l = 0; l < ref_levels; l++)
       {
-         pmesh->UniformRefinement();
+         //pmesh->UniformRefinement();
+         pmesh->RandomRefinement(0.7, false);
+         /*Array<Refinement> refs;
+         refs.Append(Refinement(rand() % pmesh->GetNE(), rand() % 7 + 1));
+         pmesh->GeneralRefinement(refs);*/
+
+         {
+            Mesh debug;
+            pmesh->pncmesh->GetDebugMesh(debug);
+            char fname[100];
+            sprintf(fname, "debug%03d-%02d.mesh", myid, l);
+            ofstream f(fname);
+            debug.Print(f);
+         }
       }
    }
+   //pmesh->Rebalance();
+
+   {
+      Mesh debug;
+      pmesh->pncmesh->GetDebugMesh(debug);
+      char fname[100];
+      sprintf(fname, "debug%03d.mesh", myid);
+      ofstream f(fname);
+      debug.Print(f);
+   }
+
+   /*{
+      Array<Refinement> refs;
+      if (myid == 0) { refs.Append(Refinement(0, 4)); }
+      pmesh->GeneralRefinement(refs);
+   }
+   {
+      Array<Refinement> refs;
+      if (myid == 1) { refs.Append(Refinement(0, 2)); }
+      pmesh->GeneralRefinement(refs);
+   }*/
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
@@ -195,7 +234,7 @@ int main(int argc, char *argv[])
    HyprePCG *pcg = new HyprePCG(A);
    pcg->SetTol(1e-12);
    pcg->SetMaxIter(200);
-   pcg->SetPrintLevel(2);
+   pcg->SetPrintLevel(0);
    pcg->SetPreconditioner(*amg);
    pcg->Mult(B, X);
 

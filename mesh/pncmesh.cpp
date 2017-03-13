@@ -19,6 +19,7 @@
 #include "../fem/fespace.hpp"
 
 #include <map>
+#include <list>
 #include <climits> // INT_MIN, INT_MAX
 
 namespace mfem
@@ -558,7 +559,7 @@ void ParNCMesh::ElementNeighborProcessors(int elem, Array<int> &ranks)
    ranks.SetSize(0); // preserve capacity
 
    // big shortcut: there are no neighbors if element_type == 1
-   if (CheckElementType(elem, 1)) { return; }
+   //if (CheckElementType(elem, 1)) { return; }
 
    // ok, we do need to look for neighbors;
    // at least we can only search in the ghost layer
@@ -857,7 +858,7 @@ void ParNCMesh::ClearAuxPM()
 }
 
 
-//// Prune, Refine, Derefine ///////////////////////////////////////////////////
+//// Prune, Refine /////////////////////////////////////////////////////////////
 
 bool ParNCMesh::PruneTree(int elem)
 {
@@ -926,7 +927,137 @@ void ParNCMesh::Prune()
    Update();
 }
 
+#if 1
+void ParNCMesh::Refine(const Array<Refinement> &refinements)
+{
+   UpdateLayers();
 
+   Array<int> ranks;
+   ranks.Reserve(64);
+
+   // big container for all messages we send (the list is for iterations)
+   std::list<NeighborRefinementMessage::Map> send_msg;
+   send_msg.push_back(NeighborRefinementMessage::Map());
+
+   // a single instance is reused for all incoming messages
+   NeighborRefinementMessage recv_msg;
+   recv_msg.SetNCMesh(this);
+
+   // push all refinements in the queue
+   for (int i = 0; i < refinements.Size(); i++)
+   {
+      const Refinement& ref = refinements[i];
+      int elem = leaf_elements[ref.index];
+      ref_queue.Append(Refinement(elem, -ref.ref_type));
+
+      // refinements in the boundary layer must be reported to neighbors
+      if (element_type[ref.index] == 3)
+      {
+         ElementNeighborProcessors(elem, ranks);
+         for (int j = 0; j < ranks.Size(); j++)
+         {
+            NeighborRefinementMessage &msg = send_msg.back()[ranks[j]];
+            msg.AddRefinement(elem, ref.ref_type);
+            msg.SetNCMesh(this);
+         }
+      }
+   }
+
+   // messages sent/received counters
+   int my_cnt[2], glob_cnt[2];
+   int &my_sent = my_cnt[0], &my_recvd = my_cnt[1];
+   int &glob_sent = glob_cnt[0], &glob_recvd = glob_cnt[1];
+   my_sent = my_recvd = 0;
+
+   // send the initial batch of messages
+   NeighborRefinementMessage::IsendAll(send_msg.back(), MyComm);
+   my_sent += send_msg.back().size();
+
+   do
+   {
+      // check for incoming refinement messages
+      int rank, size;
+      while (NeighborRefinementMessage::IProbe(rank, size, MyComm))
+      {
+         recv_msg.Recv(rank, size, MyComm);
+         my_recvd++;
+
+         // do the ghost refinements here, and only here
+         for (int i = 0; i < recv_msg.Size(); i++)
+         {
+            RefineElement(recv_msg.elements[i], recv_msg.values[i]);
+         }
+      }
+
+      send_msg.push_back(NeighborRefinementMessage::Map());
+
+      // refine elements
+      while (ref_queue.Size())
+      {
+         Refinement ref = ref_queue[0];
+         ref_queue.DeleteFirst(); // TODO: fix O(N) time
+
+         if (ref.ref_type < 0)
+         {
+            // this is one of the original refinements, message already sent
+            RefineElement(ref.index, -ref.ref_type);
+            continue;
+         }
+
+         // if 'ref.elem' is a new element, get one of its parents
+         int base = ref.index;
+         Element *base_el = &elements[base];
+         while (base_el->index < 0)
+         {
+             base = base_el->parent;
+             base_el = &elements[base];
+         }
+         int type = element_type[base_el->index];
+
+         // the rule is: each processor can only touch its own elements
+         if (type & 1)
+         {
+            RefineElement(ref.index, ref.ref_type);
+         }
+
+         // refinements in the boundary layer must be reported to neighbors
+         // because our type 3 element is their ghost element
+         if (type == 3)
+         {
+            ElementNeighborProcessors(base, ranks);
+            for (int j = 0; j < ranks.Size(); j++)
+            {
+               NeighborRefinementMessage &msg = send_msg.back()[ranks[j]];
+               msg.AddRefinement(ref.index, ref.ref_type);
+               msg.SetNCMesh(this);
+            }
+         }
+      }
+
+      NeighborRefinementMessage::IsendAll(send_msg.back(), MyComm);
+      my_sent += send_msg.back().size();
+
+      // get the global status
+      MPI_Allreduce(my_cnt, glob_cnt, 2, MPI_INT, MPI_SUM, MyComm);
+   }
+   while (glob_sent > glob_recvd);
+
+   Update();
+
+   // make sure we can delete the send buffers
+   for (std::list<NeighborRefinementMessage::Map>::iterator
+        it = send_msg.begin(); it != send_msg.end(); ++it)
+   {
+      NeighborRefinementMessage::WaitAllSent(*it);
+   }
+
+   if (MyRank == 0)
+   {
+      std::cout << send_msg.size()-1 << " iterations to refine." << std::endl;
+   }
+}
+
+#else
 void ParNCMesh::Refine(const Array<Refinement> &refinements)
 {
    for (int i = 0; i < refinements.Size(); i++)
@@ -997,7 +1128,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
    // make sure we can delete the send buffers
    NeighborRefinementMessage::WaitAllSent(send_ref);
 }
-
+#endif
 
 void ParNCMesh::LimitNCLevel(int max_nc_level)
 {
@@ -1016,6 +1147,9 @@ void ParNCMesh::LimitNCLevel(int max_nc_level)
       Refine(refinements);
    }
 }
+
+
+//// Derefinement //////////////////////////////////////////////////////////////
 
 void ParNCMesh::Derefine(const Array<int> &derefs)
 {
@@ -1097,10 +1231,13 @@ void ParNCMesh::Derefine(const Array<int> &derefs)
       int parent = elements[old_elements[fine[0]]].parent;
 
       // send derefinement to neighbors
-      ElementNeighborProcessors(parent, ranks);
-      for (int j = 0; j < ranks.Size(); j++)
+      if (!CheckElementType(parent, 1))
       {
-         send_deref[ranks[j]].AddDerefinement(parent, new_ranks[fine[0]]);
+         ElementNeighborProcessors(parent, ranks);
+         for (int j = 0; j < ranks.Size(); j++)
+         {
+            send_deref[ranks[j]].AddDerefinement(parent, new_ranks[fine[0]]);
+         }
       }
    }
    NeighborDerefinementMessage::IsendAll(send_deref, MyComm);
@@ -1706,7 +1843,7 @@ void ParNCMesh::ElementSet::EncodeTree(int elem)
 
       // write the bit mask and visit the subtrees
       data.Append(mask);
-      if (include_ref_types)
+      if (include_ref_types && mask)
       {
          data.Append(el.ref_type);
       }
@@ -1754,7 +1891,7 @@ void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
       Element &el = ncmesh->elements[elem];
       if (include_ref_types)
       {
-         int ref_type = data[pos++];
+         char ref_type = data[pos++];
          if (!el.ref_type)
          {
             ncmesh->RefineElement(elem, ref_type);

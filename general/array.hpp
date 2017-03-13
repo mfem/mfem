@@ -150,7 +150,10 @@ public:
    /// Delete the last entry
    inline void DeleteLast() { if (size > 0) { size--; } }
 
-   /// Delete the first 'el' entry
+   /// Delete the first entry
+   inline void DeleteFirst();
+
+   /// Find the first 'el' entry and remove it.
    inline void DeleteFirst(const T &el);
 
    /// Delete whole array
@@ -611,9 +614,21 @@ inline int Array<T>::Find(const T &el) const
 }
 
 template <class T>
+inline void Array<T>::DeleteFirst()
+{
+   MFEM_ASSERT(size > 0, "Array size is zero: " << size);
+   for (int i = 1; i < size; i++)
+   {
+      ((T*)data)[i-1] = ((T*)data)[i];
+   }
+   size--;
+}
+
+template <class T>
 inline void Array<T>::DeleteFirst(const T &el)
 {
    for (int i = 0; i < size; i++)
+   {
       if (((T*)data)[i] == el)
       {
          for (i++; i < size; i++)
@@ -623,6 +638,7 @@ inline void Array<T>::DeleteFirst(const T &el)
          size--;
          return;
       }
+   }
 }
 
 template <class T>
