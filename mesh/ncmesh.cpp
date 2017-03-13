@@ -1520,7 +1520,7 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex>& mvertices,
       tmp_vertex = new TmpVertex[nodes.NumIds()];
       for (int i = 0; i < mvertices.Size(); i++)
       {
-         mvertices[i].SetCoords(CalcVertexPos(vertex_nodeId[i]));
+         mvertices[i].SetCoords(spaceDim, CalcVertexPos(vertex_nodeId[i]));
       }
       delete [] tmp_vertex;
    }

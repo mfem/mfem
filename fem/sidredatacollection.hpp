@@ -26,10 +26,10 @@ namespace mfem
     blueprint specification. */
 /** SidreDataCollection provides an HDF5-based file format for visualization or
     restart capability.  This functionality is aimed primarily at customers of
-    LLNL's ASC Toolkit that run problems at extreme scales.
+    LLNL's axom project that run problems at extreme scales.
 
     For more information, see:
-    - LLNL ASC toolkit Sidre component (to be open-sourced), http://goo.gl/cZyJdn
+    - Sidre component of LLNL's axom project (to be open-sourced), http://goo.gl/cZyJdn
     - LLNL conduit/blueprint library, https://github.com/LLNL/conduit
     - HDF5 library, https://support.hdfgroup.org/HDF5
 
@@ -192,8 +192,8 @@ public:
        to be set with SetMesh() and fields registered with RegisterField().
     */
    SidreDataCollection(const std::string& collection_name,
-                       asctoolkit::sidre::DataGroup * global_grp,
-                       asctoolkit::sidre::DataGroup * domain_grp,
+                       axom::sidre::DataGroup * global_grp,
+                       axom::sidre::DataGroup * domain_grp,
                        bool owns_mesh_data = false);
 
 #ifdef MFEM_USE_MPI
@@ -231,7 +231,7 @@ public:
     */
    void RegisterField(const std::string &field_name, GridFunction *gf,
                       const std::string &buffer_name,
-                      asctoolkit::sidre::SidreLength offset);
+                      axom::sidre::SidreLength offset);
 
    /// Set the name of the mesh nodes field.
    /** This name will be used by SetMesh() to register the mesh nodes, if not
@@ -263,11 +263,11 @@ public:
        reset to valid groups in the datastore.
        @sa Load(const std::string &path, const std::string &protocol).
     */
-   void SetGroupPointers(asctoolkit::sidre::DataGroup * global_grp,
-                         asctoolkit::sidre::DataGroup * domain_grp);
+   void SetGroupPointers(axom::sidre::DataGroup * global_grp,
+                         axom::sidre::DataGroup * domain_grp);
 
-   asctoolkit::sidre::DataGroup * GetBPGroup() { return bp_grp; }
-   asctoolkit::sidre::DataGroup * GetBPIndexGroup() { return bp_index_grp; }
+   axom::sidre::DataGroup * GetBPGroup() { return bp_grp; }
+   axom::sidre::DataGroup * GetBPIndexGroup() { return bp_index_grp; }
 
    /// Prepare the DataStore for writing
    virtual void PrepareToSave();
@@ -326,7 +326,7 @@ public:
        @note To access the underlying pointer, use DataView::getData().
        @note To query the size of the buffer, use DataView::getNumElements().
     */
-   asctoolkit::sidre::DataView *
+   axom::sidre::DataView *
    GetNamedBuffer(const std::string& buffer_name) const
    { return named_buffers_grp()->getView(buffer_name); }
 
@@ -336,11 +336,11 @@ public:
        reallocated with size @a sz, destroying its contents.
        @note To access the underlying pointer, use DataView::getData().
     */
-   asctoolkit::sidre::DataView *
+   axom::sidre::DataView *
    AllocNamedBuffer(const std::string& buffer_name,
-                    asctoolkit::sidre::SidreLength sz,
-                    asctoolkit::sidre::TypeID type =
-                       asctoolkit::sidre::DOUBLE_ID);
+                    axom::sidre::SidreLength sz,
+                    axom::sidre::TypeID type =
+                       axom::sidre::DOUBLE_ID);
 
    /// Deallocate the named buffer @a buffer_name.
    void FreeNamedBuffer(const std::string& buffer_name)
@@ -367,26 +367,26 @@ private:
 
    // If the data collection owns the datastore, it will store a pointer to it.
    // Otherwise, this pointer is NULL.
-   asctoolkit::sidre::DataStore * m_datastore_ptr;
+   axom::sidre::DataStore * m_datastore_ptr;
 
 #ifdef MFEM_USE_MPI
    MPI_Comm m_comm;
 #endif
 
 protected:
-   asctoolkit::sidre::DataGroup *named_buffers_grp() const;
+   axom::sidre::DataGroup *named_buffers_grp() const;
 
-   asctoolkit::sidre::DataView *
-   alloc_view(asctoolkit::sidre::DataGroup *grp,
+   axom::sidre::DataView *
+   alloc_view(axom::sidre::DataGroup *grp,
               const std::string &view_name);
 
-   asctoolkit::sidre::DataView *
-   alloc_view(asctoolkit::sidre::DataGroup *grp,
+   axom::sidre::DataView *
+   alloc_view(axom::sidre::DataGroup *grp,
               const std::string &view_name,
-              const asctoolkit::sidre::DataType &dtype);
+              const axom::sidre::DataType &dtype);
 
-   asctoolkit::sidre::DataGroup *
-   alloc_group(asctoolkit::sidre::DataGroup *grp,
+   axom::sidre::DataGroup *
+   alloc_group(axom::sidre::DataGroup *grp,
                const std::string &group_name);
 
    // return the filename based on prefix_path, collection name and cycle.
@@ -395,11 +395,11 @@ protected:
 private:
    // If the data collection does not own the datastore, it will need pointers
    // to the blueprint and blueprint index group to use.
-   asctoolkit::sidre::DataGroup * bp_grp;
-   asctoolkit::sidre::DataGroup * bp_index_grp;
+   axom::sidre::DataGroup * bp_grp;
+   axom::sidre::DataGroup * bp_index_grp;
 
    // This is stored for convenience.
-   asctoolkit::sidre::DataGroup * named_bufs_grp;
+   axom::sidre::DataGroup * named_bufs_grp;
 
    // Private helper functions
 
@@ -423,7 +423,7 @@ private:
    void addScalarBasedGridFunction(const std::string& field_name,
                                    GridFunction* gf,
                                    const std::string &buffer_name,
-                                   asctoolkit::sidre::SidreLength offset);
+                                   axom::sidre::SidreLength offset);
 
    /**
     * \brief A private helper function to set up the views associated with the
@@ -437,7 +437,7 @@ private:
    void addVectorBasedGridFunction(const std::string& field_name,
                                    GridFunction* gf,
                                    const std::string &buffer_name,
-                                   asctoolkit::sidre::SidreLength offset);
+                                   axom::sidre::SidreLength offset);
 
    /// Sets up the four main mesh blueprint groups.
    /**
