@@ -703,7 +703,8 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    std::map<Vertex*, int>::iterator it;
    for (it = vert_map.begin(); it != vert_map.end(); ++it)
    {
-      pmesh.face_nbr_vertices[it->second-1].SetCoords(it->first->pos);
+      pmesh.face_nbr_vertices[it->second-1].SetCoords(spaceDim,
+                                                      it->first->pos);
    }
 
    // make the 'send_face_nbr_elements' table
