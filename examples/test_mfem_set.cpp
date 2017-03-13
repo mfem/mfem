@@ -4,6 +4,7 @@
 #include <set>
 // Requires C++11:
 #include <unordered_set>
+#include <boost/unordered_set.hpp>
 
 
 using namespace std;
@@ -184,6 +185,40 @@ int main()
    tic_toc.Stop();
    cout << " done (" << tic_toc.RealTime() << " sec).\n" << endl;
    uo_set.clear();
+
+
+   //----------------------------------------------------------------
+   //  boost::unordered_set
+   //----------------------------------------------------------------
+
+   boost::unordered_set<int> buo_set;
+   // buo_set.max_load_factor(2.);
+   cout << "\nInserting " << num_entries
+        << " random entries in an boost::unordered_set ..." << flush;
+   cout << " (max load factor = " << buo_set.max_load_factor() << ") ..."
+        << flush;
+   tic_toc.Clear();
+   tic_toc.Start();
+   srand(seed);
+   for (int i = 0; i < num_entries; i++)
+   {
+      buo_set.insert(fn(rand()));
+   }
+   tic_toc.Stop();
+   cout << " done (" << tic_toc.RealTime() << " sec).\n" << endl;
+   cout << "load factor = " << buo_set.load_factor() << endl;
+
+   cout << "Verifying all entries in the boost::unordered_set ..." << flush;
+   tic_toc.Clear();
+   tic_toc.Start();
+   srand(seed);
+   for (int i = 0; i < num_entries; i++)
+   {
+      MFEM_VERIFY(buo_set.find(fn(rand())) != buo_set.end(), "entry not found");
+   }
+   tic_toc.Stop();
+   cout << " done (" << tic_toc.RealTime() << " sec).\n" << endl;
+   buo_set.clear();
 
 
    return 0;
