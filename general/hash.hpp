@@ -96,7 +96,7 @@ public:
    int FindId(int p1, int p2, int p3, int p4) const;
 
    /// Return the number of elements currently stored in the HashTable.
-   int Size() const { return Base::Size()-unused.Size(); }
+   int Size() const { return Base::Size() - unused.Size(); }
 
    /// Return the total number of ids (used and unused) in the HashTable.
    int NumIds() const { return Base::Size(); }

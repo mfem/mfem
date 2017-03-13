@@ -836,7 +836,7 @@ long BlockArray<T>::MemoryUsage() const
 template<typename T>
 BlockArray<T>::~BlockArray()
 {
-   const int bsize = mask+1;
+   int bsize = size & mask;
    for (int i = blocks.Size(); i != 0; )
    {
       T *block = blocks[--i];
@@ -845,6 +845,7 @@ BlockArray<T>::~BlockArray()
          block[--j].~T();
       }
       delete [] (char*) block;
+      bsize = mask+1;
    }
 }
 

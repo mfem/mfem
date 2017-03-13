@@ -89,7 +89,7 @@ public:
 
    NCMesh(const NCMesh &other); // deep copy
 
-   virtual ~NCMesh() {}
+   virtual ~NCMesh();
 
    int Dimension() const { return Dim; }
    int SpaceDimension() const { return spaceDim; }

@@ -198,11 +198,22 @@ void NCMesh::Update()
    element_vertex.Clear();
 }
 
+NCMesh::~NCMesh()
+{
+   Array<int> elemFaces;
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      elemFaces.SetSize(0);
+      UnrefElement(leaf_elements[i], elemFaces);
+      DeleteUnusedFaces(elemFaces);
+   }
+}
+
 NCMesh::Node::~Node()
 {
    MFEM_ASSERT(!vert_refc && !edge_refc, "node was not unreffed properly, "
-               "vert_refc: " << (int)vert_refc << ", edge_refc: "
-               << (int)edge_refc);
+               "vert_refc: " << (int) vert_refc << ", edge_refc: "
+               << (int) edge_refc);
 }
 
 void NCMesh::RefElement(int elem)
@@ -242,7 +253,7 @@ void NCMesh::UnrefElement(int elem, Array<int> &elemFaces)
    int* node = el.node;
    GeomInfo& gi = GI[(int) el.geom];
 
-   // unref all faces (possibly destroying them)
+   // unref all faces
    for (int i = 0; i < gi.nf; i++)
    {
       const int* fv = gi.faces[i];
@@ -252,7 +263,7 @@ void NCMesh::UnrefElement(int elem, Array<int> &elemFaces)
       faces[face].ForgetElement(elem);
 
       // NOTE: faces.Delete() called later to avoid destroying and
-      // recreating faces during refinement, see NCMesh::DeleteFaces.
+      // recreating faces during refinement, see NCMesh::DeleteUnusedFaces.
       elemFaces.Append(face);
    }
 
@@ -3384,7 +3395,7 @@ void NCMesh::PrintStats(std::ostream &out) const
        << faces.NumFreeIds() << "\n"
        "   number of Elements        : " << std::setw(9)
        << elements.Size()-free_element_ids.Size() << " +    [ " << std::setw(9)
-       << (elements.MemoryUsage()+
+       << (elements.MemoryUsage() +
            free_element_ids.MemoryUsage())/MiB << " MiB ]\n"
        "      free                     " << std::setw(9)
        << free_element_ids.Size() << "\n"
