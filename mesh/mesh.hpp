@@ -1043,6 +1043,10 @@ public:
    /// high-order meshes, the geometry is refined first "ref" times.
    void GetBoundingBox(Vector &min, Vector &max, int ref = 2);
 
+   void GetCharacteristics(double &h_min, double &h_max,
+                           double &kappa_min, double &kappa_max,
+                           Vector *Vh = NULL, Vector *Vk = NULL);
+
    void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL,
                              std::ostream &out = std::cout);
 

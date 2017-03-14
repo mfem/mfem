@@ -183,7 +183,7 @@ if (MFEM_USE_MPFR)
   include_directories(${MPFR_INCLUDE_DIRS})
 endif()
 
-# ATK/Sidre
+# Axom/Sidre
 if (MFEM_USE_SIDRE)
   if (NOT MFEM_USE_MPI)
     find_package(ATK REQUIRED Sidre SLIC common)

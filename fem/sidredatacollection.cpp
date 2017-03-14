@@ -24,7 +24,7 @@
 #include <iomanip>      // for setw, setfill
 #include <cstdio>       // for snprintf()
 
-namespace sidre = asctoolkit::sidre;
+namespace sidre = axom::sidre;
 
 namespace mfem
 {
@@ -70,8 +70,8 @@ SidreDataCollection::SidreDataCollection(const std::string& collection_name,
 // in the future.  When this is available, all the blueprint index code can be
 // removed from the data collection class.
 SidreDataCollection::SidreDataCollection(const std::string& collection_name,
-                                         asctoolkit::sidre::DataGroup* global_grp,
-                                         asctoolkit::sidre::DataGroup* domain_grp,
+                                         axom::sidre::DataGroup* global_grp,
+                                         axom::sidre::DataGroup* domain_grp,
                                          bool own_mesh_data)
    : mfem::DataCollection(collection_name),
      m_owns_datastore(false),
@@ -120,8 +120,8 @@ sidre::DataGroup *SidreDataCollection::named_buffers_grp() const
 }
 
 // protected method
-asctoolkit::sidre::DataView *
-SidreDataCollection::alloc_view(asctoolkit::sidre::DataGroup *grp,
+axom::sidre::DataView *
+SidreDataCollection::alloc_view(axom::sidre::DataGroup *grp,
                                 const std::string &view_name)
 {
    MFEM_ASSERT(grp, "DataGroup pointer is NULL");
@@ -136,10 +136,10 @@ SidreDataCollection::alloc_view(asctoolkit::sidre::DataGroup *grp,
 }
 
 // protected method
-asctoolkit::sidre::DataView *
-SidreDataCollection::alloc_view(asctoolkit::sidre::DataGroup *grp,
+axom::sidre::DataView *
+SidreDataCollection::alloc_view(axom::sidre::DataGroup *grp,
                                 const std::string &view_name,
-                                const asctoolkit::sidre::DataType &dtype)
+                                const axom::sidre::DataType &dtype)
 {
    MFEM_ASSERT(grp, "DataGroup pointer is NULL");
    sidre::DataView *v = grp->getView(view_name);
@@ -157,8 +157,8 @@ SidreDataCollection::alloc_view(asctoolkit::sidre::DataGroup *grp,
 }
 
 // protected method
-asctoolkit::sidre::DataGroup *
-SidreDataCollection::alloc_group(asctoolkit::sidre::DataGroup *grp,
+axom::sidre::DataGroup *
+SidreDataCollection::alloc_group(axom::sidre::DataGroup *grp,
                                  const std::string &group_name)
 {
    MFEM_ASSERT(grp, "DataGroup pointer is NULL");
@@ -190,10 +190,10 @@ SidreDataCollection::get_file_path(const std::string &filename) const
    return fNameSstr.str();
 }
 
-asctoolkit::sidre::DataView *
+axom::sidre::DataView *
 SidreDataCollection::AllocNamedBuffer(const std::string& buffer_name,
-                                      asctoolkit::sidre::SidreLength sz,
-                                      asctoolkit::sidre::TypeID type)
+                                      axom::sidre::SidreLength sz,
+                                      axom::sidre::TypeID type)
 {
    sz = std::max(sz, sidre::SidreLength(0));
    sidre::DataGroup *f = named_buffers_grp();
@@ -584,8 +584,8 @@ void SidreDataCollection::SetMesh(Mesh *new_mesh)
 }
 
 void SidreDataCollection::
-SetGroupPointers(asctoolkit::sidre::DataGroup *global_grp,
-                 asctoolkit::sidre::DataGroup *domain_grp)
+SetGroupPointers(axom::sidre::DataGroup *global_grp,
+                 axom::sidre::DataGroup *domain_grp)
 {
    MFEM_VERIFY(domain_grp->hasGroup("blueprint"),
                "Domain group does not contain a blueprint group.");
@@ -606,7 +606,7 @@ void SidreDataCollection::Load(const std::string& path,
 #ifdef MFEM_USE_MPI
    if (m_comm != MPI_COMM_NULL)
    {
-      asctoolkit::spio::IOManager reader(m_comm);
+      axom::spio::IOManager reader(m_comm);
       reader.read(bp_grp->getDataStore()->getRoot(), path);
    }
    else
@@ -635,7 +635,7 @@ void SidreDataCollection::LoadExternalData(const std::string& path)
 #ifdef MFEM_USE_MPI
    if (m_comm != MPI_COMM_NULL)
    {
-      asctoolkit::spio::IOManager reader(m_comm);
+      axom::spio::IOManager reader(m_comm);
       reader.loadExternalData(bp_grp->getDataStore()->getRoot(), path);
    }
    else
@@ -692,7 +692,7 @@ void SidreDataCollection::Save(const std::string& filename,
 #ifdef MFEM_USE_MPI
    if (m_comm != MPI_COMM_NULL)
    {
-      asctoolkit::spio::IOManager writer(m_comm);
+      axom::spio::IOManager writer(m_comm);
       sidre::DataStore *datastore = bp_grp->getDataStore();
       writer.write(datastore->getRoot(), num_procs, file_path, protocol);
       if (myid == 0)
@@ -725,7 +725,7 @@ void SidreDataCollection::Save(const std::string& filename,
 void SidreDataCollection::
 addScalarBasedGridFunction(const std::string &field_name, GridFunction *gf,
                            const std::string &buffer_name,
-                           asctoolkit::sidre::SidreLength offset)
+                           axom::sidre::SidreLength offset)
 {
    sidre::DataGroup* grp = bp_grp->getGroup("fields/" + field_name);
    MFEM_ASSERT(grp != NULL, "field " << field_name << " does not exist");
@@ -788,7 +788,7 @@ addScalarBasedGridFunction(const std::string &field_name, GridFunction *gf,
 void SidreDataCollection::
 addVectorBasedGridFunction(const std::string& field_name, GridFunction *gf,
                            const std::string &buffer_name,
-                           asctoolkit::sidre::SidreLength offset)
+                           axom::sidre::SidreLength offset)
 {
    sidre::DataGroup* grp = bp_grp->getGroup("fields/" + field_name);
    MFEM_ASSERT(grp != NULL, "field " << field_name << " does not exist");
@@ -913,7 +913,7 @@ DeregisterFieldInBPIndex(const std::string& field_name)
 void SidreDataCollection::RegisterField(const std::string &field_name,
                                         GridFunction *gf,
                                         const std::string &buffer_name,
-                                        asctoolkit::sidre::SidreLength offset)
+                                        axom::sidre::SidreLength offset)
 {
    if ( field_name.empty() || buffer_name.empty() ||
         gf == NULL || gf->FESpace() == NULL )

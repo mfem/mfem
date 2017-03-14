@@ -16,6 +16,9 @@ Development version, not released yet
   refinement hierarchy, but excluding the temporary face_list and edge_list)
   is now only about 290 bytes. This also makes the class faster.
 
+- Add a block lower triangular preconditioner in using a matrix-free
+  implementation, see class BlockLowerTriangularPreconditioner.
+
 
 Version 3.3, released on Jan 28, 2017
 =====================================

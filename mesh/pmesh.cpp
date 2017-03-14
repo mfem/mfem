@@ -183,7 +183,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    for (i = 0; i < vert_global_local.Size(); i++)
       if (vert_global_local[i] >= 0)
       {
-         vertices[vert_global_local[i]].SetCoords(mesh.GetVertex(i));
+         vertices[vert_global_local[i]].SetCoords(mesh.SpaceDimension(),
+                                                  mesh.GetVertex(i));
       }
 
    // determine elements
@@ -4316,6 +4317,35 @@ void ParMesh::PrintAsOneXG(std::ostream &out)
                   0, 445, MyComm);
       }
    }
+}
+
+void ParMesh::GetBoundingBox(Vector &gp_min, Vector &gp_max, int ref)
+{
+   int sdim;
+   Vector p_min, p_max;
+
+   this->Mesh::GetBoundingBox(p_min, p_max, ref);
+
+   sdim = SpaceDimension();
+
+   gp_min.SetSize(sdim);
+   gp_max.SetSize(sdim);
+
+   MPI_Allreduce(p_min.GetData(), gp_min, sdim, MPI_DOUBLE, MPI_MIN, MyComm);
+   MPI_Allreduce(p_max.GetData(), gp_max, sdim, MPI_DOUBLE, MPI_MAX, MyComm);
+}
+
+void ParMesh::GetCharacteristics(double &gh_min, double &gh_max,
+                                 double &gk_min, double &gk_max)
+{
+   double h_min, h_max, kappa_min, kappa_max;
+
+   this->Mesh::GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
+
+   MPI_Allreduce(&h_min, &gh_min, 1, MPI_DOUBLE, MPI_MIN, MyComm);
+   MPI_Allreduce(&h_max, &gh_max, 1, MPI_DOUBLE, MPI_MAX, MyComm);
+   MPI_Allreduce(&kappa_min, &gk_min, 1, MPI_DOUBLE, MPI_MIN, MyComm);
+   MPI_Allreduce(&kappa_max, &gk_max, 1, MPI_DOUBLE, MPI_MAX, MyComm);
 }
 
 void ParMesh::PrintInfo(std::ostream &out)
