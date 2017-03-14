@@ -49,7 +49,7 @@ include $(TEST_MK)
 
 # Testing: Parallel vs. serial runs
 %-test-par: %
-	@$(call mfem-test-file,$<, mpirun -np 4, Meshing miniapp,$(<).mesh)
+	@$(call mfem-test-file,$<, $(MFEM_MPIRUN_CMD) 4, Meshing miniapp,$(<).mesh)
 %-test-seq: %
 	@$(call mfem-test-file,$<,, Meshing miniapp,$(<).mesh)
 

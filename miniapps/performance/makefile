@@ -74,7 +74,7 @@ include $(TEST_MK)
 
 # Testing: Parallel vs. serial runs
 %-test-par: %
-	@$(call mfem-test,$<, mpirun -np 4, Performance miniapp)
+	@$(call mfem-test,$<, $(MFEM_MPIRUN_CMD) 4, Performance miniapp)
 %-test-seq: %
 	@$(call mfem-test,$<,, Performance miniapp)
 

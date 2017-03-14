@@ -65,7 +65,7 @@ MFEM_TESTS = EXAMPLES
 include $(TEST_MK)
 
 # Testing: Parallel runs
-MPIRUN = mpirun -np 4
+MPIRUN = $(MPIRUN_CMD) 4
 TESTNAME = Parallel PETSc example
 %-test-par: %
 	@$(call mfem-test,$<, $(MPIRUN), $(TESTNAME))

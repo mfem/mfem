@@ -9,6 +9,9 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
+# MPI job launcher to use.
+MFEM_MPIRUN_CMD		= @MFEM_MPIRUN_CMD@
+
 # Variables corresponding to defines in config.hpp (YES, NO, or value)
 MFEM_USE_MPI         = @MFEM_USE_MPI@
 MFEM_USE_METIS_5     = @MFEM_USE_METIS_5@

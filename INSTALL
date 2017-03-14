@@ -558,3 +558,15 @@ config/config.hpp.in:
 The file config/config.hpp can then be edited to enable desired options.  The
 MFEM library is simply a combination of all object files obtained by compiling
 the .cpp source files in the source directories: general, linalg, mesh, and fem.
+
+Specifying a MPI job launcher
+==================================
+By default, MFEM will use 'mpirun -np#' to launch any of it's parallel tests or
+miniapps, where # is the number of mpi tasks.  An alternate launcher can be
+provided by setting the MFEM_MPIRUN_CMD config variable.
+
+MFEM will expect the launcher command, plus the command line option to allow it
+to specify a number of mpi tasks.
+
+MFEM_MPIRUN_CMD = mpirun -np  # default
+MFEM_MPIRUN_CMD = srun -n # example for platforms using SLURM
