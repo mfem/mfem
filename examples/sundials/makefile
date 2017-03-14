@@ -65,7 +65,7 @@ EX9P_ARGS := $(EX9_COMMON_ARGS) -rp 1 -dt 0.0009 -vs 50
 ex9-test-seq: ex9
 	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX9_ARGS))
 ex9p-test-par: ex9p
-	@$(call mfem-test,$<, $(MFEM_MPIRUN_CMD 4, $(PARALLEL_NAME),$(EX9P_ARGS))
+	@$(call mfem-test,$<, $(MFEM_MPIRUN_CMD) 4, $(PARALLEL_NAME),$(EX9P_ARGS))
 # Example 10: test implicit CVODE time stepping
 EX10_COMMON_ARGS := -m ../../data/beam-quad.mesh -o 2 -s 5 -dt 0.15 -vs 10
 EX10_ARGS  := $(EX10_COMMON_ARGS) -r  2
