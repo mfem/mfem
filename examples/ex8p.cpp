@@ -116,7 +116,8 @@ int main(int argc, char *argv[])
    //      the mesh and the trial space order.
    unsigned int trial_order = order;
    unsigned int trace_order = order - 1;
-   unsigned int test_order  = order; // reduced order, full order is (order + dim - 1)
+   unsigned int test_order  = order; /* reduced order, full order is
+                                        (order + dim - 1) */
    if (dim == 2 && (order%2 == 0 || (pmesh->MeshGenerator() & 2 && order > 1)))
    {
       test_order++;
