@@ -51,11 +51,9 @@ namespace mfem {
   }
 
   void OccaBilinearForm::SetupKernels() {
-    baseKernelProps["defines/NUM_DOFS"] = GetNDofs();
     baseKernelProps["defines/NUM_VDIM"] = GetVDim();
 
     occa::properties mapProps("defines: {"
-                              "  NUM_DOFS: " + occa::toString(GetNDofs()) + ","
                               "  TILESIZE: 256,"
                               "}");
 
@@ -89,17 +87,9 @@ namespace mfem {
     const Table &e2dMap = fes->GetElementToDofTable();
     const int *dofMap = el->GetDofMap().GetData();
 
-    const int dim = GetDim();
-    const int order = el->GetOrder();
     const int elements = GetNE();
     const int ndofs = GetNDofs();
-
-    int ldofs = (order + 1);
-    if (dim == 2) {
-      ldofs *= ldofs;
-    } else if (dim == 3) {
-      ldofs *= ldofs*ldofs;
-    }
+    const int ldofs = fe.GetDof();
 
     int *offsets = new int[ndofs + 1];
     int *indices = new int[elements * ldofs];
@@ -248,7 +238,8 @@ namespace mfem {
   void OccaBilinearForm::VectorExtract(const OccaVector &globalVec,
                                        OccaVector &localVec) const {
 
-    VectorExtractKernel(globalToLocalOffsets,
+    VectorExtractKernel((int) GetNDofs(),
+                        globalToLocalOffsets,
                         globalToLocalIndices,
                         globalVec.GetData(),
                         localVec.GetData());
@@ -258,7 +249,8 @@ namespace mfem {
   void OccaBilinearForm::VectorAssemble(const OccaVector &localVec,
                                         OccaVector &globalVec) const {
 
-    VectorAssembleKernel(globalToLocalOffsets,
+    VectorAssembleKernel((int) GetNDofs(),
+                         globalToLocalOffsets,
                          globalToLocalIndices,
                          localVec.GetData(),
                          globalVec.GetData());

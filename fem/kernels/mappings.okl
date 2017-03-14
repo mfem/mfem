@@ -11,18 +11,18 @@
 
 /*
   ---[ Defines Known At Compile-Time ]------------
-  NUM_DOFS : Dofs per element
   TILESIZE : Tilesize for iterating over dofs
   ================================================
 */
 
-kernel void VectorExtract(const int * restrict offsets,
+kernel void VectorExtract(const int dofs,
+                          const int * restrict offsets,
                           const int * restrict indices,
                           const double * restrict globalX,
                           double * restrict localX) {
 
-  for (int i = 0; i < NUM_DOFS; ++i; tile(TILESIZE)) {
-    if (i < NUM_DOFS) {
+  for (int i = 0; i < dofs; ++i; tile(TILESIZE)) {
+    if (i < dofs) {
       const int offset = offsets[i];
       const int nextOffset = offsets[i + 1];
       const double dofValue = globalX[i];
@@ -33,13 +33,14 @@ kernel void VectorExtract(const int * restrict offsets,
   }
 }
 
-kernel void VectorAssemble(const int * restrict offsets,
+kernel void VectorAssemble(const int dofs,
+                           const int * restrict offsets,
                            const int * restrict indices,
                            const double * restrict localX,
                            double * restrict globalX) {
 
-  for (int i = 0; i < NUM_DOFS; ++i; tile(TILESIZE)) {
-    if (i < NUM_DOFS) {
+  for (int i = 0; i < dofs; ++i; tile(TILESIZE)) {
+    if (i < dofs) {
       const int offset = offsets[i];
       const int nextOffset = offsets[i + 1];
       double dofValue = 0;
