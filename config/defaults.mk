@@ -152,7 +152,7 @@ GECKO_LIB = -L$(GECKO_DIR)/lib -lgecko
 #Acrotensor library configs
 ACROTENSOR_DIR = @MFEM_DIR@/../acrotensor
 ACROTENSOR_OPT = -I$(ACROTENSOR_DIR)/inc
-ACROTENSOR_LIB = -L$(ACROTENSOR_DIR)/lib -lacrotensor -lcuda -lnvrtc -lrt --linker-options="-rpath,/g/g13/fisher47/hasgpu/mfem/acrotensor/lib"
+ACROTENSOR_LIB = -L$(ACROTENSOR_DIR)/lib -lacrotensor -lcuda -lnvrtc -lrt
 
 # GnuTLS library configuration
 GNUTLS_OPT =

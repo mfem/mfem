@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
+#include "fespace.hpp"
 
 #ifdef MFEM_USE_ACROTENSOR
 #include "AcroTensor.hpp"
@@ -36,9 +37,11 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+#ifdef MFEM_USE_ACROTENSOR   
    virtual void TensorAssembleMatrices(FiniteElementSpace *fes,
                                        DenseTensor *element_matrices,
                                        bool use_gpu);
+#endif
 
    /** Compute the local matrix representation of a bilinear form
        a(u,v) defined on different trial (given by u) and test

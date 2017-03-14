@@ -743,11 +743,23 @@ void BilinearForm::ComputeElementMatricesAcroTensor()
    element_matrices = new DenseTensor(num_dofs_per_el, num_dofs_per_el,
                                       num_elements);
 
+   DenseTensor *tmp = NULL;
+   if (dbfi.Size() > 1)
+   {
+      tmp = new DenseTensor(num_dofs_per_el, num_dofs_per_el,
+                            num_elements);
+   }
+
    dbfi[0]->TensorAssembleMatrices(fes, element_matrices, acrotensor_gpu);
    for (int k = 1; k < dbfi.Size(); k++)
    {
-      dbfi[k]->TensorAssembleMatrices(*fes, element_matrices);
-      element_matrices += tmp;
+      dbfi[k]->TensorAssembleMatrices(fes, tmp, acrotensor_gpu);
+      element_matrices->Add(*tmp);
+   }
+
+   if (dbfi.Size() > 1)
+   {
+      delete tmp;
    }
 }
 #endif
