@@ -114,9 +114,9 @@ int main(int argc, char *argv[])
    //    - The test space, test_space, is an enriched space where the enrichment
    //      degree may depend on the spatial dimension of the domain, the type of
    //      the mesh and the trial space order.
-   int trial_order = order;
-   int trace_order = order - 1;
-   int test_order  = order; // reduced order, full order is (order + dim - 1)
+   unsigned int trial_order = order;
+   unsigned int trace_order = order - 1;
+   unsigned int test_order  = order; // reduced order, full order is (order + dim - 1)
    if (dim == 2 && (order%2 == 0 || (pmesh->MeshGenerator() & 2 && order > 1)))
    {
       test_order++;
