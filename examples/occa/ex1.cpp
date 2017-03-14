@@ -36,34 +36,26 @@
 //               optional connection to the GLVis tool for visualization.
 
 /*
-  |---------------------------|
-  |          Status           |
-  |---------------------------|
-  | C : CPU Kernel            |
-  | H : High-order GPU Kernel |
-  | L : Low-order GPU Kernel  |
-  |---------------------------|
-
-  |--------+------------------------+--------------|
-  | Status | Mesh                   | Element Type |
-  |--------+------------------------+--------------|
-  |        | inline-segment.mesh    | Segment?     |
-  | C      | star.mesh              | Square       |
-  | C      | square-disc-nurbs.mesh | Square       |
-  | C      | disc-nurbs.mesh        | Square       |
-  |        | star-surf.mesh         | Square       |
-  |        | mobius-strip.mesh      | Square       |
-  |        | amr-quad.mesh          | Square       |
-  | C,H    | fichera.mesh           | Cube         |
-  | C      | pipe-nurbs.mesh        | Cube         |
-  |        | amr-hex.mesh           | Cube         |
-  |        | fichera-amr.mesh       | Cube         |
-  |        | square-disc.mesh       | Triangle     |
-  |        | square-disc-p2.vtk     | Triangle     |
-  |        | square-disc-p3.mesh    | Triangle     |
-  |        | square-disc-surf.mesh  | Triangle     |
-  |        | escher.mesh            | Tet          |
-  |--------+------------------------+--------------|
+  |-----+-----+------------------------+--------------+------------|
+  | CPU | GPU | Mesh                   | Element Type | Notes      |
+  |-----+-----+------------------------+--------------+------------|
+  | x   | x   | inline-segment.mesh    | Segment      |            |
+  | x   |     | star.mesh              | Square       |            |
+  | x   |     | square-disc-nurbs.mesh | Square       |            |
+  | x   |     | disc-nurbs.mesh        | Square       |            |
+  |     |     | star-surf.mesh         | Square       | 3D Surface |
+  |     |     | mobius-strip.mesh      | Square       | 3D Surface |
+  |     |     | amr-quad.mesh          | Square       | AMR        |
+  | x   | x   | fichera.mesh           | Cube         |            |
+  | x   | x   | pipe-nurbs.mesh        | Cube         |            |
+  |     |     | amr-hex.mesh           | Cube         | AMR        |
+  |     |     | fichera-amr.mesh       | Cube         | AMR        |
+  |     |     | square-disc.mesh       | Triangle     |            |
+  |     |     | square-disc-p2.vtk     | Triangle     |            |
+  |     |     | square-disc-p3.mesh    | Triangle     |            |
+  |     |     | square-disc-surf.mesh  | Triangle     |            |
+  |     |     | escher.mesh            | Tet          |            |
+  |-----+-----+------------------------+--------------+------------|
 */
 
 #include <fstream>

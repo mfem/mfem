@@ -34,11 +34,21 @@ namespace mfem {
     OccaDofQuadMaps(const OccaDofQuadMaps &maps);
     OccaDofQuadMaps& operator = (const OccaDofQuadMaps &maps);
 
-    static OccaDofQuadMaps& Get(occa::device device,
-                                const OccaBilinearForm &bilinearForm,
-                                const H1_TensorBasisElement &el,
-                                const IntegrationRule &ir);
+    static OccaDofQuadMaps& GetTensorMaps(occa::device device,
+                                          const OccaBilinearForm &bilinearForm,
+                                          const H1_TensorBasisElement &el,
+                                          const IntegrationRule &ir);
   };
+
+  //---[ Define Methods ]---------------
+  std::string stringWithDim(const std::string &s, const int dim);
+  int closestWarpBatch(const int multiple, const int maxSize);
+
+  occa::properties getTensorProperties();
+
+  occa::memory getJacobian(occa::device device,
+                           const OccaBilinearForm &bilinearForm,
+                           const IntegrationRule &ir);
 
   //---[ Base Integrator ]--------------
   class OccaIntegrator {

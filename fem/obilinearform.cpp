@@ -51,7 +51,6 @@ namespace mfem {
   }
 
   void OccaBilinearForm::SetupKernels() {
-    baseKernelProps["defines/ELEMENT_BATCH"] = 1;
     baseKernelProps["defines/NUM_DOFS"] = GetNDofs();
     baseKernelProps["defines/NUM_VDIM"] = GetVDim();
 

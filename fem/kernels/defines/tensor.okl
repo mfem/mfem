@@ -33,6 +33,8 @@
 #  define USING_HI_ORDER  1
 #endif
 
+#define M1_ELEMENT_BATCHES (M1_OUTER_ELEMENT_BATCH * M1_INNER_ELEMENT_BATCH)
+
 typedef double* DofToQuad_t @dim(NUM_QUAD_1D, NUM_DOFS_1D);
 typedef double* QuadToDof_t @dim(NUM_DOFS_1D, NUM_QUAD_1D);
 

@@ -11,19 +11,17 @@
 
 #include "occa://mfem/fem/defines.okl"
 
-// Still testing 1D and 2D
-#if 0
 //---[ 1D ]-----------------------------
 kernel void Assemble1D(const int numElements,
                        const double *quadWeights,
                        const Jacobian1D_t J,
                        const Coeff_t coeff,
                        SymmOperator1D_t oper) {
-  for (int eOff = 0; eOff < numElements; eOff += ELEMENT_BATCH; outer) {
-    for (int e = eOff; e < (eOff + ELEMENT_BATCH); ++e; inner) {
+  for (int eOff = 0; eOff < numElements; eOff += A1_ELEMENT_BATCH; outer) {
+    for (int e = eOff; e < (eOff + A1_ELEMENT_BATCH); ++e; inner) {
       if (e < numElements) {
         for (int q = 0; q < NUM_QUAD_1D; ++q; inner) {
-          oper(e, q, 0) = quadWeights[q] * COEFF(e, q) / J(q, e);
+          oper(q, e) = quadWeights[q] * COEFF(q, e) / J(q, e);
         }
       }
     }
@@ -38,26 +36,30 @@ kernel void Mult1D(const int numElements,
                    const SymmOperator1D_t oper,
                    Local1D_t restrict sol) {
   // Iterate over elements
-  for (int eOff = 0; eOff < numElements; eOff += (256 * ELEMENT_BATCH); outer) {
+  for (int eOff = 0; eOff < numElements; eOff += M1_ELEMENT_BATCHES; outer) {
     shared double s_dofToQuadD[NUM_QUAD_DOFS_1D] @dim(NUM_QUAD_1D, NUM_DOFS_1D);
     shared double s_quadToDofD[NUM_QUAD_DOFS_1D] @dim(NUM_DOFS_1D, NUM_QUAD_1D);
 
-    for (int el = 0; el < 256; ++el; inner) {
-      for (int q = el; q < NUM_QUAD_DOFS_1D; q += 256) {
+    exclusive double grad[NUM_QUAD_1D];
+
+    for (int el = 0; el < M1_INNER_ELEMENT_BATCH; ++el; inner) {
+      for (int i = el; i < NUM_QUAD_DOFS_1D; i += M1_INNER_ELEMENT_BATCH) {
         s_dofToQuadD[i] = dofToQuadD[i];
         s_quadToDofD[i] = quadToDofD[i];
       }
+    }
 
-      for (int b = 0; b < ELEMENT_BATCH; +=b) {
-        const int e = eOff + b*256 + el;
+    barrier(localMemFence); // [MISSING] Why is this barrier not being auto-inserted?
+
+    for (int b = 0; b < M1_OUTER_ELEMENT_BATCH; ++b) {
+      for (int el = 0; el < M1_INNER_ELEMENT_BATCH; ++el; inner) {
+        const int e = eOff + b*M1_INNER_ELEMENT_BATCH + el;
         if (e < numElements) {
-          double grad[NUM_QUAD_1D];
           for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
             grad[qx] = 0;
           }
           for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
             const double s = sol(dx, e);
-            sol(dx, e) = 0;
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
               grad[qx] += s * s_dofToQuadD(qx, dx);
             }
@@ -65,11 +67,12 @@ kernel void Mult1D(const int numElements,
           for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
             grad[qx] *= oper(qx, e);
           }
-          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-            const double gradX = grad[qx];
-            for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-              sol(dx, e) += gradX * s_quadToDofD(dx, qx);
+          for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+            double s = 0;
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+              s += grad[qx] * s_quadToDofD(dx, qx);
             }
+            sol(dx, e) = s;
           }
         }
       }
@@ -80,24 +83,25 @@ kernel void Mult1D(const int numElements,
 
 
 //---[ 2D ]-----------------------------
+#if 0
 kernel void Assemble2D(const int numElements,
                        const double *quadWeights,
                        const Jacobian2D_t J,
                        const Coeff_t coeff,
                        SymmOperator2D_t oper) {
-  for (int eOff = 0; eOff < numElements; eOff += ELEMENT_BATCH; outer) {
-    for (int e = eOff; e < (eOff + ELEMENT_BATCH); ++e; inner) {
+  for (int eOff = 0; eOff < numElements; eOff += A2_ELEMENT_BATCH; outer) {
+    for (int e = eOff; e < (eOff + A2_ELEMENT_BATCH); ++e; inner) {
       if (e < numElements) {
-        for (int qOff = 0; qOff < QUAD_BATCH; ++qOff; inner) {
-          for (int q = qOff; q < NUM_QUAD_2D; q += QUAD_BATCH) {
+        for (int qOff = 0; qOff < A2_QUAD_BATCH; ++qOff; inner) {
+          for (int q = qOff; q < NUM_QUAD_2D; q += A2_QUAD_BATCH) {
             const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e);
             const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e);
 
-            const double c_detJ = quadWeights[q] * COEFF(e, q) / ((J11 * J22) - (J21 * J12));
+            const double c_detJ = quadWeights[q] * COEFF(q, e) / ((J11 * J22) - (J21 * J12));
 
-            oper(e, q, 0) =  c_detJ * (J12*J12 + J22*J22); // (1,1)
-            oper(e, q, 1) = -c_detJ * (J12*J11 + J22*J21); // (1,2) + (2,1)
-            oper(e, q, 2) =  c_detJ * (J11*J11 + J21*J21); // (2,2)
+            oper(0, q, e) =  c_detJ * (J12*J12 + J22*J22); // (1,1)
+            oper(1, q, e) = -c_detJ * (J12*J11 + J22*J21); // (1,2) + (2,1)
+            oper(2, q, e) =  c_detJ * (J11*J11 + J21*J21); // (2,2)
           }
         }
       }
@@ -197,13 +201,15 @@ kernel void Mult2D(const int numElements,
                     (xDy * s_quadToDof(dx, qx)));
             }
             sol(dx, dy, e) = s;
+          }
         }
       }
     }
   }
 }
-//======================================
 #endif
+//======================================
+
 
 //---[ 3D ]-----------------------------
 kernel void Assemble3D(const int numElements,
@@ -211,11 +217,11 @@ kernel void Assemble3D(const int numElements,
                        const Jacobian3D_t J,
                        const Coeff_t coeff,
                        SymmOperator3D_t oper) {
-  for (int eOff = 0; eOff < numElements; eOff += ELEMENT_BATCH; outer) {
-    for (int e = eOff; e < (eOff + ELEMENT_BATCH); ++e; inner) {
+  for (int eOff = 0; eOff < numElements; eOff += A3_ELEMENT_BATCH; outer) {
+    for (int e = eOff; e < (eOff + A3_ELEMENT_BATCH); ++e; inner) {
       if (e < numElements) {
-        for (int qOff = 0; qOff < QUAD_BATCH; ++qOff; inner) {
-          for (int q = qOff; q < NUM_QUAD_3D; q += QUAD_BATCH) {
+        for (int qOff = 0; qOff < A3_QUAD_BATCH; ++qOff; inner) {
+          for (int q = qOff; q < NUM_QUAD_3D; q += A3_QUAD_BATCH) {
             const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e), J13 = J(2, 0, q, e);
             const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e), J23 = J(2, 1, q, e);
             const double J31 = J(0, 2, q, e), J32 = J(1, 2, q, e), J33 = J(2, 2, q, e);
