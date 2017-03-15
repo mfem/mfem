@@ -29,6 +29,7 @@ void BilinearFormIntegrator::AssembleElementMatrix (
                "   is not implemented fot this class.");
 }
 
+#ifdef MFEM_USE_ACROTENSOR
 void BilinearFormIntegrator::TensorAssembleMatrices (
    FiniteElementSpace *fes,
    DenseTensor *element_matrices,
@@ -37,6 +38,7 @@ void BilinearFormIntegrator::TensorAssembleMatrices (
    mfem_error ("BilinearFormIntegrator::TensorAssembleElementMatrices (...)\n"
                "   is not implemented fot this class.");
 }
+#endif
 
 void BilinearFormIntegrator::AssembleElementMatrix2 (
    const FiniteElement &el1, const FiniteElement &el2,
