@@ -52,7 +52,8 @@ endif
 #       variables, like MFEM_FLAGS, defined in config.mk.
 
 # Command used to launch MPI jobs.
-MFEM_MPIRUN_CMD      = mpirun -np
+MFEM_MPIEXEC	   	= mpirun
+MFEM_MPIEXEC_NUMPROC_FLAG = -np
 
 # MFEM configuration options: YES/NO values, which are exported to config.mk and
 # config.hpp. The values below are the defaults for generating the actual values

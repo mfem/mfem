@@ -563,10 +563,13 @@ Specifying a MPI job launcher
 ==================================
 By default, MFEM will use 'mpirun -np#' to launch any of it's parallel tests or
 miniapps, where # is the number of mpi tasks.  An alternate launcher can be
-provided by setting the MFEM_MPIRUN_CMD config variable.
+provided by setting the MFEM_MPIEXEC and MFEM_MPIEXEC_NUMPROC_FLAG config
+variables.
 
 MFEM will expect the launcher command, plus the command line option to allow it
 to specify a number of mpi tasks.
 
-MFEM_MPIRUN_CMD = mpirun -np  # default
-MFEM_MPIRUN_CMD = srun -n # example for platforms using SLURM
+MFEM_MPIEXEC = mpirun # default
+MFEM_MPIEXEC_NUMPROC_FLAG = -np # default
+MFEM_MPIEXEC = srun # example for platforms using SLURM
+MFEM_MPIEXEC_NUMPROC_FLAG = -n # example for platforms using SLURM

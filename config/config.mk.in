@@ -10,7 +10,8 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 # MPI job launcher to use.
-MFEM_MPIRUN_CMD		= @MFEM_MPIRUN_CMD@
+MFEM_MPIEXEC	   	= @MFEM_MPIEXEC@
+MFEM_MPIEXEC_NUMPROC_FLAG = @MFEM_MPIEXEC_NUMPROC_FLAG@
 
 # Variables corresponding to defines in config.hpp (YES, NO, or value)
 MFEM_USE_MPI         = @MFEM_USE_MPI@
