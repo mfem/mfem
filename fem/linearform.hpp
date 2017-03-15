@@ -14,7 +14,7 @@
 
 #include "../config/config.hpp"
 #include "lininteg.hpp"
-#include "fespace.hpp"
+#include "gridfunc.hpp"
 
 namespace mfem
 {
@@ -67,6 +67,13 @@ public:
    void Update(FiniteElementSpace *f) { fes = f; SetSize(f->GetVSize()); }
 
    void Update(FiniteElementSpace *f, Vector &v, int v_offset);
+
+   /// Return the action of the LinearForm as a linear mapping.
+   /** Linear forms are linear functionals which map GridFunctions to
+       the real numbers.  This method performs this mapping which in
+       this case is equivalent as an inner product of the LinearForm
+       and GridFunction. */
+   double operator()(const GridFunction &gf) const { return (*this)*gf; }
 
    /// Destroys linear form.
    ~LinearForm();
