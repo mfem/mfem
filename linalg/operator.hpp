@@ -70,6 +70,10 @@ public:
    { mfem_error("Operator::MultTranspose() is not overloaded!"); }
 #endif
 
+  inline virtual Operator* CreateRAPOperator(const Operator &Rt,
+                                             Operator &A,
+                                             const Operator &P);
+
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
    virtual Operator &GetGradient(const Vector &x) const
@@ -465,6 +469,12 @@ public:
    virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
 };
 
+Operator* Operator::CreateRAPOperator(const Operator &Rt,
+                                      Operator &A,
+                                      const Operator &P) {
+  return new RAPOperator(Rt, A, P);
+}
+
 template <class TVector>
 void Operator::TFormLinearSystem(const Array<int> &ess_tdof_list,
                                  TVector &x, TVector &b,
@@ -482,7 +492,7 @@ void Operator::TFormLinearSystem(const Array<int> &ess_tdof_list,
       P->MultTranspose(b, B);
       X.SetSize(R->Height());
       R->Mult(x, X);
-      rap = new RAPOperator(*P, *this, *P);
+      rap = CreateRAPOperator(*P, *this, *P);
     }
   else
     {

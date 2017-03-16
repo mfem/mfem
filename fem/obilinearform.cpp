@@ -15,6 +15,7 @@
 
 #include "obilinearform.hpp"
 #include "obilininteg.hpp"
+#include "ointerpolation.hpp"
 
 #include "tfe.hpp"
 
@@ -24,15 +25,15 @@ namespace mfem {
 
   OccaBilinearForm::OccaBilinearForm(FiniteElementSpace *f) :
     Operator(f->GetVSize()) {
-    init(occa::currentDevice(), f);
+    Init(occa::currentDevice(), f);
   }
 
   OccaBilinearForm::OccaBilinearForm(occa::device device_, FiniteElementSpace *f) :
     Operator(f->GetVSize()) {
-    init(device, f);
+    Init(device, f);
   }
 
-  void OccaBilinearForm::init(occa::device device_, FiniteElementSpace *f) {
+  void OccaBilinearForm::Init(occa::device device_, FiniteElementSpace *f) {
     fes = f;
     mesh = fes->GetMesh();
     device = device_;
@@ -40,6 +41,7 @@ namespace mfem {
     SetupIntegratorBuilderMap();
     SetupKernels();
     SetupIntegratorData();
+    SetupInterpolationData();
   }
 
   void OccaBilinearForm::SetupIntegratorBuilderMap() {
@@ -84,7 +86,7 @@ namespace mfem {
                  " H1_HexahedronElement.");
     }
 
-    const Table &e2dMap = fes->GetElementToDofTable();
+    const int *elementMap = fes->GetElementToDofTable().GetJ();
     const int *dofMap = el->GetDofMap().GetData();
 
     const int elements = GetNE();
@@ -101,7 +103,6 @@ namespace mfem {
     }
 
     for (int e = 0; e < elements; ++e) {
-      const int *elementMap = e2dMap.GetJ();
       for (int d = 0; d < ldofs; ++d) {
         const int gid = elementMap[ldofs*e + d];
         ++offsets[gid + 1];
@@ -114,7 +115,6 @@ namespace mfem {
     // For each global dof, fill in all local nodes that point
     //   to it
     for (int e = 0; e < elements; ++e) {
-      const int *elementMap = e2dMap.GetJ();
       for (int d = 0; d < ldofs; ++d) {
         const int gid = elementMap[ldofs*e + dofMap[d]];
         const int lid = ldofs*e + d;
@@ -142,7 +142,14 @@ namespace mfem {
     localX.SetSize(device, elements * ldofs);
   }
 
-  occa::device OccaBilinearForm::getDevice() {
+  void OccaBilinearForm::SetupInterpolationData() {
+    CreateRAPOperators(device,
+                       fes->GetConformingRestriction(),
+                       fes->GetConformingProlongation(),
+                       restrictionOp, prolongationOp);
+  }
+
+  occa::device OccaBilinearForm::GetDevice() {
     return device;
   }
 
@@ -220,18 +227,12 @@ namespace mfem {
 
   // Get the finite element space prolongation matrix
   const Operator* OccaBilinearForm::GetProlongation() const {
-    if (fes->GetConformingProlongation() != NULL) {
-      mfem_error("occa::OccaBilinearForm::GetProlongation() is not overloaded!");
-    }
-    return NULL;
+    return prolongationOp;
   }
 
   // Get the finite element space restriction matrix
   const Operator* OccaBilinearForm::GetRestriction() const {
-    if (fes->GetConformingRestriction() != NULL) {
-      mfem_error("occa::OccaBilinearForm::GetRestriction() is not overloaded!");
-    }
-    return NULL;
+    return restrictionOp;
   }
 
   // Map the global dofs to local nodes
@@ -281,6 +282,13 @@ namespace mfem {
   // Matrix transpose vector multiplication.
   void OccaBilinearForm::MultTranspose(const OccaVector &x, OccaVector &y) const {
     mfem_error("occa::OccaBilinearForm::MultTranspose() is not overloaded!");
+  }
+
+  Operator* OccaBilinearForm::CreateRAPOperator(const Operator &Rt,
+                                                Operator &A,
+                                                const Operator &P) {
+    // [MISSING] Return OccaRAPOperator
+    return &A;
   }
 
 

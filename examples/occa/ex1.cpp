@@ -40,9 +40,9 @@
   | CPU | GPU | Mesh                   | Element Type | Notes      |
   |-----+-----+------------------------+--------------+------------|
   | x   | x   | inline-segment.mesh    | Segment      |            |
-  | x   |     | star.mesh              | Square       |            |
-  | x   |     | square-disc-nurbs.mesh | Square       |            |
-  | x   |     | disc-nurbs.mesh        | Square       |            |
+  | x   | x   | star.mesh              | Square       |            |
+  | x   | x   | square-disc-nurbs.mesh | Square       |            |
+  | x   | x   | disc-nurbs.mesh        | Square       |            |
   |     |     | star-surf.mesh         | Square       | 3D Surface |
   |     |     | mobius-strip.mesh      | Square       | 3D Surface |
   |     |     | amr-quad.mesh          | Square       | AMR        |
@@ -56,6 +56,11 @@
   |     |     | square-disc-surf.mesh  | Triangle     |            |
   |     |     | escher.mesh            | Tet          |            |
   |-----+-----+------------------------+--------------+------------|
+
+  Coeff: Const, PW, Function, Grid (transformation info)
+
+  Parallel -> ex16 (time)
+  -> 2D -> AMR -> Parallel -> Triangle -> Tet
 */
 
 #include <fstream>
@@ -261,7 +266,7 @@ int main(int argc, char *argv[])
   cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
   cout << "Running " << (pc_choice == NONE ? "CG" : "PCG")
-       << " ..." << flush;
+       << " ...\n" << flush;
   tic_toc.Clear();
   tic_toc.Start();
   // Solve with CG or PCG, depending if the matrix A_pc is available
@@ -273,7 +278,7 @@ int main(int argc, char *argv[])
     }
   else
     {
-      CG(*A, B, X, 1, 500, 1e-12, 0.0);
+      CG(*A, B, X, 1, 200, 1e-12, 0.0);
     }
   occa::finish();
   tic_toc.Stop();

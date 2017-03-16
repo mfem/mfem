@@ -23,7 +23,6 @@
 #include "bilinearform.hpp"
 
 #include "occa.hpp"
-#include "occa/array.hpp"
 
 namespace mfem {
   enum OccaIntegratorType {
@@ -56,6 +55,7 @@ namespace mfem {
 
     // Sparse storage for the global dof -> local node mapping
     occa::memory globalToLocalOffsets, globalToLocalIndices;
+
     // The input vector is mapped to local nodes for easy and efficient operations
     // The size is: (number of elements) * (nodes in element)
     mutable OccaVector localX;
@@ -63,11 +63,13 @@ namespace mfem {
     // Kernels to do the global -> local and local -> global mappings
     occa::kernel VectorExtractKernel, VectorAssembleKernel;
 
+    Operator *restrictionOp, *prolongationOp;
+
   public:
     OccaBilinearForm(FiniteElementSpace *f);
     OccaBilinearForm(occa::device device_, FiniteElementSpace *f);
 
-    void init(occa::device device_, FiniteElementSpace *f);
+    void Init(occa::device device_, FiniteElementSpace *f);
 
     // Setup the kernel builder collection
     void SetupIntegratorBuilderMap();
@@ -78,7 +80,10 @@ namespace mfem {
     // Setup device data needed for applying integrators
     void SetupIntegratorData();
 
-    occa::device getDevice();
+    // Setup prolongation and restriction operators if needed
+    void SetupInterpolationData();
+
+    occa::device GetDevice();
 
     // Useful mesh Information
     int BaseGeom() const;
@@ -131,6 +136,10 @@ namespace mfem {
 
     // Matrix vector multiplication.
     virtual void MultTranspose(const OccaVector &x, OccaVector &y) const;
+
+    virtual Operator* CreateRAPOperator(const Operator &Rt,
+                                        Operator &A,
+                                        const Operator &P);
 
     void FormLinearSystem(const Array<int> &ess_tdof_list,
                           OccaVector &x, OccaVector &b,

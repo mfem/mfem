@@ -187,6 +187,7 @@ namespace mfem {
     // 2D Defines
     props["defines/A2_ELEMENT_BATCH"] = 1;
     props["defines/A2_QUAD_BATCH"]    = 1;
+    props["defines/M2_ELEMENT_BATCH"] = 32;
 
     // 3D Defines
     const int a3QuadBatch = closestWarpBatch(quadND, 2048);
@@ -243,7 +244,7 @@ namespace mfem {
                                                  const OccaIntegratorType itype_) {
     OccaIntegrator *newIntegrator = CreateInstance();
 
-    newIntegrator->device = bilinearForm.getDevice();
+    newIntegrator->device = bilinearForm.GetDevice();
 
     newIntegrator->integrator = &integrator_;
     newIntegrator->props = props_;
