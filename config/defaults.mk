@@ -51,7 +51,7 @@ endif
 # Note: symbols of the form @VAR@ will be replaced by $(VAR) in derived
 #       variables, like MFEM_FLAGS, defined in config.mk.
 
-# Command used to launch MPI jobs.
+# Command used to launch MPI jobs
 MFEM_MPIEXEC	   	= mpirun
 MFEM_MPIEXEC_NUMPROC_FLAG = -np
 

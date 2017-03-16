@@ -136,6 +136,11 @@ check the results from all the serial/parallel MFEM examples and miniapps use:
 
    make test
 
+Note that by default MFEM uses "mpirun -np" in its test runs (this is also what
+is used in the sample runs of its examples and miniapps). The MPI launcher can
+be changed by the user as described in the "Specifying a MPI job launcher"
+section at the end of this file.
+
 Running all the tests may take a while. Implementation details about the check
 and test targets can be found in the top-level makefile and the config/test.mk
 file.
@@ -559,15 +564,16 @@ The file config/config.hpp can then be edited to enable desired options.  The
 MFEM library is simply a combination of all object files obtained by compiling
 the .cpp source files in the source directories: general, linalg, mesh, and fem.
 
+
 Specifying a MPI job launcher
-==================================
-By default, MFEM will use 'mpirun -np#' to launch any of it's parallel tests or
-miniapps, where # is the number of mpi tasks.  An alternate launcher can be
+=============================
+By default, MFEM will use 'mpirun -np #' to launch any of its parallel tests or
+miniapps, where # is the number of MPI tasks.  An alternate MPI launcher can be
 provided by setting the MFEM_MPIEXEC and MFEM_MPIEXEC_NUMPROC_FLAG config
 variables.
 
 MFEM will expect the launcher command, plus the command line option to allow it
-to specify a number of mpi tasks.
+to specify a number of MPI tasks.
 
 MFEM_MPIEXEC = mpirun # default
 MFEM_MPIEXEC_NUMPROC_FLAG = -np # default
