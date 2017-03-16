@@ -44,10 +44,6 @@ endif
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
-tensor-test: $(MFEM_LIB_FILE) tensor-test.cpp
-	$(MFEM_CXX) $(MFEM_CXXFLAGS) $(MFEM_INCFLAGS) -c tensor-test.cpp -o tensor-test.o
-	$(MFEM_CXX) tensor-test.o $(MFEM_LIBS) $(MFEM_INCFLAGS) -o tensor-test
-
 all: $(EXAMPLES)
 
 MFEM_TESTS = EXAMPLES
