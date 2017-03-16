@@ -22,6 +22,11 @@ void LinearFormIntegrator::AssembleRHSElementVect(
    mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
 }
 
+void LinearFormIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, Vector &elvect)
+{
+   mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
+}
 
 void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
                                                 ElementTransformation &Tr,
@@ -690,5 +695,215 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       }
    }
 }
+
+
+
+void DGRiemIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   mfem_error("DGElasticityDirichletLFIntegrator::AssembleRHSElementVect");
+}
+
+void DGRiemIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   MFEM_ASSERT(Tr.Elem2No < 0, "interior boundary is not supported");
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape;
+   DenseMatrix dshape;
+   DenseMatrix adjJ;
+   DenseMatrix dshape_ps;
+   Vector nor;
+   Vector dshape_dn;
+   Vector dshape_du;
+   Vector u_dir;
+#endif
+
+   const int dim = el.GetDim();
+   const int ndofs = el.GetDof();
+   const int nvdofs = dim*ndofs;
+
+   elvect.SetSize(nvdofs);
+   elvect = 0.0;
+
+   adjJ.SetSize(dim);
+   shape.SetSize(ndofs);
+   dshape.SetSize(ndofs, dim);
+   dshape_ps.SetSize(ndofs, dim);
+   nor.SetSize(dim);
+   dshape_dn.SetSize(ndofs);
+   dshape_du.SetSize(ndofs);
+   u_dir.SetSize(dim);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      const int order = 2*el.GetOrder(); // <-----
+      ir = &IntRules.Get(Tr.FaceGeom, order);
+   }
+
+   for (int pi = 0; pi < ir->GetNPoints(); ++pi)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(pi);
+      IntegrationPoint eip1;
+      IntegrationPoint eip2;
+
+      Tr.Face->SetIntPoint(&ip);
+
+      Tr.Loc1.Transform(ip, eip1);
+      Tr.Elem1->SetIntPoint(&eip1);
+
+      Tr.Loc2.Transform(ip, eip2);
+      Tr.Elem2->SetIntPoint(&eip2);
+
+      Vector u1_dir(dim), u2_dir(dim);
+
+      // Evaluate common value at face 
+      uD.Eval(u1_dir, *Tr.Elem1, eip1);
+      uD.Eval(u2_dir, *Tr.Elem2, eip2);
+
+      add(u1_dir, u2_dir, u_dir);
+      u_dir.Set(0.5, u_dir);
+
+      el.CalcShape(eip1, shape);
+      el.CalcDShape(eip1, dshape);
+
+      CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
+      Mult(dshape, adjJ, dshape_ps);
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Face->Jacobian(), nor);
+      }
+
+      const double w = ip.weight / Tr.Elem1->Weight();
+      dshape_ps.Mult(nor, dshape_dn);
+      dshape_ps.Mult(u_dir, dshape_du);
+
+      const double t1 = alpha * w * (u_dir*nor);
+      for (int im = 0, i = 0; im < dim; ++im)
+      {
+         for (int idof = 0; idof < ndofs; ++idof, ++i)
+         {
+            elvect(i) += t1*dshape_ps(idof,im) ;
+         }
+      }
+   }
+}
+
+
+
+void DGRiemIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, Vector &elvect)
+{
+   int dim, ndof1, ndof2;
+   double w;
+
+   Vector shape, dshape_dn, nor, nh, ni;
+   DenseMatrix dshape, mq, adjJ;
+
+   dim = el1.GetDim();
+   ndof1 = el1.GetDof();
+   ndof2 = el2.GetDof();
+
+   nor.SetSize(dim);
+   nh.SetSize(dim);
+   ni.SetSize(dim);
+   adjJ.SetSize(dim);
+
+   shape.SetSize(ndof1);
+   dshape.SetSize(ndof1, dim);
+   dshape_dn.SetSize(ndof1);
+
+   elvect.SetSize(ndof1 + ndof2);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // a simple choice for the integration order; is this OK?
+      int order = 2*el1.GetOrder();
+      ir = &IntRules.Get(Tr.FaceGeom, order);
+   }
+
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+      IntegrationPoint eip1;
+      IntegrationPoint eip2;
+
+      Tr.Loc1.Transform(ip, eip1);
+      Tr.Face->SetIntPoint(&ip);
+      
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Face->Jacobian(), nor);
+      }
+
+      el1.CalcShape(eip1, shape);
+      el1.CalcDShape(eip1, dshape);
+      Tr.Elem1->SetIntPoint(&eip1);
+
+      Vector u1_dir(dim);
+      // compute uD through the face transformation
+      uD.Eval(u1_dir, *Tr.Elem1, eip1);
+
+      Tr.Loc2.Transform(ip, eip2);
+      Tr.Elem2->SetIntPoint(&eip2);
+
+      Vector u2_dir(dim);
+      // compute uD through the face transformation
+      uD.Eval(u2_dir, *Tr.Elem2, eip2);
+
+      u_dir.SetSize(dim);
+      add(u1_dir, u2_dir, u_dir);
+      u_dir.Set(0.5, u_dir);
+
+//      std::cout << eip1.x << '\t' << u1_dir[0] << '\t' << u2_dir[0] << '\t' << u_dir[0] << std::endl;
+//      std::cout << eip1.x << '\t' << u_dir[0] << std::endl;
+//      std::cout << eip1.x << '\t' << shape[0] << '\t' << shape[1] << '\t' << shape[2] << '\t' << shape[3]<< std::endl;
+
+      subtract(u_dir, u1_dir, u1_dir);
+      w = ip.weight * (u1_dir * nor); 
+
+//      std::cout << eip1.x << '\t' << w << std::endl;
+//      std::cout << eip1.x << '\t' << u1_dir[0] << '\t' << u2_dir[0] << '\t' << u_dir[0]<< std::endl;
+
+      for (int i =0; i < ndof1; i++)
+      {
+          elvect(i) += w*shape(i);
+      }
+
+//      std::cout << Tr.Elem1No << '\t' << elvect[0] << '\t' << elvect[1] << '\t' << elvect[2] << '\t' << elvect[3]<< std::endl;
+
+      shape.SetSize(ndof2);
+      dshape.SetSize(ndof2, dim);
+      dshape_dn.SetSize(ndof2);
+
+      el2.CalcShape(eip2, shape);
+
+      subtract(u_dir, u2_dir, u2_dir);
+      w = ip.weight * (u2_dir * nor) ;
+
+      for (int i =ndof1; i < ndof1 + ndof2; i++)
+      {
+          elvect(i) -= w*shape(i - ndof1); 
+      }
+
+//      std::cout << Tr.Elem2No << '\t' << elvect[4] << '\t' << elvect[5] << '\t' << elvect[6] << '\t' << elvect[7]<< std::endl;
+   }
+}
+
+
+
 
 }

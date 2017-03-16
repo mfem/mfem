@@ -36,6 +36,9 @@ private:
    Array<LinearFormIntegrator*> flfi;
    Array<Array<int>*>           flfi_marker;
 
+   /// Set of Interior Face Integrators to be applied.
+   Array<LinearFormIntegrator*> ilfi;
+
 public:
    /// Creates linear form associated with FE space *f.
    LinearForm (FiniteElementSpace * f) : Vector (f -> GetVSize())
@@ -50,6 +53,9 @@ public:
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator (LinearFormIntegrator * lfi);
+
+   /// Adds new Interior face Integrator.
+   void AddFaceIntegrator (LinearFormIntegrator * lfi);
 
    /// Adds new Boundary Face Integrator.
    void AddBdrFaceIntegrator (LinearFormIntegrator * lfi);
