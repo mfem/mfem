@@ -59,13 +59,13 @@ include $(TEST_MK)
 
 # Testing: Specific execution options
 volta-test-par: volta
-	@$(call mfem-test,$<, $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NUMPROC_FLAG) 4, Electromagnetic miniapp,\
+	@$(call mfem-test,$<, $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4, Electromagnetic miniapp,\
 	-maxit 2 -dbcs 1 -dbcg -ds '0.0 0.0 0.0 0.2 8.0')
 tesla-test-par: tesla
-	@$(call mfem-test,$<, $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NUMPROC_FLAG) 4, Electromagnetic miniapp,\
+	@$(call mfem-test,$<, $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4, Electromagnetic miniapp,\
 	-maxit 2 -cr '0 0 -0.2 0 0 0.2 0.2 0.4 1')
 joule-test-par: joule
-	@$(call mfem-test,$<, $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NUMPROC_FLAG) 4, Electromagnetic miniapp,\
+	@$(call mfem-test,$<, $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4, Electromagnetic miniapp,\
 	-p rod -tf 3 -m $(SRC)cylinder-hex.mesh)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk

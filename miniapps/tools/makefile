@@ -57,7 +57,7 @@ include $(TEST_MK)
 
 # Testing: Parallel vs. serial runs
 %-test-par: %
-	@$(call mfem-test,$<, $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NUMPROC_FLAG) 4, Tools miniapp)
+	@$(call mfem-test,$<, $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4, Tools miniapp)
 %-test-seq: %
 	@$(call mfem-test,$<,, Tools miniapp)
 
