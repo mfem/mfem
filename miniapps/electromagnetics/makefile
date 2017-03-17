@@ -58,14 +58,15 @@ MFEM_TESTS = MINIAPPS
 include $(TEST_MK)
 
 # Testing: Specific execution options
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4
 volta-test-par: volta
-	@$(call mfem-test,$<, $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4, Electromagnetic miniapp,\
+	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
 	-maxit 2 -dbcs 1 -dbcg -ds '0.0 0.0 0.0 0.2 8.0')
 tesla-test-par: tesla
-	@$(call mfem-test,$<, $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4, Electromagnetic miniapp,\
+	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
 	-maxit 2 -cr '0 0 -0.2 0 0 0.2 0.2 0.4 1')
 joule-test-par: joule
-	@$(call mfem-test,$<, $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4, Electromagnetic miniapp,\
+	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
 	-p rod -tf 3 -m $(SRC)cylinder-hex.mesh)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
