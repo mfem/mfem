@@ -12,8 +12,8 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_OCCA
-#  ifndef MFEM_OCCABILININTEG
-#  define MFEM_OCCABILININTEG
+#  ifndef MFEM_OCCA_BILININTEG
+#  define MFEM_OCCA_BILININTEG
 
 #include "obilinearform.hpp"
 

@@ -22,14 +22,12 @@ namespace mfem {
 
   /// @brief Creates vector of size s using the current OCCA device
   /// @warning Entries are not initialized to zero!
-  OccaVector::OccaVector(const int64_t size) :
-    size_(0) {
+  OccaVector::OccaVector(const int64_t size) {
     SetSize(size);
   }
 
   /// Copy constructor.
-  OccaVector::OccaVector(const OccaVector &other) :
-    size_(0) {
+  OccaVector::OccaVector(const OccaVector &other) {
     const int entries = other.Size();
     SetSize(other.data.getDevice(), entries);
     occa::memcpy(data, other.data, entries * sizeof(double));
@@ -37,20 +35,17 @@ namespace mfem {
 
   /// @brief Creates vector of size s using the default OCCA device
   /// @warning Entries are not initialized to zero!
-  OccaVector::OccaVector(occa::device device, const int64_t size) :
-    size_(0) {
+  OccaVector::OccaVector(occa::device device, const int64_t size) {
     SetSize(device, size);
   }
 
   /// Creates vector based on Vector using the current OCCA device
-  OccaVector::OccaVector(const Vector &v) :
-    size_(0) {
+  OccaVector::OccaVector(const Vector &v) {
     SetSize(v.Size(), v.GetData());
   }
 
   /// Creates vector based on Vector using the passed OCCA device
-  OccaVector::OccaVector(occa::device device, const Vector &v) :
-    size_(0) {
+  OccaVector::OccaVector(occa::device device, const Vector &v) {
     SetSize(device, v.Size(), v.GetData());
   }
 

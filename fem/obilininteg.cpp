@@ -362,7 +362,7 @@ namespace mfem {
                maps.quadToDof,
                maps.quadToDofD,
                assembledOperator,
-               x.GetData());
+               x);
   }
   //====================================
 }

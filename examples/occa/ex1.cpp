@@ -45,11 +45,11 @@
   | x   | x   | disc-nurbs.mesh        | Square       |            |
   |     |     | star-surf.mesh         | Square       | 3D Surface |
   |     |     | mobius-strip.mesh      | Square       | 3D Surface |
-  |     |     | amr-quad.mesh          | Square       | AMR        |
+  | x   | x   | amr-quad.mesh          | Square       | AMR        |
   | x   | x   | fichera.mesh           | Cube         |            |
   | x   | x   | pipe-nurbs.mesh        | Cube         |            |
-  |     |     | amr-hex.mesh           | Cube         | AMR        |
-  |     |     | fichera-amr.mesh       | Cube         | AMR        |
+  | x   | x   | amr-hex.mesh           | Cube         | AMR        |
+  | x   | x   | fichera-amr.mesh       | Cube         | AMR        |
   |     |     | square-disc.mesh       | Triangle     |            |
   |     |     | square-disc-p2.vtk     | Triangle     |            |
   |     |     | square-disc-p3.mesh    | Triangle     |            |
@@ -60,7 +60,7 @@
   Coeff: Const, PW, Function, Grid (transformation info)
 
   Parallel -> ex16 (time)
-  -> 2D -> AMR -> Parallel -> Triangle -> Tet
+  -> AMR -> Parallel -> Triangle -> Tet
 */
 
 #include <fstream>
@@ -204,7 +204,6 @@ int main(int argc, char *argv[])
   lf_b.AddDomainIntegrator(new DomainLFIntegrator(one));
   lf_b.Assemble();
   OccaVector b(lf_b);
-
 
   // 7. Define the solution vector x as a finite element grid function
   //    corresponding to fespace. Initialize x with initial guess of zero,

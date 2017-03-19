@@ -362,14 +362,15 @@ public:
 
 
 /// The operator x -> R*A*P*x.
+template <class TVector>
 class RAPOperator : public Operator
 {
 private:
    const Operator & Rt;
    const Operator & A;
    const Operator & P;
-   mutable Vector Px;
-   mutable Vector APx;
+   mutable TVector Px;
+   mutable TVector APx;
 
 public:
    /// Construct the RAP operator given R^T, A and P.
@@ -378,11 +379,11 @@ public:
         Px(P.Height()), APx(A.Height()) { }
 
    /// Operator application.
-   virtual void Mult(const Vector & x, Vector & y) const
+   virtual void Mult(const TVector & x, TVector & y) const
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
    /// Application of the transpose.
-   virtual void MultTranspose(const Vector & x, Vector & y) const
+   virtual void MultTranspose(const TVector & x, TVector & y) const
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
 };
 
@@ -472,7 +473,7 @@ public:
 Operator* Operator::CreateRAPOperator(const Operator &Rt,
                                       Operator &A,
                                       const Operator &P) {
-  return new RAPOperator(Rt, A, P);
+  return new RAPOperator<Vector>(Rt, A, P);
 }
 
 template <class TVector>

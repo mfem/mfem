@@ -12,8 +12,8 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_OCCA
-#  ifndef MFEM_OCCABILINEARFORM
-#  define MFEM_OCCABILINEARFORM
+#  ifndef MFEM_OCCA_BILINEARFORM
+#  define MFEM_OCCA_BILINEARFORM
 
 #include <vector>
 #include <map>

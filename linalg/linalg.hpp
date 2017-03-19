@@ -36,6 +36,7 @@
 #ifdef MFEM_USE_OCCA
 #include "osolvers.hpp"
 #include "ovector.hpp"
+#include "osparsemat.hpp"
 #endif
 
 #ifdef MFEM_USE_MPI

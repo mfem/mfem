@@ -15,7 +15,7 @@
 
 #include "obilinearform.hpp"
 #include "obilininteg.hpp"
-#include "ointerpolation.hpp"
+#include "../linalg/osparsemat.hpp"
 
 #include "tfe.hpp"
 
@@ -143,10 +143,24 @@ namespace mfem {
   }
 
   void OccaBilinearForm::SetupInterpolationData() {
-    CreateRAPOperators(device,
-                       fes->GetConformingRestriction(),
-                       fes->GetConformingProlongation(),
-                       restrictionOp, prolongationOp);
+    const Operator *P = fes->GetConformingProlongation();
+    const Operator *R = fes->GetConformingRestriction();
+    if (!P) {
+      prolongationOp = restrictionOp = NULL;
+      return;
+    }
+    const SparseMatrix* pmat = dynamic_cast<const SparseMatrix*>(P);
+    const SparseMatrix* rmat = dynamic_cast<const SparseMatrix*>(R);
+    if (!pmat) {
+      mfem_error("OccaBilinearForm can only take a NULL or SparseMatrix"
+                 " prolongation operator");
+    }
+    if (!rmat) {
+      mfem_error("OccaBilinearForm can only take a NULL or SparseMatrix"
+                 " restriction operator");
+    }
+    prolongationOp = new OccaSparseMatrix(device, *pmat);
+    restrictionOp  = new OccaSparseMatrix(device, *rmat);
   }
 
   occa::device OccaBilinearForm::GetDevice() {
@@ -242,8 +256,7 @@ namespace mfem {
     VectorExtractKernel((int) GetNDofs(),
                         globalToLocalOffsets,
                         globalToLocalIndices,
-                        globalVec.GetData(),
-                        localVec.GetData());
+                        globalVec, localVec);
   }
 
   // Aggregate local node values to their respective global dofs
@@ -253,8 +266,7 @@ namespace mfem {
     VectorAssembleKernel((int) GetNDofs(),
                          globalToLocalOffsets,
                          globalToLocalIndices,
-                         localVec.GetData(),
-                         globalVec.GetData());
+                         localVec, globalVec);
   }
 
   //
@@ -287,8 +299,8 @@ namespace mfem {
   Operator* OccaBilinearForm::CreateRAPOperator(const Operator &Rt,
                                                 Operator &A,
                                                 const Operator &P) {
-    // [MISSING] Return OccaRAPOperator
-    return &A;
+
+    return new RAPOperator<OccaVector>(Rt, A, P);
   }
 
 
@@ -394,13 +406,13 @@ namespace mfem {
 
     w = 0.0;
 
-    map_dofs(constraint_indices, w.GetData(), x.GetData(), constraint_list);
+    map_dofs(constraint_indices, w, x, constraint_list);
 
     A->Mult(w, z);
 
     b -= z;
 
-    map_dofs(constraint_indices, b.GetData(), x.GetData(), constraint_list);
+    map_dofs(constraint_indices, b, x, constraint_list);
   }
 
   void OccaConstrainedOperator::Mult(const OccaVector &x, OccaVector &y) const {
@@ -414,11 +426,11 @@ namespace mfem {
 
     z = x;
 
-    clear_dofs(constraint_indices, z.GetData(), constraint_list);
+    clear_dofs(constraint_indices, z, constraint_list);
 
     A->Mult(z, y);
 
-    map_dofs(constraint_indices, y.GetData(), x.GetData(), constraint_list);
+    map_dofs(constraint_indices, y, x, constraint_list);
   }
 
   OccaConstrainedOperator::~OccaConstrainedOperator() {

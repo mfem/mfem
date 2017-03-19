@@ -12,8 +12,8 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_OCCA
-#  ifndef MFEM_OVECTOR
-#  define MFEM_OVECTOR
+#  ifndef MFEM_OCCA_VECTOR
+#  define MFEM_OCCA_VECTOR
 
 #include "stdint.h"
 
@@ -142,6 +142,10 @@ namespace mfem
       OccaVector v;
       StealData(v);
       return v;
+    }
+
+    inline operator occa::kernelArg () const {
+      return data.operator occa::kernelArg();
     }
 
     /// Return the inner-product.

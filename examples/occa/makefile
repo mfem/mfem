@@ -88,4 +88,8 @@ clear-mfem-kernels:
 $(OCCA_LIB_CACHE_DIR)/mfem/fem/%.okl: $(MFEM_REAL_DIR)/fem/kernels/%.okl
 	@echo "Caching: $(subst $(MFEM_REAL_DIR)/,,$<)"
 	@occa cache -l mfem/$(subst $(OCCA_LIB_CACHE_DIR)/mfem/,,$(dir $@)) $<
+
+$(OCCA_LIB_CACHE_DIR)/mfem/linalg/%.okl: $(MFEM_REAL_DIR)/linalg/kernels/%.okl
+	@echo "Caching: $(subst $(MFEM_REAL_DIR)/,,$<)"
+	@occa cache -l mfem/$(subst $(OCCA_LIB_CACHE_DIR)/mfem/,,$(dir $@)) $<
 #=======================================

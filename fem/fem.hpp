@@ -45,6 +45,7 @@
 
 #ifdef MFEM_USE_OCCA
 #include "obilinearform.hpp"
+#include "obilininteg.hpp"
 #endif
 
 #endif

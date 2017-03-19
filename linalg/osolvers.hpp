@@ -12,8 +12,8 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_OCCA
-#  ifndef MFEM_OSOLVERS
-#  define MFEM_OSOLVERS
+#  ifndef MFEM_OCCA_SOLVERS
+#  define MFEM_OCCA_SOLVERS
 
 #include "solvers.hpp"
 #include "ovector.hpp"
