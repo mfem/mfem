@@ -1626,7 +1626,9 @@ public:
 class MassIntegrator: public BilinearFormIntegrator
 {
 protected:
+#ifndef MFEM_THREAD_SAFE
    Vector shape, te_shape;
+#endif
    Coefficient *Q;
 
 public:
@@ -1664,8 +1666,10 @@ public:
 class ConvectionIntegrator : public BilinearFormIntegrator
 {
 private:
+#ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape, adjJ, Q_ir;
    Vector shape, vec2, BdFidxT;
+#endif
    VectorCoefficient &Q;
    double alpha;
 
