@@ -289,7 +289,7 @@ namespace mfem {
                                                 Operator &A,
                                                 const Operator &P) {
 
-    return new RAPOperator<OccaVector>(Rt, A, P);
+    return new TRAPOperator<OccaVector>(Rt, A, P);
   }
 
 

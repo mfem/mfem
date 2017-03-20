@@ -363,7 +363,7 @@ public:
 
 /// The operator x -> R*A*P*x.
 template <class TVector>
-class RAPOperator : public Operator
+class TRAPOperator : public Operator
 {
 private:
    const Operator & Rt;
@@ -374,7 +374,7 @@ private:
 
 public:
    /// Construct the RAP operator given R^T, A and P.
-   RAPOperator(const Operator &Rt_, const Operator &A_, const Operator &P_)
+  TRAPOperator(const Operator &Rt_, const Operator &A_, const Operator &P_)
       : Operator(Rt_.Width(), P_.Width()), Rt(Rt_), A(A_), P(P_),
         Px(P.Height()), APx(A.Height()) { }
 
@@ -387,6 +387,7 @@ public:
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
 };
 
+typedef TRAPOperator<Vector> RAPOperator;
 
 /// General triple product operator x -> A*B*C*x, with ownership of the factors.
 class TripleProductOperator : public Operator
@@ -473,7 +474,7 @@ public:
 Operator* Operator::CreateRAPOperator(const Operator &Rt,
                                       Operator &A,
                                       const Operator &P) {
-  return new RAPOperator<Vector>(Rt, A, P);
+  return new RAPOperator(Rt, A, P);
 }
 
 template <class TVector>
