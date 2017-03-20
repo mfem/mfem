@@ -11,10 +11,13 @@
 Development version, not released yet
 =====================================
 
-- Memory optimizations in the NCMesh class, which now uses 50% less memory in
-  total. The average cost of an NC element (including the refinement hierarchy,
-  but not including the temporary face_list and edge_list) is now only about 290
-  bytes, resulting e.g. in 30-40% timing improvement in ex1.
+- Memory optimizations in the NCMesh class, which now uses 50% less memory.
+  The average cost of an NC element in a uniformly refined mesh (including the
+  refinement hierarchy, but excluding the temporary face_list and edge_list)
+  is now only about 290 bytes. This also makes the class faster.
+
+- Add a block lower triangular preconditioner in using a matrix-free
+  implementation, see class BlockLowerTriangularPreconditioner.
 
 
 Version 3.3, released on Jan 28, 2017

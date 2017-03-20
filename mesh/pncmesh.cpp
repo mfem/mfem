@@ -720,7 +720,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       for (it = vert_map.begin(); it != vert_map.end(); ++it)
       {
          pmesh.face_nbr_vertices[it->second-1].SetCoords(
-            CalcVertexPos(it->first));
+            spaceDim, CalcVertexPos(it->first));
       }
       delete [] tmp_vertex;
    }

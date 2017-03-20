@@ -127,7 +127,10 @@ public:
       typedef typename Base::iterator base;
 
    public:
-      iterator(const base &it) : base(it) { }
+      iterator(const base &it) : base(it)
+      {
+         while (base::good() && (*this)->next == -2) { base::next(); }
+      }
 
       iterator &operator++()
       {
@@ -142,7 +145,10 @@ public:
       typedef typename Base::const_iterator base;
 
    public:
-      const_iterator(const base &it) : base(it) { }
+      const_iterator(const base &it) : base(it)
+      {
+         while (base::good() && (*this)->next == -2) { base::next(); }
+      }
 
       const_iterator &operator++()
       {

@@ -176,7 +176,32 @@ int Array<T>::IsSorted()
    return 1;
 }
 
+template <class T>
+void Array2D<T>::Print(std::ostream &out, int width_)
+{
+   int height = this->NumRows();
+   int width  = this->NumCols();
+
+   for (int i = 0; i < height; i++)
+   {
+      out << "[row " << i << "]\n";
+      for (int j = 0; j < width; j++)
+      {
+         out << (*this)(i,j);
+         if ( (j+1) == width_ || (j+1) % width_ == 0 )
+         {
+            out << '\n';
+         }
+         else
+         {
+            out << ' ';
+         }
+      }
+   }
+}
+
 template class Array<int>;
 template class Array<double>;
+template class Array2D<double>;
 
 }
