@@ -15,6 +15,7 @@
 
 #include "obilinearform.hpp"
 #include "obilininteg.hpp"
+#include "ointerpolation.hpp"
 #include "../linalg/osparsemat.hpp"
 
 #include "tfe.hpp"
@@ -59,10 +60,10 @@ namespace mfem {
                               "  TILESIZE: 256,"
                               "}");
 
-    VectorExtractKernel = device.buildKernel("occa://mfem/fem/mappings.okl",
+    vectorExtractKernel = device.buildKernel("occa://mfem/linalg/mappings.okl",
                                              "VectorExtract",
                                              mapProps);
-    VectorAssembleKernel = device.buildKernel("occa://mfem/fem/mappings.okl",
+    vectorAssembleKernel = device.buildKernel("occa://mfem/linalg/mappings.okl",
                                               "VectorAssemble",
                                               mapProps);
   }
@@ -143,24 +144,12 @@ namespace mfem {
   }
 
   void OccaBilinearForm::SetupInterpolationData() {
-    const Operator *P = fes->GetConformingProlongation();
     const Operator *R = fes->GetConformingRestriction();
-    if (!P) {
-      prolongationOp = restrictionOp = NULL;
-      return;
-    }
-    const SparseMatrix* pmat = dynamic_cast<const SparseMatrix*>(P);
-    const SparseMatrix* rmat = dynamic_cast<const SparseMatrix*>(R);
-    if (!pmat) {
-      mfem_error("OccaBilinearForm can only take a NULL or SparseMatrix"
-                 " prolongation operator");
-    }
-    if (!rmat) {
-      mfem_error("OccaBilinearForm can only take a NULL or SparseMatrix"
-                 " restriction operator");
-    }
-    prolongationOp = new OccaSparseMatrix(device, *pmat);
-    restrictionOp  = new OccaSparseMatrix(device, *rmat);
+    const Operator *P = fes->GetConformingProlongation();
+    CreateRPOperators(device,
+                      R, P,
+                      restrictionOp,
+                      prolongationOp);
   }
 
   occa::device OccaBilinearForm::GetDevice() {
@@ -253,7 +242,7 @@ namespace mfem {
   void OccaBilinearForm::VectorExtract(const OccaVector &globalVec,
                                        OccaVector &localVec) const {
 
-    VectorExtractKernel((int) GetNDofs(),
+    vectorExtractKernel((int) GetNDofs(),
                         globalToLocalOffsets,
                         globalToLocalIndices,
                         globalVec, localVec);
@@ -263,7 +252,7 @@ namespace mfem {
   void OccaBilinearForm::VectorAssemble(const OccaVector &localVec,
                                         OccaVector &globalVec) const {
 
-    VectorAssembleKernel((int) GetNDofs(),
+    vectorAssembleKernel((int) GetNDofs(),
                          globalToLocalOffsets,
                          globalToLocalIndices,
                          localVec, globalVec);
@@ -340,8 +329,8 @@ namespace mfem {
     globalToLocalIndices.free();
 
     // Free kernels
-    VectorExtractKernel.free();
-    VectorAssembleKernel.free();
+    vectorExtractKernel.free();
+    vectorAssembleKernel.free();
 
     // Make sure all integrators free their data
     IntegratorVector::iterator it = integrators.begin();

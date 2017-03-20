@@ -11,18 +11,18 @@
 
 /*
   ---[ Defines Known At Compile-Time ]------------
-  TILESIZE : Tilesize for iterating over dofs
+  TILESIZE : Tilesize for iterating over entries
   ================================================
 */
 
-kernel void VectorExtract(const int dofs,
+kernel void VectorExtract(const int entries,
                           const int * restrict offsets,
                           const int * restrict indices,
                           const double * restrict globalX,
                           double * restrict localX) {
 
-  for (int i = 0; i < dofs; ++i; tile(TILESIZE)) {
-    if (i < dofs) {
+  for (int i = 0; i < entries; ++i; tile(TILESIZE)) {
+    if (i < entries) {
       const int offset = offsets[i];
       const int nextOffset = offsets[i + 1];
       const double dofValue = globalX[i];
@@ -33,14 +33,14 @@ kernel void VectorExtract(const int dofs,
   }
 }
 
-kernel void VectorAssemble(const int dofs,
+kernel void VectorAssemble(const int entries,
                            const int * restrict offsets,
                            const int * restrict indices,
                            const double * restrict localX,
                            double * restrict globalX) {
 
-  for (int i = 0; i < dofs; ++i; tile(TILESIZE)) {
-    if (i < dofs) {
+  for (int i = 0; i < entries; ++i; tile(TILESIZE)) {
+    if (i < entries) {
       const int offset = offsets[i];
       const int nextOffset = offsets[i + 1];
       double dofValue = 0;
@@ -48,6 +48,32 @@ kernel void VectorAssemble(const int dofs,
         dofValue += localX[indices[j]];
       }
       globalX[i] = dofValue;
+    }
+  }
+}
+
+kernel void ExtractSubVector(const int entries,
+                             const int * restrict indices,
+                             const double * restrict in,
+                             double * restrict out) {
+
+  for (int i = 0; i < entries; ++i; tile(TILESIZE)) {
+    if (i < entries) {
+      out[i] = in[indices[i]];
+    }
+  }
+}
+
+kernel void MapSubVector(const int entries,
+                         const int * restrict indices,
+                         const double * restrict in,
+                         double * restrict out) {
+
+  for (int i = 0; i < entries; ++i; tile(TILESIZE)) {
+    if (i < entries) {
+      const int fromIdx = indices[2*i + 0];
+      const int toIdx   = indices[2*i + 1];
+      out[toIdx] = in[fromIdx];
     }
   }
 }

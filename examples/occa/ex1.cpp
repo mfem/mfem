@@ -35,34 +35,6 @@
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
 
-/*
-  |-----+-----+------------------------+--------------+------------|
-  | CPU | GPU | Mesh                   | Element Type | Notes      |
-  |-----+-----+------------------------+--------------+------------|
-  | x   | x   | inline-segment.mesh    | Segment      |            |
-  | x   | x   | star.mesh              | Square       |            |
-  | x   | x   | square-disc-nurbs.mesh | Square       |            |
-  | x   | x   | disc-nurbs.mesh        | Square       |            |
-  |     |     | star-surf.mesh         | Square       | 3D Surface |
-  |     |     | mobius-strip.mesh      | Square       | 3D Surface |
-  | x   | x   | amr-quad.mesh          | Square       | AMR        |
-  | x   | x   | fichera.mesh           | Cube         |            |
-  | x   | x   | pipe-nurbs.mesh        | Cube         |            |
-  | x   | x   | amr-hex.mesh           | Cube         | AMR        |
-  | x   | x   | fichera-amr.mesh       | Cube         | AMR        |
-  |     |     | square-disc.mesh       | Triangle     |            |
-  |     |     | square-disc-p2.vtk     | Triangle     |            |
-  |     |     | square-disc-p3.mesh    | Triangle     |            |
-  |     |     | square-disc-surf.mesh  | Triangle     |            |
-  |     |     | escher.mesh            | Tet          |            |
-  |-----+-----+------------------------+--------------+------------|
-
-  Coeff: Const, PW, Function, Grid (transformation info)
-
-  Parallel -> ex16 (time)
-  -> AMR -> Parallel -> Triangle -> Tet
-*/
-
 #include <fstream>
 #include <iostream>
 
@@ -277,7 +249,7 @@ int main(int argc, char *argv[])
     }
   else
     {
-      CG(*A, B, X, 1, 200, 1e-12, 0.0);
+      CG(*A, B, X, 1, 500, 1e-12, 0.0);
     }
   occa::finish();
   tic_toc.Stop();

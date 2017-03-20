@@ -32,6 +32,7 @@ namespace mfem {
     BoundaryFaceIntegrator = 3,
   };
 
+  //---[ Bilinear Form ]----------------
   class OccaIntegrator;
 
   /** Class for bilinear form - "Matrix" with associated FE space and
@@ -61,7 +62,7 @@ namespace mfem {
     mutable OccaVector localX;
 
     // Kernels to do the global -> local and local -> global mappings
-    occa::kernel VectorExtractKernel, VectorAssembleKernel;
+    occa::kernel vectorExtractKernel, vectorAssembleKernel;
 
     Operator *restrictionOp, *prolongationOp;
 
@@ -155,8 +156,9 @@ namespace mfem {
     // Destroys bilinear form.
     ~OccaBilinearForm();
   };
+  //====================================
 
-  // Based on OccaConstrainedOperator
+  //---[ Constrained Operator ]---------
   class OccaConstrainedOperator : public Operator {
   protected:
     occa::device device;

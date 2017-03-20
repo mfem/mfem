@@ -35,6 +35,29 @@ kernel void Mult(const int entries,
   }
 }
 
+kernel void MappedMult(const int entries,
+                       const int * restrict offsets,
+                       const int * restrict indices,
+                       const double * restrict weights,
+                       const int * restrict outIndices,
+                       const double * restrict in,
+                       double * restrict out) {
+
+  for (int i = 0; i < entries; ++i; tile(TILESIZE)) {
+    if (i < entries) {
+      const int offset = offsets[i];
+      const int nextOffset = offsets[i + 1];
+      double value = 0;
+      for (int j = offset; j < nextOffset; ++j) {
+        value += weights[j] * in[indices[j]];
+      }
+      out[outIndices[i]] = value;
+    }
+  }
+}
+
+#if 0
+// CUDA doesn't support double atomics
 kernel void MultTranspose(const int entries,
                           const int * restrict offsets,
                           const int * restrict indices,
@@ -53,3 +76,4 @@ kernel void MultTranspose(const int entries,
     }
   }
 }
+#endif
