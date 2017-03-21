@@ -959,6 +959,9 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
             NeighborRefinementMessage &msg = send_msg.back()[ranks[j]];
             msg.AddRefinement(elem, ref.ref_type);
             msg.SetNCMesh(this);
+
+            /*std::cout << MyRank << ": sending initial " << int(ref.ref_type)
+                      << " to " << ranks[j] << std::endl;*/
          }
       }
    }
@@ -986,6 +989,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          for (int i = 0; i < recv_msg.Size(); i++)
          {
             RefineElement(recv_msg.elements[i], recv_msg.values[i]);
+            //DebugRefineDump("ghost");
          }
       }
 
@@ -1001,6 +1005,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          {
             // this is one of the original refinements, message already sent
             RefineElement(ref.index, -ref.ref_type);
+            //DebugRefineDump("initial");
             continue;
          }
 
@@ -1018,6 +1023,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          if (type & 1)
          {
             RefineElement(ref.index, ref.ref_type);
+            //DebugRefineDump("normal");
          }
 
          // refinements in the boundary layer must be reported to neighbors
@@ -1030,6 +1036,9 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
                NeighborRefinementMessage &msg = send_msg.back()[ranks[j]];
                msg.AddRefinement(ref.index, ref.ref_type);
                msg.SetNCMesh(this);
+
+               /*std::cout << MyRank << ": sending ref_type " << int(ref.ref_type)
+                         << " to " << ranks[j] << std::endl;*/
             }
          }
       }
@@ -1056,6 +1065,17 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
       std::cout << send_msg.size()-1 << " iterations to refine." << std::endl;
    }
 }
+
+#ifdef MFEM_DEBUG
+void ParNCMesh::DebugRefineDump(const char* text)
+{
+   static int step = 0;
+   char fname[200];
+   sprintf(fname, "dump-%02d-%03d-%s.dbg", MyRank, step++, text);
+   std::ofstream f(fname);
+   DebugDump(f);
+}
+#endif
 
 #else
 void ParNCMesh::Refine(const Array<Refinement> &refinements)

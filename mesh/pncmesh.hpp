@@ -489,6 +489,10 @@ protected:
 
    friend class ParMesh;
    friend class NeighborDofMessage;
+
+#ifdef MFEM_DEBUG
+   void DebugRefineDump(const char* text);
+#endif
 };
 
 

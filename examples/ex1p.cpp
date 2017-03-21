@@ -56,6 +56,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool visualization = 1;
    int ref_levels = 3;
+   int seed = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -65,6 +66,8 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh.");
+   args.AddOption(&seed, "-s", "--seed",
+                  "Random seed.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -112,35 +115,41 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      srand(myid+1);
+#if 1
+      srand(seed);
       for (int l = 0; l < ref_levels; l++)
       {
          //pmesh->UniformRefinement();
-         pmesh->RandomRefinement(0.7, false);
+         pmesh->RandomRefinement(0.7, true);
          /*Array<Refinement> refs;
          refs.Append(Refinement(rand() % pmesh->GetNE(), rand() % 7 + 1));
          pmesh->GeneralRefinement(refs);*/
 
-         {
+         /*{
             Mesh debug;
             pmesh->pncmesh->GetDebugMesh(debug);
             char fname[100];
             sprintf(fname, "debug%03d-%02d.mesh", myid, l);
             ofstream f(fname);
             debug.Print(f);
-         }
+         }*/
       }
+#else
+      Array<Refinement> refs;
+      refs.Append(Refinement(0, myid == 0 ? 4 : 2));
+      pmesh->GeneralRefinement(refs);
+#endif
    }
    //pmesh->Rebalance();
 
-   {
+   /*{
       Mesh debug;
       pmesh->pncmesh->GetDebugMesh(debug);
       char fname[100];
       sprintf(fname, "debug%03d.mesh", myid);
       ofstream f(fname);
       debug.Print(f);
-   }
+   }*/
 
    /*{
       Array<Refinement> refs;
@@ -244,7 +253,7 @@ int main(int argc, char *argv[])
 
    // 14. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
-   {
+   /*{
       ostringstream mesh_name, sol_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
       sol_name << "sol." << setfill('0') << setw(6) << myid;
@@ -256,7 +265,7 @@ int main(int argc, char *argv[])
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
       x.Save(sol_ofs);
-   }
+   }*/
 
    // 15. Send the solution by socket to a GLVis server.
    if (visualization)
