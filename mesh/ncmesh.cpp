@@ -2036,6 +2036,8 @@ void NCMesh::Slave::OrientedPointMatrix(DenseMatrix &oriented_matrix) const
 
 //// Neighbors /////////////////////////////////////////////////////////////////
 
+#define PAR_REF_TMP 1
+
 void NCMesh::CollectEdgeVertices(int v0, int v1, Array<int> &indices)
 {
    int mid = nodes.FindId(v0, v1);
@@ -2092,6 +2094,12 @@ void NCMesh::BuildElementToVertexTable()
       int* node = el.node;
 
       indices.SetSize(0);
+#if PAR_REF_TMP
+      for (int j = 0; j < gi.nv; j++)
+      {
+         indices.Append(el.node[j]);
+      }
+#endif
       for (int j = 0; j < gi.ne; j++)
       {
          const int* ev = gi.edges[j];
@@ -2212,6 +2220,7 @@ void NCMesh::FindSetNeighbors(const Array<char> &elem_set,
             if (vmark[v[j]]) { hit = true; break; }
          }
 
+#if !PAR_REF_TMP
          if (!hit)
          {
             Element &el = elements[leaf_elements[i]];
@@ -2221,6 +2230,7 @@ void NCMesh::FindSetNeighbors(const Array<char> &elem_set,
                if (vmark[el.node[j]]) { hit = true; break; }
             }
          }
+#endif
 
          if (hit)
          {
@@ -2315,6 +2325,7 @@ void NCMesh::FindNeighbors(int elem, Array<int> &neighbors,
 
          bool hit = sorted_lists_intersect(v1, v2, nv1, nv2);
 
+#if !PAR_REF_TMP
          if (!hit)
          {
             int nv = GI[(int) el.geom].nv;
@@ -2324,6 +2335,7 @@ void NCMesh::FindNeighbors(int elem, Array<int> &neighbors,
                if (hit) { break; }
             }
          }
+#endif
 
          if (hit) { neighbors.Append(testme); }
       }
@@ -2376,6 +2388,7 @@ void NCMesh::NeighborExpand(const Array<int> &elems,
          if (vmark[v[j]]) { hit = true; break; }
       }
 
+#if !PAR_REF_TMP
       if (!hit)
       {
          nv = GI[(int) el.geom].nv;
@@ -2384,6 +2397,7 @@ void NCMesh::NeighborExpand(const Array<int> &elems,
             if (vmark[el.node[j]]) { hit = true; break; }
          }
       }
+#endif
 
       if (hit) { expanded.Append(testme); }
    }

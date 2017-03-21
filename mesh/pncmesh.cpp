@@ -989,7 +989,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          for (int i = 0; i < recv_msg.Size(); i++)
          {
             RefineElement(recv_msg.elements[i], recv_msg.values[i]);
-            //DebugRefineDump("ghost");
+            DebugRefineDump("ghost");
          }
       }
 
@@ -1005,7 +1005,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          {
             // this is one of the original refinements, message already sent
             RefineElement(ref.index, -ref.ref_type);
-            //DebugRefineDump("initial");
+            DebugRefineDump("initial");
             continue;
          }
 
@@ -1023,7 +1023,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          if (type & 1)
          {
             RefineElement(ref.index, ref.ref_type);
-            //DebugRefineDump("normal");
+            DebugRefineDump("normal");
          }
 
          // refinements in the boundary layer must be reported to neighbors
