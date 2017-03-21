@@ -35,6 +35,20 @@
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
 
+/*
+  |-----+-----+------------------------+--------------+------------|
+  | CPU | GPU | Mesh                   | Element Type | Notes      |
+  |-----+-----+------------------------+--------------+------------|
+  |     |     | star-surf.mesh         | Square       | 3D Surface |
+  |     |     | mobius-strip.mesh      | Square       | 3D Surface |
+  |     |     | square-disc.mesh       | Triangle     |            |
+  |     |     | square-disc-p2.vtk     | Triangle     |            |
+  |     |     | square-disc-p3.mesh    | Triangle     |            |
+  |     |     | square-disc-surf.mesh  | Triangle     |            |
+  |     |     | escher.mesh            | Tet          |            |
+  |-----+-----+------------------------+--------------+------------|
+*/
+
 #include <fstream>
 #include <iostream>
 

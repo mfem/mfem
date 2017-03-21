@@ -69,14 +69,6 @@ namespace mfem {
   }
 
   void OccaBilinearForm::SetupIntegratorData() {
-    // Right now we are only supporting tensor-based basis
-    const int geom = BaseGeom();
-    if ((geom != Geometry::SEGMENT) &&
-        (geom != Geometry::SQUARE) &&
-        (geom != Geometry::CUBE)) {
-      mfem_error("occa::OccaBilinearForm can only handle Geometry::{SEGMENT,SQUARE,CUBE}");
-    }
-
     const FiniteElement &fe = GetFE(0);
     const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
     if (!el) {
@@ -87,56 +79,65 @@ namespace mfem {
                  " H1_HexahedronElement.");
     }
 
-    const int *elementMap = fes->GetElementToDofTable().GetJ();
-    const int *dofMap = el->GetDofMap().GetData();
-
+    const Table &e2dTable = fes->GetElementToDofTable();
+    const int *elementMap = e2dTable.GetJ();
     const int elements = GetNE();
     const int ndofs = GetNDofs();
     const int ldofs = fe.GetDof();
 
-    int *offsets = new int[ndofs + 1];
-    int *indices = new int[elements * ldofs];
+    if (el) {
+      const int *dofMap = el->GetDofMap().GetData();
 
-    // We'll be keeping a count of how many local nodes point
-    //   to its global dof
-    for (int i = 0; i <= ndofs; ++i) {
-      offsets[i] = 0;
-    }
+      int *offsets = new int[ndofs + 1];
+      int *indices = new int[elements * ldofs];
 
-    for (int e = 0; e < elements; ++e) {
-      for (int d = 0; d < ldofs; ++d) {
-        const int gid = elementMap[ldofs*e + d];
-        ++offsets[gid + 1];
+      // We'll be keeping a count of how many local nodes point
+      //   to its global dof
+      for (int i = 0; i <= ndofs; ++i) {
+        offsets[i] = 0;
       }
-    }
-    // Aggregate to find offsets for each global dof
-    for (int i = 1; i <= ndofs; ++i) {
-      offsets[i] += offsets[i - 1];
-    }
-    // For each global dof, fill in all local nodes that point
-    //   to it
-    for (int e = 0; e < elements; ++e) {
-      for (int d = 0; d < ldofs; ++d) {
-        const int gid = elementMap[ldofs*e + dofMap[d]];
-        const int lid = ldofs*e + d;
-        indices[offsets[gid]++] = lid;
+
+      for (int e = 0; e < elements; ++e) {
+        for (int d = 0; d < ldofs; ++d) {
+          const int gid = elementMap[ldofs*e + d];
+          ++offsets[gid + 1];
+        }
       }
-    }
-    // We shifted the offsets vector by 1 by using it
-    //   as a counter. Now we shift it back.
-    for (int i = ndofs; i > 0; --i) {
-      offsets[i] = offsets[i - 1];
-    }
-    offsets[0] = 0;
+      // Aggregate to find offsets for each global dof
+      for (int i = 1; i <= ndofs; ++i) {
+        offsets[i] += offsets[i - 1];
+      }
+      // For each global dof, fill in all local nodes that point
+      //   to it
+      for (int e = 0; e < elements; ++e) {
+        for (int d = 0; d < ldofs; ++d) {
+          const int gid = elementMap[ldofs*e + dofMap[d]];
+          const int lid = ldofs*e + d;
+          indices[offsets[gid]++] = lid;
+        }
+      }
+      // We shifted the offsets vector by 1 by using it
+      //   as a counter. Now we shift it back.
+      for (int i = ndofs; i > 0; --i) {
+        offsets[i] = offsets[i - 1];
+      }
+      offsets[0] = 0;
 
-    // Allocate device offsets and indices
-    globalToLocalOffsets = device.malloc((ndofs + 1) * sizeof(int),
-                                         offsets);
-    globalToLocalIndices = device.malloc((elements * ldofs) * sizeof(int),
-                                         indices);
+      // Allocate device offsets and indices
+      globalToLocalOffsets = device.malloc((ndofs + 1) * sizeof(int),
+                                           offsets);
+      globalToLocalIndices = device.malloc((elements * ldofs) * sizeof(int),
+                                           indices);
 
-    delete [] offsets;
-    delete [] indices;
+      delete [] offsets;
+      delete [] indices;
+    } else {
+      // Allocate device offsets and indices
+      globalToLocalOffsets = device.malloc((ndofs + 1) * sizeof(int),
+                                           e2dTable.GetI());
+      globalToLocalIndices = device.malloc((elements * ldofs) * sizeof(int),
+                                           e2dTable.GetJ());
+    }
 
     // Allocate a temporary vector where local element operations
     //   will be handled.

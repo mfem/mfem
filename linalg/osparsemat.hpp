@@ -27,6 +27,8 @@ namespace mfem {
     occa::memory reorderIndices, mappedIndices;
     occa::kernel mapKernel, multKernel;
 
+    OccaSparseMatrix();
+
     OccaSparseMatrix(const SparseMatrix &m,
                      const occa::properties &props = occa::properties());
 
@@ -69,6 +71,8 @@ namespace mfem {
                      const occa::properties &props);
 
     virtual void Mult(const OccaVector &x, OccaVector &y) const;
+
+    void Free();
   };
 
   OccaSparseMatrix* CreateMappedSparseMatrix(occa::device device,

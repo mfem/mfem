@@ -16,6 +16,8 @@
 #include "osparsemat.hpp"
 
 namespace mfem {
+  OccaSparseMatrix::OccaSparseMatrix() {}
+
   OccaSparseMatrix::OccaSparseMatrix(const SparseMatrix &m,
                                      const occa::properties &props) :
     Operator(m.Height(), m.Width()) {
@@ -131,6 +133,18 @@ namespace mfem {
                  offsets, indices, weights,
                  x, y);
     }
+  }
+
+  void OccaSparseMatrix::Free() {
+    offsets.free();
+    indices.free();
+    weights.free();
+
+    reorderIndices.free();
+    mappedIndices.free();
+
+    mapKernel.free();
+    multKernel.free();
   }
 
   OccaSparseMatrix* CreateMappedSparseMatrix(occa::device device,

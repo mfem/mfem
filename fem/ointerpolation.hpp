@@ -41,11 +41,15 @@ namespace mfem {
 
   class OccaProlongationOperator : public Operator {
   protected:
+    const Operator *pmat;
+    mutable Vector hostX, hostY;
     OccaSparseMatrix multOp, multTransposeOp;
 
   public:
     OccaProlongationOperator(OccaSparseMatrix &multOp_,
                              OccaSparseMatrix &multTransposeOp_);
+
+    OccaProlongationOperator(const Operator *pmat_);
 
     virtual void Mult(const OccaVector &x, OccaVector &y) const;
     virtual void MultTranspose(const OccaVector &x, OccaVector &y) const;

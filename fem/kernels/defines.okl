@@ -38,6 +38,8 @@ typedef double* Coeff_t @(dim(numElements, NUM_QUAD_3D));
 
 #if USING_TENSOR_OPS
 #  include "occa://mfem/fem/defines/tensor.okl"
+#else
+#  include "occa://mfem/fem/defines/simplex.okl"
 #endif
 
 #endif

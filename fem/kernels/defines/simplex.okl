@@ -1,0 +1,26 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+#define M1_ELEMENT_BATCHES (M1_OUTER_ELEMENT_BATCH * M1_INNER_ELEMENT_BATCH)
+
+typedef double* DofToQuad2D_t @dim(2, NUM_QUAD, NUM_DOFS);
+typedef double* DofToQuad3D_t @dim(3, NUM_QUAD, NUM_DOFS);
+
+typedef double* QuadToDof2D_t @dim(2, NUM_DOFS, NUM_QUAD);
+typedef double* QuadToDof3D_t @dim(3, NUM_DOFS, NUM_QUAD);
+
+typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD, numElements);
+typedef double* Jacobian3D_t @dim(3, 3, NUM_QUAD, numElements);
+
+typedef double* SymmOperator2D_t @dim(3, NUM_QUAD, numElements);
+typedef double* SymmOperator3D_t @dim(6, NUM_QUAD, numElements);
+
+typedef double* Local_t @dim(NUM_DOFS, numElements);
