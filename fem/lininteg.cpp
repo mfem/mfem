@@ -799,109 +799,275 @@ void DGRiemIntegrator::AssembleRHSElementVect(
 
 
 void DGRiemIntegrator::AssembleRHSElementVect(
-   const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, Vector &elvect)
+   const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Trans, Vector &elvect)
 {
    int dim, ndof1, ndof2;
-   double w;
 
-   Vector shape, dshape_dn, nor, nh, ni;
-   DenseMatrix dshape, mq, adjJ;
+   double un, a, b, w;
+
+   Vector shape1, shape2;
+   DenseMatrix elmat;
 
    dim = el1.GetDim();
    ndof1 = el1.GetDof();
-   ndof2 = el2.GetDof();
+   Vector vu(dim), nor(dim);
 
-   nor.SetSize(dim);
-   nh.SetSize(dim);
-   ni.SetSize(dim);
-   adjJ.SetSize(dim);
-
-   shape.SetSize(ndof1);
-   dshape.SetSize(ndof1, dim);
-   dshape_dn.SetSize(ndof1);
+   if (Trans.Elem2No >= 0)
+   {
+      ndof2 = el2.GetDof();
+   }
+   else
+   {
+      ndof2 = 0;
+   }
 
    elvect.SetSize(ndof1 + ndof2);
    elvect = 0.0;
 
+   shape1.SetSize(ndof1);
+   shape2.SetSize(ndof2);
+   elmat.SetSize(ndof1 + ndof2);
+   elmat = 0.0;
+
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // a simple choice for the integration order; is this OK?
-      int order = 2*el1.GetOrder();
-      ir = &IntRules.Get(Tr.FaceGeom, order);
+      int order;
+      // Assuming order(u)==order(mesh)
+      if (Trans.Elem2No >= 0)
+         order = (std::min(Trans.Elem1->OrderW(), Trans.Elem2->OrderW()) +
+                  2*std::max(el1.GetOrder(), el2.GetOrder()));
+      else
+      {
+         order = Trans.Elem1->OrderW() + 2*el1.GetOrder();
+      }
+      if (el1.Space() == FunctionSpace::Pk)
+      {
+         order++;
+      }
+      ir = &IntRules.Get(Trans.FaceGeom, order);
    }
 
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
-      IntegrationPoint eip1;
-      IntegrationPoint eip2;
+      IntegrationPoint eip1, eip2;
+      Trans.Loc1.Transform(ip, eip1);
+      if (ndof2)
+      {
+         Trans.Loc2.Transform(ip, eip2);
+      }
+      el1.CalcShape(eip1, shape1);
 
-      Tr.Loc1.Transform(ip, eip1);
-      Tr.Face->SetIntPoint(&ip);
-      
+      Trans.Face->SetIntPoint(&ip);
+      Trans.Elem1->SetIntPoint(&eip1);
+
+//      uD.Eval(u1_dir, *Tr.Elem1, eip1);
       if (dim == 1)
       {
          nor(0) = 2*eip1.x - 1.0;
       }
       else
       {
-         CalcOrtho(Tr.Face->Jacobian(), nor);
+         CalcOrtho(Trans.Face->Jacobian(), nor);
       }
 
-      el1.CalcShape(eip1, shape);
-      el1.CalcDShape(eip1, dshape);
-      Tr.Elem1->SetIntPoint(&eip1);
+      Vector vu(dim);
+      vu(0) = 1; vu(1) = 0;
 
-      Vector u1_dir(dim);
-      // compute uD through the face transformation
-      uD.Eval(u1_dir, *Tr.Elem1, eip1);
+      un = vu*nor; 
+      a = 0.5 * alpha * un;
 
-      Tr.Loc2.Transform(ip, eip2);
-      Tr.Elem2->SetIntPoint(&eip2);
+      w = ip.weight * (a);
 
-      Vector u2_dir(dim);
-      // compute uD through the face transformation
-      uD.Eval(u2_dir, *Tr.Elem2, eip2);
+//      std::cout << "hi "<< Trans.Elem1No << '\t' << un << '\t'<<  a << '\t' << b << '\t' << ip.weight << std::endl;
+//      std::cout << "hi "<< Trans.Elem1No << '\t' << vu(0) << '\t'<<  a << '\t' << b << '\t' << ip.weight << std::endl;
 
-      u_dir.SetSize(dim);
-      add(u1_dir, u2_dir, u_dir);
-      u_dir.Set(0.5, u_dir);
-
-//      std::cout << eip1.x << '\t' << u1_dir[0] << '\t' << u2_dir[0] << '\t' << u_dir[0] << std::endl;
-//      std::cout << eip1.x << '\t' << u_dir[0] << std::endl;
-//      std::cout << eip1.x << '\t' << shape[0] << '\t' << shape[1] << '\t' << shape[2] << '\t' << shape[3]<< std::endl;
-
-      subtract(u_dir, u1_dir, u1_dir);
-      w = ip.weight * (u1_dir * nor); 
-
-//      std::cout << eip1.x << '\t' << w << std::endl;
-//      std::cout << eip1.x << '\t' << u1_dir[0] << '\t' << u2_dir[0] << '\t' << u_dir[0]<< std::endl;
-
-      for (int i =0; i < ndof1; i++)
+      if (w != 0.0)
       {
-          elvect(i) += w*shape(i);
+         for (int i = 0; i < ndof1; i++)
+         {
+            for (int j = 0; j < ndof1; j++)
+            {
+               elmat(i, j) -= w * shape1(i) * shape1(j);
+            }
+         }
       }
 
-//      std::cout << Tr.Elem1No << '\t' << elvect[0] << '\t' << elvect[1] << '\t' << elvect[2] << '\t' << elvect[3]<< std::endl;
-
-      shape.SetSize(ndof2);
-      dshape.SetSize(ndof2, dim);
-      dshape_dn.SetSize(ndof2);
-
-      el2.CalcShape(eip2, shape);
-
-      subtract(u_dir, u2_dir, u2_dir);
-      w = ip.weight * (u2_dir * nor) ;
-
-      for (int i =ndof1; i < ndof1 + ndof2; i++)
+      if (ndof2)
       {
-          elvect(i) -= w*shape(i - ndof1); 
-      }
+         el2.CalcShape(eip2, shape2);
 
-//      std::cout << Tr.Elem2No << '\t' << elvect[4] << '\t' << elvect[5] << '\t' << elvect[6] << '\t' << elvect[7]<< std::endl;
+         if (w != 0.0)
+            for (int i = 0; i < ndof2; i++)
+               for (int j = 0; j < ndof1; j++)
+               {
+                  elmat(ndof1+i, j) -= w * shape2(i) * shape1(j);
+               }
+
+         w = ip.weight * (-a);
+         if (w != 0.0)
+         {
+            for (int i = 0; i < ndof2; i++)
+               for (int j = 0; j < ndof2; j++)
+               {
+                  elmat(ndof1+i, ndof1+j) -= w * shape2(i) * shape2(j);
+               }
+
+            for (int i = 0; i < ndof1; i++)
+               for (int j = 0; j < ndof2; j++)
+               {
+                  elmat(i, ndof1+j) -= w * shape1(i) * shape2(j);
+               }
+         }
+      }
+   }
+
+   Vector u1_dir(dim);
+   const IntegrationRule &nodes1 = el1.GetNodes();
+   IntegrationPoint eip1;
+   Vector u_temp(ndof1 + ndof2);
+   for (int i = 0; i < ndof1 ; i++)
+   {
+      eip1.x = nodes1[i].x; 
+      eip1.y = nodes1[i].y; 
+      uD.Eval(u1_dir, *Trans.Elem1, eip1);
+      u_temp[i] = u1_dir(0);
+   }
+   const IntegrationRule &nodes2 = el2.GetNodes();
+   for (int i = 0; i < ndof2 ; i++)
+   {
+      eip1.x = nodes2[i].x; 
+      eip1.y = nodes2[i].y; 
+      uD.Eval(u1_dir, *Trans.Elem2, eip1);
+      u_temp[i + ndof1] = u1_dir(0);
+   }
+   elmat.Mult(u_temp, elvect);
+
+//   std::cout << elmat(9, 0) << '\t' << elmat(9, 1) << '\t'<< elmat(9, 2) << '\t'<< elmat(9, 3) << '\t'<<  std::endl;
+//   std::cout << elmat(9, 9) << '\t' << elmat(9, 10) << '\t'<< elmat(9, 11) << '\t'<< elmat(9, 12) << '\t'<<  std::endl;
+//   std::cout << elmat(0, 0) << '\t' << elmat(0, 1) << '\t'<< elmat(0, 2) << '\t'<< elmat(0, 3) << '\t'<<  std::endl;
+//   std::cout << elmat(0, 9) << '\t' << elmat(0, 10) << '\t'<< elmat(0, 11) << '\t'<< elmat(0, 12) << '\t'<<  std::endl;
+//   std::cout << Trans.Elem1No << '\t' << Trans.Elem2No << std::endl;
+//   std::cout << elvect[0] << '\t' << elvect[1] << '\t'<< elvect[2] << '\t'<< elvect[3] << '\t'<<  std::endl;
+   for (int i = 0; i < ndof1 + ndof2 ; i++) 
+   {
+//       std::cout << Trans.Elem1No << '\t' << Trans.Elem2No << std::endl;
+//       std::cout << i << '\t' << u_temp[i] << '\t'<< elvect[i] << std::endl;
+//       std::cout << i << '\t' << elmat(0, i) << '\t'<<  std::endl;
    }
 }
+
+
+
+//void DGRiemIntegrator::AssembleRHSElementVect(
+//   const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, Vector &elvect)
+//{
+//   int dim, ndof1, ndof2;
+//   double w;
+//
+//   Vector shape, dshape_dn, nor, nh, ni;
+//   DenseMatrix dshape, mq, adjJ;
+//
+//   dim = el1.GetDim();
+//   ndof1 = el1.GetDof();
+//   ndof2 = el2.GetDof();
+//
+//   nor.SetSize(dim);
+//   nh.SetSize(dim);
+//   ni.SetSize(dim);
+//   adjJ.SetSize(dim);
+//
+//   shape.SetSize(ndof1);
+//   dshape.SetSize(ndof1, dim);
+//   dshape_dn.SetSize(ndof1);
+//
+//   elvect.SetSize(ndof1 + ndof2);
+//   elvect = 0.0;
+//
+//   const IntegrationRule *ir = IntRule;
+//   if (ir == NULL)
+//   {
+//      // a simple choice for the integration order; is this OK?
+//      int order = 2*el1.GetOrder();
+//      ir = &IntRules.Get(Tr.FaceGeom, order);
+//   }
+//
+//   for (int p = 0; p < ir->GetNPoints(); p++)
+//   {
+//      const IntegrationPoint &ip = ir->IntPoint(p);
+//      IntegrationPoint eip1;
+//      IntegrationPoint eip2;
+//
+//      Tr.Loc1.Transform(ip, eip1);
+//      Tr.Face->SetIntPoint(&ip);
+//      
+//      if (dim == 1)
+//      {
+//         nor(0) = 2*eip1.x - 1.0;
+//      }
+//      else
+//      {
+//         CalcOrtho(Tr.Face->Jacobian(), nor);
+//      }
+//
+//      el1.CalcShape(eip1, shape);
+//      el1.CalcDShape(eip1, dshape);
+//      Tr.Elem1->SetIntPoint(&eip1);
+//
+//      const IntegrationRule &nodes = el1.GetNodes();
+//      for (int i = 0; i < nodes.GetNPoints() ; i ++)
+//          std::cout << nodes[i].x << '\t' << nodes[i].y << std::endl;
+//
+//      Vector u1_dir(dim);
+//      // compute uD through the face transformation
+//      uD.Eval(u1_dir, *Tr.Elem1, eip1);
+//
+//      Tr.Loc2.Transform(ip, eip2);
+//      Tr.Elem2->SetIntPoint(&eip2);
+//
+//      Vector u2_dir(dim);
+//      // compute uD through the face transformation
+//      uD.Eval(u2_dir, *Tr.Elem2, eip2);
+//
+//      u_dir.SetSize(dim);
+//      add(u1_dir, u2_dir, u_dir);
+//      u_dir.Set(0.5, u_dir);
+//
+////      std::cout << eip1.x << '\t' << u1_dir[0] << '\t' << u2_dir[0] << '\t' << u_dir[0] << std::endl;
+////      std::cout << eip1.x << '\t' << u_dir[0] << std::endl;
+////      std::cout << eip1.x << '\t' << shape[0] << '\t' << shape[1] << '\t' << shape[2] << '\t' << shape[3]<< std::endl;
+//
+//      subtract(u_dir, u1_dir, u1_dir);
+//      w = ip.weight * (u1_dir * nor); 
+//
+////      std::cout << eip1.x << '\t' << w << std::endl;
+////      std::cout << eip1.x << '\t' << u1_dir[0] << '\t' << u2_dir[0] << '\t' << u_dir[0]<< std::endl;
+//
+//      for (int i =0; i < ndof1; i++)
+//      {
+//          elvect(i) += w*shape(i);
+//      }
+//
+////      std::cout << Tr.Elem1No << '\t' << elvect[0] << '\t' << elvect[1] << '\t' << elvect[2] << '\t' << elvect[3]<< std::endl;
+//
+//      shape.SetSize(ndof2);
+//      dshape.SetSize(ndof2, dim);
+//      dshape_dn.SetSize(ndof2);
+//
+//      el2.CalcShape(eip2, shape);
+//
+//      subtract(u_dir, u2_dir, u2_dir);
+//      w = ip.weight * (u2_dir * nor) ;
+//
+//      for (int i =ndof1; i < ndof1 + ndof2; i++)
+//      {
+//          elvect(i) -= w*shape(i - ndof1); 
+//      }
+//
+////      std::cout << Tr.Elem2No << '\t' << elvect[4] << '\t' << elvect[5] << '\t' << elvect[6] << '\t' << elvect[7]<< std::endl;
+//   }
+//}
 
 
 
