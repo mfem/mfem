@@ -39,6 +39,10 @@
 #include "pnonlinearform.hpp"
 #endif
 
+#ifdef MFEM_USE_ACROTENSOR
+#include "AcroTensor.hpp"
+#endif
+
 #ifdef MFEM_USE_SIDRE
 #include "sidredatacollection.hpp"
 #endif

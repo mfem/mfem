@@ -63,13 +63,16 @@ typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t> HPCBilinearForm;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/fichera.mesh";
+   const char *mesh_file = "../../data/beam-hex.mesh";
    int order = sol_p;
    const char *basis_type = "G"; // Gauss-Lobatto
    bool static_cond = false;
    const char *pc = "none";
    bool perf = true;
-   bool matrix_free = true;
+
+   bool matrix_free = false;
+   bool acrotensor = false;
+   bool gpu = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -85,6 +88,12 @@ int main(int argc, char *argv[])
    args.AddOption(&matrix_free, "-mf", "--matrix-free", "-asm", "--assembly",
                   "Use matrix-free evaluation or efficient matrix assembly in "
                   "the high-performance version.");
+   args.AddOption(&acrotensor, "-at", "--acrotensor", "-nat", "--no-acrotensor",
+                  "Use acrotensor for the tensor computations in "
+                  "the high-performance version.");
+   args.AddOption(&gpu, "-g", "--gpu", "-ng", "--no-gpu",
+                  "Use GPU computations for the tensor computations in "
+                  "the high-performance version.");   
    args.AddOption(&pc, "-pc", "--preconditioner",
                   "Preconditioner: lor - low-order-refined (matrix-free) GS, "
                   "ho - high-order (assembled) GS, none.");
@@ -105,6 +114,45 @@ int main(int argc, char *argv[])
            " evaluation!\n" << endl;
       return 2;
    }
+
+   if (!perf && matrix_free) 
+   { 
+      cout << "\nMatrix free is currently only supported with the performance version.\n"
+           << endl;
+      matrix_free = false; 
+   }
+   args.PrintOptions(cout);
+
+#ifndef MFEM_USE_ACROTENSOR
+   if (acrotensor)
+   {
+      cout << "\nCannot utilize acrotensor because it is not enabled in this MFEM build.\n" << endl;
+      return 2;
+   }
+#endif
+
+   if (gpu && !acrotensor)
+   {
+      cout << "\nCurrently you need acrotensor enabled to utilize the gpu.\n" << endl;
+      return 2;
+   }
+
+   if (perf && acrotensor)
+   {
+      cout << "\nThe HPC version is incompatible with acrotensor.\n" << endl;
+      return 2;
+   }   
+
+   //Warm the GPU up for better timings
+#ifdef MFEM_USE_ACROTENSOR
+   if (acrotensor && gpu)
+   {
+      acrobatic::Tensor A(1);
+      A.MapToGPU();
+      A.MoveToGPU();
+   }
+#endif
+
    MFEM_VERIFY(perf || !matrix_free,
                "--standard-version is not compatible with --matrix-free");
    args.PrintOptions(cout);
@@ -119,6 +167,7 @@ int main(int argc, char *argv[])
       mfem_error("Invalid Preconditioner specified");
       return 3;
    }
+
 
    // See class BasisType in fem/fe_coll.hpp for available basis types
    int basis = BasisType::GetType(basis_type[0]);
@@ -154,13 +203,11 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
+   int ref_levels =
+      (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);   
+   for (int l = 0; l < ref_levels; l++)
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh->UniformRefinement();
-      }
+      mesh->UniformRefinement();
    }
    if (mesh->MeshGenerator() & 1) // simplex mesh
    {
@@ -244,9 +291,15 @@ int main(int argc, char *argv[])
    //     hold the matrix corresponding to the Laplacian operator -Delta.
    //     Optionally setup a form to be assembled for preconditioning (a_pc).
    BilinearForm *a = new BilinearForm(fespace);
+
+#ifdef MFEM_USE_ACROTENSOR   
+   a->SetAcrotensorMode(acrotensor, gpu, matrix_free);
+#endif
+
    BilinearForm *a_pc = NULL;
    if (pc_choice == LOR) { a_pc = new BilinearForm(fespace_lor); }
    if (pc_choice == HO)  { a_pc = new BilinearForm(fespace); }
+
 
    // 11. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary

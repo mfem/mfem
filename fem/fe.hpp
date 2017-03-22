@@ -155,6 +155,12 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const = 0;
 
+   virtual void CalcShape1D(const IntegrationPoint &ip,
+                            Vector &shape) const;
+
+   virtual void CalcDShape1D(const IntegrationPoint &ip,
+                             DenseMatrix &dshape) const;
+
    /** @brief Evaluate the gradients of all shape functions of a scalar finite
        element in physical space at the point described by @a Trans. */
    /** Each row of the result DenseMatrix @a dshape contains the derivatives of
@@ -1465,8 +1471,11 @@ private:
 public:
    H1_SegmentElement(const int p, const int type = Quadrature1D::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcShape1D(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcDShape1D(const IntegrationPoint &ip,
+                             DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
    const Array<int> &GetDofMap() const { return dof_map; }
 };
@@ -1486,8 +1495,11 @@ public:
    H1_QuadrilateralElement(const int p,
                            const int type = Quadrature1D::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcShape1D(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcDShape1D(const IntegrationPoint &ip,
+                             DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
    const Array<int> &GetDofMap() const { return dof_map; }
 };
@@ -1506,8 +1518,11 @@ private:
 public:
    H1_HexahedronElement(const int p, const int type = Quadrature1D::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcShape1D(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcDShape1D(const IntegrationPoint &ip,
+                             DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
    const Array<int> &GetDofMap() const { return dof_map; }
 };

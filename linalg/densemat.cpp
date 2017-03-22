@@ -4211,4 +4211,18 @@ const
    }
 }
 
+void DenseTensor::Add(DenseTensor &rhs)
+{
+   MFEM_ASSERT(SizeI() == rhs.SizeI() && 
+               SizeJ() == rhs.SizeJ() && 
+               SizeK() == rhs.SizeK(),
+               "Incompatible tensor dimensions for Add")
+
+   double * rhsdata = rhs.Data();
+   for (int idx = 0; idx < SizeI()*SizeJ()*SizeK(); ++idx)
+   {
+      tdata[idx] += rhsdata[idx];
+   }
+}
+
 }

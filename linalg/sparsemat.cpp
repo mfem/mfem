@@ -2335,7 +2335,7 @@ SparseMatrix &SparseMatrix::operator*=(double a)
    return (*this);
 }
 
-void SparseMatrix::Print(std::ostream & out, int _width) const
+void SparseMatrix::Print(std::ostream & out, int _width, double tol) const
 {
    int i, j;
 
@@ -2347,10 +2347,13 @@ void SparseMatrix::Print(std::ostream & out, int _width) const
          out << "[row " << i << "]\n";
          for (nd = Rows[i], j = 0; nd != NULL; nd = nd->Prev, j++)
          {
-            out << " (" << nd->Column << "," << nd->Value << ")";
-            if ( !((j+1) % _width) )
+            if (fabs(nd->Value) > tol)
             {
-               out << '\n';
+               out << " (" << nd->Column << "," << nd->Value << ")";
+               if ( !((j+1) % _width) )
+               {
+                  out << '\n';
+               }
             }
          }
          if (j % _width)
@@ -2366,10 +2369,13 @@ void SparseMatrix::Print(std::ostream & out, int _width) const
       out << "[row " << i << "]\n";
       for (j = I[i]; j < I[i+1]; j++)
       {
-         out << " (" << J[j] << "," << A[j] << ")";
-         if ( !((j+1-I[i]) % _width) )
+         if (fabs(A[j]) > tol) 
          {
-            out << '\n';
+            out << " (" << J[j] << "," << A[j] << ")";
+            if ( !((j+1-I[i]) % _width) )
+            {
+               out << '\n';
+            }
          }
       }
       if ((j-I[i]) % _width)

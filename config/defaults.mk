@@ -68,6 +68,7 @@ MFEM_USE_SUNDIALS    = NO
 MFEM_USE_MESQUITE    = NO
 MFEM_USE_SUITESPARSE = NO
 MFEM_USE_SUPERLU     = NO
+MFEM_USE_ACROTENSOR  = NO
 MFEM_USE_GECKO       = NO
 MFEM_USE_GNUTLS      = NO
 MFEM_USE_NETCDF      = NO
@@ -148,6 +149,11 @@ SUPERLU_LIB = -L$(SUPERLU_DIR)/SRC -lsuperlu_dist
 GECKO_DIR = @MFEM_DIR@/../gecko
 GECKO_OPT = -I$(GECKO_DIR)/inc
 GECKO_LIB = -L$(GECKO_DIR)/lib -lgecko
+
+#Acrotensor library configs
+ACROTENSOR_DIR = @MFEM_DIR@/../acrotensor
+ACROTENSOR_OPT = -I$(ACROTENSOR_DIR)/inc
+ACROTENSOR_LIB = -L$(ACROTENSOR_DIR)/lib -lacrotensor -lcuda -lnvrtc -lrt
 
 # GnuTLS library configuration
 GNUTLS_OPT =

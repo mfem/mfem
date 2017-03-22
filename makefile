@@ -32,6 +32,8 @@ Examples:
 make config MFEM_USE_MPI=YES MFEM_DEBUG=YES MPICXX=mpiCC
    Configure the make system for subsequent runs (analogous to a configure script).
    The available options are documented in the INSTALL file.
+make config MFEM_USE_MPI=NO MFEM_DEBUG=NO MFEM_CXX=nvcc CXXFLAGS="-std=c++11 -arch compute_60" MFEM_USE_ACROTENSOR=YES
+   Configure the make system to compile with nvcc and use acrotensor on the gpu.
 make config BUILD_DIR=<dir>
    Configure an out-of-source-tree build in the given directory.
 make config -f <mfem-dir>/makefile
@@ -184,6 +186,12 @@ ifeq ($(MFEM_USE_$(1)),YES)
 endif
 endef
 
+# Acrotensor library configuration
+ifeq ($(MFEM_USE_ACROTENSOR),YES)
+   INCFLAGS += $(ACROTENSOR_OPT)
+   ALL_LIBS += $(ACROTENSOR_LIB)
+endif
+
 # Process dependencies
 $(foreach dep,$(MFEM_DEPENDENCIES),$(eval $(call mfem_add_dependency,$(dep))))
 
@@ -198,11 +206,17 @@ ifeq ($(MFEM_USE_GZSTREAM),YES)
 endif
 
 # List of all defines that may be enabled in config.hpp and config.mk:
+MFEM_DEFINES = MFEM_USE_MPI MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_LIBUNWIND\
+ MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP MFEM_USE_MEMALLOC\
+ MFEM_TIMER_TYPE MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO\
+ MFEM_USE_SUPERLU MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_MPFR MFEM_USE_ACROTENSOR
+
 MFEM_DEFINES = MFEM_USE_MPI MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_GZSTREAM\
  MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP\
  MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS MFEM_USE_MESQUITE\
  MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU MFEM_USE_GNUTLS\
- MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE
+ MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_ACROTENSOR
+
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -404,6 +418,8 @@ status info:
 	$(info MFEM_USE_SUITESPARSE = $(MFEM_USE_SUITESPARSE))
 	$(info MFEM_USE_SUPERLU     = $(MFEM_USE_SUPERLU))
 	$(info MFEM_USE_GECKO       = $(MFEM_USE_GECKO))
+	$(info MFEM_USE_ACROTENSOR  = $(MFEM_USE_ACROTENSOR))	
+	$(info MFEM_TIMER_TYPE      = $(MFEM_TIMER_TYPE))
 	$(info MFEM_USE_GNUTLS      = $(MFEM_USE_GNUTLS))
 	$(info MFEM_USE_NETCDF      = $(MFEM_USE_NETCDF))
 	$(info MFEM_USE_PETSC       = $(MFEM_USE_PETSC))
@@ -428,6 +444,6 @@ ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS),"$(dir)/*.?pp")
 
 style:
-	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\
+	@if [ ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; ] then\
 	   echo "No source files were changed.";\
 	fi

@@ -68,7 +68,6 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
          {
             IntegrationPoint &ipx = irx.IntPoint(ix);
             IntegrationPoint &ip  = IntPoint(iz*nx*ny + iy*nx + ix);
-
             ip.x = ipx.x;
             ip.y = ipy.x;
             ip.z = ipz.x;

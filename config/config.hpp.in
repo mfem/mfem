@@ -41,6 +41,9 @@
 // Internal MFEM option: enable group/batch allocation for some small objects.
 // #define MFEM_USE_MEMALLOC
 
+// Enable functionality based on the AcroTensor library
+// #define MFEM_USE_ACROTENSOR
+
 // Which library functions to use in class StopWatch for measuring time.
 // The available options are:
 //   0 - use std::clock from <ctime>

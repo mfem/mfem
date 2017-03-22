@@ -12,6 +12,7 @@
 // Implementation of Bilinear Form Integrators
 
 #include "fem.hpp"
+#include "../general/tic_toc.hpp"
 #include <cmath>
 #include <algorithm>
 
@@ -27,6 +28,17 @@ void BilinearFormIntegrator::AssembleElementMatrix (
    mfem_error ("BilinearFormIntegrator::AssembleElementMatrix (...)\n"
                "   is not implemented fot this class.");
 }
+
+#ifdef MFEM_USE_ACROTENSOR
+void BilinearFormIntegrator::TensorAssembleMatrices (
+   FiniteElementSpace *fes,
+   DenseTensor *element_matrices,
+   bool use_gpu )
+{
+   mfem_error ("BilinearFormIntegrator::TensorAssembleElementMatrices (...)\n"
+               "   is not implemented fot this class.");
+}
+#endif
 
 void BilinearFormIntegrator::AssembleElementMatrix2 (
    const FiniteElement &el1, const FiniteElement &el2,
@@ -432,7 +444,304 @@ void DiffusionIntegrator::AssembleElementMatrix
          AddMultABt(dshape, dshapedxt, elmat);
       }
    }
+
+   /*static int elem = -1;
+   elem += 1;
+   if (elem == 0)
+   {
+      elmat.Print(std::cout, 9);
+   }*/
 }
+
+#ifdef MFEM_USE_ACROTENSOR
+void DiffusionIntegrator::TensorAssembleMatrices
+( FiniteElementSpace *fes,
+  DenseTensor *element_matrices,
+  bool use_gpu )
+{
+   const FiniteElement *el = fes->GetFE(0);
+   IsoparametricTransformation trans;
+   fes->GetElementTransformation(0, &trans);
+   int p = el->GetOrder();
+   int irorder = 2 * p + trans.OrderW();
+   const IntegrationRule *ir1d = &IntRules.Get(Geometry::SEGMENT, irorder);
+   int num_elements = fes->GetNE();
+   int nd = el->GetDof();
+   int nq = ir1d->Size();
+   int dim = el->GetDim();
+   int spaceDim = trans.GetSpaceDim();
+   bool square = (dim == spaceDim);
+   
+   DenseMatrix dshape(nd,dim);
+   invdfdx.SetSize(dim,spaceDim);
+   
+   //Create the tensors we are going to work with
+   std::vector<int> sdims(1+2*dim, p+1);
+   sdims[0] = num_elements;
+   std::vector<int> ddims(3+dim, nq);
+   ddims[0] = num_elements;
+   ddims[ddims.size()-2] = dim;
+   ddims[ddims.size()-1] = dim;
+   acrobatic::Tensor B1d(nq, p+1);
+   acrobatic::Tensor G1d(nq, p+1);
+   acrobatic::Tensor Btilde1(p+1, p+1, nq, dim, dim);
+   acrobatic::Tensor Btilde2(p+1, p+1, nq, dim, dim);
+   acrobatic::Tensor Btilde3(p+1, p+1, nq, dim, dim);
+   acrobatic::Tensor D(ddims);
+   acrobatic::Tensor S(sdims);
+
+   IntegrationPoint ip;
+   if (dim == 1)
+   {
+
+   }
+   else if (dim == 2)
+   {
+      //Fill D(e,k1,k2,m,n)
+      for (int e = 0; e < num_elements; ++e)
+      {
+         fes->GetElementTransformation(e, &trans);
+         for (int k1 = 0; k1 < nq; ++k1)
+         {
+            for (int k2 = 0; k2 < nq; ++k2)
+            {
+               ip.x = ir1d->IntPoint(k1).x;
+               ip.y = ir1d->IntPoint(k2).x;
+               ip.z = 0.0;
+               ip.weight = ir1d->IntPoint(k1).weight *
+                           ir1d->IntPoint(k2).weight;
+               trans.SetIntPoint(&ip);
+               CalcAdjugate(trans.Jacobian(), invdfdx);
+               double w = trans.Weight();
+               w = ip.weight / (square ? w : w*w*w);
+               if (Q)
+               {
+                  w *= Q->Eval(trans, ip);
+               }
+               for (int m = 0; m < dim; ++m) {
+                  for (int n = 0; n < dim; ++n) {
+                     D(e,k1,k2,m,n) = (invdfdx(n,m) * invdfdx(m,n)) * w;
+                  }
+               }
+            }
+         }
+      }
+   }
+   else if (dim == 3)
+   {
+      //Fill D(e,k1,k2,k3,m,n)
+      for (int e = 0; e < num_elements; ++e)
+      {
+         fes->GetElementTransformation(e, &trans);
+         for (int k1 = 0; k1 < nq; ++k1)
+         {
+            for (int k2 = 0; k2 < nq; ++k2)
+            {
+               for (int k3 = 0; k3 < nq; ++k3)
+               {
+                  ip.x = ir1d->IntPoint(k1).x;
+                  ip.y = ir1d->IntPoint(k2).x;
+                  ip.z = ir1d->IntPoint(k3).x;
+                  ip.weight = ir1d->IntPoint(k1).weight *
+                              ir1d->IntPoint(k2).weight * 
+                              ir1d->IntPoint(k3).weight;
+                  trans.SetIntPoint(&ip);
+                  CalcAdjugate(trans.Jacobian(), invdfdx);
+                  double w = trans.Weight();
+                  w = ip.weight / (square ? w : w*w*w);
+                  if (Q)
+                  {
+                     w *= Q->Eval(trans, ip);
+                  }
+                  for (int m = 0; m < dim; ++m) {
+                     for (int n = 0; n < dim; ++n) {
+                        D(e,k1,k2,k3,m,n) = (invdfdx(n,m) * invdfdx(m,n)) * w;
+                     }
+                  }                
+               }
+            }
+         }
+      }
+   }
+
+   //Fill B/G 1D
+   shape.SetSize(p+1);
+   dshape.SetSize(p+1, 1);
+   for (int k = 0; k < ir1d->Size(); ++k) 
+   {
+      const IntegrationPoint &ip = ir1d->IntPoint(k);
+      el->CalcShape1D(ip, shape);
+      el->CalcDShape1D(ip, dshape);
+      for (int i = 0; i < p+1; ++i) 
+      {
+         B1d(k, i) = shape(i);
+         G1d(k, i) = dshape(i, 0);
+      }
+   }
+
+   //Fill the Btilde#'s'
+   if (dim == 1) {
+      for (int k = 0; k < ir1d->Size(); ++k) 
+      {
+         for (int i = 0; i < p+1; ++i) 
+         {
+            for (int j = 0; j < p+1; ++j)
+            {
+               Btilde1(0,0,k,i,j) = G1d(k,i)*G1d(k,j);
+            }
+         }
+      }
+   }
+   else if (dim == 2) {
+      for (int k = 0; k < ir1d->Size(); ++k) 
+      {
+         for (int i = 0; i < p+1; ++i) 
+         {
+            for (int j = 0; j < p+1; ++j)
+            {
+               Btilde1(i,j,k,0,0) = G1d(k,i)*G1d(k,j);
+               Btilde1(i,j,k,0,1) = G1d(k,i)*B1d(k,j);
+               Btilde1(i,j,k,1,0) = B1d(k,i)*G1d(k,j);
+               Btilde1(i,j,k,1,1) = B1d(k,i)*B1d(k,j);
+
+               Btilde2(i,j,k,0,0) = B1d(k,i)*B1d(k,j);
+               Btilde2(i,j,k,0,1) = B1d(k,i)*G1d(k,j);
+               Btilde2(i,j,k,1,0) = G1d(k,i)*B1d(k,j);
+               Btilde2(i,j,k,1,1) = G1d(k,i)*G1d(k,j);               
+            }
+         }
+      }
+   }
+   else if (dim == 3) {
+      for (int k = 0; k < ir1d->Size(); ++k) 
+      {
+         for (int i = 0; i < p+1; ++i) 
+         {
+            for (int j = 0; j < p+1; ++j)
+            {
+               Btilde1(i,j,k,0,0) = G1d(k,i)*G1d(k,j);
+               Btilde1(i,j,k,0,1) = G1d(k,i)*B1d(k,j);
+               Btilde1(i,j,k,0,2) = G1d(k,i)*B1d(k,j);
+               Btilde1(i,j,k,1,0) = B1d(k,i)*G1d(k,j);
+               Btilde1(i,j,k,1,1) = B1d(k,i)*B1d(k,j);
+               Btilde1(i,j,k,1,2) = B1d(k,i)*B1d(k,j);
+               Btilde1(i,j,k,2,0) = B1d(k,i)*G1d(k,j);
+               Btilde1(i,j,k,2,1) = B1d(k,i)*B1d(k,j);
+               Btilde1(i,j,k,2,2) = B1d(k,i)*B1d(k,j); 
+
+               Btilde2(i,j,k,0,0) = B1d(k,i)*B1d(k,j);
+               Btilde2(i,j,k,0,1) = B1d(k,i)*G1d(k,j);
+               Btilde2(i,j,k,0,2) = B1d(k,i)*B1d(k,j);
+               Btilde2(i,j,k,1,0) = G1d(k,i)*B1d(k,j);
+               Btilde2(i,j,k,1,1) = G1d(k,i)*G1d(k,j);
+               Btilde2(i,j,k,1,2) = G1d(k,i)*B1d(k,j);
+               Btilde2(i,j,k,2,0) = B1d(k,i)*B1d(k,j);
+               Btilde2(i,j,k,2,1) = B1d(k,i)*G1d(k,j);
+               Btilde2(i,j,k,2,2) = B1d(k,i)*B1d(k,j);
+
+               Btilde3(i,j,k,0,0) = B1d(k,i)*B1d(k,j);
+               Btilde3(i,j,k,0,1) = B1d(k,i)*B1d(k,j);
+               Btilde3(i,j,k,0,2) = B1d(k,i)*G1d(k,j);
+               Btilde3(i,j,k,1,0) = B1d(k,i)*B1d(k,j);
+               Btilde3(i,j,k,1,1) = B1d(k,i)*B1d(k,j);
+               Btilde3(i,j,k,1,2) = B1d(k,i)*G1d(k,j);
+               Btilde3(i,j,k,2,0) = G1d(k,i)*B1d(k,j);
+               Btilde3(i,j,k,2,1) = G1d(k,i)*B1d(k,j);
+               Btilde3(i,j,k,2,2) = G1d(k,i)*G1d(k,j);               
+            }
+         }
+      }
+   }
+   
+   if (use_gpu)
+   {
+      D.MapToGPU();
+      D.MoveToGPU();
+      Btilde1.MapToGPU();
+      Btilde1.MoveToGPU();
+      if (dim > 1)
+      {
+         Btilde2.MapToGPU();
+         Btilde2.MoveToGPU();
+      }
+
+      if (dim > 2)
+      {
+         Btilde3.MapToGPU();
+         Btilde3.MoveToGPU();
+      }
+
+      S.MapToGPU();
+      S.SwitchToGPU();
+   }
+
+   //Now use the tensor library to assemble the element matrices all at once   
+   if (dim == 1)
+   {
+      TE["S_e_i_j = B_m_n_k_i_j D_e_k_m_n"](S, Btilde1, D);
+   }
+   else if (dim == 2)
+   {
+      acrobatic::Tensor B(p+1, p+1, p+1, p+1, nq, nq, dim, dim);
+      if (use_gpu)
+      {
+         B.MapToGPU();
+         B.SwitchToGPU();
+      }
+      TE["B_i1_i2_j1_j2_k1_k2_m_n = T_i1_j1_k1_m_n T_i2_j2_k2_m_n"](B, Btilde1, Btilde2);
+
+      //TE["S_e_i1_i2_j1_j2 = B_m_n_k1_i1_j1 B_m_n_k2_i2_j2 D_e_k1_k2_m_n"]
+      TE["S_e_i1_i2_j1_j2 = B_i1_i2_j1_j2_k1_k2_m_n D_e_k1_k2_m_n"]
+         (S, B, D);
+   }
+   else if (dim == 3)
+   {
+      TE["S_e_i1_i2_i3_j1_j2_j3 = B_i1_j1_k1_m_n B_i2_j2_k2_m_n B_i3_j3_k3_m_n D_e_k1_k2_k3_m_n"]
+         (S, Btilde1, Btilde2, Btilde3, D);
+   }
+
+   if (use_gpu)
+   {
+      S.MoveFromGPU();
+   }
+
+   //Finally copy the stiffness matrices into element_matrices through the dof_map
+   if (dim == 1)
+   {
+
+   }
+   else if (dim == 2)
+   {
+      const H1_QuadrilateralElement *h1_quad_el = dynamic_cast<const H1_QuadrilateralElement*>(el);
+      const Array<int> &dof_map = h1_quad_el->GetDofMap();
+      for (int e = 0; e < num_elements; ++e)
+         for (int i1 = 0; i1 < p+1; ++i1)
+            for (int i2 = 0; i2 < p+1; ++i2)
+               for (int j1 = 0; j1 < p+1; ++j1)
+                  for (int j2 = 0; j2 < p+1; ++j2) {
+                     int i = (p+1)*i1 + i2;
+                     int j = (p+1)*j1 + j2;
+                     (*element_matrices)(dof_map[i], dof_map[j], e) = S(e,i1,i2,j1,j2);
+                  }
+   }
+   else if (dim == 3)
+   {
+      const H1_HexahedronElement *h1_hex_el = dynamic_cast<const H1_HexahedronElement*>(el);
+      const Array<int> &dof_map = h1_hex_el->GetDofMap();      
+      for (int e = 0; e < num_elements; ++e)
+         for (int i1 = 0; i1 < p+1; ++i1)
+            for (int i2 = 0; i2 < p+1; ++i2)
+               for (int i3 = 0; i3 < p+1; ++i3)
+                  for (int j1 = 0; j1 < p+1; ++j1)
+                     for (int j2 = 0; j2 < p+1; ++j2)
+                        for (int j3 = 0; j3 < p+1; ++j3) {
+                           int i = (p+1)*(p+1)*i1 + (p+1)*i2 + i3;
+                           int j = (p+1)*(p+1)*j1 + (p+1)*j2 + j3;
+                           (*element_matrices)(dof_map[i], dof_map[j], e) = S(e,i1,i2,i3,j1,j2,j3);
+                        }
+   }
+}
+#endif
 
 void DiffusionIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe, const FiniteElement &test_fe,
@@ -760,6 +1069,145 @@ void MassIntegrator::AssembleElementMatrix
       AddMult_a_VVt(w, shape, elmat);
    }
 }
+
+#ifdef MFEM_USE_ACROTENSOR
+void MassIntegrator::TensorAssembleMatrices
+( FiniteElementSpace *fes,
+  DenseTensor *element_matrices,
+  bool use_gpu )
+{
+   const FiniteElement *el = fes->GetFE(0);
+   IsoparametricTransformation trans;
+   fes->GetElementTransformation(0, &trans);
+   int num_elements = fes->GetNE();
+   int nd = el->GetDof();
+   int dim = el->GetDim();
+   int p = el->GetOrder();
+
+   //Set up our 1D/ND intrules
+   int irorder = 2 * p + trans.OrderW();
+   const IntegrationRule *ir1d = &IntRules.Get(Geometry::SEGMENT, irorder);
+   const IntegrationRule *irfull;
+   if (dim == 1)
+   {
+      irfull = ir1d;
+   }
+   else if (dim == 2)
+   {
+      irfull = &IntRules.Get(Geometry::SQUARE, irorder);
+   }
+   else if (dim == 3)
+   {
+      irfull = &IntRules.Get(Geometry::CUBE, irorder);
+   }
+
+   //Create the tensors we are going to work with 
+   //M_e_i1_i2_i3_j1_j2_j3 (in 3d)
+   //B1d_k_i
+   //D_e_k1_k2_k3 (in 3d)
+   std::vector<int> mdims(1+2*dim, p+1);
+   mdims[0] = num_elements;
+   std::vector<int> ddims(1+dim, ir1d->Size());
+   ddims[0] = num_elements;
+   std::vector<int> wdims(dim, ir1d->Size());
+   acrobatic::Tensor M(mdims, element_matrices->GetData(0)); 
+   acrobatic::Tensor B(ir1d->Size(), p+1);                   //This is B1d from the notes
+   acrobatic::Tensor C(ir1d->Size(), p+1, p+1);
+   acrobatic::Tensor D(ddims);
+   acrobatic::Tensor W(wdims);
+   acrobatic::Tensor T(num_elements, irfull->Size());
+
+   //Fill B
+   shape.SetSize(B.GetDim(1));
+   for (int k = 0; k < B.GetDim(0); ++k)
+   {
+      const IntegrationPoint &ip = ir1d->IntPoint(k);
+      el->CalcShape1D(ip, shape);
+      for (int i = 0; i < B.GetDim(1); ++i)
+      {
+         B(k,i) = shape[i];
+      }
+   }
+   TE["C_k_i_j = B_k_i B_k_j"](C, B, B);
+
+   //Fill W
+   for (int k = 0; k < irfull->Size(); ++k)
+   {
+      const IntegrationPoint &ip = irfull->IntPoint(k);
+      trans.SetIntPoint(&ip);
+      double w = ip.weight;
+      if (Q)
+      {
+         w *= Q->Eval(trans, ip);
+      }      
+      W[k] = w;  //linear access into the tensor
+   }
+
+   //Fill T (This could be improved by filling a J_e_k1_k2_m_n and computing the det in the tensor lib )
+   for (int e = 0; e < num_elements; ++e)
+   {
+      fes->GetElementTransformation(e, &trans);
+      for (int k = 0; k < irfull->Size(); ++k)
+      {  
+         const IntegrationPoint &ip = irfull->IntPoint(k);
+         trans.SetIntPoint(&ip);
+         T(e, k) = trans.Weight();
+      }
+   }
+   std::vector<int> tdims(dim+1, ir1d->Size());
+   tdims[0] = num_elements;
+   T.Reshape(tdims);
+
+   if (use_gpu)
+   {
+      B.MapToGPU();
+      B.MoveToGPU();      
+      C.MapToGPU();
+      C.MoveToGPU();
+      W.MapToGPU();
+      W.MoveToGPU();
+      T.MapToGPU();
+      T.MoveToGPU();
+      D.MapToGPU();
+      D.SwitchToGPU();
+      M.MapToGPU();
+      M.SwitchToGPU();      
+   }
+
+   //Now use the tensor library to assemble the element matrices all at once
+   if (dim == 1)
+   {
+      TE["D_e_k = W_k T_e_k"](D, W, T);
+      TE["M_e_i_j = C_k_i_j D_e_k"](M, B, B, D);
+   }
+   else if (dim == 2)
+   {
+      //M_e_i1_i2_j1_j2 = C_k1_i1_j1 C_k2_i2_j2 D_e_k1_k2
+      // acrobatic::Tensor E(num_elements, p+1, p+1, ir1d->Size());
+      // if (use_gpu) 
+      // {
+      //    E.MapToGPU();
+      //    E.SwitchToGPU();  
+      // }
+      TE["D_e_k1_k2 = W_k1_k2 T_e_k1_k2"](D, W, T);
+      // TE["E_e_i2_j2_k1 = C_k2_i2_j2 D_e_k1_k2"](E, C, D);  
+      // TE["M_e_i1_i2_j1_j2 = C_k1_i1_j1 E_e_i2_j2_k1"](M, C, E);
+      TE["M_e_i1_i2_j1_j2 = B_k1_i1 B_k1_j1 B_k2_i2 B_k2_j2 D_e_k1_k2"](M, B, B, B, B, D);
+   }
+   else if (dim == 3)
+   {
+      TE["D_e_k1_k2_k3 = W_k1_k2_k3 T_e_k1_k2_k3"](D, W, T);
+      //TE["M_e_i1_i2_i3_j1_j2_j3 = C_k1_i1_j1 C_k2_i2_j2 C_k3_i3_j3 D_e_k1_k2_k3"](M, C, C, C, D);
+      TE["M_e_i1_i2_i3_j1_j2_j3 = B_k1_i1 B_k1_j1 B_k2_i2 B_k2_j2 B_k3_i3 B_k3_j3 D_e_k1_k2_k3"](M, B, B, B, B, B, B, D);      
+   }
+
+   if (use_gpu) 
+   {
+      M.MoveFromGPU();
+   }
+}
+#endif
+
 
 void MassIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe, const FiniteElement &test_fe,

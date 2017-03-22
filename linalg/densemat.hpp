@@ -653,6 +653,9 @@ public:
        'x' and 'y' use the same elem_dof table. */
    void AddMult(const Table &elem_dof, const Vector &x, Vector &y) const;
 
+   /** Tinternal += rhs, assuming the dimensions of both tensors are identical */
+   void Add(DenseTensor &rhs);
+
    void Clear()
    { UseExternalData(NULL, 0, 0, 0); }
 
