@@ -48,11 +48,8 @@ int main(int argc, char *argv[])
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
-   // 6. Set up and assemble the bilinear and linear forms corresponding to the
-   //    DG discretization. The DGTraceIntegrator involves integrals over mesh
-   //    interior faces.
+   // Setup bilinear form for x derivative and the mass matrix
    VectorFunctionCoefficient x_dir(dim, dir_velocity_function);
-   FunctionCoefficient u0(u0_function);
 
    BilinearForm m(&fes);
    m.AddDomainIntegrator(new MassIntegrator);
@@ -66,17 +63,19 @@ int main(int argc, char *argv[])
    k.Finalize(skip_zeros);
 
    SparseMatrix &K = k.SpMat();
+   /////////////////////////////////////////////////////////////
 
+   FunctionCoefficient u0(u0_function);
    GridFunction u_sol(&fes);
    u_sol.ProjectCoefficient(u0);
 
    GridFunction v(&fes);
    K.Mult(u_sol, v);
 
-   VectorFunctionCoefficient velocity(dim, velocity_function);
-
    FiniteElementSpace fes_v(mesh, &fec, dim);
    GridFunction u(&fes_v);
+
+   VectorFunctionCoefficient velocity(dim, velocity_function);
    u.ProjectCoefficient(velocity);
 
    VectorGridFunctionCoefficient u_vec(&u);
@@ -96,10 +95,6 @@ int main(int argc, char *argv[])
    for (int i = 0; i < nodes.Size()/dim; i++)
    {
        int sub1 = i, sub2 = nodes.Size()/dim + i;
-//       cout << nodes(sub1) << '\t' << nodes(sub2) << '\t' << m.SpMat().GetRowEntries(sub1)[0] << endl;   
-//       cout << i << '\t' << nodes(sub1) << '\t' << nodes(sub2) << '\t' << u_sol(sub1) << '\t' << v(sub1) << endl;   
-//       cout << nodes(sub1) << '\t' << nodes(sub2) << '\t' << u_sol(sub1) << '\t' << v(sub1)/m.SpMat().GetRowEntries(sub1)[0] << endl;   
-//       cout << nodes(sub1) << '\t' << nodes(sub2) << '\t' << u_sol(sub1) << '\t' << b[sub1]/m.SpMat().GetRowEntries(sub1)[0] << endl;      
        cout << nodes(sub1) << '\t' << nodes(sub2) << '\t' << (v(sub1) + b[sub1])/m.SpMat().GetRowEntries(sub1)[0] << endl;      
    }
 

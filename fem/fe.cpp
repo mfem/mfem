@@ -254,9 +254,11 @@ void NodalFiniteElement::Project (
 void NodalFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   MFEM_ASSERT(vc.GetVDim() <= 3, "");
+//   MFEM_ASSERT(vc.GetVDim() <= 3, "");
+//
+//   double v[3];
+   double v[vc.GetVDim()];
 
-   double v[3];
    Vector x (v, vc.GetVDim());
 
    for (int i = 0; i < Dof; i++)
