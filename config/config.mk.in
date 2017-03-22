@@ -45,5 +45,9 @@ MFEM_PREFIX    = @MFEM_PREFIX@
 MFEM_INC_DIR   = @MFEM_INC_DIR@
 MFEM_LIB_DIR   = @MFEM_LIB_DIR@
 
+# Command used to launch MPI jobs
+MFEM_MPIEXEC    = @MFEM_MPIEXEC@
+MFEM_MPIEXEC_NP = @MFEM_MPIEXEC_NP@
+
 # Optional extra configuration
 @MFEM_CONFIG_EXTRA@
