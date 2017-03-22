@@ -124,14 +124,16 @@ public:
    class iterator : public Base::iterator
    {
    protected:
+      friend class HashTable;
       typedef typename Base::iterator base;
 
-   public:
+      iterator() { }
       iterator(const base &it) : base(it)
       {
          while (base::good() && (*this)->next == -2) { base::next(); }
       }
 
+   public:
       iterator &operator++()
       {
          while (base::next(), base::good() && (*this)->next == -2) { }
@@ -142,14 +144,16 @@ public:
    class const_iterator : public Base::const_iterator
    {
    protected:
+      friend class HashTable;
       typedef typename Base::const_iterator base;
 
-   public:
+      const_iterator() { }
       const_iterator(const base &it) : base(it)
       {
          while (base::good() && (*this)->next == -2) { base::next(); }
       }
 
+   public:
       const_iterator &operator++()
       {
          while (base::next(), base::good() && (*this)->next == -2) { }
@@ -158,10 +162,10 @@ public:
    };
 
    iterator begin() { return iterator(Base::begin()); }
-   iterator end() { return iterator(Base::end()); }
+   iterator end() { return iterator(); }
 
    const_iterator cbegin() const { return const_iterator(Base::cbegin()); }
-   const_iterator cend() const { return const_iterator(Base::cend()); }
+   const_iterator cend() const { return const_iterator(); }
 
 protected:
    int* table;
