@@ -493,7 +493,31 @@ void DiffusionIntegrator::TensorAssembleMatrices
    IntegrationPoint ip;
    if (dim == 1)
    {
-
+      //Fill D(e,k1,m,n)
+      for (int e = 0; e < num_elements; ++e)
+      {
+         fes->GetElementTransformation(e, &trans);
+         for (int k1 = 0; k1 < nq; ++k1)
+         {
+            ip.x = ir1d->IntPoint(k1).x;
+            ip.y = 0.0;
+            ip.z = 0.0;
+            ip.weight = ir1d->IntPoint(k1).weight;
+            trans.SetIntPoint(&ip);
+            CalcAdjugate(trans.Jacobian(), invdfdx);
+            double w = trans.Weight();
+            w = ip.weight / (square ? w : w*w*w);
+            if (Q)
+            {
+               w *= Q->Eval(trans, ip);
+            }
+            for (int m = 0; m < dim; ++m) {
+               for (int n = 0; n < dim; ++n) {
+                  D(e,k1,m,n) = (invdfdx(n,m) * invdfdx(m,n)) * w;
+               }
+            }
+         }
+      }
    }
    else if (dim == 2)
    {
@@ -678,21 +702,12 @@ void DiffusionIntegrator::TensorAssembleMatrices
    //Now use the tensor library to assemble the element matrices all at once   
    if (dim == 1)
    {
-      TE["S_e_i_j = B_m_n_k_i_j D_e_k_m_n"](S, Btilde1, D);
+      TE["S_e_i_j = B_i_j_k_m_n D_e_k_m_n"](S, Btilde1, D);
    }
    else if (dim == 2)
    {
-      acrobatic::Tensor B(p+1, p+1, p+1, p+1, nq, nq, dim, dim);
-      if (use_gpu)
-      {
-         B.MapToGPU();
-         B.SwitchToGPU();
-      }
-      TE["B_i1_i2_j1_j2_k1_k2_m_n = T_i1_j1_k1_m_n T_i2_j2_k2_m_n"](B, Btilde1, Btilde2);
-
-      //TE["S_e_i1_i2_j1_j2 = B_m_n_k1_i1_j1 B_m_n_k2_i2_j2 D_e_k1_k2_m_n"]
-      TE["S_e_i1_i2_j1_j2 = B_i1_i2_j1_j2_k1_k2_m_n D_e_k1_k2_m_n"]
-         (S, B, D);
+      TE["S_e_i1_i2_j1_j2 = B_i1_j1_k1_m_n B_i2_j2_k2_m_n D_e_k1_k2_m_n"]
+         (S, Btilde1, Btilde2, D);
    }
    else if (dim == 3)
    {
@@ -708,7 +723,11 @@ void DiffusionIntegrator::TensorAssembleMatrices
    //Finally copy the stiffness matrices into element_matrices through the dof_map
    if (dim == 1)
    {
-
+      for (int e = 0; e < num_elements; ++e)
+         for (int i1 = 0; i1 < p+1; ++i1)
+            for (int j1 = 0; j1 < p+1; ++j1) {
+               (*element_matrices)(i1, j1, e) = S(e,i1,j1);
+            }
    }
    else if (dim == 2)
    {
@@ -719,8 +738,8 @@ void DiffusionIntegrator::TensorAssembleMatrices
             for (int i2 = 0; i2 < p+1; ++i2)
                for (int j1 = 0; j1 < p+1; ++j1)
                   for (int j2 = 0; j2 < p+1; ++j2) {
-                     int i = (p+1)*i1 + i2;
-                     int j = (p+1)*j1 + j2;
+                     int i = (p+1)*i2 + i1;
+                     int j = (p+1)*j2 + j1;
                      (*element_matrices)(dof_map[i], dof_map[j], e) = S(e,i1,i2,j1,j2);
                   }
    }
@@ -735,8 +754,8 @@ void DiffusionIntegrator::TensorAssembleMatrices
                   for (int j1 = 0; j1 < p+1; ++j1)
                      for (int j2 = 0; j2 < p+1; ++j2)
                         for (int j3 = 0; j3 < p+1; ++j3) {
-                           int i = (p+1)*(p+1)*i1 + (p+1)*i2 + i3;
-                           int j = (p+1)*(p+1)*j1 + (p+1)*j2 + j3;
+                           int i = (p+1)*(p+1)*i3 + (p+1)*i2 + i1;
+                           int j = (p+1)*(p+1)*j3 + (p+1)*j2 + j1;
                            (*element_matrices)(dof_map[i], dof_map[j], e) = S(e,i1,i2,i3,j1,j2,j3);
                         }
    }
@@ -1110,7 +1129,7 @@ void MassIntegrator::TensorAssembleMatrices
    std::vector<int> ddims(1+dim, ir1d->Size());
    ddims[0] = num_elements;
    std::vector<int> wdims(dim, ir1d->Size());
-   acrobatic::Tensor M(mdims, element_matrices->GetData(0)); 
+   acrobatic::Tensor M(mdims); 
    acrobatic::Tensor B(ir1d->Size(), p+1);                   //This is B1d from the notes
    acrobatic::Tensor C(ir1d->Size(), p+1, p+1);
    acrobatic::Tensor D(ddims);
@@ -1182,28 +1201,58 @@ void MassIntegrator::TensorAssembleMatrices
    }
    else if (dim == 2)
    {
-      //M_e_i1_i2_j1_j2 = C_k1_i1_j1 C_k2_i2_j2 D_e_k1_k2
-      // acrobatic::Tensor E(num_elements, p+1, p+1, ir1d->Size());
-      // if (use_gpu) 
-      // {
-      //    E.MapToGPU();
-      //    E.SwitchToGPU();  
-      // }
       TE["D_e_k1_k2 = W_k1_k2 T_e_k1_k2"](D, W, T);
-      // TE["E_e_i2_j2_k1 = C_k2_i2_j2 D_e_k1_k2"](E, C, D);  
-      // TE["M_e_i1_i2_j1_j2 = C_k1_i1_j1 E_e_i2_j2_k1"](M, C, E);
       TE["M_e_i1_i2_j1_j2 = B_k1_i1 B_k1_j1 B_k2_i2 B_k2_j2 D_e_k1_k2"](M, B, B, B, B, D);
    }
    else if (dim == 3)
    {
       TE["D_e_k1_k2_k3 = W_k1_k2_k3 T_e_k1_k2_k3"](D, W, T);
-      //TE["M_e_i1_i2_i3_j1_j2_j3 = C_k1_i1_j1 C_k2_i2_j2 C_k3_i3_j3 D_e_k1_k2_k3"](M, C, C, C, D);
       TE["M_e_i1_i2_i3_j1_j2_j3 = B_k1_i1 B_k1_j1 B_k2_i2 B_k2_j2 B_k3_i3 B_k3_j3 D_e_k1_k2_k3"](M, B, B, B, B, B, B, D);      
    }
 
    if (use_gpu) 
    {
       M.MoveFromGPU();
+   }
+
+   //Finally copy the mass matrices into element_matrices through the dof_map
+   if (dim == 1)
+   {
+      for (int e = 0; e < num_elements; ++e)
+         for (int i1 = 0; i1 < p+1; ++i1)
+            for (int j1 = 0; j1 < p+1; ++j1) {
+               (*element_matrices)(i1, j1, e) = M(e,i1,j1);
+            }
+   }
+   else if (dim == 2)
+   {
+      const H1_QuadrilateralElement *h1_quad_el = dynamic_cast<const H1_QuadrilateralElement*>(el);
+      const Array<int> &dof_map = h1_quad_el->GetDofMap();
+      for (int e = 0; e < num_elements; ++e)
+         for (int i1 = 0; i1 < p+1; ++i1)
+            for (int i2 = 0; i2 < p+1; ++i2)
+               for (int j1 = 0; j1 < p+1; ++j1)
+                  for (int j2 = 0; j2 < p+1; ++j2) {
+                     int i = (p+1)*i2 + i1;
+                     int j = (p+1)*j2 + j1;
+                     (*element_matrices)(dof_map[i], dof_map[j], e) = M(e,i1,i2,j1,j2);
+                  }
+   }
+   else if (dim == 3)
+   {
+      const H1_HexahedronElement *h1_hex_el = dynamic_cast<const H1_HexahedronElement*>(el);
+      const Array<int> &dof_map = h1_hex_el->GetDofMap();      
+      for (int e = 0; e < num_elements; ++e)
+         for (int i1 = 0; i1 < p+1; ++i1)
+            for (int i2 = 0; i2 < p+1; ++i2)
+               for (int i3 = 0; i3 < p+1; ++i3)
+                  for (int j1 = 0; j1 < p+1; ++j1)
+                     for (int j2 = 0; j2 < p+1; ++j2)
+                        for (int j3 = 0; j3 < p+1; ++j3) {
+                           int i = (p+1)*(p+1)*i3 + (p+1)*i2 + i1;
+                           int j = (p+1)*(p+1)*j3 + (p+1)*j2 + j1;
+                           (*element_matrices)(dof_map[i], dof_map[j], e) = M(e,i1,i2,i3,j1,j2,j3);
+                        }
    }
 }
 #endif
