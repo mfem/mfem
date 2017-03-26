@@ -39,13 +39,13 @@ namespace mfem {
 
   OccaDofQuadMaps& OccaDofQuadMaps::GetTensorMaps(occa::device device,
                                                   const OccaBilinearForm &bilinearForm,
-                                                  const H1_TensorBasisElement &el,
+                                                  const H1_TensorBasisElement &fe,
                                                   const IntegrationRule &ir) {
 
     occa::hash_t hash = (occa::hash(device)
                          ^ "Tensor Element"
-                         ^ ("BasisType: " + occa::toString(el.GetBasisType()))
-                         ^ ("Order: " + occa::toString(el.GetOrder()))
+                         ^ ("BasisType: " + occa::toString(fe.GetBasisType()))
+                         ^ ("Order: " + occa::toString(fe.GetOrder()))
                          ^ ("Quad: " + occa::toString(ir.GetNPoints())));
 
     // If we've already made the dof-quad maps, reuse them
@@ -57,8 +57,8 @@ namespace mfem {
     // Create the dof-quad maps
     maps.hash = hash;
 
-    const Poly_1D::Basis &basis = el.GetBasis();
-    const int order = el.GetOrder();
+    const Poly_1D::Basis &basis = fe.GetBasis();
+    const int order = fe.GetOrder();
     const int dofs = order + 1;
     const int dims = bilinearForm.GetDim();
 
@@ -137,6 +137,78 @@ namespace mfem {
     return maps;
   }
 
+  OccaDofQuadMaps& OccaDofQuadMaps::GetSimplexMaps(occa::device device,
+                                                   const OccaBilinearForm &bilinearForm,
+                                                   const FiniteElement &fe,
+                                                   const IntegrationRule &ir) {
+
+    occa::hash_t hash = (occa::hash(device)
+                         ^ "Simplex Element"
+                         ^ ("Order: " + occa::toString(fe.GetOrder()))
+                         ^ ("Quad: " + occa::toString(ir.GetNPoints())));
+
+    // If we've already made the dof-quad maps, reuse them
+    OccaDofQuadMaps &maps = AllDofQuadMaps[hash];
+    if (maps.hash.isInitialized()) {
+      return maps;
+    }
+
+    // Create the dof-quad maps
+    maps.hash = hash;
+    const int dims = fe.GetDim();
+    const int numDofs = fe.GetDof();
+    const int numQuad = ir.GetNPoints();
+
+    // Initialize the dof -> quad mapping
+    const int d2qEntries = numQuad * numDofs;
+    double *dofToQuadData  = new double[d2qEntries];
+    double *dofToQuadDData = new double[d2qEntries * dims];
+    double *quadToDofData  = new double[d2qEntries];
+    double *quadToDofDData = new double[d2qEntries * dims];
+    // Initialize quad weights
+    double *quadWeightsData = new double[numQuad];
+
+    for (int q = 0; q < numQuad; ++q) {
+      mfem::Vector d2q;
+      mfem::DenseMatrix d2qD;
+      const IntegrationPoint &ip = ir.IntPoint(q);
+      quadWeightsData[q] = ip.weight;
+      fe.CalcShape(ip, d2q);
+      fe.CalcDShape(ip, d2qD);
+      for (int d = 0; d < numDofs; ++d) {
+        const double w = d2q[d];
+        const int d2qIdx = q + d*numQuad;
+        const int q2dIdx = d + q*numDofs;
+        dofToQuadData[d2qIdx] = w;
+        quadToDofData[q2dIdx] = w;
+        for (int dim = 0; dim < dims; ++dim) {
+          const double wD = d2qD(d, dim);
+          dofToQuadDData[dims * d2qIdx + dim] = wD;
+          quadToDofDData[dims * q2dIdx + dim] = wD;
+        }
+      }
+    }
+
+    maps.dofToQuad  = device.malloc(d2qEntries * sizeof(double),
+                                    dofToQuadData);
+    maps.dofToQuadD = device.malloc(d2qEntries * dims * sizeof(double),
+                                    dofToQuadDData);
+    maps.quadToDof  = device.malloc(d2qEntries * sizeof(double),
+                                    quadToDofData);
+    maps.quadToDofD = device.malloc(d2qEntries * dims * sizeof(double),
+                                    quadToDofDData);
+    maps.quadWeights = device.malloc(numQuad * sizeof(double),
+                                     quadWeightsData);
+
+    delete [] dofToQuadData;
+    delete [] dofToQuadDData;
+    delete [] quadToDofData;
+    delete [] quadToDofDData;
+    delete [] quadWeightsData;
+
+    return maps;
+  }
+
   //---[ Integrator Defines ]-----------
   std::string stringWithDim(const std::string &s, const int dim) {
     std::string ret = s;
@@ -191,6 +263,33 @@ namespace mfem {
 
     // 3D Defines
     const int a3QuadBatch = closestWarpBatch(quadND, 2048);
+    props["defines/A3_ELEMENT_BATCH"] = closestWarpBatch(a3QuadBatch, 2048);
+    props["defines/A3_QUAD_BATCH"]    = a3QuadBatch;
+  }
+
+  void setSimplexProperties(const FiniteElement &fe,
+                            const IntegrationRule &ir,
+                            occa::properties &props) {
+
+    const int numDofs = fe.GetDof();
+    const int numQuad = ir.GetNPoints();
+
+    props["defines/NUM_DOFS"] = numDofs;
+    props["defines/NUM_QUAD"] = numQuad;
+
+    // 1D Defines
+    const int m1InnerBatch = 32 * ((numQuad + 31) / 32);
+    props["defines/A1_ELEMENT_BATCH"]       = closestWarpBatch(numQuad, 2048);
+    props["defines/M1_OUTER_ELEMENT_BATCH"] = closestWarpBatch(m1InnerBatch, 2048);
+    props["defines/M1_INNER_ELEMENT_BATCH"] = m1InnerBatch;
+
+    // 2D Defines
+    props["defines/A2_ELEMENT_BATCH"] = 1;
+    props["defines/A2_QUAD_BATCH"]    = 1;
+    props["defines/M2_ELEMENT_BATCH"] = 32;
+
+    // 3D Defines
+    const int a3QuadBatch = closestWarpBatch(numQuad, 2048);
     props["defines/A3_ELEMENT_BATCH"] = closestWarpBatch(a3QuadBatch, 2048);
     props["defines/A3_QUAD_BATCH"]    = a3QuadBatch;
   }
@@ -306,6 +405,8 @@ namespace mfem {
       maps = OccaDofQuadMaps::GetTensorMaps(device, bilinearForm, *el, ir);
       setTensorProperties(fe, ir, kernelProps);
     } else {
+      maps = OccaDofQuadMaps::GetSimplexMaps(device, bilinearForm, fe, ir);
+      setSimplexProperties(fe, ir, kernelProps);
     }
 
     const int dims = bilinearForm.GetDim();

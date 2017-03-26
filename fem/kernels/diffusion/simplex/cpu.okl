@@ -33,9 +33,9 @@ kernel void Assemble2D(const int numElements,
 
 kernel void Mult2D(const int numElements,
                    const DofToQuad2D_t restrict dofToQuad,
-                   const DofToQuad2D_t restrict dofToQuadD,
+                   const DofToQuadD2D_t restrict dofToQuadD,
                    const QuadToDof2D_t restrict quadToDof,
-                   const QuadToDof2D_t restrict quadToDofD,
+                   const QuadToDofD2D_t restrict quadToDofD,
                    const SymmOperator2D_t restrict oper,
                    Local_t restrict sol) {
   // Iterate over elements
@@ -118,9 +118,9 @@ kernel void Assemble3D(const int numElements,
 
 kernel void Mult3D(const int numElements,
                    const DofToQuad3D_t restrict dofToQuad,
-                   const DofToQuad3D_t restrict dofToQuadD,
+                   const DofToQuadD3D_t restrict dofToQuadD,
                    const QuadToDof3D_t restrict quadToDof,
-                   const QuadToDof3D_t restrict quadToDofD,
+                   const QuadToDofD3D_t restrict quadToDofD,
                    const SymmOperator3D_t restrict oper,
                    Local_t restrict sol) {
   // Iterate over elements

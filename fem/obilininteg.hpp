@@ -36,15 +36,26 @@ namespace mfem {
 
     static OccaDofQuadMaps& GetTensorMaps(occa::device device,
                                           const OccaBilinearForm &bilinearForm,
-                                          const H1_TensorBasisElement &el,
+                                          const H1_TensorBasisElement &fe,
                                           const IntegrationRule &ir);
+
+    static OccaDofQuadMaps& GetSimplexMaps(occa::device device,
+                                           const OccaBilinearForm &bilinearForm,
+                                           const FiniteElement &fe,
+                                           const IntegrationRule &ir);
   };
 
   //---[ Define Methods ]---------------
   std::string stringWithDim(const std::string &s, const int dim);
   int closestWarpBatch(const int multiple, const int maxSize);
 
-  occa::properties getTensorProperties();
+  void setTensorProperties(const FiniteElement &fe,
+                           const IntegrationRule &ir,
+                           occa::properties &props);
+
+  void setSimplexProperties(const FiniteElement &fe,
+                            const IntegrationRule &ir,
+                            occa::properties &props);
 
   occa::memory getJacobian(occa::device device,
                            const OccaBilinearForm &bilinearForm,

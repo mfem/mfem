@@ -6,11 +6,11 @@
 //               ex1 -m ../data/star.mesh
 //               ex1 -m ../data/escher.mesh
 //               ex1 -m ../data/fichera.mesh
-//               ex1 -m ../data/square-disc-p2.vtk -o 2
-//               ex1 -m ../data/square-disc-p3.mesh -o 3
-//               ex1 -m ../data/square-disc-nurbs.mesh -o -1
-//               ex1 -m ../data/disc-nurbs.mesh -o -1
-//               ex1 -m ../data/pipe-nurbs.mesh -o -1
+//               ex1 -m ../data/square-disc-p2.vtk
+//               ex1 -m ../data/square-disc-p3.mesh
+//               ex1 -m ../data/square-disc-nurbs.mesh
+//               ex1 -m ../data/disc-nurbs.mesh
+//               ex1 -m ../data/pipe-nurbs.mesh
 //               ex1 -m ../data/star-surf.mesh
 //               ex1 -m ../data/square-disc-surf.mesh
 //               ex1 -m ../data/inline-segment.mesh
@@ -18,7 +18,6 @@
 //               ex1 -m ../data/amr-hex.mesh
 //               ex1 -m ../data/fichera-amr.mesh
 //               ex1 -m ../data/mobius-strip.mesh
-//               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -41,11 +40,11 @@
   |-----+-----+------------------------+--------------+------------|
   |     |     | star-surf.mesh         | Square       | 3D Surface |
   |     |     | mobius-strip.mesh      | Square       | 3D Surface |
-  |     |     | square-disc.mesh       | Triangle     |            |
-  |     |     | square-disc-p2.vtk     | Triangle     |            |
-  |     |     | square-disc-p3.mesh    | Triangle     |            |
-  |     |     | square-disc-surf.mesh  | Triangle     |            |
-  |     |     | escher.mesh            | Tet          |            |
+  | x   |     | square-disc.mesh       | Triangle     |            |
+  | x   |     | square-disc-p2.vtk     | Triangle     |            |
+  | x   |     | square-disc-p3.mesh    | Triangle     |            |
+  |     |     | square-disc-surf.mesh  | Triangle     | 3D Surf?   |
+  | x   |     | escher.mesh            | Tet          |            |
   |-----+-----+------------------------+--------------+------------|
 */
 

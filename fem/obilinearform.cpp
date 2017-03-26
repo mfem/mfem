@@ -71,77 +71,74 @@ namespace mfem {
   void OccaBilinearForm::SetupIntegratorData() {
     const FiniteElement &fe = GetFE(0);
     const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
-    if (!el) {
-      mfem_error("occa::OccaBilinearForm can only handle H1_TensorBasisElement element types. "
-                 "These include:"
-                 " H1_SegmentElement,"
-                 " H1_QuadrilateralElement,"
-                 " H1_HexahedronElement.");
-    }
 
     const Table &e2dTable = fes->GetElementToDofTable();
     const int *elementMap = e2dTable.GetJ();
     const int elements = GetNE();
-    const int ndofs = GetNDofs();
-    const int ldofs = fe.GetDof();
+    const int numDofs = GetNDofs();
+    const int localDofs = fe.GetDof();
 
+    const int *dofMap;
     if (el) {
-      const int *dofMap = el->GetDofMap().GetData();
-
-      int *offsets = new int[ndofs + 1];
-      int *indices = new int[elements * ldofs];
-
-      // We'll be keeping a count of how many local nodes point
-      //   to its global dof
-      for (int i = 0; i <= ndofs; ++i) {
-        offsets[i] = 0;
-      }
-
-      for (int e = 0; e < elements; ++e) {
-        for (int d = 0; d < ldofs; ++d) {
-          const int gid = elementMap[ldofs*e + d];
-          ++offsets[gid + 1];
-        }
-      }
-      // Aggregate to find offsets for each global dof
-      for (int i = 1; i <= ndofs; ++i) {
-        offsets[i] += offsets[i - 1];
-      }
-      // For each global dof, fill in all local nodes that point
-      //   to it
-      for (int e = 0; e < elements; ++e) {
-        for (int d = 0; d < ldofs; ++d) {
-          const int gid = elementMap[ldofs*e + dofMap[d]];
-          const int lid = ldofs*e + d;
-          indices[offsets[gid]++] = lid;
-        }
-      }
-      // We shifted the offsets vector by 1 by using it
-      //   as a counter. Now we shift it back.
-      for (int i = ndofs; i > 0; --i) {
-        offsets[i] = offsets[i - 1];
-      }
-      offsets[0] = 0;
-
-      // Allocate device offsets and indices
-      globalToLocalOffsets = device.malloc((ndofs + 1) * sizeof(int),
-                                           offsets);
-      globalToLocalIndices = device.malloc((elements * ldofs) * sizeof(int),
-                                           indices);
-
-      delete [] offsets;
-      delete [] indices;
+      dofMap = el->GetDofMap().GetData();
     } else {
-      // Allocate device offsets and indices
-      globalToLocalOffsets = device.malloc((ndofs + 1) * sizeof(int),
-                                           e2dTable.GetI());
-      globalToLocalIndices = device.malloc((elements * ldofs) * sizeof(int),
-                                           e2dTable.GetJ());
+      int *dofMap_ = new int[localDofs];
+      for (int i = 0; i < localDofs; ++i) {
+        dofMap_[i] = i;
+      }
+      dofMap = dofMap_;
+    }
+
+    int *offsets = new int[numDofs + 1];
+    int *indices = new int[elements * localDofs];
+
+    // We'll be keeping a count of how many local nodes point
+    //   to its global dof
+    for (int i = 0; i <= numDofs; ++i) {
+      offsets[i] = 0;
+    }
+
+    for (int e = 0; e < elements; ++e) {
+      for (int d = 0; d < localDofs; ++d) {
+        const int gid = elementMap[localDofs*e + d];
+        ++offsets[gid + 1];
+      }
+    }
+    // Aggregate to find offsets for each global dof
+    for (int i = 1; i <= numDofs; ++i) {
+      offsets[i] += offsets[i - 1];
+    }
+    // For each global dof, fill in all local nodes that point
+    //   to it
+    for (int e = 0; e < elements; ++e) {
+      for (int d = 0; d < localDofs; ++d) {
+        const int gid = elementMap[localDofs*e + dofMap[d]];
+        const int lid = localDofs*e + d;
+        indices[offsets[gid]++] = lid;
+      }
+    }
+    // We shifted the offsets vector by 1 by using it
+    //   as a counter. Now we shift it back.
+    for (int i = numDofs; i > 0; --i) {
+      offsets[i] = offsets[i - 1];
+    }
+    offsets[0] = 0;
+
+    // Allocate device offsets and indices
+    globalToLocalOffsets = device.malloc((numDofs + 1) * sizeof(int),
+                                         offsets);
+    globalToLocalIndices = device.malloc((elements * localDofs) * sizeof(int),
+                                         indices);
+
+    delete [] offsets;
+    delete [] indices;
+    if (!el) {
+      delete [] dofMap;
     }
 
     // Allocate a temporary vector where local element operations
     //   will be handled.
-    localX.SetSize(device, elements * ldofs);
+    localX.SetSize(device, elements * localDofs);
   }
 
   void OccaBilinearForm::SetupInterpolationData() {
