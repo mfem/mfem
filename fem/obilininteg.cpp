@@ -217,7 +217,11 @@ namespace mfem {
     return ret;
   }
 
-  int closestWarpBatch(const int multiple, const int maxSize) {
+  int closestWarpBatchTo(const int value) {
+    return ((value + 31) / 32) * 32;
+  }
+
+  int closestMultipleWarpBatch(const int multiple, const int maxSize) {
     int batch = (32 / multiple);
     int minDiff = 32 - (multiple * batch);
     for (int i = 64; i <= maxSize; i += 32) {
@@ -252,8 +256,8 @@ namespace mfem {
 
     // 1D Defines
     const int m1InnerBatch = 32 * ((quad1D + 31) / 32);
-    props["defines/A1_ELEMENT_BATCH"]       = closestWarpBatch(quad1D, 2048);
-    props["defines/M1_OUTER_ELEMENT_BATCH"] = closestWarpBatch(m1InnerBatch, 2048);
+    props["defines/A1_ELEMENT_BATCH"]       = closestMultipleWarpBatch(quad1D, 2048);
+    props["defines/M1_OUTER_ELEMENT_BATCH"] = closestMultipleWarpBatch(m1InnerBatch, 2048);
     props["defines/M1_INNER_ELEMENT_BATCH"] = m1InnerBatch;
 
     // 2D Defines
@@ -262,8 +266,8 @@ namespace mfem {
     props["defines/M2_ELEMENT_BATCH"] = 32;
 
     // 3D Defines
-    const int a3QuadBatch = closestWarpBatch(quadND, 2048);
-    props["defines/A3_ELEMENT_BATCH"] = closestWarpBatch(a3QuadBatch, 2048);
+    const int a3QuadBatch = closestMultipleWarpBatch(quadND, 2048);
+    props["defines/A3_ELEMENT_BATCH"] = closestMultipleWarpBatch(a3QuadBatch, 2048);
     props["defines/A3_QUAD_BATCH"]    = a3QuadBatch;
   }
 
@@ -273,25 +277,21 @@ namespace mfem {
 
     const int numDofs = fe.GetDof();
     const int numQuad = ir.GetNPoints();
+    const int maxDQ   = numDofs > numQuad ? numDofs : numQuad;
 
     props["defines/NUM_DOFS"] = numDofs;
     props["defines/NUM_QUAD"] = numQuad;
 
-    // 1D Defines
-    const int m1InnerBatch = 32 * ((numQuad + 31) / 32);
-    props["defines/A1_ELEMENT_BATCH"]       = closestWarpBatch(numQuad, 2048);
-    props["defines/M1_OUTER_ELEMENT_BATCH"] = closestWarpBatch(m1InnerBatch, 2048);
-    props["defines/M1_INNER_ELEMENT_BATCH"] = m1InnerBatch;
-
     // 2D Defines
     props["defines/A2_ELEMENT_BATCH"] = 1;
     props["defines/A2_QUAD_BATCH"]    = 1;
-    props["defines/M2_ELEMENT_BATCH"] = 32;
+    props["defines/M2_INNER_BATCH"]   = closestWarpBatchTo(maxDQ);
 
     // 3D Defines
-    const int a3QuadBatch = closestWarpBatch(numQuad, 2048);
-    props["defines/A3_ELEMENT_BATCH"] = closestWarpBatch(a3QuadBatch, 2048);
+    const int a3QuadBatch = closestMultipleWarpBatch(numQuad, 2048);
+    props["defines/A3_ELEMENT_BATCH"] = closestMultipleWarpBatch(a3QuadBatch, 2048);
     props["defines/A3_QUAD_BATCH"]    = a3QuadBatch;
+    props["defines/M3_INNER_BATCH"]   = closestWarpBatchTo(maxDQ);
   }
 
   occa::memory getJacobian(occa::device device,
