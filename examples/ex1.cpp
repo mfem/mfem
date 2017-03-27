@@ -46,6 +46,8 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   MFEM_ASSERT(false, "Generate error message.");
+
    // 1. Parse command-line options.
    const char *mesh_file = "../data/amr-hex.mesh";
    int order = 1;
