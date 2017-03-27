@@ -906,4 +906,177 @@ void DGRiemIntegrator::AssembleRHSElementVect(
 
 
 
+
+
+void DGEulerIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   mfem_error("DGEulerIntegrator::AssembleRHSElementVect");
+}
+
+void DGEulerIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   mfem_error("DGEEulerIntegrator::AssembleRHSElementVect");
+}
+
+
+void DGEulerIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Trans, Vector &elvect)
+{
+   int dim, ndof1, ndof2;
+
+   double un, a, b, w;
+
+   Vector shape1, shape2;
+
+   dim = el1.GetDim();
+   ndof1 = el1.GetDof();
+   ndof2 = el2.GetDof();
+   
+   Vector vu(dim), nor(dim);
+
+   elvect.SetSize(vDim*(ndof1 + ndof2));
+   elvect = 0.0;
+
+   shape1.SetSize(ndof1);
+   shape2.SetSize(ndof2);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order;
+      // Assuming order(u)==order(mesh)
+      if (Trans.Elem2No >= 0)
+         order = (std::min(Trans.Elem1->OrderW(), Trans.Elem2->OrderW()) +
+                  2*std::max(el1.GetOrder(), el2.GetOrder()));
+      else
+      {
+         order = Trans.Elem1->OrderW() + 2*el1.GetOrder();
+      }
+      if (el1.Space() == FunctionSpace::Pk)
+      {
+         order++;
+      }
+      ir = &IntRules.Get(Trans.FaceGeom, order);
+   }
+
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+      IntegrationPoint eip1, eip2;
+      Trans.Loc1.Transform(ip, eip1);
+      if (ndof2)
+      {
+         Trans.Loc2.Transform(ip, eip2);
+      }
+
+      Trans.Face->SetIntPoint(&ip);
+      Trans.Elem1->SetIntPoint(&eip1);
+      Trans.Elem2->SetIntPoint(&eip2);
+
+      el1.CalcShape(eip1, shape1);
+      el2.CalcShape(eip2, shape2);
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Trans.Face->Jacobian(), nor);
+      }
+
+      Vector u1_dir(vDim), u2_dir(vDim);
+      uD.Eval(u1_dir, *Trans.Elem1, eip1);
+      uD.Eval(u2_dir, *Trans.Elem2, eip2);
+
+      double R     = 287;
+      double gamm  = 1.4;
+      double Cv    = R/(gamm - 1);
+
+      double rho_L = u1_dir(0);
+      double u_L   = u1_dir(1)/rho_L;
+      double v_L   = u1_dir(2)/rho_L;
+      double E_L   = u1_dir(3);
+
+      double T_L   = (E_L - 0.5*rho_L*(pow(u_L,2) + pow(v_L,2)))/(rho_L*Cv);
+      double a_L   = sqrt(gamm * R * T_L);
+
+      double rho_R = u2_dir(0);
+      double u_R   = u2_dir(1)/rho_R;
+      double v_R   = u2_dir(2)/rho_R;
+      double E_R   = u2_dir(3);
+
+      double T_R   = (E_R - 0.5*rho_R*(pow(u_R,2) + pow(v_R,2)))/(rho_R*Cv);
+      double a_R   = sqrt(gamm * R * T_R);
+
+      Vector nor_dim(dim);
+      double nor_l2 = nor.Norml2();
+      nor_dim.Set(1/nor_l2, nor);
+
+      double vnl   = u_L*nor_dim(0) + v_L*nor_dim(1); 
+      double vnr   = u_R*nor_dim(0) + v_R*nor_dim(1); 
+
+      double u_max = std::max(a_L + std::abs(vnl), a_R + std::abs(vnr));
+
+      Vector f1_dir(vDim), f2_dir(vDim);
+      Vector f_dir(vDim);
+      fD.Eval(f1_dir, *Trans.Elem1, eip1);
+      fD.Eval(f2_dir, *Trans.Elem2, eip2);
+
+      for (int i = 0; i < 1; i++)
+      {
+          for (int j = 0; j < vDim; j++)
+          {
+              f1_dir(j) = f1_dir(j)*nor_dim(i);
+              f2_dir(j) = f2_dir(j)*nor_dim(i);
+              f_dir (j) = f_dir (j)*nor_dim(i);
+          }
+      }
+
+      add(0.5, f1_dir, f2_dir, f_dir); //Common flux without dissipation
+
+      Vector f_diss(vDim); //Rusanov dissipation 
+      subtract(-0.5*u_max, u2_dir, u1_dir, f_diss); // Left and right depends on normal direction
+
+//      std::cout << Trans.Elem1No << '\t' << Trans.Elem2No << '\t' << nor_dim(0) << '\t' << nor_dim(1) << std::endl;
+//      std::cout << p << '\t' << nor_dim(0) << '\t' << nor_dim(1) << std::endl;
+//      std::cout << p << '\t' << f_dir(0) << '\t' << f_dir(1) << '\t' << f_dir(2) << '\t' << f_dir(3) << std::endl;
+
+      add(f_dir, f_diss, f_dir);
+
+//      std::cout << p << '\t' << f_diss(0) << '\t' << f_diss(1) << '\t' << f_diss(2) << '\t' << f_diss(3) << std::endl;
+//      std::cout << p << '\t' << f_dir(0) << '\t' << f_dir(1) << '\t' << f_dir(2) << '\t' << f_dir(3) << std::endl;
+
+      w = ip.weight * alpha * nor_l2;
+
+      subtract(f_dir, f1_dir, f1_dir); //u_comm - u1
+//      std::cout << p << '\t' << u1_dir(0) << '\t' << u1_dir(1) << '\t' << u1_dir(2) << '\t' << u1_dir(3) << std::endl;
+      for (int j = 0; j < vDim; j++)
+      {
+          for (int i = 0; i < ndof1; i++)
+          {
+              elvect(j*ndof1 + i)              += f1_dir(j)*w*shape1(i); 
+          }
+      }
+
+      subtract(f_dir, f2_dir, f2_dir); //ucomm - u2
+      for (int j = 0; j < vDim; j++)
+      {
+          for (int i = 0; i < ndof2; i++)
+          {
+              elvect(vDim*ndof1 + j*ndof2 + i) -= f2_dir(j)*w*shape2(i); 
+          }
+      }
+
+   }// for ir loop
+
+//   std::cout << elvect(0) << '\t' << elvect(1) << '\t' << elvect(2) << '\t' << elvect(3) << std::endl;
+//   std::cout << elvect(0) << '\t' << elvect(4) << '\t' << elvect(8) << '\t' << elvect(12) << std::endl;
+
+}
+
+
+
 }

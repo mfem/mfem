@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
 {
    const char *mesh_file = "periodic-square.mesh";
    int order = 1;
-   double t_final = 0.01;
+   double t_final = 0.49;
    double dt = 0.01;
 
    int precision = 8;
@@ -86,13 +86,18 @@ int main(int argc, char *argv[])
    k.Assemble(skip_zeros);
    k.Finalize(skip_zeros);
    /////////////////////////////////////////////////////////////
+   
+   VectorGridFunctionCoefficient u_vec(&u_sol);
+   VectorGridFunctionCoefficient f_vec(&inv_flux);
+
+   /////////////////////////////////////////////////////////////
    // Linear form
    LinearForm b(&fes);
-//   b.AddFaceIntegrator(
-//      new DGRiemIntegrator(u_vec, -1, 0));
-   b.Assemble();
+   b.AddFaceIntegrator(
+      new DGEulerIntegrator(u_vec, f_vec, dim + 2, -1.0));
    ///////////////////////////////////////////////////////////
-   
+  
+
    FE_Evolution adv(m.SpMat(), k.SpMat(), b);
    ODESolver *ode_solver = new ForwardEulerSolver; 
 
@@ -100,8 +105,22 @@ int main(int argc, char *argv[])
    adv.SetTime(t);
    ode_solver->Init(adv);
 
-   ode_solver->Step(u_sol, t, dt);
+   bool done = false;
+   for (int ti = 0; !done; )
+   {
+      b.Assemble();
 
+      double dt_real = min(dt, t_final - t);
+      ode_solver->Step(u_sol, t, dt_real);
+      ti++;
+
+      cout << "time step: " << ti << ", time: " << t << endl;
+
+      getInvFlux(dim, u_sol, inv_flux); // To update f_vec
+
+      done = (t >= t_final - 1e-8*dt);
+   }
+  
    // Print all nodes in the finite element space 
    FiniteElementSpace fes_nodes(mesh, &fec, dim);
    GridFunction nodes(&fes_nodes);
@@ -111,7 +130,7 @@ int main(int argc, char *argv[])
    {
        int offset = nodes.Size()/dim;
        int sub1 = i, sub2 = offset + i, sub3 = 2*offset + i, sub4 = 3*offset + i;
-//       cout << nodes(sub1) << '\t' << nodes(sub2) << '\t' << u_sol(sub4) << '\t' << inv_flux(sub4) << endl;      
+       cout << nodes(sub1) << '\t' << nodes(sub2) << '\t' << u_sol(sub4) << '\t' << inv_flux(sub4) << endl;      
 //       cout << nodes(sub1) << '\t' << nodes(sub2) << '\t' << u_sol(sub1) << '\t' << u_sol(sub2) << '\t' << u_sol(sub3) << '\t' << u_sol(sub4) << endl;      
    }
 
@@ -158,13 +177,25 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
         offsets[3][i] = 3*offset + i ;
     }
     Vector f_sol(offset), f_x(offset), f_x_m(offset);
+    Vector b_sub(offset);
     for(int i = 0; i < dim + 2; i++)
     {
         f.GetSubVector(offsets[i], f_sol);
         K.Mult(f_sol, f_x);
+        b.GetSubVector(offsets[i], b_sub);
+        f_x += b_sub;
         M_solver.Mult(f_x, f_x_m);
         y.SetSubVector(offsets[i], f_x_m);
     }
+        for (int j = 0; j < offset; j++) 
+        {
+//            cout << j << '\t'<< b(j) << endl;
+//            cout << j << '\t'<< b(3*offset + j) << endl;
+//            cout << j << '\t'<< x(j) << '\t' << y(j) << endl;
+//            cout << j << '\t'<< x(offset + j) << '\t' << y(offset + j) << endl;
+//            cout << j << '\t'<< x(3*offset + j) << '\t' << y(3*offset + j) << endl;
+        }
+
 }
 
 
@@ -211,7 +242,9 @@ void getInvFlux(int dim, const Vector &u, Vector &f)
     f.SetSubVector(offsets2,     f1);
     f.SetSubVector(offsets3,     f2);
     f.SetSubVector(offsets4,     f3);
+
 }
+
 
 //  Initialize variables coefficient
 void init_function(const Vector &x, Vector &v)

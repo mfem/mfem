@@ -254,12 +254,7 @@ void NodalFiniteElement::Project (
 void NodalFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-//   MFEM_ASSERT(vc.GetVDim() <= 3, "");
-//
-//   double v[3];
-   double v[vc.GetVDim()];
-
-   Vector x (v, vc.GetVDim());
+   Vector x (vc.GetVDim());
 
    for (int i = 0; i < Dof; i++)
    {
@@ -272,7 +267,7 @@ void NodalFiniteElement::Project (
       }
       for (int j = 0; j < x.Size(); j++)
       {
-         dofs(Dof*j+i) = v[j];
+         dofs(Dof*j+i) = x(j);
       }
    }
 }
