@@ -84,7 +84,7 @@ script:
    - if [ $DEBUG == "NO" ]; then export MFEM_TEST_TARGET="test"; else export MFEM_TEST_TARGET="check"; fi
 
    # Build and check/test MFEM, its examples and miniapps
-   - cd $TRAVIS_BUILD_DIR
-   - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX=$MYCXX
-   - make all -j 4
-   - make $MFEM_TEST_TARGET
+   - cd $TRAVIS_BUILD_DIR \
+    && make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX=$MYCXX \
+    && make all -j 4 \
+    && make $MFEM_TEST_TARGET
