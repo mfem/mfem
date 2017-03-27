@@ -1,6 +1,7 @@
 # Config files setup during compilation
 config/_config.hpp
 config/config.mk
+config/user.mk
 
 # Intermediate compilation objects
 *.o

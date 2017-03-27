@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
   const char *mesh_file = "../../data/fichera.mesh";
   int order = 3;
   const char *basis_type = "G"; // Gauss-Lobatto
-   const char *pc = "none";
+  const char *pc = "none";
   bool visualization = 1;
   const char *device_info = "mode: 'Serial'";
   bool occa_verbose = false;

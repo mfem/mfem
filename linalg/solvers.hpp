@@ -150,11 +150,7 @@ public:
    virtual void SetOperator(const Operator &op)
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
-   virtual void Mult(const Vector &b, Vector &x) const
-   { mfem_error("TCGSolver::Mult() Cannot be used, use Solve()"); }
-
-   void Solve(const TVector &b, TVector &x) const
-   {
+   virtual void Mult(const TVector &b, TVector &x) const {
       int i;
       double r0, den, nom, nom0, betanom, alpha, beta;
 
@@ -318,7 +314,7 @@ void TCG(const Operator &A, const TVector &b, TVector &x,
    cg.SetRelTol(sqrt(RTOLERANCE));
    cg.SetAbsTol(sqrt(ATOLERANCE));
    cg.SetOperator(A);
-   cg.Solve(b, x);
+   cg.Mult(b, x);
 }
 
 /// Preconditioned conjugate gradient method. (tolerances are squared)
@@ -334,7 +330,7 @@ void TPCG(const Operator &A, Solver &B, const TVector &b, TVector &x,
    pcg.SetAbsTol(sqrt(ATOLERANCE));
    pcg.SetOperator(A);
    pcg.SetPreconditioner(B);
-   pcg.Solve(b, x);
+   pcg.Mult(b, x);
 }
 
 inline void CG(const Operator &A, const Vector &b, Vector &x,
