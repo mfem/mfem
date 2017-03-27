@@ -200,14 +200,14 @@ void NCMesh::Update()
 NCMesh::~NCMesh()
 {
 #ifdef MFEM_DEBUG
-   #ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_MPI
    // in parallel, update 'leaf_elements'
    for (int i = 0; i < elements.Size(); i++)
    {
       elements[i].rank = 0; // make sure all leaves are in leaf_elements
    }
    UpdateLeafElements();
-   #endif
+#endif
 
    // sign off of all faces and nodes
    Array<int> elemFaces;
