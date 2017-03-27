@@ -335,7 +335,7 @@ protected: // implementation
       char ref_type; ///< bit mask of X,Y,Z refinements (bits 0,1,2 respectively)
       char flag;     ///< generic flag/marker, can be used by algorithms
       int index;     ///< element number in the Mesh, -1 if refined
-      int rank;      ///< processor number (ParNCMesh)
+      int rank;      ///< processor number (ParNCMesh), -1 if undefined/unknown
       int attribute;
       union
       {

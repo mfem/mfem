@@ -183,8 +183,7 @@ NCMesh::NCMesh(const NCMesh &other)
 {
    other.free_element_ids.Copy(free_element_ids);
    other.top_vertex_pos.Copy(top_vertex_pos);
-   other.leaf_elements.Copy(leaf_elements);
-   other.vertex_nodeId.Copy(vertex_nodeId);
+   Update();
 }
 
 void NCMesh::Update()
@@ -200,6 +199,17 @@ void NCMesh::Update()
 
 NCMesh::~NCMesh()
 {
+#ifdef MFEM_DEBUG
+   #ifdef MFEM_USE_MPI
+   // in parallel, update 'leaf_elements'
+   for (int i = 0; i < elements.Size(); i++)
+   {
+      elements[i].rank = 0; // make sure all leaves are in leaf_elements
+   }
+   UpdateLeafElements();
+   #endif
+
+   // sign off of all faces and nodes
    Array<int> elemFaces;
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
@@ -207,6 +217,8 @@ NCMesh::~NCMesh()
       UnrefElement(leaf_elements[i], elemFaces);
       DeleteUnusedFaces(elemFaces);
    }
+   // NOTE: in release mode, we just throw away all faces and nodes at once
+#endif
 }
 
 NCMesh::Node::~Node()
