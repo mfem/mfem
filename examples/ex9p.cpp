@@ -148,7 +148,6 @@ int main(int argc, char *argv[])
    //    handle geometrically periodic meshes in this code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-   mesh->EnsureNCMesh();
 
    // 4. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
@@ -190,8 +189,7 @@ int main(int argc, char *argv[])
    delete mesh;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
-      //pmesh->UniformRefinement();
-      pmesh->RandomRefinement(0.2);
+      pmesh->UniformRefinement();
    }
 
    // 7. Define the parallel discontinuous DG finite element space on the

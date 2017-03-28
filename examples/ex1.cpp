@@ -95,7 +95,7 @@ void TestContinuity(const GridFunction &gf, int depth, double tol)
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/amr-hex.mesh";
+   const char *mesh_file = "../data/star.mesh";
    int order = 1;
    int ref_levels = 3;
    int seed = 1;
@@ -130,8 +130,6 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-
-   mesh->EnsureNCMesh();
 
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
@@ -193,7 +191,6 @@ int main(int argc, char *argv[])
    GridFunction x(fespace);
    x = 0.0;
 
-#if 1
    // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
@@ -228,7 +225,6 @@ int main(int argc, char *argv[])
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
-#endif
 
    // 12. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".

@@ -200,6 +200,17 @@ void NCMesh::Update()
 
 NCMesh::~NCMesh()
 {
+#ifdef MFEM_DEBUG
+#ifdef MFEM_USE_MPI
+   // in parallel, update 'leaf_elements'
+   for (int i = 0; i < elements.Size(); i++)
+   {
+      elements[i].rank = 0; // make sure all leaves are in leaf_elements
+   }
+   UpdateLeafElements();
+#endif
+
+   // sign off of all faces and nodes
    Array<int> elemFaces;
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
@@ -207,6 +218,8 @@ NCMesh::~NCMesh()
       UnrefElement(leaf_elements[i], elemFaces);
       DeleteUnusedFaces(elemFaces);
    }
+   // NOTE: in release mode, we just throw away all faces and nodes at once
+#endif
 }
 
 NCMesh::Node::~Node()
@@ -1938,7 +1951,10 @@ void NCMesh::TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
 void NCMesh::BuildEdgeList()
 {
    edge_list.Clear();
-   boundary_faces.SetSize(0);
+   if (Dim <= 2)
+   {
+      boundary_faces.SetSize(0);
+   }
 
    Array<char> processed_edges(nodes.NumIds());
    processed_edges = 0;
@@ -2902,7 +2918,7 @@ int NCMesh::GetEdgeMaster(int node) const
    if ((n2p1 != n2p2) && (p1 == n2p1 || p1 == n2p2))
    {
       // n1 is parent of n2:
-      // (n1)--(n)--(n2)------(*)  or  (*)------(n2)--(n)--(n1)
+      // (n1)--(nd)--(n2)------(*)
       if (n2.HasEdge()) { return p2; }
       else { return GetEdgeMaster(p2); }
    }
@@ -2910,7 +2926,7 @@ int NCMesh::GetEdgeMaster(int node) const
    if ((n1p1 != n1p2) && (p2 == n1p1 || p2 == n1p2))
    {
       // n2 is parent of n1:
-      // (n2)--(n)--(n1)------(*)  or  (*)------(n1)--(n)--(n2)
+      // (n2)--(nd)--(n1)------(*)
       if (n1.HasEdge()) { return p1; }
       else { return GetEdgeMaster(p1); }
    }
