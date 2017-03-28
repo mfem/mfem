@@ -9,8 +9,8 @@ os:
    - osx
 
 env:
-   - DEBUG=YES MPI=YES
-   - DEBUG=NO MPI=YES
+   - DEBUG=YES MPI=YES TMPDIR=/tmp
+   - DEBUG=NO MPI=YES TMPDIR=/tmp
    - DEBUG=YES MPI=NO
    - DEBUG=NO MPI=NO
 
