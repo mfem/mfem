@@ -2273,6 +2273,90 @@ l2:
    goto l1;
 }
 
+#define NOCHILD {{-1,-1},{-1,-1}}
+#define H 0.5
+
+static const double quad_child_range[4][4][2][2] =
+{
+   {NOCHILD, NOCHILD, NOCHILD, NOCHILD},
+   {{{0,0},{H,1}}, {{H,0},{1,1}}, NOCHILD, NOCHILD}, // X split
+   {{{0,0},{1,H}}, {{0,H},{1,1}}, NOCHILD, NOCHILD}, // Y split
+   {{{0,0},{H,H}}, {{H,0},{1,H}}, {{H,H},{1,1}}, {{0,H},{H,1}}} // iso
+};
+
+#undef NOCHILD
+#undef H
+
+void NCMesh::DescendToNeighbors(int elem, Array<int> &neighbors,
+                                double emin[3], double emax[3],
+                                double qmin[3], double qmax[3])
+{
+   const Element &el = elements[elem];
+   if (!el.ref_type)
+   {
+      neighbors.Append(elem);
+      return;
+   }
+
+   double size[3];
+   for (int j = 0; j < Dim; j++)
+   {
+      size[j] = emax[j] - emin[j];
+   }
+
+   for (int i = 0; i < 8 && el.child[i] >= 0; i++)
+   {
+      const double range[2][2] = quad_child_range[el.ref_type][i];
+
+      double cmin[3], cmax[3];
+      for (int j = 0; j < Dim; j++)
+      {
+         cmin[j] = emin[j] + range[0][j]*size[j];
+         cmax[j] = emin[j] + range[1][j]*size[j];
+      }
+
+      for (int j = 0; j < Dim; j++)
+      {
+         if (cmax[j] >= qmin[j] && cmin[j] <= qmax[j])
+         {
+            DescendToNeighbors(el.child[i], neighbors, cmin, cmax, qmin, qmax);
+            break;
+         }
+      }
+   }
+}
+
+void NCMesh::FastFindNeighbors(int elem, Array<int> &neighbors)
+{
+   const Element *el = &elements[elem];
+
+   double qmin[3] = {0, 0, 0};
+   double qmax[3] = {1, 1, 1};
+
+   while (el->parent >= 0)
+   {
+      const Element &par = elements[el->parent];
+      int ch = -1;
+      for (int i = 0; i < 8 && par.child[i] >= 0; i++)
+      {
+         if (par.child[i] == elem)
+         {
+            ch = i;
+            break;
+         }
+      }
+      MFEM_VERIFY(ch >= 0, "child not found");
+
+      const double range[2][2] = quad_child_range[par.ref_type][ch];
+
+      for (int i = 0; i < Dim; i++)
+      {
+         //qmin[i] = range[
+      }
+
+   }
+}
+
 void NCMesh::FindNeighbors(int elem, Array<int> &neighbors,
                            const Array<int> *search_set)
 {
