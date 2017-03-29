@@ -21,16 +21,18 @@ PRINT_OK = $(call COLOR_PRINT,'\033[0;32m',OK,"\n")
 PRINT_FAILED = $(call COLOR_PRINT,'\033[0;31m',FAILED,"\n")
 
 # Test runs of the examples/miniapps with parameters - check exit code
+# To propogate failure code back to calling target, set
+# EXIT_FAIL = exit 1;
 mfem-test = \
    printf "   $(3) [$(2) $(1) ... ]: "; \
    if ($(2) ./$(1) -no-vis $(4) > /dev/null); \
-   then $(PRINT_OK); else $(PRINT_FAILED); exit 1; fi
+   then $(PRINT_OK); else $(PRINT_FAILED); $(EXIT_FAIL) fi
 
 # Test runs of the examples/miniapps - check exit code and if a file exists
 mfem-test-file = \
    printf "   $(3) [$(2) $(1) ... ]: "; \
    if ($(2) ./$(1) -no-vis > /dev/null) && [ -e $(4) ]; \
-   then $(PRINT_OK); else $(PRINT_FAILED); exit 1; fi
+   then $(PRINT_OK); else $(PRINT_FAILED); $(EXIT_FAIL) fi
 
 .PHONY: test test-par-YES test-par-NO
 
