@@ -19,7 +19,7 @@ COLOR_PRINT = if [ -t 1 ]; then \
 PRINT_OK = $(call COLOR_PRINT,'\033[0;32m',OK,"\n")
 PRINT_FAILED = $(call COLOR_PRINT,'\033[0;31m',FAILED,"\n")
 
-ifneq (,$(filter test,$(MAKECMDGOALS)))
+ifneq (,$(filter test%,$(MAKECMDGOALS)))
    MAKEFLAGS += -k
 endif
 # Test runs of the examples/miniapps with parameters - check exit code
