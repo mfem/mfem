@@ -86,4 +86,4 @@ script:
    - cd $TRAVIS_BUILD_DIR &&
      make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX=$MYCXX &&
      make all -j 4 &&
-     make EXIT_FAIL="exit 1;" -k $MFEM_TEST_TARGET
+     make -k $MFEM_TEST_TARGET
