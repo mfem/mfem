@@ -24,13 +24,13 @@ PRINT_FAILED = $(call COLOR_PRINT,'\033[0;31m',FAILED,"\n")
 mfem-test = \
    printf "   $(3) [$(2) $(1) ... ]: "; \
    if ($(2) ./$(1) -no-vis $(4) > /dev/null); \
-   then $(PRINT_OK); else $(PRINT_FAILED); fi
+   then $(PRINT_OK); else $(PRINT_FAILED); exit 1; fi
 
 # Test runs of the examples/miniapps - check exit code and if a file exists
 mfem-test-file = \
    printf "   $(3) [$(2) $(1) ... ]: "; \
    if ($(2) ./$(1) -no-vis > /dev/null) && [ -e $(4) ]; \
-   then $(PRINT_OK); else $(PRINT_FAILED); fi
+   then $(PRINT_OK); else $(PRINT_FAILED); exit 1; fi
 
 .PHONY: test test-par-YES test-par-NO
 
