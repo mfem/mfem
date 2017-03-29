@@ -2306,22 +2306,27 @@ void NCMesh::DescendToNeighbors(int elem, Array<int> &neighbors,
 
    for (int i = 0; i < 8 && el.child[i] >= 0; i++)
    {
-      const double range[2][2] = quad_child_range[el.ref_type][i];
+      const double (*range)[2] = quad_child_range[(int) el.ref_type][i];
 
       double cmin[3], cmax[3];
       for (int j = 0; j < Dim; j++)
       {
-         cmin[j] = emin[j] + range[0][j]*size[j];
+         cmin[j] = emin[j] + range[0][j]*size[j]; // TODO: use integer arithmetics
          cmax[j] = emin[j] + range[1][j]*size[j];
       }
 
+      bool intersect = true;
       for (int j = 0; j < Dim; j++)
       {
-         if (cmax[j] >= qmin[j] && cmin[j] <= qmax[j])
+         if (cmax[j] < qmin[j] || cmin[j] > qmax[j])
          {
-            DescendToNeighbors(el.child[i], neighbors, cmin, cmax, qmin, qmax);
+            intersect = false;
             break;
          }
+      }
+      if (intersect)
+      {
+         DescendToNeighbors(el.child[i], neighbors, cmin, cmax, qmin, qmax);
       }
    }
 }
@@ -2347,14 +2352,22 @@ void NCMesh::FastFindNeighbors(int elem, Array<int> &neighbors)
       }
       MFEM_VERIFY(ch >= 0, "child not found");
 
-      const double range[2][2] = quad_child_range[par.ref_type][ch];
-
+      const double (*range)[2] = quad_child_range[(int) par.ref_type][ch];
       for (int i = 0; i < Dim; i++)
       {
-         //qmin[i] = range[
+         double size = range[1][i] - range[0][i];
+         qmin[i] = range[0][i] + qmin[i]*size;
+         qmax[i] = range[0][i] + qmax[i]*size;
       }
 
+      elem = el->parent;
+      el = &elements[elem];
    }
+
+   double rootmin[3] = {0, 0, 0};
+   double rootmax[3] = {1, 1, 1};
+
+   DescendToNeighbors(elem, neighbors, rootmin, rootmax, qmin, qmax);
 }
 
 void NCMesh::FindNeighbors(int elem, Array<int> &neighbors,

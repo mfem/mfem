@@ -35,6 +35,8 @@
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
 
+#define protected public // DEBUG
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -92,6 +94,8 @@ void TestContinuity(const GridFunction &gf, int depth, double tol)
 }
 
 
+
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -136,13 +140,44 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      srand(seed);
+      //srand(seed);
       for (int l = 0; l < ref_levels; l++)
       {
          //mesh->UniformRefinement();
          mesh->RandomRefinement(0.7, true);
       }
    }
+
+   // Test neighbor calculation
+   srand(seed);
+   int query = rand() % mesh->GetNE();
+
+   const Array<int> &leaf_map = mesh->ncmesh->leaf_elements;
+
+   Array<int> neighbors;
+   mesh->ncmesh->FastFindNeighbors(leaf_map[query], neighbors);
+
+   for (int i = 0; i < neighbors.Size(); i++)
+   { neighbors[i] = leaf_map.Find(neighbors[i]); }
+
+   DG_FECollection dgfec(0, dim);
+   FiniteElementSpace dgspace(mesh, &dgfec);
+   GridFunction dgfn(&dgspace);
+
+   Array<int> dofs;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      dgspace.GetElementDofs(i, dofs);
+      dgfn(dofs[0]) = (i == query) ? 2 : ((neighbors.Find(i) >= 0) ? 1 : 0);
+   }
+
+   {
+      ofstream omesh("neighbors.mesh");
+      mesh->Print(omesh);
+      ofstream osol("neighbors.gf");
+      dgfn.Save(osol);
+   }
+   exit(1);
 
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we

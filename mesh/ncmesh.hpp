@@ -355,21 +355,20 @@ protected: // implementation
       Element(int geom, int attr);
    };
 
+   typedef HashTable<Node>::iterator node_iterator;
+   typedef HashTable<Face>::iterator face_iterator;
+   typedef HashTable<Node>::const_iterator node_const_iterator;
+   typedef HashTable<Face>::const_iterator face_const_iterator;
+   typedef BlockArray<Element>::iterator elem_iterator;
+
 
    // primary data
 
    HashTable<Node> nodes; // associative container holding all Nodes
    HashTable<Face> faces; // associative container holding all Faces
 
-   typedef HashTable<Node>::iterator node_iterator;
-   typedef HashTable<Face>::iterator face_iterator;
-   typedef HashTable<Node>::const_iterator node_const_iterator;
-   typedef HashTable<Face>::const_iterator face_const_iterator;
-
    BlockArray<Element> elements; // storage for all Elements
-   Array<int> free_element_ids;  // free element ids - indices into 'elements'
-
-   typedef BlockArray<Element>::iterator elem_iterator;
+   Array<int> free_element_ids;  // indices of deleted elements to be reused
 
    // the first 'root_count' entries of 'elements' is the coarse mesh
    int root_count;
@@ -536,6 +535,10 @@ protected: // implementation
                        Array<int> &expanded,
                        const Array<int> *search_set = NULL);
 
+   void FastFindNeighbors(int elem, Array<int> &neighbors);
+   void DescendToNeighbors(int elem, Array<int> &neighbors,
+                           double emin[3], double emax[3],
+                           double qmin[3], double qmax[3]);
 
    void CollectEdgeVertices(int v0, int v1, Array<int> &indices);
    void CollectFaceVertices(int v0, int v1, int v2, int v3,
