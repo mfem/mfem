@@ -48,7 +48,7 @@ install:
             wget https://computation.llnl.gov/project/linear_solvers/download/hypre-2.10.0b.tar.gz --no-check-certificate;
             tar xvzf hypre-2.10.0b.tar.gz;
             cd hypre-2.10.0b/src;
-            ./configure --disable-fortran CC=mpicc CXX=mpic++;
+            ./configure --disable-fortran --without-fei CC=mpicc CXX=mpic++;
             make -j 4;
             cd ../..;
         else
@@ -83,8 +83,7 @@ script:
 
    # Build MFEM, its examples and miniapps
    # Do a quick check (debug mode) or a full tests run (non-debug mode)
-   - cd $TRAVIS_BUILD_DIR
-   - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX=$MYCXX
-   - make all -j
-   - make $MFEM_TEST_TARGET
-   - if [ -d FAILED ]; then exit 1; fi
+   - cd $TRAVIS_BUILD_DIR &&
+     make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX=$MYCXX &&
+     make all -j 4 &&
+     make -k $MFEM_TEST_TARGET
