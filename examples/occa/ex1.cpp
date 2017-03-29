@@ -35,16 +35,13 @@
 //               optional connection to the GLVis tool for visualization.
 
 /*
+  Missing 3D Surface
   |-----+-----+------------------------+--------------+------------|
   | CPU | GPU | Mesh                   | Element Type | Notes      |
   |-----+-----+------------------------+--------------+------------|
   |     |     | star-surf.mesh         | Square       | 3D Surface |
   |     |     | mobius-strip.mesh      | Square       | 3D Surface |
-  | x   |     | square-disc.mesh       | Triangle     |            |
-  | x   |     | square-disc-p2.vtk     | Triangle     |            |
-  | x   |     | square-disc-p3.mesh    | Triangle     |            |
-  |     |     | square-disc-surf.mesh  | Triangle     | 3D Surf?   |
-  | x   |     | escher.mesh            | Tet          |            |
+  |     |     | square-disc-surf.mesh  | Triangle     | 3D Surface |
   |-----+-----+------------------------+--------------+------------|
 */
 

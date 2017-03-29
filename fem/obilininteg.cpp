@@ -283,14 +283,14 @@ namespace mfem {
     props["defines/NUM_QUAD"] = numQuad;
 
     // 2D Defines
-    props["defines/A2_ELEMENT_BATCH"] = 1;
-    props["defines/A2_QUAD_BATCH"]    = 1;
+    const int quadBatch = closestWarpBatchTo(numQuad);
+    props["defines/A2_ELEMENT_BATCH"] = closestMultipleWarpBatch(quadBatch, 2048);
+    props["defines/A2_QUAD_BATCH"]    = quadBatch;
     props["defines/M2_INNER_BATCH"]   = closestWarpBatchTo(maxDQ);
 
     // 3D Defines
-    const int a3QuadBatch = closestMultipleWarpBatch(numQuad, 2048);
-    props["defines/A3_ELEMENT_BATCH"] = closestMultipleWarpBatch(a3QuadBatch, 2048);
-    props["defines/A3_QUAD_BATCH"]    = a3QuadBatch;
+    props["defines/A3_ELEMENT_BATCH"] = closestMultipleWarpBatch(quadBatch, 2048);
+    props["defines/A3_QUAD_BATCH"]    = quadBatch;
     props["defines/M3_INNER_BATCH"]   = closestWarpBatchTo(maxDQ);
   }
 
