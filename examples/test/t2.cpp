@@ -6,6 +6,9 @@
 using namespace std;
 using namespace mfem;
 
+//Problem to solve
+int problem;
+
 //Constants
 const double gamm  = 1.4;
 
@@ -44,11 +47,13 @@ public:
 int main(int argc, char *argv[])
 {
    const char *mesh_file = "periodic-square.mesh";
-   int    order      = 1;
-   double t_final    = 0.001;
-   double dt         = 0.001;
+   int    order      = 2;
+   double t_final    = 0.5000;
+   double dt         = 0.0010;
    int    vis_steps  = 25;
-   int    ref_levels = 0;
+   int    ref_levels = 6;
+
+          problem    = 0;
 
    int precision = 8;
    cout.precision(precision);
@@ -177,8 +182,8 @@ int main(int argc, char *argv[])
 
    for (int i = 0; i < nodes.Size()/dim; i++)
    {
-       int offset = nodes.Size()/dim;
-       int sub1 = i, sub2 = offset + i, sub3 = 2*offset + i, sub4 = 3*offset + i;
+//       int offset = nodes.Size()/dim;
+//       int sub1 = i, sub2 = offset + i, sub3 = 2*offset + i, sub4 = 3*offset + i;
 //       cout << nodes(sub1) << '\t' << nodes(sub2) << '\t' << u_sol(sub1) << endl;      
 //       cout << nodes(sub1) << '\t' << nodes(sub2) << '\t' << u_sol(sub1) << '\t' << b[sub4] << endl;      
 //       cout << nodes(sub1) << '\t' << nodes(sub2) << '\t' << u_sol(sub1) << '\t' << inv_flux(sub1) << endl;      
@@ -255,14 +260,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
     }
     y += y_temp;
 
-        for (int j = 0; j < offset; j++) 
-        {
-//            cout << j << '\t'<< b(j) << endl;
-//            cout << j << '\t'<< b(3*offset + j) << endl;
-//            cout << j << '\t'<< x(j) << '\t' << y(j) << endl;
-//            cout << j << '\t'<< x(offset + j) << '\t' << y(offset + j) << endl;
-//            cout << j << '\t'<< x(3*offset + j) << '\t' << y(3*offset + j) << endl;
-        }
+//        for (int j = 0; j < offset; j++) cout << j << '\t'<< b(j) << endl;
 
 }
 
@@ -271,8 +269,6 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 // Inviscid flux 
 void getInvFlux(int dim, const Vector &u, Vector &f)
 {
-    int size = u.Size();
-
     int var_dim = dim + 2;
     int offset  = u.Size()/var_dim;
 
@@ -333,21 +329,38 @@ void init_function(const Vector &x, Vector &v)
    //Space dimensions 
    int dim = x.Size();
 
-   //Variable dimensions
-   int dim_var = v.Size();
-
-   double rho = 1 + 0.2*sin(M_PI*(x(0) + x(1)));
-   double u1  = 1.0, u2 =-0.5;
-   double p   = 1;
-
-   double v_sq = pow(u1, 2) + pow(u2, 2);
-
-   v(0) = rho;                     //rho
-   v(1) = rho * u1;                //rho * u
-   v(2) = rho * u2;                //rho * v
-   v(3) = p/(gamm - 1) + 0.5*rho*v_sq;
-
-//   cout << x(0) << '\t' << x(1) << '\t' << v(0) << '\t' << v(1) << '\t' << v(2) << '\t' << v(3) << endl;      
+   if (dim == 2)
+   {
+       double rho, u1, u2, p;
+       if (problem == 0)
+       {
+           rho = 1 + 0.2*sin(M_PI*(x(0) + x(1)));
+           u1  = 1.0; u2 =-0.5;
+           p   = 1;
+       }
+       else if (problem == 1)
+       {
+           if (x(0) < 0.0)
+           {
+               rho = 1.0; 
+               u1  = 0.0; u2 = 0.0;
+               p   = 1;
+           }
+           else
+           {
+               rho = 0.125;
+               u1  = 0.0; u2 = 0.0;
+               p   = 0.1;
+           }
+       }
+    
+       double v_sq = pow(u1, 2) + pow(u2, 2);
+    
+       v(0) = rho;                     //rho
+       v(1) = rho * u1;                //rho * u
+       v(2) = rho * u2;                //rho * v
+       v(3) = p/(gamm - 1) + 0.5*rho*v_sq;
+   }
 }
 
 

@@ -698,215 +698,6 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
 
 
 
-void DGRiemIntegrator::AssembleRHSElementVect(
-   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
-{
-   mfem_error("DGElasticityDirichletLFIntegrator::AssembleRHSElementVect");
-}
-
-void DGRiemIntegrator::AssembleRHSElementVect(
-   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
-{
-   MFEM_ASSERT(Tr.Elem2No < 0, "interior boundary is not supported");
-
-#ifdef MFEM_THREAD_SAFE
-   Vector shape;
-   DenseMatrix dshape;
-   DenseMatrix adjJ;
-   DenseMatrix dshape_ps;
-   Vector nor;
-   Vector dshape_dn;
-   Vector dshape_du;
-   Vector u_dir;
-#endif
-
-   const int dim = el.GetDim();
-   const int ndofs = el.GetDof();
-   const int nvdofs = dim*ndofs;
-
-   elvect.SetSize(nvdofs);
-   elvect = 0.0;
-
-   adjJ.SetSize(dim);
-   shape.SetSize(ndofs);
-   dshape.SetSize(ndofs, dim);
-   dshape_ps.SetSize(ndofs, dim);
-   nor.SetSize(dim);
-   dshape_dn.SetSize(ndofs);
-   dshape_du.SetSize(ndofs);
-   u_dir.SetSize(dim);
-
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      const int order = 2*el.GetOrder(); // <-----
-      ir = &IntRules.Get(Tr.FaceGeom, order);
-   }
-
-   for (int pi = 0; pi < ir->GetNPoints(); ++pi)
-   {
-      const IntegrationPoint &ip = ir->IntPoint(pi);
-      IntegrationPoint eip1;
-      IntegrationPoint eip2;
-
-      Tr.Face->SetIntPoint(&ip);
-
-      Tr.Loc1.Transform(ip, eip1);
-      Tr.Elem1->SetIntPoint(&eip1);
-
-      Tr.Loc2.Transform(ip, eip2);
-      Tr.Elem2->SetIntPoint(&eip2);
-
-      Vector u1_dir(dim), u2_dir(dim);
-
-      // Evaluate common value at face 
-      uD.Eval(u1_dir, *Tr.Elem1, eip1);
-      uD.Eval(u2_dir, *Tr.Elem2, eip2);
-
-      add(u1_dir, u2_dir, u_dir);
-      u_dir.Set(0.5, u_dir);
-
-      el.CalcShape(eip1, shape);
-      el.CalcDShape(eip1, dshape);
-
-      CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
-      Mult(dshape, adjJ, dshape_ps);
-
-      if (dim == 1)
-      {
-         nor(0) = 2*eip1.x - 1.0;
-      }
-      else
-      {
-         CalcOrtho(Tr.Face->Jacobian(), nor);
-      }
-
-      const double w = ip.weight / Tr.Elem1->Weight();
-      dshape_ps.Mult(nor, dshape_dn);
-      dshape_ps.Mult(u_dir, dshape_du);
-
-      const double t1 = alpha * w * (u_dir*nor);
-      for (int im = 0, i = 0; im < dim; ++im)
-      {
-         for (int idof = 0; idof < ndofs; ++idof, ++i)
-         {
-            elvect(i) += t1*dshape_ps(idof,im) ;
-         }
-      }
-   }
-}
-
-
-
-void DGRiemIntegrator::AssembleRHSElementVect(
-   const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Trans, Vector &elvect)
-{
-   int dim, ndof1, ndof2;
-
-   double un, a, b, w;
-
-   Vector shape1, shape2;
-
-   dim = el1.GetDim();
-   ndof1 = el1.GetDof();
-   Vector vu(dim), nor(dim);
-
-   if (Trans.Elem2No >= 0)
-   {
-      ndof2 = el2.GetDof();
-   }
-   else
-   {
-      ndof2 = 0;
-   }
-
-   elvect.SetSize(ndof1 + ndof2);
-   elvect = 0.0;
-
-   shape1.SetSize(ndof1);
-   shape2.SetSize(ndof2);
-
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      int order;
-      // Assuming order(u)==order(mesh)
-      if (Trans.Elem2No >= 0)
-         order = (std::min(Trans.Elem1->OrderW(), Trans.Elem2->OrderW()) +
-                  2*std::max(el1.GetOrder(), el2.GetOrder()));
-      else
-      {
-         order = Trans.Elem1->OrderW() + 2*el1.GetOrder();
-      }
-      if (el1.Space() == FunctionSpace::Pk)
-      {
-         order++;
-      }
-      ir = &IntRules.Get(Trans.FaceGeom, order);
-   }
-
-   for (int p = 0; p < ir->GetNPoints(); p++)
-   {
-      const IntegrationPoint &ip = ir->IntPoint(p);
-      IntegrationPoint eip1, eip2;
-      Trans.Loc1.Transform(ip, eip1);
-      if (ndof2)
-      {
-         Trans.Loc2.Transform(ip, eip2);
-      }
-
-      Trans.Face->SetIntPoint(&ip);
-      Trans.Elem1->SetIntPoint(&eip1);
-      Trans.Elem2->SetIntPoint(&eip2);
-
-      el1.CalcShape(eip1, shape1);
-      el2.CalcShape(eip2, shape2);
-
-      if (dim == 1)
-      {
-         nor(0) = 2*eip1.x - 1.0;
-      }
-      else
-      {
-         CalcOrtho(Trans.Face->Jacobian(), nor);
-      }
-
-      Vector vu(dim);
-      vu(0) = 1; vu(1) = 0;
-
-      Vector u1_dir(dim), u2_dir(dim);
-      Vector u_dir(dim);
-      uD.Eval(u1_dir, *Trans.Elem1, eip1);
-      uD.Eval(u2_dir, *Trans.Elem2, eip2);
-
-      add(0.5, u1_dir, u2_dir, u_dir); //Common flux 
-
-      un = vu*nor; 
-      a  = alpha * un;
-
-      w = ip.weight * (a);
-
-      subtract(u_dir, u1_dir, u1_dir); //u_comm - u1
-      for (int i = 0; i < ndof1; i++)
-      {
-         elvect[i]            += u1_dir(0)*w*shape1(i); 
-      }
-
-      subtract(u_dir, u2_dir, u2_dir); //ucomm - u2
-      for (int i = 0; i < ndof2; i++)
-      {
-         elvect[i + ndof1]    -= u2_dir(0)*w*shape2(i); 
-      }
-
-
-   }// for ir loop
-
-}
-
-
-
-
-
 
 void DGEulerIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
@@ -1020,57 +811,67 @@ void DGEulerIntegrator::AssembleRHSElementVect(
 
       double u_max = std::max(a_L + std::abs(vnl), a_R + std::abs(vnr));
 
-      Vector f1_dir(vDim), f2_dir(vDim);
-      Vector f_dir(vDim);
+      Vector f1_dir(dim*vDim), f2_dir(dim*vDim);
+      Vector f_dir(dim*vDim);
       fD.Eval(f1_dir, *Trans.Elem1, eip1);
       fD.Eval(f2_dir, *Trans.Elem2, eip2);
 
-      for (int i = 0; i < 1; i++)
+      add(0.5, f1_dir, f2_dir, f_dir); //Common flux without dissipation
+
+      Vector f_diss(dim*vDim); //Rusanov dissipation 
+      subtract(-0.5*u_max*nor_dim(0), u2_dir, u1_dir, f_diss); // Left and right depends on normal direction
+      for (int i = 0; i < dim; i++)
       {
           for (int j = 0; j < vDim; j++)
           {
-              f1_dir(j) = f1_dir(j)*nor_dim(i);
-              f2_dir(j) = f2_dir(j)*nor_dim(i);
-              f_dir (j) = f_dir (j)*nor_dim(i);
+              f_diss(i*vDim + j) = -0.5*u_max*nor_dim(i)*(u2_dir(j) - u1_dir(j)); 
           }
       }
 
-      add(0.5, f1_dir, f2_dir, f_dir); //Common flux without dissipation
-
-      Vector f_diss(vDim); //Rusanov dissipation 
-      subtract(-0.5*u_max, u2_dir, u1_dir, f_diss); // Left and right depends on normal direction
-
-//      std::cout << Trans.Elem1No << '\t' << Trans.Elem2No << '\t' << nor_dim(0) << '\t' << nor_dim(1) << std::endl;
-//      std::cout << p << '\t' << nor_dim(0) << '\t' << nor_dim(1) << std::endl;
-//      std::cout << p << '\t' << f_dir(0) << '\t' << f_dir(1) << '\t' << f_dir(2) << '\t' << f_dir(3) << std::endl;
-
       add(f_dir, f_diss, f_dir);
 
-//      std::cout << p << '\t' << f_diss(0) << '\t' << f_diss(1) << '\t' << f_diss(2) << '\t' << f_diss(3) << std::endl;
-//      std::cout << p << '\t' << f_dir(0) << '\t' << f_dir(1) << '\t' << f_dir(2) << '\t' << f_dir(3) << std::endl;
+      Vector face_f(vDim), face_f1(vDim), face_f2(vDim); //Face fluxes (dot product with normal)
+      face_f = 0.0; face_f1 = 0.0; face_f2 = 0.0;
+      for (int i = 0; i < dim; i++)
+      {
+          for (int j = 0; j < vDim; j++)
+          {
+              face_f1(j) += f1_dir(i*vDim + j)*nor(i);
+              face_f2(j) += f2_dir(i*vDim + j)*nor(i);
+              face_f (j) += f_dir (i*vDim + j)*nor(i);
+          }
+      }
 
-      w = ip.weight * alpha * nor_l2;
+      w = ip.weight * alpha; 
 
-      subtract(f_dir, f1_dir, f1_dir); //u_comm - u1
-//      std::cout << p << '\t' << u1_dir(0) << '\t' << u1_dir(1) << '\t' << u1_dir(2) << '\t' << u1_dir(3) << std::endl;
+      subtract(face_f, face_f1, face_f1); //u_comm - u1
       for (int j = 0; j < vDim; j++)
       {
           for (int i = 0; i < ndof1; i++)
           {
-              elvect(j*ndof1 + i)              += f1_dir(j)*w*shape1(i); 
+              elvect(j*ndof1 + i)              += face_f1(j)*w*shape1(i); 
           }
       }
 
-      subtract(f_dir, f2_dir, f2_dir); //ucomm - u2
+      subtract(face_f, face_f2, face_f2); //ucomm - u2
       for (int j = 0; j < vDim; j++)
       {
           for (int i = 0; i < ndof2; i++)
           {
-              elvect(vDim*ndof1 + j*ndof2 + i) -= f2_dir(j)*w*shape2(i); 
+              elvect(vDim*ndof1 + j*ndof2 + i) -= face_f2(j)*w*shape2(i); 
           }
       }
 
    }// for ir loop
+//      std::cout << Trans.Elem1No << '\t' << Trans.Elem2No << '\t' << nor_dim(0) << '\t' << nor_dim(1) << std::endl;
+//      std::cout << p << '\t' << nor_dim(0) << '\t' << nor_dim(1) << std::endl;
+//      std::cout << p << '\t' << f_dir(0) << '\t' << f_dir(1) << '\t' << f_dir(2) << '\t' << f_dir(3) << std::endl;
+
+//      std::cout << p << '\t' << f_diss(0) << '\t' << f_diss(1) << '\t' << f_diss(2) << '\t' << f_diss(3) << std::endl;
+//      std::cout << p << '\t' << f_dir(0) << '\t' << f_dir(1) << '\t' << f_dir(2) << '\t' << f_dir(3) << std::endl;
+//
+//      std::cout << p << '\t' << u1_dir(0) << '\t' << u1_dir(1) << '\t' << u1_dir(2) << '\t' << u1_dir(3) << std::endl;
+
 
 //   std::cout << elvect(0) << '\t' << elvect(1) << '\t' << elvect(2) << '\t' << elvect(3) << std::endl;
 //   std::cout << elvect(0) << '\t' << elvect(4) << '\t' << elvect(8) << '\t' << elvect(12) << std::endl;
