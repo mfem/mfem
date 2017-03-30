@@ -38,7 +38,7 @@ endif
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
-all: $(EXAMPLES)
+all: $(EXAMPLES) cache-kernels
 
 ifeq ($(MFEM_USE_OCCA),NO)
 $(EXAMPLES):

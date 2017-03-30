@@ -293,7 +293,7 @@ doc:
 
 -include $(BLD)deps.mk
 
-$(BLD)libmfem.a: $(OBJECT_FILES)
+$(BLD)libmfem.a: $(OBJECT_FILES) cache-kernels
 	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES)
 	$(RANLIB) $(@)
 
