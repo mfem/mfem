@@ -467,6 +467,12 @@ private:
     */
    void createMeshBlueprintTopologies(bool hasBP, const std::string& mesh_name);
 
+   /// Sets up the mesh blueprint 'adjacencies' group.
+   /**
+    * \param hasBP Indicates whether the blueprint has already been set up.
+    */
+   void createMeshBlueprintAdjacencies(bool hasBP);
+
    /// Verifies that the contents of the mesh blueprint data is valid.
    void verifyMeshBlueprint();
 };
