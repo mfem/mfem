@@ -31,7 +31,6 @@ namespace mfem
   protected:
     uint64_t size_;
     occa::memory data;
-    bool ownsData;
 
   public:
     /// Default constructor for Vector. Sets size = 0 and data = NULL.
@@ -82,25 +81,10 @@ namespace mfem
     inline void SetDataAndSize(occa::memory newData, int size) {
       data = newData;
       size_ = size;
-      ownsData = false;
     }
 
     inline void NewDataAndSize(occa::memory newData, int size) {
-      Destroy();
       SetDataAndSize(newData, size);
-    }
-
-    inline void MakeDataOwner() {
-      ownsData = true;
-    }
-
-    /// Destroy a vector
-    inline void Destroy() {
-      size_ = 0;
-      if (ownsData) {
-        data.free();
-        ownsData = false;
-      }
     }
 
     /// Returns the size of the vector.
@@ -126,15 +110,10 @@ namespace mfem
       return data.getDevice();
     }
 
-    inline bool OwnsData() const {
-      return ownsData;
-    }
-
     /// Changes the ownership of the data; after the call the Vector is empty
     inline void StealData(OccaVector &v) {
       v.data = data;
       size_ = 0;
-      ownsData = false;
     }
 
     /// Changes the ownership of the data; after the call the Vector is empty
@@ -185,7 +164,6 @@ namespace mfem
     inline void Swap(OccaVector &other) {
       mfem::Swap(size_, other.size_);
       mfem::Swap(data, other.data);
-      mfem::Swap(ownsData, other.ownsData);
     }
 
     /// v = median(v,lo,hi) entrywise.  Implementation assumes lo <= hi.
@@ -241,10 +219,7 @@ namespace mfem
 
     // int CheckFinite() const;
 
-    /// Destroys vector.
-    inline virtual ~OccaVector() {
-      Destroy();
-    }
+    inline virtual ~OccaVector() {}
   };
 
   occa::kernelBuilder makeCustomBuilder(const std::string &kernelName,

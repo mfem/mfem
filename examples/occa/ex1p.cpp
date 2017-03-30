@@ -214,9 +214,8 @@ int main(int argc, char *argv[])
 
   // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
   //     preconditioner from hypre.
-  CG(*A, B, X, 1, 500, 1e-12, 0.0);
   TCGSolver<OccaVector> *cg = new TCGSolver<OccaVector>(MPI_COMM_WORLD);
-  cg->SetRelTol(1e-6);
+  cg->SetRelTol(1e-12);
   cg->SetMaxIter(500);
   cg->SetPrintLevel(1);
   cg->SetOperator(*A);

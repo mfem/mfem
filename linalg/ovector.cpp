@@ -17,17 +17,18 @@
 
 namespace mfem {
   OccaVector::OccaVector() :
-    size_(0),
-    ownsData(false) {}
+    size_(0) {}
 
   /// @brief Creates vector of size s using the current OCCA device
   /// @warning Entries are not initialized to zero!
-  OccaVector::OccaVector(const int64_t size) {
+  OccaVector::OccaVector(const int64_t size) :
+    size_(0) {
     SetSize(size);
   }
 
   /// Copy constructor.
-  OccaVector::OccaVector(const OccaVector &other) {
+  OccaVector::OccaVector(const OccaVector &other) :
+    size_(0) {
     const int entries = other.Size();
     SetSize(other.data.getDevice(), entries);
     occa::memcpy(data, other.data, entries * sizeof(double));
@@ -35,17 +36,20 @@ namespace mfem {
 
   /// @brief Creates vector of size s using the default OCCA device
   /// @warning Entries are not initialized to zero!
-  OccaVector::OccaVector(occa::device device, const int64_t size) {
+  OccaVector::OccaVector(occa::device device, const int64_t size) :
+    size_(0) {
     SetSize(device, size);
   }
 
   /// Creates vector based on Vector using the current OCCA device
-  OccaVector::OccaVector(const Vector &v) {
+  OccaVector::OccaVector(const Vector &v) :
+    size_(0) {
     SetSize(v.Size(), v.GetData());
   }
 
   /// Creates vector based on Vector using the passed OCCA device
-  OccaVector::OccaVector(occa::device device, const Vector &v) {
+  OccaVector::OccaVector(occa::device device, const Vector &v) :
+    size_(0) {
     SetSize(device, v.Size(), v.GetData());
   }
 
@@ -87,11 +91,7 @@ namespace mfem {
   void OccaVector::SetSize(occa::device device, const int64_t size, const void *src) {
     size_ = size;
     if (size > (int64_t) Capacity()) {
-      if (ownsData) {
-        data.free();
-      }
       data = device.malloc(size * sizeof(double), src);
-      ownsData = true;
     } else if (size && src) {
       occa::memcpy(data, src, size * sizeof(double));
     }
@@ -123,7 +123,6 @@ namespace mfem {
 
     occa::device dev = data.getDevice();
     occa::kernel kernel = builder.build(dev);
-
     kernel((int) Size(), value, data);
 
     return *this;
@@ -265,7 +264,6 @@ namespace mfem {
     GetSubVector(dofs, buffer);
 
     occa::memcpy(elem_data, buffer.data, dofCount * sizeof(double));
-    buffer.data.free();
   }
 
   void OccaVector::GetSubVector(const Array<int> &dofs,
@@ -273,7 +271,6 @@ namespace mfem {
     occa::memory o_dofs = data.getDevice().malloc(dofs.Size() * sizeof(int),
                                                   dofs.GetData());
     GetSubVector(o_dofs, elemvect);
-    o_dofs.free();
   }
 
   void OccaVector::GetSubVector(occa::memory dofs,
@@ -309,8 +306,6 @@ namespace mfem {
     occa::memcpy(buffer.data, elem_data, dofCount * sizeof(double));
 
     SetSubVector(dofs, buffer);
-
-    buffer.data.free();
   }
 
   void OccaVector::SetSubVector(const Array<int> &dofs,
@@ -318,7 +313,6 @@ namespace mfem {
     occa::memory o_dofs = data.getDevice().malloc(dofs.Size() * sizeof(int),
                                                   dofs.GetData());
     SetSubVector(o_dofs, elemvect);
-    o_dofs.free();
   }
 
   void OccaVector::SetSubVector(occa::memory dofs,
@@ -352,7 +346,6 @@ namespace mfem {
     occa::memory o_dofs = dev.malloc(dofs.Size() * sizeof(int),
                                      dofs.GetData());
     kernel((int) dofs.Size(), value, data, o_dofs);
-    o_dofs.free();
   }
 
   /// Add (element) subvector to the vector.
@@ -370,8 +363,6 @@ namespace mfem {
     occa::memcpy(buffer.data, elem_data, dofCount * sizeof(double));
 
     AddElementVector(dofs, buffer);
-
-    buffer.data.free();
   }
 
   void OccaVector::AddElementVector(const Array<int> &dofs,
@@ -379,7 +370,6 @@ namespace mfem {
     occa::memory o_dofs = data.getDevice().malloc(dofs.Size() * sizeof(int),
                                                   dofs.GetData());
     AddElementVector(o_dofs, elemvect);
-    o_dofs.free();
   }
 
   void OccaVector::AddElementVector(occa::memory dofs,
@@ -414,8 +404,6 @@ namespace mfem {
     occa::memcpy(buffer.data, elem_data, dofCount * sizeof(double));
 
     AddElementVector(dofs, a, buffer);
-
-    buffer.data.free();
   }
 
   void OccaVector::AddElementVector(const Array<int> &dofs,
@@ -424,7 +412,6 @@ namespace mfem {
     occa::memory o_dofs = data.getDevice().malloc(dofs.Size() * sizeof(int),
                                                   dofs.GetData());
     AddElementVector(o_dofs, a, elemvect);
-    o_dofs.free();
   }
 
   void OccaVector::AddElementVector(occa::memory dofs,
@@ -453,8 +440,6 @@ namespace mfem {
     GetSubVector(o_dofs, dofs_vals);
     *this = val;
     SetSubVector(o_dofs, dofs_vals);
-
-    o_dofs.free();
   }
 
   /// Prints vector to stream out.
