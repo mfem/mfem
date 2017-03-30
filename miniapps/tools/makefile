@@ -23,7 +23,7 @@ TEST_MK = $(MFEM_DIR)/config/test.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = display-basis
+SEQ_MINIAPPS = display-basis compare-gf
 PAR_MINIAPPS =
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
