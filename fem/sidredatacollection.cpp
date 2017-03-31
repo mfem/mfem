@@ -495,7 +495,7 @@ void SidreDataCollection::createMeshBlueprintAdjacencies(bool hasBP)
 {
    ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
 
-   const int GRP_SZ = 30;
+   const int GRP_SZ = 35;
    char group_str[GRP_SZ];
 
    // TODO(JRC): Separate this out into group hierarchy setup and data allocation
@@ -503,25 +503,39 @@ void SidreDataCollection::createMeshBlueprintAdjacencies(bool hasBP)
 
    for (int gi = 1; gi < pmesh->GetNGroups(); ++gi)
    {
-      std::snprintf(group_str, GRP_SZ, "adjacencies/g%d", gi);
-      sidre::DataGroup* group_grp = bp_grp->createGroup(group_str);
+      std::snprintf(group_str, GRP_SZ, "adjacencies/g%d_%d",
+        pmesh->gtopo.GetGroupMasterRank(gi),
+        pmesh->gtopo.GetGroupMasterGroup(gi));
 
+      sidre::DataGroup* group_grp = bp_grp->createGroup(group_str);
       group_grp->createViewString("association", "vertex");
       group_grp->createViewString("topology", "mesh");
 
       const int* gneighbors = pmesh->gtopo.GetGroup(gi);
-      int num_gneighbors = pmesh->gtopo.GetGroupSize(gi) - 1;
+      int num_gneighbors = pmesh->gtopo.GetGroupSize(gi);
       sidre::DataView* gneighbors_view = group_grp->createViewAndAllocate(
-         "neighbors", sidre::INT_ID, num_gneighbors);
-      std::memcpy(gneighbors_view->getData<int*>(), gneighbors + 1,
-         sizeof(int) * num_gneighbors);
+         "neighbors", sidre::INT_ID, num_gneighbors - 1);
+
+      // skip all instances of the local domain when adding Blueprint neighbors
+      int* gneighbors_data = gneighbors_view->getData<int*>();
+      for (int ni = 0, noff = 0; ni < num_gneighbors; ++ni)
+      {
+         if( gneighbors[ni] == 0 )
+         {
+            noff++;
+         }
+         else
+         {
+            gneighbors_data[ni - noff] = pmesh->gtopo.GetNeighborRank(gneighbors[ni]);
+         }
+      }
 
       int num_gvertices = pmesh->GroupNVertices(gi);
       sidre::DataView* gvertices_view = group_grp->createViewAndAllocate(
          "values", sidre::INT_ID, num_gvertices);
 
       int* gvertices_data = gvertices_view->getData<int*>();
-      for(int vi = 0; vi < num_gvertices; ++vi)
+      for (int vi = 0; vi < num_gvertices; ++vi)
       {
          gvertices_data[vi] = pmesh->GroupVertex(gi, vi);
       }
