@@ -31,14 +31,28 @@ CONFIG_HPP = _config.hpp
 CONFIG_MK = config.mk
 
 .SUFFIXES:
-.PHONY: all header config-mk
+.PHONY: all get-hypre-version header config-mk
 
 all: header config-mk
 
-header:
+MPI = $(MFEM_USE_MPI:NO=)
+GHV = get_hypre_version
+GHV_FLAGS = `printf "%s" "$${HYPRE_OPT}" | \
+   sed -e 's/@MFEM_DIR@/$(if $(MFEM_DIR),$(MFEM_DIR),..)/g'`
+
+get-hypre-version: $(GHV).cpp
+	$(call mfem-info, Determining HYPRE version ...)
+	$(eval MFEM_HYPRE_VERSION:=$(shell \
+	   CXXFLAGS=$(GHV_FLAGS) && \
+	   $(MFEM_CXX) $${CXXFLAGS} $(GHV).cpp -o $(GHV) > /dev/null 2>&1 && \
+	   { ./$(GHV); rm -f $(GHV) > /dev/null 2>&1; }))
+	$(if $(MFEM_HYPRE_VERSION),,$(error Unable to determine HYPRE version))
+	$(eval export MFEM_HYPRE_VERSION)
+
+header: $(if $(MPI),get-hypre-version,)
 	$(call mfem-info, Writing $(CONFIG_HPP) ...)
 	@set -- && \
-	for def in $${MFEM_DEFINES}; do \
+	for def in $${MFEM_DEFINES} $(if $(MPI),MFEM_HYPRE_VERSION,); do \
 	   eval var=\$$$$def && \
 	   if [ "NO" != "$${var}" ]; then \
 	      set -- "$$@" -e "s|// \(#define $${def}\)|\1|" && \

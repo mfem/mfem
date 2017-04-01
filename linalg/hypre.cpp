@@ -3100,7 +3100,11 @@ HypreLOBPCG::SetTol(double tol)
 void
 HypreLOBPCG::SetRelTol(double rel_tol)
 {
+#if MFEM_HYPRE_VERSION >= 21101
    HYPRE_LOBPCGSetRTol(lobpcg_solver, rel_tol);
+#else
+   MFEM_ABORT("This method requires HYPRE version >= 2.11.1");
+#endif
 }
 
 void
@@ -3412,7 +3416,11 @@ HypreAME::SetTol(double tol)
 void
 HypreAME::SetRelTol(double rel_tol)
 {
+#if MFEM_HYPRE_VERSION >= 21101
    HYPRE_AMESetRTol(ame_solver, rel_tol);
+#else
+   MFEM_ABORT("This method requires HYPRE version >= 2.11.1");
+#endif
 }
 
 void
