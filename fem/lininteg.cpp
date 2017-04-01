@@ -699,6 +699,29 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
 
 
 
+void DGEulerIntegrator::getEulerFlux(const Vector &u, Vector &f)
+{
+    int var_dim = u.Size();
+    int dim     = var_dim - 2;
+
+    double rho  = u(0);
+    double u1   = u(1)/rho;
+    double u2   = u(2)/rho;
+    
+    double v_sq = pow(u1, 2) + pow(u2, 2);
+    double p    = (u(var_dim - 1) - 0.5*rho*v_sq)*(gamm - 1);
+
+    f(0)             =  u(1); 
+    f(1)             =  u(1)*u1 + p;               //rho*u*u + p    
+    f(2)             =  u(1)*u2    ;               //rho*u*v
+    f(var_dim - 1)   = (u(var_dim - 1) + p)*u1  ;  //(E+p)*u
+
+    f(  var_dim + 0) =  u(2); 
+    f(  var_dim + 1) =  u(2)*u1;                  //rho*u*v     
+    f(  var_dim + 2) =  u(2)*u2 + p;              //rho*v*v + p
+    f(2*var_dim - 1) = (u(var_dim - 1) + p)*u2  ; //(E+p)*v    
+}
+
 void DGEulerIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
@@ -710,6 +733,7 @@ void DGEulerIntegrator::AssembleRHSElementVect(
 {
    mfem_error("DGEEulerIntegrator::AssembleRHSElementVect");
 }
+
 
 
 void DGEulerIntegrator::AssembleRHSElementVect(
@@ -782,10 +806,6 @@ void DGEulerIntegrator::AssembleRHSElementVect(
       uD.Eval(u1_dir, *Trans.Elem1, eip1);
       uD.Eval(u2_dir, *Trans.Elem2, eip2);
 
-      double R     = 287;
-      double gamm  = 1.4;
-      double Cv    = R/(gamm - 1);
-
       double rho_L = u1_dir(0);
       double u_L   = u1_dir(1)/rho_L;
       double v_L   = u1_dir(2)/rho_L;
@@ -811,12 +831,15 @@ void DGEulerIntegrator::AssembleRHSElementVect(
 
       double u_max = std::max(a_L + std::abs(vnl), a_R + std::abs(vnr));
 
-      Vector f1_dir(dim*vDim), f2_dir(dim*vDim);
+      Vector fl_dir(dim*vDim), fr_dir(dim*vDim);
       Vector f_dir(dim*vDim);
+      getEulerFlux(u1_dir, fl_dir);
+      getEulerFlux(u2_dir, fr_dir);
+      add(0.5, fl_dir, fr_dir, f_dir); //Common flux without dissipation
+
+      Vector f1_dir(dim*vDim), f2_dir(dim*vDim);
       fD.Eval(f1_dir, *Trans.Elem1, eip1);
       fD.Eval(f2_dir, *Trans.Elem2, eip2);
-
-      add(0.5, f1_dir, f2_dir, f_dir); //Common flux without dissipation
 
       Vector f_diss(dim*vDim); //Rusanov dissipation 
       subtract(-0.5*u_max*nor_dim(0), u2_dir, u1_dir, f_diss); // Left and right depends on normal direction
@@ -863,6 +886,7 @@ void DGEulerIntegrator::AssembleRHSElementVect(
       }
 
    }// for ir loop
+//      std::cout << u_L << '\t' << u_max << '\t' << face_f(0) << std::endl;
 //      std::cout << Trans.Elem1No << '\t' << Trans.Elem2No << '\t' << nor_dim(0) << '\t' << nor_dim(1) << std::endl;
 //      std::cout << p << '\t' << nor_dim(0) << '\t' << nor_dim(1) << std::endl;
 //      std::cout << p << '\t' << f_dir(0) << '\t' << f_dir(1) << '\t' << f_dir(2) << '\t' << f_dir(3) << std::endl;

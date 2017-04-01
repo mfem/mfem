@@ -23,7 +23,7 @@ void getInvFlux(int dim, const Vector &u, Vector &f);
 
 void getVisFlux(int dim, const Vector &u, const Vector &u_grad, Vector &f);
 
-void getUGrad(int dim, const SparseMatrix &K_x, const SparseMatrix &K_y, const SparseMatrix &m, const GridFunction &u, GridFunction &u_grad);
+void getUGrad(int dim, const SparseMatrix &K_x, const SparseMatrix &K_y, const SparseMatrix &m, const Vector &u, Vector &u_grad);
 
 void getFields(const GridFunction &u_sol, GridFunction &rho, GridFunction &u1, GridFunction &u2, GridFunction &E);
 
@@ -35,7 +35,7 @@ void getFields(const GridFunction &u_sol, GridFunction &rho, GridFunction &u1, G
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   SparseMatrix &M, &K_x, &K_y;
+   SparseMatrix &M, &K_inv_x, &K_inv_y, &K_vis_x, &K_vis_y;
    const Vector &b;
    DSmoother M_prec;
    CGSolver M_solver;
@@ -43,7 +43,7 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(SparseMatrix &_M, SparseMatrix &_K_x, SparseMatrix &_K_y, const Vector &_b);
+   FE_Evolution(SparseMatrix &_M, SparseMatrix &_K_inv_x, SparseMatrix &_K_inv_y, SparseMatrix &_K_vis_x, SparseMatrix &_K_vis_y, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
 {
    const char *mesh_file = "periodic-square.mesh";
    int    order      = 1;
-   double t_final    = 0.5000;
+   double t_final    = 0.0010;
    double dt         = 0.0010;
    int    vis_steps  = 25;
    int    ref_levels = 6;
@@ -78,41 +78,6 @@ int main(int argc, char *argv[])
    DG_FECollection fec(order, dim);
    FiniteElementSpace fes(mesh, &fec);
 
-   Vector dir(dim);
-   dir(0) = 1.0; dir(1) = 0.0;
-   VectorConstantCoefficient x_dir(dir);
-   dir(0) = 0.0; dir(1) = 1.0;
-   VectorConstantCoefficient y_dir(dir);
-
-   ////////////////////////////////////////
-   //Creat derivative matrices
-   BilinearForm k_x(&fes);
-   k_x.AddDomainIntegrator(new ConvectionIntegrator(x_dir, -1.0));
-   k_x.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(x_dir, 1.0,  0.0)));// Beta 0 means central flux
-
-   BilinearForm k_y(&fes);
-   k_y.AddDomainIntegrator(new ConvectionIntegrator(y_dir, -1.0));
-   k_y.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(y_dir, 1.0,  0.0)));// Beta 0 means central flux
-
-   BilinearForm m(&fes);
-   m.AddDomainIntegrator(new MassIntegrator);
-
-   m.Assemble();
-   m.Finalize();
- 
-   int skip_zeros = 1;
-   k_x.Assemble(skip_zeros);
-   k_x.Finalize(skip_zeros);
-   k_y.Assemble(skip_zeros);
-   k_y.Finalize(skip_zeros);
-
-   SparseMatrix &K_x = k_x.SpMat();
-   SparseMatrix &K_y = k_y.SpMat();
-   SparseMatrix &M   = m.SpMat();
-   ////////////////////////////////////////
-
    FiniteElementSpace fes_v(mesh, &fec, var_dim);
 
    cout << "Number of unknowns: " << fes_v.GetVSize() << endl;
@@ -121,15 +86,106 @@ int main(int argc, char *argv[])
    GridFunction u_sol(&fes_v);
    u_sol.ProjectCoefficient(u0);
 
-   FiniteElementSpace fes_grad(mesh, &fec, dim*var_dim);
-   GridFunction u_grad(&fes_grad);
+   FiniteElementSpace fes_vec(mesh, &fec, dim*var_dim);
 
-   getUGrad(dim, K_x, K_y, M, u_sol, u_grad);
+   GridFunction u_grad(&fes_vec);
+   GridFunction f_inv(&fes_vec);
+   GridFunction f_vis(&fes_vec);
 
-   GridFunction f_vis(&fes_grad);//FIXME Gradients have to be transformed back to physical space first
-   getVisFlux(dim, u_sol, u_grad, f_vis);
+   //////////////////////////////////////////////////////////
+   //Create operators
+   Vector dir(dim);
+   dir(0) = 1.0; dir(1) = 0.0;
+   VectorConstantCoefficient x_dir(dir);
+   dir(0) = 0.0; dir(1) = 1.0;
+   VectorConstantCoefficient y_dir(dir);
+
+   ///////////////////////////////////////////////////////////
+   // Setup bilinear form for x derivative and the mass matrix
+   FiniteElementSpace fes_op(mesh, &fec);
+   BilinearForm k_inv_x(&fes);
+   k_inv_x.AddDomainIntegrator(new ConvectionIntegrator(x_dir, -1.0));
+   BilinearForm k_inv_y(&fes);
+   k_inv_y.AddDomainIntegrator(new ConvectionIntegrator(y_dir, -1.0));
+
+   int skip_zeros = 1;
+   k_inv_x.Assemble(skip_zeros);
+   k_inv_x.Finalize(skip_zeros);
+   k_inv_y.Assemble(skip_zeros);
+   k_inv_y.Finalize(skip_zeros);
+   
+   SparseMatrix &K_inv_x = k_inv_x.SpMat();
+   SparseMatrix &K_inv_y = k_inv_y.SpMat();
+   /////////////////////////////////////////////////////////////
+   
+   VectorGridFunctionCoefficient u_vec(&u_sol);
+   VectorGridFunctionCoefficient f_vec(&f_inv);
+
+   /////////////////////////////////////////////////////////////
+   // Linear form
+   LinearForm b(&fes);
+   b.AddFaceIntegrator(
+      new DGEulerIntegrator(u_vec, f_vec, var_dim, -1.0));
+   ///////////////////////////////////////////////////////////
+ 
+   ////////////////////////////////////////
+   //Creat derivative matrices
+   BilinearForm k_vis_x(&fes);
+   k_vis_x.AddDomainIntegrator(new ConvectionIntegrator(x_dir, -1.0));
+   k_vis_x.AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(x_dir, 1.0,  0.0)));// Beta 0 means central flux
+
+   BilinearForm k_vis_y(&fes);
+   k_vis_y.AddDomainIntegrator(new ConvectionIntegrator(y_dir, -1.0));
+   k_vis_y.AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(y_dir, 1.0,  0.0)));// Beta 0 means central flux
+
+   BilinearForm m(&fes);
+   m.AddDomainIntegrator(new MassIntegrator);
+
+   m.Assemble();
+   m.Finalize();
+ 
+   k_vis_x.Assemble(skip_zeros);
+   k_vis_x.Finalize(skip_zeros);
+   k_vis_y.Assemble(skip_zeros);
+   k_vis_y.Finalize(skip_zeros);
+
+   SparseMatrix &K_vis_x = k_vis_x.SpMat();
+   SparseMatrix &K_vis_y = k_vis_y.SpMat();
+   SparseMatrix &M   = m.SpMat();
+   ////////////////////////////////////////
+   
 
 
+//   getInvFlux(dim, u_sol, f_inv);
+//   b.Assemble();
+//   getUGrad(dim, K_vis_x, K_vis_y, M, u_sol, u_grad);
+//   getVisFlux(dim, u_sol, u_grad, f_vis);
+
+   FE_Evolution adv(m.SpMat(), K_inv_x, K_inv_y, K_vis_x, K_vis_y, b);
+   ODESolver *ode_solver = new ForwardEulerSolver; 
+
+   double t = 0.0;
+   adv.SetTime(t);
+   ode_solver->Init(adv);
+
+   bool done = false;
+   for (int ti = 0; !done; )
+   {
+      b.Assemble();
+
+      double dt_real = min(dt, t_final - t);
+      ode_solver->Step(u_sol, t, dt_real);
+      ti++;
+
+      cout << "time step: " << ti << ", time: " << t << ", max_sol: " << u_sol.Max() << endl;
+
+      getInvFlux(dim, u_sol, f_inv); // To update f_vec
+
+      done = (t >= t_final - 1e-8*dt);
+   }
+  
    // Print all nodes in the finite element space 
    FiniteElementSpace fes_nodes(mesh, &fec, dim);
    GridFunction nodes(&fes_nodes);
@@ -151,8 +207,8 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K_x, SparseMatrix &_K_y, const Vector &_b)
-   : TimeDependentOperator(_M.Size()), M(_M), K_x(_K_x), K_y(_K_y), b(_b), z(_M.Size())
+FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K_inv_x, SparseMatrix &_K_inv_y, SparseMatrix &_K_vis_x, SparseMatrix &_K_vis_y, const Vector &_b)
+   : TimeDependentOperator(_M.Size()), M(_M), K_inv_x(_K_inv_x), K_inv_y(_K_inv_y), K_vis_x(_K_vis_x), K_vis_y(_K_vis_y), b(_b), z(_M.Size())
 {
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
@@ -166,11 +222,89 @@ FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K_x, SparseMatrix &_
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
+    int dim = x.Size()/M.Size() - 2;
+    int var_dim = dim + 2;
+
+    y.SetSize(x.Size()); // Needed since by default ode_init will set it as size of K
+
+    Vector y_temp;
+    y_temp.SetSize(x.Size()); // Needed since by default ode_init will set it as size of K
+
+    //////////////////////////////////////////////
+    //Get inviscid contribution
+    Vector f_inv(dim*x.Size());
+    getInvFlux(dim, x, f_inv);
+
+    int offset  = M.Size();
+    Array<int> offsets[dim*var_dim];
+    for(int i = 0; i < dim*var_dim; i++)
+    {
+        offsets[i].SetSize(offset);
+    }
+
+    for(int j = 0; j < dim*var_dim; j++)
+    {
+        for(int i = 0; i < offset; i++)
+        {
+            offsets[j][i] = j*offset + i ;
+        }
+    }
+
+    Vector f_sol(offset), f_x(offset), f_x_m(offset);
+    Vector b_sub(offset);
+    y = 0.0;
+    for(int i = 0; i < var_dim; i++)
+    {
+        f_inv.GetSubVector(offsets[i], f_sol);
+        K_inv_x.Mult(f_sol, f_x);
+        b.GetSubVector(offsets[i], b_sub);
+        f_x += b_sub; // Needs to be added only once
+        M_solver.Mult(f_x, f_x_m);
+        y_temp.SetSubVector(offsets[i], f_x_m);
+    }
+    y += y_temp;
+    for(int i = var_dim + 0; i < 2*var_dim; i++)
+    {
+        f_inv.GetSubVector(offsets[i], f_sol);
+        K_inv_y.Mult(f_sol, f_x);
+        M_solver.Mult(f_x, f_x_m);
+        y_temp.SetSubVector(offsets[i - var_dim], f_x_m);
+    }
+    y += y_temp;
+
+//    //////////////////////////////////////////////
+//    //Get viscous contribution
+//
+//    Vector u_grad(dim*x.Size()), f_vis(dim*x.Size());
+//    getUGrad(dim, K_vis_x, K_vis_y, M, x, u_grad);
+//    getVisFlux(dim, x, u_grad, f_vis);
+//
+//    for(int i = 0; i < var_dim; i++)
+//    {
+//        f_vis.GetSubVector(offsets[i], f_sol);
+//        K_vis_x.Mult(f_sol, f_x);
+//        M_solver.Mult(f_x, f_x_m);
+//        y_temp.SetSubVector(offsets[i], f_x_m);
+//    }
+//    y += y_temp;
+//    for(int i = var_dim + 0; i < 2*var_dim; i++)
+//    {
+//        f_vis.GetSubVector(offsets[i], f_sol);
+//        K_vis_y.Mult(f_sol, f_x);
+//        M_solver.Mult(f_x, f_x_m);
+//        y_temp.SetSubVector(offsets[i - var_dim], f_x_m);
+//    }
+//    y += y_temp;
+
+    /////////////////////////////////
+
+//    for (int j = 0; j < offset; j++) cout << j << '\t'<< x(offset + j) << '\t' << y(j) << endl;
+//    for (int j = 0; j < offset; j++) cout << j << '\t'<< x(offset + j) << '\t' << b(j) << endl;
 
 }
 
 // Get gradient of primitive variable 
-void getUGrad(int dim, const SparseMatrix &K_x, const SparseMatrix &K_y, const SparseMatrix &M, const GridFunction &u, GridFunction &u_grad)
+void getUGrad(int dim, const SparseMatrix &K_x, const SparseMatrix &K_y, const SparseMatrix &M, const Vector &u, Vector &u_grad)
 {
     CGSolver M_solver;
 
