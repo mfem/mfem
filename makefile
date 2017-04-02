@@ -258,6 +258,12 @@ SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
+ifeq ($(MFEM_USE_OCCA),NO)
+  LIBMFEM_DEPS = $(OBJECT_FILES)
+else
+  LIBMFEM_DEPS = $(OBJECT_FILES) cache-kernels
+endif
+
 .PHONY: lib all clean distclean install config status info deps serial parallel\
  debug pdebug style check test
 
@@ -293,7 +299,7 @@ doc:
 
 -include $(BLD)deps.mk
 
-$(BLD)libmfem.a: $(OBJECT_FILES) cache-kernels
+$(BLD)libmfem.a: $(LIBMFEM_DEPS)
 	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES)
 	$(RANLIB) $(@)
 
