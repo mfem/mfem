@@ -19,6 +19,8 @@
 #include "ovector.hpp"
 
 namespace mfem {
+  typedef TCGSolver<OccaVector> OccaCGSolver;
+
   inline void CG(const Operator &A, const OccaVector &b, OccaVector &x,
                  int print_iter = 0, int max_num_iter = 1000,
                  double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24)
