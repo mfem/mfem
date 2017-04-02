@@ -22,7 +22,7 @@
 namespace mfem {
   // [MISSING] Proper destructors
   void CreateRPOperators(occa::device device,
-                         const Operator *R, const Operator *P,
+                         const SparseMatrix *R, const Operator *P,
                          Operator *&OccaR, Operator *&OccaP);
 
   class OccaRestrictionOperator : public Operator {
@@ -33,8 +33,8 @@ namespace mfem {
 
   public:
     OccaRestrictionOperator(occa::device device,
-                            occa::memory indices,
-                            const int width_);
+                            const int height_, const int width_,
+                            occa::memory indices);
 
     virtual void Mult(const OccaVector &x, OccaVector &y) const;
   };

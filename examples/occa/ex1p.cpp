@@ -111,10 +111,10 @@ int main(int argc, char *argv[])
   //    this example we do 'ref_levels' of uniform refinement. We choose
   //    'ref_levels' to be the largest number that gives a final mesh with no
   //    more than 10,000 elements.
-  int par_ref_levels = 2;
+  int par_ref_levels = 1;
   {
     int ref_levels =
-      (int)floor(log(50000./mesh->GetNE())/log(2.)/dim/par_ref_levels);
+      (int)floor(log(10000./mesh->GetNE())/log(2.)/dim/par_ref_levels);
     for (int l = 0; l < ref_levels; l++)
       {
         mesh->UniformRefinement();
@@ -127,7 +127,6 @@ int main(int argc, char *argv[])
   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
   delete mesh;
   {
-    int par_ref_levels = 2;
     for (int l = 0; l < par_ref_levels; l++)
       {
         pmesh->UniformRefinement();
@@ -151,7 +150,7 @@ int main(int argc, char *argv[])
     }
   else
     {
-      fec = new H1_FECollection(order = 1, dim);
+      fec = new H1_FECollection(order = 1, dim, basis);
     }
   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
   HYPRE_Int size = fespace->GlobalTrueVSize();
@@ -190,7 +189,7 @@ int main(int argc, char *argv[])
   //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
   //     domain integrator.
   if (!myid) {
-    cout << "Assembling the bilinear form ..." << flush;
+    cout << "Assembling the bilinear form ..." << endl << flush;
   }
   tic_toc.Clear();
   tic_toc.Start();
@@ -208,8 +207,7 @@ int main(int argc, char *argv[])
   a->FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
   if (!myid) {
-    // [MISSING]
-    // cout << "Size of linear system: " << A->GetGlobalNumRows() << endl;
+    cout << "Size of linear system: " << fespace->GlobalTrueVSize() << endl;
   }
 
   // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG

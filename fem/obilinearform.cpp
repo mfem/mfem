@@ -142,8 +142,8 @@ namespace mfem {
   }
 
   void OccaBilinearForm::SetupInterpolationData() {
-    const Operator *R = fes->GetConformingRestriction();
-    const Operator *P = fes->GetConformingProlongation();
+    const SparseMatrix *R = fes->GetRestrictionMatrix();
+    const Operator *P = fes->GetProlongationMatrix();
     CreateRPOperators(device,
                       R, P,
                       restrictionOp,

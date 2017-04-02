@@ -17,7 +17,7 @@
 
 namespace mfem {
   void CreateRPOperators(occa::device device,
-                         const Operator *R, const Operator *P,
+                         const SparseMatrix *R, const Operator *P,
                          Operator *&OccaR, Operator *&OccaP) {
     if (!P) {
       OccaR = OccaP = NULL;
@@ -25,10 +25,16 @@ namespace mfem {
     }
 
     const SparseMatrix *pmat = dynamic_cast<const SparseMatrix*>(P);
-    const SparseMatrix *rmat = dynamic_cast<const SparseMatrix*>(R);
-    if (!rmat) {
-      mfem_error("OccaBilinearForm can only take a NULL or SparseMatrix"
-                 " restriction operator");
+
+    if (R) {
+      OccaSparseMatrix *occaR = CreateMappedSparseMatrix(device, *R);
+      occa::memory reorderIndices;
+      reorderIndices.swap(occaR->reorderIndices);
+      occaR->Free();
+
+      OccaR = new OccaRestrictionOperator(device,
+                                          R->Height(), R->Width(),
+                                          reorderIndices);
     }
 
     if (pmat) {
@@ -38,30 +44,17 @@ namespace mfem {
       OccaSparseMatrix *occaPT = CreateMappedSparseMatrix(device, *pmatT);
 
       OccaP = new OccaProlongationOperator(*occaP, *occaPT);
-      OccaR = new OccaRestrictionOperator(device,
-                                          occaP->reorderIndices,
-                                          rmat->Width());
-
-      delete pmatT;
     } else {
-      OccaSparseMatrix *occaR = CreateMappedSparseMatrix(device, *rmat);
-      occa::memory reorderIndices;
-      reorderIndices.swap(occaR->reorderIndices);
-      occaR->Free();
-
       OccaP = new OccaProlongationOperator(P);
-      OccaR = new OccaRestrictionOperator(device,
-                                          reorderIndices,
-                                          rmat->Width());
     }
   }
 
   OccaRestrictionOperator::OccaRestrictionOperator(occa::device device,
-                                                   occa::memory indices,
-                                                   const int width_) :
-    Operator(indices.entries<int>(), width_) {
+                                                   const int height_, const int width_,
+                                                   occa::memory indices) :
+    Operator(height_, width_) {
 
-    entries     = indices.entries<int>();
+    entries     = indices.entries<int>() / 2;
     trueIndices = indices;
 
     mapKernel = device.buildKernel("occa://mfem/linalg/mappings.okl",
@@ -88,6 +81,7 @@ namespace mfem {
 
   void OccaProlongationOperator::Mult(const OccaVector &x, OccaVector &y) const {
     if (pmat) {
+      MPI_Barrier(MPI_COMM_WORLD);
       x.GetData().copyTo(hostX.GetData());
       pmat->Mult(hostX, hostY);
       y.GetData().copyFrom(hostY.GetData());
