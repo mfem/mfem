@@ -37,14 +37,13 @@ all: header config-mk
 
 MPI = $(MFEM_USE_MPI:NO=)
 GHV = get_hypre_version
-GHV_FLAGS = `printf "%s" "$${HYPRE_OPT}" | \
-   sed -e 's/@MFEM_DIR@/$(if $(MFEM_DIR),$(MFEM_DIR),..)/g'`
+GHV_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(HYPRE_OPT))
 
-get-hypre-version: $(GHV).cpp
+get-hypre-version: $(SRC)$(GHV).cpp
 	$(call mfem-info, Determining HYPRE version ...)
 	$(eval MFEM_HYPRE_VERSION:=$(shell \
-	   CXXFLAGS=$(GHV_FLAGS) && \
-	   $(MFEM_CXX) $${CXXFLAGS} $(GHV).cpp -o $(GHV) > /dev/null 2>&1 && \
+	   $(MFEM_CXX) ${GHV_FLAGS} $(SRC)$(GHV).cpp -o $(GHV) \
+	   > /dev/null 2>&1 && \
 	   { ./$(GHV); rm -f $(GHV) > /dev/null 2>&1; }))
 	$(if $(MFEM_HYPRE_VERSION),,$(error Unable to determine HYPRE version))
 	$(eval export MFEM_HYPRE_VERSION)
