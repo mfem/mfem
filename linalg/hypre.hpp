@@ -459,6 +459,8 @@ public:
    void Print(const char *fname, HYPRE_Int offi = 0, HYPRE_Int offj = 0);
    /// Reads the matrix from a file
    void Read(MPI_Comm comm, const char *fname);
+   /// Read a matrix saved as a HYPRE_IJMatrix
+   void Read_IJMatrix(MPI_Comm comm, const char *fname);
 
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }
@@ -475,6 +477,8 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
 /// Returns the matrix A * B
 HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B);
 /// Returns the matrix A + B
+/** It is assumed that both matrices use the same row and column partitions and
+    the same col_map_offd arrays. */
 HypreParMatrix * ParAdd(HypreParMatrix *A, HypreParMatrix *B);
 
 /// Returns the matrix P^t * A * P

@@ -1293,6 +1293,21 @@ void HypreParMatrix::Read(MPI_Comm comm, const char *fname)
    Destroy();
    Init();
 
+   HYPRE_Int base_i, base_j;
+   hypre_ParCSRMatrixReadIJ(comm, fname, &base_i, &base_j, &A);
+   hypre_ParCSRMatrixSetNumNonzeros(A);
+
+   hypre_MatvecCommPkgCreate(A);
+
+   height = GetNumRows();
+   width = GetNumCols();
+}
+
+void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const char *fname)
+{
+   Destroy();
+   Init();
+
    HYPRE_IJMatrix A_ij;
    HYPRE_IJMatrixRead(fname, comm, 5555, &A_ij); // HYPRE_PARCSR = 5555
 
