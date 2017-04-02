@@ -13,6 +13,12 @@ libmfem.a
 examples/ex*
 !examples/ex*.cpp
 
+# Miniapp executables
+miniapps/*/*
+!examples/*/*.cpp
+
 # Example outputs
 examples/*.mesh
 examples/*.gf
+examples/*/mesh.*
+examples/*/sol.*
