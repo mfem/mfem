@@ -95,6 +95,7 @@ int main(int argc, char *argv[])
    int dim = mesh->Dimension();
 
    mesh->EnsureNCMesh(true);
+   mesh->UniformRefinement();
 
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose

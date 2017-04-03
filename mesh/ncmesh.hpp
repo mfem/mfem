@@ -518,14 +518,19 @@ protected: // implementation
    void FindSetNeighbors(const Array<char> &elem_set,
                          Array<int> *neighbors, /* append */
                          Array<char> *neighbor_set = NULL);
-
+#if 1
+   void FindNeighbors(int elem, Array<int> &neighbors);
+   void DescendToNeighbors(int elem, Array<int> &neighbors,
+                           double emin[3], double emax[3],
+                           double qmin[3], double qmax[3]);
+#else
    /** Return all vertex-, edge- and face-neighbors of a single element.
        You can limit the number of elements being checked using 'search_set'.
        The complexity of the function is linear in the size of the search set.*/
    void FindNeighbors(int elem,
                       Array<int> &neighbors, /* append */
                       const Array<int> *search_set = NULL);
-
+#endif
    /** Expand a set of elements by all vertex-, edge- and face-neighbors.
        The output array 'expanded' will contain all items from 'elems'
        (provided they are in 'search_set') plus their neighbors. The neighbor
@@ -534,11 +539,6 @@ protected: // implementation
    void NeighborExpand(const Array<int> &elems,
                        Array<int> &expanded,
                        const Array<int> *search_set = NULL);
-
-   void FastFindNeighbors(int elem, Array<int> &neighbors);
-   void DescendToNeighbors(int elem, Array<int> &neighbors,
-                           double emin[3], double emax[3],
-                           double qmin[3], double qmax[3]);
 
    void CollectEdgeVertices(int v0, int v1, Array<int> &indices);
    void CollectFaceVertices(int v0, int v1, int v2, int v3,

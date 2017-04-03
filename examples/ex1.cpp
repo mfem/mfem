@@ -149,6 +149,7 @@ int main(int argc, char *argv[])
    }
 
    // Test neighbor calculation
+#if 0
    srand(seed);
    int query = rand() % mesh->GetNE();
 
@@ -178,6 +179,7 @@ int main(int argc, char *argv[])
       dgfn.Save(osol);
    }
    exit(1);
+#endif
 
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we

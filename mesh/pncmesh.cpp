@@ -564,7 +564,8 @@ void ParNCMesh::ElementNeighborProcessors(int elem, Array<int> &ranks)
    // ok, we do need to look for neighbors;
    // at least we can only search in the ghost layer
    tmp_neighbors.SetSize(0);
-   FindNeighbors(elem, tmp_neighbors, &ghost_layer);
+   //FindNeighbors(elem, tmp_neighbors, &ghost_layer);
+   FindNeighbors(elem, tmp_neighbors);
 
    // return a list of processors
    for (int i = 0; i < tmp_neighbors.Size(); i++)

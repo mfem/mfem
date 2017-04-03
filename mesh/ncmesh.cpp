@@ -2257,35 +2257,44 @@ void NCMesh::FindSetNeighbors(const Array<char> &elem_set,
    }
 }
 
-static bool sorted_lists_intersect(const int* a, const int* b, int na, int nb)
-{
-   if (!na || !nb) { return false; }
-   int a_last = a[na-1], b_last = b[nb-1];
-   if (*b < *a) { goto l2; }  // woo-hoo! I always wanted to use a goto! :)
-l1:
-   if (a_last < *b) { return false; }
-   while (*a < *b) { a++; }
-   if (*a == *b) { return true; }
-l2:
-   if (b_last < *a) { return false; }
-   while (*b < *a) { b++; }
-   if (*a == *b) { return true; }
-   goto l1;
-}
+#if 1
+typedef double ChildRange[2][3];
 
-#define NOCHILD {{-1,-1},{-1,-1}}
 #define H 0.5
-
-static const double quad_child_range[4][4][2][2] =
+static const ChildRange quad_child_range[3][4] =
 {
-   {NOCHILD, NOCHILD, NOCHILD, NOCHILD},
-   {{{0,0},{H,1}}, {{H,0},{1,1}}, NOCHILD, NOCHILD}, // X split
-   {{{0,0},{1,H}}, {{0,H},{1,1}}, NOCHILD, NOCHILD}, // Y split
+   {{{0,0},{H,1}}, {{H,0},{1,1}}}, // X split
+   {{{0,0},{1,H}}, {{0,H},{1,1}}}, // Y split
    {{{0,0},{H,H}}, {{H,0},{1,H}}, {{H,H},{1,1}}, {{0,H},{H,1}}} // iso
 };
 
-#undef NOCHILD
+static const ChildRange hex_child_range[7][8] =
+{
+   {{{0,0,0},{H,1,1}}, {{H,0,0},{1,1,1}}}, // X split
+   {{{0,0,0},{1,H,1}}, {{0,H,0},{1,1,1}}}, // Y split
+   {{{0,0,0},{H,H,1}}, {{H,0,0},{1,H,1}}, {{H,H,0},{1,1,1}}, {{0,H,0},{H,1,1}}}, // XY
+   {{{0,0,0},{1,1,H}}, {{0,0,H},{1,1,1}}}, // Z split
+   {{{0,0,0},{H,1,H}}, {{H,0,0},{1,1,H}}, {{H,0,H},{1,1,1}}, {{0,0,H},{H,1,1}}}, // XZ
+   {{{0,0,0},{1,H,H}}, {{0,H,0},{1,1,H}}, {{0,0,H},{1,H,1}}, {{0,H,H},{1,1,1}}}, // YZ
+   {{{0,0,0},{H,H,H}}, {{H,0,0},{1,H,H}}, {{H,H,0},{1,1,H}}, {{0,H,0},{H,1,H}},
+    {{0,0,H},{H,H,1}}, {{H,0,H},{1,H,1}}, {{H,H,H},{1,1,1}}, {{0,H,H},{H,1,1}}} // iso
+};
 #undef H
+
+static const ChildRange& get_child_range(int geom, int ref_type, int child)
+{
+   MFEM_ASSERT(ref_type > 0, "");
+   switch (geom)
+   {
+      case Geometry::CUBE:
+         return hex_child_range[ref_type-1][child];
+      case Geometry::SQUARE:
+         return quad_child_range[ref_type-1][child];
+      default:
+         MFEM_ABORT("unsupported geometry");
+         throw;
+   }
+}
 
 void NCMesh::DescendToNeighbors(int elem, Array<int> &neighbors,
                                 double emin[3], double emax[3],
@@ -2306,7 +2315,7 @@ void NCMesh::DescendToNeighbors(int elem, Array<int> &neighbors,
 
    for (int i = 0; i < 8 && el.child[i] >= 0; i++)
    {
-      const double (*range)[2] = quad_child_range[(int) el.ref_type][i];
+      const ChildRange &range = get_child_range(el.geom, el.ref_type, i);
 
       double cmin[3], cmax[3];
       for (int j = 0; j < Dim; j++)
@@ -2331,7 +2340,7 @@ void NCMesh::DescendToNeighbors(int elem, Array<int> &neighbors,
    }
 }
 
-void NCMesh::FastFindNeighbors(int elem, Array<int> &neighbors)
+void NCMesh::FindNeighbors(int elem, Array<int> &neighbors)
 {
    const Element *el = &elements[elem];
 
@@ -2352,7 +2361,7 @@ void NCMesh::FastFindNeighbors(int elem, Array<int> &neighbors)
       }
       MFEM_VERIFY(ch >= 0, "child not found");
 
-      const double (*range)[2] = quad_child_range[(int) par.ref_type][ch];
+      const ChildRange &range = get_child_range(par.geom, par.ref_type, ch);
       for (int i = 0; i < Dim; i++)
       {
          double size = range[1][i] - range[0][i];
@@ -2368,6 +2377,23 @@ void NCMesh::FastFindNeighbors(int elem, Array<int> &neighbors)
    double rootmax[3] = {1, 1, 1};
 
    DescendToNeighbors(elem, neighbors, rootmin, rootmax, qmin, qmax);
+}
+
+#else
+static bool sorted_lists_intersect(const int* a, const int* b, int na, int nb)
+{
+   if (!na || !nb) { return false; }
+   int a_last = a[na-1], b_last = b[nb-1];
+   if (*b < *a) { goto l2; }  // woo-hoo! I always wanted to use a goto! :)
+l1:
+   if (a_last < *b) { return false; }
+   while (*a < *b) { a++; }
+   if (*a == *b) { return true; }
+l2:
+   if (b_last < *a) { return false; }
+   while (*b < *a) { b++; }
+   if (*a == *b) { return true; }
+   goto l1;
 }
 
 void NCMesh::FindNeighbors(int elem, Array<int> &neighbors,
@@ -2454,6 +2480,7 @@ void NCMesh::FindNeighbors(int elem, Array<int> &neighbors,
       }
    }
 }
+#endif
 
 void NCMesh::NeighborExpand(const Array<int> &elems,
                             Array<int> &expanded,
