@@ -38,7 +38,13 @@ if (NOT CMAKE_CXX_COMPILER)
   endif()
 endif()
 
+#-------------------------------------------------------------------------------
+# Project name and version
+#-------------------------------------------------------------------------------
 project(mfem CXX)
+# Current version of MFEM, see also `makefile`.
+#   mfem_VERSION = (string)
+#   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
 set(${PROJECT_NAME}_VERSION 3.3)
 
 # Prohibit in-source build
@@ -58,6 +64,12 @@ endif()
 # CMake needs to know where to find things
 set(MFEM_CMAKE_PATH ${PROJECT_SOURCE_DIR}/config)
 set(CMAKE_MODULE_PATH ${MFEM_CMAKE_PATH}/cmake/modules)
+
+# Load MFEM CMake utilities.
+include(MfemCmakeUtilities)
+
+string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UC)
+mfem_version_to_int(${${PROJECT_NAME}_VERSION} ${PROJECT_NAME_UC}_VERSION)
 
 #-------------------------------------------------------------------------------
 # Process configuration options
@@ -237,7 +249,6 @@ set(_USE_MATH_DEFINES ${WIN32})
 #-------------------------------------------------------------------------------
 
 # Headers and sources
-include(MfemCmakeUtilities)
 set(SOURCES "")
 set(HEADERS "")
 set(MFEM_SOURCE_DIRS general linalg mesh fem)
@@ -352,7 +363,6 @@ add_subdirectory(doc)
 #-------------------------------------------------------------------------------
 
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
-string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UC)
 set(INSTALL_INCLUDE_DIR include
   CACHE PATH "Relative path for installing header files.")
 set(INSTALL_LIB_DIR lib
