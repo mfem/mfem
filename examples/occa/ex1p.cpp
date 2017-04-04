@@ -201,10 +201,27 @@ int main(int argc, char *argv[])
   //     assembly, eliminating boundary conditions, applying conforming
   //     constraints for non-conforming AMR, static condensation, etc.
   a->Assemble();
+  tic_toc.Stop();
+  if (!myid) {
+    cout << " done, " << tic_toc.RealTime() << "s." << endl
+         << "Assembling the preconditioner bilinear form ..." << endl << flush;
+  }
+  tic_toc.Clear();
+  tic_toc.Start();
+  ParBilinearForm *a_pc = new ParBilinearForm(fespace);
+  a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
+  a_pc->Assemble();
+  tic_toc.Stop();
+  if (!myid) {
+    cout << " done, " << tic_toc.RealTime() << "s." << endl;
+  }
 
   Operator *A;
   OccaVector B, X;
   a->FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
+  HypreParMatrix A_pc;
+  a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
 
   if (!myid) {
     cout << "Size of linear system: " << fespace->GlobalTrueVSize() << endl;
@@ -212,19 +229,27 @@ int main(int argc, char *argv[])
 
   // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
   //     preconditioner from hypre.
-  OccaCGSolver *cg = new OccaCGSolver(MPI_COMM_WORLD);
-  cg->SetRelTol(1e-6);
-  cg->SetAbsTol(0);
-  cg->SetMaxIter(500);
-  cg->SetPrintLevel(1);
-  cg->SetOperator(*A);
+  OccaCGSolver *pcg = new OccaCGSolver(MPI_COMM_WORLD);
+  HypreSolver *amg = new HypreBoomerAMG(A_pc);
+  pcg->SetRelTol(1e-6);
+  pcg->SetAbsTol(0);
+  pcg->SetMaxIter(500);
+  pcg->SetPrintLevel(1);
+  pcg->SetOperator(*A);
+  pcg->SetOccaPreconditioner(*amg);
 
   tic_toc.Clear();
   tic_toc.Start();
+  if (!myid) {
+    cout << "Running PCG ..." << endl;
+  }
 
-  cg->Mult(B, X);
+  pcg->Mult(B, X);
 
   tic_toc.Stop();
+  if (!myid) {
+    cout << " done, " << tic_toc.RealTime() << "s." << endl;
+  }
 
   // 13. Recover the parallel grid function corresponding to X. This is the
   //     local finite element solution on each processor.
@@ -261,7 +286,7 @@ int main(int argc, char *argv[])
     }
 
   // 16. Free the used memory.
-  delete cg;
+  delete pcg;
   delete a;
   delete fespace;
   if (order > 0) { delete fec; }
