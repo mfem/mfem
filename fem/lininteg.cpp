@@ -197,6 +197,46 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
    }
 }
 
+
+void DomainGradLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   DenseMatrix Q_ir, dshape, adjJ;
+   Vector vec1, vec2, q_dot_ds;
+
+   int nd  = el.GetDof();
+   int dim = Q.GetVDim(); 
+   vec1.SetSize(dim);
+   vec2.SetSize(dim);
+   adjJ.SetSize(dim,dim);
+   dshape.SetSize(nd,dim);
+   elvect.SetSize(nd);
+   q_dot_ds.SetSize(nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = el.GetOrder() + 1;
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   Q.Eval(Q_ir, Tr, *ir);
+
+   elvect = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Tr.SetIntPoint(&ip);
+      el.CalcDShape(ip, dshape);
+      CalcAdjugate(Tr.Jacobian(), adjJ);
+      Q_ir.GetColumnReference(i, vec1);
+      vec1 *= ip.weight;
+      adjJ.Mult(vec1, vec2);
+      dshape.Mult(vec2, q_dot_ds);
+      elvect += q_dot_ds;
+   }
+}
+
 void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {

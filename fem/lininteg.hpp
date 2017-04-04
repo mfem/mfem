@@ -146,6 +146,28 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
+
+/** Class for domain integration of L(v) := (f, grad v), where
+    f=(f1,...,fn) and v scalar. */
+class DomainGradLFIntegrator : public LinearFormIntegrator
+{
+private:
+   VectorCoefficient &Q;
+
+public:
+   /// Constructs a domain integrator with a given VectorCoefficient
+   DomainGradLFIntegrator(VectorCoefficient &QF) : Q(QF) { }
+
+   /** Given a particular Finite Element and a transformation (Tr)
+       computes the element right hand side element vector, elvect. */
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+
 /** Class for boundary integration of L(v) := (g, v), where
     f=(f1,...,fn) and v=(v1,...,vn). */
 class VectorBoundaryLFIntegrator : public LinearFormIntegrator
