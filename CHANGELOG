@@ -11,7 +11,12 @@
 Development version, not released yet
 =====================================
 
-- Add a block lower triangular preconditioner in using a matrix-free
+- Added a new meshing miniapp, shaper, that can be used to resolve
+  complicated material interfaces by mesh refinement, e.g. as a tool
+  for initial mesh generation from prescribed "material()" function.
+  Both conforming and non-conforming refinements are supported.
+
+- Added a block lower triangular preconditioner in using a matrix-free
   implementation, see class BlockLowerTriangularPreconditioner.
 
 
