@@ -368,13 +368,22 @@ public:
 
 
 
+
 /** Interior face Riemann integrator
     */
-class DGRiemIntegrator : public LinearFormIntegrator
+class DGEulerIntegrator : public LinearFormIntegrator
 {
 protected:
    VectorCoefficient &uD;
-   double alpha, kappa;
+   VectorCoefficient &fD;
+
+   int vDim;//Vector dimension 
+
+   double alpha; // b = alpha*b
+
+   const double gamm  = 1.4;
+   const double R     = 287;
+   const double Cv    = R/(gamm - 1);
 
 #ifndef MFEM_THRAED_SAFE
    Vector shape;
@@ -388,9 +397,8 @@ protected:
 #endif
 
 public:
-   DGRiemIntegrator(VectorCoefficient &uD_,
-                                     double alpha_, double kappa_)
-      : uD(uD_), alpha(alpha_), kappa(kappa_) { }
+   DGEulerIntegrator(VectorCoefficient &uD_, VectorCoefficient &fD_, int vDim_, double alpha_)
+      : uD(uD_), fD(fD_), vDim(vDim_), alpha(alpha_) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -404,7 +412,12 @@ public:
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
 
+   void getEulerFlux(const Vector &u, Vector &f);
+        
+        
+
 };
+
 
 }
 
