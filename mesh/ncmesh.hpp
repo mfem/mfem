@@ -520,6 +520,7 @@ protected: // implementation
                          Array<char> *neighbor_set = NULL);
 #if 1
    void FindNeighbors(int elem, Array<int> &neighbors);
+
    void DescendToNeighbors(int elem, Array<int> &neighbors,
                            double emin[3], double emax[3],
                            double qmin[3], double qmax[3]);

@@ -570,7 +570,11 @@ void ParNCMesh::ElementNeighborProcessors(int elem, Array<int> &ranks)
    // return a list of processors
    for (int i = 0; i < tmp_neighbors.Size(); i++)
    {
-      ranks.Append(elements[tmp_neighbors[i]].rank);
+      int r = elements[tmp_neighbors[i]].rank;
+      if (r != MyRank)
+      {
+         ranks.Append(r);
+      }
    }
    ranks.Sort();
    ranks.Unique();
@@ -992,6 +996,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
             RefineElement(recv_msg.elements[i], recv_msg.values[i]);
             DebugRefineDump("ghost");
          }
+         // FIXME: ElementValueMessage::Decode won't decode more values per element
       }
 
       send_msg.push_back(NeighborRefinementMessage::Map());
@@ -1075,6 +1080,7 @@ void ParNCMesh::DebugRefineDump(const char* text)
    sprintf(fname, "dump-%02d-%03d-%s.dbg", MyRank, step++, text);
    std::ofstream f(fname);
    DebugDump(f);
+   //DebugCheckConsistency();
 }
 #endif
 
@@ -1919,7 +1925,7 @@ void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
          }
          else { MFEM_ASSERT(ref_type == el.ref_type, "") }
       }
-      else { MFEM_ASSERT(el.ref_type != 0, ""); }
+      else { MFEM_ASSERT(el.ref_type != 0, "missing subtree"); }
 
       for (int i = 0; i < 8; i++)
       {

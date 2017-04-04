@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
       for (int l = 0; l < ref_levels; l++)
       {
          //pmesh->UniformRefinement();
-         pmesh->RandomRefinement(0.7, true);
+         pmesh->RandomRefinement(0.9, true);
          /*Array<Refinement> refs;
          refs.Append(Refinement(rand() % pmesh->GetNE(), rand() % 7 + 1));
          pmesh->GeneralRefinement(refs);*/

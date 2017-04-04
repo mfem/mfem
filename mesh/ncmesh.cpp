@@ -527,11 +527,14 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    if (!face) { return; }
 
    int elem = face->GetSingleElement();
-   MFEM_ASSERT(!elements[elem].ref_type, "element already refined.");
+   Element &el = elements[elem];
+   MFEM_ASSERT(!el.ref_type, "element already refined.");
 
-   int* nodes = elements[elem].node;
+   // in parallel, don't propagate forced refinements into the ghost layer
+   if (IsGhost(el)) { return; }
 
    // schedule the right split depending on face orientation
+   int* nodes = el.node;
    if ((NodeSetX1(vn1, nodes) && NodeSetX2(vn2, nodes)) ||
        (NodeSetX1(vn2, nodes) && NodeSetX2(vn1, nodes)))
    {
@@ -3740,11 +3743,11 @@ void NCMesh::DebugCheckConsistency() const
          MFEM_ASSERT(nodes[node->ShadowTarget()].Shadowed(), "");
          nshadow++;
       }
-      else
+      /*else
       {
          MFEM_ASSERT(node->vert_refc || node->edge_refc,
                      "unused node " << node.index());
-      }
+      }*/
    }
    std::cout << nshadow << " shadow nodes exist out of "
              << nodes.Size() << " nodes total." << std::endl;
