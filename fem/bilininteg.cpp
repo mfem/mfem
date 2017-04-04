@@ -777,9 +777,9 @@ void MassIntegrator::AssembleElementMatrix2(
 #ifdef MFEM_THREAD_SAFE
    Vector shape, te_shape;
 #endif
-   elmat.SetSize (te_nd, tr_nd);
-   shape.SetSize (tr_nd);
-   te_shape.SetSize (te_nd);
+   elmat.SetSize(te_nd, tr_nd);
+   shape.SetSize(tr_nd);
+   te_shape.SetSize(te_nd);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -822,6 +822,9 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
    Vector shape;
 #endif
 
+#ifdef MFEM_THREAD_SAFE
+   Vector shape;
+#endif
    elmat.SetSize(nd1);
    shape.SetSize(nd1);
 
@@ -863,7 +866,6 @@ void ConvectionIntegrator::AssembleElementMatrix(
    DenseMatrix dshape, adjJ, Q_ir;
    Vector shape, vec2, BdFidxT;
 #endif
-
 
    elmat.SetSize(nd);
    dshape.SetSize(nd,dim);

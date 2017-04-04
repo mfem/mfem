@@ -254,7 +254,7 @@ void NodalFiniteElement::Project (
 void NodalFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   Vector x (vc.GetVDim());
+   Vector x(vc.GetVDim());
 
    for (int i = 0; i < Dof; i++)
    {
