@@ -203,9 +203,9 @@ int main(int argc, char *argv[])
   OccaBilinearForm *a = new OccaBilinearForm(fespace);
   a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
-  OccaBilinearForm *a_pc = NULL;
-  if (pc_choice == LOR) { a_pc = new OccaBilinearForm(fespace_lor); }
-  if (pc_choice == HO)  { a_pc = new OccaBilinearForm(fespace); }
+  BilinearForm *a_pc = NULL;
+  if (pc_choice == LOR) { a_pc = new BilinearForm(fespace_lor); }
+  if (pc_choice == HO)  { a_pc = new BilinearForm(fespace); }
 
   // 9. Assemble the bilinear form and the corresponding linear system,
   //    applying any necessary transformations such as: eliminating boundary
@@ -227,21 +227,16 @@ int main(int argc, char *argv[])
   tic_toc.Clear();
   tic_toc.Start();
 
-  Operator *A_pc;
-  if (pc_choice != NONE)
-    {
-      OccaVector X_pc, B_pc; // only for FormLinearSystem()
-      if (pc_choice == LOR)
-        {
-          a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
-          a_pc->Assemble();
-          a_pc->FormLinearSystem(ess_tdof_list, x, b, A_pc, X_pc, B_pc);
-        }
-      else if (pc_choice == HO)
-        {
-          A_pc = A;
-        }
+  SparseMatrix A_pc;
+  if (pc_choice != NONE) {
+    Vector X_pc, B_pc; // only for FormLinearSystem()
+    if (pc_choice == LOR) {
+      a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
+      a_pc->Assemble();
+      // [MISSING] Need to do device <--> host
+      // a_pc->FormLinearSystem(ess_tdof_list, x, b, A_pc, X_pc, B_pc);
     }
+  }
 
   tic_toc.Stop();
   cout << " done, " << tic_toc.RealTime() << "s." << endl;
@@ -251,11 +246,10 @@ int main(int argc, char *argv[])
   tic_toc.Clear();
   tic_toc.Start();
   // Solve with CG or PCG, depending if the matrix A_pc is available
-  // [MISSING] Need a parallel preconditioner
   if (pc_choice != NONE)
     {
-      //GSSmoother M(*A_pc);
-      //PCG(*a_oper, M, B, X, 1, 500, 1e-12, 0.0);
+      GSSmoother M(A_pc);
+      PCG(*A, M, B, X, 1, 500, 1e-12, 0.0);
     }
   else
     {

@@ -89,6 +89,10 @@ public:
    /// This should be called before SetOperator
    virtual void SetPreconditioner(Solver &pr);
 
+#ifdef MFEM_USE_OCCA
+  void SetOccaPreconditioner(Solver &pr);
+#endif
+
    /// Also calls SetOperator for the preconditioner if there is one
    virtual void SetOperator(const Operator &op);
 };

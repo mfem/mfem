@@ -13,6 +13,10 @@
 #include <algorithm>
 #include <cmath>
 
+#ifdef MFEM_USE_OCCA
+#include "osolvers.hpp"
+#endif
+
 namespace mfem
 {
 
@@ -70,6 +74,11 @@ void IterativeSolver::SetPreconditioner(Solver &pr)
 {
    prec = &pr;
    prec->iterative_mode = false;
+}
+
+void IterativeSolver::SetOccaPreconditioner(Solver &pr)
+{
+  SetPreconditioner(*(new OccaSolverWrapper(pr)));
 }
 
 void IterativeSolver::SetOperator(const Operator &op)

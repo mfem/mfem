@@ -97,6 +97,14 @@ namespace mfem {
     }
   }
 
+  void OccaVector::CopyTo(Vector &v) const {
+    data.copyTo(v.GetData());
+  }
+
+  void OccaVector::CopyFrom(const Vector &v) {
+    data.copyFrom(v.GetData());
+  }
+
   double OccaVector::operator * (const OccaVector &v) const {
     return occa::linalg::dot<double, double, double>(data, v.data);
   }

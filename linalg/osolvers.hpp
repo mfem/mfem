@@ -19,6 +19,19 @@
 #include "ovector.hpp"
 
 namespace mfem {
+  class OccaSolverWrapper : public Solver {
+    Solver &sol;
+    Vector *hostX, *hostY;
+
+  public:
+    OccaSolverWrapper(Solver &s);
+
+    inline virtual void SetOperator(const Operator &op) {}
+
+    virtual void Mult(const OccaVector &x, OccaVector &y) const;
+    virtual void MultTranspose(const OccaVector &x, OccaVector &y) const;
+  };
+
   typedef TCGSolver<OccaVector> OccaCGSolver;
 
   inline void CG(const Operator &A, const OccaVector &b, OccaVector &x,
@@ -34,7 +47,8 @@ namespace mfem {
                   int print_iter = 0, int max_num_iter = 1000,
                   double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24)
   {
-    TPCG<OccaVector>(A, B, b, x,
+    Solver &OccaB = *(new OccaSolverWrapper(B));
+    TPCG<OccaVector>(A, OccaB, b, x,
                      print_iter, max_num_iter,
                      RTOLERANCE, ATOLERANCE);
   }

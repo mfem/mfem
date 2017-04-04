@@ -14,6 +14,7 @@
 #ifdef MFEM_USE_OCCA
 
 #include "ointerpolation.hpp"
+#include "../general/outils.hpp"
 
 namespace mfem {
   void CreateRPOperators(occa::device device,
@@ -76,15 +77,14 @@ namespace mfem {
   OccaProlongationOperator::OccaProlongationOperator(const Operator *pmat_) :
     Operator(pmat_->Height(), pmat_->Width()),
     pmat(pmat_),
-    hostX(pmat_->Width()),
-    hostY(pmat_->Height()) {}
+    hostX(&GetOccaHostVector(0, pmat->Width())),
+    hostY(&GetOccaHostVector(1, pmat->Height())) {}
 
   void OccaProlongationOperator::Mult(const OccaVector &x, OccaVector &y) const {
     if (pmat) {
-      MPI_Barrier(MPI_COMM_WORLD);
-      x.GetData().copyTo(hostX.GetData());
-      pmat->Mult(hostX, hostY);
-      y.GetData().copyFrom(hostY.GetData());
+      x.CopyTo(*hostX);
+      pmat->Mult(*hostX, *hostY);
+      y.CopyFrom(*hostY);
     } else {
       multOp.Mult(x, y);
     }
@@ -92,9 +92,9 @@ namespace mfem {
 
   void OccaProlongationOperator::MultTranspose(const OccaVector &x, OccaVector &y) const {
     if (pmat) {
-      x.GetData().copyTo(hostY.GetData());
-      pmat->MultTranspose(hostY, hostX);
-      y.GetData().copyFrom(hostX.GetData());
+      x.CopyTo(*hostY);
+      pmat->MultTranspose(*hostY, *hostX);
+      y.CopyFrom(*hostX);
     } else {
       multTransposeOp.Mult(x, y);
     }

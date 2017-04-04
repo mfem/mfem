@@ -42,7 +42,7 @@ namespace mfem {
   class OccaProlongationOperator : public Operator {
   protected:
     const Operator *pmat;
-    mutable Vector hostX, hostY;
+    Vector *hostX, *hostY;
     OccaSparseMatrix multOp, multTransposeOp;
 
   public:
