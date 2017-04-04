@@ -291,17 +291,6 @@ namespace mfem {
   }
 
 
-  void OccaBilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                          OccaVector &x, OccaVector &b,
-                                          Operator* &Aout, OccaVector &X, OccaVector &B,
-                                          int copy_interior) {
-
-    TFormLinearSystem<OccaVector>(ess_tdof_list,
-                                  x, b, Aout, X, B,
-                                  copy_interior);
-  }
-
-
   void OccaBilinearForm::RecoverFEMSolution(const OccaVector &X,
                                             const OccaVector &b,
                                             OccaVector &x) {

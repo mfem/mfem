@@ -229,13 +229,10 @@ int main(int argc, char *argv[])
 
   SparseMatrix A_pc;
   if (pc_choice != NONE) {
-    Vector X_pc, B_pc; // only for FormLinearSystem()
-    if (pc_choice == LOR) {
-      a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
-      a_pc->Assemble();
-      // [MISSING] Need to do device <--> host
-      // a_pc->FormLinearSystem(ess_tdof_list, x, b, A_pc, X_pc, B_pc);
-    }
+    a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
+    a_pc->UsePrecomputedSparsity();
+    a_pc->Assemble();
+    a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
   }
 
   tic_toc.Stop();

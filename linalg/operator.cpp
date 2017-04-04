@@ -28,6 +28,19 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
                             copy_interior);
 }
 
+#ifdef MFEM_USE_OCCA
+void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
+                                OccaVector &x, OccaVector &b,
+                                Operator* &Aout,
+                                OccaVector &X, OccaVector &B,
+                                int copy_interior)
+{
+  TFormLinearSystem<OccaVector>(ess_tdof_list,
+                                x, b, Aout, X, B,
+                                copy_interior);
+}
+#endif
+
 void Operator::ImposeBoundaryConditions(const Array<int> &ess_tdof_list,
                                         Operator *rap,
                                         Operator* &Aout, Vector &X, Vector &B)

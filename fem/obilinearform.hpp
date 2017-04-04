@@ -142,11 +142,6 @@ namespace mfem {
                                         Operator &A,
                                         const Operator &P);
 
-    void FormLinearSystem(const Array<int> &ess_tdof_list,
-                          OccaVector &x, OccaVector &b,
-                          Operator* &Aout, OccaVector &X, OccaVector &B,
-                          int copy_interior = 0);
-
     void RecoverFEMSolution(const OccaVector &X, const OccaVector &b, OccaVector &x);
 
     virtual void ImposeBoundaryConditions(const Array<int> &ess_tdof_list,

@@ -119,16 +119,26 @@ public:
        @note The caller is responsible for destroying the output operator @a A!
        @note If there are no transformations, @a X simply reuses the data of @a
        x. */
-   template <class TVector>
+  template <class TVector>
    void TFormLinearSystem(const Array<int> &ess_tdof_list,
                           TVector &x, TVector &b,
-                          Operator* &Aout, TVector &X, TVector &B,
+                          Operator* &Aout,
+                          TVector &X, TVector &B,
                           int copy_interior = 0);
 
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x, Vector &b,
-                         Operator* &Aout, Vector &X, Vector &B,
+                         Operator* &Aout,
+                         Vector &X, Vector &B,
                          int copy_interior = 0);
+
+#ifdef MFEM_USE_OCCA
+   void FormLinearSystem(const Array<int> &ess_tdof_list,
+                         OccaVector &x, OccaVector &b,
+                         Operator* &Aout,
+                         OccaVector &X, OccaVector &B,
+                         int copy_interior = 0);
+#endif
 
    /** @brief Reconstruct a solution vector @a x (e.g. a GridFunction) from the
        solution @a X of a constrained linear system obtained from
