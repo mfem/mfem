@@ -18,20 +18,14 @@
 
 namespace mfem {
   OccaSolverWrapper::OccaSolverWrapper(Solver &s) :
-    sol(s),
-    hostX(&GetOccaHostVector(0, s.Width())),
-    hostY(&GetOccaHostVector(1, s.Height())) {}
+    sol(s) {}
 
   void OccaSolverWrapper::Mult(const OccaVector &x, OccaVector &y) const {
-    x.CopyTo(*hostX);
-    sol.Mult(*hostX, *hostY);
-    y.CopyFrom(*hostY);
+    OccaMult(sol, x, y);
   }
 
   void OccaSolverWrapper::MultTranspose(const OccaVector &x, OccaVector &y) const {
-    x.CopyTo(*hostY);
-    sol.MultTranspose(*hostY, *hostX);
-    y.CopyFrom(*hostX);
+    OccaMultTranspose(sol, x, y);
   }
 }
 

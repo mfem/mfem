@@ -76,15 +76,11 @@ namespace mfem {
 
   OccaProlongationOperator::OccaProlongationOperator(const Operator *pmat_) :
     Operator(pmat_->Height(), pmat_->Width()),
-    pmat(pmat_),
-    hostX(&GetOccaHostVector(0, pmat->Width())),
-    hostY(&GetOccaHostVector(1, pmat->Height())) {}
+    pmat(pmat_) {}
 
   void OccaProlongationOperator::Mult(const OccaVector &x, OccaVector &y) const {
     if (pmat) {
-      x.CopyTo(*hostX);
-      pmat->Mult(*hostX, *hostY);
-      y.CopyFrom(*hostY);
+      OccaMult(*pmat, x, y);
     } else {
       multOp.Mult(x, y);
     }
@@ -92,9 +88,7 @@ namespace mfem {
 
   void OccaProlongationOperator::MultTranspose(const OccaVector &x, OccaVector &y) const {
     if (pmat) {
-      x.CopyTo(*hostY);
-      pmat->MultTranspose(*hostY, *hostX);
-      y.CopyFrom(*hostX);
+      OccaMultTranspose(*pmat, x, y);
     } else {
       multTransposeOp.Mult(x, y);
     }

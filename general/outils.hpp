@@ -17,20 +17,16 @@
 
 #include <vector>
 #include "../linalg/vector.hpp"
+#include "../linalg/operator.hpp"
 
 namespace mfem {
-  inline Vector& GetOccaHostVector(const int id, const int64_t size = -1) {
-    static std::vector<Vector*> v;
-    if (v.size() <= id) {
-      for (int i = (int) v.size(); i < (id + 1); ++i) {
-        v.push_back(new Vector);
-      }
-    }
-    if (size >= 0) {
-      v[id]->SetSize(size);
-    }
-    return *(v[id]);
-  }
+  Vector& GetOccaHostVector(const int id, const int64_t size = -1);
+
+  void OccaMult(const Operator &op,
+                const OccaVector &x, OccaVector &y);
+
+  void OccaMultTranspose(const Operator &op,
+                         const OccaVector &x, OccaVector &y);
 }
 
 #  endif

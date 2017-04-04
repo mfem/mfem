@@ -21,7 +21,6 @@
 namespace mfem {
   class OccaSolverWrapper : public Solver {
     Solver &sol;
-    Vector *hostX, *hostY;
 
   public:
     OccaSolverWrapper(Solver &s);
