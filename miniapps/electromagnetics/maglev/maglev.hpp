@@ -93,13 +93,9 @@ inline int MaglevProblemGeometry::getMagnetNumber(const mfem::Vector &x)
 inline void MaglevProblemGeometry::getMuSigmaV(const mfem::Vector &x, mfem::Vector &out)
 {
    out = 0.0;
-   if (x[1] >= m_conductor_bottom && x[1] >= m_conductor_top)
+   if (x[1] >= m_conductor_bottom && x[1] <= m_conductor_top)
    {
       out[0] = m_conductor_mu*m_conductor_sigma*m_conductor_vx;
-   }
-   else if (x[0] >= m_ha_left && x[0] >= m_ha_right && x[1] >= m_ha_bottom && x[1] >= m_ha_top)
-   {
-      out[0] = m_ha_mu*m_ha_sigma*m_ha_vx;
    }
 }
 
@@ -107,7 +103,7 @@ inline void MaglevProblemGeometry::getMuSigmaV(const mfem::Vector &x, mfem::Vect
 inline void MaglevProblemGeometry::getMPerp(const mfem::Vector &x, mfem::Vector &out)
 {
    out = 0.0;
-   if (x[0] >= m_ha_left && x[0] >= m_ha_right && x[1] >= m_ha_bottom && x[1] >= m_ha_top)
+   if (x[0] >= m_ha_left && x[0] <= m_ha_right && x[1] >= m_ha_bottom && x[1] <= m_ha_top)
    {
       int mag = getMagnetNumber(x) % 4;
       double a = 0.0;

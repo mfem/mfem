@@ -31,14 +31,14 @@ int main(int argc, char *argv[])
    double ha_len = 2.0;
    double ha_thick = 0.1;
    int ha_num_magnets = 20;
-   double ha_yoff = 0.2;
+   double ha_yoff = 0.05;
    double ha_vx = 0.0;         
    double ha_mu = 1.32e-6;
    double ha_sigma = 6.67e5;
    double ha_remanence = 1.0;
    double conductor_thick = 0.025;   
    double conductor_yoff = 1.0;
-   double conductor_vx = -10.0;
+   double conductor_vx = -100.0;
    double conductor_mu = 1.257e-6;
    double conductor_sigma = 3.5e7;   
    double air_mu = 1.257e-6;
@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
    // Generate the mesh from the given inputs and set up the 
    // the object that holds on to all the problem definitions.
    double dx = ha_len / double(ha_num_magnets);
-   double dy = min(ha_thick, conductor_thick);
+   double dy = min(min(ha_thick, conductor_thick), ha_yoff);
    int nx = round(domain_length / dx);
    int ny = round(domain_height / dy);
    Mesh *mesh = new Mesh(nx, ny, Element::QUADRILATERAL, 1,
@@ -115,9 +115,9 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
    MaglevProblemGeometry *problem = new MaglevProblemGeometry(
-                           conductor_yoff, conductor_yoff - conductor_thick, conductor_vx,
+                           conductor_yoff - conductor_thick, conductor_yoff, conductor_vx,
                            conductor_mu, conductor_sigma,
-                           -ha_len/2.0, ha_len/2.0, 
+                           domain_length/2.0 - ha_len/2.0, domain_length/2.0 + ha_len/2.0, 
                            conductor_yoff+ha_yoff, conductor_yoff+ha_yoff+ha_thick,
                            ha_num_magnets, ha_vx, ha_mu, ha_sigma, ha_remanence/ha_mu,
                            air_mu, air_sigma);
@@ -125,7 +125,9 @@ int main(int argc, char *argv[])
    // Define a parallel finite element space on the parallel mesh. Here we
    // use continuous Lagrange finite elements of the specified order. 
    FiniteElementCollection *fec = new H1_FECollection(order, 2);
+   FiniteElementCollection *viz_fec = new ND_FECollection(order, 2);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+   ParFiniteElementSpace *viz_fespace = new ParFiniteElementSpace(pmesh, viz_fec);   
    HYPRE_Int ndof = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
@@ -195,9 +197,23 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
 
+   //Project the coefficient onto some vector grid functions so we can vizualize them
+   ParGridFunction conv(viz_fespace);
+   conv.ProjectCoefficient(conv_coeff);
+   ParGridFunction mag(viz_fespace);
+   mag.ProjectCoefficient(mag_coeff);
+
+
+
+   VisItDataCollection visit_dc("maglev", pmesh);
+   visit_dc.RegisterField("Az", &x);
+   visit_dc.RegisterField("convection_coeff", &conv);
+   visit_dc.RegisterField("mag_coeff", &mag);
+   visit_dc.Save();
+
    // Save the refined mesh and the solution in parallel. This output can
    // be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
-   {
+   /*{
       ostringstream mesh_name, sol_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
       sol_name << "sol." << setfill('0') << setw(6) << myid;
@@ -220,7 +236,7 @@ int main(int argc, char *argv[])
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << *pmesh << x << flush;
-   }
+   }*/
 
    // Free the used memory.
    delete gmres;

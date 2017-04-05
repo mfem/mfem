@@ -62,4 +62,4 @@ clean-build:
 
 clean-exec:
 	rm -rf maglev
-	rm -rf *.000000 *.00000
+	rm -rf *.000000 *.00000 maglev_000000 maglev_000000.mfem_root
