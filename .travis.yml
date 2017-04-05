@@ -78,6 +78,8 @@ install:
 script:
    # Compiler
    - if [ $MPI == "YES" ]; then export MYCXX=mpic++; else export MYCXX=$CXX; fi
+   # Print the compiler version
+   - $MYCXX -v
    # Build the code and do a quick check (debug mode) or a full tests run (non-debug mode)
    - if [ $DEBUG == "NO" ]; then export MFEM_TEST_TARGET="test"; else export MFEM_TEST_TARGET="check"; fi
 
