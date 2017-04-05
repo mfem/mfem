@@ -11,6 +11,11 @@
 Development version, not released yet
 =====================================
 
+- Memory optimizations in the NCMesh class, which now uses 50% less memory.
+  The average cost of an NC element in a uniformly refined mesh (including the
+  refinement hierarchy, but excluding the temporary face_list and edge_list)
+  is now only about 290 bytes. This also makes the class faster.
+
 - Added a new meshing miniapp, shaper, that can be used to resolve
   complicated material interfaces by mesh refinement, e.g. as a tool
   for initial mesh generation from prescribed "material()" function.
