@@ -33,7 +33,7 @@ class FiniteElementSpace; // for Dof -> VDof conversion
 /** \brief A parallel extension of the NCMesh class.
  *
  *  The basic idea (and assumption) is that all processors share the coarsest
- *  layer ('root_elements'). This has the advantage that refinements can easily
+ *  layer ("root elements"). This has the advantage that refinements can easily
  *  be exchanged between processors when rebalancing since individual elements
  *  can be uniquely identified by the index of the root element and a path in
  *  the refinement tree.
@@ -53,7 +53,7 @@ class FiniteElementSpace; // for Dof -> VDof conversion
  *  currently defined to be the one with the lowest rank in the group of
  *  processors that share the entity.
  *
- *  Vertices, edges and faces that are not shared by this ('MyRank') processor
+ *  Vertices, edges and faces that are not owned by this ('MyRank') processor
  *  are ghosts, and are numbered after all real vertices/edges/faces, i.e.,
  *  they have indices greater than NVertices, NEdges, NFaces, respectively.
  *
@@ -187,7 +187,7 @@ public:
    /** Returns owner processor for element 'index'. This is normally MyRank but
        for index >= NElements (i.e., for ghosts) it may be something else. */
    int ElementRank(int index) const
-   { return leaf_elements[index]->rank; }
+   { return elements[leaf_elements[index]].rank; }
 
 
    // interface for ParMesh
@@ -262,11 +262,11 @@ protected:
          3 - our element, and neighbor to the ghost layer,
          2 - ghost layer element (existing element, but rank != MyRank),
          0 - element beyond the ghost layer, may not be a real element.
-       See also UpdateLayers(). */
+       Note: indexed by Element::index. See also UpdateLayers(). */
    Array<char> element_type;
 
-   Array<Element*> ghost_layer; ///< list of elements whose 'element_type' == 2.
-   Array<Element*> boundary_layer; ///< list of type 3 elements
+   Array<int> ghost_layer;    ///< list of elements whose 'element_type' == 2.
+   Array<int> boundary_layer; ///< list of type 3 elements
 
    virtual void Update();
 
@@ -274,7 +274,7 @@ protected:
    int Partition(long index, long total_elements) const
    { return index * NRanks / total_elements; }
 
-   /// Helper to get the partition when the serial mesh is being split initially
+   /// Helper to get the partitioning when the serial mesh gets split initially
    int InitialPartition(int index) const
    { return Partition(index, leaf_elements.Size()); }
 
@@ -285,8 +285,8 @@ protected:
    virtual void UpdateVertices();
    virtual void AssignLeafIndices();
 
-   virtual bool IsGhost(const Element* elem) const
-   { return elem->rank != MyRank; }
+   virtual bool IsGhost(const Element& el) const
+   { return el.rank != MyRank; }
 
    virtual int GetNumGhosts() const { return NGhostElements; }
 
@@ -295,13 +295,13 @@ protected:
    virtual void BuildEdgeList();
    virtual void BuildFaceList();
 
-   virtual void ElementSharesEdge(Element* elem, Edge* edge);
-   virtual void ElementSharesFace(Element* elem, Face* face);
+   virtual void ElementSharesEdge(int elem, int enode);
+   virtual void ElementSharesFace(int elem, int face);
 
    void BuildSharedVertices();
 
-   static int get_face_orientation(Face *face, Element* e1, Element* e2,
-                                   int local[2] = NULL);
+   static int get_face_orientation(Face &face, Element &e1, Element &e2,
+                                   int local[2] = NULL /* optional output */);
    void CalcFaceOrientations();
 
    void UpdateLayers();
@@ -324,25 +324,26 @@ protected:
          : ncmesh(ncmesh), include_ref_types(include_ref_types) {}
       ElementSet(const ElementSet &other);
 
-      void Encode(const Array<Element*> &elements);
+      void Encode(const Array<int> &elements);
       void Dump(std::ostream &os) const;
 
       void Load(std::istream &is);
-      void Decode(Array<Element*> &elements) const;
+      void Decode(Array<int> &elements) const;
 
       void SetNCMesh(NCMesh *ncmesh) { this->ncmesh = ncmesh; }
+      const NCMesh* GetNCMesh() const { return ncmesh; }
 
    protected:
       Array<unsigned char> data; ///< encoded refinement (sub-)trees
       NCMesh* ncmesh;
       bool include_ref_types;
 
-      void EncodeTree(Element* elem);
-      void DecodeTree(Element* elem, int &pos, Array<Element*> &elements) const;
+      void EncodeTree(int elem);
+      void DecodeTree(int elem, int &pos, Array<int> &elements) const;
 
       void WriteInt(int value);
       int  GetInt(int pos) const;
-      void FlagElements(const Array<Element*> &elements, char flag);
+      void FlagElements(const Array<int> &elements, char flag);
    };
 
    /// Write to 'os' a processor-independent encoding of vertex/edge/face IDs.
@@ -351,14 +352,14 @@ protected:
    /// Read from 'is' a processor-independent encoding of vertex/edge/face IDs.
    void DecodeMeshIds(std::istream &is, Array<MeshId> ids[]);
 
-   bool CheckElementType(Element* elem, int type);
+   bool CheckElementType(int elem, int type);
 
-   Array<Element*> tmp_neighbors; // temporary used by ElementNeighborProcessors
+   Array<int> tmp_neighbors; // temporary, used by ElementNeighborProcessors
 
    /** Return a list of processors that own elements in the immediate
        neighborhood of 'elem' (i.e., vertex, edge and face neighbors),
        and are not 'MyRank'. */
-   void ElementNeighborProcessors(Element* elem, Array<int> &ranks);
+   void ElementNeighborProcessors(int elem, Array<int> &ranks);
 
    /** Get a list of ranks that own elements in the neighborhood of our region.
        NOTE: MyRank is not included. */
@@ -370,7 +371,7 @@ protected:
    void Prune();
 
    /// Internal. Recursive part of Prune().
-   bool PruneTree(Element* elem);
+   bool PruneTree(int elem);
 
 
    /** A base for internal messages used by Refine(), Derefine() and Rebalance().
@@ -382,13 +383,13 @@ protected:
    {
    public:
       using VarMessage<Tag>::data;
-      std::vector<Element*> elements;
+      std::vector<int> elements;
       std::vector<ValueType> values;
 
       int Size() const { return elements.size(); }
       void Reserve(int size) { elements.reserve(size); values.reserve(size); }
 
-      void Add(Element* elem, ValueType val)
+      void Add(int elem, ValueType val)
       { elements.push_back(elem); values.push_back(val); }
 
       /// Set pointer to ParNCMesh (needed to encode the message).
@@ -409,7 +410,7 @@ protected:
    class NeighborRefinementMessage : public ElementValueMessage<char, false, 289>
    {
    public:
-      void AddRefinement(Element* elem, char ref_type) { Add(elem, ref_type); }
+      void AddRefinement(int elem, char ref_type) { Add(elem, ref_type); }
       typedef std::map<int, NeighborRefinementMessage> Map;
    };
 
@@ -418,7 +419,7 @@ protected:
    class NeighborDerefinementMessage : public ElementValueMessage<int, false, 290>
    {
    public:
-      void AddDerefinement(Element* elem, int rank) { Add(elem, rank); }
+      void AddDerefinement(int elem, int rank) { Add(elem, rank); }
       typedef std::map<int, NeighborDerefinementMessage> Map;
    };
 
@@ -428,7 +429,7 @@ protected:
    class NeighborElementRankMessage : public ElementValueMessage<int, false, 156>
    {
    public:
-      void AddElementRank(Element* elem, int rank) { Add(elem, rank); }
+      void AddElementRank(int elem, int rank) { Add(elem, rank); }
       typedef std::map<int, NeighborElementRankMessage> Map;
    };
 
@@ -439,7 +440,7 @@ protected:
    class RebalanceMessage : public ElementValueMessage<int, true, 157>
    {
    public:
-      void AddElementRank(Element* elem, int rank) { Add(elem, rank); }
+      void AddElementRank(int elem, int rank) { Add(elem, rank); }
       typedef std::map<int, RebalanceMessage> Map;
    };
 
@@ -452,7 +453,7 @@ protected:
       std::vector<int> elem_ids, dofs;
       long dof_offset;
 
-      void SetElements(const Array<Element*> &elems, NCMesh *ncmesh);
+      void SetElements(const Array<int> &elems, NCMesh *ncmesh);
       void SetNCMesh(NCMesh* ncmesh) { eset.SetNCMesh(ncmesh); }
 
       typedef std::map<int, RebalanceDofMessage> Map;
@@ -484,7 +485,6 @@ protected:
    Array<DenseMatrix*> aux_pm_store;
    void ClearAuxPM();
 
-   static bool compare_ranks(const Element* a, const Element* b);
    static bool compare_ranks_indices(const Element* a, const Element* b);
 
    friend class ParMesh;

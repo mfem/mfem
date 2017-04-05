@@ -9,8 +9,8 @@ os:
    - osx
 
 env:
-   - DEBUG=YES MPI=YES
-   - DEBUG=NO MPI=YES
+   - DEBUG=YES MPI=YES TMPDIR=/tmp
+   - DEBUG=NO MPI=YES TMPDIR=/tmp
    - DEBUG=YES MPI=NO
    - DEBUG=NO MPI=NO
 
@@ -47,7 +47,7 @@ install:
             wget https://computation.llnl.gov/project/linear_solvers/download/hypre-2.10.0b.tar.gz --no-check-certificate;
             tar xvzf hypre-2.10.0b.tar.gz;
             cd hypre-2.10.0b/src;
-            ./configure --disable-fortran CC=mpicc CXX=mpic++;
+            ./configure --disable-fortran --without-fei CC=mpicc CXX=mpic++;
             make -j 4;
             cd ../..;
         else
@@ -78,12 +78,11 @@ install:
 script:
    # Compiler
    - if [ $MPI == "YES" ]; then export MYCXX=mpic++; else export MYCXX=$CXX; fi
-
    # Build the code and do a quick check (debug mode) or a full tests run (non-debug mode)
    - if [ $DEBUG == "NO" ]; then export MFEM_TEST_TARGET="test"; else export MFEM_TEST_TARGET="check"; fi
 
    # Build and check/test MFEM, its examples and miniapps
-   - cd $TRAVIS_BUILD_DIR
-   - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX=$MYCXX
-   - make all -j 4
-   - make $MFEM_TEST_TARGET
+   - cd $TRAVIS_BUILD_DIR &&
+     make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX=$MYCXX &&
+     make all -j 4 &&
+     make $MFEM_TEST_TARGET
