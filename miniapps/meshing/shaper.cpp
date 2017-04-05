@@ -29,7 +29,7 @@
 //               shaper -m ../../data/beam-quad.mesh
 //               shaper -m ../../data/ball-nurbs.mesh
 //               shaper -m ../../data/mobius-strip.mesh
-//               shaper -m ../../data/quare-disc-surf.mesh
+//               shaper -m ../../data/square-disc-surf.mesh
 //               shaper -m ../../data/star-q3.mesh -sd 2 -ncl -1
 
 #include "mfem.hpp"
