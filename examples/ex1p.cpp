@@ -143,14 +143,14 @@ int main(int argc, char *argv[])
    }
    //pmesh->Rebalance();
 
-   {
+   /*{
       Mesh debug;
       pmesh->pncmesh->GetDebugMesh(debug);
       char fname[100];
       sprintf(fname, "debug%03d.mesh", myid);
       ofstream f(fname);
       debug.Print(f);
-   }
+   }*/
 
    /*{
       Array<Refinement> refs;

@@ -996,7 +996,6 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
             RefineElement(recv_msg.elements[i], recv_msg.values[i]);
             DebugRefineDump("ghost");
          }
-         // FIXME: ElementValueMessage::Decode won't decode more values per element
       }
 
       send_msg.push_back(NeighborRefinementMessage::Map());
@@ -2354,16 +2353,13 @@ void ParNCMesh::ElementValueMessage<ValueType, RefTypes, Tag>::Decode()
    Array<int> tmp_elements;
    eset.Decode(tmp_elements);
 
-   int* el = tmp_elements.GetData();
-   elements.assign(el, el + tmp_elements.Size());
-   values.resize(elements.size());
-
    int count = read<int>(istream);
+   elements.resize(count);
+   values.resize(count);
    for (int i = 0; i < count; i++)
    {
-      int index = read<int>(istream);
-      MFEM_ASSERT(index >= 0 && (size_t) index < values.size(), "");
-      values[index] = read<ValueType>(istream);
+      elements[i] = tmp_elements[read<int>(istream)];
+      values[i] = read<ValueType>(istream);
    }
 
    // no longer need the raw data
