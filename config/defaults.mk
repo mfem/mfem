@@ -174,6 +174,9 @@ ifeq ($(MFEM_USE_PETSC),YES)
    PETSC_OPT := $(shell sed -n "s/Cflags: *//p" $(PETSC_PC))
    PETSC_LIBS_PRIVATE := $(shell sed -n "s/Libs\.private: *//p" $(PETSC_PC))
    PETSC_LIB := -Wl,-rpath -Wl,$(abspath $(PETSC_DIR))/lib -L$(abspath $(PETSC_DIR))/lib -lpetsc $(PETSC_LIBS_PRIVATE)
+   ifneq ($(SYS_TYPE),)
+   	PETSC_LIB += -Wl,--auto_rpath
+   endif
 endif
 
 # MPFR library configuration
