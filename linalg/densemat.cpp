@@ -478,18 +478,26 @@ double DenseMatrix::Det() const
       }
       default:
       {
-         double det = 0.0;
-         DenseMatrix a;
-         for (int i=0; i<Width(); i += 2)
-         {
-            a.CopyExceptMN(*this,0,i);
-            det += this->operator()(0,i) * a.Det();
-         }
-         for (int i=1; i<Width(); i += 2)
-         {
-            a.CopyExceptMN(*this,0,i);
-            det -= this->operator()(0,i) * a.Det();
-         }
+         // In the general case we compute the determinant from the LU
+         // decomposition.
+         int n = Height();
+
+         // The LUFactors class overwrites the matrix so we first need
+         // to copy the data to a temporary vector.
+         Vector data_lu(n*n); data_lu = data;
+
+         // The LUFactors class also requires an integer array to
+         // store the matrix permutation information.
+         int * ipiv = new int[n];
+
+         // Factor the matrix and compute its determinant.
+         LUFactors lu(data_lu,ipiv);
+         lu.Factor(n);
+         double det = lu.Det(n);
+
+         // Delete permutation array
+         delete ipiv;
+
          return det;
       }
    }
@@ -3815,6 +3823,21 @@ void LUFactors::Factor(int m)
       }
    }
 #endif
+}
+
+double LUFactors::Det(int m)
+{
+   double det = 1.0;
+   for (int i=0; i<m; i++)
+      if (ipiv[i] != i-ipiv_base)
+      {
+         det *= -data[m * i + i];
+      }
+      else
+      {
+         det *=  data[m * i + i];
+      }
+   return det;
 }
 
 void LUFactors::Mult(int m, int n, double *X) const

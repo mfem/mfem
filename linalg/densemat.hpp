@@ -425,6 +425,10 @@ public:
        original matrix and P is a permutation matrix represented by ipiv. */
    void Factor(int m);
 
+   /** Assuming L.U = P.A factored data of size (m x m), compute |A|
+       from the diagonal values of U and the permutation information. */
+   double Det(int m);
+
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- A X,
        for a matrix X of size (m x n). */
    void Mult(int m, int n, double *X) const;
