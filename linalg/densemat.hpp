@@ -427,7 +427,7 @@ public:
 
    /** Assuming L.U = P.A factored data of size (m x m), compute |A|
        from the diagonal values of U and the permutation information. */
-   double Det(int m);
+   double Det(int m) const;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- A X,
        for a matrix X of size (m x n). */
@@ -536,6 +536,9 @@ public:
       Ainv.SetSize(width);
       lu.GetInverseMatrix(width, Ainv.Data());
    }
+
+   /// Compute the determinant of the original DenseMatrix using the LU factors.
+   double Det() const { return lu.Det(width); }
 
    /// Print the numerical conditioning of the inversion: ||A^{-1} A - I||.
    void TestInversion();

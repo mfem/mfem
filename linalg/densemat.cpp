@@ -480,25 +480,9 @@ double DenseMatrix::Det() const
       {
          // In the general case we compute the determinant from the LU
          // decomposition.
-         int n = Height();
+         DenseMatrixInverse lu_factors(*this);
 
-         // The LUFactors class overwrites the matrix so we first need
-         // to copy the data to a temporary vector.
-         Vector data_lu(n*n); data_lu = data;
-
-         // The LUFactors class also requires an integer array to
-         // store the matrix permutation information.
-         int * ipiv = new int[n];
-
-         // Factor the matrix and compute its determinant.
-         LUFactors lu(data_lu,ipiv);
-         lu.Factor(n);
-         double det = lu.Det(n);
-
-         // Delete permutation array
-         delete ipiv;
-
-         return det;
+         return lu_factors.Det();
       }
    }
    return 0.0;
@@ -3825,10 +3809,11 @@ void LUFactors::Factor(int m)
 #endif
 }
 
-double LUFactors::Det(int m)
+double LUFactors::Det(int m) const
 {
    double det = 1.0;
    for (int i=0; i<m; i++)
+   {
       if (ipiv[i] != i-ipiv_base)
       {
          det *= -data[m * i + i];
@@ -3837,6 +3822,7 @@ double LUFactors::Det(int m)
       {
          det *=  data[m * i + i];
       }
+   }
    return det;
 }
 
