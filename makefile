@@ -11,7 +11,7 @@
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
 MFEM_VERSION = 30300
-MFEM_VERSION_STRING = $(shell printf "%06s" $(MFEM_VERSION) | \
+MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
 define MFEM_HELP_MSG
