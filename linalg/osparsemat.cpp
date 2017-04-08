@@ -77,7 +77,9 @@ namespace mfem {
     reorderIndices(reorderIndices_),
     mappedIndices(mappedIndices_) {
 
-    SetupKernel(offsets.getDevice(), props);
+    SetupKernel(reorderIndices.isInitialized()
+                ? reorderIndices.getDevice()
+                : mappedIndices.getDevice(), props);
   }
 
   void OccaSparseMatrix::Setup(occa::device device, const SparseMatrix &m,
@@ -120,14 +122,19 @@ namespace mfem {
   }
 
   void OccaSparseMatrix::Mult(const OccaVector &x, OccaVector &y) const {
-    if (mappedIndices.isInitialized()) {
-      mapKernel((int) (reorderIndices.entries<int>() / 2),
-                reorderIndices,
-                x, y);
-      multKernel((int) (mappedIndices.entries<int>()),
-                 offsets, indices, weights,
-                 mappedIndices,
-                 x, y);
+    if (reorderIndices.isInitialized() ||
+        mappedIndices.isInitialized()) {
+      if (reorderIndices.isInitialized()) {
+        mapKernel((int) (reorderIndices.entries<int>() / 2),
+                  reorderIndices,
+                  x, y);
+      }
+      if (mappedIndices.isInitialized()) {
+        multKernel((int) (mappedIndices.entries<int>()),
+                   offsets, indices, weights,
+                   mappedIndices,
+                   x, y);
+      }
     } else {
       multKernel((int) height,
                  offsets, indices, weights,
@@ -178,40 +185,44 @@ namespace mfem {
       }
     }
 
-    // Extract sparse matrix without reordered identity
-    const int dupNnz = I[mHeight] - trueCount;
-    int *offsets    = new int[dupCount + 1];
-    int *indices    = new int[dupNnz];
-    double *weights = new double[dupNnz];
-
-    int nnz = 0;
-    offsets[0] = 0;
-    for (int i = 0; i < dupCount; ++i) {
-      const int idx = mappedIndices[i];
-      const int offStart = I[idx];
-      const int offEnd   = I[idx + 1];
-      offsets[i + 1] = offsets[i] + (offEnd - offStart);
-      for (int j = offStart; j < offEnd; ++j) {
-        indices[nnz] = J[j];
-        weights[nnz] = D[j];
-        ++nnz;
-      }
-    }
-
-    occa::memory mOffsets = device.malloc((dupCount + 1) * sizeof(int), offsets);
-    occa::memory mIndices = device.malloc(dupNnz * sizeof(int)   , indices);
-    occa::memory mWeights = device.malloc(dupNnz * sizeof(double), weights);
-
     occa::memory mReorderIndices = device.malloc(2 * trueCount * sizeof(int),
                                                  reorderIndices);
-    occa::memory mMappedIndices = device.malloc(dupCount * sizeof(int),
-                                                mappedIndices);
-
-    delete [] offsets;
-    delete [] indices;
-    delete [] weights;
     delete [] reorderIndices;
-    delete [] mappedIndices;
+
+    occa::memory mMappedIndices, mOffsets, mIndices, mWeights;
+
+    if (dupCount) {
+      // Extract sparse matrix without reordered identity
+      const int dupNnz = I[mHeight] - trueCount;
+
+      int *offsets    = new int[dupCount + 1];
+      int *indices    = new int[dupNnz];
+      double *weights = new double[dupNnz];
+
+      int nnz = 0;
+      offsets[0] = 0;
+      for (int i = 0; i < dupCount; ++i) {
+        const int idx = mappedIndices[i];
+        const int offStart = I[idx];
+        const int offEnd   = I[idx + 1];
+        offsets[i + 1] = offsets[i] + (offEnd - offStart);
+        for (int j = offStart; j < offEnd; ++j) {
+          indices[nnz] = J[j];
+          weights[nnz] = D[j];
+          ++nnz;
+        }
+      }
+
+      mMappedIndices = device.malloc(dupCount * sizeof(int), mappedIndices);
+      mOffsets = device.malloc((dupCount + 1) * sizeof(int), offsets);
+      mIndices = device.malloc(dupNnz * sizeof(int)   , indices);
+      mWeights = device.malloc(dupNnz * sizeof(double), weights);
+
+      delete [] mappedIndices;
+      delete [] offsets;
+      delete [] indices;
+      delete [] weights;
+    }
 
     return new OccaSparseMatrix(mHeight, mWidth,
                                 mOffsets, mIndices, mWeights,
