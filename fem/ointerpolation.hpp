@@ -28,13 +28,13 @@ namespace mfem {
   class OccaRestrictionOperator : public Operator {
   protected:
     int entries;
-    occa::memory trueIndices;
+    occa::array<int> trueIndices;
     occa::kernel mapKernel;
 
   public:
     OccaRestrictionOperator(occa::device device,
                             const int height_, const int width_,
-                            occa::memory indices);
+                            occa::array<int> indices);
 
     virtual void Mult(const OccaVector &x, OccaVector &y) const;
   };

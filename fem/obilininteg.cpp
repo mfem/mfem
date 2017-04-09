@@ -71,12 +71,19 @@ namespace mfem {
                               ((dims == 2) ? quadPoints2D : quadPoints3D));
 
     // Initialize the dof -> quad mapping
-    const int d2qEntries = quadPoints * dofs;
-    double *dofToQuadData = new double[d2qEntries];
-    double *dofToQuadDData = new double[d2qEntries];
+    maps.dofToQuad.allocate(device,
+                            quadPoints, dofs);
+    maps.dofToQuadD.allocate(device,
+                             quadPoints, dofs);
+    maps.quadToDof.allocate(device,
+                            dofs, quadPoints);
+    maps.quadToDofD.allocate(device,
+                             dofs, quadPoints);
+
     // Initialize quad weights
+    maps.quadWeights.allocate(device,
+                              quadPointsND);
     double *quadWeights1DData = new double[quadPoints];
-    double *quadWeightsData = new double[quadPointsND];
 
     for (int q = 0; q < quadPoints; ++q) {
       mfem::Vector d2q(dofs);
@@ -85,8 +92,10 @@ namespace mfem {
       basis.Eval(ip.x, d2q, d2qD);
       quadWeights1DData[q] = ip.weight;
       for (int d = 0; d < dofs; ++d) {
-        dofToQuadData[q + d*quadPoints]  = d2q[d];
-        dofToQuadDData[q + d*quadPoints] = d2qD[d];
+        maps.dofToQuad(q, d)  = d2q[d];
+        maps.dofToQuadD(q, d) = d2qD[d];
+        maps.quadToDof(d, q)  = d2q[d];
+        maps.quadToDofD(d, q) = d2qD[d];
       }
     }
 
@@ -94,45 +103,23 @@ namespace mfem {
       const int qx = q % quadPoints;
       const int qz = q / quadPoints2D;
       const int qy = (q - qz*quadPoints2D) / quadPoints;
-      quadWeightsData[q] = quadWeights1DData[qx];
+      double w = quadWeights1DData[qx];
       if (dims > 1) {
-        quadWeightsData[q] *= quadWeights1DData[qy];
+        w *= quadWeights1DData[qy];
       }
-      if(dims > 2) {
-        quadWeightsData[q] *= quadWeights1DData[qz];
+      if (dims > 2) {
+        w *= quadWeights1DData[qz];
       }
+      maps.quadWeights[q] = w;
     }
 
-    maps.dofToQuad = device.malloc(d2qEntries * sizeof(double),
-                                   dofToQuadData);
-    maps.dofToQuadD = device.malloc(d2qEntries * sizeof(double),
-                                    dofToQuadDData);
-    maps.quadWeights = device.malloc(quadPointsND * sizeof(double),
-                                     quadWeightsData);
-
-    // Create the quadrature -> dof point map
-    double *quadToDofData = new double[d2qEntries];
-    double *quadToDofDData = new double[d2qEntries];
-
-    for (int q = 0; q < quadPoints; ++q) {
-      for (int d = 0; d < dofs; ++d) {
-        quadToDofData[d + q*dofs] = dofToQuadData[q + d*quadPoints];
-        quadToDofDData[d + q*dofs] = dofToQuadDData[q + d*quadPoints];
-      }
-    }
-
-    maps.quadToDof = device.malloc(d2qEntries * sizeof(double),
-                                   quadToDofData);
-    maps.quadToDofD = device.malloc(d2qEntries * sizeof(double),
-                                    quadToDofDData);
-
-    delete [] dofToQuadData;
-    delete [] dofToQuadDData;
-    delete [] quadToDofData;
-    delete [] quadToDofDData;
+    maps.dofToQuad.keepInDevice();
+    maps.dofToQuadD.keepInDevice();
+    maps.quadToDof.keepInDevice();
+    maps.quadToDofD.keepInDevice();
+    maps.quadWeights.keepInDevice();
 
     delete [] quadWeights1DData;
-    delete [] quadWeightsData;
 
     return maps;
   }
@@ -160,51 +147,42 @@ namespace mfem {
     const int numQuad = ir.GetNPoints();
 
     // Initialize the dof -> quad mapping
-    const int d2qEntries = numQuad * numDofs;
-    double *dofToQuadData  = new double[d2qEntries];
-    double *dofToQuadDData = new double[d2qEntries * dims];
-    double *quadToDofData  = new double[d2qEntries];
-    double *quadToDofDData = new double[d2qEntries * dims];
+    maps.dofToQuad.allocate(device,
+                            numQuad, numDofs);
+    maps.dofToQuadD.allocate(device,
+                             dims, numQuad, numDofs);
+    maps.quadToDof.allocate(device,
+                            numDofs, numQuad);
+    maps.quadToDofD.allocate(device,
+                             dims, numDofs, numQuad);
     // Initialize quad weights
-    double *quadWeightsData = new double[numQuad];
+    maps.quadWeights.allocate(device,
+                              numQuad);
 
     for (int q = 0; q < numQuad; ++q) {
       mfem::Vector d2q;
       mfem::DenseMatrix d2qD;
       const IntegrationPoint &ip = ir.IntPoint(q);
-      quadWeightsData[q] = ip.weight;
+      maps.quadWeights[q] = ip.weight;
       fe.CalcShape(ip, d2q);
       fe.CalcDShape(ip, d2qD);
       for (int d = 0; d < numDofs; ++d) {
         const double w = d2q[d];
-        const int d2qIdx = q + d*numQuad;
-        const int q2dIdx = d + q*numDofs;
-        dofToQuadData[d2qIdx] = w;
-        quadToDofData[q2dIdx] = w;
+        maps.dofToQuad(q, d) = w;
+        maps.quadToDof(d, q) = w;
         for (int dim = 0; dim < dims; ++dim) {
           const double wD = d2qD(d, dim);
-          dofToQuadDData[dims * d2qIdx + dim] = wD;
-          quadToDofDData[dims * q2dIdx + dim] = wD;
+          maps.dofToQuadD(dim, q, d) = wD;
+          maps.quadToDofD(dim, d, q) = wD;
         }
       }
     }
 
-    maps.dofToQuad  = device.malloc(d2qEntries * sizeof(double),
-                                    dofToQuadData);
-    maps.dofToQuadD = device.malloc(d2qEntries * dims * sizeof(double),
-                                    dofToQuadDData);
-    maps.quadToDof  = device.malloc(d2qEntries * sizeof(double),
-                                    quadToDofData);
-    maps.quadToDofD = device.malloc(d2qEntries * dims * sizeof(double),
-                                    quadToDofDData);
-    maps.quadWeights = device.malloc(numQuad * sizeof(double),
-                                     quadWeightsData);
-
-    delete [] dofToQuadData;
-    delete [] dofToQuadDData;
-    delete [] quadToDofData;
-    delete [] quadToDofDData;
-    delete [] quadWeightsData;
+    maps.dofToQuad.keepInDevice();
+    maps.dofToQuadD.keepInDevice();
+    maps.quadToDof.keepInDevice();
+    maps.quadToDofD.keepInDevice();
+    maps.quadWeights.keepInDevice();
 
     return maps;
   }
@@ -294,9 +272,9 @@ namespace mfem {
     props["defines/M3_INNER_BATCH"]   = closestWarpBatchTo(maxDQ);
   }
 
-  occa::memory getJacobian(occa::device device,
-                           const OccaBilinearForm &bilinearForm,
-                           const IntegrationRule &ir) {
+  occa::array<double> getJacobian(occa::device device,
+                                  const OccaBilinearForm &bilinearForm,
+                                  const IntegrationRule &ir) {
     const int dims = bilinearForm.GetDim();
     const int elements = bilinearForm.GetNE();
     const int quadraturePoints = ir.GetNPoints();
@@ -304,8 +282,8 @@ namespace mfem {
     const int dims2 = dims * dims;
     const int jacobianEntries = elements * quadraturePoints * dims2;
 
-    double *jacobianData = new double[jacobianEntries];
-    double *eJacobian = jacobianData;
+    occa::array<double> jacobian(dims2, quadraturePoints, elements);
+    double *eJacobian = jacobian.data();
 
     Mesh &mesh = bilinearForm.GetMesh();
     for (int e = 0; e < elements; ++e) {
@@ -324,10 +302,7 @@ namespace mfem {
       }
     }
 
-    occa::memory jacobian = device.malloc(jacobianEntries * sizeof(double),
-                                          jacobianData);
-
-    delete [] jacobianData;
+    jacobian.keepInDevice();
 
     return jacobian;
   }
@@ -379,14 +354,7 @@ namespace mfem {
   OccaDiffusionIntegrator::OccaDiffusionIntegrator(OccaBilinearForm &bilinearForm_) :
     OccaIntegrator(bilinearForm_) {}
 
-  OccaDiffusionIntegrator::~OccaDiffusionIntegrator() {
-    assembleKernel.free();
-    multKernel.free();
-
-    coefficients.free();
-    jacobian.free();
-    assembledOperator.free();
-  }
+  OccaDiffusionIntegrator::~OccaDiffusionIntegrator() {}
 
   OccaIntegrator* OccaDiffusionIntegrator::CreateInstance() {
     return new OccaDiffusionIntegrator(bilinearForm);
@@ -427,10 +395,7 @@ namespace mfem {
       mfem_error("OccaDiffusionIntegrator can only handle ConstantCoefficients");
     }
 
-    assembledOperator = device.malloc(elements
-                                      * quadraturePoints
-                                      * symmDims
-                                      * sizeof(double));
+    assembledOperator.allocate(symmDims, quadraturePoints, elements);
 
     jacobian = getJacobian(device, bilinearForm, ir);
 
@@ -443,26 +408,26 @@ namespace mfem {
     if (hasConstantCoefficient) {
       // Dummy coefficient since we're defining it at compile time
       assembleKernel((int) bilinearForm.GetNE(),
-                     maps.quadWeights,
-                     jacobian,
+                     maps.quadWeights.memory(),
+                     jacobian.memory(),
                      (double) 0,
-                     assembledOperator);
+                     assembledOperator.memory());
     } else {
       assembleKernel((int) bilinearForm.GetNE(),
-                     maps.quadWeights,
-                     jacobian,
-                     coefficients,
-                     assembledOperator);
+                     maps.quadWeights.memory(),
+                     jacobian.memory(),
+                     coefficients.memory(),
+                     assembledOperator.memory());
     }
   }
 
   void OccaDiffusionIntegrator::Mult(OccaVector &x) {
     multKernel((int) bilinearForm.GetNE(),
-               maps.dofToQuad,
-               maps.dofToQuadD,
-               maps.quadToDof,
-               maps.quadToDofD,
-               assembledOperator,
+               maps.dofToQuad.memory(),
+               maps.dofToQuadD.memory(),
+               maps.quadToDof.memory(),
+               maps.quadToDofD.memory(),
+               assembledOperator.memory(),
                x);
   }
 
@@ -472,14 +437,7 @@ namespace mfem {
   OccaMassIntegrator::OccaMassIntegrator(OccaBilinearForm &bilinearForm_) :
     OccaIntegrator(bilinearForm_) {}
 
-  OccaMassIntegrator::~OccaMassIntegrator() {
-    assembleKernel.free();
-    multKernel.free();
-
-    coefficients.free();
-    jacobian.free();
-    assembledOperator.free();
-  }
+  OccaMassIntegrator::~OccaMassIntegrator() {}
 
   OccaIntegrator* OccaMassIntegrator::CreateInstance() {
     return new OccaMassIntegrator(bilinearForm);
@@ -517,9 +475,7 @@ namespace mfem {
       mfem_error("OccaMassIntegrator can only handle ConstantCoefficients");
     }
 
-    assembledOperator = device.malloc(elements
-                                      * quadraturePoints
-                                      * sizeof(double));
+    assembledOperator.allocate(quadraturePoints, elements);
 
     jacobian = getJacobian(device, bilinearForm, ir);
 
@@ -532,26 +488,26 @@ namespace mfem {
     if (hasConstantCoefficient) {
       // Dummy coefficient since we're defining it at compile time
       assembleKernel((int) bilinearForm.GetNE(),
-                     maps.quadWeights,
-                     jacobian,
+                     maps.quadWeights.memory(),
+                     jacobian.memory(),
                      (double) 0,
-                     assembledOperator);
+                     assembledOperator.memory());
     } else {
       assembleKernel((int) bilinearForm.GetNE(),
-                     maps.quadWeights,
-                     jacobian,
-                     coefficients,
-                     assembledOperator);
+                     maps.quadWeights.memory(),
+                     jacobian.memory(),
+                     coefficients.memory(),
+                     assembledOperator.memory());
     }
   }
 
   void OccaMassIntegrator::Mult(OccaVector &x) {
     multKernel((int) bilinearForm.GetNE(),
-               maps.dofToQuad,
-               maps.dofToQuadD,
-               maps.quadToDof,
-               maps.quadToDofD,
-               assembledOperator,
+               maps.dofToQuad.memory(),
+               maps.dofToQuadD.memory(),
+               maps.quadToDof.memory(),
+               maps.quadToDofD.memory(),
+               assembledOperator.memory(),
                x);
   }
   //====================================

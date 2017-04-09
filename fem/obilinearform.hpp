@@ -55,7 +55,7 @@ namespace mfem {
     occa::properties baseKernelProps;
 
     // Sparse storage for the global dof -> local node mapping
-    occa::memory globalToLocalOffsets, globalToLocalIndices;
+    occa::array<int> globalToLocalOffsets, globalToLocalIndices;
 
     // The input vector is mapped to local nodes for easy and efficient operations
     // The size is: (number of elements) * (nodes in element)
@@ -160,11 +160,11 @@ namespace mfem {
 
     Operator *A;                   //< The unconstrained Operator.
     bool own_A;                    //< Ownership flag for A.
-    occa::memory constraint_list;  //< List of constrained indices/dofs.
-    int constraint_indices;
+    occa::array<int> constraintList;  //< List of constrained indices/dofs.
+    int constraintIndices;
     mutable OccaVector z, w;       //< Auxiliary vectors.
 
-    static occa::kernelBuilder map_dof_builder, clear_dof_builder;
+    static occa::kernelBuilder mapDofBuilder, clearDofBuilder;
 
   public:
     /** @brief Constructor from a general Operator and a list of essential
@@ -175,17 +175,17 @@ namespace mfem {
         ownership flag @a own_A is true, the operator @a *A will be destroyed
         when this object is destroyed. */
     OccaConstrainedOperator(Operator *A_,
-                            const Array<int> &constraint_list_,
+                            const Array<int> &constraintList_,
                             bool own_A_ = false);
 
     OccaConstrainedOperator(occa::device device_,
                             Operator *A_,
-                            const Array<int> &constraint_list_,
+                            const Array<int> &constraintList_,
                             bool own_A_ = false);
 
     void setup(occa::device device_,
                Operator *A_,
-               const Array<int> &constraint_list_,
+               const Array<int> &constraintList_,
                bool own_A_ = false);
 
     /** @brief Eliminate "essential boundary condition" values specified in @a x

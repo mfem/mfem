@@ -29,9 +29,8 @@ namespace mfem {
 
     if (R) {
       OccaSparseMatrix *occaR = CreateMappedSparseMatrix(device, *R);
-      occa::memory reorderIndices;
-      reorderIndices.swap(occaR->reorderIndices);
-      occaR->Free();
+      occa::array<int> reorderIndices = occaR->reorderIndices;
+      delete occaR;
 
       OccaR = new OccaRestrictionOperator(device,
                                           R->Height(), R->Width(),
@@ -52,10 +51,10 @@ namespace mfem {
 
   OccaRestrictionOperator::OccaRestrictionOperator(occa::device device,
                                                    const int height_, const int width_,
-                                                   occa::memory indices) :
+                                                   occa::array<int> indices) :
     Operator(height_, width_) {
 
-    entries     = indices.size<int>() / 2;
+    entries     = indices.size() / 2;
     trueIndices = indices;
 
     mapKernel = device.buildKernel("occa://mfem/linalg/mappings.okl",
@@ -64,7 +63,7 @@ namespace mfem {
   }
 
   void OccaRestrictionOperator::Mult(const OccaVector &x, OccaVector &y) const {
-    mapKernel(entries, trueIndices, x, y);
+    mapKernel(entries, trueIndices.memory(), x, y);
   }
 
   OccaProlongationOperator::OccaProlongationOperator(OccaSparseMatrix &multOp_,

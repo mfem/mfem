@@ -26,8 +26,8 @@ namespace mfem {
   }
 
   OccaSparseMatrix::OccaSparseMatrix(const SparseMatrix &m,
-                                     occa::memory reorderIndices_,
-                                     occa::memory mappedIndices_,
+                                     occa::array<int> reorderIndices_,
+                                     occa::array<int> mappedIndices_,
                                      const occa::properties &props) :
     Operator(m.Height(), m.Width()) {
 
@@ -42,8 +42,8 @@ namespace mfem {
   }
 
   OccaSparseMatrix::OccaSparseMatrix(occa::device device, const SparseMatrix &m,
-                                     occa::memory reorderIndices_,
-                                     occa::memory mappedIndices_,
+                                     occa::array<int> reorderIndices_,
+                                     occa::array<int> mappedIndices_,
                                      const occa::properties &props) :
     Operator(m.Height(), m.Width()) {
 
@@ -51,9 +51,9 @@ namespace mfem {
   }
 
   OccaSparseMatrix::OccaSparseMatrix(const int height_, const int width_,
-                                     occa::memory offsets_,
-                                     occa::memory indices_,
-                                     occa::memory weights_,
+                                     occa::array<int> offsets_,
+                                     occa::array<int> indices_,
+                                     occa::array<double> weights_,
                                      const occa::properties &props) :
     Operator(height_, width_),
     offsets(offsets_),
@@ -64,11 +64,11 @@ namespace mfem {
   }
 
   OccaSparseMatrix::OccaSparseMatrix(const int height_, const int width_,
-                                     occa::memory offsets_,
-                                     occa::memory indices_,
-                                     occa::memory weights_,
-                                     occa::memory reorderIndices_,
-                                     occa::memory mappedIndices_,
+                                     occa::array<int> offsets_,
+                                     occa::array<int> indices_,
+                                     occa::array<double> weights_,
+                                     occa::array<int> reorderIndices_,
+                                     occa::array<int> mappedIndices_,
                                      const occa::properties &props) :
     Operator(height_, width_),
     offsets(offsets_),
@@ -84,18 +84,25 @@ namespace mfem {
 
   void OccaSparseMatrix::Setup(occa::device device, const SparseMatrix &m,
                                const occa::properties &props) {
-    Setup(device, m, occa::memory(), occa::memory(), props);
+    Setup(device, m, occa::array<int>(), occa::array<int>(), props);
   }
 
   void OccaSparseMatrix::Setup(occa::device device, const SparseMatrix &m,
-                               occa::memory reorderIndices_,
-                               occa::memory mappedIndices_,
+                               occa::array<int> reorderIndices_,
+                               occa::array<int> mappedIndices_,
                                const occa::properties &props) {
 
     const int nnz = m.GetI()[height];
-    offsets = device.malloc((height + 1) * sizeof(int), m.GetI());
-    indices = device.malloc(nnz * sizeof(int)   , m.GetJ());
-    weights = device.malloc(nnz * sizeof(double), m.GetData());
+    offsets.allocate(device,
+                     height + 1, m.GetI());
+    indices.allocate(device,
+                     nnz, m.GetJ());
+    weights.allocate(device,
+                     nnz, m.GetData());
+
+    offsets.keepInDevice();
+    indices.keepInDevice();
+    weights.keepInDevice();
 
     reorderIndices = reorderIndices_;
     mappedIndices  = mappedIndices_;
@@ -125,12 +132,12 @@ namespace mfem {
     if (reorderIndices.isInitialized() ||
         mappedIndices.isInitialized()) {
       if (reorderIndices.isInitialized()) {
-        mapKernel((int) (reorderIndices.size<int>() / 2),
+        mapKernel((int) (reorderIndices.size() / 2),
                   reorderIndices,
                   x, y);
       }
       if (mappedIndices.isInitialized()) {
-        multKernel((int) (mappedIndices.size<int>()),
+        multKernel((int) (mappedIndices.size()),
                    offsets, indices, weights,
                    mappedIndices,
                    x, y);
@@ -140,18 +147,6 @@ namespace mfem {
                  offsets, indices, weights,
                  x, y);
     }
-  }
-
-  void OccaSparseMatrix::Free() {
-    offsets.free();
-    indices.free();
-    weights.free();
-
-    reorderIndices.free();
-    mappedIndices.free();
-
-    mapKernel.free();
-    multKernel.free();
   }
 
   OccaSparseMatrix* CreateMappedSparseMatrix(occa::device device,
@@ -172,8 +167,15 @@ namespace mfem {
     const int dupCount = (mHeight - trueCount);
 
     // Create the reordering map for entries that aren't modified (true dofs)
-    int *reorderIndices = new int[2 * trueCount];
-    int *mappedIndices  = new int[dupCount];
+    occa::array<int> reorderIndices(device,
+                                    2 * trueCount);
+    occa::array<int> mappedIndices, offsets, indices;
+    occa::array<double> weights;
+
+    if (dupCount) {
+      mappedIndices.allocate(device,
+                             dupCount);
+    }
     int trueIdx = 0, dupIdx = 0;
     for (int i = 0; i < mHeight; ++i) {
       const int i1 = I[i];
@@ -184,20 +186,20 @@ namespace mfem {
         mappedIndices[dupIdx++] = i;
       }
     }
-
-    occa::memory mReorderIndices = device.malloc(2 * trueCount * sizeof(int),
-                                                 reorderIndices);
-    delete [] reorderIndices;
-
-    occa::memory mMappedIndices, mOffsets, mIndices, mWeights;
+    reorderIndices.keepInDevice();
 
     if (dupCount) {
+      mappedIndices.keepInDevice();
+
       // Extract sparse matrix without reordered identity
       const int dupNnz = I[mHeight] - trueCount;
 
-      int *offsets    = new int[dupCount + 1];
-      int *indices    = new int[dupNnz];
-      double *weights = new double[dupNnz];
+      offsets.allocate(device,
+                       dupCount + 1);
+      indices.allocate(device,
+                       dupNnz);
+      weights.allocate(device,
+                       dupNnz);
 
       int nnz = 0;
       offsets[0] = 0;
@@ -213,20 +215,14 @@ namespace mfem {
         }
       }
 
-      mMappedIndices = device.malloc(dupCount * sizeof(int), mappedIndices);
-      mOffsets = device.malloc((dupCount + 1) * sizeof(int), offsets);
-      mIndices = device.malloc(dupNnz * sizeof(int)   , indices);
-      mWeights = device.malloc(dupNnz * sizeof(double), weights);
-
-      delete [] mappedIndices;
-      delete [] offsets;
-      delete [] indices;
-      delete [] weights;
+      offsets.keepInDevice();
+      indices.keepInDevice();
+      weights.keepInDevice();
     }
 
     return new OccaSparseMatrix(mHeight, mWidth,
-                                mOffsets, mIndices, mWeights,
-                                mReorderIndices, mMappedIndices,
+                                offsets, indices, weights,
+                                reorderIndices, mappedIndices,
                                 props);
   }
 }

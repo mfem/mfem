@@ -91,8 +91,14 @@ namespace mfem {
       dofMap = dofMap_;
     }
 
-    int *offsets = new int[numDofs + 1];
-    int *indices = new int[elements * localDofs];
+    // Allocate device offsets and indices
+    globalToLocalOffsets.allocate(device,
+                                  numDofs + 1);
+    globalToLocalIndices.allocate(device,
+                                  localDofs, elements);
+
+    int *offsets = globalToLocalOffsets.data();
+    int *indices = globalToLocalIndices.data();
 
     // We'll be keeping a count of how many local nodes point
     //   to its global dof
@@ -126,14 +132,9 @@ namespace mfem {
     }
     offsets[0] = 0;
 
-    // Allocate device offsets and indices
-    globalToLocalOffsets = device.malloc((numDofs + 1) * sizeof(int),
-                                         offsets);
-    globalToLocalIndices = device.malloc((elements * localDofs) * sizeof(int),
-                                         indices);
+    globalToLocalOffsets.keepInDevice();
+    globalToLocalIndices.keepInDevice();
 
-    delete [] offsets;
-    delete [] indices;
     if (!el) {
       delete [] dofMap;
     }
@@ -243,8 +244,8 @@ namespace mfem {
                                        OccaVector &localVec) const {
 
     vectorExtractKernel((int) GetNDofs(),
-                        globalToLocalOffsets,
-                        globalToLocalIndices,
+                        globalToLocalOffsets.memory(),
+                        globalToLocalIndices.memory(),
                         globalVec, localVec);
   }
 
@@ -253,8 +254,8 @@ namespace mfem {
                                         OccaVector &globalVec) const {
 
     vectorAssembleKernel((int) GetNDofs(),
-                         globalToLocalOffsets,
-                         globalToLocalIndices,
+                         globalToLocalOffsets.memory(),
+                         globalToLocalIndices.memory(),
                          localVec, globalVec);
   }
 
@@ -313,14 +314,6 @@ namespace mfem {
 
   // Frees memory bilinear form.
   OccaBilinearForm::~OccaBilinearForm() {
-    // Free memory
-    globalToLocalOffsets.free();
-    globalToLocalIndices.free();
-
-    // Free kernels
-    vectorExtractKernel.free();
-    vectorAssembleKernel.free();
-
     // Make sure all integrators free their data
     IntegratorVector::iterator it = integrators.begin();
     while (it != integrators.end()) {
@@ -331,45 +324,47 @@ namespace mfem {
   //====================================
 
   //---[ Constrained Operator ]---------
-  occa::kernelBuilder OccaConstrainedOperator::map_dof_builder =
+  occa::kernelBuilder OccaConstrainedOperator::mapDofBuilder =
                   makeCustomBuilder("vector_map_dofs",
                                     "const int idx = v2[i];"
                                     "v0[idx] = v1[idx];",
                                     "defines: { VTYPE2: 'int' }");
 
-  occa::kernelBuilder OccaConstrainedOperator::clear_dof_builder =
+  occa::kernelBuilder OccaConstrainedOperator::clearDofBuilder =
                   makeCustomBuilder("vector_clear_dofs",
                                     "v0[v1[i]] = 0.0;",
                                     "defines: { VTYPE1: 'int' }");
 
   OccaConstrainedOperator::OccaConstrainedOperator(Operator *A_,
-                                                   const Array<int> &constraint_list_,
+                                                   const Array<int> &constraintList_,
                                                    bool own_A_) :
     Operator(A_->Height(), A_->Width()) {
-    setup(occa::currentDevice(), A_, constraint_list_, own_A_);
+    setup(occa::currentDevice(), A_, constraintList_, own_A_);
   }
 
   OccaConstrainedOperator::OccaConstrainedOperator(occa::device device_,
                                                    Operator *A_,
-                                                   const Array<int> &constraint_list_,
+                                                   const Array<int> &constraintList_,
                                                    bool own_A_) :
     Operator(A_->Height(), A_->Width()) {
-    setup(device_, A_, constraint_list_, own_A_);
+    setup(device_, A_, constraintList_, own_A_);
   }
 
   void OccaConstrainedOperator::setup(occa::device device_,
                                       Operator *A_,
-                                      const Array<int> &constraint_list_,
+                                      const Array<int> &constraintList_,
                                       bool own_A_) {
     device = device_;
 
     A = A_;
     own_A = own_A_;
 
-    constraint_indices = constraint_list_.Size();
-    if (constraint_indices) {
-      constraint_list = device.malloc(constraint_indices * sizeof(int),
-                                      constraint_list_.GetData());
+    constraintIndices = constraintList_.Size();
+    if (constraintIndices) {
+      constraintList.allocate(device,
+                              constraintIndices,
+                              constraintList_.GetData());
+      constraintList.stopManaging();
     }
 
     z.SetSize(device, height);
@@ -377,45 +372,44 @@ namespace mfem {
   }
 
   void OccaConstrainedOperator::EliminateRHS(const OccaVector &x, OccaVector &b) const {
-    if (constraint_indices == 0) {
+    if (constraintIndices == 0) {
       return;
     }
-    occa::kernel map_dofs = map_dof_builder.build(device);
+    occa::kernel mapDofs = mapDofBuilder.build(device);
 
     w = 0.0;
 
-    map_dofs(constraint_indices, w, x, constraint_list);
+    mapDofs(constraintIndices, w, x, constraintList.memory());
 
     A->Mult(w, z);
 
     b -= z;
 
-    map_dofs(constraint_indices, b, x, constraint_list);
+    mapDofs(constraintIndices, b, x, constraintList.memory());
   }
 
   void OccaConstrainedOperator::Mult(const OccaVector &x, OccaVector &y) const {
-    if (constraint_indices == 0) {
+    if (constraintIndices == 0) {
       A->Mult(x, y);
       return;
     }
 
-    occa::kernel map_dofs = map_dof_builder.build(device);
-    occa::kernel clear_dofs = clear_dof_builder.build(device);
+    occa::kernel mapDofs   = mapDofBuilder.build(device);
+    occa::kernel clearDofs = clearDofBuilder.build(device);
 
     z = x;
 
-    clear_dofs(constraint_indices, z, constraint_list);
+    clearDofs(constraintIndices, z, constraintList.memory());
 
     A->Mult(z, y);
 
-    map_dofs(constraint_indices, y, x, constraint_list);
+    mapDofs(constraintIndices, y, x, constraintList.memory());
   }
 
   OccaConstrainedOperator::~OccaConstrainedOperator() {
     if (own_A) {
       delete A;
     }
-    constraint_list.free();
   }
   //====================================
 }

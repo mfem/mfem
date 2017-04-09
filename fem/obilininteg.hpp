@@ -26,9 +26,9 @@ namespace mfem {
 
   public:
     // Local stiffness matrices (B and B^T operators)
-    occa::memory dofToQuad, dofToQuadD; // B
-    occa::memory quadToDof, quadToDofD; // B^T
-    occa::memory quadWeights;
+    occa::array<double> dofToQuad, dofToQuadD; // B
+    occa::array<double> quadToDof, quadToDofD; // B^T
+    occa::array<double> quadWeights;
 
     OccaDofQuadMaps();
     OccaDofQuadMaps(const OccaDofQuadMaps &maps);
@@ -57,9 +57,9 @@ namespace mfem {
                             const IntegrationRule &ir,
                             occa::properties &props);
 
-  occa::memory getJacobian(occa::device device,
-                           const OccaBilinearForm &bilinearForm,
-                           const IntegrationRule &ir);
+  occa::array<double> getJacobian(occa::device device,
+                                  const OccaBilinearForm &bilinearForm,
+                                  const IntegrationRule &ir);
 
   //---[ Base Integrator ]--------------
   class OccaIntegrator {
@@ -101,8 +101,8 @@ namespace mfem {
 
     occa::kernel assembleKernel, multKernel;
 
-    occa::memory coefficients;
-    occa::memory jacobian, assembledOperator;
+    occa::array<double> coefficients;
+    occa::array<double> jacobian, assembledOperator;
 
     bool hasConstantCoefficient;
 
@@ -125,8 +125,8 @@ namespace mfem {
 
     occa::kernel assembleKernel, multKernel;
 
-    occa::memory coefficients;
-    occa::memory jacobian, assembledOperator;
+    occa::array<double> coefficients;
+    occa::array<double> jacobian, assembledOperator;
 
     bool hasConstantCoefficient;
 
