@@ -18,7 +18,7 @@
 namespace mfem {
   Vector& GetOccaHostVector(const int id, const int64_t size) {
     static std::vector<Vector*> v;
-    if (v.size() <= id) {
+    if (v.size() <= (size_t) id) {
       for (int i = (int) v.size(); i < (id + 1); ++i) {
         v.push_back(new Vector);
       }
