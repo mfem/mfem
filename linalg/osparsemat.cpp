@@ -125,12 +125,12 @@ namespace mfem {
     if (reorderIndices.isInitialized() ||
         mappedIndices.isInitialized()) {
       if (reorderIndices.isInitialized()) {
-        mapKernel((int) (reorderIndices.entries<int>() / 2),
+        mapKernel((int) (reorderIndices.size<int>() / 2),
                   reorderIndices,
                   x, y);
       }
       if (mappedIndices.isInitialized()) {
-        multKernel((int) (mappedIndices.entries<int>()),
+        multKernel((int) (mappedIndices.size<int>()),
                    offsets, indices, weights,
                    mappedIndices,
                    x, y);

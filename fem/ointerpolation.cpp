@@ -55,7 +55,7 @@ namespace mfem {
                                                    occa::memory indices) :
     Operator(height_, width_) {
 
-    entries     = indices.entries<int>() / 2;
+    entries     = indices.size<int>() / 2;
     trueIndices = indices;
 
     mapKernel = device.buildKernel("occa://mfem/linalg/mappings.okl",

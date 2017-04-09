@@ -292,7 +292,7 @@ namespace mfem {
     occa::device dev = data.getDevice();
     occa::kernel kernel = builder.build(dev);
 
-    const int dofCount = dofs.entries<int>();
+    const int dofCount = dofs.size<int>();
     elemvect.SetSize(dofCount);
 
     kernel(dofCount, elemvect.data, data, dofs);
@@ -335,7 +335,7 @@ namespace mfem {
     occa::device dev = data.getDevice();
     occa::kernel kernel = builder.build(dev);
 
-    const int dofCount = dofs.entries<int>();
+    const int dofCount = dofs.size<int>();
     kernel(dofCount, data, elemvect.data, dofs);
   }
 
@@ -392,7 +392,7 @@ namespace mfem {
     occa::device dev = data.getDevice();
     occa::kernel kernel = builder.build(dev);
 
-    const int dofCount = dofs.entries<int>();
+    const int dofCount = dofs.size<int>();
     kernel(dofCount, data, elemvect.data, dofs);
   }
 
@@ -435,7 +435,7 @@ namespace mfem {
     occa::device dev = data.getDevice();
     occa::kernel kernel = builder.build(dev);
 
-    const int dofCount = dofs.entries<int>();
+    const int dofCount = dofs.size<int>();
     kernel(dofCount, a, data, elemvect.data, dofs);
   }
 
