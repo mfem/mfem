@@ -1014,7 +1014,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
             continue;
          }
 
-         // if 'ref.elem' is a new element, get one of its parents
+         // if 'ref.index' is a new element, get one of its parents
          int base = ref.index;
          Element *base_el = &elements[base];
          while (base_el->index < 0)
@@ -1832,7 +1832,26 @@ int ParNCMesh::ElementSet::GetInt(int pos) const
           ((int) data[pos+3] << 24);
 }
 
-void ParNCMesh::ElementSet::FlagElements(const Array<int> &elements, char flag)
+void ParNCMesh::ElementSet::FlagElements(const Array<int> &elements)
+{
+   for (int i = 0; i < elements.Size(); i++)
+   {
+      // flag element of the set with '2'
+      int elem = elements[i];
+      Element *el = &(ncmesh->elements[elem]);
+      el->flag = 2;
+
+      // flag the path up to the root with '1'
+      while ((elem = el->parent) >= 0)
+      {
+         el = &(ncmesh->elements[elem]);
+         if (el->flag) { break; }
+         el->flag = 1;
+      }
+   }
+}
+
+void ParNCMesh::ElementSet::UnflagElements(const Array<int> &elements)
 {
    for (int i = 0; i < elements.Size(); i++)
    {
@@ -1840,8 +1859,8 @@ void ParNCMesh::ElementSet::FlagElements(const Array<int> &elements, char flag)
       while (elem >= 0)
       {
          Element &el = ncmesh->elements[elem];
-         if (el.flag == flag) { break; }
-         el.flag = flag;
+         if (!el.flag) { break; }
+         el.flag = 0;
          elem = el.parent;
       }
    }
@@ -1850,43 +1869,40 @@ void ParNCMesh::ElementSet::FlagElements(const Array<int> &elements, char flag)
 void ParNCMesh::ElementSet::EncodeTree(int elem)
 {
    Element &el = ncmesh->elements[elem];
-   if (!el.ref_type)
+   data.Append((el.flag == 2) ? 1 : 0);
+
+   // check which subtrees contain marked elements
+   int mask = 0;
+   if (el.ref_type)
    {
-      // we reached a leaf, mark this as zero child mask
-      data.Append(0);
-   }
-   else
-   {
-      // check which subtrees contain marked elements
-      int mask = 0;
       for (int i = 0; i < 8; i++)
       {
          if (el.child[i] >= 0 && ncmesh->elements[el.child[i]].flag)
          {
-            mask |= 1 << i;
+            mask |= (1 << i);
          }
       }
+   }
 
-      // write the bit mask and visit the subtrees
-      data.Append(mask);
-      if (include_ref_types && mask)
-      {
-         data.Append(el.ref_type);
-      }
+   // write the bit mask and visit the subtrees
+   data.Append(mask);
+   if (include_ref_types /*&& mask*/)
+   {
+      data.Append(el.ref_type);
+   }
 
-      for (int i = 0; i < 8; i++)
+   for (int i = 0; i < 8; i++)
+   {
+      if (mask & (1 << i))
       {
-         if (mask & (1 << i))
-         {
-            EncodeTree(el.child[i]);
-         }
+         EncodeTree(el.child[i]);
       }
    }
 }
 
 void ParNCMesh::ElementSet::Encode(const Array<int> &elements)
 {
-   FlagElements(elements, 1);
+   FlagElements(elements);
 
    // Each refinement tree that contains at least one element from the set
    // is encoded as HEADER + TREE, where HEADER is the root element number and
@@ -1901,31 +1917,37 @@ void ParNCMesh::ElementSet::Encode(const Array<int> &elements)
    }
    WriteInt(-1); // mark end of data
 
-   FlagElements(elements, 0);
+   UnflagElements(elements);
 }
 
 void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
                                        Array<int> &elements) const
 {
-   int mask = data[pos++];
-   if (!mask)
+   int is_in_set = data[pos++];
+   if (is_in_set)
    {
       elements.Append(elem);
    }
-   else
-   {
-      Element &el = ncmesh->elements[elem];
-      if (include_ref_types)
-      {
-         char ref_type = data[pos++];
-         if (!el.ref_type)
-         {
-            ncmesh->RefineElement(elem, ref_type);
-         }
-         else { MFEM_ASSERT(ref_type == el.ref_type, "") }
-      }
-      else { MFEM_ASSERT(el.ref_type != 0, "missing subtree"); }
 
+   int mask = data[pos++];
+
+   Element &el = ncmesh->elements[elem];
+   if (include_ref_types)
+   {
+      char ref_type = data[pos++];
+      if (!el.ref_type)
+      {
+         ncmesh->RefineElement(elem, ref_type);
+      }
+      else { MFEM_ASSERT(ref_type == el.ref_type, "") }
+   }
+   else if (mask)
+   {
+      MFEM_ASSERT(el.ref_type != 0, "missing subtree");
+   }
+
+   if (mask)
+   {
       for (int i = 0; i < 8; i++)
       {
          if (mask & (1 << i))
@@ -2335,6 +2357,7 @@ void ParNCMesh::ElementValueMessage<ValueType, RefTypes, Tag>::Encode()
 
    for (unsigned i = 0; i < values.size(); i++)
    {
+      MFEM_ASSERT(element_index.find(elements[i]) != element_index.end(), "");
       write<int>(ostream, element_index[elements[i]]); // element number
       write<ValueType>(ostream, values[i]);
    }

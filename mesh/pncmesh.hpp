@@ -343,7 +343,9 @@ protected:
 
       void WriteInt(int value);
       int  GetInt(int pos) const;
-      void FlagElements(const Array<int> &elements, char flag);
+
+      void FlagElements(const Array<int> &elements);
+      void UnflagElements(const Array<int> &elements);
    };
 
    /// Write to 'os' a processor-independent encoding of vertex/edge/face IDs.
