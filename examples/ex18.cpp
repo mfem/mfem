@@ -33,13 +33,6 @@ private:
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
-   int num_procs, myid;
-   MPI_Comm comm = MPI_COMM_WORLD;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(comm, &num_procs);
-   MPI_Comm_rank(comm, &myid);
-
    // Parse command-line options.
    int order  = 1;
    int nsteps = 100;
@@ -74,17 +67,10 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0)
-      {
-         args.PrintUsage(cout);
-      }
-      MPI_Finalize();
+      args.PrintUsage(cout);
       return 1;
    }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
+   args.PrintOptions(cout);
 
    SIAVSolver siaSolver(order);
 
@@ -96,27 +82,24 @@ int main(int argc, char *argv[])
    double t = 0.0;
 
    Vector q(1), p(1);
-   q(0) = sin(2.0*M_PI*(double)myid/num_procs);
-   p(0) = cos(2.0*M_PI*(double)myid/num_procs);
+   q(0) = 0.0;
+   p(0) = 1.0;
 
-   ostringstream oss;
    ofstream ofs;
    if ( gnuplot )
    {
-      oss << "ex19p_" << setfill('0') << setw(5) << myid << ".dat";
-      ofs.open(oss.str().c_str());
+      ofs.open("ex18.dat");
       ofs << t << "\t" << q(0) << "\t" << p(0) << endl;
    }
 
    Vector e(nsteps+1);
 
-   int nverts = (visualization)?(num_procs+1)*(nsteps+1):0;
-   int nelems = (visualization)?(nsteps * num_procs):0;
+   int nverts = (visualization)?2*(nsteps+1):0;
+   int nelems = (visualization)?nsteps:0;
    Mesh mesh(2, nverts, nelems, 0, 3);
 
-   int * part = (visualization)?(new int[nelems]):NULL;
    int    v[4];
-   Vector x0(3); x0 = 0.0;
+   Vector x0(3); x0 = 0.0; //x0(0) = M_PI;
    Vector x1(3); x1 = 0.0;
 
    double e_mean = 0.0;
@@ -130,14 +113,11 @@ int main(int argc, char *argv[])
 
          if ( visualization )
          {
+            x1[0] = q(0);
+            x1[1] = p(0);
+            x1[2] = 0.0;
             mesh.AddVertex(x0);
-            for (int j=0; j<num_procs; j++)
-            {
-               x1[0] = q(0);
-               x1[1] = p(0);
-               x1[2] = 0.0;
-               mesh.AddVertex(x1);
-            }
+            mesh.AddVertex(x1);
          }
       }
 
@@ -154,20 +134,16 @@ int main(int argc, char *argv[])
       if ( visualization )
       {
          x0[2] = t;
+         x1[0] = q(0);
+         x1[1] = p(0);
+         x1[2] = t;
          mesh.AddVertex(x0);
-         for (int j=0; j<num_procs; j++)
-         {
-            x1[0] = q(0);
-            x1[1] = p(0);
-            x1[2] = t;
-            mesh.AddVertex(x1);
-            v[0] = (num_procs + 1) * i;
-            v[1] = (num_procs + 1) * (i + 1);
-            v[2] = (num_procs + 1) * (i + 1) + j + 1;
-            v[3] = (num_procs + 1) * i + j + 1;
-            mesh.AddQuad(v);
-            part[num_procs * i + j] = j;
-         }
+         mesh.AddVertex(x1);
+         v[0] = 2*i;
+         v[1] = 2*(i+1);
+         v[2] = 2*(i+1)+1;
+         v[3] = 2*i+1;
+         mesh.AddQuad(v);
       }
    }
 
@@ -179,61 +155,26 @@ int main(int argc, char *argv[])
    }
    e_var /= (nsteps + 1);
    double e_sd = sqrt(e_var);
-
-   if ( myid == 0 )
-   {
-      cout << endl << "Mean and standard deviation of the energy" << endl;
-   }
-   for (int i=0; i<num_procs; i++)
-   {
-      if ( myid == i )
-      {
-         cout << myid << ": " << e_mean << "\t" << e_sd << endl;
-      }
-      MPI_Barrier(comm);
-   }
+   cout << endl << "Mean and standard deviation of the energy" << endl;
+   cout << e_mean << "\t" << e_sd << endl;
 
    if ( gnuplot )
    {
       ofs.close();
-      if ( myid == 0 )
-      {
-         ofs.open("gnuplot_ex19p.inp");
-         for (int i=0; i<num_procs; i++)
-         {
-            ostringstream ossi;
-            ossi << "ex19p_" << setfill('0') << setw(5) << i << ".dat";
-            if ( i == 0 )
-            {
-               ofs << "plot";
-            }
-            ofs << " '" << ossi.str() << "' using 1:2 w l t 'q" << i << "',"
-                << " '" << ossi.str() << "' using 1:3 w l t 'p" << i << "',"
-                << " '" << ossi.str() << "' using 1:4 w l t 'H" << i << "'";
-            if ( i < num_procs-1 )
-            {
-               ofs << ",";
-            }
-            else
-            {
-               ofs << ";" << endl;
-            }
-         }
-         ofs.close();
-      }
+
+      ofs.open("gnuplot_ex18.inp");
+      ofs << "plot 'ex18.dat' using 1:2 w l t 'q', "
+          << "'ex18.dat' using 1:3 w l t 'p', "
+          << "'ex18.dat' using 1:4 w l t 'H'" << endl;
+      ofs.close();
    }
 
    if ( visualization )
    {
-      mesh.FinalizeQuadMesh(1);
-      ParMesh pmesh(comm, mesh, part);
-      delete part;
-
       H1_FECollection fec(order = 1, 2);
-      ParFiniteElementSpace fespace(&pmesh, &fec);
-      ParGridFunction energy(&fespace);
+      FiniteElementSpace fespace(&mesh, &fec);
+      GridFunction energy(&fespace);
       energy = 0.0;
-
       for (int i=0; i<=nsteps; i++)
       {
          energy[2*i+0] = e[i];
@@ -244,13 +185,10 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sock(vishost, visport);
       sock.precision(8);
-      sock << "parallel " << num_procs << " " << myid << "\n"
-           << "solution\n" << pmesh << energy
+      sock << "solution\n" << mesh << energy
            << "window_title 'Energy in Phase Space'\n"
            << "keys\n maac\n" << "axis_labels 'q' 'p' 't'\n"<< flush;
    }
-
-   MPI_Finalize();
 }
 
 double hamiltonian(double q, double p, double t)
