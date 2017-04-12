@@ -3109,7 +3109,7 @@ ScalarVectorProductInterpolator::ScalarProduct_::Eval(
    fe_->CalcVShape(T, vshape_);
    double s = sc_->Eval(T, ip);
 
-   for (int i=0; i<vdim; i++)
+   for (int i = 0; i < vdim; i++)
    {
       vs(i) = s * vshape_(ind_,i);
    }
@@ -3151,7 +3151,7 @@ VectorScalarProductInterpolator::ScalarProduct_::Eval(
    fe_->CalcPhysShape(T, shape_);
    vc_->Eval(v_, T, ip);
 
-   for (int i=0; i<v_.Size(); i++)
+   for (int i = 0; i < v_.Size(); i++)
    {
       vs(i) = v_(i) * shape_(ind_);
    }
@@ -3231,7 +3231,7 @@ VectorInnerProductInterpolator::InnerProduct_::Eval(ElementTransformation &T,
 
    double val = 0.0;
 
-   for (int i=0; i<v_.Size(); i++) { val += v_[i] * vshape_(ind_, i); }
+   for (int i = 0; i< v_.Size(); i++) { val += v_[i] * vshape_(ind_, i); }
 
    return val;
 }
