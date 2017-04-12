@@ -59,6 +59,7 @@ int main(int argc, char *argv[])
    int par_ref_levels = 1;
    int order = 1;
    int nev = 5;
+   int seed = 75;
    bool slu_solver  = false;
    bool visualization = 1;
 
@@ -74,6 +75,8 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&nev, "-n", "--num-eigs",
                   "Number of desired eigenmodes.");
+   args.AddOption(&seed, "-s", "--seed",
+                  "Random seed used to initialize LOBPCG.");
 #ifdef MFEM_USE_SUPERLU
    args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu",
                   "--no-superlu", "Use the SuperLU Solver.");
@@ -217,6 +220,7 @@ int main(int argc, char *argv[])
 
    HypreLOBPCG * lobpcg = new HypreLOBPCG(MPI_COMM_WORLD);
    lobpcg->SetNumModes(nev);
+   lobpcg->SetRandomSeed(seed);
    lobpcg->SetPreconditioner(*precond);
    lobpcg->SetMaxIter(200);
    lobpcg->SetTol(1e-8);

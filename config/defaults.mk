@@ -51,9 +51,14 @@ endif
 # Note: symbols of the form @VAR@ will be replaced by $(VAR) in derived
 #       variables, like MFEM_FLAGS, defined in config.mk.
 
+# Command used to launch MPI jobs
+MFEM_MPIEXEC    = mpirun
+MFEM_MPIEXEC_NP = -np
+
 # MFEM configuration options: YES/NO values, which are exported to config.mk and
 # config.hpp. The values below are the defaults for generating the actual values
 # in config.mk and config.hpp.
+
 MFEM_USE_MPI         = NO
 MFEM_USE_METIS_5     = NO
 MFEM_DEBUG           = NO
