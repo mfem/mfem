@@ -68,6 +68,14 @@ void ParGridFunction::Update()
    GridFunction::Update();
 }
 
+void ParGridFunction::SetSpace(FiniteElementSpace *f)
+{
+   face_nbr_data.Destroy();
+   GridFunction::SetSpace(f);
+   pfes = dynamic_cast<ParFiniteElementSpace*>(f);
+   MFEM_ASSERT(pfes != NULL, "not a ParFiniteElementSpace");
+}
+
 void ParGridFunction::SetSpace(ParFiniteElementSpace *f)
 {
    face_nbr_data.Destroy();
@@ -75,11 +83,27 @@ void ParGridFunction::SetSpace(ParFiniteElementSpace *f)
    pfes = f;
 }
 
+void ParGridFunction::MakeRef(FiniteElementSpace *f, double *v)
+{
+   face_nbr_data.Destroy();
+   GridFunction::MakeRef(f, v);
+   pfes = dynamic_cast<ParFiniteElementSpace*>(f);
+   MFEM_ASSERT(pfes != NULL, "not a ParFiniteElementSpace");
+}
+
 void ParGridFunction::MakeRef(ParFiniteElementSpace *f, double *v)
 {
    face_nbr_data.Destroy();
    GridFunction::MakeRef(f, v);
    pfes = f;
+}
+
+void ParGridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
+{
+   face_nbr_data.Destroy();
+   GridFunction::MakeRef(f, v, v_offset);
+   pfes = dynamic_cast<ParFiniteElementSpace*>(f);
+   MFEM_ASSERT(pfes != NULL, "not a ParFiniteElementSpace");
 }
 
 void ParGridFunction::MakeRef(ParFiniteElementSpace *f, Vector &v, int v_offset)
@@ -310,6 +334,27 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
    delete tv;
 }
 
+
+void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
+{
+   // Harmonic  (x1 ... xn) = [ (1/x1 + ... + 1/xn) / n ]^-1.
+   // Arithmetic(x1 ... xn) = (x1 + ... + xn) / n.
+
+   // Number of zones that contain a given dof.
+   Array<int> zones_per_vdof;
+   AccumulateAndCountZones(coeff, type, zones_per_vdof);
+
+   // Count the zones globally.
+   GroupCommunicator &gcomm = pfes->GroupComm();
+   gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
+   gcomm.Bcast(zones_per_vdof);
+   // Accumulate for all tdofs.
+   HypreParVector *tv = this->ParallelAssemble();
+   this->Distribute(tv);
+   delete tv;
+
+   ComputeMeans(type, zones_per_vdof);
+}
 
 void ParGridFunction::Save(std::ostream &out) const
 {

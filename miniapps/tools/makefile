@@ -56,8 +56,9 @@ MFEM_TESTS = MINIAPPS
 include $(TEST_MK)
 
 # Testing: Parallel vs. serial runs
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4
 %-test-par: %
-	@$(call mfem-test,$<, mpirun -np 4, Tools miniapp)
+	@$(call mfem-test,$<, $(RUN_MPI), Tools miniapp)
 %-test-seq: %
 	@$(call mfem-test,$<,, Tools miniapp)
 

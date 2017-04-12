@@ -51,8 +51,9 @@ MFEM_TESTS = EXAMPLES
 include $(TEST_MK)
 
 # Testing: Parallel vs. serial runs
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4
 %-test-par: %
-	@$(call mfem-test,$<, mpirun -np 4, Parallel example)
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example)
 %-test-seq: %
 	@$(call mfem-test,$<,, Serial example)
 
@@ -60,15 +61,15 @@ include $(TEST_MK)
 ex1-test-seq: ex1
 	@$(call mfem-test,$<,, Serial example)
 ex1p-test-par: ex1p
-	@$(call mfem-test,$<, mpirun -np 4, Parallel example)
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example)
 ex10-test-seq: ex10
 	@$(call mfem-test,$<,, Serial example,-tf 5)
 ex10p-test-par: ex10p
-	@$(call mfem-test,$<, mpirun -np 4, Parallel example,-tf 5)
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-tf 5)
 ex15-test-seq: ex15
 	@$(call mfem-test,$<,, Serial example,-e 1)
 ex15p-test-par: ex15p
-	@$(call mfem-test,$<, mpirun -np 4, Parallel example,-e 1)
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-e 1)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
