@@ -1,3 +1,55 @@
+//                       MFEM Example 18 - Parallel Version
+//
+// Compile with: make ex18p
+//
+// Sample runs:  mpirun -np 4 ex18p
+//
+// Description: This example demonstrates the use of the variable
+//              order, symplectic ODE integration algorithm.
+//              Symplectic integration algorithms are designed to
+//              conserve energy when integrating, in time, systems of
+//              ODEs which are derived from Hamiltonain systems.
+//
+//              Hamiltonian systems define the energy of a system as a
+//              function of time (t), a set of generalized coordinates
+//              (q), and their corresponding generalized momenta (p).
+//                 H(q,p,t) = T(p) + V(q,t)
+//              Hamilton's equations then specify how q and p evolve
+//              in time:
+//                 dq/dt =  dH/dp
+//                 dp/dt = -dH/dq
+//              To use the symplectic integration classes we need to
+//              define an mfem::Operator P which evaluates the action
+//              of dH/dp, and an mfem::TimeDependentOperator F which
+//              computes -dH/dq.
+//
+//              This example offers five simple 1D Hamiltonians:
+//                 0) Simple Harmonic Oscillator (mass on a spring)
+//                    H = ( p^2 / m + q^2 / k ) / 2
+//                 1) Pendulum
+//                    H = ( p^2 / m - k ( 1 - cos(q) ) ) / 2
+//                 2) Gaussian Potential Well
+//                    H = ( p^2 / m ) / 2 - k exp(-q^2 / 2)
+//                 3) Quartic Potential
+//                    H = ( p^2 / m + k ( 1 + q^2 ) q^2 ) / 2
+//                 4) Negative Quartic Potential
+//                    H = ( p^2 / m + k ( 1 - q^2 /8 ) q^2 ) / 2
+//              In all cases these Hamiltonians are shifted by constant
+//              values so that the energy will remain positive.
+//
+//              When run in parallel the same Hamiltonian system is
+//              evolved on each processor but starting from different
+//              initial conditions.
+//
+//              We then use GLVis to visualize the results in a
+//              non-standard way by defining the axes to be q, p, and
+//              t rather than x, y, and z.  In this space we build a
+//              ribbon-like mesh on each processor with nodes at
+//              (0,0,t) and (q,p,t).  When these ribbons are bonded
+//              together on the t-axis they resemble a Rotini pasta.
+//              Finally we plot the energy as a function of time as a
+//              scalar field on this Rotini-like mesh.
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
