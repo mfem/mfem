@@ -2,33 +2,29 @@
 //
 // Compile with: make ex13p_amr
 //
-// Sample runs:  mpirun -np 4 ex13p -m ../data/star.mesh
-//               mpirun -np 4 ex13p -m ../data/square-disc.mesh -o 2
-//               mpirun -np 4 ex13p -m ../data/beam-tet.mesh
-//               mpirun -np 4 ex13p -m ../data/beam-hex.mesh
-//               mpirun -np 4 ex13p -m ../data/escher.mesh
-//               mpirun -np 4 ex13p -m ../data/fichera.mesh
-//               mpirun -np 4 ex13p -m ../data/fichera-q2.vtk
-//               mpirun -np 4 ex13p -m ../data/fichera-q3.mesh
-//               mpirun -np 4 ex13p -m ../data/square-disc-nurbs.mesh
-//               mpirun -np 4 ex13p -m ../data/beam-hex-nurbs.mesh
-//               mpirun -np 4 ex13p -m ../data/amr-quad.mesh -o 2
-//               mpirun -np 4 ex13p -m ../data/amr-hex.mesh
-//               mpirun -np 4 ex13p -m ../data/mobius-strip.mesh -n 8 -o 2
-//               mpirun -np 4 ex13p -m ../data/klein-bottle.mesh -n 10 -o 2
+// Sample runs:  mpirun -np 4 ex13p_amr -m ../data/beam-tet.mesh
+//               mpirun -np 4 ex13p_amr -m ../data/beam-hex.mesh
+//               mpirun -np 4 ex13p_amr -m ../data/escher.mesh
+//               mpirun -np 4 ex13p_amr -m ../data/fichera.mesh -rs 2
+//               mpirun -np 4 ex13p_amr -m ../data/fichera-q2.vtk
+//               mpirun -np 4 ex13p_amr -m ../data/fichera-q3.mesh -rs 2
+//               mpirun -np 4 ex13p_amr -m ../data/beam-hex-nurbs.mesh
+//               mpirun -np 4 ex13p_amr -m ../data/amr-hex.mesh
 //
 // Description:  This example code solves the Maxwell (electromagnetic)
 //               eigenvalue problem curl curl E = lambda E with homogeneous
 //               Dirichlet boundary conditions E x n = 0.
 //
-//               We compute a number of the lowest nonzero eigenmodes by
-//               discretizing the curl curl operator using a Nedelec FE space of
-//               the specified order in 2D or 3D.
+//               We compute a number of the lowest nonzero eigenmodes
+//               by discretizing the curl curl operator using a
+//               Nedelec FE space of the specified order in 3D.
 //
-//               The example highlights the use of the AME subspace eigenvalue
-//               solver from HYPRE, which uses LOBPCG and AMS internally.
-//               Reusing a single GLVis visualization window for multiple
-//               eigenfunctions is also illustrated.
+//               The example highlights the use of the AME subspace
+//               eigenvalue solver from HYPRE, which uses LOBPCG and
+//               AMS internally, in the context of adaptive mesh
+//               refinement (AMR).  Reusing a single GLVis
+//               visualization window for multiple eigenfunctions is
+//               also illustrated.
 //
 //               We recommend viewing example 13 before viewing this
 //               example.
@@ -50,13 +46,13 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/beam-tet.mesh";
-   int ser_ref_levels = 2;
-   int par_ref_levels = 1;
+   int ser_ref_levels = 1;
+   int par_ref_levels = 0;
    int max_amr_levels = 5;
    int order = 1;
    int nev = 5;
    bool visualization = 1;
-   double tol = 1.0e-4;
+   double tol = 1.0e-3;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -104,6 +100,10 @@ int main(int argc, char *argv[])
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh->UniformRefinement();
+   }
+   if (mesh->NURBSext)
+   {
+      mesh->SetCurvature(2);
    }
    mesh->EnsureNCMesh();
 
@@ -199,10 +199,10 @@ int main(int argc, char *argv[])
          {
             // convert eigenvector from HypreParVector to ParGridFunction
             x = ame->GetEigenvector(i);
-	    cout << "pre l2zz" << endl;
+
             L2ZZErrorEstimator(flux_integrator, x,
                                smooth_flux_fes, flux_fes, errors_i, norm_p);
-	    cout << "post l2zz" << endl;
+
             for (int j=0; j<errors.Size(); j++)
             {
                errors[j] += pow(errors_i[j], norm_p);
