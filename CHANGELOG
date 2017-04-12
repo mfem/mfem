@@ -8,8 +8,8 @@
                                http://mfem.org
 
 
-Development version, not released yet
-=====================================
+Development version 3.3.1, not released
+=======================================
 
 - Add a block lower triangular preconditioner in using a matrix-free
   implementation, see class BlockLowerTriangularPreconditioner.

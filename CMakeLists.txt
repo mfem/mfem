@@ -45,7 +45,7 @@ project(mfem CXX)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 3.3)
+set(${PROJECT_NAME}_VERSION 3.3.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})

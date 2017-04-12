@@ -12,8 +12,20 @@
 #ifndef MFEM_CONFIG_HEADER
 #define MFEM_CONFIG_HEADER
 
-// MFEM version.
+// MFEM version: integer of the form: (major*100 + minor)*100 + patch.
 // #define MFEM_VERSION @MFEM_VERSION@
+
+// MFEM version type, see the MFEM_VERSION_TYPE_* constants below.
+#define MFEM_VERSION_TYPE ((MFEM_VERSION)%2)
+
+// MFEM version type constants.
+#define MFEM_VERSION_TYPE_RELEASE 0
+#define MFEM_VERSION_TYPE_DEVELOPMENT 1
+
+// Separate MFEM version numbers for major, minor, and patch.
+#define MFEM_VERSION_MAJOR ((MFEM_VERSION)/10000)
+#define MFEM_VERSION_MINOR (((MFEM_VERSION)/100)%100)
+#define MFEM_VERSION_PATCH ((MFEM_VERSION)%100)
 
 // Build the parallel MFEM library.
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
