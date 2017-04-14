@@ -490,7 +490,7 @@ template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
 inline void TDet(const A_layout_t &a, const A_data_t &A, D_data_t &D)
 {
    MFEM_STATIC_ASSERT(A_layout_t::rank == 3, "invalid rank");
-#ifndef __bg__
+#if !defined(__xlC__) || (__xlC__ >= 0x0d00)
    internal::MatrixOps<A_layout_t::dim_2,A_layout_t::dim_3>::
    template Det<Op>(a, A, D);
 #else
