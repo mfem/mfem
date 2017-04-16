@@ -16,12 +16,12 @@ Development version, not released yet
   refinement hierarchy, but excluding the temporary face_list and edge_list)
   is now only about 290 bytes. This also makes the class faster.
 
-- Added a new meshing miniapp, shaper, that can be used to resolve
+- Added a new meshing miniapp, Shaper, that can be used to resolve
   complicated material interfaces by mesh refinement, e.g. as a tool
   for initial mesh generation from prescribed "material()" function.
   Both conforming and non-conforming refinements are supported.
 
-- Added a block lower triangular preconditioner based only on the 
+- Added a block lower triangular preconditioner based only on the
   actions of each block see class BlockLowerTriangularPreconditioner.
 
 

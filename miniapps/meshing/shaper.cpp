@@ -39,7 +39,7 @@
 using namespace mfem;
 using namespace std;
 
-// Given a point X, return its material id as an integer. The ids should be
+// Given a point x, return its material id as an integer. The ids should be
 // positive. If the point is exactly on the interface, return 0.
 //
 // This particular implementation, rescales the mesh to [-1,1]^sdim given the
@@ -61,7 +61,7 @@ int material(Vector &x, Vector &xmin, Vector &xmax)
    return 0;
 }
 
-int main (int argc, char *argv[])
+int main(int argc, char *argv[])
 {
    int sd = 2;
    int nclimit = 1;
@@ -133,8 +133,7 @@ int main (int argc, char *argv[])
 
          // Set the element attribute as the "average". Other choices are
          // possible here too, e.g. attr(i) = mat;
-         attr(i) = (int)(matsum/ir.GetNPoints());
-         mesh.SetAttribute(i, attr(i));
+         attr(i) = round(matsum/ir.GetNPoints());
 
          // Mark the element for refinement
          if (refine)
@@ -169,6 +168,11 @@ int main (int argc, char *argv[])
       attr_fespace.Update();
       attr.Update();
    }
+
+   // Set element attributes in the mesh object before saving
+   for (int i = 0; i < mesh.GetNE(); i++)
+      mesh.SetAttribute(i, attr(i));
+   mesh.SetAttributes();
 
    // Save the final mesh
    ofstream mesh_ofs("shaper.mesh");
