@@ -1576,6 +1576,18 @@ void PetscLinearSolver::SetOperator(const Operator &op)
    PetscParMatrix       *pA = const_cast<PetscParMatrix *>
                               (dynamic_cast<const PetscParMatrix *>(&op));
    const Operator       *oA = dynamic_cast<const Operator *>(&op);
+
+   // Preserve Pmat if already set
+   KSP ksp = (KSP)obj;
+   Mat P = NULL;
+   PetscBool pmat;
+   ierr = KSPGetOperatorsSet(ksp,NULL,&pmat);PCHKERRQ(ksp,ierr);
+   if (pmat)
+   {
+      ierr = KSPGetOperators(ksp,NULL,&P);PCHKERRQ(ksp,ierr);
+      ierr = PetscObjectReference((PetscObject)P);PCHKERRQ(ksp,ierr);
+   }
+
    // update base classes: Operator, Solver, PetscLinearSolver
    bool delete_pA = false;
    if (!pA)
@@ -1597,7 +1609,6 @@ void PetscLinearSolver::SetOperator(const Operator &op)
    MFEM_VERIFY(pA, "Unsupported operation!");
 
    // Set operators into PETSc KSP
-   KSP ksp = (KSP)obj;
    Mat A = pA->A;
    if (operatorset)
    {
@@ -1618,7 +1629,15 @@ void PetscLinearSolver::SetOperator(const Operator &op)
          wrap = false;
       }
    }
-   ierr = KSPSetOperators(ksp,A,A); PCHKERRQ(ksp,ierr);
+   if (P)
+   {
+     ierr = KSPSetOperators(ksp,A,P);PCHKERRQ(ksp,ierr);
+     ierr = MatDestroy(&P);PCHKERRQ(ksp,ierr);
+   }
+   else
+   {
+     ierr = KSPSetOperators(ksp,A,A);PCHKERRQ(ksp,ierr);
+   }
 
    // Update PetscSolver
    operatorset = true;
@@ -1716,6 +1735,16 @@ void PetscLinearSolver::SetOperator(const Operator &op, const Operator &pop)
 void PetscLinearSolver::SetPreconditioner(Solver &precond)
 {
    KSP ksp = (KSP)obj;
+
+   // Preserve Amat if already set
+   Mat A = NULL;
+   PetscBool amat;
+   ierr = KSPGetOperatorsSet(ksp,&amat,NULL);PCHKERRQ(ksp,ierr);
+   if (amat)
+   {
+      ierr = KSPGetOperators(ksp,&A,NULL);PCHKERRQ(ksp,ierr);
+      ierr = PetscObjectReference((PetscObject)A);PCHKERRQ(ksp,ierr);
+   }
    PetscPreconditioner *ppc = dynamic_cast<PetscPreconditioner *>(&precond);
    if (ppc)
    {
@@ -1734,6 +1763,16 @@ void PetscLinearSolver::SetPreconditioner(Solver &precond)
       PCHKERRQ(pc,ierr);
       ierr = PCShellSetSetUp(pc,__mfem_pc_shell_setup); PCHKERRQ(pc,ierr);
       ierr = PCShellSetDestroy(pc,__mfem_pc_shell_destroy); PCHKERRQ(pc,ierr);
+   }
+   if (A)
+   {
+      Mat P;
+
+      ierr = KSPGetOperators(ksp,NULL,&P);PCHKERRQ(ksp,ierr);
+      ierr = PetscObjectReference((PetscObject)P);PCHKERRQ(ksp,ierr);
+      ierr = KSPSetOperators(ksp,A,P);PCHKERRQ(ksp,ierr);
+      ierr = MatDestroy(&A);PCHKERRQ(ksp,ierr);
+      ierr = MatDestroy(&P);PCHKERRQ(ksp,ierr);
    }
 }
 
