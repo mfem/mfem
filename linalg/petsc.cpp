@@ -641,10 +641,10 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
       {
          if (tid == pA->GetType()) // use same object and return
          {
-           ierr = PetscObjectReference((PetscObject)(pA->A));
-           CCHKERRQ(pA->GetComm(),ierr);
-           *A = pA->A;
-           return;
+            ierr = PetscObjectReference((PetscObject)(pA->A));
+            CCHKERRQ(pA->GetComm(),ierr);
+            *A = pA->A;
+            return;
          }
          ierr = PetscObjectTypeCompare((PetscObject)(pA->A),MATIS,&ismatis);
          CCHKERRQ(pA->GetComm(),ierr);
@@ -678,19 +678,21 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
          else
          {
             PetscMPIInt size;
-            ierr = MPI_Comm_size(comm,&size);CCHKERRQ(comm,ierr);
+            ierr = MPI_Comm_size(comm,&size); CCHKERRQ(comm,ierr);
 
             // call MatConvert and see if a converter is available
             if (istrans)
             {
                Mat B;
-               ierr = MatConvert(At,size > 1 ? MATMPIAIJ : MATSEQAIJ,MAT_INITIAL_MATRIX,&B);PCHKERRQ(pA->A,ierr);
+               ierr = MatConvert(At,size > 1 ? MATMPIAIJ : MATSEQAIJ,MAT_INITIAL_MATRIX,&B);
+               PCHKERRQ(pA->A,ierr);
                ierr = MatCreateTranspose(B,A); PCHKERRQ(pA->A,ierr);
-               ierr = MatDestroy(&B);PCHKERRQ(pA->A,ierr);
+               ierr = MatDestroy(&B); PCHKERRQ(pA->A,ierr);
             }
             else
             {
-               ierr = MatConvert(pA->A, size > 1 ? MATMPIAIJ : MATSEQAIJ,MAT_INITIAL_MATRIX,A);PCHKERRQ(pA->A,ierr);
+               ierr = MatConvert(pA->A, size > 1 ? MATMPIAIJ : MATSEQAIJ,MAT_INITIAL_MATRIX,A);
+               PCHKERRQ(pA->A,ierr);
             }
          }
       }
@@ -699,13 +701,13 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
          if (istrans)
          {
             Mat B;
-            ierr = MatConvert(At,MATIS,MAT_INITIAL_MATRIX,&B);PCHKERRQ(pA->A,ierr);
+            ierr = MatConvert(At,MATIS,MAT_INITIAL_MATRIX,&B); PCHKERRQ(pA->A,ierr);
             ierr = MatCreateTranspose(B,A); PCHKERRQ(pA->A,ierr);
             ierr = MatDestroy(&B); PCHKERRQ(pA->A,ierr);
          }
          else
          {
-            ierr = MatConvert(pA->A,MATIS,MAT_INITIAL_MATRIX,A);PCHKERRQ(pA->A,ierr);
+            ierr = MatConvert(pA->A,MATIS,MAT_INITIAL_MATRIX,A); PCHKERRQ(pA->A,ierr);
          }
       }
       else if (tid == PETSC_MATSHELL)
@@ -745,7 +747,8 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
       }
       else
       {
-         MFEM_ABORT("Conversion from HypreParCSR to operator type = " << tid << " is not implemented");
+         MFEM_ABORT("Conversion from HypreParCSR to operator type = " << tid <<
+                    " is not implemented");
       }
    }
    else if (pB)
@@ -1581,11 +1584,11 @@ void PetscLinearSolver::SetOperator(const Operator &op)
    KSP ksp = (KSP)obj;
    Mat P = NULL;
    PetscBool pmat;
-   ierr = KSPGetOperatorsSet(ksp,NULL,&pmat);PCHKERRQ(ksp,ierr);
+   ierr = KSPGetOperatorsSet(ksp,NULL,&pmat); PCHKERRQ(ksp,ierr);
    if (pmat)
    {
-      ierr = KSPGetOperators(ksp,NULL,&P);PCHKERRQ(ksp,ierr);
-      ierr = PetscObjectReference((PetscObject)P);PCHKERRQ(ksp,ierr);
+      ierr = KSPGetOperators(ksp,NULL,&P); PCHKERRQ(ksp,ierr);
+      ierr = PetscObjectReference((PetscObject)P); PCHKERRQ(ksp,ierr);
    }
 
    // update base classes: Operator, Solver, PetscLinearSolver
@@ -1602,7 +1605,8 @@ void PetscLinearSolver::SetOperator(const Operator &op)
       {
          // Create MATSHELL or MATNEST (if oA is a BlockOperator) object
          // If oA is a BlockOperator, Operator::Type is relevant to the subblocks
-         pA = new PetscParMatrix(PetscObjectComm(obj),oA, wrap ? PETSC_MATSHELL : PETSC_MATAIJ);
+         pA = new PetscParMatrix(PetscObjectComm(obj),oA,
+                                 wrap ? PETSC_MATSHELL : PETSC_MATAIJ);
          delete_pA = true;
       }
    }
@@ -1631,12 +1635,12 @@ void PetscLinearSolver::SetOperator(const Operator &op)
    }
    if (P)
    {
-     ierr = KSPSetOperators(ksp,A,P);PCHKERRQ(ksp,ierr);
-     ierr = MatDestroy(&P);PCHKERRQ(ksp,ierr);
+      ierr = KSPSetOperators(ksp,A,P); PCHKERRQ(ksp,ierr);
+      ierr = MatDestroy(&P); PCHKERRQ(ksp,ierr);
    }
    else
    {
-     ierr = KSPSetOperators(ksp,A,A);PCHKERRQ(ksp,ierr);
+      ierr = KSPSetOperators(ksp,A,A); PCHKERRQ(ksp,ierr);
    }
 
    // Update PetscSolver
@@ -1674,7 +1678,8 @@ void PetscLinearSolver::SetOperator(const Operator &op, const Operator &pop)
       {
          // Create MATSHELL or MATNEST (if oA is a BlockOperator) object
          // If oA is a BlockOperator, Operator::Type is relevant to the subblocks
-         pA = new PetscParMatrix(PetscObjectComm(obj),oA, wrap ? PETSC_MATSHELL : PETSC_MATAIJ);
+         pA = new PetscParMatrix(PetscObjectComm(obj),oA,
+                                 wrap ? PETSC_MATSHELL : PETSC_MATAIJ);
          delete_pA = true;
       }
    }
@@ -1739,11 +1744,11 @@ void PetscLinearSolver::SetPreconditioner(Solver &precond)
    // Preserve Amat if already set
    Mat A = NULL;
    PetscBool amat;
-   ierr = KSPGetOperatorsSet(ksp,&amat,NULL);PCHKERRQ(ksp,ierr);
+   ierr = KSPGetOperatorsSet(ksp,&amat,NULL); PCHKERRQ(ksp,ierr);
    if (amat)
    {
-      ierr = KSPGetOperators(ksp,&A,NULL);PCHKERRQ(ksp,ierr);
-      ierr = PetscObjectReference((PetscObject)A);PCHKERRQ(ksp,ierr);
+      ierr = KSPGetOperators(ksp,&A,NULL); PCHKERRQ(ksp,ierr);
+      ierr = PetscObjectReference((PetscObject)A); PCHKERRQ(ksp,ierr);
    }
    PetscPreconditioner *ppc = dynamic_cast<PetscPreconditioner *>(&precond);
    if (ppc)
@@ -1768,11 +1773,11 @@ void PetscLinearSolver::SetPreconditioner(Solver &precond)
    {
       Mat P;
 
-      ierr = KSPGetOperators(ksp,NULL,&P);PCHKERRQ(ksp,ierr);
-      ierr = PetscObjectReference((PetscObject)P);PCHKERRQ(ksp,ierr);
-      ierr = KSPSetOperators(ksp,A,P);PCHKERRQ(ksp,ierr);
-      ierr = MatDestroy(&A);PCHKERRQ(ksp,ierr);
-      ierr = MatDestroy(&P);PCHKERRQ(ksp,ierr);
+      ierr = KSPGetOperators(ksp,NULL,&P); PCHKERRQ(ksp,ierr);
+      ierr = PetscObjectReference((PetscObject)P); PCHKERRQ(ksp,ierr);
+      ierr = KSPSetOperators(ksp,A,P); PCHKERRQ(ksp,ierr);
+      ierr = MatDestroy(&A); PCHKERRQ(ksp,ierr);
+      ierr = MatDestroy(&P); PCHKERRQ(ksp,ierr);
    }
 }
 
