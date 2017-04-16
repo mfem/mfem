@@ -147,9 +147,12 @@ protected:
        until @a B is needed. */
    void MakeWrapper(MPI_Comm comm, const Operator* op, Mat *B);
 
-   /// Convert an mfem::Operator into a Mat @a B; @a op can be destroyed.
+   /// Convert an mfem::Operator into a Mat @a B; @a op can be destroyed unless
+   /// tid == PETSC_MATSHELL
+   /// if op is a BlockOperator, the operator type is relevant to the individual
+   /// blocks
    void ConvertOperator(MPI_Comm comm, const Operator& op, Mat *B,
-                        bool assembled);
+                        Operator::Type tid);
 
    friend class PetscLinearSolver;
    friend class PetscPreconditioner;
@@ -381,7 +384,8 @@ private:
    bool wrap;
 
 public:
-   PetscLinearSolver(MPI_Comm comm, const std::string &prefix = std::string());
+   PetscLinearSolver(MPI_Comm comm, const std::string &prefix = std::string(),
+                     bool wrap = false);
    PetscLinearSolver(const PetscParMatrix &A,
                      const std::string &prefix = std::string());
    /// Constructs a solver using a HypreParMatrix.
@@ -393,8 +397,13 @@ public:
    virtual ~PetscLinearSolver();
 
    virtual void SetOperator(const Operator &op);
-   // not inherited
-   virtual void SetPreconditioner(Solver &precond);
+
+   /// Allows to prescribe a different operator (@a pop) to construct
+   /// the preconditioner
+   void SetOperator(const Operator &op, const Operator &pop);
+
+   /// Sets the solver to perform preconditioning
+   void SetPreconditioner(Solver &precond);
 
    /// Application of the solver.
    virtual void Mult(const Vector &b, Vector &x) const;
