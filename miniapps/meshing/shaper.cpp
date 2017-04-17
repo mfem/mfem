@@ -171,7 +171,9 @@ int main(int argc, char *argv[])
 
    // Set element attributes in the mesh object before saving
    for (int i = 0; i < mesh.GetNE(); i++)
+   {
       mesh.SetAttribute(i, attr(i));
+   }
    mesh.SetAttributes();
 
    // Save the final mesh
