@@ -19,6 +19,10 @@ Development version, not released yet
 - Add a block lower triangular preconditioner in using a matrix-free
   implementation, see class BlockLowerTriangularPreconditioner.
 
+- Added an optional operator in LOBPCG to projects vectors onto a desired
+  subspace (e.g. divergence-free). Other small changes in LOBPCG include the
+  ability to set the starting vectors and support for relative tolerance.
+
 
 Version 3.3, released on Jan 28, 2017
 =====================================
