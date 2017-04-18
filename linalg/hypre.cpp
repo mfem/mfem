@@ -1397,6 +1397,7 @@ HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B)
 {
    hypre_ParCSRMatrix * ab;
    ab = hypre_ParMatmul(*A,*B);
+   hypre_ParCSRMatrixSetNumNonzeros(ab);
 
    hypre_MatvecCommPkgCreate(ab);
 

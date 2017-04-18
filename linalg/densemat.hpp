@@ -305,6 +305,8 @@ public:
    /// Invert and print the numerical conditioning of the inversion.
    void TestInversion();
 
+   long MemoryUsage() const { return std::abs(capacity) * sizeof(double); }
+
    /// Destroys dense matrix.
    virtual ~DenseMatrix();
 };
@@ -655,6 +657,8 @@ public:
 
    void Clear()
    { UseExternalData(NULL, 0, 0, 0); }
+
+   long MemoryUsage() const { return nk*Mk.MemoryUsage(); }
 
    ~DenseTensor()
    {

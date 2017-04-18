@@ -136,6 +136,11 @@ check the results from all the serial/parallel MFEM examples and miniapps use:
 
    make test
 
+Note that by default MFEM uses "mpirun -np" in its test runs (this is also what
+is used in the sample runs of its examples and miniapps). The MPI launcher can
+be changed by the user as described in the "Specifying a MPI job launcher"
+section at the end of this file.
+
 Running all the tests may take a while. Implementation details about the check
 and test targets can be found in the top-level makefile and the config/test.mk
 file.
@@ -287,11 +292,11 @@ MFEM_USE_MPFR = YES/NO
    see below.
 
 MFEM_USE_SIDRE = YES/NO
-   Sidre is a component of LLNL's ASC toolkit, http://goo.gl/cZyJdn, that
+   Sidre is a component of LLNL's axom project, http://goo.gl/cZyJdn, that
    provides an HDF5-based file format for visualization or restart capability
    following the Conduit (https://github.com/LLNL/conduit) mesh blueprint
    specification. When enabled, this option requires installation of HDF5 (see
-   also MFEM_USE_NETCDF), Conduit and LLNL's ASC toolkit.
+   also MFEM_USE_NETCDF), Conduit and LLNL's axom project.
 
 MFEM_USE_GZSTREAM = YES/NO
    Enables use of on-the-fly gzip compressed streams. With this feature enabled
@@ -390,8 +395,8 @@ The specific libraries and their options are:
   URL: https://www.mcs.anl.gov/petsc
   Options: PETSC_OPT, PETSC_LIB.
 
-- ATK/Sidre (optional), used when MFEM_USE_SIDRE = YES.
-  URL: http://goo.gl/cZyJdn (ASC toolkit, to be released)
+- Sidre (optional), part of LLNL's axom project, used when MFEM_USE_SIDRE = YES.
+  URL: http://goo.gl/cZyJdn (axom, to be released)
        https://github.com/LLNL/conduit (Conduit)
        https://support.hdfgroup.org/HDF5 (HDF5)
   Options: SIDRE_OPT, SIDRE_LIB.
@@ -558,3 +563,18 @@ config/config.hpp.in:
 The file config/config.hpp can then be edited to enable desired options.  The
 MFEM library is simply a combination of all object files obtained by compiling
 the .cpp source files in the source directories: general, linalg, mesh, and fem.
+
+
+Specifying a MPI job launcher
+=============================
+By default, MFEM will use 'mpirun -np #' to launch any of its parallel tests or
+miniapps, where # is the number of MPI tasks.  An alternate MPI launcher can be
+provided by setting the MFEM_MPIEXEC and MFEM_MPIEXEC_NP config variables.
+
+MFEM will expect the launcher command, plus the command line option to allow it
+to specify a number of MPI tasks.
+
+MFEM_MPIEXEC    = mpirun # default
+MFEM_MPIEXEC_NP = -np    # default
+MFEM_MPIEXEC    = srun   # example for platforms using SLURM
+MFEM_MPIEXEC_NP = -n     # example for platforms using SLURM
