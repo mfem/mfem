@@ -218,7 +218,7 @@ public:
    /** Given an edge (by its vertex indices v1 and v2) return the first
        (geometric) parent edge that exists in the Mesh or -1 if there is no such
        parent. */
-   int GetEdgeMaster(int v1, int v2) const;
+   //int GetEdgeMaster(int v1, int v2) const;
 
    /** Get a list of vertices (2D/3D) and edges (3D) that coincide with boundary
        elements with the specified attributes (marked in 'bdr_attr_is_ess').

@@ -3033,11 +3033,14 @@ int NCMesh::GetEdgeMaster(int node) const
 {
    MFEM_ASSERT(node >= 0, "edge node not found.");
    const Node &nd = nodes[node];
+   MFEM_ASSERT(!nd.Shadow(), "");
 
    int p1 = nd.p1, p2 = nd.p2;
    MFEM_ASSERT(p1 != p2, "invalid edge node.");
 
    const Node &n1 = nodes[p1], &n2 = nodes[p2];
+   MFEM_ASSERT(!n1.Shadow(), "");
+   MFEM_ASSERT(!n2.Shadow(), "");
 
    int n1p1 = n1.p1, n1p2 = n1.p2;
    int n2p1 = n2.p1, n2p2 = n2.p2;
@@ -3061,14 +3064,14 @@ int NCMesh::GetEdgeMaster(int node) const
    return -1;
 }
 
-int NCMesh::GetEdgeMaster(int v1, int v2) const
+/*int NCMesh::GetEdgeMaster(int v1, int v2) const
 {
    int node = nodes.FindId(vertex_nodeId[v1], vertex_nodeId[v2]);
    MFEM_ASSERT(node >= 0 && nodes[node].HasEdge(), "(v1, v2) is not an edge.");
 
    int master = GetEdgeMaster(node);
    return (master >= 0) ? nodes[master].edge_index : -1;
-}
+}*/
 
 int NCMesh::GetElementDepth(int i) const
 {
@@ -3672,17 +3675,23 @@ void NCMesh::DebugDump(std::ostream &out) const
    out << "\n";
 
    // dump elements
-   out << leaf_elements.Size() << "\n";
-   for (int i = 0; i < leaf_elements.Size(); i++)
+   int nleaves = 0;
+   for (int i = 0; i < elements.Size(); i++)
    {
-      const Element &el = elements[leaf_elements[i]];
+      if (!elements[i].ref_type) { nleaves++; }
+   }
+   out << nleaves << "\n";
+   for (int i = 0; i < elements.Size(); i++)
+   {
+      const Element &el = elements[i];
+      if (el.ref_type) { continue; }
       const GeomInfo& gi = GI[(int) el.geom];
       out << gi.nv << " ";
       for (int j = 0; j < gi.nv; j++)
       {
          out << el.node[j] << " ";
       }
-      out << el.attribute << " " << /*el.rank*/ leaf_elements[i] << "\n";
+      out << el.attribute << " " << i << "\n";
    }
    out << "\n";
 

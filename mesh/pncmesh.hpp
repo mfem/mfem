@@ -587,6 +587,13 @@ inline bool operator< (const NCMesh::MeshId &a, const NCMesh::MeshId &b)
 
 } // namespace mfem
 
+/*
+TODO:
+- remove NCMesh::GetEdgeMaster (fails for aniso due to reparents), rewrite BuildEdgeList
+- add deletion of shadow nodes
+- what to do with unused mid-edge nodes in ghost layer in parallel?
+*/
+
 #endif // MFEM_USE_MPI
 
 #endif // MFEM_PNCMESH
