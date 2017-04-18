@@ -55,6 +55,7 @@ protected:
 
    int NumOfVertices, NumOfElements, NumOfBdrElements;
    int NumOfEdges, NumOfFaces;
+   int NumOfPlanars;
 
    int BaseGeom, BaseBdrGeom; // element base geometries, -1 if not all the same
 
@@ -71,6 +72,10 @@ protected:
    Array<Vertex> vertices;
    Array<Element *> boundary;
    Array<Element *> faces;
+   Array<Element *> planars; //only for 4d meshes
+
+   Array<bool> swappedElements; //only for 4d meshes
+   Array<bool> swappedFaces; //only for 4d meshes
 
    struct FaceInfo
    {
@@ -99,9 +104,11 @@ protected:
 
    Table *el_to_edge;
    Table *el_to_face;
+   Table *el_to_planar;    // for 4D
    Table *el_to_el;
    Array<int> be_to_edge;  // for 2D
    Table *bel_to_edge;     // for 3D
+   Table *bel_to_planar;   // for 4D
    Array<int> be_to_face;
    mutable Table *face_edge;
    mutable Table *edge_vertex;
@@ -133,6 +140,8 @@ public:
    typedef Geometry::Constants<Geometry::SQUARE>      quad_t;
    typedef Geometry::Constants<Geometry::TETRAHEDRON> tet_t;
    typedef Geometry::Constants<Geometry::CUBE>        hex_t;
+   typedef Geometry::Constants<Geometry::PENTATOPE>   pent_t;
+   typedef Geometry::Constants<Geometry::TESSERACT>   tess_t;
 
    enum Operation { NONE, REFINE, DEREFINE, REBALANCE };
 
@@ -197,6 +206,8 @@ protected:
 
    STable3D *GetFacesTable();
    STable3D *GetElementToFaceTable(int ret_ftbl = 0);
+   STable4D *GetElementToFaceTable4D(int ret_ftbl = 0);
+   STable3D *GetElementToPlanarTable(int ret_ftbl = 0);
 
    /** Red refinement. Element with index i is refined. The default
        red refinement for now is Uniform. */
@@ -215,6 +226,9 @@ protected:
 
    /** Bisection. Boundary element with index i is bisected. */
    void Bisection(int i, const DSTable &, int *);
+
+   void RedRefinementPentatope(int i, const DSTable & v_to_v, int *middle);
+   void RedRefinementBoundaryTet(int i, const DSTable & v_to_v, int *middle);
 
    /** Uniform Refinement. Element with index i is refined uniformly. */
    void UniformRefinement(int i, const DSTable &, int *, int *, int *);
@@ -287,6 +301,10 @@ protected:
    /// Returns the orientation of "test" relative to "base"
    static int GetQuadOrientation (const int * base, const int * test);
 
+   static int GetTetOrientation (const int * base, const int * test);
+
+   static int GetHexOrientation(const int * base, const int * test);
+
    static void GetElementArrayEdgeTable(const Array<Element*> &elem_array,
                                         const DSTable &v_to_v,
                                         Table &el_to_edge);
@@ -313,6 +331,15 @@ protected:
 
    void AddQuadFaceElement (int lf, int gf, int el,
                             int v0, int v1, int v2, int v3);
+
+   void AddTetrahedralFaceElement(int lf, int gf, int el,
+                                int v0, int v1, int v2, int v3);
+
+   void AddHexahedralFaceElement(int lf, int gf, int el,
+                                int v0, int v1, int v2, int v3,
+                                int v4, int v5, int v6, int v7);
+
+
    /** For a serial Mesh, return true if the face is interior. For a parallel
        ParMesh return true if the face is interior or shared. In parallel, this
        method only works if the face neighbor data is exchanged. */
@@ -321,6 +348,8 @@ protected:
       return FaceIsInterior(FaceNo) || (faces_info[FaceNo].Elem2Inf >= 0);
    }
 
+   //swap first two entries of *a
+   inline void Swap(int *a) const;
    // shift cyclically 3 integers left-to-right
    inline static void ShiftL2R(int &, int &, int &);
    // shift cyclically 3 integers so that the smallest is first
@@ -330,6 +359,7 @@ protected:
 
    void GenerateFaces();
    void GenerateNCFaceInfo();
+   void GeneratePlanars();
 
    /// Begin construction of a mesh
    void InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem);
@@ -347,6 +377,10 @@ protected:
    // mfem v1.2 format with the given section_delimiter at the end.
    void Printer(std::ostream &out = std::cout,
                 std::string section_delimiter = "") const;
+
+   void Make4D(int nx, int ny, int nz, int nt, Element::Type type, int generate_edges,
+               double sx, double sy, double sz, double st, bool generate_boundary, bool which_boundary[8],
+               double shX=0.0, double shY=0.0, double shZ=0.0, double shT=0.0);
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
        nx*ny*nz hexahedrals if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons
@@ -432,6 +466,7 @@ public:
    void AddTet(const int *vi, int attr = 1);
    void AddHex(const int *vi, int attr = 1);
    void AddHexAsTets(const int *vi, int attr = 1);
+   void AddTes(const int *vi, int attr = 1);
    // 'elem' should be allocated using the NewElement method
    void AddElement(Element *elem)     { elements[NumOfElements++] = elem; }
    void AddBdrElement(Element *elem)  { boundary[NumOfBdrElements++] = elem; }
@@ -439,6 +474,7 @@ public:
    void AddBdrTriangle(const int *vi, int attr = 1);
    void AddBdrQuad(const int *vi, int attr = 1);
    void AddBdrQuadAsTriangles(const int *vi, int attr = 1);
+   void AddBdrHex(const int *vi, int attr = 1);
 
    void GenerateBoundaryElements();
    /// Finalize the construction of a triangular Mesh.
@@ -452,6 +488,8 @@ public:
                         bool fix_orientation = true);
    /// Finalize the construction of a hexahedral Mesh.
    void FinalizeHexMesh(int generate_edges = 0, int refine = 0,
+                        bool fix_orientation = true);
+   void FinalizeTesMesh(int generate_edges = 0, int refine = 0,
                         bool fix_orientation = true);
 
    ///@}
@@ -497,6 +535,14 @@ public:
        vector maps the old element number to the new element number.  This also
        reorders the vertices and nodes edges and faces along with the elements.  */
    void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
+
+   Mesh(int nx, int ny, int nz, int nt, Element::Type type, int generate_edges = 0,
+        double sx = 1.0, double sy = 1.0, double sz = 1.0, double st = 1.0)
+   {
+	  bool generate_boundary = true;
+	  bool which_boundary[8] = {true,true,true,true,true,true,true,true};
+      Make4D(nx, ny, nz, nt, type, generate_edges, sx, sy, sz, st, generate_boundary, which_boundary);
+   }
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
        nx*ny*nz hexahedrals if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons
@@ -592,6 +638,9 @@ public:
    /// Return the number of faces in a 3D mesh.
    inline int GetNFaces() const { return NumOfFaces; }
 
+   /// Return the number of planars in a 4D mesh.
+   inline int GetNPlanars() const { return NumOfPlanars; }
+
    /// Return the number of faces (3D), edges (2D) or vertices (1D).
    int GetNumFaces() const;
 
@@ -607,6 +656,8 @@ public:
    /// Equals 1 - num_holes
    inline int EulerNumber2D() const
    { return NumOfVertices - NumOfEdges + NumOfElements; }
+   inline int EulerNumber4D() const
+   { return NumOfVertices - NumOfEdges + NumOfPlanars - NumOfFaces + NumOfElements;}
 
    int Dimension() const { return Dim; }
    int SpaceDimension() const { return spaceDim; }
@@ -643,6 +694,9 @@ public:
 
    Element *GetElement(int i) { return elements[i]; }
 
+   bool getSwappedElementInfo(int i) const { return swappedElements[i]; }
+   bool getSwappedFaceElementInfo(int i) const { return swappedFaces[i]; }
+
    const Element *GetBdrElement(int i) const { return boundary[i]; }
 
    Element *GetBdrElement(int i) { return boundary[i]; }
@@ -650,6 +704,8 @@ public:
    const Element *GetFace(int i) const { return faces[i]; }
 
    int GetFaceBaseGeometry(int i) const;
+
+   int GetPlanarBaseGeometry(int i) const;
 
    int GetElementBaseGeometry(int i = 0) const
    { return i < GetNE() ? elements[i]->GetGeometryType() : BaseGeom; }
@@ -691,6 +747,8 @@ public:
    /// Returns the indices of the vertices of edge i.
    void GetEdgeVertices(int i, Array<int> &vert) const;
 
+   void GetPlanVertices(int i, Array<int> &vert) const;
+
    /// Returns the face-to-edge Table (3D)
    Table *GetFaceEdgeTable() const;
 
@@ -702,6 +760,9 @@ public:
 
    /// Return the index and the orientation of the face of bdr element i. (3D)
    void GetBdrElementFace(int i, int *, int *) const;
+
+   /// Return the indices and the orientations of all planars of element i.
+   void GetElementPlanars(int i, Array<int> &pls, Array<int> &cor) const;
 
    /** Return the vertex index of boundary element i. (1D)
        Return the edge index of boundary element i. (2D)
@@ -827,6 +888,8 @@ public:
 
    const Table &ElementToFaceTable() const;
 
+   const Table &ElementToPlanTable() const;
+
    const Table &ElementToEdgeTable() const;
 
    ///  The returned Table must be destroyed by the caller
@@ -846,6 +909,8 @@ public:
 
        @note Refinement does not work after a call to this method! */
    virtual void ReorientTetMesh();
+
+   void ReplaceBoundaryFromFaces();
 
    int *CartesianPartitioning(int nxyz[]);
    int *GeneratePartitioning(int nparts, int part_method = 1);
@@ -1100,6 +1165,13 @@ public:
 
 
 // inline functions
+inline void Mesh::Swap(int *a) const
+{
+	int temp = a[0];
+	a[0] = a[1];
+	a[1] = temp;
+}
+
 inline void Mesh::ShiftL2R(int &a, int &b, int &c)
 {
    int t = a;

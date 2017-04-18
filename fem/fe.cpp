@@ -2446,6 +2446,689 @@ void TriLinear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    dshape(7,2) =   ox *  y;
 }
 
+QuadLinear4DFiniteElement::QuadLinear4DFiniteElement()
+   : NodalFiniteElement(4, Geometry::TESSERACT, 16, 1, FunctionSpace::Qk)
+{
+   Nodes.IntPoint(0).x = 0.0;
+   Nodes.IntPoint(0).y = 0.0;
+   Nodes.IntPoint(0).z = 0.0;
+   Nodes.IntPoint(0).t = 0.0;
+
+   Nodes.IntPoint(1).x = 1.0;
+   Nodes.IntPoint(1).y = 0.0;
+   Nodes.IntPoint(1).z = 0.0;
+   Nodes.IntPoint(1).t = 0.0;
+
+   Nodes.IntPoint(2).x = 1.0;
+   Nodes.IntPoint(2).y = 1.0;
+   Nodes.IntPoint(2).z = 0.0;
+   Nodes.IntPoint(2).t = 0.0;
+
+   Nodes.IntPoint(3).x = 0.0;
+   Nodes.IntPoint(3).y = 1.0;
+   Nodes.IntPoint(3).z = 0.0;
+   Nodes.IntPoint(3).t = 0.0;
+
+   Nodes.IntPoint(4).x = 0.0;
+   Nodes.IntPoint(4).y = 0.0;
+   Nodes.IntPoint(4).z = 1.0;
+   Nodes.IntPoint(4).t = 0.0;
+
+   Nodes.IntPoint(5).x = 1.0;
+   Nodes.IntPoint(5).y = 0.0;
+   Nodes.IntPoint(5).z = 1.0;
+   Nodes.IntPoint(5).t = 0.0;
+
+   Nodes.IntPoint(6).x = 1.0;
+   Nodes.IntPoint(6).y = 1.0;
+   Nodes.IntPoint(6).z = 1.0;
+   Nodes.IntPoint(6).t = 0.0;
+
+   Nodes.IntPoint(7).x = 0.0;
+   Nodes.IntPoint(7).y = 1.0;
+   Nodes.IntPoint(7).z = 1.0;
+   Nodes.IntPoint(7).t = 0.0;
+
+
+   Nodes.IntPoint(8).x = 0.0;
+   Nodes.IntPoint(8).y = 0.0;
+   Nodes.IntPoint(8).z = 0.0;
+   Nodes.IntPoint(8).t = 1.0;
+
+   Nodes.IntPoint(9).x = 1.0;
+   Nodes.IntPoint(9).y = 0.0;
+   Nodes.IntPoint(9).z = 0.0;
+   Nodes.IntPoint(9).t = 1.0;
+
+   Nodes.IntPoint(10).x = 1.0;
+   Nodes.IntPoint(10).y = 1.0;
+   Nodes.IntPoint(10).z = 0.0;
+   Nodes.IntPoint(10).t = 1.0;
+
+   Nodes.IntPoint(11).x = 0.0;
+   Nodes.IntPoint(11).y = 1.0;
+   Nodes.IntPoint(11).z = 0.0;
+   Nodes.IntPoint(11).t = 1.0;
+
+   Nodes.IntPoint(12).x = 0.0;
+   Nodes.IntPoint(12).y = 0.0;
+   Nodes.IntPoint(12).z = 1.0;
+   Nodes.IntPoint(12).t = 1.0;
+
+   Nodes.IntPoint(13).x = 1.0;
+   Nodes.IntPoint(13).y = 0.0;
+   Nodes.IntPoint(13).z = 1.0;
+   Nodes.IntPoint(13).t = 1.0;
+
+   Nodes.IntPoint(14).x = 1.0;
+   Nodes.IntPoint(14).y = 1.0;
+   Nodes.IntPoint(14).z = 1.0;
+   Nodes.IntPoint(14).t = 1.0;
+
+   Nodes.IntPoint(15).x = 0.0;
+   Nodes.IntPoint(15).y = 1.0;
+   Nodes.IntPoint(15).z = 1.0;
+   Nodes.IntPoint(15).t = 1.0;
+}
+
+void QuadLinear4DFiniteElement::CalcShape(const IntegrationPoint &ip,
+                                         Vector &shape) const
+{
+   double x = ip.x, y = ip.y, z = ip.z, t = ip.t;
+   double ox = 1.-x, oy = 1.-y, oz = 1.-z, ot = 1.-t;
+
+   shape(0) = ox * oy * oz * ot;
+   shape(1) =  x * oy * oz * ot;
+   shape(2) =  x *  y * oz * ot;
+   shape(3) = ox *  y * oz * ot;
+   shape(4) = ox * oy *  z * ot;
+   shape(5) =  x * oy *  z * ot;
+   shape(6) =  x *  y *  z * ot;
+   shape(7) = ox *  y *  z * ot;
+
+   shape(8) = ox * oy * oz * t;
+   shape(9) =  x * oy * oz * t;
+   shape(10) =  x *  y * oz * t;
+   shape(11) = ox *  y * oz * t;
+   shape(12) = ox * oy *  z * t;
+   shape(13) =  x * oy *  z * t;
+   shape(14) =  x *  y *  z * t;
+   shape(15) = ox *  y *  z * t;
+}
+
+void QuadLinear4DFiniteElement::CalcDShape(const IntegrationPoint &ip,
+                                          DenseMatrix &dshape) const
+{
+   double x = ip.x, y = ip.y, z = ip.z, t = ip.t;
+   double ox = 1.-x, oy = 1.-y, oz = 1.-z, ot = 1.-t;
+
+   dshape(0,0) = - oy * oz * ot;
+   dshape(0,1) = - ox * oz * ot;
+   dshape(0,2) = - ox * oy * ot;
+   dshape(0,3) = - ox * oy * oz;
+
+   dshape(1,0) =   oy * oz * ot;
+   dshape(1,1) = -  x * oz * ot;
+   dshape(1,2) = -  x * oy * ot;
+   dshape(1,3) = -  x * oy * oz;
+
+   dshape(2,0) =    y * oz * ot;
+   dshape(2,1) =    x * oz * ot;
+   dshape(2,2) = -  x *  y * ot;
+   dshape(2,3) = -  x *  y * oz;
+
+   dshape(3,0) = -  y * oz * ot;
+   dshape(3,1) =   ox * oz * ot;
+   dshape(3,2) = - ox *  y * ot;
+   dshape(3,3) = - ox *  y * oz;
+
+   dshape(4,0) = - oy *  z * ot;
+   dshape(4,1) = - ox *  z * ot;
+   dshape(4,2) =   ox * oy * ot;
+   dshape(4,3) = - ox * oy *  z;
+
+   dshape(5,0) =   oy *  z * ot;
+   dshape(5,1) = -  x *  z * ot;
+   dshape(5,2) =    x * oy * ot;
+   dshape(5,3) = -  x * oy *  z;
+
+   dshape(6,0) =    y *  z * ot;
+   dshape(6,1) =    x *  z * ot;
+   dshape(6,2) =    x *  y * ot;
+   dshape(6,3) = -  x *  y *  z;
+
+   dshape(7,0) = -  y *  z * ot;
+   dshape(7,1) =   ox *  z * ot;
+   dshape(7,2) =   ox *  y * ot;
+   dshape(7,3) = - ox *  y *  z;
+
+
+   dshape(8,0) = - oy * oz * t;
+   dshape(8,1) = - ox * oz * t;
+   dshape(8,2) = - ox * oy * t;
+   dshape(8,3) =   ox * oy * oz;
+
+   dshape(9,0) =   oy * oz * t;
+   dshape(9,1) = -  x * oz * t;
+   dshape(9,2) = -  x * oy * t;
+   dshape(9,3) =    x * oy * oz;
+
+   dshape(10,0) =    y * oz * t;
+   dshape(10,1) =    x * oz * t;
+   dshape(10,2) = -  x *  y * t;
+   dshape(10,3) =    x *  y * oz;
+
+   dshape(11,0) = -  y * oz * t;
+   dshape(11,1) =   ox * oz * t;
+   dshape(11,2) = - ox *  y * t;
+   dshape(11,3) =   ox *  y * oz;
+
+   dshape(12,0) = - oy *  z * t;
+   dshape(12,1) = - ox *  z * t;
+   dshape(12,2) =   ox * oy * t;
+   dshape(12,3) =   ox * oy *  z;
+
+   dshape(13,0) =   oy *  z * t;
+   dshape(13,1) = -  x *  z * t;
+   dshape(13,2) =    x * oy * t;
+   dshape(13,3) =    x * oy *  z;
+
+   dshape(14,0) =    y *  z * t;
+   dshape(14,1) =    x *  z * t;
+   dshape(14,2) =    x *  y * t;
+   dshape(14,3) =    x *  y *  z;
+
+   dshape(15,0) = -  y *  z * t;
+   dshape(15,1) =   ox *  z * t;
+   dshape(15,2) =   ox *  y * t;
+   dshape(15,3) =   ox *  y *  z;
+}
+
+void QuadLinear4DFiniteElement::CalcHessian (const IntegrationPoint &ip,
+                                       DenseMatrix &h) const
+{
+   double x = ip.x, y = ip.y, z = ip.z, t = ip.t;
+   double ox = 1.-x, oy = 1.-y, oz = 1.-z, ot = 1.-t;
+
+
+   //u_xx
+   h(0,0)  = 0.0;
+   h(1,0)  = 0.0;
+   h(2,0)  = 0.0;
+   h(3,0)  = 0.0;
+   h(4,0)  = 0.0;
+   h(5,0)  = 0.0;
+   h(6,0)  = 0.0;
+   h(7,0)  = 0.0;
+   h(8,0)  = 0.0;
+   h(9,0)  = 0.0;
+   h(10,0) = 0.0;
+   h(11,0) = 0.0;
+   h(12,0) = 0.0;
+   h(13,0) = 0.0;
+   h(14,0) = 0.0;
+   h(15,0) = 0.0;
+
+   //u_xy
+   h(0,1)  =  ot * oz;
+   h(1,1)  = -ot * oz;
+   h(2,1)  =  ot * oz;
+   h(3,1)  = -ot * oz;
+   h(4,1)  =  ot * z;
+   h(5,1)  = -ot * z;
+   h(6,1)  =  ot * z;
+   h(7,1)  = -ot * z;
+   h(8,1)  =  t * oz;
+   h(9,1)  = -t * oz;
+   h(10,1) =  t * oz;
+   h(11,1) = -t * oz;
+   h(12,1) =  t * z;
+   h(13,1) = -t * z;
+   h(14,1) =  t * z;
+   h(15,1) = -t * z;
+
+   //u_xz
+   h(0,2)  =  ot * oy;
+   h(1,2)  = -ot * oy;
+   h(2,2)  = -ot *  y;
+   h(3,2)  =  ot *  y;
+   h(4,2)  = -ot * oy;
+   h(5,2)  =  ot * oy;
+   h(6,2)  =  ot *  y;
+   h(7,2)  = -ot *  y;
+   h(8,2)  =   t * oy;
+   h(9,2)  = - t * oy;
+   h(10,2) = - t *  y;
+   h(11,2) =   t *  y;
+   h(12,2) = - t * oy;
+   h(13,2) =   t * oy;
+   h(14,2) =   t *  y;
+   h(15,2) = - t *  y;
+
+   //u_xt
+   h(0,3)  =  oy * oz;
+   h(1,3)  = -oy * oz;
+   h(2,3)  = - y * oz;
+   h(3,3)  =   y * oz;
+   h(4,3)  =  oy *  z;
+   h(5,3)  = -oy *  z;
+   h(6,3)  = - y *  z;
+   h(7,3)  =   y *  z;
+   h(8,3)  = -oy * oz;
+   h(9,3)  =  oy * oz;
+   h(10,3) =   y * oz;
+   h(11,3) = - y * oz;
+   h(12,3) = -oy *  z;
+   h(13,3) =  oy *  z;
+   h(14,3) =   y *  z;
+   h(15,3) = - y *  z;
+
+   //u_yy
+   h(0,4)  = 0.0;
+   h(1,4)  = 0.0;
+   h(2,4)  = 0.0;
+   h(3,4)  = 0.0;
+   h(4,4)  = 0.0;
+   h(5,4)  = 0.0;
+   h(6,4)  = 0.0;
+   h(7,4)  = 0.0;
+   h(8,4)  = 0.0;
+   h(9,4)  = 0.0;
+   h(10,4) = 0.0;
+   h(11,4) = 0.0;
+   h(12,4) = 0.0;
+   h(13,4) = 0.0;
+   h(14,4) = 0.0;
+   h(15,4) = 0.0;
+
+   //u_yz
+   h(0,5)  =  ot * ox;
+   h(1,5)  =  ot *  x;
+   h(2,5)  = -ot *  x;
+   h(3,5)  = -ot * ox;
+   h(4,5)  = -ot * ox;
+   h(5,5)  = -ot *  x;
+   h(6,5)  =  ot *  x;
+   h(7,5)  =  ot * ox;
+   h(8,5)  =   t * ox;
+   h(9,5)  =   t *  x;
+   h(10,5) = - t *  x;
+   h(11,5) = - t * ox;
+   h(12,5) = - t * ox;
+   h(13,5) = - t *  x;
+   h(14,5) =   t *  x;
+   h(15,5) =   t * ox;
+
+   //u_yt
+   h(0,6)  =  ox * oz;
+   h(1,6)  =   x * oz;
+   h(2,6)  = - x * oz;
+   h(3,6)  = -ox * oz;
+   h(4,6)  =  ox *  z;
+   h(5,6)  =   x *  z;
+   h(6,6)  = - x *  z;
+   h(7,6)  = -ox *  z;
+   h(8,6)  = -ox * oz;
+   h(9,6)  = - x * oz;
+   h(10,6) =   x * oz;
+   h(11,6) =  ox * oz;
+   h(12,6) = -ox *  z;
+   h(13,6) = - x *  z;
+   h(14,6) =   x *  z;
+   h(15,6) =  ox *  z;
+
+   //u_zz
+   h(0,7)  = 0.0;
+   h(1,7)  = 0.0;
+   h(2,7)  = 0.0;
+   h(3,7)  = 0.0;
+   h(4,7)  = 0.0;
+   h(5,7)  = 0.0;
+   h(6,7)  = 0.0;
+   h(7,7)  = 0.0;
+   h(8,7)  = 0.0;
+   h(9,7)  = 0.0;
+   h(10,7) = 0.0;
+   h(11,7) = 0.0;
+   h(12,7) = 0.0;
+   h(13,7) = 0.0;
+   h(14,7) = 0.0;
+   h(15,7) = 0.0;
+
+   //u_zt
+   h(0,8)  =  ox * oy;
+   h(1,8)  =   x * oy;
+   h(2,8)  =   x *  y;
+   h(3,8)  =  ox *  y;
+   h(4,8)  = -ox * oy;
+   h(5,8)  = - x * oy;
+   h(6,8)  = - x *  y;
+   h(7,8)  = -ox *  y;
+   h(8,8)  = -ox * oy;
+   h(9,8)  = - x * oy;
+   h(10,8) = - x *  y;
+   h(11,8) = -ox *  y;
+   h(12,8) =  ox * oy;
+   h(13,8) =   x * oy;
+   h(14,8) =   x *  y;
+   h(15,8) =  ox *  y;
+
+   //u_tt
+   h(0,9)  = 0.0;
+   h(1,9)  = 0.0;
+   h(2,9)  = 0.0;
+   h(3,9)  = 0.0;
+   h(4,9)  = 0.0;
+   h(5,9)  = 0.0;
+   h(6,9)  = 0.0;
+   h(7,9)  = 0.0;
+   h(8,9)  = 0.0;
+   h(9,9)  = 0.0;
+   h(10,9) = 0.0;
+   h(11,9) = 0.0;
+   h(12,9) = 0.0;
+   h(13,9) = 0.0;
+   h(14,9) = 0.0;
+   h(15,9) = 0.0;
+
+}
+
+Linear4DFiniteElement::Linear4DFiniteElement()
+   : NodalFiniteElement(4, Geometry::PENTATOPE, 5, 1)
+{
+
+   Nodes.IntPoint(0).x = 0.0;
+   Nodes.IntPoint(0).y = 0.0;
+   Nodes.IntPoint(0).z = 0.0;
+   Nodes.IntPoint(0).t = 0.0;
+
+   Nodes.IntPoint(1).x = 1.0;
+   Nodes.IntPoint(1).y = 0.0;
+   Nodes.IntPoint(1).z = 0.0;
+   Nodes.IntPoint(1).t = 0.0;
+
+   Nodes.IntPoint(2).x = 0.0;
+   Nodes.IntPoint(2).y = 1.0;
+   Nodes.IntPoint(2).z = 0.0;
+   Nodes.IntPoint(2).t = 0.0;
+
+   Nodes.IntPoint(3).x = 0.0;
+   Nodes.IntPoint(3).y = 0.0;
+   Nodes.IntPoint(3).z = 1.0;
+   Nodes.IntPoint(3).t = 0.0;
+
+   Nodes.IntPoint(4).x = 0.0;
+   Nodes.IntPoint(4).y = 0.0;
+   Nodes.IntPoint(4).z = 0.0;
+   Nodes.IntPoint(4).t = 1.0;
+}
+
+void Linear4DFiniteElement::CalcShape(const IntegrationPoint &ip,
+                                      Vector &shape) const
+{
+   shape(0) = 1. - ip.x - ip.y - ip.z - ip.t;
+   shape(1) = ip.x;
+   shape(2) = ip.y;
+   shape(3) = ip.z;
+   shape(4) = ip.t;
+}
+
+void Linear4DFiniteElement::CalcDShape(const IntegrationPoint &ip,
+                                       DenseMatrix &dshape) const
+{
+   if (dshape.Height() == 5)
+   {
+      double *A = &dshape(0,0);
+      A[0] = -1.; A[5] = -1.; A[10] = -1.; A[15] = -1.;
+      A[1] =  1.; A[6] =  0.; A[11] =  0.; A[16] =  0.;
+      A[2] =  0.; A[7] =  1.; A[12] =  0.; A[17] =  0.;
+      A[3] =  0.; A[8] =  0.; A[13] =  1.; A[18] =  0.;
+      A[4] =  0.; A[9] =  0.; A[14] =  0.; A[19] =  1.;
+   }
+   else
+   {
+      dshape(0,0) = -1.; dshape(0,1) = -1.; dshape(0,2) = -1.; dshape(0,3) = -1.;
+      dshape(1,0) =  1.; dshape(1,1) =  0.; dshape(1,2) =  0.; dshape(1,3) =  0.;
+      dshape(2,0) =  0.; dshape(2,1) =  1.; dshape(2,2) =  0.; dshape(2,3) =  0.;
+      dshape(3,0) =  0.; dshape(3,1) =  0.; dshape(3,2) =  1.; dshape(3,3) =  0.;
+      dshape(4,0) =  0.; dshape(4,1) =  0.; dshape(4,2) =  0.; dshape(4,3) =  1.;
+   }
+}
+
+void Linear4DFiniteElement::CalcHessian(const IntegrationPoint &ip,
+                                       DenseMatrix &h) const
+{
+  h = 0.0;
+}
+
+void Linear4DFiniteElement::GetFaceDofs (int face, int **dofs, int *ndofs)
+   const
+{
+   static int face_dofs[5][4] = {{0, 1, 2, 3}, {0, 1, 2, 4}, {0, 1, 3, 4}, {0, 2, 3, 4}, {1, 2, 3, 4}};
+
+   *ndofs = 4;
+   *dofs  = face_dofs[face];
+}
+
+
+
+Quadratic4DFiniteElement::Quadratic4DFiniteElement()
+   : NodalFiniteElement(4, Geometry::PENTATOPE, 15, 2)
+{
+   Nodes.IntPoint(0).x = 0.0;
+   Nodes.IntPoint(0).y = 0.0;
+   Nodes.IntPoint(0).z = 0.0;
+   Nodes.IntPoint(0).t = 0.0;
+
+   Nodes.IntPoint(1).x = 1.0;
+   Nodes.IntPoint(1).y = 0.0;
+   Nodes.IntPoint(1).z = 0.0;
+   Nodes.IntPoint(1).t = 0.0;
+
+   Nodes.IntPoint(2).x = 0.0;
+   Nodes.IntPoint(2).y = 1.0;
+   Nodes.IntPoint(2).z = 0.0;
+   Nodes.IntPoint(2).t = 0.0;
+
+   Nodes.IntPoint(3).x = 0.0;
+   Nodes.IntPoint(3).y = 0.0;
+   Nodes.IntPoint(3).z = 1.0;
+   Nodes.IntPoint(3).t = 0.0;
+
+   Nodes.IntPoint(4).x = 0.0;
+   Nodes.IntPoint(4).y = 0.0;
+   Nodes.IntPoint(4).z = 0.0;
+   Nodes.IntPoint(4).t = 1.0;
+
+   Nodes.IntPoint(5).x = 0.5;
+   Nodes.IntPoint(5).y = 0.0;
+   Nodes.IntPoint(5).z = 0.0;
+   Nodes.IntPoint(5).t = 0.0;
+
+   Nodes.IntPoint(6).x = 0.0;
+   Nodes.IntPoint(6).y = 0.5;
+   Nodes.IntPoint(6).z = 0.0;
+   Nodes.IntPoint(6).t = 0.0;
+
+   Nodes.IntPoint(7).x = 0.0;
+   Nodes.IntPoint(7).y = 0.0;
+   Nodes.IntPoint(7).z = 0.5;
+   Nodes.IntPoint(7).t = 0.0;
+
+   Nodes.IntPoint(8).x = 0.0;
+   Nodes.IntPoint(8).y = 0.0;
+   Nodes.IntPoint(8).z = 0.0;
+   Nodes.IntPoint(8).t = 0.5;
+
+   Nodes.IntPoint(9).x = 0.5;
+   Nodes.IntPoint(9).y = 0.5;
+   Nodes.IntPoint(9).z = 0.0;
+   Nodes.IntPoint(9).t = 0.0;
+
+   Nodes.IntPoint(10).x = 0.5;
+   Nodes.IntPoint(10).y = 0.0;
+   Nodes.IntPoint(10).z = 0.5;
+   Nodes.IntPoint(10).t = 0.0;
+
+   Nodes.IntPoint(11).x = 0.5;
+   Nodes.IntPoint(11).y = 0.0;
+   Nodes.IntPoint(11).z = 0.0;
+   Nodes.IntPoint(11).t = 0.5;
+
+   Nodes.IntPoint(12).x = 0.0;
+   Nodes.IntPoint(12).y = 0.5;
+   Nodes.IntPoint(12).z = 0.5;
+   Nodes.IntPoint(12).t = 0.0;
+
+   Nodes.IntPoint(13).x = 0.0;
+   Nodes.IntPoint(13).y = 0.5;
+   Nodes.IntPoint(13).z = 0.0;
+   Nodes.IntPoint(13).t = 0.5;
+
+   Nodes.IntPoint(14).x = 0.0;
+   Nodes.IntPoint(14).y = 0.0;
+   Nodes.IntPoint(14).z = 0.5;
+   Nodes.IntPoint(14).t = 0.5;
+}
+
+void Quadratic4DFiniteElement::CalcShape(const IntegrationPoint &ip,
+                                         Vector &shape) const
+{
+   double L0, L1, L2, L3, L4;
+
+   L0 = 1. - ip.x - ip.y - ip.z - ip.t;
+   L1 = ip.x;
+   L2 = ip.y;
+   L3 = ip.z;
+   L4 = ip.t;
+
+   shape(0) = L0 * ( 2.0 * L0 - 1.0 );
+   shape(1) = L1 * ( 2.0 * L1 - 1.0 );
+   shape(2) = L2 * ( 2.0 * L2 - 1.0 );
+   shape(3) = L3 * ( 2.0 * L3 - 1.0 );
+   shape(4) = L4 * ( 2.0 * L4 - 1.0 );
+   shape(5) = 4.0 * L0 * L1;
+   shape(6) = 4.0 * L0 * L2;
+   shape(7) = 4.0 * L0 * L3;
+   shape(8) = 4.0 * L0 * L4;
+   shape(9) = 4.0 * L1 * L2;
+   shape(10) = 4.0 * L1 * L3;
+   shape(11) = 4.0 * L1 * L4;
+   shape(12) = 4.0 * L2 * L3;
+   shape(13) = 4.0 * L2 * L4;
+   shape(14) = 4.0 * L3 * L4;
+}
+
+void Quadratic4DFiniteElement::CalcDShape(const IntegrationPoint &ip,
+                                          DenseMatrix &dshape) const
+{
+   double x, y, z, t, L0;
+
+   x = ip.x;
+   y = ip.y;
+   z = ip.z;
+   t = ip.t;
+   L0 = 1.0 - x - y - z - t;
+
+   dshape(0,0) = dshape(0,1) = dshape(0,2) = dshape(0,3) = 1.0 - 4.0 * L0;
+
+   dshape(1,0) = -1.0 + 4.0 * x; dshape(1,1) = 0.0; dshape(1,2) = 0.0; dshape(1,3) = 0.0;
+   dshape(2,0) = 0.0; dshape(2,1) = -1.0 + 4.0 * y; dshape(2,2) = 0.0; dshape(2,3) = 0.0;
+   dshape(3,0) = 0.0; dshape(3,1) = 0.0; dshape(3,2) = -1.0 + 4.0 * z; dshape(3,3) = 0.0;
+   dshape(4,0) = 0.0; dshape(4,1) = 0.0; dshape(4,2) = 0.0; dshape(4,3) = -1.0 + 4.0 * t;
+
+   dshape(5,0) = 4.0 * (L0 - x); dshape(5,1) = dshape(5,2) = dshape(5,3) = -4.0 * x;
+   dshape(6,1) = 4.0 * (L0 - y); dshape(6,0) = dshape(6,2) = dshape(6,3) = -4.0 * y;
+   dshape(7,2) = 4.0 * (L0 - z); dshape(7,0) = dshape(7,1) = dshape(7,3) = -4.0 * z;
+   dshape(8,3) = 4.0 * (L0 - t); dshape(8,0) = dshape(8,1) = dshape(8,2) = -4.0 * t;
+
+   dshape(9,0) = 4.0 * y; dshape(9,1) = 4.0 * x; dshape(9,2) = 0.0; dshape(9,3) = 0.0;
+   dshape(10,0) = 4.0 * z; dshape(10,1) = 0.0; dshape(10,2) = 4.0 * x; dshape(10,3) = 0.0;
+   dshape(11,0) = 4.0 * t; dshape(11,1) = 0.0; dshape(11,2) = 0.0; dshape(11,3) = 4.0 * x;
+
+   dshape(12,0) = 0.0; dshape(12,1) = 4.0 * z; dshape(12,2) = 4.0 * y; dshape(12,3) = 0.0;
+   dshape(13,0) = 0.0; dshape(13,1) = 4.0 * t; dshape(13,2) = 0.0; dshape(13,3) = 4.0 * y;
+   dshape(14,0) = 0.0; dshape(14,1) = 0.0; dshape(14,2) = 4.0 * t; dshape(14,3) = 4.0 * z;
+}
+
+void Quadratic4DFiniteElement::CalcHessian(const IntegrationPoint &ip,
+                           DenseMatrix &h) const
+{
+	cout << "warning the hessian is not implemented for pentatopes!!!" << endl;
+
+  //u_xx
+  h(0,0) = 4.;
+  h(1,0) = 4.;
+  h(2,0) = 0.;
+  h(3,0) = 0.;
+  h(4,0) = -8.;
+  h(5,0) = 0.;
+  h(6,0) = 0.;
+  h(7,0) = 0.;
+  h(8,0) = 0.;
+  h(9,0) = 0.;
+
+  //u_xy
+  h(0,1) = 4.;
+  h(1,1) = 0.;
+  h(2,1) = 0.;
+  h(3,1) = 0.;
+  h(4,1) = -4.;
+  h(5,1) = -4.;
+  h(6,1) = 0.;
+  h(7,1) = 4.;
+  h(8,1) = 0.;
+  h(9,1) = 0.;
+
+  //u_xz
+  h(0,2) = 4.;
+  h(1,2) = 0.;
+  h(2,2) = 0.;
+  h(3,2) = 0.;
+  h(4,2) = -4.;
+  h(5,2) = 0.;
+  h(6,2) = -4.;
+  h(7,2) = 0.;
+  h(8,2) = 4.;
+  h(9,2) = 0.;
+
+  //u_yy
+  h(0,3) = 4.;
+  h(1,3) = 0.;
+  h(2,3) = 4.;
+  h(3,3) = 0.;
+  h(4,3) = 0.;
+  h(5,3) = -8.;
+  h(6,3) = 0.;
+  h(7,3) = 0.;
+  h(8,3) = 0.;
+  h(9,3) = 0.;
+
+  //u_yz
+  h(0,4) = 4.;
+  h(1,4) = 0.;
+  h(2,4) = 0.;
+  h(3,4) = 0.;
+  h(4,4) = 0.;
+  h(5,4) = -4.;
+  h(6,4) = -4.;
+  h(7,4) = 0.;
+  h(8,4) = 0.;
+  h(9,4) = 4.;
+
+  //u_zz
+  h(0,5) = 4.;
+  h(1,5) = 0.;
+  h(2,5) = 0.;
+  h(3,5) = 4.;
+  h(4,5) = 0.;
+  h(5,5) = 0.;
+  h(6,5) = -8.;
+  h(7,5) = 0.;
+  h(8,5) = 0.;
+  h(9,5) = 0.;
+}
+
 P0SegmentFiniteElement::P0SegmentFiniteElement(int Ord)
    : NodalFiniteElement(1, Geometry::SEGMENT , 1, Ord)  // defaul Ord = 0
 {

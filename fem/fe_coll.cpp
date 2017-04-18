@@ -530,6 +530,8 @@ LinearFECollection::FiniteElementForGeometry(int GeomType) const
       case Geometry::SQUARE:      return &QuadrilateralFE;
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
+      case Geometry::PENTATOPE:   return &PentatopeFE;
+      case Geometry::TESSERACT:   return &TesseractFE;
       default:
          mfem_error ("LinearFECollection: unknown geometry type.");
    }
@@ -546,6 +548,8 @@ int LinearFECollection::DofForGeometry(int GeomType) const
       case Geometry::SQUARE:      return 0;
       case Geometry::TETRAHEDRON: return 0;
       case Geometry::CUBE:        return 0;
+      case Geometry::PENTATOPE:   return 0;
+      case Geometry::TESSERACT:   return 0;
       default:
          mfem_error ("LinearFECollection: unknown geometry type.");
    }
@@ -569,6 +573,7 @@ QuadraticFECollection::FiniteElementForGeometry(int GeomType) const
       case Geometry::SQUARE:      return &QuadrilateralFE;
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
+      case Geometry::PENTATOPE:   return &PentatopeFE;
       default:
          mfem_error ("QuadraticFECollection: unknown geometry type.");
    }
@@ -585,6 +590,7 @@ int QuadraticFECollection::DofForGeometry(int GeomType) const
       case Geometry::SQUARE:      return 1;
       case Geometry::TETRAHEDRON: return 0;
       case Geometry::CUBE:        return 1;
+      case Geometry::PENTATOPE:   return 0;
       default:
          mfem_error ("QuadraticFECollection: unknown geometry type.");
    }

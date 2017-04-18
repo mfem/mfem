@@ -856,6 +856,12 @@ IntegrationRules::IntegrationRules(int Ref, int _type):
 
    CubeIntRules.SetSize(32);
    CubeIntRules = NULL;
+
+   PentatopeIntRules.SetSize(32);
+   PentatopeIntRules = NULL;
+
+   TesseractIntRules.SetSize(32);
+   TesseractIntRules = NULL;
 }
 
 const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
@@ -870,6 +876,8 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
       case Geometry::SQUARE:      ir_array = &SquareIntRules; break;
       case Geometry::TETRAHEDRON: ir_array = &TetrahedronIntRules; break;
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
+      case Geometry::PENTATOPE:   ir_array = &PentatopeIntRules; break;
+      case Geometry::TESSERACT:   ir_array = &TesseractIntRules; break;
       default:
          mfem_error("IntegrationRules::Get(...) : Unknown geometry type!");
          ir_array = NULL;
@@ -908,6 +916,8 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
       case Geometry::SQUARE:      ir_array = &SquareIntRules; break;
       case Geometry::TETRAHEDRON: ir_array = &TetrahedronIntRules; break;
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
+      case Geometry::PENTATOPE:   ir_array = &PentatopeIntRules; break;
+      case Geometry::TESSERACT:   ir_array = &TesseractIntRules; break;
       default:
          mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
          ir_array = NULL;
@@ -950,6 +960,8 @@ IntegrationRules::~IntegrationRules()
    DeleteIntRuleArray(SquareIntRules);
    DeleteIntRuleArray(TetrahedronIntRules);
    DeleteIntRuleArray(CubeIntRules);
+   DeleteIntRuleArray(PentatopeIntRules);
+   DeleteIntRuleArray(TesseractIntRules);
 }
 
 
@@ -970,6 +982,10 @@ IntegrationRule *IntegrationRules::GenerateIntegrationRule(int GeomType,
          return TetrahedronIntegrationRule(Order);
       case Geometry::CUBE:
          return CubeIntegrationRule(Order);
+      case Geometry::PENTATOPE:
+         return PentatopeIntegrationRule(Order);
+      case Geometry::TESSERACT:
+         return TesseractIntegrationRule(Order);
       default:
          mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
          return NULL;
@@ -1592,6 +1608,105 @@ IntegrationRule *IntegrationRules::CubeIntegrationRule(int Order)
                              *SegmentIntRules[RealOrder],
                              *SegmentIntRules[RealOrder]);
    return CubeIntRules[Order];
+}
+
+IntegrationRule *IntegrationRules::PentatopeIntegrationRule(int Order)
+{
+   IntegrationRule *ir;
+
+   switch (Order)
+   {
+   case 0:  // 1 point - degree 1
+   case 1:
+	   PentatopeIntRules[0] = PentatopeIntRules[1] = ir = new IntegrationRule(1);
+      ir->AddPentMidPoint(0, 1./24.);
+      return ir;
+
+   case 2:  // 5 points - degree 3
+   case 3:
+	   PentatopeIntRules[2] = PentatopeIntRules[3] = ir = new IntegrationRule(5);
+       ir->AddPentPoints5(0,0.118350341907227374, 0.526598632371090503, 1/120.);
+       return ir;
+
+   default:
+	   {
+		   //construct the higher integration rules with the duffy transformation --> 1d integral in time and a tet quad-rule w.r.t space
+
+		   IntegrationRule *timeIR = SegmentIntegrationRule(Order+3);
+		   IntegrationRule *tetIR = TetrahedronIntegrationRule(Order);
+
+		   int NIP = timeIR->GetNPoints() * tetIR->GetNPoints();
+		   AllocIntRule(PentatopeIntRules, Order);
+		   PentatopeIntRules[Order] = ir = new IntegrationRule(NIP);
+
+	//	   cout << "higher integration rules for pentatopes implemented with duffy ( order = " << Order << " ) --> " << NIP << " int. points!" << endl;
+
+		   double xi,yi,zi,ti, weight;
+
+		   int pos = 0;
+		   for(int i=0; i<timeIR->GetNPoints(); i++)
+		   {
+			   ti = timeIR->IntPoint(i).x;
+
+			   for(int j=0; j<tetIR->GetNPoints(); j++)
+			   {
+				   xi = (1.-ti)*tetIR->IntPoint(j).x;
+				   yi = (1.-ti)*tetIR->IntPoint(j).y;
+				   zi = (1.-ti)*tetIR->IntPoint(j).z;
+				   weight = timeIR->IntPoint(i).weight * tetIR->IntPoint(j).weight * (1.-ti) * (1.-ti) * (1.-ti);
+	//			   if(weight<0) cout << "warning weight is negative!" << endl;
+
+				   ir->AddPentPoint(pos, xi,yi,zi,ti,weight);
+
+				   pos++;
+			   }
+		   }
+	   }
+   }
+
+   return PentatopeIntRules[Order];
+
+}
+
+IntegrationRule *IntegrationRules::TesseractIntegrationRule(int Order)
+{
+   int k, l, m, n, np, index;
+   int i = (Order / 2) * 2 + 1;   // Get closest odd # >= Order
+
+   if (!HaveIntRule(SegmentIntRules, i))
+	  SegmentIntegrationRule(i);
+   AllocIntRule(TesseractIntRules, i);
+   np = SegmentIntRules[i] -> GetNPoints();
+   TesseractIntRules[i-1] = TesseractIntRules[i] = new IntegrationRule(np*np*np*np);
+   index = 0;
+   for (k = 0; k < np; k++)
+	  for (l = 0; l < np; l++)
+		 for (m = 0; m < np; m++)
+			 for (n = 0; n < np; n++)
+			 {
+//				 index = ((k*np+l)*np+m)*np + n;
+
+				 TesseractIntRules[i] -> IntPoint(index).x =
+				   SegmentIntRules[i] -> IntPoint(n).x;
+
+				 TesseractIntRules[i] -> IntPoint(index).y =
+				   SegmentIntRules[i] -> IntPoint(m).x;
+
+				 TesseractIntRules[i] -> IntPoint(index).z =
+				   SegmentIntRules[i] -> IntPoint(l).x;
+
+				 TesseractIntRules[i] -> IntPoint(index).t =
+				   SegmentIntRules[i] -> IntPoint(k).x;
+
+				 TesseractIntRules[i] -> IntPoint(index).weight =
+				   SegmentIntRules[i] -> IntPoint(k).weight *
+				   SegmentIntRules[i] -> IntPoint(l).weight *
+				   SegmentIntRules[i] -> IntPoint(m).weight *
+				   SegmentIntRules[i] -> IntPoint(n).weight;
+
+				 index++;
+			 }
+   return TesseractIntRules[i];
 }
 
 }

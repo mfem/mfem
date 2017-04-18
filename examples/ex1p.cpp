@@ -101,6 +101,8 @@ int main(int argc, char *argv[])
       }
    }
 
+
+
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
@@ -120,7 +122,12 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec;
    if (order > 0)
    {
-      fec = new H1_FECollection(order, dim);
+	  if(dim==4)
+	  {
+		if(order==1) fec = new LinearFECollection;
+		else fec = new QuadraticFECollection;
+	  }
+	  else fec = new H1_FECollection(order, dim);
    }
    else if (pmesh->GetNodes())
    {

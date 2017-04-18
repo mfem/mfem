@@ -382,6 +382,8 @@ private:
    const BiLinear2DFiniteElement QuadrilateralFE;
    const Linear3DFiniteElement TetrahedronFE;
    const TriLinear3DFiniteElement ParallelepipedFE;
+   const Linear4DFiniteElement PentatopeFE;
+   const QuadLinear4DFiniteElement TesseractFE;
 public:
    LinearFECollection() { }
 
@@ -405,6 +407,7 @@ private:
    const BiQuad2DFiniteElement QuadrilateralFE;
    const Quadratic3DFiniteElement TetrahedronFE;
    const LagrangeHexFiniteElement ParallelepipedFE;
+   const Quadratic4DFiniteElement PentatopeFE;
 
 public:
    QuadraticFECollection() : ParallelepipedFE(2) { }

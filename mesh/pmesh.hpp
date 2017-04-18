@@ -35,16 +35,19 @@ protected:
    int NRanks, MyRank;
 
    Array<Element *> shared_edges;
+   Array<Element *> shared_planars;
    Array<Element *> shared_faces;
 
    /// Shared objects in each group.
    Table group_svert;
    Table group_sedge;
+   Table group_splan;
    Table group_sface;
 
    /// Shared to local index mapping.
    Array<int> svert_lvert;
    Array<int> sedge_ledge;
+   Array<int> splan_lplan;
    Array<int> sface_lface;
 
    /// Create from a nonconforming mesh.
@@ -137,11 +140,13 @@ public:
    ///@{ @name These methods require group > 0
    int GroupNVertices(int group) { return group_svert.RowSize(group-1); }
    int GroupNEdges(int group)    { return group_sedge.RowSize(group-1); }
+   int GroupNPlanars(int group)  { return group_splan.RowSize(group-1); }
    int GroupNFaces(int group)    { return group_sface.RowSize(group-1); }
 
    int GroupVertex(int group, int i)
    { return svert_lvert[group_svert.GetRow(group-1)[i]]; }
    void GroupEdge(int group, int i, int &edge, int &o);
+   void GroupPlanar(int group, int i, int &planar, int &o);
    void GroupFace(int group, int i, int &face, int &o);
    ///@}
 

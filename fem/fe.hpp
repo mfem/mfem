@@ -835,6 +835,76 @@ public:
    { dofs = 0.0; dofs(vertex) = 1.0; }
 };
 
+/// Class for quad-linear FE on tesseract (4d element)
+class QuadLinear4DFiniteElement : public NodalFiniteElement
+{
+public:
+   /// Construct a quad-linear FE on tesseract
+	QuadLinear4DFiniteElement();
+
+   /** virtual function which evaluates the values of all
+       shape functions at a given point ip and stores
+       them in the vector shape of dimension Dof (16) */
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+
+   /** virtual function which evaluates the values of all
+       partial derivatives of all shape functions at a given
+       point ip and stores them in the matrix dshape (Dof x Dim) (16 x 4)
+       so that each row contains the derivatives of one shape function */
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+
+   virtual void CalcHessian (const IntegrationPoint &ip,
+                             DenseMatrix &h) const;
+
+   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   { dofs = 0.0; dofs(vertex) = 1.0; }
+};
+
+/// Class for linear FE on a pentatope
+class Linear4DFiniteElement : public NodalFiniteElement
+{
+public:
+   /// Construct a linear FE on tetrahedron
+	Linear4DFiniteElement();
+
+   /** virtual function which evaluates the values of all
+       shape functions at a given point ip and stores
+       them in the vector shape of dimension Dof (4) */
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+
+   /** virtual function which evaluates the values of all
+       partial derivatives of all shape functions at a given
+       point ip and stores them in the matrix dshape (Dof x Dim) (4 x 3)
+       so that each row contains the derivatives of one shape function */
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+
+   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   { dofs = 0.0; dofs(vertex) = 1.0; }
+
+   virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
+
+   virtual void CalcHessian(const IntegrationPoint &ip, DenseMatrix &h) const;
+};
+
+/// Class for quadratic FE on pentatope
+class Quadratic4DFiniteElement : public NodalFiniteElement
+{
+public:
+   /// Construct a quadratic FE on pentatope
+	Quadratic4DFiniteElement();
+
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                           DenseMatrix &h) const;
+};
+
+
 /// Crouzeix-Raviart finite element on triangle
 class CrouzeixRaviartFiniteElement : public NodalFiniteElement
 {

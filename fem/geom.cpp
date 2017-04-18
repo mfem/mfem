@@ -15,10 +15,10 @@ namespace mfem
 {
 
 const char *Geometry::Name[NumGeom] =
-{ "Point", "Segment", "Triangle", "Square", "Tetrahedron", "Cube" };
+{ "Point", "Segment", "Triangle", "Square", "Tetrahedron", "Cube", "Pentatope", "Tesseract" };
 
 const double Geometry::Volume[NumGeom] =
-{ 1.0, 1.0, 0.5, 1.0, 1./6, 1.0 };
+{ 1.0, 1.0, 0.5, 1.0, 1./6, 1.0, 1./24., 1.0 };
 
 Geometry::Geometry()
 {
@@ -111,6 +111,34 @@ Geometry::Geometry()
    GeomVert[5]->IntPoint(7).y = 1.0;
    GeomVert[5]->IntPoint(7).z = 1.0;
 
+   // Vertices for Geometry::PENTATOPE
+   GeomVert[6] = new IntegrationRule(5);
+   GeomVert[6]->IntPoint(0).x = 0.0;
+   GeomVert[6]->IntPoint(0).y = 0.0;
+   GeomVert[6]->IntPoint(0).z = 0.0;
+   GeomVert[6]->IntPoint(0).t = 0.0;
+
+   GeomVert[6]->IntPoint(1).x = 1.0;
+   GeomVert[6]->IntPoint(1).y = 0.0;
+   GeomVert[6]->IntPoint(1).z = 0.0;
+   GeomVert[6]->IntPoint(1).t = 0.0;
+
+   GeomVert[6]->IntPoint(2).x = 0.0;
+   GeomVert[6]->IntPoint(2).y = 1.0;
+   GeomVert[6]->IntPoint(2).z = 0.0;
+   GeomVert[6]->IntPoint(2).t = 0.0;
+
+   GeomVert[6]->IntPoint(3).x = 0.0;
+   GeomVert[6]->IntPoint(3).y = 0.0;
+   GeomVert[6]->IntPoint(3).z = 1.0;
+   GeomVert[6]->IntPoint(3).t = 0.0;
+
+   GeomVert[6]->IntPoint(4).x = 0.0;
+   GeomVert[6]->IntPoint(4).y = 0.0;
+   GeomVert[6]->IntPoint(4).z = 0.0;
+   GeomVert[6]->IntPoint(4).t = 1.0;
+
+
    GeomCenter[POINT].x = 0.0;
    GeomCenter[POINT].y = 0.0;
    GeomCenter[POINT].z = 0.0;
@@ -134,6 +162,11 @@ Geometry::Geometry()
    GeomCenter[CUBE].x = 0.5;
    GeomCenter[CUBE].y = 0.5;
    GeomCenter[CUBE].z = 0.5;
+
+   GeomCenter[PENTATOPE].x = 0.2;
+   GeomCenter[PENTATOPE].y = 0.2;
+   GeomCenter[PENTATOPE].z = 0.2;
+   GeomCenter[PENTATOPE].t = 0.2;
 
    PerfGeomToGeomJac[POINT]       = NULL;
    PerfGeomToGeomJac[SEGMENT]     = NULL;
@@ -179,6 +212,7 @@ const IntegrationRule * Geometry::GetVertices(int GeomType)
       case Geometry::SQUARE:      return GeomVert[3];
       case Geometry::TETRAHEDRON: return GeomVert[4];
       case Geometry::CUBE:        return GeomVert[5];
+      case Geometry::PENTATOPE:   return GeomVert[6];
       default:
          mfem_error ("Geometry::GetVertices(...)");
    }
@@ -540,6 +574,65 @@ Constants<Geometry::CUBE>::VertToVert::J[12][2] =
    {6, 5},                 // 5,6:5
    {7,-7}                  // 6,7:-7
 };
+
+
+const int Geometry::
+Constants<Geometry::PENTATOPE>::Edges[10][2] =
+{{0, 1}, {0, 2}, {0, 3}, {0, 4}, {1, 2}, {1, 3}, {1, 4}, {2, 3}, {2, 4}, {3, 4}};
+const int Geometry::
+Constants<Geometry::PENTATOPE>::FaceTypes[5] =
+{
+   Geometry::TETRAHEDRON, Geometry::TETRAHEDRON,
+   Geometry::TETRAHEDRON, Geometry::TETRAHEDRON,
+   Geometry::TETRAHEDRON
+};
+const int Geometry::
+Constants<Geometry::PENTATOPE>::FaceVert[5][4] =
+{
+ {0, 1, 2, 3}, {0, 1, 2, 4},
+ {0, 1, 3, 4}, {0, 2, 3, 4},
+ {1, 2, 3, 4}
+// {0, 1, 2, 3}, {1, 0, 2, 4},     //<---- sorted such that the normal vectors are outer normal vectors
+// {0, 1, 3, 4}, {2, 0, 3, 4},
+// {1, 2, 3, 4}
+};
+const int Geometry::
+Constants<Geometry::PENTATOPE>::PlanarVert[10][3] =
+{
+  {0, 1, 2}, {0, 1, 3}, {0, 1, 4},
+  {0, 2, 3}, {0, 2, 4}, {0, 3, 4},
+  {1, 2, 3}, {1, 2, 4}, {1, 3, 4},
+  {2, 3, 4}
+};
+
+//const int Geometry::
+//Constants<Geometry::PENTATOPE>::VertToVert::I[4] = {0, 3, 5, 6};
+//const int Geometry::
+//Constants<Geometry::PENTATOPE>::VertToVert::J[6][2] =
+//{{1, 0}, {2, 1}, {3, 2}, {2, 3}, {3, 4}, {3, 5}};
+
+
+const int Geometry::
+Constants<Geometry::TESSERACT>::FaceVert[8][8] =
+{
+//	{8,11,12,15,0,3,4,7},   //x bottom
+//	{1,2,6,5,9,10,14,13},   //x top
+//	{0,1,5,4,8,9,13,12},    //y bottom
+//	{2,3,7,6,10,11,15,14},  //y top
+//	{8,9,10,11,0,1,2,3},    // z bottom
+//	{4,5,6,7,12,13,14,15},  //z top
+//	{0,1,2,3,4,5,6,7},      //t botom
+//	{12,13,14,15,8,9,10,11} //t top
+	{8,11,15,12,0,3,7,4},   //x bottom
+	{1,2,6,5,9,10,14,13},   //x top
+	{0,1,5,4,8,9,13,12},    //y bottom
+	{2,3,7,6,10,11,15,14},  //y top
+	{8,9,10,11,0,1,2,3},    // z bottom
+	{4,5,6,7,12,13,14,15},  //z top
+	{0,1,2,3,4,5,6,7},      //t botom
+	{12,13,14,15,8,9,10,11} //t top
+};
+
 
 Geometry Geometries;
 

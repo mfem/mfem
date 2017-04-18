@@ -32,36 +32,6 @@ STable3D::STable3D (int nr)
    NElem = 0;
 }
 
-inline void Sort3 (int &r, int &c, int &f)
-{
-   int t;
-
-   if (r > c)
-      if (c > f)
-      {
-         t = r;  r = f;  f = t;  //  (r,c,f) --> (f,c,r)
-      }
-      else if (r > f)
-      {
-         t = r;  r = c;  c = f;  f = t;  //  (r,c,f) --> (c,f,r)
-      }
-      else
-      {
-         t = r;  r = c;  c = t;  //  (r,c,f) --> (c,r,f)
-      }
-   else if (c > f)
-   {
-      if (r > f)
-      {
-         t = f;  f = c;  c = r;  r = t;  //  (r,c,f) --> (f,r,c)
-      }
-      else
-      {
-         t = c;  c = f;  f = t;  //  (r,c,f) --> (r,f,c)
-      }
-   }
-}
-
 int STable3D::Push (int r, int c, int f)
 {
    STable3DNode *node;
@@ -202,5 +172,235 @@ STable3D::~STable3D ()
 #endif
    delete [] Rows;
 }
+
+
+
+
+
+STable4D::STable4D (int nr)
+{
+   int i;
+
+   Size = nr;
+   Rows = new STable4DNode *[nr];
+   for (i = 0; i < nr; i++)
+      Rows[i] = NULL;
+   NElem = 0;
+}
+
+
+int STable4D::Push (int r, int c, int f, int t)
+{
+   STable4DNode *node;
+
+   MFEM_ASSERT(r != c && c != f && f != r && r!=t && c!=t && f!=t,
+               "STable4D::Push : r = " << r << ", c = " << c << ", f = " << f << ", t = " << t);
+
+   Sort4(r, c, f, t);
+
+   for (node = Rows[r]; node != NULL; node = node->Prev)
+   {
+      if (node->Column == c)
+         if (node->Floor == f)
+        	 if(node->Trace == t)
+                return node->Number;
+   }
+
+#ifdef MFEM_USE_MEMALLOC
+   node = NodesMem.Alloc ();
+#else
+   node = new STable4DNode;
+#endif
+   node->Column = c;
+   node->Floor  = f;
+   node->Trace = t;
+   node->Number = NElem;
+   node->Prev   = Rows[r];
+   Rows[r] = node;
+
+   NElem++;
+   return (NElem-1);
+}
+
+int STable4D::operator() (int r, int c, int f, int t) const
+{
+   STable4DNode *node;
+
+   Sort4(r, c, f, t);
+
+   for (node = Rows[r]; node != NULL; node = node->Prev)
+   {
+      if (node->Column == c)
+         if (node->Floor == f)
+        	 if(node->Trace == t)
+                return node->Number;
+   }
+
+   MFEM_ABORT("STable4D::operator(): (r,c,f,t) = (" << r << "," << c << "," << f << "," << t <<")");
+
+   return -1;
+}
+
+int STable4D::Index (int r, int c, int f, int t) const
+{
+   STable4DNode *node;
+
+   Sort4(r, c, f, t);
+
+   for (node = Rows[r]; node != NULL; node = node->Prev)
+   {
+      if (node->Column == c)
+         if (node->Floor == f)
+        	 if(node->Trace == t)
+                return node->Number;
+   }
+
+   return -1;
+}
+
+
+STable4D::~STable4D ()
+{
+#ifdef MFEM_USE_MEMALLOC
+   // NodesMem.Clear();  // this is done implicitly
+#else
+   for (int i = 0; i < Size; i++)
+   {
+      STable4DNode *aux, *node_p = Rows[i];
+      while (node_p != NULL)
+      {
+         aux = node_p;
+         node_p = node_p->Prev;
+         delete aux;
+      }
+   }
+#endif
+   delete [] Rows;
+}
+
+
+
+
+STable5D::STable5D (int nr)
+{
+   int i;
+
+   Size = nr;
+   Rows = new STable5DNode *[nr];
+   for (i = 0; i < nr; i++)
+      Rows[i] = NULL;
+   NElem = 0;
+}
+
+
+int STable5D::Push (int r, int c, int f, int t, int u)
+{
+   STable5DNode *node;
+
+   MFEM_ASSERT(r != c && c != f && f != r && r!=t && c!=t && f!=t && r!=u && c!=u && f!=u && t!=u,
+               "STable5D::Push : r = " << r << ", c = " << c << ", f = " << f << ", t = " << t << ", u = " << u);
+
+   Sort5(r, c, f, t, u);
+
+   for (node = Rows[r]; node != NULL; node = node->Prev)
+   {
+      if (node->Column == c)
+         if (node->Floor == f)
+        	 if(node->Trace == t)
+        		 if(node->Next == u)
+        			 return node->Number;
+   }
+
+#ifdef MFEM_USE_MEMALLOC
+   node = NodesMem.Alloc ();
+#else
+   node = new STable5DNode;
+#endif
+   node->Column = c;
+   node->Floor  = f;
+   node->Trace = t;
+   node->Next = u;
+   node->Number = NElem;
+   node->Prev   = Rows[r];
+   Rows[r] = node;
+
+   NElem++;
+   return (NElem-1);
+}
+
+int STable5D::operator() (int r, int c, int f, int t, int u) const
+{
+   STable5DNode *node;
+
+   Sort5(r, c, f, t, u);
+
+   for (node = Rows[r]; node != NULL; node = node->Prev)
+   {
+      if (node->Column == c)
+         if (node->Floor == f)
+        	 if(node->Trace == t)
+        		 if(node->Next == u)
+        			 return node->Number;
+   }
+
+   MFEM_ABORT("STable4D::operator(): (r,c,f,t,u) = (" << r << "," << c << "," << f << "," << t << "," << u <<")");
+
+   return 0;
+}
+
+int STable5D::Index (int r, int c, int f, int t, int u) const
+{
+   STable5DNode *node;
+
+   Sort5(r, c, f, t, u);
+
+   for (node = Rows[r]; node != NULL; node = node->Prev)
+   {
+      if (node->Column == c)
+         if (node->Floor == f)
+        	 if(node->Trace == t)
+                return node->Number;
+   }
+
+   return -1;
+}
+
+int STable5D::Push8 (int u1, int u2, int u3, int u4, int u5, int u6, int u7, int u8)
+{
+	Sort8(u1, u2, u3, u4, u5, u6, u7, u8);
+
+	return (*this).Push(u1,u2,u3,u4,u5);
+}
+
+int STable5D::operator() (int u1, int u2, int u3, int u4, int u5, int u6, int u7, int u8) const
+{
+	Sort8(u1, u2, u3, u4, u5, u6, u7, u8);
+
+	return (*this)(u1,u2,u3,u4,u5);
+}
+
+
+STable5D::~STable5D ()
+{
+#ifdef MFEM_USE_MEMALLOC
+   // NodesMem.Clear();  // this is done implicitly
+#else
+   for (int i = 0; i < Size; i++)
+   {
+      STable5DNode *aux, *node_p = Rows[i];
+      while (node_p != NULL)
+      {
+         aux = node_p;
+         node_p = node_p->Prev;
+         delete aux;
+      }
+   }
+#endif
+   delete [] Rows;
+}
+
+
+
+
 
 }
