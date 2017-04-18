@@ -142,6 +142,13 @@ namespace mfem {
     // Allocate a temporary vector where local element operations
     //   will be handled.
     localX.SetSize(device, elements * localDofs);
+
+    occa::properties initProps;
+    initProps["defines/NUM_DOFS"] = localDofs;
+    occa::kernel initLocalKernel = device.buildKernel("occa://mfem/fem/utils.okl",
+                                                      "InitLocalVector",
+                                                      initProps);
+    initLocalKernel(elements, localX);
   }
 
   void OccaBilinearForm::SetupInterpolationData() {
