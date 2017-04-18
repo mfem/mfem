@@ -288,7 +288,7 @@ void BlockLowerTriangularPreconditioner::MultTranspose (const Vector & x,
       tmp2.SetSize(offsets[iRow+1] - offsets[iRow]);
       tmp2 = 0.0;
       tmp2 += xblock.GetBlock(iRow);
-      for (int jCol=iRow+1; jCol < iRow; ++jCol)
+      for (int jCol=iRow+1; jCol < nBlocks; ++jCol)
       {
          if (op(iRow,jCol))
          {
