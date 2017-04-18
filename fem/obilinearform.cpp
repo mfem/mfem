@@ -143,12 +143,15 @@ namespace mfem {
     //   will be handled.
     localX.SetSize(device, elements * localDofs);
 
-    occa::properties initProps;
-    initProps["defines/NUM_DOFS"] = localDofs;
-    occa::kernel initLocalKernel = device.buildKernel("occa://mfem/fem/utils.okl",
-                                                      "InitLocalVector",
-                                                      initProps);
-    initLocalKernel(elements, localX);
+    // First-touch policy when running with OpenMP
+    if (device.mode() == "OpenMP") {
+      occa::properties initProps;
+      initProps["defines/NUM_DOFS"] = localDofs;
+      occa::kernel initLocalKernel = device.buildKernel("occa://mfem/fem/utils.okl",
+                                                        "InitLocalVector",
+                                                        initProps);
+      initLocalKernel(elements, localX);
+    }
   }
 
   void OccaBilinearForm::SetupInterpolationData() {
