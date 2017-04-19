@@ -32,6 +32,7 @@ MFEM_USE_PETSC       = @MFEM_USE_PETSC@
 MFEM_USE_MPFR        = @MFEM_USE_MPFR@
 MFEM_USE_SIDRE       = @MFEM_USE_SIDRE@
 MFEM_USE_OCCA        = @MFEM_USE_OCCA@
+MFEM_USE_ACROTENSOR  = @MFEM_USE_ACROTENSOR@
 
 # Compiler, compile options, and link options
 MFEM_CXX       = @MFEM_CXX@
