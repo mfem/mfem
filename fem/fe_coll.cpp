@@ -1364,6 +1364,91 @@ const
    return ind_neg;
 }
 
+const FiniteElement *
+ND1_4DFECollection::FiniteElementForGeometry(int GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::PENTATOPE:   return &NedPentatopFE;
+      default:
+         mfem_error ("ND1_4DFECollection: unknown geometry type.");
+   }
+   return &NedPentatopFE; // Make some compilers happy
+}
+
+int ND1_4DFECollection::DofForGeometry(int GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::POINT:       return 0;
+      case Geometry::SEGMENT:     return 1;
+      case Geometry::TRIANGLE:    return 0;
+      case Geometry::SQUARE:      return 0;
+      case Geometry::TETRAHEDRON: return 0;
+      case Geometry::CUBE:        return 0;
+      case Geometry::PENTATOPE:   return 0;
+      default:
+         mfem_error ("ND1_4DFECollection: unknown geometry type.");
+   }
+   return 0; // Make some compilers happy
+}
+
+int * ND1_4DFECollection::DofOrderForOrientation(int GeomType, int Or)
+const
+{
+   static int ind_pos[] = { 0 };
+   static int ind_neg[] = { -1 };
+
+   if (Or > 0)
+   {
+      return ind_pos;
+   }
+   return ind_neg;
+}
+
+
+const FiniteElement *
+ND2_4DFECollection::FiniteElementForGeometry(int GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::PENTATOPE:   return &NedPentatopFE;
+      default:
+         mfem_error ("ND2_4DFECollection: unknown geometry type.");
+   }
+   return &NedPentatopFE; // Make some compilers happy
+}
+
+int ND2_4DFECollection::DofForGeometry(int GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::POINT:       return 0;
+      case Geometry::SEGMENT:     return 2;
+      case Geometry::TRIANGLE:    return 0;
+      case Geometry::SQUARE:      return 0;
+      case Geometry::TETRAHEDRON: return 0;
+      case Geometry::CUBE:        return 0;
+      case Geometry::PENTATOPE:   return 0;
+      default:
+         mfem_error ("ND2_4DFECollection: unknown geometry type.");
+   }
+   return 0; // Make some compilers happy
+}
+
+int * ND2_4DFECollection::DofOrderForOrientation(int GeomType, int Or)
+const
+{
+   static int ind_pos[] = { 0, 1 };
+   static int ind_neg[] = { -2, -1};
+
+   if (Or > 0)
+   {
+      return ind_pos;
+   }
+   return ind_neg;
+}
+
 
 const FiniteElement *
 RT0_3DFECollection::FiniteElementForGeometry(int GeomType) const

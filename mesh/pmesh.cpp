@@ -4724,7 +4724,7 @@ void ParMesh::PrintInfo(std::ostream &out)
       {
          ldata[0] -= group_svert.RowSize(gr-1);
          ldata[1] -= group_sedge.RowSize(gr-1);
-         ldata[2] -= group_splan.RowSize(gr-1);
+         if (Dim == 4) ldata[2] -= group_splan.RowSize(gr-1);
          ldata[3] -= group_sface.RowSize(gr-1);
       }
 

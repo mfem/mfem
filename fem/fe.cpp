@@ -477,6 +477,11 @@ void VectorFiniteElement::SetDerivMembers()
       case H_CURL:
          switch (Dim)
          {
+            case 4: // curl: 4D H_CURL -> 4D H_DIV(skew)
+			   DerivType = CURL;
+			   DerivRangeType = MAT_SKEW;
+			   DerivMapType = H_DIV_SKEW;
+			   break;
             case 3: // curl: 3D H_CURL -> 3D H_DIV
                DerivType = CURL;
                DerivRangeType = VECTOR;
@@ -6007,6 +6012,815 @@ void Nedelec1TetFiniteElement::Project (
          vk[1] * ( J(1,0)*tk[k][0]+J(1,1)*tk[k][1]+J(1,2)*tk[k][2] ) +
          vk[2] * ( J(2,0)*tk[k][0]+J(2,1)*tk[k][1]+J(2,2)*tk[k][2] );
    }
+}
+
+Nedelec1PentFiniteElement::Nedelec1PentFiniteElement()
+   : VectorFiniteElement(4, Geometry::PENTATOPE, 10, 1, H_CURL)
+{
+   // not real nodes ...
+   Nodes.IntPoint(0).x = 0.5;
+   Nodes.IntPoint(0).y = 0.0;
+   Nodes.IntPoint(0).z = 0.0;
+   Nodes.IntPoint(0).t = 0.0;
+
+   Nodes.IntPoint(1).x = 0.0;
+   Nodes.IntPoint(1).y = 0.5;
+   Nodes.IntPoint(1).z = 0.0;
+   Nodes.IntPoint(1).t = 0.0;
+
+   Nodes.IntPoint(2).x = 0.0;
+   Nodes.IntPoint(2).y = 0.0;
+   Nodes.IntPoint(2).z = 0.5;
+   Nodes.IntPoint(2).t = 0.0;
+
+   Nodes.IntPoint(3).x = 0.0;
+   Nodes.IntPoint(3).y = 0.0;
+   Nodes.IntPoint(3).z = 0.0;
+   Nodes.IntPoint(3).t = 0.5;
+
+   Nodes.IntPoint(4).x = 0.5;
+   Nodes.IntPoint(4).y = 0.5;
+   Nodes.IntPoint(4).z = 0.0;
+   Nodes.IntPoint(4).t = 0.0;
+
+   Nodes.IntPoint(5).x = 0.5;
+   Nodes.IntPoint(5).y = 0.0;
+   Nodes.IntPoint(5).z = 0.5;
+   Nodes.IntPoint(5).t = 0.0;
+
+   Nodes.IntPoint(6).x = 0.5;
+   Nodes.IntPoint(6).y = 0.0;
+   Nodes.IntPoint(6).z = 0.0;
+   Nodes.IntPoint(6).t = 0.5;
+
+   Nodes.IntPoint(7).x = 0.0;
+   Nodes.IntPoint(7).y = 0.5;
+   Nodes.IntPoint(7).z = 0.5;
+   Nodes.IntPoint(7).t = 0.0;
+
+   Nodes.IntPoint(8).x = 0.0;
+   Nodes.IntPoint(8).y = 0.5;
+   Nodes.IntPoint(8).z = 0.0;
+   Nodes.IntPoint(8).t = 0.5;
+
+   Nodes.IntPoint(9).x = 0.0;
+   Nodes.IntPoint(9).y = 0.0;
+   Nodes.IntPoint(9).z = 0.5;
+   Nodes.IntPoint(9).t = 0.5;
+}
+
+void Nedelec1PentFiniteElement::CalcVShape(const IntegrationPoint &ip,
+                                          DenseMatrix &shape) const
+{
+   double x = ip.x, y = ip.y, z = ip.z, t = ip.t;
+
+   shape(0,0) = 1. - y - z - t;
+   shape(0,1) = x;
+   shape(0,2) = x;
+   shape(0,3) = x;
+
+   shape(1,0) = y;
+   shape(1,1) = 1. - x - z - t;
+   shape(1,2) = y;
+   shape(1,3) = y;
+
+   shape(2,0) = z;
+   shape(2,1) = z;
+   shape(2,2) = 1. - x - y - t;
+   shape(2,3) = z;
+
+   shape(3,0) = t;
+   shape(3,1) = t;
+   shape(3,2) = t;
+   shape(3,3) = 1. - x - y - z;
+
+   shape(4,0) = -y;
+   shape(4,1) = x;
+   shape(4,2) = 0.;
+   shape(4,3) = 0.;
+
+   shape(5,0) = -z;
+   shape(5,1) = 0.;
+   shape(5,2) = x;
+   shape(5,3) = 0.;
+
+   shape(6,0) = -t;
+   shape(6,1) = 0.;
+   shape(6,2) = 0;
+   shape(6,3) = x;
+
+   shape(7,0) = 0.;
+   shape(7,1) = -z;
+   shape(7,2) = y;
+   shape(7,3) = 0.;
+
+   shape(8,0) = 0.;
+   shape(8,1) = -t;
+   shape(8,2) = 0.;
+   shape(8,3) = y;
+
+   shape(9,0) = 0.;
+   shape(9,1) = 0.;
+   shape(9,2) = -t;
+   shape(9,3) = z;
+}
+
+void Nedelec1PentFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
+                                             DenseMatrix &curl_shape)
+const
+{
+   curl_shape(0,0) =  2.;
+   curl_shape(0,1) =  2.;
+   curl_shape(0,2) =  2.;
+   curl_shape(0,3) =  0.;
+   curl_shape(0,4) =  0.;
+   curl_shape(0,5) =  0.;
+
+   curl_shape(1,0) =  -2.;
+   curl_shape(1,1) =  0.;
+   curl_shape(1,2) =  0.;
+   curl_shape(1,3) =  2.;
+   curl_shape(1,4) =  2.;
+   curl_shape(1,5) =  0.;
+
+   curl_shape(2,0) =  0.;
+   curl_shape(2,1) =  -2.;
+   curl_shape(2,2) =  0.;
+   curl_shape(2,3) =  -2.;
+   curl_shape(2,4) =  0.;
+   curl_shape(2,5) =  2.;
+
+   curl_shape(3,0) =  0.;
+   curl_shape(3,1) =  0.;
+   curl_shape(3,2) =  -2.;
+   curl_shape(3,3) =  0.;
+   curl_shape(3,4) =  -2.;
+   curl_shape(3,5) =  -2.;
+
+   curl_shape(4,0) =  2.;
+   curl_shape(4,1) =  0.;
+   curl_shape(4,2) =  0.;
+   curl_shape(4,3) =  0.;
+   curl_shape(4,4) =  0.;
+   curl_shape(4,5) =  0.;
+
+   curl_shape(5,0) =  0.;
+   curl_shape(5,1) =  2.;
+   curl_shape(5,2) =  0.;
+   curl_shape(5,3) =  0.;
+   curl_shape(5,4) =  0.;
+   curl_shape(5,5) =  0.;
+
+   curl_shape(6,0) =  0.;
+   curl_shape(6,1) =  0.;
+   curl_shape(6,2) =  2.;
+   curl_shape(6,3) =  0.;
+   curl_shape(6,4) =  0.;
+   curl_shape(6,5) =  0.;
+
+   curl_shape(7,0) =  0.;
+   curl_shape(7,1) =  0.;
+   curl_shape(7,2) =  0.;
+   curl_shape(7,3) =  2.;
+   curl_shape(7,4) =  0.;
+   curl_shape(7,5) =  0.;
+
+   curl_shape(8,0) =  0.;
+   curl_shape(8,1) =  0.;
+   curl_shape(8,2) =  0.;
+   curl_shape(8,3) =  0.;
+   curl_shape(8,4) =  2.;
+   curl_shape(8,5) =  0.;
+
+   curl_shape(9,0) =  0.;
+   curl_shape(9,1) =  0.;
+   curl_shape(9,2) =  0.;
+   curl_shape(9,3) =  0.;
+   curl_shape(9,4) =  0.;
+   curl_shape(9,5) =  2.;
+
+}
+
+const double Nedelec1PentFiniteElement::tk[10][4] =
+{{1,0,0,0}, {0,1,0,0}, {0,0,1,0}, {0,0,0,1}, {-1,1,0,0}, {-1,0,1,0}, {-1,0,0,1}, {0,-1,1,0}, {0,-1,0,1}, {0,0,-1,1}};
+
+void Nedelec1PentFiniteElement::GetLocalInterpolation (
+   ElementTransformation &Trans, DenseMatrix &I) const
+{
+   int k, j;
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(Dof, Dim);
+#endif
+
+#ifdef MFEM_DEBUG
+ cout << "not implemented in NED_FE_PENT" << endl;
+#endif
+
+   IntegrationPoint ip;
+   ip.x = ip.y = ip.z = ip.t = 0.0;
+   Trans.SetIntPoint (&ip);
+   // Trans must be linear
+   const DenseMatrix &J = Trans.Jacobian();
+   double vk[4];
+   Vector xk (vk, 4);
+
+   for (k = 0; k < 10; k++)
+   {
+      Trans.Transform (Nodes.IntPoint (k), xk);
+      ip.x = vk[0]; ip.y = vk[1]; ip.z = vk[2]; ip.t = vk[3];
+      CalcVShape (ip, vshape);
+      //  vk = J tk
+      vk[0] = J(0,0)*tk[k][0]+J(0,1)*tk[k][1]+J(0,2)*tk[k][2]+J(0,3)*tk[k][3];
+      vk[1] = J(1,0)*tk[k][0]+J(1,1)*tk[k][1]+J(1,2)*tk[k][2]+J(1,3)*tk[k][3];
+      vk[2] = J(2,0)*tk[k][0]+J(2,1)*tk[k][1]+J(2,2)*tk[k][2]+J(2,3)*tk[k][3];
+      vk[3] = J(3,0)*tk[k][0]+J(3,1)*tk[k][1]+J(3,2)*tk[k][2]+J(3,3)*tk[k][3];
+      for (j = 0; j < 10; j++)
+         if (fabs (I(k,j) = (vshape(j,0)*vk[0]+vshape(j,1)*vk[1]+
+                             vshape(j,2)*vk[2]+vshape(j,3)*vk[3])) < 1.0e-12)
+         {
+            I(k,j) = 0.0;
+         }
+   }
+}
+
+void Nedelec1PentFiniteElement::Project (
+   VectorCoefficient &vc, ElementTransformation &Trans,
+   Vector &dofs) const
+{
+	double v[4]; Vector vi(v, 4);
+	double t[4]; Vector ti(t, 4);
+
+	dofs.SetSize(10); dofs = 0.0;
+	for (int k = 0; k < 10; k++)
+	{
+	  Trans.SetIntPoint (&Nodes.IntPoint (k));
+	  const DenseMatrix &J = Trans.Jacobian();
+
+	  vc.Eval(vi, Trans, Nodes.IntPoint (k));
+
+	  J.Mult(tk[k],t);
+
+	  dofs(k) = vi * ti;
+	}
+}
+
+void Nedelec1PentFiniteElement::Project(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &Id) const
+{
+	int dim = fe.GetDim();
+	int dof = fe.GetDof();
+
+	Id.SetSize(10,dim*dof); Id = 0.0;
+
+	double v[4]; Vector vi(v, 4);
+	double t[4]; Vector ti(t, 4);
+
+	Vector shape(dof);
+
+	for (int k = 0; k < 10; k++)
+	{
+		Trans.SetIntPoint(&Nodes.IntPoint(k));
+		const DenseMatrix &J = Trans.Jacobian();
+		fe.CalcShape(Nodes.IntPoint(k), shape);
+
+		ti = 0.0;
+		J.Mult(tk[k],t);
+
+		for(int di=0; di<dim; di++)
+		{
+			for(int j=0; j<dof; j++)
+			{
+				vi = 0.0; v[di] = shape(j);
+
+				Id(k, di*dof+j) = vi * ti;
+			}
+		}
+	}
+}
+
+void Nedelec1PentFiniteElement::ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const
+{
+	int dim = fe.GetDim();
+	int dof = fe.GetDof();
+
+	grad.SetSize(10,dof); grad = 0.0;
+
+	DenseMatrix dshape(dof,dim);
+	DenseMatrix gshape(dof,dim);
+	DenseMatrix invJ(dim,dim);
+
+	double v[4]; Vector vi(v, 4);
+	double t[4]; Vector ti(t, 4);
+
+	for (int k = 0; k < 10; k++)
+	{
+		Trans.SetIntPoint(&Nodes.IntPoint(k));
+		const DenseMatrix &J = Trans.Jacobian();
+		CalcInverse(J, invJ);
+
+		fe.CalcDShape(Nodes.IntPoint(k), dshape);
+		Mult(dshape, invJ, gshape);
+
+		ti = 0.0;
+		J.Mult(tk[k],t);
+
+		for(int j=0; j<dof; j++)
+		{
+			v[0] = gshape(j,0);
+			v[1] = gshape(j,1);
+			v[2] = gshape(j,2);
+			v[3] = gshape(j,3);
+
+			grad(k, j) = vi * ti;
+		}
+
+	}
+}
+
+Nedelec1FullPentFiniteElement::Nedelec1FullPentFiniteElement()
+   : VectorFiniteElement(4, Geometry::PENTATOPE, 20, 1, H_CURL)
+{
+   // not real nodes ...
+   Nodes.IntPoint(0).x = 0.0;
+   Nodes.IntPoint(0).y = 0.0;
+   Nodes.IntPoint(0).z = 0.0;
+   Nodes.IntPoint(0).t = 0.0;
+
+   Nodes.IntPoint(1).x = 1.0;
+   Nodes.IntPoint(1).y = 0.0;
+   Nodes.IntPoint(1).z = 0.0;
+   Nodes.IntPoint(1).t = 0.0;
+
+   Nodes.IntPoint(2).x = 0.0;
+   Nodes.IntPoint(2).y = 0.0;
+   Nodes.IntPoint(2).z = 0.0;
+   Nodes.IntPoint(2).t = 0.0;
+
+   Nodes.IntPoint(3).x = 0.0;
+   Nodes.IntPoint(3).y = 1.0;
+   Nodes.IntPoint(3).z = 0.0;
+   Nodes.IntPoint(3).t = 0.0;
+
+   Nodes.IntPoint(4).x = 0.0;
+   Nodes.IntPoint(4).y = 0.0;
+   Nodes.IntPoint(4).z = 0.0;
+   Nodes.IntPoint(4).t = 0.0;
+
+   Nodes.IntPoint(5).x = 0.0;
+   Nodes.IntPoint(5).y = 0.0;
+   Nodes.IntPoint(5).z = 1.0;
+   Nodes.IntPoint(5).t = 0.0;
+
+   Nodes.IntPoint(6).x = 0.0;
+   Nodes.IntPoint(6).y = 0.0;
+   Nodes.IntPoint(6).z = 0.0;
+   Nodes.IntPoint(6).t = 0.0;
+
+   Nodes.IntPoint(7).x = 0.0;
+   Nodes.IntPoint(7).y = 0.0;
+   Nodes.IntPoint(7).z = 0.0;
+   Nodes.IntPoint(7).t = 1.0;
+
+   Nodes.IntPoint(8).x = 1.0;
+   Nodes.IntPoint(8).y = 0.0;
+   Nodes.IntPoint(8).z = 0.0;
+   Nodes.IntPoint(8).t = 0.0;
+
+   Nodes.IntPoint(9).x = 0.0;
+   Nodes.IntPoint(9).y = 1.0;
+   Nodes.IntPoint(9).z = 0.0;
+   Nodes.IntPoint(9).t = 0.0;
+
+   Nodes.IntPoint(10).x = 1.0;
+   Nodes.IntPoint(10).y = 0.0;
+   Nodes.IntPoint(10).z = 0.0;
+   Nodes.IntPoint(10).t = 0.0;
+
+   Nodes.IntPoint(11).x = 0.0;
+   Nodes.IntPoint(11).y = 0.0;
+   Nodes.IntPoint(11).z = 1.0;
+   Nodes.IntPoint(11).t = 0.0;
+
+   Nodes.IntPoint(12).x = 1.0;
+   Nodes.IntPoint(12).y = 0.0;
+   Nodes.IntPoint(12).z = 0.0;
+   Nodes.IntPoint(12).t = 0.0;
+
+   Nodes.IntPoint(13).x = 0.0;
+   Nodes.IntPoint(13).y = 0.0;
+   Nodes.IntPoint(13).z = 0.0;
+   Nodes.IntPoint(13).t = 1.0;
+
+   Nodes.IntPoint(14).x = 0.0;
+   Nodes.IntPoint(14).y = 1.0;
+   Nodes.IntPoint(14).z = 0.0;
+   Nodes.IntPoint(14).t = 0.0;
+
+   Nodes.IntPoint(15).x = 0.0;
+   Nodes.IntPoint(15).y = 0.0;
+   Nodes.IntPoint(15).z = 1.0;
+   Nodes.IntPoint(15).t = 0.0;
+
+   Nodes.IntPoint(16).x = 0.0;
+   Nodes.IntPoint(16).y = 1.0;
+   Nodes.IntPoint(16).z = 0.0;
+   Nodes.IntPoint(16).t = 0.0;
+
+   Nodes.IntPoint(17).x = 0.0;
+   Nodes.IntPoint(17).y = 0.0;
+   Nodes.IntPoint(17).z = 0.0;
+   Nodes.IntPoint(17).t = 1.0;
+
+   Nodes.IntPoint(18).x = 0.0;
+   Nodes.IntPoint(18).y = 0.0;
+   Nodes.IntPoint(18).z = 1.0;
+   Nodes.IntPoint(18).t = 0.0;
+
+   Nodes.IntPoint(19).x = 0.0;
+   Nodes.IntPoint(19).y = 0.0;
+   Nodes.IntPoint(19).z = 0.0;
+   Nodes.IntPoint(19).t = 1.0;
+}
+
+const double Nedelec1FullPentFiniteElement::tk[10][4] =
+{{1,0,0,0}, {0,1,0,0}, {0,0,1,0}, {0,0,0,1}, {-1,1,0,0}, {-1,0,1,0}, {-1,0,0,1}, {0,-1,1,0}, {0,-1,0,1}, {0,0,-1,1}};
+
+void Nedelec1FullPentFiniteElement::CalcVShape(const IntegrationPoint &ip,
+                                          DenseMatrix &shape) const
+{
+   double x = ip.x, y = ip.y, z = ip.z, t = ip.t;
+
+   shape(0,0) = 1. -x - y - z - t;
+   shape(0,1) = 0;
+   shape(0,2) = 0;
+   shape(0,3) = 0;
+
+   shape(1,0) = x;
+   shape(1,1) = x;
+   shape(1,2) = x;
+   shape(1,3) = x;
+
+
+
+   shape(2,0) = 0;
+   shape(2,1) = 1. - x - y - z - t;
+   shape(2,2) = 0;
+   shape(2,3) = 0;
+
+   shape(3,0) = y;
+   shape(3,1) = y;
+   shape(3,2) = y;
+   shape(3,3) = y;
+
+
+
+   shape(4,0) = 0;
+   shape(4,1) = 0;
+   shape(4,2) = 1. - x - y - z - t;
+   shape(4,3) = 0;
+
+   shape(5,0) = z;
+   shape(5,1) = z;
+   shape(5,2) = z;
+   shape(5,3) = z;
+
+
+
+   shape(6,0) = 0;
+   shape(6,1) = 0;
+   shape(6,2) = 0;
+   shape(6,3) = 1. - x - y - z - t;
+
+   shape(7,0) = t;
+   shape(7,1) = t;
+   shape(7,2) = t;
+   shape(7,3) = t;
+
+
+
+   shape(8,0) = 0;
+   shape(8,1) = x;
+   shape(8,2) = 0.;
+   shape(8,3) = 0.;
+
+   shape(9,0) = -y;
+   shape(9,1) = 0;
+   shape(9,2) = 0;
+   shape(9,3) = 0;
+
+
+
+   shape(10,0) = 0;
+   shape(10,1) = 0.;
+   shape(10,2) = x;
+   shape(10,3) = 0.;
+
+   shape(11,0) = -z;
+   shape(11,1) = 0;
+   shape(11,2) = 0;
+   shape(11,3) = 0;
+
+
+
+   shape(12,0) = 0;
+   shape(12,1) = 0.;
+   shape(12,2) = 0;
+   shape(12,3) = x;
+
+   shape(13,0) = -t;
+   shape(13,1) = 0;
+   shape(13,2) = 0;
+   shape(13,3) = 0;
+
+
+
+   shape(14,0) = 0.;
+   shape(14,1) = 0;
+   shape(14,2) = y;
+   shape(14,3) = 0.;
+
+   shape(15,0) = 0;
+   shape(15,1) = -z;
+   shape(15,2) = 0;
+   shape(15,3) = 0;
+
+
+
+   shape(16,0) = 0.;
+   shape(16,1) = 0;
+   shape(16,2) = 0.;
+   shape(16,3) = y;
+
+   shape(17,0) = 0;
+   shape(17,1) = -t;
+   shape(17,2) = 0;
+   shape(17,3) = 0;
+
+
+
+   shape(18,0) = 0.;
+   shape(18,1) = 0.;
+   shape(18,2) = 0;
+   shape(18,3) = z;
+
+   shape(19,0) = 0;
+   shape(19,1) = 0;
+   shape(19,2) = -t;
+   shape(19,3) = 0;
+}
+
+void Nedelec1FullPentFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
+                                             DenseMatrix &curl_shape)
+const
+{
+	curl_shape(0,0) = 1.0;
+	curl_shape(0,1) = 1.0;
+	curl_shape(0,2) = 1.0;
+	curl_shape(0,3) = 0.;
+	curl_shape(0,4) = 0.;
+	curl_shape(0,5) = 0.;
+
+	curl_shape(1,0) = 1.0;
+	curl_shape(1,1) = 1.0;
+	curl_shape(1,2) = 1.0;
+	curl_shape(1,3) = 0.;
+	curl_shape(1,4) = 0.;
+	curl_shape(1,5) = 0.;
+
+	curl_shape(2,0) = -1.0;
+	curl_shape(2,1) = 0.;
+	curl_shape(2,2) = 0.;
+	curl_shape(2,3) = 1.0;
+	curl_shape(2,4) = 1.0;
+	curl_shape(2,5) = 0.;
+
+	curl_shape(3,0) = -1.0;
+	curl_shape(3,1) = 0.;
+	curl_shape(3,2) = 0.;
+	curl_shape(3,3) = 1.0;
+	curl_shape(3,4) = 1.0;
+	curl_shape(3,5) = 0.;
+
+	curl_shape(4,0) = 0.;
+	curl_shape(4,1) = -1.0;
+	curl_shape(4,2) = 0.;
+	curl_shape(4,3) = -1.0;
+	curl_shape(4,4) = 0.;
+	curl_shape(4,5) = 1.0;
+
+	curl_shape(5,0) = 0.;
+	curl_shape(5,1) = -1.0;
+	curl_shape(5,2) = 0.;
+	curl_shape(5,3) = -1.0;
+	curl_shape(5,4) = 0.;
+	curl_shape(5,5) = 1.0;
+
+	curl_shape(6,0) = 0.;
+	curl_shape(6,1) = 0.;
+	curl_shape(6,2) = -1.0;
+	curl_shape(6,3) = 0.;
+	curl_shape(6,4) = -1.0;
+	curl_shape(6,5) = -1.0;
+
+	curl_shape(7,0) = 0.;
+	curl_shape(7,1) = 0.;
+	curl_shape(7,2) = -1.0;
+	curl_shape(7,3) = 0.;
+	curl_shape(7,4) = -1.0;
+	curl_shape(7,5) = -1.0;
+
+	curl_shape(8,0) = 1.0;
+	curl_shape(8,1) = 0.;
+	curl_shape(8,2) = 0.;
+	curl_shape(8,3) = 0.;
+	curl_shape(8,4) = 0.;
+	curl_shape(8,5) = 0.;
+
+	curl_shape(9,0) = 1.0;
+	curl_shape(9,1) = 0.;
+	curl_shape(9,2) = 0.;
+	curl_shape(9,3) = 0.;
+	curl_shape(9,4) = 0.;
+	curl_shape(9,5) = 0.;
+
+	curl_shape(10,0) = 0.;
+	curl_shape(10,1) = 1.0;
+	curl_shape(10,2) = 0.;
+	curl_shape(10,3) = 0.;
+	curl_shape(10,4) = 0.;
+	curl_shape(10,5) = 0.;
+
+	curl_shape(11,0) = 0.;
+	curl_shape(11,1) = 1.0;
+	curl_shape(11,2) = 0.;
+	curl_shape(11,3) = 0.;
+	curl_shape(11,4) = 0.;
+	curl_shape(11,5) = 0.;
+
+	curl_shape(12,0) = 0.;
+	curl_shape(12,1) = 0.;
+	curl_shape(12,2) = 1.0;
+	curl_shape(12,3) = 0.;
+	curl_shape(12,4) = 0.;
+	curl_shape(12,5) = 0.;
+
+	curl_shape(13,0) = 0.;
+	curl_shape(13,1) = 0.;
+	curl_shape(13,2) = 1.0;
+	curl_shape(13,3) = 0.;
+	curl_shape(13,4) = 0.;
+	curl_shape(13,5) = 0.;
+
+	curl_shape(14,0) = 0.;
+	curl_shape(14,1) = 0.;
+	curl_shape(14,2) = 0.;
+	curl_shape(14,3) = 1.0;
+	curl_shape(14,4) = 0.;
+	curl_shape(14,5) = 0.;
+
+	curl_shape(15,0) = 0.;
+	curl_shape(15,1) = 0.;
+	curl_shape(15,2) = 0.;
+	curl_shape(15,3) = 1.0;
+	curl_shape(15,4) = 0.;
+	curl_shape(15,5) = 0.;
+
+	curl_shape(16,0) = 0.;
+	curl_shape(16,1) = 0.;
+	curl_shape(16,2) = 0.;
+	curl_shape(16,3) = 0.;
+	curl_shape(16,4) = 1.0;
+	curl_shape(16,5) = 0.;
+
+	curl_shape(17,0) = 0.;
+	curl_shape(17,1) = 0.;
+	curl_shape(17,2) = 0.;
+	curl_shape(17,3) = 0.;
+	curl_shape(17,4) = 1.0;
+	curl_shape(17,5) = 0.;
+
+	curl_shape(18,0) = 0.;
+	curl_shape(18,1) = 0.;
+	curl_shape(18,2) = 0.;
+	curl_shape(18,3) = 0.;
+	curl_shape(18,4) = 0.;
+	curl_shape(18,5) = 1.0;
+
+	curl_shape(19,0) = 0.;
+	curl_shape(19,1) = 0.;
+	curl_shape(19,2) = 0.;
+	curl_shape(19,3) = 0.;
+	curl_shape(19,4) = 0.;
+	curl_shape(19,5) = 1.0;
+
+}
+
+void Nedelec1FullPentFiniteElement::Project (
+   VectorCoefficient &vc, ElementTransformation &Trans,
+   Vector &dofs) const
+{
+   double v[4]; Vector vi(v, 4);
+   double t[4]; Vector ti(t, 4);
+
+   dofs.SetSize(20); dofs = 0.0;
+   for (int k = 0; k < 10; k++)
+   {
+	   for(int ld=0;ld<2;ld++)
+	   {
+		  int dofID=2*k+ld;
+		  Trans.SetIntPoint(&Nodes.IntPoint(dofID));
+		  const DenseMatrix &J = Trans.Jacobian();
+		  vc.Eval(vi, Trans, Nodes.IntPoint(dofID));
+		  J.Mult(tk[k],t);
+		  dofs(dofID) = vi * ti;
+	   }
+   }
+}
+
+void Nedelec1FullPentFiniteElement::Project(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &Id) const
+{
+	int dim = fe.GetDim();
+	int dof = fe.GetDof();
+
+	Id.SetSize(20,dim*dof); Id = 0.0;
+
+	double v[4]; Vector vi(v, 4);
+	double t[4]; Vector ti(t, 4);
+
+	Vector shape(dof);
+
+	for (int k = 0; k < 10; k++)
+	{
+	   for(int ld=0;ld<2;ld++)
+	   {
+		    int dofID=2*k+ld;
+
+			Trans.SetIntPoint(&Nodes.IntPoint(dofID));
+			const DenseMatrix &J = Trans.Jacobian();
+			fe.CalcShape(Nodes.IntPoint(dofID), shape);
+
+			J.Mult(tk[k],t);
+
+			for(int di=0; di<dim; di++)
+			{
+				for(int j=0; j<dof; j++)
+				{
+					vi = 0.0; v[di] = shape(j);
+
+					Id(dofID, di*dof+j) = vi * ti;
+				}
+			}
+	   }
+	}
+}
+
+void Nedelec1FullPentFiniteElement::ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const
+{
+	int dim = fe.GetDim();
+	int dof = fe.GetDof();
+
+	grad.SetSize(20,dof); grad = 0.0;
+
+	DenseMatrix dshape(dof,dim);
+	DenseMatrix gshape(dof,dim);
+	DenseMatrix invJ(dim,dim);
+
+	double v[4]; Vector vi(v, 4);
+	double t[4]; Vector ti(t, 4);
+
+	for (int k = 0; k < 10; k++)
+	{
+		   for(int ld=0;ld<2;ld++)
+		   {
+			    int dofID=2*k+ld;
+				Trans.SetIntPoint(&Nodes.IntPoint(dofID));
+				const DenseMatrix &J = Trans.Jacobian();
+				CalcInverse(J, invJ);
+
+				fe.CalcDShape(Nodes.IntPoint(dofID), dshape);
+				Mult(dshape, invJ, gshape);
+
+				J.Mult(tk[k],t);
+
+				for(int j=0; j<dof; j++)
+				{
+					v[0] = gshape(j,0);
+					v[1] = gshape(j,1);
+					v[2] = gshape(j,2);
+					v[3] = gshape(j,3);
+
+					grad(dofID, j) = vi * ti;
+				}
+		   }
+
+	}
 }
 
 RT0HexFiniteElement::RT0HexFiniteElement()

@@ -835,6 +835,42 @@ public:
    virtual const char * Name() const { return "ND1_3D"; }
 };
 
+class ND1_4DFECollection : public FiniteElementCollection
+{
+private:
+   const Nedelec1PentFiniteElement NedPentatopFE;
+
+public:
+   ND1_4DFECollection() { }
+
+   virtual const FiniteElement *
+   FiniteElementForGeometry(int GeomType) const;
+
+   virtual int DofForGeometry(int GeomType) const;
+
+   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+
+   virtual const char * Name() const { return "ND1_4D"; }
+};
+
+class ND2_4DFECollection : public FiniteElementCollection
+{
+private:
+   const Nedelec1FullPentFiniteElement NedPentatopFE;
+
+public:
+   ND2_4DFECollection() { }
+
+   virtual const FiniteElement *
+   FiniteElementForGeometry(int GeomType) const;
+
+   virtual int DofForGeometry(int GeomType) const;
+
+   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+
+   virtual const char * Name() const { return "ND2_4D"; }
+};
+
 /** First order Raviart-Thomas finite elements in 3D. This class is kept only
     for backward compatibility, consider using RT_FECollection instead. */
 class RT0_3DFECollection : public FiniteElementCollection

@@ -46,6 +46,176 @@ void f_exact(const Vector &, Vector &);
 double freq = 1.0, kappa;
 int dim;
 
+class Curl4dPrec : public Solver
+{
+
+private:
+	HypreParMatrix *A;
+	ParFiniteElementSpace *fespace;
+
+	HypreParMatrix *idMat;
+	HypreParMatrix *H1VecLaplaceMat;
+	HypreBoomerAMG *amgVecH1;
+
+
+	HypreParMatrix *gradMat;
+	HypreParMatrix *H1LaplaceMat;
+	HypreBoomerAMG *amgH1;
+
+	HypreSmoother * smoother;
+	CGSolver *pcgGrad;
+	CGSolver *pcgH1Vec;
+
+	Vector *f;
+	Vector *fGrad, *uGrad;
+	Vector *fH1Vec, *uH1Vec;
+
+	bool exactSolves;
+
+public:
+	Curl4dPrec(HypreParMatrix *AUser, ParFiniteElementSpace *fespaceUser, const Array<int> &essBnd, int orderKernel=1, bool exactSolvesUser=false)
+	{
+		A = AUser;
+		fespace = fespaceUser;
+		ParMesh *pmesh = fespace->GetParMesh();
+		int dim = pmesh->Dimension();
+
+		exactSolves = exactSolvesUser;
+
+		int orderIm=1;  //vecH1  --> H(curl)
+		int orderKer=orderKernel; //grad V --> H(curl)
+
+		smoother = new HypreSmoother(*A, 16, 3);
+
+//		//for the pure dirichlet case
+//		Array<int> essBnd(pmesh->bdr_attributes.Max()); essBnd = 1;
+
+		Array<int> HCurl_essDof(fespace->GetVSize()); HCurl_essDof = 0;
+		fespace->GetEssentialVDofs(essBnd, HCurl_essDof);
+
+		//setup the H1 FESpace
+		FiniteElementCollection* fecH1;
+		   if(orderKer==1) fecH1 = new LinearFECollection;
+		   else fecH1 = new QuadraticFECollection;
+
+		ParFiniteElementSpace *H1FESpace = new ParFiniteElementSpace(pmesh, fecH1);
+		Array<int> H1_essDof(H1FESpace->GetVSize()); H1_essDof = 0;
+		H1FESpace->GetEssentialVDofs(essBnd, H1_essDof);
+
+		//setup the discrete gradient
+		ParDiscreteLinearOperator *disGrad = new ParDiscreteLinearOperator(H1FESpace, fespace);
+		disGrad->AddDomainInterpolator(new GradientInterpolator);
+		disGrad->Assemble();
+		disGrad->Finalize();
+		SparseMatrix* smat = &(disGrad->SpMat());
+		smat->EliminateCols(H1_essDof);
+		for(int dof=0; dof<HCurl_essDof.Size(); dof++) if(HCurl_essDof[dof]<0) smat->EliminateRow(dof);
+		gradMat = disGrad->ParallelAssemble();
+		delete disGrad;
+
+		//setup the H1 preconditioner
+		ParBilinearForm* H1Varf = new ParBilinearForm(H1FESpace);
+		H1Varf->AddDomainIntegrator(new DiffusionIntegrator);
+		H1Varf->AddDomainIntegrator(new MassIntegrator);
+		H1Varf->Assemble();
+		H1Varf->Finalize();
+
+		SparseMatrix &matH1(H1Varf->SpMat());
+		for(int dof=0; dof<H1_essDof.Size(); dof++) if(H1_essDof[dof]<0) matH1.EliminateRowCol(dof);
+		H1LaplaceMat = H1Varf->ParallelAssemble();
+		delete H1Varf;
+		amgH1 = new HypreBoomerAMG(*H1LaplaceMat);
+
+
+		//setup the H1 injection
+		FiniteElementCollection* fecH1Vec;
+		   if(orderIm==1) fecH1Vec = new LinearFECollection;
+		   else fecH1Vec = new QuadraticFECollection;
+		ParFiniteElementSpace *H1VecFESpace = new ParFiniteElementSpace(pmesh, fecH1Vec, dim, Ordering::byVDIM);
+		Array<int> H1Vec_essDof(H1VecFESpace->GetVSize()); H1Vec_essDof = 0;
+		H1VecFESpace->GetEssentialVDofs(essBnd, H1Vec_essDof);
+
+		//setup the discrete gradient
+		ParDiscreteLinearOperator *disInterpol = new ParDiscreteLinearOperator(H1VecFESpace, fespace);
+		disInterpol->AddDomainInterpolator(new IdentityInterpolator);
+		disInterpol->Assemble();
+		disInterpol->Finalize();
+		SparseMatrix* smatID = &(disInterpol->SpMat());
+		smatID->EliminateCols(H1Vec_essDof);
+		for(int dof=0; dof<HCurl_essDof.Size(); dof++) if(HCurl_essDof[dof]<0) smatID->EliminateRow(dof);
+		idMat = disInterpol->ParallelAssemble();
+		delete disInterpol;
+
+		//setup the H1-vec preconditioner
+		ParBilinearForm* H1VecVarf = new ParBilinearForm(H1VecFESpace);
+		H1VecVarf->AddDomainIntegrator(new VectorDiffusionIntegrator);
+		H1VecVarf->AddDomainIntegrator(new VectorMassIntegrator);
+		H1VecVarf->Assemble();
+		H1VecVarf->Finalize();
+
+		SparseMatrix &matH1Vec(H1VecVarf->SpMat());
+		for(int dof=0; dof<H1Vec_essDof.Size(); dof++) if(H1Vec_essDof[dof]<0) matH1Vec.EliminateRowCol(dof);
+		H1VecLaplaceMat = H1VecVarf->ParallelAssemble();
+		delete H1VecVarf;
+		amgVecH1 = new HypreBoomerAMG(*H1VecLaplaceMat);
+		amgVecH1->SetSystemsOptions(dim);
+
+
+		f = new Vector(fespace->GetTrueVSize());
+
+		fGrad = new Vector(H1FESpace->GetTrueVSize());
+		uGrad = new Vector(H1FESpace->GetTrueVSize());
+
+		fH1Vec = new Vector(H1VecFESpace->GetTrueVSize());
+		uH1Vec = new Vector(H1VecFESpace->GetTrueVSize());;
+
+
+		amgH1->Mult(*fGrad, *uGrad);
+		amgVecH1->Mult(*fH1Vec, *uH1Vec);
+
+		pcgGrad = new CGSolver(MPI_COMM_WORLD);
+		pcgGrad->SetOperator(*H1LaplaceMat);
+		pcgGrad->SetPreconditioner(*amgH1);
+		pcgGrad->SetRelTol(1e-16);
+		pcgGrad->SetMaxIter(100000000);
+		pcgGrad->SetPrintLevel(-2);
+
+		pcgH1Vec = new CGSolver(MPI_COMM_WORLD);
+		pcgH1Vec->SetOperator(*H1VecLaplaceMat);
+		pcgH1Vec->SetPreconditioner(*amgVecH1);
+		pcgH1Vec->SetRelTol(1e-16);
+		pcgH1Vec->SetMaxIter(100000000);
+		pcgH1Vec->SetPrintLevel(-2);
+
+	}
+
+	void setExactSolve(bool exSol)
+	{
+		exactSolves = exSol;
+	}
+
+	virtual void Mult(const Vector &x, Vector &y) const
+	{
+		smoother->Mult(x,y);
+
+		idMat->MultTranspose(x,*fH1Vec);
+		*uH1Vec = 0.0;
+		if(exactSolves) pcgH1Vec->Mult(*fH1Vec, *uH1Vec);
+		else amgVecH1->Mult(*fH1Vec, *uH1Vec);
+		idMat->Mult(1.0, *uH1Vec, 1.0, y);
+
+		gradMat->MultTranspose(x,*fGrad);
+		*uGrad = 0.0;
+		if(exactSolves) pcgGrad->Mult(*fGrad, *uGrad);
+		else amgH1->Mult(*fGrad, *uGrad);
+		gradMat->Mult(1.0, *uGrad, 1.0, y);
+
+	}
+
+	virtual void SetOperator(const Operator &op) {};
+
+};
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -127,7 +297,13 @@ int main(int argc, char *argv[])
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
-   FiniteElementCollection *fec = new ND_FECollection(order, dim);
+   FiniteElementCollection *fec;
+   if(dim==4)
+   {
+	   if(order==1) fec = new ND1_4DFECollection;
+	   else fec = new ND2_4DFECollection;
+   }
+   else fec = new ND_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
    if (myid == 0)
@@ -140,10 +316,10 @@ int main(int argc, char *argv[])
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
+   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+   ess_bdr = 1;
    if (pmesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-      ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
@@ -194,12 +370,15 @@ int main(int argc, char *argv[])
    //     preconditioner from hypre.
    ParFiniteElementSpace *prec_fespace =
       (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
-   HypreSolver *ams = new HypreAMS(A, prec_fespace);
-   HyprePCG *pcg = new HyprePCG(A);
-   pcg->SetTol(1e-12);
+   Solver *prec;
+   if(dim<=3) prec = new HypreAMS(A, prec_fespace);
+   else if(dim==4) prec = new Curl4dPrec(&A, fespace, ess_bdr, order, false);
+   IterativeSolver *pcg = new CGSolver(MPI_COMM_WORLD);
+   pcg->SetOperator(A);
+   pcg->SetRelTol(1e-12);
    pcg->SetMaxIter(500);
-   pcg->SetPrintLevel(2);
-   pcg->SetPreconditioner(*ams);
+   pcg->SetPrintLevel(1);
+   pcg->SetPreconditioner(*prec);
    pcg->Mult(B, X);
 
    // 13. Recover the parallel grid function corresponding to X. This is the
@@ -244,7 +423,7 @@ int main(int argc, char *argv[])
 
    // 17. Free the used memory.
    delete pcg;
-   delete ams;
+   delete prec;
    delete a;
    delete sigma;
    delete muinv;
@@ -261,7 +440,14 @@ int main(int argc, char *argv[])
 
 void E_exact(const Vector &x, Vector &E)
 {
-   if (dim == 3)
+   if(dim==4)
+   {
+      E(0) =  sin(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));
+      E(1) = -cos(M_PI*x(0))*sin(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));
+      E(2) =  cos(M_PI*x(0))*cos(M_PI*x(1))*sin(M_PI*x(2))*cos(M_PI*x(3));
+      E(3) = -cos(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*sin(M_PI*x(3));
+   }
+   else if (dim == 3)
    {
       E(0) = sin(kappa * x(1));
       E(1) = sin(kappa * x(2));
@@ -277,7 +463,14 @@ void E_exact(const Vector &x, Vector &E)
 
 void f_exact(const Vector &x, Vector &f)
 {
-   if (dim == 3)
+   if(dim==4)
+   {
+	   f(0) =  (1.0+4.0*M_PI*M_PI)*sin(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));
+	   f(1) = -(1.0+4.0*M_PI*M_PI)*cos(M_PI*x(0))*sin(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));
+	   f(2) =  (1.0+4.0*M_PI*M_PI)*cos(M_PI*x(0))*cos(M_PI*x(1))*sin(M_PI*x(2))*cos(M_PI*x(3));
+	   f(3) = -(1.0+4.0*M_PI*M_PI)*cos(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*sin(M_PI*x(3));
+   }
+   else if (dim == 3)
    {
       f(0) = (1. + kappa * kappa) * sin(kappa * x(1));
       f(1) = (1. + kappa * kappa) * sin(kappa * x(2));

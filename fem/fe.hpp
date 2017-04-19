@@ -59,7 +59,7 @@ protected:
 
 public:
    /// Enumeration for RangeType and DerivRangeType
-   enum { SCALAR, VECTOR };
+   enum { SCALAR, VECTOR, MAT_SKEW };
 
    /** @brief Enumeration for MapType: defines how reference functions are
        mapped to physical space.
@@ -85,8 +85,9 @@ public:
           INTEGRAL,  ///< For scalar fields; preserves volume integrals
           H_DIV,     /**< For vector fields; preserves surface integrals of the
                           normal component */
-          H_CURL     /**< For vector fields; preserves line integrals of the
+          H_CURL,    /**< For vector fields; preserves line integrals of the
                           tangential component */
+          H_DIV_SKEW
         };
 
    /** @brief Enumeration for DerivType: defines which derivative method
@@ -99,7 +100,8 @@ public:
    enum { NONE, ///< No derivatives implemented
           GRAD, ///< Implements CalcDShape methods
           DIV,  ///< Implements CalcDivShape methods
-          CURL  ///< Implements CalcCurlShape methods
+          CURL, ///< Implements CalcCurlShape methods
+          DIV_SKEW
         };
 
    /** Construct FiniteElement with given
@@ -1314,6 +1316,63 @@ public:
                          ElementTransformation &Trans, Vector &dofs) const;
 };
 
+//lowest order first kind nedelec element for a pentatope
+class Nedelec1PentFiniteElement : public VectorFiniteElement
+{
+private:
+   static const double tk[10][4];
+
+public:
+   Nedelec1PentFiniteElement();
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_ND(Trans, shape); }
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+   virtual void GetLocalInterpolation (ElementTransformation &Trans,
+                                       DenseMatrix &I) const;
+   using FiniteElement::Project;
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const;
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const;
+};
+
+//lowest order second kind nedelec element for a pentatope
+class Nedelec1FullPentFiniteElement : public VectorFiniteElement
+{
+private:
+   static const double tk[10][4];
+
+public:
+   Nedelec1FullPentFiniteElement();
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_ND(Trans, shape); }
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+   virtual void GetLocalInterpolation (ElementTransformation &Trans,
+                                       DenseMatrix &I) const {};
+   using FiniteElement::Project;
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const;
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const;
+};
 
 class RT0HexFiniteElement : public VectorFiniteElement
 {
