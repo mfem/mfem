@@ -61,9 +61,9 @@ int main(int argc, char *argv[])
   int order = 3;
   const char *basis_type = "G"; // Gauss-Lobatto
   const char *pc = "none";
-  bool visualization = 1;
   const char *device_info = "mode: 'Serial'";
   bool occa_verbose = false;
+  bool visualization = 1;
 
   OptionsParser args(argc, argv);
   args.AddOption(&mesh_file, "-m", "--mesh",

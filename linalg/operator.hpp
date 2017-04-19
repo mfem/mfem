@@ -119,7 +119,7 @@ public:
        @note The caller is responsible for destroying the output operator @a A!
        @note If there are no transformations, @a X simply reuses the data of @a
        x. */
-  template <class TVector>
+   template <class TVector>
    void TFormLinearSystem(const Array<int> &ess_tdof_list,
                           TVector &x, TVector &b,
                           Operator* &Aout,
