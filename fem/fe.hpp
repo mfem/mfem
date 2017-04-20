@@ -274,6 +274,10 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const;
 
+   virtual void ProjectDivSkew(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &DivSkew) const;
+
    /** Compute the discrete divergence matrix from the given FiniteElement onto
        'this' FiniteElement. The ElementTransformation is included to support
        cases when the matrix depends on it. */
@@ -1494,6 +1498,41 @@ public:
 
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
+};
+
+
+class RT0PentFiniteElement : public VectorFiniteElement
+{
+private:
+   static const double nk[5][4];
+
+public:
+   RT0PentFiniteElement();
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_RT(Trans, shape); };
+
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+
+   virtual void GetLocalInterpolation (ElementTransformation &Trans,
+                                       DenseMatrix &I) const;
+
+   using FiniteElement::Project;
+
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const;
+
+   virtual void ProjectDivSkew(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &DivSkew) const;
 };
 
 

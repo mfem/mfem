@@ -936,6 +936,25 @@ public:
    virtual const char * Name() const { return "RT1_3D"; }
 };
 
+/** First order Raviart-Thomas finite elements in 4D. */
+class RT0_4DFECollection : public FiniteElementCollection
+{
+private:
+   const P0TetFiniteElement TetrahedronFE;
+   const RT0PentFiniteElement PentatopeFE;
+public:
+   RT0_4DFECollection() { };
+
+   virtual const FiniteElement *
+   FiniteElementForGeometry(int GeomType) const;
+
+   virtual int DofForGeometry(int GeomType) const;
+
+   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+
+   virtual const char * Name() const { return "RT0_4D"; };
+};
+
 /// Discontinuous collection defined locally by a given finite element.
 class Local_FECollection : public FiniteElementCollection
 {

@@ -46,6 +46,243 @@ void F_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
 double freq = 1.0, kappa;
 
+
+
+
+class div4dPrec : public Solver
+{
+
+private:
+	HypreParMatrix *A;
+	ParFiniteElementSpace *fespace;
+
+	//kernel operators
+	HypreParMatrix *P_d_HSkewDiv_Hdiv;
+
+	HypreParMatrix *P_H1_HDivSkew;
+	HypreParMatrix *H1_KernelMat;
+	HypreBoomerAMG *amgH1_Kernel;
+
+	//"image" operators
+	HypreParMatrix *P_H1_Hdiv;
+	HypreParMatrix *H1_ImageMat;
+	HypreBoomerAMG *amgH1_Image;
+
+	HypreParMatrix *HDivSkewMat;
+	HypreSmoother * smootherdiv;
+	HypreSmoother * smootherDivSkew;
+
+	CGSolver *pcgKernel;
+	CGSolver *pcgImage;
+
+	Vector *f;
+	Vector *fKernel, *uKernel;
+	Vector *fImage, *uImage;
+	Vector *fDivSkew, *uDivSkew;
+
+	bool exactSolves;
+
+public:
+	div4dPrec(HypreParMatrix *AUser, ParFiniteElementSpace *fespaceUser, const Array<int> &essBnd, int orderKernel=1, bool exactSolvesUser=false)
+	{
+		A = AUser;
+		fespace = fespaceUser;
+		ParMesh *pmesh = fespace->GetParMesh();
+		int dim = pmesh->Dimension();
+
+		exactSolves = exactSolvesUser;
+
+
+
+
+		int orderIm=1;  //H1  --> H(div)
+		int orderKer=orderKernel; //DivSkew V --> H(div)
+
+
+
+		smootherdiv = new HypreSmoother(*A, 16, 3);
+
+		Array<int> Hdiv_essDof(fespace->GetVSize()); Hdiv_essDof = 0;
+		fespace->GetEssentialVDofs(essBnd, Hdiv_essDof);
+
+
+
+
+		//setup the H1 FESpace for the kernel
+		FiniteElementCollection* fecH1Kernel;
+		   if(orderKer==1) fecH1Kernel = new LinearFECollection;
+		   else fecH1Kernel = new QuadraticFECollection;
+		ParFiniteElementSpace *H1KernelFESpace = new ParFiniteElementSpace(pmesh, fecH1Kernel, 6, Ordering::byVDIM);
+		Array<int> H1Kernel_essDof(H1KernelFESpace->GetVSize()); H1Kernel_essDof = 0;
+		H1KernelFESpace->GetEssentialVDofs(essBnd, H1Kernel_essDof);
+
+
+		//setup the H(DivSkew) FESpace for the kernel
+		FiniteElementCollection* fecHDivSkewKernel;
+		   if(orderKer==1) fecHDivSkewKernel = new DivSkew1_4DFECollection;
+//		   else fecHDivSkewKernel = new DivSkewFull1_4DFECollection;
+		ParFiniteElementSpace *HDivSkewKernelFESpace = new ParFiniteElementSpace(pmesh, fecHDivSkewKernel);
+		Array<int> HDivSkewKernel_essDof(HDivSkewKernelFESpace->GetVSize()); HDivSkewKernel_essDof = 0;
+		HDivSkewKernelFESpace->GetEssentialVDofs(essBnd, HDivSkewKernel_essDof);
+
+
+		//setup the FESpace for the H1 injection
+		FiniteElementCollection* fecH1Vec;
+		   if(orderIm==1) fecH1Vec = new LinearFECollection;
+		   else fecH1Vec = new QuadraticFECollection;
+		ParFiniteElementSpace *H1_ImageFESpace = new ParFiniteElementSpace(pmesh, fecH1Vec, dim, Ordering::byVDIM);
+		Array<int> H1Image_essDof(H1_ImageFESpace->GetVSize()); H1Image_essDof = 0;
+		H1_ImageFESpace->GetEssentialVDofs(essBnd, H1Image_essDof);
+
+
+
+		//setup the H1 preconditioner for the kernel
+		ParBilinearForm* H1Varf = new ParBilinearForm(H1KernelFESpace);
+		H1Varf->AddDomainIntegrator(new VectorDiffusionIntegrator(6));
+		H1Varf->AddDomainIntegrator(new VectorMassIntegrator(6));
+		H1Varf->Assemble();
+		H1Varf->Finalize();
+		SparseMatrix &matH1(H1Varf->SpMat());
+		for(int dof=0; dof<H1Kernel_essDof.Size(); dof++) if(H1Kernel_essDof[dof]<0) matH1.EliminateRowCol(dof);
+		H1_KernelMat = H1Varf->ParallelAssemble();
+		delete H1Varf;
+		amgH1_Kernel = new HypreBoomerAMG(*H1_KernelMat);
+		amgH1_Kernel->SetSystemsOptions(6);
+
+		//setup the H1 preconditioner for the image
+		ParBilinearForm* H1VecVarf = new ParBilinearForm(H1_ImageFESpace);
+		H1VecVarf->AddDomainIntegrator(new VectorDiffusionIntegrator);
+		H1VecVarf->AddDomainIntegrator(new VectorMassIntegrator);
+		H1VecVarf->Assemble();
+		H1VecVarf->Finalize();
+		SparseMatrix &matH1Vec(H1VecVarf->SpMat());
+		for(int dof=0; dof<H1Image_essDof.Size(); dof++) if(H1Image_essDof[dof]<0) matH1Vec.EliminateRowCol(dof);
+		H1_ImageMat = H1VecVarf->ParallelAssemble();
+		delete H1VecVarf;
+		amgH1_Image = new HypreBoomerAMG(*H1_ImageMat);
+		amgH1_Image->SetSystemsOptions(dim);
+
+
+		//setup the injection of H1 into H(DivSkew)
+		ParDiscreteLinearOperator *disInterpolIm = new ParDiscreteLinearOperator(H1KernelFESpace, HDivSkewKernelFESpace);
+		disInterpolIm->AddDomainInterpolator(new IdentityInterpolator);
+		disInterpolIm->Assemble();
+		disInterpolIm->Finalize();
+		SparseMatrix* smatIDIm = &(disInterpolIm->SpMat());
+		smatIDIm->EliminateCols(H1Kernel_essDof);
+		for(int dof=0; dof<HDivSkewKernel_essDof.Size(); dof++) if(HDivSkewKernel_essDof[dof]<0) smatIDIm->EliminateRow(dof);
+		P_H1_HDivSkew = disInterpolIm->ParallelAssemble();
+		delete disInterpolIm;
+
+		//setup the injection of H1 into H(div)
+		ParDiscreteLinearOperator *disInterpol = new ParDiscreteLinearOperator(H1_ImageFESpace, fespace);
+		disInterpol->AddDomainInterpolator(new IdentityInterpolator);
+		disInterpol->Assemble();
+		disInterpol->Finalize();
+		SparseMatrix* smatID = &(disInterpol->SpMat());
+		smatID->EliminateCols(H1Image_essDof);
+		for(int dof=0; dof<Hdiv_essDof.Size(); dof++) if(Hdiv_essDof[dof]<0) smatID->EliminateRow(dof);
+		P_H1_Hdiv = disInterpol->ParallelAssemble();
+		delete disInterpol;
+
+
+
+
+		//setup the injection of the DivSkew(H(DivSkew)) into H(div)
+		ParDiscreteLinearOperator *disDivSkew = new ParDiscreteLinearOperator(HDivSkewKernelFESpace, fespace);
+		disDivSkew->AddDomainInterpolator(new DivSkewInterpolator);
+		disDivSkew->Assemble();
+		disDivSkew->Finalize();
+		SparseMatrix* smatDivSkew= &(disDivSkew->SpMat());
+		smatDivSkew->EliminateCols(HDivSkewKernel_essDof);
+		for(int dof=0; dof<Hdiv_essDof.Size(); dof++) if(Hdiv_essDof[dof]<0) smatDivSkew->EliminateRow(dof);
+		P_d_HSkewDiv_Hdiv = disDivSkew->ParallelAssemble();
+		delete disDivSkew;
+
+
+		//setup the smoother for H(DivSkew)
+		ParBilinearForm *a_HDivSkew = new ParBilinearForm(HDivSkewKernelFESpace);
+		a_HDivSkew->AddDomainIntegrator(new DivSkewDivSkewIntegrator);
+		a_HDivSkew->AddDomainIntegrator(new VectorFE_DivSkewMassIntegrator);
+		a_HDivSkew->Assemble();
+		a_HDivSkew->Finalize();
+		SparseMatrix &matHDivSkew(a_HDivSkew->SpMat());
+		for(int dof=0; dof<HDivSkewKernel_essDof.Size(); dof++) if(HDivSkewKernel_essDof[dof]<0) matHDivSkew.EliminateRowCol(dof);
+		HDivSkewMat = a_HDivSkew->ParallelAssemble();
+		delete a_HDivSkew;
+		smootherDivSkew = new HypreSmoother(*HDivSkewMat, 16, 3);
+
+
+
+
+		f = new Vector(fespace->GetTrueVSize());
+
+		fKernel = new Vector(H1KernelFESpace->GetTrueVSize());
+		uKernel = new Vector(H1KernelFESpace->GetTrueVSize());
+
+		fImage = new Vector(H1_ImageFESpace->GetTrueVSize());
+		uImage = new Vector(H1_ImageFESpace->GetTrueVSize());
+
+		fDivSkew = new Vector(HDivSkewKernelFESpace->GetTrueVSize());
+		uDivSkew = new Vector(HDivSkewKernelFESpace->GetTrueVSize());
+
+
+		amgH1_Kernel->Mult(*fKernel, *uKernel);
+		amgH1_Image->Mult(*fImage, *uImage);
+
+		pcgKernel = new CGSolver(MPI_COMM_WORLD);
+		pcgKernel->SetOperator(*H1_KernelMat);
+		pcgKernel->SetPreconditioner(*amgH1_Kernel);
+		pcgKernel->SetRelTol(1e-16);
+		pcgKernel->SetMaxIter(100000000);
+		pcgKernel->SetPrintLevel(-2);
+
+		pcgImage = new CGSolver(MPI_COMM_WORLD);
+		pcgImage->SetOperator(*H1_ImageMat);
+		pcgImage->SetPreconditioner(*amgH1_Image);
+		pcgImage->SetRelTol(1e-16);
+		pcgImage->SetMaxIter(100000000);
+		pcgImage->SetPrintLevel(-2);
+
+	}
+
+	void setExactSolve(bool exSol)
+	{
+		exactSolves = exSol;
+	}
+
+	virtual void Mult(const Vector &x, Vector &y) const
+	{
+		smootherdiv->Mult(x,y);
+
+		P_H1_Hdiv->MultTranspose(x,*fImage);
+		*uImage = 0.0;
+		if(exactSolves) pcgImage->Mult(*fImage, *uImage);
+		else amgH1_Image->Mult(*fImage, *uImage);
+		P_H1_Hdiv->Mult(1.0, *uImage, 1.0, y);
+
+
+		*uDivSkew = 0.0;
+		P_d_HSkewDiv_Hdiv->MultTranspose(x,*fDivSkew);
+
+			smootherDivSkew->Mult(*fDivSkew, *uDivSkew);
+
+			P_H1_HDivSkew->MultTranspose(*fDivSkew,*fKernel);
+				*uKernel = 0.0;
+				if(exactSolves) pcgKernel->Mult(*fKernel, *uKernel);
+				else amgH1_Kernel->Mult(*fKernel, *uKernel);
+			P_H1_HDivSkew->Mult(1.0, *uKernel, 1.0, *uDivSkew);
+
+		P_d_HSkewDiv_Hdiv->Mult(1.0, *uDivSkew, 1.0, y);
+	}
+
+	virtual void SetOperator(const Operator &op) {};
+
+};
+
+
+
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -61,12 +298,18 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool hybridization = false;
    bool visualization = 1;
+   int sequ_ref_levels = 0;
+   int par_ref_levels = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&sequ_ref_levels, "-sr", "--seqrefinement",
+                     "Number of sequential refinement steps.");
+   args.AddOption(&par_ref_levels, "-pr", "--parrefinement",
+                     "Number of parallel refinement steps.");
    args.AddOption(&set_bc, "-bc", "--impose-bc", "-no-bc", "--dont-impose-bc",
                   "Impose or not essential boundary conditions.");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
@@ -106,9 +349,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
+      for (int l = 0; l < sequ_ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
@@ -122,7 +363,6 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -132,7 +372,9 @@ int main(int argc, char *argv[])
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *fec = new RT_FECollection(order-1, dim);
+   FiniteElementCollection *fec;
+   if(dim==4) fec = new RT0_4DFECollection;
+   else fec = new RT_FECollection(order-1, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
    if (myid == 0)
@@ -145,10 +387,10 @@ int main(int argc, char *argv[])
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
+   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+   ess_bdr = set_bc ? 1 : 0;
    if (pmesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-      ess_bdr = set_bc ? 1 : 0;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
@@ -212,11 +454,11 @@ int main(int argc, char *argv[])
    // 12. Define and apply a parallel PCG solver for A X = B with the 2D AMS or
    //     the 3D ADS preconditioners from hypre. If using hybridization, the
    //     system is preconditioned with hypre's BoomerAMG.
-   HypreSolver *prec = NULL;
+   Solver *prec = NULL;
    CGSolver *pcg = new CGSolver(A.GetComm());
    pcg->SetOperator(A);
    pcg->SetRelTol(1e-12);
-   pcg->SetMaxIter(500);
+   pcg->SetMaxIter(5000000);
    pcg->SetPrintLevel(1);
    if (hybridization) { prec = new HypreBoomerAMG(A); }
    else
@@ -224,9 +466,11 @@ int main(int argc, char *argv[])
       ParFiniteElementSpace *prec_fespace =
          (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
       if (dim == 2)   { prec = new HypreAMS(A, prec_fespace); }
-      else            { prec = new HypreADS(A, prec_fespace); }
+      else if(dim==3) { prec = new HypreADS(A, prec_fespace); }
+      else if(dim==4) prec = new div4dPrec(&A, fespace, ess_bdr, order, false);
+      else prec = NULL;
    }
-   pcg->SetPreconditioner(*prec);
+   if(prec!=NULL) pcg->SetPreconditioner(*prec);
    pcg->Mult(B, X);
 
    // 13. Recover the parallel grid function corresponding to X. This is the
@@ -271,7 +515,7 @@ int main(int argc, char *argv[])
 
    // 17. Free the used memory.
    delete pcg;
-   delete prec;
+   if(prec!=NULL) delete prec;
    delete hfes;
    delete hfec;
    delete a;
@@ -293,15 +537,25 @@ void F_exact(const Vector &p, Vector &F)
 {
    int dim = p.Size();
 
-   double x = p(0);
-   double y = p(1);
-   // double z = (dim == 3) ? p(2) : 0.0;
-
-   F(0) = cos(kappa*x)*sin(kappa*y);
-   F(1) = cos(kappa*y)*sin(kappa*x);
-   if (dim == 3)
+   if(dim==4)
    {
-      F(2) = 0.0;
+	   F(0) = sin(M_PI*p(0));
+	   F(1) = sin(M_PI*p(1));
+	   F(2) = sin(M_PI*p(2));
+	   F(3) = sin(M_PI*p(3));
+   }
+   else
+   {
+	   double x = p(0);
+	   double y = p(1);
+	   // double z = (dim == 3) ? p(2) : 0.0;
+
+	   F(0) = cos(kappa*x)*sin(kappa*y);
+	   F(1) = cos(kappa*y)*sin(kappa*x);
+	   if (dim == 3)
+	   {
+		  F(2) = 0.0;
+	   }
    }
 }
 
@@ -309,17 +563,28 @@ void F_exact(const Vector &p, Vector &F)
 void f_exact(const Vector &p, Vector &f)
 {
    int dim = p.Size();
-
-   double x = p(0);
-   double y = p(1);
-   // double z = (dim == 3) ? p(2) : 0.0;
-
-   double temp = 1 + 2*kappa*kappa;
-
-   f(0) = temp*cos(kappa*x)*sin(kappa*y);
-   f(1) = temp*cos(kappa*y)*sin(kappa*x);
-   if (dim == 3)
+   if(dim==4)
    {
-      f(2) = 0;
+	   f(0) = sin(M_PI*p(0));
+	   f(1) = sin(M_PI*p(1));
+	   f(2) = sin(M_PI*p(2));
+	   f(3) = sin(M_PI*p(3));
+
+	   f *= (1.0+M_PI*M_PI);
+   }
+   else
+   {
+	   double x = p(0);
+	   double y = p(1);
+	   // double z = (dim == 3) ? p(2) : 0.0;
+
+	   double temp = 1 + 2*kappa*kappa;
+
+	   f(0) = temp*cos(kappa*x)*sin(kappa*y);
+	   f(1) = temp*cos(kappa*y)*sin(kappa*x);
+	   if (dim == 3)
+	   {
+		  f(2) = 0;
+	   }
    }
 }

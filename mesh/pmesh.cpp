@@ -1196,11 +1196,14 @@ void ParMesh::GroupFace(int group, int i, int &face, int &o)
       o = GetTriOrientation(faces[face]->GetVertices(),
                             shared_faces[sface]->GetVertices());
    }
-   if (faces[face]->GetType() == Element::QUADRILATERAL)
+   else if (faces[face]->GetType() == Element::QUADRILATERAL)
    {
       o = GetQuadOrientation(faces[face]->GetVertices(),
                              shared_faces[sface]->GetVertices());
    }
+   else if (faces[face]->GetType() == Element::TETRAHEDRON)
+      o = GetTetOrientation(faces[face]->GetVertices(),
+                            shared_faces[sface]->GetVertices());
 }
 
 void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)

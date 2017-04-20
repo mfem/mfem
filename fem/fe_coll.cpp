@@ -1604,6 +1604,49 @@ const
    }
 }
 
+const FiniteElement *
+RT0_4DFECollection::FiniteElementForGeometry(int GeomType) const
+{
+   switch (GeomType)
+   {
+   	   case Geometry::TETRAHEDRON: return &TetrahedronFE;
+   	   case Geometry::PENTATOPE: return &PentatopeFE;
+   default:
+      mfem_error ("RT0_4DFECollection: unknown geometry type.");
+   }
+   return &PentatopeFE; // Make some compilers happy
+}
+
+int RT0_4DFECollection::DofForGeometry(int GeomType) const
+{
+   switch (GeomType)
+   {
+   case Geometry::POINT:       return 0;
+   case Geometry::SEGMENT:     return 0;
+   case Geometry::TRIANGLE:    return 0;
+   case Geometry::SQUARE:      return 0;
+   case Geometry::TETRAHEDRON: return 1;
+   case Geometry::CUBE:        return 0;
+   case Geometry::PENTATOPE:   return 0;
+   default:
+      mfem_error ("RT0_4DFECollection: unknown geometry type.");
+   }
+   return 0; // Make some compilers happy
+}
+
+int * RT0_4DFECollection::DofOrderForOrientation(int GeomType, int Or)
+   const
+{
+   static int ind_pos[] = { 0 };
+   static int ind_neg[] = { -1 };
+
+   if(GeomType == Geometry::TETRAHEDRON)
+   {
+      if (Or % 2 == 0) return ind_pos;
+      return ind_neg;
+   }
+   return NULL;
+}
 
 H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
 {

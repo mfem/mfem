@@ -2301,6 +2301,16 @@ public:
 };
 
 
+class DivSkewInterpolator : public DiscreteInterpolator
+{
+public:
+   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                                       const FiniteElement &ran_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat)
+   { ran_fe.ProjectDivSkew(dom_fe, Trans, elmat); }
+};
+
 /** Class for constructing the (local) discrete divergence matrix which can
     be used as an integrator in a DiscreteLinearOperator object to assemble
     the global discrete divergence matrix.
@@ -2331,6 +2341,131 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 };
+
+
+
+
+class DivSkewDivSkewIntegrator: public BilinearFormIntegrator
+{
+private:
+   DenseMatrix DivSkewshape, DivSkew_dFt;
+
+   Coefficient *Q;
+
+public:
+   DivSkewDivSkewIntegrator() { Q = NULL; }
+   /// Construct a bilinear form integrator for Nedelec elements
+   DivSkewDivSkewIntegrator(Coefficient &q) : Q(&q) { }
+
+   /* Given a particular Finite Element, compute the
+      element DivSkew-DivSkew matrix elmat */
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat)
+   {
+	   int nd = el.GetDof();
+	   int dim = el.GetDim();
+	   double w;
+
+	   DivSkewshape.SetSize(nd,dim);
+	   DivSkew_dFt.SetSize(nd,dim);
+
+	   elmat.SetSize(nd);
+
+	   const IntegrationRule *ir = IntRule;
+	   if (ir == NULL)
+	   {
+	      int order = 2*el.GetOrder()+2;
+
+	      ir = &IntRules.Get(el.GetGeomType(), order);
+	   }
+
+	   elmat = 0.0;
+	   for (int i = 0; i < ir->GetNPoints(); i++)
+	   {
+	      const IntegrationPoint &ip = ir->IntPoint(i);
+
+	      Trans.SetIntPoint (&ip);
+
+		  el.CalcDivSkewShape(ip, DivSkewshape);
+
+	      MultABt(DivSkewshape, Trans.Jacobian(), DivSkew_dFt);
+
+	      DivSkew_dFt *= (1.0 / Trans.Weight());
+
+	      w = ip.weight * fabs(Trans.Weight());
+
+	      if (Q)
+	      {
+	         w *= Q->Eval(Trans, ip);
+	      }
+
+	      AddMult_a_AAt(w, DivSkew_dFt, elmat);
+	   }
+   }
+
+};
+
+class VectorFE_DivSkewMassIntegrator: public BilinearFormIntegrator
+{
+private:
+   DenseMatrix shape;
+
+   Coefficient *Q;
+
+public:
+   VectorFE_DivSkewMassIntegrator() { Q = NULL; }
+   /// Construct a bilinear form integrator for Nedelec elements
+   VectorFE_DivSkewMassIntegrator(Coefficient &q) : Q(&q) { }
+
+   /* Given a particular Finite Element, compute the
+      element curl-curl matrix elmat */
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat)
+   {
+	   int nd = el.GetDof();
+	   int dim = el.GetDim();
+	   double w;
+
+
+	   shape.SetSize(nd,dim*dim);
+
+	   elmat.SetSize(nd);
+
+	   const IntegrationRule *ir = IntRule;
+	   if (ir == NULL)
+	   {
+	      int order = 2*el.GetOrder()+2;
+
+	      ir = &IntRules.Get(el.GetGeomType(), order);
+	   }
+
+	   elmat = 0.0;
+	   for (int i = 0; i < ir->GetNPoints(); i++)
+	   {
+	      const IntegrationPoint &ip = ir->IntPoint(i);
+	      Trans.SetIntPoint (&ip);
+
+	      w = ip.weight * fabs(Trans.Weight());
+
+
+		  el.CalcVShape(Trans, shape);
+
+
+	      if (Q)
+	      {
+	         w *= Q->Eval(Trans, ip);
+	      }
+
+	      AddMult_a_AAt(w, shape, elmat);
+	   }
+   }
+
+};
+
+
+
 
 }
 

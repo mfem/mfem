@@ -161,6 +161,14 @@ void FiniteElement::ProjectCurl(
               "this element!");
 }
 
+void FiniteElement::ProjectDivSkew(
+   const FiniteElement &fe, ElementTransformation &Trans,
+   DenseMatrix &DivSkew) const
+{
+   mfem_error("FiniteElement::ProjectDivSkew(...) is not implemented for "
+              "this element!");
+}
+
 void FiniteElement::ProjectDiv(
    const FiniteElement &fe, ElementTransformation &Trans,
    DenseMatrix &div) const
@@ -7994,6 +8002,241 @@ void RT0TetFiniteElement::Project (
          vk[2] * ( Jinv(2,0)*nk[k][0]+Jinv(2,1)*nk[k][1]+Jinv(2,2)*nk[k][2] );
    }
 }
+
+
+RT0PentFiniteElement::RT0PentFiniteElement()
+   : VectorFiniteElement(4, Geometry::PENTATOPE, 5, 1, H_DIV)
+{
+   // not real nodes ...
+   Nodes.IntPoint(0).x = 0.25;
+   Nodes.IntPoint(0).y = 0.25;
+   Nodes.IntPoint(0).z = 0.25;
+   Nodes.IntPoint(0).t = 0.0;
+
+   Nodes.IntPoint(1).x = 0.25;
+   Nodes.IntPoint(1).y = 0.25;
+   Nodes.IntPoint(1).z = 0.0;
+   Nodes.IntPoint(1).t = 0.25;
+
+   Nodes.IntPoint(2).x = 0.25;
+   Nodes.IntPoint(2).y = 0.0;
+   Nodes.IntPoint(2).z = 0.25;
+   Nodes.IntPoint(2).t = 0.25;
+
+   Nodes.IntPoint(3).x = 0.0;
+   Nodes.IntPoint(3).y = 0.25;
+   Nodes.IntPoint(3).z = 0.25;
+   Nodes.IntPoint(3).t = 0.25;
+
+   Nodes.IntPoint(4).x = 0.25;
+   Nodes.IntPoint(4).y = 0.25;
+   Nodes.IntPoint(4).z = 0.25;
+   Nodes.IntPoint(4).t = 0.25;
+}
+
+void RT0PentFiniteElement::CalcVShape(const IntegrationPoint &ip,
+                                     DenseMatrix &shape) const
+{
+   double x3 = 3.0*ip.x, y3 = 3.0*ip.y, z3 = 3.0*ip.z, t3 = 3.0*ip.t;
+
+   shape(0,0) = x3;
+   shape(0,1) = y3;
+   shape(0,2) = z3;
+   shape(0,3) = t3 - 3.0;
+
+   shape(1,0) = x3;
+   shape(1,1) = y3;
+   shape(1,2) = z3 - 3.0;
+   shape(1,3) = t3;
+
+   shape(2,0) = x3;
+   shape(2,1) = y3 - 3.0;
+   shape(2,2) = z3;
+   shape(2,3) = t3;
+
+   shape(3,0) = x3 - 3.0;
+   shape(3,1) = y3;
+   shape(3,2) = z3;
+   shape(3,3) = t3;
+
+   shape(4,0) = x3;
+   shape(4,1) = y3;
+   shape(4,2) = z3;
+   shape(4,3) = t3;
+}
+
+void RT0PentFiniteElement::CalcDivShape(const IntegrationPoint &ip,
+                                       Vector &divshape) const
+{
+   divshape(0) = 12.0;
+   divshape(1) = 12.0;
+   divshape(2) = 12.0;
+   divshape(3) = 12.0;
+   divshape(4) = 12.0;
+}
+
+const double RT0PentFiniteElement::nk[5][4] =
+{{0.0,0.0,0.0,-1./3.}, {0.0,0.0,-1./3.,0.0}, {0.0,-1./3.,0.0,0.0}, {-1./3.,0.0,0.0,0.0}, {1./3.,1./3.,1./3.,1./3.}};
+
+void RT0PentFiniteElement::GetLocalInterpolation (
+   ElementTransformation &Trans, DenseMatrix &I) const
+{
+
+	cerr << "RT0PentFiniteElement::GetLocalInterpolation (...) implementation not tested yet!!! \n";
+
+   int k, j;
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(Dof, Dim);
+   DenseMatrix Jinv(Dim);
+#endif
+
+#ifdef MFEM_DEBUG
+   for (k = 0; k < 4; k++)
+   {
+      CalcVShape (Nodes.IntPoint(k), vshape);
+      for (j = 0; j < 4; j++)
+      {
+         double d = ( vshape(j,0)*nk[k][0] + vshape(j,1)*nk[k][1] +
+                      vshape(j,2)*nk[k][2] );
+         if (j == k) d -= 1.0;
+         if (fabs(d) > 1.0e-12)
+         {
+            cerr << "RT0TetFiniteElement::GetLocalInterpolation (...)\n"
+               " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem_error();
+         }
+      }
+   }
+#endif
+
+   IntegrationPoint ip;
+   ip.x = ip.y = ip.z = 0.0;
+   Trans.SetIntPoint (&ip);
+   // Trans must be linear
+   // set Jinv = |J| J^{-t} = adj(J)^t
+   CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+   double vk[4];
+   Vector xk(vk, 4);
+
+   for (k = 0; k < 5; k++)
+   {
+      Trans.Transform (Nodes.IntPoint (k), xk);
+      ip.x = vk[0]; ip.y = vk[1]; ip.z = vk[2]; ip.t = vk[3];
+      CalcVShape (ip, vshape);
+      //  vk = |J| J^{-t} nk
+      vk[0] = Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1]+Jinv(0,2)*nk[k][2]+Jinv(0,3)*nk[k][3];
+      vk[1] = Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1]+Jinv(1,2)*nk[k][2]+Jinv(1,3)*nk[k][3];
+      vk[2] = Jinv(2,0)*nk[k][0]+Jinv(2,1)*nk[k][1]+Jinv(2,2)*nk[k][2]+Jinv(2,3)*nk[k][3];
+      vk[3] = Jinv(3,0)*nk[k][0]+Jinv(3,1)*nk[k][1]+Jinv(3,2)*nk[k][2]+Jinv(3,3)*nk[k][3];
+
+      for (j = 0; j < 5; j++)
+         if(fabs (I(k,j) = (vshape(j,0)*vk[0]+vshape(j,1)*vk[1]+vshape(j,2)*vk[2]+vshape(j,3)*vk[3])) < 1.0e-12) I(k,j) = 0.0;
+   }
+}
+
+void RT0PentFiniteElement::Project (
+   VectorCoefficient &vc, ElementTransformation &Trans,
+   Vector &dofs) const
+{
+   double vk[4];
+   Vector xk (vk, 4);
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix Jinv(Dim);
+#endif
+
+   for (int k = 0; k < 5; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+      // set Jinv = |J| J^{-t} = adj(J)^t
+      CalcAdjugateTranspose(Trans.Jacobian(), Jinv);
+      double w = Trans.Weight();
+
+
+      vc.Eval (xk, Trans, Nodes.IntPoint (k));
+      //  xk^t |J| J^{-t} nk
+      dofs(k) =
+         vk[0] * ( Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1]+Jinv(0,2)*nk[k][2]+Jinv(0,3)*nk[k][3] ) +
+         vk[1] * ( Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1]+Jinv(1,2)*nk[k][2]+Jinv(1,3)*nk[k][3] ) +
+         vk[2] * ( Jinv(2,0)*nk[k][0]+Jinv(2,1)*nk[k][1]+Jinv(2,2)*nk[k][2]+Jinv(2,3)*nk[k][3] ) +
+         vk[3] * ( Jinv(3,0)*nk[k][0]+Jinv(3,1)*nk[k][1]+Jinv(3,2)*nk[k][2]+Jinv(3,3)*nk[k][3] );
+
+      if(w < 0) dofs(k) *= -1.0;
+   }
+}
+
+void RT0PentFiniteElement::Project(const FiniteElement &fe, ElementTransformation &Trans,
+                     DenseMatrix &Id) const
+{
+	int dim = fe.GetDim();
+	int dof = fe.GetDof();
+
+	Id.SetSize(5,dim*dof); Id = 0.0;
+
+	double n[4]; Vector ni(n, 4);
+	Vector vecF(4);
+
+	Vector shape(dof);
+	for (int k = 0; k < 5; k++)
+	{
+		Trans.SetIntPoint(&Nodes.IntPoint(k));
+		const DenseMatrix &J = Trans.Jacobian();
+	    CalcAdjugateTranspose(J, Jinv);
+		fe.CalcShape(Nodes.IntPoint(k), shape);
+
+		Jinv.Mult(nk[k],n);
+
+		for(int di=0; di<dim; di++)
+		{
+			for(int j=0; j<dof; j++)
+			{
+				vecF = 0.0; vecF(di) = shape(j);
+
+				Id(k, di*dof+j) = vecF * ni;
+			}
+		}
+	}
+}
+
+void RT0PentFiniteElement::ProjectDivSkew(const FiniteElement &fe, ElementTransformation &Trans,
+                     DenseMatrix &DivSkew) const
+{
+	int dim = fe.GetDim();
+	int dof = fe.GetDof();
+
+	DivSkew.SetSize(5,dof); DivSkew = 0.0;
+
+	double n[4]; Vector ni(n, 4);
+	Vector vecF(4);
+
+	DenseMatrix DivSkewshape(dof,4);
+	DenseMatrix DivSkew_dFt(dof,4);
+	for (int k = 0; k < 5; k++)
+	{
+		Trans.SetIntPoint(&Nodes.IntPoint(k));
+		const DenseMatrix &J = Trans.Jacobian();
+	    CalcAdjugateTranspose(J, Jinv);
+
+		fe.CalcDivSkewShape(Nodes.IntPoint(k), DivSkewshape);
+		MultABt(DivSkewshape, J, DivSkew_dFt);
+		DivSkew_dFt *= (1.0 / Trans.Weight());
+
+		Jinv.Mult(nk[k],n);
+
+		for(int j=0; j<dof; j++)
+		{
+			vecF(0) = DivSkew_dFt(j,0);
+			vecF(1) = DivSkew_dFt(j,1);
+			vecF(2) = DivSkew_dFt(j,2);
+			vecF(3) = DivSkew_dFt(j,3);
+
+			DivSkew(k, j) = vecF * ni;
+		}
+	}
+}
+
+
+
+
 
 RotTriLinearHexFiniteElement::RotTriLinearHexFiniteElement()
    : NodalFiniteElement(3, Geometry::CUBE, 6, 2, FunctionSpace::Qk)
