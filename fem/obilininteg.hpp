@@ -117,6 +117,31 @@ namespace mfem {
     virtual void Assemble();
     virtual void Mult(OccaVector &x);
   };
+
+  //---[ Mass Integrator ]---------
+  class OccaMassIntegrator : public OccaIntegrator {
+  private:
+    OccaDofQuadMaps maps;
+
+    occa::kernel assembleKernel, multKernel;
+
+    occa::memory coefficients;
+    occa::memory jacobian, assembledOperator;
+
+    bool hasConstantCoefficient;
+
+  public:
+    OccaMassIntegrator(OccaBilinearForm &bilinearForm_);
+    virtual ~OccaMassIntegrator();
+
+    virtual OccaIntegrator* CreateInstance();
+
+    virtual void Setup();
+
+    virtual void Assemble();
+    virtual void Mult(OccaVector &x);
+  };
+
   //====================================
 }
 

@@ -1658,6 +1658,18 @@ public:
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
       : BilinearFormIntegrator(ir), Q(&q) { }
 
+   static std::string StaticName()
+      { return "MassIntegrator"; }
+
+   inline virtual std::string Name()
+      { return StaticName(); }
+
+   inline const Coefficient *GetCoefficient()
+      { return Q; };
+
+   virtual const IntegrationRule &GetIntegrationRule(const FiniteElement &trial_fe,
+                                                     const FiniteElement &test_fe );
+
    /** Given a particular Finite Element
        computes the element mass matrix elmat. */
    virtual void AssembleElementMatrix(const FiniteElement &el,

@@ -51,6 +51,8 @@ namespace mfem {
     }
     integratorBuilders[DiffusionIntegrator::StaticName()] =
       new OccaDiffusionIntegrator(*this);
+    integratorBuilders[MassIntegrator::StaticName()] =
+      new OccaMassIntegrator(*this);
   }
 
   void OccaBilinearForm::SetupKernels() {

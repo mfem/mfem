@@ -12,7 +12,7 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_OCCA
-
+#include <iostream>
 #include <cmath>
 
 #include "obilininteg.hpp"
@@ -457,6 +457,95 @@ namespace mfem {
   }
 
   void OccaDiffusionIntegrator::Mult(OccaVector &x) {
+    multKernel((int) bilinearForm.GetNE(),
+               maps.dofToQuad,
+               maps.dofToQuadD,
+               maps.quadToDof,
+               maps.quadToDofD,
+               assembledOperator,
+               x);
+  }
+
+
+
+  //---[ Mass Integrator ]---------
+  OccaMassIntegrator::OccaMassIntegrator(OccaBilinearForm &bilinearForm_) :
+    OccaIntegrator(bilinearForm_) {}
+
+  OccaMassIntegrator::~OccaMassIntegrator() {
+    assembleKernel.free();
+    multKernel.free();
+
+    coefficients.free();
+    jacobian.free();
+    assembledOperator.free();
+  }
+
+  OccaIntegrator* OccaMassIntegrator::CreateInstance() {
+    return new OccaMassIntegrator(bilinearForm);
+  }
+
+  void OccaMassIntegrator::Setup() {
+    occa::properties kernelProps = props;
+
+    MassIntegrator &integ = (MassIntegrator&) *integrator;
+
+    const FiniteElement &fe   = bilinearForm.GetFE(0);
+    const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
+
+    const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
+    if (el) {
+      maps = OccaDofQuadMaps::GetTensorMaps(device, bilinearForm, *el, ir);
+      setTensorProperties(fe, ir, kernelProps);
+    } else {
+      maps = OccaDofQuadMaps::GetSimplexMaps(device, bilinearForm, fe, ir);
+      setSimplexProperties(fe, ir, kernelProps);
+    }
+
+    const int elements = bilinearForm.GetNE();
+    const int quadraturePoints = ir.GetNPoints();
+
+    // Get coefficient from integrator
+    // [MISSING] Hard-coded to ConstantCoefficient for now
+    const ConstantCoefficient* coeff =
+      dynamic_cast<const ConstantCoefficient*>(integ.GetCoefficient());
+
+    if (coeff) {
+        hasConstantCoefficient = true;
+        kernelProps["defines/CONST_COEFF"] = coeff->constant;
+    } else {
+      mfem_error("OccaMassIntegrator can only handle ConstantCoefficients");
+    }
+
+    assembledOperator = device.malloc(elements
+                                      * quadraturePoints
+                                      * sizeof(double));
+
+    jacobian = getJacobian(device, bilinearForm, ir);
+
+    // Setup assemble and mult kernels
+    assembleKernel = GetAssembleKernel(kernelProps);
+    multKernel     = GetMultKernel(kernelProps);
+  }
+
+  void OccaMassIntegrator::Assemble() {
+    if (hasConstantCoefficient) {
+      // Dummy coefficient since we're defining it at compile time
+      assembleKernel((int) bilinearForm.GetNE(),
+                     maps.quadWeights,
+                     jacobian,
+                     (double) 0,
+                     assembledOperator);
+    } else {
+      assembleKernel((int) bilinearForm.GetNE(),
+                     maps.quadWeights,
+                     jacobian,
+                     coefficients,
+                     assembledOperator);
+    }
+  }
+
+  void OccaMassIntegrator::Mult(OccaVector &x) {
     multKernel((int) bilinearForm.GetNE(),
                maps.dofToQuad,
                maps.dofToQuadD,
