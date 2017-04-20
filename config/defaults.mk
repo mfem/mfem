@@ -88,23 +88,28 @@ HYPRE_DIR = @MFEM_DIR@/../hypre-2.10.0b/src/hypre
 HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 
-# METIS library configuration
-ifeq ($(MFEM_USE_SUPERLU),NO)
-   ifeq ($(MFEM_USE_METIS_5),NO)
-     METIS_DIR = @MFEM_DIR@/../metis-4.0
-     METIS_OPT =
-     METIS_LIB = -L$(METIS_DIR) -lmetis
+# If METIS_DIR is not provided, assume a sane installation layout.
+# ( source in include dir, library in lib dir ).
+ifndef METIS_DIR
+   # If SuperLU is enabled, parmetis tarball must be used.
+   ifeq ($(MFEM_USE_SUPERLU),YES)
+      METIS_DIR = @MFEM_DIR@/../parmetis-4.0.3
    else
-     METIS_DIR = @MFEM_DIR@/../metis-5.0
-     METIS_OPT = -I$(METIS_DIR)/include
-     METIS_LIB = -L$(METIS_DIR)/lib -lmetis
+      # No SuperLU, use metis.  Check if v4 or v5 wanted.
+      ifeq ($(MFEM_USE_METIS_5),YES)
+         METIS_DIR = @MFEM_DIR@/../metis-5.0
+      else
+         METIS_DIR = @MFEM_DIR@/../metis-4.0
+      endif
    endif
-else
-   # ParMETIS currently needed only with SuperLU. We assume that METIS 5
-   # (included with ParMETIS) is installed in the same location.
-   METIS_DIR = @MFEM_DIR@/../parmetis-4.0.3
-   METIS_OPT = -I$(METIS_DIR)/include
-   METIS_LIB = -L$(METIS_DIR)/lib -lparmetis -lmetis
+endif
+
+METIS_LIB = -L$(METIS_DIR)/lib -lmetis
+METIS_OPT = -I$(METIS_DIR)/include
+ 
+# If SuperLU is enabled, link in parmetis library and set METIS_5 to YES..
+ifeq ($(MFEM_USE_SUPERLU),YES)
+   METIS_LIB = $(METIS_LIB) -lparmetis
    MFEM_USE_METIS_5 = YES
 endif
 
