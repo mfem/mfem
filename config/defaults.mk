@@ -203,7 +203,7 @@ endif
 # OCCA library configuration
 ifeq ($(MFEM_USE_OCCA),YES)
   ifndef OCCA_DIR
-    OCCA_DIR := $(MFEM_DIR)/../occa
+    OCCA_DIR := @MFEM_DIR@/../occa
   endif
   OCCA_OPT := -I$(OCCA_DIR)/include
   OCCA_LIB := -L$(OCCA_DIR)/lib -locca
