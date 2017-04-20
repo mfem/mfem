@@ -28,8 +28,23 @@ int FiniteElementCollection::HasFaceDofs(int GeomType) const
    {
       case Geometry::TETRAHEDRON: return DofForGeometry (Geometry::TRIANGLE);
       case Geometry::CUBE:        return DofForGeometry (Geometry::SQUARE);
+      case Geometry::PENTATOPE:   return DofForGeometry (Geometry::TETRAHEDRON);
+      case Geometry::TESSERACT:   return DofForGeometry (Geometry::CUBE);
       default:
          mfem_error ("FiniteElementCollection::HasFaceDofs:"
+                     " unknown geometry type.");
+   }
+   return 0;
+}
+
+int FiniteElementCollection::HasPlanarDofs(int GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::PENTATOPE:   return DofForGeometry (Geometry::TRIANGLE);
+      case Geometry::TESSERACT:   return DofForGeometry (Geometry::SQUARE);
+      default:
+         mfem_error ("FiniteElementCollection::HasPlanarDofs:"
                      " unknown geometry type.");
    }
    return 0;
@@ -1449,6 +1464,47 @@ const
    return ind_neg;
 }
 
+const FiniteElement *
+DivSkew1_4DFECollection::FiniteElementForGeometry(int GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::PENTATOPE:   return &DivSkew0PentatopFE;
+      default:
+         mfem_error ("DivSkew1_4DFECollection: unknown geometry type 1.");
+   }
+   return &DivSkew0PentatopFE; // Make some compilers happy
+}
+
+int DivSkew1_4DFECollection::DofForGeometry(int GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::POINT:       return 0;
+      case Geometry::SEGMENT:     return 0;
+      case Geometry::TRIANGLE:    return 1;
+      case Geometry::SQUARE:      return 0;
+      case Geometry::TETRAHEDRON: return 0;
+      case Geometry::CUBE:        return 0;
+      case Geometry::PENTATOPE:   return 0;
+      default:
+         mfem_error ("DivSkew1_4DFECollection: unknown geometry type 2.");
+   }
+   return 0; // Make some compilers happy
+}
+
+int * DivSkew1_4DFECollection::DofOrderForOrientation(int GeomType, int Or)
+const
+{
+   static int ind_pos[] = { 0 };
+   static int ind_neg[] = { -1 };
+
+   if (Or %2 == 0)
+   {
+      return ind_pos;
+   }
+   return ind_neg;
+}
 
 const FiniteElement *
 RT0_3DFECollection::FiniteElementForGeometry(int GeomType) const

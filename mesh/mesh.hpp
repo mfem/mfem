@@ -707,6 +707,8 @@ public:
 
    int GetPlanarBaseGeometry(int i) const;
 
+   int GetBdrPlanarBaseGeometry(int i) const;
+
    int GetElementBaseGeometry(int i = 0) const
    { return i < GetNE() ? elements[i]->GetGeometryType() : BaseGeom; }
 
@@ -726,6 +728,9 @@ public:
 
    /// Return the indices and the orientations of all edges of bdr element i.
    void GetBdrElementEdges(int i, Array<int> &edges, Array<int> &cor) const;
+
+   /// Return the indices and the orientations of all planars of element i.
+   void GetBdrElementPlanars(int i, Array<int> &pls, Array<int> &cor) const;
 
    /** Return the indices and the orientations of all edges of face i.
        Works for both 2D (face=edge) and 3D faces. */

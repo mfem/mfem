@@ -4179,6 +4179,45 @@ void Mesh::GetBdrElementEdges(int i, Array<int> &edges, Array<int> &cor) const
    }
 }
 
+void Mesh::GetBdrElementPlanars(int i, Array<int> &pls, Array<int> &cor) const
+{
+	if(Dim == 4)
+	{
+		if (bel_to_planar)
+		{
+			bel_to_planar->GetRow(i, pls);
+		}
+		else
+		{
+			mfem_error("Mesh::GetBdrElementPlanars(...)");
+		}
+
+		int n = pls.Size();
+		cor.SetSize(n);
+
+		const int *v = boundary[i]->GetVertices();
+
+		switch (boundary[i]->GetType())
+		{
+			case Element::TETRAHEDRON:
+			{
+				 cor.SetSize(4);
+				 for (int j = 0; j < 4; j++)
+				 {
+					int* baseV = planars[pls[j]]->GetVertices();
+
+					const int *fv = tet_t::FaceVert[j];
+					int myTri[3] = { v[fv[0]], v[fv[1]], v[fv[2]] };
+					cor[j] = GetTriOrientation(baseV, myTri);
+				 }
+				 break;
+			}
+			default:
+			   mfem_error("Mesh::GetBdrElementPlanars(...) 2");
+		}
+	}
+}
+
 void Mesh::GetFaceEdges(int i, Array<int> &edges, Array<int> &o) const
 {
    if (Dim == 2)
@@ -4497,6 +4536,21 @@ int Mesh::GetPlanarBaseGeometry(int i) const
     	  	return Geometry::SQUARE;
       default:
          mfem_error("Mesh::GetPlanarBaseGeometry(...) #1");
+   }
+   return (-1);
+}
+
+int Mesh::GetBdrPlanarBaseGeometry(int i) const
+{
+   // Here, we assume all planars are of the same type
+   switch (GetBdrElementType(0))
+   {
+	  case Element::TETRAHEDRON:
+			return Geometry::TRIANGLE;
+	  case Element::HEXAHEDRON:
+			return Geometry::SQUARE;
+	  default:
+		 mfem_error("Mesh::GetBdrPlanarBaseGeometry(...) #1");
    }
    return (-1);
 }
@@ -5257,7 +5311,7 @@ STable3D * Mesh::GetElementToPlanarTable(int ret_trigtbl)
    STable3D *trig_tbl;
 
    if(el_to_planar != NULL) delete el_to_planar;
-   el_to_planar = new Table(NumOfElements, 10);  // 10 trigs for one pentatope
+   el_to_planar = new Table(NumOfElements, 24);  // 24 planars at most for a tesseract (pentatope only 10)
    trig_tbl = new STable3D(NumOfVertices);
    for (i = 0; i < NumOfElements; i++)
    {
@@ -5280,6 +5334,26 @@ STable3D * Mesh::GetElementToPlanarTable(int ret_trigtbl)
    el_to_planar->Finalize();
    NumOfPlanars = trig_tbl->NumberOfElements();
 
+   bel_to_planar = new Table(NumOfBdrElements, 6);  // 6 planars at most for cube
+   for (i = 0; i < NumOfBdrElements; i++)
+   {
+	  v = boundary[i]->GetVertices();
+	  switch (GetBdrElementType(i))
+	  {
+		  case Element::TETRAHEDRON:
+			 for (int j = 0; j < 4; j++)
+			 {
+				const int *fv = tet_t::FaceVert[j];
+				bel_to_planar->Push(i, (*trig_tbl)(v[fv[0]], v[fv[1]], v[fv[2]]));
+			 }
+			 break;
+#ifdef MFEM_DEBUG
+	  default:
+		 MFEM_ABORT("Unexpected type of boundary Element.");
+#endif
+	  }
+   }
+   bel_to_planar->Finalize();
 
    if(ret_trigtbl) return trig_tbl;
    delete trig_tbl;

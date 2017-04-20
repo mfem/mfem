@@ -295,6 +295,8 @@ int main(int argc, char *argv[])
    }
    pmesh->ReorientTetMesh();
 
+   pmesh->PrintInfo(std::cout);
+
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
    FiniteElementCollection *fec;
@@ -463,6 +465,7 @@ void E_exact(const Vector &x, Vector &E)
 
 void f_exact(const Vector &x, Vector &f)
 {
+   //f_exact = E +  DivSkew P( curl E ), where P is the 4d permutation operator
    if(dim==4)
    {
 	   f(0) =  (1.0+4.0*M_PI*M_PI)*sin(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));

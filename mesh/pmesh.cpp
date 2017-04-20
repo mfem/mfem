@@ -4789,7 +4789,7 @@ void ParMesh::PrintInfo(std::ostream &out)
     	  out << '\n'
           << " Euler number  "
           << setw(12) << sumdata[0]-sumdata[1]+sumdata[3]-sumdata[4]  << '\n';
-      if(Dim==4)
+      else if(Dim==4)
     	  out << '\n'
           << " Euler number  "
           << setw(12) << sumdata[0]-sumdata[1]+sumdata[2]-sumdata[3]+sumdata[4]  << '\n';

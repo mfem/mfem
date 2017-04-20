@@ -221,6 +221,10 @@ public:
    void CalcPhysCurlShape(ElementTransformation &Trans,
                           DenseMatrix &curl_shape) const;
 
+   virtual void CalcDivSkewShape(const IntegrationPoint &ip,
+                                 DenseMatrix &curl_shape) const;
+
+
    virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
 
    /** each row of h contains the upper triangular part of the hessian
@@ -405,6 +409,9 @@ protected:
    void SetDerivMembers();
 
    void CalcVShape_RT(ElementTransformation &Trans,
+                      DenseMatrix &shape) const;
+
+   void CalcVShape_DivSkew(ElementTransformation &Trans,
                       DenseMatrix &shape) const;
 
    void CalcVShape_ND(ElementTransformation &Trans,
@@ -1374,6 +1381,38 @@ public:
                             DenseMatrix &grad) const;
 };
 
+class DivSkew1PentFiniteElement : public VectorFiniteElement
+{
+private:
+   static const double tk1[10][4];
+   static const double tk2[10][4];
+
+public:
+   DivSkew1PentFiniteElement();
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_DivSkew(Trans, shape); }
+   virtual void CalcDivSkewShape(const IntegrationPoint &ip,
+                              DenseMatrix &divSkew_shape) const;
+   virtual void GetLocalInterpolation (ElementTransformation &Trans,
+                                       DenseMatrix &I) const {};
+   using FiniteElement::Project;
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const;
+
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const;
+};
+
+
+
+
 class RT0HexFiniteElement : public VectorFiniteElement
 {
 private:
@@ -1956,6 +1995,24 @@ public:
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
+class L2_PentatopeElement : public NodalFiniteElement
+{
+private:
+   int type;
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_x, shape_y, shape_z, shape_t, shape_l;
+   mutable Vector dshape_x, dshape_y, dshape_z, dshape_t, dshape_l, u;
+   mutable DenseMatrix du;
+#endif
+   DenseMatrix T;
+
+public:
+   L2_PentatopeElement(const int p, const int _type = 0);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+};
 
 class L2Pos_TetrahedronElement : public PositiveFiniteElement
 {

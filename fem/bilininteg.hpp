@@ -1713,10 +1713,12 @@ private:
 
    int Q_order;
 
+   int vecDim;
+
 public:
    /// Construct an integrator with coefficient 1.0
-   VectorMassIntegrator()
-   { Q = NULL; VQ = NULL; MQ = NULL; Q_order = 0; }
+   VectorMassIntegrator(int vDim=-1)
+   { Q = NULL; VQ = NULL; MQ = NULL; Q_order = 0; vecDim = vDim;}
    /** Construct an integrator with scalar coefficient q.
        If possible, save memory by using a scalar integrator since
        the resulting matrix is block diagonal with the same diagonal
@@ -1992,9 +1994,11 @@ private:
    DenseMatrix gshape;
    DenseMatrix pelmat;
 
+   int vecDim;
+
 public:
-   VectorDiffusionIntegrator() { Q = NULL; }
-   VectorDiffusionIntegrator(Coefficient &q) { Q = &q; }
+   VectorDiffusionIntegrator(int vDim=-1) { Q = NULL; vecDim = vDim; }
+   VectorDiffusionIntegrator(Coefficient &q, int vDim=-1) { Q = &q; vecDim = vDim; }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,

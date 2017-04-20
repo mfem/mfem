@@ -76,8 +76,8 @@ protected:
    /// Number of degrees of freedom. Number of unknowns are ndofs*vdim.
    int ndofs;
 
-   int nvdofs, nedofs, nfdofs, nbdofs;
-   int *fdofs, *bdofs;
+   int nvdofs, nedofs, npdofs, nfdofs, nbdofs;
+   int *pdofs, *fdofs, *bdofs;
 
    mutable Table *elem_dof;
    Table *bdrElem_dof;
@@ -178,6 +178,7 @@ public:
 
    int GetNVDofs() const { return nvdofs; }
    int GetNEDofs() const { return nedofs; }
+   int GetNPDofs() const { return npdofs; }
    int GetNFDofs() const { return nfdofs; }
 
    /// Returns number of elements in the mesh.
