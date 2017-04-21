@@ -14,6 +14,8 @@ typedef double* DofToQuadD2D_t @dim(2, NUM_QUAD, NUM_DOFS);
 typedef double* DofToQuad3D_t @dim(NUM_QUAD, NUM_DOFS);
 typedef double* DofToQuadD3D_t @dim(3, NUM_QUAD, NUM_DOFS);
 
+typedef double* ScalarOperator_t @dim(NUM_QUAD, numElements);
+
 typedef double* QuadToDof2D_t @dim(NUM_DOFS, NUM_QUAD);
 typedef double* QuadToDofD2D_t @dim(2, NUM_DOFS, NUM_QUAD);
 typedef double* QuadToDof3D_t @dim(NUM_DOFS, NUM_QUAD);

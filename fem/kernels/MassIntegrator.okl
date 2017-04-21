@@ -26,25 +26,21 @@
   ================================================
 
   [MISSING]
-  - Add support to auto-pick @dim and use @idxOrder on stack arrays
-  |   double a[2][2];
-  |   a[0][1]; <-- regular index
-  |   a(0,1);  <-- uses @idxOrder a[0][1] or a[1][0]
-  - Add support for @idxOrder to change indexing order after allocation
-  |   double a[2][2] @idxOrder(0,1);
-  |   a(0,1) -> a[1][0]
-  |   @set(a, idxOrder(1,0));
-  |   a(0,1) -> a[0][1]
-  - Add support to iterate over loop depending on mode
-  |   for(i; inner) {
-  |     for(0 < j < N) {} <-- ++j or j += block?
-  |   }
+  See kernels/DiffusionIntegrator.okl
 */
 
 #include "occa://mfem/fem/defines.okl"
 
 #if USING_TENSOR_OPS
-#  include "occa://mfem/fem/mass/tensor.okl"
+#  if OCCA_USING_CPU
+#    include "occa://mfem/fem/mass/tensor/cpu.okl"
+#  else
+#    include "occa://mfem/fem/mass/tensor/gpuHighOrder.okl"
+#  endif
 #else
-#  include "occa://mfem/fem/mass/simplex.okl"
+#  if OCCA_USING_CPU
+#    include "occa://mfem/fem/mass/simplex/cpu.okl"
+#  else
+#    include "occa://mfem/fem/mass/simplex/gpuHighOrder.okl"
+#  endif
 #endif
