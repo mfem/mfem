@@ -8,6 +8,7 @@
 // Description:  This example code demonstrates the use of MFEM to define a
 
 #include "maglev.hpp"
+#include "../../common/pfem_extras.hpp"
 #include <fstream>
 #include <iostream>
 #include <math.h>
@@ -25,7 +26,7 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    int order = 1;
-   int num_refine = 2;
+   int num_refine = 4;
    double domain_length = 3.0;
    double domain_height = 2.0;   
    double ha_len = 2.0;
@@ -124,11 +125,11 @@ int main(int argc, char *argv[])
 
    // Define a parallel finite element space on the parallel mesh. Here we
    // use continuous Lagrange finite elements of the specified order. 
-   FiniteElementCollection *fec = new H1_FECollection(order, 2);
-   FiniteElementCollection *viz_fec = new ND_FECollection(order, 2);
-   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   ParFiniteElementSpace *viz_fespace = new ParFiniteElementSpace(pmesh, viz_fec);   
-   HYPRE_Int ndof = fespace->GlobalTrueVSize();
+   FiniteElementCollection *fec_h1 = new H1_FECollection(order, 2);
+   FiniteElementCollection *fec_rt = new RT_FECollection(order, 2);
+   ParFiniteElementSpace *fes_h1 = new ParFiniteElementSpace(pmesh, fec_h1);
+   ParFiniteElementSpace *fes_rt = new ParFiniteElementSpace(pmesh, fec_rt);   
+   HYPRE_Int ndof = fes_h1->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << ndof << endl;
@@ -139,7 +140,7 @@ int main(int argc, char *argv[])
    // corresponding to the Laplacian operator Delta Az - mu sigma v dot grad Az.
    ConstantCoefficient one(-1.0);
    ConvectionCoeff conv_coeff(problem);
-   ParBilinearForm *a = new ParBilinearForm(fespace);
+   ParBilinearForm *a = new ParBilinearForm(fes_h1);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
    a->AddDomainIntegrator(new ConvectionIntegrator(conv_coeff));
    a->Assemble();
@@ -154,21 +155,21 @@ int main(int argc, char *argv[])
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      fes_h1->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
    // Set up the parallel linear form b(.) which corresponds to the
    // right-hand side of the FEM linear system, which in this case is
-   // (1,phi_i) where phi_i are the basis functions in fespace.
-   ParLinearForm *b = new ParLinearForm(fespace);
+   // (1,phi_i) where phi_i are the basis functions in fes_h1.
+   ParLinearForm *b = new ParLinearForm(fes_h1);
    MagnetizationCoeff mag_coeff(problem);
    b->AddDomainIntegrator(new DomainGradLFIntegrator(mag_coeff));
    b->Assemble();
 
    // Define the solution vector x as a parallel finite element grid function
-   // corresponding to fespace. Initialize x with initial guess of zero,
+   // corresponding to fes_h1. Initialize x with initial guess of zero,
    // which satisfies the boundary conditions.
-   ParGridFunction x(fespace);
+   ParGridFunction x(fes_h1);
    x = 0.0;
 
 
@@ -186,7 +187,7 @@ int main(int argc, char *argv[])
    // preconditioner from hypre.
    HypreParaSails *sails = new HypreParaSails(A);
    HypreGMRES *gmres = new HypreGMRES(A);
-   gmres->SetTol(1e-10);
+   gmres->SetTol(1e-7);
    gmres->SetKDim(250);
    gmres->SetMaxIter(10000);
    gmres->SetPrintLevel(2);
@@ -198,15 +199,21 @@ int main(int argc, char *argv[])
    a->RecoverFEMSolution(X, *b, x);
 
    //Project the coefficient onto some vector grid functions so we can vizualize them
-   ParGridFunction conv(viz_fespace);
+   ParGridFunction conv(fes_rt);
    conv.ProjectCoefficient(conv_coeff);
-   ParGridFunction mag(viz_fespace);
+   ParGridFunction mag(fes_rt);
    mag.ProjectCoefficient(mag_coeff);
 
-
+   //Compute Bfield = curl A so we can visualize it
+   ParGridFunction bfield(fes_rt);
+   miniapps::ParDiscreteCurlOperator curl(fes_h1,fes_rt);
+   curl.Assemble();
+   curl.Finalize();
+   curl.Mult(x, bfield);
 
    VisItDataCollection visit_dc("maglev", pmesh);
    visit_dc.RegisterField("Az", &x);
+   visit_dc.RegisterField("B", &bfield);
    visit_dc.RegisterField("convection_coeff", &conv);
    visit_dc.RegisterField("mag_coeff", &mag);
    visit_dc.Save();
@@ -243,8 +250,10 @@ int main(int argc, char *argv[])
    delete sails;
    delete a;
    delete b;
-   delete fespace;
-   if (order > 0) { delete fec; }
+   delete fes_h1;
+   delete fes_rt;
+   delete fec_h1;
+   delete fec_rt;
    delete pmesh;
 
    MPI_Finalize();

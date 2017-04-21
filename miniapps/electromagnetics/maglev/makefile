@@ -15,10 +15,7 @@ MFEM_BUILD_DIR ?= ../../..
 SRC = $(MFEM_DIR)/miniapps/electromagnetics/maglev/
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 TEST_MK = $(MFEM_DIR)/config/test.mk
-# Use the MFEM install directory
-# MFEM_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_DIR)/config.mk
-# TEST_MK = $(MFEM_DIR)/test.mk
+COMMON_O=../../common/pfem_extras.o
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
@@ -44,8 +41,12 @@ all: $(MINIAPPS)
 
 # Rules for building the miniapps
 $(MINIAPPS): \
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
+%: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ ../../common/pfem_extras.o $(MFEM_LIBS)
+
+$(COMMON_O): \
+%.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
 MFEM_TESTS = MINIAPPS
 include $(TEST_MK)
