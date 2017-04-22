@@ -223,6 +223,8 @@ namespace mfem {
     int dofsND = dofs1D;
     int quadND = quad1D;
 
+    props["defines/USING_TENSOR_OPS"] = 1;
+
     for (int d = 1; d <= 3; ++d) {
       if (d > 1) {
         dofsND *= dofs1D;
@@ -257,6 +259,7 @@ namespace mfem {
     const int numQuad = ir.GetNPoints();
     const int maxDQ   = numDofs > numQuad ? numDofs : numQuad;
 
+    props["defines/USING_TENSOR_OPS"] = 0;
     props["defines/NUM_DOFS"] = numDofs;
     props["defines/NUM_QUAD"] = numQuad;
 

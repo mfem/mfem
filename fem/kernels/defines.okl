@@ -12,9 +12,7 @@
 #ifndef MFEM_OCCA_DEFINES
 #define MFEM_OCCA_DEFINES
 
-#ifdef NUM_QUAD_1D
-#  define USING_TENSOR_OPS 1
-#else
+#ifndef USING_TENSOR_OPS
 #  define USING_TENSOR_OPS 0
 #endif
 
