@@ -125,13 +125,19 @@ SidreDataCollection::alloc_view(axom::sidre::Group *grp,
                                 const std::string &view_name)
 {
    MFEM_ASSERT(grp, "Group pointer is NULL");
-   sidre::View *v = grp->getView(view_name);
-   if (!v)
+   sidre::View *v = NULL;
+   
+   if (! grp->hasView(view_name) )
    {
       v = grp->createView(view_name);
       MFEM_ASSERT(v, "error allocating View " << view_name
                   << " in group " << grp->getPathName());
    }
+   else
+   {
+      v = grp->getView(view_name);
+   }
+   
    return v;
 }
 
@@ -142,8 +148,9 @@ SidreDataCollection::alloc_view(axom::sidre::Group *grp,
                                 const axom::sidre::DataType &dtype)
 {
    MFEM_ASSERT(grp, "Group pointer is NULL");
-   sidre::View *v = grp->getView(view_name);
-   if (!v)
+   sidre::View *v = NULL;
+   
+   if (! grp->hasView(view_name))
    {
       v = grp->createView(view_name, dtype);
       MFEM_ASSERT(v, "error allocating View " << view_name
@@ -151,6 +158,7 @@ SidreDataCollection::alloc_view(axom::sidre::Group *grp,
    }
    else
    {
+      v = grp->getView(view_name);
       MFEM_ASSERT(v->getSchema().dtype().equals(dtype), "");
    }
    return v;
@@ -162,12 +170,17 @@ SidreDataCollection::alloc_group(axom::sidre::Group *grp,
                                  const std::string &group_name)
 {
    MFEM_ASSERT(grp, "Group pointer is NULL");
-   sidre::Group *g = grp->getGroup(group_name);
-   if (!g)
+   sidre::Group *g = NULL;
+   
+   if (! grp->hasGroup(group_name) )
    {
       g = grp->createGroup(group_name);
       MFEM_ASSERT(g, "error allocating Group " << group_name
                   << " in group " << grp->getPathName());
+   }
+   else
+   {
+      g = grp->getGroup(group_name);
    }
    return g;
 }
@@ -197,14 +210,16 @@ SidreDataCollection::AllocNamedBuffer(const std::string& buffer_name,
 {
    sz = std::max(sz, sidre::SidreLength(0));
    sidre::Group *f = named_buffers_grp();
-   sidre::View  *v = f->getView(buffer_name);
-   if ( v == NULL )
+   sidre::View  *v = NULL;
+   
+   if(! f->hasView(buffer_name) )
    {
       // create a buffer view
       v = f->createViewAndAllocate(buffer_name, type, sz);
    }
    else
    {
+      v = f->getView(buffer_name);
       MFEM_ASSERT(v->getTypeID() == type, "type does not match existing type");
 
       // Here v is the view holding the buffer in the named_buffers group, so
