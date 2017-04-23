@@ -205,7 +205,7 @@ void DomainGradLFIntegrator::AssembleRHSElementVect(
    Vector vec1, vec2, q_dot_ds;
 
    int nd  = el.GetDof();
-   int dim = Q.GetVDim(); 
+   int dim = Q.GetVDim();
    vec1.SetSize(dim);
    vec2.SetSize(dim);
    adjJ.SetSize(dim,dim);

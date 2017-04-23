@@ -28,20 +28,20 @@ int main(int argc, char *argv[])
    int order = 1;
    int num_refine = 4;
    double domain_length = 3.0;
-   double domain_height = 2.0;   
+   double domain_height = 2.0;
    double ha_len = 2.0;
    double ha_thick = 0.1;
    int ha_num_magnets = 20;
    double ha_yoff = 0.05;
-   double ha_vx = 0.0;         
+   double ha_vx = 0.0;
    double ha_mu = 1.32e-6;
    double ha_sigma = 6.67e5;
    double ha_remanence = 1.0;
-   double conductor_thick = 0.025;   
+   double conductor_thick = 0.025;
    double conductor_yoff = 1.0;
    double conductor_vx = -100.0;
    double conductor_mu = 1.257e-6;
-   double conductor_sigma = 3.5e7;   
+   double conductor_sigma = 3.5e7;
    double air_mu = 1.257e-6;
    double air_sigma = 3e-15;
 
@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
    args.AddOption(&domain_length, "-dl", "--domain_length",
                   "Length (x) of the simulation domain (m).");
    args.AddOption(&domain_height, "-dh", "--domain_height",
-                  "Height (y) of the simulation domain (m).");   
+                  "Height (y) of the simulation domain (m).");
    args.AddOption(&ha_len, "-hl", "--ha_len",
                   "Physical length of the Halbach array (m).");
    args.AddOption(&ha_thick, "-ht", "--ha_thick",
@@ -69,18 +69,18 @@ int main(int argc, char *argv[])
                   "Permeability of the Halbach array (H/m).");
    args.AddOption(&ha_sigma, "-hs", "--ha_sigma",
                   "Conductivity of the halbach array (S/m).");
-   args.AddOption(&ha_remanence, "-hr", "--ha_sigma",
-                  "Remanence of the halbach array (T).");      
+   args.AddOption(&ha_remanence, "-hr", "--ha_remanence",
+                  "Remanence of the halbach array (T).");
    args.AddOption(&conductor_thick, "-ct", "--conductor_thick",
                   "Physical thickness of the conductor (m).");
    args.AddOption(&conductor_yoff, "-cy", "--conductor_yoff",
                   "Distance from the bottom of the domain to the top of the conductor (m).");
    args.AddOption(&conductor_vx, "-cv", "--conductor_vx",
-                  "Velocity of the conductor in the x direction (m/s).");   
+                  "Velocity of the conductor in the x direction (m/s).");
    args.AddOption(&conductor_mu, "-cm", "--conductor_mu",
                   "Permeability of the conductor (H/m).");
    args.AddOption(&conductor_sigma, "-cs", "--conductor_sigma",
-                  "Conductivity of the conductor (S/m).");   
+                  "Conductivity of the conductor (S/m).");
    args.AddOption(&air_mu, "-am", "--air_mu",
                   "Permeability of the air (H/m).");
    args.AddOption(&air_sigma, "-as", "--air_sigma",
@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // Generate the mesh from the given inputs and set up the 
+   // Generate the mesh from the given inputs and set up the
    // the object that holds on to all the problem definitions.
    double dx = ha_len / double(ha_num_magnets);
    double dy = min(min(ha_thick, conductor_thick), ha_yoff);
@@ -118,23 +118,22 @@ int main(int argc, char *argv[])
    MaglevProblemGeometry *problem = new MaglevProblemGeometry(
                            conductor_yoff - conductor_thick, conductor_yoff, conductor_vx,
                            conductor_mu, conductor_sigma,
-                           domain_length/2.0 - ha_len/2.0, domain_length/2.0 + ha_len/2.0, 
+                           domain_length/2.0 - ha_len/2.0, domain_length/2.0 + ha_len/2.0,
                            conductor_yoff+ha_yoff, conductor_yoff+ha_yoff+ha_thick,
                            ha_num_magnets, ha_vx, ha_mu, ha_sigma, ha_remanence/ha_mu,
                            air_mu, air_sigma);
 
    // Define a parallel finite element space on the parallel mesh. Here we
-   // use continuous Lagrange finite elements of the specified order. 
+   // use continuous Lagrange finite elements of the specified order.
    FiniteElementCollection *fec_h1 = new H1_FECollection(order, 2);
    FiniteElementCollection *fec_rt = new RT_FECollection(order, 2);
    ParFiniteElementSpace *fes_h1 = new ParFiniteElementSpace(pmesh, fec_h1);
-   ParFiniteElementSpace *fes_rt = new ParFiniteElementSpace(pmesh, fec_rt);   
+   ParFiniteElementSpace *fes_rt = new ParFiniteElementSpace(pmesh, fec_rt);
    HYPRE_Int ndof = fes_h1->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << ndof << endl;
    }
-
 
    // Set up the parallel bilinear form a(.,.) on the finite element space
    // corresponding to the Laplacian operator Delta Az - mu sigma v dot grad Az.
@@ -186,6 +185,7 @@ int main(int argc, char *argv[])
    // Define and apply a parallel PCG solver for AX=B with the BoomerAMG
    // preconditioner from hypre.
    HypreParaSails *sails = new HypreParaSails(A);
+   //HypreBoomerAMG *sails = new HypreBoomerAMG(A);
    HypreGMRES *gmres = new HypreGMRES(A);
    gmres->SetTol(1e-7);
    gmres->SetKDim(250);
