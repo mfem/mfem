@@ -210,7 +210,7 @@ ifeq ($(MFEM_USE_OCCA),YES)
 endif
 
 #Acrotensor library configs
-ifeq ($(MFEM_USE_OCCA),YES)
+ifeq ($(MFEM_USE_ACROTENSOR),YES)
    ACROTENSOR_DIR = @MFEM_DIR@/../acrotensor
    ACROTENSOR_OPT = -I$(ACROTENSOR_DIR)/inc
    ACROTENSOR_LIB = -L$(ACROTENSOR_DIR)/lib -lacrotensor -lcuda -lnvrtc

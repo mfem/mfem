@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
 
   SparseMatrix A_pc;
   if (pc_choice != NONE) {
-    a_pc->AddDomainIntegrator(new AcroDiffusionIntegrator(one));
+    a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
     a_pc->UsePrecomputedSparsity();
     a_pc->Assemble();
     a_pc->FormSystemMatrix(ess_tdof_list, A_pc);

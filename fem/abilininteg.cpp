@@ -38,6 +38,8 @@ namespace mfem {
     occa::properties kernelProps = props;
     kernelProps["OKL"] = false;
 
+    DiffusionIntegrator integ;
+
     const FiniteElement &fe   = *(fespace->GetFE(0));
     const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
 

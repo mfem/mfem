@@ -48,4 +48,8 @@
 #include "obilininteg.hpp"
 #endif
 
+#ifdef MFEM_USE_ACROTENSOR
+#include "abilininteg.hpp"
+#endif
+
 #endif

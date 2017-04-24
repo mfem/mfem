@@ -13,7 +13,7 @@
 #  ifndef MFEM_ACROTENSOR_BILININTEG
 #  define MFEM_ACROTENSOR_BILININTEG
 
-#include "Acrotensor.hpp"
+#include "AcroTensor.hpp"
 #include "obilininteg.hpp"
 
 namespace mfem {

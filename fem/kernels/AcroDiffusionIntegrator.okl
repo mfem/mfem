@@ -9,7 +9,7 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "Acrotensor.hpp"
+#include "AcroTensor.hpp"
 
 // This assembles all of the element mass matrices into Me on the GPU
 // All of the double* inputs are assumed to be cuda pointers
