@@ -332,24 +332,29 @@ namespace mfem {
     return newIntegrator;
   }
 
+  std::string OccaIntegrator::GetName() {
+    return integrator->Name();
+  }
+
   void OccaIntegrator::Setup() {}
 
   occa::kernel OccaIntegrator::GetAssembleKernel(const occa::properties &props) {
-    return GetKernel("Assemble", props);
+    const FiniteElement &fe = *(fespace->GetFE(0));
+    return GetKernel(stringWithDim("Assemble", fe.GetDim()),
+                     props);
   }
 
   occa::kernel OccaIntegrator::GetMultKernel(const occa::properties &props) {
-    return GetKernel("Mult", props);
+    const FiniteElement &fe = *(fespace->GetFE(0));
+    return GetKernel(stringWithDim("Mult", fe.GetDim()),
+                     props);
   }
 
   occa::kernel OccaIntegrator::GetKernel(const std::string &kernelName,
                                          const occa::properties &props) {
-    // Get kernel name
-    const std::string filename = integrator->Name() + ".okl";
-    const FiniteElement &fe = *(fespace->GetFE(0));
-
+    const std::string filename = GetName() + ".okl";
     return device.buildKernel("occa://mfem/fem/" + filename,
-                              stringWithDim(kernelName, fe.GetDim()),
+                              kernelName,
                               props);
   }
   //====================================

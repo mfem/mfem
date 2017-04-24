@@ -92,6 +92,8 @@ namespace mfem {
 
     virtual OccaIntegrator* CreateInstance() = 0;
 
+    virtual std::string GetName();
+
     virtual void Setup();
     virtual void Assemble() = 0;
     virtual void Mult(OccaVector &x) = 0;
