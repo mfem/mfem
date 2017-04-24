@@ -43,7 +43,7 @@ namespace mfem {
     typedef std::map<std::string,OccaIntegrator*> IntegratorBuilderMap;
 
     // State information
-    FiniteElementSpace *fes;
+    FiniteElementSpace *fespace;
     mutable Mesh *mesh;
 
     // Group of integrators used to build kernels
@@ -67,10 +67,10 @@ namespace mfem {
     Operator *restrictionOp, *prolongationOp;
 
   public:
-    OccaBilinearForm(FiniteElementSpace *f);
-    OccaBilinearForm(occa::device device_, FiniteElementSpace *f);
+    OccaBilinearForm(FiniteElementSpace *fespace_);
+    OccaBilinearForm(occa::device device_, FiniteElementSpace *fespace_);
 
-    void Init(occa::device device_, FiniteElementSpace *f);
+    void Init(occa::device device_, FiniteElementSpace *fespace_);
 
     // Setup the kernel builder collection
     void SetupIntegratorBuilderMap();
@@ -210,7 +210,7 @@ namespace mfem {
                             const Array<int> &constraintList_,
                             bool own_A_ = false);
 
-    void setup(occa::device device_,
+    void Setup(occa::device device_,
                Operator *A_,
                const Array<int> &constraintList_,
                bool own_A_ = false);

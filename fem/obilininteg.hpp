@@ -46,12 +46,10 @@ namespace mfem {
     // 3D ordering == byVDIM  -> [x y z x y z x y z x y z x y z x y z]
     //    ordering == byNODES -> [x x x x x x y y y y y y z z z z z z]
     static OccaDofQuadMaps& GetTensorMaps(occa::device device,
-                                          const OccaBilinearForm &bilinearForm,
                                           const H1_TensorBasisElement &fe,
                                           const IntegrationRule &ir);
 
     static OccaDofQuadMaps& GetSimplexMaps(occa::device device,
-                                           const OccaBilinearForm &bilinearForm,
                                            const FiniteElement &fe,
                                            const IntegrationRule &ir);
   };
@@ -69,7 +67,7 @@ namespace mfem {
                             occa::properties &props);
 
   occa::array<double> getJacobian(occa::device device,
-                                  const OccaBilinearForm &bilinearForm,
+                                  FiniteElementSpace *fespace,
                                   const IntegrationRule &ir);
 
   //---[ Base Integrator ]--------------
@@ -77,17 +75,18 @@ namespace mfem {
   protected:
     occa::device device;
 
-    OccaBilinearForm &bilinearForm;
     BilinearFormIntegrator *integrator;
+    FiniteElementSpace *fespace;
     occa::properties props;
     OccaIntegratorType itype;
 
   public:
-    OccaIntegrator(OccaBilinearForm &bilinearForm_);
-
+    OccaIntegrator();
     virtual ~OccaIntegrator();
 
-    OccaIntegrator* CreateInstance(BilinearFormIntegrator *integrator_,
+    OccaIntegrator* CreateInstance(occa::device device_,
+                                   BilinearFormIntegrator *integrator_,
+                                   FiniteElementSpace *fespace_,
                                    const occa::properties &props_,
                                    const OccaIntegratorType itype_);
 
@@ -118,7 +117,7 @@ namespace mfem {
     bool hasConstantCoefficient;
 
   public:
-    OccaDiffusionIntegrator(OccaBilinearForm &bilinearForm_);
+    OccaDiffusionIntegrator();
     virtual ~OccaDiffusionIntegrator();
 
     virtual OccaIntegrator* CreateInstance();
@@ -128,8 +127,9 @@ namespace mfem {
     virtual void Assemble();
     virtual void Mult(OccaVector &x);
   };
+  //====================================
 
-  //---[ Mass Integrator ]---------
+  //---[ Mass Integrator ]--------------
   class OccaMassIntegrator : public OccaIntegrator {
   private:
     OccaDofQuadMaps maps;
@@ -142,7 +142,7 @@ namespace mfem {
     bool hasConstantCoefficient;
 
   public:
-    OccaMassIntegrator(OccaBilinearForm &bilinearForm_);
+    OccaMassIntegrator();
     virtual ~OccaMassIntegrator();
 
     virtual OccaIntegrator* CreateInstance();
@@ -152,7 +152,6 @@ namespace mfem {
     virtual void Assemble();
     virtual void Mult(OccaVector &x);
   };
-
   //====================================
 }
 

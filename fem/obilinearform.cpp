@@ -24,19 +24,19 @@ namespace mfem {
   //---[ Bilinear Form ]----------------
   OccaBilinearForm::IntegratorBuilderMap OccaBilinearForm::integratorBuilders;
 
-  OccaBilinearForm::OccaBilinearForm(FiniteElementSpace *f) :
-    Operator(f->GetVSize()) {
-    Init(occa::currentDevice(), f);
+  OccaBilinearForm::OccaBilinearForm(FiniteElementSpace *fespace_) :
+    Operator(fespace_->GetVSize()) {
+    Init(occa::currentDevice(), fespace_);
   }
 
-  OccaBilinearForm::OccaBilinearForm(occa::device device_, FiniteElementSpace *f) :
-    Operator(f->GetVSize()) {
-    Init(device, f);
+  OccaBilinearForm::OccaBilinearForm(occa::device device_, FiniteElementSpace *fespace_) :
+    Operator(fespace_->GetVSize()) {
+    Init(device, fespace_);
   }
 
-  void OccaBilinearForm::Init(occa::device device_, FiniteElementSpace *f) {
-    fes = f;
-    mesh = fes->GetMesh();
+  void OccaBilinearForm::Init(occa::device device_, FiniteElementSpace *fespace_) {
+    fespace = fespace_;
+    mesh = fespace->GetMesh();
     device = device_;
 
     SetupIntegratorBuilderMap();
@@ -50,9 +50,9 @@ namespace mfem {
       return;
     }
     integratorBuilders[DiffusionIntegrator::StaticName()] =
-      new OccaDiffusionIntegrator(*this);
+      new OccaDiffusionIntegrator();
     integratorBuilders[MassIntegrator::StaticName()] =
-      new OccaMassIntegrator(*this);
+      new OccaMassIntegrator();
   }
 
   void OccaBilinearForm::SetupKernels() {
@@ -74,7 +74,7 @@ namespace mfem {
     const FiniteElement &fe = GetFE(0);
     const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
 
-    const Table &e2dTable = fes->GetElementToDofTable();
+    const Table &e2dTable = fespace->GetElementToDofTable();
     const int *elementMap = e2dTable.GetJ();
     const int elements = GetNE();
     const int numDofs = GetNDofs();
@@ -155,8 +155,8 @@ namespace mfem {
   }
 
   void OccaBilinearForm::SetupInterpolationData() {
-    const SparseMatrix *R = fes->GetRestrictionMatrix();
-    const Operator *P = fes->GetProlongationMatrix();
+    const SparseMatrix *R = fespace->GetRestrictionMatrix();
+    const Operator *P = fespace->GetProlongationMatrix();
     CreateRPOperators(device,
                       R, P,
                       restrictionOp,
@@ -182,13 +182,13 @@ namespace mfem {
   { return mesh->GetNE(); }
 
   int64_t OccaBilinearForm::GetNDofs() const
-  { return fes->GetNDofs(); }
+  { return fespace->GetNDofs(); }
 
   int64_t OccaBilinearForm::GetVDim() const
-  { return fes->GetVDim(); }
+  { return fespace->GetVDim(); }
 
   const FiniteElement& OccaBilinearForm::GetFE(const int i) const {
-    return *(fes->GetFE(i));
+    return *(fespace->GetFE(i));
   }
 
   // Adds new Domain Integrator.
@@ -282,7 +282,9 @@ namespace mfem {
       const std::string error = error_ss.str();
       mfem_error(error.c_str());
     }
-    integrators.push_back(integrator->CreateInstance(bIntegrator,
+    integrators.push_back(integrator->CreateInstance(device,
+                                                     bIntegrator,
+                                                     fespace,
                                                      baseKernelProps + props,
                                                      itype));
   }
@@ -397,7 +399,7 @@ namespace mfem {
                                                    const Array<int> &constraintList_,
                                                    bool own_A_) :
     Operator(A_->Height(), A_->Width()) {
-    setup(occa::currentDevice(), A_, constraintList_, own_A_);
+    Setup(occa::currentDevice(), A_, constraintList_, own_A_);
   }
 
   OccaConstrainedOperator::OccaConstrainedOperator(occa::device device_,
@@ -405,10 +407,10 @@ namespace mfem {
                                                    const Array<int> &constraintList_,
                                                    bool own_A_) :
     Operator(A_->Height(), A_->Width()) {
-    setup(device_, A_, constraintList_, own_A_);
+    Setup(device_, A_, constraintList_, own_A_);
   }
 
-  void OccaConstrainedOperator::setup(occa::device device_,
+  void OccaConstrainedOperator::Setup(occa::device device_,
                                       Operator *A_,
                                       const Array<int> &constraintList_,
                                       bool own_A_) {

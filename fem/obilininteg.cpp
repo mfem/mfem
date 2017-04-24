@@ -38,7 +38,6 @@ namespace mfem {
   }
 
   OccaDofQuadMaps& OccaDofQuadMaps::GetTensorMaps(occa::device device,
-                                                  const OccaBilinearForm &bilinearForm,
                                                   const H1_TensorBasisElement &fe,
                                                   const IntegrationRule &ir) {
 
@@ -60,7 +59,7 @@ namespace mfem {
     const Poly_1D::Basis &basis = fe.GetBasis();
     const int order = fe.GetOrder();
     const int dofs = order + 1;
-    const int dims = bilinearForm.GetDim();
+    const int dims = fe.GetDim();
 
     // Create the dof -> quadrature point map
     const IntegrationRule &ir1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder());
@@ -125,7 +124,6 @@ namespace mfem {
   }
 
   OccaDofQuadMaps& OccaDofQuadMaps::GetSimplexMaps(occa::device device,
-                                                   const OccaBilinearForm &bilinearForm,
                                                    const FiniteElement &fe,
                                                    const IntegrationRule &ir) {
 
@@ -276,10 +274,12 @@ namespace mfem {
   }
 
   occa::array<double> getJacobian(occa::device device,
-                                  const OccaBilinearForm &bilinearForm,
+                                  FiniteElementSpace *fespace,
                                   const IntegrationRule &ir) {
-    const int dims = bilinearForm.GetDim();
-    const int elements = bilinearForm.GetNE();
+    const FiniteElement &fe = *(fespace->GetFE(0));
+
+    const int dims = fe.GetDim();
+    const int elements = fespace->GetNE();
     const int quadraturePoints = ir.GetNPoints();
 
     const int dims2 = dims * dims;
@@ -288,7 +288,7 @@ namespace mfem {
     occa::array<double> jacobian(dims2, quadraturePoints, elements);
     double *eJacobian = jacobian.data();
 
-    Mesh &mesh = bilinearForm.GetMesh();
+    Mesh &mesh = *(fespace->GetMesh());
     for (int e = 0; e < elements; ++e) {
       ElementTransformation &trans = *(mesh.GetElementTransformation(e));
       for (int q = 0; q < quadraturePoints; ++q) {
@@ -311,19 +311,19 @@ namespace mfem {
   }
 
   //---[ Base Integrator ]--------------
-  OccaIntegrator::OccaIntegrator(OccaBilinearForm &bilinearForm_) :
-    bilinearForm(bilinearForm_) {}
-
+  OccaIntegrator::OccaIntegrator() {}
   OccaIntegrator::~OccaIntegrator() {}
 
-  OccaIntegrator* OccaIntegrator::CreateInstance(BilinearFormIntegrator *integrator_,
+  OccaIntegrator* OccaIntegrator::CreateInstance(occa::device device_,
+                                                 BilinearFormIntegrator *integrator_,
+                                                 FiniteElementSpace *fespace_,
                                                  const occa::properties &props_,
                                                  const OccaIntegratorType itype_) {
     OccaIntegrator *newIntegrator = CreateInstance();
 
-    newIntegrator->device = bilinearForm.GetDevice();
-
+    newIntegrator->device = device_;
     newIntegrator->integrator = integrator_;
+    newIntegrator->fespace = fespace_;
     newIntegrator->props = props_;
     newIntegrator->itype = itype_;
 
@@ -346,21 +346,22 @@ namespace mfem {
                                          const occa::properties &props) {
     // Get kernel name
     const std::string filename = integrator->Name() + ".okl";
+    const FiniteElement &fe = *(fespace->GetFE(0));
 
     return device.buildKernel("occa://mfem/fem/" + filename,
-                              stringWithDim(kernelName, bilinearForm.GetDim()),
+                              stringWithDim(kernelName, fe.GetDim()),
                               props);
   }
   //====================================
 
   //---[ Diffusion Integrator ]---------
-  OccaDiffusionIntegrator::OccaDiffusionIntegrator(OccaBilinearForm &bilinearForm_) :
-    OccaIntegrator(bilinearForm_) {}
+  OccaDiffusionIntegrator::OccaDiffusionIntegrator() :
+    OccaIntegrator() {}
 
   OccaDiffusionIntegrator::~OccaDiffusionIntegrator() {}
 
   OccaIntegrator* OccaDiffusionIntegrator::CreateInstance() {
-    return new OccaDiffusionIntegrator(bilinearForm);
+    return new OccaDiffusionIntegrator();
   }
 
   void OccaDiffusionIntegrator::Setup() {
@@ -368,22 +369,22 @@ namespace mfem {
 
     DiffusionIntegrator &integ = (DiffusionIntegrator&) *integrator;
 
-    const FiniteElement &fe   = bilinearForm.GetFE(0);
+    const FiniteElement &fe   = *(fespace->GetFE(0));
     const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
 
     const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
     if (el) {
-      maps = OccaDofQuadMaps::GetTensorMaps(device, bilinearForm, *el, ir);
+      maps = OccaDofQuadMaps::GetTensorMaps(device, *el, ir);
       setTensorProperties(fe, ir, kernelProps);
     } else {
-      maps = OccaDofQuadMaps::GetSimplexMaps(device, bilinearForm, fe, ir);
+      maps = OccaDofQuadMaps::GetSimplexMaps(device, fe, ir);
       setSimplexProperties(fe, ir, kernelProps);
     }
 
-    const int dims = bilinearForm.GetDim();
+    const int dims = fe.GetDim();
     const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
 
-    const int elements = bilinearForm.GetNE();
+    const int elements = fespace->GetNE();
     const int quadraturePoints = ir.GetNPoints();
 
     // Get coefficient from integrator
@@ -400,7 +401,7 @@ namespace mfem {
 
     assembledOperator.allocate(symmDims, quadraturePoints, elements);
 
-    jacobian = getJacobian(device, bilinearForm, ir);
+    jacobian = getJacobian(device, fespace, ir);
 
     // Setup assemble and mult kernels
     assembleKernel = GetAssembleKernel(kernelProps);
@@ -410,13 +411,13 @@ namespace mfem {
   void OccaDiffusionIntegrator::Assemble() {
     if (hasConstantCoefficient) {
       // Dummy coefficient since we're defining it at compile time
-      assembleKernel((int) bilinearForm.GetNE(),
+      assembleKernel((int) fespace->GetNE(),
                      maps.quadWeights.memory(),
                      jacobian.memory(),
                      (double) 0,
                      assembledOperator.memory());
     } else {
-      assembleKernel((int) bilinearForm.GetNE(),
+      assembleKernel((int) fespace->GetNE(),
                      maps.quadWeights.memory(),
                      jacobian.memory(),
                      coefficients.memory(),
@@ -425,7 +426,7 @@ namespace mfem {
   }
 
   void OccaDiffusionIntegrator::Mult(OccaVector &x) {
-    multKernel((int) bilinearForm.GetNE(),
+    multKernel((int) fespace->GetNE(),
                maps.dofToQuad.memory(),
                maps.dofToQuadD.memory(),
                maps.quadToDof.memory(),
@@ -433,17 +434,16 @@ namespace mfem {
                assembledOperator.memory(),
                x);
   }
+  //====================================
 
-
-
-  //---[ Mass Integrator ]---------
-  OccaMassIntegrator::OccaMassIntegrator(OccaBilinearForm &bilinearForm_) :
-    OccaIntegrator(bilinearForm_) {}
+  //---[ Mass Integrator ]--------------
+  OccaMassIntegrator::OccaMassIntegrator() :
+    OccaIntegrator() {}
 
   OccaMassIntegrator::~OccaMassIntegrator() {}
 
   OccaIntegrator* OccaMassIntegrator::CreateInstance() {
-    return new OccaMassIntegrator(bilinearForm);
+    return new OccaMassIntegrator();
   }
 
   void OccaMassIntegrator::Setup() {
@@ -451,19 +451,19 @@ namespace mfem {
 
     MassIntegrator &integ = (MassIntegrator&) *integrator;
 
-    const FiniteElement &fe   = bilinearForm.GetFE(0);
+    const FiniteElement &fe   = *(fespace->GetFE(0));
     const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
 
     const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
     if (el) {
-      maps = OccaDofQuadMaps::GetTensorMaps(device, bilinearForm, *el, ir);
+      maps = OccaDofQuadMaps::GetTensorMaps(device, *el, ir);
       setTensorProperties(fe, ir, kernelProps);
     } else {
-      maps = OccaDofQuadMaps::GetSimplexMaps(device, bilinearForm, fe, ir);
+      maps = OccaDofQuadMaps::GetSimplexMaps(device, fe, ir);
       setSimplexProperties(fe, ir, kernelProps);
     }
 
-    const int elements = bilinearForm.GetNE();
+    const int elements = fespace->GetNE();
     const int quadraturePoints = ir.GetNPoints();
 
     // Get coefficient from integrator
@@ -480,7 +480,7 @@ namespace mfem {
 
     assembledOperator.allocate(quadraturePoints, elements);
 
-    jacobian = getJacobian(device, bilinearForm, ir);
+    jacobian = getJacobian(device, fespace, ir);
 
     // Setup assemble and mult kernels
     assembleKernel = GetAssembleKernel(kernelProps);
@@ -490,13 +490,13 @@ namespace mfem {
   void OccaMassIntegrator::Assemble() {
     if (hasConstantCoefficient) {
       // Dummy coefficient since we're defining it at compile time
-      assembleKernel((int) bilinearForm.GetNE(),
+      assembleKernel((int) fespace->GetNE(),
                      maps.quadWeights.memory(),
                      jacobian.memory(),
                      (double) 0,
                      assembledOperator.memory());
     } else {
-      assembleKernel((int) bilinearForm.GetNE(),
+      assembleKernel((int) fespace->GetNE(),
                      maps.quadWeights.memory(),
                      jacobian.memory(),
                      coefficients.memory(),
@@ -505,7 +505,7 @@ namespace mfem {
   }
 
   void OccaMassIntegrator::Mult(OccaVector &x) {
-    multKernel((int) bilinearForm.GetNE(),
+    multKernel((int) fespace->GetNE(),
                maps.dofToQuad.memory(),
                maps.dofToQuadD.memory(),
                maps.quadToDof.memory(),
