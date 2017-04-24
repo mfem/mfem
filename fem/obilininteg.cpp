@@ -316,14 +316,14 @@ namespace mfem {
 
   OccaIntegrator::~OccaIntegrator() {}
 
-  OccaIntegrator* OccaIntegrator::CreateInstance(BilinearFormIntegrator &integrator_,
+  OccaIntegrator* OccaIntegrator::CreateInstance(BilinearFormIntegrator *integrator_,
                                                  const occa::properties &props_,
                                                  const OccaIntegratorType itype_) {
     OccaIntegrator *newIntegrator = CreateInstance();
 
     newIntegrator->device = bilinearForm.GetDevice();
 
-    newIntegrator->integrator = &integrator_;
+    newIntegrator->integrator = integrator_;
     newIntegrator->props = props_;
     newIntegrator->itype = itype_;
 

@@ -87,7 +87,7 @@ namespace mfem {
 
     virtual ~OccaIntegrator();
 
-    OccaIntegrator* CreateInstance(BilinearFormIntegrator &integrator_,
+    OccaIntegrator* CreateInstance(BilinearFormIntegrator *integrator_,
                                    const occa::properties &props_,
                                    const OccaIntegratorType itype_);
 
