@@ -26,11 +26,12 @@
 //               shaper -m ../../data/inline-hex.mesh
 //               shaper -m ../../data/inline-tet.mesh
 //               shaper -m ../../data/amr-quad.mesh
-//               shaper -m ../../data/beam-quad.mesh
+//               shaper -m ../../data/beam-quad.mesh -a -ncl -1 -sd 4
 //               shaper -m ../../data/ball-nurbs.mesh
 //               shaper -m ../../data/mobius-strip.mesh
 //               shaper -m ../../data/square-disc-surf.mesh
 //               shaper -m ../../data/star-q3.mesh -sd 2 -ncl -1
+//               shaper -m ../../data/fichera-amr.mesh -a -ncl -1
 
 #include "mfem.hpp"
 #include <fstream>
@@ -66,6 +67,7 @@ int main(int argc, char *argv[])
    int sd = 2;
    int nclimit = 1;
    const char *mesh_file = "../../data/inline-quad.mesh";
+   bool aniso = false;
 
    // Parse command line
    OptionsParser args(argc, argv);
@@ -75,6 +77,8 @@ int main(int argc, char *argv[])
                   "Number of element subdivisions for interface detection.");
    args.AddOption(&nclimit, "-ncl", "--nc-limit",
                   "Level of hanging nodes allowed (-1 = unlimited).");
+   args.AddOption(&aniso, "-a", "--aniso", "-i", "--iso",
+                  "Enable anisotropic refinement of quads and hexes.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
@@ -88,6 +92,9 @@ int main(int argc, char *argv[])
 
    // NURBS meshes don't support non-conforming refinement for now
    if (mesh.NURBSext) { mesh.SetCurvature(2); }
+
+   // Anisotropic refinement not supported for simplex meshes.
+   if (mesh.MeshGenerator() & 1) { aniso = false; }
 
    // Mesh attributes will be visualized as piece-wise constants
    L2_FECollection attr_fec(0, dim);
@@ -118,14 +125,15 @@ int main(int argc, char *argv[])
          // Refine any element where different materials are detected. A more
          // sophisticated logic can be implemented here -- e.g. don't refine
          // the interfaces between certain materials.
-         int mat = 0;
+         Array<int> mat(ir.GetNPoints());
          double matsum = 0.0;
          for (int j = 0; j < ir.GetNPoints(); j++)
          {
             T->Transform(ir.IntPoint(j), pt);
-            mat = material(pt, xmin, xmax);
-            matsum += mat;
-            if ((int)matsum != mat*(j+1))
+            int m = material(pt, xmin, xmax);
+            mat[j] = m;
+            matsum += m;
+            if ((int)matsum != m*(j+1))
             {
                refine = true;
             }
@@ -138,7 +146,41 @@ int main(int argc, char *argv[])
          // Mark the element for refinement
          if (refine)
          {
-            refs.Append(Refinement(i));
+            int type = 7;
+            if (aniso)
+            {
+                // Determine the XYZ bitmask for anisotropic refinement.
+                int dx = 0, dy = 0, dz = 0;
+                const int s = sd+1;
+                if (dim == 2)
+                {
+                    for (int j = 0; j <= sd; j++)
+                    for (int i = 0; i < sd; i++)
+                    {
+                        dx += abs(mat[j*s + i+1] - mat[j*s + i]);
+                        dy += abs(mat[(i+1)*s + j] - mat[i*s + j]);
+                    }
+                }
+                else if (dim == 3)
+                {
+                    for (int k = 0; k <= sd; k++)
+                    for (int j = 0; j <= sd; j++)
+                    for (int i = 0; i < sd; i++)
+                    {
+                        dx += abs(mat[(k*s + j)*s + i+1] - mat[(k*s + j)*s + i]);
+                        dy += abs(mat[(k*s + i+1)*s + j] - mat[(k*s + i)*s + j]);
+                        dz += abs(mat[((i+1)*s + j)*s + k] - mat[(i*s + j)*s + k]);
+                    }
+                }
+                type = 0;
+                const int tol = mat.Size() / 10;
+                if (dx > tol) { type |= 1; }
+                if (dy > tol) { type |= 2; }
+                if (dz > tol) { type |= 4; }
+                if (!type) { type = 7; } // because of tol
+            }
+
+            refs.Append(Refinement(i, type));
          }
       }
 
