@@ -21,4 +21,8 @@ add_mfem_miniapp(mobius-strip
   MAIN mobius-strip.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(shaper
+  MAIN shaper.cpp
+  LIBRARIES mfem)
+
 # Add tests?
