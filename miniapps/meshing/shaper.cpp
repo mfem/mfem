@@ -149,35 +149,35 @@ int main(int argc, char *argv[])
             int type = 7;
             if (aniso)
             {
-                // Determine the XYZ bitmask for anisotropic refinement.
-                int dx = 0, dy = 0, dz = 0;
-                const int s = sd+1;
-                if (dim == 2)
-                {
-                    for (int j = 0; j <= sd; j++)
-                    for (int i = 0; i < sd; i++)
-                    {
+               // Determine the XYZ bitmask for anisotropic refinement.
+               int dx = 0, dy = 0, dz = 0;
+               const int s = sd+1;
+               if (dim == 2)
+               {
+                  for (int j = 0; j <= sd; j++)
+                     for (int i = 0; i < sd; i++)
+                     {
                         dx += abs(mat[j*s + i+1] - mat[j*s + i]);
                         dy += abs(mat[(i+1)*s + j] - mat[i*s + j]);
-                    }
-                }
-                else if (dim == 3)
-                {
-                    for (int k = 0; k <= sd; k++)
-                    for (int j = 0; j <= sd; j++)
-                    for (int i = 0; i < sd; i++)
-                    {
-                        dx += abs(mat[(k*s + j)*s + i+1] - mat[(k*s + j)*s + i]);
-                        dy += abs(mat[(k*s + i+1)*s + j] - mat[(k*s + i)*s + j]);
-                        dz += abs(mat[((i+1)*s + j)*s + k] - mat[(i*s + j)*s + k]);
-                    }
-                }
-                type = 0;
-                const int tol = mat.Size() / 10;
-                if (dx > tol) { type |= 1; }
-                if (dy > tol) { type |= 2; }
-                if (dz > tol) { type |= 4; }
-                if (!type) { type = 7; } // because of tol
+                     }
+               }
+               else if (dim == 3)
+               {
+                  for (int k = 0; k <= sd; k++)
+                     for (int j = 0; j <= sd; j++)
+                        for (int i = 0; i < sd; i++)
+                        {
+                           dx += abs(mat[(k*s + j)*s + i+1] - mat[(k*s + j)*s + i]);
+                           dy += abs(mat[(k*s + i+1)*s + j] - mat[(k*s + i)*s + j]);
+                           dz += abs(mat[((i+1)*s + j)*s + k] - mat[(i*s + j)*s + k]);
+                        }
+               }
+               type = 0;
+               const int tol = mat.Size() / 10;
+               if (dx > tol) { type |= 1; }
+               if (dy > tol) { type |= 2; }
+               if (dz > tol) { type |= 4; }
+               if (!type) { type = 7; } // because of tol
             }
 
             refs.Append(Refinement(i, type));
