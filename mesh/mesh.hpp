@@ -23,6 +23,38 @@
 #include "../general/gzstream.hpp"
 #include <iostream>
 #include <fstream>
+#include <list>
+
+#ifdef WITH_QHULL
+
+    // headers and defines for qhull
+    #include "RboxPoints.h"
+    #include "QhullError.h"
+    #include "Qhull.h"
+    #include "QhullQh.h"
+    #include "QhullFacet.h"
+    #include "QhullFacetList.h"
+    #include "QhullLinkedList.h"
+    #include "QhullVertex.h"
+    #include "QhullSet.h"
+    #include "QhullVertexSet.h"
+
+    #include "libqhull_r/qhull_ra.h"
+
+    #define qh_QHimport
+#endif
+
+#ifdef WITH_QHULL
+    using namespace orgQhull;
+#endif
+
+
+#define MYZEROTOL (1.0e-13)
+#define VTKTETRAHEDRON 10
+#define VTKWEDGE 13
+#define VTKTRIANGLE 5
+#define VTKQUADRIL 9
+
 
 namespace mfem
 {
@@ -1129,7 +1161,165 @@ public:
 
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
+
+#ifdef MFEM_USE_MPI
+
+   // A simple structure which is used to store temporarily the 4d mesh main arrays in
+   // parallel mesh generator, version 1.
+   struct IntermediateMesh{
+       int dim;
+       int ne;
+       int nv;
+       int nbe;
+
+       int * elements;
+       int * bdrelements;
+       double * vertices;
+       int * elattrs;
+       int * bdrattrs;
+
+       int withgindicesflag;
+       int * vert_gindices; // allocated and used only for 4d parmesh construction
+   };
+
+
+   // ONLY PENTATOPE case for 4D mesh and TETRAHEDRON case for 3D
+private:
+   // Calls InitMesh() and creates elements, vertices and boundary elements
+   // Used only as part of Mesh constructor thus private.
+   // Description of bnd_method, local_method - see in the constructor which calls this function.
+   void MeshSpaceTimeCylinder_onlyArrays (Mesh& meshbase, double tau, int Nsteps,
+                                          int bnd_method, int local_method);
+   // Takes the space-time mesh with elements, vertices and boundary already created
+   // and creates all the internal structure.
+   // Used inside the Mesh constructor.
+   void CreateInternalMeshStructure(int refine);
+
+   // Reads the elements, vertices and boundary from the input IntermediatMesh.
+   // It is like Load() in MFEM but for arrays instead of an input stream.
+   // No internal mesh structures are initialized inside.
+   void LoadMeshfromArrays( int nv, double * vertices,
+                                     int ne, int * elements, int * elattris,
+                                     int nbe, int * bdrelements, int * bdrattrs, int dim );
+   // Creates an IntermediateMesh whihc stores main arrays of the Mesh.
+   IntermediateMesh * ExtractMeshToInterMesh ();
+   // Allocation of IntermediateMesh structure.
+   void IntermeshInit( IntermediateMesh * intermesh, int dim, int nv, int ne, int nbdr, int with_gindices_flag);
+   void IntermeshDelete( IntermediateMesh * intermesh_pt);
+   void InterMeshPrint (IntermediateMesh * local_intermesh, int suffix, const char * filename);
+   // This function only creates elements, vertices and boundary elements and
+   // stores them in the output IntermediateMesh structure. It is used in ParMesh-to-Mesh version
+   // of space-time mesh constructor.
+   // Description of bnd_method, local_method - see in the constructor which calls this function.
+   IntermediateMesh * MeshSpaceTimeCylinder_toInterMesh (double tau, int Nsteps, int bnd_method, int local_method);
+
+public:
+   // Actual serial space-time mesh generator.
+   // Calls inside MeshSpaceTimeCylinder_onlyArrays() and also creates
+   // the internal structure of the mesh as well.
+   // bnd_method: way to create boundary elements
+   // bnd_method = 0: el_to_face is not used, face_bndflags not created, but log searches are used
+   // for creating boundary elements
+   // bnd_method = 1: a little bit more memory but no log searches for creating boundary elements
+   // local_method: way to create pentatopes for 4D space-time prisms
+   // local_method = 0: ~ SHORTWAY, qhull is used for 4D space-time prisms
+   // local_method = 1: ~ LONGWAY, qhull is used for lateral faces of 4D space-time prisms (then combined)
+   // local_method = 2: qhull is not used, a simple procedure for simplices is used.
+   Mesh(Mesh& meshbase, double tau, int Nsteps, int bnd_method, int local_method);
+   //friend void MeshSpaceTimeCylinder (Mesh& mesh3D, Mesh& mesh4D, double
+                                 //tau, int Nsteps, int bnd_method, int local_method);
+
+   // Actual space-time mesh generator, version 1 (DEPRECATED), which acts in parallel, but produces serial 4d mesh as the output.
+   // works ONLY in 4D and shoudl not be used.
+   // (which then can be transformed in one line intio a parallel 4d mesh via MFEM constructor.
+   // bnd_method: way to create boundary elements
+   // bnd_method = 0: el_to_face is not used, face_bndflags not created, but log searches are used
+   // for creating boundary elements
+   // bnd_method = 1: a little bit more memory but no log searches for creating boundary elements
+   // local_method: way to create pentatopes for 4D space-time prisms
+   // local_method = 0: ~ SHORTWAY, qhull is used for 4D space-time prisms
+   // local_method = 1: ~ LONGWAY, qhull is used for lateral faces of 4D space-time prisms (then combined)
+   // local_method = 2: qhull is not used, a simple procedure for simplices is used.
+   Mesh(MPI_Comm comm, ParMesh& meshbase, double tau, int Nsteps, int bnd_method = 1, int local_method = 2);
+   //friend void ParMesh3DtoMesh4D (MPI_Comm comm, ParMesh& mesh3D,
+                        //Mesh& mesh4D, double tau, int Nsteps, int bnd_method, int local_method);
+
+   // Computes domain and boundary volumes, and checks,
+   // that faces and boundary elements list is consistent with the actual element faces
+   int MeshCheck ();
+
+   // Converts a given ParMesh into a serial Mesh, and outputs the corresponding partioning as well.
+   Mesh( ParMesh& pmesh, int ** partioning);
+   // friend void ConvertParMeshToMesh ( ParMesh& pmesh, Mesh& mesh, int * & partioning);
+   // constructor ~ ConvertParMeshToMesh()
+
+   // time moments: t0 + i * deltat, i = 0, ... Nmoments - 1
+   void ComputeSlices(double t0, int Nmoments, double deltat, int myid);
+   void Compute_elpartition (double t0, int Nmoments, double deltat, std::vector<std::vector<int> > & elpartition);
+   void computeSliceCell (int elind, std::vector<std::vector<double> > & pvec,
+                          std::vector<std::vector<double> > & ipoints, std::vector<int>& edgemarkers,
+                          std::vector<std::vector<double> >& cellpnts, std::vector<int>& elvertslocal, int & nip, int & vertex_count);
+                          //bool compute_values, std::vector<std::vector<double> > & vertvalueslocal);
+   //extern class std::list;
+   void outputSliceMeshVTK ( std::stringstream& fname, std::vector<std::vector<double> > & ipoints,
+                                   std::list<int> &celltypes, int cellstructusize, std::list<std::vector<int> > &elvrtindices);
+
+#endif
 };
+
+//used for comparing the d-dimensional points by their coordinates
+typedef std::pair<std::vector<double>, int> PairPoint;
+struct CmpPairPoint
+{
+    bool operator()(const PairPoint& a, const PairPoint& b)
+    {
+        unsigned int size = a.first.size();
+        if ( size != b.first.size() )
+        {
+            std::cerr << "Error: Points have different dimensions" << std::endl << std::flush;
+            return false;
+        }
+        else
+        {
+            for ( unsigned int i = 0; i < size; ++i)
+                if ( fabs(a.first[i] - b.first[i]) > MYZEROTOL )
+                    return a.first[i] < b.first[i];
+            std::cerr << "Error, points are the same!" << std::endl << std::flush;
+            std::cerr << "Point 1:" << std::endl;
+            for ( unsigned int i = 0; i < size; ++i)
+                std::cerr << a.first[i] << " ";
+            std::cerr << std::endl;
+            std::cerr << "Point 2:" << std::endl;
+            for ( unsigned int i = 0; i < size; ++i)
+                std::cerr << b.first[i] << " ";
+            std::cerr << std::endl << std::flush;
+            return false;
+        }
+
+    }
+};
+
+// definitions are in mesh/mesh.cpp
+void reorder_cellvertices ( int dim, int nip, std::vector<std::vector<double> > & cellpnts, std::vector<int> & elvertexes);
+bool sortWedge3d(std::vector<std::vector<double> > & Points, int * permutation);
+bool sortQuadril2d(std::vector<std::vector<double> > & Points, int * permutation);
+bool intdComparison(const std::pair<int,double> &a,const std::pair<int,double> &b);
+double l2Norm(std::vector<double> vec);
+double sprod(std::vector<double> vec1, std::vector<double> vec2);
+__inline__ double dist( double * M, double * N , int d);
+int factorial(int n);
+int setzero(Array2D<int>* arrayint);
+void sortingPermutationNew( const std::vector<std::vector<double> >& values, int * permutation);
+int permutation_sign( int * permutation, int size);
+
+#ifdef WITH_QHULL
+int qhull_wrapper(int * simplices, qhT * qh, double * points, int dim, double volumetol, char *flags);
+void print_summary(qhT *qh);
+void qh_fprintf(qhT *qh, FILE *fp, int msgcode, const char *fmt, ... );
+void makePrism(qhT *qh, coordT *points, int numpoints, int dim, int seed);
+__inline__ void zero_intinit ( int * arr, int size);
+#endif
+
 
 /** Overload operator<< for std::ostream and Mesh; valid also for the derived
     class ParMesh */

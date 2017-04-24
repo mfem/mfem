@@ -4895,6 +4895,1608 @@ ParMesh::~ParMesh()
    // The Mesh destructor is called automatically
 }
 
+void ParMesh::PrintSharedStructParMesh ( int* permutation )
+{
+    int num_procs, myid;
+    MPI_Comm comm = GetComm();
+    MPI_Comm_size(comm, &num_procs);
+    MPI_Comm_rank(comm, &myid);
+
+    if (BaseGeom != Geometry::PENTATOPE && BaseGeom != Geometry::TETRAHEDRON && BaseGeom != Geometry::TRIANGLE)
+    {
+        if (myid == 0)
+            cout << "PrintSharedStructParMesh() is implemented only for pentatops, "
+                    "tetrahedrons and triangles" << endl << flush;
+        return;
+    }
+
+    cout << flush;
+    MPI_Barrier(comm);
+    if (myid == 0)
+        cout << "PrintSharedStructParMesh:" << endl;
+    cout << flush;
+    MPI_Barrier(comm);
+
+
+    for ( int proc = 0; proc < num_procs; ++proc )
+    {
+        if ( proc == myid )
+        {
+            cout << "I am " << proc << ", parmesh myrank = " << MyRank << endl;
+            cout << "myid = " << myid << ", num_procs = " << num_procs << endl;
+
+
+            if ( Dimension() >= 3 )
+            {
+                cout << "group_sface" << endl;
+                group_sface.Print(cout,10);
+            }
+            if (Dimension() == 4)
+            {
+                cout << "group_splan" << endl;
+                group_splan.Print(cout,20);
+            }
+            cout << "group_svert" << endl;
+            group_svert.Print();
+
+            for ( int row = 0; row < group_svert.Size(); ++row)
+            {
+                int rowsize = group_svert.RowSize(row);
+                int * rowcols = group_svert.GetRow(row);
+
+                cout << "Row = " << row << endl;
+                for ( int col = 0; col < rowsize; ++col)
+                {
+                    cout << "Vert No." << col << endl;
+
+                    cout << "(";
+                    double * vcoords = GetVertex(svert_lvert[rowcols[col]]);
+                    for ( int coord = 0; coord < Dimension(); ++coord)
+                    {
+                        cout << vcoords[coord] << " ";
+                    }
+                    cout << ")  " << endl;
+                    //cout << "rowcols[col] = " << rowcols[col];
+                }
+
+            }
+
+
+
+            if (Dimension() >= 3)
+            {
+                cout << "shared_faces" << endl;
+                for ( int i = 0; i < shared_faces.Size(); ++i)
+                {
+                    Element * el = shared_faces[i];
+                    int *v = el->GetVertices();
+                    if ( !permutation)
+                    {
+                        for ( int vert = 0; vert < Dimension(); ++vert)
+                            cout << v[vert] << " ";
+                        cout << endl;
+                        //cout << v[0] << " " << v[1] << " " << v[2] << " " << v[3] << endl;
+                    }
+                    else
+                    {
+                        for ( int vert = 0; vert < Dimension(); ++vert)
+                            cout << permutation[v[vert]] << " ";
+                        cout << endl;
+                    }
+                }
+
+
+
+                for ( int row = 0; row < group_sface.Size(); ++row)
+                {
+                    int rowsize = group_sface.RowSize(row);
+                    int * rowcols = group_sface.GetRow(row);
+
+                    cout << "Row = " << row << endl;
+                    for ( int col = 0; col < rowsize; ++col)
+                    {
+                        cout << "Face No." << col << endl;
+
+                        cout << "rowcols[col] = " << rowcols[col] << endl;
+
+                        Element * el = shared_faces[rowcols[col]];
+                        int *v = el->GetVertices();
+
+                        for ( int vertno = 0; vertno < el->GetNVertices(); ++vertno)
+                        {
+                            //simple
+                            //cout << v[vertno] << " ";
+                            // with coords
+                            double * vcoords = GetVertex(v[vertno]);
+                            cout << vertno << ": (";
+                            for ( int coord = 0; coord < Dimension(); ++coord)
+                            {
+                                cout << vcoords[coord] << " ";
+                            }
+                            cout << ")  " << endl;
+                        }
+                        cout << endl;
+                    }
+
+                }
+
+            } // end of priting shared faces
+
+            if (Dimension() == 4)
+            {
+                cout << "shared_planars" << endl;
+                for ( int i = 0; i < shared_planars.Size(); ++i)
+                {
+                    Element * el = shared_planars[i];
+                    int *v = el->GetVertices();
+                    if ( !permutation)
+                        cout << v[0] << " " << v[1] << " " << v[2] << endl;
+                    else
+                        cout << permutation[v[0]] << " " <<
+                                permutation[v[1]] << " " << permutation[v[2]] << endl;
+                }
+
+                for ( int row = 0; row < group_splan.Size(); ++row)
+                {
+                    int rowsize = group_splan.RowSize(row);
+                    int * rowcols = group_splan.GetRow(row);
+
+                    cout << "Row = " << row << endl;
+                    for ( int col = 0; col < rowsize; ++col)
+                    {
+                        cout << "Planar No." << col << endl;
+
+                        cout << "rowcols[col] = " << rowcols[col] << endl;
+
+                        Element * el = shared_planars[rowcols[col]];
+                        int *v = el->GetVertices();
+
+                        for ( int vertno = 0; vertno < el->GetNVertices(); ++vertno)
+                        {
+                            //simple
+                            //cout << v[vertno] << " ";
+                            // with coords
+                            double * vcoords = GetVertex(v[vertno]);
+                            cout << vertno << ": (";
+                            for ( int coord = 0; coord < Dimension(); ++coord)
+                            {
+                                cout << vcoords[coord] << " ";
+                            }
+                            cout << ")  " << endl;
+                        }
+                        cout << endl;
+                    }
+
+                }
+            }
+
+
+            cout << "shared_edges" << endl;
+            for ( int i = 0; i < shared_edges.Size(); ++i)
+            {
+                Element * el = shared_edges[i];
+                int *v = el->GetVertices();
+                if ( !permutation)
+                    cout << v[0] << " " << v[1] << endl;
+                else
+                    cout << permutation[v[0]] << " " << permutation[v[1]] << endl;
+            }
+            cout << "sedge_ledge" << endl;
+            sedge_ledge.Print();
+            cout << "group_sedge" << endl;
+            group_sedge.Print(cout, 10);
+
+
+            //GetEdgeVertexTable(); //this call crashes everything because it changes the edges
+            // if you don't delete edge_vertex and set it to NULL afterwards
+            //delete edge_vertex;
+            //edge_vertex = NULL;
+
+            /*
+            if (edge_vertex)
+            {
+                cout << "I already have edge_vertex" << endl;
+                edge_vertex->Print();
+            }
+            else
+                cout << "I don't have here edge_vertex" << endl;
+
+
+            DSTable v_to_v(NumOfVertices);
+            GetVertexToVertexTable(v_to_v);
+
+            int nedges = v_to_v.NumberOfEntries();
+
+            if (!edge_vertex)
+            {
+                cout << "Creating edge_vertex" << endl;
+
+                edge_vertex = new Table(nedges, 2);
+
+
+                for (int i = 0; i < NumOfVertices; i++)
+                {
+                   for (DSTable::RowIterator it(v_to_v, i); !it; ++it)
+                   {
+                      int j = it.Index();
+                      edge_vertex->Push(j, i);
+                      edge_vertex->Push(j, it.Column());
+                   }
+                }
+
+                edge_vertex->Finalize();
+                delete edge_vertex;
+                edge_vertex = NULL;
+            }
+
+            */
+
+
+            for ( int row = 0; row < group_sedge.Size(); ++row)
+            {
+                int rowsize = group_sedge.RowSize(row);
+                int * rowcols = group_sedge.GetRow(row);
+
+                cout << "Row = " << row << endl;
+                for ( int col = 0; col < rowsize; ++col)
+                {
+                    cout << "Edge No." << col << endl;
+
+                    Array<int> v;
+                    GetEdgeVertices(sedge_ledge[rowcols[col]], v);
+
+                    for ( int vertno = 0; vertno < 2; ++vertno)
+                    {
+                        //simple
+                        //cout << v[vertno] << " ";
+                        // with coords
+                        double * vcoords = GetVertex(v[vertno]);
+                        cout << vertno << ": (";
+                        for ( int coord = 0; coord < Dim; ++coord)
+                        {
+                            cout << vcoords[coord] << " ";
+                        }
+                        cout << ")  " << endl;
+                    }
+                    cout << endl;
+                }
+
+            }
+            //if not delete here, get segfault for more than two parallel refinements
+            delete edge_vertex;
+            edge_vertex = NULL;
+
+
+
+
+            cout << "sface_lface" << endl;
+            sface_lface.Print();
+            if (Dimension() == 4)
+            {
+                cout << "splan_lplan" << endl;
+                splan_lplan.Print();
+            }
+            cout << "sedge_ledge" << endl;
+            sedge_ledge.Print();
+            cout << "svert_lvert" << endl;
+            svert_lvert.Print();
+
+
+            cout << flush;
+        }
+        MPI_Barrier(comm);
+    }
+
+    return;
+}
+
+// Creates ParMesh internal structure (including shared entities)
+// after the main arrays (elements, vertices and boundary) are already defined for the
+// future space-time mesh. Used only inside the ParMesh constructor.
+void ParMesh::ParMeshSpaceTime_createShared( MPI_Comm comm, ParMesh& meshbase, int Nsteps )
+{
+    int num_procs, myid;
+    MPI_Comm_size(comm, &num_procs);
+    MPI_Comm_rank(comm, &myid);
+
+    int DimBase = meshbase.Dimension();
+    int Dim = DimBase + 1;
+    int vert_per_baseface = meshbase.faces[0]->GetNVertices();
+    int nv_base = meshbase.GetNV();
+
+    //cout << "vert_per_face =  " << vert_per_face << endl;
+    //cout << "vert_per_elembase = " << vert_per_elembase << endl;
+
+    if (DimBase != 2 && DimBase != 3 && myid == 0)
+    {
+        cout << "Case dimbase = " << DimBase << " is not supported in createShared()"
+             << endl << flush;
+        return;
+    }
+
+    if (BaseGeom != Geometry::PENTATOPE && BaseGeom != Geometry::TETRAHEDRON)
+    {
+        if (myid == 0)
+            cout << "ParMeshSpaceTime_createShared() is implemented only for "
+                    "pentatops and tetrahedrons" << endl << flush;
+        return;
+    }
+
+
+    ListOfIntegerSets  groups; // this group list will play the same role as "groups"
+    //in the ParMesh constructor from MFEM.
+    IntegerSet         group;
+
+    // ****************************************************************************
+    // step 0 of 4: looking at local part of the base mesh
+    // ****************************************************************************
+
+    // ****************************************************************************
+    // step 1 of 4: creating temporary arrays needed for shared entities.
+    // The arrays created are related to the space-time mesh structure
+    // ****************************************************************************
+
+    // creating sets for each kind of shared entities
+    // for each shared entity these array store the number of the corresponding group
+    // of processors in LOCAL processors numeration
+    Array<int> sface_groupbase;
+    Array<int> sedge_groupbase;
+    Array<int> svert_groupbase;
+
+    // for each shared entity these array store the index of the entity in the
+    // corresponding group of processors ~ position in group
+    Array<int> sface_posingroupbase;
+    Array<int> sedge_posingroupbase;
+    Array<int> svert_posingroupbase;
+
+    // maybe an ugly way to get sface_group from group_sface;
+    // actually, just manually transposing.
+    if (Dim == 4)
+    {
+        sface_groupbase.SetSize(meshbase.shared_faces.Size());
+        sface_posingroupbase.SetSize(meshbase.shared_faces.Size());
+        for ( int row = 0; row < meshbase.group_sface.Size(); ++row )
+        {
+            int * v = meshbase.group_sface.GetRow(row);
+            for (int colno = 0; colno < meshbase.group_sface.RowSize(row); ++colno)
+            {
+                sface_groupbase[v[colno]] = row;
+                sface_posingroupbase[v[colno]] = colno;
+            }
+        }
+    }
+    else //Dim == 3
+    {
+        sface_groupbase.SetSize(meshbase.shared_edges.Size());
+        sface_posingroupbase.SetSize(meshbase.shared_edges.Size());
+        for ( int row = 0; row < meshbase.group_sedge.Size(); ++row )
+        {
+            int * v = meshbase.group_sedge.GetRow(row);
+            for (int colno = 0; colno < meshbase.group_sedge.RowSize(row); ++colno)
+            {
+                sface_groupbase[v[colno]] = row;
+                sface_posingroupbase[v[colno]] = colno;
+            }
+        }
+    }
+
+    sedge_groupbase.SetSize(meshbase.shared_edges.Size());
+    sedge_posingroupbase.SetSize(meshbase.shared_edges.Size());
+    for ( int row = 0; row < meshbase.group_sedge.Size(); ++row )
+    {
+        int * v = meshbase.group_sedge.GetRow(row);
+        for (int colno = 0; colno < meshbase.group_sedge.RowSize(row); ++colno)
+        {
+            sedge_groupbase[v[colno]] = row;
+            sedge_posingroupbase[v[colno]] = colno;
+        }
+    }
+
+    svert_groupbase.SetSize(meshbase.svert_lvert.Size());
+    svert_posingroupbase.SetSize(meshbase.svert_lvert.Size());
+    for ( int row = 0; row < meshbase.group_svert.Size(); ++row )
+    {
+        int * v = meshbase.group_svert.GetRow(row);
+        for (int colno = 0; colno < meshbase.group_svert.RowSize(row); ++colno)
+        {
+            svert_groupbase[v[colno]] = row;
+            svert_posingroupbase[v[colno]] = colno;
+        }
+    }
+
+    // creating maps for each kind of base mesh shared entities
+
+    // map structure from shared entities (faces, edges and vertices)
+    // to pairs (group number, position inside the group)
+    std::map<set<int>, vector<int> > ShfacesBase;
+    std::map<set<int>, vector<int> > ShedgesBase;
+    // could be a map<int,int>, but somehow the code gets ugly at some place,
+    // around "findproj" stuff.
+    std::map<set<int>, vector<int> > ShvertsBase;
+
+    for ( int shvertind = 0; shvertind < meshbase.svert_lvert.Size(); ++shvertind)
+    {
+        set<int> buff (meshbase.svert_lvert + shvertind, meshbase.svert_lvert + shvertind + 1 );
+        ShvertsBase[buff] = vector<int>{svert_groupbase[shvertind],
+                                            svert_posingroupbase[shvertind]};
+    }
+
+    for ( int shedgeind = 0; shedgeind < meshbase.shared_edges.Size(); ++shedgeind)
+    {
+        Element * shedge = meshbase.shared_edges[shedgeind];
+
+        int * verts = shedge->GetVertices();
+        set<int> buff(verts, verts+2);      //edges always have two vertices
+
+        ShedgesBase[buff] = vector<int>{sedge_groupbase[shedgeind],
+                                            sedge_posingroupbase[shedgeind]};
+    }
+
+    if (Dim == 4)
+    {
+        for ( int shfaceind = 0; shfaceind < meshbase.shared_faces.Size(); ++shfaceind)
+        {
+            Element * shface = meshbase.shared_faces[shfaceind];
+
+            int * verts = shface->GetVertices();
+            set<int> buff(verts, verts+vert_per_baseface);
+
+            ShfacesBase[buff] = vector<int>{sface_groupbase[shfaceind],
+                    sface_posingroupbase[shfaceind]};
+        }
+    }
+    else // Dim == 3
+        ShfacesBase = ShedgesBase; //just a convention, that faces in 2D are the same as edges in these temporary structures
+
+
+    // actually here we need group_proc, which can be obtained from gtopo.GetGroup combined
+    // with converting lproc indices to proc indices using lproc_proc from gtopo.
+
+    Array<int> lproc_proc(meshbase.gtopo.GetNumNeighbors());
+    for ( int i = 0; i < lproc_proc.Size(); ++i )
+        lproc_proc[i] = meshbase.gtopo.GetNeighborRank(i);
+
+    Table group_proc;
+    group_proc.MakeI(meshbase.gtopo.NGroups());
+    for ( int row = 0; row < meshbase.gtopo.NGroups(); ++row )
+    {
+        group_proc.AddColumnsInRow(row, meshbase.gtopo.GetGroupSize(row));
+    }
+    group_proc.MakeJ();
+
+    int rowsize;
+    for ( int row = 0; row < meshbase.gtopo.NGroups(); ++row )
+    {
+        rowsize = meshbase.gtopo.GetGroupSize(row);
+        const int * group = meshbase.gtopo.GetGroup(row);
+        int group_with_proc[rowsize];
+
+        for ( int col = 0; col < rowsize; ++col )
+        {
+            group_with_proc[col] = lproc_proc[group[col]];
+        }
+
+        group_proc.AddConnections(row, group_with_proc, rowsize);
+    }
+    group_proc.ShiftUpI();
+
+    /*
+    for ( int proc = 0; proc < num_procs; ++proc )
+    {
+        if ( proc == myid )
+        //if ( proc == 1 && proc == myid )
+        {
+            cout << "I am " << proc << ", parmesh myrank = " << mesh3d.MyRank << endl;
+            //cout << "group_lproc3d" << endl;
+            //group_lproc.Print(cout,10);
+
+            cout << "lproc_proc3d" << endl;
+            lproc_proc.Print();
+
+            //cout << "proc_lproc3d" << endl;
+            //proc_lproc.Print();
+
+            cout << " groups_proc3d " << endl;
+            group_proc.Print(cout,10);
+
+            cout << flush;
+        }
+        MPI_Barrier(comm);
+    }
+    */
+
+    // ****************************************************************************
+    // step 2 of 4: creating groups which will be for the space-time mesh exactly the same as for
+    // the base mesh (because we are just extending the existing base parts in time)
+    // But one should be careful with processors numeration (global vs local)
+    // ****************************************************************************
+
+    for ( int row = 0; row < group_proc.Size(); ++row )
+    {
+        group.Recreate(group_proc.RowSize(row), group_proc.GetRow(row));
+        groups.Insert(group);
+    }
+
+    // ****************************************************************************
+    // step 3 of 4: creating main parmesh structures for shared entities
+    // The main idea is:
+    // 1. to loop over the local entities,
+    // 2. to project them onto the base (2D or 3D)
+    // 3. determine whether the projection is inside the shared 3d entities list
+    // 4. change correspondignly the shared 4d entities structure
+    // Say, a shared 4d planar (a triangle, basically) will be projected
+    // either to a shared 3d face or to a shared 3d edge.
+    // ****************************************************************************
+
+    int groupind;
+
+    // 3.1 shared faces 3d -> shared faces 4d (or shared edges 2d -> shared faces 3d)
+    // 4d case
+    // Nsteps * 3 shared tetrahedrons produced by each shared triangle (shared face 3d)
+    // which gives for each time slab a 3d-in-4d prism (which is decomposed into 3 tetrahedrons)
+    // as lateral face of a 4d space-time prism cell.
+    // 3d case
+    // Nsteps * 2 shared triangles produced by each shared edge (~shared face 2D) which gives
+    // a space-time rectangle (2D in 3D) which is decomposed into 2 triangles
+
+    int face2Dto3D_coeff = DimBase; // 3 for 4d and 2 for 3d
+    if ( Dim == 4 )
+        shared_faces.SetSize( Nsteps * face2Dto3D_coeff * meshbase.shared_faces.Size());
+    else // Dim = 3
+        shared_faces.SetSize( Nsteps * face2Dto3D_coeff * meshbase.shared_edges.Size());
+
+    sface_lface.SetSize( shared_faces.Size());
+
+    // alternative way to construct group_sface - from I and J arrays manually
+    int * group_sface_I, * group_sface_J;
+    group_sface_I = new int[group_proc.Size() + 1];
+
+    group_sface_I[0] = 0;
+    if (Dim == 4)
+        for ( int row = 0; row < group_proc.Size(); ++row )
+        {
+            group_sface_I[row + 1] = group_sface_I[row] + Nsteps * face2Dto3D_coeff *
+                    meshbase.group_sface.RowSize(row);
+        }
+    else //Dim == 3
+        for ( int row = 0; row < group_proc.Size(); ++row )
+        {
+            group_sface_I[row + 1] = group_sface_I[row] + Nsteps * face2Dto3D_coeff *
+                    meshbase.group_sedge.RowSize(row);
+        }
+
+    group_sface_J = new int[group_sface_I[group_proc.Size() - 1]];
+
+    cout << flush;
+    MPI_Barrier(comm);
+
+
+    int cnt_shfaces = 0;
+
+    for ( int faceind = 0; faceind < GetNumFaces(); ++faceind)
+    {
+        Element * face = faces[faceind];
+        int * v = face->GetVertices();
+
+        set<int> faceproj;
+        for ( int vert = 0; vert < face->GetNVertices() ; ++vert )
+        {
+            // assuming  all time slabs have the same number of nodes and
+            // no additional vertices are added to the 4d prisms
+            faceproj.insert( v[vert] % nv_base);
+        }
+
+
+        auto findproj = ShfacesBase.find(faceproj);
+        if (findproj != ShfacesBase.end() )
+        {
+
+            sface_lface[cnt_shfaces] = faceind;
+
+            groupind = findproj->second[0] + 1;
+
+            group.Recreate(group_proc.RowSize(groupind), group_proc.GetRow(groupind));
+
+            int temp = groups.Insert(group);
+
+
+            if (Dim == 4)
+            {
+                if(getSwappedFaceElementInfo(faceind))
+                    Swap(v); // FIX IT. 100% UNSURE about whether it is correct
+                shared_faces[cnt_shfaces] = new Tetrahedron(v);
+            }
+            else // Dim == 3
+            {
+                // this is from MFEM 3.3. Have not tested with this release at all
+                //Tetrahedron *tet = (Tetrahedron *)(elements[faces_info[faceind].Elem1No]);
+                //tet->GetMarkedFace(faces_info[faceind].Elem1Inf/64, v);
+
+
+                Tetrahedron *tet =
+                   (Tetrahedron *)(elements[faces_info[faceind].Elem1No]);
+                int re[2], type, flag, *tv;
+                tet->ParseRefinementFlag(re, type, flag);
+                tv = tet->GetVertices();
+
+                switch (faces_info[faceind].Elem1Inf/64)
+                {
+                   case 0:
+                      switch (re[1])
+                      {
+                         case 1: v[0] = tv[1]; v[1] = tv[2]; v[2] = tv[3];
+                            break;
+                         case 4: v[0] = tv[3]; v[1] = tv[1]; v[2] = tv[2];
+                            break;
+                         case 5: v[0] = tv[2]; v[1] = tv[3]; v[2] = tv[1];
+                            break;
+                      }
+                      break;
+                   case 1:
+                      switch (re[0])
+                      {
+                         case 2: v[0] = tv[2]; v[1] = tv[0]; v[2] = tv[3];
+                            break;
+                         case 3: v[0] = tv[0]; v[1] = tv[3]; v[2] = tv[2];
+                            break;
+                         case 5: v[0] = tv[3]; v[1] = tv[2]; v[2] = tv[0];
+                            break;
+                      }
+                      break;
+                   case 2:
+                      v[0] = tv[0]; v[1] = tv[1]; v[2] = tv[3];
+                      break;
+                   case 3:
+                      v[0] = tv[1]; v[1] = tv[0]; v[2] = tv[2];
+                      break;
+                }
+
+
+                // Here a flip is made for one of the two processes who share the face
+                // To fix the things, swap is been made on the process whose rank is larger.
+                //cout << "group size = " << group.Size() << endl;
+                const Array<int>& groupme = group;
+                //groupme.Print();
+                if (myid > min(groupme[0], groupme[1]))
+                {
+                    //cout << "Swap is made, my id = " << myid << endl;
+                    Swap(v);
+                }
+
+
+                /*
+                 * old way of face vertices reordering which turned out to be inconsistent
+                 * with refinement used for tetrahedron case
+
+                for ( int i = 0; i < 3; ++i)
+                    vcoords[i] = GetVertex(v[i]);
+
+                sortingPermutation(3, vcoords, ordering);
+
+                if ( permutation_sign(ordering, 3) == -1 ) //possible values are -1 or 1
+                    Swap(v);
+
+                */
+
+                shared_faces[cnt_shfaces] = new Triangle(v);
+            }
+
+            // computing the local index of one of the tetrahedrons(4d) or triangles(3d)
+            // which is projected onto the same face(edge) in 3d(2d):
+
+            int pos;
+            int tslab, tslab_localind;
+
+            // time slab which the tetrahedron (triangle) belongs to.
+            // It is initialized with the maximum possible value and then defined as a
+            // minimum tslab number over all tetrahedronv vertices
+            tslab = Nsteps - 1;
+            for ( int vert = 0; vert < face->GetNVertices() ; ++vert )
+                if (v[vert] / nv_base  < tslab)
+                    tslab = v[vert]/nv_base;
+
+            // The order within a time slab is as follows: All tetrahedra(triangles)
+            // are one above the other, so 0 goes for the lowest in the timeslab,
+            // 1 for the next one, etc...
+            int nv_lower = 0; // number of vertices on the lower base of the time slab prism
+            for ( int vert = 0; vert < face->GetNVertices() ; ++vert )
+            {
+                if (v[vert] / nv_base == tslab)
+                    nv_lower++;
+                else if (v[vert] / nv_base != tslab + 1)
+                {
+                    cout << "Strange: a vertex is neither on the top nor on the bottom" << endl;
+                    cout << "tslab = " << tslab << " ";
+                    cout << "v[vert] = " << v[vert] << " ";
+                    cout << "nv_base = " << nv_base << endl;
+                    cout << flush;
+                }
+
+            }
+
+            if (nv_lower < 1 || nv_lower > DimBase)
+                cout << "Strange: nv_lower = " << nv_lower << " either too many or"
+                              " too few vertices on the lower base" << endl << flush;
+            else
+            {
+                tslab_localind = DimBase - nv_lower;
+            }
+
+            pos = findproj->second[1] * Nsteps * face2Dto3D_coeff +
+                    tslab * face2Dto3D_coeff + tslab_localind;
+
+
+            group_sface_J[group_sface_I[temp - 1] + pos] = cnt_shfaces;
+
+            cnt_shfaces++;
+
+        }
+    }
+
+    if (cnt_shfaces != shared_faces.Size())
+        cout << "Error: smth wrong with the number of shared faces" << endl << flush;
+
+    group_sface.SetIJ(group_sface_I, group_sface_J, group_proc.Size() - 1);
+
+
+    // 3.2 shared_edges 3d & shared_faces 3d -> shared_planars 4d
+    // ...
+
+    int cnt_inface = 0, cnt_inedge = 0;
+    if (Dim == 4)
+    {
+        // Nsteps + 1 triangles as bases for lateral 3d-in-4d prisms for a one 4d space-time prism
+        // Nsteps * 2 triangles inside decomposition of each lateral 3d-in-4d prism into
+        // tetrahedrons with shared triangle3d (shared face 3d) as the base
+        // Nsteps * 2 triangles on the vertical lateral sides of each 3d-in-4d lateral prism
+        // for each 4d prism with shared segment3d (shared edge 3d) as the base
+        shared_planars.SetSize( (Nsteps * 2 + (Nsteps + 1))*meshbase.shared_faces.Size()
+                                       + Nsteps * 2 * meshbase.shared_edges.Size());
+        splan_lplan.SetSize( shared_planars.Size());
+
+        //alternative way to construct group_splan - from I and J arrays manually
+        int * group_splan_I, * group_splan_J;
+        group_splan_I = new int[group_proc.Size() + 1];
+        group_splan_I[0] = 0;
+        for ( int row = 0; row < group_proc.Size(); ++row )
+        {
+            group_splan_I[row + 1] = group_splan_I[row] +
+                    (Nsteps * 2 + (Nsteps + 1))*meshbase.group_sface.RowSize(row) +
+                    Nsteps * 2 * meshbase.group_sedge.RowSize(row);
+        }
+        group_splan_J = new int[group_splan_I[group_proc.Size() - 1]];
+
+        vector<double *> vcoords(3);
+        vector<vector<double> > vcoordsNew(3);
+        int ordering[3];
+        //int orderingNew[3];
+
+        for ( int planind4d = 0; planind4d < GetNPlanars(); ++planind4d)
+        {
+            //if (myid == 4)
+                //cout << "planind4d =  " << planind4d << " / " << GetNPlanars() << endl;
+
+            Element * plan4d = planars[planind4d];
+            int * v = plan4d->GetVertices();
+
+            set<int> planproj;
+            for ( int vert = 0; vert < plan4d->GetNVertices() ; ++vert )
+            {
+                // assuming  all time slabs have the same number of nodes and
+                // no additional vertices are added to the 4d prisms
+                planproj.insert( v[vert] % nv_base);
+            }
+
+            auto findproj_inface = ShfacesBase.find(planproj);
+            auto findproj_inedge = ShedgesBase.find(planproj);
+
+            // = 0 for planars projected onto the 3d face and smth for planars
+            // projected onto the 3d edge
+            int shift;
+
+            if ( findproj_inface != ShfacesBase.end())
+            {
+                //if ( myid == 4 )
+                    //cout << "appending a 4d planar because of 3d face " << endl << flush;
+
+                groupind = findproj_inface->second[0] + 1;
+                group.Recreate(group_proc.RowSize(groupind), group_proc.GetRow(groupind));
+
+                int temp = groups.Insert(group);
+
+                // computing the local index of one of the planars which produce
+                // the same projection onto 3d which happens to be a shared face 3d:
+                // For all time prisms over the shared face 3d (which is a triangle) there are
+                // Nsteps + 1 bases of the prisms and 2 *  Nsteps triangles which are 2d in 4d and
+                // are between the bases.
+                // 0 for the lowest 3d-like base
+                // 1,2 for planars above it in the same time slab with 2 and 1 points on the
+                // lowest base
+                // 3 ~ 0 but in the next time slab
+                // etc...
+                // Trying to understand, think of all 3d tetrahedrons which decompose a long prism
+                // and their faces = planars(trianles) with Nsteps + 1 plane sections.
+                // We consider all triangles which are projected onto the base and create
+                // a numeration over them.
+
+                shift = 0;
+
+                // time slab which the triangle belongs to. (minimal time slab over all vertices)
+                // It is initialized with the maximum possible value and then defined as a minimum
+                // tslab number over all tetrahedronv vertices
+                int tslab = Nsteps; //the uppermost base will formally be in this time slab
+                for ( int vert = 0; vert < plan4d->GetNVertices() ; ++vert )
+                    if (v[vert] / nv_base  < tslab)
+                        tslab = v[vert]/nv_base;
+
+                // index within a timeslab: 0,1, or 2 based on the following order:
+                // 0 for the lower base, 1 ...
+                // and 2 for the triangle which is higher than the others in the timeslab
+                // because planars are actually one above of the other.
+                int tslabprism_lind;
+                int nv_lower = 0; // number of vertices on the lwer 3d base of the time slab prism
+                for ( int vert = 0; vert < plan4d->GetNVertices() ; ++vert )
+                {
+                    if (v[vert] / nv_base == tslab)
+                        nv_lower++;
+                    else if (v[vert] / nv_base != tslab + 1)
+                        cout << "Strange face-type planar: a vertex is neither on the"
+                                " top nor on the bottom" << endl << flush;
+                }
+
+                if (nv_lower > 2)
+                    tslabprism_lind = 0;
+                else if (nv_lower < 2)
+                    tslabprism_lind = 2;
+                else if (nv_lower == 2)
+                    tslabprism_lind = 1;
+                else
+                    cout << "Strange face-type planar: nv_lower is not 1,2,3" << endl;
+
+                int pos = shift + findproj_inface->second[1] * (Nsteps * 2 + (Nsteps + 1))
+                        + tslab * 3 + tslabprism_lind;
+
+                group_splan_J[group_splan_I[temp - 1] + pos] = cnt_inface + cnt_inedge;
+
+                cnt_inface++;
+            }
+
+            if ( findproj_inedge != ShedgesBase.end())
+            {
+                //if ( myid == 4 )
+                    //cout << "appending a 4d planar because of 3d edge " << endl << flush;
+
+                groupind = findproj_inedge->second[0] + 1;
+                group.Recreate(group_proc.RowSize(groupind), group_proc.GetRow(groupind));
+
+                int temp = groups.Insert(group);
+
+                // computing the local index of one of the planars which produce
+                // the same projection onto 3d which happens to be a shared edge 3d:
+                // For all time prisms over the shared face 3d (which is a triangle) there are
+                // Nsteps + 1 bases of the prisms and 2 *  Nsteps triangles which are 2d in 4d and
+                // are between the bases.
+                // 0 for the lowest 3d-like base
+                // 1,2 for planars above it in the same time slab with 2 and 1 points
+                // on the lowest base
+                // 3 ~ 0 but in the next time slab
+                // etc...
+                // Trying to understand, think of all planars (triangles) which are projected
+                // onto a given shared edge = long rectangle (1d + time) with Nsteps + 1 plane
+                // sections.
+                // We consider all triangles which are projected onto the base-edge and create
+                // a numeration over them.
+
+                // first we need to jump over places reserved for planars which are projected
+                // onto the shared faces 3d for a given group of processors
+                shift = (Nsteps * 2 + (Nsteps + 1))*meshbase.group_sface.RowSize(temp - 1);
+
+                // time slab which the triangle belongs to. (minimal time slab over all vertices)
+                // It is initialized with the maximum possible value and then defined as a minimum
+                // tslab number over all vertices
+                int tslab = Nsteps - 1;
+                for ( int vert = 0; vert < plan4d->GetNVertices() ; ++vert )
+                    if (v[vert] / nv_base  < tslab)
+                        tslab = v[vert]/nv_base;
+
+                // index within a timeslab: 0 or 1 based on the following order:
+                // Consider a rectangle in space-time whith shared edge as the base.
+                // There is one diagonal which splits it into two triangles. We set:
+                // 0 for the lower one (with 2 vertices on the base) and 1 for the other.
+                int tslabprism_lind;
+                int nv_lower = 0; // number of vertices on the lower 3d-like base of the
+                // space-time rectangle
+                for ( int vert = 0; vert < plan4d->GetNVertices() ; ++vert )
+                {
+                    if (v[vert] / nv_base == tslab)
+                        nv_lower++;
+                    else if (v[vert] / nv_base != tslab + 1)
+                        cout << "Strange edge-type planar: a vertex is neither on the "
+                                "top nor on the bottom" << endl << flush;
+                }
+
+                if (nv_lower == 2)
+                    tslabprism_lind = 0;
+                else if (nv_lower == 1)
+                    tslabprism_lind = 1;
+                else
+                    cout << "Strange edge-type planar: nv_lower is not 1 or 2" << endl << flush;
+
+                int pos = shift + findproj_inedge->second[1] * Nsteps * 2
+                        + tslab * 2 + tslabprism_lind;
+
+                group_splan_J[group_splan_I[temp - 1] + pos] = cnt_inface + cnt_inedge;
+
+                cnt_inedge++;
+            }
+
+
+            if (findproj_inface != ShfacesBase.end() || findproj_inedge != ShedgesBase.end())
+            {
+                // Here we swap the planars so that their orientation is consistent across
+                // processes. For that we use the order based on the geometric ordering of
+                // vertices:
+                // Vertex A > Vertex B <-> x(A) > x(B) or ( x(A) = x(B) and y(A) > y(B) or (...))
+
+                for ( int i = 0; i < 3; ++i)
+                    vcoords[i] = GetVertex(v[i]);
+
+                // old
+                //sortingPermutation(4, vcoords, ordering);
+
+                for (int vert = 0; vert < 3; ++vert)
+                    vcoordsNew[vert].assign(vcoords[vert],
+                                            vcoords[vert] + Dim);
+
+                sortingPermutationNew(vcoordsNew, ordering);
+
+                /*
+                sortingPermutationNew(vcoordsNew, orderingNew);
+
+                cout << " Comparing sorting permutation functions" << endl;
+                for ( int i = 0; i < 3; ++i)
+                    if (ordering[i] != orderingNew[i])
+                        cout << "ERRRRRRRRRRRORRRRRRRRRR";
+                */
+
+
+                if ( permutation_sign(ordering, 3) == -1 ) //possible values are -1 or 1
+                    Swap(v);
+
+                shared_planars[cnt_inface + cnt_inedge - 1] = new Triangle(v);
+
+                splan_lplan[cnt_inface + cnt_inedge - 1] = planind4d;
+
+            }
+
+
+
+        }
+
+        group_splan.SetIJ(group_splan_I, group_splan_J, group_proc.Size() - 1);
+
+        int cnt_shplanars = cnt_inface + cnt_inedge;
+
+        if (cnt_shplanars != shared_planars.Size())
+            cout << "Error: smth wrong with the number of shared planars" << endl;
+
+    } // end of if Dim == 4 case for creating planars
+
+
+    // 3.3 shared vertices 3d & shared edges 3d -> shared edges 4d
+    // (or shared vertices 2d & shared edges 2d -> shared edges 3d)
+
+    // 4d case (3d case):
+    // Nsteps + 1 segments which are parallel to a shared edge 3d(2d)
+    // Nsteps segments which are diagonals in 2D-in-4d(3d) space-time rectangles
+    // with a shared edge 3d(2d) as the base
+    // Nsteps segments which are vertical sides in 2D-in-4d space-time rectangles
+    // with a shared edge 3d(2d) as the base, which are actually one vertical segment for
+    // each shared vertex.
+
+    shared_edges.SetSize( ((Nsteps + 1) + Nsteps)*meshbase.shared_edges.Size()
+                                   + Nsteps*meshbase.svert_lvert.Size());
+    sedge_ledge.SetSize( shared_edges.Size());
+
+    // alternative way to construct group_sedge - from I and J arrays manually
+    int * group_sedge_I, * group_sedge_J;
+    group_sedge_I = new int[group_proc.Size() + 1];
+    group_sedge_I[0] = 0;
+    for ( int row = 0; row < group_proc.Size(); ++row )
+    {
+        group_sedge_I[row + 1] = group_sedge_I[row] +
+                ((Nsteps + 1) + Nsteps)*meshbase.group_sedge.RowSize(row) +
+                Nsteps*meshbase.group_svert.RowSize(row);
+    }
+    group_sedge_J = new int[group_sedge_I[group_proc.Size() - 1]];
+
+    cnt_inedge = 0; // was already used for planars in 4d case
+    int cnt_invert = 0;
+    Array<int> verts;
+    for ( int edgeind = 0; edgeind < GetNEdges(); ++edgeind)
+    {
+        GetEdgeVertices(edgeind, verts);
+
+        set<int> edgeproj;
+        for ( int vert = 0; vert < verts.Size() ; ++vert )
+        {
+            //assuming  all time slabs have the same number of nodes and
+            // no additional vertices are added to the 4d prisms
+            edgeproj.insert( verts[vert] % nv_base);
+
+        }
+
+        // = 0 for edges projected onto the 3d edge and smth for edges
+        // projected onto the 3d vertex
+        int shift;
+
+        auto findproj_inedge = ShedgesBase.find(edgeproj);
+        auto findproj_invert = ShvertsBase.find(edgeproj);
+
+        if (findproj_inedge != ShedgesBase.end() || findproj_invert != ShvertsBase.end())
+        {
+            shared_edges[cnt_inedge + cnt_invert] = new Segment(verts,1);
+            sedge_ledge[cnt_inedge + cnt_invert] = edgeind;
+        }
+
+        if ( findproj_inedge != ShedgesBase.end())
+        {
+            groupind = findproj_inedge->second[0] + 1;
+            group.Recreate(group_proc.RowSize(groupind), group_proc.GetRow(groupind));
+
+            int temp = groups.Insert(group);
+
+            // computing the local index of one of the edges which produce
+            // the same projection which happens to be a shared edge 3d (2d):
+            // To understand, think of all 4d(3d) edges which project to the same edge.
+            // They form a long space-time rectangle with Nsteps + 1 plane sections.
+            // Within each time slab there is also one diagonal inside the corresponding
+            // rectangle. We consider all not-vertical edges there and create a numeration
+            // for them.
+            // These are (omitting strictly time vertical edges):
+            // Nsteps + 1 bases-edges of the rectangle and Nsteps diagonals.
+            // 0 for the lowest edge parallel to the base (3d or 2d)
+            // 1 for the diagonal in the same time slab
+            // 2 ~ 0 but in the next time slab
+            // etc...
+
+            shift = 0;
+
+            // time slab which the edge belongs to. (minimal time slab over all vertices)
+            // It is initialized with the maximum possible value and then defined as a minimum
+            // tslab number over all tetrahedronv vertices
+            int tslab = Nsteps; //the uppermost base will formally be in this time slab
+            for ( int vert = 0; vert < verts.Size() ; ++vert )
+                if (verts[vert] / nv_base  < tslab)
+                    tslab = verts[vert]/nv_base;
+
+            // index within a timeslab: 0 or 1 based on the following order:
+            // 0 for the 3d-like base-edge
+            // 1 for the diagonal within the same timeslab
+            int tslab_localind;
+            // number of vertices on the lower 3d-like base of the space-time rectangle
+            int nv_lower = 0;
+            for ( int vert = 0; vert < verts.Size() ; ++vert )
+            {
+                if (verts[vert] / nv_base == tslab)
+                    nv_lower++;
+                else if (verts[vert] / nv_base != tslab + 1)
+                    cout << "Strange edge-type edge: a vertex is neither on the top"
+                            " nor on the bottom" << endl << flush;
+            }
+
+            if (nv_lower < 1)
+                cout << "Strange edge-type edge: nv_lower is not 1 or 2" << endl << flush;
+            else
+            {
+                tslab_localind = 2 - nv_lower;
+            }
+
+            /*
+            if (nv_lower == 2)
+                tslabprism_lind = 0;
+            else if (nv_lower = 1)
+                tslabprism_lind = 1;
+            else
+                cout << "Strange edge-type edge: nv_lower is not 1 or 2" << endl;
+            */
+
+            int pos = shift + findproj_inedge->second[1] * ((Nsteps + 1) + Nsteps)
+                    + tslab * 2 + tslab_localind;
+
+            group_sedge_J[group_sedge_I[temp - 1] + pos] = cnt_inedge + cnt_invert;
+
+            cnt_inedge++;
+        }
+
+        if ( findproj_invert != ShvertsBase.end())
+        {
+            groupind = findproj_invert->second[0] + 1;
+            group.Recreate(group_proc.RowSize(groupind), group_proc.GetRow(groupind));
+
+            int temp = groups.Insert(group);
+
+            // computing the local index of one of the edges which produce
+            // the same projection onto 3d which happens to be a shared vertex 3d:
+            // Trying to understand, think of all 4d edges which project to the same 3d vertex.
+            // They form a long time vertical line with Nsteps + 1 points on it.
+            // We consider all vertical edges there and create a numeration for them.
+            // There are Nsteps of them, one per time slab:
+
+            // first we need to jump over places reserved for edges which are projected
+            // onto the shared edges 3d for a given group of processors
+            shift = ((Nsteps + 1) + Nsteps)*meshbase.group_sedge.RowSize(temp - 1);
+
+            // time slab which the edge belongs to. (minimal time slab over all vertices)
+            // It is initialized with the maximum possible value and then defined as a minimum
+            // tslab number over all tetrahedron vertices
+            int tslab = Nsteps; //the uppermost base will formally be in this time slab
+            for ( int vert = 0; vert < verts.Size() ; ++vert )
+                if (verts[vert] / nv_base  < tslab)
+                    tslab = verts[vert]/nv_base;
+
+            int pos = shift + findproj_invert->second[1] * Nsteps + tslab;
+
+            group_sedge_J[group_sedge_I[temp - 1] + pos] = cnt_inedge + cnt_invert;
+
+            cnt_invert++;
+        }
+
+    }
+    group_sedge.SetIJ(group_sedge_I, group_sedge_J, group_proc.Size() - 1);
+
+
+    int cnt_shedges = cnt_inedge + cnt_invert;
+
+    if (cnt_shedges != shared_edges.Size())
+        cout << "Error: smth wrong with the number of shared faces" << endl << flush;
+
+    /*
+
+    for ( int proc = 0; proc < num_procs; ++proc )
+    {
+        if ( proc == myid )
+        //if ( proc == 0 )
+        //if ( proc == 1 && proc == myid )
+        {
+            cout << "I am " << proc << ", parmesh myrank = " << MyRank << endl;
+            cout << "sedge_ledge 4d(3d)" << endl;
+            sedge_ledge.Print(cout, 10);
+            cout << "group_sedge 4d(3d)" << endl;
+            group_sedge.Print(cout, 10);
+            for ( int row = 0; row < group_sedge.Size(); ++row)
+            {
+                int rowsize = group_sedge.RowSize(row);
+                int * rowcols = group_sedge.GetRow(row);
+
+                cout << "Row = " << row << endl;
+                for ( int col = 0; col < rowsize; ++col)
+                {
+                    cout << "Edge No." << col << endl;
+
+                    Array<int> v;
+                    GetEdgeVertices(sedge_ledge[rowcols[col]], v);
+
+                    for ( int vertno = 0; vertno < 2; ++vertno)
+                    {
+                        //simple
+                        //cout << v[vertno] << " ";
+                        // with coords
+                        double * vcoords = GetVertex(v[vertno]);
+                        cout << vertno << ": (";
+                        for ( int coord = 0; coord < Dim; ++coord)
+                        {
+                            cout << vcoords[coord] << " ";
+                        }
+                        cout << ")  " << endl;
+                    }
+                    cout << endl;
+                }
+
+            }
+
+            cout << flush;
+        }
+        MPI_Barrier(comm);
+    }
+
+    cout << flush;
+    MPI_Barrier(comm);
+    */
+
+    // 3.4 shared vertices in th base (3d or 2d) -> shared vertices (4d or 3d)
+    // ...
+    // Nsteps + 1 time slabs = Nsteps + 1 copies for each shared vertex in the base
+    svert_lvert.SetSize( (Nsteps + 1)*meshbase.svert_lvert.Size());
+
+    //alternative way to construct group_sedge - from I and J arrays manually
+    int * group_svert_I, * group_svert_J;
+    group_svert_I = new int[group_proc.Size() + 1];
+    group_svert_I[0] = 0;
+    for ( int row = 0; row < group_proc.Size(); ++row )
+    {
+        group_svert_I[row + 1] = group_svert_I[row] +
+                (Nsteps + 1)*meshbase.group_svert.RowSize(row);
+    }
+    group_svert_J = new int[group_svert_I[group_proc.Size() - 1]];
+
+
+    int cnt_shverts = 0;
+    for ( int vertind = 0; vertind < GetNV(); ++vertind)
+    {
+        set<int> vertproj;
+        vertproj.insert ( vertind % nv_base );
+
+        auto findproj_inverts = ShvertsBase.find(vertproj);
+
+        if ( findproj_inverts != ShvertsBase.end())
+        {
+            svert_lvert[cnt_shverts] = vertind;
+
+            groupind = findproj_inverts->second[0] + 1;
+            group.Recreate(group_proc.RowSize(groupind), group_proc.GetRow(groupind));
+
+            int temp = groups.Insert(group);
+
+            // computing the local index of one of the vertices which produce
+            // the same projection onto 3d which is  a shared vertex 3d:
+            // All such vertices are in a time-like line with shared vertex 3d at the bottom
+            // There are Nsteps + 1 of them, one per each time moment (including 0):
+
+            // time moment for the vertex
+            int timemoment = vertind / nv_base;
+
+            int pos = findproj_inverts->second[1] * (Nsteps + 1) + timemoment;
+
+            group_svert_J[group_svert_I[temp - 1] + pos] = cnt_shverts;
+
+            cnt_shverts++;
+        }
+
+    }
+
+    group_svert.SetIJ(group_svert_I, group_svert_J, group_proc.Size() - 1);
+
+
+    cout << flush;
+    MPI_Barrier(comm);
+
+    /*
+    for ( int proc = 0; proc < num_procs; ++proc )
+    {
+        if ( proc == myid )
+        {
+            cout << "I am " << proc << ", parmesh myrank = " << MyRank << endl;
+            cout << "svert_lvert 4d(3d)" << endl;
+            svert_lvert.Print(cout, 10);
+            cout << "group_svert 4d(3d)" << endl;
+            group_svert.Print(cout, 10);
+            for ( int row = 0; row < group_svert.Size(); ++row)
+            {
+                int rowsize = group_svert.RowSize(row);
+                int * rowcols = group_svert.GetRow(row);
+
+                cout << "Row = " << row << endl;
+                for ( int col = 0; col < rowsize; ++col)
+                {
+                    cout << "Vert No." << col << endl;
+
+                    double * vcoords = GetVertex(svert_lvert[rowcols[col]]);
+
+                    cout << "(";
+                    for ( int coord = 0; coord < Dim; ++coord)
+                    {
+                        cout << vcoords[coord] << " ";
+                    }
+                    cout << ")  " << endl;
+
+                }
+
+            }
+
+            cout << flush;
+        }
+        MPI_Barrier(comm);
+    }
+
+    cout << flush;
+    MPI_Barrier(comm);
+    */
+
+
+    // ****************************************************************************
+    // step 4 of x: creating main communication structure for parmesh 4d = gtopo
+    // ****************************************************************************
+
+    gtopo.Create(groups, 822);
+
+    MPI_Barrier(comm);
+    return;
+}
+
+// parallel version 2
+// from a given base mesh (tetrahedral or triangular) produces a space-time mesh for a cylinder
+// with thegiven base and Nsteps * tau height in time
+// enumeration of space-time vertices: time slab after time slab
+// boundary attributes: 1 for t=0, 2 for lateral boundaries, 3 for t = tau*Nsteps
+//void ParMesh3DtoParMesh4D (MPI_Comm comm, ParMesh& mesh3d,
+//                     ParMesh& mesh4d, double tau, int Nsteps, int bnd_method, int local_method)
+ParMesh::ParMesh (MPI_Comm comm, ParMesh& meshbase, double tau, int Nsteps,
+                  int bnd_method, int local_method)
+{
+    int num_procs, myid;
+    MPI_Comm_size(comm, &num_procs);
+    MPI_Comm_rank(comm, &myid);
+
+    int dim = meshbase.Dimension() + 1;
+
+    if (meshbase.Dimension() != 3 && meshbase.Dimension() != 2 && myid == 0)
+    {
+        cout << "Case meshbase dim = " << meshbase.Dimension() << " is not supported "
+                                             "in parmesh constructor" << endl << flush;
+        return;
+    }
+
+    if ( bnd_method != 0 && bnd_method != 1 && myid == 0)
+    {
+        cout << "Illegal value of bnd_method = " << bnd_method << " (must be 0 or 1)"
+             << endl << flush;
+        return;
+    }
+    if ( (local_method < 0 || local_method > 2) && myid == 0)
+    {
+        cout << "Illegal value of local_method = " << local_method << " (must be 0,1 "
+                                                              "or 2)" << endl << flush;
+        return;
+    }
+
+    // ****************************************************************************
+    // step 1 of 4: creating local space-time part of the mesh from local part of base mesh
+    // ****************************************************************************
+
+    /*
+    for ( int proc = 0; proc < num_procs; ++proc )
+    {
+        if ( proc == myid )
+        {
+            cout << "I am " << proc << ", parmesh myrank = " << mesh3d.MyRank << endl;
+            cout << "Creating local part of 4d mesh" << endl;
+        }
+        cout << flush;
+        MPI_Barrier(comm);
+    }
+    */
+
+    // creating local parts of space-time mesh
+    MeshSpaceTimeCylinder_onlyArrays(meshbase, tau, Nsteps, bnd_method, local_method);
+
+    MPI_Barrier(comm);
+
+    // ****************************************************************************
+    // step 2 of 4: set additional fields (except the main ones which are
+    // shared entities) required for parmesh
+    // In particular, set refinement flags in 2D->3D case
+    // ****************************************************************************
+
+    MyComm = comm;
+    MPI_Comm_size(MyComm, &NRanks);
+    MPI_Comm_rank(MyComm, &MyRank);
+
+    gtopo.SetComm(comm);
+
+    int i;
+
+    if (dim == 4)
+    {
+        BaseGeom = Geometry::PENTATOPE;         // PENTATOPE case only
+        BaseBdrGeom = Geometry::TETRAHEDRON;    // PENTATOPE case only
+    }
+    else //dim == 3
+    {
+        BaseGeom = Geometry::TETRAHEDRON;       // TETRAHEDRON case only
+        BaseBdrGeom = Geometry::TRIANGLE;       // TETRAHEDRON case only
+    }
+
+    ncmesh = pncmesh = NULL;
+
+    swappedElements.SetSize(GetNE());
+
+    DenseMatrix J(4,4);
+    if( dim == 4)
+    {
+        for ( i = 0; i < GetNE(); ++i )
+        {
+            if (elements[i]->GetType() == Element::PENTATOPE)
+            {
+                int *v = elements[i]->GetVertices();
+                Sort5(v[0], v[1], v[2], v[3], v[4]);
+
+                GetElementJacobian(i, J);
+
+                if(J.Det() < 0.0)
+                {
+                    swappedElements[i] = true;
+                    Swap(v);
+                }else
+                {
+                    swappedElements[i] = false;
+                }
+            }
+        }
+    }
+
+    meshgen = meshbase.MeshGenerator(); // FIX IT: Not sure at all what it is
+
+    attributes.Copy(meshbase.attributes);
+    bdr_attributes.Copy(meshbase.bdr_attributes);
+
+    InitTables();
+
+
+    CheckElementOrientation(true);
+    if ( dim == 3)
+    {
+        // FIX IT:
+        // version of MarkForRefinement from ParMesh cannot be used here, no gtopo is created so far
+        // version of Mesh::MarkForRefinement cannot be used here because it has virtual MarkTetMeshForRefinement
+        // which will be overwritten with ParMesh's implementation which cannot be called here for the same reason
+        if (meshgen & 1)
+        {
+           if (Dim == 2)
+           {
+              MarkTriMeshForRefinement();
+           }
+           else if (Dim == 3)
+           {
+              DSTable v_to_v(NumOfVertices);
+              GetVertexToVertexTable(v_to_v);
+              Mesh::MarkTetMeshForRefinement(v_to_v);
+           }
+        }
+        //MarkForRefinement(); -- was working in mfem 3.2
+    }
+
+
+    if (dim > 1)
+    {
+       el_to_edge = new Table;
+       NumOfEdges = GetElementToEdgeTable(*(el_to_edge), be_to_edge);
+    }
+    else
+    {
+       NumOfEdges = 0;
+    }
+
+    STable3D *faces_tbl_3d = NULL;
+    if ( dim == 3 )
+        faces_tbl_3d = GetElementToFaceTable(1);
+
+
+    STable4D *faces_tbl_4d = NULL;
+    if ( dim == 4 )
+    {
+        faces_tbl_4d = GetElementToFaceTable4D(1);
+    }
+
+    GenerateFaces();
+
+    NumOfPlanars = 0;
+    el_to_planar = NULL;
+
+    STable3D *planar_tbl = NULL;
+    if( dim == 4 )
+    {
+       planar_tbl = GetElementToPlanarTable(1);
+       GeneratePlanars();
+    }
+
+
+    if (NumOfBdrElements == 0 && Dim > 2)
+    {
+       // in 3D, generate boundary elements before we 'MarkForRefinement'
+       if(Dim==3) GetElementToFaceTable();
+       else if(Dim==4)
+       {
+           GetElementToFaceTable4D();
+       }
+       GenerateFaces();
+       GenerateBoundaryElements();
+    }
+
+
+    int curved = 0;
+    int generate_edges = 1;
+
+    CheckElementOrientation(true);
+
+    // generate the faces
+    if (Dim > 2)
+    {
+           if(Dim==3) GetElementToFaceTable();
+           else if(Dim==4)
+           {
+               GetElementToFaceTable4D();
+           }
+
+           GenerateFaces();
+
+           if(Dim==4)
+           {
+              ReplaceBoundaryFromFaces();
+
+              GetElementToPlanarTable();
+              GeneratePlanars();
+
+ //			 GetElementToQuadTable4D();
+ //			 GenerateQuads4D();
+           }
+
+       // check and fix boundary element orientation
+       if ( !(curved && (meshgen & 1)) )
+       {
+          CheckBdrElementOrientation();
+       }
+    }
+    else
+    {
+       NumOfFaces = 0;
+    }
+
+    // generate edges if requested
+    if (Dim > 1 && generate_edges == 1)
+    {
+       // el_to_edge may already be allocated (P2 VTK meshes)
+       if (!el_to_edge) { el_to_edge = new Table; }
+       NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+       if (Dim == 2)
+       {
+          GenerateFaces(); // 'Faces' in 2D refers to the edges
+          if (NumOfBdrElements == 0)
+          {
+             GenerateBoundaryElements();
+          }
+          // check and fix boundary element orientation
+          if ( !(curved && (meshgen & 1)) )
+          {
+             CheckBdrElementOrientation();
+          }
+       }
+    }
+    else
+    {
+       NumOfEdges = 0;
+    }
+
+    have_face_nbr_data = false;
+
+    // ****************************************************************************
+    // step 3 of 4: set parmesh fields for shared entities for mesh4d
+    // ****************************************************************************
+
+    ParMeshSpaceTime_createShared( comm, meshbase, Nsteps );
+
+    // some clean up for unneeded tables
+
+    if (dim == 4)
+    {
+        delete faces_tbl_4d;
+        delete planar_tbl;
+    }
+    else //dim == 3
+        delete faces_tbl_3d;
+
+    // ****************************************************************************
+    // step 4 of 4: set internal mesh structure (present in both mesh and
+    // parmesh classes
+    // ****************************************************************************
+
+    int refine = 1;
+    CreateInternalMeshStructure(refine);
+
+    return;
+}
+
+
 }
 
 #endif

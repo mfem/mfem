@@ -7236,7 +7236,7 @@ void DivSkew1PentFiniteElement::Project(const FiniteElement &fe,
                             ElementTransformation &Trans,
                             DenseMatrix &Id) const
 {
-	int dim = fe.GetDim();
+    //int dim = fe.GetDim(); not used
 	int dof = fe.GetDof();
 
 	Id.SetSize(10,6*dof); Id = 0.0;
@@ -7280,7 +7280,7 @@ void DivSkew1PentFiniteElement::ProjectCurl(const FiniteElement &fe,
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
 {
-	int dim = fe.GetDim();
+    //int dim = fe.GetDim(); not used
 	int dof = fe.GetDof();
 
 	curl.SetSize(10,dof); curl = 0.0;
@@ -8200,7 +8200,7 @@ void RT0PentFiniteElement::Project(const FiniteElement &fe, ElementTransformatio
 void RT0PentFiniteElement::ProjectDivSkew(const FiniteElement &fe, ElementTransformation &Trans,
                      DenseMatrix &DivSkew) const
 {
-	int dim = fe.GetDim();
+    //int dim = fe.GetDim(); not used
 	int dof = fe.GetDof();
 
 	DivSkew.SetSize(5,dof); DivSkew = 0.0;
