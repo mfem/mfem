@@ -17,38 +17,44 @@
 #include "obilininteg.hpp"
 
 namespace mfem {
-  //---[ Diffusion Integrator ]---------
-  class AcroDiffusionIntegrator : public OccaIntegrator {
-  private:
-    acrobatic::TensorEngine TE;
 
-    Coefficient &Q;
-    OccaDofQuadMaps maps;
+class AcroDiffusionIntegrator : public OccaIntegrator {
+private:
+  acrobatic::TensorEngine TE;
 
-    int numDim;
-    int numElems;
-    int numDofs;
-    int numQuad;
+  Coefficient &Q;
+  OccaDofQuadMaps maps;
 
-    occa::array<double> coefficients;
-    occa::array<double> jacobian, assembledOperator;
-    acrobatic::Tensor *B, *G, *WC, *J, *Jinv, *Jdet, *D;
-    Array<acrobatic::Tensor*> Btil;
+  int numDim;
+  int numElems;
+  int numDofs;
+  int numQuad;
+  int numDofs1D;
+  int numQuad1D;
+  bool haveTensorBasis;
 
-  public:
-    AcroDiffusionIntegrator(Coefficient &q);
-    virtual ~AcroDiffusionIntegrator();
+  acrobatic::Tensor *B, *G, *D;
+  Array<acrobatic::Tensor*> Btil;
 
-    virtual OccaIntegrator* CreateInstance();
+  void ComputeBTilde();
+  void ComputeD(occa::array<double> &jac, 
+                occa::array<double> &jacinv, 
+                occa::array<double> &jacdet);
 
-    virtual std::string GetName();
+public:
+  AcroDiffusionIntegrator(Coefficient &q);
+  virtual ~AcroDiffusionIntegrator();
 
-    virtual void Setup();
+  virtual OccaIntegrator* CreateInstance();
 
-    virtual void Assemble();
-    virtual void Mult(OccaVector &x);
-  };
-  //====================================
+  virtual std::string GetName();
+
+  virtual void Setup();
+
+  virtual void Assemble();
+  virtual void Mult(OccaVector &x);
+};
+
 }
 
 #  endif
