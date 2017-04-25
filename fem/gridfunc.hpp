@@ -473,7 +473,6 @@ public:
 
    /// Write the QuadratureFunction to the stream @a out.
    void Save(std::ostream &out) const;
-
 };
 
 /// Overload operator<< for std::ostream and QuadratureFunction.

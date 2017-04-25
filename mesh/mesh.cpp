@@ -3879,6 +3879,7 @@ int Mesh::GetTriOrientation(const int *base, const int *test)
    return orient;
 }
 
+/*
 int Mesh::GetQuadOrientation(const int *base, const int *test)
 {
    int i;
@@ -4022,6 +4023,7 @@ int Mesh::GetHexOrientation(const int * base, const int * test)
 	                      && test[5] == base[5] && test[6] == base[6] && test[7] == base[7]) return 0;
 	else return 1;
 }
+*/
 
 int Mesh::CheckBdrElementOrientation(bool fix_it)
 {

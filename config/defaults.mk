@@ -21,6 +21,10 @@ NOTMAC := $(subst Darwin,,$(shell uname -s))
 CXX = g++
 MPICXX = mpicxx
 
+# Command used to launch MPI jobs
+MFEM_MPIEXEC    = mpirun
+MFEM_MPIEXEC_NP = -np
+
 # Destination location of make install
 # PREFIX = $(HOME)/mfem
 PREFIX = ./mfem
@@ -51,6 +55,7 @@ endif
 # MFEM configuration options: YES/NO values, which are exported to config.mk and
 # config.hpp. The values below are the defaults for generating the actual values
 # in config.mk and config.hpp.
+
 MFEM_USE_MPI         = NO
 MFEM_USE_METIS_5     = NO
 MFEM_DEBUG           = NO
@@ -96,7 +101,7 @@ endif
 
 # HYPRE library configuration (needed to build the parallel version)
 HYPRE_DIR = @MFEM_DIR@/../hypre-2.10.0b/src/hypre
-HYPRE_OPT = -I$(HYPRE_DIR)/include 
+HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 
 # METIS library configuration
@@ -122,7 +127,6 @@ endif
 # LAPACK library configuration
 LAPACK_OPT =  
 LAPACK_LIB = -L$(LAPACK_DIR) -llapack -lrefblas -lgfortran
-#LAPACK_LIB = -L$(LAPACK_DIR) -llapack -lrefblas -lgfortran
 #$(if $(NOTMAC),-llapack -lblas,-framework Accelerate)
 
 # OpenMP configuration
@@ -151,7 +155,7 @@ MESQUITE_LIB = -L$(MESQUITE_DIR)/lib -lmesquite
 
 # SuiteSparse library configuration
 LIB_RT = $(if $(NOTMAC),-lrt,)
-SUITESPARSE_DIR = @MFEM_DIR@/../SuiteSparse 
+SUITESPARSE_DIR = @MFEM_DIR@/../SuiteSparse
 SUITESPARSE_OPT = -I$(SUITESPARSE_DIR)/include
 SUITESPARSE_LIB = -L$(SUITESPARSE_DIR)/lib -lklu -lbtf -lumfpack -lcholmod\
  -lcolamd -lamd -lcamd -lccolamd -lsuitesparseconfig $(LIB_RT) $(METIS_LIB)\

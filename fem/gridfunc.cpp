@@ -2749,76 +2749,12 @@ void GridFunction::computeSliceCellValues (int elind, vector<vector<double> > & 
     mesh->GetElementVertices(elind, vertices);
     double val1, val2;
 
-    /*
-    cout << "vertices:" << endl;
-    double * temp;
-    for ( int i = 0; i < vertices.Size(); ++i)
-    {
-        temp = mesh->GetVertex(vertices[i]);
-        for ( int coo = 0; coo < dim; ++coo)
-            cout << temp[coo] << " ";
-        cout << endl;
-    }
-    */
-
-    //int vdim = VectorDim();
-    //Array < double > nodal_values;
-    //GetNodalValues (elind, nodal_values, vdim);
-    //cout << "vdim = " << vdim << endl;
-    //cout << "nodal_values.size = " << nodal_values.Size() << endl;
-
-    //cout << "nodal values:" << endl;
-    //for ( int i = 0; i < nodal_values.Size(); ++i)
-        //cout << nodal_values[i] << " " << endl;
-    //cout << endl;
-
-    /*
-    Vector pointval;
-    IntegrationPoint integp;
-    integp.Init();
-    integp.Set3(0.5, 0.0, 0.0);
-    GetVectorValue(elind, integp, pointval);
-    cout << "pointval" << endl;
-    for ( int i = 0; i < pointval.Size(); ++i)
-        cout << pointval[i] << " ";
-    cout << endl;
-
-    Vector pointcoovec(3);
-    double pointcoo[3];
-    pointcoo[0] = mesh->GetVertex(vertices[0])[0];
-    pointcoo[1] = mesh->GetVertex(vertices[0])[1];
-    pointcoo[2] = mesh->GetVertex(vertices[0])[2];
-    pointcoovec.SetData(pointcoo);
-    cout << "pointcoovec" << endl;
-    for ( int i = 0; i < pointcoovec.Size(); ++i)
-        cout << pointcoovec[i] << " ";
-    cout << endl;
-
-    ElementTransformation *Tr = FESpace()->GetElementTransformation(elind);
-    Tr->TransformBack(pointcoovec, integp);
-    GetVectorValue(elind, integp, pointval);
-
-    cout << "pointval after transform" << endl;
-    for ( int i = 0; i < pointval.Size(); ++i)
-        cout << pointval[i] << " ";
-    cout << endl;
-    */
-
     double pvalue; // value of the grid function at the middle of the edge
     int permut[2]; // defines which of the edge vertexes is the lowest w.r.t time
 
     Vector pointval1, pointval2;
     IntegrationPoint integp;
     integp.Init();
-    /*
-    integp.Set3(0.0, 0.0, 0.0);
-    pgridfuntest->GetVectorValue(0, integp, pointval);
-    cout << "pointval" << endl;
-    for ( int i = 0; i < pointval.Size(); ++i)
-        cout << pointval[i] << " ";
-    cout << endl;
-    */
-
 
     for ( int edgeno = 0; edgeno < edgenolen; ++edgeno)
     {
@@ -3049,7 +2985,6 @@ void GridFunction::computeSliceCellValues (int elind, vector<vector<double> > & 
 
 void GridFunction::outputSliceGridFuncVTK ( std::stringstream& fname, std::vector<std::vector<double> > & ipoints,
                                 std::list<int> &celltypes, int cellstructsize, std::list<std::vector<int> > &elvrtindices, std::list<double > & cellvalues, bool forvideo)
-                                //std::list<int> &celltypes, int cellstructsize, std::list<std::vector<int> > &elvrtindices, std::list<std::vector<double> > & cellvertvalues)
 {
     Mesh * mesh = FESpace()->GetMesh();
 
