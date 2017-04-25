@@ -25,16 +25,15 @@ namespace mfem {
     Coefficient &Q;
     OccaDofQuadMaps maps;
 
-    int elements;
+    int numDim;
+    int numElems;
     int numDofs;
     int numQuad;
 
-    occa::kernel assembleKernel, multKernel;
-
     occa::array<double> coefficients;
     occa::array<double> jacobian, assembledOperator;
-
-    bool hasConstantCoefficient;
+    acrobatic::Tensor *B, *G, *WC, *J, *Jinv, *Jdet, *D;
+    Array<acrobatic::Tensor*> Btil;
 
   public:
     AcroDiffusionIntegrator(Coefficient &q);

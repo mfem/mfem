@@ -310,6 +310,60 @@ namespace mfem {
     return jacobian;
   }
 
+
+  void getJacobianData(occa::device device,
+                       FiniteElementSpace *fespace,
+                       const IntegrationRule &ir,
+                       occa::array<double> &J,
+                       occa::array<double> &Jinv,
+                       occa::array<double> &Jdet)
+  {
+    const FiniteElement &fe = *(fespace->GetFE(0));
+
+    const int dims = fe.GetDim();
+    const int elements = fespace->GetNE();
+    const int quadraturePoints = ir.GetNPoints();
+
+    const int dims2 = dims * dims;
+    const int jacobianEntries = elements * quadraturePoints * dims2;
+
+    J.allocate(dims2, quadraturePoints, elements);
+    Jinv.allocate(dims2, quadraturePoints, elements);
+    Jdet.allocate(quadraturePoints, elements);
+    double *eJ = J.data();
+    double *eJinv = J.data();
+    double *eJdet = J.data();
+
+    Mesh &mesh = *(fespace->GetMesh());
+    for (int e = 0; e < elements; ++e) {
+      ElementTransformation &trans = *(mesh.GetElementTransformation(e));
+      for (int q = 0; q < quadraturePoints; ++q) {
+        const IntegrationPoint &ip = ir.IntPoint(q);
+        trans.SetIntPoint(&ip);
+        const DenseMatrix &qJ = trans.Jacobian();
+        DenseMatrix qJinv(dims);
+        CalcInverse(qJ, qJinv);
+        for (int j = 0; j < dims; ++j) {
+          for (int i = 0; i < dims; ++i) {
+            // Column-major -> Row-major
+            eJ[j + i*dims] = qJ(i,j);
+            eJinv[j + i*dims] = qJinv(i,j);
+          }
+        }
+        *eJdet = qJ.Det();
+
+        eJ += dims2;
+        eJinv += dims2;
+        eJdet += 1;
+      }
+    }
+
+    J.keepInDevice();
+    Jinv.keepInDevice();
+    Jdet.keepInDevice();
+  } 
+
+
   //---[ Base Integrator ]--------------
   OccaIntegrator::OccaIntegrator() {}
   OccaIntegrator::~OccaIntegrator() {}

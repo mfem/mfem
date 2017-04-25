@@ -32,67 +32,112 @@ namespace mfem {
 
   void AcroDiffusionIntegrator::Setup() {
     if (device.mode() != "CUDA") {
-      mfem_error("AcroDiffusionIntegrator can only run in CUDA mode");
+      TE.SetExecutorType("OneOutPerThread");
+    } else {
+      mfem_error("AcroDiffusionIntegrator non-CUDA mode unsupported.");
+      TE.SetExecutorType("IndexCached");
     }
 
-    occa::properties kernelProps = props;
-    kernelProps["OKL"] = false;
-
     DiffusionIntegrator integ;
-
     const FiniteElement &fe   = *(fespace->GetFE(0));
     const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
+    const IntegrationRule &ir1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder());
+    numDim = fe.GetDim();
+    numElems = fespace->GetNE();
 
     const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
     if (el) {
       maps = OccaDofQuadMaps::GetTensorMaps(device, *el, ir);
-      setTensorProperties(fe, ir, kernelProps);
+      numDofs  = fe.GetOrder() + 1;
+      numQuad  = ir1D.GetNPoints();
+
+      //Compute the Btildes
+      B = new acrobatic::Tensor(numQuad, numDof, nullptr, maps.dofToQuad.getMemoryHandle(), true);
+      G = new acrobatic::Tensor(numQuad, numDof, nullptr, maps.dofToQuadD.getMemoryHandle(), true);
+      Btil.SetSize(numDim);
+      for (int d = 0; d < numDim; ++d) {
+        Btil[d] = new acrobatic::Tensor(numDim, numDim, numQuad, numDof, numDof);
+        Btil[d]->SwitchToGPU();
+        acrobatic::Tensor *Bsub(numQuad, numDof, numDof, nullptr, Btil[d]->GetDeviceData(), true);
+        for (mi = 0; mi < 2; ++mi) {
+          for (ni = 0; ni < 2; ++ni) {
+            int offset = (2*mi + ni) * numQuad*numDof*numDof;
+            Bsub->Retarget(nullptr, Btil[d]->GetDeviceData() + offset);
+            acrobatic::Tensor *BGM = (mi == d) ? G : B;
+            acrobatic::Tensor *BGN = (ni == d) ? G : B;
+            TE["Bsub_k1_i1_j1 = M_k1_i1 N_k1_j1"](Bsub, BGM, BGN);
+          }
+        }
+      }
+
+      //Compute the coefficient * integrations weights
+      std::vector<int> wdims(numDim, numQuad);
+      acrobatic::Tensor *W = new acrobatic::Tensor(maps.quadWeights.size(), nullptr, maps.quadWeights.getMemoryHandle(), true);
+      const ConstantCoefficient* coeff =
+        dynamic_cast<const ConstantCoefficient*>(integ.GetCoefficient());
+      if (!coeff) {
+        mfem_error("AcroDiffusionIntegrator can only handle ConstantCoefficients");
+      }
+      WC = new acrobatic::Tensor(maps.quadWeights.size());
+      WC->SwitchToGPU();
+      TE["WC_i=W_i"](WC, W);
+      WC->Mult(coeff->const);
+      WC->Reshape(wdims);
+
+      //Compute the jacobians and D
+      occa::array<double> jac, jacinv, jacdet;
+      getJacobianData(device, fespace, ir, jac, jacinv, jacdet); 
+      if (Dim == 1) {
+        D = new acrobatic::Tensor(numElems, 1, 1, numQuad);
+        J = new acrobatic::Tensor(numElems, numQuad, 1, 1, nullptr, jac.getMemoryHandle(), true);
+        Jinv = new acrobatic::Tensor(numElems, numQuad, 1, 1, nullptr, jacinv.getMemoryHandle(), true);
+        Jdet = new acrobatic::Tensor(numElems, numQuad, nullptr, jacinv.getMemoryHandle(), true);
+        TE["D_e_m_n_k = WC_k Jdet_e_k_m_n Jinv_e_k_m_n Jinv_e_k_n_m"](D, WC, Jdet, Jinv, Jinv);
+      } else if (Dim == 2) {
+        D = new acrobatic::Tensor(numElems, 2, 2, numQuad, numQuad);
+        J = new acrobatic::Tensor(numElems, numQuad, numQuad, 2, 2, nullptr, jac.getMemoryHandle(), true);
+        Jinv = new acrobatic::Tensor(numElems, numQuad, numQuad, 2, 2, nullptr, jacinv.getMemoryHandle(), true);
+        Jdet = new acrobatic::Tensor(numElems, numQuad, numQuad, nullptr, jacinv.getMemoryHandle(), true);
+        TE["D_e_m_n_k1_k2 = WC_k1_k2 Jdet_e_k1_k2_m_n Jinv_e_k1_k2_m_n Jinv_e_k1_k2_n_m"](D, WC, Jdet, Jinv, Jinv);
+      } else {
+        D = new acrobatic::Tensor(numElems, 3, 3, numQuad, numQuad, numQuad);
+        J = new acrobatic::Tensor(numElems, numQuad, numQuad, numQuad, 3, 3, nullptr, jac.getMemoryHandle(), true);
+        Jinv = new acrobatic::Tensor(numElems, numQuad, numQuad, numQuad, 3, 3, nullptr, jacinv.getMemoryHandle(), true);
+        Jdet = new acrobatic::Tensor(numElems, numQuad, numQuad, numQuad, nullptr, jacinv.getMemoryHandle(), true);
+        TE["D_e_m_n_k1_k2_k3 = WC_k Jdet_e_k1_k2_k3_m_n Jinv_e_k1_k2_k3_m_n Jinv_e_k1_k2_k3_n_m"](D, WC, Jdet, Jinv, Jinv);
+      }
+
     } else {
+      mfem_error("AcroDiffusionIntegrator simplices currently unsupported.");
+      numDofs  = fespace->GetNDofs();
+      numQuad  = ir.GetNPoints();
       maps = OccaDofQuadMaps::GetSimplexMaps(device, fe, ir);
-      setSimplexProperties(fe, ir, kernelProps);
     }
 
-    const int dims = fe.GetDim();
-    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
 
-    elements = fespace->GetNE();
-    numDofs  = fespace->GetNDofs();
-    numQuad  = ir.GetNPoints();
 
     // Get coefficient from integrator
     // [MISSING] Hard-coded to ConstantCoefficient for now
-    const ConstantCoefficient* coeff =
-      dynamic_cast<const ConstantCoefficient*>(integ.GetCoefficient());
+
 
     if (coeff) {
       hasConstantCoefficient = true;
       kernelProps["defines/CONST_COEFF"] = coeff->constant;
     } else {
-      mfem_error("AcroDiffusionIntegrator can only handle ConstantCoefficients");
+      
     }
 
-    assembledOperator.allocate(symmDims, numQuad, elements);
+    assembledOperator.allocate(symmDims, numQuad, numElems);
 
     jacobian = getJacobian(device, fespace, ir);
-
-    // Setup assemble and mult kernels
-    assembleKernel = GetKernel("Assemble", kernelProps);
-    multKernel     = GetKernel("Mult"    , kernelProps);
   }
 
   void AcroDiffusionIntegrator::Assemble() {
-    assembleKernel(elements, numQuad, numDofs,
-                   NULL,
-                   NULL,
-                   maps.quadWeights.memory().getHandle(),
-                   NULL,
-                   NULL,
-                   &TE);
+
   }
 
   void AcroDiffusionIntegrator::Mult(OccaVector &x) {
-    assembleKernel(elements, numQuad, numDofs,
-                   &TE);
+
   }
   //====================================
 }

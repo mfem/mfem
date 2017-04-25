@@ -70,6 +70,13 @@ namespace mfem {
                                   FiniteElementSpace *fespace,
                                   const IntegrationRule &ir);
 
+  void getJacobianData(occa::device device,
+                       FiniteElementSpace *fespace,
+                       const IntegrationRule &ir,
+                       occa::array<double> &J,
+                       occa::array<double> &Jinv,
+                       occa::array<double> &Jdet);  
+
   //---[ Base Integrator ]--------------
   class OccaIntegrator {
   protected:
