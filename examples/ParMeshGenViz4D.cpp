@@ -107,6 +107,9 @@ int main(int argc, char *argv[])
 
     int feorder         = 0; // in 4D cannot use feorder > 0
 
+    if (verbose)
+        std::cout << "Parsing input options" << std::endl;
+
     OptionsParser args(argc, argv);
     args.AddOption(&mesh_file, "-m", "--mesh",
                    "Mesh file to use.");
