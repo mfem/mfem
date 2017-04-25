@@ -88,12 +88,12 @@ static PetscErrorCode MatConvert_hypreParCSR_IS(hypre_ParCSRMatrix*,Mat*);
 typedef struct
 {
    mfem::Operator *op;
-} mat_shell_ctx;
+} __mfem_mat_shell_ctx;
 
 typedef struct
 {
    mfem::Solver *op;
-} solver_shell_ctx;
+} __mfem_pc_shell_ctx;
 
 // use global scope ierr to check PETSc errors inside mfem calls
 PetscErrorCode ierr;
@@ -613,7 +613,7 @@ BlockDiagonalConstructor(MPI_Comm comm,
 // TODO This should take a reference on op but how?
 void PetscParMatrix::MakeWrapper(MPI_Comm comm, const Operator* op, Mat *A)
 {
-   mat_shell_ctx *ctx = new mat_shell_ctx;
+   __mfem_mat_shell_ctx *ctx = new __mfem_mat_shell_ctx;
    ierr = MatCreate(comm,A); CCHKERRQ(comm,ierr);
    ierr = MatSetSizes(*A,op->Height(),op->Width(),
                       PETSC_DECIDE,PETSC_DECIDE); PCHKERRQ(A,ierr);
@@ -1613,7 +1613,7 @@ void PetscLinearSolver::SetPreconditioner(Solver &precond)
       PC pc;
       ierr = KSPGetPC(ksp,&pc); PCHKERRQ(ksp,ierr);
       ierr = PCSetType(pc,PCSHELL); PCHKERRQ(pc,ierr);
-      solver_shell_ctx *ctx = new solver_shell_ctx;
+      __mfem_pc_shell_ctx *ctx = new __mfem_pc_shell_ctx;
       ctx->op = &precond;
       ierr = PCShellSetContext(pc,(void *)ctx); PCHKERRQ(pc,ierr);
       ierr = PCShellSetApply(pc,__mfem_pc_shell_apply); PCHKERRQ(pc,ierr);
@@ -2645,8 +2645,8 @@ static PetscErrorCode __mfem_snes_function(SNES snes, Vec x, Vec f, void *ctx)
 #define __FUNCT__ "__mfem_mat_shell_apply"
 static PetscErrorCode __mfem_mat_shell_apply(Mat A, Vec x, Vec y)
 {
-   mat_shell_ctx  *ctx;
-   PetscErrorCode ierr;
+   __mfem_mat_shell_ctx *ctx;
+   PetscErrorCode       ierr;
 
    PetscFunctionBeginUser;
    ierr = MatShellGetContext(A,(void **)&ctx); PCHKERRQ(A,ierr);
@@ -2662,8 +2662,8 @@ static PetscErrorCode __mfem_mat_shell_apply(Mat A, Vec x, Vec y)
 #define __FUNCT__ "__mfem_mat_shell_apply_transpose"
 static PetscErrorCode __mfem_mat_shell_apply_transpose(Mat A, Vec x, Vec y)
 {
-   mat_shell_ctx  *ctx;
-   PetscErrorCode ierr;
+   __mfem_mat_shell_ctx *ctx;
+   PetscErrorCode       ierr;
 
    PetscFunctionBeginUser;
    ierr = MatShellGetContext(A,(void **)&ctx); PCHKERRQ(A,ierr);
@@ -2679,8 +2679,8 @@ static PetscErrorCode __mfem_mat_shell_apply_transpose(Mat A, Vec x, Vec y)
 #define __FUNCT__ "__mfem_mat_shell_destroy"
 static PetscErrorCode __mfem_mat_shell_destroy(Mat A)
 {
-   mat_shell_ctx  *ctx;
-   PetscErrorCode ierr;
+   __mfem_mat_shell_ctx *ctx;
+   PetscErrorCode       ierr;
 
    PetscFunctionBeginUser;
    ierr = MatShellGetContext(A,(void **)&ctx); PCHKERRQ(A,ierr);
@@ -2692,8 +2692,8 @@ static PetscErrorCode __mfem_mat_shell_destroy(Mat A)
 #define __FUNCT__ "__mfem_pc_shell_apply"
 static PetscErrorCode __mfem_pc_shell_apply(PC pc, Vec x, Vec y)
 {
-   solver_shell_ctx *ctx;
-   PetscErrorCode   ierr;
+   __mfem_pc_shell_ctx *ctx;
+   PetscErrorCode      ierr;
 
    PetscFunctionBeginUser;
    ierr = PCShellGetContext(pc,(void **)&ctx); PCHKERRQ(pc,ierr);
@@ -2709,8 +2709,8 @@ static PetscErrorCode __mfem_pc_shell_apply(PC pc, Vec x, Vec y)
 #define __FUNCT__ "__mfem_pc_shell_apply_transpose"
 static PetscErrorCode __mfem_pc_shell_apply_transpose(PC pc, Vec x, Vec y)
 {
-   solver_shell_ctx *ctx;
-   PetscErrorCode   ierr;
+   __mfem_pc_shell_ctx *ctx;
+   PetscErrorCode      ierr;
 
    PetscFunctionBeginUser;
    ierr = PCShellGetContext(pc,(void **)&ctx); PCHKERRQ(pc,ierr);
@@ -2734,8 +2734,8 @@ static PetscErrorCode __mfem_pc_shell_setup(PC pc)
 #define __FUNCT__ "__mfem_pc_shell_destroy"
 static PetscErrorCode __mfem_pc_shell_destroy(PC pc)
 {
-   solver_shell_ctx *ctx;
-   PetscErrorCode   ierr;
+   __mfem_pc_shell_ctx *ctx;
+   PetscErrorCode      ierr;
 
    PetscFunctionBeginUser;
    ierr = PCShellGetContext(pc,(void **)&ctx); PCHKERRQ(pc,ierr);
