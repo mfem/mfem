@@ -24,6 +24,7 @@
 #include <iostream>
 #include <fstream>
 #include <list>
+#include <set>
 
 #ifdef WITH_QHULL
 
@@ -1229,7 +1230,7 @@ public:
                                  //tau, int Nsteps, int bnd_method, int local_method);
    // Computes domain and boundary volumes, and checks,
    // that faces and boundary elements list is consistent with the actual element faces
-   int MeshCheck ();
+   int MeshCheck (bool verbose);
 
    // time moments: t0 + i * deltat, i = 0, ... Nmoments - 1
    void ComputeSlices(double t0, int Nmoments, double deltat, int myid);

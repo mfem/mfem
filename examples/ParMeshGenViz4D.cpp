@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
     int generate_parallel   = generate_frombase * 1; // 0 for serial mesh extension, 1 for parallel
     int whichparallel       = generate_parallel * 2; // default value is 2 (doesn't us qhull)
     int bnd_method          = 0; // default value is 0
-    int local_method        = 1; // default value is 2
+    int local_method        = 2; // default value is 2
 
     //const char *mesh_file = "../build3/meshes/cube_3d_moderate.mesh";
     //const char *mesh_file = "../build3/meshes/square_2d_moderate.mesh";
@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
             meshbase = new Mesh(imesh, 1, 1);
             imesh.close();
 
-            meshbase->MeshCheck();
+            meshbase->MeshCheck(verbose);
 
             for (int l = 0; l < ser_ref_levels; l++)
                 meshbase->UniformRefinement();
@@ -322,7 +322,7 @@ int main(int argc, char *argv[])
         // Checking that mesh is legal = domain and boundary volume + checking boundary elements and faces consistency
         if (myid == 0)
             cout << "Checking the mesh" << endl << flush;
-        mesh->MeshCheck();
+        mesh->MeshCheck(verbose);
 
         for (int l = 0; l < ser_ref_levels; l++)
             mesh->UniformRefinement();

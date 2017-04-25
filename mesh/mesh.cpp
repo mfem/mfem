@@ -4005,13 +4005,6 @@ int Mesh::GetTetOrientation (const int * base, const int * test)
 		}
 	}
 
-#ifdef MFEM_DEBUG
-   const int *aor = tet_orientations[orient];
-   for (int j = 0; j < 4; j++)
-      if (test[aor[j]] != base[j])
-         mfem_error("Mesh::GetTetOrientation(...)");
-#endif
-
 	return orient + 0;
 }
 
@@ -11332,28 +11325,25 @@ Mesh::IntermediateMesh * Mesh::ExtractMeshToInterMesh()
 
 // Computes domain and boundary volumes, and checks,
 // that faces and boundary elements lists are consistent with the actual element faces
-int Mesh::MeshCheck ()
+int Mesh::MeshCheck (bool verbose)
 {
     int num_procs, myid;
-    MPI_Comm comm = MPI_COMM_WORLD;
-    MPI_Comm_size(comm, &num_procs);
-    MPI_Comm_rank(comm, &myid);
 
     int dim = Dimension();
 
-    if ( dim != 4 && dim != 3 && myid == 0 )
+    if ( dim != 4 && dim != 3 && verbose )
     {
         cout << "Case dim != 3 or 4 is not supported in MeshCheck()" << endl;
         return -1;
     }
 
-    if (BaseGeom != Geometry::PENTATOPE && BaseGeom != Geometry::TETRAHEDRON && myid == 0 )
+    if (BaseGeom != Geometry::PENTATOPE && BaseGeom != Geometry::TETRAHEDRON && verbose )
     {
         cout << "MeshCheck() is implemented only for pentatops and tetrahedrons" << endl;
         return -1;
     }
 
-    if (myid == 0 )
+    if (verbose)
         cout << "Mesh checking:" << endl;
 
     // 2.5.0: assuming that vertices are fine, nothing is done for them
@@ -11387,16 +11377,7 @@ int Mesh::MeshCheck ()
         domain_volume += el_volume;
     }
 
-    for ( int proc = 0; proc < num_procs; ++proc )
-    {
-        if ( proc == myid )
-        {
-            cout << "I am " << proc << ": ";
-            cout << "Domain volume from mesh = " << domain_volume << endl;
-        }
-        cout << flush;
-        MPI_Barrier(comm);
-    }
+    cout << "Domain volume from local mesh part = " << domain_volume << endl;
 
     // 2.5.2: Checking that faces are consistent
     int nbndface = 0, nintface = 0;
@@ -11477,17 +11458,7 @@ int Mesh::MeshCheck ()
         boundary_volume += el_volume;
     }
 
-    for ( int proc = 0; proc < num_procs; ++proc )
-    {
-        if ( proc == myid )
-        {
-            cout << "I am " << proc << ": ";
-            cout << "Boundary volume from mesh = " << boundary_volume << endl;
-        }
-        cout << flush;
-        MPI_Barrier(comm);
-    }
-
+    cout << "Boundary volume from local mesh = " << boundary_volume << endl << flush;
 
     // 2.5.3: Checking faces using elements, brute-force type
     set<set<int> > BndElemSet;
@@ -11568,16 +11539,8 @@ int Mesh::MeshCheck ()
         return - 1;
     }
 
-    for ( int proc = 0; proc < num_procs; ++proc )
-    {
-        if ( proc == myid )
-        {
-            cout << "I am " << proc << ": ";
-            cout << "Bdr elements are consistent w.r.t elements!" << endl;
-        }
-        cout << flush;
-        MPI_Barrier(comm);
-    }
+    if (verbose)
+        cout << "Bdr elements are consistent w.r.t elements!" << endl;
 
     return 0;
 }
