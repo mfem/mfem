@@ -613,18 +613,32 @@ int NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
             nodes.Reparent(midf2, mid23, mid41);
          }
 
+         bool horizontal = false;
          if (!CheckAnisoFace(vn1, vn2, mid23, mid41, mid12, midf1, level+1))
          {
             // forced refinements will happen later (see 'ref_queue'), but we
             // need to make an empty node here to keep the data structure
             // consistent
             GetMidEdgeNode(mid12, midf1);
+            horizontal = true;
          }
 
          if (!CheckAnisoFace(mid41, mid23, vn3, vn4, midf1, mid34, level+1))
          {
             // same as above
             GetMidEdgeNode(midf1, mid34);
+            horizontal = true;
+         }
+
+         if (horizontal)
+         {
+            // at least one forced refinement needed, prepare also the
+            // 'horizontal' nodes
+            GetMidEdgeNode(mid41, midf1);
+            GetMidEdgeNode(midf1, mid23);
+
+            // problem run with RandomRefinement(0.5, true) in ex1p.cpp:
+            // mpirun -np 2 ex1p -m ../data/inline-hex.mesh -o 1 -r 3 -s 1
          }
          return 1;
       }

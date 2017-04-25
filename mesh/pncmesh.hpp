@@ -589,7 +589,9 @@ inline bool operator< (const NCMesh::MeshId &a, const NCMesh::MeshId &b)
 
 /*
 TODO:
-- remove NCMesh::GetEdgeMaster (fails for aniso due to reparents), rewrite BuildEdgeList
+- resolve multiple forced refinements of the same (ghost) element
+  (use Element::flag to order (delay) refinements until it's safe?)
+- remove NCMesh::GetEdgeMaster (fails for aniso due to reparents)
 - add deletion of shadow nodes
 - what to do with unused mid-edge nodes in ghost layer in parallel?
 */

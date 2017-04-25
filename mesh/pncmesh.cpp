@@ -1077,12 +1077,11 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
 #ifdef MFEM_DEBUG
 void ParNCMesh::DebugRefineDump(const char* text)
 {
-/*   static int step = 0;
+   /*static int step = 0;
    char fname[200];
    sprintf(fname, "dump-%02d-%03d-%s.dbg", MyRank, step++, text);
    std::ofstream f(fname);
    DebugDump(f);*/
-   //DebugCheckConsistency();
 }
 #endif
 
