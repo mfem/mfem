@@ -56,14 +56,14 @@ MFEM_USE_METIS_5     = NO
 MFEM_DEBUG           = NO
 MFEM_USE_GZSTREAM    = NO
 MFEM_USE_LIBUNWIND   = NO
-MFEM_USE_LAPACK      = YES
+MFEM_USE_LAPACK      = NO
 MFEM_THREAD_SAFE     = NO
 MFEM_USE_OPENMP      = NO
 MFEM_USE_MEMALLOC    = YES
 MFEM_TIMER_TYPE      = $(if $(NOTMAC),2,0)
 MFEM_USE_SUNDIALS    = NO
 MFEM_USE_MESQUITE    = NO
-MFEM_USE_SUITESPARSE = YES
+MFEM_USE_SUITESPARSE = NO
 MFEM_USE_SUPERLU     = NO
 MFEM_USE_GECKO       = NO
 MFEM_USE_GNUTLS      = NO
@@ -71,7 +71,7 @@ MFEM_USE_NETCDF      = NO
 MFEM_USE_PETSC       = NO
 MFEM_USE_MPFR        = NO
 MFEM_USE_SIDRE       = NO
-MFEM_WITH_QHULL	     = YES
+MFEM_WITH_QHULL	     = NO
 
 # Setting WITH_QHULL flag which defines whether qhull-dependent parts are compiled in mesh generator
 ifneq ($(MFEM_WITH_QHULL),YES)
@@ -90,13 +90,12 @@ ifneq ($(MFEM_WITH_QHULL),YES)
     QHULL_OPT =
     QHULL_LIB =
 else
-#QHULL_DIR = /home/kvoronin/Documents/qhull/qhull-2015.2
     QHULL_OPT = -I$(QHULL_DIR)/src/libqhullcpp -I$(QHULL_DIR)/src/libqhull_r -I$(QHULL_DIR)/src
     QHULL_LIB = -L$(QHULL_DIR)/lib/ -lqhullcpp -lqhullstatic_r -Wl,-rpath=$(QHULL_DIR)/lib
 endif
 
 # HYPRE library configuration (needed to build the parallel version)
-#HYPRE_DIR = /home/kvoronin/Documents/mfem_glvis_etc/hypre-2.11.1/src/hypre
+HYPRE_DIR = @MFEM_DIR@/../hypre-2.11.1/src/hypre
 HYPRE_OPT = -I$(HYPRE_DIR)/include 
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 
@@ -107,7 +106,7 @@ ifeq ($(MFEM_USE_SUPERLU),NO)
      METIS_OPT =
      METIS_LIB = -L$(METIS_DIR) -lmetis
    else
-     METIS_DIR = /home/kvoronin/Documents/mfem_glvis_etc/metis-5.0
+     METIS_DIR = @MFEM_DIR@/../metis-5.0
      METIS_OPT = -I$(METIS_DIR)/include
      METIS_LIB = -L$(METIS_DIR) -lmetis
    endif
@@ -121,7 +120,6 @@ else
 endif
 
 # LAPACK library configuration
-#LAPACK_DIR = /home/kvoronin/Documents/lapack/lapack-3.6.1
 LAPACK_OPT =  
 LAPACK_LIB = -L$(LAPACK_DIR) -llapack -lrefblas -lgfortran
 #LAPACK_LIB = -L$(LAPACK_DIR) -llapack -lrefblas -lgfortran
@@ -153,7 +151,7 @@ MESQUITE_LIB = -L$(MESQUITE_DIR)/lib -lmesquite
 
 # SuiteSparse library configuration
 LIB_RT = $(if $(NOTMAC),-lrt,)
-#SUITESPARSE_DIR = /home/kvoronin/Documents/suitesparse/SuiteSparse
+SUITESPARSE_DIR = @MFEM_DIR@/../SuiteSparse 
 SUITESPARSE_OPT = -I$(SUITESPARSE_DIR)/include
 SUITESPARSE_LIB = -L$(SUITESPARSE_DIR)/lib -lklu -lbtf -lumfpack -lcholmod\
  -lcolamd -lamd -lcamd -lccolamd -lsuitesparseconfig $(LIB_RT) $(METIS_LIB)\
