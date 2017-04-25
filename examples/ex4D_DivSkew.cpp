@@ -447,7 +447,8 @@ int main(int argc, char *argv[])
    pcg->SetRelTol(tol);
    pcg->SetMaxIter(1000000000);
    pcg->SetPrintLevel(1);
-   pcg->SetPreconditioner(*prec);
+   if(dim==4)
+      pcg->SetPreconditioner(*prec);
    pcg->Mult(B, X);
 
    // 13. Recover the parallel grid function corresponding to X. This is the
