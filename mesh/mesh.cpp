@@ -3879,7 +3879,7 @@ int Mesh::GetTriOrientation(const int *base, const int *test)
    return orient;
 }
 
-/*
+
 int Mesh::GetQuadOrientation(const int *base, const int *test)
 {
    int i;
@@ -4023,7 +4023,7 @@ int Mesh::GetHexOrientation(const int * base, const int * test)
 	                      && test[5] == base[5] && test[6] == base[6] && test[7] == base[7]) return 0;
 	else return 1;
 }
-*/
+
 
 int Mesh::CheckBdrElementOrientation(bool fix_it)
 {
@@ -11005,7 +11005,7 @@ void Mesh::ComputeSlices(double t0, int Nmoments, double deltat, int myid)
     return;
 }
 
-
+#ifdef MFEM_USE_MPI
 // Converts a given ParMesh into a serial Mesh, and outputs the corresponding partioning as well.
 Mesh::Mesh ( ParMesh& pmesh, int ** partioning)
 {
@@ -11274,6 +11274,7 @@ Mesh::Mesh ( ParMesh& pmesh, int ** partioning)
     MPI_Barrier (comm);
     return;
 }
+#endif
 
 // Creates an IntermediateMesh whihc stores main arrays of the Mesh.
 Mesh::IntermediateMesh * Mesh::ExtractMeshToInterMesh()
@@ -12667,7 +12668,7 @@ void Mesh::MeshSpaceTimeCylinder_onlyArrays ( Mesh& meshbase, double tau, int Ns
     return;
 }
 
-
+#ifdef MFEM_USE_MPI
 // parallel version 1 : creating serial space-time mesh from parallel base mesh in parallel
 // from a given base mesh produces a space-time mesh for a cylinder
 // with the given base and Nsteps * tau height in time
@@ -12964,7 +12965,7 @@ Mesh::Mesh (MPI_Comm comm, ParMesh& mesh3d, double tau, int Nsteps,
 
     return;
 }
-
+#endif
 
 // Does the same as MeshSpaceTimeCylinder_onlyArrays() but outputs InterMediateMesh structure
 // works only in 4d case

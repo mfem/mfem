@@ -1162,7 +1162,8 @@ public:
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
 
-#ifdef MFEM_USE_MPI
+   // new routines for mesh generator are declared below
+   // Warning: only PENTATOPE case for 4D mesh and TETRAHEDRON case for 3D are considered
 
    // A simple structure which is used to store temporarily the 4d mesh main arrays in
    // parallel mesh generator, version 1.
@@ -1181,10 +1182,19 @@ public:
        int withgindicesflag;
        int * vert_gindices; // allocated and used only for 4d parmesh construction
    };
-
-
-   // ONLY PENTATOPE case for 4D mesh and TETRAHEDRON case for 3D
 private:
+   // Creates an IntermediateMesh whihc stores main arrays of the Mesh.
+   IntermediateMesh * ExtractMeshToInterMesh ();
+   // Allocation of IntermediateMesh structure.
+   void IntermeshInit( IntermediateMesh * intermesh, int dim, int nv, int ne, int nbdr, int with_gindices_flag);
+   void IntermeshDelete( IntermediateMesh * intermesh_pt);
+   void InterMeshPrint (IntermediateMesh * local_intermesh, int suffix, const char * filename);
+   // This function only creates elements, vertices and boundary elements and
+   // stores them in the output IntermediateMesh structure. It is used in ParMesh-to-Mesh version
+   // of space-time mesh constructor.
+   // Description of bnd_method, local_method - see in the constructor which calls this function.
+   IntermediateMesh * MeshSpaceTimeCylinder_toInterMesh (double tau, int Nsteps, int bnd_method, int local_method);
+
    // Calls InitMesh() and creates elements, vertices and boundary elements
    // Used only as part of Mesh constructor thus private.
    // Description of bnd_method, local_method - see in the constructor which calls this function.
@@ -1201,17 +1211,6 @@ private:
    void LoadMeshfromArrays( int nv, double * vertices,
                                      int ne, int * elements, int * elattris,
                                      int nbe, int * bdrelements, int * bdrattrs, int dim );
-   // Creates an IntermediateMesh whihc stores main arrays of the Mesh.
-   IntermediateMesh * ExtractMeshToInterMesh ();
-   // Allocation of IntermediateMesh structure.
-   void IntermeshInit( IntermediateMesh * intermesh, int dim, int nv, int ne, int nbdr, int with_gindices_flag);
-   void IntermeshDelete( IntermediateMesh * intermesh_pt);
-   void InterMeshPrint (IntermediateMesh * local_intermesh, int suffix, const char * filename);
-   // This function only creates elements, vertices and boundary elements and
-   // stores them in the output IntermediateMesh structure. It is used in ParMesh-to-Mesh version
-   // of space-time mesh constructor.
-   // Description of bnd_method, local_method - see in the constructor which calls this function.
-   IntermediateMesh * MeshSpaceTimeCylinder_toInterMesh (double tau, int Nsteps, int bnd_method, int local_method);
 
 public:
    // Actual serial space-time mesh generator.
@@ -1228,7 +1227,22 @@ public:
    Mesh(Mesh& meshbase, double tau, int Nsteps, int bnd_method, int local_method);
    //friend void MeshSpaceTimeCylinder (Mesh& mesh3D, Mesh& mesh4D, double
                                  //tau, int Nsteps, int bnd_method, int local_method);
+   // Computes domain and boundary volumes, and checks,
+   // that faces and boundary elements list is consistent with the actual element faces
+   int MeshCheck ();
 
+   // time moments: t0 + i * deltat, i = 0, ... Nmoments - 1
+   void ComputeSlices(double t0, int Nmoments, double deltat, int myid);
+   void Compute_elpartition (double t0, int Nmoments, double deltat, std::vector<std::vector<int> > & elpartition);
+   void computeSliceCell (int elind, std::vector<std::vector<double> > & pvec,
+                          std::vector<std::vector<double> > & ipoints, std::vector<int>& edgemarkers,
+                          std::vector<std::vector<double> >& cellpnts, std::vector<int>& elvertslocal, int & nip, int & vertex_count);
+                          //bool compute_values, std::vector<std::vector<double> > & vertvalueslocal);
+   //extern class std::list;
+   void outputSliceMeshVTK ( std::stringstream& fname, std::vector<std::vector<double> > & ipoints,
+                                   std::list<int> &celltypes, int cellstructusize, std::list<std::vector<int> > &elvrtindices);
+
+#ifdef MFEM_USE_MPI
    // Actual space-time mesh generator, version 1 (DEPRECATED), which acts in parallel, but produces serial 4d mesh as the output.
    // works ONLY in 4D and shoudl not be used.
    // (which then can be transformed in one line intio a parallel 4d mesh via MFEM constructor.
@@ -1244,26 +1258,8 @@ public:
    //friend void ParMesh3DtoMesh4D (MPI_Comm comm, ParMesh& mesh3D,
                         //Mesh& mesh4D, double tau, int Nsteps, int bnd_method, int local_method);
 
-   // Computes domain and boundary volumes, and checks,
-   // that faces and boundary elements list is consistent with the actual element faces
-   int MeshCheck ();
-
    // Converts a given ParMesh into a serial Mesh, and outputs the corresponding partioning as well.
    Mesh( ParMesh& pmesh, int ** partioning);
-   // friend void ConvertParMeshToMesh ( ParMesh& pmesh, Mesh& mesh, int * & partioning);
-   // constructor ~ ConvertParMeshToMesh()
-
-   // time moments: t0 + i * deltat, i = 0, ... Nmoments - 1
-   void ComputeSlices(double t0, int Nmoments, double deltat, int myid);
-   void Compute_elpartition (double t0, int Nmoments, double deltat, std::vector<std::vector<int> > & elpartition);
-   void computeSliceCell (int elind, std::vector<std::vector<double> > & pvec,
-                          std::vector<std::vector<double> > & ipoints, std::vector<int>& edgemarkers,
-                          std::vector<std::vector<double> >& cellpnts, std::vector<int>& elvertslocal, int & nip, int & vertex_count);
-                          //bool compute_values, std::vector<std::vector<double> > & vertvalueslocal);
-   //extern class std::list;
-   void outputSliceMeshVTK ( std::stringstream& fname, std::vector<std::vector<double> > & ipoints,
-                                   std::list<int> &celltypes, int cellstructusize, std::list<std::vector<int> > &elvrtindices);
-
 #endif
 };
 
