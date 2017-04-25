@@ -95,8 +95,6 @@ void LinearForm::Assemble()
             fes -> GetElementVDofs (tr -> Elem2No, vdofs2);
             vdofs.Append(vdofs2);
 
-//            for (int k = 0; k < vdofs2.Size(); k++) std::cout << k << '\t' << vdofs2[k] << std::endl;
-
             for (int k = 0; k < ilfi.Size(); k++)
             {
                ilfi[k] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),

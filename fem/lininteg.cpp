@@ -886,19 +886,6 @@ void DGEulerIntegrator::AssembleRHSElementVect(
       }
 
    }// for ir loop
-//      std::cout << u_L << '\t' << u_max << '\t' << face_f(0) << std::endl;
-//      std::cout << Trans.Elem1No << '\t' << Trans.Elem2No << '\t' << nor_dim(0) << '\t' << nor_dim(1) << std::endl;
-//      std::cout << p << '\t' << nor_dim(0) << '\t' << nor_dim(1) << std::endl;
-//      std::cout << p << '\t' << f_dir(0) << '\t' << f_dir(1) << '\t' << f_dir(2) << '\t' << f_dir(3) << std::endl;
-
-//      std::cout << p << '\t' << f_diss(0) << '\t' << f_diss(1) << '\t' << f_diss(2) << '\t' << f_diss(3) << std::endl;
-//      std::cout << p << '\t' << f_dir(0) << '\t' << f_dir(1) << '\t' << f_dir(2) << '\t' << f_dir(3) << std::endl;
-//
-//      std::cout << p << '\t' << u1_dir(0) << '\t' << u1_dir(1) << '\t' << u1_dir(2) << '\t' << u1_dir(3) << std::endl;
-
-
-//   std::cout << elvect(0) << '\t' << elvect(1) << '\t' << elvect(2) << '\t' << elvect(3) << std::endl;
-//   std::cout << elvect(0) << '\t' << elvect(4) << '\t' << elvect(8) << '\t' << elvect(12) << std::endl;
 
 }
 

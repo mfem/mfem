@@ -212,10 +212,7 @@ int main(int argc, char *argv[])
    {
        int offset = nodes.Size()/dim;
        int sub1 = i, sub2 = offset + i, sub3 = 2*offset + i, sub4 = 3*offset + i;
-//       cout << nodes(sub1) << '\t' << nodes(sub2) << '\t' << u_sol(sub1) << endl;      
-//       cout << nodes(sub1) << '\t' << nodes(sub2) << '\t' << u_sol(sub1) << '\t' << b[sub4] << endl;      
-//       cout << nodes(sub1) << '\t' << nodes(sub2) << '\t' << u_sol(sub1) << '\t' << inv_flux(sub1) << endl;      
-//       cout << nodes(sub1) << '\t' << nodes(sub2) << '\t' << u_sol(sub1) << '\t' << u_sol(sub2) << '\t' << u_sol(sub3) << '\t' << u_sol(sub4) << endl;      
+       cout << nodes(sub1) << '\t' << nodes(sub2) << '\t' << u_sol(sub1) << endl;      
    }
 
 
@@ -312,11 +309,6 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
     }
     y += y_temp;
 
-
-//    for (int j = 0; j < offset; j++) cout << x(j) << '\t'<< f(offset + j) << endl;
-//    for (int j = 0; j < offset; j++) cout << j << '\t'<< b(j) << endl;
-//    for (int j = 0; j < offset; j++) cout << x(offset + j) << '\t'<< f(var_dim*offset + 3*offset + j) << endl;
-//    for (int j = 0; j < offset; j++) cout << x(offset + j) << '\t'<< y(0*offset + j) << endl;
 
 }
 
@@ -511,9 +503,6 @@ void getVisFlux(int dim, const Vector &u, const Vector &u_grad, Vector &f)
         }
 
     }
-
-//    for (int j = 0; j < offset; j++) cout << u(offset + j) << '\t'<< f(var_dim*offset + 3*offset + j) << endl;
-//    for (int j = 0; j < offset; j++) cout << u(offset + j) << '\t'<< u_x << endl;
 
 }
 
