@@ -1909,12 +1909,29 @@ void NCMesh::BuildFaceList()
    }
 }
 
-void NCMesh::TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
-                          int level)
+void NCMesh::EdgeMasters(int vn0, int vn1, Array<int> &edge_master, int master)
 {
    MFEM_ASSERT(!nodes[vn0].Shadow(), "");
    MFEM_ASSERT(!nodes[vn1].Shadow(), "");
 
+   int mid = FindMidEdgeNode(vn0, vn1);
+   if (mid < 0) { return; }
+
+   Node &nd = nodes[mid];
+   if (nd.HasEdge())
+   {
+      int &em = edge_master[mid];
+      if (em >= 0) { return; } // edge already seen
+      em = master;
+   }
+
+   EdgeMasters(vn0, mid, edge_master, mid);
+   EdgeMasters(mid, vn1, edge_master, mid);
+}
+
+void NCMesh::TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
+                          int level)
+{
    int mid = FindMidEdgeNode(vn0, vn1);
    if (mid < 0) { return; }
 
@@ -1959,6 +1976,23 @@ void NCMesh::BuildEdgeList()
       boundary_faces.SetSize(0);
    }
 
+   Array<int> edge_master(nodes.NumIds());
+   edge_master = -1;
+
+   // preliminary: traverse edge trees and store the direct master for each edge
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      Element &el = elements[leaf_elements[i]];
+      MFEM_ASSERT(!el.ref_type, "not a leaf element.");
+
+      GeomInfo& gi = GI[(int) el.geom];
+      for (int j = 0; j < gi.ne; j++)
+      {
+         const int* ev = gi.edges[j];
+         EdgeMasters(el.node[ev[0]], el.node[ev[1]], edge_master);
+      }
+   }
+
    Array<char> processed_edges(nodes.NumIds());
    processed_edges = 0;
 
@@ -1967,7 +2001,6 @@ void NCMesh::BuildEdgeList()
    {
       int elem = leaf_elements[i];
       Element &el = elements[elem];
-      MFEM_ASSERT(!el.ref_type, "not a leaf element.");
 
       GeomInfo& gi = GI[(int) el.geom];
       for (int j = 0; j < gi.ne; j++)
@@ -1994,7 +2027,8 @@ void NCMesh::BuildEdgeList()
          }
 
          // skip slave edges here, they will be reached from their masters
-         if (GetEdgeMaster(enode) >= 0) { continue; }
+         //if (GetEdgeMaster(enode) >= 0) { continue; }
+         if (edge_master[enode] >= 0) { continue; }
 
          // have we already processed this edge? skip if yes
          if (processed_edges[enode]) { continue; }

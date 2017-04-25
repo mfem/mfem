@@ -497,6 +497,7 @@ protected: // implementation
    void TraverseFace(int vn0, int vn1, int vn2, int vn3,
                      const PointMatrix& pm, int level);
 
+   void EdgeMasters(int vn0, int vn1, Array<int> &edge_master, int master = -1);
    void TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
                      int level);
 

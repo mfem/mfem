@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
    delete mesh;
    {
 #if 1
-      srand(seed);
+      srand(seed+myid);
       for (int l = 0; l < ref_levels; l++)
       {
          //pmesh->UniformRefinement();

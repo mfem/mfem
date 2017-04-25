@@ -906,7 +906,10 @@ void ParNCMesh::Prune()
 {
    if (!Iso && Dim == 3)
    {
-      MFEM_WARNING("Can't prune 3D aniso meshes yet.");
+      if (MyRank == 0)
+      {
+         MFEM_WARNING("Can't prune 3D aniso meshes yet.");
+      }
       return;
    }
 
