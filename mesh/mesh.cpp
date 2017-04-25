@@ -11327,8 +11327,6 @@ Mesh::IntermediateMesh * Mesh::ExtractMeshToInterMesh()
 // that faces and boundary elements lists are consistent with the actual element faces
 int Mesh::MeshCheck (bool verbose)
 {
-    int num_procs, myid;
-
     int dim = Dimension();
 
     if ( dim != 4 && dim != 3 && verbose )

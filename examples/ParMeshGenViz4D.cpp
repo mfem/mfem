@@ -58,9 +58,9 @@ int main(int argc, char *argv[])
     MPI_Comm_rank(comm, &myid);
 
     bool verbose = (myid == 0);
-    bool solve_problem = 1; // if true, solves a model problem
-    bool visualization = 1; // if true, created VTK output for paraview
-    bool convert_to_mesh = 1; // if true, converts the pmesh to a serial mesh and prints it out
+    bool solve_problem = 0; // if true, solves a model problem
+    bool visualization = 0; // if true, created VTK output for paraview
+    bool convert_to_mesh = 0; // if true, converts the pmesh to a serial mesh and prints it out
 
     int nDimensions     = 4;
 
@@ -96,7 +96,8 @@ int main(int argc, char *argv[])
     //const char * meshbase_file = "../build3/meshes/escher-p3.mesh";
     //const char * meshbase_file = "./data/orthotope3D_moderate.mesh";
     //const char * meshbase_file = "./data/orthotope3D_fine.mesh";
-    const char * meshbase_file = "./data/cube_3d_moderate.mesh";
+    const char * meshbase_file = "../data/cube_3d_moderate.mesh";
+    //const char * meshbase_file = "./data/cube_3d_moderate.mesh";
     //const char * meshbase_file = "./data/square_2d_moderate.mesh";
     //const char * meshbase_file = "../build3/meshes/square_2d_fine.mesh";
     //const char * meshbase_file = "../build3/meshes/square-disc.mesh";
