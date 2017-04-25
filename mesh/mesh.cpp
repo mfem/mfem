@@ -2346,10 +2346,8 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
                "copying NURBS meshes is not implemented");
    NURBSext = NULL;
 
-   // No support for non-conforming meshes, yet. Need deep copy for NCMesh.
-   MFEM_VERIFY(mesh.ncmesh == NULL,
-               "copying non-conforming meshes is not implemented");
-   ncmesh = NULL;
+   // Deep copy the NCMesh.
+   ncmesh = mesh.ncmesh ? new NCMesh(*mesh.ncmesh) : NULL;
 
    // Duplicate the Nodes, including the FiniteElementCollection and the
    // FiniteElementSpace
@@ -6151,7 +6149,8 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
 
    DeleteTables();
 
-   ncmesh.GetMeshComponents(vertices, elements, boundary);
+   bool linear = (Nodes == NULL);
+   ncmesh.GetMeshComponents(vertices, elements, boundary, linear);
 
    NumOfVertices = vertices.Size();
    NumOfElements = elements.Size();

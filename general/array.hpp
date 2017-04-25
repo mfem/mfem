@@ -260,6 +260,7 @@ inline bool operator!=(const Array<T> &LHS, const Array<T> &RHS)
    return !( LHS == RHS );
 }
 
+
 template <class T>
 class Array2D;
 
@@ -330,6 +331,155 @@ public:
    inline       T &operator()(int i, int j, int k);
 };
 
+
+/** A container for items of type T. Dynamically grows as items are added.
+ *  Each item is accessible by its index. Items are allocated in larger chunks
+ *  (blocks), so the 'Append' method is very fast on average.
+ */
+template<typename T>
+class BlockArray
+{
+public:
+   BlockArray(int block_size = 16*1024);
+   BlockArray(const BlockArray<T> &other); // deep copy
+   ~BlockArray();
+
+   /// Allocate and construct a new item in the array, return its index.
+   int Append();
+
+   /// Allocate and copy-construct a new item in the array, return its index.
+   int Append(const T &item);
+
+   /// Access item of the array.
+   inline T& At(int index)
+   {
+      CheckIndex(index);
+      return blocks[index >> shift][index & mask];
+   }
+   inline const T& At(int index) const
+   {
+      CheckIndex(index);
+      return blocks[index >> shift][index & mask];
+   }
+
+   /// Access item of the array.
+   inline T& operator[](int index) { return At(index); }
+   inline const T& operator[](int index) const { return At(index); }
+
+   /// Return the number of items actually stored.
+   int Size() const { return size; }
+
+   /// Return the current capacity of the BlockArray.
+   int Capacity() const { return blocks.Size()*(mask+1); }
+
+   void Swap(BlockArray<T> &other);
+
+   long MemoryUsage() const;
+
+protected:
+   template <typename cA, typename cT>
+   class iterator_base
+   {
+   public:
+      cT& operator*() const { return *ptr; }
+      cT* operator->() const { return ptr; }
+
+      bool good() const { return !stop; }
+      int index() const { return (ptr - ref); }
+
+   protected:
+      cA *array;
+      cT *ptr, *b_end, *ref;
+      int b_end_idx;
+      bool stop;
+
+      iterator_base() { }
+      iterator_base(bool stop) : stop(stop) { }
+      iterator_base(cA *a)
+         : array(a), ptr(a->blocks[0]), ref(ptr), stop(false)
+      {
+         b_end_idx = std::min(a->size, a->mask+1);
+         b_end = ptr + b_end_idx;
+      }
+
+      void next()
+      {
+         MFEM_ASSERT(!stop, "invalid use");
+         if (++ptr == b_end)
+         {
+            if (b_end_idx < array->size)
+            {
+               ptr = &array->At(b_end_idx);
+               ref = ptr - b_end_idx;
+               b_end_idx = std::min(array->size, (b_end_idx|array->mask) + 1);
+               b_end = &array->At(b_end_idx-1) + 1;
+            }
+            else
+            {
+               MFEM_ASSERT(b_end_idx == array->size, "invalid use");
+               stop = true;
+            }
+         }
+      }
+   };
+
+public:
+   class iterator : public iterator_base<BlockArray, T>
+   {
+   protected:
+      friend class BlockArray;
+      typedef iterator_base<BlockArray, T> base;
+
+      iterator() { }
+      iterator(bool stop) : base(stop) { }
+      iterator(BlockArray *a) : base(a) { }
+
+   public:
+      iterator &operator++() { base::next(); return *this; }
+
+      bool operator==(const iterator &other) const { return base::stop; }
+      bool operator!=(const iterator &other) const { return !base::stop; }
+   };
+
+   class const_iterator : public iterator_base<const BlockArray, const T>
+   {
+   protected:
+      friend class BlockArray;
+      typedef iterator_base<const BlockArray, const T> base;
+
+      const_iterator() { }
+      const_iterator(bool stop) : base(stop) { }
+      const_iterator(const BlockArray *a) : base(a) { }
+
+   public:
+      const_iterator &operator++() { base::next(); return *this; }
+
+      bool operator==(const const_iterator &other) const { return base::stop; }
+      bool operator!=(const const_iterator &other) const { return !base::stop; }
+   };
+
+   iterator begin() { return size ? iterator(this) : iterator(true); }
+   iterator end() { return iterator(); }
+
+   const_iterator cbegin() const
+   { return size ? const_iterator(this) : const_iterator(true); }
+   const_iterator cend() const { return const_iterator(); }
+
+protected:
+   Array<T*> blocks;
+   int size, shift, mask;
+
+   int Alloc();
+
+   inline void CheckIndex(int index) const
+   {
+      MFEM_ASSERT(index >= 0 && index < size,
+                  "Out of bounds access: " << index << ", size = " << size);
+   }
+};
+
+
+/// inlines ///
 
 template <class T>
 inline void Swap(T &a, T &b)
@@ -414,7 +564,6 @@ inline int Array<T>::Append(const Array<T> & els)
    return size;
 }
 
-
 template <class T>
 inline int Array<T>::Prepend(const T &el)
 {
@@ -426,7 +575,6 @@ inline int Array<T>::Prepend(const T &el)
    ((T*)data)[0] = el;
    return size;
 }
-
 
 template <class T>
 inline T &Array<T>::Last()
@@ -611,6 +759,99 @@ inline T &Array3D<T>::operator()(int i, int j, int k)
    return array1d[(i*N2+j)*N3+k];
 }
 
+
+template<typename T>
+BlockArray<T>::BlockArray(int block_size)
+{
+   mask = block_size-1;
+   MFEM_VERIFY(!(block_size & mask), "block_size must be a power of two.");
+
+   size = shift = 0;
+   while ((1 << shift) < block_size) { shift++; }
 }
+
+template<typename T>
+BlockArray<T>::BlockArray(const BlockArray<T> &other)
+{
+   blocks.SetSize(other.blocks.Size());
+
+   size = other.size;
+   shift = other.shift;
+   mask = other.mask;
+
+   int bsize = mask+1;
+   for (int i = 0; i < blocks.Size(); i++)
+   {
+      blocks[i] = (T*) new char[bsize * sizeof(T)];
+   }
+
+   // copy all items
+   for (int i = 0; i < size; i++)
+   {
+      new (&At(i)) T(other[i]);
+   }
+}
+
+template<typename T>
+int BlockArray<T>::Alloc()
+{
+   int bsize = mask+1;
+   if (size >= blocks.Size() * bsize)
+   {
+      T* new_block = (T*) new char[bsize * sizeof(T)];
+      blocks.Append(new_block);
+   }
+   return size++;
+}
+
+template<typename T>
+int BlockArray<T>::Append()
+{
+   int index = Alloc();
+   new (&At(index)) T();
+   return index;
+}
+
+template<typename T>
+int BlockArray<T>::Append(const T &item)
+{
+   int index = Alloc();
+   new (&At(index)) T(item);
+   return index;
+}
+
+template<typename T>
+void BlockArray<T>::Swap(BlockArray<T> &other)
+{
+   mfem::Swap(blocks, other.blocks);
+   std::swap(size, other.size);
+   std::swap(shift, other.shift);
+   std::swap(mask, other.mask);
+}
+
+template<typename T>
+long BlockArray<T>::MemoryUsage() const
+{
+   return blocks.Size()*(mask+1)*sizeof(T) +
+          blocks.MemoryUsage();
+}
+
+template<typename T>
+BlockArray<T>::~BlockArray()
+{
+   int bsize = size & mask;
+   for (int i = blocks.Size(); i != 0; )
+   {
+      T *block = blocks[--i];
+      for (int j = bsize; j != 0; )
+      {
+         block[--j].~T();
+      }
+      delete [] (char*) block;
+      bsize = mask+1;
+   }
+}
+
+} // namespace mfem
 
 #endif

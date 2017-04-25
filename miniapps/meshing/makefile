@@ -23,7 +23,7 @@ TEST_MK = $(MFEM_DIR)/config/test.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = mobius-strip klein-bottle mesh-explorer
+SEQ_MINIAPPS = mobius-strip klein-bottle mesh-explorer shaper
 PAR_MINIAPPS =
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -57,6 +57,8 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4
 # Testing: Specific execution options
 mesh-explorer-test-seq:
 	@true
+shaper-test-seq:
+	@true
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
@@ -67,9 +69,9 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ mobius-strip klein-bottle mesh-explorer
+	rm -f *.o *~ mobius-strip klein-bottle mesh-explorer shaper
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh
-	@rm -f partitioning.txt
+	@rm -f partitioning.txt shaper.mesh

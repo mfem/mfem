@@ -10,7 +10,6 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 # Utilities for the "make test" and "make check" targets.
-
 # Colors used below:
 # green    '\033[0;32m'
 # red      '\033[0;31m'
@@ -20,17 +19,20 @@ COLOR_PRINT = if [ -t 1 ]; then \
 PRINT_OK = $(call COLOR_PRINT,'\033[0;32m',OK,"\n")
 PRINT_FAILED = $(call COLOR_PRINT,'\033[0;31m',FAILED,"\n")
 
+ifneq (,$(filter test%,$(MAKECMDGOALS)))
+   MAKEFLAGS += -k
+endif
 # Test runs of the examples/miniapps with parameters - check exit code
 mfem-test = \
    printf "   $(3) [$(2) $(1) ... ]: "; \
    if ($(2) ./$(1) -no-vis $(4) > /dev/null); \
-   then $(PRINT_OK); else $(PRINT_FAILED); fi
+   then $(PRINT_OK); else $(PRINT_FAILED); exit 1; fi
 
 # Test runs of the examples/miniapps - check exit code and if a file exists
 mfem-test-file = \
    printf "   $(3) [$(2) $(1) ... ]: "; \
    if ($(2) ./$(1) -no-vis > /dev/null) && [ -e $(4) ]; \
-   then $(PRINT_OK); else $(PRINT_FAILED); fi
+   then $(PRINT_OK); else $(PRINT_FAILED); exit 1; fi
 
 .PHONY: test test-par-YES test-par-NO
 

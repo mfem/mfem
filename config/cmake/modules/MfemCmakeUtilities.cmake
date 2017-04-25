@@ -9,6 +9,30 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
+# Function that converts a version string of the form 'major[.minor[.patch]]' to
+# the integer ((major * 100) + minor) * 100 + patch.
+function(mfem_version_to_int VersionString VersionIntVar)
+  if ("${VersionString}" MATCHES "^([0-9]+)(.*)$")
+    set(Major "${CMAKE_MATCH_1}")
+    set(MinorPatchString "${CMAKE_MATCH_2}")
+  else()
+    set(Major 0)
+  endif()
+  if ("${MinorPatchString}" MATCHES "^\\.([0-9]+)(.*)$")
+    set(Minor "${CMAKE_MATCH_1}")
+    set(PatchString "${CMAKE_MATCH_2}")
+  else()
+    set(Minor 0)
+  endif()
+  if ("${PatchString}" MATCHES "^\\.([0-9]+)(.*)$")
+    set(Patch "${CMAKE_MATCH_1}")
+  else()
+    set(Patch 0)
+  endif()
+  math(EXPR VersionInt "(${Major}*100+${Minor})*100+${Patch}")
+  set(${VersionIntVar} ${VersionInt} PARENT_SCOPE)
+endfunction()
+
 # A handy function to add the current source directory to a local
 # filename. To be used for creating a list of sources.
 function(convert_filenames_to_full_paths NAMES)

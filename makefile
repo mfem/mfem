@@ -9,6 +9,11 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
+# The current MFEM version as an integer, see also `CMakeLists.txt`.
+MFEM_VERSION = 30301
+MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
+  sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
+
 define MFEM_HELP_MSG
 
 MFEM makefile targets:
@@ -198,18 +203,16 @@ ifeq ($(MFEM_USE_GZSTREAM),YES)
 endif
 
 # List of all defines that may be enabled in config.hpp and config.mk:
-MFEM_DEFINES = MFEM_USE_MPI MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_GZSTREAM\
- MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP\
- MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS MFEM_USE_MESQUITE\
- MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU MFEM_USE_GNUTLS\
- MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_MPIEXEC \
- MFEM_MPIEXEC_NP
+MFEM_DEFINES = MFEM_VERSION MFEM_USE_MPI MFEM_USE_METIS_5 MFEM_DEBUG\
+ MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
+ MFEM_USE_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
+ MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU\
+ MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
  MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_FLAGS MFEM_LIB_DIR MFEM_LIBS MFEM_LIB_FILE\
- MFEM_BUILD_TAG MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC \
- MFEM_MPIEXEC_NP
+ MFEM_BUILD_TAG MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP
 
 # Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
 MFEM_CPPFLAGS  ?= $(CPPFLAGS)
@@ -317,10 +320,12 @@ test:
 	@echo "Testing the MFEM library. This may take a while..."
 	@echo "Building all examples and miniapps..."
 	@$(MAKE) all
-	@for dir in $(EM_TEST_DIRS); do \
+	@ERR=0; for dir in $(EM_TEST_DIRS); do \
 	   echo "Running tests in $${dir} ..."; \
-	   $(MAKE) -j1 -C $(BLD)$${dir} test; done
-	@echo "Done."
+	   if ! $(MAKE) -j1 -C $(BLD)$${dir} test; then \
+	   ERR=1; fi; done; \
+	   if [ 0 -ne $${ERR} ]; then echo "Some tests failed."; exit 1; \
+	   else echo "All tests passed."; fi
 
 ALL_CLEAN_SUBDIRS = $(addsuffix /clean,config $(EM_DIRS) doc)
 .PHONY: $(ALL_CLEAN_SUBDIRS) miniapps/clean
@@ -391,8 +396,7 @@ help:
 	@true
 
 status info:
-	$(info MFEM_MPIEXEC         = $(MFEM_MPIEXEC))
-	$(info MFEM_MPIEXEC_NP      = $(MFEM_MPIEXEC_NP))
+	$(info MFEM_VERSION         = $(MFEM_VERSION) [v$(MFEM_VERSION_STRING)])
 	$(info MFEM_USE_MPI         = $(MFEM_USE_MPI))
 	$(info MFEM_USE_METIS_5     = $(MFEM_USE_METIS_5))
 	$(info MFEM_DEBUG           = $(MFEM_DEBUG))
@@ -426,6 +430,8 @@ status info:
 	$(info MFEM_INC_DIR         = $(value MFEM_INC_DIR))
 	$(info MFEM_LIB_DIR         = $(value MFEM_LIB_DIR))
 	$(info MFEM_BUILD_DIR       = $(MFEM_BUILD_DIR))
+	$(info MFEM_MPIEXEC         = $(MFEM_MPIEXEC))
+	$(info MFEM_MPIEXEC_NP      = $(MFEM_MPIEXEC_NP))
 	@true
 
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc

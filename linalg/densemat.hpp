@@ -124,10 +124,13 @@ public:
    /// y += A.x
    void AddMult(const Vector &x, Vector &y) const;
 
+   /// y += A^t x
+   void AddMultTranspose(const Vector &x, Vector &y) const;
+
    /// y += a * A.x
    void AddMult_a(double a, const Vector &x, Vector &y) const;
 
-   // y += a * A^t x
+   /// y += a * A^t x
    void AddMultTranspose_a(double a, const Vector &x, Vector &y) const;
 
    /// Compute y^t A x
@@ -156,7 +159,8 @@ public:
    /// Replaces the current matrix with its inverse
    void Invert();
 
-   /// Calculates the determinant of the matrix (for 2x2 or 3x3 matrices)
+   /// Calculates the determinant of the matrix
+   /// (optimized for 2x2, 3x3, and 4x4 matrices)
    double Det() const;
 
    double Weight() const;
@@ -275,6 +279,8 @@ public:
    void CopyMNDiag(double c, int n, int row_offset, int col_offset);
    /// Copy diag on the diagonal of size n to *this at row_offset, col_offset
    void CopyMNDiag(double *diag, int n, int row_offset, int col_offset);
+   /// Copy All rows and columns except m and n from A
+   void CopyExceptMN(const DenseMatrix &A, int m, int n);
 
    /// Perform (ro+i,co+j)+=A(i,j) for 0<=i<A.Height, 0<=j<A.Width
    void AddMatrix(DenseMatrix &A, int ro, int co);
@@ -304,6 +310,8 @@ public:
 
    /// Invert and print the numerical conditioning of the inversion.
    void TestInversion();
+
+   long MemoryUsage() const { return std::abs(capacity) * sizeof(double); }
 
    /// Destroys dense matrix.
    virtual ~DenseMatrix();
@@ -419,6 +427,10 @@ public:
        original matrix and P is a permutation matrix represented by ipiv. */
    void Factor(int m);
 
+   /** Assuming L.U = P.A factored data of size (m x m), compute |A|
+       from the diagonal values of U and the permutation information. */
+   double Det(int m) const;
+
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- A X,
        for a matrix X of size (m x n). */
    void Mult(int m, int n, double *X) const;
@@ -526,6 +538,9 @@ public:
       Ainv.SetSize(width);
       lu.GetInverseMatrix(width, Ainv.Data());
    }
+
+   /// Compute the determinant of the original DenseMatrix using the LU factors.
+   double Det() const { return lu.Det(width); }
 
    /// Print the numerical conditioning of the inversion: ||A^{-1} A - I||.
    void TestInversion();
@@ -636,6 +651,9 @@ public:
       own_data = false;
    }
 
+   /// Sets the tensor elements equal to constant c
+   DenseTensor &operator=(double c);
+
    DenseMatrix &operator()(int k) { Mk.data = GetData(k); return Mk; }
    const DenseMatrix &operator()(int k) const
    { return const_cast<DenseTensor&>(*this)(k); }
@@ -655,6 +673,8 @@ public:
 
    void Clear()
    { UseExternalData(NULL, 0, 0, 0); }
+
+   long MemoryUsage() const { return nk*Mk.MemoryUsage(); }
 
    ~DenseTensor()
    {

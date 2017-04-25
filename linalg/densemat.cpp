@@ -231,6 +231,24 @@ void DenseMatrix::AddMult(const Vector &x, Vector &y) const
    }
 }
 
+void DenseMatrix::AddMultTranspose(const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(height == x.Size() && width == y.Size(),
+               "incompatible dimensions");
+
+   double *d_col = data;
+   for (int col = 0; col < width; col++)
+   {
+      double y_col = 0.0;
+      for (int row = 0; row < height; row++)
+      {
+         y_col += x[row]*d_col[row];
+      }
+      y[col] += y_col;
+      d_col += height;
+   }
+}
+
 void DenseMatrix::AddMult_a(double a, const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
@@ -415,8 +433,9 @@ MatrixInverse *DenseMatrix::Inverse() const
 
 double DenseMatrix::Det() const
 {
-   MFEM_ASSERT(Height() == Width() && Height() > 0 && Height() < 4,
-               "The matrix must be square and sized 1, 2, or 3 to compute the determinate."
+   MFEM_ASSERT(Height() == Width() && Height() > 0,
+               "The matrix must be square and "
+               << "sized larger than zero to compute the determinant."
                << "  Height() = " << Height()
                << ", Width() = " << Width());
 
@@ -435,6 +454,35 @@ double DenseMatrix::Det() const
             d[0] * (d[4] * d[8] - d[5] * d[7]) +
             d[3] * (d[2] * d[7] - d[1] * d[8]) +
             d[6] * (d[1] * d[5] - d[2] * d[4]);
+      }
+      case 4:
+      {
+         const double *d = data;
+         return
+            d[ 0] * (d[ 5] * (d[10] * d[15] - d[11] * d[14]) -
+                     d[ 9] * (d[ 6] * d[15] - d[ 7] * d[14]) +
+                     d[13] * (d[ 6] * d[11] - d[ 7] * d[10])
+                    ) -
+            d[ 4] * (d[ 1] * (d[10] * d[15] - d[11] * d[14]) -
+                     d[ 9] * (d[ 2] * d[15] - d[ 3] * d[14]) +
+                     d[13] * (d[ 2] * d[11] - d[ 3] * d[10])
+                    ) +
+            d[ 8] * (d[ 1] * (d[ 6] * d[15] - d[ 7] * d[14]) -
+                     d[ 5] * (d[ 2] * d[15] - d[ 3] * d[14]) +
+                     d[13] * (d[ 2] * d[ 7] - d[ 3] * d[ 6])
+                    ) -
+            d[12] * (d[ 1] * (d[ 6] * d[11] - d[ 7] * d[10]) -
+                     d[ 5] * (d[ 2] * d[11] - d[ 3] * d[10]) +
+                     d[ 9] * (d[ 2] * d[ 7] - d[ 3] * d[ 6])
+                    );
+      }
+      default:
+      {
+         // In the general case we compute the determinant from the LU
+         // decomposition.
+         DenseMatrixInverse lu_factors(*this);
+
+         return lu_factors.Det();
       }
    }
    return 0.0;
@@ -2554,6 +2602,32 @@ void DenseMatrix::CopyMNDiag(double *diag, int n, int row_offset,
    }
 }
 
+void DenseMatrix::CopyExceptMN(const DenseMatrix &A, int m, int n)
+{
+   SetSize(A.Width()-1,A.Height()-1);
+
+   int i, j, i_off = 0, j_off = 0;
+
+   for (j = 0; j < A.Width(); j++)
+   {
+      if ( j == n )
+      {
+         j_off = 1;
+         continue;
+      }
+      for (i = 0; i < A.Height(); i++)
+      {
+         if ( i == m )
+         {
+            i_off = 1;
+            continue;
+         }
+         (*this)(i-i_off,j-j_off) = A(i,j);
+      }
+      i_off = 0;
+   }
+}
+
 void DenseMatrix::AddMatrix(DenseMatrix &A, int ro, int co)
 {
    int h, ah, aw;
@@ -3735,6 +3809,23 @@ void LUFactors::Factor(int m)
 #endif
 }
 
+double LUFactors::Det(int m) const
+{
+   double det = 1.0;
+   for (int i=0; i<m; i++)
+   {
+      if (ipiv[i] != i-ipiv_base)
+      {
+         det *= -data[m * i + i];
+      }
+      else
+      {
+         det *=  data[m * i + i];
+      }
+   }
+   return det;
+}
+
 void LUFactors::Mult(int m, int n, double *X) const
 {
    const double *data = this->data;
@@ -4209,6 +4300,16 @@ const
          }
       }
    }
+}
+
+DenseTensor &DenseTensor::operator=(double c)
+{
+   int s = SizeI() * SizeJ() * SizeK();
+   for (int i=0; i<s; i++)
+   {
+      tdata[i] = c;
+   }
+   return *this;
 }
 
 }
