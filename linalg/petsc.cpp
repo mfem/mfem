@@ -1293,11 +1293,14 @@ void PetscSolver::SetMaxIter(int max_iter)
 void PetscSolver::SetPrintLevel(int plev)
 {
    typedef PetscErrorCode (*myPetscFunc)(void**);
-   PetscViewerAndFormat *vf;
+   PetscViewerAndFormat *vf = NULL;
    PetscViewer viewer = PETSC_VIEWER_STDOUT_(PetscObjectComm(obj));
 
-   ierr = PetscViewerAndFormatCreate(viewer,PETSC_VIEWER_DEFAULT,&vf);
-   PCHKERRQ(obj,ierr);
+   if (plev > 0)
+   {
+      ierr = PetscViewerAndFormatCreate(viewer,PETSC_VIEWER_DEFAULT,&vf);
+      PCHKERRQ(obj,ierr);
+   }
    if (cid == KSP_CLASSID)
    {
       // there are many other options, see the function KSPSetFromOptions() in
