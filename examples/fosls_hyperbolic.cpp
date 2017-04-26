@@ -94,7 +94,7 @@ void VectordivDomainLFIntegrator::AssembleRHSElementVect(
       double val = Q.Eval(Tr, ip);
 
       add(elvect, ip.weight * val, divshape, elvect);
-      //cout << "elvect = " << elvect << endl;
+      //std::cerr << "elvect = " << elvect << endl;
    }
 
 }
@@ -368,82 +368,82 @@ class Transport_test
         epsilon = Epsilon;
 
         if ( CheckTestConfig() == false )
-            std::cout << "Inconsistent dim and numsol" << std::endl << std::flush;
+            std::cerr << "Inconsistent dim and numsol" << std::endl << std::flush;
         else
         {
             if (numsol == 0)
             {
-                //std::cout << "The domain is rectangular or cubic, velocity does not"
+                //std::std::cerr << "The domain is rectangular or cubic, velocity does not"
                              //" satisfy divergence condition" << std::endl << std::flush;
                 SetTestCoeffs<&uFun_ex, &uFun_ex_dt, &uFun_ex_gradx, &bFun_ex, &bFundiv_ex, &cas_weight>();
                 //SetTestCoeffs<&uFun_ex, &uFun_ex_dt, &uFun_ex_gradx, &bFunCube3D_ex, &bFunCube3Ddiv_ex, &cas_weight>();
             }
             if (numsol == 1)
             {
-                //std::cout << "The domain must be a cylinder over a circle" << std::endl << std::flush;
+                //std::std::cerr << "The domain must be a cylinder over a circle" << std::endl << std::flush;
                 SetTestCoeffs<&uFun2_ex, &uFun2_ex_dt, &uFun2_ex_gradx, &bFun2_ex, &bFun2div_ex, &cas_weight>();
             }
             if (numsol == 100)
             {
-                //std::cout << "The domain must be a cylinder over a unit square" << std::endl << std::flush;
+                //std::std::cerr << "The domain must be a cylinder over a unit square" << std::endl << std::flush;
                 SetTestCoeffs<&uFun_ex, &uFun_ex_dt, &uFun_ex_gradx, &bFunRect2D_ex, &bFunRect2Ddiv_ex, &cas_weight>();
             }
             if (numsol == 200)
             {
-                //std::cout << "The domain must be a cylinder over a unit circle" << std::endl << std::flush;
+                //std::std::cerr << "The domain must be a cylinder over a unit circle" << std::endl << std::flush;
                 SetTestCoeffs<&uFun_ex, &uFun_ex_dt, &uFun_ex_gradx, &bFun2_ex, &bFun2div_ex, &cas_weight>();
             }
             if (numsol == 2)
             {
-                //std::cout << "The domain must be a cylinder over a 3D cube, velocity does not"
+                //std::std::cerr << "The domain must be a cylinder over a 3D cube, velocity does not"
                              //" satisfy divergence condition" << std::endl << std::flush;
                 SetTestCoeffs<&uFun3_ex, &uFun3_ex_dt, &uFun3_ex_gradx, &bFun_ex, &bFundiv_ex, &cas_weight>();
             }
             if (numsol == 3)
             {
-                //std::cout << "The domain must be a cylinder over a circle" << std::endl << std::flush;
+                //std::std::cerr << "The domain must be a cylinder over a circle" << std::endl << std::flush;
                 SetTestCoeffs<&uFun4_ex, &uFun4_ex_dt, &uFun4_ex_gradx, &bFun2_ex, &bFun2div_ex, &cas_weight>();
             }
             if (numsol == 4) // no exact solution in fact, ~ unsuccessfully trying to get a picture from the report
             {
-                //std::cout << "The domain must be a cylinder over a circle" << std::endl << std::flush;
-                //std::cout << "Using new interface \n";
+                //std::std::cerr << "The domain must be a cylinder over a circle" << std::endl << std::flush;
+                //std::std::cerr << "Using new interface \n";
                 SetTestCoeffs<&uFun5_ex, &uFun5_ex_dt, &uFun5_ex_gradx, &bFun2_ex, &bFun2div_ex, &cas_weight>();
             }
             if (numsol == 44) // no exact solution in fact, ~ unsuccessfully trying to get a picture from the report
             {
-                //std::cout << "The domain must be a cylinder over a circle" << std::endl << std::flush;
-                //std::cout << "Using new interface \n";
+                //std::std::cerr << "The domain must be a cylinder over a circle" << std::endl << std::flush;
+                //std::std::cerr << "Using new interface \n";
                 SetTestCoeffs<&uFun6_ex, &uFun6_ex_dt, &uFun6_ex_gradx, &bFun2_ex, &bFun2div_ex, &cas_weight>();
             }
             if (numsol == 5)
             {
-                //std::cout << "The domain must be a cylinder over a square" << std::endl << std::flush;
+                //std::std::cerr << "The domain must be a cylinder over a square" << std::endl << std::flush;
                 SetTestCoeffs<&uFun4_ex, &uFun4_ex_dt, &uFun4_ex_gradx, &bFunRect2D_ex, &bFunRect2Ddiv_ex, &cas_weight>();
             }
             if (numsol == 1003)
             {
-                //std::cout << "The domain must be a cylinder over a square" << std::endl << std::flush;
+                //std::std::cerr << "The domain must be a cylinder over a square" << std::endl << std::flush;
                 SetTestCoeffs<&uFun_ex, &uFun_ex_dt, &uFun_ex_gradx, &bFunRect2D_ex, &bFunRect2Ddiv_ex, &cas_weight>();
             }
             if (numsol == 1004)
             {
-                //std::cout << "The domain must be a cylinder over a cube" << std::endl << std::flush;
+                //std::std::cerr << "The domain must be a cylinder over a cube" << std::endl << std::flush;
                 SetTestCoeffs<&uFun_ex, &uFun_ex_dt, &uFun_ex_gradx, &bFunCube3D_ex, &bFunCube3Ddiv_ex, &cas_weight>();
             }
             if (numsol == 33)
             {
-                //std::cout << "The domain must be a cylinder over a sphere" << std::endl << std::flush;
+                //std::std::cerr << "The domain must be a cylinder over a sphere" << std::endl << std::flush;
                 SetTestCoeffs<&uFun33_ex, &uFun33_ex_dt, &uFun33_ex_gradx, &bFunSphere3D_ex, &bFunSphere3Ddiv_ex, &cas_weight>();
             }
             if (numsol == 444) // no exact solution in fact, ~ unsuccessfully trying to get something beauitiful
             {
-                //std::cout << "The domain must be a cylinder over a sphere" << std::endl << std::flush;
+                //std::std::cerr << "The domain must be a cylinder over a sphere" << std::endl << std::flush;
                 SetTestCoeffs<&uFun66_ex, &uFun66_ex_dt, &uFun66_ex_gradx, &bFunSphere3D_ex, &bFunSphere3Ddiv_ex, &cas_weight>();
             }
             if (numsol == 55)
             {
-                //std::cout << "The domain must be a cylinder over a cube" << std::endl << std::flush;
+                //std::std::cerr << "The domain must be a cylinder over a cube" << std::endl << std::flush;
                 SetTestCoeffs<&uFun33_ex, &uFun33_ex_dt, &uFun33_ex_gradx, &bFunCube3D_ex, &bFunCube3Ddiv_ex, &cas_weight>();
             }
         } // end of setting test coefficients in correct case
@@ -551,18 +551,18 @@ int main(int argc, char *argv[])
     {
        if (verbose)
        {
-          args.PrintUsage(cout);
+          args.PrintUsage(std::cerr);
        }
        MPI_Finalize();
        return 1;
     }
     if (verbose)
     {
-       args.PrintOptions(cout);
+       args.PrintOptions(std::cerr);
     }
 
     if (verbose)
-        cout << "Number of mpi processes: " << num_procs << endl << flush;
+        std::cerr << "Number of mpi processes: " << num_procs << endl << flush;
 
     bool with_prec = true;
     bool prec_is_ADS = true;
@@ -591,16 +591,16 @@ int main(int argc, char *argv[])
 
     if (verbose)
     {
-        cout << "with_prec = " << with_prec << endl;
-        cout << "prec_is_ADS = " << prec_is_ADS << endl;
-        cout << "ADS_is_for_I = " << ADS_is_for_I << endl;
-        cout << flush;
+        std::cerr << "with_prec = " << with_prec << endl;
+        std::cerr << "prec_is_ADS = " << prec_is_ADS << endl;
+        std::cerr << "ADS_is_for_I = " << ADS_is_for_I << endl;
+        std::cerr << flush;
     }
 
     if ((prec_option == 1 || prec_option == 2) && nDimensions == 4)
     {
         if (verbose)
-            cout << "ADS cannot be used in 4D" << endl;
+            std::cerr << "ADS cannot be used in 4D" << endl;
         MPI_Finalize();
         return -1;
     }
@@ -622,7 +622,7 @@ int main(int argc, char *argv[])
         if ( generate_frombase == 1 )
         {
             if ( verbose )
-                cout << "Creating a " << nDimensions << "d mesh from a " <<
+                std::cerr << "Creating a " << nDimensions << "d mesh from a " <<
                         nDimensions - 1 << "d mesh from the file " << meshbase_file << endl;
 
             Mesh * meshbase;
@@ -646,7 +646,7 @@ int main(int argc, char *argv[])
             if (meshbase->Dimension() != nDimensions - 1)
             {
                 if (verbose)
-                    cout << "Dimension of the meshbase != dimension of problem - 1: Mismatch!" << endl << flush;
+                    std::cerr << "Dimension of the meshbase != dimension of problem - 1: Mismatch!" << endl << flush;
                 MPI_Finalize();
                 return 0;
             }
@@ -682,7 +682,7 @@ int main(int argc, char *argv[])
                     if ( nDimensions == 3)
                     {
                         if  (verbose)
-                            cout << "Not implemented for 2D->3D. Use parallel version2"
+                            std::cerr << "Not implemented for 2D->3D. Use parallel version2"
                                     " instead" << endl << flush;
                         MPI_Finalize();
                         return 0;
@@ -691,7 +691,7 @@ int main(int argc, char *argv[])
                     {
                         mesh = new Mesh( comm, *pmeshbase, tau, Nsteps, bnd_method, local_method);
                         if ( verbose )
-                            cout << "Success: ParMesh is created by deprecated method"
+                            std::cerr << "Success: ParMesh is created by deprecated method"
                                  << endl << flush;
 
                         std::stringstream fname;
@@ -706,31 +706,31 @@ int main(int argc, char *argv[])
                 else
                 {
                     if (verbose)
-                        cout << "Starting parallel \"" << nDimensions-1 << "D->"
+                        std::cerr << "Starting parallel \"" << nDimensions-1 << "D->"
                              << nDimensions <<"D\" mesh generator" << endl;
 
                     pmesh = make_shared<ParMesh>( comm, *pmeshbase, tau, Nsteps,
                                                   bnd_method, local_method);
 
                     if (verbose)
-                        cout << "Success: ParMesh created" << endl << flush;
+                        std::cerr << "Success: ParMesh created" << endl << flush;
                     MPI_Barrier(comm);
                 }
 
                 chrono.Stop();
                 if (verbose && whichparallel == 2)
-                    cout << "Timing: Space-time mesh extension done in parallel in "
+                    std::cerr << "Timing: Space-time mesh extension done in parallel in "
                               << chrono.RealTime() << " seconds.\n" << endl << flush;
                 delete pmeshbase;
             }
             else // serial version
             {
                 if (verbose)
-                    cout << "Starting serial \"" << nDimensions-1 << "D->"
+                    std::cerr << "Starting serial \"" << nDimensions-1 << "D->"
                          << nDimensions <<"D\" mesh generator" << endl;
                 mesh = new Mesh( *meshbase, tau, Nsteps, bnd_method, local_method);
                 if (verbose)
-                    cout << "Timing: Space-time mesh extension done in serial in "
+                    std::cerr << "Timing: Space-time mesh extension done in serial in "
                               << chrono.RealTime() << " seconds.\n" << endl << flush;
             }
 
@@ -740,7 +740,7 @@ int main(int argc, char *argv[])
         else // not generating from a lower dimensional mesh
         {
             if (verbose)
-                cout << "Reading a " << nDimensions << "d mesh from the file " << mesh_file << endl;
+                std::cerr << "Reading a " << nDimensions << "d mesh from the file " << mesh_file << endl;
             ifstream imesh(mesh_file);
             if (!imesh)
             {
@@ -754,7 +754,7 @@ int main(int argc, char *argv[])
                 if (mesh->Dimension() != nDimensions)
                 {
                     if (verbose)
-                        cout << "Dimension of the mesh and dimension of the problem mismatch!" << endl << flush;
+                        std::cerr << "Dimension of the mesh and dimension of the problem mismatch!" << endl << flush;
                     MPI_Finalize();
                     return 0;
                 }
@@ -778,14 +778,14 @@ int main(int argc, char *argv[])
     {
         // Checking that mesh is legal
         //if (myid == 0)
-            //cout << "Checking the mesh" << endl << flush;
+            //std::cerr << "Checking the mesh" << endl << flush;
         //mesh->MeshCheck();
 
         for (int l = 0; l < ser_ref_levels; l++)
             mesh->UniformRefinement();
 
         if ( verbose )
-            cout << "Creating parmesh(" << nDimensions <<
+            std::cerr << "Creating parmesh(" << nDimensions <<
                     "d) from the serial mesh (" << nDimensions << "d)" << endl << flush;
         pmesh = make_shared<ParMesh>(comm, *mesh);
         delete mesh;
@@ -798,7 +798,7 @@ int main(int argc, char *argv[])
 
     //if(dim==3) pmesh->ReorientTetMesh();
 
-    pmesh->PrintInfo(std::cout); if(verbose) cout << endl;
+    pmesh->PrintInfo(std::cerr); if(verbose) std::cerr << endl;
 
     /*
     std::stringstream fname;
@@ -819,13 +819,13 @@ int main(int argc, char *argv[])
     {
        hdiv_coll = new RT0_4DFECollection;
        if (verbose)
-           cout << "RT: order 0 for 4D" << endl;
+           std::cerr << "RT: order 0 for 4D" << endl;
     }
     else
     {
         hdiv_coll = new RT_FECollection(feorder, dim);
         if (verbose)
-            cout << "RT: order " << feorder << " for 3D" << endl;
+            std::cerr << "RT: order " << feorder << " for 3D" << endl;
     }
 
     ParFiniteElementSpace *R_space = new ParFiniteElementSpace(pmesh.get(), hdiv_coll);
@@ -836,9 +836,9 @@ int main(int argc, char *argv[])
 
     if (verbose)
     {
-       std::cout << "***********************************************************\n";
-       std::cout << "dim(R) = " << dimR << "\n";
-       std::cout << "***********************************************************\n";
+       std::cerr << "***********************************************************\n";
+       std::cerr << "dim(R) = " << dimR << "\n";
+       std::cerr << "***********************************************************\n";
     }
 
     // 7. Define the two BlockStructure of the problem.  block_offsets is used
@@ -875,10 +875,10 @@ int main(int argc, char *argv[])
     //    vector and rhs.
 
     if (with_divdiv == true && verbose)
-        cout << "Bilinear form with div-div term" << endl;
+        std::cerr << "Bilinear form with div-div term" << endl;
 
     if (epsilon > 0 && verbose)
-        cout << "Using casuality weight with exp(-t/epsilon)" << endl;
+        std::cerr << "Using casuality weight with exp(-t/epsilon)" << endl;
 
 
     ParLinearForm *fform(new ParLinearForm(R_space));
@@ -905,7 +905,7 @@ int main(int argc, char *argv[])
     if (hybridization)
     {
         if (verbose)
-            cout << "Using mfem hybridization" << endl;
+            std::cerr << "Using mfem hybridization" << endl;
         hfec = new DG_Interface_FECollection(feorder, dim);
         hfes = new ParFiniteElementSpace(pmesh.get(), hfec);
         Ablock->EnableHybridization(hfes, new NormalTraceJumpIntegrator(),
@@ -919,7 +919,7 @@ int main(int argc, char *argv[])
     Ablock->FormLinearSystem(ess_tdof_list, *x, *fform, Amat, X, B);
 
     if (verbose)
-        cout<< "Final saddle point matrix assembled"<<endl << flush;
+        std::cerr<< "Final saddle point matrix assembled"<<endl << flush;
     MPI_Barrier(MPI_COMM_WORLD);
 
     // 12. Solve the linear system with MINRES.
@@ -933,20 +933,20 @@ int main(int argc, char *argv[])
     if (with_prec)
     {
         if (verbose)
-             cout << "Using a preconditioner:" << endl;
+             std::cerr << "Using a preconditioner:" << endl;
         if (!hybridization)
         {
             if (prec_is_ADS == true)
             {
                 if (verbose)
-                     cout << "Using ADS as a preconditioner" << endl;
+                     std::cerr << "Using ADS as a preconditioner" << endl;
 
                 if (nDimensions == 3)
                 {
                     if (ADS_is_for_I == true)
                     {
                         if (verbose)
-                            cout << "Creating ADS for the Identity (not Ktilda!)" << endl;
+                            std::cerr << "Creating ADS for the Identity (not Ktilda!)" << endl;
                         if (with_divdiv == true)
                             AIblock->AddDomainIntegrator(new DivDivIntegrator(*(Mytest.casuality_weight)));
                             //Ablock->AddDomainIntegrator(new DivDivIntegrator(one));
@@ -967,7 +967,7 @@ int main(int argc, char *argv[])
                 else
                 {
                     if (verbose)
-                        cout << "ADS is not working in case dim = " << nDimensions << endl;
+                        std::cerr << "ADS is not working in case dim = " << nDimensions << endl;
                     MPI_Finalize();
                     return 0;
                 }
@@ -975,14 +975,14 @@ int main(int argc, char *argv[])
             else
             {
                 if (verbose)
-                    cout << "Using boomerAMG as a preconditioner" << endl;
+                    std::cerr << "Using boomerAMG as a preconditioner" << endl;
                 prec = new HypreBoomerAMG(Amat);
             }
         }
         else // for hybridization
         {
             if (verbose)
-                cout << "Using mfem hybridization combined with boomerAMG as a preconditioner" << endl;
+                std::cerr << "Using mfem hybridization combined with boomerAMG as a preconditioner" << endl;
             prec = new HypreBoomerAMG(Amat);
         }
 
@@ -1004,12 +1004,12 @@ int main(int argc, char *argv[])
     if (verbose)
     {
        if (solver.GetConverged())
-          std::cout << "MINRES converged in " << solver.GetNumIterations()
+          std::cerr << "MINRES converged in " << solver.GetNumIterations()
                     << " iterations with a residual norm of " << solver.GetFinalNorm() << ".\n";
        else
-          std::cout << "MINRES did not converge in " << solver.GetNumIterations()
+          std::cerr << "MINRES did not converge in " << solver.GetNumIterations()
                     << " iterations. Residual norm is " << solver.GetFinalNorm() << ".\n";
-       std::cout << "MINRES solver took " << chrono.RealTime() << "s. \n";
+       std::cerr << "MINRES solver took " << chrono.RealTime() << "s. \n";
     }
 
     // 13. Extract the parallel grid function corresponding to the finite element
@@ -1033,7 +1033,7 @@ int main(int argc, char *argv[])
     double err_sigma = x->ComputeL2Error(*(Mytest.sigma), irs);
     double norm_sigma = ComputeGlobalLpNorm(2, *(Mytest.sigma), *pmesh, irs);
     if (verbose)
-        cout << "local: err_sigma / norm_sigma = " << err_sigma / norm_sigma << endl;
+        std::cerr << "local: err_sigma / norm_sigma = " << err_sigma / norm_sigma << endl;
 
     err_sigma *= err_sigma;
     double err_sigma_global;
@@ -1048,7 +1048,7 @@ int main(int argc, char *argv[])
     norm_sigma_global = std::sqrt(norm_sigma_global);
 
     if (verbose)
-        cout << "global: err_sigma / norm_sigma = " << err_sigma_global / norm_sigma_global << endl;
+        std::cerr << "global: err_sigma / norm_sigma = " << err_sigma_global / norm_sigma_global << endl;
 
 
     FiniteElementCollection *l2_coll;
@@ -1056,13 +1056,13 @@ int main(int argc, char *argv[])
     {
         l2_coll = new L2_FECollection(0, dim);
         if (verbose)
-            cout << "L2: order 0 for 4D" << endl;
+            std::cerr << "L2: order 0 for 4D" << endl;
     }
     else
     {
        l2_coll = new L2_FECollection(feorder, dim);
        if (verbose)
-            cout << "L2: order " << feorder << " for 3D" << endl;
+            std::cerr << "L2: order " << feorder << " for 3D" << endl;
     }
     ParFiniteElementSpace *W_space = new ParFiniteElementSpace(pmesh.get(), l2_coll);
 
@@ -1099,7 +1099,7 @@ int main(int argc, char *argv[])
     err_S_global = std::sqrt(err_S_global);
     if (verbose)
     {
-        std::cout << "|| S_h - S_ex || / || S_ex || = " <<
+        std::cerr << "|| S_h - S_ex || / || S_ex || = " <<
                      err_S_global / norm_S << "\n";
     }
 
@@ -1180,7 +1180,7 @@ double cas_weight (const Vector& xt, double * params, const int &nparams)
     //return 1.0;
     if (nparams < 0)
     {
-        cout << "Error: nparams should be nonnegative" << endl;
+        std::cerr << "Error: nparams should be nonnegative" << endl;
         return 1.0;
     }
     if (nparams == 0)
