@@ -62,6 +62,12 @@ int main(int argc, char *argv[])
     bool visualization = 0; // if true, created VTK output for paraview
     bool convert_to_mesh = 0; // if true, converts the pmesh to a serial mesh and prints it out
 
+    if (verbose)
+    {
+        std::cout << "Started example for parallel mesh generator" << std::endl;
+        std::cerr << "Started example for parallel mesh generator" << std::endl;
+    }
+
     int nDimensions     = 4;
 
     int ser_ref_levels  = 0;
