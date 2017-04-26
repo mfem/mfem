@@ -65,7 +65,6 @@ int main(int argc, char *argv[])
     if (verbose)
     {
         std::cout << "Started example for parallel mesh generator" << std::endl;
-        std::cerr << "Started example for parallel mesh generator" << std::endl;
     }
 
     int nDimensions     = 4;
@@ -79,7 +78,7 @@ int main(int argc, char *argv[])
     int generate_frombase   = 1; // if 0, read mesh from file; if 1, read base mesh from file and extend it to (d+1)-mesh
     int generate_parallel   = generate_frombase * 1; // 0 for serial mesh extension, 1 for parallel
     int whichparallel       = generate_parallel * 2; // default value is 2 (doesn't us qhull)
-    int bnd_method          = 0; // default value is 0
+    int bnd_method          = 1; // default value is 1
     int local_method        = 2; // default value is 2
 
     //const char *mesh_file = "../build3/meshes/cube_3d_moderate.mesh";
@@ -114,7 +113,7 @@ int main(int argc, char *argv[])
     int feorder         = 0; // in 4D cannot use feorder > 0
 
     if (verbose)
-        std::cerr << "Parsing input options" << std::endl;
+        std::cout << "Parsing input options" << std::endl;
 
     OptionsParser args(argc, argv);
     args.AddOption(&mesh_file, "-m", "--mesh",
