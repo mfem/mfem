@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
 
     if (verbose)
     {
+        std::cout << "Started example for parallel mesh generator" << std::endl;
         std::cerr << "Started example for parallel mesh generator" << std::endl;
     }
 
@@ -145,13 +146,12 @@ int main(int argc, char *argv[])
     args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                    "--no-visualization",
                    "Enable or disable GLVis visualization.");
-
     args.Parse();
     if (!args.Good())
     {
        if (verbose)
        {
-          args.PrintUsage(std::cerr);
+          args.PrintUsage(cout);
        }
        if (verbose)
            std::cerr << "Bad input arguments" << std:: endl;
@@ -160,21 +160,21 @@ int main(int argc, char *argv[])
     }
     if (verbose)
     {
-       args.PrintOptions(std::cerr);
+       args.PrintOptions(cout);
     }
 
     if (verbose)
-        std::cerr << "Number of mpi processes: " << num_procs << endl << flush;
+        cout << "Number of mpi processes: " << num_procs << endl << flush;
 
 #ifndef WITH_QHULL
     if (verbose)
     {
-        std::cerr << "WITH_QHULL flag is not set -> local method = 2 must be used" << endl;
+        cout << "WITH_QHULL flag is not set -> local method = 2 must be used" << endl;
     }
     if (local_method !=2 )
     {
         if (verbose)
-            std::cerr << "Wrong local_method is provided." << endl;
+            cout << "Wrong local_method is provided." << endl;
         MPI_Finalize();
         return 0;
     }
@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
         if ( generate_frombase == 1 )
         {
             if ( verbose )
-                std::cerr << "Creating a " << nDimensions << "d mesh from a " <<
+                cout << "Creating a " << nDimensions << "d mesh from a " <<
                         nDimensions - 1 << "d mesh from the file " << meshbase_file << endl;
 
             Mesh * meshbase;
@@ -248,7 +248,7 @@ int main(int argc, char *argv[])
                     if ( nDimensions == 3)
                     {
                         if  (myid == 0)
-                            std::cerr << "Not implemented for 2D->3D. Use parallel version2"
+                            cout << "Not implemented for 2D->3D. Use parallel version2"
                                     " instead" << endl << flush;
                         MPI_Finalize();
                         return 0;
@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
                     {
                         mesh = new Mesh( comm, *pmeshbase, tau, Nsteps, bnd_method, local_method);
                         if ( myid == 0)
-                            std::cerr << "Success: ParMesh is created by deprecated method"
+                            cout << "Success: ParMesh is created by deprecated method"
                                  << endl << flush;
 
                         std::stringstream fname;
@@ -272,31 +272,31 @@ int main(int argc, char *argv[])
                 else
                 {
                     if (myid == 0)
-                        std::cerr << "Starting parallel \"" << nDimensions-1 << "D->"
+                        cout << "Starting parallel \"" << nDimensions-1 << "D->"
                              << nDimensions <<"D\" mesh generator" << endl;
 
                     pmesh = make_shared<ParMesh>( comm, *pmeshbase, tau, Nsteps,
                                                   bnd_method, local_method);
 
                     if ( myid == 0)
-                        std::cerr << "Success: ParMesh created" << endl << flush;
+                        cout << "Success: ParMesh created" << endl << flush;
                     MPI_Barrier(comm);
                 }
 
                 chrono.Stop();
                 if (myid == 0 && whichparallel == 2)
-                    std::cerr << "Timing: Space-time mesh extension done in parallel in "
+                    cout << "Timing: Space-time mesh extension done in parallel in "
                               << chrono.RealTime() << " seconds.\n" << endl << flush;
                 delete pmeshbase;
             }
             else // serial version
             {
                 if (myid == 0)
-                    std::cerr << "Starting serial \"" << nDimensions-1 << "D->"
+                    cout << "Starting serial \"" << nDimensions-1 << "D->"
                          << nDimensions <<"D\" mesh generator" << endl;
                 mesh = new Mesh( *meshbase, tau, Nsteps, bnd_method, local_method);
                 if ( myid == 0)
-                    std::cerr << "Timing: Space-time mesh extension done in serial in "
+                    cout << "Timing: Space-time mesh extension done in serial in "
                               << chrono.RealTime() << " seconds.\n" << endl << flush;
             }
 
@@ -305,7 +305,7 @@ int main(int argc, char *argv[])
         }
         else // not generating from a lower dimensional mesh
         {
-            std::cerr << "Reading a " << nDimensions << "d mesh from the file " << mesh_file << endl;
+            cout << "Reading a " << nDimensions << "d mesh from the file " << mesh_file << endl;
             ifstream imesh(mesh_file);
             if (!imesh)
             {
@@ -336,14 +336,14 @@ int main(int argc, char *argv[])
     {
         // Checking that mesh is legal = domain and boundary volume + checking boundary elements and faces consistency
         if (myid == 0)
-            std::cerr << "Checking the mesh" << endl << flush;
+            cout << "Checking the mesh" << endl << flush;
         mesh->MeshCheck(verbose);
 
         for (int l = 0; l < ser_ref_levels; l++)
             mesh->UniformRefinement();
 
         if ( verbose )
-            std::cerr << "Creating parmesh(" << nDimensions <<
+            cout << "Creating parmesh(" << nDimensions <<
                     "d) from the serial mesh (" << nDimensions << "d)" << endl << flush;
         pmesh = make_shared<ParMesh>(comm, *mesh);
         delete mesh;
@@ -374,10 +374,10 @@ int main(int argc, char *argv[])
 
     //if(dim==3) pmesh->ReorientTetMesh();
 
-    pmesh->PrintInfo(std::cerr); if(verbose) std::cerr << endl;
+    pmesh->PrintInfo(cout); if(verbose) cout << endl;
 
     if (verbose)
-        std::cerr << "Mesh generator was called successfully" << endl;
+        cout << "Mesh generator was called successfully" << endl;
 
     // solving a model problem in Hdiv if solve_problem = true
     if (solve_problem)
@@ -392,7 +392,7 @@ int main(int argc, char *argv[])
         ParFiniteElementSpace fespace(pmesh.get(), fec);
 
         int dofs = fespace.GlobalTrueVSize();
-        if(verbose) std::cerr << "dofs: " << dofs << endl;
+        if(verbose) cout << "dofs: " << dofs << endl;
 
         chrono.Clear(); chrono.Start();
 
@@ -419,7 +419,7 @@ int main(int argc, char *argv[])
         a.Finalize();
 
         chrono.Stop();
-        if(verbose) std::cerr << "Assembling took " << chrono.UserTime() << "s." << endl;
+        if(verbose) cout << "Assembling took " << chrono.UserTime() << "s." << endl;
 
         HypreParMatrix *A = a.ParallelAssemble();
         HypreParVector *B = b.ParallelAssemble();
@@ -444,7 +444,7 @@ int main(int argc, char *argv[])
         pcg->Mult(*B, *X);
 
         chrono.Stop();
-        if(verbose) std::cerr << "Solving took " << chrono.UserTime() << "s." << endl;
+        if(verbose) cout << "Solving took " << chrono.UserTime() << "s." << endl;
 
         x = *X;
 
@@ -452,12 +452,12 @@ int main(int argc, char *argv[])
         int intOrder = 8;
         const IntegrationRule *irs[Geometry::NumGeom]; for (int i=0; i < Geometry::NumGeom; ++i) irs[i] = &(IntRules.Get(i, intOrder));
         double norm = x.ComputeL2Error(u_exact, irs);
-        if(verbose) std::cerr << "L2 norm: " << norm << endl;
-        if(verbose) std::cerr << "Computing error took " << chrono.UserTime() << "s." << endl;
+        if(verbose) cout << "L2 norm: " << norm << endl;
+        if(verbose) cout << "Computing error took " << chrono.UserTime() << "s." << endl;
 
         x = 0.0; x.ProjectCoefficient(u_exact);
         double projection_error = x.ComputeL2Error(u_exact, irs);
-        if(verbose) std::cerr << "L2 norm of projection error: " << projection_error << endl;
+        if(verbose) cout << "L2 norm of projection error: " << projection_error << endl;
 
         // 15. Free the used memory.
         delete pcg;
@@ -470,7 +470,7 @@ int main(int argc, char *argv[])
     }
 
     if (verbose)
-        std::cerr << "Test problem was solved successfully" << endl;
+        cout << "Test problem was solved successfully" << endl;
 
     if (visualization && nDimensions > 2)
     {
@@ -480,12 +480,12 @@ int main(int argc, char *argv[])
         if ( dim == 4 )
         {
             hdiv_coll = new RT0_4DFECollection;
-            std::cerr << "RT: order 0 for 4D" << endl;
+            cout << "RT: order 0 for 4D" << endl;
         }
         else
         {
             hdiv_coll = new RT_FECollection(feorder, dim);
-            std::cerr << "RT: order " << feorder << " for 3D" << endl;
+            cout << "RT: order " << feorder << " for 3D" << endl;
         }
 
         ParFiniteElementSpace *R_space = new ParFiniteElementSpace(pmesh.get(), hdiv_coll);
@@ -501,7 +501,7 @@ int main(int argc, char *argv[])
     }
 
     if (verbose)
-        std::cerr << "Test Hdiv function was sliced successfully" << endl;
+        cout << "Test Hdiv function was sliced successfully" << endl;
 
     MPI_Finalize();
 
