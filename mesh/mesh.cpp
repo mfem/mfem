@@ -7591,7 +7591,11 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
          l = partitioning[l];
          if (k != l)
          {
-            nbe += 2;
+            nbe++;
+            if (!Nonconforming() || !IsSlaveFace(faces_info[i]))
+            {
+               nbe++;
+            }
          }
       }
       else
@@ -7616,12 +7620,15 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
                out << ' ' << v[j];
             }
             out << '\n';
-            out << l+1 << ' ' << faces[i]->GetGeometryType();
-            for (j = nv-1; j >= 0; j--)
+            if (!Nonconforming() || !IsSlaveFace(faces_info[i]))
             {
-               out << ' ' << v[j];
+               out << l+1 << ' ' << faces[i]->GetGeometryType();
+               for (j = nv-1; j >= 0; j--)
+               {
+                  out << ' ' << v[j];
+               }
+               out << '\n';
             }
-            out << '\n';
          }
       }
       else
