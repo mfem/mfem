@@ -26,12 +26,9 @@
 #  define GPU_ORDER_4(I0, I1, I2, I3) idxOrder(0, 1, 2, 3)
 #endif
 
-#ifdef CONST_COEFF
-typedef double Coeff_t;
-#  define COEFF(E, Q) CONST_COEFF
-#else
-typedef double* Coeff_t @(dim(numElements, NUM_QUAD_3D));
-#  define COEFF(E, Q) coeff(E, Q)
+#ifndef COEFF
+#  define COEFF 1.0
+#  define COEFF_ARGS
 #endif
 
 #if USING_TENSOR_OPS

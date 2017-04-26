@@ -216,12 +216,17 @@ namespace mfem {
 
     const IntegrationRule &ir1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder());
 
+    const int numDofs = fe.GetDof();
+    const int numQuad = ir.GetNPoints();
+
     const int dofs1D = fe.GetOrder() + 1;
     const int quad1D = ir1D.GetNPoints();
     int dofsND = dofs1D;
     int quadND = quad1D;
 
     props["defines/USING_TENSOR_OPS"] = 1;
+    props["defines/NUM_DOFS"] = numDofs;
+    props["defines/NUM_QUAD"] = numQuad;
 
     for (int d = 1; d <= 3; ++d) {
       if (d > 1) {
@@ -392,6 +397,36 @@ namespace mfem {
 
   void OccaIntegrator::Setup() {}
 
+  void OccaIntegrator::SetupCoefficient(const Coefficient *coeff,
+                                        occa::properties &kernelProps) {
+
+    if (dynamic_cast<const ConstantCoefficient*>(coeff)) {
+      const ConstantCoefficient* c =
+        dynamic_cast<const ConstantCoefficient*>(coeff);
+      kernelProps["defines/COEFF_ARGS"] = "";
+      kernelProps["defines/COEFF"]      = c->constant;
+    } else if (dynamic_cast<const GridFunctionCoefficient*>(coeff)) {
+      kernelProps["headers"].asArray();
+      kernelProps["headers"] += ("double gridFunctionCoeff(const int e,\n"
+                                 "                         const int q,\n"
+                                 "                         const DofToQuad_t restrict dofToQuad,\n"
+                                 "                         Local_t restrict gfValues) {\n"
+                                 "  double c = 0;\n"
+                                 "  for (int d = 0; d < NUM_DOFS; ++d) {\n"
+                                 "    c += dofToQuad(q, d) * values(d, e);\n"
+                                 "  }\n"
+                                 "  return c;\n"
+                                 "}\n\n");
+      kernelProps["defines/COEFF_ARGS"] = ("const DofToQuad_t restrict dofToQuad,\n"
+                                           "Local_t restrict gfValues,\n");
+      kernelProps["defines/COEFF"]      = "gridFunctionCoeff(e, q, dofToQuad, gfValues)";
+    } else {
+      mfem_error("OccaIntegrator can only handle:\n"
+                 "  - ConstantCoefficient\n"
+                 "  - GridFunctionCoefficient\n");
+    }
+  }
+
   occa::kernel OccaIntegrator::GetAssembleKernel(const occa::properties &props) {
     const FiniteElement &fe = *(fespace->GetFE(0));
     return GetKernel(stringWithDim("Assemble", fe.GetDim()),
@@ -427,6 +462,8 @@ namespace mfem {
     occa::properties kernelProps = props;
 
     DiffusionIntegrator &integ = (DiffusionIntegrator&) *integrator;
+    coeff = integ.GetCoefficient();
+    SetupCoefficient(coeff, kernelProps);
 
     const FiniteElement &fe   = *(fespace->GetFE(0));
     const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
@@ -446,18 +483,6 @@ namespace mfem {
     const int elements = fespace->GetNE();
     const int quadraturePoints = ir.GetNPoints();
 
-    // Get coefficient from integrator
-    // [MISSING] Hard-coded to ConstantCoefficient for now
-    const ConstantCoefficient* coeff =
-      dynamic_cast<const ConstantCoefficient*>(integ.GetCoefficient());
-
-    if (coeff) {
-        hasConstantCoefficient = true;
-        kernelProps["defines/CONST_COEFF"] = coeff->constant;
-    } else {
-      mfem_error("OccaDiffusionIntegrator can only handle ConstantCoefficients");
-    }
-
     assembledOperator.allocate(symmDims, quadraturePoints, elements);
 
     jacobian = getJacobian(device, fespace, ir);
@@ -468,18 +493,17 @@ namespace mfem {
   }
 
   void OccaDiffusionIntegrator::Assemble() {
-    if (hasConstantCoefficient) {
-      // Dummy coefficient since we're defining it at compile time
+    if (dynamic_cast<const ConstantCoefficient*>(coeff)) {
       assembleKernel((int) fespace->GetNE(),
                      maps.quadWeights.memory(),
                      jacobian.memory(),
-                     (double) 0,
                      assembledOperator.memory());
-    } else {
+    } else if (dynamic_cast<const GridFunctionCoefficient*>(coeff)) {
       assembleKernel((int) fespace->GetNE(),
                      maps.quadWeights.memory(),
                      jacobian.memory(),
-                     coefficients.memory(),
+                     maps.dofToQuad.memory(),
+                     // GF vector
                      assembledOperator.memory());
     }
   }
@@ -509,6 +533,8 @@ namespace mfem {
     occa::properties kernelProps = props;
 
     MassIntegrator &integ = (MassIntegrator&) *integrator;
+    coeff = integ.GetCoefficient();
+    SetupCoefficient(coeff, kernelProps);
 
     const FiniteElement &fe   = *(fespace->GetFE(0));
     const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
@@ -525,18 +551,6 @@ namespace mfem {
     const int elements = fespace->GetNE();
     const int quadraturePoints = ir.GetNPoints();
 
-    // Get coefficient from integrator
-    // [MISSING] Hard-coded to ConstantCoefficient for now
-    const ConstantCoefficient* coeff =
-      dynamic_cast<const ConstantCoefficient*>(integ.GetCoefficient());
-
-    if (coeff) {
-        hasConstantCoefficient = true;
-        kernelProps["defines/CONST_COEFF"] = coeff->constant;
-    } else {
-      mfem_error("OccaMassIntegrator can only handle ConstantCoefficients");
-    }
-
     assembledOperator.allocate(quadraturePoints, elements);
 
     jacobian = getJacobian(device, fespace, ir);
@@ -547,18 +561,17 @@ namespace mfem {
   }
 
   void OccaMassIntegrator::Assemble() {
-    if (hasConstantCoefficient) {
-      // Dummy coefficient since we're defining it at compile time
+    if (dynamic_cast<const ConstantCoefficient*>(coeff)) {
       assembleKernel((int) fespace->GetNE(),
                      maps.quadWeights.memory(),
                      jacobian.memory(),
-                     (double) 0,
                      assembledOperator.memory());
-    } else {
+    } else if (dynamic_cast<const GridFunctionCoefficient*>(coeff)) {
       assembleKernel((int) fespace->GetNE(),
                      maps.quadWeights.memory(),
                      jacobian.memory(),
-                     coefficients.memory(),
+                     maps.dofToQuad.memory(),
+                     // GF vector
                      assembledOperator.memory());
     }
   }

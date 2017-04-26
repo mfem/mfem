@@ -105,6 +105,9 @@ namespace mfem {
     virtual void Assemble() = 0;
     virtual void Mult(OccaVector &x) = 0;
 
+    void SetupCoefficient(const Coefficient *coeff,
+                          occa::properties &kernelProps);
+
     occa::kernel GetAssembleKernel(const occa::properties &props);
     occa::kernel GetMultKernel(const occa::properties &props);
 
@@ -117,13 +120,11 @@ namespace mfem {
   class OccaDiffusionIntegrator : public OccaIntegrator {
   private:
     OccaDofQuadMaps maps;
+    const Coefficient *coeff;
 
     occa::kernel assembleKernel, multKernel;
 
-    occa::array<double> coefficients;
     occa::array<double> jacobian, assembledOperator;
-
-    bool hasConstantCoefficient;
 
   public:
     OccaDiffusionIntegrator();
@@ -142,13 +143,11 @@ namespace mfem {
   class OccaMassIntegrator : public OccaIntegrator {
   private:
     OccaDofQuadMaps maps;
+    const Coefficient *coeff;
 
     occa::kernel assembleKernel, multKernel;
 
-    occa::array<double> coefficients;
     occa::array<double> jacobian, assembledOperator;
-
-    bool hasConstantCoefficient;
 
   public:
     OccaMassIntegrator();

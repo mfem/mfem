@@ -15,14 +15,14 @@
 kernel void Assemble2D(const int numElements,
                        const double * restrict quadWeights,
                        const Jacobian2D_t restrict J,
-                       const Coeff_t coeff,
+                       COEFF_ARGS
                        ScalarOperator2D_t restrict oper) {
   for (int e = 0; e < numElements; ++e; outer) {
     for (int q = 0; q < NUM_QUAD; ++q; inner) {
       const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e);
       const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e);
 
-      oper(q, e) = quadWeights[q] * COEFF(q, e) * ((J11 * J22) - (J21 * J12));
+      oper(q, e) = quadWeights[q] * COEFF * ((J11 * J22) - (J21 * J12));
     }
   }
 }
@@ -68,7 +68,7 @@ kernel void Mult2D(const int numElements,
 kernel void Assemble3D(const int numElements,
                        const double * restrict quadWeights,
                        const Jacobian3D_t restrict J,
-                       const Coeff_t coeff,
+                       COEFF_ARGS
                        ScalarOperator3D_t restrict oper) {
   for (int e = 0; e < numElements; ++e; outer) {
     for (int q = 0; q < NUM_QUAD; ++q; inner) {
@@ -79,7 +79,7 @@ kernel void Assemble3D(const int numElements,
       const double detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
                            (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
 
-      oper(q, e) = quadWeights[q] * COEFF(q, e) * detJ;
+      oper(q, e) = quadWeights[q] * COEFF * detJ;
     }
   }
 }
