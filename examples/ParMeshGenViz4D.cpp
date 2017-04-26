@@ -142,6 +142,10 @@ int main(int argc, char *argv[])
                    "Method for generating boundary elements.");
     args.AddOption(&local_method, "-loc", "--locmeth",
                    "Method for local mesh procedure.");
+    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                   "--no-visualization",
+                   "Enable or disable GLVis visualization.");
+
     args.Parse();
     if (!args.Good())
     {

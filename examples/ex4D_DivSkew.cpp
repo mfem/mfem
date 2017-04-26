@@ -298,7 +298,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/beam-tet.mesh";
    int order = 1;
    bool static_cond = false;
-   bool visualization = 1;
+   bool visualization = 0;
    int sequ_ref_levels = 0;
    int par_ref_levels = 0;
    double tol = 1e-6;
@@ -316,13 +316,16 @@ int main(int argc, char *argv[])
                      "Polynomial order of the finite element space.");
    args.AddOption(&tol, "-tol", "--tol",
                      "A parameter.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      args.PrintUsage(std::cerr);
       return 1;
    }
-   if(verbose) args.PrintOptions(cout);
+   if(verbose) args.PrintOptions(std::cerr);
 
    Mesh *mesh;
    ifstream imesh(mesh_file);
@@ -347,14 +350,14 @@ int main(int argc, char *argv[])
    for(int i=0; i<sequ_ref_levels; i++) mesh->UniformRefinement();
    if(verbose) mesh->PrintCharacteristics();
 
-   if(verbose) cout << "now we partition the mesh..." << endl << endl;
+   if(verbose) std::cerr << "now we partition the mesh..." << endl << endl;
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
    for(int i=0; i<par_ref_levels; i++) pmesh->UniformRefinement();
 
-   pmesh->PrintInfo(std::cout); if(verbose) cout << endl;
+   pmesh->PrintInfo(std::cerr); if(verbose) std::cerr << endl;
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
@@ -380,7 +383,7 @@ int main(int argc, char *argv[])
 
    if (myid == 0)
    {
-      cout << "Number of finite element unknowns: " << size << endl;
+      std::cerr << "Number of finite element unknowns: " << size << endl;
 
    }
 
@@ -407,7 +410,7 @@ int main(int argc, char *argv[])
    ParGridFunction x(fespace);
    x.ProjectCoefficient(solVec);
 
-//   cout << x << endl;
+//   std::cerr << x << endl;
 //   x = 0.0;
 
    // 10. Set up the parallel bilinear form corresponding to the EM diffusion
@@ -432,13 +435,13 @@ int main(int argc, char *argv[])
 
    if (myid == 0)
    {
-      cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
+      std::cerr << "Size of linear system: " << A.GetGlobalNumRows() << endl;
    }
 
 
    //Define the preconditioner
 
-   if (myid == 0) cout << "Set up the preconditioner" << endl;
+   if (myid == 0) std::cerr << "Set up the preconditioner" << endl;
    Solver *prec;
    if(dim==4) prec = new DivSkew4dPrec(&A, fespace, ess_bdr, order, false);
 
@@ -515,7 +518,7 @@ int main(int argc, char *argv[])
 	  }
 	  double globalError = 0.0;
 	  MPI_Allreduce(&error, &globalError, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-	  if(myid==0) std::cout << "L2 error: " << sqrt(globalError) << std::endl;
+      if(myid==0) std::cerr << "L2 error: " << sqrt(globalError) << std::endl;
 
 
    }
