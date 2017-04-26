@@ -21,7 +21,6 @@ AcroDiffusionIntegrator::AcroDiffusionIntegrator(Coefficient &q) :
   Q(q) {}
 
 AcroDiffusionIntegrator::~AcroDiffusionIntegrator() {
-  *B, *G, *WC, *D;
   Array<acrobatic::Tensor*> Btil;
   if (B) {delete B;}
   if (G) {delete G;}
@@ -52,49 +51,56 @@ void AcroDiffusionIntegrator::Setup() {
   const FiniteElement &fe   = *(fespace->GetFE(0));
   const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
   const IntegrationRule &ir1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder());
-  numDim    = fe.GetDim();
-  numElems  = fespace->GetNE();
-  numDofs   = fespace->GetNDofs();
-  numQuad   = ir.GetNPoints();
-  numDofs1D = fe.GetOrder() + 1;
-  numQuad1D = ir1D.GetNPoints();
+  nDim    = fe.GetDim();
+  nElem  = fespace->GetNE();
+  nDof   = fespace->GetNDofs();
+  nQuad   = ir.GetNPoints();
+  nDof1D = fe.GetOrder() + 1;
+  nQuad1D = ir1D.GetNPoints();
+
+  if (nDim > 3) {
+    mfem_error("AcroDiffusionIntegrator tensor computations don't support dim > 3.");
+  }
+
+  double *b_ptr = (double*) maps.quadToDof.memory().getHandle();
+  double *g_ptr = (double*) maps.quadToDofD.memory().getHandle();
   const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
   haveTensorBasis = (el != NULL);
   if (haveTensorBasis) {
     maps = OccaDofQuadMaps::GetTensorMaps(device, *el, ir);
-    B = new acrobatic::Tensor(numQuad1D, numDof1D, nullptr, maps.quadToDof.getMemoryHandle(), true);
-    G = new acrobatic::Tensor(numQuad1D, numDof1D, nullptr, maps.quadToDofD.getMemoryHandle(), true);
+    B = new acrobatic::Tensor(nQuad1D, nDof1D, nullptr, b_ptr, true);
+    G = new acrobatic::Tensor(nQuad1D, nDof1D, nullptr, g_ptr, true);
   } else {
     maps = OccaDofQuadMaps::GetSimplexMaps(device, fe, ir);
-    B = new acrobatic::Tensor(numQuad, numDof, nullptr, maps.quadToDof.getMemoryHandle(), true);
-    G = new acrobatic::Tensor(numQuad, numDof, numDim, nullptr, maps.quadToDofD.getMemoryHandle(), true);  
+    B = new acrobatic::Tensor(nQuad, nDof, nullptr, b_ptr, true);
+    G = new acrobatic::Tensor(nQuad, nDof, nDim, nullptr, g_ptr, true);  
   }
 
   if (haveTensorBasis) {
-    computeBtilde();
+    ComputeBTilde();
   }
 
   occa::array<double> jac, jacinv, jacdet;
   getJacobianData(device, fespace, ir, jac, jacinv, jacdet); 
-  computeD(jac, jacinv, jacdet);
+  ComputeD(jac, jacinv, jacdet);
 
-  //assembledOperator.allocate(symmDims, numQuad, numElems);
+  //assembledOperator.allocate(symmDims, nQuad, nElem);
 }
 
 
-void AcroDiffusionIntegrator::ComputeBtilde() {
-  Btil.SetSize(numDim);
-  for (int d = 0; d < numDim; ++d) {
-    Btil[d] = new acrobatic::Tensor(numDim, numDim, numQuad1D, numDof1D, numDof1D);
+void AcroDiffusionIntegrator::ComputeBTilde() {
+  Btil.SetSize(nDim);
+  for (int d = 0; d < nDim; ++d) {
+    Btil[d] = new acrobatic::Tensor(nDim, nDim, nQuad1D, nDof1D, nDof1D);
     Btil[d]->SwitchToGPU();
-    acrobatic::Tensor *Bsub(numQuad1D, numDof1D, numDof1D, nullptr, Btil[d]->GetDeviceData(), true);
-    for (mi = 0; mi < numDim; ++mi) {
-      for (ni = 0; ni < numDim; ++ni) {
-        int offset = (numDim*mi + ni) * numQuad1D*numDof1D*numDof1D;
-        Bsub->Retarget(nullptr, Btil[d]->GetDeviceData() + offset);
+    acrobatic::Tensor Bsub(nQuad1D, nDof1D, nDof1D, nullptr, Btil[d]->GetDeviceData(), true);
+    for (int mi = 0; mi < nDim; ++mi) {
+      for (int ni = 0; ni < nDim; ++ni) {
+        int offset = (nDim*mi + ni) * nQuad1D*nDof1D*nDof1D;
+        Bsub.Retarget(nullptr, Btil[d]->GetDeviceData() + offset);
         acrobatic::Tensor *BGM = (mi == d) ? G : B;
         acrobatic::Tensor *BGN = (ni == d) ? G : B;
-        TE["Bsub_k1_i1_j1 = M_k1_i1 N_k1_j1"](*Bsub, *BGM, *BGN);
+        TE["Bsub_k1_i1_j1 = M_k1_i1 N_k1_j1"](Bsub, *BGM, *BGN);
       }
     }
   }
@@ -105,102 +111,137 @@ void AcroDiffusionIntegrator::ComputeD(occa::array<double> &jac,
                                        occa::array<double> &jacinv, 
                                        occa::array<double> &jacdet) {
   //Compute the coefficient * integrations weights
-  std::vector<int> wdims(numDim, numQuad);
-  acrobatic::Tensor *W = new acrobatic::Tensor(maps.quadWeights.size(), nullptr, maps.quadWeights.getMemoryHandle(), true);
-  const ConstantCoefficient* const_coeff = dynamic_cast<const ConstantCoefficient*>(Q);
+  const ConstantCoefficient* const_coeff = dynamic_cast<const ConstantCoefficient*>(&Q);
   if (!const_coeff) {
     mfem_error("AcroDiffusionIntegrator can only handle ConstantCoefficients");
   }
-  acrobatic::Tensor *WC = new acrobatic::Tensor(maps.quadWeights.size());
-  WC->SwitchToGPU();
+  std::vector<int> wdims(nDim, nQuad);
+  double *w_ptr = (double*) maps.quadWeights.memory().getHandle();
+  acrobatic::Tensor W(maps.quadWeights.size(), nullptr, w_ptr, true);  
+  acrobatic::Tensor WC(maps.quadWeights.size());
+  WC.SwitchToGPU();
   TE["WC_i=W_i"](WC, W);
-  WC->Mult(const_coeff->const);
-  WC->Reshape(wdims);
+  WC.Mult(const_coeff->constant);
+  WC.Reshape(wdims);
 
   //Get the jacobians and compute D with them
-  acrobatic::Tensor *J, *Jinv, *Jdet;
+  double *jac_ptr = (double*) jac.memory().getHandle();
+  double *jacinv_ptr = (double*) jacinv.memory().getHandle();
+  double *jacdet_ptr = (double*) jacdet.memory().getHandle();
   if (haveTensorBasis) {
-    if (Dim == 1) {
-      D = new acrobatic::Tensor(numElems, Dim, Dim, numQuad1D);
-      J = new acrobatic::Tensor(numElems, numQuad1D, Dim, Dim, nullptr, jac.getMemoryHandle(), true);
-      Jinv = new acrobatic::Tensor(numElems, numQuad1D, Dim, Dim, nullptr, jacinv.getMemoryHandle(), true);
-      Jdet = new acrobatic::Tensor(numElems, numQuad1D, nullptr, jacinv.getMemoryHandle(), true);
-      TE["D_e_m_n_k = WC_k Jdet_e_k_m_n Jinv_e_k_m_n Jinv_e_k_n_m"](D, WC, Jdet, Jinv, Jinv);
-    } else if (Dim == 2) {
-      D = new acrobatic::Tensor(numElems, Dim, Dim, numQuad1D, numQuad1D);
-      J = new acrobatic::Tensor(numElems, numQuad1D, numQuad1D, Dim, Dim, nullptr, jac.getMemoryHandle(), true);
-      Jinv = new acrobatic::Tensor(numElems, numQuad1D, numQuad1D, Dim, Dim, nullptr, jacinv.getMemoryHandle(), true);
-      Jdet = new acrobatic::Tensor(numElems, numQuad1D, numQuad1D, nullptr, jacinv.getMemoryHandle(), true);
-      TE["D_e_m_n_k1_k2 = WC_k1_k2 Jdet_e_k1_k2_m_n Jinv_e_k1_k2_m_n Jinv_e_k1_k2_n_m"](D, WC, Jdet, Jinv, Jinv);
-    } else if (Dim == 3){
-      D = new acrobatic::Tensor(numElems, Dim, Dim, numQuad1D, numQuad1D, numQuad1D);
-      J = new acrobatic::Tensor(numElems, numQuad1D, numQuad1D, numQuad1D, Dim, Dim, nullptr, jac.getMemoryHandle(), true);
-      Jinv = new acrobatic::Tensor(numElems, numQuad1D, numQuad1D, numQuad1D, Dim, Dim, nullptr, jacinv.getMemoryHandle(), true);
-      Jdet = new acrobatic::Tensor(numElems, numQuad1D, numQuad1D, numQuad1D, nullptr, jacinv.getMemoryHandle(), true);
-      TE["D_e_m_n_k1_k2_k3 = WC_k1_k2_k3 Jdet_e_k1_k2_k3_m_n Jinv_e_k1_k2_k3_m_n Jinv_e_k1_k2_k3_n_m"](D, WC, Jdet, Jinv, Jinv);
+    if (nDim == 1) {
+      D = new acrobatic::Tensor(nElem, nDim, nDim, nQuad1D);
+      acrobatic::Tensor J(nElem, nQuad1D, nDim, nDim, 
+                          nullptr, jac_ptr, true);
+      acrobatic::Tensor Jinv(nElem, nQuad1D, nDim, nDim, 
+                             nullptr, jacinv_ptr, true);
+      acrobatic::Tensor Jdet(nElem, nQuad1D, 
+                             nullptr, jacdet_ptr, true);
+      TE["D_e_m_n_k = WC_k Jdet_e_k_m_n Jinv_e_k_m_n Jinv_e_k_n_m"]
+        (*D, WC, Jdet, Jinv, Jinv);
+    } else if (nDim == 2) {
+      D = new acrobatic::Tensor(nElem, nDim, nDim, nQuad1D, nQuad1D);
+      acrobatic::Tensor J(nElem, nQuad1D, nQuad1D, nDim, nDim, 
+                          nullptr, jac_ptr, true);
+      acrobatic::Tensor Jinv(nElem, nQuad1D, nQuad1D, nDim, nDim, 
+                             nullptr, jacinv_ptr, true);
+      acrobatic::Tensor Jdet(nElem, nQuad1D, nQuad1D, 
+                             nullptr, jacdet_ptr, true);
+      TE["D_e_m_n_k1_k2 = WC_k1_k2 Jdet_e_k1_k2_m_n Jinv_e_k1_k2_m_n Jinv_e_k1_k2_n_m"]
+        (*D, WC, Jdet, Jinv, Jinv);
+    } else if (nDim == 3){
+      D = new acrobatic::Tensor(nElem, nDim, nDim, nQuad1D, nQuad1D, nQuad1D);
+      acrobatic::Tensor J(nElem, nQuad1D, nQuad1D, nQuad1D, nDim, nDim, 
+                          nullptr, jac_ptr, true);
+      acrobatic::Tensor Jinv(nElem, nQuad1D, nQuad1D, nQuad1D, nDim, nDim, 
+                             nullptr, jacinv_ptr, true);
+      acrobatic::Tensor Jdet(nElem, nQuad1D, nQuad1D, nQuad1D, 
+                             nullptr, jacdet_ptr, true);
+      TE["D_e_m_n_k1_k2_k3 = WC_k1_k2_k3 Jdet_e_k1_k2_k3_m_n Jinv_e_k1_k2_k3_m_n Jinv_e_k1_k2_k3_n_m"]
+        (*D, WC, Jdet, Jinv, Jinv);
     } else {
       mfem_error("AcroDiffusionIntegrator tensor computations don't support dim > 3.");
     }
   } else {
-    D = new acrobatic::Tensor(numElems, Dim, Dim, numQuad);
-    J = new acrobatic::Tensor(numElems, numQuad, Dim, Dim, nullptr, jac.getMemoryHandle(), true);
-    Jinv = new acrobatic::Tensor(numElems, numQuad, Dim, Dim, nullptr, jacinv.getMemoryHandle(), true);
-    Jdet = new acrobatic::Tensor(numElems, numQuad, nullptr, jacinv.getMemoryHandle(), true);
-    TE["D_e_m_n_k = WC_k Jdet_e_k_m_n Jinv_e_k_m_n Jinv_e_k_n_m"](D, WC, Jdet, Jinv, Jinv);
+    D = new acrobatic::Tensor(nElem, nDim, nDim, nQuad);
+    acrobatic::Tensor J(nElem, nQuad, nDim, nDim, 
+                        nullptr, jac_ptr, true);
+    acrobatic::Tensor Jinv(nElem, nQuad, nDim, nDim, 
+                           nullptr, jacinv_ptr, true);
+    acrobatic::Tensor Jdet(nElem, nQuad, 
+                           nullptr, jacdet_ptr, true);
+    TE["D_e_m_n_k = WC_k Jdet_e_k_m_n Jinv_e_k_m_n Jinv_e_k_n_m"]
+      (*D, WC, Jdet, Jinv, Jinv);
   }
-
-  delete W;
-  delete WC;
-  delete J;
-  delete Jinv;
-  delete Jdet;
 }  
 
 void AcroDiffusionIntegrator::Assemble() {
   if (haveTensorBasis) {
-    if (numDim == 1) {
+    if (nDim == 1) {
+      acrobatic::Tensor S(nElem, nDof1D, nDof1D);
       TE["S_e_i1_j1 = Btil_m_n_k1_i1_j1 D_e_m_n_k1"]
-        (S, Btil[0], D);
-    } else if (numDim == 2) {
+        (S, *Btil[0], *D);
+    } else if (nDim == 2) {
+      acrobatic::Tensor S(nElem, nDof1D, nDof1D, nDof1D, nDof1D);
       TE["S_e_i1_i2_j1_j2 = Btil1_m_n_k1_i1_j1 Btil2_m_n_k2_i2_j2 D_e_m_n_k1_k2"]
-        (S, Btil[0], Btil[1], D);
-    } else if (numDim == 3) {
+        (S, *Btil[0], *Btil[1], *D);
+    } else if (nDim == 3) {
+      acrobatic::Tensor S(nElem, nDof1D, nDof1D, nDof1D, nDof1D, nDof1D, nDof1D);
       TE["S_e_i1_i2_i3_j1_j2_j3 = Btil1_m_n_k1_i1_j1 Btil2_m_n_k2_i2_j2 Btil3_m_n_k3_i3_j3 D_e_m_n_k1_k2"]
-        (S, Btil[0], Btil[1], Btil[2], D);
+        (S, *Btil[0], *Btil[1], *Btil[2], *D);
     }
   } else {
+    acrobatic::Tensor S(nElem, nDof, nDof);
     TE["S_e_i_j = G_k_i_m G_k_i_n D_e_m_n_k"]
-        (S, G, G, D);
+        (S, *G, *G, *D);
   }
 }
 
 void AcroDiffusionIntegrator::Mult(OccaVector &v) {
   if (haveTensorBasis) {
-    if (numDim == 1) {
-      acrobatic::Tensor V(numElems, numDofs1D, nullptr, x.getMemoryHandle(), true);
-      acrobatic::Tensor U(numDim, numElems, numQuad1D);
-      acrobatic::Tensor W(numDim, numElems, numQuad1D);
-      acrobatic::Tensor X(numElems, numDofs1D);
-      U.SwitchToGPU();
-      W.SwitchToGPU()
-      X.SwitchToGPU();
-      TE["U_e_n_k1 = G_k1_i1 V_e_i1"](U, *G, V);
-      TE["W_e_m_k1 = D_m_n_k1 U_e_n_k1"](W, *D, U);
-      TE["X_e_i1 = G_k1_i1 W_e_m_k1"](X, *G, W);
-
-    } else if (numDim == 2) {
-      X = new acrobatic::Tensor(numElems, numDofs1D, numDofs1D, nullptr, x.getMemoryHandle(), true);
-      TE["S_e_i1_i2_j1_j2 = Btil1_m_n_k1_i1_j1 Btil2_m_n_k2_i2_j2 D_e_m_n_k1_k2"]
-        (S, Btil[0], Btil[1], D);
-    } else if (numDim == 3) {
-      X = new acrobatic::Tensor(numElems, numDofs1D, numDofs1D, numDofs1D, nullptr, x.getMemoryHandle(), true);
-      TE["S_e_i1_i2_i3_j1_j2_j3 = Btil1_m_n_k1_i1_j1 Btil2_m_n_k2_i2_j2 Btil3_m_n_k3_i3_j3 D_e_m_n_k1_k2"]
-        (S, Btil[0], Btil[1], Btil[2], D);
+    if (nDim == 1) {
+      acrobatic::Tensor V(nElem, nDof1D, 
+                          nullptr, (double*)v.GetData().getHandle(), true);
+      acrobatic::Tensor U(nDim, nElem, nQuad1D);
+      acrobatic::Tensor W(nDim, nElem, nQuad1D);
+      acrobatic::Tensor X(nElem, nDof1D);
+      U.SwitchToGPU(); W.SwitchToGPU(); X.SwitchToGPU();
+      TE["U_n_e_k1 = G_k1_i1 V_e_i1"](U, *G, V);
+      TE["W_m_e_k1 = D_e_m_n_k1 U_n_e_k1"](W, *D, U);
+      TE["X_e_i1 = G_k1_i1 W_m_e_k1"](X, *G, W);
+    } else if (nDim == 2) {
+      acrobatic::Tensor V(nElem, nDof1D, nDof1D, 
+                          nullptr, (double*)v.GetData().getHandle(), true);
+      acrobatic::Tensor U(nDim, nElem, nQuad1D, nQuad1D);
+      acrobatic::SliceTensor U1(U, 0), U2(U, 1);
+      acrobatic::Tensor W(nDim, nElem, nQuad1D, nQuad1D);
+      acrobatic::SliceTensor W1(W, 0), W2(W, 1);
+      acrobatic::Tensor X(nElem, nDof1D, nDof1D);
+      U.SwitchToGPU(); W.SwitchToGPU(); X.SwitchToGPU();
+      TE["U1_n_e_k1_k2 = G_k1_i1 B_k2_i2 V_e_i1_i2"](U1, *G, *B, V);
+      TE["U2_n_e_k1_k2 = B_k1_i1 G_k2_i2 V_e_i1_i2"](U2, *B, *G, V);
+      TE["W_m_e_k1_k2 = D_e_m_n_k1_k2 U_n_e_k1_k2"](W, *D, U);
+      TE["X_e_i1_i2 = G_k1_i1 B_k2_i2 W1_m_e_k1_k2"](X, *G, *B, W1);
+      TE["X_e_i1_i2 += B_k1_i1 G_k2_i2 W2_m_e_k1_k2"](X, *B, *G, W2);
+    } else if (nDim == 3) {
+      acrobatic::Tensor V(nElem, nDof1D, nDof1D, nDof1D, 
+                          nullptr, (double*)v.GetData().getHandle(), true);
+      acrobatic::Tensor U(nDim, nElem, nQuad1D, nQuad1D, nQuad1D);
+      acrobatic::SliceTensor U1(U, 0), U2(U, 1), U3(U, 2);
+      acrobatic::Tensor W(nDim, nElem, nQuad1D, nQuad1D, nQuad1D);
+      acrobatic::SliceTensor W1(W, 0), W2(W, 1), W3(W, 2);
+      acrobatic::Tensor X(nElem, nDof1D, nDof1D, nDof1D);
+      U.SwitchToGPU(); W.SwitchToGPU(); X.SwitchToGPU();
+      TE["U1_n_e_k1_k2_k3 = G_k1_i1 B_k2_i2 B_k3_i3 V_e_i1_i2_i3"](U1, *G, *B, *B, V);
+      TE["U2_n_e_k1_k2_k3 = B_k1_i1 G_k2_i2 B_k3_i3 V_e_i1_i2_i3"](U2, *B, *G, *B, V);
+      TE["U3_n_e_k1_k2_k3 = B_k1_i1 B_k2_i2 G_k3_i3 V_e_i1_i2_i3"](U3, *B, *B, *G, V);
+      TE["W_m_e_k1_k2_k3 = D_e_m_n_k1_k2_k3 U_n_e_k1_k2_k3"](W, *D, U);
+      TE["X_e_i1_i2_i3 =  G_k1_i1 B_k2_i2 B_k3_i3 W1_m_e_k1_k2_k3"](X, *G, *B, *B, W1);
+      TE["X_e_i1_i2_i3 += B_k1_i1 G_k2_i2 B_k3_i3 W2_m_e_k1_k2_k3"](X, *B, *G, *B, W2);
+      TE["X_e_i1_i2_i3 += B_k1_i1 B_k2_i2 G_k3_i3 W3_m_e_k1_k2_k3"](X, *B, *B, *G, W3);
     }
   } else {
-    X = new acrobatic::Tensor(numElems, numDofs, nullptr, x.getMemoryHandle(), true);
-    TE["S_e_i_j = G_k_i_m G_k_i_n D_e_m_n_k"]
-        (S, G, G, D);
+
   }
 
 }

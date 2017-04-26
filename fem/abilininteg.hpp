@@ -25,12 +25,12 @@ private:
   Coefficient &Q;
   OccaDofQuadMaps maps;
 
-  int numDim;
-  int numElems;
-  int numDofs;
-  int numQuad;
-  int numDofs1D;
-  int numQuad1D;
+  int nDim;
+  int nElem;
+  int nDof;
+  int nQuad;
+  int nDof1D;
+  int nQuad1D;
   bool haveTensorBasis;
 
   acrobatic::Tensor *B, *G, *D;
