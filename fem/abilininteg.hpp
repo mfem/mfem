@@ -20,7 +20,7 @@ namespace mfem {
 
 class AcroDiffusionIntegrator : public OccaIntegrator {
 private:
-  acrobatic::TensorEngine TE;
+  acro::TensorEngine TE;
 
   Coefficient &Q;
   OccaDofQuadMaps maps;
@@ -33,8 +33,8 @@ private:
   int nQuad1D;
   bool haveTensorBasis;
 
-  acrobatic::Tensor *B, *G, *D;
-  Array<acrobatic::Tensor*> Btil;
+  acro::Tensor B, G, D;
+  Array<acro::Tensor> Btil;
 
   void ComputeBTilde();
   void ComputeD(occa::array<double> &jac, 
