@@ -1,18 +1,13 @@
 language: cpp
 
 compiler:
-   - gcc
    - clang
 
 os:
-   - linux
    - osx
 
 env:
-   - DEBUG=YES MPI=YES TMPDIR=/tmp
    - DEBUG=NO MPI=YES TMPDIR=/tmp
-   - DEBUG=YES MPI=NO
-   - DEBUG=NO MPI=NO
 
 # Test with GCC on Linux an Clang on Mac
 matrix:
@@ -97,4 +92,4 @@ script:
      make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX" &&
      make info &&
      make all -j 4 &&
-     make $MFEM_TEST_TARGET
+     make $MFEM_TEST_TARGET 1>&2
