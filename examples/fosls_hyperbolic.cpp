@@ -913,7 +913,6 @@ int main(int argc, char *argv[])
     }
     Ablock->Assemble();
 
-    HypreParMatrix *A;
     HypreParMatrix Amat;
     Vector B, X;
     Ablock->FormLinearSystem(ess_tdof_list, *x, *fform, Amat, X, B);
@@ -1161,7 +1160,6 @@ int main(int argc, char *argv[])
 
     // Free the used memory.
     delete fform;
-    delete A;
     delete Ablock;
     delete R_space;
     delete hdiv_coll;
