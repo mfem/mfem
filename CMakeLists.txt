@@ -88,6 +88,7 @@ if (MFEM_USE_MPI)
   include_directories(${MPI_CXX_INCLUDE_PATH})
   # Parallel MFEM depends on hypre and METIS
   find_package(HYPRE REQUIRED)
+  set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
   include_directories(${HYPRE_INCLUDE_DIRS})
   find_package(METIS REQUIRED)
   include_directories(${METIS_INCLUDE_DIRS})

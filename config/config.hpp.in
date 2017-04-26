@@ -101,4 +101,7 @@
 #define _USE_MATH_DEFINES
 #endif
 
+// Version of HYPRE used for building MFEM.
+// #define MFEM_HYPRE_VERSION @MFEM_HYPRE_VERSION@
+
 #endif // MFEM_CONFIG_HEADER
