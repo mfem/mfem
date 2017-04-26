@@ -939,6 +939,23 @@ public:
 /** First order Raviart-Thomas finite elements in 4D. */
 class RT0_4DFECollection : public FiniteElementCollection
 {
+protected:
+   int ob_type; // open BasisType
+   char rt_name[32];
+   FiniteElement *RT_Elements[Geometry::NumGeom];
+   int RT_dof[Geometry::NumGeom];
+   //int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
+   int *TetraDofOrd[12]; // FIX IT: what should be the size of DofOrd array?
+
+   // Initialize only the face elements
+   void InitFaces(const int p, const int dim, const int map_type,
+                  const bool signs);
+
+   // Constructor used by the constructor of the DG0_Interface_4DFECollection
+   // classes
+   RT0_4DFECollection(const int p, const int dim, const int map_type,
+                   const bool signs,
+                   const int ob_type = BasisType::GaussLegendre);
 private:
    const P0TetFiniteElement TetrahedronFE;
    const RT0PentFiniteElement PentatopeFE;
@@ -953,6 +970,17 @@ public:
    virtual int * DofOrderForOrientation(int GeomType, int Or) const;
 
    virtual const char * Name() const { return "RT0_4D"; };
+};
+
+/** 0th order discontinuous finite elements defined on the interface
+    between mesh elements (faces). The functions in this space are single-valued
+    on each face and are discontinuous across its boundary. */
+class DG0_Interface_4DFECollection : public RT0_4DFECollection
+{
+public:
+   DG0_Interface_4DFECollection(const int p, const int dim,
+                             const int map_type = FiniteElement::VALUE,
+                             const int ob_type = BasisType::GaussLegendre);
 };
 
 /// Discontinuous collection defined locally by a given finite element.

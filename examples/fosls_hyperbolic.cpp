@@ -478,7 +478,7 @@ int main(int argc, char *argv[])
     int local_method        = 2;
 
     bool with_divdiv = true;    //unlike CFOSLS, here it should be always true.
-    bool hybridization = false; //with hybridization the code is not working currently
+    bool hybridization = true; //with hybridization the code is not working currently
 
     // solver options
     int prec_option = 3; //defines whether to use preconditioner or not, and which one
@@ -643,6 +643,14 @@ int main(int argc, char *argv[])
             if (verbose)
                 meshbase->PrintInfo();
 
+            if (meshbase->Dimension() != nDimensions - 1)
+            {
+                if (verbose)
+                    cout << "Dimension of the meshbase != dimension of problem - 1: Mismatch!" << endl << flush;
+                MPI_Finalize();
+                return 0;
+            }
+
             /*
             if ( verbose )
             {
@@ -743,6 +751,13 @@ int main(int argc, char *argv[])
             else
             {
                 mesh = new Mesh(imesh, 1, 1);
+                if (mesh->Dimension() != nDimensions)
+                {
+                    if (verbose)
+                        cout << "Dimension of the mesh and dimension of the problem mismatch!" << endl << flush;
+                    MPI_Finalize();
+                    return 0;
+                }
                 imesh.close();
             }
 
@@ -834,8 +849,6 @@ int main(int argc, char *argv[])
 
     ParGridFunction * x(new ParGridFunction(R_space));
     *x = 0.0;
-    //HypreParVector *X = x->ParallelAverage();
-
 
     // 8. Define the coefficients, analytical solution, and rhs of the PDE.
     ConstantCoefficient one(1.0);
