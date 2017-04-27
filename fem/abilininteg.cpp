@@ -60,16 +60,18 @@ void AcroDiffusionIntegrator::Setup() {
   //Note:  We are giving acrotensor the same pointer for the GPU and CPU
   //so one of them is obviously wrong.  This works as long as we don't use
   //touch the wrong one.
-  double *b_ptr = (double*) maps.quadToDof.memory().getHandle();
-  double *g_ptr = (double*) maps.quadToDofD.memory().getHandle();
   const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
   haveTensorBasis = (el != NULL);
   if (haveTensorBasis) {
     maps = OccaDofQuadMaps::GetTensorMaps(device, *el, ir);
+    double *b_ptr = (double*) maps.quadToDof.memory().getHandle();
+    double *g_ptr = (double*) maps.quadToDofD.memory().getHandle();
     B.Init(nQuad1D, nDof1D, b_ptr, b_ptr, onGPU);
     G.Init(nQuad1D, nDof1D, g_ptr, g_ptr, onGPU);
   } else {
     maps = OccaDofQuadMaps::GetSimplexMaps(device, fe, ir);
+    double *b_ptr = (double*) maps.quadToDof.memory().getHandle();
+    double *g_ptr = (double*) maps.quadToDofD.memory().getHandle();
     B.Init(nQuad, nDof, b_ptr, b_ptr, onGPU);
     G.Init(nQuad, nDof, nDim, g_ptr, g_ptr, onGPU);  
   }
@@ -87,11 +89,11 @@ void AcroDiffusionIntegrator::ComputeBTilde() {
     if (onGPU) {
       Btil[d].SwitchToGPU();
     }
-    acro::Tensor Bsub(nQuad1D, nDof1D, nDof1D, Btil[d].GetDeviceData(), Btil[d].GetDeviceData(), onGPU);
+    acro::Tensor Bsub(nQuad1D, nDof1D, nDof1D, Btil[d].GetCurrentData(), Btil[d].GetCurrentData(), onGPU);
     for (int mi = 0; mi < nDim; ++mi) {
       for (int ni = 0; ni < nDim; ++ni) {
         int offset = (nDim*mi + ni) * nQuad1D*nDof1D*nDof1D;
-        Bsub.Retarget(Btil[d].GetDeviceData() + offset, Btil[d].GetDeviceData() + offset);
+        Bsub.Retarget(Btil[d].GetCurrentData() + offset, Btil[d].GetCurrentData() + offset);
         acro::Tensor &BGM = (mi == d) ? G : B;
         acro::Tensor &BGN = (ni == d) ? G : B;
         TE["Bsub_k1_i1_j1 = M_k1_i1 N_k1_j1"](Bsub, BGM, BGN);
