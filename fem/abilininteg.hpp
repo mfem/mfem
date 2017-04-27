@@ -32,9 +32,13 @@ private:
   int nDof1D;
   int nQuad1D;
   bool haveTensorBasis;
+  bool onGPU;
 
-  acro::Tensor B, G, D;
-  Array<acro::Tensor> Btil;
+  acro::Tensor B, G;        //Basis and dbasis evaluated on the quad points
+  Array<acro::Tensor> Btil; //Btilde used to compute stiffness matrix
+  acro::Tensor D;           //Product of integration weight, physical consts, and element shape info
+  acro::Tensor S;           //The assembled local stiffness matrices
+  acro::Tensor U, W;        //Intermediate computations for tensor product partial assembly
 
   void ComputeBTilde();
   void ComputeD(occa::array<double> &jac, 

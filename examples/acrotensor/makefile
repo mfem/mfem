@@ -64,7 +64,7 @@ clean: clean-build clean-exec
 
 clean-build:
 	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
-	rm -rf *.dSYM *.TVD.*breakpoints
+	rm -rf *.dSYM *.TVD.*breakpoints *.core
 
 #---[ OCCA ]----------------------------
 MFEM_REAL_DIR      := $(realpath $(MFEM_DIR))

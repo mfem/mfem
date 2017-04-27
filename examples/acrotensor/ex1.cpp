@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
   int order = 3;
   const char *basis_type = "G"; // Gauss-Lobatto
   const char *pc = "none";
-  const char *device_info = "mode: 'Serial'";
+  const char *device_info = "mode: 'CUDA', deviceID: '0'";
   bool occa_verbose = false;
   bool visualization = 1;
 
