@@ -11,6 +11,13 @@
 Development version 3.3.1, not released
 =======================================
 
+- In all parallel examples, when sending data to GLVis, switch to using the new
+  methods, open_parallel and send_parallel, from class socketstream.
+
+- In class socketstream, added new methods, open_parallel and send_parallel,
+  that handle connections to GLVis from parallel MPI code in a more reliable and
+  synchronized manner.
+
 - Added a new macro, MFEM_VERSION, defined as a single integer of the form
   (major*100 + minor)*100 + patch. The new convention is that an even number
   (i.e. even patch number) denotes a "release" version, while an odd number

@@ -40,6 +40,10 @@ typedef int ssize_t;
 // #define MFEM_USE_GNUTLS_DEBUG
 #endif
 
+#ifdef MFEM_USE_MPI
+#include "../fem/pgridfunc.hpp"
+#endif
+
 namespace mfem
 {
 
@@ -912,7 +916,7 @@ inline void socketstream::set_secure_socket(const GnuTLS_session_params &p)
 }
 
 socketstream::socketstream(const GnuTLS_session_params &p)
-   : std::iostream(0), glvis_client(false)
+   : std::iostream(0), status(0)
 {
    set_secure_socket(p);
    check_secure_socket();
@@ -922,7 +926,7 @@ socketstream::socketstream(const GnuTLS_session_params &p)
 
 void socketstream::set_socket(bool secure)
 {
-   glvis_client = secure;
+   status |= GLVIS_CLIENT_MASK*secure;
    if (secure)
    {
 #ifdef MFEM_USE_GNUTLS
@@ -978,8 +982,96 @@ socketstream::~socketstream()
 {
    delete buf__;
 #ifdef MFEM_USE_GNUTLS
-   if (glvis_client) { remove_socket(); }
+   if (status & GLVIS_CLIENT_MASK) { remove_socket(); }
 #endif
 }
+
+#ifdef MFEM_USE_MPI
+
+int socketstream::open_parallel(MPI_Comm comm, const char hostname[], int port)
+{
+   int myid, nproc, failed = 0;
+   const int mpi_tag = 327;
+   MPI_Status mpi_status;
+
+   MPI_Comm_rank(comm, &myid);
+   MPI_Comm_size(comm, &nproc);
+   if (myid > 0)
+   {
+      MPI_Recv(&failed, 1, MPI_INT, myid-1, mpi_tag, comm, &mpi_status);
+   }
+   if (!failed)
+   {
+      int err = open(hostname, port);
+      if (!err)
+      {
+         (*this) << "parallel " << nproc << ' ' << myid << std::endl;
+      }
+      failed += this->fail();
+   }
+   if (myid+1 < nproc)
+   {
+      MPI_Send(&failed, 1, MPI_INT, myid+1, mpi_tag, comm);
+   }
+   if (nproc > 1)
+   {
+      MPI_Bcast(&failed, 1, MPI_INT, nproc-1, comm);
+   }
+   if (failed)
+   {
+      close();
+      setstate(std::ios::failbit);
+      status &= ~(PARALLEL_OPEN_MASK | PARALLEL_SEND_MASK);
+      return -2;
+   }
+   status |=  PARALLEL_OPEN_MASK;
+   status &= ~PARALLEL_SEND_MASK;
+   return 0;
+}
+
+void socketstream::send_parallel(const ParMesh &pmesh,
+                                 const ParGridFunction &sol)
+{
+   if (!(status & PARALLEL_OPEN_MASK)) { return; } // ignore silently
+
+   int failed = 0;
+   const int mpi_tag = 327;
+   MPI_Status mpi_status;
+   if (pmesh.GetMyRank() > 0)
+   {
+      MPI_Recv(&failed, 1, MPI_INT, pmesh.GetMyRank()-1, mpi_tag,
+               pmesh.GetComm(), &mpi_status);
+   }
+   if (!failed)
+   {
+      if (status & PARALLEL_SEND_MASK)
+      {
+         (*this) << "parallel " << pmesh.GetNRanks() << ' ' << pmesh.GetMyRank()
+                 << std::endl;
+      }
+
+      (*this) << "solution\n" << pmesh << sol;
+      // output is flushed by both pmesh.Print() and sol.Save()
+
+      status |= PARALLEL_SEND_MASK;
+   }
+   if (pmesh.GetMyRank()+1 < pmesh.GetNRanks())
+   {
+      MPI_Send(&failed, 1, MPI_INT, pmesh.GetMyRank()+1, mpi_tag,
+               pmesh.GetComm());
+   }
+   if (pmesh.GetNRanks() > 1)
+   {
+      MPI_Bcast(&failed, 1, MPI_INT, pmesh.GetNRanks()-1, pmesh.GetComm());
+   }
+   if (failed)
+   {
+      close();
+      setstate(std::ios::failbit);
+      status &= ~(PARALLEL_OPEN_MASK | PARALLEL_SEND_MASK);
+   }
+}
+
+#endif // MFEM_USE_MPI
 
 } // namespace mfem

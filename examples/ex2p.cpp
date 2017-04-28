@@ -300,10 +300,10 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      socketstream sol_sock;
+      sol_sock.open_parallel(MPI_COMM_WORLD, vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << x << flush;
+      sol_sock.send_parallel(*pmesh, x);
    }
 
    // 18. Free the used memory.

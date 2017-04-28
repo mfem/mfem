@@ -23,8 +23,18 @@
 #endif
 #endif
 
+#ifdef MFEM_USE_MPI
+#include <mpi.h>
+#endif
+
 namespace mfem
 {
+
+#ifdef MFEM_USE_MPI
+// Forward declarations used in socketstream::send_parallel.
+class ParMesh;
+class ParGridFunction;
+#endif
 
 class socketbuf : public std::streambuf
 {
@@ -198,11 +208,18 @@ protected:
 
 #endif // MFEM_USE_GNUTLS
 
+
 class socketstream : public std::iostream
 {
 protected:
    socketbuf *buf__;
-   bool glvis_client;
+   int status;
+   enum
+   {
+      GLVIS_CLIENT_MASK  = 1,
+      PARALLEL_OPEN_MASK = 2,
+      PARALLEL_SEND_MASK = 4
+   };
 
    void set_socket(bool secure);
    inline void check_secure_socket();
@@ -233,7 +250,7 @@ public:
    /** @brief Create a socket stream associated with the given socket buffer.
        The new object takes ownership of 'buf'. */
    explicit socketstream(socketbuf *buf)
-      : std::iostream(buf), buf__(buf), glvis_client(false) { }
+      : std::iostream(buf), buf__(buf), status(0) { }
 
    /** @brief Create a socket stream and associate it with the given socket
        descriptor 's'. The treatment of the 'secure' flag is similar to that in
@@ -260,6 +277,32 @@ public:
    bool is_open() { return buf__->is_open(); }
 
    virtual ~socketstream();
+
+#ifdef MFEM_USE_MPI
+   /** @brief Open parallel connections to GLVis at the given host and port.
+
+       The connections all succeed or fail together. The connections are
+       attempted consecutively starting with rank 0; then, if rank 0 is
+       successful, continue with rank 1, and so on. If this call succeeds, the
+       "open parallel" status flag is set and the next communication should be
+       performed using send_parallel(). After that all means of communication
+       are allowed. If this call fails, all ranks close() their connection and
+       clear the "open parallel" status flag. */
+   int open_parallel(MPI_Comm comm, const char hostname[], int port);
+
+   /** @brief Get the current "open parallel" status flag which is used and
+       changed only by the methods open_parallel() and send_parallel(). */
+   bool is_open_parallel() const { return (status & PARALLEL_OPEN_MASK); }
+
+   /** @brief Send the given data to GLVis using parallel connections.
+
+       An attempt to send the data is performed only when the "open parallel"
+       status flag is set. The attempts are performed consecutively starting
+       with rank 0; then, if rank 0 is successful, continue with rank 1, and so
+       on. If one rank fails then no further attempts are made and all ranks
+       close() their connection and clear the "open parallel" status flag. */
+   void send_parallel(const ParMesh &pmesh, const ParGridFunction &sol);
+#endif
 };
 
 
