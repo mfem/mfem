@@ -111,11 +111,11 @@ void AcroDiffusionIntegrator::ComputeD(occa::array<double> &jac,
   if (!const_coeff) {
     mfem_error("AcroDiffusionIntegrator can only handle ConstantCoefficients");
   }
-  std::vector<int> wdims(nDim, nQuad);
+  std::vector<int> wdims(nDim, nQuad1D);
   double *w_ptr = (double*) maps.quadWeights.memory().getHandle();
-  acro::Tensor W(maps.quadWeights.size(), w_ptr, w_ptr, onGPU);  
-  acro::Tensor WC(maps.quadWeights.size());
-  WC.SwitchToGPU();
+  acro::Tensor W(nQuad, w_ptr, w_ptr, onGPU);  
+  acro::Tensor WC(nQuad);
+  if (onGPU) {WC.SwitchToGPU();}
   TE["WC_i=W_i"](WC, W);
   WC.Mult(const_coeff->constant);
   WC.Reshape(wdims);
@@ -133,7 +133,7 @@ void AcroDiffusionIntegrator::ComputeD(occa::array<double> &jac,
                         jacinv_ptr, jacinv_ptr, onGPU);
       acro::Tensor Jdet(nElem, nQuad1D, 
                         jacdet_ptr, jacdet_ptr, onGPU);
-      TE["D_e_m_n_k = WC_k Jdet_e_k_m_n Jinv_e_k_m_n Jinv_e_k_n_m"]
+      TE["D_e_m_n_k = WC_k Jdet_e_k Jinv_e_k_m_n Jinv_e_k_n_m"]
         (D, WC, Jdet, Jinv, Jinv);
     } else if (nDim == 2) {
       D.Init(nElem, nDim, nDim, nQuad1D, nQuad1D);
@@ -143,7 +143,7 @@ void AcroDiffusionIntegrator::ComputeD(occa::array<double> &jac,
                         jacinv_ptr, jacinv_ptr, onGPU);
       acro::Tensor Jdet(nElem, nQuad1D, nQuad1D, 
                         jacdet_ptr, jacdet_ptr, onGPU);
-      TE["D_e_m_n_k1_k2 = WC_k1_k2 Jdet_e_k1_k2_m_n Jinv_e_k1_k2_m_n Jinv_e_k1_k2_n_m"]
+      TE["D_e_m_n_k1_k2 = WC_k1_k2 Jdet_e_k1_k2 Jinv_e_k1_k2_m_n Jinv_e_k1_k2_n_m"]
         (D, WC, Jdet, Jinv, Jinv);
     } else if (nDim == 3){
       D.Init(nElem, nDim, nDim, nQuad1D, nQuad1D, nQuad1D);
@@ -153,7 +153,7 @@ void AcroDiffusionIntegrator::ComputeD(occa::array<double> &jac,
                         jacinv_ptr, jacinv_ptr, onGPU);
       acro::Tensor Jdet(nElem, nQuad1D, nQuad1D, nQuad1D, 
                         jacdet_ptr, jacdet_ptr, onGPU);
-      TE["D_e_m_n_k1_k2_k3 = WC_k1_k2_k3 Jdet_e_k1_k2_k3_m_n Jinv_e_k1_k2_k3_m_n Jinv_e_k1_k2_k3_n_m"]
+      TE["D_e_m_n_k1_k2_k3 = WC_k1_k2_k3 Jdet_e_k1_k2_k3 Jinv_e_k1_k2_k3_m_n Jinv_e_k1_k2_k3_n_m"]
         (D, WC, Jdet, Jinv, Jinv);
     } else {
       mfem_error("AcroDiffusionIntegrator tensor computations don't support dim > 3.");
@@ -166,7 +166,7 @@ void AcroDiffusionIntegrator::ComputeD(occa::array<double> &jac,
                       jacinv_ptr, jacinv_ptr, onGPU);
     acro::Tensor Jdet(nElem, nQuad, 
                       jacdet_ptr, jacdet_ptr, onGPU);
-    TE["D_e_m_n_k = WC_k Jdet_e_k_m_n Jinv_e_k_m_n Jinv_e_k_n_m"]
+    TE["D_e_m_n_k = WC_k Jdet_e_k Jinv_e_k_m_n Jinv_e_k_n_m"]
       (D, WC, Jdet, Jinv, Jinv);
   }
 }  
