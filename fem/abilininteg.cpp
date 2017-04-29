@@ -38,7 +38,7 @@ void AcroDiffusionIntegrator::Setup() {
     TE.SetExecutorType("OneOutPerThread");
   } else {
     onGPU = false;
-    TE.SetExecutorType("IndexCached");
+    TE.SetExecutorType("CPUInterpreted");
   }
 
   DiffusionIntegrator integ;
@@ -85,15 +85,15 @@ void AcroDiffusionIntegrator::Setup() {
 void AcroDiffusionIntegrator::ComputeBTilde() {
   Btil.SetSize(nDim);
   for (int d = 0; d < nDim; ++d) {
-    Btil[d].Init(nDim, nDim, nQuad1D, nDof1D, nDof1D);
+    Btil[d] = new acro::Tensor(nDim, nDim, nQuad1D, nDof1D, nDof1D);
     if (onGPU) {
-      Btil[d].SwitchToGPU();
+      Btil[d]->SwitchToGPU();
     }
-    acro::Tensor Bsub(nQuad1D, nDof1D, nDof1D, Btil[d].GetCurrentData(), Btil[d].GetCurrentData(), onGPU);
+    acro::Tensor Bsub(nQuad1D, nDof1D, nDof1D, Btil[d]->GetCurrentData(), Btil[d]->GetCurrentData(), onGPU);
     for (int mi = 0; mi < nDim; ++mi) {
       for (int ni = 0; ni < nDim; ++ni) {
         int offset = (nDim*mi + ni) * nQuad1D*nDof1D*nDof1D;
-        Bsub.Retarget(Btil[d].GetCurrentData() + offset, Btil[d].GetCurrentData() + offset);
+        Bsub.Retarget(Btil[d]->GetCurrentData() + offset, Btil[d]->GetCurrentData() + offset);
         acro::Tensor &BGM = (mi == d) ? G : B;
         acro::Tensor &BGN = (ni == d) ? G : B;
         TE["Bsub_k1_i1_j1 = M_k1_i1 N_k1_j1"](Bsub, BGM, BGN);
@@ -198,13 +198,13 @@ void AcroDiffusionIntegrator::Assemble() {
   if (haveTensorBasis) {
     if (nDim == 1) {
       TE["S_e_i1_j1 = Btil_m_n_k1_i1_j1 D_e_m_n_k1"]
-        (S, Btil[0], D);
+        (S, *Btil[0], D);
     } else if (nDim == 2) {
       TE["S_e_i1_i2_j1_j2 = Btil1_m_n_k1_i1_j1 Btil2_m_n_k2_i2_j2 D_e_m_n_k1_k2"]
-        (S, Btil[0], Btil[1], D);
+        (S, *Btil[0], *Btil[1], D);
     } else if (nDim == 3) {
-      TE["S_e_i1_i2_i3_j1_j2_j3 = Btil1_m_n_k1_i1_j1 Btil2_m_n_k2_i2_j2 Btil3_m_n_k3_i3_j3 D_e_m_n_k1_k2"]
-        (S, Btil[0], Btil[1], Btil[2], D);
+      TE["S_e_i1_i2_i3_j1_j2_j3 = Btil1_m_n_k1_i1_j1 Btil2_m_n_k2_i2_j2 Btil3_m_n_k3_i3_j3 D_e_m_n_k1_k2_k3"]
+        (S, *Btil[0], *Btil[1], *Btil[2], D);
     }
   } else {
     TE["S_e_i_j = G_k_i_m G_k_i_n D_e_m_n_k"]
@@ -256,11 +256,11 @@ void AcroDiffusionIntegrator::Mult(OccaVector &v) {
                      v_ptr, v_ptr, onGPU);
       acro::SliceTensor U1(U, 0), U2(U, 1);
       acro::SliceTensor W1(W, 0), W2(W, 1);
-      TE["U1_n_e_k1_k2 = G_k1_i1 B_k2_i2 V_e_i1_i2"](U1, G, B, V);
-      TE["U2_n_e_k1_k2 = B_k1_i1 G_k2_i2 V_e_i1_i2"](U2, B, G, V);
+      TE["U1_e_k1_k2 = G_k1_i1 B_k2_i2 V_e_i1_i2"](U1, G, B, V);
+      TE["U2_e_k1_k2 = B_k1_i1 G_k2_i2 V_e_i1_i2"](U2, B, G, V);
       TE["W_m_e_k1_k2 = D_e_m_n_k1_k2 U_n_e_k1_k2"](W, D, U);
-      TE["X_e_i1_i2 = G_k1_i1 B_k2_i2 W1_m_e_k1_k2"](X, G, B, W1);
-      TE["X_e_i1_i2 += B_k1_i1 G_k2_i2 W2_m_e_k1_k2"](X, B, G, W2);
+      TE["X_e_i1_i2 = G_k1_i1 B_k2_i2 W1_e_k1_k2"](X, G, B, W1);
+      TE["X_e_i1_i2 += B_k1_i1 G_k2_i2 W2_e_k1_k2"](X, B, G, W2);
     } else if (nDim == 3) {
       acro::Tensor V(nElem, nDof1D, nDof1D, nDof1D, 
                      v_ptr, v_ptr, onGPU);
@@ -268,13 +268,13 @@ void AcroDiffusionIntegrator::Mult(OccaVector &v) {
                      v_ptr, v_ptr, onGPU);
       acro::SliceTensor U1(U, 0), U2(U, 1), U3(U, 2);
       acro::SliceTensor W1(W, 0), W2(W, 1), W3(W, 2);
-      TE["U1_n_e_k1_k2_k3 = G_k1_i1 B_k2_i2 B_k3_i3 V_e_i1_i2_i3"](U1, G, B, B, V);
-      TE["U2_n_e_k1_k2_k3 = B_k1_i1 G_k2_i2 B_k3_i3 V_e_i1_i2_i3"](U2, B, G, B, V);
-      TE["U3_n_e_k1_k2_k3 = B_k1_i1 B_k2_i2 G_k3_i3 V_e_i1_i2_i3"](U3, B, B, G, V);
+      TE["U1_e_k1_k2_k3 = G_k1_i1 B_k2_i2 B_k3_i3 V_e_i1_i2_i3"](U1, G, B, B, V);
+      TE["U2_e_k1_k2_k3 = B_k1_i1 G_k2_i2 B_k3_i3 V_e_i1_i2_i3"](U2, B, G, B, V);
+      TE["U3_e_k1_k2_k3 = B_k1_i1 B_k2_i2 G_k3_i3 V_e_i1_i2_i3"](U3, B, B, G, V);
       TE["W_m_e_k1_k2_k3 = D_e_m_n_k1_k2_k3 U_n_e_k1_k2_k3"](W, D, U);
-      TE["X_e_i1_i2_i3 =  G_k1_i1 B_k2_i2 B_k3_i3 W1_m_e_k1_k2_k3"](X, G, B, B, W1);
-      TE["X_e_i1_i2_i3 += B_k1_i1 G_k2_i2 B_k3_i3 W2_m_e_k1_k2_k3"](X, B, G, B, W2);
-      TE["X_e_i1_i2_i3 += B_k1_i1 B_k2_i2 G_k3_i3 W3_m_e_k1_k2_k3"](X, B, B, G, W3);
+      TE["X_e_i1_i2_i3 =  G_k1_i1 B_k2_i2 B_k3_i3 W1_e_k1_k2_k3"](X, G, B, B, W1);
+      TE["X_e_i1_i2_i3 += B_k1_i1 G_k2_i2 B_k3_i3 W2_e_k1_k2_k3"](X, B, G, B, W2);
+      TE["X_e_i1_i2_i3 += B_k1_i1 B_k2_i2 G_k3_i3 W3_e_k1_k2_k3"](X, B, B, G, W3);
     }
   } else {
     mfem_error("AcroDiffusionIntegrator partial assembly on simplices not supported");
