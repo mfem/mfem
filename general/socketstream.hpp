@@ -269,7 +269,7 @@ private:
    int listen_socket;
 
 public:
-   explicit socketserver(int port);
+   explicit socketserver(int port, int backlog=4);
 
    bool good() { return (listen_socket >= 0); }
 
