@@ -3047,31 +3047,32 @@ ScalarProductInterpolator::AssembleElementMatrix2(const FiniteElement &dom_fe,
                                                   ElementTransformation &Trans,
                                                   DenseMatrix &elmat)
 {
-   Vector ran_proj(ran_fe.GetDof());
+   struct ShapeCoefficient : public VectorCoefficient
+   {
+      Coefficient &Q;
+      const FiniteElement &fe;
 
-   sp_.SetBasis(dom_fe);
+      ShapeCoefficient(Coefficient &q, const FiniteElement &fe_)
+         : VectorCoefficient(fe_.GetDof()), Q(q), fe(fe_) { }
+
+      virtual void Eval(Vector &V, ElementTransformation &T,
+                        const IntegrationPoint &ip)
+      {
+         V.SetSize(vdim);
+         fe.CalcPhysShape(T, V);
+         V *= Q.Eval(T, ip);
+      }
+   };
+
+   ShapeCoefficient dom_shape_coeff(Q, dom_fe);
 
    elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
-   for (int k = 0; k < dom_fe.GetDof(); k++)
-   {
-      sp_.SetIndex(k);
 
-      ran_fe.Project(sp_,Trans,ran_proj);
+   Vector elmat_as_vec(elmat.Data(), ran_fe.GetDof()*dom_fe.GetDof());
 
-      for (int j = 0; j < ran_fe.GetDof(); j++)
-      {
-         elmat(j,k) = ran_proj(j);
-      }
-   }
+   ran_fe.Project(dom_shape_coeff, Trans, elmat_as_vec);
 }
 
-double
-ScalarProductInterpolator::ScalarProduct_::Eval(ElementTransformation &T,
-                                                const IntegrationPoint &ip)
-{
-   fe_->CalcPhysShape(T, shape_);
-   return sc_->Eval(T, ip) * shape_(ind_);
-}
 
 void
 ScalarVectorProductInterpolator::AssembleElementMatrix2(

@@ -2334,35 +2334,15 @@ public:
 class ScalarProductInterpolator : public DiscreteInterpolator
 {
 public:
-   ScalarProductInterpolator(Coefficient & sc) : sp_(sc) { }
+   ScalarProductInterpolator(Coefficient & sc) : Q(sc) { }
 
    virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                        const FiniteElement &ran_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
-private:
-   class ScalarProduct_ : public Coefficient
-   {
-   public:
-      ScalarProduct_(Coefficient & sc) : sc_(&sc), fe_(NULL), ind_(0) { }
 
-      void SetBasis(const FiniteElement & fe)
-      {
-         fe_ = &fe;
-         shape_.SetSize(fe.GetDof());
-      }
-      void SetIndex(int ind) { ind_ = ind; }
-      double Eval(ElementTransformation &T,
-                  const IntegrationPoint &ip);
-
-   private:
-      Coefficient * sc_;
-      const FiniteElement * fe_;
-      Vector shape_;
-      int ind_;
-   };
-
-   ScalarProduct_ sp_;
+protected:
+   Coefficient &Q;
 };
 
 /** Interpolator of a scalar coefficient multiplied by a vector field onto
