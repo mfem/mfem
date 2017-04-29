@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Time integration order.");
    args.AddOption(&prob_, "-p", "--problem-type",
-                  "Problem Type: \n"
+                  "Problem Type:\n"
                   "\t  0 - Simple Harmonic Oscillator\n"
                   "\t  1 - Pendulum\n"
                   "\t  2 - Gaussian Potential Well\n"

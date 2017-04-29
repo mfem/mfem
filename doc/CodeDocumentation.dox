@@ -67,6 +67,8 @@ namespace mfem {
  * - <a class="el" href="ex16p_8cpp_source.html">Example 16p</a>: parallel time-dependent nonlinear heat equation
  * - <a class="el" href="ex17_8cpp_source.html">Example 17</a>: Discontinuous Galerkin (DG) for linear elasticity
  * - <a class="el" href="ex17p_8cpp_source.html">Example 17p</a>: parallel Discontinuous Galerkin (DG) for linear elasticity
+ * - <a class="el" href="ex18_8cpp_source.html">Example 18</a>: symplectic ODE integration
+ * - <a class="el" href="ex18p_8cpp_source.html">Example 18p</a>: parallel symplectic ODE integration
  *
  * <H4>SUNDIALS Examples</H4>
  * - Variants of Examples

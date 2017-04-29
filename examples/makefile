@@ -90,4 +90,4 @@ clean-exec:
 	@rm -f ex9.mesh ex9-mesh.* ex9-init.* ex9-final.*
 	@rm -f deformed.* velocity.* elastic_energy.* mode_*
 	@rm -f ex16.mesh ex16-mesh.* ex16-init.* ex16-final.*
-	@rm -f ex19.dat ex19p_?????.dat gnuplot_ex19.inp gnuplot_ex19p.inp
+	@rm -f ex18.dat ex18p_?????.dat gnuplot_ex18.inp gnuplot_ex18p.inp
