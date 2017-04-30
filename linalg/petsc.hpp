@@ -19,6 +19,7 @@
 
 #ifdef MFEM_USE_PETSC
 #ifdef MFEM_USE_MPI
+
 #include <petsc.h>
 
 namespace mfem
@@ -26,7 +27,6 @@ namespace mfem
 
 class ParFiniteElementSpace;
 class PetscParMatrix;
-
 
 /// Wrapper for PETSc's vector class
 class PetscParVector : public Vector
@@ -313,9 +313,65 @@ PetscParMatrix * RAP(PetscParMatrix *A, PetscParMatrix *P);
 void EliminateBC(PetscParMatrix &A, PetscParMatrix &Ae,
                  const Array<int> &ess_dof_list, const Vector &X, Vector &B);
 
+/// Helper class for handling essential boundary conditions.
+class PetscBCHandler
+{
+public:
+   enum Type
+   {
+      ZERO,
+      CONSTANT,
+      TIME_DEPENDENT
+   };
 
+   PetscBCHandler(Type _type = ZERO) :
+      bctype(_type), setup(false), eval_t(0.0),
+      eval_t_cached(std::numeric_limits<double>::min()) {};
+   PetscBCHandler(Array<int>& ess_tdof_list, Type _type = ZERO);
+
+   /// Returns the type of boundary conditions
+   Type Type() const { return bctype; }
+
+   /// Boundary conditions evaluation
+   virtual void Eval(double t, Vector &g)
+   { mfem_error("PetscBCHandler::Eval method not overloaded"); }
+
+   /// Sets essential dofs (local, per-process numbering)
+   void SetTDofs(Array<int>& list);
+
+   /// Sets the current time
+   void SetTime(double t) { eval_t = t; }
+
+   /// SetUp the helper object
+   void SetUp(PetscInt n);
+
+   /// y = x on ess_tdof_list_c and y = g (internally evaluated) on ess_tdof_list
+   void ApplyBC(const Vector &x, Vector &y);
+
+   /// y = x-g on ess_tdof_list, the rest of y is unchanged
+   /// If @eval is false, uses the cached g
+   void FixResidualBC(const Vector& x, Vector& y);
+
+   /// Sets essential dofs to zero
+   void ZeroBC(Vector& x);
+
+   /// Removes essential dofs from the matrix
+   void ZeroBC(PetscParMatrix& A);
+
+private:
+   enum Type bctype;
+   bool setup;
+
+   double eval_t;
+   double eval_t_cached;
+   Vector eval_g;
+
+   Array<int> ess_tdof_list;    //Essential true dofs
+   Array<int> ess_tdof_list_c;  //Complement of essential true dofs
+};
+
+// Forward declarations of helper
 class PetscSolverMonitor;
-
 
 /// Abstract class for PETSc's solvers.
 class PetscSolver
@@ -335,6 +391,12 @@ protected:
 
    /// Monitor context
    PetscSolverMonitor *monitor_ctx;
+
+   /// Handler for boundary conditions
+   PetscBCHandler *bchandler;
+
+   /// Private context for solver
+   void *private_ctx;
 
    /// Boolean to handle SetOperator calls.
    mutable bool operatorset;
@@ -368,8 +430,17 @@ public:
    /// Sets user-defined monitoring routine.
    void SetMonitor(PetscSolverMonitor *ctx);
 
+   /// Sets the object to handle essential boundary conditions
+   void SetBCHandler(PetscBCHandler *bch);
+
    /// Conversion function to PetscObject.
    operator PetscObject() const { return obj; }
+
+protected:
+   /// These two methods handle creation and destructions of
+   /// private data for the Solver objects
+   void CreatePrivateContext();
+   void FreePrivateContext();
 };
 
 
@@ -520,10 +591,16 @@ public:
 class PetscODESolver : public PetscSolver, public ODESolver
 {
 public:
+   enum Type
+   {
+      ODE_SOLVER_LINEAR,
+      ODE_SOLVER_GENERAL
+   };
+
    PetscODESolver(MPI_Comm comm, const std::string &prefix = std::string());
    virtual ~PetscODESolver();
 
-   virtual void Init(TimeDependentOperator &f_);
+   virtual void Init(TimeDependentOperator &f_, enum PetscODESolver::Type type = ODE_SOLVER_GENERAL);
 
    virtual void Step(Vector &x, double &t, double &dt);
    virtual void Run(Vector &x, double &t, double &dt, double t_final);
@@ -555,6 +632,7 @@ public:
       MFEM_ABORT("MonitorResidual() is not implemented!")
    }
 };
+
 
 } // namespace mfem
 

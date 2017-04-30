@@ -95,6 +95,23 @@ typedef struct
    mfem::Solver *op;
 } __mfem_pc_shell_ctx;
 
+typedef struct
+{
+   mfem::Operator *op;
+   mfem::PetscBCHandler *bchandler;        //Handling of essential bc
+   mfem::Vector *work;                     //Work vector
+} __mfem_snes_ctx;
+
+typedef struct
+{
+   mfem::TimeDependentOperator *op;
+   mfem::PetscBCHandler *bchandler;        //Handling of essential bc
+   mfem::Vector *work;                     //Work vector
+   enum mfem::PetscODESolver::Type type;   //Either ODE_SOLVER_LINEAR or ODE_SOLVER_GENERAL (default)
+   PetscReal cached_shift;
+   bool      computed_rhsjac;
+} __mfem_ts_ctx;
+
 // use global scope ierr to check PETSc errors inside mfem calls
 PetscErrorCode ierr;
 
@@ -1200,12 +1217,15 @@ PetscSolver::PetscSolver() : clcustom(false)
    cid         = -1;
    monitor_ctx = NULL;
    operatorset = false;
+   bchandler   = NULL;
+   private_ctx = NULL;
 }
 
 PetscSolver::~PetscSolver()
 {
    delete B;
    delete X;
+   FreePrivateContext();
 }
 
 void PetscSolver::SetTol(double tol)
@@ -1380,6 +1400,25 @@ void PetscSolver::SetMonitor(PetscSolverMonitor *ctx)
    SetPrintLevel(-1);
 }
 
+void PetscSolver::SetBCHandler(PetscBCHandler *bch)
+{
+   bchandler = bch;
+   if (cid == SNES_CLASSID)
+   {
+      __mfem_snes_ctx* snes_ctx = (__mfem_snes_ctx*)private_ctx;
+      snes_ctx->bchandler = bchandler;
+   }
+   else if (cid == TS_CLASSID)
+   {
+      __mfem_ts_ctx* ts_ctx = (__mfem_ts_ctx*)private_ctx;
+      ts_ctx->bchandler = bchandler;
+   }
+   else
+   {
+      MFEM_ABORT("Handling of essential bc only implemented for nonlinear and time-dependent solvers");
+   }
+}
+
 void PetscSolver::Customize(bool customize) const
 {
    if (!customize) { clcustom = true; }
@@ -1502,6 +1541,171 @@ double PetscSolver::GetFinalNorm()
       MFEM_ABORT("CLASSID = " << cid << " is not implemented!");
       return PETSC_MAX_REAL;
    }
+}
+
+void PetscSolver::CreatePrivateContext()
+{
+   FreePrivateContext();
+   if (cid == SNES_CLASSID)
+   {
+      __mfem_snes_ctx *snes_ctx;
+      ierr = PetscNew(&snes_ctx); CCHKERRQ(PETSC_COMM_SELF,ierr);
+      snes_ctx->op = NULL;
+      snes_ctx->bchandler = NULL;
+      snes_ctx->work = NULL;
+      private_ctx = (void*) snes_ctx;
+   }
+   else if (cid == TS_CLASSID)
+   {
+      __mfem_ts_ctx *ts_ctx;
+      ierr = PetscNew(&ts_ctx); CCHKERRQ(PETSC_COMM_SELF,ierr);
+      ts_ctx->op = NULL;
+      ts_ctx->bchandler = NULL;
+      ts_ctx->work = NULL;
+      ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
+      ts_ctx->type = PetscODESolver::ODE_SOLVER_GENERAL;
+      ts_ctx->computed_rhsjac = false;
+      private_ctx = (void*) ts_ctx;
+   }
+}
+
+void PetscSolver::FreePrivateContext()
+{
+   if (!private_ctx) { return; }
+   // free private context's owned objects
+   if (cid == SNES_CLASSID)
+   {
+      __mfem_snes_ctx *snes_ctx = (__mfem_snes_ctx *)private_ctx;
+      delete snes_ctx->work;
+   }
+   else if (cid == TS_CLASSID)
+   {
+      __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx *)private_ctx;
+      delete ts_ctx->work;
+   }
+   ierr = PetscFree(private_ctx); CCHKERRQ(PETSC_COMM_SELF,ierr);
+}
+
+// PetscBCHandler methods
+
+PetscBCHandler::PetscBCHandler(Array<int>& ess_tdof_list,
+                               enum PetscBCHandler::Type _type)
+   : bctype(_type), setup(false), eval_t(0.0),
+     eval_t_cached(std::numeric_limits<double>::min())
+{
+   SetTDofs(ess_tdof_list);
+}
+
+void PetscBCHandler::SetTDofs(Array<int>& list)
+{
+   // TODO: Why the copy constructor is private?
+   //ess_tdof_list = list;
+   ess_tdof_list.SetSize(list.Size());
+   ess_tdof_list.Assign(list);
+   setup = false;
+}
+
+void PetscBCHandler::SetUp(PetscInt n)
+{
+   if (setup) { return; }
+   if (ess_tdof_list.Size())
+   {
+      std::vector<bool> isess(n,false);
+      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      {
+         isess[ess_tdof_list[i]] = true;
+      }
+      ess_tdof_list_c.SetSize(n-ess_tdof_list.Size());
+      PetscInt c = 0;
+      for (PetscInt i = 0; i < n; ++i)
+         if (!isess[i])
+         {
+            ess_tdof_list_c[c++] = i;
+         }
+   }
+   else
+   {
+      ess_tdof_list_c.SetSize(n);
+      for (PetscInt i = 0; i < n; ++i)
+      {
+         ess_tdof_list_c[i] = i;
+      }
+   }
+   if (bctype == CONSTANT)
+   {
+      eval_g.SetSize(n);
+      this->Eval(eval_t,eval_g);
+   }
+   else if (bctype == TIME_DEPENDENT)
+   {
+      eval_g.SetSize(n);
+   }
+   setup = true;
+}
+
+void PetscBCHandler::ApplyBC(const Vector &x, Vector &y)
+{
+   if (!setup) { MFEM_ABORT("PetscBCHandler not yet setup"); }
+   if (bctype == ZERO)
+   {
+      y = 0.0;
+   }
+   else if (bctype == CONSTANT)
+   {
+      y = eval_g;
+   }
+   else
+   {
+      if (eval_t != eval_t_cached)
+      {
+         Eval(eval_t,eval_g);
+         eval_t_cached = eval_t;
+      }
+      y = eval_g;
+   }
+   for (PetscInt i = 0; i < ess_tdof_list_c.Size(); ++i)
+   {
+      y[ess_tdof_list_c[i]] = x[ess_tdof_list_c[i]];
+   }
+}
+
+void PetscBCHandler::FixResidualBC(const Vector& x, Vector& y)
+{
+   if (!setup) { MFEM_ABORT("PetscBCHandler not yet setup"); }
+   for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+   {
+      y[ess_tdof_list[i]] = x[ess_tdof_list[i]] - eval_g[ess_tdof_list[i]];
+   }
+}
+
+void PetscBCHandler::ZeroBC(Vector& x)
+{
+   for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+   {
+      x[ess_tdof_list[i]] = 0.0;
+   }
+}
+
+void PetscBCHandler::ZeroBC(PetscParMatrix& A)
+{
+   // we need dofs in global numbering
+   PetscInt st;
+   ierr = MatGetOwnershipRange(A,&st,NULL); CCHKERRQ(A.GetComm(),ierr);
+   if (st)
+      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      {
+         ess_tdof_list[i] += st;
+      }
+
+   ierr = MatZeroRowsColumns(A,ess_tdof_list.Size(),ess_tdof_list.GetData(),
+                             1.0,NULL,NULL); CCHKERRQ(A.GetComm(),ierr);
+
+   // Restore dofs in local, per-process numbering
+   if (st)
+      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      {
+         ess_tdof_list[i] -= st;
+      }
 }
 
 // PetscLinearSolver methods
@@ -2159,22 +2363,31 @@ PetscNonlinearSolver::PetscNonlinearSolver(MPI_Comm comm,
                                            const std::string &prefix)
    : PetscSolver(), Solver()
 {
+   // Create the actual solver object
    SNES snes;
    ierr = SNESCreate(comm, &snes); CCHKERRQ(comm, ierr);
    obj  = (PetscObject)snes;
    ierr = PetscObjectGetClassId(obj, &cid); PCHKERRQ(obj, ierr);
    ierr = SNESSetOptionsPrefix(snes, prefix.c_str()); PCHKERRQ(snes, ierr);
+
+   // Allocate private solver context
+   CreatePrivateContext();
 }
 
 PetscNonlinearSolver::PetscNonlinearSolver(MPI_Comm comm, Operator &op,
                                            const std::string &prefix)
    : PetscSolver(), Solver()
 {
+   // Create the actual solver object
    SNES snes;
    ierr = SNESCreate(comm, &snes); CCHKERRQ(comm, ierr);
    obj  = (PetscObject)snes;
    ierr = PetscObjectGetClassId(obj, &cid); PCHKERRQ(obj, ierr);
    ierr = SNESSetOptionsPrefix(snes, prefix.c_str()); PCHKERRQ(snes, ierr);
+
+   // Allocate private solver context
+   CreatePrivateContext();
+
    SetOperator(op);
 }
 
@@ -2193,15 +2406,16 @@ void PetscNonlinearSolver::SetOperator(const Operator &op)
    if (operatorset)
    {
       PetscBool ls,gs;
-      void *fctx,*jctx;
+      void     *fctx,*jctx;
 
       ierr = SNESGetFunction(snes, NULL, NULL, &fctx);
       PCHKERRQ(snes, ierr);
       ierr = SNESGetJacobian(snes, NULL, NULL, NULL, &jctx);
       PCHKERRQ(snes, ierr);
 
-      ls   = (PetscBool)(height == op.Height() && width  == op.Width() &&
-                         (void*)&op == fctx && (void*)&op == jctx);
+      ls = (PetscBool)(height == op.Height() && width  == op.Width() &&
+                       (void*)&op == fctx &&
+                       (void*)&op == jctx);
       ierr = MPI_Allreduce(&ls,&gs,1,MPIU_BOOL,MPI_LAND,
                            PetscObjectComm((PetscObject)snes));
       PCHKERRQ(snes,ierr);
@@ -2214,9 +2428,12 @@ void PetscNonlinearSolver::SetOperator(const Operator &op)
       }
    }
 
-   ierr = SNESSetFunction(snes, NULL, __mfem_snes_function, (void *)&op);
+   __mfem_snes_ctx *snes_ctx = (__mfem_snes_ctx*)private_ctx;
+   snes_ctx->op = (mfem::Operator*)&op;
+   ierr = SNESSetFunction(snes, NULL, __mfem_snes_function, (void *)snes_ctx);
    PCHKERRQ(snes, ierr);
-   ierr = SNESSetJacobian(snes, NULL, NULL, __mfem_snes_jacobian, (void *)&op);
+   ierr = SNESSetJacobian(snes, NULL, NULL, __mfem_snes_jacobian,
+                          (void *)snes_ctx);
    PCHKERRQ(snes, ierr);
 
    // Update PetscSolver
@@ -2242,6 +2459,8 @@ void PetscNonlinearSolver::Mult(const Vector &b, Vector &x) const
 
    if (!iterative_mode) { *X = 0.; }
 
+   if (bchandler) { bchandler->SetUp(X->Size()); }
+
    // Solve the system.
    ierr = SNESSolve(snes, B->x, X->x); PCHKERRQ(snes, ierr);
    X->ResetArray();
@@ -2253,11 +2472,15 @@ void PetscNonlinearSolver::Mult(const Vector &b, Vector &x) const
 PetscODESolver::PetscODESolver(MPI_Comm comm, const string &prefix)
    : PetscSolver(), ODESolver()
 {
+   // Create the actual solver object
    TS ts;
    ierr = TSCreate(comm,&ts); CCHKERRQ(comm,ierr);
    obj  = (PetscObject)ts;
    ierr = PetscObjectGetClassId(obj,&cid); PCHKERRQ(obj,ierr);
    ierr = TSSetOptionsPrefix(ts, prefix.c_str()); PCHKERRQ(ts, ierr);
+
+   // Allocate private solver context
+   CreatePrivateContext();
 
    // Default options, to comply with the current interface to ODESolver.
    ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);
@@ -2277,7 +2500,7 @@ PetscODESolver::~PetscODESolver()
    ierr = TSDestroy(&ts); CCHKERRQ(comm,ierr);
 }
 
-void PetscODESolver::Init(TimeDependentOperator &f_)
+void PetscODESolver::Init(TimeDependentOperator &f_, enum PetscODESolver::Type type)
 {
    TS ts = (TS)obj;
 
@@ -2324,23 +2547,32 @@ void PetscODESolver::Init(TimeDependentOperator &f_)
    }
    f = &f_;
 
-   if (f->isImplicit())
+   // Set functions in TS
+   __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
+   ts_ctx->op = &f_;
+   if (f_.isImplicit())
    {
-      ierr = TSSetIFunction(ts, NULL, __mfem_ts_ifunction, (void *)f);
+      ierr = TSSetIFunction(ts, NULL, __mfem_ts_ifunction, (void *)ts_ctx);
       PCHKERRQ(ts, ierr);
-      ierr = TSSetIJacobian(ts, NULL, NULL, __mfem_ts_ijacobian, (void *)f);
+      ierr = TSSetIJacobian(ts, NULL, NULL, __mfem_ts_ijacobian, (void *)ts_ctx);
       PCHKERRQ(ts, ierr);
       ierr = TSSetEquationType(ts, TS_EQ_IMPLICIT);
       PCHKERRQ(ts, ierr);
    }
-   if (!f->isHomogeneous())
+   if (!f_.isHomogeneous())
    {
-      ierr = TSSetRHSFunction(ts, NULL, __mfem_ts_rhsfunction, (void *)f);
+      ierr = TSSetRHSFunction(ts, NULL, __mfem_ts_rhsfunction, (void *)ts_ctx);
       PCHKERRQ(ts, ierr);
-      ierr = TSSetRHSJacobian(ts, NULL, NULL, __mfem_ts_rhsjacobian, (void *)f);
+      ierr = TSSetRHSJacobian(ts, NULL, NULL, __mfem_ts_rhsjacobian, (void *)ts_ctx);
       PCHKERRQ(ts, ierr);
    }
    operatorset = true;
+
+   // PetscODESolver::Type
+   // Support for this is still partial in PETSc, so we handle it from MFEM
+   ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
+   ts_ctx->type = type;
+   ts_ctx->computed_rhsjac = false;
 }
 
 void PetscODESolver::Step(Vector &x, double &t, double &dt)
@@ -2354,6 +2586,8 @@ void PetscODESolver::Step(Vector &x, double &t, double &dt)
    X->PlaceArray(x.GetData());
 
    Customize();
+
+   if (bchandler) { bchandler->SetUp(x.Size()); }
 
    // Take the step.
    ierr = TSSetSolution(ts, *X); PCHKERRQ(ts, ierr);
@@ -2383,8 +2617,9 @@ void PetscODESolver::Run(Vector &x, double &t, double &dt, double t_final)
 
    Customize();
 
+   if (bchandler) { bchandler->SetUp(x.Size()); }
+
    // Take the steps.
-   ierr = VecCopy(X->x, X->x); PCHKERRQ(ts, ierr);
    ierr = TSSolve(ts, X->x); PCHKERRQ(ts, ierr);
    X->ResetArray();
 
@@ -2460,6 +2695,7 @@ static PetscErrorCode __mfem_ksp_monitor(KSP ksp, PetscInt it, PetscReal res,
 static PetscErrorCode __mfem_ts_ifunction(TS ts, PetscReal t, Vec x, Vec xp,
                                           Vec f,void *ctx)
 {
+   __mfem_ts_ctx* ts_ctx = (__mfem_ts_ctx*)ctx;
    PetscErrorCode ierr;
 
    PetscFunctionBeginUser;
@@ -2467,11 +2703,26 @@ static PetscErrorCode __mfem_ts_ifunction(TS ts, PetscReal t, Vec x, Vec xp,
    mfem::PetscParVector yy(xp,true);
    mfem::PetscParVector ff(f,true);
 
-   mfem::TimeDependentOperator *op = (mfem::TimeDependentOperator*)ctx;
+   mfem::TimeDependentOperator *op = (mfem::TimeDependentOperator*)ts_ctx->op;
    op->SetTime(t);
 
-   // use the ImplicitMult method of the class
-   op->ImplicitMult(xx,yy,ff);
+   if (ts_ctx->bchandler)
+   {
+      // we evaluate the ImplicitMult method with the correct bc
+      if (!ts_ctx->work) { ts_ctx->work = new mfem::Vector(xx.Size()); }
+      mfem::PetscBCHandler *bchandler = ts_ctx->bchandler;
+      mfem::Vector* txx = ts_ctx->work;
+      bchandler->SetTime(t);
+      bchandler->ApplyBC(xx,*txx);
+      op->ImplicitMult(*txx,yy,ff);
+      // and fix the residual (i.e. f_\partial\Omega = u - g(t))
+      bchandler->FixResidualBC(xx,ff);
+   }
+   else
+   {
+      // use the ImplicitMult method of the class
+      op->ImplicitMult(xx,yy,ff);
+   }
 
    // need to tell PETSc the Vec has been updated
    ierr = PetscObjectStateIncrease((PetscObject)f); CHKERRQ(ierr);
@@ -2483,13 +2734,14 @@ static PetscErrorCode __mfem_ts_ifunction(TS ts, PetscReal t, Vec x, Vec xp,
 static PetscErrorCode __mfem_ts_rhsfunction(TS ts, PetscReal t, Vec x, Vec f,
                                             void *ctx)
 {
+   __mfem_ts_ctx* ts_ctx = (__mfem_ts_ctx*)ctx;
    PetscErrorCode ierr;
 
    PetscFunctionBeginUser;
+   if (ts_ctx->bchandler) { MFEM_ABORT("RHS evaluation with bc not implemented"); } // TODO
    mfem::PetscParVector xx(x,true);
    mfem::PetscParVector ff(f,true);
-
-   mfem::TimeDependentOperator *top = (mfem::TimeDependentOperator*)ctx;
+   mfem::TimeDependentOperator *top = (mfem::TimeDependentOperator*)ts_ctx->op;
    top->SetTime(t);
 
    // use the ExplicitMult method - compute the RHS function
@@ -2506,42 +2758,70 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
                                           Vec xp, PetscReal shift, Mat A, Mat P,
                                           void *ctx)
 {
+   __mfem_ts_ctx* ts_ctx = (__mfem_ts_ctx*)ctx;
+   mfem::Vector   *xx;
    PetscScalar    *array;
    PetscInt       n;
    PetscErrorCode ierr;
 
    PetscFunctionBeginUser;
+   // update time
+   mfem::TimeDependentOperator *op = (mfem::TimeDependentOperator*)ts_ctx->op;
+   op->SetTime(t);
+
+   // prevent to recompute a Jacobian if we already did so
+   if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR && ts_ctx->cached_shift == shift) PetscFunctionReturn(0);
+
    // wrap Vecs with Vectors
    ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
-   ierr = VecGetArrayRead(x,(const PetscScalar**)&array); CHKERRQ(ierr);
-   mfem::Vector xx(array,n);
-   ierr = VecRestoreArrayRead(x,(const PetscScalar**)&array); CHKERRQ(ierr);
    ierr = VecGetArrayRead(xp,(const PetscScalar**)&array); CHKERRQ(ierr);
    mfem::Vector yy(array,n);
    ierr = VecRestoreArrayRead(xp,(const PetscScalar**)&array); CHKERRQ(ierr);
-
-   // update time
-   mfem::TimeDependentOperator *op = (mfem::TimeDependentOperator*)ctx;
-   op->SetTime(t);
-
-   // Use TimeDependentOperator::GetImplicitGradient(x,y,s)
-   mfem::Operator& J = op->GetImplicitGradient(xx,yy,shift);
-
-   // Avoid unneeded copy of the matrix by hacking
-   Mat B;
-   mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
-                              (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (pA)
+   ierr = VecGetArrayRead(x,(const PetscScalar**)&array); CHKERRQ(ierr);
+   if (!ts_ctx->bchandler)
    {
-      B = pA->ReleaseMat(false);
+      xx = new mfem::Vector(array,n);
    }
    else
    {
-      mfem::PetscParMatrix p2A(PetscObjectComm((PetscObject)ts),&J,
-                               mfem::Operator::PETSC_MATAIJ);
-      B = p2A.ReleaseMat(false);
+      // make sure we compute a Jacobian with the correct boundary values
+      if (!ts_ctx->work) { ts_ctx->work = new mfem::Vector(n); }
+      mfem::Vector txx(array,n);
+      mfem::PetscBCHandler *bchandler = ts_ctx->bchandler;
+      xx = ts_ctx->work;
+      bchandler->SetTime(t);
+      bchandler->ApplyBC(txx,*xx);
    }
+   ierr = VecRestoreArrayRead(x,(const PetscScalar**)&array); CHKERRQ(ierr);
+
+   // Use TimeDependentOperator::GetImplicitGradient(x,y,s)
+   mfem::Operator& J = op->GetImplicitGradient(*xx,yy,shift);
+   if (!ts_ctx->bchandler) { delete xx; }
+   ts_ctx->cached_shift = shift;
+
+   // Convert to MATAIJ if needed (TODO: add option to use MATHYPRE?)
+   bool delete_pA = false;
+   mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
+                              (dynamic_cast<const mfem::PetscParMatrix *>(&J));
+   if (!pA)
+   {
+      pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)ts),&J,
+                                    mfem::Operator::PETSC_MATAIJ);
+      delete_pA = true;
+   }
+
+   // Eliminate essential dofs
+   if (ts_ctx->bchandler)
+   {
+      mfem::PetscBCHandler *bchandler = ts_ctx->bchandler;
+      bchandler->ZeroBC(*pA);
+   }
+
+   // Avoid unneeded copy of the matrix by hacking
+   Mat B;
+   B = pA->ReleaseMat(false);
    ierr = MatHeaderReplace(A,&B); CHKERRQ(ierr);
+   if (delete_pA) { delete pA; }
    PetscFunctionReturn(0);
 }
 
@@ -2550,11 +2830,17 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
 static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
                                             Mat A, Mat P, void *ctx)
 {
+   __mfem_ts_ctx* ts_ctx = (__mfem_ts_ctx*)ctx;
    PetscScalar    *array;
    PetscInt       n;
    PetscErrorCode ierr;
 
    PetscFunctionBeginUser;
+   if (ts_ctx->bchandler) { MFEM_ABORT("RHS Jacobian with bc not implemented"); } // TODO
+
+   // prevent to recompute a Jacobian if we already did so
+   if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR && ts_ctx->computed_rhsjac) PetscFunctionReturn(0);
+
    // wrap Vec with Vector
    ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
    ierr = VecGetArrayRead(x,(const PetscScalar**)&array); CHKERRQ(ierr);
@@ -2562,10 +2848,11 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    ierr = VecRestoreArrayRead(x,(const PetscScalar**)&array); CHKERRQ(ierr);
 
    // update time
-   mfem::TimeDependentOperator *top = (mfem::TimeDependentOperator*)ctx;
+   mfem::TimeDependentOperator *top = (mfem::TimeDependentOperator*)ts_ctx->op;
    top->SetTime(t);
 
    mfem::Operator& J = top->GetExplicitGradient(xx);
+   ts_ctx->computed_rhsjac = true;
 
    // Avoid unneeded copy of the matrix by hacking
    Mat B;
@@ -2590,40 +2877,56 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
 static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
                                            void *ctx)
 {
-   PetscScalar    *array;
-   PetscInt       n;
-   PetscErrorCode ierr;
+   PetscScalar     *array;
+   PetscInt         n;
+   PetscErrorCode   ierr;
+   mfem::Vector    *xx;
+   __mfem_snes_ctx *snes_ctx = (__mfem_snes_ctx*)ctx;
 
    PetscFunctionBeginUser;
-   // wrap Vec with Vector
-   ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
    ierr = VecGetArrayRead(x,(const PetscScalar**)&array); CHKERRQ(ierr);
-   mfem::Vector xx(array,n);
-   ierr = VecRestoreArrayRead(x,(const PetscScalar**)&array); CHKERRQ(ierr);
-
-   // Use Operator::GetGradient(x)
-   mfem::Operator *op = (mfem::Operator*)ctx;
-   mfem::Operator& J = op->GetGradient(xx);
-
-   // Avoid unneeded copy of the matrix by hacking
-   Mat B;
-   mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
-                              (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (pA)
+   ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
+   if (!snes_ctx->bchandler)
    {
-      B = pA->ReleaseMat(false);
+      xx = new mfem::Vector(array,n);
    }
    else
    {
-      mfem::PetscParMatrix p2A(PetscObjectComm((PetscObject)snes),&J,
-                               mfem::Operator::PETSC_MATAIJ);
-      B = p2A.ReleaseMat(false);
+      // make sure we compute a Jacobian with the correct boundary values
+      if (!snes_ctx->work) { snes_ctx->work = new mfem::Vector(n); }
+      mfem::Vector txx(array,n);
+      mfem::PetscBCHandler *bchandler = snes_ctx->bchandler;
+      xx = snes_ctx->work;
+      bchandler->ApplyBC(txx,*xx);
    }
+
+   // Use Operator::GetGradient(x)
+   mfem::Operator& J = snes_ctx->op->GetGradient(*xx);
+   ierr = VecRestoreArrayRead(x,(const PetscScalar**)&array); CHKERRQ(ierr);
+   if (!snes_ctx->bchandler) { delete xx; }
+
+   // Convert to MATAIJ if needed (TODO: add option to use MATHYPRE?)
+   bool delete_pA = false;
+   mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
+                              (dynamic_cast<const mfem::PetscParMatrix *>(&J));
+   if (!pA)
+   {
+      pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)snes),&J,
+                                    mfem::Operator::PETSC_MATAIJ);
+      delete_pA = true;
+   }
+
+   // Eliminate essential dofs
+   if (snes_ctx->bchandler)
+   {
+      mfem::PetscBCHandler *bchandler = snes_ctx->bchandler;
+      bchandler->ZeroBC(*pA);
+   }
+
+   // Avoid unneeded copy of the matrix by hacking
+   Mat B = pA->ReleaseMat(false);
    ierr = MatHeaderReplace(A,&B); CHKERRQ(ierr);
-   //// No need to copy to A, we can update the snes matrices
-   //mfem::PetscParMatrix pA(PetscObjectComm((PetscObject)snes),
-   //                        &op->GetGradient(xx),false);
-   //ierr = SNESSetJacobian(snes,pA,pA,snes_jacobian,ctx); CHKERRQ(ierr);
+   if (delete_pA) { delete pA; }
    PetscFunctionReturn(0);
 }
 
@@ -2631,11 +2934,27 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
 #define __FUNCT__ "__mfem_snes_function"
 static PetscErrorCode __mfem_snes_function(SNES snes, Vec x, Vec f, void *ctx)
 {
+   __mfem_snes_ctx* snes_ctx = (__mfem_snes_ctx*)ctx;
+
    PetscFunctionBeginUser;
    mfem::PetscParVector xx(x,true);
    mfem::PetscParVector ff(f,true);
-   mfem::Operator *op = (mfem::Operator*)ctx;
-   op->Mult(xx,ff);
+   if (snes_ctx->bchandler)
+   {
+      // we evaluate the Mult method with the correct bc
+      if (!snes_ctx->work) { snes_ctx->work = new mfem::Vector(xx.Size()); }
+      mfem::PetscBCHandler *bchandler = snes_ctx->bchandler;
+      mfem::Vector* txx = snes_ctx->work;
+      bchandler->ApplyBC(xx,*txx);
+      snes_ctx->op->Mult(*txx,ff);
+      // and fix the residual (i.e. f_\partial\Omega = u - g)
+      bchandler->FixResidualBC(xx,ff);
+   }
+   else
+   {
+      // use the Mult method of the class
+      snes_ctx->op->Mult(xx,ff);
+   }
    // need to tell PETSc the Vec has been updated
    ierr = PetscObjectStateIncrease((PetscObject)f); CHKERRQ(ierr);
    PetscFunctionReturn(0);
