@@ -18,6 +18,25 @@
 #include "obilinearform.hpp"
 
 namespace mfem {
+  class OccaGeometry {
+  public:
+    occa::array<double> meshNodes;
+    occa::array<double> J, invJ, detJ;
+
+    // byVDIM  -> [x y z x y z x y z]
+    // byNodes -> [x x x y y y z z z]
+    static const int Jacobian    = (1 << 0);
+    static const int JacobianInv = (1 << 1);
+    static const int JacobianDet = (1 << 2);
+
+    static OccaGeometry Get(occa::device device,
+                            Mesh &mesh,
+                            const IntegrationRule &ir,
+                            const int flags = (Jacobian    |
+                                               JacobianInv |
+                                               JacobianDet));
+  };
+
   class OccaDofQuadMaps {
   private:
     // Reuse dof-quad maps
@@ -66,17 +85,6 @@ namespace mfem {
                             const IntegrationRule &ir,
                             occa::properties &props);
 
-  occa::array<double> getJacobian(occa::device device,
-                                  FiniteElementSpace *fespace,
-                                  const IntegrationRule &ir);
-
-  void getJacobianData(occa::device device,
-                       FiniteElementSpace *fespace,
-                       const IntegrationRule &ir,
-                       occa::array<double> &J,
-                       occa::array<double> &Jinv,
-                       occa::array<double> &Jdet);  
-
   //---[ Base Integrator ]--------------
   class OccaIntegrator {
   protected:
@@ -84,6 +92,7 @@ namespace mfem {
 
     BilinearFormIntegrator *integrator;
     FiniteElementSpace *fespace;
+    Mesh *mesh;
     occa::properties props;
     OccaIntegratorType itype;
 
@@ -92,8 +101,8 @@ namespace mfem {
     virtual ~OccaIntegrator();
 
     OccaIntegrator* CreateInstance(occa::device device_,
+                                   OccaBilinearForm &obf,
                                    BilinearFormIntegrator *integrator_,
-                                   FiniteElementSpace *fespace_,
                                    const occa::properties &props_,
                                    const OccaIntegratorType itype_);
 

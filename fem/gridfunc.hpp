@@ -138,6 +138,9 @@ public:
    /// For a vector grid function, makes sure that the ordering is byNODES.
    void ReorderByNodes();
 
+   /// For a vector grid function, makes sure that the ordering is byVDIM.
+   void ReorderByVDim();
+
    /// Return the values as a vector on mesh vertices for dimension vdim.
    void GetNodalValues(Vector &nval, int vdim = 1) const;
 

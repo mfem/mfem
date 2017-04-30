@@ -43,7 +43,7 @@ namespace mfem {
     typedef std::map<std::string,OccaIntegrator*> IntegratorBuilderMap;
 
     // State information
-    FiniteElementSpace *fespace;
+    mutable FiniteElementSpace *fespace;
     mutable Mesh *mesh;
 
     // Group of integrators used to build kernels
@@ -89,6 +89,7 @@ namespace mfem {
     // Useful mesh Information
     int BaseGeom() const;
     Mesh& GetMesh() const;
+    FiniteElementSpace& GetFESpace() const;
 
     // Useful FE information
     int GetDim() const;

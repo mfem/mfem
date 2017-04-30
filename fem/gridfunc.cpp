@@ -722,6 +722,30 @@ void GridFunction::ReorderByNodes()
    delete [] temp;
 }
 
+void GridFunction::ReorderByVDim()
+{
+   if (fes->GetOrdering() == Ordering::byVDIM)
+   {
+      return;
+   }
+
+   const int vdim = fes->GetVDim();
+   const int ndofs = fes->GetNDofs();
+   double *temp = new double[size];
+
+   int k = 0;
+   for (int j = 0; j < ndofs; j++) {
+     for (int i = 0; i < vdim; i++) {
+       temp[k++] = data[j+i*ndofs];
+     }
+   }
+   for (int i = 0; i < size; i++) {
+     data[i] = temp[i];
+   }
+
+   delete [] temp;
+}
+
 void GridFunction::GetVectorFieldNodalValues(Vector &val, int comp) const
 {
    int i, k;

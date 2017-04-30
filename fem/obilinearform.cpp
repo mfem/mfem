@@ -171,6 +171,10 @@ namespace mfem {
     return mesh->GetElementBaseGeometry();
   }
 
+  FiniteElementSpace& OccaBilinearForm::GetFESpace() const {
+    return *fespace;
+  }
+
   Mesh& OccaBilinearForm::GetMesh() const {
     return *mesh;
   }
@@ -283,8 +287,8 @@ namespace mfem {
       mfem_error(error.c_str());
     }
     integrators.push_back(integrator->CreateInstance(device,
+                                                     *this,
                                                      bIntegrator,
-                                                     fespace,
                                                      baseKernelProps + props,
                                                      itype));
   }

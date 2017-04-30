@@ -20,6 +20,91 @@
 namespace mfem {
   std::map<occa::hash_t, OccaDofQuadMaps> OccaDofQuadMaps::AllDofQuadMaps;
 
+  OccaGeometry OccaGeometry::Get(occa::device device,
+                                 Mesh &mesh,
+                                 const IntegrationRule &ir,
+                                 const int flags) {
+
+    OccaGeometry geom;
+    if (!mesh.GetNodes()) {
+      mesh.SetCurvature(1, false, -1, Ordering::byVDIM);
+    }
+    GridFunction &nodes = *(mesh.GetNodes());
+    const FiniteElementSpace &fespace = *(nodes.FESpace());
+    const FiniteElement &fe = *(fespace.GetFE(0));
+
+    const int dims = fe.GetDim();
+    const int elements = fespace.GetNE();
+    const int numDofs = fe.GetDof();
+    const int numQuad = ir.GetNPoints();
+
+    Ordering::Type originalOrdering = fespace.GetOrdering();
+    nodes.ReorderByVDim();
+    geom.meshNodes.allocate(device,
+                            dims, numDofs, elements);
+
+    const Table &e2dTable = fespace.GetElementToDofTable();
+    const int *elementMap = e2dTable.GetJ();
+    for (int e = 0; e < elements; ++e) {
+      for (int d = 0; d < numDofs; ++d) {
+        const int gid = elementMap[d + numDofs*e];
+        for (int dim = 0; dim < dims; ++dim) {
+          geom.meshNodes(dim, d, e) = nodes[dim + gid*dims];
+        }
+      }
+    }
+    geom.meshNodes.keepInDevice();
+
+    // Reorder the original gf back
+    if (originalOrdering == Ordering::byNODES) {
+      nodes.ReorderByNodes();
+    } else {
+      nodes.ReorderByVDim();
+    }
+
+    if (flags & Jacobian) {
+      geom.J.allocate(device,
+                      dims*dims, numQuad, elements);
+    } else {
+      geom.J.allocate(device, 1);
+    }
+    if (flags & JacobianInv) {
+      geom.invJ.allocate(device,
+                         dims*dims, numQuad, elements);
+    } else {
+      geom.invJ.allocate(device, 1);
+    }
+    if (flags & JacobianDet) {
+      geom.detJ.allocate(device,
+                         numQuad, elements);
+    } else {
+      geom.detJ.allocate(device, 1);
+    }
+
+    geom.J.stopManaging();
+    geom.invJ.stopManaging();
+    geom.detJ.stopManaging();
+
+    OccaDofQuadMaps &maps = OccaDofQuadMaps::GetSimplexMaps(device, fe, ir);
+
+    occa::properties props;
+    props["defines/NUM_DOFS"] = numDofs;
+    props["defines/NUM_QUAD"] = numQuad;
+    props["defines/STORE_JACOBIAN"]     = (flags & Jacobian);
+    props["defines/STORE_JACOBIAN_INV"] = (flags & JacobianInv);
+    props["defines/STORE_JACOBIAN_DET"] = (flags & JacobianDet);
+
+    occa::kernel init = device.buildKernel("occa://mfem/fem/geometry.okl",
+                                           stringWithDim("InitGeometryInfo", fe.GetDim()),
+                                           props);
+    init(elements,
+         maps.dofToQuadD,
+         geom.meshNodes,
+         geom.J, geom.invJ, geom.detJ);
+
+    return geom;
+  }
+
   OccaDofQuadMaps::OccaDofQuadMaps() :
     hash() {}
 
@@ -84,9 +169,9 @@ namespace mfem {
                               quadPointsND);
     double *quadWeights1DData = new double[quadPoints];
 
+    mfem::Vector d2q(dofs);
+    mfem::Vector d2qD(dofs);
     for (int q = 0; q < quadPoints; ++q) {
-      mfem::Vector d2q(dofs);
-      mfem::Vector d2qD(dofs);
       const IntegrationPoint &ip = ir1D.IntPoint(q);
       basis.Eval(ip.x, d2q, d2qD);
       quadWeights1DData[q] = ip.weight;
@@ -157,9 +242,9 @@ namespace mfem {
     maps.quadWeights.allocate(device,
                               numQuad);
 
+    Vector d2q(numDofs);
+    DenseMatrix d2qD(numDofs, dims);
     for (int q = 0; q < numQuad; ++q) {
-      mfem::Vector d2q;
-      mfem::DenseMatrix d2qD;
       const IntegrationPoint &ip = ir.IntPoint(q);
       maps.quadWeights[q] = ip.weight;
       fe.CalcShape(ip, d2q);
@@ -278,111 +363,21 @@ namespace mfem {
     props["defines/M3_INNER_BATCH"]   = closestWarpBatchTo(maxDQ);
   }
 
-  occa::array<double> getJacobian(occa::device device,
-                                  FiniteElementSpace *fespace,
-                                  const IntegrationRule &ir) {
-    const FiniteElement &fe = *(fespace->GetFE(0));
-
-    const int dims = fe.GetDim();
-    const int elements = fespace->GetNE();
-    const int quadraturePoints = ir.GetNPoints();
-
-    const int dims2 = dims * dims;
-    const int jacobianEntries = elements * quadraturePoints * dims2;
-
-    occa::array<double> jacobian(dims2, quadraturePoints, elements);
-    double *eJacobian = jacobian.data();
-
-    Mesh &mesh = *(fespace->GetMesh());
-    for (int e = 0; e < elements; ++e) {
-      ElementTransformation &trans = *(mesh.GetElementTransformation(e));
-      for (int q = 0; q < quadraturePoints; ++q) {
-        const IntegrationPoint &ip = ir.IntPoint(q);
-        trans.SetIntPoint(&ip);
-        const DenseMatrix &qJ = trans.Jacobian();
-        for (int j = 0; j < dims; ++j) {
-          for (int i = 0; i < dims; ++i) {
-            // Column-major -> Row-major
-            eJacobian[j + i*dims] = qJ(i,j);
-          }
-        }
-        eJacobian += dims2;
-      }
-    }
-
-    jacobian.keepInDevice();
-
-    return jacobian;
-  }
-
-
-  void getJacobianData(occa::device device,
-                       FiniteElementSpace *fespace,
-                       const IntegrationRule &ir,
-                       occa::array<double> &J,
-                       occa::array<double> &Jinv,
-                       occa::array<double> &Jdet)
-  {
-    const FiniteElement &fe = *(fespace->GetFE(0));
-
-    const int dims = fe.GetDim();
-    const int elements = fespace->GetNE();
-    const int quadraturePoints = ir.GetNPoints();
-
-    const int dims2 = dims * dims;
-    const int jacobianEntries = elements * quadraturePoints * dims2;
-
-    J.allocate(dims2, quadraturePoints, elements);
-    Jinv.allocate(dims2, quadraturePoints, elements);
-    Jdet.allocate(quadraturePoints, elements);
-    double *eJ = J.data();
-    double *eJinv = J.data();
-    double *eJdet = J.data();
-
-    Mesh &mesh = *(fespace->GetMesh());
-    for (int e = 0; e < elements; ++e) {
-      ElementTransformation &trans = *(mesh.GetElementTransformation(e));
-      for (int q = 0; q < quadraturePoints; ++q) {
-        const IntegrationPoint &ip = ir.IntPoint(q);
-        trans.SetIntPoint(&ip);
-        const DenseMatrix &qJ = trans.Jacobian();
-        DenseMatrix qJinv(dims);
-        CalcInverse(qJ, qJinv);
-        for (int j = 0; j < dims; ++j) {
-          for (int i = 0; i < dims; ++i) {
-            // Column-major -> Row-major
-            eJ[j + i*dims] = qJ(i,j);
-            eJinv[j + i*dims] = qJinv(i,j);
-          }
-        }
-        *eJdet = qJ.Det();
-
-        eJ += dims2;
-        eJinv += dims2;
-        eJdet += 1;
-      }
-    }
-
-    J.keepInDevice();
-    Jinv.keepInDevice();
-    Jdet.keepInDevice();
-  } 
-
-
   //---[ Base Integrator ]--------------
   OccaIntegrator::OccaIntegrator() {}
   OccaIntegrator::~OccaIntegrator() {}
 
   OccaIntegrator* OccaIntegrator::CreateInstance(occa::device device_,
+                                                 OccaBilinearForm &obf,
                                                  BilinearFormIntegrator *integrator_,
-                                                 FiniteElementSpace *fespace_,
                                                  const occa::properties &props_,
                                                  const OccaIntegratorType itype_) {
     OccaIntegrator *newIntegrator = CreateInstance();
 
     newIntegrator->device = device_;
     newIntegrator->integrator = integrator_;
-    newIntegrator->fespace = fespace_;
+    newIntegrator->fespace = &(obf.GetFESpace());
+    newIntegrator->mesh = &(obf.GetMesh());
     newIntegrator->props = props_;
     newIntegrator->itype = itype_;
 
@@ -485,7 +480,10 @@ namespace mfem {
 
     assembledOperator.allocate(symmDims, quadraturePoints, elements);
 
-    jacobian = getJacobian(device, fespace, ir);
+    OccaGeometry geom = OccaGeometry::Get(device,
+                                          *mesh, ir,
+                                          OccaGeometry::Jacobian);
+    jacobian = geom.J;
 
     // Setup assemble and mult kernels
     assembleKernel = GetAssembleKernel(kernelProps);
@@ -553,7 +551,10 @@ namespace mfem {
 
     assembledOperator.allocate(quadraturePoints, elements);
 
-    jacobian = getJacobian(device, fespace, ir);
+    OccaGeometry geom = OccaGeometry::Get(device,
+                                          *mesh, ir,
+                                          OccaGeometry::Jacobian);
+    jacobian = geom.J;
 
     // Setup assemble and mult kernels
     assembleKernel = GetAssembleKernel(kernelProps);
