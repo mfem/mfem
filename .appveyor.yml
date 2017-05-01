@@ -12,7 +12,7 @@ before_build:
 - cmake . -Bbuild -G "Visual Studio 15 2017 Win64"
 
 build_script:
-- cmake --build build
+- cmake --build build --config %CMAKE_BUILD_TYPE%
 
 after_build:
-- cmake --build build --target check
+- cmake --build build --target check --config  %CMAKE_BUILD_TYPE%
