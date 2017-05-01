@@ -9,10 +9,10 @@ environment:
       - CMAKE_BUILD_TYPE: Release
 
 before_build:
-- cmake . -Bbuild -G "Visual Studio 15 2017 Win64"
+- cmake . -Bbuild -G "Visual Studio 15 2017 Win64" --config %CMAKE_BUILD_TYPE%
 
 build_script:
-- cmake --build build --config %CMAKE_BUILD_TYPE%
+- cmake --build build
 
 after_build:
-- cmake --build build --target check --config  %CMAKE_BUILD_TYPE%
+- cmake --build build --target check
