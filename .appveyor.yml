@@ -9,7 +9,7 @@ environment:
       - BUILD_TYPE: Release
 
 before_build:
-- cmake . -Bbuild -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE:%BUILD_TYPE%
+- cmake . -Bbuild -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE=%BUILD_TYPE%
 
 build_script:
 - cmake --build build
