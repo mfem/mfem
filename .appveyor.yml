@@ -5,11 +5,11 @@ image: Visual Studio 2017
 
 environment:
    matrix:
-      - CMAKE_BUILD_TYPE: Debug
-      - CMAKE_BUILD_TYPE: Release
+      - BUILD_TYPE: Debug
+      - BUILD_TYPE: Release
 
 before_build:
-- cmake . -Bbuild -G "Visual Studio 15 2017 Win64" --config %CMAKE_BUILD_TYPE%
+- cmake . -Bbuild -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE:%BUILD_TYPE%
 
 build_script:
 - cmake --build build
