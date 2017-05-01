@@ -38,16 +38,15 @@ namespace mfem {
   /** Class for bilinear form - "Matrix" with associated FE space and
       BLFIntegrators. */
   class OccaBilinearForm : public Operator {
+    friend class OccaIntegrator;
+
   protected:
     typedef std::vector<OccaIntegrator*> IntegratorVector;
-    typedef std::map<std::string,OccaIntegrator*> IntegratorBuilderMap;
 
     // State information
     mutable FiniteElementSpace *fespace;
     mutable Mesh *mesh;
 
-    // Group of integrators used to build kernels
-    static IntegratorBuilderMap integratorBuilders;
     IntegratorVector integrators;
 
     // Device data
@@ -71,9 +70,6 @@ namespace mfem {
     OccaBilinearForm(occa::device device_, FiniteElementSpace *fespace_);
 
     void Init(occa::device device_, FiniteElementSpace *fespace_);
-
-    // Setup the kernel builder collection
-    void SetupIntegratorBuilderMap();
 
     // Setup kernels and  properties
     void SetupKernels();
@@ -99,22 +95,6 @@ namespace mfem {
     const FiniteElement& GetFE(const int i) const;
 
     // Adds new Domain Integrator.
-    void AddDomainIntegrator(BilinearFormIntegrator *integrator,
-                             const occa::properties &props = occa::properties());
-
-    // Adds new Boundary Integrator.
-    void AddBoundaryIntegrator(BilinearFormIntegrator *integrator,
-                               const occa::properties &props = occa::properties());
-
-    // Adds new interior Face Integrator.
-    void AddInteriorFaceIntegrator(BilinearFormIntegrator *integrator,
-                                   const occa::properties &props = occa::properties());
-
-    // Adds new boundary Face Integrator.
-    void AddBoundaryFaceIntegrator(BilinearFormIntegrator *integrator,
-                                   const occa::properties &props = occa::properties());
-
-    // Adds new Domain Integrator.
     void AddDomainIntegrator(OccaIntegrator *integrator,
                              const occa::properties &props = occa::properties());
 
@@ -131,18 +111,7 @@ namespace mfem {
                                    const occa::properties &props = occa::properties());
 
     // Adds Integrator based on OccaIntegratorType
-    void AddIntegrator(BilinearFormIntegrator *integrator,
-                       const occa::properties &props,
-                       const OccaIntegratorType itype);
-
-    // Adds Integrator based on OccaIntegratorType
     void AddIntegrator(OccaIntegrator *integrator,
-                       const occa::properties &props,
-                       const OccaIntegratorType itype);
-
-    // Adds Integrator based on OccaIntegratorType
-    void AddIntegrator(BilinearFormIntegrator *bIntegrator,
-                       OccaIntegrator *integrator,
                        const occa::properties &props,
                        const OccaIntegratorType itype);
 

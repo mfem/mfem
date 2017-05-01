@@ -367,59 +367,18 @@ namespace mfem {
   OccaIntegrator::OccaIntegrator() {}
   OccaIntegrator::~OccaIntegrator() {}
 
-  OccaIntegrator* OccaIntegrator::CreateInstance(occa::device device_,
-                                                 OccaBilinearForm &obf,
-                                                 BilinearFormIntegrator *integrator_,
-                                                 const occa::properties &props_,
-                                                 const OccaIntegratorType itype_) {
-    OccaIntegrator *newIntegrator = CreateInstance();
+  void OccaIntegrator::SetupIntegrator(OccaBilinearForm &bform_,
+                                       const occa::properties &props_,
+                                       const OccaIntegratorType itype_) {
+    device  = bform_.device;
+    bform   = &bform_;
+    fespace = &(bform_.GetFESpace());
+    mesh    = &(bform_.GetMesh());
 
-    newIntegrator->device = device_;
-    newIntegrator->integrator = integrator_;
-    newIntegrator->fespace = &(obf.GetFESpace());
-    newIntegrator->mesh = &(obf.GetMesh());
-    newIntegrator->props = props_;
-    newIntegrator->itype = itype_;
+    props = props_;
+    itype = itype_;
 
-    newIntegrator->Setup();
-
-    return newIntegrator;
-  }
-
-  std::string OccaIntegrator::GetName() {
-    return integrator->Name();
-  }
-
-  void OccaIntegrator::Setup() {}
-
-  void OccaIntegrator::SetupCoefficient(const Coefficient *coeff,
-                                        occa::properties &kernelProps) {
-
-    if (dynamic_cast<const ConstantCoefficient*>(coeff)) {
-      const ConstantCoefficient* c =
-        dynamic_cast<const ConstantCoefficient*>(coeff);
-      kernelProps["defines/COEFF_ARGS"] = "";
-      kernelProps["defines/COEFF"]      = c->constant;
-    } else if (dynamic_cast<const GridFunctionCoefficient*>(coeff)) {
-      kernelProps["headers"].asArray();
-      kernelProps["headers"] += ("double gridFunctionCoeff(const int e,\n"
-                                 "                         const int q,\n"
-                                 "                         const DofToQuad_t restrict dofToQuad,\n"
-                                 "                         Local_t restrict gfValues) {\n"
-                                 "  double c = 0;\n"
-                                 "  for (int d = 0; d < NUM_DOFS; ++d) {\n"
-                                 "    c += dofToQuad(q, d) * values(d, e);\n"
-                                 "  }\n"
-                                 "  return c;\n"
-                                 "}\n\n");
-      kernelProps["defines/COEFF_ARGS"] = ("const DofToQuad_t restrict dofToQuad,\n"
-                                           "Local_t restrict gfValues,\n");
-      kernelProps["defines/COEFF"]      = "gridFunctionCoeff(e, q, dofToQuad, gfValues)";
-    } else {
-      mfem_error("OccaIntegrator can only handle:\n"
-                 "  - ConstantCoefficient\n"
-                 "  - GridFunctionCoefficient\n");
-    }
+    Setup();
   }
 
   occa::kernel OccaIntegrator::GetAssembleKernel(const occa::properties &props) {
@@ -444,24 +403,20 @@ namespace mfem {
   //====================================
 
   //---[ Diffusion Integrator ]---------
-  OccaDiffusionIntegrator::OccaDiffusionIntegrator() :
-    OccaIntegrator() {}
+  OccaDiffusionIntegrator::OccaDiffusionIntegrator(OccaCoefficient coeff_) :
+    coeff(coeff_) {}
 
   OccaDiffusionIntegrator::~OccaDiffusionIntegrator() {}
 
-  OccaIntegrator* OccaDiffusionIntegrator::CreateInstance() {
-    return new OccaDiffusionIntegrator();
+  std::string OccaDiffusionIntegrator::GetName() {
+    return "DiffusionIntegrator";
   }
 
   void OccaDiffusionIntegrator::Setup() {
     occa::properties kernelProps = props;
 
-    DiffusionIntegrator &integ = (DiffusionIntegrator&) *integrator;
-    coeff = integ.GetCoefficient();
-    SetupCoefficient(coeff, kernelProps);
-
     const FiniteElement &fe   = *(fespace->GetFE(0));
-    const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
+    const IntegrationRule &ir = GetDiffusionIntegrationRule(fe, fe);
 
     const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
     if (el) {
@@ -485,25 +440,19 @@ namespace mfem {
                                           OccaGeometry::Jacobian);
     jacobian = geom.J;
 
+    coeff.SetProps(kernelProps);
+
     // Setup assemble and mult kernels
     assembleKernel = GetAssembleKernel(kernelProps);
     multKernel     = GetMultKernel(kernelProps);
   }
 
   void OccaDiffusionIntegrator::Assemble() {
-    if (dynamic_cast<const ConstantCoefficient*>(coeff)) {
-      assembleKernel((int) fespace->GetNE(),
-                     maps.quadWeights,
-                     jacobian,
-                     assembledOperator);
-    } else if (dynamic_cast<const GridFunctionCoefficient*>(coeff)) {
-      assembleKernel((int) fespace->GetNE(),
-                     maps.quadWeights,
-                     jacobian,
-                     maps.dofToQuad,
-                     // GF vector
-                     assembledOperator);
-    }
+    assembleKernel((int) fespace->GetNE(),
+                   maps.quadWeights,
+                   jacobian,
+                   coeff,
+                   assembledOperator);
   }
 
   void OccaDiffusionIntegrator::Mult(OccaVector &x) {
@@ -518,24 +467,20 @@ namespace mfem {
   //====================================
 
   //---[ Mass Integrator ]--------------
-  OccaMassIntegrator::OccaMassIntegrator() :
-    OccaIntegrator() {}
+  OccaMassIntegrator::OccaMassIntegrator(OccaCoefficient coeff_) :
+    coeff(coeff_) {}
 
   OccaMassIntegrator::~OccaMassIntegrator() {}
 
-  OccaIntegrator* OccaMassIntegrator::CreateInstance() {
-    return new OccaMassIntegrator();
+  std::string OccaMassIntegrator::GetName() {
+    return "MassIntegrator";
   }
 
   void OccaMassIntegrator::Setup() {
     occa::properties kernelProps = props;
 
-    MassIntegrator &integ = (MassIntegrator&) *integrator;
-    coeff = integ.GetCoefficient();
-    SetupCoefficient(coeff, kernelProps);
-
     const FiniteElement &fe   = *(fespace->GetFE(0));
-    const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
+    const IntegrationRule &ir = GetMassIntegrationRule(fe, fe);
 
     const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
     if (el) {
@@ -556,25 +501,19 @@ namespace mfem {
                                           OccaGeometry::Jacobian);
     jacobian = geom.J;
 
+    coeff.SetProps(kernelProps);
+
     // Setup assemble and mult kernels
     assembleKernel = GetAssembleKernel(kernelProps);
     multKernel     = GetMultKernel(kernelProps);
   }
 
   void OccaMassIntegrator::Assemble() {
-    if (dynamic_cast<const ConstantCoefficient*>(coeff)) {
-      assembleKernel((int) fespace->GetNE(),
-                     maps.quadWeights,
-                     jacobian,
-                     assembledOperator);
-    } else if (dynamic_cast<const GridFunctionCoefficient*>(coeff)) {
-      assembleKernel((int) fespace->GetNE(),
-                     maps.quadWeights,
-                     jacobian,
-                     maps.dofToQuad,
-                     // GF vector
-                     assembledOperator);
-    }
+    assembleKernel((int) fespace->GetNE(),
+                   maps.quadWeights,
+                   jacobian,
+                   coeff,
+                   assembledOperator);
   }
 
   void OccaMassIntegrator::Mult(OccaVector &x) {

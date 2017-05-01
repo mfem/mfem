@@ -16,6 +16,7 @@
 #  define MFEM_OCCA_BILININTEG
 
 #include "obilinearform.hpp"
+#include "ocoefficient.hpp"
 
 namespace mfem {
   class OccaGeometry {
@@ -90,7 +91,7 @@ namespace mfem {
   protected:
     occa::device device;
 
-    BilinearFormIntegrator *integrator;
+    OccaBilinearForm *bform;
     FiniteElementSpace *fespace;
     Mesh *mesh;
     occa::properties props;
@@ -100,22 +101,16 @@ namespace mfem {
     OccaIntegrator();
     virtual ~OccaIntegrator();
 
-    OccaIntegrator* CreateInstance(occa::device device_,
-                                   OccaBilinearForm &obf,
-                                   BilinearFormIntegrator *integrator_,
-                                   const occa::properties &props_,
-                                   const OccaIntegratorType itype_);
+    virtual std::string GetName() = 0;
 
-    virtual OccaIntegrator* CreateInstance() = 0;
+    virtual void SetupIntegrator(OccaBilinearForm &bform_,
+                                 const occa::properties &props_,
+                                 const OccaIntegratorType itype_);
 
-    virtual std::string GetName();
+    virtual void Setup() = 0;
 
-    virtual void Setup();
     virtual void Assemble() = 0;
     virtual void Mult(OccaVector &x) = 0;
-
-    void SetupCoefficient(const Coefficient *coeff,
-                          occa::properties &kernelProps);
 
     occa::kernel GetAssembleKernel(const occa::properties &props);
     occa::kernel GetMultKernel(const occa::properties &props);
@@ -129,17 +124,17 @@ namespace mfem {
   class OccaDiffusionIntegrator : public OccaIntegrator {
   private:
     OccaDofQuadMaps maps;
-    const Coefficient *coeff;
+    OccaCoefficient coeff;
 
     occa::kernel assembleKernel, multKernel;
 
     occa::array<double> jacobian, assembledOperator;
 
   public:
-    OccaDiffusionIntegrator();
+    OccaDiffusionIntegrator(OccaCoefficient coeff_);
     virtual ~OccaDiffusionIntegrator();
 
-    virtual OccaIntegrator* CreateInstance();
+    virtual std::string GetName();
 
     virtual void Setup();
 
@@ -152,17 +147,17 @@ namespace mfem {
   class OccaMassIntegrator : public OccaIntegrator {
   private:
     OccaDofQuadMaps maps;
-    const Coefficient *coeff;
+    OccaCoefficient coeff;
 
     occa::kernel assembleKernel, multKernel;
 
     occa::array<double> jacobian, assembledOperator;
 
   public:
-    OccaMassIntegrator();
+    OccaMassIntegrator(OccaCoefficient coeff_);
     virtual ~OccaMassIntegrator();
 
-    virtual OccaIntegrator* CreateInstance();
+    virtual std::string GetName();
 
     virtual void Setup();
 

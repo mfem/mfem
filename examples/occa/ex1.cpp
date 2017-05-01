@@ -201,7 +201,7 @@ int main(int argc, char *argv[])
   tic_toc.Clear();
   tic_toc.Start();
   OccaBilinearForm *a = new OccaBilinearForm(fespace);
-  a->AddDomainIntegrator(new DiffusionIntegrator(one));
+  a->AddDomainIntegrator(new OccaDiffusionIntegrator(1.0));
 
   BilinearForm *a_pc = NULL;
   if (pc_choice == LOR) { a_pc = new BilinearForm(fespace_lor); }

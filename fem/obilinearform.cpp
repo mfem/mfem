@@ -22,8 +22,6 @@
 
 namespace mfem {
   //---[ Bilinear Form ]----------------
-  OccaBilinearForm::IntegratorBuilderMap OccaBilinearForm::integratorBuilders;
-
   OccaBilinearForm::OccaBilinearForm(FiniteElementSpace *fespace_) :
     Operator(fespace_->GetVSize()) {
     Init(occa::currentDevice(), fespace_);
@@ -39,20 +37,9 @@ namespace mfem {
     mesh = fespace->GetMesh();
     device = device_;
 
-    SetupIntegratorBuilderMap();
     SetupKernels();
     SetupIntegratorData();
     SetupInterpolationData();
-  }
-
-  void OccaBilinearForm::SetupIntegratorBuilderMap() {
-    if (0 < integratorBuilders.size()) {
-      return;
-    }
-    integratorBuilders[DiffusionIntegrator::StaticName()] =
-      new OccaDiffusionIntegrator();
-    integratorBuilders[MassIntegrator::StaticName()] =
-      new OccaMassIntegrator();
   }
 
   void OccaBilinearForm::SetupKernels() {
@@ -196,30 +183,6 @@ namespace mfem {
   }
 
   // Adds new Domain Integrator.
-  void OccaBilinearForm::AddDomainIntegrator(BilinearFormIntegrator *integrator,
-                                             const occa::properties &props) {
-    AddIntegrator(integrator, props, DomainIntegrator);
-  }
-
-  // Adds new Boundary Integrator.
-  void OccaBilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *integrator,
-                                               const occa::properties &props) {
-    AddIntegrator(integrator, props, BoundaryIntegrator);
-  }
-
-  // Adds new interior Face Integrator.
-  void OccaBilinearForm::AddInteriorFaceIntegrator(BilinearFormIntegrator *integrator,
-                                                   const occa::properties &props) {
-    AddIntegrator(integrator, props, InteriorFaceIntegrator);
-  }
-
-  // Adds new boundary Face Integrator.
-  void OccaBilinearForm::AddBoundaryFaceIntegrator(BilinearFormIntegrator *integrator,
-                                                   const occa::properties &props) {
-    AddIntegrator(integrator, props, BoundaryFaceIntegrator);
-  }
-
-  // Adds new Domain Integrator.
   void OccaBilinearForm::AddDomainIntegrator(OccaIntegrator *integrator,
                                              const occa::properties &props) {
     AddIntegrator(integrator, props, DomainIntegrator);
@@ -244,26 +207,7 @@ namespace mfem {
   }
 
   // Adds Integrator based on OccaIntegratorType
-  void OccaBilinearForm::AddIntegrator(BilinearFormIntegrator *integrator,
-                                       const occa::properties &props,
-                                       const OccaIntegratorType itype) {
-    AddIntegrator(integrator,
-                  integratorBuilders[integrator->Name()],
-                  props, itype);
-  }
-
-  // Adds Integrator based on OccaIntegratorType
   void OccaBilinearForm::AddIntegrator(OccaIntegrator *integrator,
-                                       const occa::properties &props,
-                                       const OccaIntegratorType itype) {
-    AddIntegrator(NULL,
-                  integrator,
-                  props, itype);
-  }
-
-  // Adds Integrator based on OccaIntegratorType
-  void OccaBilinearForm::AddIntegrator(BilinearFormIntegrator *bIntegrator,
-                                       OccaIntegrator *integrator,
                                        const occa::properties &props,
                                        const OccaIntegratorType itype) {
     if (integrator == NULL) {
@@ -275,22 +219,13 @@ namespace mfem {
       case InteriorFaceIntegrator: error_ss << "AddInteriorFaceIntegrator"; break;
       case BoundaryFaceIntegrator: error_ss << "AddBoundaryFaceIntegrator"; break;
       }
-      if (bIntegrator) {
-        error_ss << " (...):\n"
-                 << "  No kernel builder for occa::BilinearFormIntegrator '"
-                 << bIntegrator->Name() << "'";
-      } else {
-        error_ss << " (...):\n"
-                 << "  Integrator is NULL";
-      }
+      error_ss << " (...):\n"
+               << "  Integrator is NULL";
       const std::string error = error_ss.str();
       mfem_error(error.c_str());
     }
-    integrators.push_back(integrator->CreateInstance(device,
-                                                     *this,
-                                                     bIntegrator,
-                                                     baseKernelProps + props,
-                                                     itype));
+    integrator->SetupIntegrator(*this, baseKernelProps + props, itype);
+    integrators.push_back(integrator);
   }
 
   // Get the finite element space prolongation matrix

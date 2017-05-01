@@ -21,7 +21,7 @@ namespace mfem
 {
 
 const IntegrationRule &BilinearFormIntegrator::GetIntegrationRule(
-   const FiniteElement &trial_fe, const FiniteElement &test_fe )
+   const FiniteElement &trial_fe, const FiniteElement &test_fe)
 {
   static IntegrationRule ir;
    mfem_error ("BilinearFormIntegrator::GetIntegrationRule (...)\n"
@@ -370,29 +370,30 @@ void MixedScalarVectorIntegrator::AssembleElementMatrix2(
    }
 }
 
+const IntegrationRule& GetDiffusionIntegrationRule(const FiniteElement &trial_fe,
+                                                   const FiniteElement &test_fe) {
+  int order;
+  if (trial_fe.Space() == FunctionSpace::Pk) {
+    order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
+  } else {
+    order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
+  }
+
+  if (trial_fe.Space() == FunctionSpace::rQk) {
+    return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
+  }
+  return IntRules.Get(trial_fe.GetGeomType(), order);
+}
+
 const IntegrationRule &DiffusionIntegrator::GetIntegrationRule(
-   const FiniteElement &trial_fe, const FiniteElement &test_fe )
+   const FiniteElement &trial_fe, const FiniteElement &test_fe)
 {
   if (IntRule != NULL)
   {
      return *IntRule;
   }
 
-  int order;
-  if (trial_fe.Space() == FunctionSpace::Pk)
-  {
-     order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
-  }
-  else
-  {
-     order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
-  }
-
-  if (trial_fe.Space() == FunctionSpace::rQk)
-  {
-     return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
-  }
-  return IntRules.Get(trial_fe.GetGeomType(), order);
+  return GetDiffusionIntegrationRule(trial_fe, test_fe);
 }
 
 void DiffusionIntegrator::AssembleElementMatrix
@@ -708,25 +709,25 @@ double DiffusionIntegrator::ComputeFluxEnergy
 }
 
 
+const IntegrationRule& GetMassIntegrationRule(const FiniteElement &trial_fe,
+                                              const FiniteElement &test_fe) {
+    const int elorder = max(trial_fe.GetOrder(), test_fe.GetOrder());
+    // const int order = 2 * elorder + Trans.OrderW();
+    const int order = 2 * elorder;
+    if (trial_fe.Space() == FunctionSpace::rQk) {
+       return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
+    }
+    return IntRules.Get(trial_fe.GetGeomType(), order);
+}
+
 const IntegrationRule &MassIntegrator::GetIntegrationRule(
-   const FiniteElement &trial_fe, const FiniteElement &test_fe )
+   const FiniteElement &trial_fe, const FiniteElement &test_fe)
 {
     if (IntRule != NULL)
     {
        return *IntRule;
     }
-
-    const int elorder = max(trial_fe.GetOrder(), test_fe.GetOrder());
-    // const int order = 2 * elorder + Trans.OrderW();
-    const int order = 2 * elorder;
-    if (trial_fe.Space() == FunctionSpace::rQk)
-    {
-       return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
-    }
-    else
-    {
-       return IntRules.Get(trial_fe.GetGeomType(), order);
-    }
+    return GetMassIntegrationRule(trial_fe, test_fe);
 }
 
 void MassIntegrator::AssembleElementMatrix

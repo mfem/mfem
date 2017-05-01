@@ -154,8 +154,7 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
    OccaBilinearForm *a = new OccaBilinearForm(fespace);
-   ConstantCoefficient one(1.0);
-   a->AddDomainIntegrator(new MassIntegrator(one));
+   a->AddDomainIntegrator(new OccaMassIntegrator(1.0));
    a->Assemble();
    tic_toc.Stop();
    cout << " done, " << tic_toc.RealTime() << "s." << endl;
