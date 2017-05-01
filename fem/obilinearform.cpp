@@ -308,8 +308,8 @@ namespace mfem {
                                        OccaVector &localVec) const {
 
     vectorExtractKernel((int) GetNDofs(),
-                        globalToLocalOffsets.memory(),
-                        globalToLocalIndices.memory(),
+                        globalToLocalOffsets,
+                        globalToLocalIndices,
                         globalVec, localVec);
   }
 
@@ -318,8 +318,8 @@ namespace mfem {
                                         OccaVector &globalVec) const {
 
     vectorAssembleKernel((int) GetNDofs(),
-                         globalToLocalOffsets.memory(),
-                         globalToLocalIndices.memory(),
+                         globalToLocalOffsets,
+                         globalToLocalIndices,
                          localVec, globalVec);
   }
 
@@ -443,13 +443,13 @@ namespace mfem {
 
     w = 0.0;
 
-    mapDofs(constraintIndices, w, x, constraintList.memory());
+    mapDofs(constraintIndices, w, x, constraintList);
 
     A->Mult(w, z);
 
     b -= z;
 
-    mapDofs(constraintIndices, b, x, constraintList.memory());
+    mapDofs(constraintIndices, b, x, constraintList);
   }
 
   void OccaConstrainedOperator::Mult(const OccaVector &x, OccaVector &y) const {
@@ -463,11 +463,11 @@ namespace mfem {
 
     z = x;
 
-    clearDofs(constraintIndices, z, constraintList.memory());
+    clearDofs(constraintIndices, z, constraintList);
 
     A->Mult(z, y);
 
-    mapDofs(constraintIndices, y, x, constraintList.memory());
+    mapDofs(constraintIndices, y, x, constraintList);
   }
 
   OccaConstrainedOperator::~OccaConstrainedOperator() {

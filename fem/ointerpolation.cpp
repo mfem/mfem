@@ -63,7 +63,7 @@ namespace mfem {
   }
 
   void OccaRestrictionOperator::Mult(const OccaVector &x, OccaVector &y) const {
-    mapKernel(entries, trueIndices.memory(), x, y);
+    mapKernel(entries, trueIndices, x, y);
   }
 
   OccaProlongationOperator::OccaProlongationOperator(OccaSparseMatrix &multOp_,

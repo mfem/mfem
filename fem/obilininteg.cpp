@@ -493,26 +493,26 @@ namespace mfem {
   void OccaDiffusionIntegrator::Assemble() {
     if (dynamic_cast<const ConstantCoefficient*>(coeff)) {
       assembleKernel((int) fespace->GetNE(),
-                     maps.quadWeights.memory(),
-                     jacobian.memory(),
-                     assembledOperator.memory());
+                     maps.quadWeights,
+                     jacobian,
+                     assembledOperator);
     } else if (dynamic_cast<const GridFunctionCoefficient*>(coeff)) {
       assembleKernel((int) fespace->GetNE(),
-                     maps.quadWeights.memory(),
-                     jacobian.memory(),
-                     maps.dofToQuad.memory(),
+                     maps.quadWeights,
+                     jacobian,
+                     maps.dofToQuad,
                      // GF vector
-                     assembledOperator.memory());
+                     assembledOperator);
     }
   }
 
   void OccaDiffusionIntegrator::Mult(OccaVector &x) {
     multKernel((int) fespace->GetNE(),
-               maps.dofToQuad.memory(),
-               maps.dofToQuadD.memory(),
-               maps.quadToDof.memory(),
-               maps.quadToDofD.memory(),
-               assembledOperator.memory(),
+               maps.dofToQuad,
+               maps.dofToQuadD,
+               maps.quadToDof,
+               maps.quadToDofD,
+               assembledOperator,
                x);
   }
   //====================================
@@ -564,26 +564,26 @@ namespace mfem {
   void OccaMassIntegrator::Assemble() {
     if (dynamic_cast<const ConstantCoefficient*>(coeff)) {
       assembleKernel((int) fespace->GetNE(),
-                     maps.quadWeights.memory(),
-                     jacobian.memory(),
-                     assembledOperator.memory());
+                     maps.quadWeights,
+                     jacobian,
+                     assembledOperator);
     } else if (dynamic_cast<const GridFunctionCoefficient*>(coeff)) {
       assembleKernel((int) fespace->GetNE(),
-                     maps.quadWeights.memory(),
-                     jacobian.memory(),
-                     maps.dofToQuad.memory(),
+                     maps.quadWeights,
+                     jacobian,
+                     maps.dofToQuad,
                      // GF vector
-                     assembledOperator.memory());
+                     assembledOperator);
     }
   }
 
   void OccaMassIntegrator::Mult(OccaVector &x) {
     multKernel((int) fespace->GetNE(),
-               maps.dofToQuad.memory(),
-               maps.dofToQuadD.memory(),
-               maps.quadToDof.memory(),
-               maps.quadToDofD.memory(),
-               assembledOperator.memory(),
+               maps.dofToQuad,
+               maps.dofToQuadD,
+               maps.quadToDof,
+               maps.quadToDofD,
+               assembledOperator,
                x);
   }
   //====================================
