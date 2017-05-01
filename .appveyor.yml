@@ -3,9 +3,10 @@ version: '{build}'
 # https://www.appveyor.com/docs/build-environment/#build-worker-images
 image: Visual Studio 2017
 
-configuration:
-   - Debug
-   - Release
+environment:
+   matrix:
+      - CMAKE_BUILD_TYPE: Debug
+      - CMAKE_BUILD_TYPE: Release
 
 before_build:
 - cmake . -Bbuild -G "Visual Studio 15 2017 Win64"
