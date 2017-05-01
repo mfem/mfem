@@ -251,7 +251,7 @@ std::streamsize socketbuf::xsputn(const char_type *__s, std::streamsize __n)
 }
 
 
-socketserver::socketserver(int port)
+socketserver::socketserver(int port, int backlog)
 {
    listen_socket = socket(PF_INET, SOCK_STREAM, 0); // tcp socket
    if (listen_socket < 0)
@@ -277,7 +277,7 @@ socketserver::socketserver(int port)
       listen_socket = -3;
       return;
    }
-   const int backlog = 4;
+
    if (listen(listen_socket, backlog) < 0)
    {
       closesocket(listen_socket);
