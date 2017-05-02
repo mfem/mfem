@@ -17,6 +17,8 @@
 
 namespace mfem {
   //---[ Parameter ]------------
+  OccaParameter::~OccaParameter() {}
+
   void OccaParameter::SetProps(occa::properties &props) {}
 
   occa::kernelArg OccaParameter::KernelArgs() {
@@ -28,6 +30,10 @@ namespace mfem {
   OccaIncludeParameter::OccaIncludeParameter(const std::string &filename_) :
     filename(filename_) {}
 
+  OccaParameter* OccaIncludeParameter::Clone() {
+    return new OccaIncludeParameter(filename);
+  }
+
   void OccaIncludeParameter::SetProps(occa::properties &props) {
     props["headers"].asArray() += "#include " + filename;
   }
@@ -37,47 +43,69 @@ namespace mfem {
   OccaSourceParameter::OccaSourceParameter(const std::string &source_) :
     source(source_) {}
 
+  OccaParameter* OccaSourceParameter::Clone() {
+    return new OccaSourceParameter(source);
+  }
+
   void OccaSourceParameter::SetProps(occa::properties &props) {
     props["headers"].asArray() += source;
   }
   //====================================
 
   //---[ Coefficient ]------------------
-  OccaCoefficient::OccaCoefficient() {}
-
-  OccaCoefficient::OccaCoefficient(const double value) {
-    props["COEFF_ARGS"] = "";
-    props["COEFF"]      = value;
+  OccaCoefficient::OccaCoefficient(const double value) :
+    name("COEFF") {
+    coeffValue = value;
+    coeffArgs  = "";
   }
 
-  OccaCoefficient::OccaCoefficient(const std::string &function) {
-    props["COEFF_ARGS"] = "";
-    props["COEFF"]      = function;
+  OccaCoefficient::OccaCoefficient(const std::string &source) :
+    name("COEFF") {
+    coeffValue = source;
+    coeffArgs  = "";
   }
 
   OccaCoefficient::OccaCoefficient(const OccaCoefficient &coeff) :
-    params(coeff.params),
-    props(coeff.props) {}
+    name(coeff.name),
+    coeffValue(coeff.coeffValue),
+    coeffArgs(coeff.coeffArgs) {
 
-  void OccaCoefficient::SetCoeffProps(occa::properties &props_) {
-    props_ += props;
+    const int paramCount = (int) coeff.params.size();
+    for (int i = 0; i < paramCount; ++i) {
+      params.push_back(coeff.params[i]->Clone());
+    }
   }
 
-  occa::kernelArg OccaCoefficient::CoeffKernelArg() {
-    return occa::kernelArg();
+  OccaCoefficient::~OccaCoefficient() {
+    const int paramCount = (int) params.size();
+    for (int i = 0; i < paramCount; ++i) {
+      delete params[i];
+    }
   }
 
-  OccaCoefficient& OccaCoefficient::With(OccaParameter *param) {
-    params.push_back(param);
+  OccaCoefficient& OccaCoefficient::SetName(const std::string &name_) {
+    name = name_;
     return *this;
   }
 
-  void OccaCoefficient::SetProps(occa::properties &props_) {
+  OccaCoefficient& OccaCoefficient::IncludeHeader(const std::string &filename) {
+    params.push_back(new OccaIncludeParameter(filename));
+    return *this;
+  }
+
+  OccaCoefficient& OccaCoefficient::IncludeSource(const std::string &source) {
+    params.push_back(new OccaSourceParameter(source));
+    return *this;
+  }
+
+  OccaCoefficient& OccaCoefficient::SetProps(occa::properties &props) {
     const int paramCount = (int) params.size();
     for (int i = 0; i < paramCount; ++i) {
-      params[i]->SetProps(props_);
+      params[i]->SetProps(props);
     }
-    SetCoeffProps(props_);
+    props[name]           = coeffValue;
+    props[name + "_ARGS"] = coeffArgs;
+    return *this;
   }
 
   OccaCoefficient::operator occa::kernelArg () {
@@ -86,7 +114,6 @@ namespace mfem {
     for (int i = 0; i < paramCount; ++i) {
       kArg.add(params[i]->KernelArgs());
     }
-    kArg.add(CoeffKernelArg());
     return kArg;
   }
   //====================================

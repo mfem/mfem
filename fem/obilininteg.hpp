@@ -131,7 +131,7 @@ namespace mfem {
     occa::array<double> jacobian, assembledOperator;
 
   public:
-    OccaDiffusionIntegrator(OccaCoefficient coeff_);
+    OccaDiffusionIntegrator(const OccaCoefficient &coeff_);
     virtual ~OccaDiffusionIntegrator();
 
     virtual std::string GetName();
@@ -154,7 +154,7 @@ namespace mfem {
     occa::array<double> jacobian, assembledOperator;
 
   public:
-    OccaMassIntegrator(OccaCoefficient coeff_);
+    OccaMassIntegrator(const OccaCoefficient &coeff_);
     virtual ~OccaMassIntegrator();
 
     virtual std::string GetName();

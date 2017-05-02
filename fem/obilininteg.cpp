@@ -403,8 +403,10 @@ namespace mfem {
   //====================================
 
   //---[ Diffusion Integrator ]---------
-  OccaDiffusionIntegrator::OccaDiffusionIntegrator(OccaCoefficient coeff_) :
-    coeff(coeff_) {}
+  OccaDiffusionIntegrator::OccaDiffusionIntegrator(const OccaCoefficient &coeff_) :
+    coeff(coeff_) {
+    coeff.SetName("COEFF");
+  }
 
   OccaDiffusionIntegrator::~OccaDiffusionIntegrator() {}
 
@@ -467,8 +469,10 @@ namespace mfem {
   //====================================
 
   //---[ Mass Integrator ]--------------
-  OccaMassIntegrator::OccaMassIntegrator(OccaCoefficient coeff_) :
-    coeff(coeff_) {}
+  OccaMassIntegrator::OccaMassIntegrator(const OccaCoefficient &coeff_) :
+    coeff(coeff_) {
+    coeff.SetName("COEFF");
+  }
 
   OccaMassIntegrator::~OccaMassIntegrator() {}
 

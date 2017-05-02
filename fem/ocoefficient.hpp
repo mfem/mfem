@@ -22,22 +22,31 @@
 namespace mfem {
   class OccaParameter {
   public:
+    virtual ~OccaParameter();
+
+    virtual OccaParameter* Clone() = 0;
+
     virtual void SetProps(occa::properties &props);
+
     virtual occa::kernelArg KernelArgs();
   };
 
-  //---[ Defined Parameter ]------------
+  //---[ Define Parameter ]------------
   template <class TM>
-  class OccaDefinedParameter : public OccaParameter {
+  class OccaDefineParameter : public OccaParameter {
   private:
     const std::string name;
     TM value;
 
   public:
-    OccaDefinedParameter(const std::string &name_,
-                         const TM &value_) :
+    OccaDefineParameter(const std::string &name_,
+                        const TM &value_) :
       name(name_),
       value(value_) {}
+
+    virtual OccaParameter* Clone() {
+      return new OccaDefineParameter(name, value);
+    }
 
     virtual void SetProps(occa::properties &props) {
       props["defines"][name] = value;
@@ -50,13 +59,17 @@ namespace mfem {
   class OccaVariableParameter : public OccaParameter {
   private:
     const std::string name;
-    TM &value;
+    const TM &value;
 
   public:
     OccaVariableParameter(const std::string &name_,
                           const TM &value_) :
       name(name_),
       value(value_) {}
+
+    virtual OccaParameter* Clone() {
+      return new OccaVariableParameter(name, value);
+    }
 
     virtual void SetProps(occa::properties &props) {
       std::string &args = (props["defines/COEFF_ARGS"]
@@ -84,6 +97,8 @@ namespace mfem {
   public:
     OccaIncludeParameter(const std::string &filename_);
 
+    virtual OccaParameter* Clone();
+
     virtual void SetProps(occa::properties &props);
   };
   //====================================
@@ -96,6 +111,8 @@ namespace mfem {
   public:
     OccaSourceParameter(const std::string &filename_);
 
+    virtual OccaParameter* Clone();
+
     virtual void SetProps(occa::properties &props);
   };
   //====================================
@@ -103,22 +120,36 @@ namespace mfem {
   //---[ Coefficient ]------------------
   class OccaCoefficient {
   private:
+    std::string name;
+    occa::json coeffValue, coeffArgs;
+
     std::vector<OccaParameter*> params;
-    occa::properties props;
 
   public:
-    OccaCoefficient();
-    OccaCoefficient(const double value);
-    OccaCoefficient(const std::string &function);
+    OccaCoefficient(const double value = 1.0);
+    OccaCoefficient(const std::string &source);
+    ~OccaCoefficient();
 
     OccaCoefficient(const OccaCoefficient &coeff);
 
-    virtual void SetCoeffProps(occa::properties &props_);
-    virtual occa::kernelArg CoeffKernelArg();
+    OccaCoefficient& SetName(const std::string &name_);
 
-    OccaCoefficient& With(OccaParameter *param);
+    template <class TM>
+    OccaCoefficient& AddDefine(const std::string &name_, const TM &value) {
+      params.push_back(new OccaDefineParameter<TM>(name_, value));
+      return *this;
+    }
 
-    void SetProps(occa::properties &props_);
+    template <class TM>
+    OccaCoefficient& AddVariable(const std::string &name_, const TM &value) {
+      params.push_back(new OccaVariableParameter<TM>(name_, value));
+      return *this;
+    }
+
+    OccaCoefficient& IncludeHeader(const std::string &filename);
+    OccaCoefficient& IncludeSource(const std::string &source);
+
+    OccaCoefficient& SetProps(occa::properties &props);
 
     operator occa::kernelArg ();
   };
