@@ -129,6 +129,15 @@ namespace mfem {
     // Assembles the form i.e. sums over all domain/bdr integrators.
     virtual void Assemble();
 
+    void FormOperator(const Array<int> &ess_tdof_list,
+                      OccaVector &x, OccaVector &b,
+                      Operator* &Aout,
+                      OccaVector &X, OccaVector &B,
+                      int copy_interior = 0);
+
+    void FormOperator(const Array<int> &ess_tdof_list,
+                      Operator *&Aout);
+
     // Matrix vector multiplication.
     virtual void Mult(const OccaVector &x, OccaVector &y) const;
 

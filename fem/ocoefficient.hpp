@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "occa.hpp"
+#include "../linalg/ovector.hpp"
 
 namespace mfem {
   class OccaParameter {
@@ -30,6 +31,34 @@ namespace mfem {
 
     virtual occa::kernelArg KernelArgs();
   };
+
+  //---[ Include Parameter ]------------
+  class OccaIncludeParameter : public OccaParameter {
+  private:
+    std::string filename;
+
+  public:
+    OccaIncludeParameter(const std::string &filename_);
+
+    virtual OccaParameter* Clone();
+
+    virtual void SetProps(occa::properties &props);
+  };
+  //====================================
+
+  //---[ Source Parameter ]------------
+  class OccaSourceParameter : public OccaParameter {
+  private:
+    std::string source;
+
+  public:
+    OccaSourceParameter(const std::string &filename_);
+
+    virtual OccaParameter* Clone();
+
+    virtual void SetProps(occa::properties &props);
+  };
+  //====================================
 
   //---[ Define Parameter ]------------
   template <class TM>
@@ -89,35 +118,59 @@ namespace mfem {
   };
   //====================================
 
-  //---[ Include Parameter ]------------
-  class OccaIncludeParameter : public OccaParameter {
+  //---[ Vector Parameter ]-------
+  class OccaVectorParameter : public OccaParameter {
   private:
-    std::string filename;
+    const std::string name;
+    OccaVector v;
+    bool useRestrict;
+    std::string attr;
 
   public:
-    OccaIncludeParameter(const std::string &filename_);
+    OccaVectorParameter(const std::string &name_,
+                        OccaVector &v_,
+                        const bool useRestrict_ = false);
+
+    OccaVectorParameter(const std::string &name_,
+                        OccaVector &v_,
+                        const std::string &attr_,
+                        const bool useRestrict_ = false);
 
     virtual OccaParameter* Clone();
 
     virtual void SetProps(occa::properties &props);
+
+    virtual occa::kernelArg KernelArgs();
   };
   //====================================
 
-  //---[ Source Parameter ]------------
-  class OccaSourceParameter : public OccaParameter {
+  //---[ GridFunction Parameter ]-------
+  class OccaGridFunctionParameter : public OccaParameter {
   private:
-    std::string source;
+    const std::string name;
+    OccaVector gf;
+    bool useRestrict;
 
   public:
-    OccaSourceParameter(const std::string &filename_);
+    OccaGridFunctionParameter(const std::string &name_,
+                              OccaVector &gf_,
+                              const bool useRestrict_ = false);
 
     virtual OccaParameter* Clone();
 
     virtual void SetProps(occa::properties &props);
+
+    virtual occa::kernelArg KernelArgs();
   };
   //====================================
 
   //---[ Coefficient ]------------------
+  // [MISSING]
+  // Needs to know about the integrator's
+  //   - fespace
+  //   - ir
+  // Step where parameters that need the ir get called for setup
+  // For example, GridFunction (d, e) -> (q, e)
   class OccaCoefficient {
   private:
     std::string name;
@@ -134,20 +187,34 @@ namespace mfem {
 
     OccaCoefficient& SetName(const std::string &name_);
 
+    OccaCoefficient& Add(OccaParameter *param);
+
+    OccaCoefficient& IncludeHeader(const std::string &filename);
+    OccaCoefficient& IncludeSource(const std::string &source);
+
     template <class TM>
     OccaCoefficient& AddDefine(const std::string &name_, const TM &value) {
-      params.push_back(new OccaDefineParameter<TM>(name_, value));
-      return *this;
+      return Add(new OccaDefineParameter<TM>(name_, value));
     }
 
     template <class TM>
     OccaCoefficient& AddVariable(const std::string &name_, const TM &value) {
-      params.push_back(new OccaVariableParameter<TM>(name_, value));
-      return *this;
+      return Add(new OccaVariableParameter<TM>(name_, value));
     }
 
-    OccaCoefficient& IncludeHeader(const std::string &filename);
-    OccaCoefficient& IncludeSource(const std::string &source);
+    OccaCoefficient& AddVector(const std::string &name_,
+                               OccaVector &v,
+                               const bool useRestrict = false);
+
+
+    OccaCoefficient& AddVector(const std::string &name_,
+                               OccaVector &v,
+                               const std::string &attr,
+                               const bool useRestrict = false);
+
+    OccaCoefficient& AddGridFunction(const std::string &name_,
+                                     OccaVector &gf,
+                                     const bool useRestrict = false);
 
     OccaCoefficient& SetProps(occa::properties &props);
 

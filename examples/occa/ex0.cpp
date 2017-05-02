@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
    OccaVector B, X;
    Array<int> ess_tdof_list;
 
-   a->FormLinearSystem(ess_tdof_list, x, b, A, X, B, 1);
+   a->FormOperator(ess_tdof_list, x, b, A, X, B, 1);
 
    CG(*A, B, X, 1, 200, 1e-12, 0.0);
 

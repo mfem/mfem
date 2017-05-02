@@ -33,10 +33,10 @@ namespace mfem {
     const FiniteElementSpace &fespace = *(nodes.FESpace());
     const FiniteElement &fe = *(fespace.GetFE(0));
 
-    const int dims = fe.GetDim();
+    const int dims     = fe.GetDim();
     const int elements = fespace.GetNE();
-    const int numDofs = fe.GetDof();
-    const int numQuad = ir.GetNPoints();
+    const int numDofs  = fe.GetDof();
+    const int numQuad  = ir.GetNPoints();
 
     Ordering::Type originalOrdering = fespace.GetOrdering();
     nodes.ReorderByVDim();
@@ -143,6 +143,7 @@ namespace mfem {
 
     const Poly_1D::Basis &basis = fe.GetBasis();
     const int order = fe.GetOrder();
+    // [MISSING] Get 1D dofs
     const int dofs = order + 1;
     const int dims = fe.GetDim();
 

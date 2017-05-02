@@ -268,6 +268,19 @@ namespace mfem {
     }
   }
 
+  void OccaBilinearForm::FormOperator(const Array<int> &ess_tdof_list,
+                                      OccaVector &x, OccaVector &b,
+                                      Operator* &Aout,
+                                      OccaVector &X, OccaVector &B,
+                                      int copy_interior) {
+    FormLinearSystem(ess_tdof_list, x, b, Aout, X, B, copy_interior);
+  }
+
+  void OccaBilinearForm::FormOperator(const Array<int> &ess_tdof_list,
+                                      Operator *&Aout) {
+    // [MISSING]
+  }
+
   // Matrix vector multiplication.
   void OccaBilinearForm::Mult(const OccaVector &x, OccaVector &y) const {
     VectorExtract(x, localX);

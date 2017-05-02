@@ -52,6 +52,78 @@ namespace mfem {
   }
   //====================================
 
+  //---[ Vector Parameter ]-------
+  OccaVectorParameter::OccaVectorParameter(const std::string &name_,
+                                           OccaVector &v_,
+                                           const bool useRestrict_) :
+    name(name_),
+    v(v_),
+    attr(""),
+    useRestrict(useRestrict_) {}
+
+  OccaVectorParameter::OccaVectorParameter(const std::string &name_,
+                                           OccaVector &v_,
+                                           const std::string &attr_,
+                                           const bool useRestrict_) :
+    name(name_),
+    v(v_),
+    attr(attr_),
+    useRestrict(useRestrict_) {}
+
+  OccaParameter* OccaVectorParameter::Clone() {
+    return new OccaVectorParameter(name, v, attr, useRestrict);
+  }
+
+  void OccaVectorParameter::SetProps(occa::properties &props) {
+    std::string &args = (props["defines/COEFF_ARGS"]
+                         .asString()
+                         .string());
+    args += "const double *";
+    if (useRestrict) {
+      args += " restrict ";
+    }
+    args += name;
+    if (attr.size()) {
+      args += ' ';
+      args += attr;
+    }
+    args += ",\n";
+  }
+
+  occa::kernelArg OccaVectorParameter::KernelArgs() {
+    return occa::kernelArg(v);
+  }
+  //====================================
+
+  //---[ GridFunction Parameter ]-------
+  OccaGridFunctionParameter::OccaGridFunctionParameter(const std::string &name_,
+                                                       OccaVector &gf_,
+                                                       const bool useRestrict_) :
+    name(name_),
+    gf(gf_),
+    useRestrict(useRestrict_) {}
+
+  OccaParameter* OccaGridFunctionParameter::Clone() {
+    return new OccaGridFunctionParameter(name, gf, useRestrict);
+  }
+
+  void OccaGridFunctionParameter::SetProps(occa::properties &props) {
+      std::string &args = (props["defines/COEFF_ARGS"]
+                           .asString()
+                           .string());
+      args += "const double *";
+      if (useRestrict) {
+        args += " restrict ";
+      }
+      args += name;
+      args += " @(NUM_QUAD, numElements),\n";
+  }
+
+  occa::kernelArg OccaGridFunctionParameter::KernelArgs() {
+    return occa::kernelArg(gf);
+  }
+  //====================================
+
   //---[ Coefficient ]------------------
   OccaCoefficient::OccaCoefficient(const double value) :
     name("COEFF") {
@@ -88,14 +160,36 @@ namespace mfem {
     return *this;
   }
 
-  OccaCoefficient& OccaCoefficient::IncludeHeader(const std::string &filename) {
-    params.push_back(new OccaIncludeParameter(filename));
+  OccaCoefficient& OccaCoefficient::Add(OccaParameter *param) {
+    params.push_back(param);
     return *this;
   }
 
+  OccaCoefficient& OccaCoefficient::IncludeHeader(const std::string &filename) {
+    return Add(new OccaIncludeParameter(filename));
+  }
+
   OccaCoefficient& OccaCoefficient::IncludeSource(const std::string &source) {
-    params.push_back(new OccaSourceParameter(source));
-    return *this;
+    return Add(new OccaSourceParameter(source));
+  }
+
+  OccaCoefficient& OccaCoefficient::AddVector(const std::string &name_,
+                                              OccaVector &v,
+                                              const bool useRestrict) {
+    return Add(new OccaVectorParameter(name_, v, useRestrict));
+  }
+
+  OccaCoefficient& OccaCoefficient::AddVector(const std::string &name_,
+                                              OccaVector &v,
+                                              const std::string &attr,
+                                              const bool useRestrict) {
+    return Add(new OccaVectorParameter(name_, v, attr, useRestrict));
+  }
+
+  OccaCoefficient& OccaCoefficient::AddGridFunction(const std::string &name_,
+                                                    OccaVector &gf,
+                                                    const bool useRestrict) {
+    return Add(new OccaGridFunctionParameter(name_, gf, useRestrict));
   }
 
   OccaCoefficient& OccaCoefficient::SetProps(occa::properties &props) {
