@@ -824,9 +824,9 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(
          {
             IntegrationPoint ip;
             ip.Set(pt, dim);
-            fe->CalcShape(ip, shape); // TODO: H(curl), etc.?
             MFEM_ASSERT(dynamic_cast<const NodalFiniteElement*>(fe),
                         "only nodal FEs are implemented");
+            fe->CalcShape(ip, shape); // TODO: H(curl), etc.?
             lR.SetRow(j, shape);
          }
       }
