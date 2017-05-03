@@ -125,6 +125,8 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec = new L2_FECollection(order, dim, basis);
 #endif
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   OccaFiniteElementSpace *ofespace = new OccaFiniteElementSpace(fespace);
+
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
@@ -144,7 +146,7 @@ int main(int argc, char *argv[])
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
-   OccaVector x(fespace->GetVSize());
+   OccaGridFunction x(ofespace);
    x = 0.0;
 
    // 8. Set up the bilinear form a(.,.) on the finite element space
@@ -153,7 +155,7 @@ int main(int argc, char *argv[])
    cout << "Assembling the bilinear form ..." << flush;
    tic_toc.Clear();
    tic_toc.Start();
-   OccaBilinearForm *a = new OccaBilinearForm(fespace);
+   OccaBilinearForm *a = new OccaBilinearForm(ofespace);
    a->AddDomainIntegrator(new OccaMassIntegrator(1.0));
    a->Assemble();
    tic_toc.Stop();

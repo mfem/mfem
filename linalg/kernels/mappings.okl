@@ -15,43 +15,6 @@
   ================================================
 */
 
-kernel void VectorExtract(const int entries,
-                          const int * restrict offsets,
-                          const int * restrict indices,
-                          const double * restrict globalX,
-                          double * restrict localX) {
-
-  for (int i = 0; i < entries; ++i; tile(TILESIZE)) {
-    if (i < entries) {
-      const int offset = offsets[i];
-      const int nextOffset = offsets[i + 1];
-      const double dofValue = globalX[i];
-      for (int j = offset; j < nextOffset; ++j) {
-        localX[indices[j]] = dofValue;
-      }
-    }
-  }
-}
-
-kernel void VectorAssemble(const int entries,
-                           const int * restrict offsets,
-                           const int * restrict indices,
-                           const double * restrict localX,
-                           double * restrict globalX) {
-
-  for (int i = 0; i < entries; ++i; tile(TILESIZE)) {
-    if (i < entries) {
-      const int offset = offsets[i];
-      const int nextOffset = offsets[i + 1];
-      double dofValue = 0;
-      for (int j = offset; j < nextOffset; ++j) {
-        dofValue += localX[indices[j]];
-      }
-      globalX[i] = dofValue;
-    }
-  }
-}
-
 kernel void ExtractSubVector(const int entries,
                              const int * restrict indices,
                              const double * restrict in,

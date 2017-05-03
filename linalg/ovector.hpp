@@ -29,7 +29,7 @@ namespace mfem
   class OccaVector
   {
   protected:
-    uint64_t size_;
+    uint64_t size;
     occa::memory data;
 
   public:
@@ -41,11 +41,11 @@ namespace mfem
 
     /// @brief Creates vector of size s using the current OCCA device
     /// @warning Entries are not initialized to zero!
-    OccaVector(const int64_t size);
+    OccaVector(const int64_t size_);
 
     /// @brief Creates vector of size s using the passed OCCA device
     /// @warning Entries are not initialized to zero!
-    OccaVector(occa::device device, const int64_t size);
+    OccaVector(occa::device device, const int64_t size_);
 
     /// Creates vector based on Vector using the current OCCA device
     OccaVector(const Vector &v);
@@ -60,7 +60,7 @@ namespace mfem
     void Load(std::istream **in, int np, int *dim);
 
     /// Load a vector from an input stream.
-    void Load(std::istream &in, int Size);
+    void Load(std::istream &in, int size_);
 
     /// Load a vector from an input stream, reading the size from the stream.
     inline void Load(std::istream &in) {
@@ -75,21 +75,21 @@ namespace mfem
         owned, and a new array of size @a s is allocated without copying the
         previous content of the Vector.
         @warning New entries are not initialized! */
-    void SetSize(const int64_t size, const void *src = NULL);
-    void SetSize(occa::device device, const int64_t size, const void *src = NULL);
+    void SetSize(const int64_t size_, const void *src = NULL);
+    void SetSize(occa::device device, const int64_t size_, const void *src = NULL);
 
-    inline void SetDataAndSize(occa::memory newData, int size) {
+    inline void SetDataAndSize(occa::memory newData, int size_) {
       data = newData;
-      size_ = size;
+      size = size_;
     }
 
-    inline void NewDataAndSize(occa::memory newData, int size) {
-      SetDataAndSize(newData, size);
+    inline void NewDataAndSize(occa::memory newData, int size_) {
+      SetDataAndSize(newData, size_);
     }
 
     /// Returns the size of the vector.
     inline uint64_t Size() const {
-      return size_;
+      return size;
     }
 
     /// Return the size of the currently allocated data array.
@@ -113,7 +113,7 @@ namespace mfem
     /// Changes the ownership of the data; after the call the Vector is empty
     inline void StealData(OccaVector &v) {
       v.data = data;
-      size_ = 0;
+      size = 0;
     }
 
     /// Changes the ownership of the data; after the call the Vector is empty
@@ -166,7 +166,7 @@ namespace mfem
 
     /// Swap the contents of two Vectors
     inline void Swap(OccaVector &other) {
-      mfem::Swap(size_, other.size_);
+      mfem::Swap(size, other.size);
       mfem::Swap(data, other.data);
     }
 

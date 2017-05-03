@@ -21,6 +21,7 @@
 
 #include "../linalg/operator.hpp"
 #include "bilinearform.hpp"
+#include "ofespace.hpp"
 
 #include "occa.hpp"
 
@@ -44,6 +45,7 @@ namespace mfem {
     typedef std::vector<OccaIntegrator*> IntegratorVector;
 
     // State information
+    mutable OccaFiniteElementSpace *ofespace;
     mutable FiniteElementSpace *fespace;
     mutable Mesh *mesh;
 
@@ -53,32 +55,15 @@ namespace mfem {
     occa::device device;
     occa::properties baseKernelProps;
 
-    // Sparse storage for the global dof -> local node mapping
-    occa::array<int> globalToLocalOffsets, globalToLocalIndices;
-
     // The input vector is mapped to local nodes for easy and efficient operations
     // The size is: (number of elements) * (nodes in element)
     mutable OccaVector localX;
 
-    // Kernels to do the global -> local and local -> global mappings
-    occa::kernel vectorExtractKernel, vectorAssembleKernel;
-
-    Operator *restrictionOp, *prolongationOp;
-
   public:
-    OccaBilinearForm(FiniteElementSpace *fespace_);
-    OccaBilinearForm(occa::device device_, FiniteElementSpace *fespace_);
+    OccaBilinearForm(OccaFiniteElementSpace *ofespace_);
+    OccaBilinearForm(occa::device device_, OccaFiniteElementSpace *ofespace_);
 
-    void Init(occa::device device_, FiniteElementSpace *fespace_);
-
-    // Setup kernels and  properties
-    void SetupKernels();
-
-    // Setup device data needed for applying integrators
-    void SetupIntegratorData();
-
-    // Setup prolongation and restriction operators if needed
-    void SetupInterpolationData();
+    void Init(occa::device device_, OccaFiniteElementSpace *ofespace_);
 
     occa::device GetDevice();
 
@@ -86,6 +71,7 @@ namespace mfem {
     int BaseGeom() const;
     Mesh& GetMesh() const;
     FiniteElementSpace& GetFESpace() const;
+    OccaFiniteElementSpace& GetOccaFESpace() const;
 
     // Useful FE information
     int GetDim() const;
@@ -119,12 +105,6 @@ namespace mfem {
     virtual const Operator *GetProlongation() const;
     // Get the finite element space restriction matrix
     virtual const Operator *GetRestriction() const;
-
-    // Map the global dofs to local nodes
-    void VectorExtract(const OccaVector &globalVec, OccaVector &localVec) const;
-
-    // Aggregate local node values to their respective global dofs
-    void VectorAssemble(const OccaVector &localVec, OccaVector &globalVec) const;
 
     // Assembles the form i.e. sums over all domain/bdr integrators.
     virtual void Assemble();

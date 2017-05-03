@@ -44,8 +44,12 @@
 #endif
 
 #ifdef MFEM_USE_OCCA
-#include "obilinearform.hpp"
-#include "obilininteg.hpp"
+#  include "ofespace.hpp"
+#  include "ogridfunc.hpp"
+#  include "ointerpolation.hpp"
+#  include "ocoefficient.hpp"
+#  include "obilinearform.hpp"
+#  include "obilininteg.hpp"
 #endif
 
 #ifdef MFEM_USE_ACROTENSOR
