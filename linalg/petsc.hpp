@@ -21,6 +21,7 @@
 #ifdef MFEM_USE_MPI
 
 #include <petsc.h>
+#include <limits>
 
 namespace mfem
 {
