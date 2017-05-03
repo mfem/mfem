@@ -104,6 +104,14 @@ void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
       input >> ws;
       curved = 1;
    }
+
+   ent_sets = new EntitySets(*this);
+   ent_sets->Load(input);
+   if ( ent_sets->GetNumSets(EntitySets::FACE) > 0 && faces.Size() == 0 )
+   {
+      GetElementToFaceTable();
+      GenerateFaces();
+   }
 }
 
 void Mesh::ReadLineMesh(std::istream &input)

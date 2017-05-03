@@ -21,6 +21,8 @@
 #include <limits>
 #include <list>
 
+using namespace std;
+
 namespace mfem
 {
 
@@ -518,6 +520,28 @@ void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    }
 }
 
+void ParFiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
+                                              int set_index,
+                                              Array<int> &ess_dofs) const
+{
+   FiniteElementSpace::GetEssentialVDofs(type, set_index, ess_dofs);
+
+   if (Conforming())
+   {
+      // Make sure that processors without boundary elements mark
+      // their boundary dofs (if they have any).
+      Synchronize(ess_dofs);
+   }
+}
+
+void ParFiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
+                                              const string & set_name,
+                                              Array<int> &ess_vdofs) const
+{
+   GetEssentialVDofs(type, pmesh->ent_sets->GetSetIndex(type, set_name),
+                     ess_vdofs);
+}
+
 void ParFiniteElementSpace::GetEssentialTrueDofs(
    const Array<int> &bdr_attr_is_ess, Array<int> &ess_tdof_list)
 {
@@ -526,6 +550,25 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(
    GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
    GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
    MarkerToList(true_ess_dofs, ess_tdof_list);
+}
+
+void ParFiniteElementSpace::GetEssentialTrueDofs(EntitySets::EntityType type,
+                                                 int set_index,
+                                                 Array<int> &ess_tdof_list)
+{
+   Array<int> ess_dofs, true_ess_dofs;
+
+   GetEssentialVDofs(type, set_index, ess_dofs);
+   GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
+   MarkerToList(true_ess_dofs, ess_tdof_list);
+}
+
+void ParFiniteElementSpace::GetEssentialTrueDofs(EntitySets::EntityType type,
+                                                 const string & set_name,
+                                                 Array<int> &ess_tdof_list)
+{
+   GetEssentialTrueDofs(type, pmesh->ent_sets->GetSetIndex(type, set_name),
+                        ess_tdof_list);
 }
 
 int ParFiniteElementSpace::GetLocalTDofNumber(int ldof)

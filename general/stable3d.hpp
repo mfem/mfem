@@ -14,6 +14,8 @@
 
 #include "mem_alloc.hpp"
 
+#include <iostream>
+
 namespace mfem
 {
 
@@ -21,7 +23,7 @@ class STable3DNode
 {
 public:
    STable3DNode *Prev;
-   int Column, Floor, Number;
+   int Column, Floor, Tier, Number;
 };
 
 /// Symmetric 3D Table
@@ -38,7 +40,7 @@ private:
 public:
    explicit STable3D (int nr);
 
-   int Push (int r, int c, int f);
+   int Push (int r, int c, int f, int t = -1);
 
    int operator() (int r, int c, int f) const;
 
@@ -48,9 +50,26 @@ public:
 
    int operator() (int r, int c, int f, int t) const;
 
-   int NumberOfElements() { return NElem; }
+   int NumberOfRows() const { return Size; }
+   int NumberOfElements() const { return NElem; }
+
+   void Print(std::ostream & out) const;
 
    ~STable3D ();
+
+   class RowIterator
+   {
+   private:
+      STable3DNode *n;
+   public:
+      RowIterator (const STable3D &t, int r) { n = t.Rows[r]; }
+      int operator!() { return (n != NULL); }
+      void operator++() { n = n->Prev; }
+      int Column() { return (n->Column); }
+      int Floor()  { return (n->Floor); }
+      int Tier()   { return (n->Tier); }
+      int Index()  { return (n->Number); }
+   };
 };
 
 }

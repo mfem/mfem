@@ -18,6 +18,7 @@
 #include "tetrahedron.hpp"
 #include "vertex.hpp"
 #include "ncmesh.hpp"
+#include "entsets.hpp"
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
 #include "../general/gzstream.hpp"
@@ -46,8 +47,10 @@ class Mesh
 #ifdef MFEM_USE_MPI
    friend class ParMesh;
    friend class ParNCMesh;
+   friend class ParEntitySets;
 #endif
    friend class NURBSExtension;
+   friend class EntitySets;
 
 protected:
    int Dim;
@@ -105,6 +108,7 @@ protected:
    Array<int> be_to_face;
    mutable Table *face_edge;
    mutable Table *edge_vertex;
+   mutable Table *face_vertex;
 
    IsoparametricTransformation Transformation, Transformation2;
    IsoparametricTransformation FaceTransformation, EdgeTransformation;
@@ -143,6 +147,8 @@ public:
 
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional non-conforming mesh extension.
+
+   EntitySets *ent_sets;
 
 protected:
    Operation last_operation;
@@ -195,7 +201,7 @@ protected:
    void PrepareNodeReorder(DSTable **old_v_to_v, Table **old_elem_vert);
    void DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert);
 
-   STable3D *GetFacesTable();
+   STable3D *GetFacesTable() const;
    STable3D *GetElementToFaceTable(int ret_ftbl = 0);
 
    /** Red refinement. Element with index i is refined. The default
@@ -694,8 +700,11 @@ public:
    /// Returns the face-to-edge Table (3D)
    Table *GetFaceEdgeTable() const;
 
-   /// Returns the edge-to-vertex Table (3D)
+   /// Returns the edge-to-vertex Table (2D or 3D)
    Table *GetEdgeVertexTable() const;
+
+   /// Returns the face-to-vertex Table (2d or 3D)
+   Table *GetFaceVertexTable() const;
 
    /// Return the indices and the orientations of all faces of element i.
    void GetElementFaces(int i, Array<int> &, Array<int> &) const;

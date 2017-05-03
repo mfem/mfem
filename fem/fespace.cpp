@@ -292,6 +292,50 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    }
 }
 
+void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
+                                           int set_index,
+                                           Array<int> &ess_vdofs) const
+{
+   Array<int> vdofs;
+
+   ess_vdofs.SetSize(GetVSize());
+   ess_vdofs = 0;
+
+   if ( mesh->ent_sets == NULL ) { return; }
+
+   int num_ents = mesh->ent_sets->GetNumEntities(type, set_index);
+   for (int i=0; i<num_ents; i++)
+   {
+      int ent_index = mesh->ent_sets->GetEntityIndex(type, set_index, i);
+      switch (type)
+      {
+         case EntitySets::VERTEX:
+            GetVertexVDofs(ent_index, vdofs);
+            break;
+         case EntitySets::EDGE:
+            GetEdgeVDofs(ent_index, vdofs);
+            break;
+         case EntitySets::FACE:
+            GetFaceVDofs(ent_index, vdofs);
+            break;
+         case EntitySets::ELEMENT:
+            GetElementVDofs(ent_index, vdofs);
+            break;
+         default:
+            mfem_error("GetEssentialVDofs: Invalid entity type");
+      }
+      mark_dofs(vdofs, ess_vdofs);
+   }
+}
+
+void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
+                                           const string & set_name,
+                                           Array<int> &ess_vdofs) const
+{
+   GetEssentialVDofs(type, mesh->ent_sets->GetSetIndex(type, set_name),
+                     ess_vdofs);
+}
+
 void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                               Array<int> &ess_tdof_list)
 {
@@ -307,6 +351,32 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
       R->BooleanMult(ess_vdofs, ess_tdofs);
    }
    MarkerToList(ess_tdofs, ess_tdof_list);
+}
+
+void FiniteElementSpace::GetEssentialTrueDofs(EntitySets::EntityType type,
+                                              int set_index,
+                                              Array<int> &ess_tdof_list)
+{
+   Array<int> ess_vdofs, ess_tdofs;
+   GetEssentialVDofs(type, set_index, ess_vdofs);
+   const SparseMatrix *R = GetConformingRestriction();
+   if (!R)
+   {
+      ess_tdofs.MakeRef(ess_vdofs);
+   }
+   else
+   {
+      R->BooleanMult(ess_vdofs, ess_tdofs);
+   }
+   MarkerToList(ess_tdofs, ess_tdof_list);
+}
+
+void FiniteElementSpace::GetEssentialTrueDofs(EntitySets::EntityType type,
+                                              const string & set_name,
+                                              Array<int> &ess_tdof_list)
+{
+   GetEssentialTrueDofs(type, mesh->ent_sets->GetSetIndex(type, set_name),
+                        ess_tdof_list);
 }
 
 // static method

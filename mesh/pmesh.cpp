@@ -78,6 +78,15 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
       *Nodes = *pmesh.Nodes;
       own_nodes = 1;
    }
+
+   if ( pmesh.pent_sets )
+   {
+      ent_sets = pent_sets = new ParEntitySets(*pmesh.pent_sets);
+   }
+   else
+   {
+      ent_sets = pent_sets = NULL;
+   }
 }
 
 ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
@@ -659,6 +668,13 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
             Nodes->SetSubVector(lvdofs, lnodes);
             element_counter++;
          }
+   }
+
+   if ( mesh.ent_sets )
+   {
+      ent_sets = pent_sets = new ParEntitySets(*this, *mesh.ent_sets,
+                                               partitioning,
+                                               vert_global_local);
    }
 
    if (partitioning_ == NULL)

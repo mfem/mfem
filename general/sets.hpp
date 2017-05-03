@@ -37,7 +37,7 @@ public:
    /// p - pointer to block of memory containing the integer values
    IntegerSet(const int n, const int *p) { Recreate(n, p); }
 
-   int Size() { return me.Size(); }
+   int Size() const { return me.Size(); }
 
    operator Array<int>& () { return me; }
 
@@ -46,6 +46,8 @@ public:
    int PickRandomElement();
 
    int operator==(IntegerSet &s);
+
+   inline const int & operator[](int i) const { return me[i]; }
 
    void Recreate(const int n, const int *p);
 };
@@ -58,7 +60,7 @@ private:
 
 public:
 
-   int Size() { return TheList.Size(); }
+   int Size() const { return TheList.Size(); }
 
    int PickElementInSet(int i) { return TheList[i]->PickElement(); }
 
@@ -69,6 +71,9 @@ public:
    int Lookup(IntegerSet &s);
 
    void AsTable(Table &t);
+
+   inline const IntegerSet & operator[](int i) const { return *TheList[i]; }
+   inline IntegerSet & operator[](int i) { return *TheList[i]; }
 
    ~ListOfIntegerSets();
 };
