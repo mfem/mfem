@@ -350,7 +350,6 @@ public:
    void ApplyBC(const Vector &x, Vector &y);
 
    /// y = x-g on ess_tdof_list, the rest of y is unchanged
-   /// If @eval is false, uses the cached g
    void FixResidualBC(const Vector& x, Vector& y);
 
    /// Sets essential dofs to zero
