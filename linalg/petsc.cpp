@@ -107,7 +107,8 @@ typedef struct
    mfem::TimeDependentOperator *op;
    mfem::PetscBCHandler *bchandler;        //Handling of essential bc
    mfem::Vector *work;                     //Work vector
-   enum mfem::PetscODESolver::Type type;   //Either ODE_SOLVER_LINEAR or ODE_SOLVER_GENERAL (default)
+   // Either ODE_SOLVER_LINEAR or ODE_SOLVER_GENERAL (default)
+   enum mfem::PetscODESolver::Type type;
    PetscReal cached_shift;
    bool      computed_rhsjac;
 } __mfem_ts_ctx;
@@ -2500,7 +2501,8 @@ PetscODESolver::~PetscODESolver()
    ierr = TSDestroy(&ts); CCHKERRQ(comm,ierr);
 }
 
-void PetscODESolver::Init(TimeDependentOperator &f_, enum PetscODESolver::Type type)
+void PetscODESolver::Init(TimeDependentOperator &f_,
+                          enum PetscODESolver::Type type)
 {
    TS ts = (TS)obj;
 
@@ -2770,7 +2772,8 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    op->SetTime(t);
 
    // prevent to recompute a Jacobian if we already did so
-   if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR && ts_ctx->cached_shift == shift) PetscFunctionReturn(0);
+   if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
+       ts_ctx->cached_shift == shift) { PetscFunctionReturn(0); }
 
    // wrap Vecs with Vectors
    ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
@@ -2839,7 +2842,8 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    if (ts_ctx->bchandler) { MFEM_ABORT("RHS Jacobian with bc not implemented"); } // TODO
 
    // prevent to recompute a Jacobian if we already did so
-   if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR && ts_ctx->computed_rhsjac) PetscFunctionReturn(0);
+   if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
+       ts_ctx->computed_rhsjac) { PetscFunctionReturn(0); }
 
    // wrap Vec with Vector
    ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
