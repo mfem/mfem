@@ -600,7 +600,8 @@ public:
    PetscODESolver(MPI_Comm comm, const std::string &prefix = std::string());
    virtual ~PetscODESolver();
 
-   virtual void Init(TimeDependentOperator &f_, enum PetscODESolver::Type type = ODE_SOLVER_GENERAL);
+   virtual void Init(TimeDependentOperator &f_,
+                     enum PetscODESolver::Type type = ODE_SOLVER_GENERAL);
 
    virtual void Step(Vector &x, double &t, double &dt);
    virtual void Run(Vector &x, double &t, double &dt, double t_final);
