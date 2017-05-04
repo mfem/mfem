@@ -14,7 +14,7 @@
 #if defined(MFEM_USE_OCCA) && defined(MFEM_USE_ACROTENSOR)
 
 #include "abilininteg.hpp"
-#include <cuda.h>
+//#include <cuda.h>
 
 namespace mfem {
 
@@ -120,11 +120,8 @@ void AcroDiffusionIntegrator::ComputeD(occa::array<double> &jac,
   acro::Tensor WC(nQuad);
   if (onGPU) {WC.SwitchToGPU();}
   TE["WC_i=W_i"](WC, W);
-  std::cout << "Finished copy" << std::endl;
   WC.Mult(const_coeff->constant);
-  std::cout << "Finished WC.Mult" << std::endl;
   WC.Reshape(wdims);
-  std::cout << "Reshaped" << std::endl;
 
   //Get the jacobians and compute D with them
   double *jac_ptr = *((double**) jac.memory().getHandle());
@@ -153,15 +150,12 @@ void AcroDiffusionIntegrator::ComputeD(occa::array<double> &jac,
         (D, WC, Jdet, Jinv, Jinv);
     } else if (nDim == 3){
       D.Init(nElem, nDim, nDim, nQuad1D, nQuad1D, nQuad1D);
-      std::cout << "DInit" << std::endl;
       acro::Tensor J(nElem, nQuad1D, nQuad1D, nQuad1D, nDim, nDim, 
                      jac_ptr, jac_ptr, onGPU);
-      std::cout << "J filled" << std::endl;
       acro::Tensor Jinv(nElem, nQuad1D, nQuad1D, nQuad1D, nDim, nDim, 
                         jacinv_ptr, jacinv_ptr, onGPU);
       acro::Tensor Jdet(nElem, nQuad1D, nQuad1D, nQuad1D, 
                         jacdet_ptr, jacdet_ptr, onGPU);
-      std::cout << "Jinv/det filled" << std::endl;
       TE["D_e_m_n_k1_k2_k3 = WC_k1_k2_k3 Jdet_e_k1_k2_k3 Jinv_e_k1_k2_k3_m_n Jinv_e_k1_k2_k3_n_m"]
         (D, WC, Jdet, Jinv, Jinv);
     } else {

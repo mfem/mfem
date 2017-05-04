@@ -215,7 +215,7 @@ ifeq ($(MFEM_USE_ACROTENSOR),YES)
       CUDALIB_DIR = /usr/local/cuda/lib64
    endif
    ACROTENSOR_DIR = @MFEM_DIR@/../acrotensor
-   ACROTENSOR_OPT = -I$(ACROTENSOR_DIR)/inc -std=c++11
+   ACROTENSOR_OPT = -I$(ACROTENSOR_DIR)/inc -std=c++11 -DACRO_HAVE_CUDA
    ACROTENSOR_LIB = -L$(ACROTENSOR_DIR)/lib -L$(CUDALIB_DIR) -lacrotensor -lcuda -lcudart -lnvrtc
 endif
 
