@@ -14,6 +14,7 @@
 #if defined(MFEM_USE_OCCA) && defined(MFEM_USE_ACROTENSOR)
 
 #include "abilininteg.hpp"
+#include <cuda.h>
 
 namespace mfem {
 
@@ -36,6 +37,8 @@ void AcroDiffusionIntegrator::Setup() {
   if (device.mode() == "CUDA") {
     onGPU = true;
     TE.SetExecutorType("OneOutPerThread");
+    //CUcontext cudaContext = (CUcontext) device.getHandle("type: 'context'");
+    //acro::setCudaContext(cudaContext);
   } else {
     onGPU = false;
     TE.SetExecutorType("CPUInterpreted");
@@ -64,14 +67,14 @@ void AcroDiffusionIntegrator::Setup() {
   haveTensorBasis = (el != NULL);
   if (haveTensorBasis) {
     maps = OccaDofQuadMaps::GetTensorMaps(device, *el, ir);
-    double *b_ptr = (double*) maps.quadToDof.memory().getHandle();
-    double *g_ptr = (double*) maps.quadToDofD.memory().getHandle();
+    double *b_ptr = *((double**) maps.quadToDof.memory().getHandle());
+    double *g_ptr = *((double**) maps.quadToDofD.memory().getHandle());
     B.Init(nQuad1D, nDof1D, b_ptr, b_ptr, onGPU);
     G.Init(nQuad1D, nDof1D, g_ptr, g_ptr, onGPU);
   } else {
     maps = OccaDofQuadMaps::GetSimplexMaps(device, fe, ir);
-    double *b_ptr = (double*) maps.quadToDof.memory().getHandle();
-    double *g_ptr = (double*) maps.quadToDofD.memory().getHandle();
+    double *b_ptr = *((double**) maps.quadToDof.memory().getHandle());
+    double *g_ptr = *((double**) maps.quadToDofD.memory().getHandle());
     B.Init(nQuad, nDof, b_ptr, b_ptr, onGPU);
     G.Init(nQuad, nDof, nDim, g_ptr, g_ptr, onGPU);  
   }
@@ -112,18 +115,21 @@ void AcroDiffusionIntegrator::ComputeD(occa::array<double> &jac,
     mfem_error("AcroDiffusionIntegrator can only handle ConstantCoefficients");
   }
   std::vector<int> wdims(nDim, nQuad1D);
-  double *w_ptr = (double*) maps.quadWeights.memory().getHandle();
+  double *w_ptr = *((double**) maps.quadWeights.memory().getHandle());
   acro::Tensor W(nQuad, w_ptr, w_ptr, onGPU);  
   acro::Tensor WC(nQuad);
   if (onGPU) {WC.SwitchToGPU();}
   TE["WC_i=W_i"](WC, W);
+  std::cout << "Finished copy" << std::endl;
   WC.Mult(const_coeff->constant);
+  std::cout << "Finished WC.Mult" << std::endl;
   WC.Reshape(wdims);
+  std::cout << "Reshaped" << std::endl;
 
   //Get the jacobians and compute D with them
-  double *jac_ptr = (double*) jac.memory().getHandle();
-  double *jacinv_ptr = (double*) jacinv.memory().getHandle();
-  double *jacdet_ptr = (double*) jacdet.memory().getHandle();
+  double *jac_ptr = *((double**) jac.memory().getHandle());
+  double *jacinv_ptr = *((double**) jacinv.memory().getHandle());
+  double *jacdet_ptr = *((double**) jacdet.memory().getHandle());
   if (haveTensorBasis) {
     if (nDim == 1) {
       D.Init(nElem, nDim, nDim, nQuad1D);
@@ -147,12 +153,15 @@ void AcroDiffusionIntegrator::ComputeD(occa::array<double> &jac,
         (D, WC, Jdet, Jinv, Jinv);
     } else if (nDim == 3){
       D.Init(nElem, nDim, nDim, nQuad1D, nQuad1D, nQuad1D);
+      std::cout << "DInit" << std::endl;
       acro::Tensor J(nElem, nQuad1D, nQuad1D, nQuad1D, nDim, nDim, 
                      jac_ptr, jac_ptr, onGPU);
+      std::cout << "J filled" << std::endl;
       acro::Tensor Jinv(nElem, nQuad1D, nQuad1D, nQuad1D, nDim, nDim, 
                         jacinv_ptr, jacinv_ptr, onGPU);
       acro::Tensor Jdet(nElem, nQuad1D, nQuad1D, nQuad1D, 
                         jacdet_ptr, jacdet_ptr, onGPU);
+      std::cout << "Jinv/det filled" << std::endl;
       TE["D_e_m_n_k1_k2_k3 = WC_k1_k2_k3 Jdet_e_k1_k2_k3 Jinv_e_k1_k2_k3_m_n Jinv_e_k1_k2_k3_n_m"]
         (D, WC, Jdet, Jinv, Jinv);
     } else {
@@ -239,7 +248,7 @@ void AcroDiffusionIntegrator::Mult(OccaVector &v) {
     }
   }
 
-  double *v_ptr = (double*)v.GetData().getHandle();
+  double *v_ptr = *((double**) v.GetData().getHandle());
   if (haveTensorBasis) {
     if (nDim == 1) {
       acro::Tensor V(nElem, nDof1D, 
