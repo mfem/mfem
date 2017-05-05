@@ -211,17 +211,16 @@ PetscParVector::PetscParVector(const PetscParMatrix &A,
    Mat pA = const_cast<PetscParMatrix&>(A);
    if (!transpose)
    {
-      ierr = MatCreateVecs(pA,&x,NULL);
+      ierr = MatCreateVecs(pA,&x,NULL); PCHKERRQ(pA,ierr);
    }
    else
    {
-      ierr = MatCreateVecs(pA,NULL,&x);
+      ierr = MatCreateVecs(pA,NULL,&x); PCHKERRQ(pA,ierr);
    }
    if (!allocate)
    {
       ierr = VecReplaceArray(x,NULL); PCHKERRQ(x,ierr);
    }
-   PCHKERRQ(pA,ierr);
    _SetDataAndSize_();
 }
 
@@ -2972,7 +2971,7 @@ static PetscErrorCode __mfem_mat_shell_apply(Mat A, Vec x, Vec y)
    PetscErrorCode       ierr;
 
    PetscFunctionBeginUser;
-   ierr = MatShellGetContext(A,(void **)&ctx); PCHKERRQ(A,ierr);
+   ierr = MatShellGetContext(A,(void **)&ctx); CHKERRQ(ierr);
    mfem::PetscParVector xx(x,true);
    mfem::PetscParVector yy(y,true);
    ctx->op->Mult(xx,yy);
@@ -2989,7 +2988,7 @@ static PetscErrorCode __mfem_mat_shell_apply_transpose(Mat A, Vec x, Vec y)
    PetscErrorCode       ierr;
 
    PetscFunctionBeginUser;
-   ierr = MatShellGetContext(A,(void **)&ctx); PCHKERRQ(A,ierr);
+   ierr = MatShellGetContext(A,(void **)&ctx); CHKERRQ(ierr);
    mfem::PetscParVector xx(x,true);
    mfem::PetscParVector yy(y,true);
    ctx->op->MultTranspose(xx,yy);
@@ -3006,7 +3005,7 @@ static PetscErrorCode __mfem_mat_shell_destroy(Mat A)
    PetscErrorCode       ierr;
 
    PetscFunctionBeginUser;
-   ierr = MatShellGetContext(A,(void **)&ctx); PCHKERRQ(A,ierr);
+   ierr = MatShellGetContext(A,(void **)&ctx); CHKERRQ(ierr);
    delete ctx;
    PetscFunctionReturn(0);
 }
@@ -3019,7 +3018,7 @@ static PetscErrorCode __mfem_pc_shell_apply(PC pc, Vec x, Vec y)
    PetscErrorCode      ierr;
 
    PetscFunctionBeginUser;
-   ierr = PCShellGetContext(pc,(void **)&ctx); PCHKERRQ(pc,ierr);
+   ierr = PCShellGetContext(pc,(void **)&ctx); CHKERRQ(ierr);
    mfem::PetscParVector xx(x,true);
    mfem::PetscParVector yy(y,true);
    ctx->op->Mult(xx,yy);
@@ -3036,7 +3035,7 @@ static PetscErrorCode __mfem_pc_shell_apply_transpose(PC pc, Vec x, Vec y)
    PetscErrorCode      ierr;
 
    PetscFunctionBeginUser;
-   ierr = PCShellGetContext(pc,(void **)&ctx); PCHKERRQ(pc,ierr);
+   ierr = PCShellGetContext(pc,(void **)&ctx); CHKERRQ(ierr);
    mfem::PetscParVector xx(x,true);
    mfem::PetscParVector yy(y,true);
    ctx->op->MultTranspose(xx,yy);
@@ -3061,7 +3060,7 @@ static PetscErrorCode __mfem_pc_shell_destroy(PC pc)
    PetscErrorCode      ierr;
 
    PetscFunctionBeginUser;
-   ierr = PCShellGetContext(pc,(void **)&ctx); PCHKERRQ(pc,ierr);
+   ierr = PCShellGetContext(pc,(void **)&ctx); CHKERRQ(ierr);
    delete ctx;
    PetscFunctionReturn(0);
 }
