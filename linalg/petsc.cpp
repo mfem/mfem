@@ -107,7 +107,7 @@ typedef struct
    mfem::TimeDependentOperator      *op;             // The time-dependent operator
    mfem::PetscBCHandler             *bchandler;      // Handling of essential bc
    mfem::Vector                     *work;           // Work vector
-   enum mfem::PetscODESolver::Type  type;            // Either ODE_SOLVER_LINEAR or ODE_SOLVER_GENERAL (default)
+   enum mfem::PetscODESolver::Type  type;
    PetscReal                        cached_shift;
    bool                             computed_rhsjac;
 } __mfem_ts_ctx;
@@ -1180,10 +1180,7 @@ Operator::Type PetscParMatrix::GetType() const
    if (ok == PETSC_TRUE) { return PETSC_MATSHELL; }
    ierr = PetscObjectTypeCompare(oA, MATNEST, &ok); PCHKERRQ(A,ierr);
    if (ok == PETSC_TRUE) { return PETSC_MATNEST; }
-   MatType mat_type; // char *
-   ierr = MatGetType(A, &mat_type); PCHKERRQ(A,ierr);
-   MFEM_ABORT("PETSc matrix type = '" << mat_type << "' is not implemented");
-   return PETSC_MATAIJ;
+   return PETSC_MATGENERIC;
 }
 
 void EliminateBC(PetscParMatrix &A, PetscParMatrix &Ae,
