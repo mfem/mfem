@@ -149,6 +149,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim, basis);
     }
   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+  OccaFiniteElementSpace *ofespace = new OccaFiniteElementSpace(fespace);
   cout << "Number of finite element unknowns: "
        << fespace->GetTrueVSize() << endl;
 
@@ -201,7 +202,7 @@ int main(int argc, char *argv[])
   cout << "Assembling the bilinear form ..." << flush;
   tic_toc.Clear();
   tic_toc.Start();
-  OccaBilinearForm *a = new OccaBilinearForm(fespace);
+  OccaBilinearForm *a = new OccaBilinearForm(ofespace);
   a->AddDomainIntegrator(new AcroDiffusionIntegrator(one));
 
   BilinearForm *a_pc = NULL;

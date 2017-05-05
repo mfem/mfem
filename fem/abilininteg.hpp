@@ -41,9 +41,7 @@ private:
   acro::Tensor U, W;         //Intermediate computations for tensor product partial assembly
 
   void ComputeBTilde();
-  void ComputeD(occa::array<double> &jac, 
-                occa::array<double> &jacinv, 
-                occa::array<double> &jacdet);
+  void ComputeD(OccaGeometry &geom);
 
 public:
   AcroDiffusionIntegrator(Coefficient &q);

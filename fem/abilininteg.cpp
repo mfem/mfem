@@ -79,9 +79,8 @@ void AcroDiffusionIntegrator::Setup() {
     G.Init(nQuad, nDof, nDim, g_ptr, g_ptr, onGPU);  
   }
 
-  occa::array<double> jac, jacinv, jacdet;
-  getJacobianData(device, fespace, ir, jac, jacinv, jacdet); 
-  ComputeD(jac, jacinv, jacdet);
+  OccaGeometry geom = OccaGeometry::Get(device, *mesh, ir);
+  ComputeD(geom);
 }
 
 
@@ -106,9 +105,7 @@ void AcroDiffusionIntegrator::ComputeBTilde() {
 }
 
 
-void AcroDiffusionIntegrator::ComputeD(occa::array<double> &jac, 
-                                       occa::array<double> &jacinv, 
-                                       occa::array<double> &jacdet) {
+void AcroDiffusionIntegrator::ComputeD(OccaGeometry &geom) {
   //Compute the coefficient * integrations weights
   const ConstantCoefficient* const_coeff = dynamic_cast<const ConstantCoefficient*>(&Q);
   if (!const_coeff) {
@@ -124,9 +121,9 @@ void AcroDiffusionIntegrator::ComputeD(occa::array<double> &jac,
   WC.Reshape(wdims);
 
   //Get the jacobians and compute D with them
-  double *jac_ptr = *((double**) jac.memory().getHandle());
-  double *jacinv_ptr = *((double**) jacinv.memory().getHandle());
-  double *jacdet_ptr = *((double**) jacdet.memory().getHandle());
+  double *jac_ptr = *((double**) geom.J.memory().getHandle());
+  double *jacinv_ptr = *((double**) geom.invJ.memory().getHandle());
+  double *jacdet_ptr = *((double**) geom.detJ.memory().getHandle());
   if (haveTensorBasis) {
     if (nDim == 1) {
       D.Init(nElem, nDim, nDim, nQuad1D);
