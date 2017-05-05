@@ -369,7 +369,15 @@ private:
    Array<int> ess_tdof_list_c;  //Complement of essential true dofs
 };
 
-// Forward declarations of helper
+// Helper class for user-defined preconditioners that needs to be setup
+class PetscPreconditionerFactory
+{
+public:
+   PetscPreconditionerFactory();
+   virtual Solver *NewPreconditioner(OperatorHandle& oph) = 0;
+};
+
+// Forward declarations of helper classes
 class PetscSolverMonitor;
 
 /// Abstract class for PETSc's solvers.
@@ -431,6 +439,9 @@ public:
 
    /// Sets the object to handle essential boundary conditions
    void SetBCHandler(PetscBCHandler *bch);
+
+   /// Sets the object for the creation of the preconditioner
+   void SetPreconditionerFactory(PetscPreconditionerFactory *factory);
 
    /// Conversion function to PetscObject.
    operator PetscObject() const { return obj; }

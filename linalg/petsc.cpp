@@ -75,6 +75,9 @@ static PetscErrorCode Convert_Array_IS(MPI_Comm,bool,const mfem::Array<int>*,
                                        PetscInt,IS*);
 static PetscErrorCode Convert_Vmarks_IS(MPI_Comm,mfem::Array<Mat>&,
                                         const mfem::Array<int>*,PetscInt,IS*);
+static PetscErrorCode MakeShellPC(PC,mfem::Solver&,bool);
+static PetscErrorCode MakeShellPCWithFactory(PC,
+                                             mfem::PetscPreconditionerFactory*);
 
 // Equivalent functions are present in PETSc source code
 // if PETSc has been compiled with hypre support
@@ -92,7 +95,9 @@ typedef struct
 
 typedef struct
 {
-   mfem::Solver *op;
+   mfem::Solver                     *op;
+   mfem::PetscPreconditionerFactory *factory;
+   bool                             ownsop;
 } __mfem_pc_shell_ctx;
 
 typedef struct
@@ -1415,6 +1420,40 @@ void PetscSolver::SetBCHandler(PetscBCHandler *bch)
    }
 }
 
+void PetscSolver::SetPreconditionerFactory(PetscPreconditionerFactory *factory)
+{
+   PC pc = NULL;
+   if (cid == TS_CLASSID)
+   {
+      SNES snes;
+      KSP  ksp;
+
+      ierr = TSGetSNES((TS)obj,&snes); PCHKERRQ(obj,ierr);
+      ierr = SNESGetKSP(snes,&ksp); PCHKERRQ(obj,ierr);
+      ierr = KSPGetPC(ksp,&pc); PCHKERRQ(obj,ierr);
+   }
+   else if (cid == TS_CLASSID)
+   {
+      KSP ksp;
+
+      ierr = SNESGetKSP((SNES)obj,&ksp); PCHKERRQ(obj,ierr);
+      ierr = KSPGetPC(ksp,&pc); PCHKERRQ(obj,ierr);
+   }
+   else if (cid == TS_CLASSID)
+   {
+      ierr = KSPGetPC((KSP)obj,&pc); PCHKERRQ(obj,ierr);
+   }
+   else if (cid == TS_CLASSID)
+   {
+      pc = (PC)obj;
+   }
+   else
+   {
+      MFEM_ABORT("No support for PetscPreconditionerFactory for this object");
+   }
+   ierr = MakeShellPCWithFactory(pc,factory); PCHKERRQ(pc,ierr);
+}
+
 void PetscSolver::Customize(bool customize) const
 {
    if (!customize) { clcustom = true; }
@@ -1808,19 +1847,15 @@ void PetscLinearSolver::SetPreconditioner(Solver &precond)
    {
       ierr = KSPSetPC(ksp,*ppc); PCHKERRQ(ksp,ierr);
    }
-   else // wrap the Solver action
+   else
    {
+      // wrap the Solver action
+      // Solver is assumed to be already setup
+      // ownership of precond is not tranferred,
+      // consistently with other MFEM's linear solvers
       PC pc;
       ierr = KSPGetPC(ksp,&pc); PCHKERRQ(ksp,ierr);
-      ierr = PCSetType(pc,PCSHELL); PCHKERRQ(pc,ierr);
-      __mfem_pc_shell_ctx *ctx = new __mfem_pc_shell_ctx;
-      ctx->op = &precond;
-      ierr = PCShellSetContext(pc,(void *)ctx); PCHKERRQ(pc,ierr);
-      ierr = PCShellSetApply(pc,__mfem_pc_shell_apply); PCHKERRQ(pc,ierr);
-      ierr = PCShellSetApplyTranspose(pc,__mfem_pc_shell_apply_transpose);
-      PCHKERRQ(pc,ierr);
-      ierr = PCShellSetSetUp(pc,__mfem_pc_shell_setup); PCHKERRQ(pc,ierr);
-      ierr = PCShellSetDestroy(pc,__mfem_pc_shell_destroy); PCHKERRQ(pc,ierr);
+      ierr = MakeShellPC(pc,precond,false); PCHKERRQ(ksp,ierr);
    }
 }
 
@@ -3044,7 +3079,28 @@ static PetscErrorCode __mfem_pc_shell_apply_transpose(PC pc, Vec x, Vec y)
 #define __FUNCT__ "__mfem_pc_shell_setup"
 static PetscErrorCode __mfem_pc_shell_setup(PC pc)
 {
+   __mfem_pc_shell_ctx *ctx;
+
    PetscFunctionBeginUser;
+   ierr = PCShellGetContext(pc,(void **)&ctx); CHKERRQ(ierr);
+   if (ctx->factory)
+   {
+      // Delete any owned operator
+      if (ctx->ownsop)
+      {
+         delete ctx->op;
+      }
+
+      // Get current preconditioning Mat
+      Mat B;
+      ierr = PCGetOperators(pc,NULL,&B); CHKERRQ(ierr);
+
+      // Call user-defined setup
+      mfem::OperatorHandle hB(new mfem::PetscParMatrix(B,false),true);
+      mfem::PetscPreconditionerFactory *factory = ctx->factory;
+      ctx->op = factory->NewPreconditioner(hB);
+      ctx->ownsop = true;
+   }
    PetscFunctionReturn(0);
 }
 
@@ -3057,6 +3113,10 @@ static PetscErrorCode __mfem_pc_shell_destroy(PC pc)
 
    PetscFunctionBeginUser;
    ierr = PCShellGetContext(pc,(void **)&ctx); CHKERRQ(ierr);
+   if (ctx->ownsop)
+   {
+      delete ctx->op;
+   }
    delete ctx;
    PetscFunctionReturn(0);
 }
@@ -3087,6 +3147,51 @@ static PetscErrorCode __mfem_matarray_container_destroy(void *ptr)
       ierr = MatDestroy(&M); CCHKERRQ(comm,ierr);
    }
    delete a;
+   PetscFunctionReturn(0);
+}
+
+// Sets the type of PC to PCSHELL and wraps the solver action
+// if ownsop is true, ownership of precond is transferred to the PETSc object
+#undef __FUNCT__
+#define __FUNCT__ "MakeShellPC"
+PetscErrorCode MakeShellPC(PC pc, mfem::Solver &precond, bool ownsop)
+{
+   PetscFunctionBeginUser;
+   __mfem_pc_shell_ctx *ctx = new __mfem_pc_shell_ctx;
+   ctx->op       = &precond;
+   ctx->ownsop   = ownsop;
+   ctx->factory  = NULL;
+
+   ierr = PCSetType(pc,PCSHELL); CHKERRQ(ierr);
+   ierr = PCShellSetContext(pc,(void *)ctx); CHKERRQ(ierr);
+   ierr = PCShellSetApply(pc,__mfem_pc_shell_apply); CHKERRQ(ierr);
+   ierr = PCShellSetApplyTranspose(pc,__mfem_pc_shell_apply_transpose);
+   CHKERRQ(ierr);
+   ierr = PCShellSetSetUp(pc,__mfem_pc_shell_setup); CHKERRQ(ierr);
+   ierr = PCShellSetDestroy(pc,__mfem_pc_shell_destroy); CHKERRQ(ierr);
+   PetscFunctionReturn(0);
+}
+
+// Sets the type of PC to PCSHELL. Uses a PetscPreconditionerFactory to construct the solver
+// Takes ownership of the solver created by the factory
+#undef __FUNCT__
+#define __FUNCT__ "MakeShellPCWithFactory"
+PetscErrorCode MakeShellPCWithFactory(PC pc,
+                                      mfem::PetscPreconditionerFactory *factory)
+{
+   PetscFunctionBeginUser;
+   __mfem_pc_shell_ctx *ctx = new __mfem_pc_shell_ctx;
+   ctx->op       = NULL;
+   ctx->ownsop   = true;
+   ctx->factory  = factory;
+
+   ierr = PCSetType(pc,PCSHELL); CHKERRQ(ierr);
+   ierr = PCShellSetContext(pc,(void *)ctx); CHKERRQ(ierr);
+   ierr = PCShellSetApply(pc,__mfem_pc_shell_apply); CHKERRQ(ierr);
+   ierr = PCShellSetApplyTranspose(pc,__mfem_pc_shell_apply_transpose);
+   CHKERRQ(ierr);
+   ierr = PCShellSetSetUp(pc,__mfem_pc_shell_setup); CHKERRQ(ierr);
+   ierr = PCShellSetDestroy(pc,__mfem_pc_shell_destroy); CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
 
