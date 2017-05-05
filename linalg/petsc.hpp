@@ -299,7 +299,6 @@ public:
    Type GetType() const;
 };
 
-
 /// Returns the matrix Rt^t * A * P
 PetscParMatrix * RAP(PetscParMatrix *Rt, PetscParMatrix *A, PetscParMatrix *P);
 
@@ -602,6 +601,7 @@ public:
 
    virtual void Init(TimeDependentOperator &f_,
                      enum PetscODESolver::Type type = ODE_SOLVER_GENERAL);
+   virtual void Init(TimeDependentOperator &f_) { Init(f_,ODE_SOLVER_GENERAL); }
 
    virtual void Step(Vector &x, double &t, double &dt);
    virtual void Run(Vector &x, double &t, double &dt, double t_final);
