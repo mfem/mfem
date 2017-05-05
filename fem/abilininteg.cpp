@@ -50,7 +50,7 @@ void AcroDiffusionIntegrator::Setup() {
   const IntegrationRule &ir1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder());
   nDim    = fe.GetDim();
   nElem  = fespace->GetNE();
-  nDof   = fespace->GetNDofs();
+  nDof   = fe.GetDof();
   nQuad   = ir.GetNPoints();
   nDof1D = fe.GetOrder() + 1;
   nQuad1D = ir1D.GetNPoints();
@@ -113,11 +113,12 @@ void AcroDiffusionIntegrator::ComputeD(OccaGeometry &geom) {
   }
   std::vector<int> wdims(nDim, nQuad1D);
   double *w_ptr = *((double**) maps.quadWeights.memory().getHandle());
-  acro::Tensor W(nQuad, w_ptr, w_ptr, onGPU);  
+  acro::Tensor W(nQuad, w_ptr, w_ptr, onGPU);
+  acro::Tensor C(1);
+  C(0) = const_coeff->constant;
   acro::Tensor WC(nQuad);
   if (onGPU) {WC.SwitchToGPU();}
-  TE["WC_i=W_i"](WC, W);
-  WC.Mult(const_coeff->constant);
+  TE["WC_i=W_i C_n"](WC, W, C);
   WC.Reshape(wdims);
 
   //Get the jacobians and compute D with them
