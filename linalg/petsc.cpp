@@ -97,20 +97,19 @@ typedef struct
 
 typedef struct
 {
-   mfem::Operator *op;
-   mfem::PetscBCHandler *bchandler;        //Handling of essential bc
-   mfem::Vector *work;                     //Work vector
+   mfem::Operator                   *op;        // The nonlinear operator
+   mfem::PetscBCHandler             *bchandler; // Handling of essential bc
+   mfem::Vector                     *work;      // Work vector
 } __mfem_snes_ctx;
 
 typedef struct
 {
-   mfem::TimeDependentOperator *op;
-   mfem::PetscBCHandler *bchandler;        //Handling of essential bc
-   mfem::Vector *work;                     //Work vector
-   // Either ODE_SOLVER_LINEAR or ODE_SOLVER_GENERAL (default)
-   enum mfem::PetscODESolver::Type type;
-   PetscReal cached_shift;
-   bool      computed_rhsjac;
+   mfem::TimeDependentOperator      *op;             // The time-dependent operator
+   mfem::PetscBCHandler             *bchandler;      // Handling of essential bc
+   mfem::Vector                     *work;           // Work vector
+   enum mfem::PetscODESolver::Type  type;            // Either ODE_SOLVER_LINEAR or ODE_SOLVER_GENERAL (default)
+   PetscReal                        cached_shift;
+   bool                             computed_rhsjac;
 } __mfem_ts_ctx;
 
 // use global scope ierr to check PETSc errors inside mfem calls
