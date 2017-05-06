@@ -223,10 +223,12 @@ public:
    HypreParMatrix();
 
    /// Converts hypre's format to HypreParMatrix
-   explicit HypreParMatrix(hypre_ParCSRMatrix *a)
+   /* if @owner is false, ownership of @a is not transferred */
+   explicit HypreParMatrix(hypre_ParCSRMatrix *a, bool owner = true)
    {
       Init();
       A = a;
+      if (!owner) ParCSROwner = 0;
       height = GetNumRows();
       width = GetNumCols();
    }
