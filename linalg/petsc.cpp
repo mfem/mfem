@@ -2860,8 +2860,6 @@ void PetscODESolver::Run(Vector &x, double &t, double &dt, double t_final)
 #include "petsc/private/petscimpl.h"
 
 // auxiliary functions
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_ts_monitor"
 static PetscErrorCode __mfem_ts_monitor(TS ts, PetscInt it, PetscReal t, Vec x,
                                         void* ctx)
 {
@@ -2885,8 +2883,6 @@ static PetscErrorCode __mfem_ts_monitor(TS ts, PetscInt it, PetscReal t, Vec x,
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_ksp_monitor"
 static PetscErrorCode __mfem_ksp_monitor(KSP ksp, PetscInt it, PetscReal res,
                                          void* ctx)
 {
@@ -2914,8 +2910,6 @@ static PetscErrorCode __mfem_ksp_monitor(KSP ksp, PetscInt it, PetscReal res,
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_ts_ifunction"
 static PetscErrorCode __mfem_ts_ifunction(TS ts, PetscReal t, Vec x, Vec xp,
                                           Vec f,void *ctx)
 {
@@ -2953,8 +2947,6 @@ static PetscErrorCode __mfem_ts_ifunction(TS ts, PetscReal t, Vec x, Vec xp,
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_ts_rhsfunction"
 static PetscErrorCode __mfem_ts_rhsfunction(TS ts, PetscReal t, Vec x, Vec f,
                                             void *ctx)
 {
@@ -2976,8 +2968,6 @@ static PetscErrorCode __mfem_ts_rhsfunction(TS ts, PetscReal t, Vec x, Vec f,
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_ts_ijacobian"
 static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
                                           Vec xp, PetscReal shift, Mat A, Mat P,
                                           void *ctx)
@@ -3051,8 +3041,6 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_ts_rhsjacobian"
 static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
                                             Mat A, Mat P, void *ctx)
 {
@@ -3108,8 +3096,6 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_snes_jacobian"
 static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
                                            void *ctx)
 {
@@ -3167,8 +3153,6 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_snes_function"
 static PetscErrorCode __mfem_snes_function(SNES snes, Vec x, Vec f, void *ctx)
 {
    __mfem_snes_ctx* snes_ctx = (__mfem_snes_ctx*)ctx;
@@ -3197,8 +3181,6 @@ static PetscErrorCode __mfem_snes_function(SNES snes, Vec x, Vec f, void *ctx)
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_mat_shell_apply"
 static PetscErrorCode __mfem_mat_shell_apply(Mat A, Vec x, Vec y)
 {
    __mfem_mat_shell_ctx *ctx;
@@ -3214,8 +3196,6 @@ static PetscErrorCode __mfem_mat_shell_apply(Mat A, Vec x, Vec y)
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_mat_shell_apply_transpose"
 static PetscErrorCode __mfem_mat_shell_apply_transpose(Mat A, Vec x, Vec y)
 {
    __mfem_mat_shell_ctx *ctx;
@@ -3231,8 +3211,6 @@ static PetscErrorCode __mfem_mat_shell_apply_transpose(Mat A, Vec x, Vec y)
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_mat_shell_destroy"
 static PetscErrorCode __mfem_mat_shell_destroy(Mat A)
 {
    __mfem_mat_shell_ctx *ctx;
@@ -3244,8 +3222,6 @@ static PetscErrorCode __mfem_mat_shell_destroy(Mat A)
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_pc_shell_view"
 static PetscErrorCode __mfem_pc_shell_view(PC pc, PetscViewer viewer)
 {
    __mfem_pc_shell_ctx *ctx;
@@ -3273,8 +3249,6 @@ static PetscErrorCode __mfem_pc_shell_view(PC pc, PetscViewer viewer)
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_pc_shell_apply"
 static PetscErrorCode __mfem_pc_shell_apply(PC pc, Vec x, Vec y)
 {
    __mfem_pc_shell_ctx *ctx;
@@ -3297,8 +3271,6 @@ static PetscErrorCode __mfem_pc_shell_apply(PC pc, Vec x, Vec y)
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_pc_shell_apply_transpose"
 static PetscErrorCode __mfem_pc_shell_apply_transpose(PC pc, Vec x, Vec y)
 {
    __mfem_pc_shell_ctx *ctx;
@@ -3321,8 +3293,6 @@ static PetscErrorCode __mfem_pc_shell_apply_transpose(PC pc, Vec x, Vec y)
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_pc_shell_setup"
 static PetscErrorCode __mfem_pc_shell_setup(PC pc)
 {
    __mfem_pc_shell_ctx *ctx;
@@ -3350,8 +3320,6 @@ static PetscErrorCode __mfem_pc_shell_setup(PC pc)
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_pc_shell_destroy"
 static PetscErrorCode __mfem_pc_shell_destroy(PC pc)
 {
    __mfem_pc_shell_ctx *ctx;
@@ -3367,8 +3335,6 @@ static PetscErrorCode __mfem_pc_shell_destroy(PC pc)
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_array_container_destroy"
 static PetscErrorCode __mfem_array_container_destroy(void *ptr)
 {
    PetscErrorCode ierr;
@@ -3378,8 +3344,6 @@ static PetscErrorCode __mfem_array_container_destroy(void *ptr)
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "__mfem_matarray_container_destroy"
 static PetscErrorCode __mfem_matarray_container_destroy(void *ptr)
 {
    mfem::Array<Mat> *a = (mfem::Array<Mat>*)ptr;
@@ -3398,8 +3362,6 @@ static PetscErrorCode __mfem_matarray_container_destroy(void *ptr)
 
 // Sets the type of PC to PCSHELL and wraps the solver action
 // if ownsop is true, ownership of precond is transferred to the PETSc object
-#undef __FUNCT__
-#define __FUNCT__ "MakeShellPC"
 PetscErrorCode MakeShellPC(PC pc, mfem::Solver &precond, bool ownsop)
 {
    PetscFunctionBeginUser;
@@ -3422,8 +3384,6 @@ PetscErrorCode MakeShellPC(PC pc, mfem::Solver &precond, bool ownsop)
 
 // Sets the type of PC to PCSHELL. Uses a PetscPreconditionerFactory to construct the solver
 // Takes ownership of the solver created by the factory
-#undef __FUNCT__
-#define __FUNCT__ "MakeShellPCWithFactory"
 PetscErrorCode MakeShellPCWithFactory(PC pc,
                                       mfem::PetscPreconditionerFactory *factory)
 {
@@ -3447,8 +3407,6 @@ PetscErrorCode MakeShellPCWithFactory(PC pc,
 
 // Converts from a list (or a marked Array if islist is false) to an IS
 // st indicates the offset where to start numbering
-#undef __FUNCT__
-#define __FUNCT__ "Convert_Array_IS"
 static PetscErrorCode Convert_Array_IS(MPI_Comm comm, bool islist,
                                        const mfem::Array<int> *list,
                                        PetscInt st, IS* is)
@@ -3480,8 +3438,6 @@ static PetscErrorCode Convert_Array_IS(MPI_Comm comm, bool islist,
 // Converts from a marked Array of Vdofs to an IS
 // st indicates the offset where to start numbering
 // l2l is a vector of matrices generated during RAP
-#undef __FUNCT__
-#define __FUNCT__ "Convert_Vmarks_IS"
 static PetscErrorCode Convert_Vmarks_IS(MPI_Comm comm,
                                         mfem::Array<Mat> &pl2l,
                                         const mfem::Array<int> *mark,
@@ -3537,8 +3493,6 @@ static PetscErrorCode Convert_Vmarks_IS(MPI_Comm comm,
 #if !defined(PETSC_HAVE_HYPRE)
 
 #include "_hypre_parcsr_mv.h"
-#undef __FUNCT__
-#define __FUNCT__ "MatConvert_hypreParCSR_AIJ"
 static PetscErrorCode MatConvert_hypreParCSR_AIJ(hypre_ParCSRMatrix* hA,Mat* pA)
 {
    MPI_Comm        comm = hypre_ParCSRMatrixComm(hA);
@@ -3634,8 +3588,6 @@ static PetscErrorCode MatConvert_hypreParCSR_AIJ(hypre_ParCSRMatrix* hA,Mat* pA)
    PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MatConvert_hypreParCSR_IS"
 static PetscErrorCode MatConvert_hypreParCSR_IS(hypre_ParCSRMatrix* hA,Mat* pA)
 {
    Mat                    lA;
