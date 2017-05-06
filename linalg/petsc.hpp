@@ -627,7 +627,7 @@ public:
 
    /// Initialize the ODE solver.
    virtual void Init(TimeDependentOperator &f_,
-                     enum PetscODESolver::Type type = ODE_SOLVER_GENERAL);
+                     enum PetscODESolver::Type type);
    virtual void Init(TimeDependentOperator &f_) { Init(f_,ODE_SOLVER_GENERAL); }
 
    /// Specifies the desired format of the Jacobian in case a PetscParMatrix
