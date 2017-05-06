@@ -3403,7 +3403,7 @@ PetscErrorCode MakeShellPCWithFactory(PC pc,
    ctx->factory  = factory;
 
    ierr = PCSetType(pc,PCSHELL); CHKERRQ(ierr);
-   ierr = PCShellSetName(pc,"MFEM Factory"); CHKERRQ(ierr);
+   ierr = PCShellSetName(pc,factory->GetName()); CHKERRQ(ierr);
    ierr = PCShellSetContext(pc,(void *)ctx); CHKERRQ(ierr);
    ierr = PCShellSetApply(pc,__mfem_pc_shell_apply); CHKERRQ(ierr);
    ierr = PCShellSetApplyTranspose(pc,__mfem_pc_shell_apply_transpose);
