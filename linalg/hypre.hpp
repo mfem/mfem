@@ -228,7 +228,7 @@ public:
    {
       Init();
       A = a;
-      if (!owner) ParCSROwner = 0;
+      if (!owner) { ParCSROwner = 0; }
       height = GetNumRows();
       width = GetNumCols();
    }

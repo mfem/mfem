@@ -111,10 +111,10 @@ typedef struct
 
 typedef struct
 {
-   mfem::TimeDependentOperator     *op;             // The time-dependent operator
-   mfem::PetscBCHandler            *bchandler;      // Handling of essential bc
-   mfem::Vector                    *work;           // Work vector
-   mfem::Operator::Type            jacType;         // OperatorType for the Jacobian
+   mfem::TimeDependentOperator     *op;        // The time-dependent operator
+   mfem::PetscBCHandler            *bchandler; // Handling of essential bc
+   mfem::Vector                    *work;      // Work vector
+   mfem::Operator::Type            jacType;    // OperatorType for the Jacobian
    enum mfem::PetscODESolver::Type type;
    PetscReal                       cached_shift;
    bool                            computed_rhsjac;
@@ -3231,20 +3231,23 @@ static PetscErrorCode __mfem_pc_shell_view(PC pc, PetscViewer viewer)
    ierr = PCShellGetContext(pc,(void **)&ctx); CHKERRQ(ierr);
    if (ctx->op)
    {
-     mfem::PetscPreconditioner *ppc = dynamic_cast<mfem::PetscPreconditioner *>(ctx->op);
-     if (ppc)
-     {
-        ierr = PCView(*ppc,viewer); CHKERRQ(ierr);
-     }
-     else
-     {
-        PetscBool isascii;
-        ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&isascii);CHKERRQ(ierr);
-        if (isascii)
-        {
-           ierr = PetscViewerASCIIPrintf(viewer,"No information available on the mfem::Solver\n");
-        }
-     }
+      mfem::PetscPreconditioner *ppc = dynamic_cast<mfem::PetscPreconditioner *>
+                                       (ctx->op);
+      if (ppc)
+      {
+         ierr = PCView(*ppc,viewer); CHKERRQ(ierr);
+      }
+      else
+      {
+         PetscBool isascii;
+         ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&isascii);
+         CHKERRQ(ierr);
+         if (isascii)
+         {
+            ierr = PetscViewerASCIIPrintf(viewer,
+                                          "No information available on the mfem::Solver\n");
+         }
+      }
    }
    PetscFunctionReturn(0);
 }
