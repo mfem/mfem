@@ -102,19 +102,21 @@ typedef struct
 
 typedef struct
 {
-   mfem::Operator                   *op;        // The nonlinear operator
-   mfem::PetscBCHandler             *bchandler; // Handling of essential bc
-   mfem::Vector                     *work;      // Work vector
+   mfem::Operator        *op;          // The nonlinear operator
+   mfem::PetscBCHandler  *bchandler;   // Handling of essential bc
+   mfem::Vector          *work;        // Work vector
+   mfem::Operator::Type  jacType;      // OperatorType for the Jacobian
 } __mfem_snes_ctx;
 
 typedef struct
 {
-   mfem::TimeDependentOperator      *op;             // The time-dependent operator
-   mfem::PetscBCHandler             *bchandler;      // Handling of essential bc
-   mfem::Vector                     *work;           // Work vector
-   enum mfem::PetscODESolver::Type  type;
-   PetscReal                        cached_shift;
-   bool                             computed_rhsjac;
+   mfem::TimeDependentOperator     *op;             // The time-dependent operator
+   mfem::PetscBCHandler            *bchandler;      // Handling of essential bc
+   mfem::Vector                    *work;           // Work vector
+   mfem::Operator::Type            jacType;         // OperatorType for the Jacobian
+   enum mfem::PetscODESolver::Type type;
+   PetscReal                       cached_shift;
+   bool                            computed_rhsjac;
 } __mfem_ts_ctx;
 
 // use global scope ierr to check PETSc errors inside mfem calls
@@ -1598,6 +1600,7 @@ void PetscSolver::CreatePrivateContext()
       snes_ctx->op = NULL;
       snes_ctx->bchandler = NULL;
       snes_ctx->work = NULL;
+      snes_ctx->jacType = Operator::PETSC_MATAIJ;
       private_ctx = (void*) snes_ctx;
    }
    else if (cid == TS_CLASSID)
@@ -1610,6 +1613,7 @@ void PetscSolver::CreatePrivateContext()
       ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
       ts_ctx->type = PetscODESolver::ODE_SOLVER_GENERAL;
       ts_ctx->computed_rhsjac = false;
+      ts_ctx->jacType = Operator::PETSC_MATAIJ;
       private_ctx = (void*) ts_ctx;
    }
 }
@@ -2483,6 +2487,12 @@ void PetscNonlinearSolver::SetOperator(const Operator &op)
    width  = op.Width();
 }
 
+void PetscNonlinearSolver::SetOperatorType(Operator::Type jacType)
+{
+   __mfem_snes_ctx *snes_ctx = (__mfem_snes_ctx*)private_ctx;
+   snes_ctx->jacType = jacType;
+}
+
 void PetscNonlinearSolver::Mult(const Vector &b, Vector &x) const
 {
    SNES snes = (SNES)obj;
@@ -2613,6 +2623,12 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
    ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
    ts_ctx->type = type;
    ts_ctx->computed_rhsjac = false;
+}
+
+void PetscODESolver::SetOperatorType(Operator::Type jacType)
+{
+   __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
+   ts_ctx->jacType = jacType;
 }
 
 void PetscODESolver::Step(Vector &x, double &t, double &dt)
@@ -2840,14 +2856,14 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    if (!ts_ctx->bchandler) { delete xx; }
    ts_ctx->cached_shift = shift;
 
-   // Convert to MATAIJ if needed (TODO: add option to use MATHYPRE?)
+   // Convert to the operator type requested if needed
    bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
    if (!pA)
    {
       pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)ts),&J,
-                                    mfem::Operator::PETSC_MATAIJ);
+                                    ts_ctx->jacType);
       delete_pA = true;
    }
 
@@ -2896,21 +2912,29 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    mfem::Operator& J = top->GetExplicitGradient(xx);
    ts_ctx->computed_rhsjac = true;
 
-   // Avoid unneeded copy of the matrix by hacking
-   Mat B;
+   // Convert to the operator type requested if needed
+   bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (pA)
+   if (!pA)
    {
-      B = pA->ReleaseMat(false);
+      pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)ts),&J,
+                                    ts_ctx->jacType);
+      delete_pA = true;
    }
-   else
+
+   // Eliminate essential dofs
+   if (ts_ctx->bchandler)
    {
-      mfem::PetscParMatrix p2A(PetscObjectComm((PetscObject)ts),&J,
-                               mfem::Operator::PETSC_MATAIJ);
-      B = p2A.ReleaseMat(false);
+      mfem::PetscBCHandler *bchandler = ts_ctx->bchandler;
+      bchandler->ZeroBC(*pA);
    }
+
+   // Avoid unneeded copy of the matrix by hacking
+   Mat B;
+   B = pA->ReleaseMat(false);
    ierr = MatHeaderReplace(A,&B); CHKERRQ(ierr);
+   if (delete_pA) { delete pA; }
    PetscFunctionReturn(0);
 }
 
@@ -2947,14 +2971,14 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
    ierr = VecRestoreArrayRead(x,(const PetscScalar**)&array); CHKERRQ(ierr);
    if (!snes_ctx->bchandler) { delete xx; }
 
-   // Convert to MATAIJ if needed (TODO: add option to use MATHYPRE?)
+   // Convert to the operator type requested if needed
    bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
    if (!pA)
    {
       pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)snes),&J,
-                                    mfem::Operator::PETSC_MATAIJ);
+                                    snes_ctx->jacType);
       delete_pA = true;
    }
 

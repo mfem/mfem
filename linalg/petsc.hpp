@@ -589,6 +589,10 @@ public:
    /// Specification of the nonlinear operator.
    virtual void SetOperator(const Operator &op);
 
+   /// Specifies the desired format of the Jacobian in case a PetscParMatrix
+   /// is not returned by the GetGradient method
+   void SetOperatorType(Operator::Type type);
+
    /// Application of the solver.
    virtual void Mult(const Vector &b, Vector &x) const;
 
@@ -601,6 +605,8 @@ public:
 class PetscODESolver : public PetscSolver, public ODESolver
 {
 public:
+   /// The type of the ODE. Use ODE_SOLVER_LINEAR if the jacobians
+   /// are linear and independent of time.
    enum Type
    {
       ODE_SOLVER_LINEAR,
@@ -610,9 +616,14 @@ public:
    PetscODESolver(MPI_Comm comm, const std::string &prefix = std::string());
    virtual ~PetscODESolver();
 
+   /// Initialize the ODE solver.
    virtual void Init(TimeDependentOperator &f_,
                      enum PetscODESolver::Type type = ODE_SOLVER_GENERAL);
    virtual void Init(TimeDependentOperator &f_) { Init(f_,ODE_SOLVER_GENERAL); }
+
+   /// Specifies the desired format of the Jacobian in case a PetscParMatrix
+   /// is not returned by the GetGradient methods
+   void SetOperatorType(Operator::Type type);
 
    virtual void Step(Vector &x, double &t, double &dt);
    virtual void Run(Vector &x, double &t, double &dt, double t_final);
