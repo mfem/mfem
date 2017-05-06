@@ -376,8 +376,9 @@ private:
 class PetscPreconditionerFactory
 {
 public:
-   PetscPreconditionerFactory() {};
-   virtual Solver *NewPreconditioner(OperatorHandle& oph) = 0;
+   PetscPreconditionerFactory() {}
+   virtual Solver *NewPreconditioner(const OperatorHandle& oh) = 0;
+   virtual ~PetscPreconditionerFactory() {}
 };
 
 // Forward declarations of helper classes
