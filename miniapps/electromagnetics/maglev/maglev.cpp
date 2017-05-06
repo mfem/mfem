@@ -16,6 +16,18 @@
 using namespace std;
 using namespace mfem;
 
+void solveForAz(MaglevProblemGeometry &problem, 
+                ParFiniteElementSpace &fes_h1,
+                ParGridFunction &x, 
+                ParGridFunction &conv, 
+                ParGridFunction &mag);
+
+void solveForJz(MaglevProblemGeometry &problem, 
+                ParFiniteElementSpace &fes_h1,
+                ParGridFunction &az,
+                ParGridFunction &jz);
+
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -115,149 +127,182 @@ int main(int argc, char *argv[])
    {
       pmesh->UniformRefinement();
    }
-   MaglevProblemGeometry *problem = new MaglevProblemGeometry(
-                           conductor_yoff - conductor_thick, conductor_yoff, conductor_vx,
-                           conductor_mu, conductor_sigma,
-                           domain_length/2.0 - ha_len/2.0, domain_length/2.0 + ha_len/2.0,
-                           conductor_yoff+ha_yoff, conductor_yoff+ha_yoff+ha_thick,
-                           ha_num_magnets, ha_vx, ha_mu, ha_sigma, ha_remanence/ha_mu,
-                           air_mu, air_sigma);
+   MaglevProblemGeometry problem(conductor_yoff - conductor_thick, conductor_yoff, conductor_vx,
+                                 conductor_mu, conductor_sigma,
+                                 domain_length/2.0 - ha_len/2.0, domain_length/2.0 + ha_len/2.0,
+                                 conductor_yoff+ha_yoff, conductor_yoff+ha_yoff+ha_thick,
+                                 ha_num_magnets, ha_vx, ha_mu, ha_sigma, ha_remanence/ha_mu,
+                                 air_mu, air_sigma);
 
    // Define a parallel finite element space on the parallel mesh. Here we
    // use continuous Lagrange finite elements of the specified order.
    FiniteElementCollection *fec_h1 = new H1_FECollection(order, 2);
-   FiniteElementCollection *fec_rt = new RT_FECollection(order, 2);
+   FiniteElementCollection *fec_rt = new RT_FECollection(order, 2);   
+   FiniteElementCollection *fec_l2 = new L2_FECollection(0, 2);
    ParFiniteElementSpace *fes_h1 = new ParFiniteElementSpace(pmesh, fec_h1);
    ParFiniteElementSpace *fes_rt = new ParFiniteElementSpace(pmesh, fec_rt);
+   ParFiniteElementSpace *fes_l2 = new ParFiniteElementSpace(pmesh, fec_l2);
+   ParFiniteElementSpace *fes_vl2 = new ParFiniteElementSpace(pmesh, fec_l2, 2);
    HYPRE_Int ndof = fes_h1->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << ndof << endl;
    }
 
-   // Set up the parallel bilinear form a(.,.) on the finite element space
-   // corresponding to the Laplacian operator Delta Az - mu sigma v dot grad Az.
-   ConstantCoefficient one(-1.0);
-   ConvectionCoeff conv_coeff(problem);
-   ParBilinearForm *a = new ParBilinearForm(fes_h1);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   a->AddDomainIntegrator(new ConvectionIntegrator(conv_coeff));
-   a->Assemble();
-
-   // Determine the list of true (i.e. parallel conforming) essential
-   // boundary dofs. In this example, the boundary conditions are defined
-   // by marking all the boundary attributes from the mesh as essential
-   // (Dirichlet) and converting them to a list of true dofs.
-   Array<int> ess_tdof_list(ndof);
-   ess_tdof_list = 0;
-   if (pmesh->bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-      ess_bdr = 1;
-      fes_h1->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
-
-   // Set up the parallel linear form b(.) which corresponds to the
-   // right-hand side of the FEM linear system, which in this case is
-   // (1,phi_i) where phi_i are the basis functions in fes_h1.
-   ParLinearForm *b = new ParLinearForm(fes_h1);
-   MagnetizationCoeff mag_coeff(problem);
-   b->AddDomainIntegrator(new DomainGradLFIntegrator(mag_coeff));
-   b->Assemble();
-
-   // Define the solution vector x as a parallel finite element grid function
-   // corresponding to fes_h1. Initialize x with initial guess of zero,
-   // which satisfies the boundary conditions.
-   ParGridFunction x(fes_h1);
-   x = 0.0;
-
-
-   // Assemble the parallel bilinear form and the corresponding linear
-   // system, applying any necessary transformations such as
-   HypreParMatrix A;
-   Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-   if (myid == 0)
-   {
-      cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
-   }
-
-   // Define and apply a parallel PCG solver for AX=B with the BoomerAMG
-   // preconditioner from hypre.
-   HypreParaSails *sails = new HypreParaSails(A);
-   //HypreBoomerAMG *sails = new HypreBoomerAMG(A);
-   HypreGMRES *gmres = new HypreGMRES(A);
-   gmres->SetTol(1e-7);
-   gmres->SetKDim(250);
-   gmres->SetMaxIter(10000);
-   gmres->SetPrintLevel(2);
-   gmres->SetPreconditioner(*sails);
-   gmres->Mult(B, X);
-
-   // Recover the parallel grid function corresponding to X. This is the
-   //     local finite element solution on each processor.
-   a->RecoverFEMSolution(X, *b, x);
-
-   //Project the coefficient onto some vector grid functions so we can vizualize them
-   ParGridFunction conv(fes_rt);
-   conv.ProjectCoefficient(conv_coeff);
-   ParGridFunction mag(fes_rt);
-   mag.ProjectCoefficient(mag_coeff);
+   ParGridFunction az(fes_h1);
+   ParGridFunction conv(fes_vl2);
+   ParGridFunction mag(fes_vl2);
+   solveForAz(problem, *fes_h1, az, conv, mag);
 
    //Compute Bfield = curl A so we can visualize it
    ParGridFunction bfield(fes_rt);
    miniapps::ParDiscreteCurlOperator curl(fes_h1,fes_rt);
    curl.Assemble();
    curl.Finalize();
-   curl.Mult(x, bfield);
+   curl.Mult(az, bfield);
+
+   ParGridFunction jz(fes_h1);
+   solveForJz(problem, *fes_h1, az, jz);
+
+   //Make grid functions out of these coefficients for visualization
+   ParGridFunction vx(fes_l2);
+   ParGridFunction sigma(fes_l2);
+   ParGridFunction mu(fes_l2);
+   VxCoeff vx_coeff(problem);
+   SigmaCoeff sigma_coeff(problem);
+   MuCoeff mu_coeff(problem);
+   vx.ProjectCoefficient(vx_coeff);
+   sigma.ProjectCoefficient(sigma_coeff);
+   mu.ProjectCoefficient(mu_coeff);
 
    VisItDataCollection visit_dc("maglev", pmesh);
-   visit_dc.RegisterField("Az", &x);
+   visit_dc.RegisterField("Az", &az);
+   visit_dc.RegisterField("Jz", &jz);
    visit_dc.RegisterField("B", &bfield);
    visit_dc.RegisterField("convection_coeff", &conv);
    visit_dc.RegisterField("mag_coeff", &mag);
+   visit_dc.RegisterField("vx", &vx);
+   visit_dc.RegisterField("sigma", &sigma);
+   visit_dc.RegisterField("mu", &mu);
    visit_dc.Save();
-
-   // Save the refined mesh and the solution in parallel. This output can
-   // be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
-   /*{
-      ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "sol." << setfill('0') << setw(6) << myid;
-
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
-
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(8);
-      x.Save(sol_ofs);
-   }
-
-   // Send the solution by socket to a GLVis server.
-   if (false)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << x << flush;
-   }*/
-
-   // Free the used memory.
-   delete gmres;
-   delete sails;
-   delete a;
-   delete b;
-   delete fes_h1;
-   delete fes_rt;
-   delete fec_h1;
-   delete fec_rt;
-   delete pmesh;
 
    MPI_Finalize();
 
    return 0;
+}
+
+
+//Solve Delta Az - mu sigma v dot grad Az = curl M
+//x:     The solution Az
+//conv:  The convection coefficient (for vizualization)
+//mag:   The magnitization coefficient (for vizualization)
+void solveForAz(MaglevProblemGeometry &problem, 
+                ParFiniteElementSpace &fes_h1,
+                ParGridFunction &az,
+                ParGridFunction &conv,
+                ParGridFunction &mag)
+{
+   // Set up the parallel bilinear form dc(.,.) on the finite element space
+   // corresponding to the Laplacian operator Delta Az - mu sigma v dot grad Az.
+   ConstantCoefficient one(-1.0);
+   ConvectionCoeff conv_coeff(problem);
+   ParBilinearForm dc(&fes_h1);
+   dc.AddDomainIntegrator(new DiffusionIntegrator(one));
+   dc.AddDomainIntegrator(new ConvectionIntegrator(conv_coeff));
+   dc.Assemble();
+
+   // Determine the list of true (i.e. parallel conforming) essential
+   // boundary dofs. In this example, the boundary conditions are defined
+   // by marking all the boundary attributes from the mesh as essential
+   // (Dirichlet) and converting them to a list of true dofs.
+   ParMesh *pmesh = fes_h1.GetParMesh();
+   Array<int> ess_tdof_list(fes_h1.GlobalTrueVSize());
+   ess_tdof_list = 0;
+   if (pmesh->bdr_attributes.Size())
+   {
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      fes_h1.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
+
+   // Set up the parallel linear form b(.) which corresponds to the
+   // right-hand side of the FEM linear system, which in this case is
+   // (1,phi_i) where phi_i are the basis functions in fes_h1.
+   ParLinearForm b(&fes_h1);
+   MagnetizationCoeff mag_coeff(problem);
+   b.AddDomainIntegrator(new DomainGradLFIntegrator(mag_coeff));
+   b.Assemble();
+
+   // Assemble the parallel bilinear form and the corresponding linear
+   // system, applying any necessary transformations such as
+   HypreParMatrix DC;
+   Vector B, AZ;
+   dc.FormLinearSystem(ess_tdof_list, az, b, DC, AZ, B);
+
+   // Define and apply a parallel GMRES solver for AX=B with the BoomerAMG
+   // preconditioner from hypre.
+   HypreParaSails sails(DC);
+   HypreGMRES gmres(DC);
+   gmres.SetTol(1e-7);
+   gmres.SetKDim(250);
+   gmres.SetMaxIter(10000);
+   gmres.SetPrintLevel(2);
+   gmres.SetPreconditioner(sails);
+   gmres.Mult(B, AZ);
+
+   // Recover the parallel grid function corresponding to X. This is the
+   //     local finite element solution on each processor.
+   dc.RecoverFEMSolution(AZ, b, az);
+
+   //Project these coefficients onto corresponding grid functions for vizualization
+   conv.ProjectCoefficient(conv_coeff);
+   mag.ProjectCoefficient(mag_coeff);
+}
+
+
+//Solve Jz = -Delta 1/mu Az
+void solveForJz(MaglevProblemGeometry &problem, 
+                ParFiniteElementSpace &fes_h1,
+                ParGridFunction &az,
+                ParGridFunction &jz)
+{
+   ParMesh *pmesh = fes_h1.GetParMesh();
+   Array<int> ess_tdof_list(fes_h1.GlobalTrueVSize());
+   ess_tdof_list = 0;
+
+   //Set up M matrix for the left hand side
+   ConstantCoefficient one(-1.0);
+   ParBilinearForm m(&fes_h1);
+   m.AddDomainIntegrator(new MassIntegrator(one));
+   m.Assemble();
+
+   //Set up the biliinear for the K matrix for -Delta 1/mu on the right hand side
+   MuInvCoeff muinv_coeff(problem);
+   ParBilinearForm k(&fes_h1);
+   k.AddDomainIntegrator(new DiffusionIntegrator(muinv_coeff));
+   k.Assemble();
+
+   //Set up the linear system B = K AZ and get b
+   ParGridFunction b(&fes_h1);
+   HypreParMatrix K;
+   Vector AZ, B;   
+   k.FormLinearSystem(ess_tdof_list, b, az, K, B, AZ);
+   K.Mult(AZ, B);
+   k.RecoverFEMSolution(B, az, b);
+
+   //Now Set up the linear system for M JZ = B and get jz
+   jz = 0.0;
+   Vector JZ;
+   HypreParMatrix M;
+   m.FormLinearSystem(ess_tdof_list, jz, b, M, JZ, B);
+   HypreBoomerAMG amg(M);
+   HypreGMRES gmres(M);
+   gmres.SetTol(1e-12);
+   gmres.SetKDim(250);
+   gmres.SetMaxIter(10000);
+   gmres.SetPrintLevel(2);
+   gmres.SetPreconditioner(amg);
+   gmres.Mult(B, JZ);
+   m.RecoverFEMSolution(JZ, b, jz);
 }
 

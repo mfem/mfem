@@ -22,10 +22,14 @@ class MaglevProblemGeometry
       m_ha_mu(ha_mu),
       m_ha_sigma(ha_sigma),
       m_ha_mag(ha_mag),
+      m_air_vx(0.0),
       m_air_mu(air_mu),
       m_air_sigma(air_sigma) {m_magnet_size = (m_ha_right - m_ha_left) / double(m_ha_num_magnets);}
 
    inline int getMagnetNumber(const mfem::Vector &x);
+   inline double getMu(const mfem::Vector &x);
+   inline double getSigma(const mfem::Vector &x);
+   inline double getVx(const mfem::Vector &x);
    inline void getMuSigmaV(const mfem::Vector &x, mfem::Vector &out);
    inline void getMPerp(const mfem::Vector &x, mfem::Vector &out);
 
@@ -44,9 +48,9 @@ class MaglevProblemGeometry
    double m_ha_mu;
    double m_ha_sigma;
    double m_ha_mag;
+   double m_air_vx;
    double m_air_mu;
    double m_air_sigma;
-
    double m_magnet_size;
 };
 
@@ -54,7 +58,7 @@ class MaglevProblemGeometry
 class ConvectionCoeff : public mfem::VectorCoefficient
 {
    public:
-   ConvectionCoeff(MaglevProblemGeometry *problem) :
+   ConvectionCoeff(MaglevProblemGeometry &problem) :
       VectorCoefficient(2),
       m_problem(problem) {}
 
@@ -62,15 +66,14 @@ class ConvectionCoeff : public mfem::VectorCoefficient
                      const mfem::IntegrationPoint &ip);
 
    private:
-   MaglevProblemGeometry *m_problem;
-
+   MaglevProblemGeometry &m_problem;
 };
 
 
 class MagnetizationCoeff : public mfem::VectorCoefficient
 {
    public:
-   MagnetizationCoeff(MaglevProblemGeometry *problem) :
+   MagnetizationCoeff(MaglevProblemGeometry problem) :
       VectorCoefficient(2),
       m_problem(problem) {}
 
@@ -78,10 +81,68 @@ class MagnetizationCoeff : public mfem::VectorCoefficient
                      const mfem::IntegrationPoint &ip);
 
    private:
-   MaglevProblemGeometry *m_problem;
-
+   MaglevProblemGeometry &m_problem;
 };
 
+
+class MuInvCoeff : public mfem::Coefficient
+{
+   public:
+   MuInvCoeff(MaglevProblemGeometry &problem) :
+      Coefficient(),
+      m_problem(problem) {}
+
+   virtual double Eval(mfem::ElementTransformation &T,
+                       const mfem::IntegrationPoint &ip);
+
+   private:
+   MaglevProblemGeometry &m_problem;
+};
+
+
+class VxCoeff : public mfem::Coefficient
+{
+   public:
+   VxCoeff(MaglevProblemGeometry &problem) :
+      Coefficient(),
+      m_problem(problem) {}
+
+   virtual double Eval(mfem::ElementTransformation &T,
+                       const mfem::IntegrationPoint &ip);
+
+   private:
+   MaglevProblemGeometry &m_problem;
+};
+
+
+class MuCoeff : public mfem::Coefficient
+{
+   public:
+   MuCoeff(MaglevProblemGeometry &problem) :
+      Coefficient(),
+      m_problem(problem) {}
+
+   virtual double Eval(mfem::ElementTransformation &T,
+                       const mfem::IntegrationPoint &ip);
+
+   private:
+   MaglevProblemGeometry &m_problem;
+};
+
+
+class SigmaCoeff : public mfem::Coefficient
+{
+   public:
+   SigmaCoeff(MaglevProblemGeometry &problem) :
+      Coefficient(),
+      m_problem(problem) {}
+
+   virtual double Eval(mfem::ElementTransformation &T,
+                       const mfem::IntegrationPoint &ip);
+
+   private:
+   MaglevProblemGeometry &m_problem;
+};
 
 
 inline int MaglevProblemGeometry::getMagnetNumber(const mfem::Vector &x)
@@ -90,13 +151,67 @@ inline int MaglevProblemGeometry::getMagnetNumber(const mfem::Vector &x)
 }
 
 
+inline double MaglevProblemGeometry::getVx(const mfem::Vector &x)
+{
+   double vx;
+   if (x[1] >= m_conductor_bottom && x[1] <= m_conductor_top)
+   {
+      vx = m_conductor_vx;
+   }
+   else if (x[0] >= m_ha_left && x[0] <= m_ha_right && x[1] >= m_ha_bottom && x[1] <= m_ha_top)
+   {
+      vx = m_ha_vx;
+   }
+   else
+   {
+      vx = m_air_vx;
+   }
+   return vx;
+}
+
+
+inline double MaglevProblemGeometry::getMu(const mfem::Vector &x)
+{
+   double mu;
+   if (x[1] >= m_conductor_bottom && x[1] <= m_conductor_top)
+   {
+      mu = m_conductor_mu;
+   }
+   else if (x[0] >= m_ha_left && x[0] <= m_ha_right && x[1] >= m_ha_bottom && x[1] <= m_ha_top)
+   {
+      mu = m_ha_mu;
+   }
+   else
+   {
+      mu = m_air_mu;
+   }
+   return mu;
+}
+
+
+inline double MaglevProblemGeometry::getSigma(const mfem::Vector &x)
+{
+   double sigma;
+   if (x[1] >= m_conductor_bottom && x[1] <= m_conductor_top)
+   {
+      sigma = m_conductor_sigma;
+   }
+   else if (x[0] >= m_ha_left && x[0] <= m_ha_right && x[1] >= m_ha_bottom && x[1] <= m_ha_top)
+   {
+      sigma = m_ha_sigma;
+   }
+   else
+   {
+      sigma = m_air_sigma;
+   }
+   return sigma;
+}
+
+
 inline void MaglevProblemGeometry::getMuSigmaV(const mfem::Vector &x, mfem::Vector &out)
 {
    out = 0.0;
-   if (x[1] >= m_conductor_bottom && x[1] <= m_conductor_top)
-   {
-      out[0] = m_conductor_mu*m_conductor_sigma*m_conductor_vx;
-   }
+   out[0] = getMu(x)*getSigma(x)*getVx(x);
 }
 
 
@@ -141,7 +256,7 @@ void ConvectionCoeff::Eval(mfem::Vector &V, mfem::ElementTransformation &T,
    T.Transform(ip, transip);
 
    V.SetSize(2);
-   m_problem->getMuSigmaV(transip, V);
+   m_problem.getMuSigmaV(transip, V);
 }
 
 
@@ -154,5 +269,50 @@ void MagnetizationCoeff::Eval(mfem::Vector &V, mfem::ElementTransformation &T,
    T.Transform(ip, transip);
 
    V.SetSize(2);
-   m_problem->getMPerp(transip, V);
+   m_problem.getMPerp(transip, V);
+}
+
+
+//1/mu for the Jz = -laplace(1/mu Az) calculation
+double MuInvCoeff::Eval(mfem::ElementTransformation &T,
+                               const mfem::IntegrationPoint &ip)
+{
+   double x[3];
+   mfem::Vector transip(x, 3);
+
+   T.Transform(ip, transip);
+   return 1.0 / m_problem.getMu(transip);
+}
+
+
+double VxCoeff::Eval(mfem::ElementTransformation &T,
+                     const mfem::IntegrationPoint &ip)
+{
+   double x[3];
+   mfem::Vector transip(x, 3);
+
+   T.Transform(ip, transip);
+   return m_problem.getVx(transip);
+}
+
+
+double MuCoeff::Eval(mfem::ElementTransformation &T,
+                     const mfem::IntegrationPoint &ip)
+{
+   double x[3];
+   mfem::Vector transip(x, 3);
+
+   T.Transform(ip, transip);
+   return m_problem.getMu(transip);
+}
+
+
+double SigmaCoeff::Eval(mfem::ElementTransformation &T,
+                        const mfem::IntegrationPoint &ip)
+{
+   double x[3];
+   mfem::Vector transip(x, 3);
+
+   T.Transform(ip, transip);
+   return 1.0 / m_problem.getSigma(transip);
 }
