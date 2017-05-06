@@ -48,8 +48,9 @@ protected:
 
 public:
    /// Creates vector with given global size and partitioning of the columns.
-   /** Processor P owns columns [col[P],col[P+1]). */
-   PetscParVector(MPI_Comm comm, PetscInt glob_size, PetscInt *col);
+   /** if @col is provided, processor P owns columns [col[P],col[P+1]).
+       Otherwise, PETSc decides the partitioning */
+   PetscParVector(MPI_Comm comm, PetscInt glob_size, PetscInt *col = NULL);
 
    /** @brief Creates vector with given global size, partitioning of the
        columns, and data.
@@ -282,6 +283,8 @@ public:
 
    /** @brief Eliminate rows and columns from the matrix, and rows from the
        vector @a B. Modify @a B with the BC values in @a X. */
+   void EliminateRowsCols(const Array<int> &rows_cols, const PetscParVector &X,
+                          PetscParVector &B);
    void EliminateRowsCols(const Array<int> &rows_cols, const HypreParVector &X,
                           HypreParVector &B);
 
@@ -342,6 +345,9 @@ public:
    /// Sets essential dofs (local, per-process numbering)
    void SetTDofs(Array<int>& list);
 
+   /// Gets essential dofs (local, per-process numbering)
+   Array<int>& GetTDofs() { return ess_tdof_list; }
+
    /// Sets the current time
    void SetTime(double t) { eval_t = t; }
 
@@ -353,12 +359,6 @@ public:
 
    /// y = x-g on ess_tdof_list, the rest of y is unchanged
    void FixResidualBC(const Vector& x, Vector& y);
-
-   /// Sets essential dofs to zero
-   void ZeroBC(Vector& x);
-
-   /// Removes essential dofs from the matrix
-   void ZeroBC(PetscParMatrix& A);
 
 private:
    enum Type bctype;

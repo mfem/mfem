@@ -17,10 +17,10 @@
 #ifdef MFEM_USE_PETSC
 
 #include "linalg.hpp"
+#include "../fem/fem.hpp"
 #if defined(PETSC_HAVE_HYPRE)
 #include "petscmathypre.h"
 #endif
-#include "../fem/fem.hpp"
 
 #include <fstream>
 #include <iomanip>
@@ -1188,22 +1188,11 @@ PetscParMatrix * RAP(PetscParMatrix *A, PetscParMatrix *P)
 
 PetscParMatrix* PetscParMatrix::EliminateRowsCols(const Array<int> &rows_cols)
 {
-   Mat             Ae;
-   const int       *data;
-   PetscInt        M,N,i,n,*idxs,rst;
+   Mat Ae;
 
-   ierr = MatGetSize(A,&M,&N); PCHKERRQ(A,ierr);
-   MFEM_VERIFY(M == N,"Rectangular case unsupported");
-   ierr = MatGetOwnershipRange(A,&rst,NULL); PCHKERRQ(A,ierr);
+   PetscParVector dummy(GetComm(),0);
    ierr = MatDuplicate(A,MAT_COPY_VALUES,&Ae); PCHKERRQ(A,ierr);
-   ierr = MatSetOption(A,MAT_NO_OFF_PROC_ZERO_ROWS,PETSC_TRUE); PCHKERRQ(A,ierr);
-   // rows need to be in global numbering
-   n = rows_cols.Size();
-   data = rows_cols.GetData();
-   ierr = PetscMalloc1(n,&idxs); PCHKERRQ(A,ierr);
-   for (i=0; i<n; i++) { idxs[i] = data[i] + rst; }
-   ierr = MatZeroRowsColumns(A,n,idxs,1.,NULL,NULL); PCHKERRQ(A,ierr);
-   ierr = PetscFree(idxs); PCHKERRQ(A,ierr);
+   EliminateRowsCols(rows_cols,dummy,dummy);
    ierr = MatAXPY(Ae,-1.,A,SAME_NONZERO_PATTERN); PCHKERRQ(A,ierr);
    return new PetscParMatrix(Ae);
 }
@@ -1212,7 +1201,35 @@ void PetscParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
                                        const HypreParVector &X,
                                        HypreParVector &B)
 {
-   MFEM_ABORT("To be implemented");
+   MFEM_ABORT("PetscParMatrix::EliminateRowsCols(). To be implemented");
+}
+
+void PetscParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
+                                       const PetscParVector &X,
+                                       PetscParVector &B)
+{
+   PetscInt M,N;
+   ierr = MatGetSize(A,&M,&N); PCHKERRQ(A,ierr);
+   MFEM_VERIFY(M == N,"Rectangular case unsupported");
+
+   // TODO: what if a diagonal term is not present?
+   ierr = MatSetOption(A,MAT_NO_OFF_PROC_ZERO_ROWS,PETSC_TRUE); PCHKERRQ(A,ierr);
+
+   // rows need to be in global numbering
+   PetscInt rst;
+   ierr = MatGetOwnershipRange(A,&rst,NULL); PCHKERRQ(A,ierr);
+
+   IS dir;
+   ierr = Convert_Array_IS(GetComm(),true,&rows_cols,rst,&dir); PCHKERRQ(A,ierr);
+   if (!X.GlobalSize() && !B.GlobalSize())
+   {
+      ierr = MatZeroRowsColumnsIS(A,dir,1.,NULL,NULL); PCHKERRQ(A,ierr);
+   }
+   else
+   {
+      ierr = MatZeroRowsColumnsIS(A,dir,1.,X,B); PCHKERRQ(A,ierr);
+   }
+   ierr = ISDestroy(&dir); PCHKERRQ(A,ierr);
 }
 
 Mat PetscParMatrix::ReleaseMat(bool dereference)
@@ -1776,36 +1793,6 @@ void PetscBCHandler::FixResidualBC(const Vector& x, Vector& y)
    {
       y[ess_tdof_list[i]] = x[ess_tdof_list[i]] - eval_g[ess_tdof_list[i]];
    }
-}
-
-void PetscBCHandler::ZeroBC(Vector& x)
-{
-   for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
-   {
-      x[ess_tdof_list[i]] = 0.0;
-   }
-}
-
-void PetscBCHandler::ZeroBC(PetscParMatrix& A)
-{
-   // we need dofs in global numbering
-   PetscInt st;
-   ierr = MatGetOwnershipRange(A,&st,NULL); CCHKERRQ(A.GetComm(),ierr);
-   if (st)
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
-      {
-         ess_tdof_list[i] += st;
-      }
-
-   ierr = MatZeroRowsColumns(A,ess_tdof_list.Size(),ess_tdof_list.GetData(),
-                             1.0,NULL,NULL); CCHKERRQ(A.GetComm(),ierr);
-
-   // Restore dofs in local, per-process numbering
-   if (st)
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
-      {
-         ess_tdof_list[i] -= st;
-      }
 }
 
 // PetscLinearSolver methods
@@ -3051,7 +3038,8 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    if (ts_ctx->bchandler)
    {
       mfem::PetscBCHandler *bchandler = ts_ctx->bchandler;
-      bchandler->ZeroBC(*pA);
+      mfem::PetscParVector dummy(PetscObjectComm((PetscObject)ts),0);
+      pA->EliminateRowsCols(bchandler->GetTDofs(),dummy,dummy);
    }
 
    // Avoid unneeded copy of the matrix by hacking
@@ -3107,7 +3095,8 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    if (ts_ctx->bchandler)
    {
       mfem::PetscBCHandler *bchandler = ts_ctx->bchandler;
-      bchandler->ZeroBC(*pA);
+      mfem::PetscParVector dummy(PetscObjectComm((PetscObject)ts),0);
+      pA->EliminateRowsCols(bchandler->GetTDofs(),dummy,dummy);
    }
 
    // Avoid unneeded copy of the matrix by hacking
@@ -3166,7 +3155,8 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
    if (snes_ctx->bchandler)
    {
       mfem::PetscBCHandler *bchandler = snes_ctx->bchandler;
-      bchandler->ZeroBC(*pA);
+      mfem::PetscParVector dummy(PetscObjectComm((PetscObject)snes),0);
+      pA->EliminateRowsCols(bchandler->GetTDofs(),dummy,dummy);
    }
 
    // Avoid unneeded copy of the matrix by hacking
