@@ -2654,7 +2654,7 @@ void PetscNonlinearSolver::SetOperator(const Operator &op)
    width  = op.Width();
 }
 
-void PetscNonlinearSolver::SetOperatorType(Operator::Type jacType)
+void PetscNonlinearSolver::SetJacobianType(Operator::Type jacType)
 {
    __mfem_snes_ctx *snes_ctx = (__mfem_snes_ctx*)private_ctx;
    snes_ctx->jacType = jacType;
@@ -2792,7 +2792,7 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
    ts_ctx->computed_rhsjac = false;
 }
 
-void PetscODESolver::SetOperatorType(Operator::Type jacType)
+void PetscODESolver::SetJacobianType(Operator::Type jacType)
 {
    __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
    ts_ctx->jacType = jacType;

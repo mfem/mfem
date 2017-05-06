@@ -601,7 +601,7 @@ public:
 
    /// Specifies the desired format of the Jacobian in case a PetscParMatrix
    /// is not returned by the GetGradient method
-   void SetOperatorType(Operator::Type type);
+   void SetJacobianType(Operator::Type type);
 
    /// Application of the solver.
    virtual void Mult(const Vector &b, Vector &x) const;
@@ -633,7 +633,7 @@ public:
 
    /// Specifies the desired format of the Jacobian in case a PetscParMatrix
    /// is not returned by the GetGradient methods
-   void SetOperatorType(Operator::Type type);
+   void SetJacobianType(Operator::Type type);
 
    virtual void Step(Vector &x, double &t, double &dt);
    virtual void Run(Vector &x, double &t, double &dt, double t_final);
