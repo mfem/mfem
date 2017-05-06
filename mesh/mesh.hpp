@@ -1061,7 +1061,8 @@ public:
    void MesquiteSmooth(const int mesquite_option = 0);
 
    /// Destroys Mesh.
-   virtual ~Mesh() { DestroyPointers(); }
+   virtual ~Mesh()
+   { MFEM_TRACE_BLOCK_BEGIN; DestroyPointers(); MFEM_TRACE_BLOCK_END; }
 };
 
 /** Overload operator<< for std::ostream and Mesh; valid also for the derived

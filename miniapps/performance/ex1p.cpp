@@ -68,6 +68,9 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
+   MFEM_TRACING_INIT(&cerr);
+   if (myid != 0) { MFEM_TRACING_DISABLE; }
+
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/fichera.mesh";
    int order = sol_p;

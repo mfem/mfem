@@ -105,4 +105,66 @@ void mfem_warning(const char *msg = NULL);
 // Generate a warning message - always generated, regardless of MFEM_DEBUG.
 #define MFEM_WARNING(msg) _MFEM_MESSAGE("MFEM Warning: " << msg, 1)
 
+
+// Tracing macros
+
+// #ifdef MFEM_USE_TRACING
+#if 1
+namespace mfem
+{
+namespace internal
+{
+// Variables/functions defined in error.cpp
+extern std::ostream *trace_out;
+extern int tracing_state;  // 0 - disabled, 1 - enabled
+extern int tracing_depth;
+extern void tracing_init(std::ostream *std_ostream_ptr);
+}
+}
+
+// Initialize and enable tracing.
+#define MFEM_TRACING_INIT(std_ostream_ptr) \
+   mfem::internal::tracing_init(std_ostream_ptr)
+
+#define MFEM_TRACING_ENABLE (mfem::internal::tracing_state = 1)
+#define MFEM_TRACING_DISABLE (mfem::internal::tracing_state = 0)
+
+#define MFEM_TRACE_BLOCK_BEGIN \
+   if (mfem::internal::trace_out && mfem::internal::tracing_state) \
+   { \
+      *mfem::internal::trace_out \
+         << std::setw(3*mfem::internal::tracing_depth+3) << ">> " \
+         << _MFEM_FUNC_NAME << " @ " << __FILE__ << ':' << __LINE__ \
+         << std::endl; \
+      mfem::internal::tracing_depth++; \
+   }
+
+#define MFEM_TRACE_BLOCK_END \
+   if (mfem::internal::trace_out && mfem::internal::tracing_state) \
+   { \
+      mfem::internal::tracing_depth--; \
+      *mfem::internal::trace_out \
+         << std::setw(3*mfem::internal::tracing_depth+3) << "<< " \
+         << _MFEM_FUNC_NAME << " @ " << __FILE__ << ':' << __LINE__ \
+         << std::endl; \
+   }
+
+#define MFEM_TRACE_POINT(msg) \
+   if (mfem::internal::trace_out && mfem::internal::tracing_state) \
+   { \
+      *mfem::internal::trace_out \
+         << std::setw(3*mfem::internal::tracing_depth+3) << "** " << msg \
+         << " @ " << __FILE__ << ':' << __LINE__  << std::endl; \
+   }
+
+#else // tracing is not enabled
+
+#define MFEM_TRACING_INIT(std_ostream_ptr)
+#define MFEM_TRACING_ENABLE
+#define MFEM_TRACING_DISABLE
+#define MFEM_TRACE_BLOCK_BEGIN
+#define MFEM_TRACE_BLOCK_END
+
+#endif // MFEM_USE_TRACING
+
 #endif

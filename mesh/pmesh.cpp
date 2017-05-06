@@ -32,6 +32,7 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
      group_sface(pmesh.group_sface),
      gtopo(pmesh.gtopo)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MyComm = pmesh.MyComm;
    NRanks = pmesh.NRanks;
    MyRank = pmesh.MyRank;
@@ -78,12 +79,14 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
       *Nodes = *pmesh.Nodes;
       own_nodes = 1;
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                  int part_method)
    : gtopo(comm)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i, j;
    int *partitioning;
    Array<bool> activeBdrElem;
@@ -124,6 +127,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       delete [] partition;
 
       have_face_nbr_data = false;
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -146,6 +150,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
    // re-enumerate the partitions to better map to actual processor
    // interconnect topology !?
+   MFEM_TRACE_POINT("building vert_global_local ...");
 
    Array<int> vert;
    Array<int> vert_global_local(mesh.GetNV());
@@ -347,6 +352,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    }
    GenerateFaces();
 
+   MFEM_TRACE_POINT("building shared entities and groups ...");
    ListOfIntegerSets  groups;
    IntegerSet         group;
 
@@ -636,6 +642,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    // build the group communication topology
    gtopo.Create(groups, 822);
 
+   MFEM_TRACE_POINT("building nodes ...");
    if (mesh.NURBSext)
    {
       NURBSext = new ParNURBSExtension(comm, mesh.NURBSext, partitioning,
@@ -667,6 +674,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    }
 
    have_face_nbr_data = false;
+   MFEM_TRACE_BLOCK_END;
 }
 
 // protected method
@@ -684,6 +692,7 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
 ParMesh::ParMesh(MPI_Comm comm, istream &input)
    : gtopo(comm)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
@@ -836,6 +845,7 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input)
    // note: attributes and bdr_attributes are local lists
 
    // TODO: AMR meshes, NURBS meshes?
+   MFEM_TRACE_BLOCK_END;
 }
 
 ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
@@ -847,6 +857,7 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
      have_face_nbr_data(false),
      pncmesh(NULL)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    // Need to initialize:
    // - shared_edges, shared_faces
    // - group_svert, group_sedge, group_sface
@@ -1025,6 +1036,7 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
       }
       delete faces_tbl;
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParMesh::GroupEdge(int group, int i, int &edge, int &o)
@@ -1054,6 +1066,7 @@ void ParMesh::GroupFace(int group, int i, int &face, int &o)
 
 void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Array<int> order;
    GetEdgeOrdering(v_to_v, order); // local edge ordering
 
@@ -1172,6 +1185,7 @@ void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
          shared_faces[i]->MarkEdge(v_to_v, order);
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 // For a line segment with vertices v[0] and v[1], return a number with
@@ -1240,6 +1254,7 @@ int ParMesh::GetFaceSplittings(Element *face, const DSTable &v_to_v,
 void ParMesh::GenerateOffsets(int N, HYPRE_Int loc_sizes[],
                               Array<HYPRE_Int> *offsets[]) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (HYPRE_AssumedPartitionCheck())
    {
       Array<HYPRE_Int> temp(N);
@@ -1278,6 +1293,7 @@ void ParMesh::GenerateOffsets(int N, HYPRE_Int loc_sizes[],
                      "overflow in offsets");
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParMesh::GetFaceNbrElementTransformation(
@@ -1359,6 +1375,7 @@ void ParMesh::ExchangeFaceNbrData()
       return;
    }
 
+   MFEM_TRACE_BLOCK_BEGIN;
    if (Nonconforming())
    {
       // with ParNCMesh we can set up face neighbors without communication
@@ -1366,6 +1383,7 @@ void ParMesh::ExchangeFaceNbrData()
       have_face_nbr_data = true;
 
       ExchangeFaceNbrNodes();
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -1399,6 +1417,7 @@ void ParMesh::ExchangeFaceNbrData()
    if (num_face_nbrs == 0)
    {
       have_face_nbr_data = true;
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -1753,10 +1772,12 @@ void ParMesh::ExchangeFaceNbrData()
    have_face_nbr_data = true;
 
    ExchangeFaceNbrNodes();
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParMesh::ExchangeFaceNbrNodes()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (!have_face_nbr_data)
    {
       ExchangeFaceNbrData(); // calls this method at the end
@@ -1766,6 +1787,7 @@ void ParMesh::ExchangeFaceNbrNodes()
       if (Nonconforming())
       {
          // with ParNCMesh we already have the vertices
+         MFEM_TRACE_BLOCK_END;
          return;
       }
 
@@ -1811,6 +1833,7 @@ void ParMesh::ExchangeFaceNbrNodes()
       MFEM_VERIFY(pNodes != NULL, "Nodes are not ParGridFunction!");
       pNodes->ExchangeFaceNbrData();
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 int ParMesh::GetFaceNbrRank(int fn) const
@@ -1832,6 +1855,7 @@ int ParMesh::GetFaceNbrRank(int fn) const
 
 Table *ParMesh::GetFaceToAllElementTable() const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    const Array<int> *s2l_face;
    if (Dim == 1)
    {
@@ -1885,6 +1909,7 @@ Table *ParMesh::GetFaceToAllElementTable() const
 
    face_elem->ShiftUpI();
 
+   MFEM_TRACE_BLOCK_END;
    return face_elem;
 }
 
@@ -2090,6 +2115,7 @@ void ParMesh::ReorientTetMesh()
 
 void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i, j;
 
    if (pncmesh)
@@ -2609,11 +2635,13 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
    CheckElementOrientation(false);
    CheckBdrElementOrientation(false);
 #endif
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
                                       int nc_limit)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (NURBSext)
    {
       MFEM_ABORT("ParMesh::NonconformingRefinement: NURBS meshes are not "
@@ -2661,11 +2689,13 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
       Nodes->FESpace()->Update();
       Nodes->Update();
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
                                         double threshold, int nc_limit, int op)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    const Table &dt = pncmesh->GetDerefinementTable();
 
    pncmesh->SynchronizeDerefinementData(elem_error, dt);
@@ -2705,14 +2735,17 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
    if (glob_size)
    {
       DerefineMesh(derefs);
+      MFEM_TRACE_BLOCK_END;
       return true;
    }
 
+   MFEM_TRACE_BLOCK_END;
    return false;
 }
 
 void ParMesh::Rebalance()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (Conforming())
    {
       MFEM_ABORT("Load balancing is currently not supported for conforming"
@@ -2742,6 +2775,7 @@ void ParMesh::Rebalance()
       Nodes->FESpace()->Update();
       Nodes->Update();
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
@@ -2933,6 +2967,7 @@ void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
 
 void ParMesh::QuadUniformRefinement()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    DeleteFaceNbrData();
 
    int oedge = NumOfVertices;
@@ -3016,10 +3051,12 @@ void ParMesh::QuadUniformRefinement()
    }
 
    UpdateNodes();
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParMesh::HexUniformRefinement()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    DeleteFaceNbrData();
 
    int oedge = NumOfVertices;
@@ -3175,6 +3212,7 @@ void ParMesh::HexUniformRefinement()
    }
 
    UpdateNodes();
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParMesh::NURBSUniformRefinement()
@@ -3395,6 +3433,7 @@ bool ParMesh::WantSkipSharedMaster(const NCMesh::Master &master) const
 
 void ParMesh::Print(std::ostream &out) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    bool print_shared = true;
    int i, j, shared_bdr_attr;
    Array<int> nc_shared_faces;
@@ -3402,6 +3441,7 @@ void ParMesh::Print(std::ostream &out) const
    if (NURBSext)
    {
       Printer(out); // does not print shared boundary
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -3507,6 +3547,7 @@ void ParMesh::Print(std::ostream &out) const
       out << "\nnodes\n";
       Nodes->Save(out);
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 static void dump_element(const Element* elem, Array<int> &data)
@@ -3523,6 +3564,7 @@ static void dump_element(const Element* elem, Array<int> &data)
 
 void ParMesh::PrintAsOne(std::ostream &out)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i, j, k, p, nv_ne[2], &nv = nv_ne[0], &ne = nv_ne[1], vc;
    const int *v;
    MPI_Status status;
@@ -3794,6 +3836,7 @@ void ParMesh::PrintAsOne(std::ostream &out)
          }
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParMesh::PrintAsOneXG(std::ostream &out)
@@ -4461,10 +4504,12 @@ long ParMesh::ReduceInt(int value) const
 
 void ParMesh::ParPrint(ostream &out) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (NURBSext || pncmesh)
    {
       // TODO: AMR meshes, NURBS meshes.
       Print(out);
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -4521,10 +4566,12 @@ void ParMesh::ParPrint(ostream &out) const
 
    // Write out section end tag for mesh.
    out << "\nmfem_mesh_end" << endl;
+   MFEM_TRACE_BLOCK_END;
 }
 
 ParMesh::~ParMesh()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    delete pncmesh;
    ncmesh = pncmesh = NULL;
 
@@ -4539,6 +4586,7 @@ ParMesh::~ParMesh()
       FreeElement(shared_edges[i]);
    }
 
+   MFEM_TRACE_BLOCK_END;
    // The Mesh destructor is called automatically
 }
 

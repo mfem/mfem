@@ -136,4 +136,28 @@ void mfem_warning(const char *msg)
    }
 }
 
+// #ifdef MFEM_USE_TRACING
+#if 1
+
+namespace internal
+{
+
+std::ostream *trace_out = NULL;
+int tracing_state = 0;  // 0 - disabled, 1 - enabled
+int tracing_depth = 0;
+
+// Initialize and enable tracing.
+void tracing_init(std::ostream *std_ostream_ptr)
+{
+   if (!trace_out)
+   {
+      trace_out = std_ostream_ptr;
+   }
+   tracing_state = 1;
 }
+
+} // namespace internal
+
+#endif // MFEM_USE_TRACING
+
+} // namespace mfem

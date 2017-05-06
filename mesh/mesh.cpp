@@ -1404,6 +1404,7 @@ void Mesh::PrepareNodeReorder(DSTable **old_v_to_v, Table **old_elem_vert)
    {
       return;
    }
+   MFEM_TRACE_BLOCK_BEGIN;
 
    FiniteElementSpace *fes = Nodes->FESpace();
    const FiniteElementCollection *fec = fes->FEColl();
@@ -1438,10 +1439,12 @@ void Mesh::PrepareNodeReorder(DSTable **old_v_to_v, Table **old_elem_vert)
          (*old_elem_vert)->ShiftUpI();
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    FiniteElementSpace *fes = Nodes->FESpace();
    const FiniteElementCollection *fec = fes->FEColl();
    int num_edge_dofs = fec->DofForGeometry(Geometry::SEGMENT);
@@ -1657,10 +1660,12 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
       }
    }
    Nodes->FESpace()->RebuildElementToDofTable();
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    FinalizeCheck();
    CheckElementOrientation(fix_orientation);
 
@@ -1701,10 +1706,12 @@ void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
    BaseBdrGeom = Geometry::TRIANGLE;
 
    meshgen = 1;
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::FinalizeHexMesh(int generate_edges, int refine, bool fix_orientation)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    FinalizeCheck();
    CheckElementOrientation(fix_orientation);
 
@@ -1734,10 +1741,12 @@ void Mesh::FinalizeHexMesh(int generate_edges, int refine, bool fix_orientation)
    BaseBdrGeom = Geometry::SQUARE;
 
    meshgen = 2;
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::FinalizeTopology()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    // Requirements: the following should be defined:
    //   1) Dim
    //   2) NumOfElements, elements
@@ -1812,10 +1821,12 @@ void Mesh::FinalizeTopology()
 
    // generate the arrays 'attributes' and 'bdr_attributes'
    SetAttributes();
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::Finalize(bool refine, bool fix_orientation)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (NURBSext || ncmesh)
    {
       MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
@@ -1872,11 +1883,13 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
 
    // check and fix boundary element orientation
    CheckBdrElementOrientation();
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
                   int generate_edges, double sx, double sy, double sz)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int x, y, z;
 
    int NVert, NElem, NBdrElem;
@@ -2060,11 +2073,13 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    {
       FinalizeHexMesh(generate_edges, refine, fix_orientation);
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::Make2D(int nx, int ny, Element::Type type, int generate_edges,
                   double sx, double sy)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i, j, k;
 
    SetEmpty();
@@ -2220,10 +2235,12 @@ void Mesh::Make2D(int nx, int ny, Element::Type type, int generate_edges,
    attributes.Append(1);
    bdr_attributes.Append(1); bdr_attributes.Append(2);
    bdr_attributes.Append(3); bdr_attributes.Append(4);
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::Make1D(int n, double sx)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int j, ind[1];
 
    SetEmpty();
@@ -2268,10 +2285,12 @@ void Mesh::Make1D(int n, double sx)
 
    attributes.Append(1);
    bdr_attributes.Append(1); bdr_attributes.Append(2);
+   MFEM_TRACE_BLOCK_END;
 }
 
 Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Dim = mesh.Dim;
    spaceDim = mesh.spaceDim;
 
@@ -2370,11 +2389,13 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
       Nodes = mesh.Nodes;
       own_nodes = 0;
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 Mesh::Mesh(const char *filename, int generate_edges, int refine,
            bool fix_orientation)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    // Initialization as in the default constructor
    SetEmpty();
 
@@ -2388,13 +2409,16 @@ Mesh::Mesh(const char *filename, int generate_edges, int refine,
    {
       Load(imesh, generate_edges, refine, fix_orientation);
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 Mesh::Mesh(std::istream &input, int generate_edges, int refine,
            bool fix_orientation)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    SetEmpty();
    Load(input, generate_edges, refine, fix_orientation);
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::ChangeVertexDataOwnership(double *vertex_data, int len_vertex_data,
@@ -2428,6 +2452,7 @@ Mesh::Mesh(double *_vertices, int num_vertices,
            int *boundary_attributes, int num_boundary_elements,
            int dimension, int space_dimension)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (space_dimension == -1)
    {
       space_dimension = dimension;
@@ -2460,6 +2485,7 @@ Mesh::Mesh(double *_vertices, int num_vertices,
    NumOfBdrElements = num_boundary_elements;
 
    FinalizeTopology();
+   MFEM_TRACE_BLOCK_END;
 }
 
 Element *Mesh::NewElement(int geom)
@@ -2713,6 +2739,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
 
 Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int      i, j, ie, ib, iv, *v, nv;
    Element *el;
    Mesh    *m;
@@ -2888,10 +2915,12 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
    CheckElementOrientation(false);
    CheckBdrElementOrientation(false);
 #endif
+   MFEM_TRACE_BLOCK_END;
 }
 
 Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Dim = orig_mesh->Dimension();
    MFEM_VERIFY(ref_factor > 1, "the refinement factor must be > 1");
    MFEM_VERIFY(ref_type == BasisType::ClosedUniform ||
@@ -3013,6 +3042,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 
    MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
    MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::KnotInsert(Array<KnotVector *> &kv)
@@ -3289,6 +3319,7 @@ const FiniteElementSpace *Mesh::GetNodalFESpace() const
 
 void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    space_dim = (space_dim == -1) ? spaceDim : space_dim;
    FiniteElementCollection* nfec;
    if (discont)
@@ -3304,6 +3335,7 @@ void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
                                                      ordering);
    SetNodalFESpace(nfes);
    Nodes->MakeOwner(nfec);
+   MFEM_TRACE_BLOCK_END;
 }
 
 int Mesh::GetNumFaces() const
@@ -3323,6 +3355,7 @@ static const char *fixed_or_not[] = { "fixed", "NOT FIXED" };
 
 int Mesh::CheckElementOrientation(bool fix_it)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i, j, k, wo = 0, fo = 0, *vi = 0;
    double *v[4];
 
@@ -3429,6 +3462,7 @@ int Mesh::CheckElementOrientation(bool fix_it)
            << NumOfElements << " (" << fixed_or_not[(wo == fo) ? 0 : 1]
            << ")" << endl;
 #endif
+   MFEM_TRACE_BLOCK_END;
    return wo;
 }
 
@@ -3530,6 +3564,7 @@ int Mesh::GetQuadOrientation(const int *base, const int *test)
 
 int Mesh::CheckBdrElementOrientation(bool fix_it)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i, wo = 0;
 
    if (Dim == 2)
@@ -3627,6 +3662,7 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
            << ")" << endl;
    }
 #endif
+   MFEM_TRACE_BLOCK_END;
    return wo;
 }
 
@@ -4042,6 +4078,7 @@ void Mesh::GetElementArrayEdgeTable(const Array<Element*> &elem_array,
 
 void Mesh::GetVertexToVertexTable(DSTable &v_to_v) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (edge_vertex)
    {
       for (int i = 0; i < edge_vertex->Size(); i++)
@@ -4063,6 +4100,7 @@ void Mesh::GetVertexToVertexTable(DSTable &v_to_v) const
          }
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 int Mesh::GetElementToEdgeTable(Table & e_to_f, Array<int> &be_to_f)
@@ -4249,6 +4287,7 @@ void Mesh::AddQuadFaceElement(int lf, int gf, int el,
 
 void Mesh::GenerateFaces()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i, nfaces = GetNumFaces();
 
    for (i = 0; i < faces.Size(); i++)
@@ -4314,10 +4353,12 @@ void Mesh::GenerateFaces()
          }
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::GenerateNCFaceInfo()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_VERIFY(ncmesh, "missing NCMesh.");
 
    for (int i = 0; i < faces_info.Size(); i++)
@@ -4361,10 +4402,12 @@ void Mesh::GenerateNCFaceInfo()
       slave_fi.Elem2Inf = 64 * master_nc.MasterFace; // get lf no. stored above
       // NOTE: orientation part of Elem2Inf is encoded in the point matrix
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 STable3D *Mesh::GetFacesTable()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    STable3D *faces_tbl = new STable3D(NumOfVertices);
    for (int i = 0; i < NumOfElements; i++)
    {
@@ -4395,11 +4438,13 @@ STable3D *Mesh::GetFacesTable()
             MFEM_ABORT("Unexpected type of Element.");
       }
    }
+   MFEM_TRACE_BLOCK_END;
    return faces_tbl;
 }
 
 STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i, *v;
    STable3D *faces_tbl;
 
@@ -4465,9 +4510,11 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
 
    if (ret_ftbl)
    {
+      MFEM_TRACE_BLOCK_END;
       return faces_tbl;
    }
    delete faces_tbl;
+   MFEM_TRACE_BLOCK_END;
    return NULL;
 }
 
@@ -4552,6 +4599,7 @@ extern "C" {
 
 int *Mesh::CartesianPartitioning(int nxyz[])
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int *partitioning;
    double pmin[3] = { numeric_limits<double>::infinity(),
                       numeric_limits<double>::infinity(),
@@ -4592,11 +4640,13 @@ int *Mesh::CartesianPartitioning(int nxyz[])
       partitioning[el] = part;
    }
 
+   MFEM_TRACE_BLOCK_END;
    return partitioning;
 }
 
 int *Mesh::GeneratePartitioning(int nparts, int part_method)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
 #ifdef MFEM_USE_MPI
    int i, *partitioning;
 
@@ -4818,6 +4868,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       }
    }
 
+   MFEM_TRACE_BLOCK_END;
    return partitioning;
 
 #else
@@ -4825,6 +4876,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
    mfem_error("Mesh::GeneratePartitioning(...): "
               "MFEM was compiled without Metis.");
 
+   MFEM_TRACE_BLOCK_END;
    return NULL;
 
 #endif
@@ -4904,6 +4956,7 @@ void FindPartitioningComponents(Table &elem_elem,
 
 void Mesh::CheckPartitioning(int *partitioning)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i, n_empty, n_mcomp;
    Array<int> component, num_comp;
    const Array<int> _partitioning(partitioning, GetNE());
@@ -4946,14 +4999,17 @@ void Mesh::CheckPartitioning(int *partitioning)
       cout << endl;
    }
    if (n_empty == 0 && n_mcomp == 0)
+   {
       cout << "Mesh::CheckPartitioning(...) : "
            "All subdomains are connected." << endl;
+   }
 
    if (el_to_el)
    {
       delete el_to_el;
    }
    el_to_el = NULL;
+   MFEM_TRACE_BLOCK_END;
 }
 
 // compute the coefficients of the polynomial in t:
@@ -5457,6 +5513,7 @@ void Mesh::UpdateNodes()
 
 void Mesh::QuadUniformRefinement()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i, j, *v, vv[2], attr;
    const int *e;
 
@@ -5555,10 +5612,12 @@ void Mesh::QuadUniformRefinement()
    CheckElementOrientation(false);
    CheckBdrElementOrientation(false);
 #endif
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::HexUniformRefinement()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i;
    int * v;
    const int *e, *f;
@@ -5720,10 +5779,12 @@ void Mesh::HexUniformRefinement()
    sequence++;
 
    UpdateNodes();
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i, j, ind, nedges;
    Array<int> v;
 
@@ -5977,11 +6038,13 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
 #ifdef MFEM_DEBUG
    CheckElementOrientation(false);
 #endif
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
                                    int nc_limit)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_VERIFY(!NURBSext, "Nonconforming refinement of NURBS meshes is "
                "not supported. Project the NURBS to Nodes first.");
 
@@ -5994,6 +6057,7 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
    if (!refinements.Size())
    {
       last_operation = Mesh::NONE;
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -6025,10 +6089,12 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
       Nodes->FESpace()->Update();
       Nodes->Update();
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::DerefineMesh(const Array<int> &derefinements)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_VERIFY(ncmesh, "only supported for non-conforming meshes.");
    MFEM_VERIFY(!NURBSext, "Derefinement of NURBS meshes is not supported. "
                "Project the NURBS to Nodes first.");
@@ -6051,11 +6117,13 @@ void Mesh::DerefineMesh(const Array<int> &derefinements)
       Nodes->FESpace()->Update();
       Nodes->Update();
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 bool Mesh::NonconformingDerefinement(Array<double> &elem_error,
                                      double threshold, int nc_limit, int op)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    const Table &dt = ncmesh->GetDerefinementTable();
 
    Array<int> level_ok;
@@ -6092,9 +6160,11 @@ bool Mesh::NonconformingDerefinement(Array<double> &elem_error,
    if (derefs.Size())
    {
       DerefineMesh(derefs);
+      MFEM_TRACE_BLOCK_END;
       return true;
    }
 
+   MFEM_TRACE_BLOCK_END;
    return false;
 }
 
@@ -6129,6 +6199,7 @@ bool Mesh::DerefineByError(const Vector &elem_error, double threshold,
 
 void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Dim = ncmesh.Dimension();
    spaceDim = ncmesh.SpaceDimension();
 
@@ -6174,6 +6245,7 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
    CheckBdrElementOrientation(false);
 #endif
 
+   MFEM_TRACE_BLOCK_END;
    // NOTE: ncmesh->OnMeshUpdated() and GenerateNCFaceInfo() should be called
    // outside after this method.
 }
@@ -6258,6 +6330,7 @@ void Mesh::GetElementData(const Array<Element*> &elem_array, int geom,
 
 void Mesh::UniformRefinement()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (NURBSext)
    {
       NURBSUniformRefinement();
@@ -6293,11 +6366,13 @@ void Mesh::UniformRefinement()
    {
       mfem_error("Mesh::UniformRefinement()");
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
                              int nonconforming, int nc_limit)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (Dim == 1 || (Dim == 3 && meshgen & 1))
    {
       nonconforming = 0;
@@ -6347,17 +6422,20 @@ void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
       // red-green refinement and bisection, no hanging nodes
       LocalRefinement(el_to_refine, type);
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::GeneralRefinement(const Array<int> &el_to_refine, int nonconforming,
                              int nc_limit)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Array<Refinement> refinements(el_to_refine.Size());
    for (int i = 0; i < el_to_refine.Size(); i++)
    {
       refinements[i] = Refinement(el_to_refine[i]);
    }
    GeneralRefinement(refinements, nonconforming, nc_limit);
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::EnsureNCMesh(bool triangles_nonconforming)
@@ -6380,6 +6458,7 @@ void Mesh::EnsureNCMesh(bool triangles_nonconforming)
 void Mesh::RandomRefinement(double prob, bool aniso, int nonconforming,
                             int nc_limit)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Array<Refinement> refs;
    for (int i = 0; i < GetNE(); i++)
    {
@@ -6394,6 +6473,7 @@ void Mesh::RandomRefinement(double prob, bool aniso, int nonconforming,
       }
    }
    GeneralRefinement(refs, nonconforming, nc_limit);
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::RefineAtVertex(const Vertex& vert, double eps, int nonconforming)
@@ -6425,6 +6505,7 @@ void Mesh::RefineAtVertex(const Vertex& vert, double eps, int nonconforming)
 bool Mesh::RefineByError(const Array<double> &elem_error, double threshold,
                          int nonconforming, int nc_limit)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_VERIFY(elem_error.Size() == GetNE(), "");
    Array<Refinement> refs;
    for (int i = 0; i < GetNE(); i++)
@@ -6437,8 +6518,10 @@ bool Mesh::RefineByError(const Array<double> &elem_error, double threshold,
    if (ReduceInt(refs.Size()))
    {
       GeneralRefinement(refs, nonconforming, nc_limit);
+      MFEM_TRACE_BLOCK_END;
       return true;
    }
+   MFEM_TRACE_BLOCK_END;
    return false;
 }
 
@@ -6866,6 +6949,7 @@ const CoarseFineTransformations& Mesh::GetRefinementTransforms()
 
 void Mesh::PrintXG(std::ostream &out) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_ASSERT(Dim==spaceDim, "2D Manifold meshes not supported");
    int i, j;
    Array<int> v;
@@ -7026,10 +7110,12 @@ void Mesh::PrintXG(std::ostream &out) const
    }
 
    out << flush;
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i, j;
 
    if (NURBSext)
@@ -7043,6 +7129,7 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
       // NURBSext->ConvertToPatches(*Nodes);
       // NURBSext->Print(out);
 
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -7108,6 +7195,7 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
    {
       out << section_delimiter << endl; // only with format v1.2
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void Mesh::PrintTopo(std::ostream &out,const Array<int> &e_to_k) const
