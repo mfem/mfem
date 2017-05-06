@@ -3322,7 +3322,7 @@ static PetscErrorCode __mfem_pc_shell_setup(PC pc)
       ierr = PCGetOperators(pc,NULL,&B); CHKERRQ(ierr);
 
       // Call user-defined setup
-      mfem::OperatorHandle hB(new mfem::PetscParMatrix(B,false),true);
+      mfem::OperatorHandle hB(new mfem::PetscParMatrix(B,true),true);
       mfem::PetscPreconditionerFactory *factory = ctx->factory;
       ctx->op = factory->NewPreconditioner(hB);
       ctx->ownsop = true;
