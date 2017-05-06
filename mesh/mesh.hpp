@@ -818,7 +818,10 @@ public:
    int CheckBdrElementOrientation(bool fix_it = true);
 
    /// Return the attribute of element i.
-   int GetAttribute(int i) const { return elements[i]->GetAttribute();}
+   int GetAttribute(int i) const { return elements[i]->GetAttribute(); }
+
+   /// Set the attribute of element i.
+   void SetAttribute(int i, int attr) { elements[i]->SetAttribute(attr); }
 
    /// Return the attribute of boundary element i.
    int GetBdrAttribute(int i) const { return boundary[i]->GetAttribute(); }
@@ -1042,6 +1045,10 @@ public:
    /// Returns the minimum and maximum corners of the mesh bounding box. For
    /// high-order meshes, the geometry is refined first "ref" times.
    void GetBoundingBox(Vector &min, Vector &max, int ref = 2);
+
+   void GetCharacteristics(double &h_min, double &h_max,
+                           double &kappa_min, double &kappa_max,
+                           Vector *Vh = NULL, Vector *Vk = NULL);
 
    void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL,
                              std::ostream &out = std::cout);

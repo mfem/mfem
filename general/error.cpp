@@ -95,7 +95,7 @@ void mfem_backtrace(int mode, int depth)
                       << (err ? 0 : info.dli_fbase);
 #endif
          }
-         std::cerr << " 0x" << addrs[i];
+         std::cerr << " 0x" << std::hex << addrs[i] << std::dec;
       }
       std::cerr << '\n';
    }
@@ -120,9 +120,10 @@ void mfem_error(const char *msg)
 #endif
 
 #ifdef MFEM_USE_MPI
-   int flag;
-   MPI_Initialized(&flag);
-   if (flag) { MPI_Abort(MPI_COMM_WORLD, 1); }
+   int init_flag, fin_flag;
+   MPI_Initialized(&init_flag);
+   MPI_Finalized(&fin_flag);
+   if (init_flag && !fin_flag) { MPI_Abort(MPI_COMM_WORLD, 1); }
 #endif
    std::abort(); // force crash by calling abort
 }

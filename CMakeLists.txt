@@ -38,8 +38,14 @@ if (NOT CMAKE_CXX_COMPILER)
   endif()
 endif()
 
+#-------------------------------------------------------------------------------
+# Project name and version
+#-------------------------------------------------------------------------------
 project(mfem CXX)
-set(${PROJECT_NAME}_VERSION 3.3)
+# Current version of MFEM, see also `makefile`.
+#   mfem_VERSION = (string)
+#   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
+set(${PROJECT_NAME}_VERSION 3.3.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -59,6 +65,12 @@ endif()
 set(MFEM_CMAKE_PATH ${PROJECT_SOURCE_DIR}/config)
 set(CMAKE_MODULE_PATH ${MFEM_CMAKE_PATH}/cmake/modules)
 
+# Load MFEM CMake utilities.
+include(MfemCmakeUtilities)
+
+string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UC)
+mfem_version_to_int(${${PROJECT_NAME}_VERSION} ${PROJECT_NAME_UC}_VERSION)
+
 #-------------------------------------------------------------------------------
 # Process configuration options
 #-------------------------------------------------------------------------------
@@ -76,6 +88,7 @@ if (MFEM_USE_MPI)
   include_directories(${MPI_CXX_INCLUDE_PATH})
   # Parallel MFEM depends on hypre and METIS
   find_package(HYPRE REQUIRED)
+  set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
   include_directories(${HYPRE_INCLUDE_DIRS})
   find_package(METIS REQUIRED)
   include_directories(${METIS_INCLUDE_DIRS})
@@ -183,7 +196,7 @@ if (MFEM_USE_MPFR)
   include_directories(${MPFR_INCLUDE_DIRS})
 endif()
 
-# ATK/Sidre
+# Axom/Sidre
 if (MFEM_USE_SIDRE)
   if (NOT MFEM_USE_MPI)
     find_package(ATK REQUIRED Sidre SLIC common)
@@ -237,7 +250,6 @@ set(_USE_MATH_DEFINES ${WIN32})
 #-------------------------------------------------------------------------------
 
 # Headers and sources
-include(MfemCmakeUtilities)
 set(SOURCES "")
 set(HEADERS "")
 set(MFEM_SOURCE_DIRS general linalg mesh fem)
@@ -352,7 +364,6 @@ add_subdirectory(doc)
 #-------------------------------------------------------------------------------
 
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
-string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UC)
 set(INSTALL_INCLUDE_DIR include
   CACHE PATH "Relative path for installing header files.")
 set(INSTALL_LIB_DIR lib
@@ -406,8 +417,11 @@ export(TARGETS ${PROJECT_NAME}
 # with a global CMake-registry)
 export(PACKAGE ${PROJECT_NAME})
 
+# Extract the include directories required to use MFEM
+get_target_property(MFEM_TPL_INCLUDE_DIRS mfem INCLUDE_DIRECTORIES)
+
 # This is the build-tree version
-set(INCLUDE_INSTALL_DIRS ${PROJECT_BINARY_DIR})
+set(INCLUDE_INSTALL_DIRS ${PROJECT_BINARY_DIR} ${MFEM_TPL_INCLUDE_DIRS})
 set(LIB_INSTALL_DIR ${PROJECT_BINARY_DIR})
 configure_package_config_file(config/cmake/MFEMConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/MFEMConfig.cmake
@@ -415,7 +429,7 @@ configure_package_config_file(config/cmake/MFEMConfig.cmake.in
   PATH_VARS INCLUDE_INSTALL_DIRS LIB_INSTALL_DIR)
 
 # This is the version that will be installed
-set(INCLUDE_INSTALL_DIRS ${INSTALL_INCLUDE_DIR})
+set(INCLUDE_INSTALL_DIRS ${INSTALL_INCLUDE_DIR}  ${MFEM_TPL_INCLUDE_DIRS})
 set(LIB_INSTALL_DIR ${INSTALL_LIB_DIR})
 configure_package_config_file(config/cmake/MFEMConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/MFEMConfig.cmake
