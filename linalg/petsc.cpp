@@ -64,6 +64,7 @@ static PetscErrorCode __mfem_pc_shell_apply(PC,Vec,Vec);
 static PetscErrorCode __mfem_pc_shell_apply_transpose(PC,Vec,Vec);
 static PetscErrorCode __mfem_pc_shell_setup(PC);
 static PetscErrorCode __mfem_pc_shell_destroy(PC);
+static PetscErrorCode __mfem_pc_shell_view(PC,PetscViewer);
 static PetscErrorCode __mfem_mat_shell_apply(Mat,Vec,Vec);
 static PetscErrorCode __mfem_mat_shell_apply_transpose(Mat,Vec,Vec);
 static PetscErrorCode __mfem_mat_shell_destroy(Mat);
@@ -3244,6 +3245,35 @@ static PetscErrorCode __mfem_mat_shell_destroy(Mat A)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "__mfem_pc_shell_view"
+static PetscErrorCode __mfem_pc_shell_view(PC pc, PetscViewer viewer)
+{
+   __mfem_pc_shell_ctx *ctx;
+   PetscErrorCode      ierr;
+
+   PetscFunctionBeginUser;
+   ierr = PCShellGetContext(pc,(void **)&ctx); CHKERRQ(ierr);
+   if (ctx->op)
+   {
+     mfem::PetscPreconditioner *ppc = dynamic_cast<mfem::PetscPreconditioner *>(ctx->op);
+     if (ppc)
+     {
+        ierr = PCView(*ppc,viewer); CHKERRQ(ierr);
+     }
+     else
+     {
+        PetscBool isascii;
+        ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&isascii);CHKERRQ(ierr);
+        if (isascii)
+        {
+           ierr = PetscViewerASCIIPrintf(viewer,"No information available on the mfem::Solver\n");
+        }
+     }
+   }
+   PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "__mfem_pc_shell_apply"
 static PetscErrorCode __mfem_pc_shell_apply(PC pc, Vec x, Vec y)
 {
@@ -3385,6 +3415,7 @@ PetscErrorCode MakeShellPC(PC pc, mfem::Solver &precond, bool ownsop)
    ierr = PCShellSetApplyTranspose(pc,__mfem_pc_shell_apply_transpose);
    CHKERRQ(ierr);
    ierr = PCShellSetSetUp(pc,__mfem_pc_shell_setup); CHKERRQ(ierr);
+   ierr = PCShellSetView(pc,__mfem_pc_shell_view); CHKERRQ(ierr);
    ierr = PCShellSetDestroy(pc,__mfem_pc_shell_destroy); CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
@@ -3409,6 +3440,7 @@ PetscErrorCode MakeShellPCWithFactory(PC pc,
    ierr = PCShellSetApplyTranspose(pc,__mfem_pc_shell_apply_transpose);
    CHKERRQ(ierr);
    ierr = PCShellSetSetUp(pc,__mfem_pc_shell_setup); CHKERRQ(ierr);
+   ierr = PCShellSetView(pc,__mfem_pc_shell_view); CHKERRQ(ierr);
    ierr = PCShellSetDestroy(pc,__mfem_pc_shell_destroy); CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
