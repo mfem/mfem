@@ -33,6 +33,8 @@ double NonlinearFormIntegrator::GetElementEnergy(
 // I1 = |M|^2 / det(M).
 double HyperelasticModel::Dim2Invariant1(const DenseMatrix &M)
 {
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
    double fnorm = M.FNorm();
    return fnorm * fnorm / M.Det();
 }
@@ -40,12 +42,16 @@ double HyperelasticModel::Dim2Invariant1(const DenseMatrix &M)
 // I2 = det(M).
 double HyperelasticModel::Dim2Invariant2(const DenseMatrix &M)
 {
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
    return M.Det();
 }
 
 // dI1_dM = [ 2 det(M) M - |M|^2 adj(M)^T ] / det(T)^2.
 void HyperelasticModel::Dim2Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM)
 {
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
    double fnorm = M.FNorm();
    double det   = M.Det();
 
@@ -55,10 +61,11 @@ void HyperelasticModel::Dim2Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM)
    dM *= 1.0 / (det * det);
 }
 
-// Assuming 2D.
 // dI2_dM = d(det(M))_dM = adj(M)^T.
 void HyperelasticModel::Dim2Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM)
 {
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
    dM(0, 0) =  M(1, 1); dM(0, 1) = -M(1, 0);
    dM(1, 0) = -M(0, 1); dM(1, 1) =  M(0, 0);
 }
@@ -67,6 +74,8 @@ void HyperelasticModel::Dim2Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM)
 void HyperelasticModel::Dim2Invariant1_dMdM(const DenseMatrix &M, int i, int j,
                                         DenseMatrix &dMdM)
 {
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
    // Compute d(det(M))_d(Mij), d(|M|^2)_d(Mij).
    DenseMatrix dI(2);
    Dim2Invariant2_dM(M, dI);
@@ -91,11 +100,12 @@ void HyperelasticModel::Dim2Invariant1_dMdM(const DenseMatrix &M, int i, int j,
    }
 }
 
-// Assuming 2D.
 // (dI2_dM)_d(Mij) = 0.
 void HyperelasticModel::Dim2Invariant2_dMdM(const DenseMatrix &M, int i, int j,
                                         DenseMatrix &dMdM)
 {
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
    dMdM(i, j) = 0.0;
 }
 
@@ -202,11 +212,11 @@ void InverseHarmonicModel::AssembleH(
 
 inline void NeoHookeanModel::EvalCoeffs() const
 {
-   mu = c_mu->Eval(*Trt, Trt->GetIntPoint());
-   K = c_K->Eval(*Trt, Trt->GetIntPoint());
+   mu = c_mu->Eval(*Ttr, Ttr->GetIntPoint());
+   K = c_K->Eval(*Ttr, Ttr->GetIntPoint());
    if (c_g)
    {
-      g = c_g->Eval(*Trt, Trt->GetIntPoint());
+      g = c_g->Eval(*Ttr, Ttr->GetIntPoint());
    }
 }
 
@@ -316,35 +326,35 @@ void NeoHookeanModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
 }
 
 // W = I1 * I2.
-double TMOPHyperelasticModel001::EvalW(const DenseMatrix &Jtp) const
+double TMOPHyperelasticModel001::EvalW(const DenseMatrix &Jpt) const
 {
-   return Dim2Invariant1(Jtp) * Dim2Invariant2(Jtp);
+   return Dim2Invariant1(Jpt) * Dim2Invariant2(Jpt);
 }
 
 // dW_dJ = dI1_dJ I1 + dI2_dJ I2.
-void TMOPHyperelasticModel001::EvalP(const DenseMatrix &Jtp,
+void TMOPHyperelasticModel001::EvalP(const DenseMatrix &Jpt,
                                      DenseMatrix &P) const
 {
-   Dim2Invariant1_dM(Jtp, P);
-   P *= Dim2Invariant2(Jtp);
+   Dim2Invariant1_dM(Jpt, P);
+   P *= Dim2Invariant2(Jpt);
 
    DenseMatrix PP(P.Size());
-   Dim2Invariant2_dM(Jtp, PP);
-   PP *= Dim2Invariant1(Jtp);
+   Dim2Invariant2_dM(Jpt, PP);
+   PP *= Dim2Invariant1(Jpt);
 
    P += PP;
 }
 
-void TMOPHyperelasticModel001::AssembleH(const DenseMatrix &Jtp,
+void TMOPHyperelasticModel001::AssembleH(const DenseMatrix &Jpt,
                                          const DenseMatrix &DS,
                                          const double weight,
                                          DenseMatrix &A) const
 {
    const int dof = DS.Height(), dim = DS.Width();
-   const double I1 = Dim2Invariant1(Jtp), I2 = Dim2Invariant2(Jtp);
+   const double I1 = Dim2Invariant1(Jpt), I2 = Dim2Invariant2(Jpt);
    DenseMatrix dI1_dM(dim), dI1_dMdM(dim), dI2_dM(dim), dI2_dMdM(dim);
-   Dim2Invariant1_dM(Jtp, dI1_dM);
-   Dim2Invariant2_dM(Jtp, dI2_dM);
+   Dim2Invariant1_dM(Jpt, dI1_dM);
+   Dim2Invariant2_dM(Jpt, dI2_dM);
 
    //   // Shorter version without using invariants.
    //   for (int i = 0; i < dof; i++)
@@ -372,8 +382,8 @@ void TMOPHyperelasticModel001::AssembleH(const DenseMatrix &Jtp,
    for (int r = 0; r < dim; r++)
       for (int c = 0; c < dim; c++)
       {
-         Dim2Invariant1_dMdM(Jtp, r, c, dI1_dMdM);
-         Dim2Invariant2_dMdM(Jtp, r, c, dI2_dMdM);
+         Dim2Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
+         Dim2Invariant2_dMdM(Jpt, r, c, dI2_dMdM);
          // Compute each entry of d(Grc)_dJ.
          for(int rr = 0; rr < dim; rr++)
          {
@@ -396,23 +406,23 @@ void TMOPHyperelasticModel001::AssembleH(const DenseMatrix &Jtp,
       }
 }
 
-double TMOPHyperelasticModel002::EvalW(const DenseMatrix &Jtp) const
+double TMOPHyperelasticModel002::EvalW(const DenseMatrix &Jpt) const
 {
-   double det = Jtp.Det();
+   double det = Jpt.Det();
    if (det <= 0.0) { return 1e+100; }
 
-   return 0.5 * Dim2Invariant1(Jtp) - 1.0;
+   return 0.5 * Dim2Invariant1(Jpt) - 1.0;
 }
 
 // TODO det(J) < 0.
-void TMOPHyperelasticModel002::EvalP(const DenseMatrix &Jtp,
+void TMOPHyperelasticModel002::EvalP(const DenseMatrix &Jpt,
                                      DenseMatrix &P) const
 {
-   Dim2Invariant1_dM(Jtp, P);
+   Dim2Invariant1_dM(Jpt, P);
    P *= 0.5;
 }
 
-void TMOPHyperelasticModel002::AssembleH(const DenseMatrix &Jtp,
+void TMOPHyperelasticModel002::AssembleH(const DenseMatrix &Jpt,
                                          const DenseMatrix &DS,
                                          const double weight,
                                          DenseMatrix &A) const
@@ -424,7 +434,7 @@ void TMOPHyperelasticModel002::AssembleH(const DenseMatrix &Jtp,
    for (int r = 0; r < dim; r++)
       for (int c = 0; c < dim; c++)
       {
-         Dim2Invariant1_dMdM(Jtp, r, c, dI1_dMdM);
+         Dim2Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
 
          // Compute each entry of d(Grc)_dJ.
          for(int rr = 0; rr < dim; rr++)
@@ -444,47 +454,47 @@ void TMOPHyperelasticModel002::AssembleH(const DenseMatrix &Jtp,
       }
 }
 
-double TMOPHyperelasticModel007::EvalW(const DenseMatrix &Jtp) const
+double TMOPHyperelasticModel007::EvalW(const DenseMatrix &Jpt) const
 {
-   const double I2 = Dim2Invariant2(Jtp);
+   const double I2 = Dim2Invariant2(Jpt);
    if (I2 <= 0.0) { return 1e+100; }
 
-   return Dim2Invariant1(Jtp) * (I2 + 1.0 / I2) - 4.0;
+   return Dim2Invariant1(Jpt) * (I2 + 1.0 / I2) - 4.0;
 }
 
 // TODO det(J) <= 0.
-void TMOPHyperelasticModel007::EvalP(const DenseMatrix &Jtp,
+void TMOPHyperelasticModel007::EvalP(const DenseMatrix &Jpt,
                                      DenseMatrix &P) const
 {
-   const double I1 = Dim2Invariant1(Jtp), I2 = Dim2Invariant2(Jtp);
-   Dim2Invariant1_dM(Jtp, P);
+   const double I1 = Dim2Invariant1(Jpt), I2 = Dim2Invariant2(Jpt);
+   Dim2Invariant1_dM(Jpt, P);
    P *= (I2 + 1.0 / I2);
 
    DenseMatrix PP(P.Size());
-   Dim2Invariant2_dM(Jtp, PP);
+   Dim2Invariant2_dM(Jpt, PP);
    PP *= I1 * (1.0 - 1.0 / (I2 * I2));
 
    P += PP;
 }
 
-void TMOPHyperelasticModel007::AssembleH(const DenseMatrix &Jtp,
+void TMOPHyperelasticModel007::AssembleH(const DenseMatrix &Jpt,
                                          const DenseMatrix &DS,
                                          const double weight,
                                          DenseMatrix &A) const
 {
    const int dof = DS.Height(), dim = DS.Width();
-   const double I1 = Dim2Invariant1(Jtp),
-                I2 = Dim2Invariant2(Jtp), iI2 = 1.0/I2;
+   const double I1 = Dim2Invariant1(Jpt),
+                I2 = Dim2Invariant2(Jpt), iI2 = 1.0/I2;
    DenseMatrix dI1_dM(dim), dI1_dMdM(dim), dI2_dM(dim), dI2_dMdM(dim);
-   Dim2Invariant1_dM(Jtp, dI1_dM);
-   Dim2Invariant2_dM(Jtp, dI2_dM);
+   Dim2Invariant1_dM(Jpt, dI1_dM);
+   Dim2Invariant2_dM(Jpt, dI2_dM);
 
    // The first two go over the rows and cols of dG_dJ where G = dW_dJ.
    for (int r = 0; r < dim; r++)
       for (int c = 0; c < dim; c++)
       {
-         Dim2Invariant1_dMdM(Jtp, r, c, dI1_dMdM);
-         Dim2Invariant2_dMdM(Jtp, r, c, dI2_dMdM);
+         Dim2Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
+         Dim2Invariant2_dMdM(Jpt, r, c, dI2_dMdM);
          // Compute each entry of d(Grc)_dJ.
          for(int rr = 0; rr < dim; rr++)
          {
@@ -510,7 +520,7 @@ void TMOPHyperelasticModel007::AssembleH(const DenseMatrix &Jtp,
 
 void TargetJacobian::ComputeElementTargets(int e_id, const FiniteElement &fe,
                                            const IntegrationRule &ir,
-                                           DenseTensor &Jrt) const
+                                           DenseTensor &Jtr) const
 {
    switch (target_type)
    {
@@ -545,14 +555,14 @@ void TargetJacobian::ComputeElementTargets(int e_id, const FiniteElement &fe,
          fe.CalcDShape(ir.IntPoint(i), dshape);
 
          // W = Jac(ref->physical) for CURRENT and TARGET_MESH.
-         MultAtB(pos, dshape, Jrt(i));
+         MultAtB(pos, dshape, Jtr(i));
 
          if (target_type == IDEAL_INIT_SIZE)
          {
-            double det = Jrt(i).Det();
+            double det = Jtr(i).Det();
             MFEM_VERIFY(det > 0.0, "Initial mesh is inverted!");
-            Jrt(i) = *Wideal;
-            Jrt(i) *= sqrt(det / Wideal->Det());
+            Jtr(i) = *Wideal;
+            Jtr(i) *= sqrt(det / Wideal->Det());
          }
       }
       delete Wideal;
@@ -562,7 +572,7 @@ void TargetJacobian::ComputeElementTargets(int e_id, const FiniteElement &fe,
    {
       DenseMatrix Wideal(fe.GetDim());
       ConstructIdealJ(fe.GetGeomType(), Wideal);
-      for (int i = 0; i < ir.GetNPoints(); i++) { Jrt(i) = Wideal; }
+      for (int i = 0; i < ir.GetNPoints(); i++) { Jtr(i) = Wideal; }
       break;
    }
    case IDEAL_EQ_SIZE:
@@ -573,7 +583,7 @@ void TargetJacobian::ComputeElementTargets(int e_id, const FiniteElement &fe,
       FiniteElementSpace fes(nodes->FESpace()->GetMesh(), &fec);
       LinearForm lf(&fes);
       ConstantCoefficient one(1.0);
-      lf.AddDomainIntegrator(new DomainLFIntegrator(one, &ir));
+      lf.AddDomainIntegrator(new DomainLFIntegrator(one));
       lf.Assemble();
 #ifdef MFEM_USE_MPI
       double area_NE[4];
@@ -587,7 +597,7 @@ void TargetJacobian::ComputeElementTargets(int e_id, const FiniteElement &fe,
       DenseMatrix Wideal(fe.GetDim());
       ConstructIdealJ(fe.GetGeomType(), Wideal);
       Wideal *= sqrt(avg_area / Wideal.Det());
-      for (int i = 0; i < ir.GetNPoints(); i++) { Jrt(i) = Wideal; }
+      for (int i = 0; i < ir.GetNPoints(); i++) { Jtr(i) = Wideal; }
       break;
    }
    }
@@ -621,16 +631,16 @@ void TargetJacobian::ConstructIdealJ(int geom, DenseMatrix &J)
 }
 
 double HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
-                                                   ElementTransformation &Trt,
+                                                   ElementTransformation &Ttr,
                                                    const Vector &elfun)
 {
    int dof = el.GetDof(), dim = el.GetDim();
    double energy;
 
    DSh.SetSize(dof, dim);
-   Jtr.SetSize(dim);
-   Jrp.SetSize(dim);
-   Jtp.SetSize(dim);
+   Jrt.SetSize(dim);
+   Jpr.SetSize(dim);
+   Jpt.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
 
    if (!ir)
@@ -639,12 +649,12 @@ double HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
    }
 
    energy = 0.0;
-   model->SetTransformation(Trt);
-   DenseTensor *Jrt = NULL;
+   model->SetTransformation(Ttr);
+   DenseTensor *Jtr = NULL;
    if (targetJ)
    {
-      Jrt = new DenseTensor(dim, dim, ir->GetNPoints());
-      targetJ->ComputeElementTargets(Trt.ElementNo, el, *ir, *Jrt);
+      Jtr = new DenseTensor(dim, dim, ir->GetNPoints());
+      targetJ->ComputeElementTargets(Ttr.ElementNo, el, *ir, *Jtr);
    }
 
    // Limited case.
@@ -654,24 +664,24 @@ double HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
       pos0 = new DenseMatrix(dof, dim);
       Vector pos0V(pos0->Data(), dof * dim);
       Array<int> pos_dofs;
-      nodes0->FESpace()->GetElementVDofs(Trt.ElementNo, pos_dofs);
+      nodes0->FESpace()->GetElementVDofs(Ttr.ElementNo, pos_dofs);
       nodes0->GetSubVector(pos_dofs, pos0V);
    }
 
-   // Define ref->physical transformation.
-   IsoparametricTransformation *Trp = NULL;
+   // Define ref->physical transformation, for the case when coeff is used.
+   IsoparametricTransformation *Tpr = NULL;
    if (coeff)
    {
-      Trp = new IsoparametricTransformation;
-      Trp->SetFE(&el);
-      Trp->ElementNo = Trt.ElementNo;
-      Trp->Attribute = Trt.Attribute;
-      Trp->GetPointMat().SetSize(dim, dof);
+      Tpr = new IsoparametricTransformation;
+      Tpr->SetFE(&el);
+      Tpr->ElementNo = Ttr.ElementNo;
+      Tpr->Attribute = Ttr.Attribute;
+      Tpr->GetPointMat().SetSize(dim, dof);
       for (int i = 0; i < dof; i++)
       {
          for (int d = 0; d < dim; d++)
          {
-            Trp->GetPointMat()(d, i) = PMatI(i, d);
+            Tpr->GetPointMat()(d, i) = PMatI(i, d);
          }
       }
    }
@@ -682,23 +692,23 @@ double HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
       const IntegrationPoint &ip = ir->IntPoint(i);
       if (targetJ)
       {
-         const DenseMatrix &Jrt_i = (*Jrt)(i);
-         model->SetTargetJacobian(Jrt_i);
-         CalcInverse(Jrt_i, Jtr);
-         weight = Jrt_i.Det();
+         const DenseMatrix &Jtr_i = (*Jtr)(i);
+         model->SetTargetJacobian(Jtr_i);
+         CalcInverse(Jtr_i, Jrt);
+         weight = Jtr_i.Det();
       }
       else
       {
-         Trt.SetIntPoint(&ip);
-         CalcInverse(Trt.Jacobian(), Jtr);
-         weight = Trt.Weight();
+         Ttr.SetIntPoint(&ip);
+         CalcInverse(Ttr.Jacobian(), Jrt);
+         weight = Ttr.Weight();
       }
 
       el.CalcDShape(ip, DSh);
-      MultAtB(PMatI, DSh, Jrp);
-      Mult(Jrp, Jtr, Jtp);
+      MultAtB(PMatI, DSh, Jpr);
+      Mult(Jpr, Jrt, Jpt);
 
-      double val = model->EvalW(Jtp);
+      double val = model->EvalW(Jpt);
       if (limited)
       {
          val *= eps;
@@ -713,24 +723,24 @@ double HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
          }
       }
 
-      if (coeff) { weight *= coeff->Eval(*Trp, ip); }
+      if (coeff) { weight *= coeff->Eval(*Tpr, ip); }
       energy += ip.weight * weight * val;
    }
-   delete Trp;
+   delete Tpr;
    delete pos0;
-   delete Jrt;
+   delete Jtr;
    return energy;
 }
 
 void HyperelasticNLFIntegrator::AssembleElementVector(const FiniteElement &el,
-   ElementTransformation &Trt, const Vector &elfun, Vector &elvect)
+   ElementTransformation &Ttr, const Vector &elfun, Vector &elvect)
 {
    int dof = el.GetDof(), dim = el.GetDim();
 
    DSh.SetSize(dof, dim);
    DS.SetSize(dof, dim);
-   Jtr.SetSize(dim);
-   Jtp.SetSize(dim);
+   Jrt.SetSize(dim);
+   Jpt.SetSize(dim);
    P.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
    elvect.SetSize(dof*dim);
@@ -742,12 +752,12 @@ void HyperelasticNLFIntegrator::AssembleElementVector(const FiniteElement &el,
    }
 
    elvect = 0.0;
-   model->SetTransformation(Trt);
-   DenseTensor *Jrt = NULL;
+   model->SetTransformation(Ttr);
+   DenseTensor *Jtr = NULL;
    if (targetJ)
    {
-      Jrt = new DenseTensor(dim, dim, ir->GetNPoints());
-      targetJ->ComputeElementTargets(Trt.ElementNo, el, *ir, *Jrt);
+      Jtr = new DenseTensor(dim, dim, ir->GetNPoints());
+      targetJ->ComputeElementTargets(Ttr.ElementNo, el, *ir, *Jtr);
    }
 
    // Limited case.
@@ -757,24 +767,24 @@ void HyperelasticNLFIntegrator::AssembleElementVector(const FiniteElement &el,
       pos0 = new DenseMatrix(dof, dim);
       Vector pos0V(pos0->Data(), dof * dim);
       Array<int> pos_dofs;
-      nodes0->FESpace()->GetElementVDofs(Trt.ElementNo, pos_dofs);
+      nodes0->FESpace()->GetElementVDofs(Ttr.ElementNo, pos_dofs);
       nodes0->GetSubVector(pos_dofs, pos0V);
    }
 
-   // Define ref->physical transformation.
-   IsoparametricTransformation *Trp = NULL;
+   // Define ref->physical transformation, for the case when coeff is used.
+   IsoparametricTransformation *Tpr = NULL;
    if (coeff)
    {
-      Trp = new IsoparametricTransformation;
-      Trp->SetFE(&el);
-      Trp->ElementNo = Trt.ElementNo;
-      Trp->Attribute = Trt.Attribute;
-      Trp->GetPointMat().SetSize(dim, dof);
+      Tpr = new IsoparametricTransformation;
+      Tpr->SetFE(&el);
+      Tpr->ElementNo = Ttr.ElementNo;
+      Tpr->Attribute = Ttr.Attribute;
+      Tpr->GetPointMat().SetSize(dim, dof);
       for (int i = 0; i < dof; i++)
       {
          for (int d = 0; d < dim; d++)
          {
-            Trp->GetPointMat()(d, i) = PMatI(i, d);
+            Tpr->GetPointMat()(d, i) = PMatI(i, d);
          }
       }
    }
@@ -785,25 +795,25 @@ void HyperelasticNLFIntegrator::AssembleElementVector(const FiniteElement &el,
       const IntegrationPoint &ip = ir->IntPoint(i);
       if (targetJ)
       {
-         const DenseMatrix &Jrt_i = (*Jrt)(i);
-         model->SetTargetJacobian(Jrt_i);
-         CalcInverse(Jrt_i, Jtr);
-         weight = Jrt_i.Det();
+         const DenseMatrix &Jtr_i = (*Jtr)(i);
+         model->SetTargetJacobian(Jtr_i);
+         CalcInverse(Jtr_i, Jrt);
+         weight = Jtr_i.Det();
       }
       else
       {
-         Trt.SetIntPoint(&ip);
-         CalcInverse(Trt.Jacobian(), Jtr);
-         weight = Trt.Weight();
+         Ttr.SetIntPoint(&ip);
+         CalcInverse(Ttr.Jacobian(), Jrt);
+         weight = Ttr.Weight();
       }
 
       el.CalcDShape(ip, DSh);
-      Mult(DSh, Jtr, DS);
-      MultAtB(PMatI, DS, Jtp);
+      Mult(DSh, Jrt, DS);
+      MultAtB(PMatI, DS, Jpt);
 
-      model->EvalP(Jtp, P);
+      model->EvalP(Jpt, P);
 
-      if (coeff) { weight *= coeff->Eval(*Trp, ip); }
+      if (coeff) { weight *= coeff->Eval(*Tpr, ip); }
 
       P *= ip.weight * weight;
       if (limited) { P *= eps; }
@@ -825,20 +835,20 @@ void HyperelasticNLFIntegrator::AssembleElementVector(const FiniteElement &el,
          }
       }
    }
-   delete Trp;
+   delete Tpr;
    delete pos0;
-   delete Jrt;
+   delete Jtr;
 }
 
 void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
-   ElementTransformation &Trt, const Vector &elfun, DenseMatrix &elmat)
+   ElementTransformation &Ttr, const Vector &elfun, DenseMatrix &elmat)
 {
    int dof = el.GetDof(), dim = el.GetDim();
 
    DSh.SetSize(dof, dim);
    DS.SetSize(dof, dim);
-   Jtr.SetSize(dim);
-   Jtp.SetSize(dim);
+   Jrt.SetSize(dim);
+   Jpt.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
    elmat.SetSize(dof*dim);
 
@@ -848,27 +858,27 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
    }
 
    elmat = 0.0;
-   DenseTensor *Jrt = NULL;
+   DenseTensor *Jtr = NULL;
    if (targetJ)
    {
-      Jrt = new DenseTensor(dim, dim, ir->GetNPoints());
-      targetJ->ComputeElementTargets(Trt.ElementNo, el, *ir, *Jrt);
+      Jtr = new DenseTensor(dim, dim, ir->GetNPoints());
+      targetJ->ComputeElementTargets(Ttr.ElementNo, el, *ir, *Jtr);
    }
 
-   // Define ref->physical transformation.
-   IsoparametricTransformation *Trp = NULL;
+   // Define ref->physical transformation, for the case when coeff is used.
+   IsoparametricTransformation *Tpr = NULL;
    if (coeff)
    {
-      Trp = new IsoparametricTransformation;
-      Trp->SetFE(&el);
-      Trp->ElementNo = Trt.ElementNo;
-      Trp->Attribute = Trt.Attribute;
-      Trp->GetPointMat().SetSize(dim, dof);
+      Tpr = new IsoparametricTransformation;
+      Tpr->SetFE(&el);
+      Tpr->ElementNo = Ttr.ElementNo;
+      Tpr->Attribute = Ttr.Attribute;
+      Tpr->GetPointMat().SetSize(dim, dof);
       for (int i = 0; i < dof; i++)
       {
          for (int d = 0; d < dim; d++)
          {
-            Trp->GetPointMat()(d, i) = PMatI(i, d);
+            Tpr->GetPointMat()(d, i) = PMatI(i, d);
          }
       }
    }
@@ -879,29 +889,29 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
       const IntegrationPoint &ip = ir->IntPoint(i);
       if (targetJ)
       {
-         const DenseMatrix &Jrt_i = (*Jrt)(i);
-         model->SetTargetJacobian(Jrt_i);
-         CalcInverse(Jrt_i, Jtr);
-         weight = Jrt_i.Det();
+         const DenseMatrix &Jtr_i = (*Jtr)(i);
+         model->SetTargetJacobian(Jtr_i);
+         CalcInverse(Jtr_i, Jrt);
+         weight = Jtr_i.Det();
       }
       else
       {
-         Trt.SetIntPoint(&ip);
-         CalcInverse(Trt.Jacobian(), Jtr);
-         weight = Trt.Weight();
+         Ttr.SetIntPoint(&ip);
+         CalcInverse(Ttr.Jacobian(), Jrt);
+         weight = Ttr.Weight();
       }
 
       el.CalcDShape(ip, DSh);
-      Mult(DSh, Jtr, DS);
-      MultAtB(PMatI, DS, Jtp);
+      Mult(DSh, Jrt, DS);
+      MultAtB(PMatI, DS, Jpt);
 
-      if (coeff) { weight *= coeff->Eval(*Trp, ip); }
+      if (coeff) { weight *= coeff->Eval(*Tpr, ip); }
 
       if (!limited)
-      { model->AssembleH(Jtp, DS, ip.weight * weight, elmat); }
+      { model->AssembleH(Jpt, DS, ip.weight * weight, elmat); }
       else
       {
-         model->AssembleH(Jtp, DS, eps * ip.weight * weight, elmat);
+         model->AssembleH(Jpt, DS, eps * ip.weight * weight, elmat);
          Vector shape(dof);
          el.CalcShape(ip, shape);
          for (int i = 0; i < dof; i++)
@@ -918,8 +928,8 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
          }
       }
    }
-   delete Trp;
-   delete Jrt;
+   delete Tpr;
+   delete Jtr;
 }
 
 HyperelasticNLFIntegrator::~HyperelasticNLFIntegrator()
