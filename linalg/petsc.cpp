@@ -3261,12 +3261,19 @@ static PetscErrorCode __mfem_pc_shell_apply(PC pc, Vec x, Vec y)
    PetscErrorCode      ierr;
 
    PetscFunctionBeginUser;
-   ierr = PCShellGetContext(pc,(void **)&ctx); CHKERRQ(ierr);
    mfem::PetscParVector xx(x,true);
    mfem::PetscParVector yy(y,true);
-   ctx->op->Mult(xx,yy);
-   // need to tell PETSc the Vec has been updated
-   ierr = PetscObjectStateIncrease((PetscObject)y); CHKERRQ(ierr);
+   ierr = PCShellGetContext(pc,(void **)&ctx); CHKERRQ(ierr);
+   if (ctx->op)
+   {
+      ctx->op->Mult(xx,yy);
+      // need to tell PETSc the Vec has been updated
+      ierr = PetscObjectStateIncrease((PetscObject)y); CHKERRQ(ierr);
+   }
+   else // operator is not present, copy x
+   {
+      yy = xx;
+   }
    PetscFunctionReturn(0);
 }
 
@@ -3278,12 +3285,19 @@ static PetscErrorCode __mfem_pc_shell_apply_transpose(PC pc, Vec x, Vec y)
    PetscErrorCode      ierr;
 
    PetscFunctionBeginUser;
-   ierr = PCShellGetContext(pc,(void **)&ctx); CHKERRQ(ierr);
    mfem::PetscParVector xx(x,true);
    mfem::PetscParVector yy(y,true);
-   ctx->op->MultTranspose(xx,yy);
-   // need to tell PETSc the Vec has been updated
-   ierr = PetscObjectStateIncrease((PetscObject)y); CHKERRQ(ierr);
+   ierr = PCShellGetContext(pc,(void **)&ctx); CHKERRQ(ierr);
+   if (ctx->op)
+   {
+      ctx->op->MultTranspose(xx,yy);
+      // need to tell PETSc the Vec has been updated
+      ierr = PetscObjectStateIncrease((PetscObject)y); CHKERRQ(ierr);
+   }
+   else // operator is not present, copy x
+   {
+      yy = xx;
+   }
    PetscFunctionReturn(0);
 }
 
@@ -3375,6 +3389,7 @@ PetscErrorCode MakeShellPC(PC pc, mfem::Solver &precond, bool ownsop)
    ctx->factory  = NULL;
 
    ierr = PCSetType(pc,PCSHELL); CHKERRQ(ierr);
+   ierr = PCShellSetName(pc,"MFEM Solver"); CHKERRQ(ierr);
    ierr = PCShellSetContext(pc,(void *)ctx); CHKERRQ(ierr);
    ierr = PCShellSetApply(pc,__mfem_pc_shell_apply); CHKERRQ(ierr);
    ierr = PCShellSetApplyTranspose(pc,__mfem_pc_shell_apply_transpose);
@@ -3398,6 +3413,7 @@ PetscErrorCode MakeShellPCWithFactory(PC pc,
    ctx->factory  = factory;
 
    ierr = PCSetType(pc,PCSHELL); CHKERRQ(ierr);
+   ierr = PCShellSetName(pc,"MFEM Factory"); CHKERRQ(ierr);
    ierr = PCShellSetContext(pc,(void *)ctx); CHKERRQ(ierr);
    ierr = PCShellSetApply(pc,__mfem_pc_shell_apply); CHKERRQ(ierr);
    ierr = PCShellSetApplyTranspose(pc,__mfem_pc_shell_apply_transpose);
