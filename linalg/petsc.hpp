@@ -376,7 +376,7 @@ private:
 class PetscPreconditionerFactory
 {
 public:
-   PetscPreconditionerFactory();
+   PetscPreconditionerFactory() {};
    virtual Solver *NewPreconditioner(OperatorHandle& oph) = 0;
 };
 
