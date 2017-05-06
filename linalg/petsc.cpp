@@ -400,6 +400,12 @@ PetscParMatrix::PetscParMatrix(const HypreParMatrix *ha, Operator::Type tid)
       case Operator::PETSC_MATIS:
          ConvertOperator(ha->GetComm(),*ha,&A,tid==Operator::PETSC_MATAIJ);
          break;
+#if defined(PETSC_HAVE_HYPRE)
+      case Operator::PETSC_MATHYPRE:
+         ierr = MatCreateFromParCSR(*ha,MATHYPRE,PETSC_USE_POINTER,&A);
+         CCHKERRQ(ha->GetComm(),ierr);
+         break;
+#endif
       case Operator::PETSC_MATSHELL:
          MakeWrapper(ha->GetComm(),ha,&A);
          break;
@@ -1185,6 +1191,10 @@ Operator::Type PetscParMatrix::GetType() const
    if (ok == PETSC_TRUE) { return PETSC_MATSHELL; }
    ierr = PetscObjectTypeCompare(oA, MATNEST, &ok); PCHKERRQ(A,ierr);
    if (ok == PETSC_TRUE) { return PETSC_MATNEST; }
+#if defined(PETSC_HAVE_HYPRE)
+   ierr = PetscObjectTypeCompare(oA, MATHYPRE, &ok); PCHKERRQ(A,ierr);
+   if (ok == PETSC_TRUE) { return PETSC_MATHYPRE; }
+#endif
    return PETSC_MATGENERIC;
 }
 
@@ -1633,8 +1643,6 @@ PetscBCHandler::PetscBCHandler(Array<int>& ess_tdof_list,
 
 void PetscBCHandler::SetTDofs(Array<int>& list)
 {
-   // TODO: Why the copy constructor is private?
-   //ess_tdof_list = list;
    ess_tdof_list.SetSize(list.Size());
    ess_tdof_list.Assign(list);
    setup = false;
