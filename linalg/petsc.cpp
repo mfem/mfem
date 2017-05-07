@@ -2922,7 +2922,7 @@ static PetscErrorCode __mfem_ts_ifunction(TS ts, PetscReal t, Vec x, Vec xp,
    mfem::PetscParVector yy(xp,true);
    mfem::PetscParVector ff(f,true);
 
-   mfem::TimeDependentOperator *op = (mfem::TimeDependentOperator*)ts_ctx->op;
+   mfem::TimeDependentOperator *op = ts_ctx->op;
    op->SetTime(t);
 
    if (ts_ctx->bchandler)
@@ -2958,7 +2958,7 @@ static PetscErrorCode __mfem_ts_rhsfunction(TS ts, PetscReal t, Vec x, Vec f,
    if (ts_ctx->bchandler) { MFEM_ABORT("RHS evaluation with bc not implemented"); } // TODO
    mfem::PetscParVector xx(x,true);
    mfem::PetscParVector ff(f,true);
-   mfem::TimeDependentOperator *top = (mfem::TimeDependentOperator*)ts_ctx->op;
+   mfem::TimeDependentOperator *top = ts_ctx->op;
    top->SetTime(t);
 
    // use the ExplicitMult method - compute the RHS function
@@ -2982,7 +2982,7 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
 
    PetscFunctionBeginUser;
    // update time
-   mfem::TimeDependentOperator *op = (mfem::TimeDependentOperator*)ts_ctx->op;
+   mfem::TimeDependentOperator *op = ts_ctx->op;
    op->SetTime(t);
 
    // prevent to recompute a Jacobian if we already did so
@@ -3049,12 +3049,15 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
                                             Mat A, Mat P, void *ctx)
 {
    __mfem_ts_ctx* ts_ctx = (__mfem_ts_ctx*)ctx;
+   mfem::Vector   *xx;
    PetscScalar    *array;
    PetscInt       n;
    PetscErrorCode ierr;
 
    PetscFunctionBeginUser;
-   if (ts_ctx->bchandler) { MFEM_ABORT("RHS Jacobian with bc not implemented"); } // TODO
+   // update time
+   mfem::TimeDependentOperator *op = ts_ctx->op;
+   op->SetTime(t);
 
    // prevent to recompute a Jacobian if we already did so
    if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
@@ -3063,14 +3066,25 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    // wrap Vec with Vector
    ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
    ierr = VecGetArrayRead(x,(const PetscScalar**)&array); CHKERRQ(ierr);
-   mfem::Vector xx(array,n);
+   if (!ts_ctx->bchandler)
+   {
+      xx = new mfem::Vector(array,n);
+   }
+   else
+   {
+      // make sure we compute a Jacobian with the correct boundary values
+      if (!ts_ctx->work) { ts_ctx->work = new mfem::Vector(n); }
+      mfem::Vector txx(array,n);
+      mfem::PetscBCHandler *bchandler = ts_ctx->bchandler;
+      xx = ts_ctx->work;
+      bchandler->SetTime(t);
+      bchandler->ApplyBC(txx,*xx);
+   }
    ierr = VecRestoreArrayRead(x,(const PetscScalar**)&array); CHKERRQ(ierr);
 
-   // update time
-   mfem::TimeDependentOperator *top = (mfem::TimeDependentOperator*)ts_ctx->op;
-   top->SetTime(t);
-
-   mfem::Operator& J = top->GetExplicitGradient(xx);
+   // Use TimeDependentOperator::GetExplicitGradient(x)
+   mfem::Operator& J = op->GetExplicitGradient(*xx);
+   if (!ts_ctx->bchandler) { delete xx; }
    ts_ctx->computed_rhsjac = true;
 
    // Convert to the operator type requested if needed
