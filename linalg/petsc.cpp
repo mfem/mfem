@@ -2975,6 +2975,7 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    __mfem_ts_ctx* ts_ctx = (__mfem_ts_ctx*)ctx;
    mfem::Vector   *xx;
    PetscScalar    *array;
+   PetscReal      eps = 0.001; /* 0.1% difference */
    PetscInt       n;
    PetscErrorCode ierr;
 
@@ -2984,8 +2985,10 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    op->SetTime(t);
 
    // prevent to recompute a Jacobian if we already did so
+   // the relative tolerance comparison should be fine given the fact
+   // that two consecutive shifts should have similar magnitude
    if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
-       ts_ctx->cached_shift == shift) { PetscFunctionReturn(0); }
+       std::abs(ts_ctx->cached_shift/shift - 1.0) < eps) { PetscFunctionReturn(0); }
 
    // wrap Vecs with Vectors
    ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
