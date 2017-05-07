@@ -99,6 +99,7 @@ typedef struct
    mfem::Solver                     *op;
    mfem::PetscPreconditionerFactory *factory;
    bool                             ownsop;
+   unsigned long int                numprec;
 } __mfem_pc_shell_ctx;
 
 typedef struct
@@ -3234,6 +3235,10 @@ static PetscErrorCode __mfem_pc_shell_view(PC pc, PetscViewer viewer)
    ierr = PCShellGetContext(pc,(void **)&ctx); CHKERRQ(ierr);
    if (ctx->op)
    {
+      PetscBool isascii;
+      ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&isascii);
+      CHKERRQ(ierr);
+
       mfem::PetscPreconditioner *ppc = dynamic_cast<mfem::PetscPreconditioner *>
                                        (ctx->op);
       if (ppc)
@@ -3242,14 +3247,18 @@ static PetscErrorCode __mfem_pc_shell_view(PC pc, PetscViewer viewer)
       }
       else
       {
-         PetscBool isascii;
-         ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&isascii);
-         CHKERRQ(ierr);
          if (isascii)
          {
             ierr = PetscViewerASCIIPrintf(viewer,
                                           "No information available on the mfem::Solver\n");
+            CHKERRQ(ierr);
          }
+      }
+      if (isascii && ctx->factory)
+      {
+         ierr = PetscViewerASCIIPrintf(viewer,
+                                       "Number of preconditioners created by the factory %lu\n",ctx->numprec);
+         CHKERRQ(ierr);
       }
    }
    PetscFunctionReturn(0);
@@ -3322,6 +3331,7 @@ static PetscErrorCode __mfem_pc_shell_setup(PC pc)
       mfem::PetscPreconditionerFactory *factory = ctx->factory;
       ctx->op = factory->NewPreconditioner(hB);
       ctx->ownsop = true;
+      ctx->numprec++;
    }
    PetscFunctionReturn(0);
 }
@@ -3372,9 +3382,10 @@ PetscErrorCode MakeShellPC(PC pc, mfem::Solver &precond, bool ownsop)
 {
    PetscFunctionBeginUser;
    __mfem_pc_shell_ctx *ctx = new __mfem_pc_shell_ctx;
-   ctx->op       = &precond;
-   ctx->ownsop   = ownsop;
-   ctx->factory  = NULL;
+   ctx->op      = &precond;
+   ctx->ownsop  = ownsop;
+   ctx->factory = NULL;
+   ctx->numprec = 0;
 
    ierr = PCSetType(pc,PCSHELL); CHKERRQ(ierr);
    ierr = PCShellSetName(pc,"MFEM Solver"); CHKERRQ(ierr);
@@ -3395,9 +3406,10 @@ PetscErrorCode MakeShellPCWithFactory(PC pc,
 {
    PetscFunctionBeginUser;
    __mfem_pc_shell_ctx *ctx = new __mfem_pc_shell_ctx;
-   ctx->op       = NULL;
-   ctx->ownsop   = true;
-   ctx->factory  = factory;
+   ctx->op      = NULL;
+   ctx->ownsop  = true;
+   ctx->factory = factory;
+   ctx->numprec = 0;
 
    ierr = PCSetType(pc,PCSHELL); CHKERRQ(ierr);
    ierr = PCShellSetName(pc,factory->GetName()); CHKERRQ(ierr);
