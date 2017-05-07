@@ -4149,10 +4149,12 @@ const Table & Mesh::ElementToElementTable()
       return *el_to_el;
    }
 
+   MFEM_TRACE_BLOCK_BEGIN;
    int num_faces = GetNumFaces();
    MFEM_ASSERT(faces_info.Size() == num_faces, "faces were not generated!");
 
    Array<Connection> conn;
+   MFEM_TRACE_POINT("Number of faces: " << num_faces);
    conn.Reserve(2*num_faces);
 
    for (int i = 0; i < faces_info.Size(); i++)
@@ -4173,8 +4175,10 @@ const Table & Mesh::ElementToElementTable()
 
    conn.Sort();
    conn.Unique();
+   MFEM_TRACE_POINT("Number of connections: " << conn.Size());
    el_to_el = new Table(NumOfElements, conn);
 
+   MFEM_TRACE_BLOCK_END;
    return *el_to_el;
 }
 
@@ -4610,6 +4614,7 @@ int *Mesh::CartesianPartitioning(int nxyz[])
                       -numeric_limits<double>::infinity()
                     };
    // find a bounding box using the vertices
+   // TODO: use GetBoundingBox()
    for (int vi = 0; vi < NumOfVertices; vi++)
    {
       const double *p = vertices[vi]();
@@ -4647,6 +4652,8 @@ int *Mesh::CartesianPartitioning(int nxyz[])
 int *Mesh::GeneratePartitioning(int nparts, int part_method)
 {
    MFEM_TRACE_BLOCK_BEGIN;
+   MFEM_TRACE_POINT("#elements: " << NumOfElements << ", #parts: "
+                    << nparts << ", method: " << part_method);
 #ifdef MFEM_USE_MPI
    int i, *partitioning;
 
@@ -4866,6 +4873,26 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                   psize[i].one--;
                }
       }
+
+      MFEM_TRACE_EVAL(
+         for (int j = 0; j < nparts; j++)
+         {
+            psize[j].one = 0;
+         }
+         for (int j = 0; j < NumOfElements; j++)
+         {
+            psize[partitioning[j]].one++;
+         }
+         int m1 = psize[0].one;
+         int m2 = m1;
+         for (int j = 1; j < nparts; j++)
+         {
+            m1 = std::min(m1, psize[j].one);
+            m2 = std::max(m2, psize[j].one);
+         }
+         ,
+         "partition sizes: min: " << m1 << ", avg: "
+         << double(NumOfElements)/nparts << ", max: " << m2);
    }
 
    MFEM_TRACE_BLOCK_END;

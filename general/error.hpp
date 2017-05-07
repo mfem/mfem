@@ -157,6 +157,15 @@ extern void tracing_init(std::ostream *std_ostream_ptr);
          << " @ " << __FILE__ << ':' << __LINE__  << std::endl; \
    }
 
+#define MFEM_TRACE_EVAL(code,msg) \
+   if (mfem::internal::trace_out && mfem::internal::tracing_state) \
+   { \
+      code; \
+      *mfem::internal::trace_out \
+         << std::setw(3*mfem::internal::tracing_depth+3) << "** " << msg \
+         << " @ " << __FILE__ << ':' << __LINE__  << std::endl; \
+   }
+
 #else // tracing is not enabled
 
 #define MFEM_TRACING_INIT(std_ostream_ptr)
@@ -164,6 +173,8 @@ extern void tracing_init(std::ostream *std_ostream_ptr);
 #define MFEM_TRACING_DISABLE
 #define MFEM_TRACE_BLOCK_BEGIN
 #define MFEM_TRACE_BLOCK_END
+#define MFEM_TRACE_POINT(msg)
+#define MFEM_TRACE_EVAL(code,msg)
 
 #endif // MFEM_USE_TRACING
 
