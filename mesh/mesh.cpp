@@ -2286,6 +2286,10 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 
    meshgen = mesh.meshgen;
 
+   // Create the new Mesh instance without a record of its refinement history
+   sequence = 0;
+   last_operation = Mesh::NONE;
+
    // Duplicate the elements
    elements.SetSize(NumOfElements);
    for (int i = 0; i < NumOfElements; i++)
