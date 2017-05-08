@@ -31,7 +31,9 @@ namespace mfem
 Vector::Vector(const Vector &v)
 {
    int s = v.Size();
-   if (s > 0)
+   double * d = v.GetData();
+
+   if (s > 0 && d)
    {
       allocsize = size = s;
       data = new double[s];
@@ -42,7 +44,8 @@ Vector::Vector(const Vector &v)
    }
    else
    {
-      allocsize = size = 0;
+      size = s > 0 ? s : 0;
+      allocsize = size;
       data = NULL;
    }
 }

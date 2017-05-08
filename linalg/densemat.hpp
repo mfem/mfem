@@ -567,6 +567,7 @@ class DenseMatrixEigensystem
 public:
 
    DenseMatrixEigensystem(DenseMatrix &m);
+   DenseMatrixEigensystem(const DenseMatrixEigensystem &other);
    void Eval();
    Vector &Eigenvalues() { return EVal; }
    DenseMatrix &Eigenvectors() { return EVect; }

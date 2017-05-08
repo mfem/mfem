@@ -4151,6 +4151,18 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
 #endif
 }
 
+DenseMatrixEigensystem::DenseMatrixEigensystem(const DenseMatrixEigensystem &other)
+   : mat(other.mat), EVal(other.EVal), EVect(other.EVect), ev(other.ev), n(other.n)
+{
+#ifdef MFEM_USE_LAPACK
+   jobz = other.jobz;
+   uplo = other.uplo;
+   lwork = other.lwork;
+
+   work = new double[lwork];
+#endif
+}
+
 void DenseMatrixEigensystem::Eval()
 {
 #ifdef MFEM_DEBUG
