@@ -2780,6 +2780,11 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
    }
    if (!f_.isHomogeneous())
    {
+      if (!f_.isImplicit())
+      {
+         ierr = TSSetEquationType(ts, TS_EQ_EXPLICIT);
+         PCHKERRQ(ts, ierr);
+      }
       ierr = TSSetRHSFunction(ts, NULL, __mfem_ts_rhsfunction, (void *)ts_ctx);
       PCHKERRQ(ts, ierr);
       ierr = TSSetRHSJacobian(ts, NULL, NULL, __mfem_ts_rhsjacobian, (void *)ts_ctx);
@@ -2792,6 +2797,11 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
    ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
    ts_ctx->type = type;
    ts_ctx->computed_rhsjac = false;
+   if (type == ODE_SOLVER_LINEAR)
+   {
+      ierr = TSSetProblemType(ts, TS_LINEAR);
+      PCHKERRQ(ts, ierr);
+   }
 }
 
 void PetscODESolver::SetJacobianType(Operator::Type jacType)
