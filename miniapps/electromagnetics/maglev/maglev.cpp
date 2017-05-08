@@ -266,7 +266,6 @@ void solveForJz(MaglevProblemGeometry &problem,
                 ParGridFunction &az,
                 ParGridFunction &jz)
 {
-   ParMesh *pmesh = fes_h1.GetParMesh();
    Array<int> ess_tdof_list(fes_h1.GlobalTrueVSize());
    ess_tdof_list = 0;
 
@@ -282,19 +281,19 @@ void solveForJz(MaglevProblemGeometry &problem,
    k.AddDomainIntegrator(new DiffusionIntegrator(muinv_coeff));
    k.Assemble();
 
-   //Set up the linear system B = K AZ and get b
+   //Compute B = K AZ
    ParGridFunction b(&fes_h1);
    HypreParMatrix K;
-   Vector AZ, B;   
-   k.FormLinearSystem(ess_tdof_list, b, az, K, B, AZ);
-   K.Mult(AZ, B);
-   k.RecoverFEMSolution(B, az, b);
+   HypreParVector *AZ = az.GetTrueDofs();
+   HypreParVector B(*AZ);
+   k.FormSystemMatrix(ess_tdof_list, K);
+   K.Mult(*AZ, B);
 
    //Now Set up the linear system for M JZ = B and get jz
    jz = 0.0;
-   Vector JZ;
+   HypreParVector *JZ = jz.GetTrueDofs();
    HypreParMatrix M;
-   m.FormLinearSystem(ess_tdof_list, jz, b, M, JZ, B);
+   m.FormSystemMatrix(ess_tdof_list, M);
    HypreBoomerAMG amg(M);
    HypreGMRES gmres(M);
    gmres.SetTol(1e-12);
@@ -302,7 +301,8 @@ void solveForJz(MaglevProblemGeometry &problem,
    gmres.SetMaxIter(10000);
    gmres.SetPrintLevel(2);
    gmres.SetPreconditioner(amg);
-   gmres.Mult(B, JZ);
-   m.RecoverFEMSolution(JZ, b, jz);
-}
+   gmres.Mult(B, *JZ);
+   jz = *JZ;
 
+   delete AZ;
+}
