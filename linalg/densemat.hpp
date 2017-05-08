@@ -630,6 +630,25 @@ public:
       own_data = true;
    }
 
+   DenseTensor(const DenseTensor& other)
+      : Mk(other.Mk), nk(other.nk), own_data(other.own_data)
+   {
+      if (own_data)
+      {
+         int i = Mk.Height();
+         int j = Mk.Width();
+         int k = nk;
+         int size = i * j * k;
+         tdata = new double[size];
+         std::memcpy(tdata, other.tdata, sizeof(double) * size);
+      }
+      else
+      {
+         tdata = other.tdata;
+      }
+
+   }
+
    int SizeI() const { return Mk.Height(); }
    int SizeJ() const { return Mk.Width(); }
    int SizeK() const { return nk; }

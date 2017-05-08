@@ -42,19 +42,19 @@ DenseMatrix::DenseMatrix() : Matrix(0)
 DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
 {
    int hw = height * width;
-   if (hw > 0)
+   if (hw > 0 && m.data)
    {
       data = new double[hw];
       capacity = hw;
-      for (int i = 0; i < hw; i++)
+      for (int i = 0; i < hw; ++i)
       {
          data[i] = m.data[i];
       }
    }
    else
    {
+      capacity = hw > 0 ? hw : 0;
       data = NULL;
-      capacity = 0;
    }
 }
 
@@ -4259,7 +4259,6 @@ DenseMatrixSVD::~DenseMatrixSVD()
    delete [] work;
 #endif
 }
-
 
 void DenseTensor::AddMult(const Table &elem_dof, const Vector &x, Vector &y)
 const
