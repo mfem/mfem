@@ -21,13 +21,13 @@ Development version 3.3.1, not released
   refinement hierarchy, but excluding the temporary face_list and edge_list)
   is now only about 290 bytes. This also makes the class faster.
 
-- Added a new meshing miniapp, Shaper, that can be used to resolve
-  complicated material interfaces by mesh refinement, e.g. as a tool
-  for initial mesh generation from prescribed "material()" function.
-  Both conforming and non-conforming refinements are supported.
+- Added a new meshing miniapp, Shaper, that can be used to resolve complicated
+  material interfaces by mesh refinement, e.g. as a tool for initial mesh
+  generation from prescribed "material()" function.  Both conforming and
+  non-conforming (isotropic and anisotropic) refinements are supported.
 
-- Added a block lower triangular preconditioner based only on the
-  actions of each block see class BlockLowerTriangularPreconditioner.
+- Added a block lower triangular preconditioner based (only) on the actions of
+  each block, see class BlockLowerTriangularPreconditioner.
 
 - Added an optional operator in LOBPCG to projects vectors onto a desired
   subspace (e.g. divergence-free). Other small changes in LOBPCG include the
