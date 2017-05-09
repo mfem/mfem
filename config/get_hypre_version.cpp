@@ -28,6 +28,7 @@ int main()
 {
 #ifdef HYPRE_VERSION_STRING
    const char *ptr = STR(HYPRE_VERSION_STRING);
+   if (*ptr == '"') { ptr++; }
    int version = 0;
    for (int i = 0; i < 3; i++, ptr++)
    {
@@ -40,6 +41,7 @@ int main()
       version = 100*version + pv;
    }
    printf("%i\n", version);
+   return 0;
 #else
    return 2;
 #endif
