@@ -462,8 +462,8 @@ int main(int argc, char *argv[])
 
     bool verbose = (myid == 0);
 
-    int nDimensions     = 3;
-    int numsol          = 1003;
+    int nDimensions     = 4;
+    int numsol          = 1004;
     double epsilon      = -0.01; // no time weight if negative
 
     int ser_ref_levels  = 0;
@@ -477,8 +477,8 @@ int main(int argc, char *argv[])
     int bnd_method          = 1;
     int local_method        = 2;
 
-    bool with_divdiv = true;    //unlike CFOSLS, here it should be always true.
-    bool hybridization = true; //with hybridization the code is not working currently
+    const bool with_divdiv = true;    //unlike CFOSLS, here it should be always true.
+    bool hybridization = false; //with hybridization the code is not working currently
 
     // solver options
     int prec_option = 3; //defines whether to use preconditioner or not, and which one
@@ -496,9 +496,9 @@ int main(int argc, char *argv[])
     //const char * meshbase_file = "../build3/meshes/sphere3D_0.1to0.2.mesh";
     //const char * meshbase_file = "../build3/meshes/sphere3D_0.05to0.1.mesh";
     //const char * meshbase_file = "../build3/meshes/sphere3D_veryfine.mesh";
-    //const char * meshbase_file = "../build3/meshes/orthotope3D_moderate.mesh";
-    //const char * meshbase_file = "./data/orthotope3D_fine.mesh";
-    const char * meshbase_file = "../data/square_2d_moderate.mesh";
+    //const char * meshbase_file = "../build3/meshes/orthotope3D_moderate.mesh";ч
+    const char * meshbase_file = "./data/orthotope3D_fine.mesh";
+    //const char * meshbase_file = "./data/square_2d_moderate.mesh";
     //const char * meshbase_file = "../build3/meshes/square_2d_fine.mesh";
     //const char * meshbase_file = "../build3/meshes/square-disc.mesh";
     //const char *meshbase_file = "dsadsad";
@@ -906,7 +906,10 @@ int main(int argc, char *argv[])
     {
         if (verbose)
             std::cerr << "Using mfem hybridization" << endl;
-        hfec = new DG_Interface_FECollection(feorder, dim);
+        if (nDimensions <= 3)
+            hfec = new DG_Interface_FECollection(feorder, dim);
+        else //4D case
+            hfec = new DG0_Interface_4DFECollection(feorder, dim);
         hfes = new ParFiniteElementSpace(pmesh.get(), hfec);
         Ablock->EnableHybridization(hfes, new NormalTraceJumpIntegrator(),
                                ess_tdof_list);

@@ -944,8 +944,8 @@ protected:
    char rt_name[32];
    FiniteElement *RT_Elements[Geometry::NumGeom];
    int RT_dof[Geometry::NumGeom];
-   //int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
-   int *TetraDofOrd[12]; // FIX IT: what should be the size of DofOrd array?
+   int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
+   int *TetraDofOrd[24]; // FIX IT: what should be the size of DofOrd array? Number of tetrahedron orientations? Then it's 24
 
    // Initialize only the face elements
    void InitFaces(const int p, const int dim, const int map_type,

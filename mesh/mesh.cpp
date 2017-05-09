@@ -575,6 +575,34 @@ void Mesh::GetLocalTriToTetTransformation(
    }
 }
 
+void Mesh::GetLocalTetToPentaTransformation(
+   IsoparametricTransformation &Transf, int i)
+{
+   // FIX ME: just copied TriToTet function and changed names
+   std::cout << "Not implemented properly yet" << std::endl;
+   /*
+   DenseMatrix &locpm = Transf.GetPointMat();
+
+   Transf.SetFE(&PentatopeFE);
+   //  (i/64) is the local face no. in the penta
+   const int *tv = pent_t::FaceVert[i/64];
+   //  (i%64) is the orientation of the pentatope face
+   //         w.r.t. the face element
+   const int *to = tet_t::Orient[i%64];
+   const IntegrationRule *PentaVert =
+      Geometries.GetVertices(Geometry::PENTATOPE);
+   locpm.SetSize(4, 4);
+   for (int j = 0; j < 4; j++)
+   {
+      const IntegrationPoint &vert = PentaVert->IntPoint(tv[to[j]]);
+      locpm(0, j) = vert.x;
+      locpm(1, j) = vert.y;
+      locpm(2, j) = vert.z;
+      locpm(3, j) = vert.t;
+   }
+   */
+}
+
 void Mesh::GetLocalQuadToHexTransformation(
    IsoparametricTransformation &Transf, int i)
 {
@@ -626,6 +654,11 @@ void Mesh::GetLocalFaceTransformation(
          MFEM_ASSERT(elem_type == Element::HEXAHEDRON, "");
          GetLocalQuadToHexTransformation(Transf, inf);
          break;
+
+      case Element::TETRAHEDRON:
+         MFEM_ASSERT(elem_type == Element::PENTATOPE, "");
+         GetLocalTetToPentaTransformation(Transf, inf);
+      break;
    }
 }
 
@@ -4557,6 +4590,8 @@ int Mesh::GetBdrElementEdgeIndex(int i) const
       case 1: return boundary[i]->GetVertices()[0];
       case 2: return be_to_edge[i];
       case 3: return be_to_face[i];
+      case 4: // 4D case, "give it a try", seems to crush parelag::...:: generateTopology()
+	      return be_to_face[i]; 
       default: mfem_error("Mesh::GetBdrElementEdgeIndex: invalid dimension!");
    }
    return -1;

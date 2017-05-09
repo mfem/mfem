@@ -415,8 +415,8 @@ MatrixInverse *DenseMatrix::Inverse() const
 
 double DenseMatrix::Det() const
 {
-   MFEM_ASSERT(Height() == Width() && Height() > 0 && Height() < 4,
-               "The matrix must be square and sized 1, 2, or 3 to compute the determinate."
+   MFEM_ASSERT(Height() == Width() && Height() > 0 && Height() <= 4,
+               "The matrix must be square and sized 1, 2, 3 or 4 to compute the determinate."
                << "  Height() = " << Height()
                << ", Width() = " << Width());
 

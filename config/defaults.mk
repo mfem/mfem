@@ -80,7 +80,7 @@ MFEM_WITH_QHULL	     = NO
 
 # Setting WITH_QHULL flag which defines whether qhull-dependent parts are compiled in mesh generator
 ifneq ($(MFEM_WITH_QHULL),YES)
-    OPTIM_FLAGS = -O3 -std=c++11 
+    OPTIM_FLAGS = -O3 -g -std=c++11 
     DEBUG_FLAGS = -g -Wall -std=c++11
 else
     OPTIM_FLAGS = -O3 -std=c++11 -DWITH_QHULL

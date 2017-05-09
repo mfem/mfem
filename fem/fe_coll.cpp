@@ -1659,6 +1659,11 @@ RT0_4DFECollection::RT0_4DFECollection(const int p, const int dim, const int map
       const char *ob_name = BasisType::Name(ob_type); // this may abort
       MFEM_ABORT("Invalid open basis type: " << ob_name);
    }
+
+   if ( p > 0 )
+   {
+       MFEM_ABORT("Invalid order of trace elements in 4D: should be 0 but: " << p << "was provided! \n");
+   }
    InitFaces(p, dim, map_type, signs);
 }
 
@@ -1677,8 +1682,8 @@ void RT0_4DFECollection::InitFaces(const int p, const int dim, const int map_typ
       RT_Elements[g] = NULL;
       RT_dof[g] = 0;
    }
+
    // Degree of Freedom orderings
-   /*
    for (int i = 0; i < 2; i++)
    {
       SegDofOrd[i] = NULL;
@@ -1691,14 +1696,12 @@ void RT0_4DFECollection::InitFaces(const int p, const int dim, const int map_typ
    {
       QuadDofOrd[i] = NULL;
    }
-   */
 
-   /*
-   for (int i = 0; i < 100; i++) // FIX IT: what is the size of DofOrd?
+   for (int i = 0; i < 24; i++) // FIX IT: what is the size of DofOrd?
    {
       TetraDofOrd[i] = NULL;
    }
-   */
+
 
    /*
    if (dim == 2)
@@ -1794,14 +1797,66 @@ void RT0_4DFECollection::InitFaces(const int p, const int dim, const int map_typ
        L2_TetrahedronElement *l2_tetra = new L2_TetrahedronElement(p, op_type);
        l2_tetra->SetMapType(map_type);
        RT_Elements[Geometry::TETRAHEDRON] = l2_tetra;
-       RT_dof[Geometry::TETRAHEDRON] = 100;         // FIX IT: what should be the size?
+       RT_dof[Geometry::TETRAHEDRON] = 1;     // FIX IT: what should be the size? Number of dofs on the face = 1 for p = 0
 
        int TetraDof = RT_dof[Geometry::TETRAHEDRON];
-       TetraDofOrd[0] = new int[100*TetraDof];      // FIX IT: what should be the size?
-       for (int i = 1; i < 6; i++)
+       TetraDofOrd[0] = new int[24*TetraDof];// FIX IT: what should be the size?
+       for (int i = 1; i < 24; i++)
        {
           TetraDofOrd[i] = TetraDofOrd[i-1] + TetraDof;
        }
+
+       // sign of permutation from 0,1,2,3.
+
+       TetraDofOrd[0][0] = 0;  // 0, 1, 2, 3
+       TetraDofOrd[1][0] = -1; // 0, 1, 3, 2
+       TetraDofOrd[2][0] = -1; // 0, 2, 1, 3
+       TetraDofOrd[3][0] = 0;  // 0, 2, 3, 1
+       TetraDofOrd[4][0] = 0;  // 0, 3, 1, 2
+       TetraDofOrd[5][0] = -1; // 0, 3, 2, 1
+       TetraDofOrd[6][0] = -1; // 1, 0, 2, 3
+       TetraDofOrd[7][0] = 0;  // 1, 0, 3, 2
+       TetraDofOrd[8][0] = 0;  // 1, 2, 0, 3
+       TetraDofOrd[9][0] = -1; // 1, 2, 3, 0
+       TetraDofOrd[10][0] = -1;// 1, 3, 0, 2
+       TetraDofOrd[11][0] = 0; // 1, 3, 2, 0
+       TetraDofOrd[12][0] = 0; // 2, 0, 1, 3
+       TetraDofOrd[13][0] = -1;// 2, 0, 3, 1
+       TetraDofOrd[14][0] = -1;// 2, 1, 0, 3
+       TetraDofOrd[15][0] = 0; // 2, 1, 3, 0
+       TetraDofOrd[16][0] = 0; // 2, 3, 0, 1
+       TetraDofOrd[17][0] = -1;// 2, 3, 1, 0
+       TetraDofOrd[18][0] = -1;// 3, 0, 1, 2
+       TetraDofOrd[19][0] = 0; // 3, 0, 2, 1
+       TetraDofOrd[20][0] = 0; // 3, 1, 0, 2
+       TetraDofOrd[21][0] = -1;// 3, 1, 2, 0
+       TetraDofOrd[22][0] = -1;// 3, 2, 0, 1
+       TetraDofOrd[23][0] = 0; // 3, 2, 1, 0
+
+       TetraDofOrd[0][0] = 0;  // 0, 1, 2, 3
+       TetraDofOrd[1][0] = -1; // 0, 1, 3, 2
+       TetraDofOrd[2][0] = -1; // 0, 2, 1, 3
+       TetraDofOrd[3][0] = 0;  // 0, 2, 3, 1
+       TetraDofOrd[4][0] = 0;  // 0, 3, 1, 2
+       TetraDofOrd[5][0] = -1; // 0, 3, 2, 1
+       TetraDofOrd[6][0] = -1; // 1, 0, 2, 3
+       TetraDofOrd[7][0] = 0;  // 1, 0, 3, 2
+       TetraDofOrd[8][0] = 0;  // 1, 2, 0, 3
+       TetraDofOrd[9][0] = -1; // 1, 2, 3, 0
+       TetraDofOrd[10][0] = -1;// 1, 3, 0, 2
+       TetraDofOrd[11][0] = 0; // 1, 3, 2, 0
+       TetraDofOrd[12][0] = 0; // 2, 0, 1, 3
+       TetraDofOrd[13][0] = -1;// 2, 0, 3, 1
+       TetraDofOrd[14][0] = -1;// 2, 1, 0, 3
+       TetraDofOrd[15][0] = 0; // 2, 1, 3, 0
+       TetraDofOrd[16][0] = 0; // 2, 3, 0, 1
+       TetraDofOrd[17][0] = -1;// 2, 3, 1, 0
+       TetraDofOrd[18][0] = -1;// 3, 0, 1, 2
+       TetraDofOrd[19][0] = 0; // 3, 0, 2, 1
+       TetraDofOrd[20][0] = 0; // 3, 1, 0, 2
+       TetraDofOrd[21][0] = -1;// 3, 1, 2, 0
+       TetraDofOrd[22][0] = -1;// 3, 2, 0, 1
+       TetraDofOrd[23][0] = 0; // 3, 2, 1, 0
 
        /*
        // see Mesh::GetTetOrientation in mesh/mesh.cpp,
@@ -2420,6 +2475,18 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
             }
          }
       }
+
+      /*
+      std::cout << "TriDof = " << TriDof << std::endl;
+      for ( int i = 0; i < 6; ++i)
+      {
+          std::cout << "TriDofOrd " << i << ": ";
+          for ( int j = 0; j < TriDof; ++j)
+              std::cout << TriDofOrd[i][j] << " ";
+          std::cout << std::endl;
+      }
+      std::cout << "Geometry::TRIANGLE = " << Geometry::TRIANGLE << std::endl;
+      */
 
       int QuadDof = RT_dof[Geometry::SQUARE];
       QuadDofOrd[0] = new int[8*QuadDof];
