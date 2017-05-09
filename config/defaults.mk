@@ -211,12 +211,12 @@ endif
 
 #Acrotensor library configs
 ifeq ($(MFEM_USE_ACROTENSOR),YES)
-   ifndef CUDALIB_DIR
-      CUDALIB_DIR = /usr/local/cuda/lib64
+   ifndef CUDA_DIR
+      CUDA_DIR = /usr/local/cuda
    endif
    ACROTENSOR_DIR = @MFEM_DIR@/../acrotensor
-   ACROTENSOR_OPT = -I$(ACROTENSOR_DIR)/inc -std=c++11 -DACRO_HAVE_CUDA
-   ACROTENSOR_LIB = -L$(ACROTENSOR_DIR)/lib -L$(CUDALIB_DIR) -lacrotensor -lcuda -lcudart -lnvrtc
+   ACROTENSOR_OPT = -I$(ACROTENSOR_DIR)/inc -I$(CUDA_DIR)/include -std=c++11 -DACRO_HAVE_CUDA
+   ACROTENSOR_LIB = -L$(ACROTENSOR_DIR)/lib -L$(CUDA_DIR)/lib64 -lacrotensor -lcuda -lcudart -lnvrtc
 endif
 
 # If YES, enable some informational messages
