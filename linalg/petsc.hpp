@@ -335,6 +335,8 @@ public:
       eval_t_cached(std::numeric_limits<double>::min()) {};
    PetscBCHandler(Array<int>& ess_tdof_list, Type _type = ZERO);
 
+   virtual ~PetscBCHandler() {}
+
    /// Returns the type of boundary conditions
    Type Type() const { return bctype; }
 
