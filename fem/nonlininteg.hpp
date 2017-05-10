@@ -113,7 +113,7 @@ public:
        Computes weight * d(dW_dxi)_d(xj) at the current point, for all i and j,
        where x1 ... xn are the FE dofs. This function is usually defined using
        the matrix invariants and their derivatives.
-  */
+   */
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const = 0;
 };

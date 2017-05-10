@@ -72,7 +72,7 @@ void HyperelasticModel::Dim2Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM)
 
 // (dI1_dM)_d(Mij) = d[(2 det(M) M - |M|^2 adj(M)^T) / det(T)^2]_d[Mij].
 void HyperelasticModel::Dim2Invariant1_dMdM(const DenseMatrix &M, int i, int j,
-                                        DenseMatrix &dMdM)
+                                            DenseMatrix &dMdM)
 {
    MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
 
@@ -102,7 +102,7 @@ void HyperelasticModel::Dim2Invariant1_dMdM(const DenseMatrix &M, int i, int j,
 
 // (dI2_dM)_d(Mij) = 0.
 void HyperelasticModel::Dim2Invariant2_dMdM(const DenseMatrix &M, int i, int j,
-                                        DenseMatrix &dMdM)
+                                            DenseMatrix &dMdM)
 {
    MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
 
@@ -385,15 +385,15 @@ void TMOPHyperelasticModel001::AssembleH(const DenseMatrix &Jpt,
          Dim2Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
          Dim2Invariant2_dMdM(Jpt, r, c, dI2_dMdM);
          // Compute each entry of d(Grc)_dJ.
-         for(int rr = 0; rr < dim; rr++)
+         for (int rr = 0; rr < dim; rr++)
          {
-            for(int cc = 0; cc < dim; cc++)
+            for (int cc = 0; cc < dim; cc++)
             {
                const double entry_rr_cc =
-                     dI1_dMdM(rr,cc) * I2 +
-                     dI1_dM(r, c)    * dI2_dM(rr,cc) +
-                     dI2_dMdM(rr,cc) * I1 +
-                     dI2_dM(r, c)    * dI1_dM(rr,cc);
+                  dI1_dMdM(rr,cc) * I2 +
+                  dI1_dM(r, c)    * dI2_dM(rr,cc) +
+                  dI2_dMdM(rr,cc) * I1 +
+                  dI2_dM(r, c)    * dI1_dM(rr,cc);
 
                for (int i = 0; i < dof; i++)
                   for (int j = 0; j < dof; j++)
@@ -437,9 +437,9 @@ void TMOPHyperelasticModel002::AssembleH(const DenseMatrix &Jpt,
          Dim2Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
 
          // Compute each entry of d(Grc)_dJ.
-         for(int rr = 0; rr < dim; rr++)
+         for (int rr = 0; rr < dim; rr++)
          {
-            for(int cc = 0; cc < dim; cc++)
+            for (int cc = 0; cc < dim; cc++)
             {
                const double entry_rr_cc = 0.5 * dI1_dMdM(rr,cc);
 
@@ -496,16 +496,16 @@ void TMOPHyperelasticModel007::AssembleH(const DenseMatrix &Jpt,
          Dim2Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
          Dim2Invariant2_dMdM(Jpt, r, c, dI2_dMdM);
          // Compute each entry of d(Grc)_dJ.
-         for(int rr = 0; rr < dim; rr++)
+         for (int rr = 0; rr < dim; rr++)
          {
-            for(int cc = 0; cc < dim; cc++)
+            for (int cc = 0; cc < dim; cc++)
             {
                const double entry_rr_cc =
-                     dI1_dMdM(rr,cc) * (I2 + iI2) +
-                     dI1_dM(r,c) * dI2_dM(rr,cc) * (1.0 - iI2 * iI2) +
-                     dI1_dM(rr,cc) * dI2_dM(r,c) * (1.0 - iI2 * iI2) +
-                     I1 * ( dI2_dMdM(rr,cc) * (1.0 - iI2 * iI2) +
-                            dI2_dM(r,c) * iI2 * iI2 * iI2 * dI2_dM(rr,cc));
+                  dI1_dMdM(rr,cc) * (I2 + iI2) +
+                  dI1_dM(r,c) * dI2_dM(rr,cc) * (1.0 - iI2 * iI2) +
+                  dI1_dM(rr,cc) * dI2_dM(r,c) * (1.0 - iI2 * iI2) +
+                  I1 * ( dI2_dMdM(rr,cc) * (1.0 - iI2 * iI2) +
+                         dI2_dM(r,c) * iI2 * iI2 * iI2 * dI2_dM(rr,cc));
 
                for (int i = 0; i < dof; i++)
                   for (int j = 0; j < dof; j++)
@@ -524,109 +524,109 @@ void TargetJacobian::ComputeElementTargets(int e_id, const FiniteElement &fe,
 {
    switch (target_type)
    {
-   case CURRENT:
-   case TARGET_MESH:
-   case IDEAL_INIT_SIZE:
-   {
-      const GridFunction *nds;
-      if (target_type == CURRENT)
-      { MFEM_VERIFY(nodes, "Nodes are not set!");          nds = nodes; }
-      else if (target_type == TARGET_MESH)
-      { MFEM_VERIFY(tnodes, "Target nodes are not set!");  nds = tnodes; }
-      else
-      { MFEM_VERIFY(nodes0, "Initial nodes are not set!"); nds = nodes0; }
-
-      const int dim = fe.GetDim(), dof = fe.GetDof();
-      DenseMatrix dshape(dof, dim), pos(dof, dim);
-      Array<int> xdofs(dof * dim);
-      Vector posV(pos.Data(), dof * dim);
-
-      DenseMatrix *Wideal = NULL;
-      if (target_type == IDEAL_INIT_SIZE)
+      case CURRENT:
+      case TARGET_MESH:
+      case IDEAL_INIT_SIZE:
       {
-         Wideal = new DenseMatrix(dim);
-         ConstructIdealJ(fe.GetGeomType(), *Wideal);
-      }
+         const GridFunction *nds;
+         if (target_type == CURRENT)
+         { MFEM_VERIFY(nodes, "Nodes are not set!");          nds = nodes; }
+         else if (target_type == TARGET_MESH)
+         { MFEM_VERIFY(tnodes, "Target nodes are not set!");  nds = tnodes; }
+         else
+         { MFEM_VERIFY(nodes0, "Initial nodes are not set!"); nds = nodes0; }
 
-      nds->FESpace()->GetElementVDofs(e_id, xdofs);
-      nds->GetSubVector(xdofs, posV);
-      for (int i = 0; i < ir.GetNPoints(); i++)
-      {
-         fe.CalcDShape(ir.IntPoint(i), dshape);
+         const int dim = fe.GetDim(), dof = fe.GetDof();
+         DenseMatrix dshape(dof, dim), pos(dof, dim);
+         Array<int> xdofs(dof * dim);
+         Vector posV(pos.Data(), dof * dim);
 
-         // W = Jac(ref->physical) for CURRENT and TARGET_MESH.
-         MultAtB(pos, dshape, Jtr(i));
-
+         DenseMatrix *Wideal = NULL;
          if (target_type == IDEAL_INIT_SIZE)
          {
-            double det = Jtr(i).Det();
-            MFEM_VERIFY(det > 0.0, "Initial mesh is inverted!");
-            Jtr(i) = *Wideal;
-            Jtr(i) *= sqrt(det / Wideal->Det());
+            Wideal = new DenseMatrix(dim);
+            ConstructIdealJ(fe.GetGeomType(), *Wideal);
          }
+
+         nds->FESpace()->GetElementVDofs(e_id, xdofs);
+         nds->GetSubVector(xdofs, posV);
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            fe.CalcDShape(ir.IntPoint(i), dshape);
+
+            // W = Jac(ref->physical) for CURRENT and TARGET_MESH.
+            MultAtB(pos, dshape, Jtr(i));
+
+            if (target_type == IDEAL_INIT_SIZE)
+            {
+               double det = Jtr(i).Det();
+               MFEM_VERIFY(det > 0.0, "Initial mesh is inverted!");
+               Jtr(i) = *Wideal;
+               Jtr(i) *= sqrt(det / Wideal->Det());
+            }
+         }
+         delete Wideal;
+         break;
       }
-      delete Wideal;
-      break;
-   }
-   case IDEAL:
-   {
-      DenseMatrix Wideal(fe.GetDim());
-      ConstructIdealJ(fe.GetGeomType(), Wideal);
-      for (int i = 0; i < ir.GetNPoints(); i++) { Jtr(i) = Wideal; }
-      break;
-   }
-   case IDEAL_EQ_SIZE:
-   {
-      // Average cell area.
-      MFEM_VERIFY(nodes, "Nodes are not set!");
-      L2_FECollection fec(0, fe.GetDim());
-      FiniteElementSpace fes(nodes->FESpace()->GetMesh(), &fec);
-      LinearForm lf(&fes);
-      ConstantCoefficient one(1.0);
-      lf.AddDomainIntegrator(new DomainLFIntegrator(one));
-      lf.Assemble();
+      case IDEAL:
+      {
+         DenseMatrix Wideal(fe.GetDim());
+         ConstructIdealJ(fe.GetGeomType(), Wideal);
+         for (int i = 0; i < ir.GetNPoints(); i++) { Jtr(i) = Wideal; }
+         break;
+      }
+      case IDEAL_EQ_SIZE:
+      {
+         // Average cell area.
+         MFEM_VERIFY(nodes, "Nodes are not set!");
+         L2_FECollection fec(0, fe.GetDim());
+         FiniteElementSpace fes(nodes->FESpace()->GetMesh(), &fec);
+         LinearForm lf(&fes);
+         ConstantCoefficient one(1.0);
+         lf.AddDomainIntegrator(new DomainLFIntegrator(one));
+         lf.Assemble();
 #ifdef MFEM_USE_MPI
-      double area_NE[4];
-      area_NE[0] = lf.Sum(); area_NE[1] = fes.GetNE();
-      MPI_Allreduce(area_NE, area_NE + 2, 2, MPI_DOUBLE, MPI_SUM, comm);
-      double avg_area = area_NE[2] / area_NE[3];
+         double area_NE[4];
+         area_NE[0] = lf.Sum(); area_NE[1] = fes.GetNE();
+         MPI_Allreduce(area_NE, area_NE + 2, 2, MPI_DOUBLE, MPI_SUM, comm);
+         double avg_area = area_NE[2] / area_NE[3];
 #else
-      double avg_area = lf.Sum() / nodes->FESpace()->GetNE();
+         double avg_area = lf.Sum() / nodes->FESpace()->GetNE();
 #endif
 
-      DenseMatrix Wideal(fe.GetDim());
-      ConstructIdealJ(fe.GetGeomType(), Wideal);
-      Wideal *= sqrt(avg_area / Wideal.Det());
-      for (int i = 0; i < ir.GetNPoints(); i++) { Jtr(i) = Wideal; }
-      break;
-   }
+         DenseMatrix Wideal(fe.GetDim());
+         ConstructIdealJ(fe.GetGeomType(), Wideal);
+         Wideal *= sqrt(avg_area / Wideal.Det());
+         for (int i = 0; i < ir.GetNPoints(); i++) { Jtr(i) = Wideal; }
+         break;
+      }
    }
 }
 
 void TargetJacobian::ConstructIdealJ(int geom, DenseMatrix &J)
 {
-   switch(geom)
+   switch (geom)
    {
-   case Geometry::SQUARE:
-   case Geometry::CUBE:
-      J = 0.0;
-      for (int i = 0; i < J.Size(); i++) { J(i, i) = 1.0; }
-      break;
-   case Geometry::TRIANGLE:
-   {
-      const double r3 = sqrt(3.0);
-      J(0, 0) = 1.0; J(0, 1) = 0.5;
-      J(1, 0) = 0.0; J(1, 1) = 0.5*r3;
-      break;
-   }
-   case Geometry::TETRAHEDRON:
-   {
-      const double r3 = sqrt(3.0), r6 = sqrt(6.0);
-      J(0, 0) = 1.0; J(0, 1) = 0.5;    J(0, 2) = 0.5;
-      J(1, 0) = 0.0; J(1, 1) = 0.5*r3; J(1, 2) = 0.5*r3;
-      J(2, 0) = 0.0; J(2, 1) = 0.0;    J(2, 2) = r6/3.0;
-      break;
-   }
+      case Geometry::SQUARE:
+      case Geometry::CUBE:
+         J = 0.0;
+         for (int i = 0; i < J.Size(); i++) { J(i, i) = 1.0; }
+         break;
+      case Geometry::TRIANGLE:
+      {
+         const double r3 = sqrt(3.0);
+         J(0, 0) = 1.0; J(0, 1) = 0.5;
+         J(1, 0) = 0.0; J(1, 1) = 0.5*r3;
+         break;
+      }
+      case Geometry::TETRAHEDRON:
+      {
+         const double r3 = sqrt(3.0), r6 = sqrt(6.0);
+         J(0, 0) = 1.0; J(0, 1) = 0.5;    J(0, 2) = 0.5;
+         J(1, 0) = 0.0; J(1, 1) = 0.5*r3; J(1, 2) = 0.5*r3;
+         J(2, 0) = 0.0; J(2, 1) = 0.0;    J(2, 2) = r6/3.0;
+         break;
+      }
    }
 }
 
@@ -733,7 +733,7 @@ double HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
 }
 
 void HyperelasticNLFIntegrator::AssembleElementVector(const FiniteElement &el,
-   ElementTransformation &Ttr, const Vector &elfun, Vector &elvect)
+                                                      ElementTransformation &Ttr, const Vector &elfun, Vector &elvect)
 {
    int dof = el.GetDof(), dim = el.GetDim();
 
@@ -746,7 +746,7 @@ void HyperelasticNLFIntegrator::AssembleElementVector(const FiniteElement &el,
    elvect.SetSize(dof*dim);
    PMatO.UseExternalData(elvect.GetData(), dof, dim);
 
-   if(!ir)
+   if (!ir)
    {
       ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
    }
@@ -841,7 +841,7 @@ void HyperelasticNLFIntegrator::AssembleElementVector(const FiniteElement &el,
 }
 
 void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
-   ElementTransformation &Ttr, const Vector &elfun, DenseMatrix &elmat)
+                                                    ElementTransformation &Ttr, const Vector &elfun, DenseMatrix &elmat)
 {
    int dof = el.GetDof(), dim = el.GetDim();
 
