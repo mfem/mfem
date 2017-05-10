@@ -4261,6 +4261,7 @@ DenseMatrixSVD::~DenseMatrixSVD()
 #endif
 }
 
+
 void DenseTensor::AddMult(const Table &elem_dof, const Vector &x, Vector &y)
 const
 {

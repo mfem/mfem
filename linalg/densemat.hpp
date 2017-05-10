@@ -638,7 +638,7 @@ public:
          int i = Mk.Height();
          int j = Mk.Width();
          int k = nk;
-         int size = i * j * k;
+         int size = i*j*k;
          tdata = new double[size];
          std::memcpy(tdata, other.tdata, sizeof(double) * size);
       }
@@ -646,7 +646,6 @@ public:
       {
          tdata = other.tdata;
       }
-
    }
 
    int SizeI() const { return Mk.Height(); }
