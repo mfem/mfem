@@ -4151,7 +4151,8 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
 #endif
 }
 
-DenseMatrixEigensystem::DenseMatrixEigensystem(const DenseMatrixEigensystem &other)
+DenseMatrixEigensystem::DenseMatrixEigensystem(const DenseMatrixEigensystem
+                                               &other)
    : mat(other.mat), EVal(other.EVal), EVect(other.EVect), ev(other.ev), n(other.n)
 {
 #ifdef MFEM_USE_LAPACK
