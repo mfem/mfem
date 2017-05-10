@@ -525,11 +525,11 @@ int main(int argc, char *argv[])
     bool verbose = (myid == 0);
     bool visualization = 1;
 
-    int nDimensions     = 4;
+    int nDimensions     = 3;
     int numsol          = 0;
 
-    int ser_ref_levels  = 0;
-    int par_ref_levels  = 2;
+    int ser_ref_levels  = 2;
+    int par_ref_levels  = 1;
     int Nsteps          = 2;
     double tau          = 0.5;
 
@@ -546,6 +546,7 @@ int main(int argc, char *argv[])
     //const char *mesh_file = "../build3/meshes/cube4d_low.MFEM";
     //const char *mesh_file = "../build3/meshes/cube4d.MFEM";
     const char *mesh_file = "dsadsad";
+    //const char * mesh_file = "./data/orthotope3D_fine.mesh";
     //const char *mesh_file = "../build3/mesh_par1_id0_np_1.mesh";
     //const char *mesh_file = "../build3/mesh_par1_id0_np_2.mesh";
     //const char *mesh_file = "../build3/meshes/tempmesh_frompmesh.mesh";
@@ -559,9 +560,9 @@ int main(int argc, char *argv[])
     //const char * meshbase_file = "../build3/meshes/beam-tet.mesh";
     //const char * meshbase_file = "../build3/meshes/escher-p3.mesh";
     //const char * meshbase_file = "../build3/meshes/orthotope3D_moderate.mesh";
-    const char * meshbase_file = "./data/orthotope3D_fine.mesh";
+    //const char * meshbase_file = "./data/orthotope3D_fine.mesh";
     //const char * meshbase_file = "../build3/meshes/square_2d_moderate.mesh";
-    //const char * meshbase_file = "../build3/meshes/square_2d_fine.mesh";
+    const char * meshbase_file = "./data/square_2d_fine.mesh";
     //const char * meshbase_file = "../build3/meshes/square-disc.mesh";
     //const char *meshbase_file = "dsadsad";
     //const char * meshbase_file = "../build3/meshes/circle_fine_0.1.mfem";
