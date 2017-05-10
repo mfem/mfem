@@ -14,7 +14,6 @@
 #if defined(MFEM_USE_OCCA) && defined(MFEM_USE_ACROTENSOR)
 
 #include "abilininteg.hpp"
-//#include <cuda.h>
 
 namespace mfem {
 
@@ -37,8 +36,9 @@ void AcroDiffusionIntegrator::Setup() {
   if (device.mode() == "CUDA") {
     onGPU = true;
     TE.SetExecutorType("OneOutPerThread");
-    //CUcontext cudaContext = (CUcontext) device.getHandle("type: 'context'");
-    //acro::setCudaContext(cudaContext);
+
+    CUcontext cudaContext = (CUcontext) device.getHandle("type: 'context'");
+    acro::setCudaContext(cudaContext);
   } else {
     onGPU = false;
     TE.SetExecutorType("CPUInterpreted");
@@ -62,22 +62,33 @@ void AcroDiffusionIntegrator::Setup() {
   //Get AcroTensors pointing to the B/G data
   //Note:  We are giving acrotensor the same pointer for the GPU and CPU
   //so one of them is obviously wrong.  This works as long as we don't use
-  //touch the wrong one.
+  //touch the wrong one
   const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
-  haveTensorBasis = (el != NULL);
+  haveTensorBasis = (el != NULL);  
   if (haveTensorBasis) {
     maps = OccaDofQuadMaps::GetTensorMaps(device, *el, ir);
     double *b_ptr = *((double**) maps.quadToDof.memory().getHandle());
     double *g_ptr = *((double**) maps.quadToDofD.memory().getHandle());
+    double *w_ptr = *((double**) maps.quadWeights.memory().getHandle());    
     B.Init(nQuad1D, nDof1D, b_ptr, b_ptr, onGPU);
     G.Init(nQuad1D, nDof1D, g_ptr, g_ptr, onGPU);
+    std::vector<int> wdims(nDim, nQuad1D);
+    WC.Init(wdims, w_ptr, w_ptr, onGPU);
   } else {
     maps = OccaDofQuadMaps::GetSimplexMaps(device, fe, ir);
     double *b_ptr = *((double**) maps.quadToDof.memory().getHandle());
     double *g_ptr = *((double**) maps.quadToDofD.memory().getHandle());
+    double *w_ptr = *((double**) maps.quadWeights.memory().getHandle());    
     B.Init(nQuad, nDof, b_ptr, b_ptr, onGPU);
-    G.Init(nQuad, nDof, nDim, g_ptr, g_ptr, onGPU);  
+    G.Init(nQuad, nDof, nDim, g_ptr, g_ptr, onGPU);
+    WC.Init(nQuad, w_ptr, w_ptr, onGPU);
   }
+
+  const ConstantCoefficient* const_coeff = dynamic_cast<const ConstantCoefficient*>(&Q);
+  if (!const_coeff) {
+    mfem_error("AcroDiffusionIntegrator can only handle ConstantCoefficients");
+  }  
+  WC.Mult(const_coeff->constant);
 
   OccaGeometry geom = OccaGeometry::Get(device, *mesh, ir);
   ComputeD(geom);
@@ -106,21 +117,6 @@ void AcroDiffusionIntegrator::ComputeBTilde() {
 
 
 void AcroDiffusionIntegrator::ComputeD(OccaGeometry &geom) {
-  //Compute the coefficient * integrations weights
-  const ConstantCoefficient* const_coeff = dynamic_cast<const ConstantCoefficient*>(&Q);
-  if (!const_coeff) {
-    mfem_error("AcroDiffusionIntegrator can only handle ConstantCoefficients");
-  }
-  std::vector<int> wdims(nDim, nQuad1D);
-  double *w_ptr = *((double**) maps.quadWeights.memory().getHandle());
-  acro::Tensor W(nQuad, w_ptr, w_ptr, onGPU);
-  acro::Tensor C(1);
-  C(0) = const_coeff->constant;
-  acro::Tensor WC(nQuad);
-  if (onGPU) {WC.SwitchToGPU();}
-  TE["WC_i=W_i C_n"](WC, W, C);
-  WC.Reshape(wdims);
-
   //Get the jacobians and compute D with them
   double *jac_ptr = *((double**) geom.J.memory().getHandle());
   double *jacinv_ptr = *((double**) geom.invJ.memory().getHandle());
@@ -173,6 +169,7 @@ void AcroDiffusionIntegrator::ComputeD(OccaGeometry &geom) {
 }  
 
 void AcroDiffusionIntegrator::Assemble() {
+  
   if (haveTensorBasis && Btil.Size() == 0) {
     ComputeBTilde();
   }

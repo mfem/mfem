@@ -35,6 +35,7 @@ private:
   bool onGPU;
 
   acro::Tensor B, G;         //Basis and dbasis evaluated on the quad points
+  acro::Tensor WC;           //Integration weights times the coefficient at the integration points
   Array<acro::Tensor*> Btil; //Btilde used to compute stiffness matrix
   acro::Tensor D;            //Product of integration weight, physical consts, and element shape info
   acro::Tensor S;            //The assembled local stiffness matrices
