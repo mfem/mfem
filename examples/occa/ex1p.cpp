@@ -57,9 +57,10 @@ int main(int argc, char *argv[])
   const char *mesh_file = "../../data/fichera.mesh";
   int order = 3;
   const char *basis_type = "G"; // Gauss-Lobatto
-  bool visualization = 1;
+  const char *pc = "none";
   const char *device_info = "mode: 'Serial'";
   bool occa_verbose = false;
+  bool visualization = 1;
 
   OptionsParser args(argc, argv);
   args.AddOption(&mesh_file, "-m", "--mesh",
@@ -71,6 +72,8 @@ int main(int argc, char *argv[])
                  "Basis: G - Gauss-Lobatto, P - Positive, U - Uniform");
   args.AddOption(&device_info, "-d", "--device-info",
                  "Device information to run example on (default: \"mode: 'Serial'\").");
+  args.AddOption(&pc, "-pc", "--preconditioner",
+                 "Preconditioner: amg (HYPREBoomerAMG), or none.");
   args.AddOption(&occa_verbose,
                  "-ov", "--occa-verbose",
                  "--no-ov", "--no-occa-verbose",
@@ -95,6 +98,16 @@ int main(int argc, char *argv[])
   occa::setDevice(device_info);
   occa::settings()["verboseCompilation"] = occa_verbose;
 
+  enum PCType { NONE, AMG };
+  PCType pc_choice;
+  if (!strcmp(pc, "amg")) { pc_choice = AMG; }
+  else if (!strcmp(pc, "none")) { pc_choice = NONE; }
+  else
+    {
+      mfem_error("Invalid Preconditioner specified");
+      return 3;
+    }
+
   // See class BasisType in fem/fe_coll.hpp for available basis types
   int basis = BasisType::GetType(basis_type[0]);
   if (!myid) {
@@ -114,7 +127,7 @@ int main(int argc, char *argv[])
   int par_ref_levels = 1;
   {
     int ref_levels =
-      (int)floor(log(10000./mesh->GetNE())/log(2.)/dim/par_ref_levels);
+      (int)floor(log(1000./mesh->GetNE())/log(2.)/dim/par_ref_levels);
     for (int l = 0; l < ref_levels; l++)
       {
         mesh->UniformRefinement();
@@ -153,6 +166,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim, basis);
     }
   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+  OccaFiniteElementSpace *ofespace = new OccaFiniteElementSpace(fespace);
   HYPRE_Int size = fespace->GlobalTrueVSize();
   if (!myid) {
     cout << "Number of finite element unknowns: " << size << endl;
@@ -193,8 +207,8 @@ int main(int argc, char *argv[])
   }
   tic_toc.Clear();
   tic_toc.Start();
-  OccaBilinearForm *a = new OccaBilinearForm(fespace);
-  a->AddDomainIntegrator(new DiffusionIntegrator(one));
+  OccaBilinearForm *a = new OccaBilinearForm(ofespace);
+  a->AddDomainIntegrator(new OccaDiffusionIntegrator(1.0));
 
   // 11. Assemble the parallel bilinear form and the corresponding linear
   //     system, applying any necessary transformations such as: parallel
@@ -203,25 +217,12 @@ int main(int argc, char *argv[])
   a->Assemble();
   tic_toc.Stop();
   if (!myid) {
-    cout << " done, " << tic_toc.RealTime() << "s." << endl
-         << "Assembling the preconditioner bilinear form ..." << endl << flush;
-  }
-  tic_toc.Clear();
-  tic_toc.Start();
-  ParBilinearForm *a_pc = new ParBilinearForm(fespace);
-  a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
-  a_pc->Assemble();
-  tic_toc.Stop();
-  if (!myid) {
-    cout << " done, " << tic_toc.RealTime() << "s." << endl;
+     cout << " done, " << tic_toc.RealTime() << "s." << endl;
   }
 
   Operator *A;
   OccaVector B, X;
   a->FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-
-  HypreParMatrix A_pc;
-  a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
 
   if (!myid) {
     cout << "Size of linear system: " << fespace->GlobalTrueVSize() << endl;
@@ -230,13 +231,36 @@ int main(int argc, char *argv[])
   // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
   //     preconditioner from hypre.
   OccaCGSolver *pcg = new OccaCGSolver(MPI_COMM_WORLD);
-  HypreSolver *amg = new HypreBoomerAMG(A_pc);
   pcg->SetRelTol(1e-6);
   pcg->SetAbsTol(0);
   pcg->SetMaxIter(500);
   pcg->SetPrintLevel(1);
   pcg->SetOperator(*A);
-  pcg->SetOccaPreconditioner(*amg);
+
+  if (pc_choice != NONE) {
+    if (!myid) {
+      cout << "Assembling the preconditioner bilinear form ..." << endl << flush;
+    }
+    tic_toc.Clear();
+    tic_toc.Start();
+    ParBilinearForm *a_pc = new ParBilinearForm(fespace);
+    a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
+    a_pc->Assemble();
+    tic_toc.Stop();
+    if (!myid) {
+      cout << " done, " << tic_toc.RealTime() << "s." << endl;
+    }
+    HypreParMatrix A_pc;
+    a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
+
+    if (pc_choice == AMG) {
+      HypreSolver *amg = new HypreBoomerAMG(A_pc);
+      pcg->SetOccaPreconditioner(*amg);
+    }
+    else {
+      mfem_error("Invalid preconditioner");
+    }
+  }
 
   tic_toc.Clear();
   tic_toc.Start();
