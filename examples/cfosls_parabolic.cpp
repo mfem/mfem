@@ -562,7 +562,7 @@ int main(int argc, char *argv[])
     //const char * meshbase_file = "../build3/meshes/orthotope3D_moderate.mesh";
     //const char * meshbase_file = "./data/orthotope3D_fine.mesh";
     //const char * meshbase_file = "../build3/meshes/square_2d_moderate.mesh";
-    const char * meshbase_file = "./data/square_2d_fine.mesh";
+    const char * meshbase_file = "../data/square_2d_fine.mesh";
     //const char * meshbase_file = "../build3/meshes/square-disc.mesh";
     //const char *meshbase_file = "dsadsad";
     //const char * meshbase_file = "../build3/meshes/circle_fine_0.1.mfem";
