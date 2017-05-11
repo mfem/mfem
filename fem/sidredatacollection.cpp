@@ -126,7 +126,7 @@ SidreDataCollection::alloc_view(axom::sidre::Group *grp,
 {
    MFEM_ASSERT(grp, "Group pointer is NULL");
    sidre::View *v = NULL;
-   
+
    if (! grp->hasView(view_name) )
    {
       v = grp->createView(view_name);
@@ -137,7 +137,7 @@ SidreDataCollection::alloc_view(axom::sidre::Group *grp,
    {
       v = grp->getView(view_name);
    }
-   
+
    return v;
 }
 
@@ -149,7 +149,7 @@ SidreDataCollection::alloc_view(axom::sidre::Group *grp,
 {
    MFEM_ASSERT(grp, "Group pointer is NULL");
    sidre::View *v = NULL;
-   
+
    if (! grp->hasView(view_name))
    {
       v = grp->createView(view_name, dtype);
@@ -171,7 +171,7 @@ SidreDataCollection::alloc_group(axom::sidre::Group *grp,
 {
    MFEM_ASSERT(grp, "Group pointer is NULL");
    sidre::Group *g = NULL;
-   
+
    if (! grp->hasGroup(group_name) )
    {
       g = grp->createGroup(group_name);
@@ -211,8 +211,8 @@ SidreDataCollection::AllocNamedBuffer(const std::string& buffer_name,
    sz = std::max(sz, sidre::SidreLength(0));
    sidre::Group *f = named_buffers_grp();
    sidre::View  *v = NULL;
-   
-   if(! f->hasView(buffer_name) )
+
+   if (! f->hasView(buffer_name) )
    {
       // create a buffer view
       v = f->createViewAndAllocate(buffer_name, type, sz);
@@ -523,41 +523,47 @@ void SidreDataCollection::createMeshBlueprintAdjacencies(bool hasBP)
 
    for (int gi = 1; gi < pmesh->GetNGroups(); ++gi)
    {
-      std::snprintf(group_str, GRP_SZ, "adjacencies/g%d_%d",
-        pmesh->gtopo.GetGroupMasterRank(gi),
-        pmesh->gtopo.GetGroupMasterGroup(gi));
-
-      sidre::Group* group_grp = bp_grp->createGroup(group_str);
-      group_grp->createViewString("association", "vertex");
-      group_grp->createViewString("topology", "mesh");
-
-      const int* gneighbors = pmesh->gtopo.GetGroup(gi);
       int num_gneighbors = pmesh->gtopo.GetGroupSize(gi);
-      sidre::View* gneighbors_view = group_grp->createViewAndAllocate(
-         "neighbors", sidre::INT_ID, num_gneighbors - 1);
-
-      // skip all instances of the local domain when adding Blueprint neighbors
-      int* gneighbors_data = gneighbors_view->getData<int*>();
-      for (int ni = 0, noff = 0; ni < num_gneighbors; ++ni)
-      {
-         if( gneighbors[ni] == 0 )
-         {
-            noff++;
-         }
-         else
-         {
-            gneighbors_data[ni - noff] = pmesh->gtopo.GetNeighborRank(gneighbors[ni]);
-         }
-      }
-
       int num_gvertices = pmesh->GroupNVertices(gi);
-      sidre::View* gvertices_view = group_grp->createViewAndAllocate(
-         "values", sidre::INT_ID, num_gvertices);
 
-      int* gvertices_data = gvertices_view->getData<int*>();
-      for (int vi = 0; vi < num_gvertices; ++vi)
+      // Skip creation of empty groups
+      if (num_gneighbors > 1 && num_gvertices > 0)
       {
-         gvertices_data[vi] = pmesh->GroupVertex(gi, vi);
+         std::snprintf(group_str, GRP_SZ, "adjacencies/g%d_%d",
+                       pmesh->gtopo.GetGroupMasterRank(gi),
+                       pmesh->gtopo.GetGroupMasterGroup(gi));
+
+         sidre::Group* group_grp = bp_grp->createGroup(group_str);
+         group_grp->createViewString("association", "vertex");
+         group_grp->createViewString("topology", "mesh");
+
+         sidre::View* gneighbors_view = group_grp->createViewAndAllocate(
+                                           "neighbors", sidre::INT_ID, num_gneighbors - 1);
+         int* gneighbors_data = gneighbors_view->getData<int*>();
+
+         // skip local domain when adding Blueprint neighbors
+         const int* gneighbors = pmesh->gtopo.GetGroup(gi);
+         for (int ni = 0, noff = 0; ni < num_gneighbors; ++ni)
+         {
+            if ( gneighbors[ni] == 0 )
+            {
+               noff++;
+            }
+            else
+            {
+               gneighbors_data[ni - noff] =
+                  pmesh->gtopo.GetNeighborRank(gneighbors[ni]);
+            }
+         }
+
+         sidre::View* gvertices_view = group_grp->createViewAndAllocate(
+                                          "values", sidre::INT_ID, num_gvertices);
+
+         int* gvertices_data = gvertices_view->getData<int*>();
+         for (int vi = 0; vi < num_gvertices; ++vi)
+         {
+            gvertices_data[vi] = pmesh->GroupVertex(gi, vi);
+         }
       }
    }
 }
@@ -856,7 +862,7 @@ addScalarBasedGridFunction(const std::string &field_name, GridFunction *gf,
    }
    MFEM_ASSERT((numDofs > 0 && vv->isApplied()) ||
                (numDofs == 0 && vv->isEmpty() && vv->isDescribed()),
-               "invlid View state");
+               "invalid View state");
    MFEM_ASSERT(numDofs == 0 || vv->getData() == gf->GetData(),
                "View data is different from GridFunction data");
    MFEM_ASSERT(vv->getNumElements() == numDofs,
@@ -944,7 +950,7 @@ addVectorBasedGridFunction(const std::string& field_name, GridFunction *gf,
       sidre::View *xv = vg->getView(fidxName);
       MFEM_ASSERT((ndof > 0 && xv->isApplied()) ||
                   (ndof == 0 && xv->isEmpty() && xv->isDescribed()),
-                  "invlid View state");
+                  "invalid View state");
       MFEM_ASSERT(ndof == 0 || xv->getData() == gf->GetData() + d*vdim_stride,
                   "View data is different from GridFunction data");
       MFEM_ASSERT(xv->getNumElements() == ndof,
@@ -1015,11 +1021,11 @@ void SidreDataCollection::RegisterField(const std::string &field_name,
          MFEM_DEBUG_DO(
             // Warn about overwriting field.
             // Skip warning when re-registering the nodal grid function
-            if(field_name != m_meshNodesGFName)
-            {
-               MFEM_WARNING("field with the name '" << field_name<< "' is already "
-                         "registered, overwriting the old field");
-            });
+            if (field_name != m_meshNodesGFName)
+      {
+         MFEM_WARNING("field with the name '" << field_name<< "' is already "
+                      "registered, overwriting the old field");
+         });
          DeregisterField(field_name);
       }
    }
