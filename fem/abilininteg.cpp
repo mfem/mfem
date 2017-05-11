@@ -83,15 +83,6 @@ void AcroDiffusionIntegrator::Setup() {
     G.Init(nQuad, nDof, nDim, g_ptr, g_ptr, onGPU);
     WC.Init(nQuad, w_ptr, w_ptr, onGPU);
   }
-
-  const ConstantCoefficient* const_coeff = dynamic_cast<const ConstantCoefficient*>(&Q);
-  if (!const_coeff) {
-    mfem_error("AcroDiffusionIntegrator can only handle ConstantCoefficients");
-  }  
-  WC.Mult(const_coeff->constant);
-
-  OccaGeometry geom = OccaGeometry::Get(device, *mesh, ir);
-  ComputeD(geom);
 }
 
 
@@ -169,6 +160,21 @@ void AcroDiffusionIntegrator::ComputeD(OccaGeometry &geom) {
 }  
 
 void AcroDiffusionIntegrator::Assemble() {
+  const ConstantCoefficient* const_coeff = dynamic_cast<const ConstantCoefficient*>(&Q);
+  if (!const_coeff) {
+    mfem_error("AcroDiffusionIntegrator can only handle ConstantCoefficients");
+  }  
+  WC.Mult(const_coeff->constant);
+
+  DiffusionIntegrator integ;
+  const FiniteElement &fe   = *(fespace->GetFE(0));
+  const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
+  OccaGeometry geom = OccaGeometry::Get(device, *mesh, ir);  
+  ComputeD(geom);
+}
+
+
+void AcroDiffusionIntegrator::AssembleMatrix() {
   
   if (haveTensorBasis && Btil.Size() == 0) {
     ComputeBTilde();

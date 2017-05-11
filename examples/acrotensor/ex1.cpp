@@ -58,13 +58,14 @@ int main(int argc, char *argv[])
 {
   // 1. Parse command-line options.
   const char *mesh_file = "../../data/fichera.mesh";
-  int order = 3;
+  int order = 1;
+  int add_ref_levels = 0;
   const char *basis_type = "G"; // Gauss-Lobatto
   const char *pc = "none";
   const char *device_info = "mode: 'CUDA', deviceID: 0";
-  //const char *device_info = "mode: 'Serial'";
   bool occa_verbose = false;
   bool visualization = 1;
+  bool acro = false;
 
   OptionsParser args(argc, argv);
   args.AddOption(&mesh_file, "-m", "--mesh",
@@ -72,6 +73,8 @@ int main(int argc, char *argv[])
   args.AddOption(&order, "-o", "--order",
                  "Finite element order (polynomial degree) or -1 for"
                  " isoparametric space.");
+  args.AddOption(&add_ref_levels, "-r", "--ref-levels",
+                                  "Number of uniform refinements");
   args.AddOption(&basis_type, "-b", "--basis-type",
                  "Basis: G - Gauss-Lobatto, P - Positive, U - Uniform");
   args.AddOption(&pc, "-pc", "--preconditioner",
@@ -83,6 +86,10 @@ int main(int argc, char *argv[])
                  "-ov", "--occa-verbose",
                  "--no-ov", "--no-occa-verbose",
                  "Print verbose information about OCCA kernel compilation.");
+  args.AddOption(&acro,
+                 "-a", "--use-acro",
+                 "--no-a", "--no-acro",
+                 "Use Acrotensor.");
   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                  "--no-visualization",
                  "Enable or disable GLVis visualization.");
@@ -123,9 +130,8 @@ int main(int argc, char *argv[])
   //    largest number that gives a final mesh with no more than 50,000
   //    elements.
   {
-    int ref_levels =
-      (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
-    for (int l = 0; l < ref_levels; l++)
+    int ref_levels = 0;
+    for (int l = 0; l < ref_levels + add_ref_levels; l++)
       {
         mesh->UniformRefinement();
       }
@@ -150,6 +156,7 @@ int main(int argc, char *argv[])
     }
   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
   OccaFiniteElementSpace *ofespace = new OccaFiniteElementSpace(fespace);
+
   cout << "Number of finite element unknowns: "
        << fespace->GetTrueVSize() << endl;
 
@@ -192,68 +199,38 @@ int main(int argc, char *argv[])
   // 7. Define the solution vector x as a finite element grid function
   //    corresponding to fespace. Initialize x with initial guess of zero,
   //    which satisfies the boundary conditions.
-  //OccaVector x = GridFunction(fespace);
-  OccaVector x(fespace->GetVSize());
+  OccaGridFunction x(ofespace);
   x = 0.0;
 
   // 8. Set up the bilinear form a(.,.) on the finite element space that will
   //    hold the matrix corresponding to the Laplacian operator -Delta.
   //    Optionally setup a form to be assembled for preconditioning (a_pc).
-  cout << "Assembling the bilinear form ..." << flush;
+  cout << "Partial assembly of the bilinear form ..." << flush;
   tic_toc.Clear();
   tic_toc.Start();
   OccaBilinearForm *a = new OccaBilinearForm(ofespace);
-  a->AddDomainIntegrator(new AcroDiffusionIntegrator(one));
+  if (acro)
+    a->AddDomainIntegrator(new AcroDiffusionIntegrator(one));
+  else
+    a->AddDomainIntegrator(new OccaDiffusionIntegrator(1.0));
 
-  BilinearForm *a_pc = NULL;
-  if (pc_choice == LOR) { a_pc = new BilinearForm(fespace_lor); }
-  if (pc_choice == HO)  { a_pc = new BilinearForm(fespace); }
-
-  // 9. Assemble the bilinear form and the corresponding linear system,
-  //    applying any necessary transformations such as: eliminating boundary
-  //    conditions, applying conforming constraints for non-conforming AMR,
-  //    static condensation, etc.
   a->Assemble();
+
   tic_toc.Stop();
   cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
   Operator *A;
   OccaVector B, X;
 
-  a->FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+  a->FormOperator(ess_tdof_list, x, b, A, X, B);
 
-  cout << "Size of linear system: " << A->Height() << endl;
+  //Run a couple iterations of CG in order to cache the kernels
+  CG(*A, B, X, 1, 5, 0.0, 0.0);
 
-  // Setup the matrix used for preconditioning
-  cout << "Assembling the preconditioning matrix ..." << flush;
+  cout << "Running CG" << " ...\n" << flush;
   tic_toc.Clear();
   tic_toc.Start();
-
-  SparseMatrix A_pc;
-  if (pc_choice != NONE) {
-    a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
-    a_pc->UsePrecomputedSparsity();
-    a_pc->Assemble();
-    a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
-  }
-
-  tic_toc.Stop();
-  cout << " done, " << tic_toc.RealTime() << "s." << endl;
-
-  cout << "Running " << (pc_choice == NONE ? "CG" : "PCG")
-       << " ...\n" << flush;
-  tic_toc.Clear();
-  tic_toc.Start();
-  // Solve with CG or PCG, depending if the matrix A_pc is available
-  if (pc_choice != NONE)
-    {
-      GSSmoother M(A_pc);
-      PCG(*A, M, B, X, 1, 500, 1e-12, 0.0);
-    }
-  else
-    {
-      CG(*A, B, X, 1, 500, 1e-12, 0.0);
-    }
+  CG(*A, B, X, 1, 100, 0.0, 0.0);
   occa::finish();
   tic_toc.Stop();
   cout << " done, " << tic_toc.RealTime() << "s." << endl;

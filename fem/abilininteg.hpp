@@ -55,6 +55,7 @@ public:
   virtual void Setup();
 
   virtual void Assemble();
+  virtual void AssembleMatrix();
   virtual void Mult(OccaVector &x);
 };
 
