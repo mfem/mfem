@@ -1013,8 +1013,13 @@ void SidreDataCollection::RegisterField(const std::string &field_name,
       if (HasField(field_name))
       {
          MFEM_DEBUG_DO(
-            MFEM_WARNING("field with the name '" << field_name<< "' is already "
-                         "registered, overwriting the old field"));
+            // Warn about overwriting field.
+            // Skip warning when re-registering the nodal grid function
+            if(field_name != m_meshNodesGFName)
+            {
+               MFEM_WARNING("field with the name '" << field_name<< "' is already "
+                         "registered, overwriting the old field");
+            });
          DeregisterField(field_name);
       }
    }

@@ -328,7 +328,11 @@ public:
     */
    axom::sidre::View *
    GetNamedBuffer(const std::string& buffer_name) const
-   { return named_buffers_grp()->getView(buffer_name); }
+   { 
+      return named_buffers_grp()->hasView(buffer_name)
+            ? named_buffers_grp()->getView(buffer_name)
+            : NULL;
+   }
 
    /// Return newly allocated or existing named buffer for @a buffer_name.
    /** The buffer is stored in the named_buffers group. If the currently
