@@ -1791,10 +1791,19 @@ void PetscBCHandler::ApplyBC(const Vector &x, Vector &y)
 void PetscBCHandler::FixResidualBC(const Vector& x, Vector& y)
 {
    if (!setup) { MFEM_ABORT("PetscBCHandler not yet setup"); }
-   if (bctype == ZERO) return;
-   for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+   if (bctype == ZERO)
    {
-      y[ess_tdof_list[i]] = x[ess_tdof_list[i]] - eval_g[ess_tdof_list[i]];
+      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      {
+         y[ess_tdof_list[i]] = x[ess_tdof_list[i]];
+      }
+   }
+   else
+   {
+      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      {
+         y[ess_tdof_list[i]] = x[ess_tdof_list[i]] - eval_g[ess_tdof_list[i]];
+      }
    }
 }
 
