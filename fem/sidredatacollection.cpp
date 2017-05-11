@@ -504,6 +504,7 @@ createMeshBlueprintTopologies(bool hasBP, const std::string& mesh_name)
 }
 
 // private method
+#ifdef MFEM_USE_MPI
 void SidreDataCollection::createMeshBlueprintAdjacencies(bool hasBP)
 {
    ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
@@ -560,6 +561,7 @@ void SidreDataCollection::createMeshBlueprintAdjacencies(bool hasBP)
       }
    }
 }
+#endif
 
 // private method
 void SidreDataCollection::verifyMeshBlueprint()

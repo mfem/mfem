@@ -467,11 +467,14 @@ private:
     */
    void createMeshBlueprintTopologies(bool hasBP, const std::string& mesh_name);
 
+#ifdef MFEM_USE_MPI
    /// Sets up the mesh blueprint 'adjacencies' group.
    /**
     * \param hasBP Indicates whether the blueprint has already been set up.
+    * \note Only valid when using parallel meshes
     */
    void createMeshBlueprintAdjacencies(bool hasBP);
+#endif 
 
    /// Verifies that the contents of the mesh blueprint data is valid.
    void verifyMeshBlueprint();
