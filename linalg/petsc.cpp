@@ -1516,18 +1516,18 @@ void PetscSolver::SetPreconditionerFactory(PetscPreconditionerFactory *factory)
       ierr = SNESGetKSP(snes,&ksp); PCHKERRQ(obj,ierr);
       ierr = KSPGetPC(ksp,&pc); PCHKERRQ(obj,ierr);
    }
-   else if (cid == TS_CLASSID)
+   else if (cid == SNES_CLASSID)
    {
       KSP ksp;
 
       ierr = SNESGetKSP((SNES)obj,&ksp); PCHKERRQ(obj,ierr);
       ierr = KSPGetPC(ksp,&pc); PCHKERRQ(obj,ierr);
    }
-   else if (cid == TS_CLASSID)
+   else if (cid == KSP_CLASSID)
    {
       ierr = KSPGetPC((KSP)obj,&pc); PCHKERRQ(obj,ierr);
    }
-   else if (cid == TS_CLASSID)
+   else if (cid == PC_CLASSID)
    {
       pc = (PC)obj;
    }
