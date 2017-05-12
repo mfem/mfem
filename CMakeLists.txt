@@ -250,6 +250,8 @@ set(_USE_MATH_DEFINES ${WIN32})
 # Define and configure the MFEM library
 #-------------------------------------------------------------------------------
 
+list(APPEND CMAKE_CXX_IGNORE_EXTENSIONS tpp)
+
 # Headers and sources
 set(SOURCES "")
 set(HEADERS "")
