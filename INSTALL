@@ -442,6 +442,12 @@ Debug and optimization options are controlled through the CMake variable
 CMAKE_BUILD_TYPE which can be set to standard values like "Debug", and "Release"
 (default).
 
+To use a non-default generator use the "-G <generator>" option of cmake:
+
+   cmake <mfem-source-dir> -G "Xcode"
+   cmake <mfem-source-dir> -G "Visual Studio 12 2013"
+   cmake <mfem-source-dir> -G "MinGW Makefiles"
+
 With CMake it is possible to build MFEM as a shared library using the standard
 CMake option -DBUILD_SHARED_LIBS=1.
 
@@ -449,15 +455,27 @@ Once configured, the library can be built simply with (assuming a UNIX type
 system, where the default is to generate "UNIX Makefiles")
 
    make -j 4
+or
+   cmake --build .
+or
+   cmake --build . --config Release  [Visual Studio, Xcode]
 
 The build can be quick-tested by running
 
    make check
+or
+   cmake --build . --target check
+or
+   cmake --build . --config Release --target check  [Visual Studio, Xcode]
 
 which will simply compile and run Example 1/1p. For more extensive tests that
 check the results from all the serial/parallel MFEM examples and miniapps use:
 
    make test
+or
+   cmake --build . --target test
+or
+   cmake --build . --config Release --target test  [Visual Studio, Xcode]
 
 Note that running all the tests may take a while.
 
@@ -465,6 +483,10 @@ Installation prefix can be configured by setting the standard CMake variable
 CMAKE_INSTALL_PREFIX. To install the library, use
 
    make install
+or
+   cmake --build . --target install
+or
+   cmake --build . --config Release --target install  [Visual Studio, Xcode]
 
 The library will be installed in <PREFIX>/lib, the headers in <PREFIX>/include,
 and the configuration CMake files in <PREFIX>/lib/cmake/mfem.
