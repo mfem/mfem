@@ -442,7 +442,7 @@ Debug and optimization options are controlled through the CMake variable
 CMAKE_BUILD_TYPE which can be set to standard values like "Debug", and "Release"
 (default).
 
-To use a non-default generator use the "-G <generator>" option of cmake:
+To use a specific generator use the "-G <generator>" option of cmake:
 
    cmake <mfem-source-dir> -G "Xcode"
    cmake <mfem-source-dir> -G "Visual Studio 12 2013"
@@ -471,11 +471,14 @@ or
 which will simply compile and run Example 1/1p. For more extensive tests that
 check the results from all the serial/parallel MFEM examples and miniapps use:
 
+   make exec -j 4
    make test
 or
+   cmake --build . --target exec
    cmake --build . --target test
 or
-   cmake --build . --config Release --target test  [Visual Studio, Xcode]
+   cmake --build . --config Release --target exec  [Visual Studio, Xcode]
+   cmake --build . --config Release --target RUN_TESTS  [Visual Studio, Xcode]
 
 Note that running all the tests may take a while.
 
@@ -486,7 +489,8 @@ CMAKE_INSTALL_PREFIX. To install the library, use
 or
    cmake --build . --target install
 or
-   cmake --build . --config Release --target install  [Visual Studio, Xcode]
+   cmake --build . --config Release --target install  [Xcode]
+   cmake --build . --config Release --target INSTALL  [Visual Studio]
 
 The library will be installed in <PREFIX>/lib, the headers in <PREFIX>/include,
 and the configuration CMake files in <PREFIX>/lib/cmake/mfem.
