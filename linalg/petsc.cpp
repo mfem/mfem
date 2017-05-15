@@ -1727,33 +1727,11 @@ void PetscBCHandler::SetTDofs(Array<int>& list)
 void PetscBCHandler::SetUp(PetscInt n)
 {
    if (setup) { return; }
-   if (ess_tdof_list.Size())
-   {
-      std::vector<bool> isess(n,false);
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
-      {
-         isess[ess_tdof_list[i]] = true;
-      }
-      ess_tdof_list_c.SetSize(n-ess_tdof_list.Size());
-      PetscInt c = 0;
-      for (PetscInt i = 0; i < n; ++i)
-         if (!isess[i])
-         {
-            ess_tdof_list_c[c++] = i;
-         }
-   }
-   else
-   {
-      ess_tdof_list_c.SetSize(n);
-      for (PetscInt i = 0; i < n; ++i)
-      {
-         ess_tdof_list_c[i] = i;
-      }
-   }
    if (bctype == CONSTANT)
    {
       eval_g.SetSize(n);
       this->Eval(eval_t,eval_g);
+      eval_t_cached = eval_t;
    }
    else if (bctype == TIME_DEPENDENT)
    {
@@ -1765,26 +1743,25 @@ void PetscBCHandler::SetUp(PetscInt n)
 void PetscBCHandler::ApplyBC(const Vector &x, Vector &y)
 {
    if (!setup) { MFEM_ABORT("PetscBCHandler not yet setup"); }
+   y = x;
    if (bctype == ZERO)
    {
-      y = 0.0;
-   }
-   else if (bctype == CONSTANT)
-   {
-      y = eval_g;
+      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      {
+         y[ess_tdof_list[i]] = 0.0;
+      }
    }
    else
    {
-      if (eval_t != eval_t_cached)
+      if (bctype != CONSTANT && eval_t != eval_t_cached)
       {
          Eval(eval_t,eval_g);
          eval_t_cached = eval_t;
       }
-      y = eval_g;
-   }
-   for (PetscInt i = 0; i < ess_tdof_list_c.Size(); ++i)
-   {
-      y[ess_tdof_list_c[i]] = x[ess_tdof_list_c[i]];
+      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      {
+         y[ess_tdof_list[i]] = eval_g[ess_tdof_list[i]];
+      }
    }
 }
 

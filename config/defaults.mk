@@ -173,7 +173,8 @@ ifeq ($(MFEM_USE_PETSC),YES)
    $(if $(wildcard $(PETSC_PC)),,$(error PETSc config not found - $(PETSC_PC)))
    PETSC_OPT := $(shell sed -n "s/Cflags: *//p" $(PETSC_PC))
    PETSC_LIBS_PRIVATE := $(shell sed -n "s/Libs\.private: *//p" $(PETSC_PC))
-   PETSC_LIB := -Wl,-rpath -Wl,$(abspath $(PETSC_DIR))/lib -L$(abspath $(PETSC_DIR))/lib -lpetsc $(PETSC_LIBS_PRIVATE)
+   PETSC_LIB := -Wl,-rpath -Wl,$(abspath $(PETSC_DIR))/lib\
+ -L$(abspath $(PETSC_DIR))/lib -lpetsc $(PETSC_LIBS_PRIVATE)
 endif
 
 # MPFR library configuration

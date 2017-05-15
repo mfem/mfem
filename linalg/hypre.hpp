@@ -223,7 +223,7 @@ public:
    HypreParMatrix();
 
    /// Converts hypre's format to HypreParMatrix
-   /* if @owner is false, ownership of @a is not transferred */
+   /** If @a owner is false, ownership of @a a is not transferred */
    explicit HypreParMatrix(hypre_ParCSRMatrix *a, bool owner = true)
    {
       Init();

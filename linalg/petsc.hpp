@@ -48,7 +48,7 @@ protected:
 
 public:
    /// Creates vector with given global size and partitioning of the columns.
-   /** if @col is provided, processor P owns columns [col[P],col[P+1]).
+   /** If @a col is provided, processor P owns columns [col[P],col[P+1]).
        Otherwise, PETSc decides the partitioning */
    PetscParVector(MPI_Comm comm, PetscInt glob_size, PetscInt *col = NULL);
 
@@ -326,13 +326,13 @@ public:
    enum Type
    {
       ZERO,
-      CONSTANT,
+      CONSTANT,  ///< Constant in time b.c.
       TIME_DEPENDENT
    };
 
    PetscBCHandler(Type _type = ZERO) :
       bctype(_type), setup(false), eval_t(0.0),
-      eval_t_cached(std::numeric_limits<double>::min()) {};
+      eval_t_cached(std::numeric_limits<double>::min()) {}
    PetscBCHandler(Array<int>& ess_tdof_list, Type _type = ZERO);
 
    virtual ~PetscBCHandler() {}
@@ -341,6 +341,8 @@ public:
    Type Type() const { return bctype; }
 
    /// Boundary conditions evaluation
+   /** In the result vector, @a g, only values at the essential dofs need to be
+       set. */
    virtual void Eval(double t, Vector &g)
    { mfem_error("PetscBCHandler::Eval method not overloaded"); }
 
@@ -353,7 +355,7 @@ public:
    /// Sets the current time
    void SetTime(double t) { eval_t = t; }
 
-   /// SetUp the helper object
+   /// SetUp the helper object, where @a n is the size of the solution vector
    void SetUp(PetscInt n);
 
    /// y = x on ess_tdof_list_c and y = g (internally evaluated) on ess_tdof_list
@@ -371,7 +373,6 @@ private:
    Vector eval_g;
 
    Array<int> ess_tdof_list;    //Essential true dofs
-   Array<int> ess_tdof_list_c;  //Complement of essential true dofs
 };
 
 // Helper class for user-defined preconditioners that needs to be setup
@@ -380,7 +381,8 @@ class PetscPreconditionerFactory
 private:
    std::string name;
 public:
-   PetscPreconditionerFactory(const std::string &_name = "MFEM Factory") {name = _name;}
+   PetscPreconditionerFactory(const std::string &_name = "MFEM Factory")
+    : name(_name) { }
    const char* GetName() { return name.c_str(); }
    virtual Solver *NewPreconditioner(const OperatorHandle& oh) = 0;
    virtual ~PetscPreconditionerFactory() {}
