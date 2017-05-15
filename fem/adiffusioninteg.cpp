@@ -13,7 +13,7 @@
 
 #if defined(MFEM_USE_OCCA) && defined(MFEM_USE_ACROTENSOR)
 
-#include "abilininteg.hpp"
+#include "adiffusioninteg.hpp"
 
 namespace mfem {
 
@@ -33,56 +33,7 @@ std::string AcroDiffusionIntegrator::GetName() {
 }
 
 void AcroDiffusionIntegrator::Setup() {
-  if (device.mode() == "CUDA") {
-    onGPU = true;
-    TE.SetExecutorType("OneOutPerThread");
-
-    CUcontext cudaContext = (CUcontext) device.getHandle("type: 'context'");
-    acro::setCudaContext(cudaContext);
-  } else {
-    onGPU = false;
-    TE.SetExecutorType("CPUInterpreted");
-  }
-
-  DiffusionIntegrator integ;
-  const FiniteElement &fe   = *(fespace->GetFE(0));
-  const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
-  const IntegrationRule &ir1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder());
-  nDim    = fe.GetDim();
-  nElem  = fespace->GetNE();
-  nDof   = fe.GetDof();
-  nQuad   = ir.GetNPoints();
-  nDof1D = fe.GetOrder() + 1;
-  nQuad1D = ir1D.GetNPoints();
-
-  if (nDim > 3) {
-    mfem_error("AcroDiffusionIntegrator tensor computations don't support dim > 3.");
-  }
-
-  //Get AcroTensors pointing to the B/G data
-  //Note:  We are giving acrotensor the same pointer for the GPU and CPU
-  //so one of them is obviously wrong.  This works as long as we don't use
-  //touch the wrong one
-  const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
-  haveTensorBasis = (el != NULL);  
-  if (haveTensorBasis) {
-    maps = OccaDofQuadMaps::GetTensorMaps(device, *el, ir);
-    double *b_ptr = *((double**) maps.quadToDof.memory().getHandle());
-    double *g_ptr = *((double**) maps.quadToDofD.memory().getHandle());
-    double *w_ptr = *((double**) maps.quadWeights.memory().getHandle());    
-    B.Init(nQuad1D, nDof1D, b_ptr, b_ptr, onGPU);
-    G.Init(nQuad1D, nDof1D, g_ptr, g_ptr, onGPU);
-    std::vector<int> wdims(nDim, nQuad1D);
-    WC.Init(wdims, w_ptr, w_ptr, onGPU);
-  } else {
-    maps = OccaDofQuadMaps::GetSimplexMaps(device, fe, ir);
-    double *b_ptr = *((double**) maps.quadToDof.memory().getHandle());
-    double *g_ptr = *((double**) maps.quadToDofD.memory().getHandle());
-    double *w_ptr = *((double**) maps.quadWeights.memory().getHandle());    
-    B.Init(nQuad, nDof, b_ptr, b_ptr, onGPU);
-    G.Init(nQuad, nDof, nDim, g_ptr, g_ptr, onGPU);
-    WC.Init(nQuad, w_ptr, w_ptr, onGPU);
-  }
+  AcroIntegrator::Setup();
 }
 
 
@@ -107,7 +58,16 @@ void AcroDiffusionIntegrator::ComputeBTilde() {
 }
 
 
-void AcroDiffusionIntegrator::ComputeD(OccaGeometry &geom) {
+void AcroDiffusionIntegrator::Assemble() {
+  const ConstantCoefficient* const_coeff = dynamic_cast<const ConstantCoefficient*>(&Q);
+  if (!const_coeff) {
+    mfem_error("AcroDiffusionIntegrator can only handle ConstantCoefficients");
+  }
+
+  DiffusionIntegrator integ;
+  const FiniteElement &fe   = *(fespace->GetFE(0));
+  const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
+  OccaGeometry geom = OccaGeometry::Get(device, *mesh, ir);  
   //Get the jacobians and compute D with them
   double *jac_ptr = *((double**) geom.J.memory().getHandle());
   double *jacinv_ptr = *((double**) geom.invJ.memory().getHandle());
@@ -115,14 +75,10 @@ void AcroDiffusionIntegrator::ComputeD(OccaGeometry &geom) {
   if (haveTensorBasis) {
     if (nDim == 1) {
       D.Init(nElem, nDim, nDim, nQuad1D);
-      acro::Tensor J(nElem, nQuad1D, nDim, nDim, 
-                     jac_ptr, jac_ptr, onGPU);
-      acro::Tensor Jinv(nElem, nQuad1D, nDim, nDim, 
-                        jacinv_ptr, jacinv_ptr, onGPU);
       acro::Tensor Jdet(nElem, nQuad1D, 
                         jacdet_ptr, jacdet_ptr, onGPU);
-      TE["D_e_m_n_k = WC_k Jdet_e_k Jinv_e_k_m_n Jinv_e_k_n_m"]
-        (D, WC, Jdet, Jinv, Jinv);
+      TE["D_e_m_n_k = W_k Jdet_e_k"]
+        (D, W, Jdet);
     } else if (nDim == 2) {
       D.Init(nElem, nDim, nDim, nQuad1D, nQuad1D);
       acro::Tensor J(nElem, nQuad1D, nQuad1D, nDim, nDim, 
@@ -131,8 +87,8 @@ void AcroDiffusionIntegrator::ComputeD(OccaGeometry &geom) {
                         jacinv_ptr, jacinv_ptr, onGPU);
       acro::Tensor Jdet(nElem, nQuad1D, nQuad1D, 
                         jacdet_ptr, jacdet_ptr, onGPU);
-      TE["D_e_m_n_k1_k2 = WC_k1_k2 Jdet_e_k1_k2 Jinv_e_k1_k2_m_n Jinv_e_k1_k2_n_m"]
-        (D, WC, Jdet, Jinv, Jinv);
+      TE["D_e_m_n_k1_k2 = W_k1_k2 Jdet_e_k1_k2 Jinv_e_k1_k2_m_n Jinv_e_k1_k2_n_m"]
+        (D, W, Jdet, Jinv, Jinv);
     } else if (nDim == 3){
       D.Init(nElem, nDim, nDim, nQuad1D, nQuad1D, nQuad1D);
       acro::Tensor J(nElem, nQuad1D, nQuad1D, nQuad1D, nDim, nDim, 
@@ -141,8 +97,8 @@ void AcroDiffusionIntegrator::ComputeD(OccaGeometry &geom) {
                         jacinv_ptr, jacinv_ptr, onGPU);
       acro::Tensor Jdet(nElem, nQuad1D, nQuad1D, nQuad1D, 
                         jacdet_ptr, jacdet_ptr, onGPU);
-      TE["D_e_m_n_k1_k2_k3 = WC_k1_k2_k3 Jdet_e_k1_k2_k3 Jinv_e_k1_k2_k3_m_n Jinv_e_k1_k2_k3_n_m"]
-        (D, WC, Jdet, Jinv, Jinv);
+      TE["D_e_m_n_k1_k2_k3 = W_k1_k2_k3 Jdet_e_k1_k2_k3 Jinv_e_k1_k2_k3_m_n Jinv_e_k1_k2_k3_n_m"]
+        (D, W, Jdet, Jinv, Jinv);
     } else {
       mfem_error("AcroDiffusionIntegrator tensor computations don't support dim > 3.");
     }
@@ -154,23 +110,11 @@ void AcroDiffusionIntegrator::ComputeD(OccaGeometry &geom) {
                       jacinv_ptr, jacinv_ptr, onGPU);
     acro::Tensor Jdet(nElem, nQuad, 
                       jacdet_ptr, jacdet_ptr, onGPU);
-    TE["D_e_m_n_k = WC_k Jdet_e_k Jinv_e_k_m_n Jinv_e_k_n_m"]
-      (D, WC, Jdet, Jinv, Jinv);
+    TE["D_e_m_n_k = W_k Jdet_e_k Jinv_e_k_m_n Jinv_e_k_n_m"]
+      (D, W, Jdet, Jinv, Jinv);
   }
-}  
 
-void AcroDiffusionIntegrator::Assemble() {
-  const ConstantCoefficient* const_coeff = dynamic_cast<const ConstantCoefficient*>(&Q);
-  if (!const_coeff) {
-    mfem_error("AcroDiffusionIntegrator can only handle ConstantCoefficients");
-  }  
-  WC.Mult(const_coeff->constant);
-
-  DiffusionIntegrator integ;
-  const FiniteElement &fe   = *(fespace->GetFE(0));
-  const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
-  OccaGeometry geom = OccaGeometry::Get(device, *mesh, ir);  
-  ComputeD(geom);
+  D.Mult(const_coeff->constant);
 }
 
 
@@ -221,28 +165,28 @@ void AcroDiffusionIntegrator::Mult(OccaVector &v) {
   if (!U.IsInitialized() && haveTensorBasis) {
     if (nDim == 1) {
       U.Init(nDim, nElem, nQuad1D);
-      W.Init(nDim, nElem, nQuad1D);
+      Z.Init(nDim, nElem, nQuad1D);
       if (onGPU) {
         U.SwitchToGPU(); 
-        W.SwitchToGPU();
+        Z.SwitchToGPU();
       }
     } else if (nDim == 2) {
       U.Init(nDim, nElem, nQuad1D, nQuad1D);
-      W.Init(nDim, nElem, nQuad1D, nQuad1D);
+      Z.Init(nDim, nElem, nQuad1D, nQuad1D);
       T1.Init(nElem,nDof1D,nQuad1D);
       if (onGPU) {
         U.SwitchToGPU();
-        W.SwitchToGPU();
+        Z.SwitchToGPU();
         T1.SwitchToGPU();
       }
     } else if (nDim == 3) {
       U.Init(nDim, nElem, nQuad1D, nQuad1D, nQuad1D);
-      W.Init(nDim, nElem, nQuad1D, nQuad1D, nQuad1D);
+      Z.Init(nDim, nElem, nQuad1D, nQuad1D, nQuad1D);
       T1.Init(nElem,nDof1D,nQuad1D,nQuad1D);
       T2.Init(nElem,nDof1D,nDof1D,nQuad1D);
       if (onGPU) {
         U.SwitchToGPU();
-        W.SwitchToGPU();
+        Z.SwitchToGPU();
         T1.SwitchToGPU();
         T2.SwitchToGPU();
       }
@@ -257,15 +201,15 @@ void AcroDiffusionIntegrator::Mult(OccaVector &v) {
       acro::Tensor X(nElem, nDof1D,
                      v_ptr, v_ptr, onGPU);
       TE["U_n_e_k1 = G_k1_i1 V_e_i1"](U, G, V);
-      TE["W_m_e_k1 = D_e_m_n_k1 U_n_e_k1"](W, D, U);
-      TE["X_e_i1 = G_k1_i1 W_m_e_k1"](X, G, W);
+      TE["Z_m_e_k1 = D_e_m_n_k1 U_n_e_k1"](Z, D, U);
+      TE["X_e_i1 = G_k1_i1 Z_m_e_k1"](X, G, Z);
     } else if (nDim == 2) {
       acro::Tensor V(nElem, nDof1D, nDof1D, 
                      v_ptr, v_ptr, onGPU);
       acro::Tensor X(nElem, nDof1D, nDof1D,
                      v_ptr, v_ptr, onGPU);
       acro::SliceTensor U1(U, 0), U2(U, 1);
-      acro::SliceTensor W1(W, 0), W2(W, 1);
+      acro::SliceTensor Z1(Z, 0), Z2(Z, 1);
 
       //U1_e_k1_k2 = G_k1_i1 B_k2_i2 V_e_i1_i2
       TE["BV_e_i1_k2 = B_k2_i2 V_e_i1_i2"](T1, B, V);
@@ -275,22 +219,22 @@ void AcroDiffusionIntegrator::Mult(OccaVector &v) {
       TE["GV_e_i1_k2 = B_k2_i2 V_e_i1_i2"](T1, G, V);
       TE["U2_e_k1_k2 = B_k1_i1 GV_e_i1_k2"](U2, B, T1);
 
-      TE["W_m_e_k1_k2 = D_e_m_n_k1_k2 U_n_e_k1_k2"](W, D, U);
+      TE["Z_m_e_k1_k2 = D_e_m_n_k1_k2 U_n_e_k1_k2"](Z, D, U);
 
-      //X_e_i1_i2 = G_k1_i1 B_k2_i2 W1_e_k1_k2
-      TE["BW1_e_i2_k1 = B_k2_i2 W1_e_k1_k2"](T1, B, W1);
-      TE["X_e_i1_i2 = G_k1_i1 BW1_e_i2_k1"](X, G, T1);
+      //X_e_i1_i2 = G_k1_i1 B_k2_i2 Z1_e_k1_k2
+      TE["BZ1_e_i2_k1 = B_k2_i2 Z1_e_k1_k2"](T1, B, Z1);
+      TE["X_e_i1_i2 = G_k1_i1 BZ1_e_i2_k1"](X, G, T1);
 
-      //X_e_i1_i2 += B_k1_i1 G_k2_i2 W2_e_k1_k2
-      TE["GW1_e_i2_k1 = G_k2_i2 W1_e_k1_k2"](T1, G, W1);
-      TE["X_e_i1_i2 += B_k1_i1 GW1_e_i2_k1"](X, B, T1);
+      //X_e_i1_i2 += B_k1_i1 G_k2_i2 Z2_e_k1_k2
+      TE["GZ1_e_i2_k1 = G_k2_i2 Z1_e_k1_k2"](T1, G, Z1);
+      TE["X_e_i1_i2 += B_k1_i1 GZ1_e_i2_k1"](X, B, T1);
     } else if (nDim == 3) {
       acro::Tensor V(nElem, nDof1D, nDof1D, nDof1D, 
                      v_ptr, v_ptr, onGPU);
       acro::Tensor X(nElem, nDof1D, nDof1D, nDof1D,
                      v_ptr, v_ptr, onGPU);
       acro::SliceTensor U1(U, 0), U2(U, 1), U3(U, 2);
-      acro::SliceTensor W1(W, 0), W2(W, 1), W3(W, 2);
+      acro::SliceTensor Z1(Z, 0), Z2(Z, 1), Z3(Z, 2);
 
       //U1_e_k1_k2_k3 = G_k1_i1 B_k2_i2 B_k3_i3 V_e_i1_i2_i3
       TE["BV_e_i1_i2_k3 = B_k3_i3 V_e_i1_i2_i3"](T2, B, V);
@@ -306,22 +250,22 @@ void AcroDiffusionIntegrator::Mult(OccaVector &v) {
       TE["BGV_e_i1_k2_k3 = B_k2_i2 GV_e_i1_i2_k3"](T1, B, T2);
       TE["U3_e_k1_k2_k3 = B_k1_i1 BGV_e_i1_k2_k3"](U3, B, T1);
    
-      TE["W_m_e_k1_k2_k3 = D_e_m_n_k1_k2_k3 U_n_e_k1_k2_k3"](W, D, U);
+      TE["Z_m_e_k1_k2_k3 = D_e_m_n_k1_k2_k3 U_n_e_k1_k2_k3"](Z, D, U);
 
-      //X_e_i1_i2_i3 =  G_k1_i1 B_k2_i2 B_k3_i3 W1_e_k1_k2_k3
-      TE["BW1_e_i3_k1_k2 = B_k3_i3 W1_e_k1_k2_k3"](T1, B, W1);
-      TE["BBW1_e_i2_i3_k1 = B_k2_i2 BW1_e_i3_k1_k2"](T2, B, T1);
-      TE["X_e_i1_i2_i3 = G_k1_i1 BBW1_e_i2_i3_k1"](X, G, T2);
+      //X_e_i1_i2_i3 =  G_k1_i1 B_k2_i2 B_k3_i3 Z1_e_k1_k2_k3
+      TE["BZ1_e_i3_k1_k2 = B_k3_i3 Z1_e_k1_k2_k3"](T1, B, Z1);
+      TE["BBZ1_e_i2_i3_k1 = B_k2_i2 BZ1_e_i3_k1_k2"](T2, B, T1);
+      TE["X_e_i1_i2_i3 = G_k1_i1 BBZ1_e_i2_i3_k1"](X, G, T2);
 
-      //X_e_i1_i2_i3 =  B_k1_i1 G_k2_i2 B_k3_i3 W2_e_k1_k2_k3
-      TE["BW2_e_i3_k1_k2 = B_k3_i3 W2_e_k1_k2_k3"](T1, B, W2);
-      TE["GBW2_e_i2_i3_k1 = G_k2_i2 BW2_e_i3_k1_k2"](T2, G, T1);
-      TE["X_e_i1_i2_i3 += B_k1_i1 GBW2_e_i2_i3_k1"](X, B, T2);
+      //X_e_i1_i2_i3 =  B_k1_i1 G_k2_i2 B_k3_i3 Z2_e_k1_k2_k3
+      TE["BZ2_e_i3_k1_k2 = B_k3_i3 Z2_e_k1_k2_k3"](T1, B, Z2);
+      TE["GBZ2_e_i2_i3_k1 = G_k2_i2 BZ2_e_i3_k1_k2"](T2, G, T1);
+      TE["X_e_i1_i2_i3 += B_k1_i1 GBZ2_e_i2_i3_k1"](X, B, T2);
 
-      //X_e_i1_i2_i3 =  B_k1_i1 B_k2_i2 G_k3_i3 W3_e_k1_k2_k3
-      TE["GW3_e_i3_k1_k2 = G_k3_i3 W3_e_k1_k2_k3"](T1, G, W3);
-      TE["BGW3_e_i2_i3_k1 = B_k2_i2 GW3_e_i3_k1_k2"](T2, B, T1);
-      TE["X_e_i1_i2_i3 += B_k1_i1 BGW3_e_i2_i3_k1"](X, B, T2);
+      //X_e_i1_i2_i3 =  B_k1_i1 B_k2_i2 G_k3_i3 Z3_e_k1_k2_k3
+      TE["GZ3_e_i3_k1_k2 = G_k3_i3 Z3_e_k1_k2_k3"](T1, G, Z3);
+      TE["BGZ3_e_i2_i3_k1 = B_k2_i2 GZ3_e_i3_k1_k2"](T2, B, T1);
+      TE["X_e_i1_i2_i3 += B_k1_i1 BGZ3_e_i2_i3_k1"](X, B, T2);
     }
   } else {
     mfem_error("AcroDiffusionIntegrator partial assembly on simplices not supported");
