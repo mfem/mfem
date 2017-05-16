@@ -382,7 +382,7 @@ private:
    std::string name;
 public:
    PetscPreconditionerFactory(const std::string &_name = "MFEM Factory")
-    : name(_name) { }
+      : name(_name) { }
    const char* GetName() { return name.c_str(); }
    virtual Solver *NewPreconditioner(const OperatorHandle& oh) = 0;
    virtual ~PetscPreconditionerFactory() {}
