@@ -21,7 +21,6 @@ namespace mfem {
 class AcroIntegrator : public OccaIntegrator {
 protected:
   acro::TensorEngine TE;
-  OccaDofQuadMaps maps;
 
   int nDim;
   int nElem;
@@ -29,7 +28,6 @@ protected:
   int nQuad;
   int nDof1D;
   int nQuad1D;
-  bool haveTensorBasis;
   bool onGPU;
 
   acro::Tensor B, G;         //Basis and dbasis evaluated on the quad points

@@ -97,11 +97,24 @@ namespace mfem {
     occa::properties props;
     OccaIntegratorType itype;
 
+    const IntegrationRule *ir;
+    bool hasTensorBasis;
+    OccaDofQuadMaps maps;
+
   public:
     OccaIntegrator();
     virtual ~OccaIntegrator();
 
+    void SetMaps(const IntegrationRule &ir_);
+    void SetProperties(occa::properties &props);
+
+    occa::device GetDevice();
+
     virtual std::string GetName() = 0;
+
+    FiniteElementSpace& GetFESpace();
+    const IntegrationRule& GetIntegrationRule();
+    OccaDofQuadMaps& GetDofQuadMaps();
 
     virtual void SetupIntegrator(OccaBilinearForm &bform_,
                                  const occa::properties &props_,
@@ -123,7 +136,6 @@ namespace mfem {
   //---[ Diffusion Integrator ]---------
   class OccaDiffusionIntegrator : public OccaIntegrator {
   private:
-    OccaDofQuadMaps maps;
     OccaCoefficient coeff;
 
     occa::kernel assembleKernel, multKernel;
@@ -146,7 +158,6 @@ namespace mfem {
   //---[ Mass Integrator ]--------------
   class OccaMassIntegrator : public OccaIntegrator {
   private:
-    OccaDofQuadMaps maps;
     OccaCoefficient coeff;
 
     occa::kernel assembleKernel, multKernel;

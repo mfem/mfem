@@ -14,6 +14,7 @@
 #ifdef MFEM_USE_OCCA
 
 #include "ocoefficient.hpp"
+#include "obilininteg.hpp"
 
 namespace mfem {
   //---[ Parameter ]------------
@@ -96,6 +97,8 @@ namespace mfem {
   //====================================
 
   //---[ GridFunction Parameter ]-------
+  occa::kernel OccaGridFunctionParameter::gridFuncToQuad[3];
+
   OccaGridFunctionParameter::OccaGridFunctionParameter(const std::string &name_,
                                                        OccaVector &gf_,
                                                        const bool useRestrict_) :
@@ -104,7 +107,31 @@ namespace mfem {
     useRestrict(useRestrict_) {}
 
   OccaParameter* OccaGridFunctionParameter::Clone() {
-    return new OccaGridFunctionParameter(name, gf, useRestrict);
+    OccaGridFunctionParameter *param =
+      new OccaGridFunctionParameter(name, gf, useRestrict);
+    param->gfQuad = gfQuad;
+    return param;
+  }
+
+  void OccaGridFunctionParameter::Setup(OccaIntegrator &integ) {
+    occa::device device = integ.GetDevice();
+
+    OccaDofQuadMaps &maps = integ.GetDofQuadMaps();
+
+    const FiniteElementSpace &fespace = integ.GetFESpace();
+    const FiniteElement &fe = *(fespace.GetFE(0));
+
+    const int dim      = fe.GetDim();
+    const int elements = fespace.GetNE();
+    const int numQuad  = integ.GetIntegrationRule().GetNPoints();
+    gfQuad.SetSize(device,
+                   numQuad * elements);
+
+    if (!gridFuncToQuad[dim].isInitialized()) {
+      gridFuncToQuad[dim] = device.buildKernel("occa://mfem/fem/gridfunc.okl",
+                                               stringWithDim("GridFuncToQuad", dim));
+    }
+    gridFuncToQuad[dim](elements, maps.dofToQuad, gf, gfQuad);
   }
 
   void OccaGridFunctionParameter::SetProps(occa::properties &props) {
@@ -158,6 +185,13 @@ namespace mfem {
   OccaCoefficient& OccaCoefficient::SetName(const std::string &name_) {
     name = name_;
     return *this;
+  }
+
+  void OccaCoefficient::Setup(OccaIntegrator &integ) {
+    const int paramCount = (int) params.size();
+    for (int i = 0; i < paramCount; ++i) {
+      params[i]->Setup(integ);
+    }
   }
 
   OccaCoefficient& OccaCoefficient::Add(OccaParameter *param) {

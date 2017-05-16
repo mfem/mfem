@@ -47,25 +47,25 @@ void AcroMassIntegrator::Assemble() {
   DiffusionIntegrator integ;
   const FiniteElement &fe   = *(fespace->GetFE(0));
   const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
-  OccaGeometry geom = OccaGeometry::Get(device, *mesh, ir);  
-  
+  OccaGeometry geom = OccaGeometry::Get(device, *mesh, ir);
+
   double *jacdet_ptr = *((double**) geom.detJ.memory().getHandle());
-  if (haveTensorBasis) {
+  if (hasTensorBasis) {
     if (nDim == 1) {
       D.Init(nElem, nDim, nDim, nQuad1D);
-      acro::Tensor Jdet(nElem, nQuad1D, 
+      acro::Tensor Jdet(nElem, nQuad1D,
                         jacdet_ptr, jacdet_ptr, onGPU);
       TE["D_e_m_n_k = W_k Jdet_e_k"]
         (D, W, Jdet);
     } else if (nDim == 2) {
       D.Init(nElem, nDim, nDim, nQuad1D, nQuad1D);
-      acro::Tensor Jdet(nElem, nQuad1D, nQuad1D, 
+      acro::Tensor Jdet(nElem, nQuad1D, nQuad1D,
                         jacdet_ptr, jacdet_ptr, onGPU);
       TE["D_e_m_n_k1_k2 = W_k1_k2 Jdet_e_k1_k2"]
         (D, Jdet);
     } else if (nDim == 3){
       D.Init(nElem, nDim, nDim, nQuad1D, nQuad1D, nQuad1D);
-      acro::Tensor Jdet(nElem, nQuad1D, nQuad1D, nQuad1D, 
+      acro::Tensor Jdet(nElem, nQuad1D, nQuad1D, nQuad1D,
                         jacdet_ptr, jacdet_ptr, onGPU);
       TE["D_e_m_n_k1_k2_k3 = W_k1_k2_k3 Jdet_e_k1_k2_k3"]
         (D, W, Jdet);
@@ -74,7 +74,7 @@ void AcroMassIntegrator::Assemble() {
     }
   } else {
     D.Init(nElem, nDim, nDim, nQuad);
-    acro::Tensor Jdet(nElem, nQuad, 
+    acro::Tensor Jdet(nElem, nQuad,
                       jacdet_ptr, jacdet_ptr, onGPU);
     TE["D_e_m_n_k = W_k Jdet_e_k"]
       (D, W, Jdet);
@@ -85,9 +85,9 @@ void AcroMassIntegrator::Assemble() {
 
 
 void AcroMassIntegrator::AssembleMatrix() {
-  
+
   if (!M.IsInitialized()) {
-    if (haveTensorBasis) {
+    if (hasTensorBasis) {
       if (nDim == 1) {
         M.Init(nElem, nDof1D, nDof1D);
         if (onGPU) {M.SwitchToGPU();}
@@ -104,7 +104,7 @@ void AcroMassIntegrator::AssembleMatrix() {
     }
   }
 
-  if (haveTensorBasis) {
+  if (hasTensorBasis) {
     if (nDim == 1) {
       TE["M_e_i1_j1 = B_k1_i1 B_k1_j1 D_e_k1"](M, B, B, D);
     } else if (nDim == 2) {
@@ -112,18 +112,18 @@ void AcroMassIntegrator::AssembleMatrix() {
     } else if (nDim == 3) {
       TE["M_e_i1_i2_i3_j1_j2_j3 = B_k1_i1 B_k1_j1 B_k2_i2 B_k2_j2 B_k3_i3 B_k3_j3 D_e_k1_k2_k3"](M, B, B, B, B, B, B, D);
     }
-  } else { 
+  } else {
     TE["M_e_i_j = B_k_i B_k_j D_e_k"](M, B, B, D);
   }
 }
 
 void AcroMassIntegrator::Mult(OccaVector &v) {
-  
-  if (!T1.IsInitialized() && haveTensorBasis) {
+
+  if (!T1.IsInitialized() && hasTensorBasis) {
     if (nDim == 1) {
       T1.Init(nElem, nQuad1D);
       if (onGPU) {
-        T1.SwitchToGPU(); 
+        T1.SwitchToGPU();
       }
     } else if (nDim == 2) {
       T1.Init(nElem, nQuad1D, nDof1D);
@@ -145,7 +145,7 @@ void AcroMassIntegrator::Mult(OccaVector &v) {
   }
 
   double *v_ptr = *((double**) v.GetData().getHandle());
-  if (haveTensorBasis) {
+  if (hasTensorBasis) {
     if (nDim == 1) {
       acro::Tensor V(nElem, nDof1D, v_ptr, v_ptr, onGPU);
       acro::Tensor X(nElem, nDof1D, v_ptr, v_ptr, onGPU);

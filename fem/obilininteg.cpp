@@ -368,6 +368,46 @@ namespace mfem {
   OccaIntegrator::OccaIntegrator() {}
   OccaIntegrator::~OccaIntegrator() {}
 
+  void OccaIntegrator::SetMaps(const IntegrationRule &ir_) {
+    ir = &ir_;
+
+    const FiniteElement &fe = *(fespace->GetFE(0));
+    const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
+
+    if (el) {
+      maps = OccaDofQuadMaps::GetTensorMaps(device, *el, *ir);
+      hasTensorBasis = true;
+    } else {
+      maps = OccaDofQuadMaps::GetSimplexMaps(device, fe, *ir);
+      hasTensorBasis = false;
+    }
+  }
+
+  void OccaIntegrator::SetProperties(occa::properties &props) {
+    const FiniteElement &fe = *(fespace->GetFE(0));
+    if (hasTensorBasis) {
+      setTensorProperties(fe, *ir, props);
+    } else {
+      setSimplexProperties(fe, *ir, props);
+    }
+  }
+
+  occa::device OccaIntegrator::GetDevice() {
+    return device;
+  }
+
+  FiniteElementSpace& OccaIntegrator::GetFESpace() {
+    return *fespace;
+  }
+
+  const IntegrationRule& OccaIntegrator::GetIntegrationRule() {
+    return *ir;
+  }
+
+  OccaDofQuadMaps& OccaIntegrator::GetDofQuadMaps() {
+    return maps;
+  }
+
   void OccaIntegrator::SetupIntegrator(OccaBilinearForm &bform_,
                                        const occa::properties &props_,
                                        const OccaIntegratorType itype_) {
@@ -407,6 +447,7 @@ namespace mfem {
   OccaDiffusionIntegrator::OccaDiffusionIntegrator(const OccaCoefficient &coeff_) :
     coeff(coeff_) {
     coeff.SetName("COEFF");
+    coeff.Setup(*this);
   }
 
   OccaDiffusionIntegrator::~OccaDiffusionIntegrator() {}
@@ -421,14 +462,8 @@ namespace mfem {
     const FiniteElement &fe   = *(fespace->GetFE(0));
     const IntegrationRule &ir = GetDiffusionIntegrationRule(fe, fe);
 
-    const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
-    if (el) {
-      maps = OccaDofQuadMaps::GetTensorMaps(device, *el, ir);
-      setTensorProperties(fe, ir, kernelProps);
-    } else {
-      maps = OccaDofQuadMaps::GetSimplexMaps(device, fe, ir);
-      setSimplexProperties(fe, ir, kernelProps);
-    }
+    SetMaps(ir);
+    SetProperties(kernelProps);
 
     const int dims = fe.GetDim();
     const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
@@ -473,6 +508,7 @@ namespace mfem {
   OccaMassIntegrator::OccaMassIntegrator(const OccaCoefficient &coeff_) :
     coeff(coeff_) {
     coeff.SetName("COEFF");
+    coeff.Setup(*this);
   }
 
   OccaMassIntegrator::~OccaMassIntegrator() {}
@@ -487,14 +523,8 @@ namespace mfem {
     const FiniteElement &fe   = *(fespace->GetFE(0));
     const IntegrationRule &ir = GetMassIntegrationRule(fe, fe);
 
-    const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
-    if (el) {
-      maps = OccaDofQuadMaps::GetTensorMaps(device, *el, ir);
-      setTensorProperties(fe, ir, kernelProps);
-    } else {
-      maps = OccaDofQuadMaps::GetSimplexMaps(device, fe, ir);
-      setSimplexProperties(fe, ir, kernelProps);
-    }
+    SetMaps(ir);
+    SetProperties(kernelProps);
 
     const int elements = fespace->GetNE();
     const int quadraturePoints = ir.GetNPoints();

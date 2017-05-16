@@ -54,3 +54,8 @@ typedef double* Local_t   @dim(NUM_DOFS, numElements);
 typedef double* Local1D_t @dim(NUM_DOFS_1D, numElements);
 typedef double* Local2D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, numElements);
 typedef double* Local3D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, NUM_DOFS_1D, numElements);
+
+typedef double* QLocal_t   @dim(NUM_QUAD, numElements);
+typedef double* QLocal1D_t @dim(NUM_QUAD_1D, numElements);
+typedef double* QLocal2D_t @dim(NUM_QUAD_1D, NUM_QUAD_1D, numElements);
+typedef double* QLocal3D_t @dim(NUM_QUAD_1D, NUM_QUAD_1D, NUM_QUAD_1D, numElements);

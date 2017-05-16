@@ -21,11 +21,15 @@
 #include "../linalg/ovector.hpp"
 
 namespace mfem {
+  class OccaIntegrator;
+
   class OccaParameter {
   public:
     virtual ~OccaParameter();
 
     virtual OccaParameter* Clone() = 0;
+
+    inline virtual void Setup(OccaIntegrator &integ) {}
 
     virtual void SetProps(occa::properties &props);
 
@@ -148,8 +152,10 @@ namespace mfem {
   class OccaGridFunctionParameter : public OccaParameter {
   private:
     const std::string name;
-    OccaVector gf;
+    OccaVector gf, gfQuad;
     bool useRestrict;
+
+    static occa::kernel gridFuncToQuad[3];
 
   public:
     OccaGridFunctionParameter(const std::string &name_,
@@ -157,6 +163,8 @@ namespace mfem {
                               const bool useRestrict_ = false);
 
     virtual OccaParameter* Clone();
+
+    virtual void Setup(OccaIntegrator &integ);
 
     virtual void SetProps(occa::properties &props);
 
@@ -186,6 +194,8 @@ namespace mfem {
     OccaCoefficient(const OccaCoefficient &coeff);
 
     OccaCoefficient& SetName(const std::string &name_);
+
+    void Setup(OccaIntegrator &integ);
 
     OccaCoefficient& Add(OccaParameter *param);
 
