@@ -542,11 +542,13 @@ void GnuTLS_socketbuf::start_session()
    session_started = status.good();
    if (status.good())
    {
-#if GNUTLS_VERSION_NUMBER >= 0x030000 // what is the right version here?
+#if GNUTLS_VERSION_NUMBER >= 0x020c00 // what is the right version here?
+      // This works for version 0x020c17 and above
       const char *priorities =
          "NONE:+VERS-TLS1.2:+CIPHER-ALL:+MAC-ALL:+SIGN-ALL:+COMP-ALL:"
          "+KX-ALL:+CTYPE-OPENPGP:+CURVE-ALL";
 #else
+      // This works for version 0x020805 and below
       const char *priorities = "NORMAL:-CTYPE-X.509";
 #endif
       const char *err_ptr;
