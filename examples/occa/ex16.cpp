@@ -44,6 +44,7 @@ public:
   GradientUpdate(Operator *baseOper_,
                  Operator *timeOper_,
                  const double dt_) :
+    Operator(baseOper_->Width(), baseOper_->Height()),
     baseOper(baseOper_),
     timeOper(timeOper_),
     dt(dt_) {}
@@ -224,7 +225,9 @@ int main(int argc, char *argv[]) {
   FunctionCoefficient u_0(InitialTemperature);
   GridFunction u_f(&fespace);
   u_f.ProjectCoefficient(u_0);
+
   OccaGridFunction u_gf(&ofespace);
+  u_gf = u_f;
 
   OccaVector u;
   u_gf.GetTrueDofs(u);
@@ -375,8 +378,13 @@ void ConductionOperator::SetParameters(const OccaVector &u) {
   K = new OccaBilinearForm(&ofespace);
 
   OccaGridFunction u_alpha_gf(&ofespace);
-  OccaCoefficient u_coeff("u(q, e)");
-  u_coeff.AddGridFunction("u", u_alpha_gf, true);
+  u_alpha_gf.SetDataAndSize(u.GetData(), u.Size());
+
+  OccaCoefficient u_coeff("(kappa + alpha*u(q, e))");
+  u_coeff
+    .AddDefine("kappa", kappa)
+    .AddDefine("alpha", alpha)
+    .AddGridFunction("u", u_alpha_gf, true);
 
   K->AddDomainIntegrator(new OccaDiffusionIntegrator(u_coeff));
   K->Assemble();

@@ -185,7 +185,7 @@ namespace mfem {
   class OccaCoefficient {
   private:
     std::string name;
-    occa::json coeffValue, coeffArgs;
+    occa::json coeffValue;
 
     std::vector<OccaParameter*> params;
 

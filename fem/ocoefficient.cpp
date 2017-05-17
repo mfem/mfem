@@ -160,19 +160,16 @@ namespace mfem {
   OccaCoefficient::OccaCoefficient(const double value) :
     name("COEFF") {
     coeffValue = value;
-    coeffArgs  = "";
   }
 
   OccaCoefficient::OccaCoefficient(const std::string &source) :
     name("COEFF") {
     coeffValue = source;
-    coeffArgs  = "";
   }
 
   OccaCoefficient::OccaCoefficient(const OccaCoefficient &coeff) :
     name(coeff.name),
-    coeffValue(coeff.coeffValue),
-    coeffArgs(coeff.coeffArgs) {
+    coeffValue(coeff.coeffValue) {
 
     const int paramCount = (int) coeff.params.size();
     for (int i = 0; i < paramCount; ++i) {
@@ -195,11 +192,11 @@ namespace mfem {
   void OccaCoefficient::Setup(OccaIntegrator &integ,
                               occa::properties &props) {
     const int paramCount = (int) params.size();
+    props["defines/COEFF_ARGS"] = "";
     for (int i = 0; i < paramCount; ++i) {
          params[i]->Setup(integ, props);
     }
-    props[name]           = coeffValue;
-    props[name + "_ARGS"] = coeffArgs;
+    props["defines"][name] = coeffValue;
   }
 
   OccaCoefficient& OccaCoefficient::Add(OccaParameter *param) {
