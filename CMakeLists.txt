@@ -53,11 +53,12 @@ if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
     "MFEM does not support in-source CMake builds at this time.")
 endif (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
 
-if (CMAKE_VERSION VERSION_LESS 3.2 OR MFEM_USE_SIDRE)
+if (CMAKE_VERSION VERSION_LESS 3.2 OR MFEM_USE_SIDRE OR MFEM_USE_PETSC)
    # This seems to be needed by:
    #  * find_package(BLAS REQUIRED) and
    #  * find_package(HDF5 REQUIRED) needed, in turn, by:
    #    - find_package(ATK REQUIRED)
+   #  * find_package(PETSc REQUIRED)
    enable_language(C)
 endif()
 
