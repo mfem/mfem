@@ -260,6 +260,12 @@ public:
    {
       mfem_error("TimeDependentOperator::Mult() is not overridden!");
    }
+#ifdef MFEM_USE_OCCA
+   virtual void Mult(const OccaVector &x, OccaVector &y) const
+   {
+      mfem_error("TimeDependentOperator::Mult() is not overridden!");
+   }
+#endif
 
    /** @brief Solve the equation: @a k = f(@a x + @a dt @a k, t), for the
        unknown @a k at the current time t.
@@ -281,6 +287,12 @@ public:
    {
       mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
    }
+#ifdef MFEM_USE_OCCA
+   virtual void ImplicitSolve(const double dt, const OccaVector &x, OccaVector &k)
+   {
+      mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
+   }
+#endif
 
    /** @brief Return an Operator representing (dF/dk @a shift + dF/dx) at the
        given @a x, @a k, and the currently set time.

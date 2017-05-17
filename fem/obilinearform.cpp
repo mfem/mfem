@@ -148,6 +148,7 @@ namespace mfem {
   // Get the finite element space restriction matrix
   const Operator* OccaBilinearForm::GetRestriction() const {
     return ofespace->GetRestrictionOperator();
+      // [MISSING]
   }
 
   //

@@ -447,7 +447,6 @@ namespace mfem {
   OccaDiffusionIntegrator::OccaDiffusionIntegrator(const OccaCoefficient &coeff_) :
     coeff(coeff_) {
     coeff.SetName("COEFF");
-    coeff.Setup(*this);
   }
 
   OccaDiffusionIntegrator::~OccaDiffusionIntegrator() {}
@@ -478,7 +477,7 @@ namespace mfem {
                                           OccaGeometry::Jacobian);
     jacobian = geom.J;
 
-    coeff.SetProps(kernelProps);
+    coeff.Setup(*this, kernelProps);
 
     // Setup assemble and mult kernels
     assembleKernel = GetAssembleKernel(kernelProps);
@@ -508,7 +507,6 @@ namespace mfem {
   OccaMassIntegrator::OccaMassIntegrator(const OccaCoefficient &coeff_) :
     coeff(coeff_) {
     coeff.SetName("COEFF");
-    coeff.Setup(*this);
   }
 
   OccaMassIntegrator::~OccaMassIntegrator() {}
@@ -536,7 +534,7 @@ namespace mfem {
                                           OccaGeometry::Jacobian);
     jacobian = geom.J;
 
-    coeff.SetProps(kernelProps);
+    coeff.Setup(*this, kernelProps);
 
     // Setup assemble and mult kernels
     assembleKernel = GetAssembleKernel(kernelProps);

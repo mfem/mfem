@@ -20,7 +20,8 @@ namespace mfem {
   //---[ Parameter ]------------
   OccaParameter::~OccaParameter() {}
 
-  void OccaParameter::SetProps(occa::properties &props) {}
+  void OccaParameter::Setup(OccaIntegrator &integ,
+                            occa::properties &props) {}
 
   occa::kernelArg OccaParameter::KernelArgs() {
     return occa::kernelArg();
@@ -35,7 +36,8 @@ namespace mfem {
     return new OccaIncludeParameter(filename);
   }
 
-  void OccaIncludeParameter::SetProps(occa::properties &props) {
+  void OccaIncludeParameter::Setup(OccaIntegrator &integ,
+                                   occa::properties &props) {
     props["headers"].asArray() += "#include " + filename;
   }
   //====================================
@@ -48,7 +50,8 @@ namespace mfem {
     return new OccaSourceParameter(source);
   }
 
-  void OccaSourceParameter::SetProps(occa::properties &props) {
+  void OccaSourceParameter::Setup(OccaIntegrator &integ,
+                                  occa::properties &props) {
     props["headers"].asArray() += source;
   }
   //====================================
@@ -59,8 +62,8 @@ namespace mfem {
                                            const bool useRestrict_) :
     name(name_),
     v(v_),
-    attr(""),
-    useRestrict(useRestrict_) {}
+    useRestrict(useRestrict_),
+    attr("") {}
 
   OccaVectorParameter::OccaVectorParameter(const std::string &name_,
                                            OccaVector &v_,
@@ -68,14 +71,15 @@ namespace mfem {
                                            const bool useRestrict_) :
     name(name_),
     v(v_),
-    attr(attr_),
-    useRestrict(useRestrict_) {}
+    useRestrict(useRestrict_),
+    attr(attr_) {}
 
   OccaParameter* OccaVectorParameter::Clone() {
     return new OccaVectorParameter(name, v, attr, useRestrict);
   }
 
-  void OccaVectorParameter::SetProps(occa::properties &props) {
+  void OccaVectorParameter::Setup(OccaIntegrator &integ,
+                                  occa::properties &props) {
     std::string &args = (props["defines/COEFF_ARGS"]
                          .asString()
                          .string());
@@ -109,12 +113,24 @@ namespace mfem {
   OccaParameter* OccaGridFunctionParameter::Clone() {
     OccaGridFunctionParameter *param =
       new OccaGridFunctionParameter(name, gf, useRestrict);
-    param->gfQuad = gfQuad;
+    param->gfQuad.SetDataAndSize(gfQuad.GetData(), gfQuad.Size());
     return param;
   }
 
-  void OccaGridFunctionParameter::Setup(OccaIntegrator &integ) {
-    occa::device device = integ.GetDevice();
+  void OccaGridFunctionParameter::Setup(OccaIntegrator &integ,
+                                        occa::properties &props) {
+
+     std::string &args = (props["defines/COEFF_ARGS"]
+                          .asString()
+                          .string());
+     args += "const double *";
+     if (useRestrict) {
+        args += " restrict ";
+     }
+     args += name;
+     args += " @dim(NUM_QUAD, numElements),\n";
+
+     occa::device device = integ.GetDevice();
 
     OccaDofQuadMaps &maps = integ.GetDofQuadMaps();
 
@@ -129,21 +145,10 @@ namespace mfem {
 
     if (!gridFuncToQuad[dim].isInitialized()) {
       gridFuncToQuad[dim] = device.buildKernel("occa://mfem/fem/gridfunc.okl",
-                                               stringWithDim("GridFuncToQuad", dim));
+                                               stringWithDim("GridFuncToQuad", dim),
+                                               props);
     }
     gridFuncToQuad[dim](elements, maps.dofToQuad, gf, gfQuad);
-  }
-
-  void OccaGridFunctionParameter::SetProps(occa::properties &props) {
-      std::string &args = (props["defines/COEFF_ARGS"]
-                           .asString()
-                           .string());
-      args += "const double *";
-      if (useRestrict) {
-        args += " restrict ";
-      }
-      args += name;
-      args += " @(NUM_QUAD, numElements),\n";
   }
 
   occa::kernelArg OccaGridFunctionParameter::KernelArgs() {
@@ -187,11 +192,14 @@ namespace mfem {
     return *this;
   }
 
-  void OccaCoefficient::Setup(OccaIntegrator &integ) {
+  void OccaCoefficient::Setup(OccaIntegrator &integ,
+                              occa::properties &props) {
     const int paramCount = (int) params.size();
     for (int i = 0; i < paramCount; ++i) {
-      params[i]->Setup(integ);
+         params[i]->Setup(integ, props);
     }
+    props[name]           = coeffValue;
+    props[name + "_ARGS"] = coeffArgs;
   }
 
   OccaCoefficient& OccaCoefficient::Add(OccaParameter *param) {
@@ -224,16 +232,6 @@ namespace mfem {
                                                     OccaVector &gf,
                                                     const bool useRestrict) {
     return Add(new OccaGridFunctionParameter(name_, gf, useRestrict));
-  }
-
-  OccaCoefficient& OccaCoefficient::SetProps(occa::properties &props) {
-    const int paramCount = (int) params.size();
-    for (int i = 0; i < paramCount; ++i) {
-      params[i]->SetProps(props);
-    }
-    props[name]           = coeffValue;
-    props[name + "_ARGS"] = coeffArgs;
-    return *this;
   }
 
   OccaCoefficient::operator occa::kernelArg () {

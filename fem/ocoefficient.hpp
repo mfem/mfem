@@ -29,9 +29,8 @@ namespace mfem {
 
     virtual OccaParameter* Clone() = 0;
 
-    inline virtual void Setup(OccaIntegrator &integ) {}
-
-    virtual void SetProps(occa::properties &props);
+    virtual void Setup(OccaIntegrator &integ,
+                       occa::properties &props);
 
     virtual occa::kernelArg KernelArgs();
   };
@@ -46,7 +45,8 @@ namespace mfem {
 
     virtual OccaParameter* Clone();
 
-    virtual void SetProps(occa::properties &props);
+    virtual void Setup(OccaIntegrator &integ,
+                       occa::properties &props);
   };
   //====================================
 
@@ -60,7 +60,8 @@ namespace mfem {
 
     virtual OccaParameter* Clone();
 
-    virtual void SetProps(occa::properties &props);
+    virtual void Setup(OccaIntegrator &integ,
+                       occa::properties &props);
   };
   //====================================
 
@@ -81,8 +82,9 @@ namespace mfem {
       return new OccaDefineParameter(name, value);
     }
 
-    virtual void SetProps(occa::properties &props) {
-      props["defines"][name] = value;
+    virtual void Setup(OccaIntegrator &integ,
+                       occa::properties &props) {
+       props["defines"][name] = value;
     }
   };
   //====================================
@@ -104,7 +106,8 @@ namespace mfem {
       return new OccaVariableParameter(name, value);
     }
 
-    virtual void SetProps(occa::properties &props) {
+    virtual void Setup(OccaIntegrator &integ,
+                       occa::properties &props) {
       std::string &args = (props["defines/COEFF_ARGS"]
                            .asString()
                            .string());
@@ -142,7 +145,8 @@ namespace mfem {
 
     virtual OccaParameter* Clone();
 
-    virtual void SetProps(occa::properties &props);
+    virtual void Setup(OccaIntegrator &integ,
+                       occa::properties &props);
 
     virtual occa::kernelArg KernelArgs();
   };
@@ -164,9 +168,8 @@ namespace mfem {
 
     virtual OccaParameter* Clone();
 
-    virtual void Setup(OccaIntegrator &integ);
-
-    virtual void SetProps(occa::properties &props);
+    virtual void Setup(OccaIntegrator &integ,
+                       occa::properties &props);
 
     virtual occa::kernelArg KernelArgs();
   };
@@ -195,7 +198,8 @@ namespace mfem {
 
     OccaCoefficient& SetName(const std::string &name_);
 
-    void Setup(OccaIntegrator &integ);
+    void Setup(OccaIntegrator &integ,
+               occa::properties &props);
 
     OccaCoefficient& Add(OccaParameter *param);
 
@@ -225,8 +229,6 @@ namespace mfem {
     OccaCoefficient& AddGridFunction(const std::string &name_,
                                      OccaVector &gf,
                                      const bool useRestrict = false);
-
-    OccaCoefficient& SetProps(occa::properties &props);
 
     operator occa::kernelArg ();
   };

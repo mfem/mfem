@@ -106,7 +106,7 @@ namespace mfem
       return data;
     }
 
-    inline occa::device GetDevice() {
+    inline occa::device GetDevice() const {
       return data.getDevice();
     }
 
