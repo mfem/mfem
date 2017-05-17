@@ -15,18 +15,26 @@
 #  ifndef MFEM_OCCA_GRIDFUNCTION
 #  define MFEM_OCCA_GRIDFUNCTION
 
+#include <map>
+
 #include "occa.hpp"
 
 #include "../linalg/ovector.hpp"
-#include "ocoefficient.hpp"
 #include "ofespace.hpp"
 
 namespace mfem {
+  class OccaIntegrator;
+
+  extern std::map<occa::hash_t, occa::kernel> gridFunctionKernels;
+
+  occa::kernel GetGridFunctionKernel(OccaIntegrator &integ);
+
   class OccaGridFunction : public OccaVector {
   protected:
     OccaFiniteElementSpace *ofespace;
-
     long sequence;
+
+    occa::kernel gridFuncToQuad[3];
 
   public:
     OccaGridFunction();
@@ -46,7 +54,8 @@ namespace mfem {
 
     void SetFromTrueDofs(const OccaVector &v);
 
-    void ProjectCoefficient(OccaCoefficient &coeff);
+    void ToQuad(OccaIntegrator &integ,
+                OccaVector &quadValues);
   };
 };
 

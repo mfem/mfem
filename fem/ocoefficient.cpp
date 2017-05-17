@@ -101,10 +101,8 @@ namespace mfem {
   //====================================
 
   //---[ GridFunction Parameter ]-------
-  occa::kernel OccaGridFunctionParameter::gridFuncToQuad[3];
-
   OccaGridFunctionParameter::OccaGridFunctionParameter(const std::string &name_,
-                                                       OccaVector &gf_,
+                                                       OccaGridFunction &gf_,
                                                        const bool useRestrict_) :
     name(name_),
     gf(gf_),
@@ -130,25 +128,7 @@ namespace mfem {
      args += name;
      args += " @dim(NUM_QUAD, numElements),\n";
 
-     occa::device device = integ.GetDevice();
-
-    OccaDofQuadMaps &maps = integ.GetDofQuadMaps();
-
-    const FiniteElementSpace &fespace = integ.GetFESpace();
-    const FiniteElement &fe = *(fespace.GetFE(0));
-
-    const int dim      = fe.GetDim();
-    const int elements = fespace.GetNE();
-    const int numQuad  = integ.GetIntegrationRule().GetNPoints();
-    gfQuad.SetSize(device,
-                   numQuad * elements);
-
-    if (!gridFuncToQuad[dim].isInitialized()) {
-      gridFuncToQuad[dim] = device.buildKernel("occa://mfem/fem/gridfunc.okl",
-                                               stringWithDim("GridFuncToQuad", dim),
-                                               props);
-    }
-    gridFuncToQuad[dim](elements, maps.dofToQuad, gf, gfQuad);
+     gf.ToQuad(integ, gfQuad);
   }
 
   occa::kernelArg OccaGridFunctionParameter::KernelArgs() {
@@ -226,7 +206,7 @@ namespace mfem {
   }
 
   OccaCoefficient& OccaCoefficient::AddGridFunction(const std::string &name_,
-                                                    OccaVector &gf,
+                                                    OccaGridFunction &gf,
                                                     const bool useRestrict) {
     return Add(new OccaGridFunctionParameter(name_, gf, useRestrict));
   }

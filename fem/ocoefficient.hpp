@@ -19,6 +19,7 @@
 
 #include "occa.hpp"
 #include "../linalg/ovector.hpp"
+#include "ogridfunc.hpp"
 
 namespace mfem {
   class OccaIntegrator;
@@ -156,14 +157,13 @@ namespace mfem {
   class OccaGridFunctionParameter : public OccaParameter {
   private:
     const std::string name;
-    OccaVector gf, gfQuad;
+    OccaGridFunction gf;
+    OccaVector gfQuad;
     bool useRestrict;
-
-    static occa::kernel gridFuncToQuad[3];
 
   public:
     OccaGridFunctionParameter(const std::string &name_,
-                              OccaVector &gf_,
+                              OccaGridFunction &gf_,
                               const bool useRestrict_ = false);
 
     virtual OccaParameter* Clone();
@@ -227,7 +227,7 @@ namespace mfem {
                                const bool useRestrict = false);
 
     OccaCoefficient& AddGridFunction(const std::string &name_,
-                                     OccaVector &gf,
+                                     OccaGridFunction &gf,
                                      const bool useRestrict = false);
 
     operator occa::kernelArg ();

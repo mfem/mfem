@@ -14,8 +14,40 @@
 #ifdef MFEM_USE_OCCA
 
 #include "ogridfunc.hpp"
+#include "obilininteg.hpp"
 
 namespace mfem {
+  std::map<occa::hash_t, occa::kernel> gridFunctionKernels;
+
+  occa::kernel GetGridFunctionKernel(OccaIntegrator &integ) {
+    occa::device device = integ.GetDevice();
+    const int numQuad = integ.GetIntegrationRule().GetNPoints();
+
+    const FiniteElementSpace &fespace = integ.GetFESpace();
+    const FiniteElement &fe = *(fespace.GetFE(0));
+    const int dim = fe.GetDim();
+
+    occa::hash_t hash = (occa::hash(device)
+                         ^ ("FEColl : " + std::string(fespace.FEColl()->Name()))
+                         ^ ("Quad   : " + occa::toString(numQuad))
+                         ^ ("Dim    : " + occa::toString(dim)));
+
+    // DofToQuad
+    OccaDofQuadMaps &maps = integ.GetDofQuadMaps();
+
+    // Kernel defines
+    occa::properties props;
+    integ.SetProperties(props);
+
+    occa::kernel kernel = gridFunctionKernels[hash];
+    if (!kernel.isInitialized()) {
+      kernel = device.buildKernel("occa://mfem/fem/gridfunc.okl",
+                                  stringWithDim("GridFuncToQuad", dim),
+                                  props);
+    }
+    return kernel;
+  }
+
   OccaGridFunction::OccaGridFunction() :
     OccaVector(),
     ofespace(NULL),
@@ -70,7 +102,25 @@ namespace mfem {
     }
   }
 
-  void OccaGridFunction::ProjectCoefficient(OccaCoefficient &coeff) {}
+  void OccaGridFunction::ToQuad(OccaIntegrator &integ,
+                                OccaVector &quadValues) {
+
+    occa::device device = integ.GetDevice();
+
+    OccaDofQuadMaps &maps = integ.GetDofQuadMaps();
+
+    const FiniteElementSpace &fespace = integ.GetFESpace();
+    const FiniteElement &fe = *(fespace.GetFE(0));
+
+    const int dim      = fe.GetDim();
+    const int elements = fespace.GetNE();
+    const int numQuad  = integ.GetIntegrationRule().GetNPoints();
+    quadValues.SetSize(device,
+                       numQuad * elements);
+
+    occa::kernel gridFuncToQuad = GetGridFunctionKernel(integ);
+    gridFuncToQuad(elements, maps.dofToQuad, *this, quadValues);
+  }
 }
 
 #endif
