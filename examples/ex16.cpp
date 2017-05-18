@@ -91,6 +91,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int ref_levels = 2;
    int order = 2;
+   const char *basis_type = "G"; // Gauss-Lobatto
    int ode_solver_type = 3;
    double t_final = 0.5;
    double dt = 1.0e-2;
@@ -110,6 +111,8 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+  args.AddOption(&basis_type, "-b", "--basis-type",
+                 "Basis: G - Gauss-Lobatto, P - Positive, U - Uniform");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
                   "\t   11 - Forward Euler, 12 - RK2, 13 - RK3 SSP, 14 - RK4.");
@@ -141,6 +144,10 @@ int main(int argc, char *argv[])
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
+
+   // See class BasisType in fem/fe_coll.hpp for available basis types
+   int basis = BasisType::GetType(basis_type[0]);
+   cout << "Using " << BasisType::Name(basis) << " basis ..." << endl;
 
    // 3. Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
@@ -176,7 +183,6 @@ int main(int argc, char *argv[])
 
    // 5. Define the vector finite element space representing the current and the
    //    initial temperature, u_ref.
-   int basis = BasisType::GetType('G');
    H1_FECollection fe_coll(order, dim, basis);
    FiniteElementSpace fespace(mesh, &fe_coll);
 

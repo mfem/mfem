@@ -85,7 +85,7 @@ namespace mfem {
   void OccaGridFunction::GetTrueDofs(OccaVector &v) const {
     const Operator *R = ofespace->GetRestrictionOperator();
     if (!R) {
-      v = *this;
+      v.NewDataAndSize(data, size);
     } else {
       v.SetSize(R->Height());
       R->Mult(*this, v);
@@ -95,7 +95,7 @@ namespace mfem {
   void OccaGridFunction::SetFromTrueDofs(const OccaVector &v) {
     const Operator *P = ofespace->GetProlongationOperator();
     if (!P) {
-      *this = v;
+      NewDataAndSize(v.GetData(), v.Size());
     } else {
       SetSize(P->Height());
       P->Mult(v, *this);

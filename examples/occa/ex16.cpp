@@ -36,23 +36,23 @@ using namespace std;
 using namespace mfem;
 
 class GradientUpdate : public Operator {
-  Operator *baseOper, *timeOper;
+  Operator *mOper, *kOper;
   const double dt;
   mutable OccaVector update;
 
 public:
-  GradientUpdate(Operator *baseOper_,
-                 Operator *timeOper_,
+  GradientUpdate(Operator *mOper_,
+                 Operator *kOper_,
                  const double dt_) :
-    Operator(baseOper_->Width(), baseOper_->Height()),
-    baseOper(baseOper_),
-    timeOper(timeOper_),
+    Operator(mOper_->Width(), mOper_->Height()),
+    mOper(mOper_),
+    kOper(kOper_),
     dt(dt_) {}
 
   virtual void Mult(const OccaVector &x, OccaVector &y) const {
     static occa::kernelBuilder builder =
-      makeCustomBuilder("vector_op_eq",
-                        "v0[i] = c0*v1[i];");
+      makeCustomBuilder("gradient_update",
+                        "v0[i] += c0*v1[i];");
 
     occa::device dev = x.GetDevice();
     occa::kernel kernel = builder.build(dev);
@@ -60,8 +60,8 @@ public:
     if (update.Size() == 0) {
       update.SetSize(x.GetDevice(), x.Size());
     }
-    baseOper->Mult(x, y);
-    timeOper->Mult(x, update);
+    mOper->Mult(x, y);
+    kOper->Mult(x, update);
 
     kernel((int) y.Size(), dt, y, update);
   }
@@ -341,7 +341,7 @@ ConductionOperator::ConductionOperator(OccaFiniteElementSpace &ofespace_,
   M_solver.SetRelTol(rel_tol);
   M_solver.SetAbsTol(0.0);
   M_solver.SetMaxIter(4000);
-  M_solver.SetPrintLevel(0);
+  M_solver.SetPrintLevel(1);
   // M_solver.SetPreconditioner(M_prec);
   M_solver.SetOperator(*Moper);
 
@@ -349,7 +349,7 @@ ConductionOperator::ConductionOperator(OccaFiniteElementSpace &ofespace_,
   T_solver.SetRelTol(rel_tol);
   T_solver.SetAbsTol(0.0);
   T_solver.SetMaxIter(4000);
-  T_solver.SetPrintLevel(0);
+  T_solver.SetPrintLevel(1);
   // T_solver.SetPreconditioner(T_prec);
 
   SetParameters(u);
@@ -359,7 +359,11 @@ void ConductionOperator::Mult(const OccaVector &u, OccaVector &du_dt) const {
   // Compute:
   //    du_dt = M^{-1}*-K(u)
   // for du_dt
+  std::cout << "u.Min() = " << u.Min() << '\n'
+            << "u.Max() = " << u.Max() << '\n';
   Koper->Mult(u, z);
+  std::cout << "z.Min() = " << z.Min() << '\n'
+            << "z.Max() = " << z.Max() << '\n';
   z.Neg();
   M_solver.Mult(z, du_dt);
 }
@@ -385,7 +389,7 @@ void ConductionOperator::SetParameters(const OccaVector &u) {
   K = new OccaBilinearForm(&ofespace);
 
   OccaGridFunction u_alpha_gf(&ofespace);
-  u_alpha_gf.SetDataAndSize(u.GetData(), u.Size());
+  u_alpha_gf.SetFromTrueDofs(u);
 
   OccaCoefficient u_coeff("(kappa + alpha*u(q, e))");
   u_coeff
