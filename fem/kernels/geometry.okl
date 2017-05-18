@@ -42,10 +42,10 @@ kernel void InitGeometryInfo1D(const int numElements,
                                Jacobian1D_t restrict invJ,
                                QLocal_t restrict detJ) {
 
-  shared double s_dofToQuadD[NUM_QUAD * NUM_DOFS] @dim(NUM_QUAD, NUM_DOFS);
-  shared double s_nodes[NUM_DOFS];
-
   for (int e = 0; e < numElements; ++e; outer) {
+    shared double s_dofToQuadD[NUM_QUAD * NUM_DOFS] @dim(NUM_QUAD, NUM_DOFS);
+    shared double s_nodes[NUM_DOFS];
+
     for (int q = 0; q < NUM_QUAD; ++q; inner) {
       for (int d = 0; d < NUM_DOFS; ++d) {
         s_dofToQuadD(q, d) = dofToQuadD(q, d);
@@ -80,10 +80,10 @@ kernel void InitGeometryInfo2D(const int numElements,
                                Jacobian2D_t restrict invJ,
                                QLocal_t restrict detJ) {
 
-  shared double s_dofToQuadD[2 * NUM_QUAD * NUM_DOFS] @dim(2, NUM_QUAD, NUM_DOFS);
-  shared double s_nodes[2 * NUM_DOFS] @dim(2, NUM_DOFS);
-
   for (int e = 0; e < numElements; ++e; outer) {
+    shared double s_dofToQuadD[2 * NUM_QUAD * NUM_DOFS] @dim(2, NUM_QUAD, NUM_DOFS);
+    shared double s_nodes[2 * NUM_DOFS] @dim(2, NUM_DOFS);
+
     for (int q = 0; q < NUM_QUAD; ++q; inner) {
       for (int d = 0; d < NUM_DOFS; ++d) {
         s_dofToQuadD(0, q, d) = dofToQuadD(0, q, d);
@@ -134,10 +134,10 @@ kernel void InitGeometryInfo3D(const int numElements,
                                Jacobian3D_t restrict invJ,
                                QLocal_t restrict detJ) {
 
-  shared double s_dofToQuadD[3 * NUM_QUAD * NUM_DOFS] @dim(3, NUM_QUAD, NUM_DOFS);
-  shared double s_nodes[3 * NUM_DOFS] @dim(3, NUM_DOFS);
-
   for (int e = 0; e < numElements; ++e; outer) {
+    shared double s_dofToQuadD[3 * NUM_QUAD * NUM_DOFS] @dim(3, NUM_QUAD, NUM_DOFS);
+    shared double s_nodes[3 * NUM_DOFS] @dim(3, NUM_DOFS);
+
     for (int q = 0; q < NUM_QUAD; ++q; inner) {
       for (int d = 0; d < NUM_DOFS; ++d) {
         s_dofToQuadD(0, q, d) = dofToQuadD(0, q, d);
