@@ -259,6 +259,13 @@ namespace mfem {
     kernel((int) Size(), data, lo.data, hi.data);
   }
 
+  OccaVector OccaVector::GetRange(const uint64_t offset, const uint64_t entries) const {
+    OccaVector ret;
+    ret.data = data + (offset * sizeof(double));
+    ret.size = entries * sizeof(double);
+    return ret;
+  }
+
   void OccaVector::GetSubVector(const Array<int> &dofs,
                                 Vector &elemvect) const {
     elemvect.SetSize(dofs.Size());
