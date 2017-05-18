@@ -50,13 +50,20 @@ public:
     dt(dt_) {}
 
   virtual void Mult(const OccaVector &x, OccaVector &y) const {
+    static occa::kernelBuilder builder =
+      makeCustomBuilder("vector_op_eq",
+                        "v0[i] = c0*v1[i];");
+
+    occa::device dev = x.GetDevice();
+    occa::kernel kernel = builder.build(dev);
+
     if (update.Size() == 0) {
       update.SetSize(x.GetDevice(), x.Size());
     }
     baseOper->Mult(x, y);
     timeOper->Mult(x, update);
-    update *= dt;
-    y += update;
+
+    kernel((int) y.Size(), dt, y, update);
   }
 };
 

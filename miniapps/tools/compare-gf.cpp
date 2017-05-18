@@ -53,15 +53,17 @@ mfem::Vector ReadGF(const char *filename) {
 }
 
 int main(const int argc, const char **argv) {
-  if (argc != 3) {
-    std::cout << argv[0] << ": Must take 2 sol.gf file inputs to compare\n";
+  if (argc < 2) {
+    std::cout << argv[0] << ": Must take 1 or 2 sol.gf file inputs to compare\n";
     // mfem-test doesn't take custom arguments
     // Return 0 to make Travis CI happy
     return 0;
   }
 
   mfem::Vector diff = ReadGF(argv[1]);
-  diff -= ReadGF(argv[2]);
+  if (argc > 2) {
+    diff -= ReadGF(argv[2]);
+  }
 
   std::cout << "Max       : " << diff.Max() << '\n'
             << "Min       : " << diff.Min() << '\n'
