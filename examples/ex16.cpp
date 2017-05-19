@@ -309,9 +309,9 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(rel_tol);
    M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(4000);
+   M_solver.SetMaxIter(30);
    M_solver.SetPrintLevel(0);
-   //M_solver.SetPreconditioner(M_prec);
+   M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mmat);
 
    alpha = al;
@@ -320,9 +320,9 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
    T_solver.iterative_mode = false;
    T_solver.SetRelTol(rel_tol);
    T_solver.SetAbsTol(0.0);
-   T_solver.SetMaxIter(4000);
+   T_solver.SetMaxIter(30);
    T_solver.SetPrintLevel(0);
-   //T_solver.SetPreconditioner(T_prec);
+   T_solver.SetPreconditioner(T_prec);
 
    SetParameters(u);
 }
