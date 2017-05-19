@@ -148,7 +148,6 @@ namespace mfem {
   // Get the finite element space restriction matrix
   const Operator* OccaBilinearForm::GetRestriction() const {
     return ofespace->GetRestrictionOperator();
-      // [MISSING]
   }
 
   //
@@ -161,17 +160,59 @@ namespace mfem {
     }
   }
 
-  void OccaBilinearForm::FormOperator(const Array<int> &ess_tdof_list,
-                                      OccaVector &x, OccaVector &b,
-                                      Operator* &Aout,
-                                      OccaVector &X, OccaVector &B,
-                                      int copy_interior) {
-    FormLinearSystem(ess_tdof_list, x, b, Aout, X, B, copy_interior);
+  void OccaBilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
+                                          OccaVector &x, OccaVector &b,
+                                          Operator *&Aout,
+                                          OccaVector &X, OccaVector &B,
+                                          int copy_interior) {
+    FormOperator(ess_tdof_list, Aout);
+    InitRHS(ess_tdof_list, x, b, Aout, X, B, copy_interior);
   }
 
   void OccaBilinearForm::FormOperator(const Array<int> &ess_tdof_list,
                                       Operator *&Aout) {
-    // [MISSING]
+    const Operator *P = GetProlongation();
+    Operator *rap = this;
+
+    if (P) {
+      rap = new OccaRAPOperator(*P, *this, *P);
+    }
+
+    Aout = new OccaConstrainedOperator(device,
+                                       rap, ess_tdof_list,
+                                       rap != this);
+  }
+
+  void OccaBilinearForm::InitRHS(const Array<int> &ess_tdof_list,
+                                 OccaVector &x, OccaVector &b,
+                                 Operator *A,
+                                 OccaVector &X, OccaVector &B,
+                                 int copy_interior) {
+    const Operator *P = GetProlongation();
+    const Operator *R = GetRestriction();
+
+    if (P) {
+      // Variational restriction with P
+      B.SetSize(device, P->Width());
+      P->MultTranspose(b, B);
+      X.SetSize(device, R->Height());
+      R->Mult(x, X);
+    } else {
+      // rap, X and B point to the same data as this, x and b
+      X.NewDataAndSize(x.GetData(), x.Size());
+      B.NewDataAndSize(b.GetData(), b.Size());
+    }
+
+    if (!copy_interior) {
+      X.SetSubVectorComplement(ess_tdof_list, 0.0);
+    }
+
+    OccaConstrainedOperator *cA = static_cast<OccaConstrainedOperator*>(A);
+    if (cA) {
+      cA->EliminateRHS(X, B);
+    } else {
+      mfem_error("OccaBilinearForm::InitRHS expects an OccaConstrainedOperator");
+    }
   }
 
   // Matrix vector multiplication.
@@ -191,30 +232,11 @@ namespace mfem {
     mfem_error("occa::OccaBilinearForm::MultTranspose() is not overloaded!");
   }
 
-  Operator* OccaBilinearForm::CreateRAPOperator(const Operator &Rt,
-                                                Operator &A,
-                                                const Operator &P) {
-
-    return new TRAPOperator<OccaVector>(Rt, A, P);
-  }
-
 
   void OccaBilinearForm::RecoverFEMSolution(const OccaVector &X,
                                             const OccaVector &b,
                                             OccaVector &x) {
     TRecoverFEMSolution<OccaVector>(X, b, x);
-  }
-
-  void OccaBilinearForm::ImposeBoundaryConditions(const Array<int> &ess_tdof_list,
-                                                  Operator *rap,
-                                                  Operator* &Aout,
-                                                  OccaVector &X, OccaVector &B) {
-    OccaConstrainedOperator *A = new OccaConstrainedOperator(device,
-                                                             rap, ess_tdof_list,
-                                                             rap != this);
-
-    A->EliminateRHS(X, B);
-    Aout = A;
   }
 
   // Frees memory bilinear form.
@@ -269,7 +291,7 @@ namespace mfem {
       constraintList.allocate(device,
                               constraintIndices,
                               constraintList_.GetData());
-      constraintList.stopManaging();
+      constraintList.keepInDevice();
     }
 
     z.SetSize(device, height);

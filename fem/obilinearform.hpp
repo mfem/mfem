@@ -109,14 +109,20 @@ namespace mfem {
     // Assembles the form i.e. sums over all domain/bdr integrators.
     virtual void Assemble();
 
-    void FormOperator(const Array<int> &ess_tdof_list,
-                      OccaVector &x, OccaVector &b,
-                      Operator* &Aout,
-                      OccaVector &X, OccaVector &B,
-                      int copy_interior = 0);
+    void FormLinearSystem(const Array<int> &ess_tdof_list,
+                          OccaVector &x, OccaVector &b,
+                          Operator *&Aout,
+                          OccaVector &X, OccaVector &B,
+                          int copy_interior = 0);
 
     void FormOperator(const Array<int> &ess_tdof_list,
                       Operator *&Aout);
+
+    void InitRHS(const Array<int> &ess_tdof_list,
+                 OccaVector &x, OccaVector &b,
+                 Operator *Aout,
+                 OccaVector &X, OccaVector &B,
+                 int copy_interior = 0);
 
     // Matrix vector multiplication.
     virtual void Mult(const OccaVector &x, OccaVector &y) const;
@@ -124,15 +130,7 @@ namespace mfem {
     // Matrix vector multiplication.
     virtual void MultTranspose(const OccaVector &x, OccaVector &y) const;
 
-    virtual Operator* CreateRAPOperator(const Operator &Rt,
-                                        Operator &A,
-                                        const Operator &P);
-
     void RecoverFEMSolution(const OccaVector &X, const OccaVector &b, OccaVector &x);
-
-    virtual void ImposeBoundaryConditions(const Array<int> &ess_tdof_list,
-                                          Operator *rap,
-                                          Operator* &Aout, OccaVector &X, OccaVector &B);
 
     // Destroys bilinear form.
     ~OccaBilinearForm();

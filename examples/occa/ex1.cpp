@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
   Operator *A;
   OccaVector B, X;
 
-  a->FormOperator(ess_tdof_list, x, b, A, X, B);
+  a->FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
   cout << "Size of linear system: " << A->Height() << endl;
 

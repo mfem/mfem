@@ -23,28 +23,29 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
                                 Operator* &Aout, Vector &X, Vector &B,
                                 int copy_interior)
 {
-  TFormLinearSystem<Vector>(ess_tdof_list,
-                            x, b, Aout, X, B,
-                            copy_interior);
-}
+  const Operator *P = GetProlongation();
+  const Operator *R = GetRestriction();
+  Operator *rap;
 
-#ifdef MFEM_USE_OCCA
-void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                OccaVector &x, OccaVector &b,
-                                Operator* &Aout,
-                                OccaVector &X, OccaVector &B,
-                                int copy_interior)
-{
-  TFormLinearSystem<OccaVector>(ess_tdof_list,
-                                x, b, Aout, X, B,
-                                copy_interior);
-}
-#endif
+  if (P)
+    {
+      // Variational restriction with P
+      B.SetSize(P->Width());
+      P->MultTranspose(b, B);
+      X.SetSize(R->Height());
+      R->Mult(x, X);
+      rap = new RAPOperator(*P, *this, *P);
+    }
+  else
+    {
+      // rap, X and B point to the same data as this, x and b
+      X.NewDataAndSize(x.GetData(), x.Size());
+      B.NewDataAndSize(b.GetData(), b.Size());
+      rap = this;
+    }
 
-void Operator::ImposeBoundaryConditions(const Array<int> &ess_tdof_list,
-                                        Operator *rap,
-                                        Operator* &Aout, Vector &X, Vector &B)
-{
+  if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+
   ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
                                                    rap != this);
   A->EliminateRHS(X, B);

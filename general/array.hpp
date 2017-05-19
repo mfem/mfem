@@ -225,7 +225,7 @@ public:
    void PartialSum();
 
    /// Sum all entries
-   T Sum();
+   T Sum() const;
 
    inline void operator=(const T &a);
 

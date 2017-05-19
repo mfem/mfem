@@ -70,10 +70,6 @@ public:
    { mfem_error("Operator::MultTranspose() is not overloaded!"); }
 #endif
 
-  inline virtual Operator* CreateRAPOperator(const Operator &Rt,
-                                             Operator &A,
-                                             const Operator &P);
-
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
    virtual Operator &GetGradient(const Vector &x) const
@@ -119,26 +115,11 @@ public:
        @note The caller is responsible for destroying the output operator @a A!
        @note If there are no transformations, @a X simply reuses the data of @a
        x. */
-   template <class TVector>
-   void TFormLinearSystem(const Array<int> &ess_tdof_list,
-                          TVector &x, TVector &b,
-                          Operator* &Aout,
-                          TVector &X, TVector &B,
-                          int copy_interior = 0);
-
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x, Vector &b,
                          Operator* &Aout,
                          Vector &X, Vector &B,
                          int copy_interior = 0);
-
-#ifdef MFEM_USE_OCCA
-   void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         OccaVector &x, OccaVector &b,
-                         Operator* &Aout,
-                         OccaVector &X, OccaVector &B,
-                         int copy_interior = 0);
-#endif
 
    /** @brief Reconstruct a solution vector @a x (e.g. a GridFunction) from the
        solution @a X of a constrained linear system obtained from
@@ -153,20 +134,6 @@ public:
    void TRecoverFEMSolution(const TVector &X, const TVector &b, TVector &x);
 
    void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
-
-  /** @brief Impose the boundary conditions through a constrained operator,
-      which owns the rap operator when P and R are non-trivial */
-   void ImposeBoundaryConditions(const Array<int> &ess_tdof_list,
-                                 Operator *rap,
-                                 Operator* &Aout, Vector &X, Vector &B);
-
-#ifdef MFEM_USE_OCCA
-   inline virtual void ImposeBoundaryConditions(const Array<int> &ess_tdof_list,
-                                                Operator *rap,
-                                                Operator* &Aout, OccaVector &X, OccaVector &B)
-   { mfem_error("Operator::ImposeBoundaryConditions() is not overloaded!"); }
-#endif
-
 
    /// Prints operator with input size n and output size m in Matlab format.
    void PrintMatlab(std::ostream & out, int n = 0, int m = 0) const;
@@ -411,6 +378,10 @@ public:
 
 typedef TRAPOperator<Vector> RAPOperator;
 
+#ifdef MFEM_USE_OCCA
+typedef TRAPOperator<OccaVector> OccaRAPOperator;
+#endif
+
 /// General triple product operator x -> A*B*C*x, with ownership of the factors.
 class TripleProductOperator : public Operator
 {
@@ -492,47 +463,6 @@ public:
    /// Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
    virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
 };
-
-Operator* Operator::CreateRAPOperator(const Operator &Rt,
-                                      Operator &A,
-                                      const Operator &P) {
-  return new RAPOperator(Rt, A, P);
-}
-
-template <class TVector>
-void Operator::TFormLinearSystem(const Array<int> &ess_tdof_list,
-                                 TVector &x, TVector &b,
-                                 Operator* &Aout, TVector &X, TVector &B,
-                                 int copy_interior)
-{
-  const Operator *P = this->GetProlongation();
-  const Operator *R = this->GetRestriction();
-  Operator *rap;
-
-  if (P)
-    {
-      // Variational restriction with P
-      B.SetSize(P->Width());
-      P->MultTranspose(b, B);
-      X.SetSize(R->Height());
-      R->Mult(x, X);
-      rap = CreateRAPOperator(*P, *this, *P);
-    }
-  else
-    {
-      // rap, X and B point to the same data as this, x and b
-      X.NewDataAndSize(x.GetData(), x.Size());
-      B.NewDataAndSize(b.GetData(), b.Size());
-      rap = this;
-    }
-
-  if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
-
-  // Impose the boundary conditions through a ConstrainedOperator, which owns
-  // the rap operator when P and R are non-trivial
-  ImposeBoundaryConditions(ess_tdof_list, rap,
-                           Aout, X, B);
-}
 
 template <class TVector>
 void Operator::TRecoverFEMSolution(const TVector &X, const TVector &b, TVector &x)

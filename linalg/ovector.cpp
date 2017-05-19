@@ -275,7 +275,7 @@ namespace mfem {
   void OccaVector::GetSubVector(const Array<int> &dofs,
                                 double *elem_data) const {
     const int dofCount = dofs.Size();
-    OccaVector buffer(dofCount);
+    OccaVector buffer(GetDevice(), dofCount);
     GetSubVector(dofs, buffer);
 
     occa::memcpy(elem_data, buffer.data, dofCount * sizeof(double));
@@ -300,7 +300,7 @@ namespace mfem {
     occa::kernel kernel = builder.build(dev);
 
     const int dofCount = dofs.size<int>();
-    elemvect.SetSize(dofCount);
+    elemvect.SetSize(dev, dofCount);
 
     kernel(dofCount, elemvect.data, data, dofs);
   }
@@ -317,7 +317,7 @@ namespace mfem {
                                 double *elem_data) {
     const int dofCount = dofs.Size();
 
-    OccaVector buffer(dofCount);
+    OccaVector buffer(GetDevice(), dofCount);
     occa::memcpy(buffer.data, elem_data, dofCount * sizeof(double));
 
     SetSubVector(dofs, buffer);
@@ -374,7 +374,7 @@ namespace mfem {
                                     double *elem_data) {
     const int dofCount = dofs.Size();
 
-    OccaVector buffer(dofCount);
+    OccaVector buffer(GetDevice(), dofCount);
     occa::memcpy(buffer.data, elem_data, dofCount * sizeof(double));
 
     AddElementVector(dofs, buffer);
@@ -415,7 +415,7 @@ namespace mfem {
                                     double *elem_data) {
     const int dofCount = dofs.Size();
 
-    OccaVector buffer(dofCount);
+    OccaVector buffer(GetDevice(), dofCount);
     occa::memcpy(buffer.data, elem_data, dofCount * sizeof(double));
 
     AddElementVector(dofs, a, buffer);
