@@ -258,10 +258,9 @@ SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
-ifeq ($(MFEM_USE_OCCA),NO)
-  LIBMFEM_DEPS = $(OBJECT_FILES)
-else
-  LIBMFEM_DEPS = $(OBJECT_FILES) cache-kernels
+LIB_DEPS =
+ifeq ($(MFEM_USE_OCCA),YES)
+  LIB_DEPS += cache-kernels
 endif
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
@@ -275,7 +274,7 @@ endif
 %:	%.cpp
 
 # Default rule.
-lib: $(BLD)libmfem.a
+lib: $(BLD)libmfem.a $(LIB_DEPS)
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS) $(MFEM_TPLFLAGS)\
@@ -299,7 +298,7 @@ doc:
 
 -include $(BLD)deps.mk
 
-$(BLD)libmfem.a: $(LIBMFEM_DEPS)
+$(BLD)libmfem.a: $(OBJECT_FILES)
 	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES)
 	$(RANLIB) $(@)
 
@@ -463,7 +462,7 @@ OKL_CACHED_KERNELS := $(subst kernels/,,$(subst $(MFEM_REAL_DIR)/,$(OCCA_LIB_CAC
 cache-kernels: $(OKL_CACHED_KERNELS)
 
 .PHONY: clear-cache
-clear-kernels: clear-mfem-kernels $(OKL_CACHED_KERNELS)
+clear-kernels: clear-mfem-kernels
 
 .PHONY: clear-cache
 clear-mfem-kernels:
