@@ -271,6 +271,9 @@ if (CMAKE_VERSION VERSION_GREATER 2.8.11)
 else()
   target_link_libraries(mfem ${TPL_LIBRARIES})
 endif()
+if (MINGW)
+  target_link_libraries(mfem ws2_32)
+endif()
 
 # If building out-of-source, define MFEM_BUILD_DIR to point to the build
 # directory.
