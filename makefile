@@ -441,3 +441,6 @@ style:
 	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\
 	   echo "No source files were changed.";\
 	fi
+
+print-%: ; @printf "%s:\n" $*
+	@printf "%s\n" $($*)
