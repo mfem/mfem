@@ -537,8 +537,9 @@ void SidreDataCollection::createMeshBlueprintAdjacencies(bool hasBP)
          group_grp->createViewString("association", "vertex");
          group_grp->createViewString("topology", "mesh");
 
-         sidre::View* gneighbors_view = group_grp->createViewAndAllocate(
-                                           "neighbors", sidre::INT_ID, num_gneighbors - 1);
+         sidre::View* gneighbors_view =
+            group_grp->createViewAndAllocate(
+               "neighbors", sidre::INT_ID, num_gneighbors - 1);
          int* gneighbors_data = gneighbors_view->getData<int*>();
 
          // skip local domain when adding Blueprint neighbors
@@ -1018,14 +1019,15 @@ void SidreDataCollection::RegisterField(const std::string &field_name,
       //    the data collection.
       if (HasField(field_name))
       {
-         MFEM_DEBUG_DO(
-            // Warn about overwriting field.
-            // Skip warning when re-registering the nodal grid function
-            if (field_name != m_meshNodesGFName)
-      {
-         MFEM_WARNING("field with the name '" << field_name<< "' is already "
-                      "registered, overwriting the old field");
-         });
+#ifdef MFEM_DEBUG
+         // Warn about overwriting field.
+         // Skip warning when re-registering the nodal grid function
+         if (field_name != m_meshNodesGFName)
+         {
+            MFEM_WARNING("field with the name '" << field_name<< "' is already "
+                         "registered, overwriting the old field");
+         }
+#endif
          DeregisterField(field_name);
       }
    }
