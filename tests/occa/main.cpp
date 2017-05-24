@@ -47,30 +47,13 @@ void testVectorConstructors() {
   OCCA_ERROR("OccaVector::OccaVector(const OccaVector &other)",
              v3.GetData().size() == v2.GetData().size());
   OCCA_ERROR("OccaVector::OccaVector(const OccaVector &other)",
-             v3.GetData().getHandle() != v2.GetData().getHandle());
+             v3.GetData().ptr() != v2.GetData().ptr());
 
   mfem::Vector v4_(3);
   v4_(0) = 1; v4_(1) = 2; v4_(2) = 3;
   mfem::OccaVector v4(v4_);
   compareVectorAndPtr("OccaVector::OccaVector(const Vector &v)",
                       v4, v4_.GetData());
-}
-
-void testVectorOwnership() {
-  mfem::OccaVector v1(3);
-  v1.Destroy();
-  OCCA_ERROR("void OccaVector::Destroy()",
-             !v1.GetData().isInitialized());
-
-  mfem::OccaVector v2(3);
-  v2.StealData(v1);
-  v2.Destroy();
-  OCCA_ERROR("void OccaVector::StealData",
-             v2.GetData().isInitialized());
-  v2.MakeDataOwner();
-  v2.Destroy();
-  OCCA_ERROR("void OccaVector::MakeDataOwner()",
-             !v2.GetData().isInitialized());
 }
 
 void testVectorResize() {
@@ -501,7 +484,6 @@ void testVectorAddSubtractMethods() {
 
 void testVector() {
   testVectorConstructors();
-  testVectorOwnership();
   testVectorResize();
   testVectorAssignmentOperators();
   testVectorSubVectorMethods();

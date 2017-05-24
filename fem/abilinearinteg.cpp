@@ -14,6 +14,7 @@
 #if defined(MFEM_USE_OCCA) && defined(MFEM_USE_ACROTENSOR)
 
 #include "abilinearinteg.hpp"
+#include "occa/modes/cuda.hpp"
 
 namespace mfem {
 
@@ -28,9 +29,7 @@ void AcroIntegrator::Setup() {
   if (device.mode() == "CUDA") {
     onGPU = true;
     TE.SetExecutorType("OneOutPerThread");
-
-    CUcontext cudaContext = (CUcontext) device.getHandle("type: 'context'");
-    acro::setCudaContext(cudaContext);
+    acro::setCudaContext(occa::cuda::getContext(device));
   } else {
     onGPU = false;
     TE.SetExecutorType("CPUInterpreted");
@@ -58,18 +57,15 @@ void AcroIntegrator::Setup() {
   //Note:  We are giving acrotensor the same pointer for the GPU and CPU
   //so one of them is obviously wrong.  This works as long as we don't use
   //touch the wrong one
+  double *b_ptr = maps.quadToDof.memory().ptr<double>();
+  double *g_ptr = maps.quadToDofD.memory().ptr<double>();
+  double *w_ptr = maps.quadWeights.memory().ptr<double>();
   if (hasTensorBasis) {
-    double *b_ptr = *((double**) maps.quadToDof.memory().getHandle());
-    double *g_ptr = *((double**) maps.quadToDofD.memory().getHandle());
-    double *w_ptr = *((double**) maps.quadWeights.memory().getHandle());
     B.Init(nQuad1D, nDof1D, b_ptr, b_ptr, onGPU);
     G.Init(nQuad1D, nDof1D, g_ptr, g_ptr, onGPU);
     std::vector<int> wdims(nDim, nQuad1D);
     W.Init(wdims, w_ptr, w_ptr, onGPU);
   } else {
-    double *b_ptr = *((double**) maps.quadToDof.memory().getHandle());
-    double *g_ptr = *((double**) maps.quadToDofD.memory().getHandle());
-    double *w_ptr = *((double**) maps.quadWeights.memory().getHandle());
     B.Init(nQuad, nDof, b_ptr, b_ptr, onGPU);
     G.Init(nQuad, nDof, nDim, g_ptr, g_ptr, onGPU);
     W.Init(nQuad, w_ptr, w_ptr, onGPU);

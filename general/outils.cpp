@@ -39,8 +39,8 @@ namespace mfem {
       op.Mult(hostX, hostY);
       y.CopyFrom(hostY);
     } else {
-      Vector hostX((double*) x.GetData().getHandle(), x.Size());
-      Vector hostY((double*) y.GetData().getHandle(), y.Size());
+      Vector hostX((double*) x.GetData().ptr(), x.Size());
+      Vector hostY((double*) y.GetData().ptr(), y.Size());
       op.Mult(hostX, hostY);
     }
   }
@@ -55,8 +55,8 @@ namespace mfem {
       op.MultTranspose(hostX, hostY);
       y.CopyFrom(hostY);
     } else {
-      Vector hostX((double*) x.GetData().getHandle(), x.Size());
-      Vector hostY((double*) y.GetData().getHandle(), y.Size());
+      Vector hostX((double*) x.GetData().ptr(), x.Size());
+      Vector hostY((double*) y.GetData().ptr(), y.Size());
       op.MultTranspose(hostX, hostY);
     }
   }

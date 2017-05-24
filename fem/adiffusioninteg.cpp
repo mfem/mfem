@@ -69,9 +69,9 @@ void AcroDiffusionIntegrator::Assemble() {
   const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
   OccaGeometry geom = OccaGeometry::Get(device, *mesh, ir);
   //Get the jacobians and compute D with them
-  double *jac_ptr = *((double**) geom.J.memory().getHandle());
-  double *jacinv_ptr = *((double**) geom.invJ.memory().getHandle());
-  double *jacdet_ptr = *((double**) geom.detJ.memory().getHandle());
+  double *jac_ptr = geom.J.memory().ptr<double>();
+  double *jacinv_ptr = geom.invJ.memory().ptr<double>();
+  double *jacdet_ptr = geom.detJ.memory().ptr<double>();
   if (hasTensorBasis) {
     if (nDim == 1) {
       D.Init(nElem, nDim, nDim, nQuad1D);
@@ -193,7 +193,7 @@ void AcroDiffusionIntegrator::Mult(OccaVector &v) {
     }
   }
 
-  double *v_ptr = *((double**) v.GetData().getHandle());
+  double *v_ptr = v.GetData().ptr<double>();
   if (hasTensorBasis) {
     if (nDim == 1) {
       acro::Tensor V(nElem, nDof1D,
