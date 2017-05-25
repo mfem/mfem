@@ -87,7 +87,7 @@ namespace mfem {
     if (!R) {
       v.NewDataAndSize(data, size);
     } else {
-      v.SetSize(R->Height());
+      v.SetSize(data.getDevice(), R->Height());
       R->Mult(*this, v);
     }
   }
@@ -97,7 +97,7 @@ namespace mfem {
     if (!P) {
       NewDataAndSize(v.GetData(), v.Size());
     } else {
-      SetSize(P->Height());
+      SetSize(v.GetDevice(), P->Height());
       P->Mult(v, *this);
     }
   }
