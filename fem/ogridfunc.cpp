@@ -119,7 +119,11 @@ namespace mfem {
                        numQuad * elements);
 
     occa::kernel gridFuncToQuad = GetGridFunctionKernel(integ);
-    gridFuncToQuad(elements, maps.dofToQuad, *this, quadValues);
+    gridFuncToQuad(elements,
+                   maps.dofToQuad,
+                   ofespace->GetLocalToGlobalMap(),
+                   *this,
+                   quadValues);
   }
 }
 

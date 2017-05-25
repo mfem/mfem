@@ -24,7 +24,9 @@ namespace mfem {
     occa::device device;
     FiniteElementSpace *fespace;
 
-    occa::array<int> globalToLocalOffsets, globalToLocalIndices;
+    occa::array<int> globalToLocalOffsets;
+    occa::array<int> globalToLocalIndices;
+    occa::array<int> localToGlobalMap;
     occa::kernel globalToLocalKernel, localToGlobalKernel;
 
     int globalDofs, localDofs;
@@ -48,6 +50,8 @@ namespace mfem {
 
     const Operator* GetRestrictionOperator();
     const Operator* GetProlongationOperator();
+
+    const occa::array<int> GetLocalToGlobalMap() const;
 
     void GlobalToLocal(const OccaVector &globalVec,
                        OccaVector &localVec) const;

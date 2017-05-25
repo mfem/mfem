@@ -63,9 +63,12 @@ namespace mfem {
                                   globalDofs + 1);
     globalToLocalIndices.allocate(device,
                                   localDofs, elements);
+    localToGlobalMap.allocate(device,
+                              localDofs, elements);
 
     int *offsets = globalToLocalOffsets.data();
     int *indices = globalToLocalIndices.data();
+    int *l2gMap  = localToGlobalMap.data();
 
     // We'll be keeping a count of how many local nodes point
     //   to its global dof
@@ -90,6 +93,7 @@ namespace mfem {
         const int gid = elementMap[localDofs*e + dofMap[d]];
         const int lid = localDofs*e + d;
         indices[offsets[gid]++] = lid;
+        l2gMap[lid] = gid;
       }
     }
     // We shifted the offsets vector by 1 by using it
@@ -101,6 +105,7 @@ namespace mfem {
 
     globalToLocalOffsets.keepInDevice();
     globalToLocalIndices.keepInDevice();
+    localToGlobalMap.keepInDevice();
 
     if (!el) {
       delete [] dofMap;
@@ -147,6 +152,10 @@ namespace mfem {
 
   const Operator* OccaFiniteElementSpace::GetProlongationOperator() {
     return prolongationOp;
+  }
+
+  const occa::array<int> OccaFiniteElementSpace::GetLocalToGlobalMap() const {
+    return localToGlobalMap;
   }
 
   void OccaFiniteElementSpace::GlobalToLocal(const OccaVector &globalVec,
