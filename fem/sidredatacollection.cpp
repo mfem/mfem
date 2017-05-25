@@ -514,6 +514,7 @@ void SidreDataCollection::createMeshBlueprintAdjacencies(bool hasBP)
 
    // TODO(JRC): Separate this out into group hierarchy setup and data allocation
    // stages like all of the other "createMeshBlueprint*" functions.
+   MFEM_VERIFY(hasBP == false, "The case hasBP == true is not supported yet!");
 
    if (pmesh->GetNGroups() > 1)
    {
