@@ -38,7 +38,7 @@ namespace mfem {
 
   void OccaFiniteElementSpace::SetupLocalGlobalMaps() {
     const FiniteElement &fe = *(fespace->GetFE(0));
-    const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
+    const TensorBasisElement *el = dynamic_cast<const TensorBasisElement*>(&fe);
 
     const Table &e2dTable = fespace->GetElementToDofTable();
     const int *elementMap = e2dTable.GetJ();

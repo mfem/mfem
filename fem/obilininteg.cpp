@@ -123,7 +123,7 @@ namespace mfem {
   }
 
   OccaDofQuadMaps& OccaDofQuadMaps::GetTensorMaps(occa::device device,
-                                                  const H1_TensorBasisElement &fe,
+                                                  const TensorBasisElement &fe,
                                                   const IntegrationRule &ir) {
 
     occa::hash_t hash = (occa::hash(device)
@@ -372,7 +372,7 @@ namespace mfem {
     ir = &ir_;
 
     const FiniteElement &fe = *(fespace->GetFE(0));
-    const H1_TensorBasisElement *el = dynamic_cast<const H1_TensorBasisElement*>(&fe);
+    const TensorBasisElement *el = dynamic_cast<const TensorBasisElement*>(&fe);
 
     if (el) {
       maps = OccaDofQuadMaps::GetTensorMaps(device, *el, *ir);
