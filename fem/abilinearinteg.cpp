@@ -57,9 +57,9 @@ void AcroIntegrator::Setup() {
   //Note:  We are giving acrotensor the same pointer for the GPU and CPU
   //so one of them is obviously wrong.  This works as long as we don't use
   //touch the wrong one
-  double *b_ptr = maps.quadToDof.memory().ptr<double>();
-  double *g_ptr = maps.quadToDofD.memory().ptr<double>();
-  double *w_ptr = maps.quadWeights.memory().ptr<double>();
+  double *b_ptr = (double*) maps.quadToDof.memory().ptr();
+  double *g_ptr = (double*) maps.quadToDofD.memory().ptr();
+  double *w_ptr = (double*) maps.quadWeights.memory().ptr();
   if (hasTensorBasis) {
     B.Init(nQuad1D, nDof1D, b_ptr, b_ptr, onGPU);
     G.Init(nQuad1D, nDof1D, g_ptr, g_ptr, onGPU);
