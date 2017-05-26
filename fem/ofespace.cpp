@@ -66,9 +66,9 @@ namespace mfem {
     localToGlobalMap.allocate(device,
                               localDofs, elements);
 
-    int *offsets = globalToLocalOffsets.data();
-    int *indices = globalToLocalIndices.data();
-    int *l2gMap  = localToGlobalMap.data();
+    int *offsets = globalToLocalOffsets.ptr();
+    int *indices = globalToLocalIndices.ptr();
+    int *l2gMap  = localToGlobalMap.ptr();
 
     // We'll be keeping a count of how many local nodes point
     //   to its global dof
