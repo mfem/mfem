@@ -66,7 +66,8 @@ namespace mfem {
     // 3D ordering == byVDIM  -> [x y z x y z x y z x y z x y z x y z]
     //    ordering == byNODES -> [x x x x x x y y y y y y z z z z z z]
     static OccaDofQuadMaps& GetTensorMaps(occa::device device,
-                                          const TensorBasisElement &fe,
+                                          const FiniteElement &fe,
+                                          const TensorBasisElement &tfe,
                                           const IntegrationRule &ir);
 
     static OccaDofQuadMaps& GetSimplexMaps(occa::device device,

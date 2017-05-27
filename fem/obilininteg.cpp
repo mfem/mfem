@@ -123,12 +123,13 @@ namespace mfem {
   }
 
   OccaDofQuadMaps& OccaDofQuadMaps::GetTensorMaps(occa::device device,
-                                                  const TensorBasisElement &fe,
+                                                  const FiniteElement &fe,
+                                                  const TensorBasisElement &tfe,
                                                   const IntegrationRule &ir) {
 
     occa::hash_t hash = (occa::hash(device)
                          ^ "Tensor Element"
-                         ^ ("BasisType: " + occa::toString(fe.GetBasisType()))
+                         ^ ("BasisType: " + occa::toString(tfe.GetBasisType()))
                          ^ ("Order: " + occa::toString(fe.GetOrder()))
                          ^ ("Quad: " + occa::toString(ir.GetNPoints())));
 
@@ -141,7 +142,7 @@ namespace mfem {
     // Create the dof-quad maps
     maps.hash = hash;
 
-    const Poly_1D::Basis &basis = fe.GetBasis();
+    const Poly_1D::Basis &basis = tfe.GetBasis1D();
     const int order = fe.GetOrder();
     // [MISSING] Get 1D dofs
     const int dofs = order + 1;
@@ -375,7 +376,7 @@ namespace mfem {
     const TensorBasisElement *el = dynamic_cast<const TensorBasisElement*>(&fe);
 
     if (el) {
-      maps = OccaDofQuadMaps::GetTensorMaps(device, *el, *ir);
+      maps = OccaDofQuadMaps::GetTensorMaps(device, fe, *el, *ir);
       hasTensorBasis = true;
     } else {
       maps = OccaDofQuadMaps::GetSimplexMaps(device, fe, *ir);

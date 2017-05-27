@@ -12,6 +12,7 @@
 // Finite Element classes
 
 #include "fe.hpp"
+#include "fe_coll.hpp"
 #include "../mesh/nurbs.hpp"
 #include "bilininteg.hpp"
 #include <cmath>
@@ -6084,12 +6085,11 @@ void RotTriLinearHexFiniteElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 
-Poly_1D::Basis::Basis(const int p, const double *nodes, int _mode)
-   : x(p + 1), w(p + 1)
+Poly_1D::Basis::Basis(const int p, const double *nodes, const int _btype)
+   : btype(_btype), x(p + 1), w(p + 1)
 {
-   mode = _mode;
-   if (mode == 0)
-   {
+   switch (btype) {
+   case ChangeOfBasis: {
       DenseMatrix A(p + 1);
       for (int i = 0; i <= p; i++)
       {
@@ -6099,12 +6099,9 @@ Poly_1D::Basis::Basis(const int p, const double *nodes, int _mode)
             A(j, i) = x(j);
          }
       }
-
       Ai.Factor(A);
-      // cout << "Poly_1D::Basis(" << p << ",...) : "; Ai.TestInversion();
-   }
-   else
-   {
+   } break;
+   case Barycentric: {
       x = nodes;
       w = 1.0;
       for (int i = 0; i <= p; i++)
@@ -6131,18 +6128,19 @@ Poly_1D::Basis::Basis(const int p, const double *nodes, int _mode)
          }
       }
 #endif
+   } break;
+   default: break;
    }
 }
 
 void Poly_1D::Basis::Eval(const double y, Vector &u) const
 {
-   if (mode == 0)
-   {
+   switch (btype) {
+   case ChangeOfBasis: {
       CalcBasis(Ai.Width() - 1, y, x);
       Ai.Mult(x, u);
-   }
-   else
-   {
+   } break;
+   case Barycentric: {
       int i, k, p = x.Size() - 1;
       double l, lk;
 
@@ -6179,19 +6177,23 @@ void Poly_1D::Basis::Eval(const double y, Vector &u) const
       {
          u(i) = l * w(i) / (y - x(i));
       }
+   } break;
+   case Positive: {
+      CalcBernstein(x.Size() - 1, y, u);
+   } break;
+   default: break;
    }
 }
 
 void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d) const
 {
-   if (mode == 0)
-   {
+   switch (btype) {
+   case ChangeOfBasis: {
       CalcBasis(Ai.Width() - 1, y, x, w);
       Ai.Mult(x, u);
       Ai.Mult(w, d);
-   }
-   else
-   {
+   } break;
+   case Barycentric: {
       int i, k, p = x.Size() - 1;
       double l, lp, lk, sk, si;
 
@@ -6245,6 +6247,11 @@ void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d) const
       {
          d(i) = (lp * w(i) - u(i))/(y - x(i));
       }
+   } break;
+   case Positive: {
+      CalcBernstein(x.Size() - 1, y, u, d);
+   } break;
+   default: break;
    }
 }
 
@@ -6462,15 +6469,17 @@ void Poly_1D::CalcChebyshev(const int p, const double x, double *u, double *d)
    }
 }
 
-const double *Poly_1D::GetPoints(const int p, const int type)
+const double *Poly_1D::GetPoints(const int p, const int type, const int btype)
 {
-   MFEM_ASSERT(type != Quadrature1D::Invalid, "invalid point type");
+   MFEM_ASSERT(btype < MaxBasisType, "invalid basis type");
 
-   if (points_container.find(type) == points_container.end())
+   PointsMap &container = points_container[type];
+
+   if (container.find(type) == container.end())
    {
-      points_container[type] = new Array<double*>;
+      container[type] = new Array<double*>;
    }
-   Array<double*> &pts = *points_container[type];
+   Array<double*> &pts = *container[type];
    if (pts.Size() <= p)
    {
       pts.SetSize(p + 1, NULL);
@@ -6483,16 +6492,18 @@ const double *Poly_1D::GetPoints(const int p, const int type)
    return pts[p];
 }
 
-Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int type)
+Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int type, const int btype)
 {
-   MFEM_ASSERT(type != Quadrature1D::Invalid, "invalid point type");
+   MFEM_ASSERT(btype < MaxBasisType, "invalid basis type");
 
-   if ( bases_container.find(type) == bases_container.end() )
+   BasisMap &container = bases_container[type];
+
+   if ( container.find(type) == container.end() )
    {
       // we haven't been asked for basis or points of this type yet
-      bases_container[type] = new Array<Basis*>;
+      container[type] = new Array<Basis*>;
    }
-   Array<Basis*> &bases = *bases_container[type];
+   Array<Basis*> &bases = *container[type];
    if (bases.Size() <= p)
    {
       bases.SetSize(p + 1, NULL);
@@ -6506,26 +6517,31 @@ Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int type)
 
 Poly_1D::~Poly_1D()
 {
-   for (std::map<int, Array<double*>*>::iterator it = points_container.begin();
-        it != points_container.end() ; ++it)
+   for (int btype = 0; btype < NumBasisType; ++btype)
    {
-      Array<double*>& pts = *it->second;
-      for ( int i = 0 ; i < pts.Size() ; ++i )
+     PointsMap &pointsContainer = points_container[btype];
+     BasisMap &basisContainer = bases_container[btype];
+      for (std::map<int, Array<double*>*>::iterator it = pointsContainer.begin();
+           it != pointsContainer.end() ; ++it)
       {
-         delete [] pts[i];
+         Array<double*>& pts = *it->second;
+         for ( int i = 0 ; i < pts.Size() ; ++i )
+         {
+            delete [] pts[i];
+         }
+         delete it->second;
       }
-      delete it->second;
-   }
 
-   for (std::map<int, Array<Basis*>*>::iterator it = bases_container.begin();
-        it != bases_container.end() ; ++it )
-   {
-      Array<Basis*>& bases = *it->second;
-      for ( int i = 0 ; i < bases.Size() ; ++i )
+      for (std::map<int, Array<Basis*>*>::iterator it = basisContainer.begin();
+           it != basisContainer.end() ; ++it )
       {
-         delete bases[i];
+         Array<Basis*>& bases = *it->second;
+         for ( int i = 0 ; i < bases.Size() ; ++i )
+         {
+            delete bases[i];
+         }
+         delete it->second;
       }
-      delete it->second;
    }
 }
 
@@ -6535,21 +6551,37 @@ Array2D<int> Poly_1D::binom;
 TensorBasisElement::TensorBasisElement(const int dims,
                                        const int p,
                                        const int dofs,
-                                       const int type) :
+                                       const int type,
+                                       const int btype) :
+  pt_type(type),
+  dof_map(dofs),
+  basis1d(poly1d.GetBasis(p, pt_type, btype)) {}
+
+NodalTensorFiniteElement::NodalTensorFiniteElement(const int dims,
+                                                   const int p,
+                                                   const int dofs,
+                                                   const int type) :
   NodalFiniteElement(dims,
                      dims == 1 ? Geometry::SEGMENT
                      : ((dims == 2) ? Geometry::SQUARE
                         : Geometry::CUBE),
                      dofs, p,
                      dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
-  pt_type(type),
-  basis1d(IsClosedType(type)
-          ? poly1d.ClosedBasis(p, pt_type)
-          : poly1d.OpenBasis(p, pt_type)),
-  dof_map(dofs) {}
+  TensorBasisElement(dims, p, dofs, type, Poly_1D::Barycentric) {}
+
+PositiveTensorFiniteElement::PositiveTensorFiniteElement(const int dims,
+                                                         const int p,
+                                                         const int dofs) :
+  PositiveFiniteElement(dims,
+                        dims == 1 ? Geometry::SEGMENT
+                        : ((dims == 2) ? Geometry::SQUARE
+                           : Geometry::CUBE),
+                        dofs, p,
+                        dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
+  TensorBasisElement(dims, p, dofs, Quadrature1D::Invalid, Poly_1D::Positive) {}
 
 H1_SegmentElement::H1_SegmentElement(const int p, const int type)
-  : TensorBasisElement(1, p, p + 1, VerifyClosed(type))
+  : NodalTensorFiniteElement(1, p, p + 1, VerifyClosed(type))
 {
    const double *cp = poly1d.ClosedPoints(p, pt_type);
 
@@ -6636,7 +6668,7 @@ void H1_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1_QuadrilateralElement::H1_QuadrilateralElement(const int p, const int type)
-  : TensorBasisElement(2, p, (p + 1)*(p + 1), VerifyClosed(type))
+  : NodalTensorFiniteElement(2, p, (p + 1)*(p + 1), VerifyClosed(type))
 {
    const double *cp = poly1d.ClosedPoints(p, pt_type);
 
@@ -6782,7 +6814,7 @@ void H1_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1_HexahedronElement::H1_HexahedronElement(const int p, const int type)
-  : TensorBasisElement(3, p, (p + 1)*(p + 1)*(p + 1), VerifyClosed(type))
+  : NodalTensorFiniteElement(3, p, (p + 1)*(p + 1)*(p + 1), VerifyClosed(type))
 {
    const double *cp = poly1d.ClosedPoints(p, pt_type);
 
@@ -7038,8 +7070,7 @@ void H1_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1Pos_SegmentElement::H1Pos_SegmentElement(const int p)
-   : PositiveFiniteElement(1, Geometry::SEGMENT, p + 1, p, FunctionSpace::Pk),
-     dof_map(Dof)
+  : PositiveTensorFiniteElement(1, p, p + 1)
 {
 #ifndef MFEM_THREAD_SAFE
    // thread private versions; see class header.
@@ -7107,9 +7138,7 @@ void H1Pos_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1Pos_QuadrilateralElement::H1Pos_QuadrilateralElement(const int p)
-   : PositiveFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
-                           FunctionSpace::Qk),
-     dof_map((p + 1)*(p + 1))
+  : PositiveTensorFiniteElement(2, p, (p + 1)*(p + 1))
 {
    const int p1 = p + 1;
 
@@ -7210,9 +7239,7 @@ void H1Pos_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1Pos_HexahedronElement::H1Pos_HexahedronElement(const int p)
-   : PositiveFiniteElement(3, Geometry::CUBE, (p + 1)*(p + 1)*(p + 1), p,
-                           FunctionSpace::Qk),
-     dof_map((p + 1)*(p + 1)*(p + 1))
+  : PositiveTensorFiniteElement(3, p, (p + 1)*(p + 1)*(p + 1))
 {
    const int p1 = p + 1;
 
@@ -8074,7 +8101,7 @@ void H1Pos_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
 
 
 L2_SegmentElement::L2_SegmentElement(const int p, const int type)
-    : TensorBasisElement(1, p, p + 1, VerifyOpen(type))
+    : NodalTensorFiniteElement(1, p, p + 1, VerifyOpen(type))
 {
    const double *op = poly1d.OpenPoints(p, type);
 
@@ -8131,7 +8158,7 @@ void L2_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 L2Pos_SegmentElement::L2Pos_SegmentElement(const int p)
-   : PositiveFiniteElement(1, Geometry::SEGMENT, p + 1, p, FunctionSpace::Pk)
+  : PositiveTensorFiniteElement(1, p, p + 1)
 {
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -8176,7 +8203,7 @@ void L2Pos_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 L2_QuadrilateralElement::L2_QuadrilateralElement(const int p, const int type)
-    : TensorBasisElement(2, p, (p + 1)*(p + 1), VerifyOpen(type))
+    : NodalTensorFiniteElement(2, p, (p + 1)*(p + 1), VerifyOpen(type))
 {
    const double *op = poly1d.OpenPoints(p, pt_type);
 
@@ -8283,8 +8310,7 @@ void L2_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 L2Pos_QuadrilateralElement::L2Pos_QuadrilateralElement(const int p)
-   : PositiveFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
-                           FunctionSpace::Qk)
+  : PositiveTensorFiniteElement(2, p, (p + 1)*(p + 1))
 {
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -8362,7 +8388,7 @@ void L2Pos_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 L2_HexahedronElement::L2_HexahedronElement(const int p, const int type)
-  : TensorBasisElement(3, p, (p + 1)*(p + 1)*(p + 1), VerifyOpen(type))
+  : NodalTensorFiniteElement(3, p, (p + 1)*(p + 1)*(p + 1), VerifyOpen(type))
 {
    const double *op = poly1d.OpenPoints(p, type);
 
@@ -8514,8 +8540,7 @@ void L2_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 L2Pos_HexahedronElement::L2Pos_HexahedronElement(const int p)
-   : PositiveFiniteElement(3, Geometry::CUBE, (p + 1)*(p + 1)*(p + 1), p,
-                           FunctionSpace::Qk)
+  : PositiveTensorFiniteElement(3, p, (p + 1)*(p + 1)*(p + 1))
 {
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -8986,8 +9011,8 @@ RT_QuadrilateralElement::RT_QuadrilateralElement(const int p,
                                                  const int op_type)
    : VectorFiniteElement(2, Geometry::SQUARE, 2*(p + 1)*(p + 2), p + 1,
                          H_DIV, FunctionSpace::Qk),
-     cbasis1d(poly1d.ClosedBasis(p + 1, VerifyClosed(cp_type))),
-     obasis1d(poly1d.OpenBasis(p, VerifyOpen(op_type))),
+     cbasis1d(poly1d.GetBasis(p + 1, VerifyClosed(cp_type))),
+     obasis1d(poly1d.GetBasis(p, VerifyOpen(op_type))),
      dof_map(Dof), dof2nk(Dof)
 {
    const double *cp = poly1d.ClosedPoints(p + 1, cp_type);
@@ -9197,8 +9222,8 @@ RT_HexahedronElement::RT_HexahedronElement(const int p,
                                            const int op_type)
    : VectorFiniteElement(3, Geometry::CUBE, 3*(p + 1)*(p + 1)*(p + 2), p + 1,
                          H_DIV, FunctionSpace::Qk),
-     cbasis1d(poly1d.ClosedBasis(p + 1, VerifyClosed(cp_type))),
-     obasis1d(poly1d.OpenBasis(p, VerifyOpen(op_type))),
+     cbasis1d(poly1d.GetBasis(p + 1, VerifyClosed(cp_type))),
+     obasis1d(poly1d.GetBasis(p, VerifyOpen(op_type))),
      dof_map(Dof), dof2nk(Dof)
 {
    const double *cp = poly1d.ClosedPoints(p + 1, cp_type);
@@ -9846,8 +9871,8 @@ ND_HexahedronElement::ND_HexahedronElement(const int p,
                                            const int cp_type, const int op_type)
    : VectorFiniteElement(3, Geometry::CUBE, 3*p*(p + 1)*(p + 1), p,
                          H_CURL, FunctionSpace::Qk),
-     cbasis1d(poly1d.ClosedBasis(p, VerifyClosed(cp_type))),
-     obasis1d(poly1d.OpenBasis(p - 1, VerifyOpen(op_type))),
+     cbasis1d(poly1d.GetBasis(p, VerifyClosed(cp_type))),
+     obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(op_type))),
      dof_map(Dof), dof2tk(Dof)
 {
    const double *cp = poly1d.ClosedPoints(p, cp_type);
@@ -10218,8 +10243,8 @@ ND_QuadrilateralElement::ND_QuadrilateralElement(const int p,
                                                  const int op_type)
    : VectorFiniteElement(2, Geometry::SQUARE, 2*p*(p + 1), p,
                          H_CURL, FunctionSpace::Qk),
-     cbasis1d(poly1d.ClosedBasis(p, VerifyClosed(cp_type))),
-     obasis1d(poly1d.OpenBasis(p - 1, VerifyOpen(op_type))),
+     cbasis1d(poly1d.GetBasis(p, VerifyClosed(cp_type))),
+     obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(op_type))),
      dof_map(Dof), dof2tk(Dof)
 {
    const double *cp = poly1d.ClosedPoints(p, cp_type);
@@ -10830,7 +10855,7 @@ const double ND_SegmentElement::tk[1] = { 1. };
 ND_SegmentElement::ND_SegmentElement(const int p, const int op_type)
    : VectorFiniteElement(1, Geometry::SEGMENT, p, p - 1,
                          H_CURL, FunctionSpace::Pk),
-     obasis1d(poly1d.OpenBasis(p - 1, VerifyOpen(op_type))),
+     obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(op_type))),
      dof2tk(Dof)
 {
    const double *op = poly1d.OpenPoints(p - 1, op_type);
