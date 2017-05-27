@@ -6471,7 +6471,7 @@ void Poly_1D::CalcChebyshev(const int p, const double x, double *u, double *d)
 
 const double *Poly_1D::GetPoints(const int p, const int type, const int btype)
 {
-   MFEM_ASSERT(btype < MaxBasisType, "invalid basis type");
+   BasisType::Check(btype);
 
    PointsMap &container = points_container[type];
 
@@ -6494,7 +6494,7 @@ const double *Poly_1D::GetPoints(const int p, const int type, const int btype)
 
 Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int type, const int btype)
 {
-   MFEM_ASSERT(btype < MaxBasisType, "invalid basis type");
+   BasisType::Check(btype);
 
    BasisMap &container = bases_container[type];
 

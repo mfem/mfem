@@ -35,13 +35,14 @@ public:
       Positive        = 2,  ///< Bernstein polynomials
       OpenUniform     = 3,  ///< Nodes: x_i = (i+1)/(n+1), i=0,...,n-1
       ClosedUniform   = 4,  ///< Nodes: x_i = i/(n-1),     i=0,...,n-1
-      OpenHalfUniform = 5   ///< Nodes: x_i = (i+1/2)/n,   i=0,...,n-1
+      OpenHalfUniform = 5,  ///< Nodes: x_i = (i+1/2)/n,   i=0,...,n-1
+      NumBasisType    = 6   ///< Keep track of maximum types to prevent hard-coding
    };
    /** @brief If the input does not represents a valid BasisType, abort with an
        error; otherwise return the input. */
    static int Check(int b_type)
    {
-      MFEM_VERIFY(0 <= b_type && b_type < 6, "unknown BasisType: " << b_type);
+      MFEM_VERIFY(0 <= b_type && b_type < NumBasisType, "unknown BasisType: " << b_type);
       return b_type;
    }
    /** @brief Get the corresponding Quadrature1D constant, when that makes
