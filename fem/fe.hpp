@@ -366,7 +366,7 @@ public:
    }
    static int VerifyOpen(int pt_type)
    {
-      MFEM_VERIFY(IsClosedType(BasisType::GetQuadrature1D(pt_type)),
+      MFEM_VERIFY(IsOpenType(BasisType::GetQuadrature1D(pt_type)),
                   "invalid open point type: " << pt_type);
       return pt_type;
    }
