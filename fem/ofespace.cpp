@@ -30,6 +30,13 @@ namespace mfem {
     Init();
   }
 
+  OccaFiniteElementSpace::~OccaFiniteElementSpace() {
+    delete [] elementDofMap;
+    delete [] elementDofMapInverse;
+    delete restrictionOp;
+    delete prolongationOp;
+  }
+
   void OccaFiniteElementSpace::Init() {
     SetupLocalGlobalMaps();
     SetupOperators();
@@ -47,15 +54,19 @@ namespace mfem {
     globalDofs = fespace->GetNDofs();
     localDofs  = fe.GetDof();
 
-    const int *dofMap;
+    elementDofMap        = new int[localDofs];
+    elementDofMapInverse = new int[localDofs];
     if (el) {
-      dofMap = el->GetDofMap().GetData();
+      ::memcpy(elementDofMap,
+               el->GetDofMap().GetData(),
+               localDofs * sizeof(int));
     } else {
-      int *dofMap_ = new int[localDofs];
       for (int i = 0; i < localDofs; ++i) {
-        dofMap_[i] = i;
+        elementDofMap[i] = i;
       }
-      dofMap = dofMap_;
+    }
+    for (int i = 0; i < localDofs; ++i) {
+      elementDofMapInverse[elementDofMap[i]] = i;
     }
 
     // Allocate device offsets and indices
@@ -90,7 +101,7 @@ namespace mfem {
     //   to it
     for (int e = 0; e < elements; ++e) {
       for (int d = 0; d < localDofs; ++d) {
-        const int gid = elementMap[localDofs*e + dofMap[d]];
+        const int gid = elementMap[localDofs*e + elementDofMap[d]];
         const int lid = localDofs*e + d;
         indices[offsets[gid]++] = lid;
         l2gMap[lid] = gid;
@@ -106,10 +117,6 @@ namespace mfem {
     globalToLocalOffsets.keepInDevice();
     globalToLocalIndices.keepInDevice();
     localToGlobalMap.keepInDevice();
-
-    if (!el) {
-      delete [] dofMap;
-    }
   }
 
   void OccaFiniteElementSpace::SetupOperators() {
@@ -134,6 +141,10 @@ namespace mfem {
                                              props);
   }
 
+  Mesh* OccaFiniteElementSpace::GetMesh() {
+    return fespace->GetMesh();
+  }
+
   FiniteElementSpace* OccaFiniteElementSpace::GetFESpace() {
     return fespace;
   }
@@ -144,6 +155,14 @@ namespace mfem {
 
   int OccaFiniteElementSpace::GetLocalDofs() const {
     return localDofs;
+  }
+
+  const int* OccaFiniteElementSpace::GetElementDofMap() const {
+    return elementDofMap;
+  }
+
+  const int* OccaFiniteElementSpace::GetElementDofMapInverse() const {
+    return elementDofMapInverse;
   }
 
   const Operator* OccaFiniteElementSpace::GetRestrictionOperator() {

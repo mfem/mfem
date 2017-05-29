@@ -24,6 +24,9 @@ namespace mfem {
     occa::device device;
     FiniteElementSpace *fespace;
 
+    int *elementDofMap;
+    int *elementDofMapInverse;
+
     occa::array<int> globalToLocalOffsets;
     occa::array<int> globalToLocalIndices;
     occa::array<int> localToGlobalMap;
@@ -36,6 +39,7 @@ namespace mfem {
   public:
     OccaFiniteElementSpace(FiniteElementSpace *fespace_);
     OccaFiniteElementSpace(occa::device device_, FiniteElementSpace *fespace_);
+    ~OccaFiniteElementSpace();
 
     void Init();
 
@@ -43,10 +47,14 @@ namespace mfem {
     void SetupOperators();
     void SetupKernels();
 
+    Mesh* GetMesh();
     FiniteElementSpace* GetFESpace();
 
     int GetGlobalDofs() const;
     int GetLocalDofs() const;
+
+    const int* GetElementDofMap() const;
+    const int* GetElementDofMapInverse() const;
 
     const Operator* GetRestrictionOperator();
     const Operator* GetProlongationOperator();

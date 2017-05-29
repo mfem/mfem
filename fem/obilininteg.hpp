@@ -31,7 +31,7 @@ namespace mfem {
     static const int JacobianDet = (1 << 2);
 
     static OccaGeometry Get(occa::device device,
-                            Mesh &mesh,
+                            OccaFiniteElementSpace &ofespace,
                             const IntegrationRule &ir,
                             const int flags = (Jacobian    |
                                                JacobianInv |
@@ -93,6 +93,7 @@ namespace mfem {
     occa::device device;
 
     OccaBilinearForm *bform;
+    OccaFiniteElementSpace *ofespace;
     FiniteElementSpace *fespace;
     Mesh *mesh;
     occa::properties props;
@@ -106,9 +107,6 @@ namespace mfem {
     OccaIntegrator();
     virtual ~OccaIntegrator();
 
-    void SetMaps(const IntegrationRule &ir_);
-    void SetProperties(occa::properties &props);
-
     occa::device GetDevice();
 
     virtual std::string GetName() = 0;
@@ -116,6 +114,11 @@ namespace mfem {
     FiniteElementSpace& GetFESpace();
     const IntegrationRule& GetIntegrationRule();
     OccaDofQuadMaps& GetDofQuadMaps();
+
+    void SetupMaps();
+    void SetupProperties(occa::properties &props);
+
+    virtual void SetupIntegrationRule() = 0;
 
     virtual void SetupIntegrator(OccaBilinearForm &bform_,
                                  const occa::properties &props_,
@@ -125,6 +128,10 @@ namespace mfem {
 
     virtual void Assemble() = 0;
     virtual void Mult(OccaVector &x) = 0;
+
+    OccaGeometry GetGeometry(const int flags = (OccaGeometry::Jacobian    |
+                                                OccaGeometry::JacobianInv |
+                                                OccaGeometry::JacobianDet));
 
     occa::kernel GetAssembleKernel(const occa::properties &props);
     occa::kernel GetMultKernel(const occa::properties &props);
@@ -149,6 +156,8 @@ namespace mfem {
 
     virtual std::string GetName();
 
+    virtual void SetupIntegrationRule();
+
     virtual void Setup();
 
     virtual void Assemble();
@@ -170,6 +179,8 @@ namespace mfem {
     virtual ~OccaMassIntegrator();
 
     virtual std::string GetName();
+
+    virtual void SetupIntegrationRule();
 
     virtual void Setup();
 

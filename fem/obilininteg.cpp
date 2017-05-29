@@ -21,11 +21,13 @@ namespace mfem {
   std::map<occa::hash_t, OccaDofQuadMaps> OccaDofQuadMaps::AllDofQuadMaps;
 
   OccaGeometry OccaGeometry::Get(occa::device device,
-                                 Mesh &mesh,
+                                 OccaFiniteElementSpace &ofespace,
                                  const IntegrationRule &ir,
                                  const int flags) {
 
     OccaGeometry geom;
+
+    Mesh &mesh = *(ofespace.GetMesh());
     if (!mesh.GetNodes()) {
       mesh.SetCurvature(1, false, -1, Ordering::byVDIM);
     }
@@ -46,10 +48,10 @@ namespace mfem {
     const Table &e2dTable = fespace.GetElementToDofTable();
     const int *elementMap = e2dTable.GetJ();
     for (int e = 0; e < elements; ++e) {
-      for (int d = 0; d < numDofs; ++d) {
-        const int gid = elementMap[d + numDofs*e];
+      for (int dof = 0; dof < numDofs; ++dof) {
+        const int gid = elementMap[dof + numDofs*e];
         for (int dim = 0; dim < dims; ++dim) {
-          geom.meshNodes(dim, d, e) = nodes[dim + gid*dims];
+          geom.meshNodes(dim, dof, e) = nodes[dim + gid*dims];
         }
       }
     }
@@ -369,9 +371,7 @@ namespace mfem {
   OccaIntegrator::OccaIntegrator() {}
   OccaIntegrator::~OccaIntegrator() {}
 
-  void OccaIntegrator::SetMaps(const IntegrationRule &ir_) {
-    ir = &ir_;
-
+  void OccaIntegrator::SetupMaps() {
     const FiniteElement &fe = *(fespace->GetFE(0));
     const TensorBasisElement *el = dynamic_cast<const TensorBasisElement*>(&fe);
 
@@ -384,7 +384,7 @@ namespace mfem {
     }
   }
 
-  void OccaIntegrator::SetProperties(occa::properties &props) {
+  void OccaIntegrator::SetupProperties(occa::properties &props) {
     const FiniteElement &fe = *(fespace->GetFE(0));
     if (hasTensorBasis) {
       setTensorProperties(fe, *ir, props);
@@ -412,15 +412,24 @@ namespace mfem {
   void OccaIntegrator::SetupIntegrator(OccaBilinearForm &bform_,
                                        const occa::properties &props_,
                                        const OccaIntegratorType itype_) {
-    device  = bform_.device;
-    bform   = &bform_;
-    fespace = &(bform_.GetFESpace());
-    mesh    = &(bform_.GetMesh());
+    device   = bform_.device;
+    bform    = &bform_;
+    ofespace = &(bform_.GetOccaFESpace());
+    fespace  = &(bform_.GetFESpace());
+    mesh     = &(bform_.GetMesh());
 
     props = props_;
     itype = itype_;
 
+    SetupIntegrationRule();
+    SetupMaps();
+    SetupProperties(props);
+
     Setup();
+  }
+
+  OccaGeometry OccaIntegrator::GetGeometry(const int flags) {
+    return OccaGeometry::Get(device, *ofespace, *ir, flags);
   }
 
   occa::kernel OccaIntegrator::GetAssembleKernel(const occa::properties &props) {
@@ -456,26 +465,25 @@ namespace mfem {
     return "DiffusionIntegrator";
   }
 
+  void OccaDiffusionIntegrator::SetupIntegrationRule() {
+    const FiniteElement &fe = *(fespace->GetFE(0));
+    ir = &(GetDiffusionIntegrationRule(fe, fe));
+  }
+
   void OccaDiffusionIntegrator::Setup() {
     occa::properties kernelProps = props;
 
-    const FiniteElement &fe   = *(fespace->GetFE(0));
-    const IntegrationRule &ir = GetDiffusionIntegrationRule(fe, fe);
-
-    SetMaps(ir);
-    SetProperties(kernelProps);
+    const FiniteElement &fe = *(fespace->GetFE(0));
 
     const int dims = fe.GetDim();
     const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
 
     const int elements = fespace->GetNE();
-    const int quadraturePoints = ir.GetNPoints();
+    const int quadraturePoints = ir->GetNPoints();
 
     assembledOperator.allocate(symmDims, quadraturePoints, elements);
 
-    OccaGeometry geom = OccaGeometry::Get(device,
-                                          *mesh, ir,
-                                          OccaGeometry::Jacobian);
+    OccaGeometry geom = GetGeometry(OccaGeometry::Jacobian);
     jacobian = geom.J;
 
     coeff.Setup(*this, kernelProps);
@@ -516,23 +524,22 @@ namespace mfem {
     return "MassIntegrator";
   }
 
+  void OccaMassIntegrator::SetupIntegrationRule() {
+    const FiniteElement &fe = *(fespace->GetFE(0));
+    ir = &(GetMassIntegrationRule(fe, fe));
+  }
+
   void OccaMassIntegrator::Setup() {
     occa::properties kernelProps = props;
 
-    const FiniteElement &fe   = *(fespace->GetFE(0));
-    const IntegrationRule &ir = GetMassIntegrationRule(fe, fe);
-
-    SetMaps(ir);
-    SetProperties(kernelProps);
+    const FiniteElement &fe = *(fespace->GetFE(0));
 
     const int elements = fespace->GetNE();
-    const int quadraturePoints = ir.GetNPoints();
+    const int quadraturePoints = ir->GetNPoints();
 
     assembledOperator.allocate(quadraturePoints, elements);
 
-    OccaGeometry geom = OccaGeometry::Get(device,
-                                          *mesh, ir,
-                                          OccaGeometry::Jacobian);
+    OccaGeometry geom = GetGeometry(OccaGeometry::Jacobian);
     jacobian = geom.J;
 
     coeff.Setup(*this, kernelProps);

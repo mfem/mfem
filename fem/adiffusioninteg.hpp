@@ -35,6 +35,8 @@ public:
 
   virtual std::string GetName();
 
+  virtual void SetupIntegrationRule();
+
   virtual void Setup();
 
   virtual void Assemble();

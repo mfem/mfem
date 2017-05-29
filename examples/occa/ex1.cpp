@@ -241,6 +241,7 @@ int main(int argc, char *argv[])
 
   cout << "Running " << (pc_choice == NONE ? "CG" : "PCG")
        << " ...\n" << flush;
+
   tic_toc.Clear();
   tic_toc.Start();
   // Solve with CG or PCG, depending if the matrix A_pc is available

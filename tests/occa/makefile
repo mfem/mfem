@@ -19,7 +19,7 @@ TEST_MK = $(MFEM_DIR)/config/test.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = main
+SEQ_EXAMPLES = OccaVector
 PAR_EXAMPLES =
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)

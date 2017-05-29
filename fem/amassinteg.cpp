@@ -32,6 +32,11 @@ std::string AcroMassIntegrator::GetName() {
   return "AcroMassIntegrator";
 }
 
+void AcroMassIntegrator::SetupIntegrationRule() {
+  const FiniteElement &fe = *(fespace->GetFE(0));
+  ir = &(GetMassIntegrationRule(fe, fe));
+}
+
 void AcroMassIntegrator::Setup() {
   AcroIntegrator::Setup();
 }
@@ -45,9 +50,8 @@ void AcroMassIntegrator::Assemble() {
 
   //Get the jacobians and compute D with them
   DiffusionIntegrator integ;
-  const FiniteElement &fe   = *(fespace->GetFE(0));
-  const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
-  OccaGeometry geom = OccaGeometry::Get(device, *mesh, ir);
+  const FiniteElement &fe = *(fespace->GetFE(0));
+  OccaGeometry geom = GetGeometry();
 
   double *jacdet_ptr = (double*) geom.detJ.memory().ptr();
   if (hasTensorBasis) {

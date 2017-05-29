@@ -37,7 +37,7 @@ namespace mfem {
 
     // Kernel defines
     occa::properties props;
-    integ.SetProperties(props);
+    integ.SetupProperties(props);
 
     occa::kernel kernel = gridFunctionKernels[hash];
     if (!kernel.isInitialized()) {

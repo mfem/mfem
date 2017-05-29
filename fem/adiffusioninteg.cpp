@@ -32,6 +32,11 @@ std::string AcroDiffusionIntegrator::GetName() {
   return "AcroDiffusionIntegrator";
 }
 
+void AcroDiffusionIntegrator::SetupIntegrationRule() {
+  const FiniteElement &fe = *(fespace->GetFE(0));
+  ir = &(GetDiffusionIntegrationRule(fe, fe));
+}
+
 void AcroDiffusionIntegrator::Setup() {
   AcroIntegrator::Setup();
 }
@@ -65,9 +70,8 @@ void AcroDiffusionIntegrator::Assemble() {
   }
 
   DiffusionIntegrator integ;
-  const FiniteElement &fe   = *(fespace->GetFE(0));
-  const IntegrationRule &ir = integ.GetIntegrationRule(fe, fe);
-  OccaGeometry geom = OccaGeometry::Get(device, *mesh, ir);
+  const FiniteElement &fe = *(fespace->GetFE(0));
+  OccaGeometry geom = GetGeometry();
   //Get the jacobians and compute D with them
   double *jac_ptr = (double*) geom.J.memory().ptr();
   double *jacinv_ptr = (double*) geom.invJ.memory().ptr();
