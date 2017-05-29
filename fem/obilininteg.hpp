@@ -41,8 +41,8 @@ namespace mfem {
   class OccaDofQuadMaps {
   private:
     // Reuse dof-quad maps
-    static std::map<occa::hash_t, OccaDofQuadMaps> AllDofQuadMaps;
-    occa::hash_t hash;
+    static std::map<std::string, OccaDofQuadMaps> AllDofQuadMaps;
+    std::string hash;
 
   public:
     // Local stiffness matrices (B and B^T operators)

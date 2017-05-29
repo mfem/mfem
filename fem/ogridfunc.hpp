@@ -25,7 +25,7 @@
 namespace mfem {
   class OccaIntegrator;
 
-  extern std::map<occa::hash_t, occa::kernel> gridFunctionKernels;
+  extern std::map<std::string, occa::kernel> gridFunctionKernels;
 
   occa::kernel GetGridFunctionKernel(OccaIntegrator &integ);
 

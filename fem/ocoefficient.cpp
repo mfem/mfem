@@ -132,7 +132,7 @@ namespace mfem {
   }
 
   occa::kernelArg OccaGridFunctionParameter::KernelArgs() {
-    return gf;
+    return gfQuad;
   }
   //====================================
 

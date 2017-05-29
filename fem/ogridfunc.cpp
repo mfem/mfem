@@ -17,7 +17,7 @@
 #include "obilininteg.hpp"
 
 namespace mfem {
-  std::map<occa::hash_t, occa::kernel> gridFunctionKernels;
+  std::map<std::string, occa::kernel> gridFunctionKernels;
 
   occa::kernel GetGridFunctionKernel(OccaIntegrator &integ) {
     occa::device device = integ.GetDevice();
@@ -27,10 +27,12 @@ namespace mfem {
     const FiniteElement &fe = *(fespace.GetFE(0));
     const int dim = fe.GetDim();
 
-    occa::hash_t hash = (occa::hash(device)
-                         ^ ("FEColl : " + std::string(fespace.FEColl()->Name()))
-                         ^ ("Quad   : " + occa::toString(numQuad))
-                         ^ ("Dim    : " + occa::toString(dim)));
+    std::stringstream ss;
+    ss << occa::hash(device)
+       << "FEColl : " << fespace.FEColl()->Name()
+       << "Quad: "    << numQuad
+       << "Dim: "     << dim;
+    std::string hash = ss.str();
 
     // DofToQuad
     OccaDofQuadMaps &maps = integ.GetDofQuadMaps();

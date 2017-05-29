@@ -18,7 +18,7 @@
 #include "obilininteg.hpp"
 
 namespace mfem {
-  std::map<occa::hash_t, OccaDofQuadMaps> OccaDofQuadMaps::AllDofQuadMaps;
+  std::map<std::string, OccaDofQuadMaps> OccaDofQuadMaps::AllDofQuadMaps;
 
   OccaGeometry OccaGeometry::Get(occa::device device,
                                  OccaFiniteElementSpace &ofespace,
@@ -128,16 +128,17 @@ namespace mfem {
                                                   const FiniteElement &fe,
                                                   const TensorBasisElement &tfe,
                                                   const IntegrationRule &ir) {
-
-    occa::hash_t hash = (occa::hash(device)
-                         ^ "Tensor Element"
-                         ^ ("BasisType: " + occa::toString(tfe.GetBasisType()))
-                         ^ ("Order: " + occa::toString(fe.GetOrder()))
-                         ^ ("Quad: " + occa::toString(ir.GetNPoints())));
+    std::stringstream ss;
+    ss << occa::hash(device)
+       << "Tensor Element"
+       << "BasisType: " << tfe.GetBasisType()
+       << "Order: "     << fe.GetOrder()
+       << "Quad: "      << ir.GetNPoints();
+    std::string hash = ss.str();
 
     // If we've already made the dof-quad maps, reuse them
     OccaDofQuadMaps &maps = AllDofQuadMaps[hash];
-    if (maps.hash.isInitialized()) {
+    if (maps.hash.size()) {
       return maps;
     }
 
@@ -215,15 +216,16 @@ namespace mfem {
   OccaDofQuadMaps& OccaDofQuadMaps::GetSimplexMaps(occa::device device,
                                                    const FiniteElement &fe,
                                                    const IntegrationRule &ir) {
-
-    occa::hash_t hash = (occa::hash(device)
-                         ^ "Simplex Element"
-                         ^ ("Order: " + occa::toString(fe.GetOrder()))
-                         ^ ("Quad: " + occa::toString(ir.GetNPoints())));
+    std::stringstream ss;
+    ss << occa::hash(device)
+       << "Tensor Element"
+       << "Order: "     << fe.GetOrder()
+       << "Quad: "      << ir.GetNPoints();
+    std::string hash = ss.str();
 
     // If we've already made the dof-quad maps, reuse them
     OccaDofQuadMaps &maps = AllDofQuadMaps[hash];
-    if (maps.hash.isInitialized()) {
+    if (maps.hash.size()) {
       return maps;
     }
 
