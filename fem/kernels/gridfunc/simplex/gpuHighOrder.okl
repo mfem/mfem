@@ -1,0 +1,71 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+#include "occa://mfem/fem/defines.okl"
+
+//---[ 2D ]-----------------------------
+kernel void GridFuncToQuad2D(const int numElements,
+                             const DofToQuad_t restrict dofToQuad,
+                             const DLocalMap_t restrict l2gMap,
+                             const double * restrict gf,
+                             QLocal_t restrict out) {
+  for (int e = 0; e < numElements; ++e; outer) {
+    shared double s_gf[NUM_DOFS];
+    shared double s_sol[NUM_QUAD];
+
+    for (int dOff = 0; dOff < M2_INNER_BATCH; ++dOff; inner) {
+      for (int d = dOff; d < NUM_DOFS; d += M2_INNER_BATCH) {
+        s_gf[d] = gf[l2gMap(d, e)];
+      }
+    }
+
+    for (int qOff = 0; qOff < M2_INNER_BATCH; ++qOff; inner) {
+      for (int q = qOff; q < NUM_QUAD; q += M2_INNER_BATCH) {
+        double r_out = 0;
+        for (int d = 0; d < NUM_DOFS; ++d) {
+          r_out += r_gf[d] * dofToQuad(d, q);
+        }
+        out(q, e) = r_out;
+      }
+    }
+  }
+}
+//======================================
+
+
+//---[ 3D ]-----------------------------
+kernel void GridFuncToQuad3D(const int numElements,
+                             const DofToQuad_t restrict dofToQuad,
+                             const DLocalMap_t restrict l2gMap,
+                             const double * restrict gf,
+                             QLocal_t restrict out) {
+  for (int e = 0; e < numElements; ++e; outer) {
+    shared double s_gf[NUM_DOFS];
+    shared double s_sol[NUM_QUAD];
+
+    for (int dOff = 0; dOff < M3_INNER_BATCH; ++dOff; inner) {
+      for (int d = dOff; d < NUM_DOFS; d += M3_INNER_BATCH) {
+        s_gf[d] = gf[l2gMap(d, e)];
+      }
+    }
+
+    for (int qOff = 0; qOff < M3_INNER_BATCH; ++qOff; inner) {
+      for (int q = qOff; q < NUM_QUAD; q += M3_INNER_BATCH) {
+        double r_out = 0;
+        for (int d = 0; d < NUM_DOFS; ++d) {
+          r_out += r_gf[d] * dofToQuad(d, q);
+        }
+        out(q, e) = r_out;
+      }
+    }
+  }
+}
+//======================================

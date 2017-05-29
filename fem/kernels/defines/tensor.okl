@@ -38,10 +38,6 @@
 typedef double* DofToQuad_t @dim(NUM_QUAD_1D, NUM_DOFS_1D);
 typedef double* QuadToDof_t @dim(NUM_DOFS_1D, NUM_QUAD_1D);
 
-typedef double* ScalarOperator1D_t @dim(NUM_QUAD_1D, numElements);
-typedef double* ScalarOperator2D_t @dim(NUM_QUAD_2D, numElements);
-typedef double* ScalarOperator3D_t @dim(NUM_QUAD_3D, numElements);
-
 typedef double* Jacobian1D_t @dim(NUM_QUAD_1D, numElements);
 typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
 typedef double* Jacobian3D_t @dim(3, 3, NUM_QUAD_3D, numElements);
@@ -50,15 +46,15 @@ typedef double* SymmOperator1D_t @dim(NUM_QUAD_1D, numElements);
 typedef double* SymmOperator2D_t @dim(3, NUM_QUAD_2D, numElements);
 typedef double* SymmOperator3D_t @dim(6, NUM_QUAD_3D, numElements);
 
-typedef double* Local_t   @dim(NUM_DOFS, numElements);
-typedef double* Local1D_t @dim(NUM_DOFS_1D, numElements);
-typedef double* Local2D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, numElements);
-typedef double* Local3D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, NUM_DOFS_1D, numElements);
+typedef double* DLocal_t   @dim(NUM_DOFS, numElements);
+typedef double* DLocal1D_t @dim(NUM_DOFS_1D, numElements);
+typedef double* DLocal2D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, numElements);
+typedef double* DLocal3D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, NUM_DOFS_1D, numElements);
 
-typedef int* LocalMap_t   @dim(NUM_DOFS, numElements);
-typedef int* LocalMap1D_t @dim(NUM_DOFS_1D, numElements);
-typedef int* LocalMap2D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, numElements);
-typedef int* LocalMap3D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, NUM_DOFS_1D, numElements);
+typedef int* DLocalMap_t   @dim(NUM_DOFS, numElements);
+typedef int* DLocalMap1D_t @dim(NUM_DOFS_1D, numElements);
+typedef int* DLocalMap2D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, numElements);
+typedef int* DLocalMap3D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, NUM_DOFS_1D, numElements);
 
 typedef double* QLocal_t   @dim(NUM_QUAD, numElements);
 typedef double* QLocal1D_t @dim(NUM_QUAD_1D, numElements);

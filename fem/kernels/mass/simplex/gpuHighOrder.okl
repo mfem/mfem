@@ -16,7 +16,7 @@ kernel void Assemble2D(const int numElements,
                        const double *quadWeights,
                        const Jacobian2D_t J,
                        COEFF_ARGS
-                       ScalarOperator_t oper) {
+                       QLocal_t oper) {
   for (int eOff = 0; eOff < numElements; eOff += A2_ELEMENT_BATCH; outer) {
     for (int e = eOff; e < (eOff + A2_ELEMENT_BATCH); ++e; inner) {
       if (e < numElements) {
@@ -34,13 +34,12 @@ kernel void Assemble2D(const int numElements,
 }
 
 kernel void Mult2D(const int numElements,
-                   const DofToQuad2D_t restrict dofToQuad,
+                   const DofToQuad_t restrict dofToQuad,
                    const DofToQuadD2D_t restrict dofToQuadD,
-                   const QuadToDof2D_t restrict quadToDof,
+                   const QuadToDof_t restrict quadToDof,
                    const QuadToDofD2D_t restrict quadToDofD,
-                   const ScalarOperator_t restrict oper,
-                   Local_t restrict sol) {
-  // Iterate over elements
+                   const QLocal_t restrict oper,
+                   DLocal_t restrict sol) {
   for (int e = 0; e < numElements; ++e; outer) {
     shared double s_sol[NUM_QUAD];
 
@@ -48,7 +47,7 @@ kernel void Mult2D(const int numElements,
       for (int q = qOff; q < NUM_QUAD; q += M2_INNER_BATCH) {
         double s = 0;
         for (int d = 0; d < NUM_DOFS; ++d) {
-          s += sol(d, e) * quadToDof(d, q);
+          s += sol(d, e) * dofToQuad(d, q);
         }
         s_sol[q] = s * oper(q, e);
       }
@@ -73,7 +72,7 @@ kernel void Assemble3D(const int numElements,
                        const double *quadWeights,
                        const Jacobian3D_t J,
                        COEFF_ARGS
-                       ScalarOperator_t oper) {
+                       QLocal_t oper) {
   for (int eOff = 0; eOff < numElements; eOff += A3_ELEMENT_BATCH; outer) {
     for (int e = eOff; e < (eOff + A3_ELEMENT_BATCH); ++e; inner) {
       if (e < numElements) {
@@ -95,13 +94,12 @@ kernel void Assemble3D(const int numElements,
 }
 
 kernel void Mult3D(const int numElements,
-                   const DofToQuad3D_t restrict dofToQuad,
+                   const DofToQuad_t restrict dofToQuad,
                    const DofToQuadD3D_t restrict dofToQuadD,
-                   const QuadToDof3D_t restrict quadToDof,
+                   const QuadToDof_t restrict quadToDof,
                    const QuadToDofD3D_t restrict quadToDofD,
-                   const ScalarOperator_t restrict oper,
-                   Local_t restrict sol) {
-  // Iterate over elements
+                   const QLocal_t restrict oper,
+                   DLocal_t restrict sol) {
   for (int e = 0; e < numElements; ++e; outer) {
     shared double s_sol[NUM_QUAD];
 
@@ -109,7 +107,7 @@ kernel void Mult3D(const int numElements,
       for (int q = qOff; q < NUM_QUAD; q += M3_INNER_BATCH) {
         double s = 0;
         for (int d = 0; d < NUM_DOFS; ++d) {
-          s += sol(d, e) * quadToDof(d, q);
+          s += sol(d, e) * dofToQuad(d, q);
         }
         s_sol[q] = s * oper(q, e);
       }

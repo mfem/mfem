@@ -38,12 +38,12 @@ kernel void Assemble2D(const int numElements,
 }
 
 kernel void Mult2D(const int numElements,
-                   const DofToQuad2D_t restrict dofToQuad,
+                   const DofToQuad_t restrict dofToQuad,
                    const DofToQuadD2D_t restrict dofToQuadD,
-                   const QuadToDof2D_t restrict quadToDof,
+                   const QuadToDof_t restrict quadToDof,
                    const QuadToDofD2D_t restrict quadToDofD,
                    const SymmOperator2D_t restrict oper,
-                   Local_t restrict sol) {
+                   DLocal_t restrict sol) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     shared double s_gradX[NUM_QUAD];
@@ -129,12 +129,12 @@ kernel void Assemble3D(const int numElements,
 }
 
 kernel void Mult3D(const int numElements,
-                   const DofToQuad3D_t restrict dofToQuad,
+                   const DofToQuad_t restrict dofToQuad,
                    const DofToQuadD3D_t restrict dofToQuadD,
-                   const QuadToDof3D_t restrict quadToDof,
+                   const QuadToDof_t restrict quadToDof,
                    const QuadToDofD3D_t restrict quadToDofD,
                    const SymmOperator3D_t restrict oper,
-                   Local_t restrict sol) {
+                   DLocal_t restrict sol) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     shared double s_gradX[NUM_QUAD];

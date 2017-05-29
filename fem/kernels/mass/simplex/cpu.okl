@@ -16,7 +16,7 @@ kernel void Assemble2D(const int numElements,
                        const double * restrict quadWeights,
                        const Jacobian2D_t restrict J,
                        COEFF_ARGS
-                       ScalarOperator2D_t restrict oper) {
+                       QLocal_t restrict oper) {
   for (int e = 0; e < numElements; ++e; outer) {
     for (int q = 0; q < NUM_QUAD; ++q; inner) {
       const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e);
@@ -28,12 +28,12 @@ kernel void Assemble2D(const int numElements,
 }
 
 kernel void Mult2D(const int numElements,
-                   const DofToQuad2D_t restrict dofToQuad,
+                   const DofToQuad_t restrict dofToQuad,
                    const DofToQuadD2D_t restrict dofToQuadD,
-                   const QuadToDof2D_t restrict quadToDof,
+                   const QuadToDof_t restrict quadToDof,
                    const QuadToDofD2D_t restrict quadToDofD,
-                   const ScalarOperator2D_t restrict oper,
-                   Local_t restrict sol) {
+                   const QLocal_t restrict oper,
+                   DLocal_t restrict sol) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     for (int dummy = 0; dummy < 1; ++dummy; inner) {
@@ -69,7 +69,7 @@ kernel void Assemble3D(const int numElements,
                        const double * restrict quadWeights,
                        const Jacobian3D_t restrict J,
                        COEFF_ARGS
-                       ScalarOperator3D_t restrict oper) {
+                       QLocal_t restrict oper) {
   for (int e = 0; e < numElements; ++e; outer) {
     for (int q = 0; q < NUM_QUAD; ++q; inner) {
       const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e), J13 = J(2, 0, q, e);
@@ -85,12 +85,12 @@ kernel void Assemble3D(const int numElements,
 }
 
 kernel void Mult3D(const int numElements,
-                   const DofToQuad3D_t restrict dofToQuad,
+                   const DofToQuad_t restrict dofToQuad,
                    const DofToQuadD3D_t restrict dofToQuadD,
-                   const QuadToDof3D_t restrict quadToDof,
+                   const QuadToDof_t restrict quadToDof,
                    const QuadToDofD3D_t restrict quadToDofD,
-                   const ScalarOperator3D_t restrict oper,
-                   Local_t restrict sol) {
+                   const QLocal_t restrict oper,
+                   DLocal_t restrict sol) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     for (int dummy = 0; dummy < 1; ++dummy; inner) {

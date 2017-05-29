@@ -9,16 +9,12 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-typedef double* DofToQuad2D_t @dim(NUM_QUAD, NUM_DOFS);
+typedef double* DofToQuad_t @dim(NUM_QUAD, NUM_DOFS);
 typedef double* DofToQuadD2D_t @dim(2, NUM_QUAD, NUM_DOFS);
-typedef double* DofToQuad3D_t @dim(NUM_QUAD, NUM_DOFS);
 typedef double* DofToQuadD3D_t @dim(3, NUM_QUAD, NUM_DOFS);
 
-typedef double* ScalarOperator_t @dim(NUM_QUAD, numElements);
-
-typedef double* QuadToDof2D_t @dim(NUM_DOFS, NUM_QUAD);
+typedef double* QuadToDof_t @dim(NUM_DOFS, NUM_QUAD);
 typedef double* QuadToDofD2D_t @dim(2, NUM_DOFS, NUM_QUAD);
-typedef double* QuadToDof3D_t @dim(NUM_DOFS, NUM_QUAD);
 typedef double* QuadToDofD3D_t @dim(3, NUM_DOFS, NUM_QUAD);
 
 typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD, numElements);
@@ -27,4 +23,7 @@ typedef double* Jacobian3D_t @dim(3, 3, NUM_QUAD, numElements);
 typedef double* SymmOperator2D_t @dim(3, NUM_QUAD, numElements);
 typedef double* SymmOperator3D_t @dim(6, NUM_QUAD, numElements);
 
-typedef double* Local_t @dim(NUM_DOFS, numElements);
+typedef double* DLocal_t  @dim(NUM_DOFS, numElements);
+typedef double* QLocal_t @dim(NUM_QUAD, numElements);
+
+typedef int* DLocalMap_t @dim(NUM_DOFS, numElements);

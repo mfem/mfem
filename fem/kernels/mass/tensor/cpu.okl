@@ -16,7 +16,7 @@ kernel void Assemble1D(const int numElements,
                        const double * restrict quadWeights,
                        const Jacobian1D_t restrict J,
                        COEFF_ARGS
-                       ScalarOperator1D_t restrict oper) {
+                       QLocal_t restrict oper) {
   for (int e = 0; e < numElements; ++e; outer) {
     for (int q = 0; q < NUM_QUAD_1D; ++q; inner) {
       oper(q, e) = quadWeights[q] * COEFF * J(q, e);
@@ -29,8 +29,8 @@ kernel void Mult1D(const int numElements,
                    const DofToQuad_t restrict dofToQuadD,
                    const QuadToDof_t restrict quadToDof,
                    const QuadToDof_t restrict quadToDofD,
-                   const ScalarOperator1D_t restrict oper,
-                   Local1D_t restrict sol) {
+                   const QLocal1D_t restrict oper,
+                   DLocal1D_t restrict sol) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     for (int dummy = 0; dummy < 1; ++dummy; inner) {
@@ -67,7 +67,7 @@ kernel void Assemble2D(const int numElements,
                        const double * restrict quadWeights,
                        const Jacobian2D_t restrict J,
                        COEFF_ARGS
-                       ScalarOperator2D_t restrict oper) {
+                       QLocal_t restrict oper) {
   for (int e = 0; e < numElements; ++e; outer) {
     for (int q = 0; q < NUM_QUAD_2D; ++q; inner) {
       const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e);
@@ -83,8 +83,8 @@ kernel void Mult2D(const int numElements,
                    const DofToQuad_t restrict dofToQuadD,
                    const QuadToDof_t restrict quadToDof,
                    const QuadToDof_t restrict quadToDofD,
-                   const ScalarOperator2D_t restrict oper,
-                   Local2D_t restrict sol) {
+                   const QLocal2D_t restrict oper,
+                   DLocal2D_t restrict sol) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     for (int dummy=0; dummy<1; ++dummy; inner) {
@@ -92,7 +92,7 @@ kernel void Mult2D(const int numElements,
 
       for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
         for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-          sol_xy[qx][qy] = 0;
+          sol_xy[qy][qx] = 0;
         }
       }
 
@@ -115,7 +115,7 @@ kernel void Mult2D(const int numElements,
         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
           const double d2q = dofToQuad(qy, dy);
           for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-            sol_xy[qx][qy] += d2q * sol_x[qx];
+            sol_xy[qy][qx] += d2q * sol_x[qx];
           }
         }
       } // dy
@@ -123,8 +123,7 @@ kernel void Mult2D(const int numElements,
       // sol_xy{qx, qy} = sol_xy{q} *= oper{q, e}
       for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
         for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-          const int q = QUAD_2D_ID(qx, qy);
-          sol_xy[qx][qy] *= oper(q, e);
+          sol_xy[qy][qx] *= oper(qx, qy, e);
         }
       }
 
@@ -136,7 +135,7 @@ kernel void Mult2D(const int numElements,
 
         // sol_x{qx, dy} = quadToDof{dy, qy} * sol_xy{qx, qy}
         for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-          const double s = sol_xy[qx][qy];
+          const double s = sol_xy[qy][qx];
           for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
             sol_x[dx] += quadToDof(dx, qx) * s;
           }
@@ -161,7 +160,7 @@ kernel void Assemble3D(const int numElements,
                        const double * restrict quadWeights,
                        const Jacobian3D_t restrict J,
                        COEFF_ARGS
-                       ScalarOperator3D_t restrict oper) {
+                       QLocal_t restrict oper) {
   for (int e = 0; e < numElements; ++e; outer) {
     for (int q = 0; q < NUM_QUAD_3D; ++q; inner) {
       const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e), J13 = J(2, 0, q, e);
@@ -181,8 +180,8 @@ kernel void Mult3D(const int numElements,
                    const DofToQuad_t restrict dofToQuadD,
                    const QuadToDof_t restrict quadToDof,
                    const QuadToDof_t restrict quadToDofD,
-                   const ScalarOperator3D_t restrict oper,
-                   Local3D_t restrict sol) {
+                   const QLocal3D_t restrict oper,
+                   DLocal3D_t restrict sol) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     for (int dummy = 0; dummy < 1; ++dummy; inner) {
@@ -241,8 +240,7 @@ kernel void Mult3D(const int numElements,
       for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
           for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-            const int q = QUAD_3D_ID(qx, qy, qz);
-            sol_xyz[qz][qy][qx] *= oper(q, e);
+            sol_xyz[qz][qy][qx] *= oper(qx, qy, qz, e);
           }
         }
       }
@@ -289,6 +287,5 @@ kernel void Mult3D(const int numElements,
       } // qz
     } // dummy
   } // e
-
 }
 //======================================
