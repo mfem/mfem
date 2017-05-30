@@ -72,7 +72,8 @@ TESTNAME = Parallel PETSc example
 
 
 # Testing PETSc execution options.
-EX1_ARGS      := -m ../../data/amr-quad.mesh --usepetsc --petscopts rc_ex1p
+EX1_ARGS_W    := -m ../../data/amr-quad.mesh --usepetsc
+EX1_ARGS_P    := -m ../../data/amr-quad.mesh --usepetsc --petscopts rc_ex1p
 EX2_ARGS      := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex2p
 EX3_ARGS      := -m ../../data/klein-bottle.mesh -o 2 -f 0.1 --usepetsc --petscopts rc_ex3p_bddc --nonoverlapping
 EX4_ARGS      := -m ../../data/klein-bottle.mesh -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping
@@ -82,7 +83,8 @@ EX6_ARGS      := -m ../../data/amr-quad.mesh --usepetsc
 EX9_ARGS      := -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl
 EX10_ARGS     := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p -tf 30 -s 3 -rs 2 -dt 3
 ex1p-test-par: ex1p
-	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX1_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX1_ARGS_W))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX1_ARGS_P))
 ex2p-test-par: ex2p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX2_ARGS))
 ex3p-test-par: ex3p

@@ -1465,17 +1465,21 @@ void CurlCurlIntegrator::AssembleElementMatrix
          el.CalcCurlShape(ip, curlshape_dFt);
       }
 
-      if (Q)
+      if (MQ)
+      {
+         MQ->Eval(M, Trans, ip);
+         M *= w;
+         Mult(curlshape_dFt, M, curlshape);
+         AddMultABt(curlshape, curlshape_dFt, elmat);
+      }
+      else if (Q)
       {
          w *= Q->Eval(Trans, ip);
          AddMult_a_AAt(w, curlshape_dFt, elmat);
       }
       else
       {
-         MQ->Eval(M, Trans, ip);
-         M *= w;
-         Mult(curlshape_dFt, M, curlshape);
-         AddMultABt(curlshape, curlshape_dFt, elmat);
+         AddMult_a_AAt(w, curlshape_dFt, elmat);
       }
    }
 }
