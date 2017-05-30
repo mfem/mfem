@@ -18,7 +18,7 @@
 
 namespace mfem {
   OccaFiniteElementSpace::OccaFiniteElementSpace(FiniteElementSpace *fespace_) :
-    device(occa::currentDevice()),
+    device(occa::getDevice()),
     fespace(fespace_) {
     Init();
   }

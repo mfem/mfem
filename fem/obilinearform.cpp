@@ -23,7 +23,7 @@ namespace mfem {
   //---[ Bilinear Form ]----------------
   OccaBilinearForm::OccaBilinearForm(OccaFiniteElementSpace *ofespace_) :
     Operator(ofespace_->GetFESpace()->GetVSize()) {
-    Init(occa::currentDevice(), ofespace_);
+    Init(occa::getDevice(), ofespace_);
   }
 
   OccaBilinearForm::OccaBilinearForm(occa::device device_,
@@ -266,7 +266,7 @@ namespace mfem {
                                                    const Array<int> &constraintList_,
                                                    bool own_A_) :
     Operator(A_->Height(), A_->Width()) {
-    Setup(occa::currentDevice(), A_, constraintList_, own_A_);
+    Setup(occa::getDevice(), A_, constraintList_, own_A_);
   }
 
   OccaConstrainedOperator::OccaConstrainedOperator(occa::device device_,

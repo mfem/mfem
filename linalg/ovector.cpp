@@ -84,7 +84,7 @@ namespace mfem {
     if (data.isInitialized()) {
       SetSize(data.getDevice(), size_, src);
     } else {
-      SetSize(occa::currentDevice(), size_, src);
+      SetSize(occa::getDevice(), size_, src);
     }
   }
 

@@ -22,7 +22,7 @@ namespace mfem {
                                      const occa::properties &props) :
     Operator(m.Height(), m.Width()) {
 
-    Setup(occa::currentDevice(), m, props);
+    Setup(occa::getDevice(), m, props);
   }
 
   OccaSparseMatrix::OccaSparseMatrix(const SparseMatrix &m,
@@ -31,7 +31,7 @@ namespace mfem {
                                      const occa::properties &props) :
     Operator(m.Height(), m.Width()) {
 
-    Setup(occa::currentDevice(), m, reorderIndices, mappedIndices_, props);
+    Setup(occa::getDevice(), m, reorderIndices, mappedIndices_, props);
   }
 
   OccaSparseMatrix::OccaSparseMatrix(occa::device device, const SparseMatrix &m,
