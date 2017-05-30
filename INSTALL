@@ -231,13 +231,16 @@ MFEM_USE_MEMALLOC = YES/NO
    Internal MFEM option: enable batch allocation for some small objects.
    Recommended value is YES.
 
-MFEM_TIMER_TYPE = 0/1/2/3/NO
+MFEM_TIMER_TYPE = 0/1/2/3/4/5/6/NO
    Specify which library functions to use in the class StopWatch used for
    measuring time. The available options are:
       0  - use std::clock from <ctime>, standard C++
       1  - use times from <sys/times.h>
       2  - use high-resolution POSIX clocks (see option POSIX_CLOCKS_LIB)
       3  - use QueryPerformanceCounter from <windows.h>
+      4  - use mach_absolute_time from <mach/mach_time.h> + std::clock (Mac)
+      5  - use gettimeofday from <sys/time.h>
+      6  - use MPI_Wtime from <mpi.h>
       NO - use option 3 if the compiler macro _WIN32 is defined, 0 otherwise
 
 MFEM_USE_SUNDIALS = YES/NO
