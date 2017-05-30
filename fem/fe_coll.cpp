@@ -1517,7 +1517,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
       }
       else
       {
-         H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p, pt_type);
+         H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p, type);
       }
 
       SegDofOrd[0] = new int[2*pm1];
@@ -1540,8 +1540,8 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
       }
       else
       {
-         H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, pt_type);
-         H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p,pt_type);
+         H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, type);
+         H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p,type);
       }
 
       const int &TriDof = H1_dof[Geometry::TRIANGLE];
@@ -1601,8 +1601,8 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
          else
          {
             H1_Elements[Geometry::TETRAHEDRON] =
-               new H1_TetrahedronElement(p, pt_type);
-            H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, pt_type);
+               new H1_TetrahedronElement(p, type);
+            H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, type);
          }
       }
    }
@@ -1750,7 +1750,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type,
       }
       else
       {
-         L2_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p, pt_type);
+         L2_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p, type);
       }
       L2_Elements[Geometry::SEGMENT]->SetMapType(map_type);
 
@@ -1775,8 +1775,8 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type,
       }
       else
       {
-         L2_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p, pt_type);
-         L2_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p, pt_type);
+         L2_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p, type);
+         L2_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p, type);
       }
       L2_Elements[Geometry::TRIANGLE]->SetMapType(map_type);
       L2_Elements[Geometry::SQUARE]->SetMapType(map_type);
@@ -1821,8 +1821,8 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type,
       else
       {
          L2_Elements[Geometry::TETRAHEDRON] =
-            new L2_TetrahedronElement(p, pt_type);
-         L2_Elements[Geometry::CUBE] = new L2_HexahedronElement(p, pt_type);
+            new L2_TetrahedronElement(p, type);
+         L2_Elements[Geometry::CUBE] = new L2_HexahedronElement(p, type);
       }
       L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);
       L2_Elements[Geometry::CUBE]->SetMapType(map_type);
