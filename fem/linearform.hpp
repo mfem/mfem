@@ -22,7 +22,7 @@ namespace mfem
 /// Class for linear form - Vector with associated FE space and LFIntegrators.
 class LinearForm : public Vector
 {
-private:
+protected:
    /// FE space on which LF lives.
    FiniteElementSpace * fes;
 

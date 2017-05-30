@@ -234,6 +234,51 @@ void ParGridFunction::ExchangeFaceNbrData()
    delete [] requests;
 }
 
+void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip, Vector &val)
+const
+{
+   const FiniteElement *FElem = pfes->GetFE(i);
+   int dof = FElem->GetDof();
+   Array<int> vdofs;
+   Vector loc_data;
+
+   int nbr_el_no = i - pfes->GetParMesh()->GetNE();
+
+//   std::cout << "nbr " << nbr_el_no << "\t" << (FElem->GetRangeType() == FiniteElement::SCALAR) << std::endl;
+
+   //A simplified implementation of GridFunc::GetVectorValue
+   if (nbr_el_no >= 0)
+   {
+      MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
+                  "invalid FE map type");
+
+      pfes->GetFaceNbrElementVDofs(nbr_el_no, vdofs);
+      face_nbr_data.GetSubVector(vdofs, loc_data);
+      Vector shape(dof);
+      pfes->GetFaceNbrFE(nbr_el_no)->CalcShape(ip, shape);
+      int vdim = fes->GetVDim();
+      val.SetSize(vdim);
+      for (int k = 0; k < vdim; k++)
+      {
+         val(k) = shape * ((const double *)loc_data + dof * k);
+      }
+   }
+   else
+   {
+      pfes->GetElementVDofs(i, vdofs);
+      GetSubVector(vdofs, loc_data);
+      Vector shape(dof);
+      FElem->CalcShape(ip, shape);
+      int vdim = fes->GetVDim();
+      val.SetSize(vdim);
+      for (int k = 0; k < vdim; k++)
+      {
+         val(k) = shape * ((const double *)loc_data + dof * k);
+      }
+   }
+}
+
+
 double ParGridFunction::GetValue(int i, const IntegrationPoint &ip, int vdim)
 const
 {
