@@ -28,7 +28,7 @@ AcroIntegrator::~AcroIntegrator() {
 void AcroIntegrator::Setup() {
   if (device.mode() == "CUDA") {
     onGPU = true;
-    TE.SetExecutorType("OneOutPerThread");
+    TE.SetExecutorType("SMChunkPerBlock");
     acro::setCudaContext(occa::cuda::getContext(device));
   } else {
     onGPU = false;
