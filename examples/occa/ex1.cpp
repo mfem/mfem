@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
   const char *device_info = "mode: 'Serial'";
   bool occa_verbose = false;
   bool visualization = 1;
+  bool use_acrotensor = false;
 
   OptionsParser args(argc, argv);
   args.AddOption(&mesh_file, "-m", "--mesh",
@@ -85,6 +86,10 @@ int main(int argc, char *argv[])
   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                  "--no-visualization",
                  "Enable or disable GLVis visualization.");
+  args.AddOption(&use_acrotensor,
+                 "-a", "--use-acro",
+                 "--no-a", "--no-acro",
+                 "Use Acrotensor.");
   args.Parse();
   if (!args.Good()) {
     args.PrintUsage(cout);
@@ -208,7 +213,18 @@ int main(int argc, char *argv[])
   tic_toc.Clear();
   tic_toc.Start();
   OccaBilinearForm *a = new OccaBilinearForm(ofespace);
-  a->AddDomainIntegrator(new OccaDiffusionIntegrator(1.0));
+#ifdef MFEM_USE_ACROTENSOR
+  if (use_acrotensor)
+  {
+    a->AddDomainIntegrator(new AcroDiffusionIntegrator(one));
+  }
+  else
+  {
+#endif
+    a->AddDomainIntegrator(new OccaDiffusionIntegrator(1.0));
+#ifdef MFEM_USE_ACROTENSOR
+  }
+#endif
 
   BilinearForm *a_pc = NULL;
   if (pc_choice == LOR) { a_pc = new BilinearForm(fespace_lor); }
@@ -244,6 +260,9 @@ int main(int argc, char *argv[])
 
   tic_toc.Stop();
   cout << " done, " << tic_toc.RealTime() << "s." << endl;
+
+  // Run a couple iterations of CG in order to cache the kernels
+  CG(*A, B, X, 1, 5, 0.0, 0.0);
 
   cout << "Running " << (pc_choice == NONE ? "CG" : "PCG")
        << " ...\n" << flush;
