@@ -31,7 +31,7 @@ kernel void GridFuncToQuad2D(const int numElements,
       for (int q = qOff; q < NUM_QUAD; q += M2_INNER_BATCH) {
         double r_out = 0;
         for (int d = 0; d < NUM_DOFS; ++d) {
-          r_out += r_gf[d] * dofToQuad(d, q);
+          r_out += s_gf[d] * dofToQuad(d, q);
         }
         out(q, e) = r_out;
       }
@@ -61,7 +61,7 @@ kernel void GridFuncToQuad3D(const int numElements,
       for (int q = qOff; q < NUM_QUAD; q += M3_INNER_BATCH) {
         double r_out = 0;
         for (int d = 0; d < NUM_DOFS; ++d) {
-          r_out += r_gf[d] * dofToQuad(d, q);
+          r_out += s_gf[d] * dofToQuad(d, q);
         }
         out(q, e) = r_out;
       }
