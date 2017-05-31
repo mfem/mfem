@@ -16,7 +16,7 @@ kernel void Assemble1D(const int numElements,
                        const double *quadWeights,
                        const Jacobian1D_t J,
                        COEFF_ARGS
-                       QLocal1D_t oper) {
+                       QLocal_t oper) {
   for (int eOff = 0; eOff < numElements; eOff += A1_ELEMENT_BATCH; outer) {
     for (int e = eOff; e < (eOff + A1_ELEMENT_BATCH); ++e; inner) {
       if (e < numElements) {
@@ -85,7 +85,7 @@ kernel void Assemble2D(const int numElements,
                        const double *quadWeights,
                        const Jacobian2D_t J,
                        COEFF_ARGS
-                       QLocal2D_t oper) {
+                       QLocal_t oper) {
   for (int eOff = 0; eOff < numElements; eOff += A2_ELEMENT_BATCH; outer) {
     for (int e = eOff; e < (eOff + A2_ELEMENT_BATCH); ++e; inner) {
       if (e < numElements) {
@@ -156,7 +156,7 @@ kernel void Mult2D(const int numElements,
               }
 
               const int q = QUAD_2D_ID(qx, qy);
-              s_xy2(qx, qy) = s * oper(q, e);
+              s_xy2(qx, qy) = s * oper(qx, qy, e);
             }
           }
         }
@@ -201,7 +201,7 @@ kernel void Assemble3D(const int numElements,
                        const double *quadWeights,
                        const Jacobian3D_t J,
                        COEFF_ARGS
-                       QLocal3D_t oper) {
+                       QLocal_t oper) {
   for (int eOff = 0; eOff < numElements; eOff += A3_ELEMENT_BATCH; outer) {
     for (int e = eOff; e < (eOff + A3_ELEMENT_BATCH); ++e; inner) {
       if (e < numElements) {
@@ -296,8 +296,7 @@ kernel void Mult3D(const int numElements,
               }
             }
 
-            const int q = QUAD_3D_ID(qx, qy, qz);
-            s *= oper(q, e);
+            s *= oper(qx, qy, qz, e);
 
             for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
               const double wz  = s_quadToDof(dz, qz);
