@@ -175,16 +175,14 @@ int main(int argc, char *argv[]) {
   }
   args.PrintOptions(cout);
 
-
   // Set the OCCA device to run example in
-  occa::device device(device_info);
+  occa::setDevice(device_info);
 
   // Load cached kernels
-  device.loadKernels();
-  device.loadKernels("mfem");
+  occa::loadKernels();
+  occa::loadKernels("mfem");
 
   // Set as the background device
-  occa::setDevice(device);
   occa::settings()["verboseCompilation"] = occa_verbose;
 
   // 2. Read the mesh from the given mesh file. We can handle triangular,
