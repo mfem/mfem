@@ -476,3 +476,7 @@ $(OCCA_LIB_CACHE_DIR)/mfem/linalg/%.okl: $(MFEM_REAL_DIR)/linalg/kernels/%.okl
 	@echo "Caching: $(subst $(MFEM_REAL_DIR)/,,$<)"
 	@occa cache mfem/$(subst $(OCCA_LIB_CACHE_DIR)/mfem/,,$(dir $@)) $<
 #=======================================
+
+# Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
+print-%: ; @printf "%s:\n" $*
+	@printf "%s\n" $($*)

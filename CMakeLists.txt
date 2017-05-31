@@ -210,7 +210,9 @@ endif()
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
-    set(MFEM_TIMER_TYPE 0) # use std::clock from <ctime>
+    # use std::clock from <ctime> for UserTime and
+    # use mach_absolute_time from <mach/mach_time.h> for RealTime
+    set(MFEM_TIMER_TYPE 4)
   elseif (WIN32)
     set(MFEM_TIMER_TYPE 3) # QueryPerformanceCounter from <windows.h>
   else()
