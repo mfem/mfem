@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
   Operator *A;
   OccaVector B, X;
 
-  a->FormOperator(ess_tdof_list, x, b, A, X, B);
+  a->FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
   //Run a couple iterations of CG in order to cache the kernels
   CG(*A, B, X, 1, 5, 0.0, 0.0);
