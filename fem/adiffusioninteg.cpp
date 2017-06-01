@@ -17,7 +17,7 @@
 
 namespace mfem {
 
-AcroDiffusionIntegrator::AcroDiffusionIntegrator(OccaCoefficient &q) :
+AcroDiffusionIntegrator::AcroDiffusionIntegrator(OccaCoefficient q) :
   Q(q) {}
 
 AcroDiffusionIntegrator::~AcroDiffusionIntegrator() {
@@ -42,7 +42,7 @@ void AcroDiffusionIntegrator::Setup() {
 
   occa::properties props;
   SetupProperties(props);
-  Q.Setup(ir, props);
+  Q.Setup(*this, props);
 }
 
 
