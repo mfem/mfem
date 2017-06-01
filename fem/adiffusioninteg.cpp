@@ -68,11 +68,6 @@ void AcroDiffusionIntegrator::ComputeBTilde() {
 
 
 void AcroDiffusionIntegrator::Assemble() {
-  const ConstantCoefficient* const_coeff = dynamic_cast<const ConstantCoefficient*>(&Q);
-  if (!const_coeff) {
-    mfem_error("AcroDiffusionIntegrator can only handle ConstantCoefficients");
-  }
-
   //Get the jacobians and compute D with them
   OccaGeometry geom = GetGeometry();
   double *jac_ptr    = (double*) geom.J.memory().ptr();
