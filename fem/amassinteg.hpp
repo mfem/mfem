@@ -19,13 +19,13 @@ namespace mfem {
 
 class AcroMassIntegrator : public AcroIntegrator {
 private:
-  OccaCoefficient &Q;
+  OccaCoefficient Q;
   acro::Tensor D;            //Product of integration weight, physical consts, and element shape info
   acro::Tensor M;            //The assembled local mass matrices
   acro::Tensor T1, T2, T3;   //Intermediate computations for tensor product partial assembly
 
 public:
-  AcroMassIntegrator(OccaCoefficient &q);
+  AcroMassIntegrator(OccaCoefficient q);
   virtual ~AcroMassIntegrator();
 
   virtual OccaIntegrator* CreateInstance();
