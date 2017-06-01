@@ -81,7 +81,7 @@ void AcroDiffusionIntegrator::Assemble() {
 
   // Keep quadQ so GC won't free it
   OccaVector quadQ;
-  if (!Q.isConstant()) {
+  if (!Q.IsConstant()) {
     quadQ = Q.Eval();
   }
   double *q_ptr = (double*) quadQ.GetData().ptr();
@@ -91,7 +91,7 @@ void AcroDiffusionIntegrator::Assemble() {
       D.Init(nElem, nDim, nDim, nQuad1D);
       acro::Tensor Jdet(nElem, nQuad1D,
                         jacdet_ptr, jacdet_ptr, onGPU);
-      if (!Q.isConstant()) {
+      if (!Q.IsConstant()) {
         acro::Tensor q(nElem, nQuad1D,
                        q_ptr, q_ptr, onGPU);
         TE["D_e_m_n_k = W_k q_e_k Jdet_e_k"]
@@ -108,7 +108,7 @@ void AcroDiffusionIntegrator::Assemble() {
                         jacinv_ptr, jacinv_ptr, onGPU);
       acro::Tensor Jdet(nElem, nQuad1D, nQuad1D,
                         jacdet_ptr, jacdet_ptr, onGPU);
-      if (!Q.isConstant()) {
+      if (!Q.IsConstant()) {
         acro::Tensor q(nElem, nQuad1D, nQuad1D,
                        q_ptr, q_ptr, onGPU);
         TE["D_e_m_n_k1_k2 = W_k1_k2 q_e_k1_k2 Jdet_e_k1_k2 Jinv_e_k1_k2_m_n Jinv_e_k1_k2_n_m"]
@@ -125,7 +125,7 @@ void AcroDiffusionIntegrator::Assemble() {
                         jacinv_ptr, jacinv_ptr, onGPU);
       acro::Tensor Jdet(nElem, nQuad1D, nQuad1D, nQuad1D,
                         jacdet_ptr, jacdet_ptr, onGPU);
-      if (!Q.isConstant()) {
+      if (!Q.IsConstant()) {
         acro::Tensor q(nElem, nQuad1D, nQuad1D, nQuad1D,
                        q_ptr, q_ptr, onGPU);
         TE["D_e_m_n_k1_k2_k3 = W_k1_k2_k3 q_e_k1_k2_k3 Jdet_e_k1_k2_k3 Jinv_e_k1_k2_k3_m_n Jinv_e_k1_k2_k3_n_m"]
@@ -145,7 +145,7 @@ void AcroDiffusionIntegrator::Assemble() {
                       jacinv_ptr, jacinv_ptr, onGPU);
     acro::Tensor Jdet(nElem, nQuad,
                       jacdet_ptr, jacdet_ptr, onGPU);
-    if (!Q.isConstant()) {
+    if (!Q.IsConstant()) {
       acro::Tensor q(nElem, nQuad,
                      q_ptr, q_ptr, onGPU);
       TE["D_e_m_n_k = W_k q_e_k Jdet_e_k Jinv_e_k_m_n Jinv_e_k_n_m"]
@@ -156,7 +156,7 @@ void AcroDiffusionIntegrator::Assemble() {
     }
   }
 
-  if (Q.isConstant()) {
+  if (Q.IsConstant()) {
     D.Mult(Q.GetConstantValue());
   }
 }
