@@ -138,20 +138,20 @@ namespace mfem {
 
   //---[ Coefficient ]------------------
   OccaCoefficient::OccaCoefficient(const double value) :
-    name("COEFF"),
-    integ(NULL) {
+    integ(NULL),
+    name("COEFF") {
     coeffValue = value;
   }
 
   OccaCoefficient::OccaCoefficient(const std::string &source) :
-    name("COEFF"),
-    integ(NULL) {
+    integ(NULL),
+    name("COEFF") {
     coeffValue = source;
   }
 
   OccaCoefficient::OccaCoefficient(const OccaCoefficient &coeff) :
-    name(coeff.name),
     integ(NULL),
+    name(coeff.name),
     coeffValue(coeff.coeffValue) {
 
     const int paramCount = (int) coeff.params.size();
