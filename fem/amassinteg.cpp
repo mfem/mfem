@@ -53,11 +53,10 @@ void AcroMassIntegrator::Assemble() {
 
   // Keep quadQ so GC won't free it
   OccaVector quadQ;
-  double *q_ptr = NULL;
   if (!Q.IsConstant()) {
     quadQ = Q.Eval();
-    q_ptr = (double*) quadQ.GetData().ptr();
   }
+  double *q_ptr = (double*) quadQ.GetData().ptr();
 
   if (hasTensorBasis) {
     if (nDim == 1) {
@@ -81,10 +80,10 @@ void AcroMassIntegrator::Assemble() {
         acro::Tensor q(nElem, nQuad1D, nQuad1D,
                        q_ptr, q_ptr, onGPU);
         TE["D_e_m_n_k1_k2 = W_k1_k2 q_e_k1_k2 Jdet_e_k1_k2"]
-          (D, Jdet);
+          (D, W, q, Jdet);
       } else {
         TE["D_e_m_n_k1_k2 = W_k1_k2 Jdet_e_k1_k2"]
-          (D, Jdet);
+          (D, W, Jdet);
       }
     } else if (nDim == 3){
       D.Init(nElem, nDim, nDim, nQuad1D, nQuad1D, nQuad1D);
