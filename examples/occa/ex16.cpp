@@ -173,8 +173,8 @@ int main(int argc, char *argv[]) {
                  "--no-ov", "--no-occa-verbose",
                  "Print verbose information about OCCA kernel compilation.");
   args.AddOption(&use_acrotensor,
-                 "-a", "--use-acro",
-                 "--no-a", "--no-acro",
+                 "-ac", "--use-acro",
+                 "--no-ac", "--no-acro",
                  "Use Acrotensor.");
   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                  "--no-visualization",
