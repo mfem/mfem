@@ -63,7 +63,7 @@ void AcroMassIntegrator::Assemble() {
       if (!Q.IsConstant()) {
         acro::Tensor q(nElem, nQuad1D,
                        q_ptr, q_ptr, onGPU);
-        TE["D_e_m_n_k = W_k q_e_k Jdet_e_k"]
+        TE["D_e_m_n_k = W_k Q_e_k Jdet_e_k"]
           (D, W, q, Jdet);
       } else {
         TE["D_e_m_n_k = W_k Jdet_e_k"]
@@ -76,7 +76,7 @@ void AcroMassIntegrator::Assemble() {
       if (!Q.IsConstant()) {
         acro::Tensor q(nElem, nQuad1D, nQuad1D,
                        q_ptr, q_ptr, onGPU);
-        TE["D_e_m_n_k1_k2 = W_k1_k2 q_e_k1_k2 Jdet_e_k1_k2"]
+        TE["D_e_m_n_k1_k2 = W_k1_k2 Q_e_k1_k2 Jdet_e_k1_k2"]
           (D, W, q, Jdet);
       } else {
         TE["D_e_m_n_k1_k2 = W_k1_k2 Jdet_e_k1_k2"]
@@ -89,7 +89,7 @@ void AcroMassIntegrator::Assemble() {
       if (!Q.IsConstant()) {
         acro::Tensor q(nElem, nQuad1D, nQuad1D, nQuad1D,
                        q_ptr, q_ptr, onGPU);
-        TE["D_e_m_n_k1_k2_k3 = W_k1_k2_k3 q_e_k1_k2_k3 Jdet_e_k1_k2_k3"]
+        TE["D_e_m_n_k1_k2_k3 = W_k1_k2_k3 Q_e_k1_k2_k3 Jdet_e_k1_k2_k3"]
           (D, W, q, Jdet);
       } else {
         TE["D_e_m_n_k1_k2_k3 = W_k1_k2_k3 Jdet_e_k1_k2_k3"]
@@ -105,7 +105,7 @@ void AcroMassIntegrator::Assemble() {
     if (!Q.IsConstant()) {
       acro::Tensor q(nElem, nQuad,
                      q_ptr, q_ptr, onGPU);
-      TE["D_e_m_n_k = W_k q_e_k Jdet_e_k"]
+      TE["D_e_m_n_k = W_k Q_e_k Jdet_e_k"]
         (D, W, q, Jdet);
     } else {
       TE["D_e_m_n_k = W_k Jdet_e_k"]
