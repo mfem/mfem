@@ -249,7 +249,7 @@ void AcroDiffusionIntegrator::Mult(OccaVector &v) {
 
       //U1_e_k1_k2 = G_k1_i1 B_k2_i2 V_e_i1_i2
       TE["BV_e_i1_k2 = B_k2_i2 V_e_i1_i2"](T1, B, V);
-      TE["U1_e_k1_k2 = G_k1_i1 BV_i1_k2"](U1, G, T1);
+      TE["U1_e_k1_k2 = G_k1_i1 BV_e_i1_k2"](U1, G, T1);
 
       //U2_e_k1_k2 = B_k1_i1 G_k2_i2 V_e_i1_i2
       TE["GV_e_i1_k2 = B_k2_i2 V_e_i1_i2"](T1, G, V);

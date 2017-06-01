@@ -57,58 +57,58 @@ void AcroMassIntegrator::Assemble() {
 
   if (hasTensorBasis) {
     if (nDim == 1) {
-      D.Init(nElem, nDim, nDim, nQuad1D);
+      D.Init(nElem, nQuad1D);
       acro::Tensor Jdet(nElem, nQuad1D,
                         jacdet_ptr, jacdet_ptr, onGPU);
       if (!Q.IsConstant()) {
         acro::Tensor q(nElem, nQuad1D,
                        q_ptr, q_ptr, onGPU);
-        TE["D_e_m_n_k = W_k Q_e_k Jdet_e_k"]
+        TE["D_e_k = W_k Q_e_k Jdet_e_k"]
           (D, W, q, Jdet);
       } else {
-        TE["D_e_m_n_k = W_k Jdet_e_k"]
+        TE["D_e_k = W_k Jdet_e_k"]
           (D, W, Jdet);
       }
     } else if (nDim == 2) {
-      D.Init(nElem, nDim, nDim, nQuad1D, nQuad1D);
+      D.Init(nElem, nQuad1D, nQuad1D);
       acro::Tensor Jdet(nElem, nQuad1D, nQuad1D,
                         jacdet_ptr, jacdet_ptr, onGPU);
       if (!Q.IsConstant()) {
         acro::Tensor q(nElem, nQuad1D, nQuad1D,
                        q_ptr, q_ptr, onGPU);
-        TE["D_e_m_n_k1_k2 = W_k1_k2 Q_e_k1_k2 Jdet_e_k1_k2"]
+        TE["D_e_k1_k2 = W_k1_k2 Q_e_k1_k2 Jdet_e_k1_k2"]
           (D, W, q, Jdet);
       } else {
-        TE["D_e_m_n_k1_k2 = W_k1_k2 Jdet_e_k1_k2"]
+        TE["D_e_k1_k2 = W_k1_k2 Jdet_e_k1_k2"]
           (D, W, Jdet);
       }
     } else if (nDim == 3){
-      D.Init(nElem, nDim, nDim, nQuad1D, nQuad1D, nQuad1D);
+      D.Init(nElem, nQuad1D, nQuad1D, nQuad1D);
       acro::Tensor Jdet(nElem, nQuad1D, nQuad1D, nQuad1D,
                         jacdet_ptr, jacdet_ptr, onGPU);
       if (!Q.IsConstant()) {
         acro::Tensor q(nElem, nQuad1D, nQuad1D, nQuad1D,
                        q_ptr, q_ptr, onGPU);
-        TE["D_e_m_n_k1_k2_k3 = W_k1_k2_k3 Q_e_k1_k2_k3 Jdet_e_k1_k2_k3"]
+        TE["D_e_k1_k2_k3 = W_k1_k2_k3 Q_e_k1_k2_k3 Jdet_e_k1_k2_k3"]
           (D, W, q, Jdet);
       } else {
-        TE["D_e_m_n_k1_k2_k3 = W_k1_k2_k3 Jdet_e_k1_k2_k3"]
+        TE["D_e_k1_k2_k3 = W_k1_k2_k3 Jdet_e_k1_k2_k3"]
           (D, W, Jdet);
       }
     } else {
       mfem_error("AcroMassIntegrator tensor computations don't support dim > 3.");
     }
   } else {
-    D.Init(nElem, nDim, nDim, nQuad);
+    D.Init(nElem, nQuad);
     acro::Tensor Jdet(nElem, nQuad,
                       jacdet_ptr, jacdet_ptr, onGPU);
     if (!Q.IsConstant()) {
       acro::Tensor q(nElem, nQuad,
                      q_ptr, q_ptr, onGPU);
-      TE["D_e_m_n_k = W_k Q_e_k Jdet_e_k"]
+      TE["D_e_k = W_k Q_e_k Jdet_e_k"]
         (D, W, q, Jdet);
     } else {
-      TE["D_e_m_n_k = W_k Jdet_e_k"]
+      TE["D_e_k = W_k Jdet_e_k"]
         (D, W, Jdet);
     }
   }
@@ -189,14 +189,14 @@ void AcroMassIntegrator::Mult(OccaVector &v) {
     } else if (nDim == 2) {
       acro::Tensor V(nElem, nDof1D, nDof1D, v_ptr, v_ptr, onGPU);
       acro::Tensor X(nElem, nDof1D, nDof1D, v_ptr, v_ptr, onGPU);
-      TE["T1_e_k2_j1 = B_k2_j2 V_j1_j2"](T1, B, V);
+      TE["T1_e_k2_j1 = B_k2_j2 V_e_j1_j2"](T1, B, V);
       TE["T2_e_k1_k2 = D_e_k1_k2 B_k1_j1 T1_e_k2_j1"](T2, D, B, T1);
       TE["T1_e_k1_i2 = B_k2_i2 T2_e_k1_k2"](T1, B, T2);
       TE["X_e_i1_i2 = B_k1_i1 T1_e_k1_i2"](X, B, T1);
     } else if (nDim == 3) {
       acro::Tensor V(nElem, nDof1D, nDof1D, nDof1D, v_ptr, v_ptr, onGPU);
       acro::Tensor X(nElem, nDof1D, nDof1D, nDof1D, v_ptr, v_ptr, onGPU);
-      TE["T1_e_k3_j1_j2 = B_k3_j3 V_j1_j2_j3"](T1, B, V);
+      TE["T1_e_k3_j1_j2 = B_k3_j3 V_e_j1_j2_j3"](T1, B, V);
       TE["T2_e_k2_k3_j1 = B_k2_j2 T1_e_k3_j1_j2"](T2, B, T1);
       TE["T3_e_k1_k2_k3 = D_e_k1_k2_k3 B_k1_j1 T2_e_k2_k3_j1"](T3, D, B, T2);
       TE["T2_e_k1_k2_i3 = B_k3_i3 T3_e_k1_k2_k3"](T2, B, T3);
