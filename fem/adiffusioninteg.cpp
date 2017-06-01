@@ -39,9 +39,6 @@ void AcroDiffusionIntegrator::SetupIntegrationRule() {
 
 void AcroDiffusionIntegrator::Setup() {
   AcroIntegrator::Setup();
-
-  occa::properties props;
-  SetupProperties(props);
   Q.Setup(*this, props);
 }
 

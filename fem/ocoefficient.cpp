@@ -184,7 +184,7 @@ namespace mfem {
     }
     props_["defines"][name] = coeffValue;
 
-    props = props;
+    props = props_;
   }
 
   OccaCoefficient& OccaCoefficient::Add(OccaParameter *param) {

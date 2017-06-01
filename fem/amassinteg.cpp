@@ -39,9 +39,6 @@ void AcroMassIntegrator::SetupIntegrationRule() {
 
 void AcroMassIntegrator::Setup() {
   AcroIntegrator::Setup();
-
-  occa::properties props;
-  SetupProperties(props);
   Q.Setup(*this, props);
 }
 
