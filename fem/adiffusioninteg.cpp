@@ -76,10 +76,11 @@ void AcroDiffusionIntegrator::Assemble() {
 
   // Keep quadQ so GC won't free it
   OccaVector quadQ;
+  double *q_ptr = NULL;
   if (!Q.IsConstant()) {
     quadQ = Q.Eval();
+    q_ptr = (double*) quadQ.GetData().ptr();
   }
-  double *q_ptr = (double*) quadQ.GetData().ptr();
 
   if (hasTensorBasis) {
     if (nDim == 1) {
