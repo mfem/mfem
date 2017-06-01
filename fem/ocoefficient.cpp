@@ -149,6 +149,12 @@ namespace mfem {
     coeffValue = source;
   }
 
+  OccaCoefficient::OccaCoefficient(const char *source) :
+    integ(NULL),
+    name("COEFF") {
+    coeffValue = source;
+  }
+
   OccaCoefficient::OccaCoefficient(const OccaCoefficient &coeff) :
     integ(NULL),
     name(coeff.name),

@@ -196,6 +196,7 @@ namespace mfem {
   public:
     OccaCoefficient(const double value = 1.0);
     OccaCoefficient(const std::string &source);
+    OccaCoefficient(const char *source);
     ~OccaCoefficient();
 
     OccaCoefficient(const OccaCoefficient &coeff);
