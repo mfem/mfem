@@ -45,6 +45,10 @@
 using namespace std;
 using namespace mfem;
 
+#ifndef MFEM_USE_ACROTENSOR
+typedef OccaMassIntegrator AcroMassIntegrator;
+#endif
+
 double InitialCondition(const Vector& x)
 {
    double r2 = 0;
@@ -61,9 +65,10 @@ int main(int argc, char *argv[])
    const char *basis_type = "U"; // Closed uniform
    int order = 1;
    int ref_levels = 1;
-   bool visualization = 1;
    const char *device_info = "mode: 'Serial'";
    bool occa_verbose = false;
+   bool use_acrotensor = false;
+   bool visualization = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -80,6 +85,10 @@ int main(int argc, char *argv[])
                   "-ov", "--occa-verbose",
                   "--no-ov", "--no-occa-verbose",
                   "Print verbose information about OCCA kernel compilation.");
+   args.AddOption(&use_acrotensor,
+                  "-ac", "--use-acro",
+                  "--no-ac", "--no-acro",
+                  "Use Acrotensor.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -91,8 +100,21 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+#ifndef MFEM_USE_ACROTENSOR
+  if (use_acrotensor) {
+    cout << "MFEM not compiled with Acrotensor, reverting to OCCA\n";
+    use_acrotensor = false;
+  }
+#endif
+
    // Set the OCCA device to run example in
    occa::setDevice(device_info);
+
+   // Load cached kernels
+   occa::loadKernels();
+   occa::loadKernels("mfem");
+
+   // Set as the background device
    occa::settings()["verboseCompilation"] = occa_verbose;
 
    // See class BasisType in fem/fe_coll.hpp for available basis types
@@ -156,7 +178,13 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
    OccaBilinearForm *a = new OccaBilinearForm(ofespace);
-   a->AddDomainIntegrator(new OccaMassIntegrator(1.0));
+
+   if (use_acrotensor) {
+      a->AddDomainIntegrator(new AcroMassIntegrator(1.0));
+   } else {
+      a->AddDomainIntegrator(new OccaMassIntegrator(1.0));
+   }
+
    a->Assemble();
    tic_toc.Stop();
    cout << " done, " << tic_toc.RealTime() << "s." << endl;
