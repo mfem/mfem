@@ -19,7 +19,7 @@ namespace mfem {
 
 class AcroDiffusionIntegrator : public AcroIntegrator {
 private:
-  Coefficient &Q;
+  OccaCoefficient &Q;
   Array<acro::Tensor*> Btil; //Btilde used to compute stiffness matrix
   acro::Tensor D;            //Product of integration weight, physical consts, and element shape info
   acro::Tensor S;            //The assembled local stiffness matrices
@@ -28,7 +28,7 @@ private:
   void ComputeBTilde();
 
 public:
-  AcroDiffusionIntegrator(Coefficient &q);
+  AcroDiffusionIntegrator(OccaCoefficient &q);
   virtual ~AcroDiffusionIntegrator();
 
   virtual OccaIntegrator* CreateInstance();

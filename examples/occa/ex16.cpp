@@ -35,6 +35,11 @@
 using namespace std;
 using namespace mfem;
 
+#ifndef MFEM_USE_ACROTENSOR
+typedef OccaMassIntegrator      AcroMassIntegrator;
+typedef OccaDiffusionIntegrator AcroDiffusionIntegrator;
+#endif
+
 class GradientUpdate : public Operator {
   Operator *mOper, *kOper;
   const double dt;
@@ -86,24 +91,27 @@ protected:
   OccaBilinearForm *K;
 
   Operator *Moper, *Koper;
-  GradientUpdate *T; // T = M + dt K
+  GradientUpdate *T;        // T = M + dt K
   double current_dt;
 
-  OccaCGSolver M_solver; // Krylov solver for inverting the mass matrix M
-  DSmoother M_prec;      // Preconditioner for the mass matrix M
+  OccaCGSolver M_solver;    // Krylov solver for inverting the mass matrix M
+  DSmoother M_prec;         // Preconditioner for the mass matrix M
 
-  OccaCGSolver T_solver; // Implicit solver for T = M + dt K
-  DSmoother T_prec;      // Preconditioner for the implicit solver
+  OccaCGSolver T_solver;    // Implicit solver for T = M + dt K
+  DSmoother T_prec;         // Preconditioner for the implicit solver
 
   double alpha, kappa;
 
-  mutable OccaVector z; // auxiliary vector
+  mutable OccaVector z;    // auxiliary vector
+
+  bool use_acrotensor;    // Use Acrotensor integrators
 
 public:
   ConductionOperator(OccaFiniteElementSpace &fespace_,
                      double alpha_,
                      double kappa_,
-                     const OccaVector &u);
+                     const OccaVector &u,
+                     const bool use_acrotensor_);
 
   virtual void Mult(const OccaVector &u, OccaVector &du_dt) const;
   /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
@@ -131,6 +139,7 @@ int main(int argc, char *argv[]) {
   double kappa = 0.5;
   const char *device_info = "mode: 'Serial'";
   bool occa_verbose = false;
+  bool use_acrotensor = false;
   bool visualization = true;
   int vis_steps = 5;
 
@@ -163,6 +172,10 @@ int main(int argc, char *argv[]) {
                  "-ov", "--occa-verbose",
                  "--no-ov", "--no-occa-verbose",
                  "Print verbose information about OCCA kernel compilation.");
+  args.AddOption(&use_acrotensor,
+                 "-a", "--use-acro",
+                 "--no-a", "--no-acro",
+                 "Use Acrotensor.");
   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                  "--no-visualization",
                  "Enable or disable GLVis visualization.");
@@ -174,6 +187,13 @@ int main(int argc, char *argv[]) {
     return 1;
   }
   args.PrintOptions(cout);
+
+#ifndef MFEM_USE_ACROTENSOR
+  if (use_acrotensor) {
+    cout << "MFEM not compiled with Acrotensor, reverting to OCCA\n";
+    use_acrotensor = false;
+  }
+#endif
 
   // Set the OCCA device to run example in
   occa::setDevice(device_info);
@@ -246,7 +266,7 @@ int main(int argc, char *argv[]) {
   u_gf.GetTrueDofs(u);
 
   // 7. Initialize the conduction operator and the visualization.
-  ConductionOperator oper(ofespace, alpha, kappa, u);
+  ConductionOperator oper(ofespace, alpha, kappa, u, use_acrotensor);
 
   u_gf.SetFromTrueDofs(u);
 
@@ -325,7 +345,8 @@ int main(int argc, char *argv[]) {
 ConductionOperator::ConductionOperator(OccaFiniteElementSpace &ofespace_,
                                        double alpha_,
                                        double kappa_,
-                                       const OccaVector &u) :
+                                       const OccaVector &u,
+                                       const bool use_acrotensor_) :
   TimeDependentOperator(ofespace_.GetFESpace()->GetTrueVSize(), 0.0),
   ofespace(ofespace_),
   M(NULL),
@@ -334,12 +355,15 @@ ConductionOperator::ConductionOperator(OccaFiniteElementSpace &ofespace_,
   current_dt(0.0),
   alpha(alpha_),
   kappa(kappa_),
-  z(height) {
+  z(height),
+  use_acrotensor(use_acrotensor_) {
 
   const double rel_tol = 1e-8;
 
   M = new OccaBilinearForm(&ofespace);
-  M->AddDomainIntegrator(new OccaMassIntegrator(1.0));
+  M->AddDomainIntegrator(use_acrotensor
+                         ? new AcroMassIntegrator(1.0)
+                         : new OccaMassIntegrator(1.0));
   M->Assemble();
   M->FormOperator(ess_tdof_list, Moper);
 
@@ -399,7 +423,10 @@ void ConductionOperator::SetParameters(const OccaVector &u) {
     .AddGridFunction("u", u_alpha_gf, true);
 
   K = new OccaBilinearForm(&ofespace);
-  K->AddDomainIntegrator(new OccaDiffusionIntegrator(u_coeff));
+
+  K->AddDomainIntegrator(use_acrotensor
+                         ? new AcroDiffusionIntegrator(u_coeff)
+                         : new OccaDiffusionIntegrator(u_coeff));
   K->Assemble();
   K->FormOperator(ess_tdof_list, Koper);
 

@@ -17,7 +17,7 @@
 
 namespace mfem {
 
-AcroMassIntegrator::AcroMassIntegrator(Coefficient &q) :
+AcroMassIntegrator::AcroMassIntegrator(OccaCoefficient &q) :
   Q(q) {}
 
 AcroMassIntegrator::~AcroMassIntegrator() {
@@ -39,40 +39,65 @@ void AcroMassIntegrator::SetupIntegrationRule() {
 
 void AcroMassIntegrator::Setup() {
   AcroIntegrator::Setup();
+
+  occa::properties props;
+  SetupProperties(props);
+  Q.Setup(ir, props);
 }
 
 
 void AcroMassIntegrator::Assemble() {
-  const ConstantCoefficient* const_coeff = dynamic_cast<const ConstantCoefficient*>(&Q);
-  if (!const_coeff) {
-    mfem_error("AcroMassIntegrator can only handle ConstantCoefficients");
-  }
-
   //Get the jacobians and compute D with them
-  DiffusionIntegrator integ;
-  const FiniteElement &fe = *(fespace->GetFE(0));
   OccaGeometry geom = GetGeometry();
-
   double *jacdet_ptr = (double*) geom.detJ.memory().ptr();
+
+  // Keep quadQ so GC won't free it
+  OccaVector quadQ;
+  if (!Q.isConstant()) {
+    quadQ = Q.Eval();
+  }
+  double *q_ptr = (double*) quadQ.GetData().ptr();
+
   if (hasTensorBasis) {
     if (nDim == 1) {
       D.Init(nElem, nDim, nDim, nQuad1D);
       acro::Tensor Jdet(nElem, nQuad1D,
                         jacdet_ptr, jacdet_ptr, onGPU);
-      TE["D_e_m_n_k = W_k Jdet_e_k"]
-        (D, W, Jdet);
+      if (!Q.isConstant()) {
+        acro::Tensor q(nElem, nQuad1D,
+                       q_ptr, q_ptr, onGPU);
+        TE["D_e_m_n_k = W_k q_e_k Jdet_e_k"]
+          (D, W, q, Jdet);
+      } else {
+        TE["D_e_m_n_k = W_k Jdet_e_k"]
+          (D, W, Jdet);
+      }
     } else if (nDim == 2) {
       D.Init(nElem, nDim, nDim, nQuad1D, nQuad1D);
       acro::Tensor Jdet(nElem, nQuad1D, nQuad1D,
                         jacdet_ptr, jacdet_ptr, onGPU);
-      TE["D_e_m_n_k1_k2 = W_k1_k2 Jdet_e_k1_k2"]
-        (D, Jdet);
+      if (!Q.isConstant()) {
+        acro::Tensor q(nElem, nQuad1D, nQuad1D,
+                       q_ptr, q_ptr, onGPU);
+        TE["D_e_m_n_k1_k2 = W_k1_k2 q_e_k1_k2 Jdet_e_k1_k2"]
+          (D, Jdet);
+      } else {
+        TE["D_e_m_n_k1_k2 = W_k1_k2 Jdet_e_k1_k2"]
+          (D, Jdet);
+      }
     } else if (nDim == 3){
       D.Init(nElem, nDim, nDim, nQuad1D, nQuad1D, nQuad1D);
       acro::Tensor Jdet(nElem, nQuad1D, nQuad1D, nQuad1D,
                         jacdet_ptr, jacdet_ptr, onGPU);
-      TE["D_e_m_n_k1_k2_k3 = W_k1_k2_k3 Jdet_e_k1_k2_k3"]
-        (D, W, Jdet);
+      if (!Q.isConstant()) {
+        acro::Tensor q(nElem, nQuad1D, nQuad1D, nQuad1D,
+                       q_ptr, q_ptr, onGPU);
+        TE["D_e_m_n_k1_k2_k3 = W_k1_k2_k3 q_e_k1_k2_k3 Jdet_e_k1_k2_k3"]
+          (D, W, q, Jdet);
+      } else {
+        TE["D_e_m_n_k1_k2_k3 = W_k1_k2_k3 Jdet_e_k1_k2_k3"]
+          (D, W, Jdet);
+      }
     } else {
       mfem_error("AcroMassIntegrator tensor computations don't support dim > 3.");
     }
@@ -80,11 +105,20 @@ void AcroMassIntegrator::Assemble() {
     D.Init(nElem, nDim, nDim, nQuad);
     acro::Tensor Jdet(nElem, nQuad,
                       jacdet_ptr, jacdet_ptr, onGPU);
-    TE["D_e_m_n_k = W_k Jdet_e_k"]
-      (D, W, Jdet);
+    if (!Q.isConstant()) {
+      acro::Tensor q(nElem, nQuad,
+                     q_ptr, q_ptr, onGPU);
+      TE["D_e_m_n_k = W_k q_e_k Jdet_e_k"]
+        (D, W, q, Jdet);
+    } else {
+      TE["D_e_m_n_k = W_k Jdet_e_k"]
+        (D, W, Jdet);
+    }
   }
 
-  D.Mult(const_coeff->constant);
+  if (Q.isConstant()) {
+    D.Mult(Q.GetConstantValue());
+  }
 }
 
 

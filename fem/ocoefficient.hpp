@@ -184,9 +184,13 @@ namespace mfem {
   // For example, GridFunction (d, e) -> (q, e)
   class OccaCoefficient {
   private:
+    occa::device device;
+    OccaIntegrator *integ;
+
     std::string name;
     occa::json coeffValue;
 
+    occa::properties props;
     std::vector<OccaParameter*> params;
 
   public:
@@ -198,8 +202,8 @@ namespace mfem {
 
     OccaCoefficient& SetName(const std::string &name_);
 
-    void Setup(OccaIntegrator &integ,
-               occa::properties &props);
+    void Setup(OccaIntegrator &integ_,
+               occa::properties &props_);
 
     OccaCoefficient& Add(OccaParameter *param);
 
@@ -229,6 +233,11 @@ namespace mfem {
     OccaCoefficient& AddGridFunction(const std::string &name_,
                                      OccaGridFunction &gf,
                                      const bool useRestrict = false);
+
+    bool IsConstant();
+    double GetConstantValue();
+
+    OccaVector Eval();
 
     operator occa::kernelArg ();
   };

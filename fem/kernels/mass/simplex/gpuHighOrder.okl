@@ -13,10 +13,10 @@
 
 //---[ 2D ]-----------------------------
 kernel void Assemble2D(const int numElements,
-                       const double *quadWeights,
-                       const Jacobian2D_t J,
+                       const double * restrict quadWeights,
+                       const Jacobian2D_t restrict J,
                        COEFF_ARGS
-                       QLocal_t oper) {
+                       QLocal_t restrict oper) {
   for (int eOff = 0; eOff < numElements; eOff += A2_ELEMENT_BATCH; outer) {
     for (int e = eOff; e < (eOff + A2_ELEMENT_BATCH); ++e; inner) {
       if (e < numElements) {
@@ -69,10 +69,10 @@ kernel void Mult2D(const int numElements,
 
 //---[ 3D ]-----------------------------
 kernel void Assemble3D(const int numElements,
-                       const double *quadWeights,
-                       const Jacobian3D_t J,
+                       const double * restrict quadWeights,
+                       const Jacobian3D_t restrict J,
                        COEFF_ARGS
-                       QLocal_t oper) {
+                       QLocal_t restrict oper) {
   for (int eOff = 0; eOff < numElements; eOff += A3_ELEMENT_BATCH; outer) {
     for (int e = eOff; e < (eOff + A3_ELEMENT_BATCH); ++e; inner) {
       if (e < numElements) {

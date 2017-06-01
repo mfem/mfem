@@ -138,17 +138,20 @@ namespace mfem {
 
   //---[ Coefficient ]------------------
   OccaCoefficient::OccaCoefficient(const double value) :
-    name("COEFF") {
+    name("COEFF"),
+    integ(NULL) {
     coeffValue = value;
   }
 
   OccaCoefficient::OccaCoefficient(const std::string &source) :
-    name("COEFF") {
+    name("COEFF"),
+    integ(NULL) {
     coeffValue = source;
   }
 
   OccaCoefficient::OccaCoefficient(const OccaCoefficient &coeff) :
     name(coeff.name),
+    integ(NULL),
     coeffValue(coeff.coeffValue) {
 
     const int paramCount = (int) coeff.params.size();
@@ -169,14 +172,19 @@ namespace mfem {
     return *this;
   }
 
-  void OccaCoefficient::Setup(OccaIntegrator &integ,
-                              occa::properties &props) {
+  void OccaCoefficient::Setup(OccaIntegrator &integ_,
+                              occa::properties &props_) {
+    device = integ_.GetDevice();
+    integ = &integ_;
+
     const int paramCount = (int) params.size();
-    props["defines/COEFF_ARGS"] = "";
+    props_["defines"][name + "_ARGS"] = "";
     for (int i = 0; i < paramCount; ++i) {
-         params[i]->Setup(integ, props);
+         params[i]->Setup(integ_, props_);
     }
-    props["defines"][name] = coeffValue;
+    props_["defines"][name] = coeffValue;
+
+    props = props;
   }
 
   OccaCoefficient& OccaCoefficient::Add(OccaParameter *param) {
@@ -209,6 +217,46 @@ namespace mfem {
                                                     OccaGridFunction &gf,
                                                     const bool useRestrict) {
     return Add(new OccaGridFunctionParameter(name_, gf, useRestrict));
+  }
+
+  bool OccaCoefficient::IsConstant() {
+    return coeffValue.isNumber();
+  }
+
+  double OccaCoefficient::GetConstantValue() {
+    if (!IsConstant()) {
+      mfem_error("OccaCoefficient is not constant");
+    }
+    return coeffValue.number();
+  }
+
+  OccaVector OccaCoefficient::Eval() {
+    static occa::kernelBuilder builder =
+      occa::kernelBuilder::fromFile("occa://mfem/fem/coefficient.okl",
+                                    "CoefficientEval");
+
+    if (integ == NULL) {
+      mfem_error("OccaCoefficient requires a Setup() call before Eval()");
+    }
+
+    FiniteElementSpace &fespace = integ->GetFESpace();
+    const IntegrationRule &ir   = integ->GetIntegrationRule();
+
+    const int elements = fespace.GetNE();
+    const int numQuad  = ir.GetNPoints();
+
+    occa::properties kernelProps = props;
+    if (name != "COEFF") {
+      kernelProps["defines/COEFF"]      = name;
+      kernelProps["defines/COEFF_ARGS"] = name + "_ARGS";
+    }
+
+    OccaVector quadCoeff(device, numQuad * elements);
+
+    occa::kernel evalKernel = builder.build(device, kernelProps);
+    evalKernel(elements, *this, quadCoeff);
+
+    return quadCoeff;
   }
 
   OccaCoefficient::operator occa::kernelArg () {
