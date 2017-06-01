@@ -361,9 +361,11 @@ ConductionOperator::ConductionOperator(OccaFiniteElementSpace &ofespace_,
   const double rel_tol = 1e-8;
 
   M = new OccaBilinearForm(&ofespace);
-  M->AddDomainIntegrator(use_acrotensor
-                         ? new AcroMassIntegrator(1.0)
-                         : new OccaMassIntegrator(1.0));
+  if (use_acrotensor) {
+    M->AddDomainIntegrator(new AcroMassIntegrator(1.0));
+  } else {
+    M->AddDomainIntegrator(new OccaMassIntegrator(1.0));
+  }
   M->Assemble();
   M->FormOperator(ess_tdof_list, Moper);
 
@@ -424,9 +426,11 @@ void ConductionOperator::SetParameters(const OccaVector &u) {
 
   K = new OccaBilinearForm(&ofespace);
 
-  K->AddDomainIntegrator(use_acrotensor
-                         ? new AcroDiffusionIntegrator(u_coeff)
-                         : new OccaDiffusionIntegrator(u_coeff));
+  if (use_acrotensor) {
+    K->AddDomainIntegrator(new AcroDiffusionIntegrator(u_coeff));
+  } else {
+    K->AddDomainIntegrator(new OccaDiffusionIntegrator(u_coeff));
+  }
   K->Assemble();
   K->FormOperator(ess_tdof_list, Koper);
 
