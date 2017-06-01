@@ -54,6 +54,10 @@
 using namespace std;
 using namespace mfem;
 
+#ifndef MFEM_USE_ACROTENSOR
+typedef OccaDiffusionIntegrator AcroDiffusionIntegrator;
+#endif
+
 int main(int argc, char *argv[])
 {
   // 1. Parse command-line options.
@@ -63,8 +67,8 @@ int main(int argc, char *argv[])
   const char *pc = "none";
   const char *device_info = "mode: 'Serial'";
   bool occa_verbose = false;
-  bool visualization = 1;
   bool use_acrotensor = false;
+  bool visualization = 1;
 
   OptionsParser args(argc, argv);
   args.AddOption(&mesh_file, "-m", "--mesh",
@@ -83,13 +87,13 @@ int main(int argc, char *argv[])
                  "-ov", "--occa-verbose",
                  "--no-ov", "--no-occa-verbose",
                  "Print verbose information about OCCA kernel compilation.");
-  args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                 "--no-visualization",
-                 "Enable or disable GLVis visualization.");
   args.AddOption(&use_acrotensor,
                  "-a", "--use-acro",
                  "--no-a", "--no-acro",
                  "Use Acrotensor.");
+  args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                 "--no-visualization",
+                 "Enable or disable GLVis visualization.");
   args.Parse();
   if (!args.Good()) {
     args.PrintUsage(cout);
@@ -224,7 +228,7 @@ int main(int argc, char *argv[])
   if (use_acrotensor) {
     a->AddDomainIntegrator(new AcroDiffusionIntegrator(1.0));
   } else {
-    new OccaDiffusionIntegrator(1.0);
+    a->AddDomainIntegrator(new OccaDiffusionIntegrator(1.0));
   }
 
   BilinearForm *a_pc = NULL;
