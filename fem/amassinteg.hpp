@@ -25,7 +25,7 @@ private:
   acro::Tensor T1, T2, T3;   //Intermediate computations for tensor product partial assembly
 
 public:
-  AcroMassIntegrator(OccaCoefficient q);
+  AcroMassIntegrator(const OccaCoefficient &q);
   virtual ~AcroMassIntegrator();
 
   virtual OccaIntegrator* CreateInstance();

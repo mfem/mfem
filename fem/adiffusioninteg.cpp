@@ -17,7 +17,7 @@
 
 namespace mfem {
 
-AcroDiffusionIntegrator::AcroDiffusionIntegrator(OccaCoefficient q) :
+AcroDiffusionIntegrator::AcroDiffusionIntegrator(const OccaCoefficient &q) :
   Q(q) {}
 
 AcroDiffusionIntegrator::~AcroDiffusionIntegrator() {

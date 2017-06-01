@@ -17,7 +17,7 @@
 
 namespace mfem {
 
-AcroMassIntegrator::AcroMassIntegrator(OccaCoefficient q) :
+AcroMassIntegrator::AcroMassIntegrator(const OccaCoefficient &q) :
   Q(q) {}
 
 AcroMassIntegrator::~AcroMassIntegrator() {

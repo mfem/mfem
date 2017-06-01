@@ -28,7 +28,7 @@ private:
   void ComputeBTilde();
 
 public:
-  AcroDiffusionIntegrator(OccaCoefficient q);
+  AcroDiffusionIntegrator(const OccaCoefficient &q);
   virtual ~AcroDiffusionIntegrator();
 
   virtual OccaIntegrator* CreateInstance();
