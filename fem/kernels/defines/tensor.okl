@@ -61,10 +61,10 @@ typedef double* DVLocal1D_t @dim(1, NUM_DOFS_1D, numElements);
 typedef double* DVLocal2D_t @dim(2, NUM_DOFS_1D, NUM_DOFS_1D, numElements);
 typedef double* DVLocal3D_t @dim(3, NUM_DOFS_1D, NUM_DOFS_1D, NUM_DOFS_1D, numElements);
 
-typedef double* QDLocal_t   @dim(NUM_VDIM, NUM_QUAD, numElements);
-typedef double* QDLocal1D_t @dim(1, NUM_QUAD_1D, numElements);
-typedef double* QDLocal2D_t @dim(2, NUM_QUAD_1D, NUM_QUAD_1D, numElements);
-typedef double* QDLocal3D_t @dim(3, NUM_QUAD_1D, NUM_QUAD_1D, NUM_QUAD_1D, numElements);
+typedef double* QVLocal_t   @dim(NUM_VDIM, NUM_QUAD, numElements);
+typedef double* QVLocal1D_t @dim(1, NUM_QUAD_1D, numElements);
+typedef double* QVLocal2D_t @dim(2, NUM_QUAD_1D, NUM_QUAD_1D, numElements);
+typedef double* QVLocal3D_t @dim(3, NUM_QUAD_1D, NUM_QUAD_1D, NUM_QUAD_1D, numElements);
 
 typedef int* DLocalMap_t   @dim(NUM_DOFS, numElements);
 typedef int* DLocalMap1D_t @dim(NUM_DOFS_1D, numElements);
