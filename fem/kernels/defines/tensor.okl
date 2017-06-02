@@ -56,6 +56,11 @@ typedef int* DLocalMap1D_t @dim(NUM_DOFS_1D, numElements);
 typedef int* DLocalMap2D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, numElements);
 typedef int* DLocalMap3D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, NUM_DOFS_1D, numElements);
 
+typedef double* VLocal_t   @dim(NUM_VDIM, NUM_DOFS, numElements);
+typedef double* VLocal1D_t @dim(1, NUM_DOFS_1D, numElements);
+typedef double* VLocal2D_t @dim(2, NUM_DOFS_1D, NUM_DOFS_1D, numElements);
+typedef double* VLocal3D_t @dim(3, NUM_DOFS_1D, NUM_DOFS_1D, NUM_DOFS_1D, numElements);
+
 typedef double* QLocal_t   @dim(NUM_QUAD, numElements);
 typedef double* QLocal1D_t @dim(NUM_QUAD_1D, numElements);
 typedef double* QLocal2D_t @dim(NUM_QUAD_1D, NUM_QUAD_1D, numElements);
