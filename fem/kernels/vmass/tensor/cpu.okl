@@ -126,14 +126,13 @@ kernel void Mult2D(const int numElements,
       // sol_xy{qx, qy} = sol_xy{q} *= oper{q, e}
       for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
         for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-          const int q = QUAD_2D_ID(qx, qy);
-          sol_xy[0][qx][qy] *= oper(q, e);
-          sol_xy[1][qx][qy] *= oper(q, e);
+          sol_xy[0][qx][qy] *= oper(qx, qy, e);
+          sol_xy[1][qx][qy] *= oper(qx, qy, e);
         }
       }
 
       for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-        double sol_x[NUM_DOFS_1D];
+        double sol_x[2][NUM_DOFS_1D];
         for (int dx = 0; dx < NUM_QUAD_1D; ++dx) {
           sol_x[0][dx] = 0;
           sol_x[1][dx] = 0;
@@ -260,10 +259,9 @@ kernel void Mult3D(const int numElements,
       for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
           for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-            const int q = QUAD_3D_ID(qx, qy, qz);
-            sol_xyz[0][qz][qy][qx] *= oper(q, e);
-            sol_xyz[1][qz][qy][qx] *= oper(q, e);
-            sol_xyz[2][qz][qy][qx] *= oper(q, e);
+            sol_xyz[0][qz][qy][qx] *= oper(qx, qy, qz, e);
+            sol_xyz[1][qz][qy][qx] *= oper(qx, qy, qz, e);
+            sol_xyz[2][qz][qy][qx] *= oper(qx, qy, qz, e);
           }
         }
       }
