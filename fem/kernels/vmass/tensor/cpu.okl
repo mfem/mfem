@@ -30,7 +30,7 @@ kernel void Mult1D(const int numElements,
                    const QuadToDof_t restrict quadToDof,
                    const QuadToDof_t restrict quadToDofD,
                    const QLocal1D_t restrict oper,
-                   VLocal1D_t restrict vsol) {
+                   DVLocal1D_t restrict vsol) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     for (int dummy = 0; dummy < 1; ++dummy; inner) {
@@ -83,7 +83,7 @@ kernel void Mult2D(const int numElements,
                    const QuadToDof_t restrict quadToDof,
                    const QuadToDof_t restrict quadToDofD,
                    const QLocal2D_t restrict oper,
-                   VLocal2D_t restrict vsol) {
+                   DVLocal2D_t restrict vsol) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     for (int dummy=0; dummy<1; ++dummy; inner) {
@@ -188,7 +188,7 @@ kernel void Mult3D(const int numElements,
                    const QuadToDof_t restrict quadToDof,
                    const QuadToDof_t restrict quadToDofD,
                    const QLocal3D_t restrict oper,
-                   VLocal3D_t restrict vsol) {
+                   DVLocal3D_t restrict vsol) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     for (int dummy = 0; dummy < 1; ++dummy; inner) {

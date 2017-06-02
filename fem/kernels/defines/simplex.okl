@@ -26,4 +26,7 @@ typedef double* SymmOperator3D_t @dim(6, NUM_QUAD, numElements);
 typedef double* DLocal_t  @dim(NUM_DOFS, numElements);
 typedef double* QLocal_t @dim(NUM_QUAD, numElements);
 
+typedef double* DVLocal_t @dim(NUM_VDIM, NUM_DOFS, numElements);
+typedef double* QVLocal_t @dim(NUM_VDIM, NUM_QUAD, numElements);
+
 typedef int* DLocalMap_t @dim(NUM_DOFS, numElements);
