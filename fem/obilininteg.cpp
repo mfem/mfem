@@ -195,47 +195,51 @@ namespace mfem {
     maps.dofToQuadD.allocate(device,
                              quadPoints, dofs);
 
+    double *quadWeights1DData = NULL;
+
     if (transpose) {
       maps.dofToQuad.reindex(1,0);
       maps.dofToQuadD.reindex(1,0);
+      // Initialize quad weights only for transpose
+      maps.quadWeights.allocate(device,
+                                quadPointsND);
+      quadWeights1DData = new double[quadPoints];
     }
-
-    // Initialize quad weights
-    maps.quadWeights.allocate(device,
-                              quadPointsND);
-    double *quadWeights1DData = new double[quadPoints];
 
     mfem::Vector d2q(dofs);
     mfem::Vector d2qD(dofs);
     for (int q = 0; q < quadPoints; ++q) {
       const IntegrationPoint &ip = ir1D.IntPoint(q);
       basis.Eval(ip.x, d2q, d2qD);
-      quadWeights1DData[q] = ip.weight;
+      if (transpose) {
+        quadWeights1DData[q] = ip.weight;
+      }
       for (int d = 0; d < dofs; ++d) {
         maps.dofToQuad(q, d)  = d2q[d];
         maps.dofToQuadD(q, d) = d2qD[d];
       }
     }
 
-    for (int q = 0; q < quadPointsND; ++q) {
-      const int qx = q % quadPoints;
-      const int qz = q / quadPoints2D;
-      const int qy = (q - qz*quadPoints2D) / quadPoints;
-      double w = quadWeights1DData[qx];
-      if (dims > 1) {
-        w *= quadWeights1DData[qy];
-      }
-      if (dims > 2) {
-        w *= quadWeights1DData[qz];
-      }
-      maps.quadWeights[q] = w;
-    }
-
     maps.dofToQuad.keepInDevice();
     maps.dofToQuadD.keepInDevice();
-    maps.quadWeights.keepInDevice();
 
-    delete [] quadWeights1DData;
+    if (transpose) {
+      for (int q = 0; q < quadPointsND; ++q) {
+        const int qx = q % quadPoints;
+        const int qz = q / quadPoints2D;
+        const int qy = (q - qz*quadPoints2D) / quadPoints;
+        double w = quadWeights1DData[qx];
+        if (dims > 1) {
+          w *= quadWeights1DData[qy];
+        }
+        if (dims > 2) {
+          w *= quadWeights1DData[qz];
+        }
+        maps.quadWeights[q] = w;
+      }
+      maps.quadWeights.keepInDevice();
+      delete [] quadWeights1DData;
+    }
 
     return maps;
   }
@@ -298,17 +302,18 @@ namespace mfem {
     if (transpose) {
       maps.dofToQuad.reindex(1,0);
       maps.dofToQuadD.reindex(1,0);
+      // Initialize quad weights only for transpose
+      maps.quadWeights.allocate(device,
+                                numQuad);
     }
-
-    // Initialize quad weights
-    maps.quadWeights.allocate(device,
-                              numQuad);
 
     Vector d2q(numDofs);
     DenseMatrix d2qD(numDofs, dims);
     for (int q = 0; q < numQuad; ++q) {
       const IntegrationPoint &ip = ir.IntPoint(q);
-      maps.quadWeights[q] = ip.weight;
+      if (transpose) {
+        maps.quadWeights[q] = ip.weight;
+      }
       fe.CalcShape(ip, d2q);
       fe.CalcDShape(ip, d2qD);
       for (int d = 0; d < numDofs; ++d) {
@@ -323,7 +328,9 @@ namespace mfem {
 
     maps.dofToQuad.keepInDevice();
     maps.dofToQuadD.keepInDevice();
-    maps.quadWeights.keepInDevice();
+    if (transpose) {
+      maps.quadWeights.keepInDevice();
+    }
 
     return maps;
   }
