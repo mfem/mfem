@@ -266,24 +266,17 @@ int main(int argc, char *argv[])
   tic_toc.Stop();
   cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
-  // Run a couple iterations of CG in order to cache the kernels
-  CG(*A, B, X, 1, 5, 0.0, 0.0);
-
   cout << "Running " << (pc_choice == NONE ? "CG" : "PCG")
        << " ...\n" << flush;
-
   tic_toc.Clear();
   tic_toc.Start();
   // Solve with CG or PCG, depending if the matrix A_pc is available
-  if (pc_choice != NONE)
-    {
-      GSSmoother M(A_pc);
-      PCG(*A, M, B, X, 1, 500, 1e-12, 0.0);
-    }
-  else
-    {
-      CG(*A, B, X, 1, 500, 1e-12, 0.0);
-    }
+  if (pc_choice != NONE) {
+    GSSmoother M(A_pc);
+    PCG(*A, M, B, X, 1, 500, 1e-12, 0.0);
+  } else {
+    CG(*A, B, X, 1, 500, 1e-12, 0.0);
+  }
   occa::finish();
   tic_toc.Stop();
   cout << " done, " << tic_toc.RealTime() << "s." << endl;

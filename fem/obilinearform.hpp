@@ -44,41 +44,62 @@ namespace mfem {
   protected:
     typedef std::vector<OccaIntegrator*> IntegratorVector;
 
+    occa::device device;
+
     // State information
+    mutable Mesh *mesh;
+
     mutable OccaFiniteElementSpace *ofespace;
     mutable FiniteElementSpace *fespace;
-    mutable Mesh *mesh;
+
+    mutable OccaFiniteElementSpace *ofespace2;
+    mutable FiniteElementSpace *fespace2;
 
     IntegratorVector integrators;
 
     // Device data
-    occa::device device;
     occa::properties baseKernelProps;
 
-    // The input vector is mapped to local nodes for easy and efficient operations
+    // The input and output vectors are mapped to local nodes for efficient operations
     // The size is: (number of elements) * (nodes in element)
-    mutable OccaVector localX;
+    mutable OccaVector localX, localY;
 
   public:
     OccaBilinearForm(OccaFiniteElementSpace *ofespace_);
-    OccaBilinearForm(occa::device device_, OccaFiniteElementSpace *ofespace_);
+    OccaBilinearForm(occa::device device_,
+                     OccaFiniteElementSpace *ofespace_);
 
-    void Init(occa::device device_, OccaFiniteElementSpace *ofespace_);
+    OccaBilinearForm(OccaFiniteElementSpace *ofespace_,
+                     OccaFiniteElementSpace *ofespace2_);
+    OccaBilinearForm(occa::device device_,
+                     OccaFiniteElementSpace *ofespace_,
+                     OccaFiniteElementSpace *ofespace2_);
+
+    void Init(occa::device device_,
+              OccaFiniteElementSpace *ofespace_,
+              OccaFiniteElementSpace *ofespace2_);
 
     occa::device GetDevice();
 
     // Useful mesh Information
     int BaseGeom() const;
-    Mesh& GetMesh() const;
-    FiniteElementSpace& GetFESpace() const;
-    OccaFiniteElementSpace& GetOccaFESpace() const;
-
-    // Useful FE information
     int GetDim() const;
     int64_t GetNE() const;
+
+    Mesh& GetMesh() const;
+    FiniteElementSpace& GetFESpace() const;
+    FiniteElementSpace& GetFESpace2() const;
+    OccaFiniteElementSpace& GetOccaFESpace() const;
+    OccaFiniteElementSpace& GetOccaFESpace2() const;
+
+    // Useful FE information
     int64_t GetNDofs() const;
+    int64_t GetNDofs2() const;
     int64_t GetVDim() const;
+    int64_t GetVDim2() const;
+
     const FiniteElement& GetFE(const int i) const;
+    const FiniteElement& GetFE2(const int i) const;
 
     // Adds new Domain Integrator.
     void AddDomainIntegrator(OccaIntegrator *integrator,

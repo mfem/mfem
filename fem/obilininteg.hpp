@@ -46,8 +46,8 @@ namespace mfem {
 
   public:
     // Local stiffness matrices (B and B^T operators)
-    occa::array<double> dofToQuad, dofToQuadD; // B
-    occa::array<double> quadToDof, quadToDofD; // B^T
+    occa::array<double, occa::dynamic> dofToQuad, dofToQuadD; // B
+    occa::array<double, occa::dynamic> quadToDof, quadToDofD; // B^T
     occa::array<double> quadWeights;
 
     OccaDofQuadMaps();
@@ -68,11 +68,38 @@ namespace mfem {
     static OccaDofQuadMaps& GetTensorMaps(occa::device device,
                                           const FiniteElement &fe,
                                           const TensorBasisElement &tfe,
-                                          const IntegrationRule &ir);
+                                          const IntegrationRule &ir,
+                                          const bool transpose = false);
+
+    static OccaDofQuadMaps& GetTensorMaps(occa::device device,
+                                          const FiniteElement &fe,
+                                          const FiniteElement &fe2,
+                                          const TensorBasisElement &tfe,
+                                          const TensorBasisElement &tfe2,
+                                          const IntegrationRule &ir,
+                                          const bool transpose = false);
+
+    static OccaDofQuadMaps GetD2QTensorMaps(occa::device device,
+                                            const FiniteElement &fe,
+                                            const TensorBasisElement &tfe,
+                                            const IntegrationRule &ir,
+                                            const bool transpose = false);
 
     static OccaDofQuadMaps& GetSimplexMaps(occa::device device,
                                            const FiniteElement &fe,
-                                           const IntegrationRule &ir);
+                                           const IntegrationRule &ir,
+                                           const bool transpose = false);
+
+    static OccaDofQuadMaps& GetSimplexMaps(occa::device device,
+                                           const FiniteElement &fe,
+                                           const FiniteElement &fe2,
+                                           const IntegrationRule &ir,
+                                           const bool transpose = false);
+
+    static OccaDofQuadMaps GetD2QSimplexMaps(occa::device device,
+                                             const FiniteElement &fe,
+                                             const IntegrationRule &ir,
+                                             const bool transpose = false);
   };
 
   //---[ Define Methods ]---------------
@@ -83,7 +110,17 @@ namespace mfem {
                            const IntegrationRule &ir,
                            occa::properties &props);
 
+  void setTensorProperties(const FiniteElement &fe,
+                           const FiniteElement &fe2,
+                           const IntegrationRule &ir,
+                           occa::properties &props);
+
   void setSimplexProperties(const FiniteElement &fe,
+                            const IntegrationRule &ir,
+                            occa::properties &props);
+
+  void setSimplexProperties(const FiniteElement &fe,
+                           const FiniteElement &fe2,
                             const IntegrationRule &ir,
                             occa::properties &props);
 
@@ -93,9 +130,11 @@ namespace mfem {
     occa::device device;
 
     OccaBilinearForm *bform;
-    OccaFiniteElementSpace *ofespace;
-    FiniteElementSpace *fespace;
     Mesh *mesh;
+    OccaFiniteElementSpace *ofespace;
+    OccaFiniteElementSpace *ofespace2;
+    FiniteElementSpace *fespace;
+    FiniteElementSpace *fespace2;
     occa::properties props;
     OccaIntegratorType itype;
 
@@ -112,6 +151,8 @@ namespace mfem {
     virtual std::string GetName() = 0;
 
     FiniteElementSpace& GetFESpace();
+    FiniteElementSpace& GetFESpace2();
+
     const IntegrationRule& GetIntegrationRule();
     OccaDofQuadMaps& GetDofQuadMaps();
 
@@ -127,7 +168,7 @@ namespace mfem {
     virtual void Setup() = 0;
 
     virtual void Assemble() = 0;
-    virtual void Mult(OccaVector &x) = 0;
+    virtual void Mult(OccaVector &x, OccaVector &y) = 0;
 
     OccaGeometry GetGeometry(const int flags = (OccaGeometry::Jacobian    |
                                                 OccaGeometry::JacobianInv |
@@ -161,7 +202,7 @@ namespace mfem {
     virtual void Setup();
 
     virtual void Assemble();
-    virtual void Mult(OccaVector &x);
+    virtual void Mult(OccaVector &x, OccaVector &y);
   };
   //====================================
 
@@ -185,7 +226,7 @@ namespace mfem {
     virtual void Setup();
 
     virtual void Assemble();
-    virtual void Mult(OccaVector &x);
+    virtual void Mult(OccaVector &x, OccaVector &y);
   };
   //====================================
 
@@ -209,7 +250,7 @@ namespace mfem {
      virtual void Setup();
 
     virtual void Assemble();
-    virtual void Mult(OccaVector &x);
+    virtual void Mult(OccaVector &x, OccaVector &y);
   };
   //====================================
 

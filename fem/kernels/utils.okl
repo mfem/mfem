@@ -9,13 +9,17 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-typedef double* Local_t @dim(NUM_DOFS, numElements);
+typedef double* Local_t @dim(numVDim, numDofs, numElements);
 
 kernel void InitLocalVector(const int numElements,
+                            const int numDofs,
+                            const int numVDim,
                             Local_t restrict sol) {
   for (int e = 0; e < numElements; ++e; outer) {
-    for (int d = 0; d < NUM_DOFS; ++d; inner) {
-      sol(d, e) = 0;
+    for (int d = 0; d < numDofs; ++d; inner) {
+      for (int v = 0; v < numVDim; ++v) {
+        sol(v, d, e) = 0;
+      }
     }
   }
 }

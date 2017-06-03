@@ -42,7 +42,7 @@ public:
   virtual std::string GetName() = 0;
   virtual void Assemble() = 0;
   virtual void AssembleMatrix() = 0;
-  virtual void Mult(OccaVector &x) = 0;
+  virtual void Mult(OccaVector &x, OccaVector &y) = 0;
 };
 
 }
