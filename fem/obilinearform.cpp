@@ -239,11 +239,12 @@ namespace mfem {
 
   void OccaBilinearForm::FormOperator(const Array<int> &ess_tdof_list,
                                       Operator *&Aout) {
-    const Operator *P = GetProlongation();
+    const Operator *trialP = GetTrialProlongation();
+    const Operator *testP  = GetTestProlongation();
     Operator *rap = this;
 
-    if (P) {
-      rap = new OccaRAPOperator(*P, *this, *P);
+    if (trialP) {
+      rap = new OccaRAPOperator(*testP, *this, *trialP);
     }
 
     Aout = new OccaConstrainedOperator(device,
@@ -256,8 +257,8 @@ namespace mfem {
                                  Operator *A,
                                  OccaVector &X, OccaVector &B,
                                  int copy_interior) {
-    const Operator *P = GetProlongation();
-    const Operator *R = GetRestriction();
+    const Operator *P = GetTrialProlongation();
+    const Operator *R = GetTrialRestriction();
 
     if (P) {
       // Variational restriction with P
