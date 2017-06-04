@@ -96,6 +96,12 @@ int main(int argc, char *argv[])
 
   // Set the OCCA device to run example in
   occa::setDevice(device_info);
+
+  // Load cached kernels
+  occa::loadKernels();
+  occa::loadKernels("mfem");
+
+  // Set as the background device
   occa::settings()["verboseCompilation"] = occa_verbose;
 
   enum PCType { NONE, AMG };

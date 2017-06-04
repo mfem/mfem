@@ -237,6 +237,22 @@ namespace mfem {
   }
 
   OccaVector OccaCoefficient::Eval() {
+    if (integ == NULL) {
+      mfem_error("OccaCoefficient requires a Setup() call before Eval()");
+    }
+
+    FiniteElementSpace &fespace = integ->GetTrialFESpace();
+    const IntegrationRule &ir   = integ->GetIntegrationRule();
+
+    const int elements = fespace.GetNE();
+    const int numQuad  = ir.GetNPoints();
+
+    OccaVector quadCoeff(device, numQuad * elements);
+    Eval(quadCoeff);
+    return quadCoeff;
+  }
+
+  void OccaCoefficient::Eval(OccaVector &quadCoeff) {
     static occa::kernelBuilder builder =
       occa::kernelBuilder::fromFile("occa://mfem/fem/coefficient.okl",
                                     "CoefficientEval");
@@ -245,11 +261,7 @@ namespace mfem {
       mfem_error("OccaCoefficient requires a Setup() call before Eval()");
     }
 
-    FiniteElementSpace &fespace = integ->GetFESpace();
-    const IntegrationRule &ir   = integ->GetIntegrationRule();
-
-    const int elements = fespace.GetNE();
-    const int numQuad  = ir.GetNPoints();
+    const int elements = integ->GetTrialFESpace().GetNE();
 
     occa::properties kernelProps = props;
     if (name != "COEFF") {
@@ -257,12 +269,8 @@ namespace mfem {
       kernelProps["defines/COEFF_ARGS"] = name + "_ARGS";
     }
 
-    OccaVector quadCoeff(device, numQuad * elements);
-
     occa::kernel evalKernel = builder.build(device, kernelProps);
     evalKernel(elements, *this, quadCoeff);
-
-    return quadCoeff;
   }
 
   OccaCoefficient::operator occa::kernelArg () {

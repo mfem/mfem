@@ -49,11 +49,11 @@ namespace mfem {
     // State information
     mutable Mesh *mesh;
 
-    mutable OccaFiniteElementSpace *ofespace;
-    mutable FiniteElementSpace *fespace;
+    mutable OccaFiniteElementSpace *otrialFespace;
+    mutable FiniteElementSpace *trialFespace;
 
-    mutable OccaFiniteElementSpace *ofespace2;
-    mutable FiniteElementSpace *fespace2;
+    mutable OccaFiniteElementSpace *otestFespace;
+    mutable FiniteElementSpace *testFespace;
 
     IntegratorVector integrators;
 
@@ -69,15 +69,15 @@ namespace mfem {
     OccaBilinearForm(occa::device device_,
                      OccaFiniteElementSpace *ofespace_);
 
-    OccaBilinearForm(OccaFiniteElementSpace *ofespace_,
-                     OccaFiniteElementSpace *ofespace2_);
+    OccaBilinearForm(OccaFiniteElementSpace *otrialFespace_,
+                     OccaFiniteElementSpace *otestFespace_);
     OccaBilinearForm(occa::device device_,
-                     OccaFiniteElementSpace *ofespace_,
-                     OccaFiniteElementSpace *ofespace2_);
+                     OccaFiniteElementSpace *otrialFespace_,
+                     OccaFiniteElementSpace *otestFespace_);
 
     void Init(occa::device device_,
-              OccaFiniteElementSpace *ofespace_,
-              OccaFiniteElementSpace *ofespace2_);
+              OccaFiniteElementSpace *otrialFespace_,
+              OccaFiniteElementSpace *otestFespace_);
 
     occa::device GetDevice();
 
@@ -87,19 +87,22 @@ namespace mfem {
     int64_t GetNE() const;
 
     Mesh& GetMesh() const;
-    FiniteElementSpace& GetFESpace() const;
-    FiniteElementSpace& GetFESpace2() const;
-    OccaFiniteElementSpace& GetOccaFESpace() const;
-    OccaFiniteElementSpace& GetOccaFESpace2() const;
+
+    FiniteElementSpace& GetTrialFESpace() const;
+    OccaFiniteElementSpace& GetTrialOccaFESpace() const;
+
+    FiniteElementSpace& GetTestFESpace() const;
+    OccaFiniteElementSpace& GetTestOccaFESpace() const;
 
     // Useful FE information
-    int64_t GetNDofs() const;
-    int64_t GetNDofs2() const;
-    int64_t GetVDim() const;
-    int64_t GetVDim2() const;
+    int64_t GetTrialNDofs() const;
+    int64_t GetTestNDofs() const;
 
-    const FiniteElement& GetFE(const int i) const;
-    const FiniteElement& GetFE2(const int i) const;
+    int64_t GetTrialVDim() const;
+    int64_t GetTestVDim() const;
+
+    const FiniteElement& GetTrialFE(const int i) const;
+    const FiniteElement& GetTestFE(const int i) const;
 
     // Adds new Domain Integrator.
     void AddDomainIntegrator(OccaIntegrator *integrator,
@@ -122,10 +125,11 @@ namespace mfem {
                        const occa::properties &props,
                        const OccaIntegratorType itype);
 
-    // Get the finite element space prolongation matrix
-    virtual const Operator *GetProlongation() const;
-    // Get the finite element space restriction matrix
-    virtual const Operator *GetRestriction() const;
+    virtual const Operator *GetTrialProlongation() const;
+    virtual const Operator *GetTestProlongation() const;
+
+    virtual const Operator *GetTrialRestriction() const;
+    virtual const Operator *GetTestRestriction() const;
 
     // Assembles the form i.e. sums over all domain/bdr integrators.
     virtual void Assemble();

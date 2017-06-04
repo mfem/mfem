@@ -72,10 +72,10 @@ namespace mfem {
                                           const bool transpose = false);
 
     static OccaDofQuadMaps& GetTensorMaps(occa::device device,
-                                          const FiniteElement &fe,
-                                          const FiniteElement &fe2,
-                                          const TensorBasisElement &tfe,
-                                          const TensorBasisElement &tfe2,
+                                          const FiniteElement &trialFE,
+                                          const FiniteElement &testFE,
+                                          const TensorBasisElement &trialTFE,
+                                          const TensorBasisElement &testTFE,
                                           const IntegrationRule &ir,
                                           const bool transpose = false);
 
@@ -91,8 +91,8 @@ namespace mfem {
                                            const bool transpose = false);
 
     static OccaDofQuadMaps& GetSimplexMaps(occa::device device,
-                                           const FiniteElement &fe,
-                                           const FiniteElement &fe2,
+                                           const FiniteElement &trialFE,
+                                           const FiniteElement &testFE,
                                            const IntegrationRule &ir,
                                            const bool transpose = false);
 
@@ -131,10 +131,13 @@ namespace mfem {
 
     OccaBilinearForm *bform;
     Mesh *mesh;
-    OccaFiniteElementSpace *ofespace;
-    OccaFiniteElementSpace *ofespace2;
-    FiniteElementSpace *fespace;
-    FiniteElementSpace *fespace2;
+
+    OccaFiniteElementSpace *otrialFespace;
+    OccaFiniteElementSpace *otestFespace;
+
+    FiniteElementSpace *trialFespace;
+    FiniteElementSpace *testFespace;
+
     occa::properties props;
     OccaIntegratorType itype;
 
@@ -150,8 +153,8 @@ namespace mfem {
 
     virtual std::string GetName() = 0;
 
-    FiniteElementSpace& GetFESpace();
-    FiniteElementSpace& GetFESpace2();
+    FiniteElementSpace& GetTrialFESpace();
+    FiniteElementSpace& GetTestFESpace();
 
     const IntegrationRule& GetIntegrationRule();
     OccaDofQuadMaps& GetDofQuadMaps();

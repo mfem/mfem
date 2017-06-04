@@ -239,6 +239,7 @@ namespace mfem {
     double GetConstantValue();
 
     OccaVector Eval();
+    void Eval(OccaVector &quadCoeff);
 
     operator occa::kernelArg ();
   };

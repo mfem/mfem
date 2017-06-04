@@ -34,49 +34,53 @@ namespace mfem {
     Init(device, ofespace_, ofespace_);
   }
 
-  OccaBilinearForm::OccaBilinearForm(OccaFiniteElementSpace *ofespace_,
-                                     OccaFiniteElementSpace *ofespace2_) :
-    Operator(ofespace_->GetGlobalDofs(),
-             ofespace2_->GetGlobalDofs()) {
-    Init(occa::getDevice(), ofespace_, ofespace2_);
+  OccaBilinearForm::OccaBilinearForm(OccaFiniteElementSpace *otrialFespace_,
+                                     OccaFiniteElementSpace *otestFespace_) :
+    Operator(otrialFespace_->GetGlobalDofs(),
+             otestFespace_->GetGlobalDofs()) {
+    Init(occa::getDevice(), otrialFespace_, otestFespace_);
   }
 
   OccaBilinearForm::OccaBilinearForm(occa::device device_,
-                                     OccaFiniteElementSpace *ofespace_,
-                                     OccaFiniteElementSpace *ofespace2_) :
-    Operator(ofespace_->GetGlobalDofs(),
-             ofespace2_->GetGlobalDofs()) {
-    Init(device, ofespace_, ofespace2_);
+                                     OccaFiniteElementSpace *otrialFespace_,
+                                     OccaFiniteElementSpace *otestFespace_) :
+    Operator(otrialFespace_->GetGlobalDofs(),
+             otestFespace_->GetGlobalDofs()) {
+    Init(device, otrialFespace_, otestFespace_);
   }
 
   void OccaBilinearForm::Init(occa::device device_,
-                              OccaFiniteElementSpace *ofespace_,
-                              OccaFiniteElementSpace *ofespace2_) {
+                              OccaFiniteElementSpace *otrialFespace_,
+                              OccaFiniteElementSpace *otestFespace_) {
     device = device_;
 
-    ofespace = ofespace_;
-    fespace  = ofespace_->GetFESpace();
+    otrialFespace = otrialFespace_;
+    trialFespace  = otrialFespace_->GetFESpace();
 
-    ofespace2 = ofespace2_;
-    fespace2  = ofespace2_->GetFESpace();
+    otestFespace = otestFespace_;
+    testFespace  = otestFespace_->GetFESpace();
 
-    mesh = fespace->GetMesh();
+    mesh = trialFespace->GetMesh();
 
-    const int vdim  = fespace->GetVDim();
-    const int vdim2 = fespace2->GetVDim();
+    const int trialVDim = trialFespace->GetVDim();
+    const int testVDim  = testFespace->GetVDim();
 
-    baseKernelProps["defines/NUM_VDIM"]  = vdim;
-    baseKernelProps["defines/NUM_VDIM2"] = vdim2;
+    baseKernelProps["defines/NUM_VDIM"]   = trialVDim;
+    baseKernelProps["defines/TRIAL_VDIM"] = trialVDim;
+    baseKernelProps["defines/TEST_VDIM"]  = testVDim;
 
-    const int elements   = GetNE();
-    const int localDofs  = ofespace->GetLocalDofs();
-    const int localDofs2 = ofespace2->GetLocalDofs();
+    const int elements = GetNE();
+    const int trialLocalDofs = otrialFespace->GetLocalDofs();
+    const int testLocalDofs  = otestFespace->GetLocalDofs();
 
-    const bool spacesDiffer = ((localDofs * vdim) != (localDofs2 * vdim2));
+    const int trialElementEntries = (trialLocalDofs * trialVDim);
+    const int testElementEntries  = (testLocalDofs * testVDim);
 
-    localX.SetSize(device, elements * localDofs);
+    const bool spacesDiffer = (trialElementEntries != testElementEntries);
+
+    localX.SetSize(device, elements * trialElementEntries);
     if (spacesDiffer) {
-      localY.SetSize(device, elements * localDofs2);
+      localY.SetSize(device, elements * testElementEntries);
     } else {
       localY.SetDataAndSize(localX.GetData(), localX.Size());
     }
@@ -85,9 +89,9 @@ namespace mfem {
     if (device.mode() == "OpenMP") {
       occa::kernel initLocalKernel = device.buildKernel("occa://mfem/fem/utils.okl",
                                                         "InitLocalVector");
-      initLocalKernel(elements, localDofs, vdim, localX);
+      initLocalKernel(elements, trialLocalDofs, trialVDim, localX);
       if (spacesDiffer) {
-        initLocalKernel(elements, localDofs2, vdim2, localY);
+        initLocalKernel(elements, testLocalDofs, testVDim, localY);
       }
     }
   }
@@ -112,44 +116,44 @@ namespace mfem {
     return *mesh;
   }
 
-  FiniteElementSpace& OccaBilinearForm::GetFESpace() const {
-    return *fespace;
+  FiniteElementSpace& OccaBilinearForm::GetTrialFESpace() const {
+    return *trialFespace;
   }
 
-  FiniteElementSpace& OccaBilinearForm::GetFESpace2() const {
-    return *fespace2;
+  FiniteElementSpace& OccaBilinearForm::GetTestFESpace() const {
+    return *testFespace;
   }
 
-  OccaFiniteElementSpace& OccaBilinearForm::GetOccaFESpace() const {
-    return *ofespace;
+  OccaFiniteElementSpace& OccaBilinearForm::GetTrialOccaFESpace() const {
+    return *otrialFespace;
   }
 
-  OccaFiniteElementSpace& OccaBilinearForm::GetOccaFESpace2() const {
-    return *ofespace2;
+  OccaFiniteElementSpace& OccaBilinearForm::GetTestOccaFESpace() const {
+    return *otestFespace;
   }
 
-  int64_t OccaBilinearForm::GetNDofs() const {
-    return fespace->GetNDofs();
+  int64_t OccaBilinearForm::GetTrialNDofs() const {
+    return trialFespace->GetNDofs();
   }
 
-  int64_t OccaBilinearForm::GetNDofs2() const {
-    return fespace2->GetNDofs();
+  int64_t OccaBilinearForm::GetTestNDofs() const {
+    return testFespace->GetNDofs();
   }
 
-  int64_t OccaBilinearForm::GetVDim() const {
-    return fespace->GetVDim();
+  int64_t OccaBilinearForm::GetTrialVDim() const {
+    return trialFespace->GetVDim();
   }
 
-  int64_t OccaBilinearForm::GetVDim2() const {
-    return fespace2->GetVDim();
+  int64_t OccaBilinearForm::GetTestVDim() const {
+    return testFespace->GetVDim();
   }
 
-  const FiniteElement& OccaBilinearForm::GetFE(const int i) const {
-    return *(fespace->GetFE(i));
+  const FiniteElement& OccaBilinearForm::GetTrialFE(const int i) const {
+    return *(trialFespace->GetFE(i));
   }
 
-  const FiniteElement& OccaBilinearForm::GetFE2(const int i) const {
-    return *(fespace2->GetFE(i));
+  const FiniteElement& OccaBilinearForm::GetTestFE(const int i) const {
+    return *(testFespace->GetFE(i));
   }
 
   // Adds new Domain Integrator.
@@ -198,14 +202,20 @@ namespace mfem {
     integrators.push_back(integrator);
   }
 
-  // Get the finite element space prolongation matrix
-  const Operator* OccaBilinearForm::GetProlongation() const {
-    return ofespace->GetProlongationOperator();
+  const Operator* OccaBilinearForm::GetTrialProlongation() const {
+    return otrialFespace->GetProlongationOperator();
   }
 
-  // Get the finite element space restriction matrix
-  const Operator* OccaBilinearForm::GetRestriction() const {
-    return ofespace->GetRestrictionOperator();
+  const Operator* OccaBilinearForm::GetTestProlongation() const {
+    return otestFespace->GetProlongationOperator();
+  }
+
+  const Operator* OccaBilinearForm::GetTrialRestriction() const {
+    return otrialFespace->GetRestrictionOperator();
+  }
+
+  const Operator* OccaBilinearForm::GetTestRestriction() const {
+    return otestFespace->GetRestrictionOperator();
   }
 
   //
@@ -275,14 +285,14 @@ namespace mfem {
 
   // Matrix vector multiplication.
   void OccaBilinearForm::Mult(const OccaVector &x, OccaVector &y) const {
-    ofespace->GlobalToLocal(x, localX);
+    otrialFespace->GlobalToLocal(x, localX);
 
     const int integratorCount = (int) integrators.size();
     for (int i = 0; i < integratorCount; ++i) {
       integrators[i]->Mult(localX, localY);
     }
 
-    ofespace2->LocalToGlobal(localY, y);
+    otestFespace->LocalToGlobal(localY, y);
   }
 
   // Matrix transpose vector multiplication.

@@ -33,8 +33,9 @@ std::string AcroMassIntegrator::GetName() {
 }
 
 void AcroMassIntegrator::SetupIntegrationRule() {
-  const FiniteElement &fe = *(fespace->GetFE(0));
-  ir = &(GetMassIntegrationRule(fe, fe));
+  const FiniteElement &trialFE = *(trialFespace->GetFE(0));
+  const FiniteElement &testFE  = *(testFespace->GetFE(0));
+  ir = &(GetMassIntegrationRule(trialFE, testFE));
 }
 
 void AcroMassIntegrator::Setup() {

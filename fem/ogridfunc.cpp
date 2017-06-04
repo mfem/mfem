@@ -23,7 +23,7 @@ namespace mfem {
     occa::device device = integ.GetDevice();
     const int numQuad = integ.GetIntegrationRule().GetNPoints();
 
-    const FiniteElementSpace &fespace = integ.GetFESpace();
+    const FiniteElementSpace &fespace = integ.GetTrialFESpace();
     const FiniteElement &fe = *(fespace.GetFE(0));
     const int dim = fe.GetDim();
 
@@ -111,7 +111,7 @@ namespace mfem {
 
     OccaDofQuadMaps &maps = integ.GetDofQuadMaps();
 
-    const FiniteElementSpace &fespace = integ.GetFESpace();
+    const FiniteElementSpace &fespace = integ.GetTrialFESpace();
     const FiniteElement &fe = *(fespace.GetFE(0));
 
     const int dim      = fe.GetDim();

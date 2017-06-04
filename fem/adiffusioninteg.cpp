@@ -33,8 +33,9 @@ std::string AcroDiffusionIntegrator::GetName() {
 }
 
 void AcroDiffusionIntegrator::SetupIntegrationRule() {
-  const FiniteElement &fe = *(fespace->GetFE(0));
-  ir = &(GetDiffusionIntegrationRule(fe, fe));
+  const FiniteElement &trialFE = *(trialFespace->GetFE(0));
+  const FiniteElement &testFE  = *(testFespace->GetFE(0));
+  ir = &(GetDiffusionIntegrationRule(trialFE, testFE));
 }
 
 void AcroDiffusionIntegrator::Setup() {

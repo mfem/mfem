@@ -36,11 +36,11 @@ void AcroIntegrator::Setup() {
   }
 
   DiffusionIntegrator integ;
-  const FiniteElement &fe = *(fespace->GetFE(0));
+  const FiniteElement &fe = *(trialFespace->GetFE(0));
 
   const IntegrationRule &ir1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder());
   nDim    = fe.GetDim();
-  nElem  = fespace->GetNE();
+  nElem  = trialFespace->GetNE();
   nDof   = fe.GetDof();
   nQuad   = ir->GetNPoints();
   nDof1D = fe.GetOrder() + 1;
