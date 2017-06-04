@@ -37,11 +37,21 @@ namespace mfem {
     Operator *restrictionOp, *prolongationOp;
 
   public:
-    OccaFiniteElementSpace(FiniteElementSpace *fespace_);
-    OccaFiniteElementSpace(occa::device device_, FiniteElementSpace *fespace_);
+    OccaFiniteElementSpace(Mesh *mesh,
+                           const FiniteElementCollection *fec,
+                           int vdim = 1);
+
+    OccaFiniteElementSpace(occa::device device_,
+                           Mesh *mesh,
+                           const FiniteElementCollection *fec,
+                           int vdim = 1);
+
     ~OccaFiniteElementSpace();
 
-    void Init();
+    void Init(occa::device device_,
+              Mesh *mesh,
+              const FiniteElementCollection *fec,
+              int vdim);
 
     void SetupLocalGlobalMaps();
     void SetupOperators();

@@ -247,8 +247,8 @@ int main(int argc, char *argv[]) {
   // 5. Define the vector finite element space representing the current and the
   //    initial temperature, u_ref.
   H1_FECollection fe_coll(order, dim, basis);
-  FiniteElementSpace fespace(mesh, &fe_coll);
-  OccaFiniteElementSpace ofespace(&fespace);
+  OccaFiniteElementSpace ofespace(mesh, &fe_coll);
+  FiniteElementSpace &fespace = *(ofespace.GetFESpace());
 
   int fe_size = fespace.GetTrueVSize();
   cout << "Number of temperature unknowns: " << fe_size << endl;

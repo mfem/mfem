@@ -134,16 +134,16 @@ namespace mfem {
     // Assembles the form i.e. sums over all domain/bdr integrators.
     virtual void Assemble();
 
-    void FormLinearSystem(const Array<int> &ess_tdof_list,
+    void FormLinearSystem(const Array<int> &constraintList,
                           OccaVector &x, OccaVector &b,
                           Operator *&Aout,
                           OccaVector &X, OccaVector &B,
                           int copy_interior = 0);
 
-    void FormOperator(const Array<int> &ess_tdof_list,
+    void FormOperator(const Array<int> &constraintList,
                       Operator *&Aout);
 
-    void InitRHS(const Array<int> &ess_tdof_list,
+    void InitRHS(const Array<int> &constraintList,
                  OccaVector &x, OccaVector &b,
                  Operator *Aout,
                  OccaVector &X, OccaVector &B,

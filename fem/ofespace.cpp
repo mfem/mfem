@@ -13,21 +13,22 @@
 
 #ifdef MFEM_USE_OCCA
 
+#include "pfespace.hpp"
 #include "ofespace.hpp"
 #include "ointerpolation.hpp"
 
 namespace mfem {
-  OccaFiniteElementSpace::OccaFiniteElementSpace(FiniteElementSpace *fespace_) :
-    device(occa::getDevice()),
-    fespace(fespace_) {
-    Init();
+  OccaFiniteElementSpace::OccaFiniteElementSpace(Mesh *mesh,
+                                                 const FiniteElementCollection *fec,
+                                                 int vdim) {
+    Init(occa::getDevice(), mesh, fec, vdim);
   }
 
   OccaFiniteElementSpace::OccaFiniteElementSpace(occa::device device_,
-                                                 FiniteElementSpace *fespace_) :
-    device(device_),
-    fespace(fespace_) {
-    Init();
+                                                 Mesh *mesh,
+                                                 const FiniteElementCollection *fec,
+                                                 int vdim) {
+    Init(device_, mesh, fec, vdim);
   }
 
   OccaFiniteElementSpace::~OccaFiniteElementSpace() {
@@ -37,7 +38,23 @@ namespace mfem {
     delete prolongationOp;
   }
 
-  void OccaFiniteElementSpace::Init() {
+  void OccaFiniteElementSpace::Init(occa::device device_,
+                                    Mesh *mesh,
+                                    const FiniteElementCollection *fec,
+                                    int vdim) {
+    device = device_;
+
+#ifndef MFEM_USE_MPI
+    fespace = new FiniteElementSpace(mesh, fec, vdim, Ordering::byVDIM);
+#else
+    ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+    if (pmesh == NULL) {
+      fespace = new FiniteElementSpace(mesh, fec, vdim, Ordering::byVDIM);
+    } else {
+      fespace = new ParFiniteElementSpace(pmesh, fec, vdim, Ordering::byVDIM);
+    }
+#endif
+
     SetupLocalGlobalMaps();
     SetupOperators();
     SetupKernels();

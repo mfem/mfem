@@ -169,8 +169,9 @@ int main(int argc, char *argv[])
     {
       fec = new H1_FECollection(order = 1, dim, basis);
     }
-  FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
-  OccaFiniteElementSpace *ofespace = new OccaFiniteElementSpace(fespace);
+
+  OccaFiniteElementSpace *ofespace = new OccaFiniteElementSpace(mesh, fec);
+  FiniteElementSpace *fespace = ofespace->GetFESpace();
 
   cout << "Number of finite element unknowns: "
        << fespace->GetTrueVSize() << endl;

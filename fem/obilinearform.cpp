@@ -228,16 +228,16 @@ namespace mfem {
     }
   }
 
-  void OccaBilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
+  void OccaBilinearForm::FormLinearSystem(const Array<int> &constraintList,
                                           OccaVector &x, OccaVector &b,
                                           Operator *&Aout,
                                           OccaVector &X, OccaVector &B,
                                           int copy_interior) {
-    FormOperator(ess_tdof_list, Aout);
-    InitRHS(ess_tdof_list, x, b, Aout, X, B, copy_interior);
+    FormOperator(constraintList, Aout);
+    InitRHS(constraintList, x, b, Aout, X, B, copy_interior);
   }
 
-  void OccaBilinearForm::FormOperator(const Array<int> &ess_tdof_list,
+  void OccaBilinearForm::FormOperator(const Array<int> &constraintList,
                                       Operator *&Aout) {
     const Operator *trialP = GetTrialProlongation();
     const Operator *testP  = GetTestProlongation();
@@ -248,11 +248,11 @@ namespace mfem {
     }
 
     Aout = new OccaConstrainedOperator(device,
-                                       rap, ess_tdof_list,
+                                       rap, constraintList,
                                        rap != this);
   }
 
-  void OccaBilinearForm::InitRHS(const Array<int> &ess_tdof_list,
+  void OccaBilinearForm::InitRHS(const Array<int> &constraintList,
                                  OccaVector &x, OccaVector &b,
                                  Operator *A,
                                  OccaVector &X, OccaVector &B,
@@ -273,7 +273,7 @@ namespace mfem {
     }
 
     if (!copy_interior) {
-      X.SetSubVectorComplement(ess_tdof_list, 0.0);
+      X.SetSubVectorComplement(constraintList, 0.0);
     }
 
     OccaConstrainedOperator *cA = static_cast<OccaConstrainedOperator*>(A);
@@ -368,20 +368,21 @@ namespace mfem {
   }
 
   void OccaConstrainedOperator::EliminateRHS(const OccaVector &x, OccaVector &b) const {
-    if (constraintIndices == 0) {
-      return;
-    }
     occa::kernel mapDofs = mapDofBuilder.build(device);
 
     w = 0.0;
 
-    mapDofs(constraintIndices, w, x, constraintList);
+    if (constraintIndices) {
+      mapDofs(constraintIndices, w, x, constraintList);
+    }
 
     A->Mult(w, z);
 
     b -= z;
 
-    mapDofs(constraintIndices, b, x, constraintList);
+    if (constraintIndices) {
+      mapDofs(constraintIndices, b, x, constraintList);
+    }
   }
 
   void OccaConstrainedOperator::Mult(const OccaVector &x, OccaVector &y) const {

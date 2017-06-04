@@ -171,8 +171,11 @@ int main(int argc, char *argv[])
     {
       fec = new H1_FECollection(order = 1, dim, basis);
     }
-  ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-  OccaFiniteElementSpace *ofespace = new OccaFiniteElementSpace(fespace);
+
+  OccaFiniteElementSpace *ofespace = new OccaFiniteElementSpace(pmesh, fec);
+  ParFiniteElementSpace *fespace = (ParFiniteElementSpace*) ofespace->GetFESpace();
+
+
   HYPRE_Int size = fespace->GlobalTrueVSize();
   if (!myid) {
     cout << "Number of finite element unknowns: " << size << endl;
