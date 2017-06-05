@@ -8033,7 +8033,9 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
    out << flush;
 
    for (i = 0; i < NumOfVertices; i++)
+   {
       delete [] vown[i];
+   }
 
    delete [] vcount;
    delete [] voff;
