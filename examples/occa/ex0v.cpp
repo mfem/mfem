@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
    if (use_acrotensor) {
       a->AddDomainIntegrator(new AcroMassIntegrator(1.0));
    } else {
-      a->AddDomainIntegrator(new OccaVectorMassIntegrator(1.0));
+      a->AddDomainIntegrator(new OccaMassIntegrator(1.0));
    }
 
    a->Assemble();

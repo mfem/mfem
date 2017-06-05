@@ -25,9 +25,10 @@
 
 namespace mfem
 {
+  class OccaVectorRef;
+
   /// Vector data type.
-  class OccaVector
-  {
+  class OccaVector {
   protected:
     uint64_t size;
     occa::memory data;
@@ -38,6 +39,8 @@ namespace mfem
 
     /// Copy constructor.
     OccaVector(const OccaVector &other);
+
+    OccaVector(const OccaVectorRef &ref);
 
     /// @brief Creates vector of size s using the current OCCA device
     /// @warning Entries are not initialized to zero!
@@ -134,13 +137,10 @@ namespace mfem
     /// Return the inner-product.
     double operator * (const OccaVector &v) const;
 
-    /// Redefine '=' for vector = vector.
     OccaVector& operator = (const Vector &v);
-
-    /// Redefine '=' for vector = vector.
     OccaVector& operator = (const OccaVector &v);
+    OccaVector& operator = (const OccaVectorRef &ref);
 
-    /// Redefine '=' for vector = constant.
     OccaVector& operator = (double value);
 
     OccaVector& operator *= (double value);
@@ -173,7 +173,7 @@ namespace mfem
     /// v = median(v,lo,hi) entrywise.  Implementation assumes lo <= hi.
     void median(const OccaVector &lo, const OccaVector &hi);
 
-    OccaVector GetRange(const uint64_t offset, const uint64_t entries) const;
+    OccaVectorRef GetRange(const uint64_t offset, const uint64_t entries) const;
 
     void GetSubVector(const Array<int> &dofs, Vector &elemvect) const;
     void GetSubVector(const Array<int> &dofs, double *elem_data) const;
@@ -226,6 +226,18 @@ namespace mfem
     // int CheckFinite() const;
 
     inline virtual ~OccaVector() {}
+  };
+
+  class OccaVectorRef {
+  public:
+    OccaVector v;
+
+    OccaVectorRef();
+    OccaVectorRef(const OccaVectorRef &ref);
+
+    inline operator occa::kernelArg () const {
+      return v;
+    }
   };
 
   occa::kernelBuilder makeCustomBuilder(const std::string &kernelName,

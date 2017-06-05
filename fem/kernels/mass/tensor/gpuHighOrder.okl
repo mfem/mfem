@@ -34,7 +34,8 @@ kernel void Mult1D(const int numElements,
                    const QuadToDof_t restrict quadToDof,
                    const QuadToDof_t restrict quadToDofD,
                    const QLocal1D_t restrict oper,
-                   DLocal1D_t restrict sol) {
+                   const DLocal1D_t restrict solIn,
+                   DLocal1D_t restrict solOut) {
   // Iterate over elements
   for (int eOff = 0; eOff < numElements; eOff += M1_ELEMENT_BATCHES; outer) {
     shared double s_dofToQuad[NUM_QUAD_DOFS_1D] @dim(NUM_QUAD_1D, NUM_DOFS_1D);
@@ -57,7 +58,7 @@ kernel void Mult1D(const int numElements,
             r_sol[qx] = 0;
           }
           for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-            const double s = sol(dx, e);
+            const double s = solIn(dx, e);
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
               r_sol[qx] += s * s_dofToQuad(qx, dx);
             }
@@ -70,7 +71,7 @@ kernel void Mult1D(const int numElements,
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
               s += r_sol[qx] * s_quadToDof(dx, qx);
             }
-            sol(dx, e) = s;
+            solOut(dx, e) += s;
           }
         }
       }
@@ -108,7 +109,8 @@ kernel void Mult2D(const int numElements,
                    const QuadToDof_t restrict quadToDof,
                    const QuadToDof_t restrict quadToDofD,
                    const QLocal2D_t restrict oper,
-                   DLocal2D_t restrict sol) {
+                   const DLocal2D_t restrict solIn,
+                   DLocal2D_t restrict solOut) {
   // Iterate over elements
   for (int eOff = 0; eOff < numElements; eOff += M2_ELEMENT_BATCH; outer) {
     // Store dof <--> quad mappings
@@ -136,7 +138,7 @@ kernel void Mult2D(const int numElements,
               s_xy(dx, qy) = 0;
             }
             for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
-              r_x[dy] = sol(dx, dy, e);
+              r_x[dy] = solIn(dx, dy, e);
             }
             for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
               double xy = 0;
@@ -185,7 +187,7 @@ kernel void Mult2D(const int numElements,
               for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
                 s += (s_xy(dy, qx) * s_quadToDof(dx, qx));
               }
-              sol(dx, dy, e) = s;
+              solOut(dx, dy, e) += s;
             }
           }
         }
@@ -228,7 +230,8 @@ kernel void Mult3D(const int numElements,
                    const QuadToDof_t restrict quadToDof,
                    const QuadToDof_t restrict quadToDofD,
                    const QLocal3D_t restrict oper,
-                   DLocal3D_t restrict sol) {
+                   const DLocal3D_t restrict solIn,
+                   DLocal3D_t restrict solOut) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     // Store dof <--> quad mappings
@@ -264,7 +267,7 @@ kernel void Mult3D(const int numElements,
       for (int dx = 0; dx < NUM_MAX_1D; ++dx; inner) {
         if ((dx < NUM_DOFS_1D) && (dy < NUM_DOFS_1D)) {
           for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
-            const double s = sol(dx, dy, dz, e);
+            const double s = solIn(dx, dy, dz, e);
             // Calculate D -> Q in the Z axis
             for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
               r_z[qz] += s * s_dofToQuad(qz, dz);
@@ -328,7 +331,7 @@ kernel void Mult3D(const int numElements,
                 solZ += wx * wy * s_xy(qx, qy);
               }
             }
-            sol(dx, dy, dz, e) = solZ;
+            solOut(dx, dy, dz, e) += solZ;
           }
         }
       }

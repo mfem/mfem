@@ -20,18 +20,19 @@
 namespace mfem {
   OccaFiniteElementSpace::OccaFiniteElementSpace(Mesh *mesh,
                                                  const FiniteElementCollection *fec,
-                                                 int vdim) {
-    Init(occa::getDevice(), mesh, fec, vdim);
+                                                 const int vdim_) {
+    Init(occa::getDevice(), mesh, fec, vdim_);
   }
 
   OccaFiniteElementSpace::OccaFiniteElementSpace(occa::device device_,
                                                  Mesh *mesh,
                                                  const FiniteElementCollection *fec,
-                                                 int vdim) {
-    Init(device_, mesh, fec, vdim);
+                                                 const int vdim_) {
+    Init(device_, mesh, fec, vdim_);
   }
 
   OccaFiniteElementSpace::~OccaFiniteElementSpace() {
+    delete fespace;
     delete [] elementDofMap;
     delete [] elementDofMapInverse;
     delete restrictionOp;
@@ -41,17 +42,19 @@ namespace mfem {
   void OccaFiniteElementSpace::Init(occa::device device_,
                                     Mesh *mesh,
                                     const FiniteElementCollection *fec,
-                                    int vdim) {
+                                    const int vdim_) {
     device = device_;
 
+    vdim = vdim_;
+
 #ifndef MFEM_USE_MPI
-    fespace = new FiniteElementSpace(mesh, fec, vdim, Ordering::byVDIM);
+    fespace = new FiniteElementSpace(mesh, fec, vdim, Ordering::byNODES);
 #else
     ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
     if (pmesh == NULL) {
-      fespace = new FiniteElementSpace(mesh, fec, vdim, Ordering::byVDIM);
+      fespace = new FiniteElementSpace(mesh, fec, vdim, Ordering::byNODES);
     } else {
-      fespace = new ParFiniteElementSpace(pmesh, fec, vdim, Ordering::byVDIM);
+      fespace = new ParFiniteElementSpace(pmesh, fec, vdim, Ordering::byNODES);
     }
 #endif
 
@@ -174,6 +177,10 @@ namespace mfem {
     return localDofs;
   }
 
+  int OccaFiniteElementSpace::GetVDim() const {
+    return vdim;
+  }
+
   const int* OccaFiniteElementSpace::GetElementDofMap() const {
     return elementDofMap;
   }
@@ -197,6 +204,7 @@ namespace mfem {
   void OccaFiniteElementSpace::GlobalToLocal(const OccaVector &globalVec,
                                              OccaVector &localVec) const {
     globalToLocalKernel(globalDofs,
+                        vdim,
                         globalToLocalOffsets,
                         globalToLocalIndices,
                         globalVec, localVec);
@@ -207,6 +215,7 @@ namespace mfem {
                                              OccaVector &globalVec) const {
 
     localToGlobalKernel(globalDofs,
+                        vdim,
                         globalToLocalOffsets,
                         globalToLocalIndices,
                         localVec, globalVec);

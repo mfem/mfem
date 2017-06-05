@@ -43,7 +43,8 @@ kernel void Mult2D(const int numElements,
                    const QuadToDof_t restrict quadToDof,
                    const QuadToDofD2D_t restrict quadToDofD,
                    const SymmOperator2D_t restrict oper,
-                   DLocal_t restrict sol) {
+                   const DLocal_t restrict solIn,
+                   DLocal_t restrict solOut) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     shared double s_gradX[NUM_QUAD];
@@ -53,7 +54,7 @@ kernel void Mult2D(const int numElements,
       for (int q = qOff; q < NUM_QUAD; q += M2_INNER_BATCH) {
         double gradX = 0, gradY = 0;
         for (int d = 0; d < NUM_DOFS; ++d) {
-          const double s = sol(d, e);
+          const double s = solInt(d, e);
           gradX += s * quadToDofD(0, d, q);
           gradY += s * quadToDofD(1, d, q);
         }
@@ -73,7 +74,7 @@ kernel void Mult2D(const int numElements,
           r_sol += ((s_gradX[q] * quadToDofD(0, d, q)) +
                     (s_gradY[q] * quadToDofD(1, d, q)));
         }
-        sol(d, e) = r_sol;
+        solOut(d, e) += r_sol;
       }
     }
   }
@@ -134,7 +135,8 @@ kernel void Mult3D(const int numElements,
                    const QuadToDof_t restrict quadToDof,
                    const QuadToDofD3D_t restrict quadToDofD,
                    const SymmOperator3D_t restrict oper,
-                   DLocal_t restrict sol) {
+                   const DLocal_t restrict solIn,
+                   DLocal_t restrict solOut) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     shared double s_gradX[NUM_QUAD];
@@ -145,7 +147,7 @@ kernel void Mult3D(const int numElements,
       for (int q = qOff; q < NUM_QUAD; q += M3_INNER_BATCH) {
         double gradX = 0, gradY = 0, gradZ = 0;
         for (int d = 0; d < NUM_DOFS; ++d) {
-          const double s = sol(d, e);
+          const double s = solIn(d, e);
           gradX += s * quadToDofD(0, d, q);
           gradY += s * quadToDofD(1, d, q);
           gradZ += s * quadToDofD(2, d, q);
@@ -171,7 +173,7 @@ kernel void Mult3D(const int numElements,
                     (s_gradY[q] * quadToDofD(1, d, q)) +
                     (s_gradZ[q] * quadToDofD(2, d, q)));
         }
-        sol(d, e) = r_sol;
+        solOut(d, e) += r_sol;
       }
     }
   }

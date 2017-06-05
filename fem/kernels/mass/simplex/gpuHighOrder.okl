@@ -39,7 +39,8 @@ kernel void Mult2D(const int numElements,
                    const QuadToDof_t restrict quadToDof,
                    const QuadToDofD2D_t restrict quadToDofD,
                    const QLocal_t restrict oper,
-                   DLocal_t restrict sol) {
+                   const DLocal_t restrict solIn,
+                   DLocal_t restrict solOut) {
   for (int e = 0; e < numElements; ++e; outer) {
     shared double s_sol[NUM_QUAD];
 
@@ -47,7 +48,7 @@ kernel void Mult2D(const int numElements,
       for (int q = qOff; q < NUM_QUAD; q += M2_INNER_BATCH) {
         double s = 0;
         for (int d = 0; d < NUM_DOFS; ++d) {
-          s += sol(d, e) * dofToQuad(d, q);
+          s += solIn(d, e) * dofToQuad(d, q);
         }
         s_sol[q] = s * oper(q, e);
       }
@@ -59,7 +60,7 @@ kernel void Mult2D(const int numElements,
         for (int q = 0; q < NUM_QUAD; ++q) {
           r_sol += (s_sol[q] * quadToDof(d, q));
         }
-        sol(d, e) = r_sol;
+        solOut(d, e) += r_sol;
       }
     }
   }
@@ -99,7 +100,8 @@ kernel void Mult3D(const int numElements,
                    const QuadToDof_t restrict quadToDof,
                    const QuadToDofD3D_t restrict quadToDofD,
                    const QLocal_t restrict oper,
-                   DLocal_t restrict sol) {
+                   const DLocal_t restrict solIn,
+                   DLocal_t restrict solOut) {
   for (int e = 0; e < numElements; ++e; outer) {
     shared double s_sol[NUM_QUAD];
 
@@ -107,7 +109,7 @@ kernel void Mult3D(const int numElements,
       for (int q = qOff; q < NUM_QUAD; q += M3_INNER_BATCH) {
         double s = 0;
         for (int d = 0; d < NUM_DOFS; ++d) {
-          s += sol(d, e) * dofToQuad(d, q);
+          s += solIn(d, e) * dofToQuad(d, q);
         }
         s_sol[q] = s * oper(q, e);
       }
@@ -119,7 +121,7 @@ kernel void Mult3D(const int numElements,
         for (int q = 0; q < NUM_QUAD; ++q) {
           r_sol += (s_sol[q] * quadToDof(d, q));
         }
-        sol(d, e) = r_sol;
+        solOut(d, e) += r_sol;
       }
     }
   }

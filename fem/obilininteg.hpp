@@ -171,7 +171,7 @@ namespace mfem {
     virtual void Setup() = 0;
 
     virtual void Assemble() = 0;
-    virtual void Mult(OccaVector &x, OccaVector &y) = 0;
+    virtual void Mult(const int vIdx, OccaVector &x, OccaVector &y) = 0;
 
     OccaGeometry GetGeometry(const int flags = (OccaGeometry::Jacobian    |
                                                 OccaGeometry::JacobianInv |
@@ -205,7 +205,7 @@ namespace mfem {
     virtual void Setup();
 
     virtual void Assemble();
-    virtual void Mult(OccaVector &x, OccaVector &y);
+    virtual void Mult(const int vIdx, OccaVector &x, OccaVector &y);
   };
   //====================================
 
@@ -229,34 +229,9 @@ namespace mfem {
     virtual void Setup();
 
     virtual void Assemble();
-    virtual void Mult(OccaVector &x, OccaVector &y);
+    virtual void Mult(const int vIdx, OccaVector &x, OccaVector &y);
   };
   //====================================
-
-  //---[ Vector Mass Integrator ]--------------
-  class OccaVectorMassIntegrator : public OccaIntegrator {
-  private:
-    OccaCoefficient coeff;
-
-    occa::kernel assembleKernel, multKernel;
-
-    occa::array<double> jacobian, assembledOperator;
-
-  public:
-    OccaVectorMassIntegrator(const OccaCoefficient &coeff_);
-    virtual ~OccaVectorMassIntegrator();
-
-    virtual std::string GetName();
-
-     virtual void SetupIntegrationRule();
-
-     virtual void Setup();
-
-    virtual void Assemble();
-    virtual void Mult(OccaVector &x, OccaVector &y);
-  };
-  //====================================
-
 }
 
 #  endif

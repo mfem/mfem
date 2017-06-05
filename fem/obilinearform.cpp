@@ -76,22 +76,22 @@ namespace mfem {
     const int trialElementEntries = (trialLocalDofs * trialVDim);
     const int testElementEntries  = (testLocalDofs * testVDim);
 
-    const bool spacesDiffer = (trialElementEntries != testElementEntries);
-
     localX.SetSize(device, elements * trialElementEntries);
-    if (spacesDiffer) {
-      localY.SetSize(device, elements * testElementEntries);
-    } else {
-      localY.SetDataAndSize(localX.GetData(), localX.Size());
-    }
+    localY.SetSize(device, elements * testElementEntries);
 
     // First-touch policy when running with OpenMP
     if (device.mode() == "OpenMP") {
       occa::kernel initLocalKernel = device.buildKernel("occa://mfem/fem/utils.okl",
                                                         "InitLocalVector");
-      initLocalKernel(elements, trialLocalDofs, trialVDim, localX);
-      if (spacesDiffer) {
-        initLocalKernel(elements, testLocalDofs, testVDim, localY);
+
+      const uint64_t trialEntries = (elements * trialLocalDofs);
+      const uint64_t testEntries  = (elements * testLocalDofs);
+      for (int v = 0; v < trialVDim; ++v) {
+        const uint64_t trialOffset = v * (elements * trialLocalDofs);
+        const uint64_t testOffset  = v * (elements * testLocalDofs);
+
+        initLocalKernel(elements, trialLocalDofs, localX.GetRange(trialOffset, trialEntries));
+        initLocalKernel(elements, testLocalDofs, localY.GetRange(testOffset, testEntries));
       }
     }
   }
@@ -287,12 +287,22 @@ namespace mfem {
   // Matrix vector multiplication.
   void OccaBilinearForm::Mult(const OccaVector &x, OccaVector &y) const {
     otrialFespace->GlobalToLocal(x, localX);
+    localY = 0;
 
     const int integratorCount = (int) integrators.size();
-    for (int i = 0; i < integratorCount; ++i) {
-      integrators[i]->Mult(localX, localY);
-    }
+    const int trialVDim = trialFespace->GetVDim();
 
+    const int elements = GetNE();
+    const uint64_t trialEntries = (elements * otrialFespace->GetLocalDofs());
+    const uint64_t testEntries  = (elements * otestFespace->GetLocalDofs());
+
+    for (int i = 0; i < integratorCount; ++i) {
+      for (int v = 0; v < trialVDim; ++v) {
+        OccaVector vLocalX = localX.GetRange(v * trialEntries, trialEntries);
+        OccaVector vLocalY = localY.GetRange(v * testEntries , testEntries);
+        integrators[i]->Mult(v, vLocalX, vLocalY);
+      }
+    }
     otestFespace->LocalToGlobal(localY, y);
   }
 

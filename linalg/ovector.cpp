@@ -34,6 +34,10 @@ namespace mfem {
     occa::memcpy(data, other.data, entries * sizeof(double));
   }
 
+  OccaVector::OccaVector(const OccaVectorRef &ref) {
+    SetDataAndSize(ref.v.data, ref.v.size);
+  }
+
   /// @brief Creates vector of size s using the default OCCA device
   /// @warning Entries are not initialized to zero!
   OccaVector::OccaVector(occa::device device, const int64_t size_) :
@@ -109,21 +113,22 @@ namespace mfem {
     return occa::linalg::dot<double, double, double>(data, v.data);
   }
 
-  /// Redefine '=' for vector = vector.
   OccaVector& OccaVector::operator = (const Vector &v) {
     SetSize(v.Size(), v.GetData());
     return *this;
   }
 
-  /// Redefine '=' for vector = vector.
-  OccaVector& OccaVector::operator = (const OccaVector &v)
-  {
+  OccaVector& OccaVector::operator = (const OccaVector &v) {
     SetSize(v.Size());
     occa::memcpy(data, v.data, size * sizeof(double));
     return *this;
   }
 
-  /// Redefine '=' for vector = constant.
+  OccaVector& OccaVector::operator = (const OccaVectorRef &ref) {
+    SetDataAndSize(ref.v.data, ref.v.size);
+    return *this;
+  }
+
   OccaVector& OccaVector::operator = (double value) {
     static occa::kernelBuilder builder =
       makeCustomBuilder("vector_op_eq",
@@ -259,10 +264,11 @@ namespace mfem {
     kernel((int) Size(), data, lo.data, hi.data);
   }
 
-  OccaVector OccaVector::GetRange(const uint64_t offset, const uint64_t entries) const {
-    OccaVector ret;
-    ret.data = data + (offset * sizeof(double));
-    ret.size = entries;
+  OccaVectorRef OccaVector::GetRange(const uint64_t offset, const uint64_t entries) const {
+    OccaVectorRef ret;
+    OccaVector &v = ret.v;
+    v.data = data + (offset * sizeof(double));
+    v.size = entries;
     return ret;
   }
 
@@ -552,6 +558,12 @@ namespace mfem {
   /// Compute the Euclidean distance to another vector.
   double OccaVector::DistanceTo(const OccaVector &other) const {
     return occa::linalg::distance<double, double, double>(data, other.data);
+  }
+
+  OccaVectorRef::OccaVectorRef() {}
+
+  OccaVectorRef::OccaVectorRef(const OccaVectorRef &ref) {
+    v.SetDataAndSize(ref.v.GetData(), ref.v.Size());
   }
 
   occa::kernelBuilder makeCustomBuilder(const std::string &kernelName,

@@ -615,14 +615,14 @@ namespace mfem {
                    assembledOperator);
   }
 
-  void OccaDiffusionIntegrator::Mult(OccaVector &x, OccaVector &y) {
+  void OccaDiffusionIntegrator::Mult(const int vIdx, OccaVector &x, OccaVector &y) {
     multKernel((int) mesh->GetNE(),
                maps.dofToQuad,
                maps.dofToQuadD,
                maps.quadToDof,
                maps.quadToDofD,
                assembledOperator,
-               x);
+               x, y);
   }
   //====================================
 
@@ -670,72 +670,16 @@ namespace mfem {
                    assembledOperator);
   }
 
-  void OccaMassIntegrator::Mult(OccaVector &x, OccaVector &y) {
+  void OccaMassIntegrator::Mult(const int vIdx, OccaVector &x, OccaVector &y) {
     multKernel((int) mesh->GetNE(),
                maps.dofToQuad,
                maps.dofToQuadD,
                maps.quadToDof,
                maps.quadToDofD,
                assembledOperator,
-               x);
+               x, y);
   }
   //====================================
-
-  //---[ Vector Mass Integrator ]--------------
-  OccaVectorMassIntegrator::OccaVectorMassIntegrator(const OccaCoefficient &coeff_) :
-    coeff(coeff_) {
-    coeff.SetName("COEFF");
-  }
-
-  OccaVectorMassIntegrator::~OccaVectorMassIntegrator() {}
-
-  std::string OccaVectorMassIntegrator::GetName() {
-    return "VectorMassIntegrator";
-  }
-
-  void OccaVectorMassIntegrator::SetupIntegrationRule() {
-    const FiniteElement &trialFE = *(trialFespace->GetFE(0));
-    const FiniteElement &testFE  = *(testFespace->GetFE(0));
-    ir = &(GetMassIntegrationRule(trialFE, testFE));
-  }
-
-  void OccaVectorMassIntegrator::Setup() {
-    occa::properties kernelProps = props;
-
-    const int elements = trialFespace->GetNE();
-    const int quadraturePoints = ir->GetNPoints();
-
-    assembledOperator.allocate(quadraturePoints, elements);
-
-    OccaGeometry geom = GetGeometry(OccaGeometry::Jacobian);
-    jacobian = geom.J;
-
-    coeff.Setup(*this, kernelProps);
-
-    // Setup assemble and mult kernels
-    assembleKernel = GetAssembleKernel(kernelProps);
-    multKernel     = GetMultKernel(kernelProps);
-  }
-
-  void OccaVectorMassIntegrator::Assemble() {
-    assembleKernel((int) mesh->GetNE(),
-                   maps.quadWeights,
-                   jacobian,
-                   coeff,
-                   assembledOperator);
-  }
-
-  void OccaVectorMassIntegrator::Mult(OccaVector &x, OccaVector &y) {
-    multKernel((int) mesh->GetNE(),
-               maps.dofToQuad,
-               maps.dofToQuadD,
-               maps.quadToDof,
-               maps.quadToDofD,
-               assembledOperator,
-               x);
-  }
-  //====================================
-
 }
 
 #endif

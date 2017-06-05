@@ -197,7 +197,7 @@ void AcroDiffusionIntegrator::AssembleMatrix() {
   }
 }
 
-void AcroDiffusionIntegrator::Mult(OccaVector &x, OccaVector &y) {
+void AcroDiffusionIntegrator::Mult(const int vIdx, OccaVector &x, OccaVector &y) {
 
   if (!U.IsInitialized() && hasTensorBasis) {
     if (nDim == 1) {

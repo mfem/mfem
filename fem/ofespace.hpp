@@ -33,25 +33,26 @@ namespace mfem {
     occa::kernel globalToLocalKernel, localToGlobalKernel;
 
     int globalDofs, localDofs;
+    int vdim;
 
     Operator *restrictionOp, *prolongationOp;
 
   public:
     OccaFiniteElementSpace(Mesh *mesh,
                            const FiniteElementCollection *fec,
-                           int vdim = 1);
+                           const int vdim_ = 1);
 
     OccaFiniteElementSpace(occa::device device_,
                            Mesh *mesh,
                            const FiniteElementCollection *fec,
-                           int vdim = 1);
+                           const int vdim_ = 1);
 
     ~OccaFiniteElementSpace();
 
     void Init(occa::device device_,
               Mesh *mesh,
               const FiniteElementCollection *fec,
-              int vdim);
+              const int vdim_);
 
     void SetupLocalGlobalMaps();
     void SetupOperators();
@@ -62,6 +63,7 @@ namespace mfem {
 
     int GetGlobalDofs() const;
     int GetLocalDofs() const;
+    int GetVDim() const;
 
     const int* GetElementDofMap() const;
     const int* GetElementDofMapInverse() const;

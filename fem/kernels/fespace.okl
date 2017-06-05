@@ -16,6 +16,7 @@
 */
 
 kernel void GlobalToLocal(const int entries,
+                          const int vdim,
                           const int * restrict offsets,
                           const int * restrict indices,
                           const double * restrict globalX,
@@ -25,15 +26,18 @@ kernel void GlobalToLocal(const int entries,
     if (i < entries) {
       const int offset = offsets[i];
       const int nextOffset = offsets[i + 1];
-      const double dofValue = globalX[i];
-      for (int j = offset; j < nextOffset; ++j) {
-        localX[indices[j]] = dofValue;
+      for (int v = 0; v < vdim; ++v) {
+        const double dofValue = globalX[i + v*entries];
+        for (int j = offset; j < nextOffset; ++j) {
+          localX[indices[j] + v*entries] = dofValue;
+        }
       }
     }
   }
 }
 
 kernel void LocalToGlobal(const int entries,
+                          const int vdim,
                           const int * restrict offsets,
                           const int * restrict indices,
                           const double * restrict localX,
@@ -43,11 +47,13 @@ kernel void LocalToGlobal(const int entries,
     if (i < entries) {
       const int offset = offsets[i];
       const int nextOffset = offsets[i + 1];
-      double dofValue = 0;
-      for (int j = offset; j < nextOffset; ++j) {
-        dofValue += localX[indices[j]];
+      for (int v = 0; v < vdim; ++v) {
+        double dofValue = 0;
+        for (int j = offset; j < nextOffset; ++j) {
+          dofValue += localX[indices[j] + v*entries];
+        }
+        globalX[i + v*entries] = dofValue;
       }
-      globalX[i] = dofValue;
     }
   }
 }

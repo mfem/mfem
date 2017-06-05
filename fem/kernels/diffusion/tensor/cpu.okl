@@ -30,7 +30,8 @@ kernel void Mult1D(const int numElements,
                    const QuadToDof_t restrict quadToDof,
                    const QuadToDof_t restrict quadToDofD,
                    const SymmOperator1D_t restrict oper,
-                   DLocal1D_t restrict sol) {
+                   const DLocal1D_t restrict solIn,
+                   DLocal1D_t restrict solOut) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     for (int dummy = 0; dummy < 1; ++dummy; inner) {
@@ -39,8 +40,7 @@ kernel void Mult1D(const int numElements,
         grad[qx] = 0;
       }
       for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-        const double s = sol(dx, e);
-        sol(dx, e) = 0;
+        const double s = solIn(dx, e);
         for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
           grad[qx] += s * dofToQuadD(qx, dx);
         }
@@ -51,7 +51,7 @@ kernel void Mult1D(const int numElements,
       for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
         const double gradX = grad[qx];
         for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-          sol(dx, e) += gradX * quadToDofD(dx, qx);
+          solOut(dx, e) += gradX * quadToDofD(dx, qx);
         }
       }
     }
@@ -86,7 +86,8 @@ kernel void Mult2D(const int numElements,
                    const QuadToDof_t restrict quadToDof,
                    const QuadToDof_t restrict quadToDofD,
                    const SymmOperator2D_t restrict oper,
-                   DLocal2D_t restrict sol) {
+                   const DLocal2D_t restrict solIn,
+                   DLocal2D_t restrict solOut) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     for (int dummy = 0; dummy < 1; ++dummy; inner) {
@@ -106,8 +107,7 @@ kernel void Mult2D(const int numElements,
         }
 
         for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-          const double s = sol(dx, dy, e);
-          sol(dx, dy, e) = 0;
+          const double s = solIn(dx, dy, e);
           for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
             gradX[qx][0] += s * dofToQuad(qx, dx);
             gradX[qx][1] += s * dofToQuadD(qx, dx);
@@ -162,8 +162,8 @@ kernel void Mult2D(const int numElements,
           const double wy  = quadToDof(dy, qy);
           const double wDy = quadToDofD(dy, qy);
           for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-            sol(dx, dy, e) += ((gradX[dx][0] * wy) +
-                               (gradX[dx][1] * wDy));
+            solOut(dx, dy, e) += ((gradX[dx][0] * wy) +
+                                  (gradX[dx][1] * wDy));
           }
         }
       }
@@ -220,7 +220,8 @@ kernel void Mult3D(const int numElements,
                    const QuadToDof_t restrict quadToDof,
                    const QuadToDof_t restrict quadToDofD,
                    const SymmOperator3D_t restrict oper,
-                   DLocal3D_t restrict sol) {
+                   const DLocal3D_t restrict solIn,
+                   DLocal3D_t restrict solOut) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     for (int dummy = 0; dummy < 1; ++dummy; inner) {
@@ -253,8 +254,7 @@ kernel void Mult3D(const int numElements,
           }
 
           for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-            const double s = sol(dx, dy, dz, e);
-            sol(dx, dy, dz, e) = 0;
+            const double s = solIn(dx, dy, dz, e);
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
               gradX[qx][0] += s * dofToQuad(qx, dx);
               gradX[qx][1] += s * dofToQuadD(qx, dx);
@@ -357,9 +357,9 @@ kernel void Mult3D(const int numElements,
           const double wDz = quadToDofD(dz, qz);
           for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
             for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-              sol(dx, dy, dz, e) += ((gradXY[dy][dx][0] * wz) +
-                                     (gradXY[dy][dx][1] * wz) +
-                                     (gradXY[dy][dx][2] * wDz));
+              solOut(dx, dy, dz, e) += ((gradXY[dy][dx][0] * wz) +
+                                        (gradXY[dy][dx][1] * wz) +
+                                        (gradXY[dy][dx][2] * wDz));
             }
           }
         }
