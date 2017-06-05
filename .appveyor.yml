@@ -1,0 +1,18 @@
+version: '{build}'
+
+# https://www.appveyor.com/docs/build-environment/#build-worker-images
+image: Visual Studio 2017
+
+environment:
+   matrix:
+      - BUILD_TYPE: Debug
+      - BUILD_TYPE: Release
+
+before_build:
+- cmake . -Bbuild -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE=%BUILD_TYPE%
+
+build_script:
+- cmake --build build --config %BUILD_TYPE%
+
+after_build:
+- cmake --build build --config %BUILD_TYPE% --target check

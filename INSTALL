@@ -231,13 +231,16 @@ MFEM_USE_MEMALLOC = YES/NO
    Internal MFEM option: enable batch allocation for some small objects.
    Recommended value is YES.
 
-MFEM_TIMER_TYPE = 0/1/2/3/NO
+MFEM_TIMER_TYPE = 0/1/2/3/4/5/6/NO
    Specify which library functions to use in the class StopWatch used for
    measuring time. The available options are:
       0  - use std::clock from <ctime>, standard C++
       1  - use times from <sys/times.h>
       2  - use high-resolution POSIX clocks (see option POSIX_CLOCKS_LIB)
       3  - use QueryPerformanceCounter from <windows.h>
+      4  - use mach_absolute_time from <mach/mach_time.h> + std::clock (Mac)
+      5  - use gettimeofday from <sys/time.h>
+      6  - use MPI_Wtime from <mpi.h>
       NO - use option 3 if the compiler macro _WIN32 is defined, 0 otherwise
 
 MFEM_USE_SUNDIALS = YES/NO
@@ -442,6 +445,12 @@ Debug and optimization options are controlled through the CMake variable
 CMAKE_BUILD_TYPE which can be set to standard values like "Debug", and "Release"
 (default).
 
+To use a specific generator use the "-G <generator>" option of cmake:
+
+   cmake <mfem-source-dir> -G "Xcode"
+   cmake <mfem-source-dir> -G "Visual Studio 12 2013"
+   cmake <mfem-source-dir> -G "MinGW Makefiles"
+
 With CMake it is possible to build MFEM as a shared library using the standard
 CMake option -DBUILD_SHARED_LIBS=1.
 
@@ -449,15 +458,30 @@ Once configured, the library can be built simply with (assuming a UNIX type
 system, where the default is to generate "UNIX Makefiles")
 
    make -j 4
+or
+   cmake --build .
+or
+   cmake --build . --config Release  [Visual Studio, Xcode]
 
 The build can be quick-tested by running
 
    make check
+or
+   cmake --build . --target check
+or
+   cmake --build . --config Release --target check  [Visual Studio, Xcode]
 
 which will simply compile and run Example 1/1p. For more extensive tests that
 check the results from all the serial/parallel MFEM examples and miniapps use:
 
+   make exec -j 4
    make test
+or
+   cmake --build . --target exec
+   cmake --build . --target test
+or
+   cmake --build . --config Release --target exec  [Visual Studio, Xcode]
+   cmake --build . --config Release --target RUN_TESTS  [Visual Studio, Xcode]
 
 Note that running all the tests may take a while.
 
@@ -465,6 +489,11 @@ Installation prefix can be configured by setting the standard CMake variable
 CMAKE_INSTALL_PREFIX. To install the library, use
 
    make install
+or
+   cmake --build . --target install
+or
+   cmake --build . --config Release --target install  [Xcode]
+   cmake --build . --config Release --target INSTALL  [Visual Studio]
 
 The library will be installed in <PREFIX>/lib, the headers in <PREFIX>/include,
 and the configuration CMake files in <PREFIX>/lib/cmake/mfem.
