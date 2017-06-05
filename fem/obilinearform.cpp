@@ -62,14 +62,11 @@ namespace mfem {
 
     mesh = trialFespace->GetMesh();
 
+    const int elements = GetNE();
+
     const int trialVDim = trialFespace->GetVDim();
     const int testVDim  = testFespace->GetVDim();
 
-    baseKernelProps["defines/NUM_VDIM"]   = trialVDim;
-    baseKernelProps["defines/TRIAL_VDIM"] = trialVDim;
-    baseKernelProps["defines/TEST_VDIM"]  = testVDim;
-
-    const int elements = GetNE();
     const int trialLocalDofs = otrialFespace->GetLocalDofs();
     const int testLocalDofs  = otestFespace->GetLocalDofs();
 
