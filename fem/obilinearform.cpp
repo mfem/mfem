@@ -297,7 +297,7 @@ namespace mfem {
       for (int v = 0; v < trialVDim; ++v) {
         OccaVector vLocalX = localX.GetRange(v * trialEntries, trialEntries);
         OccaVector vLocalY = localY.GetRange(v * testEntries , testEntries);
-        integrators[i]->Mult(v, vLocalX, vLocalY);
+        integrators[i]->MultAdd(v, vLocalX, vLocalY);
       }
     }
     otestFespace->LocalToGlobal(localY, y);

@@ -24,14 +24,14 @@ kernel void Assemble1D(const int numElements,
   }
 }
 
-kernel void Mult1D(const int numElements,
-                   const DofToQuad_t restrict dofToQuad,
-                   const DofToQuad_t restrict dofToQuadD,
-                   const QuadToDof_t restrict quadToDof,
-                   const QuadToDof_t restrict quadToDofD,
-                   const QLocal1D_t restrict oper,
-                   const DLocal1D_t restrict solIn,
-                   DLocal1D_t restrict solOut) {
+kernel void MultAdd1D(const int numElements,
+                      const DofToQuad_t restrict dofToQuad,
+                      const DofToQuad_t restrict dofToQuadD,
+                      const QuadToDof_t restrict quadToDof,
+                      const QuadToDof_t restrict quadToDofD,
+                      const QLocal1D_t restrict oper,
+                      const DLocal1D_t restrict solIn,
+                      DLocal1D_t restrict solOut) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     for (int dummy = 0; dummy < 1; ++dummy; inner) {
@@ -78,14 +78,14 @@ kernel void Assemble2D(const int numElements,
   } // e
 }
 
-kernel void Mult2D(const int numElements,
-                   const DofToQuad_t restrict dofToQuad,
-                   const DofToQuad_t restrict dofToQuadD,
-                   const QuadToDof_t restrict quadToDof,
-                   const QuadToDof_t restrict quadToDofD,
-                   const QLocal2D_t restrict oper,
-                   const DLocal2D_t restrict solIn,
-                   DLocal2D_t restrict solOut) {
+kernel void MultAdd2D(const int numElements,
+                      const DofToQuad_t restrict dofToQuad,
+                      const DofToQuad_t restrict dofToQuadD,
+                      const QuadToDof_t restrict quadToDof,
+                      const QuadToDof_t restrict quadToDofD,
+                      const QLocal2D_t restrict oper,
+                      const DLocal2D_t restrict solIn,
+                      DLocal2D_t restrict solOut) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     for (int dummy=0; dummy<1; ++dummy; inner) {
@@ -175,14 +175,14 @@ kernel void Assemble3D(const int numElements,
   }
 }
 
-kernel void Mult3D(const int numElements,
-                   const DofToQuad_t restrict dofToQuad,
-                   const DofToQuad_t restrict dofToQuadD,
-                   const QuadToDof_t restrict quadToDof,
-                   const QuadToDof_t restrict quadToDofD,
-                   const QLocal3D_t restrict oper,
-                   const DLocal3D_t restrict solIn,
-                   DLocal3D_t restrict solOut) {
+kernel void MultAdd3D(const int numElements,
+                      const DofToQuad_t restrict dofToQuad,
+                      const DofToQuad_t restrict dofToQuadD,
+                      const QuadToDof_t restrict quadToDof,
+                      const QuadToDof_t restrict quadToDofD,
+                      const QLocal3D_t restrict oper,
+                      const DLocal3D_t restrict solIn,
+                      DLocal3D_t restrict solOut) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     for (int dummy = 0; dummy < 1; ++dummy; inner) {

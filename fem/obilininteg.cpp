@@ -551,9 +551,9 @@ namespace mfem {
                      props);
   }
 
-  occa::kernel OccaIntegrator::GetMultKernel(const occa::properties &props) {
+  occa::kernel OccaIntegrator::GetMultAddKernel(const occa::properties &props) {
     const FiniteElement &fe = *(trialFespace->GetFE(0));
-    return GetKernel(stringWithDim("Mult", fe.GetDim()),
+    return GetKernel(stringWithDim("MultAdd", fe.GetDim()),
                      props);
   }
 
@@ -605,7 +605,7 @@ namespace mfem {
 
     // Setup assemble and mult kernels
     assembleKernel = GetAssembleKernel(kernelProps);
-    multKernel     = GetMultKernel(kernelProps);
+    multKernel     = GetMultAddKernel(kernelProps);
   }
 
   void OccaDiffusionIntegrator::Assemble() {
@@ -616,7 +616,7 @@ namespace mfem {
                    assembledOperator);
   }
 
-  void OccaDiffusionIntegrator::Mult(const int vIdx, OccaVector &x, OccaVector &y) {
+  void OccaDiffusionIntegrator::MultAdd(const int vIdx, OccaVector &x, OccaVector &y) {
     multKernel((int) mesh->GetNE(),
                maps.dofToQuad,
                maps.dofToQuadD,
@@ -660,7 +660,7 @@ namespace mfem {
 
     // Setup assemble and mult kernels
     assembleKernel = GetAssembleKernel(kernelProps);
-    multKernel     = GetMultKernel(kernelProps);
+    multKernel     = GetMultAddKernel(kernelProps);
   }
 
   void OccaMassIntegrator::Assemble() {
@@ -671,7 +671,7 @@ namespace mfem {
                    assembledOperator);
   }
 
-  void OccaMassIntegrator::Mult(const int vIdx, OccaVector &x, OccaVector &y) {
+  void OccaMassIntegrator::MultAdd(const int vIdx, OccaVector &x, OccaVector &y) {
     multKernel((int) mesh->GetNE(),
                maps.dofToQuad,
                maps.dofToQuadD,

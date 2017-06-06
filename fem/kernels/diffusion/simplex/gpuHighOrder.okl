@@ -37,14 +37,14 @@ kernel void Assemble2D(const int numElements,
   }
 }
 
-kernel void Mult2D(const int numElements,
-                   const DofToQuad_t restrict dofToQuad,
-                   const DofToQuadD2D_t restrict dofToQuadD,
-                   const QuadToDof_t restrict quadToDof,
-                   const QuadToDofD2D_t restrict quadToDofD,
-                   const SymmOperator2D_t restrict oper,
-                   const DLocal_t restrict solIn,
-                   DLocal_t restrict solOut) {
+kernel void MultAdd2D(const int numElements,
+                      const DofToQuad_t restrict dofToQuad,
+                      const DofToQuadD2D_t restrict dofToQuadD,
+                      const QuadToDof_t restrict quadToDof,
+                      const QuadToDofD2D_t restrict quadToDofD,
+                      const SymmOperator2D_t restrict oper,
+                      const DLocal_t restrict solIn,
+                      DLocal_t restrict solOut) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     shared double s_gradX[NUM_QUAD];
@@ -129,14 +129,14 @@ kernel void Assemble3D(const int numElements,
   }
 }
 
-kernel void Mult3D(const int numElements,
-                   const DofToQuad_t restrict dofToQuad,
-                   const DofToQuadD3D_t restrict dofToQuadD,
-                   const QuadToDof_t restrict quadToDof,
-                   const QuadToDofD3D_t restrict quadToDofD,
-                   const SymmOperator3D_t restrict oper,
-                   const DLocal_t restrict solIn,
-                   DLocal_t restrict solOut) {
+kernel void MultAdd3D(const int numElements,
+                      const DofToQuad_t restrict dofToQuad,
+                      const DofToQuadD3D_t restrict dofToQuadD,
+                      const QuadToDof_t restrict quadToDof,
+                      const QuadToDofD3D_t restrict quadToDofD,
+                      const SymmOperator3D_t restrict oper,
+                      const DLocal_t restrict solIn,
+                      DLocal_t restrict solOut) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     shared double s_gradX[NUM_QUAD];
