@@ -153,7 +153,7 @@ void AcroMassIntegrator::AssembleMatrix() {
   }
 }
 
-void AcroMassIntegrator::MultAdd(const int vIdx, OccaVector &x, OccaVector &y) {
+void AcroMassIntegrator::MultAdd(OccaVector &x, OccaVector &y) {
 
   if (!T1.IsInitialized() && hasTensorBasis) {
     if (nDim == 1) {

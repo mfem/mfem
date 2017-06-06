@@ -48,13 +48,13 @@ namespace mfem {
     vdim = vdim_;
 
 #ifndef MFEM_USE_MPI
-    fespace = new FiniteElementSpace(mesh, fec, vdim, Ordering::byNODES);
+    fespace = new FiniteElementSpace(mesh, fec, vdim, Ordering::byVDIM);
 #else
     ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
     if (pmesh == NULL) {
-      fespace = new FiniteElementSpace(mesh, fec, vdim, Ordering::byNODES);
+      fespace = new FiniteElementSpace(mesh, fec, vdim, Ordering::byVDIM);
     } else {
-      fespace = new ParFiniteElementSpace(pmesh, fec, vdim, Ordering::byNODES);
+      fespace = new ParFiniteElementSpace(pmesh, fec, vdim, Ordering::byVDIM);
     }
 #endif
 
@@ -152,6 +152,7 @@ namespace mfem {
     occa::properties props("defines: {"
                            "  TILESIZE: 256,"
                            "}");
+    props["defines/NUM_VDIM"] = vdim;
 
     globalToLocalKernel = device.buildKernel("occa://mfem/fem/fespace.okl",
                                              "GlobalToLocal",
@@ -204,7 +205,6 @@ namespace mfem {
   void OccaFiniteElementSpace::GlobalToLocal(const OccaVector &globalVec,
                                              OccaVector &localVec) const {
     globalToLocalKernel(globalDofs,
-                        vdim,
                         globalToLocalOffsets,
                         globalToLocalIndices,
                         globalVec, localVec);
@@ -215,7 +215,6 @@ namespace mfem {
                                              OccaVector &globalVec) const {
 
     localToGlobalKernel(globalDofs,
-                        vdim,
                         globalToLocalOffsets,
                         globalToLocalIndices,
                         localVec, globalVec);

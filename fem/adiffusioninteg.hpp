@@ -41,7 +41,7 @@ public:
 
   virtual void Assemble();
   virtual void AssembleMatrix();
-  virtual void MultAdd(const int vIdx, OccaVector &x, OccaVector &y);
+  virtual void MultAdd(OccaVector &x, OccaVector &y);
 };
 
 }

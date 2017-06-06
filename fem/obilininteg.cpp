@@ -616,7 +616,7 @@ namespace mfem {
                    assembledOperator);
   }
 
-  void OccaDiffusionIntegrator::MultAdd(const int vIdx, OccaVector &x, OccaVector &y) {
+  void OccaDiffusionIntegrator::MultAdd(OccaVector &x, OccaVector &y) {
     multKernel((int) mesh->GetNE(),
                maps.dofToQuad,
                maps.dofToQuadD,
@@ -671,7 +671,7 @@ namespace mfem {
                    assembledOperator);
   }
 
-  void OccaMassIntegrator::MultAdd(const int vIdx, OccaVector &x, OccaVector &y) {
+  void OccaMassIntegrator::MultAdd(OccaVector &x, OccaVector &y) {
     multKernel((int) mesh->GetNE(),
                maps.dofToQuad,
                maps.dofToQuadD,

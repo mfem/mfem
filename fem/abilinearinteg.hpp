@@ -42,7 +42,7 @@ public:
   virtual std::string GetName() = 0;
   virtual void Assemble() = 0;
   virtual void AssembleMatrix() = 0;
-  virtual void MultAdd(const int vIdx, OccaVector &x, OccaVector &y) = 0;
+  virtual void MultAdd(OccaVector &x, OccaVector &y) = 0;
 };
 
 }

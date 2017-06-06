@@ -287,19 +287,10 @@ namespace mfem {
     localY = 0;
 
     const int integratorCount = (int) integrators.size();
-    const int trialVDim = trialFespace->GetVDim();
-
-    const int elements = GetNE();
-    const uint64_t trialEntries = (elements * otrialFespace->GetLocalDofs());
-    const uint64_t testEntries  = (elements * otestFespace->GetLocalDofs());
-
     for (int i = 0; i < integratorCount; ++i) {
-      for (int v = 0; v < trialVDim; ++v) {
-        OccaVector vLocalX = localX.GetRange(v * trialEntries, trialEntries);
-        OccaVector vLocalY = localY.GetRange(v * testEntries , testEntries);
-        integrators[i]->MultAdd(v, vLocalX, vLocalY);
-      }
+      integrators[i]->MultAdd(localX, localY);
     }
+
     otestFespace->LocalToGlobal(localY, y);
   }
 

@@ -171,7 +171,7 @@ namespace mfem {
     virtual void Setup() = 0;
 
     virtual void Assemble() = 0;
-    virtual void MultAdd(const int vIdx, OccaVector &x, OccaVector &y) = 0;
+    virtual void MultAdd(OccaVector &x, OccaVector &y) = 0;
 
     OccaGeometry GetGeometry(const int flags = (OccaGeometry::Jacobian    |
                                                 OccaGeometry::JacobianInv |
@@ -205,7 +205,7 @@ namespace mfem {
     virtual void Setup();
 
     virtual void Assemble();
-    virtual void MultAdd(const int vIdx, OccaVector &x, OccaVector &y);
+    virtual void MultAdd(OccaVector &x, OccaVector &y);
   };
   //====================================
 
@@ -229,7 +229,7 @@ namespace mfem {
     virtual void Setup();
 
     virtual void Assemble();
-    virtual void MultAdd(const int vIdx, OccaVector &x, OccaVector &y);
+    virtual void MultAdd(OccaVector &x, OccaVector &y);
   };
   //====================================
 }
