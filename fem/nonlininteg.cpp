@@ -1,4 +1,4 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+/// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
 // the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
 // reserved. See file COPYRIGHT for details.
 //
@@ -409,7 +409,7 @@ void TMOPHyperelasticModel001::AssembleH(const DenseMatrix &Jpt,
 double TMOPHyperelasticModel002::EvalW(const DenseMatrix &Jpt) const
 {
    double det = Jpt.Det();
-   if (det <= 0.0) { return 1e+100; }
+   if (det <= 0.0) {MFEM_ABORT("NEGATIVE JACOBIAN");return 1e+100; }
 
    return 0.5 * Dim2Invariant1(Jpt) - 1.0;
 }
