@@ -240,7 +240,7 @@ void AcroDiffusionIntegrator::Mult(const int vIdx, OccaVector &x, OccaVector &y)
                      y_ptr, y_ptr, onGPU);
       TE["U_n_e_k1 = G_k1_i1 X_e_i1"](U, G, X);
       TE["Z_m_e_k1 = D_e_m_n_k1 U_n_e_k1"](Z, D, U);
-      TE["Y_e_i1 = G_k1_i1 Z_m_e_k1"](Y, G, Z);
+      TE["Y_e_i1 += G_k1_i1 Z_m_e_k1"](Y, G, Z);
     } else if (nDim == 2) {
       acro::Tensor X(nElem, nDof1D, nDof1D,
                      x_ptr, x_ptr, onGPU);
@@ -254,18 +254,18 @@ void AcroDiffusionIntegrator::Mult(const int vIdx, OccaVector &x, OccaVector &y)
       TE["U1_e_k1_k2 = G_k1_i1 BX_e_i1_k2"](U1, G, T1);
 
       //U2_e_k1_k2 = B_k1_i1 G_k2_i2 X_e_i1_i2
-      TE["GX_e_i1_k2 = B_k2_i2 X_e_i1_i2"](T1, G, X);
+      TE["GX_e_i1_k2 = G_k2_i2 X_e_i1_i2"](T1, G, X);
       TE["U2_e_k1_k2 = B_k1_i1 GX_e_i1_k2"](U2, B, T1);
 
       TE["Z_m_e_k1_k2 = D_e_m_n_k1_k2 U_n_e_k1_k2"](Z, D, U);
 
-      //Y_e_i1_i2 = G_k1_i1 B_k2_i2 Z1_e_k1_k2
+      //Y_e_i1_i2 += G_k1_i1 B_k2_i2 Z1_e_k1_k2
       TE["BZ1_e_i2_k1 = B_k2_i2 Z1_e_k1_k2"](T1, B, Z1);
-      TE["Y_e_i1_i2 = G_k1_i1 BZ1_e_i2_k1"](Y, G, T1);
+      TE["Y_e_i1_i2 += G_k1_i1 BZ1_e_i2_k1"](Y, G, T1);
 
       //Y_e_i1_i2 += B_k1_i1 G_k2_i2 Z2_e_k1_k2
-      TE["GZ1_e_i2_k1 = G_k2_i2 Z1_e_k1_k2"](T1, G, Z1);
-      TE["Y_e_i1_i2 += B_k1_i1 GZ1_e_i2_k1"](Y, B, T1);
+      TE["GZ2_e_i2_k1 = G_k2_i2 Z2_e_k1_k2"](T1, G, Z2);
+      TE["Y_e_i1_i2 += B_k1_i1 GZ2_e_i2_k1"](Y, B, T1);
     } else if (nDim == 3) {
       acro::Tensor X(nElem, nDof1D, nDof1D, nDof1D,
                      x_ptr, x_ptr, onGPU);
@@ -293,7 +293,7 @@ void AcroDiffusionIntegrator::Mult(const int vIdx, OccaVector &x, OccaVector &y)
       //Y_e_i1_i2_i3 =  G_k1_i1 B_k2_i2 B_k3_i3 Z1_e_k1_k2_k3
       TE["BZ1_e_i3_k1_k2 = B_k3_i3 Z1_e_k1_k2_k3"](T1, B, Z1);
       TE["BBZ1_e_i2_i3_k1 = B_k2_i2 BZ1_e_i3_k1_k2"](T2, B, T1);
-      TE["Y_e_i1_i2_i3 = G_k1_i1 BBZ1_e_i2_i3_k1"](Y, G, T2);
+      TE["Y_e_i1_i2_i3 += G_k1_i1 BBZ1_e_i2_i3_k1"](Y, G, T2);
 
       //Y_e_i1_i2_i3 =  B_k1_i1 G_k2_i2 B_k3_i3 Z2_e_k1_k2_k3
       TE["BZ2_e_i3_k1_k2 = B_k3_i3 Z2_e_k1_k2_k3"](T1, B, Z2);

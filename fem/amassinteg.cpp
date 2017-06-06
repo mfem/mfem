@@ -187,14 +187,14 @@ void AcroMassIntegrator::Mult(const int vIdx, OccaVector &x, OccaVector &y) {
       acro::Tensor X(nElem, nDof1D, x_ptr, x_ptr, onGPU);
       acro::Tensor Y(nElem, nDof1D, y_ptr, y_ptr, onGPU);
       TE["T1_e_k1 = D_e_k1 B_k1_j1 X_e_j1"](T1, D, B, X);
-      TE["Y_e_i1 = B_k1_i1 T1_e_k1"](Y, B, T1);
+      TE["Y_e_i1 += B_k1_i1 T1_e_k1"](Y, B, T1);
     } else if (nDim == 2) {
       acro::Tensor X(nElem, nDof1D, nDof1D, x_ptr, x_ptr, onGPU);
       acro::Tensor Y(nElem, nDof1D, nDof1D, y_ptr, y_ptr, onGPU);
       TE["T1_e_k2_j1 = B_k2_j2 X_e_j1_j2"](T1, B, X);
       TE["T2_e_k1_k2 = D_e_k1_k2 B_k1_j1 T1_e_k2_j1"](T2, D, B, T1);
       TE["T1_e_k1_i2 = B_k2_i2 T2_e_k1_k2"](T1, B, T2);
-      TE["Y_e_i1_i2 = B_k1_i1 T1_e_k1_i2"](Y, B, T1);
+      TE["Y_e_i1_i2 += B_k1_i1 T1_e_k1_i2"](Y, B, T1);
     } else if (nDim == 3) {
       acro::Tensor X(nElem, nDof1D, nDof1D, nDof1D, x_ptr, x_ptr, onGPU);
       acro::Tensor Y(nElem, nDof1D, nDof1D, nDof1D, y_ptr, y_ptr, onGPU);
@@ -203,7 +203,7 @@ void AcroMassIntegrator::Mult(const int vIdx, OccaVector &x, OccaVector &y) {
       TE["T3_e_k1_k2_k3 = D_e_k1_k2_k3 B_k1_j1 T2_e_k2_k3_j1"](T3, D, B, T2);
       TE["T2_e_k1_k2_i3 = B_k3_i3 T3_e_k1_k2_k3"](T2, B, T3);
       TE["T1_e_k1_i2_i3 = B_k2_i2 T2_e_k1_k2_i3"](T1, B, T2);
-      TE["Y_e_i1_i2_i3 = B_k1_i1 T1_e_k1_i2_i3"](Y, B, T1);
+      TE["Y_e_i1_i2_i3 += B_k1_i1 T1_e_k1_i2_i3"](Y, B, T1);
     }
   } else {
     mfem_error("AcroMassIntegrator partial assembly on simplices not supported");
