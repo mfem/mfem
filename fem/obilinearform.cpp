@@ -88,7 +88,7 @@ namespace mfem {
         const uint64_t testOffset  = v * (elements * testLocalDofs);
 
         initLocalKernel(elements, trialLocalDofs, localX.GetRange(trialOffset, trialEntries));
-        initLocalKernel(elements, testLocalDofs, localY.GetRange(testOffset, testEntries));
+        initLocalKernel(elements, testLocalDofs , localY.GetRange(testOffset , testEntries));
       }
     }
   }
