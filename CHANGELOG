@@ -187,7 +187,7 @@ Improved file output
 - Added experimental support for an HDF5-based output file format following the
   Conduit (https://github.com/LLNL/conduit) mesh blueprint specification for
   visualization and/or restart capability. This functionality is aimed primarily
-  at user of LLNL's ASC Toolkit (Sidre component) that run problems at extreme
+  at user of LLNL's axom project (Sidre component) that run problems at extreme
   scales. Users desiring a small scale binary format may want to look at the
   gzstream functionality instead.
 
