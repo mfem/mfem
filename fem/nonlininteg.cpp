@@ -409,7 +409,8 @@ void TMOPHyperelasticModel001::AssembleH(const DenseMatrix &Jpt,
 double TMOPHyperelasticModel002::EvalW(const DenseMatrix &Jpt) const
 {
    double det = Jpt.Det();
-   if (det <= 0.0) {MFEM_ABORT("NEGATIVE JACOBIAN");return 1e+100; }
+     if (det <= 0.0) {MFEM_ABORT("NEGATIVE JACOBIAN");return 1e+100; }
+//   if (det <= 0.0) {return 1e+100; }
 
    return 0.5 * Dim2Invariant1(Jpt) - 1.0;
 }
