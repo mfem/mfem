@@ -62,6 +62,9 @@
 // Enable MFEM functionality based on the SuperLU_DIST library.
 #cmakedefine MFEM_USE_SUPERLU
 
+// Enable MFEM functionality based on the STRUMPACK library.
+#cmakedefine MFEM_USE_STRUMPACK
+
 // Internal MFEM option: enable group/batch allocation for some small objects.
 #cmakedefine MFEM_USE_MEMALLOC
 

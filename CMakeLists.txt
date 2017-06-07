@@ -102,7 +102,7 @@ if (MFEM_USE_MPI)
     include_directories(${PETSC_INCLUDES})
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU PETSC)
+  set(PKGS_NEED_MPI SUPERLU PETSC STRUMPACK)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -173,6 +173,16 @@ if (MFEM_USE_SUPERLU)
   endif()
 endif()
 
+# STRUMPACK can only be enabled if parallel
+if (MFEM_USE_STRUMPACK)
+  if (MFEM_USE_MPI)
+    find_package(STRUMPACK REQUIRED)
+    include_directories(${STRUMPACK_INCLUDE_DIRS})
+  else()
+    message(FATAL_ERROR " *** STRUMPACK requires that MPI be enabled.")
+  endif()
+endif()
+
 # Gecko
 if (MFEM_USE_GECKO)
   find_package(Gecko REQUIRED)
@@ -228,7 +238,7 @@ endif()
 # List all possible libraries in order of dependencies.
 set(MFEM_TPLS HYPRE OPENMP SUNDIALS MESQUITE SuiteSparse SuperLUDist
     ParMETIS METIS LAPACK BLAS GECKO GNUTLS NETCDF PETSC MPFR ATK POSIXCLOCKS
-    MFEMBacktrace ZLIB)
+    MFEMBacktrace ZLIB STRUMPACK)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 foreach(TPL IN LISTS MFEM_TPLS)
