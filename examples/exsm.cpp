@@ -17,7 +17,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
-
+#include <unistd.h>
 
 using namespace mfem;
 
@@ -208,6 +208,8 @@ int main (int argc, char *argv[])
     char vishost[] = "localhost";
     int  visport   = 19916;
     int  ans;
+    vector<double> logvec (10);
+    
     
     bool dump_iterations = false;
     
@@ -245,6 +247,7 @@ int main (int argc, char *argv[])
     
     mesh = new Mesh(mesh_file, 1, 1);
     
+    
     int dim = mesh->Dimension();
     
     // 4. Refine the mesh to increase the resolution. In this example we do
@@ -260,6 +263,8 @@ int main (int argc, char *argv[])
         {
             mesh->UniformRefinement();
         }
+        
+        logvec[0]=ref_levels;
     }
     
     // 5. Define a finite element space on the mesh. Here we use vector finite
@@ -295,6 +300,7 @@ int main (int argc, char *argv[])
         fec = new H1_FECollection(mesh_poly_deg, dim);
     }
     FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim);
+    logvec[1]=mesh_poly_deg;
     
     // 6. Make the mesh curved based on the above finite element space. This
     //    means that we define the mesh elements through a fespace-based
@@ -339,9 +345,11 @@ int main (int argc, char *argv[])
     //     The latter is based on the DofToVDof() method which maps the scalar to
     //     the vector degrees of freedom in fespace.
     GridFunction rdm(fespace);
-    double jitter = 0.25; // perturbation scaling factor
+    double jitter = 0.; // perturbation scaling factor
+    /* k10commenting this for input
     cout << "Enter jitter --> " << flush;
     cin >> jitter;
+    */
     rdm.Randomize();
     rdm -= 0.5; // shift to random values in [-0.5,0.5]
     rdm *= jitter;
@@ -377,6 +385,7 @@ int main (int argc, char *argv[])
     
     // 12. (Optional) Send the initially perturbed mesh with the vector field
     //     representing the displacements to the original mesh to GLVis.
+    /* k10 commenting this for input
     cout << "Visualize the initial random perturbation? [0/1] --> ";
     cin >> ans;
     if (ans)
@@ -387,14 +396,17 @@ int main (int argc, char *argv[])
         rdm.Save(sol_sock);
         sol_sock.send();
     }
+    k10*/
     
-    int smoother;
+    int smoother = 1;
+    /* k10commenting this because the smoother is only Hyperelastic in this file
     cout <<
     "Select smoother:\n"
     "1) Hyperelastic model\n"
     "2) TMOP\n"
     " --> " << flush;
     cin >> smoother;
+     */
     
     // 14. Simple mesh smoothing can be performed by relaxing the node coordinate
     //     grid function x with the matrix A and right-hand side b. This process
@@ -430,6 +442,7 @@ int main (int argc, char *argv[])
         "3) IDEAL_INIT_SIZE\n"
         " --> " << flush;
         cin >> tjtype;
+        
         tj    = new TargetJacobian(TargetJacobian::IDEAL);
         if (tjtype == 1)
         {
@@ -459,15 +472,15 @@ int main (int argc, char *argv[])
         " --> " << flush;
         cin >> modeltype;
         model    = new TMOPHyperelasticModel001;
-        if (tjtype == 1)
+        if (modeltype == 1)
         {
             model = new TMOPHyperelasticModel001;
         }
-        else if (tjtype == 2)
+        else if (modeltype == 2)
         {
             model = new TMOPHyperelasticModel002;
         }
-        else if (tjtype == 7)
+        else if (modeltype == 7)
         {
             model = new TMOPHyperelasticModel007;
         }
@@ -477,6 +490,8 @@ int main (int argc, char *argv[])
             cout << "Model type will default to 1\n";
         }
         
+        logvec[2]=tjtype;
+        logvec[3]=modeltype;
         
         tj->SetNodes(*x);
         tj->SetInitialNodes(x0);
@@ -499,6 +514,13 @@ int main (int argc, char *argv[])
         mesh->Print(sol_sock2);
         metric.Save(sol_sock2);
         sol_sock2.send();
+        sol_sock2 << "keys " << "JREM" << endl;
+        
+        //osockstream sol_sock(visport, vishost);
+        //metric.Save(sol_sock);
+        //sol_sock << "keys M";
+        //sol_sock.send();
+        
         
         NonlinearForm a(fespace);
         a.AddDomainIntegrator(nf_integ);
@@ -515,8 +537,6 @@ int main (int argc, char *argv[])
         }
         Array<int> ess_vdofs(n), vdofs;
         n = 0;
-        cout << mesh->GetNBE() << "k10 number of boundary elements\n";
-        
         for (int i = 0; i < mesh->GetNBE(); i++)
         {
             const int attr = mesh->GetBdrElement(i)->GetAttribute();
@@ -602,7 +622,7 @@ int main (int argc, char *argv[])
             ess_bdr = 1;
             a.SetEssentialBC(ess_bdr);
         }
-        
+        logvec[4]=bndrflag;
         
         cout << "Choose linear smoother:\n"
         "0) l1-Jacobi\n"
@@ -610,6 +630,7 @@ int main (int argc, char *argv[])
         "2) MINRES\n" << " --> " << flush;
         cin >> ans;
         Solver *S;
+        logvec[5]=ans;
         const double rtol = 1e-12;
         if (ans == 0)
         {
@@ -638,12 +659,14 @@ int main (int argc, char *argv[])
             minres->SetAbsTol(0.0);
             minres->SetPrintLevel(3);
             S = minres;
+            
         }
-        
+        logvec[6]=ans;
         cout << "Enter number of Newton iterations --> " << flush;
         cin >> ans;
-        
+        logvec[7]=ans;
         cout << "Initial strain energy : " << a.GetEnergy(*x) << endl;
+        logvec[8]=a.GetEnergy(*x);
         
         // note: (*x) are the mesh nodes
         NewtonSolver *newt= new NewtonSolver;
@@ -661,6 +684,7 @@ int main (int argc, char *argv[])
             << endl;
         
         cout << "Final strain energy   : " << a.GetEnergy(*x) << endl;
+        logvec[9]=a.GetEnergy(*x);
         
         if (tj)
         {
@@ -670,7 +694,9 @@ int main (int argc, char *argv[])
             mesh->Print(sol_sock);
             metric.Save(sol_sock);
             sol_sock.send();
+            sol_sock << "keys " << "JREM" << endl;
         }
+
         
         delete newt;
         delete S;
@@ -694,6 +720,7 @@ int main (int argc, char *argv[])
         mesh->Print(mesh_ofs);
     }
     // save subdivided VTK mesh?
+    /* k10 commenting this stuff for testing
     if (1)
     {
         cout << "Enter VTK mesh subdivision factor or 0 to skip --> " << flush;
@@ -705,6 +732,8 @@ int main (int argc, char *argv[])
             mesh->PrintVTK(vtk_mesh, ans);
         }
     }
+     
+    
     
     // 16. (Optional) Send the relaxed mesh with the vector field representing
     //     the displacements to the perturbed mesh by socket to a GLVis server.
@@ -718,9 +747,38 @@ int main (int argc, char *argv[])
         x0.Save(sol_sock);
         sol_sock.send();
     }
-    
+    */
     // 17. Free the used memory.
     delete fespace;
     delete fec;
     delete mesh;
+
+    // write log to text file-k10
+    /*
+    cout << "How do you want to write log to a new file:\n"
+    "0) New file\n"
+    "1) Append\n" << " --> " << flush;
+    cin >> ans;
+    ofstream outputFile;
+    if (ans==0)
+    {
+        outputFile.open("logfile.txt");
+        outputFile << mesh_file << " ";
+    }
+    else
+    {
+        outputFile.open("logfile.txt",fstream::app);
+        outputFile << "\n" << mesh_file << " ";
+    }
+    
+    for (int i=0;i<10;i++)
+    {
+        outputFile << logvec[i] << " ";
+    }
+    outputFile.close();
+     */
+    // puase 1 second.. this is because X11 can restart if you push stuff too soon
+    usleep(1000000);
+    //k10 end
+    
 }

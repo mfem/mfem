@@ -1,0 +1,7 @@
+./exsm -m ../data/lptcoarse.mesh << EOF
+0 1 2 2 0 2 10 50 0
+EOF
+
+#./extmop -m ../data/lptcoarse.mesh << EOF
+#0 1 2 0
+#EOF
