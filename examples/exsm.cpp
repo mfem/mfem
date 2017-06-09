@@ -104,7 +104,7 @@ public:
         virtual void Mult(const Vector &b, Vector &x) const;
     
         virtual void Mult2(const Vector &b, Vector &x,
-                      const Mesh &mesh, GridFunction &gf) const;
+                      const Mesh &mesh, const IntegrationRule &ir) const;
     
     
 };
@@ -126,7 +126,7 @@ void RelaxedNewtonSolver::Mult(const Vector &b, Vector &x) const
 }
 
 void RelaxedNewtonSolver::Mult2(const Vector &b, Vector &x,
-                                const Mesh &mesh, GridFunction &gf) const
+                                const Mesh &mesh, const IntegrationRule &ir) const
 {
     MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
     MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
@@ -201,7 +201,6 @@ void RelaxedNewtonSolver::Mult2(const Vector &b, Vector &x,
             for (int i = 0; i < NE; i++)
             {
                 const FiniteElement &fe = *nodes.FESpace()->GetFE(i);
-                const IntegrationRule &ir = gf.FESpace()->GetFE(i)->GetNodes();
                 const int dim = fe.GetDim(), nsp = ir.GetNPoints(),
                 dof = fe.GetDof();
                 //cout << dof << " " << dim << " " << nsp << " dof,dim,nsp-k10\n";
@@ -683,7 +682,7 @@ int main (int argc, char *argv[])
         he_nlf_integ = new HyperelasticNLFIntegrator(model, tj);
         
         const IntegrationRule *ir =
-        &IntRulesLo.Get(fespace->GetFE(0)->GetGeomType(), logvec[1]); //k10
+        &IntRulesLo.Get(fespace->GetFE(0)->GetGeomType(), 8); //k10
         cout << ir->GetNPoints() << " k10 integration points\n";
         cout << logvec[1] << " k10integration order\n";
         he_nlf_integ->SetIntegrationRule(*ir);
@@ -864,7 +863,7 @@ int main (int argc, char *argv[])
         newt->SetPrintLevel(1);
         newt->SetOperator(a);
         Vector b;
-        newt->Mult2(b, *x, *mesh, metric);
+        newt->Mult2(b, *x, *mesh, *ir);
         //newt->Mult(b, *x);
         
         if (!newt->GetConverged())
