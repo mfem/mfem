@@ -425,6 +425,9 @@ export(PACKAGE ${PROJECT_NAME})
 
 # Extract the include directories required to use MFEM
 get_target_property(MFEM_TPL_INCLUDE_DIRS mfem INCLUDE_DIRECTORIES)
+if (NOT MFEM_TPL_INCLUDE_DIRS)
+  set(MFEM_TPL_INCLUDE_DIRS "")
+endif()
 
 # This is the build-tree version
 set(INCLUDE_INSTALL_DIRS ${PROJECT_BINARY_DIR} ${MFEM_TPL_INCLUDE_DIRS})
