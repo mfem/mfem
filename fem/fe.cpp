@@ -6559,7 +6559,150 @@ TensorBasisElement::TensorBasisElement(const int dims,
                                        const int btype) :
   pt_type(type),
   dof_map(dofs),
-  basis1d(poly1d.GetBasis(p, pt_type, btype)) {}
+  basis1d(poly1d.GetBasis(p, pt_type, btype)) {
+  switch (dims) {
+  case 1: {
+    dof_map[0] = 0;
+    dof_map[p] = 1;
+    for (int i = 1; i < p; i++) {
+      dof_map[i] = i+1;
+    }
+    break;
+  }
+  case 2: {
+    const int p1 = p + 1;
+
+    // vertices
+    dof_map[0 + 0*p1] = 0;
+    dof_map[p + 0*p1] = 1;
+    dof_map[p + p*p1] = 2;
+    dof_map[0 + p*p1] = 3;
+
+    // edges
+    int o = 4;
+    for (int i = 1; i < p; i++)
+      {
+        dof_map[i + 0*p1] = o++;
+      }
+    for (int i = 1; i < p; i++)
+      {
+        dof_map[p + i*p1] = o++;
+      }
+    for (int i = 1; i < p; i++)
+      {
+        dof_map[(p-i) + p*p1] = o++;
+      }
+    for (int i = 1; i < p; i++)
+      {
+        dof_map[0 + (p-i)*p1] = o++;
+      }
+
+    // interior
+    for (int j = 1; j < p; j++) {
+      for (int i = 1; i < p; i++) {
+        dof_map[i + j*p1] = o++;
+      }
+    }
+    break;
+  }
+  case 3: {
+    const int p1 = p + 1;
+
+    // vertices
+    dof_map[0 + (0 + 0*p1)*p1] = 0;
+    dof_map[p + (0 + 0*p1)*p1] = 1;
+    dof_map[p + (p + 0*p1)*p1] = 2;
+    dof_map[0 + (p + 0*p1)*p1] = 3;
+    dof_map[0 + (0 + p*p1)*p1] = 4;
+    dof_map[p + (0 + p*p1)*p1] = 5;
+    dof_map[p + (p + p*p1)*p1] = 6;
+    dof_map[0 + (p + p*p1)*p1] = 7;
+
+    // edges (see Hexahedron::edges in mesh/hexahedron.cpp)
+    int o = 8;
+    for (int i = 1; i < p; i++) {
+      dof_map[i + (0 + 0*p1)*p1] = o++;   // (0,1)
+    }
+    for (int i = 1; i < p; i++) {
+      dof_map[p + (i + 0*p1)*p1] = o++;   // (1,2)
+    }
+    for (int i = 1; i < p; i++) {
+      dof_map[i + (p + 0*p1)*p1] = o++;   // (3,2)
+    }
+    for (int i = 1; i < p; i++) {
+      dof_map[0 + (i + 0*p1)*p1] = o++;   // (0,3)
+    }
+    for (int i = 1; i < p; i++) {
+      dof_map[i + (0 + p*p1)*p1] = o++;   // (4,5)
+    }
+    for (int i = 1; i < p; i++) {
+      dof_map[p + (i + p*p1)*p1] = o++;   // (5,6)
+    }
+    for (int i = 1; i < p; i++) {
+      dof_map[i + (p + p*p1)*p1] = o++;   // (7,6)
+    }
+    for (int i = 1; i < p; i++) {
+      dof_map[0 + (i + p*p1)*p1] = o++;   // (4,7)
+    }
+    for (int i = 1; i < p; i++) {
+      dof_map[0 + (0 + i*p1)*p1] = o++;   // (0,4)
+    }
+    for (int i = 1; i < p; i++) {
+      dof_map[p + (0 + i*p1)*p1] = o++;   // (1,5)
+    }
+    for (int i = 1; i < p; i++) {
+      dof_map[p + (p + i*p1)*p1] = o++;   // (2,6)
+    }
+    for (int i = 1; i < p; i++) {
+      dof_map[0 + (p + i*p1)*p1] = o++;   // (3,7)
+    }
+
+    // faces (see Mesh::GenerateFaces in mesh/mesh.cpp)
+    for (int j = 1; j < p; j++) {
+      for (int i = 1; i < p; i++) {
+        dof_map[i + ((p-j) + 0*p1)*p1] = o++;   // (3,2,1,0)
+      }
+    }
+    for (int j = 1; j < p; j++) {
+      for (int i = 1; i < p; i++) {
+        dof_map[i + (0 + j*p1)*p1] = o++;   // (0,1,5,4)
+      }
+    }
+    for (int j = 1; j < p; j++) {
+      for (int i = 1; i < p; i++) {
+        dof_map[p + (i + j*p1)*p1] = o++;   // (1,2,6,5)
+      }
+    }
+    for (int j = 1; j < p; j++) {
+      for (int i = 1; i < p; i++) {
+        dof_map[(p-i) + (p + j*p1)*p1] = o++;   // (2,3,7,6)
+      }
+    }
+    for (int j = 1; j < p; j++) {
+      for (int i = 1; i < p; i++) {
+        dof_map[0 + ((p-i) + j*p1)*p1] = o++;   // (3,0,4,7)
+      }
+    }
+    for (int j = 1; j < p; j++) {
+      for (int i = 1; i < p; i++) {
+        dof_map[i + (j + p*p1)*p1] = o++;   // (4,5,6,7)
+      }
+    }
+
+    // interior
+    for (int k = 1; k < p; k++) {
+      for (int j = 1; j < p; j++) {
+        for (int i = 1; i < p; i++) {
+          dof_map[i + (j + k*p1)*p1] = o++;
+        }
+      }
+    }
+    break;
+  }
+  default:
+    break;
+  }
+}
 
 NodalTensorFiniteElement::NodalTensorFiniteElement(const int dims,
                                                    const int p,
@@ -6596,12 +6739,9 @@ H1_SegmentElement::H1_SegmentElement(const int p, const int type)
 
    Nodes.IntPoint(0).x = cp[0];
    Nodes.IntPoint(1).x = cp[p];
-   dof_map[0] = 0;
-   dof_map[p] = 1;
    for (int i = 1; i < p; i++)
    {
       Nodes.IntPoint(i+1).x = cp[i];
-      dof_map[i] = i+1;
    }
 }
 
@@ -6685,39 +6825,7 @@ H1_QuadrilateralElement::H1_QuadrilateralElement(const int p, const int type)
    dshape_y.SetSize(p1);
 #endif
 
-   // vertices
-   dof_map[0 + 0*p1] = 0;
-   dof_map[p + 0*p1] = 1;
-   dof_map[p + p*p1] = 2;
-   dof_map[0 + p*p1] = 3;
-
-   // edges
-   int o = 4;
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[i + 0*p1] = o++;
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[p + i*p1] = o++;
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[(p-i) + p*p1] = o++;
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[0 + (p-i)*p1] = o++;
-   }
-
-   // interior
-   for (int j = 1; j < p; j++)
-      for (int i = 1; i < p; i++)
-      {
-         dof_map[i + j*p1] = o++;
-      }
-
-   o = 0;
+   int o = 0;
    for (int j = 0; j <= p; j++)
    {
       for (int i = 0; i <= p; i++)
@@ -6833,108 +6941,7 @@ H1_HexahedronElement::H1_HexahedronElement(const int p, const int type)
    dshape_z.SetSize(p1);
 #endif
 
-   // vertices
-   dof_map[0 + (0 + 0*p1)*p1] = 0;
-   dof_map[p + (0 + 0*p1)*p1] = 1;
-   dof_map[p + (p + 0*p1)*p1] = 2;
-   dof_map[0 + (p + 0*p1)*p1] = 3;
-   dof_map[0 + (0 + p*p1)*p1] = 4;
-   dof_map[p + (0 + p*p1)*p1] = 5;
-   dof_map[p + (p + p*p1)*p1] = 6;
-   dof_map[0 + (p + p*p1)*p1] = 7;
-
-   // edges (see Hexahedron::edges in mesh/hexahedron.cpp)
-   int o = 8;
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[i + (0 + 0*p1)*p1] = o++;   // (0,1)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[p + (i + 0*p1)*p1] = o++;   // (1,2)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[i + (p + 0*p1)*p1] = o++;   // (3,2)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[0 + (i + 0*p1)*p1] = o++;   // (0,3)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[i + (0 + p*p1)*p1] = o++;   // (4,5)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[p + (i + p*p1)*p1] = o++;   // (5,6)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[i + (p + p*p1)*p1] = o++;   // (7,6)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[0 + (i + p*p1)*p1] = o++;   // (4,7)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[0 + (0 + i*p1)*p1] = o++;   // (0,4)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[p + (0 + i*p1)*p1] = o++;   // (1,5)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[p + (p + i*p1)*p1] = o++;   // (2,6)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[0 + (p + i*p1)*p1] = o++;   // (3,7)
-   }
-
-   // faces (see Mesh::GenerateFaces in mesh/mesh.cpp)
-   for (int j = 1; j < p; j++)
-      for (int i = 1; i < p; i++)
-      {
-         dof_map[i + ((p-j) + 0*p1)*p1] = o++;   // (3,2,1,0)
-      }
-   for (int j = 1; j < p; j++)
-      for (int i = 1; i < p; i++)
-      {
-         dof_map[i + (0 + j*p1)*p1] = o++;   // (0,1,5,4)
-      }
-   for (int j = 1; j < p; j++)
-      for (int i = 1; i < p; i++)
-      {
-         dof_map[p + (i + j*p1)*p1] = o++;   // (1,2,6,5)
-      }
-   for (int j = 1; j < p; j++)
-      for (int i = 1; i < p; i++)
-      {
-         dof_map[(p-i) + (p + j*p1)*p1] = o++;   // (2,3,7,6)
-      }
-   for (int j = 1; j < p; j++)
-      for (int i = 1; i < p; i++)
-      {
-         dof_map[0 + ((p-i) + j*p1)*p1] = o++;   // (3,0,4,7)
-      }
-   for (int j = 1; j < p; j++)
-      for (int i = 1; i < p; i++)
-      {
-         dof_map[i + (j + p*p1)*p1] = o++;   // (4,5,6,7)
-      }
-
-   // interior
-   for (int k = 1; k < p; k++)
-      for (int j = 1; j < p; j++)
-         for (int i = 1; i < p; i++)
-         {
-            dof_map[i + (j + k*p1)*p1] = o++;
-         }
-
-   o = 0;
+   int o = 0;
    for (int k = 0; k <= p; k++)
       for (int j = 0; j <= p; j++)
          for (int i = 0; i <= p; i++)
@@ -7085,12 +7092,9 @@ H1Pos_SegmentElement::H1Pos_SegmentElement(const int p)
    // Endpoints need to be first in the list, so reorder them.
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(1).x = 1.0;
-   dof_map[0] = 0;
-   dof_map[p] = 1;
    for (int i = 1; i < p; i++)
    {
       Nodes.IntPoint(i+1).x = double(i)/p;
-      dof_map[i] = i+1;
    }
 }
 
@@ -7153,40 +7157,7 @@ H1Pos_QuadrilateralElement::H1Pos_QuadrilateralElement(const int p)
    dshape_y.SetSize(p1);
 #endif
 
-   // vertices must be the first ones in the list of DOF's for
-   // this element.  So we need to reorder the points.
-   dof_map[0 + 0*p1] = 0;
-   dof_map[p + 0*p1] = 1;
-   dof_map[p + p*p1] = 2;
-   dof_map[0 + p*p1] = 3;
-
-   // edges
-   int o = 4;
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[i + 0*p1] = o++;
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[p + i*p1] = o++;
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[(p-i) + p*p1] = o++;
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[0 + (p-i)*p1] = o++;
-   }
-
-   // interior
-   for (int j = 1; j < p; j++)
-      for (int i = 1; i < p; i++)
-      {
-         dof_map[i + j*p1] = o++;
-      }
-
-   o = 0;
+   int o = 0;
    for (int j = 0; j <= p; j++)
       for (int i = 0; i <= p; i++)
       {
@@ -7256,109 +7227,7 @@ H1Pos_HexahedronElement::H1Pos_HexahedronElement(const int p)
    dshape_z.SetSize(p1);
 #endif
 
-   // vertices must be the first ones in the list of DOF's for
-   // this element.  So we need to reorder the points.
-   dof_map[0 + (0 + 0*p1)*p1] = 0;
-   dof_map[p + (0 + 0*p1)*p1] = 1;
-   dof_map[p + (p + 0*p1)*p1] = 2;
-   dof_map[0 + (p + 0*p1)*p1] = 3;
-   dof_map[0 + (0 + p*p1)*p1] = 4;
-   dof_map[p + (0 + p*p1)*p1] = 5;
-   dof_map[p + (p + p*p1)*p1] = 6;
-   dof_map[0 + (p + p*p1)*p1] = 7;
-
-   // edges (see Hexahedron::edges in mesh/hexahedron.cpp)
-   int o = 8;
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[i + (0 + 0*p1)*p1] = o++;   // (0,1)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[p + (i + 0*p1)*p1] = o++;   // (1,2)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[i + (p + 0*p1)*p1] = o++;   // (3,2)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[0 + (i + 0*p1)*p1] = o++;   // (0,3)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[i + (0 + p*p1)*p1] = o++;   // (4,5)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[p + (i + p*p1)*p1] = o++;   // (5,6)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[i + (p + p*p1)*p1] = o++;   // (7,6)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[0 + (i + p*p1)*p1] = o++;   // (4,7)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[0 + (0 + i*p1)*p1] = o++;   // (0,4)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[p + (0 + i*p1)*p1] = o++;   // (1,5)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[p + (p + i*p1)*p1] = o++;   // (2,6)
-   }
-   for (int i = 1; i < p; i++)
-   {
-      dof_map[0 + (p + i*p1)*p1] = o++;   // (3,7)
-   }
-
-   // faces (see Mesh::GenerateFaces in mesh/mesh.cpp)
-   for (int j = 1; j < p; j++)
-      for (int i = 1; i < p; i++)
-      {
-         dof_map[i + ((p-j) + 0*p1)*p1] = o++;   // (3,2,1,0)
-      }
-   for (int j = 1; j < p; j++)
-      for (int i = 1; i < p; i++)
-      {
-         dof_map[i + (0 + j*p1)*p1] = o++;   // (0,1,5,4)
-      }
-   for (int j = 1; j < p; j++)
-      for (int i = 1; i < p; i++)
-      {
-         dof_map[p + (i + j*p1)*p1] = o++;   // (1,2,6,5)
-      }
-   for (int j = 1; j < p; j++)
-      for (int i = 1; i < p; i++)
-      {
-         dof_map[(p-i) + (p + j*p1)*p1] = o++;   // (2,3,7,6)
-      }
-   for (int j = 1; j < p; j++)
-      for (int i = 1; i < p; i++)
-      {
-         dof_map[0 + ((p-i) + j*p1)*p1] = o++;   // (3,0,4,7)
-      }
-   for (int j = 1; j < p; j++)
-      for (int i = 1; i < p; i++)
-      {
-         dof_map[i + (j + p*p1)*p1] = o++;   // (4,5,6,7)
-      }
-
-   // interior
-   for (int k = 1; k < p; k++)
-      for (int j = 1; j < p; j++)
-         for (int i = 1; i < p; i++)
-         {
-            dof_map[i + (j + k*p1)*p1] = o++;
-         }
-
-   o = 0;
+   int o = 0;
    for (int k = 0; k <= p; k++)
       for (int j = 0; j <= p; j++)
          for (int i = 0; i <= p; i++)
