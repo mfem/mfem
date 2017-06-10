@@ -479,11 +479,18 @@ namespace mfem {
                                             trialFE, testFE,
                                             *trialTFE, *testTFE,
                                             *ir);
+      mapsTranspose = OccaDofQuadMaps::GetTensorMaps(device,
+                                                     testFE, trialFE,
+                                                     *testTFE, *trialTFE,
+                                                     *ir);
       hasTensorBasis = true;
     } else {
       maps = OccaDofQuadMaps::GetSimplexMaps(device,
                                              trialFE, testFE,
                                              *ir);
+      mapsTranspose = OccaDofQuadMaps::GetSimplexMaps(device,
+                                                      testFE, trialFE,
+                                                      *ir);
       hasTensorBasis = false;
     }
   }

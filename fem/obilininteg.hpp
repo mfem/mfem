@@ -144,6 +144,7 @@ namespace mfem {
     const IntegrationRule *ir;
     bool hasTensorBasis;
     OccaDofQuadMaps maps;
+    OccaDofQuadMaps mapsTranspose;
 
   public:
     OccaIntegrator();
@@ -172,6 +173,11 @@ namespace mfem {
 
     virtual void Assemble() = 0;
     virtual void MultAdd(OccaVector &x, OccaVector &y) = 0;
+
+    virtual void MultTransposeAdd(OccaVector &x, OccaVector &y)
+    {
+       mfem_error("OccaIntegrator::MultTransposeAdd() is not overloaded!");
+    }
 
     OccaGeometry GetGeometry(const int flags = (OccaGeometry::Jacobian    |
                                                 OccaGeometry::JacobianInv |
@@ -229,6 +235,7 @@ namespace mfem {
     virtual void Setup();
 
     virtual void Assemble();
+
     virtual void MultAdd(OccaVector &x, OccaVector &y);
   };
   //====================================

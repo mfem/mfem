@@ -296,7 +296,15 @@ namespace mfem {
 
   // Matrix transpose vector multiplication.
   void OccaBilinearForm::MultTranspose(const OccaVector &x, OccaVector &y) const {
-    mfem_error("occa::OccaBilinearForm::MultTranspose() is not overloaded!");
+    otestFespace->GlobalToLocal(x, localX);
+    localY = 0;
+
+    const int integratorCount = (int) integrators.size();
+    for (int i = 0; i < integratorCount; ++i) {
+      integrators[i]->MultTransposeAdd(localX, localY);
+    }
+
+    otrialFespace->LocalToGlobal(localY, y);
   }
 
 
