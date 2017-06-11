@@ -70,23 +70,6 @@ STRUMPACKRowLocMatrix::STRUMPACKRowLocMatrix(const HypreParMatrix & hypParMat)
    dist[rank + 1] = parcsr_op->first_row_index + csr_op->num_rows;
    dist[0] = 0;
    MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, dist + 1, 1, MPI_INT, comm_);
-
-   // for (int p=0; p<rank; p++) MPI_Barrier(comm_);
-   // std::cout << "p=" << rank << " first_row=" << parcsr_op->first_row_index << std::endl;
-   // std::cout << " I=[";
-   // for (int i=0; i<csr_op->num_rows; i++) std::cout << csr_op->i[i] << " ";
-   // std::cout << "];" << std::endl;
-   // std::cout << " J=[";
-   // for (int i=0; i<csr_op->num_nonzeros; i++) std::cout << csr_op->j[i] << " ";
-   // std::cout << "];" << std::endl;
-   // std::cout << " v=[";
-   // for (int i=0; i<csr_op->num_nonzeros; i++) std::cout << csr_op->data[i] << " ";
-   // std::cout << "];" << std::endl;
-   // std::cout << " dist=[";
-   // for (int i=0; i<=nprocs; i++) std::cout << dist[i] << " ";
-   // std::cout << "];" << std::endl;
-   // for (int p=rank; p<=nprocs; p++) MPI_Barrier(comm_);
-
    A_ = new CSRMatrixMPI<double,int>(csr_op->num_rows, csr_op->i, csr_op->j, csr_op->data, dist, comm_, false);
    delete[] dist;
 
@@ -100,12 +83,12 @@ STRUMPACKRowLocMatrix::~STRUMPACKRowLocMatrix()
    if ( A_ != NULL ) { delete A_; }
 }
 
-STRUMPACKSolver::STRUMPACKSolver( MPI_Comm comm )
+STRUMPACKSolver::STRUMPACKSolver( int argc, char* argv[], MPI_Comm comm )
    : comm_(comm),
      APtr_(NULL),
      solver_(NULL)
 {
-   this->Init();
+  this->Init(argc, argv);
 }
 
 STRUMPACKSolver::STRUMPACKSolver( STRUMPACKRowLocMatrix & A )
@@ -116,27 +99,65 @@ STRUMPACKSolver::STRUMPACKSolver( STRUMPACKRowLocMatrix & A )
    height = A.Height();
    width  = A.Width();
 
-   this->Init();
+   this->Init(0, NULL);
 }
 
 STRUMPACKSolver::~STRUMPACKSolver()
 {
-  if ( solver_ != NULL ) { delete solver_; }
+   if ( solver_ != NULL ) { delete solver_; }
 }
 
-void STRUMPACKSolver::Init()
+void STRUMPACKSolver::Init( int argc, char* argv[] )
 {
    MPI_Comm_size(comm_, &numProcs_);
    MPI_Comm_rank(comm_, &myid_);
 
-   // TODO can we get the command line arguments in here??
-   solver_ = new StrumpackSparseSolverMPIDist<double,int>(comm_, false);
+   factor_verbose_ = false;
+   solve_verbose_ = false;
+
+   solver_ = new StrumpackSparseSolverMPIDist<double,int>(comm_, argc, argv, false);
 }
 
-void STRUMPACKSolver::SetPrintStatistics( bool print_stat )
+void STRUMPACKSolver::SetFromCommandLine( )
 {
-  solver_->options().set_verbose(print_stat);
+   solver_->options().set_from_command_line( );
 }
+
+void STRUMPACKSolver::SetPrintFactorStatistics( bool print_stat )
+{
+   factor_verbose_ = print_stat;
+}
+
+void STRUMPACKSolver::SetPrintSolveStatistics( bool print_stat )
+{
+   solve_verbose_ = print_stat;
+}
+
+void STRUMPACKSolver::SetKrylovSolver( strumpack::KrylovSolver method )
+{
+   solver_->options().set_Krylov_solver( method );
+}
+
+void STRUMPACKSolver::SetReorderingStrategy( strumpack::ReorderingStrategy method )
+{
+   solver_->options().set_reordering_method( method );
+}
+
+void STRUMPACKSolver::SetMC64Job( strumpack::MC64Job job )
+{
+   solver_->options().set_mc64job( job );
+}
+
+void STRUMPACKSolver::SetRelTol( double rtol )
+{
+   solver_->options().set_rel_tol( rtol );
+}
+
+void STRUMPACKSolver::SetAbsTol( double atol )
+{
+   solver_->options().set_abs_tol( atol );
+}
+
 
 void STRUMPACKSolver::Mult( const Vector & x, Vector & y ) const
 {
@@ -148,7 +169,8 @@ void STRUMPACKSolver::Mult( const Vector & x, Vector & y ) const
    double*  xPtr = (double*)(const_cast<Vector&>(x));
    int      locSize = y.Size();
 
-   ReturnCode ret = solver_->solve(xPtr, yPtr);
+   solver_->options().set_verbose( factor_verbose_ );
+   ReturnCode ret = solver_->factor();
    switch (ret) {
    case ReturnCode::SUCCESS: break;
    case ReturnCode::MATRIX_NOT_SET:
@@ -162,6 +184,8 @@ void STRUMPACKSolver::Mult( const Vector & x, Vector & y ) const
      }
      break;
    }
+   solver_->options().set_verbose( solve_verbose_ );
+   solver_->solve(xPtr, yPtr);
 
 }
 

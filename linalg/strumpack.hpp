@@ -40,7 +40,7 @@ public:
 
    /** Creates a copy of the parallel matrix hypParMat in STRUMPACK's RowLoc
        format. All data is copied so the original matrix may be deleted. */
-  STRUMPACKRowLocMatrix(const HypreParMatrix & hypParMat);
+   STRUMPACKRowLocMatrix(const HypreParMatrix & hypParMat);
 
    ~STRUMPACKRowLocMatrix();
 
@@ -70,7 +70,7 @@ class STRUMPACKSolver : public mfem::Solver
 {
 public:
    // Constructor with MPI_Comm parameter.
-   STRUMPACKSolver( MPI_Comm comm );
+   STRUMPACKSolver( int argc, char* argv[], MPI_Comm comm );
 
    // Constructor with STRUMPACK Matrix Object.
    STRUMPACKSolver( STRUMPACKRowLocMatrix & A);
@@ -84,18 +84,65 @@ public:
    // Set the operator.
    void SetOperator( const Operator & op );
 
-   // TODO
-   // Set various solver options. Refer to STRUMPACK documentation for details.
-   void SetPrintStatistics( bool print_stat );
+   // Set various solver options. Refer to STRUMPACK documentation for
+   // details.
+   void SetFromCommandLine( );
+   void SetPrintFactorStatistics( bool print_stat );
+   void SetPrintSolveStatistics( bool print_stat );
+   void SetRelTol( double rtol );
+   void SetAbsTol( double atol );
+
+   /**
+    * STRUMPACK is an (approximate) direct solver. It can be used as a
+    * direct solver or as a preconditioner. To use STRUMPACK as only a
+    * preconditioner, set the Krylov solver to DIRECT. STRUMPACK also
+    * provides iterative solvers which can use the preconditioner, and
+    * these iterative solvers can also be used without preconditioner.
+    *
+    * Supported values are:
+    *    AUTO:           Use iterative refinement if no HSS compression is used, otherwise use GMRes.
+    *    DIRECT:         No outer iterative solver, just a single application of the multifrontal solver.
+    *    REFINE:         Iterative refinement.
+    *    PREC_GMRES:     Preconditioned GMRes. The preconditioner is the (approx) multifrontal solver.
+    *    GMRES:          UN-preconditioned GMRes. (for testing mainly)
+    *    PREC_BICGSTAB:  Preconditioned BiCGStab. The preconditioner is the (approx) multifrontal solver.
+    *    BICGSTAB:       UN-preconditioned BiCGStab. (for testing mainly)
+    */
+   void SetKrylovSolver( strumpack::KrylovSolver method );
+
+   /**
+    * Supported reorderings are:
+    *    METIS, PARMETIS, SCOTCH, PTSCOTCH, RCM
+    */
+   void SetReorderingStrategy( strumpack::ReorderingStrategy method );
+
+   /**
+    * MC64 performs (static) pivoting. Using a matching algorithm, it
+    * permutes the sparse input matrix in order to get nonzero
+    * elements on the diagonal. If the input matrix is already
+    * diagonally dominant, this reordering can be disabled.
+    * Possible values are:
+    *    NONE:                          Don't do anything
+    *    MAX_CARDINALITY:               Maximum cardinality
+    *    MAX_SMALLEST_DIAGONAL:         Maximize smallest diagonal value
+    *    MAX_SMALLEST_DIAGONAL_2:       Same as MAX_SMALLEST_DIAGONAL, but different algorithm
+    *    MAX_DIAGONAL_SUM:              Maximize sum of diagonal values
+    *    MAX_DIAGONAL_PRODUCT_SCALING:  Maximize the product of the diagonal values
+    *                                   and perform row and column scaling
+    */
+   void SetMC64Job( strumpack::MC64Job job );
 
 private:
-   void Init();
+   void Init( int argc, char* argv[] );
 
 protected:
 
    MPI_Comm      comm_;
    int           numProcs_;
    int           myid_;
+
+   bool factor_verbose_;
+   bool solve_verbose_;
 
    const STRUMPACKRowLocMatrix * APtr_;
    strumpack::StrumpackSparseSolverMPIDist<double,int> * solver_;

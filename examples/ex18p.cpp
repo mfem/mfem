@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int nev = 5;
    int seed = 75;
-   bool sp_solver  = false;
+   bool sp_solver = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -85,15 +85,15 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.Parse();
-   if (!args.Good())
-   {
-      if (myid == 0)
-      {
-         args.PrintUsage(cout);
-      }
-      MPI_Finalize();
-      return 1;
-   }
+   // if (!args.Good())
+   // {
+   //    if (myid == 0)
+   //    {
+   // 	  args.PrintUsage(cout);
+   //    }
+   //    MPI_Finalize();
+   //    return 1;
+   // }
    if (myid == 0)
    {
       args.PrintOptions(cout);
@@ -209,11 +209,15 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_STRUMPACK
    else
    {
-      STRUMPACKSolver * strumpack = new STRUMPACKSolver(MPI_COMM_WORLD);
-      strumpack->SetPrintStatistics(true);
+      STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+      strumpack->SetPrintFactorStatistics(true);
+      strumpack->SetPrintSolveStatistics(false);
+      strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+      strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+      strumpack->SetMC64Job(strumpack::MC64Job::NONE);
       // strumpack->SetSymmetricPattern(true);
-      // strumpack->SetColumnPermutation(superlu::PARMETIS);
       strumpack->SetOperator(*Arow);
+      strumpack->SetFromCommandLine();
       precond = strumpack;
    }
 #endif
