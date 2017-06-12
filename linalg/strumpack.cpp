@@ -164,10 +164,13 @@ void STRUMPACKSolver::Mult( const Vector & x, Vector & y ) const
    MFEM_ASSERT(APtr_ != NULL,
                "STRUMPACK Error: The operator must be set before"
                " the system can be solved.");
+   MFEM_ASSERT(x.Size() == Width(), "invalid x.Size() = " << x.Size()
+               << ", expected size = " << Width());
+   MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
+               << ", expected size = " << Height());
 
    double*  yPtr = (double*)y;
    double*  xPtr = (double*)(const_cast<Vector&>(x));
-   int      locSize = y.Size();
 
    solver_->options().set_verbose( factor_verbose_ );
    ReturnCode ret = solver_->factor();
