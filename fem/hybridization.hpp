@@ -120,6 +120,10 @@ public:
    /// Return the serial hybridized matrix.
    SparseMatrix &GetMatrix() { return *H; }
 
+   /// Return the transpose of the serial constraint matrix.
+   SparseMatrix &GetConstraintMatrixTranspose()
+   { if (!Ct) mfem_error("Ct has not been constructed!"); return *Ct; }
+
 #ifdef MFEM_USE_MPI
    /// Return the parallel hybridized matrix.
    HypreParMatrix &GetParallelMatrix() { return *pH.Is<HypreParMatrix>(); }
