@@ -363,6 +363,8 @@ protected:
    Array<BilinearFormIntegrator*> bdr;
    Array<BilinearFormIntegrator*> skt; // trace face integrators
 
+   DenseTensor *element_matrices;
+
 public:
    MixedBilinearForm (FiniteElementSpace *tr_fes,
                       FiniteElementSpace *te_fes);
@@ -411,6 +413,10 @@ public:
    Array<BilinearFormIntegrator*> *GetTFBFI() { return &skt; }
 
    void operator= (const double a) { *mat = a; }
+
+   void ComputeElementMatrices();
+
+   void ComputeElementMatrix(int i, DenseMatrix &mat);
 
    void Assemble (int skip_zeros = 1);
 

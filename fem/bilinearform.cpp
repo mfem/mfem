@@ -897,6 +897,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    trial_fes = tr_fes;
    test_fes = te_fes;
    mat = NULL;
+   element_matrices = NULL;
 }
 
 double & MixedBilinearForm::Elem (int i, int j)
@@ -963,12 +964,95 @@ void MixedBilinearForm::AddTraceFaceIntegrator (BilinearFormIntegrator * bfi)
    skt.Append (bfi);
 }
 
+void MixedBilinearForm::ComputeElementMatrices()
+{
+   if (element_matrices || dom.Size() == 0 || test_fes->GetNE() == 0)
+   {
+      return;
+   }
+
+   int num_elements = test_fes->GetNE();
+   int num_test_dofs_per_el =
+           test_fes->GetFE(0)->GetDof() * test_fes->GetVDim();
+   int num_trial_dofs_per_el =
+           trial_fes->GetFE(0)->GetDof() * trial_fes->GetVDim();
+
+   element_matrices = new DenseTensor(num_test_dofs_per_el,
+                                      num_trial_dofs_per_el,
+                                      num_elements);
+
+   DenseMatrix tmp;
+   IsoparametricTransformation eltrans;
+
+#ifdef MFEM_USE_OPENMP
+   #pragma omp parallel for private(tmp,eltrans)
+#endif
+   for (int i = 0; i < num_elements; i++)
+   {
+      DenseMatrix elmat(element_matrices->GetData(i),
+                        num_test_dofs_per_el, num_trial_dofs_per_el);
+      const FiniteElement &trial_fe = *trial_fes->GetFE(i);
+      const FiniteElement &test_fe = *test_fes->GetFE(i);
+#ifdef MFEM_DEBUG
+      if (num_test_dofs_per_el != test_fe.GetDof()*test_fes->GetVDim() &&
+              num_trial_dofs_per_el != trial_fe.GetDof()*trial_fes->GetVDim())
+         mfem_error("BilinearForm::ComputeElementMatrices:"
+                    " all elements must have same number of dofs");
+#endif
+      test_fes->GetElementTransformation(i, &eltrans);
+
+      dom[0]->AssembleElementMatrix2 (trial_fe, test_fe, eltrans, elmat);
+      for (int k = 1; k < dom.Size(); k++)
+      {
+         // note: some integrators may not be thread-safe
+         dom[k]->AssembleElementMatrix2 (trial_fe, test_fe, eltrans, tmp);
+         elmat += tmp;
+      }
+      elmat.ClearExternalData();
+   }
+}
+
+void MixedBilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
+{
+    if (element_matrices)
+    {
+       elmat.SetSize(element_matrices->SizeI(), element_matrices->SizeJ());
+       elmat = element_matrices->GetData(i);
+       return;
+    }
+
+    Array<int> tr_vdofs, te_vdofs;
+    DenseMatrix elemmat;
+    ElementTransformation *eltrans;
+
+    trial_fes -> GetElementVDofs (i, tr_vdofs);
+    test_fes  -> GetElementVDofs (i, te_vdofs);
+    if (dom.Size())
+    {
+        const FiniteElement &trial_fe = *trial_fes->GetFE(i);
+        const FiniteElement &test_fe = *test_fes->GetFE(i);
+        eltrans = test_fes -> GetElementTransformation (i);
+        dom[0] -> AssembleElementMatrix2 (trial_fe, test_fe, *eltrans, elmat);
+        for (int k = 1; k < dom.Size(); k++)
+        {
+           dom[k] -> AssembleElementMatrix2 (trial_fe, test_fe,
+                                             *eltrans, elemmat);
+           elmat += elemmat;
+        }
+    }
+    else
+    {
+       elmat.SetSize(te_vdofs.Size(), tr_vdofs.Size());
+       elmat = 0.0;
+    }
+}
+
 void MixedBilinearForm::Assemble (int skip_zeros)
 {
    int i, k;
    Array<int> tr_vdofs, te_vdofs;
    ElementTransformation *eltrans;
-   DenseMatrix elemmat;
+   DenseMatrix elmat, elemmat, *elmat_p;
 
    Mesh *mesh = test_fes -> GetMesh();
 
@@ -983,14 +1067,26 @@ void MixedBilinearForm::Assemble (int skip_zeros)
       {
          trial_fes -> GetElementVDofs (i, tr_vdofs);
          test_fes  -> GetElementVDofs (i, te_vdofs);
-         eltrans = test_fes -> GetElementTransformation (i);
-         for (k = 0; k < dom.Size(); k++)
+         if (element_matrices)
          {
-            dom[k] -> AssembleElementMatrix2 (*trial_fes -> GetFE(i),
-                                              *test_fes  -> GetFE(i),
-                                              *eltrans, elemmat);
-            mat -> AddSubMatrix (te_vdofs, tr_vdofs, elemmat, skip_zeros);
+            elmat_p = &(*element_matrices)(i);
          }
+         else
+         {
+            const FiniteElement &trial_fe = *trial_fes->GetFE(i);
+            const FiniteElement &test_fe = *test_fes->GetFE(i);
+            eltrans = test_fes -> GetElementTransformation (i);
+            dom[0] -> AssembleElementMatrix2 (trial_fe, test_fe,
+                                              *eltrans, elmat);
+            for (k = 1; k < dom.Size(); k++)
+            {
+               dom[k] -> AssembleElementMatrix2 (trial_fe, test_fe,
+                                                 *eltrans, elemmat);
+               elmat += elemmat;
+            }
+            elmat_p = &elmat;
+         }
+         mat -> AddSubMatrix (te_vdofs, tr_vdofs, *elmat_p, skip_zeros);
       }
    }
 
