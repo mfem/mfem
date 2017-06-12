@@ -150,6 +150,23 @@ SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
 SUPERLU_OPT = -I$(SUPERLU_DIR)/SRC
 SUPERLU_LIB = -L$(SUPERLU_DIR)/SRC -lsuperlu_dist
 
+# SCOTCH library configuration
+SCOTCH_DIR = @MFEM_DIR@/../scotch_6.0.4
+SCOTCH_OPT = -I$(SCOTCH_DIR)/include
+SCOTCH_LIB = -L$(SCOTCH_DIR)/lib -lptscotch -lptscotcherr -lptscotcherrexit\
+ -lptscotchparmetis -lscotch -lscotcherr -lscotcherrexit -lscotchmetis
+
+# SCALAPACK library configuration
+SCALAPACK_DIR = @MFEM_DIR@/../scalapack_2.0.2
+SCALAPACK_OPT = -I$(SCALAPACK_DIR)/SRC
+SCALAPACK_LIB = -L$(SCALAPACK_DIR) -lscalapack
+
+# STRUMPACK library configuration
+STRUMPACK_DIR = @MFEM_DIR@/../STRUMPACK-build
+STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include
+STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(SCOTCH_LIB)\
+ $(SCALAPACK_LIB)
+
 # Gecko library configuration
 GECKO_DIR = @MFEM_DIR@/../gecko
 GECKO_OPT = -I$(GECKO_DIR)/inc
