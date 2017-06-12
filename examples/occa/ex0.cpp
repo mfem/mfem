@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/fichera.mesh";
-   const char *basis_type = "U"; // Closed uniform
+   const char *basis_type = "G"; // Closed uniform
    int order = 1;
    int ref_levels = 1;
    const char *device_info = "mode: 'Serial'";

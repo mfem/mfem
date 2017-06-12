@@ -193,9 +193,10 @@ int main(int argc, char *argv[])
    OccaBilinearForm *a = new OccaBilinearForm(ofespace);
 
    if (use_acrotensor) {
-      a->AddDomainIntegrator(new AcroMassIntegrator(1.0));
+      mfem_error("Not yet implemented");
+      // a->AddDomainIntegrator(new AcroMassIntegrator(1.0));
    } else {
-      a->AddDomainIntegrator(new OccaMassIntegrator(1.0));
+      a->AddDomainIntegrator(new OccaVectorMassIntegrator(1.0));
    }
 
    a->Assemble();

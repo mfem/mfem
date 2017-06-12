@@ -239,6 +239,31 @@ namespace mfem {
     virtual void MultAdd(OccaVector &x, OccaVector &y);
   };
   //====================================
+
+  //---[ Vector Mass Integrator ]--------------
+  class OccaVectorMassIntegrator : public OccaIntegrator {
+  private:
+    OccaCoefficient coeff;
+
+    occa::kernel assembleKernel, multKernel;
+
+    occa::array<double> jacobian, assembledOperator;
+
+  public:
+    OccaVectorMassIntegrator(const OccaCoefficient &coeff_);
+    virtual ~OccaVectorMassIntegrator();
+
+    virtual std::string GetName();
+
+    virtual void SetupIntegrationRule();
+
+    virtual void Setup();
+
+    virtual void Assemble();
+
+    virtual void MultAdd(OccaVector &x, OccaVector &y);
+  };
+  //====================================
 }
 
 #  endif
