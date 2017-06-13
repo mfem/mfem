@@ -1025,20 +1025,20 @@ void FiniteElementSpace::Construct()
 
    if (mesh->Dimension() >= 4 && mesh->GetNE())
    {
-	 // Here we assume that all planars in the mesh have the same base
-	 // geometry -- the base geometry of the 0-th face element.
-	 int pdof = fec->DofForGeometry(mesh->GetPlanarBaseGeometry(0));
-     if (pdof > 0)
-     {
-        pdofs = new int[mesh->GetNPlanars()+1];
-        pdofs[0] = 0;
-        for (i = 0; i < mesh->GetNPlanars(); i++)
-        {
-           npdofs += pdof;
-           // npdofs += fec->DofForGeometry(mesh->GetPlanarBaseGeometry(i));
-           pdofs[i+1] = npdofs;
-        }
-     }
+      // Here we assume that all planars in the mesh have the same base
+      // geometry -- the base geometry of the 0-th face element.
+      int pdof = fec->DofForGeometry(mesh->GetPlanarBaseGeometry(0));
+      if (pdof > 0)
+      {
+         pdofs = new int[mesh->GetNPlanars()+1];
+         pdofs[0] = 0;
+         for (i = 0; i < mesh->GetNPlanars(); i++)
+         {
+            npdofs += pdof;
+            // npdofs += fec->DofForGeometry(mesh->GetPlanarBaseGeometry(i));
+            pdofs[i+1] = npdofs;
+         }
+      }
    }
 
    bdofs = new int[mesh->GetNE()+1];
@@ -1094,14 +1094,14 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
       npd = 0;
       if (dim >= 4)
       {
-    	  if (fec->HasPlanarDofs(mesh->GetElementBaseGeometry(i)))
-    	  {
-    		  mesh->GetElementPlanars(i, P, Po);
-    		  for (k = 0; k < P.Size(); k++)
-			  {
-    			  npd += fec->DofForGeometry(mesh->GetPlanarBaseGeometry(P[k]));
-			  }
-    	  }
+         if (fec->HasPlanarDofs(mesh->GetElementBaseGeometry(i)))
+         {
+            mesh->GetElementPlanars(i, P, Po);
+            for (k = 0; k < P.Size(); k++)
+            {
+               npd += fec->DofForGeometry(mesh->GetPlanarBaseGeometry(P[k]));
+            }
+         }
       }
       nd = V.Size() * nv + E.Size() * ne + npd + nfd + nb;
       dofs.SetSize(nd);
@@ -1136,26 +1136,26 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
          }
       }
       ne = nv + ne * E.Size();
-      if(npd > 0)
+      if (npd > 0)
       {
-          for (k = 0; k < P.Size(); k++)
-          {
-             ind = fec->DofOrderForOrientation(mesh->GetPlanarBaseGeometry(P[k]),
-                                               Po[k]);
-             np = fec->DofForGeometry(mesh->GetPlanarBaseGeometry(P[k]));
-             for (j = 0; j < np; j++)
-             {
-                if (ind[j] < 0)
-                {
-                   dofs[ne+j] = -1 - ( nvdofs+nedofs+pdofs[P[k]]+(-1-ind[j]) );
-                }
-                else
-                {
-                   dofs[ne+j] = nvdofs+nedofs+pdofs[P[k]]+ind[j];
-                }
-             }
-             ne += np;
-          }
+         for (k = 0; k < P.Size(); k++)
+         {
+            ind = fec->DofOrderForOrientation(mesh->GetPlanarBaseGeometry(P[k]),
+                                              Po[k]);
+            np = fec->DofForGeometry(mesh->GetPlanarBaseGeometry(P[k]));
+            for (j = 0; j < np; j++)
+            {
+               if (ind[j] < 0)
+               {
+                  dofs[ne+j] = -1 - ( nvdofs+nedofs+pdofs[P[k]]+(-1-ind[j]) );
+               }
+               else
+               {
+                  dofs[ne+j] = nvdofs+nedofs+pdofs[P[k]]+ind[j];
+               }
+            }
+            ne += np;
+         }
       }
       if (nfd > 0)
          // if (dim == 3)
@@ -1225,13 +1225,13 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
       }
       nd = V.Size() * nv + E.Size() * ne;
       np = 0;
-      if(dim>=4)
+      if (dim>=4)
       {
-    	  mesh->GetBdrElementPlanars(i, P, Po);
-		  for (k = 0; k < P.Size(); k++)
-		  {
-			  np += fec->DofForGeometry(mesh->GetBdrPlanarBaseGeometry(P[k]));
-		  }
+         mesh->GetBdrElementPlanars(i, P, Po);
+         for (k = 0; k < P.Size(); k++)
+         {
+            np += fec->DofForGeometry(mesh->GetBdrPlanarBaseGeometry(P[k]));
+         }
       }
       nd += np;
       nf = (dim >= 3) ? (fec->DofForGeometry(
@@ -1276,24 +1276,24 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
       ne = nv + ne * E.Size();
       if (np > 0)
       {
-    	  for (k = 0; k < P.Size(); k++)
-			{
-			   ind = fec->DofOrderForOrientation(mesh->GetPlanarBaseGeometry(P[k]),
-												 Po[k]);
-			   np = fec->DofForGeometry(mesh->GetPlanarBaseGeometry(P[k]));
-			   for (j = 0; j < np; j++)
-			   {
-				  if (ind[j] < 0)
-				  {
-					 dofs[ne+j] = -1 - ( nvdofs+nedofs+pdofs[P[k]]+(-1-ind[j]) );
-				  }
-				  else
-				  {
-					 dofs[ne+j] = nvdofs+nedofs+pdofs[P[k]]+ind[j];
-				  }
-			   }
-			   ne += np;
-			}
+         for (k = 0; k < P.Size(); k++)
+         {
+            ind = fec->DofOrderForOrientation(mesh->GetPlanarBaseGeometry(P[k]),
+                                              Po[k]);
+            np = fec->DofForGeometry(mesh->GetPlanarBaseGeometry(P[k]));
+            for (j = 0; j < np; j++)
+            {
+               if (ind[j] < 0)
+               {
+                  dofs[ne+j] = -1 - ( nvdofs+nedofs+pdofs[P[k]]+(-1-ind[j]) );
+               }
+               else
+               {
+                  dofs[ne+j] = nvdofs+nedofs+pdofs[P[k]]+ind[j];
+               }
+            }
+            ne += np;
+         }
       }
       if (nf > 0)
       {

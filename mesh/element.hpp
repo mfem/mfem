@@ -69,18 +69,18 @@ public:
 
    virtual int GetNPlanars() const
    {
-	   mfem_error ("Element::GetNPlanars(...)\n"
-           "   is not implemented for this class!");
-	   return 0;
+      mfem_error ("Element::GetNPlanars(...)\n"
+                  "   is not implemented for this class!");
+      return 0;
    }
 
    virtual const int *GetEdgeVertices(int) const = 0;
 
    virtual const int *GetPlanarsVertices(int) const
    {
-	   mfem_error ("Element::GetPlanarsVertices(...)\n"
-           "   is not implemented for this class!");
-	   return NULL;
+      mfem_error ("Element::GetPlanarsVertices(...)\n"
+                  "   is not implemented for this class!");
+      return NULL;
    }
 
    virtual int GetNFaces(int &nFaceVertices) const = 0;

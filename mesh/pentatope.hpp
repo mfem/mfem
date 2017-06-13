@@ -76,9 +76,9 @@ public:
 
    virtual int GetNPlanars() const { return 10; }
 
-   virtual const int *GetEdgeVertices(int ei) const { return(geom_p::Edges[ei]); }
+   virtual const int *GetEdgeVertices(int ei) const { return (geom_p::Edges[ei]); }
 
-   virtual const int *GetPlanarsVertices(int pi) const { return(geom_p::PlanarVert[pi]); }
+   virtual const int *GetPlanarsVertices(int pi) const { return (geom_p::PlanarVert[pi]); }
 
    virtual int GetNFaces(int &nFaceVertices) const
    { MFEM_ABORT("PENTATOPE:: GetNFaces not implemented"); return 0; }

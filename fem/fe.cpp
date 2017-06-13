@@ -96,7 +96,7 @@ void FiniteElement::CalcPhysCurlShape(ElementTransformation &Trans,
 }
 
 void FiniteElement::CalcDivSkewShape(const IntegrationPoint &ip,
-                                  DenseMatrix &curl_shape) const
+                                     DenseMatrix &curl_shape) const
 {
    mfem_error ("FiniteElement::CalcDivSkewShape (ip, ...)\n"
                "   is not implemented for this class!");
@@ -499,10 +499,10 @@ void VectorFiniteElement::SetDerivMembers()
          switch (Dim)
          {
             case 4: // curl: 4D H_CURL -> 4D H_DIV(skew)
-			   DerivType = CURL;
-			   DerivRangeType = MAT_SKEW;
-			   DerivMapType = H_DIV_SKEW;
-			   break;
+               DerivType = CURL;
+               DerivRangeType = MAT_SKEW;
+               DerivMapType = H_DIV_SKEW;
+               break;
             case 3: // curl: 3D H_CURL -> 3D H_DIV
                DerivType = CURL;
                DerivRangeType = VECTOR;
@@ -543,7 +543,7 @@ void VectorFiniteElement::CalcVShape_RT (
 void VectorFiniteElement::CalcVShape_DivSkew (
    ElementTransformation &Trans, DenseMatrix &shape) const
 {
-   if(Dim!=4) return;
+   if (Dim!=4) { return; }
 
    MFEM_ASSERT(MapType == H_DIV_SKEW, "");
 #ifdef MFEM_THREAD_SAFE
@@ -559,7 +559,7 @@ void VectorFiniteElement::CalcVShape_DivSkew (
    Jinv.SetSize(J.Width(), J.Height());
 #endif
 
-   if(vshape.Width()!=Dim*Dim) vshape.SetSize(Dof,Dim*Dim);
+   if (vshape.Width()!=Dim*Dim) { vshape.SetSize(Dof,Dim*Dim); }
 
    CalcVShape(Trans.GetIntPoint(), vshape);
 
@@ -571,36 +571,44 @@ void VectorFiniteElement::CalcVShape_DivSkew (
    DenseMatrix mat(Dim,Dim); mat = 0.0;
    DenseMatrix tempMat(Dim,Dim);
 
-   for(int dof=0; dof<Dof; dof++)
+   for (int dof=0; dof<Dof; dof++)
    {
-//	   for(int ik=0; ik<Dim; ik++)
-//		   for(int jk=0; jk<Dim; jk++)
-//		   {
-//			   mat(ik,jk) = vshape(dof,Dim*ik+jk);
-//		   }
-//
-//	   Mult(mat, Jinv, tempMat);
-//	   Mult(invJtr, tempMat, mat);
-//
-//	   for(int ik=0; ik<Dim; ik++)
-//		   for(int jk=0; jk<Dim; jk++)
-//		   {
-//			   shape(dof,Dim*ik+jk) = mat(ik,jk);
-//		   }
+      //    for(int ik=0; ik<Dim; ik++)
+      //       for(int jk=0; jk<Dim; jk++)
+      //       {
+      //          mat(ik,jk) = vshape(dof,Dim*ik+jk);
+      //       }
+      //
+      //    Mult(mat, Jinv, tempMat);
+      //    Mult(invJtr, tempMat, mat);
+      //
+      //    for(int ik=0; ik<Dim; ik++)
+      //       for(int jk=0; jk<Dim; jk++)
+      //       {
+      //          shape(dof,Dim*ik+jk) = mat(ik,jk);
+      //       }
 
 
-        mat(0,0) =  0.0;            mat(0,1) =  vshape(dof,11); mat(0,2) =  vshape(dof,13); mat(0,3) =  vshape(dof,6);
-		mat(1,0) =  vshape(dof,14); mat(1,1) =  0.0;            mat(1,2) =  vshape(dof,3);  mat(1,3) =  vshape(dof,8);
-		mat(2,0) =  vshape(dof,7);  mat(2,1) =  vshape(dof,12); mat(2,2) =  0.0;            mat(2,3) =  vshape(dof,1);
-		mat(3,0) =  vshape(dof,9);  mat(3,1) =  vshape(dof,2);  mat(3,2) =  vshape(dof,4);  mat(3,3) =  0.0;
+      mat(0,0) =  0.0;            mat(0,1) =  vshape(dof,11);
+      mat(0,2) =  vshape(dof,13); mat(0,3) =  vshape(dof,6);
+      mat(1,0) =  vshape(dof,14); mat(1,1) =  0.0;
+      mat(1,2) =  vshape(dof,3);  mat(1,3) =  vshape(dof,8);
+      mat(2,0) =  vshape(dof,7);  mat(2,1) =  vshape(dof,12); mat(2,2) =  0.0;
+      mat(2,3) =  vshape(dof,1);
+      mat(3,0) =  vshape(dof,9);  mat(3,1) =  vshape(dof,2);
+      mat(3,2) =  vshape(dof,4);  mat(3,3) =  0.0;
 
-		Mult(mat, Jinv, tempMat);
-		Mult(invJtr, tempMat, mat);
+      Mult(mat, Jinv, tempMat);
+      Mult(invJtr, tempMat, mat);
 
-		shape(dof,0) =  0.0;      shape(dof,1) =  mat(2,3); shape(dof,2) =  mat(3,1); shape(dof,3) =  mat(1,2);
-		shape(dof,4) =  mat(3,2); shape(dof,5) =  0.0;      shape(dof,6) =  mat(0,3); shape(dof,7) =  mat(2,0);
-		shape(dof,8) =  mat(1,3); shape(dof,9) =  mat(3,0); shape(dof,10) = 0.0;      shape(dof,11) = mat(0,1);
-		shape(dof,12) = mat(2,1); shape(dof,13) = mat(0,2); shape(dof,14) = mat(1,0); shape(dof,15) = 0.0;
+      shape(dof,0) =  0.0;      shape(dof,1) =  mat(2,3); shape(dof,2) =  mat(3,1);
+      shape(dof,3) =  mat(1,2);
+      shape(dof,4) =  mat(3,2); shape(dof,5) =  0.0;      shape(dof,6) =  mat(0,3);
+      shape(dof,7) =  mat(2,0);
+      shape(dof,8) =  mat(1,3); shape(dof,9) =  mat(3,0); shape(dof,10) = 0.0;
+      shape(dof,11) = mat(0,1);
+      shape(dof,12) = mat(2,1); shape(dof,13) = mat(0,2); shape(dof,14) = mat(1,0);
+      shape(dof,15) = 0.0;
    }
 }
 
@@ -2622,7 +2630,7 @@ QuadLinear4DFiniteElement::QuadLinear4DFiniteElement()
 }
 
 void QuadLinear4DFiniteElement::CalcShape(const IntegrationPoint &ip,
-                                         Vector &shape) const
+                                          Vector &shape) const
 {
    double x = ip.x, y = ip.y, z = ip.z, t = ip.t;
    double ox = 1.-x, oy = 1.-y, oz = 1.-z, ot = 1.-t;
@@ -2647,7 +2655,7 @@ void QuadLinear4DFiniteElement::CalcShape(const IntegrationPoint &ip,
 }
 
 void QuadLinear4DFiniteElement::CalcDShape(const IntegrationPoint &ip,
-                                          DenseMatrix &dshape) const
+                                           DenseMatrix &dshape) const
 {
    double x = ip.x, y = ip.y, z = ip.z, t = ip.t;
    double ox = 1.-x, oy = 1.-y, oz = 1.-z, ot = 1.-t;
@@ -2735,7 +2743,7 @@ void QuadLinear4DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 void QuadLinear4DFiniteElement::CalcHessian (const IntegrationPoint &ip,
-                                       DenseMatrix &h) const
+                                             DenseMatrix &h) const
 {
    double x = ip.x, y = ip.y, z = ip.z, t = ip.t;
    double ox = 1.-x, oy = 1.-y, oz = 1.-z, ot = 1.-t;
@@ -2986,13 +2994,13 @@ void Linear4DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 void Linear4DFiniteElement::CalcHessian(const IntegrationPoint &ip,
-                                       DenseMatrix &h) const
+                                        DenseMatrix &h) const
 {
-  h = 0.0;
+   h = 0.0;
 }
 
 void Linear4DFiniteElement::GetFaceDofs (int face, int **dofs, int *ndofs)
-   const
+const
 {
    static int face_dofs[5][4] = {{0, 1, 2, 3}, {0, 1, 2, 4}, {0, 1, 3, 4}, {0, 2, 3, 4}, {1, 2, 3, 4}};
 
@@ -3122,101 +3130,115 @@ void Quadratic4DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
    dshape(0,0) = dshape(0,1) = dshape(0,2) = dshape(0,3) = 1.0 - 4.0 * L0;
 
-   dshape(1,0) = -1.0 + 4.0 * x; dshape(1,1) = 0.0; dshape(1,2) = 0.0; dshape(1,3) = 0.0;
-   dshape(2,0) = 0.0; dshape(2,1) = -1.0 + 4.0 * y; dshape(2,2) = 0.0; dshape(2,3) = 0.0;
-   dshape(3,0) = 0.0; dshape(3,1) = 0.0; dshape(3,2) = -1.0 + 4.0 * z; dshape(3,3) = 0.0;
-   dshape(4,0) = 0.0; dshape(4,1) = 0.0; dshape(4,2) = 0.0; dshape(4,3) = -1.0 + 4.0 * t;
+   dshape(1,0) = -1.0 + 4.0 * x; dshape(1,1) = 0.0; dshape(1,2) = 0.0;
+   dshape(1,3) = 0.0;
+   dshape(2,0) = 0.0; dshape(2,1) = -1.0 + 4.0 * y; dshape(2,2) = 0.0;
+   dshape(2,3) = 0.0;
+   dshape(3,0) = 0.0; dshape(3,1) = 0.0; dshape(3,2) = -1.0 + 4.0 * z;
+   dshape(3,3) = 0.0;
+   dshape(4,0) = 0.0; dshape(4,1) = 0.0; dshape(4,2) = 0.0;
+   dshape(4,3) = -1.0 + 4.0 * t;
 
-   dshape(5,0) = 4.0 * (L0 - x); dshape(5,1) = dshape(5,2) = dshape(5,3) = -4.0 * x;
-   dshape(6,1) = 4.0 * (L0 - y); dshape(6,0) = dshape(6,2) = dshape(6,3) = -4.0 * y;
-   dshape(7,2) = 4.0 * (L0 - z); dshape(7,0) = dshape(7,1) = dshape(7,3) = -4.0 * z;
-   dshape(8,3) = 4.0 * (L0 - t); dshape(8,0) = dshape(8,1) = dshape(8,2) = -4.0 * t;
+   dshape(5,0) = 4.0 * (L0 - x);
+   dshape(5,1) = dshape(5,2) = dshape(5,3) = -4.0 * x;
+   dshape(6,1) = 4.0 * (L0 - y);
+   dshape(6,0) = dshape(6,2) = dshape(6,3) = -4.0 * y;
+   dshape(7,2) = 4.0 * (L0 - z);
+   dshape(7,0) = dshape(7,1) = dshape(7,3) = -4.0 * z;
+   dshape(8,3) = 4.0 * (L0 - t);
+   dshape(8,0) = dshape(8,1) = dshape(8,2) = -4.0 * t;
 
-   dshape(9,0) = 4.0 * y; dshape(9,1) = 4.0 * x; dshape(9,2) = 0.0; dshape(9,3) = 0.0;
-   dshape(10,0) = 4.0 * z; dshape(10,1) = 0.0; dshape(10,2) = 4.0 * x; dshape(10,3) = 0.0;
-   dshape(11,0) = 4.0 * t; dshape(11,1) = 0.0; dshape(11,2) = 0.0; dshape(11,3) = 4.0 * x;
+   dshape(9,0) = 4.0 * y; dshape(9,1) = 4.0 * x; dshape(9,2) = 0.0;
+   dshape(9,3) = 0.0;
+   dshape(10,0) = 4.0 * z; dshape(10,1) = 0.0; dshape(10,2) = 4.0 * x;
+   dshape(10,3) = 0.0;
+   dshape(11,0) = 4.0 * t; dshape(11,1) = 0.0; dshape(11,2) = 0.0;
+   dshape(11,3) = 4.0 * x;
 
-   dshape(12,0) = 0.0; dshape(12,1) = 4.0 * z; dshape(12,2) = 4.0 * y; dshape(12,3) = 0.0;
-   dshape(13,0) = 0.0; dshape(13,1) = 4.0 * t; dshape(13,2) = 0.0; dshape(13,3) = 4.0 * y;
-   dshape(14,0) = 0.0; dshape(14,1) = 0.0; dshape(14,2) = 4.0 * t; dshape(14,3) = 4.0 * z;
+   dshape(12,0) = 0.0; dshape(12,1) = 4.0 * z; dshape(12,2) = 4.0 * y;
+   dshape(12,3) = 0.0;
+   dshape(13,0) = 0.0; dshape(13,1) = 4.0 * t; dshape(13,2) = 0.0;
+   dshape(13,3) = 4.0 * y;
+   dshape(14,0) = 0.0; dshape(14,1) = 0.0; dshape(14,2) = 4.0 * t;
+   dshape(14,3) = 4.0 * z;
 }
 
 void Quadratic4DFiniteElement::CalcHessian(const IntegrationPoint &ip,
-                           DenseMatrix &h) const
+                                           DenseMatrix &h) const
 {
-	cout << "warning the hessian is not implemented for pentatopes!!!" << endl;
+   cout << "warning the hessian is not implemented for pentatopes!!!" << endl;
 
-  //u_xx
-  h(0,0) = 4.;
-  h(1,0) = 4.;
-  h(2,0) = 0.;
-  h(3,0) = 0.;
-  h(4,0) = -8.;
-  h(5,0) = 0.;
-  h(6,0) = 0.;
-  h(7,0) = 0.;
-  h(8,0) = 0.;
-  h(9,0) = 0.;
+   //u_xx
+   h(0,0) = 4.;
+   h(1,0) = 4.;
+   h(2,0) = 0.;
+   h(3,0) = 0.;
+   h(4,0) = -8.;
+   h(5,0) = 0.;
+   h(6,0) = 0.;
+   h(7,0) = 0.;
+   h(8,0) = 0.;
+   h(9,0) = 0.;
 
-  //u_xy
-  h(0,1) = 4.;
-  h(1,1) = 0.;
-  h(2,1) = 0.;
-  h(3,1) = 0.;
-  h(4,1) = -4.;
-  h(5,1) = -4.;
-  h(6,1) = 0.;
-  h(7,1) = 4.;
-  h(8,1) = 0.;
-  h(9,1) = 0.;
+   //u_xy
+   h(0,1) = 4.;
+   h(1,1) = 0.;
+   h(2,1) = 0.;
+   h(3,1) = 0.;
+   h(4,1) = -4.;
+   h(5,1) = -4.;
+   h(6,1) = 0.;
+   h(7,1) = 4.;
+   h(8,1) = 0.;
+   h(9,1) = 0.;
 
-  //u_xz
-  h(0,2) = 4.;
-  h(1,2) = 0.;
-  h(2,2) = 0.;
-  h(3,2) = 0.;
-  h(4,2) = -4.;
-  h(5,2) = 0.;
-  h(6,2) = -4.;
-  h(7,2) = 0.;
-  h(8,2) = 4.;
-  h(9,2) = 0.;
+   //u_xz
+   h(0,2) = 4.;
+   h(1,2) = 0.;
+   h(2,2) = 0.;
+   h(3,2) = 0.;
+   h(4,2) = -4.;
+   h(5,2) = 0.;
+   h(6,2) = -4.;
+   h(7,2) = 0.;
+   h(8,2) = 4.;
+   h(9,2) = 0.;
 
-  //u_yy
-  h(0,3) = 4.;
-  h(1,3) = 0.;
-  h(2,3) = 4.;
-  h(3,3) = 0.;
-  h(4,3) = 0.;
-  h(5,3) = -8.;
-  h(6,3) = 0.;
-  h(7,3) = 0.;
-  h(8,3) = 0.;
-  h(9,3) = 0.;
+   //u_yy
+   h(0,3) = 4.;
+   h(1,3) = 0.;
+   h(2,3) = 4.;
+   h(3,3) = 0.;
+   h(4,3) = 0.;
+   h(5,3) = -8.;
+   h(6,3) = 0.;
+   h(7,3) = 0.;
+   h(8,3) = 0.;
+   h(9,3) = 0.;
 
-  //u_yz
-  h(0,4) = 4.;
-  h(1,4) = 0.;
-  h(2,4) = 0.;
-  h(3,4) = 0.;
-  h(4,4) = 0.;
-  h(5,4) = -4.;
-  h(6,4) = -4.;
-  h(7,4) = 0.;
-  h(8,4) = 0.;
-  h(9,4) = 4.;
+   //u_yz
+   h(0,4) = 4.;
+   h(1,4) = 0.;
+   h(2,4) = 0.;
+   h(3,4) = 0.;
+   h(4,4) = 0.;
+   h(5,4) = -4.;
+   h(6,4) = -4.;
+   h(7,4) = 0.;
+   h(8,4) = 0.;
+   h(9,4) = 4.;
 
-  //u_zz
-  h(0,5) = 4.;
-  h(1,5) = 0.;
-  h(2,5) = 0.;
-  h(3,5) = 4.;
-  h(4,5) = 0.;
-  h(5,5) = 0.;
-  h(6,5) = -8.;
-  h(7,5) = 0.;
-  h(8,5) = 0.;
-  h(9,5) = 0.;
+   //u_zz
+   h(0,5) = 4.;
+   h(1,5) = 0.;
+   h(2,5) = 0.;
+   h(3,5) = 4.;
+   h(4,5) = 0.;
+   h(5,5) = 0.;
+   h(6,5) = -8.;
+   h(7,5) = 0.;
+   h(8,5) = 0.;
+   h(9,5) = 0.;
 }
 
 P0SegmentFiniteElement::P0SegmentFiniteElement(int Ord)
@@ -6155,7 +6177,7 @@ Nedelec1PentFiniteElement::Nedelec1PentFiniteElement()
 }
 
 void Nedelec1PentFiniteElement::CalcVShape(const IntegrationPoint &ip,
-                                          DenseMatrix &shape) const
+                                           DenseMatrix &shape) const
 {
    double x = ip.x, y = ip.y, z = ip.z, t = ip.t;
 
@@ -6211,7 +6233,7 @@ void Nedelec1PentFiniteElement::CalcVShape(const IntegrationPoint &ip,
 }
 
 void Nedelec1PentFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
-                                             DenseMatrix &curl_shape)
+                                              DenseMatrix &curl_shape)
 const
 {
    curl_shape(0,0) =  2.;
@@ -6298,7 +6320,7 @@ void Nedelec1PentFiniteElement::GetLocalInterpolation (
 #endif
 
 #ifdef MFEM_DEBUG
- cout << "not implemented in NED_FE_PENT" << endl;
+   cout << "not implemented in NED_FE_PENT" << endl;
 #endif
 
    IntegrationPoint ip;
@@ -6332,97 +6354,97 @@ void Nedelec1PentFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-	double v[4]; Vector vi(v, 4);
-	double t[4]; Vector ti(t, 4);
+   double v[4]; Vector vi(v, 4);
+   double t[4]; Vector ti(t, 4);
 
-	dofs.SetSize(10); dofs = 0.0;
-	for (int k = 0; k < 10; k++)
-	{
-	  Trans.SetIntPoint (&Nodes.IntPoint (k));
-	  const DenseMatrix &J = Trans.Jacobian();
+   dofs.SetSize(10); dofs = 0.0;
+   for (int k = 0; k < 10; k++)
+   {
+      Trans.SetIntPoint (&Nodes.IntPoint (k));
+      const DenseMatrix &J = Trans.Jacobian();
 
-	  vc.Eval(vi, Trans, Nodes.IntPoint (k));
+      vc.Eval(vi, Trans, Nodes.IntPoint (k));
 
-	  J.Mult(tk[k],t);
+      J.Mult(tk[k],t);
 
-	  dofs(k) = vi * ti;
-	}
+      dofs(k) = vi * ti;
+   }
 }
 
 void Nedelec1PentFiniteElement::Project(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &Id) const
+                                        ElementTransformation &Trans,
+                                        DenseMatrix &Id) const
 {
-	int dim = fe.GetDim();
-	int dof = fe.GetDof();
+   int dim = fe.GetDim();
+   int dof = fe.GetDof();
 
-	Id.SetSize(10,dim*dof); Id = 0.0;
+   Id.SetSize(10,dim*dof); Id = 0.0;
 
-	double v[4]; Vector vi(v, 4);
-	double t[4]; Vector ti(t, 4);
+   double v[4]; Vector vi(v, 4);
+   double t[4]; Vector ti(t, 4);
 
-	Vector shape(dof);
+   Vector shape(dof);
 
-	for (int k = 0; k < 10; k++)
-	{
-		Trans.SetIntPoint(&Nodes.IntPoint(k));
-		const DenseMatrix &J = Trans.Jacobian();
-		fe.CalcShape(Nodes.IntPoint(k), shape);
+   for (int k = 0; k < 10; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+      const DenseMatrix &J = Trans.Jacobian();
+      fe.CalcShape(Nodes.IntPoint(k), shape);
 
-		ti = 0.0;
-		J.Mult(tk[k],t);
+      ti = 0.0;
+      J.Mult(tk[k],t);
 
-		for(int di=0; di<dim; di++)
-		{
-			for(int j=0; j<dof; j++)
-			{
-				vi = 0.0; v[di] = shape(j);
+      for (int di=0; di<dim; di++)
+      {
+         for (int j=0; j<dof; j++)
+         {
+            vi = 0.0; v[di] = shape(j);
 
-				Id(k, di*dof+j) = vi * ti;
-			}
-		}
-	}
+            Id(k, di*dof+j) = vi * ti;
+         }
+      }
+   }
 }
 
 void Nedelec1PentFiniteElement::ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const
+                                            ElementTransformation &Trans,
+                                            DenseMatrix &grad) const
 {
-	int dim = fe.GetDim();
-	int dof = fe.GetDof();
+   int dim = fe.GetDim();
+   int dof = fe.GetDof();
 
-	grad.SetSize(10,dof); grad = 0.0;
+   grad.SetSize(10,dof); grad = 0.0;
 
-	DenseMatrix dshape(dof,dim);
-	DenseMatrix gshape(dof,dim);
-	DenseMatrix invJ(dim,dim);
+   DenseMatrix dshape(dof,dim);
+   DenseMatrix gshape(dof,dim);
+   DenseMatrix invJ(dim,dim);
 
-	double v[4]; Vector vi(v, 4);
-	double t[4]; Vector ti(t, 4);
+   double v[4]; Vector vi(v, 4);
+   double t[4]; Vector ti(t, 4);
 
-	for (int k = 0; k < 10; k++)
-	{
-		Trans.SetIntPoint(&Nodes.IntPoint(k));
-		const DenseMatrix &J = Trans.Jacobian();
-		CalcInverse(J, invJ);
+   for (int k = 0; k < 10; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+      const DenseMatrix &J = Trans.Jacobian();
+      CalcInverse(J, invJ);
 
-		fe.CalcDShape(Nodes.IntPoint(k), dshape);
-		Mult(dshape, invJ, gshape);
+      fe.CalcDShape(Nodes.IntPoint(k), dshape);
+      Mult(dshape, invJ, gshape);
 
-		ti = 0.0;
-		J.Mult(tk[k],t);
+      ti = 0.0;
+      J.Mult(tk[k],t);
 
-		for(int j=0; j<dof; j++)
-		{
-			v[0] = gshape(j,0);
-			v[1] = gshape(j,1);
-			v[2] = gshape(j,2);
-			v[3] = gshape(j,3);
+      for (int j=0; j<dof; j++)
+      {
+         v[0] = gshape(j,0);
+         v[1] = gshape(j,1);
+         v[2] = gshape(j,2);
+         v[3] = gshape(j,3);
 
-			grad(k, j) = vi * ti;
-		}
+         grad(k, j) = vi * ti;
+      }
 
-	}
+   }
 }
 
 Nedelec1FullPentFiniteElement::Nedelec1FullPentFiniteElement()
@@ -6534,7 +6556,7 @@ const double Nedelec1FullPentFiniteElement::tk[10][4] =
 {{1,0,0,0}, {0,1,0,0}, {0,0,1,0}, {0,0,0,1}, {-1,1,0,0}, {-1,0,1,0}, {-1,0,0,1}, {0,-1,1,0}, {0,-1,0,1}, {0,0,-1,1}};
 
 void Nedelec1FullPentFiniteElement::CalcVShape(const IntegrationPoint &ip,
-                                          DenseMatrix &shape) const
+                                               DenseMatrix &shape) const
 {
    double x = ip.x, y = ip.y, z = ip.z, t = ip.t;
 
@@ -6658,148 +6680,148 @@ void Nedelec1FullPentFiniteElement::CalcVShape(const IntegrationPoint &ip,
 }
 
 void Nedelec1FullPentFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
-                                             DenseMatrix &curl_shape)
+                                                  DenseMatrix &curl_shape)
 const
 {
-	curl_shape(0,0) = 1.0;
-	curl_shape(0,1) = 1.0;
-	curl_shape(0,2) = 1.0;
-	curl_shape(0,3) = 0.;
-	curl_shape(0,4) = 0.;
-	curl_shape(0,5) = 0.;
+   curl_shape(0,0) = 1.0;
+   curl_shape(0,1) = 1.0;
+   curl_shape(0,2) = 1.0;
+   curl_shape(0,3) = 0.;
+   curl_shape(0,4) = 0.;
+   curl_shape(0,5) = 0.;
 
-	curl_shape(1,0) = 1.0;
-	curl_shape(1,1) = 1.0;
-	curl_shape(1,2) = 1.0;
-	curl_shape(1,3) = 0.;
-	curl_shape(1,4) = 0.;
-	curl_shape(1,5) = 0.;
+   curl_shape(1,0) = 1.0;
+   curl_shape(1,1) = 1.0;
+   curl_shape(1,2) = 1.0;
+   curl_shape(1,3) = 0.;
+   curl_shape(1,4) = 0.;
+   curl_shape(1,5) = 0.;
 
-	curl_shape(2,0) = -1.0;
-	curl_shape(2,1) = 0.;
-	curl_shape(2,2) = 0.;
-	curl_shape(2,3) = 1.0;
-	curl_shape(2,4) = 1.0;
-	curl_shape(2,5) = 0.;
+   curl_shape(2,0) = -1.0;
+   curl_shape(2,1) = 0.;
+   curl_shape(2,2) = 0.;
+   curl_shape(2,3) = 1.0;
+   curl_shape(2,4) = 1.0;
+   curl_shape(2,5) = 0.;
 
-	curl_shape(3,0) = -1.0;
-	curl_shape(3,1) = 0.;
-	curl_shape(3,2) = 0.;
-	curl_shape(3,3) = 1.0;
-	curl_shape(3,4) = 1.0;
-	curl_shape(3,5) = 0.;
+   curl_shape(3,0) = -1.0;
+   curl_shape(3,1) = 0.;
+   curl_shape(3,2) = 0.;
+   curl_shape(3,3) = 1.0;
+   curl_shape(3,4) = 1.0;
+   curl_shape(3,5) = 0.;
 
-	curl_shape(4,0) = 0.;
-	curl_shape(4,1) = -1.0;
-	curl_shape(4,2) = 0.;
-	curl_shape(4,3) = -1.0;
-	curl_shape(4,4) = 0.;
-	curl_shape(4,5) = 1.0;
+   curl_shape(4,0) = 0.;
+   curl_shape(4,1) = -1.0;
+   curl_shape(4,2) = 0.;
+   curl_shape(4,3) = -1.0;
+   curl_shape(4,4) = 0.;
+   curl_shape(4,5) = 1.0;
 
-	curl_shape(5,0) = 0.;
-	curl_shape(5,1) = -1.0;
-	curl_shape(5,2) = 0.;
-	curl_shape(5,3) = -1.0;
-	curl_shape(5,4) = 0.;
-	curl_shape(5,5) = 1.0;
+   curl_shape(5,0) = 0.;
+   curl_shape(5,1) = -1.0;
+   curl_shape(5,2) = 0.;
+   curl_shape(5,3) = -1.0;
+   curl_shape(5,4) = 0.;
+   curl_shape(5,5) = 1.0;
 
-	curl_shape(6,0) = 0.;
-	curl_shape(6,1) = 0.;
-	curl_shape(6,2) = -1.0;
-	curl_shape(6,3) = 0.;
-	curl_shape(6,4) = -1.0;
-	curl_shape(6,5) = -1.0;
+   curl_shape(6,0) = 0.;
+   curl_shape(6,1) = 0.;
+   curl_shape(6,2) = -1.0;
+   curl_shape(6,3) = 0.;
+   curl_shape(6,4) = -1.0;
+   curl_shape(6,5) = -1.0;
 
-	curl_shape(7,0) = 0.;
-	curl_shape(7,1) = 0.;
-	curl_shape(7,2) = -1.0;
-	curl_shape(7,3) = 0.;
-	curl_shape(7,4) = -1.0;
-	curl_shape(7,5) = -1.0;
+   curl_shape(7,0) = 0.;
+   curl_shape(7,1) = 0.;
+   curl_shape(7,2) = -1.0;
+   curl_shape(7,3) = 0.;
+   curl_shape(7,4) = -1.0;
+   curl_shape(7,5) = -1.0;
 
-	curl_shape(8,0) = 1.0;
-	curl_shape(8,1) = 0.;
-	curl_shape(8,2) = 0.;
-	curl_shape(8,3) = 0.;
-	curl_shape(8,4) = 0.;
-	curl_shape(8,5) = 0.;
+   curl_shape(8,0) = 1.0;
+   curl_shape(8,1) = 0.;
+   curl_shape(8,2) = 0.;
+   curl_shape(8,3) = 0.;
+   curl_shape(8,4) = 0.;
+   curl_shape(8,5) = 0.;
 
-	curl_shape(9,0) = 1.0;
-	curl_shape(9,1) = 0.;
-	curl_shape(9,2) = 0.;
-	curl_shape(9,3) = 0.;
-	curl_shape(9,4) = 0.;
-	curl_shape(9,5) = 0.;
+   curl_shape(9,0) = 1.0;
+   curl_shape(9,1) = 0.;
+   curl_shape(9,2) = 0.;
+   curl_shape(9,3) = 0.;
+   curl_shape(9,4) = 0.;
+   curl_shape(9,5) = 0.;
 
-	curl_shape(10,0) = 0.;
-	curl_shape(10,1) = 1.0;
-	curl_shape(10,2) = 0.;
-	curl_shape(10,3) = 0.;
-	curl_shape(10,4) = 0.;
-	curl_shape(10,5) = 0.;
+   curl_shape(10,0) = 0.;
+   curl_shape(10,1) = 1.0;
+   curl_shape(10,2) = 0.;
+   curl_shape(10,3) = 0.;
+   curl_shape(10,4) = 0.;
+   curl_shape(10,5) = 0.;
 
-	curl_shape(11,0) = 0.;
-	curl_shape(11,1) = 1.0;
-	curl_shape(11,2) = 0.;
-	curl_shape(11,3) = 0.;
-	curl_shape(11,4) = 0.;
-	curl_shape(11,5) = 0.;
+   curl_shape(11,0) = 0.;
+   curl_shape(11,1) = 1.0;
+   curl_shape(11,2) = 0.;
+   curl_shape(11,3) = 0.;
+   curl_shape(11,4) = 0.;
+   curl_shape(11,5) = 0.;
 
-	curl_shape(12,0) = 0.;
-	curl_shape(12,1) = 0.;
-	curl_shape(12,2) = 1.0;
-	curl_shape(12,3) = 0.;
-	curl_shape(12,4) = 0.;
-	curl_shape(12,5) = 0.;
+   curl_shape(12,0) = 0.;
+   curl_shape(12,1) = 0.;
+   curl_shape(12,2) = 1.0;
+   curl_shape(12,3) = 0.;
+   curl_shape(12,4) = 0.;
+   curl_shape(12,5) = 0.;
 
-	curl_shape(13,0) = 0.;
-	curl_shape(13,1) = 0.;
-	curl_shape(13,2) = 1.0;
-	curl_shape(13,3) = 0.;
-	curl_shape(13,4) = 0.;
-	curl_shape(13,5) = 0.;
+   curl_shape(13,0) = 0.;
+   curl_shape(13,1) = 0.;
+   curl_shape(13,2) = 1.0;
+   curl_shape(13,3) = 0.;
+   curl_shape(13,4) = 0.;
+   curl_shape(13,5) = 0.;
 
-	curl_shape(14,0) = 0.;
-	curl_shape(14,1) = 0.;
-	curl_shape(14,2) = 0.;
-	curl_shape(14,3) = 1.0;
-	curl_shape(14,4) = 0.;
-	curl_shape(14,5) = 0.;
+   curl_shape(14,0) = 0.;
+   curl_shape(14,1) = 0.;
+   curl_shape(14,2) = 0.;
+   curl_shape(14,3) = 1.0;
+   curl_shape(14,4) = 0.;
+   curl_shape(14,5) = 0.;
 
-	curl_shape(15,0) = 0.;
-	curl_shape(15,1) = 0.;
-	curl_shape(15,2) = 0.;
-	curl_shape(15,3) = 1.0;
-	curl_shape(15,4) = 0.;
-	curl_shape(15,5) = 0.;
+   curl_shape(15,0) = 0.;
+   curl_shape(15,1) = 0.;
+   curl_shape(15,2) = 0.;
+   curl_shape(15,3) = 1.0;
+   curl_shape(15,4) = 0.;
+   curl_shape(15,5) = 0.;
 
-	curl_shape(16,0) = 0.;
-	curl_shape(16,1) = 0.;
-	curl_shape(16,2) = 0.;
-	curl_shape(16,3) = 0.;
-	curl_shape(16,4) = 1.0;
-	curl_shape(16,5) = 0.;
+   curl_shape(16,0) = 0.;
+   curl_shape(16,1) = 0.;
+   curl_shape(16,2) = 0.;
+   curl_shape(16,3) = 0.;
+   curl_shape(16,4) = 1.0;
+   curl_shape(16,5) = 0.;
 
-	curl_shape(17,0) = 0.;
-	curl_shape(17,1) = 0.;
-	curl_shape(17,2) = 0.;
-	curl_shape(17,3) = 0.;
-	curl_shape(17,4) = 1.0;
-	curl_shape(17,5) = 0.;
+   curl_shape(17,0) = 0.;
+   curl_shape(17,1) = 0.;
+   curl_shape(17,2) = 0.;
+   curl_shape(17,3) = 0.;
+   curl_shape(17,4) = 1.0;
+   curl_shape(17,5) = 0.;
 
-	curl_shape(18,0) = 0.;
-	curl_shape(18,1) = 0.;
-	curl_shape(18,2) = 0.;
-	curl_shape(18,3) = 0.;
-	curl_shape(18,4) = 0.;
-	curl_shape(18,5) = 1.0;
+   curl_shape(18,0) = 0.;
+   curl_shape(18,1) = 0.;
+   curl_shape(18,2) = 0.;
+   curl_shape(18,3) = 0.;
+   curl_shape(18,4) = 0.;
+   curl_shape(18,5) = 1.0;
 
-	curl_shape(19,0) = 0.;
-	curl_shape(19,1) = 0.;
-	curl_shape(19,2) = 0.;
-	curl_shape(19,3) = 0.;
-	curl_shape(19,4) = 0.;
-	curl_shape(19,5) = 1.0;
+   curl_shape(19,0) = 0.;
+   curl_shape(19,1) = 0.;
+   curl_shape(19,2) = 0.;
+   curl_shape(19,3) = 0.;
+   curl_shape(19,4) = 0.;
+   curl_shape(19,5) = 1.0;
 
 }
 
@@ -6813,99 +6835,99 @@ void Nedelec1FullPentFiniteElement::Project (
    dofs.SetSize(20); dofs = 0.0;
    for (int k = 0; k < 10; k++)
    {
-	   for(int ld=0;ld<2;ld++)
-	   {
-		  int dofID=2*k+ld;
-		  Trans.SetIntPoint(&Nodes.IntPoint(dofID));
-		  const DenseMatrix &J = Trans.Jacobian();
-		  vc.Eval(vi, Trans, Nodes.IntPoint(dofID));
-		  J.Mult(tk[k],t);
-		  dofs(dofID) = vi * ti;
-	   }
+      for (int ld=0; ld<2; ld++)
+      {
+         int dofID=2*k+ld;
+         Trans.SetIntPoint(&Nodes.IntPoint(dofID));
+         const DenseMatrix &J = Trans.Jacobian();
+         vc.Eval(vi, Trans, Nodes.IntPoint(dofID));
+         J.Mult(tk[k],t);
+         dofs(dofID) = vi * ti;
+      }
    }
 }
 
 void Nedelec1FullPentFiniteElement::Project(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &Id) const
+                                            ElementTransformation &Trans,
+                                            DenseMatrix &Id) const
 {
-	int dim = fe.GetDim();
-	int dof = fe.GetDof();
+   int dim = fe.GetDim();
+   int dof = fe.GetDof();
 
-	Id.SetSize(20,dim*dof); Id = 0.0;
+   Id.SetSize(20,dim*dof); Id = 0.0;
 
-	double v[4]; Vector vi(v, 4);
-	double t[4]; Vector ti(t, 4);
+   double v[4]; Vector vi(v, 4);
+   double t[4]; Vector ti(t, 4);
 
-	Vector shape(dof);
+   Vector shape(dof);
 
-	for (int k = 0; k < 10; k++)
-	{
-	   for(int ld=0;ld<2;ld++)
-	   {
-		    int dofID=2*k+ld;
+   for (int k = 0; k < 10; k++)
+   {
+      for (int ld=0; ld<2; ld++)
+      {
+         int dofID=2*k+ld;
 
-			Trans.SetIntPoint(&Nodes.IntPoint(dofID));
-			const DenseMatrix &J = Trans.Jacobian();
-			fe.CalcShape(Nodes.IntPoint(dofID), shape);
+         Trans.SetIntPoint(&Nodes.IntPoint(dofID));
+         const DenseMatrix &J = Trans.Jacobian();
+         fe.CalcShape(Nodes.IntPoint(dofID), shape);
 
-			J.Mult(tk[k],t);
+         J.Mult(tk[k],t);
 
-			for(int di=0; di<dim; di++)
-			{
-				for(int j=0; j<dof; j++)
-				{
-					vi = 0.0; v[di] = shape(j);
+         for (int di=0; di<dim; di++)
+         {
+            for (int j=0; j<dof; j++)
+            {
+               vi = 0.0; v[di] = shape(j);
 
-					Id(dofID, di*dof+j) = vi * ti;
-				}
-			}
-	   }
-	}
+               Id(dofID, di*dof+j) = vi * ti;
+            }
+         }
+      }
+   }
 }
 
 void Nedelec1FullPentFiniteElement::ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const
+                                                ElementTransformation &Trans,
+                                                DenseMatrix &grad) const
 {
-	int dim = fe.GetDim();
-	int dof = fe.GetDof();
+   int dim = fe.GetDim();
+   int dof = fe.GetDof();
 
-	grad.SetSize(20,dof); grad = 0.0;
+   grad.SetSize(20,dof); grad = 0.0;
 
-	DenseMatrix dshape(dof,dim);
-	DenseMatrix gshape(dof,dim);
-	DenseMatrix invJ(dim,dim);
+   DenseMatrix dshape(dof,dim);
+   DenseMatrix gshape(dof,dim);
+   DenseMatrix invJ(dim,dim);
 
-	double v[4]; Vector vi(v, 4);
-	double t[4]; Vector ti(t, 4);
+   double v[4]; Vector vi(v, 4);
+   double t[4]; Vector ti(t, 4);
 
-	for (int k = 0; k < 10; k++)
-	{
-		   for(int ld=0;ld<2;ld++)
-		   {
-			    int dofID=2*k+ld;
-				Trans.SetIntPoint(&Nodes.IntPoint(dofID));
-				const DenseMatrix &J = Trans.Jacobian();
-				CalcInverse(J, invJ);
+   for (int k = 0; k < 10; k++)
+   {
+      for (int ld=0; ld<2; ld++)
+      {
+         int dofID=2*k+ld;
+         Trans.SetIntPoint(&Nodes.IntPoint(dofID));
+         const DenseMatrix &J = Trans.Jacobian();
+         CalcInverse(J, invJ);
 
-				fe.CalcDShape(Nodes.IntPoint(dofID), dshape);
-				Mult(dshape, invJ, gshape);
+         fe.CalcDShape(Nodes.IntPoint(dofID), dshape);
+         Mult(dshape, invJ, gshape);
 
-				J.Mult(tk[k],t);
+         J.Mult(tk[k],t);
 
-				for(int j=0; j<dof; j++)
-				{
-					v[0] = gshape(j,0);
-					v[1] = gshape(j,1);
-					v[2] = gshape(j,2);
-					v[3] = gshape(j,3);
+         for (int j=0; j<dof; j++)
+         {
+            v[0] = gshape(j,0);
+            v[1] = gshape(j,1);
+            v[2] = gshape(j,2);
+            v[3] = gshape(j,3);
 
-					grad(dofID, j) = vi * ti;
-				}
-		   }
+            grad(dofID, j) = vi * ti;
+         }
+      }
 
-	}
+   }
 }
 
 DivSkew1PentFiniteElement::DivSkew1PentFiniteElement()
@@ -6970,7 +6992,7 @@ const double DivSkew1PentFiniteElement::tk2[10][4] =
 {{-1,1,0,0},{-1,0,1,0},{-1,0,0,1},{0,-1,1,0},{0,-1,0,1},{0,0,-1,1},{0,-1,1,0},{0,-1,0,1},{0,0,-1,1},{0,0,-1,1}};
 
 void DivSkew1PentFiniteElement::CalcVShape(const IntegrationPoint &ip,
-                                          DenseMatrix &shape) const
+                                           DenseMatrix &shape) const
 {
    double x1 = ip.x, x2 = ip.y, x3 = ip.z, x4 = ip.t;
 
@@ -7147,181 +7169,185 @@ void DivSkew1PentFiniteElement::CalcVShape(const IntegrationPoint &ip,
 }
 
 void DivSkew1PentFiniteElement::CalcDivSkewShape(const IntegrationPoint &ip,
-                                             DenseMatrix &divSkew_shape) const
+                                                 DenseMatrix &divSkew_shape) const
 {
-	divSkew_shape(0,0) = 0.;
-	divSkew_shape(0,1) = 0.;
-	divSkew_shape(0,2) = -3.;
-	divSkew_shape(0,3) = 3.;
+   divSkew_shape(0,0) = 0.;
+   divSkew_shape(0,1) = 0.;
+   divSkew_shape(0,2) = -3.;
+   divSkew_shape(0,3) = 3.;
 
-	divSkew_shape(1,0) = 0.;
-	divSkew_shape(1,1) = 3.;
-	divSkew_shape(1,2) = 0.;
-	divSkew_shape(1,3) = -3.;
+   divSkew_shape(1,0) = 0.;
+   divSkew_shape(1,1) = 3.;
+   divSkew_shape(1,2) = 0.;
+   divSkew_shape(1,3) = -3.;
 
-	divSkew_shape(2,0) = 0.;
-	divSkew_shape(2,1) = -3.;
-	divSkew_shape(2,2) = 3.;
-	divSkew_shape(2,3) = 0.;
+   divSkew_shape(2,0) = 0.;
+   divSkew_shape(2,1) = -3.;
+   divSkew_shape(2,2) = 3.;
+   divSkew_shape(2,3) = 0.;
 
-	divSkew_shape(3,0) = -3.;
-	divSkew_shape(3,1) = 0.;
-	divSkew_shape(3,2) = 0.;
-	divSkew_shape(3,3) = 3.;
+   divSkew_shape(3,0) = -3.;
+   divSkew_shape(3,1) = 0.;
+   divSkew_shape(3,2) = 0.;
+   divSkew_shape(3,3) = 3.;
 
-	divSkew_shape(4,0) = 3.;
-	divSkew_shape(4,1) = 0.;
-	divSkew_shape(4,2) = -3.;
-	divSkew_shape(4,3) = 0.;
+   divSkew_shape(4,0) = 3.;
+   divSkew_shape(4,1) = 0.;
+   divSkew_shape(4,2) = -3.;
+   divSkew_shape(4,3) = 0.;
 
-	divSkew_shape(5,0) = -3.;
-	divSkew_shape(5,1) = 3.;
-	divSkew_shape(5,2) = 0.;
-	divSkew_shape(5,3) = 0.;
+   divSkew_shape(5,0) = -3.;
+   divSkew_shape(5,1) = 3.;
+   divSkew_shape(5,2) = 0.;
+   divSkew_shape(5,3) = 0.;
 
-	divSkew_shape(6,0) = 0.;
-	divSkew_shape(6,1) = 0.;
-	divSkew_shape(6,2) = 0.;
-	divSkew_shape(6,3) = -3.;
+   divSkew_shape(6,0) = 0.;
+   divSkew_shape(6,1) = 0.;
+   divSkew_shape(6,2) = 0.;
+   divSkew_shape(6,3) = -3.;
 
-	divSkew_shape(7,0) = 0.;
-	divSkew_shape(7,1) = 0.;
-	divSkew_shape(7,2) = 3.;
-	divSkew_shape(7,3) = 0.;
+   divSkew_shape(7,0) = 0.;
+   divSkew_shape(7,1) = 0.;
+   divSkew_shape(7,2) = 3.;
+   divSkew_shape(7,3) = 0.;
 
-	divSkew_shape(8,0) = 0.;
-	divSkew_shape(8,1) = -3.;
-	divSkew_shape(8,2) = 0.;
-	divSkew_shape(8,3) = 0.;
+   divSkew_shape(8,0) = 0.;
+   divSkew_shape(8,1) = -3.;
+   divSkew_shape(8,2) = 0.;
+   divSkew_shape(8,3) = 0.;
 
-	divSkew_shape(9,0) = 3.;
-	divSkew_shape(9,1) = 0.;
-	divSkew_shape(9,2) = 0.;
-	divSkew_shape(9,3) = 0.;
+   divSkew_shape(9,0) = 3.;
+   divSkew_shape(9,1) = 0.;
+   divSkew_shape(9,2) = 0.;
+   divSkew_shape(9,3) = 0.;
 }
 
 void DivSkew1PentFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-	Vector v(6);
-	double t1[4]; Vector t1i(t1, 4);
-	double t2[4]; Vector t2i(t2, 4);
-	Vector Mt(4);
-	DenseMatrix mat(4,4); mat = 0.0;
+   Vector v(6);
+   double t1[4]; Vector t1i(t1, 4);
+   double t2[4]; Vector t2i(t2, 4);
+   Vector Mt(4);
+   DenseMatrix mat(4,4); mat = 0.0;
 
-	dofs.SetSize(10); dofs = 0.0;
-	for (int k = 0; k < 10; k++)
-	{
-	  Trans.SetIntPoint (&Nodes.IntPoint (k));
-	  const DenseMatrix &J = Trans.Jacobian();
+   dofs.SetSize(10); dofs = 0.0;
+   for (int k = 0; k < 10; k++)
+   {
+      Trans.SetIntPoint (&Nodes.IntPoint (k));
+      const DenseMatrix &J = Trans.Jacobian();
 
-	  vc.Eval(v, Trans, Nodes.IntPoint (k));
+      vc.Eval(v, Trans, Nodes.IntPoint (k));
 
-                        mat(0,1) =  v(5); mat(0,2) = -v(4); mat(0,3) =  v(3);
+      mat(0,1) =  v(5); mat(0,2) = -v(4); mat(0,3) =  v(3);
       mat(1,0) = -v(5);                   mat(1,2) =  v(2); mat(1,3) = -v(1);
       mat(2,0) =  v(4); mat(2,1) = -v(2);                   mat(2,3) =  v(0);
       mat(3,0) = -v(3); mat(3,1) =  v(1); mat(3,2) = -v(0);
 
-	  J.Mult(tk1[k],t1);
-	  J.Mult(tk2[k],t2);
+      J.Mult(tk1[k],t1);
+      J.Mult(tk2[k],t2);
 
-	  mat.Mult(t2i, Mt);
+      mat.Mult(t2i, Mt);
 
-	  dofs(k) = t1i * Mt;
-	}
+      dofs(k) = t1i * Mt;
+   }
 }
 
 void DivSkew1PentFiniteElement::Project(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &Id) const
+                                        ElementTransformation &Trans,
+                                        DenseMatrix &Id) const
 {
-	int dim = fe.GetDim();
-	int dof = fe.GetDof();
+   int dim = fe.GetDim();
+   int dof = fe.GetDof();
 
-	Id.SetSize(10,6*dof); Id = 0.0;
+   Id.SetSize(10,6*dof); Id = 0.0;
 
-	double t1[4]; Vector t1i(t1, 4);
-	double t2[4]; Vector t2i(t2, 4);
-	Vector Mt(4);
-	DenseMatrix mat(4,4); mat = 0.0;
+   double t1[4]; Vector t1i(t1, 4);
+   double t2[4]; Vector t2i(t2, 4);
+   Vector Mt(4);
+   DenseMatrix mat(4,4); mat = 0.0;
 
-	int indI[6] = {0,0,0,1,1,2};
-	int indJ[6] = {1,2,3,2,3,3};
+   int indI[6] = {0,0,0,1,1,2};
+   int indJ[6] = {1,2,3,2,3,3};
 
-	Vector shape(dof);
-	for (int k = 0; k < 10; k++)
-	{
-		Trans.SetIntPoint(&Nodes.IntPoint(k));
-		const DenseMatrix &J = Trans.Jacobian();
-		fe.CalcShape(Nodes.IntPoint(k), shape);
+   Vector shape(dof);
+   for (int k = 0; k < 10; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+      const DenseMatrix &J = Trans.Jacobian();
+      fe.CalcShape(Nodes.IntPoint(k), shape);
 
-		J.Mult(tk1[k],t1);
-		J.Mult(tk2[k],t2);
+      J.Mult(tk1[k],t1);
+      J.Mult(tk2[k],t2);
 
-		for(int di=0; di<6; di++)
-		{
-			for(int j=0; j<dof; j++)
-			{
-				mat = 0.0;
-				mat(indI[di], indJ[di]) =  shape(j);
-				mat(indJ[di], indI[di]) = -shape(j);
+      for (int di=0; di<6; di++)
+      {
+         for (int j=0; j<dof; j++)
+         {
+            mat = 0.0;
+            mat(indI[di], indJ[di]) =  shape(j);
+            mat(indJ[di], indI[di]) = -shape(j);
 
-				mat.Mult(t2i, Mt);
+            mat.Mult(t2i, Mt);
 
-				Id(k, di*dof+j) = t1i * Mt;
-			}
-		}
-	}
+            Id(k, di*dof+j) = t1i * Mt;
+         }
+      }
+   }
 }
 
 
 void DivSkew1PentFiniteElement::ProjectCurl(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &curl) const
+                                            ElementTransformation &Trans,
+                                            DenseMatrix &curl) const
 {
-	int dim = fe.GetDim();
-	int dof = fe.GetDof();
+   int dim = fe.GetDim();
+   int dof = fe.GetDof();
 
-	curl.SetSize(10,dof); curl = 0.0;
+   curl.SetSize(10,dof); curl = 0.0;
 
-	double t1[4]; Vector t1i(t1, 4);
-	double t2[4]; Vector t2i(t2, 4);
-	Vector Mt(4);
-	DenseMatrix mat(4,4); mat = 0.0;
+   double t1[4]; Vector t1i(t1, 4);
+   double t2[4]; Vector t2i(t2, 4);
+   Vector Mt(4);
+   DenseMatrix mat(4,4); mat = 0.0;
 
-	DenseMatrix tSh(4,4);
-	DenseMatrix trShTemp(4,4);
-	DenseMatrix invJ(4,4);
-	DenseMatrix invJtr(invJ);
-	DenseMatrix curlShape(dof, 6);
+   DenseMatrix tSh(4,4);
+   DenseMatrix trShTemp(4,4);
+   DenseMatrix invJ(4,4);
+   DenseMatrix invJtr(invJ);
+   DenseMatrix curlShape(dof, 6);
 
-	for(int k = 0; k < 10; k++)
-	{
-		Trans.SetIntPoint(&Nodes.IntPoint(k));
-		const DenseMatrix &J = Trans.Jacobian();
-		CalcInverse(J, invJ);
-		invJtr = invJ; invJtr.Transpose();
+   for (int k = 0; k < 10; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+      const DenseMatrix &J = Trans.Jacobian();
+      CalcInverse(J, invJ);
+      invJtr = invJ; invJtr.Transpose();
 
-		J.Mult(tk1[k],t1);
-		J.Mult(tk2[k],t2);
+      J.Mult(tk1[k],t1);
+      J.Mult(tk2[k],t2);
 
-		//compute the curl
-		 fe.CalcCurlShape(Nodes.IntPoint(k), curlShape);
-		 for(int j=0; j<dof; j++)
-		 {
-										   tSh(0,1) =  curlShape(j,0); tSh(0,2) =  curlShape(j,1); tSh(0,3) =  curlShape(j,2);
-			 tSh(1,0) = -curlShape(j,0);                               tSh(1,2) =  curlShape(j,3); tSh(1,3) =  curlShape(j,4);
-			 tSh(2,0) = -curlShape(j,1); tSh(2,1) = -curlShape(j,3);                               tSh(2,3) =  curlShape(j,5);
-			 tSh(3,0) = -curlShape(j,2); tSh(3,1) = -curlShape(j,4); tSh(3,2) = -curlShape(j,5);
+      //compute the curl
+      fe.CalcCurlShape(Nodes.IntPoint(k), curlShape);
+      for (int j=0; j<dof; j++)
+      {
+         tSh(0,1) =  curlShape(j,0); tSh(0,2) =  curlShape(j,1);
+         tSh(0,3) =  curlShape(j,2);
+         tSh(1,0) = -curlShape(j,0);
+         tSh(1,2) =  curlShape(j,3); tSh(1,3) =  curlShape(j,4);
+         tSh(2,0) = -curlShape(j,1); tSh(2,1) = -curlShape(j,3);
+         tSh(2,3) =  curlShape(j,5);
+         tSh(3,0) = -curlShape(j,2); tSh(3,1) = -curlShape(j,4);
+         tSh(3,2) = -curlShape(j,5);
 
-			 Mult(tSh, invJ, trShTemp);
-			 Mult(invJtr, trShTemp, mat);
+         Mult(tSh, invJ, trShTemp);
+         Mult(invJtr, trShTemp, mat);
 
-			 mat.Mult(t2i, Mt);
-			 curl(k, j) = t1i * Mt;
-		 }
-	}
+         mat.Mult(t2i, Mt);
+         curl(k, j) = t1i * Mt;
+      }
+   }
 }
 
 
@@ -8035,7 +8061,7 @@ RT0PentFiniteElement::RT0PentFiniteElement()
 }
 
 void RT0PentFiniteElement::CalcVShape(const IntegrationPoint &ip,
-                                     DenseMatrix &shape) const
+                                      DenseMatrix &shape) const
 {
    double x3 = 3.0*ip.x, y3 = 3.0*ip.y, z3 = 3.0*ip.z, t3 = 3.0*ip.t;
 
@@ -8066,7 +8092,7 @@ void RT0PentFiniteElement::CalcVShape(const IntegrationPoint &ip,
 }
 
 void RT0PentFiniteElement::CalcDivShape(const IntegrationPoint &ip,
-                                       Vector &divshape) const
+                                        Vector &divshape) const
 {
    divshape(0) = 12.0;
    divshape(1) = 12.0;
@@ -8082,7 +8108,7 @@ void RT0PentFiniteElement::GetLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I) const
 {
 
-	cerr << "RT0PentFiniteElement::GetLocalInterpolation (...) implementation not tested yet!!! \n";
+   cerr << "RT0PentFiniteElement::GetLocalInterpolation (...) implementation not tested yet!!! \n";
 
    int k, j;
 #ifdef MFEM_THREAD_SAFE
@@ -8098,11 +8124,11 @@ void RT0PentFiniteElement::GetLocalInterpolation (
       {
          double d = ( vshape(j,0)*nk[k][0] + vshape(j,1)*nk[k][1] +
                       vshape(j,2)*nk[k][2] );
-         if (j == k) d -= 1.0;
+         if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
             cerr << "RT0TetFiniteElement::GetLocalInterpolation (...)\n"
-               " k = " << k << ", j = " << j << ", d = " << d << endl;
+                 " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -8124,13 +8150,18 @@ void RT0PentFiniteElement::GetLocalInterpolation (
       ip.x = vk[0]; ip.y = vk[1]; ip.z = vk[2]; ip.t = vk[3];
       CalcVShape (ip, vshape);
       //  vk = |J| J^{-t} nk
-      vk[0] = Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1]+Jinv(0,2)*nk[k][2]+Jinv(0,3)*nk[k][3];
-      vk[1] = Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1]+Jinv(1,2)*nk[k][2]+Jinv(1,3)*nk[k][3];
-      vk[2] = Jinv(2,0)*nk[k][0]+Jinv(2,1)*nk[k][1]+Jinv(2,2)*nk[k][2]+Jinv(2,3)*nk[k][3];
-      vk[3] = Jinv(3,0)*nk[k][0]+Jinv(3,1)*nk[k][1]+Jinv(3,2)*nk[k][2]+Jinv(3,3)*nk[k][3];
+      vk[0] = Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1]+Jinv(0,2)*nk[k][2]+Jinv(0,
+                                                                            3)*nk[k][3];
+      vk[1] = Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1]+Jinv(1,2)*nk[k][2]+Jinv(1,
+                                                                            3)*nk[k][3];
+      vk[2] = Jinv(2,0)*nk[k][0]+Jinv(2,1)*nk[k][1]+Jinv(2,2)*nk[k][2]+Jinv(2,
+                                                                            3)*nk[k][3];
+      vk[3] = Jinv(3,0)*nk[k][0]+Jinv(3,1)*nk[k][1]+Jinv(3,2)*nk[k][2]+Jinv(3,
+                                                                            3)*nk[k][3];
 
       for (j = 0; j < 5; j++)
-         if(fabs (I(k,j) = (vshape(j,0)*vk[0]+vshape(j,1)*vk[1]+vshape(j,2)*vk[2]+vshape(j,3)*vk[3])) < 1.0e-12) I(k,j) = 0.0;
+         if (fabs (I(k,j) = (vshape(j,0)*vk[0]+vshape(j,1)*vk[1]+vshape(j,
+                                                                        2)*vk[2]+vshape(j,3)*vk[3])) < 1.0e-12) { I(k,j) = 0.0; }
    }
 }
 
@@ -8155,83 +8186,89 @@ void RT0PentFiniteElement::Project (
       vc.Eval (xk, Trans, Nodes.IntPoint (k));
       //  xk^t |J| J^{-t} nk
       dofs(k) =
-         vk[0] * ( Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1]+Jinv(0,2)*nk[k][2]+Jinv(0,3)*nk[k][3] ) +
-         vk[1] * ( Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1]+Jinv(1,2)*nk[k][2]+Jinv(1,3)*nk[k][3] ) +
-         vk[2] * ( Jinv(2,0)*nk[k][0]+Jinv(2,1)*nk[k][1]+Jinv(2,2)*nk[k][2]+Jinv(2,3)*nk[k][3] ) +
-         vk[3] * ( Jinv(3,0)*nk[k][0]+Jinv(3,1)*nk[k][1]+Jinv(3,2)*nk[k][2]+Jinv(3,3)*nk[k][3] );
+         vk[0] * ( Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1]+Jinv(0,2)*nk[k][2]+Jinv(0,
+                                                                                 3)*nk[k][3] ) +
+         vk[1] * ( Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1]+Jinv(1,2)*nk[k][2]+Jinv(1,
+                                                                                 3)*nk[k][3] ) +
+         vk[2] * ( Jinv(2,0)*nk[k][0]+Jinv(2,1)*nk[k][1]+Jinv(2,2)*nk[k][2]+Jinv(2,
+                                                                                 3)*nk[k][3] ) +
+         vk[3] * ( Jinv(3,0)*nk[k][0]+Jinv(3,1)*nk[k][1]+Jinv(3,2)*nk[k][2]+Jinv(3,
+                                                                                 3)*nk[k][3] );
 
-      if(w < 0) dofs(k) *= -1.0;
+      if (w < 0) { dofs(k) *= -1.0; }
    }
 }
 
-void RT0PentFiniteElement::Project(const FiniteElement &fe, ElementTransformation &Trans,
-                     DenseMatrix &Id) const
+void RT0PentFiniteElement::Project(const FiniteElement &fe,
+                                   ElementTransformation &Trans,
+                                   DenseMatrix &Id) const
 {
-	int dim = fe.GetDim();
-	int dof = fe.GetDof();
+   int dim = fe.GetDim();
+   int dof = fe.GetDof();
 
-	Id.SetSize(5,dim*dof); Id = 0.0;
+   Id.SetSize(5,dim*dof); Id = 0.0;
 
-	double n[4]; Vector ni(n, 4);
-	Vector vecF(4);
+   double n[4]; Vector ni(n, 4);
+   Vector vecF(4);
 
-	Vector shape(dof);
-	for (int k = 0; k < 5; k++)
-	{
-		Trans.SetIntPoint(&Nodes.IntPoint(k));
-		const DenseMatrix &J = Trans.Jacobian();
-	    CalcAdjugateTranspose(J, Jinv);
-		fe.CalcShape(Nodes.IntPoint(k), shape);
+   Vector shape(dof);
+   for (int k = 0; k < 5; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+      const DenseMatrix &J = Trans.Jacobian();
+      CalcAdjugateTranspose(J, Jinv);
+      fe.CalcShape(Nodes.IntPoint(k), shape);
 
-		Jinv.Mult(nk[k],n);
+      Jinv.Mult(nk[k],n);
 
-		for(int di=0; di<dim; di++)
-		{
-			for(int j=0; j<dof; j++)
-			{
-				vecF = 0.0; vecF(di) = shape(j);
+      for (int di=0; di<dim; di++)
+      {
+         for (int j=0; j<dof; j++)
+         {
+            vecF = 0.0; vecF(di) = shape(j);
 
-				Id(k, di*dof+j) = vecF * ni;
-			}
-		}
-	}
+            Id(k, di*dof+j) = vecF * ni;
+         }
+      }
+   }
 }
 
-void RT0PentFiniteElement::ProjectDivSkew(const FiniteElement &fe, ElementTransformation &Trans,
-                     DenseMatrix &DivSkew) const
+void RT0PentFiniteElement::ProjectDivSkew(const FiniteElement &fe,
+                                          ElementTransformation &Trans,
+                                          DenseMatrix &DivSkew) const
 {
-	int dim = fe.GetDim();
-	int dof = fe.GetDof();
+   int dim = fe.GetDim();
+   int dof = fe.GetDof();
 
-	DivSkew.SetSize(5,dof); DivSkew = 0.0;
+   DivSkew.SetSize(5,dof); DivSkew = 0.0;
 
-	double n[4]; Vector ni(n, 4);
-	Vector vecF(4);
+   double n[4]; Vector ni(n, 4);
+   Vector vecF(4);
 
-	DenseMatrix DivSkewshape(dof,4);
-	DenseMatrix DivSkew_dFt(dof,4);
-	for (int k = 0; k < 5; k++)
-	{
-		Trans.SetIntPoint(&Nodes.IntPoint(k));
-		const DenseMatrix &J = Trans.Jacobian();
-	    CalcAdjugateTranspose(J, Jinv);
+   DenseMatrix DivSkewshape(dof,4);
+   DenseMatrix DivSkew_dFt(dof,4);
+   for (int k = 0; k < 5; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+      const DenseMatrix &J = Trans.Jacobian();
+      CalcAdjugateTranspose(J, Jinv);
 
-		fe.CalcDivSkewShape(Nodes.IntPoint(k), DivSkewshape);
-		MultABt(DivSkewshape, J, DivSkew_dFt);
-		DivSkew_dFt *= (1.0 / Trans.Weight());
+      fe.CalcDivSkewShape(Nodes.IntPoint(k), DivSkewshape);
+      MultABt(DivSkewshape, J, DivSkew_dFt);
+      DivSkew_dFt *= (1.0 / Trans.Weight());
 
-		Jinv.Mult(nk[k],n);
+      Jinv.Mult(nk[k],n);
 
-		for(int j=0; j<dof; j++)
-		{
-			vecF(0) = DivSkew_dFt(j,0);
-			vecF(1) = DivSkew_dFt(j,1);
-			vecF(2) = DivSkew_dFt(j,2);
-			vecF(3) = DivSkew_dFt(j,3);
+      for (int j=0; j<dof; j++)
+      {
+         vecF(0) = DivSkew_dFt(j,0);
+         vecF(1) = DivSkew_dFt(j,1);
+         vecF(2) = DivSkew_dFt(j,2);
+         vecF(3) = DivSkew_dFt(j,3);
 
-			DivSkew(k, j) = vecF * ni;
-		}
-	}
+         DivSkew(k, j) = vecF * ni;
+      }
+   }
 }
 
 
@@ -11162,7 +11199,8 @@ void L2_TetrahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 }
 
 L2_PentatopeElement::L2_PentatopeElement(const int p, const int _type)
-   : NodalFiniteElement(4, Geometry::PENTATOPE, ((p + 1)*(p + 2)*(p + 3)*(p + 4))/24,
+   : NodalFiniteElement(4, Geometry::PENTATOPE,
+                        ((p + 1)*(p + 2)*(p + 3)*(p + 4))/24,
                         p, FunctionSpace::Pk), T(Dof)
 {
    const double *op;
@@ -11170,9 +11208,9 @@ L2_PentatopeElement::L2_PentatopeElement(const int p, const int _type)
    type = _type;
    switch (type)
    {
-   case 0: op = poly1d.OpenPoints(p); break;
-   case 1:
-   default: op = poly1d.ClosedPoints(p);
+      case 0: op = poly1d.OpenPoints(p); break;
+      case 1:
+      default: op = poly1d.ClosedPoints(p);
    }
 
 #ifndef MFEM_THREAD_SAFE
@@ -11189,7 +11227,8 @@ L2_PentatopeElement::L2_PentatopeElement(const int p, const int _type)
    u.SetSize(Dof);
    du.SetSize(Dof, Dim);
 #else
-   Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1), shape_t(p + 1), shape_l(p + 1);
+   Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1), shape_t(p + 1),
+          shape_l(p + 1);
 #endif
 
    for (int o = 0, l = 0; l <= p; l++)
@@ -11214,14 +11253,16 @@ L2_PentatopeElement::L2_PentatopeElement(const int p, const int _type)
          for (int k = 0; l + k <= p; k++)
             for (int j = 0; j + l + k <= p; j++)
                for (int i = 0; i + j + l + k <= p; i++)
+               {
                   T(o++, m) = shape_x(i)*shape_y(j)*shape_z(k)*shape_t(l)*shape_l(p-i-j-k-l);
+               }
    }
 
    T.Invert();
 }
 
 void L2_PentatopeElement::CalcShape(const IntegrationPoint &ip,
-                                      Vector &shape) const
+                                    Vector &shape) const
 {
    const int p = Order;
 
@@ -11240,19 +11281,23 @@ void L2_PentatopeElement::CalcShape(const IntegrationPoint &ip,
       for (int k = 0; l + k <= p; k++)
          for (int j = 0; j + l + k <= p; j++)
             for (int i = 0; i + j + l + k <= p; i++)
+            {
                u(o++) = shape_x(i)*shape_y(j)*shape_z(k)*shape_t(l)*shape_l(p-i-j-k-l);
+            }
 
    T.Mult(u, shape);
 }
 
 void L2_PentatopeElement::CalcDShape(const IntegrationPoint &ip,
-                                       DenseMatrix &dshape) const
+                                     DenseMatrix &dshape) const
 {
    const int p = Order;
 
 #ifdef MFEM_THREAD_SAFE
-   Vector  shape_x(p + 1),  shape_y(p + 1),  shape_z(p + 1), shape_t(p + 1),  shape_l(p + 1);
-   Vector dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1), dshape_t(p + 1), dshape_l(p + 1);
+   Vector  shape_x(p + 1),  shape_y(p + 1),  shape_z(p + 1), shape_t(p + 1),
+           shape_l(p + 1);
+   Vector dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1), dshape_t(p + 1),
+          dshape_l(p + 1);
    DenseMatrix du(Dof, Dim);
 #endif
 
@@ -11286,41 +11331,41 @@ void L2_PentatopeElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    switch (vertex)
    {
-   case 0:
-      for (int i = 0; i < Dof; i++)
-      {
-         const IntegrationPoint &ip = Nodes.IntPoint(i);
-         dofs[i] = pow(1.0 - ip.x - ip.y - ip.z - ip.t, Order);
-      }
-      break;
-   case 1:
-      for (int i = 0; i < Dof; i++)
-      {
-         const IntegrationPoint &ip = Nodes.IntPoint(i);
-         dofs[i] = pow(ip.x, Order);
-      }
-      break;
-   case 2:
-      for (int i = 0; i < Dof; i++)
-      {
-         const IntegrationPoint &ip = Nodes.IntPoint(i);
-         dofs[i] = pow(ip.y, Order);
-      }
-      break;
-   case 3:
-      for (int i = 0; i < Dof; i++)
-      {
-         const IntegrationPoint &ip = Nodes.IntPoint(i);
-         dofs[i] = pow(ip.z, Order);
-      }
-      break;
-   case 4:
-      for (int i = 0; i < Dof; i++)
-      {
-         const IntegrationPoint &ip = Nodes.IntPoint(i);
-         dofs[i] = pow(ip.t, Order);
-      }
-      break;
+      case 0:
+         for (int i = 0; i < Dof; i++)
+         {
+            const IntegrationPoint &ip = Nodes.IntPoint(i);
+            dofs[i] = pow(1.0 - ip.x - ip.y - ip.z - ip.t, Order);
+         }
+         break;
+      case 1:
+         for (int i = 0; i < Dof; i++)
+         {
+            const IntegrationPoint &ip = Nodes.IntPoint(i);
+            dofs[i] = pow(ip.x, Order);
+         }
+         break;
+      case 2:
+         for (int i = 0; i < Dof; i++)
+         {
+            const IntegrationPoint &ip = Nodes.IntPoint(i);
+            dofs[i] = pow(ip.y, Order);
+         }
+         break;
+      case 3:
+         for (int i = 0; i < Dof; i++)
+         {
+            const IntegrationPoint &ip = Nodes.IntPoint(i);
+            dofs[i] = pow(ip.z, Order);
+         }
+         break;
+      case 4:
+         for (int i = 0; i < Dof; i++)
+         {
+            const IntegrationPoint &ip = Nodes.IntPoint(i);
+            dofs[i] = pow(ip.t, Order);
+         }
+         break;
    }
 }
 

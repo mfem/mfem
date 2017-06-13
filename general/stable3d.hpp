@@ -117,7 +117,8 @@ public:
    int Index (int r, int c, int f, int t, int u) const;
 
    int Push8 (int u1, int u2, int u3, int u4, int u5, int u6, int u7, int u8);
-   int operator() (int u1, int u2, int u3, int u4, int u5, int u6, int u7, int u8) const;
+   int operator() (int u1, int u2, int u3, int u4, int u5, int u6, int u7,
+                   int u8) const;
 
    int NumberOfElements() { return NElem; };
 
@@ -134,27 +135,25 @@ inline void Sort3 (int &r, int &c, int &f)
       {
          t = r;  r = f;  f = t;  //  (r,c,f) --> (f,c,r)
       }
-      else
-         if (r > f)
-         {
-            t = r;  r = c;  c = f;  f = t;  //  (r,c,f) --> (c,f,r)
-         }
-         else
-         {
-            t = r;  r = c;  c = t;  //  (r,c,f) --> (c,r,f)
-         }
-   else
-      if (c > f)
+      else if (r > f)
       {
-         if (r > f)
-         {
-            t = f;  f = c;  c = r;  r = t;  //  (r,c,f) --> (f,r,c)
-         }
-         else
-         {
-            t = c;  c = f;  f = t;  //  (r,c,f) --> (r,f,c)
-         }
+         t = r;  r = c;  c = f;  f = t;  //  (r,c,f) --> (c,f,r)
       }
+      else
+      {
+         t = r;  r = c;  c = t;  //  (r,c,f) --> (c,r,f)
+      }
+   else if (c > f)
+   {
+      if (r > f)
+      {
+         t = f;  f = c;  c = r;  r = t;  //  (r,c,f) --> (f,r,c)
+      }
+      else
+      {
+         t = c;  c = f;  f = t;  //  (r,c,f) --> (r,f,c)
+      }
+   }
 }
 
 
@@ -164,23 +163,23 @@ inline void Sort4 (int &r, int &c, int &f, int &u)
 
    int t;
 
-   if(r > c)
+   if (r > c)
    {
-	   if(r <= f)  //(r, c, f, u) --> (c, r, f, u)
-	   {
-		   t = r; r = c; c = t;
-	   }
-	   else if(r <= u) //(r, c, f, u) --> (c, f, r, u)
-	   {
-		   t = r; r = c; c = t;
-		   t = c; c = f; f = t;
-	   }
-	   else if(r > u) //(r, c, f, u) --> (c, f, u, r)
-	   {
-		   t = r; r = c; c = t;
-		   t = c; c = f; f = t;
-		   t = f; f = u; u = t;
-	   }
+      if (r <= f) //(r, c, f, u) --> (c, r, f, u)
+      {
+         t = r; r = c; c = t;
+      }
+      else if (r <= u) //(r, c, f, u) --> (c, f, r, u)
+      {
+         t = r; r = c; c = t;
+         t = c; c = f; f = t;
+      }
+      else if (r > u) //(r, c, f, u) --> (c, f, u, r)
+      {
+         t = r; r = c; c = t;
+         t = c; c = f; f = t;
+         t = f; f = u; u = t;
+      }
    }
 }
 
@@ -189,14 +188,15 @@ inline void Sort5 (int &r, int &c, int &f, int &u, int &v)
    Sort4(r,c,f,u);
    Sort4(c,f,u,v);
 
-   if(r > c)
+   if (r > c)
    {
-	   int t = r; r = c; c = t;
+      int t = r; r = c; c = t;
    }
 }
 
 //should be optimized
-inline void Sort8 (int &u1, int &u2, int &u3, int &u4, int &u5, int &u6, int &u7, int &u8)
+inline void Sort8 (int &u1, int &u2, int &u3, int &u4, int &u5, int &u6,
+                   int &u7, int &u8)
 {
    Sort5(u1,u2,u3,u4,u5);
    Sort5(u4,u5,u6,u7,u8);
