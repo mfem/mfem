@@ -884,7 +884,10 @@ public:
    int CheckBdrElementOrientation(bool fix_it = true);
 
    /// Return the attribute of element i.
-   int GetAttribute(int i) const { return elements[i]->GetAttribute();}
+   int GetAttribute(int i) const { return elements[i]->GetAttribute(); }
+
+   /// Set the attribute of element i.
+   void SetAttribute(int i, int attr) { elements[i]->SetAttribute(attr); }
 
    /// Return the attribute of boundary element i.
    int GetBdrAttribute(int i) const { return boundary[i]->GetAttribute(); }

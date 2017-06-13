@@ -16,7 +16,6 @@
 #include "operator.hpp"
 #ifdef MFEM_USE_MPI
 #include "hypre.hpp"
-#include "petsc.hpp"
 #endif
 
 namespace mfem
