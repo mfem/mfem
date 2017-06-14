@@ -23,11 +23,10 @@ namespace mfem
 {
 
 STRUMPACKRowLocMatrix::STRUMPACKRowLocMatrix(MPI_Comm comm,
-					     int num_loc_rows, int first_loc_row,
-					     int glob_nrows, int glob_ncols,
-					     int *I, int *J, double *data)
-  : comm_(comm),
-    A_(NULL)
+                                             int num_loc_rows, int first_loc_row,
+                                             int glob_nrows, int glob_ncols,
+                                             int *I, int *J, double *data)
+   : comm_(comm), A_(NULL)
 {
    // Set mfem::Operator member data
    height = num_loc_rows;
@@ -70,7 +69,8 @@ STRUMPACKRowLocMatrix::STRUMPACKRowLocMatrix(const HypreParMatrix & hypParMat)
    dist[rank + 1] = parcsr_op->first_row_index + csr_op->num_rows;
    dist[0] = 0;
    MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, dist + 1, 1, MPI_INT, comm_);
-   A_ = new CSRMatrixMPI<double,int>(csr_op->num_rows, csr_op->i, csr_op->j, csr_op->data, dist, comm_, false);
+   A_ = new CSRMatrixMPI<double,int>(csr_op->num_rows, csr_op->i, csr_op->j,
+                                     csr_op->data, dist, comm_, false);
    delete[] dist;
 
    // Everything has been copied or abducted so delete the structure
@@ -88,7 +88,7 @@ STRUMPACKSolver::STRUMPACKSolver( int argc, char* argv[], MPI_Comm comm )
      APtr_(NULL),
      solver_(NULL)
 {
-  this->Init(argc, argv);
+   this->Init(argc, argv);
 }
 
 STRUMPACKSolver::STRUMPACKSolver( STRUMPACKRowLocMatrix & A )
@@ -115,7 +115,8 @@ void STRUMPACKSolver::Init( int argc, char* argv[] )
    factor_verbose_ = false;
    solve_verbose_ = false;
 
-   solver_ = new StrumpackSparseSolverMPIDist<double,int>(comm_, argc, argv, false);
+   solver_ = new StrumpackSparseSolverMPIDist<double,int>(comm_, argc, argv,
+                                                          false);
 }
 
 void STRUMPACKSolver::SetFromCommandLine( )
@@ -138,7 +139,8 @@ void STRUMPACKSolver::SetKrylovSolver( strumpack::KrylovSolver method )
    solver_->options().set_Krylov_solver( method );
 }
 
-void STRUMPACKSolver::SetReorderingStrategy( strumpack::ReorderingStrategy method )
+void STRUMPACKSolver::SetReorderingStrategy( strumpack::ReorderingStrategy
+                                             method )
 {
    solver_->options().set_reordering_method( method );
 }
@@ -174,18 +176,19 @@ void STRUMPACKSolver::Mult( const Vector & x, Vector & y ) const
 
    solver_->options().set_verbose( factor_verbose_ );
    ReturnCode ret = solver_->factor();
-   switch (ret) {
-   case ReturnCode::SUCCESS: break;
-   case ReturnCode::MATRIX_NOT_SET:
-     {
-       MFEM_ABORT("STRUMPACK:  Matrix was not set!");
-     }
-     break;
-   case ReturnCode::REORDERING_ERROR:
-     {
-       MFEM_ABORT("STRUMPACK:  Matrix reordering failed!");
-     }
-     break;
+   switch (ret)
+   {
+      case ReturnCode::SUCCESS: break;
+      case ReturnCode::MATRIX_NOT_SET:
+      {
+         MFEM_ABORT("STRUMPACK:  Matrix was not set!");
+      }
+      break;
+      case ReturnCode::REORDERING_ERROR:
+      {
+         MFEM_ABORT("STRUMPACK:  Matrix reordering failed!");
+      }
+      break;
    }
    solver_->options().set_verbose( solve_verbose_ );
    solver_->solve(xPtr, yPtr);

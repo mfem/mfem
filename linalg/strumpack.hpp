@@ -34,9 +34,9 @@ public:
        be of size (local) nrows by (global) glob_ncols. The new parallel matrix
        contains copies of all input arrays (so they can be deleted). */
    STRUMPACKRowLocMatrix(MPI_Comm comm,
-			 int num_loc_rows, int first_loc_row,
-			 int glob_nrows, int glob_ncols,
-			 int *I, int *J, double *data);
+                         int num_loc_rows, int first_loc_row,
+                         int glob_nrows, int glob_ncols,
+                         int *I, int *J, double *data);
 
    /** Creates a copy of the parallel matrix hypParMat in STRUMPACK's RowLoc
        format. All data is copied so the original matrix may be deleted. */
