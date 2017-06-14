@@ -4016,12 +4016,13 @@ int Mesh::GetTetOrientation (const int * base, const int * test)
    }
 
 #ifdef MFEM_DEBUG
-   const int *aor = tet_orientations[orient];
+  /* const int *aor = tet_t::Orient[orient];
    for (int j = 0; j < 4; j++)
       if (test[aor[j]] != base[j])
       {
          mfem_error("Mesh::GetTetOrientation(...)");
       }
+      */
 #endif
 
    return orient + 0;
