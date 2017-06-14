@@ -518,8 +518,8 @@ void SidreDataCollection::createMeshBlueprintAdjacencies(bool hasBP)
 
    if (pmesh->GetNGroups() > 1)
    {
-      bp_grp->createGroup("adjacencies");
-      if (myid == 0) { bp_index_grp->createGroup("adjacencies"); }
+      bp_grp->createGroup("domain_adjacencies");
+      if (myid == 0) { bp_index_grp->createGroup("domain_adjacencies"); }
    }
 
    for (int gi = 1; gi < pmesh->GetNGroups(); ++gi)
@@ -530,7 +530,7 @@ void SidreDataCollection::createMeshBlueprintAdjacencies(bool hasBP)
       // Skip creation of empty groups
       if (num_gneighbors > 1 && num_gvertices > 0)
       {
-         std::snprintf(group_str, GRP_SZ, "adjacencies/g%d_%d",
+         std::snprintf(group_str, GRP_SZ, "domain_adjacencies/g%d_%d",
                        pmesh->gtopo.GetGroupMasterRank(gi),
                        pmesh->gtopo.GetGroupMasterGroup(gi));
 
