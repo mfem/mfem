@@ -16,7 +16,6 @@
 #include "../general/stable3d.hpp"
 #include "triangle.hpp"
 #include "tetrahedron.hpp"
-#include "pentatope.hpp"
 #include "vertex.hpp"
 #include "ncmesh.hpp"
 #include "../fem/eltrans.hpp"
