@@ -163,7 +163,7 @@ if (MFEM_USE_MESQUITE)
   include_directories(${MESQUITE_INCLUDE_DIRS})
 endif()
 
-# SuperLU_DIST can only be enabled if parallel
+# SuperLU_DIST can only be enabled in parallel
 if (MFEM_USE_SUPERLU)
   if (MFEM_USE_MPI)
     find_package(SuperLUDist REQUIRED)
@@ -173,7 +173,7 @@ if (MFEM_USE_SUPERLU)
   endif()
 endif()
 
-# STRUMPACK can only be enabled if parallel
+# STRUMPACK can only be enabled in parallel
 if (MFEM_USE_STRUMPACK)
   if (MFEM_USE_MPI)
     find_package(STRUMPACK REQUIRED)
