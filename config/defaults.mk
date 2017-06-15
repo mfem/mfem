@@ -79,6 +79,7 @@ MFEM_USE_NETCDF      = NO
 MFEM_USE_PETSC       = NO
 MFEM_USE_MPFR        = NO
 MFEM_USE_SIDRE       = NO
+MFEM_USE_CEED        = YES
 
 LIBUNWIND_OPT = -g
 LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
@@ -198,6 +199,11 @@ SIDRE_LIB = \
 ifeq ($(MFEM_USE_MPI),YES)
    SIDRE_LIB += -lspio
 endif
+
+# libCEED library configuration
+CEED_DIR = @MFEM_DIR@/../libCEED
+CEED_OPT = -I$(CEED_DIR)/inc
+CEED_LIB = -L$(CEED_DIR)/lib -lceed
 
 # If YES, enable some informational messages
 VERBOSE = NO

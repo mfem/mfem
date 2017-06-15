@@ -527,6 +527,7 @@ MFEM_USE_GNUTLS
 MFEM_USE_NETCDF
 MFEM_USE_MPFR
 MFEM_USE_GZSTREAM
+MFEM_USE_CEED
 
 The following options are CMake specific:
 
