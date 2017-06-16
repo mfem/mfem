@@ -605,6 +605,10 @@ public:
       }
 #endif
    }
+   double *Get_B_1D() const { return const_cast<double *>(B_1d.data); }
+   double *Get_Bt_1D() const { return const_cast<double *>(Bt_1d.data); }
+   double *Get_G_1D() const { return const_cast<double *>(G_1d.data); }
+   double *Get_Gt_1D() const { return const_cast<double *>(Gt_1d.data); }
 };
 
 // ShapeEvaluator with 3D tensor-product structure
@@ -893,6 +897,10 @@ public:
       }
 #endif
    }
+   double *Get_B_1D() const { return const_cast<double *>(B_1d.data); }
+   double *Get_Bt_1D() const { return const_cast<double *>(Bt_1d.data); }
+   double *Get_G_1D() const { return const_cast<double *>(G_1d.data); }
+   double *Get_Gt_1D() const { return const_cast<double *>(Gt_1d.data); }
 };
 
 // ShapeEvaluator with tensor-product structure in any dimension

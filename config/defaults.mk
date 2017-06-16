@@ -203,7 +203,7 @@ endif
 # libCEED library configuration
 CEED_DIR = @MFEM_DIR@/../libCEED
 CEED_OPT = -I$(CEED_DIR)/inc
-CEED_LIB = -L$(CEED_DIR)/lib -lceed
+CEED_LIB = -L$(CEED_DIR) -lCEED
 
 # If YES, enable some informational messages
 VERBOSE = NO

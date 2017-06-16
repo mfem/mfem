@@ -20,6 +20,10 @@
 #include "tcoefficient.hpp"
 #include "fespace.hpp"
 
+#ifdef MFEM_USE_CEED
+#include "ceed.h"
+#endif
+
 namespace mfem
 {
 
@@ -121,8 +125,88 @@ public:
    {
       if (assembled_data)
       {
+#ifndef MFEM_EXPERIMENT_1
          const int num_elem = 1;
          MultAssembled<num_elem>(x, y);
+#elif defined MFEM_USE_CEED
+         if (solFE_type::geom == Geometry::SQUARE)
+         {
+            y = 0.0;
+#if (MFEM_EXPERIMENT_1_PROBLEM == 1)
+	    CEED_2DMassOperator massOp = {
+               solFE_type::dofs_1d,       /* number of 1D dofs (points) */
+               IR::qpts_1d,               /* number of 1D quadrature points */
+               mesh.GetNE(),              /* number of elements */
+               (double *)assembled_data,  /* nqpt_1d x nqpt_1d x nelem */
+               solEval.Get_B_1D(),        /* nqpt_1d x ndof_1d dense matrix,
+                                             column-major layout */
+               solEval.Get_Bt_1D(),       /* trasnspose of B1d */
+               solFES.GetIndexer().GetElemDof(),  /* array of size ndofs_1d x
+                                                     ndofs_1d x nelem
+                                                     representing a boolean P */
+	    };
+
+	    CEED_2DMassAction(
+	       &massOp,
+               x.GetData(),               /* input vector */
+               y.GetData()                /* result, input-output vector */
+	    );
+#else
+            MFEM_ABORT("Diffusion for quads are not implemented yet.");
+//            add_mult_diffusion_quad(
+//               solFE_type::dofs_1d,      /* number of 1D dofs (points) */
+//               IR::qpts_1d,              /* number of 1D quadrature points */
+//               mesh.GetNE(),             /* number of elements */
+//               (double *)assembled_data, /* nqpt_1d x nqpt_1d x 3 x nelem;
+//                                            (3) -> (xx,xy,yy) */
+//               solEval.Get_B_1D(),       /* nqpt_1d x ndof_1d dense matrix,
+//                                            column-major layout */
+//               solEval.Get_Bt_1D(),      /* trasnspose of B1d */
+//               solEval.Get_G_1D(),       /* nqpt_1d x ndof_1d dense matrix,
+//                                            column-major layout */
+//               solEval.Get_Gt_1D(),      /* trasnspose of G1d */
+//               solFES.GetIndexer().GetElemDof(), /* array of size ndofs_1d x
+//                                                    ndofs_1d x nelem
+//                                                    representing a boolean P */
+//               x.GetData(),              /* input vector */
+//               y.GetData()               /* result, input-output vector */
+//            );
+#endif
+         }
+         else if (solFE_type::geom == Geometry::CUBE)
+         {
+            y = 0.0;
+#if (MFEM_EXPERIMENT_1_PROBLEM == 1)
+	    CEED_2DMassOperator massOp = {
+               solFE_type::dofs_1d,       /* number of 1D dofs (points) */
+               IR::qpts_1d,               /* number of 1D quadrature points */
+               mesh.GetNE(),              /* number of elements */
+               (double *)assembled_data,  /* (nqpt_1d)^3 x nelem */
+               solEval.Get_B_1D(),        /* nqpt_1d x ndof_1d dense matrix,
+                                             column-major layout */
+               solEval.Get_Bt_1D(),       /* trasnspose of B1d */
+               solFES.GetIndexer().GetElemDof(), /* array of size (ndofs_1d)^3 x
+                                                    nelem representing a boolean
+                                                    P */
+            };
+
+	    CEED_2DMassAction(
+	       &massOp,
+               x.GetData(),               /* input vector */
+               y.GetData()                /* result, input-output vector */
+	    );
+#else
+            MFEM_ABORT("diffusion for hexes is not implemented yet.");
+#endif
+         }
+         else
+         {
+            MFEM_ABORT("geometry type : " << solFE_type::geom
+                       << " is not supported.");
+         }
+#else
+         MFEM_ABORT("libCEED is required for this experiment.");
+#endif
       }
       else
       {

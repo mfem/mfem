@@ -103,6 +103,8 @@ public:
    {
       return loc_dof_list[loc_dof_idx + elem_offset * FE::dofs];
    }
+
+   int *GetElemDof() const { return const_cast<int *>(el_dof_list); }
 };
 
 
@@ -399,6 +401,8 @@ public:
    {
       return Matches(fes) && vec_layout_t::Matches(fes);
    }
+
+   typename base_class::index_type &GetIndexer() { return base_class::ind; }
 };
 
 
