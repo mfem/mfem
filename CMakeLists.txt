@@ -207,6 +207,12 @@ if (MFEM_USE_SIDRE)
   include_directories(${AXOM_INCLUDE_DIRS})
 endif()
 
+# If SCOREC_PREFIX was specified, only link to that directory,
+# i.e. don't link to another installation in /usr/lib by mistake
+if (MFEM_USE_SCOREC)
+ find_package(SCOREC 2.1.0 REQUIRED CONFIG PATHS ${SCOREC_PREFIX} NO_DEFAULT_PATH)
+endif()
+
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
@@ -244,6 +250,11 @@ if (OPENMP_FOUND)
 endif()
 
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
+
+if (SCOREC_FOUND)
+ message(STATUS "MFEM: using package SCOREC")
+ list(APPEND TPL_LIBRARIES SCOREC::core)
+endif()
 
 # Windows specific
 set(_USE_MATH_DEFINES ${WIN32})

@@ -113,6 +113,9 @@ public:
        @note The constructed ParMesh is linear, i.e. it does not have nodes. */
    ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
 
+   ///Read a parallel mesh from a parallel Pumi mesh
+   ParMesh(MPI_Comm comm, apf::Mesh2* apf_mesh);
+
    MPI_Comm GetComm() const { return MyComm; }
    int GetNRanks() const { return NRanks; }
    int GetMyRank() const { return MyRank; }

@@ -36,6 +36,7 @@ option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
 option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
+option(MFEM_USE_SCOREC "Enable SCOREC" ON)
 
 # Allow a user to disable testing, examples, and/or miniapps at CONFIGURE TIME
 # if they don't want/need them (e.g. if MFEM is "just a dependency" and all they
@@ -125,3 +126,7 @@ set(LAPACK_LIBRARIES "" CACHE STRING "The LAPACK library.")
 set(CMAKE_SKIP_PREPROCESSED_SOURCE_RULES ON) # Skip *.i rules
 set(CMAKE_SKIP_ASSEMBLY_SOURCE_RULES  ON)    # Skip *.s rules
 # set(CMAKE_VERBOSE_MAKEFILE ON CACHE BOOL "Verbose makefiles.")
+
+# Allow the user to indicate where they installed SCOREC
+# via "-DSCOREC_PREFIX=/home/somewhere" when calling `cmake`
+set(SCOREC_PREFIX "${MFEM_DIR}/../core/install" CACHE STRING "Directory where SCOREC is installed")

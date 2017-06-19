@@ -24,6 +24,23 @@
 #include <iostream>
 #include <fstream>
 
+//Pumi headers
+#include <pumi.h>
+#include <apf.h>
+#include <apfMesh2.h>
+#include <apfMDS.h>
+#include <apfShape.h>
+#include <gmi_null.h>
+#include <gmi_sim.h>
+#include <PCU.h>
+#include <apfConvert.h>
+#include <apfNumbering.h>
+#include <gmi_mesh.h>
+#include <apfDynamicVector.h>
+#include <apfZoltan.h>
+#include <parma.h>
+#include <crv.h>
+
 namespace mfem
 {
 
@@ -161,6 +178,10 @@ protected:
    Element *ReadElement(std::istream &);
    static void PrintElement(const Element *, std::ostream &);
 
+   Element *ReadElement(apf::MeshEntity* Ent, const int geom, apf::Downward Verts, 
+               const int Attr, apf::Numbering* vert_num);
+   void CountBoundaryEntity(apf::Mesh2* apf_mesh, const int BcDim, int &NumBC);  
+
    // Readers for different mesh formats, used in the Load() method.
    // The implementations of these methods are in mesh_readers.cpp.
    void ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved);
@@ -172,6 +193,8 @@ protected:
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
    void ReadInlineMesh(std::istream &input, int generate_edges = 0);
    void ReadGmshMesh(std::istream &input);
+   void ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc, 
+   const int curved);
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
    void ReadCubit(const char *filename, int &curved, int &read_gf);
@@ -552,6 +575,10 @@ public:
        @note The constructed Mesh is linear, i.e. it does not have nodes. */
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
+   ///This is to generate a MFEM mesh from a PUMI mesh
+   Mesh(apf::Mesh2* apf_mesh, int generate_edges = 0, int refine = 1,
+         bool fix_orientation = true);
+
    /** This is similar to the mesh constructor with the same arguments, but here
        the current mesh is destroyed and another one created based on the data
        stream again given in MFEM, netgen, or VTK format. If generate_edges = 0
@@ -564,6 +591,11 @@ public:
       Loader(input, generate_edges);
       Finalize(refine, fix_orientation);
    }
+
+   /**This is to load a PUMI mesh, it is written following the
+      steps in MFEM load function*/
+    void Load(apf::Mesh2* apf_mesh, int generate_edges = 0, int refine = 1,
+                bool fix_orientation = true);
 
    /// Clear the contents of the Mesh.
    void Clear() { Destroy(); SetEmpty(); }

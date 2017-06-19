@@ -2401,6 +2401,13 @@ Mesh::Mesh(std::istream &input, int generate_edges, int refine,
    Load(input, generate_edges, refine, fix_orientation);
 }
 
+Mesh::Mesh(apf::Mesh2* apf_mesh, int generate_edges, int refine,
+        bool fix_orientation)
+{
+    SetEmpty();
+    Load(apf_mesh, generate_edges, refine, fix_orientation);
+}
+
 void Mesh::ChangeVertexDataOwnership(double *vertex_data, int len_vertex_data,
                                      bool zerocopy)
 {
@@ -2531,6 +2538,48 @@ void Mesh::PrintElement(const Element *el, std::ostream &out)
 {
    out << el->GetAttribute() << ' ';
    PrintElementWithoutAttr(el, out);
+}
+
+Element *Mesh::ReadElement( apf::MeshEntity* Ent, const int geom, apf::Downward Verts, 
+               const int Attr, apf::Numbering* vert_num)
+{
+    Element *el;
+    int nv, *v;
+    
+    //Create element in MFEM
+    el = NewElement(geom);
+    nv = el->GetNVertices();
+    v  = el->GetVertices();
+    
+    //Fill the connectivity
+    for(int i = 0; i < nv; ++i)
+    {
+        v[i] = apf::getNumber(vert_num, Verts[i], 0, 0);
+    }
+    
+    //Assign attribute
+    el->SetAttribute(Attr);
+    
+    return el;
+}
+
+void Mesh::CountBoundaryEntity( apf::Mesh2* apf_mesh, const int BcDim, int &NumBc)
+{
+    apf::MeshEntity* ent;
+    apf::MeshIterator* itr = apf_mesh->begin(BcDim);
+    
+    while((ent=apf_mesh->iterate(itr)))
+    {
+        apf::ModelEntity* mdEnt = apf_mesh->toModel(ent);
+        if(apf_mesh->getModelType(mdEnt) == BcDim){ 
+            NumBc++;
+        }
+    }
+    apf_mesh->end(itr);
+            
+    //Check if any boundary is detected
+    if (NumBc==0)
+       MFEM_ABORT("In CountBoundaryEntity; no boundary is detected!"); 
 }
 
 void Mesh::SetMeshGen()
@@ -3017,6 +3066,70 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 
    MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
    MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
+}
+
+void Mesh::Load(apf::Mesh2* apf_mesh, int generate_edges, int refine,
+                bool fix_orientation)
+{
+  int  curved = 0, read_gf = 1;
+   
+  //Add a check on apf_mesh just in case
+  Clear();
+
+   //First number vertices
+   apf::Field* apf_field_crd = apf_mesh->getCoordinateField();    
+   apf::FieldShape* crd_shape = apf::getShape(apf_field_crd);
+   apf::Numbering* v_num_loc = apf::createNumbering(apf_mesh, "VertexNumbering",
+                             crd_shape, 1);
+   //check if it is a curved mesh
+   curved = (crd_shape->getOrder() > 1) ? 1 : 0; 
+   
+  //read mesh 
+  ReadSCORECMesh(apf_mesh, v_num_loc, curved); 
+  cout<< "After ReadSCORECMesh" <<endl;
+   // at this point the following should be defined:
+   //  1) Dim
+   //  2) NumOfElements, elements
+   //  3) NumOfBdrElements, boundary
+   //  4) NumOfVertices, with allocated space in vertices
+   //  5) curved
+   //  5a) if curved == 0, vertices must be defined
+   //  5b) if curved != 0 and read_gf != 0,
+   //         'input' must point to a GridFunction
+   //  5c) if curved != 0 and read_gf == 0,
+   //         vertices and Nodes must be defined
+
+   // FinalizeTopology() will:
+   // - assume that generate_edges is true
+   // - assume that refine is false
+   // - does not check the orientation of regular and boundary elements
+   FinalizeTopology();
+
+   if (curved && read_gf)
+   {
+      // Check it to be only Quadratic if higher order
+      cout << "Is Curved?: "<< curved << "\n" <<read_gf <<endl;
+      Nodes = new GridFunction(this, apf_mesh, v_num_loc, crd_shape->getOrder());
+      edge_vertex = NULL;
+      own_nodes = 1;
+      spaceDim = Nodes->VectorDim();
+      if (ncmesh) { ncmesh->spaceDim = spaceDim; }
+      // Set the 'vertices' from the 'Nodes'
+      for (int i = 0; i < spaceDim; i++)
+      {
+         Vector vert_val;
+         Nodes->GetNodalValues(vert_val, i+1);
+         for (int j = 0; j < NumOfVertices; j++)
+         {
+            vertices[j](i) = vert_val(j);
+         }
+      }
+   }
+  
+   //Delete numbering
+   apf::destroyNumbering(v_num_loc);  
+   
+   Finalize(refine, fix_orientation);
 }
 
 void Mesh::KnotInsert(Array<KnotVector *> &kv)

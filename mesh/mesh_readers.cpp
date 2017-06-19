@@ -1261,6 +1261,104 @@ void Mesh::ReadGmshMesh(std::istream &input)
    } // we reach the end of the file
 }
 
+void Mesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc, 
+        const int curved)
+{
+    /*
+     /Here fill the element table from SCOREC MESH
+     /The vector of element pointers are generated with attr and connectivity
+     */
+
+   apf::MeshIterator* itr = apf_mesh->begin(0);
+   apf::MeshEntity* ent;
+   NumOfVertices = 0;
+   while ((ent = apf_mesh->iterate(itr)))
+   {
+       //ids start from 0
+       apf::number(v_num_loc, ent, 0, 0, NumOfVertices);
+       NumOfVertices++;
+   }
+   apf_mesh->end(itr);
+    
+   Dim = apf_mesh->getDimension();
+   NumOfElements = countOwned(apf_mesh,Dim);
+   elements.SetSize(NumOfElements);
+
+   //Get the attribute tag
+   apf::MeshTag* attTag = apf_mesh->findTag("attribute");
+   
+   //read elements from SCOREC Mesh
+   itr = apf_mesh->begin(Dim);
+   unsigned int j=0;
+   while ((ent = apf_mesh->iterate(itr)))
+   {
+       //Get vertices 
+       apf::Downward verts;
+       int num_vert =  apf_mesh->getDownward(ent,0,verts);    
+       //Get attribute Tag vs Geometry
+       int attr = 1;
+       /*if (apf_mesh->hasTag(ent,atts)){
+           attr = apf_mesh->getIntTag(ent,attTag,&attr);
+       }*/
+       apf::ModelEntity* me = apf_mesh->toModel(ent);
+       attr = 1; //apf_mesh->getModelTag(me);
+       int geom_type = apf_mesh->getType(ent); //Make sure this works!!!    
+       elements[j] = ReadElement(ent, geom_type, verts, attr, v_num_loc);
+       j++;
+   }
+  //End iterator
+   apf_mesh->end(itr);
+   
+  //Read Boundaries from SCOREC Mesh
+  //First we need to count them         
+  int BCdim = Dim - 1;
+  NumOfBdrElements = 0;
+  CountBoundaryEntity(apf_mesh, BCdim, NumOfBdrElements);
+  boundary.SetSize(NumOfBdrElements);
+  j=0;
+
+  //Read boundary from SCOREC mesh
+  itr = apf_mesh->begin(BCdim);
+  while ((ent = apf_mesh->iterate(itr)))
+  {
+      //check if this mesh entity is on the model boundary
+      apf::ModelEntity* mdEnt = apf_mesh->toModel(ent);
+      if (apf_mesh->getModelType(mdEnt) == BCdim)
+      {
+          apf::Downward verts;
+          int num_verts = apf_mesh->getDownward(ent, 0, verts);
+          int attr = 1 ;//apf_mesh->getModelTag(mdEnt);
+          int geom_type = apf_mesh->getType(ent);
+          boundary[j] = ReadElement( ent, geom_type, verts, attr, v_num_loc);
+          j++;
+      }
+  }
+  apf_mesh->end(itr);
+
+  //Fill vertices
+  vertices.SetSize(NumOfVertices);
+
+
+  if (!curved)
+  { 
+    apf::MeshIterator* itr = apf_mesh->begin(0);
+    spaceDim = Dim;
+
+    while ((ent = apf_mesh->iterate(itr)))
+    {
+        unsigned int id = apf::getNumber(v_num_loc, ent, 0, 0);
+        apf::Vector3 Crds;
+        apf_mesh->getPoint(ent,0,Crds);
+        
+        for (unsigned int ii=0; ii<spaceDim; ii++)
+            vertices[id](ii) = Crds[ii];
+    }
+    apf_mesh->end(itr); 
+
+    // initialize vertex positions in NCMesh
+    //if (ncmesh) { ncmesh->SetVertexPositions(vertices); }       
+  }
+}
 
 #ifdef MFEM_USE_NETCDF
 void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
