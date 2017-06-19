@@ -82,7 +82,6 @@ int main(int argc, char *argv[])
    int order = sol_p;
    const char *basis_type = "G"; // Gauss-Lobatto
    bool static_cond = false;
-   const char *pc = "lor";
    bool perf = true;
    bool matrix_free = true;
    bool visualization = 1;
@@ -104,9 +103,6 @@ int main(int argc, char *argv[])
    args.AddOption(&matrix_free, "-mf", "--matrix-free", "-asm", "--assembly",
                   "Use matrix-free evaluation or efficient matrix assembly in "
                   "the high-performance version.");
-   args.AddOption(&pc, "-pc", "--preconditioner",
-                  "Preconditioner: lor - low-order-refined (matrix-free) AMG, "
-                  "ho - high-order (assembled) AMG, none.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -126,17 +122,6 @@ int main(int argc, char *argv[])
    }
    MFEM_VERIFY(perf || !matrix_free,
                "--standard-version is not compatible with --matrix-free");
-
-   enum PCType { NONE, LOR, HO };
-   PCType pc_choice;
-   if (!strcmp(pc, "ho")) { pc_choice = HO; }
-   else if (!strcmp(pc, "lor")) { pc_choice = LOR; }
-   else if (!strcmp(pc, "none")) { pc_choice = NONE; }
-   else
-   {
-      mfem_error("Invalid Preconditioner specified");
-      return 3;
-   }
 
    // See class BasisType in fem/fe_coll.hpp for available basis types
    int basis = BasisType::GetType(basis_type[0]);
@@ -216,14 +201,6 @@ int main(int argc, char *argv[])
    Mesh *mesh_lor = NULL;
    FiniteElementCollection *fec_lor = NULL;
    FiniteElementSpace *fespace_lor = NULL;
-   if (pc_choice == LOR)
-   {
-      int basis_lor = basis;
-      if (basis == BasisType::Positive) { basis_lor=BasisType::ClosedUniform; }
-      mesh_lor = new Mesh(mesh, order, basis_lor);
-      fec_lor = new H1_FECollection(1, dim);
-      fespace_lor = new FiniteElementSpace(mesh_lor, fec_lor);
-   }
 
    // 6. Check if the optimized version matches the given space
    if (perf && !sol_fes_t::Matches(*fespace))
@@ -266,8 +243,6 @@ int main(int argc, char *argv[])
    //     that will hold the matrix corresponding to the Laplacian operator.
    BilinearForm *a = new BilinearForm(fespace);
    BilinearForm *a_pc = NULL;
-   if (pc_choice == LOR) { a_pc = new BilinearForm(fespace_lor); }
-   if (pc_choice == HO)  { a_pc = new BilinearForm(fespace); }
 
    // 11. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
@@ -276,8 +251,6 @@ int main(int argc, char *argv[])
    if (static_cond)
    {
       a->EnableStaticCondensation();
-      MFEM_VERIFY(pc_choice != LOR,
-                  "cannot use LOR preconditioner with static condensation");
    }
 
    cout << "Assembling the local matrix ..." << flush;
@@ -349,52 +322,19 @@ int main(int argc, char *argv[])
         << 1e-6*size/rt_max << " ("
         << 1e-6*size/rt_min << ") million.\n" << endl;
 
-   // Setup the matrix used for preconditioning
-   cout << "Assembling the preconditioning matrix ..." << flush;
-
-   tic_toc.Clear();
-   tic_toc.Start();
-
-   SparseMatrix A_pc;
-   if (pc_choice == LOR)
-   {
-      // TODO: assemble the LOR matrix using the performance code
-      a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
-      a_pc->UsePrecomputedSparsity();
-      a_pc->Assemble();
-      a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
-   }
-   else if (pc_choice == HO)
-   {
-      if (!matrix_free)
-      {
-         A_pc.MakeRef(A); // matrix already assembled, reuse it
-      }
-      else
-      {
-         a_pc->UsePrecomputedSparsity();
-         a_hpc->AssembleBilinearForm(*a_pc);
-         a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
-      }
-   }
-
-   tic_toc.Stop();
-   my_rt = tic_toc.RealTime();
-
-   cout << " done, " << rt_max << "s." << endl;
-
    // Solve with CG or PCG, depending if the matrix A_pc is available
-   CGSolver *pcg;
-   pcg = new CGSolver();
-   pcg->SetRelTol(1e-6);
-   pcg->SetMaxIter(500);
-   pcg->SetPrintLevel(3);
-   pcg->SetMaxIter(50);
+   CGSolver *cg;
+   cg = new CGSolver();
+   cg->SetRelTol(1e-6);
+   cg->SetMaxIter(500);
+   cg->SetPrintLevel(3);
+   cg->SetMaxIter(50);
+   cg->SetOperator(*a_oper);
 
    tic_toc.Clear();
    tic_toc.Start();
 
-   pcg->Mult(B, X);
+   cg->Mult(B, X);
 
    tic_toc.Stop();
    my_rt = tic_toc.RealTime();
@@ -404,11 +344,11 @@ int main(int argc, char *argv[])
    cout << "Total CG time:    " << rt_max << " (" << rt_min << ") sec."
         << endl;
    cout << "Time per CG step: "
-        << rt_max / pcg->GetNumIterations() << " ("
-        << rt_min / pcg->GetNumIterations() << ") sec." << endl;
+        << rt_max / cg->GetNumIterations() << " ("
+        << rt_min / cg->GetNumIterations() << ") sec." << endl;
    cout << "\n\"DOFs/sec\" in CG: "
-        << 1e-6*size*pcg->GetNumIterations()/rt_max << " ("
-        << 1e-6*size*pcg->GetNumIterations()/rt_min << ") million.\n"
+        << 1e-6*size*cg->GetNumIterations()/rt_max << " ("
+        << 1e-6*size*cg->GetNumIterations()/rt_min << ") million.\n"
         << endl;
 
    // 13. Recover the parallel grid function corresponding to X. This is the
@@ -461,7 +401,7 @@ int main(int argc, char *argv[])
    delete mesh_lor;
    if (order > 0) { delete fec; }
    delete mesh;
-   delete pcg;
+   delete cg;
 
    return 0;
 }

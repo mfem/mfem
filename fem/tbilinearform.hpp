@@ -133,7 +133,7 @@ public:
          {
             y = 0.0;
 #if (MFEM_EXPERIMENT_1_PROBLEM == 1)
-	    CEED_2DMassOperator massOp = {
+	    CEED_MassOperator massOp = {
                solFE_type::dofs_1d,       /* number of 1D dofs (points) */
                IR::qpts_1d,               /* number of 1D quadrature points */
                mesh.GetNE(),              /* number of elements */
@@ -177,7 +177,7 @@ public:
          {
             y = 0.0;
 #if (MFEM_EXPERIMENT_1_PROBLEM == 1)
-	    CEED_2DMassOperator massOp = {
+	    CEED_MassOperator massOp = {
                solFE_type::dofs_1d,       /* number of 1D dofs (points) */
                IR::qpts_1d,               /* number of 1D quadrature points */
                mesh.GetNE(),              /* number of elements */
@@ -190,7 +190,7 @@ public:
                                                     P */
             };
 
-	    CEED_2DMassAction(
+	    CEED_3DMassAction(
 	       &massOp,
                x.GetData(),               /* input vector */
                y.GetData()                /* result, input-output vector */
