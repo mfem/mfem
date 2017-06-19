@@ -55,6 +55,14 @@ void ParNCMesh::Update()
 {
    NCMesh::Update();
 
+   groups.clear();
+   group_id.clear();
+
+   CommGroup self;
+   self.push_back(MyRank);
+   groups.push_back(self);
+   group_id[self] = 0;
+
    shared_vertices.Clear();
    shared_edges.Clear();
    shared_faces.Clear();
@@ -198,7 +206,7 @@ void ParNCMesh::ElementSharesEdge(int elem, int enode)
    int el_rank = elements[elem].rank;
    int e_index = nodes[enode].edge_index;
 
-   int &owner = edge_owner[e_index];
+   int &owner = tmp_owner[e_index];
    owner = std::min(owner, el_rank);
 
    index_rank.Append(Connection(e_index, el_rank));
@@ -206,12 +214,12 @@ void ParNCMesh::ElementSharesEdge(int elem, int enode)
 
 void ParNCMesh::ElementSharesFace(int elem, int face)
 {
-   // Analogous to ElementHasEdge.
+   // Analogous to ElementSharesEdge.
 
    int el_rank = elements[elem].rank;
    int f_index = faces[face].index;
 
-   int &owner = face_owner[f_index];
+   int &owner = tmp_owner[f_index];
    owner = std::min(owner, el_rank);
 
    index_rank.Append(Connection(f_index, el_rank));
@@ -223,8 +231,8 @@ void ParNCMesh::BuildEdgeList()
    // edge ownership, creates edge processor groups and lists shared edges.
 
    int nedges = NEdges + NGhostEdges;
-   edge_owner.SetSize(nedges);
-   edge_owner = INT_MAX;
+   tmp_owner.SetSize(nedges);
+   tmp_owner = INT_MAX;
 
    index_rank.SetSize(12*leaf_elements.Size() * 3/2);
    index_rank.SetSize(0);
@@ -233,12 +241,12 @@ void ParNCMesh::BuildEdgeList()
 
    AddMasterSlaveRanks(nedges, edge_list);
 
-   index_rank.Sort();
-   index_rank.Unique();
-   edge_group.MakeFromList(nedges, index_rank);
-   index_rank.DeleteAll();
-
+   InitOwners(nedges, edge_owner);
+   InitGroups(nedges, edge_group);
    MakeShared(edge_group, edge_list, shared_edges);
+
+   tmp_owner.DeleteAll();
+   index_rank.DeleteAll();
 }
 
 void ParNCMesh::BuildFaceList()
@@ -247,8 +255,8 @@ void ParNCMesh::BuildFaceList()
    // face ownership, creates face processor groups and lists shared faces.
 
    int nfaces = NFaces + NGhostFaces;
-   face_owner.SetSize(nfaces);
-   face_owner = INT_MAX;
+   tmp_owner.SetSize(nfaces);
+   tmp_owner = INT_MAX;
 
    index_rank.SetSize(6*leaf_elements.Size() * 3/2);
    index_rank.SetSize(0);
@@ -257,14 +265,87 @@ void ParNCMesh::BuildFaceList()
 
    AddMasterSlaveRanks(nfaces, face_list);
 
-   index_rank.Sort();
-   index_rank.Unique();
-   face_group.MakeFromList(nfaces, index_rank);
-   index_rank.DeleteAll();
-
+   InitOwners(nfaces, face_owner);
+   InitGroups(nfaces, face_group);
    MakeShared(face_group, face_list, shared_faces);
 
    CalcFaceOrientations();
+
+   tmp_owner.DeleteAll();
+   index_rank.DeleteAll();
+}
+
+bool operator<(const ParNCMesh::CommGroup &lhs, const ParNCMesh::CommGroup &rhs)
+{
+   if (lhs.size() == rhs.size())
+   {
+      for (unsigned i = 0; i < lhs.size(); i++)
+      {
+         if (lhs[i] < rhs[i]) { return true; }
+      }
+      return false;
+   }
+   return lhs.size() < rhs.size();
+}
+
+ParNCMesh::GroupId ParNCMesh::GetGroupId(const CommGroup &group)
+{
+   if (group.size() == 1 && group[0] == MyRank)
+   {
+      return 0;
+   }
+   GroupId &id = group_id[group];
+   if (!id)
+   {
+      id = groups.size();
+      groups.push_back(group);
+   }
+   return id;
+}
+
+ParNCMesh::GroupId ParNCMesh::GetSingletonGroup(int rank)
+{
+   static std::vector<int> group;
+   group.resize(1);
+   group[0] = rank;
+   return GetGroupId(group);
+}
+
+void ParNCMesh::InitGroups(int num, Array<GroupId> &entity_group)
+{
+   entity_group.SetSize(num);
+
+   index_rank.Sort();
+   index_rank.Unique();
+
+   CommGroup group;
+   group.reserve(128);
+
+   int begin = 0, end = 0;
+   while (begin < index_rank.Size())
+   {
+      int index = index_rank[begin].from;
+      while (end < index_rank.Size() && index_rank[end].from == index)
+      {
+         end++;
+      }
+      group.resize(end - begin);
+      for (int i = begin; i < end; i++)
+      {
+         group[i] = index_rank[i].to;
+      }
+      entity_group[index] = GetGroupId(group);
+      begin = end;
+   }
+}
+
+void ParNCMesh::InitOwners(int num, Array<GroupId> &entity_owner)
+{
+   entity_owner.SetSize(num);
+   for (int i = 0; i < num; i++)
+   {
+      entity_owner[num] = GetSingletonGroup(tmp_owner[i]);
+   }
 }
 
 struct MasterSlaveInfo
@@ -321,48 +402,49 @@ void ParNCMesh::AddMasterSlaveRanks(int nitems, const NCList& list)
    }
 }
 
-static bool is_shared(const Table& groups, int index, int MyRank)
+void ParNCMesh::MakeShared(const Array<GroupId> &entity_group,
+                           const NCList &list, NCList &shared)
 {
-   // A vertex/edge/face is shared if its group contains more than one processor
-   // and at the same time one of them is ourselves.
+   Array<bool> group_shared(groups.size());
+   group_shared = false;
 
-   int size = groups.RowSize(index);
-   if (size <= 1)
+   // A vertex/edge/face is shared if its group contains more than one
+   // processor and at the same time one of them is ourselves.
+   for (unsigned i = 0; i < groups.size(); i++)
    {
-      return false;
+      const CommGroup &group = groups[i];
+      if (group.size() > 1)
+      {
+         for (unsigned i = 0; group.size(); i++)
+         {
+            if (group[i] == MyRank)
+            {
+               group_shared[i] = true;
+               break;
+            }
+         }
+      }
    }
 
-   const int* group = groups.GetRow(index);
-   for (int i = 0; i < size; i++)
-   {
-      if (group[i] == MyRank) { return true; }
-   }
-
-   return false;
-}
-
-void ParNCMesh::MakeShared(const Table &groups, const NCList &list,
-                           NCList &shared)
-{
    shared.Clear();
 
    for (unsigned i = 0; i < list.conforming.size(); i++)
    {
-      if (is_shared(groups, list.conforming[i].index, MyRank))
+      if (group_shared[entity_group[list.conforming[i].index]])
       {
          shared.conforming.push_back(list.conforming[i]);
       }
    }
    for (unsigned i = 0; i < list.masters.size(); i++)
    {
-      if (is_shared(groups, list.masters[i].index, MyRank))
+      if (group_shared[entity_group[list.masters[i].index]])
       {
          shared.masters.push_back(list.masters[i]);
       }
    }
    for (unsigned i = 0; i < list.slaves.size(); i++)
    {
-      if (is_shared(groups, list.slaves[i].index, MyRank))
+      if (group_shared[entity_group[list.slaves[i].index]])
       {
          shared.slaves.push_back(list.slaves[i]);
       }
@@ -372,8 +454,8 @@ void ParNCMesh::MakeShared(const Table &groups, const NCList &list,
 void ParNCMesh::BuildSharedVertices()
 {
    int nvertices = NVertices + NGhostVertices;
-   vertex_owner.SetSize(nvertices);
-   vertex_owner = INT_MAX;
+   tmp_owner.SetSize(nvertices);
+   tmp_owner = INT_MAX;
 
    index_rank.SetSize(8*leaf_elements.Size());
    index_rank.SetSize(0);
@@ -392,7 +474,7 @@ void ParNCMesh::BuildSharedVertices()
          Node &nd = nodes[el.node[j]];
          int index = nd.vert_index;
 
-         int &owner = vertex_owner[index];
+         int &owner = tmp_owner[index];
          owner = std::min(owner, el.rank);
 
          index_rank.Append(Connection(index, el.rank));

@@ -347,26 +347,25 @@ protected: // implementation
       Element(int geom, int attr);
    };
 
-
    // primary data
 
    HashTable<Node> nodes; // associative container holding all Nodes
    HashTable<Face> faces; // associative container holding all Faces
 
-   typedef HashTable<Node>::iterator node_iterator;
-   typedef HashTable<Node>::const_iterator node_const_iterator;
-   typedef HashTable<Face>::iterator face_iterator;
-
    BlockArray<Element> elements; // storage for all Elements
-   Array<int> free_element_ids;  // free element ids - indices into 'elements'
-
-   typedef BlockArray<Element>::iterator elem_iterator;
+   Array<int> free_element_ids;  // unused element ids - indices into 'elements'
 
    // the first 'root_count' entries of 'elements' is the coarse mesh
    int root_count;
 
    // coordinates of top-level vertices (organized as triples)
    Array<double> top_vertex_pos;
+
+   typedef HashTable<Node>::iterator node_iterator;
+   typedef HashTable<Face>::iterator face_iterator;
+   typedef HashTable<Node>::const_iterator node_const_iterator;
+   typedef HashTable<Face>::const_iterator face_const_iterator;
+   typedef BlockArray<Element>::iterator elem_iterator;
 
 
    // secondary data

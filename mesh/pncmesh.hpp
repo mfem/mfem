@@ -139,17 +139,19 @@ public:
    {
       switch (type)
       {
-         case 0: return vertex_owner[index];
-         case 1: return edge_owner[index];
-         default: return face_owner[index];
+         case 0: return groups[vertex_owner[index]][0];
+         case 1: return groups[edge_owner[index]][0];
+         default: return groups[face_owner[index]][0];
       }
    }
+
+   typedef std::vector<int> CommGroup;
 
    /** Return a list of processors sharing a vertex/edge/face
        ('type' == 0/1/2, resp.) and the size of the list. */
    const int* GetGroup(int type, int index, int &size) const
    {
-      const Table* table;
+      /*const Table* table;
       switch (type)
       {
          case 0: table = &vertex_group; break;
@@ -157,7 +159,9 @@ public:
          default: table = &face_group;
       }
       size = table->RowSize(index);
-      return table->GetRow(index);
+      return table->GetRow(index);*/
+      MFEM_ABORT("TODO");
+      return NULL;
    }
 
    /** Returns true if 'rank' is in the processor group of a vertex/edge/face
@@ -240,20 +244,21 @@ protected:
    int NFaces, NGhostFaces;
    int NElements, NGhostElements;
 
+   typedef short GroupId;
+   typedef std::map<CommGroup, GroupId> GroupMap;
+   typedef std::vector<CommGroup> GroupList;
+
+   GroupList groups;
+   GroupMap group_id;
+
+   // group and owner Id for each vertex, edge and face
+   Array<GroupId> vertex_group, edge_group, face_group;
+   Array<GroupId> vertex_owner, edge_owner, face_owner;
+
    // lists of vertices/edges/faces shared by us and at least one more processor
    NCList shared_vertices;
    NCList shared_edges;
    NCList shared_faces;
-
-   // owner processor for each vertex/edge/face
-   Array<int> vertex_owner;
-   Array<int> edge_owner;
-   Array<int> face_owner;
-
-   // list of processors sharing each vertex/edge/face
-   Table vertex_group;
-   Table edge_group;
-   Table face_group;
 
    Array<char> face_orient; // see CalcFaceOrientations
 
@@ -292,11 +297,17 @@ protected:
 
    virtual void OnMeshUpdated(Mesh *mesh);
 
+   GroupId GetGroupId(const CommGroup &group);
+   GroupId GetSingletonGroup(int rank);
+
    virtual void BuildEdgeList();
    virtual void BuildFaceList();
 
    virtual void ElementSharesEdge(int elem, int enode);
    virtual void ElementSharesFace(int elem, int face);
+
+   void InitOwners(int num, Array<GroupId> &entity_owner);
+   void InitGroups(int num, Array<GroupId> &entity_group);
 
    void BuildSharedVertices();
 
@@ -306,10 +317,12 @@ protected:
 
    void UpdateLayers();
 
+   Array<int> tmp_owner; // temporary
    Array<Connection> index_rank; // temporary
 
    void AddMasterSlaveRanks(int nitems, const NCList& list);
-   void MakeShared(const Table &groups, const NCList &list, NCList &shared);
+   void MakeShared(const Array<GroupId> &entity_group,
+                   const NCList &list, NCList &shared);
 
    /** Uniquely encodes a set of leaf elements in the refinement hierarchy of
        an NCMesh. Can be dumped to a stream, sent to another processor, loaded,
