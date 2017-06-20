@@ -283,13 +283,12 @@ int main(int argc, char *argv[])
       }
    }
    tic_toc.Stop();
-   double rt_min, rt_max, my_rt;
+   double my_rt;
    my_rt = tic_toc.RealTime();
 
-   cout << " done, " << rt_max << " (" << rt_min << ") s." << endl;
+   cout << " done, " << my_rt <<  " s." << endl;
    cout << "\n\"DOFs/sec\" in assembly: "
-        << 1e-6*size/rt_max << " ("
-        << 1e-6*size/rt_min << ") million.\n" << endl;
+        << 1e-6*size/my_rt << "million.\n" << endl;
 
    // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
    //     preconditioner from hypre.
@@ -316,11 +315,9 @@ int main(int argc, char *argv[])
    tic_toc.Stop();
    my_rt = tic_toc.RealTime();
 
-   cout << "FormLinearSystem() ... done, " << rt_max << " (" << rt_min
-        << ") s." << endl;
+   cout << "FormLinearSystem() ... done, " << my_rt << endl;
    cout << "\n\"DOFs/sec\" in FormLinearSystem(): "
-        << 1e-6*size/rt_max << " ("
-        << 1e-6*size/rt_min << ") million.\n" << endl;
+        << 1e-6*size/my_rt << " million.\n" << endl;
 
    // Solve with CG or PCG, depending if the matrix A_pc is available
    CGSolver *cg;
@@ -341,15 +338,15 @@ int main(int argc, char *argv[])
 
    // Note: In the pcg algorithm, the number of operator Mult() calls is
    //       N_iter and the number of preconditioner Mult() calls is N_iter+1.
-   cout << "Total CG time:    " << rt_max << " (" << rt_min << ") sec."
+   cout << "Total CG time:    " << my_rt << " sec."
         << endl;
-   cout << "Time per CG step: "
-        << rt_max / cg->GetNumIterations() << " ("
-        << rt_min / cg->GetNumIterations() << ") sec." << endl;
+   cout << "Time per CG step: " << my_rt / cg->GetNumIterations() << " sec." 
+        << endl;
    cout << "\n\"DOFs/sec\" in CG: "
-        << 1e-6*size*cg->GetNumIterations()/rt_max << " ("
-        << 1e-6*size*cg->GetNumIterations()/rt_min << ") million.\n"
+        << 1e-6*size*cg->GetNumIterations()/my_rt << " million."
         << endl;
+   cout << "\nNumber of iterations in CG: "
+        << cg->GetNumIterations() << endl;
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.

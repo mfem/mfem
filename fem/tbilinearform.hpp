@@ -191,7 +191,7 @@ public:
                solFES.GetIndexer().GetElemDof(), /* array of size (ndofs_1d)^3 x
                                                     nelem representing a boolean
                                                     P */
-               FORTRAN
+               C
             };
 
 	    CEED_MassAction(
