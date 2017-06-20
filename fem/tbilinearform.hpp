@@ -134,6 +134,7 @@ public:
             y = 0.0;
 #if (MFEM_EXPERIMENT_1_PROBLEM == 1)
 	    CEED_MassOperator massOp = {
+               2,
                solFE_type::dofs_1d,       /* number of 1D dofs (points) */
                IR::qpts_1d,               /* number of 1D quadrature points */
                mesh.GetNE(),              /* number of elements */
@@ -144,9 +145,10 @@ public:
                solFES.GetIndexer().GetElemDof(),  /* array of size ndofs_1d x
                                                      ndofs_1d x nelem
                                                      representing a boolean P */
+               FORTRAN
 	    };
 
-	    CEED_2DMassAction(
+	    CEED_MassAction(
 	       &massOp,
                x.GetData(),               /* input vector */
                y.GetData()                /* result, input-output vector */
@@ -178,6 +180,7 @@ public:
             y = 0.0;
 #if (MFEM_EXPERIMENT_1_PROBLEM == 1)
 	    CEED_MassOperator massOp = {
+               3,
                solFE_type::dofs_1d,       /* number of 1D dofs (points) */
                IR::qpts_1d,               /* number of 1D quadrature points */
                mesh.GetNE(),              /* number of elements */
@@ -188,9 +191,10 @@ public:
                solFES.GetIndexer().GetElemDof(), /* array of size (ndofs_1d)^3 x
                                                     nelem representing a boolean
                                                     P */
+               FORTRAN
             };
 
-	    CEED_3DMassAction(
+	    CEED_MassAction(
 	       &massOp,
                x.GetData(),               /* input vector */
                y.GetData()                /* result, input-output vector */
