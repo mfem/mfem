@@ -1664,7 +1664,6 @@ ParMesh::ParMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    }
    
    //pumi_ghost_delete(apf_mesh);
-   apf::destroyNumbering(vLocNum);
    apf::destroyNumbering(v_num_loc);
    apf::destroyNumbering(edgeNum);
    apf::destroyNumbering(faceNum);
