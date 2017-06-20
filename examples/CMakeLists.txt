@@ -45,6 +45,9 @@ if (MFEM_USE_MPI)
     ex15p.cpp
     ex16p.cpp
     ex17p.cpp
+    GenerateMFEMMesh.cpp
+    pumi_ex1.cpp
+    pumi_ex1p.cpp
     )
 endif()
 
