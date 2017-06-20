@@ -90,6 +90,11 @@ private:
 
    void ApplyLDofSigns(Array<int> &dofs) const;
 
+   void GetGhostVertexDofs(int i, Array<int> &dofs) const;
+   void GetGhostEdgeDofs(int i, Array<int> &dofs) const;
+   void GetGhostFaceDofs(int i, Array<int> &dofs) const;
+   void GetGeneralDofs(int type, int index, Array<int>& dofs) const;
+
    /// Helper struct to store DOF dependencies in a parallel NC mesh.
    struct Dependency
    {
@@ -128,6 +133,7 @@ private:
    // Constructs the matrices P and R. Determines ltdof_size. Calls
    // GenerateGlobalOffsets(). Constructs ldof_ltdof.
    void GetParallelConformingInterpolation();
+   void NewParallelConformingInterpolation();
 
    /** Calculate a GridFunction migration matrix after mesh load balancing.
        The result is a parallel permutation matrix that can be used to update

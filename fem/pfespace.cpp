@@ -341,6 +341,30 @@ void ParFiniteElementSpace::GetSharedFaceDofs(
    }
 }
 
+void ParFiniteElementSpace::GetGhostVertexDofs(int i, Array<int> &dofs) const
+{
+   MFEM_ASSERT(Nonconforming(), "");
+   MFEM_ASSERT(pmesh->pncmesh, "");
+
+   i -= GetNV();
+   int nv = fec->DofForGeometry(Geometry::POINT);
+   dofs.SetSize(nv);
+   for (int j = 0; j < nv; j++)
+   {
+      dofs[j] = ndofs + i*nv+j;
+   }
+}
+
+void ParFiniteElementSpace::GetGhostEdgeDofs(int i, Array<int> &dofs) const
+{
+   // TODO
+}
+
+void ParFiniteElementSpace::GetGhostFaceDofs(int i, Array<int> &dofs) const
+{
+   // TODO
+}
+
 void ParFiniteElementSpace::GenerateGlobalOffsets()
 {
    HYPRE_Int ldof[2];
@@ -1179,6 +1203,135 @@ void ParFiniteElementSpace::GetDofs(int type, int index, Array<int>& dofs)
       case 1: GetEdgeDofs(index, dofs); break;
       default: GetFaceDofs(index, dofs);
    }
+}
+
+void ParFiniteElementSpace::GetGeneralDofs(int type, int index,
+                                           Array<int>& dofs) const
+{
+   // helper to get vertex, edge or face DOFs, regular or ghost
+   switch (type)
+   {
+      case 0:
+         (index < GetNV()) ? GetVertexDofs(index, dofs)
+         /*             */ : GetGhostVertexDofs(index, dofs);
+         break;
+      case 1:
+         (index < GetNE()) ? GetEdgeDofs(index, dofs)
+         /*             */ : GetGhostEdgeDofs(index, dofs);
+         break;
+      default:
+         (index < GetNF()) ? FiniteElementSpace::GetFaceDofs(index, dofs)
+         /*             */ : GetGhostFaceDofs(index, dofs);
+   }
+}
+
+void ParFiniteElementSpace::NewParallelConformingInterpolation()
+{
+   ParNCMesh* pncmesh = pmesh->pncmesh;
+
+   bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
+
+   // *** STEP 1: build dependency lists ***
+
+   int num_dofs = ndofs * vdim;
+   DepList* deps = new DepList[num_dofs]; // NOTE: 'deps' is over vdofs
+
+   Array<int> master_dofs, slave_dofs;
+   Array<int> owner_dofs, my_dofs;
+
+   if (!dg)
+   {
+      // loop through *all* master edges/faces, constrain their slaves
+      for (int type = 1; type < 3; type++)
+      {
+         const NCMesh::NCList &list = (type > 1) ? pncmesh->GetFaceList()
+                                      /*      */ : pncmesh->GetEdgeList();
+         if (!list.masters.size()) { continue; }
+
+         IsoparametricTransformation T;
+         if (type > 1) { T.SetFE(&QuadrilateralFE); }
+         else { T.SetFE(&SegmentFE); }
+
+         int geom = (type > 1) ? Geometry::SQUARE : Geometry::SEGMENT;
+         const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
+         if (!fe) { continue; }
+
+         DenseMatrix I(fe->GetDof());
+
+         // process masters that we own or that affect our edges/faces
+         for (unsigned mi = 0; mi < list.masters.size(); mi++)
+         {
+            const NCMesh::Master &mf = list.masters[mi];
+            if (!pncmesh->RankInGroup(type, mf.index, MyRank)) { continue; }
+
+            // get master DOFs
+            GetGeneralDofs(type, mf.index, master_dofs);
+            if (!master_dofs.Size()) { continue; }
+
+            // constrain slaves that exist in our mesh
+            for (int si = mf.slaves_begin; si < mf.slaves_end; si++)
+            {
+               const NCMesh::Slave &sf = list.slaves[si];
+               if (pncmesh->IsGhost(type, sf.index)) { continue; }
+
+               GetDofs(type, sf.index, slave_dofs);
+               if (!slave_dofs.Size()) { continue; }
+
+               sf.OrientedPointMatrix(T.GetPointMat());
+               fe->GetLocalInterpolation(T, I);
+
+               // make each slave DOF dependent on all master DOFs
+               MaskSlaveDofs(slave_dofs, T.GetPointMat(), fec);
+               int master_ndofs = 0; // ???
+               AddSlaveDependencies(deps, master_rank, master_dofs, master_ndofs,
+                                    slave_dofs, I);
+            }
+
+            // special case for master edges that we don't own but still exist
+            // in our mesh: this is a conforming-like situation, create 1-to-1
+            // deps
+            if (master_rank != MyRank && !pncmesh->IsGhost(type, mf.index))
+            {
+               GetDofs(type, mf.index, my_dofs);
+               Add1To1Dependencies(deps, master_rank, master_dofs, master_ndofs,
+                                   my_dofs);
+            }
+         }
+      }
+
+      // add one-to-one dependencies between shared conforming verts/edges/faces
+      /*for (int type = 0; type < 3; type++)
+      {
+         const NCMesh::NCList &list = pncmesh->GetSharedList(type);
+         for (unsigned i = 0; i < list.conforming.size(); i++)
+         {
+            const NCMesh::MeshId &id = list.conforming[i];
+            GetDofs(type, id.index, my_dofs);
+
+            int owner_ndofs, owner = pncmesh->GetOwner(type, id.index);
+            if (owner != MyRank)
+            {
+               recv_dofs[owner].GetDofs(type, id, owner_dofs, owner_ndofs);
+               if (type == 2)
+               {
+                  int fo = pncmesh->GetFaceOrientation(id.index);
+                  ReorderFaceDofs(owner_dofs, fo);
+               }
+               Add1To1Dependencies(deps, owner, owner_dofs, owner_ndofs,
+                                   my_dofs);
+            }
+            else
+            {
+               // we own this v/e/f, assert ownership of the DOFs
+               Add1To1Dependencies(deps, owner, my_dofs, ndofs, my_dofs);
+            }
+         }
+      }*/
+   }
+
+
+   // TODO
+
 }
 
 void ParFiniteElementSpace::GetParallelConformingInterpolation()

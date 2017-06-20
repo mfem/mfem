@@ -180,11 +180,14 @@ public:
    int GetNEDofs() const { return nedofs; }
    int GetNFDofs() const { return nfdofs; }
 
+   /// Returns number of nodes in the mesh.
+   inline int GetNV() const { return mesh->GetNV(); }
+
    /// Returns number of elements in the mesh.
    inline int GetNE() const { return mesh->GetNE(); }
 
    /// Returns number of nodes in the mesh.
-   inline int GetNV() const { return mesh->GetNV(); }
+   inline int GetNF() const { return mesh->GetNumFaces(); }
 
    /// Returns number of boundary elements in the mesh.
    inline int GetNBE() const { return mesh->GetNBE(); }
