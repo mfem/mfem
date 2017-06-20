@@ -402,10 +402,9 @@ void ParNCMesh::AddMasterSlaveRanks(int nitems, const NCList& list)
    }
 }
 
-void ParNCMesh::MakeShared(const Array<GroupId> &entity_group,
-                           const NCList &list, NCList &shared)
+void ParNCMesh::GetGroupShared(Array<bool> &group_shared)
 {
-   Array<bool> group_shared(groups.size());
+   group_shared.SetSize(groups.size());
    group_shared = false;
 
    // A vertex/edge/face is shared if its group contains more than one
@@ -425,6 +424,13 @@ void ParNCMesh::MakeShared(const Array<GroupId> &entity_group,
          }
       }
    }
+}
+
+void ParNCMesh::MakeShared(const Array<GroupId> &entity_group,
+                           const NCList &list, NCList &shared)
+{
+   Array<bool> group_shared;
+   GetGroupShared(group_shared);
 
    shared.Clear();
 
@@ -486,17 +492,21 @@ void ParNCMesh::BuildSharedVertices()
       }
    }
 
-   index_rank.Sort();
-   index_rank.Unique();
-   vertex_group.MakeFromList(nvertices, index_rank);
+   InitOwners(nvertices, vertex_owner);
+   InitGroups(nvertices, vertex_group);
+
+   tmp_owner.DeleteAll();
    index_rank.DeleteAll();
+
+   Array<bool> group_shared;
+   GetGroupShared(group_shared);
 
    // create a list of shared vertices, skip obviously slave vertices
    // (for simplicity, we don't guarantee to skip all slave vertices)
    shared_vertices.Clear();
    for (int i = 0; i < nvertices; i++)
    {
-      if (is_shared(vertex_group, i, MyRank) && vertex_id[i].index >= 0)
+      if (group_shared[vertex_group[i]] && vertex_id[i].index >= 0)
       {
          shared_vertices.conforming.push_back(vertex_id[i]);
       }

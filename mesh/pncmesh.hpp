@@ -253,7 +253,7 @@ protected:
 
    // group and owner Id for each vertex, edge and face
    Array<GroupId> vertex_group, edge_group, face_group;
-   Array<GroupId> vertex_owner, edge_owner, face_owner;
+   Array<GroupId> vertex_owner, edge_owner, face_owner; // note: singleton groups
 
    // lists of vertices/edges/faces shared by us and at least one more processor
    NCList shared_vertices;
@@ -275,6 +275,11 @@ protected:
 
    virtual void Update();
 
+   virtual bool IsGhost(const Element& el) const
+   { return el.rank != MyRank; }
+
+   virtual int GetNumGhosts() const { return NGhostElements; }
+
    /// Return the processor number for a global element number.
    int Partition(long index, long total_elements) const
    { return index * NRanks / total_elements; }
@@ -289,12 +294,6 @@ protected:
 
    virtual void UpdateVertices();
    virtual void AssignLeafIndices();
-
-   virtual bool IsGhost(const Element& el) const
-   { return el.rank != MyRank; }
-
-   virtual int GetNumGhosts() const { return NGhostElements; }
-
    virtual void OnMeshUpdated(Mesh *mesh);
 
    GroupId GetGroupId(const CommGroup &group);
@@ -321,6 +320,7 @@ protected:
    Array<Connection> index_rank; // temporary
 
    void AddMasterSlaveRanks(int nitems, const NCList& list);
+   void GetGroupShared(Array<bool> &group_shared);
    void MakeShared(const Array<GroupId> &entity_group,
                    const NCList &list, NCList &shared);
 
