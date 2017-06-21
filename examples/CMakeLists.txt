@@ -45,7 +45,6 @@ if (MFEM_USE_MPI)
     ex15p.cpp
     ex16p.cpp
     ex17p.cpp
-    ex18p.cpp
     )
 endif()
 
