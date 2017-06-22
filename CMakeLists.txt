@@ -53,11 +53,12 @@ if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
     "MFEM does not support in-source CMake builds at this time.")
 endif (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
 
-if (CMAKE_VERSION VERSION_LESS 3.2 OR MFEM_USE_SIDRE)
+if (CMAKE_VERSION VERSION_LESS 3.2 OR MFEM_USE_SIDRE OR MFEM_USE_PETSC)
    # This seems to be needed by:
    #  * find_package(BLAS REQUIRED) and
    #  * find_package(HDF5 REQUIRED) needed, in turn, by:
-   #    - find_package(ATK REQUIRED)
+   #    - find_package(AXOM REQUIRED)
+   #  * find_package(PETSc REQUIRED)
    enable_language(C)
 endif()
 
@@ -199,17 +200,19 @@ endif()
 # Axom/Sidre
 if (MFEM_USE_SIDRE)
   if (NOT MFEM_USE_MPI)
-    find_package(ATK REQUIRED Sidre SLIC common)
+    find_package(Axom REQUIRED Sidre SLIC axom_utils)
   else()
-    find_package(ATK REQUIRED Sidre SPIO SLIC common)
+    find_package(Axom REQUIRED Sidre SPIO SLIC axom_utils)
   endif()
-  include_directories(${ATK_INCLUDE_DIRS})
+  include_directories(${AXOM_INCLUDE_DIRS})
 endif()
 
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
-    set(MFEM_TIMER_TYPE 0) # use std::clock from <ctime>
+    # use std::clock from <ctime> for UserTime and
+    # use mach_absolute_time from <mach/mach_time.h> for RealTime
+    set(MFEM_TIMER_TYPE 4)
   elseif (WIN32)
     set(MFEM_TIMER_TYPE 3) # QueryPerformanceCounter from <windows.h>
   else()
@@ -224,7 +227,7 @@ endif()
 
 # List all possible libraries in order of dependencies.
 set(MFEM_TPLS HYPRE OPENMP SUNDIALS MESQUITE SuiteSparse SuperLUDist
-    ParMETIS METIS LAPACK BLAS GECKO GNUTLS NETCDF PETSC MPFR ATK POSIXCLOCKS
+    ParMETIS METIS LAPACK BLAS GECKO GNUTLS NETCDF PETSC MPFR AXOM POSIXCLOCKS
     MFEMBacktrace ZLIB)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
@@ -269,6 +272,9 @@ if (CMAKE_VERSION VERSION_GREATER 2.8.11)
   target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
 else()
   target_link_libraries(mfem ${TPL_LIBRARIES})
+endif()
+if (MINGW)
+  target_link_libraries(mfem ws2_32)
 endif()
 
 # If building out-of-source, define MFEM_BUILD_DIR to point to the build
@@ -419,6 +425,9 @@ export(PACKAGE ${PROJECT_NAME})
 
 # Extract the include directories required to use MFEM
 get_target_property(MFEM_TPL_INCLUDE_DIRS mfem INCLUDE_DIRECTORIES)
+if (NOT MFEM_TPL_INCLUDE_DIRS)
+  set(MFEM_TPL_INCLUDE_DIRS "")
+endif()
 
 # This is the build-tree version
 set(INCLUDE_INSTALL_DIRS ${PROJECT_BINARY_DIR} ${MFEM_TPL_INCLUDE_DIRS})

@@ -127,7 +127,9 @@ public:
       PETSC_MATAIJ,
       PETSC_MATIS,
       PETSC_MATSHELL,
-      PETSC_MATNEST
+      PETSC_MATNEST,
+      PETSC_MATHYPRE,
+      PETSC_MATGENERIC
    };
 };
 

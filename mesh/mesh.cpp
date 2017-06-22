@@ -2291,6 +2291,10 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 
    meshgen = mesh.meshgen;
 
+   // Create the new Mesh instance without a record of its refinement history
+   sequence = 0;
+   last_operation = Mesh::NONE;
+
    // Duplicate the elements
    elements.SetSize(NumOfElements);
    for (int i = 0; i < NumOfElements; i++)
@@ -7663,7 +7667,11 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
          l = partitioning[l];
          if (k != l)
          {
-            nbe += 2;
+            nbe++;
+            if (!Nonconforming() || !IsSlaveFace(faces_info[i]))
+            {
+               nbe++;
+            }
          }
       }
       else
@@ -7688,12 +7696,15 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
                out << ' ' << v[j];
             }
             out << '\n';
-            out << l+1 << ' ' << faces[i]->GetGeometryType();
-            for (j = nv-1; j >= 0; j--)
+            if (!Nonconforming() || !IsSlaveFace(faces_info[i]))
             {
-               out << ' ' << v[j];
+               out << l+1 << ' ' << faces[i]->GetGeometryType();
+               for (j = nv-1; j >= 0; j--)
+               {
+                  out << ' ' << v[j];
+               }
+               out << '\n';
             }
-            out << '\n';
          }
       }
       else

@@ -68,7 +68,7 @@ MFEM_USE_LAPACK      = NO
 MFEM_THREAD_SAFE     = NO
 MFEM_USE_OPENMP      = NO
 MFEM_USE_MEMALLOC    = YES
-MFEM_TIMER_TYPE      = $(if $(NOTMAC),2,0)
+MFEM_TIMER_TYPE      = $(if $(NOTMAC),2,4)
 MFEM_USE_SUNDIALS    = NO
 MFEM_USE_MESQUITE    = NO
 MFEM_USE_SUITESPARSE = NO
@@ -173,7 +173,8 @@ ifeq ($(MFEM_USE_PETSC),YES)
    $(if $(wildcard $(PETSC_PC)),,$(error PETSc config not found - $(PETSC_PC)))
    PETSC_OPT := $(shell sed -n "s/Cflags: *//p" $(PETSC_PC))
    PETSC_LIBS_PRIVATE := $(shell sed -n "s/Libs\.private: *//p" $(PETSC_PC))
-   PETSC_LIB := -Wl,-rpath -Wl,$(abspath $(PETSC_DIR))/lib -L$(abspath $(PETSC_DIR))/lib -lpetsc $(PETSC_LIBS_PRIVATE)
+   PETSC_LIB := -Wl,-rpath -Wl,$(abspath $(PETSC_DIR))/lib\
+ -L$(abspath $(PETSC_DIR))/lib -lpetsc $(PETSC_LIBS_PRIVATE)
 endif
 
 # MPFR library configuration
@@ -182,19 +183,20 @@ MPFR_LIB = -lmpfr
 
 # Sidre and required libraries configuration
 # Be sure to check the HDF5_DIR (set above) is correct
-SIDRE_DIR = @MFEM_DIR@/../asctoolkit
+SIDRE_DIR = @MFEM_DIR@/../axom
 CONDUIT_DIR = @MFEM_DIR@/../conduit
 SIDRE_OPT = -I$(SIDRE_DIR)/include -I$(CONDUIT_DIR)/include/conduit\
  -I$(HDF5_DIR)/include
-SIDRE_LIB = -L$(SIDRE_DIR)/lib \
-            -L$(CONDUIT_DIR)/lib \
-            -Wl,-rpath -Wl,$(CONDUIT_DIR)/lib \
-            -L$(HDF5_DIR)/lib\
-            -Wl,-rpath -Wl,$(HDF5_DIR)/lib \
-            -lsidre -lslic -lcommon -lconduit -lconduit_relay -lhdf5 -lz -ldl
+SIDRE_LIB = \
+   -L$(SIDRE_DIR)/lib \
+   -L$(CONDUIT_DIR)/lib \
+   -Wl,-rpath -Wl,$(CONDUIT_DIR)/lib \
+   -L$(HDF5_DIR)/lib \
+   -Wl,-rpath -Wl,$(HDF5_DIR)/lib \
+   -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 -lz -ldl
 
 ifeq ($(MFEM_USE_MPI),YES)
-   SIDRE_LIB += -lspio -lcommon
+   SIDRE_LIB += -lspio
 endif
 
 # If YES, enable some informational messages
