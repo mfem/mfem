@@ -12,7 +12,7 @@
 #define MFEM_EXPERIMENT_1
 
 #ifndef PROBLEM
-#define PROBLEM 1
+#define PROBLEM 0
 #endif
 
 #define MFEM_EXPERIMENT_1_PROBLEM PROBLEM
@@ -29,11 +29,11 @@ using namespace std;
 using namespace mfem;
 
 #ifndef GEOM
-#define GEOM Geometry::CUBE
+#define GEOM Geometry::SQUARE
 #endif
 
 #ifndef MESH_P
-#define MESH_P 3
+#define MESH_P 1
 #endif
 
 #ifndef SOL_P
@@ -323,9 +323,8 @@ int main(int argc, char *argv[])
    CGSolver *cg;
    cg = new CGSolver();
    cg->SetRelTol(1e-6);
-   cg->SetMaxIter(500);
-   cg->SetPrintLevel(3);
    cg->SetMaxIter(50);
+   cg->SetPrintLevel(3);
    cg->SetOperator(*a_oper);
 
    tic_toc.Clear();
