@@ -170,7 +170,7 @@ public:
                solFES.GetIndexer().GetElemDof(), /* array of size ndofs_1d x
                                                     ndofs_1d x nelem
                                                     representing a boolean P */
-               C
+               FORTRAN
             };
 
 	    CEED_DiffusionAction(
@@ -196,7 +196,7 @@ public:
                solFES.GetIndexer().GetElemDof(), /* array of size (ndofs_1d)^3 x
                                                     nelem representing a boolean
                                                     P */
-               C
+               FORTRAN
             };
 
 	    CEED_MassAction(
