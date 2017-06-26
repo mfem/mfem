@@ -90,11 +90,6 @@ private:
 
    void ApplyLDofSigns(Array<int> &dofs) const;
 
-   void GetGhostVertexDofs(int i, Array<int> &dofs) const;
-   void GetGhostEdgeDofs(int i, Array<int> &dofs) const;
-   void GetGhostFaceDofs(int i, Array<int> &dofs) const;
-   void GetGeneralDofs(int type, int index, Array<int>& dofs) const;
-
    /// Helper struct to store DOF dependencies in a parallel NC mesh.
    struct Dependency
    {
@@ -123,7 +118,8 @@ private:
                             const Array<int> &owner_dofs, int owner_ndofs,
                             const Array<int> &dependent_dofs);
 
-   void GetDofs(int type, int index, Array<int>& dofs);
+   void GetDofs(int type, int index, Array<int>& dofs) const;
+   void GetGhostDofs(int type, int index, Array<int>& dofs) const;
    void ReorderFaceDofs(Array<int> &dofs, int orient);
 
    /// Build the P and R matrices.

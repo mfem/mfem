@@ -341,30 +341,6 @@ void ParFiniteElementSpace::GetSharedFaceDofs(
    }
 }
 
-void ParFiniteElementSpace::GetGhostVertexDofs(int i, Array<int> &dofs) const
-{
-   MFEM_ASSERT(Nonconforming(), "");
-   MFEM_ASSERT(pmesh->pncmesh, "");
-
-   i -= GetNV();
-   int nv = fec->DofForGeometry(Geometry::POINT);
-   dofs.SetSize(nv);
-   for (int j = 0; j < nv; j++)
-   {
-      dofs[j] = ndofs + i*nv+j;
-   }
-}
-
-void ParFiniteElementSpace::GetGhostEdgeDofs(int i, Array<int> &dofs) const
-{
-   // TODO
-}
-
-void ParFiniteElementSpace::GetGhostFaceDofs(int i, Array<int> &dofs) const
-{
-   // TODO
-}
-
 void ParFiniteElementSpace::GenerateGlobalOffsets()
 {
    HYPRE_Int ldof[2];
@@ -1194,34 +1170,26 @@ void ParFiniteElementSpace
    }
 }
 
-void ParFiniteElementSpace::GetDofs(int type, int index, Array<int>& dofs)
+void ParFiniteElementSpace::GetDofs(int type, int index, Array<int>& dofs) const
 {
    // helper to get vertex, edge or face DOFs
    switch (type)
    {
       case 0: GetVertexDofs(index, dofs); break;
       case 1: GetEdgeDofs(index, dofs); break;
-      default: GetFaceDofs(index, dofs);
+      case 2: GetFaceDofs(index, dofs); break;
    }
 }
 
-void ParFiniteElementSpace::GetGeneralDofs(int type, int index,
-                                           Array<int>& dofs) const
+void ParFiniteElementSpace::GetGhostDofs(int type, int index, Array<int>& dofs)
+   const
 {
    // helper to get vertex, edge or face DOFs, regular or ghost
    switch (type)
    {
-      case 0:
-         (index < GetNV()) ? GetVertexDofs(index, dofs)
-         /*             */ : GetGhostVertexDofs(index, dofs);
-         break;
-      case 1:
-         (index < GetNE()) ? GetEdgeDofs(index, dofs)
-         /*             */ : GetGhostEdgeDofs(index, dofs);
-         break;
-      default:
-         (index < GetNF()) ? FiniteElementSpace::GetFaceDofs(index, dofs)
-         /*             */ : GetGhostFaceDofs(index, dofs);
+      case 0: GetGhostVertexDofs(index, dofs); break;
+      case 1: GetGhostEdgeDofs(index, dofs); break;
+      case 2: GetGhostFaceDofs(index, dofs); break;
    }
 }
 
@@ -1234,7 +1202,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    // *** STEP 1: build dependency lists ***
 
    int num_dofs = ndofs * vdim;
-   DepList* deps = new DepList[num_dofs]; // NOTE: 'deps' is over vdofs
+   SparseMatrix deps(num_dofs/*, num_dofs + num_ghost_dofs*/);
 
    Array<int> master_dofs, slave_dofs;
    Array<int> owner_dofs, my_dofs;
@@ -1242,7 +1210,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    if (!dg)
    {
       // loop through *all* master edges/faces, constrain their slaves
-      for (int type = 1; type < 3; type++)
+      for (int type = 1; type <= 2; type++)
       {
          const NCMesh::NCList &list = (type > 1) ? pncmesh->GetFaceList()
                                       /*      */ : pncmesh->GetEdgeList();
@@ -1262,10 +1230,13 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
          for (unsigned mi = 0; mi < list.masters.size(); mi++)
          {
             const NCMesh::Master &mf = list.masters[mi];
-            if (!pncmesh->RankInGroup(type, mf.index, MyRank)) { continue; }
+            if (!pncmesh->IsShared(type, mf.index)) { continue; }
 
             // get master DOFs
-            GetGeneralDofs(type, mf.index, master_dofs);
+            pncmesh->IsGhost(type, mf.index)
+                  ? GetGhostDofs(type, mf.index, master_dofs)
+                  : GetDofs(type, mf.index, master_dofs);
+
             if (!master_dofs.Size()) { continue; }
 
             // constrain slaves that exist in our mesh
@@ -1282,51 +1253,42 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
 
                // make each slave DOF dependent on all master DOFs
                MaskSlaveDofs(slave_dofs, T.GetPointMat(), fec);
-               int master_ndofs = 0; // ???
-               AddSlaveDependencies(deps, master_rank, master_dofs, master_ndofs,
-                                    slave_dofs, I);
+               AddSlaveDependencies(deps, master_dofs, slave_dofs, I);
             }
 
             // special case for master edges that we don't own but still exist
             // in our mesh: this is a conforming-like situation, create 1-to-1
             // deps
-            if (master_rank != MyRank && !pncmesh->IsGhost(type, mf.index))
+            if (pncmesh->GetOwner(type, mf.index) != MyRank &&
+                !pncmesh->IsGhost(type, mf.index))
             {
-               GetDofs(type, mf.index, my_dofs);
-               Add1To1Dependencies(deps, master_rank, master_dofs, master_ndofs,
-                                   my_dofs);
+               GetGhostDofs(type, mf.index, my_dofs);
+               Add1To1Dependencies(deps, master_dofs, my_dofs);
             }
          }
       }
 
       // add one-to-one dependencies between shared conforming verts/edges/faces
-      /*for (int type = 0; type < 3; type++)
+      for (int type = 0; type <= 2; type++)
       {
          const NCMesh::NCList &list = pncmesh->GetSharedList(type);
          for (unsigned i = 0; i < list.conforming.size(); i++)
          {
             const NCMesh::MeshId &id = list.conforming[i];
-            GetDofs(type, id.index, my_dofs);
-
-            int owner_ndofs, owner = pncmesh->GetOwner(type, id.index);
-            if (owner != MyRank)
+            if (pncmesh->GetOwner(type, id.index) != MyRank)
             {
-               recv_dofs[owner].GetDofs(type, id, owner_dofs, owner_ndofs);
-               if (type == 2)
+               GetDofs(type, id.index, my_dofs);
+               GetGhostDofs(type, id.index, owner_dofs);
+               /*if (type == 2)
                {
                   int fo = pncmesh->GetFaceOrientation(id.index);
                   ReorderFaceDofs(owner_dofs, fo);
-               }
-               Add1To1Dependencies(deps, owner, owner_dofs, owner_ndofs,
-                                   my_dofs);
-            }
-            else
-            {
-               // we own this v/e/f, assert ownership of the DOFs
-               Add1To1Dependencies(deps, owner, my_dofs, ndofs, my_dofs);
+                  // TODO: do this inside ParNCMesh?
+               }*/
+               Add1To1Dependencies(deps, owner_dofs, my_dofs);
             }
          }
-      }*/
+      }
    }
 
 

@@ -49,7 +49,7 @@ class FiniteElementSpace; // for Dof -> VDof conversion
  *  seen by the rest of MFEM as they are skipped when a Mesh is created from
  *  the NCMesh.
  *
- *  The processor that owns a vertex, edge or a face (and in turn its DOFs) is
+
  *  currently defined to be the one with the lowest rank in the group of
  *  processors that share the entity.
  *
@@ -186,6 +186,13 @@ public:
          case 1: return index >= NEdges;
          default: return index >= NFaces;
       }
+   }
+
+   ///
+   bool IsShared(int type, int index) const
+   {
+      MFEM_ABORT("TODO");
+      return false;
    }
 
    /** Returns owner processor for element 'index'. This is normally MyRank but
