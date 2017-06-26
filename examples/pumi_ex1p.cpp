@@ -12,7 +12,7 @@
 //               
 //               This example also performs a "uniform" refinement, similar to 
 //               MFEM examples, for coarse meshes. However, the refinement is 
-//               performed using the PUMi Api's and by defning a size field.
+//               performed using the PUMi Api's.
 //
 //               The inputs for this example are a Parasolid model, "*.xmt_txt" 
 //               and SCOREC parallel meshes "*.smb". Switch "-o" is used for 
@@ -30,25 +30,6 @@
 using namespace std;
 using namespace mfem;
 
-class UniformRefinement : public ma::IsotropicFunction
-{
-  public:
-    UniformRefinement(ma::Mesh* m, int level)
-    {
-      mesh = m;
-      fac = ((level > 0) ? level : 1.0);
-      average = ma::getAverageEdgeLength(m);
-    }
-    virtual double getValue(ma::Entity* v)
-    {
-      double invfac = pow(1. / double(fac), mesh->getDimension());
-      return average*invfac;
-    }
-  private:
-    ma::Mesh* mesh;
-    double average;
-    double fac;
-};
 
 int main(int argc, char *argv[])
 {
@@ -116,21 +97,20 @@ int main(int argc, char *argv[])
    int nEle = pumi_mesh->count(dim);
    int ref_levels = (int)floor(log(10000./nEle)/log(2.)/dim);
 
-   UniformRefinement uniField(pumi_mesh,ref_levels);
-   ma::Input* uniInput = ma::configure(pumi_mesh, &uniField);
-   uniInput->shouldFixShape = true;
-   uniInput->shouldSnap = true;                                                               
-   uniInput->shouldTransferParametric = true;     
-
    if (geom_order > 1){
        crv::BezierCurver bc(pumi_mesh, geom_order, 2);
-       bc.run();
-       
-       //Uniform refinement
-       if (ref_levels > 1) crv::adapt(uniInput);          
+       bc.run();        
    }    
-   else if (ref_levels > 1)
-       ma::adapt(uniInput); 
+   
+   // Perform Uniform refinement
+   if (ref_levels > 1){
+       ma::Input* uniInput = ma::configureUniformRefine(pumi_mesh, ref_levels);
+       
+       if ( geom_order > 1)
+           crv::adapt(uniInput);
+       else
+           ma::adapt(uniInput);
+   }
    
    pumi_mesh->verify();  
 
