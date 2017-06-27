@@ -2840,6 +2840,22 @@ void NCMesh::ClearTransforms()
 
 //// Utility ///////////////////////////////////////////////////////////////////
 
+void NCMesh::GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const
+{
+   // TODO
+}
+
+void NCMesh::GetFaceVertices(const MeshId &face_id, int vert_index[4]) const
+{
+   // TODO
+}
+
+void NCMesh::GetFaceEdges(const MeshId &face_id, int edge_index[4],
+                          int edge_orientation[4]) const
+{
+   // TODO
+}
+
 int NCMesh::GetEdgeMaster(int node) const
 {
    MFEM_ASSERT(node >= 0, "edge node not found.");

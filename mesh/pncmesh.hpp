@@ -92,6 +92,11 @@ public:
 
    // interface for ParFiniteElementSpace
 
+   int GetNGhostVertices() const { return NGhostVertices; }
+   int GetNGhostEdges() const { return NGhostEdges; }
+   int GetNGhostFaces() const { return NGhostFaces; }
+   int GetNGhostElements() const { return NGhostElements; }
+
    /** Return a list of vertices shared by this processor and at least one other
        processor. (NOTE: only NCList::conforming will be set.) */
    const NCList& GetSharedVertices()
@@ -145,8 +150,6 @@ public:
       }
    }
 
-   typedef std::vector<int> CommGroup;
-
    /** Return a list of processors sharing a vertex/edge/face
        ('type' == 0/1/2, resp.) and the size of the list. */
    const int* GetGroup(int type, int index, int &size) const
@@ -166,7 +169,7 @@ public:
 
    /** Returns true if 'rank' is in the processor group of a vertex/edge/face
        ('type' == 0/1/2, resp.). */
-   bool RankInGroup(int type, int index, int rank) const
+   /*bool RankInGroup(int type, int index, int rank) const
    {
       int size;
       const int* group = GetGroup(type, index, size);
@@ -175,7 +178,7 @@ public:
          if (group[i] == rank) { return true; }
       }
       return false;
-   }
+   }*/
 
    /// Returns true if the specified vertex/edge/face is a ghost.
    bool IsGhost(int type, int index) const
@@ -252,6 +255,7 @@ protected:
    int NElements, NGhostElements;
 
    typedef short GroupId;
+   typedef std::vector<int> CommGroup;
    typedef std::map<CommGroup, GroupId> GroupMap;
    typedef std::vector<CommGroup> GroupList;
 

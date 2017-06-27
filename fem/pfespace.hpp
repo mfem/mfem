@@ -34,12 +34,16 @@ private:
 
    /// Parallel mesh.
    ParMesh *pmesh;
+   ParNCMesh *pncmesh;
 
    /// GroupCommunicator on the local VDofs
    GroupCommunicator *gcomm;
 
    /// Number of true dofs in this processor (local true dofs).
    int ltdof_size;
+
+   /// Number of vertex/edge/face/total ghost DOFs (nonconforming case).
+   int ngvdofs, ngedofs, ngfdofs, ngdofs;
 
    /// The group of each local dof.
    Array<int> ldof_group;
@@ -119,8 +123,12 @@ private:
                             const Array<int> &dependent_dofs);
 
    void GetDofs(int type, int index, Array<int>& dofs) const;
-   void GetGhostDofs(int type, int index, Array<int>& dofs) const;
    void ReorderFaceDofs(Array<int> &dofs, int orient);
+
+   void GetGhostVertexDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
+   void GetGhostEdgeDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
+   void GetGhostFaceDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
+   void GetGhostDofs(int type, int index, Array<int>& dofs) const;
 
    /// Build the P and R matrices.
    void Build_Dof_TrueDof_Matrix();

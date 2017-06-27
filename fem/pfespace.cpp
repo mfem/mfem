@@ -29,6 +29,7 @@ ParFiniteElementSpace::ParFiniteElementSpace(
    : FiniteElementSpace(pm, f, dim, ordering)
 {
    mesh = pmesh = pm;
+   pncmesh = pmesh->pncmesh;
 
    MyComm = pmesh->GetComm();
    MPI_Comm_size(MyComm, &NRanks);
@@ -79,6 +80,26 @@ void ParFiniteElementSpace::Construct()
    }
    else // Nonconforming()
    {
+      // calculate number of ghost DOFs (note: regular DOFs are ghosted too)
+      ngvdofs = (pmesh->GetNV() + pncmesh->GetNGhostVertices())
+                * fec->DofForGeometry(Geometry::POINT);
+
+      ngedofs = ngfdofs = 0;
+      if (pmesh->Dimension() > 1)
+      {
+         ngedofs = (pmesh->GetNEdges() + pncmesh->GetNGhostEdges())
+                   * fec->DofForGeometry(Geometry::SEGMENT);
+      }
+      if (pmesh->Dimension() > 2)
+      {
+         ngfdofs = (pmesh->GetNFaces() + pncmesh->GetNGhostFaces())
+                    * fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
+      }
+
+      // total number of ghost DOFs. Ghost DOFs start at index 'ndofs', i.e.,
+      // after all regular DOFs
+      ngdofs = ngvdofs + ngedofs + ngfdofs;
+
       // get P matrix and also initialize DOF offsets etc.
       GetParallelConformingInterpolation();
    }
@@ -1168,6 +1189,51 @@ void ParFiniteElementSpace
          dofs[ve_dofs + i] = -1 - tmp[ve_dofs + (-1 - ind[i])];
       }
    }
+}
+
+void ParFiniteElementSpace::GetGhostVertexDofs(const NCMesh::MeshId &id,
+                                               Array<int> &dofs) const
+{
+   int nv = fec->DofForGeometry(Geometry::POINT);
+   dofs.SetSize(nv);
+   for (int j = 0; j < nv; j++)
+   {
+      dofs[j] = ndofs + nv*id.index + j;
+   }
+}
+
+void ParFiniteElementSpace::GetGhostEdgeDofs(const NCMesh::MeshId &id,
+                                             Array<int> &dofs) const
+{
+   int nv = fec->DofForGeometry(Geometry::POINT), V[2];
+   if (nv > 0)
+   {
+      pmesh->pncmesh->GetEdgeVertices(id, V);
+   }
+   int ne = fec->DofForGeometry(Geometry::SEGMENT);
+   dofs.SetSize(2*nv + ne);
+   if (nv > 0)
+   {
+      for (int k = 0; k < 2; k++)
+      {
+         for (int j = 0; j < nv; j++)
+         {
+            dofs[k*nv + j] = V[k]*nv + j;
+         }
+      }
+   }
+   int base = 2*nv;
+   int k = ndofs + ngvdofs + i*ne;
+   for (int j = 0; j < ne; j++, k++)
+   {
+      dofs[base + j] = k;
+   }
+}
+
+void ParFiniteElementSpace::GetGhostFaceDofs(const NCMesh::MeshId &id,
+                                             Array<int> &dofs) const
+{
+   // TODO
 }
 
 void ParFiniteElementSpace::GetDofs(int type, int index, Array<int>& dofs) const
