@@ -64,7 +64,7 @@ private:
 
     The mfem::STRUMPACKSolver class uses the STRUMPACK library to perform LU
     factorization of a parallel sparse matrix. The solver is capable of handling
-    double precision types. See http://portal.nersc.gov/project/sparse/strumpack/.
+    double precision types. See http://portal.nersc.gov/project/sparse/strumpack
 */
 class STRUMPACKSolver : public mfem::Solver
 {
@@ -93,19 +93,23 @@ public:
    void SetAbsTol( double atol );
 
    /**
-    * STRUMPACK is an (approximate) direct solver. It can be used as a
-    * direct solver or as a preconditioner. To use STRUMPACK as only a
-    * preconditioner, set the Krylov solver to DIRECT. STRUMPACK also
-    * provides iterative solvers which can use the preconditioner, and
-    * these iterative solvers can also be used without preconditioner.
+    * STRUMPACK is an (approximate) direct solver. It can be used as a direct
+    * solver or as a preconditioner. To use STRUMPACK as only a preconditioner,
+    * set the Krylov solver to DIRECT. STRUMPACK also provides iterative solvers
+    * which can use the preconditioner, and these iterative solvers can also be
+    * used without preconditioner.
     *
     * Supported values are:
-    *    AUTO:           Use iterative refinement if no HSS compression is used, otherwise use GMRes.
-    *    DIRECT:         No outer iterative solver, just a single application of the multifrontal solver.
+    *    AUTO:           Use iterative refinement if no HSS compression is used,
+    *                    otherwise use GMRes.
+    *    DIRECT:         No outer iterative solver, just a single application of
+    *                    the multifrontal solver.
     *    REFINE:         Iterative refinement.
-    *    PREC_GMRES:     Preconditioned GMRes. The preconditioner is the (approx) multifrontal solver.
+    *    PREC_GMRES:     Preconditioned GMRes.
+    *                    The preconditioner is the (approx) multifrontal solver.
     *    GMRES:          UN-preconditioned GMRes. (for testing mainly)
-    *    PREC_BICGSTAB:  Preconditioned BiCGStab. The preconditioner is the (approx) multifrontal solver.
+    *    PREC_BICGSTAB:  Preconditioned BiCGStab.
+    *                    The preconditioner is the (approx) multifrontal solver.
     *    BICGSTAB:       UN-preconditioned BiCGStab. (for testing mainly)
     */
    void SetKrylovSolver( strumpack::KrylovSolver method );
@@ -117,18 +121,19 @@ public:
    void SetReorderingStrategy( strumpack::ReorderingStrategy method );
 
    /**
-    * MC64 performs (static) pivoting. Using a matching algorithm, it
-    * permutes the sparse input matrix in order to get nonzero
-    * elements on the diagonal. If the input matrix is already
-    * diagonally dominant, this reordering can be disabled.
+    * MC64 performs (static) pivoting. Using a matching algorithm, it permutes
+    * the sparse input matrix in order to get nonzero elements on the
+    * diagonal. If the input matrix is already diagonally dominant, this
+    * reordering can be disabled.
     * Possible values are:
     *    NONE:                          Don't do anything
     *    MAX_CARDINALITY:               Maximum cardinality
     *    MAX_SMALLEST_DIAGONAL:         Maximize smallest diagonal value
-    *    MAX_SMALLEST_DIAGONAL_2:       Same as MAX_SMALLEST_DIAGONAL, but different algorithm
+    *    MAX_SMALLEST_DIAGONAL_2:       Same as MAX_SMALLEST_DIAGONAL, but
+    *                                   different algorithm
     *    MAX_DIAGONAL_SUM:              Maximize sum of diagonal values
-    *    MAX_DIAGONAL_PRODUCT_SCALING:  Maximize the product of the diagonal values
-    *                                   and perform row and column scaling
+    *    MAX_DIAGONAL_PRODUCT_SCALING:  Maximize the product of the diagonal
+    *                                   values and perform row & column scaling
     */
    void SetMC64Job( strumpack::MC64Job job );
 
