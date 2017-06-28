@@ -305,13 +305,17 @@ public:
    const FiniteElement *GetTraceElement(int i, int geom_type) const;
 
    /** Mark degrees of freedom associated with boundary elements with
-       the specified boundary attributes (marked in 'bdr_attr_is_ess'). */
+       the specified boundary attributes (marked in 'bdr_attr_is_ess').
+       For spaces with 'vdim' > 1, the 'component' parameter can be used
+       to restricts the marked vDOFs to the specified component. */
    virtual void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                   Array<int> &ess_vdofs,
                                   int component = -1) const;
 
    /** Get a list of essential true dofs, ess_tdof_list, corresponding to the
-       boundary attributes marked in the array bdr_attr_is_ess. */
+       boundary attributes marked in the array bdr_attr_is_ess.
+       For spaces with 'vdim' > 1, the 'component' parameter can be used
+       to restricts the marked tDOFs to the specified component. */
    virtual void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                      Array<int> &ess_tdof_list,
                                      int component = -1);
