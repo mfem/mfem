@@ -30,11 +30,10 @@
 //               order < 1 (quadratic for quadratic curvilinear mesh, NURBS for
 //               NURBS mesh, etc.)
 //
-//               The example highlights the use of the LOBPCG
-//               eigenvalue solver together with the BoomerAMG
-//               preconditioner in HYPRE, as well as optionally the
-//               SuperLU or STRUMPACK parallel direct solvers.  Reusing
-//               a single GLVis visualization window for multiple
+//               The example highlights the use of the LOBPCG eigenvalue solver
+//               together with the BoomerAMG preconditioner in HYPRE, as well as
+//               optionally the SuperLU or STRUMPACK parallel direct solvers.
+//               Reusing a single GLVis visualization window for multiple
 //               eigenfunctions is also illustrated.
 //
 //               We recommend viewing Example 1 before viewing this example.
