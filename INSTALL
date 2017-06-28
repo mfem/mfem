@@ -381,7 +381,8 @@ The specific libraries and their options are:
   Options: SUPERLU_OPT, SUPERLU_LIB.
 
 - STRUMPACK (optional), used when MFEM_USE_STRUMPACK = YES. Note that STRUMPACK
-  requires the PT-Scotch and Scalapack libraries.
+  requires the PT-Scotch and Scalapack libraries as well as ParMETIS, which
+  includes METIS 5 in its distribution.
   URL: http://portal.nersc.gov/project/sparse/strumpack
   Options: STRUMPACK_OPT, STRUMPACK_LIB.
 

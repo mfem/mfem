@@ -90,7 +90,7 @@ HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 
 # METIS library configuration
-ifeq ($(MFEM_USE_SUPERLU),NO)
+ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK),NONO)
    ifeq ($(MFEM_USE_METIS_5),NO)
      METIS_DIR = @MFEM_DIR@/../metis-4.0
      METIS_OPT =
