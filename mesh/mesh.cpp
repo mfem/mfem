@@ -6294,6 +6294,8 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
    mfem::Swap(attributes, other.attributes);
    mfem::Swap(bdr_attributes, other.bdr_attributes);
 
+   mfem::Swap(ent_sets, other.ent_sets);
+
    if (non_geometry)
    {
       mfem::Swap(NURBSext, other.NURBSext);
