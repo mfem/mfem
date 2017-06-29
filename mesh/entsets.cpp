@@ -28,7 +28,8 @@ EntitySets::EntitySets(Mesh & mesh)
      NumOfElements_(mesh.GetNE()),
      sets_(4),
      set_names_(4),
-     set_index_by_name_(4)
+     set_index_by_name_(4),
+     set_coarse_(4)
 {
 }
 
@@ -42,7 +43,8 @@ EntitySets::EntitySets(const EntitySets & ent_sets)
      NumOfElements_(mesh_->GetNE()),
      sets_(4),
      set_names_(4),
-     set_index_by_name_(4)
+     set_index_by_name_(4),
+     set_coarse_(4)
 {
    this->CopyEntitySets(ent_sets, VERTEX);
    this->CopyEntitySets(ent_sets, EDGE);
@@ -123,10 +125,29 @@ EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
    string ident;
    int NumSets = -1;
    int NumEntities = -1;
+   int EntitySize = -1;
    int g, v0, v1, v2, v3;
 
    DSTable  *v_to_v   = NULL;
    STable3D *face_tbl = NULL;
+
+   switch (t)
+   {
+      case VERTEX:
+         EntitySize = 1;
+         break;
+      case EDGE:
+         EntitySize = 2;
+         break;
+      case FACE:
+         EntitySize = 4;
+         break;
+      case ELEMENT:
+         EntitySize = 1;
+         break;
+      default:
+         EntitySize = -1;
+   }
 
    skip_comment_lines(input, '#');
    input >> ident >> ws;
@@ -136,6 +157,7 @@ EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
 
    sets_[t].resize(NumSets);
    set_names_[t].resize(NumSets);
+   set_coarse_[t].resize(NumSets);
 
    if ( NumSets > 0 )
    {
@@ -160,6 +182,7 @@ EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
 
       input >> NumEntities;
       sets_[t][i].resize(NumEntities);
+      set_coarse_[t][i].resize(EntitySize * NumEntities);
 
       for (int j=0; j<NumEntities; j++)
       {
@@ -169,11 +192,14 @@ EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
             case ELEMENT:
                // Read vertex or element index
                input >> sets_[t][i][j];
+               set_coarse_[t][i][j] = sets_[t][i][j];
                break;
             case EDGE:
                // Read two segment vertices
                input >> v0 >> v1;
                sets_[t][i][j] = (*v_to_v)(v0,v1);
+               set_coarse_[t][i][2 * j + 0] = v0;
+               set_coarse_[t][i][2 * j + 1] = v1;
                break;
             case FACE:
                // Read geometry type
@@ -183,12 +209,20 @@ EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
                   // Read triangle vertices
                   input >> v0 >> v1 >> v2;
                   sets_[t][i][j] = (*face_tbl)(v0, v1, v2);
+                  set_coarse_[t][i][4 * j + 0] = v0;
+                  set_coarse_[t][i][4 * j + 1] = v1;
+                  set_coarse_[t][i][4 * j + 2] = v2;
+                  set_coarse_[t][i][4 * j + 3] = -1;
                }
                else if ( g == 3)
                {
                   // Read quadrilateral vertices
                   input >> v0 >> v1 >> v2 >> v3;
                   sets_[t][i][j] = (*face_tbl)(v0, v1, v2, v3);
+                  set_coarse_[t][i][4 * j + 0] = v0;
+                  set_coarse_[t][i][4 * j + 1] = v1;
+                  set_coarse_[t][i][4 * j + 2] = v2;
+                  set_coarse_[t][i][4 * j + 3] = v3;
                }
                else
                {
@@ -364,6 +398,7 @@ EntitySets::CopyEntitySets(const EntitySets & ent_sets, EntityType t)
 {
    unsigned int ns = ent_sets.GetNumSets(t);
    sets_[t].resize(ns);
+   set_coarse_[t].resize(ns);
    set_names_[t].resize(ns);
    for (unsigned int s=0; s<ns; s++)
    {
@@ -375,6 +410,12 @@ EntitySets::CopyEntitySets(const EntitySets & ent_sets, EntityType t)
       for (int i=0; i<ni; i++)
       {
          sets_[t][s][i] = ent_sets(t, s, i);
+      }
+
+      set_coarse_[t][s].resize(ent_sets.coarse(t, s).size());
+      for (unsigned int i=0; i<ent_sets.coarse(t, s).size(); i++)
+      {
+         set_coarse_[t][s][i] = ent_sets.coarse(t, s, i);
       }
    }
 }

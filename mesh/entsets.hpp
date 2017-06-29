@@ -24,10 +24,12 @@ namespace mfem
 {
 
 class Mesh;
+class NCMesh;
 
 class EntitySets
 {
    friend class Mesh;
+   friend class NCMesh;
 
 public:
    enum EntityType {INVALID = -1, VERTEX = 0, EDGE = 1, FACE = 2, ELEMENT = 3};
@@ -63,11 +65,25 @@ public:
    inline int operator()(EntityType t, int s, int i) const
    { return sets_[t][s][i]; }
 
+   inline std::vector<int> & coarse(EntityType t, int s)
+   { return set_coarse_[t][s]; }
+   inline const std::vector<int> & coarse(EntityType t, int s) const
+   { return set_coarse_[t][s]; }
+   inline int & coarse(EntityType t, int s, int i)
+   { return set_coarse_[t][s][i]; }
+   inline int coarse(EntityType t, int s, int i) const
+   { return set_coarse_[t][s][i]; }
+
    const Table * GetEdgeVertexTable() const { return edge_vertex_; }
    const Table * GetFaceVertexTable() const { return face_vertex_; }
    const Table * GetFaceEdgeTable()   const { return face_edge_; }
 
 protected:
+
+   void SetNumSets(EntityType t, unsigned int n)
+   { sets_[t].resize(n); set_names_[t].resize(n); }
+   void SetSetName(EntityType t, int s, const std::string & name)
+   { set_names_[t][s] = name; set_index_by_name_[t][name] = s; }
 
    /// Make local copies of edge_vertex, face_vertex, and face_edge tables.
    void CopyMeshTables();
@@ -122,9 +138,18 @@ protected:
    int NumOfEdges_;
    int NumOfElements_;
 
+   /** The node/edge/face/element indices needed by the finite element
+       space to look up DoFs. */
    std::vector<std::vector<std::vector<int> > > sets_;
+
+   /// Names of each entity set
    std::vector<std::vector<std::string> >       set_names_;
+
+   /// Indices of each entity set indexed by set name
    std::vector<std::map<std::string, int> >     set_index_by_name_;
+
+   /// The node IDs and element IDs from the coarse mesh that define each set
+   std::vector<std::vector<std::vector<int> > > set_coarse_;
 };
 
 } // namespace mfem
