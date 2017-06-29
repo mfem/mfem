@@ -17,6 +17,7 @@
 #include "../linalg/densemat.hpp"
 #include "element.hpp"
 #include "vertex.hpp"
+#include "entsets.hpp"
 #include "../fem/geom.hpp"
 
 #include <vector>
@@ -235,6 +236,19 @@ public:
    /// Return the distance of leaf 'i' from the root.
    int GetElementDepth(int i) const;
 
+   /** Collect edge indices of all refined edges which are children of
+       the coarse edge defined by the given vertices. */
+   void GetRefinedEdges(int vn0, int vn1, BlockArray<int> & edge_ids);
+
+   /** Collect face indices of all refined faces which are children of
+       the coarse face defined by the given vertices. */
+   void GetRefinedFaces(int vn0, int vn1, int vn2, int vn3,
+                        BlockArray<int> & face_ids);
+
+   /** Collect element indices of all refined elements which are children of
+       the coarse element defined by the given element index. */
+   void GetRefinedElements(int elem_id, BlockArray<int> & elem_ids);
+
    /// I/O: Print the "vertex_parents" section of the mesh file (ver. >= 1.1).
    void PrintVertexParents(std::ostream &out) const;
 
@@ -368,6 +382,8 @@ protected: // implementation
    // coordinates of top-level vertices (organized as triples)
    Array<double> top_vertex_pos;
 
+   // Node/edge/Face/Element sets defined on the coarse mesh
+   EntitySets * entity_sets;
 
    // secondary data
 
