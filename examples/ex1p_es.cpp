@@ -73,6 +73,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int rs = -1;
    int rp = 2;
+   int ra = 0;
    int bt = EntitySets::INVALID;
    const char *bs = "Origin";
    bool static_cond = false;
@@ -88,6 +89,8 @@ int main(int argc, char *argv[])
                   "Number of serial refinement levels");
    args.AddOption(&rp, "-rp", "--refine-parallel",
                   "Number of parallel refinement levels");
+   args.AddOption(&ra, "-ra", "--refine-adaptive",
+                  "Number of adaptive refinement levels");
    args.AddOption(&bt, "-bt", "--bc-entity-type",
                   "");
    args.AddOption(&bs, "-bs", "--bc-entity-set-name",
@@ -133,12 +136,43 @@ int main(int argc, char *argv[])
       MPI_Barrier(MPI_COMM_WORLD);
       if ( myid == 0 && rs > 0 ) { cout << "Done" << endl; }
    }
+   if ( mesh->ent_sets )
+   {
+      cout << "mesh->ent_sets is non NULL" << endl;
+   }
+   else
+   {
+      cout << "mesh->ent_sets is NULL" << endl;
+   }
+
+   if ( ra > 0 )
+   {
+      cout << "calling EnsureNCMesh" << endl;
+      mesh->EnsureNCMesh();
+      cout << "back from EnsureNCMesh" << endl;
+   }
+   if ( mesh->ent_sets )
+   {
+      cout << "mesh->ent_sets is non NULL" << endl;
+   }
+   else
+   {
+      cout << "mesh->ent_sets is NULL" << endl;
+   }
 
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
+   if ( pmesh->ent_sets )
+   {
+      cout << "pmesh->ent_sets is non NULL" << endl;
+   }
+   else
+   {
+      cout << "pmesh->ent_sets is NULL" << endl;
+   }
    {
       int par_ref_levels = rp;
       for (int l = 0; l < par_ref_levels; l++)
@@ -148,6 +182,10 @@ int main(int argc, char *argv[])
       }
       MPI_Barrier(MPI_COMM_WORLD);
       if ( myid == 0 && rs > 0 ) { cout << "Done" << endl; }
+   }
+   for (int l = 0; l < ra; l++)
+   {
+      pmesh->RandomRefinement(0.2);
    }
    pmesh->ent_sets->PrintSetInfo(cout);
 
@@ -196,6 +234,10 @@ int main(int argc, char *argv[])
    {
       fespace->GetEssentialTrueDofs((EntitySets::EntityType)bt, bs,
                                     ess_tdof_list);
+   }
+   if (myid == 0)
+   {
+      cout << "Number of Dirichlet dofs: " << ess_tdof_list.Size() << endl;
    }
 
    // 8. Set up the parallel linear form b(.) which corresponds to the

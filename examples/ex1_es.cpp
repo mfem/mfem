@@ -20,18 +20,6 @@
 //               ex1 -m ../data/mobius-strip.mesh
 //               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
 //
-//               The following are examples of using EntitySets to define
-//               homogeneous Dirichlet boundary condition.  These examples
-//               require a modified mesh file and a specialized version of
-//               example 1 called "ex1_es".
-//               ex1_es -m ./star-set.mesh -bt 0 -bs Origin
-//               ex1_es -m ./star-set.mesh -bt 0 -bs Tent
-//               ex1_es -m ./star-set.mesh -bt 0 -bs Gazebo
-//               ex1_es -m ./star-set.mesh -bt 1 -bs Lily
-//               ex1_es -m ./star-set.mesh -bt 1 -bs Columbine
-//               ex1_es -m ./star-set.mesh -bt 3 -bs "Flying Squirrel"
-//               ex1_es -m ./star-set.mesh -bt 3 -bs "Sea Lion"
-//
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
@@ -60,6 +48,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "./star-set.mesh";
    int order = 1;
    int rs = -1;
+   int ra = 0;
    int bt = EntitySets::INVALID;
    const char *bs = "Origin";
    bool static_cond = false;
@@ -73,6 +62,8 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&rs, "-rs", "--refine-serial",
                   "Number of serial refinement levels");
+   args.AddOption(&ra, "-ra", "--refine-adaptive",
+                  "Number of adaptive refinement levels");
    args.AddOption(&bt, "-bt", "--bc-entity-type",
                   "");
    args.AddOption(&bs, "-bs", "--bc-entity-set-name",
@@ -108,8 +99,45 @@ int main(int argc, char *argv[])
          mesh->UniformRefinement();
       }
    }
+   if ( mesh->ent_sets )
+   {
+      cout << "mesh->ent_sets is non NULL" << endl;
+   }
+   else
+   {
+      cout << "mesh->ent_sets is NULL" << endl;
+   }
 
+   if ( ra > 0 )
+   {
+      cout << "calling EnsureNCMesh" << endl;
+      mesh->EnsureNCMesh();
+      cout << "back from EnsureNCMesh" << endl;
+   }
+   if ( mesh->ent_sets )
+   {
+      cout << "mesh->ent_sets is non NULL" << endl;
+   }
+   else
+   {
+      cout << "mesh->ent_sets is NULL" << endl;
+   }
+   cout << "Calling RandomRefinement " << ra << " times." << endl;
+   for (int l = 0; l < ra; l++)
+   {
+      mesh->RandomRefinement(0.2);
+   }
+   cout << "Done with refinement" << endl;
    mesh->ent_sets->PrintSetInfo(cout);
+   if ( mesh->ncmesh )
+   {
+      mesh->ncmesh->PrintStats(cout);
+
+      ofstream ofsV("vp.out");
+      ofstream ofsE("ce.out");
+      mesh->ncmesh->PrintVertexParents(ofsV);
+      mesh->ncmesh->PrintCoarseElements(ofsE);
+   }
 
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -151,6 +179,8 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs((EntitySets::EntityType)bt, bs,
                                     ess_tdof_list);
    }
+
+   cout << "Number of Dirichlet dofs: " << ess_tdof_list.Size() << endl;
 
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
