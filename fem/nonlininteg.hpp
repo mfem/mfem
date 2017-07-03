@@ -76,6 +76,31 @@ protected:
    static void Dim2Invariant2_dMdM(const DenseMatrix &M, int i, int j,
                                    DenseMatrix &dMdM);
 
+   /// First invariant of the given 3x3 matrix @a M.
+   static double Dim3Invariant1(const DenseMatrix &M);
+   /// Second invariant of the given 3x3 matrix @a M.
+   static double Dim3Invariant2(const DenseMatrix &M);
+   /// Third invariant of the given 3x3 matrix @a M.
+   static double Dim3Invariant3(const DenseMatrix &M);
+
+   /// 1st derivative of the first invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM);
+   /// 1st derivative of the second invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM);
+   /// 1st derivative of the third invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant3_dM(const DenseMatrix &M, DenseMatrix &dM);
+
+   /// 2nd derivative of the first invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant1_dMdM(const DenseMatrix &M, int i, int j,
+                                   DenseMatrix &dMdM);
+   /// 2nd derivative of the second invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant2_dMdM(const DenseMatrix &M, int i, int j,
+                                   DenseMatrix &dMdM);
+
+   /// 2nd derivative of the third invariant for the given 3x3 matrix @a M.
+   static void Dim3Invariant3_dMdM(const DenseMatrix &M, int i, int j,
+                                   DenseMatrix &dMdM);
+
 public:
    HyperelasticModel() : Ttr(NULL), Jtr(NULL) { }
    virtual ~HyperelasticModel() { }
@@ -220,7 +245,7 @@ private:
 #endif
 
 public:
-   enum target {CURRENT, IDEAL, IDEAL_EQ_SIZE, IDEAL_INIT_SIZE, TARGET_MESH};
+   enum target {CURRENT, IDEAL, IDEAL_EQ_SIZE, IDEAL_INIT_SIZE, TARGET_MESH, IDEAL_EQ_SCALE_SIZE};
    const target target_type;
 
    TargetJacobian(target ttype)

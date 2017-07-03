@@ -108,6 +108,136 @@ void HyperelasticModel::Dim2Invariant2_dMdM(const DenseMatrix &M, int i, int j,
 
    dMdM(i, j) = 0.0;
 }
+    
+
+
+//I1 = |T|^2/tau^2/3
+double HyperelasticModel::Dim3Invariant1(const DenseMatrix &M)
+{
+    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+        
+    double fnorm = M.FNorm();
+    double detv = M.Det();
+    return fnorm * fnorm / pow(detv,2./3.);
+}
+    
+    
+//I2 = |adj(T)|^2/tau^4/3
+double HyperelasticModel::Dim3Invariant2(const DenseMatrix &M)
+{
+    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+    DenseMatrix Madj(3);
+    
+    CalcAdjugate(M,Madj);
+    
+    double fnorm = Madj.FNorm();
+    double detv = M.Det();
+    return fnorm * fnorm / pow(detv,4./3.);
+}
+
+    
+// I3 = det(M).
+double HyperelasticModel::Dim3Invariant3(const DenseMatrix &M)
+{
+    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+        
+    return M.Det();
+}
+
+// dI1_dM = [ 2 det(M) M - (2/3)*|M|^2 *(detM^-1/3)*adj(M)^T ] / det(T)^4/3.
+void HyperelasticModel::Dim3Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+   DenseMatrix Madj(3);
+   CalcAdjugate(M,Madj);
+
+   double fnorm = M.FNorm();
+   double det   = M.Det();
+
+   Dim3Invariant3_dM(M, dM);
+   dM *= -(2./3.)* fnorm * fnorm*pow(det,-1./3.);
+   dM.Add(2.0 * pow(det,2./3.), M);
+   dM *= 1.0 / pow(det,4./3.);
+}
+
+// dI2_dM = [ - (4/3)*|adj(M)|^2 *(detM^1/3)*adj(M)^T ] / det(T)^8/3.
+void HyperelasticModel::Dim3Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   DenseMatrix Madj(3);
+// dM will have Madj^t because it is the third invariant's derivative
+   CalcAdjugate(M,Madj);
+   double fnorm = Madj.FNorm();
+   double det   = M.Det();
+
+   Dim3Invariant3_dM(M, dM);
+   dM *= -(4./3.)* fnorm * fnorm*pow(det,1./3.);
+   dM *= 1.0 / (pow(det,8./3.));
+}
+
+// dI3_dM = d(det(M))_dM = adj(M)^T.
+void HyperelasticModel::Dim3Invariant3_dM(const DenseMatrix &M, DenseMatrix &dM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   CalcAdjugateTranspose(M,dM);
+}
+
+void HyperelasticModel::Dim3Invariant1_dMdM(const DenseMatrix &M, int i, int j,
+                                            DenseMatrix &dMdM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   DenseMatrix dI(3);
+   Dim3Invariant3_dM(M, dI);
+   const double det    = M.Det();
+   const double fnorm  = M.FNorm();
+
+   DenseMatrix dM(3); dM = 0.0; dM(i, j) = 1.0;
+   for (int r = 0; r < 3; r++)
+   {
+      for (int c = 0; c < 3; c++)
+      {
+         dMdM(r,c) = (2.0 * det*det*dM(r,c)+ dI(i,j)*(10./9.)*fnorm*fnorm*dI(r,c)
+                        - (4./3.)*dI(i,j)*det*M(r,c)-(4./3.)*det*M(i,j)*dI(r,c))/(pow(det,8./3.));
+      }
+   }
+}
+
+void HyperelasticModel::Dim3Invariant2_dMdM(const DenseMatrix &M, int i, int j,
+                                            DenseMatrix &dMdM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   DenseMatrix dI(3);
+   Dim3Invariant3_dM(M, dI);
+   DenseMatrix Madj(3);
+   CalcAdjugate(M,Madj);
+   const double det    = M.Det();
+   const double fnorm  = Madj.FNorm();
+
+   DenseMatrix dM(3); dM = 0.0; dM(i, j) = 1.0;
+   for (int r = 0; r < 3; r++)
+   {
+      for (int c = 0; c < 3; c++)
+      {
+         dMdM(r,c) =
+      (28./9.)*fnorm*fnorm *det*det*dI(i,j)*dI(r,c)/pow(det,16./3.);
+      }
+   }
+}
+
+// (dI3_dM)_d(Mij) = 0.
+void HyperelasticModel::Dim3Invariant3_dMdM(const DenseMatrix &M, int i, int j,
+                                            DenseMatrix &dMdM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   dMdM(i, j) = 0.0;
+}
+
+
 
 double InverseHarmonicModel::EvalW(const DenseMatrix &J) const
 {
@@ -409,7 +539,8 @@ void TMOPHyperelasticModel001::AssembleH(const DenseMatrix &Jpt,
 double TMOPHyperelasticModel002::EvalW(const DenseMatrix &Jpt) const
 {
    double det = Jpt.Det();
-   if (det <= 0.0) { return 1e+100; }
+//     if (det <= 0.0) {return 1e+100; }
+//   if (det <= 0.0) {return 1e+100; }
 
    return 0.5 * Dim2Invariant1(Jpt) - 1.0;
 }
@@ -457,7 +588,7 @@ void TMOPHyperelasticModel002::AssembleH(const DenseMatrix &Jpt,
 double TMOPHyperelasticModel007::EvalW(const DenseMatrix &Jpt) const
 {
    const double I2 = Dim2Invariant2(Jpt);
-   if (I2 <= 0.0) { return 1e+100; }
+//   if (I2 <= 0.0) { return 1e+100; }
 
    return Dim2Invariant1(Jpt) * (I2 + 1.0 / I2) - 4.0;
 }
@@ -576,6 +707,7 @@ void TargetJacobian::ComputeElementTargets(int e_id, const FiniteElement &fe,
          break;
       }
       case IDEAL_EQ_SIZE:
+      case IDEAL_EQ_SCALE_SIZE:
       {
          // Average cell area.
          MFEM_VERIFY(nodes, "Nodes are not set!");
@@ -593,6 +725,8 @@ void TargetJacobian::ComputeElementTargets(int e_id, const FiniteElement &fe,
 #else
          double avg_area = lf.Sum() / nodes->FESpace()->GetNE();
 #endif
+         if (target_type == IDEAL_EQ_SCALE_SIZE) {
+             avg_area *= 0.005; }
 
          DenseMatrix Wideal(fe.GetDim());
          ConstructIdealJ(fe.GetGeomType(), Wideal);
