@@ -267,7 +267,8 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      socketstream mode_sock(vishost, visport);
+      socketstream mode_sock;
+      mode_sock.open_parallel(MPI_COMM_WORLD, vishost, visport);
       mode_sock.precision(8);
 
       for (int i=0; i<nev; i++)
@@ -281,9 +282,8 @@ int main(int argc, char *argv[])
          // convert eigenvector from HypreParVector to ParGridFunction
          x = lobpcg->GetEigenvector(i);
 
-         mode_sock << "parallel " << num_procs << " " << myid << "\n"
-                   << "solution\n" << *pmesh << x << flush
-                   << "window_title 'Eigenmode " << i+1 << '/' << nev
+         mode_sock.send_parallel(*pmesh, x);
+         mode_sock << "window_title 'Eigenmode " << i+1 << '/' << nev
                    << ", Lambda = " << eigenvalues[i] << "'" << endl;
 
          char c;
@@ -299,7 +299,7 @@ int main(int argc, char *argv[])
             break;
          }
       }
-      mode_sock.close();
+      mode_sock.close(); // not needed, just for clarity
    }
 
    // 12. Free the used memory.

@@ -149,7 +149,7 @@ void InitialDeformation(const Vector &x, Vector &y);
 
 void InitialVelocity(const Vector &x, Vector &v);
 
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(socketstream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name = NULL,
                bool init_vis = false);
 
@@ -324,13 +324,13 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      vis_v.open(vishost, visport);
+      vis_v.open_parallel(pmesh->GetComm(), vishost, visport);
       vis_v.precision(8);
       visualize(vis_v, pmesh, &x_gf, &v_gf, "Velocity", true);
       // Make sure all ranks have sent their 'v' solution before initiating
       // another set of GLVis connections (one from each rank):
-      MPI_Barrier(pmesh->GetComm());
-      vis_w.open(vishost, visport);
+      // MPI_Barrier(pmesh->GetComm());
+      vis_w.open_parallel(pmesh->GetComm(), vishost, visport);
       if (vis_w)
       {
          oper.GetElasticEnergyDensity(x_gf, w_gf);
@@ -422,7 +422,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(socketstream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name, bool init_vis)
 {
    if (!out)
@@ -435,8 +435,7 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
 
    mesh->SwapNodes(nodes, owns_nodes);
 
-   out << "parallel " << mesh->GetNRanks() << " " << mesh->GetMyRank() << "\n";
-   out << "solution\n" << *mesh << *field;
+   out.send_parallel(*mesh, *field);
 
    mesh->SwapNodes(nodes, owns_nodes);
 
