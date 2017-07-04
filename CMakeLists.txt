@@ -226,7 +226,7 @@ if (NOT DEFINED MFEM_TIMER_TYPE)
 endif()
 
 # List all possible libraries in order of dependencies.
-set(MFEM_TPLS HYPRE OPENMP SUNDIALS MESQUITE SuiteSparse SuperLUDist
+set(MFEM_TPLS MPI_CXX HYPRE OPENMP SUNDIALS MESQUITE SuiteSparse SuperLUDist
     ParMETIS METIS LAPACK BLAS GECKO GNUTLS NETCDF PETSC MPFR AXOM POSIXCLOCKS
     MFEMBacktrace ZLIB)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
@@ -281,7 +281,7 @@ endif()
 # directory.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
   target_compile_definitions(mfem PRIVATE
-    "-DMFEM_BUILD_DIR=${PROJECT_BINARY_DIR}")
+    "MFEM_BUILD_DIR=${PROJECT_BINARY_DIR}")
 endif()
 
 # Generate configuration file in the build directory: config/_config.hpp.
@@ -420,7 +420,7 @@ export(TARGETS ${PROJECT_NAME}
   FILE "${PROJECT_BINARY_DIR}/MFEMTargets.cmake")
 
 # Export the package for use from the build-tree (this registers the build-tree
-# with a global CMake-registry)
+# with the CMake user package registry.)
 export(PACKAGE ${PROJECT_NAME})
 
 # Extract the include directories required to use MFEM
