@@ -205,7 +205,30 @@ public:
                y.GetData()                /* result, input-output vector */
 	    );
 #else
-            MFEM_ABORT("diffusion for hexes is not implemented yet.");
+            CEED_DiffusionOperator diffOp = {
+               3,
+               solFE_type::dofs_1d,      /* number of 1D dofs (points) */
+               IR::qpts_1d,              /* number of 1D quadrature points */
+               mesh.GetNE(),             /* number of elements */
+               (double *)assembled_data, /* nqpt_1d x nqpt_1d x 3 x nelem;
+                                            (3) -> (xx,xy,yy) */
+               solEval.Get_B_1D(),       /* nqpt_1d x ndof_1d dense matrix,
+                                            column-major layout */
+               solEval.Get_Bt_1D(),      /* trasnspose of B1d */
+               solEval.Get_G_1D(),       /* nqpt_1d x ndof_1d dense matrix,
+                                            column-major layout */
+               solEval.Get_Gt_1D(),      /* trasnspose of G1d */
+               solFES.GetIndexer().GetElemDof(), /* array of size ndofs_1d x
+                                                    ndofs_1d x nelem
+                                                    representing a boolean P */
+               FORTRAN
+            };
+
+	    CEED_DiffusionAction(
+	       &diffOp,
+               x.GetData(),               /* input vector */
+               y.GetData()                /* result, input-output vector */
+	    );
 #endif
          }
          else

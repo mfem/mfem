@@ -29,7 +29,7 @@ using namespace std;
 using namespace mfem;
 
 #ifndef GEOM
-#define GEOM Geometry::SQUARE
+#define GEOM Geometry::CUBE
 #endif
 
 #ifndef MESH_P
