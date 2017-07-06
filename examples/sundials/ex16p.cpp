@@ -172,13 +172,13 @@ int main(int argc, char *argv[])
    {
       // SUNDIALS solvers
       case 1:
-         cvode = new CVODESolver(CV_ADAMS, CV_FUNCTIONAL);
+         cvode = new CVODESolver(MPI_COMM_WORLD, CV_ADAMS, CV_FUNCTIONAL);
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
          ode_solver = cvode; break;
       case 2:
       case 3:
-         arkode = new ARKODESolver(ARKODESolver::EXPLICIT);
+         arkode = new ARKODESolver(MPI_COMM_WORLD, ARKODESolver::EXPLICIT);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
          if (ode_solver_type == 3) { arkode->SetERKTableNum(FEHLBERG_13_7_8); }
