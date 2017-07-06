@@ -13,12 +13,14 @@ set(SUNDIALS_EXAMPLES_SRCS)
 list(APPEND SUNDIALS_EXAMPLES_SRCS
   ex9.cpp
   ex10.cpp
+  ex16.cpp
   )
 
 if (MFEM_USE_MPI)
   list(APPEND SUNDIALS_EXAMPLES_SRCS
     ex9p.cpp
     ex10p.cpp
+    ex16p.cpp
     )
 endif()
 

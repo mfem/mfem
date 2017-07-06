@@ -24,8 +24,8 @@ TEST_MK = $(MFEM_DIR)/config/test.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = ex9 ex10
-PAR_EXAMPLES = ex9p ex10p
+SEQ_EXAMPLES = ex9 ex10 ex16
+PAR_EXAMPLES = ex9p ex10p ex16p
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
