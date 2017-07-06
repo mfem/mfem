@@ -217,8 +217,12 @@ void CalcAlgSparsifiedGradTensor(
          }
          real_t positive_scale = (sum_positive + sum_negative) /
                                  (2.0 * sum_positive);
+         if (sum_positive == 0.0)
+            positive_scale = 1.0;
          real_t negative_scale = (sum_positive + sum_negative) /
                                  (2.0 * sum_negative);
+         if (sum_negative == 0.0)
+            negative_scale = 1.0;
          for (int i=0; i<sc; ++i)
          {
             int id = pairs.at(dof-i-1).second;
