@@ -82,6 +82,9 @@ struct CoarseFineTransformations
  */
 class NCMesh
 {
+   friend class EntitySets;
+   friend class NCEntitySets;
+
 public:
    /** Initialize with elements from 'mesh'. If an already nonconforming mesh
        is being loaded, 'vertex_parents' must point to a stream at the appropriate
@@ -383,7 +386,7 @@ protected: // implementation
    Array<double> top_vertex_pos;
 
    // Node/edge/Face/Element sets defined on the coarse mesh
-   EntitySets * entity_sets;
+   NCEntitySets * ncent_sets;
 
    // secondary data
 

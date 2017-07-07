@@ -169,52 +169,8 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       }
    }
 
-   if ( mesh->ent_sets )
-   {
-      std::cout << "copying mesh->ent_sets to entity_sets" << std::endl;
-      // Copy the entity set information of the coarse mesh
-      entity_sets = new EntitySets(*mesh->ent_sets);
-      std::cout << "done copying mesh->ent_sets to entity_sets" << std::endl;
-
-      std::cout << "size of nodes HashTable: " << nodes.Size() << std::endl;
-
-      std::ofstream ofsN("node.out");
-      ofsN << nodes.Size() << std::endl;
-      for (int i=0; i<nodes.Size(); i++)
-      {
-         ofsN << i
-              << " " << nodes[i].vert_refc
-              << " " << nodes[i].edge_refc
-              << " " << nodes[i].vert_index
-              << " " << nodes[i].edge_index
-              << " " << nodes[i].p1
-              << " " << nodes[i].p2
-              << " " << nodes[i].next << std::endl;
-      }
-      ofsN.close();
-
-      const Table * ev = entity_sets->GetEdgeVertexTable();
-      int w = ev->Width();
-      std::cout << "table width " << w << std::endl;
-      Array<int> v;
-      for (unsigned int s=0; s<entity_sets->GetNumSets(EntitySets::EDGE); s++)
-      {
-         std::cout << entity_sets->GetSetName(EntitySets::EDGE, s) << std::endl;
-         for (unsigned int i=0; i<entity_sets->GetNumEntities(EntitySets::EDGE, s); i++)
-         {
-            int edge_id = entity_sets->GetEntityIndex(EntitySets::EDGE, s, i);
-
-            ev->GetRow(edge_id, v);
-
-            std::cout << i << " " << edge_id << " " << v[0] << "->" << v[1] << std::endl;
-         }
-      }
-   }
-   else
-   {
-      std::cout << "setting entity_sets to NULL" << std::endl;
-      entity_sets = NULL;
-   }
+   // Store entity set information if present in the Mesh
+   ncent_sets = (mesh->ent_sets) ? new NCEntitySets(*mesh, *this) : NULL;
 
    Update();
 }
@@ -231,15 +187,8 @@ NCMesh::NCMesh(const NCMesh &other)
    other.free_element_ids.Copy(free_element_ids);
    other.top_vertex_pos.Copy(top_vertex_pos);
 
-   if ( other.entity_sets )
-   {
-      // Copy the entity set information of the coarse mesh
-      entity_sets = new EntitySets(*other.entity_sets);
-   }
-   else
-   {
-      entity_sets = NULL;
-   }
+   // Copy the entity set information
+   ncent_sets = (other.ncent_sets) ? new NCEntitySets(*other.ncent_sets) : NULL;
 
    Update();
 }
@@ -275,9 +224,11 @@ NCMesh::~NCMesh()
       UnrefElement(leaf_elements[i], elemFaces);
       DeleteUnusedFaces(elemFaces);
    }
-   delete entity_sets;
+
    // NOTE: in release mode, we just throw away all faces and nodes at once
 #endif
+
+   delete ncent_sets;
 }
 
 NCMesh::Node::~Node()
@@ -1694,119 +1645,14 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       face->index = i;
    }
 
-   if ( entity_sets )
+   if (ncent_sets)
    {
-      std::cout << "OnMeshUpdated processing entity sets" << std::endl;
-
-      if ( mesh->ent_sets )
+      if (!mesh->ent_sets)
       {
-         std::cout << "mesh->ent_sets is non NULL" << std::endl;
+         mesh->ent_sets = new EntitySets(*mesh, *this);
       }
-      else
-      {
-         std::cout << "mesh->ent_sets is NULL" << std::endl;
-         mesh->ent_sets = new EntitySets(*entity_sets);
-      }
-
-      std::ofstream ofsN("node_on_mesh_updated.out");
-      ofsN << nodes.Size() << std::endl;
-      for (int i=0; i<nodes.Size(); i++)
-      {
-         ofsN << i
-              << " " << nodes[i].vert_refc
-              << " " << nodes[i].edge_refc
-              << " " << nodes[i].vert_index
-              << " " << nodes[i].edge_index
-              << " " << nodes[i].p1
-              << " " << nodes[i].p2
-              << " " << nodes[i].next << std::endl;
-      }
-      ofsN.close();
-
-      EntitySets::EntityType t = EntitySets::INVALID;
-      unsigned int ns = -1;
-
-      t = EntitySets::EDGE;
-      ns = entity_sets->GetNumSets(t);
-      for (unsigned int s=0; s<ns; s++)
-      {
-         unsigned int ni = entity_sets->GetNumEntities(t, s);
-
-         BlockArray<int> edge_ids;
-
-         for (unsigned int i=0; i<ni; i++)
-         {
-            int v0 = entity_sets->coarse(t, s, 2 * i + 0);
-            int v1 = entity_sets->coarse(t, s, 2 * i + 1);
-
-            GetRefinedEdges(v0, v1, edge_ids);
-         }
-         (*mesh->ent_sets)(t, s).resize(edge_ids.Size());
-         for (int i=0; i<edge_ids.Size(); i++)
-         {
-            (*mesh->ent_sets)(t, s, i) = edge_ids[i];
-         }
-      }
-
-      std::cout << "Processing face sets" << std::endl;
-
-      if ( Dim >= 3 )
-      {
-         t = EntitySets::FACE;
-
-         ns = entity_sets->GetNumSets(t);
-         for (unsigned int s=0; s<ns; s++)
-         {
-            std::cout << "  " << entity_sets->GetSetName(t, s) << std::endl;
-            unsigned int ni = entity_sets->GetNumEntities(t, s);
-
-            BlockArray<int> face_ids;
-
-            for (unsigned int i=0; i<ni; i++)
-            {
-               std::cout << " " << (*entity_sets)(t, s, i);
-               int v0 = entity_sets->coarse(t, s, 4 * i + 0);
-               int v1 = entity_sets->coarse(t, s, 4 * i + 1);
-               int v2 = entity_sets->coarse(t, s, 4 * i + 2);
-               int v3 = entity_sets->coarse(t, s, 4 * i + 3);
-
-               GetRefinedFaces(v0, v1, v2, v3, face_ids);
-               std::cout << std::endl;
-            }
-            (*mesh->ent_sets)(t, s).resize(face_ids.Size());
-            for (int i=0; i<face_ids.Size(); i++)
-            {
-               (*mesh->ent_sets)(t, s, i) = face_ids[i];
-            }
-         }
-      }
-
-      std::cout << "Processing element sets" << std::endl;
-      t = EntitySets::ELEMENT;
-
-      ns = entity_sets->GetNumSets(t);
-      for (unsigned int s=0; s<ns; s++)
-      {
-         std::cout << "  " << entity_sets->GetSetName(t, s) << std::endl;
-         unsigned int ni = entity_sets->GetNumEntities(t, s);
-
-         BlockArray<int> elem_ids;
-
-         for (unsigned int i=0; i<ni; i++)
-         {
-            std::cout << " " << entity_sets->coarse(t, s, i);
-            GetRefinedElements(entity_sets->coarse(t, s, i), elem_ids);
-            std::cout << std::endl;
-         }
-         (*mesh->ent_sets)(t, s).resize(elem_ids.Size());
-         for (int i=0; i<elem_ids.Size(); i++)
-         {
-            (*mesh->ent_sets)(t, s, i) = elem_ids[i];
-         }
-      }
-
-      std::cout << "OnMeshUpdated done processing entity sets" << std::endl;
    }
+
 }
 
 
@@ -2180,12 +2026,15 @@ void NCMesh::Slave::OrientedPointMatrix(DenseMatrix &oriented_matrix) const
 void NCMesh::CollectEdgeVertices(int v0, int v1, Array<int> &indices)
 {
    int mid = nodes.FindId(v0, v1);
-   if (mid >= 0 && nodes[mid].HasVertex())
+   if (mid >= 0)
    {
-      indices.Append(mid);
+      if (nodes[mid].HasVertex())
+      {
+         indices.Append(mid);
 
-      CollectEdgeVertices(v0, mid, indices);
-      CollectEdgeVertices(mid, v1, indices);
+         CollectEdgeVertices(v0, mid, indices);
+         CollectEdgeVertices(mid, v1, indices);
+      }
    }
 }
 
@@ -3073,6 +2922,8 @@ void NCMesh::GetRefinedEdges(int vn0, int vn1, BlockArray<int> & edges)
 
    Node &nd = nodes[mid];
 
+   if ( nd.edge_index < 0 ) { return; }
+
    edges.Append(nd.edge_index);
 
    GetRefinedEdges(vn0, mid, edges);
@@ -3086,8 +2937,10 @@ void NCMesh::GetRefinedFaces(int vn0, int vn1, int vn2, int vn3,
 
    if (fa)
    {
-      std::cout << " (" << fa->index << ")";
-      face_ids.Append(fa->index);
+      if ( fa->index >= 0 )
+      {
+         face_ids.Append(fa->index);
+      }
       return;
    }
 
@@ -3111,7 +2964,7 @@ void NCMesh::GetRefinedElements(int elem_id, BlockArray<int> & elem_ids)
 {
    Element &el = elements[elem_id];
 
-   if (el.index >= 0)
+   if (el.index >= 0 && el.rank >= 0)
    {
       elem_ids.Append(el.index);
       return;

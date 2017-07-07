@@ -2386,14 +2386,8 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
       own_nodes = 0;
    }
 
-   if ( mesh.ent_sets )
-   {
-      ent_sets = new EntitySets(*mesh.ent_sets);
-   }
-   else
-   {
-      ent_sets = NULL;
-   }
+   // Copy entity sets if present in the input mesh
+   ent_sets = (mesh.ent_sets) ? new EntitySets(*mesh.ent_sets) : NULL;
 }
 
 Mesh::Mesh(const char *filename, int generate_edges, int refine,
