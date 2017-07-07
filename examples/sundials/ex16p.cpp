@@ -1,4 +1,5 @@
-//                                MFEM Example 16 - Parallel Version
+//                         MFEM Example 16 - Parallel Version
+//                             SUNDIALS Modification
 //
 // Compile with: make ex16p
 //
