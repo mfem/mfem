@@ -509,17 +509,21 @@ void SidreDataCollection::createMeshBlueprintAdjacencies(bool hasBP)
 {
    ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
 
-   const int GRP_SZ = 35;
+   const int GRP_SZ = 25;
    char group_str[GRP_SZ];
 
    // TODO(JRC): Separate this out into group hierarchy setup and data allocation
    // stages like all of the other "createMeshBlueprint*" functions.
    MFEM_VERIFY(hasBP == false, "The case hasBP == true is not supported yet!");
 
+   sidre::Group* adjset_grp = NULL;
    if (pmesh->GetNGroups() > 1)
    {
-      bp_grp->createGroup("adjacencies");
-      if (myid == 0) { bp_index_grp->createGroup("adjacencies"); }
+      adjset_grp = bp_grp->createGroup("adjsets/mesh");
+      adjset_grp->createViewString("association", "vertex");
+      adjset_grp->createViewString("topology", "mesh");
+
+      if (myid == 0) { bp_index_grp->createGroup("adjsets"); }
    }
 
    for (int gi = 1; gi < pmesh->GetNGroups(); ++gi)
@@ -530,13 +534,10 @@ void SidreDataCollection::createMeshBlueprintAdjacencies(bool hasBP)
       // Skip creation of empty groups
       if (num_gneighbors > 1 && num_gvertices > 0)
       {
-         std::snprintf(group_str, GRP_SZ, "adjacencies/g%d_%d",
+         std::snprintf(group_str, GRP_SZ, "groups/g%d_%d",
                        pmesh->gtopo.GetGroupMasterRank(gi),
                        pmesh->gtopo.GetGroupMasterGroup(gi));
-
-         sidre::Group* group_grp = bp_grp->createGroup(group_str);
-         group_grp->createViewString("association", "vertex");
-         group_grp->createViewString("topology", "mesh");
+         sidre::Group* group_grp = adjset_grp->createGroup(group_str);
 
          sidre::View* gneighbors_view =
             group_grp->createViewAndAllocate(
@@ -558,10 +559,11 @@ void SidreDataCollection::createMeshBlueprintAdjacencies(bool hasBP)
             }
          }
 
-         sidre::View* gvertices_view = group_grp->createViewAndAllocate(
-                                          "values", sidre::INT_ID, num_gvertices);
-
+         sidre::View* gvertices_view =
+            group_grp->createViewAndAllocate(
+               "values", sidre::INT_ID, num_gvertices);
          int* gvertices_data = gvertices_view->getData<int*>();
+
          for (int vi = 0; vi < num_gvertices; ++vi)
          {
             gvertices_data[vi] = pmesh->GroupVertex(gi, vi);
