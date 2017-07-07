@@ -102,6 +102,7 @@ int main(int argc, char *argv[])
    if ( mesh->ent_sets )
    {
       cout << "mesh->ent_sets is non NULL" << endl;
+      mesh->ent_sets->PrintSetInfo(cout);
    }
    else
    {
@@ -128,7 +129,11 @@ int main(int argc, char *argv[])
       mesh->RandomRefinement(0.2);
    }
    cout << "Done with refinement" << endl;
-   mesh->ent_sets->PrintSetInfo(cout);
+   if ( mesh->ent_sets )
+   {
+      cout << "mesh->ent_sets is non NULL" << endl;
+      mesh->ent_sets->PrintSetInfo(cout);
+   }
    if ( mesh->ncmesh )
    {
       mesh->ncmesh->PrintStats(cout);
