@@ -1,0 +1,201 @@
+The following instructions are for building mfem with pumi on a SCOREC workstation.  Adjust
+accordingly for your systems configuration.
+
+Throughout these instructions is the string `/path/to/mfem-develop`.  Replace it with 
+the ... path to the `mfem-develop` directory created in the first step.
+
+## Setup
+
+```
+mkdir mfem-develop
+cd mfem-develop
+```
+
+## Install PUMI dependencies
+
+Create the install script `rebuild.sh`
+```
+#!/bin/bash -ex
+d=$PWD
+installdir=$PWD/core-deps
+
+doParmetis() {
+ compiler=$1
+ shared=$2
+ prefix=$installdir
+ cd $d/parmetis
+ wget http://glaros.dtc.umn.edu/gkhome/fetch/sw/parmetis/parmetis-4.0.3.tar.gz
+ tar xzf parmetis-4.0.3.tar.gz
+ cd parmetis-4.0.3
+ b="build${compiler}${shared}"
+ [ -d $b ] && rm -rf $b
+ mkdir $b
+ cd $b
+ $d/parmetis/doConfigure.sh $prefix
+ make clean
+ make install -j4
+ cp libmetis/libmetis.* $prefix/lib/
+ cp ../metis/include/metis.h $prefix/include/
+}
+
+doZoltan() {
+ compiler=$1
+ shared=$2
+ version="3.81"
+ prefix=$installdir
+ module load parmetis/$compiler
+ cd $d/zoltan/
+ wget http://www.cs.sandia.gov/~kddevin/Zoltan_Distributions/zoltan_distrib_v${version}.tar.gz
+ tar xzf zoltan_distrib_v${version}.tar.gz
+ cd Zoltan_v${version}
+ b="build${compiler}${shared}"
+ [ -d $b ] && rm -rf $b
+ mkdir $b
+ cd $b
+ $d/zoltan/doConfigure.sh $prefix
+ make clean
+ make install -j4
+ [ ! -z "$shared" ] && $d/zoltan/linkShared.sh $prefix
+}
+
+module load mpich3/3.1.2-thread-multiple
+doParmetis mpich3.1.2
+export PARMETIS_INSTALL_DIR=$installdir
+doZoltan mpich3.1.2
+```
+
+Create the parmetis and zoltan directories
+```
+mkdir parmetis zoltan
+```
+
+Create the parmetis configure script `parmetis/doConfigure.sh`
+```
+#!/bin/bash -e
+metis=/lore/cwsmith/develop/mfem/metis-5.1.0
+cmake \
+-DCMAKE_INSTALL_PREFIX=$1 \
+-DMETIS_PATH=$metis \
+-DGKLIB_PATH=$metis/GKlib \
+-DCMAKE_C_COMPILER=mpicc \
+-DCMAKE_CXX_COMPILER=mpicxx \
+..
+```
+
+Create the zoltan configure script `zoltan/doConfigure.sh`
+```
+#!/bin/bash -ex
+unset CXXCPP
+../configure \
+--prefix=$1 \
+--with-parmetis \
+--with-parmetis-libdir=$PARMETIS_INSTALL_DIR/lib \
+--with-parmetis-incdir=$PARMETIS_INSTALL_DIR/include \
+--enable-mpi \
+--disable-examples \
+--with-gnumake \
+CXXCPP='mpicxx -E ' \
+CC=mpicc \
+CXX=mpicxx
+```
+
+Make the scripts executable
+```
+chmod +x parmetis/doConfigure.sh zoltan/doConfigure.sh rebuild.sh
+```
+
+Run the build script:
+```
+./rebuild.sh
+```
+
+## Install PUMI
+
+Note, this install assumes that the bzip2 library and headers are available on the
+system in the 'standard' locations.
+
+Clone the repo
+```
+cd /path/to/mfem-develop
+git clone git@github.com:SCOREC/core.git
+git clone git@github.com:SCOREC/pumi-meshes.git
+```
+
+Create a config script `core-config.sh`
+```
+cmake ../core
+-DCMAKE_C_COMPILER=mpicc \
+-DCMAKE_CXX_COMPILER=mpicxx \
+-DCMAKE_Fortran_COMPILER=gfortran \
+-DSCOREC_CXX_OPTIMIZE=ON \
+-DMDS_ID_TYPE=long \
+-DPCU_COMPRESS=ON \
+-DENABLE_ZOLTAN=ON \
+-DENABLE_SIMMETRIX=ON \
+-DSIM_MPI=mpich3 \
+-DSIM_PARASOLID=ON \
+-DSIM_ACIS=ON \
+-DCMAKE_INSTALL_PREFIX=$PWD/install
+```
+
+Note, the value of `SIM_MPI` should reflect the mpi implementation being used.  Valid settings include 
+`openmpi18`, `openmpi110`, and `mpich3`.  A version of this wrapper library can be built for your mpi
+implementation as needed.
+
+Run cmake and build
+```
+chmod +x core-config.sh
+mkdir core-build
+cd core-build
+../core-config.sh
+make install -j8
+```
+
+## Install Hypre
+
+```
+cd /path/to/mfem-develop
+wget https://computation.llnl.gov/projects/hypre-scalable-linear-solvers-multigrid-methods/download/hypre-2.11.2.tar.gz
+tar xf hypre-2.11.2.tar.gz
+cd hypre-2.11.2/src
+./configure --prefix=$PWD/../install
+make install
+```
+
+## Install mfem
+
+Setup
+```
+cd /path/to/mfem-develop
+git clone git@github.com:mfem/mfem.git
+cd mfem
+git checkout pumi-dev
+```
+
+Create a config script `mfem-config.sh`
+```
+cmake ../mfem \
+-DCMAKE_BUILD_TYPE=Debug \
+-DMFEM_USE_MPI=YES \
+-DMFEM_USE_METIS_5=YES \
+-DMFEM_DEBUG=YES \
+-DMFEM_ENABLE_EXAMPLES=YES \
+-DMFEM_ENABLE_MINIAPPS=YES \
+-DSCOREC_PREFIX=/path/to/mfem-develop/core-build/install \
+-DHYPRE_DIR=/path/to/mfem-develop/hypre-2.11.2-build/install/ \
+-DMETIS_DIR=/path/to/mfem-develop/core-deps
+```
+
+Run cmake and build
+```
+chmod +x mfem-config.sh
+mkdir mfem-build
+cd mfem-build
+../mfem-config.sh
+make -j8
+```
+
+Run mfem tests
+```
+ctest
+```
