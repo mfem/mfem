@@ -25,17 +25,20 @@ namespace mfem
 
 class Mesh;
 class NCMesh;
+class NCEntitySets;
 
 class EntitySets
 {
    friend class Mesh;
    friend class NCMesh;
+   friend class NCEntitySets;
 
 public:
    enum EntityType {INVALID = -1, VERTEX = 0, EDGE = 1, FACE = 2, ELEMENT = 3};
 
    EntitySets(Mesh & mesh);
    EntitySets(const EntitySets & ent_sets);
+   EntitySets(Mesh & mesh, NCMesh &ncmesh);
 
    virtual ~EntitySets();
 
@@ -64,15 +67,6 @@ public:
    { return sets_[t][s][i]; }
    inline int operator()(EntityType t, int s, int i) const
    { return sets_[t][s][i]; }
-
-   inline std::vector<int> & coarse(EntityType t, int s)
-   { return set_coarse_[t][s]; }
-   inline const std::vector<int> & coarse(EntityType t, int s) const
-   { return set_coarse_[t][s]; }
-   inline int & coarse(EntityType t, int s, int i)
-   { return set_coarse_[t][s][i]; }
-   inline int coarse(EntityType t, int s, int i) const
-   { return set_coarse_[t][s][i]; }
 
    const Table * GetEdgeVertexTable() const { return edge_vertex_; }
    const Table * GetFaceVertexTable() const { return face_vertex_; }
@@ -126,6 +120,7 @@ private:
                            const std::string & ent_name) const;
 
    void CopyEntitySets(const EntitySets & ent_sets, EntityType t);
+   void BuildEntitySets(NCMesh &ncmesh, EntityType t);
 
 protected:
 
@@ -147,9 +142,58 @@ protected:
 
    /// Indices of each entity set indexed by set name
    std::vector<std::map<std::string, int> >     set_index_by_name_;
+};
 
-   /// The node IDs and element IDs from the coarse mesh that define each set
-   std::vector<std::vector<std::vector<int> > > set_coarse_;
+class NCEntitySets
+{
+   friend class EntitySets;
+
+public:
+   NCEntitySets(const Mesh & mesh, const NCMesh &ncmesh);
+   NCEntitySets(const NCEntitySets & ncent_sets);
+
+   unsigned int GetNumSets(EntitySets::EntityType t) const;
+
+   int GetEntitySize(EntitySets::EntityType t) const;
+
+   const std::string & GetSetName(EntitySets::EntityType t, int s) const;
+   unsigned int        GetNumEntities(EntitySets::EntityType t, int s) const;
+   void                GetEntityIndex(EntitySets::EntityType t, int s,
+                                      int i, Array<int> & inds) const;
+
+   int          GetSetIndex(EntitySets::EntityType t,
+                            const std::string & s) const;
+   unsigned int GetNumEntities(EntitySets::EntityType t,
+                               const std::string & s) const;
+   void         GetEntityIndex(EntitySets::EntityType t,
+                               const std::string & s, int i,
+                               Array<int> & inds) const;
+
+   inline std::vector<int> & operator()(EntitySets::EntityType t, int s)
+   { return sets_[t][s]; }
+   inline const std::vector<int> & operator()(EntitySets::EntityType t,
+                                              int s) const
+   { return sets_[t][s]; }
+   inline int & operator()(EntitySets::EntityType t, int s, int i)
+   { return sets_[t][s][i]; }
+   inline int operator()(EntitySets::EntityType t, int s, int i) const
+   { return sets_[t][s][i]; }
+
+protected:
+
+   NCMesh * ncmesh_;
+
+   /// The nodes defining the node/edge/face/element sets
+   std::vector<std::vector<std::vector<int> > > sets_;
+
+   /// Names of each entity set
+   std::vector<std::vector<std::string> >      set_names_;
+
+   /// Indices of each entity set indexed by set name
+   std::vector<std::map<std::string, int> >    set_index_by_name_;
+
+   /// Number of indices per entity
+   std::vector<int> entity_size_;
 };
 
 } // namespace mfem
