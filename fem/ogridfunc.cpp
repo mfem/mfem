@@ -56,13 +56,13 @@ namespace mfem {
     sequence(0) {}
 
   OccaGridFunction::OccaGridFunction(OccaFiniteElementSpace *ofespace_) :
-    OccaVector(ofespace_->GetGlobalDofs()),
+    OccaVector(ofespace_->GetVSize()),
     ofespace(ofespace_),
     sequence(0) {}
 
   OccaGridFunction::OccaGridFunction(occa::device device_,
                                      OccaFiniteElementSpace *ofespace_) :
-    OccaVector(device_, ofespace_->GetGlobalDofs()),
+    OccaVector(device_, ofespace_->GetVSize()),
     ofespace(ofespace_),
     sequence(0) {}
 
@@ -84,7 +84,7 @@ namespace mfem {
     return *this;
   }
 
-  void OccaGridFunction::GetTrueDofs(OccaVector &v) const {
+void OccaGridFunction::GetTrueDofs(OccaVector &v) const {
     const Operator *R = ofespace->GetRestrictionOperator();
     if (!R) {
       v.NewDataAndSize(data, size);
@@ -102,6 +102,14 @@ namespace mfem {
       SetSize(v.GetDevice(), P->Height());
       P->Mult(v, *this);
     }
+  }
+
+  const FiniteElementSpace *OccaGridFunction::FESpace() const {
+     return ofespace->GetFESpace();
+  }
+
+  FiniteElementSpace *OccaGridFunction::FESpace() {
+     return ofespace->GetFESpace();
   }
 
   void OccaGridFunction::ToQuad(OccaIntegrator &integ,

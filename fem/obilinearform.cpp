@@ -22,30 +22,30 @@
 namespace mfem {
   //---[ Bilinear Form ]----------------
   OccaBilinearForm::OccaBilinearForm(OccaFiniteElementSpace *ofespace_) :
-    Operator(ofespace_->GetGlobalDofs(),
-             ofespace_->GetGlobalDofs()) {
+    Operator(ofespace_->GetVSize(),
+             ofespace_->GetVSize()) {
     Init(occa::getDevice(), ofespace_, ofespace_);
   }
 
   OccaBilinearForm::OccaBilinearForm(occa::device device_,
                                      OccaFiniteElementSpace *ofespace_) :
-    Operator(ofespace_->GetGlobalDofs(),
-             ofespace_->GetGlobalDofs()) {
+    Operator(ofespace_->GetVSize(),
+             ofespace_->GetVSize()) {
     Init(device, ofespace_, ofespace_);
   }
 
   OccaBilinearForm::OccaBilinearForm(OccaFiniteElementSpace *otrialFespace_,
                                      OccaFiniteElementSpace *otestFespace_) :
-    Operator(otrialFespace_->GetGlobalDofs(),
-             otestFespace_->GetGlobalDofs()) {
+    Operator(otrialFespace_->GetVSize(),
+             otestFespace_->GetVSize()) {
     Init(occa::getDevice(), otrialFespace_, otestFespace_);
   }
 
   OccaBilinearForm::OccaBilinearForm(occa::device device_,
                                      OccaFiniteElementSpace *otrialFespace_,
                                      OccaFiniteElementSpace *otestFespace_) :
-    Operator(otrialFespace_->GetGlobalDofs(),
-             otestFespace_->GetGlobalDofs()) {
+    Operator(otrialFespace_->GetVSize(),
+             otestFespace_->GetVSize()) {
     Init(device, otrialFespace_, otestFespace_);
   }
 
