@@ -109,6 +109,8 @@ namespace mfem
       return data;
     }
 
+    inline int CheckFinite() const { return mfem::CheckFinite((double *)(data.ptr()), size); }
+
     inline occa::device GetDevice() const {
       return data.getDevice();
     }
