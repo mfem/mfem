@@ -83,23 +83,22 @@ ParEntitySets::ParEntitySets(ParMesh & pmesh, const EntitySets & ent_sets,
    }
 
    EntityType t;
-   unsigned int ns, ni;
+   unsigned int ns;
 
    t = VERTEX;
    ns = ent_sets.GetNumSets(t);
    for (unsigned int s=0; s<ns; s++)
    {
-      ni = ent_sets.GetNumEntities(t, s);
-      int e = 0;
-      for (unsigned int i=0; i<ni; i++)
+      set<int>::iterator it;
+      sets_[t][s].clear();
+      for (it=ent_sets(t,s).begin(); it!=ent_sets(t,s).end(); it++)
       {
-         if ( vert_global_local[ent_sets(t, s, i)] >= 0 )
+         int v0 = vert_global_local[*it];
+         if ( v0 >= 0 )
          {
-            sets_[t][s][e] = vert_global_local[ent_sets(t, s, i)];
-            e++;
+            sets_[t][s].insert(v0);
          }
       }
-      sets_[t][s].resize(e);
    }
 
    if ( pmesh_->Dimension() > 1 )
@@ -108,25 +107,23 @@ ParEntitySets::ParEntitySets(ParMesh & pmesh, const EntitySets & ent_sets,
       ns = ent_sets.GetNumSets(t);
       for (unsigned int s=0; s<ns; s++)
       {
-         ni = ent_sets.GetNumEntities(t, s);
-         int e = 0;
-         for (unsigned int i=0; i<ni; i++)
+         set<int>::iterator it;
+         sets_[t][s].clear();
+         for (it=ent_sets(t,s).begin(); it!=ent_sets(t,s).end(); it++)
          {
-            int old_edge = ent_sets(t, s, i);
+            int old_edge = *it;
             const int *v = serial_edge_vertex->GetRow(old_edge);
-            if ( vert_global_local[v[0]] >= 0 &&
-                 vert_global_local[v[1]] >= 0 )
+            int v0 = vert_global_local[v[0]];
+            int v1 = vert_global_local[v[1]];
+            if ( v0 >= 0 && v1 >= 0 )
             {
-               int new_edge = v_to_v(vert_global_local[v[0]],
-                                     vert_global_local[v[1]]);
+               int new_edge = v_to_v(v0,v1);
                if ( new_edge >= 0 )
                {
-                  sets_[t][s][e] = new_edge;
-                  e++;
+                  sets_[t][s].insert(new_edge);
                }
             }
          }
-         sets_[t][s].resize(e);
       }
    }
 
@@ -137,11 +134,11 @@ ParEntitySets::ParEntitySets(ParMesh & pmesh, const EntitySets & ent_sets,
       ns = ent_sets.GetNumSets(t);
       for (unsigned int s=0; s<ns; s++)
       {
-         ni = ent_sets.GetNumEntities(t, s);
-         int f = 0;
-         for (unsigned int i=0; i<ni; i++)
+         set<int>::iterator it;
+         sets_[t][s].clear();
+         for (it=ent_sets(t,s).begin(); it!=ent_sets(t,s).end(); it++)
          {
-            int old_face = ent_sets(t, s, i);
+            int old_face = *it;
             int numv = serial_face_vertex->RowSize(old_face);
             const int *v = serial_face_vertex->GetRow(old_face);
             if ( vert_global_local[v[0]] >= 0 &&
@@ -164,12 +161,10 @@ ParEntitySets::ParEntitySets(ParMesh & pmesh, const EntitySets & ent_sets,
                }
                if ( new_face >= 0 )
                {
-                  sets_[t][s][f] = new_face;
-                  f++;
+                  sets_[t][s].insert(new_face);
                }
             }
          }
-         sets_[t][s].resize(f);
       }
       delete faces_tbl;
    }
@@ -178,17 +173,15 @@ ParEntitySets::ParEntitySets(ParMesh & pmesh, const EntitySets & ent_sets,
    ns = ent_sets.GetNumSets(t);
    for (unsigned int s=0; s<ns; s++)
    {
-      ni = ent_sets.GetNumEntities(t, s);
-      int e = 0;
-      for (unsigned int i=0; i<ni; i++)
+      set<int>::iterator it;
+      sets_[t][s].clear();
+      for (it=ent_sets(t,s).begin(); it!=ent_sets(t,s).end(); it++)
       {
-         if ( partitioning[ent_sets(t, s, i)] == MyRank_ )
+         if ( partitioning[*it] == MyRank_ )
          {
-            sets_[t][s][e] = elem_global_local[ent_sets(t, s, i)];
-            e++;
+            sets_[t][s].insert(elem_global_local[*it]);
          }
       }
-      sets_[t][s].resize(e);
    }
 
    this->mesh_ = (Mesh*)this->pmesh_;
@@ -206,7 +199,7 @@ ParEntitySets::PrintSetInfo(std::ostream & output) const
         ( GetNumSets(VERTEX) > 0 || GetNumSets(EDGE)    > 0 ||
           GetNumSets(FACE)   > 0 || GetNumSets(ELEMENT) > 0 ) )
    {
-      output << "\nMFEM Entity Sets:\n";
+      output << "\nMFEM Parallel Entity Sets:\n";
    }
    this->PrintEntitySetInfo(output, VERTEX,  "Vertex");
    this->PrintEntitySetInfo(output, EDGE,    "Edge");
@@ -222,7 +215,8 @@ ParEntitySets::PrintEntitySetInfo(std::ostream & output, EntityType t,
    {
       if ( MyRank_ == 0 )
       {
-         output << "  " << ent_name << " Sets (Index, Size, Set Name):\n";
+         output << "  " << ent_name
+                << " Sets (Index, Set Name, Global Size):\n";
       }
       for (unsigned int s=0; s<sets_[t].size(); s++)
       {
@@ -233,8 +227,8 @@ ParEntitySets::PrintEntitySetInfo(std::ostream & output, EntityType t,
          if ( MyRank_ == 0 )
          {
             output << '\t' << s
-                   << '\t' << glb_size
                    << '\t' << set_names_[t][s]
+                   << '\t' << glb_size
                    << '\n';
          }
       }

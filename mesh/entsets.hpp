@@ -17,6 +17,7 @@
 #include "../general/stable3d.hpp"
 #include <limits>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -36,11 +37,18 @@ class EntitySets
 public:
    enum EntityType {INVALID = -1, VERTEX = 0, EDGE = 1, FACE = 2, ELEMENT = 3};
 
+   static std::map<EntityType,std::string> EntityTypeNames;
+
    EntitySets(Mesh & mesh);
    EntitySets(const EntitySets & ent_sets);
    EntitySets(Mesh & mesh, NCMesh &ncmesh);
 
    virtual ~EntitySets();
+
+   static const std::string & GetTypeName(EntityType t);
+
+   bool SetExists(EntityType t, unsigned int s) const;
+   bool SetExists(EntityType t, const std::string & s) const;
 
    void Load(std::istream &input);
    void Print(std::ostream &output) const;
@@ -50,23 +58,16 @@ public:
 
    unsigned int GetNumSets(EntityType t) const;
 
-   const std::string & GetSetName(EntityType t, int s) const;
-   unsigned int        GetNumEntities(EntityType t, int s) const;
-   int                 GetEntityIndex(EntityType t, int s, int i) const;
+   const std::string & GetSetName(EntityType t, unsigned int s) const;
+   unsigned int        GetNumEntities(EntityType t, unsigned int s) const;
 
    int          GetSetIndex(EntityType t, const std::string & s) const;
    unsigned int GetNumEntities(EntityType t, const std::string & s) const;
-   int          GetEntityIndex(EntityType t,
-                               const std::string & s, int i) const;
 
-   inline std::vector<int> & operator()(EntityType t, int s)
+   inline std::set<int> & operator()(EntityType t, unsigned int s)
    { return sets_[t][s]; }
-   inline const std::vector<int> & operator()(EntityType t, int s) const
+   inline const std::set<int> & operator()(EntityType t, unsigned int s) const
    { return sets_[t][s]; }
-   inline int & operator()(EntityType t, int s, int i)
-   { return sets_[t][s][i]; }
-   inline int operator()(EntityType t, int s, int i) const
-   { return sets_[t][s][i]; }
 
    const Table * GetEdgeVertexTable() const { return edge_vertex_; }
    const Table * GetFaceVertexTable() const { return face_vertex_; }
@@ -106,6 +107,8 @@ private:
       { line.resize(line.size()-1); }
    }
 
+   static std::map<EntityType,std::string> init_type_names();
+
    void LoadEntitySets(std::istream &input, EntityType t,
                        const std::string & header);
 
@@ -135,13 +138,13 @@ protected:
 
    /** The node/edge/face/element indices needed by the finite element
        space to look up DoFs. */
-   std::vector<std::vector<std::vector<int> > > sets_;
+   std::vector<std::vector<std::set<int> > > sets_;
 
    /// Names of each entity set
-   std::vector<std::vector<std::string> >       set_names_;
+   std::vector<std::vector<std::string> >    set_names_;
 
    /// Indices of each entity set indexed by set name
-   std::vector<std::map<std::string, int> >     set_index_by_name_;
+   std::vector<std::map<std::string, int> >  set_index_by_name_;
 };
 
 class NCEntitySets

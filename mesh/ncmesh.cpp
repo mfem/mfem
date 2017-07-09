@@ -1652,7 +1652,6 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
          mesh->ent_sets = new EntitySets(*mesh, *this);
       }
    }
-
 }
 
 

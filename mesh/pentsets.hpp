@@ -48,6 +48,12 @@ private:
    int        MyRank_;
 };
 
+class ParNCEntitySets : public NCEntitySets
+{
+public:
+private:
+};
+
 } // namespace mfem
 
 #endif // MFEM_USE_MPI

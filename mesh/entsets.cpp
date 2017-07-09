@@ -18,6 +18,22 @@ using namespace std;
 namespace mfem
 {
 
+map<EntitySets::EntityType,string> EntitySets::EntityTypeNames =
+   EntitySets::init_type_names();
+
+map<EntitySets::EntityType,string> EntitySets::init_type_names()
+{
+   map<EntityType,string> m;
+
+   m[INVALID] = "INVALID";
+   m[VERTEX]  = "VERTEX";
+   m[EDGE]    = "EDGE";
+   m[FACE]    = "FACE";
+   m[ELEMENT] = "ELEMENT";
+
+   return m;
+}
+
 EntitySets::EntitySets(Mesh & mesh)
    : mesh_(&mesh),
      edge_vertex_(NULL),
@@ -86,6 +102,26 @@ EntitySets::~EntitySets()
    delete edge_vertex_;
    delete face_edge_;
    delete face_vertex_;
+}
+
+const string &
+EntitySets::GetTypeName(EntityType t)
+{
+   return EntityTypeNames[t];
+}
+
+bool
+EntitySets::SetExists(EntityType t, unsigned int s) const
+{
+   return s < sets_[t].size();
+}
+
+bool
+EntitySets::SetExists(EntityType t, const string & s) const
+{
+   map<string,int>::const_iterator it = set_index_by_name_[t].find(s);
+
+   return it != set_index_by_name_[t].end();
 }
 
 void
@@ -177,7 +213,6 @@ EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
       set_index_by_name_[t][ident] = i;
 
       input >> NumEntities;
-      sets_[t][i].resize(NumEntities);
 
       for (int j=0; j<NumEntities; j++)
       {
@@ -186,12 +221,13 @@ EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
             case VERTEX:
             case ELEMENT:
                // Read vertex or element index
-               input >> sets_[t][i][j];
+               input >> v0;
+               sets_[t][i].insert(v0);
                break;
             case EDGE:
                // Read two segment vertices
                input >> v0 >> v1;
-               sets_[t][i][j] = (*v_to_v)(v0,v1);
+               sets_[t][i].insert((*v_to_v)(v0,v1));
                break;
             case FACE:
                // Read geometry type
@@ -200,13 +236,13 @@ EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
                {
                   // Read triangle vertices
                   input >> v0 >> v1 >> v2;
-                  sets_[t][i][j] = (*face_tbl)(v0, v1, v2);
+                  sets_[t][i].insert((*face_tbl)(v0, v1, v2));
                }
                else if ( g == 3)
                {
                   // Read quadrilateral vertices
                   input >> v0 >> v1 >> v2 >> v3;
-                  sets_[t][i][j] = (*face_tbl)(v0, v1, v2, v3);
+                  sets_[t][i].insert((*face_tbl)(v0, v1, v2, v3));
                }
                else
                {
@@ -253,9 +289,12 @@ EntitySets::PrintEntitySets(std::ostream &output, EntityType t,
    for (unsigned int s=0; s<sets_[t].size(); s++)
    {
       output << set_names_[t][s] << endl << sets_[t][s].size() << endl;
-      for (unsigned int i=0; i<sets_[t][s].size(); i++)
+
+      set<int>::iterator it;
+      unsigned int i = 0;
+      for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++, i++)
       {
-         output << sets_[t][s][i];
+         output << *it;
          if ( i < sets_[t][s].size() - 1 )
          {
             output << " ";
@@ -277,9 +316,12 @@ EntitySets::PrintEdgeSets(std::ostream &output) const
    for (unsigned int s=0; s<sets_[t].size(); s++)
    {
       output << set_names_[t][s] << endl << sets_[t][s].size() << endl;
-      for (unsigned int i=0; i<sets_[t][s].size(); i++)
+
+      set<int>::const_iterator it;
+      unsigned int i=0;
+      for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++, i++)
       {
-         int edge = sets_[t][s][i];
+         int edge = *it;
          if ( edge < 0 )
          {
             output << "bad_edge";
@@ -316,9 +358,12 @@ EntitySets::PrintFaceSets(std::ostream &output) const
    for (unsigned int s=0; s<sets_[t].size(); s++)
    {
       output << set_names_[t][s] << endl << sets_[t][s].size() << endl;
-      for (unsigned int i=0; i<sets_[t][s].size(); i++)
+
+      set<int>::const_iterator it;
+      unsigned int i=0;
+      for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++, i++)
       {
-         int face = sets_[t][s][i];
+         int face = *it;
          if ( face < 0 )
          {
             output << "bad_face";
@@ -365,12 +410,12 @@ EntitySets::PrintEntitySetInfo(std::ostream & output, EntityType t,
 {
    if ( sets_[t].size() > 0 )
    {
-      output << "  " << ent_name << " Sets (Index, Size, Set Name):\n";
+      output << "  " << ent_name << " Sets (Index, Set Name, Size):\n";
       for (unsigned int s=0; s<sets_[t].size(); s++)
       {
          output << '\t' << s
-                << '\t' << sets_[t][s].size()
                 << '\t' << set_names_[t][s]
+                << '\t' << sets_[t][s].size()
                 << '\n';
       }
       output << '\n';
@@ -385,14 +430,13 @@ EntitySets::CopyEntitySets(const EntitySets & ent_sets, EntityType t)
    set_names_[t].resize(ns);
    for (unsigned int s=0; s<ns; s++)
    {
-      int ni = ent_sets.GetNumEntities(t, s);
-      sets_[t][s].resize(ni);
       set_names_[t][s] = ent_sets.GetSetName(t, s);
       set_index_by_name_[t][set_names_[t][s]] = s;
 
-      for (int i=0; i<ni; i++)
+      set<int>::iterator it;
+      for (it=ent_sets(t,s).begin(); it!=ent_sets(t,s).end(); it++)
       {
-         sets_[t][s][i] = ent_sets(t, s, i);
+         sets_[t][s].insert(*it);
       }
    }
 }
@@ -413,15 +457,12 @@ EntitySets::BuildEntitySets(NCMesh &ncmesh, EntityType t)
       set_names_[t][s] = ncmesh.ncent_sets->GetSetName(t, s);
       set_index_by_name_[t][set_names_[t][s]] = s;
 
-      BlockArray<int> set;
-
       switch (t)
       {
          case VERTEX:
-            sets_[t][s].resize(ni);
             for (int i=0; i<ni; i++)
             {
- 	       sets_[t][s][i] = (*ncmesh.ncent_sets)(t, s, i);
+               sets_[t][s].insert((*ncmesh.ncent_sets)(t, s, i));
             }
             break;
          case EDGE:
@@ -434,7 +475,7 @@ EntitySets::BuildEntitySets(NCMesh &ncmesh, EntityType t)
 
                for (int j=0; j<ind_coll.Size(); j++)
                {
-                  set.Append(ind_coll[j]);
+                  sets_[t][s].insert(ind_coll[j]);
                }
             }
             break;
@@ -448,34 +489,25 @@ EntitySets::BuildEntitySets(NCMesh &ncmesh, EntityType t)
 
                for (int j=0; j<ind_coll.Size(); j++)
                {
-                  set.Append(ind_coll[j]);
+                  sets_[t][s].insert(ind_coll[j]);
                }
             }
             break;
          case ELEMENT:
             for (int i=0; i<ni; i++)
             {
-	       int elem = (*ncmesh.ncent_sets)(t, s, i);
+               int elem = (*ncmesh.ncent_sets)(t, s, i);
                BlockArray<int> ind_coll;
                ncmesh.GetRefinedElements(elem, ind_coll);
 
                for (int j=0; j<ind_coll.Size(); j++)
                {
-                  set.Append(ind_coll[j]);
+                  sets_[t][s].insert(ind_coll[j]);
                }
             }
             break;
          default:
             MFEM_ABORT("Unknown entity set format: \"" << t << "\"");
-      }
-
-      if ( t != VERTEX )
-      {
-         sets_[t][s].resize(set.Size());
-         for (int j=0; j<set.Size(); j++)
-         {
-            sets_[t][s][j] = set[j];
-         }
       }
    }
 }
@@ -489,7 +521,7 @@ EntitySets::GetNumSets(EntityType t) const
 }
 
 const string &
-EntitySets::GetSetName(EntityType t, int s) const
+EntitySets::GetSetName(EntityType t, unsigned int s) const
 {
    MFEM_ASSERT( t >= VERTEX && t <= ELEMENT,
                 "EntitySets Invalid entity type \"" << t << "\"");
@@ -512,7 +544,7 @@ EntitySets::GetSetIndex(EntityType t, const string & s) const
 }
 
 unsigned int
-EntitySets::GetNumEntities(EntityType t, int s) const
+EntitySets::GetNumEntities(EntityType t, unsigned int s) const
 {
    MFEM_ASSERT( t >= VERTEX && t <= ELEMENT,
                 "EntitySets Invalid entity type \"" << t << "\"");
@@ -523,20 +555,6 @@ unsigned int
 EntitySets::GetNumEntities(EntityType t, const std::string & s) const
 {
    return this->GetNumEntities(t, this->GetSetIndex(t, s));
-}
-
-int
-EntitySets::GetEntityIndex(EntityType t, int s, int i) const
-{
-   MFEM_ASSERT( t >= VERTEX && t <= ELEMENT,
-                "EntitySets Invalid entity type \"" << t << "\"");
-   return sets_[t][s][i];
-}
-
-int
-EntitySets::GetEntityIndex(EntityType t, const string & s, int i) const
-{
-   return this->GetEntityIndex(t, this->GetSetIndex(t, s), i);
 }
 
 void
@@ -602,14 +620,19 @@ EntitySets::QuadUniformRefinement()
       int oedge = NumOfVertices_;
       for (unsigned int s=0; s<this->GetNumSets(t); s++)
       {
-         int n = this->GetNumEntities(t, s);
-         (*this)(t, s).resize(2 * n);
-         for (int i=0; i<n; i++)
+         set<int>::iterator it;
+         set<int> new_set;
+         for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
          {
-            int old_edge = (*this)(t, s, i);
+            int old_edge = *it;
             int *v = edge_vertex_->GetRow(old_edge);
-            (*this)(t, s, i)     = (*v_to_v)(v[0], oedge + old_edge);
-            (*this)(t, s, i + n) = (*v_to_v)(v[1], oedge + old_edge);
+            new_set.insert((*v_to_v)(v[0], oedge + old_edge));
+            new_set.insert((*v_to_v)(v[1], oedge + old_edge));
+         }
+         sets_[t][s].clear();
+         for (it=new_set.begin(); it!=new_set.end(); it++)
+         {
+            sets_[t][s].insert(*it);
          }
       }
       delete v_to_v;
@@ -621,15 +644,19 @@ EntitySets::QuadUniformRefinement()
    EntityType t = ELEMENT;
    for (unsigned int s=0; s<this->GetNumSets(t); s++)
    {
-      int n = this->GetNumEntities(t, s);
-      (*this)(t, s).resize(4 * n);
-      for (int i=0; i<n; i++)
+      set<int>::iterator it;
+      set<int> new_elems;
+      for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
       {
-         int e = (*this)(t, s)[i];
+         int e = *it;
          int j = NumOfElements_ + 3 * e;
-         (*this)(t, s, n + 3 * i + 0) = j + 0;
-         (*this)(t, s, n + 3 * i + 1) = j + 1;
-         (*this)(t, s, n + 3 * i + 2) = j + 2;
+         new_elems.insert(j + 0);
+         new_elems.insert(j + 1);
+         new_elems.insert(j + 2);
+      }
+      for (it=new_elems.begin(); it!=new_elems.end(); it++)
+      {
+         sets_[t][s].insert(*it);
       }
    }
 
@@ -655,14 +682,19 @@ EntitySets::HexUniformRefinement()
       int oedge = NumOfVertices_;
       for (unsigned int s=0; s<this->GetNumSets(t); s++)
       {
-         int n = this->GetNumEntities(t, s);
-         (*this)(t, s).resize(2 * n);
-         for (int i=0; i<n; i++)
+         set<int>::iterator it;
+         set<int> new_set;
+         for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
          {
-            int old_edge = (*this)(t, s, i);
+            int old_edge = *it;
             int *v = edge_vertex_->GetRow(old_edge);
-            (*this)(t, s, i)     = (*v_to_v)(v[0], oedge + old_edge);
-            (*this)(t, s, i + n) = (*v_to_v)(v[1], oedge + old_edge);
+            new_set.insert((*v_to_v)(v[0], oedge + old_edge));
+            new_set.insert((*v_to_v)(v[1], oedge + old_edge));
+         }
+         sets_[t][s].clear();
+         for (it=new_set.begin(); it!=new_set.end(); it++)
+         {
+            sets_[t][s].insert(*it);
          }
       }
    }
@@ -679,11 +711,11 @@ EntitySets::HexUniformRefinement()
 
       for (unsigned int s=0; s<this->GetNumSets(t); s++)
       {
-         int n = this->GetNumEntities(t, s);
-         (*this)(t, s).resize(4 * n);
-         for (int i=0; i<n; i++)
+         set<int>::iterator it;
+         set<int> new_set;
+         for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
          {
-            int old_face = (*this)(t, s, i);
+            int old_face = *it;
             int * v = face_vertex_->GetRow(old_face);
             int * e = face_edge_->GetRow(old_face);
 
@@ -701,14 +733,7 @@ EntitySets::HexUniformRefinement()
                      new_face = (*faces_tbl)(v0,v1,v2,v3);
                      if ( new_face >= 0 )
                      {
-                        if ( j == 0 )
-                        {
-                           (*this)(t,s,i) = new_face;
-                        }
-                        else
-                        {
-                           (*this)(t,s,n+3*i+j-1) = new_face;
-                        }
+                        new_set.insert(new_face);
                         break;
                      }
                   }
@@ -719,6 +744,11 @@ EntitySets::HexUniformRefinement()
                }
             }
          }
+         sets_[t][s].clear();
+         for (it=new_set.begin(); it!=new_set.end(); it++)
+         {
+            sets_[t][s].insert(*it);
+         }
       }
       delete faces_tbl;
    }
@@ -727,19 +757,19 @@ EntitySets::HexUniformRefinement()
    EntityType t = ELEMENT;
    for (unsigned int s=0; s<this->GetNumSets(t); s++)
    {
-      int n = this->GetNumEntities(t, s);
-      (*this)(t, s).resize(8 * n);
-      for (int i=0; i<n; i++)
+      set<int>::iterator it;
+      set<int> new_elems;
+      for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
       {
-         int e = (*this)(t, s)[i];
-         int j = NumOfElements_ + 7 * e;
-         (*this)(t, s, n + 7 * i + 0) = j + 0;
-         (*this)(t, s, n + 7 * i + 1) = j + 1;
-         (*this)(t, s, n + 7 * i + 2) = j + 2;
-         (*this)(t, s, n + 7 * i + 3) = j + 3;
-         (*this)(t, s, n + 7 * i + 4) = j + 4;
-         (*this)(t, s, n + 7 * i + 5) = j + 5;
-         (*this)(t, s, n + 7 * i + 6) = j + 6;
+         int e = *it;
+         for (int j=NumOfElements_ + 7 * e; j<NumOfElements_ + 7 * e + 7; j++)
+         {
+            new_elems.insert(j);
+         }
+      }
+      for (it=new_elems.begin(); it!=new_elems.end(); it++)
+      {
+         sets_[t][s].insert(*it);
       }
    }
 
@@ -777,9 +807,12 @@ NCEntitySets::NCEntitySets(const Mesh &mesh, const NCMesh &ncmesh)
          set_names_[t][s] = mesh.ent_sets->GetSetName(t, s);
          set_index_by_name_[t][set_names_[t][s]] = s;
 
-         for (unsigned int i=0; i<ni; i++)
+         set<int>::iterator it;
+         int i = 0;
+         for (it=(*mesh.ent_sets)(t,s).begin();
+              it!=(*mesh.ent_sets)(t,s).end(); it++, i++)
          {
-            sets_[t][s][i] = mesh.ent_sets->GetEntityIndex(t, s, i);
+            sets_[t][s][i] = *it;
          }
       }
 
@@ -801,9 +834,12 @@ NCEntitySets::NCEntitySets(const Mesh &mesh, const NCMesh &ncmesh)
          set_names_[t][s] = mesh.ent_sets->GetSetName(t, s);
          set_index_by_name_[t][set_names_[t][s]] = s;
 
-         for (unsigned int i=0; i<ni; i++)
+         set<int>::iterator it;
+         int i = 0;
+         for (it=(*mesh.ent_sets)(t,s).begin();
+              it!=(*mesh.ent_sets)(t,s).end(); it++, i++)
          {
-            int edge = mesh.ent_sets->GetEntityIndex(t, s, i);
+            int edge = *it;
             int *v = mesh.ent_sets->edge_vertex_->GetRow(edge);
             sets_[t][s][2 * i + 0] = v[0];
             sets_[t][s][2 * i + 1] = v[1];
@@ -827,9 +863,12 @@ NCEntitySets::NCEntitySets(const Mesh &mesh, const NCMesh &ncmesh)
          set_names_[t][s] = mesh.ent_sets->GetSetName(t, s);
          set_index_by_name_[t][set_names_[t][s]] = s;
 
-         for (unsigned int i=0; i<ni; i++)
+         set<int>::iterator it;
+         int i = 0;
+         for (it=(*mesh.ent_sets)(t,s).begin();
+              it!=(*mesh.ent_sets)(t,s).end(); it++, i++)
          {
-            int face = mesh.ent_sets->GetEntityIndex(t, s, i);
+            int face = *it;
             int *v = mesh.ent_sets->face_vertex_->GetRow(face);
             int nv = mesh.ent_sets->face_vertex_->RowSize(face);
             sets_[t][s][4 * i + 0] = v[0];
@@ -861,7 +900,6 @@ NCEntitySets::NCEntitySets(const Mesh &mesh, const NCMesh &ncmesh)
             {
                sets_[t][s][4 * i + 3] = -1;
             }
-
          }
       }
 
@@ -882,9 +920,12 @@ NCEntitySets::NCEntitySets(const Mesh &mesh, const NCMesh &ncmesh)
          set_names_[t][s] = mesh.ent_sets->GetSetName(t, s);
          set_index_by_name_[t][set_names_[t][s]] = s;
 
-         for (unsigned int i=0; i<ni; i++)
+         set<int>::iterator it;
+         int i = 0;
+         for (it=(*mesh.ent_sets)(t,s).begin();
+              it!=(*mesh.ent_sets)(t,s).end(); it++, i++)
          {
-            sets_[t][s][i] = mesh.ent_sets->GetEntityIndex(t, s, i);
+            sets_[t][s][i] = *it;
          }
       }
    }

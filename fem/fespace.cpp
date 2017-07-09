@@ -301,12 +301,23 @@ void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
    ess_vdofs.SetSize(GetVSize());
    ess_vdofs = 0;
 
-   if ( mesh->ent_sets == NULL ) { return; }
-
-   int num_ents = mesh->ent_sets->GetNumEntities(type, set_index);
-   for (int i=0; i<num_ents; i++)
+   MFEM_VERIFY(mesh->ent_sets != NULL, "Mesh object contains no "
+               "entity set information");
+   if (!mesh->ent_sets->SetExists(type, set_index))
    {
-      int ent_index = mesh->ent_sets->GetEntityIndex(type, set_index, i);
+      ostringstream oss; oss << "Entity set of type \""
+                             << mesh->ent_sets->GetTypeName(type)
+                             << "\" and index " << set_index
+                             << " was not found.";
+
+      MFEM_VERIFY(false, oss.str().c_str());
+   }
+
+   set<int>::iterator it;
+   for (it=(*mesh->ent_sets)(type,set_index).begin();
+        it!=(*mesh->ent_sets)(type,set_index).end(); it++)
+   {
+      int ent_index = *it;
       switch (type)
       {
          case EntitySets::VERTEX:
