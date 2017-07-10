@@ -71,6 +71,9 @@ make style
 
 endef
 
+# Do not pass down variables from the command-line to sub-make:
+MAKEOVERRIDES =
+
 # Path to the mfem source directory, defaults to this makefile's directory:
 THIS_MK := $(lastword $(MAKEFILE_LIST))
 $(if $(wildcard $(THIS_MK)),,$(error Makefile not found "$(THIS_MK)"))
@@ -158,7 +161,7 @@ CXXFLAGS ?= $(OPTIM_FLAGS)
 # MPI configuration
 ifneq ($(MFEM_USE_MPI),YES)
    MFEM_CXX ?= $(CXX)
-   $(foreach mpidep,SUPERLU PETSC,$(if $(MFEM_USE_$(mpidep):NO=),\
+   $(foreach mpidep,SUPERLU STRUMPACK PETSC,$(if $(MFEM_USE_$(mpidep):NO=),\
      $(warning *** [MPI is OFF] setting MFEM_USE_$(mpidep) = NO)\
      $(eval override MFEM_USE_$(mpidep)=NO),))
 else
@@ -174,14 +177,6 @@ ifeq ($(MFEM_USE_OPENMP),YES)
    MFEM_THREAD_SAFE ?= YES
    ifneq ($(MFEM_THREAD_SAFE),YES)
       $(error Incompatible config: MFEM_USE_OPENMP requires MFEM_THREAD_SAFE)
-   endif
-endif
-
-# Check STRUMPACK configuration
-ifeq ($(MFEM_USE_STRUMPACK),YES)
-   MFEM_USE_OPENMP ?= YES
-   ifneq ($(MFEM_USE_OPENMP),YES)
-      $(error Incompatible config: MFEM_USE_STRUMPACK requires MFEM_USE_OPENMP)
    endif
 endif
 

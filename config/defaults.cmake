@@ -92,6 +92,24 @@ set(SuperLUDist_DIR "${MFEM_DIR}/../SuperLU_DIST_5.1.0" CACHE PATH
 set(SuperLUDist_REQUIRED_PACKAGES "MPI" "BLAS" "ParMETIS" CACHE STRING
     "Additional packages required by SuperLU_DIST.")
 
+set(STRUMPACK_DIR "${MFEM_DIR}/../STRUMPACK-build" CACHE PATH
+    "Path to the STRUMPACK library.")
+# STRUMPACK may also depend on "OpenMP", depending on how it was compiled.
+set(STRUMPACK_REQUIRED_PACKAGES "MPI" "ParMETIS" "ScaLAPACK"
+    "Scotch/ptscotch/ptscotcherr/scotch/scotcherr" CACHE STRING
+    "Additional packages required by STRUMPACK.")
+set(STRUMPACK_REQUIRED_LIBRARIES "gfortran" "mpi_mpifh" CACHE STRING
+    "Additional libraries required by STRUMPACK.")
+
+set(Scotch_DIR "${MFEM_DIR}/../scotch_6.0.4" CACHE PATH
+    "Path to the Scotch and PT-Scotch libraries.")
+
+set(ScaLAPACK_DIR "${MFEM_DIR}/../scalapack-2.0.2/lib/cmake/scalapack-2.0.2"
+    CACHE PATH "Path to the configuration file scalapack-config.cmake")
+set(ScaLAPACK_TARGET_NAMES scalapack)
+# set(ScaLAPACK_TARGET_FORCE)
+# set(ScaLAPACK_IMPORT_CONFIG DEBUG)
+
 set(GECKO_DIR "${MFEM_DIR}/../gecko" CACHE PATH "Path to the Gecko library.")
 
 set(GNUTLS_DIR "" CACHE PATH "Path to the GnuTLS library.")

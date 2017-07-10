@@ -86,20 +86,18 @@ endif()
 # MPI -> hypre, METIS
 if (MFEM_USE_MPI)
   find_package(MPI REQUIRED)
-  include_directories(${MPI_CXX_INCLUDE_PATH})
+  set(MPI_CXX_INCLUDE_DIRS ${MPI_CXX_INCLUDE_PATH})
   # Parallel MFEM depends on hypre and METIS
   find_package(HYPRE REQUIRED)
   set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
-  include_directories(${HYPRE_INCLUDE_DIRS})
   find_package(METIS REQUIRED)
-  include_directories(${METIS_INCLUDE_DIRS})
   if (MFEM_USE_PETSC)
     find_package(PETSc REQUIRED)
     message(STATUS "Found PETSc version ${PETSC_VERSION}")
     if (PETSC_VERSION AND (PETSC_VERSION VERSION_LESS 3.7.5.99))
       message(FATAL_ERROR "PETSc version >= 3.7.5.99 is required")
     endif()
-    include_directories(${PETSC_INCLUDES})
+    set(PETSC_INCLUDE_DIRS ${PETSC_INCLUDES})
   endif()
 else()
   set(PKGS_NEED_MPI SUPERLU PETSC STRUMPACK)
@@ -114,14 +112,12 @@ endif()
 # GZSTREAM -> zlib
 if (MFEM_USE_GZSTREAM)
   find_package(ZLIB REQUIRED)
-  include_directories(${ZLIB_INCLUDE_DIRS})
 endif()
 
 # Backtrace with libunwind
 if (MFEM_USE_LIBUNWIND)
   set(MFEMBacktrace_REQUIRED_PACKAGES "Libunwind" "LIBDL" "CXXABIDemangle")
   find_package(MFEMBacktrace REQUIRED)
-  include_directories(${LIBUNWIND_INCLUDE_DIRS})
 endif()
 
 # BLAS, LAPACK
@@ -143,7 +139,6 @@ endif()
 if (MFEM_USE_SUITESPARSE)
   find_package(SuiteSparse REQUIRED
     UMFPACK KLU AMD BTF CHOLMOD COLAMD CAMD CCOLAMD config)
-  include_directories(${SuiteSparse_INCLUDE_DIRS})
 endif()
 
 # SUNDIALS
@@ -154,20 +149,17 @@ if (MFEM_USE_SUNDIALS)
     find_package(SUNDIALS REQUIRED
       NVector_Serial NVector_Parallel NVector_ParHyp CVODE ARKODE KINSOL)
   endif()
-  include_directories(${SUNDIALS_INCLUDE_DIRS})
 endif()
 
 # Mesquite
 if (MFEM_USE_MESQUITE)
   find_package(Mesquite REQUIRED)
-  include_directories(${MESQUITE_INCLUDE_DIRS})
 endif()
 
 # SuperLU_DIST can only be enabled in parallel
 if (MFEM_USE_SUPERLU)
   if (MFEM_USE_MPI)
     find_package(SuperLUDist REQUIRED)
-    include_directories(${SuperLUDist_INCLUDE_DIRS})
   else()
     message(FATAL_ERROR " *** SuperLU_DIST requires that MPI be enabled.")
   endif()
@@ -177,7 +169,6 @@ endif()
 if (MFEM_USE_STRUMPACK)
   if (MFEM_USE_MPI)
     find_package(STRUMPACK REQUIRED)
-    include_directories(${STRUMPACK_INCLUDE_DIRS})
   else()
     message(FATAL_ERROR " *** STRUMPACK requires that MPI be enabled.")
   endif()
@@ -186,25 +177,21 @@ endif()
 # Gecko
 if (MFEM_USE_GECKO)
   find_package(Gecko REQUIRED)
-  include_directories(${GECKO_INCLUDE_DIRS})
 endif()
 
 # GnuTLS
 if (MFEM_USE_GNUTLS)
   find_package(_GnuTLS REQUIRED)
-  include_directories(${GNUTLS_INCLUDE_DIRS})
 endif()
 
 # NetCDF
 if (MFEM_USE_NETCDF)
   find_package(NetCDF REQUIRED)
-  include_directories(${NETCDF_INCLUDE_DIRS})
 endif()
 
 # MPFR
 if (MFEM_USE_MPFR)
   find_package(MPFR REQUIRED)
-  include_directories(${MPFR_INCLUDE_DIRS})
 endif()
 
 # Axom/Sidre
@@ -214,7 +201,6 @@ if (MFEM_USE_SIDRE)
   else()
     find_package(Axom REQUIRED Sidre SPIO SLIC axom_utils)
   endif()
-  include_directories(${AXOM_INCLUDE_DIRS})
 endif()
 
 # MFEM_TIMER_TYPE
@@ -236,17 +222,23 @@ if (NOT DEFINED MFEM_TIMER_TYPE)
 endif()
 
 # List all possible libraries in order of dependencies.
-set(MFEM_TPLS MPI_CXX HYPRE OPENMP SUNDIALS MESQUITE SuiteSparse SuperLUDist
-    ParMETIS METIS LAPACK BLAS GECKO GNUTLS NETCDF PETSC MPFR AXOM POSIXCLOCKS
-    MFEMBacktrace ZLIB STRUMPACK)
+set(MFEM_TPLS MPI_CXX OPENMP PETSC SUNDIALS MESQUITE SuiteSparse SuperLUDist
+    STRUMPACK METIS HYPRE AXOM LAPACK BLAS GECKO GNUTLS NETCDF MPFR POSIXCLOCKS
+    MFEMBacktrace ZLIB)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
+set(TPL_INCLUDE_DIRS "")
 foreach(TPL IN LISTS MFEM_TPLS)
   if (${TPL}_FOUND)
     message(STATUS "MFEM: using package ${TPL}")
     list(APPEND TPL_LIBRARIES ${${TPL}_LIBRARIES})
+    list(APPEND TPL_INCLUDE_DIRS ${${TPL}_INCLUDE_DIRS})
   endif()
 endforeach(TPL)
+list(REMOVE_DUPLICATES TPL_LIBRARIES)
+list(REMOVE_DUPLICATES TPL_INCLUDE_DIRS)
+# message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
+include_directories(${TPL_INCLUDE_DIRS})
 
 if (OPENMP_FOUND)
   message(STATUS "MFEM: using package OpenMP")
@@ -276,8 +268,7 @@ set(MASTER_HEADERS
 
 # Declaring the library
 add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
-list(REMOVE_DUPLICATES TPL_LIBRARIES)
-# message(STATUS " TPL_LIBRARIES = ${TPL_LIBRARIES}")
+# message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 if (CMAKE_VERSION VERSION_GREATER 2.8.11)
   target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
 else()

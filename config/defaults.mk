@@ -101,7 +101,7 @@ ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK),NONO)
      METIS_LIB = -L$(METIS_DIR)/lib -lmetis
    endif
 else
-   # ParMETIS currently needed only with SuperLU. We assume that METIS 5
+   # ParMETIS: currently needed by SuperLU or STRUMPACK. We assume that METIS 5
    # (included with ParMETIS) is installed in the same location.
    METIS_DIR = @MFEM_DIR@/../parmetis-4.0.3
    METIS_OPT = -I$(METIS_DIR)/include
@@ -150,22 +150,23 @@ SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
 SUPERLU_OPT = -I$(SUPERLU_DIR)/SRC
 SUPERLU_LIB = -L$(SUPERLU_DIR)/SRC -lsuperlu_dist
 
-# SCOTCH library configuration
+# SCOTCH library configuration (required by STRUMPACK)
 SCOTCH_DIR = @MFEM_DIR@/../scotch_6.0.4
 SCOTCH_OPT = -I$(SCOTCH_DIR)/include
-SCOTCH_LIB = -L$(SCOTCH_DIR)/lib -lptscotch -lptscotcherr -lptscotcherrexit\
- -lptscotchparmetis -lscotch -lscotcherr -lscotcherrexit -lscotchmetis
+SCOTCH_LIB = -L$(SCOTCH_DIR)/lib -lptscotch -lptscotcherr -lscotch -lscotcherr
 
-# SCALAPACK library configuration
-SCALAPACK_DIR = @MFEM_DIR@/../scalapack_2.0.2
+# SCALAPACK library configuration (required by STRUMPACK)
+SCALAPACK_DIR = @MFEM_DIR@/../scalapack-2.0.2
 SCALAPACK_OPT = -I$(SCALAPACK_DIR)/SRC
-SCALAPACK_LIB = -L$(SCALAPACK_DIR) -lscalapack
+SCALAPACK_LIB = -L$(SCALAPACK_DIR)/lib -lscalapack $(LAPACK_LIB)
 
 # STRUMPACK library configuration
 STRUMPACK_DIR = @MFEM_DIR@/../STRUMPACK-build
-STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include
-STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(SCOTCH_LIB)\
- $(SCALAPACK_LIB)
+STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
+# If STRUMPACK was build with OpenMP support, the following may be need:
+# STRUMPACK_OPT += $(OPENMP_OPT)
+STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack -lgfortran -lmpi_mpifh\
+ $(SCOTCH_LIB) $(SCALAPACK_LIB)
 
 # Gecko library configuration
 GECKO_DIR = @MFEM_DIR@/../gecko
