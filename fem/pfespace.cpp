@@ -1223,15 +1223,33 @@ void ParFiniteElementSpace::GetGhostEdgeDofs(const NCMesh::MeshId &id,
       }
    }
    int base = 2*nv;
-   int k = ndofs + ngvdofs + i*ne;
+   int k = ndofs + ngvdofs + id.index*ne;
    for (int j = 0; j < ne; j++, k++)
    {
       dofs[base + j] = k;
    }
 }
 
+void ParFiniteElementSpace::GetBareEdgeDofs(const NCMesh::MeshId &id,
+                                            Array<int> &dofs) const
+{
+   int ne = fec->DofForGeometry(Geometry::SEGMENT);
+   dofs.SetSize(ne);
+   int k = ndofs + ngvdofs + id.index*ne;
+   for (int j = 0; j < ne; j++, k++)
+   {
+      dofs[j] = k;
+   }
+}
+
 void ParFiniteElementSpace::GetGhostFaceDofs(const NCMesh::MeshId &id,
                                              Array<int> &dofs) const
+{
+   // TODO
+}
+
+void ParFiniteElementSpace::GetBareFaceDofs(const NCMesh::MeshId &id,
+                                            Array<int> &dofs) const
 {
    // TODO
 }
@@ -1247,17 +1265,29 @@ void ParFiniteElementSpace::GetDofs(int type, int index, Array<int>& dofs) const
    }
 }
 
-void ParFiniteElementSpace::GetGhostDofs(int type, int index, Array<int>& dofs)
-   const
+void ParFiniteElementSpace::GetGhostDofs(int type, const NCMesh::MeshId &id,
+                                         Array<int>& dofs) const
 {
    // helper to get vertex, edge or face DOFs, regular or ghost
    switch (type)
    {
-      case 0: GetGhostVertexDofs(index, dofs); break;
-      case 1: GetGhostEdgeDofs(index, dofs); break;
-      case 2: GetGhostFaceDofs(index, dofs); break;
+      case 0: GetGhostVertexDofs(id, dofs); break;
+      case 1: GetGhostEdgeDofs(id, dofs); break;
+      case 2: GetGhostFaceDofs(id, dofs); break;
    }
 }
+
+void ParFiniteElementSpace::GetBareDofs(int type, const NCMesh::MeshId &id,
+                                        Array<int>& dofs) const
+{
+   switch (type)
+   {
+      case 0: GetGhostVertexDofs(id, dofs); break;
+      case 1: GetBareEdgeDofs(id, dofs); break;
+      case 2: GetBareFaceDofs(id, dofs); break;
+   }
+}
+
 
 void ParFiniteElementSpace::NewParallelConformingInterpolation()
 {
@@ -1268,13 +1298,20 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    // *** STEP 1: build dependency lists ***
 
    int num_dofs = ndofs * vdim;
-   SparseMatrix deps(num_dofs/*, num_dofs + num_ghost_dofs*/);
+   int num_ghost_dofs = 1000 // FIXME;
+   int total_dofs = num_dofs + num_ghost_dofs;
 
-   Array<int> master_dofs, slave_dofs;
-   Array<int> owner_dofs, my_dofs;
+   SparseMatrix deps(num_dofs, total_dofs);
+
+   Array<short> dof_group(total_dofs), dof_owner(total_dofs);
+   dof_group = 0;
+   dof_owner = 0;
 
    if (!dg)
    {
+      Array<int> master_dofs, slave_dofs;
+      Array<int> owner_dofs, my_dofs;
+
       // loop through *all* master edges/faces, constrain their slaves
       for (int type = 1; type <= 2; type++)
       {
@@ -1318,8 +1355,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
                fe->GetLocalInterpolation(T, I);
 
                // make each slave DOF dependent on all master DOFs
-               MaskSlaveDofs(slave_dofs, T.GetPointMat(), fec);
-               AddSlaveDependencies(deps, master_dofs, slave_dofs, I);
+               AddDependencies(deps, master_dofs, slave_dofs, I);
             }
 
             // special case for master edges that we don't own but still exist
@@ -1353,6 +1389,16 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
                }*/
                Add1To1Dependencies(deps, owner_dofs, my_dofs);
             }
+         }
+      }
+
+      // initialize dof_group, dof_owner
+      for (int type = 0; type <= 2; type++)
+      {
+         const NCMesh::NCList &list = pncmesh->GetSharedList(type);
+         for (unsigned i = 0; i < list.conforming.size(); i++)
+         {
+            // TODO
          }
       }
    }

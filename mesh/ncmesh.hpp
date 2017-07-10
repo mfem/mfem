@@ -656,6 +656,8 @@ protected: // implementation
 
    int GetEdgeMaster(int node) const;
 
+   int GetFaceOrientationElement(const Face &face);
+
    void FindFaceNodes(int face, int node[4]);
 
    int  EdgeSplitLevel(int vn1, int vn2) const;

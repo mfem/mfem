@@ -130,6 +130,10 @@ private:
    void GetGhostFaceDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
    void GetGhostDofs(int type, int index, Array<int>& dofs) const;
 
+   void GetBareEdgeDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
+   void GetBareFaceDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
+   void GetBareDofs(int type, int index, Array<int>& dofs) const;
+
    /// Build the P and R matrices.
    void Build_Dof_TrueDof_Matrix();
 

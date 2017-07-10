@@ -139,8 +139,10 @@ public:
       return face_orient[index];
    }
 
+   typedef short GroupId;
+
    /// Return vertex/edge/face ('type' == 0/1/2, resp.) owner.
-   int GetOwner(int type, int index) const
+   GroupId GetOwner(int type, int index) const
    {
       switch (type)
       {
@@ -254,7 +256,6 @@ protected:
    int NFaces, NGhostFaces;
    int NElements, NGhostElements;
 
-   typedef short GroupId;
    typedef std::vector<int> CommGroup;
    typedef std::map<CommGroup, GroupId> GroupMap;
    typedef std::vector<CommGroup> GroupList;
