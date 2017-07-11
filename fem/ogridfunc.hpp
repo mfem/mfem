@@ -48,6 +48,7 @@ namespace mfem {
 
     OccaGridFunction& operator = (double value);
     OccaGridFunction& operator = (const OccaVector &v);
+    OccaGridFunction& operator = (const OccaVectorRef &v);
     OccaGridFunction& operator = (const OccaGridFunction &v);
 
     void GetTrueDofs(OccaVector &v) const;

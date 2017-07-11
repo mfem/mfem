@@ -16,21 +16,28 @@ kernel void GridFuncToQuad1D(const int numElements,
                              const DofToQuad_t restrict dofToQuad,
                              const DLocalMap1D_t restrict l2gMap,
                              const double * restrict gf,
-                             QLocal1D_t restrict out) {
+                             QVLocal1D_t restrict out) {
   for (int e = 0; e < numElements; ++e; outer) {
     for (int dummy = 0; dummy < 1; ++dummy; inner) {
-      double r_out[NUM_QUAD_1D];
-      for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-        r_out[qx] = 0;
+      double r_out[NUM_VDIM][NUM_QUAD_1D];
+      for (int v = 0; v < NUM_VDIM; ++v) {
+        for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+          r_out[v][qx] = 0;
+        }
       }
       for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-        const double r_gf = gf[l2gMap(dx, e)];
-        for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-          r_out[qx] += r_gf * dofToQuad(qx, dx);
+        const int gid = l2gMap(dx, e);
+        for (int v = 0; v < NUM_VDIM; ++v) {
+          const double r_gf = gf[v + gid*NUM_VDIM];
+          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            r_out[v][qx] += r_gf * dofToQuad(qx, dx);
+          }
         }
       }
       for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-        out(qx, e) = r_out[qx];
+        for (int v = 0; v < NUM_VDIM; ++v) {
+          out(v, qx, e) = r_out[v][qx];
+        }
       }
     }
   }
@@ -43,42 +50,52 @@ kernel void GridFuncToQuad2D(const int numElements,
                              const DofToQuad_t restrict dofToQuad,
                              const DLocalMap2D_t restrict l2gMap,
                              const double * restrict gf,
-                             QLocal2D_t restrict out) {
+                             QVLocal2D_t restrict out) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; outer) {
     for (int dummy=0; dummy<1; ++dummy; inner) {
-      double out_xy[NUM_QUAD_1D][NUM_QUAD_1D];
-
-      for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-        for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-          out_xy[qy][qx] = 0;
+      double out_xy[NUM_VDIM][NUM_QUAD_1D][NUM_QUAD_1D];
+      for (int v = 0; v < NUM_VDIM; ++v) {
+        for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            out_xy[v][qy][qx] = 0;
+          }
         }
       }
 
       for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
-        double out_x[NUM_QUAD_1D];
-        for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-          out_x[qy] = 0;
-        }
-
-        for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-          const double r_gf = gf[l2gMap(dx, dy, e)];
+        double out_x[NUM_VDIM][NUM_QUAD_1D];
+        for (int v = 0; v < NUM_VDIM; ++v) {
           for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-            out_x[qy] += r_gf * dofToQuad(qy, dx);
+            out_x[v][qy] = 0;
           }
         }
 
-        for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-          const double d2q = dofToQuad(qy, dy);
-          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-            out_xy[qy][qx] += d2q * out_x[qx];
+        for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+          const int gid = l2gMap(dx, dy, e);
+          for (int v = 0; v < NUM_VDIM; ++v) {
+            const double r_gf = gf[v + gid*NUM_VDIM];
+            for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+              out_x[v][qy] += r_gf * dofToQuad(qy, dx);
+            }
+          }
+        }
+
+        for (int v = 0; v < NUM_VDIM; ++v) {
+          for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+            const double d2q = dofToQuad(qy, dy);
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+              out_xy[v][qy][qx] += d2q * out_x[v][qx];
+            }
           }
         }
       }
 
       for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
         for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-          out(qx, qy, e) = out_xy[qy][qx];
+          for (int v = 0; v < NUM_VDIM; ++v) {
+            out(v, qx, qy, e) = out_xy[v][qy][qx];
+          }
         }
       }
     }
@@ -92,52 +109,65 @@ kernel void GridFuncToQuad3D(const int numElements,
                              const DofToQuad_t restrict dofToQuad,
                              const DLocalMap3D_t restrict l2gMap,
                              const double * restrict gf,
-                             QLocal3D_t restrict out) {
+                             QVLocal3D_t restrict out) {
   for (int e = 0; e < numElements; ++e; outer) {
     for (int dummy = 0; dummy < 1; ++dummy; inner) {
-      double out_xyz[NUM_QUAD_1D][NUM_QUAD_1D][NUM_QUAD_1D];
-      for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
-        for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-            out_xyz[qz][qy][qx] = 0;
+      double out_xyz[NUM_VDIM][NUM_QUAD_1D][NUM_QUAD_1D][NUM_QUAD_1D];
+      for (int v = 0; v < NUM_VDIM; ++v) {
+        for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+          for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+              out_xyz[v][qz][qy][qx] = 0;
+            }
           }
         }
       }
 
       for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
-        double out_xy[NUM_QUAD_1D][NUM_QUAD_1D];
-        for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-            out_xy[qy][qx] = 0;
+        double out_xy[NUM_VDIM][NUM_QUAD_1D][NUM_QUAD_1D];
+        for (int v = 0; v < NUM_VDIM; ++v) {
+          for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+              out_xy[v][qy][qx] = 0;
+            }
           }
         }
 
         for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
-          double out_x[NUM_QUAD_1D];
-          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-            out_x[qx] = 0;
+          double out_x[NUM_VDIM][NUM_QUAD_1D];
+          for (int v = 0; v < NUM_VDIM; ++v) {
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+              out_x[v][qx] = 0;
+            }
           }
 
           for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-            const double r_gf = gf[l2gMap(dx, dy, dz, e)];
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-              out_x[qx] += r_gf * dofToQuad(qx, dx);
+            const int gid = l2gMap(dx, dy, dz, e);
+            for (int v = 0; v < NUM_VDIM; ++v) {
+              const double r_gf = gf[v + gid*NUM_VDIM];
+              for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+                out_x[v][qx] += r_gf * dofToQuad(qx, dx);
+              }
             }
           }
 
           for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
             const double wy = dofToQuad(qy, dy);
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-              out_xy[qy][qx] += wy * out_x[qx];
+            for (int v = 0; v < NUM_VDIM; ++v) {
+              for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+                out_xy[v][qy][qx] += wy * out_x[v][qx];
+              }
             }
           }
         }
 
         for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
           const double wz = dofToQuad(qz, dz);
-          for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-              out_xyz[qz][qy][qx] += wz * out_xy[qy][qx];
+          for (int v = 0; v < NUM_VDIM; ++v) {
+            for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+              for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+                out_xyz[v][qz][qy][qx] += wz * out_xy[v][qy][qx];
+              }
             }
           }
         }
@@ -146,7 +176,9 @@ kernel void GridFuncToQuad3D(const int numElements,
       for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
           for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-            out(qx, qy, qz, e) = out_xyz[qz][qy][qx];
+            for (int v = 0; v < NUM_VDIM; ++v) {
+              out(v, qx, qy, qz, e) = out_xyz[v][qz][qy][qx];
+            }
           }
         }
       }

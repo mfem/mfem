@@ -26,12 +26,14 @@ namespace mfem {
     const FiniteElementSpace &fespace = integ.GetTrialFESpace();
     const FiniteElement &fe = *(fespace.GetFE(0));
     const int dim = fe.GetDim();
+    const int vdim = fespace.GetVDim();
 
     std::stringstream ss;
     ss << occa::hash(device)
        << "FEColl : " << fespace.FEColl()->Name()
        << "Quad: "    << numQuad
-       << "Dim: "     << dim;
+       << "Dim: "     << dim
+       << "VDim: "     << vdim;
     std::string hash = ss.str();
 
     // DofToQuad
@@ -39,6 +41,7 @@ namespace mfem {
 
     // Kernel defines
     occa::properties props;
+    props["defines/VDIM"] = vdim;
     integ.SetupProperties(props);
 
     occa::kernel kernel = gridFunctionKernels[hash];
@@ -75,10 +78,17 @@ namespace mfem {
     OccaVector::operator = (value);
     return *this;
   }
+
   OccaGridFunction& OccaGridFunction::operator = (const OccaVector &v) {
     OccaVector::operator = (v);
     return *this;
   }
+
+  OccaGridFunction& OccaGridFunction::operator = (const OccaVectorRef &v) {
+    OccaVector::operator = (v);
+    return *this;
+  }
+
   OccaGridFunction& OccaGridFunction::operator = (const OccaGridFunction &v) {
     OccaVector::operator = (v);
     return *this;

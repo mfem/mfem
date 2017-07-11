@@ -498,6 +498,10 @@ namespace mfem {
   void OccaIntegrator::SetupProperties(occa::properties &props) {
     const FiniteElement &trialFE = *(trialFespace->GetFE(0));
     const FiniteElement &testFE  = *(testFespace->GetFE(0));
+
+    props["defines/TRIAL_VDIM"] = trialFespace->GetVDim();
+    props["defines/TEST_VDIM"]  = testFespace->GetVDim();
+
     if (hasTensorBasis) {
       setTensorProperties(trialFE, testFE, *ir, props);
     } else {
