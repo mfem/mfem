@@ -153,19 +153,28 @@ SUPERLU_LIB = -L$(SUPERLU_DIR)/SRC -lsuperlu_dist
 # SCOTCH library configuration (required by STRUMPACK)
 SCOTCH_DIR = @MFEM_DIR@/../scotch_6.0.4
 SCOTCH_OPT = -I$(SCOTCH_DIR)/include
-SCOTCH_LIB = -L$(SCOTCH_DIR)/lib -lptscotch -lptscotcherr -lscotch -lscotcherr
+SCOTCH_LIB = -L$(SCOTCH_DIR)/lib -lptscotch -lptscotcherr -lscotch -lscotcherr\
+ -lpthread
 
 # SCALAPACK library configuration (required by STRUMPACK)
 SCALAPACK_DIR = @MFEM_DIR@/../scalapack-2.0.2
 SCALAPACK_OPT = -I$(SCALAPACK_DIR)/SRC
 SCALAPACK_LIB = -L$(SCALAPACK_DIR)/lib -lscalapack $(LAPACK_LIB)
 
+# MPI Fortran library, needed e.g. by STRUMPACK
+# MPICH:
+MPI_FORTRAN_LIB = -lmpifort
+# OpenMPI:
+# MPI_FORTRAN_LIB = -lmpi_mpifh
+# Additional Fortan library:
+# MPI_FORTRAN_LIB += -lgfortran
+
 # STRUMPACK library configuration
 STRUMPACK_DIR = @MFEM_DIR@/../STRUMPACK-build
 STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
 # If STRUMPACK was build with OpenMP support, the following may be need:
 # STRUMPACK_OPT += $(OPENMP_OPT)
-STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack -lgfortran -lmpi_mpifh\
+STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
  $(SCOTCH_LIB) $(SCALAPACK_LIB)
 
 # Gecko library configuration

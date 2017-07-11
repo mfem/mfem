@@ -61,6 +61,10 @@ if (CMAKE_VERSION VERSION_LESS 3.2 OR MFEM_USE_SIDRE OR MFEM_USE_PETSC)
    #  * find_package(PETSc REQUIRED)
    enable_language(C)
 endif()
+if (MFEM_USE_STRUMPACK)
+  # Just needed to find the MPI_Fortran libraries to link with
+  enable_language(Fortran)
+endif()
 
 # CMake needs to know where to find things
 set(MFEM_CMAKE_PATH ${PROJECT_SOURCE_DIR}/config)
@@ -222,8 +226,12 @@ if (NOT DEFINED MFEM_TIMER_TYPE)
 endif()
 
 # List all possible libraries in order of dependencies.
-set(MFEM_TPLS MPI_CXX OPENMP PETSC SUNDIALS MESQUITE SuiteSparse SuperLUDist
-    STRUMPACK METIS HYPRE AXOM LAPACK BLAS GECKO GNUTLS NETCDF MPFR POSIXCLOCKS
+# [METIS < SuiteSparse]:
+#    With newer versions of SuiteSparse which include METIS header using 64-bit
+#    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
+#    be before SuiteSparse.
+set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
+    MESQUITE SuperLUDist STRUMPACK AXOM GECKO GNUTLS NETCDF MPFR POSIXCLOCKS
     MFEMBacktrace ZLIB)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")

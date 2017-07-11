@@ -371,6 +371,8 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
       if (NOT ${Name}_FIND_QUIETLY)
         message(STATUS "${Name}: trying alternative package: ${ReqPackM}")
       endif()
+      # Do not add ${Required} here, since that will prevent other potential
+      # alternative packages from being found.
       find_package(${ReqPack} ${Quiet} COMPONENTS ${PackComps})
       string(TOUPPER ${ReqPack} ReqPACK)
       if (${ReqPack}_FOUND)
@@ -394,7 +396,24 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
       endif()
       string(TOUPPER ${ReqPack} ReqPACK)
       if (NOT (${ReqPack}_FOUND OR ${ReqPACK}_FOUND))
-        find_package(${ReqPack} ${Required} ${Quiet} COMPONENTS ${PackComps})
+        if (NOT ${ReqPack}_TARGET_NAMES)
+          find_package(${ReqPack} ${Required} ${Quiet} COMPONENTS ${PackComps})
+        else()
+          foreach(_target ${ReqPack} ${${ReqPack}_TARGET_NAMES})
+            # Do not use ${Required} here:
+            find_package(${_target} NAMES ${_target} ${ReqPack} ${Quiet}
+              COMPONENTS ${PackComps})
+            string(TOUPPER ${_target} _TARGET)
+            if (${_target}_FOUND OR ${_TARGET}_FOUND)
+              set(${ReqPack}_FOUND TRUE)
+              break()
+            endif()
+          endforeach()
+          if (${Required} AND NOT ${ReqPack}_FOUND)
+            message(FATAL_ERROR " *** Required package ${ReqPack} not found."
+              "Checked target names: ${ReqPack} ${${ReqPack}_TARGET_NAMES}")
+          endif()
+        endif()
       endif()
       if (Required AND NOT (${ReqPack}_FOUND OR ${ReqPACK}_FOUND))
         message(FATAL_ERROR " --------- INTERNAL ERROR")
