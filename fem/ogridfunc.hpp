@@ -54,6 +54,9 @@ namespace mfem {
 
     void SetFromTrueDofs(const OccaVector &v);
 
+    FiniteElementSpace* GetFESpace();
+    const FiniteElementSpace* GetFESpace() const;
+
     void ToQuad(OccaIntegrator &integ,
                 OccaVector &quadValues);
   };

@@ -14,6 +14,7 @@
 #ifdef MFEM_USE_OCCA
 
 #include "ovector.hpp"
+#include "../general/outils.hpp"
 
 namespace mfem {
   OccaVector::OccaVector() :
@@ -558,6 +559,15 @@ namespace mfem {
   /// Compute the Euclidean distance to another vector.
   double OccaVector::DistanceTo(const OccaVector &other) const {
     return occa::linalg::distance<double, double, double>(data, other.data);
+  }
+
+  int OccaVector::CheckFinite() const {
+    double *ptr = (double*) data.ptr();
+    if (data.getDevice().hasSeparateMemorySpace()) {
+      ptr = GetOccaHostVector(0, size).GetData();
+      data.copyTo(ptr);
+    }
+    return mfem::CheckFinite(ptr, size);
   }
 
   OccaVectorRef::OccaVectorRef() {}

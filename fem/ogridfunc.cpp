@@ -84,7 +84,7 @@ namespace mfem {
     return *this;
   }
 
-void OccaGridFunction::GetTrueDofs(OccaVector &v) const {
+  void OccaGridFunction::GetTrueDofs(OccaVector &v) const {
     const Operator *R = ofespace->GetRestrictionOperator();
     if (!R) {
       v.NewDataAndSize(data, size);
@@ -104,12 +104,12 @@ void OccaGridFunction::GetTrueDofs(OccaVector &v) const {
     }
   }
 
-  const FiniteElementSpace *OccaGridFunction::FESpace() const {
-     return ofespace->GetFESpace();
+  FiniteElementSpace* OccaGridFunction::GetFESpace() {
+    return ofespace->GetFESpace();
   }
 
-  FiniteElementSpace *OccaGridFunction::FESpace() {
-     return ofespace->GetFESpace();
+  const FiniteElementSpace* OccaGridFunction::GetFESpace() const {
+    return ofespace->GetFESpace();
   }
 
   void OccaGridFunction::ToQuad(OccaIntegrator &integ,

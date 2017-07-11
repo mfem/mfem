@@ -109,8 +109,6 @@ namespace mfem
       return data;
     }
 
-    inline int CheckFinite() const { return mfem::CheckFinite((double *)(data.ptr()), size); }
-
     inline occa::device GetDevice() const {
       return data.getDevice();
     }
@@ -225,7 +223,7 @@ namespace mfem
     /// Compute the Euclidean distance to another vector.
     double DistanceTo(const OccaVector &other) const;
 
-    // int CheckFinite() const;
+    int CheckFinite() const;
 
     inline virtual ~OccaVector() {}
   };
