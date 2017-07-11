@@ -45,6 +45,11 @@ if (MFEM_USE_MPI)
     ex15p.cpp
     ex16p.cpp
     ex17p.cpp
+    )
+endif()
+
+if (MFEM_USE_SCOREC AND MFEM_USE_MPI)
+  list(APPEND ALL_EXE_SRCS
     GenerateMFEMMesh.cpp
     pumi_ex1.cpp
     pumi_ex1p.cpp
