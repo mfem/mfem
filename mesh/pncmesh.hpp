@@ -140,34 +140,35 @@ public:
    }
 
    typedef short GroupId;
+   typedef std::vector<int> CommGroup;
 
    /// Return vertex/edge/face ('type' == 0/1/2, resp.) owner.
-   GroupId GetOwner(int type, int index) const
+   GroupId GetOwnerId(int type, int index) const
    {
       switch (type)
       {
-         case 0: return groups[vertex_owner[index]][0];
-         case 1: return groups[edge_owner[index]][0];
-         default: return groups[face_owner[index]][0];
+         case 0: return vertex_owner[index];
+         case 1: return edge_owner[index];
+         default: return face_owner[index];
       }
    }
 
-   /** Return a list of processors sharing a vertex/edge/face
-       ('type' == 0/1/2, resp.) and the size of the list. */
-   const int* GetGroup(int type, int index, int &size) const
+   /**  */
+   GroupId GetGroupId(int type, int index) const
    {
-      /*const Table* table;
       switch (type)
       {
-         case 0: table = &vertex_group; break;
-         case 1: table = &edge_group; break;
-         default: table = &face_group;
+         case 0: return vertex_group[index];
+         case 1: return edge_group[index];
+         default: return face_group[index];
       }
-      size = table->RowSize(index);
-      return table->GetRow(index);*/
-      MFEM_ABORT("TODO");
-      return NULL;
    }
+
+   const CommGroup& GetGroup(GroupId id) const
+   {
+      return groups[id];
+   }
+
 
    /** Returns true if 'rank' is in the processor group of a vertex/edge/face
        ('type' == 0/1/2, resp.). */
@@ -256,16 +257,15 @@ protected:
    int NFaces, NGhostFaces;
    int NElements, NGhostElements;
 
-   typedef std::vector<int> CommGroup;
-   typedef std::map<CommGroup, GroupId> GroupMap;
    typedef std::vector<CommGroup> GroupList;
+   typedef std::map<CommGroup, GroupId> GroupMap;
 
-   GroupList groups;
-   GroupMap group_id;
+   GroupList groups;  // comm group list; NOTE: groups[0] = { MyRank }
+   GroupMap group_id; // search index over groups
 
    // group and owner Id for each vertex, edge and face
    Array<GroupId> vertex_group, edge_group, face_group;
-   Array<GroupId> vertex_owner, edge_owner, face_owner; // note: singleton groups
+   Array<GroupId> vertex_owner, edge_owner, face_owner; // NOTE: singleton groups
 
    // lists of vertices/edges/faces shared by us and at least one more processor
    NCList shared_vertices;

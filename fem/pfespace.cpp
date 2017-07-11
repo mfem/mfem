@@ -1289,6 +1289,34 @@ void ParFiniteElementSpace::GetBareDofs(int type, const NCMesh::MeshId &id,
 }
 
 
+struct PMatRowElem
+{
+   HYPRE_Int column;
+   double value;
+};
+
+typedef std::vector<PMatRowElem> PMatrixRow;
+
+
+class NeighborRowMessage : public VarMessage<314>
+{
+public:
+   void AddRow(int entity, int edof, const PMatrixRow &row);
+   //void GetRow(
+
+   typedef std::map<int, NeighborRowMessage> Map;
+
+protected:
+   std::list<PMatrixRow> rows;
+
+   virtual void Encode();
+   virtual void Decode();
+};
+
+// TODO: PackDof(entity, edof) -> dof
+// TODO: UnpackDof(dof) -> entity, edof
+
+
 void ParFiniteElementSpace::NewParallelConformingInterpolation()
 {
    ParNCMesh* pncmesh = pmesh->pncmesh;
@@ -1298,19 +1326,20 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    // *** STEP 1: build dependency lists ***
 
    int num_dofs = ndofs * vdim;
-   int num_ghost_dofs = 1000 // FIXME;
+   int num_ghost_dofs = 1000; // FIXME
    int total_dofs = num_dofs + num_ghost_dofs;
 
    SparseMatrix deps(num_dofs, total_dofs);
 
-   Array<short> dof_group(total_dofs), dof_owner(total_dofs);
+   Array<ParNCMesh::GroupId> dof_group(total_dofs);
+   Array<ParNCMesh::GroupId> dof_owner(total_dofs);
    dof_group = 0;
    dof_owner = 0;
 
    if (!dg)
    {
       Array<int> master_dofs, slave_dofs;
-      Array<int> owner_dofs, my_dofs;
+      Array<int> owner_dofs, my_dofs, dofs;
 
       // loop through *all* master edges/faces, constrain their slaves
       for (int type = 1; type <= 2; type++)
@@ -1392,17 +1421,80 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
          }
       }
 
-      // initialize dof_group, dof_owner
+      // initialize dof_group[], dof_owner[]
       for (int type = 0; type <= 2; type++)
       {
          const NCMesh::NCList &list = pncmesh->GetSharedList(type);
-         for (unsigned i = 0; i < list.conforming.size(); i++)
+
+         int lsize[3] =
+         { list.conforming.size(), list.masters.size(), list.slaves.size() };
+
+         for (int l = 0; l < 3; l++)
          {
-            // TODO
+            for (int i = 0; i < lsize[l]; i++)
+            {
+               const NCMesh::MeshId &id =
+                  (l == 0) ? list.conforming[i] :
+                  (l == 1) ? list.masters[i] : list.slaves[i];
+
+               GetBareDofs(type, id, dofs);
+
+               for (int j = 0; j < dofs.Size(); j++)
+               {
+                  int dof = dofs[j];
+                  dof_owner[dof] = pncmesh->GetOwnerId(type, id.index);
+                  dof_group[dof] = pncmesh->GetGroupId(type, id.index);
+               }
+            }
          }
+      }
+
+      deps.Finalize();
+   }
+
+   Array<bool> finalized(num_dofs);
+   finalized = false;
+
+   // DOFs that stayed independent and are ours are true DOFs
+   ltdof_size = 0;
+   for (int i = 0; i < num_dofs; i++)
+   {
+      int rs = deps.RowSize(i);
+      if ((dof_owner[i] == 0) &&
+          ((rs == 0) || (rs == 1 && deps.GetRowEntries(i)[0] == 1.0)) )
+      {
+         ltdof_size++;
+         finalized[i] = true;
       }
    }
 
+   GenerateGlobalOffsets();
+
+   HYPRE_Int glob_true_dofs = tdof_offsets.Last();
+   HYPRE_Int glob_cdofs = dof_offsets.Last();
+
+   // initialize the R matrix (also parallel but block-diagonal)
+   R = new SparseMatrix(ltdof_size, num_dofs);
+
+   // put identity in P and R for true DOFs, set ldof_ltdof
+   HYPRE_Int my_tdof_offset = GetMyTDofOffset();
+   ldof_ltdof.SetSize(num_dofs);
+   ldof_ltdof = -1;
+   for (int i = 0, true_dof = 0; i < num_dofs; i++)
+   {
+      if (finalized[i])
+      {
+         localP.Add(i, my_tdof_offset + true_dof, 1.0);
+         R->Add(true_dof, i, 1.0);
+         finalized[i] = true;
+         ldof_ltdof[i] = true_dof;
+         true_dof++;
+      }
+   }
+
+
+   // row class
+   // decode DOF
 
    // TODO
 
