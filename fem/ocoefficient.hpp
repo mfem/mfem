@@ -157,7 +157,7 @@ namespace mfem {
   class OccaGridFunctionParameter : public OccaParameter {
   private:
     const std::string name;
-    OccaGridFunction gf;
+    OccaGridFunction &gf;
     OccaVector gfQuad;
     bool useRestrict;
 
