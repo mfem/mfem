@@ -18,8 +18,16 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include <SimUtil.h>
+#include "../mesh/mesh_pumi.hpp"
 
+#include <SimUtil.h>
+#include <apfMDS.h>
+#include <gmi_null.h>
+#include <gmi_sim.h>
+#include <PCU.h>
+#include <apfConvert.h>
+#include <gmi_mesh.h>
+#include <crv.h>
 
 using namespace std;
 using namespace mfem;
@@ -96,7 +104,7 @@ int main(int argc, char *argv[])
    // 5. Create the MFEM mesh object from the PUMI mesh. We can handle triangular
    //    and tetrahedral meshes. Other inputs are the same as MFEM default 
    //    constructor.
-   Mesh *mesh = new Mesh(pumi_mesh, 1, 1); 
+   Mesh *mesh = new PumiMesh(pumi_mesh, 1, 1); 
    int dim = mesh->Dimension();
  
    // 6. Refine the mesh to increase the resolution. In this example we do

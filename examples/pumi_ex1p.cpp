@@ -25,7 +25,16 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "../mesh/pmesh_pumi.hpp"
+
 #include <SimUtil.h>
+#include <apfMDS.h>
+#include <gmi_null.h>
+#include <gmi_sim.h>
+#include <PCU.h>
+#include <apfConvert.h>
+#include <gmi_mesh.h>
+#include <crv.h>
 
 using namespace std;
 using namespace mfem;
@@ -117,7 +126,7 @@ int main(int argc, char *argv[])
    // 5. Create the parallel MFEM mesh object from the parallel PUMI mesh. 
    //    We can handle triangular and tetrahedral meshes. Note that the 
    //    mesh resolution is performed on the PUMI mesh.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, pumi_mesh);
+   ParMesh *pmesh = new ParPumiMesh(MPI_COMM_WORLD, pumi_mesh);
 
     
    // 6. Define a parallel finite element space on the parallel mesh. Here we

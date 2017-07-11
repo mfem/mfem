@@ -86,9 +86,6 @@ public:
    GridFunction(Mesh *m, std::istream &input);
 
    GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces);
-
-   //Construct a GridFunction from PUMI mesh
-   GridFunction(Mesh* m, apf::Mesh2* PumiM, apf::Numbering* v_num_loc, const int mesh_order);
   
  /// Make the GridFunction the owner of 'fec' and 'fes'
    void MakeOwner(FiniteElementCollection *_fec) { fec = _fec; }
