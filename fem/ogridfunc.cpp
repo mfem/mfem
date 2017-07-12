@@ -41,7 +41,7 @@ namespace mfem {
 
     // Kernel defines
     occa::properties props;
-    props["defines/VDIM"] = vdim;
+    props["defines/NUM_VDIM"] = vdim;
     integ.SetupProperties(props);
 
     occa::kernel kernel = gridFunctionKernels[hash];
