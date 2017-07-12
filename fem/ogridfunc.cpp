@@ -36,9 +36,6 @@ namespace mfem {
        << "VDim: "     << vdim;
     std::string hash = ss.str();
 
-    // DofToQuad
-    OccaDofQuadMaps &maps = integ.GetDofQuadMaps();
-
     // Kernel defines
     occa::properties props;
     props["defines/NUM_VDIM"] = vdim;
@@ -132,7 +129,6 @@ namespace mfem {
     const FiniteElementSpace &fespace = integ.GetTrialFESpace();
     const FiniteElement &fe = *(fespace.GetFE(0));
 
-    const int dim      = fe.GetDim();
     const int elements = fespace.GetNE();
     const int numQuad  = integ.GetIntegrationRule().GetNPoints();
     quadValues.SetSize(device,
