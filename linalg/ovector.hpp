@@ -235,6 +235,9 @@ namespace mfem
     OccaVectorRef();
     OccaVectorRef(const OccaVectorRef &ref);
 
+    operator OccaVector();
+    operator Vector();
+
     inline operator occa::kernelArg () const {
       return v;
     }
