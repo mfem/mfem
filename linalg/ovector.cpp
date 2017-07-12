@@ -576,10 +576,6 @@ namespace mfem {
     v.SetDataAndSize(ref.v.GetData(), ref.v.Size());
   }
 
-  OccaVectorRef::operator OccaVector() {
-    return v;
-  }
-
   OccaVectorRef::operator Vector() {
     return v;
   }

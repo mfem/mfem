@@ -119,9 +119,9 @@ kernel void MultAdd2D(const int numElements,
 
     // Store xy planes in shared memory
     shared double s_xy[NUM_QUAD_DOFS_1D] @dim(NUM_DOFS_1D, NUM_QUAD_1D);
-    shared double s_xy2[NUM_QUAD_DOFS_1D] @dim(NUM_DOFS_1D, NUM_QUAD_1D);
+    shared double s_xy2[NUM_QUAD_2D] @dim(NUM_QUAD_1D, NUM_QUAD_1D);
 
-    exclusive double r_x[NUM_MAX_1D];;
+    exclusive double r_x[NUM_MAX_1D];
 
     for (int x = 0; x < NUM_MAX_1D; ++x; inner) {
       for (int id = x; id < NUM_QUAD_DOFS_1D; id += NUM_MAX_1D) {

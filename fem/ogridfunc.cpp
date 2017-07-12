@@ -33,7 +33,7 @@ namespace mfem {
        << "FEColl : " << fespace.FEColl()->Name()
        << "Quad: "    << numQuad
        << "Dim: "     << dim
-       << "VDim: "     << vdim;
+       << "VDim: "    << vdim;
     std::string hash = ss.str();
 
     // Kernel defines
