@@ -181,6 +181,7 @@ cmake ../mfem \
 -DMFEM_DEBUG=YES \
 -DMFEM_ENABLE_EXAMPLES=YES \
 -DMFEM_ENABLE_MINIAPPS=YES \
+-DMFEM_USE_SCOREC=YES \
 -DSCOREC_PREFIX=/path/to/mfem-develop/core-build/install \
 -DHYPRE_DIR=/path/to/mfem-develop/hypre-2.11.2-build/install/ \
 -DMETIS_DIR=/path/to/mfem-develop/core-deps
