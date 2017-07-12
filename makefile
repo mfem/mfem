@@ -216,7 +216,8 @@ MFEM_DEFINES = MFEM_VERSION MFEM_USE_MPI MFEM_USE_METIS_5 MFEM_DEBUG\
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
  MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_FLAGS MFEM_LIB_DIR MFEM_LIBS MFEM_LIB_FILE\
- MFEM_BUILD_TAG MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP
+ MFEM_BUILD_TAG MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP\
+ MFEM_TEST_MK
 
 # Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
 MFEM_CPPFLAGS  ?= $(CPPFLAGS)
@@ -230,6 +231,7 @@ MFEM_BUILD_TAG ?= $(shell uname -snm)
 MFEM_PREFIX    ?= $(PREFIX)
 MFEM_INC_DIR   ?= $(if $(BUILD_DIR_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_LIB_DIR   ?= $(if $(BUILD_DIR_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
+MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
 # Use "\n" (interpreted by sed) to add a newline.
 MFEM_CONFIG_EXTRA ?= $(if $(BUILD_DIR_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
 
@@ -246,11 +248,14 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    endif
    # Allow changing the PREFIX during install with: make install PREFIX=<dir>
    PREFIX := $(MFEM_PREFIX)
-   PREFIX_INC := $(PREFIX)/include
-   PREFIX_LIB := $(PREFIX)/lib
+   PREFIX_INC   := $(PREFIX)/include
+   PREFIX_LIB   := $(PREFIX)/lib
+   PREFIX_SHARE := $(PREFIX)/share/mfem
    MFEM_PREFIX := $(abspath $(PREFIX))
    MFEM_INC_DIR = $(abspath $(PREFIX_INC))
    MFEM_LIB_DIR = $(abspath $(PREFIX_LIB))
+   MFEM_TEST_MK = $(abspath $(PREFIX_SHARE)/test.mk)
+   MFEM_CONFIG_EXTRA =
    export $(MFEM_DEFINES) MFEM_DEFINES $(MFEM_CONFIG_VARS) MFEM_CONFIG_VARS
    export VERBOSE
 endif
@@ -348,22 +353,27 @@ install: $(BLD)libmfem.a
 	mkdir -p $(PREFIX_LIB)
 	$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB)
 # install top level includes
-	mkdir -p $(PREFIX_INC)
-	$(INSTALL) -m 640 $(SRC)mfem.hpp $(SRC)mfem-performance.hpp $(PREFIX_INC)
+	mkdir -p $(PREFIX_INC)/mfem
+	$(INSTALL) -m 640 $(SRC)mfem.hpp $(SRC)mfem-performance.hpp \
+	   $(PREFIX_INC)/mfem
+	for hdr in mfem.hpp mfem-performance.hpp; do \
+	   printf '// Auto-generated file.\n#include "mfem/'$$hdr'"\n' \
+	      > $(PREFIX_INC)/$$hdr && chmod 640 $(PREFIX_INC)/$$hdr; done
 # install config include
-	mkdir -p $(PREFIX_INC)/config
-	$(INSTALL) -m 640 $(BLD)config/_config.hpp $(PREFIX_INC)/config/config.hpp
-	$(INSTALL) -m 640 $(SRC)config/tconfig.hpp $(PREFIX_INC)/config
+	mkdir -p $(PREFIX_INC)/mfem/config
+	$(INSTALL) -m 640 $(BLD)config/_config.hpp $(PREFIX_INC)/mfem/config/config.hpp
+	$(INSTALL) -m 640 $(SRC)config/tconfig.hpp $(PREFIX_INC)/mfem/config
 # install remaining includes in each subdirectory
 	for dir in $(DIRS); do \
-	   mkdir -p $(PREFIX_INC)/$$dir && \
-	   $(INSTALL) -m 640 $(SRC)$$dir/*.hpp $(PREFIX_INC)/$$dir; done
-# install config.mk at root of install tree
+	   mkdir -p $(PREFIX_INC)/mfem/$$dir && \
+	   $(INSTALL) -m 640 $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; done
+# install config.mk in $(PREFIX_SHARE)
+	mkdir -p $(PREFIX_SHARE)
 	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk
-	$(INSTALL) -m 640 $(BLD)config/config-install.mk $(PREFIX)/config.mk
+	$(INSTALL) -m 640 $(BLD)config/config-install.mk $(PREFIX_SHARE)/config.mk
 	rm -f $(BLD)config/config-install.mk
-# install test.mk at root of install tree
-	$(INSTALL) -m 640 $(SRC)config/test.mk $(PREFIX)/test.mk
+# install test.mk in $(PREFIX_SHARE)
+	$(INSTALL) -m 640 $(SRC)config/test.mk $(PREFIX_SHARE)/test.mk
 
 $(CONFIG_MK):
 	$(info )

@@ -309,6 +309,11 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
 #define MFEM_BUILD_DIR ${PROJECT_BINARY_DIR}
 #include \"${PROJECT_SOURCE_DIR}/${Header}\"
 ")
+    # This version will be installed in the top include directory:
+    file(WRITE "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}"
+"// Auto-generated file.
+#include \"mfem/${Header}\"
+")
   endforeach()
 endif()
 
@@ -398,11 +403,15 @@ install(TARGETS ${PROJECT_NAME}
   DESTINATION ${INSTALL_LIB_DIR})
 
 # Install the master headers
-install(FILES ${MASTER_HEADERS} DESTINATION ${INSTALL_INCLUDE_DIR})
+foreach(Header mfem.hpp mfem-performance.hpp)
+  install(FILES ${PROJECT_BINARY_DIR}/InstallHeaders/${Header}
+    DESTINATION ${INSTALL_INCLUDE_DIR})
+endforeach()
+install(FILES ${MASTER_HEADERS} DESTINATION ${INSTALL_INCLUDE_DIR}/mfem)
 
 # Install the headers; currently, the miniapps headers are excluded
 install(DIRECTORY ${MFEM_SOURCE_DIRS}
-  DESTINATION ${INSTALL_INCLUDE_DIR}
+  DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
   FILES_MATCHING PATTERN "*.hpp")
 
 # Install ${HEADERS}
@@ -415,11 +424,11 @@ install(DIRECTORY ${MFEM_SOURCE_DIRS}
 
 # Install the configuration header files
 install(FILES ${PROJECT_BINARY_DIR}/config/_config.hpp
-  DESTINATION ${INSTALL_INCLUDE_DIR}/config
+  DESTINATION ${INSTALL_INCLUDE_DIR}/mfem/config
   RENAME config.hpp)
 
 install(FILES ${PROJECT_SOURCE_DIR}/config/tconfig.hpp
-  DESTINATION ${INSTALL_INCLUDE_DIR}/config)
+  DESTINATION ${INSTALL_INCLUDE_DIR}/mfem/config)
 
 # Package the whole thing up nicely
 include(CMakePackageConfigHelpers)
@@ -430,6 +439,7 @@ export(TARGETS ${PROJECT_NAME}
 
 # Export the package for use from the build-tree (this registers the build-tree
 # with the CMake user package registry.)
+# TODO: How do we register the install-tree? Replacing the build-tree?
 export(PACKAGE ${PROJECT_NAME})
 
 # Extract the include directories required to use MFEM

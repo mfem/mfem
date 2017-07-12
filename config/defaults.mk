@@ -196,7 +196,8 @@ NETCDF_LIB  = -L$(NETCDF_DIR)/lib -lnetcdf -L$(HDF5_DIR)/lib -lhdf5_hl -lhdf5\
 
 # PETSc library configuration (version greater or equal to 3.8 or the dev branch)
 ifeq ($(MFEM_USE_PETSC),YES)
-   PETSC_DIR := $(MFEM_DIR)/../petsc/arch-linux2-c-debug
+   PETSC_ARCH:=arch-linux2-c-debug
+   PETSC_DIR := $(MFEM_DIR)/../petsc/$(PETSC_ARCH)
    PETSC_PC  := $(PETSC_DIR)/lib/pkgconfig/PETSc.pc
    $(if $(wildcard $(PETSC_PC)),,$(error PETSc config not found - $(PETSC_PC)))
    PETSC_OPT := $(shell sed -n "s/Cflags: *//p" $(PETSC_PC))

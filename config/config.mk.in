@@ -47,6 +47,9 @@ MFEM_PREFIX    = @MFEM_PREFIX@
 MFEM_INC_DIR   = @MFEM_INC_DIR@
 MFEM_LIB_DIR   = @MFEM_LIB_DIR@
 
+# Location of test.mk
+MFEM_TEST_MK = @MFEM_TEST_MK@
+
 # Command used to launch MPI jobs
 MFEM_MPIEXEC    = @MFEM_MPIEXEC@
 MFEM_MPIEXEC_NP = @MFEM_MPIEXEC_NP@
