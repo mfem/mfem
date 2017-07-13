@@ -66,6 +66,12 @@ namespace mfem {
     ofespace(ofespace_),
     sequence(0) {}
 
+  OccaGridFunction::OccaGridFunction(OccaFiniteElementSpace *ofespace_,
+                                     OccaVectorRef ref) :
+    OccaVector(ref),
+    ofespace(ofespace_),
+    sequence(0) {}
+
   OccaGridFunction::OccaGridFunction(const OccaGridFunction &v) :
     OccaVector(v),
     ofespace(v.ofespace),

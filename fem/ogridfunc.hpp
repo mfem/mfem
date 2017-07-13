@@ -44,12 +44,15 @@ namespace mfem {
     OccaGridFunction(occa::device device_,
                      OccaFiniteElementSpace *ofespace_);
 
-    OccaGridFunction(const OccaGridFunction &v);
+    OccaGridFunction(OccaFiniteElementSpace *ofespace_,
+                     OccaVectorRef ref);
+
+    OccaGridFunction(const OccaGridFunction &gf);
 
     OccaGridFunction& operator = (double value);
     OccaGridFunction& operator = (const OccaVector &v);
     OccaGridFunction& operator = (const OccaVectorRef &v);
-    OccaGridFunction& operator = (const OccaGridFunction &v);
+    OccaGridFunction& operator = (const OccaGridFunction &gf);
 
     void GetTrueDofs(OccaVector &v) const;
 
@@ -60,6 +63,20 @@ namespace mfem {
 
     void ToQuad(OccaIntegrator &integ,
                 OccaVector &quadValues);
+  };
+
+  class OccaGridFunctionRef {
+  public:
+    OccaVectorRef vref;
+    OccaFiniteElementSpace *ofespace;
+    long sequence;
+
+    OccaGridFunctionRef();
+    OccaGridFunctionRef(const OccaGridFunctionRef &ref);
+
+    inline operator occa::kernelArg () const {
+      return vref;
+    }
   };
 };
 

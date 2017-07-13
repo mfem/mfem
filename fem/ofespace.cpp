@@ -170,10 +170,6 @@ namespace mfem {
     return fespace;
   }
 
-  int OccaFiniteElementSpace::GetVSize() const {
-    return globalDofs * vdim;
-  }
-
   int OccaFiniteElementSpace::GetGlobalDofs() const {
     return globalDofs;
   }
@@ -184,6 +180,30 @@ namespace mfem {
 
   int OccaFiniteElementSpace::GetVDim() const {
     return vdim;
+  }
+
+  int OccaFiniteElementSpace::GetVSize() const {
+    return globalDofs * vdim;
+  }
+
+  int OccaFiniteElementSpace::GetTrueVSize() const {
+    return fespace->GetTrueVSize();
+  }
+
+  int OccaFiniteElementSpace::GetGlobalVSize() const {
+    ParFiniteElementSpace *pfespace = dynamic_cast<ParFiniteElementSpace*>(fespace);
+    if (pfespace) {
+      return pfespace->GlobalVSize();
+    }
+    return globalDofs * vdim;
+  }
+
+  int OccaFiniteElementSpace::GetGlobalTrueVSize() const {
+    ParFiniteElementSpace *pfespace = dynamic_cast<ParFiniteElementSpace*>(fespace);
+    if (pfespace) {
+      return pfespace->GlobalTrueVSize();
+    }
+    return fespace->GetTrueVSize();
   }
 
   const int* OccaFiniteElementSpace::GetElementDofMap() const {

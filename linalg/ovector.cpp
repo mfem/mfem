@@ -576,10 +576,6 @@ namespace mfem {
     v.SetDataAndSize(ref.v.GetData(), ref.v.Size());
   }
 
-  OccaVectorRef::operator Vector() {
-    return v;
-  }
-
   occa::kernelBuilder makeCustomBuilder(const std::string &kernelName,
                                         const std::string &formula,
                                         occa::properties props) {
