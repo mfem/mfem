@@ -57,6 +57,10 @@ include $(TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4
 SERIAL_NAME := Serial SUNDIALS example
 PARALLEL_NAME := Parallel SUNDIALS example
+%-test-par: %
+	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME))
+%-test-seq: %
+	@$(call mfem-test,$<,, $(SERIAL_NAME))
 
 # Testing: Specific execution options:
 # Example 9: test explicit CVODE time stepping
