@@ -170,6 +170,10 @@ namespace mfem {
     return fespace;
   }
 
+  int OccaFiniteElementSpace::GetVSize() const {
+    return globalDofs * vdim;
+  }
+
   int OccaFiniteElementSpace::GetGlobalDofs() const {
     return globalDofs;
   }

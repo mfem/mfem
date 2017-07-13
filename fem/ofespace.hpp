@@ -61,7 +61,7 @@ namespace mfem {
     Mesh* GetMesh();
     FiniteElementSpace* GetFESpace();
 
-    inline int GetVSize() const { return globalDofs * vdim; }
+    int GetVSize() const;
     int GetGlobalDofs() const;
     int GetLocalDofs() const;
     int GetVDim() const;
