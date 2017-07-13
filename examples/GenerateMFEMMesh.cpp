@@ -16,6 +16,7 @@
 #include <iostream>
 #include "../mesh/mesh_pumi.hpp"
 
+#include "pumi_config.h"
 #ifdef MFEM_USE_SIMMETRIX
 #include <SimUtil.h>
 #include <gmi_sim.h>

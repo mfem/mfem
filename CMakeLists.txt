@@ -254,9 +254,10 @@ message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 
 if (SCOREC_FOUND)
  message(STATUS "MFEM: using package SCOREC")
- if (SCOREC_gmi_sim_FOUND)
-   add_definition(-DMFEM_USE_SIMMETRIX)
- endif()
+ #define a header file with the MFEM_USE_SIMMETRIX preprocessor variable
+ set(MFEM_USE_SIMMETRIX ${SCOREC_gmi_sim_FOUND})
+ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/examples/pumi_config.h.in"
+               "${CMAKE_CURRENT_BINARY_DIR}/pumi_config.h")
  list(APPEND TPL_LIBRARIES SCOREC::core)
 endif()
 
