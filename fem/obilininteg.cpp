@@ -663,6 +663,7 @@ namespace mfem {
     const int quadraturePoints = ir->GetNPoints();
 
     assembledOperator.allocate(quadraturePoints, elements);
+    assembledOperator.stopManaging();
 
     OccaGeometry geom = GetGeometry(OccaGeometry::Jacobian);
     jacobian = geom.J;
@@ -718,6 +719,7 @@ namespace mfem {
     const int quadraturePoints = ir->GetNPoints();
 
     assembledOperator.allocate(quadraturePoints, elements);
+    assembledOperator.stopManaging();
 
     OccaGeometry geom = GetGeometry(OccaGeometry::Jacobian);
     jacobian = geom.J;
