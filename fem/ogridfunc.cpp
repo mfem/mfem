@@ -97,6 +97,13 @@ namespace mfem {
     return *this;
   }
 
+  void OccaGridFunction::SetGridFunction(GridFunction &gf) {
+    Vector v = *this;
+    gf.MakeRef(ofespace->GetFESpace(), v, 0);
+    // Make gf the owner of the data
+    v.Swap(gf);
+  }
+
   void OccaGridFunction::GetTrueDofs(OccaVector &v) const {
     const Operator *R = ofespace->GetRestrictionOperator();
     if (!R) {

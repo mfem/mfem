@@ -54,6 +54,8 @@ namespace mfem {
     OccaGridFunction& operator = (const OccaVectorRef &v);
     OccaGridFunction& operator = (const OccaGridFunction &gf);
 
+    void SetGridFunction(GridFunction &gf);
+
     void GetTrueDofs(OccaVector &v) const;
 
     void SetFromTrueDofs(const OccaVector &v);
@@ -63,20 +65,6 @@ namespace mfem {
 
     void ToQuad(OccaIntegrator &integ,
                 OccaVector &quadValues);
-  };
-
-  class OccaGridFunctionRef {
-  public:
-    OccaVectorRef vref;
-    OccaFiniteElementSpace *ofespace;
-    long sequence;
-
-    OccaGridFunctionRef();
-    OccaGridFunctionRef(const OccaGridFunctionRef &ref);
-
-    inline operator occa::kernelArg () const {
-      return vref;
-    }
   };
 };
 
