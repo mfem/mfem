@@ -41,7 +41,11 @@ int main(int argc, char *argv[])
     
    // 1. Parse command-line options.
    const char *mesh_file = "../data/pumi/serial/sphere.smb";
+#ifdef MFEM_USE_SIMMETRIX
    const char *model_file = "../data/pumi/geom/sphere.x_t";
+#else
+   const char *model_file = "../data/pumi/geom/sphere.dmg";
+#endif
    int order = 1;
    bool visualization = 1;  
 
