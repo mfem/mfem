@@ -210,7 +210,8 @@ endif()
 # If SCOREC_PREFIX was specified, only link to that directory,
 # i.e. don't link to another installation in /usr/lib by mistake
 if (MFEM_USE_SCOREC)
- find_package(SCOREC 2.1.0 REQUIRED CONFIG PATHS ${SCOREC_PREFIX} NO_DEFAULT_PATH)
+  find_package(SCOREC 2.1.0 REQUIRED OPTIONAL_COMPONENTS gmi_sim
+    CONFIG PATHS ${SCOREC_PREFIX} NO_DEFAULT_PATH)
 endif()
 
 # MFEM_TIMER_TYPE
@@ -253,6 +254,9 @@ message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 
 if (SCOREC_FOUND)
  message(STATUS "MFEM: using package SCOREC")
+ if (SCOREC_gmi_sim_FOUND)
+   add_definition(-DMFEM_USE_SIMMETRIX)
+ endif()
  list(APPEND TPL_LIBRARIES SCOREC::core)
 endif()
 

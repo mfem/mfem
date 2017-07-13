@@ -27,10 +27,12 @@
 #include <iostream>
 #include "../mesh/pmesh_pumi.hpp"
 
+#ifdef MFEM_USE_SIMMETRIX
 #include <SimUtil.h>
+#include <gmi_sim.h>
+#endif
 #include <apfMDS.h>
 #include <gmi_null.h>
-#include <gmi_sim.h>
 #include <PCU.h>
 #include <apfConvert.h>
 #include <gmi_mesh.h>
@@ -50,7 +52,11 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/pumi/parallel/Kova4/Kova_4.smb";
+#ifdef MFEM_USE_SIMMETRIX
    const char *model_file = "../data/pumi/geom/Kova.x_t";
+#else
+   const char *model_file = "../data/pumi/geom/Kova.dmg";
+#endif
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
@@ -89,12 +95,13 @@ int main(int argc, char *argv[])
    
    //3. Read the SCOREC Mesh 
    PCU_Comm_Init();
+#ifdef MFEM_USE_SIMMETRIX
    SimUtil_start();
    Sim_readLicenseFile(0);
-
    gmi_sim_start();
-   gmi_register_mesh();
    gmi_register_sim();
+#endif
+   gmi_register_mesh();
    
    apf::Mesh2* pumi_mesh;
    pumi_mesh = apf::loadMdsMesh(model_file, mesh_file);
@@ -257,10 +264,12 @@ int main(int argc, char *argv[])
    pumi_mesh->destroyNative();
    apf::destroyMesh(pumi_mesh);
    PCU_Comm_Free();
+
+#ifdef MFEM_USE_SIMMETRIX
    gmi_sim_stop();
-   
    Sim_unregisterAllKeys();
    SimUtil_stop();
+#endif
 
    MPI_Finalize();
 
