@@ -57,7 +57,7 @@ if (CMAKE_VERSION VERSION_LESS 3.2 OR MFEM_USE_SIDRE OR MFEM_USE_PETSC)
    # This seems to be needed by:
    #  * find_package(BLAS REQUIRED) and
    #  * find_package(HDF5 REQUIRED) needed, in turn, by:
-   #    - find_package(ATK REQUIRED)
+   #    - find_package(AXOM REQUIRED)
    #  * find_package(PETSc REQUIRED)
    enable_language(C)
 endif()
@@ -102,7 +102,7 @@ if (MFEM_USE_MPI)
     include_directories(${PETSC_INCLUDES})
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU PETSC)
+  set(PKGS_NEED_MPI SUPERLU PETSC STRUMPACK)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -163,13 +163,23 @@ if (MFEM_USE_MESQUITE)
   include_directories(${MESQUITE_INCLUDE_DIRS})
 endif()
 
-# SuperLU_DIST can only be enabled if parallel
+# SuperLU_DIST can only be enabled in parallel
 if (MFEM_USE_SUPERLU)
   if (MFEM_USE_MPI)
     find_package(SuperLUDist REQUIRED)
     include_directories(${SuperLUDist_INCLUDE_DIRS})
   else()
     message(FATAL_ERROR " *** SuperLU_DIST requires that MPI be enabled.")
+  endif()
+endif()
+
+# STRUMPACK can only be enabled in parallel
+if (MFEM_USE_STRUMPACK)
+  if (MFEM_USE_MPI)
+    find_package(STRUMPACK REQUIRED)
+    include_directories(${STRUMPACK_INCLUDE_DIRS})
+  else()
+    message(FATAL_ERROR " *** STRUMPACK requires that MPI be enabled.")
   endif()
 endif()
 
@@ -200,11 +210,11 @@ endif()
 # Axom/Sidre
 if (MFEM_USE_SIDRE)
   if (NOT MFEM_USE_MPI)
-    find_package(ATK REQUIRED Sidre SLIC common)
+    find_package(Axom REQUIRED Sidre SLIC axom_utils)
   else()
-    find_package(ATK REQUIRED Sidre SPIO SLIC common)
+    find_package(Axom REQUIRED Sidre SPIO SLIC axom_utils)
   endif()
-  include_directories(${ATK_INCLUDE_DIRS})
+  include_directories(${AXOM_INCLUDE_DIRS})
 endif()
 
 # MFEM_TIMER_TYPE
@@ -226,9 +236,9 @@ if (NOT DEFINED MFEM_TIMER_TYPE)
 endif()
 
 # List all possible libraries in order of dependencies.
-set(MFEM_TPLS HYPRE OPENMP SUNDIALS MESQUITE SuiteSparse SuperLUDist
-    ParMETIS METIS LAPACK BLAS GECKO GNUTLS NETCDF PETSC MPFR ATK POSIXCLOCKS
-    MFEMBacktrace ZLIB)
+set(MFEM_TPLS MPI_CXX HYPRE OPENMP SUNDIALS MESQUITE SuiteSparse SuperLUDist
+    ParMETIS METIS LAPACK BLAS GECKO GNUTLS NETCDF PETSC MPFR AXOM POSIXCLOCKS
+    MFEMBacktrace ZLIB STRUMPACK)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 foreach(TPL IN LISTS MFEM_TPLS)
@@ -283,7 +293,7 @@ endif()
 # directory.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
   target_compile_definitions(mfem PRIVATE
-    "-DMFEM_BUILD_DIR=${PROJECT_BINARY_DIR}")
+    "MFEM_BUILD_DIR=${PROJECT_BINARY_DIR}")
 endif()
 
 # Generate configuration file in the build directory: config/_config.hpp.
@@ -422,11 +432,14 @@ export(TARGETS ${PROJECT_NAME}
   FILE "${PROJECT_BINARY_DIR}/MFEMTargets.cmake")
 
 # Export the package for use from the build-tree (this registers the build-tree
-# with a global CMake-registry)
+# with the CMake user package registry.)
 export(PACKAGE ${PROJECT_NAME})
 
 # Extract the include directories required to use MFEM
 get_target_property(MFEM_TPL_INCLUDE_DIRS mfem INCLUDE_DIRECTORIES)
+if (NOT MFEM_TPL_INCLUDE_DIRS)
+  set(MFEM_TPL_INCLUDE_DIRS "")
+endif()
 
 # This is the build-tree version
 set(INCLUDE_INSTALL_DIRS ${PROJECT_BINARY_DIR} ${MFEM_TPL_INCLUDE_DIRS})

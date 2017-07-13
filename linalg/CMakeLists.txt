@@ -72,6 +72,11 @@ if (MFEM_USE_SUPERLU)
   list(APPEND HDRS superlu.hpp)
 endif()
 
+if (MFEM_USE_STRUMPACK)
+  list(APPEND SRCS strumpack.cpp)
+  list(APPEND HDRS strumpack.hpp)
+endif()
+
 convert_filenames_to_full_paths(SRCS)
 convert_filenames_to_full_paths(HDRS)
 

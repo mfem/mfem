@@ -264,6 +264,12 @@ MFEM_USE_SUPERLU = YES/NO
    SuperLURowLocMatrix a distributed CSR matrix class needed by SuperLU. When
    enabled, this option uses the SUPERLU_* library options, see below.
 
+MFEM_USE_STRUMPACK = YES/NO
+   Enable MFEM functionality based on the STRUMPACK sparse direct solver and
+   preconditioner through the STRUMPACKSolver and STRUMPACKRowLocMatrix
+   classes. When enabled, this option uses the STRUMPACK_* library options, see
+   below.
+
 MFEM_USE_GNUTLS = YES/NO
    Enable secure socket support in class socketstream, using the auxiliary
    GnuTLS_* classes, based on the GnuTLS library. This option may be useful in
@@ -381,6 +387,12 @@ The specific libraries and their options are:
   same location.
   URL: http://crd-legacy.lbl.gov/~xiaoye/SuperLU
   Options: SUPERLU_OPT, SUPERLU_LIB.
+
+- STRUMPACK (optional), used when MFEM_USE_STRUMPACK = YES. Note that STRUMPACK
+  requires the PT-Scotch and Scalapack libraries as well as ParMETIS, which
+  includes METIS 5 in its distribution.
+  URL: http://portal.nersc.gov/project/sparse/strumpack
+  Options: STRUMPACK_OPT, STRUMPACK_LIB.
 
 - GnuTLS (optional), used when MFEM_USE_GNUTLS = YES. On most Linux systems,
   GnuTLS is available as a development package, e.g. gnutls-devel. On Mac OS X,
@@ -531,6 +543,7 @@ MFEM_TIMER_TYPE - Set automatically, can be overwritten.
 MFEM_USE_MESQUITE
 MFEM_USE_SUITESPARSE
 MFEM_USE_SUPERLU
+MFEM_USE_STRUMPACK
 MFEM_USE_GNUTLS
 MFEM_USE_NETCDF
 MFEM_USE_MPFR

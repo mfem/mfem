@@ -73,6 +73,7 @@ MFEM_USE_SUNDIALS    = NO
 MFEM_USE_MESQUITE    = NO
 MFEM_USE_SUITESPARSE = NO
 MFEM_USE_SUPERLU     = NO
+MFEM_USE_STRUMPACK   = NO
 MFEM_USE_GECKO       = NO
 MFEM_USE_GNUTLS      = NO
 MFEM_USE_NETCDF      = NO
@@ -91,7 +92,7 @@ HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 
 # METIS library configuration
-ifeq ($(MFEM_USE_SUPERLU),NO)
+ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK),NONO)
    ifeq ($(MFEM_USE_METIS_5),NO)
      METIS_DIR = @MFEM_DIR@/../metis-4.0
      METIS_OPT =
@@ -151,6 +152,23 @@ SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
 SUPERLU_OPT = -I$(SUPERLU_DIR)/SRC
 SUPERLU_LIB = -L$(SUPERLU_DIR)/SRC -lsuperlu_dist
 
+# SCOTCH library configuration
+SCOTCH_DIR = @MFEM_DIR@/../scotch_6.0.4
+SCOTCH_OPT = -I$(SCOTCH_DIR)/include
+SCOTCH_LIB = -L$(SCOTCH_DIR)/lib -lptscotch -lptscotcherr -lptscotcherrexit\
+ -lptscotchparmetis -lscotch -lscotcherr -lscotcherrexit -lscotchmetis
+
+# SCALAPACK library configuration
+SCALAPACK_DIR = @MFEM_DIR@/../scalapack_2.0.2
+SCALAPACK_OPT = -I$(SCALAPACK_DIR)/SRC
+SCALAPACK_LIB = -L$(SCALAPACK_DIR) -lscalapack
+
+# STRUMPACK library configuration
+STRUMPACK_DIR = @MFEM_DIR@/../STRUMPACK-build
+STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include
+STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(SCOTCH_LIB)\
+ $(SCALAPACK_LIB)
+
 # Gecko library configuration
 GECKO_DIR = @MFEM_DIR@/../gecko
 GECKO_OPT = -I$(GECKO_DIR)/inc
@@ -185,19 +203,20 @@ MPFR_LIB = -lmpfr
 
 # Sidre and required libraries configuration
 # Be sure to check the HDF5_DIR (set above) is correct
-SIDRE_DIR = @MFEM_DIR@/../asctoolkit
+SIDRE_DIR = @MFEM_DIR@/../axom
 CONDUIT_DIR = @MFEM_DIR@/../conduit
 SIDRE_OPT = -I$(SIDRE_DIR)/include -I$(CONDUIT_DIR)/include/conduit\
  -I$(HDF5_DIR)/include
-SIDRE_LIB = -L$(SIDRE_DIR)/lib \
-            -L$(CONDUIT_DIR)/lib \
-            -Wl,-rpath -Wl,$(CONDUIT_DIR)/lib \
-            -L$(HDF5_DIR)/lib\
-            -Wl,-rpath -Wl,$(HDF5_DIR)/lib \
-            -lsidre -lslic -lcommon -lconduit -lconduit_relay -lhdf5 -lz -ldl
+SIDRE_LIB = \
+   -L$(SIDRE_DIR)/lib \
+   -L$(CONDUIT_DIR)/lib \
+   -Wl,-rpath -Wl,$(CONDUIT_DIR)/lib \
+   -L$(HDF5_DIR)/lib \
+   -Wl,-rpath -Wl,$(HDF5_DIR)/lib \
+   -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 -lz -ldl
 
 ifeq ($(MFEM_USE_MPI),YES)
-   SIDRE_LIB += -lspio -lcommon
+   SIDRE_LIB += -lspio
 endif
 
 # OCCA library configuration

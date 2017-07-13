@@ -11,6 +11,11 @@
 Development version 3.3.1, not released
 =======================================
 
+- Added optional support for the STRUMPACK parallel sparse direct solver and
+  preconditioner. STRUMPACK uses Hierarchically Semi-Separable (HSS) compression
+  in a fully algebraic manner, with interface similar to SuperLU_DIST. See
+  http://portal.nersc.gov/project/sparse/strumpack for more details.
+
 - Added a new macro, MFEM_VERSION, defined as a single integer of the form
   (major*100 + minor)*100 + patch. The new convention is that an even number
   (i.e. even patch number) denotes a "release" version, while an odd number
@@ -187,7 +192,7 @@ Improved file output
 - Added experimental support for an HDF5-based output file format following the
   Conduit (https://github.com/LLNL/conduit) mesh blueprint specification for
   visualization and/or restart capability. This functionality is aimed primarily
-  at user of LLNL's ASC Toolkit (Sidre component) that run problems at extreme
+  at user of LLNL's axom project (Sidre component) that run problems at extreme
   scales. Users desiring a small scale binary format may want to look at the
   gzstream functionality instead.
 

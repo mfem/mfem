@@ -51,6 +51,10 @@
 #include "superlu.hpp"
 #endif
 
+#ifdef MFEM_USE_STRUMPACK
+#include "strumpack.hpp"
+#endif
+
 #endif // MFEM_USE_MPI
 
 #endif
