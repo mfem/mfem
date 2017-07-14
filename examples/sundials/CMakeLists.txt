@@ -51,6 +51,7 @@ set(EX9P_TEST_OPTS ${EX9_COMMON_OPTS} -rp 1 -dt 0.0009 -vs 50)
 set(EX10_COMMON_OPTS -m ../../data/beam-quad.mesh -o 2 -s 5 -dt 0.15 -vs 10)
 set(EX10_TEST_OPTS ${EX10_COMMON_OPTS}  -r  2)
 set(EX10P_TEST_OPTS ${EX10_COMMON_OPTS} -rp 1)
+# Example 16: use the default options
 
 # Add the tests: one test per source file.
 foreach(SRC_FILE ${SUNDIALS_EXAMPLES_SRCS})

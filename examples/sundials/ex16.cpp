@@ -460,7 +460,7 @@ void ConductionOperator::SetParameters(const Vector &u)
    K->Assemble();
    K->FormSystemMatrix(ess_tdof_list, Kmat);
    delete T;
-   T = NULL; // re-compute T on the next ImplicitSolve
+   T = NULL; // re-compute T on the next ImplicitSolve or SundialsSolve
 }
 
 ConductionOperator::~ConductionOperator()
