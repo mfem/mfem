@@ -102,7 +102,7 @@ if (MFEM_USE_MPI)
     include_directories(${PETSC_INCLUDES})
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU PETSC)
+  set(PKGS_NEED_MPI SUPERLU PETSC STRUMPACK)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -163,13 +163,23 @@ if (MFEM_USE_MESQUITE)
   include_directories(${MESQUITE_INCLUDE_DIRS})
 endif()
 
-# SuperLU_DIST can only be enabled if parallel
+# SuperLU_DIST can only be enabled in parallel
 if (MFEM_USE_SUPERLU)
   if (MFEM_USE_MPI)
     find_package(SuperLUDist REQUIRED)
     include_directories(${SuperLUDist_INCLUDE_DIRS})
   else()
     message(FATAL_ERROR " *** SuperLU_DIST requires that MPI be enabled.")
+  endif()
+endif()
+
+# STRUMPACK can only be enabled in parallel
+if (MFEM_USE_STRUMPACK)
+  if (MFEM_USE_MPI)
+    find_package(STRUMPACK REQUIRED)
+    include_directories(${STRUMPACK_INCLUDE_DIRS})
+  else()
+    message(FATAL_ERROR " *** STRUMPACK requires that MPI be enabled.")
   endif()
 endif()
 
@@ -228,7 +238,7 @@ endif()
 # List all possible libraries in order of dependencies.
 set(MFEM_TPLS MPI_CXX HYPRE OPENMP SUNDIALS MESQUITE SuiteSparse SuperLUDist
     ParMETIS METIS LAPACK BLAS GECKO GNUTLS NETCDF PETSC MPFR AXOM POSIXCLOCKS
-    MFEMBacktrace ZLIB)
+    MFEMBacktrace ZLIB STRUMPACK)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 foreach(TPL IN LISTS MFEM_TPLS)
