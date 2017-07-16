@@ -191,18 +191,22 @@ namespace mfem {
   }
 
   int OccaFiniteElementSpace::GetGlobalVSize() const {
+#ifdef MFEM_USE_MPI
     ParFiniteElementSpace *pfespace = dynamic_cast<ParFiniteElementSpace*>(fespace);
     if (pfespace) {
       return pfespace->GlobalVSize();
     }
+#endif
     return globalDofs * vdim;
   }
 
   int OccaFiniteElementSpace::GetGlobalTrueVSize() const {
+#ifdef MFEM_USE_MPI
     ParFiniteElementSpace *pfespace = dynamic_cast<ParFiniteElementSpace*>(fespace);
     if (pfespace) {
       return pfespace->GlobalTrueVSize();
     }
+#endif
     return fespace->GetTrueVSize();
   }
 
