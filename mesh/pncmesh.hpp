@@ -20,6 +20,7 @@
 #include <set>
 
 #include "ncmesh.hpp"
+#include "pentsets.hpp"
 #include "../general/communication.hpp"
 
 namespace mfem
@@ -230,6 +231,11 @@ public:
        The debug mesh will have element attributes set to element rank + 1. */
    void GetDebugMesh(Mesh &debug_mesh) const;
 
+   /** Collect element indices of all refined elements which are
+       children of the coarse element defined by the given element
+       index. This method overrides a method in NCMesh and only
+       returns locally owned elements. */
+   void GetRefinedElements(int elem_id, BlockArray<int> & elem_ids);
 
 protected:
    MPI_Comm MyComm;
@@ -485,9 +491,12 @@ protected:
    Array<DenseMatrix*> aux_pm_store;
    void ClearAuxPM();
 
+   ParNCEntitySets * pncent_sets;
+
    static bool compare_ranks_indices(const Element* a, const Element* b);
 
    friend class ParMesh;
+   friend class ParEntitySets;
    friend class NeighborDofMessage;
 };
 

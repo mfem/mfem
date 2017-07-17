@@ -189,6 +189,21 @@ ParEntitySets::ParEntitySets(ParMesh & pmesh, const EntitySets & ent_sets,
    this->CopyMeshTables();
 }
 
+ParEntitySets::ParEntitySets(ParMesh & pmesh, ParNCMesh &pncmesh)
+   : EntitySets(pmesh),
+     pmesh_(&pmesh)
+{
+   MPI_Comm MyComm = pmesh_->GetComm();
+
+   MPI_Comm_size(MyComm, &NRanks_);
+   MPI_Comm_rank(MyComm, &MyRank_);
+
+   // this->BuildEntitySets(pncmesh, VERTEX);
+   // this->BuildEntitySets(pncmesh, EDGE);
+   // this->BuildEntitySets(pncmesh, FACE);
+   this->BuildEntitySets(pncmesh, ELEMENT);
+}
+
 ParEntitySets::~ParEntitySets()
 {}
 
@@ -201,9 +216,9 @@ ParEntitySets::PrintSetInfo(std::ostream & output) const
    {
       output << "\nMFEM Parallel Entity Sets:\n";
    }
-   this->PrintEntitySetInfo(output, VERTEX,  "Vertex");
-   this->PrintEntitySetInfo(output, EDGE,    "Edge");
-   this->PrintEntitySetInfo(output, FACE,    "Face");
+   // this->PrintEntitySetInfo(output, VERTEX,  "Vertex");
+   // this->PrintEntitySetInfo(output, EDGE,    "Edge");
+   // this->PrintEntitySetInfo(output, FACE,    "Face");
    this->PrintEntitySetInfo(output, ELEMENT, "Element");
 }
 
@@ -236,6 +251,107 @@ ParEntitySets::PrintEntitySetInfo(std::ostream & output, EntityType t,
       {
          output << '\n';
       }
+   }
+}
+
+void
+ParEntitySets::BuildEntitySets(ParNCMesh &pncmesh, EntityType t)
+{
+   cout << MyRank_ << ": BuildEntitySets for type " << GetTypeName(t) << endl;
+   int es = pncmesh.pncent_sets->GetEntitySize(t);
+   unsigned int ns = pncmesh.pncent_sets->GetNumSets(t);
+   cout << MyRank_ << ": num sets " << ns << endl;
+
+   Array<int> inds(es);
+
+   sets_[t].resize(ns);
+   set_names_[t].resize(ns);
+   for (unsigned int s=0; s<ns; s++)
+   {
+      int ni = pncmesh.pncent_sets->GetNumEntities(t, s);
+      set_names_[t][s] = pncmesh.pncent_sets->GetSetName(t, s);
+      set_index_by_name_[t][set_names_[t][s]] = s;
+
+      switch (t)
+      {
+         case VERTEX:
+            for (int i=0; i<ni; i++)
+            {
+               sets_[t][s].insert((*pncmesh.pncent_sets)(t, s, i));
+            }
+            break;
+         case EDGE:
+            for (int i=0; i<ni; i++)
+            {
+               pncmesh.pncent_sets->GetEntityIndex(t, s, i, inds);
+               BlockArray<int> ind_coll;
+               pncmesh.GetRefinedEdges(inds[0], inds[1],
+                                       ind_coll);
+
+               for (int j=0; j<ind_coll.Size(); j++)
+               {
+                  sets_[t][s].insert(ind_coll[j]);
+               }
+            }
+            break;
+         case FACE:
+            for (int i=0; i<ni; i++)
+            {
+               pncmesh.pncent_sets->GetEntityIndex(t, s, i, inds);
+               BlockArray<int> ind_coll;
+               pncmesh.GetRefinedFaces(inds[0], inds[1], inds[2], inds[3],
+                                       ind_coll);
+
+               for (int j=0; j<ind_coll.Size(); j++)
+               {
+                  sets_[t][s].insert(ind_coll[j]);
+               }
+            }
+            break;
+
+         case ELEMENT:
+            for (int i=0; i<ni; i++)
+            {
+               int elem = (*pncmesh.pncent_sets)(t, s, i);
+               BlockArray<int> ind_coll;
+               pncmesh.GetRefinedElements(elem, ind_coll);
+
+               for (int j=0; j<ind_coll.Size(); j++)
+               {
+                  // sets_[t][s].insert(ind_coll[j]);
+                  sets_[t][s].insert(pncmesh.elements[ind_coll[j]].index);
+               }
+            }
+            break;
+         default:
+            MFEM_ABORT("Unknown entity set type: \"" << GetTypeName(t) << "\"");
+      }
+      cout << MyRank_ << ": " << set_names_[t][s] << " " << s << " set size " <<
+           sets_[t][s].size() << "{";
+      for (set<int>::iterator it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
+      {
+         cout << " " << *it;
+      }
+      cout << "}" << endl;
+   }
+   cout << MyRank_ << ": done BuildEntitySets for type " << GetTypeName(t) << endl;
+}
+
+ParNCEntitySets::ParNCEntitySets(MPI_Comm comm, const NCMesh &ncmesh)
+   : NCEntitySets(*ncmesh.ncent_sets)
+{
+   MyComm_ = comm;
+   MPI_Comm_size(MyComm_, &NRanks_);
+   MPI_Comm_rank(MyComm_, &MyRank_);
+
+   if ( MyRank_ == 0 )
+   {
+      cout << "Entering ParNCEntitySets(NCMesh) c'tor" << endl;
+   }
+
+   if ( MyRank_ == 0 )
+   {
+      cout << "Leaving ParNCEntitySets(NCMesh) c'tor" << endl;
    }
 }
 

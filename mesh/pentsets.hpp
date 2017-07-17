@@ -17,11 +17,13 @@
 #ifdef MFEM_USE_MPI
 
 #include "entsets.hpp"
+#include "../general/communication.hpp"
 
 namespace mfem
 {
 
 class ParMesh;
+class ParNCMesh;
 
 class ParEntitySets : public EntitySets
 {
@@ -31,6 +33,7 @@ public:
    ParEntitySets(const ParEntitySets & ent_sets);
    ParEntitySets(ParMesh & _mesh, const EntitySets & ent_sets, int * part,
                  const Array<int> & vert_global_local);
+   ParEntitySets(ParMesh & mesh, ParNCMesh &ncmesh);
 
    virtual ~ParEntitySets();
 
@@ -43,6 +46,8 @@ private:
    void PrintEntitySetInfo(std::ostream & output, EntityType t,
                            const std::string & ent_name) const;
 
+   void BuildEntitySets(ParNCMesh &pncmesh, EntityType t);
+
    ParMesh  * pmesh_;
    int        NRanks_;
    int        MyRank_;
@@ -51,7 +56,15 @@ private:
 class ParNCEntitySets : public NCEntitySets
 {
 public:
+   // ParNCEntitySets(MPI_Comm comm, EntitySets &ent_sets, NCMesh &ncmesh);
+   ParNCEntitySets(MPI_Comm comm, const NCMesh &ncmesh);
+   // ParNCEntitySets(const ParMesh & pmesh, const ParNCMesh &pncmesh);
+   // ParNCEntitySets(const ParNCEntitySets & pncent_sets);
+
 private:
+   MPI_Comm MyComm_;
+   int      NRanks_;
+   int      MyRank_;
 };
 
 } // namespace mfem

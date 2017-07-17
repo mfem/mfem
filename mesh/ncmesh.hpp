@@ -706,6 +706,7 @@ public:
 #endif
 
    friend class ParNCMesh; // for ParNCMesh::ElementSet
+   friend class ParNCEntitySets;
    friend struct CompareRanks;
 };
 

@@ -170,7 +170,8 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
    }
 
    // Store entity set information if present in the Mesh
-   ncent_sets = (mesh->ent_sets) ? new NCEntitySets(*mesh, *this) : NULL;
+   ncent_sets = (mesh->ent_sets) ?
+                new NCEntitySets(*mesh->ent_sets, *this) : NULL;
 
    Update();
 }
@@ -1647,9 +1648,13 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
 
    if (ncent_sets)
    {
+      std::cout << "NCMesh::OnMeshUpdated ncent_sets is non NULL" << std::endl;
       if (!mesh->ent_sets)
       {
+         std::cout << "NCMesh::OnMeshUpdated creating ent_sets from NCMesh" << std::endl;
          mesh->ent_sets = new EntitySets(*mesh, *this);
+         std::cout << "NCMesh::OnMeshUpdated done creating ent_sets from NCMesh" <<
+                   std::endl;
       }
    }
 }
@@ -2961,6 +2966,8 @@ void NCMesh::GetRefinedFaces(int vn0, int vn1, int vn2, int vn3,
 
 void NCMesh::GetRefinedElements(int elem_id, BlockArray<int> & elem_ids)
 {
+   std::cout << "entering NCMesh::GetRefinedElements searching for element id: "
+             << elem_id << std::endl;
    Element &el = elements[elem_id];
 
    if (el.index >= 0 && el.rank >= 0)
@@ -2971,7 +2978,7 @@ void NCMesh::GetRefinedElements(int elem_id, BlockArray<int> & elem_ids)
 
    for (int i = 0; i < 8; i++)
    {
-      if (el.child[i] >= 0)
+      if (el.child[i] >= 0 && el.child[i] < elements.Size() )
       {
          GetRefinedElements(el.child[i], elem_ids);
       }

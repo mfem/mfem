@@ -139,12 +139,18 @@ int main(int argc, char *argv[])
    if ( mesh->ent_sets )
    {
       cout << "mesh->ent_sets is non NULL" << endl;
+      mesh->ent_sets->PrintSetInfo(cout);
    }
    else
    {
       cout << "mesh->ent_sets is NULL" << endl;
    }
-
+   /*
+     At this point we have a serial mesh containing an EntitySets
+     object which stores the current node/edge/face/element indices
+     for each entity in each set.  This data is duplicated on each MPI
+     rank.
+    */
    if ( ra > 0 )
    {
       cout << "calling EnsureNCMesh" << endl;
@@ -154,25 +160,53 @@ int main(int argc, char *argv[])
    if ( mesh->ent_sets )
    {
       cout << "mesh->ent_sets is non NULL" << endl;
+      mesh->ent_sets->PrintSetInfo(cout);
    }
    else
    {
       cout << "mesh->ent_sets is NULL" << endl;
    }
+   /*
+     We now have an NCEntitySets object which stores the node indices
+     describing each enity in each node/edge/face set and the element
+     indices for the elements in each element set.  This data is
+     duplicated on each MPI rank.
+    */
 
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
+   cout << "creating ParMesh from serial mesh" << endl;
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   cout << "done creating ParMesh from serial mesh" << endl;
    delete mesh;
-   if ( pmesh->ent_sets )
+   if ( pmesh->pent_sets )
    {
-      cout << "pmesh->ent_sets is non NULL" << endl;
+      cout << "pmesh->pent_sets is non NULL" << endl;
+      pmesh->pent_sets->PrintSetInfo(cout);
    }
    else
    {
-      cout << "pmesh->ent_sets is NULL" << endl;
+      cout << "pmesh->pent_sets is NULL" << endl;
    }
+   /*
+     We now have a ParEntitySets object which marshals the data stored
+     in EntitySets objects.  The data has now been pruned so that each
+     rank only contains indices of local entities.
+
+     The NCEntitySets object remains unchanged...
+
+     If we have an NC mesh a different path is taken and the
+     EntitySets are ignored.
+
+     1) ParNCMesh is created from NCMesh
+       a) Creates a ParNCEntitySets object from ncmesh (every rank contains
+          information to find every entity)
+     2) ParNCMesh is pruned which involves renumbering elements and vertices
+     3) ParMesh is initialized from ParNCMesh
+     4) ParNCMesh::OnMeshUpdated is called
+     5) Mesh::GenerateNCFaceInfo is called
+    */
    {
       int par_ref_levels = rp;
       for (int l = 0; l < par_ref_levels; l++)
@@ -183,11 +217,28 @@ int main(int argc, char *argv[])
       MPI_Barrier(MPI_COMM_WORLD);
       if ( myid == 0 && rs > 0 ) { cout << "Done" << endl; }
    }
+   /*
+     RandomRefinement will end up calling
+     ParMesh::NonconformingRefinement which will create a new ParMesh
+     object using the ParNCMesh object and then call
+     ParMesh::OnMeshUpdated on this new mesh.
+    */
    for (int l = 0; l < ra; l++)
    {
       pmesh->RandomRefinement(0.2);
    }
-   pmesh->ent_sets->PrintSetInfo(cout);
+   if ( ra > 0 )
+   {
+      if ( pmesh->pent_sets )
+      {
+         cout << "pmesh->pent_sets is non NULL post random refinement" << endl;
+         pmesh->pent_sets->PrintSetInfo(cout);
+      }
+      else
+      {
+         cout << "pmesh->pent_sets is NULL post random refinement" << endl;
+      }
+   }
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
@@ -235,9 +286,13 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs((EntitySets::EntityType)bt, bs,
                                     ess_tdof_list);
    }
-   if (myid == 0)
+   for (int i=0; i<num_procs; i++)
    {
-      cout << "Number of Dirichlet dofs: " << ess_tdof_list.Size() << endl;
+      if (myid == i)
+      {
+         cout << "Number of Dirichlet dofs on proc " << i << ": "
+              << ess_tdof_list.Size() << endl;
+      }
    }
 
    // 8. Set up the parallel linear form b(.) which corresponds to the

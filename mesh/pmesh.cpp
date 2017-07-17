@@ -79,14 +79,9 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
       own_nodes = 1;
    }
 
-   if ( pmesh.pent_sets )
-   {
-      ent_sets = pent_sets = new ParEntitySets(*pmesh.pent_sets);
-   }
-   else
-   {
-      ent_sets = pent_sets = NULL;
-   }
+   // Copy entity sets if present in the input mesh
+   ent_sets = pent_sets =
+                 (pmesh.pent_sets) ? new ParEntitySets(*pmesh.pent_sets) : NULL;
 }
 
 ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
@@ -131,6 +126,12 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
          own_nodes = 1;
       }
       delete [] partition;
+
+      std::cout << "In ParMesh constructor starting from serial Mesh/NCMesh" <<
+                std::endl;
+      std::cout <<
+                "Mesh::InitFromNCMesh and ParNCMesh::OnMeshUpdated have been called" <<
+                std::endl;
 
       have_face_nbr_data = false;
       return;
@@ -670,12 +671,10 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
          }
    }
 
-   if ( mesh.ent_sets )
-   {
-      ent_sets = pent_sets = new ParEntitySets(*this, *mesh.ent_sets,
-                                               partitioning,
-                                               vert_global_local);
-   }
+   ent_sets = pent_sets =
+                 (mesh.ent_sets) ? new ParEntitySets(*this, *mesh.ent_sets,
+                                                     partitioning,
+                                                     vert_global_local) : NULL;
 
    if (partitioning_ == NULL)
    {
@@ -692,6 +691,7 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
    , MyRank(pncmesh.MyRank)
    , gtopo(MyComm)
    , pncmesh(NULL)
+   , pent_sets(NULL)
 {
    Mesh::InitFromNCMesh(pncmesh);
    have_face_nbr_data = false;
@@ -699,6 +699,7 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
 
 ParMesh::ParMesh(MPI_Comm comm, istream &input)
    : gtopo(comm)
+   , pent_sets(NULL)
 {
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
@@ -861,7 +862,8 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
      MyRank(orig_mesh->GetMyRank()),
      gtopo(orig_mesh->gtopo),
      have_face_nbr_data(false),
-     pncmesh(NULL)
+     pncmesh(NULL),
+     pent_sets(NULL)
 {
    // Need to initialize:
    // - shared_edges, shared_faces
@@ -4544,6 +4546,9 @@ ParMesh::~ParMesh()
    delete pncmesh;
    ncmesh = pncmesh = NULL;
 
+   delete pent_sets;
+   ent_sets = pent_sets = NULL;
+   
    DeleteFaceNbrData();
 
    for (int i = 0; i < shared_faces.Size(); i++)

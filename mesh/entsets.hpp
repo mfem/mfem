@@ -73,6 +73,8 @@ public:
    const Table * GetFaceVertexTable() const { return face_vertex_; }
    const Table * GetFaceEdgeTable()   const { return face_edge_; }
 
+   void Prune(int nelems);
+
 protected:
 
    void SetNumSets(EntityType t, unsigned int n)
@@ -152,12 +154,12 @@ class NCEntitySets
    friend class EntitySets;
 
 public:
-   NCEntitySets(const Mesh & mesh, const NCMesh &ncmesh);
+   NCEntitySets(const EntitySets & ent_sets, NCMesh &ncmesh);
    NCEntitySets(const NCEntitySets & ncent_sets);
 
    unsigned int GetNumSets(EntitySets::EntityType t) const;
 
-   int GetEntitySize(EntitySets::EntityType t) const;
+   static int GetEntitySize(EntitySets::EntityType t);
 
    const std::string & GetSetName(EntitySets::EntityType t, int s) const;
    unsigned int        GetNumEntities(EntitySets::EntityType t, int s) const;
@@ -182,6 +184,10 @@ public:
    inline int operator()(EntitySets::EntityType t, int s, int i) const
    { return sets_[t][s][i]; }
 
+private:
+   void CopyNCEntitySets(const NCEntitySets & ncent_sets,
+                         EntitySets::EntityType t);
+
 protected:
 
    NCMesh * ncmesh_;
@@ -196,7 +202,7 @@ protected:
    std::vector<std::map<std::string, int> >    set_index_by_name_;
 
    /// Number of indices per entity
-   std::vector<int> entity_size_;
+   static const int entity_size_[4];
 };
 
 } // namespace mfem

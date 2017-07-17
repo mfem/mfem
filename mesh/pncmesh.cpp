@@ -26,6 +26,7 @@ namespace mfem
 
 ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh)
    : NCMesh(ncmesh)
+   , pncent_sets(NULL)
 {
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
@@ -41,6 +42,40 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh)
    AssignLeafIndices();
    UpdateVertices();
 
+   std::ostringstream oss; oss << "elements_" << MyRank << ".out";
+   std::ofstream ofs(oss.str().c_str());
+
+   for (int i=0; i<elements.Size(); i++)
+   {
+      ofs << i
+          << '\t' << elements[i].index
+          << '\t' << elements[i].rank
+          << '\t' << elements[i].attribute
+          << '\t' << elements[i].parent;
+      if ( elements[i].ref_type == 0 )
+      {
+         ofs << " nodes {";
+         for (int j=0; j<8; j++)
+         {
+            ofs << " " << elements[i].node[j];
+         }
+         ofs << "}";
+      }
+      else
+      {
+         ofs << " children {";
+         for (int j=0; j<8; j++)
+         {
+            ofs << " " << elements[i].child[j];
+         }
+         ofs << "}";
+      }
+      ofs << std::endl;
+   }
+
+   ncent_sets = pncent_sets =
+                   (ncmesh.ncent_sets) ? new ParNCEntitySets(comm, ncmesh) : NULL;
+
    // note that at this point all processors still have all the leaf elements;
    // we however may now start pruning the refinement tree to get rid of
    // branches that only contain someone else's leaves (see Prune())
@@ -49,6 +84,9 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh)
 ParNCMesh::~ParNCMesh()
 {
    ClearAuxPM();
+
+   delete pncent_sets;
+   ncent_sets = pncent_sets = NULL;
 }
 
 void ParNCMesh::Update()
@@ -163,6 +201,25 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    // go assign existing edge/face indices
    NCMesh::OnMeshUpdated(mesh);
 
+   std::cout << MyRank << ": NVertices = " << NVertices << std::endl;
+
+   std::ostringstream ossN;
+   ossN << "node_on_mesh_updated_" << MyRank << ".out";
+   std::ofstream ofsN(ossN.str().c_str());
+   ofsN << nodes.Size() << std::endl;
+   for (int i=0; i<nodes.Size(); i++)
+   {
+      ofsN << i
+           << " " << nodes[i].vert_refc
+           << " " << nodes[i].edge_refc
+           << " " << nodes[i].vert_index
+           << " " << nodes[i].edge_index
+           << " " << nodes[i].p1
+           << " " << nodes[i].p2
+           << " " << nodes[i].next << std::endl;
+   }
+   ofsN.close();
+
    // assign ghost edge indices
    NEdges = mesh->GetNEdges();
    NGhostEdges = 0;
@@ -187,6 +244,168 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
       MFEM_ASSERT(NFaces == NEdges, "");
       MFEM_ASSERT(NGhostFaces == NGhostEdges, "");
    }
+
+   std::ostringstream oss; oss << "elements_on_mesh_updated_"
+                               << MyRank << ".out";
+   std::ofstream ofs(oss.str().c_str());
+
+   for (int i=0; i<elements.Size(); i++)
+   {
+      ofs << i
+          << '\t' << elements[i].index
+          << '\t' << elements[i].rank
+          << '\t' << elements[i].attribute
+          << '\t' << elements[i].parent;
+      if ( elements[i].ref_type == 0 )
+      {
+         ofs << " nodes {";
+         for (int j=0; j<8; j++)
+         {
+            ofs << " " << elements[i].node[j];
+         }
+         ofs << "}";
+      }
+      else
+      {
+         ofs << " children {";
+         for (int j=0; j<8; j++)
+         {
+            ofs << " " << elements[i].child[j];
+         }
+         ofs << "}";
+      }
+      ofs << std::endl;
+   }
+
+   if (pncent_sets)
+   {
+      std::cout << "ParNCMesh::OnMeshUpdated pncent_sets is non NULL" << std::endl;
+   }
+   else
+   {
+      std::cout << "ParNCMesh::OnMeshUpdated pncent_sets is NULL" << std::endl;
+   }
+   if (ncent_sets)
+   {
+      std::cout << "ParNCMesh::OnMeshUpdated ncent_sets is non NULL" << std::endl;
+   }
+   else
+   {
+      std::cout << "ParNCMesh::OnMeshUpdated ncent_sets is NULL" << std::endl;
+   }
+   if (mesh->ent_sets)
+   {
+      std::cout << "ParNCMesh::OnMeshUpdated mesh->ent_sets is non NULL" << std::endl;
+   }
+   else
+   {
+      std::cout << "ParNCMesh::OnMeshUpdated mesh->ent_sets is NULL" << std::endl;
+   }
+   ParMesh * pmesh = dynamic_cast<ParMesh*>(mesh);
+   if (pmesh)
+   {
+      std::cout << "dynamic cast succeeded: mesh is a ParMesh" << std::endl;
+
+      if (pmesh->ent_sets != NULL)
+      {
+         std::cout << "ParMesh::OnMeshUpdated deleting EntitySets object in ParMesh" <<
+                   std::endl;
+         delete pmesh->ent_sets;
+      }
+      std::cout << "ParMesh::OnMeshUpdated creating ParEntitySets object in ParMesh"
+                << std::endl;
+      pmesh->ent_sets = pmesh->pent_sets =
+                           (pncent_sets) ? new ParEntitySets(*pmesh, *this): NULL;
+      /*
+      if (pmesh->ent_sets)
+      {
+      std::cout << MyRank << ": ParNCMesh::OnMeshUpdated pmesh->ent_sets is non NULL" << std::endl;
+      pmesh->ent_sets->PrintSetInfo(std::cout);
+
+      std::ostringstream oss; oss << "ent_sets_" << MyRank << ".out";
+      std::ofstream ofs(oss.str().c_str());
+      pmesh->ent_sets->Print(ofs);
+      MPI_Barrier(MyComm);
+
+      std::cout << MyRank << ": testing " << NElements << std::endl;
+      //pmesh->ent_sets->Prune(NElements);
+      }
+      else
+      {
+      std::cout << "ParNCMesh::OnMeshUpdated pmesh->ent_sets is NULL" << std::endl;
+      }
+      */
+      if (pmesh->pent_sets)
+      {
+         std::cout << "ParNCMesh::OnMeshUpdated pmesh->pent_sets is non NULL" <<
+                   std::endl;
+      }
+      else
+      {
+         std::cout << "ParNCMesh::OnMeshUpdated pmesh->pent_sets is NULL" << std::endl;
+      }
+   }
+   else
+   {
+      std::cout << "dynamic cast failed: mesh is not a ParMesh" << std::endl;
+   }
+   /*
+   if (pncent_sets)
+   {
+     if (!pmesh->pent_sets)
+     {
+       pmesh->pent_sets = new ParEntitySets(*pmesh, *this);
+     }
+   }
+   */
+   /*
+   // Prune the Entity Sets
+   if ( entity_sets )
+   {
+      EntitySets::EntityType t = EntitySets::INVALID;
+      unsigned int ns = -1;
+
+      std::cout << "Processing node sets" << std::endl;
+
+      t = EntitySets::VERTEX;
+      ns = entity_sets->GetNumSets(t);
+      for (unsigned int s=0; s<ns; s++)
+      {
+         unsigned int ni = entity_sets->GetNumEntities(t, s);
+    int e = 0;
+    for (unsigned int i=0; i<ni; i++)
+      {
+        if ( (*mesh->ent_sets)(t, s, i) < NVertices )
+          {
+       (*mesh->ent_sets)(t, s, e) = (*mesh->ent_sets)(t, s, i);
+       e++;
+          }
+      }
+    (*mesh->ent_sets)(t, s).resize(e);
+      }
+
+      t = EntitySets::EDGE;
+      ns = entity_sets->GetNumSets(t);
+      for (unsigned int s=0; s<ns; s++)
+      {
+         unsigned int ni = entity_sets->GetNumEntities(t, s);
+    BlockArray<int> ids;
+
+         for (unsigned int i=0; i<ni; i++)
+         {
+      if ( (*mesh->ent_sets)(t, s, i) < NEdges )
+      {
+        ids.Append((*mesh->ent_sets)(t, s, i));
+      }
+         }
+    (*mesh->ent_sets)(t, s).resize(ids.Size());
+    for (int i=0; i<ids.Size(); i++)
+      {
+        (*mesh->ent_sets)(t, s, i) = ids[i];
+      }
+      }
+   }
+   */
 }
 
 void ParNCMesh::ElementSharesEdge(int elem, int enode)
@@ -2274,6 +2493,39 @@ void ParNCMesh::GetDebugMesh(Mesh &debug_mesh) const
    debug_mesh.ncmesh = copy;
 }
 
+void ParNCMesh::GetRefinedElements(int elem_id, BlockArray<int> & elem_ids)
+{
+   std::cout << MyRank
+             << ": entering ParNCMesh::GetRefinedElements "
+             <<"searching for element id: " << elem_id << std::endl;
+   Element &el = elements[elem_id];
+   /*
+   if (el.index >= 0 && el.rank == MyRank)
+   {
+      elem_ids.Append(el.index);
+      return;
+   }
+   */
+   if (el.ref_type != 0)
+   {
+      // This element has been refined so recurse into its children
+      for (int i = 0; i < 8; i++)
+      {
+         if (el.child[i] >= 0 && el.child[i] < elements.Size() )
+         {
+            GetRefinedElements(el.child[i], elem_ids);
+         }
+      }
+   }
+   else
+   {
+      // This element has not been refined so add it if it's a local element
+      if (el.rank == MyRank)
+      {
+         elem_ids.Append(elem_id);
+      }
+   }
+}
 
 } // namespace mfem
 
