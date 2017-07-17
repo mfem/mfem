@@ -175,6 +175,10 @@ public:
       std::size_t TotalSize() const
       { return conforming.size() + masters.size() + slaves.size(); }
       long MemoryUsage() const;
+
+      const MeshId& LookUp(int index) const;
+   private:
+      mutable Array<int> inv_index;
    };
 
    /// Return the current list of conforming and nonconforming faces.

@@ -1289,32 +1289,54 @@ void ParFiniteElementSpace::GetBareDofs(int type, const NCMesh::MeshId &id,
 }
 
 
-struct PMatRowElem
+struct PMatrixElement
 {
    HYPRE_Int column;
    double value;
+
+   PMatrixElement(HYPRE_Int col, double val) : column(col), value(val) {}
 };
 
-typedef std::vector<PMatRowElem> PMatrixRow;
+typedef std::vector<PMatrixElement> PMatrixRow;
 
 
 class NeighborRowMessage : public VarMessage<314>
 {
 public:
-   void AddRow(int entity, int edof, const PMatrixRow &row);
-   //void GetRow(
-
    typedef std::map<int, NeighborRowMessage> Map;
 
+   struct RowInfo
+   {
+      int entity, index, edof;
+      const PMatrixRow *row;
+
+      RowInfo(int ent, int idx, int edof, const PMatrixRow *row)
+         : entity(ent), index(idx), edof(edof), row(row) {}
+   };
+
+   void AddRow(int entity, int index, int edof, const PMatrixRow *row)
+   { rows.Append(RowInfo(entity, index, edof, row)); }
+
+   const Array<RowInfo>& GetRows() const { return rows; }
+
 protected:
-   std::list<PMatrixRow> rows;
+   Array<RowInfo> rows;
 
    virtual void Encode();
    virtual void Decode();
 };
 
-// TODO: PackDof(entity, edof) -> dof
-// TODO: UnpackDof(dof) -> entity, edof
+
+int ParFiniteElementSpace::PackDof(int entity, int index, int edof)
+{
+   return 0; // TODO
+
+}
+
+void ParFiniteElementSpace::UnpackDof(int dof, int &entity, int &index, int &edof)
+{
+   // TODO
+}
 
 
 void ParFiniteElementSpace::NewParallelConformingInterpolation()
@@ -1366,7 +1388,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
 
             // get master DOFs
             pncmesh->IsGhost(type, mf.index)
-                  ? GetGhostDofs(type, mf.index, master_dofs)
+                  ? GetGhostDofs(type, mf, master_dofs)
                   : GetDofs(type, mf.index, master_dofs);
 
             if (!master_dofs.Size()) { continue; }
@@ -1452,6 +1474,8 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
       deps.Finalize();
    }
 
+   // *** STEP 2: count true DOFs and calculate P column partition ***
+
    Array<bool> finalized(num_dofs);
    finalized = false;
 
@@ -1473,8 +1497,17 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    HYPRE_Int glob_true_dofs = tdof_offsets.Last();
    HYPRE_Int glob_cdofs = dof_offsets.Last();
 
+   std::vector<PMatrixRow> pmatrix(total_dofs);
+
    // initialize the R matrix (also parallel but block-diagonal)
    R = new SparseMatrix(ltdof_size, num_dofs);
+
+   // big container for all messages we send (the list is for iterations)
+   std::list<NeighborRowMessage::Map> send_msg;
+   send_msg.push_back(NeighborRefinementMessage::Map());
+
+   PMatrixRow identity;
+   identity.push_back(PMatrixElement(0, 1.0));
 
    // put identity in P and R for true DOFs, set ldof_ltdof
    HYPRE_Int my_tdof_offset = GetMyTDofOffset();
@@ -1484,19 +1517,57 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    {
       if (finalized[i])
       {
-         localP.Add(i, my_tdof_offset + true_dof, 1.0);
+         identity[0].column = my_tdof_offset + true_dof;
+         pmatrix[i] = identity;
+
+         // prepare messages to neighbors with identity rows
+         const ParNCMesh::CommGroup &group = pncmesh->GetGroup(dof_group[i]);
+         for (unsigned j = 0; j < group.size(); j++)
+         {
+            int rank = group[j];
+            if (rank != MyRank)
+            {
+               NeighborRowMessage &msg = send_msg.back()[rank];
+               int ent, idx, edof;
+               UnpackDof(i, ent, idx, edof);
+               msg.AddRow(ent, idx, edof, &pmatrix[i]);
+            }
+         }
+
          R->Add(true_dof, i, 1.0);
-         finalized[i] = true;
          ldof_ltdof[i] = true_dof;
          true_dof++;
       }
    }
 
+   // *** STEP 3: main loop ***
 
-   // row class
-   // decode DOF
+   // a single instance is reused for all incoming messages
+   NeighborRefinementMessage recv_msg;
+   recv_msg.SetNCMesh(this);
 
-   // TODO
+   while (1)
+   {
+      // send messages
+      NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
+
+      // check for incoming messages
+      int rank, size;
+      while (NeighborRowMessage::IProbe(rank, size, MyComm))
+      {
+         recv_msg.Recv(rank, size, MyComm);
+
+         const Array<NeighborRowMessage::RowInfo> &rows = recv_msg.GetRows();
+         for (int i = 0; i < rows.Size(); i++)
+         {
+            const NeighborRowMessage::RowInfo &ri = rows[i];
+            int dof = PackDof(ri.entity, ri.index, ri.edof);
+            pmatrix[dof] = ri.row;
+            finalized[dof] = true;
+         }
+      }
+
+   }
 
 }
 
