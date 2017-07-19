@@ -62,6 +62,9 @@
 // Enable MFEM functionality based on the SuperLU_DIST library.
 #cmakedefine MFEM_USE_SUPERLU
 
+// Enable MFEM functionality based on the STRUMPACK library.
+#cmakedefine MFEM_USE_STRUMPACK
+
 // Internal MFEM option: enable group/batch allocation for some small objects.
 #cmakedefine MFEM_USE_MEMALLOC
 
@@ -81,11 +84,7 @@
 #cmakedefine MFEM_USE_SIDRE
 
 // Which library functions to use in class StopWatch for measuring time.
-// The available options are:
-//   0 - use std::clock from <ctime>
-//   1 - use times from <sys/times.h>
-//   2 - use high-resolution POSIX clocks
-//   3 - use QueryPerformanceCounter from <windows.h>
+// For a list of the available options, see INSTALL.
 // If not defined, an option is selected automatically.
 #define MFEM_TIMER_TYPE @MFEM_TIMER_TYPE@
 

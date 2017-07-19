@@ -85,7 +85,8 @@ function(add_mfem_examples EXE_SRCS)
 
     target_link_libraries(${EXE_NAME} mfem)
     if (MFEM_USE_MPI)
-      target_link_libraries(${EXE_NAME} ${MPI_CXX_LIBRARIES})
+      # Not needed: (mfem already links with MPI_CXX_LIBRARIES)
+      # target_link_libraries(${EXE_NAME} ${MPI_CXX_LIBRARIES})
 
       # Language-specific include directories:
       if (MPI_CXX_INCLUDE_PATH)
@@ -156,6 +157,7 @@ function(add_mfem_miniapp MFEM_EXE_NAME)
 
   # Handle the MPI separately
   if (MFEM_USE_MPI)
+    # Add MPI_CXX_LIBRARIES, in case this target does not link with mfem.
     if(CMAKE_VERSION VERSION_GREATER 2.8.11)
       target_link_libraries(${MFEM_EXE_NAME} PRIVATE ${MPI_CXX_LIBRARIES})
     else()

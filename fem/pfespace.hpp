@@ -218,12 +218,14 @@ public:
 
    /// Determine the boundary degrees of freedom
    virtual void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
-                                  Array<int> &ess_dofs) const;
+                                  Array<int> &ess_dofs,
+                                  int component = -1) const;
 
    /** Get a list of essential true dofs, ess_tdof_list, corresponding to the
        boundary attributes marked in the array bdr_attr_is_ess. */
    virtual void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
-                                     Array<int> &ess_tdof_list);
+                                     Array<int> &ess_tdof_list,
+                                     int component = -1);
 
    /** If the given ldof is owned by the current processor, return its local
        tdof number, otherwise return -1 */

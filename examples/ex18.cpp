@@ -343,7 +343,7 @@ int main(int argc, char *argv[])
    //       N_iter and the number of preconditioner Mult() calls is N_iter+1.
    cout << "Total CG time:    " << my_rt << " sec."
         << endl;
-   cout << "Time per CG step: " << my_rt / cg->GetNumIterations() << " sec." 
+   cout << "Time per CG step: " << my_rt / cg->GetNumIterations() << " sec."
         << endl;
    cout << "\n\"DOFs/sec\" in CG: "
         << 1e-6*size*cg->GetNumIterations()/my_rt << " million."
