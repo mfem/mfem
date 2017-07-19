@@ -1020,7 +1020,15 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
                                              HYPRE_Int* row_starts) const
 {
    const bool assumed_partition = HYPRE_AssumedPartitionCheck();
-   const bool same_rows = (D.Height() == hypre_CSRMatrixNumRows(A->diag));
+   bool same_rows;
+   if (row_starts == NULL)
+   {
+      same_rows = (D.Height() == hypre_CSRMatrixNumRows(A->diag));
+   }
+   else
+   {
+      same_rows = (row_starts == hypre_ParCSRMatrixRowStarts(A));
+   }
 
    int part_size;
    if (assumed_partition)
@@ -1043,6 +1051,22 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
    {
       MFEM_VERIFY(row_starts != NULL, "the number of rows in D and A is not "
                   "the same; row_starts must be given (not NULL)");
+
+#ifdef MFEM_DEBUG
+      int offset;
+      if (assumed_partition)
+      {
+         offset = 0;
+      }
+      else
+      {
+         MPI_Comm_rank(GetComm(), &offset);
+      }
+      int local_num_rows = row_starts[offset+1]-row_starts[offset];
+      MFEM_VERIFY(local_num_rows == D.Height(), "the number of rows in D is "
+                  " not compatible with the given row_starts");
+#endif
+
       // Here, when assumed_partition is true we use row_starts[2], so
       // row_starts must come from the GetDofOffsets/GetTrueDofOffsets methods
       // of ParFiniteElementSpace (HYPRE's partitions have only 2 entries).
