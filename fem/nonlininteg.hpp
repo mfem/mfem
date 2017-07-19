@@ -246,6 +246,65 @@ public:
     ~TMOPHyperelasticModel022() {}
     
 };
+    
+class TMOPHyperelasticModel050 : public HyperelasticModel
+{
+public:
+    virtual double EvalW(const DenseMatrix &Jpt) const;
+    
+    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+    
+    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                           const double weight, DenseMatrix &A) const;
+};
+    
+class TMOPHyperelasticModel055 : public HyperelasticModel
+{
+public:
+    virtual double EvalW(const DenseMatrix &Jpt) const;
+    
+    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+    
+    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                           const double weight, DenseMatrix &A) const;
+    
+};
+
+class TMOPHyperelasticModel056 : public HyperelasticModel
+{
+public:
+    virtual double EvalW(const DenseMatrix &Jpt) const;
+    
+    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+    
+    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                           const double weight, DenseMatrix &A) const;
+    
+};
+
+class TMOPHyperelasticModel058 : public HyperelasticModel
+{
+public:
+    virtual double EvalW(const DenseMatrix &Jpt) const;
+    
+    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+    
+    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                           const double weight, DenseMatrix &A) const;
+    
+};
+    
+class TMOPHyperelasticModel077 : public HyperelasticModel
+{
+public:
+    virtual double EvalW(const DenseMatrix &Jpt) const;
+    
+    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+    
+    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                           const double weight, DenseMatrix &A) const;
+    
+};
 
 class TMOPHyperelasticModel211 : public HyperelasticModel
 {
@@ -273,30 +332,6 @@ public:
                            const double weight, DenseMatrix &A) const;
     
     ~TMOPHyperelasticModel252() {}
-    
-};
-
-class TMOPHyperelasticModel056 : public HyperelasticModel
-{
-public:
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
-    
-};
-
-class TMOPHyperelasticModel077 : public HyperelasticModel
-{
-public:
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
     
 };
 

@@ -714,15 +714,21 @@ int main (int argc, char *argv[])
             << "1  : |T|^2 \n"
             << "     shape.\n"
             << "2  : 0.5 |T|^2 / tau  - 1 \n"
-            << "     shape, condition number metric.\n"
+            << "     shape, condition number.\n"
             << "7  : |T - T^-t|^2 \n"
             << "     shape+size.\n"
             << "22  : |T|^2 - 2*tau / (2*tau - 2*tau_0)\n"
             << "     untangling.\n"
+            << "50  : |T^tT|^2/(2tau^2) - 1\n"
+            << "     shape.\n"
             << "52  : (tau-1)^2/ (2*tau - 2*tau_0)\n"
             << "     untangling.\n"
+            << "55  : (tau-1)^2\n"
+            << "     size.\n"
             << "56  : 0.5*(sqrt(tau) - 1/sqrt(tau))^2\n"
-            << "     size metric\n"
+            << "     size.\n"
+            << "58  : (|T^tT|^2/(tau^2) - 2*|T|^2/tau + 2)\n"
+            << "     shape.\n"
             << "77  : 0.5*(tau - 1/tau)^2\n"
             << "     size metric\n"
             << "211  : (tau-1)^2 - tau + sqrt(tau^2+beta)\n"
@@ -749,21 +755,33 @@ int main (int argc, char *argv[])
        {
           model = new TMOPHyperelasticModel022(tauval);
        }
+       else if (modeltype == 50)
+       {
+           model = new TMOPHyperelasticModel050;
+       }
        else if (modeltype == 52)
        {
           model = new TMOPHyperelasticModel252(tauval);
        }
+       else if (modeltype == 55)
+       {
+           model = new TMOPHyperelasticModel055;
+       }
        else if (modeltype == 56)
        {
-          model = new TMOPHyperelasticModel056;
+           model = new TMOPHyperelasticModel056;
+       }
+       else if (modeltype == 58)
+       {
+           model = new TMOPHyperelasticModel058;
        }
        else if (modeltype == 77)
        {
-          model = new TMOPHyperelasticModel077;
+           model = new TMOPHyperelasticModel077;
        }
        else if (modeltype == 211)
        {
-          model = new TMOPHyperelasticModel211;
+           model = new TMOPHyperelasticModel211;
        }
        else
        {

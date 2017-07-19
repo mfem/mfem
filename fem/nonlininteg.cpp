@@ -720,6 +720,203 @@ void TMOPHyperelasticModel022::AssembleH(const DenseMatrix &Jpt,
         }
 }
 
+//M050 = (0.5*I1^2 - 2)  - Shape metric
+double TMOPHyperelasticModel050::EvalW(const DenseMatrix &Jpt) const
+{
+    const double I1 = Dim2Invariant1(Jpt);
+    return  (I1*I1*0.5 - 2.);
+}
+    
+void TMOPHyperelasticModel050::EvalP(const DenseMatrix &Jpt,
+                                     DenseMatrix &P) const
+{
+    const double I1 = Dim2Invariant1(Jpt);
+    Dim2Invariant1_dM(Jpt, P);
+    P *= I1; //I1*DI1/DM
+}
+
+void TMOPHyperelasticModel050::AssembleH(const DenseMatrix &Jpt,
+                                         const DenseMatrix &DS,
+                                         const double weight,
+                                         DenseMatrix &A) const
+{
+    const int dof = DS.Height(), dim = DS.Width();
+    const double I1 = Dim2Invariant1(Jpt);
+    DenseMatrix dI1_dM(dim), dI1_dMdM(dim);
+    Dim2Invariant1_dM(Jpt, dI1_dM);
+    
+    for (int r = 0; r < dim; r++)
+        for (int c = 0; c < dim; c++)
+        {
+            Dim2Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
+            // Compute each entry of d(Grc)_dJ.
+            for (int rr = 0; rr < dim; rr++)
+            {
+                for (int cc = 0; cc < dim; cc++)
+                {
+                    const double entry_rr_cc =
+                    dI1_dM(rr,cc)*dI1_dM(r,c) + I1*dI1_dMdM(rr,cc);
+                    for (int i = 0; i < dof; i++)
+                        for (int j = 0; j < dof; j++)
+                        {
+                            A(i+r*dof, j+rr*dof) +=
+                            weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
+                        }
+                }
+            }
+        }
+}
+
+//M55 = (I2^2-2*I2+1)
+double TMOPHyperelasticModel055::EvalW(const DenseMatrix &Jpt) const
+{
+    const double I2 = Dim2Invariant2(Jpt);
+    return  I2*I2 - 2.*I2 + 1;
+}
+
+void TMOPHyperelasticModel055::EvalP(const DenseMatrix &Jpt,
+                                     DenseMatrix &P) const
+{
+    const double I2 = Dim2Invariant2(Jpt);
+    
+    Dim2Invariant2_dM(Jpt, P);
+    P *= (2.*I2 - 1.);
+}
+
+void TMOPHyperelasticModel055::AssembleH(const DenseMatrix &Jpt,
+                                         const DenseMatrix &DS,
+                                         const double weight,
+                                         DenseMatrix &A) const
+{
+    const int dof = DS.Height(), dim = DS.Width();
+    const double I2 = Dim2Invariant2(Jpt);
+    DenseMatrix dI2_dM(dim), dI2_dMdM(dim);
+    Dim2Invariant2_dM(Jpt, dI2_dM);
+    
+    for (int r = 0; r < dim; r++)
+        for (int c = 0; c < dim; c++)
+        {
+            Dim2Invariant2_dMdM(Jpt, r, c, dI2_dMdM);
+            // Compute each entry of d(Grc)_dJ.
+            for (int rr = 0; rr < dim; rr++)
+            {
+                for (int cc = 0; cc < dim; cc++)
+                {
+                    const double entry_rr_cc =
+                    2.*dI2_dMdM(rr,cc)*(I2 - 1.) + 2.*dI2_dM(rr,cc)*dI2_dM(r,c);
+                    
+                    for (int i = 0; i < dof; i++)
+                        for (int j = 0; j < dof; j++)
+                        {
+                            A(i+r*dof, j+rr*dof) +=
+                            weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
+                        }
+                }
+            }
+        }
+}
+
+    
+//M056 = 1/2 ( sqrt(tau) - 1/sqrt(tau))^2  = 1/2 (I2 + 1/I2) - 1
+double TMOPHyperelasticModel056::EvalW(const DenseMatrix &Jpt) const
+{
+    const double I2 = Dim2Invariant2(Jpt);
+    return  0.5*(I2 + (1./I2)) - 1.;
+}
+
+void TMOPHyperelasticModel056::EvalP(const DenseMatrix &Jpt,
+                                     DenseMatrix &P) const
+{
+    const double I2 = Dim2Invariant2(Jpt);
+    double alpha = 1./(I2*I2);
+    
+    Dim2Invariant2_dM(Jpt, P);
+    P *= (0.5 - 0.5*alpha);
+}
+
+void TMOPHyperelasticModel056::AssembleH(const DenseMatrix &Jpt,
+                                         const DenseMatrix &DS,
+                                         const double weight,
+                                         DenseMatrix &A) const
+{
+    const int dof = DS.Height(), dim = DS.Width();
+    const double I2 = Dim2Invariant2(Jpt);
+    DenseMatrix dI2_dM(dim), dI2_dMdM(dim);
+    Dim2Invariant2_dM(Jpt, dI2_dM);
+    double alpha = 1./(I2*I2*I2);
+    
+    for (int r = 0; r < dim; r++)
+        for (int c = 0; c < dim; c++)
+        {
+            Dim2Invariant2_dMdM(Jpt, r, c, dI2_dMdM);
+            // Compute each entry of d(Grc)_dJ.
+            for (int rr = 0; rr < dim; rr++)
+            {
+                for (int cc = 0; cc < dim; cc++)
+                {
+                    const double entry_rr_cc =
+                    alpha*dI2_dM(rr,cc)*dI2_dM(r,c) + dI2_dMdM(rr,cc)*(0.5 - 0.5/(I2*I2));
+                    
+                    for (int i = 0; i < dof; i++)
+                        for (int j = 0; j < dof; j++)
+                        {
+                            A(i+r*dof, j+rr*dof) +=
+                            weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
+                        }
+                }
+            }
+        }
+}
+
+//M058 = I1(I1-2)
+double TMOPHyperelasticModel058::EvalW(const DenseMatrix &Jpt) const
+{
+    const double I1 = Dim2Invariant1(Jpt);
+    return  I1*(I1-2.);
+}
+
+void TMOPHyperelasticModel058::EvalP(const DenseMatrix &Jpt,
+                                     DenseMatrix &P) const
+{
+    const double I1 = Dim2Invariant1(Jpt);
+    
+    Dim2Invariant2_dM(Jpt, P);
+    P *= (2.*I1 - 2.);
+}
+
+void TMOPHyperelasticModel058::AssembleH(const DenseMatrix &Jpt,
+                                         const DenseMatrix &DS,
+                                         const double weight,
+                                         DenseMatrix &A) const
+{
+    const int dof = DS.Height(), dim = DS.Width();
+    const double I1 = Dim2Invariant1(Jpt);
+    DenseMatrix dI1_dM(dim), dI1_dMdM(dim);
+    Dim2Invariant1_dM(Jpt, dI1_dM);
+    
+    for (int r = 0; r < dim; r++)
+        for (int c = 0; c < dim; c++)
+        {
+            Dim2Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
+            // Compute each entry of d(Grc)_dJ.
+            for (int rr = 0; rr < dim; rr++)
+            {
+                for (int cc = 0; cc < dim; cc++)
+                {
+                    const double entry_rr_cc =
+                    2.*dI1_dM(rr,cc)*dI1_dM(r,c) + dI1_dMdM(rr,cc)*(2.*I1 - 2.);
+                    
+                    for (int i = 0; i < dof; i++)
+                        for (int j = 0; j < dof; j++)
+                        {
+                            A(i+r*dof, j+rr*dof) +=
+                            weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
+                        }
+                }
+            }
+        }
+}
+    
 
 //Metric 211 (I2-1)^2 + (-I2 + sqrt(I2^2 + beta))
 double TMOPHyperelasticModel211::EvalW(const DenseMatrix &Jpt) const
@@ -842,57 +1039,6 @@ void TMOPHyperelasticModel252::AssembleH(const DenseMatrix &Jpt,
         }
 }
 
-
-//M056 = 1/2 ( sqrt(tau) - 1/sqrt(tau))^2  = 1/2 (I2 + 1/I2) - 1
-double TMOPHyperelasticModel056::EvalW(const DenseMatrix &Jpt) const
-{
-    const double I2 = Dim2Invariant2(Jpt);
-    return  0.5*(I2 + (1./I2)) - 1.;
-}
-
-void TMOPHyperelasticModel056::EvalP(const DenseMatrix &Jpt,
-                                     DenseMatrix &P) const
-{
-    const double I2 = Dim2Invariant2(Jpt);
-    double alpha = 1./(I2*I2);
-    
-    Dim2Invariant2_dM(Jpt, P);
-    P *= (0.5 - 0.5*alpha);
-}
-
-void TMOPHyperelasticModel056::AssembleH(const DenseMatrix &Jpt,
-                                         const DenseMatrix &DS,
-                                         const double weight,
-                                         DenseMatrix &A) const
-{
-    const int dof = DS.Height(), dim = DS.Width();
-    const double I2 = Dim2Invariant2(Jpt);
-    DenseMatrix dI2_dM(dim), dI2_dMdM(dim);
-    Dim2Invariant2_dM(Jpt, dI2_dM);
-    double alpha = 1./(I2*I2*I2);
-    
-    for (int r = 0; r < dim; r++)
-        for (int c = 0; c < dim; c++)
-        {
-            Dim2Invariant2_dMdM(Jpt, r, c, dI2_dMdM);
-            // Compute each entry of d(Grc)_dJ.
-            for (int rr = 0; rr < dim; rr++)
-            {
-                for (int cc = 0; cc < dim; cc++)
-                {
-                    const double entry_rr_cc =
-                    alpha*dI2_dM(rr,cc)*dI2_dM(r,c) + dI2_dMdM(rr,cc)*(0.5 - 0.5/(I2*I2));
-                    
-                    for (int i = 0; i < dof; i++)
-                        for (int j = 0; j < dof; j++)
-                        {
-                            A(i+r*dof, j+rr*dof) +=
-                            weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
-                        }
-                }
-            }
-        }
-}
 
 //M077 = 1/2 ( (tau) - 1/(tau))^2
 double TMOPHyperelasticModel077::EvalW(const DenseMatrix &Jpt) const

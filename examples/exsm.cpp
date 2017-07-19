@@ -657,20 +657,27 @@ int main (int argc, char *argv[])
     
     //Metrics for 2D & 3D
     double tauval = -0.1;
-    if (dim==2) {
+    if (dim==2)
+    {
         cout << "Choose optimization metric:\n"
         << "1  : |T|^2 \n"
         << "     shape.\n"
         << "2  : 0.5 |T|^2 / tau  - 1 \n"
-        << "     shape, condition number metric.\n"
+        << "     shape, condition number.\n"
         << "7  : |T - T^-t|^2 \n"
         << "     shape+size.\n"
         << "22  : |T|^2 - 2*tau / (2*tau - 2*tau_0)\n"
         << "     untangling.\n"
+        << "50  : |T^tT|^2/(2tau^2) - 1\n"
+        << "     shape.\n"
         << "52  : (tau-1)^2/ (2*tau - 2*tau_0)\n"
         << "     untangling.\n"
+        << "55  : (tau-1)^2\n"
+        << "     size.\n"
         << "56  : 0.5*(sqrt(tau) - 1/sqrt(tau))^2\n"
-        << "     size metric\n"
+        << "     size.\n"
+        << "58  : (|T^tT|^2/(tau^2) - 2*|T|^2/tau + 2)\n"
+        << "     shape.\n"
         << "77  : 0.5*(tau - 1/tau)^2\n"
         << "     size metric\n"
         << "211  : (tau-1)^2 - tau + sqrt(tau^2+beta)\n"
@@ -699,15 +706,30 @@ int main (int argc, char *argv[])
             model = new TMOPHyperelasticModel022(tauval);
             cout << " you chose metric 22\n";
         }
+        else if (modeltype == 50)
+        {
+            model = new TMOPHyperelasticModel050;
+            cout << " you chose metric 50\n";
+        }
         else if (modeltype == 52)
         {
             model = new TMOPHyperelasticModel252(tauval);
             cout << " you chose metric 52 \n";
         }
+        else if (modeltype == 55)
+        {
+            model = new TMOPHyperelasticModel055;
+            cout << " you chose metric 55 \n";
+        }
         else if (modeltype == 56)
         {
             model = new TMOPHyperelasticModel056;
             cout << " you chose metric 56\n";
+        }
+        else if (modeltype == 58)
+        {
+            model = new TMOPHyperelasticModel058;
+            cout << " you chose metric 58\n";
         }
         else if (modeltype == 77)
         {
@@ -798,7 +820,7 @@ int main (int argc, char *argv[])
     he_nlf_integ = new HyperelasticNLFIntegrator(model, tj);
     
     int ptflag = 1; //if 1 - GLL, else uniform
-    int nptdir = 8; //number of sample points in each direction
+    int nptdir = 9; //number of sample points in each direction
     const IntegrationRule *ir =
     &IntRulesLo.Get(fespace->GetFE(0)->GetGeomType(),nptdir); //this for GLL points "LO"
     he_nlf_integ->SetIntegrationRule(*ir);
@@ -819,7 +841,7 @@ int main (int argc, char *argv[])
     // This is for trying a combo of two integrators
     const int combomet = 0;
     if (combomet==1) {
-        c = new ConstantCoefficient(0.5);  //weight of original metric
+        c = new ConstantCoefficient(1.25);  //weight of original metric
         he_nlf_integ->SetCoefficient(*c);
         nf_integ = he_nlf_integ;
         a.AddDomainIntegrator(nf_integ);
@@ -1147,8 +1169,12 @@ double weight_fun(const Vector &x)
     }
     //l2 = 0.01+0.5*std::tanh((r2-0.13)/0.01)-(0.5*std::tanh((r2-0.14)/0.01))
     //        +0.5*std::tanh((r2-0.21)/0.01)-(0.5*std::tanh((r2-0.22)/0.01));
-    l2 = 0.1+0.5*std::tanh((r2-0.12)/0.005)-(0.5*std::tanh((r2-0.13)/0.005))
-    +0.5*std::tanh((r2-0.18)/0.005)-(0.5*std::tanh((r2-0.19)/0.005));
+    double den = 0.005;
+    //l2 = 0.05+0.5*std::tanh((r2-0.12)/den)-(0.5*std::tanh((r2-0.13)/den))
+    //+0.5*std::tanh((r2-0.18)/den)-(0.5*std::tanh((r2-0.19)/den));
+    l2 = 0.2 +     +0.5*std::tanh((r2-0.14)/den)-(0.5*std::tanh((r2-0.15)/den))
+    +0.5*std::tanh((r2-0.19)/den)-(0.5*std::tanh((r2-0.20)/den))
+    +0.5*std::tanh((r2-0.23)/den)-(0.5*std::tanh((r2-0.24)/den));
     //l2 = 10*r2;
     /*
     //This is for blade
