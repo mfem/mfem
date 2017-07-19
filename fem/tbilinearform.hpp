@@ -146,6 +146,7 @@ public:
                                                      ndofs_1d x nelem
                                                      representing a boolean P */
                FORTRAN
+//               C
 	    };
 
 	    CEED_MassAction(
@@ -171,6 +172,7 @@ public:
                                                     ndofs_1d x nelem
                                                     representing a boolean P */
                FORTRAN
+//               C
             };
 
 	    CEED_DiffusionAction(
@@ -197,6 +199,7 @@ public:
                                                     nelem representing a boolean
                                                     P */
                FORTRAN
+//               C
             };
 
 	    CEED_MassAction(
@@ -222,6 +225,7 @@ public:
                                                     ndofs_1d x nelem
                                                     representing a boolean P */
                FORTRAN
+//               C
             };
 
 	    CEED_DiffusionAction(

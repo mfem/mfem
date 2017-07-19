@@ -12,7 +12,7 @@
 #define MFEM_EXPERIMENT_1
 
 #ifndef PROBLEM
-#define PROBLEM 0
+#define PROBLEM 1
 #endif
 
 #define MFEM_EXPERIMENT_1_PROBLEM PROBLEM
@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
          cout << "The given mesh does not match the optimized 'geom' parameter.\n"
             << "Recompile with suitable 'geom' value." << endl;
          delete mesh;
-         return 4;
+         return 3;
       }
       else if (!mesh_t::MatchesNodes(*mesh))
       {
@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
       delete fespace;
       delete fec;
       delete mesh;
-      return 5;
+      return 4;
    }
 
    // 7. Determine the list of true (i.e. parallel conforming) essential
@@ -265,8 +265,12 @@ int main(int argc, char *argv[])
 
    if (!perf)
    {
-      // Standard assembly using a diffusion domain integrator
+      // Standard assembly using a diffusion/mass domain integrator
+#if (PROBLEM == 0)
       a->AddDomainIntegrator(new DiffusionIntegrator(one));
+#else
+      a->AddDomainIntegrator(new MassIntegrator(one));
+#endif
       a->Assemble();
    }
    else
@@ -323,7 +327,7 @@ int main(int argc, char *argv[])
    CGSolver *cg;
    cg = new CGSolver();
    cg->SetRelTol(1e-6);
-   cg->SetMaxIter(50);
+   cg->SetMaxIter(500);
    cg->SetPrintLevel(3);
    cg->SetOperator(*a_oper);
 
