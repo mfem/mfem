@@ -130,9 +130,9 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // Parse command-line options.
-   int dim = 1;
+   int dim = 2;
    int ref_levels = 0;
-   int order = 2;
+   int order = 1;
    double t_final = 0.5;
    double dt = 0.01;
    double alpha = 0.0;
@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
    }
    else if (dim == 3)
    {
-      mesh = new Mesh(16, 16, 16, Element::CUBE, 1, 1.0, 1.0, 1.0);
+      mesh = new Mesh(16, 16, 16, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
    }
    else
    {
@@ -245,7 +245,7 @@ int main(int argc, char *argv[])
    // Initialize the conduction operator and the VisIt visualization.
    ConductionOperator oper(fespace, alpha, kappa, u);
    u_gf.SetFromTrueDofs(u);
-   VisItDataCollection visit_dc("transient-heat", pmesh);
+   VisItDataCollection visit_dc("dump", pmesh);
    visit_dc.RegisterField("temperature", &u_gf);
    visit_dc.SetCycle(0);
    visit_dc.SetTime(0.0);
@@ -261,11 +261,12 @@ int main(int argc, char *argv[])
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
-      double dt_target = min(dt, t_final - t);
-      ode_solver->Step(u, t, dt_target);
-      dt = dt_target;
-
-      last_step = (t >= t_final - 1e-8*dt);
+      if (dt > t_final - t) 
+      {
+         dt = t_final - t;
+         arkode->SetFixedStep(dt);
+      }
+      ode_solver->Step(u, t, dt);
 
       if (myid == 0)
       {
@@ -280,6 +281,7 @@ int main(int argc, char *argv[])
       visit_dc.Save();
 
       oper.SetParameters(u);
+      last_step = (t >= t_final - 1e-8*dt);
    }
 
    // Cleanup
@@ -444,5 +446,5 @@ double InitialTemperature(const Vector &x)
          max_comp_dist = comp_dist;
       }
    }
-   return max_comp_dist;
+   return 1.0 - 2.0*max_comp_dist;
 }

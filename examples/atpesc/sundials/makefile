@@ -55,5 +55,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	rm -rf transient-heat_*
-	rm -f transient-heat*.mfem_root
+	rm -rf dump_*
