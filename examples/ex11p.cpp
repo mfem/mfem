@@ -32,9 +32,9 @@
 //
 //               The example highlights the use of the LOBPCG eigenvalue solver
 //               together with the BoomerAMG preconditioner in HYPRE, as well as
-//               optionally the SuperLU parallel direct solver. Reusing a single
-//               GLVis visualization window for multiple eigenfunctions is also
-//               illustrated.
+//               optionally the SuperLU or STRUMPACK parallel direct solvers.
+//               Reusing a single GLVis visualization window for multiple
+//               eigenfunctions is also illustrated.
 //
 //               We recommend viewing Example 1 before viewing this example.
 
@@ -61,6 +61,7 @@ int main(int argc, char *argv[])
    int nev = 5;
    int seed = 75;
    bool slu_solver  = false;
+   bool sp_solver = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -81,18 +82,35 @@ int main(int argc, char *argv[])
    args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu",
                   "--no-superlu", "Use the SuperLU Solver.");
 #endif
+#ifdef MFEM_USE_STRUMPACK
+   args.AddOption(&sp_solver, "-sp", "--strumpack", "-no-sp",
+                  "--no-strumpack", "Use the STRUMPACK Solver.");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.Parse();
-   if (!args.Good())
+   if (slu_solver && sp_solver)
    {
       if (myid == 0)
+         cout << "WARNING: Both SuperLU and STRUMPACK have been selected,"
+              << " please choose either one." << endl
+              << "         Defaulting to SuperLU." << endl;
+      sp_solver = false;
+   }
+   // The command line options are also passed to the STRUMPACK
+   // solver. So do not exit if some options are not recognized.
+   if (!sp_solver)
+   {
+      if (!args.Good())
       {
-         args.PrintUsage(cout);
+         if (myid == 0)
+         {
+            args.PrintUsage(cout);
+         }
+         MPI_Finalize();
+         return 1;
       }
-      MPI_Finalize();
-      return 1;
    }
    if (myid == 0)
    {
@@ -185,12 +203,20 @@ int main(int argc, char *argv[])
    HypreParMatrix *A = a->ParallelAssemble();
    HypreParMatrix *M = m->ParallelAssemble();
 
-#ifdef MFEM_USE_SUPERLU
+#if defined(MFEM_USE_SUPERLU) || defined(MFEM_USE_STRUMPACK)
    Operator * Arow = NULL;
+#ifdef MFEM_USE_SUPERLU
    if (slu_solver)
    {
       Arow = new SuperLURowLocMatrix(*A);
    }
+#endif
+#ifdef MFEM_USE_STRUMPACK
+   if (sp_solver)
+   {
+      Arow = new STRUMPACKRowLocMatrix(*A);
+   }
+#endif
 #endif
 
    delete a;
@@ -200,23 +226,42 @@ int main(int argc, char *argv[])
    //    preconditioner for A to be used within the solver. Set the matrices
    //    which define the generalized eigenproblem A x = lambda M x.
    Solver * precond = NULL;
-   if (!slu_solver)
+   if (!slu_solver && !sp_solver)
    {
       HypreBoomerAMG * amg = new HypreBoomerAMG(*A);
       amg->SetPrintLevel(0);
       precond = amg;
    }
-#ifdef MFEM_USE_SUPERLU
    else
    {
-      SuperLUSolver * superlu = new SuperLUSolver(MPI_COMM_WORLD);
-      superlu->SetPrintStatistics(false);
-      superlu->SetSymmetricPattern(true);
-      superlu->SetColumnPermutation(superlu::PARMETIS);
-      superlu->SetOperator(*Arow);
-      precond = superlu;
-   }
+#ifdef MFEM_USE_SUPERLU
+      if (slu_solver)
+      {
+         SuperLUSolver * superlu = new SuperLUSolver(MPI_COMM_WORLD);
+         superlu->SetPrintStatistics(false);
+         superlu->SetSymmetricPattern(true);
+         superlu->SetColumnPermutation(superlu::PARMETIS);
+         superlu->SetOperator(*Arow);
+         precond = superlu;
+      }
 #endif
+#ifdef MFEM_USE_STRUMPACK
+      if (sp_solver)
+      {
+         STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+         strumpack->SetPrintFactorStatistics(true);
+         strumpack->SetPrintSolveStatistics(false);
+         strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+         strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+         strumpack->SetMC64Job(strumpack::MC64Job::NONE);
+         // strumpack->SetSymmetricPattern(true);
+         strumpack->SetOperator(*Arow);
+         strumpack->SetFromCommandLine();
+         precond = strumpack;
+      }
+#endif
+   }
+
 
    HypreLOBPCG * lobpcg = new HypreLOBPCG(MPI_COMM_WORLD);
    lobpcg->SetNumModes(nev);
@@ -307,7 +352,7 @@ int main(int argc, char *argv[])
    delete precond;
    delete M;
    delete A;
-#ifdef MFEM_USE_SUPERLU
+#if defined(MFEM_USE_SUPERLU) || defined(MFEM_USE_STRUMPACK)
    delete Arow;
 #endif
 
