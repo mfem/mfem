@@ -80,6 +80,9 @@
 // Enable MFEM functionality based on the Sidre library
 #cmakedefine MFEM_USE_SIDRE
 
+// Enable MFEM functionality based on the SCOREC library
+#cmakedefine MFEM_USE_SCOREC
+
 // Which library functions to use in class StopWatch for measuring time.
 // The available options are:
 //   0 - use std::clock from <ctime>
