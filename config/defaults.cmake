@@ -36,6 +36,7 @@ option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
 option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
+option(MFEM_USE_SCOREC "Enable SCOREC" OFF)
 
 # Allow a user to disable testing, examples, and/or miniapps at CONFIGURE TIME
 # if they don't want/need them (e.g. if MFEM is "just a dependency" and all they
@@ -120,6 +121,9 @@ set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")
 set(LAPACK_INCLUDE_DIRS "" CACHE STRING "Path to LAPACK headers.")
 set(LAPACK_LIBRARIES "" CACHE STRING "The LAPACK library.")
+
+set(SCOREC_PREFIX "${MFEM_DIR}/../core/install" CACHE STRING
+  "Directory where SCOREC is installed")
 
 # Some useful variables:
 set(CMAKE_SKIP_PREPROCESSED_SOURCE_RULES ON) # Skip *.i rules
