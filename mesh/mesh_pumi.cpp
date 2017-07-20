@@ -11,11 +11,15 @@
 
 // Implementation of data type mesh
 
+#include "mesh_pumi.hpp"
+
+#ifdef MFEM_USE_SCOREC
+#ifdef MFEM_USE_MPI
+
 #include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../general/text.hpp"
-#include "mesh_pumi.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -244,3 +248,6 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
 }
 
 }
+
+#endif // MFEM_USE_MPI
+#endif // MFEM_USE_SCOREC

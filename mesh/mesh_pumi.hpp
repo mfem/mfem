@@ -13,6 +13,10 @@
 #define MFEM_MESH_PUMI
 
 #include "../config/config.hpp"
+
+#ifdef MFEM_USE_SCOREC
+#ifdef MFEM_USE_MPI
+
 #include "../fem/gridfunc_pumi.hpp"
 #include <iostream>
 #include "mesh.hpp"
@@ -58,5 +62,8 @@ public:
 };
 
 }
+
+#endif // MFEM_USE_MPI
+#endif // MFEM_USE_SCOREC
 
 #endif

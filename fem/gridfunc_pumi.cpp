@@ -14,6 +14,9 @@
 #include "gridfunc_pumi.hpp"
 //#include "../mesh/nurbs.hpp"
 
+#ifdef MFEM_USE_SCOREC
+#ifdef MFEM_USE_MPI
+
 #include <limits>
 #include <cstring>
 #include <string>
@@ -108,3 +111,6 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM, apf::Numbering* v
 }
 
 }
+
+#endif // MFEM_USE_MPI
+#endif // MFEM_USE_SCOREC

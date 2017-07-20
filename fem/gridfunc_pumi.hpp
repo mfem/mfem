@@ -13,6 +13,10 @@
 #define MFEM_GRIDFUNC_PUMI
 
 #include "../config/config.hpp"
+
+#ifdef MFEM_USE_SCOREC
+#ifdef MFEM_USE_MPI
+
 #include "fespace.hpp"
 #include "gridfunc.hpp"
 #include "coefficient.hpp"
@@ -45,5 +49,8 @@ public:
 
 
 } // namespace mfem
+
+#endif // MFEM_USE_MPI
+#endif // MFEM_USE_SCOREC
 
 #endif

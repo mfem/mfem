@@ -9,12 +9,12 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../config/config.hpp"
+#include "pmesh_pumi.hpp"
 
 #ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_SCOREC
 
 #include "mesh_headers.hpp"
-#include "pmesh_pumi.hpp"
 #include "../fem/fem.hpp"
 #include "../general/sets.hpp"
 #include "../general/sort_pairs.hpp"
@@ -697,4 +697,5 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
 
 }
 
-#endif
+#endif // MFEM_USE_MPI
+#endif // MFEM_USE_SCOREC

@@ -13,14 +13,12 @@
 #define MFEM_PMESH_PUMI
 
 #include "../config/config.hpp"
-#include "../fem/gridfunc_pumi.hpp"
 
 #ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_SCOREC
 
-#include "../general/communication.hpp"
+#include "pmesh.hpp"
 #include "mesh_pumi.hpp"
-//#include "pncmesh.hpp"
-#include <iostream>
 
 namespace mfem
 {
@@ -41,5 +39,6 @@ public:
 }
 
 #endif // MFEM_USE_MPI
+#endif // MFEM_USE_SCOREC
 
 #endif
