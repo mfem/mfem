@@ -36,7 +36,6 @@ option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
 option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
-option(MFEM_USE_SCOREC "Enable SCOREC" OFF)
 
 # Allow a user to disable testing, examples, and/or miniapps at CONFIGURE TIME
 # if they don't want/need them (e.g. if MFEM is "just a dependency" and all they
@@ -57,13 +56,13 @@ set(MFEM_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 # headers and library. If these fail, then standard cmake search is performed.
 # Note: if the variables are already in the cache, they are not overwritten.
 
-set(HYPRE_DIR "${MFEM_DIR}/../hypre-2.11.2/src/hypre" CACHE PATH
+set(HYPRE_DIR "${MFEM_DIR}/../hypre-2.10.0b/src/hypre" CACHE PATH
     "Path to the hypre library.")
 # If hypre was compiled to depend on BLAS and LAPACK:
 # set(HYPRE_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
 #     "Packages that HYPRE depends on.")
 
-set(METIS_DIR "${MFEM_DIR}/../metis-5.1.0" CACHE PATH "Path to the METIS library.")
+set(METIS_DIR "${MFEM_DIR}/../metis-4.0" CACHE PATH "Path to the METIS library.")
 
 set(LIBUNWIND_DIR "" CACHE PATH "Path to Libunwind.")
 
@@ -126,7 +125,3 @@ set(LAPACK_LIBRARIES "" CACHE STRING "The LAPACK library.")
 set(CMAKE_SKIP_PREPROCESSED_SOURCE_RULES ON) # Skip *.i rules
 set(CMAKE_SKIP_ASSEMBLY_SOURCE_RULES  ON)    # Skip *.s rules
 # set(CMAKE_VERBOSE_MAKEFILE ON CACHE BOOL "Verbose makefiles.")
-
-# Allow the user to indicate where they installed SCOREC
-# via "-DSCOREC_PREFIX=/home/somewhere" when calling `cmake`
-set(SCOREC_PREFIX "${MFEM_DIR}/../core/install" CACHE STRING "Directory where SCOREC is installed")
