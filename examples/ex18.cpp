@@ -12,7 +12,7 @@
 #define MFEM_EXPERIMENT_1
 
 #ifndef PROBLEM
-#define PROBLEM 1
+#define PROBLEM 0
 #endif
 
 #define MFEM_EXPERIMENT_1_PROBLEM PROBLEM
@@ -29,7 +29,7 @@ using namespace std;
 using namespace mfem;
 
 #ifndef GEOM
-#define GEOM Geometry::CUBE
+#define GEOM Geometry::SQUARE
 #endif
 
 #ifndef MESH_P

@@ -145,8 +145,9 @@ public:
                solFES.GetIndexer().GetElemDof(),  /* array of size ndofs_1d x
                                                      ndofs_1d x nelem
                                                      representing a boolean P */
-               FORTRAN
+//               FORTRAN
 //               C
+               NEK5000
 	    };
 
 	    CEED_MassAction(
@@ -171,8 +172,9 @@ public:
                solFES.GetIndexer().GetElemDof(), /* array of size ndofs_1d x
                                                     ndofs_1d x nelem
                                                     representing a boolean P */
-               FORTRAN
+//               FORTRAN
 //               C
+               NEK5000
             };
 
 	    CEED_DiffusionAction(
@@ -198,8 +200,9 @@ public:
                solFES.GetIndexer().GetElemDof(), /* array of size (ndofs_1d)^3 x
                                                     nelem representing a boolean
                                                     P */
-               FORTRAN
+//               FORTRAN
 //               C
+               NEK5000
             };
 
 	    CEED_MassAction(
@@ -224,8 +227,9 @@ public:
                solFES.GetIndexer().GetElemDof(), /* array of size ndofs_1d x
                                                     ndofs_1d x nelem
                                                     representing a boolean P */
-               FORTRAN
+//               FORTRAN
 //               C
+               NEK5000
             };
 
 	    CEED_DiffusionAction(
