@@ -123,13 +123,13 @@ double InitialTemperature(const Vector &x);
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
+   // Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   // 2. Parse command-line options.
+   // Parse command-line options.
    int dim = 1;
    int ref_levels = 0;
    int order = 2;
@@ -139,9 +139,6 @@ int main(int argc, char *argv[])
    double kappa = 0.5;
    bool implicit = false;
    bool adaptdt = false;
-
-   int precision = 8;
-   cout.precision(precision);
 
    OptionsParser args(argc, argv);
    args.AddOption(&dim, "-d", "--dim",
@@ -163,6 +160,8 @@ int main(int argc, char *argv[])
    args.AddOption(&implicit, "-imp", "--implicit", "-exp", "--explicit",
                   "Implicit or Explicit ODE solution.");
 
+   int precision = 8;
+   cout.precision(precision);
    args.Parse();
    if (!args.Good())
    {
@@ -185,9 +184,14 @@ int main(int argc, char *argv[])
    {
       mesh = new Mesh(16, 16, Element::QUADRILATERAL, 1, 1.0, 1.0);
    }
+   else if (dim == 3)
+   {
+      mesh = new Mesh(16, 16, 16, Element::CUBE, 1, 1.0, 1.0, 1.0);
+   }
    else
    {
-      std::cout << "Invalid problem dimension:  " << dim << std::endl;
+      cout << "Diminsion mus be set to 1, 2, or 3." << endl;
+      return 2;
    }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    for (int lev = 0; lev < ref_levels; lev++)
@@ -215,25 +219,22 @@ int main(int argc, char *argv[])
    arkode->SetStepMode(ARK_ONE_STEP);
    arkode->SetSStolerances(reltol, abstol);
    arkode->SetMaxStep(t_final / 2.0);
-   if (dt > 0)
+   if (!adaptdt)
    {
       arkode->SetFixedStep(dt);
    }
    ode_solver = arkode;
 
-
    // Define the vector finite element space representing the current and the
    // initial temperature, u_ref.
    H1_FECollection fe_coll(order, dim);
    ParFiniteElementSpace fespace(pmesh, &fe_coll);
-
+   ParGridFunction u_gf(&fespace);
    int fe_size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of temperature unknowns: " << fe_size << endl;
    }
-
-   ParGridFunction u_gf(&fespace);
 
    // Set the initial conditions for u.
    FunctionCoefficient u_0(InitialTemperature);
@@ -250,27 +251,19 @@ int main(int argc, char *argv[])
    visit_dc.SetTime(0.0);
    visit_dc.Save();
 
-
-   // Perform time-integration (looping over the time iterations, ti, with a
-   // time-step dt).
+   // Perform time-integration
    if (myid == 0)
    {
       cout << "Integrating the ODE ..." << endl;
    }
    ode_solver->Init(oper);
    double t = 0.0;
-
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
-      double dt_real = min(dt, t_final - t);
-
-      // Note that since we are using the "one-step" mode of the SUNDIALS
-      // solvers, they will, generally, step over the final time and will not
-      // explicitly perform the interpolation to t_final as they do in the
-      // "normal" step mode.
-
-      ode_solver->Step(u, t, dt_real);
+      double dt_target = min(dt, t_final - t);
+      ode_solver->Step(u, t, dt_target);
+      dt = dt_target;
 
       last_step = (t >= t_final - 1e-8*dt);
 
@@ -289,10 +282,9 @@ int main(int argc, char *argv[])
       oper.SetParameters(u);
    }
 
-
+   // Cleanup
    delete ode_solver;
    delete pmesh;
-
    MPI_Finalize();
 
    return 0;
