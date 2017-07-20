@@ -46,6 +46,8 @@ EntitySets::EntitySets(Mesh & mesh)
      set_names_(4),
      set_index_by_name_(4)
 {
+  cout << "Entering EntitySets(Mesh) c'tor" << endl;
+  cout << "Leaving EntitySets(Mesh) c'tor" << endl;
 }
 
 EntitySets::EntitySets(const EntitySets & ent_sets)
@@ -60,6 +62,7 @@ EntitySets::EntitySets(const EntitySets & ent_sets)
      set_names_(4),
      set_index_by_name_(4)
 {
+   cout << "Entering EntitySets copy c'tor" << endl;
    this->CopyEntitySets(ent_sets, VERTEX);
    this->CopyEntitySets(ent_sets, EDGE);
    this->CopyEntitySets(ent_sets, FACE);
@@ -77,6 +80,7 @@ EntitySets::EntitySets(const EntitySets & ent_sets)
    {
       face_edge_ = new Table(*ent_sets.GetFaceEdgeTable());
    }
+   cout << "Leaving EntitySets copy c'tor" << endl;
 }
 
 EntitySets::EntitySets(Mesh & mesh, NCMesh &ncmesh)
@@ -91,17 +95,21 @@ EntitySets::EntitySets(Mesh & mesh, NCMesh &ncmesh)
      set_names_(4),
      set_index_by_name_(4)
 {
+   cout << "Entering EntitySets(Mesh, NCMesh) c'tor" << endl;
    this->BuildEntitySets(ncmesh, VERTEX);
    this->BuildEntitySets(ncmesh, EDGE);
    this->BuildEntitySets(ncmesh, FACE);
    this->BuildEntitySets(ncmesh, ELEMENT);
+   cout << "Leaving EntitySets(Mesh, NCMesh) c'tor" << endl;
 }
 
 EntitySets::~EntitySets()
 {
+   cout << "Entering EntitySets d'tor" << endl;
    delete edge_vertex_;
    delete face_edge_;
    delete face_vertex_;
+   cout << "Leaving EntitySets d'tor" << endl;
 }
 
 const string &
@@ -483,7 +491,7 @@ EntitySets::BuildEntitySets(NCMesh &ncmesh, EntityType t)
       int ni = ncmesh.ncent_sets->GetNumEntities(t, s);
       set_names_[t][s] = ncmesh.ncent_sets->GetSetName(t, s);
       set_index_by_name_[t][set_names_[t][s]] = s;
-
+      std::cout << "processing set " << set_names_[t][s] << endl;
       switch (t)
       {
          case VERTEX:
@@ -502,7 +510,8 @@ EntitySets::BuildEntitySets(NCMesh &ncmesh, EntityType t)
 
                for (int j=0; j<ind_coll.Size(); j++)
                {
-                  sets_[t][s].insert(ind_coll[j]);
+                 // sets_[t][s].insert(ind_coll[j]);
+		 sets_[t][s].insert(ncmesh.nodes[ind_coll[j]].edge_index);
                }
             }
             break;
@@ -516,7 +525,7 @@ EntitySets::BuildEntitySets(NCMesh &ncmesh, EntityType t)
 
                for (int j=0; j<ind_coll.Size(); j++)
                {
-                  sets_[t][s].insert(ind_coll[j]);
+                  sets_[t][s].insert(ncmesh.faces[ind_coll[j]].index);
                }
             }
             break;
@@ -530,7 +539,7 @@ EntitySets::BuildEntitySets(NCMesh &ncmesh, EntityType t)
 
                for (int j=0; j<ind_coll.Size(); j++)
                {
-                  sets_[t][s].insert(ind_coll[j]);
+                  sets_[t][s].insert(ncmesh.elements[ind_coll[j]].index);
                }
             }
             break;
@@ -807,7 +816,7 @@ EntitySets::HexUniformRefinement()
 
    this->CopyMeshTables();
 }
-
+  /*
 void
 EntitySets::Prune(int nelems)
 {
@@ -825,7 +834,7 @@ EntitySets::Prune(int nelems)
       }
    }
 }
-
+  */
 const int NCEntitySets::entity_size_[] = {1,2,4,1};
 
 NCEntitySets::NCEntitySets(const EntitySets &ent_sets, NCMesh &ncmesh)

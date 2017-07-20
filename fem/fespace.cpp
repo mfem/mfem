@@ -318,6 +318,7 @@ void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
         it!=(*mesh->ent_sets)(type,set_index).end(); it++)
    {
       int ent_index = *it;
+      cout << "collecting vdofs for entity " << ent_index << "->";
       switch (type)
       {
          case EntitySets::VERTEX:
@@ -335,7 +336,15 @@ void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
          default:
             mfem_error("GetEssentialVDofs: Invalid entity type");
       }
+      vdofs.Print(cout);
       mark_dofs(vdofs, ess_vdofs);
+   }
+
+   // mark possible hidden edges in a non-conforming mesh, also
+   // local DOFs affected by elements on other processors
+   if (mesh->ncmesh)
+   {
+     // TODO: Fill this in...
    }
 }
 

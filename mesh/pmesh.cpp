@@ -86,7 +86,8 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
 
 ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                  int part_method)
-   : gtopo(comm)
+  : gtopo(comm),
+    pent_sets(NULL)
 {
    int i, j;
    int *partitioning;
@@ -2666,6 +2667,13 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
    // now swap the meshes, the second mesh will become the old coarse mesh
    // and this mesh will be the new fine mesh
    Swap(*pmesh2, false);
+
+   // swap entity set information if present
+   mfem::Swap(pmesh2->pent_sets, this->pent_sets);
+   if (this->pent_sets)
+   {
+     this->pent_sets->pmesh_ = this;
+   }
 
    delete pmesh2; // NOTE: old face neighbors destroyed here
 

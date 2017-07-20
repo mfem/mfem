@@ -231,6 +231,19 @@ public:
        The debug mesh will have element attributes set to element rank + 1. */
    void GetDebugMesh(Mesh &debug_mesh) const;
 
+   /** Collect edge indices of all refined edges which are children of
+       the coarse edge defined by the given vertices.  This method
+       overrides a method in NCMesh and only returns locally owned
+       edges. */
+   void GetRefinedEdges(int vn0, int vn1, BlockArray<int> & edge_ids);
+
+   /** Collect face indices of all refined faces which are children of
+       the coarse face defined by the given vertices.  This method
+       overrides a method in NCMesh and only returns locally owned
+       faces. */
+   void GetRefinedFaces(int vn0, int vn1, int vn2, int vn3,
+                        BlockArray<int> & face_ids);
+
    /** Collect element indices of all refined elements which are
        children of the coarse element defined by the given element
        index. This method overrides a method in NCMesh and only

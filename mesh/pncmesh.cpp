@@ -184,6 +184,7 @@ void ParNCMesh::UpdateVertices()
 
 void ParNCMesh::OnMeshUpdated(Mesh *mesh)
 {
+  std::cout << MyRank << ": Entering ParNCMesh::OnMeshUpdated" << std::endl;
    // This is an override (or extension of) NCMesh::OnMeshUpdated().
    // In addition to getting edge/face indices from 'mesh', we also
    // assign indices to ghost edges/faces that don't exist in the 'mesh'.
@@ -210,9 +211,11 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    for (int i=0; i<nodes.Size(); i++)
    {
       ofsN << i
-           << " " << nodes[i].vert_refc
-           << " " << nodes[i].edge_refc
-           << " " << nodes[i].vert_index
+	// << " " << nodes[i].vert_refc
+	//  << " " << nodes[i].edge_refc
+	   << " " << nodes[i].HasVertex()
+	   << " " << nodes[i].HasEdge()
+	   << " " << nodes[i].vert_index
            << " " << nodes[i].edge_index
            << " " << nodes[i].p1
            << " " << nodes[i].p2
@@ -306,13 +309,19 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    {
       std::cout << "dynamic cast succeeded: mesh is a ParMesh" << std::endl;
 
-      if (pmesh->ent_sets != NULL)
+      if (pmesh->pent_sets != NULL)
       {
-         std::cout << "ParMesh::OnMeshUpdated deleting EntitySets object in ParMesh" <<
+         std::cout << "ParNCMesh::OnMeshUpdated deleting ParEntitySets object in ParMesh"
+		   << std::endl;
+	   delete pmesh->pent_sets;
+      }
+      else if (pmesh->ent_sets != NULL)
+      {
+         std::cout << "ParNCMesh::OnMeshUpdated deleting EntitySets object in ParMesh" <<
                    std::endl;
          delete pmesh->ent_sets;
       }
-      std::cout << "ParMesh::OnMeshUpdated creating ParEntitySets object in ParMesh"
+      std::cout << "ParNCMesh::OnMeshUpdated creating ParEntitySets object in ParMesh"
                 << std::endl;
       pmesh->ent_sets = pmesh->pent_sets =
                            (pncent_sets) ? new ParEntitySets(*pmesh, *this): NULL;
@@ -406,6 +415,7 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
       }
    }
    */
+  std::cout << MyRank << ": Leaving ParNCMesh::OnMeshUpdated" << std::endl;
 }
 
 void ParNCMesh::ElementSharesEdge(int elem, int enode)
@@ -2493,19 +2503,73 @@ void ParNCMesh::GetDebugMesh(Mesh &debug_mesh) const
    debug_mesh.ncmesh = copy;
 }
 
-void ParNCMesh::GetRefinedElements(int elem_id, BlockArray<int> & elem_ids)
+void ParNCMesh::GetRefinedEdges(int vn0, int vn1, BlockArray<int> & edges)
 {
    std::cout << MyRank
-             << ": entering ParNCMesh::GetRefinedElements "
-             <<"searching for element id: " << elem_id << std::endl;
-   Element &el = elements[elem_id];
+             << ": entering ParNCMesh::GetRefinedEdges "
+             <<"searching for edge with vertices: " << vn0 << " and " << vn1
+	     << std::endl;
+   return this->NCMesh::GetRefinedEdges(vn0, vn1, edges);
+
+   int mid = nodes.FindId(vn0, vn1);
+   if (mid < 0) { return; }
+
    /*
-   if (el.index >= 0 && el.rank == MyRank)
+   Node &nd = nodes[mid];
+
+   if ( nd.edge_index < 0 ) { return; }
+
+   edges.Append(nd.edge_index);
+
+   GetRefinedEdges(vn0, mid, edges);
+   GetRefinedEdges(mid, vn1, edges);
+   */
+   edges.Append(mid);
+   
+   GetRefinedEdges(vn0, mid, edges);
+   GetRefinedEdges(mid, vn1, edges);
+}
+
+void ParNCMesh::GetRefinedFaces(int vn0, int vn1, int vn2, int vn3,
+				BlockArray<int> & face_ids)
+{
+   return this->NCMesh::GetRefinedFaces(vn0, vn1, vn2, vn3, face_ids);
+   /*
+   Face* fa = faces.Find(vn0, vn1, vn2, vn3);
+
+   if (fa)
    {
-      elem_ids.Append(el.index);
+      if ( fa->index >= 0 )
+      {
+         face_ids.Append(fa->index);
+      }
       return;
    }
+
+   // we need to recurse deeper
+   int mid[4];
+   int split = FaceSplitType(vn0, vn1, vn2, vn3, mid);
+
+   if (split == 1) // "X" split face
+   {
+      GetRefinedFaces(vn0, mid[0], mid[2], vn3, face_ids);
+      GetRefinedFaces(mid[0], vn1, vn2, mid[2], face_ids);
+   }
+   else if (split == 2) // "Y" split face
+   {
+      GetRefinedFaces(vn0, vn1, mid[1], mid[3], face_ids);
+      GetRefinedFaces(mid[3], mid[1], vn2, vn3, face_ids);
+   }
    */
+}
+
+void ParNCMesh::GetRefinedElements(int elem_id, BlockArray<int> & elem_ids)
+{
+  // std::cout << MyRank
+  //           << ": entering ParNCMesh::GetRefinedElements "
+  //           <<"searching for element id: " << elem_id << std::endl;
+   Element &el = elements[elem_id];
+
    if (el.ref_type != 0)
    {
       // This element has been refined so recurse into its children

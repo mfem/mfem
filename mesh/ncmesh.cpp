@@ -1606,7 +1606,8 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex>& mvertices,
 
 void NCMesh::OnMeshUpdated(Mesh *mesh)
 {
-   Table *edge_vertex = mesh->GetEdgeVertexTable();
+  std::cout << "Entering NCMesh::OnMeshUpdated" << std::endl;
+  Table *edge_vertex = mesh->GetEdgeVertexTable();
 
    // get edge enumeration from the Mesh
    for (int i = 0; i < edge_vertex->Size(); i++)
@@ -1657,6 +1658,27 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
                    std::endl;
       }
    }
+   
+   std::ostringstream ossN;
+   ossN << "node_on_mesh_updated.out";
+   std::ofstream ofsN(ossN.str().c_str());
+   ofsN << nodes.Size() << std::endl;
+   for (int i=0; i<nodes.Size(); i++)
+   {
+      ofsN << i
+	// << " " << nodes[i].vert_refc
+	//  << " " << nodes[i].edge_refc
+	   << " " << nodes[i].HasVertex()
+	   << " " << nodes[i].HasEdge()
+	   << " " << nodes[i].vert_index
+           << " " << nodes[i].edge_index
+           << " " << nodes[i].p1
+           << " " << nodes[i].p2
+           << " " << nodes[i].next << std::endl;
+   }
+   ofsN.close();
+
+  std::cout << "Leaving NCMesh::OnMeshUpdated" << std::endl;
 }
 
 
@@ -2921,15 +2943,23 @@ int NCMesh::GetElementDepth(int i) const
 
 void NCMesh::GetRefinedEdges(int vn0, int vn1, BlockArray<int> & edges)
 {
+   std::cout << "entering NCMesh::GetRefinedEdges "
+             <<"searching for edge with vertices: " << vn0 << " and " << vn1
+	     << std::endl;
    int mid = nodes.FindId(vn0, vn1);
    if (mid < 0) { return; }
 
    Node &nd = nodes[mid];
 
-   if ( nd.edge_index < 0 ) { return; }
+   // if ( nd.edge_index < 0 ) { return; }
 
-   edges.Append(nd.edge_index);
-
+   // edges.Append(nd.edge_index);
+   if ( nd.HasEdge() )
+   {
+     std::cout << " found node " << mid << std::endl;
+     edges.Append(mid);
+   }
+   
    GetRefinedEdges(vn0, mid, edges);
    GetRefinedEdges(mid, vn1, edges);
 }
@@ -2937,8 +2967,9 @@ void NCMesh::GetRefinedEdges(int vn0, int vn1, BlockArray<int> & edges)
 void NCMesh::GetRefinedFaces(int vn0, int vn1, int vn2, int vn3,
                              BlockArray<int> & face_ids)
 {
-   Face* fa = faces.Find(vn0, vn1, vn2, vn3);
-
+   // Face* fa = faces.Find(vn0, vn1, vn2, vn3);
+   int face = faces.FindId(vn0, vn1, vn2, vn3);
+   /*
    if (fa)
    {
       if ( fa->index >= 0 )
@@ -2947,7 +2978,16 @@ void NCMesh::GetRefinedFaces(int vn0, int vn1, int vn2, int vn3,
       }
       return;
    }
-
+   */
+   if (face>=0)
+   {
+      if ( faces[face].index >= 0 )
+      {
+         face_ids.Append(face);
+      }
+      return;
+   }
+   
    // we need to recurse deeper
    int mid[4];
    int split = FaceSplitType(vn0, vn1, vn2, vn3, mid);
@@ -2966,10 +3006,10 @@ void NCMesh::GetRefinedFaces(int vn0, int vn1, int vn2, int vn3,
 
 void NCMesh::GetRefinedElements(int elem_id, BlockArray<int> & elem_ids)
 {
-   std::cout << "entering NCMesh::GetRefinedElements searching for element id: "
-             << elem_id << std::endl;
+  // std::cout << "entering NCMesh::GetRefinedElements searching for element id: "
+  //             << elem_id << std::endl;
    Element &el = elements[elem_id];
-
+   /*
    if (el.index >= 0 && el.rank >= 0)
    {
       elem_ids.Append(el.index);
@@ -2982,6 +3022,23 @@ void NCMesh::GetRefinedElements(int elem_id, BlockArray<int> & elem_ids)
       {
          GetRefinedElements(el.child[i], elem_ids);
       }
+   }
+   */
+   if (el.ref_type != 0)
+   {
+      // This element has been refined so recurse into its children
+      for (int i = 0; i < 8; i++)
+      {
+         if (el.child[i] >= 0 && el.child[i] < elements.Size() )
+         {
+            GetRefinedElements(el.child[i], elem_ids);
+         }
+      }
+   }
+   else
+   {
+      // This element has not been refined so add it
+      elem_ids.Append(elem_id);
    }
 }
 
