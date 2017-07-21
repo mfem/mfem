@@ -51,7 +51,8 @@ ParEntitySets::ParEntitySets(ParMesh & pmesh, const EntitySets & ent_sets,
 
    MPI_Comm_size(MyComm, &NRanks_);
    MPI_Comm_rank(MyComm, &MyRank_);
-   cout << MyRank_ << ": Entering ParEntitySets(ParMesh, EntitySets, ...) c'tor" << endl;
+   cout << MyRank_ << ": Entering ParEntitySets(ParMesh, EntitySets, ...) c'tor" <<
+        endl;
 
    int nelem = mesh_->GetNE();
 
@@ -190,7 +191,8 @@ ParEntitySets::ParEntitySets(ParMesh & pmesh, const EntitySets & ent_sets,
    this->mesh_ = (Mesh*)this->pmesh_;
 
    this->CopyMeshTables();
-   cout << MyRank_ << ": Leaving ParEntitySets(ParMesh, EntitySets, ...) c'tor" << endl;
+   cout << MyRank_ << ": Leaving ParEntitySets(ParMesh, EntitySets, ...) c'tor" <<
+        endl;
 }
 
 ParEntitySets::ParEntitySets(ParMesh & pmesh, ParNCMesh &pncmesh)
@@ -212,8 +214,8 @@ ParEntitySets::ParEntitySets(ParMesh & pmesh, ParNCMesh &pncmesh)
 
 ParEntitySets::~ParEntitySets()
 {
-  cout << MyRank_ << ": Entering ParEntitySets d'tor" << endl;
-  cout << MyRank_ << ": Leaving ParEntitySets d'tor" << endl;
+   cout << MyRank_ << ": Entering ParEntitySets d'tor" << endl;
+   cout << MyRank_ << ": Leaving ParEntitySets d'tor" << endl;
 }
 
 void
@@ -286,13 +288,13 @@ ParEntitySets::BuildEntitySets(ParNCMesh &pncmesh, EntityType t)
          case VERTEX:
             for (int i=0; i<ni; i++)
             {
- 	       int node = (*pncmesh.pncent_sets)(t, s, i);
-	       int index = pncmesh.nodes[node].vert_index;
-	       if (!pncmesh.IsGhost(0,index))
-	       {
-		  sets_[t][s].insert(index);
-	       }
-	    }
+               int node = (*pncmesh.pncent_sets)(t, s, i);
+               int index = pncmesh.nodes[node].vert_index;
+               if (!pncmesh.IsGhost(0,index))
+               {
+                  sets_[t][s].insert(index);
+               }
+            }
             break;
          case EDGE:
             for (int i=0; i<ni; i++)
@@ -304,13 +306,13 @@ ParEntitySets::BuildEntitySets(ParNCMesh &pncmesh, EntityType t)
 
                for (int j=0; j<ind_coll.Size(); j++)
                {
-		 int edge = ind_coll[j];
-		 int index = pncmesh.nodes[edge].edge_index;
-		 if (index >= 0 && !pncmesh.IsGhost(1, index))
-		 {
-		   sets_[t][s].insert(index);
-		 }
-	       }
+                  int edge = ind_coll[j];
+                  int index = pncmesh.nodes[edge].edge_index;
+                  if (index >= 0 && !pncmesh.IsGhost(1, index))
+                  {
+                     sets_[t][s].insert(index);
+                  }
+               }
             }
             break;
          case FACE:
@@ -323,12 +325,12 @@ ParEntitySets::BuildEntitySets(ParNCMesh &pncmesh, EntityType t)
 
                for (int j=0; j<ind_coll.Size(); j++)
                {
- 		  int face = ind_coll[j];
-		  int index = pncmesh.faces[face].index;
-		  if (index >= 0 && !pncmesh.IsGhost(2, index))
-		  {
-		    sets_[t][s].insert(index);
-		  }
+                  int face = ind_coll[j];
+                  int index = pncmesh.faces[face].index;
+                  if (index >= 0 && !pncmesh.IsGhost(2, index))
+                  {
+                     sets_[t][s].insert(index);
+                  }
                }
             }
             break;
@@ -360,9 +362,9 @@ ParEntitySets::BuildEntitySets(ParNCMesh &pncmesh, EntityType t)
    map<string,int>::iterator it;
    cout << MyRank_ << ": set index by name ";
    for (it=set_index_by_name_[t].begin(); it != set_index_by_name_[t].end(); it++)
-     {
-       cout << " " << it->first << "->" << it->second;
-     }
+   {
+      cout << " " << it->first << "->" << it->second;
+   }
    cout << endl;
    cout << MyRank_ << ": done BuildEntitySets for type " << GetTypeName(t) << endl;
 }

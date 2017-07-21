@@ -344,7 +344,7 @@ void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
    // local DOFs affected by elements on other processors
    if (mesh->ncmesh)
    {
-     // TODO: Fill this in...
+      // TODO: Fill this in...
    }
 }
 

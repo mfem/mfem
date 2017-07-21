@@ -223,6 +223,7 @@ int main(int argc, char *argv[])
      object using the ParNCMesh object and then call
      ParMesh::OnMeshUpdated on this new mesh.
     */
+
    for (int l = 0; l < ra; l++)
    {
       pmesh->RandomRefinement(0.2);

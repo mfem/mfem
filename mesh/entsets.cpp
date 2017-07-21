@@ -46,8 +46,8 @@ EntitySets::EntitySets(Mesh & mesh)
      set_names_(4),
      set_index_by_name_(4)
 {
-  cout << "Entering EntitySets(Mesh) c'tor" << endl;
-  cout << "Leaving EntitySets(Mesh) c'tor" << endl;
+   cout << "Entering EntitySets(Mesh) c'tor" << endl;
+   cout << "Leaving EntitySets(Mesh) c'tor" << endl;
 }
 
 EntitySets::EntitySets(const EntitySets & ent_sets)
@@ -510,8 +510,8 @@ EntitySets::BuildEntitySets(NCMesh &ncmesh, EntityType t)
 
                for (int j=0; j<ind_coll.Size(); j++)
                {
-                 // sets_[t][s].insert(ind_coll[j]);
-		 sets_[t][s].insert(ncmesh.nodes[ind_coll[j]].edge_index);
+                  // sets_[t][s].insert(ind_coll[j]);
+                  sets_[t][s].insert(ncmesh.nodes[ind_coll[j]].edge_index);
                }
             }
             break;
@@ -816,25 +816,25 @@ EntitySets::HexUniformRefinement()
 
    this->CopyMeshTables();
 }
-  /*
+/*
 void
 EntitySets::Prune(int nelems)
 {
-   EntityType t = ELEMENT;
+ EntityType t = ELEMENT;
 
-   for (unsigned int s=0; s<sets_[t].size(); s++)
-   {
-      set<int>::const_iterator it;
-      for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
-      {
-         if ( *it >= nelems )
-         {
-            sets_[t][s].erase(it);
-         }
-      }
-   }
+ for (unsigned int s=0; s<sets_[t].size(); s++)
+ {
+    set<int>::const_iterator it;
+    for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
+    {
+       if ( *it >= nelems )
+       {
+          sets_[t][s].erase(it);
+       }
+    }
+ }
 }
-  */
+*/
 const int NCEntitySets::entity_size_[] = {1,2,4,1};
 
 NCEntitySets::NCEntitySets(const EntitySets &ent_sets, NCMesh &ncmesh)

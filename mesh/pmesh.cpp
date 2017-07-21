@@ -86,8 +86,8 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
 
 ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                  int part_method)
-  : gtopo(comm),
-    pent_sets(NULL)
+   : gtopo(comm),
+     pent_sets(NULL)
 {
    int i, j;
    int *partitioning;
@@ -2672,7 +2672,7 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
    mfem::Swap(pmesh2->pent_sets, this->pent_sets);
    if (this->pent_sets)
    {
-     this->pent_sets->pmesh_ = this;
+      this->pent_sets->pmesh_ = this;
    }
 
    delete pmesh2; // NOTE: old face neighbors destroyed here
@@ -4556,7 +4556,7 @@ ParMesh::~ParMesh()
 
    delete pent_sets;
    ent_sets = pent_sets = NULL;
-   
+
    DeleteFaceNbrData();
 
    for (int i = 0; i < shared_faces.Size(); i++)

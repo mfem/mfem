@@ -73,7 +73,7 @@ public:
    const Table * GetFaceVertexTable() const { return face_vertex_; }
    const Table * GetFaceEdgeTable()   const { return face_edge_; }
 
-  // void Prune(int nelems);
+   // void Prune(int nelems);
 
 protected:
 
@@ -152,7 +152,7 @@ protected:
 class NCEntitySets
 {
    friend class EntitySets;
-  
+
 public:
    NCEntitySets(const EntitySets & ent_sets, NCMesh &ncmesh);
    NCEntitySets(const NCEntitySets & ncent_sets);
