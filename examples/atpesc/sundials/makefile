@@ -14,6 +14,7 @@ MFEM_DIR ?= ../../..
 MFEM_BUILD_DIR ?= ../../..
 SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/examples/atpesc/sundials,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
+PAPI_LIB = -I/usr/local/tools/papi/include -L/usr/local/tools/papi/lib -lpapi
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
@@ -35,7 +36,7 @@ endif
 
 # Replace the default implicit rule for *.cpp files
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS) $(PAPI_LIB)
 
 all: $(EXAMPLES)
 

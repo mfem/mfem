@@ -32,9 +32,11 @@
 //               example.
 
 #include "mfem.hpp"
+#include "papi.h"
 #include <fstream>
 #include <iostream>
 #include <cmath>
+#include <assert.h>
 
 using namespace std;
 using namespace mfem;
@@ -121,8 +123,41 @@ public:
 
 double InitialTemperature(const Vector &x);
 
+static void initialize_papi(void)
+{
+    float ireal_time, iproc_time, imflops;
+    long long iflpops;
+
+    assert(PAPI_library_init(PAPI_VER_CURRENT) == PAPI_VER_CURRENT);
+    assert(PAPI_flops(&ireal_time,&iproc_time,&iflpops,&imflops) >= PAPI_OK);
+}
+
+static void finalize_papi(void)
+{
+    float real_time, proc_time, mflops;
+    long long flpops;
+    PAPI_dmem_info_t dmem;
+
+    assert(PAPI_flops(&real_time,&proc_time,&flpops,&mflops) >= PAPI_OK);
+    assert(PAPI_get_dmem_info(&dmem) >= PAPI_OK);
+
+    cout << "Memory Info:" << endl;;
+    cout << "\tMem Size:     " << dmem.size << endl;
+    cout << "\tMem Resident:\t\t" << dmem.resident << endl;
+    cout << "\tMem Heap:     " << dmem.heap << endl;
+    cout << "Timing Info:" << endl;
+    cout << "\tReal_time:    " << real_time << endl;
+    cout << "\tProc_time:    " << proc_time << endl;
+    cout << "Flops Info:" << endl;
+    cout << "\tTotal flpops: " << flpops << endl;
+    cout << "\tMFLOPS:       " << mflops << endl;
+}
+
+
 int main(int argc, char *argv[])
 {
+   initialize_papi();
+
    // Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
@@ -288,6 +323,8 @@ int main(int argc, char *argv[])
    delete ode_solver;
    delete pmesh;
    MPI_Finalize();
+
+   finalize_papi();
 
    return 0;
 }
