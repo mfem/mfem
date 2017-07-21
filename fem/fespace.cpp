@@ -306,7 +306,7 @@ void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
    if (!mesh->ent_sets->SetExists(type, set_index))
    {
       ostringstream oss; oss << "Entity set of type \""
-                             << mesh->ent_sets->GetTypeName(type)
+                             << EntitySets::GetTypeName(type)
                              << "\" and index " << set_index
                              << " was not found.";
 
@@ -314,8 +314,8 @@ void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
    }
 
    set<int>::iterator it;
-   for (it=(*mesh->ent_sets)(type,set_index).begin();
-        it!=(*mesh->ent_sets)(type,set_index).end(); it++)
+   for (it=(*mesh->ent_sets)(type, set_index).begin();
+        it!=(*mesh->ent_sets)(type, set_index).end(); it++)
    {
       int ent_index = *it;
       cout << "collecting vdofs for entity " << ent_index << "->";
@@ -340,11 +340,36 @@ void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
       mark_dofs(vdofs, ess_vdofs);
    }
 
-   // mark possible hidden edges in a non-conforming mesh, also
-   // local DOFs affected by elements on other processors
    if (mesh->ncmesh)
    {
-      // TODO: Fill this in...
+      Array<int> es_verts, es_edges, es_faces;
+      mesh->ncmesh->GetEntitySetClosure(type, set_index,
+                                        es_verts, es_edges, es_faces);
+      cout << "returned from get closure" << endl;
+      for (int i = 0; i < es_verts.Size(); i++)
+      {
+         if (es_verts[i] < GetNV())
+         {
+            GetVertexVDofs(es_verts[i], vdofs);
+            mark_dofs(vdofs, ess_vdofs);
+         }
+      }
+      for (int i = 0; i < es_edges.Size(); i++)
+      {
+         if (es_edges[i] < GetMesh()->GetNEdges())
+         {
+            GetEdgeVDofs(es_edges[i], vdofs);
+            mark_dofs(vdofs, ess_vdofs);
+         }
+      }
+      for (int i = 0; i < es_faces.Size(); i++)
+      {
+         if (es_faces[i] < GetMesh()->GetNFaces())
+         {
+            GetFaceVDofs(es_faces[i], vdofs);
+            mark_dofs(vdofs, ess_vdofs);
+         }
+      }
    }
 }
 

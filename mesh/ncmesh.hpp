@@ -233,6 +233,16 @@ public:
                                    Array<int> &bdr_vertices,
                                    Array<int> &bdr_edges);
 
+   /** Get a list of vertices (2D/3D), edges (2D/3D), and faces (3D) that
+       coincide with members of the specified entity set. In 3D this function
+       also reveals "hidden" edges or faces. In parallel it helps identifying
+       vertices/edges/faces affected by non-local entities. */
+   virtual void GetEntitySetClosure(EntitySets::EntityType t,
+                                    int set_index,
+                                    Array<int> &es_vertices,
+                                    Array<int> &es_edges,
+                                    Array<int> &es_faces);
+
    /// Return the type of elements in the mesh.
    int GetElementGeometry() const { return elements[0].geom; }
 
@@ -548,6 +558,10 @@ protected: // implementation
    void CollectEdgeVertices(int v0, int v1, Array<int> &indices);
    void CollectFaceVertices(int v0, int v1, int v2, int v3,
                             Array<int> &indices);
+   void CollectElementVertices(int elem_id, Array<int> &indices);
+
+   void CollectElementEdges(int elem_id, Array<int> &indices);
+
    void BuildElementToVertexTable();
 
    void UpdateElementToVertexTable()

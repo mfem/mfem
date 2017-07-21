@@ -999,6 +999,20 @@ NCEntitySets::NCEntitySets(const NCEntitySets & ncent_sets)
    cout << "Leaving NCEntitySets copy c'tor" << endl;
 }
 
+bool
+NCEntitySets::SetExists(EntitySets::EntityType t, unsigned int s) const
+{
+   return s < sets_[t].size();
+}
+
+bool
+NCEntitySets::SetExists(EntitySets::EntityType t, const string & s) const
+{
+   map<string,int>::const_iterator it = set_index_by_name_[t].find(s);
+
+   return it != set_index_by_name_[t].end();
+}
+
 unsigned int
 NCEntitySets::GetNumSets(EntitySets::EntityType t) const
 {

@@ -157,6 +157,9 @@ public:
    NCEntitySets(const EntitySets & ent_sets, NCMesh &ncmesh);
    NCEntitySets(const NCEntitySets & ncent_sets);
 
+   bool SetExists(EntitySets::EntityType t, unsigned int s) const;
+   bool SetExists(EntitySets::EntityType t, const std::string & s) const;
+
    unsigned int GetNumSets(EntitySets::EntityType t) const;
 
    static int GetEntitySize(EntitySets::EntityType t);
