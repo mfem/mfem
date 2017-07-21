@@ -652,6 +652,7 @@ int main (int argc, char *argv[])
     
     HyperelasticModel *model;
     NonlinearFormIntegrator *nf_integ;
+    HyperelasticNLFIntegrator *he_nlf_integ2;
         
     Coefficient *c = NULL;
     TargetJacobian *tj = NULL;
@@ -677,10 +678,10 @@ int main (int argc, char *argv[])
         cin >> tjtype;
     }
     MPI_Bcast(&tjtype, num_procs, MPI_INT, 0, MPI_COMM_WORLD);
-    tj    = new TargetJacobian(TargetJacobian::IDEAL);
+    tj    = new TargetJacobian(TargetJacobian::IDEAL, MPI_COMM_WORLD);
     if (tjtype == 1)
     {
-       tj    = new TargetJacobian(TargetJacobian::IDEAL);
+       tj    = new TargetJacobian(TargetJacobian::IDEAL, MPI_COMM_WORLD);
     }
     else if (tjtype == 2)
     {
@@ -688,7 +689,7 @@ int main (int argc, char *argv[])
     }
     else if (tjtype == 3)
     {
-       tj    = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE);
+       tj    = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE, MPI_COMM_WORLD);
     }
     else if (tjtype == 4)
     {
@@ -889,8 +890,9 @@ int main (int argc, char *argv[])
     nf_integ = he_nlf_integ;
     ParNonlinearForm a(fespace);
         
-    // This is for trying a combo of two integrators
-    const int combomet = 0;
+    // This is for trying a combo of two integrators.
+    FunctionCoefficient rhs_coef(weight_fun);
+    const int combomet = 1;
     if (combomet==1)
     {
        c = new ConstantCoefficient(0.5);  //weight of original metric
@@ -898,21 +900,17 @@ int main (int argc, char *argv[])
        nf_integ = he_nlf_integ;
        a.AddDomainIntegrator(nf_integ);
 
-       tj2    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SCALE_SIZE);
+       tj2    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SCALE_SIZE, MPI_COMM_WORLD);
        model2 = new TMOPHyperelasticModel077;
        tj2->SetNodes(x);
        tj2->SetInitialNodes(x0);
-       HyperelasticNLFIntegrator *he_nlf_integ2;
        he_nlf_integ2 = new HyperelasticNLFIntegrator(model2, tj2);
-       const IntegrationRule *ir =
-             &IntRulesLo.Get(fespace->GetFE(0)->GetGeomType(),nptdir); //this for metric
        he_nlf_integ2->SetIntegrationRule(*ir);
 
        //c2 = new ConstantCoefficient(2.5);
        //he_nlf_integ2->SetCoefficient(*c2);     //weight of new metric
 
-       FunctionCoefficient rhs_coef (weight_fun);
-       he_nlf_integ2->SetCoefficient(rhs_coef);     //weight of new metric as function
+       he_nlf_integ2->SetCoefficient(rhs_coef); //weight of new metric as function
        cout << "You have added a combo metric \n";
        a.AddDomainIntegrator(he_nlf_integ2);
     }
