@@ -116,6 +116,12 @@ protected:
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void GetConformingInterpolation();
 
+   static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
+                               Array<int>& slave_dofs, DenseMatrix& I);
+
+   static bool DofFinalizable(int dof, const Array<bool>& finalized,
+                              const SparseMatrix& deps);
+
    void MakeVDimMatrix(SparseMatrix &mat) const;
 
    /// Calculate GridFunction interpolation matrix after mesh refinement.

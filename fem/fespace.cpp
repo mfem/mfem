@@ -451,8 +451,9 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
    return R;
 }
 
-static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
-                            Array<int>& slave_dofs, DenseMatrix& I)
+void
+FiniteElementSpace::AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
+                                    Array<int>& slave_dofs, DenseMatrix& I)
 {
    for (int i = 0; i < slave_dofs.Size(); i++)
    {
@@ -475,8 +476,8 @@ static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
    }
 }
 
-static bool DofFinalizable(int dof, const Array<bool>& finalized,
-                           const SparseMatrix& deps)
+bool FiniteElementSpace::DofFinalizable(int dof, const Array<bool>& finalized,
+                                        const SparseMatrix& deps)
 {
    const int* dep = deps.GetRowColumns(dof);
    int ndep = deps.RowSize(dof);
