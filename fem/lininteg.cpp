@@ -16,6 +16,20 @@
 namespace mfem
 {
 
+void LinearFormIntegrator::CheckCoefficientIsDelta(Coefficient& Q)
+{
+   Vector center;
+   Q.GetDeltaCenter(center);
+   isdelta = center.Size() > 0 ? true : false;
+}
+
+void LinearFormIntegrator::CheckVectorCoefficientIsDelta(VectorCoefficient& Q)
+{
+   Vector center;
+   Q.GetDeltaCenter(center);
+   isdelta = center.Size() > 0 ? true : false;
+}
+
 void LinearFormIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
 {

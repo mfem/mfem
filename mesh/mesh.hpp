@@ -1060,6 +1060,15 @@ public:
 
    void MesquiteSmooth(const int mesquite_option = 0);
 
+   /// Returns the id of the elements that contain the given points
+   /// np is the number of points
+   /// points is a Vector of size np*spaceDim
+   /// If no element matches the i-th point, elem_id[i] is set to -1
+   /// If an element is found, it also returns the coordinates of point in the reference space of
+   /// the corresponding element
+   void MatchPointsWithElemId(int np, Vector& points, Array<int>& elem_id,
+                              Array<IntegrationPoint>& ip);
+
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
 };

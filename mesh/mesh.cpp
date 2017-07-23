@@ -8518,6 +8518,107 @@ std::ostream &operator<<(std::ostream &out, const Mesh &mesh)
    return out;
 }
 
+void Mesh::MatchPointsWithElemId(int np, Vector& centers, Array<int>& elem_ids,
+                                 Array<IntegrationPoint>& ips)
+{
+   if (!np) { return; }
+   int tot = centers.Size();
+   MFEM_VERIFY(tot/np == spaceDim,"Invalid number of points");
+   elem_ids.SetSize(np);
+   ips.SetSize(np);
+   elem_ids = -1;
+   if (!GetNE()) { return; }
+
+   double *data = centers.GetData();
+
+   Vector min_dist(np);
+   Array<int> e_idx(np);
+   min_dist = std::numeric_limits<double>::max();
+   e_idx = -1;
+
+   Vector p(spaceDim);
+   for (int i = 0; i < GetNE(); i++)
+   {
+      p = 0.0;
+      GetElementTransformation(i)->Transform(
+         Geometries.GetCenter(GetElementBaseGeometry(i)), p);
+      for (int k = 0; k < np; k++)
+      {
+         double *center = data+k*spaceDim;
+         double dist = Distance(center,p.GetData(),spaceDim);
+         if (dist < min_dist[k])
+         {
+            min_dist[k] = dist;
+            e_idx[k] = i;
+         }
+      }
+   }
+
+   // Checks if centers lie in the closest element
+   bool refinesearch = false;
+   for (int k = 0; k < np; k++)
+   {
+      ips[k].x = ips[k].y = ips[k].z = -1.;
+      Vector center(data+k*spaceDim,spaceDim);
+      int res = GetElementTransformation(e_idx[k])->TransformBack(center,ips[k]);
+      if (!res)
+      {
+         elem_ids[k] = e_idx[k];
+      }
+      else
+      {
+         refinesearch = true;
+      }
+   }
+   if (refinesearch)
+   {
+      bool usevtoel = false;
+      Array<bool> tbf(np);
+      Vector vmin,vmax;
+      GetBoundingBox(vmin,vmax);
+      for (int k = 0; k < np; k++)
+      {
+         tbf[k] = false;
+         if (elem_ids[k] != -1) { continue; }
+         bool outside = false;
+         for (int d = 0; d < spaceDim; d++)
+         {
+            double c = data[k*spaceDim + d];
+            outside = outside && (c < vmin[d] || c > vmax[d]);
+         }
+         tbf[k] = !outside;
+         if (!outside) { usevtoel = true; }
+      }
+      if (usevtoel)
+      {
+         Array<int> vertices;
+         Table *vtoel = GetVertexToElementTable();
+         for (int k = 0; k < np; k++)
+         {
+            if (!tbf[k]) { continue; }
+            Vector center(data+k*spaceDim,spaceDim);
+            GetElementVertices(e_idx[k], vertices);
+            for (int v = 0; v < vertices.Size() || elem_ids[k] != -1; v++)
+            {
+               int vv = vertices[v];
+               int ne = vtoel->RowSize(vv);
+               const int* els = vtoel->GetRow(vv);
+               for (int e = 0; e < ne; e++)
+               {
+                  if (els[e] == e_idx[k]) { continue; }
+                  int res = GetElementTransformation(els[e])->TransformBack(center,ips[k]);
+                  if (!res)
+                  {
+                     elem_ids[k] = els[e];
+                     break;
+                  }
+               }
+            }
+         }
+         delete vtoel;
+      }
+   }
+}
 
 NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int _n,
                                                const double _s)

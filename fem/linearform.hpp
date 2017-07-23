@@ -36,12 +36,24 @@ private:
    Array<LinearFormIntegrator*> flfi;
    Array<Array<int>*>           flfi_marker;
 
+   /// The element ids where the centers of a Dirac coefficient lie
+   Array<int> dlfi_delta_elem_id;
+
+   /// The reference coordinates where the centers of a Dirac coefficient lie
+   Array<IntegrationPoint> dlfi_delta_ip;
+
+   /// Indices of the delta integrators in dlfi
+   Array<int> dlfi_delta_lfid;
+
+   /// if true, recomputes the delta locations
+   bool check_delta;
+
 public:
    /// Creates linear form associated with FE space *f.
    LinearForm (FiniteElementSpace * f) : Vector (f -> GetVSize())
-   { fes = f; }
+   { fes = f; check_delta = true; }
 
-   LinearForm() { fes = NULL; }
+   LinearForm() { fes = NULL; check_delta = true; }
 
    FiniteElementSpace * GetFES() { return fes; }
 
@@ -62,9 +74,12 @@ public:
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();
 
-   void Update() { SetSize(fes->GetVSize()); }
+   /// Assembles delta functions of the linear form
+   void AssembleDelta();
 
-   void Update(FiniteElementSpace *f) { fes = f; SetSize(f->GetVSize()); }
+   void Update() { SetSize(fes->GetVSize()); check_delta = true; }
+
+   void Update(FiniteElementSpace *f) { fes = f; SetSize(f->GetVSize()); check_delta = true; }
 
    void Update(FiniteElementSpace *f, Vector &v, int v_offset);
 

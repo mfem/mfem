@@ -21,11 +21,17 @@ namespace mfem
 /// Abstract base class LinearFormIntegrator
 class LinearFormIntegrator
 {
+private:
+   bool isdelta;
+
 protected:
    const IntegrationRule *IntRule;
 
    LinearFormIntegrator(const IntegrationRule *ir = NULL)
-   { IntRule = ir; }
+   { isdelta = false; IntRule = ir; }
+
+   void CheckCoefficientIsDelta(Coefficient& Q);
+   void CheckVectorCoefficientIsDelta(VectorCoefficient& Q);
 
 public:
    /** Given a particular Finite Element and a transformation (Tr)
@@ -37,7 +43,20 @@ public:
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
 
+   /** Returns true is the functional to be integrated
+       has a Dirac delta function (can be overloaded) */
+   virtual bool IsDelta() { return isdelta; }
+
+   /** Returns the center of the Dirac delta function
+       Can be overloaded */
+   virtual void GetDeltaCenter(Vector& center) { center.SetSize(0); };
+
+   /** Allows calling Eval on a Delta coefficient */
+   virtual void AllowDeltaEval(const bool allow = true)
+   { mfem_error("LinearForm::AllowDeltaEval not overloaded"); }
+
    void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
+   const IntegrationRule* GetIntRule() { return IntRule; }
 
    virtual ~LinearFormIntegrator() { }
 };
@@ -54,17 +73,24 @@ public:
    DomainLFIntegrator(Coefficient &QF, int a = 2, int b = 0)
    // the old default was a = 1, b = 1
    // for simple elliptic problems a = 2, b = -2 is ok
-      : Q(QF), oa(a), ob(b) { }
+      : Q(QF), oa(a), ob(b) { CheckCoefficientIsDelta(Q); }
 
    /// Constructs a domain integrator with a given Coefficient
    DomainLFIntegrator(Coefficient &QF, const IntegrationRule *ir)
-      : LinearFormIntegrator(ir), Q(QF), oa(1), ob(1) { }
+      : LinearFormIntegrator(ir), Q(QF), oa(1), ob(1)
+   { CheckCoefficientIsDelta(Q); }
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
+
+   /** Returns the centers of the Dirac delta functions (if any) */
+   virtual void GetDeltaCenter(Vector& center) { Q.GetDeltaCenter(center); }
+
+   /** Allows calling Eval on a Delta coefficient */
+   virtual void AllowDeltaEval(const bool allow = true) { Q.AllowDeltaEval(allow); }
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -135,13 +161,19 @@ private:
 
 public:
    /// Constructs a domain integrator with a given VectorCoefficient
-   VectorDomainLFIntegrator(VectorCoefficient &QF) : Q(QF) { }
+   VectorDomainLFIntegrator(VectorCoefficient &QF) : Q(QF) { CheckVectorCoefficientIsDelta(Q); }
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
+
+   /** Returns the centers of the Dirac delta functions (if any) */
+   virtual void GetDeltaCenter(Vector& center) { Q.GetDeltaCenter(center); }
+
+   /** Allows calling Eval on a VectorDeltaCoefficient */
+   virtual void AllowDeltaEval(const bool allow = true) { Q.AllowDeltaEval(allow); }
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -181,11 +213,17 @@ private:
    Vector vec;
 
 public:
-   VectorFEDomainLFIntegrator (VectorCoefficient &F) : QF(F) { }
+   VectorFEDomainLFIntegrator (VectorCoefficient &F) : QF(F) { CheckVectorCoefficientIsDelta(QF); }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
+
+   /** Returns the centers of the Dirac delta functions (if any) */
+   virtual void GetDeltaCenter(Vector& center) { QF.GetDeltaCenter(center); }
+
+   /** Allows calling Eval on a VectorDeltaCoefficient */
+   virtual void AllowDeltaEval(const bool allow = true) { QF.AllowDeltaEval(allow); }
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };

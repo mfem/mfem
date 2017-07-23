@@ -46,6 +46,27 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
    }
 }
 
+void DeltaCoefficient::SetDeltaCenter(const Vector& vcenter)
+{
+   MFEM_VERIFY(vcenter.Size() <= 3,
+               "SetDeltaCenter::Maximum number of dim supported is 3")
+   for (int i = 0; i < vcenter.Size(); i++) { center[i] = vcenter[i]; }
+   sdim = vcenter.Size();
+}
+
+void DeltaCoefficient::GetDeltaCenter(Vector& vcenter)
+{
+   vcenter.SetSize(sdim);
+   for (int i = 0; i < sdim; i++) { vcenter[i] = center[i]; }
+}
+
+double DeltaCoefficient::Eval(ElementTransformation &T,
+                              const IntegrationPoint &ip)
+{
+   MFEM_VERIFY(allow_eval,"DeltaCoefficient::Eval");
+   return tdf ? (*tdf)(GetTime())*scale : scale;
+}
+
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
@@ -146,6 +167,20 @@ void VectorGridFunctionCoefficient::Eval(
    DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
 {
    GridFunc->GetVectorValues(T, ir, M);
+}
+
+void VectorDeltaCoefficient::SetDirection(const Vector &_d)
+{
+   dir = _d;
+   (*this).vdim = dir.Size();
+}
+
+void VectorDeltaCoefficient::Eval(Vector &V, ElementTransformation &T,
+                                  const IntegrationPoint &ip)
+{
+   V = dir;
+   d.SetTime(GetTime());
+   V *= d.Eval(T,ip);
 }
 
 void VectorRestrictedCoefficient::Eval(Vector &V, ElementTransformation &T,
