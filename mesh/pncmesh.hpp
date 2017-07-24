@@ -158,6 +158,11 @@ public:
       }
    }
 
+   int GetOwner(int type, int index) const
+   {
+      return groups[GetOwnerId(type, index)][0];
+   }
+
    /**  */
    GroupId GetGroupId(int type, int index) const
    {

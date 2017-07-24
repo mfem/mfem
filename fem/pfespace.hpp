@@ -126,6 +126,9 @@ private:
                             const Array<int> &owner_dofs, int owner_ndofs,
                             const Array<int> &dependent_dofs);
 
+   void Add1To1Dependencies(SparseMatrix& deps,
+                            Array<int>& master_dofs, Array<int>& slave_dofs);
+
    void GetDofs(int type, int index, Array<int>& dofs) const;
    void ReorderFaceDofs(Array<int> &dofs, int orient);
 

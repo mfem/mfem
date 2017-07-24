@@ -1288,78 +1288,98 @@ void ParFiniteElementSpace::GetBareDofs(int type, const NCMesh::MeshId &id,
    }
 }
 
+void ParFiniteElementSpace::Add1To1Dependencies(
+   SparseMatrix& deps, Array<int>& master_dofs, Array<int>& slave_dofs)
+{
+   MFEM_ASSERT(master_dofs.Size() == slave_dofs.Size(), "");
+   for (int i = 0; i < slave_dofs.Size(); i++)
+   {
+      int sdof = slave_dofs[i];
+      if (!deps.RowSize(sdof)) // not processed yet?
+      {
+         int mdof = master_dofs[i];
+         if (mdof != sdof && mdof != (-1-sdof))
+         {
+            deps.Add(sdof, mdof, 1.0);
+         }
+      }
+   }
+}
+
 
 struct PMatrixElement
 {
    HYPRE_Int column;
    double value;
 
-   PMatrixElement(HYPRE_Int col, double val) : column(col), value(val) {}
+   PMatrixElement(HYPRE_Int col = 0, double val = 0)
+      : column(col), value(val) {}
 
    bool operator<(const PMatrixElement &other) const
    { return column < other.column; }
+
+   typedef std::vector<PMatrixElement> List;
 };
 
 
 struct PMatrixRow
 {
-   Array<PMatrixElement> elements;
+   PMatrixElement::List elems;
 
    void AddRow(const PMatrixRow &other, double coef)
    {
-      for (unsigned i = 0; i < other.elements.Size(); i++)
+      for (unsigned i = 0; i < other.elems.size(); i++)
       {
-         const PMatrixElement &oei = other.elements[i];
-         elements.Append(PMatrixElement(oei.column, coef * oei.value));
+         const PMatrixElement &oei = other.elems[i];
+         elems.push_back(PMatrixElement(oei.column, coef * oei.value));
       }
    }
 
    void Collapse()
    {
-      if (!elements.size()) { return; }
-      elements.Sort();
+      if (!elems.size()) { return; }
+      std::sort(elems.begin(), elems.end());
 
       int j = 0;
-      for (unsigned i = 1; i < elements.Size(); i++)
+      for (unsigned i = 1; i < elems.size(); i++)
       {
-         if (elements[j].column == elements[i].column)
+         if (elems[j].column == elems[i].column)
          {
-            elements[j].value += elements[i].value;
+            elems[j].value += elems[i].value;
          }
          else
          {
-            elements[++j] = elements[i];
+            elems[++j] = elems[i];
          }
       }
-      elements.resize(j+1);
+      elems.resize(j+1);
    }
-
-   void operator=(const PMatrixRow &other)
-   { other.elements.Copy(elements); }
 };
 
 
 class NeighborRowMessage : public VarMessage<314>
 {
 public:
-   typedef std::map<int, NeighborRowMessage> Map;
-
    struct RowInfo
    {
       int entity, index, edof;
-      const PMatrixRow *row;
+      PMatrixRow row;
 
-      RowInfo(int ent, int idx, int edof, const PMatrixRow *row)
+      RowInfo(int ent, int idx, int edof, const PMatrixRow &row)
          : entity(ent), index(idx), edof(edof), row(row) {}
+
+      typedef std::vector<RowInfo> List;
    };
 
-   void AddRow(int entity, int index, int edof, const PMatrixRow *row)
-   { rows.Append(RowInfo(entity, index, edof, row)); }
+   void AddRow(int entity, int index, int edof, const PMatrixRow &row)
+   { rows.push_back(RowInfo(entity, index, edof, row)); }
 
-   const Array<RowInfo>& GetRows() const { return rows; }
+   const RowInfo::List& GetRows() const { return rows; }
+
+   typedef std::map<int, NeighborRowMessage> Map;
 
 protected:
-   Array<RowInfo> rows;
+   RowInfo::List rows;
 
    virtual void Encode();
    virtual void Decode();
@@ -1459,7 +1479,7 @@ void ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
          NeighborRowMessage &msg = send_msg[rank];
          int ent, idx, edof;
          UnpackDof(dof, ent, idx, edof);
-         msg.AddRow(ent, idx, edof, &row);
+         msg.AddRow(ent, idx, edof, row);
       }
    }
 }
@@ -1574,16 +1594,17 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
       {
          const NCMesh::NCList &list = pncmesh->GetSharedList(type);
 
-         int lsize[3] =
+         std::size_t lsize[3] =
          { list.conforming.size(), list.masters.size(), list.slaves.size() };
 
          for (int l = 0; l < 3; l++)
          {
-            for (int i = 0; i < lsize[l]; i++)
+            for (std::size_t i = 0; i < lsize[l]; i++)
             {
                const NCMesh::MeshId &id =
                   (l == 0) ? list.conforming[i] :
-                  (l == 1) ? list.masters[i] : list.slaves[i];
+                  (l == 1) ? (const NCMesh::MeshId&) list.masters[i]
+                  /*    */ : (const NCMesh::MeshId&) list.slaves[i];
 
                GetBareDofs(type, id, dofs);
 
@@ -1633,7 +1654,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    send_msg.push_back(NeighborRowMessage::Map());
 
    PMatrixRow identity;
-   identity.elements.Append(PMatrixElement(0, 1.0));
+   identity.elems.push_back(PMatrixElement(0, 1.0));
 
    // put identity in P and R for true DOFs, set ldof_ltdof
    HYPRE_Int my_tdof_offset = GetMyTDofOffset();
@@ -1643,7 +1664,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    {
       if (finalized[dof])
       {
-         identity.elements[0].column = my_tdof_offset + true_dof;
+         identity.elems[0].column = my_tdof_offset + true_dof;
          pmatrix[dof] = identity;
 
          // prepare messages to neighbors with identity rows
@@ -1666,7 +1687,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
 
    int num_finalized = ltdof_size;
    PMatrixRow buffer;
-   buffer.reserve(1024);
+   buffer.elems.reserve(1024);
 
    while (num_finalized < num_dofs)
    {
@@ -1676,8 +1697,8 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
       {
          recv_msg.Recv(rank, size, MyComm);
 
-         const Array<NeighborRowMessage::RowInfo> &rows = recv_msg.GetRows();
-         for (int i = 0; i < rows.Size(); i++)
+         const NeighborRowMessage::RowInfo::List &rows = recv_msg.GetRows();
+         for (unsigned i = 0; i < rows.size(); i++)
          {
             const NeighborRowMessage::RowInfo &ri = rows[i];
             int dof = PackDof(ri.entity, ri.index, ri.edof);
@@ -1702,12 +1723,12 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
                int num_dep = deps.RowSize(dof);
 
                // form linear combination of rows
-               buffer.clear();
+               buffer.elems.clear();
                for (int j = 0; j < num_dep; j++)
                {
-                  AddRow(buffer, pmatrix[dep_col[j]], dep_coef[j]);
+                  buffer.AddRow(pmatrix[dep_col[j]], dep_coef[j]);
                }
-               CollapseRow(buffer);
+               buffer.Collapse();
                pmatrix[dof] = buffer;
 
                finalized[dof] = true;
@@ -1735,7 +1756,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
 
    // make sure we can discard all send buffers
    for (std::list<NeighborRowMessage::Map>::iterator
-        it = send_replies.begin(); it != send_replies.end(); ++it)
+        it = send_msg.begin(); it != send_msg.end(); ++it)
    {
       NeighborRowMessage::WaitAllSent(*it);
    }
@@ -1744,6 +1765,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
 
 void ParFiniteElementSpace::GetParallelConformingInterpolation()
 {
+#if 0
    ParNCMesh* pncmesh = pmesh->pncmesh;
 
    bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
@@ -2100,10 +2122,12 @@ void ParFiniteElementSpace::GetParallelConformingInterpolation()
    {
       NeighborRowReply::WaitAllSent(*it);
    }
+#endif
 }
 
 HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
 {
+#if 0
    // TODO: we should refactor the code to remove duplication in this
    // and the previous function
 
@@ -2394,6 +2418,7 @@ HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
       NeighborRowReply::WaitAllSent(*it);
    }
    return PP;
+#endif
 }
 
 
