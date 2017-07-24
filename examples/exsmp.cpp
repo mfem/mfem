@@ -892,7 +892,7 @@ int main (int argc, char *argv[])
         
     // This is for trying a combo of two integrators.
     FunctionCoefficient rhs_coef(weight_fun);
-    const int combomet = 1;
+    const int combomet = 0;
     if (combomet == 1)
     {
        c = new ConstantCoefficient(0.5);  //weight of original metric

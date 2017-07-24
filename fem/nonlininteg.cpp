@@ -1507,10 +1507,17 @@ void TargetJacobian::SetInitialNodes(const GridFunction &n0)
    lf.AddDomainIntegrator(new DomainLFIntegrator(one));
    lf.Assemble();
 #ifdef MFEM_USE_MPI
-   double area_NE[4];
-   area_NE[0] = lf.Sum(); area_NE[1] = nodes0->FESpace()->GetNE();
-   MPI_Allreduce(area_NE, area_NE + 2, 2, MPI_DOUBLE, MPI_SUM, comm);
-   avg_volume0 = area_NE[2] / area_NE[3];
+   if (serial_use)
+   {
+      avg_volume0 = lf.Sum() / nodes0->FESpace()->GetNE();
+   }
+   else
+   {
+      double area_NE[4];
+      area_NE[0] = lf.Sum(); area_NE[1] = nodes0->FESpace()->GetNE();
+      MPI_Allreduce(area_NE, area_NE + 2, 2, MPI_DOUBLE, MPI_SUM, comm);
+      avg_volume0 = area_NE[2] / area_NE[3];
+   }
 #else
    avg_volume0 = lf.Sum() / nodes0->FESpace()->GetNE();
 #endif
