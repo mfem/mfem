@@ -129,7 +129,7 @@ void RelaxedNewtonSolver::Mult2(const Vector &b, Vector &x,
         int jachk = 1;
         double initenergy = 0.0;
         double finenergy = 0.0;
-        int nanchk;
+        int nanchk = 0;
         
         initenergy = nlf.GetEnergy(x);
         
@@ -166,13 +166,17 @@ void RelaxedNewtonSolver::Mult2(const Vector &b, Vector &x,
                     fe.CalcDShape(ir.IntPoint(j), dshape);
                     MultAtB(pos, dshape, Jtr);
                     double det = Jtr.Det();
+                    if (det<=0.)
+                    {
+                        jachk = 0;
+                    }
                 }
             }
             int jachkglob;
             MPI_Allreduce(&jachk, &jachkglob, 1, MPI_INT, MPI_MIN,
                           pmesh.GetComm());
             int nanchkglob;
-            MPI_Allreduce(&nanchk, &nanchkglob, 1, MPI_INT, MPI_MIN,
+            MPI_Allreduce(&nanchk, &nanchkglob, 1, MPI_INT, MPI_MAX,
                           pmesh.GetComm());
             
             //finenergy = initenergy - 1; //WARNING: THIS IS JUST FOR TIPTONUNI.MESH
