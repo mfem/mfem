@@ -133,11 +133,7 @@ public:
          {
             y = 0.0;
 #if (MFEM_EXPERIMENT_1_PROBLEM == 1)
-	    CEED_MassOperator massOp = {
-               2,
-               solFE_type::dofs_1d,       /* number of 1D dofs (points) */
-               IR::qpts_1d,               /* number of 1D quadrature points */
-               mesh.GetNE(),              /* number of elements */
+	    C_MassOperator massOp = {
                (double *)assembled_data,  /* nqpt_1d x nqpt_1d x nelem */
                solEval.Get_B_1D(),        /* nqpt_1d x ndof_1d dense matrix,
                                              column-major layout */
@@ -145,22 +141,22 @@ public:
                solFES.GetIndexer().GetElemDof(),  /* array of size ndofs_1d x
                                                      ndofs_1d x nelem
                                                      representing a boolean P */
+               2,                         /* Dimension of the problem */
+               solFE_type::dofs_1d,       /* number of 1D dofs (points) */
+               IR::qpts_1d,               /* number of 1D quadrature points */
+               mesh.GetNE(),              /* number of elements */
 //               FORTRAN
 //               C
                NEK5000
 	    };
 
-	    CEED_MassAction(
+	    C_MassAction(
 	       &massOp,
                x.GetData(),               /* input vector */
                y.GetData()                /* result, input-output vector */
 	    );
 #else
-            CEED_DiffusionOperator diffOp = {
-               2,
-               solFE_type::dofs_1d,      /* number of 1D dofs (points) */
-               IR::qpts_1d,              /* number of 1D quadrature points */
-               mesh.GetNE(),             /* number of elements */
+            C_DiffusionOperator diffOp = {
                (double *)assembled_data, /* nqpt_1d x nqpt_1d x 3 x nelem;
                                             (3) -> (xx,xy,yy) */
                solEval.Get_B_1D(),       /* nqpt_1d x ndof_1d dense matrix,
@@ -172,12 +168,16 @@ public:
                solFES.GetIndexer().GetElemDof(), /* array of size ndofs_1d x
                                                     ndofs_1d x nelem
                                                     representing a boolean P */
+               2,                        /* Dimension of the problem */
+               solFE_type::dofs_1d,      /* number of 1D dofs (points) */
+               IR::qpts_1d,              /* number of 1D quadrature points */
+               mesh.GetNE(),             /* number of elements */
 //               FORTRAN
 //               C
                NEK5000
             };
 
-	    CEED_DiffusionAction(
+	    C_DiffusionAction(
 	       &diffOp,
                x.GetData(),               /* input vector */
                y.GetData()                /* result, input-output vector */
@@ -188,11 +188,7 @@ public:
          {
             y = 0.0;
 #if (MFEM_EXPERIMENT_1_PROBLEM == 1)
-	    CEED_MassOperator massOp = {
-               3,
-               solFE_type::dofs_1d,       /* number of 1D dofs (points) */
-               IR::qpts_1d,               /* number of 1D quadrature points */
-               mesh.GetNE(),              /* number of elements */
+	    C_MassOperator massOp = {
                (double *)assembled_data,  /* (nqpt_1d)^3 x nelem */
                solEval.Get_B_1D(),        /* nqpt_1d x ndof_1d dense matrix,
                                              column-major layout */
@@ -200,24 +196,23 @@ public:
                solFES.GetIndexer().GetElemDof(), /* array of size (ndofs_1d)^3 x
                                                     nelem representing a boolean
                                                     P */
+               3,                         /* Dimension of the problem */
+               solFE_type::dofs_1d,       /* number of 1D dofs (points) */
+               IR::qpts_1d,               /* number of 1D quadrature points */
+               mesh.GetNE(),              /* number of elements */
 //               FORTRAN
 //               C
                NEK5000
             };
 
-	    CEED_MassAction(
+	    C_MassAction(
 	       &massOp,
                x.GetData(),               /* input vector */
                y.GetData()                /* result, input-output vector */
 	    );
 #else
-            CEED_DiffusionOperator diffOp = {
-               3,
-               solFE_type::dofs_1d,      /* number of 1D dofs (points) */
-               IR::qpts_1d,              /* number of 1D quadrature points */
-               mesh.GetNE(),             /* number of elements */
-               (double *)assembled_data, /* nqpt_1d x nqpt_1d x 3 x nelem;
-                                            (3) -> (xx,xy,yy) */
+            C_DiffusionOperator diffOp = {
+               (double *)assembled_data, /* nqpt_1d x nqpt_1d x 6 x nelem; */
                solEval.Get_B_1D(),       /* nqpt_1d x ndof_1d dense matrix,
                                             column-major layout */
                solEval.Get_Bt_1D(),      /* trasnspose of B1d */
@@ -227,12 +222,16 @@ public:
                solFES.GetIndexer().GetElemDof(), /* array of size ndofs_1d x
                                                     ndofs_1d x nelem
                                                     representing a boolean P */
+               3,                        /* Dimension of the problem */
+               solFE_type::dofs_1d,      /* number of 1D dofs (points) */
+               IR::qpts_1d,              /* number of 1D quadrature points */
+               mesh.GetNE(),             /* number of elements */
 //               FORTRAN
 //               C
                NEK5000
             };
 
-	    CEED_DiffusionAction(
+	    C_DiffusionAction(
 	       &diffOp,
                x.GetData(),               /* input vector */
                y.GetData()                /* result, input-output vector */
