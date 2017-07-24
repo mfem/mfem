@@ -24,6 +24,10 @@
 namespace mfem
 {
 
+struct PMatrixRow;
+class NeighborRowMessage;
+
+
 /// Abstract parallel finite element space.
 class ParFiniteElementSpace : public FiniteElementSpace
 {
@@ -128,18 +132,18 @@ private:
    void GetGhostVertexDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
    void GetGhostEdgeDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
    void GetGhostFaceDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
-   void GetGhostDofs(int type, NCMesh::MeshId &id, Array<int> &dofs) const;
+   void GetGhostDofs(int type, const NCMesh::MeshId &id, Array<int> &dofs) const;
 
    void GetBareEdgeDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
    void GetBareFaceDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
-   void GetBareDofs(int type, NCMesh::MeshId &id, Array<int> &dofs) const;
+   void GetBareDofs(int type, const NCMesh::MeshId &id, Array<int> &dofs) const;
 
    int  PackDof(int entity, int index, int edof);
    void UnpackDof(int dof, int &entity, int &index, int &edof);
 
    void ScheduleSendRow(const PMatrixRow &row, int dof,
                         ParNCMesh::GroupId group_id,
-                        NeighborRowMessage::Map &send_msg);
+                        std::map<int, NeighborRowMessage> &send_msg);
 
    /// Build the P and R matrices.
    void Build_Dof_TrueDof_Matrix();

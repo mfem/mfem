@@ -1368,14 +1368,82 @@ protected:
 
 int ParFiniteElementSpace::PackDof(int entity, int index, int edof)
 {
-   return 0; // TODO
+   // DOFs are ordered as follows:
+   // vertices | edges | faces | internal | ghost vert. | g. edges | g. faces
 
+   int ghost, ned;
+   switch (entity)
+   {
+   case 0:
+      ghost = pncmesh->GetNVertices();
+      ned = fec->DofForGeometry(Geometry::POINT);
+
+      return (index < ghost)
+         ? index*ned + edof // regular vertex
+         : ndofs + (index - ghost)*ned + edof; // ghost vertex
+
+   case 1:
+      ghost = pncmesh->GetNEdges();
+      ned = fec->DofForGeometry(Geometry::SEGMENT);
+
+      return (index < ghost)
+         ? nvdofs + index*ned + edof // regular edge
+         : ndofs + ngvdofs + (index - ghost)*ned + edof; // ghost edge
+
+   default:
+      ghost = pncmesh->GetNFaces();
+      ned = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
+
+      return (index < ghost)
+         ? nvdofs + nedofs + index*ned + edof // regular face
+         : ndofs + ngvdofs + ngedofs + (index - ghost)*ned + edof; // ghost face
+   }
 }
 
 void ParFiniteElementSpace::UnpackDof(int dof,
                                       int &entity, int &index, int &edof)
 {
-   // TODO
+   MFEM_ASSERT(dof >= 0 && dof < ndofs + ngdofs, "");
+
+   if (dof < nvdofs) // regular vertex
+   {
+      int nv = fec->DofForGeometry(Geometry::POINT);
+      entity = 0, index = dof / nv, edof = dof % nv;
+   }
+   else if (dof < nvdofs + nedofs) // regular edge
+   {
+      dof -= nvdofs;
+      int ne = fec->DofForGeometry(Geometry::SEGMENT);
+      entity = 1, index = dof / ne, edof = dof % ne;
+   }
+   else if (dof < nvdofs + nedofs + nfdofs) // regular face
+   {
+      dof -= nvdofs + nedofs;
+      int nf = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
+      entity = 2, index = dof / nf, edof = dof % nf;
+   }
+   else if (dof < ndofs)
+   {
+      MFEM_ABORT("Cannot unpack internal DOF");
+   }
+   else if (dof < ndofs + ngvdofs) // ghost vertex
+   {
+      dof -= ndofs;
+      int nv = fec->DofForGeometry(Geometry::POINT);
+      entity = 0, index = pncmesh->GetNVertices() + dof / nv, edof = dof % nv;
+   }
+   else if (dof < ndofs + ngvdofs + ngedofs) // ghost edge
+   {
+      dof -= ndofs + ngvdofs;
+      int ne = fec->DofForGeometry(Geometry::SEGMENT);
+      entity = 1, index = pncmesh->GetNEdges() + dof / ne, edof = dof % ne;
+   }
+   else // ghost face
+   {
+      dof -= ndofs + ngvdofs + ngedofs;
+      int nf = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
+      entity = 2, index = pncmesh->GetNFaces() + dof / nf, edof = dof % nf;
+   }
 }
 
 void ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
@@ -1383,9 +1451,9 @@ void ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
                                             NeighborRowMessage::Map &send_msg)
 {
    const ParNCMesh::CommGroup &group = pncmesh->GetGroup(group_id);
-   for (unsigned j = 0; j < group.size(); j++)
+   for (unsigned i = 0; i < group.size(); i++)
    {
-      int rank = group[j];
+      int rank = group[i];
       if (rank != MyRank)
       {
          NeighborRowMessage &msg = send_msg[rank];
@@ -1395,6 +1463,7 @@ void ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
       }
    }
 }
+
 
 void ParFiniteElementSpace::NewParallelConformingInterpolation()
 {

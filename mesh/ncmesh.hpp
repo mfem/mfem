@@ -172,11 +172,11 @@ public:
 
       void Clear() { conforming.clear(); masters.clear(); slaves.clear(); }
       bool Empty() const { return !conforming.size() && !masters.size(); }
-      std::size_t TotalSize() const
-      { return conforming.size() + masters.size() + slaves.size(); }
+      long TotalSize() const;
       long MemoryUsage() const;
 
       const MeshId& LookUp(int index) const;
+
    private:
       mutable Array<int> inv_index;
    };
@@ -660,7 +660,7 @@ protected: // implementation
 
    int GetEdgeMaster(int node) const;
 
-   int GetFaceOrientationElement(const Face &face);
+   int GetFaceOrientationElement(const Face &face) const;
 
    void FindFaceNodes(int face, int node[4]);
 

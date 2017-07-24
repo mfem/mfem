@@ -92,6 +92,11 @@ public:
 
    // interface for ParFiniteElementSpace
 
+   int GetNVertices() const { return NVertices; }
+   int GetNEdges() const { return NEdges; }
+   int GetNFaces() const { return NFaces; }
+   int GetNElements() const { return NElements; }
+
    int GetNGhostVertices() const { return NGhostVertices; }
    int GetNGhostEdges() const { return NGhostEdges; }
    int GetNGhostFaces() const { return NGhostFaces; }
