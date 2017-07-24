@@ -429,6 +429,7 @@ private:
    // Current nodes, initial nodes, target nodes that are
    // used in ComputeElementTargets(int), depending on target_type.
    const GridFunction *nodes, *nodes0, *tnodes;
+   mutable double avg_volume0;
 
    static void ConstructIdealJ(int geom, DenseMatrix &J);
 
@@ -450,7 +451,8 @@ public:
    ~TargetJacobian() { }
 
    void SetNodes(const GridFunction &n)         { nodes  = &n;  }
-   void SetInitialNodes(const GridFunction &n0) { nodes0 = &n0; }
+   // Sets initial nodes and computes the average volume of the initial mesh.
+   void SetInitialNodes(const GridFunction &n0);
    void SetTargetNodes(const GridFunction &tn)  { tnodes = &tn; }
 
    /** @brief Given an element and quadrature rule, computes ref->target

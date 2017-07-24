@@ -1492,10 +1492,29 @@ void TMOPHyperelasticModel352::AssembleH(const DenseMatrix &Jpt,
             }
         }
 }
-    
-    
-    
-    
+
+
+void TargetJacobian::SetInitialNodes(const GridFunction &n0)
+{
+   nodes0 = &n0;
+
+   // TODO: note that this uses the mesh to compute the area, not nodes0.
+   // Average cell volume.
+   L2_FECollection fec(0, nodes0->FESpace()->GetFE(0)->GetDim());
+   FiniteElementSpace fes(nodes0->FESpace()->GetMesh(), &fec);
+   LinearForm lf(&fes);
+   ConstantCoefficient one(1.0);
+   lf.AddDomainIntegrator(new DomainLFIntegrator(one));
+   lf.Assemble();
+#ifdef MFEM_USE_MPI
+   double area_NE[4];
+   area_NE[0] = lf.Sum(); area_NE[1] = nodes0->FESpace()->GetNE();
+   MPI_Allreduce(area_NE, area_NE + 2, 2, MPI_DOUBLE, MPI_SUM, comm);
+   avg_volume0 = area_NE[2] / area_NE[3];
+#else
+   avg_volume0 = lf.Sum() / nodes0->FESpace()->GetNE();
+#endif
+}
     
 void TargetJacobian::ComputeElementTargets(int e_id, const FiniteElement &fe,
                                            const IntegrationRule &ir,
@@ -1557,28 +1576,16 @@ void TargetJacobian::ComputeElementTargets(int e_id, const FiniteElement &fe,
       case IDEAL_EQ_SIZE:
       case IDEAL_EQ_SCALE_SIZE:
       {
-         // Average cell area.
-         MFEM_VERIFY(nodes, "Nodes are not set!");
-         L2_FECollection fec(0, fe.GetDim());
-         FiniteElementSpace fes(nodes->FESpace()->GetMesh(), &fec);
-         LinearForm lf(&fes);
-         ConstantCoefficient one(1.0);
-         lf.AddDomainIntegrator(new DomainLFIntegrator(one));
-         lf.Assemble();
-#ifdef MFEM_USE_MPI
-         double area_NE[4];
-         area_NE[0] = lf.Sum(); area_NE[1] = nodes->FESpace()->GetNE();
-         MPI_Allreduce(area_NE, area_NE + 2, 2, MPI_DOUBLE, MPI_SUM, comm);
-         double avg_area = area_NE[2] / area_NE[3];
-#else
-         double avg_area = lf.Sum() / nodes->FESpace()->GetNE();
-#endif
-         if (target_type == IDEAL_EQ_SCALE_SIZE) {
-             avg_area *= 0.005; }
-
          DenseMatrix Wideal(fe.GetDim());
          ConstructIdealJ(fe.GetGeomType(), Wideal);
-         Wideal *= sqrt(avg_area / Wideal.Det());
+         if (target_type == IDEAL_EQ_SCALE_SIZE)
+         {
+            Wideal *= sqrt(0.005 * avg_volume0 / Wideal.Det());
+         }
+         else
+         {
+            Wideal *= sqrt(avg_volume0 / Wideal.Det());
+         }
          for (int i = 0; i < ir.GetNPoints(); i++) { Jtr(i) = Wideal; }
          break;
       }

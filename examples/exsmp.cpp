@@ -678,7 +678,6 @@ int main (int argc, char *argv[])
         cin >> tjtype;
     }
     MPI_Bcast(&tjtype, num_procs, MPI_INT, 0, MPI_COMM_WORLD);
-    tj    = new TargetJacobian(TargetJacobian::IDEAL, MPI_COMM_WORLD);
     if (tjtype == 1)
     {
        tj    = new TargetJacobian(TargetJacobian::IDEAL, MPI_COMM_WORLD);
@@ -703,6 +702,7 @@ int main (int argc, char *argv[])
             cout << "You did not choose a valid option\n";
             cout << "Target Jacobian will default to IDEAL\n";
         }
+        tj    = new TargetJacobian(TargetJacobian::IDEAL, MPI_COMM_WORLD);
     }
 
     //Metrics for 2D & 3D
@@ -893,7 +893,7 @@ int main (int argc, char *argv[])
     // This is for trying a combo of two integrators.
     FunctionCoefficient rhs_coef(weight_fun);
     const int combomet = 1;
-    if (combomet==1)
+    if (combomet == 1)
     {
        c = new ConstantCoefficient(0.5);  //weight of original metric
        he_nlf_integ->SetCoefficient(*c);
@@ -974,7 +974,6 @@ int main (int argc, char *argv[])
         cin >> bndrflag;
     }
     MPI_Bcast(&bndrflag, num_procs, MPI_INT, 0, MPI_COMM_WORLD);
-    tj    = new TargetJacobian(TargetJacobian::IDEAL);
     if (bndrflag != 1)
     {
        //k10partend - the three lines below used to be uncommented
@@ -1052,7 +1051,6 @@ int main (int argc, char *argv[])
         cout << "Initial strain energy : " << logvec[8] << endl;
     }
     
-        
     // save original
     Vector xsav = x;
     //set value of tau_0 for metric 22 and get min jacobian for mesh statistic
