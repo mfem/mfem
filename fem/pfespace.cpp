@@ -1335,6 +1335,9 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof)
    }
 }
 
+/** Dissect a DOF to obtain the entity type (0=vertex, 1=edge, 2=face), entity
+ *  index and the DOF number within the entity.
+ */
 void ParFiniteElementSpace::UnpackDof(int dof,
                                       int &entity, int &index, int &edof)
 {
@@ -1410,7 +1413,8 @@ void ParFiniteElementSpace::Add1To1Dependencies(
 }
 #endif
 
-///
+/** Represents an element of the P matrix. The column number is global.
+ */
 struct PMatrixElement
 {
    HYPRE_Int column;
@@ -1425,8 +1429,9 @@ struct PMatrixElement
    typedef std::vector<PMatrixElement> List;
 };
 
-
-///
+/** Represents one row of the P matrix. The row is complete; diagonal and
+ *  offdiagonal elements are not distinguished.
+ */
 struct PMatrixRow
 {
    PMatrixElement::List elems;
@@ -1482,7 +1487,9 @@ struct PMatrixRow
    }
 };
 
-
+/** Represents a message to another processor containing P matrix rows.
+ *  Used by ParFiniteElementSpace::ParallelConformingInterpolation.
+ */
 class NeighborRowMessage : public VarMessage<314>
 {
 public:
@@ -1518,6 +1525,7 @@ protected:
    virtual void Encode();
    virtual void Decode();
 };
+
 
 void NeighborRowMessage::Encode()
 {

@@ -2001,6 +2001,53 @@ void NCMesh::Slave::OrientedPointMatrix(DenseMatrix &oriented_matrix) const
    }
 }
 
+void NCMesh::NCList::Clear()
+{
+   conforming.clear();
+   masters.clear();
+   slaves.clear();
+   inv_index.DeleteAll();
+}
+
+long NCMesh::NCList::TotalSize() const
+{
+   return conforming.size() + masters.size() + slaves.size();
+}
+
+const NCMesh::MeshId& NCMesh::NCList::LookUp(int index) const
+{
+   if (!inv_index.Size())
+   {
+      inv_index.SetSize(TotalSize());
+      inv_index = -1;
+
+      for (unsigned i = 0; i < conforming.size(); i++)
+      {
+         inv_index[conforming[i].index] = (i << 2);
+      }
+      for (unsigned i = 0; i < masters.size(); i++)
+      {
+         inv_index[masters[i].index] = (i << 2) + 1;
+      }
+      for (unsigned i = 0; i < slaves.size(); i++)
+      {
+         inv_index[slaves[i].index] = (i << 2) + 2;
+      }
+   }
+
+   MFEM_ASSERT(index >= 0 && index < inv_index.Size(), "");
+   int key = inv_index[index];
+   MFEM_ASSERT(key >= 0, "entity not found.");
+
+   switch (key & 0x3)
+   {
+      case 0: return conforming[key >> 2];
+      case 1: return masters[key >> 2];
+      case 2: return slaves[key >> 2];
+      default: MFEM_ABORT("internal error"); throw 0;
+   }
+}
+
 
 //// Neighbors /////////////////////////////////////////////////////////////////
 
@@ -3397,11 +3444,6 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    Iso = iso;
 
    Update();
-}
-
-long NCMesh::NCList::TotalSize() const
-{
-   return conforming.size() + masters.size() + slaves.size();
 }
 
 long NCMesh::NCList::MemoryUsage() const

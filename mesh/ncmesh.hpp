@@ -170,7 +170,7 @@ public:
       // TODO: switch to Arrays when fixed for non-POD types
       // TODO: make a list of unique slave matrices to save memory (+ time later)
 
-      void Clear() { conforming.clear(); masters.clear(); slaves.clear(); }
+      void Clear();
       bool Empty() const { return !conforming.size() && !masters.size(); }
       long TotalSize() const;
       long MemoryUsage() const;
