@@ -17,6 +17,7 @@
 #include "pncmesh.hpp"
 #include "../fem/fe_coll.hpp"
 #include "../fem/fespace.hpp"
+#include "../general/binaryio.hpp"
 
 #include <map>
 #include <climits> // INT_MIN, INT_MAX
@@ -1873,20 +1874,6 @@ void ParNCMesh::ElementSet::Decode(Array<int> &elements) const
       pos += 4;
       DecodeTree(root, pos, elements);
    }
-}
-
-template<typename T>
-static inline void write(std::ostream& os, T value)
-{
-   os.write((char*) &value, sizeof(T));
-}
-
-template<typename T>
-static inline T read(std::istream& is)
-{
-   T value;
-   is.read((char*) &value, sizeof(T));
-   return value;
 }
 
 void ParNCMesh::ElementSet::Dump(std::ostream &os) const

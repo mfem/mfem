@@ -131,16 +131,16 @@ private:
 
    void ReorderFaceDofs(Array<int> &dofs, int orient);
 #endif
-   void GetDofs(int type, int index, Array<int>& dofs) const;
+   void GetDofs(int entity, int index, Array<int>& dofs) const;
 
    void GetGhostVertexDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
    void GetGhostEdgeDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
    void GetGhostFaceDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
-   void GetGhostDofs(int type, const NCMesh::MeshId &id, Array<int> &dofs) const;
+   void GetGhostDofs(int entity, const NCMesh::MeshId &id, Array<int> &dofs) const;
 
    void GetBareEdgeDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
    void GetBareFaceDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
-   void GetBareDofs(int type, const NCMesh::MeshId &id, Array<int> &dofs) const;
+   void GetBareDofs(int entity, const NCMesh::MeshId &id, Array<int> &dofs) const;
 
    int  PackDof(int entity, int index, int edof);
    void UnpackDof(int dof, int &entity, int &index, int &edof);

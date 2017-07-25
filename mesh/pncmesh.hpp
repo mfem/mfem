@@ -524,6 +524,7 @@ protected:
 
    friend class ParMesh;
    friend class NeighborDofMessage;
+   friend class NeighborRowMessage;
 };
 
 

@@ -16,6 +16,7 @@
 #include "pfespace.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../mesh/mesh_headers.hpp"
+#include "../general/binaryio.hpp"
 
 #include <climits> // INT_MAX
 #include <limits>
@@ -1256,10 +1257,11 @@ void ParFiniteElementSpace::GetBareFaceDofs(const NCMesh::MeshId &id,
    // TODO
 }
 
-void ParFiniteElementSpace::GetDofs(int type, int index, Array<int>& dofs) const
+void
+ParFiniteElementSpace::GetDofs(int entity, int index, Array<int>& dofs) const
 {
    // helper to get vertex, edge or face DOFs
-   switch (type)
+   switch (entity)
    {
       case 0: GetVertexDofs(index, dofs); break;
       case 1: GetEdgeDofs(index, dofs); break;
@@ -1267,11 +1269,11 @@ void ParFiniteElementSpace::GetDofs(int type, int index, Array<int>& dofs) const
    }
 }
 
-void ParFiniteElementSpace::GetGhostDofs(int type, const NCMesh::MeshId &id,
+void ParFiniteElementSpace::GetGhostDofs(int entity, const NCMesh::MeshId &id,
                                          Array<int>& dofs) const
 {
    // helper to get ghost vertex, ghost edge or ghost face DOFs
-   switch (type)
+   switch (entity)
    {
       case 0: GetGhostVertexDofs(id, dofs); break;
       case 1: GetGhostEdgeDofs(id, dofs); break;
@@ -1279,115 +1281,16 @@ void ParFiniteElementSpace::GetGhostDofs(int type, const NCMesh::MeshId &id,
    }
 }
 
-void ParFiniteElementSpace::GetBareDofs(int type, const NCMesh::MeshId &id,
+void ParFiniteElementSpace::GetBareDofs(int entity, const NCMesh::MeshId &id,
                                         Array<int>& dofs) const
 {
-   switch (type)
+   switch (entity)
    {
-      case 0: GetGhostVertexDofs(id, dofs); break;
+      case 0: GetGhostVertexDofs(id, dofs); break; // FIXME
       case 1: GetBareEdgeDofs(id, dofs); break;
       case 2: GetBareFaceDofs(id, dofs); break;
    }
 }
-
-#if 0
-void ParFiniteElementSpace::Add1To1Dependencies(
-   SparseMatrix& deps, Array<int>& master_dofs, Array<int>& slave_dofs)
-{
-   MFEM_ASSERT(master_dofs.Size() == slave_dofs.Size(), "");
-   for (int i = 0; i < slave_dofs.Size(); i++)
-   {
-      int sdof = slave_dofs[i];
-      if (!deps.RowSize(sdof)) // not processed yet?
-      {
-         int mdof = master_dofs[i];
-         if (mdof != sdof && mdof != (-1-sdof))
-         {
-            deps.Add(sdof, mdof, 1.0);
-         }
-      }
-   }
-}
-#endif
-
-struct PMatrixElement
-{
-   HYPRE_Int column;
-   double value;
-
-   PMatrixElement(HYPRE_Int col = 0, double val = 0)
-      : column(col), value(val) {}
-
-   bool operator<(const PMatrixElement &other) const
-   { return column < other.column; }
-
-   typedef std::vector<PMatrixElement> List;
-};
-
-
-struct PMatrixRow
-{
-   PMatrixElement::List elems;
-
-   void AddRow(const PMatrixRow &other, double coef)
-   {
-      for (unsigned i = 0; i < other.elems.size(); i++)
-      {
-         const PMatrixElement &oei = other.elems[i];
-         elems.push_back(PMatrixElement(oei.column, coef * oei.value));
-      }
-   }
-
-   void Collapse()
-   {
-      if (!elems.size()) { return; }
-      std::sort(elems.begin(), elems.end());
-
-      int j = 0;
-      for (unsigned i = 1; i < elems.size(); i++)
-      {
-         if (elems[j].column == elems[i].column)
-         {
-            elems[j].value += elems[i].value;
-         }
-         else
-         {
-            elems[++j] = elems[i];
-         }
-      }
-      elems.resize(j+1);
-   }
-};
-
-
-class NeighborRowMessage : public VarMessage<314>
-{
-public:
-   struct RowInfo
-   {
-      int entity, index, edof;
-      PMatrixRow row;
-
-      RowInfo(int ent, int idx, int edof, const PMatrixRow &row)
-         : entity(ent), index(idx), edof(edof), row(row) {}
-
-      typedef std::vector<RowInfo> List;
-   };
-
-   void AddRow(int entity, int index, int edof, const PMatrixRow &row)
-   { rows.push_back(RowInfo(entity, index, edof, row)); }
-
-   const RowInfo::List& GetRows() const { return rows; }
-
-   typedef std::map<int, NeighborRowMessage> Map;
-
-protected:
-   RowInfo::List rows;
-
-   virtual void Encode();
-   virtual void Decode();
-};
-
 
 int ParFiniteElementSpace::PackDof(int entity, int index, int edof)
 {
@@ -1427,7 +1330,7 @@ void ParFiniteElementSpace::UnpackDof(int dof,
                                       int &entity, int &index, int &edof)
 {
    MFEM_VERIFY(dof >= 0, "");
-   if (dofs < ndofs)
+   if (dof < ndofs)
    {
       if (dof < nvdofs) // regular vertex
       {
@@ -1478,11 +1381,196 @@ void ParFiniteElementSpace::UnpackDof(int dof,
    }
 }
 
+#if 0
+void ParFiniteElementSpace::Add1To1Dependencies(
+   SparseMatrix& deps, Array<int>& master_dofs, Array<int>& slave_dofs)
+{
+   MFEM_ASSERT(master_dofs.Size() == slave_dofs.Size(), "");
+   for (int i = 0; i < slave_dofs.Size(); i++)
+   {
+      int sdof = slave_dofs[i];
+      if (!deps.RowSize(sdof)) // not processed yet?
+      {
+         int mdof = master_dofs[i];
+         if (mdof != sdof && mdof != (-1-sdof))
+         {
+            deps.Add(sdof, mdof, 1.0);
+         }
+      }
+   }
+}
+#endif
+
+///
+struct PMatrixElement
+{
+   HYPRE_Int column;
+   double value;
+
+   PMatrixElement(HYPRE_Int col = 0, double val = 0)
+      : column(col), value(val) {}
+
+   bool operator<(const PMatrixElement &other) const
+   { return column < other.column; }
+
+   typedef std::vector<PMatrixElement> List;
+};
+
+
+///
+struct PMatrixRow
+{
+   PMatrixElement::List elems;
+
+   void AddRow(const PMatrixRow &other, double coef)
+   {
+      for (unsigned i = 0; i < other.elems.size(); i++)
+      {
+         const PMatrixElement &oei = other.elems[i];
+         elems.push_back(PMatrixElement(oei.column, coef * oei.value));
+      }
+   }
+
+   /// Remove duplicate columns and sum their values.
+   void Collapse()
+   {
+      if (!elems.size()) { return; }
+      std::sort(elems.begin(), elems.end());
+
+      int j = 0;
+      for (unsigned i = 1; i < elems.size(); i++)
+      {
+         if (elems[j].column == elems[i].column)
+         {
+            elems[j].value += elems[i].value;
+         }
+         else
+         {
+            elems[++j] = elems[i];
+         }
+      }
+      elems.resize(j+1);
+   }
+
+   void write(std::ostream &os) const
+   {
+      mfem::write<int>(os, elems.size());
+      for (unsigned i = 0; i < elems.size(); i++)
+      {
+         mfem::write<HYPRE_Int>(os, elems[i].column);
+         mfem::write<double>(os, elems[i].value);
+      }
+   }
+
+   void read(std::istream &is)
+   {
+      elems.resize(mfem::read<int>(is));
+      for (unsigned i = 0; i < elems.size(); i++)
+      {
+         elems[i].column = mfem::read<HYPRE_Int>(is);
+         elems[i].value = mfem::read<double>(is);
+      }
+   }
+};
+
+
+class NeighborRowMessage : public VarMessage<314>
+{
+public:
+   struct RowInfo
+   {
+      int entity, index, edof;
+      PMatrixRow row;
+
+      RowInfo(int ent, int idx, int edof, const PMatrixRow &row)
+         : entity(ent), index(idx), edof(edof), row(row) {}
+
+      RowInfo(int ent, int idx, int edof)
+         : entity(ent), index(idx), edof(edof) {}
+
+      typedef std::vector<RowInfo> List;
+   };
+
+   NeighborRowMessage() : pncmesh(NULL) {}
+
+   void AddRow(int entity, int index, int edof, const PMatrixRow &row)
+   { rows.push_back(RowInfo(entity, index, edof, row)); }
+
+   const RowInfo::List& GetRows() const { return rows; }
+
+   void SetNCMesh(ParNCMesh* pnc) { pncmesh = pnc; }
+
+   typedef std::map<int, NeighborRowMessage> Map;
+
+protected:
+   RowInfo::List rows;
+   ParNCMesh *pncmesh;
+
+   virtual void Encode();
+   virtual void Decode();
+};
+
+void NeighborRowMessage::Encode()
+{
+   std::ostringstream stream;
+
+   // encode MeshIds
+   Array<NCMesh::MeshId> ent_ids[3];
+   for (unsigned i = 0; i < rows.size(); i++)
+   {
+      const RowInfo &ri = rows[i];
+      const NCMesh::MeshId &id = pncmesh->GetNCList(ri.entity).LookUp(ri.index);
+      ent_ids[ri.entity].Append(NCMesh::MeshId(i, id.element, id.local));
+   }
+   pncmesh->EncodeMeshIds(stream, ent_ids);
+
+   // write all rows to the stream
+   for (int ent = 0; ent < 3; ent++)
+   {
+      const Array<NCMesh::MeshId> &ids = ent_ids[ent];
+      for (int i = 0; i < ids.Size(); i++)
+      {
+         const RowInfo &ri = rows[ids[i].index];
+         MFEM_ASSERT(ent == ri.entity, "");
+         write<int>(stream, ri.edof);
+         ri.row.write(stream);
+      }
+   }
+
+   rows.clear();
+   stream.str().swap(data);
+}
+
+void NeighborRowMessage::Decode()
+{
+   std::istringstream stream(data);
+
+   // decode vertex/edge/face IDs
+   Array<NCMesh::MeshId> ent_ids[3];
+   pncmesh->DecodeMeshIds(stream, ent_ids);
+
+   rows.reserve(ent_ids[0].Size() + ent_ids[1].Size() + ent_ids[2].Size());
+
+   // read rows
+   for (int ent = 0; ent < 3; ent++)
+   {
+      const Array<NCMesh::MeshId> &ids = ent_ids[ent];
+      for (int i = 0; i < ids.Size(); i++)
+      {
+         const NCMesh::MeshId &id = ids[i];
+         int edof = read<int>(stream);
+         rows.push_back(RowInfo(ent, id.index, edof));
+         rows.back().row.read(stream);
+      }
+   }
+}
+
 void ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
                                             ParNCMesh::GroupId group_id,
                                             NeighborRowMessage::Map &send_msg)
 {
    const ParNCMesh::CommGroup &group = pncmesh->GetGroup(group_id);
+
    for (unsigned i = 0; i < group.size(); i++)
    {
       int rank = group[i];
@@ -1492,6 +1580,7 @@ void ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
          int ent, idx, edof;
          UnpackDof(dof, ent, idx, edof);
          msg.AddRow(ent, idx, edof, row);
+         msg.SetNCMesh(pncmesh);
       }
    }
 }
@@ -1499,8 +1588,6 @@ void ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
 
 void ParFiniteElementSpace::NewParallelConformingInterpolation()
 {
-   ParNCMesh* pncmesh = pmesh->pncmesh;
-
    bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
 
    // *** STEP 1: build dependency lists ***
@@ -1665,9 +1752,6 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    std::list<NeighborRowMessage::Map> send_msg;
    send_msg.push_back(NeighborRowMessage::Map());
 
-   PMatrixRow identity;
-   identity.elems.push_back(PMatrixElement(0, 1.0));
-
    // put identity in P and R for true DOFs, set ldof_ltdof
    HYPRE_Int my_tdof_offset = GetMyTDofOffset();
    ldof_ltdof.SetSize(num_dofs);
@@ -1676,8 +1760,8 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    {
       if (finalized[dof])
       {
-         identity.elems[0].column = my_tdof_offset + true_dof;
-         pmatrix[dof] = identity;
+         pmatrix[dof].elems.push_back(
+            PMatrixElement(my_tdof_offset + true_dof, 1.0));
 
          // prepare messages to neighbors with identity rows
          ScheduleSendRow(pmatrix[dof], dof, dof_group[dof], send_msg.back());
@@ -1695,7 +1779,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
 
    // a single instance (recv_msg) is reused for all incoming messages
    NeighborRowMessage recv_msg;
-   recv_msg.SetNCMesh(this);
+   recv_msg.SetNCMesh(pncmesh);
 
    int num_finalized = ltdof_size;
    PMatrixRow buffer;
@@ -2430,6 +2514,8 @@ HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
       NeighborRowReply::WaitAllSent(*it);
    }
    return PP;
+#else
+   return NULL;
 #endif
 }
 
