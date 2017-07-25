@@ -1233,26 +1233,8 @@ void ParFiniteElementSpace::GetGhostEdgeDofs(const NCMesh::MeshId &id,
    }
 }
 
-void ParFiniteElementSpace::GetBareEdgeDofs(const NCMesh::MeshId &id,
-                                            Array<int> &dofs) const
-{
-   int ne = fec->DofForGeometry(Geometry::SEGMENT);
-   dofs.SetSize(ne);
-   int k = ndofs + ngvdofs + id.index*ne;
-   for (int j = 0; j < ne; j++, k++)
-   {
-      dofs[j] = k;
-   }
-}
-
 void ParFiniteElementSpace::GetGhostFaceDofs(const NCMesh::MeshId &id,
                                              Array<int> &dofs) const
-{
-   // TODO
-}
-
-void ParFiniteElementSpace::GetBareFaceDofs(const NCMesh::MeshId &id,
-                                            Array<int> &dofs) const
 {
    // TODO
 }
@@ -1284,11 +1266,38 @@ void ParFiniteElementSpace::GetGhostDofs(int entity, const NCMesh::MeshId &id,
 void ParFiniteElementSpace::GetBareDofs(int entity, const NCMesh::MeshId &id,
                                         Array<int>& dofs) const
 {
+   int ned, ghost, first;
    switch (entity)
    {
-      case 0: GetGhostVertexDofs(id, dofs); break; // FIXME
-      case 1: GetBareEdgeDofs(id, dofs); break;
-      case 2: GetBareFaceDofs(id, dofs); break;
+   case 0:
+      ned = fec->DofForGeometry(Geometry::POINT);
+      ghost = pncmesh->GetNVertices();
+      first = (id.index < ghost)
+         ? id.index*ned // regular vertex
+         : ndofs + (id.index - ghost)*ned; // ghost vertex
+      break;
+
+   case 1:
+      ned = fec->DofForGeometry(Geometry::SEGMENT);
+      ghost = pncmesh->GetNEdges();
+      first = (id.index < ghost)
+         ? nvdofs + id.index*ned // regular edge
+         : ndofs + ngvdofs + (id.index - ghost)*ned; // ghost edge
+      break;
+
+   default:
+      ned = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
+      ghost = pncmesh->GetNFaces();
+      first = (id.index < ghost)
+         ? nvdofs + nedofs + id.index*ned // regular face
+         : ndofs + ngvdofs + ngedofs + (id.index - ghost)*ned; // ghost face
+      break;
+   }
+
+   dofs.SetSize(ned);
+   for (int i = 0; i < ned; i++)
+   {
+      dofs[i] = first + i;
    }
 }
 
