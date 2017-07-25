@@ -1027,6 +1027,7 @@ inline int decode_dof(int dof, double& sign)
    return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof));
 }
 
+#if 0
 const int INVALID_DOF = INT_MAX;
 
 static void MaskSlaveDofs(Array<int> &slave_dofs, const DenseMatrix &pm,
@@ -1190,6 +1191,7 @@ void ParFiniteElementSpace
       }
    }
 }
+#endif
 
 void ParFiniteElementSpace::GetGhostVertexDofs(const NCMesh::MeshId &id,
                                                Array<int> &dofs) const
@@ -1268,7 +1270,7 @@ void ParFiniteElementSpace::GetDofs(int type, int index, Array<int>& dofs) const
 void ParFiniteElementSpace::GetGhostDofs(int type, const NCMesh::MeshId &id,
                                          Array<int>& dofs) const
 {
-   // helper to get vertex, edge or face DOFs, regular or ghost
+   // helper to get ghost vertex, ghost edge or ghost face DOFs
    switch (type)
    {
       case 0: GetGhostVertexDofs(id, dofs); break;
@@ -1288,6 +1290,7 @@ void ParFiniteElementSpace::GetBareDofs(int type, const NCMesh::MeshId &id,
    }
 }
 
+#if 0
 void ParFiniteElementSpace::Add1To1Dependencies(
    SparseMatrix& deps, Array<int>& master_dofs, Array<int>& slave_dofs)
 {
@@ -1305,7 +1308,7 @@ void ParFiniteElementSpace::Add1To1Dependencies(
       }
    }
 }
-
+#endif
 
 struct PMatrixElement
 {
@@ -1423,46 +1426,55 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof)
 void ParFiniteElementSpace::UnpackDof(int dof,
                                       int &entity, int &index, int &edof)
 {
-   MFEM_ASSERT(dof >= 0 && dof < ndofs + ngdofs, "");
-
-   if (dof < nvdofs) // regular vertex
+   MFEM_VERIFY(dof >= 0, "");
+   if (dofs < ndofs)
    {
-      int nv = fec->DofForGeometry(Geometry::POINT);
-      entity = 0, index = dof / nv, edof = dof % nv;
-   }
-   else if (dof < nvdofs + nedofs) // regular edge
-   {
+      if (dof < nvdofs) // regular vertex
+      {
+         int nv = fec->DofForGeometry(Geometry::POINT);
+         entity = 0, index = dof / nv, edof = dof % nv;
+         return;
+      }
       dof -= nvdofs;
-      int ne = fec->DofForGeometry(Geometry::SEGMENT);
-      entity = 1, index = dof / ne, edof = dof % ne;
-   }
-   else if (dof < nvdofs + nedofs + nfdofs) // regular face
-   {
-      dof -= nvdofs + nedofs;
-      int nf = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
-      entity = 2, index = dof / nf, edof = dof % nf;
-   }
-   else if (dof < ndofs)
-   {
+      if (dof < nedofs) // regular edge
+      {
+         int ne = fec->DofForGeometry(Geometry::SEGMENT);
+         entity = 1, index = dof / ne, edof = dof % ne;
+         return;
+      }
+      dof -= nedofs;
+      if (dof < nfdofs) // regular face
+      {
+         int nf = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
+         entity = 2, index = dof / nf, edof = dof % nf;
+         return;
+      }
       MFEM_ABORT("Cannot unpack internal DOF");
    }
-   else if (dof < ndofs + ngvdofs) // ghost vertex
+   else
    {
       dof -= ndofs;
-      int nv = fec->DofForGeometry(Geometry::POINT);
-      entity = 0, index = pncmesh->GetNVertices() + dof / nv, edof = dof % nv;
-   }
-   else if (dof < ndofs + ngvdofs + ngedofs) // ghost edge
-   {
-      dof -= ndofs + ngvdofs;
-      int ne = fec->DofForGeometry(Geometry::SEGMENT);
-      entity = 1, index = pncmesh->GetNEdges() + dof / ne, edof = dof % ne;
-   }
-   else // ghost face
-   {
-      dof -= ndofs + ngvdofs + ngedofs;
-      int nf = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
-      entity = 2, index = pncmesh->GetNFaces() + dof / nf, edof = dof % nf;
+      if (dof < ngvdofs) // ghost vertex
+      {
+         int nv = fec->DofForGeometry(Geometry::POINT);
+         entity = 0, index = pncmesh->GetNVertices() + dof / nv, edof = dof % nv;
+         return;
+      }
+      dof -= ngvdofs;
+      if (dof < ngedofs) // ghost edge
+      {
+         int ne = fec->DofForGeometry(Geometry::SEGMENT);
+         entity = 1, index = pncmesh->GetNEdges() + dof / ne, edof = dof % ne;
+         return;
+      }
+      dof -= ngedofs;
+      if (dof < ngfdofs) // ghost face
+      {
+         int nf = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
+         entity = 2, index = pncmesh->GetNFaces() + dof / nf, edof = dof % nf;
+         return;
+      }
+      MFEM_ABORT("Out of range DOF.");
    }
 }
 
@@ -1506,8 +1518,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
 
    if (!dg)
    {
-      Array<int> master_dofs, slave_dofs;
-      Array<int> owner_dofs, my_dofs, dofs;
+      Array<int> dofs, master_dofs, slave_dofs;
 
       // loop through *all* master edges/faces, constrain their slaves
       for (int type = 1; type <= 2; type++)
@@ -1554,7 +1565,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
                // make each slave DOF dependent on all master DOFs
                AddDependencies(deps, master_dofs, slave_dofs, I);
             }
-
+#if 0
             // special case for master edges that we don't own but still exist
             // in our mesh: this is a conforming-like situation, create 1-to-1
             // deps
@@ -1586,6 +1597,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
                }*/
                Add1To1Dependencies(deps, owner_dofs, my_dofs);
             }
+#endif
          }
       }
 
