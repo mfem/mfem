@@ -150,8 +150,8 @@ An optional installation of the library and the headers can be performed with
    make install [PREFIX=<dir>]
 
 The library will be installed in $(PREFIX)/lib, the headers in
-$(PREFIX)/include, and the configuration makefile (config.mk) in $(PREFIX).
-The PREFIX option can also be set during configuration.
+$(PREFIX)/include, and the configuration makefile (config.mk) in
+$(PREFIX)/share/mfem. The PREFIX option can also be set during configuration.
 
 Information about the current build configuration can be viewed using
 
@@ -194,7 +194,7 @@ Compiler options:
 Installation options:
    PREFIX  - Specify the installation directory. The library (libmfem.a) will be
              installed in $(PREFIX)/lib, the headers in $(PREFIX)/include, and
-             the configuration makefile (config.mk) in $(PREFIX).
+             the configuration makefile (config.mk) in $(PREFIX)/share/mfem.
    INSTALL - Specify the install program, e.g /usr/bin/install
 
 MFEM library features/options (GNU make)
