@@ -1020,39 +1020,15 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
                                              HYPRE_Int* row_starts) const
 {
    const bool assumed_partition = HYPRE_AssumedPartitionCheck();
-   bool same_rows;
    if (row_starts == NULL)
    {
-      same_rows = (D.Height() == hypre_CSRMatrixNumRows(A->diag));
-   }
-   else
-   {
-      same_rows = (row_starts == hypre_ParCSRMatrixRowStarts(A));
-   }
-
-   int part_size;
-   if (assumed_partition)
-   {
-      part_size = 2;
-   }
-   else
-   {
-      MPI_Comm_size(GetComm(), &part_size);
-      part_size++;
-   }
-
-   HYPRE_Int global_num_rows;
-   if (same_rows)
-   {
       row_starts = hypre_ParCSRMatrixRowStarts(A);
-      global_num_rows = hypre_ParCSRMatrixGlobalNumRows(A);
+      MFEM_VERIFY(D.Height() == hypre_CSRMatrixNumRows(A->diag),
+                  "the matrix D is NOT compatible with the row starts of"
+                  " this HypreParMatrix, row_starts must be given.");
    }
    else
    {
-      MFEM_VERIFY(row_starts != NULL, "the number of rows in D and A is not "
-                  "the same; row_starts must be given (not NULL)");
-
-#ifdef MFEM_DEBUG
       int offset;
       if (assumed_partition)
       {
@@ -1065,20 +1041,32 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
       int local_num_rows = row_starts[offset+1]-row_starts[offset];
       MFEM_VERIFY(local_num_rows == D.Height(), "the number of rows in D is "
                   " not compatible with the given row_starts");
-#endif
+   }
+   // D.Width() will be checked for compatibility by the SparseMatrix
+   // multiplication function, mfem::Mult(), called below.
 
-      // Here, when assumed_partition is true we use row_starts[2], so
-      // row_starts must come from the GetDofOffsets/GetTrueDofOffsets methods
-      // of ParFiniteElementSpace (HYPRE's partitions have only 2 entries).
-      global_num_rows =
-         assumed_partition ? row_starts[2] : row_starts[part_size-1];
+   int part_size;
+   HYPRE_Int global_num_rows;
+   if (assumed_partition)
+   {
+      part_size = 2;
+      global_num_rows = row_starts[2];
+      // Here, we use row_starts[2], so row_starts must come from the methods
+      // GetDofOffsets/GetTrueDofOffsets of ParFiniteElementSpace (HYPRE's
+      // partitions have only 2 entries).
+   }
+   else
+   {
+      MPI_Comm_size(GetComm(), &part_size);
+      global_num_rows = row_starts[part_size];
+      part_size++;
    }
 
    HYPRE_Int *col_starts = hypre_ParCSRMatrixColStarts(A);
    HYPRE_Int *col_map_offd;
 
    // get the diag and offd blocks as SparseMatrix wrappers
-   SparseMatrix A_diag(0), A_offd(0);
+   SparseMatrix A_diag, A_offd;
    GetDiag(A_diag);
    GetOffd(A_offd, col_map_offd);
 
