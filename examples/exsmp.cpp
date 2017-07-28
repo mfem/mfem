@@ -536,7 +536,7 @@ int main (int argc, char *argv[])
                " --> " << flush;
        cin >> mesh_poly_deg;
     }
-    MPI_Bcast(&mesh_poly_deg, num_procs, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&mesh_poly_deg, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     FiniteElementCollection *fec;
     if (mesh_poly_deg <= 0)
@@ -681,7 +681,7 @@ int main (int argc, char *argv[])
             " --> " << flush;
         cin >> tjtype;
     }
-    MPI_Bcast(&tjtype, num_procs, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&tjtype, 1, MPI_INT, 0, MPI_COMM_WORLD);
     if (tjtype == 1)
     {
        tj    = new TargetJacobian(TargetJacobian::IDEAL, MPI_COMM_WORLD);
@@ -742,7 +742,7 @@ int main (int argc, char *argv[])
             cin >> modeltype;
         }
        double tauval = -0.5;
-       MPI_Bcast(&modeltype, num_procs, MPI_INT, 0, MPI_COMM_WORLD);
+       MPI_Bcast(&modeltype, 1, MPI_INT, 0, MPI_COMM_WORLD);
        model    = new TMOPHyperelasticModel001;
        if (modeltype == 1)
        {
@@ -821,7 +821,7 @@ int main (int argc, char *argv[])
             cin >> modeltype;
         }
        double tauval = -0.1;
-       MPI_Bcast(&modeltype, num_procs, MPI_INT, 0, MPI_COMM_WORLD);
+       MPI_Bcast(&modeltype, 1, MPI_INT, 0, MPI_COMM_WORLD);
        model    = new TMOPHyperelasticModel302;
        if (modeltype == 1)
        {
@@ -977,7 +977,7 @@ int main (int argc, char *argv[])
             " --> " << flush;
         cin >> bndrflag;
     }
-    MPI_Bcast(&bndrflag, num_procs, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&bndrflag, 1, MPI_INT, 0, MPI_COMM_WORLD);
     if (bndrflag != 1)
     {
        //k10partend - the three lines below used to be uncommented
@@ -995,7 +995,7 @@ int main (int argc, char *argv[])
             "2) MINRES\n" << " --> \n" << flush;
         cin >> lsmtype;
     }
-    MPI_Bcast(&lsmtype, num_procs, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&lsmtype, 1, MPI_INT, 0, MPI_COMM_WORLD);
     Solver *S;
     logvec[5]=lsmtype;
     int lsmits;
@@ -1007,7 +1007,7 @@ int main (int argc, char *argv[])
             cout << "Enter number of linear smoothing iterations -->\n " << flush;
             cin >> lsmits;
         }
-       MPI_Bcast(&lsmits, num_procs, MPI_INT, 0, MPI_COMM_WORLD);
+       MPI_Bcast(&lsmits, 1, MPI_INT, 0, MPI_COMM_WORLD);
        S = new DSmoother(1, 1., lsmits);
     }
     else if (lsmtype == 1)
@@ -1017,7 +1017,7 @@ int main (int argc, char *argv[])
             cout << "Enter number of CG smoothing iterations -->\n " << flush;
             cin >> lsmits;
         }
-       MPI_Bcast(&lsmits, num_procs, MPI_INT, 0, MPI_COMM_WORLD);
+       MPI_Bcast(&lsmits, 1, MPI_INT, 0, MPI_COMM_WORLD);
        CGSolver *cg = new CGSolver;
        cg->SetMaxIter(lsmits);
        cg->SetRelTol(rtol);
@@ -1032,7 +1032,7 @@ int main (int argc, char *argv[])
             cout << "Enter number of MINRES smoothing iterations -->\n " << flush;
             cin >> lsmits;
         }
-       MPI_Bcast(&lsmits, num_procs, MPI_INT, 0, MPI_COMM_WORLD);
+       MPI_Bcast(&lsmits, 1, MPI_INT, 0, MPI_COMM_WORLD);
        MINRESSolver *minres = new MINRESSolver(MPI_COMM_WORLD);
        minres->SetMaxIter(lsmits);
        minres->SetRelTol(rtol);
@@ -1047,7 +1047,7 @@ int main (int argc, char *argv[])
         cout << "Enter number of Newton iterations -->\n " << flush;
         cin >> newits;
     }
-    MPI_Bcast(&newits, num_procs, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&newits, 1, MPI_INT, 0, MPI_COMM_WORLD);
     logvec[7]=newits;
     logvec[8]=a.GetEnergy(x);
     if (myid==0)
