@@ -189,6 +189,8 @@ public:
 
    /// Set the precision (number of digits) used for the text output of doubles
    void SetPrecision(int prec) { precision = prec; }
+   /// Set the number of digits used for both the cycle and the MPI rank
+   void SetPadDigits(int digits) { pad_digits_cycle=pad_digits_rank = digits; }
    /// Set the number of digits used for the cycle
    void SetPadDigitsCycle(int digits) { pad_digits_cycle = digits; }
    /// Set the number of digits used for the MPI rank in filenames
