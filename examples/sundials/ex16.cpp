@@ -102,7 +102,7 @@ public:
 class SundialsJacSolver : public SundialsODELinearSolver
 {
 private:
-  ConductionOperator *oper;
+   ConductionOperator *oper;
 
 public:
    SundialsJacSolver() : oper(NULL) { }
