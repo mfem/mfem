@@ -1393,26 +1393,6 @@ void ParFiniteElementSpace::UnpackDof(int dof,
    }
 }
 
-#if 0
-void ParFiniteElementSpace::Add1To1Dependencies(
-   SparseMatrix& deps, Array<int>& master_dofs, Array<int>& slave_dofs)
-{
-   MFEM_ASSERT(master_dofs.Size() == slave_dofs.Size(), "");
-   for (int i = 0; i < slave_dofs.Size(); i++)
-   {
-      int sdof = slave_dofs[i];
-      if (!deps.RowSize(sdof)) // not processed yet?
-      {
-         int mdof = master_dofs[i];
-         if (mdof != sdof && mdof != (-1-sdof))
-         {
-            deps.Add(sdof, mdof, 1.0);
-         }
-      }
-   }
-}
-#endif
-
 /** Represents an element of the P matrix. The column number is global.
  */
 struct PMatrixElement
@@ -1429,13 +1409,14 @@ struct PMatrixElement
    typedef std::vector<PMatrixElement> List;
 };
 
-/** Represents one row of the P matrix. The row is complete; diagonal and
+/** Represents one row of the P matrix. The row is complete: diagonal and
  *  offdiagonal elements are not distinguished.
  */
 struct PMatrixRow
 {
    PMatrixElement::List elems;
 
+   /// Add other row, times 'coef'.
    void AddRow(const PMatrixRow &other, double coef)
    {
       for (unsigned i = 0; i < other.elems.size(); i++)
@@ -1669,39 +1650,6 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
                // make each slave DOF dependent on all master DOFs
                AddDependencies(deps, master_dofs, slave_dofs, I);
             }
-#if 0
-            // special case for master edges that we don't own but still exist
-            // in our mesh: this is a conforming-like situation, create 1-to-1
-            // deps
-            if (pncmesh->GetOwner(type, mf.index) != MyRank &&
-                !pncmesh->IsGhost(type, mf.index))
-            {
-               GetGhostDofs(type, mf.index, my_dofs);
-               Add1To1Dependencies(deps, master_dofs, my_dofs);
-            }
-         }
-      }
-
-      // add one-to-one dependencies between shared conforming verts/edges/faces
-      for (int type = 0; type <= 2; type++)
-      {
-         const NCMesh::NCList &list = pncmesh->GetSharedList(type);
-         for (unsigned i = 0; i < list.conforming.size(); i++)
-         {
-            const NCMesh::MeshId &id = list.conforming[i];
-            if (pncmesh->GetOwner(type, id.index) != MyRank)
-            {
-               GetDofs(type, id.index, my_dofs);
-               GetGhostDofs(type, id.index, owner_dofs);
-               /*if (type == 2)
-               {
-                  int fo = pncmesh->GetFaceOrientation(id.index);
-                  ReorderFaceDofs(owner_dofs, fo);
-                  // TODO: do this inside ParNCMesh?
-               }*/
-               Add1To1Dependencies(deps, owner_dofs, my_dofs);
-            }
-#endif
          }
       }
 
@@ -1758,7 +1706,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    GenerateGlobalOffsets(); // calls MPI_Scan, MPI_Bcast
 
    HYPRE_Int glob_true_dofs = tdof_offsets.Last();
-   HYPRE_Int glob_cdofs = dof_offsets.Last();
+   HYPRE_Int glob_dofs = dof_offsets.Last();
 
    std::vector<PMatrixRow> pmatrix(total_dofs);
 
@@ -1860,12 +1808,15 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    }
 
 /*   // create the parallel matrix P
-   P = new HypreParMatrix(MyComm, num_dofs, glob_cdofs, glob_true_dofs,
+   P = new HypreParMatrix(MyComm, num_dofs, glob_dofs, glob_true_dofs,
                           localP.GetI(), localP.GetJ(), localP.GetData(),
                           dof_offsets.GetData(), tdof_offsets.GetData());
 */
 
    R->Finalize();
+
+   P = MakeHypreMatrix(pmatrix, num_dofs, glob_dofs, glob_true_dofs,
+                       dof_offsets.GetData(), tdof_offsets.GetData());
 
    // make sure we can discard all send buffers
    for (std::list<NeighborRowMessage::Map>::iterator
@@ -1873,6 +1824,82 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    {
       NeighborRowMessage::WaitAllSent(*it);
    }
+}
+
+
+/// Helper: create a HypreParMatrix from a list of global rows.
+HypreParMatrix* ParFiniteElementSpace::MakeHypreMatrix(
+   const std::vector<PMatrixRow> &rows, int local_rows,
+   HYPRE_Int glob_rows, HYPRE_Int glob_cols,
+   HYPRE_Int *row_starts, HYPRE_Int *col_starts)
+{
+   HYPRE_Int first_col =
+      HYPRE_AssumedPartitionCheck() ? col_starts[0] : col_starts[MyRank];
+   HYPRE_Int next_col =
+      HYPRE_AssumedPartitionCheck() ? col_starts[1] : col_starts[MyRank+1];
+
+   // count nonzeros in diagonal/offdiagonal parts
+   HYPRE_Int nnz_diag = 0, nnz_offd = 0;
+   for (int i = 0; i < local_rows; i++)
+   {
+      for (unsigned j = 0; j < rows[i].elems.size(); j++)
+      {
+         HYPRE_Int col = rows[i].elems[j].column;
+         (col >= first_col && col < next_col) ? ++nnz_diag : ++nnz_offd;
+      }
+   }
+
+   HYPRE_Int *I_diag = new HYPRE_Int[local_rows+1];
+   HYPRE_Int *I_offd = new HYPRE_Int[local_rows+1];
+
+   HYPRE_Int *J_diag = new HYPRE_Int[nnz_diag];
+   HYPRE_Int *J_offd = new HYPRE_Int[nnz_offd];
+
+   double *A_diag = new double[nnz_diag];
+   double *A_offd = new double[nnz_offd];
+
+   // copy the diag/offd elements, create offdiagonal column mapping
+   HYPRE_Int cnt_diag = 0, cnt_offd = 0;
+   std::map<HYPRE_Int, int> col_map;
+   for (int i = 0; i < local_rows; i++)
+   {
+      I_diag[i] = cnt_diag;
+      I_offd[i] = cnt_offd;
+
+      for (unsigned j = 0; j < rows[i].elems.size(); j++)
+      {
+         const PMatrixElement &elem = rows[i].elems[j];
+         if (elem.column >= first_col && elem.column < next_col)
+         {
+            J_diag[cnt_diag] = elem.column - first_col;
+            A_diag[cnt_diag++] = elem.value;
+         }
+         else
+         {
+            int &lcol = col_map[elem.column];
+            if (!lcol) { lcol = col_map.size(); }
+
+            J_offd[cnt_offd] = lcol-1;
+            A_offd[cnt_offd++] = elem.value;
+         }
+      }
+   }
+   I_diag[local_rows] = cnt_diag;
+   I_offd[local_rows] = cnt_offd;
+
+   // finish the matrix
+   HYPRE_Int *cmap = new HYPRE_Int[col_map.size()];
+   for (std::map<HYPRE_Int, int>::iterator
+        it = col_map.begin(); it != col_map.end(); ++it)
+   {
+      cmap[it->second-1] = it->first;
+   }
+
+   return new HypreParMatrix(MyComm, glob_rows, glob_cols,
+                             row_starts, col_starts,
+                             I_diag, J_diag, A_diag,
+                             I_offd, J_offd, A_offd,
+                             col_map.size(), cmap);
 }
 
 

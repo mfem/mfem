@@ -147,6 +147,11 @@ private:
                         ParNCMesh::GroupId group_id,
                         std::map<int, NeighborRowMessage> &send_msg);
 
+   HypreParMatrix*
+      MakeHypreMatrix(const std::vector<PMatrixRow> &rows, int local_rows,
+                      HYPRE_Int glob_rows, HYPRE_Int glob_cols,
+                      HYPRE_Int *row_starts, HYPRE_Int *col_starts);
+
    /// Build the P and R matrices.
    void Build_Dof_TrueDof_Matrix();
 
