@@ -642,7 +642,7 @@ int main (int argc, char *argv[])
     //     mesh. The vector field that gives the displacements to the perturbed
     //     positions is saved in the grid function x0.
     ParGridFunction x0(fespace);
-    x0 = *x;
+    x0 = x;
     
     // Visualization structures.
     L2_FECollection mfec(mesh_poly_deg, pmesh->Dimension(),
@@ -870,13 +870,12 @@ int main (int argc, char *argv[])
     const IntegrationRule *ir =
           &IntRulesLo.Get(fespace->GetFE(0)->GetGeomType(),nptdir); //this for GLL points "LO"
     he_nlf_integ->SetIntegrationRule(*ir);
-    if (ptflag==1) {
-        if (myid==0)
-        {
-            cout << "Sample point distribution is GLL based\n";
-        }
+    if (ptflag == 1 && myid == 0)
+    {
+       cout << "Sample point distribution is GLL based\n";
     }
-    else {
+    else
+    {
        const IntegrationRule *ir =
              &IntRulesCU.Get(fespace->GetFE(0)->GetGeomType(),nptdir); //this for uniform points "CU"
        he_nlf_integ->SetIntegrationRule(*ir);
@@ -885,6 +884,8 @@ int main (int argc, char *argv[])
             cout << "Sample point distribution is uniformly spaced\n";
         }
     }
+
+    // he_nlf_integ->SetLimited(1.0, x0);
         
     nf_integ = he_nlf_integ;
     ParNonlinearForm a(fespace);
@@ -1019,12 +1020,6 @@ int main (int argc, char *argv[])
     }
     else
     {
-       if (myid==0)
-       {
-          cout << "Enter number of MINRES smoothing iterations -->\n " << flush;
-          cin >> lsmits;
-       }
-       MPI_Bcast(&lsmits, 1, MPI_INT, 0, MPI_COMM_WORLD);
        MINRESSolver *minres = new MINRESSolver(MPI_COMM_WORLD);
        minres->SetMaxIter(lsmits);
        minres->SetRelTol(rtol);
