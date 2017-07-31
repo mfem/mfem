@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";
+   const char *mesh_file = "../../../data/star.mesh";
    int order = 1;
    bool static_cond = false;
    int total_refinements = 4;

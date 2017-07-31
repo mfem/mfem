@@ -10,16 +10,16 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 # Use the MFEM build directory
-MFEM_DIR ?= ../..
-MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/examples/atpesc,)
+MFEM_DIR ?= ../../..
+MFEM_BUILD_DIR ?= ../../..
+SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/examples/atpesc/superlu,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES = 
-PAR_EXAMPLES = convergence
+PAR_EXAMPLES = drumhead
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
