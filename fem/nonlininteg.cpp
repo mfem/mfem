@@ -1714,7 +1714,7 @@ double HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
          pos0->MultTranspose(shape, p0);
          for (int d = 0; d < dim; d++)
          {
-            double diff = p(d) - p0(d);
+            const double diff = p(d) - p0(d);
             val += 0.5 * diff * diff;
          }
       }
@@ -1728,8 +1728,9 @@ double HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
    return energy;
 }
 
-void HyperelasticNLFIntegrator::AssembleElementVector(const FiniteElement &el,
-                                                      ElementTransformation &Ttr, const Vector &elfun, Vector &elvect)
+void HyperelasticNLFIntegrator::AssembleElementVector(
+   const FiniteElement &el, ElementTransformation &Ttr,
+   const Vector &elfun, Vector &elvect)
 {
    int dof = el.GetDof(), dim = el.GetDim();
 
@@ -1837,7 +1838,9 @@ void HyperelasticNLFIntegrator::AssembleElementVector(const FiniteElement &el,
 }
 
 void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
-                                                    ElementTransformation &Ttr, const Vector &elfun, DenseMatrix &elmat)
+                                                    ElementTransformation &Ttr,
+                                                    const Vector &elfun,
+                                                    DenseMatrix &elmat)
 {
    int dof = el.GetDof(), dim = el.GetDim();
 

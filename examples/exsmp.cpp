@@ -166,9 +166,9 @@ void RelaxedNewtonSolver::Mult2(const Vector &b, Vector &x,
                     fe.CalcDShape(ir.IntPoint(j), dshape);
                     MultAtB(pos, dshape, Jtr);
                     double det = Jtr.Det();
-                    if (det<=0.)
+                    if (det <= 0.)
                     {
-                        jachk = 0;
+                       jachk = 0;
                     }
                 }
             }
@@ -242,7 +242,7 @@ public:
     
     virtual void Mult(const Vector &b, Vector &x) const;
     
-    virtual void Mult2(const Vector &b, ParGridFunction &x,
+    virtual void Mult2(const Vector &b, Vector &x,
                        const ParMesh &pmesh, const IntegrationRule &ir,
                        int *itnums, const ParNonlinearForm &nlf,
                        double &tauval) const;
@@ -263,7 +263,7 @@ void DescentNewtonSolver::Mult(const Vector &b, Vector &x) const
     return;
 }
 
-void DescentNewtonSolver::Mult2(const Vector &b, ParGridFunction &x,
+void DescentNewtonSolver::Mult2(const Vector &b, Vector &x,
                                 const ParMesh &pmesh, const IntegrationRule &ir,
                                 int *itnums, const ParNonlinearForm &nlf,
                                 double &tauval) const
@@ -347,7 +347,6 @@ void DescentNewtonSolver::Mult2(const Vector &b, ParGridFunction &x,
         double tauvalglob;
         MPI_Allreduce(&tauval, &tauvalglob, 1, MPI_DOUBLE, MPI_MIN,
                       pmesh.GetComm());
-
         
         if (tauvalglob>0)
         {
@@ -369,12 +368,9 @@ void DescentNewtonSolver::Mult2(const Vector &b, ParGridFunction &x,
         double initenergy = 0.0;
         double finenergy = 0.0;
         double nanchk;
-        int nelinvnew;
-        nelinvnew = 0;
         
         initenergy = nlf.GetEnergy(x);
         cout << "energy level is " << initenergy << " \n";
-        const int nsp = ir.GetNPoints();
         
         while (tchk !=1 && iters <  15)
         {
@@ -447,9 +443,7 @@ int main (int argc, char *argv[])
     vector<double> logvec (100);
     double weight_fun(const Vector &x);
     double tstart_s=clock();
-    
-    bool dump_iterations = false;
-    
+        
     // 3. Read the mesh from the given mesh file. We can handle triangular,
     //    quadrilateral, tetrahedral or hexahedral elements with the same code.
     const char *mesh_file = "../data/tipton.mesh";
@@ -538,6 +532,9 @@ int main (int argc, char *argv[])
     }
     MPI_Bcast(&mesh_poly_deg, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
+    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+    delete mesh;
+
     FiniteElementCollection *fec;
     if (mesh_poly_deg <= 0)
     {
@@ -548,8 +545,6 @@ int main (int argc, char *argv[])
     {
         fec = new H1_FECollection(mesh_poly_deg, dim);
     }
-    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-    delete mesh;
     ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec, dim);
     logvec[1] = mesh_poly_deg;
     
@@ -622,6 +617,7 @@ int main (int argc, char *argv[])
     HypreParVector *trueF = rdm.ParallelAverage();
     rdm = *trueF;
     x -= rdm;
+    delete trueF;
     
     // 11. Save the perturbed mesh to a file. This output can be viewed later
     //     using GLVis: "glvis -m perturbed.mesh".
@@ -662,8 +658,7 @@ int main (int argc, char *argv[])
     TargetJacobian *tj = NULL;
 
     // Used for combos.
-    HyperelasticModel *model2;
-    Coefficient *c2 = NULL;
+    HyperelasticModel *model2 = NULL;
     TargetJacobian *tj2 = NULL;
 
     // {IDEAL, IDEAL_EQ_SIZE, IDEAL_INIT_SIZE,
@@ -743,7 +738,6 @@ int main (int argc, char *argv[])
         }
        double tauval = -0.5;
        MPI_Bcast(&modeltype, 1, MPI_INT, 0, MPI_COMM_WORLD);
-       model    = new TMOPHyperelasticModel001;
        if (modeltype == 1)
        {
           model = new TMOPHyperelasticModel001;
@@ -796,6 +790,7 @@ int main (int argc, char *argv[])
                cout << "Model type will default to 1\n";
                cout << modeltype;
            }
+           model = new TMOPHyperelasticModel001;
        }
     }
     else
@@ -822,7 +817,6 @@ int main (int argc, char *argv[])
         }
        double tauval = -0.1;
        MPI_Bcast(&modeltype, 1, MPI_INT, 0, MPI_COMM_WORLD);
-       model    = new TMOPHyperelasticModel302;
        if (modeltype == 1)
        {
           model = new TMOPHyperelasticModel301;
@@ -859,6 +853,7 @@ int main (int argc, char *argv[])
                cout << "Model type will default to 2\n";
                cout << modeltype;
            }
+           model = new TMOPHyperelasticModel302;
        }
     }
         
@@ -897,6 +892,7 @@ int main (int argc, char *argv[])
     // This is for trying a combo of two integrators.
     FunctionCoefficient rhs_coef(weight_fun);
     const int combomet = 0;
+    Coefficient *combo_coeff = NULL;
     if (combomet == 1)
     {
        c = new ConstantCoefficient(0.5);  //weight of original metric
@@ -911,8 +907,8 @@ int main (int argc, char *argv[])
        he_nlf_integ2 = new HyperelasticNLFIntegrator(model2, tj2);
        he_nlf_integ2->SetIntegrationRule(*ir);
 
-       //c2 = new ConstantCoefficient(2.5);
-       //he_nlf_integ2->SetCoefficient(*c2);     //weight of new metric
+       combo_coeff = new ConstantCoefficient(2.5);
+       he_nlf_integ2->SetCoefficient(*combo_coeff); //weight of new metric
 
        he_nlf_integ2->SetCoefficient(rhs_coef); //weight of new metric as function
        cout << "You have added a combo metric \n";
@@ -941,13 +937,15 @@ int main (int argc, char *argv[])
        if (attr == 1 || attr == 2) { n += nd; }
        if (attr == 3) { n += nd * dim; }
     }
-    Array<int> ess_vdofs(n), vdofs;
+    Array<int> ess_vdofs(n);
     n = 0;
+
     for (int i = 0; i < pmesh->GetNBE(); i++)
     {
        const int attr = pmesh->GetBdrElement(i)->GetAttribute();
 
-       x.FESpace()->GetBdrElementVDofs(i, vdofs);
+       Array<int> vdofs;
+       x.ParFESpace()->GetBdrElementVDofs(i, vdofs);
        if (attr == 1) // y = 0; fix y components.
        {
           for (int j = 0; j < nd; j++)
@@ -965,27 +963,27 @@ int main (int argc, char *argv[])
        }
     }
     a.SetEssentialVDofs(ess_vdofs);
-        
+
     // Fix all boundary nodes.
     int bndrflag;
     if (myid==0)
     {
-        cout <<
-            "Allow boundary node movement:\n"
-            "1 - yes\n"
-            "2 - no\n"
-            " --> " << flush;
-        cin >> bndrflag;
+       cout << "Allow boundary node movement:\n"
+               "1 - yes\n"
+               "2 - no\n"
+               " --> " << flush;
+       cin >> bndrflag;
     }
     MPI_Bcast(&bndrflag, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    if (bndrflag != 1)
+    if (bndrflag == 2)
     {
        //k10partend - the three lines below used to be uncommented
        Array<int> ess_bdr(pmesh->bdr_attributes.Max());
        ess_bdr = 1;
        a.SetEssentialBC(ess_bdr);
     }
-    logvec[4]=bndrflag;
+    logvec[4] = bndrflag;
+
     int lsmtype;
     if (myid==0)
     {
@@ -1000,24 +998,18 @@ int main (int argc, char *argv[])
     logvec[5]=lsmtype;
     int lsmits;
     const double rtol = 1e-12;
+    if (myid==0)
+    {
+       cout << "Enter number of linear smoothing iterations -->\n " << flush;
+       cin >> lsmits;
+    }
+    MPI_Bcast(&lsmits, 1, MPI_INT, 0, MPI_COMM_WORLD);
     if (lsmtype == 0)
     {
-        if (myid==0)
-        {
-            cout << "Enter number of linear smoothing iterations -->\n " << flush;
-            cin >> lsmits;
-        }
-       MPI_Bcast(&lsmits, 1, MPI_INT, 0, MPI_COMM_WORLD);
        S = new DSmoother(1, 1., lsmits);
     }
     else if (lsmtype == 1)
     {
-        if (myid==0)
-        {
-            cout << "Enter number of CG smoothing iterations -->\n " << flush;
-            cin >> lsmits;
-        }
-       MPI_Bcast(&lsmits, 1, MPI_INT, 0, MPI_COMM_WORLD);
        CGSolver *cg = new CGSolver;
        cg->SetMaxIter(lsmits);
        cg->SetRelTol(rtol);
@@ -1027,11 +1019,11 @@ int main (int argc, char *argv[])
     }
     else
     {
-        if (myid==0)
-        {
-            cout << "Enter number of MINRES smoothing iterations -->\n " << flush;
-            cin >> lsmits;
-        }
+       if (myid==0)
+       {
+          cout << "Enter number of MINRES smoothing iterations -->\n " << flush;
+          cin >> lsmits;
+       }
        MPI_Bcast(&lsmits, 1, MPI_INT, 0, MPI_COMM_WORLD);
        MINRESSolver *minres = new MINRESSolver(MPI_COMM_WORLD);
        minres->SetMaxIter(lsmits);
@@ -1093,7 +1085,7 @@ int main (int argc, char *argv[])
     if (tauval>0)
     {
        tauval = 1e-1;
-       RelaxedNewtonSolver *newt= new RelaxedNewtonSolver(MPI_COMM_WORLD);
+       RelaxedNewtonSolver *newt = new RelaxedNewtonSolver(MPI_COMM_WORLD);
        newt->SetPreconditioner(*S);
        newt->SetMaxIter(newits);
        newt->SetRelTol(rtol);
@@ -1110,15 +1102,12 @@ int main (int argc, char *argv[])
             cout << " Relaxed newton solver will be used \n";
         }
        newt->Mult2(b, X, *pmesh, *ir, &newtonits, a);
-       if (!newt->GetConverged())
+       if (!newt->GetConverged() && myid == 0)
        {
-           if (myid==0)
-           {
-               cout << "NewtonIteration : rtol = " << rtol << " not achieved."
-               << endl;
-           }
+          cout << "Newton: rtol = " << rtol << " not achieved." << endl;
        }
        fespace->Dof_TrueDof_Matrix()->Mult(X, x);
+       delete newt;
     }
     else
     {
@@ -1138,7 +1127,7 @@ int main (int argc, char *argv[])
            }
        }
        tauval -= 0.01;
-       DescentNewtonSolver *newt= new DescentNewtonSolver;
+       DescentNewtonSolver *newt = new DescentNewtonSolver(MPI_COMM_WORLD);
        newt->SetPreconditioner(*S);
        newt->SetMaxIter(newits);
        newt->SetRelTol(rtol);
@@ -1146,18 +1135,22 @@ int main (int argc, char *argv[])
        newt->SetPrintLevel(1);
        newt->SetOperator(a);
        Vector b;
-        if (myid==0)
-        {
-            cout << " There are inverted elements in the mesh \n";
-            cout << " Descent newton solver will be used \n";
-        }
-       newt->Mult2(b, x, *pmesh, *ir, &newtonits, a, tauval);
-       if (!newt->GetConverged())
-           if (myid==0)
-           {
-               cout << "NewtonIteration : rtol = " << rtol << " not achieved."
-               << endl;
-           }
+
+       Vector X(fespace->TrueVSize());
+       fespace->GetRestrictionMatrix()->Mult(x, X);
+
+       if (myid==0)
+       {
+          cout << " There are inverted elements in the mesh \n";
+          cout << " Descent newton solver will be used \n";
+       }
+       newt->Mult2(b, X, *pmesh, *ir, &newtonits, a, tauval);
+       if (!newt->GetConverged() && myid == 0)
+       {
+          cout << "Newton rtol = " << rtol << " not achieved." << endl;
+       }
+       fespace->Dof_TrueDof_Matrix()->Mult(X, x);
+       delete newt;
     }
 
     logvec[9] = a.GetEnergy(x);
@@ -1205,17 +1198,18 @@ int main (int argc, char *argv[])
        }
     }
     tauval = minjacs;
-    MPI_Allreduce(&tauval, &minjacs, 1, MPI_DOUBLE, MPI_MIN,
-                  MPI_COMM_WORLD);
+    MPI_Allreduce(&tauval, &minjacs, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
     if (myid==0)
     {
         cout << "minimum jacobian before and after smoothing " << minjaco << " " << minjacs << " \n";
     }
     
-
     delete S;
     delete model;
     delete c;
+
+    delete model2;
+    delete combo_coeff;
     
     // Define mesh displacement
     x0 -= *x;
@@ -1227,14 +1221,12 @@ int main (int argc, char *argv[])
         //mesh_ofs.precision(14);
         //pmesh->Print(mesh_ofs);
         
-        ostringstream mesh_name, velo_name, ee_name;
+        ostringstream mesh_name;
         mesh_name << "smoothed." << setfill('0') << setw(6) << myid;
         ofstream mesh_ofs(mesh_name.str().c_str());
         mesh_ofs.precision(8);
         pmesh->Print(mesh_ofs);
-        
     }
-
     
     // 17. Free the used memory.
     delete fespace;
@@ -1283,8 +1275,8 @@ int main (int argc, char *argv[])
     
     MPI_Finalize();
     return 0;
-    
 }
+
 double weight_fun(const Vector &x)
 {
     double r2 = x(0)*x(0) + x(1)*x(1);

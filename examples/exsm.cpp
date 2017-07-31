@@ -627,7 +627,6 @@ int main (int argc, char *argv[])
     " --> " << flush;
     cin >> tjtype;
     
-    tj    = new TargetJacobian(TargetJacobian::IDEAL);
     if (tjtype == 1)
     {
         tj    = new TargetJacobian(TargetJacobian::IDEAL);
@@ -653,6 +652,7 @@ int main (int argc, char *argv[])
         cout << tjtype;
         cout << "You did not choose a valid option\n";
         cout << "Target Jacobian will default to IDEAL\n";
+        tj    = new TargetJacobian(TargetJacobian::IDEAL);
     }
     
     //Metrics for 2D & 3D
@@ -925,7 +925,6 @@ int main (int argc, char *argv[])
     "2 - no\n"
     " --> " << flush;
     cin >> bndrflag;
-    tj    = new TargetJacobian(TargetJacobian::IDEAL);
     if (bndrflag != 1)
     {
         //k10partend - the three lines below used to be uncommented
