@@ -7,8 +7,6 @@ using namespace std;
 using namespace mfem;
 
 double SourceField(const Vector &x);
-void VelocityField(const Vector &x, Vector &f);
-
 
 int main(int argc, char *argv[])
 {
@@ -21,6 +19,7 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    int ref_levels = 1;
    int order = 1;
+   double velocity = 100.0;
    bool visit = false;
    bool slu_solver = false;
 
@@ -30,17 +29,20 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&visit, "-v", "--visit", "-nov",
-                  "--no-visit", "Enable VisIt visualization.");   
+   args.AddOption(&velocity, "-vel", "--velocity",
+                  "Constant velocity in x that the fluid is flowing with.");   
+   args.AddOption(&visit, "-v", "--visit", "-nov", "--no-visit", 
+                  "Enable VisIt visualization.");
 #ifdef MFEM_USE_SUPERLU
-   args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu",
-                  "--no-superlu", "Use the SuperLU Solver.");
+   args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu", "--no-superlu", 
+                  "Use the SuperLU Solver.");
 #endif
    args.Parse();
    if (myid == 0)
    {
       args.PrintOptions(cout);
    }
+
 
    // 3. Read the (serial) mesh from the given mesh file on all processors. We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -92,9 +94,12 @@ int main(int argc, char *argv[])
    }
 
    ConstantCoefficient diffcoef(1.0);
-   VectorFunctionCoefficient velocity(dim, VelocityField);
+   Vector V(dim);
+   V = 0.0;
+   V[0] = velocity;
+   VectorConstantCoefficient velocitycoef(V);
    ParBilinearForm *cd = new ParBilinearForm(fespace);
-   cd->AddDomainIntegrator(new ConvectionIntegrator(velocity));
+   cd->AddDomainIntegrator(new ConvectionIntegrator(velocitycoef));
    cd->AddDomainIntegrator(new DiffusionIntegrator(diffcoef));
    cd->Assemble();
 
@@ -180,25 +185,14 @@ int main(int argc, char *argv[])
 }
 
 
-//This will represent a disc of constant rate input
+//This will represent a disc of constant rate input at (0.5, 0.5)
 double SourceField(const Vector &x)
 {
    double R = 0.0;
-   if (abs(x[0] - 0.25) < 0.05 && abs(x[1] - 0.5) < 0.05)
+   if (abs(x[0] - 0.5) < 0.05 && abs(x[1] - 0.5) < 0.05)
    {
       R = 1.0;
    }
-   else if (abs(x[0] - 0.75) < 0.05 && abs(x[1] - 0.5) < 0.05)
-   {
-      R = -1.0;
-   }
 
    return R;
-}
-
-
-//This will represent constant flow in the x_hat direction
-void VelocityField(const Vector &x, Vector &f)
-{
-   f[0] = 1000.0;
 }

@@ -124,9 +124,9 @@ int main(int argc, char *argv[])
    int ref_levels = 0;
    int order = 1;
    int arkode_order = 4;
-   double t_final = 0.5;
-   double dt = 0.01;
-   double alpha = 0.0;
+   double t_final = 0.1;
+   double dt = 0.001;
+   double alpha = 0.2;
    double kappa = 0.5;
    double arkode_reltol = 1e-4;
    double arkode_abstol = 1e-4;
