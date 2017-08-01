@@ -198,6 +198,45 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    }
 }
 
+void ParNCMesh::ElementSharesFace(int elem, int face)
+{
+   // Analogous to ElementSharesEdge.
+
+   int el_rank = elements[elem].rank;
+   int f_index = faces[face].index;
+
+   int &owner = tmp_owner[f_index];
+   owner = std::min(owner, el_rank);
+
+   index_rank.Append(Connection(f_index, el_rank));
+}
+
+void ParNCMesh::BuildFaceList()
+{
+   // This is an extension of NCMesh::BuildFaceList() which also determines
+   // face ownership, creates face processor groups and lists shared faces.
+
+   int nfaces = NFaces + NGhostFaces;
+   tmp_owner.SetSize(nfaces);
+   tmp_owner = INT_MAX;
+
+   index_rank.SetSize(6*leaf_elements.Size() * 3/2);
+   index_rank.SetSize(0);
+
+   NCMesh::BuildFaceList();
+
+   AddMasterSlaveRanks(nfaces, face_list);
+
+   InitOwners(nfaces, face_owner);
+   InitGroups(nfaces, face_group);
+   MakeShared(face_group, face_list, shared_faces);
+
+   CalcFaceOrientations();
+
+   tmp_owner.DeleteAll();
+   index_rank.DeleteAll();
+}
+
 void ParNCMesh::ElementSharesEdge(int elem, int enode)
 {
    // Called by NCMesh::BuildEdgeList when an edge is visited in a leaf element.
@@ -211,19 +250,6 @@ void ParNCMesh::ElementSharesEdge(int elem, int enode)
    owner = std::min(owner, el_rank);
 
    index_rank.Append(Connection(e_index, el_rank));
-}
-
-void ParNCMesh::ElementSharesFace(int elem, int face)
-{
-   // Analogous to ElementSharesEdge.
-
-   int el_rank = elements[elem].rank;
-   int f_index = faces[face].index;
-
-   int &owner = tmp_owner[f_index];
-   owner = std::min(owner, el_rank);
-
-   index_rank.Append(Connection(f_index, el_rank));
 }
 
 void ParNCMesh::BuildEdgeList()
@@ -250,27 +276,36 @@ void ParNCMesh::BuildEdgeList()
    index_rank.DeleteAll();
 }
 
-void ParNCMesh::BuildFaceList()
+void ParNCMesh::ElementSharesVertex(int elem, int vnode)
 {
-   // This is an extension of NCMesh::BuildFaceList() which also determines
-   // face ownership, creates face processor groups and lists shared faces.
+   // Analogous to ElementSharesEdge.
 
-   int nfaces = NFaces + NGhostFaces;
-   tmp_owner.SetSize(nfaces);
+   int el_rank = elements[elem].rank;
+   int v_index = nodes[vnode].vert_index;
+
+   int &owner = tmp_owner[v_index];
+   owner = std::min(owner, el_rank);
+
+   index_rank.Append(Connection(v_index, el_rank));
+}
+
+void ParNCMesh::BuildVertexList()
+{
+   // This is an extension of NCMesh::BuildVertexList() which also determines
+   // vertex ownership, creates vertex processor groups and lists shared vertices.
+
+   int nvertices = NVertices + NGhostVertices;
+   tmp_owner.SetSize(nvertices);
    tmp_owner = INT_MAX;
 
-   index_rank.SetSize(6*leaf_elements.Size() * 3/2);
+   index_rank.SetSize(8*leaf_elements.Size());
    index_rank.SetSize(0);
 
-   NCMesh::BuildFaceList();
+   NCMesh::BuildVertexList();
 
-   AddMasterSlaveRanks(nfaces, face_list);
-
-   InitOwners(nfaces, face_owner);
-   InitGroups(nfaces, face_group);
-   MakeShared(face_group, face_list, shared_faces);
-
-   CalcFaceOrientations();
+   InitOwners(nvertices, vertex_owner);
+   InitGroups(nvertices, vertex_group);
+   MakeShared(vertex_group, vertex_list, shared_vertices);
 
    tmp_owner.DeleteAll();
    index_rank.DeleteAll();
@@ -454,62 +489,6 @@ void ParNCMesh::MakeShared(const Array<GroupId> &entity_group,
       if (group_shared[entity_group[list.slaves[i].index]])
       {
          shared.slaves.push_back(list.slaves[i]);
-      }
-   }
-}
-
-void ParNCMesh::BuildSharedVertices()
-{
-   int nvertices = NVertices + NGhostVertices;
-   tmp_owner.SetSize(nvertices);
-   tmp_owner = INT_MAX;
-
-   index_rank.SetSize(8*leaf_elements.Size());
-   index_rank.SetSize(0);
-
-   Array<MeshId> vertex_id(nvertices);
-
-   // similarly to edges/faces, we loop over the vertices of all leaf elements
-   // to determine which processors share each vertex
-   for (int i = 0; i < leaf_elements.Size(); i++)
-   {
-      int elem = leaf_elements[i];
-      Element &el = elements[elem];
-
-      for (int j = 0; j < GI[(int) el.geom].nv; j++)
-      {
-         Node &nd = nodes[el.node[j]];
-         int index = nd.vert_index;
-
-         int &owner = tmp_owner[index];
-         owner = std::min(owner, el.rank);
-
-         index_rank.Append(Connection(index, el.rank));
-
-         MeshId &id = vertex_id[index];
-         id.index = (nd.HasEdge() ? -1 : index); // -1 if slave
-         id.element = elem;
-         id.local = j;
-      }
-   }
-
-   InitOwners(nvertices, vertex_owner);
-   InitGroups(nvertices, vertex_group);
-
-   tmp_owner.DeleteAll();
-   index_rank.DeleteAll();
-
-   Array<bool> group_shared;
-   GetGroupShared(group_shared);
-
-   // create a list of shared vertices, skip obviously slave vertices
-   // (for simplicity, we don't guarantee to skip all slave vertices)
-   shared_vertices.Clear();
-   for (int i = 0; i < nvertices; i++)
-   {
-      if (group_shared[vertex_group[i]] && vertex_id[i].index >= 0)
-      {
-         shared_vertices.conforming.push_back(vertex_id[i]);
       }
    }
 }
@@ -1994,6 +1973,7 @@ void ParNCMesh::DecodeMeshIds(std::istream &is, Array<MeshId> ids[])
 
 //// Messages //////////////////////////////////////////////////////////////////
 
+#if 0
 void NeighborDofMessage::AddDofs(int type, const NCMesh::MeshId &id,
                                  const Array<int> &dofs)
 {
@@ -2056,6 +2036,7 @@ void NeighborDofMessage::ReorderEdgeDofs(const NCMesh::MeshId &id,
       }
    }
 }
+#endif
 
 static void write_dofs(std::ostream &os, const std::vector<int> &dofs)
 {
@@ -2070,6 +2051,7 @@ static void read_dofs(std::istream &is, std::vector<int> &dofs)
    is.read((char*) dofs.data(), dofs.size() * sizeof(int));
 }
 
+#if 0
 void NeighborDofMessage::Encode()
 {
    IdToDofs::iterator it;
@@ -2222,6 +2204,7 @@ void NeighborRowReply::Decode()
 
    data.clear();
 }
+#endif
 
 template<class ValueType, bool RefTypes, int Tag>
 void ParNCMesh::ElementValueMessage<ValueType, RefTypes, Tag>::Encode()

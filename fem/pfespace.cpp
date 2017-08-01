@@ -1626,7 +1626,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
          for (unsigned mi = 0; mi < list.masters.size(); mi++)
          {
             const NCMesh::Master &mf = list.masters[mi];
-            if (!pncmesh->IsShared(type, mf.index)) { continue; }
+            //if (!pncmesh->IsShared(type, mf.index)) { continue; }
 
             // get master DOFs
             pncmesh->IsGhost(type, mf.index)
@@ -1806,12 +1806,6 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
       // send current batch of messages
       NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
    }
-
-/*   // create the parallel matrix P
-   P = new HypreParMatrix(MyComm, num_dofs, glob_dofs, glob_true_dofs,
-                          localP.GetI(), localP.GetJ(), localP.GetData(),
-                          dof_offsets.GetData(), tdof_offsets.GetData());
-*/
 
    R->Finalize();
 

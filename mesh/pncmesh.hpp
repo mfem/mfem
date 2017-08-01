@@ -26,8 +26,10 @@ namespace mfem
 {
 
 class ParMesh;
+#if 0
 class FiniteElementCollection; // for edge orientation handling
 class FiniteElementSpace; // for Dof -> VDof conversion
+#endif
 
 
 /** \brief A parallel extension of the NCMesh class.
@@ -49,7 +51,7 @@ class FiniteElementSpace; // for Dof -> VDof conversion
  *  seen by the rest of MFEM as they are skipped when a Mesh is created from
  *  the NCMesh.
  *
-
+ *  The processor that owns a vertex, edge or a face (and in turn its DOFs) is
  *  currently defined to be the one with the lowest rank in the group of
  *  processors that share the entity.
  *
@@ -106,7 +108,7 @@ public:
        processor. (NOTE: only NCList::conforming will be set.) */
    const NCList& GetSharedVertices()
    {
-      if (shared_vertices.Empty()) { BuildSharedVertices(); }
+      if (shared_vertices.Empty()) { BuildVertexList(); }
       return shared_vertices;
    }
 
@@ -127,10 +129,10 @@ public:
       return shared_faces;
    }
 
-   /// Helper to get shared vertices/edges/faces ('type' == 0/1/2 resp.).
-   const NCList& GetSharedList(int type)
+   /// Helper to get shared vertices/edges/faces ('entity' == 0/1/2 resp.).
+   const NCList& GetSharedList(int entity)
    {
-      switch (type)
+      switch (entity)
       {
          case 0: return GetSharedVertices();
          case 1: return GetSharedEdges();
@@ -179,20 +181,6 @@ public:
       return groups[id];
    }
 
-
-   /** Returns true if 'rank' is in the processor group of a vertex/edge/face
-       ('type' == 0/1/2, resp.). */
-   /*bool RankInGroup(int type, int index, int rank) const
-   {
-      int size;
-      const int* group = GetGroup(type, index, size);
-      for (int i = 0; i < size; i++)
-      {
-         if (group[i] == rank) { return true; }
-      }
-      return false;
-   }*/
-
    /// Returns true if the specified vertex/edge/face is a ghost.
    bool IsGhost(int type, int index) const
    {
@@ -204,12 +192,12 @@ public:
       }
    }
 
-   ///
+   /*///
    bool IsShared(int type, int index) const
    {
       MFEM_ABORT("TODO");
       return false;
-   }
+   }*/
 
    /** Returns owner processor for element 'index'. This is normally MyRank but
        for index >= NElements (i.e., for ghosts) it may be something else. */
@@ -321,11 +309,13 @@ protected:
    GroupId GetGroupId(const CommGroup &group);
    GroupId GetSingletonGroup(int rank);
 
-   virtual void BuildEdgeList();
    virtual void BuildFaceList();
+   virtual void BuildEdgeList();
+   virtual void BuildVertexList();
 
    virtual void ElementSharesEdge(int elem, int enode);
    virtual void ElementSharesFace(int elem, int face);
+   virtual void ElementSharesVertex(int elem, int vnode);
 
    void InitOwners(int num, Array<GroupId> &entity_owner);
    void InitGroups(int num, Array<GroupId> &entity_group);
@@ -527,7 +517,7 @@ protected:
    friend class NeighborRowMessage;
 };
 
-
+#if 0
 /** Represents a message about DOF assignment of vertex, edge and face DOFs on
  *  the boundary with another processor. This and other messages below
  *  are only exchanged between immediate neighbors. Used by
@@ -607,7 +597,7 @@ protected:
    virtual void Encode();
    virtual void Decode();
 };
-
+#endif
 
 // comparison operator so that MeshId can be used as key in std::map
 inline bool operator< (const NCMesh::MeshId &a, const NCMesh::MeshId &b)

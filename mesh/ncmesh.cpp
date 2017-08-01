@@ -1980,6 +1980,36 @@ void NCMesh::BuildEdgeList()
    }
 }
 
+void NCMesh::BuildVertexList()
+{
+   vertex_list.Clear();
+   vertex_list.conforming.resize(vertex_nodeId.Size());
+
+   // analogously to above, visit vertices of leaf elements
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      int elem = leaf_elements[i];
+      Element &el = elements[elem];
+
+      for (int j = 0; j < GI[(int) el.geom].nv; j++)
+      {
+         int node = el.node[j];
+         Node &nd = nodes[node];
+
+         ElementSharesVertex(elem, node);
+
+         int index = nd.vert_index;
+         MeshId &id = vertex_list.conforming[index];
+         if (id.element < 0)
+         {
+            id.element = elem;
+            id.local = j;
+            id.index = index;
+         }
+      }
+   }
+}
+
 void NCMesh::Slave::OrientedPointMatrix(DenseMatrix &oriented_matrix) const
 {
    oriented_matrix = point_matrix;

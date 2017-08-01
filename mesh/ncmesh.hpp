@@ -195,6 +195,25 @@ public:
       return edge_list;
    }
 
+   /** Return a list of vertices (in 'conforming'); this function is provided
+       for uniformity/completeness. Needed in ParNCMesh/ParFESpace. */
+   const NCList& GetVertexList()
+   {
+      if (vertex_list.Empty()) { BuildVertexList(); }
+      return vertex_list;
+   }
+
+   /// Return vertex/edge/face list (entity = 0/1/2, respectively).
+   const NCList& GetNCList(int entity)
+   {
+      switch (entity)
+      {
+         case 0: return GetVertexList();
+         case 1: return GetEdgeList();
+         default: return GetFaceList();
+      }
+   }
+
 
    // coarse/fine transforms
 
@@ -397,6 +416,7 @@ protected: // implementation
 
    NCList face_list; ///< lazy-initialized list of faces, see GetFaceList
    NCList edge_list; ///< lazy-initialized list of edges, see GetEdgeList
+   NCList vertex_list; ///< lazy-initialized list of vertices, see GetVertexList
 
    Array<int> boundary_faces; ///< subset of all faces, set by BuildFaceList
 
@@ -505,9 +525,11 @@ protected: // implementation
 
    virtual void BuildFaceList();
    virtual void BuildEdgeList();
+   virtual void BuildVertexList();
 
-   virtual void ElementSharesEdge(int elem, int enode) {} // ParNCMesh
    virtual void ElementSharesFace(int elem, int face) {} // ParNCMesh
+   virtual void ElementSharesEdge(int elem, int enode) {} // ParNCMesh
+   virtual void ElementSharesVertex(int elem, int vnode) {} // ParNCMesh
 
 
    // neighbors / element_vertex table
