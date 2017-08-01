@@ -1,21 +1,9 @@
 //                         MFEM Example 16 - Parallel Version
-//                             SUNDIALS Modification
+//                             SUNDIALS Example
 //
 // Compile with: make ex16p
 //
 // Sample runs:
-//     mpirun -np 4 ex16p
-//     mpirun -np 4 ex16p -m ../../data/inline-tri.mesh
-//     mpirun -np 4 ex16p -m ../../data/disc-nurbs.mesh -tf 2
-//     mpirun -np 4 ex16p -s 12 -a 0.0 -k 1.0
-//     mpirun -np 4 ex16p -s 1 -a 1.0 -k 0.0 -dt 4e-6 -tf 2e-2 -vs 50
-//     mpirun -np 8 ex16p -s 2 -a 0.5 -k 0.5 -o 4 -dt 8e-6 -tf 2e-2 -vs 50
-//     mpirun -np 4 ex16p -s 3 -dt 2.0e-4 -tf 4.0e-2
-//     mpirun -np 16 ex16p -m ../../data/fichera-q2.mesh
-//     mpirun -np 16 ex16p -m ../../data/escher-p2.mesh
-//     mpirun -np 8 ex16p -m ../../data/beam-tet.mesh -tf 10 -dt 0.1
-//     mpirun -np 4 ex16p -m ../../data/amr-quad.mesh -o 4 -rs 0 -rp 0
-//     mpirun -np 4 ex16p -m ../../data/amr-hex.mesh -o 2 -rs 0 -rp 0
 //
 // Description:  This example solves a time dependent nonlinear heat equation
 //               problem of the form du/dt = C(u), with a non-linear diffusion
@@ -123,41 +111,8 @@ public:
 
 double InitialTemperature(const Vector &x);
 
-static void initialize_papi(void)
-{
-    float ireal_time, iproc_time, imflops;
-    long long iflpops;
-
-    assert(PAPI_library_init(PAPI_VER_CURRENT) == PAPI_VER_CURRENT);
-    assert(PAPI_flops(&ireal_time,&iproc_time,&iflpops,&imflops) >= PAPI_OK);
-}
-
-static void finalize_papi(void)
-{
-    float real_time, proc_time, mflops;
-    long long flpops;
-    PAPI_dmem_info_t dmem;
-
-    assert(PAPI_flops(&real_time,&proc_time,&flpops,&mflops) >= PAPI_OK);
-    assert(PAPI_get_dmem_info(&dmem) >= PAPI_OK);
-
-    cout << "Memory Info:" << endl;;
-    cout << "\tMem Size:     " << dmem.size << endl;
-    cout << "\tMem Resident:\t\t" << dmem.resident << endl;
-    cout << "\tMem Heap:     " << dmem.heap << endl;
-    cout << "Timing Info:" << endl;
-    cout << "\tReal_time:    " << real_time << endl;
-    cout << "\tProc_time:    " << proc_time << endl;
-    cout << "Flops Info:" << endl;
-    cout << "\tTotal flpops: " << flpops << endl;
-    cout << "\tMFLOPS:       " << mflops << endl;
-}
-
-
 int main(int argc, char *argv[])
 {
-   initialize_papi();
-
    // Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
@@ -168,12 +123,16 @@ int main(int argc, char *argv[])
    int dim = 2;
    int ref_levels = 0;
    int order = 1;
+   int arkode_order = 4;
    double t_final = 0.5;
    double dt = 0.01;
    double alpha = 0.0;
    double kappa = 0.5;
+   double arkode_reltol = 1e-4;
+   double arkode_abstol = 1e-4;
    bool implicit = false;
    bool adaptdt = false;
+   bool visit = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&dim, "-d", "--dim",
@@ -182,6 +141,8 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&arkode_order, "-ao", "--arkode-order",
+                  "Order of the time integration scheme."); 
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -190,10 +151,16 @@ int main(int argc, char *argv[])
                   "Alpha coefficient for conductivity: kappa + alpha*temperature");
    args.AddOption(&kappa, "-k", "--kappa",
                   "Kappa coefficient conductivity: kappa + alpha*temperature");
+   args.AddOption(&arkode_reltol, "-art", "--arkode-reltol",
+                  "Relative tolerance for ARKODE time integration.");
+   args.AddOption(&arkode_reltol, "-aat", "--arkode-abstol",
+                  "Absolute tolerance for ARKODE time integration.");
    args.AddOption(&adaptdt, "-adt", "--adapt-time-step", "-fdt", "--fixed-time-step",
                   "Flag whether or not to adapt the time step.");
    args.AddOption(&implicit, "-imp", "--implicit", "-exp", "--explicit",
                   "Implicit or Explicit ODE solution.");
+   args.AddOption(&visit, "-v", "--visit", "-nov", "--no_visit",
+                  "Enable dumping of visit files.");
 
    int precision = 8;
    cout.precision(precision);
@@ -225,7 +192,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      cout << "Diminsion mus be set to 1, 2, or 3." << endl;
+      cout << "Diminsion must be set to 1, 2, or 3." << endl;
       return 2;
    }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -239,8 +206,6 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver = NULL;
    ARKODESolver *arkode = NULL;
    SundialsJacSolver sun_solver; // Used by the implicit ARKODE solver.
-   const double reltol = 1e-4, abstol = 1e-4;
-
    if (implicit)
    {
       arkode = new ARKODESolver(MPI_COMM_WORLD, ARKODESolver::IMPLICIT);
@@ -249,10 +214,11 @@ int main(int argc, char *argv[])
    else
    {
       arkode = new ARKODESolver(MPI_COMM_WORLD, ARKODESolver::EXPLICIT);
-      arkode->SetERKTableNum(FEHLBERG_13_7_8);
+      //arkode->SetERKTableNum(FEHLBERG_13_7_8);
    }
    arkode->SetStepMode(ARK_ONE_STEP);
-   arkode->SetSStolerances(reltol, abstol);
+   arkode->SetSStolerances(arkode_reltol, arkode_abstol);
+   arkode->SetOrder(arkode_order);
    arkode->SetMaxStep(t_final / 2.0);
    if (!adaptdt)
    {
@@ -281,10 +247,14 @@ int main(int argc, char *argv[])
    ConductionOperator oper(fespace, alpha, kappa, u);
    u_gf.SetFromTrueDofs(u);
    VisItDataCollection visit_dc("dump", pmesh);
-   visit_dc.RegisterField("temperature", &u_gf);
-   visit_dc.SetCycle(0);
-   visit_dc.SetTime(0.0);
-   visit_dc.Save();
+   if (visit)
+   {
+      visit_dc.RegisterField("temperature", &u_gf);
+      visit_dc.SetCycle(0);
+      visit_dc.SetTime(0.0);
+      visit_dc.Save();
+   }
+
 
    // Perform time-integration
    if (myid == 0)
@@ -311,10 +281,12 @@ int main(int argc, char *argv[])
 
       u_gf.SetFromTrueDofs(u);
 
-      visit_dc.SetCycle(ti);
-      visit_dc.SetTime(t);
-      visit_dc.Save();
-
+      if (visit)
+      {
+         visit_dc.SetCycle(ti);
+         visit_dc.SetTime(t);
+         visit_dc.Save();
+      }
       oper.SetParameters(u);
       last_step = (t >= t_final - 1e-8*dt);
    }
@@ -323,8 +295,6 @@ int main(int argc, char *argv[])
    delete ode_solver;
    delete pmesh;
    MPI_Finalize();
-
-   finalize_papi();
 
    return 0;
 }
