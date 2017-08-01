@@ -229,6 +229,17 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
+class TMOPHyperelasticModel009 : public HyperelasticModel
+{
+public:
+    virtual double EvalW(const DenseMatrix &Jpt) const;
+    
+    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+    
+    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                           const double weight, DenseMatrix &A) const;
+};
+
 class TMOPHyperelasticModel022 : public HyperelasticModel
 {
 private: double& tauptr;
