@@ -1303,6 +1303,27 @@ void HypreParMatrix::Read(MPI_Comm comm, const char *fname)
    width = GetNumCols();
 }
 
+void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const char *fname)
+{
+   Destroy();
+   Init();
+
+   HYPRE_IJMatrix A_ij;
+   HYPRE_IJMatrixRead(fname, comm, 5555, &A_ij); // HYPRE_PARCSR = 5555
+
+   HYPRE_ParCSRMatrix A_parcsr;
+   HYPRE_IJMatrixGetObject(A_ij, (void**) &A_parcsr);
+
+   A = (hypre_ParCSRMatrix*)A_parcsr;
+
+   hypre_ParCSRMatrixSetNumNonzeros(A);
+
+   hypre_MatvecCommPkgCreate(A);
+
+   height = GetNumRows();
+   width = GetNumCols();
+}
+
 void HypreParMatrix::Destroy()
 {
    if ( X != NULL ) { delete X; }
@@ -1381,6 +1402,15 @@ HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B)
    hypre_MatvecCommPkgCreate(ab);
 
    return new HypreParMatrix(ab);
+}
+
+HypreParMatrix * ParAdd(HypreParMatrix *A, HypreParMatrix *B)
+{
+   hypre_ParCSRMatrix * C = internal::hypre_ParCSRMatrixAdd(*A,*B);
+
+   hypre_MatvecCommPkgCreate(C);
+
+   return new HypreParMatrix(C);
 }
 
 HypreParMatrix * RAP(HypreParMatrix *A, HypreParMatrix *P)
@@ -3057,7 +3087,8 @@ HypreLOBPCG::HypreLOBPCG(MPI_Comm c)
      glbSize(-1),
      part(NULL),
      multi_vec(NULL),
-     x(NULL)
+     x(NULL),
+     subSpaceProj(NULL)
 {
    MPI_Comm_size(comm,&numProcs);
    MPI_Comm_rank(comm,&myid);
@@ -3080,6 +3111,16 @@ void
 HypreLOBPCG::SetTol(double tol)
 {
    HYPRE_LOBPCGSetTol(lobpcg_solver, tol);
+}
+
+void
+HypreLOBPCG::SetRelTol(double rel_tol)
+{
+#if MFEM_HYPRE_VERSION >= 21101
+   HYPRE_LOBPCGSetRTol(lobpcg_solver, rel_tol);
+#else
+   MFEM_ABORT("This method requires HYPRE version >= 2.11.1");
+#endif
 }
 
 void
@@ -3187,6 +3228,45 @@ HypreLOBPCG::GetEigenvector(unsigned int i)
 }
 
 void
+HypreLOBPCG::SetInitialVectors(int num_vecs, HypreParVector ** vecs)
+{
+   // Initialize HypreMultiVector object if necessary
+   if ( multi_vec == NULL )
+   {
+      MFEM_ASSERT(x != NULL, "In HypreLOBPCG::SetInitialVectors()");
+
+      multi_vec = new HypreMultiVector(nev, *x, interpreter);
+   }
+
+   // Copy the vectors provided
+   for (int i=0; i < min(num_vecs,nev); i++)
+   {
+      multi_vec->GetVector(i) = *vecs[i];
+   }
+
+   // Randomize any remaining vectors
+   for (int i=min(num_vecs,nev); i < nev; i++)
+   {
+      multi_vec->GetVector(i).Randomize(seed);
+   }
+
+   // Ensure all vectors are in the proper subspace
+   if ( subSpaceProj != NULL )
+   {
+      HypreParVector y(*x);
+      y = multi_vec->GetVector(0);
+
+      for (int i=1; i<nev; i++)
+      {
+         subSpaceProj->Mult(multi_vec->GetVector(i),
+                            multi_vec->GetVector(i-1));
+      }
+      subSpaceProj->Mult(y,
+                         multi_vec->GetVector(nev-1));
+   }
+}
+
+void
 HypreLOBPCG::Solve()
 {
    // Initialize HypreMultiVector object if necessary
@@ -3196,6 +3276,19 @@ HypreLOBPCG::Solve()
 
       multi_vec = new HypreMultiVector(nev, *x, interpreter);
       multi_vec->Randomize(seed);
+
+      if ( subSpaceProj != NULL )
+      {
+         HypreParVector y(*x);
+         y = multi_vec->GetVector(0);
+
+         for (int i=1; i<nev; i++)
+         {
+            subSpaceProj->Mult(multi_vec->GetVector(i),
+                               multi_vec->GetVector(i-1));
+         }
+         subSpaceProj->Mult(y, multi_vec->GetVector(nev-1));
+      }
    }
 
    eigenvalues.SetSize(nev);
@@ -3334,6 +3427,16 @@ void
 HypreAME::SetTol(double tol)
 {
    HYPRE_AMESetTol(ame_solver, tol);
+}
+
+void
+HypreAME::SetRelTol(double rel_tol)
+{
+#if MFEM_HYPRE_VERSION >= 21101
+   HYPRE_AMESetRTol(ame_solver, rel_tol);
+#else
+   MFEM_ABORT("This method requires HYPRE version >= 2.11.1");
+#endif
 }
 
 void

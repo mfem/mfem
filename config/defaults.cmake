@@ -30,12 +30,13 @@ option(MFEM_USE_SUNDIALS "Enable SUNDIALS usage" OFF)
 option(MFEM_USE_MESQUITE "Enable MESQUITE usage" OFF)
 option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" OFF)
 option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
+option(MFEM_USE_STRUMPACK "Enable STRUMPACK usage" OFF)
 option(MFEM_USE_GECKO "Enable GECKO usage" OFF)
 option(MFEM_USE_GNUTLS "Enable GNUTLS usage" OFF)
 option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
 option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
-option(MFEM_USE_SIDRE "Enable ATK/Sidre usage" OFF)
+option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
 
 # Allow a user to disable testing, examples, and/or miniapps at CONFIGURE TIME
 # if they don't want/need them (e.g. if MFEM is "just a dependency" and all they
@@ -111,10 +112,10 @@ set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
 set(Conduit_REQUIRED_PACKAGES "HDF5" CACHE STRING
     "Additional packages required by Conduit.")
 
-set(ATK_DIR "${MFEM_DIR}/../asctoolkit" CACHE PATH "Path to the ATK library.")
+set(AXOM_DIR "${MFEM_DIR}/../axom" CACHE PATH "Path to the Axom library.")
 # May need to add "Boost" as requirement.
-set(ATK_REQUIRED_PACKAGES "Conduit/relay" CACHE STRING
-    "Additional packages required by ATK.")
+set(Axom_REQUIRED_PACKAGES "Conduit/relay" CACHE STRING
+    "Additional packages required by Axom.")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")

@@ -38,8 +38,14 @@ if (NOT CMAKE_CXX_COMPILER)
   endif()
 endif()
 
+#-------------------------------------------------------------------------------
+# Project name and version
+#-------------------------------------------------------------------------------
 project(mfem CXX)
-set(${PROJECT_NAME}_VERSION 3.3)
+# Current version of MFEM, see also `makefile`.
+#   mfem_VERSION = (string)
+#   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
+set(${PROJECT_NAME}_VERSION 3.3.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -47,17 +53,24 @@ if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
     "MFEM does not support in-source CMake builds at this time.")
 endif (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
 
-if (CMAKE_VERSION VERSION_LESS 3.2 OR MFEM_USE_SIDRE)
+if (CMAKE_VERSION VERSION_LESS 3.2 OR MFEM_USE_SIDRE OR MFEM_USE_PETSC)
    # This seems to be needed by:
    #  * find_package(BLAS REQUIRED) and
    #  * find_package(HDF5 REQUIRED) needed, in turn, by:
-   #    - find_package(ATK REQUIRED)
+   #    - find_package(AXOM REQUIRED)
+   #  * find_package(PETSc REQUIRED)
    enable_language(C)
 endif()
 
 # CMake needs to know where to find things
 set(MFEM_CMAKE_PATH ${PROJECT_SOURCE_DIR}/config)
 set(CMAKE_MODULE_PATH ${MFEM_CMAKE_PATH}/cmake/modules)
+
+# Load MFEM CMake utilities.
+include(MfemCmakeUtilities)
+
+string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UC)
+mfem_version_to_int(${${PROJECT_NAME}_VERSION} ${PROJECT_NAME_UC}_VERSION)
 
 #-------------------------------------------------------------------------------
 # Process configuration options
@@ -76,6 +89,7 @@ if (MFEM_USE_MPI)
   include_directories(${MPI_CXX_INCLUDE_PATH})
   # Parallel MFEM depends on hypre and METIS
   find_package(HYPRE REQUIRED)
+  set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
   include_directories(${HYPRE_INCLUDE_DIRS})
   find_package(METIS REQUIRED)
   include_directories(${METIS_INCLUDE_DIRS})
@@ -88,7 +102,7 @@ if (MFEM_USE_MPI)
     include_directories(${PETSC_INCLUDES})
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU PETSC)
+  set(PKGS_NEED_MPI SUPERLU PETSC STRUMPACK)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -149,13 +163,23 @@ if (MFEM_USE_MESQUITE)
   include_directories(${MESQUITE_INCLUDE_DIRS})
 endif()
 
-# SuperLU_DIST can only be enabled if parallel
+# SuperLU_DIST can only be enabled in parallel
 if (MFEM_USE_SUPERLU)
   if (MFEM_USE_MPI)
     find_package(SuperLUDist REQUIRED)
     include_directories(${SuperLUDist_INCLUDE_DIRS})
   else()
     message(FATAL_ERROR " *** SuperLU_DIST requires that MPI be enabled.")
+  endif()
+endif()
+
+# STRUMPACK can only be enabled in parallel
+if (MFEM_USE_STRUMPACK)
+  if (MFEM_USE_MPI)
+    find_package(STRUMPACK REQUIRED)
+    include_directories(${STRUMPACK_INCLUDE_DIRS})
+  else()
+    message(FATAL_ERROR " *** STRUMPACK requires that MPI be enabled.")
   endif()
 endif()
 
@@ -186,17 +210,19 @@ endif()
 # Axom/Sidre
 if (MFEM_USE_SIDRE)
   if (NOT MFEM_USE_MPI)
-    find_package(ATK REQUIRED Sidre SLIC common)
+    find_package(Axom REQUIRED Sidre SLIC axom_utils)
   else()
-    find_package(ATK REQUIRED Sidre SPIO SLIC common)
+    find_package(Axom REQUIRED Sidre SPIO SLIC axom_utils)
   endif()
-  include_directories(${ATK_INCLUDE_DIRS})
+  include_directories(${AXOM_INCLUDE_DIRS})
 endif()
 
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
-    set(MFEM_TIMER_TYPE 0) # use std::clock from <ctime>
+    # use std::clock from <ctime> for UserTime and
+    # use mach_absolute_time from <mach/mach_time.h> for RealTime
+    set(MFEM_TIMER_TYPE 4)
   elseif (WIN32)
     set(MFEM_TIMER_TYPE 3) # QueryPerformanceCounter from <windows.h>
   else()
@@ -210,9 +236,9 @@ if (NOT DEFINED MFEM_TIMER_TYPE)
 endif()
 
 # List all possible libraries in order of dependencies.
-set(MFEM_TPLS HYPRE OPENMP SUNDIALS MESQUITE SuiteSparse SuperLUDist
-    ParMETIS METIS LAPACK BLAS GECKO GNUTLS NETCDF PETSC MPFR ATK POSIXCLOCKS
-    MFEMBacktrace ZLIB)
+set(MFEM_TPLS MPI_CXX HYPRE OPENMP SUNDIALS MESQUITE SuiteSparse SuperLUDist
+    ParMETIS METIS LAPACK BLAS GECKO GNUTLS NETCDF PETSC MPFR AXOM POSIXCLOCKS
+    MFEMBacktrace ZLIB STRUMPACK)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 foreach(TPL IN LISTS MFEM_TPLS)
@@ -237,7 +263,6 @@ set(_USE_MATH_DEFINES ${WIN32})
 #-------------------------------------------------------------------------------
 
 # Headers and sources
-include(MfemCmakeUtilities)
 set(SOURCES "")
 set(HEADERS "")
 set(MFEM_SOURCE_DIRS general linalg mesh fem)
@@ -258,12 +283,15 @@ if (CMAKE_VERSION VERSION_GREATER 2.8.11)
 else()
   target_link_libraries(mfem ${TPL_LIBRARIES})
 endif()
+if (MINGW)
+  target_link_libraries(mfem ws2_32)
+endif()
 
 # If building out-of-source, define MFEM_BUILD_DIR to point to the build
 # directory.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
   target_compile_definitions(mfem PRIVATE
-    "-DMFEM_BUILD_DIR=${PROJECT_BINARY_DIR}")
+    "MFEM_BUILD_DIR=${PROJECT_BINARY_DIR}")
 endif()
 
 # Generate configuration file in the build directory: config/_config.hpp.
@@ -352,7 +380,6 @@ add_subdirectory(doc)
 #-------------------------------------------------------------------------------
 
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
-string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UC)
 set(INSTALL_INCLUDE_DIR include
   CACHE PATH "Relative path for installing header files.")
 set(INSTALL_LIB_DIR lib
@@ -403,11 +430,14 @@ export(TARGETS ${PROJECT_NAME}
   FILE "${PROJECT_BINARY_DIR}/MFEMTargets.cmake")
 
 # Export the package for use from the build-tree (this registers the build-tree
-# with a global CMake-registry)
+# with the CMake user package registry.)
 export(PACKAGE ${PROJECT_NAME})
 
 # Extract the include directories required to use MFEM
 get_target_property(MFEM_TPL_INCLUDE_DIRS mfem INCLUDE_DIRECTORIES)
+if (NOT MFEM_TPL_INCLUDE_DIRS)
+  set(MFEM_TPL_INCLUDE_DIRS "")
+endif()
 
 # This is the build-tree version
 set(INCLUDE_INSTALL_DIRS ${PROJECT_BINARY_DIR} ${MFEM_TPL_INCLUDE_DIRS})

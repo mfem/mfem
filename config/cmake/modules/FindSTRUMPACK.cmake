@@ -9,20 +9,14 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-add_mfem_miniapp(klein-bottle
-  MAIN klein-bottle.cpp
-  LIBRARIES mfem)
+# Sets the following variables:
+#   - STRUMPACK_FOUND
+#   - STRUMPACK_INCLUDE_DIRS
+#   - STRUMPACK_LIBRARIES
 
-add_mfem_miniapp(mesh-explorer
-  MAIN mesh-explorer.cpp
-  LIBRARIES mfem)
-
-add_mfem_miniapp(mobius-strip
-  MAIN mobius-strip.cpp
-  LIBRARIES mfem)
-
-add_mfem_miniapp(shaper
-  MAIN shaper.cpp
-  LIBRARIES mfem)
-
-# Add tests?
+include(MfemCmakeUtilities)
+mfem_find_package(STRUMPACK STRUMPACK STRUMPACK_DIR
+  "include" "StrumpackSparseSolverMPIDist.hpp"
+  "lib" "strumpack_sparse" # add NAMES_PER_DIR?
+  "Paths to headers required by STRUMPACK."
+  "Libraries required by STRUMPACK.")

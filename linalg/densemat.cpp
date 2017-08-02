@@ -231,6 +231,24 @@ void DenseMatrix::AddMult(const Vector &x, Vector &y) const
    }
 }
 
+void DenseMatrix::AddMultTranspose(const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(height == x.Size() && width == y.Size(),
+               "incompatible dimensions");
+
+   double *d_col = data;
+   for (int col = 0; col < width; col++)
+   {
+      double y_col = 0.0;
+      for (int row = 0; row < height; row++)
+      {
+         y_col += x[row]*d_col[row];
+      }
+      y[col] += y_col;
+      d_col += height;
+   }
+}
+
 void DenseMatrix::AddMult_a(double a, const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
@@ -415,8 +433,9 @@ MatrixInverse *DenseMatrix::Inverse() const
 
 double DenseMatrix::Det() const
 {
-   MFEM_ASSERT(Height() == Width() && Height() > 0 && Height() <= 4,
-               "The matrix must be square and sized 1, 2, 3 or 4 to compute the determinate."
+   MFEM_ASSERT(Height() == Width() && Height() > 0,
+               "The matrix must be square and "
+               << "sized larger than zero to compute the determinant."
                << "  Height() = " << Height()
                << ", Width() = " << Width());
 
@@ -438,9 +457,32 @@ double DenseMatrix::Det() const
       }
       case 4:
       {
-   	   const double *d = data;
+         const double *d = data;
+         return
+            d[ 0] * (d[ 5] * (d[10] * d[15] - d[11] * d[14]) -
+                     d[ 9] * (d[ 6] * d[15] - d[ 7] * d[14]) +
+                     d[13] * (d[ 6] * d[11] - d[ 7] * d[10])
+                    ) -
+            d[ 4] * (d[ 1] * (d[10] * d[15] - d[11] * d[14]) -
+                     d[ 9] * (d[ 2] * d[15] - d[ 3] * d[14]) +
+                     d[13] * (d[ 2] * d[11] - d[ 3] * d[10])
+                    ) +
+            d[ 8] * (d[ 1] * (d[ 6] * d[15] - d[ 7] * d[14]) -
+                     d[ 5] * (d[ 2] * d[15] - d[ 3] * d[14]) +
+                     d[13] * (d[ 2] * d[ 7] - d[ 3] * d[ 6])
+                    ) -
+            d[12] * (d[ 1] * (d[ 6] * d[11] - d[ 7] * d[10]) -
+                     d[ 5] * (d[ 2] * d[11] - d[ 3] * d[10]) +
+                     d[ 9] * (d[ 2] * d[ 7] - d[ 3] * d[ 6])
+                    );
+      }
+      default:
+      {
+         // In the general case we compute the determinant from the LU
+         // decomposition.
+         DenseMatrixInverse lu_factors(*this);
 
-   	   return d[12]*d[9]*d[6]*d[3]-d[8]*d[13]*d[6]*d[3]-d[12]*d[5]*d[10]*d[3]+d[4]*d[13]*d[10]*d[3]+d[8]*d[5]*d[14]*d[3]-d[4]*d[9]*d[14]*d[3]-d[12]*d[9]*d[2]*d[7]+d[8]*d[13]*d[2]*d[7]+d[12]*d[1]*d[10]*d[7]-d[0]*d[13]*d[10]*d[7]-d[8]*d[1]*d[14]*d[7]+d[0]*d[9]*d[14]*d[7]+d[12]*d[5]*d[2]*d[11]-d[4]*d[13]*d[2]*d[11]-d[12]*d[1]*d[6]*d[11]+d[0]*d[13]*d[6]*d[11]+d[4]*d[1]*d[14]*d[11]-d[0]*d[5]*d[14]*d[11]-d[8]*d[5]*d[2]*d[15]+d[4]*d[9]*d[2]*d[15]+d[8]*d[1]*d[6]*d[15]-d[0]*d[9]*d[6]*d[15]-d[4]*d[1]*d[10]*d[15]+d[0]*d[5]*d[10]*d[15];
+         return lu_factors.Det();
       }
    }
    return 0.0;
@@ -469,19 +511,6 @@ double DenseMatrix::Weight() const
       double F = d[0] * d[3] + d[1] * d[4] + d[2] * d[5];
       return sqrt(E * G - F * F);
    }
-   else if ((Height() == 4) && (Width() == 3))
-   {
-       const double *d = data;
-       double G11 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2] + d[3] * d[3];
-       double G22 = d[4] * d[4] + d[5] * d[5] + d[6] * d[6] + d[7] * d[7];
-       double G33 = d[8] * d[8] + d[9] * d[9] + d[10] * d[10] + d[11] * d[11];
-       double G12 = d[0] * d[4] + d[1] * d[5] + d[2] * d[6] + d[3] * d[7];
-       double G13 = d[0] * d[8] + d[1] * d[9] + d[2] * d[10] + d[3] * d[11];
-       double G23 = d[4] * d[8] + d[5] * d[9] + d[6] * d[10] + d[7] * d[11];
-       return sqrt(G11*G22*G33 + G12*G23*G13 + G13*G23*G12 - G13*G13*G22
-                   - G12*G12*G33 - G23*G23*G11);
-   }
-
    mfem_error("DenseMatrix::Weight()");
    return 0.0;
 }
@@ -2573,6 +2602,32 @@ void DenseMatrix::CopyMNDiag(double *diag, int n, int row_offset,
    }
 }
 
+void DenseMatrix::CopyExceptMN(const DenseMatrix &A, int m, int n)
+{
+   SetSize(A.Width()-1,A.Height()-1);
+
+   int i, j, i_off = 0, j_off = 0;
+
+   for (j = 0; j < A.Width(); j++)
+   {
+      if ( j == n )
+      {
+         j_off = 1;
+         continue;
+      }
+      for (i = 0; i < A.Height(); i++)
+      {
+         if ( i == m )
+         {
+            i_off = 1;
+            continue;
+         }
+         (*this)(i-i_off,j-j_off) = A(i,j);
+      }
+      i_off = 0;
+   }
+}
+
 void DenseMatrix::AddMatrix(DenseMatrix &A, int ro, int co)
 {
    int h, ah, aw;
@@ -2974,7 +3029,7 @@ void CalcAdjugate(const DenseMatrix &a, DenseMatrix &adja)
       adja(1,0) = -a(1,0);
       adja(1,1) =  a(0,0);
    }
-   else if (a.Width() == 3)
+   else
    {
       adja(0,0) = a(1,1)*a(2,2)-a(1,2)*a(2,1);
       adja(0,1) = a(0,2)*a(2,1)-a(0,1)*a(2,2);
@@ -2987,28 +3042,6 @@ void CalcAdjugate(const DenseMatrix &a, DenseMatrix &adja)
       adja(2,0) = a(1,0)*a(2,1)-a(1,1)*a(2,0);
       adja(2,1) = a(0,1)*a(2,0)-a(0,0)*a(2,1);
       adja(2,2) = a(0,0)*a(1,1)-a(0,1)*a(1,0);
-   }
-   else if (a.Width() == 4)
-   {
-	  adja(0,0) = -a(1,3)*a(2,2)*a(3,1)+a(1,2)*a(2,3)*a(3,1)+a(1,3)*a(2,1)*a(3,2)-a(1,1)*a(2,3)*a(3,2)-a(1,2)*a(2,1)*a(3,3)+a(1,1)*a(2,2)*a(3,3);
-	  adja(0,1) = a(0,3)*a(2,2)*a(3,1)-a(0,2)*a(2,3)*a(3,1)-a(0,3)*a(2,1)*a(3,2)+a(0,1)*a(2,3)*a(3,2)+a(0,2)*a(2,1)*a(3,3)-a(0,1)*a(2,2)*a(3,3);
-	  adja(0,2) = -a(0,3)*a(1,2)*a(3,1)+a(0,2)*a(1,3)*a(3,1)+a(0,3)*a(1,1)*a(3,2)-a(0,1)*a(1,3)*a(3,2)-a(0,2)*a(1,1)*a(3,3)+a(0,1)*a(1,2)*a(3,3);
-	  adja(0,3) = a(0,3)*a(1,2)*a(2,1)-a(0,2)*a(1,3)*a(2,1)-a(0,3)*a(1,1)*a(2,2)+a(0,1)*a(1,3)*a(2,2)+a(0,2)*a(1,1)*a(2,3)-a(0,1)*a(1,2)*a(2,3);
-
-	  adja(1,0) = a(1,3)*a(2,2)*a(3,0)-a(1,2)*a(2,3)*a(3,0)-a(1,3)*a(2,0)*a(3,2)+a(1,0)*a(2,3)*a(3,2)+a(1,2)*a(2,0)*a(3,3)-a(1,0)*a(2,2)*a(3,3);
-	  adja(1,1) = -a(0,3)*a(2,2)*a(3,0)+a(0,2)*a(2,3)*a(3,0)+a(0,3)*a(2,0)*a(3,2)-a(0,0)*a(2,3)*a(3,2)-a(0,2)*a(2,0)*a(3,3)+a(0,0)*a(2,2)*a(3,3);
-	  adja(1,2) = a(0,3)*a(1,2)*a(3,0)-a(0,2)*a(1,3)*a(3,0)-a(0,3)*a(1,0)*a(3,2)+a(0,0)*a(1,3)*a(3,2)+a(0,2)*a(1,0)*a(3,3)-a(0,0)*a(1,2)*a(3,3);
-	  adja(1,3) = -a(0,3)*a(1,2)*a(2,0)+a(0,2)*a(1,3)*a(2,0)+a(0,3)*a(1,0)*a(2,2)-a(0,0)*a(1,3)*a(2,2)-a(0,2)*a(1,0)*a(2,3)+a(0,0)*a(1,2)*a(2,3);
-
-	  adja(2,0) = -a(1,3)*a(2,1)*a(3,0)+a(1,1)*a(2,3)*a(3,0)+a(1,3)*a(2,0)*a(3,1)-a(1,0)*a(2,3)*a(3,1)-a(1,1)*a(2,0)*a(3,3)+a(1,0)*a(2,1)*a(3,3);
-	  adja(2,1) = a(0,3)*a(2,1)*a(3,0)-a(0,1)*a(2,3)*a(3,0)-a(0,3)*a(2,0)*a(3,1)+a(0,0)*a(2,3)*a(3,1)+a(0,1)*a(2,0)*a(3,3)-a(0,0)*a(2,1)*a(3,3);
-	  adja(2,2) = -a(0,3)*a(1,1)*a(3,0)+a(0,1)*a(1,3)*a(3,0)+a(0,3)*a(1,0)*a(3,1)-a(0,0)*a(1,3)*a(3,1)-a(0,1)*a(1,0)*a(3,3)+a(0,0)*a(1,1)*a(3,3);
-	  adja(2,3) = a(0,3)*a(1,1)*a(2,0)-a(0,1)*a(1,3)*a(2,0)-a(0,3)*a(1,0)*a(2,1)+a(0,0)*a(1,3)*a(2,1)+a(0,1)*a(1,0)*a(2,3)-a(0,0)*a(1,1)*a(2,3);
-
-	  adja(3,0) = a(1,2)*a(2,1)*a(3,0)-a(1,1)*a(2,2)*a(3,0)-a(1,2)*a(2,0)*a(3,1)+a(1,0)*a(2,2)*a(3,1)+a(1,1)*a(2,0)*a(3,2)-a(1,0)*a(2,1)*a(3,2);
-      adja(3,1) = -a(0,2)*a(2,1)*a(3,0)+a(0,1)*a(2,2)*a(3,0)+a(0,2)*a(2,0)*a(3,1)-a(0,0)*a(2,2)*a(3,1)-a(0,1)*a(2,0)*a(3,2)+a(0,0)*a(2,1)*a(3,2);
-	  adja(3,2) = a(0,2)*a(1,1)*a(3,0)-a(0,1)*a(1,2)*a(3,0)-a(0,2)*a(1,0)*a(3,1)+a(0,0)*a(1,2)*a(3,1)+a(0,1)*a(1,0)*a(3,2)-a(0,0)*a(1,1)*a(3,2);
-	  adja(3,3) = -a(0,2)*a(1,1)*a(2,0)+a(0,1)*a(1,2)*a(2,0)+a(0,2)*a(1,0)*a(2,1)-a(0,0)*a(1,2)*a(2,1)-a(0,1)*a(1,0)*a(2,2)+a(0,0)*a(1,1)*a(2,2);
    }
 }
 
@@ -3032,7 +3065,7 @@ void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat)
       adjat(0,1) = -a(1,0);
       adjat(1,1) =  a(0,0);
    }
-   else if (a.Width() == 3)
+   else
    {
       adjat(0,0) = a(1,1)*a(2,2)-a(1,2)*a(2,1);
       adjat(1,0) = a(0,2)*a(2,1)-a(0,1)*a(2,2);
@@ -3045,12 +3078,6 @@ void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat)
       adjat(0,2) = a(1,0)*a(2,1)-a(1,1)*a(2,0);
       adjat(1,2) = a(0,1)*a(2,0)-a(0,0)*a(2,1);
       adjat(2,2) = a(0,0)*a(1,1)-a(0,1)*a(1,0);
-   }
-   else if (a.Width() == 4)
-   {
-	   CalcAdjugate(a, adjat);
-	   adjat.Transpose();
-//	   mfem_error("CalcAdjugateTranspose(...) - please implement the case for d = 4");
    }
 }
 
@@ -3134,12 +3161,6 @@ void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
          inva(2,1) = (a(0,1)*a(2,0)-a(0,0)*a(2,1))*t;
          inva(2,2) = (a(0,0)*a(1,1)-a(0,1)*a(1,0))*t;
          break;
-      case 4:
-   	   {
-   		   CalcAdjugate(a, inva);
-   		   inva *= t;
-   		   break;
-   	   }
    }
 }
 
@@ -3179,12 +3200,6 @@ void CalcInverseTranspose(const DenseMatrix &a, DenseMatrix &inva)
          inva(1,2) = (a(0,1)*a(2,0)-a(0,0)*a(2,1))*t;
          inva(2,2) = (a(0,0)*a(1,1)-a(0,1)*a(1,0))*t;
          break;
-      case 4:
-	   {
-   		   CalcAdjugateTranspose(a, inva);
-   		   inva *= t;
-   		   break;
-	   }
    }
 }
 
@@ -3206,18 +3221,11 @@ void CalcOrtho(const DenseMatrix &J, Vector &n)
       n(0) =  d[1];
       n(1) = -d[0];
    }
-   else if(J.Height() == 3)
+   else
    {
       n(0) = d[1]*d[5] - d[2]*d[4];
       n(1) = d[2]*d[3] - d[0]*d[5];
       n(2) = d[0]*d[4] - d[1]*d[3];
-   }
-   else if(J.Height() == 4)
-   {
-	  n(0) = -d[3]*d[6]*d[9]+d[2]*d[7]*d[9]+d[3]*d[5]*d[10]-d[1]*d[7]*d[10]-d[2]*d[5]*d[11]+d[1]*d[6]*d[11];
-	  n(1) = d[3]*d[6]*d[8]-d[2]*d[7]*d[8]-d[3]*d[4]*d[10]+d[0]*d[7]*d[10]+d[2]*d[4]*d[11]-d[0]*d[6]*d[11];
-	  n(2) = -d[3]*d[5]*d[8]+d[1]*d[7]*d[8]+d[3]*d[4]*d[9]-d[0]*d[7]*d[9]-d[1]*d[4]*d[11]+d[0]*d[5]*d[11];
-	  n(3) = d[2]*d[5]*d[8]-d[1]*d[6]*d[8]-d[2]*d[4]*d[9]+d[0]*d[6]*d[9]+d[1]*d[4]*d[10]-d[0]*d[5]*d[10];
    }
 }
 
@@ -3801,6 +3809,23 @@ void LUFactors::Factor(int m)
 #endif
 }
 
+double LUFactors::Det(int m) const
+{
+   double det = 1.0;
+   for (int i=0; i<m; i++)
+   {
+      if (ipiv[i] != i-ipiv_base)
+      {
+         det *= -data[m * i + i];
+      }
+      else
+      {
+         det *=  data[m * i + i];
+      }
+   }
+   return det;
+}
+
 void LUFactors::Mult(int m, int n, double *X) const
 {
    const double *data = this->data;
@@ -4275,6 +4300,16 @@ const
          }
       }
    }
+}
+
+DenseTensor &DenseTensor::operator=(double c)
+{
+   int s = SizeI() * SizeJ() * SizeK();
+   for (int i=0; i<s; i++)
+   {
+      tdata[i] = c;
+   }
+   return *this;
 }
 
 }

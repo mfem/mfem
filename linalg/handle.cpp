@@ -11,6 +11,9 @@
 
 #include "handle.hpp"
 #include "sparsemat.hpp"
+#ifdef MFEM_USE_MPI
+#include "petsc.hpp"
+#endif
 
 namespace mfem
 {
