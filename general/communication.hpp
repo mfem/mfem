@@ -119,10 +119,15 @@ class GroupCommunicator
 private:
    GroupTopology &gtopo;
    Table group_ldof;
+   Table group_ltdof; // only for groups for which this processor is master.
    int group_buf_size;
    Array<char> group_buf;
    MPI_Request *requests;
    MPI_Status  *statuses;
+   int comm_lock; // 0 - no lock, 1 - locked for Bcast, 2 - locked for Reduce
+   int num_requests;
+   int *request_group;
+   int *reduce_buf_offsets; // size = number of groups
 
 public:
    GroupCommunicator(GroupTopology &gt);
@@ -135,8 +140,28 @@ public:
    /// Allocate internal buffers after the GroupLDofTable is defined
    void Finalize();
 
+   /// Initialize the internal #group_ltdof Table.
+   void SetLTDofTable(Array<int> &ldof_ltdof);
+
    /// Get a reference to the group topology object
    GroupTopology & GetGroupTopology() { return gtopo; }
+
+   /** @brief Begin a broadcast within each group where the master is the root.
+       The input data @a layout can be:
+
+          0 - data is an array on all ldofs
+          1 - data is an array on the shared ldofs as given by group_ldof
+          2 - data is an array on the ltdofs
+   */
+   template <class T> void BcastBegin(T *ldata, int layout);
+
+   /** @brief Finalize a broadcast started with BcastBegin().
+       The output data @a layout can be:
+
+          0 - data is an array on all ldofs; input layout: 0 or 2
+          1 - data is the same array as given to BcastBegin(); input layout: 1
+   */
+   template <class T> void BcastEnd(T *ldata, int layout);
 
    /** @brief Broadcast within each group where the master is the root.
        The data @a layout can be:
@@ -144,7 +169,11 @@ public:
           0 - data is an array on all ldofs
           1 - data is an array on the shared ldofs as given by group_ldof
    */
-   template <class T> void Bcast(T *data, int layout);
+   template <class T> void Bcast(T *ldata, int layout)
+   {
+      BcastBegin(ldata, layout);
+      BcastEnd(ldata, layout);
+   }
 
    /** @brief Broadcast within each group where the master is the root.
        This method is instantiated for int and double. */
@@ -161,12 +190,42 @@ public:
       T *ldata, *buf;
    };
 
+   /** @brief Begin reduction operation within each group where the master is
+       the root. The input data layout is an array on all ldofs.
+
+       The reduce operation will be specified when calling ReduceEnd(). This
+       method is instantiated for int and double. */
+   template <class T> void ReduceBegin(const T *ldata);
+
+   /** @brief Finalize reduction operation started with ReduceBegin().
+       The output data @a layout can be:
+
+          0 - data is an array on all ldofs
+          2 - data is an array on the ltdofs
+
+       The reduce operation is given by the third argument (see below for list
+       of the supported operations.) This method is instantiated for int and
+       double.
+
+       @note If the output data layout is 2, then the data from the @a ldata
+       array passed to this call is used in the reduction operation, instead of
+       the data from the @a ldata array passed to ReduceBegin(). Therefore, the
+       data for master-groups has to be identical in both arrays.
+   */
+   template <class T> void ReduceEnd(T *ldata, int layout,
+                                     void (*Op)(OpData<T>));
+
    /** @brief Reduce within each group where the master is the root.
 
        The reduce operation is given by the second argument (see below for list
        of the supported operations.) This method is instantiated for int and
        double. */
-   template <class T> void Reduce(T *ldata, void (*Op)(OpData<T>));
+   template <class T> void Reduce(T *ldata, void (*Op)(OpData<T>))
+   {
+      ReduceBegin(ldata);
+      ReduceEnd(ldata, 0, Op);
+   }
+
    template <class T> void Reduce(Array<T> &ldata, void (*Op)(OpData<T>))
    { Reduce<T>((T *)ldata, Op); }
 

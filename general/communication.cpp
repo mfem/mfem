@@ -268,6 +268,10 @@ GroupCommunicator::GroupCommunicator(GroupTopology &gt)
    group_buf_size = 0;
    requests = NULL;
    statuses = NULL;
+   comm_lock = 0;
+   num_requests = 0;
+   request_group = NULL;
+   reduce_buf_offsets = NULL;
 }
 
 void GroupCommunicator::Create(Array<int> &ldof_group)
@@ -300,7 +304,11 @@ void GroupCommunicator::Finalize()
 {
    int request_counter = 0;
 
+   reduce_buf_offsets = new int[group_ldof.Size()]; // size = number of groups
+   reduce_buf_offsets[0] = 0;
    for (int gr = 1; gr < group_ldof.Size(); gr++)
+   {
+      reduce_buf_offsets[gr] = group_buf_size;
       if (group_ldof.RowSize(gr) != 0)
       {
          int gr_requests;
@@ -316,21 +324,55 @@ void GroupCommunicator::Finalize()
          request_counter += gr_requests;
          group_buf_size += gr_requests * group_ldof.RowSize(gr);
       }
+   }
 
    requests = new MPI_Request[request_counter];
    statuses = new MPI_Status[request_counter];
+   request_group = new int[request_counter];
+}
+
+void GroupCommunicator::SetLTDofTable(Array<int> &ldof_ltdof)
+{
+   if (group_ltdof.Size() == group_ldof.Size()) { return; }
+
+   group_ltdof.MakeI(group_ldof.Size());
+   for (int gr = 1; gr < group_ldof.Size(); gr++)
+   {
+      if (gtopo.IAmMaster(gr))
+      {
+         group_ltdof.AddColumnsInRow(gr, group_ldof.RowSize(gr));
+      }
+   }
+   group_ltdof.MakeJ();
+   for (int gr = 1; gr < group_ldof.Size(); gr++)
+   {
+      if (gtopo.IAmMaster(gr))
+      {
+         const int *ldofs = group_ldof.GetRow(gr);
+         const int nldofs = group_ldof.RowSize(gr);
+         for (int i = 0; i < nldofs; i++)
+         {
+            group_ltdof.AddConnection(gr, ldof_ltdof[ldofs[i]]);
+         }
+      }
+   }
+   group_ltdof.ShiftUpI();
 }
 
 template <class T>
-void GroupCommunicator::Bcast(T *ldata, int layout)
+void GroupCommunicator::BcastBegin(T *ldata, int layout)
 {
+   MFEM_VERIFY(comm_lock == 0, "object is already in use");
+
    if (group_buf_size == 0) { return; }
 
    T *buf;
-   if (layout == 0)
+   if (layout != 1)
    {
       group_buf.SetSize(group_buf_size*sizeof(T));
       buf = (T *)group_buf.GetData();
+      MFEM_VERIFY(layout != 2 || group_ltdof.Size() == group_ldof.Size(),
+                  "'group_ltdof' is not set, use SetLTDofTable()");
    }
    else
    {
@@ -355,6 +397,7 @@ void GroupCommunicator::Bcast(T *ldata, int layout)
                    40822 + gtopo.GetGroupMasterGroup(gr),
                    gtopo.GetComm(),
                    &requests[request_counter]);
+         request_group[request_counter] = gr;
          request_counter++;
       }
       else // we are the master
@@ -366,6 +409,16 @@ void GroupCommunicator::Bcast(T *ldata, int layout)
             for (i = 0; i < nldofs; i++)
             {
                buf[i] = ldata[ldofs[i]];
+            }
+         }
+         else if (layout == 2)
+         {
+            // fill send buffer
+            MFEM_ASSERT(group_ltdof.RowSize(gr) == nldofs, "");
+            const int *ltdofs = group_ltdof.GetRow(gr);
+            for (i = 0; i < nldofs; i++)
+            {
+               buf[i] = ldata[ltdofs[i]];
             }
          }
 
@@ -382,6 +435,7 @@ void GroupCommunicator::Bcast(T *ldata, int layout)
                          40822 + gtopo.GetGroupMasterGroup(gr),
                          gtopo.GetComm(),
                          &requests[request_counter]);
+               request_group[request_counter] = -1;
                request_counter++;
             }
          }
@@ -389,68 +443,81 @@ void GroupCommunicator::Bcast(T *ldata, int layout)
       buf += nldofs;
    }
 
-   MPI_Waitall(request_counter, requests, statuses);
-
-   if (layout == 0)
-   {
-      // copy the received data from the buffer to ldata
-      buf = (T *)group_buf.GetData();
-      for (gr = 1; gr < group_ldof.Size(); gr++)
-      {
-         const int nldofs = group_ldof.RowSize(gr);
-
-         // ignore groups without dofs
-         if (nldofs == 0) { continue; }
-
-         if (!gtopo.IAmMaster(gr)) // we are not the master
-         {
-            const int *ldofs = group_ldof.GetRow(gr);
-            for (i = 0; i < nldofs; i++)
-            {
-               ldata[ldofs[i]] = buf[i];
-            }
-         }
-         buf += nldofs;
-      }
-   }
+   comm_lock = 1; // 1 - locked fot Bcast
+   num_requests = request_counter;
 }
 
 template <class T>
-void GroupCommunicator::Reduce(T *ldata, void (*Op)(OpData<T>))
+void GroupCommunicator::BcastEnd(T *ldata, int layout)
 {
+   if (comm_lock == 0) { return; }
+   // The above also handles the case (group_buf_size == 0).
+   MFEM_VERIFY(comm_lock == 1, "object is NOT locked for Bcast");
+
+   if (layout == 1)
+   {
+      MPI_Waitall(num_requests, requests, statuses);
+   }
+   else if (layout == 0)
+   {
+      // copy the received data from the buffer to ldata, as it arrives
+      int idx;
+      while (MPI_Waitany(num_requests, requests, &idx, statuses),
+             idx != MPI_UNDEFINED)
+      {
+         int gr = request_group[idx];
+         if (gr == -1) { continue; } // ignore send requests
+
+         const int nldofs = group_ldof.RowSize(gr);
+         // groups without dofs are skipped, so here nldofs > 0.
+
+         T *buf = (T *)group_buf.GetData() + group_ldof.GetI()[gr];
+         const int *ldofs = group_ldof.GetRow(gr);
+         for (int i = 0; i < nldofs; i++)
+         {
+            ldata[ldofs[i]] = buf[i];
+         }
+      }
+   }
+   comm_lock = 0; // 0 - no lock
+   num_requests = 0;
+}
+
+template <class T>
+void GroupCommunicator::ReduceBegin(const T *ldata)
+{
+   MFEM_VERIFY(comm_lock == 0, "object is already in use");
+
    if (group_buf_size == 0) { return; }
 
    int i, gr, request_counter = 0;
-   OpData<T> opd;
 
    group_buf.SetSize(group_buf_size*sizeof(T));
-   opd.ldata = ldata;
-   opd.buf = (T *)group_buf.GetData();
+   T *buf = (T *)group_buf.GetData();
    for (gr = 1; gr < group_ldof.Size(); gr++)
    {
-      opd.nldofs = group_ldof.RowSize(gr);
-
+      const int nldofs = group_ldof.RowSize(gr);
       // ignore groups without dofs
-      if (opd.nldofs == 0) { continue; }
+      if (nldofs == 0) { continue; }
 
-      opd.ldofs = group_ldof.GetRow(gr);
+      const int *ldofs = group_ldof.GetRow(gr);
 
       if (!gtopo.IAmMaster(gr)) // we are not the master
       {
-         for (i = 0; i < opd.nldofs; i++)
+         for (i = 0; i < nldofs; i++)
          {
-            opd.buf[i] = ldata[opd.ldofs[i]];
+            buf[i] = ldata[ldofs[i]];
          }
-
-         MPI_Isend(opd.buf,
-                   opd.nldofs,
+         MPI_Isend(buf,
+                   nldofs,
                    MPITypeMap<T>::mpi_type,
                    gtopo.GetGroupMasterRank(gr),
                    43822 + gtopo.GetGroupMasterGroup(gr),
                    gtopo.GetComm(),
                    &requests[request_counter]);
+         request_group[request_counter] = -1; // ignore send requests
          request_counter++;
-         opd.buf += opd.nldofs;
+         buf += nldofs;
       }
       else // we are the master
       {
@@ -460,56 +527,83 @@ void GroupCommunicator::Reduce(T *ldata, void (*Op)(OpData<T>))
          {
             if (nbs[i] != 0)
             {
-               MPI_Irecv(opd.buf,
-                         opd.nldofs,
+               MPI_Irecv(buf,
+                         nldofs,
                          MPITypeMap<T>::mpi_type,
                          gtopo.GetNeighborRank(nbs[i]),
                          43822 + gtopo.GetGroupMasterGroup(gr),
                          gtopo.GetComm(),
                          &requests[request_counter]);
+               request_group[request_counter] = gr;
                request_counter++;
-               opd.buf += opd.nldofs;
+               buf += nldofs;
             }
          }
       }
    }
+   comm_lock = 2;
+   num_requests = request_counter;
+}
 
-   MPI_Waitall(request_counter, requests, statuses);
+template <class T>
+void GroupCommunicator::ReduceEnd(T *ldata, int layout, void (*Op)(OpData<T>))
+{
+   if (comm_lock == 0) { return; }
+   // The above also handles the case (group_buf_size == 0).
+   MFEM_VERIFY(comm_lock == 2, "object is NOT locked for Reduce");
 
-   // perform the reduce operation
-   opd.buf = (T *)group_buf.GetData();
-   for (gr = 1; gr < group_ldof.Size(); gr++)
+   OpData<T> opd;
+   opd.ldata = ldata;
+   Array<int> group_num_req(group_ldof.Size());
+   for (int gr = 1; gr < group_ldof.Size(); gr++)
    {
-      opd.nldofs = group_ldof.RowSize(gr);
-
-      // ignore groups without dofs
-      if (opd.nldofs == 0) { continue; }
-
-      if (!gtopo.IAmMaster(gr)) // we are not the master
-      {
-         opd.buf += opd.nldofs;
-      }
-      else // we are the master
-      {
-         opd.ldofs = group_ldof.GetRow(gr);
-         opd.nb = gtopo.GetGroupSize(gr)-1;
-         Op(opd);
-         opd.buf += opd.nb * opd.nldofs;
-      }
+      group_num_req[gr] = gtopo.IAmMaster(gr) ? gtopo.GetGroupSize(gr)-1 : 0;
    }
+   int idx;
+   while (MPI_Waitany(num_requests, requests, &idx, statuses),
+          idx != MPI_UNDEFINED)
+   {
+      int gr = request_group[idx];
+      if (gr == -1) { continue; } // skip send requests
+
+      // Delay the processing of a group until all receive requests, for that
+      // group, are done:
+      if ((--group_num_req[gr]) != 0) { continue; }
+
+      opd.nldofs = group_ldof.RowSize(gr);
+      // groups without dofs are skipped, so here nldofs > 0.
+
+      opd.buf = (T *)group_buf.GetData() + reduce_buf_offsets[gr];
+      opd.ldofs = (layout == 0) ?
+                  group_ldof.GetRow(gr) : group_ltdof.GetRow(gr);
+      opd.nb = gtopo.GetGroupSize(gr)-1;
+      Op(opd);
+   }
+   comm_lock = 0; // 0 - no lock
+   num_requests = 0;
 }
 
 template <class T>
 void GroupCommunicator::Sum(OpData<T> opd)
 {
-   for (int i = 0; i < opd.nldofs; i++)
+   if (opd.nb == 1)
    {
-      T data = opd.ldata[opd.ldofs[i]];
-      for (int j = 0; j < opd.nb; j++)
+      for (int i = 0; i < opd.nldofs; i++)
       {
-         data += opd.buf[j*opd.nldofs+i];
+         opd.ldata[opd.ldofs[i]] += opd.buf[i];
       }
-      opd.ldata[opd.ldofs[i]] = data;
+   }
+   else
+   {
+      for (int i = 0; i < opd.nldofs; i++)
+      {
+         T data = opd.ldata[opd.ldofs[i]];
+         for (int j = 0; j < opd.nb; j++)
+         {
+            data += opd.buf[j*opd.nldofs+i];
+         }
+         opd.ldata[opd.ldofs[i]] = data;
+      }
    }
 }
 
@@ -565,21 +659,26 @@ void GroupCommunicator::BitOR(OpData<T> opd)
 
 GroupCommunicator::~GroupCommunicator()
 {
+   delete [] request_group;
    delete [] statuses;
    delete [] requests;
+   delete [] reduce_buf_offsets;
 }
 
 // @cond DOXYGEN_SKIP
 
 // instantiate GroupCommunicator::Bcast and Reduce for int and double
-template void GroupCommunicator::Bcast<int>(int *);
-template void GroupCommunicator::Bcast<int>(int *, int);
-template void GroupCommunicator::Reduce<int>(int *, void (*)(OpData<int>));
+template void GroupCommunicator::BcastBegin<int>(int *, int);
+template void GroupCommunicator::BcastEnd<int>(int *, int);
+template void GroupCommunicator::ReduceBegin<int>(const int *);
+template void GroupCommunicator::ReduceEnd<int>(
+   int *, int, void (*)(OpData<int>));
 
-template void GroupCommunicator::Bcast<double>(double *);
-template void GroupCommunicator::Bcast<double>(double *, int);
-template void GroupCommunicator::Reduce<double>(
-   double *, void (*)(OpData<double>));
+template void GroupCommunicator::BcastBegin<double>(double *, int);
+template void GroupCommunicator::BcastEnd<double>(double *, int);
+template void GroupCommunicator::ReduceBegin<double>(const double *);
+template void GroupCommunicator::ReduceEnd<double>(
+   double *, int, void (*)(OpData<double>));
 
 // @endcond
 
