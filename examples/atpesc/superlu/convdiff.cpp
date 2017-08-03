@@ -30,11 +30,11 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
    args.AddOption(&velocity, "-vel", "--velocity",
-                  "Constant velocity in x that the fluid is flowing with.");   
-   args.AddOption(&visit, "-v", "--visit", "-nov", "--no-visit", 
+                  "Constant velocity in x that the fluid is flowing with.");
+   args.AddOption(&visit, "-v", "--visit", "-nov", "--no-visit",
                   "Enable VisIt visualization.");
 #ifdef MFEM_USE_SUPERLU
-   args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu", "--no-superlu", 
+   args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu", "--no-superlu",
                   "Use the SuperLU Solver.");
 #endif
    args.Parse();
@@ -114,9 +114,9 @@ int main(int argc, char *argv[])
    Vector B, X;
    cd->FormLinearSystem(ess_tdof_list, x, *b, CD, X, B);
 
-   // 8. Define and configure the solver.  We will use HYPRE
-   //    with  BoomerAMG as the preconditioner, or use 
-   //    SuperLU which will handle the full solve in one go.
+   // 8. Define and configure the solver.  We will use HYPRE with BoomerAMG as
+   //    the preconditioner, or use SuperLU which will handle the full solve in
+   //    one go.
    Solver *solver = NULL;
    Operator *Mrow = NULL;
    HypreBoomerAMG *amg = NULL;
@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
    solver->Mult(B, X);
    cd->RecoverFEMSolution(X, *b, x);
 
-   // 10. Dump the concentrantion values out to a visit file
+   // 10. Dump the concentration values out to a visit file
    if (visit)
    {
       VisItDataCollection visit_dc("dump", pmesh);
@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
 }
 
 
-//This will represent a disc of constant rate input at (0.5, 0.5)
+// This will represent a disc of constant rate input at (0.5, 0.5)
 double SourceField(const Vector &x)
 {
    double R = 0.0;

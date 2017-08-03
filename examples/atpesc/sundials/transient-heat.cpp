@@ -95,7 +95,7 @@ public:
 class SundialsJacSolver : public SundialsODELinearSolver
 {
 private:
-  ConductionOperator *oper;
+   ConductionOperator *oper;
 
 public:
    SundialsJacSolver() : oper(NULL) { }
@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&arkode_order, "-ao", "--arkode-order",
-                  "Order of the time integration scheme."); 
+                  "Order of the time integration scheme.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -155,7 +155,8 @@ int main(int argc, char *argv[])
                   "Relative tolerance for ARKODE time integration.");
    args.AddOption(&arkode_reltol, "-aat", "--arkode-abstol",
                   "Absolute tolerance for ARKODE time integration.");
-   args.AddOption(&adaptdt, "-adt", "--adapt-time-step", "-fdt", "--fixed-time-step",
+   args.AddOption(&adaptdt, "-adt", "--adapt-time-step", "-fdt",
+                  "--fixed-time-step",
                   "Flag whether or not to adapt the time step.");
    args.AddOption(&implicit, "-imp", "--implicit", "-exp", "--explicit",
                   "Implicit or Explicit ODE solution.");
@@ -214,7 +215,7 @@ int main(int argc, char *argv[])
    else
    {
       arkode = new ARKODESolver(MPI_COMM_WORLD, ARKODESolver::EXPLICIT);
-      //arkode->SetERKTableNum(FEHLBERG_13_7_8);
+      // arkode->SetERKTableNum(FEHLBERG_13_7_8);
    }
    arkode->SetStepMode(ARK_ONE_STEP);
    arkode->SetSStolerances(arkode_reltol, arkode_abstol);
@@ -266,7 +267,7 @@ int main(int argc, char *argv[])
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
-      if (dt > t_final - t) 
+      if (dt > t_final - t)
       {
          dt = t_final - t;
          arkode->SetFixedStep(dt);
@@ -440,8 +441,8 @@ int SundialsJacSolver::FreeSystem(void *sundials_mem)
 }
 
 
-//This will be a "pyramid" initial temperature with 1.0 at the center
-//tending to 0.0 at all the boundaries.
+// This will be a "pyramid" initial temperature with 1.0 at the center tending
+// to 0.0 at all the boundaries.
 double InitialTemperature(const Vector &x)
 {
    double max_comp_dist = 0.0;
