@@ -17,11 +17,12 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
-   int ref_levels = 1;
+   int ref_levels = 0;
    int order = 1;
    double velocity = 100.0;
    bool visit = false;
    bool slu_solver = false;
+   int slu_colperm = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -36,6 +37,9 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_SUPERLU
    args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu", "--no-superlu",
                   "Use the SuperLU Solver.");
+   args.AddOption(&slu_colperm, "-cp", "--slu_colperm",
+                  "Set the SuperLU Column permutation algorithm:  0-natural, "
+                  "1-mmd-ata, 2-mmd_at_plus_a, 3-colamd, 4-metis_at_plus_a, 5-parmetis, 6-zoltan");   
 #endif
    args.Parse();
    if (myid == 0)
@@ -136,16 +140,33 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_SUPERLU
       Mrow = new SuperLURowLocMatrix(CD);
       SuperLUSolver *superlu = new SuperLUSolver(MPI_COMM_WORLD);
-      superlu->SetPrintStatistics(false);
+      superlu->SetPrintStatistics(true);
       superlu->SetSymmetricPattern(false);
-      superlu->SetColumnPermutation(superlu::PARMETIS);
+
+      if (slu_colperm == 0)
+         superlu->SetColumnPermutation(superlu::NATURAL);
+      else if (slu_colperm == 1)
+         superlu->SetColumnPermutation(superlu::MMD_ATA);
+      else if (slu_colperm == 2)
+         superlu->SetColumnPermutation(superlu::MMD_AT_PLUS_A);
+      else if (slu_colperm == 3)
+         superlu->SetColumnPermutation(superlu::COLAMD);
+      else if (slu_colperm == 4)
+         superlu->SetColumnPermutation(superlu::METIS_AT_PLUS_A);
+      else if (slu_colperm == 5)
+         superlu->SetColumnPermutation(superlu::PARMETIS);
+      else if (slu_colperm == 6)
+         superlu->SetColumnPermutation(superlu::ZOLTAN);
+
       superlu->SetOperator(*Mrow);
       solver = superlu;
 #endif
    }
 
    // 9. Complete the solve and recover the concentration in the grid function
+   tic();
    solver->Mult(B, X);
+   cout << "Time required for solver:  " << toc() << " (s)" << endl;
    cd->RecoverFEMSolution(X, *b, x);
 
    // 10. Dump the concentration values out to a visit file

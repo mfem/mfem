@@ -319,6 +319,16 @@ void SuperLUSolver::SetColumnPermutation( superlu::ColPerm col_perm )
    colperm_t opt = (colperm_t)col_perm;
 
    options->ColPerm = opt;
+
+   if (col_perm == superlu::NATURAL || col_perm == superlu::PARMETIS)
+   {
+      options->ParSymbFact = YES;
+   }
+   else
+   {
+      options->ParSymbFact = NO;
+   }
+
 }
 
 void SuperLUSolver::SetRowPermutation( superlu::RowPerm row_perm,
