@@ -53,6 +53,7 @@ if (MFEM_USE_SCOREC AND MFEM_USE_MPI)
     GenerateMFEMMesh.cpp
     pumi_ex1.cpp
     pumi_ex1p.cpp
+    pumi_atr_ex2.cpp
     )
 endif()
 
