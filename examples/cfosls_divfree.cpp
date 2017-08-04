@@ -1,24 +1,5 @@
 //
-//                        MFEM/ParElag CFOSLS Transport equation with multigrid (div-free part)
-//
-// Compile with: make
-//
-// Description:  OUT-DATED!!!
-//               This example code solves a simple 4D transport problem over [0,1]^4
-//               corresponding to the saddle point system
-//                                  sigma_1 = u * b
-//							 		sigma_2 - u        = 0
-//                                  div_(x,t) sigma    = f
-//                       with b = vector function (~velocity),
-//						 NO boundary conditions (which work only in case when b * n = 0 pointwise at the domain space boundary)
-//						 and initial condition:
-//                                  u(x,0)            = 0
-//               Here, we use a given exact solution
-//                                  u(xt) = uFun_ex(xt)
-//               and compute the corresponding r.h.s.
-//               We discretize with Raviart-Thomas finite elements (sigma), continuous H1 elements (u) and
-//		 discontinuous polynomials (mu) for the lagrange multiplier.
-//               Solver: Geometric MG for div-free problem
+//                        MFEM CFOSLS Transport equation with multigrid (div-free part)
 //
 
 #include "mfem.hpp"
@@ -27,10 +8,9 @@
 #include <memory>
 #include <iomanip>
 #include <list>
-#include "../src/elag.hpp"
 
 //#define BAD_TEST
-//#define ONLY_HCURLPART
+//#define ONLY_DIVFREEPART
 //#define K_IDENTITY
 
 #define MYZEROTOL (1.0e-13)
@@ -40,340 +20,6 @@ using namespace mfem;
 using std::unique_ptr;
 using std::shared_ptr;
 using std::make_shared;
-using namespace parelag;
-
-class MG3dPrec : public Solver
-{
-private:
-    int nlevels;
-    shared_ptr<ParMesh> pmesh;
-    int form;
-    // 0 is the finest level
-    std::vector<HypreParMatrix *> As;
-    std::vector<Vector *> fs;
-    std::vector<Vector *> xs;
-    std::vector<Vector *> smoothedvecs;
-    std::vector<Vector *> workvecs;
-    std::vector<Vector *> coarsevecs; // not used
-    std::vector<unique_ptr<HypreParMatrix>> Ps;
-    std::vector<HypreSmoother *> Smoothers;
-    Solver * CoarseSolver;
-    // smth with boundary conditions
-    int info = 0;
-    bool verbose = true;
-
-public:
-    MG3dPrec(HypreParMatrix *AUser, int Nlevels, int coarsenfactor, ParMesh * Pmesh, int whichform, int feorder,
-             ParFiniteElementSpace *fespaceUser, const Array<int> &essBnd, bool Verbose)
-    {
-        // 0. setting the matrix on the finest level and the finest mesh
-        nlevels = Nlevels;
-        As.resize(nlevels);
-        Ps.resize(nlevels - 1);
-        xs.resize(nlevels);
-        smoothedvecs.resize(nlevels - 1);
-        workvecs.resize(nlevels);
-        fs.resize(nlevels);
-        Smoothers.resize(nlevels - 1);
-        verbose = Verbose;
-
-        As[0] = AUser;
-        pmesh = make_shared<ParMesh>(*Pmesh);
-        int dim = pmesh->Dimension();
-
-        form = whichform;
-        form = 1; // for now considering only H(curl) case
-        int codim = dim - form;
-        if (form == 1)
-            pmesh->ReorientTetMesh();
-
-        int upscalingOrder = -1;
-
-        // 1. creating topology
-        Array<int> level_NE(1);
-        int ne = pmesh->GetNE();
-        level_NE[0] = ne;
-
-        for ( int i = 0; i < nlevels - 1; ++i)
-        {
-            ne /= coarsenfactor;
-            if (ne < 1)
-            {
-                std::cout << "Too few elements at level " <<
-                             i << " to coarsen. Break." << std::endl;
-                info = -1;
-                return;
-            }
-            level_NE.Append(ne);
-        }
-
-        if (verbose)
-        {
-            std::cout << "level_NE:" << std::endl;
-            level_NE.Print(std::cout);
-        }
-
-        StopWatch chrono;
-
-        std::vector<shared_ptr<AgglomeratedTopology>> topology(nlevels);
-
-        chrono.Clear();
-        chrono.Start();
-        topology[0] = make_shared<AgglomeratedTopology>(pmesh, codim);
-
-        MetisGraphPartitioner partitioner;
-        Array<int> partitioning;
-        partitioner.setFlags(MetisGraphPartitioner::KWAY );// BISECTION
-        partitioner.setOption(METIS_OPTION_SEED, 0);// Fix the seed
-        partitioner.setOption(METIS_OPTION_CONTIG,1);// Contiguous partitions
-        partitioner.setOption(METIS_OPTION_MINCONN,1);
-        partitioner.setUnbalanceToll(1.05);
-
-        constexpr auto AT_elem = AgglomeratedTopology::ELEMENT;
-        for (int ilevel = 0; ilevel < nlevels-1; ++ilevel)
-        {
-            partitioning.SetSize(level_NE[ilevel]);
-            partitioner.doPartition(*(topology[ilevel]->LocalElementElementTable()),
-                                    //topology[ilevel]->Weight(AT_elem),
-                                    level_NE[ilevel+1], partitioning );
-
-            topology[ilevel+1] =
-                topology[ilevel]->CoarsenLocalPartitioning(partitioning,false,
-                                                           false);
-        }
-
-        chrono.Stop();
-        if (verbose)
-            std::cout << "Timing ELEM_AGG: Mesh Agglomeration done in "
-                      << chrono.RealTime() << " seconds.\n";
-
-        // 2. creating De Rham sequence (which contains projectors which we need and many more things
-        // (unused parts can be optimized out)
-
-        std::vector<shared_ptr<DeRhamSequence> > sequence(topology.size());
-
-        sequence[0] = make_shared<DeRhamSequence3D_FE>(topology[0],
-                    pmesh.get(), feorder);
-        DeRhamSequenceFE* DRSequence_FE = sequence[0]->FemSequence();
-
-        //Transport_test Mytest(dim,numsol);
-
-        ConstantCoefficient zero(.0);
-        ConstantCoefficient one(1.);
-        /*
-        MatrixFunctionCoefficient Ktilda( dim, Ktilda_ex );
-        FunctionCoefficient fcoeff(fFun);
-        VectorFunctionCoefficient uexact_coeff(dim, sigmaFun_ex);
-        */
-
-        //unique_ptr<VectorFEMassIntegrator> mass_k =
-                //make_unique<VectorFEMassIntegrator>(*(Mytest.Ktilda));
-
-        //if (verbose)
-            //cout << "Temporarily using I instead of Ktilda" << endl << flush;
-        //MatrixFunctionCoefficient MyIdentity( dim, MyIdentity_matfunc );
-        //unique_ptr<VectorFEMassIntegrator> mass_k =
-                //make_unique<VectorFEMassIntegrator>(MyIdentity);
-
-    //    DRSequence_FE->ReplaceMassIntegrator(AT_elem, dim,
-    //                make_unique<MassIntegrator>(coeffL2), false);
-        //DRSequence_FE->ReplaceMassIntegrator(AT_elem, dim-1,
-                    //move(mass_k), true);
-        /*
-        int jform(dim-2);
-        targets[jform] = DRSequence_FE->InterpolateVectorTargets(jform, Hcurlcoeff);
-        ++jform;
-        targets[jform] = DRSequence_FE->InterpolateVectorTargets(jform, Hdivcoeff);
-        ++jform;
-        targets[jform] = DRSequence_FE->InterpolateScalarTargets(jform, L2coeff);
-        ++jform;
-
-        freeCoeffArray(L2coeff);
-        freeCoeffArray(Hdivcoeff);
-        freeCoeffArray(Hcurlcoeff);
-
-        Array<MultiVector*> targets_in(targets.size());
-        for (int ii = 0; ii < targets_in.Size(); ++ii)
-            targets_in[ii] = targets[ii].get();
-
-        const int jFormStart = dim-2;
-        sequence[0]->SetjformStart(jFormStart);
-        sequence[0]->SetTargets(targets_in);
-
-        chrono.Clear();
-        chrono.Start();
-        constexpr double tolSVD = 1e-9;
-        for (int i(0); i < nlevels-1; ++i)
-        {
-            sequence[i]->SetSVDTol(tolSVD);
-            StopWatch chronoInterior;
-            chronoInterior.Clear();
-            chronoInterior.Start();
-            sequence[i+1] = sequence[i]->Coarsen();
-            chronoInterior.Stop();
-            if (verbose)
-                std::cout << "Timing ELEM_AGG_LEVEL" << i << ": Coarsening done in "
-                          << chronoInterior.RealTime() << " seconds.\n";
-        }
-        chrono.Stop();
-
-        if (verbose)
-            std::cout << "Timing ELEM_AGG: Coarsening done in "
-                      << chrono.RealTime() << " seconds.\n";
-
-        SparseMatrix * PT_lvl;
-        std::unique_ptr<SparseMatrix> P_lvl;
-
-        for (int lvl = 0; lvl < nlevels - 1; ++lvl)
-        {
-            const SharingMap & fine_dofTrueDof(
-                sequence[lvl]->GetDofHandler(form)->GetDofTrueDof());
-
-            const SharingMap & coarse_dofTrueDof(
-                sequence[lvl+1]->GetDofHandler(form)->GetDofTrueDof());
-
-            PT_lvl = sequence[lvl]->GetP(form);
-            P_lvl = ToUnique(Transpose(*P_lvl));
-            Ps[lvl] = Assemble(fine_dofTrueDof, *P_lvl, coarse_dofTrueDof);
-        }
-
-        */
-
-        Array<Coefficient *> L2coeff;
-        Array<VectorCoefficient *> Hdivcoeff;
-        Array<VectorCoefficient *> Hcurlcoeff;
-        fillVectorCoefficientArray(dim, upscalingOrder, Hcurlcoeff);
-        fillVectorCoefficientArray(dim, upscalingOrder, Hdivcoeff);
-        fillCoefficientArray(dim, upscalingOrder, L2coeff);
-
-        std::vector<unique_ptr<MultiVector>>
-            targets(sequence[0]->GetNumberOfForms());
-
-        int jform(dim-2);
-        targets[jform] = DRSequence_FE->InterpolateVectorTargets(jform, Hcurlcoeff);
-        ++jform;
-        //int jform(dim-1);
-        targets[jform] = DRSequence_FE->InterpolateVectorTargets(jform, Hdivcoeff);
-        ++jform;
-        targets[jform] = DRSequence_FE->InterpolateScalarTargets(jform, L2coeff);
-        ++jform;
-
-        freeCoeffArray(L2coeff);
-        freeCoeffArray(Hdivcoeff);
-        freeCoeffArray(Hcurlcoeff);
-
-        Array<MultiVector*> targets_in(targets.size());
-        for (int ii = 0; ii < targets_in.Size(); ++ii)
-            targets_in[ii] = targets[ii].get();
-
-        const int jFormStart = dim-2;
-        //const int jFormStart = dim-1;
-        sequence[0]->SetjformStart(jFormStart);
-        sequence[0]->SetTargets(targets_in);
-
-        chrono.Clear();
-        chrono.Start();
-        constexpr double tolSVD = 1e-9;
-        for (int i(0); i < nlevels-1; ++i)
-        {
-            sequence[i]->SetSVDTol(tolSVD);
-            StopWatch chronoInterior;
-            chronoInterior.Clear();
-            chronoInterior.Start();
-            sequence[i+1] = sequence[i]->Coarsen();
-            chronoInterior.Stop();
-            if (verbose)
-                std::cout << "Timing ELEM_AGG_LEVEL" << i << ": Coarsening done in "
-                          << chronoInterior.RealTime() << " seconds.\n";
-        }
-        chrono.Stop();
-
-        if (verbose)
-            std::cout << "Timing ELEM_AGG: Coarsening done in "
-                      << chrono.RealTime() << " seconds.\n";
-
-        SparseMatrix * PT_lvl;
-        std::unique_ptr<SparseMatrix> P_lvl;
-
-        for (int lvl = 0; lvl < nlevels - 1; ++lvl)
-        {
-            const SharingMap & fine_dofTrueDof(
-                sequence[lvl]->GetDofHandler(dim)->GetDofTrueDof());
-
-            const SharingMap & coarse_dofTrueDof(
-                sequence[lvl+1]->GetDofHandler(dim)->GetDofTrueDof());
-
-            PT_lvl = sequence[lvl]->GetP(dim);
-            P_lvl = ToUnique(Transpose(*PT_lvl));
-            Ps[lvl] = Assemble(coarse_dofTrueDof, *P_lvl, fine_dofTrueDof);
-        }
-
-        // Exiting successfully
-        info = 1;
-    }
-
-    //currently only 2-grid case
-    virtual void Mult(const Vector &x, Vector &y) const
-    {
-        if (info <= 0)
-        {
-            std::cout << "Error during initialization: info = " << info << ". y = x in Mult()" << std::endl;
-            y = x;
-            return;
-        }
-
-        *(fs[0]) = x;
-        // 1. Going down:
-        for ( int level = 0; level < nlevels; ++level)
-        {
-            // pre-smooth
-            //smoothedvec_lvl = Smoother_lvl * f_lvl, f_lvl = r_lvl
-            Smoothers[level]->Mult(*(fs[level]), *(smoothedvecs[level]));
-
-            // compute coarse-grid projection
-            // workvec_lvl = f_lvl - A_lvl * smoothedvec_lvl = ( I - A_lvl * Smoother_lvl ) * f_lvl
-            *(workvecs[level]) = *(fs[level]);
-            As[level]->Mult(-1.0, *(smoothedvecs[level]),1.0, *(workvecs[level]));
-
-            // restrict to the coarser level
-            // fs_lvl+1 = P^T * A_lvl * Smoother_lvl * f_lvl
-            Ps[level]->MultTranspose(*(workvecs[level]), *(fs[level + 1]));
-        }
-
-        // 2. Solving at the coarse level:
-        CoarseSolver->Mult(*(fs[nlevels - 1]), *(xs[nlevels-1]));
-
-        // 3. Going up:
-        for ( int level = nlevels - 1; level > 0; --level)
-        {
-            // prolongate
-            // workvecs_lvl-1 = P * x_lvl
-            Ps[level]->Mult(*(xs[level]), *(workvecs[level-1]));
-
-            // update current approximation
-            // x_lvl-1 = smoothedvec_lvl-1 + P * x_lvl
-            add(*(smoothedvecs[level-1]), *(workvecs[level-1]), *(xs[level-1]));
-
-            // fs_lvl-1 := fs_lvl-1 - A_lvl-1 * x_lvl-1
-            As[level-1]->Mult(-1.0, *(xs[level-1]), 1.0, *(fs[level-1]));
-
-            // post-smooth
-            // workvec_lvl-1 = Smoother_lvl-1 * f_lvl-1
-            Smoothers[level-1]->MultTranspose(*(fs[level-1]), *(workvecs[level-1]));
-
-            // finalizing on the finer level
-            *(xs[level-1]) += *(workvecs[level-1]);
-        }
-
-        y = *(xs[0]);
-
-    }
-
-    virtual void SetOperator(const Operator &op) {};
-
-    int GetInfo() {return info;}
-
-};
 
 class VectorcurlDomainLFIntegrator : public LinearFormIntegrator
 {
@@ -780,12 +426,12 @@ void curlhcurlFun3D_ex(const Vector& xt, Vector& vecvalue);
 void hcurlFun3D_2_ex(const Vector& xt, Vector& vecvalue);
 void curlhcurlFun3D_2_ex(const Vector& xt, Vector& vecvalue);
 
+void DivmatFun4D_ex(const Vector& xt, Vector& vecvalue);
+void DivmatDivmatFun4D_ex(const Vector& xt, Vector& vecvalue);
+
 double zero_ex(const Vector& xt);
 void zerovec_ex(const Vector& xt, Vector& vecvalue);
 void zerovecx_ex(const Vector& xt, Vector& zerovecx );
-
-void hcurlFun3D_ex(const Vector& xt, Vector& vecvalue);
-void curlhcurlFun3D_ex(const Vector& xt, Vector& vecvalue);
 
 void vminusone_exact(const Vector &x, Vector &vminusone);
 void vone_exact(const Vector &x, Vector &vone);
@@ -811,15 +457,15 @@ template <double (*S)(const Vector&), void (*bvecfunc)(const Vector&, Vector& )>
     double minbTbSnonhomoTemplate(const Vector& xt);
 template <double (*S)(const Vector&), void (*bvecfunc)(const Vector&, Vector& )>
     void sigmaNonHomoTemplate(const Vector& xt, Vector& sigma);
-template <double (*S)(const Vector&), void (*bvecfunc)(const Vector&, Vector& ), void (*curlhcurlvec)(const Vector&, Vector& )>
+template <double (*S)(const Vector&), void (*bvecfunc)(const Vector&, Vector& ), void (*opdivfreevec)(const Vector&, Vector& )>
         void minKsigmahatTemplate(const Vector& xt, Vector& minKsigmahatv);
-template<double (*S)(const Vector & xt), void(*bvec)(const Vector & x, Vector & vec), void (*curlhcurlvec)(const Vector&, Vector& )>
+template<double (*S)(const Vector & xt), void(*bvec)(const Vector & x, Vector & vec), void (*opdivfreevec)(const Vector&, Vector& )>
         double bsigmahatTemplate(const Vector& xt);
 template<double (*S)(const Vector & xt), void (*bvecfunc)(const Vector&, Vector& ),
-        void (*curlhcurlvec)(const Vector&, Vector& )>
+        void (*opdivfreevec)(const Vector&, Vector& )>
         void sigmahatTemplate(const Vector& xt, Vector& sigmahatv);
 template<double (*S)(const Vector & xt), void (*bvecfunc)(const Vector&, Vector& ),
-        void (*curlhcurlvec)(const Vector&, Vector& )>
+        void (*opdivfreevec)(const Vector&, Vector& )>
         void minsigmahatTemplate(const Vector& xt, Vector& sigmahatv);
 template<double (*S)(const Vector & xt), double (*dSdt)(const Vector & xt), void(*Sgradxvec)(const Vector & x, Vector & gradx), \
          void(*bvec)(const Vector & x, Vector & vec), double (*divbfunc)(const Vector & xt) > \
@@ -835,6 +481,9 @@ template<double (*S)(const Vector & xt), double (*dSdt)(const Vector & xt), void
 
 template<double (*S)(const Vector & xt), void(*bvec)(const Vector & x, Vector & vec)>
         void bSnonhomoTemplate(const Vector& xt, Vector& bSnonhomo);
+
+template<void(*bvec)(const Vector & x, Vector & vec)>
+        void minbTemplate(const Vector& xt, Vector& minb);
 
 template<double (*S)(const Vector & xt), double (*dSdt)(const Vector & xt), void(*Sgradxvec)(const Vector & x, Vector & gradx), \
         void(*bvec)(const Vector & x, Vector & vec), double (*divbfunc)(const Vector & xt) > \
@@ -858,16 +507,17 @@ class Transport_test_divfree
         FunctionCoefficient * minbTbSnonhomo;         // - b^T * b * S_nonhomo
         FunctionCoefficient * bsigmahat;              // b * sigma_hat
         VectorFunctionCoefficient * sigma;
-        VectorFunctionCoefficient * sigmahat;         // sigma_hat = sigma_exact - curl hcurlpart
+        VectorFunctionCoefficient * sigmahat;         // sigma_hat = sigma_exact - op divfreepart (curl hcurlpart in 3D)
         VectorFunctionCoefficient * b;
+        VectorFunctionCoefficient * minb;
         VectorFunctionCoefficient * bf;
         VectorFunctionCoefficient * bdivsigma;        // b * div sigma = b * initial f (before modifying it due to inhomogenuity)
         MatrixFunctionCoefficient * Ktilda;
         MatrixFunctionCoefficient * bbT;
         VectorFunctionCoefficient * sigma_nonhomo;    // to incorporate inhomogeneous boundary conditions, stores (b*S0, S0) with S(t=0) = S0
         VectorFunctionCoefficient * bSnonhomo;        // b * S_nonhomo
-        VectorFunctionCoefficient * hcurlpart;        // additional part added for testing div-free solver
-        VectorFunctionCoefficient * curlhcurlpart;    // curl of the additional part which is added to sigma_exact for testing div-free solver
+        VectorFunctionCoefficient * divfreepart;        // additional part added for testing div-free solver
+        VectorFunctionCoefficient * opdivfreepart;    // curl of the additional part which is added to sigma_exact for testing div-free solver
         VectorFunctionCoefficient * minKsigmahat;     // - K * sigma_hat
         VectorFunctionCoefficient * minsigmahat;      // -sigma_hat
     public:
@@ -885,7 +535,7 @@ class Transport_test_divfree
     private:
         template<double (*S)(const Vector & xt), double (*dSdt)(const Vector & xt), void(*Sgradxvec)(const Vector & x, Vector & gradx), \
                  void(*bvec)(const Vector & x, Vector & vec), double (*divbvec)(const Vector & xt), \
-                 void(*hcurlvec)(const Vector & x, Vector & vec), void(*curlhcurlvec)(const Vector & x, Vector & vec)> \
+                 void(*hcurlvec)(const Vector & x, Vector & vec), void(*opdivfreevec)(const Vector & x, Vector & vec)> \
         void SetTestCoeffs ( );
 
         void SetSFun( double (*S)(const Vector & xt))
@@ -920,7 +570,11 @@ class Transport_test_divfree
             sigma = new VectorFunctionCoefficient(dim, sigmaTemplate<S,bvec>);
         }
 
-        void SetbVec( void(*bvec)(const Vector & x, Vector & vec))
+        template<void(*bvec)(const Vector & x, Vector & vec)> \
+        void SetminbVec()
+        { minb = new VectorFunctionCoefficient(dim, minbTemplate<bvec>);}
+
+        void SetbVec( void(*bvec)(const Vector & x, Vector & vec) )
         { b = new VectorFunctionCoefficient(dim, bvec);}
 
         template< void(*bvec)(const Vector & x, Vector & vec)>  \
@@ -943,7 +597,7 @@ class Transport_test_divfree
 
         template<double (*S)(const Vector & xt), double (*dSdt)(const Vector & xt), void(*Sgradxvec)(const Vector & x, Vector & gradx), \
                  void(*bvec)(const Vector & x, Vector & vec), double (*divbfunc)(const Vector & xt)> \
-        void SetDivSigma()
+        void SetdivSigma()
         { scalardivsigma = new FunctionCoefficient(divsigmaTemplate<S, dSdt, Sgradxvec, bvec, divbfunc>);}
 
         template<double (*S)(const Vector & xt), double (*dSdt)(const Vector & xt), void(*Sgradxvec)(const Vector & x, Vector & gradx), \
@@ -956,29 +610,29 @@ class Transport_test_divfree
         void SetbdivsigmaVec()
         { bdivsigma = new VectorFunctionCoefficient(dim, bdivsigmaTemplate<S,dSdt,Sgradxvec,bvec,divbfunc>);}
 
-        void SetHcurlPart( void(*hcurlvec)(const Vector & x, Vector & vec))
-        { hcurlpart = new VectorFunctionCoefficient(dim, hcurlvec);}
+        void SetDivfreePart( void(*divfreevec)(const Vector & x, Vector & vec))
+        { divfreepart = new VectorFunctionCoefficient(dim, divfreevec);}
 
-        void SetcurlHcurlPart( void(*curlhcurlvec)(const Vector & x, Vector & vec))
-        { curlhcurlpart = new VectorFunctionCoefficient(dim, curlhcurlvec);}
+        void SetOpDivfreePart( void(*opdivfreevec)(const Vector & x, Vector & vec))
+        { opdivfreepart = new VectorFunctionCoefficient(dim, opdivfreevec);}
 
-        template<double (*S)(const Vector & xt), void(*bvec)(const Vector & x, Vector & vec), void(*curlhcurlvec)(const Vector & x, Vector & vec)> \
+        template<double (*S)(const Vector & xt), void(*bvec)(const Vector & x, Vector & vec), void(*opdivfreevec)(const Vector & x, Vector & vec)> \
         void SetminKsigmahat()
-        { minKsigmahat = new VectorFunctionCoefficient(dim, minKsigmahatTemplate<S, bvec, curlhcurlvec>);}
+        { minKsigmahat = new VectorFunctionCoefficient(dim, minKsigmahatTemplate<S, bvec, opdivfreevec>);}
 
-        template<double (*S)(const Vector & xt), void(*bvec)(const Vector & x, Vector & vec), void(*curlhcurlvec)(const Vector & x, Vector & vec)> \
+        template<double (*S)(const Vector & xt), void(*bvec)(const Vector & x, Vector & vec), void(*opdivfreevec)(const Vector & x, Vector & vec)> \
         void Setbsigmahat()
-        { bsigmahat = new FunctionCoefficient(bsigmahatTemplate<S, bvec, curlhcurlvec>);}
+        { bsigmahat = new FunctionCoefficient(bsigmahatTemplate<S, bvec, opdivfreevec>);}
 
         template<double (*S)(const Vector & xt), void (*bvec)(const Vector&, Vector& ),
-                 void(*curlhcurlvec)(const Vector & x, Vector & vec)> \
+                 void(*opdivfreevec)(const Vector & x, Vector & vec)> \
         void Setsigmahat()
-        { sigmahat = new VectorFunctionCoefficient(dim, sigmahatTemplate<S, bvec, curlhcurlvec>);}
+        { sigmahat = new VectorFunctionCoefficient(dim, sigmahatTemplate<S, bvec, opdivfreevec>);}
 
         template<double (*S)(const Vector & xt), void (*bvec)(const Vector&, Vector& ),
-                 void(*curlhcurlvec)(const Vector & x, Vector & vec)> \
+                 void(*opdivfreevec)(const Vector & x, Vector & vec)> \
         void Setminsigmahat()
-        { minsigmahat = new VectorFunctionCoefficient(dim, minsigmahatTemplate<S, bvec, curlhcurlvec>);}
+        { minsigmahat = new VectorFunctionCoefficient(dim, minsigmahatTemplate<S, bvec, opdivfreevec>);}
 
         template<double (*S)(const Vector & xt), void (*bvec)(const Vector&, Vector& )>
         void SetbSnonhomoVec()
@@ -988,12 +642,13 @@ class Transport_test_divfree
 
 template<double (*S)(const Vector & xt), double (*dSdt)(const Vector & xt), void(*Sgradxvec)(const Vector & x, Vector & gradx),  \
          void(*bvec)(const Vector & x, Vector & vec), double (*divbfunc)(const Vector & xt), \
-         void(*hcurlvec)(const Vector & x, Vector & vec), void(*curlhcurlvec)(const Vector & x, Vector & vec)> \
+         void(*divfreevec)(const Vector & x, Vector & vec), void(*opdivfreevec)(const Vector & x, Vector & vec)> \
 void Transport_test_divfree::SetTestCoeffs ()
 {
     SetSFun(S);
     SetSNonhomo<S>();
     SetScalarfFun<S, dSdt, Sgradxvec, bvec, divbfunc>();
+    SetminbVec<bvec>();
     SetbVec(bvec);
     SetbSnonhomoVec<S, bvec>();
     SetbfVec<S, dSdt, Sgradxvec, bvec, divbfunc>();
@@ -1003,13 +658,13 @@ void Transport_test_divfree::SetTestCoeffs ()
     SetScalarBtB<bvec>();
     SetminbTbSnonhomo<S, bvec>();
     SetSigmaNonhomoVec<S,bvec>();
-    SetDivSigma<S, dSdt, Sgradxvec, bvec, divbfunc>();
-    SetHcurlPart(hcurlvec);
-    SetcurlHcurlPart(curlhcurlvec);
-    SetminKsigmahat<S, bvec, curlhcurlvec>();
-    Setbsigmahat<S, bvec, curlhcurlvec>();
-    Setsigmahat<S, bvec, curlhcurlvec>();
-    Setminsigmahat<S, bvec, curlhcurlvec>();
+    SetdivSigma<S, dSdt, Sgradxvec, bvec, divbfunc>();
+    SetDivfreePart(divfreevec);
+    SetOpDivfreePart(opdivfreevec);
+    SetminKsigmahat<S, bvec, opdivfreevec>();
+    Setbsigmahat<S, bvec, opdivfreevec>();
+    Setsigmahat<S, bvec, opdivfreevec>();
+    Setminsigmahat<S, bvec, opdivfreevec>();
     SetBBtMat<bvec>();
     return;
 }
@@ -1019,7 +674,7 @@ bool Transport_test_divfree::CheckTestConfig()
 {
     if (dim == 4 || dim == 3)
     {
-        if ( numsol == 0 && dim == 3 )
+        if ( numsol == 0 && dim >= 3 )
             return true;
         if ( numsol == 2 && dim == 3 )
             return true;
@@ -1039,19 +694,27 @@ Transport_test_divfree::Transport_test_divfree (int Dim, int NumSol, int NumCurl
     numcurl = NumCurl;
 
     if ( CheckTestConfig() == false )
-        std::cout << "Inconsistent dim and numsol" << std::endl << std::flush;
+        std::cout << "Inconsistent dim = " << dim << " and numsol = " << numsol <<  std::endl << std::flush;
     else
     {
         if (numsol == 0)
         {
-            //std::cout << "The domain must be a cylinder over a square" << std::endl << std::flush;
-            //SetTestCoeffs<&uFun4_ex, &uFun4_ex_dt, &uFun4_ex_gradx, &bFunRect2D_ex, &bFunRect2Ddiv_ex, &cas_weight, &hcurlFun3D_ex, &curlhcurlFun3D_ex>();
-            if (numcurl == 1)
-                SetTestCoeffs<&zero_ex, &zero_ex, &zerovecx_ex, &bFunRect2D_ex, &bFunRect2Ddiv_ex, &hcurlFun3D_ex, &curlhcurlFun3D_ex>();
-            else if (numcurl == 2)
-                SetTestCoeffs<&zero_ex, &zero_ex, &zerovecx_ex, &bFunRect2D_ex, &bFunRect2Ddiv_ex, &hcurlFun3D_2_ex, &curlhcurlFun3D_2_ex>();
-            else
-                SetTestCoeffs<&zero_ex, &zero_ex, &zerovecx_ex, &bFunRect2D_ex, &bFunRect2Ddiv_ex, &zerovec_ex, &zerovec_ex>();
+            if (dim == 3)
+            {
+                if (numcurl == 1)
+                    SetTestCoeffs<&zero_ex, &zero_ex, &zerovecx_ex, &bFunRect2D_ex, &bFunRect2Ddiv_ex, &hcurlFun3D_ex, &curlhcurlFun3D_ex>();
+                else if (numcurl == 2)
+                    SetTestCoeffs<&zero_ex, &zero_ex, &zerovecx_ex, &bFunRect2D_ex, &bFunRect2Ddiv_ex, &hcurlFun3D_2_ex, &curlhcurlFun3D_2_ex>();
+                else
+                    SetTestCoeffs<&zero_ex, &zero_ex, &zerovecx_ex, &bFunRect2D_ex, &bFunRect2Ddiv_ex, &zerovec_ex, &zerovec_ex>();
+            }
+            if (dim > 3)
+            {
+                if (numcurl == 1)
+                    SetTestCoeffs<&zero_ex, &zero_ex, &zerovecx_ex, &bFunCube3D_ex, &bFunCube3Ddiv_ex, &DivmatFun4D_ex, &DivmatDivmatFun4D_ex>();
+                else
+                    SetTestCoeffs<&zero_ex, &zero_ex, &zerovecx_ex, &bFunCube3D_ex, &bFunCube3Ddiv_ex, &zerovec_ex, &zerovec_ex>();
+            }
         }
         if (numsol == 2)
         {
@@ -1078,7 +741,6 @@ Transport_test_divfree::Transport_test_divfree (int Dim, int NumSol, int NumCurl
     } // end of setting test coefficients in correct case
 }
 
-
 int main(int argc, char *argv[])
 {
     int num_procs, myid;
@@ -1092,8 +754,8 @@ int main(int argc, char *argv[])
 
     bool verbose = (myid == 0);
 
-    int nDimensions     = 3;
-    int numsol          = 4;
+    int nDimensions     = 4;
+    int numsol          = 0;
     int numcurl         = 1;
 
     int ser_ref_levels  = 0;
@@ -1107,8 +769,9 @@ int main(int argc, char *argv[])
     int bnd_method          = 1;
     int local_method        = 2;
 
+    bool withDiv = false;
     bool withS = false;
-    bool blockedversion = false;
+    bool blockedversion = true;
 
     // solver options
     int prec_option = 0;        // defines whether to use preconditioner or not, and which one
@@ -1130,9 +793,9 @@ int main(int argc, char *argv[])
     //const char * meshbase_file = "../build3/meshes/sphere3D_0.05to0.1.mesh";
     //const char * meshbase_file = "../build3/meshes/sphere3D_veryfine.mesh";
     //const char * meshbase_file = "../build3/meshes/orthotope3D_moderate.mesh";
-    //const char * meshbase_file = "../build3/meshes/orthotope3D_fine.mesh";
+    const char * meshbase_file = "../data/orthotope3D_fine.mesh";
     //const char * meshbase_file = "../build3/meshes/square_2d_moderate.mesh";
-    const char * meshbase_file = "../build3/meshes/square_2d_fine.mesh";
+    //const char * meshbase_file = "../data/square_2d_fine.mesh";
     //const char * meshbase_file = "../build3/meshes/square-disc.mesh";
     //const char *meshbase_file = "dsadsad";
     //const char * meshbase_file = "../build3/meshes/circle_fine_0.1.mfem";
@@ -1213,14 +876,6 @@ int main(int argc, char *argv[])
         cout << "with_prec = " << with_prec << endl;
         cout << "prec_is_MG = " << prec_is_MG << endl;
         cout << flush;
-    }
-
-    if (nDimensions == 4)
-    {
-        if (verbose)
-            cout << "4D case is not implemented - not a curl problem should be solved there!" << endl;
-        MPI_Finalize();
-        return -1;
     }
 
     StopWatch chrono;
@@ -1366,7 +1021,7 @@ int main(int argc, char *argv[])
         }
 
     }
-    else //if nDimensions is no 3 or 4
+    else //if nDimensions is not 3 or 4
     {
         if (verbose)
             cerr << "Case nDimensions = " << nDimensions << " is not supported"
@@ -1416,91 +1071,87 @@ int main(int argc, char *argv[])
 
     int dim = nDimensions;
 
-    if (dim != 3)
-    {
-        if (verbose)
-            cout << "For now only 3D case is considered" << endl;
-        MPI_Finalize();
-        return 0;
-    }
+    shared_ptr<mfem::HypreParMatrix> A;
+    HypreParMatrix Amat;
+    Vector Xdebug;
+    Vector X, B;
+    ParBilinearForm *Ablock;
+    ParLinearForm *ffform;
 
-    FiniteElementCollection *h1_coll;
-    if (dim == 4)
-    {
-        h1_coll = new LinearFECollection;
-        if (verbose)
-            cout << "H1 in 4D: linear elements are used" << endl;
-    }
-    else
-    {
-        h1_coll = new H1_FECollection(feorder+1, dim);
-        if(verbose)
-            cout << "H1: order " << feorder + 1 << " for 3D" << endl;
-    }
+    FiniteElementCollection *hdivfree_coll;
+    ParFiniteElementSpace *C_space;
+    FiniteElementCollection *hdiv_coll;
+    ParFiniteElementSpace *R_space;
+    FiniteElementCollection *l2_coll;
+    ParFiniteElementSpace *W_space;
 
-    FiniteElementCollection *hcurl_coll;
-    if ( dim == 4 )
+    if (dim == 3)
     {
-       hcurl_coll = new ND1_4DFECollection;
-       if (verbose)
-           cout << "ND: order 1 for 4D" << endl;
+        hdivfree_coll = new ND_FECollection(feorder + 1, nDimensions);
+        C_space = new ParFiniteElementSpace(pmesh.get(), hdivfree_coll);
     }
-    else
+    else // dim == 4
     {
-        hcurl_coll = new ND_FECollection(feorder+1, dim);
-        if (verbose)
-            cout << "ND: order " << feorder + 1 << " for 3D" << endl;
-    }
+        hdivfree_coll = new DivSkew1_4DFECollection;
+        C_space = new ParFiniteElementSpace(pmesh.get(), hdivfree_coll);
 
-    ParFiniteElementSpace *C_space = new ParFiniteElementSpace(pmesh.get(), hcurl_coll);
-
-    //////////////////////////////////////////////////
-    {
-        if (verbose)
-            std::cout << "Computing projection errors \n";
+        //testing ProjectCoefficient
+        VectorCoefficient * divfreepartcoeff = new VectorFunctionCoefficient(dim, DivmatFun4D_ex);
         ParGridFunction *u_exact = new ParGridFunction(C_space);
-        u_exact->ProjectCoefficient(*(Mytest.hcurlpart));
-        int order_quad = std::max(2, 2*feorder+1);
+        u_exact->ProjectCoefficient(*divfreepartcoeff);//(*(Mytest.divfreepart));
+
+        if (verbose)
+            std::cout << "ProjectCoefficient is ok with vectors \n";
+        //u_exact->Print();
+
+        // checking projection error computation
+        int order_quad = max(2, 2*feorder+1);
         const IntegrationRule *irs[Geometry::NumGeom];
         for (int i=0; i < Geometry::NumGeom; ++i)
         {
            irs[i] = &(IntRules.Get(i, order_quad));
         }
 
-        double norm_u = ComputeGlobalLpNorm(2, *(Mytest.hcurlpart), *pmesh, irs);
-
-        double projection_error_u = u_exact->ComputeL2Error(*(Mytest.hcurlpart), irs);
+        double norm_u = ComputeGlobalLpNorm(2, *divfreepartcoeff, *pmesh, irs);
+        double projection_error_u = u_exact->ComputeL2Error(*divfreepartcoeff, irs);
 
         if(verbose)
-            if (norm_u > MYZEROTOL)
-            {
-                std::cout << "Debug: || u_ex || = " << norm_u << "\n";
-                std::cout << "Debug: proj error = " << projection_error_u << "\n";
-                std::cout << "|| u_ex - Pi_h u_ex || / || u_ex || = "
-                                << projection_error_u / norm_u << "\n";
-            }
+            if ( norm_u > MYZEROTOL )
+                std::cout << "|| u_ex - Pi_h u_ex || / || u_ex || = " << projection_error_u / norm_u << "\n";
             else
-                std::cout << "|| Pi_h u_ex || = "
-                                << projection_error_u  << " ( u_ex = 0 ) \n";
+                std::cout << "|| Pi_h u_ex || = " << projection_error_u << " (u_ex = 0) \n ";
+
+        MPI_Finalize();
+        return -1;
     }
-    //////////////////////////////////////////////////
 
-
-    ParFiniteElementSpace *H_space = new ParFiniteElementSpace(pmesh.get(), h1_coll);
-
-    HYPRE_Int dimC = C_space->GlobalTrueVSize();
-    HYPRE_Int dimH;
-    if (withS)
-        dimH = H_space->GlobalTrueVSize();
-    if (verbose)
+    // how to make it working?
+    //MFEM_ASSERT(dim == 3, "For now only 3D case is considered \n");
+    if (nDimensions == 4)
     {
-       std::cout << "***********************************************************\n";
-       std::cout << "dim(C) = " << dimC << "\n";
-       if (withS)
-           std::cout << "dim(H) = " << dimH << ", ";
-       if (withS)
-           std::cout << "dim(C+H) = " << dimC + dimH << "\n";
-       std::cout << "***********************************************************\n";
+        if (verbose)
+            std::cout << "4D case is not implemented - not a curl problem should be solved there! \n";
+        MPI_Finalize();
+        return -1;
+    }
+
+
+    FiniteElementCollection *h1_coll;
+    ParFiniteElementSpace *H_space;
+    if (withS)
+    {
+        h1_coll = new H1_FECollection(feorder+1, nDimensions);
+        H_space = new ParFiniteElementSpace(pmesh.get(), h1_coll);
+    }
+
+    // the space for sigma in the original problem
+    hdiv_coll = new RT_FECollection(feorder, nDimensions);
+    R_space = new ParFiniteElementSpace(pmesh.get(), hdiv_coll);
+
+    if (withDiv)
+    {
+        l2_coll = new L2_FECollection(feorder, nDimensions);
+        W_space = new ParFiniteElementSpace(pmesh.get(), l2_coll);
     }
 
     int numblocks = 1;
@@ -1521,46 +1172,36 @@ int main(int argc, char *argv[])
         block_trueOffsets[2] = H_space->TrueVSize();
     block_trueOffsets.PartialSum();
 
-    BlockVector x(block_offsets), rhs(block_offsets);
+    HYPRE_Int dimC = C_space->GlobalTrueVSize();
+    HYPRE_Int dimR = R_space->GlobalTrueVSize();
+    HYPRE_Int dimH;
+    if (withS)
+        dimH = H_space->GlobalTrueVSize();
+    if (verbose)
+    {
+       std::cout << "***********************************************************\n";
+       std::cout << "dim(C) = " << dimC << "\n";
+       if (withS)
+           std::cout << "dim(H) = " << dimH << ", ";
+       if (withS)
+           std::cout << "dim(C+H) = " << dimC + dimH << "\n";
+       if (withDiv)
+           std::cout << "dim(R) = " << dimR << ", ";
+       std::cout << "***********************************************************\n";
+    }
+
+    BlockVector xblks(block_offsets), rhsblks(block_offsets);
     BlockVector trueX(block_trueOffsets), trueRhs(block_trueOffsets);
-    x = 0.0;
-    rhs = 0.0;
+    xblks = 0.0;
+    rhsblks = 0.0;
     trueX = 0.0;
     trueRhs = 0.0;
-
-    ParGridFunction * u(new ParGridFunction(C_space)); // curl u will be in Hdiv
-    ParGridFunction * S(new ParGridFunction(H_space));
 
     //VectorFunctionCoefficient f(dim, f_exact);
     //VectorFunctionCoefficient vone(dim, vone_exact);
     //VectorFunctionCoefficient vminusone(dim, vminusone_exact);
     //VectorFunctionCoefficient E(dim, E_exact);
     //VectorFunctionCoefficient curlE(dim, curlE_exact);
-
-    ParGridFunction *S_exact = new ParGridFunction(H_space);
-    S_exact->ProjectCoefficient(*(Mytest.scalarS));
-
-    ParGridFunction *u_exact = new ParGridFunction(C_space);
-    u_exact->ProjectCoefficient(*(Mytest.hcurlpart));
-    //u_exact->ProjectCoefficient(E);
-
-    //cout << "Before: " << x.GetBlock(0)[0] << endl;
-
-    if (withS || blockedversion)
-    {
-        x.GetBlock(0) = *u_exact;
-        if (withS)
-            x.GetBlock(1) = *S_exact;
-    }
-    else
-    {
-        *u = *u_exact;
-    }
-
-    //cout << "After: " << x.GetBlock(0)[0] << endl;
-
-    //u->ProjectCoefficient(E); // this is required because of non-zero boundary conditions
-    //*u = 0.0;
 
     //----------------------------------------------------------
     // Setting boundary conditions.
@@ -1569,20 +1210,24 @@ int main(int argc, char *argv[])
     Array<int> ess_tdof_listU, ess_bdrU(pmesh->bdr_attributes.Max());
     ess_bdrU = 0;
 
+    MFEM_ASSERT(pmesh->bdr_attributes.Max() == 3, "Remove before proceeding: are you sure about number of bdr attributes? \n");
+
     if (withS)
-    {
-        //ess_bdrU[0] = 1;
-        //ess_bdrU = 1;
-    }
-    /*
-    else
-    */
-    if (!withS)
     {
         ess_bdrU[0] = 1;
         ess_bdrU[1] = 1;
+        //ess_bdrU = 1;
+        //ess_bdrU[pmesh->bdr_attributes.Max() - 1] = 0;
     }
-    //ess_bdrU[2] = 1;
+    else
+    {
+        // correct, working
+        ess_bdrU = 1;
+        ess_bdrU[pmesh->bdr_attributes.Max() - 1] = 0;
+
+        //ess_bdrU[0] = 1;
+        //ess_bdrU[1] = 1;
+    }
     C_space->GetEssentialTrueDofs(ess_bdrU, ess_tdof_listU);
 
     Array<int> ess_tdof_listS, ess_bdrS(pmesh->bdr_attributes.Max());
@@ -1598,155 +1243,281 @@ int main(int argc, char *argv[])
     //VectorFunctionCoefficient * vzero = new VectorFunctionCoefficient(dim, zerovec_ex);
     //Coefficient *zero = new ConstantCoefficient(0.0);
 
-    ParLinearForm *fform(new ParLinearForm(C_space));
-    //fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
-    //fform->AddDomainIntegrator(new VectorcurlDomainLFIntegrator(vone));
-    //fform->AddDomainIntegrator(new VectorcurlDomainLFIntegrator(curlE));
-    //fform->AddBoundaryIntegrator(new VectorFEBoundaryTangentLFIntegrator(curlE));
-    if (withS)
+    ParGridFunction * Sigmahat = new ParGridFunction(R_space);
+    ParGridFunction * Temp = new ParGridFunction(R_space);
+    if (withDiv)
     {
-        fform->Update(C_space, rhs.GetBlock(0), 0);
-        fform->AddDomainIntegrator(new VectorcurlDomainLFIntegrator(*(Mytest.minsigmahat)));
+        if (verbose)
+            std::cout << "Assembling linear system for finding sigmahat \n";
 
-        //fform->AddBoundaryIntegrator(new VectorFEBoundaryTangentLFIntegrator(vminusone));
-        //fform->AddDomainIntegrator(new VectorcurlDomainLFIntegrator(*(Mytest.bSnonhomo))); // not needed
+        ParGridFunction *sigma_exact;
+        ParLinearForm *gform(new ParLinearForm);
+        ParMixedBilinearForm *Bblock;
+        HypreParMatrix *Bdiv, *BdivT;
+        HypreParMatrix *BBT;
+        HypreParVector *Rhs;
+
+        sigma_exact = new ParGridFunction(R_space);
+        sigma_exact->ProjectCoefficient(*(Mytest.sigma));
+
+        gform = new ParLinearForm(W_space);
+        gform->AddDomainIntegrator(new DomainLFIntegrator(*Mytest.scalardivsigma));
+        gform->Assemble();
+
+        Bblock = new ParMixedBilinearForm(R_space, W_space);
+        Bblock->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+        Bblock->Assemble();
+        Bblock->EliminateTrialDofs(ess_bdrU, *sigma_exact, *gform);
+
+        Bblock->Finalize();
+        Bdiv = Bblock->ParallelAssemble();
+        BdivT = Bdiv->Transpose();
+        BBT = ParMult(Bdiv, BdivT);
+        Rhs = gform->ParallelAssemble();
+
+        HypreBoomerAMG * invBBT = new HypreBoomerAMG(*BBT);
+        invBBT->SetPrintLevel(0);
+
+        mfem::CGSolver solver(comm);
+        solver.SetPrintLevel(1);
+        solver.SetMaxIter(70000);
+        solver.SetRelTol(1.0e-16);
+        solver.SetAbsTol(1.0e-16);
+        solver.SetPreconditioner(*invBBT);
+        solver.SetOperator(*BBT);
+
+        ParGridFunction * Temphat = new ParGridFunction(W_space);
+        solver.Mult(*Rhs, *Temphat);
+
+        BdivT->Mult(*Temphat, *Temp);
+
+        Sigmahat->Distribute(*Temp);
+        //Sigmahat->SetFromTrueDofs(*Temp);
     }
     else
     {
-        if (blockedversion)
-            fform->Update(C_space, rhs.GetBlock(0), 0);
-        fform->AddDomainIntegrator(new VectorcurlDomainLFIntegrator(*(Mytest.minKsigmahat)));
-        //fform->AddBoundaryIntegrator(new VectorFEBoundaryTangentLFIntegrator(*(Mytest.minKsigmahat)));
+        Sigmahat->ProjectCoefficient(*(Mytest.sigmahat));
     }
-    fform->Assemble();
 
-    ParLinearForm *qform(new ParLinearForm);
+    ParGridFunction *u_exact = new ParGridFunction(C_space);
+    u_exact->ProjectCoefficient(*(Mytest.divfreepart));
+
+    ParGridFunction *S_exact;
     if (withS)
     {
-        qform->Update(H_space, rhs.GetBlock(1), 0);
-        //qform->AddDomainIntegrator(new DomainLFIntegrator(zero));
-        //qform->AddDomainIntegrator(new GradDomainLFIntegrator(bfFun));
-        qform->AddDomainIntegrator(new GradDomainLFIntegrator(*Mytest.bdivsigma));
-        qform->AddDomainIntegrator(new DomainLFIntegrator(*Mytest.bsigmahat));
-        //qform->AddDomainIntegrator(new DomainLFIntegrator(*Mytest.minbTbSnonhomo)); // not needed
-        qform->Assemble();//qform->Print();
-        //qform->ParallelAssemble(trueRhs.GetBlock(1));
+        S_exact = new ParGridFunction(H_space);
+        S_exact->ProjectCoefficient(*(Mytest.scalarS));
     }
 
-    if (verbose)
-        cout << "Righhand side is assembled" << endl;
+    if (blockedversion || withS)
+    {
+        if (withDiv)
+            xblks.GetBlock(0) = 0.0;
+        else
+            xblks.GetBlock(0) = *u_exact;
+    }
+    if (withS)
+        xblks.GetBlock(1) = *S_exact;
 
 
-    ParBilinearForm *Ablock(new ParBilinearForm(C_space));
-    HypreParMatrix *A;
-    HypreParMatrix Amat;
-    Vector B, X;
-    Coefficient *one = new ConstantCoefficient(1.0);
-    //Ablock->AddDomainIntegrator(new CurlCurlIntegrator(*one));
-    //Ablock->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
-    if (!withS)
+    ffform = new ParLinearForm(C_space);
+    if (!withDiv)
+    {
+        if (withS)
+        {
+            ffform->Update(C_space, rhsblks.GetBlock(0), 0);
+#ifdef DEBUG
+            ParMixedBilinearForm * Tblock = new ParMixedBilinearForm(R_space, C_space);
+            Tblock->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator);
+            Tblock->Assemble();
+            Tblock->EliminateTestDofs(ess_bdrU);
+            Tblock->Finalize();
+            //HypreParMatrix * T = Tblock->ParallelAssemble();
+            *Sigmahat *= -1.0;
+            Tblock->Mult(*Sigmahat, *ffform);
+            //T->Mult(*Sigmahat, *ffform);
+            *Sigmahat *= -1.0;
+#else
+            ffform->AddDomainIntegrator(new VectorcurlDomainLFIntegrator(*(Mytest.minsigmahat)));
+            ffform->Assemble();
+#endif
+        }
+        else
+        {
+            if (blockedversion)
+                ffform->Update(C_space, rhsblks.GetBlock(0), 0);
+            //else
+                //ffform->Update(C_space, *u_exact, 0);
+#ifdef DEBUG
+            ParMixedBilinearForm * Tblock = new ParMixedBilinearForm(R_space, C_space);
+            Tblock->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*Mytest.Ktilda));
+            Tblock->Assemble();
+            Tblock->EliminateTestDofs(ess_bdrU);
+            Tblock->Finalize();
+            *Sigmahat *= -1.0;
+
+            Tblock->Mult(*Sigmahat, *ffform);
+
+            *Sigmahat *= -1.0;
+#else
+            ffform->AddDomainIntegrator(new VectorcurlDomainLFIntegrator(*(Mytest.minKsigmahat)));
+            ffform->Assemble();
+#endif
+        }
+    }
+    else // if withDiv = true
+    {
+        if (withS)
+        {
+            ParMixedBilinearForm * Tblock = new ParMixedBilinearForm(R_space, C_space);
+            Tblock->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator);
+            Tblock->Assemble();
+            Tblock->EliminateTestDofs(ess_bdrU);
+            Tblock->Finalize();
+            //HypreParMatrix * T = Tblock->ParallelAssemble();
+            *Sigmahat *= -1.0;
+            Tblock->Mult(*Sigmahat, *ffform);
+            //T->Mult(*Sigmahat, *ffform);
+            *Sigmahat *= -1.0;
+        }
+        else
+        {
+            //if (print_progress_report)
+                //std::cout << "withHdiv is not implemented for withS = false case \n";
+
+            if (blockedversion)
+                ffform->Update(C_space, rhsblks.GetBlock(0), 0);
+
+            ParMixedBilinearForm * Tblock = new ParMixedBilinearForm(R_space, C_space);
+            Tblock->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*Mytest.Ktilda));
+            Tblock->Assemble();
+            Tblock->EliminateTestDofs(ess_bdrU);
+            Tblock->Finalize();
+            *Sigmahat *= -1.0;
+            Tblock->Mult(*Sigmahat, *ffform);
+            *Sigmahat *= -1.0;
+        }
+    }
+
+    ParLinearForm *qform(new ParLinearForm);
+    ParGridFunction * tmp_to_add;
+    if (withS)
+    {
+        if (!withDiv)
+        {
+            qform->Update(H_space, rhsblks.GetBlock(1), 0);
+            qform->AddDomainIntegrator(new GradDomainLFIntegrator(*Mytest.bdivsigma));
+#ifdef DEBUG
+            ParMixedBilinearForm * LTblock = new ParMixedBilinearForm(H_space, R_space);
+            LTblock->AddDomainIntegrator(new MixedVectorProductIntegrator(*(Mytest.b)));
+            LTblock->Assemble();
+            LTblock->EliminateTestDofs(ess_bdrS);
+            //LTblock->EliminateTrialDofs(ess_bdrU);
+            LTblock->Finalize();
+            //HypreParMatrix * LT = LTblock->ParallelAssemble();
+            //tmp_to_add = new ParGridFunction(H_space);
+            //LT->MultTranspose(*Sigmahat, *tmp_to_add);
+            tmp_to_add = new ParGridFunction(H_space);
+            LTblock->MultTranspose(*Sigmahat, *tmp_to_add);
+#else
+            qform->AddDomainIntegrator(new DomainLFIntegrator(*Mytest.bsigmahat));
+#endif
+            qform->Assemble();
+#ifdef DEBUG
+            *qform += *tmp_to_add;
+#endif
+        }
+        else
+        {
+            //if (print_progress_report)
+                //std::cout << "A required change of rh side qform is not implemented yet for withDiv case \n";
+            qform->Update(H_space, rhsblks.GetBlock(1), 0);
+            qform->AddDomainIntegrator(new GradDomainLFIntegrator(*Mytest.bdivsigma));
+            qform->Assemble();
+
+            ParMixedBilinearForm * LTblock = new ParMixedBilinearForm(H_space, R_space);
+            LTblock->AddDomainIntegrator(new MixedVectorProductIntegrator(*(Mytest.b)));
+            LTblock->Assemble();
+            LTblock->EliminateTestDofs(ess_bdrS);
+            //LTblock->EliminateTrialDofs(ess_bdrU);
+            LTblock->Finalize();
+
+            tmp_to_add = new ParGridFunction(H_space);
+            LTblock->MultTranspose(*Sigmahat, *tmp_to_add);
+
+            *qform += *tmp_to_add;
+        }
+    }
+
+    Ablock = new ParBilinearForm(C_space);
+    if (withS)
+    {
+        Coefficient *one = new ConstantCoefficient(1.0);
+        Ablock->AddDomainIntegrator(new CurlCurlIntegrator(*one));
+        Ablock->Assemble();
+        Ablock->EliminateEssentialBC(ess_bdrU,xblks.GetBlock(0),*ffform);
+        Ablock->Finalize();
+        HypreParMatrix * tempA = Ablock->ParallelAssemble();
+        A = make_shared<HypreParMatrix>(*tempA);
+    }
+    else //if (!withS)
     {
         Ablock->AddDomainIntegrator(new CurlCurlIntegrator(*(Mytest.Ktilda)));
         Ablock->Assemble();
         if (blockedversion)
         {
-            Ablock->EliminateEssentialBC(ess_bdrU,x.GetBlock(0),*fform);
+            Ablock->EliminateEssentialBC(ess_bdrU,xblks.GetBlock(0),*ffform);
             Ablock->Finalize();
-            A = Ablock->ParallelAssemble();
+            HypreParMatrix * tempA = Ablock->ParallelAssemble();
+            A = make_shared<HypreParMatrix>(*tempA);
         }
     }
-    else
-    {
-        Ablock->AddDomainIntegrator(new CurlCurlIntegrator(*one));
-        Ablock->Assemble();
-        Ablock->EliminateEssentialBC(ess_bdrU,x.GetBlock(0),*fform);
-        Ablock->Finalize();
-        A = Ablock->ParallelAssemble();
-    }
 
-    ParBilinearForm *Cblock(new ParBilinearForm(H_space));
+    ParBilinearForm *Cblock;
     HypreParMatrix *C;
 
     if (withS)
     {
-        //Cblock->AddDomainIntegrator(new MassIntegrator(bTb));
-        //Cblock->AddDomainIntegrator(new DiffusionIntegrator(bbT));
+        Cblock = new ParBilinearForm(H_space);
         Cblock->AddDomainIntegrator(new MassIntegrator(*Mytest.bTb));
         Cblock->AddDomainIntegrator(new DiffusionIntegrator(*Mytest.bbT));
         Cblock->Assemble();
-        Cblock->EliminateEssentialBC(ess_bdrS, x.GetBlock(1),*qform);
+        Cblock->EliminateEssentialBC(ess_bdrS, xblks.GetBlock(1),*qform);
         Cblock->Finalize();
         C = Cblock->ParallelAssemble();
     }
 
-    ParMixedBilinearForm *CHblock(new ParMixedBilinearForm(C_space, H_space));
+    ParMixedBilinearForm *CHblock;
     HypreParMatrix *CH, *CHT;
 
-    //VectorFunctionCoefficient vone(dim, vone_exact);
     if (withS)
     {
-        CHblock->AddDomainIntegrator(new VectorFECurlVQIntegrator(*Mytest.b));
+        CHblock = new ParMixedBilinearForm(C_space, H_space);
+        CHblock->AddDomainIntegrator(new VectorFECurlVQIntegrator(*Mytest.minb));
         CHblock->Assemble();
         CHblock->EliminateTestDofs(ess_bdrS);
-        CHblock->EliminateTrialDofs(ess_bdrU, x.GetBlock(0), *qform);
 
-        // maybe this way?
-        //CHblock->EliminateTrialDofs(ess_bdrS, x.GetBlock(1), *qform);
-        //CHblock->EliminateTestDofs(ess_bdrU);
+        CHblock->EliminateTrialDofs(ess_bdrU, xblks.GetBlock(0), *qform);
 
         CHblock->Finalize();
         CH = CHblock->ParallelAssemble();
-        *CH *= -1.;
         CHT = CH->Transpose();
     }
 
-    if (withS || blockedversion)
+    if (blockedversion || withS)
     {
-        fform->ParallelAssemble(trueRhs.GetBlock(0));
-        if (withS)
-            qform->ParallelAssemble(trueRhs.GetBlock(1));
+        ffform->ParallelAssemble(trueRhs.GetBlock(0));
     }
-
-    //trueRhs.GetBlock(1) = 0.0;
-    //trueRhs.GetBlock(1).Print();
-
     if (withS)
     {
-        ParGridFunction * tmp = new ParGridFunction(C_space);
-        CHT->Mult(*S_exact, *tmp);
-        //trueRhs.GetBlock(0) = *tmp;
-        *tmp -= trueRhs.GetBlock(0);
-        if (verbose)
-            cout << "norm of rel. residual for first eqn with u=0 and S_exact: " << tmp->Norml2() / trueRhs.GetBlock(0).Norml2() << endl;
-
-
-        ParGridFunction * tmpplus = new ParGridFunction(C_space);
-        A->Mult(*u_exact, *tmpplus);
-        *tmp += *tmpplus;
-        //tmpplus->Print();
-        if (verbose)
-            cout << "norm of rel. residual for first eqn with u=u_exact and S_exact: " << tmp->Norml2() / trueRhs.GetBlock(0).Norml2() << endl;
-
-
-        ParGridFunction * tmp2 = new ParGridFunction(H_space);
-        C->Mult(*S_exact, *tmp2);
-        //trueRhs.GetBlock(1) = *tmp2;
-        *tmp2 -= trueRhs.GetBlock(1);
-        if (verbose)
-            cout << "norm of rel. residual for second eqn with u=0 and S_exact: " << tmp2->Norml2() / trueRhs.GetBlock(1).Norml2() << endl;
-
-        ParGridFunction * tmp2plus = new ParGridFunction(H_space);
-        CH->Mult(*u_exact, *tmp2plus);
-        *tmp2 += *tmp2plus;
-        if (verbose)
-            cout << "norm of rel. residual for second eqn with u=u_exact and S_exact: " << tmp2->Norml2() / trueRhs.GetBlock(1).Norml2() << endl;
-
+        qform->ParallelAssemble(trueRhs.GetBlock(1));
     }
 
     BlockOperator *MainOp = new BlockOperator(block_trueOffsets);
+
     if (withS)
     {
-        MainOp->SetBlock(0,0, A);
+        MainOp->SetBlock(0,0, A.get());
         MainOp->SetBlock(0,1, CHT);
         MainOp->SetBlock(1,0, CH);
         MainOp->SetBlock(1,1, C);
@@ -1754,13 +1525,10 @@ int main(int argc, char *argv[])
     else
     {
         if (blockedversion)
-            MainOp->SetBlock(0,0, A);
+            MainOp->SetBlock(0,0, A.get());
         else
         {
-            Ablock->FormLinearSystem(ess_tdof_listU, *u, *fform, Amat, X, B);
-            for ( int i = 0; i < 20; ++i)
-                std::cout << "B[" << i << ":] = " << B[i] << std::endl;
-            //*A = Amat;
+            Ablock->FormLinearSystem(ess_tdof_listU, *u_exact, *ffform, Amat, Xdebug, B);
             MainOp->SetBlock(0,0, &Amat);
         }
     }
@@ -1814,6 +1582,13 @@ int main(int argc, char *argv[])
     solver->SetRelTol(rtol);
     solver->SetMaxIter(max_num_iter);
     solver->SetOperator(*MainOp);
+
+    if (!withS && !blockedversion)
+    {
+        X.SetSize(MainOp->Height());
+        X = 0.0;
+    }
+
     if (with_prec)
     {
         if (withS)
@@ -1846,48 +1621,19 @@ int main(int argc, char *argv[])
        std::cout << "Linear solver took " << chrono.RealTime() << "s. \n";
     }
 
-    if (withS)
+    ParGridFunction * u = new ParGridFunction(C_space);
+    ParGridFunction * S;
+    if (blockedversion || withS)
     {
         u->Distribute(&(trueX.GetBlock(0)));
-        S->Distribute(&(trueX.GetBlock(1)));
-
-        ParGridFunction * tmp3 = new ParGridFunction(H_space);
-        C->Mult(*S, *tmp3);
-        *tmp3 -= trueRhs.GetBlock(1);
-        if (verbose)
-            cout << "norm of rel. residual for second eqn with u=0 and S_h: " << tmp3->Norml2() / trueRhs.GetBlock(1).Norml2() << endl;
-
-        Vector tmp4(S->Size());
-        tmp4 = *S;
-        tmp4 -= *S_exact;
-        Vector S_exactv(S->Size());
-        S_exactv = * S_exact;
-        if (verbose)
-            cout << "S_h - S_exact / S_exact (vectors): " << tmp4.Norml2() / S_exactv.Norml2() << endl;
-
-        Vector tmp5(S->Size());
-        C->Mult(tmp4, tmp5);
-        if (verbose)
-            cout << "norm of C * (S - S_exact) / rhs2: " << tmp5.Norml2() / trueRhs.GetBlock(1).Norml2() << endl;
-
-        // not needed
-        //ParGridFunction *S_nonhomo = new ParGridFunction(H_space);
-        //S_nonhomo->ProjectCoefficient(*(Mytest.S_nonhomo));
-        //*S += *S_nonhomo;
-
-        // not needed
-        //ParGridFunction *curl_nonhomo = new ParGridFunction(C_space);
-        //curl_nonhomo->ProjectCoefficient(*(Mytest.curl_nonhomo));
-        //*u += *curl_nonhomo;
+        if (withS)
+        {
+            S = new ParGridFunction(H_space);
+            S->Distribute(&(trueX.GetBlock(1)));
+        }
     }
     else
-    {
-        if (blockedversion)
-            u->Distribute(&(trueX.GetBlock(0)));
-        else
-            Ablock->RecoverFEMSolution(X, *fform, *u);
-    }
-
+        Ablock->RecoverFEMSolution(X, *ffform, *u);
 
     // 13. Extract the parallel grid function corresponding to the finite element
     //     approximation X. This is the local solution on each processor. Compute
@@ -1900,12 +1646,8 @@ int main(int argc, char *argv[])
        irs[i] = &(IntRules.Get(i, order_quad));
     }
 
-    //double err_u = u->ComputeL2Error(*(Mytest.hcurlpart), irs);
-    //double norm_u = ComputeGlobalLpNorm(2, *(Mytest.hcurlpart), *pmesh, irs);
-    //double err_u = u->ComputeL2Error(E, irs);
-    //double norm_u = ComputeGlobalLpNorm(2, E, *pmesh, irs);
-    double err_u = u->ComputeL2Error(*(Mytest.hcurlpart), irs);
-    double norm_u = ComputeGlobalLpNorm(2, *(Mytest.hcurlpart), *pmesh, irs);
+    double err_u = u->ComputeL2Error(*(Mytest.divfreepart), irs);
+    double norm_u = ComputeGlobalLpNorm(2, *(Mytest.divfreepart), *pmesh, irs);
 
     if (verbose)
         if ( norm_u > MYZEROTOL )
@@ -1932,21 +1674,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    FiniteElementCollection *hdiv_coll;
-    if ( dim == 4 )
-    {
-        hdiv_coll = new RT0_4DFECollection;
-        if(verbose)
-            cout << "RT: order 0 for 4D" << endl;
-    }
-    else
-    {
-        hdiv_coll = new RT_FECollection(feorder, dim);
-        if(verbose)
-            cout << "RT: order " << feorder << " for 3D" << endl;
-    }
-    ParFiniteElementSpace *R_space = new ParFiniteElementSpace(pmesh.get(), hdiv_coll);
-
     ParGridFunction * sigmahat = new ParGridFunction(R_space);
     sigmahat->ProjectCoefficient(*(Mytest.sigmahat));
 
@@ -1957,10 +1684,10 @@ int main(int argc, char *argv[])
     Curl_h.Mult(*u, *curlu);
 
     ParGridFunction * curlu_exact = new ParGridFunction(R_space);
-    curlu_exact->ProjectCoefficient(*(Mytest.curlhcurlpart));
+    curlu_exact->ProjectCoefficient(*(Mytest.opdivfreepart));
 
-    double err_curlu = curlu->ComputeL2Error(*(Mytest.curlhcurlpart), irs);
-    double norm_curlu = ComputeGlobalLpNorm(2, *(Mytest.curlhcurlpart), *pmesh, irs);
+    double err_curlu = curlu->ComputeL2Error(*(Mytest.opdivfreepart), irs);
+    double norm_curlu = ComputeGlobalLpNorm(2, *(Mytest.opdivfreepart), *pmesh, irs);
 
     if (verbose)
         if ( norm_curlu > MYZEROTOL )
@@ -2026,7 +1753,7 @@ int main(int argc, char *argv[])
         cout << "Computing projection errors" << endl;
 
     //double projection_error_u = u_exact->ComputeL2Error(E, irs);
-    double projection_error_u = u_exact->ComputeL2Error(*(Mytest.hcurlpart), irs);
+    double projection_error_u = u_exact->ComputeL2Error(*(Mytest.divfreepart), irs);
 
     if(verbose)
         if ( norm_u > MYZEROTOL )
@@ -2119,7 +1846,7 @@ int main(int argc, char *argv[])
     }
 
     // 17. Free the used memory.
-    delete fform;
+    delete ffform;
     if (withS)
         delete qform;
 
@@ -2134,7 +1861,7 @@ int main(int argc, char *argv[])
     }
 
     delete C_space;
-    delete hcurl_coll;
+    delete hdivfree_coll;
     delete R_space;
     delete hdiv_coll;
     if (withS)
@@ -2314,6 +2041,16 @@ void bSnonhomoTemplate(const Vector& xt, Vector& bSnonhomo)
 
     for (int i = 0; i < bSnonhomo.Size(); ++i)
         bSnonhomo(i) = S(xt0) * b(i);
+}
+
+template<void(*bvec)(const Vector & x, Vector & vec)>
+void minbTemplate(const Vector& xt, Vector& minb)
+{
+    minb.SetSize(xt.Size());
+
+    bvec(xt,minb);
+
+    minb *= -1;
 }
 
 template<double (*S)(const Vector & xt) > double SnonhomoTemplate(const Vector& xt)
@@ -2837,6 +2574,48 @@ void curlhcurlFun3D_ex(const Vector& xt, Vector& vecvalue)
 }
 
 ////////////////
+void DivmatFun4D_ex(const Vector& xt, Vector& vecvalue)
+{
+    double x = xt(0);
+    double y = xt(1);
+    double z = xt(2);
+    double t = xt(xt.Size()-1);
+
+    vecvalue.SetSize(xt.Size());
+
+    // 4D counterpart of the Martin's 3D function
+    //std::cout << "Error: DivmatFun4D_ex is incorrect \n";
+    vecvalue(0) = sin(kappa * xt(1));
+    vecvalue(1) = sin(kappa * xt(2));
+    vecvalue(2) = sin(kappa * xt(3));
+    vecvalue(3) = sin(kappa * xt(0));
+
+    return;
+}
+
+void DivmatDivmatFun4D_ex(const Vector& xt, Vector& vecvalue)
+{
+    double x = xt(0);
+    double y = xt(1);
+    double z = xt(2);
+    double t = xt(xt.Size()-1);
+
+    vecvalue.SetSize(xt.Size());
+
+    //vecvalue(0) = 0.0;
+    //vecvalue(1) = 0.0;
+    //vecvalue(2) = -2.0 * (1 - t);
+
+    // Divmat of the 4D counterpart of the Martin's 3D function
+    std::cout << "Error: DivmatDivmatFun4D_ex is incorrect \n";
+    vecvalue(0) = - kappa * cos(kappa * xt(2));
+    vecvalue(1) = - kappa * cos(kappa * xt(0));
+    vecvalue(2) = - kappa * cos(kappa * xt(1));
+
+    return;
+}
+
+////////////////
 void hcurlFun3D_2_ex(const Vector& xt, Vector& vecvalue)
 {
     double x = xt(0);
@@ -2870,7 +2649,7 @@ void curlhcurlFun3D_2_ex(const Vector& xt, Vector& vecvalue)
 }
 
 template <double (*S)(const Vector & xt), void (*bvecfunc)(const Vector&, Vector& ),
-          void (*curlhcurlvec)(const Vector&, Vector& )> \
+          void (*opdivfreevec)(const Vector&, Vector& )> \
 void minKsigmahatTemplate(const Vector& xt, Vector& minKsigmahatv)
 {
     minKsigmahatv.SetSize(xt.Size());
@@ -2879,7 +2658,7 @@ void minKsigmahatTemplate(const Vector& xt, Vector& minKsigmahatv)
     bvecfunc(xt, b);
 
     Vector sigmahatv;
-    sigmahatTemplate<S, bvecfunc, curlhcurlvec>(xt, sigmahatv);
+    sigmahatTemplate<S, bvecfunc, opdivfreevec>(xt, sigmahatv);
 
     DenseMatrix Ktilda;
     KtildaTemplate<bvecfunc>(xt, Ktilda);
@@ -2891,20 +2670,20 @@ void minKsigmahatTemplate(const Vector& xt, Vector& minKsigmahatv)
 }
 
 template <double (*S)(const Vector & xt), void (*bvecfunc)(const Vector&, Vector& ),
-          void (*curlhcurlvec)(const Vector&, Vector& )> \
+          void (*opdivfreevec)(const Vector&, Vector& )> \
 double bsigmahatTemplate(const Vector& xt)
 {
     Vector b;
     bvecfunc(xt, b);
 
     Vector sigmahatv;
-    sigmahatTemplate<S, bvecfunc, curlhcurlvec>(xt, sigmahatv);
+    sigmahatTemplate<S, bvecfunc, opdivfreevec>(xt, sigmahatv);
 
     return b * sigmahatv;
 }
 
 template <double (*S)(const Vector & xt), void (*bvecfunc)(const Vector&, Vector& ),
-          void (*curlhcurlvec)(const Vector&, Vector& )> \
+          void (*opdivfreevec)(const Vector&, Vector& )> \
 void sigmahatTemplate(const Vector& xt, Vector& sigmahatv)
 {
     sigmahatv.SetSize(xt.Size());
@@ -2917,23 +2696,23 @@ void sigmahatTemplate(const Vector& xt, Vector& sigmahatv)
     for (int i = 0; i < xt.Size()-1; i++)
         sigma(i) = b(i) * sigma(xt.Size()-1);
 
-    Vector curlhcurl;
-    curlhcurlvec(xt, curlhcurl);
+    Vector opdivfree;
+    opdivfreevec(xt, opdivfree);
 
     sigmahatv = 0.0;
-    sigmahatv -= curlhcurl;
-#ifndef ONLY_HCURLPART
+    sigmahatv -= opdivfree;
+#ifndef ONLY_DIVFREEPART
     sigmahatv += sigma;
 #endif
     return;
 }
 
 template <double (*S)(const Vector & xt), void (*bvecfunc)(const Vector&, Vector& ),
-          void (*curlhcurlvec)(const Vector&, Vector& )> \
+          void (*opdivfreevec)(const Vector&, Vector& )> \
 void minsigmahatTemplate(const Vector& xt, Vector& minsigmahatv)
 {
     minsigmahatv.SetSize(xt.Size());
-    sigmahatTemplate<S, bvecfunc, curlhcurlvec>(xt, minsigmahatv);
+    sigmahatTemplate<S, bvecfunc, opdivfreevec>(xt, minsigmahatv);
     minsigmahatv *= -1;
 
     return;
