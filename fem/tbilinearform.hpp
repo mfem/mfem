@@ -133,14 +133,9 @@ public:
          {
             y = 0.0;
 #if (MFEM_EXPERIMENT_1_PROBLEM == 1)
-	    c_massaction(
-               2,                         /* Dimension of the problem */
-               solFE_type::dofs_1d,       /* number of 1D dofs (points) */
-               IR::qpts_1d,               /* number of 1D quadrature points */
-               mesh.GetNE(),              /* number of elements */
-//               FORTRAN,
-//               C,
-               NEK5000,
+	    mass_action(
+               y.GetData(),               /* result, input-output vector */
+               x.GetData(),               /* input vector */
                (double *)assembled_data,  /* nqpt_1d x nqpt_1d x nelem */
                solEval.Get_B_1D(),        /* nqpt_1d x ndof_1d dense matrix,
                                              column-major layout */
@@ -148,18 +143,18 @@ public:
                solFES.GetIndexer().GetElemDof(),  /* array of size ndofs_1d x
                                                      ndofs_1d x nelem
                                                      representing a boolean P */
-               x.GetData(),               /* input vector */
-               y.GetData()                /* result, input-output vector */
+               solFE_type::dofs_1d,       /* number of 1D dofs (points) */
+               IR::qpts_1d,               /* number of 1D quadrature points */
+               mesh.GetNE(),              /* number of elements */
+               2,                         /* Dimension of the problem */
+               be_NEK5000,                /* Backend type */
+               vt_L,                      /* Vector type */
+               ol_QA1                     /* Operator type */
 	    );
 #else
-	    c_diffusionaction(
-               2,                        /* Dimension of the problem */
-               solFE_type::dofs_1d,      /* number of 1D dofs (points) */
-               IR::qpts_1d,              /* number of 1D quadrature points */
-               mesh.GetNE(),             /* number of elements */
-//               FORTRAN,
-//               C,
-               NEK5000,
+	    diffusion_action(
+               y.GetData(),              /* result, input-output vector */
+               x.GetData(),              /* input vector */
                (double *)assembled_data, /* nqpt_1d x nqpt_1d x 3 x nelem;
                                             (3) -> (xx,xy,yy) */
                solEval.Get_B_1D(),       /* nqpt_1d x ndof_1d dense matrix,
@@ -171,23 +166,23 @@ public:
                solFES.GetIndexer().GetElemDof(), /* array of size ndofs_1d x
                                                     ndofs_1d x nelem
                                                     representing a boolean P */
-               x.GetData(),               /* input vector */
-               y.GetData()                /* result, input-output vector */
-            };
+               solFE_type::dofs_1d,      /* number of 1D dofs (points) */
+               IR::qpts_1d,              /* number of 1D quadrature points */
+               mesh.GetNE(),             /* number of elements */
+               2,                        /* Dimension of the problem */
+               be_NEK5000,               /* Backend type */
+               vt_L,                     /* Vector type */
+               ol_QA1                    /* Operator type */
+       );
 #endif
          }
          else if (solFE_type::geom == Geometry::CUBE)
          {
             y = 0.0;
 #if (MFEM_EXPERIMENT_1_PROBLEM == 1)
-	    c_massaction(
-               3,                         /* Dimension of the problem */
-               solFE_type::dofs_1d,       /* number of 1D dofs (points) */
-               IR::qpts_1d,               /* number of 1D quadrature points */
-               mesh.GetNE(),              /* number of elements */
-//               FORTRAN,
-//               C,
-               NEK5000,
+	    mass_action(
+               y.GetData(),               /* result, input-output vector */
+               x.GetData(),               /* input vector */
                (double *)assembled_data,  /* nqpt_1d x nqpt_1d x nelem */
                solEval.Get_B_1D(),        /* nqpt_1d x ndof_1d dense matrix,
                                              column-major layout */
@@ -195,18 +190,18 @@ public:
                solFES.GetIndexer().GetElemDof(),  /* array of size ndofs_1d x
                                                      ndofs_1d x nelem
                                                      representing a boolean P */
-               x.GetData(),               /* input vector */
-               y.GetData()                /* result, input-output vector */
+               solFE_type::dofs_1d,       /* number of 1D dofs (points) */
+               IR::qpts_1d,               /* number of 1D quadrature points */
+               mesh.GetNE(),              /* number of elements */
+               3,                         /* Dimension of the problem */
+               be_NEK5000,
+               vt_L,                      /* Vector type */
+               ol_QA1                     /* Operator type */
 	    );
 #else
-	    c_diffusionaction(
-               3,                        /* Dimension of the problem */
-               solFE_type::dofs_1d,      /* number of 1D dofs (points) */
-               IR::qpts_1d,              /* number of 1D quadrature points */
-               mesh.GetNE(),             /* number of elements */
-//               FORTRAN,
-//               C,
-               NEK5000,
+	    diffusion_action(
+               y.GetData(),              /* result, input-output vector */
+               x.GetData(),              /* input vector */
                (double *)assembled_data, /* nqpt_1d x nqpt_1d x 3 x nelem;
                                             (3) -> (xx,xy,yy) */
                solEval.Get_B_1D(),       /* nqpt_1d x ndof_1d dense matrix,
@@ -218,9 +213,14 @@ public:
                solFES.GetIndexer().GetElemDof(), /* array of size ndofs_1d x
                                                     ndofs_1d x nelem
                                                     representing a boolean P */
-               x.GetData(),               /* input vector */
-               y.GetData()                /* result, input-output vector */
-            };
+               solFE_type::dofs_1d,      /* number of 1D dofs (points) */
+               IR::qpts_1d,              /* number of 1D quadrature points */
+               mesh.GetNE(),             /* number of elements */
+               2,                        /* Dimension of the problem */
+               be_NEK5000,               /* Backend type */
+               vt_L,                     /* Vector type */
+               ol_QA1                    /* Operator type */
+       );
 #endif
          }
          else

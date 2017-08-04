@@ -12,7 +12,7 @@
 #define MFEM_EXPERIMENT_1
 
 #ifndef PROBLEM
-#define PROBLEM 1
+#define PROBLEM 0
 #endif
 
 #define MFEM_EXPERIMENT_1_PROBLEM PROBLEM
