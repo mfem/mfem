@@ -230,3 +230,6 @@ miniapps/performance/ex1p.cpp
 miniapps/tools/display-basis.cpp
 mfem-performance.hpp
 mfem.hpp
+examples/cfosls_parabolic.cpp
+examples/fosls_hyperbolic.cpp
+examples/cfosls_divfree.cpp
