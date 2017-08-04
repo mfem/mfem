@@ -275,8 +275,8 @@ public:
                             DenseMatrix &curl) const;
 
    virtual void ProjectDivSkew(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &DivSkew) const;
+                               ElementTransformation &Trans,
+                               DenseMatrix &DivSkew) const;
 
    /** Compute the discrete divergence matrix from the given FiniteElement onto
        'this' FiniteElement. The ElementTransformation is included to support
@@ -416,7 +416,7 @@ protected:
                       DenseMatrix &shape) const;
 
    void CalcVShape_DivSkew(ElementTransformation &Trans,
-                      DenseMatrix &shape) const;
+                           DenseMatrix &shape) const;
 
    void CalcVShape_ND(ElementTransformation &Trans,
                       DenseMatrix &shape) const;
@@ -853,7 +853,7 @@ class QuadLinear4DFiniteElement : public NodalFiniteElement
 {
 public:
    /// Construct a quad-linear FE on tesseract
-	QuadLinear4DFiniteElement();
+   QuadLinear4DFiniteElement();
 
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
@@ -879,7 +879,7 @@ class Linear4DFiniteElement : public NodalFiniteElement
 {
 public:
    /// Construct a linear FE on tetrahedron
-	Linear4DFiniteElement();
+   Linear4DFiniteElement();
 
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
@@ -906,7 +906,7 @@ class Quadratic4DFiniteElement : public NodalFiniteElement
 {
 public:
    /// Construct a quadratic FE on pentatope
-	Quadratic4DFiniteElement();
+   Quadratic4DFiniteElement();
 
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
 
@@ -914,7 +914,7 @@ public:
                            DenseMatrix &dshape) const;
 
    virtual void CalcHessian(const IntegrationPoint &ip,
-                           DenseMatrix &h) const;
+                            DenseMatrix &h) const;
 };
 
 
@@ -1399,7 +1399,7 @@ public:
                            DenseMatrix &shape) const
    { CalcVShape_DivSkew(Trans, shape); }
    virtual void CalcDivSkewShape(const IntegrationPoint &ip,
-                              DenseMatrix &divSkew_shape) const;
+                                 DenseMatrix &divSkew_shape) const;
    virtual void GetLocalInterpolation (ElementTransformation &Trans,
                                        DenseMatrix &I) const {};
    using FiniteElement::Project;
@@ -1531,8 +1531,8 @@ public:
                         DenseMatrix &I) const;
 
    virtual void ProjectDivSkew(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &DivSkew) const;
+                               ElementTransformation &Trans,
+                               DenseMatrix &DivSkew) const;
 };
 
 

@@ -373,38 +373,38 @@ public:
                                        ElementTransformation &Tr,
                                        Vector &elvect)
    {
-	   int dof = el.GetDof();
-	   int dim = el.GetDim();
+      int dof = el.GetDof();
+      int dim = el.GetDim();
 
-	   vshape.SetSize(dof,dim*dim);
-	   mat.SetSize(dim,dim);
-	   matToVec.SetSize(dim*dim);
+      vshape.SetSize(dof,dim*dim);
+      mat.SetSize(dim,dim);
+      matToVec.SetSize(dim*dim);
 
 
-	   elvect.SetSize(dof);
-	   elvect = 0.0;
+      elvect.SetSize(dof);
+      elvect = 0.0;
 
-	   const IntegrationRule *ir = IntRule;
-	   if (ir == NULL)
-	   {
-	      // int intorder = 2*el.GetOrder() - 1; // ok for O(h^{k+1}) conv. in L2
-	      int intorder = 2*el.GetOrder() + 2;
-	      ir = &IntRules.Get(el.GetGeomType(), intorder);
-	   }
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         // int intorder = 2*el.GetOrder() - 1; // ok for O(h^{k+1}) conv. in L2
+         int intorder = 2*el.GetOrder() + 2;
+         ir = &IntRules.Get(el.GetGeomType(), intorder);
+      }
 
-	   for (int i = 0; i < ir->GetNPoints(); i++)
-	   {
-	      const IntegrationPoint &ip = ir->IntPoint(i);
-	      Tr.SetIntPoint (&ip);
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         Tr.SetIntPoint (&ip);
 
-	      el.CalcVShape(Tr, vshape);
+         el.CalcVShape(Tr, vshape);
 
-	      QF.Eval (mat, Tr, ip);
-	      mat *= ip.weight * fabs(Tr.Weight());
-	      for(int ki=0; ki<dim;ki++) for(int kj=0; kj<dim;kj++) matToVec(dim*ki+kj) = mat(ki,kj);
+         QF.Eval (mat, Tr, ip);
+         mat *= ip.weight * fabs(Tr.Weight());
+         for (int ki=0; ki<dim; ki++) for (int kj=0; kj<dim; kj++) { matToVec(dim*ki+kj) = mat(ki,kj); }
 
-	      vshape.AddMult(matToVec, elvect);
-	   }
+         vshape.AddMult(matToVec, elvect);
+      }
    }
 
    using LinearFormIntegrator::AssembleRHSElementVect;

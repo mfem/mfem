@@ -114,7 +114,7 @@ void ParFiniteElementSpace::GetGroupComm(
    {
       group_ldof_counter += nvd * pmesh->GroupNVertices(gr);
       group_ldof_counter += ned * pmesh->GroupNEdges(gr);
-      if(dim==4) group_ldof_counter += npd * pmesh->GroupNPlanars(gr);
+      if (dim==4) { group_ldof_counter += npd * pmesh->GroupNPlanars(gr); }
       group_ldof_counter += nfd * pmesh->GroupNFaces(gr);
    }
    if (ldof_type)
@@ -134,7 +134,7 @@ void ParFiniteElementSpace::GetGroupComm(
 
       nv = pmesh->GroupNVertices(gr);
       ne = pmesh->GroupNEdges(gr);
-      if(dim==4) np = pmesh->GroupNPlanars(gr);
+      if (dim==4) { np = pmesh->GroupNPlanars(gr); }
       nf = pmesh->GroupNFaces(gr);
 
       // vertices
@@ -201,40 +201,40 @@ void ParFiniteElementSpace::GetGroupComm(
 
       // planars
       if (npd > 0)
-	  {
-		   for (j = 0; j < np; j++)
-		   {
-			  pmesh->GroupPlanar(gr, j, k, o);
+      {
+         for (j = 0; j < np; j++)
+         {
+            pmesh->GroupPlanar(gr, j, k, o);
 
-			  dofs.SetSize(npd);
-			  m = nvdofs+nedofs+pdofs[k];
-			  ind = fec->DofOrderForOrientation(
-					   mesh->GetPlanarBaseGeometry(k), o);
-			  for (l = 0; l < npd; l++)
-				 if (ind[l] < 0)
-				 {
-					dofs[l] = m + (-1-ind[l]);
-					if (ldof_sign)
-					{
-					   (*ldof_sign)[dofs[l]] = -1;
-					}
-				 }
-				 else
-				 {
-					dofs[l] = m + ind[l];
-				 }
+            dofs.SetSize(npd);
+            m = nvdofs+nedofs+pdofs[k];
+            ind = fec->DofOrderForOrientation(
+                     mesh->GetPlanarBaseGeometry(k), o);
+            for (l = 0; l < npd; l++)
+               if (ind[l] < 0)
+               {
+                  dofs[l] = m + (-1-ind[l]);
+                  if (ldof_sign)
+                  {
+                     (*ldof_sign)[dofs[l]] = -1;
+                  }
+               }
+               else
+               {
+                  dofs[l] = m + ind[l];
+               }
 
-			  if (ldof_type)
-			  {
-				 DofsToVDofs(dofs);
-			  }
+            if (ldof_type)
+            {
+               DofsToVDofs(dofs);
+            }
 
-			  for (l = 0; l < dofs.Size(); l++)
-			  {
-				 group_ldof.GetJ()[group_ldof_counter++] = dofs[l];
-			  }
-		   }
-	  }
+            for (l = 0; l < dofs.Size(); l++)
+            {
+               group_ldof.GetJ()[group_ldof_counter++] = dofs[l];
+            }
+         }
+      }
 
       // faces
       if (nfd > 0)

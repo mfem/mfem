@@ -122,12 +122,12 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec;
    if (order > 0)
    {
-	  if(dim==4)
-	  {
-		if(order==1) fec = new LinearFECollection;
-		else fec = new QuadraticFECollection;
-	  }
-	  else fec = new H1_FECollection(order, dim);
+      if (dim==4)
+      {
+         if (order==1) { fec = new LinearFECollection; }
+         else { fec = new QuadraticFECollection; }
+      }
+      else { fec = new H1_FECollection(order, dim); }
    }
    else if (pmesh->GetNodes())
    {

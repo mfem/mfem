@@ -959,7 +959,7 @@ void VectorMassIntegrator::AssembleElementMatrix
 {
    int nd = el.GetDof();
    int spaceDim = Trans.GetSpaceDim();
-   if(vecDim <=0) vecDim = spaceDim;
+   if (vecDim <=0) { vecDim = spaceDim; }
 
    double norm;
 
@@ -1415,7 +1415,7 @@ void CurlCurlIntegrator::AssembleElementMatrix
    int nd = el.GetDof();
    int dim = el.GetDim();
    int dimc = (dim == 3) ? 3 : 1;
-   if(dim==4) dimc = 6;
+   if (dim==4) { dimc = 6; }
    double w;
 
 #ifdef MFEM_THREAD_SAFE
@@ -1452,31 +1452,35 @@ void CurlCurlIntegrator::AssembleElementMatrix
 
       if (dim ==4)
       {
-    	 DenseMatrix tSh(4,4);
-    	 DenseMatrix trShTemp(4,4);
+         DenseMatrix tSh(4,4);
+         DenseMatrix trShTemp(4,4);
 
-    	 DenseMatrix J = Trans.Jacobian();
-    	 DenseMatrix invJ(4,4); CalcInverse(J, invJ);
-    	 DenseMatrix invJtr(invJ); invJtr.Transpose();
+         DenseMatrix J = Trans.Jacobian();
+         DenseMatrix invJ(4,4); CalcInverse(J, invJ);
+         DenseMatrix invJtr(invJ); invJtr.Transpose();
 
-    	 el.CalcCurlShape(ip, curlshape);
-    	 for(int dof=0; dof<nd; dof++)
-    	 {
-    		                               tSh(0,1) =  curlshape(dof,0); tSh(0,2) =  curlshape(dof,1); tSh(0,3) =  curlshape(dof,2);
-    		 tSh(1,0) = -curlshape(dof,0);                               tSh(1,2) =  curlshape(dof,3); tSh(1,3) =  curlshape(dof,4);
-    		 tSh(2,0) = -curlshape(dof,1); tSh(2,1) = -curlshape(dof,3);                               tSh(2,3) =  curlshape(dof,5);
-    		 tSh(3,0) = -curlshape(dof,2); tSh(3,1) = -curlshape(dof,4); tSh(3,2) = -curlshape(dof,5);
+         el.CalcCurlShape(ip, curlshape);
+         for (int dof=0; dof<nd; dof++)
+         {
+            tSh(0,1) =  curlshape(dof,0); tSh(0,2) =  curlshape(dof,1);
+            tSh(0,3) =  curlshape(dof,2);
+            tSh(1,0) = -curlshape(dof,0);
+            tSh(1,2) =  curlshape(dof,3); tSh(1,3) =  curlshape(dof,4);
+            tSh(2,0) = -curlshape(dof,1); tSh(2,1) = -curlshape(dof,3);
+            tSh(2,3) =  curlshape(dof,5);
+            tSh(3,0) = -curlshape(dof,2); tSh(3,1) = -curlshape(dof,4);
+            tSh(3,2) = -curlshape(dof,5);
 
-    		 Mult(tSh, invJ, trShTemp);
-    		 Mult(invJtr, trShTemp, tSh);
+            Mult(tSh, invJ, trShTemp);
+            Mult(invJtr, trShTemp, tSh);
 
-    		 curlshape_dFt(dof,0) = tSh(0,1);
-    		 curlshape_dFt(dof,1) = tSh(0,2);
-    		 curlshape_dFt(dof,2) = tSh(0,3);
-    		 curlshape_dFt(dof,3) = tSh(1,2);
-    		 curlshape_dFt(dof,4) = tSh(1,3);
-    		 curlshape_dFt(dof,5) = tSh(2,3);
-    	 }
+            curlshape_dFt(dof,0) = tSh(0,1);
+            curlshape_dFt(dof,1) = tSh(0,2);
+            curlshape_dFt(dof,2) = tSh(0,3);
+            curlshape_dFt(dof,3) = tSh(1,2);
+            curlshape_dFt(dof,4) = tSh(1,3);
+            curlshape_dFt(dof,5) = tSh(2,3);
+         }
 
          w = ip.weight * Trans.Weight();
       }
@@ -2094,7 +2098,7 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    ElementTransformation &Trans,
    DenseMatrix &elmat)
 {
-   if(vecDim <=0) vecDim = el.GetDim();
+   if (vecDim <=0) { vecDim = el.GetDim(); }
    int dim = el.GetDim();
    int dof = el.GetDof();
 

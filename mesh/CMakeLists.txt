@@ -23,6 +23,8 @@ set(SRCS
   tetrahedron.cpp
   triangle.cpp
   vertex.cpp
+  pentatope.cpp
+  tesseract.cpp
   )
 
 set(HDRS
@@ -40,6 +42,8 @@ set(HDRS
   tmesh.hpp
   triangle.hpp
   vertex.hpp
+  pentatope.hpp
+  tesseract.hpp
   )
 
 if (MFEM_USE_MPI)

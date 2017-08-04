@@ -40,7 +40,7 @@ public:
             z = p[2];
             if (dim > 3)
             {
-            	t = p[3];
+               t = p[3];
             }
          }
       }
@@ -57,7 +57,7 @@ public:
             p[2] = z;
             if (dim > 3)
             {
-            	p[3] = t;
+               p[3] = t;
             }
          }
       }
@@ -68,7 +68,8 @@ public:
 
    void Set4w(const double *p) { x = p[0]; y = p[1]; z = p[2]; t = p[3]; weight = p[4]; }
 
-   void Set4w(const double x1, const double x2, const double x3, const double x4, const double w)
+   void Set4w(const double x1, const double x2, const double x3, const double x4,
+              const double w)
    { x = x1; y = x2; z = x3; t = x4; weight = w; }
 
    void Set4(const double x1, const double x2, const double x3, const double x4)
@@ -218,18 +219,20 @@ private:
    void AddPentMidPoint(const int off, const double weight)
    { IntPoint(off).Set4w(0.2, 0.2, 0.2, 0.2, weight); }
 
-   void AddPentPoint(const int off, const double x, const double y, const double z, const double t, double weight)
+   void AddPentPoint(const int off, const double x, const double y, const double z,
+                     const double t, double weight)
    {
-	   IntPoint(off).Set4w(x, y, z, t, weight);
+      IntPoint(off).Set4w(x, y, z, t, weight);
    }
 
-   void AddPentPoints5(const int off, const double a, const double b, double weight)
+   void AddPentPoints5(const int off, const double a, const double b,
+                       double weight)
    {
-	   IntPoint(off + 0).Set4w(a, a, a, a, weight);
-	   IntPoint(off + 1).Set4w(b, a, a, a, weight);
-	   IntPoint(off + 2).Set4w(a, b, a, a, weight);
-	   IntPoint(off + 3).Set4w(a, a, b, a, weight);
-	   IntPoint(off + 4).Set4w(a, a, a, b, weight);
+      IntPoint(off + 0).Set4w(a, a, a, a, weight);
+      IntPoint(off + 1).Set4w(b, a, a, a, weight);
+      IntPoint(off + 2).Set4w(a, b, a, a, weight);
+      IntPoint(off + 3).Set4w(a, a, b, a, weight);
+      IntPoint(off + 4).Set4w(a, a, a, b, weight);
    }
 
 public:

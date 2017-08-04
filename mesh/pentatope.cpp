@@ -23,7 +23,9 @@ Pentatope::Pentatope(const int *ind, int attr)
 {
    attribute = attr;
    for (int i = 0; i < 5; i++)
+   {
       indices[i] = ind[i];
+   }
 
    transform = 0;
 }
@@ -53,7 +55,9 @@ void Pentatope::GetVertices(Array<int> &v) const
 void Pentatope::SetVertices(const int *ind)
 {
    for (int i = 0; i < 5; i++)
+   {
       indices[i] = ind[i];
+   }
 }
 
 Element *Pentatope::Duplicate(Mesh *m) const

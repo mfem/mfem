@@ -2363,45 +2363,45 @@ public:
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat)
    {
-	   int nd = el.GetDof();
-	   int dim = el.GetDim();
-	   double w;
+      int nd = el.GetDof();
+      int dim = el.GetDim();
+      double w;
 
-	   DivSkewshape.SetSize(nd,dim);
-	   DivSkew_dFt.SetSize(nd,dim);
+      DivSkewshape.SetSize(nd,dim);
+      DivSkew_dFt.SetSize(nd,dim);
 
-	   elmat.SetSize(nd);
+      elmat.SetSize(nd);
 
-	   const IntegrationRule *ir = IntRule;
-	   if (ir == NULL)
-	   {
-	      int order = 2*el.GetOrder()+2;
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         int order = 2*el.GetOrder()+2;
 
-	      ir = &IntRules.Get(el.GetGeomType(), order);
-	   }
+         ir = &IntRules.Get(el.GetGeomType(), order);
+      }
 
-	   elmat = 0.0;
-	   for (int i = 0; i < ir->GetNPoints(); i++)
-	   {
-	      const IntegrationPoint &ip = ir->IntPoint(i);
+      elmat = 0.0;
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
 
-	      Trans.SetIntPoint (&ip);
+         Trans.SetIntPoint (&ip);
 
-		  el.CalcDivSkewShape(ip, DivSkewshape);
+         el.CalcDivSkewShape(ip, DivSkewshape);
 
-	      MultABt(DivSkewshape, Trans.Jacobian(), DivSkew_dFt);
+         MultABt(DivSkewshape, Trans.Jacobian(), DivSkew_dFt);
 
-	      DivSkew_dFt *= (1.0 / Trans.Weight());
+         DivSkew_dFt *= (1.0 / Trans.Weight());
 
-	      w = ip.weight * fabs(Trans.Weight());
+         w = ip.weight * fabs(Trans.Weight());
 
-	      if (Q)
-	      {
-	         w *= Q->Eval(Trans, ip);
-	      }
+         if (Q)
+         {
+            w *= Q->Eval(Trans, ip);
+         }
 
-	      AddMult_a_AAt(w, DivSkew_dFt, elmat);
-	   }
+         AddMult_a_AAt(w, DivSkew_dFt, elmat);
+      }
    }
 
 };
@@ -2424,42 +2424,42 @@ public:
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat)
    {
-	   int nd = el.GetDof();
-	   int dim = el.GetDim();
-	   double w;
+      int nd = el.GetDof();
+      int dim = el.GetDim();
+      double w;
 
 
-	   shape.SetSize(nd,dim*dim);
+      shape.SetSize(nd,dim*dim);
 
-	   elmat.SetSize(nd);
+      elmat.SetSize(nd);
 
-	   const IntegrationRule *ir = IntRule;
-	   if (ir == NULL)
-	   {
-	      int order = 2*el.GetOrder()+2;
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         int order = 2*el.GetOrder()+2;
 
-	      ir = &IntRules.Get(el.GetGeomType(), order);
-	   }
+         ir = &IntRules.Get(el.GetGeomType(), order);
+      }
 
-	   elmat = 0.0;
-	   for (int i = 0; i < ir->GetNPoints(); i++)
-	   {
-	      const IntegrationPoint &ip = ir->IntPoint(i);
-	      Trans.SetIntPoint (&ip);
+      elmat = 0.0;
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         Trans.SetIntPoint (&ip);
 
-	      w = ip.weight * fabs(Trans.Weight());
-
-
-		  el.CalcVShape(Trans, shape);
+         w = ip.weight * fabs(Trans.Weight());
 
 
-	      if (Q)
-	      {
-	         w *= Q->Eval(Trans, ip);
-	      }
+         el.CalcVShape(Trans, shape);
 
-	      AddMult_a_AAt(w, shape, elmat);
-	   }
+
+         if (Q)
+         {
+            w *= Q->Eval(Trans, ip);
+         }
+
+         AddMult_a_AAt(w, shape, elmat);
+      }
    }
 
 };

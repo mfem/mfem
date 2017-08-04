@@ -399,11 +399,11 @@ protected:
                             int v0, int v1, int v2, int v3);
 
    void AddTetrahedralFaceElement(int lf, int gf, int el,
-                                int v0, int v1, int v2, int v3);
+                                  int v0, int v1, int v2, int v3);
 
    void AddHexahedralFaceElement(int lf, int gf, int el,
-                                int v0, int v1, int v2, int v3,
-                                int v4, int v5, int v6, int v7);
+                                 int v0, int v1, int v2, int v3,
+                                 int v4, int v5, int v6, int v7);
 
 
    /** For a serial Mesh, return true if the face is interior. For a parallel
@@ -444,8 +444,10 @@ protected:
    void Printer(std::ostream &out = std::cout,
                 std::string section_delimiter = "") const;
 
-   void Make4D(int nx, int ny, int nz, int nt, Element::Type type, int generate_edges,
-               double sx, double sy, double sz, double st, bool generate_boundary, bool which_boundary[8],
+   void Make4D(int nx, int ny, int nz, int nt, Element::Type type,
+               int generate_edges,
+               double sx, double sy, double sz, double st, bool generate_boundary,
+               bool which_boundary[8],
                double shX=0.0, double shY=0.0, double shZ=0.0, double shT=0.0);
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
@@ -605,9 +607,10 @@ public:
    Mesh(int nx, int ny, int nz, int nt, Element::Type type, int generate_edges = 0,
         double sx = 1.0, double sy = 1.0, double sz = 1.0, double st = 1.0)
    {
-	  bool generate_boundary = true;
-	  bool which_boundary[8] = {true,true,true,true,true,true,true,true};
-      Make4D(nx, ny, nz, nt, type, generate_edges, sx, sy, sz, st, generate_boundary, which_boundary);
+      bool generate_boundary = true;
+      bool which_boundary[8] = {true,true,true,true,true,true,true,true};
+      Make4D(nx, ny, nz, nt, type, generate_edges, sx, sy, sz, st, generate_boundary,
+             which_boundary);
    }
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
@@ -1395,9 +1398,9 @@ public:
 // inline functions
 inline void Mesh::Swap(int *a) const
 {
-	int temp = a[0];
-	a[0] = a[1];
-	a[1] = temp;
+   int temp = a[0];
+   a[0] = a[1];
+   a[1] = temp;
 }
 
 inline void Mesh::ShiftL2R(int &a, int &b, int &c)
