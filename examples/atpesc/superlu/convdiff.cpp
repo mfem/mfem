@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_SUPERLU
    args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu", "--no-superlu",
                   "Use the SuperLU Solver.");
-   args.AddOption(&slu_colperm, "-cp", "--slu_colperm",
+   args.AddOption(&slu_colperm, "-cp", "--slu-colperm",
                   "Set the SuperLU Column permutation algorithm:  0-natural, "
                   "1-mmd-ata, 2-mmd_at_plus_a, 3-colamd, 4-metis_at_plus_a, 5-parmetis, 6-zoltan");   
 #endif
