@@ -104,6 +104,8 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM, apf::Numbering* v
             
         }
         iel++;
+        apf::destroyElement(elem);
+        apf::destroyMeshElement(mE);
     }
     PumiM->end(itr);
     
