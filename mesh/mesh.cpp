@@ -11374,7 +11374,7 @@ Mesh::IntermediateMesh * Mesh::ExtractMeshToInterMesh()
 // that faces and boundary elements lists are consistent with the actual element faces
 int Mesh::MeshCheck (bool verbose)
 {
-    int dim = Dimension();
+    const int dim = Dimension();
 
     if ( dim != 4 && dim != 3 && verbose )
     {
@@ -11664,7 +11664,7 @@ void Mesh::MeshSpaceTimeCylinder_onlyArrays ( Mesh& meshbase, double tau, int Ns
         }
     }
 
-    int Dim = DimBase + 1;
+    const int Dim = DimBase + 1;
 
     // for each base element and each time slab a space-time prism with base mesh element as a base
     // is decomposed into (Dim) simplices (tetrahedrons in 3d and pentatops in 4d);
@@ -11675,9 +11675,9 @@ void Mesh::MeshSpaceTimeCylinder_onlyArrays ( Mesh& meshbase, double tau, int Ns
     NumOfSTBdrElements = NumOfBaseBdrElements * DimBase * Nsteps + 2 * NumOfBaseElements;
 
     // assuming that the 3D mesh contains elements of the same type = tetrahedrons
-    int vert_per_base = meshbase.GetElement(0)->GetNVertices();
-    int vert_per_prism = 2 * vert_per_base;
-    int vert_per_latface = DimBase * 2;
+    const int vert_per_base = meshbase.GetElement(0)->GetNVertices();
+    const int vert_per_prism = 2 * vert_per_base;
+    const int vert_per_latface = DimBase * 2;
 
     InitMesh(Dim,Dim,NumOfSTVertices,NumOfSTElements,NumOfSTBdrElements);
 
@@ -12979,7 +12979,7 @@ Mesh::Mesh (MPI_Comm comm, ParMesh& mesh3d, double tau, int Nsteps,
 // works only in 4d case
 Mesh::IntermediateMesh * Mesh::MeshSpaceTimeCylinder_toInterMesh (double tau, int Nsteps, int bnd_method, int local_method)
 {
-    int Dim3D = Dimension(), NumOf3DElements = GetNE(),
+    const int Dim3D = Dimension(), NumOf3DElements = GetNE(),
             NumOf3DBdrElements = GetNBE(),
             NumOf3DVertices = GetNV();
     int NumOf4DElements, NumOf4DBdrElements, NumOf4DVertices;
@@ -12990,7 +12990,7 @@ Mesh::IntermediateMesh * Mesh::MeshSpaceTimeCylinder_toInterMesh (double tau, in
        return NULL;
     }
 
-    int Dim = Dim3D + 1;
+    const int Dim = Dim3D + 1;
     // for each 3D element and each time slab a 4D-prism with 3D element as a base
     // is decomposed into 4 pentatopes
     NumOf4DElements = NumOf3DElements * 4 * Nsteps;
@@ -13002,9 +13002,9 @@ Mesh::IntermediateMesh * Mesh::MeshSpaceTimeCylinder_toInterMesh (double tau, in
             NumOf3DElements + NumOf3DElements;
 
     // assuming that the 3D mesh contains elements of the same type
-    int vert_per_base = GetElement(0)->GetNVertices();
-    int vert_per_prism = 2 * vert_per_base;
-    int vert_per_latface = Dim3D * 2;
+    const int vert_per_base = GetElement(0)->GetNVertices();
+    const int vert_per_prism = 2 * vert_per_base;
+    const int vert_per_latface = Dim3D * 2;
 
     IntermediateMesh * intermesh = new IntermediateMesh;
     IntermeshInit( intermesh, Dim, NumOf4DVertices, NumOf4DElements, NumOf4DBdrElements, 1);
@@ -14133,7 +14133,7 @@ Mesh::Mesh ( Mesh& meshbase, double tau, int Nsteps, int bnd_method, int local_m
 }
 
 // M and N are two d-dimensional points 9double * arrays with their coordinates
-__inline__ double dist( double * M, double * N , int d)
+inline double dist( double * M, double * N , int d)
 {
     double res = 0.0;
     for ( int i = 0; i < d; ++i )
@@ -14189,7 +14189,8 @@ void sortingPermutationNew( const std::vector<std::vector<double> >& values, int
 int permutation_sign( int * permutation, int size)
 {
     int res = 0;
-    int temp[size]; //visited or not
+    const int lsize = size;
+    int temp[lsize]; //visited or not
     for ( int i = 0; i < size; ++i)
         temp[i] = -1;
 
@@ -14224,14 +14225,14 @@ int permutation_sign( int * permutation, int size)
     else
         return -1;
 }
-__inline__ void zero_intinit (int *arr, int size)
+
+#ifdef WITH_QHULL
+inline void zero_intinit (int *arr, int size)
 {
     for ( int i = 0; i < size; ++i )
         arr[i] = 0;
 }
 
-
-#ifdef WITH_QHULL
 /*-------------------------------------------------
 -print_summary(qh)
 */

@@ -1342,7 +1342,7 @@ bool sortQuadril2d(std::vector<std::vector<double> > & Points, int * permutation
 bool intdComparison(const std::pair<int,double> &a,const std::pair<int,double> &b);
 double l2Norm(std::vector<double> vec);
 double sprod(std::vector<double> vec1, std::vector<double> vec2);
-__inline__ double dist( double * M, double * N , int d);
+inline double dist( double * M, double * N , int d);
 int factorial(int n);
 int setzero(Array2D<int>* arrayint);
 void sortingPermutationNew( const std::vector<std::vector<double> >& values, int * permutation);
@@ -1353,7 +1353,7 @@ int qhull_wrapper(int * simplices, qhT * qh, double * points, int dim, double vo
 void print_summary(qhT *qh);
 void qh_fprintf(qhT *qh, FILE *fp, int msgcode, const char *fmt, ... );
 void makePrism(qhT *qh, coordT *points, int numpoints, int dim, int seed);
-__inline__ void zero_intinit ( int * arr, int size);
+inline void zero_intinit ( int * arr, int size);
 #endif
 
 

@@ -839,6 +839,9 @@ int main(int argc, char *argv[])
     args.AddOption(&prec_option, "-precopt", "--prec-option",
                    "Preconditioner choice.");
 
+    MPI_Finalize();
+    return 0;
+
     args.Parse();
     if (!args.Good())
     {
