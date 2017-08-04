@@ -114,7 +114,7 @@ void RelaxedNewtonSolver::Mult2(const Vector &b, Vector &x,
             converged = 0;
             break;
         }
-        
+
         prec->SetOperator(oper->GetGradient(x));
         prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
         
@@ -865,25 +865,23 @@ int main (int argc, char *argv[])
     HyperelasticNLFIntegrator *he_nlf_integ;
     he_nlf_integ = new HyperelasticNLFIntegrator(model, tj);
         
-    int ptflag = 1; //if 1 - GLL, else uniform
-    int nptdir = 8; //number of sample points in each direction
-    const IntegrationRule *ir =
-          &IntRulesLo.Get(fespace->GetFE(0)->GetGeomType(),nptdir); //this for GLL points "LO"
-    he_nlf_integ->SetIntegrationRule(*ir);
-    if (ptflag == 1 && myid == 0)
+    int ptflag = 1;
+    int nptdir = 8; // Order of the quadrature rule.
+    const IntegrationRule *ir = NULL;
+    if (ptflag == 1)
     {
-       cout << "Sample point distribution is GLL based\n";
+       // Gauss-Lobatto points.
+       ir = &IntRulesLo.Get(fespace->GetFE(0)->GetGeomType(),nptdir);
+       if (myid == 0) { cout << "Sample point distribution is GLL based\n"; }
     }
     else
     {
-       const IntegrationRule *ir =
-             &IntRulesCU.Get(fespace->GetFE(0)->GetGeomType(),nptdir); //this for uniform points "CU"
-       he_nlf_integ->SetIntegrationRule(*ir);
-        if (myid==0)
-        {
-            cout << "Sample point distribution is uniformly spaced\n";
-        }
+       // Closed uniform points.
+       ir = &IntRulesCU.Get(fespace->GetFE(0)->GetGeomType(),nptdir);
+       if (myid == 0)
+       { cout << "Sample point distribution is uniformly spaced\n"; }
     }
+    he_nlf_integ->SetIntegrationRule(*ir);
 
     // he_nlf_integ->SetLimited(1.0, x0);
         
@@ -926,7 +924,8 @@ int main (int argc, char *argv[])
     pmesh->PrintAsOne(sol_sock2);
     metric.SaveAsOne(sol_sock2);
     sol_sock2.send();
-    sol_sock2 << "keys " << "JRem" << endl;
+    sol_sock2 << "window_title '" << "Initial mesh" << "'\n"
+              << "keys " << "JRem" << endl;
     
     // Set essential vdofs by hand for x = 0 and y = 0 (2D). These are
     // attributes 1 and 2.
@@ -1011,7 +1010,7 @@ int main (int argc, char *argv[])
     }
     else if (lsmtype == 1)
     {
-       CGSolver *cg = new CGSolver;
+       CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
        cg->SetMaxIter(lsmits);
        cg->SetRelTol(rtol);
        cg->SetAbsTol(0.0);
@@ -1036,17 +1035,18 @@ int main (int argc, char *argv[])
     }
     MPI_Bcast(&newits, 1, MPI_INT, 0, MPI_COMM_WORLD);
     logvec[7]=newits;
-    logvec[8]=a.GetEnergy(x);
-    if (myid==0)
+
+    logvec[8] = a.GetEnergy(x);
+    if (myid == 0)
     {
-        cout << "Initial strain energy : " << logvec[8] << endl;
+       cout << "Initial strain energy : " << setprecision(16)
+            << logvec[8] << endl;
     }
     
     // save original
     Vector xsav = x;
     //set value of tau_0 for metric 22 and get min jacobian for mesh statistic
     tauval = 1.e+6;
-    double minjaco;
     const int NE = pmesh->GetNE();
     for (int i = 0; i < NE; i++)
     {
@@ -1069,15 +1069,16 @@ int main (int argc, char *argv[])
           tauval = min(tauval,det);
        }
     }
-    minjaco = tauval;
-    MPI_Allreduce(&tauval, &minjaco, 1, MPI_DOUBLE, MPI_MIN,MPI_COMM_WORLD);
+    double minjaco;
+    MPI_Allreduce(&tauval, &minjaco, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+    tauval = minjaco;
     
     if (myid==0)
     {
         cout << "minimum jacobian in the original mesh is " << minjaco << " \n";
     }
     int newtonits = 0;
-    if (tauval>0)
+    if (tauval > 0)
     {
        tauval = 1e-1;
        RelaxedNewtonSolver *newt = new RelaxedNewtonSolver(MPI_COMM_WORLD);
@@ -1087,15 +1088,13 @@ int main (int argc, char *argv[])
        newt->SetAbsTol(0.0);
        newt->SetPrintLevel(1);
        newt->SetOperator(a);
-       Vector b;
+       Vector b(0);
 
        Vector X(fespace->TrueVSize());
        fespace->GetRestrictionMatrix()->Mult(x, X);
 
-        if (myid==0)
-        {
-            cout << " Relaxed newton solver will be used \n";
-        }
+       if (myid==0) { cout << " Relaxed newton solver will be used \n"; }
+
        newt->Mult2(b, X, *pmesh, *ir, &newtonits, a);
        if (!newt->GetConverged() && myid == 0)
        {
@@ -1129,7 +1128,7 @@ int main (int argc, char *argv[])
        newt->SetAbsTol(0.0);
        newt->SetPrintLevel(1);
        newt->SetOperator(a);
-       Vector b;
+       Vector b(0);
 
        Vector X(fespace->TrueVSize());
        fespace->GetRestrictionMatrix()->Mult(x, X);
@@ -1166,7 +1165,8 @@ int main (int argc, char *argv[])
        pmesh->PrintAsOne(sol_sock);
        metric.SaveAsOne(sol_sock);
        sol_sock.send();
-       sol_sock << "keys " << "JRem" << endl;
+       sol_sock << "window_title '" << "Final mesh" << "'\n"
+                << "keys " << "JRem" << endl;
     }
 
     // 17. Get some mesh statistics
