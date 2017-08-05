@@ -167,6 +167,11 @@ int main(int argc, char *argv[])
    tic();
    solver->Mult(B, X);
    cout << "Time required for solver:  " << toc() << " (s)" << endl;
+#ifdef MFEM_USE_SUPERLU
+   Vector R(B); // R = B
+   CD.Mult(1.0, X, -1.0, R); // R = CD X - B
+   cout << "Final L2 norm of residual: " << sqrt(R*R) << endl;
+#endif
    cd->RecoverFEMSolution(X, *b, x);
 
    // 10. Dump the concentration values out to a visit file

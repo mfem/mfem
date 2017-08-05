@@ -1626,7 +1626,7 @@ int PetscSolver::GetNumIterations()
    {
       TS ts = (TS)obj;
       PetscInt its;
-      ierr = TSGetTotalSteps(ts,&its);
+      ierr = TSGetTimeStepNumber(ts,&its);
       PCHKERRQ(ts,ierr);
       return its;
    }
