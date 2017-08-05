@@ -256,9 +256,10 @@ static void mark_dofs(const Array<int> &dofs, Array<int> &mark_array)
 }
 
 void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
-                                           Array<int> &ess_vdofs) const
+                                           Array<int> &ess_vdofs,
+                                           int component) const
 {
-   Array<int> vdofs;
+   Array<int> vdofs, dofs;
 
    ess_vdofs.SetSize(GetVSize());
    ess_vdofs = 0;
@@ -267,8 +268,19 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    {
       if (bdr_attr_is_ess[GetBdrAttribute(i)-1])
       {
-         GetBdrElementVDofs(i, vdofs);
-         mark_dofs(vdofs, ess_vdofs);
+         if (component < 0)
+         {
+            // Mark all components.
+            GetBdrElementVDofs(i, vdofs);
+            mark_dofs(vdofs, ess_vdofs);
+         }
+         else
+         {
+            GetBdrElementDofs(i, dofs);
+            for (int d = 0; d < dofs.Size(); d++)
+            { dofs[d] = DofToVDof(dofs[d], component); }
+            mark_dofs(dofs, ess_vdofs);
+         }
       }
    }
 
@@ -281,22 +293,43 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
 
       for (int i = 0; i < bdr_verts.Size(); i++)
       {
-         GetVertexVDofs(bdr_verts[i], vdofs);
-         mark_dofs(vdofs, ess_vdofs);
+         if (component < 0)
+         {
+            GetVertexVDofs(bdr_verts[i], vdofs);
+            mark_dofs(vdofs, ess_vdofs);
+         }
+         else
+         {
+            GetVertexDofs(bdr_verts[i], dofs);
+            for (int d = 0; d < dofs.Size(); d++)
+            { dofs[d] = DofToVDof(dofs[d], component); }
+            mark_dofs(dofs, ess_vdofs);
+         }
       }
       for (int i = 0; i < bdr_edges.Size(); i++)
       {
-         GetEdgeVDofs(bdr_edges[i], vdofs);
-         mark_dofs(vdofs, ess_vdofs);
+         if (component < 0)
+         {
+            GetEdgeVDofs(bdr_edges[i], vdofs);
+            mark_dofs(vdofs, ess_vdofs);
+         }
+         else
+         {
+            GetEdgeDofs(bdr_edges[i], dofs);
+            for (int d = 0; d < dofs.Size(); d++)
+            { dofs[d] = DofToVDof(dofs[d], component); }
+            mark_dofs(dofs, ess_vdofs);
+         }
       }
    }
 }
 
 void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
-                                              Array<int> &ess_tdof_list)
+                                              Array<int> &ess_tdof_list,
+                                              int component)
 {
    Array<int> ess_vdofs, ess_tdofs;
-   GetEssentialVDofs(bdr_attr_is_ess, ess_vdofs);
+   GetEssentialVDofs(bdr_attr_is_ess, ess_vdofs, component);
    const SparseMatrix *R = GetConformingRestriction();
    if (!R)
    {
@@ -493,6 +526,7 @@ static bool DofFinalizable(int dof, const Array<bool>& finalized,
     The function is aware of ghost edges/faces in parallel, for which an empty
     DOF list is returned. */
 void FiniteElementSpace::GetEdgeFaceDofs(int type, int index, Array<int> &dofs)
+const
 {
    dofs.SetSize(0);
    if (type)
@@ -505,10 +539,10 @@ void FiniteElementSpace::GetEdgeFaceDofs(int type, int index, Array<int> &dofs)
    }
 }
 
-void FiniteElementSpace::GetConformingInterpolation()
+void FiniteElementSpace::GetConformingInterpolation() const
 {
 #ifdef MFEM_USE_MPI
-   MFEM_VERIFY(dynamic_cast<ParFiniteElementSpace*>(this) == NULL,
+   MFEM_VERIFY(dynamic_cast<const ParFiniteElementSpace*>(this) == NULL,
                "This method should not be used with a ParFiniteElementSpace!");
 #endif
    if (cP_is_set) { return; }
@@ -687,21 +721,21 @@ void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
    delete vmat;
 }
 
-const SparseMatrix* FiniteElementSpace::GetConformingProlongation()
+const SparseMatrix* FiniteElementSpace::GetConformingProlongation() const
 {
    if (Conforming()) { return NULL; }
    if (!cP_is_set) { GetConformingInterpolation(); }
    return cP;
 }
 
-const SparseMatrix* FiniteElementSpace::GetConformingRestriction()
+const SparseMatrix* FiniteElementSpace::GetConformingRestriction() const
 {
    if (Conforming()) { return NULL; }
    if (!cP_is_set) { GetConformingInterpolation(); }
    return cR;
 }
 
-int FiniteElementSpace::GetNConformingDofs()
+int FiniteElementSpace::GetNConformingDofs() const
 {
    const SparseMatrix* P = GetConformingProlongation();
    return P ? (P->Width() / vdim) : ndofs;

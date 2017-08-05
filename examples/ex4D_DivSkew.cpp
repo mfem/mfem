@@ -313,8 +313,6 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    double tol = 1e-6;
 
-
-
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -326,6 +324,9 @@ int main(int argc, char *argv[])
                   "Polynomial order of the finite element space.");
    args.AddOption(&tol, "-tol", "--tol",
                   "A parameter.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {

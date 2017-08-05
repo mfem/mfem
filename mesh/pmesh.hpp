@@ -219,7 +219,35 @@ public:
    void ParPrint(std::ostream &out) const;
 
    virtual ~ParMesh();
+
+   // ONLY PENTATOPE case for 4D mesh and TETRAHEDRON case for 3D
+
+   // Actual parallel 3D->4D/2D->3D mesh generator, version 2 (main).
+   // bnd_method: way to create boundary elements
+   // bnd_method = 0: el_to_face is not used, face_bndflags not created, but log searches are used
+   // for creating boundary elements
+   // bnd_method = 1: a little bit more memory but no log searches for creating boundary elements
+   // local_method: way to create pentatopes for space-time prisms
+   // local_method = 0: ~ SHORTWAY, qhull is used for space-time prisms
+   // local_method = 1: ~ LONGWAY, qhull is used for lateral faces of space-time prisms (then combined)
+   // local_method = 2: qhull is not used, a simple procedure for simplices is used.
+   ParMesh(MPI_Comm comm, ParMesh& meshbase, double tau, int Nsteps, int bnd_method = 1, int local_method = 2);
+   //friend void ParMesh3DtoParMesh4D (MPI_Comm comm, ParMesh& mesh3D,
+                        //ParMesh& mesh4D, double tau, int Nsteps, int bnd_method, int local_method);
+private:
+   // Creates ParMesh internal structure (including shared entities)
+   // after the main arrays (elements, vertices and boundary) are already defined for the
+   // future space-time mesh. Used only inside the ParMesh constructor.
+   void ParMeshSpaceTime_createShared(MPI_Comm comm,
+                                              ParMesh& meshbase, int Nsteps );
+public:
+   // Outputs information about shared entites in the ParMesh, applying vertex indices permutation if provided
+   void PrintSharedStructParMesh ( int * permutation = NULL );
 };
+
+// definitions are in mesh/mesh.cpp
+int permutation_sign( int * permutation, int size);
+
 
 }
 

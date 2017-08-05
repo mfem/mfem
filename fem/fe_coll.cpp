@@ -1648,6 +1648,246 @@ const
    return NULL;
 }
 
+// This is a special protected constructor only used by DG0_Interface_4DFECollection
+RT0_4DFECollection::RT0_4DFECollection(const int p, const int dim, const int map_type,
+                                 const bool signs, const int ob_type)
+   : ob_type(ob_type)
+{
+   if (Quadrature1D::CheckOpen(BasisType::GetQuadrature1D(ob_type)) ==
+       Quadrature1D::Invalid)
+   {
+      const char *ob_name = BasisType::Name(ob_type); // this may abort
+      MFEM_ABORT("Invalid open basis type: " << ob_name);
+   }
+
+   if ( p > 0 )
+   {
+       MFEM_ABORT("Invalid order of trace elements in 4D: should be 0 but: " << p << "was provided! \n");
+   }
+   InitFaces(p, dim, map_type, signs);
+}
+
+void RT0_4DFECollection::InitFaces(const int p, const int dim, const int map_type,
+                                const bool signs)
+{
+   int op_type = BasisType::GetQuadrature1D(ob_type);
+
+   MFEM_VERIFY(Quadrature1D::CheckOpen(op_type) != Quadrature1D::Invalid,
+               "invalid open point type");
+
+   const int pp1 = p + 1, pp2 = p + 2;
+
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      RT_Elements[g] = NULL;
+      RT_dof[g] = 0;
+   }
+
+   // Degree of Freedom orderings
+   for (int i = 0; i < 2; i++)
+   {
+      SegDofOrd[i] = NULL;
+   }
+   for (int i = 0; i < 6; i++)
+   {
+      TriDofOrd[i] = NULL;
+   }
+   for (int i = 0; i < 8; i++)
+   {
+      QuadDofOrd[i] = NULL;
+   }
+
+   for (int i = 0; i < 24; i++) // FIX IT: what is the size of DofOrd?
+   {
+      TetraDofOrd[i] = NULL;
+   }
+
+
+   /*
+   if (dim == 2)
+   {
+      L2_SegmentElement *l2_seg = new L2_SegmentElement(p, op_type);
+      l2_seg->SetMapType(map_type);
+      RT_Elements[Geometry::SEGMENT] = l2_seg;
+      RT_dof[Geometry::SEGMENT] = pp1;
+
+      SegDofOrd[0] = new int[2*pp1];
+      SegDofOrd[1] = SegDofOrd[0] + pp1;
+      for (int i = 0; i <= p; i++)
+      {
+         SegDofOrd[0][i] = i;
+         SegDofOrd[1][i] = signs ? (-1 - (p - i)) : (p - i);
+      }
+   }
+   else if (dim == 3)
+   {
+      L2_TriangleElement *l2_tri = new L2_TriangleElement(p, op_type);
+      l2_tri->SetMapType(map_type);
+      RT_Elements[Geometry::TRIANGLE] = l2_tri;
+      RT_dof[Geometry::TRIANGLE] = pp1*pp2/2;
+
+      L2_QuadrilateralElement *l2_quad = new L2_QuadrilateralElement(p, op_type);
+      l2_quad->SetMapType(map_type);
+      RT_Elements[Geometry::SQUARE] = l2_quad;
+      RT_dof[Geometry::SQUARE] = pp1*pp1;
+
+      int TriDof = RT_dof[Geometry::TRIANGLE];
+      TriDofOrd[0] = new int[6*TriDof];
+      for (int i = 1; i < 6; i++)
+      {
+         TriDofOrd[i] = TriDofOrd[i-1] + TriDof;
+      }
+      // see Mesh::GetTriOrientation in mesh/mesh.cpp,
+      // the constructor of H1_FECollection
+      for (int j = 0; j <= p; j++)
+      {
+         for (int i = 0; i + j <= p; i++)
+         {
+            int o = TriDof - ((pp2 - j)*(pp1 - j))/2 + i;
+            int k = p - j - i;
+            TriDofOrd[0][o] = o;  // (0,1,2)
+            TriDofOrd[1][o] = -1-(TriDof-((pp2-j)*(pp1-j))/2+k);  // (1,0,2)
+            TriDofOrd[2][o] =     TriDof-((pp2-i)*(pp1-i))/2+k;   // (2,0,1)
+            TriDofOrd[3][o] = -1-(TriDof-((pp2-k)*(pp1-k))/2+i);  // (2,1,0)
+            TriDofOrd[4][o] =     TriDof-((pp2-k)*(pp1-k))/2+j;   // (1,2,0)
+            TriDofOrd[5][o] = -1-(TriDof-((pp2-i)*(pp1-i))/2+j);  // (0,2,1)
+            if (!signs)
+            {
+               for (int k = 1; k < 6; k += 2)
+               {
+                  TriDofOrd[k][o] = -1 - TriDofOrd[k][o];
+               }
+            }
+         }
+      }
+
+      int QuadDof = RT_dof[Geometry::SQUARE];
+      QuadDofOrd[0] = new int[8*QuadDof];
+      for (int i = 1; i < 8; i++)
+      {
+         QuadDofOrd[i] = QuadDofOrd[i-1] + QuadDof;
+      }
+      // see Mesh::GetQuadOrientation in mesh/mesh.cpp
+      for (int j = 0; j <= p; j++)
+      {
+         for (int i = 0; i <= p; i++)
+         {
+            int o = i + j*pp1;
+            QuadDofOrd[0][o] = i + j*pp1;                    // (0,1,2,3)
+            QuadDofOrd[1][o] = -1 - (j + i*pp1);             // (0,3,2,1)
+            QuadDofOrd[2][o] = j + (p - i)*pp1;              // (1,2,3,0)
+            QuadDofOrd[3][o] = -1 - ((p - i) + j*pp1);       // (1,0,3,2)
+            QuadDofOrd[4][o] = (p - i) + (p - j)*pp1;        // (2,3,0,1)
+            QuadDofOrd[5][o] = -1 - ((p - j) + (p - i)*pp1); // (2,1,0,3)
+            QuadDofOrd[6][o] = (p - j) + i*pp1;              // (3,0,1,2)
+            QuadDofOrd[7][o] = -1 - (i + (p - j)*pp1);       // (3,2,1,0)
+            if (!signs)
+            {
+               for (int k = 1; k < 8; k += 2)
+               {
+                  QuadDofOrd[k][o] = -1 - QuadDofOrd[k][o];
+               }
+            }
+         }
+      }
+   }
+   */
+   if (dim == 4)
+   {
+       L2_TetrahedronElement *l2_tetra = new L2_TetrahedronElement(p, op_type);
+       l2_tetra->SetMapType(map_type);
+       RT_Elements[Geometry::TETRAHEDRON] = l2_tetra;
+       RT_dof[Geometry::TETRAHEDRON] = 1;     // FIX IT: what should be the size? Number of dofs on the face = 1 for p = 0
+
+       int TetraDof = RT_dof[Geometry::TETRAHEDRON];
+       TetraDofOrd[0] = new int[24*TetraDof];// FIX IT: what should be the size?
+       for (int i = 1; i < 24; i++)
+       {
+          TetraDofOrd[i] = TetraDofOrd[i-1] + TetraDof;
+       }
+
+       // sign of permutation from 0,1,2,3.
+
+       TetraDofOrd[0][0] = 0;  // 0, 1, 2, 3
+       TetraDofOrd[1][0] = -1; // 0, 1, 3, 2
+       TetraDofOrd[2][0] = -1; // 0, 2, 1, 3
+       TetraDofOrd[3][0] = 0;  // 0, 2, 3, 1
+       TetraDofOrd[4][0] = 0;  // 0, 3, 1, 2
+       TetraDofOrd[5][0] = -1; // 0, 3, 2, 1
+       TetraDofOrd[6][0] = -1; // 1, 0, 2, 3
+       TetraDofOrd[7][0] = 0;  // 1, 0, 3, 2
+       TetraDofOrd[8][0] = 0;  // 1, 2, 0, 3
+       TetraDofOrd[9][0] = -1; // 1, 2, 3, 0
+       TetraDofOrd[10][0] = -1;// 1, 3, 0, 2
+       TetraDofOrd[11][0] = 0; // 1, 3, 2, 0
+       TetraDofOrd[12][0] = 0; // 2, 0, 1, 3
+       TetraDofOrd[13][0] = -1;// 2, 0, 3, 1
+       TetraDofOrd[14][0] = -1;// 2, 1, 0, 3
+       TetraDofOrd[15][0] = 0; // 2, 1, 3, 0
+       TetraDofOrd[16][0] = 0; // 2, 3, 0, 1
+       TetraDofOrd[17][0] = -1;// 2, 3, 1, 0
+       TetraDofOrd[18][0] = -1;// 3, 0, 1, 2
+       TetraDofOrd[19][0] = 0; // 3, 0, 2, 1
+       TetraDofOrd[20][0] = 0; // 3, 1, 0, 2
+       TetraDofOrd[21][0] = -1;// 3, 1, 2, 0
+       TetraDofOrd[22][0] = -1;// 3, 2, 0, 1
+       TetraDofOrd[23][0] = 0; // 3, 2, 1, 0
+
+       TetraDofOrd[0][0] = 0;  // 0, 1, 2, 3
+       TetraDofOrd[1][0] = -1; // 0, 1, 3, 2
+       TetraDofOrd[2][0] = -1; // 0, 2, 1, 3
+       TetraDofOrd[3][0] = 0;  // 0, 2, 3, 1
+       TetraDofOrd[4][0] = 0;  // 0, 3, 1, 2
+       TetraDofOrd[5][0] = -1; // 0, 3, 2, 1
+       TetraDofOrd[6][0] = -1; // 1, 0, 2, 3
+       TetraDofOrd[7][0] = 0;  // 1, 0, 3, 2
+       TetraDofOrd[8][0] = 0;  // 1, 2, 0, 3
+       TetraDofOrd[9][0] = -1; // 1, 2, 3, 0
+       TetraDofOrd[10][0] = -1;// 1, 3, 0, 2
+       TetraDofOrd[11][0] = 0; // 1, 3, 2, 0
+       TetraDofOrd[12][0] = 0; // 2, 0, 1, 3
+       TetraDofOrd[13][0] = -1;// 2, 0, 3, 1
+       TetraDofOrd[14][0] = -1;// 2, 1, 0, 3
+       TetraDofOrd[15][0] = 0; // 2, 1, 3, 0
+       TetraDofOrd[16][0] = 0; // 2, 3, 0, 1
+       TetraDofOrd[17][0] = -1;// 2, 3, 1, 0
+       TetraDofOrd[18][0] = -1;// 3, 0, 1, 2
+       TetraDofOrd[19][0] = 0; // 3, 0, 2, 1
+       TetraDofOrd[20][0] = 0; // 3, 1, 0, 2
+       TetraDofOrd[21][0] = -1;// 3, 1, 2, 0
+       TetraDofOrd[22][0] = -1;// 3, 2, 0, 1
+       TetraDofOrd[23][0] = 0; // 3, 2, 1, 0
+
+       /*
+       // see Mesh::GetTetOrientation in mesh/mesh.cpp,
+       // the constructor of H1_FECollection
+       for (int j = 0; j <= p; j++)
+       {
+          for (int i = 0; i + j <= p; i++)
+          {
+             int o = TriDof - ((pp2 - j)*(pp1 - j))/2 + i;
+             int k = p - j - i;
+             TriDofOrd[0][o] = o;  // (0,1,2)
+             TriDofOrd[1][o] = -1-(TriDof-((pp2-j)*(pp1-j))/2+k);  // (1,0,2)
+             TriDofOrd[2][o] =     TriDof-((pp2-i)*(pp1-i))/2+k;   // (2,0,1)
+             TriDofOrd[3][o] = -1-(TriDof-((pp2-k)*(pp1-k))/2+i);  // (2,1,0)
+             TriDofOrd[4][o] =     TriDof-((pp2-k)*(pp1-k))/2+j;   // (1,2,0)
+             TriDofOrd[5][o] = -1-(TriDof-((pp2-i)*(pp1-i))/2+j);  // (0,2,1)
+             if (!signs)
+             {
+                for (int k = 1; k < 6; k += 2)
+                {
+                   TriDofOrd[k][o] = -1 - TriDofOrd[k][o];
+                }
+             }
+          }
+       }
+       */
+
+   }
+}
+
+
 H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
 {
    const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1;
@@ -2029,6 +2269,18 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type,
          OtherDofOrd[j] = j; // for Or == 0
       }
    }
+   else if (dim == 4)
+   {
+      if (type == 0 || type == 1)
+      {
+         L2_Elements[Geometry::PENTATOPE] = new L2_PentatopeElement(p, type);
+      }
+      else
+      {
+         L2_Elements[Geometry::PENTATOPE] = NULL; //new L2Pos_PentatopeElement(p);
+      }
+      Tr_Elements[Geometry::TETRAHEDRON] = new L2_TetrahedronElement(p, 0);
+   }
    else
    {
       cerr << "L2_FECollection::L2_FECollection : dim = "
@@ -2224,6 +2476,18 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
          }
       }
 
+      /*
+      std::cout << "TriDof = " << TriDof << std::endl;
+      for ( int i = 0; i < 6; ++i)
+      {
+          std::cout << "TriDofOrd " << i << ": ";
+          for ( int j = 0; j < TriDof; ++j)
+              std::cout << TriDofOrd[i][j] << " ";
+          std::cout << std::endl;
+      }
+      std::cout << "Geometry::TRIANGLE = " << Geometry::TRIANGLE << std::endl;
+      */
+
       int QuadDof = RT_dof[Geometry::SQUARE];
       QuadDofOrd[0] = new int[8*QuadDof];
       for (int i = 1; i < 8; i++)
@@ -2327,6 +2591,26 @@ DG_Interface_FECollection::DG_Interface_FECollection(const int p, const int dim,
    : RT_FECollection(p, dim, map_type, false, ob_type)
 {
    MFEM_VERIFY(dim == 2 || dim == 3, "Wrong dimension, dim = " << dim);
+
+   const char *prefix =
+      (map_type == FiniteElement::VALUE) ? "DG_Iface" : "DG_IntIface";
+   if (ob_type == BasisType::GaussLegendre)
+   {
+      snprintf(rt_name, 32, "%s_%dD_P%d", prefix, dim, p);
+   }
+   else
+   {
+      snprintf(rt_name, 32, "%s@%c_%dD_P%d", prefix,
+               (int)BasisType::GetChar(ob_type), dim, p);
+   }
+}
+
+DG0_Interface_4DFECollection::DG0_Interface_4DFECollection(const int p, const int dim,
+                                                     const int map_type,
+                                                     const int ob_type)
+   : RT0_4DFECollection(p, dim, map_type, false, ob_type)
+{
+   MFEM_VERIFY(dim == 4, "Wrong dimension, dim = " << dim);
 
    const char *prefix =
       (map_type == FiniteElement::VALUE) ? "DG_Iface" : "DG_IntIface";

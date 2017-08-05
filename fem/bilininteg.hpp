@@ -1713,7 +1713,7 @@ private:
 
    int Q_order;
 
-   int vecDim;
+   int vecDim = -1; //otherwise it may happen that VQ = MQ = null, vecDim not initialized and VectorMassIntegrator::AssembleElementMatrix will use not initialized value
 
 public:
    /// Construct an integrator with coefficient 1.0

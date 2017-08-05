@@ -2707,4 +2707,519 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
    return sol2d;
 }
 
+// This function is similar to the Mesh::computeSliceCell() but additionally computes the
+// values of the grid function in the slice cell vertexes.
+// (It is the absolute value for vector finite elements)
+// computes number of slice cell vertexes, slice cell vertex indices and coordinates and
+// for a given element with index = elind.
+// updates the edgemarkers and vertex_count correspondingly
+// pvec defines the slice plane
+void GridFunction::computeSliceCellValues (int elind, vector<vector<double> > & pvec, vector<vector<double> > & ipoints, vector<int>& edgemarkers,
+                             vector<vector<double> >& cellpnts, vector<int>& elvertslocal, int & nip, int & vertex_count, vector<double>& vertvalues)
+{
+    Mesh * mesh = FESpace()->GetMesh();
+
+    bool verbose = false; // probably should be a function argument
+    int dim = mesh->Dimension();
+
+    Array<int> edgev(2);
+    double * v1, * v2;
+
+    vector<vector<double> > edgeends(dim);
+    edgeends[0].reserve(dim);
+    edgeends[1].reserve(dim);
+
+    DenseMatrix M(dim, dim);
+    Vector sol(4), rh(4);
+
+    vector<double> ip(dim);
+
+    int edgenolen, edgeind;
+    //int * edgeindices;
+    //edgeindices = mesh->el_to_edge->GetRow(elind);
+    //edgenolen = mesh->el_to_edge->RowSize(elind);
+    Array<int> cor; // dummy
+    Array<int> edgeindices;
+    mesh->GetElementEdges(elind, edgeindices, cor);
+    edgenolen = mesh->GetElement(elind)->GetNEdges();
+
+    nip = 0;
+
+    Array<int> vertices;
+    mesh->GetElementVertices(elind, vertices);
+    double val1, val2;
+
+    double pvalue; // value of the grid function at the middle of the edge
+    int permut[2]; // defines which of the edge vertexes is the lowest w.r.t time
+
+    Vector pointval1, pointval2;
+    IntegrationPoint integp;
+    integp.Init();
+
+    for ( int edgeno = 0; edgeno < edgenolen; ++edgeno)
+    {
+        // true mesh edge index
+        edgeind = edgeindices[edgeno];
+
+        mesh->GetEdgeVertices(edgeind, edgev);
+
+        // vertex coordinates
+        v1 = mesh->GetVertex(edgev[0]);
+        v2 = mesh->GetVertex(edgev[1]);
+
+        // vertex coordinates as vectors of doubles, edgeends 0 is lower in time coordinate than edgeends[1]
+        if (v1[dim-1] < v2[dim-1])
+        {
+            for ( int coo = 0; coo < dim; ++coo)
+            {
+                edgeends[0][coo] = v1[coo];
+                edgeends[1][coo] = v2[coo];
+            }
+            permut[0] = 0;
+            permut[1] = 1;
+        }
+        else
+        {
+            for ( int coo = 0; coo < dim; ++coo)
+            {
+                edgeends[0][coo] = v2[coo];
+                edgeends[1][coo] = v1[coo];
+            }
+            permut[0] = 1;
+            permut[1] = 0;
+        }
+
+        for ( int vno = 0; vno < mesh->GetElement(elind)->GetNVertices(); ++vno)
+        {
+            int vind = vertices[vno];
+            if (vno == 0)
+            {
+                if (dim == 3)
+                    integp.Set3(0.0,0.0,0.0);
+                else // dim == 4
+                    integp.Set4(0.0,0.0,0.0,0.0);
+            }
+            if (vno == 1)
+            {
+                if (dim == 3)
+                    integp.Set3(1.0,0.0,0.0);
+                else // dim == 4
+                    integp.Set4(1.0,0.0,0.0,0.0);
+            }
+            if (vno == 2)
+            {
+                if (dim == 3)
+                    integp.Set3(0.0,1.0,0.0);
+                else // dim == 4
+                    integp.Set4(0.0,1.0,0.0,0.0);
+            }
+            if (vno == 3)
+            {
+                if (dim == 3)
+                    integp.Set3(0.0,0.0,1.0);
+                else // dim == 4
+                    integp.Set4(0.0,0.0,1.0,0.0);
+            }
+            if (vno == 4)
+            {
+                integp.Set4(0.0,0.0,0.0,1.0);
+            }
+
+            if (edgev[permut[0]] == vind)
+                GetVectorValue(elind, integp, pointval1);
+            if (edgev[permut[1]] == vind)
+                GetVectorValue(elind, integp, pointval2);
+        }
+
+        val1 = 0.0; val2 = 0.0;
+        for ( int coo = 0; coo < dim; ++coo)
+        {
+            val1 += pointval1[coo] * pointval1[coo];
+            val2 += pointval2[coo] * pointval2[coo];
+        }
+        //cout << "val1 = " << val1 << " val2 = " << val2 << endl;
+
+        val1 = sqrt (val1); val2 = sqrt (val2);
+
+        if (verbose)
+        {
+            cout << "vertex 1: val1 = " << val1 << endl;
+            /*
+            for ( int vno = 0; vno < mesh->Dimension(); ++vno)
+                cout << v1[vno] << " ";
+            cout << endl;
+            */
+            cout << "vertex 2: val2 = " << val2 <<  endl;
+            /*
+            for ( int vno = 0; vno < mesh->Dimension(); ++vno)
+                cout << v2[vno] << " ";
+            cout << endl;
+            */
+        }
+
+        if (verbose)
+        {
+            cout << "edgeind " << edgeind << endl;
+
+            cout << "edge vertices:" << endl;
+            for (int i = 0; i < 2; ++i)
+            {
+                cout << "vert ";
+                for ( int coo = 0; coo < dim; ++coo)
+                    cout << edgeends[i][coo] << " ";
+                cout << "   ";
+            }
+            cout << endl;
+        }
+
+        // creating the matrix for computing the intersection point
+        for ( int i = 0; i < dim; ++i)
+            for ( int j = 0; j < dim - 1; ++j)
+                M(i,j) = pvec[j + 1][i];
+        for ( int i = 0; i < dim; ++i)
+            M(i,dim - 1) = edgeends[0][i] - edgeends[1][i];
+
+        /*
+        cout << "M" << endl;
+        M.Print();
+        cout << "M.Det = " << M.Det() << endl;
+        */
+
+        if ( fabs(M.Det()) > MYZEROTOL )
+        {
+            M.Invert();
+
+            // setting righthand side
+            for ( int i = 0; i < dim; ++i)
+                rh[i] = edgeends[0][i] - pvec[0][i];
+
+            // solving the system
+            M.Mult(rh, sol);
+
+        }
+        else
+            if (verbose)
+                cout << "Edge is parallel" << endl;
+
+        //val1 = edgeends[0][dim-1]; val2 = edgeends[1][dim-1]; only for debugging: delete this
+        pvalue = sol[dim-1] * val1 + (1.0 - sol[dim-1]) * val2;
+
+        if (verbose)
+        {
+            cout << fixed << setprecision(6);
+            cout << "val1 = " << val1 << " val2 = " << val2 << endl;
+            cout << "sol = " << sol[dim-1];
+            cout << "pvalue = " << pvalue << endl << endl;
+            //cout << fixed << setprecision(4);
+        }
+
+
+        if (edgemarkers[edgeind] == -2) // if this edge was not considered
+        {
+            if ( fabs(M.Det()) > MYZEROTOL )
+            {
+                if ( sol[dim-1] > 0.0 - MYZEROTOL && sol[dim-1] <= 1.0 + MYZEROTOL)
+                {
+                    for ( int i = 0; i < dim; ++i)
+                        ip[i] = edgeends[0][i] + sol[dim-1] * (edgeends[1][i] - edgeends[0][i]);
+
+                    if (verbose)
+                    {
+                        cout << "intersection point for this edge: " << endl;
+                        for ( int i = 0; i < dim; ++i)
+                            cout << ip[i] << " ";
+                        cout << endl;
+                    }
+
+                    ipoints.push_back(ip);
+                    //vrtindices[momentind].push_back(vertex_count);
+                    elvertslocal.push_back(vertex_count);
+                    vertvalues.push_back(pvalue);
+                    edgemarkers[edgeind] = vertex_count;
+                    cellpnts.push_back(ip);
+                    nip++;
+                    vertex_count++;
+                }
+                else
+                {
+                    if (verbose)
+                        cout << "Line but not edge intersects" << endl;
+                    edgemarkers[edgeind] = -1;
+                }
+
+            }
+            else
+                if (verbose)
+                    cout << "Edge is parallel" << endl;
+        }
+        else // the edge was already considered -> edgemarkers store the vertex index
+        {
+            if (verbose)
+                cout << "Edge was already considered" << endl;
+            if (edgemarkers[edgeind] >= 0)
+            {
+                elvertslocal.push_back(edgemarkers[edgeind]);
+                vertvalues.push_back(pvalue);
+                cellpnts.push_back(ipoints[edgemarkers[edgeind]]);
+                nip++;
+            }
+        }
+
+        if (verbose)
+            cout << endl;
+
+        //cout << "tempvec.size = " << tempvec.size() << endl;
+
+    } // end of loop over element edges
+
+    /*
+    cout << "vertvalues in the end of slicecompute" << endl;
+    for ( int i = 0; i < nip; ++i)
+    {
+        cout << "vertval = " << vertvalues[i] << endl;
+    }
+    */
+
+    return;
+}
+
+void GridFunction::outputSliceGridFuncVTK ( std::stringstream& fname, std::vector<std::vector<double> > & ipoints,
+                                std::list<int> &celltypes, int cellstructsize, std::list<std::vector<int> > &elvrtindices, std::list<double > & cellvalues, bool forvideo)
+{
+    Mesh * mesh = FESpace()->GetMesh();
+
+    int dim = mesh->Dimension();
+    // output in the vtk format for paraview
+    std::ofstream ofid(fname.str().c_str());
+    ofid.precision(8);
+
+    ofid << "# vtk DataFile Version 3.0" << endl;
+    ofid << "Generated by MFEM" << endl;
+    ofid << "ASCII" << endl;
+    ofid << "DATASET UNSTRUCTURED_GRID" << endl;
+
+    ofid << "POINTS " << ipoints.size() << " double" << endl;
+    for (unsigned int vno = 0; vno < ipoints.size(); ++vno)
+    {
+        for ( int c = 0; c < dim - 1; ++c )
+        {
+            ofid << ipoints[vno][c] << " ";
+        }
+        if (dim == 3)
+        {
+            if (forvideo == true)
+                ofid << 0.0 << " ";
+            else
+                ofid << ipoints[vno][dim - 1] << " ";
+        }
+        ofid << endl;
+    }
+
+    ofid << "CELLS " << celltypes.size() << " " << cellstructsize << endl;
+    std::list<int>::const_iterator iter;
+    std::list<vector<int> >::const_iterator iter2;
+    for (iter = celltypes.begin(), iter2 = elvrtindices.begin();
+         iter != celltypes.end() && iter2 != elvrtindices.end()
+         ; ++iter, ++iter2)
+    {
+        //cout << *it;
+        int npoints;
+        if (*iter == VTKTETRAHEDRON)
+            npoints = 4;
+        else if (*iter == VTKWEDGE)
+            npoints = 6;
+        else if (*iter == VTKQUADRIL)
+            npoints = 4;
+        else //(*iter == VTKTRIANGLE)
+            npoints = 3;
+        ofid << npoints << " ";
+
+        for ( int i = 0; i < npoints; ++i)
+            ofid << (*iter2)[i] << " ";
+        ofid << endl;
+    }
+
+    ofid << "CELL_TYPES " << celltypes.size() << endl;
+    for (iter = celltypes.begin(); iter != celltypes.end(); ++iter)
+    {
+        ofid << *iter << endl;
+    }
+
+
+    // cell data
+    ofid << "CELL_DATA " << celltypes.size() << endl;
+    ofid << "SCALARS cell_scalars double 1" << endl;
+    ofid << "LOOKUP_TABLE default" << endl;
+    //int cnt = 0;
+    std::list<double>::const_iterator iterd;
+    for (iterd = cellvalues.begin(); iterd != cellvalues.end(); ++iterd)
+    {
+        //cout << "cell data: " << *iterd << endl;
+        ofid << *iterd << endl;
+        //cnt++;
+    }
+    return;
+}
+
+// Computes and outputs in VTK format slice meshes of a given 3D or 4D mesh
+// by time-like planes t = t0 + k * deltat, k = 0, ..., Nmoments - 1
+// myid is used for creating different output files by different processes
+// if the mesh is parallel
+// usually it is reasonable to refeer myid to the process id in the communicator
+// For each cell, an average of the values of the grid function is computed over
+// slice cell vertexes.
+void GridFunction::ComputeSlices(double t0, int Nmoments, double deltat, int myid, bool forvideo)
+{
+    bool verbose = false;
+
+    Mesh * mesh = FESpace()->GetMesh();
+    int dim = mesh->Dimension();
+
+    // = -2 if not considered, -1 if considered, but does not intersected, index of this vertex in the new 3d mesh otherwise
+    // refilled for each time moment
+    vector<int> edgemarkers(mesh->GetNEdges());
+
+    vector<vector<int> > elpartition(mesh->GetNEdges());
+    mesh->Compute_elpartition (t0, Nmoments, deltat, elpartition);
+
+    // *************************************************************************
+    // step 2 of x: looping over time momemnts and slicing elements for each
+    // given time moment, and outputs the resulting slice mesh in VTK format
+    // *************************************************************************
+
+    // slicing the elements, time moment over time moment
+    int elind;
+
+    vector<vector<double> > pvec(dim);
+    for ( int i = 0; i < dim; ++i)
+        pvec[i].reserve(dim);
+
+    // output data structures for vtk format
+    // for each time moment holds a list with cell type for each cell
+    vector<std::list<int> > celltypes(Nmoments);
+    // for each time moment holds a list with vertex indices
+    //vector<std::list<int>> vrtindices(Nmoments);
+    // for each time moment holds a list with cell type for each cell
+    vector<std::list<vector<int> > > elvrtindices(Nmoments);
+    //vector<std::list<vector<double> > > cellvertvalues(Nmoments); // decided not to use this - don't understand how to output correctly in vtk format afterwards
+    vector<std::list<double > > cellvalues(Nmoments);
+
+    // number of integers in cell structure - for each cell 1 integer (number of vertices) +
+    // + x integers (vertex indices)
+    int cellstructsize;
+    int vertex_count; // number of vertices in the slice mesh for a single time moment
+
+    // loop over time moments
+    for ( int momentind = 0; momentind < Nmoments; ++momentind )
+    {
+        if (verbose)
+            cout << "Time moment " << momentind << ": time = " << t0 + momentind * deltat << endl;
+
+        // refilling edgemarkers, resetting vertex_count and cellstructsize
+        for ( int i = 0; i < mesh->GetNEdges(); ++i)
+            edgemarkers[i] = -2;
+
+        vertex_count = 0;
+        cellstructsize = 0;
+
+        vector<vector<double> > ipoints;    // one of main arrays: all intersection points for a given time moment
+        double cellvalue;                   // averaged cell value computed from vertvalues
+
+        // vectors, defining the plane of the slice p0, p1, p2 (and p3 in 4D)
+        // p0 is the time aligned vector for the given time moment
+        // p1, p2 (and p3) - basis orts for the plane
+        // pvec is {p0,p1,p2,p3} vector
+        for ( int i = 0; i < dim; ++i)
+            for ( int j = 0; j < dim; ++j)
+                pvec[i][dim - 1 - j] = ( i == j ? 1.0 : 0.0);
+        pvec[0][dim - 1] = t0 + momentind * deltat;
+
+        // loop over elements intersected by the plane realted to a given time moment
+        // here, elno = index in elpartition[momentind]
+        for ( unsigned int elno = 0; elno < elpartition[momentind].size(); ++elno)
+        //for ( int elno = 0; elno < 2; ++elno)
+        {
+            vector<int> tempvec;             // vertex indices for the cell of the slice mesh
+            tempvec.reserve(6);
+            vector<vector<double> > cellpnts; //points of the cell of the slice mesh
+            cellpnts.reserve(6);
+
+            vector<double> vertvalues;          // values of the grid function at the nodes of the slice cell
+
+            // true mesh element index
+            elind = elpartition[momentind][elno];
+            //Element * el = mesh->GetElement(elind);
+
+            if (verbose)
+                cout << "Element: " << elind << endl;
+
+            // computing number of intersection points, indices and coordinates for
+            // local slice cell vertexes (cellpnts and tempvec)  and adding new intersection
+            // points and changing edges markers for a given element elind
+            // and plane defined by pvec
+            int nip;
+            //mesh->computeSliceCell (elind, pvec, ipoints, edgemarkers, cellpnts, tempvec, nip, vertex_count);
+
+            computeSliceCellValues (elind, pvec, ipoints, edgemarkers, cellpnts, tempvec, nip, vertex_count, vertvalues);
+
+            if ( (dim == 4 && (nip != 4 && nip != 6)) || (dim == 3 && (nip != 3 && nip != 4)) )
+                cout << "Strange nip =  " << nip << " for elind = " << elind << ", time = " << t0 + momentind * deltat << endl;
+            else
+            {
+                if (nip == 4) // tetrahedron in 3d or quadrilateral in 2d
+                    if (dim == 4)
+                        celltypes[momentind].push_back(VTKTETRAHEDRON);
+                    else // dim == 3
+                        celltypes[momentind].push_back(VTKQUADRIL);
+                else if (nip == 6) // prism
+                    celltypes[momentind].push_back(VTKWEDGE);
+                else // nip == 3 = triangle
+                    celltypes[momentind].push_back(VTKTRIANGLE);
+
+                cellstructsize += nip + 1;
+
+                elvrtindices[momentind].push_back(tempvec);
+
+                cellvalue = 0.0;
+                for ( int i = 0; i < nip; ++i)
+                {
+                    //cout << "vertval = " << vertvalues[i] << endl;
+                    cellvalue += vertvalues[i];
+                }
+                cellvalue /= nip * 1.0;
+
+                if (verbose)
+                    cout << "cellvalue = " << cellvalue << endl;
+
+                //cellvertvalues[momentind].push_back(vertvalues);
+                cellvalues[momentind].push_back(cellvalue);
+
+                // special reordering of cell vertices, required for the wedge,
+                // tetrahedron and quadrilateral cells
+                reorder_cellvertices (dim, nip, cellpnts, elvrtindices[momentind].back());
+
+                if (verbose)
+                    cout << "nip for the element = " << nip << endl;
+            }
+
+        } // end of loop over elements for a given time moment
+
+        // intermediate output
+        std::stringstream fname;
+        fname << "slicegridfunc_"<< dim - 1 << "d_myid_" << myid << "_moment_" << momentind << ".vtk";
+        //outputSliceGridFuncVTK (fname, ipoints, celltypes[momentind], cellstructsize, elvrtindices[momentind], cellvertvalues[momentind]);
+        outputSliceGridFuncVTK (fname, ipoints, celltypes[momentind], cellstructsize, elvrtindices[momentind], cellvalues[momentind], forvideo);
+
+
+    } //end of loop over time moments
+
+    // if not deleted here, gets segfault for more than two parallel refinements afterwards, but this is for GridFunction
+    //delete mesh->edge_vertex;
+    //mesh->edge_vertex = NULL;
+
+    //
+
+    return;
+}
+
 }
