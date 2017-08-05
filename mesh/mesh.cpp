@@ -11783,7 +11783,7 @@ void Mesh::MeshSpaceTimeCylinder_onlyArrays ( Mesh& meshbase, double tau, int Ns
     vector<vector<double> > lcoordsNew(Dim);
 
     // for each (of Dim) base mesh element faces stores 1 if it is at the boundary and 0 else
-    int facebdrmarker[Dim];
+    int * facebdrmarker = new int[Dim];
     // std::set of the base mesh boundary elements. Using set allows one to perform a search
     // with O(log N_elem) operations
     std::set< std::vector<int> > BdrTriSet;
@@ -12665,6 +12665,7 @@ void Mesh::MeshSpaceTimeCylinder_onlyArrays ( Mesh& meshbase, double tau, int Ns
         std::cout << "Error: Wrong number of bdr elements generated: " << GetNBE() << " instead of " <<
                         NumOfSTBdrElements << std::endl;
 
+    delete [] facebdrmarker;
     delete [] ordering;
     delete [] almostjogglers;
     delete [] temp;
@@ -12998,7 +12999,7 @@ Mesh::IntermediateMesh * Mesh::MeshSpaceTimeCylinder_toInterMesh (double tau, in
        return NULL;
     }
 
-    const int Dim = Dim3D + 1;
+    int Dim = Dim3D + 1;
     // for each 3D element and each time slab a 4D-prism with 3D element as a base
     // is decomposed into 4 pentatopes
     NumOf4DElements = NumOf3DElements * 4 * Nsteps;
@@ -13124,7 +13125,7 @@ Mesh::IntermediateMesh * Mesh::MeshSpaceTimeCylinder_toInterMesh (double tau, in
     //delete(tempvert);
 
     // for each (of Dim) 3d element faces stores 1 if it is at the boundary and 0 else
-    int facebdrmarker[Dim];
+    int * facebdrmarker = new int [Dim];
     // std::set of the 3D boundary elements
     // using set allows to perform a search with O(log N_elem) operations
     std::set< std::vector<int> > BdrTriSet;
@@ -14113,6 +14114,7 @@ Mesh::IntermediateMesh * Mesh::MeshSpaceTimeCylinder_toInterMesh (double tau, in
         } // end of loop over base elements
     } // end of loop over time slabs
 
+    delete [] facebdrmarker;
     delete [] ordering;
     delete [] pentatops;
     delete [] elvert_coordprism;
@@ -14198,8 +14200,7 @@ void sortingPermutationNew( const std::vector<std::vector<double> >& values, int
 int permutation_sign( int * permutation, int size)
 {
     int res = 0;
-    const int lsize = size;
-    int temp[lsize]; //visited or not
+    int * temp = new int[size]; //visited or not
     for ( int i = 0; i < size; ++i)
         temp[i] = -1;
 
@@ -14228,6 +14229,8 @@ int permutation_sign( int * permutation, int size)
 
         pos++;
     }
+
+    delete [] temp;
 
     if (res % 2 == 0)
         return 1;
