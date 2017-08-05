@@ -11374,7 +11374,7 @@ Mesh::IntermediateMesh * Mesh::ExtractMeshToInterMesh()
 // that faces and boundary elements lists are consistent with the actual element faces
 int Mesh::MeshCheck (bool verbose)
 {
-    const int dim = Dimension();
+    int dim = Dimension();
 
     if ( dim != 4 && dim != 3 && verbose )
     {
@@ -11397,7 +11397,7 @@ int Mesh::MeshCheck (bool verbose)
     // and no holes inside the domain are present
     double domain_volume = 0.0;
     double el_volume;
-    double * pointss[dim + 1];
+    double ** pointss = new double*[dim + 1];
     DenseMatrix VolumeEl;
     VolumeEl.SetSize(dim);
 
@@ -11421,6 +11421,8 @@ int Mesh::MeshCheck (bool verbose)
 
         domain_volume += el_volume;
     }
+
+    delete [] pointss;
 
     cout << "Domain volume from local mesh part = " << domain_volume << endl;
 
@@ -11664,7 +11666,7 @@ void Mesh::MeshSpaceTimeCylinder_onlyArrays ( Mesh& meshbase, double tau, int Ns
         }
     }
 
-    const int Dim = DimBase + 1;
+    int Dim = DimBase + 1;
 
     // for each base element and each time slab a space-time prism with base mesh element as a base
     // is decomposed into (Dim) simplices (tetrahedrons in 3d and pentatops in 4d);
@@ -11675,9 +11677,9 @@ void Mesh::MeshSpaceTimeCylinder_onlyArrays ( Mesh& meshbase, double tau, int Ns
     NumOfSTBdrElements = NumOfBaseBdrElements * DimBase * Nsteps + 2 * NumOfBaseElements;
 
     // assuming that the 3D mesh contains elements of the same type = tetrahedrons
-    const int vert_per_base = meshbase.GetElement(0)->GetNVertices();
-    const int vert_per_prism = 2 * vert_per_base;
-    const int vert_per_latface = DimBase * 2;
+    int vert_per_base = meshbase.GetElement(0)->GetNVertices();
+    int vert_per_prism = 2 * vert_per_base;
+    int vert_per_latface = DimBase * 2;
 
     InitMesh(Dim,Dim,NumOfSTVertices,NumOfSTElements,NumOfSTBdrElements);
 
@@ -11704,8 +11706,8 @@ void Mesh::MeshSpaceTimeCylinder_onlyArrays ( Mesh& meshbase, double tau, int Ns
     Array<int> elverts_prism;
 
     // temporary array for vertex indices of a pentatope face (used in local_method = 0 and 2)
-    int tempface[Dim];
-    int temp[Dim+1]; //temp array for simplex vertices in local_method = 1;
+    int * tempface = new int[Dim];
+    int * temp = new int[Dim+1]; //temp array for simplex vertices in local_method = 1;
 
     // three arrays below are used only in local_method = 1
     Array2D<int> vert_to_vert_prism; // for a 4D prism
@@ -11739,7 +11741,7 @@ void Mesh::MeshSpaceTimeCylinder_onlyArrays ( Mesh& meshbase, double tau, int Ns
     Element * NewEl;
     Element * NewBdrEl;
 
-    double tempvert[Dim];
+    double * tempvert = new double[Dim];
 
     if (local_method < 0 && local_method > 2)
     {
@@ -11773,7 +11775,9 @@ void Mesh::MeshSpaceTimeCylinder_onlyArrays ( Mesh& meshbase, double tau, int Ns
         }
     }
 
-    int almostjogglers[Dim];
+    delete [] tempvert;
+
+    int * almostjogglers = new int[Dim];
     //int permutation[Dim];
     //vector<double*> lcoords(Dim);
     vector<vector<double> > lcoordsNew(Dim);
@@ -11869,7 +11873,7 @@ void Mesh::MeshSpaceTimeCylinder_onlyArrays ( Mesh& meshbase, double tau, int Ns
         //face_bndflags.Print();
     }
 
-    int ordering[vert_per_base];
+    int * ordering = new int [vert_per_base];
     //int antireordering[vert_per_base]; // used if bnd_method = 0 and local_method = 2
     Array<int> tempelverts(vert_per_base);
 
@@ -12661,6 +12665,10 @@ void Mesh::MeshSpaceTimeCylinder_onlyArrays ( Mesh& meshbase, double tau, int Ns
         std::cout << "Error: Wrong number of bdr elements generated: " << GetNBE() << " instead of " <<
                         NumOfSTBdrElements << std::endl;
 
+    delete [] ordering;
+    delete [] almostjogglers;
+    delete [] temp;
+    delete [] tempface;
     delete [] simplexes;
     delete [] elvert_coordprism;
 
@@ -12979,7 +12987,7 @@ Mesh::Mesh (MPI_Comm comm, ParMesh& mesh3d, double tau, int Nsteps,
 // works only in 4d case
 Mesh::IntermediateMesh * Mesh::MeshSpaceTimeCylinder_toInterMesh (double tau, int Nsteps, int bnd_method, int local_method)
 {
-    const int Dim3D = Dimension(), NumOf3DElements = GetNE(),
+    int Dim3D = Dimension(), NumOf3DElements = GetNE(),
             NumOf3DBdrElements = GetNBE(),
             NumOf3DVertices = GetNV();
     int NumOf4DElements, NumOf4DBdrElements, NumOf4DVertices;
@@ -13002,9 +13010,9 @@ Mesh::IntermediateMesh * Mesh::MeshSpaceTimeCylinder_toInterMesh (double tau, in
             NumOf3DElements + NumOf3DElements;
 
     // assuming that the 3D mesh contains elements of the same type
-    const int vert_per_base = GetElement(0)->GetNVertices();
-    const int vert_per_prism = 2 * vert_per_base;
-    const int vert_per_latface = Dim3D * 2;
+    int vert_per_base = GetElement(0)->GetNVertices();
+    int vert_per_prism = 2 * vert_per_base;
+    int vert_per_latface = Dim3D * 2;
 
     IntermediateMesh * intermesh = new IntermediateMesh;
     IntermeshInit( intermesh, Dim, NumOf4DVertices, NumOf4DElements, NumOf4DBdrElements, 1);
@@ -13178,7 +13186,7 @@ Mesh::IntermediateMesh * Mesh::MeshSpaceTimeCylinder_toInterMesh (double tau, in
         //face_bndflags.Print();
     }
 
-    int ordering[vert_per_base];
+    int * ordering = new int[vert_per_base];
     //int antireordering[vert_per_base]; // used if bnd_method = 0 and local_method = 2
     Array<int> tempelverts(vert_per_base);
 
@@ -14105,6 +14113,7 @@ Mesh::IntermediateMesh * Mesh::MeshSpaceTimeCylinder_toInterMesh (double tau, in
         } // end of loop over base elements
     } // end of loop over time slabs
 
+    delete [] ordering;
     delete [] pentatops;
     delete [] elvert_coordprism;
 
