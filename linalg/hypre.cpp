@@ -1324,6 +1324,43 @@ void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const char *fname)
    width = GetNumCols();
 }
 
+void HypreParMatrix::PrintCommPkg(std::ostream &out) const
+{
+   hypre_ParCSRCommPkg *comm_pkg = A->comm_pkg;
+   MPI_Comm comm = A->comm;
+   char c = '\0';
+   const int tag = 46801;
+   int myid, nproc;
+   MPI_Comm_rank(comm, &myid);
+   MPI_Comm_size(comm, &nproc);
+
+   if (myid != 0)
+   {
+      MPI_Recv(&c, 1, MPI_CHAR, myid-1, tag, comm, MPI_STATUS_IGNORE);
+   }
+   else
+   {
+      out << "\nHypreParMatrix: hypre_ParCSRCommPkg:\n";
+   }
+   out << "Rank " << myid << ":\n"
+       "   number of sends  = " << comm_pkg->num_sends <<
+       " (" << sizeof(double)*comm_pkg->send_map_starts[comm_pkg->num_sends] <<
+       " bytes)\n"
+       "   number of recvs  = " << comm_pkg->num_recvs <<
+       " (" << sizeof(double)*comm_pkg->recv_vec_starts[comm_pkg->num_recvs] <<
+       " bytes)\n";
+   if (myid != nproc-1)
+   {
+      out << std::flush;
+      MPI_Send(&c, 1, MPI_CHAR, myid+1, tag, comm);
+   }
+   else
+   {
+      out << std::endl;
+   }
+   MPI_Barrier(comm);
+}
+
 void HypreParMatrix::Destroy()
 {
    if ( X != NULL ) { delete X; }

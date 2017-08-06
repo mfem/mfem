@@ -116,26 +116,31 @@ public:
 
 class GroupCommunicator
 {
+public:
+   enum Mode { byGroup, byNeighbor };
+
 private:
    GroupTopology &gtopo;
+   Mode mode;
    Table group_ldof;
    Table group_ltdof; // only for groups for which this processor is master.
    int group_buf_size;
    Array<char> group_buf;
    MPI_Request *requests;
-   MPI_Status  *statuses;
+   // MPI_Status  *statuses;
    int comm_lock; // 0 - no lock, 1 - locked for Bcast, 2 - locked for Reduce
    int num_requests;
-   int *request_group;
-   int *reduce_buf_offsets; // size = number of groups
+   int *request_marker;
+   int *buf_offsets; // size = max(number of groups, number of neighbors)
+   Table nbr_send_groups, nbr_recv_groups; // nbr 0 = me
 
 public:
-   GroupCommunicator(GroupTopology &gt);
+   GroupCommunicator(GroupTopology &gt, Mode m = byNeighbor);
    /** Initialize the communicator from a local-dof to group map.
-       Finalize is called internally. */
+       Finalize() is called internally. */
    void Create(Array<int> &ldof_group);
    /** Fill-in the returned Table reference to initialize the communicator
-       then call Finalize. */
+       then call Finalize(). */
    Table &GroupLDofTable() { return group_ldof; }
    /// Allocate internal buffers after the GroupLDofTable is defined
    void Finalize();
@@ -145,6 +150,25 @@ public:
 
    /// Get a reference to the group topology object
    GroupTopology & GetGroupTopology() { return gtopo; }
+
+   /** @brief Data structure on which we define reduce operations.
+
+     The data is associated with (and the operation is performed on) one group
+     at a time. */
+   template <class T> struct OpData
+   {
+      int nldofs, nb, *ldofs;
+      T *ldata, *buf;
+   };
+
+   template <class T>
+   T *CopyGroupToBuffer(const T *ldata, T *buf, int group, int layout) const;
+   template <class T>
+   const T *CopyGroupFromBuffer(const T *buf, T *ldata, int group,
+                                int layout) const;
+   template <class T>
+   const T *ReduceGroupFromBuffer(const T *buf, T *ldata, int group,
+                                  int layout, void (*)(OpData<T>)) const;
 
    /** @brief Begin a broadcast within each group where the master is the root.
        The input data @a layout can be:
@@ -179,16 +203,6 @@ public:
        This method is instantiated for int and double. */
    template <class T> void Bcast(T *ldata) { Bcast<T>(ldata, 0); }
    template <class T> void Bcast(Array<T> &ldata) { Bcast<T>((T *)ldata); }
-
-   /** @brief Data structure on which we define reduce operations.
-
-     The data is associated with (and the operation is performed on) one group
-     at a time. */
-   template <class T> struct OpData
-   {
-      int nldofs, nb, *ldofs;
-      T *ldata, *buf;
-   };
 
    /** @brief Begin reduction operation within each group where the master is
        the root. The input data layout is an array on all ldofs.
@@ -237,6 +251,8 @@ public:
    template <class T> static void Max(OpData<T>);
    /// Reduce operation bitwise OR, instantiated for int only
    template <class T> static void BitOR(OpData<T>);
+
+   void PrintInfo(std::ostream &out = std::cout) const;
 
    ~GroupCommunicator();
 };

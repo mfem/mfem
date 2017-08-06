@@ -2334,6 +2334,8 @@ ConformingProlongationOperator::ConformingProlongationOperator(
    {
       MFEM_VERIFY(j-external_ldofs.Size() == pfes.GetLocalTDofNumber(j), "");
    }
+   // gc.PrintInfo();
+   // pfes.Dof_TrueDof_Matrix()->PrintCommPkg();
 #endif
 }
 

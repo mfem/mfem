@@ -464,6 +464,9 @@ public:
    /// Read a matrix saved as a HYPRE_IJMatrix
    void Read_IJMatrix(MPI_Comm comm, const char *fname);
 
+   /// Print information about the hypre_ParCSRCommPkg of the HypreParMatrix.
+   void PrintCommPkg(std::ostream &out = std::cout) const;
+
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }
 
