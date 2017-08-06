@@ -21,8 +21,8 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = ex9 ex10
-PAR_EXAMPLES = ex9p ex10p
+SEQ_EXAMPLES = ex9 ex10 ex16
+PAR_EXAMPLES = ex9p ex10p ex16p
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -54,6 +54,10 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4
 SERIAL_NAME := Serial SUNDIALS example
 PARALLEL_NAME := Parallel SUNDIALS example
+%-test-par: %
+	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME))
+%-test-seq: %
+	@$(call mfem-test,$<,, $(SERIAL_NAME))
 
 # Testing: Specific execution options:
 # Example 9: test explicit CVODE time stepping
