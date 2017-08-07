@@ -114,10 +114,18 @@ public:
    virtual ~GroupTopology() {}
 };
 
+/** @brief Communicator performing operations within groups defined by a
+    GroupTopology with arbitrary-size data associated with each group. */
 class GroupCommunicator
 {
 public:
-   enum Mode { byGroup, byNeighbor };
+   /// Communication mode.
+   enum Mode
+   {
+      byGroup,    ///< Communications are performed one group at a time.
+      byNeighbor  /**< Communications are performed one neighbor at a time,
+                       aggregating over groups. */
+   };
 
 private:
    GroupTopology &gtopo;
@@ -135,21 +143,33 @@ private:
    Table nbr_send_groups, nbr_recv_groups; // nbr 0 = me
 
 public:
+   /// Construct a GroupCommunicator object.
+   /** The object must be initialized before it can be used to perform any
+       operations. To initialize the object, either
+       - call Create() or
+       - initialize the Table reference returned by GroupLDofTable() and then
+         call Finalize().
+   */
    GroupCommunicator(GroupTopology &gt, Mode m = byNeighbor);
-   /** Initialize the communicator from a local-dof to group map.
+
+   /** @brief Initialize the communicator from a local-dof to group map.
        Finalize() is called internally. */
    void Create(Array<int> &ldof_group);
-   /** Fill-in the returned Table reference to initialize the communicator
-       then call Finalize(). */
+
+   /** @brief Fill-in the returned Table reference to initialize the
+       GroupCommunicator then call Finalize(). */
    Table &GroupLDofTable() { return group_ldof; }
+
    /// Allocate internal buffers after the GroupLDofTable is defined
    void Finalize();
 
-   /// Initialize the internal #group_ltdof Table.
+   /// Initialize the internal group_ltdof Table.
+   /** This method must be called before performing operations that use local
+       data layout 2, see CopyGroupToBuffer() for layout descriptions. */
    void SetLTDofTable(Array<int> &ldof_ltdof);
 
-   /// Get a reference to the group topology object
-   GroupTopology & GetGroupTopology() { return gtopo; }
+   /// Get a reference to the associated GroupTopology object
+   GroupTopology &GetGroupTopology() { return gtopo; }
 
    /** @brief Data structure on which we define reduce operations.
 
@@ -161,61 +181,79 @@ public:
       T *ldata, *buf;
    };
 
+   /** @brief Copy the entries corresponding to the group @a group from the
+       local array @a ldata to the buffer @a buf. */
+   /** The @a layout of the local array can be:
+       - 0 - @a ldata is an array on all ldofs: copied indices:
+         `{ J[j] : I[group] <= j < I[group+1] }` where `I,J=group_ldof.{I,J}`
+       - 1 - @a ldata is an array on the shared ldofs: copied indices:
+         `{ j : I[group] <= j < I[group+1] }` where `I,J=group_ldof.{I,J}`
+       - 2 - @a ldata is an array on the true ldofs, ltdofs: copied indices:
+         `{ J[j] : I[group] <= j < I[group+1] }` where `I,J=group_ltdof.{I,J}`.
+       @returns The pointer @a buf plus the number of elements in the group. */
    template <class T>
    T *CopyGroupToBuffer(const T *ldata, T *buf, int group, int layout) const;
+
+   /** @brief Copy the entries corresponding to the group @a group from the
+       buffer @a buf to the local array @a ldata. */
+   /** For a description of @a layout, see CopyGroupToBuffer().
+       @returns The pointer @a buf plus the number of elements in the group. */
    template <class T>
    const T *CopyGroupFromBuffer(const T *buf, T *ldata, int group,
                                 int layout) const;
+
+   /** @brief Perform the reduction operation @a Op to the entries of group
+       @a group using the values from the buffer @a buf and the values from the
+       local array @a ldata, saving the result in the latter. */
+   /** For a description of @a layout, see CopyGroupToBuffer().
+       @returns The pointer @a buf plus the number of elements in the group. */
    template <class T>
    const T *ReduceGroupFromBuffer(const T *buf, T *ldata, int group,
-                                  int layout, void (*)(OpData<T>)) const;
+                                  int layout, void (*Op)(OpData<T>)) const;
 
-   /** @brief Begin a broadcast within each group where the master is the root.
-       The input data @a layout can be:
-
-          0 - data is an array on all ldofs
-          1 - data is an array on the shared ldofs as given by group_ldof
-          2 - data is an array on the ltdofs
-   */
+   /// Begin a broadcast within each group where the master is the root.
+   /** For a description of @a layout, see CopyGroupToBuffer(). */
    template <class T> void BcastBegin(T *ldata, int layout);
 
    /** @brief Finalize a broadcast started with BcastBegin().
-       The output data @a layout can be:
 
-          0 - data is an array on all ldofs; input layout: 0 or 2
-          1 - data is the same array as given to BcastBegin(); input layout: 1
-   */
+       The output data @a layout can be:
+       - 0 - @a ldata is an array on all ldofs; the input layout should be
+             either 0 or 2
+       - 1 - @a ldata is the same array as given to BcastBegin(); the input
+             layout should be 1.
+
+       For more details about @a layout, see CopyGroupToBuffer(). */
    template <class T> void BcastEnd(T *ldata, int layout);
 
    /** @brief Broadcast within each group where the master is the root.
-       The data @a layout can be:
 
-          0 - data is an array on all ldofs
-          1 - data is an array on the shared ldofs as given by group_ldof
-   */
+       The data @a layout can be either 0 or 1.
+
+       For a description of @a layout, see CopyGroupToBuffer(). */
    template <class T> void Bcast(T *ldata, int layout)
    {
       BcastBegin(ldata, layout);
       BcastEnd(ldata, layout);
    }
 
-   /** @brief Broadcast within each group where the master is the root.
-       This method is instantiated for int and double. */
+   /// Broadcast within each group where the master is the root.
    template <class T> void Bcast(T *ldata) { Bcast<T>(ldata, 0); }
+   /// Broadcast within each group where the master is the root.
    template <class T> void Bcast(Array<T> &ldata) { Bcast<T>((T *)ldata); }
 
    /** @brief Begin reduction operation within each group where the master is
-       the root. The input data layout is an array on all ldofs.
+       the root. */
+   /** The input data layout is an array on all ldofs, i.e. layout 0, see
+       CopyGroupToBuffer().
 
        The reduce operation will be specified when calling ReduceEnd(). This
        method is instantiated for int and double. */
    template <class T> void ReduceBegin(const T *ldata);
 
    /** @brief Finalize reduction operation started with ReduceBegin().
-       The output data @a layout can be:
 
-          0 - data is an array on all ldofs
-          2 - data is an array on the ltdofs
+       The output data @a layout can be either 0 or 2, see CopyGroupToBuffer().
 
        The reduce operation is given by the third argument (see below for list
        of the supported operations.) This method is instantiated for int and
@@ -232,14 +270,14 @@ public:
    /** @brief Reduce within each group where the master is the root.
 
        The reduce operation is given by the second argument (see below for list
-       of the supported operations.) This method is instantiated for int and
-       double. */
+       of the supported operations.) */
    template <class T> void Reduce(T *ldata, void (*Op)(OpData<T>))
    {
       ReduceBegin(ldata);
       ReduceEnd(ldata, 0, Op);
    }
 
+   /// Reduce within each group where the master is the root.
    template <class T> void Reduce(Array<T> &ldata, void (*Op)(OpData<T>))
    { Reduce<T>((T *)ldata, Op); }
 
@@ -252,8 +290,11 @@ public:
    /// Reduce operation bitwise OR, instantiated for int only
    template <class T> static void BitOR(OpData<T>);
 
+   /// Print information about the GroupCommunicator from all MPI ranks.
    void PrintInfo(std::ostream &out = std::cout) const;
 
+   /** @brief Destroy a GroupCommunicator object, deallocating internal data
+       structures and buffers. */
    ~GroupCommunicator();
 };
 
