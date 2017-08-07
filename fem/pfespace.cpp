@@ -102,7 +102,8 @@ void ParFiniteElementSpace::Construct()
       ngdofs = ngvdofs + ngedofs + ngfdofs;
 
       // get P matrix and also initialize DOF offsets etc.
-      GetParallelConformingInterpolation();
+      //GetParallelConformingInterpolation();
+      NewParallelConformingInterpolation();
    }
 }
 

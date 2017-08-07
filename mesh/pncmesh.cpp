@@ -380,7 +380,7 @@ void ParNCMesh::InitOwners(int num, Array<GroupId> &entity_owner)
    entity_owner.SetSize(num);
    for (int i = 0; i < num; i++)
    {
-      entity_owner[num] = GetSingletonGroup(tmp_owner[i]);
+      entity_owner[i] = GetSingletonGroup(tmp_owner[i]);
    }
 }
 
@@ -450,9 +450,9 @@ void ParNCMesh::GetGroupShared(Array<bool> &group_shared)
       const CommGroup &group = groups[i];
       if (group.size() > 1)
       {
-         for (unsigned i = 0; group.size(); i++)
+         for (unsigned j = 0; group.size(); j++)
          {
-            if (group[i] == MyRank)
+            if (group[j] == MyRank)
             {
                group_shared[i] = true;
                break;
