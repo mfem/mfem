@@ -94,9 +94,6 @@ public:
 
    // interface for ParFiniteElementSpace
 
-   int GetNVertices() const { return NVertices; }
-   int GetNEdges() const { return NEdges; }
-   int GetNFaces() const { return NFaces; }
    int GetNElements() const { return NElements; }
 
    int GetNGhostVertices() const { return NGhostVertices; }
@@ -250,9 +247,7 @@ protected:
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
-   int NVertices, NGhostVertices;
-   int NEdges, NGhostEdges;
-   int NFaces, NGhostFaces;
+   int NGhostVertices, NGhostEdges, NGhostFaces;
    int NElements, NGhostElements;
 
    typedef std::vector<CommGroup> GroupList;
@@ -288,7 +283,8 @@ protected:
    virtual bool IsGhost(const Element& el) const
    { return el.rank != MyRank; }
 
-   virtual int GetNumGhosts() const { return NGhostElements; }
+   virtual int GetNumGhostElements() const { return NGhostElements; }
+   virtual int GetNumGhostVertices() const { return NGhostVertices; }
 
    /// Return the processor number for a global element number.
    int Partition(long index, long total_elements) const

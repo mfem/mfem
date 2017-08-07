@@ -193,6 +193,7 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
 
    if (Dim == 2)
    {
+      // in 2D we have fake faces because of DG
       MFEM_ASSERT(NFaces == NEdges, "");
       MFEM_ASSERT(NGhostFaces == NGhostEdges, "");
    }
@@ -341,6 +342,7 @@ ParNCMesh::GroupId ParNCMesh::GetGroupId(const CommGroup &group)
 
 ParNCMesh::GroupId ParNCMesh::GetSingletonGroup(int rank)
 {
+   if (rank == INT_MAX) { return -1; } // invalid
    static std::vector<int> group;
    group.resize(1);
    group[0] = rank;
@@ -350,6 +352,7 @@ ParNCMesh::GroupId ParNCMesh::GetSingletonGroup(int rank)
 void ParNCMesh::InitGroups(int num, Array<GroupId> &entity_group)
 {
    entity_group.SetSize(num);
+   entity_group = -1;
 
    index_rank.Sort();
    index_rank.Unique();
@@ -368,7 +371,7 @@ void ParNCMesh::InitGroups(int num, Array<GroupId> &entity_group)
       group.resize(end - begin);
       for (int i = begin; i < end; i++)
       {
-         group[i] = index_rank[i].to;
+         group[i - begin] = index_rank[i].to;
       }
       entity_group[index] = GetGroupId(group);
       begin = end;

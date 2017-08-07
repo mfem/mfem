@@ -1372,18 +1372,18 @@ void NCMesh::SetDerefMatrixCodes(int parent, Array<int> &fine_coarse)
 void NCMesh::UpdateVertices()
 {
    // (overridden in ParNCMesh to assign special indices to ghost vertices)
-   int num_vert = 0;
+   NVertices = 0;
    for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
    {
-      if (node->HasVertex()) { node->vert_index = num_vert++; }
+      if (node->HasVertex()) { node->vert_index = NVertices++; }
    }
 
-   vertex_nodeId.SetSize(num_vert);
+   vertex_nodeId.SetSize(NVertices);
 
-   num_vert = 0;
+   NVertices = 0;
    for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
    {
-      if (node->HasVertex()) { vertex_nodeId[num_vert++] = node.index(); }
+      if (node->HasVertex()) { vertex_nodeId[NVertices++] = node.index(); }
    }
 }
 
@@ -1537,7 +1537,7 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex>& mvertices,
       delete [] tmp_vertex;
    }
 
-   melements.SetSize(leaf_elements.Size() - GetNumGhosts());
+   melements.SetSize(leaf_elements.Size() - GetNumGhostElements());
    melements.SetSize(0);
 
    mboundary.SetSize(0);
@@ -1634,6 +1634,9 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       MFEM_ASSERT(face, "face not found.");
       face->index = i;
    }
+
+   NEdges = mesh->GetNEdges();
+   NFaces = mesh->GetNumFaces();
 }
 
 
@@ -1983,7 +1986,7 @@ void NCMesh::BuildEdgeList()
 void NCMesh::BuildVertexList()
 {
    vertex_list.Clear();
-   vertex_list.conforming.resize(vertex_nodeId.Size());
+   vertex_list.conforming.resize(NVertices + GetNumGhostVertices());
 
    // analogously to above, visit vertices of leaf elements
    for (int i = 0; i < leaf_elements.Size(); i++)

@@ -94,6 +94,10 @@ public:
    int Dimension() const { return Dim; }
    int SpaceDimension() const { return spaceDim; }
 
+   int GetNVertices() const { return NVertices; }
+   int GetNEdges() const { return NEdges; }
+   int GetNFaces() const { return NFaces; }
+
    /** Perform the given batch of refinements. Please note that in the presence
        of anisotropic splits additional refinements may be necessary to keep
        the mesh consistent. However, the function always performs at least the
@@ -407,9 +411,11 @@ protected: // implementation
        hierarchy, there is secondary data that is derived from the primary
        data and needs to be updated when the primary data changes. Update()
        takes care of that and needs to be called after refinement and
-       derefinement. Secondary data includes: leaf_elements, vertex_nodeId,
-       face_list, edge_list, and everything in ParNCMesh. */
+       derefinement. */
    virtual void Update();
+
+   int NVertices; // set by
+   int NEdges, NFaces; // set by OnMeshUpdated
 
    Array<int> leaf_elements; // finest level, calculated by UpdateLeafElements
    Array<int> vertex_nodeId; // vertex-index to node-id map, see UpdateVertices
@@ -431,7 +437,8 @@ protected: // implementation
    virtual void AssignLeafIndices();
 
    virtual bool IsGhost(const Element &el) const { return false; }
-   virtual int GetNumGhosts() const { return 0; }
+   virtual int GetNumGhostElements() const { return 0; }
+   virtual int GetNumGhostVertices() const { return 0; }
 
 
    // refinement/derefinement

@@ -1410,8 +1410,8 @@ struct PMatrixElement
    typedef std::vector<PMatrixElement> List;
 };
 
-/** Represents one row of the P matrix. The row is complete: diagonal and
- *  offdiagonal elements are not distinguished.
+/** Represents one row of the P matrix, for the construction code below.
+ *  The row is complete: diagonal and offdiagonal elements are not distinguished.
  */
 struct PMatrixRow
 {
@@ -1592,7 +1592,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    // *** STEP 1: build dependency lists ***
 
    int num_dofs = ndofs * vdim;
-   int num_ghost_dofs = 1000; // FIXME
+   int num_ghost_dofs = ngdofs * vdim;
    int total_dofs = num_dofs + num_ghost_dofs;
 
    SparseMatrix deps(num_dofs, total_dofs);
@@ -1773,7 +1773,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
 
       // finalize all rows that can currently be finalized
       bool done = false;
-      while (!done);
+      while (!done)
       {
          done = true;
          for (int dof = 0; dof < num_dofs; dof++)
