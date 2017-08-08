@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_SIMMETRIX
    const char *model_file = "../data/pumi/geom/pillbox.smd";
 #else
-   const char *model_file = "../data/pumi/geom/Kova.dmg";
+   const char *model_file = "../data/pumi/geom/pillbox.dmg";
 #endif    
     
    int order = 1;
