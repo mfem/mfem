@@ -1548,6 +1548,7 @@ void NeighborRowMessage::Decode()
    Array<NCMesh::MeshId> ent_ids[3];
    pncmesh->DecodeMeshIds(stream, ent_ids);
 
+   rows.clear();
    rows.reserve(ent_ids[0].Size() + ent_ids[1].Size() + ent_ids[2].Size());
 
    // read rows
@@ -1765,11 +1766,16 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
             const NeighborRowMessage::RowInfo &ri = rows[i];
             int dof = PackDof(ri.entity, ri.index, ri.edof);
             pmatrix[dof] = ri.row;
+            if (!finalized[dof]) { num_finalized++; }
             finalized[dof] = true;
          }
       }
 
-      send_msg.push_back(NeighborRowMessage::Map());
+      // prepare new round of send buffers
+      if (send_msg.back().size())
+      {
+         send_msg.push_back(NeighborRowMessage::Map());
+      }
 
       // finalize all rows that can currently be finalized
       bool done = false;
@@ -1778,7 +1784,8 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
          done = true;
          for (int dof = 0; dof < num_dofs; dof++)
          {
-            if (!finalized[dof] && DofFinalizable(dof, finalized, deps))
+            if (!finalized[dof] && (dof_owner[dof] == 0) &&
+                DofFinalizable(dof, finalized, deps))
             {
                const int* dep_col = deps.GetRowColumns(dof);
                const double* dep_coef = deps.GetRowEntries(dof);
