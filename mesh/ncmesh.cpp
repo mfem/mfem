@@ -1985,8 +1985,13 @@ void NCMesh::BuildEdgeList()
 
 void NCMesh::BuildVertexList()
 {
+   int total = NVertices + GetNumGhostVertices();
+
    vertex_list.Clear();
-   vertex_list.conforming.resize(NVertices + GetNumGhostVertices());
+   vertex_list.conforming.reserve(total);
+
+   Array<char> processed_vertices(total);
+   processed_vertices = 0;
 
    // analogously to above, visit vertices of leaf elements
    for (int i = 0; i < leaf_elements.Size(); i++)
@@ -1999,15 +2004,15 @@ void NCMesh::BuildVertexList()
          int node = el.node[j];
          Node &nd = nodes[node];
 
-         ElementSharesVertex(elem, node);
-
          int index = nd.vert_index;
-         MeshId &id = vertex_list.conforming[index];
-         if (id.element < 0)
+         if (index >= 0)
          {
-            id.element = elem;
-            id.local = j;
-            id.index = index;
+            ElementSharesVertex(elem, node);
+
+            if (processed_vertices[index]) { continue; }
+            processed_vertices[index] = 1;
+
+            vertex_list.conforming.push_back(MeshId(index, elem, j));
          }
       }
    }
@@ -2051,7 +2056,21 @@ const NCMesh::MeshId& NCMesh::NCList::LookUp(int index) const
 {
    if (!inv_index.Size())
    {
-      inv_index.SetSize(TotalSize());
+      int max_index = -1;
+      for (unsigned i = 0; i < conforming.size(); i++)
+      {
+         max_index = std::max(conforming[i].index, max_index);
+      }
+      for (unsigned i = 0; i < masters.size(); i++)
+      {
+         max_index = std::max(masters[i].index, max_index);
+      }
+      for (unsigned i = 0; i < slaves.size(); i++)
+      {
+         max_index = std::max(slaves[i].index, max_index);
+      }
+
+      inv_index.SetSize(max_index + 1);
       inv_index = -1;
 
       for (unsigned i = 0; i < conforming.size(); i++)
@@ -2070,7 +2089,7 @@ const NCMesh::MeshId& NCMesh::NCList::LookUp(int index) const
 
    MFEM_ASSERT(index >= 0 && index < inv_index.Size(), "");
    int key = inv_index[index];
-   MFEM_ASSERT(key >= 0, "entity not found.");
+   MFEM_VERIFY(key >= 0, "entity not found.");
 
    switch (key & 0x3)
    {
