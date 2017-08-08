@@ -23,202 +23,105 @@ using namespace mfem;
 
 using namespace std;
 
-class RelaxedNewtonSolver : public IterativeSolver
+class RelaxedNewtonSolver : public NewtonSolver
 {
-protected:
-    mutable Vector r, c;
+private:
+   // Quadrature points that are checked for negative Jacobians etc.
+   const IntegrationRule &ir;
+
 public:
-    RelaxedNewtonSolver() { }
-    
+    RelaxedNewtonSolver(const IntegrationRule &irule) : ir(irule) { }
+
 #ifdef MFEM_USE_MPI
-    RelaxedNewtonSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+    RelaxedNewtonSolver(const IntegrationRule &irule, MPI_Comm _comm)
+       : NewtonSolver(_comm), ir(irule) { }
 #endif
-        virtual void SetOperator(const Operator &op);
-    
-        virtual void SetSolver(Solver &solver) { prec = &solver; }
-    
-        virtual void Mult(const Vector &b, Vector &x) const;
-    
-        virtual void Mult2(const Vector &b, Vector &x, ParMesh &pmesh,
-                           const IntegrationRule &ir, int *itnums,
-                           const ParNonlinearForm &nlf) const;
+
+    virtual double ComputeScalingFactor(const Vector &x, const Vector &c) const;
 };
 
-void RelaxedNewtonSolver::SetOperator(const Operator &op)
+double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
+                                                 const Vector &c) const
 {
-    oper = &op;
-    height = op.Height();
-    width = op.Width();
-    MFEM_ASSERT(height == width, "square Operator is required.");
-    
-    r.SetSize(width);
-    c.SetSize(width);
-}
+   const ParNonlinearForm *nlf = dynamic_cast<const ParNonlinearForm *>(oper);
 
-void RelaxedNewtonSolver::Mult(const Vector &b, Vector &x) const
-{
-    return;
-}
+   const int NE = nlf->ParFESpace()->GetMesh()->GetNE();
 
-void RelaxedNewtonSolver::Mult2(const Vector &b, Vector &x,
-                                ParMesh &pmesh, const IntegrationRule &ir,
-                                int *itnums, const ParNonlinearForm &nlf) const
-{
-    int myid;
-    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-    
-    MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
-    MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
-    
-    int it;
-    double norm, norm_goal;
-    bool have_b = (b.Size() == Height());
-    
-    if (!iterative_mode)
-    {
-        x = 0.0;
-    }
-    
-    oper->Mult(x, r);
-    if (have_b)
-    {
-        r -= b;
-    }
-    
-    norm = Norm(r);
-    norm_goal = std::max(rel_tol*norm, abs_tol);
-    
-    prec->iterative_mode = false;
-    
-    // x_{i+1} = x_i - [DF(x_i)]^{-1} [F(x_i)-b]
-    for (it = 0; true; it++)
-    {
-        MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
-        if (print_level >= 0)
-        {
-            cout << "Newton iteration " << setw(2) << it
-                 << " : ||r|| = " << norm << '\n';
-        }
-        
-        if (norm <= norm_goal)
-        {
-            converged = 1;
-            break;
-        }
-        
-        if (it >= max_iter)
-        {
-            converged = 0;
-            break;
-        }
+   Vector xsav = x;
+   int tchk = 0;
+   int iters = 0;
+   double alpha = 1.;
+   int jachk = 1;
+   double initenergy = 0.0;
+   double finenergy = 0.0;
+   int nanchk = 0;
 
-        prec->SetOperator(oper->GetGradient(x));
-        prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
-        
-        //k10 some changes
-        const int NE = pmesh.GetNE();
-    
-        Vector xsav = x; //create a copy of x
-        Vector csav = c;
-        int tchk = 0;
-        int iters = 0;
-        double alpha = 1.;
-        int jachk = 1;
-        double initenergy = 0.0;
-        double finenergy = 0.0;
-        int nanchk = 0;
-        
-        initenergy = nlf.GetEnergy(x);
-        
-        while (tchk !=1 && iters < 20)
-        {
-            iters += 1;
-            //cout << "number of iters is " << iters << "\n";
-            jachk = 1;
-            c = csav;
-            x = xsav;
-            add (xsav,-alpha,csav,x);
+   initenergy = nlf->GetEnergy(x);
 
-            ParGridFunction x_gf(nlf.ParFESpace());
-            x_gf.Distribute(x);
+   while (tchk !=1 && iters < 20)
+   {
+       iters += 1;
+       jachk = 1;
+       xsav = x;
+       add(x, -alpha, c, xsav);
 
-            finenergy = nlf.GetEnergy(x);
-            nanchk = isnan(finenergy);
-            for (int i = 0; i < NE; i++)
-            {
-                const FiniteElement &fe = *x_gf.ParFESpace()->GetFE(i);
-                const int dim = fe.GetDim(), nsp = ir.GetNPoints(),
-                dof = fe.GetDof();
-                
-                DenseMatrix Jtr(dim);
-                
-                DenseMatrix dshape(dof, dim), pos(dof, dim);
-                Array<int> xdofs(dof * dim);
-                Vector posV(pos.Data(), dof * dim);
-                
-                x_gf.ParFESpace()->GetElementVDofs(i, xdofs);
-                x_gf.GetSubVector(xdofs, posV);
-                for (int j = 0; j < nsp; j++)
-                {
-                    fe.CalcDShape(ir.IntPoint(j), dshape);
-                    MultAtB(pos, dshape, Jtr);
-                    double det = Jtr.Det();
-                    if (det <= 0.)
-                    {
-                       jachk = 0;
-                    }
-                }
-            }
-            int jachkglob;
-            MPI_Allreduce(&jachk, &jachkglob, 1, MPI_INT, MPI_MIN,
-                          pmesh.GetComm());
-            int nanchkglob;
-            MPI_Allreduce(&nanchk, &nanchkglob, 1, MPI_INT, MPI_MAX,
-                          pmesh.GetComm());
-            
-            //finenergy = initenergy - 1; //WARNING: THIS IS JUST FOR TIPTONUNI.MESH
-            if (finenergy>1.0*initenergy || nanchkglob!=0 || jachkglob==0)
-            {
-                tchk = 0;
-                alpha *= 0.5;
-            }
-            else
-            {
-                tchk = 1;
-            }
-        }
-        if (print_level >= 0)
-        {
-           cout << initenergy << " " << finenergy
-                <<  " energy value before and after newton iteration\n";
-           cout << "alpha value is " << alpha << " \n";
-        }
-        
-        if (tchk == 0) { alpha = 0; }
-        
-        add (xsav, -alpha, csav, x);
-        
-        oper->Mult(x, r);
-        if (have_b)
-        {
-            r -= b;
-        }
-        norm = Norm(r);
-        
-        if (alpha == 0)
-        {
-            converged = 0;
-            if (print_level >= 0)
-            {
-               cout << "Line search was not successfull.. stopping Newton\n";
-            }
-            break;
-        }
-    }
-    
-    final_iter = it;
-    final_norm = norm;
-    *itnums = final_iter;
+       ParGridFunction x_gf(nlf->ParFESpace());
+       x_gf.Distribute(xsav);
+
+       finenergy = nlf->GetEnergy(xsav);
+       nanchk = isnan(finenergy);
+       for (int i = 0; i < NE; i++)
+       {
+           const FiniteElement &fe = *x_gf.ParFESpace()->GetFE(i);
+           const int dim = fe.GetDim(), nsp = ir.GetNPoints(),
+           dof = fe.GetDof();
+
+           DenseMatrix Jtr(dim);
+
+           DenseMatrix dshape(dof, dim), pos(dof, dim);
+           Array<int> xdofs(dof * dim);
+           Vector posV(pos.Data(), dof * dim);
+
+           x_gf.ParFESpace()->GetElementVDofs(i, xdofs);
+           x_gf.GetSubVector(xdofs, posV);
+           for (int j = 0; j < nsp; j++)
+           {
+               fe.CalcDShape(ir.IntPoint(j), dshape);
+               MultAtB(pos, dshape, Jtr);
+               double det = Jtr.Det();
+               if (det <= 0.)
+               {
+                  jachk = 0;
+               }
+           }
+       }
+       int jachkglob;
+       MPI_Allreduce(&jachk, &jachkglob, 1, MPI_INT, MPI_MIN,
+                     nlf->ParFESpace()->GetComm());
+       int nanchkglob;
+       MPI_Allreduce(&nanchk, &nanchkglob, 1, MPI_INT, MPI_MAX,
+                     nlf->ParFESpace()->GetComm());
+
+       if (finenergy>1.0*initenergy || nanchkglob!=0 || jachkglob==0)
+       {
+           tchk = 0;
+           alpha *= 0.5;
+       }
+       else
+       {
+           tchk = 1;
+       }
+   }
+   if (print_level >= 0)
+   {
+      cout << initenergy << " " << finenergy
+           <<  " energy value before and after newton iteration\n";
+      cout << "alpha value is " << alpha << " \n";
+   }
+
+   if (tchk == 0) { alpha = 0.0; }
+
+   return alpha;
 }
 
 // Relaxed newton iterations which is kind of like descent.. it can handle inverted
@@ -409,13 +312,11 @@ void DescentNewtonSolver::Mult2(const Vector &b, Vector &x,
             cout << "Line search was not successfull.. stopping Newton\n";
             break;
         }
-        
     }
     
     final_iter = it;
     final_norm = norm;
-    *itnums = final_iter;
-        
+    *itnums = final_iter; 
 }
 
 #define BIG_NUMBER 1e+100 // Used when a matrix is outside the metric domain.
@@ -1086,7 +987,7 @@ int main (int argc, char *argv[])
     if (tauval > 0)
     {
        tauval = 1e-1;
-       RelaxedNewtonSolver *newt = new RelaxedNewtonSolver(MPI_COMM_WORLD);
+       RelaxedNewtonSolver *newt = new RelaxedNewtonSolver(*ir, MPI_COMM_WORLD);
        newt->SetPreconditioner(*S);
        newt->SetMaxIter(newits);
        newt->SetRelTol(rtol);
@@ -1100,7 +1001,7 @@ int main (int argc, char *argv[])
 
        if (myid==0) { cout << " Relaxed newton solver will be used \n"; }
 
-       newt->Mult2(b, X, *pmesh, *ir, &newtonits, a);
+       newt->Mult(b, X);
        if (!newt->GetConverged() && myid == 0)
        {
           cout << "Newton: rtol = " << rtol << " not achieved." << endl;

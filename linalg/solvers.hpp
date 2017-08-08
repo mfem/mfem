@@ -275,8 +275,10 @@ public:
    /// Solve the nonlinear system with right-hand side @a b.
    /** If `b.Size() != Height()`, then @a b is assumed to be zero. */
    virtual void Mult(const Vector &b, Vector &x) const;
-};
 
+   virtual double ComputeScalingFactor(const Vector &x, const Vector &c) const
+   { return 1.0; }
+};
 
 /** Adaptive restarted GMRES.
     m_max and m_min(=1) are the maximal and minimal restart parameters.
