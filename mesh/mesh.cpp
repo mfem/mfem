@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstring>
 #include <ctime>
+#include <functional>
 
 #ifdef MFEM_USE_GECKO
 #include "graph.h"
