@@ -453,7 +453,7 @@ void ParNCMesh::GetGroupShared(Array<bool> &group_shared)
       const CommGroup &group = groups[i];
       if (group.size() > 1)
       {
-         for (unsigned j = 0; group.size(); j++)
+         for (unsigned j = 0; j < group.size(); j++)
          {
             if (group[j] == MyRank)
             {
