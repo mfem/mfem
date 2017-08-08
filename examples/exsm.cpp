@@ -434,6 +434,8 @@ int main (int argc, char *argv[])
     int order = 1;
     bool static_cond = false;
     bool visualization = 1;
+    int rs_levels = 0;
+    int combomet = 0;
     
     OptionsParser args(argc, argv);
     args.AddOption(&mesh_file, "-m", "--mesh",
@@ -446,6 +448,12 @@ int main (int argc, char *argv[])
     args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                    "--no-visualization",
                    "Enable or disable GLVis visualization.");
+    args.AddOption(&rs_levels, "-rs", "--refine-serial",
+                   "Number of times to refine the mesh uniformly in serial.");
+    args.AddOption(&combomet, "-cmb", "--combination-of-metrics",
+                   "Metric combination");
+    
+    
     args.Parse();
     if (!args.Good())
     {
@@ -460,22 +468,16 @@ int main (int argc, char *argv[])
     int dim = mesh->Dimension();
     
     // 4. Refine the mesh to increase the resolution. In this example we do
-    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
-    //    largest number that gives a final mesh with no more than 1000
-    //    elements.
+    //    'rs_levels' of uniform refinement.
     {
-        int ref_levels =
-        (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
-        cout << "enter refinement levels [" << ref_levels << "] --> " << flush;
-        cin >> ref_levels;
-        for (int l = 0; l < ref_levels; l++)
+        for (int lev = 0; lev < rs_levels; lev++)
         {
             mesh->UniformRefinement();
         }
         
-        logvec[0]=ref_levels;
+        logvec[0]=rs_levels;
     }
-        cout << "refinements specified\n";
+    cout << rs_levels << " serial refinements specified\n";
     
     // 5. Define a finite element space on the mesh. Here we use vector finite
     //    elements which are tensor products of quadratic finite elements. The
@@ -666,6 +668,8 @@ int main (int argc, char *argv[])
         << "     shape, condition number.\n"
         << "7  : |T - T^-t|^2 \n"
         << "     shape+size.\n"
+        << "9  : tau*|T - T^-t|^2 \n"
+        << "     shape+size.\n"
         << "22  : |T|^2 - 2*tau / (2*tau - 2*tau_0)\n"
         << "     untangling.\n"
         << "50  : |T^tT|^2/(2tau^2) - 1\n"
@@ -700,6 +704,10 @@ int main (int argc, char *argv[])
         {
             model = new TMOPHyperelasticModel007;
             cout << " you chose metric 7 \n";
+        }
+        else if (modeltype == 9)
+        {
+            model = new TMOPHyperelasticModel009;
         }
         else if (modeltype == 22)
         {
@@ -820,26 +828,31 @@ int main (int argc, char *argv[])
     he_nlf_integ = new HyperelasticNLFIntegrator(model, tj);
     
     int ptflag = 1; //if 1 - GLL, else uniform
-    int nptdir = 9; //number of sample points in each direction
-    const IntegrationRule *ir =
-    &IntRulesLo.Get(fespace->GetFE(0)->GetGeomType(),nptdir); //this for GLL points "LO"
-    he_nlf_integ->SetIntegrationRule(*ir);
-    if (ptflag==1) {
+    int nptdir = 8; //number of sample points in each direction
+    const IntegrationRule *ir = NULL;
+    if (ptflag == 1)
+    {
+        // Gauss-Lobatto points.
+        ir = &IntRulesLo.Get(fespace->GetFE(0)->GetGeomType(),nptdir);
         cout << "Sample point distribution is GLL based\n";
     }
-    else {
-        const IntegrationRule *ir =
-        &IntRulesCU.Get(fespace->GetFE(0)->GetGeomType(),nptdir); //this for uniform points "CU"
-        he_nlf_integ->SetIntegrationRule(*ir);
+    else
+    {
+        // Closed uniform points.
+        ir = &IntRulesCU.Get(fespace->GetFE(0)->GetGeomType(),nptdir);
         cout << "Sample point distribution is uniformly spaced\n";
     }
+    he_nlf_integ->SetIntegrationRule(*ir);
+    //he_nlf_integ->SetLimited(0.05, x0);
     
     //
     nf_integ = he_nlf_integ;
     NonlinearForm a(fespace);
     
     // This is for trying a combo of two integrators
-    const int combomet = 0;
+    FunctionCoefficient rhs_coef (weight_fun);
+    Coefficient *combo_coeff = NULL;
+    
     if (combomet==1) {
         c = new ConstantCoefficient(1.25);  //weight of original metric
         he_nlf_integ->SetCoefficient(*c);
@@ -848,20 +861,19 @@ int main (int argc, char *argv[])
         
         
         tj2    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SCALE_SIZE);
+        //tj2    = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE);
+        //tj2    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE);
         model2 = new TMOPHyperelasticModel077;
         tj2->SetNodes(*x);
         tj2->SetInitialNodes(x0);
         HyperelasticNLFIntegrator *he_nlf_integ2;
         he_nlf_integ2 = new HyperelasticNLFIntegrator(model2, tj2);
-        const IntegrationRule *ir =
-        &IntRulesLo.Get(fespace->GetFE(0)->GetGeomType(),nptdir); //this for metric
         he_nlf_integ2->SetIntegrationRule(*ir);
         
         
-        //c2 = new ConstantCoefficient(2.5);
+        //c2 = new ConstantCoefficient(1.00);
         //he_nlf_integ2->SetCoefficient(*c2);     //weight of new metric
         
-        FunctionCoefficient rhs_coef (weight_fun);
         he_nlf_integ2->SetCoefficient(rhs_coef);     //weight of new metric as function
         cout << "You have added a combo metric \n";
         a.AddDomainIntegrator(he_nlf_integ2);
@@ -975,8 +987,11 @@ int main (int argc, char *argv[])
     cout << "Enter number of Newton iterations -->\n " << flush;
     cin >> ans;
     logvec[7]=ans;
-    cout << "Initial strain energy : " << a.GetEnergy(*x) << endl;
+    
     logvec[8]=a.GetEnergy(*x);
+    cout.precision(4);
+    cout << "Initial strain energy : " << setprecision(16)
+    << logvec[8] << endl;
     
     // save original
     Vector xsav = *x;
@@ -1003,7 +1018,6 @@ int main (int argc, char *argv[])
         nds->GetSubVector(xdofs, posV);
         for (int j = 0; j < nsp; j++)
         {
-            //cout << "point number " << j << "\n";
             fe.CalcDShape(ir->IntPoint(j), dshape);
             MultAtB(pos, dshape, Jtr(j));
             double det = Jtr(j).Det();
@@ -1023,7 +1037,7 @@ int main (int argc, char *argv[])
         newt->SetAbsTol(0.0);
         newt->SetPrintLevel(1);
         newt->SetOperator(a);
-        Vector b;
+        Vector b(0);
         cout << " Relaxed newton solver will be used \n";
         newt->Mult2(b, *x, *mesh, *ir, &newtonits, a );
         if (!newt->GetConverged())
@@ -1049,7 +1063,7 @@ int main (int argc, char *argv[])
         newt->SetAbsTol(0.0);
         newt->SetPrintLevel(1);
         newt->SetOperator(a);
-        Vector b;
+        Vector b(0);
         cout << " There are inverted elements in the mesh \n";
         cout << " Descent newton solver will be used \n";
         newt->Mult2(b, *x, *mesh, *ir, &newtonits, a, tauval );
@@ -1073,7 +1087,7 @@ int main (int argc, char *argv[])
         mesh->Print(sol_sock);
         metric.Save(sol_sock);
         sol_sock.send();
-        sol_sock << "keys " << "JRem" << endl;
+        sol_sock << "keys " << "JRmm" << endl;
     }
     
     // 17. Get some mesh statistics
@@ -1107,6 +1121,9 @@ int main (int argc, char *argv[])
     delete S;
     delete model;
     delete c;
+    
+    delete model2;
+    delete combo_coeff;
     
     // Define mesh displacement
     x0 -= *x;
@@ -1160,45 +1177,9 @@ double weight_fun(const Vector &x)
     {
         r2 = sqrt(r2);
     }
-    l2 = 0;
-    //This is for tipton
-    if (r2 >= 0.10 && r2 <= 0.15 )
-    {
-        l2 = 1;
-    }
-    //l2 = 0.01+0.5*std::tanh((r2-0.13)/0.01)-(0.5*std::tanh((r2-0.14)/0.01))
-    //        +0.5*std::tanh((r2-0.21)/0.01)-(0.5*std::tanh((r2-0.22)/0.01));
-    double den = 0.005;
-    //l2 = 0.05+0.5*std::tanh((r2-0.12)/den)-(0.5*std::tanh((r2-0.13)/den))
-    //+0.5*std::tanh((r2-0.18)/den)-(0.5*std::tanh((r2-0.19)/den));
-    l2 = 0.2 +     +0.5*std::tanh((r2-0.14)/den)-(0.5*std::tanh((r2-0.15)/den))
-    +0.5*std::tanh((r2-0.19)/den)-(0.5*std::tanh((r2-0.20)/den))
+    double den = 0.002;
+    l2 = 0.2 +     0.5*std::tanh((r2-0.16)/den)-(0.5*std::tanh((r2-0.17)/den))
     +0.5*std::tanh((r2-0.23)/den)-(0.5*std::tanh((r2-0.24)/den));
-    //l2 = 10*r2;
-    /*
-    //This is for blade
-    int l4 = 0, l3 = 0;
-    double xmin, xmax, ymin, ymax,dx ,dy;
-    xmin = 0.9; xmax = 1.;
-    ymin = -0.2; ymax = 0.;
-    dx = (xmax-xmin)/2;dy = (ymax-ymin)/2;
-    
-    if (abs(x(0)-xmin)<dx && abs(x(0)-xmax)<dx) {
-        l4 = 1;
-    }
-    if (abs(x(1)-ymin)<dy && abs(x(1)-ymax)<dy) {
-        l3 = 1;
-    }
-    l2 = l4*l3;
-     */
-    
-    // This is for square perturbed
-    /*
-     if (r2 < 0.5) {
-        l2 = 1;
-    }
-     */
-    
     return l2;
 }
 

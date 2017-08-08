@@ -23,9 +23,6 @@ using namespace mfem;
 
 using namespace std;
 
-// This is where K10 methods start
-// Implement Relaxed Newton solver to avoid mesh becoming invalid during the
-// optimization process
 class RelaxedNewtonSolver : public IterativeSolver
 {
 protected:
@@ -450,6 +447,10 @@ int main (int argc, char *argv[])
     int order = 1;
     bool static_cond = false;
     bool visualization = 1;
+    int rs_levels = 0;
+    int combomet = 0;
+    int rp_levels = 0;
+    
     
     OptionsParser args(argc, argv);
     args.AddOption(&mesh_file, "-m", "--mesh",
@@ -462,7 +463,15 @@ int main (int argc, char *argv[])
     args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                    "--no-visualization",
                    "Enable or disable GLVis visualization.");
-    args.Parse();
+    args.AddOption(&rs_levels, "-rs", "--refine-serial",
+                   "Number of times to refine the mesh uniformly in serial.");
+    args.AddOption(&rp_levels, "-rp", "--refine-parallel",
+                   "Number of times to refine the mesh uniformly in parallel.");
+    args.AddOption(&combomet, "-cmb", "--combination-of-metrics",
+                   "Metric combination");
+    
+    
+        args.Parse();
     if (!args.Good())
     {
         if (myid == 0)
@@ -481,27 +490,16 @@ int main (int argc, char *argv[])
     int dim = mesh->Dimension();
     
     // 4. Refine the mesh to increase the resolution. In this example we do
-    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
-    //    largest number that gives a final mesh with no more than 1000
-    //    elements.
+    //    'rs_levels' of uniform refinement.
     {
-        int ref_levels = (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
-        if (myid == 0)
-        {
-           cout << "enter refinement levels [" << ref_levels << "] --> " << flush;
-           cin >> ref_levels;
-        }
-        int ref_levels_g;
-        MPI_Allreduce(&ref_levels, &ref_levels_g, 1, MPI_INT, MPI_MIN,
-                      MPI_COMM_WORLD);
-        
-        for (int l = 0; l < ref_levels_g; l++)
+        for (int lev = 0; lev < rs_levels; lev++)
         {
             mesh->UniformRefinement();
         }
         
-        logvec[0]=ref_levels;
+        logvec[0]=rs_levels;
     }
+    
     
     // 5. Define a finite element space on the mesh. Here we use vector finite
     //    elements which are tensor products of quadratic finite elements. The
@@ -534,7 +532,9 @@ int main (int argc, char *argv[])
 
     ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
     delete mesh;
-
+    for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
+    
+    
     FiniteElementCollection *fec;
     if (mesh_poly_deg <= 0)
     {
@@ -717,6 +717,8 @@ int main (int argc, char *argv[])
             << "     shape, condition number.\n"
             << "7  : |T - T^-t|^2 \n"
             << "     shape+size.\n"
+            << "9  : tau*|T - T^-t|^2 \n"
+            << "     shape+size.\n"
             << "22  : |T|^2 - 2*tau / (2*tau - 2*tau_0)\n"
             << "     untangling.\n"
             << "50  : |T^tT|^2/(2tau^2) - 1\n"
@@ -749,6 +751,10 @@ int main (int argc, char *argv[])
        else if (modeltype == 7)
        {
           model = new TMOPHyperelasticModel007;
+       }
+       else if (modeltype == 9)
+       {
+           model = new TMOPHyperelasticModel009;
        }
        else if (modeltype == 22)
        {
@@ -883,18 +889,17 @@ int main (int argc, char *argv[])
     }
     he_nlf_integ->SetIntegrationRule(*ir);
 
-    // he_nlf_integ->SetLimited(1.0, x0);
+    //he_nlf_integ->SetLimited(0.05, x0);
         
     nf_integ = he_nlf_integ;
     ParNonlinearForm a(fespace);
         
     // This is for trying a combo of two integrators.
     FunctionCoefficient rhs_coef(weight_fun);
-    const int combomet = 0;
     Coefficient *combo_coeff = NULL;
     if (combomet == 1)
     {
-       c = new ConstantCoefficient(0.5);  //weight of original metric
+       c = new ConstantCoefficient(1.25);  //weight of original metric
        he_nlf_integ->SetCoefficient(*c);
        nf_integ = he_nlf_integ;
        a.AddDomainIntegrator(nf_integ);
@@ -906,11 +911,11 @@ int main (int argc, char *argv[])
        he_nlf_integ2 = new HyperelasticNLFIntegrator(model2, tj2);
        he_nlf_integ2->SetIntegrationRule(*ir);
 
-       combo_coeff = new ConstantCoefficient(2.5);
-       he_nlf_integ2->SetCoefficient(*combo_coeff); //weight of new metric
+       //combo_coeff = new ConstantCoefficient(2.5);
+       //he_nlf_integ2->SetCoefficient(*combo_coeff); //weight of new metric
 
        he_nlf_integ2->SetCoefficient(rhs_coef); //weight of new metric as function
-       cout << "You have added a combo metric \n";
+        if (myid == 0) {cout << "You have added a combo metric \n";}
        a.AddDomainIntegrator(he_nlf_integ2);
     }
     else
@@ -1228,10 +1233,11 @@ int main (int argc, char *argv[])
     delete fec;
     delete pmesh;
     
+    
     // Execution time
+    double tstop_s = clock();
     if (myid == 0)
     {
-       double tstop_s = clock();
        cout << "The total time ist took for this example's execution is: "
             << (tstop_s-tstart_s)/1000000. << " seconds\n";
     }
@@ -1280,40 +1286,8 @@ double weight_fun(const Vector &x)
     {
         r2 = sqrt(r2);
     }
-    l2 = 0;
-    //This is for tipton
-    if (r2 >= 0.10 && r2 <= 0.15 )
-    {
-        l2 = 1;
-    }
-    //l2 = 0.01+0.5*std::tanh((r2-0.13)/0.01)-(0.5*std::tanh((r2-0.14)/0.01))
-    //        +0.5*std::tanh((r2-0.21)/0.01)-(0.5*std::tanh((r2-0.22)/0.01));
-    l2 = 0.1+0.5*std::tanh((r2-0.12)/0.005)-(0.5*std::tanh((r2-0.13)/0.005))
-    +0.5*std::tanh((r2-0.18)/0.005)-(0.5*std::tanh((r2-0.19)/0.005));
-    //l2 = 10*r2;
-    /*
-    //This is for blade
-    int l4 = 0, l3 = 0;
-    double xmin, xmax, ymin, ymax,dx ,dy;
-    xmin = 0.9; xmax = 1.;
-    ymin = -0.2; ymax = 0.;
-    dx = (xmax-xmin)/2;dy = (ymax-ymin)/2;
-    
-    if (abs(x(0)-xmin)<dx && abs(x(0)-xmax)<dx) {
-        l4 = 1;
-    }
-    if (abs(x(1)-ymin)<dy && abs(x(1)-ymax)<dy) {
-        l3 = 1;
-    }
-    l2 = l4*l3;
-     */
-    
-    // This is for square perturbed
-    /*
-     if (r2 < 0.5) {
-        l2 = 1;
-    }
-     */
-    
+    double den = 0.002;
+    l2 = 0.2 +     0.5*std::tanh((r2-0.16)/den)-(0.5*std::tanh((r2-0.17)/den))
+    +0.5*std::tanh((r2-0.23)/den)-(0.5*std::tanh((r2-0.24)/den));
     return l2;
 }
