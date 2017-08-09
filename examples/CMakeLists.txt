@@ -81,7 +81,9 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
 
   if ( NOT is_parallel_test STREQUAL "p" )
     add_test(NAME ${TEST_NAME}_ser
-      COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 1
+      $<TARGET_FILE:${TEST_NAME}> ${THIS_TEST_OPTIONS}
+      ${MPIEXEC_POSTFLAGS})
   else()
     add_test(NAME ${TEST_NAME}_np=4
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4
