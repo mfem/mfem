@@ -522,7 +522,7 @@ const T *GroupCommunicator::ReduceGroupFromBuffer(const T *buf, T *ldata,
    {
       case 1:
       {
-         MFEM_ABORT("TODO");
+         MFEM_ABORT("layout 1 is not supported");
          T *dest = ldata + group_ldof.GetI()[group];
          for (int j = 0; j < opd.nldofs; j++)
          {
@@ -609,7 +609,7 @@ void GroupCommunicator::BcastBegin(T *ldata, int layout)
                                40822 + gtopo.GetGroupMasterGroup(gr),
                                gtopo.GetComm(),
                                &requests[request_counter]);
-                     request_marker[request_counter] = -1;
+                     request_marker[request_counter] = -1; // mark as send req.
                      request_counter++;
                   }
                }
@@ -628,8 +628,9 @@ void GroupCommunicator::BcastBegin(T *ldata, int layout)
             const int num_send_groups = nbr_send_groups.RowSize(nbr);
             if (num_send_groups > 0)
             {
-               // TODO: if (num_send_groups == 1) and (layout == 1) then we do
-               //       not need to copy the data in order to send it
+               // Possible optimization:
+               //    if (num_send_groups == 1) and (layout == 1) then we do not
+               //    need to copy the data in order to send it.
                T *buf_start = buf;
                const int *grp_list = nbr_send_groups.GetRow(nbr);
                for (int i = 0; i < num_send_groups; i++)
@@ -643,13 +644,17 @@ void GroupCommunicator::BcastBegin(T *ldata, int layout)
                          40822,
                          gtopo.GetComm(),
                          &requests[request_counter]);
-               request_marker[request_counter] = -1;
+               request_marker[request_counter] = -1; // mark as send request
                request_counter++;
             }
 
             const int num_recv_groups = nbr_recv_groups.RowSize(nbr);
             if (num_recv_groups > 0)
             {
+               // Possible optimization (requires interface change):
+               //    if (num_recv_groups == 1) and the (output layout == 1) then
+               //    we can receive directly in the output buffer; however, at
+               //    this point we do not have that information.
                const int *grp_list = nbr_recv_groups.GetRow(nbr);
                int recv_size = 0;
                for (int i = 0; i < num_recv_groups; i++)
@@ -701,7 +706,7 @@ void GroupCommunicator::BcastEnd(T *ldata, int layout)
                    idx != MPI_UNDEFINED)
             {
                int gr = request_marker[idx];
-               if (gr == -1) { continue; } // ignore send requests
+               if (gr == -1) { continue; } // skip send requests
 
                // groups without dofs are skipped, so here nldofs > 0.
                T *buf = (T *)group_buf.GetData() + group_ldof.GetI()[gr];
@@ -719,7 +724,7 @@ void GroupCommunicator::BcastEnd(T *ldata, int layout)
                 idx != MPI_UNDEFINED)
          {
             int nbr = request_marker[idx];
-            if (nbr == -1) { continue; } // ignore send requests
+            if (nbr == -1) { continue; } // skip send requests
 
             const int num_recv_groups = nbr_recv_groups.RowSize(nbr);
             if (num_recv_groups > 0)
@@ -729,7 +734,6 @@ void GroupCommunicator::BcastEnd(T *ldata, int layout)
                for (int i = 0; i < num_recv_groups; i++)
                {
                   buf = CopyGroupFromBuffer(buf, ldata, grp_list[i], layout);
-                  // TODO: Can we avoid copies when (layout == 1)?
                }
             }
          }
@@ -772,7 +776,7 @@ void GroupCommunicator::ReduceBegin(const T *ldata)
                          43822 + gtopo.GetGroupMasterGroup(gr),
                          gtopo.GetComm(),
                          &requests[request_counter]);
-               request_marker[request_counter] = -1; // ignore send requests
+               request_marker[request_counter] = -1; // mark as send request
                request_counter++;
                buf += nldofs;
             }
@@ -824,7 +828,7 @@ void GroupCommunicator::ReduceBegin(const T *ldata)
                          43822,
                          gtopo.GetComm(),
                          &requests[request_counter]);
-               request_marker[request_counter] = -1;
+               request_marker[request_counter] = -1; // mark as send request
                request_counter++;
             }
 
