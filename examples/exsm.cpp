@@ -1,17 +1,16 @@
-//                               ETHOS Example 1
+//                               ETHOS Example - Mesh optimizer
 //
 // Compile with: make exsm
 //
-// Sample runs:  exsm -m tipton.mesh
+// Sample runs:  exsm -m blade.mesh     with Ideal target and metric 2
+//               exsm -m tipton.mesh    with Ideal equal size target and metric 9
 //
-// Description: This example code performs a simple mesh smoothing based on a
-//              topologically defined "mesh Laplacian" matrix.
-//
-//              The example highlights meshes with curved elements, the
-//              assembling of a custom finite element matrix, the use of vector
-//              finite element spaces, the definition of different spaces and
-//              grid functions on the same mesh, and the setting of values by
-//              iterating over the interior and the boundary elements.
+// Description: This example code performs mesh optimization using Target-matrix
+//              optimization paradigm coupled with Variational Minimization. The
+//              smoother is based on a combination of target element and quality metric
+//              that the users chooses, which in-turn determines which features of the
+//              mesh - size, quality and/or orientation - are optimized.
+
 
 #include "mfem.hpp"
 #include <fstream>
@@ -23,389 +22,193 @@ using namespace mfem;
 
 using namespace std;
 
-// This is where K10 methods start
-// Implement Relaxed Newton solver to avoid mesh becoming invalid during the
-// optimization process
-class RelaxedNewtonSolver : public IterativeSolver
+class RelaxedNewtonSolver : public NewtonSolver
 {
-protected:
-    mutable Vector r, c;
+private:
+    // Quadrature points that are checked for negative Jacobians etc.
+    const IntegrationRule &ir;
+    
 public:
-    RelaxedNewtonSolver() { }
+    RelaxedNewtonSolver(const IntegrationRule &irule) : ir(irule) { }
     
 #ifdef MFEM_USE_MPI
-    RelaxedNewtonSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+    RelaxedNewtonSolver(const IntegrationRule &irule, MPI_Comm _comm)
+    : NewtonSolver(_comm), ir(irule) { }
 #endif
-        virtual void SetOperator(const Operator &op);
     
-        virtual void SetSolver(Solver &solver) { prec = &solver; }
-    
-        virtual void Mult(const Vector &b, Vector &x) const;
-    
-        virtual void Mult2(const Vector &b, Vector &x,
-                      const Mesh &mesh, const IntegrationRule &ir,
-                           int *itnums, const NonlinearForm &nlf) const;
-    
-    
+    virtual double ComputeScalingFactor(const Vector &x, const Vector &c) const;
 };
 
-void RelaxedNewtonSolver::SetOperator(const Operator &op)
-{
-    oper = &op;
-    height = op.Height();
-    width = op.Width();
-    MFEM_ASSERT(height == width, "square Operator is required.");
-    
-    r.SetSize(width);
-    c.SetSize(width);
-}
 
-void RelaxedNewtonSolver::Mult(const Vector &b, Vector &x) const
+double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
+                                                 const Vector &c) const
 {
-    return;
-}
-
-void RelaxedNewtonSolver::Mult2(const Vector &b, Vector &x,
-                                const Mesh &mesh, const IntegrationRule &ir,
-                                int *itnums, const NonlinearForm &nlf) const
-{
-    MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
-    MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
     
-    int it;
-    double norm, norm_goal;
-    bool have_b = (b.Size() == Height());
+    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
     
-    if (!iterative_mode)
+    const int NE = nlf->FESpace()->GetMesh()->GetNE();
+    
+    Vector xsav = x; //create a copy of x
+    int passchk = 0;
+    int iters = 0;
+    double alpha = 1.;
+    int jachk = 1;
+    double initenergy = 0.0;
+    double finenergy = 0.0;
+    double nanchk;
+    
+    
+    initenergy =nlf->GetEnergy(x);
+    
+    while (passchk !=1 && iters < 20)
     {
-        x = 0.0;
-    }
-    
-    oper->Mult(x, r);
-    if (have_b)
-    {
-        r -= b;
-    }
-    
-    norm = Norm(r);
-    norm_goal = std::max(rel_tol*norm, abs_tol);
-    
-    prec->iterative_mode = false;
-    
-    // x_{i+1} = x_i - [DF(x_i)]^{-1} [F(x_i)-b]
-    for (it = 0; true; it++)
-    {
-        MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
-        if (print_level >= 0)
-            cout << "Newton iteration " << setw(2) << it
-            << " : ||r|| = " << norm << '\n';
+        iters += 1;
+        jachk = 1;
+        add (x,-alpha,c,xsav);
         
-        if (norm <= norm_goal)
-        {
-            converged = 1;
-            break;
-        }
+        GridFunction x_gf(nlf->FESpace());
+        x_gf = xsav;
         
-        
-        if (it >= max_iter)
-        {
-            converged = 0;
-            break;
-        }
-        
-        prec->SetOperator(oper->GetGradient(x));
-        
-        prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
-        
-        
-        //k10 some changes
-        const int NE = mesh.GetNE();
-        const GridFunction &nodes = *mesh.GetNodes();
-        
-    
-        Array<int> dofs;
-        Vector xsav = x; //create a copy of x
-        Vector csav = c;
-        int tchk = 0;
-        int iters = 0;
-        double alpha = 1.;
-        int jachk = 1;
-        double initenergy = 0.0;
-        double finenergy = 0.0;
-        double nanchk;
-        
-        
-        initenergy =nlf.GetEnergy(x);
-        
-        while (tchk !=1 && iters < 20)
-        {
-            iters += 1;
-            //cout << "number of iters is " << iters << "\n";
-            jachk = 1;
-            c = csav;
-            x = xsav;
-            add (xsav,-alpha,csav,x);
-            finenergy = nlf.GetEnergy(x);
-            nanchk = isnan(finenergy);
-            for (int i = 0; i < NE; i++)
-            {
-                const FiniteElement &fe = *nodes.FESpace()->GetFE(i);
-                const int dim = fe.GetDim(), nsp = ir.GetNPoints(),
-                dof = fe.GetDof();
-                
-                DenseTensor Jtr(dim, dim, nsp);
-                
-                DenseMatrix dshape(dof, dim), pos(dof, dim);
-                Array<int> xdofs(dof * dim);
-                Vector posV(pos.Data(), dof * dim);
-                
-                nodes.FESpace()->GetElementVDofs(i, xdofs);
-                nodes.GetSubVector(xdofs, posV);
-                for (int j = 0; j < nsp; j++)
-                {
-                    fe.CalcDShape(ir.IntPoint(j), dshape);
-                    MultAtB(pos, dshape, Jtr(j));
-                    double det = Jtr(j).Det();
-                    if (det<=0.)
-                    {
-                        jachk *= 0;
-                    }
-                }
-            }
-            
-            //finenergy = initenergy - 1; //WARNING: THIS IS JUST FOR TIPTONUNI.MESH
-            if (finenergy>1.0*initenergy || nanchk!=0 || jachk==0)
-            {
-                tchk = 0;
-                alpha *= 0.5;
-            }
-            else
-            {
-                tchk = 1;
-            }
-            
-            
-            
-        }
-        
-        cout << initenergy << " " << finenergy <<  " energy value before and after newton iteration\n";
-        cout << "alpha value is " << alpha << " \n";
-        
-        if (tchk==0)
-        {
-            alpha =0;
-        }
-        
-        add (xsav,-alpha,csav,x);
-        
-        oper->Mult(x, r);
-        if (have_b)
-        {
-            r -= b;
-        }
-        norm = Norm(r);
-        
-        if (alpha == 0)
-        {
-            converged = 0;
-            cout << "Line search was not successfull.. stopping Newton\n";
-            break;
-        }
-        
-    }
-    
-    final_iter = it;
-    final_norm = norm;
-    *itnums = final_iter;
-}
-
-// Relaxed newton iterations which is kind of like descent.. it can handle inverted
-// elements but the metric value must decrease :)
-class DescentNewtonSolver : public IterativeSolver
-{
-protected:
-    mutable Vector r, c;
-public:
-    DescentNewtonSolver() { }
-    
-#ifdef MFEM_USE_MPI
-    DescentNewtonSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
-#endif
-    virtual void SetOperator(const Operator &op);
-    
-    virtual void SetSolver(Solver &solver) { prec = &solver; }
-    
-    virtual void Mult(const Vector &b, Vector &x) const;
-    
-    virtual void Mult2(const Vector &b, Vector &x,
-                       const Mesh &mesh, const IntegrationRule &ir,
-                       int *itnums, const NonlinearForm &nlf,
-                       double &tauval) const;
-};
-void DescentNewtonSolver::SetOperator(const Operator &op)
-{
-    oper = &op;
-    height = op.Height();
-    width = op.Width();
-    MFEM_ASSERT(height == width, "square Operator is required.");
-    
-    r.SetSize(width);
-    c.SetSize(width);
-}
-
-void DescentNewtonSolver::Mult(const Vector &b, Vector &x) const
-{
-    return;
-}
-
-void DescentNewtonSolver::Mult2(const Vector &b, Vector &x,
-                                const Mesh &mesh, const IntegrationRule &ir,
-                                int *itnums, const NonlinearForm &nlf,
-                                double &tauval) const
-{
-    MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
-    MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
-    
-    int it;
-    double norm, norm_goal;
-    bool have_b = (b.Size() == Height());
-    
-    if (!iterative_mode)
-    {
-        x = 0.0;
-    }
-    
-    oper->Mult(x, r);
-    if (have_b)
-    {
-        r -= b;
-    }
-    
-    norm = Norm(r);
-    norm_goal = std::max(rel_tol*norm, abs_tol);
-    
-    prec->iterative_mode = false;
-    // x_{i+1} = x_i - [DF(x_i)]^{-1} [F(x_i)-b]
-    for (it = 0; true; it++)
-    {
-        MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
-        if (print_level >= 0)
-            cout << "Newton iteration " << setw(2) << it
-            << " : ||r|| = " << norm << '\n';
-        
-        if (norm <= norm_goal)
-        {
-            converged = 1;
-            break;
-        }
-        
-        
-        if (it >= max_iter)
-        {
-            converged = 0;
-            break;
-        }
-        
-        const int NE = mesh.GetNE();
-        const GridFunction &nodes = *mesh.GetNodes();
-        
-        Array<int> dofs;
-        tauval = 1e+6;
-        int nelinvorig= 0;
+        finenergy = nlf->GetEnergy(xsav);
+        nanchk = isnan(finenergy);
         for (int i = 0; i < NE; i++)
         {
-            const FiniteElement &fe = *nodes.FESpace()->GetFE(i);
+            const FiniteElement &fe = *x_gf.FESpace()->GetFE(i);
             const int dim = fe.GetDim(), nsp = ir.GetNPoints(),
             dof = fe.GetDof();
-            DenseTensor Jtr(dim, dim, nsp);
-            const GridFunction *nds;
-            nds = &nodes;
+            
+            DenseMatrix Jtr(dim);
+            
             DenseMatrix dshape(dof, dim), pos(dof, dim);
             Array<int> xdofs(dof * dim);
             Vector posV(pos.Data(), dof * dim);
-            nds->FESpace()->GetElementVDofs(i, xdofs);
-            nds->GetSubVector(xdofs, posV);
+            
+            x_gf.FESpace()->GetElementVDofs(i, xdofs);
+            x_gf.GetSubVector(xdofs, posV);
             for (int j = 0; j < nsp; j++)
             {
                 fe.CalcDShape(ir.IntPoint(j), dshape);
-                MultAtB(pos, dshape, Jtr(j));
-                double det = Jtr(j).Det();
-                tauval = min(tauval,det);
+                MultAtB(pos, dshape, Jtr);
+                double det = Jtr.Det();
                 if (det<=0.)
                 {
-                    nelinvorig += 1;
+                    jachk *= 0;
                 }
             }
         }
-        if (tauval>0)
+        
+        if (finenergy>1.0*initenergy || nanchk!=0 || jachk==0)
         {
-            tauval = 1e-4;
+            passchk = 0;
+            alpha *= 0.5;
         }
         else
         {
-            tauval -= 1e-2;
+            passchk = 1;
         }
-        cout << "the determine tauval is " << tauval << "\n";
-        ////
-
-        prec->SetOperator(oper->GetGradient(x));
-        
-        prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
-        
-        Vector xsav = x; //create a copy of x
-        int tchk = 0;
-        int iters = 0;
-        double alpha = 1;
-        double initenergy = 0.0;
-        double finenergy = 0.0;
-        double nanchk;
-        
-        initenergy =nlf.GetEnergy(x);
-        cout << "energy level is " << initenergy << " \n";
-        const int nsp = ir.GetNPoints();
-        
-        while (tchk !=1 && iters <  15)
-        {
-            iters += 1;
-            add (xsav,-alpha,c,x);
-            finenergy = nlf.GetEnergy(x);
-            nanchk = isnan(finenergy);
-            
-            if (finenergy>initenergy || nanchk!=0)
-            {
-                alpha *= 0.1;
-            }
-                else
-            {
-                tchk = 1;
-            }
-        }
-        if (tchk==0)
-        {
-            alpha =0;
-        }
-        add (xsav,-alpha,c,x);
-        
-        oper->Mult(x, r);
-        if (have_b)
-        {
-            r -= b;
-        }
-        norm = Norm(r);
-        
-        if (alpha == 0)
-        {
-            converged = 0;
-            cout << "Line search was not successfull.. stopping Newton\n";
-            break;
-        }
-        
     }
     
-    final_iter = it;
-    final_norm = norm;
-    *itnums = final_iter;
+    cout << initenergy << " " << finenergy <<  " energy value before and after newton iteration\n";
+    cout << "alpha value is " << alpha << " \n";
+    
+    if (passchk==0) { alpha =0; }
+    return alpha;
+}
+
+class DescentNewtonSolver : public NewtonSolver
+{
+private:
+    // Quadrature points that are checked for negative Jacobians etc.
+    const IntegrationRule &ir;
+    
+public:
+    DescentNewtonSolver(const IntegrationRule &irule) : ir(irule) { }
+    
+#ifdef MFEM_USE_MPI
+    DescentNewtonSolver(const IntegrationRule &irule, MPI_Comm _comm)
+    : NewtonSolver(_comm), ir(irule) { }
+#endif
+    
+    virtual double ComputeScalingFactor(const Vector &x, const Vector &c) const;
+};
+
+double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
+                                                 const Vector &c) const
+{
+    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+    
+    const int NE = nlf->FESpace()->GetMesh()->GetNE();
+    
+    Vector xsav = x;
+    int passchk = 0;
+    int iters = 0;
+    double alpha = 1.;
+    int jachk = 1;
+    double initenergy = 0.0;
+    double finenergy = 0.0;
+    int nanchk = 0;
+    
+    GridFunction x_gf(nlf->FESpace());
+    x_gf = xsav;
+    
+    double tauval = 1e+6;
+    for (int i = 0; i < NE; i++)
+    {
+        const FiniteElement &fe = *x_gf.FESpace()->GetFE(i);
+        const int dim = fe.GetDim(), nsp = ir.GetNPoints(),
+        dof = fe.GetDof();
+        DenseMatrix Jtr(dim);
+        const GridFunction *nds;
+        DenseMatrix dshape(dof, dim), pos(dof, dim);
+        Array<int> xdofs(dof * dim);
+        Vector posV(pos.Data(), dof * dim);
+        x_gf.FESpace()->GetElementVDofs(i, xdofs);
+        x_gf.GetSubVector(xdofs, posV);
+        for (int j = 0; j < nsp; j++)
+        {
+            fe.CalcDShape(ir.IntPoint(j), dshape);
+            MultAtB(pos, dshape, Jtr);
+            double det = Jtr.Det();
+            tauval = min(tauval,det);
+        }
+    }
+    if (tauval>0)
+    {
+        tauval = 1e-4;
+    }
+    else
+    {
+        tauval -= 1e-2;
+    }
+    cout << "the determine tauval is " << tauval << "\n";
+    
+    initenergy =nlf->GetEnergy(x);
+    cout << "energy level is " << initenergy << " \n";
+    const int nsp = ir.GetNPoints();
+    
+    while (passchk !=1 && iters < 15)
+    {
+        iters += 1;
+        jachk = 1;
+        add (x,-alpha,c,xsav);
+        x_gf = xsav;
         
+        finenergy = nlf->GetEnergy(xsav);
+        nanchk = isnan(finenergy);
+        
+        if (finenergy>1.0*initenergy || nanchk!=0)
+        {
+            passchk = 0;
+            alpha *= 0.5;
+        }
+        else
+        {
+            passchk = 1;
+        }
+    }
+    
+    if (passchk==0) { alpha =0; }
+    return alpha;
 }
 
 
@@ -687,7 +490,6 @@ int main (int argc, char *argv[])
         << "211  : (tau-1)^2 - tau + sqrt(tau^2+beta)\n"
         << "      untangling.\n"
         " --> " << flush;
-        double tauval = -0.5;
         cin >> modeltype;
         model    = new TMOPHyperelasticModel001;
         if (modeltype == 1)
@@ -1030,7 +832,7 @@ int main (int argc, char *argv[])
     if (tauval>0)
     {
         tauval = 1e-1;
-        RelaxedNewtonSolver *newt= new RelaxedNewtonSolver;
+        RelaxedNewtonSolver *newt= new RelaxedNewtonSolver(*ir);
         newt->SetPreconditioner(*S);
         newt->SetMaxIter(ans);
         newt->SetRelTol(rtol);
@@ -1039,7 +841,7 @@ int main (int argc, char *argv[])
         newt->SetOperator(a);
         Vector b(0);
         cout << " Relaxed newton solver will be used \n";
-        newt->Mult2(b, *x, *mesh, *ir, &newtonits, a );
+        newt->Mult(b, *x);
         if (!newt->GetConverged())
             cout << "NewtonIteration : rtol = " << rtol << " not achieved."
             << endl;
@@ -1056,7 +858,7 @@ int main (int argc, char *argv[])
             cout << "model 52 will be used since mesh has negative jacobians\n";
         }
         tauval -= 0.01;
-        DescentNewtonSolver *newt= new DescentNewtonSolver;
+        DescentNewtonSolver *newt= new DescentNewtonSolver(*ir);
         newt->SetPreconditioner(*S);
         newt->SetMaxIter(ans);
         newt->SetRelTol(rtol);
@@ -1066,7 +868,7 @@ int main (int argc, char *argv[])
         Vector b(0);
         cout << " There are inverted elements in the mesh \n";
         cout << " Descent newton solver will be used \n";
-        newt->Mult2(b, *x, *mesh, *ir, &newtonits, a, tauval );
+        newt->Mult(b, *x);
         if (!newt->GetConverged())
             cout << "NewtonIteration : rtol = " << rtol << " not achieved."
             << endl;
@@ -1144,30 +946,7 @@ int main (int argc, char *argv[])
     // Execution time
     double tstop_s=clock();
     cout << "The total time it took for this example's execution is: " << (tstop_s-tstart_s)/1000000. << " seconds\n";
-    
-    // write log to text file
-    cout << "How do you want to write log to a new file:\n"
-    "0) New file\n"
-    "1) Append\n" << " --> " << flush;
-    cin >> ans;
-    ofstream outputFile;
-    if (ans==0)
-    {
-        outputFile.open("logfile.txt");
-        outputFile << mesh_file << " ";
-    }
-    else
-    {
-        outputFile.open("logfile.txt",fstream::app);
-        outputFile << "\n" << mesh_file << " ";
-    }
-    
-    for (int i=0;i<12;i++)
-    {
-        outputFile << logvec[i] << " ";
-    }
-    outputFile.close();
-    usleep(100000);
+    return 0;
 }
 double weight_fun(const Vector &x)
 {
