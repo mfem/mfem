@@ -526,6 +526,7 @@ static bool DofFinalizable(int dof, const Array<bool>& finalized,
     The function is aware of ghost edges/faces in parallel, for which an empty
     DOF list is returned. */
 void FiniteElementSpace::GetEdgeFaceDofs(int type, int index, Array<int> &dofs)
+const
 {
    dofs.SetSize(0);
    if (type)
@@ -538,10 +539,10 @@ void FiniteElementSpace::GetEdgeFaceDofs(int type, int index, Array<int> &dofs)
    }
 }
 
-void FiniteElementSpace::GetConformingInterpolation()
+void FiniteElementSpace::GetConformingInterpolation() const
 {
 #ifdef MFEM_USE_MPI
-   MFEM_VERIFY(dynamic_cast<ParFiniteElementSpace*>(this) == NULL,
+   MFEM_VERIFY(dynamic_cast<const ParFiniteElementSpace*>(this) == NULL,
                "This method should not be used with a ParFiniteElementSpace!");
 #endif
    if (cP_is_set) { return; }
@@ -720,21 +721,21 @@ void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
    delete vmat;
 }
 
-const SparseMatrix* FiniteElementSpace::GetConformingProlongation()
+const SparseMatrix* FiniteElementSpace::GetConformingProlongation() const
 {
    if (Conforming()) { return NULL; }
    if (!cP_is_set) { GetConformingInterpolation(); }
    return cP;
 }
 
-const SparseMatrix* FiniteElementSpace::GetConformingRestriction()
+const SparseMatrix* FiniteElementSpace::GetConformingRestriction() const
 {
    if (Conforming()) { return NULL; }
    if (!cP_is_set) { GetConformingInterpolation(); }
    return cR;
 }
 
-int FiniteElementSpace::GetNConformingDofs()
+int FiniteElementSpace::GetNConformingDofs() const
 {
    const SparseMatrix* P = GetConformingProlongation();
    return P ? (P->Width() / vdim) : ndofs;

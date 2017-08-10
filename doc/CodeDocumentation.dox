@@ -73,8 +73,10 @@ namespace mfem {
  *   <a class="el" href="sundials_2ex9_8cpp_source.html">9</a>,
  *   <a class="el" href="sundials_2ex9p_8cpp_source.html">9p</a>,
  *   <a class="el" href="sundials_2ex10_8cpp_source.html">10</a>,
+ *   <a class="el" href="sundials_2ex10p_8cpp_source.html">10p</a>,
+ *   <a class="el" href="sundials_2ex16_8cpp_source.html">16</a>,
  *   and
- *   <a class="el" class="el" href="sundials_2ex10p_8cpp_source.html">10p</a>
+ *   <a class="el" href="sundials_2ex16p_8cpp_source.html">16p</a>
  *   demonstrating the use of MFEM's \link sundials.hpp SUNDIALS classes\endlink
  *
  * <H4>PETSc Examples</H4>

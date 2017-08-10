@@ -11,6 +11,8 @@
 Development version 3.3.1, not released
 =======================================
 
+- Added SUNDIALS version of example 16/16p.
+
 - Added optional support for the STRUMPACK parallel sparse direct solver and
   preconditioner. STRUMPACK uses Hierarchically Semi-Separable (HSS) compression
   in a fully algebraic manner, with interface similar to SuperLU_DIST. See
