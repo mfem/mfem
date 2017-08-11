@@ -343,7 +343,7 @@ void ParFiniteElementSpace::GetSharedFaceDofs(
    }
 }
 
-void ParFiniteElementSpace::GenerateGlobalOffsets()
+void ParFiniteElementSpace::GenerateGlobalOffsets() const
 {
    HYPRE_Int ldof[2];
    Array<HYPRE_Int> *offsets[2] = { &dof_offsets, &tdof_offsets };
@@ -391,7 +391,7 @@ void ParFiniteElementSpace::GenerateGlobalOffsets()
    }
 }
 
-void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() // matrix P
+void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
 {
    if (P) { return; }
 
@@ -508,9 +508,10 @@ void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
 }
 
 void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
-                                              Array<int> &ess_dofs) const
+                                              Array<int> &ess_dofs,
+                                              int component) const
 {
-   FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
+   FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
 
    if (Conforming())
    {
@@ -522,9 +523,10 @@ void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
 
 void ParFiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
                                               int set_index,
-                                              Array<int> &ess_dofs) const
+                                              Array<int> &ess_dofs,
+                                              int component) const
 {
-   FiniteElementSpace::GetEssentialVDofs(type, set_index, ess_dofs);
+   FiniteElementSpace::GetEssentialVDofs(type, set_index, ess_dofs, component);
 
    if (Conforming())
    {
@@ -536,42 +538,47 @@ void ParFiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
 
 void ParFiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
                                               const string & set_name,
-                                              Array<int> &ess_vdofs) const
+                                              Array<int> &ess_vdofs,
+                                              int component) const
 {
    GetEssentialVDofs(type, pmesh->ent_sets->GetSetIndex(type, set_name),
-                     ess_vdofs);
+                     ess_vdofs, component);
 }
 
-void ParFiniteElementSpace::GetEssentialTrueDofs(
-   const Array<int> &bdr_attr_is_ess, Array<int> &ess_tdof_list)
+void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
+                                                 &bdr_attr_is_ess,
+                                                 Array<int> &ess_tdof_list,
+                                                 int component)
 {
    Array<int> ess_dofs, true_ess_dofs;
 
-   GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
+   GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
    GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
    MarkerToList(true_ess_dofs, ess_tdof_list);
 }
 
 void ParFiniteElementSpace::GetEssentialTrueDofs(EntitySets::EntityType type,
                                                  int set_index,
-                                                 Array<int> &ess_tdof_list)
+                                                 Array<int> &ess_tdof_list,
+                                                 int component)
 {
    Array<int> ess_dofs, true_ess_dofs;
 
-   GetEssentialVDofs(type, set_index, ess_dofs);
+   GetEssentialVDofs(type, set_index, ess_dofs, component);
    GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
    MarkerToList(true_ess_dofs, ess_tdof_list);
 }
 
 void ParFiniteElementSpace::GetEssentialTrueDofs(EntitySets::EntityType type,
                                                  const string & set_name,
-                                                 Array<int> &ess_tdof_list)
+                                                 Array<int> &ess_tdof_list,
+                                                 int component)
 {
    GetEssentialTrueDofs(type, pmesh->ent_sets->GetSetIndex(type, set_name),
-                        ess_tdof_list);
+                        ess_tdof_list, component);
 }
 
-int ParFiniteElementSpace::GetLocalTDofNumber(int ldof)
+int ParFiniteElementSpace::GetLocalTDofNumber(int ldof) const
 {
    if (Nonconforming())
    {
@@ -592,7 +599,7 @@ int ParFiniteElementSpace::GetLocalTDofNumber(int ldof)
    }
 }
 
-HYPRE_Int ParFiniteElementSpace::GetGlobalTDofNumber(int ldof)
+HYPRE_Int ParFiniteElementSpace::GetGlobalTDofNumber(int ldof) const
 {
    if (Nonconforming())
    {
@@ -1116,7 +1123,7 @@ static void MaskSlaveDofs(Array<int> &slave_dofs, const DenseMatrix &pm,
 void ParFiniteElementSpace
 ::AddSlaveDependencies(DepList deps[], int master_rank,
                        const Array<int> &master_dofs, int master_ndofs,
-                       const Array<int> &slave_dofs, DenseMatrix& I)
+                       const Array<int> &slave_dofs, DenseMatrix& I) const
 {
    // make each slave DOF dependent on all master DOFs
    for (int i = 0; i < slave_dofs.Size(); i++)
@@ -1151,7 +1158,7 @@ void ParFiniteElementSpace
 void ParFiniteElementSpace
 ::Add1To1Dependencies(DepList deps[], int owner_rank,
                       const Array<int> &owner_dofs, int owner_ndofs,
-                      const Array<int> &dependent_dofs)
+                      const Array<int> &dependent_dofs) const
 {
    MFEM_ASSERT(owner_dofs.Size() == dependent_dofs.Size(), "");
 
@@ -1183,7 +1190,7 @@ void ParFiniteElementSpace
 }
 
 void ParFiniteElementSpace
-::ReorderFaceDofs(Array<int> &dofs, int orient)
+::ReorderFaceDofs(Array<int> &dofs, int orient) const
 {
    Array<int> tmp;
    dofs.Copy(tmp);
@@ -1213,7 +1220,7 @@ void ParFiniteElementSpace
    }
 }
 
-void ParFiniteElementSpace::GetDofs(int type, int index, Array<int>& dofs)
+void ParFiniteElementSpace::GetDofs(int type, int index, Array<int>& dofs) const
 {
    // helper to get vertex, edge or face DOFs
    switch (type)
@@ -1224,7 +1231,7 @@ void ParFiniteElementSpace::GetDofs(int type, int index, Array<int>& dofs)
    }
 }
 
-void ParFiniteElementSpace::GetParallelConformingInterpolation()
+void ParFiniteElementSpace::GetParallelConformingInterpolation() const
 {
    ParNCMesh* pncmesh = pmesh->pncmesh;
 

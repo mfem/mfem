@@ -1003,14 +1003,18 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       if (Dim <= 2) { nfaces = NEdges, nghosts = NGhostEdges; }
 
       // enlarge Mesh::faces_info for ghost slaves
+      MFEM_ASSERT(pmesh.faces_info.Size() == nfaces, "");
+      MFEM_ASSERT(pmesh.GetNumFaces() == nfaces, "");
       pmesh.faces_info.SetSize(nfaces + nghosts);
       for (int i = nfaces; i < pmesh.faces_info.Size(); i++)
       {
          Mesh::FaceInfo &fi = pmesh.faces_info[i];
          fi.Elem1No  = fi.Elem2No  = -1;
-         fi.Elem1Inf = fi.Elem2Inf = 0;
+         fi.Elem1Inf = fi.Elem2Inf = -1;
          fi.NCFace = -1;
       }
+      // Note that some of the indices i >= nfaces in pmesh.faces_info will
+      // remain untouched below and they will have Elem1No == -1, in particular.
 
       // fill in FaceInfo for shared slave faces
       for (unsigned i = 0; i < shared.masters.size(); i++)
@@ -1036,8 +1040,20 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 
             if (!sloc)
             {
+               // 'fi' is the info for a ghost slave face with index:
+               // sf.index >= nfaces
                std::swap(fi.Elem1No, fi.Elem2No);
                std::swap(fi.Elem1Inf, fi.Elem2Inf);
+               // After the above swap, Elem1No refers to the local, master-side
+               // element. In other words, side 1 IS NOT the side that generated
+               // the face.
+            }
+            else
+            {
+               // 'fi' is the info for a local slave face with index:
+               // sf.index < nfaces
+               // Here, Elem1No refers to the local, slave-side element.
+               // In other words, side 1 IS the side that generated the face.
             }
             MFEM_ASSERT(fi.Elem2No >= NElements, "");
             fi.Elem2No = -1 - fnbr_index[fi.Elem2No - NElements];

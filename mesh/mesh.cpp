@@ -4162,10 +4162,11 @@ const Table & Mesh::ElementToElementTable()
    }
 
    int num_faces = GetNumFaces();
-   MFEM_ASSERT(faces_info.Size() == num_faces, "faces were not generated!");
+   // Note that, for ParNCMeshes, faces_info will contain also the ghost faces
+   MFEM_ASSERT(faces_info.Size() >= num_faces, "faces were not generated!");
 
    Array<Connection> conn;
-   conn.Reserve(2*num_faces);
+   conn.Reserve(2*faces_info.Size());
 
    for (int i = 0; i < faces_info.Size(); i++)
    {
