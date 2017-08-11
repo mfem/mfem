@@ -12,7 +12,7 @@
 #define MFEM_EXPERIMENT_1
 
 #ifndef PROBLEM
-#define PROBLEM 0
+#define PROBLEM 1
 #endif
 
 #define MFEM_EXPERIMENT_1_PROBLEM PROBLEM
@@ -33,11 +33,11 @@ using namespace mfem;
 #endif
 
 #ifndef MESH_P
-#define MESH_P 1
+#define MESH_P 2
 #endif
 
 #ifndef SOL_P
-#define SOL_P 3
+#define SOL_P 2
 #endif
 
 #ifndef IR_ORDER

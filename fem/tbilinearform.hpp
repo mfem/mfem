@@ -147,9 +147,9 @@ public:
                IR::qpts_1d,               /* number of 1D quadrature points */
                mesh.GetNE(),              /* number of elements */
                2,                         /* Dimension of the problem */
-               be_NEK5000,                /* Backend type */
-               vt_L,                      /* Vector type */
-               ol_QA1                     /* Operator type */
+               CEED_BE_MFEM,              /* Backend type */
+               CEED_VT_L,                 /* Vector type */
+               CEED_OL_QA1                /* Operator type */
 	    );
 #else
 	    diffusion_action(
@@ -170,9 +170,9 @@ public:
                IR::qpts_1d,              /* number of 1D quadrature points */
                mesh.GetNE(),             /* number of elements */
                2,                        /* Dimension of the problem */
-               be_NEK5000,               /* Backend type */
-               vt_L,                     /* Vector type */
-               ol_QA1                    /* Operator type */
+               CEED_BE_MFEM,             /* Backend type */
+               CEED_VT_L,                /* Vector type */
+               CEED_OL_QA1               /* Operator type */
        );
 #endif
          }
@@ -194,9 +194,9 @@ public:
                IR::qpts_1d,               /* number of 1D quadrature points */
                mesh.GetNE(),              /* number of elements */
                3,                         /* Dimension of the problem */
-               be_NEK5000,
-               vt_L,                      /* Vector type */
-               ol_QA1                     /* Operator type */
+               CEED_BE_MFEM,              /* Backend type */
+               CEED_VT_L,                 /* Vector type */
+               CEED_OL_QA1                /* Operator type */
 	    );
 #else
 	    diffusion_action(
@@ -216,10 +216,10 @@ public:
                solFE_type::dofs_1d,      /* number of 1D dofs (points) */
                IR::qpts_1d,              /* number of 1D quadrature points */
                mesh.GetNE(),             /* number of elements */
-               2,                        /* Dimension of the problem */
-               be_NEK5000,               /* Backend type */
-               vt_L,                     /* Vector type */
-               ol_QA1                    /* Operator type */
+               3,                        /* Dimension of the problem */
+               CEED_BE_MFEM,             /* Backend type */
+               CEED_VT_L,                /* Vector type */
+               CEED_OL_QA1               /* Operator type */
        );
 #endif
          }
