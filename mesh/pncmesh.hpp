@@ -189,17 +189,12 @@ public:
       }
    }
 
-   /*///
-   bool IsShared(int type, int index) const
-   {
-      MFEM_ABORT("TODO");
-      return false;
-   }*/
-
    /** Returns owner processor for element 'index'. This is normally MyRank but
        for index >= NElements (i.e., for ghosts) it may be something else. */
    int ElementRank(int index) const
-   { return elements[leaf_elements[index]].rank; }
+   {
+      return elements[leaf_elements[index]].rank;
+   }
 
 
    // interface for ParMesh

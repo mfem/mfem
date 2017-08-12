@@ -1628,7 +1628,6 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
          for (unsigned mi = 0; mi < list.masters.size(); mi++)
          {
             const NCMesh::Master &mf = list.masters[mi];
-            //if (!pncmesh->IsShared(type, mf.index)) { continue; }
 
             // get master DOFs
             pncmesh->IsGhost(type, mf.index)
@@ -1742,6 +1741,8 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    // send identity rows
    NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
 
+   R->Finalize();
+
    // *** STEP 3: main loop ***
 
    // a single instance (recv_msg) is reused for all incoming messages
@@ -1815,8 +1816,6 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
       NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
    }
 
-   R->Finalize();
-
    P = MakeHypreMatrix(pmatrix, num_dofs, glob_dofs, glob_true_dofs,
                        dof_offsets.GetData(), tdof_offsets.GetData());
 
@@ -1842,13 +1841,32 @@ HypreParMatrix* ParFiniteElementSpace::MakeHypreMatrix(
 
    // count nonzeros in diagonal/offdiagonal parts
    HYPRE_Int nnz_diag = 0, nnz_offd = 0;
+   std::map<HYPRE_Int, int> col_map;
    for (int i = 0; i < local_rows; i++)
    {
       for (unsigned j = 0; j < rows[i].elems.size(); j++)
       {
          HYPRE_Int col = rows[i].elems[j].column;
-         (col >= first_col && col < next_col) ? ++nnz_diag : ++nnz_offd;
+         if (col >= first_col && col < next_col)
+         {
+            nnz_diag++;
+         }
+         else
+         {
+            nnz_offd++;
+            col_map[col] = -1;
+         }
       }
+   }
+
+   // create offd column mapping
+   HYPRE_Int *cmap = new HYPRE_Int[col_map.size()];
+   int offd_col = 0;
+   for (std::map<HYPRE_Int, int>::iterator
+        it = col_map.begin(); it != col_map.end(); ++it)
+   {
+      cmap[offd_col] = it->first;
+      it->second = offd_col++;
    }
 
    HYPRE_Int *I_diag = new HYPRE_Int[local_rows+1];
@@ -1860,42 +1878,30 @@ HypreParMatrix* ParFiniteElementSpace::MakeHypreMatrix(
    double *A_diag = new double[nnz_diag];
    double *A_offd = new double[nnz_offd];
 
-   // copy the diag/offd elements, create offdiagonal column mapping
-   HYPRE_Int cnt_diag = 0, cnt_offd = 0;
-   std::map<HYPRE_Int, int> col_map;
+   // copy the diag/offd elements
+   nnz_diag = nnz_offd = 0;
    for (int i = 0; i < local_rows; i++)
    {
-      I_diag[i] = cnt_diag;
-      I_offd[i] = cnt_offd;
+      I_diag[i] = nnz_diag;
+      I_offd[i] = nnz_offd;
 
       for (unsigned j = 0; j < rows[i].elems.size(); j++)
       {
          const PMatrixElement &elem = rows[i].elems[j];
          if (elem.column >= first_col && elem.column < next_col)
          {
-            J_diag[cnt_diag] = elem.column - first_col;
-            A_diag[cnt_diag++] = elem.value;
+            J_diag[nnz_diag] = elem.column - first_col;
+            A_diag[nnz_diag++] = elem.value;
          }
          else
          {
-            int &lcol = col_map[elem.column];
-            if (!lcol) { lcol = col_map.size(); }
-
-            J_offd[cnt_offd] = lcol-1;
-            A_offd[cnt_offd++] = elem.value;
+            J_offd[nnz_offd] = col_map[elem.column];
+            A_offd[nnz_offd++] = elem.value;
          }
       }
    }
-   I_diag[local_rows] = cnt_diag;
-   I_offd[local_rows] = cnt_offd;
-
-   // finish the matrix
-   HYPRE_Int *cmap = new HYPRE_Int[col_map.size()];
-   for (std::map<HYPRE_Int, int>::iterator
-        it = col_map.begin(); it != col_map.end(); ++it)
-   {
-      cmap[it->second-1] = it->first;
-   }
+   I_diag[local_rows] = nnz_diag;
+   I_offd[local_rows] = nnz_offd;
 
    return new HypreParMatrix(MyComm, glob_rows, glob_cols,
                              row_starts, col_starts,
