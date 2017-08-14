@@ -3250,7 +3250,26 @@ void NCMesh::GetEntitySetClosure(EntitySets::EntityType type,
       }
       break;
       case EntitySets::FACE:
-         break;
+      {
+         for (int i=0; i<ni; i++)
+         {
+            ncent_sets->GetEntityIndex(type, set_index, i, inds);
+
+            // collect vertices
+            inds.Copy(coll_inds);
+            this->CollectFaceVertices(inds[0], inds[1], inds[2], inds[3],
+				      coll_inds);
+            for (int j=0; j<coll_inds.Size(); j++)
+            {
+               int index = nodes[coll_inds[j]].vert_index;
+               if (index >= 0)
+               {
+                  es_vertices.Append(index);
+               }
+            }
+         }
+      }
+      break;
       case EntitySets::ELEMENT:
       {
          for (int i=0; i<ni; i++)
