@@ -1976,239 +1976,6 @@ void ParNCMesh::DecodeMeshIds(std::istream &is, Array<MeshId> ids[])
 
 //// Messages //////////////////////////////////////////////////////////////////
 
-#if 0
-void NeighborDofMessage::AddDofs(int type, const NCMesh::MeshId &id,
-                                 const Array<int> &dofs)
-{
-   MFEM_ASSERT(type >= 0 && type < 3, "");
-   id_dofs[type][id].assign(dofs.GetData(), dofs.GetData() + dofs.Size());
-}
-
-void NeighborDofMessage::GetDofs(int type, const NCMesh::MeshId& id,
-                                 Array<int>& dofs, int &ndofs)
-{
-   MFEM_ASSERT(type >= 0 && type < 3, "");
-#ifdef MFEM_DEBUG
-   if (id_dofs[type].find(id) == id_dofs[type].end())
-   {
-      MFEM_ABORT("type/ID " << type << "/" << id.index << " not found in "
-                 "neighbor message. Ghost layers out of sync?");
-   }
-#endif
-   std::vector<int> &vec = id_dofs[type][id];
-   dofs.SetSize(vec.size());
-   dofs.Assign(vec.data());
-   ndofs = this->ndofs;
-}
-
-void NeighborDofMessage::ReorderEdgeDofs(const NCMesh::MeshId &id,
-                                         std::vector<int> &dofs)
-{
-   // Reorder the DOFs into/from a neutral ordering, independent of local
-   // edge orientation. The processor neutral edge orientation is given by
-   // the element local vertex numbering, not the mesh vertex numbering.
-
-   ParNCMesh::Element &el = pncmesh->elements[id.element];
-   const int *ev = NCMesh::GI[(int) el.geom].edges[id.local];
-   int v0 = pncmesh->nodes[el.node[ev[0]]].vert_index;
-   int v1 = pncmesh->nodes[el.node[ev[1]]].vert_index;
-
-   if ((v0 < v1 && ev[0] > ev[1]) || (v0 > v1 && ev[0] < ev[1]))
-   {
-      std::vector<int> tmp(dofs);
-
-      int nv = fec->DofForGeometry(Geometry::POINT);
-      int ne = fec->DofForGeometry(Geometry::SEGMENT);
-      MFEM_ASSERT((int) dofs.size() == 2*nv + ne, "");
-
-      // swap the two vertex DOFs
-      for (int i = 0; i < 2; i++)
-      {
-         for (int k = 0; k < nv; k++)
-         {
-            dofs[nv*i + k] = tmp[nv*(1-i) + k];
-         }
-      }
-
-      // reorder the edge DOFs
-      int* ind = fec->DofOrderForOrientation(Geometry::SEGMENT, 0);
-      for (int i = 0; i < ne; i++)
-      {
-         dofs[2*nv + i] = (ind[i] >= 0) ? tmp[2*nv + ind[i]]
-                          /*         */ : -1 - tmp[2*nv + (-1 - ind[i])];
-      }
-   }
-}
-#endif
-
-static void write_dofs(std::ostream &os, const std::vector<int> &dofs)
-{
-   write<int>(os, dofs.size());
-   // TODO: we should compress the ints, mostly they are contiguous ranges
-   os.write((const char*) dofs.data(), dofs.size() * sizeof(int));
-}
-
-static void read_dofs(std::istream &is, std::vector<int> &dofs)
-{
-   dofs.resize(read<int>(is));
-   is.read((char*) dofs.data(), dofs.size() * sizeof(int));
-}
-
-#if 0
-void NeighborDofMessage::Encode()
-{
-   IdToDofs::iterator it;
-
-   // collect vertex/edge/face IDs
-   Array<NCMesh::MeshId> ids[3];
-   for (int type = 0; type < 3; type++)
-   {
-      ids[type].Reserve(id_dofs[type].size());
-      for (it = id_dofs[type].begin(); it != id_dofs[type].end(); ++it)
-      {
-         ids[type].Append(it->first);
-      }
-   }
-
-   // encode the IDs
-   std::ostringstream stream;
-   pncmesh->EncodeMeshIds(stream, ids);
-
-   // dump the DOFs
-   for (int type = 0; type < 3; type++)
-   {
-      for (it = id_dofs[type].begin(); it != id_dofs[type].end(); ++it)
-      {
-         if (type == 1) { ReorderEdgeDofs(it->first, it->second); }
-         write_dofs(stream, it->second);
-      }
-
-      // no longer need the original data
-      id_dofs[type].clear();
-   }
-
-   write<int>(stream, ndofs);
-
-   stream.str().swap(data);
-}
-
-void NeighborDofMessage::Decode()
-{
-   std::istringstream stream(data);
-
-   // decode vertex/edge/face IDs
-   Array<NCMesh::MeshId> ids[3];
-   pncmesh->DecodeMeshIds(stream, ids);
-
-   // load DOFs
-   for (int type = 0; type < 3; type++)
-   {
-      id_dofs[type].clear();
-      for (int i = 0; i < ids[type].Size(); i++)
-      {
-         const NCMesh::MeshId &id = ids[type][i];
-         read_dofs(stream, id_dofs[type][id]);
-         if (type == 1) { ReorderEdgeDofs(id, id_dofs[type][id]); }
-      }
-   }
-
-   ndofs = read<int>(stream);
-
-   // no longer need the raw data
-   data.clear();
-}
-
-void NeighborRowRequest::Encode()
-{
-   std::ostringstream stream;
-
-   // write the int set to the stream
-   write<int>(stream, rows.size());
-   for (std::set<int>::iterator it = rows.begin(); it != rows.end(); ++it)
-   {
-      write<int>(stream, *it);
-   }
-
-   rows.clear();
-   stream.str().swap(data);
-}
-
-void NeighborRowRequest::Decode()
-{
-   std::istringstream stream(data);
-
-   // read the int set from the stream
-   rows.clear();
-   int size = read<int>(stream);
-   for (int i = 0; i < size; i++)
-   {
-      rows.insert(rows.end(), read<int>(stream));
-   }
-
-   data.clear();
-}
-
-void NeighborRowReply::AddRow(int row, const Array<int> &cols,
-                              const Vector &srow)
-{
-   MFEM_ASSERT(rows.find(row) == rows.end(), "");
-   Row& row_data = rows[row];
-   row_data.cols.assign(cols.GetData(), cols.GetData() + cols.Size());
-   row_data.srow = srow;
-}
-
-void NeighborRowReply::GetRow(int row, Array<int> &cols, Vector &srow)
-{
-   MFEM_ASSERT(rows.find(row) != rows.end(),
-               "row " << row << " not found in neighbor message.");
-   Row& row_data = rows[row];
-   cols.SetSize(row_data.cols.size());
-   cols.Assign(row_data.cols.data());
-   srow = row_data.srow;
-}
-
-void NeighborRowReply::Encode()
-{
-   std::ostringstream stream;
-
-   // dump the rows to the stream
-   write<int>(stream, rows.size());
-   for (std::map<int, Row>::iterator it = rows.begin(); it != rows.end(); ++it)
-   {
-      write<int>(stream, it->first); // row number
-      Row& row_data = it->second;
-      MFEM_ASSERT((int) row_data.cols.size() == row_data.srow.Size(), "");
-      write_dofs(stream, row_data.cols);
-      stream.write((const char*) row_data.srow.GetData(),
-                   sizeof(double) * row_data.srow.Size());
-   }
-
-   rows.clear();
-   stream.str().swap(data);
-}
-
-void NeighborRowReply::Decode()
-{
-   std::istringstream stream(data); // stream makes a copy of data
-
-   // NOTE: there is no rows.clear() since a row reply can be received
-   // repeatedly and the received rows accumulate.
-
-   // read the rows
-   int size = read<int>(stream);
-   for (int i = 0; i < size; i++)
-   {
-      Row& row_data = rows[read<int>(stream)];
-      read_dofs(stream, row_data.cols);
-      row_data.srow.SetSize(row_data.cols.size());
-      stream.read((char*) row_data.srow.GetData(),
-                  sizeof(double) * row_data.srow.Size());
-   }
-
-   data.clear();
-}
-#endif
-
 template<class ValueType, bool RefTypes, int Tag>
 void ParNCMesh::ElementValueMessage<ValueType, RefTypes, Tag>::Encode()
 {
@@ -2286,6 +2053,19 @@ void ParNCMesh::RebalanceDofMessage::SetElements(const Array<int> &elems,
    {
       elem_ids[i] = eset.GetNCMesh()->elements[decoded[i]].index;
    }
+}
+
+static void write_dofs(std::ostream &os, const std::vector<int> &dofs)
+{
+   write<int>(os, dofs.size());
+   // TODO: we should compress the ints, mostly they are contiguous ranges
+   os.write((const char*) dofs.data(), dofs.size() * sizeof(int));
+}
+
+static void read_dofs(std::istream &is, std::vector<int> &dofs)
+{
+   dofs.resize(read<int>(is));
+   is.read((char*) dofs.data(), dofs.size() * sizeof(int));
 }
 
 void ParNCMesh::RebalanceDofMessage::Encode()

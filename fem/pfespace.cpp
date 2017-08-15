@@ -1497,12 +1497,15 @@ public:
    const RowInfo::List& GetRows() const { return rows; }
 
    void SetNCMesh(ParNCMesh* pnc) { pncmesh = pnc; }
+   void SetFEC(const FiniteElementCollection* fec) { this->fec = fec; }
 
    typedef std::map<int, NeighborRowMessage> Map;
 
 protected:
    RowInfo::List rows;
+
    ParNCMesh *pncmesh;
+   const FiniteElementCollection* fec;
 
    virtual void Encode();
    virtual void Decode();
@@ -1523,15 +1526,25 @@ void NeighborRowMessage::Encode()
    }
    pncmesh->EncodeMeshIds(stream, ent_ids);
 
+   int ne = fec->DofForGeometry(Geometry::SEGMENT);
+
    // write all rows to the stream
    for (int ent = 0; ent < 3; ent++)
    {
       const Array<NCMesh::MeshId> &ids = ent_ids[ent];
       for (int i = 0; i < ids.Size(); i++)
       {
-         const RowInfo &ri = rows[ids[i].index];
+         const NCMesh::MeshId &id = ids[i];
+         const RowInfo &ri = rows[id.index];
          MFEM_ASSERT(ent == ri.entity, "");
-         write<int>(stream, ri.edof);
+
+         int edof = ri.edof;
+         if (ent == 1 && pncmesh->GetEdgeOrientation(id))
+         {
+            edof = ne-1 - edof;
+         }
+
+         write<int>(stream, edof);
          ri.row.write(stream);
       }
    }
@@ -1551,6 +1564,8 @@ void NeighborRowMessage::Decode()
    rows.clear();
    rows.reserve(ent_ids[0].Size() + ent_ids[1].Size() + ent_ids[2].Size());
 
+   int ne = fec->DofForGeometry(Geometry::SEGMENT);
+
    // read rows
    for (int ent = 0; ent < 3; ent++)
    {
@@ -1559,6 +1574,10 @@ void NeighborRowMessage::Decode()
       {
          const NCMesh::MeshId &id = ids[i];
          int edof = read<int>(stream);
+         if (ent == 1 && pncmesh->GetEdgeOrientation(id))
+         {
+            edof = ne-1 - edof;
+         }
          rows.push_back(RowInfo(ent, id.index, edof));
          rows.back().row.read(stream);
       }
@@ -1579,8 +1598,10 @@ void ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
          NeighborRowMessage &msg = send_msg[rank];
          int ent, idx, edof;
          UnpackDof(dof, ent, idx, edof);
+
          msg.AddRow(ent, idx, edof, row);
          msg.SetNCMesh(pncmesh);
+         msg.SetFEC(fec);
       }
    }
 }
@@ -1748,6 +1769,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    // a single instance (recv_msg) is reused for all incoming messages
    NeighborRowMessage recv_msg;
    recv_msg.SetNCMesh(pncmesh);
+   recv_msg.SetFEC(fec);
 
    int num_finalized = ltdof_size;
    PMatrixRow buffer;
@@ -2888,6 +2910,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
         it = col_map.begin(); it != col_map.end(); ++it)
    {
       cmap[it->second-1] = it->first;
+      // FIXME: it seems cmap is not monotonic here, hypre does not like that
    }
 
    HypreParMatrix* R;

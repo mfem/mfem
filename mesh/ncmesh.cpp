@@ -13,7 +13,6 @@
 #include "../fem/fem.hpp"
 
 #include <string>
-#include <algorithm>
 #include <cmath>
 #include <climits> // INT_MAX
 
@@ -22,9 +21,9 @@ namespace mfem
 
 NCMesh::GeomInfo NCMesh::GI[Geometry::NumGeom];
 
-static NCMesh::GeomInfo& gi_hex  = NCMesh::GI[Geometry::CUBE];
-static NCMesh::GeomInfo& gi_quad = NCMesh::GI[Geometry::SQUARE];
-static NCMesh::GeomInfo& gi_tri  = NCMesh::GI[Geometry::TRIANGLE];
+NCMesh::GeomInfo& NCMesh::gi_hex  = NCMesh::GI[Geometry::CUBE];
+NCMesh::GeomInfo& NCMesh::gi_quad = NCMesh::GI[Geometry::SQUARE];
+NCMesh::GeomInfo& NCMesh::gi_tri  = NCMesh::GI[Geometry::TRIANGLE];
 
 void NCMesh::GeomInfo::Initialize(const mfem::Element* elem)
 {
@@ -2950,6 +2949,18 @@ void NCMesh::GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const
 
    vert_index[0] = nodes[n0].vert_index;
    vert_index[1] = nodes[n1].vert_index;
+}
+
+int NCMesh::GetEdgeOrientation(const NCMesh::MeshId &edge_id) const
+{
+   const Element &el = elements[edge_id.element];
+   const GeomInfo& gi = GI[(int) el.geom];
+   const int* ev = gi.edges[edge_id.local];
+
+   int v0 = nodes[el.node[ev[0]]].vert_index;
+   int v1 = nodes[el.node[ev[1]]].vert_index;
+
+   return (v0 < v1 && ev[0] > ev[1]) || (v0 > v1 && ev[0] < ev[1]);
 }
 
 int NCMesh::GetFaceOrientationElement(const Face &face) const

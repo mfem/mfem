@@ -243,6 +243,9 @@ public:
    // utility
 
    ///
+   int GetEdgeOrientation(const MeshId &edge_id) const;
+
+   ///
    void GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const;
 
    ///
@@ -704,8 +707,7 @@ protected: // implementation
    void CopyElements(int elem, const BlockArray<Element> &tmp_elements,
                      Array<int> &index_map);
 
-
-public: // TODO: maybe make this part of mfem::Geometry?
+   // geometry
 
    /** This holds in one place the constants about the geometries we support
        (triangles, quads, cubes) */
@@ -721,6 +723,8 @@ public: // TODO: maybe make this part of mfem::Geometry?
    };
 
    static GeomInfo GI[Geometry::NumGeom];
+
+   static GeomInfo &gi_hex, &gi_quad, &gi_tri;
 
 #ifdef MFEM_DEBUG
 public:

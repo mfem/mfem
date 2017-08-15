@@ -26,10 +26,6 @@ namespace mfem
 {
 
 class ParMesh;
-#if 0
-class FiniteElementCollection; // for edge orientation handling
-class FiniteElementSpace; // for Dof -> VDof conversion
-#endif
 
 
 /** \brief A parallel extension of the NCMesh class.
@@ -504,91 +500,7 @@ protected:
    static bool compare_ranks_indices(const Element* a, const Element* b);
 
    friend class ParMesh;
-   friend class NeighborDofMessage;
-   friend class NeighborRowMessage;
 };
-
-#if 0
-/** Represents a message about DOF assignment of vertex, edge and face DOFs on
- *  the boundary with another processor. This and other messages below
- *  are only exchanged between immediate neighbors. Used by
- *  ParFiniteElementSpace::GetParallelConformingInterpolation().
- */
-class NeighborDofMessage : public VarMessage<135>
-{
-public:
-   /// Add vertex/edge/face DOFs to an outgoing message.
-   void AddDofs(int type, const NCMesh::MeshId &id, const Array<int> &dofs);
-
-   /** Set pointers to ParNCMesh & FECollection (needed to encode the message),
-       set the space size to be sent. */
-   void Init(ParNCMesh* pncmesh, const FiniteElementCollection* fec, int ndofs)
-   { this->pncmesh = pncmesh; this->fec = fec; this->ndofs = ndofs; }
-
-   /** Get vertex/edge/face DOFs from a received message. 'ndofs' receives
-       the remote space size. */
-   void GetDofs(int type, const NCMesh::MeshId& id,
-                Array<int>& dofs, int &ndofs);
-
-   typedef std::map<int, NeighborDofMessage> Map;
-
-protected:
-   typedef std::map<NCMesh::MeshId, std::vector<int> > IdToDofs;
-   IdToDofs id_dofs[3];
-
-   ParNCMesh* pncmesh;
-   const FiniteElementCollection* fec;
-   int ndofs;
-
-   virtual void Encode();
-   virtual void Decode();
-
-   void ReorderEdgeDofs(const NCMesh::MeshId &id, std::vector<int> &dofs);
-};
-
-/** Used by ParFiniteElementSpace::GetConformingInterpolation() to request
- *  finished non-local rows of the P matrix. This message is only sent once
- *  to each neighbor.
- */
-class NeighborRowRequest: public VarMessage<312>
-{
-public:
-   std::set<int> rows;
-
-   void RequestRow(int row) { rows.insert(row); }
-   void RemoveRequest(int row) { rows.erase(row); }
-
-   typedef std::map<int, NeighborRowRequest> Map;
-
-protected:
-   virtual void Encode();
-   virtual void Decode();
-};
-
-/** Represents a reply to NeighborRowRequest. The reply contains a batch of
- *  P matrix rows that have been finished by the sending processor. Multiple
- *  batches may be sent depending on the number of iterations of the final part
- *  of the function ParFiniteElementSpace::GetConformingInterpolation(). All
- *  rows that are sent accumulate in the same NeighborRowReply instance.
- */
-class NeighborRowReply: public VarMessage<313>
-{
-public:
-   void AddRow(int row, const Array<int> &cols, const Vector &srow);
-
-   bool HaveRow(int row) const { return rows.find(row) != rows.end(); }
-   void GetRow(int row, Array<int> &cols, Vector &srow);
-
-   typedef std::map<int, NeighborRowReply> Map;
-
-protected:
-   struct Row { std::vector<int> cols; Vector srow; };
-   std::map<int, Row> rows;
-
-   virtual void Encode();
-   virtual void Decode();
-};
-#endif
 
 // comparison operator so that MeshId can be used as key in std::map
 inline bool operator< (const NCMesh::MeshId &a, const NCMesh::MeshId &b)
