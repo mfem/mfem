@@ -81,20 +81,20 @@ void ParFiniteElementSpace::Construct()
    }
    else // Nonconforming()
    {
-      // calculate number of ghost DOFs (note: regular DOFs are ghosted too)
-      ngvdofs = (pmesh->GetNV() + pncmesh->GetNGhostVertices())
+      // calculate number of ghost DOFs
+      ngvdofs = pncmesh->GetNGhostVertices()
                 * fec->DofForGeometry(Geometry::POINT);
 
       ngedofs = ngfdofs = 0;
       if (pmesh->Dimension() > 1)
       {
-         ngedofs = (pmesh->GetNEdges() + pncmesh->GetNGhostEdges())
+         ngedofs = pncmesh->GetNGhostEdges()
                    * fec->DofForGeometry(Geometry::SEGMENT);
       }
       if (pmesh->Dimension() > 2)
       {
-         ngfdofs = (pmesh->GetNFaces() + pncmesh->GetNGhostFaces())
-                    * fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
+         ngfdofs = pncmesh->GetNGhostFaces()
+                   * fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
       }
 
       // total number of ghost DOFs. Ghost DOFs start at index 'ndofs', i.e.,
@@ -1218,19 +1218,20 @@ void ParFiniteElementSpace::GetGhostEdgeDofs(const NCMesh::MeshId &id,
    dofs.SetSize(2*nv + ne);
    if (nv > 0)
    {
-      for (int k = 0; k < 2; k++)
+      int ghost = pncmesh->GetNVertices();
+      for (int i = 0; i < 2; i++)
       {
-         for (int j = 0; j < nv; j++)
+         int k = (V[i] < ghost) ? V[i]*nv : (ndofs + (V[i] - ghost)*nv);
+         for (int j = 0; j < nv; j++, k++)
          {
-            dofs[k*nv + j] = V[k]*nv + j;
+            dofs[i*nv + j] = k;
          }
       }
    }
-   int base = 2*nv;
-   int k = ndofs + ngvdofs + id.index*ne;
+   int k = ndofs + ngvdofs + (id.index - pncmesh->GetNEdges())*ne;
    for (int j = 0; j < ne; j++, k++)
    {
-      dofs[base + j] = k;
+      dofs[2*nv + j] = k;
    }
 }
 
@@ -1336,8 +1337,8 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof)
    }
 }
 
-/** Dissect a DOF to obtain the entity type (0=vertex, 1=edge, 2=face), entity
- *  index and the DOF number within the entity.
+/** Dissect a DOF number to obtain the entity type (0=vertex, 1=edge, 2=face),
+ *  entity index and the DOF number within the entity.
  */
 void ParFiniteElementSpace::UnpackDof(int dof,
                                       int &entity, int &index, int &edof)
@@ -1709,16 +1710,14 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
 
    // *** STEP 2: count true DOFs and calculate P column partition ***
 
-   Array<bool> finalized(num_dofs);
+   Array<bool> finalized(total_dofs);
    finalized = false;
 
    // DOFs that stayed independent and are ours are true DOFs
    ltdof_size = 0;
    for (int i = 0; i < num_dofs; i++)
    {
-      int rs = deps.RowSize(i);
-      if ((dof_owner[i] == 0) &&
-          ((rs == 0) || (rs == 1 && deps.GetRowEntries(i)[0] == 1.0)) )
+      if (dof_owner[i] == 0 && deps.RowSize(i) == 0)
       {
          ltdof_size++;
          finalized[i] = true;
@@ -1840,6 +1839,8 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
 
    P = MakeHypreMatrix(pmatrix, num_dofs, glob_dofs, glob_true_dofs,
                        dof_offsets.GetData(), tdof_offsets.GetData());
+
+   P->Print("P");
 
    // make sure we can discard all send buffers
    for (std::list<NeighborRowMessage::Map>::iterator

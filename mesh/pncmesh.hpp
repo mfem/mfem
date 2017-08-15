@@ -500,7 +500,9 @@ protected:
    static bool compare_ranks_indices(const Element* a, const Element* b);
 
    friend class ParMesh;
+   friend class NeighborRowMessage;
 };
+
 
 // comparison operator so that MeshId can be used as key in std::map
 inline bool operator< (const NCMesh::MeshId &a, const NCMesh::MeshId &b)

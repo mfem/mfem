@@ -2949,6 +2949,11 @@ void NCMesh::GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const
 
    vert_index[0] = nodes[n0].vert_index;
    vert_index[1] = nodes[n1].vert_index;
+
+   /*if (vert_index[0] > vert_index[1])
+   {
+      std::swap(vert_index[0], vert_index[1]);
+   }*/
 }
 
 int NCMesh::GetEdgeOrientation(const NCMesh::MeshId &edge_id) const
