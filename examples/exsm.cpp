@@ -13,56 +13,43 @@
 
 
 #include "mfem.hpp"
-#include <fstream>
-#include <iostream>
-#include <limits>
-#include <unistd.h>
 
 using namespace mfem;
-
 using namespace std;
 
 class RelaxedNewtonSolver : public NewtonSolver
 {
 private:
-    // Quadrature points that are checked for negative Jacobians etc.
-    const IntegrationRule &ir;
-    
-public:
-    RelaxedNewtonSolver(const IntegrationRule &irule) : ir(irule) { }
-    
-#ifdef MFEM_USE_MPI
-    RelaxedNewtonSolver(const IntegrationRule &irule, MPI_Comm _comm)
-    : NewtonSolver(_comm), ir(irule) { }
-#endif
-    
-    virtual double ComputeScalingFactor(const Vector &x, const Vector &c) const;
-};
+   // Quadrature points that are checked for negative Jacobians etc.
+   const IntegrationRule &ir;
 
+public:
+   RelaxedNewtonSolver(const IntegrationRule &irule) : ir(irule) { }
+
+   virtual double ComputeScalingFactor(const Vector &x, const Vector &c) const;
+};
 
 double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
                                                  const Vector &c) const
 {
-    
     const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
     
     const int NE = nlf->FESpace()->GetMesh()->GetNE();
     
     Vector xsav = x; //create a copy of x
     int passchk = 0;
-    int iters = 0;
+    int iter_cnt = 0;
     double alpha = 1.;
     int jachk = 1;
     double initenergy = 0.0;
     double finenergy = 0.0;
     double nanchk;
     
+    initenergy = nlf->GetEnergy(x);
     
-    initenergy =nlf->GetEnergy(x);
-    
-    while (passchk !=1 && iters < 20)
+    while (passchk !=1 && iter_cnt < 20)
     {
-        iters += 1;
+        ++iter_cnt;
         jachk = 1;
         add (x,-alpha,c,xsav);
         
@@ -108,28 +95,24 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
         }
     }
     
-    cout << initenergy << " " << finenergy <<  " energy value before and after newton iteration\n";
-    cout << "alpha value is " << alpha << " \n";
+    cout << initenergy << " " << finenergy
+         << " energy value before and after the Newton iteration" << endl;
+    cout << "alpha value is " << alpha << endl;
     
-    if (passchk==0) { alpha =0; }
+    if (passchk==0) { alpha = 0.0; }
     return alpha;
 }
 
 class DescentNewtonSolver : public NewtonSolver
 {
 private:
-    // Quadrature points that are checked for negative Jacobians etc.
-    const IntegrationRule &ir;
-    
+   // Quadrature points that are checked for negative Jacobians etc.
+   const IntegrationRule &ir;
+
 public:
-    DescentNewtonSolver(const IntegrationRule &irule) : ir(irule) { }
-    
-#ifdef MFEM_USE_MPI
-    DescentNewtonSolver(const IntegrationRule &irule, MPI_Comm _comm)
-    : NewtonSolver(_comm), ir(irule) { }
-#endif
-    
-    virtual double ComputeScalingFactor(const Vector &x, const Vector &c) const;
+   DescentNewtonSolver(const IntegrationRule &irule) : ir(irule) { }
+
+   virtual double ComputeScalingFactor(const Vector &x, const Vector &c) const;
 };
 
 double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
@@ -143,7 +126,6 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
     int passchk = 0;
     int iters = 0;
     double alpha = 1.;
-    int jachk = 1;
     double initenergy = 0.0;
     double finenergy = 0.0;
     int nanchk = 0;
@@ -158,7 +140,6 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
         const int dim = fe.GetDim(), nsp = ir.GetNPoints(),
         dof = fe.GetDof();
         DenseMatrix Jtr(dim);
-        const GridFunction *nds;
         DenseMatrix dshape(dof, dim), pos(dof, dim);
         Array<int> xdofs(dof * dim);
         Vector posV(pos.Data(), dof * dim);
@@ -184,12 +165,10 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
     
     initenergy =nlf->GetEnergy(x);
     cout << "energy level is " << initenergy << " \n";
-    const int nsp = ir.GetNPoints();
     
     while (passchk !=1 && iters < 15)
     {
         iters += 1;
-        jachk = 1;
         add (x,-alpha,c,xsav);
         x_gf = xsav;
         
@@ -207,56 +186,75 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
         }
     }
     
-    if (passchk==0) { alpha =0; }
+    if (passchk==0) { alpha = 0.0; }
     return alpha;
 }
 
-
-#define BIG_NUMBER 1e+100 // Used when a matrix is outside the metric domain.
-#define NBINS 25          // Number of intervals in the metric histogram.
-#define GAMMA 0.9         // Used for composite metrics 73, 79, 80.
-#define BETA0 0.01        // Used for adaptive pseudo-barrier metrics.
-#define TAU0_EPS 0.001    // Used for adaptive shifted-barrier metrics.
+double weight_fun(const Vector &x);
 
 int main (int argc, char *argv[])
 {
-    Mesh *mesh;
     char vishost[] = "localhost";
     int  visport   = 19916;
-    int  ans;
-    vector<double> logvec (100);
-    double weight_fun(const Vector &x);
-    double tstart_s=clock();
     
-    
-    bool dump_iterations = false;
-    
-    // 3. Read the mesh from the given mesh file. We can handle triangular,
-    //    quadrilateral, tetrahedral or hexahedral elements with the same code.
+    // 1. Parse command-line options.
     const char *mesh_file = "../data/tipton.mesh";
-    int order = 1;
-    bool static_cond = false;
-    bool visualization = 1;
+    int mesh_poly_deg = 1;
     int rs_levels = 0;
+    int metric_id = 1;
+    int target_id = 1;
+    int newton_iter = 10;
+    int lin_solver = 2;
+    bool move_bnd = false;
+    bool visualization = true;
     int combomet = 0;
     
     OptionsParser args(argc, argv);
     args.AddOption(&mesh_file, "-m", "--mesh",
                    "Mesh file to use.");
-    args.AddOption(&order, "-o", "--order",
-                   "Finite element order (polynomial degree) or -1 for"
-                   " isoparametric space.");
-    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                   "--no-static-condensation", "Enable static condensation.");
+    args.AddOption(&mesh_poly_deg, "-o", "--order",
+                   "Polynomial degree of mesh finite element space.");
+    args.AddOption(&rs_levels, "-rs", "--refine-serial",
+                   "Number of times to refine the mesh uniformly in serial.");
+    args.AddOption(&metric_id, "-mid", "--metric-id",
+       "Mesh optimization metric:\n\t"
+       "1  : |T|^2                          -- 2D shape\n\t"
+       "2  : 0.5|T|^2/tau-1                 -- 2D shape (condition number)\n\t"
+       "7  : |T-T^-t|^2                     -- 2D shape+size\n\t"
+       "9  : tau*|T-T^-t|^2                 -- 2D shape+size\n\t"
+       "22 : 0.5(|T|^2-2*tau)/(tau-tau_0)   -- 2D untangling\n\t"
+       "50 : 0.5|T^tT|^2/tau^2-1            -- 2D shape\n\t"
+       "52 : 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
+       "55 : (tau-1)^2                      -- 2D size\n\t"
+       "56 : 0.5(sqrt(tau)-1/sqrt(tau))^2   -- 2D size\n\t"
+       "58 : |T^tT|^2/(tau^2)-2*|T|^2/tau+2 -- 2D shape\n\t"
+       "77 : 0.5(tau-1/tau)^2               -- 2D size\n\t"
+       "211: (tau-1)^2-tau+sqrt(tau^2+beta) -- 2D untangling\n\t"
+       "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
+       "302: (|T|^2|T^-1|^2)/9-1          -- 3D shape\n\t"
+       "303: (|T|^2)/3*tau^(2/3)-1        -- 3D shape\n\t"
+       "315: (tau-1)^2                    -- 3D size\n\t"
+       "316: 0.5(sqrt(tau)-1/sqrt(tau))^2 -- 3D size\n\t"
+       "321: |T-T^-t|^2                   -- 3D shape+size\n\t"
+       "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling");
+    args.AddOption(&target_id, "-tid", "--target-id",
+       "Target (ideal element) type:\n\t"
+       "1: IDEAL\n\t"
+       "2: IDEAL_EQ_SIZE\n\t"
+       "3: IDEAL_INIT_SIZE\n\t"
+       "4: IDEAL_EQ_SCALE_SIZE");
+    args.AddOption(&newton_iter, "-ni", "--newton-iters",
+                   "Maximum number of Newton iterations.");
+    args.AddOption(&lin_solver, "-ls", "--lin-solver",
+                   "ODE solver: 0 - l1-Jacobi, 1 - CG, 2 - MINRES.");
+    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
+                   "--fix-boundary",
+                   "Enable motion along horizontal and vertical boundaries.");
     args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                    "--no-visualization",
                    "Enable or disable GLVis visualization.");
-    args.AddOption(&rs_levels, "-rs", "--refine-serial",
-                   "Number of times to refine the mesh uniformly in serial.");
     args.AddOption(&combomet, "-cmb", "--combination-of-metrics",
                    "Metric combination");
-    
-    
     args.Parse();
     if (!args.Good())
     {
@@ -264,89 +262,64 @@ int main (int argc, char *argv[])
         return 1;
     }
     args.PrintOptions(cout);
-    cout << mesh_file << " about to read a mesh file\n";
-    mesh = new Mesh(mesh_file, 1, 1,false);
-    cout << "read a mesh file\n";
-    
-    int dim = mesh->Dimension();
-    
-    // 4. Refine the mesh to increase the resolution. In this example we do
-    //    'rs_levels' of uniform refinement.
+
+    // 2. Initialize and refine the starting mesh.
+    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
+    for (int lev = 0; lev < rs_levels; lev++)
     {
-        for (int lev = 0; lev < rs_levels; lev++)
-        {
-            mesh->UniformRefinement();
-        }
-        
-        logvec[0]=rs_levels;
+       mesh->UniformRefinement();
     }
-    cout << rs_levels << " serial refinements specified\n";
-    
-    // 5. Define a finite element space on the mesh. Here we use vector finite
-    //    elements which are tensor products of quadratic finite elements. The
-    //    dimensionality of the vector finite element space is specified by the
-    //    last parameter of the FiniteElementSpace constructor.
+    const int dim = mesh->Dimension();
     cout << "Mesh curvature: ";
     if (mesh->GetNodes())
     {
         cout << mesh->GetNodes()->OwnFEC()->Name();
     }
-    else
-    {
-        cout << "(NONE)";
-    }
+    else { cout << "(NONE)"; }
     cout << endl;
     
-    int mesh_poly_deg = 1;
-    cout <<
-    "Enter polynomial degree of mesh finite element space:\n"
-    "0) QuadraticPos (quads only)\n"
-    "p) Degree p >= 1\n"
-    " --> " << flush;
-    cin >> mesh_poly_deg;
+    // 3. Define a finite element space on the mesh. Here we use vector finite
+    //    elements which are tensor products of quadratic finite elements. The
+    //    dimensionality of the vector finite element space is specified by the
+    //    last parameter of the FiniteElementSpace constructor.
     FiniteElementCollection *fec;
     if (mesh_poly_deg <= 0)
     {
         fec = new QuadraticPosFECollection;
         mesh_poly_deg = 2;
     }
-    else
-    {
-        fec = new H1_FECollection(mesh_poly_deg, dim);
-    }
+    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
     FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim);
-    logvec[1]=mesh_poly_deg;
     
-    // 6. Make the mesh curved based on the above finite element space. This
+    // 4. Make the mesh curved based on the above finite element space. This
     //    means that we define the mesh elements through a fespace-based
     //    transformation of the reference element.
     mesh->SetNodalFESpace(fespace);
     
-    // 7. Set up the right-hand side vector b. In this case we do not need to use
+    // 5. Set up the right-hand side vector b. In this case we do not need to use
     //    a LinearForm object because b=0.
     Vector b(fespace->GetVSize());
     b = 0.0;
     
-    // 8. Get the mesh nodes (vertices and other quadratic degrees of freedom in
+    // 6. Get the mesh nodes (vertices and other quadratic degrees of freedom in
     //    the finite element space) as a finite element grid function in fespace.
-    GridFunction *x;
-    x = mesh->GetNodes();
+    //    Furthermore, note that changing x automatically changes the shapes of
+    //    the elements in the mesh.
+    GridFunction *x = mesh->GetNodes();
     
-    
-    // 9. Define a vector representing the minimal local mesh size in the mesh
+    // 7. Define a vector representing the minimal local mesh size in the mesh
     //    nodes. We index the nodes using the scalar version of the degrees of
     //    freedom in fespace.
     Vector h0(fespace->GetNDofs());
     h0 = numeric_limits<double>::infinity();
-
     {
         Array<int> dofs;
-        // loop over the mesh elements
+        // Loop over the mesh elements.
         for (int i = 0; i < fespace->GetNE(); i++)
         {
-            // get the local scalar element degrees of freedom in dofs
+            // Get the local scalar element degrees of freedom in dofs.
             fespace->GetElementDofs(i, dofs);
-            // adjust the value of h0 in dofs based on the local mesh size
+            // Adjust the value of h0 in dofs based on the local mesh size.
             for (int j = 0; j < dofs.Size(); j++)
             {
                 h0(dofs[j]) = min(h0(dofs[j]), mesh->GetElementSize(i));
@@ -354,275 +327,100 @@ int main (int argc, char *argv[])
         }
     }
     
-    // 10. Add a random perturbation of the nodes in the interior of the domain.
-    //     We define a random grid function of fespace and make sure that it is
-    //     zero on the boundary and its values are locally of the order of h0.
-    //     The latter is based on the DofToVDof() method which maps the scalar to
-    //     the vector degrees of freedom in fespace.
+    // 8. Add a random perturbation of the nodes in the interior of the domain.
+    //    We define a random grid function of fespace and make sure that it is
+    //    zero on the boundary and its values are locally of the order of h0.
+    //    The latter is based on the DofToVDof() method which maps the scalar to
+    //    the vector degrees of freedom in fespace.
     GridFunction rdm(fespace);
-    double jitter = 0.0; // perturbation scaling factor
+    const double jitter = 0.0; // perturbation scaling factor
     rdm.Randomize();
     rdm -= 0.25; // shift to random values in [-0.5,0.5]
     rdm *= jitter;
     {
         for (int i = 0; i < fespace->GetNDofs(); i++)
+        {
             for (int d = 0; d < dim; d++)
             {
                 rdm(fespace->DofToVDof(i,d)) *= h0(i);
             }
+        }
         
         Array<int> vdofs;
-        // loop over the boundary elements
+        // Loop over the boundary elements.
         for (int i = 0; i < fespace->GetNBE(); i++)
         {
-            // get the vector degrees of freedom in the boundary element
+            // Get the vector degrees of freedom in the boundary element.
             fespace->GetBdrElementVDofs(i, vdofs);
-            // set the boundary values to zero
-            for (int j = 0; j < vdofs.Size(); j++)
-            {
-                rdm(vdofs[j]) = 0.0;
-            }
+            // Set the boundary values to zero.
+            for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
         }
     }
     *x -= rdm;
     
-    // 11. Save the perturbed mesh to a file. This output can be viewed later
-    //     using GLVis: "glvis -m perturbed.mesh".
+    // 9. Save the perturbed mesh to a file. This output can be viewed later
+    //    using GLVis: "glvis -m perturbed.mesh".
     {
         ofstream mesh_ofs("perturbed.mesh");
         mesh->Print(mesh_ofs);
     }
     
-    // 14. Simple mesh smoothing can be performed by relaxing the node coordinate
-    //     grid function x with the matrix A and right-hand side b. This process
-    //     converges to the solution of Ax=b, which we solve below with PCG. Note
-    //     that the computed x is the A-harmonic extension of its boundary values
-    //     (the coordinates of the boundary vertices). Furthermore, note that
-    //     changing x automatically changes the shapes of the elements in the
-    //     mesh. The vector field that gives the displacements to the perturbed
+    // 10. The vector field that gives the displacements to the perturbed
     //     positions is saved in the grid function x0.
     GridFunction x0(fespace);
     x0 = *x;
     
-    L2_FECollection mfec(mesh_poly_deg, mesh->Dimension(), BasisType::GaussLobatto); //this for vis
+    // Used for visualization of the metric values.
+    L2_FECollection mfec(mesh_poly_deg, mesh->Dimension(), BasisType::GaussLobatto);
     FiniteElementSpace mfes(mesh, &mfec, 1);
     GridFunction metric(&mfes);
     
-    
-    HyperelasticModel *model;
     NonlinearFormIntegrator *nf_integ;
     
     Coefficient *c = NULL;
-    TargetJacobian *tj = NULL;
     
-    HyperelasticModel *model2; //this is for combo
-    Coefficient *c2 = NULL;     //this is for combo
-    TargetJacobian *tj2 = NULL; //this is for combo
-    
-    //{IDEAL, IDEAL_EQ_SIZE, IDEAL_INIT_SIZE,
-    // IDEAL_CUSTOM_SIZE, TARGET_MESH, ALIGNED}
-    int tjtype;
-    int modeltype;
-    cout <<
-    "Specify Target Jacobian type:\n"
-    "1) IDEAL\n"
-    "2) IDEAL_EQ_SIZE\n"
-    "3) IDEAL_INIT_SIZE\n"
-    "4) IDEAL_EQ_SCALE_SIZE\n"
-    " --> " << flush;
-    cin >> tjtype;
-    
-    if (tjtype == 1)
-    {
-        tj    = new TargetJacobian(TargetJacobian::IDEAL);
-        cout << " you chose Target Jacobian - Ideal \n";
-    }
-    else if (tjtype == 2)
-    {
-        tj    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE);
-        cout << " you chose Target Jacobian - Ideal_eq_size \n";
-    }
-    else if (tjtype == 3)
-    {
-        tj    = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE);
-        cout << " you chose Target Jacobian - Ideal_init_size \n";
-    }
-    else if (tjtype == 4)
-    {
-        tj    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SCALE_SIZE);
-        cout << " you chose Target Jacobian - Ideal_eq_scale_size \n";
-    }
-    else
-    {
-        cout << tjtype;
-        cout << "You did not choose a valid option\n";
-        cout << "Target Jacobian will default to IDEAL\n";
-        tj    = new TargetJacobian(TargetJacobian::IDEAL);
-    }
-    
-    //Metrics for 2D & 3D
+    // Used for combinations of metrics.
+    HyperelasticModel *model2 = NULL;
+    Coefficient *c2 = NULL;
+    TargetJacobian *tj2 = NULL;
+
     double tauval = -0.1;
-    if (dim==2)
+    HyperelasticModel *model = NULL;
+    switch (metric_id)
     {
-        cout << "Choose optimization metric:\n"
-        << "1  : |T|^2 \n"
-        << "     shape.\n"
-        << "2  : 0.5 |T|^2 / tau  - 1 \n"
-        << "     shape, condition number.\n"
-        << "7  : |T - T^-t|^2 \n"
-        << "     shape+size.\n"
-        << "9  : tau*|T - T^-t|^2 \n"
-        << "     shape+size.\n"
-        << "22  : |T|^2 - 2*tau / (2*tau - 2*tau_0)\n"
-        << "     untangling.\n"
-        << "50  : |T^tT|^2/(2tau^2) - 1\n"
-        << "     shape.\n"
-        << "52  : (tau-1)^2/ (2*tau - 2*tau_0)\n"
-        << "     untangling.\n"
-        << "55  : (tau-1)^2\n"
-        << "     size.\n"
-        << "56  : 0.5*(sqrt(tau) - 1/sqrt(tau))^2\n"
-        << "     size.\n"
-        << "58  : (|T^tT|^2/(tau^2) - 2*|T|^2/tau + 2)\n"
-        << "     shape.\n"
-        << "77  : 0.5*(tau - 1/tau)^2\n"
-        << "     size metric\n"
-        << "211  : (tau-1)^2 - tau + sqrt(tau^2+beta)\n"
-        << "      untangling.\n"
-        " --> " << flush;
-        cin >> modeltype;
-        model    = new TMOPHyperelasticModel001;
-        if (modeltype == 1)
-        {
-            model = new TMOPHyperelasticModel001;
-            cout << " you chose metric 1 \n";
-        }
-        else if (modeltype == 2)
-        {
-            model = new TMOPHyperelasticModel002;
-            cout << " you chose metric 2 \n";
-        }
-        else if (modeltype == 7)
-        {
-            model = new TMOPHyperelasticModel007;
-            cout << " you chose metric 7 \n";
-        }
-        else if (modeltype == 9)
-        {
-            model = new TMOPHyperelasticModel009;
-        }
-        else if (modeltype == 22)
-        {
-            model = new TMOPHyperelasticModel022(tauval);
-            cout << " you chose metric 22\n";
-        }
-        else if (modeltype == 50)
-        {
-            model = new TMOPHyperelasticModel050;
-            cout << " you chose metric 50\n";
-        }
-        else if (modeltype == 52)
-        {
-            model = new TMOPHyperelasticModel252(tauval);
-            cout << " you chose metric 52 \n";
-        }
-        else if (modeltype == 55)
-        {
-            model = new TMOPHyperelasticModel055;
-            cout << " you chose metric 55 \n";
-        }
-        else if (modeltype == 56)
-        {
-            model = new TMOPHyperelasticModel056;
-            cout << " you chose metric 56\n";
-        }
-        else if (modeltype == 58)
-        {
-            model = new TMOPHyperelasticModel058;
-            cout << " you chose metric 58\n";
-        }
-        else if (modeltype == 77)
-        {
-            model = new TMOPHyperelasticModel077;
-            cout << " you chose metric 77\n";
-        }
-        else if (modeltype == 211)
-        {
-            model = new TMOPHyperelasticModel211;
-            cout << " you chose metric 211 \n";
-        }
-        else
-        {
-            cout << "You did not choose a valid option\n";
-            cout << "Model type will default to 1\n";
-            cout << modeltype;
-        }
+       case 1: model = new TMOPHyperelasticModel001; break;
+       case 2: model = new TMOPHyperelasticModel002; break;
+       case 7: model = new TMOPHyperelasticModel007; break;
+       case 9: model = new TMOPHyperelasticModel009; break;
+       case 22: model = new TMOPHyperelasticModel022(tauval); break;
+       case 50: model = new TMOPHyperelasticModel050; break;
+       case 52: model = new TMOPHyperelasticModel252(tauval); break;
+       case 55: model = new TMOPHyperelasticModel055; break;
+       case 56: model = new TMOPHyperelasticModel056; break;
+       case 58: model = new TMOPHyperelasticModel058; break;
+       case 77: model = new TMOPHyperelasticModel077; break;
+       case 211: model = new TMOPHyperelasticModel211; break;
+       case 301: model = new TMOPHyperelasticModel301; break;
+       case 302: model = new TMOPHyperelasticModel302; break;
+       case 303: model = new TMOPHyperelasticModel303; break;
+       case 315: model = new TMOPHyperelasticModel315; break;
+       case 316: model = new TMOPHyperelasticModel316; break;
+       case 321: model = new TMOPHyperelasticModel321; break;
+       case 352: model = new TMOPHyperelasticModel352(tauval); break;
+       default: cout << "Unknown metric_id: " << metric_id << endl;
+                return 3;
     }
-    else {  //Metrics for 3D
-        cout << "Choose optimization metric:\n"
-        << "1  : (|T||T^-1|)/3 - 1 \n"
-        << "     shape.\n"
-        << "2  : (|T|^2|T^-1|^2)/9 - 1 \n"
-        << "     shape.\n"
-        << "3  : (|T|^2)/3*tau^(2/3) - 1 \n"
-        << "     shape.\n"
-        << "15  : (tau-1)^2\n"
-        << "     size.\n"
-        << "16  : 1/2 ( sqrt(tau) - 1/sqrt(tau))^2\n"
-        << "     size.\n"
-        << "21  : (|T-T^-t|^2)\n"
-        << "     shape+size.\n"
-        << "52  : (tau-1)^2/ (2*tau - 2*tau_0)\n"
-        << "     untangling.\n"
-        " --> " << flush;
-        double tauval = -0.1;
-        cin >> modeltype;
-        model    = new TMOPHyperelasticModel302;
-        if (modeltype == 1)
-        {
-            model = new TMOPHyperelasticModel301;
-            cout << " you chose metric 1 \n";
-        }
-        if (modeltype == 2)
-        {
-            model = new TMOPHyperelasticModel302;
-            cout << " you chose metric 2 \n";
-        }
-        else if (modeltype == 3)
-        {
-            model = new TMOPHyperelasticModel303;
-            cout << " you chose metric 3\n";
-        }
-        else if (modeltype == 15)
-        {
-            model = new TMOPHyperelasticModel315;
-            cout << " you chose metric 15\n";
-        }
-        else if (modeltype == 16)
-        {
-            model = new TMOPHyperelasticModel316;
-            cout << " you chose metric 16\n";
-        }
-        else if (modeltype == 21)
-        {
-            model = new TMOPHyperelasticModel321;
-            cout << " you chose metric 21\n";
-        }
-        else if (modeltype == 52)
-        {
-            model = new TMOPHyperelasticModel352(tauval);
-            cout << " you chose metric 52\n";
-        }
-        else
-        {
-            cout << "You did not choose a valid option\n";
-            cout << "Model type will default to 2\n";
-            cout << modeltype;
-        }
+
+    TargetJacobian *tj = NULL;
+    switch (target_id)
+    {
+       case 1: tj = new TargetJacobian(TargetJacobian::IDEAL); break;
+       case 2: tj = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE); break;
+       case 3: tj = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE); break;
+       case 4: tj = new TargetJacobian(TargetJacobian::IDEAL_EQ_SCALE_SIZE); break;
+       default: cout << "Unknown target_id: " << target_id << endl;
+                return 3;
     }
-    
-    logvec[2]=tjtype;
-    logvec[3]=modeltype;
     
     tj->SetNodes(*x);
     tj->SetInitialNodes(x0);
@@ -647,7 +445,6 @@ int main (int argc, char *argv[])
     he_nlf_integ->SetIntegrationRule(*ir);
     //he_nlf_integ->SetLimited(0.05, x0);
     
-    //
     nf_integ = he_nlf_integ;
     NonlinearForm a(fespace);
     
@@ -655,12 +452,12 @@ int main (int argc, char *argv[])
     FunctionCoefficient rhs_coef (weight_fun);
     Coefficient *combo_coeff = NULL;
     
-    if (combomet==1) {
+    if (combomet==1)
+    {
         c = new ConstantCoefficient(1.25);  //weight of original metric
         he_nlf_integ->SetCoefficient(*c);
         nf_integ = he_nlf_integ;
         a.AddDomainIntegrator(nf_integ);
-        
         
         tj2    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SCALE_SIZE);
         //tj2    = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE);
@@ -672,7 +469,6 @@ int main (int argc, char *argv[])
         he_nlf_integ2 = new HyperelasticNLFIntegrator(model2, tj2);
         he_nlf_integ2->SetIntegrationRule(*ir);
         
-        
         //c2 = new ConstantCoefficient(1.00);
         //he_nlf_integ2->SetCoefficient(*c2);     //weight of new metric
         
@@ -680,11 +476,7 @@ int main (int argc, char *argv[])
         cout << "You have added a combo metric \n";
         a.AddDomainIntegrator(he_nlf_integ2);
     }
-    else{
-        a.AddDomainIntegrator(nf_integ);
-    }
-    //
-    
+    else { a.AddDomainIntegrator(nf_integ); }
     
     InterpolateHyperElasticModel(*model, *tj, *mesh, metric);
     osockstream sol_sock2(visport, vishost);
@@ -730,44 +522,24 @@ int main (int argc, char *argv[])
     }
     a.SetEssentialVDofs(ess_vdofs);
     
-    
-    // Fix all boundary nodes.
-    int bndrflag;
-    cout <<
-    "Allow boundary node movement:\n"
-    "1 - yes\n"
-    "2 - no\n"
-    " --> " << flush;
-    cin >> bndrflag;
-    if (bndrflag != 1)
+    if (move_bnd == false)
     {
-        //k10partend - the three lines below used to be uncommented
         Array<int> ess_bdr(mesh->bdr_attributes.Max());
         ess_bdr = 1;
         a.SetEssentialBC(ess_bdr);
     }
-    logvec[4]=bndrflag;
     
-    cout << "Choose linear smoother:\n"
-    "0) l1-Jacobi\n"
-    "1) CG\n"
-    "2) MINRES\n" << " --> \n" << flush;
-    cin >> ans;
-    Solver *S;
-    logvec[5]=ans;
-    const double rtol = 1e-12;
-    if (ans == 0)
+    Solver *S = NULL;
+    const double rtol  = 1e-12;
+    const int max_iter = 100;
+    if (lin_solver == 0)
     {
-        cout << "Enter number of linear smoothing iterations -->\n " << flush;
-        cin >> ans;
-        S = new DSmoother(1, 1., ans);
+        S = new DSmoother(1, 1., max_iter);
     }
-    else if (ans == 1)
+    else if (lin_solver == 1)
     {
-        cout << "Enter number of CG smoothing iterations -->\n " << flush;
-        cin >> ans;
         CGSolver *cg = new CGSolver;
-        cg->SetMaxIter(ans);
+        cg->SetMaxIter(max_iter);
         cg->SetRelTol(rtol);
         cg->SetAbsTol(0.0);
         cg->SetPrintLevel(3);
@@ -775,33 +547,24 @@ int main (int argc, char *argv[])
     }
     else
     {
-        cout << "Enter number of MINRES smoothing iterations -->\n " << flush;
-        cin >> ans;
         MINRESSolver *minres = new MINRESSolver;
-        minres->SetMaxIter(ans);
+        minres->SetMaxIter(max_iter);
         minres->SetRelTol(rtol);
         minres->SetAbsTol(0.0);
         minres->SetPrintLevel(3);
         S = minres;
-        
     }
-    logvec[6]=ans;
-    cout << "Enter number of Newton iterations -->\n " << flush;
-    cin >> ans;
-    logvec[7]=ans;
     
-    logvec[8]=a.GetEnergy(*x);
+    const double init_en = a.GetEnergy(*x);
     cout.precision(4);
-    cout << "Initial strain energy : " << setprecision(16)
-    << logvec[8] << endl;
+    cout << "Initial strain energy : " << setprecision(16) << init_en << endl;
     
     // save original
     Vector xsav = *x;
+
     //set value of tau_0 for metric 22 and get min jacobian for mesh statistic
-    //
-    Array<int> dofs;
     tauval = 1.e+6;
-    double minjaco;
+    double minJ0;
     const int NE = mesh->GetNE();
     const GridFunction &nodes = *mesh->GetNodes();
     for (int i = 0; i < NE; i++)
@@ -826,15 +589,14 @@ int main (int argc, char *argv[])
             tauval = min(tauval,det);
         }
     }
-    minjaco = tauval;
-    cout << "minimum jacobian in the original mesh is " << minjaco << " \n";
-    int newtonits = 0;
+    minJ0 = tauval;
+    cout << "minimum jacobian in the original mesh is " << minJ0 << " \n";
     if (tauval>0)
     {
         tauval = 1e-1;
         RelaxedNewtonSolver *newt= new RelaxedNewtonSolver(*ir);
         newt->SetPreconditioner(*S);
-        newt->SetMaxIter(ans);
+        newt->SetMaxIter(newton_iter);
         newt->SetRelTol(rtol);
         newt->SetAbsTol(0.0);
         newt->SetPrintLevel(1);
@@ -848,7 +610,7 @@ int main (int argc, char *argv[])
     }
     else
     {
-        if (dim==2 && modeltype!=52) {
+        if (dim==2 && metric_id!=52) {
             model = new TMOPHyperelasticModel022(tauval);
             cout << "model 22 will be used since mesh has negative jacobians\n";
         }
@@ -860,7 +622,7 @@ int main (int argc, char *argv[])
         tauval -= 0.01;
         DescentNewtonSolver *newt= new DescentNewtonSolver(*ir);
         newt->SetPreconditioner(*S);
-        newt->SetMaxIter(ans);
+        newt->SetMaxIter(newton_iter);
         newt->SetRelTol(rtol);
         newt->SetAbsTol(0.0);
         newt->SetPrintLevel(1);
@@ -874,12 +636,10 @@ int main (int argc, char *argv[])
             << endl;
     }
     
-    logvec[9]=a.GetEnergy(*x);
-    cout << "Final strain energy   : " << a.GetEnergy(*x) << endl;
-    cout << "Initial strain energy was  : " << logvec[8] << endl;
-    cout << "% change is  : " << (logvec[8]-logvec[9])*100/logvec[8] << endl;
-    logvec[10] = (logvec[8]-logvec[9])*100/logvec[8];
-    logvec[11] = newtonits;
+    const double fin_en = a.GetEnergy(*x);
+    cout << "Final strain energy   : " << fin_en << endl;
+    cout << "Initial strain energy was  : " << init_en << endl;
+    cout << "% change is  : " << (init_en - fin_en) * 100.0 / init_en << endl;
     
     if (tj)
     {
@@ -893,7 +653,7 @@ int main (int argc, char *argv[])
     }
     
     // 17. Get some mesh statistics
-    double minjacs = 1.e+100;
+    double minJn = 1.e+100;
     for (int i = 0; i < NE; i++)
     {
         const FiniteElement &fe = *nodes.FESpace()->GetFE(i);
@@ -910,21 +670,22 @@ int main (int argc, char *argv[])
         nds->GetSubVector(xdofs, posV);
         for (int j = 0; j < nsp; j++)
         {
-            //cout << "point number " << j << "\n";
             fe.CalcDShape(ir->IntPoint(j), dshape);
             MultAtB(pos, dshape, Jtr(j));
             double det = Jtr(j).Det();
-            minjacs = min(minjacs,det);
+            minJn = min(minJn,det);
         }
     }
     
-    cout << "minimum jacobian before and after smoothing " << minjaco << " " << minjacs << " \n";
+    cout << "min|J| before / after smoothing: "
+         << minJ0 << " / " << minJn << endl;
     
     delete S;
     delete model;
     delete c;
     
     delete model2;
+    delete c2;
     delete combo_coeff;
     
     // Define mesh displacement
@@ -943,22 +704,15 @@ int main (int argc, char *argv[])
     delete fec;
     delete mesh;
     
-    // Execution time
-    double tstop_s=clock();
-    cout << "The total time it took for this example's execution is: " << (tstop_s-tstart_s)/1000000. << " seconds\n";
     return 0;
 }
+
+// Used for the 2D Tipton mesh.
 double weight_fun(const Vector &x)
 {
-    double r2 = x(0)*x(0) + x(1)*x(1);
-    double l2;
-    if (r2>0)
-    {
-        r2 = sqrt(r2);
-    }
-    double den = 0.002;
-    l2 = 0.2 +     0.5*std::tanh((r2-0.16)/den)-(0.5*std::tanh((r2-0.17)/den))
-    +0.5*std::tanh((r2-0.23)/den)-(0.5*std::tanh((r2-0.24)/den));
-    return l2;
+   const double r = sqrt(x(0)*x(0) + x(1)*x(1) + 1e-12);
+   const double den = 0.002;
+   double l2 = 0.2 + 0.5*std::tanh((r-0.16)/den) - 0.5*std::tanh((r-0.17)/den)
+                   + 0.5*std::tanh((r-0.23)/den) - 0.5*std::tanh((r-0.24)/den);
+   return l2;
 }
-
