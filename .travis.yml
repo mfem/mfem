@@ -13,6 +13,7 @@ os:
 env:
    global:
       - TMPDIR=/tmp
+      - CXX="g++-4.9"
    matrix:
 #      - DEBUG=YES
 #        MPI=YES
@@ -63,10 +64,6 @@ before_install:
         pip install --user cpp-coveralls;
         pip install --user pyyaml;
      fi
-
-   - ls -l /usr/bin
-   - which gcov
-   - which gcov-4.9
 
 install:
    # Back out of the mfem directory to install the libraries
@@ -127,7 +124,7 @@ script:
         
    # Build and check/test MFEM, its examples and miniapps
    - cd $TRAVIS_BUILD_DIR &&
-     make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX" MFEM_USE_CODECOV=$CODECOV &&
+     make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX" MFEM_USE_CODECOV=$CODECOV CXX=$CXX &&
      make info &&
      make all -j 4 &&
      make $MFEM_TEST_TARGET
