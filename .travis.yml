@@ -59,6 +59,7 @@ before_install:
    - if [ $TRAVIS_OS_NAME == "osx" ]; then
         travis_wait brew install open-mpi;
      fi
+   - pip install --user cpp-coveralls
 
 install:
    # g++-4.9
@@ -73,7 +74,6 @@ install:
 #        pip install cpp-coveralls;
 #     fi
 #   - pip install requests==2.5.3
-   - pip install cpp-coveralls
  
    # OpenMPI
 #   - if [ $TRAVIS_OS_NAME == "linux" ]; then
