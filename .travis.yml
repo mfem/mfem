@@ -130,5 +130,8 @@ script:
 
 after_success:
    - if [ "$CODECOV" == "YES" ]; then
+      which gcov;
+      which gcov-4.9;
+      ls -l /usr/bin;
       coveralls --verbose --gcov /usr/bin/gcov-4.9 --include fem --include general --include linalg --include mesh --include miniapps --gcov-options '\-lp' --root $TRAVIS_BUILD_DIR --build-root $TRAVIS_BUILD_DIR;
      fi;
