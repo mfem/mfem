@@ -80,18 +80,6 @@ $(if $(MFEM_REAL_DIR),,$(error Source directory "$(MFEM_DIR)" is not valid))
 SRC := $(if $(MFEM_REAL_DIR:$(CURDIR)=),$(MFEM_DIR)/,)
 $(if $(word 2,$(SRC)),$(error Spaces in SRC = "$(SRC)" are not supported))
 
-EXAMPLE_SUBDIRS = sundials petsc
-EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
-EXAMPLE_TEST_DIRS := examples
-
-MINIAPP_SUBDIRS = common electromagnetics meshing performance tools
-MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
-MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
-MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools)
-
-EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
-EM_TEST_DIRS = $(EXAMPLE_TEST_DIRS) $(MINIAPP_TEST_DIRS)
-
 # Use BUILD_DIR on the command line; set MFEM_BUILD_DIR before including this
 # makefile or config/config.mk from a separate $(BUILD_DIR).
 MFEM_BUILD_DIR ?= .
@@ -144,6 +132,28 @@ else
    $(call mfem-info, NOT including $(CONFIG_MK))
 endif
 
+EXAMPLE_SUBDIRS = sundials petsc
+EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
+EXAMPLE_TEST_DIRS := examples
+
+MINIAPP_SUBDIRS = common electromagnetics meshing tools
+
+# Remove 'performance' from 'test' target if enabling code coverage.  This
+# tests takes > 10 minutes with a debug code coverage build, exceeding the
+# test timeout tolerance for automated coverage testing on travis.
+ifeq ($(MFEM_USE_CODECOV),YES)
+   $(warning Code coverage is enabled, disabling 'performance' mini-app.)
+else
+	MINIAPP_SUBDIRS += performance
+endif
+
+MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
+MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
+MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools)
+
+EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
+EM_TEST_DIRS = $(EXAMPLE_TEST_DIRS) $(MINIAPP_TEST_DIRS)
+
 # Compile flags used by MFEM: CPPFLAGS, CXXFLAGS, plus library flags
 INCFLAGS =
 # Link flags used by MFEM: library link flags plus LDFLAGS (added last)
@@ -169,7 +179,6 @@ endif
 
 DEP_CXX ?= $(MFEM_CXX)
 
-# Add code coverage flags (gnu only)
 ifeq ($(MFEM_USE_CODECOV),YES)
    INCFLAGS += --coverage
    ifneq ($(MFEM_DEBUG),YES)
@@ -230,7 +239,8 @@ MFEM_DEFINES = MFEM_VERSION MFEM_USE_MPI MFEM_USE_METIS_5 MFEM_DEBUG\
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
  MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_FLAGS MFEM_LIB_DIR MFEM_LIBS MFEM_LIB_FILE\
- MFEM_BUILD_TAG MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP
+ MFEM_BUILD_TAG MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP \
+ MFEM_USE_CODECOV
 
 # Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
 MFEM_CPPFLAGS  ?= $(CPPFLAGS)
@@ -337,6 +347,7 @@ check: lib
 test:
 	@echo "Testing the MFEM library. This may take a while..."
 	@echo "Building all examples and miniapps..."
+	@echo miniapp dirs: $(EM_TEST_DIRS)
 	@$(MAKE) all
 	@ERR=0; for dir in $(EM_TEST_DIRS); do \
 	   echo "Running tests in $${dir} ..."; \
@@ -418,6 +429,7 @@ status info:
 	$(info MFEM_USE_MPI         = $(MFEM_USE_MPI))
 	$(info MFEM_USE_METIS_5     = $(MFEM_USE_METIS_5))
 	$(info MFEM_DEBUG           = $(MFEM_DEBUG))
+	$(info MFEM_USE_CODECOV     = $(MFEM_USE_CODECOV))
 	$(info MFEM_USE_GZSTREAM    = $(MFEM_USE_GZSTREAM))
 	$(info MFEM_USE_LIBUNWIND   = $(MFEM_USE_LIBUNWIND))
 	$(info MFEM_USE_LAPACK      = $(MFEM_USE_LAPACK))

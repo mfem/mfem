@@ -15,14 +15,18 @@ env:
 #      - DEBUG=YES
 #        MPI=YES
 #        CODECOV=NO
+#        MFEM_TEST_TARGET=check
 #      - DEBUG=NO
 #        MPI=YES
 #        CODECOV=NO
+#        MFEM_TEST_TARGET=test
       - DEBUG=YES
         MPI=NO
         CODECOV=YES
+        MFEM_TEST_TARGET=test
 #      - DEBUG=NO
 #        MPI=NO
+#        MFEM_TEST_TARGET=test
 
 # Test with GCC on Linux an Clang on Mac
 matrix:
@@ -101,12 +105,6 @@ script:
      fi
    # Print the compiler version
    - $MYCXX -v
-   # Build the code and do a quick check (release mode) or a full tests run (debug mode)
-   - if [ $DEBUG == "YES" ]; then
-        export MFEM_TEST_TARGET="test";
-     else
-        export MFEM_TEST_TARGET="check";
-     fi
         
    # Build and check/test MFEM, its examples and miniapps
    - cd $TRAVIS_BUILD_DIR &&
