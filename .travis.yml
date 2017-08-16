@@ -49,9 +49,10 @@ install:
    - cd ..
 
    # Code coverage tools ( lcov, rubygems, coveralls )
-#   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" -a "$CODECOV" == "YES" ]; then
+#   - if [ "$CODECOV" == "YES" ]; then
 #        pip install cpp-coveralls;
 #     fi
+   - pip install requests=2.5.3
    - pip install cpp-coveralls
  
    # OpenMPI
