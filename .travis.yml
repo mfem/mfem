@@ -66,7 +66,7 @@ install:
 #   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" ]; then export CXX="g++-4.9"; fi
 
    # Back out of the mfem directory to install the libraries
-   - cd ..
+#   - cd ..
 
    # Code coverage tools ( lcov, rubygems, coveralls )
 #   - if [ "$CODECOV" == "YES" ]; then
