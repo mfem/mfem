@@ -13,7 +13,7 @@ os:
 env:
    global:
       - TMPDIR=/tmp
-      - CXX="g++-4.9"
+      - CXX=g++-4.9
    matrix:
 #      - DEBUG=YES
 #        MPI=YES
