@@ -13,7 +13,6 @@ os:
 env:
    global:
       - TMPDIR=/tmp
-      - CXX=g++-4.9
    matrix:
 #      - DEBUG=YES
 #        MPI=YES
@@ -112,6 +111,9 @@ install:
 
 script:
    # Compiler
+   - export CC=/usr/bin/gcc-4.9
+   - export CXX=/usr/bin/g++-4.9
+
    - if [ $MPI == "YES" ]; then
         export MYCXX=mpic++;
         export OMPI_CXX="$CXX";
@@ -124,15 +126,12 @@ script:
         
    # Build and check/test MFEM, its examples and miniapps
    - cd $TRAVIS_BUILD_DIR &&
-     make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX" MFEM_USE_CODECOV=$CODECOV CXX=$CXX &&
+     make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX" MFEM_USE_CODECOV=$CODECOV &&
      make info &&
      make all -j 4 &&
      make $MFEM_TEST_TARGET
 
 after_success:
    - if [ "$CODECOV" == "YES" ]; then
-      which gcov;
-      which gcov-4.9;
-      ls -l /usr/bin;
       coveralls --verbose --gcov /usr/bin/gcov-4.9 --include fem --include general --include linalg --include mesh --include miniapps --gcov-options '\-lp' --root $TRAVIS_BUILD_DIR --build-root $TRAVIS_BUILD_DIR;
      fi;
