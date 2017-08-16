@@ -13,6 +13,7 @@ env:
    - DEBUG=NO MPI=YES TMPDIR=/tmp
    - DEBUG=YES MPI=NO
    - DEBUG=NO MPI=NO
+   - DEBUG=YES MPI=NO CODECOV=YES
 
 # Test with GCC on Linux an Clang on Mac
 matrix:
@@ -33,6 +34,12 @@ install:
 
    # Back out of the mfem directory to install the libraries
    - cd ..
+
+   # Code coverage tools ( lcov, rubygems, coveralls )
+   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" -a "$CODECOV" == "YES" ]; then
+        sudo apt-get install lcov rubygems;
+        gem install lcoveralls;   
+     fi
 
    # OpenMPI
    - if [ $TRAVIS_OS_NAME == "linux" ]; then
@@ -91,10 +98,19 @@ script:
         export MFEM_TEST_TARGET="test";
      else
         export MFEM_TEST_TARGET="check";
+        export CODECOV="YES";
      fi
    # Build and check/test MFEM, its examples and miniapps
    - cd $TRAVIS_BUILD_DIR &&
-     make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX" &&
+     make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX" MFEM_USE_CODECOV=$CODECOV &&
      make info &&
      make all -j 4 &&
      make $MFEM_TEST_TARGET
+
+after_success:
+   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" -a "CODECOV" == "YES" ]; then
+       lcov --directory . --capture --output-file coverage.info;
+       lcov --remove coverage.info 'tests/*' /usr/*' --output-file coverage.info;
+       lcov --list coverage.info;
+       lcoveralls;
+     fi;

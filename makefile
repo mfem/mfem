@@ -169,6 +169,15 @@ endif
 
 DEP_CXX ?= $(MFEM_CXX)
 
+# Add code coverage flags (gnu only)
+ifeq ($(MFEM_USE_CODECOV),YES)
+   INCFLAGS += --coverage
+   ifneq ($(MFEM_DEBUG),YES)
+      $(error Incompatible config: MFEM_USE_CODECOV requires MFEM_DEBUG)
+   endif
+endif
+
+CXXFLAGS ?= $(OPTIM_FLAGS)
 # Check OpenMP configuration
 ifeq ($(MFEM_USE_OPENMP),YES)
    MFEM_THREAD_SAFE ?= YES
