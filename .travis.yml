@@ -12,17 +12,17 @@ env:
    global:
       - TMPDIR=/tmp
    matrix:
-      - DEBUG=YES
-        MPI=YES
-        CODECOV=NO
-      - DEBUG=NO
-        MPI=YES
-        CODECOV=NO
+#      - DEBUG=YES
+#        MPI=YES
+#        CODECOV=NO
+#      - DEBUG=NO
+#        MPI=YES
+#        CODECOV=NO
       - DEBUG=YES
         MPI=NO
         CODECOV=YES
-      - DEBUG=NO
-        MPI=NO
+#      - DEBUG=NO
+#        MPI=NO
 
 # Test with GCC on Linux an Clang on Mac
 matrix:
