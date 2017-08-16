@@ -1,3 +1,5 @@
+sudo: false
+
 language: cpp
 
 compiler:
@@ -28,6 +30,21 @@ env:
 #        MPI=NO
 #        MFEM_TEST_TARGET=test
 
+addons:
+   apt:
+      sources:
+         - ubuntu-toolchain-r-test
+      packages:
+         - g++-4.9
+         - openmpi-bin
+         - openmpi-common
+         - openssh-client
+         - openssh-server
+         - libopenmpi1.3
+         - libopenmpi-dbg
+         - libopenmpi-dev;
+         
+
 # Test with GCC on Linux an Clang on Mac
 matrix:
    exclude:
@@ -37,13 +54,16 @@ matrix:
         os: osx
 
 before_install:
-   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" ]; then sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test; fi
-   - if [ $TRAVIS_OS_NAME == "linux" ]; then sudo apt-get update; fi || true
+#   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" ]; then sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test; fi
+#   - if [ $TRAVIS_OS_NAME == "linux" ]; then sudo apt-get update; fi || true
+   - if [ $TRAVIS_OS_NAME == "osx" ]; then
+        travis_wait brew install open-mpi;
+     fi
 
 install:
    # g++-4.9
-   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" ]; then sudo apt-get install -qq g++-4.9; fi
-   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" ]; then export CXX="g++-4.9"; fi
+#   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" ]; then sudo apt-get install -qq g++-4.9; fi
+#   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" ]; then export CXX="g++-4.9"; fi
 
    # Back out of the mfem directory to install the libraries
    - cd ..
@@ -52,15 +72,15 @@ install:
 #   - if [ "$CODECOV" == "YES" ]; then
 #        pip install cpp-coveralls;
 #     fi
-   - pip install requests==2.5.3
+#   - pip install requests==2.5.3
    - pip install cpp-coveralls
  
    # OpenMPI
-   - if [ $TRAVIS_OS_NAME == "linux" ]; then
-        sudo apt-get install openmpi-bin openmpi-common openssh-client openssh-server libopenmpi1.3 libopenmpi-dbg libopenmpi-dev;
-     else
-        travis_wait brew install open-mpi;
-     fi
+#   - if [ $TRAVIS_OS_NAME == "linux" ]; then
+#        sudo apt-get install openmpi-bin openmpi-common openssh-client openssh-server libopenmpi1.3 libopenmpi-dbg libopenmpi-dev;
+#     else
+#        travis_wait brew install open-mpi;
+#     fi
 
    # hypre
    - if [ $MPI == "YES" ]; then
