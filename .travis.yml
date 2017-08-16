@@ -9,10 +9,10 @@ os:
    - osx
 
 env:
-   - DEBUG=YES MPI=YES TMPDIR=/tmp
-   - DEBUG=NO MPI=YES TMPDIR=/tmp
-   - DEBUG=YES MPI=NO
-   - DEBUG=NO MPI=NO
+#   - DEBUG=YES MPI=YES TMPDIR=/tmp
+#   - DEBUG=NO MPI=YES TMPDIR=/tmp
+#   - DEBUG=YES MPI=NO
+#   - DEBUG=NO MPI=NO
    - DEBUG=YES MPI=NO CODECOV=YES
 
 # Test with GCC on Linux an Clang on Mac
