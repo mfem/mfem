@@ -2,11 +2,11 @@ language: cpp
 
 compiler:
    - gcc
-   - clang
+#   - clang
 
 os:
    - linux
-   - osx
+#   - osx
 
 env:
    global:
@@ -49,10 +49,11 @@ install:
    - cd ..
 
    # Code coverage tools ( lcov, rubygems, coveralls )
-   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" -a "$CODECOV" == "YES" ]; then
-        pip install cpp-coveralls;
-     fi
-
+#   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" -a "$CODECOV" == "YES" ]; then
+#        pip install cpp-coveralls;
+#     fi
+   - pip install cpp-coveralls
+ 
    # OpenMPI
    - if [ $TRAVIS_OS_NAME == "linux" ]; then
         sudo apt-get install openmpi-bin openmpi-common openssh-client openssh-server libopenmpi1.3 libopenmpi-dbg libopenmpi-dev;
