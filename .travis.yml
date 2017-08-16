@@ -117,4 +117,4 @@ after_success:
 #   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" -a "CODECOV" == "YES" ]; then
 #       coveralls --gcov /usr/bin/gcov-4.8 --include fem --include general --include linalg --include mesh --miniapps --gcov-options '\-lp' --root $TRAVIS_BUILD_DIR --build-root $TRAVIS_BUILD_DIR;
 #     fi;
-   - coveralls --gcov /usr/bin/gcov-4.9 --include fem --include general --include linalg --include mesh --miniapps --gcov-options '\-lp' --root $TRAVIS_BUILD_DIR --build-root $TRAVIS_BUILD_DIR;
+   - coveralls --verbose --gcov /usr/bin/gcov-4.9 --include fem --include general --include linalg --include mesh --miniapps --gcov-options '\-lp' --root $TRAVIS_BUILD_DIR --build-root $TRAVIS_BUILD_DIR;
