@@ -64,6 +64,10 @@ before_install:
         pip install --user pyyaml;
      fi
 
+   - ls -l /usr/bin
+   - which gcov
+   - which gcov-4.9
+
 install:
    # Back out of the mfem directory to install the libraries
    - cd ..
