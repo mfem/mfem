@@ -52,7 +52,7 @@ install:
 #   - if [ "$CODECOV" == "YES" ]; then
 #        pip install cpp-coveralls;
 #     fi
-   - pip install requests=2.5.3
+   - pip install requests==2.5.3
    - pip install cpp-coveralls
  
    # OpenMPI
