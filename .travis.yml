@@ -9,11 +9,20 @@ os:
    - osx
 
 env:
-#   - DEBUG=YES MPI=YES TMPDIR=/tmp
-#   - DEBUG=NO MPI=YES TMPDIR=/tmp
-#   - DEBUG=YES MPI=NO
-#   - DEBUG=NO MPI=NO
-   - DEBUG=YES MPI=NO CODECOV=YES
+   global:
+      - TMPDIR=/tmp
+   matrix:
+      - DEBUG=YES
+        MPI=YES
+        CODECOV=NO
+      - DEBUG=NO
+        MPI=YES
+        CODECOV=NO
+      - DEBUG=YES
+        MPI=NO
+        CODECOV=YES
+      - DEBUG=NO
+        MPI=NO
 
 # Test with GCC on Linux an Clang on Mac
 matrix:
@@ -37,8 +46,7 @@ install:
 
    # Code coverage tools ( lcov, rubygems, coveralls )
    - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" -a "$CODECOV" == "YES" ]; then
-        sudo apt-get install lcov rubygems;
-        gem install lcoveralls;   
+        pip install cpp-coveralls;
      fi
 
    # OpenMPI
@@ -93,13 +101,13 @@ script:
      fi
    # Print the compiler version
    - $MYCXX -v
-   # Build the code and do a quick check (debug mode) or a full tests run (non-debug mode)
-   - if [ $DEBUG == "NO" ]; then
+   # Build the code and do a quick check (release mode) or a full tests run (debug mode)
+   - if [ $DEBUG == "YES" ]; then
         export MFEM_TEST_TARGET="test";
      else
         export MFEM_TEST_TARGET="check";
-        export CODECOV="YES";
      fi
+        
    # Build and check/test MFEM, its examples and miniapps
    - cd $TRAVIS_BUILD_DIR &&
      make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX" MFEM_USE_CODECOV=$CODECOV &&
@@ -109,8 +117,5 @@ script:
 
 after_success:
    - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" -a "CODECOV" == "YES" ]; then
-       lcov --directory . --capture --output-file coverage.info;
-       lcov --remove coverage.info 'tests/*' /usr/*' --output-file coverage.info;
-       lcov --list coverage.info;
-       lcoveralls;
+       coveralls --gcov /usr/bin/gcov-4.8 --include fem --include general --include linalg --include mesh --miniapps --gcov-options '\-lp' --root $TRAVIS_BUILD_DIR --build-root $TRAVIS_BUILD_DIR;
      fi;
