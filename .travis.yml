@@ -4,11 +4,11 @@ language: cpp
 
 compiler:
    - gcc
-#   - clang
+   - clang
 
 os:
    - linux
-#   - osx
+   - osx
 
 env:
    global:
@@ -18,17 +18,17 @@ env:
         MPI=YES
         CODECOV=YES
         MFEM_TEST_TARGET=test
-#      - DEBUG=NO
-#        MPI=YES
-#        CODECOV=NO
-#        MFEM_TEST_TARGET=test
-#      - DEBUG=YES
-#        MPI=NO
-#        CODECOV=YES
-#        MFEM_TEST_TARGET=check
-#      - DEBUG=NO
-#        MPI=NO
-#        MFEM_TEST_TARGET=test
+      - DEBUG=NO
+        MPI=YES
+        CODECOV=NO
+        MFEM_TEST_TARGET=test
+      - DEBUG=YES
+        MPI=NO
+        CODECOV=YES
+        MFEM_TEST_TARGET=check
+      - DEBUG=NO
+        MPI=NO
+        MFEM_TEST_TARGET=test
 
 addons:
    apt:
@@ -65,11 +65,13 @@ before_install:
      fi
 
    # Update environment to find g++ 4.9 installation first.
-   - mkdir -p latest-gcc-symlinks
-   - ln -s /usr/bin/g++-4.9 latest-gcc-symlinks/g++
-   - ln -s /usr/bin/gcc-4.9 latest-gcc-symlinks/gcc
-   - ln -s /usr/bin/gcov-4.9 latest-gcc-symlinks/gcov
-   - export PATH=$PWD/latest-gcc-symlinks:$PATH
+   - if [ $TRAVIS_OS_NAME == "linux" ]; then
+         mkdir -p latest-gcc-symlinks;
+         ln -s /usr/bin/g++-4.9 latest-gcc-symlinks/g++;
+         ln -s /usr/bin/gcc-4.9 latest-gcc-symlinks/gcc;
+         ln -s /usr/bin/gcov-4.9 latest-gcc-symlinks/gcov;
+         export PATH=$PWD/latest-gcc-symlinks:$PATH;
+     fi
 
 install:
    # Back out of the mfem directory to install the libraries
