@@ -64,6 +64,12 @@ before_install:
         pip install --user pyyaml;
      fi
 
+   # Update environment to find g++ 4.9 first.
+   - mkdir -p latest-gcc-symlinks
+   - ln -s /usr/bin/g++-6 latest-gcc-symlinks/g++
+   - ln -s /usr/bin/gcc-6 latest-gcc-symlinks/gcc
+   - export PATH=$PWD/latest-gcc-symlinks:$PATH
+
 install:
    # Back out of the mfem directory to install the libraries
    - cd ..
@@ -111,9 +117,6 @@ install:
 
 script:
    # Compiler
-   - export CC=/usr/bin/gcc-4.9
-   - export CXX=/usr/bin/g++-4.9
-
    - if [ $MPI == "YES" ]; then
         export MYCXX=mpic++;
         export OMPI_CXX="$CXX";
