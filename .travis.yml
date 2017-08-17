@@ -64,10 +64,11 @@ before_install:
         pip install --user pyyaml;
      fi
 
-   # Update environment to find g++ 4.9 first.
+   # Update environment to find g++ 4.9 installation first.
    - mkdir -p latest-gcc-symlinks
-   - ln -s /usr/bin/g++-6 latest-gcc-symlinks/g++
-   - ln -s /usr/bin/gcc-6 latest-gcc-symlinks/gcc
+   - ln -s /usr/bin/g++-4.9 latest-gcc-symlinks/g++
+   - ln -s /usr/bin/gcc-4.9 latest-gcc-symlinks/gcc
+   - ln -s /usr/bin/gcov-4.9 latest-gcc-symlinks/gcov
    - export PATH=$PWD/latest-gcc-symlinks:$PATH
 
 install:
@@ -136,5 +137,5 @@ script:
 
 after_success:
    - if [ "$CODECOV" == "YES" ]; then
-      coveralls --verbose --gcov /usr/bin/gcov-4.9 --include fem --include general --include linalg --include mesh --include miniapps --gcov-options '\-lp' --root $TRAVIS_BUILD_DIR --build-root $TRAVIS_BUILD_DIR;
+      coveralls --verbose --include fem --include general --include linalg --include mesh --include miniapps --gcov-options '\-lp' --root $TRAVIS_BUILD_DIR --build-root $TRAVIS_BUILD_DIR;
      fi;
