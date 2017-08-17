@@ -16,19 +16,22 @@ env:
    matrix:
       - DEBUG=YES
         MPI=YES
+        NPROCS=1
         CODECOV=YES
         MFEM_TEST_TARGET=test
       - DEBUG=NO
         MPI=YES
+        NPROCS=4
         CODECOV=NO
         MFEM_TEST_TARGET=test
       - DEBUG=YES
         MPI=NO
-        CODECOV=YES
+        CODECOV=NO
         MFEM_TEST_TARGET=check
       - DEBUG=NO
         MPI=NO
-        MFEM_TEST_TARGET=test
+        CODECOV=NO
+        MFEM_TEST_TARGET=check
 
 addons:
    apt:
@@ -133,7 +136,7 @@ script:
         
    # Build and check/test MFEM, its examples and miniapps
    - cd $TRAVIS_BUILD_DIR &&
-     make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX" MFEM_MPI_NP=1 MFEM_USE_CODECOV=$CODECOV &&
+     make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX" MFEM_MPI_NP=$NPROCS MFEM_USE_CODECOV=$CODECOV &&
      make info &&
      make all -j 4 &&
      make $MFEM_TEST_TARGET
