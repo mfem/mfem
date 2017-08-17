@@ -58,7 +58,7 @@ MFEM_TESTS = MINIAPPS
 include $(TEST_MK)
 
 # Testing: Specific execution options
-RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 volta-test-par: volta
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
 	-maxit 2 -dbcs 1 -dbcg -ds '0.0 0.0 0.0 0.2 8.0')

@@ -51,6 +51,7 @@ MFEM_USE_CODECOV = @MFEM_USE_CODECOV@
 # Command used to launch MPI jobs
 MFEM_MPIEXEC    = @MFEM_MPIEXEC@
 MFEM_MPIEXEC_NP = @MFEM_MPIEXEC_NP@
+MFEM_MPI_NP = @MFEM_MPI_NP@
 
 # Optional extra configuration
 @MFEM_CONFIG_EXTRA@

@@ -54,6 +54,8 @@ endif
 # Command used to launch MPI jobs
 MFEM_MPIEXEC    = mpirun
 MFEM_MPIEXEC_NP = -np
+# Number of mpi tasks for parallel jobs
+MFEM_MPI_NP = 4
 
 # MFEM configuration options: YES/NO values, which are exported to config.mk and
 # config.hpp. The values below are the defaults for generating the actual values
@@ -62,6 +64,7 @@ MFEM_MPIEXEC_NP = -np
 MFEM_USE_MPI         = NO
 MFEM_USE_METIS_5     = NO
 MFEM_DEBUG           = NO
+MFEM_USE_CODECOV     = NO
 MFEM_USE_GZSTREAM    = NO
 MFEM_USE_LIBUNWIND   = NO
 MFEM_USE_LAPACK      = NO
