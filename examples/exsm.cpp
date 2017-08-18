@@ -203,6 +203,8 @@ int main (int argc, char *argv[])
     int rs_levels = 0;
     int metric_id = 1;
     int target_id = 1;
+    bool limited   = false;
+    double lim_eps = 1.0;
     int newton_iter = 10;
     int lin_solver = 2;
     bool move_bnd = false;
@@ -243,6 +245,9 @@ int main (int argc, char *argv[])
        "2: IDEAL_EQ_SIZE\n\t"
        "3: IDEAL_INIT_SIZE\n\t"
        "4: IDEAL_EQ_SCALE_SIZE");
+    args.AddOption(&limited, "-lim", "--limiting", "-no-lim", "--no-limiting",
+                   "Enable limiting of the node movement.");
+    args.AddOption(&lim_eps, "-lc", "--limit-const", "Limiting constant.");
     args.AddOption(&newton_iter, "-ni", "--newton-iters",
                    "Maximum number of Newton iterations.");
     args.AddOption(&lin_solver, "-ls", "--lin-solver",
@@ -421,7 +426,6 @@ int main (int argc, char *argv[])
        default: cout << "Unknown target_id: " << target_id << endl;
                 return 3;
     }
-    
     tj->SetNodes(*x);
     tj->SetInitialNodes(x0);
     HyperelasticNLFIntegrator *he_nlf_integ;
@@ -443,7 +447,9 @@ int main (int argc, char *argv[])
         cout << "Sample point distribution is uniformly spaced\n";
     }
     he_nlf_integ->SetIntegrationRule(*ir);
-    //he_nlf_integ->SetLimited(0.05, x0);
+
+    // Limit the node movement.
+    if (limited) { he_nlf_integ->SetLimited(lim_eps, x0); }
     
     nf_integ = he_nlf_integ;
     NonlinearForm a(fespace);
@@ -477,14 +483,20 @@ int main (int argc, char *argv[])
         a.AddDomainIntegrator(he_nlf_integ2);
     }
     else { a.AddDomainIntegrator(nf_integ); }
-    
-    InterpolateHyperElasticModel(*model, *tj, *mesh, metric);
-    osockstream sol_sock2(visport, vishost);
-    sol_sock2 << "solution\n";
-    mesh->Print(sol_sock2);
-    metric.Save(sol_sock2);
-    sol_sock2.send();
-    sol_sock2 << "keys " << "JRem" << endl;
+
+    if (visualization)
+    {
+        InterpolateHyperElasticModel(*model, *tj, *mesh, metric);
+        osockstream sock(visport, vishost);
+        sock << "solution\n";
+        mesh->Print(sock);
+        metric.Save(sock);
+        sock.send();
+        sock << "window_title 'Initial metric values'\n"
+             << "window_geometry "
+             << 0 << " " << 0 << " " << 600 << " " << 600 << "\n"
+             << "keys JRmc" << endl;
+    }
     
     // Set essential vdofs by hand for x = 0 and y = 0 (2D). These are
     // attributes 1 and 2.
@@ -641,15 +653,18 @@ int main (int argc, char *argv[])
     cout << "Initial strain energy was  : " << init_en << endl;
     cout << "% change is  : " << (init_en - fin_en) * 100.0 / init_en << endl;
     
-    if (tj)
+    if (visualization)
     {
         InterpolateHyperElasticModel(*model, *tj, *mesh, metric);
-        osockstream sol_sock(visport, vishost);
-        sol_sock << "solution\n";
-        mesh->Print(sol_sock);
-        metric.Save(sol_sock);
-        sol_sock.send();
-        sol_sock << "keys " << "JRmm" << endl;
+        osockstream sock(visport, vishost);
+        sock << "solution\n";
+        mesh->Print(sock);
+        metric.Save(sock);
+        sock.send();
+        sock << "window_title 'Final metric values'\n"
+             << "window_geometry "
+             << 600 << " " << 0 << " " << 600 << " " << 600 << "\n"
+             << "keys JRmc" << endl;
     }
     
     // 17. Get some mesh statistics
