@@ -28,6 +28,13 @@ protected:
    /// Set of Domain Integrators to be assembled (added).
    Array<NonlinearFormIntegrator*> dfi;
 
+   /// Set of interior face Integrators to be assembled (added).
+   Array<NonlinearFormIntegrator*> fbfi;
+
+   /// Set of boundary face Integrators to be assembled (added).
+   Array<NonlinearFormIntegrator*> bfbfi;
+   Array<Array<int>*>              bfbfi_marker;
+
    mutable SparseMatrix *Grad;
 
    // A list of all essential vdofs

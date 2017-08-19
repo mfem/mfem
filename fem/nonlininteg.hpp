@@ -29,12 +29,22 @@ public:
    /// Perform the local action of the NonlinearFormIntegrator
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
-                                      const Vector &elfun, Vector &elvect) = 0;
+                                      const Vector &elfun, Vector &elvect);
+
+    virtual void AssembleFaceVector(const FiniteElement &el1,
+                                    const FiniteElement &el2,
+                                    FaceElementTransformations &Tr,
+                                    const Vector &elfun, Vector &elvect);
 
    /// Assemble the local gradient matrix
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &Tr,
                                     const Vector &elfun, DenseMatrix &elmat);
+
+   virtual void AssembleFaceGrad(const FiniteElement &el1,
+                                 const FiniteElement &el2,
+                                 FaceElementTransformations &Tr,
+                                 const Vector &elfun, DenseMatrix &elmat);
 
    /// Compute the local energy
    virtual double GetElementEnergy(const FiniteElement &el,

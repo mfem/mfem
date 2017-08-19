@@ -14,6 +14,23 @@
 namespace mfem
 {
 
+void NonlinearFormIntegrator::AssembleElementVector(
+   const FiniteElement &el, ElementTransformation &Tr,
+   const Vector &elfun, Vector &elvect)
+{
+   mfem_error("NonlinearFormIntegrator::AssembleElementVector"
+              " is not overloaded!");
+}
+
+void NonlinearFormIntegrator::AssembleElementVector(
+   const FiniteElement &el1, const FiniteElement &el2,
+   FaceElementTransformations &Tr, const Vector &elfun,
+   Vector &elvect)
+{
+   mfem_error("NonlinearFormIntegrator::AssembleElementVector"
+              " is not overloaded!");
+}
+
 void NonlinearFormIntegrator::AssembleElementGrad(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
    DenseMatrix &elmat)
@@ -21,6 +38,16 @@ void NonlinearFormIntegrator::AssembleElementGrad(
    mfem_error("NonlinearFormIntegrator::AssembleElementGrad"
               " is not overloaded!");
 }
+
+void NonlinearFormIntegrator::AssembleElementGrad(
+   const FiniteElement &el1, const FiniteElement &el2,
+   FaceElementTransformations &Tr, const Vector &elfun,
+   DenseMatrix &elmat)
+{
+   mfem_error("NonlinearFormIntegrator::AssembleElementGrad"
+              " is not overloaded!");
+}
+
 
 double NonlinearFormIntegrator::GetElementEnergy(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
