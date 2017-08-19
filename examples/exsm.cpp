@@ -36,7 +36,7 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    const int NE = nlf->FESpace()->GetMesh()->GetNE();
 
-   Vector x_out = x;
+   Vector x_out(x.Size());
    bool x_out_ok = false;
    const double energy_in = nlf->GetEnergy(x);
    double scale = 1.0, energy_out;
@@ -83,6 +83,7 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
    return scale;
 }
 
+// Allows negative Jacobians -- used in untangling metrics.
 class DescentNewtonSolver : public NewtonSolver
 {
 private:
@@ -98,76 +99,54 @@ public:
 double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
                                                  const Vector &c) const
 {
-    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
-    
-    const int NE = nlf->FESpace()->GetMesh()->GetNE();
-    
-    Vector xsav = x;
-    int passchk = 0;
-    int iters = 0;
-    double alpha = 1.;
-    double initenergy = 0.0;
-    double finenergy = 0.0;
-    int nanchk = 0;
-    
-    GridFunction x_gf(nlf->FESpace());
-    x_gf = xsav;
-    
-    double tauval = 1e+6;
-    for (int i = 0; i < NE; i++)
-    {
-        const FiniteElement &fe = *x_gf.FESpace()->GetFE(i);
-        const int dim = fe.GetDim(), nsp = ir.GetNPoints(),
-        dof = fe.GetDof();
-        DenseMatrix Jtr(dim);
-        DenseMatrix dshape(dof, dim), pos(dof, dim);
-        Array<int> xdofs(dof * dim);
-        Vector posV(pos.Data(), dof * dim);
-        x_gf.FESpace()->GetElementVDofs(i, xdofs);
-        x_gf.GetSubVector(xdofs, posV);
-        for (int j = 0; j < nsp; j++)
-        {
-            fe.CalcDShape(ir.IntPoint(j), dshape);
-            MultAtB(pos, dshape, Jtr);
-            double det = Jtr.Det();
-            tauval = min(tauval,det);
-        }
-    }
-    if (tauval>0)
-    {
-        tauval = 1e-4;
-    }
-    else
-    {
-        tauval -= 1e-2;
-    }
-    cout << "the determine tauval is " << tauval << "\n";
-    
-    initenergy =nlf->GetEnergy(x);
-    cout << "energy level is " << initenergy << " \n";
-    
-    while (passchk !=1 && iters < 15)
-    {
-        iters += 1;
-        add (x,-alpha,c,xsav);
-        x_gf = xsav;
-        
-        finenergy = nlf->GetEnergy(xsav);
-        nanchk = isnan(finenergy);
-        
-        if (finenergy>1.0*initenergy || nanchk!=0)
-        {
-            passchk = 0;
-            alpha *= 0.5;
-        }
-        else
-        {
-            passchk = 1;
-        }
-    }
-    
-    if (passchk==0) { alpha = 0.0; }
-    return alpha;
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+
+   const int NE = nlf->FESpace()->GetMesh()->GetNE();
+
+   double min_detJ = numeric_limits<double>::infinity();
+   for (int i = 0; i < NE; i++)
+   {
+      const FiniteElement &fe = *(nlf->FESpace()->GetFE(i));
+      const int dim = fe.GetDim(), nsp = ir.GetNPoints(), dof = fe.GetDof();
+      DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
+      Array<int> xdofs(dof * dim);
+      Vector posV(pos.Data(), dof * dim);
+
+      nlf->FESpace()->GetElementVDofs(i, xdofs);
+      x.GetSubVector(xdofs, posV);
+      for (int j = 0; j < nsp; j++)
+      {
+         fe.CalcDShape(ir.IntPoint(j), dshape);
+         MultAtB(pos, dshape, Jpr);
+         min_detJ = min(min_detJ, Jpr.Det());
+      }
+   }
+   cout << "Minimum |J| is " << min_detJ << endl;
+
+   Vector x_out(x.Size());
+   bool x_out_ok = false;
+   double scale = 1.0;
+   const double energy_in = nlf->GetEnergy(x);
+   double energy_out;
+
+   for (int i = 0; i < 7; i++)
+   {
+      add(x, -scale, c, x_out);
+
+      energy_out = nlf->GetEnergy(x_out);
+      if (energy_out > energy_in || isnan(energy_out) != 0)
+      {
+         scale *= 0.5;
+      }
+      else { x_out_ok = true; break; }
+   }
+
+   cout << "Energy decrease: " << (energy_in - energy_out) / energy_in * 100.0
+        << "% with " << scale << " scaling." << endl;
+
+   if (x_out_ok == false) { return 0.0;}
+
+   return scale;
 }
 
 double weight_fun(const Vector &x);
