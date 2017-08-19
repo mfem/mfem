@@ -32,75 +32,55 @@ public:
 double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
                                                  const Vector &c) const
 {
-    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
-    
-    const int NE = nlf->FESpace()->GetMesh()->GetNE();
-    
-    Vector xsav = x; //create a copy of x
-    int passchk = 0;
-    int iter_cnt = 0;
-    double alpha = 1.;
-    int jachk = 1;
-    double initenergy = 0.0;
-    double finenergy = 0.0;
-    double nanchk;
-    
-    initenergy = nlf->GetEnergy(x);
-    
-    while (passchk !=1 && iter_cnt < 20)
-    {
-        ++iter_cnt;
-        jachk = 1;
-        add (x,-alpha,c,xsav);
-        
-        GridFunction x_gf(nlf->FESpace());
-        x_gf = xsav;
-        
-        finenergy = nlf->GetEnergy(xsav);
-        nanchk = isnan(finenergy);
-        for (int i = 0; i < NE; i++)
-        {
-            const FiniteElement &fe = *x_gf.FESpace()->GetFE(i);
-            const int dim = fe.GetDim(), nsp = ir.GetNPoints(),
-            dof = fe.GetDof();
-            
-            DenseMatrix Jtr(dim);
-            
-            DenseMatrix dshape(dof, dim), pos(dof, dim);
-            Array<int> xdofs(dof * dim);
-            Vector posV(pos.Data(), dof * dim);
-            
-            x_gf.FESpace()->GetElementVDofs(i, xdofs);
-            x_gf.GetSubVector(xdofs, posV);
-            for (int j = 0; j < nsp; j++)
-            {
-                fe.CalcDShape(ir.IntPoint(j), dshape);
-                MultAtB(pos, dshape, Jtr);
-                double det = Jtr.Det();
-                if (det<=0.)
-                {
-                    jachk *= 0;
-                }
-            }
-        }
-        
-        if (finenergy>1.0*initenergy || nanchk!=0 || jachk==0)
-        {
-            passchk = 0;
-            alpha *= 0.5;
-        }
-        else
-        {
-            passchk = 1;
-        }
-    }
-    
-    cout << initenergy << " " << finenergy
-         << " energy value before and after the Newton iteration" << endl;
-    cout << "alpha value is " << alpha << endl;
-    
-    if (passchk==0) { alpha = 0.0; }
-    return alpha;
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+
+   const int NE = nlf->FESpace()->GetMesh()->GetNE();
+
+   Vector x_out = x;
+   bool x_out_ok = false;
+   const double energy_in = nlf->GetEnergy(x);
+   double scale = 1.0, energy_out;
+
+   for (int i = 0; i < 7; i++)
+   {
+      add(x, -scale, c, x_out);
+
+      energy_out = nlf->GetEnergy(x_out);
+      if (energy_out > energy_in || isnan(energy_out) != 0)
+      {
+         scale *= 0.5; continue;
+      }
+
+      bool jac_ok = true;
+      for (int i = 0; i < NE; i++)
+      {
+         const FiniteElement &fe = *(nlf->FESpace()->GetFE(i));
+         const int dim = fe.GetDim(), nsp = ir.GetNPoints(), dof = fe.GetDof();
+
+         Array<int> xdofs(dof * dim);
+         DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
+         Vector posV(pos.Data(), dof * dim);
+
+         nlf->FESpace()->GetElementVDofs(i, xdofs);
+         x_out.GetSubVector(xdofs, posV);
+         for (int j = 0; j < nsp; j++)
+         {
+            fe.CalcDShape(ir.IntPoint(j), dshape);
+            MultAtB(pos, dshape, Jpr);
+            if (Jpr.Det() <= 0.0) { jac_ok = false; goto break2; }
+         }
+      }
+      break2:
+      if (jac_ok == false) { scale *= 0.5; }
+      else { x_out_ok = true; break; }
+   }
+
+   cout << "Energy decrease: " << (energy_in - energy_out) / energy_in * 100.0
+        << "% with " << scale << " scaling." << endl;
+
+   if (x_out_ok == false) { return 0.0; }
+
+   return scale;
 }
 
 class DescentNewtonSolver : public NewtonSolver
@@ -568,8 +548,7 @@ int main (int argc, char *argv[])
     }
     
     const double init_en = a.GetEnergy(*x);
-    cout.precision(4);
-    cout << "Initial strain energy : " << setprecision(16) << init_en << endl;
+    cout << "Initial strain energy : " << init_en << endl;
     
     // save original
     Vector xsav = *x;
@@ -651,7 +630,8 @@ int main (int argc, char *argv[])
     const double fin_en = a.GetEnergy(*x);
     cout << "Final strain energy   : " << fin_en << endl;
     cout << "Initial strain energy was  : " << init_en << endl;
-    cout << "% change is  : " << (init_en - fin_en) * 100.0 / init_en << endl;
+    cout << "% change is  : " << setprecision(12)
+         << (init_en - fin_en) * 100.0 / init_en << endl;
     
     if (visualization)
     {
