@@ -22,12 +22,11 @@ void NonlinearFormIntegrator::AssembleElementVector(
               " is not overloaded!");
 }
 
-void NonlinearFormIntegrator::AssembleElementVector(
+void NonlinearFormIntegrator::AssembleFaceVector(
    const FiniteElement &el1, const FiniteElement &el2,
-   FaceElementTransformations &Tr, const Vector &elfun,
-   Vector &elvect)
+   FaceElementTransformations &Tr, const Vector &elfun, Vector &elvect)
 {
-   mfem_error("NonlinearFormIntegrator::AssembleElementVector"
+   mfem_error("NonlinearFormIntegrator::AssembleFaceVector"
               " is not overloaded!");
 }
 
@@ -39,7 +38,7 @@ void NonlinearFormIntegrator::AssembleElementGrad(
               " is not overloaded!");
 }
 
-void NonlinearFormIntegrator::AssembleElementGrad(
+void NonlinearFormIntegrator::AssembleFaceGrad(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Tr, const Vector &elfun,
    DenseMatrix &elmat)

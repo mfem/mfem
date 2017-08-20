@@ -48,6 +48,14 @@ public:
    void AddDomainIntegrator(NonlinearFormIntegrator *nlfi)
    { dfi.Append(nlfi); }
 
+   /// Adds new interior face Integrator.
+   void AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi)
+   { fbfi.Append(nlfi); }
+
+   /// Adds new boundary face Integrator.
+   void AddBdrFaceIntegrator(NonlinearFormIntegrator *nlfi)
+   { bfbfi.Append(nlfi); }
+
    virtual void SetEssentialBC(const Array<int> &bdr_attr_is_ess,
                                Vector *rhs = NULL);
 
