@@ -557,7 +557,7 @@ int main (int argc, char *argv[])
    NewtonSolver *newton = NULL;
    if (minJ0 > 0.0)
    {
-      tauval = 1e-1;
+      tauval = 0.0;
       newton = new RelaxedNewtonSolver(*ir);
       cout << "The RelaxedNewtonSolver is used (as all det(J) > 0)." << endl;
    }
@@ -569,7 +569,7 @@ int main (int argc, char *argv[])
          cout << "The mesh is inverted. Use an untangling metric." << endl;
          return 3;
       }
-      tauval -= 0.01;
+      tauval -= 0.01 * h0.Min(); // Slightly below minJ0 to avoid div by 0.
       newton = new DescentNewtonSolver(*ir);
       cout << "The DescentNewtonSolver is used (as some det(J) < 0)." << endl;
    }
