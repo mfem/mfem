@@ -1,21 +1,42 @@
-//                               ETHOS Example - Mesh optimizer
+//                  ETHOS Example - Mesh optimizer
 //
 // Compile with: make exsm
 //
 // Sample runs:  exsm -m blade.mesh     with Ideal target and metric 2
 //               exsm -m tipton.mesh    with Ideal equal size target and metric 9
 //
-// Description: This example code performs mesh optimization using Target-matrix
-//              optimization paradigm coupled with Variational Minimization. The
-//              smoother is based on a combination of target element and quality metric
-//              that the users chooses, which in-turn determines which features of the
-//              mesh - size, quality and/or orientation - are optimized.
+// Description:
+//    This example code performs mesh optimization using Target-matrix
+//    optimization paradigm coupled with Variational Minimization. The smoother
+//    is based on a combination of target element and quality metric that the
+//    users chooses, which in-turn determines which features of the mesh - size,
+//    quality and/or orientation - are optimized.
 
 
 #include "mfem.hpp"
 
 using namespace mfem;
 using namespace std;
+
+double weight_fun(const Vector &x);
+
+void vis_metric(int order, HyperelasticModel &model, const TargetJacobian &tj,
+                Mesh &mesh, char *title, int position)
+{
+   L2_FECollection mfec(order, mesh.Dimension(), BasisType::GaussLobatto);
+   FiniteElementSpace mfes(&mesh, &mfec, 1);
+   GridFunction metric(&mfes);
+   InterpolateHyperElasticModel(model, tj, mesh, metric);
+   osockstream sock(19916, "localhost");
+   sock << "solution\n";
+   mesh.Print(sock);
+   metric.Save(sock);
+   sock.send();
+   sock << "window_title '"<< title << "'\n"
+        << "window_geometry "
+        << position << " " << 0 << " " << 600 << " " << 600 << "\n"
+        << "keys JRmcl" << endl;
+}
 
 class RelaxedNewtonSolver : public NewtonSolver
 {
@@ -121,7 +142,7 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
          min_detJ = min(min_detJ, Jpr.Det());
       }
    }
-   cout << "Minimum |J| is " << min_detJ << endl;
+   cout << "Minimum det(J) = " << min_detJ << endl;
 
    Vector x_out(x.Size());
    bool x_out_ok = false;
@@ -149,21 +170,19 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
    return scale;
 }
 
-double weight_fun(const Vector &x);
-
 int main (int argc, char *argv[])
-{
-    char vishost[] = "localhost";
-    int  visport   = 19916;
-    
+{   
     // 1. Parse command-line options.
     const char *mesh_file = "../data/tipton.mesh";
     int mesh_poly_deg = 1;
     int rs_levels = 0;
+    double jitter = 0.0;
     int metric_id = 1;
     int target_id = 1;
     bool limited   = false;
     double lim_eps = 1.0;
+    int quad_type = 1;
+    int quad_order = 8;
     int newton_iter = 10;
     int lin_solver = 2;
     bool move_bnd = false;
@@ -177,6 +196,8 @@ int main (int argc, char *argv[])
                    "Polynomial degree of mesh finite element space.");
     args.AddOption(&rs_levels, "-rs", "--refine-serial",
                    "Number of times to refine the mesh uniformly in serial.");
+    args.AddOption(&jitter, "-ji", "--jitter",
+                   "Random perturbation scaling factor.");
     args.AddOption(&metric_id, "-mid", "--metric-id",
        "Mesh optimization metric:\n\t"
        "1  : |T|^2                          -- 2D shape\n\t"
@@ -207,6 +228,13 @@ int main (int argc, char *argv[])
     args.AddOption(&limited, "-lim", "--limiting", "-no-lim", "--no-limiting",
                    "Enable limiting of the node movement.");
     args.AddOption(&lim_eps, "-lc", "--limit-const", "Limiting constant.");
+    args.AddOption(&quad_type, "-qt", "--quad-type",
+       "Quadrature rule type:\n\t"
+       "1: Gauss-Lobatto\n\t"
+       "2: Gauss-Legendre\n\t"
+       "3: Closed uniform points");
+    args.AddOption(&quad_order, "-qo", "--quad_order",
+                   "Order of the quadrature rule.");
     args.AddOption(&newton_iter, "-ni", "--newton-iters",
                    "Maximum number of Newton iterations.");
     args.AddOption(&lin_solver, "-ls", "--lin-solver",
@@ -297,7 +325,6 @@ int main (int argc, char *argv[])
     //    The latter is based on the DofToVDof() method which maps the scalar to
     //    the vector degrees of freedom in fespace.
     GridFunction rdm(fespace);
-    const double jitter = 0.0; // perturbation scaling factor
     rdm.Randomize();
     rdm -= 0.25; // shift to random values in [-0.5,0.5]
     rdm *= jitter;
@@ -309,7 +336,6 @@ int main (int argc, char *argv[])
                 rdm(fespace->DofToVDof(i,d)) *= h0(i);
             }
         }
-        
         Array<int> vdofs;
         // Loop over the boundary elements.
         for (int i = 0; i < fespace->GetNBE(); i++)
@@ -322,32 +348,18 @@ int main (int argc, char *argv[])
     }
     *x -= rdm;
     
-    // 9. Save the perturbed mesh to a file. This output can be viewed later
-    //    using GLVis: "glvis -m perturbed.mesh".
+    // 9. Save the starting (prior to the optimization) mesh to a file. This
+    //    output can be viewed later using GLVis: "glvis -m perturbed.mesh".
     {
         ofstream mesh_ofs("perturbed.mesh");
         mesh->Print(mesh_ofs);
     }
     
-    // 10. The vector field that gives the displacements to the perturbed
-    //     positions is saved in the grid function x0.
+    // 10. Store the starting (prior to the optimization) positions.
     GridFunction x0(fespace);
     x0 = *x;
-    
-    // Used for visualization of the metric values.
-    L2_FECollection mfec(mesh_poly_deg, mesh->Dimension(), BasisType::GaussLobatto);
-    FiniteElementSpace mfes(mesh, &mfec, 1);
-    GridFunction metric(&mfes);
-    
-    NonlinearFormIntegrator *nf_integ;
-    
-    Coefficient *c = NULL;
-    
-    // Used for combinations of metrics.
-    HyperelasticModel *model2 = NULL;
-    Coefficient *c2 = NULL;
-    TargetJacobian *tj2 = NULL;
 
+    // 11. Form the integrator that uses the chosen metric and target.
     double tauval = -0.1;
     HyperelasticModel *model = NULL;
     switch (metric_id)
@@ -371,10 +383,8 @@ int main (int argc, char *argv[])
        case 316: model = new TMOPHyperelasticModel316; break;
        case 321: model = new TMOPHyperelasticModel321; break;
        case 352: model = new TMOPHyperelasticModel352(tauval); break;
-       default: cout << "Unknown metric_id: " << metric_id << endl;
-                return 3;
+       default: cout << "Unknown metric_id: " << metric_id << endl; return 3;
     }
-
     TargetJacobian *tj = NULL;
     switch (target_id)
     {
@@ -382,130 +392,124 @@ int main (int argc, char *argv[])
        case 2: tj = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE); break;
        case 3: tj = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE); break;
        case 4: tj = new TargetJacobian(TargetJacobian::IDEAL_EQ_SCALE_SIZE); break;
-       default: cout << "Unknown target_id: " << target_id << endl;
-                return 3;
+       default: cout << "Unknown target_id: " << target_id << endl; return 3;
     }
     tj->SetNodes(*x);
     tj->SetInitialNodes(x0);
     HyperelasticNLFIntegrator *he_nlf_integ;
     he_nlf_integ = new HyperelasticNLFIntegrator(model, tj);
     
-    int ptflag = 1; //if 1 - GLL, else uniform
-    int nptdir = 8; //number of sample points in each direction
+    // 12. Setup the integrator's quadrature rule.
     const IntegrationRule *ir = NULL;
-    if (ptflag == 1)
+    const int geom_type = fespace->GetFE(0)->GetGeomType();
+    switch (quad_type)
     {
-        // Gauss-Lobatto points.
-        ir = &IntRulesLo.Get(fespace->GetFE(0)->GetGeomType(),nptdir);
-        cout << "Sample point distribution is GLL based\n";
+       case 1: ir = &IntRulesLo.Get(geom_type, quad_order); break;
+       case 2: ir = &IntRules.Get(geom_type, quad_order); break;
+       case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
+       default: cout << "Unknown quad_type: " << target_id << endl; return 3;
     }
-    else
-    {
-        // Closed uniform points.
-        ir = &IntRulesCU.Get(fespace->GetFE(0)->GetGeomType(),nptdir);
-        cout << "Sample point distribution is uniformly spaced\n";
-    }
+    cout << "Number of quadrature point per cell: " << ir->GetNPoints() << endl;
     he_nlf_integ->SetIntegrationRule(*ir);
 
-    // Limit the node movement.
+    // 13. Limit the node movement.
     if (limited) { he_nlf_integ->SetLimited(lim_eps, x0); }
     
-    nf_integ = he_nlf_integ;
+    // 14. Setup the final NonlinearForm (which defines the integral of
+    //     interest, its first and second derivatives).
+    //     Here we can also setup a combination of metrics, i.e., optimize the
+    //     sum of two integrals, where both are scaled by used-defined
+    //     space-dependent weights.
+    //     Note that there are no command-line options for the weights and the
+    //     type of the second metric; one should update those in the code.
     NonlinearForm a(fespace);
-    
-    // This is for trying a combo of two integrators
-    FunctionCoefficient rhs_coef (weight_fun);
-    Coefficient *combo_coeff = NULL;
-    
-    if (combomet==1)
+    Coefficient *coeff1 = NULL;
+    HyperelasticModel *model2 = NULL;
+    TargetJacobian *tj2 = NULL;
+    FunctionCoefficient coeff2(weight_fun);
+    if (combomet == 1)
     {
-        c = new ConstantCoefficient(1.25);  //weight of original metric
-        he_nlf_integ->SetCoefficient(*c);
-        nf_integ = he_nlf_integ;
-        a.AddDomainIntegrator(nf_integ);
+       // Weight of the original metric.
+       coeff1 = new ConstantCoefficient(1.25);
+       he_nlf_integ->SetCoefficient(*coeff1);
+       a.AddDomainIntegrator(he_nlf_integ);
         
-        tj2    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SCALE_SIZE);
-        //tj2    = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE);
-        //tj2    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE);
-        model2 = new TMOPHyperelasticModel077;
-        tj2->SetNodes(*x);
-        tj2->SetInitialNodes(x0);
-        HyperelasticNLFIntegrator *he_nlf_integ2;
-        he_nlf_integ2 = new HyperelasticNLFIntegrator(model2, tj2);
-        he_nlf_integ2->SetIntegrationRule(*ir);
-        
-        //c2 = new ConstantCoefficient(1.00);
-        //he_nlf_integ2->SetCoefficient(*c2);     //weight of new metric
-        
-        he_nlf_integ2->SetCoefficient(rhs_coef);     //weight of new metric as function
-        cout << "You have added a combo metric \n";
-        a.AddDomainIntegrator(he_nlf_integ2);
-    }
-    else { a.AddDomainIntegrator(nf_integ); }
+       model2 = new TMOPHyperelasticModel077;
+       tj2    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SCALE_SIZE);
+       //tj2    = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE);
+       //tj2    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE);
+       tj2->SetNodes(*x);
+       tj2->SetInitialNodes(x0);
+       HyperelasticNLFIntegrator *he_nlf_integ2;
+       he_nlf_integ2 = new HyperelasticNLFIntegrator(model2, tj2);
+       he_nlf_integ2->SetIntegrationRule(*ir);
 
-    if (visualization)
-    {
-        InterpolateHyperElasticModel(*model, *tj, *mesh, metric);
-        osockstream sock(visport, vishost);
-        sock << "solution\n";
-        mesh->Print(sock);
-        metric.Save(sock);
-        sock.send();
-        sock << "window_title 'Initial metric values'\n"
-             << "window_geometry "
-             << 0 << " " << 0 << " " << 600 << " " << 600 << "\n"
-             << "keys JRmc" << endl;
+       // Weight of metric2.
+       he_nlf_integ2->SetCoefficient(coeff2);
+       a.AddDomainIntegrator(he_nlf_integ2);
     }
+    else { a.AddDomainIntegrator(he_nlf_integ); }
+    const double init_en = a.GetEnergy(*x);
+    cout << "Initial strain energy: " << init_en << endl;
+
+   // 15. Visualize the starting mesh and metric values.
+   if (visualization)
+   {
+      char title[] = "Initial metric values";
+      vis_metric(mesh_poly_deg, *model, *tj, *mesh, title, 0);
+   }
     
-    // Set essential vdofs by hand for x = 0 and y = 0 (2D). These are
-    // attributes 1 and 2.
-    const int nd  = x->FESpace()->GetBE(0)->GetDof();
-    int n = 0;
-    for (int i = 0; i < mesh->GetNBE(); i++)
-    {
-        const int attr = mesh->GetBdrElement(i)->GetAttribute();
-        if (attr == 1 || attr == 2) { n += nd; }
-        if (attr == 3) { n += nd * dim; }
-    }
-    Array<int> ess_vdofs(n), vdofs;
-    n = 0;
-    for (int i = 0; i < mesh->GetNBE(); i++)
-    {
-        const int attr = mesh->GetBdrElement(i)->GetAttribute();
-        
-        
-        x->FESpace()->GetBdrElementVDofs(i, vdofs);
-        if (attr == 1) // y = 0; fix y components.
-        {
+   // 16. Fix all boundary nodes, or fix only a given component depending on the
+   //     boundary attributes of the given mesh (TODO 3D).
+   if (move_bnd == false)
+   {
+       Array<int> ess_bdr(mesh->bdr_attributes.Max());
+       ess_bdr = 1;
+       a.SetEssentialBC(ess_bdr);
+   }
+   else
+   {
+      const int nd  = x->FESpace()->GetBE(0)->GetDof();
+      int n = 0;
+      for (int i = 0; i < mesh->GetNBE(); i++)
+      {
+         const int attr = mesh->GetBdrElement(i)->GetAttribute();
+         if (attr == 1 || attr == 2) { n += nd; }
+         if (attr == 3) { n += nd * dim; }
+      }
+      Array<int> ess_vdofs(n), vdofs;
+      n = 0;
+      for (int i = 0; i < mesh->GetNBE(); i++)
+      {
+         const int attr = mesh->GetBdrElement(i)->GetAttribute();
+         x->FESpace()->GetBdrElementVDofs(i, vdofs);
+         if (attr == 1) // y = 0; fix y components.
+         {
             for (int j = 0; j < nd; j++)
             { ess_vdofs[n++] = vdofs[j+nd]; }
-        }
-        else if (attr == 2) // x = 0; fix x components.
-        {
+         }
+         else if (attr == 2) // x = 0; fix x components.
+         {
             for (int j = 0; j < nd; j++)
             { ess_vdofs[n++] = vdofs[j]; }
-        }
-        else if (attr == 3) // vdofs on the other boundary.
-        {
+         }
+         else if (attr == 3) // fix all components for attribute 3.
+         {
             for (int j = 0; j < vdofs.Size(); j++)
             { ess_vdofs[n++] = vdofs[j]; }
-        }
-    }
-    a.SetEssentialVDofs(ess_vdofs);
-    
-    if (move_bnd == false)
-    {
-        Array<int> ess_bdr(mesh->bdr_attributes.Max());
-        ess_bdr = 1;
-        a.SetEssentialBC(ess_bdr);
-    }
-    
+         }
+      }
+      a.SetEssentialVDofs(ess_vdofs);
+   }
+
+   // 17. As we will use the Newton method to solve the resulting nonlinear
+   //     system, here we setup the linear solver for the system's Jacobian.
     Solver *S = NULL;
     const double rtol  = 1e-12;
     const int max_iter = 100;
     if (lin_solver == 0)
     {
-        S = new DSmoother(1, 1., max_iter);
+        S = new DSmoother(1, 1.0, max_iter);
     }
     else if (lin_solver == 1)
     {
@@ -525,155 +529,105 @@ int main (int argc, char *argv[])
         minres->SetPrintLevel(3);
         S = minres;
     }
-    
-    const double init_en = a.GetEnergy(*x);
-    cout << "Initial strain energy : " << init_en << endl;
-    
-    // save original
-    Vector xsav = *x;
 
-    //set value of tau_0 for metric 22 and get min jacobian for mesh statistic
-    tauval = 1.e+6;
-    double minJ0;
+    // 18. Compute the minimum det(J) of the starting mesh.
+    tauval = numeric_limits<double>::infinity();
     const int NE = mesh->GetNE();
-    const GridFunction &nodes = *mesh->GetNodes();
     for (int i = 0; i < NE; i++)
     {
-        const FiniteElement &fe = *nodes.FESpace()->GetFE(i);
-        const int dim = fe.GetDim();
+        const FiniteElement &fe = *(fespace->GetFE(i));
         int nsp = ir->GetNPoints();
         int dof = fe.GetDof();
-        DenseTensor Jtr(dim, dim, nsp);
-        const GridFunction *nds;
-        nds = &nodes;
+        DenseTensor Jpr(dim, dim, nsp);
         DenseMatrix dshape(dof, dim), pos(dof, dim);
         Array<int> xdofs(dof * dim);
         Vector posV(pos.Data(), dof * dim);
-        nds->FESpace()->GetElementVDofs(i, xdofs);
-        nds->GetSubVector(xdofs, posV);
+        fespace->GetElementVDofs(i, xdofs);
+        x->GetSubVector(xdofs, posV);
         for (int j = 0; j < nsp; j++)
         {
             fe.CalcDShape(ir->IntPoint(j), dshape);
-            MultAtB(pos, dshape, Jtr(j));
-            double det = Jtr(j).Det();
-            tauval = min(tauval,det);
+            MultAtB(pos, dshape, Jpr(j));
+            tauval = min(tauval, Jpr(j).Det());
         }
     }
-    minJ0 = tauval;
-    cout << "minimum jacobian in the original mesh is " << minJ0 << " \n";
-    if (tauval>0)
+    double minJ0 = tauval;
+    cout << "Minimum det(J) of the original mesh is " << minJ0 << endl;
+
+    // 19. Perform the nonlinear optimization.
+    NewtonSolver *newton = NULL;
+    if (minJ0 > 0.0)
     {
-        tauval = 1e-1;
-        RelaxedNewtonSolver *newt= new RelaxedNewtonSolver(*ir);
-        newt->SetPreconditioner(*S);
-        newt->SetMaxIter(newton_iter);
-        newt->SetRelTol(rtol);
-        newt->SetAbsTol(0.0);
-        newt->SetPrintLevel(1);
-        newt->SetOperator(a);
-        Vector b(0);
-        cout << " Relaxed newton solver will be used \n";
-        newt->Mult(b, *x);
-        if (!newt->GetConverged())
-            cout << "NewtonIteration : rtol = " << rtol << " not achieved."
-            << endl;
+       tauval = 1e-1;
+       newton = new RelaxedNewtonSolver(*ir);
+       cout << "The RelaxedNewtonSolver is used (as all det(J) > 0)." << endl;
     }
     else
     {
-        if (dim==2 && metric_id!=52) {
-            model = new TMOPHyperelasticModel022(tauval);
-            cout << "model 22 will be used since mesh has negative jacobians\n";
-        }
-        else if (dim==3)
-        {
-            model = new TMOPHyperelasticModel352(tauval);
-            cout << "model 52 will be used since mesh has negative jacobians\n";
-        }
-        tauval -= 0.01;
-        DescentNewtonSolver *newt= new DescentNewtonSolver(*ir);
-        newt->SetPreconditioner(*S);
-        newt->SetMaxIter(newton_iter);
-        newt->SetRelTol(rtol);
-        newt->SetAbsTol(0.0);
-        newt->SetPrintLevel(1);
-        newt->SetOperator(a);
-        Vector b(0);
-        cout << " There are inverted elements in the mesh \n";
-        cout << " Descent newton solver will be used \n";
-        newt->Mult(b, *x);
-        if (!newt->GetConverged())
-            cout << "NewtonIteration : rtol = " << rtol << " not achieved."
-            << endl;
+       if ( (dim == 2 && metric_id != 22 && metric_id != 52) ||
+            (dim == 3 && metric_id != 352) )
+       {
+          cout << "The mesh is inverted. Use an untangling metric." << endl;
+          return 3;
+       }
+       tauval -= 0.01;
+       newton = new DescentNewtonSolver(*ir);
+       cout << "The DescentNewtonSolver is used (as some det(J) < 0)." << endl;
     }
-    
-    const double fin_en = a.GetEnergy(*x);
-    cout << "Final strain energy   : " << fin_en << endl;
-    cout << "Initial strain energy was  : " << init_en << endl;
-    cout << "% change is  : " << setprecision(12)
-         << (init_en - fin_en) * 100.0 / init_en << endl;
-    
-    if (visualization)
+    newton->SetPreconditioner(*S);
+    newton->SetMaxIter(newton_iter);
+    newton->SetRelTol(rtol);
+    newton->SetAbsTol(0.0);
+    newton->SetPrintLevel(1);
+    newton->SetOperator(a);
+    newton->Mult(b, *x);
+    if (newton->GetConverged() == false)
+    { cout << "NewtonIteration: rtol = " << rtol << " not achieved." << endl; }
+
+    // 20. Save the smoothed mesh to a file. This output can be viewed later
+    //     using GLVis: "glvis -m optimized.mesh".
     {
-        InterpolateHyperElasticModel(*model, *tj, *mesh, metric);
-        osockstream sock(visport, vishost);
-        sock << "solution\n";
-        mesh->Print(sock);
-        metric.Save(sock);
-        sock.send();
-        sock << "window_title 'Final metric values'\n"
-             << "window_geometry "
-             << 600 << " " << 0 << " " << 600 << " " << 600 << "\n"
-             << "keys JRmc" << endl;
-    }
-    
-    // 17. Get some mesh statistics
-    double minJn = 1.e+100;
-    for (int i = 0; i < NE; i++)
-    {
-        const FiniteElement &fe = *nodes.FESpace()->GetFE(i);
-        const int dim = fe.GetDim();
-        int nsp = ir->GetNPoints();
-        int dof = fe.GetDof();
-        DenseTensor Jtr(dim, dim, nsp);
-        const GridFunction *nds;
-        nds = &nodes;
-        DenseMatrix dshape(dof, dim), pos(dof, dim);
-        Array<int> xdofs(dof * dim);
-        Vector posV(pos.Data(), dof * dim);
-        nds->FESpace()->GetElementVDofs(i, xdofs);
-        nds->GetSubVector(xdofs, posV);
-        for (int j = 0; j < nsp; j++)
-        {
-            fe.CalcDShape(ir->IntPoint(j), dshape);
-            MultAtB(pos, dshape, Jtr(j));
-            double det = Jtr(j).Det();
-            minJn = min(minJn,det);
-        }
-    }
-    
-    cout << "min|J| before / after smoothing: "
-         << minJ0 << " / " << minJn << endl;
-    
-    delete S;
-    delete model;
-    delete c;
-    
-    delete model2;
-    delete c2;
-    delete combo_coeff;
-    
-    // Define mesh displacement
-    x0 -= *x;
-    
-    // 15. Save the smoothed mesh to a file. This output can be viewed later
-    //     using GLVis: "glvis -m smoothed.mesh".
-    {
-        ofstream mesh_ofs("smoothed.mesh");
+        ofstream mesh_ofs("optimized.mesh");
         mesh_ofs.precision(14);
         mesh->Print(mesh_ofs);
     }
     
-    // 17. Free the used memory.
+    // 21. Compute the energy decrease.
+    const double fin_en = a.GetEnergy(*x);
+    cout << "Final strain energy : " << fin_en << endl;
+    cout << "The strain energy decreased by: " << setprecision(12)
+         << (init_en - fin_en) * 100.0 / init_en << " %." << endl;
+    
+    // 22. Visualize the final mesh and metric values.
+    if (visualization)
+    {
+       if (visualization)
+       {
+          char title[] = "Final metric values";
+          vis_metric(mesh_poly_deg, *model, *tj, *mesh, title, 600);
+       }
+    }
+
+    // 23. Visualize the mesh displacement.
+    if (visualization)
+    {
+       x0 -= *x;
+       osockstream sock(19916, "localhost");
+       sock << "solution\n";
+       mesh->Print(sock);
+       x0.Save(sock);
+       sock.send();
+       sock << "window_title 'Displacements'\n"
+            << "window_geometry "
+            << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
+            << "keys JRmcl" << endl;
+    }
+
+    // 24. Free the used memory.
+    delete S;
+    delete model2;
+    delete coeff1;
+    delete model;
     delete fespace;
     delete fec;
     delete mesh;

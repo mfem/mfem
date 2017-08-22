@@ -242,7 +242,8 @@ public:
 
 class TMOPHyperelasticModel022 : public HyperelasticModel
 {
-private: double& tauptr;
+private:
+   double &tauptr;
     
 public:
     TMOPHyperelasticModel022(double& tauval): tauptr(tauval) {}
