@@ -97,9 +97,6 @@ vertices
 
 MFEM sets v1.0
 
-dimension
-2
-
 vertex_sets
 3
 

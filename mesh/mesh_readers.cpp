@@ -60,7 +60,21 @@ void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
 
    skip_comment_lines(input, '#');
    input >> ident;
+   /*
+   if (ident == "entity_sets")
+   {
+     ent_sets = new EntitySets(*this);
+     ent_sets->Load(input);
+     if ( ent_sets->GetNumSets(EntitySets::FACE) > 0 && faces.Size() == 0 )
+     {
+       GetElementToFaceTable();
+       GenerateFaces();
+     }
 
+     skip_comment_lines(input, '#');
+     input >> ident;
+   }
+   */
    if (mfem_v11 && ident == "vertex_parents")
    {
       ncmesh = new NCMesh(this, &input);
