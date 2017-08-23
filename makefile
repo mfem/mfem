@@ -163,8 +163,12 @@ ifneq ($(MFEM_USE_MPI),YES)
      $(eval override MFEM_USE_$(mpidep)=NO),))
 else
    MFEM_CXX ?= $(MPICXX)
-   INCFLAGS += $(METIS_OPT) $(HYPRE_OPT)
-   ALL_LIBS += $(METIS_LIB) $(HYPRE_LIB)
+   ifeq ($(MFEM_NO_METIS),NO)
+      INCFLAGS += $(METIS_OPT)
+      ALL_LIBS += $(METIS_LIB)
+   endif
+   INCFLAGS += $(HYPRE_OPT)
+   ALL_LIBS += $(HYPRE_LIB)
 endif
 
 DEP_CXX ?= $(MFEM_CXX)

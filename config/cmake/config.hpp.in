@@ -40,6 +40,9 @@
 // Enable backtraces for mfem_error through libunwind.
 #cmakedefine MFEM_USE_LIBUNWIND
 
+// Enable this option if linking without METIS (parallel MFEM).
+#cmakedefine MFEM_NO_METIS
+
 // Enable this option if linking with METIS version 5 (parallel MFEM).
 #cmakedefine MFEM_USE_METIS_5
 
