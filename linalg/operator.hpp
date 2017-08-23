@@ -424,6 +424,47 @@ public:
    virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
 };
 
+/** @brief Mimic the action of a complex operator using two real operators.
+
+    This operator requires vectors that are twice the length of its
+    internally stored real operators, Op_Real and Op_Imag.  It is
+    assumed that these vectors store the real part of the vector first
+    followed by its imaginary part.
+
+    Matrix-vector products are then computed as:
+
+    / y_r \   / Op_r -Op_i \ / x_r \
+    |     | = |            | |     |
+    \ y_i /   \ Op_i  Op_r / \ x_i /
+
+ */
+class ComplexOperator : public Operator
+{
+public:
+   ComplexOperator(Operator * Op_Real, Operator * Op_Imag,
+                   bool ownReal, bool ownImag);
+
+   virtual ~ComplexOperator();
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void Mult(const Vector &x_r, const Vector &x_i,
+                     Vector &y_r, Vector &y_i) const;
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x_r, const Vector &x_i,
+                              Vector &y_r, Vector &y_i) const;
+
+protected:
+   Operator * Op_Real_;
+   Operator * Op_Imag_;
+
+   bool ownReal_;
+   bool ownImag_;
+
+   mutable Vector x_r_, x_i_, y_r_, y_i_;
+   mutable Vector *u_, *v_;
+};
+
 }
 
 #endif
