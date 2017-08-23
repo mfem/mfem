@@ -1719,6 +1719,8 @@ public:
    /// Construct an integrator with coefficient 1.0
    VectorMassIntegrator(int vDim=-1)
    { Q = NULL; VQ = NULL; MQ = NULL; Q_order = 0; vecDim = vDim;}
+   VectorMassIntegrator(int vDim, Coefficient *q) : Q(q)
+   { VQ = NULL; MQ = NULL; Q_order = 0; vecDim = vDim;}
    /** Construct an integrator with scalar coefficient q.
        If possible, save memory by using a scalar integrator since
        the resulting matrix is block diagonal with the same diagonal
@@ -2436,7 +2438,7 @@ public:
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
       {
-         int order = 2*el.GetOrder()+2;
+         int order = Trans.OrderW() + 2 * el.GetOrder();
 
          ir = &IntRules.Get(el.GetGeomType(), order);
       }
