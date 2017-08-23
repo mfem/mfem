@@ -41,7 +41,7 @@
 // #define MFEM_USE_LIBUNWIND
 
 // Enable this option if linking without METIS (parallel MFEM).
-// #define MFEM_NO_METIS
+// #define MFEM_DROP_METIS
 
 // Enable this option if linking with METIS version 5 (parallel MFEM).
 // #define MFEM_USE_METIS_5
