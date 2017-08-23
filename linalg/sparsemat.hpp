@@ -602,6 +602,17 @@ template<> inline void Swap<SparseMatrix>(SparseMatrix &a, SparseMatrix &b)
    a.Swap(b);
 }
 
+class ComplexSparseMatrix : public ComplexOperator
+{
+public:
+   ComplexSparseMatrix(SparseMatrix * A_Real, SparseMatrix * A_Imag,
+                       bool ownReal, bool ownImag)
+      : ComplexOperator(A_Real, A_Imag, ownReal, ownImag)
+   {}
+
+   SparseMatrix * GetSystemMatrix() const;
+};
+
 }
 
 #endif
