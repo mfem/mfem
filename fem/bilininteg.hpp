@@ -2351,38 +2351,15 @@ protected:
 class ScalarVectorProductInterpolator : public DiscreteInterpolator
 {
 public:
-   ScalarVectorProductInterpolator(int vdim, Coefficient & sc)
-      : sp_(vdim, sc) { }
+   ScalarVectorProductInterpolator(Coefficient & sc)
+      : Q(sc) { }
 
    virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                        const FiniteElement &ran_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
-private:
-   class ScalarProduct_ : public VectorCoefficient
-   {
-   public:
-      ScalarProduct_(int vdim, Coefficient & sc)
-         : VectorCoefficient(vdim), sc_(&sc), fe_(NULL), ind_(0)
-      { }
-
-      void SetBasis(const FiniteElement & fe)
-      {
-         fe_ = &fe;
-         vshape_.SetSize(fe.GetDof(), vdim);
-      }
-      void SetIndex(int ind) { ind_ = ind; }
-      void Eval(Vector & vs, ElementTransformation &T,
-                const IntegrationPoint &ip);
-
-   private:
-      Coefficient * sc_;
-      const FiniteElement * fe_;
-      DenseMatrix vshape_;
-      int ind_;
-   };
-
-   ScalarProduct_ sp_;
+protected:
+   Coefficient &Q;
 };
 
 /** Interpolator of a vector coefficient multiplied by a scalar field onto
@@ -2392,38 +2369,14 @@ class VectorScalarProductInterpolator : public DiscreteInterpolator
 {
 public:
    VectorScalarProductInterpolator(VectorCoefficient & vc)
-      : sp_(vc) { }
+      : VQ(vc) { }
 
    virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                        const FiniteElement &ran_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
-private:
-   class ScalarProduct_ : public VectorCoefficient
-   {
-   public:
-      ScalarProduct_(VectorCoefficient & vc)
-         : VectorCoefficient(vc.GetVDim()), vc_(&vc), fe_(NULL), ind_(0)
-      { }
-
-      void SetBasis(const FiniteElement & fe)
-      {
-         fe_ = &fe;
-         shape_.SetSize(fe.GetDof());
-      }
-      void SetIndex(int ind) { ind_ = ind; }
-      void Eval(Vector & vs, ElementTransformation &T,
-                const IntegrationPoint &ip);
-
-   private:
-      VectorCoefficient * vc_;
-      Vector v_;
-      const FiniteElement * fe_;
-      Vector shape_;
-      int ind_;
-   };
-
-   ScalarProduct_ sp_;
+protected:
+   VectorCoefficient &VQ;
 };
 
 /** Interpolator of the cross product between a vector coefficient and an
@@ -2433,40 +2386,14 @@ class VectorCrossProductInterpolator : public DiscreteInterpolator
 {
 public:
    VectorCrossProductInterpolator(VectorCoefficient & vc)
-      : cp_(vc) { }
+      : VQ(vc) { }
 
    virtual void AssembleElementMatrix2(const FiniteElement &nd_fe,
                                        const FiniteElement &rt_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
-private:
-   class CrossProduct_ : public VectorCoefficient
-   {
-   public:
-      CrossProduct_(VectorCoefficient & vc)
-         : VectorCoefficient(3), vc_(&vc), fe_(NULL), ind_(0)
-      {
-         MFEM_ASSERT( vc.GetVDim() == 3,
-                      "Vector Cross products are only defined in three dimensions");
-      }
-      void SetBasis(const FiniteElement & fe)
-      {
-         fe_ = &fe;
-         vshape_.SetSize(fe.GetDof(),vc_->GetVDim());
-      }
-      void SetIndex(int ind) { ind_ = ind; }
-      void Eval(Vector & vxw, ElementTransformation &T,
-                const IntegrationPoint &ip);
-
-   private:
-      VectorCoefficient * vc_;
-      Vector v_;
-      const FiniteElement * fe_;
-      DenseMatrix vshape_;
-      int ind_;
-   };
-
-   CrossProduct_ cp_;
+protected:
+   VectorCoefficient &VQ;
 };
 
 /** Interpolator of the inner product between a vector coefficient and an
@@ -2475,38 +2402,14 @@ private:
 class VectorInnerProductInterpolator : public DiscreteInterpolator
 {
 public:
-   VectorInnerProductInterpolator(VectorCoefficient & vc) : ip_(vc) { }
+   VectorInnerProductInterpolator(VectorCoefficient & vc) : VQ(vc) { }
 
    virtual void AssembleElementMatrix2(const FiniteElement &rt_fe,
                                        const FiniteElement &l2_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
-private:
-   class InnerProduct_ : public Coefficient
-   {
-   public:
-      InnerProduct_(VectorCoefficient & vc)
-         : vc_(&vc), fe_(NULL), ind_(0)
-      {
-      }
-      void SetBasis(const FiniteElement & fe)
-      {
-         fe_ = &fe;
-         vshape_.SetSize(fe.GetDof(),vc_->GetVDim());
-      }
-      void SetIndex(int ind) { ind_ = ind; }
-      double Eval(ElementTransformation &T,
-                  const IntegrationPoint &ip);
-
-   private:
-      VectorCoefficient * vc_;
-      Vector v_;
-      const FiniteElement * fe_;
-      DenseMatrix vshape_;
-      int ind_;
-   };
-
-   InnerProduct_ ip_;
+protected:
+   VectorCoefficient &VQ;
 };
 
 }
