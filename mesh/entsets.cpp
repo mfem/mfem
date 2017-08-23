@@ -135,6 +135,7 @@ EntitySets::SetExists(EntityType t, const string & s) const
 void
 EntitySets::Load(istream &input)
 {
+   cout << "Entering EntitySets::Load" << endl;
    if (!input)
    {
       MFEM_ABORT("Input stream is not open");
@@ -148,15 +149,18 @@ EntitySets::Load(istream &input)
    bool mfem_sets_v10 = (file_type == "MFEM sets v1.0");
    if ( mfem_sets_v10 )
    {
-      string ident;
-      int Dim = -1;
+      // string ident;
+      //int Dim = -1;
 
       // read lines beginning with '#' (comments)
-      skip_comment_lines(input, '#');
+      // skip_comment_lines(input, '#');
+      /*
       input >> ident >> ws; // 'dimension'
 
       MFEM_VERIFY(ident == "dimension", "invalid entity set file");
       input >> Dim >> ws;
+      */
+      int Dim = mesh_->Dimension();
 
       LoadEntitySets(input, VERTEX, "vertex_sets");
 
@@ -176,12 +180,16 @@ EntitySets::Load(istream &input)
       // Unknown input entity set format so this file has no entity sets
       return;
    }
+
    CopyMeshTables();
+   cout << "Leaving EntitySets::Load" << endl;
 }
 
 void
 EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
 {
+   cout << "Entering EntitySets::LoadEntitySets(" << GetTypeName(t) << ")"
+        << endl;
    string ident;
    int NumSets = -1;
    int NumEntities = -1;
@@ -193,12 +201,16 @@ EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
    skip_comment_lines(input, '#');
    input >> ident >> ws;
 
+   cout << "ident: " << ident << endl;
+
    MFEM_VERIFY(ident == header, "invalid entity set file");
    input >> NumSets >> ws;
+   cout << "NumSets: " << NumSets << endl;
 
    sets_[t].resize(NumSets);
    set_names_[t].resize(NumSets);
-
+   cout << "resized" << endl;
+   cout << "NumOfVertices: " << NumOfVertices_ << endl;
    if ( NumSets > 0 )
    {
       if ( t == EDGE )
@@ -211,17 +223,17 @@ EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
          face_tbl = mesh_->GetFacesTable();
       }
    }
-
+   cout << "reading sets" << endl;
    for (int i=0; i<NumSets; i++)
    {
       getline(input, ident);
       filter_dos(ident);
-
+      cout << "set " << i << ", name: " << ident << flush;
       set_names_[t][i] = ident;
       set_index_by_name_[t][ident] = i;
 
       input >> NumEntities;
-
+      cout << ", NumEntities: " << NumEntities << endl;
       for (int j=0; j<NumEntities; j++)
       {
          switch (t)
@@ -267,13 +279,15 @@ EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
    }
    delete v_to_v;
    delete face_tbl;
+   cout << "Leaving EntitySets::LoadEntitySets(" << GetTypeName(t) << ")"
+        << endl;
 }
 
 void
 EntitySets::Print(std::ostream &output) const
 {
    output << "MFEM sets v1.0" << endl << endl;
-   output << "dimension" << endl << mesh_->Dimension() << endl << endl;
+   // output << "dimension" << endl << mesh_->Dimension() << endl << endl;
 
    this->PrintEntitySets(output, VERTEX, "vertex_sets");
 

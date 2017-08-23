@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels = ( rs >= 0 ) ? rs :
-         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
+                       (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          if ( myid == 0 ) { cout << "Uniform refinement in serial..."; }
@@ -231,12 +231,12 @@ int main(int argc, char *argv[])
    Array<int> ess_tdof_list;
    if ( bt == EntitySets::INVALID )
    {
-     if (pmesh->bdr_attributes.Size())
-     {
-       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-       ess_bdr = set_bc ? 1 : 0;
-       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-     }
+      if (pmesh->bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+         ess_bdr = set_bc ? 1 : 0;
+         fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
    }
    else
    {
@@ -266,7 +266,7 @@ int main(int argc, char *argv[])
    // VectorFunctionCoefficient F(sdim, F_exact);
    // x.ProjectCoefficient(F);
    x = 0.0;
-   
+
    // 10. Set up the parallel bilinear form corresponding to the H(div)
    //     diffusion operator grad alpha div + beta I, by adding the div-div and
    //     the mass domain integrators.

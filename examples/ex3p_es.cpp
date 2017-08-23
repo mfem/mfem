@@ -266,7 +266,7 @@ int main(int argc, char *argv[])
    // VectorFunctionCoefficient E(sdim, E_exact);
    // x.ProjectCoefficient(E);
    x = 0.0;
-   
+
    // 10. Set up the parallel bilinear form corresponding to the EM diffusion
    //     operator curl muinv curl + sigma I, by adding the curl-curl and the
    //     mass domain integrators.

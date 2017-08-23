@@ -3258,7 +3258,7 @@ void NCMesh::GetEntitySetClosure(EntitySets::EntityType type,
             // collect vertices
             inds.Copy(coll_inds);
             this->CollectFaceVertices(inds[0], inds[1], inds[2], inds[3],
-				      coll_inds);
+                                      coll_inds);
             for (int j=0; j<coll_inds.Size(); j++)
             {
                int index = nodes[coll_inds[j]].vert_index;
