@@ -4539,7 +4539,7 @@ void Mesh::ReorientTetMesh()
    }
 }
 
-#ifdef MFEM_USE_MPI
+#if defined MFEM_USE_MPI && !defined MFEM_NO_METIS
 #ifndef MFEM_USE_METIS_5
 // METIS 4 prototypes
 typedef int idxtype;
@@ -4603,7 +4603,7 @@ int *Mesh::CartesianPartitioning(int nxyz[])
 
 int *Mesh::GeneratePartitioning(int nparts, int part_method)
 {
-#ifdef MFEM_USE_MPI
+#if defined MFEM_USE_MPI && !defined MFEM_NO_METIS
    int i, *partitioning;
 
    ElementToElementTable();
