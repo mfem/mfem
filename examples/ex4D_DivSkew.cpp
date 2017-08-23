@@ -36,6 +36,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "./spe10_coeff.cpp"
 
 using namespace std;
 using namespace mfem;
@@ -52,6 +53,7 @@ class DivSkew4dPrec : public Solver
 private:
    HypreParMatrix *A;
    ParFiniteElementSpace *fespace;
+   Coefficient *alpha_, *beta_;
 
    //kernel operators
    HypreParMatrix *P_d_HCurl_HDivSkew;
@@ -82,11 +84,14 @@ private:
    bool exactSolves;
 
 public:
-   DivSkew4dPrec(HypreParMatrix *AUser, ParFiniteElementSpace *fespaceUser,
+   DivSkew4dPrec(HypreParMatrix *AUser, ParFiniteElementSpace *fespaceUser, Coefficient *alpha, Coefficient *beta,
                  const Array<int> &essBnd, int orderKernel=1, bool exactSolvesUser=false)
    {
       A = AUser;
       fespace = fespaceUser;
+	  alpha_ = alpha;
+	  beta_ = beta;
+
       ParMesh *pmesh = fespace->GetParMesh();
       int dim = pmesh->Dimension();
 
@@ -144,8 +149,8 @@ public:
 
       //setup the H1 preconditioner for the kernel
       ParBilinearForm* H1Varf = new ParBilinearForm(H1KernelFESpace);
-      H1Varf->AddDomainIntegrator(new VectorDiffusionIntegrator);
-      H1Varf->AddDomainIntegrator(new VectorMassIntegrator);
+      H1Varf->AddDomainIntegrator(new VectorDiffusionIntegrator(*beta_));
+//      H1Varf->AddDomainIntegrator(new VectorMassIntegrator);
       H1Varf->Assemble();
       H1Varf->Finalize();
       SparseMatrix &matH1(H1Varf->SpMat());
@@ -157,8 +162,8 @@ public:
 
       //setup the H1 preconditioner for the image
       ParBilinearForm* H1VecVarf = new ParBilinearForm(H1_ImageFESpace);
-      H1VecVarf->AddDomainIntegrator(new VectorDiffusionIntegrator(6));
-      H1VecVarf->AddDomainIntegrator(new VectorMassIntegrator(6));
+      H1VecVarf->AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_, 6));
+      H1VecVarf->AddDomainIntegrator(new VectorMassIntegrator(6, beta));
       H1VecVarf->Assemble();
       H1VecVarf->Finalize();
       SparseMatrix &matH1Vec(H1VecVarf->SpMat());
@@ -210,11 +215,12 @@ public:
 
 
       //setup the smoother for H(curl)
-      Coefficient *massC = new ConstantCoefficient(1.0);
-      Coefficient *CurlCurlC = new ConstantCoefficient(1.0);
+//      Coefficient *massC = new ConstantCoefficient(1.0);
+//      Coefficient *CurlCurlC = new ConstantCoefficient(1.0);
       ParBilinearForm *a_HCurl = new ParBilinearForm(HCurlKernelFESpace);
-      a_HCurl->AddDomainIntegrator(new CurlCurlIntegrator(*CurlCurlC));
-      a_HCurl->AddDomainIntegrator(new VectorFEMassIntegrator(*massC));
+      a_HCurl->AddDomainIntegrator(new CurlCurlIntegrator(*beta_));
+//      a_HCurl->AddDomainIntegrator(new CurlCurlIntegrator(*CurlCurlC));
+//      a_HCurl->AddDomainIntegrator(new VectorFEMassIntegrator(*massC));
       a_HCurl->Assemble();
       a_HCurl->Finalize();
       SparseMatrix &matHCurl(a_HCurl->SpMat());
@@ -307,12 +313,15 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../data/beam-tet.mesh";
    int order = 1;
+   bool set_bc = true;
    bool static_cond = false;
    bool visualization = 1;
    int sequ_ref_levels = 0;
    int par_ref_levels = 0;
    double tol = 1e-6;
-
+   double coeffWeight = 1.0;
+   bool exactH1Solver = false;
+   bool spe10Coeff = false;
 
 
    OptionsParser args(argc, argv);
@@ -324,8 +333,16 @@ int main(int argc, char *argv[])
                   "Number of parallel refinement steps.");
    args.AddOption(&order, "-o", "--order",
                   "Polynomial order of the finite element space.");
+   args.AddOption(&set_bc, "-bc", "--impose-bc", "-no-bc", "--dont-impose-bc",
+                  "Impose or not essential boundary conditions.");
    args.AddOption(&tol, "-tol", "--tol",
                   "A parameter.");
+   args.AddOption(&coeffWeight, "-c", "--coeffMass",
+                  "the weight for the mass term.");
+   args.AddOption(&exactH1Solver, "-exH1Sol", "--exactH1Solver", "-H1prec", "--H1preconditioner",
+                  "Use exact H1 solvers for the preconditioner.");
+   args.AddOption(&spe10Coeff, "-spe10", "--useSPE10Coeff", "-constCoeff", "--constCoeff",
+                  "Switch between the coefficients for the mass bilinear form.");
    args.Parse();
    if (!args.Good())
    {
@@ -376,14 +393,13 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
 
-
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-   ess_bdr = 1;
+   ess_bdr = set_bc ? 1 : 0;
    if (pmesh->bdr_attributes.Size())
    {
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
@@ -424,11 +440,18 @@ int main(int argc, char *argv[])
    // 10. Set up the parallel bilinear form corresponding to the EM diffusion
    //     operator curl muinv curl + sigma I, by adding the curl-curl and the
    //     mass domain integrators.
-   Coefficient *muinv = new ConstantCoefficient(1.0);
-   Coefficient *sigma = new ConstantCoefficient(1.0);
+   std::string permFile = "spe_perm.dat";
+   InversePermeabilityFunction::ReadPermeabilityFile(permFile, MPI_COMM_WORLD);
+
+   Coefficient *alpha = new ConstantCoefficient(1.0);
+   Coefficient *beta;
+   if(spe10Coeff) beta = new FunctionCoefficient(InversePermeabilityFunction::Norm2Permeability);
+   else beta = new ConstantCoefficient(coeffWeight);
+
+
    ParBilinearForm *a = new ParBilinearForm(fespace);
-   a->AddDomainIntegrator(new DivSkewDivSkewIntegrator(*muinv));
-   a->AddDomainIntegrator(new VectorFE_DivSkewMassIntegrator(*sigma));
+   a->AddDomainIntegrator(new DivSkewDivSkewIntegrator(*alpha));
+   a->AddDomainIntegrator(new VectorFE_DivSkewMassIntegrator(*beta));
 
    // 11. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
@@ -451,7 +474,7 @@ int main(int argc, char *argv[])
 
    if (myid == 0) { cout << "Set up the preconditioner" << endl; }
    Solver *prec;
-   if (dim==4) { prec = new DivSkew4dPrec(&A, fespace, ess_bdr, order, false); }
+   if (dim==4) { prec = new DivSkew4dPrec(&A, fespace, alpha, beta, ess_bdr, order, exactH1Solver); }
 
    IterativeSolver *pcg = new CGSolver(MPI_COMM_WORLD);
    pcg->SetOperator(A);
@@ -536,8 +559,8 @@ int main(int argc, char *argv[])
    // 17. Free the used memory.
    delete pcg;
    delete a;
-   delete sigma;
-   delete muinv;
+   delete alpha;
+   delete beta;
    delete b;
    delete fespace;
    delete fec;
