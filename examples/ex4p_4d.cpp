@@ -586,7 +586,7 @@ int main(int argc, char *argv[])
 			   IterativeSolver *pcg = new CGSolver(MPI_COMM_WORLD);
 			   pcg->SetOperator(A);
 			   pcg->SetRelTol(tol);
-			   pcg->SetMaxIter(5000);
+			   pcg->SetMaxIter(500);
 			   pcg->SetPrintLevel(1);
 			   pcg->SetPreconditioner(*prec);
 			   pcg->Mult(B, X);
