@@ -56,7 +56,7 @@ matrix:
         os: osx
 
 before_install:
-    # No addon for brew yet, have to install OSX packages this way.     
+    # No addon for brew yet, have to install OSX packages this way.
    - if [ $TRAVIS_OS_NAME == "osx" ]; then
         travis_wait brew install open-mpi;
         rvm get stable;
@@ -133,13 +133,20 @@ script:
      fi
    # Print the compiler version
    - $MYCXX -v
-        
+
    # Build and check/test MFEM, its examples and miniapps
    - cd $TRAVIS_BUILD_DIR &&
-     make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX" MFEM_MPI_NP=$NPROCS MFEM_USE_CODECOV=$CODECOV &&
+     CPPFLAGS="" &&
+     SKIP_TEST_DIRS="" &&
+     if [ "$CODECOV" == "YES" ]; then
+        CPPFLAGS="--coverage";
+        SKIP_TEST_DIRS="miniapps/performance";
+     fi &&
+     make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX"
+        MFEM_MPI_NP=$NPROCS CPPFLAGS="$CPPFLAGS" &&
      make info &&
      make all -j 4 &&
-     make $MFEM_TEST_TARGET
+     make $MFEM_TEST_TARGET SKIP_TEST_DIRS="$SKIP_TEST_DIRS"
 
 #      coveralls --include fem --include general --include linalg --include mesh --include miniapps --gcov-options '\-lp' --root $TRAVIS_BUILD_DIR --build-root $TRAVIS_BUILD_DIR;
 after_success:
