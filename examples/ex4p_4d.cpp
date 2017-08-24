@@ -42,6 +42,76 @@
 using namespace std;
 using namespace mfem;
 
+
+int* LoadIterations(int NRows, int NCol)
+{
+  ifstream in("iter_div.txt");
+
+  //initialize
+  int *iters = new int[NCol*NRows];
+  for(int col = 0; col < NCol; col++)
+  {
+    for(int row = 0; row < NRows; row++)
+    {
+      iters[row*NCol+col] = -1;
+    }
+  }
+
+  if (!in)
+  {
+    cout << "Cannot open file.\n";
+    return iters;
+  }
+
+  for(int row = 0; row < NRows; row++)
+	  for(int col = 0; col < NCol; col++)
+		{
+		  if(in.eof())
+		  {
+			  in.close();
+			  return iters;
+		  }
+		  in >> iters[row*NCol+col];
+		}
+
+
+  in.close();
+
+  return iters;
+}
+
+void putIterationsInArray(int iter, int row, int col, int NCol, int* iters)
+{
+	iters[row*NCol+col] = iter;
+}
+
+void WriteIterations(int *iters, int NRows, int NCol)
+{
+	ofstream out;
+	out.open("iter_div.txt",fstream::out);
+
+	if (!out)
+	{
+		cout << "Cannot open file.\n";
+		delete[] iters;
+
+		return;
+	}
+
+	for(int row = 0; row < NRows; row++)
+	{
+		for(int col = 0; col < NCol; col++)
+		{
+		  out << iters[row*NCol+col] << "\t";
+		}
+		out << endl;
+	}
+	out.close();
+
+	delete[] iters;
+}
+
+
 // Exact solution, F, and r.h.s., f. See below for implementation.
 void F_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
@@ -437,124 +507,146 @@ int main(int argc, char *argv[])
    //    r.h.s. vector b.
    ParGridFunction x(fespace);
    VectorFunctionCoefficient F(sdim, F_exact);
-   x.ProjectCoefficient(F);
 
-   // 10. Set up the parallel bilinear form corresponding to the H(div)
-   //     diffusion operator grad alpha div + beta I, by adding the div-div and
-   //     the mass domain integrators.
-
-   std::string permFile = "spe_perm.dat";
-   InversePermeabilityFunction::ReadPermeabilityFile(permFile, MPI_COMM_WORLD);
-
-   Coefficient *alpha = new ConstantCoefficient(1.0);
-   Coefficient *beta;
-   if(spe10Coeff) beta = new FunctionCoefficient(InversePermeabilityFunction::Norm2Permeability);
-   else beta = new ConstantCoefficient(coeffWeight);
-
-   ParBilinearForm *a = new ParBilinearForm(fespace);
-   a->AddDomainIntegrator(new DivDivIntegrator(*alpha));
-   a->AddDomainIntegrator(new VectorFEMassIntegrator(*beta));
-
-   // 11. Assemble the parallel bilinear form and the corresponding linear
-   //     system, applying any necessary transformations such as: parallel
-   //     assembly, eliminating boundary conditions, applying conforming
-   //     constraints for non-conforming AMR, static condensation,
-   //     hybridization, etc.
-   FiniteElementCollection *hfec = NULL;
-   ParFiniteElementSpace *hfes = NULL;
-   if (static_cond)
+   int NExpo =8;
+   for(int expo=-NExpo; expo<=NExpo; expo++)
    {
-      a->EnableStaticCondensation();
-   }
-   else if (hybridization)
-   {
-      hfec = new DG_Interface_FECollection(order-1, dim);
-      hfes = new ParFiniteElementSpace(pmesh, hfec);
-      a->EnableHybridization(hfes, new NormalTraceJumpIntegrator(),
-                             ess_tdof_list);
-   }
-   a->Assemble();
+	   double weight = pow(10.0,expo);
 
-   HypreParMatrix A;
-   Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+	   x.ProjectCoefficient(F);
 
-   HYPRE_Int glob_size = A.GetGlobalNumRows();
-   if (myid == 0)
-   {
-      cout << "Size of linear system: " << glob_size << endl;
-   }
+	   // 10. Set up the parallel bilinear form corresponding to the H(div)
+	   //     diffusion operator grad alpha div + beta I, by adding the div-div and
+	   //     the mass domain integrators.
 
-   // 12. Define and apply a parallel PCG solver for A X = B with the 2D AMS or
-   //     the 3D ADS preconditioners from hypre. If using hybridization, the
-   //     system is preconditioned with hypre's BoomerAMG.
-   Solver *prec = NULL;
-   CGSolver *pcg = new CGSolver(A.GetComm());
-   pcg->SetOperator(A);
-   pcg->SetRelTol(tol);
-   pcg->SetMaxIter(5000000);
-   pcg->SetPrintLevel(1);
-   if (hybridization) { prec = new HypreBoomerAMG(A); }
-   else
-   {
-      ParFiniteElementSpace *prec_fespace =
-         (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
-      if (dim == 2)   { prec = new HypreAMS(A, prec_fespace); }
-      else if(dim==3) { prec = new HypreADS(A, prec_fespace); }
-      else if(dim==4) prec = new div4dPrec(&A, fespace, alpha, beta, ess_bdr, order, exactH1Solver);
-      else prec = NULL;
-   }
-   if(prec!=NULL) pcg->SetPreconditioner(*prec);
-   pcg->Mult(B, X);
+	   std::string permFile = "spe_perm.dat";
+	   InversePermeabilityFunction::ReadPermeabilityFile(permFile, MPI_COMM_WORLD);
 
-   // 13. Recover the parallel grid function corresponding to X. This is the
-   //     local finite element solution on each processor.
-   a->RecoverFEMSolution(X, *b, x);
+	   Coefficient *alpha = new ConstantCoefficient(1.0);
+	   Coefficient *beta;
+//	   if(spe10Coeff) beta = new FunctionCoefficient(InversePermeabilityFunction::Norm2Permeability);
+//	   else
+		   beta = new ConstantCoefficient(weight);
 
-   // 14. Compute and print the L^2 norm of the error.
-   {
-      double err = x.ComputeL2Error(F);
-      if (myid == 0)
-      {
-         cout << "\n|| F_h - F ||_{L^2} = " << err << '\n' << endl;
-      }
-   }
+	   ParBilinearForm *a = new ParBilinearForm(fespace);
+	   a->AddDomainIntegrator(new DivDivIntegrator(*alpha));
+	   a->AddDomainIntegrator(new VectorFEMassIntegrator(*beta));
 
-   // 15. Save the refined mesh and the solution in parallel. This output can
-   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
-   {
-      ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "sol." << setfill('0') << setw(6) << myid;
+	   // 11. Assemble the parallel bilinear form and the corresponding linear
+	   //     system, applying any necessary transformations such as: parallel
+	   //     assembly, eliminating boundary conditions, applying conforming
+	   //     constraints for non-conforming AMR, static condensation,
+	   //     hybridization, etc.
+	   FiniteElementCollection *hfec = NULL;
+	   ParFiniteElementSpace *hfes = NULL;
+	   if (static_cond)
+	   {
+		  a->EnableStaticCondensation();
+	   }
+	   else if (hybridization)
+	   {
+		  hfec = new DG_Interface_FECollection(order-1, dim);
+		  hfes = new ParFiniteElementSpace(pmesh, hfec);
+		  a->EnableHybridization(hfes, new NormalTraceJumpIntegrator(),
+								 ess_tdof_list);
+	   }
+	   a->Assemble();
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
+	   HypreParMatrix A;
+	   Vector B, X;
+	   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(8);
-      x.Save(sol_ofs);
-   }
+	   HYPRE_Int glob_size = A.GetGlobalNumRows();
+	   if (myid == 0)
+	   {
+		  cout << "Size of linear system: " << glob_size << endl;
+	   }
 
-   // 16. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << x << flush;
+	   // 12. Define and apply a parallel PCG solver for A X = B with the 2D AMS or
+	   //     the 3D ADS preconditioners from hypre. If using hybridization, the
+	   //     system is preconditioned with hypre's BoomerAMG.
+	   Solver *prec = NULL;
+	   CGSolver *pcg = new CGSolver(A.GetComm());
+	   pcg->SetOperator(A);
+	   pcg->SetRelTol(tol);
+	   pcg->SetMaxIter(5000000);
+	   pcg->SetPrintLevel(1);
+	   if (hybridization) { prec = new HypreBoomerAMG(A); }
+	   else
+	   {
+		  ParFiniteElementSpace *prec_fespace =
+			 (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
+		  if (dim == 2)   { prec = new HypreAMS(A, prec_fespace); }
+		  else if(dim==3) { prec = new HypreADS(A, prec_fespace); }
+		  else if(dim==4) prec = new div4dPrec(&A, fespace, alpha, beta, ess_bdr, order, exactH1Solver);
+		  else prec = NULL;
+	   }
+	   if(prec!=NULL) pcg->SetPreconditioner(*prec);
+	   pcg->Mult(B, X);
+
+
+	   int iter = pcg->GetNumIterations();
+	   if(myid==0)
+	   {
+		   cout << "Weigth: " << weight << " " << iter << endl;
+
+		   int *iters = LoadIterations(10, 2*NExpo+1);
+		   putIterationsInArray(iter, sequ_ref_levels+par_ref_levels, expo+NExpo, 2*NExpo+1, iters);
+		   WriteIterations(iters, 10, 2*NExpo+1);
+	   }
+
+
+	   // 13. Recover the parallel grid function corresponding to X. This is the
+	   //     local finite element solution on each processor.
+	   a->RecoverFEMSolution(X, *b, x);
+
+	   // 14. Compute and print the L^2 norm of the error.
+	   {
+		  double err = x.ComputeL2Error(F);
+		  if (myid == 0)
+		  {
+			 cout << "\n|| F_h - F ||_{L^2} = " << err << '\n' << endl;
+		  }
+	   }
+
+	   // 15. Save the refined mesh and the solution in parallel. This output can
+	   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+//	   {
+//		  ostringstream mesh_name, sol_name;
+//		  mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+//		  sol_name << "sol." << setfill('0') << setw(6) << myid;
+//
+//		  ofstream mesh_ofs(mesh_name.str().c_str());
+//		  mesh_ofs.precision(8);
+//		  pmesh->Print(mesh_ofs);
+//
+//		  ofstream sol_ofs(sol_name.str().c_str());
+//		  sol_ofs.precision(8);
+//		  x.Save(sol_ofs);
+//	   }
+
+	   // 16. Send the solution by socket to a GLVis server.
+//	   if (visualization)
+//	   {
+//		  char vishost[] = "localhost";
+//		  int  visport   = 19916;
+//		  socketstream sol_sock(vishost, visport);
+//		  sol_sock << "parallel " << num_procs << " " << myid << "\n";
+//		  sol_sock.precision(8);
+//		  sol_sock << "solution\n" << *pmesh << x << flush;
+//	   }
+
+	   delete pcg;
+	   if(prec!=NULL) delete prec;
+	   delete hfes;
+	   delete hfec;
+	   delete a;
+	   delete alpha;
+	   delete beta;
    }
 
    // 17. Free the used memory.
-   delete pcg;
-   if(prec!=NULL) delete prec;
-   delete hfes;
-   delete hfec;
-   delete a;
-   delete alpha;
-   delete beta;
+
    delete b;
    delete fespace;
    delete fec;
