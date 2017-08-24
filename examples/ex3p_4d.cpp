@@ -41,11 +41,86 @@
 using namespace std;
 using namespace mfem;
 
+
+int* LoadIterations(int NRows, int NCol)
+{
+  ifstream in("iter_curl.txt");
+
+  //initialize
+  int *iters = new int[NCol*NRows];
+  for(int col = 0; col < NCol; col++)
+  {
+    for(int row = 0; row < NRows; row++)
+    {
+      iters[row*NCol+col] = -1;
+    }
+  }
+
+  if (!in)
+  {
+    cout << "Cannot open file.\n";
+    return iters;
+  }
+
+  for(int row = 0; row < NRows; row++)
+	  for(int col = 0; col < NCol; col++)
+		{
+		  if(in.eof())
+		  {
+			  in.close();
+			  return iters;
+		  }
+		  in >> iters[row*NCol+col];
+		}
+
+
+  in.close();
+
+  return iters;
+}
+
+void putIterationsInArray(int iter, int row, int col, int NCol, int* iters)
+{
+	iters[row*NCol+col] = iter;
+}
+
+void WriteIterations(int *iters, int NRows, int NCol)
+{
+	ofstream out;
+	out.open("iter_curl.txt",fstream::out);
+
+	if (!out)
+	{
+		cout << "Cannot open file.\n";
+		delete[] iters;
+
+		return;
+	}
+
+	for(int row = 0; row < NRows; row++)
+	{
+		for(int col = 0; col < NCol; col++)
+		{
+		  out << iters[row*NCol+col] << "\t";
+		}
+		out << endl;
+	}
+	out.close();
+
+	delete[] iters;
+}
+
+
 // Exact solution, E, and r.h.s., f. See below for implementation.
 void E_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
 double freq = 1.0, kappa;
 int dim;
+
+double osziCoeff(const Vector &x)
+{
+	return 1.0001 + sin(100*x(0))*sin(200*x(1))*sin(300*x(2))*sin(400*x(3));
+}
 
 class Curl4dPrec : public Solver
 {
@@ -335,7 +410,7 @@ int main(int argc, char *argv[])
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-   ess_bdr = set_bc ? 1 : 0;
+   bool set_bc = true;
    if (pmesh->bdr_attributes.Size())
    {
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
@@ -357,102 +432,121 @@ int main(int argc, char *argv[])
    //    r.h.s. vector b.
    ParGridFunction x(fespace);
    VectorFunctionCoefficient E(sdim, E_exact);
-   x.ProjectCoefficient(E);
 
-   // 10. Set up the parallel bilinear form corresponding to the EM diffusion
-   //     operator curl muinv curl + sigma I, by adding the curl-curl and the
-   //     mass domain integrators.
-   std::string permFile = "spe_perm.dat";
-   InversePermeabilityFunction::ReadPermeabilityFile(permFile, MPI_COMM_WORLD);
-
-   Coefficient *alpha = new ConstantCoefficient(1.0);
-   Coefficient *beta;
-   if(spe10Coeff) beta = new FunctionCoefficient(InversePermeabilityFunction::Norm2Permeability);
-   else beta = new ConstantCoefficient(coeffWeight);
-
-
-
-   ParBilinearForm *a = new ParBilinearForm(fespace);
-   a->AddDomainIntegrator(new CurlCurlIntegrator(*alpha));
-   a->AddDomainIntegrator(new VectorFEMassIntegrator(*beta));
-
-   // 11. Assemble the parallel bilinear form and the corresponding linear
-   //     system, applying any necessary transformations such as: parallel
-   //     assembly, eliminating boundary conditions, applying conforming
-   //     constraints for non-conforming AMR, static condensation, etc.
-   if (static_cond) { a->EnableStaticCondensation(); }
-   a->Assemble();
-
-   HypreParMatrix A;
-   Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-
-   if (myid == 0)
+   int NExpo =8;
+   for(int expo=-NExpo; expo<=NExpo; expo++)
    {
-      cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
-   }
+	   double weight = pow(10.0,expo);
 
-   // 12. Define and apply a parallel PCG solver for AX=B with the AMS
-   //     preconditioner from hypre.
-   ParFiniteElementSpace *prec_fespace =
-      (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
-   Solver *prec;
-   if(dim<=3) prec = new HypreAMS(A, prec_fespace);
-   else if(dim==4) prec = new Curl4dPrec(&A, fespace, alpha, beta, ess_bdr, order, false);
-   IterativeSolver *pcg = new CGSolver(MPI_COMM_WORLD);
-   pcg->SetOperator(A);
-   pcg->SetRelTol(tol);
-   pcg->SetMaxIter(5000);
-   pcg->SetPrintLevel(1);
-   pcg->SetPreconditioner(*prec);
-   pcg->Mult(B, X);
+	   x.ProjectCoefficient(E);
 
-   // 13. Recover the parallel grid function corresponding to X. This is the
-   //     local finite element solution on each processor.
-   a->RecoverFEMSolution(X, *b, x);
+	   // 10. Set up the parallel bilinear form corresponding to the EM diffusion
+	   //     operator curl muinv curl + sigma I, by adding the curl-curl and the
+	   //     mass domain integrators.
+//	   std::string permFile = "spe_perm.dat";
+//	   InversePermeabilityFunction::ReadPermeabilityFile(permFile, MPI_COMM_WORLD);
 
-   // 14. Compute and print the L^2 norm of the error.
-   {
-      double err = x.ComputeL2Error(E);
-      if (myid == 0)
-      {
-         cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
-      }
-   }
+	   Coefficient *alpha = new ConstantCoefficient(1.0);
+	   Coefficient *beta;
+//	   if(spe10Coeff) beta = new FunctionCoefficient(InversePermeabilityFunction::Norm2Permeability);
+//	   else
+		   beta = new ConstantCoefficient(weight);
 
-   // 15. Save the refined mesh and the solution in parallel. This output can
-   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
-   {
-      ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "sol." << setfill('0') << setw(6) << myid;
+	   ParBilinearForm *a = new ParBilinearForm(fespace);
+	   a->AddDomainIntegrator(new CurlCurlIntegrator(*alpha));
+	   a->AddDomainIntegrator(new VectorFEMassIntegrator(*beta));
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
+	   // 11. Assemble the parallel bilinear form and the corresponding linear
+	   //     system, applying any necessary transformations such as: parallel
+	   //     assembly, eliminating boundary conditions, applying conforming
+	   //     constraints for non-conforming AMR, static condensation, etc.
+	   if (static_cond) { a->EnableStaticCondensation(); }
+	   a->Assemble();
 
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(8);
-      x.Save(sol_ofs);
-   }
+	   HypreParMatrix A;
+	   Vector B, X;
+	   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-   // 16. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << x << flush;
+	   if (myid == 0)
+	   {
+		  cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
+	   }
+
+	   // 12. Define and apply a parallel PCG solver for AX=B with the AMS
+	   //     preconditioner from hypre.
+	   ParFiniteElementSpace *prec_fespace =
+		  (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
+	   Solver *prec;
+	   if(dim<=3) prec = new HypreAMS(A, prec_fespace);
+	   else if(dim==4) prec = new Curl4dPrec(&A, fespace, alpha, beta, ess_bdr, order, false);
+	   IterativeSolver *pcg = new CGSolver(MPI_COMM_WORLD);
+	   pcg->SetOperator(A);
+	   pcg->SetRelTol(tol);
+	   pcg->SetMaxIter(5000);
+	   pcg->SetPrintLevel(1);
+	   pcg->SetPreconditioner(*prec);
+	   pcg->Mult(B, X);
+
+	   int iter = pcg->GetNumIterations();
+	   if(myid==0)
+	   {
+		   cout << "Weigth: " << weight << " " << iter << endl;
+
+		   int *iters = LoadIterations(10, 2*NExpo+1);
+		   putIterationsInArray(iter, sequ_ref_levels+par_ref_levels, expo+NExpo, 2*NExpo+1, iters);
+		   WriteIterations(iters, 10, 2*NExpo+1);
+	   }
+
+	   // 13. Recover the parallel grid function corresponding to X. This is the
+	   //     local finite element solution on each processor.
+	   a->RecoverFEMSolution(X, *b, x);
+
+	   // 14. Compute and print the L^2 norm of the error.
+	   {
+		  double err = x.ComputeL2Error(E);
+		  if (myid == 0)
+		  {
+			 cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
+		  }
+	   }
+
+	   // 15. Save the refined mesh and the solution in parallel. This output can
+	   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+	//   {
+	//      ostringstream mesh_name, sol_name;
+	//      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+	//      sol_name << "sol." << setfill('0') << setw(6) << myid;
+	//
+	//      ofstream mesh_ofs(mesh_name.str().c_str());
+	//      mesh_ofs.precision(8);
+	//      pmesh->Print(mesh_ofs);
+	//
+	//      ofstream sol_ofs(sol_name.str().c_str());
+	//      sol_ofs.precision(8);
+	//      x.Save(sol_ofs);
+	//   }
+
+	//   // 16. Send the solution by socket to a GLVis server.
+	//   if (visualization)
+	//   {
+	//      char vishost[] = "localhost";
+	//      int  visport   = 19916;
+	//      socketstream sol_sock(vishost, visport);
+	//      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+	//      sol_sock.precision(8);
+	//      sol_sock << "solution\n" << *pmesh << x << flush;
+	//   }
+
+	   delete pcg;
+	   delete prec;
+	   delete a;
+	   delete alpha;
+	   delete beta;
+
    }
 
    // 17. Free the used memory.
-   delete pcg;
-   delete prec;
-   delete a;
-   delete alpha;
-   delete beta;
+
    delete b;
    delete fespace;
    delete fec;
