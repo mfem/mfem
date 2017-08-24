@@ -1,4 +1,4 @@
-//                   ETHOS Example - Mesh optimizer
+//                                MFEM Example 17
 //
 // Compile with: make exsm
 //
@@ -7,12 +7,23 @@
 //   exsm -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lim -lc 0.001 -ni 10 -ls 1 -bnd
 //
 // Description:
-//    This example code performs mesh optimization using Target-matrix
-//    optimization paradigm coupled with Variational Minimization. The smoother
-//    is based on a combination of target element and quality metric that the
-//    users chooses, which in-turn determines which features of the mesh - size,
-//    quality and/or orientation - are optimized.
-
+//    This example performs mesh optimization using the Target-Matrix
+//    Optimization Paradigm (TMOP), and a global variational minimization
+//    approach. It minimizes the quantity sum_T int_T mu(Jtr(x)), where T are
+//    the target (ideal) elements, Jtr is the Jacobian of the transformation
+//    from the reference to the target element, and mu is the mesh quality
+//    metric. This metric can measure shape, size or alignment of the region
+//    around each quadrature point. The combination of targets and quality
+//    metrics is used to optimize the physical node positions, i.e., they must
+//    be as close as possible to the shape/size/alignment of their targets.
+//
+//    This example also demonstrates a possible use of nonlinear operators (the
+//    class HyperelasticModel defining mu(Jtr), and HyperelasticNLFIntegrator
+//    defining int mu(Jtr)), as well as their coupling to Newton methods for
+//    solving minimization problems. Note that the utilized Newton methods are
+//    oriented towards avoiding negative mesh Jacobian determinants. Each Newton
+//    step requires the inversion of a Jacobian matrix, which is done through an
+//    inner linear solver.
 
 #include "mfem.hpp"
 
