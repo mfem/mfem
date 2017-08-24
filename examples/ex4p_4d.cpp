@@ -387,6 +387,7 @@ int main(int argc, char *argv[])
    double coeffWeight = 1.0;
    bool spe10Coeff = false;
    bool exactH1Solver = false;
+   bool standardCG = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -416,6 +417,8 @@ int main(int argc, char *argv[])
                   "Use exact H1 solvers for the preconditioner.");
    args.AddOption(&spe10Coeff, "-spe10", "--useSPE10Coeff", "-constCoeff", "--constCoeff",
                   "Switch between the coefficients for the mass bilinear form.");
+   args.AddOption(&standardCG, "-sCG", "--stdCG", "-rCG", "--resCG",
+                  "Switch between standard PCG or recompute residuals in every step and use the residuals itself for the stopping criteria.");
       
    args.Parse();
    if (!args.Good())
@@ -566,11 +569,6 @@ int main(int argc, char *argv[])
 	   //     the 3D ADS preconditioners from hypre. If using hybridization, the
 	   //     system is preconditioned with hypre's BoomerAMG.
 	   Solver *prec = NULL;
-	   CGSolver *pcg = new CGSolver(A.GetComm());
-	   pcg->SetOperator(A);
-	   pcg->SetRelTol(tol);
-	   pcg->SetMaxIter(5000000);
-	   pcg->SetPrintLevel(1);
 	   if (hybridization) { prec = new HypreBoomerAMG(A); }
 	   else
 	   {
@@ -581,11 +579,38 @@ int main(int argc, char *argv[])
 		  else if(dim==4) prec = new div4dPrec(&A, fespace, alpha, beta, ess_bdr, order, exactH1Solver);
 		  else prec = NULL;
 	   }
-	   if(prec!=NULL) pcg->SetPreconditioner(*prec);
-	   pcg->Mult(B, X);
+
+		  int iter = -1;
+		   if(standardCG)
+		   {
+			   IterativeSolver *pcg = new CGSolver(MPI_COMM_WORLD);
+			   pcg->SetOperator(A);
+			   pcg->SetRelTol(tol);
+			   pcg->SetMaxIter(5000);
+			   pcg->SetPrintLevel(1);
+			   pcg->SetPreconditioner(*prec);
+			   pcg->Mult(B, X);
+
+			   iter = pcg->GetNumIterations();
+
+			   delete pcg;
+		   }
+		   else
+		   {
+			   HyprePCG *pcg = new HyprePCG(A);
+			   pcg->SetTol(tol);
+			   pcg->SetMaxIter(5000);
+			   pcg->SetResidualConvergenceOptions(1,tol);
+			   pcg->SetPrintLevel(2);
+//			   pcg->SetPreconditioner(*prec);
+			   pcg->Mult(B, X);
+
+			   pcg->GetNumIterations(iter);
+
+			   delete pcg;
+		   }
 
 
-	   int iter = pcg->GetNumIterations();
 	   if(myid==0)
 	   {
 		   cout << "Weigth: " << weight << " " << iter << endl;
@@ -636,7 +661,6 @@ int main(int argc, char *argv[])
 //		  sol_sock << "solution\n" << *pmesh << x << flush;
 //	   }
 
-	   delete pcg;
 	   if(prec!=NULL) delete prec;
 	   delete hfes;
 	   delete hfec;

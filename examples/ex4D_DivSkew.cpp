@@ -392,7 +392,7 @@ int main(int argc, char *argv[])
    double coeffWeight = 1.0;
    bool exactH1Solver = false;
    bool spe10Coeff = false;
-
+   bool standardCG = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -413,6 +413,8 @@ int main(int argc, char *argv[])
                   "Use exact H1 solvers for the preconditioner.");
    args.AddOption(&spe10Coeff, "-spe10", "--useSPE10Coeff", "-constCoeff", "--constCoeff",
                   "Switch between the coefficients for the mass bilinear form.");
+   args.AddOption(&standardCG, "-sCG", "--stdCG", "-rCG", "--resCG",
+                  "Switch between standard PCG or recompute residuals in every step and use the residuals itself for the stopping criteria.");
    args.Parse();
    if (!args.Good())
    {
@@ -556,7 +558,7 @@ int main(int argc, char *argv[])
 	   IterativeSolver *pcg = new CGSolver(MPI_COMM_WORLD);
 	   pcg->SetOperator(A);
 	   pcg->SetRelTol(tol);
-	   pcg->SetMaxIter(1000000000);
+	   pcg->SetMaxIter(1000);
 	   pcg->SetPrintLevel(1);
 	   pcg->SetPreconditioner(*prec);
 	   pcg->Mult(B, X);
