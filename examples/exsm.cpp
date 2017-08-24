@@ -1,9 +1,10 @@
-//                  ETHOS Example - Mesh optimizer
+//                   ETHOS Example - Mesh optimizer
 //
 // Compile with: make exsm
 //
-// Sample runs:  exsm -m blade.mesh     with Ideal target and metric 2
-//               exsm -m tipton.mesh    with Ideal equal size target and metric 9
+// Sample runs:
+//   exsm -m ../data/blade.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 20 -ls 1 -bnd
+//   exsm -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lim -lc 0.001 -ni 10 -ls 1 -bnd
 //
 // Description:
 //    This example code performs mesh optimization using Target-matrix
@@ -173,7 +174,7 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
 int main (int argc, char *argv[])
 {   
    // 0. Set the method's default parameters.
-   const char *mesh_file = "../data/tipton.mesh";
+   const char *mesh_file = "../data/icf-pert.mesh";
    int mesh_poly_deg = 1;
    int rs_levels = 0;
    double jitter = 0.0;
@@ -185,6 +186,7 @@ int main (int argc, char *argv[])
    int quad_order = 8;
    int newton_iter = 10;
    int lin_solver = 2;
+   int max_lin_iter = 100;
    bool move_bnd = false;
    bool visualization = true;
    int combomet = 0;
@@ -240,6 +242,8 @@ int main (int argc, char *argv[])
                   "Maximum number of Newton iterations.");
    args.AddOption(&lin_solver, "-ls", "--lin-solver",
                   "ODE solver: 0 - l1-Jacobi, 1 - CG, 2 - MINRES.");
+   args.AddOption(&max_lin_iter, "-li", "--lin-iter",
+                  "Maximum number of iterations in the linear solve.");
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
                   "--fix-boundary",
                   "Enable motion along horizontal and vertical boundaries.");
@@ -435,8 +439,6 @@ int main (int argc, char *argv[])
 
       model2 = new TMOPHyperelasticModel077;
       tj2    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SCALE_SIZE);
-      //tj2    = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE);
-      //tj2    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE);
       tj2->SetNodes(*x);
       tj2->SetInitialNodes(x0);
       HyperelasticNLFIntegrator *he_nlf_integ2;
@@ -459,7 +461,10 @@ int main (int argc, char *argv[])
    }
 
    // 16. Fix all boundary nodes, or fix only a given component depending on the
-   //     boundary attributes of the given mesh (TODO 3D).
+   //     boundary attributes of the given mesh.
+   //     Attributes 1/2/3 correspond to fixed x/y/z components of the node.
+   //     Attribute  4     corresponds to an entirely fixed node.
+   //     Other boundary attributes don't affect the boundary conditions.
    if (move_bnd == false)
    {
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
@@ -473,8 +478,8 @@ int main (int argc, char *argv[])
       for (int i = 0; i < mesh->GetNBE(); i++)
       {
          const int attr = mesh->GetBdrElement(i)->GetAttribute();
-         if (attr == 1 || attr == 2) { n += nd; }
-         if (attr == 3) { n += nd * dim; }
+         if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
+         if (attr == 4) { n += nd * dim; }
       }
       Array<int> ess_vdofs(n), vdofs;
       n = 0;
@@ -482,17 +487,22 @@ int main (int argc, char *argv[])
       {
          const int attr = mesh->GetBdrElement(i)->GetAttribute();
          x->FESpace()->GetBdrElementVDofs(i, vdofs);
-         if (attr == 1) // y = 0; fix y components.
-         {
-            for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j+nd]; }
-         }
-         else if (attr == 2) // x = 0; fix x components.
+         if (attr == 1) // fix x components.
          {
             for (int j = 0; j < nd; j++)
             { ess_vdofs[n++] = vdofs[j]; }
          }
-         else if (attr == 3) // fix all components for attribute 3.
+         else if (attr == 2) // fix y components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j+nd]; }
+         }
+         else if (attr == 3) // fix z components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j+2*nd]; }
+         }
+         else if (attr == 4) // fix all components.
          {
             for (int j = 0; j < vdofs.Size(); j++)
             { ess_vdofs[n++] = vdofs[j]; }
@@ -505,15 +515,14 @@ int main (int argc, char *argv[])
    //     here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL;
    const double rtol  = 1e-12;
-   const int max_iter = 100;
    if (lin_solver == 0)
    {
-      S = new DSmoother(1, 1.0, max_iter);
+      S = new DSmoother(1, 1.0, max_lin_iter);
    }
    else if (lin_solver == 1)
    {
       CGSolver *cg = new CGSolver;
-      cg->SetMaxIter(max_iter);
+      cg->SetMaxIter(max_lin_iter);
       cg->SetRelTol(rtol);
       cg->SetAbsTol(0.0);
       cg->SetPrintLevel(3);
@@ -522,7 +531,7 @@ int main (int argc, char *argv[])
    else
    {
       MINRESSolver *minres = new MINRESSolver;
-      minres->SetMaxIter(max_iter);
+      minres->SetMaxIter(max_lin_iter);
       minres->SetRelTol(rtol);
       minres->SetAbsTol(0.0);
       minres->SetPrintLevel(3);
@@ -631,7 +640,7 @@ int main (int argc, char *argv[])
    return 0;
 }
 
-// Used for the 2D Tipton mesh.
+// Defined with respect to the icf-pert mesh.
 double weight_fun(const Vector &x)
 {
    const double r = sqrt(x(0)*x(0) + x(1)*x(1) + 1e-12);

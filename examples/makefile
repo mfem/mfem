@@ -83,7 +83,7 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f refined.mesh displaced.mesh mesh.* ex5.mesh
+	@rm -f refined.mesh displaced.mesh mesh.* ex5.mesh optimized* perturbed*
 	@rm -rf Example5* Example9* Example15* Example16*
 	@rm -f sphere_refined.* sol.* sol_u.* sol_p.*
 	@rm -f ex9.mesh ex9-mesh.* ex9-init.* ex9-final.*
