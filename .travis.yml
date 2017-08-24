@@ -64,8 +64,11 @@ before_install:
 
    # Install tool to upload code coverage reports to coveralls.io
    - if [ "$CODECOV" == "YES" ]; then
+        export PYTHONUSERBASE=$HOME/local;
+        echo "Using PYTHONUSERBASE=$PYTHONUSERBASE"
         pip install --user cpp-coveralls;
         pip install --user pyyaml;
+        PATH=$HOME/local/bin;
      fi
 
    # Update environment to find g++ 4.9 installation first.
