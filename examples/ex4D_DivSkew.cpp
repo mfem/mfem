@@ -516,8 +516,8 @@ int main(int argc, char *argv[])
 	   // 10. Set up the parallel bilinear form corresponding to the EM diffusion
 	   //     operator curl muinv curl + sigma I, by adding the curl-curl and the
 	   //     mass domain integrators.
-	   std::string permFile = "spe_perm.dat";
-	   InversePermeabilityFunction::ReadPermeabilityFile(permFile, MPI_COMM_WORLD);
+//	   std::string permFile = "spe_perm.dat";
+//	   InversePermeabilityFunction::ReadPermeabilityFile(permFile, MPI_COMM_WORLD);
 
 	   Coefficient *alpha = new ConstantCoefficient(1.0);
 	   Coefficient *beta;
