@@ -16,7 +16,7 @@ env:
    matrix:
       - DEBUG=YES
         MPI=YES
-        NPROCS=1
+        NPROCS=4
         CODECOV=YES
         MFEM_TEST_TARGET=test
       - DEBUG=NO
