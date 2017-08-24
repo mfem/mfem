@@ -114,6 +114,31 @@ void WriteIterations(int *iters, int NRows, int NCol)
 using namespace std;
 using namespace mfem;
 
+double kappa = 1.0;
+
+double u_exact(const Vector &x)
+{
+	int dim = x.Size();
+
+	if(dim==4)
+	{
+		return cos(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));
+	}
+	else return 0.0;
+}
+
+double f_exact(const Vector &x)
+{
+	int dim = x.Size();
+
+	if(dim==4)
+	{
+		return (kappa + 4.0 * M_PI*M_PI) * cos(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));
+	}
+	else return 0.0;
+}
+
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -133,7 +158,7 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    double tol = 1e-6;
    bool set_bc = true;
-
+   bool standardCG = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -148,6 +173,8 @@ int main(int argc, char *argv[])
                      "A parameter.");
    args.AddOption(&set_bc, "-bc", "--impose-bc", "-no-bc", "--dont-impose-bc",
                   "Impose or not essential boundary conditions.");
+   args.AddOption(&standardCG, "-sCG", "--stdCG", "-rCG", "--resCG",
+                  "Switch between standard PCG or recompute residuals in every step and use the residuals itself for the stopping criteria.");
    args.Parse();
    if (!args.Good())
    {
@@ -232,23 +259,22 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 8. Set up the parallel linear form b(.) which corresponds to the
-   //    right-hand side of the FEM linear system, which in this case is
-   //    (1,phi_i) where phi_i are the basis functions in fespace.
-   ParLinearForm *b = new ParLinearForm(fespace);
-   ConstantCoefficient one(1.0);
-   b->AddDomainIntegrator(new DomainLFIntegrator(one));
-   b->Assemble();
 
-   // 9. Define the solution vector x as a parallel finite element grid function
-   //    corresponding to fespace. Initialize x with initial guess of zero,
-   //    which satisfies the boundary conditions.
+   FunctionCoefficient uExact(u_exact);
    ParGridFunction x(fespace);
 
    int NExpo =8;
    for(int expo=-NExpo; expo<=NExpo; expo++)
    {
 	   double weight = pow(10.0,expo);
+	   kappa = weight;
+
+	   x.ProjectCoefficient(uExact);
+
+	   ParLinearForm *b = new ParLinearForm(fespace);
+	   FunctionCoefficient ffunc(f_exact);
+	   b->AddDomainIntegrator(new DomainLFIntegrator(ffunc));
+	   b->Assemble();
 
 	   x = 0.0;
 
@@ -285,15 +311,37 @@ int main(int argc, char *argv[])
 	   //     preconditioner from hypre.
 	   HypreSolver *amg = new HypreBoomerAMG(A);
 
-	   IterativeSolver *pcg = new CGSolver(MPI_COMM_WORLD);
-	   pcg->SetOperator(A);
-	   pcg->SetRelTol(tol);
-	   pcg->SetMaxIter(5000);
-	   pcg->SetPrintLevel(1);
-	   pcg->SetPreconditioner(*amg);
-	   pcg->Mult(B, X);
+	  int iter = -1;
+	   if(standardCG)
+	   {
+		   IterativeSolver *pcg = new CGSolver(MPI_COMM_WORLD);
+		   pcg->SetOperator(A);
+		   pcg->SetRelTol(tol);
+		   pcg->SetMaxIter(5000);
+		   pcg->SetPrintLevel(1);
+		   pcg->SetPreconditioner(*amg);
+		   pcg->Mult(B, X);
 
-	   int iter = pcg->GetNumIterations();
+		   iter = pcg->GetNumIterations();
+
+		   delete pcg;
+	   }
+	   else
+	   {
+		   HyprePCG *pcg = new HyprePCG(A);
+		   pcg->SetTol(tol);
+		   pcg->SetMaxIter(5000);
+		   pcg->SetResidualConvergenceOptions(1,tol);
+		   pcg->SetPrintLevel(2);
+		   pcg->SetPreconditioner(*amg);
+		   pcg->Mult(B, X);
+
+		   pcg->GetNumIterations(iter);
+
+		   delete pcg;
+	   }
+
+
 	   if(myid==0)
 	   {
 		   cout << "Weigth: " << weight << " " << iter << endl;
@@ -306,7 +354,15 @@ int main(int argc, char *argv[])
 
 	   // 13. Recover the parallel grid function corresponding to X. This is the
 	   //     local finite element solution on each processor.
-//	   a->RecoverFEMSolution(X, *b, x);
+	   a->RecoverFEMSolution(X, *b, x);
+
+	   {
+		  double err = x.ComputeL2Error(uExact);
+		  if (myid == 0)
+		  {
+			 cout << "\n|| u - u_h ||_{L^2} = " << err << '\n' << endl;
+		  }
+	   }
 
 	   // 14. Save the refined mesh and the solution in parallel. This output can
 	   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
@@ -335,15 +391,14 @@ int main(int argc, char *argv[])
 	//      sol_sock << "solution\n" << *pmesh << x << flush;
 	//   }
 
-	   delete pcg;
 	   delete amg;
 	   delete a;
 	   delete beta;
+	   delete b;
    }
 
    // 16. Free the used memory.
 
-   delete b;
    delete fespace;
    if (order > 0) { delete fec; }
    delete pmesh;
