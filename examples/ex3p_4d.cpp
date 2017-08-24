@@ -410,7 +410,7 @@ int main(int argc, char *argv[])
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-   bool set_bc = true;
+   ess_bdr = set_bc ? 1 : 0;
    if (pmesh->bdr_attributes.Size())
    {
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
