@@ -68,7 +68,7 @@ before_install:
         echo "Using PYTHONUSERBASE=$PYTHONUSERBASE"
         pip install --user cpp-coveralls;
         pip install --user pyyaml;
-        PATH=$HOME/local/bin;
+        PATH=$HOME/local/bin:$PATH;
      fi
 
    # Update environment to find g++ 4.9 installation first.
