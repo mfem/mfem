@@ -262,7 +262,8 @@ int main(int argc, char *argv[])
 	   Coefficient *beta = new ConstantCoefficient(weight);
 
 	   ParBilinearForm *a = new ParBilinearForm(fespace);
-	   a->AddDomainIntegrator(new DiffusionIntegrator(*beta));
+	   a->AddDomainIntegrator(new DiffusionIntegrator);
+	   a->AddDomainIntegrator(new MassIntegrator(*beta));
 
 	   // 11. Assemble the parallel bilinear form and the corresponding linear
 	   //     system, applying any necessary transformations such as: parallel
