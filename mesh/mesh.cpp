@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstring>
 #include <ctime>
+#include <functional>
 
 #ifdef MFEM_USE_GECKO
 #include "graph.h"
@@ -2286,6 +2287,10 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 
    meshgen = mesh.meshgen;
 
+   // Create the new Mesh instance without a record of its refinement history
+   sequence = 0;
+   last_operation = Mesh::NONE;
+
    // Duplicate the elements
    elements.SetSize(NumOfElements);
    for (int i = 0; i < NumOfElements; i++)
@@ -2437,7 +2442,8 @@ Mesh::Mesh(double *_vertices, int num_vertices,
             num_boundary_elements);
 
    int element_index_stride = Geometry::NumVerts[element_type];
-   int boundary_index_stride = Geometry::NumVerts[boundary_type];
+   int boundary_index_stride = num_boundary_elements > 0 ?
+                               Geometry::NumVerts[boundary_type] : 0;
 
    // assuming Vertex is POD
    vertices.MakeRef(reinterpret_cast<Vertex*>(_vertices), num_vertices);
@@ -4112,10 +4118,11 @@ const Table & Mesh::ElementToElementTable()
    }
 
    int num_faces = GetNumFaces();
-   MFEM_ASSERT(faces_info.Size() == num_faces, "faces were not generated!");
+   // Note that, for ParNCMeshes, faces_info will contain also the ghost faces
+   MFEM_ASSERT(faces_info.Size() >= num_faces, "faces were not generated!");
 
    Array<Connection> conn;
-   conn.Reserve(2*num_faces);
+   conn.Reserve(2*faces_info.Size());
 
    for (int i = 0; i < faces_info.Size(); i++)
    {
@@ -7591,7 +7598,11 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
          l = partitioning[l];
          if (k != l)
          {
-            nbe += 2;
+            nbe++;
+            if (!Nonconforming() || !IsSlaveFace(faces_info[i]))
+            {
+               nbe++;
+            }
          }
       }
       else
@@ -7616,12 +7627,15 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
                out << ' ' << v[j];
             }
             out << '\n';
-            out << l+1 << ' ' << faces[i]->GetGeometryType();
-            for (j = nv-1; j >= 0; j--)
+            if (!Nonconforming() || !IsSlaveFace(faces_info[i]))
             {
-               out << ' ' << v[j];
+               out << l+1 << ' ' << faces[i]->GetGeometryType();
+               for (j = nv-1; j >= 0; j--)
+               {
+                  out << ' ' << v[j];
+               }
+               out << '\n';
             }
-            out << '\n';
          }
       }
       else

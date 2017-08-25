@@ -9,6 +9,11 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
+# The current MFEM version as an integer, see also `CMakeLists.txt`.
+MFEM_VERSION = 30301
+MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
+  sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
+
 define MFEM_HELP_MSG
 
 MFEM makefile targets:
@@ -172,9 +177,17 @@ ifeq ($(MFEM_USE_OPENMP),YES)
    endif
 endif
 
+# Check STRUMPACK configuration
+ifeq ($(MFEM_USE_STRUMPACK),YES)
+   MFEM_USE_OPENMP ?= YES
+   ifneq ($(MFEM_USE_OPENMP),YES)
+      $(error Incompatible config: MFEM_USE_STRUMPACK requires MFEM_USE_OPENMP)
+   endif
+endif
+
 # List of MFEM dependencies, processed below
 MFEM_DEPENDENCIES = LIBUNWIND SIDRE LAPACK OPENMP SUNDIALS MESQUITE SUITESPARSE\
- SUPERLU GECKO GNUTLS NETCDF PETSC MPFR
+ SUPERLU STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR
 
 # Macro for adding dependencies
 define mfem_add_dependency
@@ -198,18 +211,17 @@ ifeq ($(MFEM_USE_GZSTREAM),YES)
 endif
 
 # List of all defines that may be enabled in config.hpp and config.mk:
-MFEM_DEFINES = MFEM_USE_MPI MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_GZSTREAM\
- MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP\
- MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS MFEM_USE_MESQUITE\
- MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU MFEM_USE_GNUTLS\
- MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_MPIEXEC \
- MFEM_MPIEXEC_NP
+MFEM_DEFINES = MFEM_VERSION MFEM_USE_MPI MFEM_USE_METIS_5 MFEM_DEBUG\
+ MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
+ MFEM_USE_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
+ MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU\
+ MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
+ MFEM_USE_MPFR MFEM_USE_SIDRE
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
  MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_FLAGS MFEM_LIB_DIR MFEM_LIBS MFEM_LIB_FILE\
- MFEM_BUILD_TAG MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC \
- MFEM_MPIEXEC_NP
+ MFEM_BUILD_TAG MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP
 
 # Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
 MFEM_CPPFLAGS  ?= $(CPPFLAGS)
@@ -229,7 +241,7 @@ MFEM_CONFIG_EXTRA ?= $(if $(BUILD_DIR_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
 # If we have 'config' target, export variables used by config/makefile
 ifneq (,$(filter config,$(MAKECMDGOALS)))
    export $(MFEM_DEFINES) MFEM_DEFINES $(MFEM_CONFIG_VARS) MFEM_CONFIG_VARS
-   export VERBOSE
+   export VERBOSE HYPRE_OPT
 endif
 
 # If we have 'install' target, export variables used by config/makefile
@@ -393,8 +405,7 @@ help:
 	@true
 
 status info:
-	$(info MFEM_MPIEXEC         = $(MFEM_MPIEXEC))
-	$(info MFEM_MPIEXEC_NP      = $(MFEM_MPIEXEC_NP))
+	$(info MFEM_VERSION         = $(MFEM_VERSION) [v$(MFEM_VERSION_STRING)])
 	$(info MFEM_USE_MPI         = $(MFEM_USE_MPI))
 	$(info MFEM_USE_METIS_5     = $(MFEM_USE_METIS_5))
 	$(info MFEM_DEBUG           = $(MFEM_DEBUG))
@@ -409,6 +420,7 @@ status info:
 	$(info MFEM_USE_MESQUITE    = $(MFEM_USE_MESQUITE))
 	$(info MFEM_USE_SUITESPARSE = $(MFEM_USE_SUITESPARSE))
 	$(info MFEM_USE_SUPERLU     = $(MFEM_USE_SUPERLU))
+	$(info MFEM_USE_STRUMPACK   = $(MFEM_USE_STRUMPACK))
 	$(info MFEM_USE_GECKO       = $(MFEM_USE_GECKO))
 	$(info MFEM_USE_GNUTLS      = $(MFEM_USE_GNUTLS))
 	$(info MFEM_USE_NETCDF      = $(MFEM_USE_NETCDF))
@@ -428,12 +440,18 @@ status info:
 	$(info MFEM_INC_DIR         = $(value MFEM_INC_DIR))
 	$(info MFEM_LIB_DIR         = $(value MFEM_LIB_DIR))
 	$(info MFEM_BUILD_DIR       = $(MFEM_BUILD_DIR))
+	$(info MFEM_MPIEXEC         = $(MFEM_MPIEXEC))
+	$(info MFEM_MPIEXEC_NP      = $(MFEM_MPIEXEC_NP))
 	@true
 
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
-FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS),"$(dir)/*.?pp")
+FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
 
 style:
 	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\
 	   echo "No source files were changed.";\
 	fi
+
+# Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
+print-%: ; @printf "%s:\n" $*
+	@printf "%s\n" $($*)

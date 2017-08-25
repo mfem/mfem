@@ -1020,41 +1020,53 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
                                              HYPRE_Int* row_starts) const
 {
    const bool assumed_partition = HYPRE_AssumedPartitionCheck();
-   const bool same_rows = (D.Height() == hypre_CSRMatrixNumRows(A->diag));
+   if (row_starts == NULL)
+   {
+      row_starts = hypre_ParCSRMatrixRowStarts(A);
+      MFEM_VERIFY(D.Height() == hypre_CSRMatrixNumRows(A->diag),
+                  "the matrix D is NOT compatible with the row starts of"
+                  " this HypreParMatrix, row_starts must be given.");
+   }
+   else
+   {
+      int offset;
+      if (assumed_partition)
+      {
+         offset = 0;
+      }
+      else
+      {
+         MPI_Comm_rank(GetComm(), &offset);
+      }
+      int local_num_rows = row_starts[offset+1]-row_starts[offset];
+      MFEM_VERIFY(local_num_rows == D.Height(), "the number of rows in D is "
+                  " not compatible with the given row_starts");
+   }
+   // D.Width() will be checked for compatibility by the SparseMatrix
+   // multiplication function, mfem::Mult(), called below.
 
    int part_size;
+   HYPRE_Int global_num_rows;
    if (assumed_partition)
    {
       part_size = 2;
+      global_num_rows = row_starts[2];
+      // Here, we use row_starts[2], so row_starts must come from the methods
+      // GetDofOffsets/GetTrueDofOffsets of ParFiniteElementSpace (HYPRE's
+      // partitions have only 2 entries).
    }
    else
    {
       MPI_Comm_size(GetComm(), &part_size);
+      global_num_rows = row_starts[part_size];
       part_size++;
-   }
-
-   HYPRE_Int global_num_rows;
-   if (same_rows)
-   {
-      row_starts = hypre_ParCSRMatrixRowStarts(A);
-      global_num_rows = hypre_ParCSRMatrixGlobalNumRows(A);
-   }
-   else
-   {
-      MFEM_VERIFY(row_starts != NULL, "the number of rows in D and A is not "
-                  "the same; row_starts must be given (not NULL)");
-      // Here, when assumed_partition is true we use row_starts[2], so
-      // row_starts must come from the GetDofOffsets/GetTrueDofOffsets methods
-      // of ParFiniteElementSpace (HYPRE's partitions have only 2 entries).
-      global_num_rows =
-         assumed_partition ? row_starts[2] : row_starts[part_size-1];
    }
 
    HYPRE_Int *col_starts = hypre_ParCSRMatrixColStarts(A);
    HYPRE_Int *col_map_offd;
 
    // get the diag and offd blocks as SparseMatrix wrappers
-   SparseMatrix A_diag(0), A_offd(0);
+   SparseMatrix A_diag, A_offd;
    GetDiag(A_diag);
    GetOffd(A_offd, col_map_offd);
 
@@ -1303,6 +1315,27 @@ void HypreParMatrix::Read(MPI_Comm comm, const char *fname)
    width = GetNumCols();
 }
 
+void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const char *fname)
+{
+   Destroy();
+   Init();
+
+   HYPRE_IJMatrix A_ij;
+   HYPRE_IJMatrixRead(fname, comm, 5555, &A_ij); // HYPRE_PARCSR = 5555
+
+   HYPRE_ParCSRMatrix A_parcsr;
+   HYPRE_IJMatrixGetObject(A_ij, (void**) &A_parcsr);
+
+   A = (hypre_ParCSRMatrix*)A_parcsr;
+
+   hypre_ParCSRMatrixSetNumNonzeros(A);
+
+   hypre_MatvecCommPkgCreate(A);
+
+   height = GetNumRows();
+   width = GetNumCols();
+}
+
 void HypreParMatrix::Destroy()
 {
    if ( X != NULL ) { delete X; }
@@ -1381,6 +1414,15 @@ HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B)
    hypre_MatvecCommPkgCreate(ab);
 
    return new HypreParMatrix(ab);
+}
+
+HypreParMatrix * ParAdd(HypreParMatrix *A, HypreParMatrix *B)
+{
+   hypre_ParCSRMatrix * C = internal::hypre_ParCSRMatrixAdd(*A,*B);
+
+   hypre_MatvecCommPkgCreate(C);
+
+   return new HypreParMatrix(C);
 }
 
 HypreParMatrix * RAP(HypreParMatrix *A, HypreParMatrix *P)
@@ -3057,7 +3099,8 @@ HypreLOBPCG::HypreLOBPCG(MPI_Comm c)
      glbSize(-1),
      part(NULL),
      multi_vec(NULL),
-     x(NULL)
+     x(NULL),
+     subSpaceProj(NULL)
 {
    MPI_Comm_size(comm,&numProcs);
    MPI_Comm_rank(comm,&myid);
@@ -3080,6 +3123,16 @@ void
 HypreLOBPCG::SetTol(double tol)
 {
    HYPRE_LOBPCGSetTol(lobpcg_solver, tol);
+}
+
+void
+HypreLOBPCG::SetRelTol(double rel_tol)
+{
+#if MFEM_HYPRE_VERSION >= 21101
+   HYPRE_LOBPCGSetRTol(lobpcg_solver, rel_tol);
+#else
+   MFEM_ABORT("This method requires HYPRE version >= 2.11.1");
+#endif
 }
 
 void
@@ -3187,6 +3240,45 @@ HypreLOBPCG::GetEigenvector(unsigned int i)
 }
 
 void
+HypreLOBPCG::SetInitialVectors(int num_vecs, HypreParVector ** vecs)
+{
+   // Initialize HypreMultiVector object if necessary
+   if ( multi_vec == NULL )
+   {
+      MFEM_ASSERT(x != NULL, "In HypreLOBPCG::SetInitialVectors()");
+
+      multi_vec = new HypreMultiVector(nev, *x, interpreter);
+   }
+
+   // Copy the vectors provided
+   for (int i=0; i < min(num_vecs,nev); i++)
+   {
+      multi_vec->GetVector(i) = *vecs[i];
+   }
+
+   // Randomize any remaining vectors
+   for (int i=min(num_vecs,nev); i < nev; i++)
+   {
+      multi_vec->GetVector(i).Randomize(seed);
+   }
+
+   // Ensure all vectors are in the proper subspace
+   if ( subSpaceProj != NULL )
+   {
+      HypreParVector y(*x);
+      y = multi_vec->GetVector(0);
+
+      for (int i=1; i<nev; i++)
+      {
+         subSpaceProj->Mult(multi_vec->GetVector(i),
+                            multi_vec->GetVector(i-1));
+      }
+      subSpaceProj->Mult(y,
+                         multi_vec->GetVector(nev-1));
+   }
+}
+
+void
 HypreLOBPCG::Solve()
 {
    // Initialize HypreMultiVector object if necessary
@@ -3196,6 +3288,19 @@ HypreLOBPCG::Solve()
 
       multi_vec = new HypreMultiVector(nev, *x, interpreter);
       multi_vec->Randomize(seed);
+
+      if ( subSpaceProj != NULL )
+      {
+         HypreParVector y(*x);
+         y = multi_vec->GetVector(0);
+
+         for (int i=1; i<nev; i++)
+         {
+            subSpaceProj->Mult(multi_vec->GetVector(i),
+                               multi_vec->GetVector(i-1));
+         }
+         subSpaceProj->Mult(y, multi_vec->GetVector(nev-1));
+      }
    }
 
    eigenvalues.SetSize(nev);
@@ -3334,6 +3439,16 @@ void
 HypreAME::SetTol(double tol)
 {
    HYPRE_AMESetTol(ame_solver, tol);
+}
+
+void
+HypreAME::SetRelTol(double rel_tol)
+{
+#if MFEM_HYPRE_VERSION >= 21101
+   HYPRE_AMESetRTol(ame_solver, rel_tol);
+#else
+   MFEM_ABORT("This method requires HYPRE version >= 2.11.1");
+#endif
 }
 
 void

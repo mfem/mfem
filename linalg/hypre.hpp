@@ -223,10 +223,12 @@ public:
    HypreParMatrix();
 
    /// Converts hypre's format to HypreParMatrix
-   explicit HypreParMatrix(hypre_ParCSRMatrix *a)
+   /** If @a owner is false, ownership of @a a is not transferred */
+   explicit HypreParMatrix(hypre_ParCSRMatrix *a, bool owner = true)
    {
       Init();
       A = a;
+      if (!owner) { ParCSROwner = 0; }
       height = GetNumRows();
       width = GetNumCols();
    }
@@ -459,6 +461,8 @@ public:
    void Print(const char *fname, HYPRE_Int offi = 0, HYPRE_Int offj = 0);
    /// Reads the matrix from a file
    void Read(MPI_Comm comm, const char *fname);
+   /// Read a matrix saved as a HYPRE_IJMatrix
+   void Read_IJMatrix(MPI_Comm comm, const char *fname);
 
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }
@@ -474,6 +478,10 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
 
 /// Returns the matrix A * B
 HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B);
+/// Returns the matrix A + B
+/** It is assumed that both matrices use the same row and column partitions and
+    the same col_map_offd arrays. */
+HypreParMatrix * ParAdd(HypreParMatrix *A, HypreParMatrix *B);
 
 /// Returns the matrix P^t * A * P
 HypreParMatrix * RAP(HypreParMatrix *A, HypreParMatrix *P);
@@ -949,6 +957,9 @@ private:
    // Empty vectors used to setup the matrices and preconditioner
    HypreParVector * x;
 
+   // An optional operator which projects vectors into a desired subspace
+   Operator * subSpaceProj;
+
    /// Internal class to represent a set of eigenvectors
    class HypreMultiVector
    {
@@ -1004,16 +1015,19 @@ public:
    ~HypreLOBPCG();
 
    void SetTol(double tol);
+   void SetRelTol(double rel_tol);
    void SetMaxIter(int max_iter);
    void SetPrintLevel(int logging);
    void SetNumModes(int num_eigs) { nev = num_eigs; }
    void SetPrecondUsageMode(int pcg_mode);
    void SetRandomSeed(int s) { seed = s; }
+   void SetInitialVectors(int num_vecs, HypreParVector ** vecs);
 
    // The following four methods support general operators
    void SetPreconditioner(Solver & precond);
    void SetOperator(Operator & A);
    void SetMassMatrix(Operator & M);
+   void SetSubSpaceProjector(Operator & proj) { subSpaceProj = &proj; }
 
    /// Solve the eigenproblem
    void Solve();
@@ -1079,6 +1093,7 @@ public:
    ~HypreAME();
 
    void SetTol(double tol);
+   void SetRelTol(double rel_tol);
    void SetMaxIter(int max_iter);
    void SetPrintLevel(int logging);
    void SetNumModes(int num_eigs);

@@ -10,15 +10,15 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 # Defines the following variables:
-#   - ATK_FOUND
-#   - ATK_LIBRARIES
-#   - ATK_INCLUDE_DIRS
+#   - AXOM_FOUND
+#   - AXOM_LIBRARIES
+#   - AXOM_INCLUDE_DIRS
 
 include(MfemCmakeUtilities)
 # Note: components are enabled based on the find_package() parameters.
-mfem_find_package(ATK ATK ATK_DIR "include" "" "lib" ""
-  "Paths to headers required by ATK." "Libraries required by ATK."
+mfem_find_package(Axom AXOM AXOM_DIR "include" "" "lib" ""
+  "Paths to headers required by Axom." "Libraries required by Axom."
   ADD_COMPONENT Sidre "include" sidre/sidre.hpp "lib" sidre
   ADD_COMPONENT SPIO "include" spio/IOManager.hpp "lib" spio
   ADD_COMPONENT SLIC "include" slic/slic.hpp "lib" slic
-  ADD_COMPONENT common "include" common/ATKMacros.hpp "lib" common)
+  ADD_COMPONENT axom_utils "include" axom_utils/Utilities.hpp "lib" axom_utils)

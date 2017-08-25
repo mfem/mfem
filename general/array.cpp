@@ -60,7 +60,7 @@ void BaseArray::GrowSize(int minsize, int elementsize)
 }
 
 template <class T>
-void Array<T>::Print(std::ostream &out, int width)
+void Array<T>::Print(std::ostream &out, int width) const
 {
    for (int i = 0; i < size; i++)
    {

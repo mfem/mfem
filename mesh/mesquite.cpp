@@ -744,7 +744,7 @@ MesquiteMesh::tag_attributes()
    tag_set_element_data( attributeTagHandle, nelems, arrptr(elements),
                          (const void*)(materialValues), err );
 
-   delete materialValues;
+   delete[] materialValues;
 }
 
 TagHandle MesquiteMesh::tag_create( const std::string& name,
