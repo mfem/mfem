@@ -154,5 +154,5 @@ script:
 #      coveralls --include fem --include general --include linalg --include mesh --include miniapps --gcov-options '\-lp' --root $TRAVIS_BUILD_DIR --build-root $TRAVIS_BUILD_DIR;
 after_success:
    - if [ "$CODECOV" == "YES" ]; then
-        coveralls --include fem --include general --include linalg --include mesh --include miniapps --exclude /usr --gcov-options '\-lp' --root $TRAVIS_BUILD_DIR;
+        coveralls --include fem --include general --include linalg --include mesh --exclude /usr --gcov-options '\-lp' --root $TRAVIS_BUILD_DIR;
      fi;
