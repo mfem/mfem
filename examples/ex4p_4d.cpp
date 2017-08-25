@@ -532,10 +532,7 @@ int main(int argc, char *argv[])
    //    right-hand side of the FEM linear system, which in this case is
    //    (f,phi_i) where f is given by the function f_exact and phi_i are the
    //    basis functions in the finite element fespace.
-   VectorFunctionCoefficient f(sdim, f_exact);
-   ParLinearForm *b = new ParLinearForm(fespace);
-   b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
-   b->Assemble();
+
 
    // 9. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x by projecting the exact
@@ -551,6 +548,11 @@ int main(int argc, char *argv[])
 	   kappa = weight;
 
 	   x.ProjectCoefficient(F);
+
+	   VectorFunctionCoefficient f(sdim, f_exact);
+	   ParLinearForm *b = new ParLinearForm(fespace);
+	   b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
+	   b->Assemble();
 
 	   // 10. Set up the parallel bilinear form corresponding to the H(div)
 	   //     diffusion operator grad alpha div + beta I, by adding the div-div and
@@ -700,11 +702,13 @@ int main(int argc, char *argv[])
 	   delete a;
 	   delete alpha;
 	   delete beta;
+
+	   delete b;
    }
 
    // 17. Free the used memory.
 
-   delete b;
+
    delete fespace;
    delete fec;
    delete pmesh;
@@ -759,7 +763,7 @@ void f_exact(const Vector &p, Vector &f)
 	   f(2) = s0 * s1 * c2 * s3;
 	   f(3) = s0 * s1 * s2 * c3;
 
-	   f *= (kappa+4.0 * M_PI*M_PI);
+	   f *= (kappa + 4.0 * M_PI*M_PI);
    }
    else
    {

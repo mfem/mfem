@@ -525,10 +525,6 @@ int main(int argc, char *argv[])
 
 
 
-   ParLinearForm *b = new ParLinearForm(fespace);
-   b->AddDomainIntegrator(new MatFEDomainLFIntegrator(f));
-   b->Assemble();
-
    // 9. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x by projecting the exact
    //    solution. Note that only values from the boundary edges will be used
@@ -541,6 +537,10 @@ int main(int argc, char *argv[])
 	   double weight = pow(10.0,expo);
 
 	   x.ProjectCoefficient(solVec);
+
+	   ParLinearForm *b = new ParLinearForm(fespace);
+	   b->AddDomainIntegrator(new MatFEDomainLFIntegrator(f));
+	   b->Assemble();
 
 	   //   cout << x << endl;
 	   //   x = 0.0;
@@ -680,11 +680,13 @@ int main(int argc, char *argv[])
 	   delete a;
 	   delete alpha;
 	   delete beta;
+
+	   delete b;
    }
 
    // 17. Free the used memory.
 
-   delete b;
+
    delete fespace;
    delete fec;
    delete pmesh;
