@@ -66,14 +66,20 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
                                                  const Vector &c) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   FiniteElementSpace *fes = nlf->FESpace();
 
-   const int NE = nlf->FESpace()->GetMesh()->GetNE();
+   const int NE = fes->GetMesh()->GetNE(), dim = fes->GetFE(0)->GetDim(),
+             dof = fes->GetFE(0)->GetDof(), nsp = ir.GetNPoints();
+   Array<int> xdofs(dof * dim);
+   DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
+   Vector posV(pos.Data(), dof * dim);
 
    Vector x_out(x.Size());
    bool x_out_ok = false;
    const double energy_in = nlf->GetEnergy(x);
    double scale = 1.0, energy_out;
 
+   // Decreases the scaling of the update until the new mesh is valid.
    for (int i = 0; i < 7; i++)
    {
       add(x, -scale, c, x_out);
@@ -87,18 +93,11 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
       bool jac_ok = true;
       for (int i = 0; i < NE; i++)
       {
-         const FiniteElement &fe = *(nlf->FESpace()->GetFE(i));
-         const int dim = fe.GetDim(), nsp = ir.GetNPoints(), dof = fe.GetDof();
-
-         Array<int> xdofs(dof * dim);
-         DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
-         Vector posV(pos.Data(), dof * dim);
-
-         nlf->FESpace()->GetElementVDofs(i, xdofs);
+         fes->GetElementVDofs(i, xdofs);
          x_out.GetSubVector(xdofs, posV);
          for (int j = 0; j < nsp; j++)
          {
-            fe.CalcDShape(ir.IntPoint(j), dshape);
+            fes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
             MultAtB(pos, dshape, Jpr);
             if (Jpr.Det() <= 0.0) { jac_ok = false; goto break2; }
          }
@@ -116,7 +115,7 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
    return scale;
 }
 
-// Allows negative Jacobians -- used in untangling metrics.
+// Allows negative Jacobians. Used in untangling metrics.
 class DescentNewtonSolver : public NewtonSolver
 {
 private:
@@ -133,23 +132,22 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
                                                  const Vector &c) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   FiniteElementSpace *fes = nlf->FESpace();
 
-   const int NE = nlf->FESpace()->GetMesh()->GetNE();
+   const int NE = fes->GetMesh()->GetNE(), dim = fes->GetFE(0)->GetDim(),
+             dof = fes->GetFE(0)->GetDof(), nsp = ir.GetNPoints();
+   Array<int> xdofs(dof * dim);
+   DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
+   Vector posV(pos.Data(), dof * dim);
 
    double min_detJ = numeric_limits<double>::infinity();
    for (int i = 0; i < NE; i++)
    {
-      const FiniteElement &fe = *(nlf->FESpace()->GetFE(i));
-      const int dim = fe.GetDim(), nsp = ir.GetNPoints(), dof = fe.GetDof();
-      DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
-      Array<int> xdofs(dof * dim);
-      Vector posV(pos.Data(), dof * dim);
-
-      nlf->FESpace()->GetElementVDofs(i, xdofs);
+      fes->GetElementVDofs(i, xdofs);
       x.GetSubVector(xdofs, posV);
       for (int j = 0; j < nsp; j++)
       {
-         fe.CalcDShape(ir.IntPoint(j), dshape);
+         fes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
          MultAtB(pos, dshape, Jpr);
          min_detJ = min(min_detJ, Jpr.Det());
       }
@@ -554,20 +552,11 @@ int main (int argc, char *argv[])
    const int NE = mesh->GetNE();
    for (int i = 0; i < NE; i++)
    {
-      const FiniteElement &fe = *(fespace->GetFE(i));
-      int nsp = ir->GetNPoints();
-      int dof = fe.GetDof();
-      DenseTensor Jpr(dim, dim, nsp);
-      DenseMatrix dshape(dof, dim), pos(dof, dim);
-      Array<int> xdofs(dof * dim);
-      Vector posV(pos.Data(), dof * dim);
-      fespace->GetElementVDofs(i, xdofs);
-      x->GetSubVector(xdofs, posV);
-      for (int j = 0; j < nsp; j++)
+      ElementTransformation *transf = mesh->GetElementTransformation(i);
+      for (int j = 0; j < ir->GetNPoints(); j++)
       {
-         fe.CalcDShape(ir->IntPoint(j), dshape);
-         MultAtB(pos, dshape, Jpr(j));
-         tauval = min(tauval, Jpr(j).Det());
+         transf->SetIntPoint(&ir->IntPoint(j));
+         tauval = min(tauval, transf->Jacobian().Det());
       }
    }
    double minJ0 = tauval;
