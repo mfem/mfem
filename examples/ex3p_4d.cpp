@@ -114,7 +114,7 @@ void WriteIterations(int *iters, int NRows, int NCol)
 // Exact solution, E, and r.h.s., f. See below for implementation.
 void E_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
-double freq = 1.0, kappa;
+double freq = 1.0, kappa = 1.0;
 int dim;
 
 double osziCoeff(const Vector &x)
@@ -150,6 +150,21 @@ private:
 	bool exactSolves;
 
 public:
+	~Curl4dPrec()
+	{
+		delete pcgH1Vec;
+		delete pcgGrad;
+
+		delete 	f, fGrad, uGrad, fH1Vec, uH1Vec;
+
+		delete smoother;
+
+		delete amgVecH1, H1VecLaplaceMat;
+		delete idMat;
+		delete amgH1, H1LaplaceMat;
+		delete gradMat;
+	}
+
 	Curl4dPrec(HypreParMatrix *AUser, ParFiniteElementSpace *fespaceUser, Coefficient *alpha, Coefficient *beta,
 			const Array<int> &essBnd, int orderKernel=1, bool exactSolvesUser=false)
 	{
@@ -248,7 +263,7 @@ public:
 		uGrad = new Vector(H1FESpace->GetTrueVSize());
 
 		fH1Vec = new Vector(H1VecFESpace->GetTrueVSize());
-		uH1Vec = new Vector(H1VecFESpace->GetTrueVSize());;
+		uH1Vec = new Vector(H1VecFESpace->GetTrueVSize());
 
 
 		amgH1->Mult(*fGrad, *uGrad);
@@ -267,6 +282,9 @@ public:
 		pcgH1Vec->SetRelTol(1e-16);
 		pcgH1Vec->SetMaxIter(100000000);
 		pcgH1Vec->SetPrintLevel(-2);
+
+		delete H1FESpace; delete fecH1;
+		delete H1VecFESpace; delete fecH1Vec;
 
 	}
 
@@ -319,7 +337,7 @@ int main(int argc, char *argv[])
    double coeffWeight = 1.0;
    bool exactH1Solver = false;
    bool spe10Coeff = false;
-
+   bool standardCG = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -342,6 +360,8 @@ int main(int argc, char *argv[])
                   "Use exact H1 solvers for the preconditioner.");
    args.AddOption(&spe10Coeff, "-spe10", "--useSPE10Coeff", "-constCoeff", "--constCoeff",
                   "Switch between the coefficients for the mass bilinear form.");
+   args.AddOption(&standardCG, "-sCG", "--stdCG", "-rCG", "--resCG",
+                  "Switch between standard PCG or recompute residuals in every step and use the residuals itself for the stopping criteria.");
 
    args.Parse();
    if (!args.Good())
@@ -420,10 +440,7 @@ int main(int argc, char *argv[])
    //    right-hand side of the FEM linear system, which in this case is
    //    (f,phi_i) where f is given by the function f_exact and phi_i are the
    //    basis functions in the finite element fespace.
-   VectorFunctionCoefficient f(sdim, f_exact);
-   ParLinearForm *b = new ParLinearForm(fespace);
-   b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
-   b->Assemble();
+
 
    // 9. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x by projecting the exact
@@ -437,6 +454,12 @@ int main(int argc, char *argv[])
    for(int expo=-NExpo; expo<=NExpo; expo++)
    {
 	   double weight = pow(10.0,expo);
+	   kappa = weight;
+
+	   VectorFunctionCoefficient f(sdim, f_exact);
+	   ParLinearForm *b = new ParLinearForm(fespace);
+	   b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
+	   b->Assemble();
 
 	   x.ProjectCoefficient(E);
 
@@ -542,12 +565,12 @@ int main(int argc, char *argv[])
 	   delete a;
 	   delete alpha;
 	   delete beta;
+	   delete b;
 
    }
 
    // 17. Free the used memory.
 
-   delete b;
    delete fespace;
    delete fec;
    delete pmesh;
@@ -586,10 +609,10 @@ void f_exact(const Vector &x, Vector &f)
    //f_exact = E +  DivSkew P( curl E ), where P is the 4d permutation operator
    if(dim==4)
    {
-	   f(0) =  (1.0+4.0*M_PI*M_PI)*sin(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));
-	   f(1) = -(1.0+4.0*M_PI*M_PI)*cos(M_PI*x(0))*sin(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));
-	   f(2) =  (1.0+4.0*M_PI*M_PI)*cos(M_PI*x(0))*cos(M_PI*x(1))*sin(M_PI*x(2))*cos(M_PI*x(3));
-	   f(3) = -(1.0+4.0*M_PI*M_PI)*cos(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*sin(M_PI*x(3));
+	   f(0) =  (kappa+4.0*M_PI*M_PI)*sin(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));
+	   f(1) = -(kappa+4.0*M_PI*M_PI)*cos(M_PI*x(0))*sin(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));
+	   f(2) =  (kappa+4.0*M_PI*M_PI)*cos(M_PI*x(0))*cos(M_PI*x(1))*sin(M_PI*x(2))*cos(M_PI*x(3));
+	   f(3) = -(kappa+4.0*M_PI*M_PI)*cos(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*sin(M_PI*x(3));
    }
    else if (dim == 3)
    {
