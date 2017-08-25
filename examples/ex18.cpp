@@ -1,10 +1,10 @@
-//                                MFEM Example 17
+//                                MFEM Example 18
 //
-// Compile with: make exsm
+// Compile with: make ex18
 //
 // Sample runs:
-//   exsm -m ../data/blade.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 20 -ls 1 -bnd
-//   exsm -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lim -lc 0.001 -ni 10 -ls 1 -bnd
+//   ex18 -m ../data/blade.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 20 -ls 1 -bnd -vis
+//   ex18 -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lim -lc 0.001 -ni 10 -ls 1 -bnd -vis
 //
 // Description:
 //    This example performs mesh optimization using the Target-Matrix
@@ -32,12 +32,14 @@ using namespace std;
 
 double weight_fun(const Vector &x);
 
+// Metric values are visualized by creating an L2 finite element functions and
+// computing the metric values at the nodes.
 void vis_metric(int order, HyperelasticModel &model, const TargetJacobian &tj,
                 Mesh &mesh, char *title, int position)
 {
-   L2_FECollection mfec(order, mesh.Dimension(), BasisType::GaussLobatto);
-   FiniteElementSpace mfes(&mesh, &mfec, 1);
-   GridFunction metric(&mfes);
+   L2_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec, 1);
+   GridFunction metric(&fes);
    InterpolateHyperElasticModel(model, tj, mesh, metric);
    osockstream sock(19916, "localhost");
    sock << "solution\n";
@@ -156,9 +158,8 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    Vector x_out(x.Size());
    bool x_out_ok = false;
-   double scale = 1.0;
    const double energy_in = nlf->GetEnergy(x);
-   double energy_out;
+   double scale = 1.0, energy_out;
 
    for (int i = 0; i < 7; i++)
    {
@@ -197,7 +198,7 @@ int main (int argc, char *argv[])
    int lin_solver = 2;
    int max_lin_iter = 100;
    bool move_bnd = false;
-   bool visualization = true;
+   bool visualization = false;
    int combomet = 0;
 
    // 1. Parse command-line options.
@@ -271,16 +272,10 @@ int main (int argc, char *argv[])
 
    // 2. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
-   for (int lev = 0; lev < rs_levels; lev++)
-   {
-      mesh->UniformRefinement();
-   }
+   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension();
    cout << "Mesh curvature: ";
-   if (mesh->GetNodes())
-   {
-      cout << mesh->GetNodes()->OwnFEC()->Name();
-   }
+   if (mesh->GetNodes()) { cout << mesh->GetNodes()->OwnFEC()->Name(); }
    else { cout << "(NONE)"; }
    cout << endl;
 
@@ -305,8 +300,8 @@ int main (int argc, char *argv[])
    // 5. Set up an empty right-hand side vector b, which is equivalent to b=0.
    Vector b(0);
     
-   // 6. Get the mesh nodes (vertices and other quadratic degrees of freedom in
-   //    the finite element space) as a finite element grid function in fespace.
+   // 6. Get the mesh nodes (vertices and other degrees of freedom in the finite
+   //    element space) as a finite element grid function in fespace.
    //    Furthermore, note that changing x automatically changes the shapes of
    //    the elements in the mesh.
    GridFunction *x = mesh->GetNodes();
@@ -316,21 +311,18 @@ int main (int argc, char *argv[])
    //    freedom in fespace.
    Vector h0(fespace->GetNDofs());
    h0 = numeric_limits<double>::infinity();
+   Array<int> dofs;
+   for (int i = 0; i < mesh->GetNE(); i++)
    {
-      Array<int> dofs;
-      // Loop over the mesh elements.
-      for (int i = 0; i < fespace->GetNE(); i++)
+      // Get the local scalar element degrees of freedom in dofs.
+      fespace->GetElementDofs(i, dofs);
+      // Adjust the value of h0 in dofs based on the local mesh size.
+      for (int j = 0; j < dofs.Size(); j++)
       {
-         // Get the local scalar element degrees of freedom in dofs.
-         fespace->GetElementDofs(i, dofs);
-         // Adjust the value of h0 in dofs based on the local mesh size.
-         for (int j = 0; j < dofs.Size(); j++)
-         {
-            h0(dofs[j]) = min(h0(dofs[j]), mesh->GetElementSize(i));
-         }
+         h0(dofs[j]) = min(h0(dofs[j]), mesh->GetElementSize(i));
       }
    }
-    
+
    // 8. Add a random perturbation of the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
    //    zero on the boundary and its values are locally of the order of h0.
@@ -338,25 +330,23 @@ int main (int argc, char *argv[])
    //    the vector degrees of freedom in fespace.
    GridFunction rdm(fespace);
    rdm.Randomize();
-   rdm -= 0.25; // shift to random values in [-0.5,0.5]
+   rdm -= 0.25; // Shift to random values in [-0.5,0.5].
    rdm *= jitter;
+   // Scale the random values to be of order of the local mesh size.
+   for (int i = 0; i < fespace->GetNDofs(); i++)
    {
-      for (int i = 0; i < fespace->GetNDofs(); i++)
+      for (int d = 0; d < dim; d++)
       {
-         for (int d = 0; d < dim; d++)
-         {
-            rdm(fespace->DofToVDof(i,d)) *= h0(i);
-         }
+         rdm(fespace->DofToVDof(i,d)) *= h0(i);
       }
-      Array<int> vdofs;
-      // Loop over the boundary elements.
-      for (int i = 0; i < fespace->GetNBE(); i++)
-      {
-         // Get the vector degrees of freedom in the boundary element.
-         fespace->GetBdrElementVDofs(i, vdofs);
-         // Set the boundary values to zero.
-         for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
-      }
+   }
+   Array<int> vdofs;
+   for (int i = 0; i < fespace->GetNBE(); i++)
+   {
+      // Get the vector degrees of freedom in the boundary element.
+      fespace->GetBdrElementVDofs(i, vdofs);
+      // Set the boundary values to zero.
+      for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
    }
    *x -= rdm;
     
@@ -421,7 +411,7 @@ int main (int argc, char *argv[])
    case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
    default: cout << "Unknown quad_type: " << target_id << endl; return 3;
    }
-   cout << "Number of quadrature point per cell: " << ir->GetNPoints() << endl;
+   cout << "Quadrature points per cell: " << ir->GetNPoints() << endl;
    he_nlf_integ->SetIntegrationRule(*ir);
 
    // 13. Limit the node movement.
@@ -482,7 +472,7 @@ int main (int argc, char *argv[])
    }
    else
    {
-      const int nd  = x->FESpace()->GetBE(0)->GetDof();
+      const int nd  = fespace->GetBE(0)->GetDof();
       int n = 0;
       for (int i = 0; i < mesh->GetNBE(); i++)
       {
@@ -495,23 +485,23 @@ int main (int argc, char *argv[])
       for (int i = 0; i < mesh->GetNBE(); i++)
       {
          const int attr = mesh->GetBdrElement(i)->GetAttribute();
-         x->FESpace()->GetBdrElementVDofs(i, vdofs);
-         if (attr == 1) // fix x components.
+         fespace->GetBdrElementVDofs(i, vdofs);
+         if (attr == 1) // Fix x components.
          {
             for (int j = 0; j < nd; j++)
             { ess_vdofs[n++] = vdofs[j]; }
          }
-         else if (attr == 2) // fix y components.
+         else if (attr == 2) // Fix y components.
          {
             for (int j = 0; j < nd; j++)
             { ess_vdofs[n++] = vdofs[j+nd]; }
          }
-         else if (attr == 3) // fix z components.
+         else if (attr == 3) // Fix z components.
          {
             for (int j = 0; j < nd; j++)
             { ess_vdofs[n++] = vdofs[j+2*nd]; }
          }
-         else if (attr == 4) // fix all components.
+         else if (attr == 4) // Fix all components.
          {
             for (int j = 0; j < vdofs.Size(); j++)
             { ess_vdofs[n++] = vdofs[j]; }
@@ -547,7 +537,7 @@ int main (int argc, char *argv[])
       S = minres;
    }
 
-   // 18. Compute the minimum det(J) of the starting mesh (TODO).
+   // 18. Compute the minimum det(J) of the starting mesh.
    tauval = numeric_limits<double>::infinity();
    const int NE = mesh->GetNE();
    for (int i = 0; i < NE; i++)
@@ -559,16 +549,15 @@ int main (int argc, char *argv[])
          tauval = min(tauval, transf->Jacobian().Det());
       }
    }
-   double minJ0 = tauval;
-   cout << "Minimum det(J) of the original mesh is " << minJ0 << endl;
+   cout << "Minimum det(J) of the original mesh is " << tauval << endl;
 
    // 19. Finally, perform the nonlinear optimization.
    NewtonSolver *newton = NULL;
-   if (minJ0 > 0.0)
+   if (tauval > 0.0)
    {
       tauval = 0.0;
       newton = new RelaxedNewtonSolver(*ir);
-      cout << "The RelaxedNewtonSolver is used (as all det(J) > 0)." << endl;
+      cout << "The RelaxedNewtonSolver is used (as all det(J)>0)." << endl;
    }
    else
    {
@@ -580,7 +569,7 @@ int main (int argc, char *argv[])
       }
       tauval -= 0.01 * h0.Min(); // Slightly below minJ0 to avoid div by 0.
       newton = new DescentNewtonSolver(*ir);
-      cout << "The DescentNewtonSolver is used (as some det(J) < 0)." << endl;
+      cout << "The DescentNewtonSolver is used (as some det(J)<0)." << endl;
    }
    newton->SetPreconditioner(*S);
    newton->SetMaxIter(newton_iter);
@@ -592,7 +581,7 @@ int main (int argc, char *argv[])
    if (newton->GetConverged() == false)
    { cout << "NewtonIteration: rtol = " << rtol << " not achieved." << endl; }
 
-   // 20. Save the smoothed mesh to a file. This output can be viewed later
+   // 20. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized.mesh".
    {
       ofstream mesh_ofs("optimized.mesh");
