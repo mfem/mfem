@@ -153,7 +153,28 @@ private:
 
    bool exactSolves;
 
+   FiniteElementCollection* fecHCurlKernel;
+   ParFiniteElementSpace *HCurlKernelFESpace;
+
+
 public:
+   ~DivSkew4dPrec()
+   {
+	   delete pcgImage, pcgKernel;
+
+	   delete f, fKernel, uKernel, fImage, uImage, fCurl, uCurl;
+
+	   delete smootherCurl, HCurlMat;
+
+	   delete P_d_HCurl_HDivSkew, P_H1_HDivSkew, P_H1_HCurl;
+
+	   delete amgH1_Image, H1_ImageMat;
+	   delete amgH1_Kernel, H1_KernelMat;
+
+	   delete smootherDivSkew;
+
+	   delete HCurlKernelFESpace, fecHCurlKernel;
+   }
    DivSkew4dPrec(HypreParMatrix *AUser, ParFiniteElementSpace *fespaceUser, Coefficient *alpha, Coefficient *beta,
                  const Array<int> &essBnd, int orderKernel=1, bool exactSolvesUser=false)
    {
@@ -195,11 +216,10 @@ public:
 
 
       //setup the H(curl) FESpace for the kernel
-      FiniteElementCollection* fecHCurlKernel;
       if (orderKer==1) { fecHCurlKernel = new ND1_4DFECollection; }
       else { fecHCurlKernel = new ND2_4DFECollection; }
 
-      ParFiniteElementSpace *HCurlKernelFESpace = new ParFiniteElementSpace(pmesh,
+      HCurlKernelFESpace = new ParFiniteElementSpace(pmesh,
                                                                             fecHCurlKernel);
       Array<int> HCurlKernel_essDof(HCurlKernelFESpace->GetVSize());
       HCurlKernel_essDof = 0;
@@ -331,6 +351,9 @@ public:
       pcgImage->SetMaxIter(100000000);
       pcgImage->SetPrintLevel(-2);
 
+
+      delete H1KernelFESpace, fecH1Kernel;
+      delete H1_ImageFESpace, fecH1Vec;
    }
 
    void setExactSolve(bool exSol)
@@ -394,6 +417,10 @@ int main(int argc, char *argv[])
    bool spe10Coeff = false;
    bool standardCG = true;
 
+   int NExpo = 8;
+   int weightStart = -NExpo;
+   int weightEnd = NExpo;
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -415,6 +442,10 @@ int main(int argc, char *argv[])
                   "Switch between the coefficients for the mass bilinear form.");
    args.AddOption(&standardCG, "-sCG", "--stdCG", "-rCG", "--resCG",
                   "Switch between standard PCG or recompute residuals in every step and use the residuals itself for the stopping criteria.");
+   args.AddOption(&weightStart, "-ws", "--weightStart",
+                  "the exponent for the starting weight (for the mass term).");
+   args.AddOption(&weightEnd, "-we", "--weightEnd",
+                  "the exponent for the weight at the end (for the mass term).");
    args.Parse();
    if (!args.Good())
    {
@@ -505,8 +536,7 @@ int main(int argc, char *argv[])
    //    r.h.s. vector b.
    ParGridFunction x(fespace);
 
-   int NExpo =8;
-   for(int expo=-NExpo; expo<=NExpo; expo++)
+   for(int expo=weightStart; expo<=weightEnd; expo++)
    {
 	   double weight = pow(10.0,expo);
 
@@ -562,6 +592,8 @@ int main(int argc, char *argv[])
 	   pcg->SetPrintLevel(1);
 	   pcg->SetPreconditioner(*prec);
 	   pcg->Mult(B, X);
+
+	   delete prec;
 
 	   int iter = pcg->GetNumIterations();
 	   if(myid==0)
