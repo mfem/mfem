@@ -339,6 +339,10 @@ int main(int argc, char *argv[])
    bool spe10Coeff = false;
    bool standardCG = true;
 
+   int NExpo = 8;
+   int weightStart = -NExpo;
+   int weightEnd = NExpo;
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -362,6 +366,10 @@ int main(int argc, char *argv[])
                   "Switch between the coefficients for the mass bilinear form.");
    args.AddOption(&standardCG, "-sCG", "--stdCG", "-rCG", "--resCG",
                   "Switch between standard PCG or recompute residuals in every step and use the residuals itself for the stopping criteria.");
+   args.AddOption(&weightStart, "-ws", "--weightStart",
+                  "the exponent for the starting weight (for the mass term).");
+   args.AddOption(&weightEnd, "-we", "--weightEnd",
+                  "the exponent for the weight at the end (for the mass term).");
 
    args.Parse();
    if (!args.Good())
@@ -450,8 +458,7 @@ int main(int argc, char *argv[])
    ParGridFunction x(fespace);
    VectorFunctionCoefficient E(sdim, E_exact);
 
-   int NExpo =8;
-   for(int expo=-NExpo; expo<=NExpo; expo++)
+   for(int expo=weightStart; expo<=weightEnd; expo++)
    {
 	   double weight = pow(10.0,expo);
 	   kappa = weight;
