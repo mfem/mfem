@@ -415,6 +415,10 @@ int main(int argc, char *argv[])
    bool exactH1Solver = false;
    bool standardCG = true;
 
+   int NExpo = 8;
+   int weightStart = -NExpo;
+   int weightEnd = NExpo;
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -445,6 +449,10 @@ int main(int argc, char *argv[])
                   "Switch between the coefficients for the mass bilinear form.");
    args.AddOption(&standardCG, "-sCG", "--stdCG", "-rCG", "--resCG",
                   "Switch between standard PCG or recompute residuals in every step and use the residuals itself for the stopping criteria.");
+   args.AddOption(&weightStart, "-ws", "--weightStart",
+                  "the exponent for the starting weight (for the mass term).");
+   args.AddOption(&weightEnd, "-we", "--weightEnd",
+                  "the exponent for the weight at the end (for the mass term).");
       
    args.Parse();
    if (!args.Good())
@@ -537,10 +545,10 @@ int main(int argc, char *argv[])
    ParGridFunction x(fespace);
    VectorFunctionCoefficient F(sdim, F_exact);
 
-   int NExpo =8;
-   for(int expo=-NExpo; expo<=NExpo; expo++)
+   for(int expo=weightStart; expo<=weightEnd; expo++)
    {
 	   double weight = pow(10.0,expo);
+	   kappa = weight;
 
 	   x.ProjectCoefficient(F);
 
@@ -714,10 +722,13 @@ void F_exact(const Vector &p, Vector &F)
 
    if(dim==4)
    {
-	   F(0) = sin(M_PI*p(0));
-	   F(1) = sin(M_PI*p(1));
-	   F(2) = sin(M_PI*p(2));
-	   F(3) = sin(M_PI*p(3));
+	   double s0 = sin(M_PI*p(0)), s1 = sin(M_PI*p(1)), s2 = sin(M_PI*p(2)), s3 = sin(M_PI*p(3));
+	   double c0 = cos(M_PI*p(0)), c1 = cos(M_PI*p(1)), c2 = cos(M_PI*p(2)), c3 = cos(M_PI*p(3));
+
+	   F(0) = c0 * s1 * s2 * s3;
+	   F(1) = s0 * c1 * s2 * s3;
+	   F(2) = s0 * s1 * c2 * s3;
+	   F(3) = s0 * s1 * s2 * c3;
    }
    else
    {
@@ -740,12 +751,15 @@ void f_exact(const Vector &p, Vector &f)
    int dim = p.Size();
    if(dim==4)
    {
-	   f(0) = sin(M_PI*p(0));
-	   f(1) = sin(M_PI*p(1));
-	   f(2) = sin(M_PI*p(2));
-	   f(3) = sin(M_PI*p(3));
+	   double s0 = sin(M_PI*p(0)), s1 = sin(M_PI*p(1)), s2 = sin(M_PI*p(2)), s3 = sin(M_PI*p(3));
+	   double c0 = cos(M_PI*p(0)), c1 = cos(M_PI*p(1)), c2 = cos(M_PI*p(2)), c3 = cos(M_PI*p(3));
 
-	   f *= (1.0+M_PI*M_PI);
+	   f(0) = c0 * s1 * s2 * s3;
+	   f(1) = s0 * c1 * s2 * s3;
+	   f(2) = s0 * s1 * c2 * s3;
+	   f(3) = s0 * s1 * s2 * c3;
+
+	   f *= (kappa+4.0 * M_PI*M_PI);
    }
    else
    {
