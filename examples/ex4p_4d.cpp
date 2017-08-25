@@ -152,9 +152,34 @@ private:
 	Vector *fImage, *uImage;
 	Vector *fDivSkew, *uDivSkew;
 
+	FiniteElementCollection* fecHDivSkewKernel;
+	ParFiniteElementSpace *HDivSkewKernelFESpace;
+
 	bool exactSolves;
 
 public:
+	~div4dPrec()
+	{
+		delete pcgImage;
+		delete pcgKernel;
+
+		delete uDivSkew, fDivSkew, uImage, fImage, uKernel, fKernel, f;
+
+		delete smootherDivSkew;
+		delete HDivSkewMat;
+
+		delete P_d_HSkewDiv_Hdiv;
+		delete P_H1_Hdiv;
+		delete P_H1_HDivSkew;
+
+		delete amgH1_Image, H1_ImageMat;
+		delete amgH1_Kernel, H1_KernelMat;
+
+		delete smootherdiv;
+
+		delete HDivSkewKernelFESpace;
+		delete fecHDivSkewKernel;
+	}
 	div4dPrec(HypreParMatrix *AUser, ParFiniteElementSpace *fespaceUser, Coefficient *alpha, Coefficient *beta, const Array<int> &essBnd, int orderKernel=1, bool exactSolvesUser=false)
 	{
 		A = AUser;
@@ -194,10 +219,9 @@ public:
 
 
 		//setup the H(DivSkew) FESpace for the kernel
-		FiniteElementCollection* fecHDivSkewKernel;
 		   if(orderKer==1) fecHDivSkewKernel = new DivSkew1_4DFECollection;
 //		   else fecHDivSkewKernel = new DivSkewFull1_4DFECollection;
-		ParFiniteElementSpace *HDivSkewKernelFESpace = new ParFiniteElementSpace(pmesh, fecHDivSkewKernel);
+		HDivSkewKernelFESpace = new ParFiniteElementSpace(pmesh, fecHDivSkewKernel);
 		Array<int> HDivSkewKernel_essDof(HDivSkewKernelFESpace->GetVSize()); HDivSkewKernel_essDof = 0;
 		HDivSkewKernelFESpace->GetEssentialVDofs(essBnd, HDivSkewKernel_essDof);
 
@@ -295,7 +319,6 @@ public:
 
 
 
-
 		f = new Vector(fespace->GetTrueVSize());
 
 		fKernel = new Vector(H1KernelFESpace->GetTrueVSize());
@@ -306,7 +329,6 @@ public:
 
 		fDivSkew = new Vector(HDivSkewKernelFESpace->GetTrueVSize());
 		uDivSkew = new Vector(HDivSkewKernelFESpace->GetTrueVSize());
-
 
 		amgH1_Kernel->Mult(*fKernel, *uKernel);
 		amgH1_Image->Mult(*fImage, *uImage);
@@ -325,6 +347,10 @@ public:
 		pcgImage->SetMaxIter(100000000);
 		pcgImage->SetPrintLevel(-2);
 
+		delete H1_ImageFESpace;
+		delete H1KernelFESpace;
+		delete fecH1Kernel;
+		delete fecH1Vec;
 	}
 
 	void setExactSolve(bool exSol)
@@ -609,7 +635,6 @@ int main(int argc, char *argv[])
 
 			   delete pcg;
 		   }
-
 
 	   if(myid==0)
 	   {
