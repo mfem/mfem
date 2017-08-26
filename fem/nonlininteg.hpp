@@ -96,7 +96,6 @@ protected:
    /// 2nd derivative of the second invariant for the given 3x3 matrix @a M.
    static void Dim3Invariant2_dMdM(const DenseMatrix &M, int i, int j,
                                    DenseMatrix &dMdM);
-
    /// 2nd derivative of the third invariant for the given 3x3 matrix @a M.
    static void Dim3Invariant3_dMdM(const DenseMatrix &M, int i, int j,
                                    DenseMatrix &dMdM);

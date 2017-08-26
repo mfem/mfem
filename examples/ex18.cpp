@@ -5,6 +5,7 @@
 // Sample runs:
 //   ex18 -m ../data/blade.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 20 -ls 1 -bnd -vis
 //   ex18 -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lim -lc 0.001 -ni 10 -ls 1 -bnd -vis
+//   ex18 -m ../data/ball-pert.mesh -o 2 -rs 1 -mid 302 -tid 1 -ni 20 -ls 1 -bnd -vis
 //
 // Description:
 //    This example performs mesh optimization using the Target-Matrix

@@ -5,6 +5,7 @@
 // Sample runs:
 //   mpirun -np 4 ex18p -m ../data/blade.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 20 -ls 1 -bnd -vis
 //   mpirun -np 4 ex18p -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lim -lc 0.001 -ni 10 -ls 1 -bnd -vis
+//   mpirun -np 4 ex18p -m ../data/ball-pert.mesh -o 2 -rs 1 -mid 302 -tid 1 -ni 20 -ls 1 -bnd -vis
 //
 // Description:
 //    This example performs mesh optimization using the Target-Matrix
@@ -308,7 +309,7 @@ int main (int argc, char *argv[])
       if (myid == 0) { args.PrintUsage(cout); }
       return 1;
    }
-   args.PrintOptions(cout);
+   if (myid == 0) { args.PrintOptions(cout); }
     
    // 3. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1,false);
