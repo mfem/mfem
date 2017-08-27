@@ -122,7 +122,7 @@ typedef struct
 } __mfem_ts_ctx;
 
 // use global scope ierr to check PETSc errors inside mfem calls
-PetscErrorCode ierr;
+static PetscErrorCode ierr;
 
 using namespace std;
 
@@ -1393,7 +1393,7 @@ void PetscSolver::SetMaxIter(int max_iter)
    else if (cid == TS_CLASSID)
    {
       TS ts = (TS)obj;
-      ierr = TSSetDuration(ts,max_iter,PETSC_DEFAULT);
+      ierr = TSSetMaxSteps(ts,max_iter);
    }
    else
    {
@@ -1634,7 +1634,7 @@ int PetscSolver::GetNumIterations()
    {
       TS ts = (TS)obj;
       PetscInt its;
-      ierr = TSGetTotalSteps(ts,&its);
+      ierr = TSGetStepNumber(ts,&its);
       PCHKERRQ(ts,ierr);
       return its;
    }
@@ -2838,7 +2838,7 @@ void PetscODESolver::Run(Vector &x, double &t, double &dt, double t_final)
    TS ts = (TS)obj;
    ierr = TSSetTime(ts, t); PCHKERRQ(ts, ierr);
    ierr = TSSetTimeStep(ts, dt); PCHKERRQ(ts, ierr);
-   ierr = TSSetDuration(ts, PETSC_DECIDE, t_final); PCHKERRQ(ts, ierr);
+   ierr = TSSetMaxTime(ts, t_final); PCHKERRQ(ts, ierr);
    ierr = TSSetExactFinalTime(ts, TS_EXACTFINALTIME_MATCHSTEP);
    PCHKERRQ(ts, ierr);
 
