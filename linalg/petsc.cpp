@@ -119,7 +119,8 @@ typedef struct
    mfem::Operator::Type            jacType;    // OperatorType for the Jacobian
    enum mfem::PetscODESolver::Type type;
    PetscReal                       cached_shift;
-   bool                            computed_rhsjac;
+   PetscObjectState                cached_ijacstate;
+   PetscObjectState                cached_rhsjacstate;
 } __mfem_ts_ctx;
 
 // use global scope ierr to check PETSc errors inside mfem calls
@@ -1696,8 +1697,9 @@ void PetscSolver::CreatePrivateContext()
       ts_ctx->bchandler = NULL;
       ts_ctx->work = NULL;
       ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
+      ts_ctx->cached_ijacstate = -1;
+      ts_ctx->cached_rhsjacstate = -1;
       ts_ctx->type = PetscODESolver::ODE_SOLVER_GENERAL;
-      ts_ctx->computed_rhsjac = false;
       ts_ctx->jacType = Operator::PETSC_MATAIJ;
       private_ctx = (void*) ts_ctx;
    }
@@ -2725,6 +2727,7 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
 {
    TS ts = (TS)obj;
 
+   __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
    if (operatorset)
    {
       PetscBool ls,gs;
@@ -2746,6 +2749,7 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
       }
       ls = (PetscBool)(f->Height() == f_.Height() &&
                        f->Width() == f_.Width() &&
+                       f->isExplicit() == f_.isExplicit() &&
                        f->isImplicit() == f_.isImplicit() &&
                        f->isHomogeneous() == f_.isHomogeneous());
       if (ls && f_.isImplicit())
@@ -2764,12 +2768,14 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
          ierr = TSReset(ts); PCHKERRQ(ts,ierr);
          delete X;
          X = NULL;
+         ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
+         ts_ctx->cached_ijacstate = -1;
+         ts_ctx->cached_rhsjacstate = -1;
       }
    }
    f = &f_;
 
    // Set functions in TS
-   __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
    ts_ctx->op = &f_;
    if (f_.isImplicit())
    {
@@ -2794,14 +2800,15 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
    }
    operatorset = true;
 
-   // PetscODESolver::Type
-   // Support for this is still partial in PETSc, so we handle it from MFEM
-   ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
    ts_ctx->type = type;
-   ts_ctx->computed_rhsjac = false;
    if (type == ODE_SOLVER_LINEAR)
    {
       ierr = TSSetProblemType(ts, TS_LINEAR);
+      PCHKERRQ(ts, ierr);
+   }
+   else
+   {
+      ierr = TSSetProblemType(ts, TS_NONLINEAR);
       PCHKERRQ(ts, ierr);
    }
 }
@@ -2985,12 +2992,13 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
                                           Vec xp, PetscReal shift, Mat A, Mat P,
                                           void *ctx)
 {
-   __mfem_ts_ctx* ts_ctx = (__mfem_ts_ctx*)ctx;
-   mfem::Vector   *xx;
-   PetscScalar    *array;
-   PetscReal      eps = 0.001; /* 0.1% difference */
-   PetscInt       n;
-   PetscErrorCode ierr;
+   __mfem_ts_ctx*   ts_ctx = (__mfem_ts_ctx*)ctx;
+   mfem::Vector     *xx;
+   PetscScalar      *array;
+   PetscReal        eps = 0.001; /* 0.1% difference */
+   PetscInt         n;
+   PetscObjectState state;
+   PetscErrorCode   ierr;
 
    PetscFunctionBeginUser;
    // update time
@@ -3000,8 +3008,9 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    // prevent to recompute a Jacobian if we already did so
    // the relative tolerance comparison should be fine given the fact
    // that two consecutive shifts should have similar magnitude
+   ierr = PetscObjectStateGet((PetscObject)A,&state); CHKERRQ(ierr);
    if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
-       std::abs(ts_ctx->cached_shift/shift - 1.0) < eps) { PetscFunctionReturn(0); }
+       std::abs(ts_ctx->cached_shift/shift - 1.0) < eps && state == ts_ctx->cached_ijacstate) { PetscFunctionReturn(0); }
 
    // wrap Vecs with Vectors
    ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
@@ -3054,17 +3063,21 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    B = pA->ReleaseMat(false);
    ierr = MatHeaderReplace(A,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
+
+   // Jacobian reusage
+   ierr = PetscObjectStateGet((PetscObject)A,&ts_ctx->cached_ijacstate); CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
 
 static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
                                             Mat A, Mat P, void *ctx)
 {
-   __mfem_ts_ctx* ts_ctx = (__mfem_ts_ctx*)ctx;
-   mfem::Vector   *xx;
-   PetscScalar    *array;
-   PetscInt       n;
-   PetscErrorCode ierr;
+   __mfem_ts_ctx*   ts_ctx = (__mfem_ts_ctx*)ctx;
+   mfem::Vector     *xx;
+   PetscScalar      *array;
+   PetscInt         n;
+   PetscObjectState state;
+   PetscErrorCode   ierr;
 
    PetscFunctionBeginUser;
    // update time
@@ -3072,8 +3085,9 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    op->SetTime(t);
 
    // prevent to recompute a Jacobian if we already did so
+   ierr = PetscObjectStateGet((PetscObject)A,&state); CHKERRQ(ierr);
    if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
-       ts_ctx->computed_rhsjac) { PetscFunctionReturn(0); }
+       state == ts_ctx->cached_rhsjacstate) { PetscFunctionReturn(0); }
 
    // wrap Vec with Vector
    ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
@@ -3097,7 +3111,6 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    // Use TimeDependentOperator::GetExplicitGradient(x)
    mfem::Operator& J = op->GetExplicitGradient(*xx);
    if (!ts_ctx->bchandler) { delete xx; }
-   ts_ctx->computed_rhsjac = true;
 
    // Convert to the operator type requested if needed
    bool delete_pA = false;
@@ -3123,6 +3136,13 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    B = pA->ReleaseMat(false);
    ierr = MatHeaderReplace(A,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
+
+   // Jacobian reusage
+   if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR)
+   {
+      ierr = TSRHSJacobianSetReuse(ts,PETSC_TRUE); PCHKERRQ(ts,ierr);
+   }
+   ierr = PetscObjectStateGet((PetscObject)A,&ts_ctx->cached_rhsjacstate); CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
 
