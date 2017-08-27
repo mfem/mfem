@@ -3010,7 +3010,8 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    // that two consecutive shifts should have similar magnitude
    ierr = PetscObjectStateGet((PetscObject)A,&state); CHKERRQ(ierr);
    if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
-       std::abs(ts_ctx->cached_shift/shift - 1.0) < eps && state == ts_ctx->cached_ijacstate) { PetscFunctionReturn(0); }
+       std::abs(ts_ctx->cached_shift/shift - 1.0) < eps &&
+       state == ts_ctx->cached_ijacstate) { PetscFunctionReturn(0); }
 
    // wrap Vecs with Vectors
    ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
@@ -3065,7 +3066,8 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    if (delete_pA) { delete pA; }
 
    // Jacobian reusage
-   ierr = PetscObjectStateGet((PetscObject)A,&ts_ctx->cached_ijacstate); CHKERRQ(ierr);
+   ierr = PetscObjectStateGet((PetscObject)A,&ts_ctx->cached_ijacstate);
+   CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
 
@@ -3142,7 +3144,8 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    {
       ierr = TSRHSJacobianSetReuse(ts,PETSC_TRUE); PCHKERRQ(ts,ierr);
    }
-   ierr = PetscObjectStateGet((PetscObject)A,&ts_ctx->cached_rhsjacstate); CHKERRQ(ierr);
+   ierr = PetscObjectStateGet((PetscObject)A,&ts_ctx->cached_rhsjacstate);
+   CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
 
