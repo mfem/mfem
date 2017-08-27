@@ -57,6 +57,7 @@ static PetscErrorCode __mfem_ts_ifunction(TS,PetscReal,Vec,Vec,Vec,void*);
 static PetscErrorCode __mfem_ts_ijacobian(TS,PetscReal,Vec,Vec,
                                           PetscReal,Mat,
                                           Mat,void*);
+static PetscErrorCode __mfem_snes_monitor(SNES,PetscInt,PetscReal,void*);
 static PetscErrorCode __mfem_snes_jacobian(SNES,Vec,Mat,Mat,void*);
 static PetscErrorCode __mfem_snes_function(SNES,Vec,Vec,void*);
 static PetscErrorCode __mfem_ksp_monitor(KSP,PetscInt,PetscReal,void*);
@@ -1308,7 +1309,6 @@ PetscSolver::PetscSolver() : clcustom(false)
    obj = NULL;
    B = X = NULL;
    cid         = -1;
-   monitor_ctx = NULL;
    operatorset = false;
    bchandler   = NULL;
    private_ctx = NULL;
@@ -1445,12 +1445,6 @@ void PetscSolver::SetPrintLevel(int plev)
             PCHKERRQ(ksp,ierr);
          }
       }
-      // user defined monitor
-      if (monitor_ctx)
-      {
-         ierr = KSPMonitorSet(ksp,__mfem_ksp_monitor,monitor_ctx,NULL);
-         PCHKERRQ(ksp,ierr);
-      }
    }
    else if (cid == SNES_CLASSID)
    {
@@ -1474,12 +1468,6 @@ void PetscSolver::SetPrintLevel(int plev)
       {
          ierr = TSMonitorCancel(ts); PCHKERRQ(ts,ierr);
       }
-      // user defined monitor
-      if (monitor_ctx)
-      {
-         ierr = TSMonitorSet(ts,__mfem_ts_monitor,monitor_ctx,NULL);
-         PCHKERRQ(ts,ierr);
-      }
    }
    else
    {
@@ -1489,8 +1477,25 @@ void PetscSolver::SetPrintLevel(int plev)
 
 void PetscSolver::SetMonitor(PetscSolverMonitor *ctx)
 {
-   monitor_ctx = ctx;
-   SetPrintLevel(-1);
+   if (cid == KSP_CLASSID)
+   {
+      ierr = KSPMonitorSet((KSP)obj,__mfem_ksp_monitor,ctx,NULL);
+      PCHKERRQ(obj,ierr);
+   }
+   else if (cid == SNES_CLASSID)
+   {
+      ierr = SNESMonitorSet((SNES)obj,__mfem_snes_monitor,ctx,NULL);
+      PCHKERRQ(obj,ierr);
+   }
+   else if (cid == TS_CLASSID)
+   {
+      ierr = TSMonitorSet((TS)obj,__mfem_ts_monitor,ctx,NULL);
+      PCHKERRQ(obj,ierr);
+   }
+   else
+   {
+      MFEM_ABORT("CLASSID = " << cid << " is not implemented!");
+   }
 }
 
 void PetscSolver::SetBCHandler(PetscBCHandler *bch)
@@ -3116,6 +3121,33 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    B = pA->ReleaseMat(false);
    ierr = MatHeaderReplace(A,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
+   PetscFunctionReturn(0);
+}
+
+static PetscErrorCode __mfem_snes_monitor(SNES snes, PetscInt it, PetscReal res,
+                                          void* ctx)
+{
+   mfem::PetscSolverMonitor *monitor_ctx = (mfem::PetscSolverMonitor *)ctx;
+   Vec x;
+   PetscErrorCode ierr;
+
+   PetscFunctionBeginUser;
+   if (!ctx)
+   {
+      SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"No monitor context provided");
+   }
+   if (monitor_ctx->mon_sol)
+   {
+      ierr = SNESGetSolution(snes,&x); CHKERRQ(ierr);
+      mfem::PetscParVector V(x,true);
+      monitor_ctx->MonitorSolution(it,res,V);
+   }
+   if (monitor_ctx->mon_res)
+   {
+      ierr = SNESGetFunction(snes,&x,NULL,NULL); CHKERRQ(ierr);
+      mfem::PetscParVector V(x,true);
+      monitor_ctx->MonitorResidual(it,res,V);
+   }
    PetscFunctionReturn(0);
 }
 

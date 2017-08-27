@@ -413,9 +413,6 @@ protected:
    /// Right-hand side and solution vector
    mutable PetscParVector *B, *X;
 
-   /// Monitor context
-   PetscSolverMonitor *monitor_ctx;
-
    /// Handler for boundary conditions
    PetscBCHandler *bchandler;
 
