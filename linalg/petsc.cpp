@@ -2701,6 +2701,8 @@ PetscODESolver::PetscODESolver(MPI_Comm comm, const string &prefix)
    CreatePrivateContext();
 
    // Default options, to comply with the current interface to ODESolver.
+   ierr = TSSetMaxSteps(ts,PETSC_MAX_INT-1);
+   PCHKERRQ(ts,ierr);
    ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);
    PCHKERRQ(ts,ierr);
    TSAdapt tsad;
