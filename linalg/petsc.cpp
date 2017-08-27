@@ -3043,7 +3043,7 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (!pA)
+   if (!pA || pA->GetType() != ts_ctx->jacType)
    {
       pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)ts),&J,
                                     ts_ctx->jacType);
@@ -3116,7 +3116,7 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (!pA)
+   if (!pA || pA->GetType() != ts_ctx->jacType)
    {
       pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)ts),&J,
                                     ts_ctx->jacType);
@@ -3208,7 +3208,7 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
    bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (!pA)
+   if (!pA || pA->GetType() != snes_ctx->jacType)
    {
       pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)snes),&J,
                                     snes_ctx->jacType);
