@@ -403,7 +403,14 @@ int main(int argc, char *argv[])
 
    double t = 0.0;
    adv->SetTime(t);
-   ode_solver->Init(*adv);
+   if (use_petsc)
+   {
+      pode_solver->Init(*adv,PetscODESolver::ODE_SOLVER_LINEAR);
+   }
+   else
+   {
+      ode_solver->Init(*adv);
+   }
 
    // Explicitly perform time-integration (looping over the time iterations, ti,
    // with a time-step dt), or use the Run method of the ODE solver class.
@@ -412,8 +419,8 @@ int main(int argc, char *argv[])
       bool done = false;
       for (int ti = 0; !done; )
       {
-         double dt_real = min(dt, t_final - t);
-         ode_solver->Step(*U, t, dt_real);
+         dt = min(dt, t_final - t);
+         ode_solver->Step(*U, t, dt);
          ti++;
 
          done = (t >= t_final - 1e-8*dt);

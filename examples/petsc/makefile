@@ -80,7 +80,9 @@ EX4_ARGS      := -m ../../data/klein-bottle.mesh -o 2 --usepetsc --petscopts rc_
 EX5_BDDC_ARGS := -m ../../data/star.mesh --usepetsc -o 0 --petscopts rc_ex5p_bddc --nonoverlapping
 EX5_FSPL_ARGS := -m ../../data/beam-tet.mesh --usepetsc -o 0 --petscopts rc_ex5p_fieldsplit
 EX6_ARGS      := -m ../../data/amr-quad.mesh --usepetsc
-EX9_ARGS      := -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl
+EX9_E_ARGS    := -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl
+EX9_ES_ARGS   := -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl --no-step
+EX9_IS_ARGS   := -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_impl --implicit -tf 0.5
 EX10_ARGS     := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p -tf 30 -s 3 -rs 2 -dt 3
 ex1p-test-par: ex1p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX1_ARGS_W))
@@ -97,7 +99,9 @@ ex5p-test-par: ex5p
 ex6p-test-par: ex6p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX6_ARGS))
 ex9p-test-par: ex9p
-	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX9_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX9_E_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX9_ES_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX9_IS_ARGS))
 ex10p-test-par: ex10p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX10_ARGS))
 
