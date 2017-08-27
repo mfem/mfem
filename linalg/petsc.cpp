@@ -149,6 +149,14 @@ PetscInt PetscParVector::GlobalSize() const
    return N;
 }
 
+PetscParVector::PetscParVector(MPI_Comm comm, const Vector &_x) : Vector()
+{
+   ierr = VecCreate(comm,&x); CCHKERRQ(comm,ierr);
+   ierr = VecSetSizes(x,_x.Size(),PETSC_DECIDE); PCHKERRQ(x,ierr);
+   ierr = VecSetType(x,VECSTANDARD); PCHKERRQ(x,ierr);
+   _SetDataAndSize_();
+}
+
 PetscParVector::PetscParVector(MPI_Comm comm, PetscInt glob_size,
                                PetscInt *col) : Vector()
 {

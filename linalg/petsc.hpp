@@ -63,6 +63,9 @@ public:
    /// Creates vector compatible with @a y
    PetscParVector(const PetscParVector &y);
 
+   /// Creates a PetscParVector from a Vector (data is not copied)
+   PetscParVector(MPI_Comm comm, const Vector &_x);
+
    /** @brief Creates vector compatible with the Operator (i.e. in the domain
        of) @a op or its adjoint. */
    /** The argument @a allocate determines if the memory is actually allocated
