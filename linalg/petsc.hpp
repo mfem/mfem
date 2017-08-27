@@ -343,6 +343,9 @@ public:
    /// Returns the type of boundary conditions
    Type Type() const { return bctype; }
 
+   /// Sets the type of boundary conditions
+   void SetType(enum Type _type) { bctype = _type; setup = false; }
+
    /// Boundary conditions evaluation
    /** In the result vector, @a g, only values at the essential dofs need to be
        set. */
