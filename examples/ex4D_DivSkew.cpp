@@ -404,7 +404,7 @@ int main(int argc, char *argv[])
    bool verbose = (myid==0);
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/beam-tet.mesh";
+   const char *mesh_file = "../data/cube4d_96.MFEM";
    int order = 1;
    bool set_bc = true;
    bool static_cond = false;
