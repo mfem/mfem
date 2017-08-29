@@ -300,8 +300,8 @@ protected:
    virtual void BuildEdgeList();
    virtual void BuildVertexList();
 
-   virtual void ElementSharesEdge(int elem, int enode);
-   virtual void ElementSharesFace(int elem, int face);
+   virtual void ElementSharesFace(int elem, int face, int node[4]);
+   virtual void ElementSharesEdge(int elem, int enode, int node[2]);
    virtual void ElementSharesVertex(int elem, int vnode);
 
    void InitOwners(int num, Array<GroupId> &entity_owner);
@@ -317,6 +317,7 @@ protected:
 
    Array<int> tmp_owner; // temporary
    Array<Connection> index_rank; // temporary
+   Array<int> index_nodes; // temporary
 
    void AddMasterSlaveRanks(int nitems, const NCList& list);
    void GetGroupShared(Array<bool> &group_shared);

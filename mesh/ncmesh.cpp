@@ -1823,7 +1823,7 @@ void NCMesh::BuildFaceList()
          MFEM_ASSERT(face >= 0, "face not found!");
 
          // tell ParNCMesh about the face
-         ElementSharesFace(elem, face);
+         ElementSharesFace(elem, face, node);
 
          // have we already processed this face? skip if yes
          if (processed_faces[face]) { continue; }
@@ -1934,7 +1934,7 @@ void NCMesh::BuildEdgeList()
          MFEM_ASSERT(nd.HasEdge(), "edge not found!");
 
          // tell ParNCMesh about the edge
-         ElementSharesEdge(elem, enode);
+         ElementSharesEdge(elem, enode, node);
 
          // (2D only, store boundary faces)
          if (Dim <= 2)
@@ -2051,7 +2051,7 @@ long NCMesh::NCList::TotalSize() const
    return conforming.size() + masters.size() + slaves.size();
 }
 
-const NCMesh::MeshId& NCMesh::NCList::LookUp(int index) const
+const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
 {
    if (!inv_index.Size())
    {
@@ -2089,6 +2089,8 @@ const NCMesh::MeshId& NCMesh::NCList::LookUp(int index) const
    MFEM_ASSERT(index >= 0 && index < inv_index.Size(), "");
    int key = inv_index[index];
    MFEM_VERIFY(key >= 0, "entity not found.");
+
+   if (type) { *type = key & 0x3; }
 
    switch (key & 0x3)
    {
