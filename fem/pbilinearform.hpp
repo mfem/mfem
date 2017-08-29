@@ -140,7 +140,7 @@ public:
 
    /// Get the parallel finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
-   { return pfes->Dof_TrueDof_Matrix(); }
+   { return pfes->GetProlongationMatrix(); }
    /// Get the parallel finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return pfes->GetRestrictionMatrix(); }

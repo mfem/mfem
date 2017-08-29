@@ -754,7 +754,7 @@ void Hybridization::MultAfInv(const Vector &b, const Vector &lambda, Vector &bf,
       else
       {
          Vector L(c_pfes->GetVSize());
-         (P_pc ? P_pc : c_pfes->Dof_TrueDof_Matrix())->Mult(lambda, L);
+         (P_pc ? P_pc : c_pfes->GetProlongationMatrix())->Mult(lambda, L);
          pC ? pC->MultTranspose(L, bf) : Ct->Mult(L, bf);
       }
 #else
@@ -822,7 +822,7 @@ void Hybridization::ReduceRHS(const Vector &b, Vector &b_r) const
       Vector bl(pC ? pC->Height() : Ct->Width());
       pC ? pC->Mult(bf, bl) : Ct->MultTranspose(bf, bl);
       b_r.SetSize(pH.Ptr()->Height());
-      (P_pc ? P_pc : c_pfes->Dof_TrueDof_Matrix())->MultTranspose(bl, b_r);
+      (P_pc ? P_pc : c_pfes->GetProlongationMatrix())->MultTranspose(bl, b_r);
    }
 #else
    b_r.SetSize(Ct->Width());
