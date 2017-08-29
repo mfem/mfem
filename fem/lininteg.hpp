@@ -21,17 +21,10 @@ namespace mfem
 /// Abstract base class LinearFormIntegrator
 class LinearFormIntegrator
 {
-private:
-   bool isdelta;
-
 protected:
    const IntegrationRule *IntRule;
 
-   LinearFormIntegrator(const IntegrationRule *ir = NULL)
-   { isdelta = false; IntRule = ir; }
-
-   void CheckCoefficientIsDelta(Coefficient& Q);
-   void CheckVectorCoefficientIsDelta(VectorCoefficient& Q);
+   LinearFormIntegrator(const IntegrationRule *ir = NULL) { IntRule = ir; }
 
 public:
    /** Given a particular Finite Element and a transformation (Tr)
@@ -43,18 +36,6 @@ public:
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
 
-   /** Returns true is the functional to be integrated
-       has a Dirac delta function (can be overloaded) */
-   virtual bool IsDelta() { return isdelta; }
-
-   /** Returns the center of the Dirac delta function
-       Can be overloaded */
-   virtual void GetDeltaCenter(Vector& center) { center.SetSize(0); };
-
-   /** Allows calling Eval on a Delta coefficient */
-   virtual void AllowDeltaEval(const bool allow = true)
-   { mfem_error("LinearForm::AllowDeltaEval not overloaded"); }
-
    void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
    const IntegrationRule* GetIntRule() { return IntRule; }
 
@@ -62,8 +43,54 @@ public:
 };
 
 
+/// Abstract class for intergrators that support delta coefficients
+class DeltaLFIntegrator : public LinearFormIntegrator
+{
+protected:
+   DeltaCoefficient *delta;
+   VectorDeltaCoefficient *vec_delta;
+
+   /** @brief This constructor should be used by derived classes that use a
+       scalar DeltaCoefficient. */
+   DeltaLFIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
+      : LinearFormIntegrator(ir),
+        delta(dynamic_cast<DeltaCoefficient*>(&q)),
+        vec_delta(NULL) { }
+
+   /** @brief This constructor should be used by derived classes that use a
+       VectorDeltaCoefficient. */
+   DeltaLFIntegrator(VectorCoefficient &vq,
+                     const IntegrationRule *ir = NULL)
+      : LinearFormIntegrator(ir),
+        delta(NULL),
+        vec_delta(dynamic_cast<VectorDeltaCoefficient*>(&vq)) { }
+
+public:
+   /// Returns true if the derived class instance uses a delta coefficient.
+   bool IsDelta() const { return (delta || vec_delta); }
+
+   /// Returns the center of the delta coefficient.
+   void GetDeltaCenter(Vector &center)
+   {
+      if (delta) { delta->GetDeltaCenter(center); return; }
+      if (vec_delta) { vec_delta->GetDeltaCenter(center); return; }
+      center.SetSize(0);
+   }
+
+   /** @brief Assemble the delta coefficient at the IntegrationPoint set in
+       @a Trans which is assumed to map to the delta coefficient center.
+
+       This method should be called for one mesh element only, including in
+       parallel, even when the center of the delta coefficient is shared by
+       multiple elements. */
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect) = 0;
+};
+
+
 /// Class for domain integration L(v) := (f, v)
-class DomainLFIntegrator : public LinearFormIntegrator
+class DomainLFIntegrator : public DeltaLFIntegrator
 {
    Vector shape;
    Coefficient &Q;
@@ -73,12 +100,11 @@ public:
    DomainLFIntegrator(Coefficient &QF, int a = 2, int b = 0)
    // the old default was a = 1, b = 1
    // for simple elliptic problems a = 2, b = -2 is ok
-      : Q(QF), oa(a), ob(b) { CheckCoefficientIsDelta(Q); }
+      : DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b) { }
 
    /// Constructs a domain integrator with a given Coefficient
    DomainLFIntegrator(Coefficient &QF, const IntegrationRule *ir)
-      : LinearFormIntegrator(ir), Q(QF), oa(1), ob(1)
-   { CheckCoefficientIsDelta(Q); }
+      : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -86,11 +112,9 @@ public:
                                        ElementTransformation &Tr,
                                        Vector &elvect);
 
-   /** Returns the centers of the Dirac delta functions (if any) */
-   virtual void GetDeltaCenter(Vector& center) { Q.GetDeltaCenter(center); }
-
-   /** Allows calling Eval on a Delta coefficient */
-   virtual void AllowDeltaEval(const bool allow = true) { Q.AllowDeltaEval(allow); }
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -153,7 +177,7 @@ public:
 
 /** Class for domain integration of L(v) := (f, v), where
     f=(f1,...,fn) and v=(v1,...,vn). */
-class VectorDomainLFIntegrator : public LinearFormIntegrator
+class VectorDomainLFIntegrator : public DeltaLFIntegrator
 {
 private:
    Vector shape, Qvec;
@@ -161,7 +185,8 @@ private:
 
 public:
    /// Constructs a domain integrator with a given VectorCoefficient
-   VectorDomainLFIntegrator(VectorCoefficient &QF) : Q(QF) { CheckVectorCoefficientIsDelta(Q); }
+   VectorDomainLFIntegrator(VectorCoefficient &QF)
+      : DeltaLFIntegrator(QF), Q(QF) { }
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -169,11 +194,9 @@ public:
                                        ElementTransformation &Tr,
                                        Vector &elvect);
 
-   /** Returns the centers of the Dirac delta functions (if any) */
-   virtual void GetDeltaCenter(Vector& center) { Q.GetDeltaCenter(center); }
-
-   /** Allows calling Eval on a VectorDeltaCoefficient */
-   virtual void AllowDeltaEval(const bool allow = true) { Q.AllowDeltaEval(allow); }
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -205,7 +228,7 @@ public:
 };
 
 /// \f$ (f, v)_{\Omega} \f$ for VectorFiniteElements (Nedelec, Raviart-Thomas)
-class VectorFEDomainLFIntegrator : public LinearFormIntegrator
+class VectorFEDomainLFIntegrator : public DeltaLFIntegrator
 {
 private:
    VectorCoefficient &QF;
@@ -213,17 +236,16 @@ private:
    Vector vec;
 
 public:
-   VectorFEDomainLFIntegrator (VectorCoefficient &F) : QF(F) { CheckVectorCoefficientIsDelta(QF); }
+   VectorFEDomainLFIntegrator(VectorCoefficient &F)
+      : DeltaLFIntegrator(F), QF(F) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
 
-   /** Returns the centers of the Dirac delta functions (if any) */
-   virtual void GetDeltaCenter(Vector& center) { QF.GetDeltaCenter(center); }
-
-   /** Allows calling Eval on a VectorDeltaCoefficient */
-   virtual void AllowDeltaEval(const bool allow = true) { QF.AllowDeltaEval(allow); }
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };

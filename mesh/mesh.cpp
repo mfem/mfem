@@ -5916,7 +5916,8 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
          // for (i = 0; i < onoe; i++)
          for (i = 0; i < NumOfElements; i++)
          {
-            // ((Tetrahedron *)elements[i])->ParseRefinementFlag(redges, type, flag);
+            // ((Tetrahedron *)elements[i])->
+            // ParseRefinementFlag(redges, type, flag);
             // if (flag > max_gen)  max_gen = flag;
             if (elements[i]->NeedRefinement(v_to_v, middle))
             {
@@ -8080,7 +8081,8 @@ void Mesh::PrintSurfaces(const Table & Aface_face, std::ostream &out) const
    const int * const j_AF_f = Aface_face.GetJ();
 
    for (int iAF=0; iAF < Aface_face.Size(); ++iAF)
-      for (const int * iface = j_AF_f + i_AF_f[iAF]; iface < j_AF_f + i_AF_f[iAF+1];
+      for (const int * iface = j_AF_f + i_AF_f[iAF];
+           iface < j_AF_f + i_AF_f[iAF+1];
            ++iface)
       {
          out << iAF+1 << ' ';
@@ -8518,21 +8520,22 @@ std::ostream &operator<<(std::ostream &out, const Mesh &mesh)
    return out;
 }
 
-void Mesh::MatchPointsWithElemId(int np, Vector& centers, Array<int>& elem_ids,
-                                 Array<IntegrationPoint>& ips)
+int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
+                     Array<IntegrationPoint>& ips, bool warn)
 {
-   if (!np) { return; }
-   int tot = centers.Size();
-   MFEM_VERIFY(tot/np == spaceDim,"Invalid number of points");
-   elem_ids.SetSize(np);
-   ips.SetSize(np);
+   const int npts = point_mat.Width();
+   if (!npts) { return 0; }
+   MFEM_VERIFY(point_mat.Height() == spaceDim,"Invalid points matrix");
+   elem_ids.SetSize(npts);
+   ips.SetSize(npts);
    elem_ids = -1;
-   if (!GetNE()) { return; }
+   if (!GetNE()) { return 0; }
 
-   double *data = centers.GetData();
+   double *data = point_mat.GetData();
 
-   Vector min_dist(np);
-   Array<int> e_idx(np);
+   // For each point in 'point_mat', find the element whose center is closest.
+   Vector min_dist(npts);
+   Array<int> e_idx(npts);
    min_dist = std::numeric_limits<double>::max();
    e_idx = -1;
 
@@ -8542,13 +8545,13 @@ void Mesh::MatchPointsWithElemId(int np, Vector& centers, Array<int>& elem_ids,
       p = 0.0;
       GetElementTransformation(i)->Transform(
          Geometries.GetCenter(GetElementBaseGeometry(i)), p);
-      for (int k = 0; k < np; k++)
+      for (int k = 0; k < npts; k++)
       {
          double *center = data+k*spaceDim;
          double dist = Distance(center,p.GetData(),spaceDim);
-         if (dist < min_dist[k])
+         if (dist < min_dist(k))
          {
-            min_dist[k] = dist;
+            min_dist(k) = dist;
             e_idx[k] = i;
          }
       }
@@ -8556,7 +8559,7 @@ void Mesh::MatchPointsWithElemId(int np, Vector& centers, Array<int>& elem_ids,
 
    // Checks if centers lie in the closest element
    bool refinesearch = false;
-   for (int k = 0; k < np; k++)
+   for (int k = 0; k < npts; k++)
    {
       ips[k].x = ips[k].y = ips[k].z = -1.;
       Vector center(data+k*spaceDim,spaceDim);
@@ -8573,10 +8576,10 @@ void Mesh::MatchPointsWithElemId(int np, Vector& centers, Array<int>& elem_ids,
    if (refinesearch)
    {
       bool usevtoel = false;
-      Array<bool> tbf(np);
+      Array<bool> tbf(npts);
       Vector vmin,vmax;
       GetBoundingBox(vmin,vmax);
-      for (int k = 0; k < np; k++)
+      for (int k = 0; k < npts; k++)
       {
          tbf[k] = false;
          if (elem_ids[k] != -1) { continue; }
@@ -8584,7 +8587,7 @@ void Mesh::MatchPointsWithElemId(int np, Vector& centers, Array<int>& elem_ids,
          for (int d = 0; d < spaceDim; d++)
          {
             double c = data[k*spaceDim + d];
-            outside = outside && (c < vmin[d] || c > vmax[d]);
+            outside = outside && (c < vmin(d) || c > vmax(d));
          }
          tbf[k] = !outside;
          if (!outside) { usevtoel = true; }
@@ -8593,7 +8596,7 @@ void Mesh::MatchPointsWithElemId(int np, Vector& centers, Array<int>& elem_ids,
       {
          Array<int> vertices;
          Table *vtoel = GetVertexToElementTable();
-         for (int k = 0; k < np; k++)
+         for (int k = 0; k < npts; k++)
          {
             if (!tbf[k]) { continue; }
             Vector center(data+k*spaceDim,spaceDim);
@@ -8606,7 +8609,8 @@ void Mesh::MatchPointsWithElemId(int np, Vector& centers, Array<int>& elem_ids,
                for (int e = 0; e < ne; e++)
                {
                   if (els[e] == e_idx[k]) { continue; }
-                  int res = GetElementTransformation(els[e])->TransformBack(center,ips[k]);
+                  int res = GetElementTransformation(els[e])->
+                            TransformBack(center,ips[k]);
                   if (!res)
                   {
                      elem_ids[k] = els[e];
@@ -8618,6 +8622,17 @@ void Mesh::MatchPointsWithElemId(int np, Vector& centers, Array<int>& elem_ids,
          delete vtoel;
       }
    }
+
+   int pts_found = 0;
+   for (int k = 0; k < npts; k++)
+   {
+      if (elem_ids[k] != -1) { pts_found++; }
+   }
+   if (warn && pts_found != npts)
+   {
+      MFEM_WARNING((npts-pts_found) << " points were not found");
+   }
+   return pts_found;
 }
 
 NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int _n,
