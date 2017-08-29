@@ -5,7 +5,7 @@
 // Sample runs:
 //   mpirun -np 4 ex18p -m ../data/blade.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 20 -ls 1 -bnd -vis
 //   mpirun -np 4 ex18p -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lim -lc 0.001 -ni 10 -ls 1 -bnd -vis
-//   mpirun -np 4 ex18p -m ../data/ball-pert.mesh -o 2 -rs 1 -mid 302 -tid 1 -ni 20 -ls 1 -bnd -vis
+//   mpirun -np 4 ex18p -m ../data/ball-pert.mesh -o 2 -rs 0 -mid 302 -tid 1 -ni 20 -ls 2 -vis
 //
 // Description:
 //    This example performs mesh optimization using the Target-Matrix
@@ -428,12 +428,12 @@ int main (int argc, char *argv[])
    case 9: model = new TMOPHyperelasticModel009; break;
    case 22: model = new TMOPHyperelasticModel022(tauval); break;
    case 50: model = new TMOPHyperelasticModel050; break;
-   case 52: model = new TMOPHyperelasticModel252(tauval); break;
+   case 52: model = new TMOPHyperelasticModel052(tauval); break;
    case 55: model = new TMOPHyperelasticModel055; break;
    case 56: model = new TMOPHyperelasticModel056; break;
    case 58: model = new TMOPHyperelasticModel058; break;
    case 77: model = new TMOPHyperelasticModel077; break;
-   case 211: model = new TMOPHyperelasticModel211; break;
+   case 211: model = new TMOPHyperelasticModel211(tauval); break;
    case 301: model = new TMOPHyperelasticModel301; break;
    case 302: model = new TMOPHyperelasticModel302; break;
    case 303: model = new TMOPHyperelasticModel303; break;

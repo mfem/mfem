@@ -198,6 +198,7 @@ public:
 class TMOPHyperelasticModel001 : public HyperelasticModel
 {
 public:
+   // W = |J|^2.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -209,6 +210,7 @@ public:
 class TMOPHyperelasticModel002 : public HyperelasticModel
 {
 public:
+   // W = 0.5|J|^2 / det(J) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -220,6 +222,7 @@ public:
 class TMOPHyperelasticModel007 : public HyperelasticModel
 {
 public:
+   // W = |J - J^-t|^2.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -231,204 +234,217 @@ public:
 class TMOPHyperelasticModel009 : public HyperelasticModel
 {
 public:
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
+   // W = det(J) * |J - J^-t|^2.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
 };
 
 class TMOPHyperelasticModel022 : public HyperelasticModel
 {
 private:
-   double &tauptr;
-    
+   double &tau0;
+
 public:
-    TMOPHyperelasticModel022(double& tauval): tauptr(tauval) {}
-    
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
-    
-    ~TMOPHyperelasticModel022() {}
-    
+   TMOPHyperelasticModel022(double &t0): tau0(t0) {}
+
+   // W = 0.5(|J|^2 - 2det(J)) / (det(J) - tau0).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
 };
-    
+
 class TMOPHyperelasticModel050 : public HyperelasticModel
 {
 public:
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
+   // W = 0.5|J^t J|^2 / det(J)^2 - 1.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
 };
-    
+
+class TMOPHyperelasticModel052 : public HyperelasticModel
+{
+private:
+   double &tau0;
+
+public:
+   TMOPHyperelasticModel052(double &t0): tau0(t0) {}
+
+   // W = 0.5(det(J) - 1)^2 / (det(J) - tau0).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+};
+
 class TMOPHyperelasticModel055 : public HyperelasticModel
 {
 public:
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
-    
+   // W = (det(J) - 1)^2.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
 };
 
 class TMOPHyperelasticModel056 : public HyperelasticModel
 {
 public:
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
-    
+   // W = 0.5( sqrt(det(J)) - 1 / sqrt(det(J)) )^2.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
 };
 
 class TMOPHyperelasticModel058 : public HyperelasticModel
 {
 public:
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
-    
+   // W = |J^t J|^2 / det(J)^2 - 2|J|^2 / det(J) + 2.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
 };
-    
+
 class TMOPHyperelasticModel077 : public HyperelasticModel
 {
 public:
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
-    
+   // W = 0.5(det(J) - 1 / det(J))^2.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
 };
 
 class TMOPHyperelasticModel211 : public HyperelasticModel
 {
-public:
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
-};
+private:
+   double &tau0;
 
-class TMOPHyperelasticModel252 : public HyperelasticModel
-{
-private: double& tauptr;
-    
 public:
-    TMOPHyperelasticModel252(double& tauval): tauptr(tauval) {}
-    
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
-    
-    ~TMOPHyperelasticModel252() {}
-    
-};
+   TMOPHyperelasticModel211(double &t0): tau0(t0) {}
 
+   // W = (det(J) - 1)^2 - det(J) + sqrt(det(J)^2 + tau0).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+};
 
 class TMOPHyperelasticModel301 : public HyperelasticModel
 {
 public:
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
+   // W = |J| |J^-1| / 3 - 1.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
 };
 
 class TMOPHyperelasticModel302 : public HyperelasticModel
 {
 public:
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
+   // W = |J|^2 |J^-1|^2 / 9 - 1.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
 };
 
 class TMOPHyperelasticModel303 : public HyperelasticModel
 {
 public:
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
+   // W = |J|^2 / 3 * det(J)^(2/3) - 1.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
 };
 
 class TMOPHyperelasticModel315 : public HyperelasticModel
 {
 public:
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
+   // W = (det(J) - 1)^2.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
 };
 
 class TMOPHyperelasticModel316 : public HyperelasticModel
 {
 public:
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
+   // W = 0.5( sqrt(det(J)) - 1 / sqrt(det(J)) )^2.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
 };
 
 class TMOPHyperelasticModel321 : public HyperelasticModel
 {
 public:
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
+   // W = |J - J^-t|^2.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
 };
 
 class TMOPHyperelasticModel352 : public HyperelasticModel
 {
-private: double& tauptr;
-    
+private:
+   double &tau0;
+
 public:
-    TMOPHyperelasticModel352(double& tauval): tauptr(tauval) {}
-    
-    virtual double EvalW(const DenseMatrix &Jpt) const;
-    
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-    
-    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A) const;
-    
-    ~TMOPHyperelasticModel352() {}
-    
+   TMOPHyperelasticModel352(double &t0): tau0(t0) {}
+
+   // W = 0.5(det(J) - 1)^2 / (det(J) - tau0).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
 };
 
     
