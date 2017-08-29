@@ -192,7 +192,7 @@ protected:
 public:
    DeltaCoefficient()
    {
-      center[0] = center[1] = center[2] = 0.; scale = 1.; tol = 1e12;
+      center[0] = center[1] = center[2] = 0.; scale = 1.; tol = 1e-12;
       weight = NULL; sdim = 0; tdf = NULL;
    }
    DeltaCoefficient(double x, double s)
