@@ -1222,16 +1222,16 @@ void ParFiniteElementSpace::GetGhostEdgeDofs(const NCMesh::MeshId &id,
       for (int i = 0; i < 2; i++)
       {
          int k = (V[i] < ghost) ? V[i]*nv : (ndofs + (V[i] - ghost)*nv);
-         for (int j = 0; j < nv; j++, k++)
+         for (int j = 0; j < nv; j++)
          {
-            dofs[i*nv + j] = k;
+            dofs[i*nv + j] = k++;
          }
       }
    }
    int k = ndofs + ngvdofs + (id.index - pncmesh->GetNEdges())*ne;
-   for (int j = 0; j < ne; j++, k++)
+   for (int j = 0; j < ne; j++)
    {
-      dofs[2*nv + j] = k;
+      dofs[2*nv + j] = k++;
    }
 }
 
@@ -1788,7 +1788,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
             const NeighborRowMessage::RowInfo &ri = rows[i];
             int dof = PackDof(ri.entity, ri.index, ri.edof);
             pmatrix[dof] = ri.row;
-            if (!finalized[dof]) { num_finalized++; }
+            if (dof < num_dofs && !finalized[dof]) { num_finalized++; }
             finalized[dof] = true;
          }
       }
