@@ -7,18 +7,18 @@
 //
 // Description:  This example is the counterpart of ex1 in the MFEM examples list
 //               with the difference that pumi Api's are used to load a parallel
-//               pumi mesh classified on a geometric model and then generate the 
+//               pumi mesh classified on a geometric model and then generate the
 //               corresponding parallel  MFEM meshes.
-//               
-//               This example also performs a "uniform" refinement, similar to 
-//               MFEM examples, for coarse meshes. However, the refinement is 
+//
+//               This example also performs a "uniform" refinement, similar to
+//               MFEM examples, for coarse meshes. However, the refinement is
 //               performed using the PUMi Api's.
 //
-//               The inputs for this example are a Parasolid model, "*.xmt_txt" 
-//               and SCOREC parallel meshes "*.smb". Switch "-o" is used for 
+//               The inputs for this example are a Parasolid model, "*.xmt_txt"
+//               and SCOREC parallel meshes "*.smb". Switch "-o" is used for
 //               the Finite Element order and switch "-go" for the geometry order.
-//               Note that they can be used independently. i.e. "-o 8 -go 3" 
-//               solves for 8th order FE on a third order geometry.  
+//               Note that they can be used independently. i.e. "-o 8 -go 3"
+//               solves for 8th order FE on a third order geometry.
 
 
 
@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
-   int geom_order = 1;   
+   int geom_order = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -75,10 +75,10 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&model_file, "-p", "--parasolid",
-                  "Parasolid model to use.");   
+                  "Parasolid model to use.");
    args.AddOption(&geom_order, "-go", "--geometry_order",
                   "Geometric order of the model");
-   
+
    args.Parse();
    if (!args.Good())
    {
@@ -92,9 +92,9 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       args.PrintOptions(cout);
-   }   
-   
-   //3. Read the SCOREC Mesh 
+   }
+
+   //3. Read the SCOREC Mesh
    PCU_Comm_Init();
 #ifdef MFEM_USE_SIMMETRIX
    SimUtil_start();
@@ -103,40 +103,46 @@ int main(int argc, char *argv[])
    gmi_register_sim();
 #endif
    gmi_register_mesh();
-   
+
    apf::Mesh2* pumi_mesh;
    pumi_mesh = apf::loadMdsMesh(model_file, mesh_file);
-   
-   //4. Increase the geometry order and refine the mesh if necessary. 
-   //   Parallel uniform refinement is performed if the total numebr of 
-   //   elements is less than 10000.  
+
+   //4. Increase the geometry order and refine the mesh if necessary.
+   //   Parallel uniform refinement is performed if the total numebr of
+   //   elements is less than 10000.
    int dim = pumi_mesh->getDimension();
    int nEle = pumi_mesh->count(dim);
    int ref_levels = (int)floor(log(10000./nEle)/log(2.)/dim);
 
-   if (geom_order > 1){
-       crv::BezierCurver bc(pumi_mesh, geom_order, 2);
-       bc.run();        
-   }    
-   
-   // Perform Uniform refinement
-   if (ref_levels > 1){
-       ma::Input* uniInput = ma::configureUniformRefine(pumi_mesh, ref_levels);
-       
-       if ( geom_order > 1)
-           crv::adapt(uniInput);
-       else
-           ma::adapt(uniInput);
+   if (geom_order > 1)
+   {
+      crv::BezierCurver bc(pumi_mesh, geom_order, 2);
+      bc.run();
    }
-   
-   pumi_mesh->verify();  
 
-   // 5. Create the parallel MFEM mesh object from the parallel PUMI mesh. 
-   //    We can handle triangular and tetrahedral meshes. Note that the 
+   // Perform Uniform refinement
+   if (ref_levels > 1)
+   {
+      ma::Input* uniInput = ma::configureUniformRefine(pumi_mesh, ref_levels);
+
+      if ( geom_order > 1)
+      {
+         crv::adapt(uniInput);
+      }
+      else
+      {
+         ma::adapt(uniInput);
+      }
+   }
+
+   pumi_mesh->verify();
+
+   // 5. Create the parallel MFEM mesh object from the parallel PUMI mesh.
+   //    We can handle triangular and tetrahedral meshes. Note that the
    //    mesh resolution is performed on the PUMI mesh.
    ParMesh *pmesh = new ParPumiMesh(MPI_COMM_WORLD, pumi_mesh);
 
-    
+
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.

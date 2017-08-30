@@ -35,14 +35,14 @@ namespace mfem
 {
 
 /// Class for grid function - Vector with associated FE space.
-class GridFunctionPumi : public GridFunction 
+class GridFunctionPumi : public GridFunction
 {
 public:
 
    ///Construct a GridFunction from PUMI mesh
-   GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM, apf::Numbering* v_num_loc, 
-           const int mesh_order);
-  
+   GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM, apf::Numbering* v_num_loc,
+                    const int mesh_order);
+
    /// Destroys grid function.
    virtual ~GridFunctionPumi() { }
 };

@@ -30,86 +30,90 @@ namespace mfem
 using namespace std;
 
 
-GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM, apf::Numbering* v_num_loc
-, const int mesh_order)
-  //: Vector()
+GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
+                                   apf::Numbering* v_num_loc
+                                   , const int mesh_order)
+//: Vector()
 {
-    //set to zero 
-    SetDataAndSize(NULL, 0);
-    int ec;
-    int spDim = m->SpaceDimension();
-    //needs to be modified for other orders
-    if (mesh_order == 1){
-        mfem_error("GridFunction::GridFunction : First order mesh!");
-    }
-    else if (mesh_order == 2){
-        fec =  FiniteElementCollection::New("Quadratic");
-    }
-    else 
-    {
-        fec = new H1_FECollection(mesh_order, m->Dimension());
-    }
-    int ordering = 1; // x1y1z1/x2y2z2/...
-    fes = new FiniteElementSpace(m, fec, spDim, ordering);
-    int data_size = fes->GetVSize();
+   //set to zero
+   SetDataAndSize(NULL, 0);
+   int ec;
+   int spDim = m->SpaceDimension();
+   //needs to be modified for other orders
+   if (mesh_order == 1)
+   {
+      mfem_error("GridFunction::GridFunction : First order mesh!");
+   }
+   else if (mesh_order == 2)
+   {
+      fec =  FiniteElementCollection::New("Quadratic");
+   }
+   else
+   {
+      fec = new H1_FECollection(mesh_order, m->Dimension());
+   }
+   int ordering = 1; // x1y1z1/x2y2z2/...
+   fes = new FiniteElementSpace(m, fec, spDim, ordering);
+   int data_size = fes->GetVSize();
 
-    //Read Pumi mesh data
-    this->SetSize(data_size);
-    double* PumiData = this->GetData();
+   //Read Pumi mesh data
+   this->SetSize(data_size);
+   double* PumiData = this->GetData();
 
-    apf::MeshEntity* ent;
-    apf::MeshIterator* itr;
+   apf::MeshEntity* ent;
+   apf::MeshIterator* itr;
 
-    
-    //Assume all element type are the same i.e. tetrahedral
-    const FiniteElement* H1_elem = fes->GetFE(1);
-    const IntegrationRule &All_nodes = H1_elem->GetNodes();
-    int num_vert = m->GetElement(1)->GetNVertices();
-    int nnodes = All_nodes.Size();
 
-    //loop over elements
-    apf::Field* crd_field = PumiM->getCoordinateField();
-    
-    int nc = apf::countComponents(crd_field);
-    int iel = 0;
-    itr = PumiM->begin(m->Dimension());
-    while ((ent = PumiM->iterate(itr)))
-    {
-        Array<int> vdofs;
-        fes->GetElementVDofs(iel, vdofs);
-        
-        //create Pumi element to interpolate
-        apf::MeshElement* mE = apf::createMeshElement(PumiM, ent);
-        apf::Element* elem = apf::createElement(crd_field, mE);
+   //Assume all element type are the same i.e. tetrahedral
+   const FiniteElement* H1_elem = fes->GetFE(1);
+   const IntegrationRule &All_nodes = H1_elem->GetNodes();
+   int num_vert = m->GetElement(1)->GetNVertices();
+   int nnodes = All_nodes.Size();
 
-        //Vertices are already interpolated
-        for (int ip = 0; ip < nnodes; ip++)//num_vert
-        {
-            //Take parametric coordinates of the node
-            apf::Vector3 param;
-            param[0] = All_nodes.IntPoint(ip).x;
-            param[1] = All_nodes.IntPoint(ip).y;
-            param[2] = All_nodes.IntPoint(ip).z;
-            
-            
-            //Compute the interpolating coordinates
-            apf::DynamicVector phCrd(nc);
-            apf::getComponents(elem, param, &phCrd[0]);
-            
-            //Fill the nodes list
-            for (int kk = 0; kk < spDim; ++kk){
-              int dof_ctr = ip + kk * nnodes;
-              PumiData[vdofs[dof_ctr]] = phCrd[kk];
-            }
-            
-        }
-        iel++;
-        apf::destroyElement(elem);
-        apf::destroyMeshElement(mE);
-    }
-    PumiM->end(itr);
-    
-    sequence = 0;      
+   //loop over elements
+   apf::Field* crd_field = PumiM->getCoordinateField();
+
+   int nc = apf::countComponents(crd_field);
+   int iel = 0;
+   itr = PumiM->begin(m->Dimension());
+   while ((ent = PumiM->iterate(itr)))
+   {
+      Array<int> vdofs;
+      fes->GetElementVDofs(iel, vdofs);
+
+      //create Pumi element to interpolate
+      apf::MeshElement* mE = apf::createMeshElement(PumiM, ent);
+      apf::Element* elem = apf::createElement(crd_field, mE);
+
+      //Vertices are already interpolated
+      for (int ip = 0; ip < nnodes; ip++)//num_vert
+      {
+         //Take parametric coordinates of the node
+         apf::Vector3 param;
+         param[0] = All_nodes.IntPoint(ip).x;
+         param[1] = All_nodes.IntPoint(ip).y;
+         param[2] = All_nodes.IntPoint(ip).z;
+
+
+         //Compute the interpolating coordinates
+         apf::DynamicVector phCrd(nc);
+         apf::getComponents(elem, param, &phCrd[0]);
+
+         //Fill the nodes list
+         for (int kk = 0; kk < spDim; ++kk)
+         {
+            int dof_ctr = ip + kk * nnodes;
+            PumiData[vdofs[dof_ctr]] = phCrd[kk];
+         }
+
+      }
+      iel++;
+      apf::destroyElement(elem);
+      apf::destroyMeshElement(mE);
+   }
+   PumiM->end(itr);
+
+   sequence = 0;
 }
 
 }
