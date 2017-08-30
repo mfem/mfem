@@ -38,7 +38,7 @@
 
 #include "mfem.hpp"
 #include <fstream>
-#include <string>
+#include <sstream>
 #include <iostream>
 
 using namespace std;
@@ -317,7 +317,9 @@ int main(int argc, char *argv[])
          {
             // Write out the grid function, since GLvis cannot yet
             // visualize vector grid functions over the socket.
-            ofstream osol(string("vortex-") + to_string(ti) + string(".gf"));
+            ostringstream temp;
+            temp << "vortex-" << ti << ".gf";
+            ofstream osol(temp.str());
             osol.precision(precision);
             u.Save(osol);
          }
