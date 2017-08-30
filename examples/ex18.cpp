@@ -224,7 +224,7 @@ int main (int argc, char *argv[])
       "56 : 0.5(sqrt(tau)-1/sqrt(tau))^2   -- 2D size\n\t"
       "58 : |T^tT|^2/(tau^2)-2*|T|^2/tau+2 -- 2D shape\n\t"
       "77 : 0.5(tau-1/tau)^2               -- 2D size\n\t"
-      "211: (tau-1)^2-tau+sqrt(tau^2+beta) -- 2D untangling\n\t"
+      "211: (tau-1)^2-tau+sqrt(tau^2)      -- 2D untangling\n\t"
       "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
       "302: (|T|^2|T^-1|^2)/9-1          -- 3D shape\n\t"
       "303: (|T|^2)/3*tau^(2/3)-1        -- 3D shape\n\t"
@@ -377,7 +377,7 @@ int main (int argc, char *argv[])
    case 56: model = new TMOPHyperelasticModel056; break;
    case 58: model = new TMOPHyperelasticModel058; break;
    case 77: model = new TMOPHyperelasticModel077; break;
-   case 211: model = new TMOPHyperelasticModel211(tauval); break;
+   case 211: model = new TMOPHyperelasticModel211; break;
    case 301: model = new TMOPHyperelasticModel301; break;
    case 302: model = new TMOPHyperelasticModel302; break;
    case 303: model = new TMOPHyperelasticModel303; break;

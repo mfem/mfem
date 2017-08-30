@@ -1122,14 +1122,14 @@ void TMOPHyperelasticModel077::AssembleH(const DenseMatrix &Jpt,
 double TMOPHyperelasticModel211::EvalW(const DenseMatrix &Jpt) const
 {
    const double det = Dim2Invariant2(Jpt);
-   return (det*det) -3.*det + sqrt(det*det + tau0) + 1.;
+   return (det*det) -3.*det + sqrt(det*det + eps) + 1.;
 }
 
 void TMOPHyperelasticModel211::EvalP(const DenseMatrix &Jpt,
                                      DenseMatrix &P) const
 {
    const double det = Dim2Invariant2(Jpt);
-   const double alpha = det/sqrt(det*det + tau0);
+   const double alpha = det/sqrt(det*det + eps);
 
    Dim2Invariant2_dM(Jpt, P);
    P *= (2.*det - 3. + alpha);
@@ -1145,8 +1145,8 @@ void TMOPHyperelasticModel211::AssembleH(const DenseMatrix &Jpt,
    DenseMatrix dI2_dM(dim), dI2_dMdM(dim);
    Dim2Invariant2_dM(Jpt, dI2_dM);
    double det = I2;
-   double alpha = det/sqrt(det*det+tau0);
-   double alpha2 = pow(det*det + tau0, 1.5);
+   double alpha = det / sqrt(det * det + eps);
+   double alpha2 = pow(det * det + eps, 1.5);
 
    // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
    for (int r = 0; r < dim; r++)
@@ -1164,7 +1164,7 @@ void TMOPHyperelasticModel211::AssembleH(const DenseMatrix &Jpt,
                      - 3.*dI2_dMdM(rr,cc)
                      + alpha*dI2_dMdM(rr,cc)
                      + 2.*dI2_dM(rr,cc)*dI2_dM(r,c)
-                     + dI2_dM(rr,cc)*dI2_dM(r,c)*1./(sqrt(det*det+tau0))
+                     + dI2_dM(rr,cc)*dI2_dM(r,c)*1./(sqrt(det*det + eps))
                      - (I2*I2/alpha2) * dI2_dM(r,c) * dI2_dM(rr,cc);
 
                for (int i = 0; i < dof; i++)

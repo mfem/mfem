@@ -5,7 +5,6 @@
 // Sample runs:
 //   mpirun -np 4 ex18p -m ../data/blade.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 20 -ls 1 -bnd -vis
 //   mpirun -np 4 ex18p -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lim -lc 0.001 -ni 10 -ls 1 -bnd -vis
-//   mpirun -np 4 ex18p -m ../data/ball-pert.mesh -o 2 -rs 0 -mid 302 -tid 1 -ni 20 -ls 2 -vis
 //
 // Description:
 //    This example performs mesh optimization using the Target-Matrix
@@ -265,7 +264,7 @@ int main (int argc, char *argv[])
       "56 : 0.5(sqrt(tau)-1/sqrt(tau))^2   -- 2D size\n\t"
       "58 : |T^tT|^2/(tau^2)-2*|T|^2/tau+2 -- 2D shape\n\t"
       "77 : 0.5(tau-1/tau)^2               -- 2D size\n\t"
-      "211: (tau-1)^2-tau+sqrt(tau^2+beta) -- 2D untangling\n\t"
+      "211: (tau-1)^2-tau+sqrt(tau^2)      -- 2D untangling\n\t"
       "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
       "302: (|T|^2|T^-1|^2)/9-1          -- 3D shape\n\t"
       "303: (|T|^2)/3*tau^(2/3)-1        -- 3D shape\n\t"
@@ -433,7 +432,7 @@ int main (int argc, char *argv[])
    case 56: model = new TMOPHyperelasticModel056; break;
    case 58: model = new TMOPHyperelasticModel058; break;
    case 77: model = new TMOPHyperelasticModel077; break;
-   case 211: model = new TMOPHyperelasticModel211(tauval); break;
+   case 211: model = new TMOPHyperelasticModel211; break;
    case 301: model = new TMOPHyperelasticModel301; break;
    case 302: model = new TMOPHyperelasticModel302; break;
    case 303: model = new TMOPHyperelasticModel303; break;

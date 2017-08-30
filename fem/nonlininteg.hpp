@@ -344,12 +344,12 @@ public:
 class TMOPHyperelasticModel211 : public HyperelasticModel
 {
 private:
-   double &tau0;
+   const double eps;
 
 public:
-   TMOPHyperelasticModel211(double &t0): tau0(t0) {}
+   TMOPHyperelasticModel211() : eps(1e-4) { }
 
-   // W = (det(J) - 1)^2 - det(J) + sqrt(det(J)^2 + tau0).
+   // W = (det(J) - 1)^2 - det(J) + sqrt(det(J)^2 + eps).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
