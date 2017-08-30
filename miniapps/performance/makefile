@@ -23,10 +23,17 @@ TEST_MK = $(MFEM_DIR)/config/test.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
+# Distinguish x86 from PowerPC systems
+MFEM_MACHINE ?= $(shell uname -m)
+
 # Compiler specific optimizations.
 # For best performance, GCC 5 (or newer) is recommended.
 ifneq (,$(findstring $(MFEM_CXX),g++ mpicxx))
-   MFEM_CXXFLAGS += -march=native
+   ifeq ($(MFEM_MACHINE),x86_64)
+      MFEM_CXXFLAGS += -march=native
+   else ifneq (,$(findstring ppc64,$(MFEM_MACHINE)))
+      MFEM_CXXFLAGS += -mcpu=native -mtune=native
+   endif
    # MFEM_CXXFLAGS += -std=c++03
    MFEM_CXXFLAGS += -std=c++11
    MFEM_CXXFLAGS += -pedantic -Wall
@@ -73,8 +80,9 @@ MFEM_TESTS = MINIAPPS
 include $(TEST_MK)
 
 # Testing: Parallel vs. serial runs
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4
 %-test-par: %
-	@$(call mfem-test,$<, mpirun -np 4, Performance miniapp)
+	@$(call mfem-test,$<, $(RUN_MPI), Performance miniapp)
 %-test-seq: %
 	@$(call mfem-test,$<,, Performance miniapp)
 

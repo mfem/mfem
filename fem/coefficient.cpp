@@ -192,9 +192,17 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    {
       (*Function)(transip, K);
    }
-   else
+   else if (TDFunction)
    {
       (*TDFunction)(transip, GetTime(), K);
+   }
+   else
+   {
+      K = mat;
+   }
+   if (Q)
+   {
+      K *= Q->Eval(T, ip, GetTime());
    }
 }
 
