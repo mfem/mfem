@@ -43,12 +43,12 @@ protected:
 public:
    ParBilinearForm(ParFiniteElementSpace *pf)
       : BilinearForm(pf), pfes(pf),
-        p_mat(Operator::MFEM_HYPRE_PARCSR), p_mat_e(Operator::MFEM_HYPRE_PARCSR)
+        p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    { keep_nbr_block = false; }
 
    ParBilinearForm(ParFiniteElementSpace *pf, ParBilinearForm *bf)
       : BilinearForm(pf, bf), pfes(pf),
-        p_mat(Operator::MFEM_HYPRE_PARCSR), p_mat_e(Operator::MFEM_HYPRE_PARCSR)
+        p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    { keep_nbr_block = false; }
 
    /** When set to true and the ParBilinearForm has interior face integrators,

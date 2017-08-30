@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
 
       a.Assemble();
       b.Assemble();
-      a.SetOperatorType(Operator::MFEM_HYPRE_PARCSR);
+      a.SetOperatorType(Operator::Hypre_ParCSR);
       HypreParMatrix A;
       Vector B, X;
       MPI_Barrier(MPI_COMM_WORLD);

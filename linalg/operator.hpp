@@ -123,7 +123,7 @@ public:
    enum Type
    {
       MFEM_SPARSEMAT,
-      MFEM_HYPRE_PARCSR,
+      Hypre_ParCSR,
       PETSC_MATAIJ,
       PETSC_MATIS,
       PETSC_MATSHELL,

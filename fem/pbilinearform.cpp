@@ -177,7 +177,7 @@ void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
 
 HypreParMatrix *ParBilinearForm::ParallelAssemble(SparseMatrix *m)
 {
-   OperatorHandle Mh(Operator::MFEM_HYPRE_PARCSR);
+   OperatorHandle Mh(Operator::Hypre_ParCSR);
    ParallelAssemble(Mh, m);
    Mh.SetOperatorOwner(false);
    return Mh.As<HypreParMatrix>();

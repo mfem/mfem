@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
    PetscParMatrix *pM = NULL, *pB = NULL, *pBT = NULL;
    HypreParMatrix *M = NULL, *B = NULL, *BT = NULL;
    Operator::Type tid =
-      !use_petsc ? Operator::MFEM_HYPRE_PARCSR :
+      !use_petsc ? Operator::Hypre_ParCSR :
       (use_nonoverlapping ? Operator::PETSC_MATIS : Operator::PETSC_MATAIJ);
    OperatorHandle Mh(tid), Bh(tid);
 
