@@ -251,7 +251,7 @@ std::streamsize socketbuf::xsputn(const char_type *__s, std::streamsize __n)
 }
 
 
-socketserver::socketserver(int port)
+socketserver::socketserver(int port, int backlog)
 {
    listen_socket = socket(PF_INET, SOCK_STREAM, 0); // tcp socket
    if (listen_socket < 0)
@@ -277,7 +277,7 @@ socketserver::socketserver(int port)
       listen_socket = -3;
       return;
    }
-   const int backlog = 4;
+
    if (listen(listen_socket, backlog) < 0)
    {
       closesocket(listen_socket);
@@ -542,13 +542,19 @@ void GnuTLS_socketbuf::start_session()
    session_started = status.good();
    if (status.good())
    {
-#if GNUTLS_VERSION_NUMBER >= 0x030000 // what is the right version here?
-      const char *priorities =
-         "NONE:+VERS-TLS1.2:+CIPHER-ALL:+MAC-ALL:+SIGN-ALL:+COMP-ALL:"
-         "+KX-ALL:+CTYPE-OPENPGP:+CURVE-ALL";
-#else
-      const char *priorities = "NORMAL:-CTYPE-X.509";
-#endif
+      const char *priorities;
+      // what is the right version here?
+      if (gnutls_check_version("2.12.0") != NULL)
+      {
+         // This works for version 2.12.23 (0x020c17) and above
+         priorities = "NONE:+VERS-TLS1.2:+CIPHER-ALL:+MAC-ALL:+SIGN-ALL:"
+                      "+COMP-ALL:+KX-ALL:+CTYPE-OPENPGP:+CURVE-ALL";
+      }
+      else
+      {
+         // This works for version 2.8.5 (0x020805) and below
+         priorities = "NORMAL:-CTYPE-X.509";
+      }
       const char *err_ptr;
       status.set_result(
          gnutls_priority_set_direct(session, priorities, &err_ptr));

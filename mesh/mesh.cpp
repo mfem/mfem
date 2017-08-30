@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstring>
 #include <ctime>
+#include <functional>
 
 #ifdef MFEM_USE_GECKO
 #include "graph.h"
@@ -87,13 +88,13 @@ double Mesh::GetElementVolume(int i)
 // Similar to VisualizationSceneSolution3d::FindNewBox in GLVis
 void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
 {
-   min.SetSize(Dim);
-   max.SetSize(Dim);
+   min.SetSize(spaceDim);
+   max.SetSize(spaceDim);
 
-   for (int d = 0; d < Dim; d++)
+   for (int d = 0; d < spaceDim; d++)
    {
-      min[d] = numeric_limits<double>::infinity();
-      max[d] = -numeric_limits<double>::infinity();
+      min(d) = numeric_limits<double>::infinity();
+      max(d) = -numeric_limits<double>::infinity();
    }
 
    if (Nodes == NULL)
@@ -102,16 +103,17 @@ void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
       for (int i = 0; i < NumOfVertices; i++)
       {
          coord = GetVertex(i);
-         for (int d = 0; d < Dim; d++)
+         for (int d = 0; d < spaceDim; d++)
          {
-            if (coord[d] < min[d]) { min[d] = coord[d]; }
-            if (coord[d] > max[d]) { max[d] = coord[d]; }
+            if (coord[d] < min(d)) { min(d) = coord[d]; }
+            if (coord[d] > max(d)) { max(d) = coord[d]; }
          }
       }
    }
    else
    {
-      int ne = (Dim == 3) ? GetNBE() : GetNE();
+      const bool use_boundary = false; // make this a parameter?
+      int ne = use_boundary ? GetNBE() : GetNE();
       int fn, fo;
       DenseMatrix pointmat;
       RefinedGeometry *RefG;
@@ -121,7 +123,7 @@ void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
 
       for (int i = 0; i < ne; i++)
       {
-         if (Dim == 3)
+         if (use_boundary)
          {
             GetBdrElementFace(i, &fn, &fo);
             RefG = GlobGeometryRefiner.Refine(GetFaceBaseGeometry(fn), ref);
@@ -138,23 +140,23 @@ void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
          }
          for (int j = 0; j < pointmat.Width(); j++)
          {
-            for (int d = 0; d < Dim; d++)
+            for (int d = 0; d < pointmat.Height(); d++)
             {
-               if (pointmat(d,j) < min[d]) { min[d] = pointmat(d,j); }
-               if (pointmat(d,j) > max[d]) { max[d] = pointmat(d,j); }
+               if (pointmat(d,j) < min(d)) { min(d) = pointmat(d,j); }
+               if (pointmat(d,j) > max(d)) { max(d) = pointmat(d,j); }
             }
          }
       }
    }
 }
 
-void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &out)
+void Mesh::GetCharacteristics(double &h_min, double &h_max,
+                              double &kappa_min, double &kappa_max,
+                              Vector *Vh, Vector *Vk)
 {
    int i, dim, sdim;
    DenseMatrix J;
-   double h_min, h_max, kappa_min, kappa_max, h, kappa;
-
-   out << "Mesh Characteristics:";
+   double h, kappa;
 
    dim = Dimension();
    sdim = SpaceDimension();
@@ -179,8 +181,17 @@ void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &out)
       if (kappa < kappa_min) { kappa_min = kappa; }
       if (kappa > kappa_max) { kappa_max = kappa; }
    }
+}
 
-   if (dim == 1)
+void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &out)
+{
+   double h_min, h_max, kappa_min, kappa_max;
+
+   out << "Mesh Characteristics:";
+
+   this->GetCharacteristics(h_min, h_max, kappa_min, kappa_max, Vh, Vk);
+
+   if (Dim == 1)
    {
       out << '\n'
           << "Number of vertices : " << GetNV() << '\n'
@@ -189,7 +200,7 @@ void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &out)
           << "h_min              : " << h_min << '\n'
           << "h_max              : " << h_max << '\n';
    }
-   else if (dim == 2)
+   else if (Dim == 2)
    {
       out << '\n'
           << "Number of vertices : " << GetNV() << '\n'
@@ -2276,6 +2287,10 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 
    meshgen = mesh.meshgen;
 
+   // Create the new Mesh instance without a record of its refinement history
+   sequence = 0;
+   last_operation = Mesh::NONE;
+
    // Duplicate the elements
    elements.SetSize(NumOfElements);
    for (int i = 0; i < NumOfElements; i++)
@@ -2336,10 +2351,8 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
                "copying NURBS meshes is not implemented");
    NURBSext = NULL;
 
-   // No support for non-conforming meshes, yet. Need deep copy for NCMesh.
-   MFEM_VERIFY(mesh.ncmesh == NULL,
-               "copying non-conforming meshes is not implemented");
-   ncmesh = NULL;
+   // Deep copy the NCMesh.
+   ncmesh = mesh.ncmesh ? new NCMesh(*mesh.ncmesh) : NULL;
 
    // Duplicate the Nodes, including the FiniteElementCollection and the
    // FiniteElementSpace
@@ -2429,7 +2442,8 @@ Mesh::Mesh(double *_vertices, int num_vertices,
             num_boundary_elements);
 
    int element_index_stride = Geometry::NumVerts[element_type];
-   int boundary_index_stride = Geometry::NumVerts[boundary_type];
+   int boundary_index_stride = num_boundary_elements > 0 ?
+                               Geometry::NumVerts[boundary_type] : 0;
 
    // assuming Vertex is POD
    vertices.MakeRef(reinterpret_cast<Vertex*>(_vertices), num_vertices);
@@ -2611,8 +2625,11 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    {
       ReadGmshMesh(input);
    }
-   else if (mesh_type.size() > 2 &&
-            mesh_type[0] == 'C' && mesh_type[1] == 'D' && mesh_type[2] == 'F')
+   else if
+   ((mesh_type.size() > 2 &&
+     mesh_type[0] == 'C' && mesh_type[1] == 'D' && mesh_type[2] == 'F') ||
+    (mesh_type.size() > 3 &&
+     mesh_type[1] == 'H' && mesh_type[2] == 'D' && mesh_type[3] == 'F'))
    {
       named_ifgzstream *mesh_input = dynamic_cast<named_ifgzstream *>(&input);
       if (mesh_input)
@@ -2768,7 +2785,8 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
          // copy the vertices
          for (j = 0; j < m->GetNV(); j++)
          {
-            vertices[lvert_vert[j]].SetCoords(m->GetVertex(j));
+            vertices[lvert_vert[j]].SetCoords(m->SpaceDimension(),
+                                              m->GetVertex(j));
          }
       }
    }
@@ -2818,7 +2836,7 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
          // copy the vertices
          for (j = 0; j < m->GetNV(); j++)
          {
-            vertices[iv++].SetCoords(m->GetVertex(j));
+            vertices[iv++].SetCoords(m->SpaceDimension(), m->GetVertex(j));
          }
       }
    }
@@ -2925,7 +2943,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       const int *c2h_map = rfec.GetDofMap(geom);
       for (int i = 0; i < phys_pts.Width(); i++)
       {
-         vertices[rdofs[i]].SetCoords(phys_pts.GetColumn(i));
+         vertices[rdofs[i]].SetCoords(spaceDim, phys_pts.GetColumn(i));
       }
       for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
       {
@@ -4100,10 +4118,11 @@ const Table & Mesh::ElementToElementTable()
    }
 
    int num_faces = GetNumFaces();
-   MFEM_ASSERT(faces_info.Size() == num_faces, "faces were not generated!");
+   // Note that, for ParNCMeshes, faces_info will contain also the ghost faces
+   MFEM_ASSERT(faces_info.Size() >= num_faces, "faces were not generated!");
 
    Array<Connection> conn;
-   conn.Reserve(2*num_faces);
+   conn.Reserve(2*faces_info.Size());
 
    for (int i = 0; i < faces_info.Size(); i++)
    {
@@ -6137,7 +6156,8 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
 
    DeleteTables();
 
-   ncmesh.GetMeshComponents(vertices, elements, boundary);
+   bool linear = (Nodes == NULL);
+   ncmesh.GetMeshComponents(vertices, elements, boundary, linear);
 
    NumOfVertices = vertices.Size();
    NumOfElements = elements.Size();
@@ -7578,7 +7598,11 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
          l = partitioning[l];
          if (k != l)
          {
-            nbe += 2;
+            nbe++;
+            if (!Nonconforming() || !IsSlaveFace(faces_info[i]))
+            {
+               nbe++;
+            }
          }
       }
       else
@@ -7603,12 +7627,15 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
                out << ' ' << v[j];
             }
             out << '\n';
-            out << l+1 << ' ' << faces[i]->GetGeometryType();
-            for (j = nv-1; j >= 0; j--)
+            if (!Nonconforming() || !IsSlaveFace(faces_info[i]))
             {
-               out << ' ' << v[j];
+               out << l+1 << ' ' << faces[i]->GetGeometryType();
+               for (j = nv-1; j >= 0; j--)
+               {
+                  out << ' ' << v[j];
+               }
+               out << '\n';
             }
-            out << '\n';
          }
       }
       else

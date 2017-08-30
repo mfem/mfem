@@ -85,12 +85,12 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
          max_id = std::max(max_id, v[j]);
       }
    }
-   for (int i = 0; i <= max_id; i++)
+   for (int id = 0; id <= max_id; id++)
    {
       // top-level nodes are special: id == p1 == p2 == orig. vertex id
-      Node* node = nodes.Get(i, i);
+      int node = nodes.GetId(id, id);
       MFEM_CONTRACT_VAR(node);
-      MFEM_ASSERT(node->id == i, "");
+      MFEM_ASSERT(node == id, "");
    }
 
    // if a mesh file is being read, load the vertex hierarchy now;
@@ -99,12 +99,20 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
    {
       LoadVertexParents(*vertex_parents);
    }
+   else
+   {
+      top_vertex_pos.SetSize(3*mesh->GetNV());
+      for (int i = 0; i < mesh->GetNV(); i++)
+      {
+         memcpy(&top_vertex_pos[3*i], mesh->GetVertex(i), 3*sizeof(double));
+      }
+   }
 
    // create the NCMesh::Element struct for each Mesh element
-   for (int i = 0; i < mesh->GetNE(); i++)
+   root_count = mesh->GetNE();
+   for (int i = 0; i < root_count; i++)
    {
       const mfem::Element *elem = mesh->GetElement(i);
-      const int *v = elem->GetVertices();
 
       int geom = elem->GetGeometryType();
       if (geom != Geometry::TRIANGLE &&
@@ -118,35 +126,22 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       GI[geom].Initialize(elem);
 
       // create our Element struct for this element
-      Element* nc_elem = new Element(geom, elem->GetAttribute());
-      root_elements.Append(nc_elem);
+      int root_id = AddElement(Element(geom, elem->GetAttribute()));
+      MFEM_ASSERT(root_id == i, "");
+      Element &root_elem = elements[root_id];
 
+      const int *v = elem->GetVertices();
       for (int j = 0; j < GI[geom].nv; j++)
       {
-         Node* node = nodes.Peek(v[j]);
-         if (!node->vertex)
-         {
-            if (v[j] < mesh->GetNV())
-            {
-               // create a vertex in the node and initialize its position
-               const double* pos = mesh->GetVertex(v[j]);
-               node->vertex = new Vertex(pos[0], pos[1], pos[2]);
-            }
-            else
-            {
-               // the mesh may not have vertex positions defined yet
-               node->vertex = new Vertex(0.0, 0.0, 0.0);
-            }
-         }
-         nc_elem->node[j] = node;
+         root_elem.node[j] = v[j];
       }
 
       // increase reference count of all nodes the element is using
-      // (NOTE: this will also create and reference all edge and face nodes)
-      RefElementNodes(nc_elem);
+      // (NOTE: this will also create and reference all edge nodes and faces)
+      RefElement(root_id);
 
       // make links from faces back to the element
-      RegisterFaces(nc_elem);
+      RegisterFaces(root_id);
    }
 
    // store boundary element attributes
@@ -155,24 +150,17 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       const mfem::Element *be = mesh->GetBdrElement(i);
       const int *v = be->GetVertices();
 
-      Node* node[4];
-      for (int i = 0; i < be->GetNVertices(); i++)
-      {
-         node[i] = nodes.Peek(v[i]);
-         MFEM_VERIFY(node[i], "boundary elements inconsistent.");
-      }
-
       if (be->GetType() == mfem::Element::QUADRILATERAL)
       {
-         Face* face = faces.Peek(node[0], node[1], node[2], node[3]);
+         Face* face = faces.Find(v[0], v[1], v[2], v[3]);
          MFEM_VERIFY(face, "boundary face not found.");
          face->attribute = be->GetAttribute();
       }
       else if (be->GetType() == mfem::Element::SEGMENT)
       {
-         Edge* edge = nodes.Peek(node[0], node[1])->edge;
-         MFEM_VERIFY(edge, "boundary edge not found.");
-         edge->attribute = be->GetAttribute();
+         Face* face = faces.Find(v[0], v[0], v[1], v[1]);
+         MFEM_VERIFY(face, "boundary face not found.");
+         face->attribute = be->GetAttribute();
       }
       else
       {
@@ -181,6 +169,20 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       }
    }
 
+   Update();
+}
+
+NCMesh::NCMesh(const NCMesh &other)
+   : Dim(other.Dim)
+   , spaceDim(other.spaceDim)
+   , Iso(other.Iso)
+   , nodes(other.nodes)
+   , faces(other.faces)
+   , elements(other.elements)
+   , root_count(other.root_count)
+{
+   other.free_element_ids.Copy(free_element_ids);
+   other.top_vertex_pos.Copy(top_vertex_pos);
    Update();
 }
 
@@ -195,277 +197,220 @@ void NCMesh::Update()
    element_vertex.Clear();
 }
 
-NCMesh::Element* NCMesh::CopyHierarchy(Element* elem)
-{
-   Element* new_elem = new Element(*elem);
-   if (elem->ref_type)
-   {
-      for (int i = 0; i < 8; i++)
-      {
-         if (elem->child[i])
-         {
-            new_elem->child[i] = CopyHierarchy(elem->child[i]);
-            new_elem->child[i]->parent = new_elem;
-         }
-      }
-   }
-   else
-   {
-      GeomInfo& gi = GI[(int) elem->geom];
-      for (int i = 0; i < gi.nv; i++)
-      {
-         new_elem->node[i] = nodes.Peek(elem->node[i]->id);
-      }
-      RegisterFaces(new_elem);
-   }
-   return new_elem;
-}
-
-void NCMesh::DeleteHierarchy(Element* elem)
-{
-   if (elem->ref_type)
-   {
-      for (int i = 0; i < 8; i++)
-      {
-         if (elem->child[i]) { DeleteHierarchy(elem->child[i]); }
-      }
-   }
-   else
-   {
-      UnrefElementNodes(elem);
-   }
-   delete elem;
-}
-
-NCMesh::NCMesh(const NCMesh &other)
-   : Dim(other.Dim), spaceDim(other.spaceDim), Iso(other.Iso)
-   , nodes(other.nodes), faces(other.faces)
-{
-   // NOTE: this copy constructor is used by ParNCMesh
-   root_elements.SetSize(other.root_elements.Size());
-   for (int i = 0; i < root_elements.Size(); i++)
-   {
-      root_elements[i] = CopyHierarchy(other.root_elements[i]);
-   }
-
-   Update();
-}
-
 NCMesh::~NCMesh()
 {
-   for (int i = 0; i < root_elements.Size(); i++)
+#ifdef MFEM_DEBUG
+#ifdef MFEM_USE_MPI
+   // in parallel, update 'leaf_elements'
+   for (int i = 0; i < elements.Size(); i++)
    {
-      DeleteHierarchy(root_elements[i]);
+      elements[i].rank = 0; // make sure all leaves are in leaf_elements
    }
-}
+   UpdateLeafElements();
+#endif
 
-
-//// Node and Face Memory Management ///////////////////////////////////////////
-
-void NCMesh::Node::RefVertex()
-{
-   MFEM_ASSERT(vertex, "can't create vertex here.");
-   vertex->Ref();
-}
-
-void NCMesh::Node::RefEdge()
-{
-   if (!edge) { edge = new Edge; }
-   edge->Ref();
-}
-
-void NCMesh::Node::UnrefVertex(HashTable<Node> &nodes)
-{
-   MFEM_ASSERT(vertex, "cannot unref a nonexistent vertex.");
-   if (!vertex->Unref()) { vertex = NULL; }
-   if (!vertex && !edge) { nodes.Delete(this); }
-}
-
-void NCMesh::Node::UnrefEdge(Node *node, HashTable<Node> &nodes)
-{
-   MFEM_ASSERT(node, "node not found.");
-   MFEM_ASSERT(node->edge, "cannot unref a nonexistent edge.");
-   if (!node->edge->Unref()) { node->edge = NULL; }
-   if (!node->vertex && !node->edge) { nodes.Delete(node); }
-}
-
-NCMesh::Node::Node(const Node& other)
-{
-   std::memcpy(this, &other, sizeof(*this));
-   if (vertex) { vertex = new Vertex(*vertex); }
-   if (edge) { edge = new Edge(*edge); }
+   // sign off of all faces and nodes
+   Array<int> elemFaces;
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      elemFaces.SetSize(0);
+      UnrefElement(leaf_elements[i], elemFaces);
+      DeleteUnusedFaces(elemFaces);
+   }
+   // NOTE: in release mode, we just throw away all faces and nodes at once
+#endif
 }
 
 NCMesh::Node::~Node()
 {
-   MFEM_ASSERT(!vertex && !edge, "node was not unreffed properly.");
-   if (vertex) { delete vertex; }
-   if (edge) { delete edge; }
+   MFEM_ASSERT(!vert_refc && !edge_refc, "node was not unreffed properly, "
+               "vert_refc: " << (int) vert_refc << ", edge_refc: "
+               << (int) edge_refc);
 }
 
-void NCMesh::RefElementNodes(Element *elem)
+void NCMesh::RefElement(int elem)
 {
-   Node** node = elem->node;
-   GeomInfo& gi = GI[(int) elem->geom];
+   Element &el = elements[elem];
+   int* node = el.node;
+   GeomInfo& gi = GI[(int) el.geom];
 
    // ref all vertices
    for (int i = 0; i < gi.nv; i++)
    {
-      node[i]->RefVertex();
+      nodes[node[i]].vert_refc++;
    }
 
-   // ref all edges (possibly creating them)
+   // ref all edges (possibly creating their nodes)
    for (int i = 0; i < gi.ne; i++)
    {
       const int* ev = gi.edges[i];
-      nodes.Get(node[ev[0]], node[ev[1]])->RefEdge();
+      nodes.Get(node[ev[0]], node[ev[1]])->edge_refc++;
    }
 
-   // ref all faces (possibly creating them)
+   // get all faces (possibly creating them)
    for (int i = 0; i < gi.nf; i++)
    {
       const int* fv = gi.faces[i];
-      faces.Get(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]])->Ref();
-      // NOTE: face->RegisterElement called elsewhere to avoid having
-      // to store 3 element pointers temporarily in the face when refining.
+      faces.GetId(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]]);
+
+      // NOTE: face->RegisterElement called separately to avoid having
+      // to store 3 element indices  temporarily in the face when refining.
       // See also NCMesh::RegisterFaces.
    }
 }
 
-void NCMesh::UnrefElementNodes(Element *elem)
+void NCMesh::UnrefElement(int elem, Array<int> &elemFaces)
 {
-   Node** node = elem->node;
-   GeomInfo& gi = GI[(int) elem->geom];
+   Element &el = elements[elem];
+   int* node = el.node;
+   GeomInfo& gi = GI[(int) el.geom];
 
-   // unref all faces (possibly destroying them)
+   // unref all faces
    for (int i = 0; i < gi.nf; i++)
    {
       const int* fv = gi.faces[i];
-      Face* face = faces.Peek(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]]);
-      face->ForgetElement(elem);
-      if (!face->Unref()) { faces.Delete(face); }
+      int face = faces.FindId(node[fv[0]], node[fv[1]],
+                              node[fv[2]], node[fv[3]]);
+      MFEM_ASSERT(face >= 0, "face not found.");
+      faces[face].ForgetElement(elem);
+
+      // NOTE: faces.Delete() called later to avoid destroying and
+      // recreating faces during refinement, see NCMesh::DeleteUnusedFaces.
+      elemFaces.Append(face);
    }
 
    // unref all edges (possibly destroying them)
    for (int i = 0; i < gi.ne; i++)
    {
       const int* ev = gi.edges[i];
-      //nodes.Peek(node[ev[0]], node[ev[1]])->UnrefEdge(nodes); -- pre-aniso
-      Node::UnrefEdge(PeekAltParents(node[ev[0]], node[ev[1]]), nodes);
+      int enode = FindAltParents(node[ev[0]], node[ev[1]]);
+      MFEM_ASSERT(enode >= 0, "edge not found.");
+      MFEM_ASSERT(nodes.IdExists(enode), "edge does not exist.");
+      if (!nodes[enode].UnrefEdge())
+      {
+         nodes.Delete(enode);
+      }
    }
 
    // unref all vertices (possibly destroying them)
    for (int i = 0; i < gi.nv; i++)
    {
-      elem->node[i]->UnrefVertex(nodes);
+      if (!nodes[node[i]].UnrefVertex())
+      {
+         nodes.Delete(node[i]);
+      }
    }
 }
 
-NCMesh::Face::Face(int id)
-   : Hashed4<Face>(id), attribute(-1), index(-1)
+void NCMesh::RegisterFaces(int elem, int* fattr)
 {
-   elem[0] = elem[1] = NULL;
-}
+   Element &el = elements[elem];
+   GeomInfo &gi = GI[(int) el.geom];
 
-NCMesh::Face::Face(const Face& other)
-{
-   // (skip Hashed4 constructor)
-   std::memcpy(this, &other, sizeof(*this));
-   elem[0] = elem[1] = NULL;
-}
-
-void NCMesh::Face::RegisterElement(Element* e)
-{
-   if (elem[0] == NULL) { elem[0] = e; }
-   else if (elem[1] == NULL) { elem[1] = e; }
-   else { MFEM_ABORT("can't have 3 elements in Face::elem[]."); }
-}
-
-void NCMesh::Face::ForgetElement(Element* e)
-{
-   if (elem[0] == e) { elem[0] = NULL; }
-   else if (elem[1] == e) { elem[1] = NULL; }
-   else { MFEM_ABORT("element not found in Face::elem[]."); }
-}
-
-NCMesh::Face* NCMesh::GetFace(Element* elem, int face_no)
-{
-   GeomInfo& gi = GI[(int) elem->geom];
-   const int* fv = gi.faces[face_no];
-   Node** node = elem->node;
-   return faces.Peek(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]]);
-}
-
-void NCMesh::RegisterFaces(Element* elem, int* fattr)
-{
-   GeomInfo& gi = GI[(int) elem->geom];
    for (int i = 0; i < gi.nf; i++)
    {
-      Face* face = GetFace(elem, i);
+      Face* face = GetFace(el, i);
+      MFEM_ASSERT(face, "face not found.");
       face->RegisterElement(elem);
       if (fattr) { face->attribute = fattr[i]; }
    }
 }
 
-NCMesh::Element* NCMesh::Face::GetSingleElement() const
+void NCMesh::DeleteUnusedFaces(const Array<int> &elemFaces)
 {
-   if (elem[0])
+   for (int i = 0; i < elemFaces.Size(); i++)
    {
-      MFEM_ASSERT(!elem[1], "not a single element face.");
+      if (faces[elemFaces[i]].Unused())
+      {
+         faces.Delete(elemFaces[i]);
+      }
+   }
+}
+
+void NCMesh::Face::RegisterElement(int e)
+{
+   if (elem[0] < 0) { elem[0] = e; }
+   else if (elem[1] < 0) { elem[1] = e; }
+   else { MFEM_ABORT("can't have 3 elements in Face::elem[]."); }
+}
+
+void NCMesh::Face::ForgetElement(int e)
+{
+   if (elem[0] == e) { elem[0] = -1; }
+   else if (elem[1] == e) { elem[1] = -1; }
+   else { MFEM_ABORT("element " << e << " not found in Face::elem[]."); }
+}
+
+NCMesh::Face* NCMesh::GetFace(Element &elem, int face_no)
+{
+   GeomInfo& gi = GI[(int) elem.geom];
+   const int* fv = gi.faces[face_no];
+   int* node = elem.node;
+   return faces.Find(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]]);
+}
+
+int NCMesh::Face::GetSingleElement() const
+{
+   if (elem[0] >= 0)
+   {
+      MFEM_ASSERT(elem[1] < 0, "not a single element face.");
       return elem[0];
    }
    else
    {
-      MFEM_ASSERT(elem[1], "no elements in face.");
+      MFEM_ASSERT(elem[1] >= 0, "no elements in face.");
       return elem[1];
    }
 }
 
-NCMesh::Node* NCMesh::PeekAltParents(Node* v1, Node* v2)
+int NCMesh::FindAltParents(int node1, int node2)
 {
-   Node* mid = nodes.Peek(v1, v2);
-   if (!mid) // TODO: && !Iso ?
+   int mid = nodes.FindId(node1, node2);
+   if (mid < 0 && Dim >= 3 && !Iso)
    {
-      // In rare cases, a mid-face node exists under alternate parents w1, w2
-      // (see picture) instead of the requested parents v1, v2. This is an
+      // In rare cases, a mid-face node exists under alternate parents a1, a2
+      // (see picture) instead of the requested parents n1, n2. This is an
       // inconsistent situation that may exist temporarily as a result of
       // "nodes.Reparent" while doing anisotropic splits, before forced
       // refinements are all processed. This function attempts to retrieve such
       // a node. An extra twist is that w1 and w2 may themselves need to be
       // obtained using this very function.
       //
-      //                v1->p1      v1       v1->p2
+      //                 n1.p1      n1       n1.p2
       //                      *------*------*
       //                      |      |      |
       //                      |      |mid   |
-      //                   w1 *------*------* w2
+      //                   a1 *------*------* a2
       //                      |      |      |
       //                      |      |      |
       //                      *------*------*
-      //                v2->p1      v2       v2->p2
+      //                 n2.p1      n2       n2.p2
       //
       // NOTE: this function would not be needed if the elements remembered
-      // pointers to their edge nodes. We have however opted to save memory
-      // at the cost of this computation, which is only necessary when forced
-      // refinements are being done.
+      // their edge nodes. We have however opted to save memory at the cost of
+      // this computation, which is only necessary when forced refinements are
+      // being done.
 
-      if ((v1->p1 != v1->p2) && (v2->p1 != v2->p2)) // non-top-level nodes?
+      Node &n1 = nodes[node1], &n2 = nodes[node2];
+
+      int n1p1 = n1.p1, n1p2 = n1.p2;
+      int n2p1 = n2.p1, n2p2 = n2.p2;
+
+      if ((n1p1 != n1p2) && (n2p1 != n2p2)) // non-top-level nodes?
       {
-         Node *v1p1 = nodes.Peek(v1->p1), *v1p2 = nodes.Peek(v1->p2);
-         Node *v2p1 = nodes.Peek(v2->p1), *v2p2 = nodes.Peek(v2->p2);
+         int a1 = FindAltParents(n1p1, n2p1);
+         int a2 = (a1 >= 0) ? FindAltParents(n1p2, n2p2) : -1 /*optimization*/;
 
-         Node* w1 = PeekAltParents(v1p1, v2p1);
-         Node* w2 = w1 ? PeekAltParents(v1p2, v2p2) : NULL /* optimization */;
-
-         if (!w1 || !w2) // one more try may be needed as p1, p2 are unordered
+         if (a1 < 0 || a2 < 0)
          {
-            w1 = PeekAltParents(v1p1, v2p2);
-            w2 = w1 ? PeekAltParents(v1p2, v2p1) : NULL /* optimization */;
+            // one more try may be needed as p1, p2 are unordered
+            a1 = FindAltParents(n1p1, n2p2);
+            a2 = (a1 >= 0) ? FindAltParents(n1p2, n2p1) : -1 /*optimization*/;
          }
 
-         if (w1 && w2) // got both alternate parents?
+         if (a1 >= 0 && a2 >= 0) // got both alternate parents?
          {
-            mid = nodes.Peek(w1, w2);
+            mid = nodes.FindId(a1, a2);
          }
       }
    }
@@ -477,9 +422,9 @@ NCMesh::Node* NCMesh::PeekAltParents(Node* v1, Node* v2)
 
 NCMesh::Element::Element(int geom, int attr)
    : geom(geom), ref_type(0), flag(0), index(-1), rank(0), attribute(attr)
-   , parent(NULL)
+   , parent(-1)
 {
-   memset(node, 0, sizeof(node));
+   for (int i = 0; i < 8; i++) { node[i] = -1; }
 
    // NOTE: in 2D the 8-element node/child arrays are not optimal, however,
    // testing shows we would only save 17% of the total NCMesh memory if
@@ -487,181 +432,146 @@ NCMesh::Element::Element(int geom, int attr)
    // keep the code as simple as possible.
 }
 
-NCMesh::Element*
-NCMesh::NewHexahedron(Node* n0, Node* n1, Node* n2, Node* n3,
-                      Node* n4, Node* n5, Node* n6, Node* n7,
-                      int attr,
-                      int fattr0, int fattr1, int fattr2,
-                      int fattr3, int fattr4, int fattr5)
+int NCMesh::NewHexahedron(int n0, int n1, int n2, int n3,
+                          int n4, int n5, int n6, int n7,
+                          int attr,
+                          int fattr0, int fattr1, int fattr2,
+                          int fattr3, int fattr4, int fattr5)
 {
    // create new unrefined element, initialize nodes
-   Element* e = new Element(Geometry::CUBE, attr);
-   e->node[0] = n0, e->node[1] = n1, e->node[2] = n2, e->node[3] = n3;
-   e->node[4] = n4, e->node[5] = n5, e->node[6] = n6, e->node[7] = n7;
+   int new_id = AddElement(Element(Geometry::CUBE, attr));
+   Element &el = elements[new_id];
 
-   // get face nodes and assign face attributes
+   el.node[0] = n0, el.node[1] = n1, el.node[2] = n2, el.node[3] = n3;
+   el.node[4] = n4, el.node[5] = n5, el.node[6] = n6, el.node[7] = n7;
+
+   // get faces and assign face attributes
    Face* f[6];
    for (int i = 0; i < gi_hex.nf; i++)
    {
       const int* fv = gi_hex.faces[i];
-      f[i] = faces.Get(e->node[fv[0]], e->node[fv[1]],
-                       e->node[fv[2]], e->node[fv[3]]);
+      f[i] = faces.Get(el.node[fv[0]], el.node[fv[1]],
+                       el.node[fv[2]], el.node[fv[3]]);
    }
 
    f[0]->attribute = fattr0,  f[1]->attribute = fattr1;
    f[2]->attribute = fattr2,  f[3]->attribute = fattr3;
    f[4]->attribute = fattr4,  f[5]->attribute = fattr5;
 
-   return e;
+   return new_id;
 }
 
-NCMesh::Element*
-NCMesh::NewQuadrilateral(Node* n0, Node* n1, Node* n2, Node* n3,
-                         int attr,
-                         int eattr0, int eattr1, int eattr2, int eattr3)
+int NCMesh::NewQuadrilateral(int n0, int n1, int n2, int n3,
+                             int attr,
+                             int eattr0, int eattr1, int eattr2, int eattr3)
 {
    // create new unrefined element, initialize nodes
-   Element* e = new Element(Geometry::SQUARE, attr);
-   e->node[0] = n0, e->node[1] = n1, e->node[2] = n2, e->node[3] = n3;
+   int new_id = AddElement(Element(Geometry::SQUARE, attr));
+   Element &el = elements[new_id];
 
-   // get edge nodes and assign edge attributes
-   Edge* edge[4];
-   for (int i = 0; i < gi_quad.ne; i++)
+   el.node[0] = n0, el.node[1] = n1, el.node[2] = n2, el.node[3] = n3;
+
+   // get (degenerate) faces and assign face attributes
+   Face* f[4];
+   for (int i = 0; i < gi_quad.nf; i++)
    {
-      const int* ev = gi_quad.edges[i];
-      Node* node = nodes.Get(e->node[ev[0]], e->node[ev[1]]);
-      if (!node->edge) { node->edge = new Edge; }
-      edge[i] = node->edge;
+      const int* fv = gi_quad.faces[i];
+      f[i] = faces.Get(el.node[fv[0]], el.node[fv[1]],
+                       el.node[fv[2]], el.node[fv[3]]);
    }
 
-   edge[0]->attribute = eattr0;
-   edge[1]->attribute = eattr1;
-   edge[2]->attribute = eattr2;
-   edge[3]->attribute = eattr3;
+   f[0]->attribute = eattr0,  f[1]->attribute = eattr1;
+   f[2]->attribute = eattr2,  f[3]->attribute = eattr3;
 
-   return e;
+   return new_id;
 }
 
-NCMesh::Element*
-NCMesh::NewTriangle(Node* n0, Node* n1, Node* n2,
-                    int attr, int eattr0, int eattr1, int eattr2)
+int NCMesh::NewTriangle(int n0, int n1, int n2,
+                        int attr, int eattr0, int eattr1, int eattr2)
 {
    // create new unrefined element, initialize nodes
-   Element* e = new Element(Geometry::TRIANGLE, attr);
-   e->node[0] = n0, e->node[1] = n1, e->node[2] = n2;
+   int new_id = AddElement(Element(Geometry::TRIANGLE, attr));
+   Element &el = elements[new_id];
+   el.node[0] = n0, el.node[1] = n1, el.node[2] = n2;
 
-   // get edge nodes and assign edge attributes
-   Edge* edge[3];
-   for (int i = 0; i < gi_tri.ne; i++)
+   // get (degenerate) faces and assign face attributes
+   Face* f[3];
+   for (int i = 0; i < gi_tri.nf; i++)
    {
-      const int* ev = gi_tri.edges[i];
-      Node* node = nodes.Get(e->node[ev[0]], e->node[ev[1]]);
-      if (!node->edge) { node->edge = new Edge; }
-      edge[i] = node->edge;
+      const int* fv = gi_tri.faces[i];
+      f[i] = faces.Get(el.node[fv[0]], el.node[fv[1]],
+                       el.node[fv[2]], el.node[fv[3]]);
    }
 
-   edge[0]->attribute = eattr0;
-   edge[1]->attribute = eattr1;
-   edge[2]->attribute = eattr2;
+   f[0]->attribute = eattr0;
+   f[1]->attribute = eattr1;
+   f[2]->attribute = eattr2;
 
-   return e;
+   return new_id;
 }
 
-NCMesh::Vertex* NCMesh::NewVertex(Node* v1, Node* v2)
-{
-   MFEM_ASSERT(v1->vertex && v2->vertex, "missing parent vertices.");
-
-   // get the midpoint between v1 and v2
-   Vertex* v = new Vertex;
-   for (int i = 0; i < 3; i++)
-   {
-      v->pos[i] = (v1->vertex->pos[i] + v2->vertex->pos[i]) * 0.5;
-   }
-
-   return v;
-}
-
-NCMesh::Node* NCMesh::GetMidEdgeVertex(Node* v1, Node* v2)
+int NCMesh::GetMidEdgeNode(int vn1, int vn2)
 {
    // in 3D we must be careful about getting the mid-edge node
-   Node* mid = PeekAltParents(v1, v2);
-   if (!mid) { mid = nodes.Get(v1, v2); }
-   if (!mid->vertex) { mid->vertex = NewVertex(v1, v2); }
+   int mid = FindAltParents(vn1, vn2);
+   if (mid < 0) { mid = nodes.GetId(vn1, vn2); } // create if not found
    return mid;
 }
 
-NCMesh::Node* NCMesh::GetMidEdgeVertexSimple(Node* v1, Node* v2)
+int NCMesh::GetMidFaceNode(int en1, int en2, int en3, int en4)
 {
-   // simple version for 2D cases
-   Node* mid = nodes.Get(v1, v2);
-   if (!mid->vertex) { mid->vertex = NewVertex(v1, v2); }
-   return mid;
-}
-
-NCMesh::Node*
-NCMesh::GetMidFaceVertex(Node* e1, Node* e2, Node* e3, Node* e4)
-{
-   // mid-face node can be created either from (e1, e3) or from (e2, e4)
-   Node* midf = nodes.Peek(e1, e3);
-   if (midf)
-   {
-      if (!midf->vertex) { midf->vertex = NewVertex(e1, e3); }
-      return midf;
-   }
-   else
-   {
-      midf = nodes.Get(e2, e4);
-      if (!midf->vertex) { midf->vertex = NewVertex(e2, e4); }
-      return midf;
-   }
+   // mid-face node can be created either from (en1, en3) or from (en2, en4)
+   int midf = nodes.FindId(en1, en3);
+   if (midf >= 0) { return midf; }
+   return nodes.GetId(en2, en4);
 }
 
 //
-inline bool NCMesh::NodeSetX1(Node* node, Node** n)
+inline bool NCMesh::NodeSetX1(int node, int* n)
 { return node == n[0] || node == n[3] || node == n[4] || node == n[7]; }
 
-inline bool NCMesh::NodeSetX2(Node* node, Node** n)
+inline bool NCMesh::NodeSetX2(int node, int* n)
 { return node == n[1] || node == n[2] || node == n[5] || node == n[6]; }
 
-inline bool NCMesh::NodeSetY1(Node* node, Node** n)
+inline bool NCMesh::NodeSetY1(int node, int* n)
 { return node == n[0] || node == n[1] || node == n[4] || node == n[5]; }
 
-inline bool NCMesh::NodeSetY2(Node* node, Node** n)
+inline bool NCMesh::NodeSetY2(int node, int* n)
 { return node == n[2] || node == n[3] || node == n[6] || node == n[7]; }
 
-inline bool NCMesh::NodeSetZ1(Node* node, Node** n)
+inline bool NCMesh::NodeSetZ1(int node, int* n)
 { return node == n[0] || node == n[1] || node == n[2] || node == n[3]; }
 
-inline bool NCMesh::NodeSetZ2(Node* node, Node** n)
+inline bool NCMesh::NodeSetZ2(int node, int* n)
 { return node == n[4] || node == n[5] || node == n[6] || node == n[7]; }
 
 
-void NCMesh::ForceRefinement(Node* v1, Node* v2, Node* v3, Node* v4)
+void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
 {
    // get the element this face belongs to
-   Face* face = faces.Peek(v1, v2, v3, v4);
+   Face* face = faces.Find(vn1, vn2, vn3, vn4);
    if (!face) { return; }
 
-   Element* elem = face->GetSingleElement();
-   MFEM_ASSERT(!elem->ref_type, "element already refined.");
+   int elem = face->GetSingleElement();
+   MFEM_ASSERT(!elements[elem].ref_type, "element already refined.");
 
-   Node** nodes = elem->node;
+   int* nodes = elements[elem].node;
 
    // schedule the right split depending on face orientation
-   if ((NodeSetX1(v1, nodes) && NodeSetX2(v2, nodes)) ||
-       (NodeSetX1(v2, nodes) && NodeSetX2(v1, nodes)))
+   if ((NodeSetX1(vn1, nodes) && NodeSetX2(vn2, nodes)) ||
+       (NodeSetX1(vn2, nodes) && NodeSetX2(vn1, nodes)))
    {
-      ref_stack.Append(ElemRefType(elem, 1)); // X split
+      ref_stack.Append(Refinement(elem, 1)); // X split
    }
-   else if ((NodeSetY1(v1, nodes) && NodeSetY2(v2, nodes)) ||
-            (NodeSetY1(v2, nodes) && NodeSetY2(v1, nodes)))
+   else if ((NodeSetY1(vn1, nodes) && NodeSetY2(vn2, nodes)) ||
+            (NodeSetY1(vn2, nodes) && NodeSetY2(vn1, nodes)))
    {
-      ref_stack.Append(ElemRefType(elem, 2)); // Y split
+      ref_stack.Append(Refinement(elem, 2)); // Y split
    }
-   else if ((NodeSetZ1(v1, nodes) && NodeSetZ2(v2, nodes)) ||
-            (NodeSetZ1(v2, nodes) && NodeSetZ2(v1, nodes)))
+   else if ((NodeSetZ1(vn1, nodes) && NodeSetZ2(vn2, nodes)) ||
+            (NodeSetZ1(vn2, nodes) && NodeSetZ2(vn1, nodes)))
    {
-      ref_stack.Append(ElemRefType(elem, 4)); // Z split
+      ref_stack.Append(Refinement(elem, 4)); // Z split
    }
    else
    {
@@ -670,12 +580,12 @@ void NCMesh::ForceRefinement(Node* v1, Node* v2, Node* v3, Node* v4)
 }
 
 
-void NCMesh::CheckAnisoFace(Node* v1, Node* v2, Node* v3, Node* v4,
-                            Node* mid12, Node* mid34, int level)
+void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
+                            int mid12, int mid34, int level)
 {
    // When a face is getting split anisotropically (without loss of generality
    // we assume a "vertical" split here, see picture), it is important to make
-   // sure that the mid-face vertex (midf) has mid34 and mid12 as parents.
+   // sure that the mid-face vertex node (midf) has mid34 and mid12 as parents.
    // This is necessary for the face traversal algorithm and at places like
    // Refine() that assume the mid-edge nodes to be accessible through the right
    // parents. However, midf may already exist under the parents mid41 and
@@ -683,7 +593,7 @@ void NCMesh::CheckAnisoFace(Node* v1, Node* v2, Node* v3, Node* v4,
    // hash-table under the correct parents. This doesn't affect other nodes as
    // all IDs stay the same, only the face refinement "tree" is affected.
    //
-   //                      v4      mid34      v3
+   //                     vn4      mid34      vn3
    //                        *------*------*
    //                        |      |      |
    //                        |      |midf  |
@@ -691,23 +601,23 @@ void NCMesh::CheckAnisoFace(Node* v1, Node* v2, Node* v3, Node* v4,
    //                        |      |      |
    //                        |      |      |
    //                        *------*------*
-   //                     v1      mid12      v2
+   //                    vn1      mid12      vn2
    //
    // This function is recursive, because the above applies to any node along
    // the middle vertical edge. The function calls itself again for the bottom
    // and upper half of the above picture.
 
-   Node* mid23 = nodes.Peek(v2, v3);
-   Node* mid41 = nodes.Peek(v4, v1);
-   if (mid23 && mid41)
+   int mid23 = nodes.FindId(vn2, vn3);
+   int mid41 = nodes.FindId(vn4, vn1);
+   if (mid23 >= 0 && mid41 >= 0)
    {
-      Node* midf = nodes.Peek(mid23, mid41);
-      if (midf)
+      int midf = nodes.FindId(mid23, mid41);
+      if (midf >= 0)
       {
-         nodes.Reparent(midf, mid12->id, mid34->id);
+         nodes.Reparent(midf, mid12, mid34);
 
-         CheckAnisoFace(v1, v2, mid23, mid41, mid12, midf, level+1);
-         CheckAnisoFace(mid41, mid23, v3, v4, midf, mid34, level+1);
+         CheckAnisoFace(vn1, vn2, mid23, mid41, mid12, midf, level+1);
+         CheckAnisoFace(mid41, mid23, vn3, vn4, midf, mid34, level+1);
          return;
       }
    }
@@ -732,12 +642,12 @@ void NCMesh::CheckAnisoFace(Node* v1, Node* v2, Node* v3, Node* v4,
 
    if (level > 0)
    {
-      ForceRefinement(v1, v2, v3, v4);
+      ForceRefinement(vn1, vn2, vn3, vn4);
    }
 }
 
-void NCMesh::CheckIsoFace(Node* v1, Node* v2, Node* v3, Node* v4,
-                          Node* e1, Node* e2, Node* e3, Node* e4, Node* midf)
+void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
+                          int en1, int en2, int en3, int en4, int midf)
 {
    if (!Iso)
    {
@@ -745,69 +655,71 @@ void NCMesh::CheckIsoFace(Node* v1, Node* v2, Node* v3, Node* v4,
          isotropically split faces as well, see second comment in
          CheckAnisoFace above. */
 
-      CheckAnisoFace(v1, v2, e2, e4, e1, midf);
-      CheckAnisoFace(e4, e2, v3, v4, midf, e3);
-      CheckAnisoFace(v4, v1, e1, e3, e4, midf);
-      CheckAnisoFace(e3, e1, v2, v3, midf, e2);
+      CheckAnisoFace(vn1, vn2, en2, en4, en1, midf);
+      CheckAnisoFace(en4, en2, vn3, vn4, midf, en3);
+      CheckAnisoFace(vn4, vn1, en1, en3, en4, midf);
+      CheckAnisoFace(en3, en1, vn2, vn3, midf, en2);
    }
 }
 
 
-void NCMesh::RefineElement(Element* elem, char ref_type)
+void NCMesh::RefineElement(int elem, char ref_type)
 {
    if (!ref_type) { return; }
 
    // handle elements that may have been (force-) refined already
-   if (elem->ref_type)
+   Element &el = elements[elem];
+   if (el.ref_type)
    {
-      char remaining = ref_type & ~elem->ref_type;
+      char remaining = ref_type & ~el.ref_type;
 
       // do the remaining splits on the children
       for (int i = 0; i < 8; i++)
       {
-         if (elem->child[i]) { RefineElement(elem->child[i], remaining); }
+         if (el.child[i] >= 0) { RefineElement(el.child[i], remaining); }
       }
       return;
    }
 
-   Node** no = elem->node;
-   int attr = elem->attribute;
+   int* no = el.node;
+   int attr = el.attribute;
 
-   Element* child[8];
-   memset(child, 0, sizeof(child));
+   int child[8];
+   for (int i = 0; i < 8; i++) { child[i] = -1; }
+
+   // get parent's face attributes
+   int fa[6];
+   GeomInfo& gi = GI[(int) el.geom];
+   for (int i = 0; i < gi.nf; i++)
+   {
+      const int* fv = gi.faces[i];
+      Face* face = faces.Find(no[fv[0]], no[fv[1]], no[fv[2]], no[fv[3]]);
+      fa[i] = face->attribute;
+   }
 
    // create child elements
-   if (elem->geom == Geometry::CUBE)
+   if (el.geom == Geometry::CUBE)
    {
-      // get parent's face attributes
-      int fa[6];
-      for (int i = 0; i < gi_hex.nf; i++)
-      {
-         const int* fv = gi_hex.faces[i];
-         Face* face = faces.Peek(no[fv[0]], no[fv[1]], no[fv[2]], no[fv[3]]);
-         fa[i] = face->attribute;
-      }
-
       // Vertex numbering is assumed to be as follows:
       //
-      //       7              6
-      //        +------------+                Faces: 0 bottom
-      //       /|           /|                       1 front
-      //    4 / |        5 / |                       2 right
-      //     +------------+  |                       3 back
-      //     |  |         |  |                       4 left
-      //     |  +---------|--+                       5 top
-      //     | / 3        | / 2       Z Y
-      //     |/           |/          |/
-      //     +------------+           *--X
-      //    0              1
+      //       7             6
+      //        +-----------+                Faces: 0 bottom
+      //       /|          /|                       1 front
+      //    4 / |       5 / |                       2 right
+      //     +-----------+  |                       3 back
+      //     |  |        |  |                       4 left
+      //     |  +--------|--+                       5 top
+      //     | / 3       | / 2       Z Y
+      //     |/          |/          |/
+      //     +-----------+           *--X
+      //    0             1
 
       if (ref_type == 1) // split along X axis
       {
-         Node* mid01 = GetMidEdgeVertex(no[0], no[1]);
-         Node* mid23 = GetMidEdgeVertex(no[2], no[3]);
-         Node* mid67 = GetMidEdgeVertex(no[6], no[7]);
-         Node* mid45 = GetMidEdgeVertex(no[4], no[5]);
+         int mid01 = GetMidEdgeNode(no[0], no[1]);
+         int mid23 = GetMidEdgeNode(no[2], no[3]);
+         int mid45 = GetMidEdgeNode(no[4], no[5]);
+         int mid67 = GetMidEdgeNode(no[6], no[7]);
 
          child[0] = NewHexahedron(no[0], mid01, mid23, no[3],
                                   no[4], mid45, mid67, no[7], attr,
@@ -824,10 +736,10 @@ void NCMesh::RefineElement(Element* elem, char ref_type)
       }
       else if (ref_type == 2) // split along Y axis
       {
-         Node* mid12 = GetMidEdgeVertex(no[1], no[2]);
-         Node* mid30 = GetMidEdgeVertex(no[3], no[0]);
-         Node* mid56 = GetMidEdgeVertex(no[5], no[6]);
-         Node* mid74 = GetMidEdgeVertex(no[7], no[4]);
+         int mid12 = GetMidEdgeNode(no[1], no[2]);
+         int mid30 = GetMidEdgeNode(no[3], no[0]);
+         int mid56 = GetMidEdgeNode(no[5], no[6]);
+         int mid74 = GetMidEdgeNode(no[7], no[4]);
 
          child[0] = NewHexahedron(no[0], no[1], mid12, mid30,
                                   no[4], no[5], mid56, mid74, attr,
@@ -844,10 +756,10 @@ void NCMesh::RefineElement(Element* elem, char ref_type)
       }
       else if (ref_type == 4) // split along Z axis
       {
-         Node* mid04 = GetMidEdgeVertex(no[0], no[4]);
-         Node* mid15 = GetMidEdgeVertex(no[1], no[5]);
-         Node* mid26 = GetMidEdgeVertex(no[2], no[6]);
-         Node* mid37 = GetMidEdgeVertex(no[3], no[7]);
+         int mid04 = GetMidEdgeNode(no[0], no[4]);
+         int mid15 = GetMidEdgeNode(no[1], no[5]);
+         int mid26 = GetMidEdgeNode(no[2], no[6]);
+         int mid37 = GetMidEdgeNode(no[3], no[7]);
 
          child[0] = NewHexahedron(no[0], no[1], no[2], no[3],
                                   mid04, mid15, mid26, mid37, attr,
@@ -864,18 +776,18 @@ void NCMesh::RefineElement(Element* elem, char ref_type)
       }
       else if (ref_type == 3) // XY split
       {
-         Node* mid01 = GetMidEdgeVertex(no[0], no[1]);
-         Node* mid12 = GetMidEdgeVertex(no[1], no[2]);
-         Node* mid23 = GetMidEdgeVertex(no[2], no[3]);
-         Node* mid30 = GetMidEdgeVertex(no[3], no[0]);
+         int mid01 = GetMidEdgeNode(no[0], no[1]);
+         int mid12 = GetMidEdgeNode(no[1], no[2]);
+         int mid23 = GetMidEdgeNode(no[2], no[3]);
+         int mid30 = GetMidEdgeNode(no[3], no[0]);
 
-         Node* mid45 = GetMidEdgeVertex(no[4], no[5]);
-         Node* mid56 = GetMidEdgeVertex(no[5], no[6]);
-         Node* mid67 = GetMidEdgeVertex(no[6], no[7]);
-         Node* mid74 = GetMidEdgeVertex(no[7], no[4]);
+         int mid45 = GetMidEdgeNode(no[4], no[5]);
+         int mid56 = GetMidEdgeNode(no[5], no[6]);
+         int mid67 = GetMidEdgeNode(no[6], no[7]);
+         int mid74 = GetMidEdgeNode(no[7], no[4]);
 
-         Node* midf0 = GetMidFaceVertex(mid23, mid12, mid01, mid30);
-         Node* midf5 = GetMidFaceVertex(mid45, mid56, mid67, mid74);
+         int midf0 = GetMidFaceNode(mid23, mid12, mid01, mid30);
+         int midf5 = GetMidFaceNode(mid45, mid56, mid67, mid74);
 
          child[0] = NewHexahedron(no[0], mid01, midf0, mid30,
                                   no[4], mid45, midf5, mid74, attr,
@@ -903,18 +815,18 @@ void NCMesh::RefineElement(Element* elem, char ref_type)
       }
       else if (ref_type == 5) // XZ split
       {
-         Node* mid01 = GetMidEdgeVertex(no[0], no[1]);
-         Node* mid23 = GetMidEdgeVertex(no[2], no[3]);
-         Node* mid45 = GetMidEdgeVertex(no[4], no[5]);
-         Node* mid67 = GetMidEdgeVertex(no[6], no[7]);
+         int mid01 = GetMidEdgeNode(no[0], no[1]);
+         int mid23 = GetMidEdgeNode(no[2], no[3]);
+         int mid45 = GetMidEdgeNode(no[4], no[5]);
+         int mid67 = GetMidEdgeNode(no[6], no[7]);
 
-         Node* mid04 = GetMidEdgeVertex(no[0], no[4]);
-         Node* mid15 = GetMidEdgeVertex(no[1], no[5]);
-         Node* mid26 = GetMidEdgeVertex(no[2], no[6]);
-         Node* mid37 = GetMidEdgeVertex(no[3], no[7]);
+         int mid04 = GetMidEdgeNode(no[0], no[4]);
+         int mid15 = GetMidEdgeNode(no[1], no[5]);
+         int mid26 = GetMidEdgeNode(no[2], no[6]);
+         int mid37 = GetMidEdgeNode(no[3], no[7]);
 
-         Node* midf1 = GetMidFaceVertex(mid01, mid15, mid45, mid04);
-         Node* midf3 = GetMidFaceVertex(mid23, mid37, mid67, mid26);
+         int midf1 = GetMidFaceNode(mid01, mid15, mid45, mid04);
+         int midf3 = GetMidFaceNode(mid23, mid37, mid67, mid26);
 
          child[0] = NewHexahedron(no[0], mid01, mid23, no[3],
                                   mid04, midf1, midf3, mid37, attr,
@@ -942,18 +854,18 @@ void NCMesh::RefineElement(Element* elem, char ref_type)
       }
       else if (ref_type == 6) // YZ split
       {
-         Node* mid12 = GetMidEdgeVertex(no[1], no[2]);
-         Node* mid30 = GetMidEdgeVertex(no[3], no[0]);
-         Node* mid56 = GetMidEdgeVertex(no[5], no[6]);
-         Node* mid74 = GetMidEdgeVertex(no[7], no[4]);
+         int mid12 = GetMidEdgeNode(no[1], no[2]);
+         int mid30 = GetMidEdgeNode(no[3], no[0]);
+         int mid56 = GetMidEdgeNode(no[5], no[6]);
+         int mid74 = GetMidEdgeNode(no[7], no[4]);
 
-         Node* mid04 = GetMidEdgeVertex(no[0], no[4]);
-         Node* mid15 = GetMidEdgeVertex(no[1], no[5]);
-         Node* mid26 = GetMidEdgeVertex(no[2], no[6]);
-         Node* mid37 = GetMidEdgeVertex(no[3], no[7]);
+         int mid04 = GetMidEdgeNode(no[0], no[4]);
+         int mid15 = GetMidEdgeNode(no[1], no[5]);
+         int mid26 = GetMidEdgeNode(no[2], no[6]);
+         int mid37 = GetMidEdgeNode(no[3], no[7]);
 
-         Node* midf2 = GetMidFaceVertex(mid12, mid26, mid56, mid15);
-         Node* midf4 = GetMidFaceVertex(mid30, mid04, mid74, mid37);
+         int midf2 = GetMidFaceNode(mid12, mid26, mid56, mid15);
+         int midf4 = GetMidFaceNode(mid30, mid04, mid74, mid37);
 
          child[0] = NewHexahedron(no[0], no[1], mid12, mid30,
                                   mid04, mid15, midf2, midf4, attr,
@@ -981,29 +893,29 @@ void NCMesh::RefineElement(Element* elem, char ref_type)
       }
       else if (ref_type == 7) // full isotropic refinement
       {
-         Node* mid01 = GetMidEdgeVertex(no[0], no[1]);
-         Node* mid12 = GetMidEdgeVertex(no[1], no[2]);
-         Node* mid23 = GetMidEdgeVertex(no[2], no[3]);
-         Node* mid30 = GetMidEdgeVertex(no[3], no[0]);
+         int mid01 = GetMidEdgeNode(no[0], no[1]);
+         int mid12 = GetMidEdgeNode(no[1], no[2]);
+         int mid23 = GetMidEdgeNode(no[2], no[3]);
+         int mid30 = GetMidEdgeNode(no[3], no[0]);
 
-         Node* mid45 = GetMidEdgeVertex(no[4], no[5]);
-         Node* mid56 = GetMidEdgeVertex(no[5], no[6]);
-         Node* mid67 = GetMidEdgeVertex(no[6], no[7]);
-         Node* mid74 = GetMidEdgeVertex(no[7], no[4]);
+         int mid45 = GetMidEdgeNode(no[4], no[5]);
+         int mid56 = GetMidEdgeNode(no[5], no[6]);
+         int mid67 = GetMidEdgeNode(no[6], no[7]);
+         int mid74 = GetMidEdgeNode(no[7], no[4]);
 
-         Node* mid04 = GetMidEdgeVertex(no[0], no[4]);
-         Node* mid15 = GetMidEdgeVertex(no[1], no[5]);
-         Node* mid26 = GetMidEdgeVertex(no[2], no[6]);
-         Node* mid37 = GetMidEdgeVertex(no[3], no[7]);
+         int mid04 = GetMidEdgeNode(no[0], no[4]);
+         int mid15 = GetMidEdgeNode(no[1], no[5]);
+         int mid26 = GetMidEdgeNode(no[2], no[6]);
+         int mid37 = GetMidEdgeNode(no[3], no[7]);
 
-         Node* midf0 = GetMidFaceVertex(mid23, mid12, mid01, mid30);
-         Node* midf1 = GetMidFaceVertex(mid01, mid15, mid45, mid04);
-         Node* midf2 = GetMidFaceVertex(mid12, mid26, mid56, mid15);
-         Node* midf3 = GetMidFaceVertex(mid23, mid37, mid67, mid26);
-         Node* midf4 = GetMidFaceVertex(mid30, mid04, mid74, mid37);
-         Node* midf5 = GetMidFaceVertex(mid45, mid56, mid67, mid74);
+         int midf0 = GetMidFaceNode(mid23, mid12, mid01, mid30);
+         int midf1 = GetMidFaceNode(mid01, mid15, mid45, mid04);
+         int midf2 = GetMidFaceNode(mid12, mid26, mid56, mid15);
+         int midf3 = GetMidFaceNode(mid23, mid37, mid67, mid26);
+         int midf4 = GetMidFaceNode(mid30, mid04, mid74, mid37);
+         int midf5 = GetMidFaceNode(mid45, mid56, mid67, mid74);
 
-         Node* midel = GetMidEdgeVertex(midf1, midf3);
+         int midel = GetMidEdgeNode(midf1, midf3);
 
          child[0] = NewHexahedron(no[0], mid01, midf0, mid30,
                                   mid04, midf1, midel, midf4, attr,
@@ -1051,58 +963,52 @@ void NCMesh::RefineElement(Element* elem, char ref_type)
 
       if (ref_type != 7) { Iso = false; }
    }
-   else if (elem->geom == Geometry::SQUARE)
+   else if (el.geom == Geometry::SQUARE)
    {
-      // get parent's edge attributes
-      int ea0 = nodes.Peek(no[0], no[1])->edge->attribute;
-      int ea1 = nodes.Peek(no[1], no[2])->edge->attribute;
-      int ea2 = nodes.Peek(no[2], no[3])->edge->attribute;
-      int ea3 = nodes.Peek(no[3], no[0])->edge->attribute;
-
       ref_type &= ~4; // ignore Z bit
 
       if (ref_type == 1) // X split
       {
-         Node* mid01 = GetMidEdgeVertexSimple(no[0], no[1]);
-         Node* mid23 = GetMidEdgeVertexSimple(no[2], no[3]);
+         int mid01 = nodes.GetId(no[0], no[1]);
+         int mid23 = nodes.GetId(no[2], no[3]);
 
          child[0] = NewQuadrilateral(no[0], mid01, mid23, no[3],
-                                     attr, ea0, -1, ea2, ea3);
+                                     attr, fa[0], -1, fa[2], fa[3]);
 
          child[1] = NewQuadrilateral(mid01, no[1], no[2], mid23,
-                                     attr, ea0, ea1, ea2, -1);
+                                     attr, fa[0], fa[1], fa[2], -1);
       }
       else if (ref_type == 2) // Y split
       {
-         Node* mid12 = GetMidEdgeVertexSimple(no[1], no[2]);
-         Node* mid30 = GetMidEdgeVertexSimple(no[3], no[0]);
+         int mid12 = nodes.GetId(no[1], no[2]);
+         int mid30 = nodes.GetId(no[3], no[0]);
 
          child[0] = NewQuadrilateral(no[0], no[1], mid12, mid30,
-                                     attr, ea0, ea1, -1, ea3);
+                                     attr, fa[0], fa[1], -1, fa[3]);
 
          child[1] = NewQuadrilateral(mid30, mid12, no[2], no[3],
-                                     attr, -1, ea1, ea2, ea3);
+                                     attr, -1, fa[1], fa[2], fa[3]);
       }
       else if (ref_type == 3) // iso split
       {
-         Node* mid01 = GetMidEdgeVertexSimple(no[0], no[1]);
-         Node* mid12 = GetMidEdgeVertexSimple(no[1], no[2]);
-         Node* mid23 = GetMidEdgeVertexSimple(no[2], no[3]);
-         Node* mid30 = GetMidEdgeVertexSimple(no[3], no[0]);
+         int mid01 = nodes.GetId(no[0], no[1]);
+         int mid12 = nodes.GetId(no[1], no[2]);
+         int mid23 = nodes.GetId(no[2], no[3]);
+         int mid30 = nodes.GetId(no[3], no[0]);
 
-         Node* midel = GetMidEdgeVertexSimple(mid01, mid23);
+         int midel = nodes.GetId(mid01, mid23);
 
          child[0] = NewQuadrilateral(no[0], mid01, midel, mid30,
-                                     attr, ea0, -1, -1, ea3);
+                                     attr, fa[0], -1, -1, fa[3]);
 
          child[1] = NewQuadrilateral(mid01, no[1], mid12, midel,
-                                     attr, ea0, ea1, -1, -1);
+                                     attr, fa[0], fa[1], -1, -1);
 
          child[2] = NewQuadrilateral(midel, mid12, no[2], mid23,
-                                     attr, -1, ea1, ea2, -1);
+                                     attr, -1, fa[1], fa[2], -1);
 
          child[3] = NewQuadrilateral(mid30, midel, mid23, no[3],
-                                     attr, -1, -1, ea2, ea3);
+                                     attr, -1, -1, fa[2], fa[3]);
       }
       else
       {
@@ -1111,23 +1017,18 @@ void NCMesh::RefineElement(Element* elem, char ref_type)
 
       if (ref_type != 3) { Iso = false; }
    }
-   else if (elem->geom == Geometry::TRIANGLE)
+   else if (el.geom == Geometry::TRIANGLE)
    {
-      // get parent's edge attributes
-      int ea0 = nodes.Peek(no[0], no[1])->edge->attribute;
-      int ea1 = nodes.Peek(no[1], no[2])->edge->attribute;
-      int ea2 = nodes.Peek(no[2], no[0])->edge->attribute;
-
       ref_type = 3; // for consistence
 
       // isotropic split - the only ref_type available for triangles
-      Node* mid01 = GetMidEdgeVertexSimple(no[0], no[1]);
-      Node* mid12 = GetMidEdgeVertexSimple(no[1], no[2]);
-      Node* mid20 = GetMidEdgeVertexSimple(no[2], no[0]);
+      int mid01 = nodes.GetId(no[0], no[1]);
+      int mid12 = nodes.GetId(no[1], no[2]);
+      int mid20 = nodes.GetId(no[2], no[0]);
 
-      child[0] = NewTriangle(no[0], mid01, mid20, attr, ea0, -1, ea2);
-      child[1] = NewTriangle(mid01, no[1], mid12, attr, ea0, ea1, -1);
-      child[2] = NewTriangle(mid20, mid12, no[2], attr, -1, ea1, ea2);
+      child[0] = NewTriangle(no[0], mid01, mid20, attr, fa[0], -1, fa[2]);
+      child[1] = NewTriangle(mid01, no[1], mid12, attr, fa[0], fa[1], -1);
+      child[2] = NewTriangle(mid20, mid12, no[2], attr, -1, fa[1], fa[2]);
       child[3] = NewTriangle(mid01, mid12, mid20, attr, -1, -1, -1);
    }
    else
@@ -1136,54 +1037,60 @@ void NCMesh::RefineElement(Element* elem, char ref_type)
    }
 
    // start using the nodes of the children, create edges & faces
-   for (int i = 0; i < 8; i++)
+   for (int i = 0; i < 8 && child[i] >= 0; i++)
    {
-      if (child[i]) { RefElementNodes(child[i]); }
+      RefElement(child[i]);
    }
 
-   // sign off of all nodes of the parent, clean up unused nodes
-   UnrefElementNodes(elem);
+   int buf[6];
+   Array<int> parentFaces(buf, 6);
+   parentFaces.SetSize(0);
 
-   // register the children in their faces once the parent is out of the way
-   for (int i = 0; i < 8; i++)
+   // sign off of all nodes of the parent, clean up unused nodes, but keep faces
+   UnrefElement(elem, parentFaces);
+
+   // register the children in their faces
+   for (int i = 0; i < 8 && child[i] >= 0; i++)
    {
-      if (child[i]) { RegisterFaces(child[i]); }
+      RegisterFaces(child[i]);
    }
 
-   // make the children inherit our rank, set the parent pointer
-   for (int i = 0; i < 8; i++)
+   // clean up parent faces, if unused
+   DeleteUnusedFaces(parentFaces);
+
+   // make the children inherit our rank, set the parent element
+   for (int i = 0; i < 8 && child[i] >= 0; i++)
    {
-      if (child[i])
-      {
-         child[i]->rank = elem->rank;
-         child[i]->parent = elem;
-      }
+      Element &ch = elements[child[i]];
+      ch.rank = el.rank;
+      ch.parent = elem;
    }
 
    // finish the refinement
-   elem->ref_type = ref_type;
-   memcpy(elem->child, child, sizeof(elem->child));
+   el.ref_type = ref_type;
+   memcpy(el.child, child, sizeof(el.child));
 }
 
 
 void NCMesh::Refine(const Array<Refinement>& refinements)
 {
    // push all refinements on the stack in reverse order
+   ref_stack.Reserve(refinements.Size());
    for (int i = refinements.Size()-1; i >= 0; i--)
    {
       const Refinement& ref = refinements[i];
-      ref_stack.Append(ElemRefType(leaf_elements[ref.index], ref.ref_type));
+      ref_stack.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
    }
 
    // keep refining as long as the stack contains something
    int nforced = 0;
    while (ref_stack.Size())
    {
-      ElemRefType ref = ref_stack.Last();
+      Refinement ref = ref_stack.Last();
       ref_stack.DeleteLast();
 
       int size = ref_stack.Size();
-      RefineElement(ref.elem, ref.ref_type);
+      RefineElement(ref.index, ref.ref_type);
       nforced += ref_stack.Size() - size;
    }
 
@@ -1197,10 +1104,11 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 
       Update: what about a FIFO instead of ref_stack? */
 
-#ifdef MFEM_DEBUG
+#if defined(MFEM_DEBUG) && !defined(MFEM_USE_MPI)
    std::cout << "Refined " << refinements.Size() << " + " << nforced
              << " elements" << std::endl;
 #endif
+   ref_stack.DeleteAll();
 
    Update();
 }
@@ -1208,17 +1116,18 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 
 //// Derefinement //////////////////////////////////////////////////////////////
 
-void NCMesh::DerefineElement(Element* elem)
+void NCMesh::DerefineElement(int elem)
 {
-   if (!elem->ref_type) { return; }
+   Element &el = elements[elem];
+   if (!el.ref_type) { return; }
 
-   Element* child[8];
-   std::memcpy(child, elem->child, sizeof(child));
+   int child[8];
+   memcpy(child, el.child, sizeof(child));
 
    // first make sure that all children are leaves, derefine them if not
-   for (int i = 0; i < 8; i++)
+   for (int i = 0; i < 8 && child[i] >= 0; i++)
    {
-      if (child[i] && child[i]->ref_type)
+      if (elements[child[i]].ref_type)
       {
          DerefineElement(child[i]);
       }
@@ -1226,7 +1135,7 @@ void NCMesh::DerefineElement(Element* elem)
 
    // retrieve original corner nodes and face attributes from the children
    int fa[6];
-   if (elem->geom == Geometry::CUBE)
+   if (el.geom == Geometry::CUBE)
    {
       const int table[7][8 + 6] =
       {
@@ -1240,17 +1149,17 @@ void NCMesh::DerefineElement(Element* elem)
       };
       for (int i = 0; i < 8; i++)
       {
-         elem->node[i] = child[table[elem->ref_type - 1][i]]->node[i];
+         el.node[i] = elements[child[table[el.ref_type - 1][i]]].node[i];
       }
       for (int i = 0; i < 6; i++)
       {
-         Element* ch = child[table[elem->ref_type - 1][i + 8]];
+         Element &ch = elements[child[table[el.ref_type - 1][i + 8]]];
          const int* fv = gi_hex.faces[i];
-         fa[i] = faces.Peek(ch->node[fv[0]], ch->node[fv[1]],
-                            ch->node[fv[2]], ch->node[fv[3]])->attribute;
+         fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
+                            ch.node[fv[2]], ch.node[fv[3]])->attribute;
       }
    }
-   else if (elem->geom == Geometry::SQUARE)
+   else if (el.geom == Geometry::SQUARE)
    {
       const int table[3][4 + 4] =
       {
@@ -1260,23 +1169,25 @@ void NCMesh::DerefineElement(Element* elem)
       };
       for (int i = 0; i < 4; i++)
       {
-         elem->node[i] = child[table[elem->ref_type - 1][i]]->node[i];
+         el.node[i] = elements[child[table[el.ref_type - 1][i]]].node[i];
       }
       for (int i = 0; i < 4; i++)
       {
-         Element* ch = child[table[elem->ref_type - 1][i + 4]];
-         const int* ev = gi_quad.edges[i];
-         fa[i] = nodes.Peek(ch->node[ev[0]], ch->node[ev[1]])->edge->attribute;
+         Element &ch = elements[child[table[el.ref_type - 1][i + 4]]];
+         const int* fv = gi_quad.faces[i];
+         fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
+                            ch.node[fv[2]], ch.node[fv[3]])->attribute;
       }
    }
-   else if (elem->geom == Geometry::TRIANGLE)
+   else if (el.geom == Geometry::TRIANGLE)
    {
       for (int i = 0; i < 3; i++)
       {
-         Element* ch = child[i];
-         elem->node[i] = child[i]->node[i];
-         const int* ev = gi_tri.edges[i];
-         fa[i] = nodes.Peek(ch->node[ev[0]], ch->node[ev[1]])->edge->attribute;
+         Element& ch = elements[child[i]];
+         el.node[i] = ch.node[i];
+         const int* fv = gi_tri.faces[i];
+         fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
+                            ch.node[fv[2]], ch.node[fv[3]])->attribute;
       }
    }
    else
@@ -1285,70 +1196,61 @@ void NCMesh::DerefineElement(Element* elem)
    }
 
    // sign in to all nodes again
-   RefElementNodes(elem);
+   RefElement(elem);
+
+   int buf[8*6];
+   Array<int> childFaces(buf, 8*6);
+   childFaces.SetSize(0);
 
    // delete children, determine rank
-   elem->rank = INT_MAX;
-   for (int i = 0; i < 8; i++)
+   el.rank = INT_MAX;
+   for (int i = 0; i < 8 && child[i] >= 0; i++)
    {
-      if (child[i])
-      {
-         elem->rank = std::min(elem->rank, child[i]->rank);
-         DeleteHierarchy(child[i]);
-      }
+      el.rank = std::min(el.rank, elements[child[i]].rank);
+      UnrefElement(child[i], childFaces);
+      FreeElement(child[i]);
    }
 
    RegisterFaces(elem, fa);
 
-   // set edge attributes (2D)
-   // TODO: Edge::attribute should be removed
-   if (Dim < 3)
-   {
-      Node** node = elem->node;
-      GeomInfo& gi = GI[(int) elem->geom];
-      for (int i = 0; i < gi.ne; i++)
-      {
-         const int* ev = gi.edges[i];
-         nodes.Peek(node[ev[0]], node[ev[1]])->edge->attribute = fa[i];
-      }
-   }
+   // delete unused faces
+   childFaces.Sort();
+   childFaces.Unique();
+   DeleteUnusedFaces(childFaces);
 
-   elem->ref_type = 0;
+   el.ref_type = 0;
 }
 
 
-void NCMesh::CollectDerefinements(Element* elem, Array<Connection> &list)
+void NCMesh::CollectDerefinements(int elem, Array<Connection> &list)
 {
-   if (!elem->ref_type) { return; }
+   Element &el = elements[elem];
+   if (!el.ref_type) { return; }
 
    int total = 0, ref = 0, ghost = 0;
-   for (int i = 0; i < 8; i++)
+   for (int i = 0; i < 8 && el.child[i] >= 0; i++)
    {
-      Element* ch = elem->child[i];
-      if (ch)
-      {
-         total++;
-         if (ch->ref_type) { ref++; break; }
-         if (IsGhost(ch)) { ghost++; }
-      }
+      total++;
+      Element &ch = elements[el.child[i]];
+      if (ch.ref_type) { ref++; break; }
+      if (IsGhost(ch)) { ghost++; }
    }
 
    if (!ref && ghost < total)
    {
       // can be derefined, add to list
       int next_row = list.Size() ? (list.Last().from + 1) : 0;
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < 8 && el.child[i] >= 0; i++)
       {
-         Element* ch = elem->child[i];
-         if (ch) { list.Append(Connection(next_row, ch->index)); }
+         Element &ch = elements[el.child[i]];
+         list.Append(Connection(next_row, ch.index));
       }
    }
    else
    {
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < 8 && el.child[i] >= 0; i++)
       {
-         Element* ch = elem->child[i];
-         if (ch) { CollectDerefinements(ch, list); }
+         CollectDerefinements(el.child[i], list);
       }
    }
 }
@@ -1358,9 +1260,9 @@ const Table& NCMesh::GetDerefinementTable()
    Array<Connection> list;
    list.Reserve(leaf_elements.Size());
 
-   for (int i = 0; i < root_elements.Size(); i++)
+   for (int i = 0; i < root_count; i++)
    {
-      CollectDerefinements(root_elements[i], list);
+      CollectDerefinements(i, list);
    }
 
    int size = list.Size() ? (list.Last().from + 1) : 0;
@@ -1375,7 +1277,7 @@ void NCMesh::CheckDerefinementNCLevel(const Table &deref_table,
    for (int i = 0; i < deref_table.Size(); i++)
    {
       const int* fine = deref_table.GetRow(i), size = deref_table.RowSize(i);
-      Element* parent = leaf_elements[fine[0]]->parent;
+      Element &parent = elements[elements[leaf_elements[fine[0]]].parent];
 
       int ok = 1;
       for (int j = 0; j < size; j++)
@@ -1385,7 +1287,7 @@ void NCMesh::CheckDerefinementNCLevel(const Table &deref_table,
 
          for (int k = 0; k < Dim; k++)
          {
-            if ((parent->ref_type & (1 << k)) &&
+            if ((parent.ref_type & (1 << k)) &&
                 splits[k] >= max_nc_level)
             {
                ok = 0; break;
@@ -1404,8 +1306,8 @@ void NCMesh::Derefine(const Array<int> &derefs)
 
    InitDerefTransforms();
 
-   Array<Element*> coarse;
-   leaf_elements.Copy(coarse);
+   Array<int> fine_coarse;
+   leaf_elements.Copy(fine_coarse);
 
    // perform the derefinements
    for (int i = 0; i < derefs.Size(); i++)
@@ -1415,10 +1317,10 @@ void NCMesh::Derefine(const Array<int> &derefs)
                   "invalid derefinement number.");
 
       const int* fine = derefinements.GetRow(row);
-      Element* parent = leaf_elements[fine[0]]->parent;
+      int parent = elements[leaf_elements[fine[0]]].parent;
 
       // record the relation of the fine elements to their parent
-      SetDerefMatrixCodes(parent, coarse);
+      SetDerefMatrixCodes(parent, fine_coarse);
 
       DerefineElement(parent);
    }
@@ -1427,9 +1329,9 @@ void NCMesh::Derefine(const Array<int> &derefs)
    Update();
 
    // link old fine elements to the new coarse elements
-   for (int i = 0; i < coarse.Size(); i++)
+   for (int i = 0; i < fine_coarse.Size(); i++)
    {
-      transforms.embeddings[i].parent = coarse[i]->index;
+      transforms.embeddings[i].parent = elements[fine_coarse[i]].index;
    }
 }
 
@@ -1448,17 +1350,18 @@ void NCMesh::InitDerefTransforms()
    transforms.point_matrices.SetSize(0, 0, 0);
 }
 
-void NCMesh::SetDerefMatrixCodes(Element* parent, Array<Element*> &coarse)
+void NCMesh::SetDerefMatrixCodes(int parent, Array<int> &fine_coarse)
 {
    // encode the ref_type and child number for GetDerefinementTransforms()
-   for (int i = 0; i < 8; i++)
+   Element &prn = elements[parent];
+   for (int i = 0; i < 8 && prn.child[i] >= 0; i++)
    {
-      Element* ch = parent->child[i];
-      if (ch && ch->index >= 0)
+      Element &ch = elements[prn.child[i]];
+      if (ch.index >= 0)
       {
-         int code = (parent->ref_type << 3) + i;
-         transforms.embeddings[ch->index].matrix = code;
-         coarse[ch->index] = parent;
+         int code = (prn.ref_type << 3) + i;
+         transforms.embeddings[ch.index].matrix = code;
+         fine_coarse[ch.index] = parent;
       }
    }
 }
@@ -1470,17 +1373,17 @@ void NCMesh::UpdateVertices()
 {
    // (overridden in ParNCMesh to assign special indices to ghost vertices)
    int num_vert = 0;
-   for (HashTable<Node>::Iterator it(nodes); it; ++it)
+   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
    {
-      if (it->vertex) { it->vertex->index = num_vert++; }
+      if (node->HasVertex()) { node->vert_index = num_vert++; }
    }
 
    vertex_nodeId.SetSize(num_vert);
 
    num_vert = 0;
-   for (HashTable<Node>::Iterator it(nodes); it; ++it)
+   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
    {
-      if (it->vertex) { vertex_nodeId[num_vert++] = it->id; }
+      if (node->HasVertex()) { vertex_nodeId[num_vert++] = node.index(); }
    }
 }
 
@@ -1517,53 +1420,54 @@ static char hex_hilbert_child_state[24][8] =
    {23,22,22,8,8,17,17,0},   {21,23,23,1,1,7,7,15},    {22,21,21,16,16,2,2,6}
 };
 
-void NCMesh::CollectLeafElements(Element* elem, int state)
+void NCMesh::CollectLeafElements(int elem, int state)
 {
-   if (!elem->ref_type)
+   Element &el = elements[elem];
+   if (!el.ref_type)
    {
-      if (elem->rank >= 0) // skip elements beyond ghost layer in parallel
+      if (el.rank >= 0) // skip elements beyond ghost layer in parallel
       {
          leaf_elements.Append(elem);
       }
    }
    else
    {
-      if (elem->geom == Geometry::SQUARE && elem->ref_type == 3)
+      if (el.geom == Geometry::SQUARE && el.ref_type == 3)
       {
          for (int i = 0; i < 4; i++)
          {
             int ch = quad_hilbert_child_order[state][i];
             int st = quad_hilbert_child_state[state][i];
-            CollectLeafElements(elem->child[ch], st);
+            CollectLeafElements(el.child[ch], st);
          }
       }
-      else if (elem->geom == Geometry::CUBE && elem->ref_type == 7)
+      else if (el.geom == Geometry::CUBE && el.ref_type == 7)
       {
          for (int i = 0; i < 8; i++)
          {
             int ch = hex_hilbert_child_order[state][i];
             int st = hex_hilbert_child_state[state][i];
-            CollectLeafElements(elem->child[ch], st);
+            CollectLeafElements(el.child[ch], st);
          }
       }
       else
       {
          for (int i = 0; i < 8; i++)
          {
-            if (elem->child[i]) { CollectLeafElements(elem->child[i], state); }
+            if (el.child[i] >= 0) { CollectLeafElements(el.child[i], state); }
          }
       }
    }
-   elem->index = -1;
+   el.index = -1;
 }
 
 void NCMesh::UpdateLeafElements()
 {
    // collect leaf elements from all roots
    leaf_elements.SetSize(0);
-   for (int i = 0; i < root_elements.Size(); i++)
+   for (int i = 0; i < root_count; i++)
    {
-      CollectLeafElements(root_elements[i], 0);
+      CollectLeafElements(i, 0);
       // TODO: root state should not always be 0, we need a precomputed array
       // with root element states to ensure continuity where possible, also
       // optimized ordering of the root elements themselves (Gecko?)
@@ -1576,7 +1480,7 @@ void NCMesh::AssignLeafIndices()
    // (overridden in ParNCMesh to handle ghost elements)
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
-      leaf_elements[i]->index = i;
+      elements[leaf_elements[i]].index = i;
    }
 }
 
@@ -1592,76 +1496,97 @@ mfem::Element* NCMesh::NewMeshElement(int geom) const
    return NULL;
 }
 
-void NCMesh::GetMeshComponents(Array<mfem::Vertex>& vertices,
-                               Array<mfem::Element*>& elements,
-                               Array<mfem::Element*>& boundary) const
+const double* NCMesh::CalcVertexPos(int node) const
 {
-   // copy vertex coordinates
-   vertices.SetSize(vertex_nodeId.Size());
-   for (int i = 0; i < vertices.Size(); i++)
+   const Node &nd = nodes[node];
+   if (nd.p1 == nd.p2) // top-level vertex
    {
-      Node* node = nodes.Peek(vertex_nodeId[i]);
-      vertices[i].SetCoords(node->vertex->pos);
+      return &top_vertex_pos[3*nd.p1];
    }
 
-   elements.SetSize(leaf_elements.Size() - GetNumGhosts());
-   elements.SetSize(0);
+   TmpVertex &tv = tmp_vertex[nd.vert_index];
+   if (tv.valid) { return tv.pos; }
 
-   boundary.SetSize(0);
+   MFEM_VERIFY(tv.visited == false, "cyclic vertex dependencies.");
+   tv.visited = true;
+
+   const double* pos1 = CalcVertexPos(nd.p1);
+   const double* pos2 = CalcVertexPos(nd.p2);
+
+   for (int i = 0; i < 3; i++)
+   {
+      tv.pos[i] = (pos1[i] + pos2[i]) * 0.5;
+   }
+   tv.valid = true;
+   return tv.pos;
+}
+
+void NCMesh::GetMeshComponents(Array<mfem::Vertex>& mvertices,
+                               Array<mfem::Element*>& melements,
+                               Array<mfem::Element*>& mboundary,
+                               bool want_vertices) const
+{
+   if (want_vertices)
+   {
+      mvertices.SetSize(vertex_nodeId.Size());
+      tmp_vertex = new TmpVertex[nodes.NumIds()];
+      for (int i = 0; i < mvertices.Size(); i++)
+      {
+         mvertices[i].SetCoords(spaceDim, CalcVertexPos(vertex_nodeId[i]));
+      }
+      delete [] tmp_vertex;
+   }
+
+   melements.SetSize(leaf_elements.Size() - GetNumGhosts());
+   melements.SetSize(0);
+
+   mboundary.SetSize(0);
 
    // create an mfem::Element for each leaf Element
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
-      Element* nc_elem = leaf_elements[i];
+      const Element &nc_elem = elements[leaf_elements[i]];
       if (IsGhost(nc_elem)) { continue; } // ParNCMesh
 
-      Node** node = nc_elem->node;
-      GeomInfo& gi = GI[(int) nc_elem->geom];
+      const int* node = nc_elem.node;
+      GeomInfo& gi = GI[(int) nc_elem.geom];
 
-      mfem::Element* elem = NewMeshElement(nc_elem->geom);
-      elements.Append(elem);
+      mfem::Element* elem = NewMeshElement(nc_elem.geom);
+      melements.Append(elem);
 
-      elem->SetAttribute(nc_elem->attribute);
+      elem->SetAttribute(nc_elem.attribute);
       for (int j = 0; j < gi.nv; j++)
       {
-         elem->GetVertices()[j] = node[j]->vertex->index;
+         elem->GetVertices()[j] = nodes[node[j]].vert_index;
       }
 
       // create boundary elements
-      if (nc_elem->geom == Geometry::CUBE)
+      for (int k = 0; k < gi.nf; k++)
       {
-         for (int k = 0; k < gi.nf; k++)
+         const int* fv = gi.faces[k];
+         const Face* face = faces.Find(node[fv[0]], node[fv[1]],
+                                       node[fv[2]], node[fv[3]]);
+         if (face->Boundary())
          {
-            const int* fv = gi.faces[k];
-            Face* face = faces.Peek(node[fv[0]], node[fv[1]],
-                                    node[fv[2]], node[fv[3]]);
-            if (face->Boundary())
+            if (nc_elem.geom == Geometry::CUBE)
             {
                Quadrilateral* quad = new Quadrilateral;
                quad->SetAttribute(face->attribute);
                for (int j = 0; j < 4; j++)
                {
-                  quad->GetVertices()[j] = node[fv[j]]->vertex->index;
+                  quad->GetVertices()[j] = nodes[node[fv[j]]].vert_index;
                }
-               boundary.Append(quad);
+               mboundary.Append(quad);
             }
-         }
-      }
-      else // quad & triangle boundary elements
-      {
-         for (int k = 0; k < gi.ne; k++)
-         {
-            const int* ev = gi.edges[k];
-            Edge* edge = nodes.Peek(node[ev[0]], node[ev[1]])->edge;
-            if (edge->Boundary())
+            else
             {
                Segment* segment = new Segment;
-               segment->SetAttribute(edge->attribute);
+               segment->SetAttribute(face->attribute);
                for (int j = 0; j < 2; j++)
                {
-                  segment->GetVertices()[j] = node[ev[j]]->vertex->index;
+                  segment->GetVertices()[j] = nodes[node[fv[2*j]]].vert_index;
                }
-               boundary.Append(segment);
+               mboundary.Append(segment);
             }
          }
       }
@@ -1676,10 +1601,10 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
    for (int i = 0; i < edge_vertex->Size(); i++)
    {
       const int *ev = edge_vertex->GetRow(i);
-      Node* node = nodes.Peek(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
+      Node* node = nodes.Find(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
 
-      MFEM_ASSERT(node && node->edge, "edge not found.");
-      node->edge->index = i;
+      MFEM_ASSERT(node && node->HasEdge(), "edge not found.");
+      node->edge_index = i;
    }
 
    // get face enumeration from the Mesh
@@ -1690,14 +1615,14 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       if (Dim == 3)
       {
          MFEM_ASSERT(mesh->GetFace(i)->GetNVertices() == 4, "");
-         face = faces.Peek(vertex_nodeId[fv[0]], vertex_nodeId[fv[1]],
+         face = faces.Find(vertex_nodeId[fv[0]], vertex_nodeId[fv[1]],
                            vertex_nodeId[fv[2]], vertex_nodeId[fv[3]]);
       }
       else
       {
          MFEM_ASSERT(mesh->GetFace(i)->GetNVertices() == 2, "");
          int n0 = vertex_nodeId[fv[0]], n1 = vertex_nodeId[fv[1]];
-         face = faces.Peek(n0, n0, n1, n1); // look up degenerate face
+         face = faces.Find(n0, n0, n1, n1); // look up degenerate face
 
 #ifdef MFEM_DEBUG
          // (non-ghost) edge and face numbers must match in 2D
@@ -1714,63 +1639,54 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
 
 //// Face/edge lists ///////////////////////////////////////////////////////////
 
-int NCMesh::FaceSplitType(Node* v1, Node* v2, Node* v3, Node* v4,
-                          Node* mid[4]) const
+int NCMesh::FaceSplitType(int v1, int v2, int v3, int v4,
+                          int mid[4]) const
 {
    MFEM_ASSERT(Dim >= 3, "");
 
    // find edge nodes
-   Node* e1 = nodes.Peek(v1, v2);
-   Node* e2 = nodes.Peek(v2, v3);
-   Node* e3 = e1 ? nodes.Peek(v3, v4) : NULL;  // TODO: e1 && e1->vertex ?
-   Node* e4 = e2 ? nodes.Peek(v4, v1) : NULL;
+   int e1 = nodes.FindId(v1, v2);
+   int e2 = nodes.FindId(v2, v3);
+   int e3 = (e1 >= 0 && nodes[e1].HasVertex()) ? nodes.FindId(v3, v4) : -1;
+   int e4 = (e2 >= 0 && nodes[e2].HasVertex()) ? nodes.FindId(v4, v1) : -1;
 
    // optional: return the mid-edge nodes if requested
    if (mid) { mid[0] = e1, mid[1] = e2, mid[2] = e3, mid[3] = e4; }
 
    // try to get a mid-face node, either by (e1, e3) or by (e2, e4)
-   Node *midf1 = NULL, *midf2 = NULL;
-   if (e1 && e3) { midf1 = nodes.Peek(e1, e3); }
-   if (e2 && e4) { midf2 = nodes.Peek(e2, e4); }
+   int midf1 = -1, midf2 = -1;
+   if (e1 >= 0 && e3 >= 0) { midf1 = nodes.FindId(e1, e3); }
+   if (e2 >= 0 && e4 >= 0) { midf2 = nodes.FindId(e2, e4); }
 
    // only one way to access the mid-face node must always exist
-   MFEM_ASSERT(!(midf1 && midf2), "incorrectly split face!");
+   MFEM_ASSERT(!(midf1 >= 0 && midf2 >= 0), "incorrectly split face!");
 
-   if (!midf1 && !midf2) { return 0; }  // face not split
-
-   if (midf1) { return 1; }  // face split "vertically"
+   if (midf1 < 0 && midf2 < 0) { return 0; }  // face not split
+   else if (midf1 >= 0) { return 1; }  // face split "vertically"
    else { return 2; }  // face split "horizontally"
 }
 
-int NCMesh::find_node(Element* elem, Node* node)
+int NCMesh::find_node(const Element &el, int node)
 {
    for (int i = 0; i < 8; i++)
-      if (elem->node[i] == node) { return i; }
-
+   {
+      if (el.node[i] == node) { return i; }
+   }
    MFEM_ABORT("Node not found.");
    return -1;
 }
 
-int NCMesh::find_node(Element* elem, int node_id)
+int NCMesh::find_element_edge(const Element &el, int vn0, int vn1)
 {
-   for (int i = 0; i < 8; i++)
-      if (elem->node[i]->id == node_id) { return i; }
-
-   MFEM_ABORT("Node not found.");
-   return -1;
-}
-
-int NCMesh::find_element_edge(Element* elem, int v0, int v1)
-{
-   MFEM_ASSERT(!elem->ref_type, "");
-   GeomInfo &gi = GI[(int) elem->geom];
+   MFEM_ASSERT(!el.ref_type, "");
+   GeomInfo &gi = GI[(int) el.geom];
    for (int i = 0; i < gi.ne; i++)
    {
       const int* ev = gi.edges[i];
-      int n0 = elem->node[ev[0]]->id;
-      int n1 = elem->node[ev[1]]->id;
-      if ((n0 == v0 && n1 == v1) ||
-          (n0 == v1 && n1 == v0)) { return i; }
+      int n0 = el.node[ev[0]];
+      int n1 = el.node[ev[1]];
+      if ((n0 == vn0 && n1 == vn1) ||
+          (n0 == vn1 && n1 == vn0)) { return i; }
    }
    MFEM_ABORT("Edge not found");
    return -1;
@@ -1792,13 +1708,14 @@ int NCMesh::find_hex_face(int a, int b, int c)
    return -1;
 }
 
-int NCMesh::ReorderFacePointMat(Node* v0, Node* v1, Node* v2, Node* v3,
-                                Element* elem, DenseMatrix& mat) const
+int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
+                                int elem, DenseMatrix& mat) const
 {
+   const Element &el = elements[elem];
    int master[4] =
    {
-      find_node(elem, v0), find_node(elem, v1),
-      find_node(elem, v2), find_node(elem, v3)
+      find_node(el, v0), find_node(el, v1),
+      find_node(el, v2), find_node(el, v3)
    };
 
    int local = find_hex_face(master[0], master[1], master[2]);
@@ -1824,23 +1741,23 @@ int NCMesh::ReorderFacePointMat(Node* v0, Node* v1, Node* v2, Node* v3,
    return local;
 }
 
-void NCMesh::TraverseFace(Node* v0, Node* v1, Node* v2, Node* v3,
+void NCMesh::TraverseFace(int vn0, int vn1, int vn2, int vn3,
                           const PointMatrix& pm, int level)
 {
    if (level > 0)
    {
       // check if we made it to a face that is not split further
-      Face* face = faces.Peek(v0, v1, v2, v3);
-      if (face)
+      Face* fa = faces.Find(vn0, vn1, vn2, vn3);
+      if (fa)
       {
          // we have a slave face, add it to the list
-         Element* elem = face->GetSingleElement();
-         face_list.slaves.push_back(Slave(face->index, elem, -1));
+         int elem = fa->GetSingleElement();
+         face_list.slaves.push_back(Slave(fa->index, elem, -1));
          DenseMatrix &mat = face_list.slaves.back().point_matrix;
          pm.GetMatrix(mat);
 
          // reorder the point matrix according to slave face orientation
-         int local = ReorderFacePointMat(v0, v1, v2, v3, elem, mat);
+         int local = ReorderFacePointMat(vn0, vn1, vn2, vn3, elem, mat);
          face_list.slaves.back().local = local;
 
          return;
@@ -1848,27 +1765,27 @@ void NCMesh::TraverseFace(Node* v0, Node* v1, Node* v2, Node* v3,
    }
 
    // we need to recurse deeper
-   Node* mid[4];
-   int split = FaceSplitType(v0, v1, v2, v3, mid);
+   int mid[4];
+   int split = FaceSplitType(vn0, vn1, vn2, vn3, mid);
 
    if (split == 1) // "X" split face
    {
       Point mid0(pm(0), pm(1)), mid2(pm(2), pm(3));
 
-      TraverseFace(v0, mid[0], mid[2], v3,
+      TraverseFace(vn0, mid[0], mid[2], vn3,
                    PointMatrix(pm(0), mid0, mid2, pm(3)), level+1);
 
-      TraverseFace(mid[0], v1, v2, mid[2],
+      TraverseFace(mid[0], vn1, vn2, mid[2],
                    PointMatrix(mid0, pm(1), pm(2), mid2), level+1);
    }
    else if (split == 2) // "Y" split face
    {
       Point mid1(pm(1), pm(2)), mid3(pm(3), pm(0));
 
-      TraverseFace(v0, v1, mid[1], mid[3],
+      TraverseFace(vn0, vn1, mid[1], mid[3],
                    PointMatrix(pm(0), pm(1), mid1, mid3), level+1);
 
-      TraverseFace(mid[3], mid[1], v2, v3,
+      TraverseFace(mid[3], mid[1], vn2, vn3,
                    PointMatrix(mid3, mid1, pm(2), pm(3)), level+1);
    }
 }
@@ -1880,45 +1797,41 @@ void NCMesh::BuildFaceList()
 
    if (Dim < 3) { return; }
 
+   Array<char> processed_faces(faces.NumIds());
+   processed_faces = 0;
+
    // visit faces of leaf elements
-   Array<char> processed_faces; // TODO: size
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
-      Element* elem = leaf_elements[i];
-      MFEM_ASSERT(!elem->ref_type, "not a leaf element.");
+      int elem = leaf_elements[i];
+      Element &el = elements[elem];
+      MFEM_ASSERT(!el.ref_type, "not a leaf element.");
 
-      GeomInfo& gi = GI[(int) elem->geom];
+      GeomInfo& gi = GI[(int) el.geom];
       for (int j = 0; j < gi.nf; j++)
       {
          // get nodes for this face
-         Node* node[4];
+         int node[4];
          for (int k = 0; k < 4; k++)
          {
-            node[k] = elem->node[gi.faces[j][k]];
+            node[k] = el.node[gi.faces[j][k]];
          }
 
-         Face* face = faces.Peek(node[0], node[1], node[2], node[3]);
-         MFEM_ASSERT(face, "face not found!");
+         int face = faces.FindId(node[0], node[1], node[2], node[3]);
+         MFEM_ASSERT(face >= 0, "face not found!");
 
          // tell ParNCMesh about the face
          ElementSharesFace(elem, face);
 
          // have we already processed this face? skip if yes
-         int index = face->index;
-         if (index >= processed_faces.Size())
-         {
-            processed_faces.SetSize(index + 1, 0);
-         }
-         else if (processed_faces[index])
-         {
-            continue;
-         }
-         processed_faces[index] = 1;
+         if (processed_faces[face]) { continue; }
+         processed_faces[face] = 1;
 
-         if (face->ref_count == 2)
+         Face &fa = faces[face];
+         if (fa.elem[0] >= 0 && fa.elem[1] >= 0)
          {
             // this is a conforming face, add it to the list
-            face_list.conforming.push_back(MeshId(index, elem, j));
+            face_list.conforming.push_back(MeshId(fa.index, elem, j));
          }
          else
          {
@@ -1933,31 +1846,32 @@ void NCMesh::BuildFaceList()
             if (sb < se)
             {
                // found slaves, so this is a master face; add it to the list
-               face_list.masters.push_back(Master(index, elem, j, sb, se));
+               face_list.masters.push_back(Master(fa.index, elem, j, sb, se));
 
                // also, set the master index for the slaves
                for (int i = sb; i < se; i++)
                {
-                  face_list.slaves[i].master = index;
+                  face_list.slaves[i].master = fa.index;
                }
             }
          }
 
-         if (face->Boundary()) { boundary_faces.Append(face); }
+         if (fa.Boundary()) { boundary_faces.Append(face); }
       }
    }
 }
 
-void NCMesh::TraverseEdge(Node* v0, Node* v1, double t0, double t1, int flags,
+void NCMesh::TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
                           int level)
 {
-   Node* mid = nodes.Peek(v0, v1);
-   if (!mid) { return; }
+   int mid = nodes.FindId(vn0, vn1);
+   if (mid < 0) { return; }
 
-   if (mid->edge && level > 0)
+   Node &nd = nodes[mid];
+   if (nd.HasEdge() && level > 0)
    {
       // we have a slave edge, add it to the list
-      edge_list.slaves.push_back(Slave(mid->edge->index, NULL, -1));
+      edge_list.slaves.push_back(Slave(nd.edge_index, -1, -1));
       Slave &sl = edge_list.slaves.back();
 
       sl.point_matrix.SetSize(1, 2);
@@ -1966,70 +1880,80 @@ void NCMesh::TraverseEdge(Node* v0, Node* v1, double t0, double t1, int flags,
 
       // handle slave edge orientation
       sl.edge_flags = flags;
-      if (v0->vertex->index > v1->vertex->index) { sl.edge_flags |= 2; }
+      int v0index = nodes[vn0].vert_index;
+      int v1index = nodes[vn1].vert_index;
+      if (v0index > v1index) { sl.edge_flags |= 2; }
 
       // in 2D, get the element/local info from the degenerate face
       if (Dim == 2)
       {
-         Face* face = faces.Peek(v0, v0, v1, v1);
-         MFEM_ASSERT(face != NULL, "");
-         sl.element = face->GetSingleElement();
-         sl.local = find_element_edge(sl.element, v0->id, v1->id);
+         Face* fa = faces.Find(vn0, vn0, vn1, vn1);
+         MFEM_ASSERT(fa != NULL, "");
+         sl.element = fa->GetSingleElement();
+         sl.local = find_element_edge(elements[sl.element], vn0, vn1);
       }
    }
 
    // recurse deeper
    double tmid = (t0 + t1) / 2;
-   TraverseEdge(v0, mid, t0, tmid, flags, level+1);
-   TraverseEdge(mid, v1, tmid, t1, flags, level+1);
+   TraverseEdge(vn0, mid, t0, tmid, flags, level+1);
+   TraverseEdge(mid, vn1, tmid, t1, flags, level+1);
 }
 
 void NCMesh::BuildEdgeList()
 {
    edge_list.Clear();
-   boundary_edges.SetSize(0);
+   if (Dim <= 2)
+   {
+      boundary_faces.SetSize(0);
+   }
+
+   Array<char> processed_edges(nodes.NumIds());
+   processed_edges = 0;
 
    // visit edges of leaf elements
-   Array<char> processed_edges; // TODO: size
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
-      Element* elem = leaf_elements[i];
-      MFEM_ASSERT(!elem->ref_type, "not a leaf element.");
+      int elem = leaf_elements[i];
+      Element &el = elements[elem];
+      MFEM_ASSERT(!el.ref_type, "not a leaf element.");
 
-      GeomInfo& gi = GI[(int) elem->geom];
+      GeomInfo& gi = GI[(int) el.geom];
       for (int j = 0; j < gi.ne; j++)
       {
          // get nodes for this edge
          const int* ev = gi.edges[j];
-         Node* node[2] = { elem->node[ev[0]], elem->node[ev[1]] };
+         int node[2] = { el.node[ev[0]], el.node[ev[1]] };
 
-         Node* edge = nodes.Peek(node[0], node[1]);
-         MFEM_ASSERT(edge && edge->edge, "edge not found!");
+         int enode = nodes.FindId(node[0], node[1]);
+         MFEM_ASSERT(enode >= 0, "edge node not found!");
+
+         Node &nd = nodes[enode];
+         MFEM_ASSERT(nd.HasEdge(), "edge not found!");
 
          // tell ParNCMesh about the edge
-         ElementSharesEdge(elem, edge->edge);
+         ElementSharesEdge(elem, enode);
 
-         // (2D only, store boundary edges)
-         if (edge->edge->Boundary()) { boundary_edges.Append(edge); }
+         // (2D only, store boundary faces)
+         if (Dim <= 2)
+         {
+            int face = faces.FindId(node[0], node[0], node[1], node[1]);
+            MFEM_ASSERT(face >= 0, "face not found!");
+            if (faces[face].Boundary()) { boundary_faces.Append(face); }
+         }
 
          // skip slave edges here, they will be reached from their masters
-         if (GetEdgeMaster(edge)) { continue; }
+         if (GetEdgeMaster(enode) >= 0) { continue; }
 
          // have we already processed this edge? skip if yes
-         int index = edge->edge->index;
-         if (index >= processed_edges.Size())
-         {
-            processed_edges.SetSize(index + 1, 0);
-         }
-         else if (processed_edges[index])
-         {
-            continue;
-         }
-         processed_edges[index] = 1;
+         if (processed_edges[enode]) { continue; }
+         processed_edges[enode] = 1;
 
          // prepare edge interval for slave traversal, handle orientation
          double t0 = 0.0, t1 = 1.0;
-         int flags = (node[0]->vertex->index > node[1]->vertex->index) ? 1 : 0;
+         int v0index = nodes[node[0]].vert_index;
+         int v1index = nodes[node[1]].vert_index;
+         int flags = (v0index > v1index) ? 1 : 0;
 
          // try traversing the edge to find slave edges
          int sb = edge_list.slaves.size();
@@ -2039,18 +1963,18 @@ void NCMesh::BuildEdgeList()
          if (sb < se)
          {
             // found slaves, this is a master face; add it to the list
-            edge_list.masters.push_back(Master(index, elem, j, sb, se));
+            edge_list.masters.push_back(Master(nd.edge_index, elem, j, sb, se));
 
             // also, set the master index for the slaves
             for (int i = sb; i < se; i++)
             {
-               edge_list.slaves[i].master = index;
+               edge_list.slaves[i].master = nd.edge_index;
             }
          }
          else
          {
             // no slaves, this is a conforming edge
-            edge_list.conforming.push_back(MeshId(index, elem, j));
+            edge_list.conforming.push_back(MeshId(nd.edge_index, elem, j));
          }
       }
    }
@@ -2080,35 +2004,35 @@ void NCMesh::Slave::OrientedPointMatrix(DenseMatrix &oriented_matrix) const
 
 //// Neighbors /////////////////////////////////////////////////////////////////
 
-void NCMesh::CollectEdgeVertices(Node* v0, Node* v1, Array<int> &indices)
+void NCMesh::CollectEdgeVertices(int v0, int v1, Array<int> &indices)
 {
-   Node* mid = nodes.Peek(v0, v1);
-   if (mid && mid->vertex)
+   int mid = nodes.FindId(v0, v1);
+   if (mid >= 0 && nodes[mid].HasVertex())
    {
-      indices.Append(mid->vertex->index);
+      indices.Append(mid);
 
       CollectEdgeVertices(v0, mid, indices);
       CollectEdgeVertices(mid, v1, indices);
    }
 }
 
-void NCMesh::CollectFaceVertices(Node* v0, Node* v1, Node* v2, Node* v3,
+void NCMesh::CollectFaceVertices(int v0, int v1, int v2, int v3,
                                  Array<int> &indices)
 {
-   Node* mid[4];
+   int mid[4];
    switch (FaceSplitType(v0, v1, v2, v3, mid))
    {
       case 1:
-         indices.Append(mid[0]->vertex->index);
-         indices.Append(mid[2]->vertex->index);
+         indices.Append(mid[0]);
+         indices.Append(mid[2]);
 
          CollectFaceVertices(v0, mid[0], mid[2], v3, indices);
          CollectFaceVertices(mid[0], v1, v2, mid[2], indices);
          break;
 
       case 2:
-         indices.Append(mid[1]->vertex->index);
-         indices.Append(mid[3]->vertex->index);
+         indices.Append(mid[1]);
+         indices.Append(mid[3]);
 
          CollectFaceVertices(v0, v1, mid[1], mid[3], indices);
          CollectFaceVertices(mid[3], mid[1], v2, v3, indices);
@@ -2128,18 +2052,14 @@ void NCMesh::BuildElementToVertexTable()
    // collect vertices coinciding with each element, including hanging vertices
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
-      Element* elem = leaf_elements[i];
-      MFEM_ASSERT(!elem->ref_type, "not a leaf element.");
+      int elem = leaf_elements[i];
+      Element &el = elements[elem];
+      MFEM_ASSERT(!el.ref_type, "not a leaf element.");
 
-      GeomInfo& gi = GI[(int) elem->geom];
-      Node** node = elem->node;
+      GeomInfo& gi = GI[(int) el.geom];
+      int* node = el.node;
 
       indices.SetSize(0);
-      for (int j = 0; j < gi.nv; j++)
-      {
-         indices.Append(node[j]->vertex->index);
-      }
-
       for (int j = 0; j < gi.ne; j++)
       {
          const int* ev = gi.edges[j];
@@ -2187,14 +2107,13 @@ void NCMesh::BuildElementToVertexTable()
    }
 
    element_vertex.SetIJ(I, J, nrows);
-   num_vertices = element_vertex.Width();
 
    delete [] JJ;
 }
 
 
 void NCMesh::FindSetNeighbors(const Array<char> &elem_set,
-                              Array<Element*> *neighbors,
+                              Array<int> *neighbors,
                               Array<char> *neighbor_set)
 {
    // If A is the element-to-vertex table (see 'element_vertex') listing all
@@ -2203,9 +2122,8 @@ void NCMesh::FindSetNeighbors(const Array<char> &elem_set,
    // gives the neighbor set. To save memory, this function only computes the
    // action of A*A^T, the product itself is not stored anywhere.
 
-   // TODO: we should further optimize the 'element_vertex' table by not storing
-   // the obvious corner vertices in it. The table would therefore be empty
-   // for conforming meshes and very cheap for NC meshes.
+   // Optimization: the 'element_vertex' table does not store the obvious
+   // corner nodes in it. The table is therefore empty for conforming meshes.
 
    UpdateElementToVertexTable();
 
@@ -2216,8 +2134,8 @@ void NCMesh::FindSetNeighbors(const Array<char> &elem_set,
    // step 1: vertices = A^T * elem_set, i.e, find all vertices touching the
    // element set
 
-   Array<char> vertices(num_vertices);
-   vertices = 0;
+   Array<char> vmark(nodes.NumIds());
+   vmark = 0;
 
    for (int i = 0; i < nleaves; i++)
    {
@@ -2227,7 +2145,14 @@ void NCMesh::FindSetNeighbors(const Array<char> &elem_set,
          int nv = element_vertex.RowSize(i);
          for (int j = 0; j < nv; j++)
          {
-            vertices[v[j]] = 1;
+            vmark[v[j]] = 1;
+         }
+
+         Element &el = elements[leaf_elements[i]];
+         nv = GI[(int) el.geom].nv;
+         for (int j = 0; j < nv; j++)
+         {
+            vmark[el.node[j]] = 1;
          }
       }
    }
@@ -2246,16 +2171,29 @@ void NCMesh::FindSetNeighbors(const Array<char> &elem_set,
    {
       if (!elem_set[i])
       {
+         bool hit = false;
+
          int *v = element_vertex.GetRow(i);
          int nv = element_vertex.RowSize(i);
          for (int j = 0; j < nv; j++)
          {
-            if (vertices[v[j]])
+            if (vmark[v[j]]) { hit = true; break; }
+         }
+
+         if (!hit)
+         {
+            Element &el = elements[leaf_elements[i]];
+            nv = GI[(int) el.geom].nv;
+            for (int j = 0; j < nv; j++)
             {
-               if (neighbors) { neighbors->Append(leaf_elements[i]); }
-               if (neighbor_set) { (*neighbor_set)[i] = 1; }
-               break;
+               if (vmark[el.node[j]]) { hit = true; break; }
             }
+         }
+
+         if (hit)
+         {
+            if (neighbors) { neighbors->Append(leaf_elements[i]); }
+            if (neighbor_set) { (*neighbor_set)[i] = 1; }
          }
       }
    }
@@ -2277,85 +2215,113 @@ l2:
    goto l1;
 }
 
-void NCMesh::FindNeighbors(const Element* elem,
-                           Array<Element*> &neighbors,
-                           const Array<Element*> *search_set)
+void NCMesh::FindNeighbors(int elem, Array<int> &neighbors,
+                           const Array<int> *search_set)
 {
+   // TODO future: this function is inefficient. For a single element, an
+   // octree neighbor search algorithm would be better. However, the octree
+   // neighbor algorithm is hard to get right in the multi-octree case due to
+   // the differrent orientations of the octrees (i.e., the root elements).
+
    UpdateElementToVertexTable();
 
-   Array<int> vert, tmp;
+   // sorted list of all vertex nodes touching 'elem'
+   Array<int> vert;
+   vert.Reserve(128);
 
-   int *v1, nv1;
-   if (!elem->ref_type)
-   {
-      v1 = element_vertex.GetRow(elem->index);
-      nv1 = element_vertex.RowSize(elem->index);
-   }
-   else // support for non-leaf 'elem', collect vertices of all children
-   {
-      Array<const Element*> stack;
-      stack.Reserve(32);
-      stack.Append(elem);
+   // support for non-leaf 'elem', collect vertices of all children
+   Array<int> stack;
+   stack.Reserve(64);
+   stack.Append(elem);
 
-      while (stack.Size())
+   while (stack.Size())
+   {
+      Element &el = elements[stack.Last()];
+      stack.DeleteLast();
+
+      if (!el.ref_type)
       {
-         const Element* e = stack.Last();
-         stack.DeleteLast();
-         if (!e->ref_type)
+         int *v = element_vertex.GetRow(el.index);
+         int nv = element_vertex.RowSize(el.index);
+         for (int i = 0; i < nv; i++)
          {
-            element_vertex.GetRow(e->index, tmp);
-            vert.Append(tmp);
+            vert.Append(v[i]);
          }
-         else
+
+         nv = GI[(int) el.geom].nv;
+         for (int i = 0; i < nv; i++)
          {
-            for (int i = 0; i < 8; i++)
-            {
-               if (e->child[i]) { stack.Append(e->child[i]); }
-            }
+            vert.Append(el.node[i]);
          }
       }
-      vert.Sort();
-      vert.Unique();
-
-      v1 = vert.GetData();
-      nv1 = vert.Size();
+      else
+      {
+         for (int i = 0; i < 8 && el.child[i] >= 0; i++)
+         {
+            stack.Append(el.child[i]);
+         }
+      }
    }
+
+   vert.Sort();
+   vert.Unique();
+
+   int *v1 = vert.GetData();
+   int nv1 = vert.Size();
 
    if (!search_set) { search_set = &leaf_elements; }
 
+   // test *all* potential neighbors from the search set
    for (int i = 0; i < search_set->Size(); i++)
    {
-      Element* testme = (*search_set)[i];
+      int testme = (*search_set)[i];
       if (testme != elem)
       {
-         int *v2 = element_vertex.GetRow(testme->index);
-         int nv2 = element_vertex.RowSize(testme->index);
+         Element &el = elements[testme];
+         int *v2 = element_vertex.GetRow(el.index);
+         int nv2 = element_vertex.RowSize(el.index);
 
-         if (sorted_lists_intersect(v1, v2, nv1, nv2))
+         bool hit = sorted_lists_intersect(v1, v2, nv1, nv2);
+
+         if (!hit)
          {
-            neighbors.Append(testme);
+            int nv = GI[(int) el.geom].nv;
+            for (int j = 0; j < nv; j++)
+            {
+               hit = sorted_lists_intersect(&el.node[j], v1, 1, nv1);
+               if (hit) { break; }
+            }
          }
+
+         if (hit) { neighbors.Append(testme); }
       }
    }
 }
 
-void NCMesh::NeighborExpand(const Array<Element*> &elements,
-                            Array<Element*> &expanded,
-                            const Array<Element*> *search_set)
+void NCMesh::NeighborExpand(const Array<int> &elems,
+                            Array<int> &expanded,
+                            const Array<int> *search_set)
 {
    UpdateElementToVertexTable();
 
-   Array<char> vertices(num_vertices);
-   vertices = 0;
+   Array<char> vmark(nodes.NumIds());
+   vmark = 0;
 
-   for (int i = 0; i < elements.Size(); i++)
+   for (int i = 0; i < elems.Size(); i++)
    {
-      int index = elements[i]->index;
-      int *v = element_vertex.GetRow(index);
-      int nv = element_vertex.RowSize(index);
+      Element &el = elements[elems[i]];
+
+      int *v = element_vertex.GetRow(el.index);
+      int nv = element_vertex.RowSize(el.index);
       for (int j = 0; j < nv; j++)
       {
-         vertices[v[j]] = 1;
+         vmark[v[j]] = 1;
+      }
+
+      nv = GI[(int) el.geom].nv;
+      for (int j = 0; j < nv; j++)
+      {
+         vmark[el.node[j]] = 1;
       }
    }
 
@@ -2367,29 +2333,39 @@ void NCMesh::NeighborExpand(const Array<Element*> &elements,
    expanded.SetSize(0);
    for (int i = 0; i < search_set->Size(); i++)
    {
-      Element* testme = (*search_set)[i];
-      int *v = element_vertex.GetRow(testme->index);
-      int nv = element_vertex.RowSize(testme->index);
+      int testme = (*search_set)[i];
+      Element &el = elements[testme];
+      bool hit = false;
+
+      int *v = element_vertex.GetRow(el.index);
+      int nv = element_vertex.RowSize(el.index);
       for (int j = 0; j < nv; j++)
       {
-         if (vertices[v[j]])
+         if (vmark[v[j]]) { hit = true; break; }
+      }
+
+      if (!hit)
+      {
+         nv = GI[(int) el.geom].nv;
+         for (int j = 0; j < nv; j++)
          {
-            expanded.Append(testme);
-            break;
+            if (vmark[el.node[j]]) { hit = true; break; }
          }
       }
+
+      if (hit) { expanded.Append(testme); }
    }
 }
 
 #ifdef MFEM_DEBUG
 void NCMesh::DebugNeighbors(Array<char> &elem_set)
 {
-   Array<Element*> neighbors;
+   Array<int> neighbors;
    FindSetNeighbors(elem_set, &neighbors);
 
    for (int i = 0; i < neighbors.Size(); i++)
    {
-      elem_set[neighbors[i]->index] = 2;
+      elem_set[elements[neighbors[i]].index] = 2;
    }
 }
 #endif
@@ -2737,36 +2713,37 @@ void NCMesh::MarkCoarseLevel()
 
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
-      Element* e = leaf_elements[i];
-      if (!IsGhost(e)) { coarse_elements.Append(e); }
+      int elem = leaf_elements[i];
+      if (!IsGhost(elements[elem])) { coarse_elements.Append(elem); }
    }
 
    transforms.embeddings.DeleteAll();
 }
 
-void NCMesh::TraverseRefinements(Element* elem, int coarse_index,
+void NCMesh::TraverseRefinements(int elem, int coarse_index,
                                  std::string &ref_path, RefPathMap &map)
 {
-   if (!elem->ref_type)
+   Element &el = elements[elem];
+   if (!el.ref_type)
    {
       int &matrix = map[ref_path];
       if (!matrix) { matrix = map.size(); }
 
-      Embedding &emb = transforms.embeddings[elem->index];
+      Embedding &emb = transforms.embeddings[el.index];
       emb.parent = coarse_index;
       emb.matrix = matrix - 1;
    }
    else
    {
-      ref_path.push_back(elem->ref_type);
+      ref_path.push_back(el.ref_type);
       ref_path.push_back(0);
 
       for (int i = 0; i < 8; i++)
       {
-         if (elem->child[i])
+         if (el.child[i] >= 0)
          {
             ref_path[ref_path.length()-1] = i;
-            TraverseRefinements(elem->child[i], coarse_index, ref_path, map);
+            TraverseRefinements(el.child[i], coarse_index, ref_path, map);
          }
       }
       ref_path.resize(ref_path.length()-2);
@@ -2794,8 +2771,8 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
          TraverseRefinements(coarse_elements[i], i, ref_path, map);
       }
 
-      MFEM_ASSERT(root_elements.Size(), "");
-      int geom = root_elements[0]->geom;
+      MFEM_ASSERT(elements.Size() > free_element_ids.Size(), "");
+      int geom = elements[0].geom;
       const PointMatrix &identity = GetGeomIdentity(geom);
 
       transforms.point_matrices.SetSize(Dim, identity.np, map.size());
@@ -2832,8 +2809,8 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
          }
       }
 
-      MFEM_ASSERT(root_elements.Size(), "");
-      int geom = root_elements[0]->geom;
+      MFEM_ASSERT(elements.Size() > free_element_ids.Size(), "");
+      int geom = elements[0].geom;
       const PointMatrix &identity = GetGeomIdentity(geom);
 
       transforms.point_matrices.SetSize(Dim, identity.np, mat_no.size());
@@ -2863,70 +2840,79 @@ void NCMesh::ClearTransforms()
 
 //// Utility ///////////////////////////////////////////////////////////////////
 
-NCMesh::Node* NCMesh::GetEdgeMaster(Node* node) const
+int NCMesh::GetEdgeMaster(int node) const
 {
-   MFEM_ASSERT(node != NULL && node->p1 != node->p2, "Invalid edge node.");
+   MFEM_ASSERT(node >= 0, "edge node not found.");
+   const Node &nd = nodes[node];
 
-   Node *n1 = nodes.Peek(node->p1);
-   Node *n2 = nodes.Peek(node->p2);
+   int p1 = nd.p1, p2 = nd.p2;
+   MFEM_ASSERT(p1 != p2, "invalid edge node.");
 
-   if ((n2->p1 != n2->p2) && (n1->id == n2->p1 || n1->id == n2->p2))
+   const Node &n1 = nodes[p1], &n2 = nodes[p2];
+
+   int n1p1 = n1.p1, n1p2 = n1.p2;
+   int n2p1 = n2.p1, n2p2 = n2.p2;
+
+   if ((n2p1 != n2p2) && (p1 == n2p1 || p1 == n2p2))
    {
       // n1 is parent of n2:
-      // (n1)--(n)--(n2)------(*)  or  (*)------(n2)--(n)--(n1)
-      if (n2->edge) { return n2; }
-      else { return GetEdgeMaster(n2); }
+      // (n1)--(nd)--(n2)------(*)
+      if (n2.HasEdge()) { return p2; }
+      else { return GetEdgeMaster(p2); }
    }
 
-   if ((n1->p1 != n1->p2) && (n2->id == n1->p1 || n2->id == n1->p2))
+   if ((n1p1 != n1p2) && (p2 == n1p1 || p2 == n1p2))
    {
       // n2 is parent of n1:
-      // (n2)--(n)--(n1)------(*)  or  (*)------(n1)--(n)--(n2)
-      if (n1->edge) { return n1; }
-      else { return GetEdgeMaster(n1); }
+      // (n2)--(nd)--(n1)------(*)
+      if (n1.HasEdge()) { return p1; }
+      else { return GetEdgeMaster(p1); }
    }
 
-   return NULL;
+   return -1;
 }
 
 int NCMesh::GetEdgeMaster(int v1, int v2) const
 {
-   Node* node = nodes.Peek(vertex_nodeId[v1], vertex_nodeId[v2]);
-   MFEM_ASSERT(node->edge != NULL, "(v1, v2) is not an edge.");
+   int node = nodes.FindId(vertex_nodeId[v1], vertex_nodeId[v2]);
+   MFEM_ASSERT(node >= 0 && nodes[node].HasEdge(), "(v1, v2) is not an edge.");
 
-   Node* master = GetEdgeMaster(node);
-   return master ? master->edge->index : -1;
+   int master = GetEdgeMaster(node);
+   return (master >= 0) ? nodes[master].edge_index : -1;
 }
 
 int NCMesh::GetElementDepth(int i) const
 {
-   Element* elem = leaf_elements[i];
-   int depth = 0;
-   while (elem->parent)
+   int elem = leaf_elements[i];
+   int depth = 0, parent;
+   while ((parent = elements[elem].parent) != -1)
    {
-      elem = elem->parent;
+      elem = parent;
       depth++;
    }
    return depth;
 }
 
-void NCMesh::find_face_nodes(const Face *face, Node* node[4])
+void NCMesh::FindFaceNodes(int face, int node[4])
 {
    // Obtain face nodes from one of its elements (note that face->p1, p2, p3
    // cannot be used directly since they are not in order and p4 is missing).
 
-   Element* elem = face->elem[0];
-   if (!elem) { elem = face->elem[1]; }
-   MFEM_ASSERT(elem, "Face has no elements?");
+   Face &fa = faces[face];
 
-   int f = find_hex_face(find_node(elem, face->p1),
-                         find_node(elem, face->p2),
-                         find_node(elem, face->p3));
+   int elem = fa.elem[0];
+   if (elem < 0) { elem = fa.elem[1]; }
+   MFEM_ASSERT(elem >= 0, "Face has no elements?");
+
+   Element &el = elements[elem];
+   int f = find_hex_face(find_node(el, fa.p1),
+                         find_node(el, fa.p2),
+                         find_node(el, fa.p3));
 
    const int* fv = GI[Geometry::CUBE].faces[f];
    for (int i = 0; i < 4; i++)
    {
-      node[i] = elem->node[fv[i]];
+      node[i] = el.node[fv[i]];
    }
 }
 
@@ -2938,28 +2924,29 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
 
    if (Dim == 3)
    {
-      GetFaceList();
+      GetFaceList(); // make sure 'boundary_faces' is up to date
+
       for (int i = 0; i < boundary_faces.Size(); i++)
       {
-         Face* face = boundary_faces[i];
-         if (bdr_attr_is_ess[face->attribute - 1])
+         int face = boundary_faces[i];
+         if (bdr_attr_is_ess[faces[face].attribute - 1])
          {
-            Node* node[4];
-            find_face_nodes(face, node);
+            int node[4];
+            FindFaceNodes(face, node);
 
             for (int j = 0; j < 4; j++)
             {
-               bdr_vertices.Append(node[j]->vertex->index);
+               bdr_vertices.Append(nodes[node[j]].vert_index);
 
-               Node* edge = nodes.Peek(node[j], node[(j+1) % 4]);
-               MFEM_ASSERT(edge && edge->edge, "Edge not found.");
-               bdr_edges.Append(edge->edge->index);
+               int enode = nodes.FindId(node[j], node[(j+1) % 4]);
+               MFEM_ASSERT(enode >= 0 && nodes[enode].HasEdge(), "Edge not found.");
+               bdr_edges.Append(nodes[enode].edge_index);
 
-               while ((edge = GetEdgeMaster(edge)) != NULL)
+               while ((enode = GetEdgeMaster(enode)) >= 0)
                {
                   // append master edges that may not be accessible from any
                   // boundary element, this happens in 3D in re-entrant corners
-                  bdr_edges.Append(edge->edge->index);
+                  bdr_edges.Append(nodes[enode].edge_index);
                }
             }
          }
@@ -2967,14 +2954,16 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
    }
    else if (Dim == 2)
    {
-      GetEdgeList();
-      for (int i = 0; i < boundary_edges.Size(); i++)
+      GetEdgeList(); // make sure 'boundary_faces' is up to date
+
+      for (int i = 0; i < boundary_faces.Size(); i++)
       {
-         Node* edge = boundary_edges[i];
-         if (bdr_attr_is_ess[edge->edge->attribute - 1])
+         int face = boundary_faces[i];
+         Face &fc = faces[face];
+         if (bdr_attr_is_ess[fc.attribute - 1])
          {
-            bdr_vertices.Append(nodes.Peek(edge->p1)->vertex->index);
-            bdr_vertices.Append(nodes.Peek(edge->p2)->vertex->index);
+            bdr_vertices.Append(nodes[fc.p1].vert_index);
+            bdr_vertices.Append(nodes[fc.p3].vert_index);
          }
       }
    }
@@ -2986,35 +2975,35 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
    bdr_edges.Unique();
 }
 
-int NCMesh::EdgeSplitLevel(Node *v1, Node *v2) const
+int NCMesh::EdgeSplitLevel(int vn1, int vn2) const
 {
-   Node* mid = nodes.Peek(v1, v2);
-   if (!mid || !mid->vertex) { return 0; }
-   return 1 + std::max(EdgeSplitLevel(v1, mid), EdgeSplitLevel(mid, v2));
+   int mid = nodes.FindId(vn1, vn2);
+   if (mid < 0 || !nodes[mid].HasVertex()) { return 0; }
+   return 1 + std::max(EdgeSplitLevel(vn1, mid), EdgeSplitLevel(mid, vn2));
 }
 
-void NCMesh::FaceSplitLevel(Node* v1, Node* v2, Node* v3, Node* v4,
+void NCMesh::FaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
                             int& h_level, int& v_level) const
 {
    int hl1, hl2, vl1, vl2;
-   Node* mid[4];
+   int mid[4];
 
-   switch (FaceSplitType(v1, v2, v3, v4, mid))
+   switch (FaceSplitType(vn1, vn2, vn3, vn4, mid))
    {
       case 0: // not split
          h_level = v_level = 0;
          break;
 
       case 1: // vertical
-         FaceSplitLevel(v1, mid[0], mid[2], v4, hl1, vl1);
-         FaceSplitLevel(mid[0], v2, v3, mid[2], hl2, vl2);
+         FaceSplitLevel(vn1, mid[0], mid[2], vn4, hl1, vl1);
+         FaceSplitLevel(mid[0], vn2, vn3, mid[2], hl2, vl2);
          h_level = std::max(hl1, hl2);
          v_level = std::max(vl1, vl2) + 1;
          break;
 
       default: // horizontal
-         FaceSplitLevel(v1, v2, mid[1], mid[3], hl1, vl1);
-         FaceSplitLevel(mid[3], mid[1], v3, v4, hl2, vl2);
+         FaceSplitLevel(vn1, vn2, mid[1], mid[3], hl1, vl1);
+         FaceSplitLevel(mid[3], mid[1], vn3, vn4, hl2, vl2);
          h_level = std::max(hl1, hl2) + 1;
          v_level = std::max(vl1, vl2);
    }
@@ -3026,10 +3015,11 @@ static int max8(int a, int b, int c, int d, int e, int f, int g, int h)
                    std::max(std::max(e, f), std::max(g, h)));
 }
 
-void NCMesh::CountSplits(Element* elem, int splits[3]) const
+void NCMesh::CountSplits(int elem, int splits[3]) const
 {
-   Node** node = elem->node;
-   GeomInfo& gi = GI[(int) elem->geom];
+   const Element &el = elements[elem];
+   const int* node = el.node;
+   GeomInfo& gi = GI[(int) el.geom];
 
    int elevel[12];
    for (int i = 0; i < gi.ne; i++)
@@ -3038,7 +3028,7 @@ void NCMesh::CountSplits(Element* elem, int splits[3]) const
       elevel[i] = EdgeSplitLevel(node[ev[0]], node[ev[1]]);
    }
 
-   if (elem->geom == Geometry::CUBE)
+   if (el.geom == Geometry::CUBE)
    {
       int flevel[6][2];
       for (int i = 0; i < gi.nf; i++)
@@ -3057,12 +3047,12 @@ void NCMesh::CountSplits(Element* elem, int splits[3]) const
       splits[2] = max8(flevel[1][1], flevel[2][1], flevel[3][1], flevel[4][1],
                        elevel[8], elevel[9], elevel[10], elevel[11]);
    }
-   else if (elem->geom == Geometry::SQUARE)
+   else if (el.geom == Geometry::SQUARE)
    {
       splits[0] = std::max(elevel[0], elevel[2]);
       splits[1] = std::max(elevel[1], elevel[3]);
    }
-   else if (elem->geom == Geometry::TRIANGLE)
+   else if (el.geom == Geometry::TRIANGLE)
    {
       splits[0] = std::max(elevel[0], std::max(elevel[1], elevel[2]));
       splits[1] = splits[0];
@@ -3077,7 +3067,7 @@ void NCMesh::GetLimitRefinements(Array<Refinement> &refinements, int max_level)
 {
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
-      if (IsGhost(leaf_elements[i])) { break; }
+      if (IsGhost(elements[leaf_elements[i]])) { break; }
 
       int splits[3];
       CountSplits(leaf_elements[i], splits);
@@ -3122,26 +3112,25 @@ void NCMesh::PrintVertexParents(std::ostream &out) const
 {
    // count vertices with parents
    int nv = 0;
-   for (HashTable<Node>::Iterator it(nodes); it; ++it)
+   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
    {
-      if (it->vertex && it->p1 != it->p2) { nv++; }
+      if (node->HasVertex() && node->p1 != node->p2) { nv++; }
    }
    out << nv << "\n";
 
    // print the relations
-   for (HashTable<Node>::Iterator it(nodes); it; ++it)
+   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
    {
-      if (it->vertex && it->p1 != it->p2)
+      if (node->HasVertex() && node->p1 != node->p2)
       {
-         Node *p1 = nodes.Peek(it->p1);
-         Node *p2 = nodes.Peek(it->p2);
+         const Node &p1 = nodes[node->p1];
+         const Node &p2 = nodes[node->p2];
 
-         MFEM_ASSERT(p1 && p1->vertex, "");
-         MFEM_ASSERT(p2 && p2->vertex, "");
+         MFEM_ASSERT(p1.HasVertex(), "");
+         MFEM_ASSERT(p2.HasVertex(), "");
 
-         out << it->vertex->index << " "
-             << p1->vertex->index << " "
-             << p2->vertex->index << "\n";
+         out << node->vert_index << " "
+             << p1.vert_index << " " << p2.vert_index << "\n";
       }
    }
 }
@@ -3156,46 +3145,54 @@ void NCMesh::LoadVertexParents(std::istream &input)
       input >> id >> p1 >> p2;
       MFEM_VERIFY(input, "problem reading vertex parents.");
 
-      Node* node = nodes.Peek(id);
-      MFEM_VERIFY(node, "vertex " << id << " not found.");
-      MFEM_VERIFY(nodes.Peek(p1), "parent " << p1 << " not found.");
-      MFEM_VERIFY(nodes.Peek(p2), "parent " << p2 << " not found.");
+      MFEM_VERIFY(nodes.IdExists(id), "vertex " << id << " not found.");
+      MFEM_VERIFY(nodes.IdExists(p1), "parent " << p1 << " not found.");
+      MFEM_VERIFY(nodes.IdExists(p2), "parent " << p2 << " not found.");
 
       // assign new parents for the node
-      nodes.Reparent(node, p1, p2);
+      nodes.Reparent(id, p1, p2);
+
+      // NOTE: when loading an AMR mesh, node indices are guaranteed to have
+      // the same indices as vertices, see NCMesh::NCMesh.
    }
 }
 
-void NCMesh::SetVertexPositions(const Array<mfem::Vertex> &vertices)
+void NCMesh::SetVertexPositions(const Array<mfem::Vertex> &mvertices)
 {
-   for (int i = 0; i < vertices.Size(); i++)
+   int num_top_level = 0;
+   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
    {
-      Node* node = nodes.Peek(i);
-      MFEM_ASSERT(node && node->vertex, "");
+      if (node->p1 == node->p2) // see NCMesh::NCMesh
+      {
+         MFEM_VERIFY(node.index() == node->p1, "invalid top-level vertex.");
+         MFEM_VERIFY(node->HasVertex(), "top-level vertex not found.");
+         MFEM_VERIFY(node->vert_index == node->p1, "bad top-level vertex index");
+         num_top_level = std::max(num_top_level, node->p1 + 1);
+      }
+   }
 
-      const double* pos = vertices[i]();
-      memcpy(node->vertex->pos, pos, sizeof(node->vertex->pos));
+   top_vertex_pos.SetSize(3*num_top_level);
+   for (int i = 0; i < num_top_level; i++)
+   {
+      memcpy(&top_vertex_pos[3*i], mvertices[i](), 3*sizeof(double));
    }
 }
 
-static int ref_type_num_children[8] = {0, 2, 2, 4, 2, 4, 4, 8 };
+static int ref_type_num_children[8] = { 0, 2, 2, 4, 2, 4, 4, 8 };
 
-int NCMesh::PrintElements(std::ostream &out, Element* elem,
-                          int &coarse_id) const
+int NCMesh::PrintElements(std::ostream &out, int elem, int &coarse_id) const
 {
-   if (elem->ref_type)
+   const Element &el = elements[elem];
+   if (el.ref_type)
    {
       int child_id[8], nch = 0;
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < 8 && el.child[i] >= 0; i++)
       {
-         if (elem->child[i])
-         {
-            child_id[nch++] = PrintElements(out, elem->child[i], coarse_id);
-         }
+         child_id[nch++] = PrintElements(out, el.child[i], coarse_id);
       }
-      MFEM_ASSERT(nch == ref_type_num_children[(int) elem->ref_type], "");
+      MFEM_ASSERT(nch == ref_type_num_children[(int) el.ref_type], "");
 
-      out << (int) elem->ref_type;
+      out << (int) el.ref_type;
       for (int i = 0; i < nch; i++)
       {
          out << " " << child_id[i];
@@ -3205,25 +3202,41 @@ int NCMesh::PrintElements(std::ostream &out, Element* elem,
    }
    else
    {
-      return elem->index;
+      return el.index;
    }
 }
 
 void NCMesh::PrintCoarseElements(std::ostream &out) const
 {
    // print the number of non-leaf elements
-   int ne = 0;
-   for (int i = 0; i < root_elements.Size(); i++)
-   {
-      ne += CountElements(root_elements[i]);
-   }
-   out << (ne - leaf_elements.Size()) << "\n";
+   out << (elements.Size() - free_element_ids.Size() - leaf_elements.Size())
+       << "\n";
 
    // print the hierarchy recursively
    int coarse_id = leaf_elements.Size();
-   for (int i = 0; i < root_elements.Size(); i++)
+   for (int i = 0; i < root_count; i++)
    {
-      PrintElements(out, root_elements[i], coarse_id);
+      PrintElements(out, i, coarse_id);
+   }
+}
+
+void NCMesh::CopyElements(int elem,
+                          const BlockArray<Element> &tmp_elements,
+                          Array<int> &index_map)
+{
+   Element &el = elements[elem];
+   if (el.ref_type)
+   {
+      for (int i = 0; i < 8 && el.child[i] >= 0; i++)
+      {
+         int old_id = el.child[i];
+         // here, we do not use the content of 'free_element_ids', if any
+         int new_id = elements.Append(tmp_elements[old_id]);
+         index_map[old_id] = new_id;
+         el.child[i] = new_id;
+         elements[new_id].parent = elem;
+         CopyElements(new_id, tmp_elements, index_map);
+      }
    }
 }
 
@@ -3232,10 +3245,6 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    int ne;
    input >> ne;
 
-   Array<Element*> coarse, leaves;
-   coarse.Reserve(ne);
-   leaf_elements.Copy(leaves);
-   int nleaf = leaves.Size();
    bool iso = true;
 
    // load the coarse elements
@@ -3244,65 +3253,81 @@ void NCMesh::LoadCoarseElements(std::istream &input)
       int ref_type;
       input >> ref_type;
 
-      Element* elem = new Element(0, 0);
-      elem->ref_type = ref_type;
+      int elem = AddElement(Element(0, 0));
+      Element &el = elements[elem];
+      el.ref_type = ref_type;
 
       if (Dim == 3 && ref_type != 7) { iso = false; }
 
-      // load child IDs and convert to Element*
+      // load child IDs and make parent-child links
       int nch = ref_type_num_children[ref_type];
       for (int i = 0, id; i < nch; i++)
       {
          input >> id;
          MFEM_VERIFY(id >= 0, "");
-         MFEM_VERIFY(id < nleaf || id - nleaf < coarse.Size(),
+         MFEM_VERIFY(id < leaf_elements.Size() ||
+                     id < elements.Size()-free_element_ids.Size(),
                      "coarse element cannot be referenced before it is "
                      "defined (id=" << id << ").");
 
-         Element* &child = (id < nleaf) ? leaves[id] : coarse[id - nleaf];
+         Element &child = elements[id];
+         MFEM_VERIFY(child.parent == -1,
+                     "element " << id << " cannot have two parents.");
 
-         MFEM_VERIFY(child, "element " << id << " cannot have two parents.");
-         elem->child[i] = child;
-         child->parent = elem;
-         child = NULL; // make sure the child can't be used again
+         el.child[i] = id;
+         child.parent = elem;
 
          if (!i) // copy geom and attribute from first child
          {
-            elem->geom = elem->child[i]->geom;
-            elem->attribute = elem->child[i]->attribute;
+            el.geom = child.geom;
+            el.attribute = child.attribute;
          }
       }
-
-      // keep a list of coarse elements (and their IDs, implicitly)
-      coarse.Append(elem);
    }
 
-   // elements that have no parents are the original 'root_elements'
-   root_elements.SetSize(0);
-   for (int i = 0; i < coarse.Size(); i++)
+   // prepare for reordering the elements
+   BlockArray<Element> tmp_elements;
+   elements.Swap(tmp_elements);
+   free_element_ids.SetSize(0);
+
+   Array<int> index_map(tmp_elements.Size());
+   index_map = -1;
+
+   // copy roots, they need to be at the beginning of 'elements'
+   root_count = 0;
+   for (elem_iterator el = tmp_elements.begin(); el != tmp_elements.end(); ++el)
    {
-      if (coarse[i]) { root_elements.Append(coarse[i]); }
+      if (el->parent == -1)
+      {
+         int new_id = elements.Append(*el); // same as AddElement()
+         index_map[el.index()] = new_id;
+         root_count++;
+      }
    }
-   for (int i = 0; i < leaves.Size(); i++)
+
+   // copy the rest of the hierarchy
+   for (int i = 0; i < root_count; i++)
    {
-      if (leaves[i]) { root_elements.Append(leaves[i]); }
+      CopyElements(i, tmp_elements, index_map);
+   }
+
+   // we also need to renumber element links in Face::elem[]
+   for (face_iterator face = faces.begin(); face != faces.end(); ++face)
+   {
+      for (int i = 0; i < 2; i++)
+      {
+         if (face->elem[i] >= 0)
+         {
+            face->elem[i] = index_map[face->elem[i]];
+            MFEM_ASSERT(face->elem[i] >= 0, "");
+         }
+      }
    }
 
    // set the Iso flag (must be false if there are 3D aniso refinements)
    Iso = iso;
-}
 
-int NCMesh::CountElements(Element* elem) const
-{
-   int n = 1;
-   if (elem->ref_type)
-   {
-      for (int i = 0; i < 8; i++)
-      {
-         if (elem->child[i]) { n += CountElements(elem->child[i]); }
-      }
-   }
-   return n;
+   Update();
 }
 
 long NCMesh::NCList::MemoryUsage() const
@@ -3310,8 +3335,7 @@ long NCMesh::NCList::MemoryUsage() const
    int pmsize = 0;
    if (slaves.size())
    {
-      const DenseMatrix &pm = slaves[0].point_matrix;
-      pmsize = pm.Width() * pm.Height() * sizeof(double);
+      pmsize = slaves[0].point_matrix.MemoryUsage();
    }
 
    return conforming.capacity() * sizeof(MeshId) +
@@ -3320,69 +3344,105 @@ long NCMesh::NCList::MemoryUsage() const
           slaves.size() * pmsize;
 }
 
-void NCMesh::CountObjects(int &nelem, int &nvert, int &nedges) const
+long CoarseFineTransformations::MemoryUsage() const
 {
-   nelem = nvert = nedges = 0;
-   for (int i = 0; i < root_elements.Size(); i++)
-   {
-      nelem += CountElements(root_elements[i]);
-   }
-   for (HashTable<Node>::Iterator it(nodes); it; ++it)
-   {
-      if (it->vertex) { nvert++; }
-      if (it->edge) { nedges++; }
-   }
+   return point_matrices.MemoryUsage() + embeddings.MemoryUsage();
 }
 
 long NCMesh::MemoryUsage() const
 {
-   int nelem, nvert, nedges;
-   CountObjects(nelem, nvert, nedges);
-
-   return nelem * sizeof(Element) +
-          nvert * sizeof(Vertex) +
-          nedges * sizeof(Edge) +
-          nodes.MemoryUsage() +
+   return nodes.MemoryUsage() +
           faces.MemoryUsage() +
-          root_elements.MemoryUsage() +
+          elements.MemoryUsage() +
+          free_element_ids.MemoryUsage() +
+          top_vertex_pos.MemoryUsage() +
           leaf_elements.MemoryUsage() +
           vertex_nodeId.MemoryUsage() +
           face_list.MemoryUsage() +
           edge_list.MemoryUsage() +
           boundary_faces.MemoryUsage() +
-          boundary_edges.MemoryUsage() +
           element_vertex.MemoryUsage() +
           ref_stack.MemoryUsage() +
+          derefinements.MemoryUsage() +
+          transforms.MemoryUsage() +
           coarse_elements.MemoryUsage() +
           sizeof(*this);
 }
 
-void NCMesh::PrintMemoryDetail() const
+int NCMesh::PrintMemoryDetail() const
 {
-   int nelem, nvert, nedges;
-   CountObjects(nelem, nvert, nedges);
-
-   std::cout << nelem * sizeof(Element) << " elements\n"
-             << nvert * sizeof(Vertex) << " vertices\n"
-             << nedges * sizeof(Edge) << " edges\n";
-
    nodes.PrintMemoryDetail(); std::cout << " nodes\n";
    faces.PrintMemoryDetail(); std::cout << " faces\n";
 
-   std::cout << root_elements.MemoryUsage() << " root_elements\n"
+   std::cout << elements.MemoryUsage() << " elements\n"
+             << free_element_ids.MemoryUsage() << " free_element_ids\n"
+             << top_vertex_pos.MemoryUsage() << " top_vertex_pos\n"
              << leaf_elements.MemoryUsage() << " leaf_elements\n"
              << vertex_nodeId.MemoryUsage() << " vertex_nodeId\n"
              << face_list.MemoryUsage() << " face_list\n"
              << edge_list.MemoryUsage() << " edge_list\n"
              << boundary_faces.MemoryUsage() << " boundary_faces\n"
-             << boundary_edges.MemoryUsage() << " boundary_edges\n"
              << element_vertex.MemoryUsage() << " element_vertex\n"
              << ref_stack.MemoryUsage() << " ref_stack\n"
              << coarse_elements.MemoryUsage() << " coarse_elements\n"
              << sizeof(*this) << " NCMesh" << std::endl;
+
+   return elements.Size()-free_element_ids.Size();
 }
 
-#ifdef MFEM_DEBUG
+void NCMesh::PrintStats(std::ostream &out) const
+{
+   static const double MiB = 1024.*1024.;
+   out <<
+       "NCMesh statistics:\n"
+       "------------------\n"
+       "   mesh and space dimensions : " << Dim << ", " << spaceDim << "\n"
+       "   isotropic only            : " << (Iso ? "yes" : "no") << "\n"
+       "   number of Nodes           : " << std::setw(9)
+       << nodes.Size() << " +    [ " << std::setw(9)
+       << nodes.MemoryUsage()/MiB << " MiB ]\n"
+       "      free                     " << std::setw(9)
+       << nodes.NumFreeIds() << "\n"
+       "   number of Faces           : " << std::setw(9)
+       << faces.Size() << " +    [ " << std::setw(9)
+       << faces.MemoryUsage()/MiB << " MiB ]\n"
+       "      free                     " << std::setw(9)
+       << faces.NumFreeIds() << "\n"
+       "   number of Elements        : " << std::setw(9)
+       << elements.Size()-free_element_ids.Size() << " +    [ " << std::setw(9)
+       << (elements.MemoryUsage() +
+           free_element_ids.MemoryUsage())/MiB << " MiB ]\n"
+       "      free                     " << std::setw(9)
+       << free_element_ids.Size() << "\n"
+       "   number of root elements   : " << std::setw(9) << root_count << "\n"
+       "   number of leaf elements   : " << std::setw(9)
+       << leaf_elements.Size() << "\n"
+       "   number of vertices        : " << std::setw(9)
+       << vertex_nodeId.Size() << "\n"
+       "   number of faces           : " << std::setw(9)
+       << face_list.TotalSize() << " =    [ " << std::setw(9)
+       << face_list.MemoryUsage()/MiB << " MiB ]\n"
+       "      conforming               " << std::setw(9)
+       << face_list.conforming.size() << " +\n"
+       "      master                   " << std::setw(9)
+       << face_list.masters.size() << " +\n"
+       "      slave                    " << std::setw(9)
+       << face_list.slaves.size() << "\n"
+       "   number of edges           : " << std::setw(9)
+       << edge_list.TotalSize() << " =    [ " << std::setw(9)
+       << edge_list.MemoryUsage()/MiB << " MiB ]\n"
+       "      conforming               " << std::setw(9)
+       << edge_list.conforming.size() << " +\n"
+       "      master                   " << std::setw(9)
+       << edge_list.masters.size() << " +\n"
+       "      slave                    " << std::setw(9)
+       << edge_list.slaves.size() << "\n"
+       "   total memory              : " << std::setw(17)
+       << "[ " << std::setw(9) << MemoryUsage()/MiB << " MiB ]\n"
+       ;
+}
+
+#if 0//def MFEM_DEBUG
 void NCMesh::DebugLeafOrder() const
 {
    for (int i = 0; i < leaf_elements.Size(); i++)

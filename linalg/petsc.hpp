@@ -19,14 +19,15 @@
 
 #ifdef MFEM_USE_PETSC
 #ifdef MFEM_USE_MPI
+
 #include <petsc.h>
+#include <limits>
 
 namespace mfem
 {
 
 class ParFiniteElementSpace;
 class PetscParMatrix;
-
 
 /// Wrapper for PETSc's vector class
 class PetscParVector : public Vector
@@ -47,8 +48,9 @@ protected:
 
 public:
    /// Creates vector with given global size and partitioning of the columns.
-   /** Processor P owns columns [col[P],col[P+1]). */
-   PetscParVector(MPI_Comm comm, PetscInt glob_size, PetscInt *col);
+   /** If @a col is provided, processor P owns columns [col[P],col[P+1]).
+       Otherwise, PETSc decides the partitioning */
+   PetscParVector(MPI_Comm comm, PetscInt glob_size, PetscInt *col = NULL);
 
    /** @brief Creates vector with given global size, partitioning of the
        columns, and data.
@@ -147,9 +149,12 @@ protected:
        until @a B is needed. */
    void MakeWrapper(MPI_Comm comm, const Operator* op, Mat *B);
 
-   /// Convert an mfem::Operator into a Mat @a B; @a op can be destroyed.
+   /// Convert an mfem::Operator into a Mat @a B; @a op can be destroyed unless
+   /// tid == PETSC_MATSHELL
+   /// if op is a BlockOperator, the operator type is relevant to the individual
+   /// blocks
    void ConvertOperator(MPI_Comm comm, const Operator& op, Mat *B,
-                        bool assembled);
+                        Operator::Type tid);
 
    friend class PetscLinearSolver;
    friend class PetscPreconditioner;
@@ -278,6 +283,8 @@ public:
 
    /** @brief Eliminate rows and columns from the matrix, and rows from the
        vector @a B. Modify @a B with the BC values in @a X. */
+   void EliminateRowsCols(const Array<int> &rows_cols, const PetscParVector &X,
+                          PetscParVector &B);
    void EliminateRowsCols(const Array<int> &rows_cols, const HypreParVector &X,
                           HypreParVector &B);
 
@@ -298,7 +305,6 @@ public:
    Type GetType() const;
 };
 
-
 /// Returns the matrix Rt^t * A * P
 PetscParMatrix * RAP(PetscParMatrix *Rt, PetscParMatrix *A, PetscParMatrix *P);
 
@@ -313,9 +319,77 @@ PetscParMatrix * RAP(PetscParMatrix *A, PetscParMatrix *P);
 void EliminateBC(PetscParMatrix &A, PetscParMatrix &Ae,
                  const Array<int> &ess_dof_list, const Vector &X, Vector &B);
 
+/// Helper class for handling essential boundary conditions.
+class PetscBCHandler
+{
+public:
+   enum Type
+   {
+      ZERO,
+      CONSTANT,  ///< Constant in time b.c.
+      TIME_DEPENDENT
+   };
 
+   PetscBCHandler(Type _type = ZERO) :
+      bctype(_type), setup(false), eval_t(0.0),
+      eval_t_cached(std::numeric_limits<double>::min()) {}
+   PetscBCHandler(Array<int>& ess_tdof_list, Type _type = ZERO);
+
+   virtual ~PetscBCHandler() {}
+
+   /// Returns the type of boundary conditions
+   Type Type() const { return bctype; }
+
+   /// Boundary conditions evaluation
+   /** In the result vector, @a g, only values at the essential dofs need to be
+       set. */
+   virtual void Eval(double t, Vector &g)
+   { mfem_error("PetscBCHandler::Eval method not overloaded"); }
+
+   /// Sets essential dofs (local, per-process numbering)
+   void SetTDofs(Array<int>& list);
+
+   /// Gets essential dofs (local, per-process numbering)
+   Array<int>& GetTDofs() { return ess_tdof_list; }
+
+   /// Sets the current time
+   void SetTime(double t) { eval_t = t; }
+
+   /// SetUp the helper object, where @a n is the size of the solution vector
+   void SetUp(PetscInt n);
+
+   /// y = x on ess_tdof_list_c and y = g (internally evaluated) on ess_tdof_list
+   void ApplyBC(const Vector &x, Vector &y);
+
+   /// y = x-g on ess_tdof_list, the rest of y is unchanged
+   void FixResidualBC(const Vector& x, Vector& y);
+
+private:
+   enum Type bctype;
+   bool setup;
+
+   double eval_t;
+   double eval_t_cached;
+   Vector eval_g;
+
+   Array<int> ess_tdof_list;    //Essential true dofs
+};
+
+// Helper class for user-defined preconditioners that needs to be setup
+class PetscPreconditionerFactory
+{
+private:
+   std::string name;
+public:
+   PetscPreconditionerFactory(const std::string &_name = "MFEM Factory")
+      : name(_name) { }
+   const char* GetName() { return name.c_str(); }
+   virtual Solver *NewPreconditioner(const OperatorHandle& oh) = 0;
+   virtual ~PetscPreconditionerFactory() {}
+};
+
+// Forward declarations of helper classes
 class PetscSolverMonitor;
-
 
 /// Abstract class for PETSc's solvers.
 class PetscSolver
@@ -335,6 +409,12 @@ protected:
 
    /// Monitor context
    PetscSolverMonitor *monitor_ctx;
+
+   /// Handler for boundary conditions
+   PetscBCHandler *bchandler;
+
+   /// Private context for solver
+   void *private_ctx;
 
    /// Boolean to handle SetOperator calls.
    mutable bool operatorset;
@@ -368,8 +448,20 @@ public:
    /// Sets user-defined monitoring routine.
    void SetMonitor(PetscSolverMonitor *ctx);
 
+   /// Sets the object to handle essential boundary conditions
+   void SetBCHandler(PetscBCHandler *bch);
+
+   /// Sets the object for the creation of the preconditioner
+   void SetPreconditionerFactory(PetscPreconditionerFactory *factory);
+
    /// Conversion function to PetscObject.
    operator PetscObject() const { return obj; }
+
+protected:
+   /// These two methods handle creation and destructions of
+   /// private data for the Solver objects
+   void CreatePrivateContext();
+   void FreePrivateContext();
 };
 
 
@@ -381,7 +473,8 @@ private:
    bool wrap;
 
 public:
-   PetscLinearSolver(MPI_Comm comm, const std::string &prefix = std::string());
+   PetscLinearSolver(MPI_Comm comm, const std::string &prefix = std::string(),
+                     bool wrap = false);
    PetscLinearSolver(const PetscParMatrix &A,
                      const std::string &prefix = std::string());
    /// Constructs a solver using a HypreParMatrix.
@@ -393,8 +486,13 @@ public:
    virtual ~PetscLinearSolver();
 
    virtual void SetOperator(const Operator &op);
-   // not inherited
-   virtual void SetPreconditioner(Solver &precond);
+
+   /// Allows to prescribe a different operator (@a pop) to construct
+   /// the preconditioner
+   void SetOperator(const Operator &op, const Operator &pop);
+
+   /// Sets the solver to perform preconditioning
+   void SetPreconditioner(Solver &precond);
 
    /// Application of the solver.
    virtual void Mult(const Vector &b, Vector &x) const;
@@ -508,6 +606,10 @@ public:
    /// Specification of the nonlinear operator.
    virtual void SetOperator(const Operator &op);
 
+   /// Specifies the desired format of the Jacobian in case a PetscParMatrix
+   /// is not returned by the GetGradient method
+   void SetJacobianType(Operator::Type type);
+
    /// Application of the solver.
    virtual void Mult(const Vector &b, Vector &x) const;
 
@@ -520,10 +622,25 @@ public:
 class PetscODESolver : public PetscSolver, public ODESolver
 {
 public:
+   /// The type of the ODE. Use ODE_SOLVER_LINEAR if the jacobians
+   /// are linear and independent of time.
+   enum Type
+   {
+      ODE_SOLVER_LINEAR,
+      ODE_SOLVER_GENERAL
+   };
+
    PetscODESolver(MPI_Comm comm, const std::string &prefix = std::string());
    virtual ~PetscODESolver();
 
-   virtual void Init(TimeDependentOperator &f_);
+   /// Initialize the ODE solver.
+   virtual void Init(TimeDependentOperator &f_,
+                     enum PetscODESolver::Type type);
+   virtual void Init(TimeDependentOperator &f_) { Init(f_,ODE_SOLVER_GENERAL); }
+
+   /// Specifies the desired format of the Jacobian in case a PetscParMatrix
+   /// is not returned by the GetGradient methods
+   void SetJacobianType(Operator::Type type);
 
    virtual void Step(Vector &x, double &t, double &dt);
    virtual void Run(Vector &x, double &t, double &dt, double t_final);
@@ -555,6 +672,7 @@ public:
       MFEM_ABORT("MonitorResidual() is not implemented!")
    }
 };
+
 
 } // namespace mfem
 

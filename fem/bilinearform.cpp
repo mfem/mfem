@@ -184,11 +184,6 @@ const double& BilinearForm::Elem (int i, int j) const
    return mat -> Elem(i,j);
 }
 
-void BilinearForm::Mult (const Vector & x, Vector & y) const
-{
-   mat -> Mult (x, y);
-}
-
 MatrixInverse * BilinearForm::Inverse() const
 {
    return mat -> Inverse();

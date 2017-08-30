@@ -5,7 +5,7 @@
 // Sample runs:  mpirun -np 4 ex12p -m ../data/beam-tri.mesh
 //               mpirun -np 4 ex12p -m ../data/beam-quad.mesh
 //               mpirun -np 4 ex12p -m ../data/beam-tet.mesh -n 10 -o 2 -elast
-//               mpirun -np 4 ex12p -m ../data/beam-hex.mesh
+//               mpirun -np 4 ex12p -m ../data/beam-hex.mesh -s 3876
 //               mpirun -np 4 ex12p -m ../data/beam-tri.mesh -o 2 -sys
 //               mpirun -np 4 ex12p -m ../data/beam-quad.mesh -n 6 -o 3 -elast
 //               mpirun -np 4 ex12p -m ../data/beam-quad-nurbs.mesh
@@ -55,6 +55,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/beam-tri.mesh";
    int order = 1;
    int nev = 5;
+   int seed = 75;
    bool visualization = 1;
    bool amg_elast = 0;
 
@@ -65,6 +66,8 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&nev, "-n", "--num-eigs",
                   "Number of desired eigenmodes.");
+   args.AddOption(&seed, "-s", "--seed",
+                  "Random seed used to initialize LOBPCG.");
    args.AddOption(&amg_elast, "-elast", "--amg-for-elasticity", "-sys",
                   "--amg-for-systems",
                   "Use the special AMG elasticity solver (GM/LN approaches), "
@@ -227,6 +230,7 @@ int main(int argc, char *argv[])
 
    HypreLOBPCG * lobpcg = new HypreLOBPCG(MPI_COMM_WORLD);
    lobpcg->SetNumModes(nev);
+   lobpcg->SetRandomSeed(seed);
    lobpcg->SetPreconditioner(*amg);
    lobpcg->SetMaxIter(100);
    lobpcg->SetTol(1e-8);

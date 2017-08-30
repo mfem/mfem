@@ -16,7 +16,7 @@
 
 #ifdef MFEM_USE_MPI
 
-#include "pfespace.hpp"
+#include "pgridfunc.hpp"
 #include "linearform.hpp"
 
 namespace mfem
@@ -42,6 +42,16 @@ public:
 
    /// Returns the vector assembled on the true dofs, i.e. P^t v.
    HypreParVector *ParallelAssemble();
+
+   /// Return the action of the ParLinearForm as a linear mapping.
+   /** Linear forms are linear functionals which map ParGridFunctions to
+       the real numbers.  This method performs this mapping which in
+       this case is equivalent as an inner product of the ParLinearForm
+       and ParGridFunction. */
+   double operator()(const ParGridFunction &gf) const
+   {
+      return InnerProduct(pfes->GetComm(), *this, gf);
+   }
 };
 
 }
