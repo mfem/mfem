@@ -357,4 +357,41 @@ HyperelasticNLFIntegrator::~HyperelasticNLFIntegrator()
    PMatO.ClearExternalData();
 }
 
+void MixedNonlinearFormIntegrator::AssembleElementVector(Array<const FiniteElement *> &el,
+                                                         ElementTransformation &Tr,
+                                                         Array<Vector> &elfun, 
+                                                         Array<Vector> &elvec)
+{
+   mfem_error("MixedNonlinearFormIntegrator::AssembleElementVector"
+              " is not overloaded!");
+
+}
+
+void MixedNonlinearFormIntegrator::AssembleRHSElementVector(Array<const FiniteElement *> &el,
+                                         FaceElementTransformations &Tr,
+                                         Array<Vector> &elfun, 
+                                         Array<Vector> &elvec)
+{
+   mfem_error("MixedNonlinearFormIntegrator::AssembleRHSElementVector"
+              " is not overloaded!");
+}
+
+void MixedNonlinearFormIntegrator::AssembleElementGrad(Array<const FiniteElement*> &el,
+                                    ElementTransformation &Tr,
+                                    Array<Vector> &elfun, 
+                                    Array2D<DenseMatrix> &elmats)
+{
+   mfem_error("MixedNonlinearFormIntegrator::AssembleElementGrad"
+              " is not overloaded!");
+}
+
+void MixedNonlinearFormIntegrator::AssembleRHSElementGrad(Array<const FiniteElement*> &el,
+                                       FaceElementTransformations &Tr,
+                                       Array<Vector> &elfun, 
+                                       Array2D<DenseMatrix> &elmats)
+{
+   mfem_error("MixedNonlinearFormIntegrator::AssembleRHSElementGrad"
+              " is not overloaded!");
+}
+
 }
