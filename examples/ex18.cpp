@@ -104,7 +104,7 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
             if (Jpr.Det() <= 0.0) { jac_ok = false; goto break2; }
          }
       }
-      break2:
+   break2:
       if (jac_ok == false) { scale *= 0.5; }
       else { x_out_ok = true; break; }
    }
@@ -182,7 +182,7 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
 }
 
 int main (int argc, char *argv[])
-{   
+{
    // 0. Set the method's default parameters.
    const char *mesh_file = "../data/icf-pert.mesh";
    int mesh_poly_deg = 1;
@@ -233,19 +233,19 @@ int main (int argc, char *argv[])
       "321: |T-T^-t|^2                   -- 3D shape+size\n\t"
       "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling");
    args.AddOption(&target_id, "-tid", "--target-id",
-      "Target (ideal element) type:\n\t"
-      "1: IDEAL\n\t"
-      "2: IDEAL_EQ_SIZE\n\t"
-      "3: IDEAL_INIT_SIZE\n\t"
-      "4: IDEAL_EQ_SCALE_SIZE");
+                  "Target (ideal element) type:\n\t"
+                  "1: IDEAL\n\t"
+                  "2: IDEAL_EQ_SIZE\n\t"
+                  "3: IDEAL_INIT_SIZE\n\t"
+                  "4: IDEAL_EQ_SCALE_SIZE");
    args.AddOption(&limited, "-lim", "--limiting", "-no-lim", "--no-limiting",
                   "Enable limiting of the node movement.");
    args.AddOption(&lim_eps, "-lc", "--limit-const", "Limiting constant.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
-      "Quadrature rule type:\n\t"
-      "1: Gauss-Lobatto\n\t"
-      "2: Gauss-Legendre\n\t"
-      "3: Closed uniform points");
+                  "Quadrature rule type:\n\t"
+                  "1: Gauss-Lobatto\n\t"
+                  "2: Gauss-Legendre\n\t"
+                  "3: Closed uniform points");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
    args.AddOption(&newton_iter, "-ni", "--newton-iters",
@@ -299,13 +299,13 @@ int main (int argc, char *argv[])
 
    // 5. Set up an empty right-hand side vector b, which is equivalent to b=0.
    Vector b(0);
-    
+
    // 6. Get the mesh nodes (vertices and other degrees of freedom in the finite
    //    element space) as a finite element grid function in fespace.
    //    Furthermore, note that changing x automatically changes the shapes of
    //    the elements in the mesh.
    GridFunction *x = mesh->GetNodes();
-    
+
    // 7. Define a vector representing the minimal local mesh size in the mesh
    //    nodes. We index the nodes using the scalar version of the degrees of
    //    freedom in fespace.
@@ -349,14 +349,14 @@ int main (int argc, char *argv[])
       for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
    }
    *x -= rdm;
-    
+
    // 9. Save the starting (prior to the optimization) mesh to a file. This
    //    output can be viewed later using GLVis: "glvis -m perturbed.mesh".
    {
       ofstream mesh_ofs("perturbed.mesh");
       mesh->Print(mesh_ofs);
    }
-    
+
    // 10. Store the starting (prior to the optimization) positions.
    GridFunction x0(fespace);
    x0 = *x;
@@ -366,35 +366,35 @@ int main (int argc, char *argv[])
    HyperelasticModel *model = NULL;
    switch (metric_id)
    {
-   case 1: model = new TMOPHyperelasticModel001; break;
-   case 2: model = new TMOPHyperelasticModel002; break;
-   case 7: model = new TMOPHyperelasticModel007; break;
-   case 9: model = new TMOPHyperelasticModel009; break;
-   case 22: model = new TMOPHyperelasticModel022(tauval); break;
-   case 50: model = new TMOPHyperelasticModel050; break;
-   case 52: model = new TMOPHyperelasticModel052(tauval); break;
-   case 55: model = new TMOPHyperelasticModel055; break;
-   case 56: model = new TMOPHyperelasticModel056; break;
-   case 58: model = new TMOPHyperelasticModel058; break;
-   case 77: model = new TMOPHyperelasticModel077; break;
-   case 211: model = new TMOPHyperelasticModel211; break;
-   case 301: model = new TMOPHyperelasticModel301; break;
-   case 302: model = new TMOPHyperelasticModel302; break;
-   case 303: model = new TMOPHyperelasticModel303; break;
-   case 315: model = new TMOPHyperelasticModel315; break;
-   case 316: model = new TMOPHyperelasticModel316; break;
-   case 321: model = new TMOPHyperelasticModel321; break;
-   case 352: model = new TMOPHyperelasticModel352(tauval); break;
-   default: cout << "Unknown metric_id: " << metric_id << endl; return 3;
+      case 1: model = new TMOPHyperelasticModel001; break;
+      case 2: model = new TMOPHyperelasticModel002; break;
+      case 7: model = new TMOPHyperelasticModel007; break;
+      case 9: model = new TMOPHyperelasticModel009; break;
+      case 22: model = new TMOPHyperelasticModel022(tauval); break;
+      case 50: model = new TMOPHyperelasticModel050; break;
+      case 52: model = new TMOPHyperelasticModel052(tauval); break;
+      case 55: model = new TMOPHyperelasticModel055; break;
+      case 56: model = new TMOPHyperelasticModel056; break;
+      case 58: model = new TMOPHyperelasticModel058; break;
+      case 77: model = new TMOPHyperelasticModel077; break;
+      case 211: model = new TMOPHyperelasticModel211; break;
+      case 301: model = new TMOPHyperelasticModel301; break;
+      case 302: model = new TMOPHyperelasticModel302; break;
+      case 303: model = new TMOPHyperelasticModel303; break;
+      case 315: model = new TMOPHyperelasticModel315; break;
+      case 316: model = new TMOPHyperelasticModel316; break;
+      case 321: model = new TMOPHyperelasticModel321; break;
+      case 352: model = new TMOPHyperelasticModel352(tauval); break;
+      default: cout << "Unknown metric_id: " << metric_id << endl; return 3;
    }
    TargetJacobian *tj = NULL;
    switch (target_id)
    {
-   case 1: tj = new TargetJacobian(TargetJacobian::IDEAL); break;
-   case 2: tj = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE); break;
-   case 3: tj = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE); break;
-   case 4: tj = new TargetJacobian(TargetJacobian::IDEAL_EQ_SCALE_SIZE); break;
-   default: cout << "Unknown target_id: " << target_id << endl; return 3;
+      case 1: tj = new TargetJacobian(TargetJacobian::IDEAL); break;
+      case 2: tj = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE); break;
+      case 3: tj = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE); break;
+      case 4: tj = new TargetJacobian(TargetJacobian::IDEAL_EQ_SCALE_SIZE); break;
+      default: cout << "Unknown target_id: " << target_id << endl; return 3;
    }
    tj->SetNodes(*x);
    tj->SetInitialNodes(x0);
@@ -406,10 +406,10 @@ int main (int argc, char *argv[])
    const int geom_type = fespace->GetFE(0)->GetGeomType();
    switch (quad_type)
    {
-   case 1: ir = &IntRulesLo.Get(geom_type, quad_order); break;
-   case 2: ir = &IntRules.Get(geom_type, quad_order); break;
-   case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
-   default: cout << "Unknown quad_type: " << target_id << endl; return 3;
+      case 1: ir = &IntRulesLo.Get(geom_type, quad_order); break;
+      case 2: ir = &IntRules.Get(geom_type, quad_order); break;
+      case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
+      default: cout << "Unknown quad_type: " << target_id << endl; return 3;
    }
    cout << "Quadrature points per cell: " << ir->GetNPoints() << endl;
    he_nlf_integ->SetIntegrationRule(*ir);
@@ -635,6 +635,6 @@ double weight_fun(const Vector &x)
    const double r = sqrt(x(0)*x(0) + x(1)*x(1) + 1e-12);
    const double den = 0.002;
    double l2 = 0.2 + 0.5*std::tanh((r-0.16)/den) - 0.5*std::tanh((r-0.17)/den)
-                   + 0.5*std::tanh((r-0.23)/den) - 0.5*std::tanh((r-0.24)/den);
+               + 0.5*std::tanh((r-0.23)/den) - 0.5*std::tanh((r-0.24)/den);
    return l2;
 }
