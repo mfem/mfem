@@ -43,7 +43,7 @@ public:
 };
 
 
-/// Abstract class for intergrators that support delta coefficients
+/// Abstract class for integrators that support delta coefficients
 class DeltaLFIntegrator : public LinearFormIntegrator
 {
 protected:
@@ -80,8 +80,8 @@ public:
    /** @brief Assemble the delta coefficient at the IntegrationPoint set in
        @a Trans which is assumed to map to the delta coefficient center.
 
-       This method should be called for one mesh element only, including in
-       parallel, even when the center of the delta coefficient is shared by
+       @note This method should be called for one mesh element only, including
+       in parallel, even when the center of the delta coefficient is shared by
        multiple elements. */
    virtual void AssembleDeltaElementVect(const FiniteElement &fe,
                                          ElementTransformation &Trans,
@@ -99,7 +99,7 @@ public:
    /// Constructs a domain integrator with a given Coefficient
    DomainLFIntegrator(Coefficient &QF, int a = 2, int b = 0)
    // the old default was a = 1, b = 1
-   // for simple elliptic problems a = 2, b = -2 is ok
+   // for simple elliptic problems a = 2, b = -2 is OK
       : DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b) { }
 
    /// Constructs a domain integrator with a given Coefficient

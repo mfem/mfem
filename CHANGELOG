@@ -38,6 +38,18 @@ Development version 3.3.1, not released
   subspace (e.g. divergence-free). Other small changes in LOBPCG include the
   ability to set the starting vectors and support for relative tolerance.
 
+- Added the ability to integrate delta functions on the righ-hand side (by
+  sampling the test function at the center of the delta coefficient). Currently
+  this is supported in the DomainLFIntegrator, VectorDomainLFIntegrator and
+  VectorFEDomainLFIntegrator classes.
+
+- Added a FindPoints method of the Mesh and ParMesh classes that returns the
+  elements that contain a given set of points, together with the coordinates of
+  the points in the reference space of the corresponding element.  In parallel,
+  if a point is shared by multiple processors, only one of them will mark that
+  point as found. Note that the current implementation of this method is not
+  optimal and/or 100% reliable.
+
 
 Version 3.3, released on Jan 28, 2017
 =====================================

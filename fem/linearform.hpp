@@ -29,7 +29,7 @@ private:
    /// Set of Domain Integrators to be applied.
    Array<LinearFormIntegrator*> dlfi;
 
-   /// Separate array for integrators with delta coefficients.
+   /// Separate array for integrators with delta function coefficients.
    Array<DeltaLFIntegrator*> dlfi_delta;
 
    /// Set of Boundary Integrators to be applied.
@@ -39,10 +39,10 @@ private:
    Array<LinearFormIntegrator*> flfi;
    Array<Array<int>*>           flfi_marker;
 
-   /// The element ids where the centers of a Dirac coefficient lie
+   /// The element ids where the centers of the delta functions lie
    Array<int> dlfi_delta_elem_id;
 
-   /// The reference coordinates where the centers of a Dirac coefficient lie
+   /// The reference coordinates where the centers of the delta functions lie
    Array<IntegrationPoint> dlfi_delta_ip;
 
    /// If true, the delta locations are not (re)computed during assembly.

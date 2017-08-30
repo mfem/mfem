@@ -220,11 +220,10 @@ public:
    void SetTol(double _tol) { tol = _tol; }
    /// Set a weight Coefficient that multiplies the DeltaCoefficient.
    /** The weight Coefficient multiplies the value returned by EvalDelta() but
-       not value returned by Scale().
-
+       not the value returned by Scale().
        The weight Coefficient is also used as the L2-weight function when
        projecting the DeltaCoefficient onto a GridFunction, so that the weighted
-       intergral of the projection is exactly equal to the Scale(). */
+       integral of the projection is exactly equal to the Scale(). */
    void SetWeight(Coefficient *w) { weight = w; }
    const double *Center() { return center; }
    /** @brief Return the scale set by SetScale() multiplied by the
@@ -382,7 +381,7 @@ public:
    virtual ~VectorGridFunctionCoefficient() { }
 };
 
-/// VectorDeltaCoefficient: DeltaCoefficient plus a direction
+/// VectorDeltaCoefficient: DeltaCoefficient with a direction
 class VectorDeltaCoefficient : public VectorCoefficient
 {
 protected:
