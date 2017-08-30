@@ -32,7 +32,9 @@ public:
    static void Transform(const F & f)
    {
       for (int i = 0; i < 3*Nx*Ny*Nz; ++i)
+      {
          inversePermeability[i] = f(inversePermeability[i]);
+      }
    }
 
    static void InversePermeability(const Vector & x, Vector & val);
@@ -117,13 +119,19 @@ void InversePermeabilityFunction::ReadPermeabilityFile(const std::string
 
    chrono.Start();
    if (myid == 0)
+   {
       ReadPermeabilityFile(fileName);
+   }
    else
+   {
       inversePermeability = new double [3*Nx*Ny*Nz];
+   }
    chrono.Stop();
 
    if (myid==0)
+   {
       std::cout<<"Permeability file read in " << chrono.RealTime() << ".s \n";
+   }
 
    chrono.Clear();
 
@@ -132,7 +140,10 @@ void InversePermeabilityFunction::ReadPermeabilityFile(const std::string
    chrono.Stop();
 
    if (myid==0)
-      std::cout<<"Permeability field distributed in " << chrono.RealTime() << ".s \n";
+   {
+      std::cout<<"Permeability field distributed in " << chrono.RealTime() <<
+               ".s \n";
+   }
 
 }
 #endif
@@ -164,18 +175,24 @@ void InversePermeabilityFunction::ReadPermeabilityFile(const std::string
                ip++;
             }
             for (int i = 0; i < 60-Nx; i++)
-               permfile >> tmp; // skip unneeded part
+            {
+               permfile >> tmp;   // skip unneeded part
+            }
          }
          for (int j = 0; j < 220-Ny; j++)
             for (int i = 0; i < 60; i++)
-               permfile >> tmp;  // skip unneeded part
+            {
+               permfile >> tmp;   // skip unneeded part
+            }
       }
 
       if (l < 2) // if not processing Kz, skip unneeded part
          for (int k = 0; k < 85-Nz; k++)
             for (int j = 0; j < 220; j++)
                for (int i = 0; i < 60; i++)
+               {
                   permfile >> tmp;
+               }
    }
 
 }
@@ -217,17 +234,20 @@ void InversePermeabilityFunction::InversePermeability(const Vector & x,
 
 
    int NMax = 3*Nx*Ny*Nz-1;
-   if(Ny*Nx*k + Nx*j + i>NMax || Ny*Nx*k + Nx*j + i + Nx*Ny*Nz>NMax || Ny*Nx*k + Nx*j + i + 2*Nx*Ny*Nz>NMax)
+   if (Ny*Nx*k + Nx*j + i>NMax || Ny*Nx*k + Nx*j + i + Nx*Ny*Nz>NMax ||
+       Ny*Nx*k + Nx*j + i + 2*Nx*Ny*Nz>NMax)
    {
-	   cout << " the indicies are wrong!" << endl;
-	   cout << i << " " << j << " " << k << endl;
+      cout << " the indicies are wrong!" << endl;
+      cout << i << " " << j << " " << k << endl;
    }
 
    val[0] = inversePermeability[Ny*Nx*k + Nx*j + i];
    val[1] = inversePermeability[Ny*Nx*k + Nx*j + i + Nx*Ny*Nz];
 
    if (orientation == NONE)
+   {
       val[2] = inversePermeability[Ny*Nx*k + Nx*j + i + 2*Nx*Ny*Nz];
+   }
 
 }
 
@@ -256,7 +276,9 @@ void InversePermeabilityFunction::Permeability(const Vector & x, Vector & val)
 
    for (double * it = val.GetData(), *end = val.GetData()+val.Size(); it != end;
         ++it )
+   {
       (*it) = 1./ (*it);
+   }
 }
 
 double InversePermeabilityFunction::Norm2Permeability(const Vector & x)

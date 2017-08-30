@@ -44,70 +44,70 @@ using namespace mfem;
 
 int* LoadIterations(int NRows, int NCol)
 {
-  ifstream in("iter_curl.txt");
+   ifstream in("iter_curl.txt");
 
-  //initialize
-  int *iters = new int[NCol*NRows];
-  for(int col = 0; col < NCol; col++)
-  {
-    for(int row = 0; row < NRows; row++)
-    {
-      iters[row*NCol+col] = -1;
-    }
-  }
+   //initialize
+   int *iters = new int[NCol*NRows];
+   for (int col = 0; col < NCol; col++)
+   {
+      for (int row = 0; row < NRows; row++)
+      {
+         iters[row*NCol+col] = -1;
+      }
+   }
 
-  if (!in)
-  {
-    cout << "Cannot open file.\n";
-    return iters;
-  }
+   if (!in)
+   {
+      cout << "Cannot open file.\n";
+      return iters;
+   }
 
-  for(int row = 0; row < NRows; row++)
-	  for(int col = 0; col < NCol; col++)
-		{
-		  if(in.eof())
-		  {
-			  in.close();
-			  return iters;
-		  }
-		  in >> iters[row*NCol+col];
-		}
+   for (int row = 0; row < NRows; row++)
+      for (int col = 0; col < NCol; col++)
+      {
+         if (in.eof())
+         {
+            in.close();
+            return iters;
+         }
+         in >> iters[row*NCol+col];
+      }
 
 
-  in.close();
+   in.close();
 
-  return iters;
+   return iters;
 }
 
 void putIterationsInArray(int iter, int row, int col, int NCol, int* iters)
 {
-	iters[row*NCol+col] = iter;
+   iters[row*NCol+col] = iter;
 }
 
 void WriteIterations(int *iters, int NRows, int NCol)
 {
-	ofstream out;
-	out.open("iter_curl.txt",fstream::out);
+   ofstream out;
+   out.open("iter_curl.txt",fstream::out);
 
-	if (!out)
-	{
-		cout << "Cannot open file.\n";
-		delete[] iters;
+   if (!out)
+   {
+      cout << "Cannot open file.\n";
+      delete[] iters;
 
-		return;
-	}
+      return;
+   }
 
-	for(int row = 0; row < NRows; row++)
-	{
-		for(int col = 0; col < NCol; col++)
-		{
-		  out << iters[row*NCol+col] << "\t";
-		}
-		out << endl;
-	}
-	out.close();
+   for (int row = 0; row < NRows; row++)
+   {
+      for (int col = 0; col < NCol; col++)
+      {
+         out << iters[row*NCol+col] << "\t";
+      }
+      out << endl;
+   }
+   out.close();
 
-	delete[] iters;
+   delete[] iters;
 }
 
 
@@ -119,199 +119,203 @@ int dim;
 
 double osziCoeff(const Vector &x)
 {
-	return 1.0001 + sin(100*x(0))*sin(200*x(1))*sin(300*x(2))*sin(400*x(3));
+   return 1.0001 + sin(100*x(0))*sin(200*x(1))*sin(300*x(2))*sin(400*x(3));
 }
 
 class Curl4dPrec : public Solver
 {
 
 private:
-	HypreParMatrix *A;
-	ParFiniteElementSpace *fespace;
-	Coefficient *alpha_, *beta_;
+   HypreParMatrix *A;
+   ParFiniteElementSpace *fespace;
+   Coefficient *alpha_, *beta_;
 
-	HypreParMatrix *idMat;
-	HypreParMatrix *H1VecLaplaceMat;
-	HypreBoomerAMG *amgVecH1;
+   HypreParMatrix *idMat;
+   HypreParMatrix *H1VecLaplaceMat;
+   HypreBoomerAMG *amgVecH1;
 
 
-	HypreParMatrix *gradMat;
-	HypreParMatrix *H1LaplaceMat;
-	HypreBoomerAMG *amgH1;
+   HypreParMatrix *gradMat;
+   HypreParMatrix *H1LaplaceMat;
+   HypreBoomerAMG *amgH1;
 
-	HypreSmoother * smoother;
-	CGSolver *pcgGrad;
-	CGSolver *pcgH1Vec;
+   HypreSmoother * smoother;
+   CGSolver *pcgGrad;
+   CGSolver *pcgH1Vec;
 
-	Vector *f;
-	Vector *fGrad, *uGrad;
-	Vector *fH1Vec, *uH1Vec;
+   Vector *f;
+   Vector *fGrad, *uGrad;
+   Vector *fH1Vec, *uH1Vec;
 
-	bool exactSolves;
+   bool exactSolves;
 
 public:
-	~Curl4dPrec()
-	{
-		delete pcgH1Vec;
-		delete pcgGrad;
+   ~Curl4dPrec()
+   {
+      delete pcgH1Vec;
+      delete pcgGrad;
 
-		delete 	f, fGrad, uGrad, fH1Vec, uH1Vec;
+      delete   f, fGrad, uGrad, fH1Vec, uH1Vec;
 
-		delete smoother;
+      delete smoother;
 
-		delete amgVecH1, H1VecLaplaceMat;
-		delete idMat;
-		delete amgH1, H1LaplaceMat;
-		delete gradMat;
-	}
+      delete amgVecH1, H1VecLaplaceMat;
+      delete idMat;
+      delete amgH1, H1LaplaceMat;
+      delete gradMat;
+   }
 
-	Curl4dPrec(HypreParMatrix *AUser, ParFiniteElementSpace *fespaceUser, Coefficient *alpha, Coefficient *beta,
-			const Array<int> &essBnd, int orderKernel=1, bool exactSolvesUser=false)
-	{
-		A = AUser;
-		fespace = fespaceUser;
-		alpha_ = alpha;
-		beta_ = beta;
+   Curl4dPrec(HypreParMatrix *AUser, ParFiniteElementSpace *fespaceUser,
+              Coefficient *alpha, Coefficient *beta,
+              const Array<int> &essBnd, int orderKernel=1, bool exactSolvesUser=false)
+   {
+      A = AUser;
+      fespace = fespaceUser;
+      alpha_ = alpha;
+      beta_ = beta;
 
-		ParMesh *pmesh = fespace->GetParMesh();
-		int dim = pmesh->Dimension();
+      ParMesh *pmesh = fespace->GetParMesh();
+      int dim = pmesh->Dimension();
 
-		exactSolves = exactSolvesUser;
+      exactSolves = exactSolvesUser;
 
-		int orderIm=1;  //vecH1  --> H(curl)
-		int orderKer=orderKernel; //grad V --> H(curl)
+      int orderIm=1;  //vecH1  --> H(curl)
+      int orderKer=orderKernel; //grad V --> H(curl)
 
-		smoother = new HypreSmoother(*A, 16, 3);
+      smoother = new HypreSmoother(*A, 16, 3);
 
-//		//for the pure dirichlet case
-//		Array<int> essBnd(pmesh->bdr_attributes.Max()); essBnd = 1;
+      //    //for the pure dirichlet case
+      //    Array<int> essBnd(pmesh->bdr_attributes.Max()); essBnd = 1;
 
-		Array<int> HCurl_essDof(fespace->GetVSize()); HCurl_essDof = 0;
-		fespace->GetEssentialVDofs(essBnd, HCurl_essDof);
+      Array<int> HCurl_essDof(fespace->GetVSize()); HCurl_essDof = 0;
+      fespace->GetEssentialVDofs(essBnd, HCurl_essDof);
 
-		//setup the H1 FESpace
-		FiniteElementCollection* fecH1;
-		   if(orderKer==1) fecH1 = new LinearFECollection;
-		   else fecH1 = new QuadraticFECollection;
+      //setup the H1 FESpace
+      FiniteElementCollection* fecH1;
+      if (orderKer==1) { fecH1 = new LinearFECollection; }
+      else { fecH1 = new QuadraticFECollection; }
 
-		ParFiniteElementSpace *H1FESpace = new ParFiniteElementSpace(pmesh, fecH1);
-		Array<int> H1_essDof(H1FESpace->GetVSize()); H1_essDof = 0;
-		H1FESpace->GetEssentialVDofs(essBnd, H1_essDof);
+      ParFiniteElementSpace *H1FESpace = new ParFiniteElementSpace(pmesh, fecH1);
+      Array<int> H1_essDof(H1FESpace->GetVSize()); H1_essDof = 0;
+      H1FESpace->GetEssentialVDofs(essBnd, H1_essDof);
 
-		//setup the discrete gradient
-		ParDiscreteLinearOperator *disGrad = new ParDiscreteLinearOperator(H1FESpace, fespace);
-		disGrad->AddDomainInterpolator(new GradientInterpolator);
-		disGrad->Assemble();
-		disGrad->Finalize();
-		SparseMatrix* smat = &(disGrad->SpMat());
-		smat->EliminateCols(H1_essDof);
-		for(int dof=0; dof<HCurl_essDof.Size(); dof++) if(HCurl_essDof[dof]<0) smat->EliminateRow(dof);
-		gradMat = disGrad->ParallelAssemble();
-		delete disGrad;
+      //setup the discrete gradient
+      ParDiscreteLinearOperator *disGrad = new ParDiscreteLinearOperator(H1FESpace,
+                                                                         fespace);
+      disGrad->AddDomainInterpolator(new GradientInterpolator);
+      disGrad->Assemble();
+      disGrad->Finalize();
+      SparseMatrix* smat = &(disGrad->SpMat());
+      smat->EliminateCols(H1_essDof);
+      for (int dof=0; dof<HCurl_essDof.Size(); dof++) if (HCurl_essDof[dof]<0) { smat->EliminateRow(dof); }
+      gradMat = disGrad->ParallelAssemble();
+      delete disGrad;
 
-		//setup the H1 preconditioner
-		ParBilinearForm* H1Varf = new ParBilinearForm(H1FESpace);
-		H1Varf->AddDomainIntegrator(new DiffusionIntegrator(*beta_));
-//		H1Varf->AddDomainIntegrator(new MassIntegrator);
-		H1Varf->Assemble();
-		H1Varf->Finalize();
+      //setup the H1 preconditioner
+      ParBilinearForm* H1Varf = new ParBilinearForm(H1FESpace);
+      H1Varf->AddDomainIntegrator(new DiffusionIntegrator(*beta_));
+      //    H1Varf->AddDomainIntegrator(new MassIntegrator);
+      H1Varf->Assemble();
+      H1Varf->Finalize();
 
-		SparseMatrix &matH1(H1Varf->SpMat());
-		for(int dof=0; dof<H1_essDof.Size(); dof++) if(H1_essDof[dof]<0) matH1.EliminateRowCol(dof);
-		H1LaplaceMat = H1Varf->ParallelAssemble();
-		delete H1Varf;
-		amgH1 = new HypreBoomerAMG(*H1LaplaceMat);
-
-
-		//setup the H1 injection
-		FiniteElementCollection* fecH1Vec;
-		   if(orderIm==1) fecH1Vec = new LinearFECollection;
-		   else fecH1Vec = new QuadraticFECollection;
-		ParFiniteElementSpace *H1VecFESpace = new ParFiniteElementSpace(pmesh, fecH1Vec, dim, Ordering::byVDIM);
-		Array<int> H1Vec_essDof(H1VecFESpace->GetVSize()); H1Vec_essDof = 0;
-		H1VecFESpace->GetEssentialVDofs(essBnd, H1Vec_essDof);
-
-		//setup the discrete gradient
-		ParDiscreteLinearOperator *disInterpol = new ParDiscreteLinearOperator(H1VecFESpace, fespace);
-		disInterpol->AddDomainInterpolator(new IdentityInterpolator);
-		disInterpol->Assemble();
-		disInterpol->Finalize();
-		SparseMatrix* smatID = &(disInterpol->SpMat());
-		smatID->EliminateCols(H1Vec_essDof);
-		for(int dof=0; dof<HCurl_essDof.Size(); dof++) if(HCurl_essDof[dof]<0) smatID->EliminateRow(dof);
-		idMat = disInterpol->ParallelAssemble();
-		delete disInterpol;
-
-		//setup the H1-vec preconditioner
-		ParBilinearForm* H1VecVarf = new ParBilinearForm(H1VecFESpace);
-		H1VecVarf->AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_));
-		H1VecVarf->AddDomainIntegrator(new VectorMassIntegrator(-1, beta_));
-		H1VecVarf->Assemble();
-		H1VecVarf->Finalize();
-
-		SparseMatrix &matH1Vec(H1VecVarf->SpMat());
-		for(int dof=0; dof<H1Vec_essDof.Size(); dof++) if(H1Vec_essDof[dof]<0) matH1Vec.EliminateRowCol(dof);
-		H1VecLaplaceMat = H1VecVarf->ParallelAssemble();
-		delete H1VecVarf;
-		amgVecH1 = new HypreBoomerAMG(*H1VecLaplaceMat);
-		amgVecH1->SetSystemsOptions(dim);
+      SparseMatrix &matH1(H1Varf->SpMat());
+      for (int dof=0; dof<H1_essDof.Size(); dof++) if (H1_essDof[dof]<0) { matH1.EliminateRowCol(dof); }
+      H1LaplaceMat = H1Varf->ParallelAssemble();
+      delete H1Varf;
+      amgH1 = new HypreBoomerAMG(*H1LaplaceMat);
 
 
-		f = new Vector(fespace->GetTrueVSize());
+      //setup the H1 injection
+      FiniteElementCollection* fecH1Vec;
+      if (orderIm==1) { fecH1Vec = new LinearFECollection; }
+      else { fecH1Vec = new QuadraticFECollection; }
+      ParFiniteElementSpace *H1VecFESpace = new ParFiniteElementSpace(pmesh, fecH1Vec,
+                                                                      dim, Ordering::byVDIM);
+      Array<int> H1Vec_essDof(H1VecFESpace->GetVSize()); H1Vec_essDof = 0;
+      H1VecFESpace->GetEssentialVDofs(essBnd, H1Vec_essDof);
 
-		fGrad = new Vector(H1FESpace->GetTrueVSize());
-		uGrad = new Vector(H1FESpace->GetTrueVSize());
+      //setup the discrete gradient
+      ParDiscreteLinearOperator *disInterpol = new ParDiscreteLinearOperator(
+         H1VecFESpace, fespace);
+      disInterpol->AddDomainInterpolator(new IdentityInterpolator);
+      disInterpol->Assemble();
+      disInterpol->Finalize();
+      SparseMatrix* smatID = &(disInterpol->SpMat());
+      smatID->EliminateCols(H1Vec_essDof);
+      for (int dof=0; dof<HCurl_essDof.Size(); dof++) if (HCurl_essDof[dof]<0) { smatID->EliminateRow(dof); }
+      idMat = disInterpol->ParallelAssemble();
+      delete disInterpol;
 
-		fH1Vec = new Vector(H1VecFESpace->GetTrueVSize());
-		uH1Vec = new Vector(H1VecFESpace->GetTrueVSize());
+      //setup the H1-vec preconditioner
+      ParBilinearForm* H1VecVarf = new ParBilinearForm(H1VecFESpace);
+      H1VecVarf->AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_));
+      H1VecVarf->AddDomainIntegrator(new VectorMassIntegrator(-1, beta_));
+      H1VecVarf->Assemble();
+      H1VecVarf->Finalize();
+
+      SparseMatrix &matH1Vec(H1VecVarf->SpMat());
+      for (int dof=0; dof<H1Vec_essDof.Size(); dof++) if (H1Vec_essDof[dof]<0) { matH1Vec.EliminateRowCol(dof); }
+      H1VecLaplaceMat = H1VecVarf->ParallelAssemble();
+      delete H1VecVarf;
+      amgVecH1 = new HypreBoomerAMG(*H1VecLaplaceMat);
+      amgVecH1->SetSystemsOptions(dim);
 
 
-		amgH1->Mult(*fGrad, *uGrad);
-		amgVecH1->Mult(*fH1Vec, *uH1Vec);
+      f = new Vector(fespace->GetTrueVSize());
 
-		pcgGrad = new CGSolver(MPI_COMM_WORLD);
-		pcgGrad->SetOperator(*H1LaplaceMat);
-		pcgGrad->SetPreconditioner(*amgH1);
-		pcgGrad->SetRelTol(1e-16);
-		pcgGrad->SetMaxIter(100000000);
-		pcgGrad->SetPrintLevel(-2);
+      fGrad = new Vector(H1FESpace->GetTrueVSize());
+      uGrad = new Vector(H1FESpace->GetTrueVSize());
 
-		pcgH1Vec = new CGSolver(MPI_COMM_WORLD);
-		pcgH1Vec->SetOperator(*H1VecLaplaceMat);
-		pcgH1Vec->SetPreconditioner(*amgVecH1);
-		pcgH1Vec->SetRelTol(1e-16);
-		pcgH1Vec->SetMaxIter(100000000);
-		pcgH1Vec->SetPrintLevel(-2);
+      fH1Vec = new Vector(H1VecFESpace->GetTrueVSize());
+      uH1Vec = new Vector(H1VecFESpace->GetTrueVSize());
 
-		delete H1FESpace; delete fecH1;
-		delete H1VecFESpace; delete fecH1Vec;
 
-	}
+      amgH1->Mult(*fGrad, *uGrad);
+      amgVecH1->Mult(*fH1Vec, *uH1Vec);
 
-	void setExactSolve(bool exSol)
-	{
-		exactSolves = exSol;
-	}
+      pcgGrad = new CGSolver(MPI_COMM_WORLD);
+      pcgGrad->SetOperator(*H1LaplaceMat);
+      pcgGrad->SetPreconditioner(*amgH1);
+      pcgGrad->SetRelTol(1e-16);
+      pcgGrad->SetMaxIter(100000000);
+      pcgGrad->SetPrintLevel(-2);
 
-	virtual void Mult(const Vector &x, Vector &y) const
-	{
-		smoother->Mult(x,y);
+      pcgH1Vec = new CGSolver(MPI_COMM_WORLD);
+      pcgH1Vec->SetOperator(*H1VecLaplaceMat);
+      pcgH1Vec->SetPreconditioner(*amgVecH1);
+      pcgH1Vec->SetRelTol(1e-16);
+      pcgH1Vec->SetMaxIter(100000000);
+      pcgH1Vec->SetPrintLevel(-2);
 
-		idMat->MultTranspose(x,*fH1Vec);
-		*uH1Vec = 0.0;
-		if(exactSolves) pcgH1Vec->Mult(*fH1Vec, *uH1Vec);
-		else amgVecH1->Mult(*fH1Vec, *uH1Vec);
-		idMat->Mult(1.0, *uH1Vec, 1.0, y);
+      delete H1FESpace; delete fecH1;
+      delete H1VecFESpace; delete fecH1Vec;
 
-		gradMat->MultTranspose(x,*fGrad);
-		*uGrad = 0.0;
-		if(exactSolves) pcgGrad->Mult(*fGrad, *uGrad);
-		else amgH1->Mult(*fGrad, *uGrad);
-		gradMat->Mult(1.0, *uGrad, 1.0, y);
+   }
 
-	}
+   void setExactSolve(bool exSol)
+   {
+      exactSolves = exSol;
+   }
 
-	virtual void SetOperator(const Operator &op) {};
+   virtual void Mult(const Vector &x, Vector &y) const
+   {
+      smoother->Mult(x,y);
+
+      idMat->MultTranspose(x,*fH1Vec);
+      *uH1Vec = 0.0;
+      if (exactSolves) { pcgH1Vec->Mult(*fH1Vec, *uH1Vec); }
+      else { amgVecH1->Mult(*fH1Vec, *uH1Vec); }
+      idMat->Mult(1.0, *uH1Vec, 1.0, y);
+
+      gradMat->MultTranspose(x,*fGrad);
+      *uGrad = 0.0;
+      if (exactSolves) { pcgGrad->Mult(*fGrad, *uGrad); }
+      else { amgH1->Mult(*fGrad, *uGrad); }
+      gradMat->Mult(1.0, *uGrad, 1.0, y);
+
+   }
+
+   virtual void SetOperator(const Operator &op) {};
 
 };
 
@@ -324,7 +328,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    bool verbose = (myid==0);
-   
+
    // 2. Parse command-line options.
    const char *mesh_file = "../data/beam-tet.mesh";
    int order = 1;
@@ -347,22 +351,24 @@ int main(int argc, char *argv[])
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&sequ_ref_levels, "-sr", "--seqrefinement",
-                     "Number of sequential refinement steps.");
+                  "Number of sequential refinement steps.");
    args.AddOption(&par_ref_levels, "-pr", "--parrefinement",
-                     "Number of parallel refinement steps.");
+                  "Number of parallel refinement steps.");
    args.AddOption(&order, "-o", "--order",
-                     "Polynomial order of the finite element space.");
+                  "Polynomial order of the finite element space.");
    args.AddOption(&set_bc, "-bc", "--impose-bc", "-no-bc", "--dont-impose-bc",
                   "Impose or not essential boundary conditions.");
    args.AddOption(&tol, "-tol", "--tol",
-                     "A parameter.");
+                  "A parameter.");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
                   " solution.");
    args.AddOption(&coeffWeight, "-c", "--coeffMass",
                   "the weight for the mass term.");
-   args.AddOption(&exactH1Solver, "-exH1Sol", "--exactH1Solver", "-H1prec", "--H1preconditioner",
+   args.AddOption(&exactH1Solver, "-exH1Sol", "--exactH1Solver", "-H1prec",
+                  "--H1preconditioner",
                   "Use exact H1 solvers for the preconditioner.");
-   args.AddOption(&spe10Coeff, "-spe10", "--useSPE10Coeff", "-constCoeff", "--constCoeff",
+   args.AddOption(&spe10Coeff, "-spe10", "--useSPE10Coeff", "-constCoeff",
+                  "--constCoeff",
                   "Switch between the coefficients for the mass bilinear form.");
    args.AddOption(&standardCG, "-sCG", "--stdCG", "-rCG", "--resCG",
                   "Switch between standard PCG or recompute residuals in every step and use the residuals itself for the stopping criteria.");
@@ -377,13 +383,13 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   if(verbose) args.PrintOptions(cout);
-   
+   if (verbose) { args.PrintOptions(cout); }
+
    kappa = freq * M_PI;
 
    Mesh *mesh;
    ifstream imesh(mesh_file);
-   if(!imesh)
+   if (!imesh)
    {
       cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
       return 2;
@@ -395,36 +401,37 @@ int main(int argc, char *argv[])
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
-   
-   if(dim !=4 || sdim != 4)
+
+   if (dim !=4 || sdim != 4)
    {
-	   MPI_Finalize();
-	   return 0;
+      MPI_Finalize();
+      return 0;
    }
 
-   for(int i=0; i<sequ_ref_levels; i++) mesh->UniformRefinement();
-   if(verbose) mesh->PrintCharacteristics();
+   for (int i=0; i<sequ_ref_levels; i++) { mesh->UniformRefinement(); }
+   if (verbose) { mesh->PrintCharacteristics(); }
 
-   if(verbose) cout << "now we partition the mesh..." << endl << endl;
+   if (verbose) { cout << "now we partition the mesh..." << endl << endl; }
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
-   for(int i=0; i<par_ref_levels; i++) pmesh->UniformRefinement();
+   for (int i=0; i<par_ref_levels; i++) { pmesh->UniformRefinement(); }
 
-      pmesh->ReorientTetMesh();
-   
-   pmesh->PrintInfo(std::cout); if(verbose) cout << endl;
+   pmesh->ReorientTetMesh();
+
+   pmesh->PrintInfo(std::cout);
+   if (verbose) { cout << endl; }
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
    FiniteElementCollection *fec;
-   if(dim==4)
+   if (dim==4)
    {
-	   if(order==1) fec = new ND1_4DFECollection;
-	   else fec = new ND2_4DFECollection;
+      if (order==1) { fec = new ND1_4DFECollection; }
+      else { fec = new ND2_4DFECollection; }
    }
-   else fec = new ND_FECollection(order, dim);
+   else { fec = new ND_FECollection(order, dim); }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
    if (myid == 0)
@@ -458,121 +465,122 @@ int main(int argc, char *argv[])
    ParGridFunction x(fespace);
    VectorFunctionCoefficient E(sdim, E_exact);
 
-   for(int expo=weightStart; expo<=weightEnd; expo++)
+   for (int expo=weightStart; expo<=weightEnd; expo++)
    {
-	   double weight = pow(10.0,expo);
-	   kappa = weight;
+      double weight = pow(10.0,expo);
+      kappa = weight;
 
-	   VectorFunctionCoefficient f(sdim, f_exact);
-	   ParLinearForm *b = new ParLinearForm(fespace);
-	   b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
-	   b->Assemble();
+      VectorFunctionCoefficient f(sdim, f_exact);
+      ParLinearForm *b = new ParLinearForm(fespace);
+      b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
+      b->Assemble();
 
-	   x.ProjectCoefficient(E);
+      x.ProjectCoefficient(E);
 
-	   // 10. Set up the parallel bilinear form corresponding to the EM diffusion
-	   //     operator curl muinv curl + sigma I, by adding the curl-curl and the
-	   //     mass domain integrators.
-//	   std::string permFile = "spe_perm.dat";
-//	   InversePermeabilityFunction::ReadPermeabilityFile(permFile, MPI_COMM_WORLD);
+      // 10. Set up the parallel bilinear form corresponding to the EM diffusion
+      //     operator curl muinv curl + sigma I, by adding the curl-curl and the
+      //     mass domain integrators.
+      //    std::string permFile = "spe_perm.dat";
+      //    InversePermeabilityFunction::ReadPermeabilityFile(permFile, MPI_COMM_WORLD);
 
-	   Coefficient *alpha = new ConstantCoefficient(1.0);
-	   Coefficient *beta;
-//	   if(spe10Coeff) beta = new FunctionCoefficient(InversePermeabilityFunction::Norm2Permeability);
-//	   else
-		   beta = new ConstantCoefficient(weight);
+      Coefficient *alpha = new ConstantCoefficient(1.0);
+      Coefficient *beta;
+      //    if(spe10Coeff) beta = new FunctionCoefficient(InversePermeabilityFunction::Norm2Permeability);
+      //    else
+      beta = new ConstantCoefficient(weight);
 
-	   ParBilinearForm *a = new ParBilinearForm(fespace);
-	   a->AddDomainIntegrator(new CurlCurlIntegrator(*alpha));
-	   a->AddDomainIntegrator(new VectorFEMassIntegrator(*beta));
+      ParBilinearForm *a = new ParBilinearForm(fespace);
+      a->AddDomainIntegrator(new CurlCurlIntegrator(*alpha));
+      a->AddDomainIntegrator(new VectorFEMassIntegrator(*beta));
 
-	   // 11. Assemble the parallel bilinear form and the corresponding linear
-	   //     system, applying any necessary transformations such as: parallel
-	   //     assembly, eliminating boundary conditions, applying conforming
-	   //     constraints for non-conforming AMR, static condensation, etc.
-	   if (static_cond) { a->EnableStaticCondensation(); }
-	   a->Assemble();
+      // 11. Assemble the parallel bilinear form and the corresponding linear
+      //     system, applying any necessary transformations such as: parallel
+      //     assembly, eliminating boundary conditions, applying conforming
+      //     constraints for non-conforming AMR, static condensation, etc.
+      if (static_cond) { a->EnableStaticCondensation(); }
+      a->Assemble();
 
-	   HypreParMatrix A;
-	   Vector B, X;
-	   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+      HypreParMatrix A;
+      Vector B, X;
+      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-	   if (myid == 0)
-	   {
-		  cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
-	   }
+      if (myid == 0)
+      {
+         cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
+      }
 
-	   // 12. Define and apply a parallel PCG solver for AX=B with the AMS
-	   //     preconditioner from hypre.
-	   ParFiniteElementSpace *prec_fespace =
-		  (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
-	   Solver *prec;
-	   if(dim<=3) prec = new HypreAMS(A, prec_fespace);
-	   else if(dim==4) prec = new Curl4dPrec(&A, fespace, alpha, beta, ess_bdr, order, false);
-	   IterativeSolver *pcg = new CGSolver(MPI_COMM_WORLD);
-	   pcg->SetOperator(A);
-	   pcg->SetRelTol(tol);
-	   pcg->SetMaxIter(5000);
-	   pcg->SetPrintLevel(1);
-	   pcg->SetPreconditioner(*prec);
-	   pcg->Mult(B, X);
+      // 12. Define and apply a parallel PCG solver for AX=B with the AMS
+      //     preconditioner from hypre.
+      ParFiniteElementSpace *prec_fespace =
+         (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
+      Solver *prec;
+      if (dim<=3) { prec = new HypreAMS(A, prec_fespace); }
+      else if (dim==4) { prec = new Curl4dPrec(&A, fespace, alpha, beta, ess_bdr, order, false); }
+      IterativeSolver *pcg = new CGSolver(MPI_COMM_WORLD);
+      pcg->SetOperator(A);
+      pcg->SetRelTol(tol);
+      pcg->SetMaxIter(5000);
+      pcg->SetPrintLevel(1);
+      pcg->SetPreconditioner(*prec);
+      pcg->Mult(B, X);
 
-	   int iter = pcg->GetNumIterations();
-	   if(myid==0)
-	   {
-		   cout << "Weigth: " << weight << " " << iter << endl;
+      int iter = pcg->GetNumIterations();
+      if (myid==0)
+      {
+         cout << "Weigth: " << weight << " " << iter << endl;
 
-		   int *iters = LoadIterations(10, 2*NExpo+1);
-		   putIterationsInArray(iter, sequ_ref_levels+par_ref_levels, expo+NExpo, 2*NExpo+1, iters);
-		   WriteIterations(iters, 10, 2*NExpo+1);
-	   }
+         int *iters = LoadIterations(10, 2*NExpo+1);
+         putIterationsInArray(iter, sequ_ref_levels+par_ref_levels, expo+NExpo,
+                              2*NExpo+1, iters);
+         WriteIterations(iters, 10, 2*NExpo+1);
+      }
 
-	   // 13. Recover the parallel grid function corresponding to X. This is the
-	   //     local finite element solution on each processor.
-	   a->RecoverFEMSolution(X, *b, x);
+      // 13. Recover the parallel grid function corresponding to X. This is the
+      //     local finite element solution on each processor.
+      a->RecoverFEMSolution(X, *b, x);
 
-	   // 14. Compute and print the L^2 norm of the error.
-	   {
-		  double err = x.ComputeL2Error(E);
-		  if (myid == 0)
-		  {
-			 cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
-		  }
-	   }
+      // 14. Compute and print the L^2 norm of the error.
+      {
+         double err = x.ComputeL2Error(E);
+         if (myid == 0)
+         {
+            cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
+         }
+      }
 
-	   // 15. Save the refined mesh and the solution in parallel. This output can
-	   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
-	//   {
-	//      ostringstream mesh_name, sol_name;
-	//      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-	//      sol_name << "sol." << setfill('0') << setw(6) << myid;
-	//
-	//      ofstream mesh_ofs(mesh_name.str().c_str());
-	//      mesh_ofs.precision(8);
-	//      pmesh->Print(mesh_ofs);
-	//
-	//      ofstream sol_ofs(sol_name.str().c_str());
-	//      sol_ofs.precision(8);
-	//      x.Save(sol_ofs);
-	//   }
+      // 15. Save the refined mesh and the solution in parallel. This output can
+      //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+      //   {
+      //      ostringstream mesh_name, sol_name;
+      //      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      //      sol_name << "sol." << setfill('0') << setw(6) << myid;
+      //
+      //      ofstream mesh_ofs(mesh_name.str().c_str());
+      //      mesh_ofs.precision(8);
+      //      pmesh->Print(mesh_ofs);
+      //
+      //      ofstream sol_ofs(sol_name.str().c_str());
+      //      sol_ofs.precision(8);
+      //      x.Save(sol_ofs);
+      //   }
 
-	//   // 16. Send the solution by socket to a GLVis server.
-	//   if (visualization)
-	//   {
-	//      char vishost[] = "localhost";
-	//      int  visport   = 19916;
-	//      socketstream sol_sock(vishost, visport);
-	//      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-	//      sol_sock.precision(8);
-	//      sol_sock << "solution\n" << *pmesh << x << flush;
-	//   }
+      //   // 16. Send the solution by socket to a GLVis server.
+      //   if (visualization)
+      //   {
+      //      char vishost[] = "localhost";
+      //      int  visport   = 19916;
+      //      socketstream sol_sock(vishost, visport);
+      //      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      //      sol_sock.precision(8);
+      //      sol_sock << "solution\n" << *pmesh << x << flush;
+      //   }
 
-	   delete pcg;
-	   delete prec;
-	   delete a;
-	   delete alpha;
-	   delete beta;
-	   delete b;
+      delete pcg;
+      delete prec;
+      delete a;
+      delete alpha;
+      delete beta;
+      delete b;
 
    }
 
@@ -590,7 +598,7 @@ int main(int argc, char *argv[])
 
 void E_exact(const Vector &x, Vector &E)
 {
-   if(dim==4)
+   if (dim==4)
    {
       E(0) =  sin(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));
       E(1) = -cos(M_PI*x(0))*sin(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));
@@ -614,12 +622,16 @@ void E_exact(const Vector &x, Vector &E)
 void f_exact(const Vector &x, Vector &f)
 {
    //f_exact = E +  DivSkew P( curl E ), where P is the 4d permutation operator
-   if(dim==4)
+   if (dim==4)
    {
-	   f(0) =  (kappa+4.0*M_PI*M_PI)*sin(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));
-	   f(1) = -(kappa+4.0*M_PI*M_PI)*cos(M_PI*x(0))*sin(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));
-	   f(2) =  (kappa+4.0*M_PI*M_PI)*cos(M_PI*x(0))*cos(M_PI*x(1))*sin(M_PI*x(2))*cos(M_PI*x(3));
-	   f(3) = -(kappa+4.0*M_PI*M_PI)*cos(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*sin(M_PI*x(3));
+      f(0) =  (kappa+4.0*M_PI*M_PI)*sin(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*cos(
+                 M_PI*x(3));
+      f(1) = -(kappa+4.0*M_PI*M_PI)*cos(M_PI*x(0))*sin(M_PI*x(1))*cos(M_PI*x(2))*cos(
+                M_PI*x(3));
+      f(2) =  (kappa+4.0*M_PI*M_PI)*cos(M_PI*x(0))*cos(M_PI*x(1))*sin(M_PI*x(2))*cos(
+                 M_PI*x(3));
+      f(3) = -(kappa+4.0*M_PI*M_PI)*cos(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*sin(
+                M_PI*x(3));
    }
    else if (dim == 3)
    {

@@ -44,70 +44,70 @@
 
 int* LoadIterations(int NRows, int NCol)
 {
-  ifstream in("iter_grad.txt");
+   ifstream in("iter_grad.txt");
 
-  //initialize
-  int *iters = new int[NCol*NRows];
-  for(int col = 0; col < NCol; col++)
-  {
-    for(int row = 0; row < NRows; row++)
-    {
-      iters[row*NCol+col] = -1;
-    }
-  }
+   //initialize
+   int *iters = new int[NCol*NRows];
+   for (int col = 0; col < NCol; col++)
+   {
+      for (int row = 0; row < NRows; row++)
+      {
+         iters[row*NCol+col] = -1;
+      }
+   }
 
-  if (!in)
-  {
-    cout << "Cannot open file.\n";
-    return iters;
-  }
+   if (!in)
+   {
+      cout << "Cannot open file.\n";
+      return iters;
+   }
 
-  for(int row = 0; row < NRows; row++)
-	  for(int col = 0; col < NCol; col++)
-		{
-		  if(in.eof())
-		  {
-			  in.close();
-			  return iters;
-		  }
-		  in >> iters[row*NCol+col];
-		}
+   for (int row = 0; row < NRows; row++)
+      for (int col = 0; col < NCol; col++)
+      {
+         if (in.eof())
+         {
+            in.close();
+            return iters;
+         }
+         in >> iters[row*NCol+col];
+      }
 
 
-  in.close();
+   in.close();
 
-  return iters;
+   return iters;
 }
 
 void putIterationsInArray(int iter, int row, int col, int NCol, int* iters)
 {
-	iters[row*NCol+col] = iter;
+   iters[row*NCol+col] = iter;
 }
 
 void WriteIterations(int *iters, int NRows, int NCol)
 {
-	ofstream out;
-	out.open("iter_grad.txt",fstream::out);
+   ofstream out;
+   out.open("iter_grad.txt",fstream::out);
 
-	if (!out)
-	{
-		cout << "Cannot open file.\n";
-		delete[] iters;
+   if (!out)
+   {
+      cout << "Cannot open file.\n";
+      delete[] iters;
 
-		return;
-	}
+      return;
+   }
 
-	for(int row = 0; row < NRows; row++)
-	{
-		for(int col = 0; col < NCol; col++)
-		{
-		  out << iters[row*NCol+col] << "\t";
-		}
-		out << endl;
-	}
-	out.close();
+   for (int row = 0; row < NRows; row++)
+   {
+      for (int col = 0; col < NCol; col++)
+      {
+         out << iters[row*NCol+col] << "\t";
+      }
+      out << endl;
+   }
+   out.close();
 
-	delete[] iters;
+   delete[] iters;
 }
 
 
@@ -118,24 +118,25 @@ double kappa = 1.0;
 
 double u_exact(const Vector &x)
 {
-	int dim = x.Size();
+   int dim = x.Size();
 
-	if(dim==4)
-	{
-		return cos(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));
-	}
-	else return 0.0;
+   if (dim==4)
+   {
+      return cos(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));
+   }
+   else { return 0.0; }
 }
 
 double f_exact(const Vector &x)
 {
-	int dim = x.Size();
+   int dim = x.Size();
 
-	if(dim==4)
-	{
-		return (kappa + 4.0 * M_PI*M_PI) * cos(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(2))*cos(M_PI*x(3));
-	}
-	else return 0.0;
+   if (dim==4)
+   {
+      return (kappa + 4.0 * M_PI*M_PI) * cos(M_PI*x(0))*cos(M_PI*x(1))*cos(M_PI*x(
+                                                                              2))*cos(M_PI*x(3));
+   }
+   else { return 0.0; }
 }
 
 
@@ -146,7 +147,7 @@ int main(int argc, char *argv[])
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-   
+
    bool verbose = (myid==0);
 
    // 2. Parse command-line options.
@@ -164,13 +165,13 @@ int main(int argc, char *argv[])
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&sequ_ref_levels, "-sr", "--seqrefinement",
-                     "Number of sequential refinement steps.");
+                  "Number of sequential refinement steps.");
    args.AddOption(&par_ref_levels, "-pr", "--parrefinement",
-                     "Number of parallel refinement steps.");
+                  "Number of parallel refinement steps.");
    args.AddOption(&order, "-o", "--order",
-                     "Polynomial order of the finite element space.");
+                  "Polynomial order of the finite element space.");
    args.AddOption(&tol, "-tol", "--tol",
-                     "A parameter.");
+                  "A parameter.");
    args.AddOption(&set_bc, "-bc", "--impose-bc", "-no-bc", "--dont-impose-bc",
                   "Impose or not essential boundary conditions.");
    args.AddOption(&standardCG, "-sCG", "--stdCG", "-rCG", "--resCG",
@@ -181,11 +182,11 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   if(verbose) args.PrintOptions(cout);
+   if (verbose) { args.PrintOptions(cout); }
 
    Mesh *mesh;
    ifstream imesh(mesh_file);
-   if(!imesh)
+   if (!imesh)
    {
       cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
       return 2;
@@ -197,23 +198,24 @@ int main(int argc, char *argv[])
    int dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
-//   if(dim !=4 || sdim != 4)
-//   {
-//	   MPI_Finalize();
-//	   return 0;
-//   }
+   //   if(dim !=4 || sdim != 4)
+   //   {
+   //    MPI_Finalize();
+   //    return 0;
+   //   }
 
-   for(int i=0; i<sequ_ref_levels; i++) mesh->UniformRefinement();
-   if(verbose) mesh->PrintCharacteristics();
+   for (int i=0; i<sequ_ref_levels; i++) { mesh->UniformRefinement(); }
+   if (verbose) { mesh->PrintCharacteristics(); }
 
-   if(verbose) cout << "now we partition the mesh..." << endl << endl;
+   if (verbose) { cout << "now we partition the mesh..." << endl << endl; }
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
-   for(int i=0; i<par_ref_levels; i++) pmesh->UniformRefinement();
+   for (int i=0; i<par_ref_levels; i++) { pmesh->UniformRefinement(); }
 
-   pmesh->PrintInfo(std::cout); if(verbose) cout << endl;
+   pmesh->PrintInfo(std::cout);
+   if (verbose) { cout << endl; }
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
@@ -221,12 +223,12 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec;
    if (order > 0)
    {
-	  if(dim==4)
-	  {
-		if(order==1) fec = new LinearFECollection;
-		else fec = new QuadraticFECollection;
-	  }
-	  else fec = new H1_FECollection(order, dim);
+      if (dim==4)
+      {
+         if (order==1) { fec = new LinearFECollection; }
+         else { fec = new QuadraticFECollection; }
+      }
+      else { fec = new H1_FECollection(order, dim); }
    }
    else if (pmesh->GetNodes())
    {
@@ -264,137 +266,138 @@ int main(int argc, char *argv[])
    ParGridFunction x(fespace);
 
    int NExpo =8;
-   for(int expo=-NExpo; expo<=NExpo; expo++)
+   for (int expo=-NExpo; expo<=NExpo; expo++)
    {
-	   double weight = pow(10.0,expo);
-	   kappa = weight;
+      double weight = pow(10.0,expo);
+      kappa = weight;
 
-	   x.ProjectCoefficient(uExact);
+      x.ProjectCoefficient(uExact);
 
-	   ParLinearForm *b = new ParLinearForm(fespace);
-	   FunctionCoefficient ffunc(f_exact);
-	   b->AddDomainIntegrator(new DomainLFIntegrator(ffunc));
-	   b->Assemble();
+      ParLinearForm *b = new ParLinearForm(fespace);
+      FunctionCoefficient ffunc(f_exact);
+      b->AddDomainIntegrator(new DomainLFIntegrator(ffunc));
+      b->Assemble();
 
-	   x = 0.0;
+      x = 0.0;
 
-	   // 10. Set up the parallel bilinear form a(.,.) on the finite element space
-	   //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
-	   //     domain integrator.
+      // 10. Set up the parallel bilinear form a(.,.) on the finite element space
+      //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
+      //     domain integrator.
 
-//	   std::string permFile = "spe_perm.dat";
-//	   InversePermeabilityFunction::ReadPermeabilityFile(permFile, MPI_COMM_WORLD);
-//	   FunctionCoefficient *cspe10 = new FunctionCoefficient(InversePermeabilityFunction::Norm2Permeability);
-	   Coefficient *beta = new ConstantCoefficient(weight);
+      //    std::string permFile = "spe_perm.dat";
+      //    InversePermeabilityFunction::ReadPermeabilityFile(permFile, MPI_COMM_WORLD);
+      //    FunctionCoefficient *cspe10 = new FunctionCoefficient(InversePermeabilityFunction::Norm2Permeability);
+      Coefficient *beta = new ConstantCoefficient(weight);
 
-	   ParBilinearForm *a = new ParBilinearForm(fespace);
-	   a->AddDomainIntegrator(new DiffusionIntegrator);
-	   a->AddDomainIntegrator(new MassIntegrator(*beta));
+      ParBilinearForm *a = new ParBilinearForm(fespace);
+      a->AddDomainIntegrator(new DiffusionIntegrator);
+      a->AddDomainIntegrator(new MassIntegrator(*beta));
 
-	   // 11. Assemble the parallel bilinear form and the corresponding linear
-	   //     system, applying any necessary transformations such as: parallel
-	   //     assembly, eliminating boundary conditions, applying conforming
-	   //     constraints for non-conforming AMR, static condensation, etc.
-	   if (static_cond) { a->EnableStaticCondensation(); }
-	   a->Assemble();
+      // 11. Assemble the parallel bilinear form and the corresponding linear
+      //     system, applying any necessary transformations such as: parallel
+      //     assembly, eliminating boundary conditions, applying conforming
+      //     constraints for non-conforming AMR, static condensation, etc.
+      if (static_cond) { a->EnableStaticCondensation(); }
+      a->Assemble();
 
-	   HypreParMatrix A;
-	   Vector B, X;
-	   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+      HypreParMatrix A;
+      Vector B, X;
+      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-	   if (myid == 0)
-	   {
-		  cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
-	   }
+      if (myid == 0)
+      {
+         cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
+      }
 
-	   // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
-	   //     preconditioner from hypre.
-	   HypreSolver *amg = new HypreBoomerAMG(A);
+      // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
+      //     preconditioner from hypre.
+      HypreSolver *amg = new HypreBoomerAMG(A);
 
-	  int iter = -1;
-	   if(standardCG)
-	   {
-		   IterativeSolver *pcg = new CGSolver(MPI_COMM_WORLD);
-		   pcg->SetOperator(A);
-		   pcg->SetRelTol(tol);
-		   pcg->SetMaxIter(5000);
-		   pcg->SetPrintLevel(1);
-		   pcg->SetPreconditioner(*amg);
-		   pcg->Mult(B, X);
+      int iter = -1;
+      if (standardCG)
+      {
+         IterativeSolver *pcg = new CGSolver(MPI_COMM_WORLD);
+         pcg->SetOperator(A);
+         pcg->SetRelTol(tol);
+         pcg->SetMaxIter(5000);
+         pcg->SetPrintLevel(1);
+         pcg->SetPreconditioner(*amg);
+         pcg->Mult(B, X);
 
-		   iter = pcg->GetNumIterations();
+         iter = pcg->GetNumIterations();
 
-		   delete pcg;
-	   }
-	   else
-	   {
-		   HyprePCG *pcg = new HyprePCG(A);
-		   pcg->SetTol(tol);
-		   pcg->SetMaxIter(5000);
-		   pcg->SetResidualConvergenceOptions(1,tol);
-		   pcg->SetPrintLevel(2);
-		   pcg->SetPreconditioner(*amg);
-		   pcg->Mult(B, X);
+         delete pcg;
+      }
+      else
+      {
+         HyprePCG *pcg = new HyprePCG(A);
+         pcg->SetTol(tol);
+         pcg->SetMaxIter(5000);
+         pcg->SetResidualConvergenceOptions(1,tol);
+         pcg->SetPrintLevel(2);
+         pcg->SetPreconditioner(*amg);
+         pcg->Mult(B, X);
 
-		   pcg->GetNumIterations(iter);
+         pcg->GetNumIterations(iter);
 
-		   delete pcg;
-	   }
-
-
-	   if(myid==0)
-	   {
-		   cout << "Weigth: " << weight << " " << iter << endl;
-
-		   int *iters = LoadIterations(10, 2*NExpo+1);
-		   putIterationsInArray(iter, sequ_ref_levels+par_ref_levels, expo+NExpo, 2*NExpo+1, iters);
-		   WriteIterations(iters, 10, 2*NExpo+1);
-	   }
+         delete pcg;
+      }
 
 
-	   // 13. Recover the parallel grid function corresponding to X. This is the
-	   //     local finite element solution on each processor.
-	   a->RecoverFEMSolution(X, *b, x);
+      if (myid==0)
+      {
+         cout << "Weigth: " << weight << " " << iter << endl;
 
-	   {
-		  double err = x.ComputeL2Error(uExact);
-		  if (myid == 0)
-		  {
-			 cout << "\n|| u - u_h ||_{L^2} = " << err << '\n' << endl;
-		  }
-	   }
+         int *iters = LoadIterations(10, 2*NExpo+1);
+         putIterationsInArray(iter, sequ_ref_levels+par_ref_levels, expo+NExpo,
+                              2*NExpo+1, iters);
+         WriteIterations(iters, 10, 2*NExpo+1);
+      }
 
-	   // 14. Save the refined mesh and the solution in parallel. This output can
-	   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
-	//   {
-	//      ostringstream mesh_name, sol_name;
-	//      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-	//      sol_name << "sol." << setfill('0') << setw(6) << myid;
-	//
-	//      ofstream mesh_ofs(mesh_name.str().c_str());
-	//      mesh_ofs.precision(8);
-	//      pmesh->Print(mesh_ofs);
-	//
-	//      ofstream sol_ofs(sol_name.str().c_str());
-	//      sol_ofs.precision(8);
-	//      x.Save(sol_ofs);
-	//   }
 
-	   // 15. Send the solution by socket to a GLVis server.
-	//   if (visualization)
-	//   {
-	//      char vishost[] = "localhost";
-	//      int  visport   = 19916;
-	//      socketstream sol_sock(vishost, visport);
-	//      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-	//      sol_sock.precision(8);
-	//      sol_sock << "solution\n" << *pmesh << x << flush;
-	//   }
+      // 13. Recover the parallel grid function corresponding to X. This is the
+      //     local finite element solution on each processor.
+      a->RecoverFEMSolution(X, *b, x);
 
-	   delete amg;
-	   delete a;
-	   delete beta;
-	   delete b;
+      {
+         double err = x.ComputeL2Error(uExact);
+         if (myid == 0)
+         {
+            cout << "\n|| u - u_h ||_{L^2} = " << err << '\n' << endl;
+         }
+      }
+
+      // 14. Save the refined mesh and the solution in parallel. This output can
+      //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+      //   {
+      //      ostringstream mesh_name, sol_name;
+      //      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      //      sol_name << "sol." << setfill('0') << setw(6) << myid;
+      //
+      //      ofstream mesh_ofs(mesh_name.str().c_str());
+      //      mesh_ofs.precision(8);
+      //      pmesh->Print(mesh_ofs);
+      //
+      //      ofstream sol_ofs(sol_name.str().c_str());
+      //      sol_ofs.precision(8);
+      //      x.Save(sol_ofs);
+      //   }
+
+      // 15. Send the solution by socket to a GLVis server.
+      //   if (visualization)
+      //   {
+      //      char vishost[] = "localhost";
+      //      int  visport   = 19916;
+      //      socketstream sol_sock(vishost, visport);
+      //      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      //      sol_sock.precision(8);
+      //      sol_sock << "solution\n" << *pmesh << x << flush;
+      //   }
+
+      delete amg;
+      delete a;
+      delete beta;
+      delete b;
    }
 
    // 16. Free the used memory.
