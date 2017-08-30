@@ -99,7 +99,7 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
          scale *= 0.5; continue;
       }
 
-      bool jac_ok = true;
+      int jac_ok = 1;
       for (int i = 0; i < NE; i++)
       {
          pfes->GetElementVDofs(i, xdofs);
@@ -108,15 +108,15 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
          {
             pfes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
             MultAtB(pos, dshape, Jpr);
-            if (Jpr.Det() <= 0.0) { jac_ok = false; goto break2; }
+            if (Jpr.Det() <= 0.0) { jac_ok = 0; goto break2; }
          }
       }
    break2:
-      bool jac_ok_all;
-      MPI_Allreduce(&jac_ok, &jac_ok_all, 1, MPI_INT, MPI_MIN,
+      int jac_ok_all;
+      MPI_Allreduce(&jac_ok, &jac_ok_all, 1, MPI_INT, MPI_LAND,
                     pfes->GetComm());
 
-      if (jac_ok_all == false) { scale *= 0.5; }
+      if (jac_ok_all == 0) { scale *= 0.5; }
       else { x_out_ok = true; break; }
    }
 
