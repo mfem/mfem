@@ -39,14 +39,18 @@ MPI = $(MFEM_USE_MPI:NO=)
 GHV = get_hypre_version
 GHV_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(HYPRE_OPT))
 
-get-hypre-version: $(SRC)$(GHV).cpp
+$(GHV): $(SRC)$(GHV).cpp
 	$(call mfem-info, Determining HYPRE version ...)
-	$(eval MFEM_HYPRE_VERSION:=$(shell \
-	   $(MFEM_CXX) ${GHV_FLAGS} $(SRC)$(GHV).cpp -o $(GHV) \
-	   > /dev/null 2>&1 && \
-	   { ./$(GHV); rm -f $(GHV) > /dev/null 2>&1; }))
-	$(if $(MFEM_HYPRE_VERSION),,$(error Unable to determine HYPRE version))
-	$(eval export MFEM_HYPRE_VERSION)
+	$(MFEM_CXX) ${GHV_FLAGS} $(SRC)$(GHV).cpp -o $(GHV)
+$(GHV).out: $(GHV)
+	./$(GHV) > $(GHV).out
+.INTERMEDIATE: $(GHV) $(GHV).out
+
+get-hypre-version: $(GHV).out
+	$(eval MFEM_HYPRE_VERSION:=$(shell cat $(GHV).out))
+	$(if $(MFEM_HYPRE_VERSION),$(eval export MFEM_HYPRE_VERSION)\
+	$(info HYPRE version: $(MFEM_HYPRE_VERSION)),\
+	$(error Unable to determine HYPRE version))
 
 header: $(if $(MPI),get-hypre-version,)
 	$(call mfem-info, Writing $(CONFIG_HPP) ...)
