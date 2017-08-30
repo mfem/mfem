@@ -58,6 +58,58 @@ public:
    virtual ~NonlinearForm();
 };
 
+class MixedNonlinearForm : public Operator
+{
+protected:
+   /// FE spaces on which the form lives.
+   Array<FiniteElementSpace*> fes;
+
+   /// Set of Domain Integrators to be assembled (added).
+   Array<NonlinearFormIntegrator*> dfi;
+
+   /// Set of Boundary Integrators to be assembled (added).
+   Array<MixedNonlinearFormIntegrator*> bfi;
+
+   /// Set of Boundary Face Integrators to be assembled (added).
+   Array<MixedNonlinearFormIntegrator*> ffi;
+   Array<Array<int>*>           ffi_marker;
+
+   mutable Array2D<SparseMatrix*> Grads;
+
+   // A list of the offsets
+   Array<int> block_offsets;
+   Array<int> block_trueOffsets;
+
+   // A list of all essential vdofs
+   Array<Array<int> > ess_vdofs;
+
+public:
+   MixedNonlinearForm(Array<FiniteElementSpace *>f)
+
+   /// Adds new Domain Integrator.
+   void AddDomainIntegrator(MixedNonlinearFormIntegrator *mnlfi)
+   { dfi.Append(nlfi); }
+
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(MixedNonlinearFormIntegrator *mnlfi)
+   { bfi.Append(mnlfi); }
+
+   /** @brief Add new Boundary Face Integrator, restricted to the given boundary
+       attributes. */
+   void AddBdrFaceIntegrator(MixedNonlinearFormIntegrator *fi,
+                             <Array<int> &bdr_attr_marker);
+
+   virtual void SetEssentialBC(const Array<Array<int> >&bdr_attr_is_ess,
+                               Array<Vector *>rhs);
+
+   virtual void Mult(const BlockVector &x, BlockVector &y) const;
+
+   virtual Operator &GetGradient(const BlockVector &x) const;
+
+   virtual ~MixedNonlinearForm();
+};
+
+
 }
 
 #endif
