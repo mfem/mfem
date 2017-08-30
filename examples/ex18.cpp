@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
    double dt = 0.01;
    double cfl = 0.3;
    bool visualization = true;
-   int vis_steps = 200;
+   int vis_steps = 50;
 
    int precision = 8;
    cout.precision(precision);
