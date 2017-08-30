@@ -317,9 +317,10 @@ int main(int argc, char *argv[])
          {
             // Write out the grid function, since GLvis cannot yet
             // visualize vector grid functions over the socket.
-            ostringstream temp;
-            temp << "vortex-" << ti << ".gf";
-            ofstream osol(temp.str());
+            ostringstream ss;
+            ss << "vortex-" << ti << ".gf";
+            string temp(ss.str());
+            ofstream osol(temp.c_str());
             osol.precision(precision);
             u.Save(osol);
          }
