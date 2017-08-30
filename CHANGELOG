@@ -11,6 +11,11 @@
 Development version 3.3.1, not released
 =======================================
 
+- API change: the methods VectorArrayCoefficient::GetCoeff(int) and
+  MatrixArrayCoefficient::GetCoeff(int,int) now return a pointer to Coefficient
+  (instead of reference). Note that NULL pointer is a valid entry for these two
+  classes - it is treated as the zero function.
+
 - Added SUNDIALS version of example 16/16p.
 
 - Added optional support for the STRUMPACK parallel sparse direct solver and
