@@ -192,7 +192,7 @@ void MixedNonlinearForm::AddBdrFaceIntegrator(MixedNonlinearFormIntegrator *fi,
 
    
 void MixedNonlinearForm::SetEssentialBC(const Array<Array<int> >&bdr_attr_is_ess,
-                                        Array<Vector *>rhs)
+                                        Array<Vector> &rhs)
 {
    int i, j, vsize, nv;
 
@@ -220,7 +220,7 @@ void MixedNonlinearForm::SetEssentialBC(const Array<Array<int> >&bdr_attr_is_ess
 
       if (rhs[s]) {
          for (i = 0; i < nv; i++) {
-            (*rhs[s])(ess_vdofs[i]) = 0.0;
+            rhs[s](ess_vdofs[s][i]) = 0.0;
          }
       }
    }
@@ -229,10 +229,11 @@ void MixedNonlinearForm::SetEssentialBC(const Array<Array<int> >&bdr_attr_is_ess
 void MixedNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
 {
    Array<Array<int> >vdofs(fes.Size());
-   Array<Vector> el_x(fes.Size()), el_y(fes.Size());
-   const Array<FiniteElement *> fe(fes.Size());
-   Array<ElementTransformation *> T(fes.Size());
-
+   Array<Vector> el_x(fes.Size());
+   Array<Vector> el_y(fes.Size());
+   Array<const FiniteElement *> fe(fes.Size());
+   ElementTransformation *T;
+   
    Array<Vector> xs(fes.Size()), ys(fes.Size());
 
    for (int i=0; i<fes.Size(); i++) {
@@ -243,17 +244,17 @@ void MixedNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
 
    if (dfi.Size()) {
       for (int i = 0; i < fes[0]->GetNE(); i++) {
+         T = fes[0]->GetElementTransformation(i);
          for (int s = 0; s < fes.Size(); s++) {
             
             fe[s] = fes[s]->GetFE(i);
             fes[s]->GetElementVDofs(i, vdofs[s]);
-            T[s] = fes[s]->GetElementTransformation(i);
             xs[s].GetSubVector(vdofs[s], el_x[s]);
          }
          
          for (int k = 0; k < dfi.Size(); k++)
          {
-            dfi[k]->AssembleElementVector(*u_fe, *T, 
+            dfi[k]->AssembleElementVector(fe, *T, 
                                           el_x, el_y);
 
             for (int s=0; s<fes.Size(); s++) {
@@ -265,15 +266,15 @@ void MixedNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
    
    if (bfi.Size()) {
       for (int i = 0; i < fes[0]->GetNBE(); i++) {
+         T = fes[0]->GetBdrElementTransformation(i);
          for (int s=0; s<fes.Size(); s++) {
             fe[s] = fes[s]->GetBE(i);
             fes[s]->GetBdrElementVDofs(i, vdofs[s]);
-            T[s] = fes[s]->GetBdrElementTransformation(i);
             xs[s].GetSubVector(vdofs[s], el_x[s]);
          }
          
          for (int k = 0; k < bfi.Size(); k++) {
-            bfi[k]->AssembleElementVector(*fe, *T, 
+            bfi[k]->AssembleElementVector(fe, *T, 
                                           el_x, el_y);
 
             for (int s = 0; s < fes.Size(); s++) { 
@@ -284,7 +285,7 @@ void MixedNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
    }
    
    if (ffi.Size()) {
-      Mesh *mesh = u_fes->GetMesh();
+      Mesh *mesh = fes[0]->GetMesh();
       FaceElementTransformations *tr;
       // Which boundary attributes need to be processed?
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
@@ -342,26 +343,22 @@ void MixedNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
    }
 }
  
-void MixedNonlinearForm::Mult(const Vector &x, Vector &y) const
-{
-   mfem_error("MixedNonlinearFormIntegrator::Mult(Vector, Vector)"
-              " is not overloaded!");
-}
-
-Operator &MixedNonlinearForm::GetGradient(const BlockVector &x, BlockVector &y) const
+Operator &MixedNonlinearForm::GetGradient(const BlockVector &x) const
 {
    const int skip_zeros = 0;
    Array<Array<int> >vdofs(fes.Size());
    Array<Vector> el_x(fes.Size());
    Array2D<DenseMatrix> elmats(fes.Size(), fes.Size());
-   const Array<FiniteElement *>fe(fes.Size());
-   Array<ElementTransformation *>T(fes.Size());
+   Array<const FiniteElement *>fe(fes.Size());
+   ElementTransformation * T;
+   Array<Vector> xs(fes.Size()), ys(fes.Size());
 
-   if (BlockGrad == NULL)
-   {
-      BlockGrad = new BlockOperator(block_offsets);
+   if (BlockGrad != NULL) {
+      delete BlockGrad;
    }
 
+   BlockGrad = new BlockOperator(block_offsets);
+   
    if (Grads(0,0) != NULL) {
       for (int i=0; i<fes.Size(); i++) {
          for (int j=0; j<fes.Size(); j++) {
@@ -372,38 +369,40 @@ Operator &MixedNonlinearForm::GetGradient(const BlockVector &x, BlockVector &y) 
    }
 
    if (dfi.Size()) {
-      for (int i = 0; i < u_fes->GetNE(); i++) {
+      for (int i = 0; i < fes[0]->GetNE(); i++) {
+         T = fes[0]->GetElementTransformation(i);
          for (int s = 0; s < fes.Size(); s++) {
             fe[s] = fes[s]->GetFE(i);
             fes[s]->GetElementVDofs(i, vdofs[s]);
-            T[s] = fes[s]->GetElementTransformation(i);
             xs[s].GetSubVector(vdofs[s], el_x[s]);
          }
          
          for (int k = 0; k < dfi.Size(); k++) {
-            dfi[k]->AssembleElementGrad(*fe, *T, 
+            dfi[k]->AssembleElementGrad(fe, *T, 
                                         el_x, elmats);
-            for (int i=0; i<fes.Size(); i++) {
-               Grads(i,j)->AddSubMatrix(vdofs[i], vdofs[j], elmats(i,j), skip_zeros);
+            for (int j=0; j<fes.Size(); j++) {
+               for (int l=0; l<fes.Size(); l++) {
+                  Grads(j,l)->AddSubMatrix(vdofs[j], vdofs[l], elmats(j,l), skip_zeros);
+               }
             }
          }
       }
    }
    if (bfi.Size()) {
       for (int i = 0; i < fes[0]->GetNBE(); i++) {
+         T = fes[0]->GetBdrElementTransformation(i);
          for (int s=0; s < fes.Size(); s++) {
             fe[s] = fes[s]->GetBE(i);
             fes[s]->GetBdrElementVDofs(i, vdofs[s]);
             xs[s].GetSubVector(vdofs[s], el_x[s]);
-            T[s] = fes[s]->GetBdrElementTransformation(i);
          }
 
          for (int k = 0; k < dfi.Size(); k++) {
-            bfi[k]->AssembleElementGrad(*fe, *T, 
+            bfi[k]->AssembleElementGrad(fe, *T, 
                                         el_x, elmats);
-            for (int i=0; i<fes.Size(); i++) {
-               for (int j=0; j<fes.Size(); j++) {
-                  Grads(i,j)->AddSubMatrix(vdofs[i], vdofs[j], elmats(i,j), skip_zeros);
+            for (int j=0; j<fes.Size(); j++) {
+               for (int l=0; l<fes.Size(); l++) {
+                  Grads(j,l)->AddSubMatrix(vdofs[j], vdofs[l], elmats(j,l), skip_zeros);
                }
             }
          }
@@ -442,15 +441,15 @@ Operator &MixedNonlinearForm::GetGradient(const BlockVector &x, BlockVector &y) 
 
          tr = mesh->GetBdrFaceTransformations(i);
          if (tr != NULL) {
+            T = fes[0]->GetElementTransformation(i);
             for (int s = 0; s < fes.Size(); s++) {
                fe[s] = fes[s]->GetFE(i);
                fes[s]->GetElementVDofs(i, vdofs[s]);
-               T[s] = fes[s]->GetElementTransformation(i);
                xs[s].GetSubVector(vdofs[s], el_x[s]);
             }
 
             for (int k = 0; k < dfi.Size(); k++) {
-               ffi[k]->AssembleElementGrad(*fe, *T, 
+               ffi[k]->AssembleElementGrad(fe, *T, 
                                            el_x, elmats);
                for (int i=0; i<fes.Size(); i++) {
                   for (int j=0; j<fes.Size(); j++) {
@@ -465,7 +464,7 @@ Operator &MixedNonlinearForm::GetGradient(const BlockVector &x, BlockVector &y) 
    for (int s=0; s<fes.Size(); s++) {
       for (int i = 0; i < vdofs[s].Size(); i++)
       {
-         for (int j=0; j<fes.Size(); J++) {
+         for (int j=0; j<fes.Size(); j++) {
             if (s==j) {
                Grads(s,s)->EliminateRowCol(ess_vdofs[s][i], 1);
             }
@@ -496,10 +495,10 @@ Operator &MixedNonlinearForm::GetGradient(const BlockVector &x, BlockVector &y) 
 
 MixedNonlinearForm::~MixedNonlinearForm()
 {
-   delete BlockGrad;
-   
    for (int i=0; i<fes.Size(); i++) {
-      delete Grads(i,j);
+      for (int j=0; j<fes.Size(); j++) {
+         delete Grads(i,j);
+      }
    }
 
    for (int i = 0; i < dfi.Size(); i++)
