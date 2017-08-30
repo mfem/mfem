@@ -94,7 +94,7 @@ DataCollection::DataCollection(const std::string& collection_name, Mesh *mesh_)
    time = 0.0;
    time_step = 0.0;
    precision = precision_default;
-   pad_digits = pad_digits_default;
+   pad_digits_cycle = pad_digits_rank = pad_digits_default;
    format = 0; // use older serial mesh format
    error = NO_ERROR;
 }
@@ -228,7 +228,7 @@ void DataCollection::SaveMesh()
    std::string dir_name = prefix_path + name;
    if (cycle != -1)
    {
-      dir_name += "_" + to_padded_string(cycle, pad_digits);
+      dir_name += "_" + to_padded_string(cycle, pad_digits_cycle);
    }
    err = create_directory(dir_name, mesh, myid);
    if (err)
@@ -242,7 +242,7 @@ void DataCollection::SaveMesh()
                            ((serial || format == 0 )? "/mesh" : "/pmesh");
    if (appendRankToFileName)
    {
-      mesh_name += "." + to_padded_string(myid, pad_digits);
+      mesh_name += "." + to_padded_string(myid, pad_digits_rank);
    }
    std::ofstream mesh_file(mesh_name.c_str());
    mesh_file.precision(precision);
@@ -269,12 +269,12 @@ std::string DataCollection::GetFieldFileName(const std::string &field_name)
    std::string dir_name = prefix_path + name;
    if (cycle != -1)
    {
-      dir_name += "_" + to_padded_string(cycle, pad_digits);
+      dir_name += "_" + to_padded_string(cycle, pad_digits_cycle);
    }
    std::string file_name = dir_name + "/" + field_name;
    if (appendRankToFileName)
    {
-      file_name += "." + to_padded_string(myid, pad_digits);
+      file_name += "." + to_padded_string(myid, pad_digits_rank);
    }
    return file_name;
 }
@@ -412,7 +412,8 @@ void VisItDataCollection::SaveRootFile()
    if (myid != 0) { return; }
 
    std::string root_name = prefix_path + name + "_" +
-                           to_padded_string(cycle, pad_digits) + ".mfem_root";
+                           to_padded_string(cycle, pad_digits_cycle) +
+                           ".mfem_root";
    std::ofstream root_file(root_name.c_str());
    root_file << GetVisItRootString();
    if (!root_file)
@@ -427,7 +428,8 @@ void VisItDataCollection::Load(int cycle_)
    DeleteAll();
    cycle = cycle_;
    std::string root_name = prefix_path + name + "_" +
-                           to_padded_string(cycle, pad_digits) + ".mfem_root";
+                           to_padded_string(cycle, pad_digits_cycle) +
+                           ".mfem_root";
    LoadVisItRootFile(root_name);
    if (!error)
    {
@@ -466,8 +468,8 @@ void VisItDataCollection::LoadVisItRootFile(const std::string& root_name)
 void VisItDataCollection::LoadMesh()
 {
    std::string mesh_fname = prefix_path + name + "_" +
-                            to_padded_string(cycle, pad_digits) +
-                            "/mesh." + to_padded_string(myid, pad_digits);
+                            to_padded_string(cycle, pad_digits_cycle) +
+                            "/mesh." + to_padded_string(myid, pad_digits_rank);
    named_ifgzstream file(mesh_fname.c_str());
    if (!file)
    {
@@ -485,8 +487,8 @@ void VisItDataCollection::LoadMesh()
 void VisItDataCollection::LoadFields()
 {
    std::string path_left = prefix_path + name + "_" +
-                           to_padded_string(cycle, pad_digits) + "/";
-   std::string path_right = "." + to_padded_string(myid, pad_digits);
+                           to_padded_string(cycle, pad_digits_cycle) + "/";
+   std::string path_right = "." + to_padded_string(myid, pad_digits_rank);
 
    field_map.clear();
    for (FieldInfoMapIterator it = field_info_map.begin();
@@ -509,13 +511,14 @@ void VisItDataCollection::LoadFields()
 std::string VisItDataCollection::GetVisItRootString()
 {
    // Get the path string (relative to where the root file is, i.e. no prefix).
-   std::string path_str = name + "_" + to_padded_string(cycle, pad_digits) + "/";
+   std::string path_str =
+      name + "_" + to_padded_string(cycle, pad_digits_cycle) + "/";
 
    // We have to build the json tree inside out to get all the values in there
    picojson::object top, dsets, main, mesh, fields, field, mtags, ftags;
 
    // Build the mesh data
-   std::string file_ext_format = ".%0" + to_string(pad_digits) + "d";
+   std::string file_ext_format = ".%0" + to_string(pad_digits_rank) + "d";
    mtags["spatial_dim"] = picojson::value(to_string(spatial_dim));
    mtags["topo_dim"] = picojson::value(to_string(topo_dim));
    mtags["max_lods"] = picojson::value(to_string(visit_max_levels_of_detail));
