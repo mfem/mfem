@@ -272,6 +272,7 @@ int main(int argc, char *argv[])
 
    // TODO: Need the radius of the smallest circle that encompasses
    // the element, which this method does not quite provide.
+
    double hmin;
    if (cfl > 0)
    {
@@ -312,11 +313,14 @@ int main(int argc, char *argv[])
       {
          cout << "time step: " << ti << ", time: " << t << endl;
 
-         // Write out the grid function, since GLvis cannot yet
-         // visualize vector grid functions over the socket.
-         ofstream osol(string("vortex-") + to_string(ti) + string(".gf"));
-         osol.precision(precision);
-         u.Save(osol);
+         if (visualization)
+         {
+            // Write out the grid function, since GLvis cannot yet
+            // visualize vector grid functions over the socket.
+            ofstream osol(string("vortex-") + to_string(ti) + string(".gf"));
+            osol.precision(precision);
+            u.Save(osol);
+         }
       }
    }
 
