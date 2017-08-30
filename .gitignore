@@ -1,0 +1,14 @@
+*.o
+*.a
+
+examples/ex*
+!examples/ex*.cpp
+examples/*.mesh
+examples/*.gf
+
+miniapps/*/*.mesh
+miniapps/*/*.gf
+
+config/_*
+config/user.mk
+config/config.mk
