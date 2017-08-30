@@ -16,34 +16,18 @@
 namespace mfem
 {
 
-// Fake ElementTransformation class for Dirac delta integration
-class FakeTransformation : public ElementTransformation
+void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi)
 {
-protected:
-   virtual const DenseMatrix &EvalJacobian() { return dFdx; };
-
-public:
-   FakeTransformation(int dim)
+   DeltaLFIntegrator *maybe_delta =
+      dynamic_cast<DeltaLFIntegrator *>(lfi);
+   if (!maybe_delta || !maybe_delta->IsDelta())
    {
-      Wght = 1.0;
-      EvalState = WEIGHT_MASK;
-      dFdx.Diag(1.0,dim);
+      dlfi.Append(lfi);
    }
-   virtual void Transform(const IntegrationPoint &, Vector &) {};
-   virtual void Transform(const IntegrationRule &, DenseMatrix &) {};
-   virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result) { result = matrix; };
-   virtual int Order() { return 0; }
-   virtual int OrderJ() { return 0; }
-   virtual int OrderW() { return 0; }
-   virtual int OrderGrad(const FiniteElement *fe) { return 0; }
-   virtual int GetSpaceDim() { return dFdx.Width(); }
-   virtual int TransformBack(const Vector &, IntegrationPoint &) { return 2; }
-};
-
-void LinearForm::AddDomainIntegrator (LinearFormIntegrator * lfi)
-{
-   dlfi.Append (lfi);
-   check_delta = true;
+   else
+   {
+      dlfi_delta.Append(maybe_delta);
+   }
 }
 
 void LinearForm::AddBoundaryIntegrator (LinearFormIntegrator * lfi)
@@ -81,7 +65,6 @@ void LinearForm::Assemble()
          eltrans = fes -> GetElementTransformation (i);
          for (int k=0; k < dlfi.Size(); k++)
          {
-            if (dlfi[k]->IsDelta()) { continue; }
             dlfi[k]->AssembleRHSElementVect(*fes->GetFE(i), *eltrans, elemvect);
             AddElementVector (vdofs, elemvect);
          }
@@ -154,74 +137,53 @@ void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
 {
    fes = f;
    NewDataAndSize((double *)v + v_offset, fes->GetVSize());
-   check_delta = true;
+   ResetDeltaLocations();
 }
 
 void LinearForm::AssembleDelta()
 {
-   if (check_delta)
-   {
-      int nc = 0;
-      int sdim = fes->GetMesh()->SpaceDimension();
-      dlfi_delta_elem_id.SetSize(dlfi.Size());
-      dlfi_delta_ip.SetSize(dlfi.Size());
-      dlfi_delta_lfid.SetSize(dlfi.Size());
+   if (dlfi_delta.Size() == 0) { return; }
 
-      Array<double> acenters;
-      acenters.Reserve(3*dlfi.Size());
-      for (int i = 0; i < dlfi.Size(); i++)
+   if (!HaveDeltaLocations())
+   {
+      int sdim = fes->GetMesh()->SpaceDimension();
+      Vector center;
+      DenseMatrix centers(sdim, dlfi_delta.Size());
+      for (int i = 0; i < centers.Width(); i++)
       {
-         Vector center;
-         dlfi[i]->GetDeltaCenter(center);
-         if (center.Size() > 0)
-         {
-            MFEM_VERIFY(center.Size() == sdim,
-                        "Point dim " << center.Size() <<
-                        " does not match space dim " << sdim)
-            dlfi_delta_lfid[nc] = i;
-            dlfi_delta_elem_id[nc] = -1;
-            for (int k = 0; k < center.Size(); k++) { acenters.Append(center[k]); }
-            nc++;
-         }
+         centers.GetColumnReference(i, center);
+         dlfi_delta[i]->GetDeltaCenter(center);
+         MFEM_VERIFY(center.Size() == sdim,
+                     "Point dim " << center.Size() <<
+                     " does not match space dim " << sdim);
       }
-      Vector centers(acenters,nc*sdim);
-      fes->GetMesh()->MatchPointsWithElemId(nc,centers,dlfi_delta_elem_id,
-                                            dlfi_delta_ip);
-      dlfi_delta_elem_id.SetSize(nc);
+      fes->GetMesh()->FindPoints(centers, dlfi_delta_elem_id, dlfi_delta_ip);
    }
 
    Array<int> vdofs;
    Vector elemvect;
-   for (int i = 0; i < dlfi_delta_elem_id.Size(); i++)
+   for (int i = 0; i < dlfi_delta.Size(); i++)
    {
       int elem_id = dlfi_delta_elem_id[i];
+      // The delta center may be outside of this sub-domain, or
+      // (Par)Mesh::FindPoints() failed to find this point:
       if (elem_id < 0) { continue; }
-      int lfid = dlfi_delta_lfid[i];
 
-      // define fake integration rule for point evaluation
-      const IntegrationRule *save = dlfi[lfid]->GetIntRule();
       const IntegrationPoint &ip = dlfi_delta_ip[i];
-      IntegrationRule fir(1);
-      fir[0].Set(ip.x,ip.y,ip.z,1.0);
-      dlfi[lfid]->SetIntRule(&fir);
+      ElementTransformation &Trans = *fes->GetElementTransformation(elem_id);
+      Trans.SetIntPoint(&ip);
 
-      // define fake ElementTransformation
-      FakeTransformation feltrans(fes->GetFE(elem_id)->GetDim());
-
-      // pointwise evaluation
-      fes -> GetElementVDofs (elem_id, vdofs);
-      dlfi[lfid]->AllowDeltaEval();
-      dlfi[lfid]->AssembleRHSElementVect(*fes->GetFE(elem_id), feltrans, elemvect);
-      AddElementVector (vdofs, elemvect);
-      dlfi[lfid]->AllowDeltaEval(false);
-      dlfi[lfid]->SetIntRule(save);
+      fes->GetElementVDofs(elem_id, vdofs);
+      dlfi_delta[i]->AssembleDeltaElementVect(*fes->GetFE(elem_id), Trans,
+                                              elemvect);
+      AddElementVector(vdofs, elemvect);
    }
-   check_delta = false;
 }
 
 LinearForm::~LinearForm()
 {
    int k;
+   for (k=0; k < dlfi_delta.Size(); k++) { delete dlfi_delta[k]; }
    for (k=0; k < dlfi.Size(); k++) { delete dlfi[k]; }
    for (k=0; k < blfi.Size(); k++) { delete blfi[k]; }
    for (k=0; k < flfi.Size(); k++) { delete flfi[k]; }

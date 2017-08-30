@@ -46,27 +46,6 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
    }
 }
 
-void DeltaCoefficient::SetDeltaCenter(const Vector& vcenter)
-{
-   MFEM_VERIFY(vcenter.Size() <= 3,
-               "SetDeltaCenter::Maximum number of dim supported is 3")
-   for (int i = 0; i < vcenter.Size(); i++) { center[i] = vcenter[i]; }
-   sdim = vcenter.Size();
-}
-
-void DeltaCoefficient::GetDeltaCenter(Vector& vcenter)
-{
-   vcenter.SetSize(sdim);
-   for (int i = 0; i < sdim; i++) { vcenter[i] = center[i]; }
-}
-
-double DeltaCoefficient::Eval(ElementTransformation &T,
-                              const IntegrationPoint &ip)
-{
-   MFEM_VERIFY(allow_eval,"DeltaCoefficient::Eval");
-   return tdf ? (*tdf)(GetTime())*scale : scale;
-}
-
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
@@ -86,6 +65,28 @@ double TransformedCoefficient::Eval(ElementTransformation &T,
       return (*Transform1)(Q1->Eval(T, ip, GetTime()));
    }
 }
+
+void DeltaCoefficient::SetDeltaCenter(const Vector& vcenter)
+{
+   MFEM_VERIFY(vcenter.Size() <= 3,
+               "SetDeltaCenter::Maximum number of dim supported is 3")
+   for (int i = 0; i < vcenter.Size(); i++) { center[i] = vcenter[i]; }
+   sdim = vcenter.Size();
+}
+
+void DeltaCoefficient::GetDeltaCenter(Vector& vcenter)
+{
+   vcenter.SetSize(sdim);
+   vcenter = center;
+}
+
+double DeltaCoefficient::EvalDelta(ElementTransformation &T,
+                                   const IntegrationPoint &ip)
+{
+   double w = Scale();
+   return weight ? weight->Eval(T, ip, GetTime())*w : w;
+}
+
 
 void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
                              const IntegrationRule &ir)
@@ -175,12 +176,12 @@ void VectorDeltaCoefficient::SetDirection(const Vector &_d)
    (*this).vdim = dir.Size();
 }
 
-void VectorDeltaCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                  const IntegrationPoint &ip)
+void VectorDeltaCoefficient::EvalDelta(
+   Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
 {
    V = dir;
    d.SetTime(GetTime());
-   V *= d.Eval(T,ip);
+   V *= d.EvalDelta(T, ip);
 }
 
 void VectorRestrictedCoefficient::Eval(Vector &V, ElementTransformation &T,

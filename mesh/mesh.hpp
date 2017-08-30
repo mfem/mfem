@@ -1060,14 +1060,24 @@ public:
 
    void MesquiteSmooth(const int mesquite_option = 0);
 
-   /// Returns the id of the elements that contain the given points
-   /// np is the number of points
-   /// points is a Vector of size np*spaceDim
-   /// If no element matches the i-th point, elem_id[i] is set to -1
-   /// If an element is found, it also returns the coordinates of point in the reference space of
-   /// the corresponding element
-   void MatchPointsWithElemId(int np, Vector& points, Array<int>& elem_id,
-                              Array<IntegrationPoint>& ip);
+   /// Returns the ids of the elements that contain the given points.
+   /** The DenseMatrix @a point_mat describes the given points - one point for
+       each column; it should have SpaceDimension() rows.
+
+       If no element is found for the i-th point, elem_id[i] is set to -1.
+
+       If an element is found, the method also returns the coordinates of the
+       point in the reference space of the corresponding element.
+
+       In parallel, if a point is shared by multiple processors, only one of
+       them will mark that point as found.
+
+       @returns The total number of points that were found.
+
+       @note This method is not 100 percent reliable, i.e. it is not guaranteed
+       to find a point, even if it lies inside a mesh element. */
+   virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,
+                          Array<IntegrationPoint>& ip, bool warn = true);
 
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }

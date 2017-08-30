@@ -16,20 +16,6 @@
 namespace mfem
 {
 
-void LinearFormIntegrator::CheckCoefficientIsDelta(Coefficient& Q)
-{
-   Vector center;
-   Q.GetDeltaCenter(center);
-   isdelta = center.Size() > 0 ? true : false;
-}
-
-void LinearFormIntegrator::CheckVectorCoefficientIsDelta(VectorCoefficient& Q)
-{
-   Vector center;
-   Q.GetDeltaCenter(center);
-   isdelta = center.Size() > 0 ? true : false;
-}
-
 void LinearFormIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
 {
@@ -67,6 +53,16 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
       add(elvect, ip.weight * val, shape, elvect);
    }
 }
+
+void DomainLFIntegrator::AssembleDeltaElementVect(
+   const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
+{
+   MFEM_ASSERT(delta != NULL, "coefficient must be DeltaCoefficient");
+   elvect.SetSize(fe.GetDof());
+   fe.CalcPhysShape(Trans, elvect);
+   elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
+}
+
 
 void BoundaryLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
@@ -211,6 +207,24 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
    }
 }
 
+void VectorDomainLFIntegrator::AssembleDeltaElementVect(
+   const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
+{
+   MFEM_ASSERT(vec_delta != NULL, "coefficient must be VectorDeltaCoefficient");
+   int vdim = Q.GetVDim();
+   int dof  = fe.GetDof();
+
+   shape.SetSize(dof);
+   fe.CalcPhysShape(Trans, shape);
+
+   vec_delta->EvalDelta(Qvec, Trans, Trans.GetIntPoint());
+
+   elvect.SetSize(dof*vdim);
+   DenseMatrix elvec_as_mat(elvect.GetData(), dof, vdim);
+   MultVWt(shape, Qvec, elvec_as_mat);
+}
+
+
 void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
@@ -318,6 +332,22 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
 
       vshape.AddMult (vec, elvect);
    }
+}
+
+void VectorFEDomainLFIntegrator::AssembleDeltaElementVect(
+   const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
+{
+   MFEM_ASSERT(vec_delta != NULL, "coefficient must be VectorDeltaCoefficient");
+   int dof = fe.GetDof();
+   int spaceDim = Trans.GetSpaceDim();
+
+   vshape.SetSize(dof, spaceDim);
+   fe.CalcPhysVShape(Trans, vshape);
+
+   vec_delta->EvalDelta(vec, Trans, Trans.GetIntPoint());
+
+   elvect.SetSize(dof);
+   vshape.Mult(vec, elvect);
 }
 
 

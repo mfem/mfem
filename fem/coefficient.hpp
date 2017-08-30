@@ -49,12 +49,6 @@ public:
       return Eval(T, ip);
    }
 
-   // Returns the center of the Dirac delta function (defaults to no center)
-   virtual void GetDeltaCenter(Vector& center) { center.SetSize(0); };
-
-   // Allow calling Eval on a DeltaCoefficient
-   virtual void AllowDeltaEval(const bool allow = true) { };
-
    virtual ~Coefficient() { }
 };
 
@@ -193,42 +187,60 @@ protected:
    double center[3], scale, tol;
    Coefficient *weight;
    int sdim;
-   bool allow_eval;
    double (*tdf)(double);
 
 public:
    DeltaCoefficient()
    {
-      center[0] = center[1] = center[2] = tol = 0.; scale = 1.;
-      weight = NULL; sdim = 0; allow_eval = false; tdf = NULL;
+      center[0] = center[1] = center[2] = 0.; scale = 1.; tol = 1e-12;
+      weight = NULL; sdim = 0; tdf = NULL;
    }
    DeltaCoefficient(double x, double s)
    {
       center[0] = x; center[1] = 0.; center[2] = 0.; scale = s; tol = 1e-12;
-      weight = NULL; sdim = 1; allow_eval = false; tdf = NULL;
+      weight = NULL; sdim = 1; tdf = NULL;
    }
    DeltaCoefficient(double x, double y, double s)
    {
       center[0] = x; center[1] = y; center[2] = 0.; scale = s; tol = 1e-12;
-      weight = NULL; sdim = 2; allow_eval = false; tdf = NULL;
+      weight = NULL; sdim = 2; tdf = NULL;
    }
    DeltaCoefficient(double x, double y, double z, double s)
    {
       center[0] = x; center[1] = y; center[2] = z; scale = s; tol = 1e-12;
-      weight = NULL; sdim = 3; allow_eval = false; tdf = NULL;
+      weight = NULL; sdim = 3; tdf = NULL;
    }
    void SetDeltaCenter(const Vector& center);
    void SetScale(double _s) { scale = _s; }
+   /// Set a time-dependent function that multiplies the Scale().
    void SetFunction(double (*f)(double)) { tdf = f; }
+   /** @brief Set the tolerance used during projection onto GridFunction to
+       identifying the Mesh vertex where the Center() of the delta function
+       lies. */
    void SetTol(double _tol) { tol = _tol; }
+   /// Set a weight Coefficient that multiplies the DeltaCoefficient.
+   /** The weight Coefficient multiplies the value returned by EvalDelta() but
+       not value returned by Scale().
+
+       The weight Coefficient is also used as the L2-weight function when
+       projecting the DeltaCoefficient onto a GridFunction, so that the weighted
+       intergral of the projection is exactly equal to the Scale(). */
    void SetWeight(Coefficient *w) { weight = w; }
    const double *Center() { return center; }
-   double Scale() { return scale; }
+   /** @brief Return the scale set by SetScale() multiplied by the
+       time-dependent function specified by SetFunction(), if set. */
+   double Scale() { return tdf ? (*tdf)(GetTime())*scale : scale; }
+   /// See SetTol() for description of the tolerance parameter.
    double Tol() { return tol; }
+   /// See SetWeight() for description of the weight Coefficient.
    Coefficient *Weight() { return weight; }
-   virtual void GetDeltaCenter(Vector& center);
-   virtual void AllowDeltaEval(const bool allow = true) { allow_eval = allow; }
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   void GetDeltaCenter(Vector& center);
+   /// Return the Scale() multiplied by the weight Coefficient, if any.
+   double EvalDelta(ElementTransformation &T, const IntegrationPoint &ip);
+   /** @brief A DeltaFunction cannot be evaluated. Calling this method will
+       cause an MFEM error, terminating the application. */
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   { mfem_error("DeltaCoefficient::Eval"); return 0.; }
    virtual ~DeltaCoefficient() { delete weight; }
 };
 
@@ -269,12 +281,6 @@ public:
    // Can be overloaded for more efficient implementation.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
-
-   // Returns the center of the Dirac delta function (defaults to no center)
-   virtual void GetDeltaCenter(Vector& center) { center.SetSize(0); };
-
-   // Allow calling Eval on a VectorDeltaCoefficient
-   virtual void AllowDeltaEval(const bool allow = true) { };
 
    virtual ~VectorCoefficient() { }
 };
@@ -384,25 +390,38 @@ protected:
    DeltaCoefficient d;
 
 public:
-   VectorDeltaCoefficient(int _vdim) : VectorCoefficient(_vdim), dir(_vdim), d() { }
-   VectorDeltaCoefficient(const Vector& _dir) : VectorCoefficient(_dir.Size()),
-      dir(_dir), d() { }
-   VectorDeltaCoefficient(const Vector& _dir, double x,
-                          double s) : VectorCoefficient(_dir.Size()), dir(_dir), d(x,s) { }
-   VectorDeltaCoefficient(const Vector& _dir, double x, double y,
-                          double s) : VectorCoefficient(_dir.Size()), dir(_dir), d(x,y,s) { }
+   VectorDeltaCoefficient(int _vdim)
+      : VectorCoefficient(_vdim), dir(_vdim), d() { }
+   VectorDeltaCoefficient(const Vector& _dir)
+      : VectorCoefficient(_dir.Size()), dir(_dir), d() { }
+   VectorDeltaCoefficient(const Vector& _dir, double x, double s)
+      : VectorCoefficient(_dir.Size()), dir(_dir), d(x,s) { }
+   VectorDeltaCoefficient(const Vector& _dir, double x, double y, double s)
+      : VectorCoefficient(_dir.Size()), dir(_dir), d(x,y,s) { }
    VectorDeltaCoefficient(const Vector& _dir, double x, double y, double z,
-                          double s) : VectorCoefficient(_dir.Size()), dir(_dir), d(x,y,z,s) { }
+                          double s)
+      : VectorCoefficient(_dir.Size()), dir(_dir), d(x,y,z,s) { }
 
+   /// Replace the associated DeltaCoeficient with a new DeltaCoeficient.
+   /** The new DeltaCoeficient cannot have a specified weight Coefficient, i.e.
+       DeltaCoeficient::Weight() should return NULL. */
    void SetDeltaCoefficient(const DeltaCoefficient& _d) { d = _d; }
+   /// Return the associated scalar DeltaCoefficient.
    DeltaCoefficient& GetDeltaCoefficient() { return d; }
    void SetDirection(const Vector& _d);
 
-   virtual void GetDeltaCenter(Vector& center) { d.GetDeltaCenter(center); };
-   virtual void AllowDeltaEval(const bool allow = true) { d.AllowDeltaEval(allow); }
+   void GetDeltaCenter(Vector& center) { d.GetDeltaCenter(center); }
+   /** @brief Return the specified direction vector multiplied by the value
+       returned by DeltaCoefficient::EvalDelta() of the associated scalar
+       DeltaCoefficient. */
+   void EvalDelta(Vector &V, ElementTransformation &T,
+                  const IntegrationPoint &ip);
+   /** @brief A VectorDeltaFunction cannot be evaluated. Calling this method
+       will cause an MFEM error, terminating the application. */
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
-   virtual ~VectorDeltaCoefficient() {}
+                     const IntegrationPoint &ip)
+   { mfem_error("VectorDeltaCoefficient::Eval"); }
+   virtual ~VectorDeltaCoefficient() { }
 };
 
 /// VectorCoefficient defined on a subset of domain or boundary attributes
