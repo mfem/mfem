@@ -467,7 +467,7 @@ public:
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }
 
-   Type GetType() const { return HYPRE_PARCSR; }
+   Type GetType() const { return MFEM_HYPRE_PARCSR; }
 };
 
 /** @brief Return a new matrix `C = alpha*A + beta*B`, assuming that both `A`

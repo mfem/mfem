@@ -35,8 +35,8 @@ StaticCondensation::StaticCondensation(FiniteElementSpace *fespace)
                                           ordering);
       tr_fes = tr_pfes;
    }
-   pS.SetType(Operator::HYPRE_PARCSR);
-   pS_e.SetType(Operator::HYPRE_PARCSR);
+   pS.SetType(Operator::MFEM_HYPRE_PARCSR);
+   pS_e.SetType(Operator::MFEM_HYPRE_PARCSR);
 #endif
    S = S_e = NULL;
    symm = false;
