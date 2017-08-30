@@ -77,7 +77,7 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
    ParFiniteElementSpace *pfes = nlf->ParFESpace();
 
    const int NE = pfes->GetParMesh()->GetNE(), dim = pfes->GetFE(0)->GetDim(),
-         dof = pfes->GetFE(0)->GetDof(), nsp = ir.GetNPoints();
+             dof = pfes->GetFE(0)->GetDof(), nsp = ir.GetNPoints();
    Array<int> xdofs(dof * dim);
    DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
    Vector posV(pos.Data(), dof * dim);
@@ -112,7 +112,7 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
             if (Jpr.Det() <= 0.0) { jac_ok = false; goto break2; }
          }
       }
-      break2:
+   break2:
       bool jac_ok_all;
       MPI_Allreduce(&jac_ok, &jac_ok_all, 1, MPI_INT, MPI_MIN,
                     pfes->GetComm());
@@ -253,40 +253,40 @@ int main (int argc, char *argv[])
    args.AddOption(&jitter, "-ji", "--jitter",
                   "Random perturbation scaling factor.");
    args.AddOption(&metric_id, "-mid", "--metric-id",
-      "Mesh optimization metric:\n\t"
-      "1  : |T|^2                          -- 2D shape\n\t"
-      "2  : 0.5|T|^2/tau-1                 -- 2D shape (condition number)\n\t"
-      "7  : |T-T^-t|^2                     -- 2D shape+size\n\t"
-      "9  : tau*|T-T^-t|^2                 -- 2D shape+size\n\t"
-      "22 : 0.5(|T|^2-2*tau)/(tau-tau_0)   -- 2D untangling\n\t"
-      "50 : 0.5|T^tT|^2/tau^2-1            -- 2D shape\n\t"
-      "52 : 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
-      "55 : (tau-1)^2                      -- 2D size\n\t"
-      "56 : 0.5(sqrt(tau)-1/sqrt(tau))^2   -- 2D size\n\t"
-      "58 : |T^tT|^2/(tau^2)-2*|T|^2/tau+2 -- 2D shape\n\t"
-      "77 : 0.5(tau-1/tau)^2               -- 2D size\n\t"
-      "211: (tau-1)^2-tau+sqrt(tau^2+beta) -- 2D untangling\n\t"
-      "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
-      "302: (|T|^2|T^-1|^2)/9-1          -- 3D shape\n\t"
-      "303: (|T|^2)/3*tau^(2/3)-1        -- 3D shape\n\t"
-      "315: (tau-1)^2                    -- 3D size\n\t"
-      "316: 0.5(sqrt(tau)-1/sqrt(tau))^2 -- 3D size\n\t"
-      "321: |T-T^-t|^2                   -- 3D shape+size\n\t"
-      "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling");
+                  "Mesh optimization metric:\n\t"
+                  "1  : |T|^2                          -- 2D shape\n\t"
+                  "2  : 0.5|T|^2/tau-1                 -- 2D shape (condition number)\n\t"
+                  "7  : |T-T^-t|^2                     -- 2D shape+size\n\t"
+                  "9  : tau*|T-T^-t|^2                 -- 2D shape+size\n\t"
+                  "22 : 0.5(|T|^2-2*tau)/(tau-tau_0)   -- 2D untangling\n\t"
+                  "50 : 0.5|T^tT|^2/tau^2-1            -- 2D shape\n\t"
+                  "52 : 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
+                  "55 : (tau-1)^2                      -- 2D size\n\t"
+                  "56 : 0.5(sqrt(tau)-1/sqrt(tau))^2   -- 2D size\n\t"
+                  "58 : |T^tT|^2/(tau^2)-2*|T|^2/tau+2 -- 2D shape\n\t"
+                  "77 : 0.5(tau-1/tau)^2               -- 2D size\n\t"
+                  "211: (tau-1)^2-tau+sqrt(tau^2+beta) -- 2D untangling\n\t"
+                  "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
+                  "302: (|T|^2|T^-1|^2)/9-1          -- 3D shape\n\t"
+                  "303: (|T|^2)/3*tau^(2/3)-1        -- 3D shape\n\t"
+                  "315: (tau-1)^2                    -- 3D size\n\t"
+                  "316: 0.5(sqrt(tau)-1/sqrt(tau))^2 -- 3D size\n\t"
+                  "321: |T-T^-t|^2                   -- 3D shape+size\n\t"
+                  "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling");
    args.AddOption(&target_id, "-tid", "--target-id",
-      "Target (ideal element) type:\n\t"
-      "1: IDEAL\n\t"
-      "2: IDEAL_EQ_SIZE\n\t"
-      "3: IDEAL_INIT_SIZE\n\t"
-      "4: IDEAL_EQ_SCALE_SIZE");
+                  "Target (ideal element) type:\n\t"
+                  "1: IDEAL\n\t"
+                  "2: IDEAL_EQ_SIZE\n\t"
+                  "3: IDEAL_INIT_SIZE\n\t"
+                  "4: IDEAL_EQ_SCALE_SIZE");
    args.AddOption(&limited, "-lim", "--limiting", "-no-lim", "--no-limiting",
                   "Enable limiting of the node movement.");
    args.AddOption(&lim_eps, "-lc", "--limit-const", "Limiting constant.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
-      "Quadrature rule type:\n\t"
-      "1: Gauss-Lobatto\n\t"
-      "2: Gauss-Legendre\n\t"
-      "3: Closed uniform points");
+                  "Quadrature rule type:\n\t"
+                  "1: Gauss-Lobatto\n\t"
+                  "2: Gauss-Legendre\n\t"
+                  "3: Closed uniform points");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
    args.AddOption(&newton_iter, "-ni", "--newton-iters",
@@ -310,7 +310,7 @@ int main (int argc, char *argv[])
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
-    
+
    // 3. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1,false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
@@ -325,7 +325,7 @@ int main (int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
-    
+
    // 4. Define a finite element space on the mesh. Here we use vector finite
    //    elements which are tensor products of quadratic finite elements. The
    //    dimensionality of the vector finite element space is specified by the
@@ -338,15 +338,15 @@ int main (int argc, char *argv[])
    }
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
    ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(pmesh, fec, dim);
-    
+
    // 5. Make the mesh curved based on the above finite element space. This
    //    means that we define the mesh elements through a fespace-based
    //    transformation of the reference element.
    pmesh->SetNodalFESpace(pfespace);
-    
+
    // 6. Set up an empty right-hand side vector b, which is equivalent to b=0.
    Vector b(0);
-    
+
    // 7. Get the mesh nodes (vertices and other degrees of freedom in the finite
    //    element space) as a finite element grid function in fespace.
    //    Furthermore, note that changing x automatically changes the shapes of
@@ -370,7 +370,7 @@ int main (int argc, char *argv[])
          h0(dofs[j]) = min(h0(dofs[j]), pmesh->GetElementSize(i));
       }
    }
-    
+
    // 9. Add a random perturbation of the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
    //    zero on the boundary and its values are locally of the order of h0.
@@ -412,49 +412,49 @@ int main (int argc, char *argv[])
       mesh_ofs.precision(8);
       pmesh->Print(mesh_ofs);
    }
-    
+
    // 11. Store the starting (prior to the optimization) positions.
    ParGridFunction x0(pfespace);
    x0 = x;
-    
+
    // 12. Form the integrator that uses the chosen metric and target.
    double tauval = -0.1;
    HyperelasticModel *model = NULL;
    switch (metric_id)
    {
-   case 1: model = new TMOPHyperelasticModel001; break;
-   case 2: model = new TMOPHyperelasticModel002; break;
-   case 7: model = new TMOPHyperelasticModel007; break;
-   case 9: model = new TMOPHyperelasticModel009; break;
-   case 22: model = new TMOPHyperelasticModel022(tauval); break;
-   case 50: model = new TMOPHyperelasticModel050; break;
-   case 52: model = new TMOPHyperelasticModel052(tauval); break;
-   case 55: model = new TMOPHyperelasticModel055; break;
-   case 56: model = new TMOPHyperelasticModel056; break;
-   case 58: model = new TMOPHyperelasticModel058; break;
-   case 77: model = new TMOPHyperelasticModel077; break;
-   case 211: model = new TMOPHyperelasticModel211(tauval); break;
-   case 301: model = new TMOPHyperelasticModel301; break;
-   case 302: model = new TMOPHyperelasticModel302; break;
-   case 303: model = new TMOPHyperelasticModel303; break;
-   case 315: model = new TMOPHyperelasticModel315; break;
-   case 316: model = new TMOPHyperelasticModel316; break;
-   case 321: model = new TMOPHyperelasticModel321; break;
-   case 352: model = new TMOPHyperelasticModel352(tauval); break;
-   default:
-      if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
-      return 3;
+      case 1: model = new TMOPHyperelasticModel001; break;
+      case 2: model = new TMOPHyperelasticModel002; break;
+      case 7: model = new TMOPHyperelasticModel007; break;
+      case 9: model = new TMOPHyperelasticModel009; break;
+      case 22: model = new TMOPHyperelasticModel022(tauval); break;
+      case 50: model = new TMOPHyperelasticModel050; break;
+      case 52: model = new TMOPHyperelasticModel052(tauval); break;
+      case 55: model = new TMOPHyperelasticModel055; break;
+      case 56: model = new TMOPHyperelasticModel056; break;
+      case 58: model = new TMOPHyperelasticModel058; break;
+      case 77: model = new TMOPHyperelasticModel077; break;
+      case 211: model = new TMOPHyperelasticModel211(tauval); break;
+      case 301: model = new TMOPHyperelasticModel301; break;
+      case 302: model = new TMOPHyperelasticModel302; break;
+      case 303: model = new TMOPHyperelasticModel303; break;
+      case 315: model = new TMOPHyperelasticModel315; break;
+      case 316: model = new TMOPHyperelasticModel316; break;
+      case 321: model = new TMOPHyperelasticModel321; break;
+      case 352: model = new TMOPHyperelasticModel352(tauval); break;
+      default:
+         if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
+         return 3;
    }
    TargetJacobian *tj = NULL;
    switch (target_id)
    {
-   case 1: tj = new TargetJacobian(TargetJacobian::IDEAL); break;
-   case 2: tj = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE); break;
-   case 3: tj = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE); break;
-   case 4: tj = new TargetJacobian(TargetJacobian::IDEAL_EQ_SCALE_SIZE); break;
-   default:
-      if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
-      return 3;
+      case 1: tj = new TargetJacobian(TargetJacobian::IDEAL); break;
+      case 2: tj = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE); break;
+      case 3: tj = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE); break;
+      case 4: tj = new TargetJacobian(TargetJacobian::IDEAL_EQ_SCALE_SIZE); break;
+      default:
+         if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
+         return 3;
    }
    tj->SetNodes(x);
    tj->SetInitialNodes(x0);
@@ -466,12 +466,12 @@ int main (int argc, char *argv[])
    const int geom_type = pfespace->GetFE(0)->GetGeomType();
    switch (quad_type)
    {
-   case 1: ir = &IntRulesLo.Get(geom_type, quad_order); break;
-   case 2: ir = &IntRules.Get(geom_type, quad_order); break;
-   case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
-   default:
-      if (myid == 0) { cout << "Unknown quad_type: " << target_id << endl; }
-      return 3;
+      case 1: ir = &IntRulesLo.Get(geom_type, quad_order); break;
+      case 2: ir = &IntRules.Get(geom_type, quad_order); break;
+      case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
+      default:
+         if (myid == 0) { cout << "Unknown quad_type: " << target_id << endl; }
+         return 3;
    }
    if (myid == 0)
    { cout << "Quadrature point per cell: " << ir->GetNPoints() << endl; }
@@ -717,6 +717,6 @@ double weight_fun(const Vector &x)
    const double r = sqrt(x(0)*x(0) + x(1)*x(1) + 1e-12);
    const double den = 0.002;
    double l2 = 0.2 + 0.5*std::tanh((r-0.16)/den) - 0.5*std::tanh((r-0.17)/den)
-                   + 0.5*std::tanh((r-0.23)/den) - 0.5*std::tanh((r-0.24)/den);
+               + 0.5*std::tanh((r-0.23)/den) - 0.5*std::tanh((r-0.24)/den);
    return l2;
 }

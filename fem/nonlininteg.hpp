@@ -447,7 +447,7 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-    
+
 /** Used to compute ref->target transformation Jacobian for different target
     options; used in class HyperelasticNLFIntegrator. */
 class TargetJacobian
@@ -467,7 +467,8 @@ private:
 
 public:
    enum target {CURRENT, IDEAL, IDEAL_EQ_SIZE, IDEAL_INIT_SIZE, TARGET_MESH,
-                IDEAL_EQ_SCALE_SIZE};
+                IDEAL_EQ_SCALE_SIZE
+               };
    const target target_type;
 
    TargetJacobian(target ttype)
