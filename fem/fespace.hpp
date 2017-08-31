@@ -90,10 +90,10 @@ protected:
    /** Matrix representing the prolongation from the global conforming dofs to
        a set of intermediate partially conforming dofs, e.g. the dofs associated
        with a "cut" space on a non-conforming mesh. */
-   SparseMatrix *cP;
+   mutable SparseMatrix *cP;
    /// Conforming restriction matrix such that cR.cP=I.
-   SparseMatrix *cR;
-   bool cP_is_set;
+   mutable SparseMatrix *cR;
+   mutable bool cP_is_set;
 
    /// Transformation to apply to GridFunctions after space Update().
    Operator *T;
@@ -111,10 +111,10 @@ protected:
    /** This is a helper function to get edge (type == 0) or face (type == 1)
        DOFs. The function is aware of ghost edges/faces in parallel, for which
        an empty DOF list is returned. */
-   void GetEdgeFaceDofs(int type, int index, Array<int> &dofs);
+   void GetEdgeFaceDofs(int type, int index, Array<int> &dofs) const;
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
-   void GetConformingInterpolation();
+   void GetConformingInterpolation() const;
 
    void MakeVDimMatrix(SparseMatrix &mat) const;
 
@@ -141,8 +141,8 @@ public:
    bool Conforming() const { return mesh->Conforming(); }
    bool Nonconforming() const { return mesh->Nonconforming(); }
 
-   const SparseMatrix *GetConformingProlongation();
-   const SparseMatrix *GetConformingRestriction();
+   const SparseMatrix *GetConformingProlongation() const;
+   const SparseMatrix *GetConformingRestriction() const;
 
    virtual const Operator *GetProlongationMatrix()
    { return GetConformingProlongation(); }
@@ -163,13 +163,13 @@ public:
    inline int GetVSize() const { return vdim * ndofs; }
 
    /// Return the number of vector true (conforming) dofs.
-   virtual int GetTrueVSize() { return GetConformingVSize(); }
+   virtual int GetTrueVSize() const { return GetConformingVSize(); }
 
    /// Returns the number of conforming ("true") degrees of freedom
    /// (if the space is on a nonconforming mesh with hanging nodes).
-   int GetNConformingDofs();
+   int GetNConformingDofs() const;
 
-   int GetConformingVSize() { return vdim * GetNConformingDofs(); }
+   int GetConformingVSize() const { return vdim * GetNConformingDofs(); }
 
    /// Return the ordering method.
    inline Ordering::Type GetOrdering() const { return ordering; }

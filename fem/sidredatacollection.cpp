@@ -196,7 +196,7 @@ SidreDataCollection::get_file_path(const std::string &filename) const
 
    if (GetCycle() >= 0)
    {
-      fNameSstr << "_" << std::setfill('0') << std::setw(pad_digits)
+      fNameSstr << "_" << std::setfill('0') << std::setw(pad_digits_cycle)
                 << GetCycle();
    }
 
