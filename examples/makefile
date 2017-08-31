@@ -14,12 +14,9 @@ MFEM_DIR ?= ..
 MFEM_BUILD_DIR ?= ..
 SRC = $(if $(MFEM_DIR:..=),$(MFEM_DIR)/examples/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-TEST_MK = $(MFEM_DIR)/config/test.mk
 # Use the MFEM install directory
-# SRC = $(if $(MFEM_DIR),$(MFEM_DIR)/examples/,)
-# MFEM_DIR = ../mfem
-# CONFIG_MK = $(MFEM_DIR)/config.mk
-# TEST_MK = $(MFEM_DIR)/test.mk
+# MFEM_INSTALL_DIR = ../mfem
+# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
@@ -47,7 +44,7 @@ endif
 all: $(EXAMPLES)
 
 MFEM_TESTS = EXAMPLES
-include $(TEST_MK)
+include $(MFEM_TEST_MK)
 
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4
