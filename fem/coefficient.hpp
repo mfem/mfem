@@ -371,16 +371,21 @@ public:
 class MatrixCoefficient
 {
 protected:
-   int vdim;
+   int height, width;
    double time;
 
 public:
-   explicit MatrixCoefficient(int dim) { vdim = dim; time = 0.; }
+   explicit MatrixCoefficient(int dim) { height = width = dim; time = 0.; }
+
+   MatrixCoefficient(int h, int w) : height(h), width(w), time(0.) { }
 
    void SetTime(double t) { time = t; }
    double GetTime() { return time; }
 
-   int GetVDim() { return vdim; }
+   int GetHeight() const { return height; }
+   int GetWidth() const { return width; }
+   // For backward compatibility
+   int GetVDim() const { return width; }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
@@ -394,7 +399,7 @@ private:
    DenseMatrix mat;
 public:
    MatrixConstantCoefficient(const DenseMatrix &m)
-      : MatrixCoefficient(m.Size()), mat(m) { }
+      : MatrixCoefficient(m.Height(), m.Width()), mat(m) { }
    using MatrixCoefficient::Eval;
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip) { M = mat; }
@@ -409,7 +414,7 @@ private:
    DenseMatrix mat;
 
 public:
-   /// Construct a time-independent matrix coefficient from a C-function
+   /// Construct a time-independent square matrix coefficient from a C-function
    MatrixFunctionCoefficient(int dim, void (*F)(const Vector &, DenseMatrix &),
                              Coefficient *q = NULL)
       : MatrixCoefficient(dim), Q(q)
@@ -421,14 +426,14 @@ public:
 
    /// Construct a constant matrix coefficient times a scalar Coefficient
    MatrixFunctionCoefficient(const DenseMatrix &m, Coefficient &q)
-      : MatrixCoefficient(m.Size()), Q(&q)
+      : MatrixCoefficient(m.Height(), m.Width()), Q(&q)
    {
       Function = NULL;
       TDFunction = NULL;
       mat = m;
    }
 
-   /// Construct a time-dependent matrix coefficient from a C-function
+   /// Construct a time-dependent square matrix coefficient from a C-function
    MatrixFunctionCoefficient(int dim,
                              void (*TDF)(const Vector &, double, DenseMatrix &),
                              Coefficient *q = NULL)
@@ -454,12 +459,12 @@ public:
 
    explicit MatrixArrayCoefficient (int dim);
 
-   Coefficient &GetCoeff (int i, int j) { return *Coeff[i*vdim+j]; }
+   Coefficient &GetCoeff(int i, int j) { return *Coeff[i*width+j]; }
 
-   void Set(int i, int j, Coefficient * c) { Coeff[i*vdim+j] = c; }
+   void Set(int i, int j, Coefficient * c) { Coeff[i*width+j] = c; }
 
    double Eval(int i, int j, ElementTransformation &T, IntegrationPoint &ip)
-   { return Coeff[i*vdim+j] -> Eval(T, ip, GetTime()); }
+   { return Coeff[i*width+j] -> Eval(T, ip, GetTime()); }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -476,7 +481,7 @@ private:
 
 public:
    MatrixRestrictedCoefficient(MatrixCoefficient &mc, Array<int> &attr)
-      : MatrixCoefficient(mc.GetVDim())
+      : MatrixCoefficient(mc.GetHeight(), mc.GetWidth())
    { c = &mc; attr.Copy(active_attr); }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
