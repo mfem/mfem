@@ -36,7 +36,7 @@ install:
 
    # OpenMPI
    - if [ $TRAVIS_OS_NAME == "linux" ]; then
-        sudo apt-get install openmpi-bin openmpi-common openssh-client openssh-server libopenmpi1.3 libopenmpi-dbg libopenmpi-dev;
+        sudo apt-get install openmpi-bin libopenmpi-dev;
      else
         travis_wait brew install open-mpi;
      fi
