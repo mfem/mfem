@@ -1,13 +1,26 @@
-//                                MFEM Example 18
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
 //
-// Compile with: make ex18
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+//
+//            -----------------------------------------------------
+//            Mesh Optimizer Miniapp:  Optimize high-order meshes
+//            -----------------------------------------------------
+//
+// Compile with: make mesh-optimizer
 //
 // Sample runs:
-//   ex18 -m ../data/blade.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 20 -ls 1 -bnd -vis
-//   ex18 -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lim -lc 0.001 -ni 10 -ls 1 -bnd -vis
+//   mesh-optimizer -m ../../data/blade.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 20 -ls 1 -bnd -vis
+//   mesh-optimizer -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lim -lc 0.001 -ni 10 -ls 1 -bnd -vis
 //
 // Description:
-//    This example performs mesh optimization using the Target-Matrix
+//    This miniapp performs mesh optimization using the Target-Matrix
 //    Optimization Paradigm (TMOP), and a global variational minimization
 //    approach. It minimizes the quantity sum_T int_T mu(Jtr(x)), where T are
 //    the target (ideal) elements, Jtr is the Jacobian of the transformation
@@ -17,7 +30,7 @@
 //    metrics is used to optimize the physical node positions, i.e., they must
 //    be as close as possible to the shape/size/alignment of their targets.
 //
-//    This example also demonstrates a possible use of nonlinear operators (the
+//    This code also demonstrates a possible use of nonlinear operators (the
 //    class HyperelasticModel defining mu(Jtr), and HyperelasticNLFIntegrator
 //    defining int mu(Jtr)), as well as their coupling to Newton methods for
 //    solving minimization problems. Note that the utilized Newton methods are
@@ -184,7 +197,7 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
 int main (int argc, char *argv[])
 {
    // 0. Set the method's default parameters.
-   const char *mesh_file = "../data/icf-pert.mesh";
+   const char *mesh_file = "../../data/icf-pert.mesh";
    int mesh_poly_deg = 1;
    int rs_levels = 0;
    double jitter = 0.0;

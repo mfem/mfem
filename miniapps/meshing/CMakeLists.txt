@@ -25,4 +25,12 @@ add_mfem_miniapp(shaper
   MAIN shaper.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(mesh-optimizer
+  MAIN mesh-optimizer.cpp
+  LIBRARIES mfem)
+
+add_mfem_miniapp(mesh-optimizer-p
+  MAIN mesh-optimizer-p.cpp
+  LIBRARIES mfem)
+
 # Add tests?
