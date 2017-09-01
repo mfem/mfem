@@ -149,6 +149,30 @@ protected:
    double bz_vol_;
 };
 
+/**  Bravais Lattices in 2D are parameterized by two lengths (a and b)
+     and an angle (gamma).
+
+          *-------------*
+         /             /
+        /             /
+     b /             /
+      /             /
+     /_ gamma      /
+    /  \          /
+   *-------------*
+           a
+
+     They are also distinguished by a centering type.  The centerings
+     are: Primitive and Centered.
+
+  | Name        |  a  |  b  |  gamma  |
+  |-------------|-----|-----|---------|
+  | Square      | > 0 | = a |  = pi/2 |
+  | Rectangular | > 0 |!= a |  = pi/2 |
+  | Hexagonal   | > 0 | = a | = 2pi/3 |
+  | Oblique     | > 0 |!= a | != pi/2 |
+
+ */
 class BravaisLattice2D : public BravaisLattice
 {
 public:
@@ -163,6 +187,41 @@ protected:
    double gamma_;
 };
 
+/**  Bravais Lattices in 3D are parameterized by three lengths (a, b, and c)
+     and three angles (alpha, beta, gamma).
+
+           *-------------*
+          / \           / \
+         /   \ _gamma  /   \
+        /     \  \    /     \
+       /       \  |  /       \
+      /         *-------------*
+     /         /   /         /
+    /         /   /         /
+   *---------/---*   beta  /
+    \       /     \   _   / c
+     \     /       \ / \ /
+    a \   /_ alpha  \   /
+       \ /   \       \ /
+        *-------------*
+               b
+
+     They are also distinguished by a centering type.  The centerings
+     are: Primitive, Face-Centered, Body-Centered, and Base-Centered.
+
+  | Name            |  a  |  b  |   c  |      alpha     |   beta  |  gamma  |
+  |-----------------|-----|-----|------|----------------|---------|---------|
+  | Cubic           | > 0 | = a |  = a |     = pi/2     |  = pi/2 |  = pi/2 |
+  | Tetragonal      | > 0 | = a | != a |     = pi/2     |  = pi/2 |  = pi/2 |
+  | Orthorhombic    | > 0 | > a |  > b |     = pi/2     |  = pi/2 |  = pi/2 |
+  | Hexagonal Prism | > 0 | = a |  > 0 |     = pi/2     |  = pi/2 | = 2pi/3 |
+  | Rhombohedral    | > 0 | = a |  = a | > 0 && < 2pi/3 | = alpha | = alpha |
+  | Monoclinic      | > 0 | > 0 | >= b | > arcsec(2c/b) |  = pi/2 |  = pi/2 |
+  |                 |     |     |      |   && < pi/2    |         |         |
+  | Triclinic       | > 0 | > 0 |  > 0 |    != pi/2     | != pi/2 | != pi/2 |
+
+
+ */
 class BravaisLattice3D : public BravaisLattice
 {
 public:
