@@ -270,9 +270,6 @@ int main(int argc, char *argv[])
 
    // Determine the minimum element size
 
-   // TODO: Need the radius of the smallest circle that encompasses
-   // the element, which this method does not quite provide.
-
    double hmin;
    if (cfl > 0)
    {
