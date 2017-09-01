@@ -11,6 +11,10 @@
 Development version 3.3.1, not released
 =======================================
 
+- Added a mesh optimization miniapp, Mesh Optimizer, that is based on the target
+  matrix optimization paradigm (TMOP). It is supported by a set of classes that
+  represent mesh quality metrics, their first and second derivatives.
+
 - Added SUNDIALS version of example 16/16p.
 
 - Added optional support for the STRUMPACK parallel sparse direct solver and
