@@ -389,7 +389,7 @@ SquareLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
 }
 
 Mesh *
-SquareLattice::GetCoarseWignerSeitzMesh() const
+SquareLattice::GetWignerSeitzMesh() const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 4,
                           (int*)ws_e2v_, Geometry::SQUARE,
@@ -399,11 +399,13 @@ SquareLattice::GetCoarseWignerSeitzMesh() const
                           2, 2);
    mesh->Finalize();
 
-   {
-      ofstream ofs("sqr.mesh");
-      mesh->Print(ofs);
-      ofs.close();
-   }
+   return mesh;
+}
+
+Mesh *
+SquareLattice::GetPeriodicWignerSeitzMesh() const
+{
+   Mesh * mesh = this->GetWignerSeitzMesh();
 
    mesh->UniformRefinement();
    mesh->UniformRefinement();
@@ -411,12 +413,6 @@ SquareLattice::GetCoarseWignerSeitzMesh() const
    Mesh * per_mesh = MakePeriodicMesh(mesh, trn_vecs_);
 
    delete mesh;
-
-   {
-      ofstream ofs("per-sqr.mesh");
-      per_mesh->Print(ofs);
-      ofs.close();
-   }
 
    return per_mesh;
 }
@@ -546,7 +542,7 @@ HexagonalLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-HexagonalLattice::GetCoarseWignerSeitzMesh() const
+HexagonalLattice::GetWignerSeitzMesh() const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 7,
                           (int*)ws_e2v_, Geometry::SQUARE,
@@ -556,23 +552,19 @@ HexagonalLattice::GetCoarseWignerSeitzMesh() const
                           2, 2);
    mesh->Finalize();
 
-   {
-      ofstream ofs("hex2d.mesh");
-      mesh->Print(ofs);
-      ofs.close();
-   }
+   return mesh;
+}
+
+Mesh *
+HexagonalLattice::GetPeriodicWignerSeitzMesh() const
+{
+   Mesh * mesh = this->GetWignerSeitzMesh();
 
    mesh->UniformRefinement();
 
    Mesh * per_mesh = MakePeriodicMesh(mesh, trn_vecs_);
 
    delete mesh;
-
-   {
-      ofstream ofs("per-hex2d.mesh");
-      per_mesh->Print(ofs);
-      ofs.close();
-   }
 
    return per_mesh;
 }
@@ -901,7 +893,7 @@ CubicLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
 }
 
 Mesh *
-CubicLattice::GetCoarseWignerSeitzMesh() const
+CubicLattice::GetWignerSeitzMesh() const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 8,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -909,36 +901,22 @@ CubicLattice::GetCoarseWignerSeitzMesh() const
                           (int*)ws_be2v_, Geometry::SQUARE,
                           (int*)ws_belem_att_, 6,
                           3, 3);
-   /*
-   Mesh * mesh = new Mesh((double*)ws_vert_tet_, 27,
-                          (int*)ws_e2v_tet_, Geometry::TETRAHEDRON,
-                          (int*)ws_elem_att_tet_, 48,
-                          (int*)ws_be2v_tet_, Geometry::TRIANGLE,
-                          (int*)ws_belem_att_tet_, 48,
-                          3, 3);
-   */
    mesh->Finalize();
-   // mesh->FinalizeTetMesh(1,1,true);
 
-   {
-      ofstream ofs("cub.mesh");
-      mesh->Print(ofs);
-      ofs.close();
-   }
+   return mesh;
+}
+
+Mesh *
+CubicLattice::GetPeriodicWignerSeitzMesh() const
+{
+   Mesh * mesh = this->GetWignerSeitzMesh();
 
    mesh->UniformRefinement();
    mesh->UniformRefinement();
-   // mesh->ReorientTetMesh();
 
    Mesh * per_mesh = MakePeriodicMesh(mesh, trn_vecs_);
 
    delete mesh;
-
-   {
-      ofstream ofs("per-cub.mesh");
-      per_mesh->Print(ofs);
-      ofs.close();
-   }
 
    return per_mesh;
 }
@@ -1112,7 +1090,7 @@ FaceCenteredCubicLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-FaceCenteredCubicLattice::GetCoarseWignerSeitzMesh() const
+FaceCenteredCubicLattice::GetWignerSeitzMesh() const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 15,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -1122,23 +1100,19 @@ FaceCenteredCubicLattice::GetCoarseWignerSeitzMesh() const
                           3, 3);
    mesh->Finalize();
 
-   {
-      ofstream ofs("fcc.mesh");
-      mesh->Print(ofs);
-      ofs.close();
-   }
+   return mesh;
+}
+
+Mesh *
+FaceCenteredCubicLattice::GetPeriodicWignerSeitzMesh() const
+{
+   Mesh * mesh = this->GetWignerSeitzMesh();
 
    mesh->UniformRefinement();
 
    Mesh * per_mesh = MakePeriodicMesh(mesh, trn_vecs_);
 
    delete mesh;
-
-   {
-      ofstream ofs("per-fcc.mesh");
-      per_mesh->Print(ofs);
-      ofs.close();
-   }
 
    return per_mesh;
 }
@@ -1376,7 +1350,7 @@ BodyCenteredCubicLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-BodyCenteredCubicLattice::GetCoarseWignerSeitzMesh() const
+BodyCenteredCubicLattice::GetWignerSeitzMesh() const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 38,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -1386,23 +1360,19 @@ BodyCenteredCubicLattice::GetCoarseWignerSeitzMesh() const
                           3, 3);
    mesh->Finalize();
 
-   {
-      ofstream ofs("bcc.mesh");
-      mesh->Print(ofs);
-      ofs.close();
-   }
+   return mesh;
+}
+
+Mesh *
+BodyCenteredCubicLattice::GetPeriodicWignerSeitzMesh() const
+{
+   Mesh * mesh = this->GetWignerSeitzMesh();
 
    mesh->UniformRefinement();
 
    Mesh * per_mesh = MakePeriodicMesh(mesh, trn_vecs_);
 
    delete mesh;
-
-   {
-      ofstream ofs("per-bcc.mesh");
-      per_mesh->Print(ofs);
-      ofs.close();
-   }
 
    return per_mesh;
 }
@@ -1569,7 +1539,7 @@ TetragonalLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
 }
 
 Mesh *
-TetragonalLattice::GetCoarseWignerSeitzMesh() const
+TetragonalLattice::GetWignerSeitzMesh() const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 8,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -1579,11 +1549,13 @@ TetragonalLattice::GetCoarseWignerSeitzMesh() const
                           3, 3);
    mesh->Finalize();
 
-   {
-      ofstream ofs("tet.mesh");
-      mesh->Print(ofs);
-      ofs.close();
-   }
+   return mesh;
+}
+
+Mesh *
+TetragonalLattice::GetPeriodicWignerSeitzMesh() const
+{
+   Mesh * mesh = this->GetWignerSeitzMesh();
 
    mesh->UniformRefinement();
    mesh->UniformRefinement();
@@ -1592,11 +1564,6 @@ TetragonalLattice::GetCoarseWignerSeitzMesh() const
 
    delete mesh;
 
-   {
-      ofstream ofs("per-tet.mesh");
-      per_mesh->Print(ofs);
-      ofs.close();
-   }
    return per_mesh;
 }
 
@@ -2159,7 +2126,7 @@ BodyCenteredTetragonalLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-BodyCenteredTetragonalLattice::GetCoarseWignerSeitzMesh() const
+BodyCenteredTetragonalLattice::GetWignerSeitzMesh() const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, (c_>M_SQRT2*a_)?24:38,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -2170,25 +2137,19 @@ BodyCenteredTetragonalLattice::GetCoarseWignerSeitzMesh() const
 
    mesh->Finalize();
 
-   {
-      ostringstream oss; oss << "bct" << ((M_SQRT2*a_<c_)?2:1) << ".mesh";
-      ofstream ofs(oss.str().c_str());
-      mesh->Print(ofs);
-      ofs.close();
-   }
+   return mesh;
+}
+
+Mesh *
+BodyCenteredTetragonalLattice::GetPeriodicWignerSeitzMesh() const
+{
+   Mesh * mesh = this->GetWignerSeitzMesh();
 
    mesh->UniformRefinement();
 
    Mesh * per_mesh = MakePeriodicMesh(mesh, trn_vecs_);
 
    delete mesh;
-
-   {
-      ostringstream oss; oss << "per-bct" << ((M_SQRT2*a_<c_)?2:1) << ".mesh";
-      ofstream ofs(oss.str().c_str());
-      per_mesh->Print(ofs);
-      ofs.close();
-   }
 
    return per_mesh;
 }
@@ -2372,7 +2333,7 @@ OrthorhombicLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-OrthorhombicLattice::GetCoarseWignerSeitzMesh() const
+OrthorhombicLattice::GetWignerSeitzMesh() const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 8,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -2382,11 +2343,13 @@ OrthorhombicLattice::GetCoarseWignerSeitzMesh() const
                           3, 3);
    mesh->Finalize();
 
-   {
-      ofstream ofs("orc.mesh");
-      mesh->Print(ofs);
-      ofs.close();
-   }
+   return mesh;
+}
+
+Mesh *
+OrthorhombicLattice::GetPeriodicWignerSeitzMesh() const
+{
+   Mesh * mesh = this->GetWignerSeitzMesh();
 
    mesh->UniformRefinement();
    mesh->UniformRefinement();
@@ -2395,11 +2358,6 @@ OrthorhombicLattice::GetCoarseWignerSeitzMesh() const
 
    delete mesh;
 
-   {
-      ofstream ofs("per-orc.mesh");
-      per_mesh->Print(ofs);
-      ofs.close();
-   }
    return per_mesh;
 }
 
@@ -3009,7 +2967,7 @@ FaceCenteredOrthorhombicLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-FaceCenteredOrthorhombicLattice::GetCoarseWignerSeitzMesh() const
+FaceCenteredOrthorhombicLattice::GetWignerSeitzMesh() const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 38,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -3018,6 +2976,14 @@ FaceCenteredOrthorhombicLattice::GetCoarseWignerSeitzMesh() const
                           (int*)ws_belem_att_, 30,
                           3, 3);
    mesh->Finalize();
+
+   return mesh;
+}
+
+Mesh *
+FaceCenteredOrthorhombicLattice::GetPeriodicWignerSeitzMesh() const
+{
+   Mesh * mesh = this->GetWignerSeitzMesh();
 
    {
       ofstream ofs("orcf.mesh");
@@ -3596,7 +3562,7 @@ BodyCenteredOrthorhombicLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-BodyCenteredOrthorhombicLattice::GetCoarseWignerSeitzMesh() const
+BodyCenteredOrthorhombicLattice::GetWignerSeitzMesh() const
 {
    bool ed = c_ > sqrt( a_ * a_ + b_ * b_ );
 
@@ -3608,6 +3574,14 @@ BodyCenteredOrthorhombicLattice::GetCoarseWignerSeitzMesh() const
                           3, 3);
 
    mesh->Finalize();
+
+   return mesh;
+}
+
+Mesh *
+BodyCenteredOrthorhombicLattice::GetPeriodicWignerSeitzMesh() const
+{
+   Mesh * mesh = this->GetWignerSeitzMesh();
 
    {
       ofstream ofs("orci.mesh");
@@ -3891,7 +3865,7 @@ BaseCenteredOrthorhombicLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-BaseCenteredOrthorhombicLattice::GetCoarseWignerSeitzMesh() const
+BaseCenteredOrthorhombicLattice::GetWignerSeitzMesh() const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 21,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -3900,6 +3874,14 @@ BaseCenteredOrthorhombicLattice::GetCoarseWignerSeitzMesh() const
                           (int*)ws_belem_att_, 18,
                           3, 3);
    mesh->Finalize();
+
+   return mesh;
+}
+
+Mesh *
+BaseCenteredOrthorhombicLattice::GetPeriodicWignerSeitzMesh() const
+{
+   Mesh * mesh = this->GetWignerSeitzMesh();
 
    {
       ofstream ofs("orcc.mesh");
@@ -4133,7 +4115,7 @@ HexagonalPrismLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-HexagonalPrismLattice::GetCoarseWignerSeitzMesh() const
+HexagonalPrismLattice::GetWignerSeitzMesh() const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 21,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -4142,6 +4124,14 @@ HexagonalPrismLattice::GetCoarseWignerSeitzMesh() const
                           (int*)ws_belem_att_, 18,
                           3, 3);
    mesh->Finalize();
+
+   return mesh;
+}
+
+Mesh *
+HexagonalPrismLattice::GetPeriodicWignerSeitzMesh() const
+{
+   Mesh * mesh = this->GetWignerSeitzMesh();
 
    {
       ofstream ofs("hex.mesh");
@@ -4859,7 +4849,7 @@ RhombohedralLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-RhombohedralLattice::GetCoarseWignerSeitzMesh() const
+RhombohedralLattice::GetWignerSeitzMesh() const
 {
    bool rd = alpha_ < 0.5 * M_PI;
 
@@ -4871,6 +4861,14 @@ RhombohedralLattice::GetCoarseWignerSeitzMesh() const
                           3, 3);
 
    mesh->Finalize();
+
+   return mesh;
+}
+
+Mesh *
+RhombohedralLattice::GetPeriodicWignerSeitzMesh() const
+{
+   Mesh * mesh = this->GetWignerSeitzMesh();
 
    {
       ofstream ofs("rhl.mesh");
@@ -5170,7 +5168,7 @@ MonoclinicLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-MonoclinicLattice::GetCoarseWignerSeitzMesh() const
+MonoclinicLattice::GetWignerSeitzMesh() const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 21,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -5179,6 +5177,14 @@ MonoclinicLattice::GetCoarseWignerSeitzMesh() const
                           (int*)ws_belem_att_, 18,
                           3, 3);
    mesh->Finalize();
+
+   return mesh;
+}
+
+Mesh *
+MonoclinicLattice::GetPeriodicWignerSeitzMesh() const
+{
+   Mesh * mesh = this->GetWignerSeitzMesh();
 
    {
       ofstream ofs("mcl.mesh");
@@ -6004,7 +6010,7 @@ BaseCenteredMonoclinicLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-BaseCenteredMonoclinicLattice::GetCoarseWignerSeitzMesh() const
+BaseCenteredMonoclinicLattice::GetWignerSeitzMesh() const
 {
    bool ed = 2.0 * b_ * c_ * cos(alpha_) + a_ * a_ - b_ * b_ < 0.0;
    Mesh * mesh = new Mesh((double*)ws_vert_, ed?24:38,
@@ -6014,6 +6020,14 @@ BaseCenteredMonoclinicLattice::GetCoarseWignerSeitzMesh() const
                           (int*)ws_belem_att_, ed?20:30,
                           3, 3);
    mesh->Finalize();
+
+   return mesh;
+}
+
+Mesh *
+BaseCenteredMonoclinicLattice::GetPeriodicWignerSeitzMesh() const
+{
+   Mesh * mesh = this->GetWignerSeitzMesh();
 
    {
       ofstream ofs("mclc.mesh");
@@ -6289,7 +6303,6 @@ ModeCoefficient::SetReciprocalLatticeVectors(const vector<Vector> & rec_vecs)
    for (unsigned int i=0; i<rec_vecs_.size(); i++)
    {
       rec_vecs_[i] = rec_vecs[i];
-      // rec_vecs_[i].Print(cout);
    }
 }
 
@@ -6417,7 +6430,7 @@ ScalarFourierSeries::GetCoefficient(HypreParVector & v,
    a_r = InnerProduct(*Br_, v) / vol_;
    a_i = InnerProduct(*Bi_, v) / vol_;
 }
-
+/*
 VectorFourierSeries::VectorFourierSeries(const BravaisLattice & bravais,
                                          ParFiniteElementSpace & fes)
    : BravaisFourierSeries(bravais, fes),
@@ -6472,7 +6485,7 @@ VectorFourierSeries::GetCoefficient(HypreParVector & v,
       a_i[i] = InnerProduct(*Bi_[i], v) / vol_;
    }
 }
-
+*/
 H1FourierSeries::H1FourierSeries(const BravaisLattice & bravais,
                                  mfem::miniapps::H1_ParFESpace & fes)
    : ScalarFourierSeries(bravais, fes)
