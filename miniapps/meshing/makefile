@@ -74,6 +74,7 @@ clean: clean-build clean-exec
 
 clean-build:
 	rm -f *.o *~ mobius-strip klein-bottle mesh-explorer shaper
+	rm -f mesh-optimizer mesh-optimizer-p
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
