@@ -15,6 +15,12 @@ Development version 3.3.1, not released
   matrix optimization paradigm (TMOP). It is supported by a set of classes that
   represent mesh quality metrics, their first and second derivatives.
 
+- Modified the installation layout: all headers, except the master headers
+  (mfem.hpp and mfem-performance.hpp), are installed in <PREFIX>/include/mfem;
+  the master headers are installed in both <PREFIX>/include/mfem and in
+  <PREFIX>/include. The mfem configuration and testing makefiles (config.mk and
+  test.mk) are installed in <PREFIX>/share/mfem, instead of <PREFIX>.
+
 - Added SUNDIALS version of example 16/16p.
 
 - Added optional support for the STRUMPACK parallel sparse direct solver and
