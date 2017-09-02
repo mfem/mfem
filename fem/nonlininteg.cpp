@@ -1709,18 +1709,10 @@ void TargetJacobian::ComputeElementTargets(int e_id, const FiniteElement &fe,
          break;
       }
       case IDEAL_EQ_SIZE:
-      case IDEAL_EQ_SCALE_SIZE:
       {
          DenseMatrix Wideal(fe.GetDim());
          ConstructIdealJ(fe.GetGeomType(), Wideal);
-         if (target_type == IDEAL_EQ_SCALE_SIZE)
-         {
-            Wideal *= sqrt(0.005 * avg_volume0 / Wideal.Det());
-         }
-         else
-         {
-            Wideal *= sqrt(avg_volume0 / Wideal.Det());
-         }
+         Wideal *= sqrt(size_scale * avg_volume0 / Wideal.Det());
          for (int i = 0; i < ir.GetNPoints(); i++) { Jtr(i) = Wideal; }
          break;
       }

@@ -456,7 +456,7 @@ private:
    // Current nodes, initial nodes, target nodes that are
    // used in ComputeElementTargets(int), depending on target_type.
    const GridFunction *nodes, *nodes0, *tnodes;
-   mutable double avg_volume0;
+   double avg_volume0;
    const bool serial_use;
 
    static void ConstructIdealJ(int geom, DenseMatrix &J);
@@ -466,18 +466,20 @@ private:
 #endif
 
 public:
-   enum target {CURRENT, IDEAL, IDEAL_EQ_SIZE, IDEAL_INIT_SIZE, TARGET_MESH,
-                IDEAL_EQ_SCALE_SIZE
-               };
+   enum target {CURRENT, IDEAL, IDEAL_EQ_SIZE, IDEAL_INIT_SIZE, TARGET_MESH};
    const target target_type;
+
+   // Additional scaling applied for IDEAL_EQ_SIZE. When the target is active
+   // only in some part of the domain, this can be used to set relative sizes.
+   double size_scale;
 
    TargetJacobian(target ttype)
       : nodes(NULL), nodes0(NULL), tnodes(NULL), serial_use(true),
-        target_type(ttype) { }
+        target_type(ttype), size_scale(1.0) { }
 #ifdef MFEM_USE_MPI
    TargetJacobian(target ttype, MPI_Comm mpicomm)
       : nodes(NULL), nodes0(NULL), tnodes(NULL), serial_use(false),
-        comm(mpicomm), target_type(ttype) { }
+        comm(mpicomm), target_type(ttype), size_scale(1.0) { }
 #endif
    ~TargetJacobian() { }
 

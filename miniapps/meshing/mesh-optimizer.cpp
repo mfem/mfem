@@ -249,8 +249,7 @@ int main (int argc, char *argv[])
                   "Target (ideal element) type:\n\t"
                   "1: IDEAL\n\t"
                   "2: IDEAL_EQ_SIZE\n\t"
-                  "3: IDEAL_INIT_SIZE\n\t"
-                  "4: IDEAL_EQ_SCALE_SIZE");
+                  "3: IDEAL_INIT_SIZE");
    args.AddOption(&limited, "-lim", "--limiting", "-no-lim", "--no-limiting",
                   "Enable limiting of the node movement.");
    args.AddOption(&lim_eps, "-lc", "--limit-const", "Limiting constant.");
@@ -406,7 +405,6 @@ int main (int argc, char *argv[])
       case 1: tj = new TargetJacobian(TargetJacobian::IDEAL); break;
       case 2: tj = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE); break;
       case 3: tj = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE); break;
-      case 4: tj = new TargetJacobian(TargetJacobian::IDEAL_EQ_SCALE_SIZE); break;
       default: cout << "Unknown target_id: " << target_id << endl; return 3;
    }
    tj->SetNodes(*x);
@@ -450,7 +448,8 @@ int main (int argc, char *argv[])
       a.AddDomainIntegrator(he_nlf_integ);
 
       model2 = new TMOPHyperelasticModel077;
-      tj2    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SCALE_SIZE);
+      tj2    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE);
+      tj2->size_scale = 0.005;
       tj2->SetNodes(*x);
       tj2->SetInitialNodes(x0);
       HyperelasticNLFIntegrator *he_nlf_integ2;
