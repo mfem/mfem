@@ -29,8 +29,8 @@ add_mfem_miniapp(mesh-optimizer
   MAIN mesh-optimizer.cpp
   LIBRARIES mfem)
 
-add_mfem_miniapp(mesh-optimizer-p
-  MAIN mesh-optimizer-p.cpp
+add_mfem_miniapp(pmesh-optimizer
+  MAIN pmesh-optimizer.cpp
   LIBRARIES mfem)
 
 # Add tests?

@@ -9,34 +9,31 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 //
-//            -----------------------------------------------------
-//            Mesh Optimizer Miniapp:  Optimize high-order meshes
-//            -----------------------------------------------------
+//            --------------------------------------------------
+//            Mesh Optimizer Miniapp: Optimize high-order meshes
+//            --------------------------------------------------
+//
+// This miniapp performs mesh optimization using the Target-Matrix Optimization
+// Paradigm (TMOP), and a global variational minimization approach. It minimizes
+// the quantity sum_T int_T mu(Jtr(x)), where T are the target (ideal) elements,
+// Jtr is the Jacobian of the transformation from the reference to the target
+// element, and mu is the mesh quality metric. This metric can measure shape,
+// size or alignment of the region around each quadrature point. The combination
+// of targets & quality metrics is used to optimize the physical node positions,
+// i.e., they must be as close as possible to the shape / size / alignment of
+// their targets. This code also demonstrates a possible use of nonlinear
+// operators (the class HyperelasticModel, defining mu(Jtr), and the class
+// HyperelasticNLFIntegrator, defining int mu(Jtr)), as well as their coupling
+// to Newton methods for solving minimization problems. Note that the utilized
+// Newton methods are oriented towards avoiding invalid meshes with negative
+// Jacobian determinants. Each Newton step requires the inversion of a Jacobian
+// matrix, which is done through an inner linear solver.
 //
 // Compile with: make mesh-optimizer
 //
 // Sample runs:
-//   mesh-optimizer -m ../../data/blade.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 20 -ls 1 -bnd -vis
-//   mesh-optimizer -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lim -lc 0.001 -ni 10 -ls 1 -bnd -vis
-//
-// Description:
-//    This miniapp performs mesh optimization using the Target-Matrix
-//    Optimization Paradigm (TMOP), and a global variational minimization
-//    approach. It minimizes the quantity sum_T int_T mu(Jtr(x)), where T are
-//    the target (ideal) elements, Jtr is the Jacobian of the transformation
-//    from the reference to the target element, and mu is the mesh quality
-//    metric. This metric can measure shape, size or alignment of the region
-//    around each quadrature point. The combination of targets and quality
-//    metrics is used to optimize the physical node positions, i.e., they must
-//    be as close as possible to the shape/size/alignment of their targets.
-//
-//    This code also demonstrates a possible use of nonlinear operators (the
-//    class HyperelasticModel defining mu(Jtr), and HyperelasticNLFIntegrator
-//    defining int mu(Jtr)), as well as their coupling to Newton methods for
-//    solving minimization problems. Note that the utilized Newton methods are
-//    oriented towards avoiding negative mesh Jacobian determinants. Each Newton
-//    step requires the inversion of a Jacobian matrix, which is done through an
-//    inner linear solver.
+//   mesh-optimizer -m ../../data/blade.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 20 -ls 1 -bnd
+//   mesh-optimizer -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lim -lc 0.001 -ni 10 -ls 1 -bnd
 
 #include "mfem.hpp"
 
@@ -198,21 +195,21 @@ int main (int argc, char *argv[])
 {
    // 0. Set the method's default parameters.
    const char *mesh_file = "../../data/icf-pert.mesh";
-   int mesh_poly_deg = 1;
-   int rs_levels = 0;
-   double jitter = 0.0;
-   int metric_id = 1;
-   int target_id = 1;
-   bool limited   = false;
-   double lim_eps = 1.0;
-   int quad_type = 1;
-   int quad_order = 8;
-   int newton_iter = 10;
-   int lin_solver = 2;
-   int max_lin_iter = 100;
-   bool move_bnd = false;
-   bool visualization = false;
-   int combomet = 0;
+   int mesh_poly_deg     = 1;
+   int rs_levels         = 0;
+   double jitter         = 0.0;
+   int metric_id         = 1;
+   int target_id         = 1;
+   bool limited          = false;
+   double lim_eps        = 1.0;
+   int quad_type         = 1;
+   int quad_order        = 8;
+   int newton_iter       = 10;
+   int lin_solver        = 2;
+   int max_lin_iter      = 100;
+   bool move_bnd         = false;
+   bool visualization    = true;
+   int combomet          = 0;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -293,8 +290,8 @@ int main (int argc, char *argv[])
 
    // 3. Define a finite element space on the mesh. Here we use vector finite
    //    elements which are tensor products of quadratic finite elements. The
-   //    dimensionality of the vector finite element space is specified by the
-   //    last parameter of the FiniteElementSpace constructor.
+   //    number of components in the vector finite element space is specified by
+   //    the last parameter of the FiniteElementSpace constructor.
    FiniteElementCollection *fec;
    if (mesh_poly_deg <= 0)
    {
@@ -313,9 +310,8 @@ int main (int argc, char *argv[])
    Vector b(0);
 
    // 6. Get the mesh nodes (vertices and other degrees of freedom in the finite
-   //    element space) as a finite element grid function in fespace.
-   //    Furthermore, note that changing x automatically changes the shapes of
-   //    the elements in the mesh.
+   //    element space) as a finite element grid function in fespace. Note that
+   //    changing x automatically changes the shapes of the mesh elements.
    GridFunction *x = mesh->GetNodes();
 
    // 7. Define a vector representing the minimal local mesh size in the mesh
@@ -335,7 +331,7 @@ int main (int argc, char *argv[])
       }
    }
 
-   // 8. Add a random perturbation of the nodes in the interior of the domain.
+   // 8. Add a random perturbation to the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
    //    zero on the boundary and its values are locally of the order of h0.
    //    The latter is based on the DofToVDof() method which maps the scalar to
@@ -412,7 +408,7 @@ int main (int argc, char *argv[])
    HyperelasticNLFIntegrator *he_nlf_integ;
    he_nlf_integ = new HyperelasticNLFIntegrator(model, tj);
 
-   // 12. Setup the integrator's quadrature rule.
+   // 12. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
    const int geom_type = fespace->GetFE(0)->GetGeomType();
    switch (quad_type)
@@ -428,13 +424,12 @@ int main (int argc, char *argv[])
    // 13. Limit the node movement.
    if (limited) { he_nlf_integ->SetLimited(lim_eps, x0); }
 
-   // 14. Setup the final NonlinearForm (which defines the integral of
-   //     interest, its first and second derivatives).
-   //     Here we can also setup a combination of metrics, i.e., optimize the
-   //     sum of two integrals, where both are scaled by used-defined
-   //     space-dependent weights.
-   //     Note that there are no command-line options for the weights and the
-   //     type of the second metric; one should update those in the code.
+   // 14. Setup the final NonlinearForm (which defines the integral of interest,
+   //     its first and second derivatives). Here we can use a combination of
+   //     metrics, i.e., optimize the sum of two integrals, where both are
+   //     scaled by used-defined space-dependent weights. Note that there are no
+   //     command-line options for the weights and the type of the second
+   //     metric; one should update those in the code.
    NonlinearForm a(fespace);
    Coefficient *coeff1 = NULL;
    HyperelasticModel *model2 = NULL;
@@ -472,10 +467,10 @@ int main (int argc, char *argv[])
    }
 
    // 16. Fix all boundary nodes, or fix only a given component depending on the
-   //     boundary attributes of the given mesh.
-   //     Attributes 1/2/3 correspond to fixed x/y/z components of the node.
-   //     Attribute  4     corresponds to an entirely fixed node.
-   //     Other boundary attributes don't affect the boundary conditions.
+   //     boundary attributes of the given mesh. Attributes 1/2/3 correspond to
+   //     fixed x/y/z components of the node. Attribute 4 corresponds to an
+   //     entirely fixed node. Other boundary attributes do not affect the node
+   //     movement boundary conditions.
    if (move_bnd == false)
    {
       Array<int> ess_bdr(mesh->bdr_attributes.Max());

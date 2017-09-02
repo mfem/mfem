@@ -11,9 +11,15 @@
 Development version 3.3.1, not released
 =======================================
 
-- Added a mesh optimization miniapp, Mesh Optimizer, that is based on the target
-  matrix optimization paradigm (TMOP). It is supported by a set of classes that
-  represent mesh quality metrics, their first and second derivatives.
+- Added support for mesh optimization via node-movement based on the
+  Target-Matrix Optimization Paradigm (TMOP) developed by P.Knupp et al.  A
+  variety of mesh quality metrics, with their first and second derivatives was
+  implemented. The optimization of both high- and low-order meshes is supported.
+
+- Added a new mesh optimization miniapp, Mesh Optimizer based on TMOP.
+
+- The Newton solver supports an optional scaling factor, that can limit the
+  increment in the Newton step, see e.g. the Mesh Optimizer miniapp.
 
 - Modified the installation layout: all headers, except the master headers
   (mfem.hpp and mfem-performance.hpp), are installed in <PREFIX>/include/mfem;

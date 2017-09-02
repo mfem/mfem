@@ -477,27 +477,29 @@ void TMOPHyperelasticModel001::AssembleH(const DenseMatrix &Jpt,
    Dim2Invariant1_dM(Jpt, dI1_dM);
    Dim2Invariant2_dM(Jpt, dI2_dM);
 
-   //   // Shorter version without using invariants.
-   //   for (int i = 0; i < dof; i++)
-   //   {
-   //      for (int j = 0; j <= i; j++)
-   //      {
-   //         double a = 0.0;
-   //         for (int d = 0; d < dim; d++)
-   //         {
-   //            a += DS(i,d)*DS(j,d);
-   //         }
-   //         a *= 0.5 * weight;
-   //         for (int d = 0; d < dim; d++)
-   //         {
-   //            A(i+d*dof,j+d*dof) += a;
-   //            if (i != j)
-   //            {
-   //               A(j+d*dof,i+d*dof) += a;
-   //            }
-   //         }
-   //      }
-   //   }
+#if 0
+   // Shorter version without using invariants.
+   for (int i = 0; i < dof; i++)
+   {
+      for (int j = 0; j <= i; j++)
+      {
+         double a = 0.0;
+         for (int d = 0; d < dim; d++)
+         {
+            a += DS(i,d)*DS(j,d);
+         }
+         a *= 0.5 * weight;
+         for (int d = 0; d < dim; d++)
+         {
+            A(i+d*dof,j+d*dof) += a;
+            if (i != j)
+            {
+               A(j+d*dof,i+d*dof) += a;
+            }
+         }
+      }
+   }
+#endif
 
    // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
    for (int r = 0; r < dim; r++)
@@ -1466,7 +1468,6 @@ void TMOPHyperelasticModel316::AssembleH(const DenseMatrix &Jpt,
       }
    }
 }
-
 
 double TMOPHyperelasticModel321::EvalW(const DenseMatrix &Jpt) const
 {
