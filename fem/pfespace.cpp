@@ -1020,6 +1020,7 @@ void ParFiniteElementSpace::ConstructTrueNURBSDofs()
          ldof_ltdof[i] = -2;
       }
    }
+   gcomm->SetLTDofTable(ldof_ltdof);
 
    // have the group masters broadcast their ltdofs to the rest of the group
    gcomm->Bcast(ldof_ltdof);
