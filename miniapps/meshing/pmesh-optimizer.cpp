@@ -234,6 +234,7 @@ int main (int argc, char *argv[])
    const char *mesh_file = "../../data/icf-pert.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
+   int rp_levels         = 0;
    double jitter         = 0.0;
    int metric_id         = 1;
    int target_id         = 1;
