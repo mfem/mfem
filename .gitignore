@@ -1,5 +1,6 @@
 # ------------------------------------------------------------------------------
-# List of file patterns we do not want in the repo.
+# List of file patterns we do not want in the repo that developers are likely
+# to have in their copy of the repo.
 # ------------------------------------------------------------------------------
 
 # Object and library files
