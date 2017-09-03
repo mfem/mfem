@@ -40,11 +40,6 @@ addons:
       packages:
          - g++-4.9
          - openmpi-bin
-         - openmpi-common
-         - openssh-client
-         - openssh-server
-         - libopenmpi1.3
-         - libopenmpi-dbg
          - libopenmpi-dev;
 
 # Test with GCC on Linux an Clang on Mac
