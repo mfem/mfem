@@ -337,6 +337,31 @@ public:
    virtual ~BilinearForm();
 };
 
+class BilinearFormOperator : public BilinearForm
+{
+protected:
+   mutable Vector localX;
+   mutable Vector localY;
+   Array<int> offsets, indices;
+
+   // Convert between vector types.
+   void LToEVector(const Vector &globalX, Vector &localX) const;
+   void EToLVector(const Vector &localY, Vector &globalY) const;
+
+public:
+   BilinearFormOperator(FiniteElementSpace *f);
+
+   /// Perform the action of the bilinear form on a vector.
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   /// For the linear system.
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                                 Operator* &A, Vector &X, Vector &B,
+                                 int copy_interior = 0)
+      { Operator::FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior); }
+};
+
+
 /**
    Class for assembling of bilinear forms `a(u,v)` defined on different
    trial and test spaces. The assembled matrix `A` is such that

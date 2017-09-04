@@ -60,6 +60,10 @@ public:
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
 
+   /// Perform the action of the BilinearFormIntegrator
+   virtual void AssembleVector(const FiniteElementSpace &fes,
+                               const Vector &fun, Vector &vect);
+
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &Tr,
                                     const Vector &elfun, DenseMatrix &elmat)
@@ -1620,6 +1624,34 @@ public:
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
+};
+
+/** Class to compute the action of (grad(u), grad(v)) from a scalar
+ * fespace using a partially assembled operator at quadrature
+ * points. */
+class PADiffusionIntegrator : public BilinearFormIntegrator
+{
+protected:
+   FiniteElementSpace *fes;
+   const FiniteElement *fe;
+   const TensorBasisElement *tfe;
+
+   const int dim;
+
+   DenseTensor oper;
+   DenseTensor QQ, QQd;
+   DenseMatrix shape1d, dshape1d;
+   DenseMatrix DQ;
+   DenseMatrix E, V;
+
+public:
+   PADiffusionIntegrator(FiniteElementSpace *_fes, const int ir_order);
+
+   void MultQuad(const Vector &fun, Vector &vect);
+
+   /// Perform the action of the BilinearFormIntegrator
+   virtual void AssembleVector(const FiniteElementSpace &fes,
+                               const Vector &fun, Vector &vect);
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */

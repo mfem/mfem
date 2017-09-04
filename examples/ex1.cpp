@@ -49,6 +49,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
+   bool use_partial_assembly = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -56,6 +57,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&use_partial_assembly, "-pa", "--partial-assembly",
+                  "-no-pa", "--no-partial-assembly", "Enable partial assembly.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -138,34 +141,52 @@ int main(int argc, char *argv[])
    // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   BilinearForm *a = new BilinearForm(fespace);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
-
-   // 9. Assemble the bilinear form and the corresponding linear system,
-   //    applying any necessary transformations such as: eliminating boundary
-   //    conditions, applying conforming constraints for non-conforming AMR,
-   //    static condensation, etc.
-   if (static_cond) { a->EnableStaticCondensation(); }
-   a->Assemble();
-
-   SparseMatrix A;
+   BilinearForm *a = NULL;
    Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   if (use_partial_assembly)
+   {
+      a = new BilinearFormOperator(fespace);
+      const int ir_order = 2 * order + dim - 1;
+      BilinearFormIntegrator *integ = new PADiffusionIntegrator(fespace, ir_order);
+      a->AddDomainIntegrator(integ);
 
-   cout << "Size of linear system: " << A.Height() << endl;
+      BilinearFormOperator *aoper = static_cast<BilinearFormOperator *>(a);
+
+      Operator *A;
+      aoper->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+      cout << "Size of linear system: " << A->Height() << endl;
+      CG(*A, B, X, 1, 200, 1e-12, 0.0);
+   }
+   else
+   {
+      a = new BilinearForm(fespace);
+      a->AddDomainIntegrator(new DiffusionIntegrator(one));
+
+      // 9. Assemble the bilinear form and the corresponding linear system,
+      //    applying any necessary transformations such as: eliminating boundary
+      //    conditions, applying conforming constraints for non-conforming AMR,
+      //    static condensation, etc.
+      if (static_cond) { a->EnableStaticCondensation(); }
+      a->Assemble();
+
+      SparseMatrix A;
+      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+
+      cout << "Size of linear system: " << A.Height() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
-   // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-   //     solve the system A X = B with PCG.
-   GSSmoother M(A);
-   PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
+      // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+      //     solve the system A X = B with PCG.
+      // GSSmoother M(A);
+      CG(A, B, X, 1, 200, 1e-12, 0.0);
 #else
-   // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-   UMFPackSolver umf_solver;
-   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   umf_solver.SetOperator(A);
-   umf_solver.Mult(B, X);
+      // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+      UMFPackSolver umf_solver;
+      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      umf_solver.SetOperator(A);
+      umf_solver.Mult(B, X);
 #endif
+   }
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);

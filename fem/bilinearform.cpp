@@ -889,6 +889,143 @@ BilinearForm::~BilinearForm()
    }
 }
 
+static void BuildDofMaps(FiniteElementSpace *fespace, Array<int> &offsets,
+                         Array<int> &indices)
+{
+   Array<int> elemDof, globalMap;
+
+   // Get the total size without vdim
+   int size = 0;
+   for (int e = 0; e < fespace->GetNE(); e++)
+   {
+      const FiniteElement *fe = fespace->GetFE(e);
+      size += fe->GetDof();
+   }
+   const int localSize = size;
+   const int globalSize = fespace->GetNDofs();
+
+   // Now we can allocate and fill the global map
+   offsets.SetSize(globalSize + 1);
+   indices.SetSize(localSize);
+   globalMap.SetSize(localSize);
+
+   int offset = 0;
+   for (int e = 0; e < fespace->GetNE(); e++)
+   {
+      const FiniteElement *fe = fespace->GetFE(0);
+      const int dofs = fe->GetDof();
+      const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement *>(fe);
+      const Array<int> &dofMap = tfe->GetDofMap();
+
+      fespace->GetElementDofs(e, elemDof);
+
+      for (int i = 0; i < dofs; i++)
+      {
+         globalMap[offset + i] = elemDof[dofMap[i]];
+      }
+      offset += dofs;
+   }
+
+   // Store and use a set of offsets and indices instead of this map
+
+   // Zero the offset vector
+   offsets = 0;
+
+   // Keep track of how many local dof point to its global dof
+   // Count how many times each dof gets hit
+   for (int i = 0; i < localSize; i++)
+   {
+      const int g = globalMap[i];
+      ++offsets[g + 1];
+   }
+   // Aggregate the offsets
+   for (int i = 1; i <= globalSize; i++)
+   {
+      offsets[i] += offsets[i - 1];
+   }
+
+   for (int i = 0; i < localSize; i++)
+   {
+      const int g = globalMap[i];
+      indices[offsets[g]++] = i;
+   }
+
+   // Shift the offset vector back by one, since it was used as a
+   // counter above.
+   for (int i = globalSize; i > 0; i--)
+   {
+      offsets[i] = offsets[i - 1];
+   }
+   offsets[0] = 0;
+
+}
+
+BilinearFormOperator::BilinearFormOperator(FiniteElementSpace *f)
+   : BilinearForm::BilinearForm(f)
+{
+   BuildDofMaps(f, offsets, indices);
+   const int size = indices.Size();
+   localX.SetSize(size);
+   localY.SetSize(size);
+}
+
+void BilinearFormOperator::LToEVector(const Vector &globalX, Vector &localX) const
+{
+   const int globalSize = fes->GetNDofs();
+   for (int i = 0; i < globalSize; i++)
+   {
+      const int offset = offsets[i];
+      const int nextOffset = offsets[i + 1];
+      // TODO: Need to figure out how best to support vdim > 1 here.
+      const double dofValue = globalX(i);
+      for (int j = offset; j < nextOffset; j++)
+      {
+         localX(indices[j]) = dofValue;
+      }
+   }
+}
+
+void BilinearFormOperator::EToLVector(const Vector &localX, Vector &globalX) const
+{
+   const int globalSize = fes->GetNDofs();
+   for (int i = 0; i < globalSize; i++)
+   {
+      const int offset = offsets[i];
+      const int nextOffset = offsets[i + 1];
+      // TODO: Need to figure out how best to support vdim > 1 here.
+      double dofValue = 0;
+      for (int j = offset; j < nextOffset; j++)
+      {
+         dofValue += localX(indices[j]);
+      }
+      globalX(i) = dofValue;
+   }
+}
+
+void BilinearFormOperator::Mult(const Vector &x, Vector &y) const
+{
+   // Convert vector x L -> E
+   LToEVector(x, localX);
+
+   localY = 0.0;
+   if (dbfi.Size())
+   {
+      for (int i = 0; i < dbfi.Size(); i++)
+      {
+         dbfi[i]->AssembleVector(*fes, localX, localY);
+      }
+   }
+   else if ((bbfi.Size() > 0) ||
+            (fbfi.Size() > 0) ||
+            (bfbfi.Size() > 0))
+   {
+      mfem_error("Not yet supported");
+   }
+
+   // Convert vector y E -> L
+   EToLVector(localY, y);
+}
+
 
 MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
                                       FiniteElementSpace *te_fes)

@@ -13,6 +13,7 @@
 #define MFEM_NONLININTEG
 
 #include "../config/config.hpp"
+#include "fespace.hpp"
 #include "fe.hpp"
 #include "coefficient.hpp"
 
