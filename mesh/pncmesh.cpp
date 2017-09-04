@@ -337,12 +337,22 @@ bool operator<(const ParNCMesh::CommGroup &lhs, const ParNCMesh::CommGroup &rhs)
    return lhs.size() < rhs.size();
 }
 
+static bool group_sorted(const ParNCMesh::CommGroup &group)
+{
+   for (unsigned i = 1; i < group.size(); i++)
+   {
+      if (group[i] <= group[i-1]) { return false; }
+   }
+   return true;
+}
+
 ParNCMesh::GroupId ParNCMesh::GetGroupId(const CommGroup &group)
 {
    if (group.size() == 1 && group[0] == MyRank)
    {
       return 0;
    }
+   MFEM_ASSERT(group_sorted(group), "invalid group");
    GroupId &id = group_id[group];
    if (!id)
    {
