@@ -211,7 +211,7 @@ void ParNCMesh::ElementSharesFace(int elem, int face, int node[4])
 
    index_rank.Append(Connection(f_index, el_rank));
 
-   std::memcpy(&index_nodes[4*f_index], node, 2*sizeof(int));
+   std::memcpy(&entity_nodes[4*f_index], node, 2*sizeof(int));
 }
 
 void ParNCMesh::BuildFaceList()
@@ -226,12 +226,12 @@ void ParNCMesh::BuildFaceList()
    index_rank.SetSize(6*leaf_elements.Size() * 3/2);
    index_rank.SetSize(0);
 
-   index_nodes.SetSize(4*nfaces);
+   entity_nodes.SetSize(4*nfaces);
 
    NCMesh::BuildFaceList();
 
    //AddMasterSlaveRanks(nfaces, face_list);
-   AddMasterSlaveConnections(face_list);
+   AddMasterSlaveConnections(face_list, 2);
 
    InitOwners(nfaces, face_owner);
    InitGroups(nfaces, face_group);
@@ -241,7 +241,7 @@ void ParNCMesh::BuildFaceList()
 
    tmp_owner.DeleteAll();
    index_rank.DeleteAll();
-   index_nodes.DeleteAll();
+   entity_nodes.DeleteAll();
 }
 
 void ParNCMesh::ElementSharesEdge(int elem, int enode, int node[2])
@@ -258,7 +258,7 @@ void ParNCMesh::ElementSharesEdge(int elem, int enode, int node[2])
 
    index_rank.Append(Connection(e_index, el_rank));
 
-   std::memcpy(&index_nodes[2*e_index], node, 2*sizeof(int));
+   std::memcpy(&entity_nodes[2*e_index], node, 2*sizeof(int));
 }
 
 void ParNCMesh::BuildEdgeList()
@@ -273,12 +273,12 @@ void ParNCMesh::BuildEdgeList()
    index_rank.SetSize(12*leaf_elements.Size() * 3/2);
    index_rank.SetSize(0);
 
-   index_nodes.SetSize(2*nedges);
+   entity_nodes.SetSize(2*nedges);
 
    NCMesh::BuildEdgeList();
 
    //AddMasterSlaveRanks(nedges, edge_list);
-   AddMasterSlaveConnections(edge_list);
+   AddMasterSlaveConnections(edge_list, 1);
 
    InitOwners(nedges, edge_owner);
    InitGroups(nedges, edge_group);
@@ -286,7 +286,7 @@ void ParNCMesh::BuildEdgeList()
 
    tmp_owner.DeleteAll();
    index_rank.DeleteAll();
-   index_nodes.DeleteAll();
+   entity_nodes.DeleteAll();
 }
 
 void ParNCMesh::ElementSharesVertex(int elem, int vnode)
@@ -361,6 +361,15 @@ ParNCMesh::GroupId ParNCMesh::GetSingletonGroup(int rank)
    return GetGroupId(group);
 }
 
+void ParNCMesh::InitOwners(int num, Array<GroupId> &entity_owner)
+{
+   entity_owner.SetSize(num);
+   for (int i = 0; i < num; i++)
+   {
+      entity_owner[i] = GetSingletonGroup(tmp_owner[i]);
+   }
+}
+
 void ParNCMesh::InitGroups(int num, Array<GroupId> &entity_group)
 {
    entity_group.SetSize(num);
@@ -390,15 +399,7 @@ void ParNCMesh::InitGroups(int num, Array<GroupId> &entity_group)
    }
 }
 
-void ParNCMesh::InitOwners(int num, Array<GroupId> &entity_owner)
-{
-   entity_owner.SetSize(num);
-   for (int i = 0; i < num; i++)
-   {
-      entity_owner[i] = GetSingletonGroup(tmp_owner[i]);
-   }
-}
-
+#if 0
 struct MasterSlaveInfo
 {
    int master; // master index if this is a slave
@@ -452,31 +453,32 @@ void ParNCMesh::AddMasterSlaveRanks(int nitems, const NCList& list)
       }
    }
 }
+#endif
 
-void ParNCMesh::AddMasterSlaveConnections(const NCList& list, int type)
+void ParNCMesh::AddMasterSlaveConnections(const NCList& list, int entity)
 {
    if (list.masters.empty()) { return; }
 
-   int nitems = (type == 1) ? (NEdges + NGhostEdges) : (NFaces + NGhostFaces);
-   int nobjs = (type == 1) ? 3 : 9;
+   int nitems = (entity == 1) ? (NEdges + NGhostEdges) : (NFaces + NGhostFaces);
+   int nobjs = (entity == 1) ? 3 : 9;
 
    Array<int*> master_objs(nitems);
    master_objs = NULL;
 
    // STEP 1: for each master, list also its vertices and edges (for faces)
-   for (int m = 0; m < list.masters.size(); m++)
+   for (unsigned m = 0; m < list.masters.size(); m++)
    {
       int master = list.masters[m].index;
 
       int* objs = new int[nobjs];
       master_objs[master] = objs;
 
-      if (type == 1) // edge
+      if (entity == 1) // edge
       {
-         objs[0] = index;
+         objs[0] = master;
          for (int i = 0; i < 2; i++)
          {
-            const Node &node = nodes[index_nodes[2*master+i]];
+            const Node &node = nodes[entity_nodes[2*master+i]];
             MFEM_ASSERT(node.HasVertex(), "");
             objs[1+i] = node.vert_index;
          }
@@ -488,15 +490,14 @@ void ParNCMesh::AddMasterSlaveConnections(const NCList& list, int type)
    }
 
    // STEP 2: for each slave, add its ranks to all master objects
-
    index_rank.Sort();
    index_rank.Unique();
 
-   int begin = 0, end = 0;
-   while (begin < index_rank.Size())
+   int begin = 0, end = 0, size = index_rank.Size();
+   while (begin < size)
    {
       int index = index_rank[begin].from;
-      while (end < index_rank.Size() && index_rank[end].from == index)
+      while (end < size && index_rank[end].from == index)
       {
          end++;
       }
@@ -506,50 +507,26 @@ void ParNCMesh::AddMasterSlaveConnections(const NCList& list, int type)
       if (type == 2) // slave
       {
          int master = ((const Slave&) id).master;
-         for (int i = begin; i < end; i++)
+         int *objs = master_objs[master];
+
+         for (int i = 0; i < nobjs; i++)
          {
-            int rank = index_rank
+            for (int j = begin; j < end; j++)
+            {
+               int rank = index_rank[j].to; // TODO: MyRank
+               index_rank.Append(Connection(objs[i], rank));
+            }
          }
       }
 
       begin = end;
    }
 
-
-/*   for (int m = 0; m < list.masters.size(); m++)
+   // clean up
+   for (int i = 0; i < nitems; i++)
    {
-      const Master &master = list.masters[m];
-
-      std::set<int> ranks;
-
-      for (int i = master.slaves_begin; i < master.slaves_end; i++)
-      {
-         int slave = list.slaves[i].index;
-
-      }
+      delete [] master_objs[i];
    }
-
-   //
-   for (int i = 0; i < index_rank.Size(); i++)
-   {
-      int index = index_rank[i].from;
-      int rank = index_rank[i].to;
-
-      int type;
-      const MeshId &id = list.LookUp(index, &type);
-
-      if (type == 1)
-      {
-         std::set<int> ranks;
-
-         // collect ranks of all slaves, including their vertices and edges
-         const Master &master = (const Master&) id;
-         for (int j = master.slaves_begin; j < master.slaves_end; j++)
-         {
-
-         }
-      }
-   }*/
 }
 
 void ParNCMesh::GetGroupShared(Array<bool> &group_shared)

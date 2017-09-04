@@ -179,7 +179,7 @@ public:
       long TotalSize() const;
       long MemoryUsage() const;
 
-      const MeshId& LookUp(int index) const;
+      const MeshId& LookUp(int index, int *type = NULL) const;
 
    private:
       mutable Array<int> inv_index;
