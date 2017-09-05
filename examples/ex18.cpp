@@ -63,15 +63,14 @@ void u0_function(const Vector &x, Vector &u0);
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   SparseMatrix &M;
+   FiniteElementSpace &fes;
    Operator &A;
-   DSmoother M_prec;
-   CGSolver M_solver;
+   DenseTensor Me_inv;
 
    mutable Vector z;
 
 public:
-   FE_Evolution(SparseMatrix &M_, Operator &A_);
+   FE_Evolution(FiniteElementSpace &_fes, Operator &A_);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -220,8 +219,8 @@ int main(int argc, char *argv[])
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim);
-   // NOTE: The Euler functions below assume byVDIM ordering
-   FiniteElementSpace fes(mesh, &fec, num_equations, Ordering::byVDIM);
+   // NOTE: The Euler functions below assume byNODES ordering
+   FiniteElementSpace fes(mesh, &fec, num_equations, Ordering::byNODES);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
@@ -231,14 +230,6 @@ int main(int argc, char *argv[])
 
    // TODO: Wait for the pull request by Neumueller to be merged then
    //       switch the VectorMassIntegrator constructor
-
-   BilinearForm M(&fes);
-   Vector cc(num_equations);
-   for (int i = 0; i < cc.Size(); i++) cc(i) = 1.0;
-   VectorConstantCoefficient vc(cc);
-   M.AddDomainIntegrator(new VectorMassIntegrator(vc));
-   M.Assemble();
-   M.Finalize();
 
    NonlinearForm A(&fes);
    A.AddDomainIntegrator(new DomainIntegrator(dim));
@@ -266,7 +257,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution euler(M.SpMat(), A);
+   FE_Evolution euler(fes, A);
 
    // Determine the minimum element size
 
@@ -344,17 +335,24 @@ int main(int argc, char *argv[])
 }
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(SparseMatrix &M_, Operator &A_)
-   : TimeDependentOperator(M_.Size()), M(M_), A(A_), z(M_.Size())
+FE_Evolution::FE_Evolution(FiniteElementSpace &_fes, Operator &_A)
+   : TimeDependentOperator(_A.Height()),
+     fes(_fes),
+     A(_A),
+     Me_inv(fes.GetFE(0)->GetDof(), fes.GetFE(0)->GetDof(), fes.GetNE()),
+     z(_A.Height())
 {
-   M_solver.SetPreconditioner(M_prec);
-   M_solver.SetOperator(M);
-
-   M_solver.iterative_mode = false;
-   M_solver.SetRelTol(1e-9);
-   M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(100);
-   M_solver.SetPrintLevel(0);
+   // Standard local assembly and inversion for energy mass matrices.
+   const int dofs = fes.GetFE(0)->GetDof();
+   DenseMatrix Me(dofs);
+   DenseMatrixInverse inv(&Me);
+   MassIntegrator mi;
+   for (int i = 0; i < fes.GetNE(); i++)
+   {
+      mi.AssembleElementMatrix(*fes.GetFE(i), *fes.GetElementTransformation(i), Me);
+      inv.Factor();
+      inv.GetInverseMatrix(Me_inv(i));
+   }
 }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
@@ -362,7 +360,22 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // Reset wavespeed calculation before step
    max_char_speed = 0.;
    A.Mult(x, z);
-   M_solver.Mult(z, y);
+
+   const int dofs = fes.GetFE(0)->GetDof();
+   Array<int> vdofs;
+   Vector zval(dofs * num_equations);
+   DenseMatrix zmat, ymat(dofs, num_equations);
+
+   y = 0.;
+   for (int i = 0; i < fes.GetNE(); i++)
+   {
+      // Return the vdofs ordered byNODES
+      fes.GetElementVDofs(i, vdofs);
+      z.GetSubVector(vdofs, zval);
+      zmat.UseExternalData(zval.GetData(), dofs, num_equations);
+      mfem::Mult(Me_inv(i), zmat, ymat);
+      y.AddElementVector(vdofs, ymat.GetData());
+   }
 }
 
 // Initial condition
