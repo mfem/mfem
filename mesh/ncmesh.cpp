@@ -1823,7 +1823,7 @@ void NCMesh::BuildFaceList()
          MFEM_ASSERT(face >= 0, "face not found!");
 
          // tell ParNCMesh about the face
-         ElementSharesFace(elem, face, node);
+         ElementSharesFace(elem, face);
 
          // have we already processed this face? skip if yes
          if (processed_faces[face]) { continue; }
@@ -1934,7 +1934,7 @@ void NCMesh::BuildEdgeList()
          MFEM_ASSERT(nd.HasEdge(), "edge not found!");
 
          // tell ParNCMesh about the edge
-         ElementSharesEdge(elem, enode, node);
+         ElementSharesEdge(elem, enode);
 
          // (2D only, store boundary faces)
          if (Dim <= 2)
@@ -2951,11 +2951,6 @@ void NCMesh::GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const
 
    vert_index[0] = nodes[n0].vert_index;
    vert_index[1] = nodes[n1].vert_index;
-
-   /*if (vert_index[0] > vert_index[1])
-   {
-      std::swap(vert_index[0], vert_index[1]);
-   }*/
 }
 
 int NCMesh::GetEdgeOrientation(const NCMesh::MeshId &edge_id) const

@@ -199,7 +199,7 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    }
 }
 
-void ParNCMesh::ElementSharesFace(int elem, int face, int node[4])
+void ParNCMesh::ElementSharesFace(int elem, int face)
 {
    // Analogous to ElementSharesEdge.
 
@@ -210,8 +210,6 @@ void ParNCMesh::ElementSharesFace(int elem, int face, int node[4])
    owner = std::min(owner, el_rank);
 
    index_rank.Append(Connection(f_index, el_rank));
-
-   std::memcpy(&entity_nodes[4*f_index], node, 2*sizeof(int));
 }
 
 void ParNCMesh::BuildFaceList()
@@ -226,25 +224,20 @@ void ParNCMesh::BuildFaceList()
    index_rank.SetSize(6*leaf_elements.Size() * 3/2);
    index_rank.SetSize(0);
 
-   entity_nodes.SetSize(4*nfaces);
-
    NCMesh::BuildFaceList();
 
-   //AddMasterSlaveRanks(nfaces, face_list);
-   AddMasterSlaveConnections(face_list, 2);
+   AddMasterSlaveRanks(nfaces, face_list);
 
    InitOwners(nfaces, face_owner);
    InitGroups(nfaces, face_group);
-   MakeShared(face_group, face_list, shared_faces);
 
    CalcFaceOrientations();
 
    tmp_owner.DeleteAll();
    index_rank.DeleteAll();
-   entity_nodes.DeleteAll();
 }
 
-void ParNCMesh::ElementSharesEdge(int elem, int enode, int node[2])
+void ParNCMesh::ElementSharesEdge(int elem, int enode)
 {
    // Called by NCMesh::BuildEdgeList when an edge is visited in a leaf element.
    // This allows us to determine edge ownership and processors that share it
@@ -257,8 +250,6 @@ void ParNCMesh::ElementSharesEdge(int elem, int enode, int node[2])
    owner = std::min(owner, el_rank);
 
    index_rank.Append(Connection(e_index, el_rank));
-
-   std::memcpy(&entity_nodes[2*e_index], node, 2*sizeof(int));
 }
 
 void ParNCMesh::BuildEdgeList()
@@ -273,20 +264,15 @@ void ParNCMesh::BuildEdgeList()
    index_rank.SetSize(12*leaf_elements.Size() * 3/2);
    index_rank.SetSize(0);
 
-   entity_nodes.SetSize(2*nedges);
-
    NCMesh::BuildEdgeList();
 
-   //AddMasterSlaveRanks(nedges, edge_list);
-   AddMasterSlaveConnections(edge_list, 1);
+   AddMasterSlaveRanks(nedges, edge_list);
 
    InitOwners(nedges, edge_owner);
    InitGroups(nedges, edge_group);
-   MakeShared(edge_group, edge_list, shared_edges);
 
    tmp_owner.DeleteAll();
    index_rank.DeleteAll();
-   entity_nodes.DeleteAll();
 }
 
 void ParNCMesh::ElementSharesVertex(int elem, int vnode)
@@ -425,7 +411,6 @@ void ParNCMesh::InitGroups(int num, Array<GroupId> &entity_group)
    }
 }
 
-#if 0
 struct MasterSlaveInfo
 {
    int master; // master index if this is a slave
