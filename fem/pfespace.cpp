@@ -1675,7 +1675,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
          }
       }
 
-      // TODO
+      // make sure all master DOFs are transmitted to participating slave ranks
       pncmesh->AugmentMasterGroups();
 
       // initialize dof_group[], dof_owner[]

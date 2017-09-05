@@ -215,7 +215,7 @@ void ParNCMesh::ElementSharesFace(int elem, int face)
 void ParNCMesh::BuildFaceList()
 {
    // This is an extension of NCMesh::BuildFaceList() which also determines
-   // face ownership, creates face processor groups and lists shared faces.
+   // face ownership and creates face processor groups.
 
    int nfaces = NFaces + NGhostFaces;
    tmp_owner.SetSize(nfaces);
@@ -226,7 +226,7 @@ void ParNCMesh::BuildFaceList()
 
    NCMesh::BuildFaceList();
 
-   AddMasterSlaveRanks(nfaces, face_list);
+   AddMasterSlaveConnections(nfaces, face_list);
 
    InitOwners(nfaces, face_owner);
    InitGroups(nfaces, face_group);
@@ -255,7 +255,7 @@ void ParNCMesh::ElementSharesEdge(int elem, int enode)
 void ParNCMesh::BuildEdgeList()
 {
    // This is an extension of NCMesh::BuildEdgeList() which also determines
-   // edge ownership, creates edge processor groups and lists shared edges.
+   // edge ownership and creates edge processor groups.
 
    int nedges = NEdges + NGhostEdges;
    tmp_owner.SetSize(nedges);
@@ -266,7 +266,7 @@ void ParNCMesh::BuildEdgeList()
 
    NCMesh::BuildEdgeList();
 
-   AddMasterSlaveRanks(nedges, edge_list);
+   AddMasterSlaveConnections(nedges, edge_list);
 
    InitOwners(nedges, edge_owner);
    InitGroups(nedges, edge_group);
@@ -291,7 +291,7 @@ void ParNCMesh::ElementSharesVertex(int elem, int vnode)
 void ParNCMesh::BuildVertexList()
 {
    // This is an extension of NCMesh::BuildVertexList() which also determines
-   // vertex ownership, creates vertex processor groups and lists shared vertices.
+   // vertex ownership and creates vertex processor groups.
 
    int nvertices = NVertices + NGhostVertices;
    tmp_owner.SetSize(nvertices);
@@ -385,7 +385,7 @@ void ParNCMesh::InitOwners(int num, Array<GroupId> &entity_owner)
 void ParNCMesh::InitGroups(int num, Array<GroupId> &entity_group)
 {
    entity_group.SetSize(num);
-   entity_group = -1;
+   entity_group = 0;
 
    index_rank.Sort();
    index_rank.Unique();
@@ -411,35 +411,21 @@ void ParNCMesh::InitGroups(int num, Array<GroupId> &entity_group)
    }
 }
 
-struct MasterSlaveInfo
+void ParNCMesh::AddMasterSlaveConnections(int nitems, const NCList& list)
 {
-   int master; // master index if this is a slave
-   int slaves_begin, slaves_end; // slave list if this is a master
-   MasterSlaveInfo() : master(-1), slaves_begin(0), slaves_end(0) {}
-};
+   Array<int> masters(nitems);
+   masters = -1;
 
-void ParNCMesh::AddMasterSlaveRanks(int nitems, const NCList& list)
-{
-   // create an auxiliary structure for each edge/face
-   std::vector<MasterSlaveInfo> info(nitems);
-
-   for (unsigned i = 0; i < list.masters.size(); i++)
-   {
-      const Master &mf = list.masters[i];
-      info[mf.index].slaves_begin = mf.slaves_begin;
-      info[mf.index].slaves_end = mf.slaves_end;
-   }
    for (unsigned i = 0; i < list.slaves.size(); i++)
    {
       const Slave& sf = list.slaves[i];
-      info[sf.index].master = sf.master;
+      masters[sf.index] = sf.master;
    }
 
    // We need the processor groups of master edges/faces to contain the ranks of
-   // their slaves (so that master DOFs get sent to those who share the slaves).
-   // Conversely, we need the groups of slave edges/faces to contain the ranks
-   // of their masters. Both can be done by appending more items to the
-   // 'index_rank' array, before it is sorted and converted to the group table.
+   // their slaves, so that master DOFs get sent to those who share the slaves.
+   // This be done by appending more items to the 'index_rank' array, before it
+   // is sorted and converted to groups.
    // (Note that a master/slave edge can be shared by more than one processor.)
 
    int size = index_rank.Size();
@@ -448,19 +434,11 @@ void ParNCMesh::AddMasterSlaveRanks(int nitems, const NCList& list)
       int index = index_rank[i].from;
       int rank = index_rank[i].to;
 
-      const MasterSlaveInfo &msi = info[index];
-      if (msi.master >= 0)
+      int master = masters[index];
+      if (master >= 0)
       {
          // 'index' is a slave, add its rank to the master's group
-         index_rank.Append(Connection(msi.master, rank));
-      }
-      else
-      {
-         for (int j = msi.slaves_begin; j < msi.slaves_end; j++)
-         {
-            // 'index' is a master, add its rank to the groups of the slaves
-            index_rank.Append(Connection(list.slaves[j].index, rank));
-         }
+         index_rank.Append(Connection(master, rank));
       }
    }
 }
@@ -469,7 +447,10 @@ void ParNCMesh::AugmentMasterGroups()
 {
    MFEM_ASSERT(!vertex_list.Empty(), "must be called after BuildVertexList");
    MFEM_ASSERT(!edge_list.Empty(), "must be called after BuildEdgeList");
-   MFEM_ASSERT(!face_list.Empty() || Dim<3, "must be called after BuildFaceList");
+   if (Dim >= 3)
+   {
+      MFEM_ASSERT(!face_list.Empty(), "must be called after BuildFaceList");
+   }
 
    // augment comm groups of vertices of master edges
    for (unsigned i = 0; i < edge_list.masters.size(); i++)

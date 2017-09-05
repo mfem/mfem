@@ -331,7 +331,7 @@ protected:
    Array<int> tmp_owner; // temporary
    Array<Connection> index_rank; // temporary
 
-   void AddMasterSlaveRanks(int nitems, const NCList& list);
+   void AddMasterSlaveConnections(int nitems, const NCList& list);
    void AddMasterSlaveConnections(const NCList& list, int entity);
    void GetGroupShared(Array<bool> &group_shared);
    void MakeShared(const Array<GroupId> &entity_group,
