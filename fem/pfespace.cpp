@@ -1630,17 +1630,16 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
       Array<int> dofs, master_dofs, slave_dofs;
 
       // loop through *all* master edges/faces, constrain their slaves
-      for (int type = 1; type <= 2; type++)
+      for (int entity = 0; entity <= 2; entity++)
       {
-         const NCMesh::NCList &list = (type > 1) ? pncmesh->GetFaceList()
-                                      /*      */ : pncmesh->GetEdgeList();
+         const NCMesh::NCList &list = pncmesh->GetNCList(entity);
          if (!list.masters.size()) { continue; }
 
          IsoparametricTransformation T;
-         if (type > 1) { T.SetFE(&QuadrilateralFE); }
+         if (entity > 1) { T.SetFE(&QuadrilateralFE); }
          else { T.SetFE(&SegmentFE); }
 
-         int geom = (type > 1) ? Geometry::SQUARE : Geometry::SEGMENT;
+         int geom = (entity > 1) ? Geometry::SQUARE : Geometry::SEGMENT;
          const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
          if (!fe) { continue; }
 
@@ -1652,9 +1651,9 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
             const NCMesh::Master &mf = list.masters[mi];
 
             // get master DOFs
-            pncmesh->IsGhost(type, mf.index)
-                  ? GetGhostDofs(type, mf, master_dofs)
-                  : GetDofs(type, mf.index, master_dofs);
+            pncmesh->IsGhost(entity, mf.index)
+                  ? GetGhostDofs(entity, mf, master_dofs)
+                  : GetDofs(entity, mf.index, master_dofs);
 
             if (!master_dofs.Size()) { continue; }
 
@@ -1662,9 +1661,9 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
             for (int si = mf.slaves_begin; si < mf.slaves_end; si++)
             {
                const NCMesh::Slave &sf = list.slaves[si];
-               if (pncmesh->IsGhost(type, sf.index)) { continue; }
+               if (pncmesh->IsGhost(entity, sf.index)) { continue; }
 
-               GetDofs(type, sf.index, slave_dofs);
+               GetDofs(entity, sf.index, slave_dofs);
                if (!slave_dofs.Size()) { continue; }
 
                sf.OrientedPointMatrix(T.GetPointMat());
@@ -1676,10 +1675,13 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
          }
       }
 
+      // TODO
+      pncmesh->AugmentMasterGroups();
+
       // initialize dof_group[], dof_owner[]
-      for (int type = 0; type <= 2; type++)
+      for (int entity = 0; entity <= 2; entity++)
       {
-         const NCMesh::NCList &list = pncmesh->GetSharedList(type);
+         const NCMesh::NCList &list = pncmesh->GetSharedList(entity);
 
          std::size_t lsize[3] =
          { list.conforming.size(), list.masters.size(), list.slaves.size() };
@@ -1693,13 +1695,13 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
                   (l == 1) ? (const NCMesh::MeshId&) list.masters[i]
                   /*    */ : (const NCMesh::MeshId&) list.slaves[i];
 
-               GetBareDofs(type, id, dofs);
+               GetBareDofs(entity, id, dofs);
 
                for (int j = 0; j < dofs.Size(); j++)
                {
                   int dof = dofs[j];
-                  dof_owner[dof] = pncmesh->GetOwnerId(type, id.index);
-                  dof_group[dof] = pncmesh->GetGroupId(type, id.index);
+                  dof_owner[dof] = pncmesh->GetOwnerId(entity, id.index);
+                  dof_group[dof] = pncmesh->GetGroupId(entity, id.index);
                }
             }
          }

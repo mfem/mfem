@@ -101,7 +101,10 @@ public:
        processor. (NOTE: only NCList::conforming will be set.) */
    const NCList& GetSharedVertices()
    {
-      if (shared_vertices.Empty()) { BuildVertexList(); }
+      if (shared_vertices.Empty())
+      {
+         MakeShared(vertex_group, GetVertexList(), shared_vertices);
+      }
       return shared_vertices;
    }
 
@@ -110,7 +113,10 @@ public:
        empty.) */
    const NCList& GetSharedEdges()
    {
-      if (edge_list.Empty()) { BuildEdgeList(); }
+      if (shared_edges.Empty())
+      {
+         MakeShared(edge_group, GetEdgeList(), shared_edges);
+      }
       return shared_edges;
    }
 
@@ -118,7 +124,10 @@ public:
        (NOTE: this is a subset of NCMesh::face_list; slaves are empty.) */
    const NCList& GetSharedFaces()
    {
-      if (face_list.Empty()) { BuildFaceList(); }
+      if (shared_faces.Empty())
+      {
+         MakeShared(face_group, GetFaceList(), shared_faces);
+      }
       return shared_faces;
    }
 
@@ -173,6 +182,9 @@ public:
    {
       return groups[id];
    }
+
+   ///
+   void AugmentMasterGroups();
 
    /// Returns true if the specified vertex/edge/face is a ghost.
    bool IsGhost(int type, int index) const
@@ -294,6 +306,7 @@ protected:
    virtual void OnMeshUpdated(Mesh *mesh);
 
    GroupId GetGroupId(const CommGroup &group);
+   GroupId JoinGroups(GroupId g1, GroupId g2);
    GroupId GetSingletonGroup(int rank);
 
    virtual void BuildFaceList();

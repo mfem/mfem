@@ -318,7 +318,6 @@ void ParNCMesh::BuildVertexList()
 
    InitOwners(nvertices, vertex_owner);
    InitGroups(nvertices, vertex_group);
-   MakeShared(vertex_group, vertex_list, shared_vertices);
 
    tmp_owner.DeleteAll();
    index_rank.DeleteAll();
@@ -360,6 +359,23 @@ ParNCMesh::GroupId ParNCMesh::GetGroupId(const CommGroup &group)
       groups.push_back(group);
    }
    return id;
+}
+
+ParNCMesh::GroupId ParNCMesh::JoinGroups(GroupId g1, GroupId g2)
+{
+   if (g1 == g2) { return g1; }
+
+   CommGroup &cg1 = groups[g1], &cg2 = groups[g2];
+
+   CommGroup join;
+   join.reserve(cg1.size() + cg2.size());
+   join.insert(join.end(), cg1.begin(), cg1.end());
+   join.insert(join.end(), cg2.begin(), cg2.end());
+
+   std::sort(join.begin(), join.end());
+   join.erase(std::unique(join.begin(), join.end()), join.end());
+
+   return GetGroupId(join);
 }
 
 ParNCMesh::GroupId ParNCMesh::GetSingletonGroup(int rank)
@@ -463,79 +479,31 @@ void ParNCMesh::AddMasterSlaveRanks(int nitems, const NCList& list)
       }
    }
 }
-#endif
 
-void ParNCMesh::AddMasterSlaveConnections(const NCList& list, int entity)
+void ParNCMesh::AugmentMasterGroups()
 {
-   if (list.masters.empty()) { return; }
+   MFEM_ASSERT(!vertex_list.Empty(), "must be called after BuildVertexList");
+   MFEM_ASSERT(!edge_list.Empty(), "must be called after BuildEdgeList");
+   MFEM_ASSERT(!face_list.Empty() || Dim<3, "must be called after BuildFaceList");
 
-   int nitems = (entity == 1) ? (NEdges + NGhostEdges) : (NFaces + NGhostFaces);
-   int nobjs = (entity == 1) ? 3 : 9;
-
-   Array<int*> master_objs(nitems);
-   master_objs = NULL;
-
-   // STEP 1: for each master, list also its vertices and edges (for faces)
-   for (unsigned m = 0; m < list.masters.size(); m++)
+   // augment comm groups of vertices of master edges
+   for (unsigned i = 0; i < edge_list.masters.size(); i++)
    {
-      int master = list.masters[m].index;
+      int v[2];
+      const MeshId &edge_id = edge_list.masters[i];
+      GetEdgeVertices(edge_id, v);
 
-      int* objs = new int[nobjs];
-      master_objs[master] = objs;
-
-      if (entity == 1) // edge
+      for (int j = 0; j < 2; j++)
       {
-         objs[0] = master;
-         for (int i = 0; i < 2; i++)
-         {
-            const Node &node = nodes[entity_nodes[2*master+i]];
-            MFEM_ASSERT(node.HasVertex(), "");
-            objs[1+i] = node.vert_index;
-         }
-      }
-      else // face
-      {
-         MFEM_ABORT("TODO");
+         vertex_group[v[j]] = JoinGroups(vertex_group[v[j]],
+                                         edge_group[edge_id.index]);
       }
    }
 
-   // STEP 2: for each slave, add its ranks to all master objects
-   index_rank.Sort();
-   index_rank.Unique();
-
-   int begin = 0, end = 0, size = index_rank.Size();
-   while (begin < size)
+   // master faces
+   for (unsigned i = 0; i < face_list.masters.size(); i++)
    {
-      int index = index_rank[begin].from;
-      while (end < size && index_rank[end].from == index)
-      {
-         end++;
-      }
-
-      int type;
-      const MeshId &id = list.LookUp(index, &type);
-      if (type == 2) // slave
-      {
-         int master = ((const Slave&) id).master;
-         int *objs = master_objs[master];
-
-         for (int i = 0; i < nobjs; i++)
-         {
-            for (int j = begin; j < end; j++)
-            {
-               int rank = index_rank[j].to; // TODO: MyRank
-               index_rank.Append(Connection(objs[i], rank));
-            }
-         }
-      }
-
-      begin = end;
-   }
-
-   // clean up
-   for (int i = 0; i < nitems; i++)
-   {
-      delete [] master_objs[i];
+      // TODO
    }
 }
 
