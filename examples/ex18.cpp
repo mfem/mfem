@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
    double t_final = 2;
    double dt = 0.01;
    double cfl = 0.3;
-   bool visualization = true;
+   bool visualization = false;
    int vis_steps = 50;
 
    int precision = 8;
