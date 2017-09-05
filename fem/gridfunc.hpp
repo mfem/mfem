@@ -107,7 +107,7 @@ public:
    virtual double GetValue(int i, const IntegrationPoint &ip,
                            int vdim = 1) const;
 
-   void GetVectorValue(int i, const IntegrationPoint &ip, Vector &val) const;
+   virtual void GetVectorValue(int i, const IntegrationPoint &ip, Vector &val) const;
 
    void GetValues(int i, const IntegrationRule &ir, Vector &vals,
                   int vdim = 1) const;

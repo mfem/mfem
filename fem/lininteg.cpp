@@ -22,6 +22,11 @@ void LinearFormIntegrator::AssembleRHSElementVect(
    mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
 }
 
+void LinearFormIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, Vector &elvect)
+{
+   mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
+}
 
 void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
                                                 ElementTransformation &Tr,
@@ -690,5 +695,200 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       }
    }
 }
+
+
+
+
+void DGEulerIntegrator::getEulerFlux(const Vector &u, Vector &f)
+{
+    int var_dim = u.Size();
+    int dim     = var_dim - 2;
+
+    double rho  = u(0);
+    double u1   = u(1)/rho;
+    double u2   = u(2)/rho;
+    
+    double v_sq = pow(u1, 2) + pow(u2, 2);
+    double p    = (u(var_dim - 1) - 0.5*rho*v_sq)*(gamm - 1);
+
+    f(0)             =  u(1); 
+    f(1)             =  u(1)*u1 + p;               //rho*u*u + p    
+    f(2)             =  u(1)*u2    ;               //rho*u*v
+    f(var_dim - 1)   = (u(var_dim - 1) + p)*u1  ;  //(E+p)*u
+
+    f(  var_dim + 0) =  u(2); 
+    f(  var_dim + 1) =  u(2)*u1;                  //rho*u*v     
+    f(  var_dim + 2) =  u(2)*u2 + p;              //rho*v*v + p
+    f(2*var_dim - 1) = (u(var_dim - 1) + p)*u2  ; //(E+p)*v    
+}
+
+void DGEulerIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   mfem_error("DGEulerIntegrator::AssembleRHSElementVect");
+}
+
+void DGEulerIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   mfem_error("DGEEulerIntegrator::AssembleRHSElementVect");
+}
+
+
+
+void DGEulerIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Trans, Vector &elvect)
+{
+   int dim, ndof1, ndof2;
+
+   double un, a, b, w;
+
+   Vector shape1, shape2;
+
+   dim = el1.GetDim();
+   ndof1 = el1.GetDof();
+   ndof2 = el2.GetDof();
+   
+   Vector vu(dim), nor(dim);
+
+   elvect.SetSize(vDim*(ndof1 + ndof2));
+   elvect = 0.0;
+
+   shape1.SetSize(ndof1);
+   shape2.SetSize(ndof2);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order;
+      // Assuming order(u)==order(mesh)
+      if (Trans.Elem2No >= 0)
+         order = (std::min(Trans.Elem1->OrderW(), Trans.Elem2->OrderW()) +
+                  2*std::max(el1.GetOrder(), el2.GetOrder()));
+      else
+      {
+         order = Trans.Elem1->OrderW() + 2*el1.GetOrder();
+      }
+      if (el1.Space() == FunctionSpace::Pk)
+      {
+         order++;
+      }
+      ir = &IntRules.Get(Trans.FaceGeom, order);
+   }
+
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+      IntegrationPoint eip1, eip2;
+      Trans.Loc1.Transform(ip, eip1);
+      if (ndof2)
+      {
+         Trans.Loc2.Transform(ip, eip2);
+      }
+
+      Trans.Face->SetIntPoint(&ip);
+      Trans.Elem1->SetIntPoint(&eip1);
+      Trans.Elem2->SetIntPoint(&eip2);
+
+      el1.CalcShape(eip1, shape1);
+      el2.CalcShape(eip2, shape2);
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Trans.Face->Jacobian(), nor);
+      }
+
+      Vector u1_dir(vDim), u2_dir(vDim);
+      uD.Eval(u1_dir, *Trans.Elem1, eip1);
+      uD.Eval(u2_dir, *Trans.Elem2, eip2);
+
+      double rho_L = u1_dir(0);
+      double u_L   = u1_dir(1)/rho_L;
+      double v_L   = u1_dir(2)/rho_L;
+      double E_L   = u1_dir(3);
+
+      double T_L   = (E_L - 0.5*rho_L*(pow(u_L,2) + pow(v_L,2)))/(rho_L*Cv);
+      double a_L   = sqrt(gamm * R * T_L);
+
+      double rho_R = u2_dir(0);
+      double u_R   = u2_dir(1)/rho_R;
+      double v_R   = u2_dir(2)/rho_R;
+      double E_R   = u2_dir(3);
+
+      double T_R   = (E_R - 0.5*rho_R*(pow(u_R,2) + pow(v_R,2)))/(rho_R*Cv);
+      double a_R   = sqrt(gamm * R * T_R);
+
+      Vector nor_dim(dim);
+      double nor_l2 = nor.Norml2();
+      nor_dim.Set(1/nor_l2, nor);
+
+      double vnl   = u_L*nor_dim(0) + v_L*nor_dim(1); 
+      double vnr   = u_R*nor_dim(0) + v_R*nor_dim(1); 
+
+      double u_max = std::max(a_L + std::abs(vnl), a_R + std::abs(vnr));
+
+      Vector fl_dir(dim*vDim), fr_dir(dim*vDim);
+      Vector f_dir(dim*vDim);
+      getEulerFlux(u1_dir, fl_dir);
+      getEulerFlux(u2_dir, fr_dir);
+      add(0.5, fl_dir, fr_dir, f_dir); //Common flux without dissipation
+
+      Vector f1_dir(dim*vDim), f2_dir(dim*vDim);
+      fD.Eval(f1_dir, *Trans.Elem1, eip1);
+      fD.Eval(f2_dir, *Trans.Elem2, eip2);
+
+      Vector f_diss(dim*vDim); //Rusanov dissipation 
+      subtract(-0.5*u_max*nor_dim(0), u2_dir, u1_dir, f_diss); // Left and right depends on normal direction
+      for (int i = 0; i < dim; i++)
+      {
+          for (int j = 0; j < vDim; j++)
+          {
+              f_diss(i*vDim + j) = -0.5*u_max*nor_dim(i)*(u2_dir(j) - u1_dir(j)); 
+          }
+      }
+
+      add(f_dir, f_diss, f_dir);
+
+      Vector face_f(vDim), face_f1(vDim), face_f2(vDim); //Face fluxes (dot product with normal)
+      face_f = 0.0; face_f1 = 0.0; face_f2 = 0.0;
+      for (int i = 0; i < dim; i++)
+      {
+          for (int j = 0; j < vDim; j++)
+          {
+              face_f1(j) += f1_dir(i*vDim + j)*nor(i);
+              face_f2(j) += f2_dir(i*vDim + j)*nor(i);
+              face_f (j) += f_dir (i*vDim + j)*nor(i);
+          }
+      }
+
+      w = ip.weight * alpha; 
+
+      subtract(face_f, face_f1, face_f1); //u_comm - u1
+      for (int j = 0; j < vDim; j++)
+      {
+          for (int i = 0; i < ndof1; i++)
+          {
+              elvect(j*ndof1 + i)              += face_f1(j)*w*shape1(i); 
+          }
+      }
+
+      subtract(face_f, face_f2, face_f2); //ucomm - u2
+      for (int j = 0; j < vDim; j++)
+      {
+          for (int i = 0; i < ndof2; i++)
+          {
+              elvect(vDim*ndof1 + j*ndof2 + i) -= face_f2(j)*w*shape2(i); 
+          }
+      }
+
+   }// for ir loop
+
+}
+
+
 
 }

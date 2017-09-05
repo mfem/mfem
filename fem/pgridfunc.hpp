@@ -174,6 +174,8 @@ public:
    double GetValue(ElementTransformation &T)
    { return GetValue(T.ElementNo, T.GetIntPoint()); }
 
+   virtual void GetVectorValue(int i, const IntegrationPoint &ip, Vector &val) const;
+
    using GridFunction::ProjectCoefficient;
    virtual void ProjectCoefficient(Coefficient &coeff);
 

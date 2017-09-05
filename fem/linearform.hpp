@@ -22,7 +22,7 @@ namespace mfem
 /// Class for linear form - Vector with associated FE space and LFIntegrators.
 class LinearForm : public Vector
 {
-private:
+protected:
    /// FE space on which LF lives.
    FiniteElementSpace * fes;
 
@@ -35,6 +35,9 @@ private:
    /// Set of Boundary Face Integrators to be applied.
    Array<LinearFormIntegrator*> flfi;
    Array<Array<int>*>           flfi_marker;
+
+   /// Set of Interior Face Integrators to be applied.
+   Array<LinearFormIntegrator*> ilfi;
 
 public:
    /// Creates linear form associated with FE space *f.
@@ -50,6 +53,9 @@ public:
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator (LinearFormIntegrator * lfi);
+
+   /// Adds new Interior face Integrator.
+   void AddFaceIntegrator (LinearFormIntegrator * lfi);
 
    /// Adds new Boundary Face Integrator.
    void AddBdrFaceIntegrator (LinearFormIntegrator * lfi);

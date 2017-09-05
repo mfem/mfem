@@ -37,6 +37,11 @@ public:
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
 
+   virtual void AssembleRHSElementVect(const FiniteElement &el1,
+                                       const FiniteElement &el2,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
+
    void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
 
    virtual ~LinearFormIntegrator() { }
@@ -349,6 +354,10 @@ public:
                                      double alpha_, double kappa_)
       : uD(uD_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
 
+   DGElasticityDirichletLFIntegrator(VectorCoefficient &uD_,
+                                     double alpha_, double kappa_)
+      : uD(uD_), lambda(NULL), mu(NULL), alpha(alpha_), kappa(kappa_) { }
+
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
@@ -356,6 +365,59 @@ public:
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
 };
+
+
+
+
+/** Interior face Riemann integrator
+    */
+class DGEulerIntegrator : public LinearFormIntegrator
+{
+protected:
+   VectorCoefficient &uD;
+   VectorCoefficient &fD;
+
+   int vDim;//Vector dimension 
+
+   double alpha; // b = alpha*b
+
+   const double gamm  = 1.4;
+   const double R     = 287;
+   const double Cv    = R/(gamm - 1);
+
+#ifndef MFEM_THRAED_SAFE
+   Vector shape;
+   DenseMatrix dshape;
+   DenseMatrix adjJ;
+   DenseMatrix dshape_ps;
+   Vector nor;
+   Vector dshape_dn;
+   Vector dshape_du;
+   Vector u_dir;
+#endif
+
+public:
+   DGEulerIntegrator(VectorCoefficient &uD_, VectorCoefficient &fD_, int vDim_, double alpha_)
+      : uD(uD_), fD(fD_), vDim(vDim_), alpha(alpha_) { }
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
+   //For interior faces
+   virtual void AssembleRHSElementVect(const FiniteElement &el1,
+                                       const FiniteElement &el2,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
+
+   void getEulerFlux(const Vector &u, Vector &f);
+        
+        
+
+};
+
 
 }
 
