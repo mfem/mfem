@@ -93,7 +93,8 @@ MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools)
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
-EM_TEST_DIRS = $(EXAMPLE_TEST_DIRS) $(MINIAPP_TEST_DIRS)
+EM_TEST_DIRS = $(filter-out\
+   $(SKIP_TEST_DIRS),$(EXAMPLE_TEST_DIRS) $(MINIAPP_TEST_DIRS))
 
 # Use BUILD_DIR on the command line; set MFEM_BUILD_DIR before including this
 # makefile or config/config.mk from a separate $(BUILD_DIR).
@@ -217,7 +218,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_USE_MPI MFEM_USE_METIS_5 MFEM_DEBUG\
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
  MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_FLAGS MFEM_LIB_DIR MFEM_LIBS MFEM_LIB_FILE\
  MFEM_BUILD_TAG MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP\
- MFEM_TEST_MK
+ MFEM_MPI_NP MFEM_TEST_MK
 
 # Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
 MFEM_CPPFLAGS  ?= $(CPPFLAGS)
@@ -329,6 +330,7 @@ test:
 	@echo "Testing the MFEM library. This may take a while..."
 	@echo "Building all examples and miniapps..."
 	@$(MAKE) all
+	@echo "Running tests in: [ $(EM_TEST_DIRS) ] ..."
 	@ERR=0; for dir in $(EM_TEST_DIRS); do \
 	   echo "Running tests in $${dir} ..."; \
 	   if ! $(MAKE) -j1 -C $(BLD)$${dir} test; then \
@@ -447,6 +449,7 @@ status info:
 	$(info MFEM_BUILD_DIR       = $(MFEM_BUILD_DIR))
 	$(info MFEM_MPIEXEC         = $(MFEM_MPIEXEC))
 	$(info MFEM_MPIEXEC_NP      = $(MFEM_MPIEXEC_NP))
+	$(info MFEM_MPI_NP          = $(MFEM_MPI_NP))
 	@true
 
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
