@@ -60,7 +60,7 @@ MFEM_MPIEXEC_NP = -np
 # in config.mk and config.hpp.
 
 MFEM_USE_MPI         = NO
-MFEM_DROP_METIS      = NO
+MFEM_USE_METIS       = $(MFEM_USE_MPI)
 MFEM_USE_METIS_5     = NO
 MFEM_DEBUG           = NO
 MFEM_USE_GZSTREAM    = NO

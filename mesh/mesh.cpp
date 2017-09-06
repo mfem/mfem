@@ -24,6 +24,12 @@
 #include <cstring>
 #include <ctime>
 
+// Include the METIS header, if using version 5. If using METIS 4, the needed
+// declarations are inlined below, i.e. no header is needed.
+#if defined(MFEM_USE_METIS) && defined(MFEM_USE_METIS_5)
+#include "metis.h"
+#endif
+
 #ifdef MFEM_USE_GECKO
 #include "graph.h"
 #endif
@@ -4539,8 +4545,7 @@ void Mesh::ReorientTetMesh()
    }
 }
 
-#if defined MFEM_USE_MPI && !defined MFEM_DROP_METIS
-#ifndef MFEM_USE_METIS_5
+#if defined(MFEM_USE_METIS) && !defined(MFEM_USE_METIS_5)
 // METIS 4 prototypes
 typedef int idxtype;
 extern "C" {
@@ -4551,9 +4556,6 @@ extern "C" {
    void METIS_PartGraphVKway(int*, idxtype*, idxtype*, idxtype*, idxtype*,
                              int*, int*, int*, int*, int*, idxtype*);
 }
-#else
-#include "metis.h"
-#endif
 #endif
 
 int *Mesh::CartesianPartitioning(int nxyz[])
@@ -4603,7 +4605,7 @@ int *Mesh::CartesianPartitioning(int nxyz[])
 
 int *Mesh::GeneratePartitioning(int nparts, int part_method)
 {
-#if defined MFEM_USE_MPI && !defined MFEM_DROP_METIS
+#ifdef MFEM_USE_METIS
    int i, *partitioning;
 
    ElementToElementTable();
