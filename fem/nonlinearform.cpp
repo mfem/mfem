@@ -154,7 +154,15 @@ NonlinearForm::~NonlinearForm()
    }
 }
 
-MixedNonlinearForm::MixedNonlinearForm(Array<FiniteElementSpace *>f)
+MixedNonlinearForm::MixedNonlinearForm() :
+   fes(0)
+{
+   height = 0;
+   width = 0;
+   
+}
+
+void MixedNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
 {
    height = 0;
    width = 0;
@@ -181,6 +189,12 @@ MixedNonlinearForm::MixedNonlinearForm(Array<FiniteElementSpace *>f)
          Grads(i,j) = NULL;
       }
    }
+}
+
+
+MixedNonlinearForm::MixedNonlinearForm(Array<FiniteElementSpace *> &f)
+{
+   SetSpaces(f);
 }
 
 void MixedNonlinearForm::AddBdrFaceIntegrator(MixedNonlinearFormIntegrator *fi,

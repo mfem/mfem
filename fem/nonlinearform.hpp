@@ -85,7 +85,11 @@ protected:
    Array<Array<int> > ess_vdofs;
 
 public:
-   MixedNonlinearForm(Array<FiniteElementSpace *>f);
+   MixedNonlinearForm();
+
+   MixedNonlinearForm(Array<FiniteElementSpace *> &f);
+
+   void SetSpaces(Array<FiniteElementSpace *> &f);
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(MixedNonlinearFormIntegrator *mnlfi)

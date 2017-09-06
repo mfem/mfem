@@ -57,7 +57,37 @@ public:
    /// Set the operator type id for the parallel gradient matrix/operator.
    void SetGradientType(Operator::Type tid) { pGrad.SetType(tid); }
 
-   virtual ~ParNonlinearForm() { }
+   virtual ~ParNonlinearForm() { };
+};
+
+/// Parallel non-linear operator on the true dofs
+class ParMixedNonlinearForm : public MixedNonlinearForm
+{
+protected:
+   mutable Array<ParGridFunction> X, Y;
+   mutable Array2D<OperatorHandle> phBlockGrad;
+   mutable BlockOperator *pBlockGrad;
+
+public:
+   ParMixedNonlinearForm(Array<ParFiniteElementSpace *>pf);
+
+   ParFiniteElementSpace *ParFESpace(int block) const;
+
+   // Here, rhs is a true dof vector
+   virtual void SetEssentialBC(const Array<Array<int> >&bdr_attr_is_ess,
+                               Array<Vector> &rhs);
+   
+   virtual void Mult(const BlockVector &x, BlockVector &y) const;
+
+   /// Return the local gradient matrix for the given true-dof vector x
+   const BlockOperator &GetLocalGradient(const BlockVector &x) const;
+
+   virtual BlockOperator &GetGradient(const BlockVector &x) const;
+
+   /// Set the operator type id for the parallel gradient matrix/operator.
+   void SetGradientType(Operator::Type tid);
+
+   virtual ~ParMixedNonlinearForm() { }
 };
 
 }
