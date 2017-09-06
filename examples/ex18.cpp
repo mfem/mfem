@@ -64,22 +64,21 @@ class FE_Evolution : public TimeDependentOperator
 {
 private:
    FiniteElementSpace &fes;
-   Operator &A;
-   const int method;
    FiniteElementSpace &fes_dim;
+   Operator &A;
    SparseMatrix &Aflux;
+   DenseTensor Me_inv;
+
    mutable Vector state;
    mutable DenseMatrix f;
    mutable Vector flux;
-   DenseTensor Me_inv;
-
    mutable Vector z;
 
    void GetFlux(const Vector &x, Vector &y) const;
 
 public:
-   FE_Evolution(FiniteElementSpace &_fes, Operator &_A, const int _method,
-                FiniteElementSpace &_fes_dim, SparseMatrix &_Aflux);
+   FE_Evolution(FiniteElementSpace &_fes, FiniteElementSpace &_fes_dim, Operator &_A,
+                SparseMatrix &_Aflux);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -99,25 +98,17 @@ public:
                const Vector &nor, Vector &flux);
 };
 
-// Element term
+// Constant mixed bilinear form multiplying the flux grid function
 class DomainIntegrator : public BilinearFormIntegrator
 {
 private:
    Vector shape;
-   Vector funval;
-   Vector dsdx;
    DenseMatrix flux;
    DenseMatrix dshapedr;
    DenseMatrix dshapedx;
-   DenseMatrix elfun_mat;
-   DenseMatrix elvect_mat;
 
 public:
    DomainIntegrator(const int dim);
-
-   virtual void AssembleElementVector(const FiniteElement &el,
-                                      ElementTransformation &Tr,
-                                      const Vector &elfun, Vector &elvect);
 
    virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
                                        const FiniteElement &test_fe,
@@ -163,7 +154,6 @@ int main(int argc, char *argv[])
    double t_final = 2;
    double dt = 0.01;
    double cfl = 0.3;
-   int method = 1;
    bool visualization = false;
    int vis_steps = 50;
 
@@ -188,9 +178,6 @@ int main(int argc, char *argv[])
                   "Time step.");
    args.AddOption(&cfl, "-c", "--cfl-number",
                   "CFL number multiplier (negative means use constant dt specified).");
-   args.AddOption(&method, "-me", "--method",
-                  "Solver method: 1 - compute flux at quadrature points,\n\t"
-                  "               2 - compute flux as an L2 GridFunction and use precomputed bilinear form.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -239,30 +226,21 @@ int main(int argc, char *argv[])
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim);
    FiniteElementSpace fes(&mesh, &fec, num_equations, Ordering::byNODES);
-
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
    // 6. Set up the nonlinear form corresponding to the DG
    //    discretization of the flux divergence, and assemble the
    //    corresponding mass matrix.
 
-   NonlinearForm A(&fes);
-
    FiniteElementSpace fes_dim(&mesh, &fec, dim, Ordering::byNODES);
    FiniteElementSpace fes_1(&mesh, &fec, 1, Ordering::byNODES);
    MixedBilinearForm Aflux(&fes_dim, &fes_1);
 
-   if (method == 1)
-   {
-      A.AddDomainIntegrator(new DomainIntegrator(dim));
-   }
-   else if (method == 2)
-   {
-      Aflux.AddDomainIntegrator(new DomainIntegrator(dim));
-      Aflux.Assemble();
-   }
+   Aflux.AddDomainIntegrator(new DomainIntegrator(dim));
+   Aflux.Assemble();
 
    RiemannSolver rsolver;
+   NonlinearForm A(&fes);
    A.AddInteriorFaceIntegrator(new FaceIntegrator(rsolver, dim));
 
    // 7. Define the initial conditions, save the corresponding mesh
@@ -285,10 +263,9 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution euler(fes, A, method, fes_dim, Aflux.SpMat());
+   FE_Evolution euler(fes, fes_dim, A, Aflux.SpMat());
 
    // Determine the minimum element size
-
    double hmin;
    if (cfl > 0)
    {
@@ -369,18 +346,18 @@ int main(int argc, char *argv[])
 }
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(FiniteElementSpace &_fes, Operator &_A, int _method,
-                           FiniteElementSpace &_fes_dim, SparseMatrix &_Aflux)
+FE_Evolution::FE_Evolution(FiniteElementSpace &_fes,
+                           FiniteElementSpace &_fes_dim,
+                           Operator &_A, SparseMatrix &_Aflux)
    : TimeDependentOperator(_A.Height()),
      fes(_fes),
-     A(_A),
-     method(_method),
      fes_dim(_fes_dim),
+     A(_A),
      Aflux(_Aflux),
+     Me_inv(fes.GetFE(0)->GetDof(), fes.GetFE(0)->GetDof(), fes.GetNE()),
      state(num_equations),
      f(num_equations, fes.GetFE(0)->GetDim()),
      flux(fes.GetVSize() * fes.GetFE(0)->GetDim()),
-     Me_inv(fes.GetFE(0)->GetDof(), fes.GetFE(0)->GetDof(), fes.GetNE()),
      z(A.Height())
 {
    // Standard local assembly and inversion for energy mass matrices.
@@ -398,32 +375,37 @@ FE_Evolution::FE_Evolution(FiniteElementSpace &_fes, Operator &_A, int _method,
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   // Reset wavespeed calculation before step
+   // 0. Reset wavespeed computation before operator application.
    max_char_speed = 0.;
+
+   // 1. Create the vector z with the face terms -<F.n(u), [w]>.
    A.Mult(x, z);
 
+   // 2. Add the element terms.
+   // i.  computing the flux approximately as a grid function by
+   //     interpolating at the solution nodes.
+   // ii. multiplying this grid function by a (constant) mixed
+   //     bilinear form for each of the num_equations, computing
+   //     (F(u), grad(w)) for each equation.
+
+   // NOTE: fes_dim and fes (and by extension the gf flux) must be
+   // byNODES for this trick to work
    MFEM_ASSERT(fes_dim.GetOrdering() == Ordering::byNODES, "");
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
-
-   if (method == 2)
+   GetFlux(x, flux);
+   for (int k = 0; k < num_equations; k++)
    {
-      GetFlux(x, flux);
-      // NOTE: fes_dim and fes (and by extension the gf flux) must be
-      // byNODES for this trick to work
-      for (int k = 0; k < num_equations; k++)
-      {
-         Vector fk(flux.GetData() + k * fes_dim.GetVSize(), fes_dim.GetVSize());
-         Vector zk(z.GetData() + k * fes.GetNDofs(), fes_dim.GetNDofs());
-         Aflux.AddMult(fk, zk);
-      }
+      Vector fk(flux.GetData() + k * fes_dim.GetVSize(), fes_dim.GetVSize());
+      Vector zk(z.GetData() + k * fes.GetNDofs(), fes_dim.GetNDofs());
+      Aflux.AddMult(fk, zk);
    }
 
-   const int dofs = fes.GetFE(0)->GetDof();
+   // 3. Multiply element-wise by the inverse mass matrices.
+   Vector zval;
    Array<int> vdofs;
-   Vector zval(dofs * num_equations);
+   const int dofs = fes.GetFE(0)->GetDof();
    DenseMatrix zmat, ymat(dofs, num_equations);
 
-   y = 0.;
    for (int i = 0; i < fes.GetNE(); i++)
    {
       // Return the vdofs ordered byNODES
@@ -431,7 +413,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       z.GetSubVector(vdofs, zval);
       zmat.UseExternalData(zval.GetData(), dofs, num_equations);
       mfem::Mult(Me_inv(i), zmat, ymat);
-      y.AddElementVector(vdofs, ymat.GetData());
+      y.SetSubVector(vdofs, ymat.GetData());
    }
 }
 
@@ -496,6 +478,7 @@ void u0_function(const Vector &x, Vector &y)
    y(3) = den * energy;
 }
 
+// Pressure (EOS) computation
 inline double ComputePressure(const Vector &state, int dim)
 {
    const double den = state(0);
@@ -512,6 +495,7 @@ inline double ComputePressure(const Vector &state, int dim)
 // Physicality check (at end)
 bool StateIsPhysical(const Vector &state, const int dim);
 
+// Compute the vector flux F(u)
 void ComputeFlux(const Vector &state, int dim, DenseMatrix &flux)
 {
    const double den = state(0);
@@ -537,6 +521,7 @@ void ComputeFlux(const Vector &state, int dim, DenseMatrix &flux)
    }
 }
 
+// Compute the scalar F(u).n
 void ComputeFluxDotN(const Vector &state, const Vector &nor,
                      Vector &fluxN)
 {
@@ -563,6 +548,7 @@ void ComputeFluxDotN(const Vector &state, const Vector &nor,
    fluxN(1 + dim) = den_velN * H;
 }
 
+// Compute the maximum characteristic speed.
 inline double ComputeMaxCharSpeed(const Vector &state, const int dim)
 {
    const double den = state(0);
@@ -616,14 +602,15 @@ double RiemannSolver::Eval(const Vector &state1, const Vector &state2,
    return maxE;
 }
 
+// Compute the flux at solution nodes.
 void FE_Evolution::GetFlux(const Vector &x, Vector &flux) const
 {
+   // NOTE: fes must be byNODES for this logic to work.
    const int dof0 = fes.GetNDofs();
    const int dim  = fes.GetFE(0)->GetDim();
 
    for (int i = 0; i < dof0; i++)
    {
-      // NOTE: fes must be byNODES for this to work
       for (int k = 0; k < num_equations; k++) state(k) = x(i + k * dof0);
 
       ComputeFlux(state, dim, f);
@@ -638,55 +625,7 @@ void FE_Evolution::GetFlux(const Vector &x, Vector &flux) const
    }
 }
 
-DomainIntegrator::DomainIntegrator(const int dim) :
-   funval(num_equations),
-   flux(num_equations, dim) { }
-
-void DomainIntegrator::AssembleElementVector(const FiniteElement &el,
-                                             ElementTransformation &Tr,
-                                             const Vector &elfun, Vector &elvect)
-{
-   const int dof = el.GetDof();
-   const int dim = el.GetDim();
-
-   shape.SetSize(dof);
-   dshapedr.SetSize(dof, dim);
-   dshapedx.SetSize(dof, dim);
-
-   elvect.SetSize(dof * num_equations);
-   elvect = 0.0;
-
-   elfun_mat.UseExternalData(elfun.GetData(), dof, num_equations);
-   elvect_mat.UseExternalData(elvect.GetData(), dof, num_equations);
-
-   const int intorder = 2 * el.GetOrder() + 1;
-   const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), intorder);
-
-   for (int i = 0; i < ir->GetNPoints(); i++)
-   {
-      const IntegrationPoint &ip = ir->IntPoint(i);
-
-      // Interpolate elfun at the point
-      el.CalcShape(ip, shape);
-      elfun_mat.MultTranspose(shape, funval);
-
-      // Compute the physical gradients of the test functions
-      Tr.SetIntPoint(&ip);
-      el.CalcDShape(ip, dshapedr);
-      Mult(dshapedr, Tr.AdjugateJacobian(), dshapedx);
-
-      // Update max char speed
-      const double mcs = ComputeMaxCharSpeed(funval, dim);
-      if (mcs > max_char_speed) max_char_speed = mcs;
-
-      // Compute the flux
-      ComputeFlux(funval, dim, flux);
-      flux *= ip.weight;
-
-      // Multiply and add to output
-      AddMultABt(dshapedx, flux, elvect_mat);
-   }
-}
+DomainIntegrator::DomainIntegrator(const int dim) : flux(num_equations, dim) { }
 
 void DomainIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
                                               const FiniteElement &test_fe,
@@ -726,7 +665,6 @@ void DomainIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
       test_fe.CalcDShape(ip, dshapedr);
       Mult(dshapedr, Tr.AdjugateJacobian(), dshapedx);
 
-      // TODO: Clean this up in the future if the method pans out
       for (int d = 0; d < dim; d++)
       {
          for (int j = 0; j < dof_test; j++)
@@ -753,6 +691,7 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
                                         FaceElementTransformations &Tr,
                                         const Vector &elfun, Vector &elvect)
 {
+   // Compute the term <F.n(u),[w]> on the interior faces.
    const int dof1 = el1.GetDof();
    const int dof2 = el2.GetDof();
 
