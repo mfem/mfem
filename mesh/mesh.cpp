@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstring>
 #include <ctime>
+#include <functional>
 
 // Include the METIS header, if using version 5. If using METIS 4, the needed
 // declarations are inlined below, i.e. no header is needed.

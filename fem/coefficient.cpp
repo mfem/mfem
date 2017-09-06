@@ -186,7 +186,7 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 
    T.Transform(ip, transip);
 
-   K.SetSize(vdim);
+   K.SetSize(height, width);
 
    if (Function)
    {
@@ -209,27 +209,27 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 MatrixArrayCoefficient::MatrixArrayCoefficient (int dim)
    : MatrixCoefficient (dim)
 {
-   Coeff.SetSize (vdim*vdim);
+   Coeff.SetSize(height*width);
 }
 
 MatrixArrayCoefficient::~MatrixArrayCoefficient ()
 {
-   for (int i=0; i< vdim*vdim; i++)
+   for (int i=0; i < height*width; i++)
    {
       delete Coeff[i];
    }
 }
 
-void MatrixArrayCoefficient::Eval (DenseMatrix &K, ElementTransformation &T,
-                                   const IntegrationPoint &ip)
+void MatrixArrayCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
+                                  const IntegrationPoint &ip)
 {
-   int i, j;
-
-   for (i = 0; i < vdim; i++)
-      for (j = 0; j < vdim; j++)
+   for (int i = 0; i < height; i++)
+   {
+      for (int j = 0; j < width; j++)
       {
-         K(i,j) = Coeff[i*vdim+j] -> Eval(T, ip, GetTime());
+         K(i,j) = Coeff[i*width+j] -> Eval(T, ip, GetTime());
       }
+   }
 }
 
 void MatrixRestrictedCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
@@ -242,7 +242,7 @@ void MatrixRestrictedCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
    else
    {
-      K.SetSize(vdim);
+      K.SetSize(height, width);
       K = 0.0;
    }
 }
