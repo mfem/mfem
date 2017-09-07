@@ -2,7 +2,14 @@
 //
 // Compile with: make ex18
 //
-// Sample runs: TBD
+// Sample runs:
+//
+//       ex18 -p 1 -r 2 -o 1 -s 3
+//       ex18 -p 1 -r 1 -o 3 -s 4
+//       ex18 -p 1 -r 0 -o 5 -s 6
+//       ex18 -p 2 -r 2 -o 1 -s 3
+//       ex18 -p 2 -r 1 -o 3 -s 3
+//       ex18 -p 2 -r 0 -o 5 -s 3
 //
 // Description: This example code solves the compressible Euler system
 //              of equations, a model nonlinear hyperbolic PDE, with a
@@ -120,10 +127,6 @@ private:
    Vector funval2;
    Vector nor;
    Vector fluxN;
-   DenseMatrix elfun1_mat;
-   DenseMatrix elfun2_mat;
-   DenseMatrix elvect1_mat;
-   DenseMatrix elvect2_mat;
    IntegrationPoint eip1;
    IntegrationPoint eip2;
 
@@ -231,15 +234,15 @@ int main(int argc, char *argv[])
    //    opened with GLvis with the -gc option.
    Array<int> offsets(num_equation + 1);
    for (int k = 0; k <= num_equation; k++) { offsets[k] = k * vfes.GetNDofs(); }
-   BlockVector u(offsets);
+   BlockVector u_block(offsets);
 
    // Density grid function for visualization.
-   GridFunction den(&fes, u.GetBlock(0));
+   GridFunction mom(&dfes, u_block.GetData() + offsets[1]);
 
    // Initialize the block vector state: define a vector finite
    // element space for all equations and initialize together.
    VectorFunctionCoefficient u0(num_equation, u0_function);
-   GridFunction sol(&vfes, u.GetData());
+   GridFunction sol(&vfes, u_block.GetData());
    sol.ProjectCoefficient(u0);
 
    // Output the initial solution.
@@ -250,7 +253,7 @@ int main(int argc, char *argv[])
 
       for (int k = 0; k < num_equation; k++)
       {
-         GridFunction uk(&fes, u.GetBlock(k));
+         GridFunction uk(&fes, u_block.GetBlock(k));
          ostringstream sol_name;
          sol_name << "vortex-" << k << "-init.gf";
          ofstream sol_ofs(sol_name.str().c_str());
@@ -293,7 +296,7 @@ int main(int argc, char *argv[])
       else
       {
          sout.precision(precision);
-         sout << "solution\n" << mesh << den;
+         sout << "solution\n" << mesh << mom;
          sout << "pause\n";
          sout << flush;
          cout << "GLVis visualization paused."
@@ -323,9 +326,9 @@ int main(int argc, char *argv[])
    if (cfl > 0)
    {
       // Find a safe dt, using a temporary vector.
-      Vector z(u.Size());
+      Vector z(A.Width());
       max_char_speed = 0.;
-      A.Mult(u, z);
+      A.Mult(sol, z);
       dt = cfl * hmin / max_char_speed / (2*order+1);
    }
 
@@ -335,7 +338,7 @@ int main(int argc, char *argv[])
    {
       double dt_real = min(dt, t_final - t);
 
-      ode_solver->Step(u, t, dt_real);
+      ode_solver->Step(sol, t, dt_real);
       if (cfl > 0)
       {
          dt = cfl * hmin / max_char_speed / (2*order+1);
@@ -346,11 +349,10 @@ int main(int argc, char *argv[])
       if (done || ti % vis_steps == 0)
       {
          cout << "time step: " << ti << ", time: " << t << endl;
-      }
-
-      if (visualization)
-      {
-         sout << "solution\n" << mesh << den << flush;
+         if (visualization)
+         {
+            sout << "solution\n" << mesh << mom << flush;
+         }
       }
    }
 
@@ -362,7 +364,7 @@ int main(int argc, char *argv[])
    // Output the initial solution
    for (int k = 0; k < num_equation; k++)
    {
-      GridFunction uk(&fes, u.GetBlock(k));
+      GridFunction uk(&fes, u_block.GetBlock(k));
       ostringstream sol_name;
       sol_name << "vortex-" << k << "-final.gf";
       ofstream sol_ofs(sol_name.str().c_str());
@@ -441,17 +443,14 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    const int dof = vfes.GetFE(0)->GetDof();
    DenseMatrix zmat, ymat(dof, num_equation);
 
-   for (int k = 0; k < num_equation; k++)
+   for (int i = 0; i < vfes.GetNE(); i++)
    {
-      for (int i = 0; i < vfes.GetNE(); i++)
-      {
-         // Return the vdofs ordered byNODES
-         vfes.GetElementVDofs(i, vdofs);
-         z.GetSubVector(vdofs, zval);
-         zmat.UseExternalData(zval.GetData(), dof, num_equation);
-         mfem::Mult(Me_inv(i), zmat, ymat);
-         y.SetSubVector(vdofs, ymat.GetData());
-      }
+      // Return the vdofs ordered byNODES
+      vfes.GetElementVDofs(i, vdofs);
+      z.GetSubVector(vdofs, zval);
+      zmat.UseExternalData(zval.GetData(), dof, num_equation);
+      mfem::Mult(Me_inv(i), zmat, ymat);
+      y.SetSubVector(vdofs, ymat.GetData());
    }
 }
 
@@ -479,7 +478,7 @@ void u0_function(const Vector &x, Vector &y)
    else
    {
       mfem_error("Cannot recognize problem."
-                 "Options are: 1 - slow vortex, 2 - fast vortex");
+                 "Options are: 1 - fast vortex, 2 - slow vortex");
    }
 
    const double xc = 0.0, yc = 0.0;
@@ -737,12 +736,12 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
    elvect.SetSize((dof1 + dof2) * num_equation);
    elvect = 0.0;
 
-   elfun1_mat.UseExternalData(elfun.GetData(), dof1, num_equation);
-   elfun2_mat.UseExternalData(elfun.GetData() + dof1 * num_equation, dof2,
+   DenseMatrix elfun1_mat(elfun.GetData(), dof1, num_equation);
+   DenseMatrix elfun2_mat(elfun.GetData() + dof1 * num_equation, dof2,
                               num_equation);
 
-   elvect1_mat.UseExternalData(elvect.GetData(), dof1, num_equation);
-   elvect2_mat.UseExternalData(elvect.GetData() + dof1 * num_equation, dof2,
+   DenseMatrix elvect1_mat(elvect.GetData(), dof1, num_equation);
+   DenseMatrix elvect2_mat(elvect.GetData() + dof1 * num_equation, dof2,
                               num_equation);
 
    const int order = std::max(el1.GetOrder(), el2.GetOrder());

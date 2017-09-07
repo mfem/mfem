@@ -1,8 +1,15 @@
-//                                MFEM Example 18
+//                         MFEM Example 18 - Parallel Version
 //
 // Compile with: make ex18
 //
-// Sample runs: TODO
+// Sample runs:
+//
+//       mpirun -np 1 ex18 -p 1 -rs 2 -rp 0 -o 1 -s 3
+//       mpirun -np 1 ex18 -p 1 -rs 1 -rp 0 -o 3 -s 4
+//       mpirun -np 1 ex18 -p 1 -rs 0 -rp 0 -o 5 -s 6
+//       mpirun -np 1 ex18 -p 2 -rs 2 -rp 0 -o 1 -s 3
+//       mpirun -np 1 ex18 -p 2 -rs 1 -rp 0 -o 3 -s 3
+//       mpirun -np 1 ex18 -p 2 -rs 0 -rp 0 -o 5 -s 3
 //
 // Description: This example code solves the compressible Euler system
 //              of equations, a model nonlinear hyperbolic PDE, with a
@@ -39,7 +46,7 @@ using namespace mfem;
 int problem;
 
 // Equation constant parameters.
-const int num_equations = 4;
+const int num_equation = 4;
 const double specific_heat_ratio = 1.4;
 const double gas_constant = 1.0;
 
@@ -54,22 +61,23 @@ void u0_function(const Vector &x, Vector &u0);
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   ParFiniteElementSpace &fes;
-   FiniteElementSpace &fes_dim;
+   const int dim;
+
+   ParFiniteElementSpace &vfes;
    Operator &A;
    SparseMatrix &Aflux;
    DenseTensor Me_inv;
 
    mutable Vector state;
    mutable DenseMatrix f;
-   mutable Vector flux;
+   mutable DenseTensor flux;
    mutable Vector z;
 
-   void GetFlux(const Vector &x, Vector &y) const;
+   void GetFlux(const DenseMatrix &state, DenseTensor &flux) const;
 
 public:
-   FE_Evolution(ParFiniteElementSpace &_fes, FiniteElementSpace &_fes_dim,
-                Operator &_A, SparseMatrix &_Aflux);
+   FE_Evolution(ParFiniteElementSpace &_vfes, Operator &_A,
+                SparseMatrix &_Aflux);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -88,6 +96,7 @@ public:
    double Eval(const Vector &state1, const Vector &state2,
                const Vector &nor, Vector &flux);
 };
+
 
 // Constant mixed bilinear form multiplying the flux grid function
 class DomainIntegrator : public BilinearFormIntegrator
@@ -118,10 +127,6 @@ private:
    Vector funval2;
    Vector nor;
    Vector fluxN;
-   DenseMatrix elfun1_mat;
-   DenseMatrix elfun2_mat;
-   DenseMatrix elvect1_mat;
-   DenseMatrix elvect2_mat;
    IntegrationPoint eip1;
    IntegrationPoint eip2;
 
@@ -142,7 +147,7 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    problem = 1;
    const char *mesh_file = "../data/periodic-square.mesh";
-   int ser_ref_levels = -1;
+   int ser_ref_levels = 1;
    int par_ref_levels = 1;
    int order = 3;
    int ode_solver_type = 4;
@@ -201,10 +206,6 @@ int main(int argc, char *argv[])
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
    //    command-line parameter.
-   if (ser_ref_levels < 0)
-   {
-      ser_ref_levels = (int)floor(log(1000./mesh.GetNE())/log(2.)/dim);
-   }
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh.UniformRefinement();
@@ -237,58 +238,104 @@ int main(int argc, char *argv[])
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim);
-   ParFiniteElementSpace fes(&pmesh, &fec, num_equations, Ordering::byNODES);
+   ParFiniteElementSpace fes(&pmesh, &fec);
+   ParFiniteElementSpace dfes(&pmesh, &fec, dim, Ordering::byNODES);
+   ParFiniteElementSpace vfes(&pmesh, &fec, num_equation, Ordering::byNODES);
+   cout << "Number of unknowns: " << vfes.GetVSize() << endl;
 
-   if (mpi.Root())
-   {
-      cout << "Number of unknowns: " << fes.GetVSize() << endl;
-   }
+   // Much of this example depends on this ordering of the space.
+   MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
 
-   // 6. Set up the nonlinear form corresponding to the DG
-   //    discretization of the flux divergence, and assemble the
-   //    corresponding mass matrix.
-
-   // NOTE: The mixed bilinear form does not rely on neighbor data, so
-   // it does not need parallel communication
-   FiniteElementSpace fes_dim(&pmesh, &fec, dim, Ordering::byNODES);
-   FiniteElementSpace fes_1(&pmesh, &fec, 1, Ordering::byNODES);
-   MixedBilinearForm Aflux(&fes_dim, &fes_1);
-
-   Aflux.AddDomainIntegrator(new DomainIntegrator(dim));
-   Aflux.Assemble();
-
-   RiemannSolver rsolver;
-   ParNonlinearForm A(&fes);
-   A.AddInteriorFaceIntegrator(new FaceIntegrator(rsolver, dim));
-
-   // 7. Define the initial conditions, save the corresponding mesh
+   // 6. Define the initial conditions, save the corresponding mesh
    //    and grid functions to a file. Note again that the file can be
    //    opened with GLvis with the -gc option.
-   VectorFunctionCoefficient u0(num_equations, u0_function);
-   ParGridFunction u(&fes);
-   u.ProjectCoefficient(u0);
-   HypreParVector &U = *u.GetTrueDofs();
+   Array<int> offsets(num_equation + 1);
+   for (int k = 0; k <= num_equation; k++) { offsets[k] = k * vfes.GetNDofs(); }
+   BlockVector u_block(offsets);
 
+   // Density grid function for visualization.
+   ParGridFunction mom(&dfes, u_block.GetData() + offsets[1]);
+
+   // Initialize the block vector state: define a vector finite
+   // element space for all equations and initialize together.
+   VectorFunctionCoefficient u0(num_equation, u0_function);
+   ParGridFunction sol(&vfes, u_block.GetData());
+   sol.ProjectCoefficient(u0);
+   HypreParVector *U = sol.GetTrueDofs();
+
+   // Output the initial solution.
    {
-      ostringstream mesh_name, sol_name;
-      mesh_name << "vortex." << setfill('0') << setw(6) << mpi.WorldRank();
-      sol_name << "vortex-init." << setfill('0') << setw(6) << mpi.WorldRank();
-
+      ostringstream mesh_name;
+      mesh_name << "vortex-mesh." << setfill('0') << setw(6) << mpi.WorldRank();
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(precision);
       mesh_ofs << pmesh;
+   }
 
+   for (int k = 0; k < num_equation; k++)
+   {
+      // TODO: Does fes need to be a ParFiniteElementSpace to create a ParGridFunction for output?
+      // TODO: Furthermore, does uk HAVE to be ParGridFunction to be output here?
+      ParGridFunction uk(&fes, u_block.GetBlock(k));
+      ostringstream sol_name;
+      sol_name << "vortex-" << k << "-init."
+                << setfill('0') << setw(6) << mpi.WorldRank();
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(precision);
-      sol_ofs << u;
+      sol_ofs << uk;
    }
+
+   // 7. Set up the nonlinear form corresponding to the DG
+   //    discretization of the flux divergence, and assemble the
+   //    corresponding mass matrix.
+   MixedBilinearForm Aflux(&dfes, &fes);
+   Aflux.AddDomainIntegrator(new DomainIntegrator(dim));
+   Aflux.Assemble();
+
+   ParNonlinearForm A(&vfes);
+   RiemannSolver rsolver;
+   A.AddInteriorFaceIntegrator(new FaceIntegrator(rsolver, dim));
 
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution euler(fes, fes_dim, A, Aflux.SpMat());
+   FE_Evolution euler(vfes, A, Aflux.SpMat());
 
-   // Determine the minimum element size
+   // Visualize the density
+   socketstream sout;
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+
+      MPI_Barrier(pmesh.GetComm());
+      sout.open(vishost, visport);
+      if (!sout)
+      {
+         if (mpi.Root())
+         {
+            cout << "Unable to connect to GLVis server at "
+                 << vishost << ':' << visport << endl;
+         }
+         visualization = false;
+         if (mpi.Root()) cout << "GLVis visualization disabled.\n";
+      }
+      else
+      {
+         sout << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
+         sout.precision(precision);
+         sout << "solution\n" << pmesh << mom;
+         sout << "pause\n";
+         sout << flush;
+         if (mpi.Root())
+         {
+            cout << "GLVis visualization paused."
+                 << " Press space (in the GLVis window) to resume it.\n";
+         }
+      }
+   }
+
+   // Determine the minimum element size.
    double hmin;
    if (cfl > 0)
    {
@@ -301,6 +348,7 @@ int main(int argc, char *argv[])
       MPI_Allreduce(&my_hmin, &hmin, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
    }
 
+   // Start the timer.
    tic_toc.Clear();
    tic_toc.Start();
 
@@ -311,9 +359,10 @@ int main(int argc, char *argv[])
    if (cfl > 0)
    {
       // Find a safe dt, using a temporary vector.
-      Vector z(u.Size());
       max_char_speed = 0.;
-      A.Mult(U, z);
+      HypreParVector *Z = vfes.NewTrueDofVector();
+      A.Mult(*U, *Z);
+      delete Z;
       // Reduce to find the global maximum wave speed
       {
          double all_max_char_speed = max_char_speed;
@@ -325,12 +374,13 @@ int main(int argc, char *argv[])
       dt = cfl * hmin / max_char_speed / (2*order+1);
    }
 
+   // Integrate in time.
    bool done = false;
    for (int ti = 0; !done; )
    {
       double dt_real = min(dt, t_final - t);
 
-      ode_solver->Step(U, t, dt_real);
+      ode_solver->Step(*U, t, dt_real);
       if (cfl > 0)
       {
          // Reduce to find the global maximum wave speed
@@ -347,67 +397,77 @@ int main(int argc, char *argv[])
       done = (t >= t_final - 1e-8*dt);
       if (done || ti % vis_steps == 0)
       {
-         if (mpi.Root())
+         if (mpi.Root()) { cout << "time step: " << ti << ", time: " << t << endl; }
+
+         if (visualization)
          {
-            cout << "time step: " << ti << ", time: " << t << endl;
+            // 11. Extract the parallel grid function corresponding to the finite
+            //     element approximation U (the local solution on each processor).
+            sol = *U;
+
+            MPI_Barrier(pmesh.GetComm());
+            sout << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
+            sout << "solution\n" << pmesh << mom << flush;
          }
-
-         // TODO: Enable visualization in parallel
       }
+
    }
 
-   MPI_Barrier(MPI_COMM_WORLD);
    tic_toc.Stop();
-   if (mpi.Root())
-   {
-      cout << " done, " << tic_toc.RealTime() << "s." << endl;
-   }
+   cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m vortex.mesh -g vortex-final.gf -gc 1".
+   // Output the initial solution
+   for (int k = 0; k < num_equation; k++)
    {
-      ostringstream sol_name;
-      sol_name << "vortex-final." << setfill('0') << setw(6) << mpi.WorldRank();
+      sol = *U;
 
+      ParGridFunction uk(&fes, u_block.GetBlock(k));
+      ostringstream sol_name;
+      sol_name << "vortex-" << k << "-final."
+                << setfill('0') << setw(6) << mpi.WorldRank();
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(precision);
-      sol_ofs << u;
+      sol_ofs << uk;
    }
 
-   // 10. Compute the solution error.
-   VectorFunctionCoefficient coeff(num_equations, u0_function);
-   const double error = u.ComputeLpError(2, coeff);
-   cout << "Solution error: " << error << endl;
+   // 10. Compute the L2 solution error summed for all components.
+   if (t_final == 2.0)
+   {
+      const double error = sol.ComputeLpError(2, u0);
+      cout << "Solution error: " << error << endl;
+   }
 
    // Free the used memory.
    delete ode_solver;
+   delete U;
 
    return 0;
 }
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(ParFiniteElementSpace &_fes,
-                           FiniteElementSpace &_fes_dim,
+FE_Evolution::FE_Evolution(ParFiniteElementSpace &_vfes,
                            Operator &_A, SparseMatrix &_Aflux)
    : TimeDependentOperator(_A.Height()),
-     fes(_fes),
-     fes_dim(_fes_dim),
+     dim(_vfes.GetFE(0)->GetDim()),
+     vfes(_vfes),
      A(_A),
      Aflux(_Aflux),
-     Me_inv(fes.GetFE(0)->GetDof(), fes.GetFE(0)->GetDof(), fes.GetNE()),
-     state(num_equations),
-     f(num_equations, fes.GetFE(0)->GetDim()),
-     flux(fes.GetVSize() * fes.GetFE(0)->GetDim()),
+     Me_inv(vfes.GetFE(0)->GetDof(), vfes.GetFE(0)->GetDof(), vfes.GetNE()),
+     state(num_equation),
+     f(num_equation, dim),
+     flux(vfes.GetNDofs(), dim, num_equation),
      z(A.Height())
 {
    // Standard local assembly and inversion for energy mass matrices.
-   const int dof = fes.GetFE(0)->GetDof();
+   const int dof = vfes.GetFE(0)->GetDof();
    DenseMatrix Me(dof);
    DenseMatrixInverse inv(&Me);
    MassIntegrator mi;
-   for (int i = 0; i < fes.GetNE(); i++)
+   for (int i = 0; i < vfes.GetNE(); i++)
    {
-      mi.AssembleElementMatrix(*fes.GetFE(i), *fes.GetElementTransformation(i), Me);
+      mi.AssembleElementMatrix(*vfes.GetFE(i), *vfes.GetElementTransformation(i), Me);
       inv.Factor();
       inv.GetInverseMatrix(Me_inv(i));
    }
@@ -419,40 +479,37 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    max_char_speed = 0.;
 
    // 1. Create the vector z with the face terms -<F.n(u), [w]>.
-   // This is the only place communication needs to happen.
    A.Mult(x, z);
 
    // 2. Add the element terms.
    // i.  computing the flux approximately as a grid function by
    //     interpolating at the solution nodes.
    // ii. multiplying this grid function by a (constant) mixed
-   //     bilinear form for each of the num_equations, computing
+   //     bilinear form for each of the num_equation, computing
    //     (F(u), grad(w)) for each equation.
 
-   // NOTE: fes_dim and fes (and by extension the gf flux) must be
-   // byNODES for this trick to work
-   MFEM_ASSERT(fes_dim.GetOrdering() == Ordering::byNODES, "");
-   MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
-   GetFlux(x, flux);
-   for (int k = 0; k < num_equations; k++)
+   DenseMatrix xmat(x.GetData(), vfes.GetNDofs(), num_equation);
+   GetFlux(xmat, flux);
+
+   for (int k = 0; k < num_equation; k++)
    {
-      Vector fk(flux.GetData() + k * fes_dim.GetVSize(), fes_dim.GetVSize());
-      Vector zk(z.GetData() + k * fes.GetNDofs(), fes_dim.GetNDofs());
+      Vector fk(flux(k).GetData(), dim * vfes.GetNDofs());
+      Vector zk(z.GetData() + k * vfes.GetNDofs(), vfes.GetNDofs());
       Aflux.AddMult(fk, zk);
    }
 
    // 3. Multiply element-wise by the inverse mass matrices.
    Vector zval;
    Array<int> vdofs;
-   const int dofs = fes.GetFE(0)->GetDof();
-   DenseMatrix zmat, ymat(dofs, num_equations);
+   const int dof = vfes.GetFE(0)->GetDof();
+   DenseMatrix zmat, ymat(dof, num_equation);
 
-   for (int i = 0; i < fes.GetNE(); i++)
+   for (int i = 0; i < vfes.GetNE(); i++)
    {
       // Return the vdofs ordered byNODES
-      fes.GetElementVDofs(i, vdofs);
+      vfes.GetElementVDofs(i, vdofs);
       z.GetSubVector(vdofs, zval);
-      zmat.UseExternalData(zval.GetData(), dofs, num_equations);
+      zmat.UseExternalData(zval.GetData(), dof, num_equation);
       mfem::Mult(Me_inv(i), zmat, ymat);
       y.SetSubVector(vdofs, ymat.GetData());
    }
@@ -482,7 +539,7 @@ void u0_function(const Vector &x, Vector &y)
    else
    {
       mfem_error("Cannot recognize problem."
-                 "Options are: 1 - slow vortex, 2 - fast vortex");
+                 "Options are: 1 - fast vortex, 2 - slow vortex");
    }
 
    const double xc = 0.0, yc = 0.0;
@@ -549,16 +606,16 @@ void ComputeFlux(const Vector &state, int dim, DenseMatrix &flux)
 
    for (int d = 0; d < dim; d++)
    {
-      flux(0,d) = den_vel(d);
+      flux(0, d) = den_vel(d);
       for (int i = 0; i < dim; i++)
-         flux(1+i,d) = den_vel(i) * den_vel(d) / den;
-      flux(1+d,d) += pres;
+         flux(1+i, d) = den_vel(i) * den_vel(d) / den;
+      flux(1+d, d) += pres;
    }
 
    const double H = (den_energy + pres) / den;
    for (int d = 0; d < dim; d++)
    {
-      flux(1+dim,d) = den_vel(d) * H;
+      flux(1+dim, d) = den_vel(d) * H;
    }
 }
 
@@ -607,8 +664,8 @@ inline double ComputeMaxCharSpeed(const Vector &state, const int dim)
 }
 
 RiemannSolver::RiemannSolver() :
-   flux1(num_equations),
-   flux2(num_equations) { }
+   flux1(num_equation),
+   flux2(num_equation) { }
 
 double RiemannSolver::Eval(const Vector &state1, const Vector &state2,
                            const Vector &nor, Vector &flux)
@@ -634,7 +691,7 @@ double RiemannSolver::Eval(const Vector &state1, const Vector &state2,
    }
    normag = sqrt(normag);
 
-   for (int i = 0; i < num_equations; i++)
+   for (int i = 0; i < num_equation; i++)
    {
       flux(i) = 0.5 * (flux1(i) + flux2(i))
          - 0.5 * maxE * (state2(i) - state1(i)) * normag;
@@ -644,29 +701,27 @@ double RiemannSolver::Eval(const Vector &state1, const Vector &state2,
 }
 
 // Compute the flux at solution nodes.
-void FE_Evolution::GetFlux(const Vector &x, Vector &flux) const
+void FE_Evolution::GetFlux(const DenseMatrix &x, DenseTensor &flux) const
 {
-   // NOTE: fes must be byNODES for this logic to work.
-   const int dof0 = fes.GetNDofs();
-   const int dim  = fes.GetFE(0)->GetDim();
+   const int dof = flux.SizeI();
+   const int dim = flux.SizeJ();
 
-   for (int i = 0; i < dof0; i++)
+   for (int i = 0; i < dof; i++)
    {
-      for (int k = 0; k < num_equations; k++) state(k) = x(i + k * dof0);
-
+      for (int k = 0; k < num_equation; k++) state(k) = x(i, k);
       ComputeFlux(state, dim, f);
 
       for (int d = 0; d < dim; d++)
       {
-         for (int k = 0; k < num_equations; k++)
+         for (int k = 0; k < num_equation; k++)
          {
-            flux(i + d * dof0 + k * dof0 * dim) = f(k, d);
+            flux(i, d, k) = f(k, d);
          }
       }
    }
 }
 
-DomainIntegrator::DomainIntegrator(const int dim) : flux(num_equations, dim) { }
+DomainIntegrator::DomainIntegrator(const int dim) : flux(num_equation, dim) { }
 
 void DomainIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
                                               const FiniteElement &test_fe,
@@ -722,10 +777,10 @@ void DomainIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
 
 FaceIntegrator::FaceIntegrator(RiemannSolver &rsolver_, const int dim) :
    rsolver(rsolver_),
-   funval1(num_equations),
-   funval2(num_equations),
+   funval1(num_equation),
+   funval2(num_equation),
    nor(dim),
-   fluxN(num_equations) { }
+   fluxN(num_equation) { }
 
 void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
                                         const FiniteElement &el2,
@@ -739,16 +794,16 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
    shape1.SetSize(dof1);
    shape2.SetSize(dof2);
 
-   elvect.SetSize((dof1 + dof2) * num_equations);
+   elvect.SetSize((dof1 + dof2) * num_equation);
    elvect = 0.0;
 
-   elfun1_mat.UseExternalData(elfun.GetData(), dof1, num_equations);
-   elfun2_mat.UseExternalData(elfun.GetData() + dof1 * num_equations, dof2,
-                              num_equations);
+   DenseMatrix elfun1_mat(elfun.GetData(), dof1, num_equation);
+   DenseMatrix elfun2_mat(elfun.GetData() + dof1 * num_equation, dof2,
+                              num_equation);
 
-   elvect1_mat.UseExternalData(elvect.GetData(), dof1, num_equations);
-   elvect2_mat.UseExternalData(elvect.GetData() + dof1 * num_equations, dof2,
-                              num_equations);
+   DenseMatrix elvect1_mat(elvect.GetData(), dof1, num_equation);
+   DenseMatrix elvect2_mat(elvect.GetData() + dof1 * num_equation, dof2,
+                              num_equation);
 
    const int order = std::max(el1.GetOrder(), el2.GetOrder());
    const int intorder = 2 * order + 2;
@@ -777,11 +832,10 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
       const double mcs = rsolver.Eval(funval1, funval2, nor, fluxN);
 
       // Update max char speed
-      // cout << mcs << " " << max_char_speed << endl;
       if (mcs > max_char_speed) max_char_speed = mcs;
 
       fluxN *= ip.weight;
-      for (int k = 0; k < num_equations; k++)
+      for (int k = 0; k < num_equation; k++)
       {
          for (int s = 0; s < dof1; s++)
          {
