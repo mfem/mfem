@@ -18,7 +18,7 @@ if (NOT CMAKE_BUILD_TYPE)
       "Build type: Debug, Release, RelWithDebInfo, or MinSizeRel." FORCE)
 endif()
 
-# MFEM options. Set to mimic the default "default.mk" file.
+# MFEM options. Set to mimic the default "defaults.mk" file.
 option(MFEM_USE_MPI "Enable MPI parallel build" OFF)
 option(MFEM_USE_GZSTREAM "Enable gzstream for compressed data streams." OFF)
 option(MFEM_USE_LIBUNWIND "Enable backtrace for errors." OFF)
@@ -41,8 +41,9 @@ option(MFEM_USE_SCOREC "Enable SCOREC" OFF)
 
 # Allow a user to disable testing, examples, and/or miniapps at CONFIGURE TIME
 # if they don't want/need them (e.g. if MFEM is "just a dependency" and all they
-# need is the library, building all that stuff adds unnecessary overhead). To
-# match "makefile" behavior, they are all enabled by default.
+# need is the library, building all that stuff adds unnecessary overhead). Note
+# that the examples or miniapps can always be built using the targets 'examples'
+# or 'miniapps', respectively.
 option(MFEM_ENABLE_TESTING "Enable the ctest framework for testing" ON)
 option(MFEM_ENABLE_EXAMPLES "Build all of the examples" OFF)
 option(MFEM_ENABLE_MINIAPPS "Build all of the miniapps" OFF)
@@ -92,6 +93,32 @@ set(SuperLUDist_DIR "${MFEM_DIR}/../SuperLU_DIST_5.1.0" CACHE PATH
 # SuperLU_DIST may also depend on "OpenMP", depending on how it was compiled.
 set(SuperLUDist_REQUIRED_PACKAGES "MPI" "BLAS" "ParMETIS" CACHE STRING
     "Additional packages required by SuperLU_DIST.")
+
+set(STRUMPACK_DIR "${MFEM_DIR}/../STRUMPACK-build" CACHE PATH
+    "Path to the STRUMPACK library.")
+# STRUMPACK may also depend on "OpenMP", depending on how it was compiled.
+set(STRUMPACK_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "ParMETIS" "METIS"
+    "ScaLAPACK" "Scotch/ptscotch/ptscotcherr/scotch/scotcherr" CACHE STRING
+    "Additional packages required by STRUMPACK.")
+# If the MPI package does not find all required Fortran libraries:
+# set(STRUMPACK_REQUIRED_LIBRARIES "gfortran" "mpi_mpifh" CACHE STRING
+#     "Additional libraries required by STRUMPACK.")
+
+# The Scotch library, required by STRUMPACK
+set(Scotch_DIR "${MFEM_DIR}/../scotch_6.0.4" CACHE PATH
+    "Path to the Scotch and PT-Scotch libraries.")
+set(Scotch_REQUIRED_PACKAGES "Threads" CACHE STRING
+    "Additional packages required by Scotch.")
+# Tell the "Threads" package/module to prefer pthreads.
+set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+set(Threads_LIB_VARS CMAKE_THREAD_LIBS_INIT)
+
+# The ScaLAPACK library, required by STRUMPACK
+set(ScaLAPACK_DIR "${MFEM_DIR}/../scalapack-2.0.2/lib/cmake/scalapack-2.0.2"
+    CACHE PATH "Path to the configuration file scalapack-config.cmake")
+set(ScaLAPACK_TARGET_NAMES scalapack)
+# set(ScaLAPACK_TARGET_FORCE)
+# set(ScaLAPACK_IMPORT_CONFIG DEBUG)
 
 set(GECKO_DIR "${MFEM_DIR}/../gecko" CACHE PATH "Path to the Gecko library.")
 

@@ -214,6 +214,9 @@ public:
    /// Save the mesh in a parallel mesh format.
    void ParPrint(std::ostream &out) const;
 
+   virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,
+                          Array<IntegrationPoint>& ip, bool warn = true);
+
    virtual ~ParMesh();
 };
 

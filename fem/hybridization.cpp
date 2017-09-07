@@ -34,7 +34,7 @@ Hybridization::Hybridization(FiniteElementSpace *fespace,
 {
 #ifdef MFEM_USE_MPI
    pC = P_pc = NULL;
-   pH.SetType(Operator::HYPRE_PARCSR);
+   pH.SetType(Operator::Hypre_ParCSR);
 #endif
 }
 
