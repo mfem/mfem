@@ -536,7 +536,7 @@ public:
 
    Coefficient* GetCoeff (int i, int j) { return Coeff[i*width+j]; }
 
-   void Set(int i, int j, Coefficient * c) { delete Coeff[i*width+j]; Coeff[i*width+j]] = c; }
+   void Set(int i, int j, Coefficient * c) { delete Coeff[i*width+j]; Coeff[i*width+j] = c; }
 
    double Eval(int i, int j, ElementTransformation &T, const IntegrationPoint &ip)
    { return Coeff[i*width+j] ? Coeff[i*width+j] -> Eval(T, ip, GetTime()) : 0.0; }
