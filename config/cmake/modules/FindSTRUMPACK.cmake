@@ -17,6 +17,20 @@
 include(MfemCmakeUtilities)
 mfem_find_package(STRUMPACK STRUMPACK STRUMPACK_DIR
   "include" "StrumpackSparseSolverMPIDist.hpp"
-  "lib" "strumpack_sparse" # add NAMES_PER_DIR?
+  "lib" "strumpack;strumpack_sparse" # add NAMES_PER_DIR?
   "Paths to headers required by STRUMPACK."
-  "Libraries required by STRUMPACK.")
+  "Libraries required by STRUMPACK."
+  CHECK_BUILD STRUMPACK_VERSION_OK TRUE
+"
+#include <StrumpackSparseSolverMPIDist.hpp>
+using namespace strumpack;
+int main(int argc, char *argv[])
+{
+   MPI_Init(&argc, &argv);
+   MPI_Comm comm = MPI_COMM_WORLD;
+   StrumpackSparseSolverMPIDist<double,int> solver(comm, argc, argv, false);
+   solver.options().set_from_command_line();
+   return 0;
+}
+"
+  )

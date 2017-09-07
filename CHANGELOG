@@ -41,8 +41,28 @@ New and updated examples and miniapps
 
 - Added SUNDIALS version of Example 16/16p.
 
+Discretization improvements
+---------------------------
+- Added the ability to integrate delta functions on the righ-hand side (by
+  sampling the test function at the center of the delta coefficient). Currently
+  this is supported in the DomainLFIntegrator, VectorDomainLFIntegrator and
+  VectorFEDomainLFIntegrator classes.
+
+- Added a FindPoints method of the Mesh and ParMesh classes that returns the
+  elements that contain a given set of points, together with the coordinates of
+  the points in the reference space of the corresponding element.  In parallel,
+  if a point is shared by multiple processors, only one of them will mark that
+  point as found. Note that the current implementation of this method is not
+  optimal and/or 100% reliable.
+  
 Miscellaneous
 -------------
+- Modified the installation layout: all headers, except the master headers
+  (mfem.hpp and mfem-performance.hpp), are installed in <PREFIX>/include/mfem;
+  the master headers are installed in both <PREFIX>/include/mfem and in
+  <PREFIX>/include. The mfem configuration and testing makefiles (config.mk and
+  test.mk) are installed in <PREFIX>/share/mfem, instead of <PREFIX>.
+  
 - Added a new macro, MFEM_VERSION, defined as a single integer of the form
   (major*100 + minor)*100 + patch. The new convention is that an even number
   (i.e. even patch number) denotes a "release" version, while an odd number
