@@ -33,37 +33,10 @@ doc/CodeDocumentation
 
 # Example and miniapp binaries and outputs
 
-examples/ex1
-examples/ex1p
-examples/ex2
-examples/ex2p
-examples/ex3
-examples/ex3p
-examples/ex4
-examples/ex4p
-examples/ex5
-examples/ex5p
-examples/ex6
-examples/ex6p
-examples/ex7
-examples/ex7p
-examples/ex8
-examples/ex8p
-examples/ex9
-examples/ex9p
-examples/ex10
-examples/ex10p
-examples/ex11p
-examples/ex12p
-examples/ex13p
-examples/ex14
-examples/ex14p
-examples/ex15
-examples/ex15p
-examples/ex16
-examples/ex16p
-examples/ex17
-examples/ex17p
+examples/ex[1-9]
+examples/ex[1-9]p
+examples/ex1[0,4-7]
+examples/ex1[0-7]p
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -90,30 +63,21 @@ examples/ex16-mesh.*
 examples/ex16-init.*
 examples/ex16-final.*
 
-examples/sundials/ex9
-examples/sundials/ex9p
-examples/sundials/ex10
-examples/sundials/ex10p
-examples/sundials/ex16
-examples/sundials/ex16p
+examples/sundials/ex[9-10,16]
+examples/sundials/ex[9-10,16]p
 
 examples/sundials/ex9.mesh
 examples/sundials/ex9-mesh.*
 examples/sundials/ex9-init.*
 examples/sundials/ex9-final.*
+examples/sundials/ex16-init.*
+examples/sundials/ex16-final.*
 examples/sundials/Example9*
 examples/sundials/deformed.*
 examples/sundials/velocity.*
 examples/sundials/elastic_energy.*
 
-examples/petsc/ex1p
-examples/petsc/ex2p
-examples/petsc/ex3p
-examples/petsc/ex4p
-examples/petsc/ex5p
-examples/petsc/ex6p
-examples/petsc/ex9p
-examples/petsc/ex10p
+examples/petsc/ex[1-6,9-10]p
 
 examples/petsc/sol_p.*
 examples/petsc/sol_u.*
