@@ -66,6 +66,28 @@ double TransformedCoefficient::Eval(ElementTransformation &T,
    }
 }
 
+void DeltaCoefficient::SetDeltaCenter(const Vector& vcenter)
+{
+   MFEM_VERIFY(vcenter.Size() <= 3,
+               "SetDeltaCenter::Maximum number of dim supported is 3")
+   for (int i = 0; i < vcenter.Size(); i++) { center[i] = vcenter[i]; }
+   sdim = vcenter.Size();
+}
+
+void DeltaCoefficient::GetDeltaCenter(Vector& vcenter)
+{
+   vcenter.SetSize(sdim);
+   vcenter = center;
+}
+
+double DeltaCoefficient::EvalDelta(ElementTransformation &T,
+                                   const IntegrationPoint &ip)
+{
+   double w = Scale();
+   return weight ? weight->Eval(T, ip, GetTime())*w : w;
+}
+
+
 void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
                              const IntegrationRule &ir)
 {
@@ -126,7 +148,7 @@ void VectorArrayCoefficient::Eval(Vector &V, ElementTransformation &T,
    V.SetSize(vdim);
    for (int i = 0; i < vdim; i++)
    {
-      V(i) = Coeff[i]->Eval(T, ip, GetTime());
+      V(i) = this->Eval(i, T, ip);
    }
 }
 
@@ -146,6 +168,20 @@ void VectorGridFunctionCoefficient::Eval(
    DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
 {
    GridFunc->GetVectorValues(T, ir, M);
+}
+
+void VectorDeltaCoefficient::SetDirection(const Vector &_d)
+{
+   dir = _d;
+   (*this).vdim = dir.Size();
+}
+
+void VectorDeltaCoefficient::EvalDelta(
+   Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
+{
+   V = dir;
+   d.SetTime(GetTime());
+   V *= d.EvalDelta(T, ip);
 }
 
 void VectorRestrictedCoefficient::Eval(Vector &V, ElementTransformation &T,
@@ -210,6 +246,10 @@ MatrixArrayCoefficient::MatrixArrayCoefficient (int dim)
    : MatrixCoefficient (dim)
 {
    Coeff.SetSize(height*width);
+   for (int i = 0; i < (height*width); i++)
+   {
+      Coeff[i] = NULL;
+   }
 }
 
 MatrixArrayCoefficient::~MatrixArrayCoefficient ()
@@ -227,7 +267,7 @@ void MatrixArrayCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    {
       for (int j = 0; j < width; j++)
       {
-         K(i,j) = Coeff[i*width+j] -> Eval(T, ip, GetTime());
+         K(i,j) = this->Eval(i, j, T, ip);
       }
    }
 }
