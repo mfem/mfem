@@ -185,6 +185,38 @@ public:
 };
 
 
+class VisData
+{
+public:
+   VisData(const char *vishost, int visport, int max_width, int max_height,
+           int win_width, int win_height, int win_sep_x, int win_sep_y);
+
+   void IncrementWindow();
+
+   inline const char * GetVisHost() const { return host_.c_str(); }
+   inline int GetVisPort() const { return port_; }
+   inline int GetXPos() const
+   { return w_ * nx_ + ((nx_ > 0) ? (nx_ - 1) * sx_: 0); }
+   inline int GetYPos() const
+   { return h_ * ny_ + ((ny_ > 0) ? (ny_ - 1) * sy_: 0); }
+   inline int GetWidth() const { return w_; }
+   inline int GetHeight() const { return h_; }
+
+private:
+   std::string host_;
+   int port_;
+   int nx_;
+   int ny_;
+   int mnx_;
+   int mny_;
+   int mw_;
+   int mh_;
+   int w_;
+   int h_;
+   int sx_;
+   int sy_;
+};
+
 /// Visualize the given parallel grid function, using a GLVis server on the
 /// specified host and port. Set the visualization window title, and optionally,
 /// its geometry.
@@ -192,6 +224,8 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
                     ParGridFunction &gf, const char *title,
                     int x = 0, int y = 0, int w = 400, int h = 400,
                     bool vec = false);
+void VisualizeField(socketstream &sock, ParGridFunction &gf, const char *title,
+                    VisData & vd, bool vec = false);
 
 } // namespace miniapps
 

@@ -263,6 +263,45 @@ DivergenceFreeProjector::Update()
    this->IrrotationalProjector::Update();
 }
 
+VisData::VisData(const char *vishost, int visport,
+                 int max_width, int max_height,
+                 int win_width, int win_height,
+                 int win_sep_x, int win_sep_y)
+   : host_(vishost),
+     port_(visport),
+     nx_(0),
+     ny_(0),
+     mw_(max_width),
+     mh_(max_height),
+     w_(win_width),
+     h_(win_height),
+     sx_(win_sep_x),
+     sy_(win_sep_y)
+{
+   mnx_ = mw_ / (w_ + sx_);
+   mny_ = mh_ / (h_ + sy_);
+}
+
+void
+VisData::IncrementWindow()
+{
+   nx_++;
+   if ( nx_ == mnx_ )
+   {
+      nx_ = 0;
+      ny_++;
+      ny_ = ny_ % mny_;
+   }
+}
+
+void VisualizeField(socketstream &sock, ParGridFunction &gf, const char *title,
+                    VisData & vd, bool vec)
+{
+   VisualizeField(sock, vd.GetVisHost(), vd.GetVisPort(),
+                  gf, title, vd.GetXPos(), vd.GetYPos(),
+                  vd.GetWidth(), vd.GetHeight(), vec);
+}
+
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
                     ParGridFunction &gf, const char *title,
                     int x, int y, int w, int h, bool vec)
