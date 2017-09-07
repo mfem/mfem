@@ -263,6 +263,8 @@ const
       fes->GetElementDofs(i, dofs);
       fes->DofsToVDofs(vdim-1, dofs);
       DofVal.SetSize(dofs.Size());
+      const FiniteElement *fe = fes->GetFE(i);
+      MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
       fes->GetFE(i)->CalcShape(ip, DofVal);
       GetSubVector(dofs, LocVec);
    }
