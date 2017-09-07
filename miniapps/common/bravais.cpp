@@ -6493,7 +6493,7 @@ H1FourierSeries::H1FourierSeries(const BravaisLattice & bravais,
    br_->AddDomainIntegrator(new DomainLFIntegrator(coefr_));
    bi_->AddDomainIntegrator(new DomainLFIntegrator(coefi_));
 }
-
+/*
 HCurlFourierSeries::HCurlFourierSeries(const BravaisLattice & bravais,
                                        mfem::miniapps::ND_ParFESpace & fes)
    : VectorFourierSeries(bravais, fes)
@@ -6509,7 +6509,7 @@ HDivFourierSeries::HDivFourierSeries(const BravaisLattice & bravais,
    br_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(vecCoef_));
    bi_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(vecCoef_));
 }
-
+*/
 L2FourierSeries::L2FourierSeries(const BravaisLattice & bravais,
                                  mfem::miniapps::L2_ParFESpace & fes)
    : ScalarFourierSeries(bravais, fes)

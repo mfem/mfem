@@ -256,7 +256,7 @@ public:
 
    mfem::Mesh * GetWignerSeitzMesh() const;
    mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
-  
+
 private:
    // double a_;
 
