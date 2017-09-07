@@ -154,7 +154,7 @@ NonlinearForm::~NonlinearForm()
    }
 }
 
-MixedNonlinearForm::MixedNonlinearForm() :
+BlockNonlinearForm::BlockNonlinearForm() :
    fes(0)
 {
    height = 0;
@@ -162,7 +162,7 @@ MixedNonlinearForm::MixedNonlinearForm() :
    
 }
 
-void MixedNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
+void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
 {
    height = 0;
    width = 0;
@@ -192,12 +192,12 @@ void MixedNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
 }
 
 
-MixedNonlinearForm::MixedNonlinearForm(Array<FiniteElementSpace *> &f)
+BlockNonlinearForm::BlockNonlinearForm(Array<FiniteElementSpace *> &f)
 {
    SetSpaces(f);
 }
 
-void MixedNonlinearForm::AddBdrFaceIntegrator(MixedNonlinearFormIntegrator *fi,
+void BlockNonlinearForm::AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *fi,
                                               Array<int> &bdr_attr_marker)
 {
    ffi.Append(fi);
@@ -205,7 +205,7 @@ void MixedNonlinearForm::AddBdrFaceIntegrator(MixedNonlinearFormIntegrator *fi,
 }
 
    
-void MixedNonlinearForm::SetEssentialBC(const Array<Array<int> >&bdr_attr_is_ess,
+void BlockNonlinearForm::SetEssentialBC(const Array<Array<int> >&bdr_attr_is_ess,
                                         Array<Vector> &rhs)
 {
    int i, j, vsize, nv;
@@ -240,7 +240,7 @@ void MixedNonlinearForm::SetEssentialBC(const Array<Array<int> >&bdr_attr_is_ess
    }
 }
    
-void MixedNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
+void BlockNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
 {
    Array<Array<int> >vdofs(fes.Size());
    Array<Vector> el_x(fes.Size());
@@ -357,7 +357,7 @@ void MixedNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
    }
 }
  
-Operator &MixedNonlinearForm::GetGradient(const BlockVector &x) const
+Operator &BlockNonlinearForm::GetGradient(const BlockVector &x) const
 {
    const int skip_zeros = 0;
    Array<Array<int> >vdofs(fes.Size());
@@ -507,7 +507,7 @@ Operator &MixedNonlinearForm::GetGradient(const BlockVector &x) const
    return *BlockGrad;
 }
 
-MixedNonlinearForm::~MixedNonlinearForm()
+BlockNonlinearForm::~BlockNonlinearForm()
 {
    for (int i=0; i<fes.Size(); i++) {
       for (int j=0; j<fes.Size(); j++) {

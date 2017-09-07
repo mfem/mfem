@@ -58,20 +58,20 @@ public:
    virtual ~NonlinearForm();
 };
 
-class MixedNonlinearForm : public Operator
+class BlockNonlinearForm : public Operator
 {
 protected:
    /// FE spaces on which the form lives.
    Array<FiniteElementSpace*> fes;
 
    /// Set of Domain Integrators to be assembled (added).
-   Array<MixedNonlinearFormIntegrator*> dfi;
+   Array<BlockNonlinearFormIntegrator*> dfi;
 
    /// Set of Boundary Integrators to be assembled (added).
-   Array<MixedNonlinearFormIntegrator*> bfi;
+   Array<BlockNonlinearFormIntegrator*> bfi;
 
    /// Set of Boundary Face Integrators to be assembled (added).
-   Array<MixedNonlinearFormIntegrator*> ffi;
+   Array<BlockNonlinearFormIntegrator*> ffi;
    Array<Array<int>*>           ffi_marker;
 
    mutable Array2D<SparseMatrix*> Grads;
@@ -85,23 +85,23 @@ protected:
    Array<Array<int> > ess_vdofs;
 
 public:
-   MixedNonlinearForm();
+   BlockNonlinearForm();
 
-   MixedNonlinearForm(Array<FiniteElementSpace *> &f);
+   BlockNonlinearForm(Array<FiniteElementSpace *> &f);
 
    void SetSpaces(Array<FiniteElementSpace *> &f);
 
    /// Adds new Domain Integrator.
-   void AddDomainIntegrator(MixedNonlinearFormIntegrator *mnlfi)
+   void AddDomainIntegrator(BlockNonlinearFormIntegrator *mnlfi)
    { dfi.Append(mnlfi); }
 
    /// Adds new Boundary Integrator.
-   void AddBoundaryIntegrator(MixedNonlinearFormIntegrator *mnlfi)
+   void AddBoundaryIntegrator(BlockNonlinearFormIntegrator *mnlfi)
    { bfi.Append(mnlfi); }
 
    /** @brief Add new Boundary Face Integrator, restricted to the given boundary
        attributes. */
-   void AddBdrFaceIntegrator(MixedNonlinearFormIntegrator *fi,
+   void AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *fi,
                              Array<int> &bdr_attr_marker);
 
    virtual void SetEssentialBC(const Array<Array<int> >&bdr_attr_is_ess,
@@ -113,7 +113,7 @@ public:
    using Operator::GetGradient;
    virtual Operator &GetGradient(const BlockVector &x) const;
 
-   virtual ~MixedNonlinearForm();
+   virtual ~BlockNonlinearForm();
 };
 
 

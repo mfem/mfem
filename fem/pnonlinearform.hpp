@@ -61,7 +61,7 @@ public:
 };
 
 /// Parallel non-linear operator on the true dofs
-class ParMixedNonlinearForm : public MixedNonlinearForm
+class ParBlockNonlinearForm : public BlockNonlinearForm
 {
 protected:
    mutable Array<ParGridFunction> X, Y;
@@ -69,7 +69,7 @@ protected:
    mutable BlockOperator *pBlockGrad;
 
 public:
-   ParMixedNonlinearForm(Array<ParFiniteElementSpace *>pf);
+   ParBlockNonlinearForm(Array<ParFiniteElementSpace *>pf);
 
    ParFiniteElementSpace *ParFESpace(int block) const;
 
@@ -87,7 +87,7 @@ public:
    /// Set the operator type id for the parallel gradient matrix/operator.
    void SetGradientType(Operator::Type tid);
 
-   virtual ~ParMixedNonlinearForm() { }
+   virtual ~ParBlockNonlinearForm() { }
 };
 
 }

@@ -357,40 +357,40 @@ HyperelasticNLFIntegrator::~HyperelasticNLFIntegrator()
    PMatO.ClearExternalData();
 }
 
-void MixedNonlinearFormIntegrator::AssembleElementVector(Array<const FiniteElement *> &el,
+void BlockNonlinearFormIntegrator::AssembleElementVector(Array<const FiniteElement *> &el,
                                                          ElementTransformation &Tr,
                                                          Array<Vector> &elfun, 
                                                          Array<Vector> &elvec)
 {
-   mfem_error("MixedNonlinearFormIntegrator::AssembleElementVector"
+   mfem_error("BlockNonlinearFormIntegrator::AssembleElementVector"
               " is not overloaded!");
 
 }
 
-void MixedNonlinearFormIntegrator::AssembleRHSElementVector(Array<const FiniteElement *> &el,
+void BlockNonlinearFormIntegrator::AssembleRHSElementVector(Array<const FiniteElement *> &el,
                                          FaceElementTransformations &Tr,
                                          Array<Vector> &elfun, 
                                          Array<Vector> &elvec)
 {
-   mfem_error("MixedNonlinearFormIntegrator::AssembleRHSElementVector"
+   mfem_error("BlockNonlinearFormIntegrator::AssembleRHSElementVector"
               " is not overloaded!");
 }
 
-void MixedNonlinearFormIntegrator::AssembleElementGrad(Array<const FiniteElement*> &el,
+void BlockNonlinearFormIntegrator::AssembleElementGrad(Array<const FiniteElement*> &el,
                                     ElementTransformation &Tr,
                                     Array<Vector> &elfun, 
                                     Array2D<DenseMatrix> &elmats)
 {
-   mfem_error("MixedNonlinearFormIntegrator::AssembleElementGrad"
+   mfem_error("BlockNonlinearFormIntegrator::AssembleElementGrad"
               " is not overloaded!");
 }
 
-void MixedNonlinearFormIntegrator::AssembleRHSElementGrad(Array<const FiniteElement*> &el,
+void BlockNonlinearFormIntegrator::AssembleRHSElementGrad(Array<const FiniteElement*> &el,
                                        FaceElementTransformations &Tr,
                                        Array<Vector> &elfun, 
                                        Array2D<DenseMatrix> &elmats)
 {
-   mfem_error("MixedNonlinearFormIntegrator::AssembleRHSElementGrad"
+   mfem_error("BlockNonlinearFormIntegrator::AssembleRHSElementGrad"
               " is not overloaded!");
 }
 

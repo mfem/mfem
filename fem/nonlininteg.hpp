@@ -44,7 +44,7 @@ public:
    virtual ~NonlinearFormIntegrator() { }
 };
 
-class MixedNonlinearFormIntegrator
+class BlockNonlinearFormIntegrator
 {
 public:
    /// Perform the local action of the NonlinearFormIntegrator
@@ -69,7 +69,7 @@ public:
                                        Array<Vector> &elfun, 
                                        Array2D<DenseMatrix> &elmats);
 
-   virtual ~MixedNonlinearFormIntegrator() { }
+   virtual ~BlockNonlinearFormIntegrator() { }
 };
 
 /// Abstract class for hyperelastic models

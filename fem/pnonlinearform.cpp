@@ -97,7 +97,7 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
    return *pGrad.Ptr();
 }
 
-ParMixedNonlinearForm::ParMixedNonlinearForm(Array<ParFiniteElementSpace *>pf)
+ParBlockNonlinearForm::ParBlockNonlinearForm(Array<ParFiniteElementSpace *>pf)
 {
    height = 0;
    width = 0;
@@ -122,18 +122,18 @@ ParMixedNonlinearForm::ParMixedNonlinearForm(Array<ParFiniteElementSpace *>pf)
    }
 }
 
-ParFiniteElementSpace * ParMixedNonlinearForm::ParFESpace(int block) const
+ParFiniteElementSpace * ParBlockNonlinearForm::ParFESpace(int block) const
 {
    return (ParFiniteElementSpace *)fes[block];
 }
 
    // Here, rhs is a true dof vector
-void ParMixedNonlinearForm::SetEssentialBC(const Array<Array<int> >&bdr_attr_is_ess,
+void ParBlockNonlinearForm::SetEssentialBC(const Array<Array<int> >&bdr_attr_is_ess,
                                            Array<Vector> &rhs)
 {
    
    Array<Vector> nullarray(fes.Size());
-   MixedNonlinearForm::SetEssentialBC(bdr_attr_is_ess, nullarray);
+   BlockNonlinearForm::SetEssentialBC(bdr_attr_is_ess, nullarray);
 
    for (int s=0; s<fes.Size(); s++) {
       if (rhs[s]) {
@@ -148,7 +148,7 @@ void ParMixedNonlinearForm::SetEssentialBC(const Array<Array<int> >&bdr_attr_is_
    }
 }
    
-void ParMixedNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
+void ParBlockNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
 {
    BlockVector bx(block_offsets);
    BlockVector by(block_offsets);
@@ -158,7 +158,7 @@ void ParMixedNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
       bx.GetBlock(s) = X[s];
    }
 
-   MixedNonlinearForm::Mult(bx,by);
+   BlockNonlinearForm::Mult(bx,by);
 
    for (int s=0; s<fes.Size(); s++) {
       ParFESpace(s)->GroupComm().Reduce<double>(by.GetBlock(s), GroupCommunicator::Sum);
@@ -167,7 +167,7 @@ void ParMixedNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
 }
 
    /// Return the local gradient matrix for the given true-dof vector x
-const BlockOperator & ParMixedNonlinearForm::GetLocalGradient(const BlockVector &x) const
+const BlockOperator & ParBlockNonlinearForm::GetLocalGradient(const BlockVector &x) const
 {
    BlockVector bx(block_offsets);
 
@@ -176,14 +176,14 @@ const BlockOperator & ParMixedNonlinearForm::GetLocalGradient(const BlockVector 
       bx.GetBlock(s) = X[s];
    }
 
-   MixedNonlinearForm::GetGradient(bx); // (re)assemble Grad with b.c.
+   BlockNonlinearForm::GetGradient(bx); // (re)assemble Grad with b.c.
 
    return *BlockGrad;
 
 }
 
 /// Set the operator type id for the parallel gradient matrix/operator.
-void ParMixedNonlinearForm::SetGradientType(Operator::Type tid) 
+void ParBlockNonlinearForm::SetGradientType(Operator::Type tid) 
 { 
    for (int s1=0; s1<fes.Size(); s1++) {
       for (int s2=0; s2<fes.Size(); s2++) {
@@ -193,7 +193,7 @@ void ParMixedNonlinearForm::SetGradientType(Operator::Type tid)
 }
 
 
-BlockOperator & ParMixedNonlinearForm::GetGradient(const BlockVector &x) const
+BlockOperator & ParBlockNonlinearForm::GetGradient(const BlockVector &x) const
 {
    if (pBlockGrad == NULL) {
       pBlockGrad = new BlockOperator(block_trueOffsets);
@@ -212,7 +212,7 @@ BlockOperator & ParMixedNonlinearForm::GetGradient(const BlockVector &x) const
       }
    }
    
-   MixedNonlinearForm::GetGradient(bx); // (re)assemble Grad with b.c.
+   BlockNonlinearForm::GetGradient(bx); // (re)assemble Grad with b.c.
 
    for (int s1=0; s1<fes.Size(); s1++) {
       for (int s2=0; s2<fes.Size(); s2++) {
