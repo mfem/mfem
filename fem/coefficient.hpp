@@ -341,16 +341,16 @@ public:
    explicit VectorArrayCoefficient(int dim);
 
    /// Returns i'th coefficient.
-   Coefficient &GetCoeff(int i) { return *Coeff[i]; }
+   Coefficient* GetCoeff(int i) { return Coeff[i]; }
 
    Coefficient **GetCoeffs() { return Coeff; }
 
    /// Sets coefficient in the vector.
-   void Set(int i, Coefficient *c) { Coeff[i] = c; }
+   void Set(int i, Coefficient *c) { delete Coeff[i]; Coeff[i] = c; }
 
    /// Evaluates i'th component of the vector.
-   double Eval(int i, ElementTransformation &T, IntegrationPoint &ip)
-   { return Coeff[i]->Eval(T, ip, GetTime()); }
+   double Eval(int i, ElementTransformation &T, const IntegrationPoint &ip)
+   { return Coeff[i] ? Coeff[i]->Eval(T, ip, GetTime()) : 0.0; }
 
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -534,12 +534,12 @@ public:
 
    explicit MatrixArrayCoefficient (int dim);
 
-   Coefficient &GetCoeff(int i, int j) { return *Coeff[i*width+j]; }
+   Coefficient* GetCoeff (int i, int j) { return Coeff[i*width+j]; }
 
-   void Set(int i, int j, Coefficient * c) { Coeff[i*width+j] = c; }
+   void Set(int i, int j, Coefficient * c) { delete Coeff[i*width+j]; Coeff[i*width+j]] = c; }
 
-   double Eval(int i, int j, ElementTransformation &T, IntegrationPoint &ip)
-   { return Coeff[i*width+j] -> Eval(T, ip, GetTime()); }
+   double Eval(int i, int j, ElementTransformation &T, const IntegrationPoint &ip)
+   { return Coeff[i*width+j] ? Coeff[i*width+j] -> Eval(T, ip, GetTime()) : 0.0; }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);

@@ -148,7 +148,7 @@ void VectorArrayCoefficient::Eval(Vector &V, ElementTransformation &T,
    V.SetSize(vdim);
    for (int i = 0; i < vdim; i++)
    {
-      V(i) = Coeff[i]->Eval(T, ip, GetTime());
+      V(i) = this->Eval(i, T, ip);
    }
 }
 
@@ -246,6 +246,10 @@ MatrixArrayCoefficient::MatrixArrayCoefficient (int dim)
    : MatrixCoefficient (dim)
 {
    Coeff.SetSize(height*width);
+   for (int i = 0; i < (height*width); i++)
+   {
+      Coeff[i] = NULL;
+   }
 }
 
 MatrixArrayCoefficient::~MatrixArrayCoefficient ()
@@ -263,7 +267,7 @@ void MatrixArrayCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    {
       for (int j = 0; j < width; j++)
       {
-         K(i,j) = Coeff[i*width+j] -> Eval(T, ip, GetTime());
+         K(i,j) = this->Eval(i, j, T, ip);
       }
    }
 }

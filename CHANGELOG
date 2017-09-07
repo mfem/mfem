@@ -11,33 +11,12 @@
 Development version 3.3.1, not released
 =======================================
 
-- Modified the installation layout: all headers, except the master headers
-  (mfem.hpp and mfem-performance.hpp), are installed in <PREFIX>/include/mfem;
-  the master headers are installed in both <PREFIX>/include/mfem and in
-  <PREFIX>/include. The mfem configuration and testing makefiles (config.mk and
-  test.mk) are installed in <PREFIX>/share/mfem, instead of <PREFIX>.
-
-- Added SUNDIALS version of example 16/16p.
-
+New and improved solvers and preconditioners
+--------------------------------------------
 - Added optional support for the STRUMPACK parallel sparse direct solver and
   preconditioner. STRUMPACK uses Hierarchically Semi-Separable (HSS) compression
   in a fully algebraic manner, with interface similar to SuperLU_DIST. See
   http://portal.nersc.gov/project/sparse/strumpack for more details.
-
-- Added a new macro, MFEM_VERSION, defined as a single integer of the form
-  (major*100 + minor)*100 + patch. The new convention is that an even number
-  (i.e. even patch number) denotes a "release" version, while an odd number
-  denotes a "development" version. See config/config.hpp.in.
-
-- Memory optimizations in the NCMesh class, which now uses 50% less memory.
-  The average cost of an NC element in a uniformly refined mesh (including the
-  refinement hierarchy, but excluding the temporary face_list and edge_list)
-  is now only about 290 bytes. This also makes the class faster.
-
-- Added a new meshing miniapp, Shaper, that can be used to resolve complicated
-  material interfaces by mesh refinement, e.g. as a tool for initial mesh
-  generation from prescribed "material()" function.  Both conforming and
-  non-conforming (isotropic and anisotropic) refinements are supported.
 
 - Added a block lower triangular preconditioner based (only) on the actions of
   each block, see class BlockLowerTriangularPreconditioner.
@@ -46,6 +25,24 @@ Development version 3.3.1, not released
   subspace (e.g. divergence-free). Other small changes in LOBPCG include the
   ability to set the starting vectors and support for relative tolerance.
 
+Performance improvements
+------------------------
+- Memory optimizations in the NCMesh class, which now uses 50% less memory.
+  The average cost of an NC element in a uniformly refined mesh (including the
+  refinement hierarchy, but excluding the temporary face_list and edge_list)
+  is now only about 290 bytes. This also makes the class faster.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added a new meshing miniapp, Shaper, that can be used to resolve complicated
+  material interfaces by mesh refinement, e.g. as a tool for initial mesh
+  generation from prescribed "material()" function.  Both conforming and
+  non-conforming (isotropic and anisotropic) refinements are supported.
+
+- Added SUNDIALS version of Example 16/16p.
+
+Discretization improvements
+---------------------------
 - Added the ability to integrate delta functions on the righ-hand side (by
   sampling the test function at the center of the delta coefficient). Currently
   this is supported in the DomainLFIntegrator, VectorDomainLFIntegrator and
@@ -57,6 +54,29 @@ Development version 3.3.1, not released
   if a point is shared by multiple processors, only one of them will mark that
   point as found. Note that the current implementation of this method is not
   optimal and/or 100% reliable.
+  
+Miscellaneous
+-------------
+- Modified the installation layout: all headers, except the master headers
+  (mfem.hpp and mfem-performance.hpp), are installed in <PREFIX>/include/mfem;
+  the master headers are installed in both <PREFIX>/include/mfem and in
+  <PREFIX>/include. The mfem configuration and testing makefiles (config.mk and
+  test.mk) are installed in <PREFIX>/share/mfem, instead of <PREFIX>.
+  
+- Added a new macro, MFEM_VERSION, defined as a single integer of the form
+  (major*100 + minor)*100 + patch. The new convention is that an even number
+  (i.e. even patch number) denotes a "release" version, while an odd number
+  denotes a "development" version. See config/config.hpp.in.
+
+- Added Linux, Mac and Windows CI testing on GitHub with Travis CI and Appveyor.
+
+- Various small fixes and styling updates.
+
+API changes
+-----------
+- The methods GetCoeff of VectorArrayCoefficient and MatrixArrayCoefficient now
+  return a pointer to Coefficient (instead of reference). Note that NULL pointer
+  is a valid entry for these two classes - it is treated as the zero function.
 
 
 Version 3.3, released on Jan 28, 2017
