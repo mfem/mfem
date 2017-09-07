@@ -150,8 +150,8 @@ An optional installation of the library and the headers can be performed with
    make install [PREFIX=<dir>]
 
 The library will be installed in $(PREFIX)/lib, the headers in
-$(PREFIX)/include, and the configuration makefile (config.mk) in $(PREFIX).
-The PREFIX option can also be set during configuration.
+$(PREFIX)/include, and the configuration makefile (config.mk) in
+$(PREFIX)/share/mfem. The PREFIX option can also be set during configuration.
 
 Information about the current build configuration can be viewed using
 
@@ -194,7 +194,7 @@ Compiler options:
 Installation options:
    PREFIX  - Specify the installation directory. The library (libmfem.a) will be
              installed in $(PREFIX)/lib, the headers in $(PREFIX)/include, and
-             the configuration makefile (config.mk) in $(PREFIX).
+             the configuration makefile (config.mk) in $(PREFIX)/share/mfem.
    INSTALL - Specify the install program, e.g /usr/bin/install
 
 MFEM library features/options (GNU make)
@@ -382,7 +382,9 @@ The specific libraries and their options are:
 
 - STRUMPACK (optional), used when MFEM_USE_STRUMPACK = YES. Note that STRUMPACK
   requires the PT-Scotch and Scalapack libraries as well as ParMETIS, which
-  includes METIS 5 in its distribution.
+  includes METIS 5 in its distribution. Currently requires the git version from
+  https://github.com/pghysels/STRUMPACK. Version "STRUMPACK-Sparse 1.1.0" and
+  older are not supported.
   URL: http://portal.nersc.gov/project/sparse/strumpack
   Options: STRUMPACK_OPT, STRUMPACK_LIB.
 
