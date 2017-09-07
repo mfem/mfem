@@ -1015,7 +1015,7 @@ void NURBSPatch::Rotate3D(double n[], double angle)
    }
 
    DenseMatrix T(3);
-   Vector x(3), y(NULL, 3);
+   Vector x(3), y((double*)NULL, 3);
 
    Get3DRotationMatrix(n, angle, 1., T);
 
@@ -1128,7 +1128,7 @@ NURBSPatch *Revolve3D(NURBSPatch &patch, double n[], double ang, int times)
    delete nkv.Last();
 
    DenseMatrix T(3), T2(3);
-   Vector u(NULL, 3), v(NULL, 3);
+   Vector u((double*)NULL, 3), v((double*)NULL, 3);
 
    NURBSPatch::Get3DRotationMatrix(n, ang, 1., T);
    double c = cos(ang/2);

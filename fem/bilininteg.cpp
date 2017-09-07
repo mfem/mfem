@@ -180,7 +180,7 @@ void MixedScalarIntegrator::AssembleElementMatrix2(
 #ifndef MFEM_THREAD_SAFE
    if (same_shapes)
    {
-      trial_shape.SetDataAndSize(NULL, 0);
+      trial_shape.SetDataAndSize((double*)NULL, 0);
    }
 #endif
 }

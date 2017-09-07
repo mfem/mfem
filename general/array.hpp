@@ -78,6 +78,9 @@ public:
    inline Array(T *_data, int asize, int ainc = 0)
    { data = _data; size = asize; allocsize = -asize; inc = ainc; }
 
+   inline Array(const T *_data, int asize, int ainc = 0)
+   { data = const_cast<T *>(_data); size = asize; allocsize = -asize; inc = ainc; }
+
    /// Destructor
    inline ~Array() { }
 
@@ -164,7 +167,7 @@ public:
    }
 
    /// Make this Array a reference to a pointer
-   inline void MakeRef(T *, int);
+   inline void MakeRef(T *p, int s);
 
    /// Make this Array a reference to 'master'
    inline void MakeRef(const Array &master);

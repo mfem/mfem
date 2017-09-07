@@ -364,9 +364,9 @@ void DenseMatrix::SymmetricScaling(const Vector & s)
    }
 
    double * ss = new double[width];
-   double * it_s = s.GetData();
+   const double * it_s = s.GetData();
    double * it_ss = ss;
-   for ( double * end_s = it_s + width; it_s != end_s; ++it_s)
+   for ( const double * end_s = it_s + width; it_s != end_s; ++it_s)
    {
       *(it_ss++) = sqrt(*it_s);
    }
@@ -390,9 +390,9 @@ void DenseMatrix::InvSymmetricScaling(const Vector & s)
    }
 
    double * ss = new double[width];
-   double * it_s = s.GetData();
+   const double * it_s = s.GetData();
    double * it_ss = ss;
-   for ( double * end_s = it_s + width; it_s != end_s; ++it_s)
+   for ( const double * end_s = it_s + width; it_s != end_s; ++it_s)
    {
       *(it_ss++) = 1./sqrt(*it_s);
    }
@@ -2915,8 +2915,10 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    static double alpha = 1.0, beta = 0.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
 
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
-          c.Data(), &k, &beta, a.Data(), &m);
+   double *bdata = const_cast<double *>(b.Data());
+   double *cdata = const_cast<double *>(c.Data());
+   dgemm_(&transa, &transb, &m, &n, &k, &alpha, bdata, &m,
+          cdata, &k, &beta, a.Data(), &m);
 #else
    const int ah = a.Height();
    const int aw = a.Width();
@@ -2951,8 +2953,10 @@ void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    static double alpha = 1.0, beta = 1.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
 
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
-          c.Data(), &k, &beta, a.Data(), &m);
+   double *bdata = const_cast<double *>(b.Data());
+   double *cdata = const_cast<double *>(c.Data());
+   dgemm_(&transa, &transb, &m, &n, &k, &alpha, bdata, &m,
+          cdata, &k, &beta, a.Data(), &m);
 #else
    const int ah = a.Height();
    const int aw = a.Width();
@@ -3302,8 +3306,10 @@ void MultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    static double alpha = 1.0, beta = 0.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
 
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
-          B.Data(), &n, &beta, ABt.Data(), &m);
+   double *Adata = const_cast<double *>(A.Data());
+   double *Bdata = const_cast<double *>(B.Data());
+   dgemm_(&transa, &transb, &m, &n, &k, &alpha, Adata, &m,
+          Bdata, &n, &beta, ABt.Data(), &m);
 #elif 1
    const int ah = A.Height();
    const int bh = B.Height();
@@ -3425,8 +3431,10 @@ void AddMultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    static double alpha = 1.0, beta = 1.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
 
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
-          B.Data(), &n, &beta, ABt.Data(), &m);
+   double *Adata = const_cast<double *>(A.Data());
+   double *Bdata = const_cast<double *>(B.Data());
+   dgemm_(&transa, &transb, &m, &n, &k, &alpha, Adata, &m,
+          Bdata, &n, &beta, ABt.Data(), &m);
 #elif 1
    const int ah = A.Height();
    const int bh = B.Height();
@@ -3520,8 +3528,10 @@ void AddMult_a_ABt(double a, const DenseMatrix &A, const DenseMatrix &B,
    static double beta = 1.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
 
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
-          B.Data(), &n, &beta, ABt.Data(), &m);
+   double *Adata = const_cast<double *>(A.Data());
+   double *Bdata = const_cast<double *>(B.Data());
+   dgemm_(&transa, &transb, &m, &n, &k, &alpha, Adata, &m,
+          Bdata, &n, &beta, ABt.Data(), &m);
 #elif 1
    const int ah = A.Height();
    const int bh = B.Height();
@@ -3577,8 +3587,10 @@ void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB)
    static double alpha = 1.0, beta = 0.0;
    int m = A.Width(), n = B.Width(), k = A.Height();
 
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
-          B.Data(), &k, &beta, AtB.Data(), &m);
+   double *Adata = const_cast<double *>(A.Data());
+   double *Bdata = const_cast<double *>(B.Data());
+   dgemm_(&transa, &transb, &m, &n, &k, &alpha, Adata, &k,
+          Bdata, &k, &beta, AtB.Data(), &m);
 #elif 1
    const int ah = A.Height();
    const int aw = A.Width();
@@ -4136,7 +4148,7 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
    n = mat.Width();
    EVal.SetSize(n);
    EVect.SetSize(n);
-   ev.SetDataAndSize(NULL, n);
+   ev.SetDataAndSize((double*)NULL, n);
 
 #ifdef MFEM_USE_LAPACK
    jobz = 'V';

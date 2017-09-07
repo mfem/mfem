@@ -62,6 +62,9 @@ public:
    Vector (double *_data, int _size)
    { data = _data; size = _size; allocsize = -size; }
 
+   Vector (const double *_data, int _size)
+   { data = const_cast<double *>(_data); size = _size; allocsize = -size; }
+
    /// Reads a vector from multiple files
    void Load (std::istream ** in, int np, int * dim);
 
@@ -91,6 +94,9 @@ public:
    void SetDataAndSize(double *d, int s)
    { data = d; size = s; allocsize = -s; }
 
+   void SetDataAndSize(const double *d, int s)
+   { data = const_cast<double *>(d); size = s; allocsize = -s; }
+
    /// Set the Vector data and size, deleting the old data, if owned.
    /** The Vector does not assume ownership of the new data. The new size is
        also used as the new Capacity().
@@ -113,9 +119,8 @@ public:
    /** It is always true that Capacity() >= Size(). */
    inline int Capacity() const { return abs(allocsize); }
 
-   // double *GetData() { return data; }
-
-   inline double *GetData() const { return data; }
+   inline double *GetData() { return data; }
+   inline const double *GetData() const { return data; }
 
    /// Conversion to `double *`.
    /** @note This conversion function makes it possible to use [] for indexing

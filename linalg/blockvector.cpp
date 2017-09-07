@@ -87,6 +87,12 @@ void BlockVector::Update(double *data, const Array<int> & bOffsets)
    }
 }
 
+void BlockVector::Update(const double *data, const Array<int> & bOffsets)
+{
+   double *d = const_cast<double *>(data);
+   Update(d, bOffsets);
+}
+
 BlockVector & BlockVector::operator=(const BlockVector & original)
 {
    if (numBlocks!=original.numBlocks)

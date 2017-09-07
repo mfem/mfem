@@ -89,6 +89,7 @@ public:
     * nBlocks is the number of blocks.
     */
    void Update(double *data, const Array<int> & bOffsets);
+   void Update(const double *data, const Array<int> & bOffsets);
 };
 
 }

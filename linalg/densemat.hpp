@@ -53,6 +53,9 @@ public:
    DenseMatrix(double *d, int h, int w) : Matrix(h, w)
    { data = d; capacity = -h*w; }
 
+   DenseMatrix(const double *d, int h, int w) : Matrix(h, w)
+   { data = const_cast<double *>(d); capacity = -h*w; }
+
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the data array @a d. This method should not be used with
@@ -60,11 +63,17 @@ public:
    void UseExternalData(double *d, int h, int w)
    { data = d; height = h; width = w; capacity = -h*w; }
 
+   void UseExternalData(const double *d, int h, int w)
+   { data = const_cast<double *>(d); height = h; width = w; capacity = -h*w; }
+
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the new array @a d. This method will delete the current data
        array, if owned. */
    void Reset(double *d, int h, int w)
+   { if (OwnsData()) { delete [] data; } UseExternalData(d, h, w); }
+
+   void Reset(const double *d, int h, int w)
    { if (OwnsData()) { delete [] data; } UseExternalData(d, h, w); }
 
    /** Clear the data array and the dimensions of the DenseMatrix. This method
@@ -85,9 +94,12 @@ public:
    void SetSize(int h, int w);
 
    /// Returns the matrix data array.
-   inline double *Data() const { return data; }
+   inline double *Data() { return data; }
+   inline const double *Data() const { return data; }
+
    /// Returns the matrix data array.
-   inline double *GetData() const { return data; }
+   inline double *GetData() { return data; }
+   inline const double *GetData() const { return data; }
 
    inline bool OwnsData() const { return (capacity > 0); }
 
@@ -622,7 +634,7 @@ public:
    }
 
    DenseTensor(int i, int j, int k)
-      : Mk(NULL, i, j)
+      : Mk((double*)NULL, i, j)
    {
       nk = k;
       tdata = new double[i*j*k];
@@ -636,7 +648,7 @@ public:
    void SetSize(int i, int j, int k)
    {
       if (own_data) { delete [] tdata; }
-      Mk.UseExternalData(NULL, i, j);
+      Mk.UseExternalData((double*)NULL, i, j);
       nk = k;
       tdata = new double[i*j*k];
       own_data = true;
@@ -645,10 +657,16 @@ public:
    void UseExternalData(double *ext_data, int i, int j, int k)
    {
       if (own_data) { delete [] tdata; }
-      Mk.UseExternalData(NULL, i, j);
+      Mk.UseExternalData((double*)NULL, i, j);
       nk = k;
       tdata = ext_data;
       own_data = false;
+   }
+
+   void UseExternalData(const double *ext_data, int i, int j, int k)
+   {
+      double *ext_data_nc = const_cast<double *>(ext_data);
+      UseExternalData(ext_data_nc, i, j, k);
    }
 
    /// Sets the tensor elements equal to constant c
@@ -672,7 +690,7 @@ public:
    void AddMult(const Table &elem_dof, const Vector &x, Vector &y) const;
 
    void Clear()
-   { UseExternalData(NULL, 0, 0, 0); }
+   { UseExternalData((double*)NULL, 0, 0, 0); }
 
    long MemoryUsage() const { return nk*Mk.MemoryUsage(); }
 
