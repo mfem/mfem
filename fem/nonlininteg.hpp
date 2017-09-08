@@ -47,6 +47,11 @@ public:
 class BlockNonlinearFormIntegrator
 {
 public:
+   /// Compute the local energy
+   virtual double GetElementEnergy(Array<const FiniteElement *>&el,
+                                   ElementTransformation &Tr,
+                                   Array<const Vector >&elfun);
+
    /// Perform the local action of the NonlinearFormIntegrator
    virtual void AssembleElementVector(Array<const FiniteElement *> &el,
                                       ElementTransformation &Tr,
@@ -178,6 +183,46 @@ public:
                                     const Vector &elfun, DenseMatrix &elmat);
 
    virtual ~HyperelasticNLFIntegrator();
+};
+
+class IncompressibleNeoHookeanIntegrator : public BlockNonlinearFormIntegrator
+{
+private:
+   Coefficient *c_mu;
+   DenseMatrix DSh_u, DS_u, J0i, J1, J, P, Jinv, PMatI_u, PMatO_u, PMatI_p, PMatO_p;
+   Vector Sh_p;
+
+public:
+   IncompressibleNeoHookeanIntegrator(Coefficient &_mu)
+      : c_mu(&_mu) {};
+   
+   virtual double GetElementEnergy(Array<const FiniteElement *>&el,
+                                   ElementTransformation &Tr,
+                                   Array<const Vector> &elfun);
+
+   /// Perform the local action of the NonlinearFormIntegrator
+   virtual void AssembleElementVector(Array<const FiniteElement *> &el,
+                                      ElementTransformation &Tr,
+                                      Array<Vector> &elfun, 
+                                      Array<Vector> &elvec) = 0;
+
+   virtual void AssembleRHSElementVector(Array<const FiniteElement *> &el,
+                                         FaceElementTransformations &Tr,
+                                         Array<Vector> &elfun, 
+                                         Array<Vector> &elvec);
+
+   /// Assemble the local gradient matrix
+   virtual void AssembleElementGrad(Array<const FiniteElement*> &el,
+                                    ElementTransformation &Tr,
+                                    Array<Vector> &elfun, 
+                                    Array2D<DenseMatrix> &elmats);
+
+   virtual void AssembleRHSElementGrad(Array<const FiniteElement*> &el,
+                                       FaceElementTransformations &Tr,
+                                       Array<Vector> &elfun, 
+                                       Array2D<DenseMatrix> &elmats);
+
+   virtual ~IncompressibleNeoHookeanIntegrator() { };
 };
 
 }

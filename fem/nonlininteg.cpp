@@ -357,6 +357,18 @@ HyperelasticNLFIntegrator::~HyperelasticNLFIntegrator()
    PMatO.ClearExternalData();
 }
 
+double BlockNonlinearFormIntegrator::GetElementEnergy(Array<const FiniteElement *>&el,
+                                                      ElementTransformation &Tr,
+                                                      Array<const Vector >&elfun)
+{
+   mfem_error("BlockNonlinearFormIntegrator::GetElementEnergy"
+              " is not overloaded!");
+
+   return 0.0;
+}
+
+
+
 void BlockNonlinearFormIntegrator::AssembleElementVector(Array<const FiniteElement *> &el,
                                                          ElementTransformation &Tr,
                                                          Array<Vector> &elfun, 
@@ -393,5 +405,142 @@ void BlockNonlinearFormIntegrator::AssembleRHSElementGrad(Array<const FiniteElem
    mfem_error("BlockNonlinearFormIntegrator::AssembleRHSElementGrad"
               " is not overloaded!");
 }
+
+double IncompressibleNeoHookeanIntegrator::GetElementEnergy(Array<const FiniteElement *>&el,
+                                                            ElementTransformation &Tr,
+                                                            Array<const Vector >&elfun)
+{
+   if (el.Size() != 2) {
+      mfem_error("IncompressibleNeoHookeanIntegrator::GetElementEnergy"
+                 " has incorrect block finite element space size!");
+   }
+
+   int dof_u = el[0]->GetDof();
+   int dim = el[0]->GetDim();
+
+   DSh_u.SetSize(dof_u, dim);
+   J0i.SetSize(dim);
+   J1.SetSize(dim);
+   J.SetSize(dim);
+   PMatI_u.UseExternalData(elfun[0].GetData(), dof_u, dim);
+
+   int intorder = 2*el[0]->GetOrder() + 3; // <---
+   const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
+
+   double energy = 0.0;
+   double mu = 0.0;
+
+   for (int i = 0; i < ir.GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      Tr.SetIntPoint(&ip);
+      CalcInverse(Tr.Jacobian(), J0i);
+
+      el[0]->CalcDShape(ip, DSh_u);
+      MultAtB(PMatI_u, DSh_u, J1);
+      Mult(J1, J0i, J);
+
+      mu = c_mu->Eval(Tr, ip);      
+
+      energy += ip.weight*Tr.Weight()*2.0*mu*(J*J - 3);
+   }
+   
+   return energy;
+}
+
+
+void IncompressibleNeoHookeanIntegrator::AssembleElementVector(Array<const FiniteElement *> &el,
+                                                         ElementTransformation &Tr,
+                                                         Array<Vector> &elfun, 
+                                                         Array<Vector> &elvec)
+{
+   if (el.Size() != 2) {
+      mfem_error("IncompressibleNeoHookeanIntegrator::AssembleElementVector"
+                 " has finite element space of incorrect block number");
+   }
+   
+   int dof_u = el[0]->GetDof();
+   int dof_p = el[0]->GetDof();
+
+   int dim = el[0]->GetDim();
+
+   DSh_u.SetSize(dof_u, dim);
+   DS_u.SetSize(dof_u, dim);
+   J0i.SetSize(dim);
+   J.SetSize(dim);
+   Jinv.SetSize(dim);
+   P.SetSize(dim);
+   PMatI_u.UseExternalData(elfun[0].GetData(), dof_u, dim);
+   elvec[0].SetSize(dof_u*dim);
+   PMatO_u.UseExternalData(elvec[0].GetData(), dof_u, dim);
+
+   Sh_p.SetSize(dof_p);
+   elvec[1].SetSize(dof_p);
+
+   int intorder = 2*el[0]->GetOrder() + 3; // <---
+   const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
+
+   elvec[0] = 0.0;
+   elvec[1] = 0.0;
+
+   for (int i = 0; i < ir.GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      Tr.SetIntPoint(&ip);
+      CalcInverse(Tr.Jacobian(), J0i);
+
+      el[0]->CalcDShape(ip, DSh_u);
+      Mult(DSh_u, J0i, DS_u);
+      MultAtB(PMatI_u, DS_u, J);
+
+      el[1]->CalcShape(ip, Sh_p);
+      double pres = Sh_p * elfun[1];
+
+      CalcInverse(J, Jinv);
+
+      double dJ = J.Det();
+
+      double mu = c_mu->Eval(Tr, ip);      
+      
+      P = 0.0;
+      P.Add(4.0 * mu, J);
+      P.Add(dJ * pres, Jinv);
+      
+      P *= ip.weight*Tr.Weight();
+      AddMultABt(DS_u, P, PMatO_u);
+      
+      elvec[1].Add(ip.weight * Tr.Weight() * (J.Det() - 1.0), Sh_p);
+   }
+
+}
+
+void IncompressibleNeoHookeanIntegrator::AssembleRHSElementVector(Array<const FiniteElement *> &el,
+                                         FaceElementTransformations &Tr,
+                                         Array<Vector> &elfun, 
+                                         Array<Vector> &elvec)
+{
+   mfem_error("IncompressibleNeoHookeanIntegrator::AssembleRHSElementVector"
+              " is not overloaded!");
+}
+
+void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(Array<const FiniteElement*> &el,
+                                    ElementTransformation &Tr,
+                                    Array<Vector> &elfun, 
+                                    Array2D<DenseMatrix> &elmats)
+{
+
+   mfem_error("IncompressibleNeoHookeanIntegrator::AssembleRHSElementGrad"
+              " is not overloaded!");
+}
+
+void IncompressibleNeoHookeanIntegrator::AssembleRHSElementGrad(Array<const FiniteElement*> &el,
+                                       FaceElementTransformations &Tr,
+                                       Array<Vector> &elfun, 
+                                       Array2D<DenseMatrix> &elmats)
+{
+   mfem_error("IncompressibleNeoHookeanIntegrator::AssembleRHSElementGrad"
+              " is not overloaded!");
+}
+
 
 }
