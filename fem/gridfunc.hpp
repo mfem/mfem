@@ -517,14 +517,14 @@ inline void QuadratureFunction::GetElementValues(int idx, Vector &values)
 {
    const int s_offset = qspace->element_offsets[idx];
    const int sl_size = qspace->element_offsets[idx+1] - s_offset;
-   values.NewDataAndSize(data + vdim*s_offset, vdim*sl_size);
+   values.NewDataAndSize((double *)data + vdim*s_offset, vdim*sl_size);
 }
 
 inline void QuadratureFunction::GetElementValues(int idx, DenseMatrix &values)
 {
    const int s_offset = qspace->element_offsets[idx];
    const int sl_size = qspace->element_offsets[idx+1] - s_offset;
-   values.Reset(data + vdim*s_offset, vdim, sl_size);
+   values.Reset((double *)data + vdim*s_offset, vdim, sl_size);
 }
 
 } // namespace mfem

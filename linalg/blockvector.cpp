@@ -34,8 +34,8 @@ BlockVector::BlockVector(const Array<int> & bOffsets):
 {
    for (int i = 0; i < numBlocks; ++i)
    {
-      tmp_block[i] =  new Vector(data+blockOffsets[i],
-                                 blockOffsets[i+1]-blockOffsets[i]);
+      tmp_block[i] =  new Vector((double *)data + blockOffsets[i],
+                                 blockOffsets[i+1] - blockOffsets[i]);
    }
 }
 
@@ -48,8 +48,8 @@ BlockVector::BlockVector(const BlockVector & v):
 {
    for (int i = 0; i < numBlocks; ++i)
    {
-      tmp_block[i] =  new Vector(data+blockOffsets[i],
-                                 blockOffsets[i+1]-blockOffsets[i]);
+      tmp_block[i] =  new Vector((double *)data + blockOffsets[i],
+                                 blockOffsets[i+1] - blockOffsets[i]);
    }
 }
 
@@ -62,8 +62,8 @@ BlockVector::BlockVector(double *data, const Array<int> & bOffsets):
 {
    for (int i = 0; i < numBlocks; ++i)
    {
-      tmp_block[i] =  new Vector(data+blockOffsets[i],
-                                 blockOffsets[i+1]-blockOffsets[i]);
+      tmp_block[i] =  new Vector(data + blockOffsets[i],
+                                 blockOffsets[i+1] - blockOffsets[i]);
    }
 }
 
@@ -82,8 +82,8 @@ void BlockVector::Update(double *data, const Array<int> & bOffsets)
    tmp_block.SetSize(numBlocks);
    for (int i = oldNumBlocks; i < numBlocks; ++i)
    {
-      tmp_block[i] =  new Vector(data+blockOffsets[i],
-                                 blockOffsets[i+1]-blockOffsets[i]);
+      tmp_block[i] =  new Vector(data + blockOffsets[i],
+                                 blockOffsets[i+1] - blockOffsets[i]);
    }
 }
 
@@ -106,10 +106,7 @@ BlockVector & BlockVector::operator=(const BlockVector & original)
          mfem_error("Size of Blocks don't match in BlockVector::operator=");
       }
 
-   for (int i = 0; i < original.size; i++)
-   {
-      data[i] = original.data[i];
-   }
+   original.data.Copy(data);
 
    return *this;
 }
@@ -131,22 +128,22 @@ BlockVector::~BlockVector()
 
 Vector & BlockVector::GetBlock(int i)
 {
-   tmp_block[i]->NewDataAndSize(data+blockOffsets[i],
-                                blockOffsets[i+1]-blockOffsets[i]);
+   tmp_block[i]->NewDataAndSize((double *)data + blockOffsets[i],
+                                blockOffsets[i+1] - blockOffsets[i]);
    return *(tmp_block[i]);
 }
 
 const Vector &  BlockVector::GetBlock(int i) const
 {
-   tmp_block[i]->NewDataAndSize(data+blockOffsets[i],
-                                blockOffsets[i+1]-blockOffsets[i]);
+   tmp_block[i]->NewDataAndSize((const double *)data + blockOffsets[i],
+                                blockOffsets[i+1] - blockOffsets[i]);
    return *(tmp_block[i]);
 }
 
 void BlockVector::GetBlockView(int i, Vector & blockView)
 {
-   blockView.NewDataAndSize(data+blockOffsets[i],
-                            blockOffsets[i+1]-blockOffsets[i]);
+   blockView.NewDataAndSize((double *)data + blockOffsets[i],
+                            blockOffsets[i+1] - blockOffsets[i]);
 }
 
 }

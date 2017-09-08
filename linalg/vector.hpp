@@ -41,35 +41,32 @@ class Vector
 {
 protected:
 
-   int size, allocsize;
-   double * data;
+   Array<double> data;
 
 public:
 
    /// Default constructor for Vector. Sets size = 0 and data = NULL.
-   Vector () { allocsize = size = 0; data = 0; }
+   Vector () : data() { }
 
    /// Copy constructor. Allocates a new data array and copies the data.
-   Vector(const Vector &);
+   Vector(const Vector &v) { v.data.Copy(data); };
 
    /// @brief Creates vector of size s.
    /// @warning Entries are not initialized to zero!
-   explicit Vector (int s);
+   explicit Vector (int s) : data(s) { };
 
    /// Creates a vector referencing an array of doubles, owned by someone else.
    /** The pointer @a _data can be NULL. The data array can be replaced later
        with SetData(). */
-   Vector (double *_data, int _size)
-   { data = _data; size = _size; allocsize = -size; }
+   Vector (double *_data, int _size) : data(_data, _size) { }
 
-   Vector (const double *_data, int _size)
-   { data = const_cast<double *>(_data); size = _size; allocsize = -size; }
+   Vector (const double *_data, int _size) : data(_data, _size) { }
 
    /// Reads a vector from multiple files
    void Load (std::istream ** in, int np, int * dim);
 
    /// Load a vector from an input stream.
-   void Load(std::istream &in, int Size);
+   void Load(std::istream &in, int size);
 
    /// Load a vector from an input stream, reading the size from the stream.
    void Load(std::istream &in) { int s; in >> s; Load (in, s); }
@@ -80,22 +77,21 @@ public:
        owned, and a new array of size @a s is allocated without copying the
        previous content of the Vector.
        @warning New entries are not initialized! */
-   void SetSize(int s);
+   void SetSize(int s) { data.SetSize(s); }
 
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
-   void SetData(double *d) { data = d; }
+   // TODO: This will be no longer true...
+   void SetData(double *d) { const int size = data.Size(); data.MakeRef(d, size); }
 
    /// Set the Vector data and size.
    /** The Vector does not assume ownership of the new data. The new size is
        also used as the new Capacity().
        @warning This method should be called only when OwnsData() is false.
        @sa NewDataAndSize(). */
-   void SetDataAndSize(double *d, int s)
-   { data = d; size = s; allocsize = -s; }
+   void SetDataAndSize(double *d, int s) { data.MakeRef(d, s); }
 
-   void SetDataAndSize(const double *d, int s)
-   { data = const_cast<double *>(d); size = s; allocsize = -s; }
+   void SetDataAndSize(const double *d, int s) { data.MakeRef(d, s); }
 
    /// Set the Vector data and size, deleting the old data, if owned.
    /** The Vector does not assume ownership of the new data. The new size is
@@ -103,21 +99,28 @@ public:
        @sa SetDataAndSize(). */
    void NewDataAndSize(double *d, int s)
    {
-      if (allocsize > 0) { delete [] data; }
-      SetDataAndSize(d, s);
+      // TODO: SetDataAndSize used to be a relatively unsafe function.
+      // Now it's safer, but it's the same as this one.
+      data.MakeRef(d, s);
    }
 
-   void MakeDataOwner() { allocsize = abs(allocsize); }
+   void NewDataAndSize(const double *d, int s)
+   {
+      NewDataAndSize(const_cast<double *>(d), s);
+   }
+
+   // Huh?
+   void MakeDataOwner() { data.MakeDataOwner(); }
 
    /// Destroy a vector
    void Destroy();
 
    /// Returns the size of the vector.
-   inline int Size() const { return size; }
+   inline int Size() const { return data.Size(); }
 
    /// Return the size of the currently allocated data array.
    /** It is always true that Capacity() >= Size(). */
-   inline int Capacity() const { return abs(allocsize); }
+   inline int Capacity() const { return data.Capacity(); }
 
    inline double *GetData() { return data; }
    inline const double *GetData() const { return data; }
@@ -132,11 +135,10 @@ public:
        in addition to the overloaded operator()(int). */
    inline operator const double *() const { return data; }
 
-   inline bool OwnsData() const { return (allocsize > 0); }
+   inline bool OwnsData() const { return data.OwnsData(); }
 
    /// Changes the ownership of the data; after the call the Vector is empty
-   inline void StealData(double **p)
-   { *p = data; data = 0; size = allocsize = 0; }
+   inline void StealData(double **p) { data.StealData(p); }
 
    /// Changes the ownership of the data; after the call the Vector is empty
    inline double *StealData() { double *p; StealData(&p); return p; }
@@ -249,7 +251,7 @@ public:
    /// Returns the l_1 norm of the vector.
    double Norml1() const;
    /// Returns the l_p norm of the vector.
-   double Normlp(double p) const;
+   double Normlp(const double p) const;
    /// Returns the maximal element of the vector.
    double Max() const;
    /// Returns the minimal element of the vector.
@@ -261,10 +263,7 @@ public:
 
    /** Count the number of entries in the Vector for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
-   int CheckFinite() const { return mfem::CheckFinite(data, size); }
-
-   /// Destroys vector.
-   virtual ~Vector ();
+   int CheckFinite() const { return mfem::CheckFinite(data, data.Size()); }
 
 #ifdef MFEM_USE_SUNDIALS
    /// Construct a wrapper Vector from SUNDIALS N_Vector.
@@ -272,7 +271,7 @@ public:
 
    /// Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_SERIAL.
    /** The returned N_Vector must be destroyed by the caller. */
-   virtual N_Vector ToNVector() { return N_VMake_Serial(Size(), GetData()); }
+   virtual N_Vector ToNVector() { return N_VMake_Serial(Size(), data); }
 
    /** @brief Update an existing wrapper SUNDIALS N_Vector to point to this
        Vector. */
@@ -303,69 +302,29 @@ inline int CheckFinite(const double *v, const int n)
    return bad;
 }
 
-inline Vector::Vector (int s)
-{
-   if (s > 0)
-   {
-      allocsize = size = s;
-      data = new double[s];
-   }
-   else
-   {
-      allocsize = size = 0;
-      data = NULL;
-   }
-}
-
-inline void Vector::SetSize(int s)
-{
-   if (s == size)
-   {
-      return;
-   }
-   if (s <= abs(allocsize))
-   {
-      size = s;
-      return;
-   }
-   if (allocsize > 0)
-   {
-      delete [] data;
-   }
-   allocsize = size = s;
-   data = new double[s];
-}
-
 inline void Vector::Destroy()
 {
-   if (allocsize > 0)
-   {
-      delete [] data;
-   }
-   allocsize = size = 0;
-   data = NULL;
+   data.DeleteAll();
 }
 
 inline double & Vector::operator() (int i)
 {
-   MFEM_ASSERT(data && i >= 0 && i < size,
-               "index [" << i << "] is out of range [0," << size << ")");
+   MFEM_ASSERT(data && i >= 0 && i < data.Size(),
+               "index [" << i << "] is out of range [0," << data.Size() << ")");
 
    return data[i];
 }
 
 inline const double & Vector::operator() (int i) const
 {
-   MFEM_ASSERT(data && i >= 0 && i < size,
-               "index [" << i << "] is out of range [0," << size << ")");
+   MFEM_ASSERT(data && i >= 0 && i < data.Size(),
+               "index [" << i << "] is out of range [0," << data.Size() << ")");
 
    return data[i];
 }
 
 inline void Vector::Swap(Vector &other)
 {
-   mfem::Swap(size, other.size);
-   mfem::Swap(allocsize, other.allocsize);
    mfem::Swap(data, other.data);
 }
 
@@ -373,14 +332,6 @@ inline void Vector::Swap(Vector &other)
 template<> inline void Swap<Vector>(Vector &a, Vector &b)
 {
    a.Swap(b);
-}
-
-inline Vector::~Vector()
-{
-   if (allocsize > 0)
-   {
-      delete [] data;
-   }
 }
 
 inline double Distance(const double *x, const double *y, const int n)

@@ -90,6 +90,9 @@ public:
    /// Return the data as 'const T *'
    inline operator const T *() const { return (const T *)data; }
 
+   /// Return whether this array points to data
+   inline operator bool() { return (size > 0); }
+
    /// Returns the data
    inline T *GetData() { return (T *)data; }
    /// Returns the data
@@ -169,6 +172,8 @@ public:
    /// Make this Array a reference to a pointer
    inline void MakeRef(T *p, int s);
 
+   inline void MakeRef(const T *p, int s);
+
    /// Make this Array a reference to 'master'
    inline void MakeRef(const Array &master);
 
@@ -240,6 +245,8 @@ public:
    inline T* end() const { return (T*) data + size; }
 
    long MemoryUsage() const { return Capacity() * sizeof(T); }
+
+   // TODO: Add CheckFinite here?
 
 private:
    /// Array copy is not supported
@@ -652,6 +659,13 @@ inline void Array<T>::MakeRef(T *p, int s)
    data = p;
    size = s;
    allocsize = -s;
+}
+
+template <class T>
+inline void Array<T>::MakeRef(const T *p, int s)
+{
+   T *p_nc = const_cast<T*>(p);
+   MakeRef(p_nc, s);
 }
 
 template <class T>

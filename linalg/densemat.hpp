@@ -25,8 +25,7 @@ class DenseMatrix : public Matrix
    friend class DenseMatrixInverse;
 
 private:
-   double *data;
-   int capacity; // zero or negative capacity means we do not own the data.
+   Array<double> data;
 
    void Eigensystem(Vector &ev, DenseMatrix *evect = NULL);
 
@@ -50,39 +49,37 @@ public:
    /** Construct a DenseMatrix using existing data array. The DenseMatrix does
        not assume ownership of the data array, i.e. it will not delete the
        array. */
-   DenseMatrix(double *d, int h, int w) : Matrix(h, w)
-   { data = d; capacity = -h*w; }
+   DenseMatrix(double *d, int h, int w) : Matrix(h, w), data(h*w) { }
 
-   DenseMatrix(const double *d, int h, int w) : Matrix(h, w)
-   { data = const_cast<double *>(d); capacity = -h*w; }
+   DenseMatrix(const double *d, int h, int w) : Matrix(h, w), data(d, h*w) { }
 
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the data array @a d. This method should not be used with
        DenseMatrix that owns its current data array. */
    void UseExternalData(double *d, int h, int w)
-   { data = d; height = h; width = w; capacity = -h*w; }
+   { height = h; width = w; data.MakeRef(d, h*w); }
 
    void UseExternalData(const double *d, int h, int w)
-   { data = const_cast<double *>(d); height = h; width = w; capacity = -h*w; }
+   { UseExternalData(const_cast<double *>(d), h, w); }
 
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the new array @a d. This method will delete the current data
        array, if owned. */
    void Reset(double *d, int h, int w)
-   { if (OwnsData()) { delete [] data; } UseExternalData(d, h, w); }
+   { UseExternalData(d, h, w); }
 
    void Reset(const double *d, int h, int w)
-   { if (OwnsData()) { delete [] data; } UseExternalData(d, h, w); }
+   { Reset(const_cast<double *>(d), h, w); }
 
    /** Clear the data array and the dimensions of the DenseMatrix. This method
        should not be used with DenseMatrix that owns its current data array. */
-   void ClearExternalData() { data = NULL; height = width = 0; capacity = 0; }
+   void ClearExternalData() { data.DeleteAll(); }
 
    /// Delete the matrix data array (if owned) and reset the matrix state.
-   void Clear()
-   { if (OwnsData()) { delete [] data; } ClearExternalData(); }
+   // TODO: This is now the same as ClearExternalData() and is safe!
+   void Clear() { data.DeleteAll(); }
 
    /// For backward compatibility define Size to be synonym of Width()
    int Size() const { return Width(); }
@@ -101,7 +98,7 @@ public:
    inline double *GetData() { return data; }
    inline const double *GetData() const { return data; }
 
-   inline bool OwnsData() const { return (capacity > 0); }
+   inline bool OwnsData() const { return data.OwnsData(); }
 
    /// Returns reference to a_{ij}.
    inline double &operator()(int i, int j);
@@ -228,10 +225,10 @@ public:
 
    void GetRow(int r, Vector &row);
    void GetColumn(int c, Vector &col) const;
-   double *GetColumn(int col) { return data + col*height; }
+   double *GetColumn(int col) { return (double *)data + col*height; }
 
    void GetColumnReference(int c, Vector &col)
-   { col.SetDataAndSize(data + c * height, height); }
+   { col.SetDataAndSize((double *)data + c * height, height); }
 
    void SetRow(int r, const Vector &row);
    void SetCol(int c, const Vector &col);
@@ -323,7 +320,7 @@ public:
    /// Invert and print the numerical conditioning of the inversion.
    void TestInversion();
 
-   long MemoryUsage() const { return std::abs(capacity) * sizeof(double); }
+   long MemoryUsage() const { return data.Capacity(); }
 
    /// Destroys dense matrix.
    virtual ~DenseMatrix();
@@ -620,26 +617,15 @@ class Table;
 class DenseTensor
 {
 private:
+   Array<double> tdata;
    DenseMatrix Mk;
-   double *tdata;
    int nk;
-   bool own_data;
 
 public:
-   DenseTensor()
-   {
-      nk = 0;
-      tdata = NULL;
-      own_data = true;
-   }
+   DenseTensor() : tdata(), nk(0) { }
 
    DenseTensor(int i, int j, int k)
-      : Mk((double*)NULL, i, j)
-   {
-      nk = k;
-      tdata = new double[i*j*k];
-      own_data = true;
-   }
+      : tdata(i*j*k), Mk((double*)NULL, i, j), nk(k) { }
 
    int SizeI() const { return Mk.Height(); }
    int SizeJ() const { return Mk.Width(); }
@@ -647,20 +633,16 @@ public:
 
    void SetSize(int i, int j, int k)
    {
-      if (own_data) { delete [] tdata; }
+      tdata.SetSize(i*j*k);
       Mk.UseExternalData((double*)NULL, i, j);
       nk = k;
-      tdata = new double[i*j*k];
-      own_data = true;
    }
 
    void UseExternalData(double *ext_data, int i, int j, int k)
    {
-      if (own_data) { delete [] tdata; }
+      tdata.MakeRef(ext_data, i*j*k);
       Mk.UseExternalData((double*)NULL, i, j);
       nk = k;
-      tdata = ext_data;
-      own_data = false;
    }
 
    void UseExternalData(const double *ext_data, int i, int j, int k)
@@ -672,7 +654,13 @@ public:
    /// Sets the tensor elements equal to constant c
    DenseTensor &operator=(double c);
 
-   DenseMatrix &operator()(int k) { Mk.data = GetData(k); return Mk; }
+   DenseMatrix &operator()(int k)
+   {
+      const int i = Mk.Height(), j = Mk.Width();
+      Mk.data.MakeRef(GetData(k), i*j);
+      return Mk;
+   }
+
    const DenseMatrix &operator()(int k) const
    { return const_cast<DenseTensor&>(*this)(k); }
 
@@ -681,7 +669,7 @@ public:
    const double &operator()(int i, int j, int k) const
    { return tdata[i+SizeI()*(j+SizeJ()*k)]; }
 
-   double *GetData(int k) { return tdata+k*Mk.Height()*Mk.Width(); }
+   double *GetData(int k) { return (double *)tdata + k*Mk.Height()*Mk.Width(); }
 
    double *Data() { return tdata; }
 
@@ -692,12 +680,7 @@ public:
    void Clear()
    { UseExternalData((double*)NULL, 0, 0, 0); }
 
-   long MemoryUsage() const { return nk*Mk.MemoryUsage(); }
-
-   ~DenseTensor()
-   {
-      if (own_data) { delete [] tdata; }
-   }
+   long MemoryUsage() const { return tdata.MemoryUsage(); }
 };
 
 
