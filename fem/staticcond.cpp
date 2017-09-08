@@ -380,7 +380,7 @@ void StaticCondensation::ReduceRHS(const Vector &b, Vector &sc_b) const
    else
    {
 #ifdef MFEM_USE_MPI
-      HypreParMatrix *tr_P = tr_pfes->Dof_TrueDof_Matrix();
+      const Operator *tr_P = tr_pfes->GetProlongationMatrix();
       sc_b.SetSize(tr_P->Width());
       tr_P->MultTranspose(b_r, sc_b);
 #endif
@@ -501,7 +501,7 @@ void StaticCondensation::ComputeSolution(
    {
 #ifdef MFEM_USE_MPI
       sol_r.SetSize(nedofs);
-      tr_pfes->Dof_TrueDof_Matrix()->Mult(sc_sol, sol_r);
+      tr_pfes->GetProlongationMatrix()->Mult(sc_sol, sol_r);
 #endif
    }
    sol.SetSize(nedofs+npdofs);

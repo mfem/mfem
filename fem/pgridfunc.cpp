@@ -115,7 +115,7 @@ void ParGridFunction::MakeRef(ParFiniteElementSpace *f, Vector &v, int v_offset)
 
 void ParGridFunction::Distribute(const Vector *tv)
 {
-   pfes->Dof_TrueDof_Matrix()->Mult(*tv, *this);
+   pfes->GetProlongationMatrix()->Mult(*tv, *this);
 }
 
 void ParGridFunction::AddDistribute(double a, const Vector *tv)
@@ -132,13 +132,13 @@ HypreParVector *ParGridFunction::GetTrueDofs() const
 
 void ParGridFunction::ParallelAverage(Vector &tv) const
 {
-   pfes->Dof_TrueDof_Matrix()->MultTranspose(*this, tv);
+   pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
    pfes->DivideByGroupSize(tv);
 }
 
 void ParGridFunction::ParallelAverage(HypreParVector &tv) const
 {
-   pfes->Dof_TrueDof_Matrix()->MultTranspose(*this, tv);
+   pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
    pfes->DivideByGroupSize(tv);
 }
 
@@ -168,12 +168,12 @@ HypreParVector *ParGridFunction::ParallelProject() const
 
 void ParGridFunction::ParallelAssemble(Vector &tv) const
 {
-   pfes->Dof_TrueDof_Matrix()->MultTranspose(*this, tv);
+   pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
 }
 
 void ParGridFunction::ParallelAssemble(HypreParVector &tv) const
 {
-   pfes->Dof_TrueDof_Matrix()->MultTranspose(*this, tv);
+   pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
 }
 
 HypreParVector *ParGridFunction::ParallelAssemble() const

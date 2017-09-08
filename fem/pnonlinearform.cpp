@@ -59,13 +59,13 @@ double ParNonlinearForm::GetEnergy(const Vector &x) const
 
 void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
-   X.Distribute(&x);
+   const Operator *P = ParFESpace()->GetProlongationMatrix();
+
+   P->Mult(x, X);
 
    NonlinearForm::Mult(X, Y);
 
-   ParFESpace()->GroupComm().Reduce<double>(Y, GroupCommunicator::Sum);
-
-   Y.GetTrueDofs(y);
+   P->MultTranspose(Y, y);
 }
 
 const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
