@@ -32,7 +32,7 @@
 // Compile with: make pmesh-optimizer
 //
 // Sample runs:
-//   mpirun -np 4 pmesh-optimizer -m ../../data/blade.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 20 -ls 1 -bnd
+//   mpirun -np 4 pmesh-optimizer -m blade.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 20 -ls 1 -bnd
 //   mpirun -np 4 pmesh-optimizer i -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lim -lc 0.001 -ni 10 -ls 1 -bnd
 
 #include "mfem.hpp"
@@ -231,7 +231,7 @@ int main (int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 1. Set the method's default parameters.
-   const char *mesh_file = "../../data/icf-pert.mesh";
+   const char *mesh_file = "icf.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
    int rp_levels         = 0;
@@ -717,7 +717,7 @@ int main (int argc, char *argv[])
    return 0;
 }
 
-// Defined with respect to the icf-pert mesh.
+// Defined with respect to the icf mesh.
 double weight_fun(const Vector &x)
 {
    const double r = sqrt(x(0)*x(0) + x(1)*x(1) + 1e-12);
