@@ -14,20 +14,20 @@
 //            --------------------------------------------------
 //
 // This miniapp performs mesh optimization using the Target-Matrix Optimization
-// Paradigm (TMOP), and a global variational minimization approach. It minimizes
-// the quantity sum_T int_T mu(Jtr(x)), where T are the target (ideal) elements,
-// Jtr is the Jacobian of the transformation from the reference to the target
-// element, and mu is the mesh quality metric. This metric can measure shape,
-// size or alignment of the region around each quadrature point. The combination
-// of targets & quality metrics is used to optimize the physical node positions,
-// i.e., they must be as close as possible to the shape / size / alignment of
-// their targets. This code also demonstrates a possible use of nonlinear
-// operators (the class HyperelasticModel, defining mu(Jtr), and the class
-// HyperelasticNLFIntegrator, defining int mu(Jtr)), as well as their coupling
-// to Newton methods for solving minimization problems. Note that the utilized
-// Newton methods are oriented towards avoiding invalid meshes with negative
-// Jacobian determinants. Each Newton step requires the inversion of a Jacobian
-// matrix, which is done through an inner linear solver.
+// Paradigm (TMOP) by P.Knupp et al., and a global variational minimization
+// approach. It minimizes the quantity sum_T int_T mu(J(x)), where T are the
+// target (ideal) elements, J is the Jacobian of the transformation from the
+// reference to the target element, and mu is the mesh quality metric. This
+// metric can measure shape, size or alignment of the region around each
+// quadrature point. The combination of targets & quality metrics is used to
+// optimize the physical node positions, i.e., they must be as close as possible
+// to the shape / size / alignment of their targets. This code also demonstrates
+// a possible use of nonlinear operators (the class HyperelasticModel, defining
+// mu(J), and the class HyperelasticNLFIntegrator, defining int mu(J)), as well
+// as their coupling to Newton methods for solving minimization problems. Note
+// that the utilized Newton methods are oriented towards avoiding invalid meshes
+// with negative Jacobian determinants. Each Newton step requires the inversion
+// of a Jacobian matrix, which is done through an inner linear solver.
 //
 // Compile with: make mesh-optimizer
 //
@@ -59,7 +59,7 @@ void vis_metric(int order, HyperelasticModel &model, const TargetJacobian &tj,
    sock << "window_title '"<< title << "'\n"
         << "window_geometry "
         << position << " " << 0 << " " << 600 << " " << 600 << "\n"
-        << "keys JRmcl" << endl;
+        << "keys jRmclA" << endl;
 }
 
 class RelaxedNewtonSolver : public NewtonSolver
@@ -621,7 +621,7 @@ int main (int argc, char *argv[])
       sock << "window_title 'Displacements'\n"
            << "window_geometry "
            << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
-           << "keys JRmcl" << endl;
+           << "keys jRmclA" << endl;
    }
 
    // 24. Free the used memory.
