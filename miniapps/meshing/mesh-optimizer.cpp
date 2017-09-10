@@ -207,7 +207,7 @@ int main (int argc, char *argv[])
    int newton_iter       = 10;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
-   bool move_bnd         = false;
+   bool move_bnd         = true;
    bool visualization    = true;
    int combomet          = 0;
 
