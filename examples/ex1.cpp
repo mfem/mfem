@@ -46,16 +46,23 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
-   int order = 1;
    bool static_cond = false;
    bool visualization = 1;
+   int  nelems = 1; 
+   Array<int> order(1);
+   order[0] = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+
+   args.AddOption(&nelems, "-n", "--elems",
+                  "Minimum number of elements (x100).");
+
    args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree) or -1 for"
+                  "Finite element order (polynomial degree) or 0 for"
                   " isoparametric space.");
+
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -79,35 +86,59 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   {
+   /*{
       int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
+   }*/
+
+   while (mesh->GetNE() < nelems*100){
+       cout<<"Refine : " <<mesh->GetNE();
+       mesh->UniformRefinement();
+       cout<<" --> "<<mesh->GetNE()<<endl;
    }
 
+
+   //      mesh->UniformRefinement();
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
-   if (order > 0)
-   {
-      fec = new H1_FECollection(order, dim);
-   }
-   else if (mesh->GetNodes())
+   NURBSExtension *NURBSext = NULL;
+
+   if (order[0] == 0) // Isoparametric
    {
       fec = mesh->GetNodes()->OwnFEC();
       cout << "Using isoparametric FEs: " << fec->Name() << endl;
    }
+   else if (mesh->NURBSext && (order[0] > 0) ){ // Subparametric NURBS
+      fec = new NURBSFECollection(order[0]);
+
+      int nkv = mesh->NURBSext->GetNKV();
+
+      if (order.Size() == 1) 
+      {
+        int tmp = order[0];
+        order.SetSize(nkv);
+        order = tmp;
+      }
+      if (order.Size() != nkv ) mfem_error("Wrong number of orders set.");
+      NURBSext = new NURBSExtension(mesh->NURBSext, order);
+   }
    else
    {
-      fec = new H1_FECollection(order = 1, dim);
+      if (order.Size() > 1) cout <<"Wrong number of orders set, needs one.\n";
+      fec = new H1_FECollection(abs(order[0]), dim);
    }
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, NURBSext, fec);
+  
    cout << "Number of finite element unknowns: "
-        << fespace->GetTrueVSize() << endl;
+        << fespace->GetTrueVSize() << endl; 
+
 
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
@@ -123,12 +154,14 @@ int main(int argc, char *argv[])
 
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
-   //    the basis functions in the finite element fespace.
+   //    the basis functions in the finite element fespace. 
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(1.0);
+
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
+//exit(-1);
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
@@ -158,7 +191,7 @@ int main(int argc, char *argv[])
    // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //     solve the system A X = B with PCG.
    GSSmoother M(A);
-   PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
+   PCG(A, M, B, X, 1, 200, 1e-10, 0.0);
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
@@ -169,26 +202,60 @@ int main(int argc, char *argv[])
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
-
+   cout << "Size of linear system: " << A.Height() << endl;
    // 12. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
-   ofstream mesh_ofs("refined.mesh");
-   mesh_ofs.precision(8);
-   mesh->Print(mesh_ofs);
-   ofstream sol_ofs("sol.gf");
-   sol_ofs.precision(8);
-   x.Save(sol_ofs);
+ //  ofstream mesh_ofs("refined.mesh");
+ //  mesh_ofs.precision(8);
+ //  mesh->Print(mesh_ofs);
+ //  ofstream sol_ofs("sol.gf");
+ //  sol_ofs.precision(8);
+ //  x.Save(sol_ofs);
 
    // 13. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
+      cout<<vishost<<"::"<<visport<<endl;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x << flush;
    }
+std::cout<<"-------------------------"<<std::endl;
+   // 13. Save data in the VisIt format
+   VisItDataCollection visit_dc("Example1", mesh);
+   visit_dc.RegisterField("solution", &x);
+   visit_dc.Save();
 
+
+   cout << "Finite element collection: "<< fec->Name() << endl; 
+//   cout << "Solution: "; x.Print(); 
+
+   Vector vals;
+   DenseMatrix pmat; 
+   Vector Xcoord, Ycoord, coord;
+   const IntegrationRule &ir = IntRules.Get(fespace->GetFE(0)->GetGeomType(), 5);
+   x.GetValues(0, ir, vals);
+
+   ofstream file;
+   file.open("plot.dat");
+   for (int e = 0; e < fespace->GetNE(); e++){
+     x.GetValues(e, ir, vals, pmat);
+   //  mesh->GetNodes()->GetValues(e, ir, Xcoord,0);
+   //  mesh->GetNodes()->GetValues(e, ir, Ycoord,1);
+//pmat.Print();
+//vals.Print();
+     for (int i = 0; i < vals.Size(); i++){
+        const IntegrationPoint &ip = ir.IntPoint(i);
+        //coord[0] = mesh->GetNodes()->GetValue(e, ip, 0);
+        //coord[1] = mesh->GetNodes()->GetValue(e, ip, 1);
+        //file <<ip.x<<" "<<ip.y<<" "<<vals[i] << endl;
+        file <<pmat(0,i)<<" "<<pmat(1,i)<<" "<<vals[i] << endl;
+     }
+   }
+   file.close();
+   cout << "Finite element collection: "<< fec->Name() << endl; 
    // 14. Free the used memory.
    delete a;
    delete b;

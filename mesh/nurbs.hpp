@@ -157,7 +157,7 @@ class NURBSExtension
    friend class NURBSPatchMap;
 
 protected:
-   int Order;
+   Array<int> Order;
    int NumOfKnotVectors;
    // global entity counts
    int NumOfVertices, NumOfElements, NumOfBdrElements, NumOfDofs;
@@ -268,6 +268,7 @@ public:
    /** Create a NURBSExtension with elevated order by repeating the endpoints
        of the knot vectors and using uniform weights of 1. */
    NURBSExtension(NURBSExtension *parent, int Order);
+   NURBSExtension(NURBSExtension *parent, const Array<int> &Order);
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
 
@@ -285,7 +286,13 @@ public:
    int Dimension() { return patchTopo->Dimension(); }
    int GetNP()     { return patchTopo->GetNE(); }
    int GetNBP()    { return patchTopo->GetNBE(); }
-   int GetOrder()  { return Order; }
+
+   void GetOrders(Array<int> &Orders) const
+   {
+     Orders.SetSize(NumOfKnotVectors);
+     for(int i = 0; i < NumOfKnotVectors; i++) Orders[i] = knotVectors[i]->GetOrder();
+   }
+
    int GetNKV()    { return NumOfKnotVectors; }
 
    int GetGNV()  { return NumOfVertices; }

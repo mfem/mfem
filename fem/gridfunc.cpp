@@ -49,10 +49,29 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
    input.getline(buff, bufflen, ' '); // 'Ordering:'
    int ordering;
    input >> ordering;
+
+   NURBSExtension *NURBSext = NULL;
+   if (m->NURBSext) {
+      input.getline(buff, bufflen, ' '); // 'NURBSext:'
+      int size;
+      input >> size;
+      if (size <= 0) {
+         cout<<"Iso param extension"<<endl;
+         NURBSext = m->NURBSext;
+      }
+      else {
+         Array<int> Orders(size);
+         Orders.Load(input);
+         cout<<"Create new extension: ";Orders.Print();
+         NURBSext = new NURBSExtension(m->NURBSext, Orders);
+     }
+   }
+
    input.getline(buff, bufflen); // read the empty line
-   fes = new FiniteElementSpace(m, fec, vdim, ordering);
+   fes = new FiniteElementSpace(m, NURBSext, fec, vdim, ordering);
    Vector::Load(input, fes->GetVSize());
    sequence = 0;
+
 }
 
 GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)

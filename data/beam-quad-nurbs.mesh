@@ -68,6 +68,7 @@ FiniteElementSpace
 FiniteElementCollection: NURBS1
 VDim: 2
 Ordering: 1
+NURBSext: 0
 
 0 0
 4 0

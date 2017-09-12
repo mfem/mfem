@@ -342,10 +342,17 @@ private:
    void Allocate(int Order);
    void Deallocate();
 
+   Array<int> Orders;
+
 public:
    explicit NURBSFECollection(int Order) { Allocate(Order); }
+   explicit NURBSFECollection(int px, int py, int pz);
+   explicit NURBSFECollection(Array<int>  &Orders);
 
-   int GetOrder() const { return SegmentFE->GetOrder(); }
+   int GetOrder() const { return ParallelepipedFE->GetOrder(); }
+
+   const Array<int>  &GetOrders() const {return Orders;} 
+//   void SetOrders(Array<int>  &Orders_) {Orders_.Copy(Orders);} 
 
    /// Change the order of the collection
    void UpdateOrder(int Order) { Deallocate(); Allocate(Order); }
