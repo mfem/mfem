@@ -312,7 +312,6 @@ public:
    mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
 
 private:
-   // double a_;
 
    // Data for mesh of the corresponding Wigner-Setiz Cell
    double ws_vert_[24];  // Vertex coordinates
@@ -345,7 +344,6 @@ public:
    mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
 
 private:
-   //double a_;
 
    // Data for mesh of the corresponding Wigner-Setiz Cell
    double ws_vert_[45];   // Vertex coordinates
@@ -372,7 +370,6 @@ public:
    mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
 
 private:
-   //double a_;
 
    // Data for mesh of the corresponding Wigner-Setiz Cell
    double ws_vert_[114];  // Vertex coordinates
@@ -399,8 +396,6 @@ public:
    mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
 
 private:
-   // double a_;
-   // double c_;
 
    // Data for mesh of the corresponding Wigner-Setiz Cell
    double ws_vert_[24];  // Vertex coordinates
@@ -431,8 +426,6 @@ public:
    mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
 
 private:
-   double a_;
-   double c_;
 
    // There are two possible shapes for the Wigner-Seitz cell:
    // elongated dodecahedron when c > sqrt(2) a, trucated octahedron
@@ -471,9 +464,6 @@ public:
    mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
 
 private:
-   // double a_;
-   // double b_;
-   // double c_;
 
    // Data for mesh of the corresponding Wigner-Setiz Cell
    double ws_vert_[24];  // Vertex coordinates
@@ -519,9 +509,7 @@ public:
    mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
 
 private:
-   // double a_;
-   // double b_;
-   // double c_;
+
    int variety_;
 
    // Data for mesh of the corresponding Wigner-Setiz Cell
@@ -550,9 +538,6 @@ public:
    mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
 
 private:
-   // double a_;
-   // double b_;
-   // double c_;
 
    // There are two possible shapes for the Wigner-Seitz cell:
    // elongated dodecahedron when c > sqrt(a^2+b^2), trucated octahedron
@@ -592,9 +577,6 @@ public:
    mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
 
 private:
-   // double a_;
-   // double b_;
-   // double c_;
 
    // Data for mesh of the corresponding Wigner-Setiz Cell
    double ws_vert_[63];   // Vertex coordinates
@@ -621,8 +603,6 @@ public:
    mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
 
 private:
-   // double a_;
-   // double c_;
 
    // Data for mesh of the corresponding Wigner-Setiz Cell
    double ws_vert_[63];   // Vertex coordinates
@@ -649,8 +629,6 @@ public:
    mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
 
 private:
-   // double a_;
-   // double alpha_;
 
    // There are two possible shapes for the Wigner-Seitz cell:
    // rhombic dodecahedron when alpha < pi/2, trucated octahedron
@@ -691,10 +669,6 @@ public:
    mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
 
 private:
-   // double a_;
-   // double b_;
-   // double c_;
-   // double alpha_;
 
    // Data for mesh of the corresponding Wigner-Setiz Cell
    double ws_vert_[63];   // Vertex coordinates
