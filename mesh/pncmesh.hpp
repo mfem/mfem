@@ -337,6 +337,9 @@ protected:
    void MakeShared(const Array<GroupId> &entity_group,
                    const NCList &list, NCList &shared);
 
+   void ChangeVertexMeshIdElement(NCMesh::MeshId &id, int elem);
+   void ChangeEdgeMeshIdElement(NCMesh::MeshId &id, int elem);
+
    /** Uniquely encodes a set of leaf elements in the refinement hierarchy of
        an NCMesh. Can be dumped to a stream, sent to another processor, loaded,
        and decoded to identify the same set of elements (refinements) in a

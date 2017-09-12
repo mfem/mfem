@@ -121,6 +121,16 @@ int main(int argc, char *argv[])
       }
    }
 
+   {
+      Mesh dbg;
+      pmesh->pncmesh->GetDebugMesh(dbg);
+      char fname[100];
+      sprintf(fname, "dbg%02d.mesh", myid);
+      std::ofstream f(fname);
+      dbg.Print(f);
+   }
+
+
    /*Array<Refinement> refs;
    if (myid == 0) { refs.Append(Refinement(0)); }
    pmesh->GeneralRefinement(refs);*/

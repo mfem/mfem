@@ -418,7 +418,8 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() // matrix P
 
    if (Nonconforming())
    {
-      GetParallelConformingInterpolation();
+      //GetParallelConformingInterpolation();
+      NewParallelConformingInterpolation();
       return;
    }
 
@@ -1255,6 +1256,7 @@ struct PMatrixRow
    /// Add other row, times 'coef'.
    void AddRow(const PMatrixRow &other, double coef)
    {
+      elems.reserve(elems.size() + other.elems.size());
       for (unsigned i = 0; i < other.elems.size(); i++)
       {
          const PMatrixElement &oei = other.elems[i];

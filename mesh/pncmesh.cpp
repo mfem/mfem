@@ -443,6 +443,24 @@ void ParNCMesh::AddMasterSlaveConnections(int nitems, const NCList& list)
    }
 }
 
+void ParNCMesh::ChangeVertexMeshIdElement(NCMesh::MeshId &id, int elem)
+{
+   Element &el = elements[elem];
+   MFEM_ASSERT(el.ref_type == 0, "");
+
+   GeomInfo& gi = GI[(int) el.geom];
+   for (int i = 0; i < gi.nv; i++)
+   {
+      if (nodes[el.node[i]].vert_index == id.index)
+      {
+         id.local = i;
+         id.element = elem;
+         return;
+      }
+   }
+   MFEM_ABORT("Vertex not found.");
+}
+
 void ParNCMesh::AugmentMasterGroups()
 {
    MFEM_ASSERT(!vertex_list.Empty(), "must be called after BuildVertexList");
@@ -463,6 +481,8 @@ void ParNCMesh::AugmentMasterGroups()
       {
          vertex_group[v[j]] = JoinGroups(vertex_group[v[j]],
                                          edge_group[edge_id.index]);
+
+         ChangeVertexMeshIdElement(vertex_list.LookUp(v[j]), edge_id.element);
       }
    }
 
