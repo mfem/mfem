@@ -470,11 +470,13 @@ void ParNCMesh::AugmentMasterGroups()
       MFEM_ASSERT(!face_list.Empty(), "must be called after BuildFaceList");
    }
 
-   // augment comm groups of vertices of master edges
-   for (unsigned i = 0; i < edge_list.masters.size(); i++)
+   // augment comm groups of vertices of shared master edges, so that their
+   // DOFs get sent to the slave ranks along with edge DOFs
+   GetSharedEdges();
+   for (unsigned i = 0; i < shared_edges.masters.size(); i++)
    {
       int v[2];
-      const MeshId &edge_id = edge_list.masters[i];
+      const MeshId &edge_id = shared_edges.masters[i];
       GetEdgeVertices(edge_id, v);
 
       for (int j = 0; j < 2; j++)
@@ -482,11 +484,15 @@ void ParNCMesh::AugmentMasterGroups()
          vertex_group[v[j]] = JoinGroups(vertex_group[v[j]],
                                          edge_group[edge_id.index]);
 
+         // also make sure the MeshIds of the vertices are representable in
+         // the neighbor ranks, i.e., that the element/local pairs refer to
+         // elements existing in the neighbor refinement trees
          ChangeVertexMeshIdElement(vertex_list.LookUp(v[j]), edge_id.element);
       }
    }
 
    // master faces
+   GetSharedFaces();
    for (unsigned i = 0; i < face_list.masters.size(); i++)
    {
       // TODO
