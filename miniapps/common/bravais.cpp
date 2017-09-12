@@ -1666,8 +1666,9 @@ BodyCenteredTetragonalLattice::BodyCenteredTetragonalLattice(double a, double c)
       face_radii_[1] = 0.25 * c_ * c_ / sqrt(a_ * a_ + c_ * c_);
       face_radii_[2] = 0.25 * (2.0 * a_ - c_* c_ / a_) / M_SQRT2;
       for (int i=3; i<7; i++)
-         face_radii_[i] = 0.25 * sqrt(2.0 * a_ * a_ - 5.0 * c_* c_
-                                      + 4.5 * pow(c_ * c_ / a_, 2));
+	face_radii_[i] = min(0.25 * c_* sqrt(1.0 + 0.5 * c_ * c_ / (a_ * a_)),
+			     0.125 * sqrt(8.0 * a_ * a_ - 3.0 * c_ * c_ +
+					  pow(c_ * c_ / a_, 2)));
    }
 
    this->SetCellVolumes();
