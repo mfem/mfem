@@ -463,16 +463,12 @@ void ParNCMesh::ChangeVertexMeshIdElement(NCMesh::MeshId &id, int elem)
 
 void ParNCMesh::AugmentMasterGroups()
 {
-   MFEM_ASSERT(!vertex_list.Empty(), "must be called after BuildVertexList");
-   MFEM_ASSERT(!edge_list.Empty(), "must be called after BuildEdgeList");
-   if (Dim >= 3)
-   {
-      MFEM_ASSERT(!face_list.Empty(), "must be called after BuildFaceList");
-   }
+   GetSharedVertices();
+   GetSharedEdges();
+   GetSharedFaces();
 
    // augment comm groups of vertices of shared master edges, so that their
    // DOFs get sent to the slave ranks along with edge DOFs
-   GetSharedEdges();
    for (unsigned i = 0; i < shared_edges.masters.size(); i++)
    {
       int v[2];
@@ -491,8 +487,8 @@ void ParNCMesh::AugmentMasterGroups()
       }
    }
 
-   // master faces
-   GetSharedFaces();
+   // similarly, augment comm groups of vertices and edges of shared master
+   // faces, to make sure slave ranks receive all the necessary master DOFs
    for (unsigned i = 0; i < face_list.masters.size(); i++)
    {
       // TODO
@@ -1933,7 +1929,7 @@ void ParNCMesh::ElementSet::Load(std::istream &is)
 
 void ParNCMesh::EncodeMeshIds(std::ostream &os, Array<MeshId> ids[])
 {
-   std::map<int, int> element_id;
+   std::map<int, int> stream_id;
 
    // get a list of elements involved, dump them to 'os' and create the mapping
    // element_id: (Element index -> stream ID)
@@ -1957,7 +1953,7 @@ void ParNCMesh::EncodeMeshIds(std::ostream &os, Array<MeshId> ids[])
 
       for (int i = 0; i < decoded.Size(); i++)
       {
-         element_id[decoded[i]] = i;
+         stream_id[decoded[i]] = i;
       }
    }
 
@@ -1968,7 +1964,7 @@ void ParNCMesh::EncodeMeshIds(std::ostream &os, Array<MeshId> ids[])
       for (int i = 0; i < ids[type].Size(); i++)
       {
          const MeshId& id = ids[type][i];
-         write<int>(os, element_id[id.element]); // TODO: variable 1-4 bytes
+         write<int>(os, stream_id[id.element]); // TODO: variable 1-4 bytes
          write<char>(os, id.local);
       }
    }
@@ -2028,6 +2024,69 @@ void ParNCMesh::DecodeMeshIds(std::istream &is, Array<MeshId> ids[])
             }
          }
       }
+   }
+}
+
+void ParNCMesh::EncodeGroups(std::ostream &os, const Array<GroupId> &ids)
+{
+   // get a list of unique GroupIds
+   std::map<GroupId, GroupId> stream_id;
+   for (int i = 0; i < ids.Size(); i++)
+   {
+      if (i && ids[i] == ids[i-1]) { continue; }
+      unsigned size = stream_id.size();
+      GroupId &sid = stream_id[ids[i]];
+      if (size != stream_id.size()) { sid = size; }
+   }
+
+   // write the unique groups
+   write<short>(os, stream_id.size());
+   for (std::map<GroupId, GroupId>::iterator
+        it = stream_id.begin(); it != stream_id.end(); ++it)
+   {
+      write<GroupId>(os, it->second);
+      const CommGroup &group = groups[it->first];
+
+      write<short>(os, group.size());
+      for (unsigned i = 0; i < group.size(); i++)
+      {
+         write<int>(os, group[i]);
+      }
+   }
+
+   // write the list of all GroupIds
+   write<int>(os, ids.Size());
+   for (int i = 0; i < ids.Size(); i++)
+   {
+      write<GroupId>(os, stream_id[ids[i]]);
+   }
+}
+
+void ParNCMesh::DecodeGroups(std::istream &is, Array<GroupId> &ids)
+{
+   int ngroups = read<short>(is);
+   Array<GroupId> groups(ngroups);
+
+   // read stream groups, convert to our groups
+   CommGroup ranks;
+   ranks.reserve(128);
+   for (int i = 0; i < ngroups; i++)
+   {
+      int id = read<GroupId>(is);
+      int size = read<short>(is);
+      ranks.resize(size);
+      for (int i = 0; i < size; i++)
+      {
+         ranks[i] = read<int>(is);
+      }
+      groups[id] = GetGroupId(ranks);
+   }
+
+   // read the list of IDs
+   ids.SetSize(read<int>(is));
+   for (int i = 0; i < ids.Size(); i++)
+   {
+      ids[i] = groups[read<GroupId>(is)];
    }
 }
 

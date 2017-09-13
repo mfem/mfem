@@ -1312,13 +1312,16 @@ struct PMatrixRow
 class NeighborRowMessage : public VarMessage<314>
 {
 public:
+   typedef ParNCMesh::GroupId GroupId;
+
    struct RowInfo
    {
       int entity, index, edof;
+      GroupId group;
       PMatrixRow row;
 
-      RowInfo(int ent, int idx, int edof, const PMatrixRow &row)
-         : entity(ent), index(idx), edof(edof), row(row) {}
+      RowInfo(int ent, int idx, int edof, GroupId grp, const PMatrixRow &row)
+         : entity(ent), index(idx), edof(edof), group(grp), row(row) {}
 
       RowInfo(int ent, int idx, int edof)
          : entity(ent), index(idx), edof(edof) {}
@@ -1328,8 +1331,11 @@ public:
 
    NeighborRowMessage() : pncmesh(NULL) {}
 
-   void AddRow(int entity, int index, int edof, const PMatrixRow &row)
-   { rows.push_back(RowInfo(entity, index, edof, row)); }
+   void AddRow(int entity, int index, int edof, GroupId group,
+               const PMatrixRow &row)
+   {
+      rows.push_back(RowInfo(entity, index, edof, group, row));
+   }
 
    const RowInfo::List& GetRows() const { return rows; }
 
@@ -1353,15 +1359,27 @@ void NeighborRowMessage::Encode()
 {
    std::ostringstream stream;
 
-   // encode MeshIds
    Array<NCMesh::MeshId> ent_ids[3];
+   Array<ParNCMesh::GroupId> group_ids[3];
+
+   // encode MeshIds and groups
    for (unsigned i = 0; i < rows.size(); i++)
    {
       const RowInfo &ri = rows[i];
       const NCMesh::MeshId &id = pncmesh->GetNCList(ri.entity).LookUp(ri.index);
       ent_ids[ri.entity].Append(NCMesh::MeshId(i, id.element, id.local));
+      group_ids[ri.entity].Append(ri.group);
    }
+
+   Array<ParNCMesh::GroupId> all_group_ids;
+   all_group_ids.Reserve(rows.size());
+   for (int i = 0; i < 3; i++)
+   {
+      all_group_ids.Append(group_ids[i]);
+   }
+
    pncmesh->EncodeMeshIds(stream, ent_ids);
+   pncmesh->EncodeGroups(stream, all_group_ids);
 
    int ne = fec->DofForGeometry(Geometry::SEGMENT);
 
@@ -1394,12 +1412,16 @@ void NeighborRowMessage::Decode()
 {
    std::istringstream stream(data);
 
-   // decode vertex/edge/face IDs
    Array<NCMesh::MeshId> ent_ids[3];
+   Array<ParNCMesh::GroupId> group_ids;
+
+   // decode vertex/edge/face IDs and groups
    pncmesh->DecodeMeshIds(stream, ent_ids);
+   pncmesh->DecodeGroups(stream, group_ids);
 
    rows.clear();
    rows.reserve(ent_ids[0].Size() + ent_ids[1].Size() + ent_ids[2].Size());
+   MFEM_ASSERT(int(rows.size()) == group_ids.Size(), "");
 
    int ne = fec->DofForGeometry(Geometry::SEGMENT);
 
@@ -1425,18 +1447,51 @@ void ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
                                             ParNCMesh::GroupId group_id,
                                             NeighborRowMessage::Map &send_msg)
 {
-   const ParNCMesh::CommGroup &group = pncmesh->GetGroup(group_id);
+   int ent, idx, edof;
+   UnpackDof(dof, ent, idx, edof);
 
+   const ParNCMesh::CommGroup &group = pncmesh->GetGroup(group_id);
    for (unsigned i = 0; i < group.size(); i++)
    {
       int rank = group[i];
       if (rank != MyRank)
       {
          NeighborRowMessage &msg = send_msg[rank];
-         int ent, idx, edof;
-         UnpackDof(dof, ent, idx, edof);
+         msg.AddRow(ent, idx, edof, group_id, row);
+         msg.SetNCMesh(pncmesh);
+         msg.SetFEC(fec);
+      }
+   }
+}
 
-         msg.AddRow(ent, idx, edof, row);
+static bool group_contains(const ParNCMesh::CommGroup &group, int rank)
+{
+   // TODO: we could try std::lower_bound since the group is sorted
+   for (unsigned i = 0; i < group.size(); i++)
+   {
+      if (group[i] == rank) { return true; }
+   }
+   return false;
+}
+
+void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
+                                       ParNCMesh::GroupId group_sent_id,
+                                       ParNCMesh::GroupId group_id,
+                                       NeighborRowMessage::Map &send_msg)
+{
+   int ent, idx, edof;
+   UnpackDof(dof, ent, idx, edof);
+
+   const ParNCMesh::CommGroup &group =      pncmesh->GetGroup(group_id);
+   const ParNCMesh::CommGroup &group_sent = pncmesh->GetGroup(group_sent_id);
+
+   for (unsigned i = 0; i < group.size(); i++)
+   {
+      int rank = group[i];
+      if (rank != MyRank && !group_contains(group_sent, rank))
+      {
+         NeighborRowMessage &msg = send_msg[rank];
+         msg.AddRow(ent, idx, edof, group_id, row);
          msg.SetNCMesh(pncmesh);
          msg.SetFEC(fec);
       }
@@ -1614,6 +1669,12 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
 
    while (num_finalized < num_dofs)
    {
+      // prepare a new round of send buffers
+      if (send_msg.back().size())
+      {
+         send_msg.push_back(NeighborRowMessage::Map());
+      }
+
       // check for incoming messages
       int rank, size;
       while (NeighborRowMessage::IProbe(rank, size, MyComm))
@@ -1626,15 +1687,16 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
             const NeighborRowMessage::RowInfo &ri = rows[i];
             int dof = PackDof(ri.entity, ri.index, ri.edof);
             pmatrix[dof] = ri.row;
+
             if (dof < num_dofs && !finalized[dof]) { num_finalized++; }
             finalized[dof] = true;
-         }
-      }
 
-      // prepare new round of send buffers
-      if (send_msg.back().size())
-      {
-         send_msg.push_back(NeighborRowMessage::Map());
+            if (dof_group[dof] != ri.group)
+            {
+               // the sender didn't see the complete group, forward the message
+               ForwardRow(ri.row, dof, ri.group, dof_group[dof], send_msg.back());
+            }
+         }
       }
 
       // finalize all rows that can currently be finalized
@@ -1678,9 +1740,8 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    P = MakeHypreMatrix(pmatrix, num_dofs, glob_dofs, glob_true_dofs,
                        dof_offsets.GetData(), tdof_offsets.GetData());
 
-   P->Print("P");
-
    // make sure we can discard all send buffers
+   // TODO: maybe unnecessary beacuse of global communication in MakeHypreMatrix
    for (std::list<NeighborRowMessage::Map>::iterator
         it = send_msg.begin(); it != send_msg.end(); ++it)
    {

@@ -418,7 +418,7 @@ protected: // implementation
        derefinement. */
    virtual void Update();
 
-   int NVertices; // set by
+   int NVertices; // set by UpdateVertices
    int NEdges, NFaces; // set by OnMeshUpdated
 
    Array<int> leaf_elements; // finest level, calculated by UpdateLeafElements

@@ -143,10 +143,10 @@ public:
    }
 
    /// Return (shared) face orientation relative to the owner element.
-   int GetFaceOrientation(int index) const
+   /*int GetFaceOrientation(int index) const
    {
       return face_orient[index];
-   }
+   }*/
 
    typedef short GroupId;
    typedef std::vector<int> CommGroup;
@@ -162,10 +162,10 @@ public:
       }
    }
 
-   int GetOwner(int type, int index) const
+   /*int GetOwner(int type, int index) const
    {
       return groups[GetOwnerId(type, index)][0];
-   }
+   }*/
 
    /**  */
    GroupId GetGroupId(int type, int index) const
@@ -375,11 +375,13 @@ protected:
       void FlagElements(const Array<int> &elements, char flag);
    };
 
-   /// Write to 'os' a processor-independent encoding of vertex/edge/face IDs.
+   // Write/read a processor-independent encoding of vertex/edge/face IDs.
    void EncodeMeshIds(std::ostream &os, Array<MeshId> ids[]);
-
-   /// Read from 'is' a processor-independent encoding of vertex/edge/face IDs.
    void DecodeMeshIds(std::istream &is, Array<MeshId> ids[]);
+
+   // Write/read comm groups and a list of their IDs.
+   void EncodeGroups(std::ostream &os, const Array<GroupId> &ids);
+   void DecodeGroups(std::istream &is, Array<GroupId> &ids);
 
    bool CheckElementType(int elem, int type);
 

@@ -98,40 +98,6 @@ private:
 
    void ApplyLDofSigns(Array<int> &dofs) const;
 
-#if 0
-   /// Helper struct to store DOF dependencies in a parallel NC mesh.
-   struct Dependency
-   {
-      int rank, dof; ///< master DOF, may be on another processor
-      double coef;
-      Dependency(int r, int d, double c) : rank(r), dof(d), coef(c) {}
-   };
-
-   /// Dependency list for a local vdof.
-   struct DepList
-   {
-      Array<Dependency> list;
-      int type; ///< 0 = independent, 1 = one-to-one (conforming), 2 = slave
-
-      DepList() : type(0) {}
-
-      bool IsTrueDof(int my_rank) const
-      { return type == 0 || (type == 1 && list[0].rank == my_rank); }
-   };
-
-   void AddSlaveDependencies(DepList deps[], int master_rank,
-                             const Array<int> &master_dofs, int master_ndofs,
-                             const Array<int> &slave_dofs, DenseMatrix& I);
-
-   void Add1To1Dependencies(DepList deps[], int owner_rank,
-                            const Array<int> &owner_dofs, int owner_ndofs,
-                            const Array<int> &dependent_dofs);
-   void Add1To1Dependencies(SparseMatrix& deps,
-                            Array<int>& master_dofs, Array<int>& slave_dofs);
-
-   void ReorderFaceDofs(Array<int> &dofs, int orient);
-#endif
-
    void GetGhostVertexDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
    void GetGhostEdgeDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
    void GetGhostFaceDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
@@ -146,6 +112,11 @@ private:
    void ScheduleSendRow(const PMatrixRow &row, int dof,
                         ParNCMesh::GroupId group_id,
                         std::map<int, NeighborRowMessage> &send_msg);
+
+   void ForwardRow(const PMatrixRow &row, int dof,
+                   ParNCMesh::GroupId group_sent_id,
+                   ParNCMesh::GroupId group_id,
+                   std::map<int, NeighborRowMessage> &send_msg);
 
    HypreParMatrix*
       MakeHypreMatrix(const std::vector<PMatrixRow> &rows, int local_rows,
