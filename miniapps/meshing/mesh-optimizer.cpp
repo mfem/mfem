@@ -17,7 +17,7 @@
 // Paradigm (TMOP) by P.Knupp et al., and a global variational minimization
 // approach. It minimizes the quantity sum_T int_T mu(J(x)), where T are the
 // target (ideal) elements, J is the Jacobian of the transformation from the
-// reference to the target element, and mu is the mesh quality metric. This
+// target to the physical element, and mu is the mesh quality metric. This
 // metric can measure shape, size or alignment of the region around each
 // quadrature point. The combination of targets & quality metrics is used to
 // optimize the physical node positions, i.e., they must be as close as possible
