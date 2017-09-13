@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
 
    args.AddOption(&nelems, "-n", "--elems",
-                  "Minimum number of elements (x100).");
+                  "Minimum number of elements .");
 
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or 0 for"
@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
       }
    }*/
 
-   while (mesh->GetNE() < nelems*100){
+   while (mesh->GetNE() < nelems){
        cout<<"Refine : " <<mesh->GetNE();
        mesh->UniformRefinement();
        cout<<" --> "<<mesh->GetNE()<<endl;
@@ -108,15 +108,26 @@ int main(int argc, char *argv[])
    //    instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
    NURBSExtension *NURBSext = NULL;
+   int own_fec = 0;
 
    if (order[0] == 0) // Isoparametric
    {
-      fec = mesh->GetNodes()->OwnFEC();
+      if (mesh->GetNodes())
+      {
+        fec = mesh->GetNodes()->OwnFEC();
+        own_fec = 0;
+      }
+      else
+      {
+        cout <<"Mesh does not have FEs --> Assume order 1.\n";
+        fec = new H1_FECollection(1, dim);
+        own_fec = 1;
+      }
       cout << "Using isoparametric FEs: " << fec->Name() << endl;
    }
    else if (mesh->NURBSext && (order[0] > 0) ){ // Subparametric NURBS
       fec = new NURBSFECollection(order[0]);
-
+      own_fec = 1;
       int nkv = mesh->NURBSext->GetNKV();
 
       if (order.Size() == 1) 
@@ -132,6 +143,7 @@ int main(int argc, char *argv[])
    {
       if (order.Size() > 1) cout <<"Wrong number of orders set, needs one.\n";
       fec = new H1_FECollection(abs(order[0]), dim);
+      own_fec = 1;
    }
 
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, NURBSext, fec);
@@ -202,65 +214,36 @@ int main(int argc, char *argv[])
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
-   cout << "Size of linear system: " << A.Height() << endl;
+
    // 12. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
- //  ofstream mesh_ofs("refined.mesh");
- //  mesh_ofs.precision(8);
- //  mesh->Print(mesh_ofs);
- //  ofstream sol_ofs("sol.gf");
- //  sol_ofs.precision(8);
- //  x.Save(sol_ofs);
+   ofstream mesh_ofs("refined.mesh");
+   mesh_ofs.precision(8);
+   mesh->Print(mesh_ofs);
+   ofstream sol_ofs("sol.gf");
+   sol_ofs.precision(8);
+   x.Save(sol_ofs);
 
    // 13. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      cout<<vishost<<"::"<<visport<<endl;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x << flush;
    }
-std::cout<<"-------------------------"<<std::endl;
-   // 13. Save data in the VisIt format
+
+   // 14. Save data in the VisIt format
    VisItDataCollection visit_dc("Example1", mesh);
    visit_dc.RegisterField("solution", &x);
    visit_dc.Save();
 
-
-   cout << "Finite element collection: "<< fec->Name() << endl; 
-//   cout << "Solution: "; x.Print(); 
-
-   Vector vals;
-   DenseMatrix pmat; 
-   Vector Xcoord, Ycoord, coord;
-   const IntegrationRule &ir = IntRules.Get(fespace->GetFE(0)->GetGeomType(), 5);
-   x.GetValues(0, ir, vals);
-
-   ofstream file;
-   file.open("plot.dat");
-   for (int e = 0; e < fespace->GetNE(); e++){
-     x.GetValues(e, ir, vals, pmat);
-   //  mesh->GetNodes()->GetValues(e, ir, Xcoord,0);
-   //  mesh->GetNodes()->GetValues(e, ir, Ycoord,1);
-//pmat.Print();
-//vals.Print();
-     for (int i = 0; i < vals.Size(); i++){
-        const IntegrationPoint &ip = ir.IntPoint(i);
-        //coord[0] = mesh->GetNodes()->GetValue(e, ip, 0);
-        //coord[1] = mesh->GetNodes()->GetValue(e, ip, 1);
-        //file <<ip.x<<" "<<ip.y<<" "<<vals[i] << endl;
-        file <<pmat(0,i)<<" "<<pmat(1,i)<<" "<<vals[i] << endl;
-     }
-   }
-   file.close();
-   cout << "Finite element collection: "<< fec->Name() << endl; 
-   // 14. Free the used memory.
+   // 15. Free the used memory.
    delete a;
    delete b;
    delete fespace;
-   if (order > 0) { delete fec; }
+   if (own_fec) { delete fec; }
    delete mesh;
 
    return 0;

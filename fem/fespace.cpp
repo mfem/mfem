@@ -954,7 +954,7 @@ void FiniteElementSpace::Constructor  (Mesh *mesh, NURBSExtension *NURBSext,
       else
       {
          this->NURBSext = NURBSext;
-         own_ext = 0;
+         own_ext = 1;
       }
       UpdateNURBS();
       cP = cR = NULL;
