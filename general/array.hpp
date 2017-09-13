@@ -36,12 +36,13 @@ protected:
    /** Increment of allocated memory on overflow,
        inc = 0 doubles the array */
    int inc;
-
    BaseArray() { }
    /// Creates array of asize elements of size elementsize
    BaseArray(int asize, int ainc, int elmentsize);
    /// Free the allocated memory
    ~BaseArray();
+   /// Free the allocated memory
+   void Delete();
    /** Increases the allocsize of the array to be at least minsize.
        The current content of the array is copied to the newly allocated
        space. minsize must be > abs(allocsize). */
@@ -641,10 +642,7 @@ inline void Array<T>::DeleteFirst(const T &el)
 template <class T>
 inline void Array<T>::DeleteAll()
 {
-   if (allocsize > 0)
-   {
-      delete [] (char*)data;
-   }
+   Delete();
    data = NULL;
    size = allocsize = 0;
 }
@@ -652,10 +650,7 @@ inline void Array<T>::DeleteAll()
 template <class T>
 inline void Array<T>::MakeRef(T *p, int s)
 {
-   if (allocsize > 0)
-   {
-      delete [] (char*)data;
-   }
+   Delete();
    data = p;
    size = s;
    allocsize = -s;
@@ -671,10 +666,7 @@ inline void Array<T>::MakeRef(const T *p, int s)
 template <class T>
 inline void Array<T>::MakeRef(const Array &master)
 {
-   if (allocsize > 0)
-   {
-      delete [] (char*)data;
-   }
+   Delete();
    data = master.data;
    size = master.size;
    allocsize = -abs(master.allocsize);

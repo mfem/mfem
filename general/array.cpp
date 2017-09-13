@@ -34,6 +34,11 @@ BaseArray::BaseArray(int asize, int ainc, int elementsize)
 
 BaseArray::~BaseArray()
 {
+   Delete();
+}
+
+void BaseArray::Delete()
+{
    if (allocsize > 0)
    {
       delete [] (char*)data;
