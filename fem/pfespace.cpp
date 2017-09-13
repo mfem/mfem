@@ -55,6 +55,37 @@ ParFiniteElementSpace::ParFiniteElementSpace(
    }
 }
 
+ParFiniteElementSpace::ParFiniteElementSpace(
+   ParMesh *pm,  NURBSExtension *ext, const FiniteElementCollection *f, int dim, int ordering)
+   : FiniteElementSpace(pm, ext, f, dim, ordering)
+{
+   mesh = pmesh = pm;
+
+   MyComm = pmesh->GetComm();
+   MPI_Comm_size(MyComm, &NRanks);
+   MPI_Comm_rank(MyComm, &MyRank);
+
+   num_face_nbr_dofs = -1;
+
+   P = NULL;
+   R = NULL;
+   gcomm = NULL;
+
+   Construct();
+
+   // Apply the ldof_signs to the elem_dof Table
+   if (Conforming() && !NURBSext)
+   {
+      Array<int> dofs;
+      for (int i = 0; i < elem_dof->Size(); i++)
+      {
+         dofs.MakeRef(elem_dof->GetRow(i), elem_dof->RowSize(i));
+         ApplyLDofSigns(dofs);
+      }
+   }
+}
+
+
 void ParFiniteElementSpace::Construct()
 {
    if (NURBSext)

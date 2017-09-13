@@ -116,6 +116,7 @@ int main(int argc, char *argv[])
       {
         fec = mesh->GetNodes()->OwnFEC();
         own_fec = 0;
+        cout << "Using isoparametric FEs: q" << fec->Name() << endl;
       }
       else
       {
@@ -123,7 +124,6 @@ int main(int argc, char *argv[])
         fec = new H1_FECollection(1, dim);
         own_fec = 1;
       }
-      cout << "Using isoparametric FEs: " << fec->Name() << endl;
    }
    else if (mesh->NURBSext && (order[0] > 0) ){ // Subparametric NURBS
       fec = new NURBSFECollection(order[0]);

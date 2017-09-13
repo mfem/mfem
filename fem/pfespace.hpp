@@ -163,6 +163,10 @@ public:
    ParFiniteElementSpace(ParMesh *pm, const FiniteElementCollection *f,
                          int dim = 1, int ordering = Ordering::byNODES);
 
+   ParFiniteElementSpace(ParMesh *pm,  NURBSExtension *ext,
+                         const FiniteElementCollection *f,
+                         int dim = 1, int ordering = Ordering::byNODES);
+
    MPI_Comm GetComm() { return MyComm; }
    int GetNRanks() { return NRanks; }
    int GetMyRank() { return MyRank; }

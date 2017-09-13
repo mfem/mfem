@@ -2635,7 +2635,7 @@ ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
 
    parent->edge_to_knot.Copy(edge_to_knot);
 
-   Order = parent->GetOrder();
+   parent->GetOrders(Order);
 
    NumOfKnotVectors = parent->GetNKV();
    knotVectors.SetSize(NumOfKnotVectors);
@@ -2687,7 +2687,7 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    : gtopo(par_parent->gtopo.GetComm())
 {
    // steal all data from parent
-   Order = parent->Order;
+   parent->GetOrders(Order);
 
    patchTopo = parent->patchTopo;
    own_topo = parent->own_topo;
@@ -2798,7 +2798,7 @@ Table *ParNURBSExtension::Get2DGlobalElementDofTable()
          }
       }
    }  
-   gel_dof.Finalize();
+   gel_dof->Finalize();
    return gel_dof;
 }
 
@@ -2848,7 +2848,7 @@ Table *ParNURBSExtension::Get3DGlobalElementDofTable()
          }
       }
    }
-   gel_dof.Finalize();
+   gel_dof->Finalize();
    return gel_dof;
 }
 

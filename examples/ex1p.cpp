@@ -52,7 +52,8 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
-   int order = 1;
+   Array<int> order(1);
+   order[0] = 0;
    bool static_cond = false;
    bool visualization = 1;
 
@@ -87,7 +88,7 @@ int main(int argc, char *argv[])
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-
+ 
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
@@ -106,35 +107,58 @@ int main(int argc, char *argv[])
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   {
+  /* {
       int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
       }
-   }
+   }*/
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
-   if (order > 0)
+   NURBSExtension *NURBSext = NULL;
+   int own_fec = 0;
+
+   if (order[0] == 0) // Isoparametric
    {
-      fec = new H1_FECollection(order, dim);
-   }
-   else if (pmesh->GetNodes())
-   {
-      fec = pmesh->GetNodes()->OwnFEC();
-      if (myid == 0)
+      if (pmesh->GetNodes())
       {
-         cout << "Using isoparametric FEs: " << fec->Name() << endl;
+        fec = pmesh->GetNodes()->OwnFEC();
+        own_fec = 0;
+        cout << "Using isoparametric FEs: " << fec->Name() << endl;
       }
+      else
+      {
+        cout <<"Mesh does not have FEs --> Assume order 1.\n";
+        fec = new H1_FECollection(1, dim);
+        own_fec = 1;
+      }
+   }
+   else if (pmesh->NURBSext && (order[0] > 0) ){ // Subparametric NURBS
+      fec = new NURBSFECollection(order[0]);
+      own_fec = 1;
+      int nkv = pmesh->NURBSext->GetNKV();
+
+      if (order.Size() == 1) 
+      {
+        int tmp = order[0];
+        order.SetSize(nkv);
+        order = tmp;
+      }
+      if (order.Size() != nkv ) mfem_error("Wrong number of orders set.");
+      NURBSext = new NURBSExtension(pmesh->NURBSext, order);
    }
    else
    {
-      fec = new H1_FECollection(order = 1, dim);
+      if (order.Size() > 1) cout <<"Wrong number of orders set, needs one.\n";
+      fec = new H1_FECollection(abs(order[0]), dim);
+      own_fec = 1;
    }
-   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+
+   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh,NURBSext,fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
@@ -230,13 +254,18 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // 16. Free the used memory.
+   // 16. Save data in the VisIt format
+   VisItDataCollection visit_dc("Example1", pmesh);
+   visit_dc.RegisterField("solution", &x);
+   visit_dc.Save();
+
+   // 17. Free the used memory.
    delete pcg;
    delete amg;
    delete a;
    delete b;
    delete fespace;
-   if (order > 0) { delete fec; }
+   if (own_fec) { delete fec; }
    delete pmesh;
 
    MPI_Finalize();
