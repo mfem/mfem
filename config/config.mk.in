@@ -12,6 +12,7 @@
 # Variables corresponding to defines in config.hpp (YES, NO, or value)
 MFEM_VERSION         = @MFEM_VERSION@
 MFEM_USE_MPI         = @MFEM_USE_MPI@
+MFEM_USE_METIS       = @MFEM_USE_METIS@
 MFEM_USE_METIS_5     = @MFEM_USE_METIS_5@
 MFEM_DEBUG           = @MFEM_DEBUG@
 MFEM_USE_GZSTREAM    = @MFEM_USE_GZSTREAM@
