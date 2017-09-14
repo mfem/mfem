@@ -82,7 +82,7 @@ protected:
    Array<int> block_trueOffsets;
 
    // A list of all essential vdofs
-   Array<Array<int> > ess_vdofs;
+   Array<Array<int> *> ess_vdofs;
 
 public:
    BlockNonlinearForm();
@@ -104,14 +104,12 @@ public:
    void AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *fi,
                              Array<int> &bdr_attr_marker);
 
-   virtual void SetEssentialBC(const Array<Array<int> >&bdr_attr_is_ess,
-                               Array<Vector> &rhs);
+   virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
+                               Array<Vector *> &rhs);
 
-   using Operator::Mult;
-   virtual void Mult(const BlockVector &x, BlockVector &y) const;
+   virtual void Mult(const Vector &x, Vector &y) const;
 
-   using Operator::GetGradient;
-   virtual Operator &GetGradient(const BlockVector &x) const;
+   virtual Operator &GetGradient(const Vector &x) const;
 
    virtual ~BlockNonlinearForm();
 };

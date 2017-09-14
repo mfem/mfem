@@ -64,30 +64,30 @@ public:
 class ParBlockNonlinearForm : public BlockNonlinearForm
 {
 protected:
-   mutable Array<ParGridFunction> X, Y;
+   mutable Array<ParGridFunction *> X, Y;
    mutable Array2D<OperatorHandle> phBlockGrad;
    mutable BlockOperator *pBlockGrad;
 
 public:
-   ParBlockNonlinearForm(Array<ParFiniteElementSpace *>pf);
+   ParBlockNonlinearForm(Array<ParFiniteElementSpace *> &pf);
 
    ParFiniteElementSpace *ParFESpace(int block) const;
 
    // Here, rhs is a true dof vector
-   virtual void SetEssentialBC(const Array<Array<int> >&bdr_attr_is_ess,
-                               Array<Vector> &rhs);
+   virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
+                               Array<Vector *> &rhs);
    
-   virtual void Mult(const BlockVector &x, BlockVector &y) const;
+   virtual void Mult(const Vector &x, Vector &y) const;
 
    /// Return the local gradient matrix for the given true-dof vector x
-   const BlockOperator &GetLocalGradient(const BlockVector &x) const;
+   const BlockOperator &GetLocalGradient(const Vector &x) const;
 
-   virtual BlockOperator &GetGradient(const BlockVector &x) const;
+   virtual BlockOperator &GetGradient(const Vector &x) const;
 
    /// Set the operator type id for the parallel gradient matrix/operator.
    void SetGradientType(Operator::Type tid);
 
-   virtual ~ParBlockNonlinearForm() { }
+   virtual ~ParBlockNonlinearForm();
 };
 
 }

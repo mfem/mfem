@@ -166,7 +166,7 @@ void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
 {
    height = 0;
    width = 0;
-   fes.Copy(f);
+   f.Copy(fes);
    block_offsets.SetSize(f.Size() + 1);
    block_trueOffsets.SetSize(f.Size() + 1);
    block_offsets[0] = 0;
@@ -180,8 +180,8 @@ void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
    block_offsets.PartialSum();
    block_trueOffsets.PartialSum();
 
-   height = block_trueOffsets[fes.Size() + 1];
-   width = block_trueOffsets[fes.Size() + 1];
+   height = block_trueOffsets[fes.Size()];
+   width = block_trueOffsets[fes.Size()];
 
    Grads.SetSize(fes.Size(), fes.Size());
    for (int i=0; i<fes.Size(); i++) {
@@ -189,6 +189,9 @@ void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
          Grads(i,j) = NULL;
       }
    }
+
+   ess_vdofs.SetSize(fes.Size());
+
 }
 
 
@@ -205,8 +208,8 @@ void BlockNonlinearForm::AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *fi,
 }
 
    
-void BlockNonlinearForm::SetEssentialBC(const Array<Array<int> >&bdr_attr_is_ess,
-                                        Array<Vector> &rhs)
+void BlockNonlinearForm::SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
+                                        Array<Vector *> &rhs)
 {
    int i, j, vsize, nv;
 
@@ -216,7 +219,7 @@ void BlockNonlinearForm::SetEssentialBC(const Array<Array<int> >&bdr_attr_is_ess
       Array<int> vdof_marker(vsize);
 
       // virtual call, works in parallel too
-      fes[s]->GetEssentialVDofs(bdr_attr_is_ess[s], vdof_marker);
+      fes[s]->GetEssentialVDofs(*(bdr_attr_is_ess[s]), vdof_marker);
       nv = 0;
       for (i = 0; i < vsize; i++) {
          if (vdof_marker[i]) {
@@ -224,25 +227,25 @@ void BlockNonlinearForm::SetEssentialBC(const Array<Array<int> >&bdr_attr_is_ess
          }
       }
       
-      ess_vdofs[s].SetSize(nv);
+      ess_vdofs[s] = new Array<int>(nv);
 
       for (i = j = 0; i < vsize; i++) {
          if (vdof_marker[i]) {
-            ess_vdofs[s][j++] = i;
+            (*ess_vdofs[s])[j++] = i;
          }
       }
 
       if (rhs[s]) {
          for (i = 0; i < nv; i++) {
-            rhs[s](ess_vdofs[s][i]) = 0.0;
+            (*rhs[s])[(*ess_vdofs[s])[i]] = 0.0;
          }
       }
    }
 }
    
-void BlockNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
+void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
-   Array<Array<int> >vdofs(fes.Size());
+   Array<Array<int> *>vdofs(fes.Size());
    Array<Vector> el_x(fes.Size());
    Array<Vector> el_y(fes.Size());
    Array<const FiniteElement *> fe(fes.Size());
@@ -250,20 +253,25 @@ void BlockNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
    
    Array<Vector> xs(fes.Size()), ys(fes.Size());
 
+   int offset = 0;
+
    for (int i=0; i<fes.Size(); i++) {
-      xs[i] = x.GetBlock(i);
-      ys[i] = y.GetBlock(i);
+      xs[i].SetDataAndSize(x.GetData() + offset, fes[i]->GetVSize());
+      ys[i].SetDataAndSize(y.GetData() + offset, fes[i]->GetVSize());
       ys[i] = 0.0;
+      offset += fes[i]->GetVSize();
+      el_x[i].Destroy();
+      el_y[i].Destroy();
+      vdofs[i] = new Array<int>;
    }
 
    if (dfi.Size()) {
       for (int i = 0; i < fes[0]->GetNE(); i++) {
          T = fes[0]->GetElementTransformation(i);
          for (int s = 0; s < fes.Size(); s++) {
-            
+            fes[s]->GetElementVDofs(i, *(vdofs[s]));            
             fe[s] = fes[s]->GetFE(i);
-            fes[s]->GetElementVDofs(i, vdofs[s]);
-            xs[s].GetSubVector(vdofs[s], el_x[s]);
+            xs[s].GetSubVector(*(vdofs[s]), el_x[s]);
          }
          
          for (int k = 0; k < dfi.Size(); k++)
@@ -272,7 +280,7 @@ void BlockNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
                                           el_x, el_y);
 
             for (int s=0; s<fes.Size(); s++) {
-               ys[s].AddElementVector(vdofs[s], el_y[s]);
+               ys[s].AddElementVector(*(vdofs[s]), el_y[s]);
             }
          }
       }
@@ -283,8 +291,8 @@ void BlockNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
          T = fes[0]->GetBdrElementTransformation(i);
          for (int s=0; s<fes.Size(); s++) {
             fe[s] = fes[s]->GetBE(i);
-            fes[s]->GetBdrElementVDofs(i, vdofs[s]);
-            xs[s].GetSubVector(vdofs[s], el_x[s]);
+            fes[s]->GetBdrElementVDofs(i, *(vdofs[s]));
+            xs[s].GetSubVector(*(vdofs[s]), el_x[s]);
          }
          
          for (int k = 0; k < bfi.Size(); k++) {
@@ -292,7 +300,7 @@ void BlockNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
                                           el_x, el_y);
 
             for (int s = 0; s < fes.Size(); s++) { 
-               ys[s].AddElementVector(vdofs[s], el_y[s]);
+               ys[s].AddElementVector(*(vdofs[s]), el_y[s]);
             }
          }
       }
@@ -330,8 +338,8 @@ void BlockNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
          if (tr != NULL) {
             for (int s=0; s<fes.Size(); s++) {
                fe[s] = fes[s]->GetFE(tr->Elem1No);
-               fes[s]->GetElementVDofs(tr->Elem1No, vdofs[s]);
-               xs[s].GetSubVector(vdofs[s], el_x[s]);
+               fes[s]->GetElementVDofs(tr->Elem1No, *(vdofs[s]));
+               xs[s].GetSubVector(*(vdofs[s]), el_x[s]);
             }
 
             for (int k = 0; k < ffi.Size(); k++) {
@@ -342,7 +350,7 @@ void BlockNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
                                                 el_x, el_y);
 
                for (int s=0; s<fes.Size(); s++) {
-                  ys[s].AddElementVector(vdofs[s], el_y[s]);
+                  ys[s].AddElementVector(*(vdofs[s]), el_y[s]);
                }
             }
          }
@@ -351,16 +359,17 @@ void BlockNonlinearForm::Mult(const BlockVector &x, BlockVector &y) const
       
 
    for (int s=0; s<fes.Size(); s++) {
-      for (int i = 0; i < ess_vdofs[s].Size(); i++) {
-         ys[s](ess_vdofs[s][i]) = 0.0;
+      delete vdofs[s];
+      for (int i = 0; i < ess_vdofs[s]->Size(); i++) {
+         ys[s]((*ess_vdofs[s])[i]) = 0.0;
       }
    }
 }
  
-Operator &BlockNonlinearForm::GetGradient(const BlockVector &x) const
+Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
 {
    const int skip_zeros = 0;
-   Array<Array<int> >vdofs(fes.Size());
+   Array<int> vdofs_l, vdofs_j;
    Array<Vector> el_x(fes.Size());
    Array2D<DenseMatrix> elmats(fes.Size(), fes.Size());
    Array<const FiniteElement *>fe(fes.Size());
@@ -372,7 +381,15 @@ Operator &BlockNonlinearForm::GetGradient(const BlockVector &x) const
    }
 
    BlockGrad = new BlockOperator(block_offsets);
+
+   int offset = 0;
    
+   for (int i=0; i<fes.Size(); i++) {
+      xs[i].SetDataAndSize(x.GetData() + offset, fes[i]->GetTrueVSize());
+      offset += fes[i]->GetTrueVSize();
+   }
+
+
    if (Grads(0,0) != NULL) {
       for (int i=0; i<fes.Size(); i++) {
          for (int j=0; j<fes.Size(); j++) {
@@ -387,16 +404,18 @@ Operator &BlockNonlinearForm::GetGradient(const BlockVector &x) const
          T = fes[0]->GetElementTransformation(i);
          for (int s = 0; s < fes.Size(); s++) {
             fe[s] = fes[s]->GetFE(i);
-            fes[s]->GetElementVDofs(i, vdofs[s]);
-            xs[s].GetSubVector(vdofs[s], el_x[s]);
+            fes[s]->GetElementVDofs(i, vdofs_l);
+            xs[s].GetSubVector(vdofs_l, el_x[s]);
          }
          
          for (int k = 0; k < dfi.Size(); k++) {
             dfi[k]->AssembleElementGrad(fe, *T, 
                                         el_x, elmats);
             for (int j=0; j<fes.Size(); j++) {
+               fes[j]->GetElementVDofs(i, vdofs_j);
                for (int l=0; l<fes.Size(); l++) {
-                  Grads(j,l)->AddSubMatrix(vdofs[j], vdofs[l], elmats(j,l), skip_zeros);
+                  fes[l]->GetElementVDofs(i, vdofs_l);
+                  Grads(j,l)->AddSubMatrix(vdofs_j, vdofs_l, elmats(j,l), skip_zeros);
                }
             }
          }
@@ -407,16 +426,18 @@ Operator &BlockNonlinearForm::GetGradient(const BlockVector &x) const
          T = fes[0]->GetBdrElementTransformation(i);
          for (int s=0; s < fes.Size(); s++) {
             fe[s] = fes[s]->GetBE(i);
-            fes[s]->GetBdrElementVDofs(i, vdofs[s]);
-            xs[s].GetSubVector(vdofs[s], el_x[s]);
+            fes[s]->GetBdrElementVDofs(i, vdofs_l);
+            xs[s].GetSubVector(vdofs_l, el_x[s]);
          }
 
          for (int k = 0; k < dfi.Size(); k++) {
             bfi[k]->AssembleElementGrad(fe, *T, 
                                         el_x, elmats);
             for (int j=0; j<fes.Size(); j++) {
+               fes[j]->GetBdrElementVDofs(i, vdofs_j);
                for (int l=0; l<fes.Size(); l++) {
-                  Grads(j,l)->AddSubMatrix(vdofs[j], vdofs[l], elmats(j,l), skip_zeros);
+                  fes[l]->GetBdrElementVDofs(i, vdofs_l);
+                  Grads(j,l)->AddSubMatrix(vdofs_j, vdofs_l, elmats(j,l), skip_zeros);
                }
             }
          }
@@ -458,16 +479,18 @@ Operator &BlockNonlinearForm::GetGradient(const BlockVector &x) const
             T = fes[0]->GetElementTransformation(i);
             for (int s = 0; s < fes.Size(); s++) {
                fe[s] = fes[s]->GetFE(i);
-               fes[s]->GetElementVDofs(i, vdofs[s]);
-               xs[s].GetSubVector(vdofs[s], el_x[s]);
+               fes[s]->GetElementVDofs(i, vdofs_j);
+               xs[s].GetSubVector(vdofs_j, el_x[s]);
             }
 
             for (int k = 0; k < dfi.Size(); k++) {
                ffi[k]->AssembleElementGrad(fe, *T, 
                                            el_x, elmats);
-               for (int i=0; i<fes.Size(); i++) {
+               for (int l=0; l<fes.Size(); l++) {
+                  fes[l]->GetElementVDofs(i, vdofs_l);
                   for (int j=0; j<fes.Size(); j++) {
-                     Grads(i,j)->AddSubMatrix(vdofs[i], vdofs[j], elmats(i,j), skip_zeros);
+                     fes[j]->GetElementVDofs(i, vdofs_j);
+                     Grads(i,j)->AddSubMatrix(vdofs_l, vdofs_j, elmats(i,j), skip_zeros);
                   }
                }
             }
@@ -476,15 +499,15 @@ Operator &BlockNonlinearForm::GetGradient(const BlockVector &x) const
    }
 
    for (int s=0; s<fes.Size(); s++) {
-      for (int i = 0; i < vdofs[s].Size(); i++)
+      for (int i = 0; i < ess_vdofs[s]->Size(); i++)
       {
          for (int j=0; j<fes.Size(); j++) {
             if (s==j) {
-               Grads(s,s)->EliminateRowCol(ess_vdofs[s][i], 1);
+               Grads(s,s)->EliminateRowCol((*ess_vdofs[s])[i], 1);
             }
             else {
-               Grads(s,j)->EliminateRow(ess_vdofs[s][i]);
-               Grads(j,s)->EliminateCol(ess_vdofs[s][i]);
+               Grads(s,j)->EliminateRow((*ess_vdofs[s])[i]);
+               Grads(j,s)->EliminateCol((*ess_vdofs[s])[i]);
             }
          }
       }
@@ -513,6 +536,7 @@ BlockNonlinearForm::~BlockNonlinearForm()
       for (int j=0; j<fes.Size(); j++) {
          delete Grads(i,j);
       }
+      delete ess_vdofs[i];
    }
 
    for (int i = 0; i < dfi.Size(); i++)

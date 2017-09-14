@@ -460,7 +460,7 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementVector(Array<const Finit
    }
    
    int dof_u = el[0]->GetDof();
-   int dof_p = el[0]->GetDof();
+   int dof_p = el[1]->GetDof();
 
    int dim = el[0]->GetDim();
 
@@ -514,33 +514,45 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementVector(Array<const Finit
 
 }
 
-void IncompressibleNeoHookeanIntegrator::AssembleRHSElementVector(Array<const FiniteElement *> &el,
-                                         FaceElementTransformations &Tr,
-                                         Array<Vector> &elfun, 
-                                         Array<Vector> &elvec)
-{
-   mfem_error("IncompressibleNeoHookeanIntegrator::AssembleRHSElementVector"
-              " is not overloaded!");
-}
-
 void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(Array<const FiniteElement*> &el,
                                     ElementTransformation &Tr,
                                     Array<Vector> &elfun, 
                                     Array2D<DenseMatrix> &elmats)
 {
 
-   mfem_error("IncompressibleNeoHookeanIntegrator::AssembleRHSElementGrad"
-              " is not overloaded!");
-}
+   double diff_step = 1.0e-8;
+   Array<Vector> temps(el.Size());
+   Array<Vector> temp_out_1(el.Size());
+   Array<Vector> temp_out_2(el.Size());
+   Array<int> dofs(el.Size());
 
-void IncompressibleNeoHookeanIntegrator::AssembleRHSElementGrad(Array<const FiniteElement*> &el,
-                                       FaceElementTransformations &Tr,
-                                       Array<Vector> &elfun, 
-                                       Array2D<DenseMatrix> &elmats)
-{
-   mfem_error("IncompressibleNeoHookeanIntegrator::AssembleRHSElementGrad"
-              " is not overloaded!");
-}
+   for (int s1=0; s1<el.Size(); s1++) {
+      temps[s1] = elfun[s1];
+      dofs[s1] = el[s1]->GetDof();
+   }
 
+   for (int s1=0; s1<el.Size(); s1++) {
+      for (int s2=0; s2<el.Size(); s2++) {
+         elmats(s1,s2).SetSize(dofs[s1],dofs[s2]);
+      }
+   }
+   
+   for (int s1=0; s1<el.Size(); s1++) {
+      for (int j=0; j<temps[s1].Size(); j++) {
+         temps[s1][j] += diff_step;
+         AssembleElementVector(el, Tr, temps, temp_out_1);
+         temps[s1][j] -= 2.0*diff_step;
+         AssembleElementVector(el, Tr, temps, temp_out_2);
+
+         for (int s2=0; s2<el.Size(); s2++) {
+            for (int k=0; k<temps[s2].Size(); k++) {
+               elmats(s2,s1)(k,j) = (temp_out_1[s2][k] - temp_out_2[s2][k]) / (2.0*diff_step);
+            }
+         }
+         temps[s1][j] = elfun[s1][j];
+      }
+   }
+
+}
 
 }

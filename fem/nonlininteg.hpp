@@ -204,23 +204,13 @@ public:
    virtual void AssembleElementVector(Array<const FiniteElement *> &el,
                                       ElementTransformation &Tr,
                                       Array<Vector> &elfun, 
-                                      Array<Vector> &elvec) = 0;
-
-   virtual void AssembleRHSElementVector(Array<const FiniteElement *> &el,
-                                         FaceElementTransformations &Tr,
-                                         Array<Vector> &elfun, 
-                                         Array<Vector> &elvec);
+                                      Array<Vector> &elvec);
 
    /// Assemble the local gradient matrix
    virtual void AssembleElementGrad(Array<const FiniteElement*> &el,
                                     ElementTransformation &Tr,
                                     Array<Vector> &elfun, 
                                     Array2D<DenseMatrix> &elmats);
-
-   virtual void AssembleRHSElementGrad(Array<const FiniteElement*> &el,
-                                       FaceElementTransformations &Tr,
-                                       Array<Vector> &elfun, 
-                                       Array2D<DenseMatrix> &elmats);
 
    virtual ~IncompressibleNeoHookeanIntegrator() { };
 };
