@@ -29,6 +29,7 @@
 #include "general/optparser.hpp"
 #include "general/gzstream.hpp"
 #include "general/version.hpp"
+#include "general/globalostream.hpp"
 #ifdef MFEM_USE_MPI
 #include "general/communication.hpp"
 #endif

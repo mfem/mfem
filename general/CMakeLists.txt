@@ -42,6 +42,7 @@ list(APPEND HDRS
   tic_toc.hpp
   text.hpp
   version.hpp
+  globalostream.hpp
   )
 
 if (MFEM_USE_MPI)
