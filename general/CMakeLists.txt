@@ -21,6 +21,7 @@ list(APPEND SRCS
   stable3d.cpp
   table.cpp
   tic_toc.cpp
+  version.cpp
   )
 
 list(APPEND HDRS
@@ -40,6 +41,7 @@ list(APPEND HDRS
   tassign.hpp
   tic_toc.hpp
   text.hpp
+  version.hpp
   )
 
 if (MFEM_USE_MPI)
