@@ -8,7 +8,7 @@ compiler:
 
 os:
    - linux
-   - osx
+#   - osx
 
 env:
    global:
@@ -24,14 +24,14 @@ env:
         NPROCS=4
         CODECOV=NO
         MFEM_TEST_TARGET=test
-      - DEBUG=YES
-        MPI=NO
-        CODECOV=NO
-        MFEM_TEST_TARGET=check
-      - DEBUG=NO
-        MPI=NO
-        CODECOV=NO
-        MFEM_TEST_TARGET=check
+#      - DEBUG=YES
+#        MPI=NO
+#        CODECOV=NO
+#        MFEM_TEST_TARGET=check
+#      - DEBUG=NO
+#        MPI=NO
+#        CODECOV=NO
+#        MFEM_TEST_TARGET=check
 
 addons:
    apt:
