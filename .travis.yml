@@ -13,16 +13,16 @@ os:
 env:
    global:
       - TMPDIR=/tmp
+# Travis VM environment provides 2 processor cores.
+      - NPROCS=2
    matrix:
       - DEBUG=YES
         MPI=YES
-        NPROCS=4
-        CODECOV=YES
-        MFEM_TEST_TARGET=test
+        CODECOV=NO
+        MFEM_TEST_TARGET=check
       - DEBUG=NO
         MPI=YES
-        NPROCS=4
-        CODECOV=NO
+        CODECOV=YES
         MFEM_TEST_TARGET=test
       - DEBUG=YES
         MPI=NO
@@ -31,7 +31,7 @@ env:
       - DEBUG=NO
         MPI=NO
         CODECOV=NO
-        MFEM_TEST_TARGET=check
+        MFEM_TEST_TARGET=test
 
 addons:
    apt:
@@ -53,9 +53,11 @@ matrix:
 before_install:
     # No addon for brew yet, have to install OSX packages this way.
    - if [ $TRAVIS_OS_NAME == "osx" ]; then
-        travis_wait brew install open-mpi;
         rvm get stable;
-     fi
+        if [ $MPI == "YES" ]; then
+           travis_wait brew install open-mpi;
+        fi
+      fi
 
    # Install tool to upload code coverage reports to coveralls.io
    - if [ "$CODECOV" == "YES" ]; then
@@ -79,13 +81,6 @@ install:
    # Back out of the mfem directory to install the libraries
    - cd ..
 
-   # OpenMPI
-#   - if [ $TRAVIS_OS_NAME == "linux" ]; then
-#        sudo apt-get install openmpi-bin libopenmpi-dev;
-#     else
-#        travis_wait brew install open-mpi;
-#     fi
-
    # hypre
    - if [ $MPI == "YES" ]; then
         if [ ! -d hypre-2.10.0b ]; then
@@ -93,7 +88,7 @@ install:
             tar xvzf hypre-2.10.0b.tar.gz;
             cd hypre-2.10.0b/src;
             ./configure --disable-fortran --without-fei CC=mpicc CXX=mpic++;
-            make -j 4;
+            make -j3;
             cd ../..;
         else
             echo "Reusing cached hypre-2.10.0b/";
@@ -107,18 +102,12 @@ install:
         wget http://glaros.dtc.umn.edu/gkhome/fetch/sw/metis/OLD/metis-4.0.3.tar.gz;
         tar xvzf metis-4.0.3.tar.gz;
         cd metis-4.0.3;
-        make -j 4;
+        make -j3;
         cd ..;
         mv metis-4.0.3 metis-4.0;
      else
         echo "Reusing cached metis-4.0/";
      fi
-
-# # Delete an expired cache here: https://travis-ci.org/mfem/mfem/caches
-# cache:
-#   directories:
-#     - $TRAVIS_BUILD_DIR/../hypre-2.10.0b
-#     - $TRAVIS_BUILD_DIR/../metis-4.0
 
 script:
    # Compiler
@@ -137,16 +126,15 @@ script:
      CPPFLAGS="" &&
      SKIP_TEST_DIRS="" &&
      if [ "$CODECOV" == "YES" ]; then
-        CPPFLAGS="--coverage";
+        CPPFLAGS="--coverage -g";
         SKIP_TEST_DIRS="miniapps/performance";
      fi &&
      make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX"
         MFEM_MPI_NP=$NPROCS CPPFLAGS="$CPPFLAGS" &&
      make info &&
-     make all -j 4 &&
+     make -j3 all &&
      make $MFEM_TEST_TARGET SKIP_TEST_DIRS="$SKIP_TEST_DIRS"
 
-#      coveralls --include fem --include general --include linalg --include mesh --include miniapps --gcov-options '\-lp' --root $TRAVIS_BUILD_DIR --build-root $TRAVIS_BUILD_DIR;
 after_success:
    - if [ "$CODECOV" == "YES" ]; then
         coveralls --include fem --include general --include linalg --include mesh --exclude /usr --gcov-options '\-lp' --root $TRAVIS_BUILD_DIR;
