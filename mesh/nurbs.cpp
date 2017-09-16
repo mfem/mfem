@@ -2139,7 +2139,8 @@ void NURBSExtension::Generate3DElementDofTable()
    KnotVector *kv[3];
    NURBSPatchMap p2g(this);
 
-   el_dof = new Table(NumOfActiveElems, (Order.Max() + 1)*(Order.Max() + 1)*(Order.Max() + 1));
+   el_dof = new Table(NumOfActiveElems,
+                      (Order.Max() + 1)*(Order.Max() + 1)*(Order.Max() + 1));
    el_to_patch.SetSize(NumOfActiveElems);
    el_to_IJK.SetSize(NumOfActiveElems, 3);
 
@@ -2797,7 +2798,7 @@ Table *ParNURBSExtension::Get2DGlobalElementDofTable()
             }
          }
       }
-   }  
+   }
    gel_dof->Finalize();
    return gel_dof;
 }
@@ -2808,7 +2809,8 @@ Table *ParNURBSExtension::Get3DGlobalElementDofTable()
    KnotVector *kv[3];
    NURBSPatchMap p2g(this);
 
-   Table *gel_dof = new Table(GetGNE(), (Order.Max() + 1)*(Order.Max() + 1)*(Order.Max() + 1));
+   Table *gel_dof = new Table(GetGNE(),
+                              (Order.Max() + 1)*(Order.Max() + 1)*(Order.Max() + 1));
 
    for (int p = 0; p < GetNP(); p++)
    {

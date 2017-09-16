@@ -262,20 +262,23 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    {
       int Order = atoi(name + 5);
 
-      if (Order < 10){
-        fec = new NURBSFECollection(Order);
+      if (Order < 10)
+      {
+         fec = new NURBSFECollection(Order);
       }
-      else if (Order > 100){
-        int px = (Order - Order%100)/100;
-        Order -= px*100;
-        int py = (Order - Order%10)/10;
-        Order -= py*10;
-        int pz = Order;
-        fec = new NURBSFECollection(px,py,pz);
+      else if (Order > 100)
+      {
+         int px = (Order - Order%100)/100;
+         Order -= px*100;
+         int py = (Order - Order%10)/10;
+         Order -= py*10;
+         int pz = Order;
+         fec = new NURBSFECollection(px,py,pz);
       }
-      else {
-        mfem_error("FiniteElementCollection::New : "
-                   "Unknown NURBS ORDER!");
+      else
+      {
+         mfem_error("FiniteElementCollection::New : "
+                    "Unknown NURBS ORDER!");
       }
    }
    else

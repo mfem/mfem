@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
    {
       Array<int> mOrder;
       mesh->NURBSext->GetOrders(mOrder);
-      if (mOrder.Max() != mOrder.Min()) mfem_error("NURBS Mesh should have uniform order");
+      if (mOrder.Max() != mOrder.Min()) { mfem_error("NURBS Mesh should have uniform order"); }
 
       if (order > mOrder[0])
       {

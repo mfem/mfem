@@ -1557,11 +1557,14 @@ void FiniteElementSpace::Save(std::ostream &out) const
        << "VDim: " << vdim << '\n'
        << "Ordering: " << ordering << '\n';
 
-   if (NURBSext){
-      if (NURBSext == mesh->NURBSext){
+   if (NURBSext)
+   {
+      if (NURBSext == mesh->NURBSext)
+      {
          out << "NURBSext: " << 0 << '\n';
       }
-      else{
+      else
+      {
          Array<int> Orders;
          NURBSext->GetOrders(Orders);
          out << "NURBSext: " << Orders.Size() << '\n';

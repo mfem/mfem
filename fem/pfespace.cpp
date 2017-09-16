@@ -56,7 +56,8 @@ ParFiniteElementSpace::ParFiniteElementSpace(
 }
 
 ParFiniteElementSpace::ParFiniteElementSpace(
-   ParMesh *pm,  NURBSExtension *ext, const FiniteElementCollection *f, int dim, int ordering)
+   ParMesh *pm,  NURBSExtension *ext, const FiniteElementCollection *f, int dim,
+   int ordering)
    : FiniteElementSpace(pm, ext, f, dim, ordering)
 {
    mesh = pmesh = pm;
@@ -67,7 +68,7 @@ ParFiniteElementSpace::ParFiniteElementSpace(
 
    num_face_nbr_dofs = -1;
 
-   P = NULL;  
+   P = NULL;
    Pconf = NULL;
    R = NULL;
    gcomm = NULL;

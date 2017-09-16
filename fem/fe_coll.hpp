@@ -351,8 +351,8 @@ public:
 
    int GetOrder() const { return ParallelepipedFE->GetOrder(); }
 
-   const Array<int>  &GetOrders() const {return Orders;} 
-//   void SetOrders(Array<int>  &Orders_) {Orders_.Copy(Orders);} 
+   const Array<int>  &GetOrders() const {return Orders;}
+   //   void SetOrders(Array<int>  &Orders_) {Orders_.Copy(Orders);}
 
    /// Change the order of the collection
    void UpdateOrder(int Order) { Deallocate(); Allocate(Order); }

@@ -154,34 +154,35 @@ int main(int argc, char *argv[])
    {
       if (pmesh->GetNodes())
       {
-        fec = pmesh->GetNodes()->OwnFEC();
-        own_fec = 0;
-        cout << "Using isoparametric FEs: " << fec->Name() << endl;
+         fec = pmesh->GetNodes()->OwnFEC();
+         own_fec = 0;
+         cout << "Using isoparametric FEs: " << fec->Name() << endl;
       }
       else
       {
-        cout <<"Mesh does not have FEs --> Assume order 1.\n";
-        fec = new H1_FECollection(1, dim);
-        own_fec = 1;
+         cout <<"Mesh does not have FEs --> Assume order 1.\n";
+         fec = new H1_FECollection(1, dim);
+         own_fec = 1;
       }
    }
-   else if (pmesh->NURBSext && (order[0] > 0) ){ // Subparametric NURBS
+   else if (pmesh->NURBSext && (order[0] > 0) )  // Subparametric NURBS
+   {
       fec = new NURBSFECollection(order[0]);
       own_fec = 1;
       int nkv = pmesh->NURBSext->GetNKV();
 
       if (order.Size() == 1)
       {
-        int tmp = order[0];
-        order.SetSize(nkv);
-        order = tmp;
+         int tmp = order[0];
+         order.SetSize(nkv);
+         order = tmp;
       }
-      if (order.Size() != nkv ) mfem_error("Wrong number of orders set.");
+      if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
       NURBSext = new NURBSExtension(pmesh->NURBSext, order);
    }
    else
    {
-      if (order.Size() > 1) cout <<"Wrong number of orders set, needs one.\n";
+      if (order.Size() > 1) { cout <<"Wrong number of orders set, needs one.\n"; }
       fec = new H1_FECollection(abs(order[0]), dim);
       own_fec = 1;
    }

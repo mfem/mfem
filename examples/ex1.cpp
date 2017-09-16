@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    bool static_cond = false;
    bool visualization = 1;
-   int  nelems = 1; 
+   int  nelems = 1;
    Array<int> order(1);
    order[0] = 0;
 
@@ -95,10 +95,11 @@ int main(int argc, char *argv[])
       }
    }*/
 
-   while (mesh->GetNE() < nelems){
-       cout<<"Refine : " <<mesh->GetNE();
-       mesh->UniformRefinement();
-       cout<<" --> "<<mesh->GetNE()<<endl;
+   while (mesh->GetNE() < nelems)
+   {
+      cout<<"Refine : " <<mesh->GetNE();
+      mesh->UniformRefinement();
+      cout<<" --> "<<mesh->GetNE()<<endl;
    }
 
 
@@ -114,42 +115,43 @@ int main(int argc, char *argv[])
    {
       if (mesh->GetNodes())
       {
-        fec = mesh->GetNodes()->OwnFEC();
-        own_fec = 0;
-        cout << "Using isoparametric FEs: q" << fec->Name() << endl;
+         fec = mesh->GetNodes()->OwnFEC();
+         own_fec = 0;
+         cout << "Using isoparametric FEs: q" << fec->Name() << endl;
       }
       else
       {
-        cout <<"Mesh does not have FEs --> Assume order 1.\n";
-        fec = new H1_FECollection(1, dim);
-        own_fec = 1;
+         cout <<"Mesh does not have FEs --> Assume order 1.\n";
+         fec = new H1_FECollection(1, dim);
+         own_fec = 1;
       }
    }
-   else if (mesh->NURBSext && (order[0] > 0) ){ // Subparametric NURBS
+   else if (mesh->NURBSext && (order[0] > 0) )  // Subparametric NURBS
+   {
       fec = new NURBSFECollection(order[0]);
       own_fec = 1;
       int nkv = mesh->NURBSext->GetNKV();
 
-      if (order.Size() == 1) 
+      if (order.Size() == 1)
       {
-        int tmp = order[0];
-        order.SetSize(nkv);
-        order = tmp;
+         int tmp = order[0];
+         order.SetSize(nkv);
+         order = tmp;
       }
-      if (order.Size() != nkv ) mfem_error("Wrong number of orders set.");
+      if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
       NURBSext = new NURBSExtension(mesh->NURBSext, order);
    }
    else
    {
-      if (order.Size() > 1) cout <<"Wrong number of orders set, needs one.\n";
+      if (order.Size() > 1) { cout <<"Wrong number of orders set, needs one.\n"; }
       fec = new H1_FECollection(abs(order[0]), dim);
       own_fec = 1;
    }
 
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, NURBSext, fec);
-  
+
    cout << "Number of finite element unknowns: "
-        << fespace->GetTrueVSize() << endl; 
+        << fespace->GetTrueVSize() << endl;
 
 
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
@@ -166,14 +168,14 @@ int main(int argc, char *argv[])
 
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
-   //    the basis functions in the finite element fespace. 
+   //    the basis functions in the finite element fespace.
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(1.0);
 
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-//exit(-1);
+   //exit(-1);
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
