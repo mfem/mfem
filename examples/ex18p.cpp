@@ -76,8 +76,8 @@ private:
    void GetFlux(const DenseMatrix &state, DenseTensor &flux) const;
 
 public:
-   FE_Evolution(ParFiniteElementSpace &_vfes, Operator &_A,
-                SparseMatrix &_Aflux);
+   FE_Evolution(ParFiniteElementSpace &_vfes,
+                Operator &_A, SparseMatrix &_Aflux);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -261,7 +261,6 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient u0(num_equation, u0_function);
    ParGridFunction sol(&vfes, u_block.GetData());
    sol.ProjectCoefficient(u0);
-   HypreParVector *U = sol.GetTrueDofs();
 
    // Output the initial solution.
    {
@@ -360,12 +359,12 @@ int main(int argc, char *argv[])
    {
       // Find a safe dt, using a temporary vector.
       max_char_speed = 0.;
-      HypreParVector *Z = vfes.NewTrueDofVector();
-      A.Mult(*U, *Z);
-      delete Z;
+      sol.ExchangeFaceNbrData();
+      Vector z(sol.Size());
+      A.Mult(sol, z);
       // Reduce to find the global maximum wave speed
       {
-         double all_max_char_speed = max_char_speed;
+         double all_max_char_speed;
          MPI_Allreduce(&max_char_speed, &all_max_char_speed,
                        1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
          max_char_speed = all_max_char_speed;
@@ -380,12 +379,18 @@ int main(int argc, char *argv[])
    {
       double dt_real = min(dt, t_final - t);
 
-      ode_solver->Step(*U, t, dt_real);
+      // Do a parallel exchange of face neighbor data
+      // NOTE: Distribute calls in ParNonlinearForm::Mult do not do
+      // this since the DOF are not shared.
+      sol.ExchangeFaceNbrData();
+
+      ode_solver->Step(sol, t, dt_real);
+
       if (cfl > 0)
       {
          // Reduce to find the global maximum wave speed
          {
-            double all_max_char_speed = max_char_speed;
+            double all_max_char_speed;
             MPI_Allreduce(&max_char_speed, &all_max_char_speed,
                           1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
             max_char_speed = all_max_char_speed;
@@ -401,10 +406,6 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            // 11. Extract the parallel grid function corresponding to the finite
-            //     element approximation U (the local solution on each processor).
-            sol = *U;
-
             MPI_Barrier(pmesh.GetComm());
             sout << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
             sout << "solution\n" << pmesh << mom << flush;
@@ -421,8 +422,6 @@ int main(int argc, char *argv[])
    // Output the initial solution
    for (int k = 0; k < num_equation; k++)
    {
-      sol = *U;
-
       ParGridFunction uk(&fes, u_block.GetBlock(k));
       ostringstream sol_name;
       sol_name << "vortex-" << k << "-final."
@@ -441,7 +440,6 @@ int main(int argc, char *argv[])
 
    // Free the used memory.
    delete ode_solver;
-   delete U;
 
    return 0;
 }

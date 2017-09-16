@@ -113,8 +113,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
       const FiniteElement *fe1, *fe2;
       Array<int> vdofs2;
 
-      int nfaces = mesh->GetNumFaces();
-      for (int i = 0; i < nfaces; i++)
+      for (int i = 0; i < mesh->GetNumFaces(); i++)
       {
          tr = mesh->GetInteriorFaceTransformations(i);
          if (tr != NULL)
@@ -240,8 +239,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
       const FiniteElement *fe1, *fe2;
       Array<int> vdofs2;
 
-      int nfaces = mesh->GetNumFaces();
-      for (int i = 0; i < nfaces; i++)
+      for (int i = 0; i < mesh->GetNumFaces(); i++)
       {
          tr = mesh->GetInteriorFaceTransformations(i);
          if (tr != NULL)
