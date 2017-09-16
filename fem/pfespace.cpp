@@ -67,7 +67,8 @@ ParFiniteElementSpace::ParFiniteElementSpace(
 
    num_face_nbr_dofs = -1;
 
-   P = NULL;
+   P = NULL;  
+   Pconf = NULL;
    R = NULL;
    gcomm = NULL;
 
