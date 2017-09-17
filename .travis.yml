@@ -42,7 +42,7 @@ addons:
          - mpich
          - libmpich-dev
 #         - openmpi-bin
-#         - libopenmpi-dev;
+#         - libopenmpi-dev
 
 # Test with GCC on Linux an Clang on Mac
 matrix:
@@ -117,7 +117,7 @@ script:
         cat /proc/{version,cpuinfo,meminfo};
      elif [ "$TRAVIS_OS_NAME" == "osx" ]; then
         /usr/sbin/sysctl kern.version hw;
-     fi;
+     fi
 
    # Compiler
    - if [ $MPI == "YES" ]; then
@@ -140,7 +140,6 @@ script:
      SKIP_TEST_DIRS="" &&
      if [ "$CODECOV" == "YES" ]; then
         CPPFLAGS="--coverage -g";
-#        SKIP_TEST_DIRS="miniapps/performance";
      fi &&
      make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX"
         MFEM_MPI_NP=$NPROCS CPPFLAGS="$CPPFLAGS" &&
