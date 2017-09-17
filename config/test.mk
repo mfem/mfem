@@ -16,8 +16,8 @@
 # no color '\033[0m'
 COLOR_PRINT = if [ -t 1 ]; then \
    printf $(1)$(2)'\033[0m'$(3); else printf $(2)$(3); fi
-PRINT_OK = $(call COLOR_PRINT,'\033[0;32m',OK,"  ($${timer_code[0]})\n")
-PRINT_FAILED = $(call COLOR_PRINT,'\033[0;31m',FAILED,"  ($${timer_code[0]})\n")
+PRINT_OK = $(call COLOR_PRINT,'\033[0;32m',OK,"  ($$1)\n")
+PRINT_FAILED = $(call COLOR_PRINT,'\033[0;31m',FAILED,"  ($$1)\n")
 
 ifneq (,$(filter test%,$(MAKECMDGOALS)))
    MAKEFLAGS += -k
@@ -25,20 +25,20 @@ endif
 # Test runs of the examples/miniapps with parameters - check exit code
 mfem-test = \
    printf "   $(3) [$(2) $(1) ... ]: "; TIMEFORMAT=$$'%3Rs'; \
-   timer_code=($$({ time $(2) ./$(1) -no-vis $(4) &> $(1).stderr; } \
-                  2>&1; echo $$?)); \
-   if [ "$${timer_code[1]}" -eq 0 ]; \
+   set -- $$({ time $(2) ./$(1) -no-vis $(4) &> $(1).stderr; } \
+             2>&1; echo $$?); \
+   if [ "$$2" -eq 0 ]; \
    then $(PRINT_OK); else $(PRINT_FAILED); cat $(1).stderr; fi; \
-   rm -f $(1).stderr; exit $${timer_code[1]}
+   rm -f $(1).stderr; exit $$2
 
 # Test runs of the examples/miniapps - check exit code and if a file exists
 mfem-test-file = \
    printf "   $(3) [$(2) $(1) ... ]: "; TIMEFORMAT=$$'%3Rs'; \
-   timer_code=($$({ time $(2) ./$(1) -no-vis &> $(1).stderr; } \
-                  2>&1; echo $$?)); \
-   if [ "$${timer_code[1]}" -eq 0 ] && [ -e $(4) ]; \
+   set -- $$({ time $(2) ./$(1) -no-vis &> $(1).stderr; } \
+             2>&1; echo $$?); \
+   if [ "$$2" -eq 0 ] && [ -e $(4) ]; \
    then $(PRINT_OK); else $(PRINT_FAILED); cat $(1).stderr; fi; \
-   rm -f $(1).stderr; exit $${timer_code[1]}
+   rm -f $(1).stderr; exit $$2
 
 .PHONY: test test-par-YES test-par-NO
 
