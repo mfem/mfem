@@ -116,7 +116,6 @@ install:
 
 script:
    # Compiler
-   # set NPROCS=2 for linux
    - if [ $MPI == "YES" ]; then
         export MYCXX=mpic++;
         if [ "$TRAVIS_OS_NAME" == "linux" ]; then
@@ -129,27 +128,24 @@ script:
      else
         export MYCXX="$CXX";
      fi
+
    # Print the compiler version
    - $MYCXX -v
 
-   # Colors and time format
-   - purple=$'\E[0;35m';
-     none=$'\E[0m';
-     TIMEFORMAT="${purple}"$'real=%3Rs  user=%3Us  sys=%3Ss  %%cpu=%P'"${none}"
-
-   # Build and check/test MFEM, its examples and miniapps
-   - cd $TRAVIS_BUILD_DIR &&
-     CPPFLAGS="" &&
-     SKIP_TEST_DIRS="" &&
+   # Set some variables
+   - cd $TRAVIS_BUILD_DIR;
+     CPPFLAGS="";
+     SKIP_TEST_DIRS="";
      if [ "$CODECOV" == "YES" ]; then
         CPPFLAGS="--coverage -g";
-     fi &&
-     echo "${purple}Number of MPI tasks = ${NPROCS}${none}" &&
-     make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX"
-        MFEM_MPI_NP=$NPROCS CPPFLAGS="$CPPFLAGS" &&
-     make info &&
-     time make -j3 all &&
-     time make $MFEM_TEST_TARGET SKIP_TEST_DIRS="$SKIP_TEST_DIRS"
+     fi
+
+   # Build and check/test MFEM, its examples and miniapps
+   - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX"
+        MFEM_MPI_NP=$NPROCS CPPFLAGS="$CPPFLAGS"
+   - make info
+   - make -j3 all
+   - make $MFEM_TEST_TARGET SKIP_TEST_DIRS="$SKIP_TEST_DIRS"
 
 after_success:
    - if [ "$CODECOV" == "YES" ]; then
