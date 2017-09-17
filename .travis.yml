@@ -14,7 +14,7 @@ env:
    global:
       - TMPDIR=/tmp
 # Travis VM environment provides 2 processor cores.
-      - NPROCS=2
+      - NPROCS=4
    matrix:
       - DEBUG=YES
         MPI=YES
@@ -39,8 +39,10 @@ addons:
          - ubuntu-toolchain-r-test
       packages:
          - g++-4.9
-         - openmpi-bin
-         - libopenmpi-dev;
+         - mpich
+         - libmpich-dev
+#         - openmpi-bin
+#         - libopenmpi-dev;
 
 # Test with GCC on Linux an Clang on Mac
 matrix:
@@ -110,11 +112,22 @@ install:
      fi
 
 script:
+   # System info
+   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then
+        cat /proc/{version,cpuinfo,meminfo};
+     elif [ "$TRAVIS_OS_NAME" == "osx" ]; then
+        /usr/sbin/sysctl kern.version hw;
+     fi;
+
    # Compiler
    - if [ $MPI == "YES" ]; then
         export MYCXX=mpic++;
-        export OMPI_CXX="$CXX";
-        $MYCXX --showme:version;
+        if [ "$TRAVIS_OS_NAME" == "linux" ]; then
+           export MPICH_CXX="$CXX";
+        else
+           export OMPI_CXX="$CXX";
+           $MYCXX --showme:version;
+        fi;
      else
         export MYCXX="$CXX";
      fi
@@ -127,7 +140,7 @@ script:
      SKIP_TEST_DIRS="" &&
      if [ "$CODECOV" == "YES" ]; then
         CPPFLAGS="--coverage -g";
-        SKIP_TEST_DIRS="miniapps/performance";
+#        SKIP_TEST_DIRS="miniapps/performance";
      fi &&
      make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX"
         MFEM_MPI_NP=$NPROCS CPPFLAGS="$CPPFLAGS" &&
