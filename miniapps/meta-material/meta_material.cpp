@@ -44,6 +44,7 @@ int main(int argc, char *argv[])
    bool visit = true;
    bool densityCalc = true;
    bool stiffnessCalc = false;
+   bool bandGapCalc = false;
 
    double a = -1.0, b = -1.0, c = -1.0;
    double alpha = -1.0, beta = -1.0, gamma = -1.0;
@@ -51,6 +52,7 @@ int main(int argc, char *argv[])
    double lcf = 0.3;
    double density_tol = 0.05;
    double stiffness_tol = 0.05;
+   double band_gap_tol = 0.05;
    // double lambda = 2.07748e+9;
    // double mu = 0.729927e+9;
    // Gallium Arsenide at T=300K
@@ -59,9 +61,11 @@ int main(int argc, char *argv[])
    // double rho0 = 0.0;
 
    // Acrylonitrile Butadiene Styrene (ABS)
-   double rho = 1110.0; // Mass density 1.075 kg/m^3
-   double   E = 2.0e9;  // Young's Modulus 2GPa
-   double  nu = 0.4064; // Poisson's Ratio
+   double    rho = 1110.0; // Mass density 1.075 kg/m^3
+   double      E = 2.0e9;  // Young's Modulus 2GPa
+   double     nu = 0.4064; // Poisson's Ratio
+   double epsRel = 10.0;   // Relative Dielectric Permittivity
+   double  muRel = 1.0;    // Relative Magnetic Permeability
 
    OptionsParser args(argc, argv);
    args.AddOption(&bl_type, "-bl", "--bravais-lattice",
@@ -101,12 +105,15 @@ int main(int argc, char *argv[])
                   "Lattice angle gamma in degrees");
    args.AddOption(&lcf, "-lcf", "--lattice-coef-frac",
                   "Fraction of inscribed circle radius for rods");
-   args.AddOption(&density_tol, "-dtol", "--density-tolerance",
+   args.AddOption(&density_tol, "-rtol", "--density-tolerance",
                   "Stopping tolerance specified as a relative difference "
                   "in computed density");
    args.AddOption(&stiffness_tol, "-ctol", "--stiffness-tolerance",
                   "Stopping tolerance specified as a relative difference "
                   "in the 2-norm of the computed stiffness tensor");
+   args.AddOption(&band_gap_tol, "-bgtol", "--band-gap-tolerance",
+                  "Stopping tolerance specified as a relative difference "
+                  "in the computed band gap");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -126,11 +133,17 @@ int main(int argc, char *argv[])
    args.AddOption(&visit, "-visit", "--visit", "-no-visit",
                   "--no-visualization",
                   "Enable or disable VisIt visualization.");
-   args.AddOption(&densityCalc, "-d", "--density", "-no-d", "--no-density",
+   args.AddOption(&densityCalc, "-rho", "--density", "-no-rho", "--no-density",
                   "Enable or disable density calculation.");
    args.AddOption(&stiffnessCalc, "-C", "--stiffness",
                   "-no-C", "--no-stiffness",
                   "Enable or disable stiffness tensor calculation.");
+   // args.AddOption(&dispersionPlot, "-disp", "--dispersion",
+   //             "-no-disp", "--no-dispersion",
+   //             "Enable or disable dispersion plot calculation.");
+   args.AddOption(&bandGapCalc, "-bg", "--band-gap",
+                  "-no-bg", "--no-band-gap",
+                  "Enable or disable band gap calculation.");
    args.Parse();
    if (!args.Good())
    {
@@ -177,6 +190,7 @@ int main(int argc, char *argv[])
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
+   /*
    Mesh * mesh = bravais->GetPeriodicWignerSeitzMesh();
 
    int euler = mesh->EulerNumber();
@@ -200,11 +214,11 @@ int main(int argc, char *argv[])
          mesh->CheckBdrElementOrientation(false);
       }
    }
-
+   */
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    /*
    delete mesh;
    {
@@ -217,14 +231,13 @@ int main(int argc, char *argv[])
    */
    // L2_ParFESpace * L2FESpace    = new L2_ParFESpace(pmesh, 0,
    //                                               pmesh->Dimension());
-
+   /*
    // int nElems = L2FESpace->GetVSize();
    int nElems = mesh->GetNE();
    cout << myid << ": nElems = " << nElems << endl;
    delete mesh;
-
-   LatticeCoefficient latCoef(*bravais, lcf);
-   LatticeCoefficient rhoCoef(*bravais, lcf, 0.0, rho);
+   */
+   // LatticeCoefficient latCoef(*bravais, lcf);
 
    // ParGridFunction * vf0 = new ParGridFunction(L2FESpace);
    // ParGridFunction * vf1 = new ParGridFunction(L2FESpace);
@@ -258,6 +271,8 @@ int main(int argc, char *argv[])
    */
    if (densityCalc)
    {
+      LatticeCoefficient rhoCoef(*bravais, lcf, 0.0, rho);
+
       // The density computation does not require a periodic mesh
       Mesh * mesh_rho = bravais->GetWignerSeitzMesh();
       mesh_rho->EnsureNCMesh();
@@ -315,8 +330,8 @@ int main(int argc, char *argv[])
       elasticity.SetVolumeFraction(*vf0);
       */
       Mesh * mesh_C = bravais->GetPeriodicWignerSeitzMesh();
-      mesh_C->UniformRefinement();
-      mesh_C->UniformRefinement();
+      // mesh_C->UniformRefinement();
+      // mesh_C->UniformRefinement();
       mesh_C->EnsureNCMesh();
       ParMesh *pmesh_C = new ParMesh(MPI_COMM_WORLD, *mesh_C);
       delete mesh_C;
@@ -324,7 +339,7 @@ int main(int argc, char *argv[])
       meta_material::StiffnessTensor elasticity(*pmesh_C,
                                                 bravais->GetUnitCellVolume(),
                                                 lambdaCoef, muCoef,
-						stiffness_tol);
+                                                stiffness_tol);
 
       vector<double> elas;
       elasticity.GetHomogenizedProperties(elas);
@@ -366,10 +381,38 @@ int main(int argc, char *argv[])
       delete pmesh_C;
    }
 
+   if (bandGapCalc)
+   {
+      LatticeCoefficient epsCoef(*bravais, lcf, 1.0, epsRel);
+      LatticeCoefficient  muCoef(*bravais, lcf, 1.0,  muRel);
+
+      Mesh * mesh_bg = bravais->GetPeriodicWignerSeitzMesh();
+      ParMesh *pmesh_bg = new ParMesh(MPI_COMM_WORLD, *mesh_bg);
+      delete mesh_bg;
+
+      meta_material::MaxwellBandGap maxwell_bg(*pmesh_bg, *bravais,
+                                               epsCoef, muCoef, band_gap_tol);
+
+      vector<double> bg;
+      maxwell_bg.GetHomogenizedProperties(bg);
+
+      if (visualization)
+      {
+         maxwell_bg.InitializeGLVis(vd);
+         maxwell_bg.DisplayToGLVis();
+      }
+      if ( visit )
+      {
+         maxwell_bg.WriteVisItFields(oss_prefix.str(), "MaxwellBandGap");
+      }
+      delete pmesh_bg;
+   }
+
    // delete vf0;
    // delete vf1;
    // delete L2FESpace;
-   delete pmesh;
+   // delete pmesh;
+   delete bravais;
 
    MPI_Finalize();
 

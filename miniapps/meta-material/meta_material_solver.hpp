@@ -17,6 +17,7 @@
 #ifdef MFEM_USE_MPI
 
 #include "../common/pfem_extras.hpp"
+#include "../common/bravais.hpp"
 
 namespace mfem
 {
@@ -26,7 +27,10 @@ using miniapps::ND_ParFESpace;
 using miniapps::RT_ParFESpace;
 using miniapps::L2_ParFESpace;
 using miniapps::ParDiscreteGradOperator;
+using miniapps::ParDiscreteCurlOperator;
+using miniapps::ParDiscreteInterpolationOperator;
 using miniapps::VisData;
+using  bravais::BravaisLattice;
 
 namespace meta_material
 {
@@ -146,7 +150,7 @@ public:
    */
    StiffnessTensor(ParMesh & pmesh, double vol,
                    Coefficient &lambdaCoef, Coefficient &muCoef,
-		   double tol = 0.05);
+                   double tol = 0.05);
    ~StiffnessTensor();
 
    // void SetVolumeFraction(ParGridFunction & vf);
@@ -269,6 +273,399 @@ private:
    socketstream   err_socks_[4];
 
    int seqVF_;
+};
+
+class ParDiscreteVectorProductOperator
+   : public ParDiscreteInterpolationOperator
+{
+public:
+   ParDiscreteVectorProductOperator(ParFiniteElementSpace *dfes,
+                                    ParFiniteElementSpace *rfes,
+                                    const Vector & v);
+
+private:
+   VectorConstantCoefficient vCoef_;
+};
+
+class ParDiscreteVectorCrossProductOperator
+   : public ParDiscreteInterpolationOperator
+{
+public:
+   ParDiscreteVectorCrossProductOperator(ParFiniteElementSpace *dfes,
+                                         ParFiniteElementSpace *rfes,
+                                         const Vector & v);
+private:
+   VectorConstantCoefficient vCoef_;
+};
+
+//class MaxwellBlochWaveEquation;
+//class MaxwellBlochWaveEquation::MaxwellBlochWaveProjector;
+
+class MaxwellBlochWaveEquation
+{
+public:
+   MaxwellBlochWaveEquation(ParMesh & pmesh,
+                            int order);
+   ~MaxwellBlochWaveEquation();
+
+   // Where kappa is the phase shift vector
+   void SetKappa(const Vector & kappa);
+
+   // Where beta*zeta = kappa
+   void SetBeta(double beta);
+   void SetZeta(const Vector & zeta);
+
+   // void SetAzimuth(double alpha_a);
+   // void SetInclination(double alpha_i);
+
+   // void SetOmega(double omega);
+   void SetAbsoluteTolerance(double atol);
+   void SetNumEigs(int nev);
+   void SetMassCoef(Coefficient & m);
+   void SetStiffnessCoef(Coefficient & k);
+
+   void Setup();
+
+   void SetInitialVectors(int num_vecs, HypreParVector ** vecs);
+
+   // void SetBravaisLattice(BravaisLattice & bravais) { bravais_ = &bravais; }
+
+   void Update();
+
+   /// Solve the eigenproblem
+   void Solve();
+
+   /// Collect the converged eigenvalues
+   void GetEigenvalues(std::vector<double> & eigenvalues);
+
+   /// A convenience method which combines six methods into one
+   void GetEigenvalues(int nev, const Vector & kappa,
+                       std::vector<HypreParVector*> & init_vecs,
+                       std::vector<double> & eigenvalues);
+
+   /// Extract a single eigenvector
+   void GetEigenvector(unsigned int i,
+                       HypreParVector & Er,
+                       HypreParVector & Ei,
+                       HypreParVector & Br,
+                       HypreParVector & Bi);
+   void GetEigenvectorE(unsigned int i,
+                        HypreParVector & Er,
+                        HypreParVector & Ei);
+   void GetEigenvectorB(unsigned int i,
+                        HypreParVector & Br,
+                        HypreParVector & Bi);
+
+   BlockOperator * GetAOperator() { return A_; }
+   BlockOperator * GetMOperator() { return M_; }
+
+   Solver   * GetPreconditioner() { return Precond_; }
+   Operator * GetSubSpaceProjector() { return SubSpaceProj_; }
+
+   ParFiniteElementSpace * GetH1FESpace() { return H1FESpace_; }
+   ParFiniteElementSpace * GetHCurlFESpace() { return HCurlFESpace_; }
+   ParFiniteElementSpace * GetHDivFESpace()  { return HDivFESpace_; }
+
+   // void TestVector(const HypreParVector & v);
+
+   ParGridFunction * GetEigenvectorEnergy(unsigned int i) { return energy_[i]; }
+
+   void GetFourierCoefficients(HypreParVector & Vr,
+                               HypreParVector & Vi,
+                               Array2D<double> &f);
+
+   void IdentifyDegeneracies(double zero_tol, double rel_tol,
+                             std::vector<std::set<int> > & degen);
+
+   void GetFieldAverages(unsigned int i,
+                         Vector & Er, Vector & Ei,
+                         Vector & Br, Vector & Bi,
+                         Vector & Dr, Vector & Di,
+                         Vector & Hr, Vector & Hi);
+
+   void ComputeHomogenizedCoefs();
+
+   void DetermineBasis(const Vector & v1, std::vector<Vector> & e);
+
+   void WriteVisitFields(const std::string & prefix,
+                         const std::string & label);
+
+   void GetSolverStats(double &meanTime, double &stdDevTime,
+                       double &meanIter, double &stdDevIter,
+                       int &nSolves);
+
+private:
+
+   MPI_Comm comm_;
+   int myid_;
+   int hcurl_loc_size_;
+   int hdiv_loc_size_;
+   int nev_;
+
+   bool newBeta_;
+   bool newZeta_;
+   bool newOmega_;
+   bool newMCoef_;
+   bool newKCoef_;
+
+   ParMesh        * pmesh_;
+   H1_ParFESpace  * H1FESpace_;
+   ND_ParFESpace  * HCurlFESpace_;
+   RT_ParFESpace  * HDivFESpace_;
+   // L2_ParFESpace  * L2FESpace_;
+
+   // BravaisLattice     * bravais_;
+   // HCurlFourierSeries * fourierHCurl_;
+
+   double           atol_;
+   double           beta_;
+
+   Vector           zeta_;
+   Vector           kappa_;
+
+   Coefficient    * mCoef_;
+   Coefficient    * kCoef_;
+
+   Array<int>       block_offsets_;
+   Array<int>       block_trueOffsets_;
+   Array<int>       block_trueOffsets2_;
+   Array<HYPRE_Int> tdof_offsets_;
+
+   BlockOperator  * A_;
+   BlockOperator  * M_;
+   BlockOperator  * C_;
+
+   BlockVector    * blkHCurl_;
+   BlockVector    * blkHDiv_;
+
+   HypreParMatrix * M1_;
+   HypreParMatrix * M2_;
+   HypreParMatrix * S1_;
+   HypreParMatrix * T1_;
+   HypreParMatrix * T12_;
+   HypreParMatrix * Z12_;
+
+   HypreParMatrix * DKZ_;
+   // HypreParMatrix * DKZT_;
+
+   HypreAMS       * T1Inv_;
+
+   ParDiscreteCurlOperator * Curl_;
+   ParDiscreteVectorCrossProductOperator * Zeta_;
+
+   BlockDiagonalPreconditioner * BDP_;
+
+   Solver   * Precond_;
+   //MaxwellBlochWaveProjector * SubSpaceProj_;
+   Operator * SubSpaceProj_;
+
+   HypreParVector ** vecs_;
+   HypreParVector * vec0_;
+
+   HypreLOBPCG * lobpcg_;
+   HypreAME    * ame_;
+
+   ParGridFunction ** energy_;
+   /*
+    HypreParVector * AvgHCurl_coskx_[3];
+    HypreParVector * AvgHCurl_sinkx_[3];
+    HypreParVector * AvgHDiv_coskx_[3];
+    HypreParVector * AvgHDiv_sinkx_[3];
+
+    HypreParVector * AvgHCurl_eps_coskx_[3];
+    HypreParVector * AvgHCurl_eps_sinkx_[3];
+    HypreParVector * AvgHDiv_muInv_coskx_[3];
+    HypreParVector * AvgHDiv_muInv_sinkx_[3];
+   */
+   std::vector<double> solve_times_;
+   std::vector<int>    solve_iters_;
+
+   class MaxwellBlochWavePrecond : public Solver
+   {
+   public:
+      MaxwellBlochWavePrecond(ParFiniteElementSpace & HCurlFESpace,
+                              BlockDiagonalPreconditioner & BDP,
+                              Operator & subSpaceProj,
+                              double w);
+
+      ~MaxwellBlochWavePrecond();
+
+      void Mult(const Vector & x, Vector & y) const;
+
+      void SetOperator(const Operator & A);
+
+   private:
+      int myid_;
+
+      // ParFiniteElementSpace * HCurlFESpace_;
+      BlockDiagonalPreconditioner * BDP_;
+      const Operator * A_;
+      Operator * subSpaceProj_;
+      // mutable HypreParVector *r_, *u_, *v_;
+      mutable HypreParVector *u_;
+      // double w_;
+   };
+
+   class MaxwellBlochWaveProjector : public Operator
+   {
+   public:
+      MaxwellBlochWaveProjector(ParFiniteElementSpace & HCurlFESpace,
+                                ParFiniteElementSpace & H1FESpace,
+                                BlockOperator & M,
+                                double beta, const Vector & zeta);
+      ~MaxwellBlochWaveProjector();
+
+      void SetBeta(double beta);
+      void SetZeta(const Vector & zeta);
+
+      void Setup();
+      virtual void Mult(const Vector &x, Vector &y) const;
+
+   private:
+      int myid_;
+      int locSize_;
+
+      bool newBeta_;
+      bool newZeta_;
+
+      ParFiniteElementSpace * HCurlFESpace_;
+      ParFiniteElementSpace * H1FESpace_;
+
+      double beta_;
+      Vector zeta_;
+
+      HypreParMatrix * T01_;
+      HypreParMatrix * Z01_;
+      HypreParMatrix * A0_;
+      HypreParMatrix * DKZ_;
+
+      MINRESSolver   * minres_;
+
+      Array<int>       block_offsets0_;
+      Array<int>       block_offsets1_;
+      Array<int>       block_trueOffsets0_;
+      Array<int>       block_trueOffsets1_;
+
+      BlockOperator * S0_;
+      BlockOperator * M_;
+      BlockOperator * G_;
+
+      mutable HypreParVector * urDummy_;
+      mutable HypreParVector * uiDummy_;
+      mutable HypreParVector * vrDummy_;
+      mutable HypreParVector * viDummy_;
+
+      mutable BlockVector * u0_;
+      mutable BlockVector * v0_;
+      mutable BlockVector * u1_;
+      mutable BlockVector * v1_;
+   };
+};
+
+class InverseCoefficient : public TransformedCoefficient
+{
+public:
+   InverseCoefficient(Coefficient * q) : TransformedCoefficient(q, inv_) {}
+private:
+   static double inv_(double v) { return 1.0/v; }
+};
+
+class MaxwellBlochWaveSolver
+{
+public:
+   MaxwellBlochWaveSolver(ParMesh & pmesh, BravaisLattice & bravais,
+                          Coefficient & epsCoef, Coefficient & muCoef,
+                          double tol = 0.05);
+   ~MaxwellBlochWaveSolver();
+
+   // Where kappa is the phase shift vector
+   void SetKappa(const Vector & kappa);
+
+   // Where beta*zeta = kappa and |zeta| = 1
+   void SetBeta(double beta);
+   void SetZeta(const Vector & zeta);
+
+   void GetEigenfrequencies(std::vector<double> & omega);
+
+   void InitializeGLVis(VisData & vd);
+
+   void DisplayToGLVis();
+
+   void WriteVisItFields(const std::string & prefix,
+                         const std::string & label);
+
+private:
+
+   void createPartitioning(ParFiniteElementSpace & pfes, HYPRE_Int *& part);
+  
+   int max_lvl_;
+   int nev_;
+   double tol_;
+
+   std::vector<ParMesh*> pmesh_;
+   std::vector<MaxwellBlochWaveEquation*> mbwe_;
+   std::vector<const Operator*> refineOp_;
+   std::vector<std::pair<HypreParVector, HypreParVector> > EField_;
+   //std::vector<std::vector<std::pair<ParGridFunction,
+   //                ParGridFunction> > > efield_;
+   std::vector<std::pair<ParGridFunction, ParGridFunction> > efield_;
+   std::vector<std::vector<HypreParVector*> > initialVecs_;
+   std::vector<int> locSize_;
+   std::vector<HYPRE_Int*> part_;
+  
+   Vector kappa_;
+   Coefficient * epsCoef_;
+   InverseCoefficient muInvCoef_;
+
+   // Coefficient * muCoef_;
+
+};
+
+class MaxwellDispersion
+{
+public:
+   MaxwellDispersion(ParMesh & pmesh, BravaisLattice & bravais,
+                     Coefficient & epsCoef, Coefficient & muCoef,
+                     double tol = 0.05);
+   ~MaxwellDispersion();
+
+   void GetDispersionPlot();
+
+   void InitializeGLVis(VisData & vd);
+
+   void DisplayToGLVis();
+
+   void WriteVisItFields(const std::string & prefix,
+                         const std::string & label);
+
+private:
+
+   void traverseBrillouinZone();
+
+   BravaisLattice         * bravais_;
+   MaxwellBlochWaveSolver * mbws_;
+};
+
+class MaxwellBandGap : public Homogenization
+{
+public:
+   MaxwellBandGap(ParMesh & pmesh, BravaisLattice & bravais,
+                  Coefficient & epsCoef, Coefficient & muCoef,
+                  double tol = 0.05);
+   ~MaxwellBandGap();
+
+   void GetHomogenizedProperties(std::vector<double> & p);
+   void GetPropertySensitivities(std::vector<ParGridFunction> & dp) {}
+
+   void InitializeGLVis(VisData & vd);
+
+   void DisplayToGLVis();
+
+   void WriteVisItFields(const std::string & prefix,
+                         const std::string & label);
+private:
+
+   MaxwellDispersion * disp_;
 };
 
 } // namespace meta_material
