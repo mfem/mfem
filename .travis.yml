@@ -14,6 +14,7 @@ env:
    global:
       - TMPDIR=/tmp
 # Travis VM environment provides 2 processor cores.
+# Note: NPROCS=2 for linux, see below.
       - NPROCS=4
    matrix:
       - DEBUG=YES
@@ -39,8 +40,10 @@ addons:
          - ubuntu-toolchain-r-test
       packages:
          - g++-4.9
+# MPICH
          - mpich
          - libmpich-dev
+# OpenMPI
 #         - openmpi-bin
 #         - libopenmpi-dev
 
@@ -112,18 +115,13 @@ install:
      fi
 
 script:
-   # System info
-   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then
-        cat /proc/{version,cpuinfo,meminfo};
-     elif [ "$TRAVIS_OS_NAME" == "osx" ]; then
-        /usr/sbin/sysctl kern.version hw;
-     fi
-
    # Compiler
+   # set NPROCS=2 for linux
    - if [ $MPI == "YES" ]; then
         export MYCXX=mpic++;
         if [ "$TRAVIS_OS_NAME" == "linux" ]; then
            export MPICH_CXX="$CXX";
+           NPROCS=2;
         else
            export OMPI_CXX="$CXX";
            $MYCXX --showme:version;
@@ -134,6 +132,11 @@ script:
    # Print the compiler version
    - $MYCXX -v
 
+   # Colors and time format
+   - purple=$'\E[0;35m';
+     none=$'\E[0m';
+     TIMEFORMAT="${purple}"$'real=%3Rs  user=%3Us  sys=%3Ss  %%cpu=%P'"${none}"
+
    # Build and check/test MFEM, its examples and miniapps
    - cd $TRAVIS_BUILD_DIR &&
      CPPFLAGS="" &&
@@ -141,11 +144,12 @@ script:
      if [ "$CODECOV" == "YES" ]; then
         CPPFLAGS="--coverage -g";
      fi &&
+     echo "${purple}Number of MPI tasks = ${NPROCS}${none}" &&
      make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX"
         MFEM_MPI_NP=$NPROCS CPPFLAGS="$CPPFLAGS" &&
      make info &&
-     make -j3 all &&
-     make $MFEM_TEST_TARGET SKIP_TEST_DIRS="$SKIP_TEST_DIRS"
+     time make -j3 all &&
+     time make $MFEM_TEST_TARGET SKIP_TEST_DIRS="$SKIP_TEST_DIRS"
 
 after_success:
    - if [ "$CODECOV" == "YES" ]; then
