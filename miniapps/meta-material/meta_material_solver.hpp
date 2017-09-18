@@ -597,7 +597,7 @@ public:
 private:
 
    void createPartitioning(ParFiniteElementSpace & pfes, HYPRE_Int *& part);
-  
+
    int max_lvl_;
    int nev_;
    double tol_;
@@ -605,14 +605,14 @@ private:
    std::vector<ParMesh*> pmesh_;
    std::vector<MaxwellBlochWaveEquation*> mbwe_;
    std::vector<const Operator*> refineOp_;
-   std::vector<std::pair<HypreParVector, HypreParVector> > EField_;
+   std::vector<std::pair<HypreParVector*, HypreParVector*> > EField_;
    //std::vector<std::vector<std::pair<ParGridFunction,
    //                ParGridFunction> > > efield_;
-   std::vector<std::pair<ParGridFunction, ParGridFunction> > efield_;
+   std::vector<std::pair<ParGridFunction*, ParGridFunction*> > efield_;
    std::vector<std::vector<HypreParVector*> > initialVecs_;
    std::vector<int> locSize_;
    std::vector<HYPRE_Int*> part_;
-  
+
    Vector kappa_;
    Coefficient * epsCoef_;
    InverseCoefficient muInvCoef_;

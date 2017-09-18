@@ -2477,18 +2477,18 @@ MaxwellBlochWaveSolver::MaxwellBlochWaveSolver(ParMesh & pmesh,
    mbwe_[0]->SetStiffnessCoef(muInvCoef_);
 
    ParFiniteElementSpace *  fespace = mbwe_[0]->GetHCurlFESpace();
-   /*
-   HypreParVector * Er = new HypreParVector(fespace->GetComm(),
-                fespace->GlobalTrueVSize(),
-                NULL,
-                fespace->GetTrueDofOffsets());
-   HypreParVector * Ei = new HypreParVector(fespace->GetComm(),
-                fespace->GlobalTrueVSize(),
-                NULL,
-                fespace->GetTrueDofOffsets());
 
-   EField_.push_back(std::make_pair(*Er, *Ei));
-   */
+   HypreParVector * Er = new HypreParVector(fespace->GetComm(),
+                                            fespace->GlobalTrueVSize(),
+                                            NULL,
+                                            fespace->GetTrueDofOffsets());
+   HypreParVector * Ei = new HypreParVector(fespace->GetComm(),
+                                            fespace->GlobalTrueVSize(),
+                                            NULL,
+                                            fespace->GetTrueDofOffsets());
+
+   EField_.push_back(std::make_pair(Er, Ei));
+   /*
    EField_.push_back(std::make_pair(HypreParVector(fespace->GetComm(),
                                                    fespace->GlobalTrueVSize(),
                                                    NULL,
@@ -2499,7 +2499,7 @@ MaxwellBlochWaveSolver::MaxwellBlochWaveSolver(ParMesh & pmesh,
                                                    fespace->GetTrueDofOffsets())
                                    )
                     );
-
+   */
    /*
    efield_.resize(1);
    efield_[0].resize(nev_);
@@ -2509,8 +2509,8 @@ MaxwellBlochWaveSolver::MaxwellBlochWaveSolver(ParMesh & pmesh,
              ParGridFunction(fespace));
    }
    */
-   efield_.push_back(make_pair(ParGridFunction(fespace),
-                               ParGridFunction(fespace)));
+   efield_.push_back(make_pair(new ParGridFunction(fespace),
+                               new ParGridFunction(fespace)));
 
    initialVecs_.resize(1);
    initialVecs_[0].resize(nev_);
@@ -2523,9 +2523,9 @@ MaxwellBlochWaveSolver::MaxwellBlochWaveSolver(ParMesh & pmesh,
 
    for (int i=0; i<nev_; i++)
    {
-     initialVecs_[0][i] = new HypreParVector(fespace->GetComm(),
-					     glbSize,
-					     part_[0]);
+      initialVecs_[0][i] = new HypreParVector(fespace->GetComm(),
+                                              glbSize,
+                                              part_[0]);
    }
 }
 
@@ -2543,6 +2543,16 @@ MaxwellBlochWaveSolver::~MaxwellBlochWaveSolver()
    for (unsigned int i=0; i<refineOp_.size(); i++)
    {
       delete refineOp_[i]; refineOp_[i] = NULL;
+   }
+   for (unsigned int i=0; i<EField_.size(); i++)
+   {
+      delete EField_[i].first;  EField_[i].first = NULL;
+      delete EField_[i].second; EField_[i].second = NULL;
+   }
+   for (unsigned int i=0; i<efield_.size(); i++)
+   {
+      delete efield_[i].first;  efield_[i].first = NULL;
+      delete efield_[i].second; efield_[i].second = NULL;
    }
 }
 
@@ -2619,34 +2629,35 @@ MaxwellBlochWaveSolver::GetEigenfrequencies(std::vector<double> & omega)
 
          pmesh_[lvl]->UniformRefinement();
 
-	 mbwe_[lvl]->GetH1FESpace()->Update();
-	 mbwe_[lvl]->GetHDivFESpace()->Update();
+         mbwe_[lvl]->GetH1FESpace()->Update();
+         mbwe_[lvl]->GetHDivFESpace()->Update();
          ParFiniteElementSpace *  fespace = mbwe_[lvl]->GetHCurlFESpace();
 
          refineOp_.push_back(fespace->GetUpdateOperator());
          fespace->SetUpdateOperatorOwner(false);
-         /*
-         HypreParVector * Er = new HypreParVector(fespace->GetComm(),
-                         fespace->GlobalTrueVSize(),
-                         NULL,
-                         fespace->GetTrueDofOffsets());
-         HypreParVector * Ei = new HypreParVector(fespace->GetComm(),
-                         fespace->GlobalTrueVSize(),
-                         NULL,
-                         fespace->GetTrueDofOffsets());
 
-         EField_.push_back(std::make_pair(*Er, *Ei));
+         HypreParVector * Er = new HypreParVector(fespace->GetComm(),
+                                                  fespace->GlobalTrueVSize(),
+                                                  NULL,
+                                                  fespace->GetTrueDofOffsets());
+         HypreParVector * Ei = new HypreParVector(fespace->GetComm(),
+                                                  fespace->GlobalTrueVSize(),
+                                                  NULL,
+                                                  fespace->GetTrueDofOffsets());
+
+         EField_.push_back(std::make_pair(Er, Ei));
+         /*
+              EField_.push_back(
+                 std::make_pair(HypreParVector(fespace->GetComm(),
+                                               fespace->GlobalTrueVSize(),
+                                               NULL,
+                                               fespace->GetTrueDofOffsets()),
+                                HypreParVector(fespace->GetComm(),
+                                               fespace->GlobalTrueVSize(),
+                                               NULL,
+                                               fespace->GetTrueDofOffsets()))
+              );
          */
-         EField_.push_back(
-            std::make_pair(HypreParVector(fespace->GetComm(),
-                                          fespace->GlobalTrueVSize(),
-                                          NULL,
-                                          fespace->GetTrueDofOffsets()),
-                           HypreParVector(fespace->GetComm(),
-                                          fespace->GlobalTrueVSize(),
-                                          NULL,
-                                          fespace->GetTrueDofOffsets()))
-         );
          /*
          efield_[lvl].resize(nev_);
          for (int i=0; i<nev_; i++)
@@ -2655,23 +2666,23 @@ MaxwellBlochWaveSolver::GetEigenfrequencies(std::vector<double> & omega)
                        ParGridFunction(fespace));
          }
               */
-         efield_.push_back(make_pair(ParGridFunction(fespace),
-                                     ParGridFunction(fespace)));
+         efield_.push_back(make_pair(new ParGridFunction(fespace),
+                                     new ParGridFunction(fespace)));
 
-	 initialVecs_.resize(lvl+1);
+         initialVecs_.resize(lvl+1);
          initialVecs_[lvl].resize(nev_);
 
-	 locSize_.push_back(fespace->TrueVSize());
-	 int glbSize = 2 * fespace->GlobalTrueVSize();
+         locSize_.push_back(fespace->TrueVSize());
+         int glbSize = 2 * fespace->GlobalTrueVSize();
 
-	 part_.push_back(NULL);
-	 this->createPartitioning(*fespace, part_[lvl]);
+         part_.push_back(NULL);
+         this->createPartitioning(*fespace, part_[lvl]);
 
-	 for (int i=0; i<nev_; i++)
+         for (int i=0; i<nev_; i++)
          {
-           initialVecs_[lvl][i] = new HypreParVector(fespace->GetComm(),
-						     glbSize,
-						     part_[lvl]);
+            initialVecs_[lvl][i] = new HypreParVector(fespace->GetComm(),
+                                                      glbSize,
+                                                      part_[lvl]);
          }
 
          mbwe_[lvl]->SetMassCoef(*epsCoef_);
@@ -2685,23 +2696,23 @@ MaxwellBlochWaveSolver::GetEigenfrequencies(std::vector<double> & omega)
       for (int i=0; i<nev_; i++)
       {
          mbwe_[lvl-1]->GetEigenvectorE(i,
-                                       EField_[lvl-1].first,
-                                       EField_[lvl-1].second);
-         efield_[lvl-1].first  = EField_[lvl-1].first;
-         efield_[lvl-1].second = EField_[lvl-1].second;
+                                       *EField_[lvl-1].first,
+                                       *EField_[lvl-1].second);
+         *efield_[lvl-1].first  = *EField_[lvl-1].first;
+         *efield_[lvl-1].second = *EField_[lvl-1].second;
 
-         refineOp_[lvl-1]->Mult(efield_[lvl-1].first,
-                                efield_[lvl].first);
-         refineOp_[lvl-1]->Mult(efield_[lvl-1].second,
-                                efield_[lvl].second);
+         refineOp_[lvl-1]->Mult(*efield_[lvl-1].first,
+                                *efield_[lvl].first);
+         refineOp_[lvl-1]->Mult(*efield_[lvl-1].second,
+                                *efield_[lvl].second);
 
-	 EField_[lvl].first.SetData(
-	    initialVecs_[lvl][i]->GetData());
-	 EField_[lvl].second.SetData(
-	    &initialVecs_[lvl][i]->GetData()[locSize_[lvl]]);
+         EField_[lvl].first->SetData(
+            initialVecs_[lvl][i]->GetData());
+         EField_[lvl].second->SetData(
+            &initialVecs_[lvl][i]->GetData()[locSize_[lvl]]);
 
-	 efield_[lvl].first.ParallelProject(EField_[lvl].first);
-	 efield_[lvl].second.ParallelProject(EField_[lvl].second);
+         efield_[lvl].first->ParallelProject(*EField_[lvl].first);
+         efield_[lvl].second->ParallelProject(*EField_[lvl].second);
       }
       mbwe_[lvl]->SetInitialVectors(nev_, &initialVecs_[lvl][0]);
       mbwe_[lvl]->Solve();
@@ -2710,8 +2721,8 @@ MaxwellBlochWaveSolver::GetEigenfrequencies(std::vector<double> & omega)
       for (unsigned int i=0; i<fine_eigs.size(); i++)
       {
          mbwe_[lvl]->GetEigenvectorE(i,
-				     EField_[lvl].first,
-				     EField_[lvl].second);
+                 EField_[lvl].first,
+                 EField_[lvl].second);
          efield_[lvl].first  = EField_[lvl].first;
          efield_[lvl].second = EField_[lvl].second;
       }
@@ -2736,11 +2747,11 @@ MaxwellBlochWaveSolver::GetEigenfrequencies(std::vector<double> & omega)
 
 void
 MaxwellBlochWaveSolver::createPartitioning(ParFiniteElementSpace & pfes,
-					   HYPRE_Int *& part)
+                                           HYPRE_Int *& part)
 {
-  MPI_Comm comm = pfes.GetComm();
-  int locSize = 2 * pfes.TrueVSize();
-  int glbSize = 0;
+   MPI_Comm comm = pfes.GetComm();
+   int locSize = 2 * pfes.TrueVSize();
+   int glbSize = 0;
 
    if (HYPRE_AssumedPartitionCheck())
    {
@@ -2769,7 +2780,7 @@ MaxwellBlochWaveSolver::createPartitioning(ParFiniteElementSpace & pfes,
       glbSize = part[numProcs];
    }
 }
-  
+
 void
 MaxwellBlochWaveSolver::InitializeGLVis(VisData & vd)
 {}
