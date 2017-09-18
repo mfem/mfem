@@ -52,16 +52,12 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
    input >> ordering;
 
    NURBSExtension *NURBSext = NULL;
-   if (m->NURBSext)
+   if (m->NURBSext && dynamic_cast<NURBSFECollection *>(fec) )
    {
       input.getline(buff, bufflen, ' '); // 'NURBSext:'
       int size;
       input >> size;
-      //  if (size <= 0)
-      //  {
-      //     NURBSext = m->NURBSext;
-      // }
-      // else
+
       if (size > 0)
       {
          Array<int> Orders(size);
