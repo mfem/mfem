@@ -59,12 +59,13 @@ double ParNonlinearForm::GetEnergy(const Vector &x) const
 
 void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
-   X.Distribute(&x);
+   const Operator *P = ParFESpace()->GetProlongationMatrix();
 
-   NonlinearForm::Mult(X, Y);
+   P->Mult(x, X);
 
    if (fbfi.Size())
    {
+      X.ExchangeFaceNbrData();
       // Still need to add integrals over shared faces.
       ParFiniteElementSpace *pfes = ParFESpace();
       ParMesh *pmesh = pfes->GetParMesh();
@@ -113,9 +114,9 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
       }
    }
 
-   ParFESpace()->GroupComm().Reduce<double>(Y, GroupCommunicator::Sum);
+   NonlinearForm::Mult(X, Y);
 
-   Y.GetTrueDofs(y);
+   P->MultTranspose(Y, y);
 }
 
 const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const

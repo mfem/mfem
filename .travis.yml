@@ -1,3 +1,5 @@
+sudo: false
+
 language: cpp
 
 compiler:
@@ -9,10 +11,36 @@ os:
    - osx
 
 env:
-   - DEBUG=YES MPI=YES TMPDIR=/tmp
-   - DEBUG=NO MPI=YES TMPDIR=/tmp
-   - DEBUG=YES MPI=NO
-   - DEBUG=NO MPI=NO
+   global:
+      - TMPDIR=/tmp
+   matrix:
+      - DEBUG=YES
+        MPI=YES
+        NPROCS=4
+        CODECOV=YES
+        MFEM_TEST_TARGET=test
+      - DEBUG=NO
+        MPI=YES
+        NPROCS=4
+        CODECOV=NO
+        MFEM_TEST_TARGET=test
+      - DEBUG=YES
+        MPI=NO
+        CODECOV=NO
+        MFEM_TEST_TARGET=check
+      - DEBUG=NO
+        MPI=NO
+        CODECOV=NO
+        MFEM_TEST_TARGET=check
+
+addons:
+   apt:
+      sources:
+         - ubuntu-toolchain-r-test
+      packages:
+         - g++-4.9
+         - openmpi-bin
+         - libopenmpi-dev;
 
 # Test with GCC on Linux an Clang on Mac
 matrix:
@@ -23,23 +51,40 @@ matrix:
         os: osx
 
 before_install:
-   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" ]; then sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test; fi
-   - if [ $TRAVIS_OS_NAME == "linux" ]; then sudo apt-get update; fi || true
+    # No addon for brew yet, have to install OSX packages this way.
+   - if [ $TRAVIS_OS_NAME == "osx" ]; then
+        travis_wait brew install open-mpi;
+        rvm get stable;
+     fi
+
+   # Install tool to upload code coverage reports to coveralls.io
+   - if [ "$CODECOV" == "YES" ]; then
+        export PYTHONUSERBASE=$HOME/local;
+        echo "Using PYTHONUSERBASE=$PYTHONUSERBASE";
+        pip install --user cpp-coveralls;
+        pip install --user pyyaml;
+        PATH=$HOME/local/bin:$PATH;
+     fi
+
+   # Update environment to find g++ 4.9 installation first.
+   - if [ $TRAVIS_OS_NAME == "linux" ]; then
+         mkdir -p latest-gcc-symlinks;
+         ln -s /usr/bin/g++-4.9 latest-gcc-symlinks/g++;
+         ln -s /usr/bin/gcc-4.9 latest-gcc-symlinks/gcc;
+         ln -s /usr/bin/gcov-4.9 latest-gcc-symlinks/gcov;
+         export PATH=$PWD/latest-gcc-symlinks:$PATH;
+     fi
 
 install:
-   # g++-4.9
-   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" ]; then sudo apt-get install -qq g++-4.9; fi
-   - if [ $TRAVIS_OS_NAME == "linux" -a "$CXX" == "g++" ]; then export CXX="g++-4.9"; fi
-
    # Back out of the mfem directory to install the libraries
    - cd ..
 
    # OpenMPI
-   - if [ $TRAVIS_OS_NAME == "linux" ]; then
-        sudo apt-get install openmpi-bin openmpi-common openssh-client openssh-server libopenmpi1.3 libopenmpi-dbg libopenmpi-dev;
-     else
-        travis_wait brew install open-mpi;
-     fi
+#   - if [ $TRAVIS_OS_NAME == "linux" ]; then
+#        sudo apt-get install openmpi-bin libopenmpi-dev;
+#     else
+#        travis_wait brew install open-mpi;
+#     fi
 
    # hypre
    - if [ $MPI == "YES" ]; then
@@ -86,15 +131,23 @@ script:
      fi
    # Print the compiler version
    - $MYCXX -v
-   # Build the code and do a quick check (debug mode) or a full tests run (non-debug mode)
-   - if [ $DEBUG == "NO" ]; then
-        export MFEM_TEST_TARGET="test";
-     else
-        export MFEM_TEST_TARGET="check";
-     fi
+
    # Build and check/test MFEM, its examples and miniapps
    - cd $TRAVIS_BUILD_DIR &&
-     make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX" &&
+     CPPFLAGS="" &&
+     SKIP_TEST_DIRS="" &&
+     if [ "$CODECOV" == "YES" ]; then
+        CPPFLAGS="--coverage";
+        SKIP_TEST_DIRS="miniapps/performance";
+     fi &&
+     make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX"
+        MFEM_MPI_NP=$NPROCS CPPFLAGS="$CPPFLAGS" &&
      make info &&
      make all -j 4 &&
-     make $MFEM_TEST_TARGET
+     make $MFEM_TEST_TARGET SKIP_TEST_DIRS="$SKIP_TEST_DIRS"
+
+#      coveralls --include fem --include general --include linalg --include mesh --include miniapps --gcov-options '\-lp' --root $TRAVIS_BUILD_DIR --build-root $TRAVIS_BUILD_DIR;
+after_success:
+   - if [ "$CODECOV" == "YES" ]; then
+        coveralls --include fem --include general --include linalg --include mesh --exclude /usr --gcov-options '\-lp' --root $TRAVIS_BUILD_DIR;
+     fi;

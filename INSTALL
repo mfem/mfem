@@ -18,6 +18,9 @@ requires an MPI C++ compiler, as well as the following external libraries:
 - METIS (a family of multilevel partitioning algorithms)
   http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
 
+The METIS dependency can be disabled but that is not generally recommended, see
+the option MFEM_USE_METIS.
+
 The library supports two build systems: one based on GNU make, and a second one
 based on CMake. Both build systems are described below. Some hints for building
 without GNU make or CMake can be found at the end of this file.
@@ -150,8 +153,8 @@ An optional installation of the library and the headers can be performed with
    make install [PREFIX=<dir>]
 
 The library will be installed in $(PREFIX)/lib, the headers in
-$(PREFIX)/include, and the configuration makefile (config.mk) in $(PREFIX).
-The PREFIX option can also be set during configuration.
+$(PREFIX)/include, and the configuration makefile (config.mk) in
+$(PREFIX)/share/mfem. The PREFIX option can also be set during configuration.
 
 Information about the current build configuration can be viewed using
 
@@ -194,7 +197,7 @@ Compiler options:
 Installation options:
    PREFIX  - Specify the installation directory. The library (libmfem.a) will be
              installed in $(PREFIX)/lib, the headers in $(PREFIX)/include, and
-             the configuration makefile (config.mk) in $(PREFIX).
+             the configuration makefile (config.mk) in $(PREFIX)/share/mfem.
    INSTALL - Specify the install program, e.g /usr/bin/install
 
 MFEM library features/options (GNU make)
@@ -202,6 +205,13 @@ MFEM library features/options (GNU make)
 MFEM_USE_MPI = YES/NO
    Choose parallel/serial build. The parallel build requires proper setup of the
    HYPRE_* and METIS_* library options, see below.
+
+MFEM_USE_METIS = YES/NO
+   Enable/disable the use of the METIS library. By default, this option is set
+   to the value of MFEM_USE_MPI. If this option is explicitly disabled in a
+   parallel build, then the only parallel partitioning (domain decomposition)
+   option in the library will be Cartesian partitioning with box meshes, and
+   thus most of the parallel examples and miniapps will fail.
 
 MFEM_DEBUG = YES/NO
    Choose debug/optimized build. The debug build enables a number of messages
@@ -342,8 +352,8 @@ The specific libraries and their options are:
   URL: http://www.llnl.gov/CASC/hypre
   Options: HYPRE_OPT, HYPRE_LIB.
 
-- METIS, required for the parallel build, i.e. when MFEM_USE_MPI = YES. If using
-  METIS 5, set MFEM_USE_METIS_5 = YES (default is to use METIS 4).
+- METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
+  MFEM_USE_METIS_5 = YES (default is to use METIS 4).
   URL: http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
   Options: METIS_OPT, METIS_LIB.
 
@@ -382,7 +392,9 @@ The specific libraries and their options are:
 
 - STRUMPACK (optional), used when MFEM_USE_STRUMPACK = YES. Note that STRUMPACK
   requires the PT-Scotch and Scalapack libraries as well as ParMETIS, which
-  includes METIS 5 in its distribution.
+  includes METIS 5 in its distribution. Currently requires the git version from
+  https://github.com/pghysels/STRUMPACK. Version "STRUMPACK-Sparse 1.1.0" and
+  older are not supported.
   URL: http://portal.nersc.gov/project/sparse/strumpack
   Options: STRUMPACK_OPT, STRUMPACK_LIB.
 
@@ -526,6 +538,7 @@ The following options are equivalent to the GNU make options with the same name:
 [see "MFEM library features/options (GNU make)" above]
 
 MFEM_USE_MPI
+MFEM_USE_METIS - Set to ${MFEM_USE_MPI}, can be overwritten.
 MFEM_USE_LIBUNWIND
 MFEM_USE_LAPACK
 MFEM_THREAD_SAFE
@@ -578,7 +591,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - METIS - The option MFEM_USE_METIS_5 is auto-detected.
  - MESQUITE
  - SuiteSparse
- - SuperLUDist
+ - SuperLUDist, STRUMPACK
  - ParMETIS
  - GNUTLS - Extends the built-in CMake support, to search GNUTLS_DIR as well.
  - NETCDF
@@ -600,9 +613,9 @@ Before using another build system (e.g. Visual Studio) it is necessary to create
 a proper configuration header file, config/config.hpp, using the template from
 config/config.hpp.in:
 
-   cp config/config.hpp.in config/config.hpp
+   cp config/config.hpp.in config/_config.hpp
 
-The file config/config.hpp can then be edited to enable desired options.  The
+The file config/_config.hpp can then be edited to enable desired options.  The
 MFEM library is simply a combination of all object files obtained by compiling
 the .cpp source files in the source directories: general, linalg, mesh, and fem.
 
