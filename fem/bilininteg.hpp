@@ -1681,6 +1681,9 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);
+    // ADDED //
+    void ResetVectorCoefficient(VectorCoefficient &q) { Q = q;  }
+    // ADDED //
 };
 
 /// alpha (q . grad u, v) using the "group" FE discretization

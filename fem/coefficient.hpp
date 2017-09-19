@@ -145,6 +145,11 @@ public:
    /// Evaluate coefficient
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
+
+   // ADDED //
+   void ResetFunctionCoeff(double (*f)(const Vector &)) { Function = f; }
+   // ADDED //
+
 };
 
 class GridFunction;
@@ -301,6 +306,12 @@ public:
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) { V = vec; }
+
+   // ADDED //
+   void ResetVectorConstant(Vector v) { vec = v; }
+   Vector GetVector() { return vec; }
+   // ADDED //
+
 };
 
 class VectorFunctionCoefficient : public VectorCoefficient
@@ -335,6 +346,11 @@ public:
                      const IntegrationPoint &ip);
 
    virtual ~VectorFunctionCoefficient() { }
+
+   // ADDED //
+   void ResetVectorFunction(void (*F)(const Vector &, Vector &)) { Function = F; }
+   // ADDED //
+
 };
 
 /// Vector coefficient defined by an array of scalar coefficients.

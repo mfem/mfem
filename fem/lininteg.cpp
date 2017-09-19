@@ -23,6 +23,7 @@ void LinearFormIntegrator::AssembleRHSElementVect(
 }
 
 
+
 void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
                                                 ElementTransformation &Tr,
                                                 Vector &elvect)
@@ -53,6 +54,46 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
       add(elvect, ip.weight * val, shape, elvect);
    }
 }
+
+
+
+// ADDED //
+
+void DomainLFIntegrator2::AssembleRHSElementVect(const FiniteElement &el,
+                                                ElementTransformation &Tr,
+                                                Vector &elvect)
+{
+   int dof = el.GetDof();
+
+   shape.SetSize(dof);       // vector of size dof
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // ir = &IntRules.Get(el.GetGeomType(),
+      //                    oa * el.GetOrder() + ob + Tr.OrderW());
+      ir = &IntRules.Get(el.GetGeomType(), oa * el.GetOrder() + ob);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint (&ip);
+      double val = Tr.Weight() * Q->Eval(Tr, ip);
+
+      el.CalcShape(ip, shape);
+
+      add(elvect, ip.weight * val, shape, elvect);
+   }
+}
+
+    
+// ADDED //
+
+
 
 void DomainLFIntegrator::AssembleDeltaElementVect(
    const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)

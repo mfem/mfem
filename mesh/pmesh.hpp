@@ -131,9 +131,31 @@ public:
    Table            send_face_nbr_elements;
    Table            send_face_nbr_vertices;
 
+   // ADDED //
+   Array<int> shared_face_to_global_face;
+   Array<int> shared_face_to_MPI_rank;
+   Array<int> vert_local_to_global;
+  // Array<int> elem_local_to_global;
+   int elem_local_to_global;
+   // ADDED //
+
    ParNCMesh* pncmesh;
 
    int GetNGroups() const { return gtopo.NGroups(); }
+
+   // ADDED //
+   Table const *GetSharedFacesInGroups() 
+   { 
+       if (Dim == 3) 
+       {
+           return &group_sface; 
+       } 
+       else
+       {
+           return &group_sedge; 
+       }
+   }
+   // ADDED //
 
    ///@{ @name These methods require group > 0
    int GroupNVertices(int group) { return group_svert.RowSize(group-1); }
