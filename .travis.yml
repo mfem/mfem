@@ -2,67 +2,123 @@ sudo: false
 
 language: cpp
 
-compiler:
-   - gcc
-   - clang
-
-os:
-   - linux
-   - osx
-
-env:
-   global:
-      - TMPDIR=/tmp
-# Travis VM environment provides 2 processor cores.
-# Note: NPROCS=2 for linux, see below.
-      - NPROCS=4
-   matrix:
-      - DEBUG=YES
-        MPI=YES
-        CODECOV=NO
-        MFEM_TEST_TARGET=check
-      - DEBUG=NO
-        MPI=YES
-        CODECOV=YES
-        MFEM_TEST_TARGET=test
-      - DEBUG=YES
-        MPI=NO
-        CODECOV=NO
-        MFEM_TEST_TARGET=check
-      - DEBUG=NO
-        MPI=NO
-        CODECOV=NO
-        MFEM_TEST_TARGET=test
-
-addons:
-   apt:
-      sources:
-         - ubuntu-toolchain-r-test
-      packages:
-         - g++-4.9
-# MPICH
-         - mpich
-         - libmpich-dev
-# OpenMPI
-#         - openmpi-bin
-#         - libopenmpi-dev
-
-# Test with GCC on Linux an Clang on Mac
 matrix:
-   exclude:
-      - compiler: clang
-        os: linux
-      - compiler: gcc
-        os: osx
+  include:
+    #
+    # Linux
+    #
+    - os: linux
+      compiler: gcc
+      env: DEBUG=YES
+           MPI=NO
+           CODECOV=NO
+           MFEM_TEST_TARGET=check
+    #
+    - os: linux
+      compiler: gcc
+      env: DEBUG=NO
+           MPI=NO
+           CODECOV=NO
+           MFEM_TEST_TARGET=test
+    #
+    - os: linux
+      compiler: gcc
+      addons:
+        apt:
+          # sources:
+            # - ubuntu-toolchain-r-test
+          packages:
+            # GCC 4.9
+            # - g++-4.9
+            # MPICH
+            - mpich
+            - libmpich-dev
+            # OpenMPI
+            # - openmpi-bin
+            # - libopenmpi-dev
+      env: DEBUG=YES
+           MPI=YES
+           CODECOV=NO
+           MFEM_TEST_TARGET=check
+           NPROC=2
+    #
+    - os: linux
+      compiler: gcc
+      addons:
+        apt:
+          # sources:
+            # - ubuntu-toolchain-r-test
+          packages:
+            # GCC 4.9
+            # - g++-4.9
+            # MPICH
+            - mpich
+            - libmpich-dev
+            # OpenMPI
+            # - openmpi-bin
+            # - libopenmpi-dev
+      env: DEBUG=NO
+           MPI=YES
+           CODECOV=YES
+           MFEM_TEST_TARGET=test
+           NPROC=2
+    #
+    # Mac OS X
+    #
+    - os: osx
+      # osx_image: xcode7.3
+      compiler: clang
+      env: DEBUG=YES
+           MPI=NO
+           CODECOV=NO
+           MFEM_TEST_TARGET=check
+    #
+    - os: osx
+      # osx_image: xcode7.3
+      compiler: clang
+      env: DEBUG=NO
+           MPI=NO
+           CODECOV=NO
+           MFEM_TEST_TARGET=test
+    #
+    - os: osx
+      # osx_image: xcode7.3
+      compiler: clang
+      env: DEBUG=YES
+           MPI=YES
+           CODECOV=NO
+           MFEM_TEST_TARGET=check
+           NPROC=4
+           TMPDIR=/tmp
+    #
+    - os: osx
+      # osx_image: xcode7.3
+      compiler: clang
+      env: DEBUG=NO
+           MPI=YES
+           CODECOV=YES
+           MFEM_TEST_TARGET=test
+           NPROC=4
+           TMPDIR=/tmp
+
 
 before_install:
-    # No addon for brew yet, have to install OSX packages this way.
+   # No addon for brew yet, have to install OSX packages this way.
    - if [ $TRAVIS_OS_NAME == "osx" ]; then
         rvm get stable;
         if [ $MPI == "YES" ]; then
            travis_wait brew install open-mpi;
-        fi
-      fi
+        fi;
+     fi
+
+   # Update environment to find g++ 4.9 installation first.
+   # - if [ $TRAVIS_OS_NAME == "linux" ]; then
+   #      mkdir -p latest-gcc-symlinks;
+   #      ln -s /usr/bin/g++-4.9 latest-gcc-symlinks/g++;
+   #      ln -s /usr/bin/gcc-4.9 latest-gcc-symlinks/gcc;
+   #      ln -s /usr/bin/gcov-4.9 latest-gcc-symlinks/gcov;
+   #      export PATH=$PWD/latest-gcc-symlinks:$PATH;
+   #   fi
 
    # Install tool to upload code coverage reports to coveralls.io
    - if [ "$CODECOV" == "YES" ]; then
@@ -70,15 +126,6 @@ before_install:
         pip install --user cpp-coveralls;
         pip install --user pyyaml;
         PATH=$HOME/local/bin:$PATH;
-     fi
-
-   # Update environment to find g++ 4.9 installation first.
-   - if [ $TRAVIS_OS_NAME == "linux" ]; then
-         mkdir -p latest-gcc-symlinks;
-         ln -s /usr/bin/g++-4.9 latest-gcc-symlinks/g++;
-         ln -s /usr/bin/gcc-4.9 latest-gcc-symlinks/gcc;
-         ln -s /usr/bin/gcov-4.9 latest-gcc-symlinks/gcov;
-         export PATH=$PWD/latest-gcc-symlinks:$PATH;
      fi
 
 install:
@@ -134,9 +181,6 @@ script:
    # Compiler
    - if [ $MPI == "YES" ]; then
         export MYCXX=mpic++;
-        if [ "$TRAVIS_OS_NAME" == "linux" ]; then
-           NPROCS=2;
-        fi;
      else
         export MYCXX="$CXX";
      fi
