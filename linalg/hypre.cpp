@@ -1505,16 +1505,13 @@ HypreParMatrix * RAP(HypreParMatrix * Rt, HypreParMatrix *A, HypreParMatrix *P)
 
    if (P_owns_its_col_starts)
    {
-      /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
-         from P (even if it does not own them)! */
-      hypre_ParCSRMatrixSetColStartsOwner(*P,1);
+      hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
    }
    if (Rt_owns_its_col_starts)
    {
-      /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
-         from P (even if it does not own them)! */
-      hypre_ParCSRMatrixSetRowStartsOwner(*Rt,1);
+      hypre_ParCSRMatrixSetRowStartsOwner(*Rt, 1);
    }
+
    return new HypreParMatrix(rap);
 }
 
