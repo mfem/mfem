@@ -1232,22 +1232,22 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
    cmap_differ = 0;
    if (A_cmap_size != B_cmap_size)
    {
-      cmap_differ = 1; /* error: A and B have different cmap_size */
+      cmap_differ = 1; /* A and B have different cmap_size */
    }
    for (im = 0; im < A_cmap_size; im++)
    {
       if (A_cmap[im] != B_cmap[im])
       {
-         cmap_differ = 1; /* error: A and B have different cmap arrays */
+         cmap_differ = 1; /* A and B have different cmap arrays */
          break;
       }
    }
 
    if ( cmap_differ == 0 )
    {
-      /* A and B have the same column mapping for their off-diagonal
-         blocks so we can sum the diagonal and off-diagonal blocks
-      separately and reduce temporary memory usage. */
+      /* A and B have the same column mapping for their off-diagonal blocks so
+         we can sum the diagonal and off-diagonal blocks separately and reduce
+         temporary memory usage. */
 
       /* Add diagonals, off-diagonals, copy cmap. */
       C_diag = hypre_CSRMatrixAdd(A_diag, B_diag);
@@ -1288,9 +1288,8 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
    }
    else
    {
-      /* A and B have different column mappings for their off-diagonal
-      blocks so we need to use the column maps to create full-width
-      CSR matricies. */
+      /* A and B have different column mappings for their off-diagonal blocks so
+      we need to use the column maps to create full-width CSR matricies. */
 
       int  ierr = 0;
       hypre_CSRMatrix * csr_A;
