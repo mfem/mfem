@@ -290,7 +290,10 @@ public:
    void GetOrders(Array<int> &Orders) const
    {
       Orders.SetSize(NumOfKnotVectors);
-      for (int i = 0; i < NumOfKnotVectors; i++) { Orders[i] = knotVectors[i]->GetOrder(); }
+      for (int i = 0; i < NumOfKnotVectors; i++)
+      {
+         Orders[i] = knotVectors[i]->GetOrder();
+      }
    }
 
    int GetNKV()    { return NumOfKnotVectors; }

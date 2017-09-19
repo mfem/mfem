@@ -56,8 +56,8 @@ ParFiniteElementSpace::ParFiniteElementSpace(
 }
 
 ParFiniteElementSpace::ParFiniteElementSpace(
-   ParMesh *pm,  NURBSExtension *ext, const FiniteElementCollection *f, int dim,
-   int ordering)
+   ParMesh *pm,  NURBSExtension *ext,
+   const FiniteElementCollection *f, int dim, int ordering)
    : FiniteElementSpace(pm, ext, f, dim, ordering)
 {
    mesh = pmesh = pm;
@@ -86,7 +86,6 @@ ParFiniteElementSpace::ParFiniteElementSpace(
       }
    }
 }
-
 
 void ParFiniteElementSpace::Construct()
 {

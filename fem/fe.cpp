@@ -10938,7 +10938,7 @@ void ND_SegmentElement::CalcVShape(const IntegrationPoint &ip,
    obasis1d.Eval(ip.x, vshape);
 }
 
-void NURBS1DFiniteElement::SetOrder () const
+void NURBS1DFiniteElement::SetOrder() const
 {
    Order = kv[0]->GetOrder();
    Dof = Order + 1;
@@ -10980,7 +10980,7 @@ void NURBS1DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    add(sum, grad, -dsum*sum*sum, shape_x, grad);
 }
 
-void NURBS2DFiniteElement::SetOrder   ()         const
+void NURBS2DFiniteElement::SetOrder() const
 {
    px = kv[0]->GetOrder();
    py = kv[1]->GetOrder();
@@ -11049,7 +11049,7 @@ void NURBS2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    }
 }
 //---------------------------------------------------------------------
-void NURBS3DFiniteElement::SetOrder   ()         const
+void NURBS3DFiniteElement::SetOrder() const
 {
    px = kv[0]->GetOrder();
    py = kv[1]->GetOrder();

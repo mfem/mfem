@@ -128,20 +128,20 @@ protected:
    SparseMatrix* DerefinementMatrix(int old_ndofs, const Table* old_elem_dof);
 
    /// Help function for constructors.
-   void Constructor  (Mesh *mesh, NURBSExtension *ext,
-                      const FiniteElementCollection *fec,
-                      int vdim = 1, int ordering = Ordering::byNODES);
+   void Constructor(Mesh *mesh, NURBSExtension *ext,
+                    const FiniteElementCollection *fec,
+                    int vdim = 1, int ordering = Ordering::byNODES);
 public:
    FiniteElementSpace(Mesh *mesh,
                       const FiniteElementCollection *fec,
                       int vdim = 1, int ordering = Ordering::byNODES)
-   { Constructor(mesh, NULL, fec, vdim, ordering); };
+   { Constructor(mesh, NULL, fec, vdim, ordering); }
 
 
    FiniteElementSpace(Mesh *mesh,  NURBSExtension *ext,
                       const FiniteElementCollection *fec,
                       int vdim = 1, int ordering = Ordering::byNODES)
-   { Constructor(mesh, ext, fec, vdim, ordering); };
+   { Constructor(mesh, ext, fec, vdim, ordering); }
 
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }

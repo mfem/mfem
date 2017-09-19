@@ -2471,7 +2471,6 @@ NURBSFECollection::NURBSFECollection(int px, int py, int pz)
 
 NURBSFECollection::NURBSFECollection(Array<int>  &Orders_)
 {
-
    Orders_.Copy(Orders);
 
    SegmentFE        = new NURBS1DFiniteElement(Orders.Max());
@@ -2480,8 +2479,6 @@ NURBSFECollection::NURBSFECollection(Array<int>  &Orders_)
 
    snprintf(name, 16, "NURBS%i", Orders.Max());
 }
-
-
 
 void NURBSFECollection::Deallocate()
 {

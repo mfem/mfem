@@ -924,9 +924,9 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    return R;
 }
 
-void FiniteElementSpace::Constructor  (Mesh *mesh, NURBSExtension *NURBSext,
-                                       const FiniteElementCollection *fec,
-                                       int vdim, int ordering)
+void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
+                                     const FiniteElementCollection *fec,
+                                     int vdim, int ordering)
 {
    this->mesh = mesh;
    this->fec = fec;
