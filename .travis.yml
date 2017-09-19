@@ -105,7 +105,7 @@ matrix:
 before_install:
    # No addon for brew yet, have to install OSX packages this way.
    - if [ $TRAVIS_OS_NAME == "osx" ] && [ $MPI == "YES" ]; then
-        brew install open-mpi --without-fortran;
+        brew install open-mpi;
      fi
 
    # Update environment to find g++ 4.9 installation first.
