@@ -48,6 +48,30 @@ void LinearForm::AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
    flfi_marker.Append(&bdr_attr_marker);
 }
 
+
+// ADDED //
+    
+void LinearForm::ResetDomainIntegrator (LinearFormIntegrator * lfi)
+{
+   dlfi.DeleteAll();
+   dlfi.Append (lfi);
+}
+
+void LinearForm::ResetBoundaryIntegrator (LinearFormIntegrator * lfi)
+{
+   blfi.DeleteAll();
+   blfi.Append (lfi);
+}
+
+void LinearForm::ResetBdrFaceIntegrator (LinearFormIntegrator * lfi)
+{
+   flfi.DeleteAll();
+   flfi.Append (lfi);
+}
+
+// ADDED //
+
+
 void LinearForm::Assemble()
 {
    Array<int> vdofs;

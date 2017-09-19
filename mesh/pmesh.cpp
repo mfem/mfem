@@ -180,11 +180,18 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       }
 
    // determine vertices
+   // ADDED //
+   vert_local_to_global.SetSize(NumOfVertices);
+   vert_local_to_global = -1;
+   // ADDED //
    for (i = 0; i < vert_global_local.Size(); i++)
       if (vert_global_local[i] >= 0)
       {
          vertices[vert_global_local[i]].SetCoords(mesh.SpaceDimension(),
                                                   mesh.GetVertex(i));
+         // ADDED //
+         vert_local_to_global[vert_global_local[i]] = i;
+         // ADDED //
       }
 
    // determine elements

@@ -74,6 +74,19 @@ public:
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
                              Array<int> &bdr_attr_marker);
 
+   // ADDED //
+    /// Resets Domain Integrator.
+    void ResetDomainIntegrator (LinearFormIntegrator * lfi);
+    
+    /// Resets Boundary Integrator.
+    void ResetBoundaryIntegrator (LinearFormIntegrator * lfi);
+    
+    /// Resets Boundary Face Integrator.
+    void ResetBdrFaceIntegrator (LinearFormIntegrator * lfi);
+   // ADDED //
+
+
+
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();
 
