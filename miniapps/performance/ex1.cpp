@@ -53,12 +53,15 @@ typedef H1_FiniteElement<geom,sol_p>          sol_fe_t;
 typedef H1_FiniteElementSpace<sol_fe_t>       sol_fes_t;
 
 // Static quadrature, coefficient and integrator types
-typedef TIntegrationRule<geom,ir_order>       int_rule_t;
-typedef TConstantCoefficient<>                coeff_t;
+typedef TIntegrationRule<geom,ir_order,x86::vreal_t> int_rule_t;
+typedef TConstantCoefficient<x86::vreal_t>         coeff_t;
 typedef TIntegrator<coeff_t,TDiffusionKernel> integ_t;
 
 // Static bilinear form type, combining the above types
-typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t> HPCBilinearForm;
+typedef TBilinearForm<mesh_t,sol_fes_t,
+                      int_rule_t,integ_t,
+                      ScalarLayout,
+                      x86::vreal_t,x86::vreal_t> HPCBilinearForm;
 
 int main(int argc, char *argv[])
 {
@@ -69,7 +72,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    const char *pc = "none";
    bool perf = true;
-   bool matrix_free = true;
+   bool matrix_free = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -155,8 +158,8 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+     int ref_levels = 2;
+     //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -259,7 +262,7 @@ int main(int argc, char *argv[])
                   "cannot use LOR preconditioner with static condensation");
    }
 
-   cout << "Assembling the bilinear form ..." << flush;
+   cout << "Assembling the bilinear form ..." << endl<<flush;
    tic_toc.Clear();
    tic_toc.Start();
    // Pre-allocate sparsity assuming dense element matrices
@@ -271,24 +274,27 @@ int main(int argc, char *argv[])
    if (!perf)
    {
       // Standard assembly using a diffusion domain integrator
+     cout << "Standard assembly using a diffusion domain integrator ..." << flush<< endl;
       a->AddDomainIntegrator(new DiffusionIntegrator(one));
       a->Assemble();
    }
    else
    {
-      // High-performance assembly/evaluation using the templated operator type
-      a_hpc = new HPCBilinearForm(integ_t(coeff_t(1.0)), *fespace);
-      if (matrix_free)
-      {
-         a_hpc->Assemble(); // partial assembly
-      }
+     cout << "High-performance assembly/evaluation using the templated operator type" << flush<< endl;
+     a_hpc = new HPCBilinearForm(integ_t(coeff_t(1.0)), *fespace);
+     if (matrix_free)
+        {
+          cout<<"partial assembly"<<flush<< endl;
+          a_hpc->Assemble(); // partial assembly
+        }
       else
       {
+        cout<<"full matrix assembly"<<flush<< endl;
          a_hpc->AssembleBilinearForm(*a); // full matrix assembly
       }
    }
    tic_toc.Stop();
-   cout << " done, " << tic_toc.RealTime() << "s." << endl;
+   cout << " done, " << tic_toc.RealTime() << "s." <<flush<< endl;
 
    // 12. Solve the system A X = B with CG. In the standard case, use a simple
    //     symmetric Gauss-Seidel preconditioner.
@@ -298,25 +304,28 @@ int main(int argc, char *argv[])
    Vector B, X;
    if (perf && matrix_free)
    {
-      a_hpc->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
-      cout << "Size of linear system: " << a_hpc->Height() << endl;
+     cout << "[perf && matrix_free] a_hpc FormLinearSystem" << endl<<flush;
+     a_hpc->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
+     cout << "[perf && !matrix_free] Size of linear system: " << a_hpc->Height() << endl;
    }
    else
    {
-      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-      cout << "Size of linear system: " << A.Height() << endl;
-      a_oper = &A;
+     cout << "[std] a FormLinearSystem" << endl<<flush;
+     a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+     cout << "[std] Size of linear system: " << A.Height() << endl;
+     a_oper = &A;
    }
 
    // Setup the matrix used for preconditioning
-   cout << "Assembling the preconditioning matrix ..." << flush;
+   //cout << "Assembling the preconditioning matrix ..." << endl << flush;
    tic_toc.Clear();
    tic_toc.Start();
 
    SparseMatrix A_pc;
    if (pc_choice == LOR)
    {
-      // TODO: assemble the LOR matrix using the performance code
+     cout << "pc_choice == LOR" << flush << endl;
+       // TODO: assemble the LOR matrix using the performance code
       a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
       a_pc->UsePrecomputedSparsity();
       a_pc->Assemble();
@@ -326,10 +335,12 @@ int main(int argc, char *argv[])
    {
       if (!matrix_free)
       {
+        cout << "!matrix_free" << flush << endl;
          A_pc.MakeRef(A); // matrix already assembled, reuse it
       }
       else
       {
+        cout << "else" << flush << endl;
          a_pc->UsePrecomputedSparsity();
          a_hpc->AssembleBilinearForm(*a_pc);
          a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
@@ -342,21 +353,25 @@ int main(int argc, char *argv[])
    // Solve with CG or PCG, depending if the matrix A_pc is available
    if (pc_choice != NONE)
    {
-      GSSmoother M(A_pc);
-      PCG(*a_oper, M, B, X, 1, 500, 1e-12, 0.0);
+     cout << "PCG" << endl;
+     GSSmoother M(A_pc);
+     PCG(*a_oper, M, B, X, 1, 500, 1e-12, 0.0);
    }
    else
    {
+     cout << "CG" << endl;
       CG(*a_oper, B, X, 1, 500, 1e-12, 0.0);
    }
 
    // 13. Recover the solution as a finite element grid function.
    if (perf && matrix_free)
    {
-      a_hpc->RecoverFEMSolution(X, *b, x);
+     cout << "a_hpc->RecoverFEMSolution" << endl;
+     a_hpc->RecoverFEMSolution(X, *b, x);
    }
    else
    {
+      cout << "a->RecoverFEMSolution" << endl;
       a->RecoverFEMSolution(X, *b, x);
    }
 

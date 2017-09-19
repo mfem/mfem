@@ -66,8 +66,6 @@ protected:
    Hybridization *hybridization;
 
    int precompute_sparsity;
-   // Allocate appropriate SparseMatrix and assign it to mat
-   void AllocMat();
 
    void ConformingAssemble();
 
@@ -81,7 +79,10 @@ protected:
    }
 
 public:
-   /// Creates bilinear form associated with FE space *f.
+   // Allocate appropriate SparseMatrix and assign it to mat
+   void AllocMat();
+
+  /// Creates bilinear form associated with FE space *f.
    BilinearForm(FiniteElementSpace *f);
 
    BilinearForm(FiniteElementSpace *f, BilinearForm *bf, int ps = 0);
@@ -281,6 +282,8 @@ public:
    { delete element_matrices; element_matrices = NULL; }
 
    void ComputeElementMatrix(int i, DenseMatrix &elmat);
+   void AssembleElementMatrix(int, const TDenseMatrix<x86::vreal_t>&,
+                              Array<x86::vint_t>&);
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
                               Array<int> &vdofs, int skip_zeros = 1);
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,

@@ -246,7 +246,7 @@ public:
    static const int size = S;
    static const int aligned_size = align ? MFEM_ALIGN_SIZE(S,data_t) : size;
    typedef data_t data_type;
-   data_t data[aligned_size>0?aligned_size:1];
+  __attribute__ ((aligned(32))) data_t data[aligned_size>0?aligned_size:1];
 
    typedef StridedLayout1D<S,1> layout_type;
    static const layout_type layout;
@@ -550,7 +550,8 @@ void TensorAssemble(const A_layout_t &A_layout, const A_data_t &A_data,
    MFEM_FLOPS_ADD(A1*B1*C1*C3); // computation of H(l)
    for (int l = 0; l < C3; l++)
    {
-      TTensor3<A1,C1,A2,typename C_data_t::data_type> H;
+     //TTensor3<A1,C1,A2,typename C_data_t::data_type> H;
+     TTensor3<A1,C1,A2,x86::vreal_t> H;
       // H(l)_{i,k,s} = A_{i,s} C_{k,s,l}
       for (int s = 0; s < B1; s++)
       {

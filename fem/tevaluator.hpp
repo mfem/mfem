@@ -41,7 +41,7 @@ protected:
    TMatrix<NIP,DOF,real_t,true> B;
    TMatrix<DOF,NIP,real_t,true> Bt;
    TTensor3<NIP,DIM,DOF,real_t,true> G;
-   TTensor3<DOF,NIP,DIM,real_t> Gt;
+   TTensor3<DOF,NIP,DIM,real_t,true> Gt;
 
 public:
    ShapeEvaluator_base(const FE &fe)
@@ -354,7 +354,7 @@ public:
    {
       const int NC = dof_layout_t::dim_2;
       // DOF x DOF x NC --> NIP x DOF x NC --> NIP x NIP x NC
-      TTensor3<NIP,DOF,NC> A;
+      TTensor3<NIP,DOF,NC,real_t> A;
 
       // (1) A_{i,j,k} = \sum_s B_1d_{i,s} dof_data_{s,j,k}
       Mult_2_1<false>(B_1d.layout, Dx ? G_1d : B_1d,
@@ -386,7 +386,7 @@ public:
    {
       const int NC = dof_layout_t::dim_2;
       // NIP x NIP X NC --> NIP x DOF x NC --> DOF x DOF x NC
-      TTensor3<NIP,DOF,NC> A;
+      TTensor3<NIP,DOF,NC,real_t> A;
 
       // (1) A_{i,j,k} = \sum_s B_1d_{s,j} qpt_data_{i,s,k}
       Mult_1_2<false>(B_1d.layout, Dy ? G_1d : B_1d,
@@ -469,7 +469,7 @@ public:
          TTensor3<DOF,NIP,DOF*NC>::layout, A,
          M_layout.merge_23().template split_12<DOF,DOF,DOF,DOF*NC>(), M_data);
 #elif 1
-      TTensor4<DOF,NIP,DOF,NC> A;
+      TTensor4<DOF,NIP,DOF,NC,real_t> A;
       // qpt_data<NIP1,NIP2,NC> --> A<DOF2,NIP1,DOF2,NC>
       TensorAssemble<false>(
          Bt_1d.layout, Bt_1d, B_1d.layout, B_1d,
@@ -517,7 +517,7 @@ public:
                  D_data_t           &D_data) const
    {
       const int NC = qpt_layout_t::dim_2;
-      TTensor4<DOF,NIP,DOF,NC> A;
+      TTensor4<DOF,NIP,DOF,NC,real_t> A;
 
       // Using TensorAssemble: <I,NIP,J> --> <DOF,I,DOF,J>
 
@@ -629,8 +629,8 @@ public:
              const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
    {
       const int NC = dof_layout_t::dim_2;
-      TVector<NIP*DOF*DOF*NC> QDD;
-      TVector<NIP*NIP*DOF*NC> QQD;
+      TVector<NIP*DOF*DOF*NC,real_t> QDD;
+      TVector<NIP*NIP*DOF*NC,real_t> QQD;
 
       // QDD_{i,jj,k} = \sum_s B_1d_{i,s} dof_data_{s,jj,k}
       Mult_2_1<false>(B_1d.layout, Dx ? G_1d : B_1d,
@@ -665,8 +665,8 @@ public:
               const dof_layout_t &dof_layout, dof_data_t &dof_data) const
    {
       const int NC = dof_layout_t::dim_2;
-      TVector<NIP*DOF*DOF*NC> QDD;
-      TVector<NIP*NIP*DOF*NC> QQD;
+      TVector<NIP*DOF*DOF*NC,real_t> QDD;
+      TVector<NIP*NIP*DOF*NC,real_t> QQD;
 
       // QQD_{ii,j,k} = \sum_s B_1d_{s,j} qpt_data_{ii,s,k}
       Mult_1_2<false>(B_1d.layout, Dz ? G_1d : B_1d,
@@ -795,8 +795,8 @@ public:
                  D_data_t           &D_data) const
    {
       const int NC = qpt_layout_t::dim_2;
-      TTensor4<DOF,NIP*NIP,DOF,NC> A1;
-      TTensor4<DOF,DOF*NIP,DOF,DOF*NC> A2;
+      TTensor4<DOF,NIP*NIP,DOF,NC,real_t> A1;
+      TTensor4<DOF,DOF*NIP,DOF,DOF*NC,real_t> A2;
 
       // Using TensorAssemble: <I,NIP,J> --> <DOF,I,DOF,J>
 
@@ -1005,15 +1005,15 @@ protected:
    using base_class::fespace;
    using base_class::shapeEval;
    using base_class::vec_layout;
-   const complex_t *data_in;
-   complex_t       *data_out;
+   const double *data_in;
+   double       *data_out;
 
 public:
    // With this constructor, fespace is a shallow copy of tfes.
    inline MFEM_ALWAYS_INLINE
    FieldEvaluator(const FESpace_t &tfes, const ShapeEval_type &shape_eval,
                   const VecLayout_type &vec_layout,
-                  const complex_t *global_data_in, complex_t *global_data_out)
+                  const double *global_data_in, double *global_data_out)
       : base_class(tfes, shape_eval, vec_layout),
         data_in(global_data_in),
         data_out(global_data_out)
@@ -1022,7 +1022,7 @@ public:
    // With this constructor, fespace is a shallow copy of f.fespace.
    inline MFEM_ALWAYS_INLINE
    FieldEvaluator(const FieldEvaluator &f,
-                  const complex_t *global_data_in, complex_t *global_data_out)
+                  const double *global_data_in, double *global_data_out)
       : base_class(f.fespace, f.shapeEval, f.vec_layout),
         data_in(global_data_in),
         data_out(global_data_out)
@@ -1031,7 +1031,7 @@ public:
    // This constructor creates a new fespace, not a shallow copy.
    inline MFEM_ALWAYS_INLINE
    FieldEvaluator(const FiniteElementSpace &fes,
-                  const complex_t *global_data_in, complex_t *global_data_out)
+                  const double *global_data_in, double *global_data_out)
       : base_class(FE_type(*fes.FEColl()), fes),
         data_in(global_data_in),
         data_out(global_data_out)
@@ -1057,7 +1057,7 @@ public:
       const int ne = val_layout_t::dim_3;
       TTensor3<dofs,vdim,ne,complex_type> val_dofs;
       SetElement(el);
-      fespace.VectorExtract(vec_layout, data_in, val_dofs.layout, val_dofs);
+      fespace.VectorExtract(el,vec_layout, data_in, val_dofs.layout, val_dofs);
       shapeEval.Calc(val_dofs.layout.merge_23(), val_dofs, l.merge_23(), vals);
    }
 
@@ -1069,7 +1069,7 @@ public:
       const int ne = grad_layout_t::dim_4;
       TTensor3<dofs,vdim,ne,complex_type> val_dofs;
       SetElement(el);
-      fespace.VectorExtract(vec_layout, data_in, val_dofs.layout, val_dofs);
+      fespace.VectorExtract(el,vec_layout, data_in, val_dofs.layout, val_dofs);
       shapeEval.CalcGrad(val_dofs.layout.merge_23(), val_dofs,
                          l.merge_34(), grad);
    }
@@ -1094,11 +1094,11 @@ public:
 
    template <bool Add, typename DataType>
    inline MFEM_ALWAYS_INLINE
-   void Assemble(DataType &F)
+   void AssembleOp(int el, DataType &F)
    {
       // T.SetElement() must be called outside
       Action<DataType::OutData,true>::
-      template Assemble<Add>(vec_layout, *this, F);
+        template Assemble<Add>(el,vec_layout, *this, F);
    }
 
    template <bool Add, typename DataType>
@@ -1106,7 +1106,7 @@ public:
    void Assemble(int el, DataType &F)
    {
       SetElement(el);
-      Assemble<Add>(F);
+      AssembleOp<Add>(el,F);
    }
 
 #ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
@@ -1213,7 +1213,7 @@ public:
 #else
          typename AData_t::val_dofs_t val_dofs;
 #endif
-         T.fespace.VectorExtract(l, T.data_in, val_dofs.layout, val_dofs);
+         T.fespace.VectorExtract(0,l, T.data_in, val_dofs.layout, val_dofs);
          T.shapeEval.Calc(val_dofs.layout.merge_23(), val_dofs,
                           D.val_qpts.layout.merge_23(), D.val_qpts);
       }
@@ -1266,14 +1266,14 @@ public:
 #else
          typename AData_t::val_dofs_t val_dofs;
 #endif
-         T.fespace.VectorExtract(l, T.data_in, val_dofs.layout, val_dofs);
+         T.fespace.VectorExtract(0,l, T.data_in, val_dofs.layout, val_dofs);
          T.shapeEval.CalcGrad(val_dofs.layout.merge_23(),  val_dofs,
                               D.grad_qpts.layout.merge_34(), D.grad_qpts);
       }
 
       template <bool Add, typename vec_layout_t, typename AData_t>
       static inline MFEM_ALWAYS_INLINE
-      void Assemble(const vec_layout_t &l, T_type &T, AData_t &D)
+      void Assemble(int el, const vec_layout_t &l, T_type &T, AData_t &D)
       {
          const AssignOp::Type Op = Add ? AssignOp::Add : AssignOp::Set;
 #ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
@@ -1284,7 +1284,7 @@ public:
          T.shapeEval.template CalcGradT<false>(
             D.grad_qpts.layout.merge_34(), D.grad_qpts,
             val_dofs.layout.merge_23(), val_dofs);
-         T.fespace.template VectorAssemble<Op>(
+         T.fespace.template VectorAssemble<Op>(el,
             val_dofs.layout, val_dofs, l, T.data_out);
       }
 
@@ -1319,7 +1319,7 @@ public:
 #else
          typename AData_t::val_dofs_t val_dofs;
 #endif
-         T.fespace.VectorExtract(l, T.data_in, val_dofs.layout, val_dofs);
+         T.fespace.VectorExtract(0,l, T.data_in, val_dofs.layout, val_dofs);
          T.shapeEval.Calc(val_dofs.layout.merge_23(), val_dofs,
                           D.val_qpts.layout.merge_23(), D.val_qpts);
          T.shapeEval.CalcGrad(val_dofs.layout.merge_23(),  val_dofs,

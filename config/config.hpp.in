@@ -88,6 +88,9 @@
 // Enable Sidre support
 // #define MFEM_USE_SIDRE
 
+// Enable x86intrin support
+// #define MFEM_USE_X86INTRIN
+
 // Enable functionality based on the NetCDF library (reading CUBIT files)
 // #define MFEM_USE_NETCDF
 

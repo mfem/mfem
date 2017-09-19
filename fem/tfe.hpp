@@ -36,7 +36,7 @@ void CalcShapeMatrix(const FiniteElement &fe, const IntegrationRule &ir,
       for (int id = 0; id < dof; id++)
       {
          int orig_id = dof_map ? (*dof_map)[id] : id;
-         B[ip+nip*id] = shape(orig_id);
+         B[ip+nip*id] = x86::set(shape(orig_id));
       }
    }
 }
@@ -60,7 +60,7 @@ void CalcGradTensor(const FiniteElement &fe, const IntegrationRule &ir,
          int orig_id = dof_map ? (*dof_map)[id] : id;
          for (int d = 0; d < dim; d++)
          {
-            G[ip+nip*(d+dim*id)] = dshape(orig_id, d);
+           G[ip+nip*(d+dim*id)] = x86::set(dshape(orig_id, d));
          }
       }
    }

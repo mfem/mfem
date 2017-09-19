@@ -54,7 +54,8 @@ void BilinearForm::AllocMat()
 
    int *I = dof_dof.GetI();
    int *J = dof_dof.GetJ();
-   double *data = new double[I[height]];
+   //double *data = new double[I[height]];
+   __attribute__ ((aligned(32))) double *data = (double*) aligned_alloc(32,I[height]*sizeof(double));
 
    mat = new SparseMatrix(I, J, data, height, height, true, true, true);
    *mat = 0.0;
@@ -251,6 +252,17 @@ void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
       elmat.SetSize(vdofs.Size());
       elmat = 0.0;
    }
+}
+
+void BilinearForm::AssembleElementMatrix(int i,
+                                         const TDenseMatrix<x86::vreal_t> &M,
+                                         Array<x86::vint_t> &vdofs){
+  fes->GetElementVDofs(i, vdofs);
+  if (mat == NULL) {
+    std::cout<<"[33;1m[AssembleElementMatrix] AllocMat[0m"<<std::endl<<std::flush;
+    AllocMat();
+  }
+  mat->AddSubMatrix(vdofs, M);
 }
 
 void BilinearForm::AssembleElementMatrix(

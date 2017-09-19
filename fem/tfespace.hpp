@@ -197,24 +197,30 @@ public:
              typename vec_layout_t, typename glob_vdof_data_t,
              typename vdof_layout_t, typename vdof_data_t>
    inline MFEM_ALWAYS_INLINE
-   void VectorExtract(const vec_layout_t     &vl,
+   void VectorExtract(const int el,
+                      const vec_layout_t     &vl,
                       const glob_vdof_data_t &glob_vdof_data,
                       const vdof_layout_t    &vdof_layout,
-                      vdof_data_t            &vdof_data) const
+                      vdof_data_t            &vdof_data) /*const*/
    {
       const int NC = vdof_layout_t::dim_2;
       const int NE = vdof_layout_t::dim_3;
       MFEM_STATIC_ASSERT(FE::dofs == vdof_layout_t::dim_1,
                          "invalid number of dofs");
       MFEM_ASSERT(NC == vl.NumComponents(), "invalid number of components");
+      x86::vreal_t gather;
       for (int k = 0; k < NC; k++)
       {
          for (int j = 0; j < NE; j++)
          {
             for (int i = 0; i < FE::dofs; i++)
             {
-               Assign<Op>(vdof_data[vdof_layout.ind(i,k,j)],
-                          glob_vdof_data[vl.ind(ind.map(i,j), k)]);
+              for(int n=0; n<x86::width; n++)
+              {
+                ind.SetElement(el+n);
+                gather[n]=glob_vdof_data[vl.ind(ind.map(i,j),k)];
+              }
+              Assign<Op>(vdof_data[vdof_layout.ind(i,k,j)],gather);
             }
          }
       }
@@ -223,12 +229,13 @@ public:
    template <typename vec_layout_t, typename glob_vdof_data_t,
              typename vdof_layout_t, typename vdof_data_t>
    inline MFEM_ALWAYS_INLINE
-   void VectorExtract(const vec_layout_t     &vl,
+   void VectorExtract(const int el,
+                      const vec_layout_t     &vl,
                       const glob_vdof_data_t &glob_vdof_data,
                       const vdof_layout_t    &vdof_layout,
-                      vdof_data_t            &vdof_data) const
+                      vdof_data_t            &vdof_data) /*const*/
    {
-      VectorExtract<AssignOp::Set>(vl, glob_vdof_data, vdof_layout, vdof_data);
+     VectorExtract<AssignOp::Set>(el,vl, glob_vdof_data, vdof_layout, vdof_data);
    }
 
    // Multi-element VectorAssemble: vdof_layout is (DOFS x NumComp x NumElems).
@@ -236,10 +243,11 @@ public:
              typename vdof_layout_t, typename vdof_data_t,
              typename vec_layout_t, typename glob_vdof_data_t>
    inline MFEM_ALWAYS_INLINE
-   void VectorAssemble(const vdof_layout_t &vdof_layout,
+   void VectorAssemble(const int el,
+                       const vdof_layout_t &vdof_layout,
                        const vdof_data_t   &vdof_data,
                        const vec_layout_t  &vl,
-                       glob_vdof_data_t    &glob_vdof_data) const
+                       glob_vdof_data_t    &glob_vdof_data) //const
    {
       const int NC = vdof_layout_t::dim_2;
       const int NE = vdof_layout_t::dim_3;
@@ -252,8 +260,12 @@ public:
          {
             for (int i = 0; i < FE::dofs; i++)
             {
-               Assign<Op>(glob_vdof_data[vl.ind(ind.map(i,j), k)],
-                          vdof_data[vdof_layout.ind(i,k,j)]);
+              for(int n=0; n<x86::width; n++)
+              {
+                ind.SetElement(el+n);
+                Assign<Op>(glob_vdof_data[vl.ind(ind.map(i,j), k)],
+                          vdof_data[vdof_layout.ind(i,k,j)][n]);
+              }
             }
          }
       }
@@ -262,12 +274,13 @@ public:
    template <typename vdof_layout_t, typename vdof_data_t,
              typename vec_layout_t, typename glob_vdof_data_t>
    inline MFEM_ALWAYS_INLINE
-   void VectorAssemble(const vdof_layout_t &vdof_layout,
+   void VectorAssemble(const int el,
+                       const vdof_layout_t &vdof_layout,
                        const vdof_data_t   &vdof_data,
                        const vec_layout_t  &vl,
                        glob_vdof_data_t    &glob_vdof_data) const
    {
-      VectorAssemble<AssignOp::Add>(vdof_layout, vdof_data, vl, glob_vdof_data);
+     VectorAssemble<AssignOp::Add>(el,vdof_layout, vdof_data, vl, glob_vdof_data);
    }
 
    // Extract a static number of consecutive components; vdof_layout is

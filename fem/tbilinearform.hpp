@@ -19,6 +19,7 @@
 #include "teltrans.hpp"
 #include "tcoefficient.hpp"
 #include "fespace.hpp"
+#include "../linalg/tdensemat.hpp"
 
 namespace mfem
 {
@@ -170,7 +171,7 @@ public:
 
          kernel_t::Action(0, F, wQ, res, R);
 
-         solFEval.template Assemble<true>(R);
+         solFEval.template Assemble<true>(el,R);
       }
    }
 
@@ -216,7 +217,7 @@ public:
          kernel_t::MultAssembled(k, assembled_data[el+k], R);
       }
 
-      solFEval.template Assemble<true>(R);
+      solFEval.template Assemble<true>(el,R);
    }
 
    // complex_t = double
@@ -443,12 +444,18 @@ public:
       coeff_eval_t wQ(int_rule, coeff);
 
       Array<int> vdofs;
+      Array<x86::vint_t> vdofs128;
       const Array<int> *dof_map = sol_fe.GetDofMap();
       const int *dof_map_ = dof_map->GetData();
       DenseMatrix M_loc_perm(dofs*vdim,dofs*vdim); // initialized with zeros
+      TDenseMatrix<x86::vreal_t> tM_loc_perm(dofs*vdim,dofs*vdim); // initialized with zeros
+
 
       const int NE = mesh.GetNE();
-      for (int el = 0; el < NE; el++)
+      MFEM_VERIFY((NE%x86::width)==0,"x86::width should be modulo NE");
+      std::cout<<"NE="<<NE<<std::endl<<std::flush;
+      a.AllocMat();
+      for (int el = 0; el < NE; el+=x86::width)
       {
          f_assembled_t asm_qpt_data;
          {
@@ -464,8 +471,9 @@ public:
          // For now, when vdim > 1, assume block-diagonal matrix with the same
          // diagonal block for all components.
          TMatrix<dofs,dofs> M_loc;
+         TMatrix<dofs,dofs,real_t,true> tM_loc;
          S_spec<BE>::ElementMatrix::Compute(
-            asm_qpt_data.layout, asm_qpt_data, M_loc.layout, M_loc, solEval);
+            asm_qpt_data.layout, asm_qpt_data, tM_loc.layout, tM_loc, solEval);
 
          if (dof_map) // switch from tensor-product ordering
          {
@@ -473,15 +481,15 @@ public:
             {
                for (int j = 0; j < dofs; j++)
                {
-                  M_loc_perm(dof_map_[i],dof_map_[j]) = M_loc(i,j);
+                  tM_loc_perm(dof_map_[i],dof_map_[j]) = tM_loc(i,j);
                }
             }
             for (int bi = 1; bi < vdim; bi++)
             {
-               M_loc_perm.CopyMN(M_loc_perm, dofs, dofs, 0, 0,
+               tM_loc_perm.CopyMN(tM_loc_perm, dofs, dofs, 0, 0,
                                  bi*dofs, bi*dofs);
             }
-            a.AssembleElementMatrix(el, M_loc_perm, vdofs);
+            a.AssembleElementMatrix(el, tM_loc_perm, vdofs128);
          }
          else
          {

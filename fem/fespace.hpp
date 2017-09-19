@@ -220,6 +220,7 @@ public:
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
    virtual void GetElementDofs(int i, Array<int> &dofs) const;
+   virtual void GetElementDofs(int i, Array<x86::vint_t> &dofs) const;
 
    /// Returns indexes of degrees of freedom for i'th boundary element.
    virtual void GetBdrElementDofs(int i, Array<int> &dofs) const;
@@ -256,7 +257,8 @@ public:
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
    void GetElementVDofs(int i, Array<int> &vdofs) const;
-
+   void GetElementVDofs(int i, Array<x86::vint_t> &vdofs) const;
+  
    /// Returns indexes of degrees of freedom for i'th boundary element.
    void GetBdrElementVDofs(int i, Array<int> &vdofs) const;
 

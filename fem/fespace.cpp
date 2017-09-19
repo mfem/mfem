@@ -129,7 +129,11 @@ void FiniteElementSpace::AdjustVDofs (Array<int> &vdofs)
       }
    }
 }
-
+  
+void FiniteElementSpace::GetElementVDofs(int i, Array<x86::vint_t> &vdofs) const
+{
+  GetElementDofs(i, vdofs);
+}
 void FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs) const
 {
    GetElementDofs(i, vdofs);
@@ -1064,6 +1068,20 @@ void FiniteElementSpace::Construct()
 
    // Do not build elem_dof Table here: in parallel it has to be constructed
    // later.
+}
+
+void FiniteElementSpace::GetElementDofs(int i, Array<x86::vint_t> &dofs) const{
+  Array<int> dof[x86::width];
+  for(int k=0; k<x86::width; k++)
+    elem_dof->GetRow(i+k, dof[k]);
+  const int size = dof[0].Size();
+  dofs.SetSize(size);
+  x86::vint_t gather=0;
+  for(int j=0;j<size;j+=1){
+    for(int k=0; k<x86::width; k++)
+      gather[k]=dof[k][j];
+    dofs[j]=gather;
+  }
 }
 
 void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const

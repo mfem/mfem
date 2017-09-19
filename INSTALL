@@ -317,6 +317,9 @@ MFEM_USE_SIDRE = YES/NO
    specification. When enabled, this option requires installation of HDF5 (see
    also MFEM_USE_NETCDF), Conduit and LLNL's axom project.
 
+MFEM_USE_X86INTRIN = YES/NO
+   X86 intrinsics will be used.    
+ 
 MFEM_USE_GZSTREAM = YES/NO
    Enables use of on-the-fly gzip compressed streams. With this feature enabled
    (YES), MFEM can compress its output files on-the-fly. In addition, it can
