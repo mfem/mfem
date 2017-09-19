@@ -92,9 +92,9 @@ install:
            export OMPI_CXX="$CXX";
            mpic++ --showme:version;
         fi;
-        mpic++ -v
+        mpic++ -v;
      else
-        $CXX -v
+        $CXX -v;
      fi
 
    # Back out of the mfem directory to install the libraries
@@ -106,7 +106,7 @@ install:
            wget https://computation.llnl.gov/project/linear_solvers/download/hypre-2.10.0b.tar.gz --no-check-certificate;
            tar xvzf hypre-2.10.0b.tar.gz;
            cd hypre-2.10.0b/src;
-           ./configure --disable-fortran --without-fei CC=mpicc CXX=mpic++
+           ./configure --disable-fortran --without-fei CC=mpicc CXX=mpic++;
            make -j3;
            cd ../..;
         else
