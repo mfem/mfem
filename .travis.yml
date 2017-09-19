@@ -40,7 +40,7 @@ matrix:
            MPI=YES
            CODECOV=NO
            MFEM_TEST_TARGET=check
-           NPROC=2
+           NPROCS=2
     #
     - os: linux
       compiler: gcc
@@ -61,7 +61,7 @@ matrix:
            MPI=YES
            CODECOV=YES
            MFEM_TEST_TARGET=test
-           NPROC=2
+           NPROCS=2
     #
     # Mac OS X
     #
@@ -88,7 +88,7 @@ matrix:
            MPI=YES
            CODECOV=NO
            MFEM_TEST_TARGET=check
-           NPROC=4
+           NPROCS=4
            TMPDIR=/tmp
     #
     - os: osx
@@ -98,7 +98,7 @@ matrix:
            MPI=YES
            CODECOV=YES
            MFEM_TEST_TARGET=test
-           NPROC=4
+           NPROCS=4
            TMPDIR=/tmp
 
 
