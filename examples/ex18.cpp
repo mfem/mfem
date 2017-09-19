@@ -7,9 +7,8 @@
 //       ex18 -p 1 -r 2 -o 1 -s 3
 //       ex18 -p 1 -r 1 -o 3 -s 4
 //       ex18 -p 1 -r 0 -o 5 -s 6
-//       ex18 -p 2 -r 2 -o 1 -s 3
-//       ex18 -p 2 -r 1 -o 3 -s 3
-//       ex18 -p 2 -r 0 -o 5 -s 3
+//       ex18 -p 2 -r 1 -o 1 -s 3
+//       ex18 -p 2 -r 0 -o 3 -s 3
 //
 // Description: This example code solves the compressible Euler system
 //              of equations, a model nonlinear hyperbolic PDE, with a
@@ -148,7 +147,7 @@ int main(int argc, char *argv[])
    int order = 3;
    int ode_solver_type = 4;
    double t_final = 2;
-   double dt = 0.01;
+   double dt = -0.01;
    double cfl = 0.3;
    bool visualization = false;
    int vis_steps = 50;
@@ -171,9 +170,9 @@ int main(int argc, char *argv[])
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
-                  "Time step.");
+                  "Time step. Positive number skips CFL timestep calculation.");
    args.AddOption(&cfl, "-c", "--cfl-number",
-                  "CFL number multiplier (negative means use constant dt specified).");
+                  "CFL number for timestep calculation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -657,6 +656,10 @@ void FE_Evolution::GetFlux(const DenseMatrix &x, DenseTensor &flux) const
             flux(i, d, k) = f(k, d);
          }
       }
+
+      // Update max char speed
+      const double mcs = ComputeMaxCharSpeed(state, dim);
+      if (mcs > max_char_speed) max_char_speed = mcs;
    }
 }
 

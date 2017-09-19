@@ -63,58 +63,43 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 
    P->Mult(x, X);
 
+   NonlinearForm::Mult(X, Y);
+
    if (fbfi.Size())
    {
-      X.ExchangeFaceNbrData();
       // Still need to add integrals over shared faces.
+
+      // First exchange data in X with neighbors.
+      X.ExchangeFaceNbrData();
+
       ParFiniteElementSpace *pfes = ParFESpace();
       ParMesh *pmesh = pfes->GetParMesh();
       FaceElementTransformations *tr;
       const FiniteElement *fe1, *fe2;
-      Array<int> vdofs1, vdofs2, vdofs_all;
+      Array<int> vdofs1, vdofs2;
       Vector el_x, el_y;
 
       for (int i = 0; i < pmesh->GetNSharedFaces(); i++)
       {
          tr = pmesh->GetSharedFaceTransformations(i, true);
-         if (tr != NULL)
+
+         fe1 = pfes->GetFE(tr->Elem1No);
+         fe2 = pfes->GetFaceNbrFE(tr->Elem2No);
+
+         pfes->GetElementVDofs(tr->Elem1No, vdofs1);
+         pfes->GetFaceNbrElementVDofs(tr->Elem2No, vdofs2);
+
+         el_x.SetSize(vdofs1.Size() + vdofs2.Size());
+         X.GetSubVector(vdofs1, el_x.GetData());
+         X.FaceNbrData().GetSubVector(vdofs2, el_x.GetData() + vdofs1.Size());
+
+         for (int k = 0; k < fbfi.Size(); k++)
          {
-            fe1 = pfes->GetFE(tr->Elem1No);
-            fe2 = pfes->GetFaceNbrFE(tr->Elem2No);
-
-            pfes->GetElementVDofs(tr->Elem1No, vdofs1);
-            pfes->GetFaceNbrElementVDofs(tr->Elem2No, vdofs2);
-
-            vdofs1.Copy(vdofs_all);
-            for (int j = 0; j < vdofs2.Size(); j++)
-            {
-               vdofs2[j] += height;
-            }
-            vdofs_all.Append(vdofs2);
-
-            X.GetSubVector(vdofs_all, el_x);
-            if (pfes->GetMyRank() == 0)
-               {
-                  std::cout << X.Size() << std::endl;
-                  const int dof1 = fe1->GetDof();
-                  const int dof2 = fe2->GetDof();
-                  DenseMatrix elfun1_mat(el_x.GetData(), dof1, 4);
-                  DenseMatrix elfun2_mat(el_x.GetData() + dof1 * 4, dof2, 4);
-                  // el_x.Print();
-                  elfun1_mat.Print();
-                  elfun2_mat.Print();
-               }
-
-            for (int k = 0; k < fbfi.Size(); k++)
-            {
-               fbfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
-               Y.AddElementVector(vdofs_all, el_y);
-            }
+            fbfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
+            Y.AddElementVector(vdofs1, el_y.GetData());
          }
       }
    }
-
-   NonlinearForm::Mult(X, Y);
 
    P->MultTranspose(Y, y);
 }

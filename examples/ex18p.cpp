@@ -4,12 +4,11 @@
 //
 // Sample runs:
 //
-//       mpirun -np 1 ex18 -p 1 -rs 2 -rp 0 -o 1 -s 3
-//       mpirun -np 1 ex18 -p 1 -rs 1 -rp 0 -o 3 -s 4
-//       mpirun -np 1 ex18 -p 1 -rs 0 -rp 0 -o 5 -s 6
-//       mpirun -np 1 ex18 -p 2 -rs 2 -rp 0 -o 1 -s 3
-//       mpirun -np 1 ex18 -p 2 -rs 1 -rp 0 -o 3 -s 3
-//       mpirun -np 1 ex18 -p 2 -rs 0 -rp 0 -o 5 -s 3
+//       mpirun -np 4 ex18p -p 1 -rs 2 -rp 1 -o 1 -s 3
+//       mpirun -np 4 ex18p -p 1 -rs 1 -rp 1 -o 3 -s 4
+//       mpirun -np 4 ex18p -p 1 -rs 0 -rp 1 -o 5 -s 6
+//       mpirun -np 4 ex18p -p 2 -rs 1 -rp 1 -o 1 -s 3
+//       mpirun -np 4 ex18p -p 2 -rs 0 -rp 1 -o 3 -s 3
 //
 // Description: This example code solves the compressible Euler system
 //              of equations, a model nonlinear hyperbolic PDE, with a
@@ -147,12 +146,12 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    problem = 1;
    const char *mesh_file = "../data/periodic-square.mesh";
-   int ser_ref_levels = 1;
+   int ser_ref_levels = 0;
    int par_ref_levels = 1;
    int order = 3;
    int ode_solver_type = 4;
    double t_final = 2;
-   double dt = 0.01;
+   double dt = -0.01;
    double cfl = 0.3;
    bool visualization = false;
    int vis_steps = 50;
@@ -179,9 +178,9 @@ int main(int argc, char *argv[])
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
-                  "Time step.");
+                  "Time step. Positive number skips CFL timestep calculation.");
    args.AddOption(&cfl, "-c", "--cfl-number",
-                  "CFL number multiplier (negative means use constant dt specified).");
+                  "CFL number for timestep calculation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -241,7 +240,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fes(&pmesh, &fec);
    ParFiniteElementSpace dfes(&pmesh, &fec, dim, Ordering::byNODES);
    ParFiniteElementSpace vfes(&pmesh, &fec, num_equation, Ordering::byNODES);
-   cout << "Number of unknowns: " << vfes.GetVSize() << endl;
+   if (mpi.Root()) { cout << "Number of unknowns: " << vfes.GetVSize() << endl; }
 
    // Much of this example depends on this ordering of the space.
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
@@ -359,7 +358,6 @@ int main(int argc, char *argv[])
    {
       // Find a safe dt, using a temporary vector.
       max_char_speed = 0.;
-      sol.ExchangeFaceNbrData();
       Vector z(sol.Size());
       A.Mult(sol, z);
       // Reduce to find the global maximum wave speed
@@ -379,11 +377,6 @@ int main(int argc, char *argv[])
    {
       double dt_real = min(dt, t_final - t);
 
-      // Do a parallel exchange of face neighbor data
-      // NOTE: Distribute calls in ParNonlinearForm::Mult do not do
-      // this since the DOF are not shared.
-      sol.ExchangeFaceNbrData();
-
       ode_solver->Step(sol, t, dt_real);
 
       if (cfl > 0)
@@ -402,8 +395,10 @@ int main(int argc, char *argv[])
       done = (t >= t_final - 1e-8*dt);
       if (done || ti % vis_steps == 0)
       {
-         if (mpi.Root()) { cout << "time step: " << ti << ", time: " << t << endl; }
-
+         if (mpi.Root())
+         {
+            cout << "time step: " << ti << ", time: " << t << endl;
+         }
          if (visualization)
          {
             MPI_Barrier(pmesh.GetComm());
@@ -415,7 +410,7 @@ int main(int argc, char *argv[])
    }
 
    tic_toc.Stop();
-   cout << " done, " << tic_toc.RealTime() << "s." << endl;
+   if (mpi.Root()) { cout << " done, " << tic_toc.RealTime() << "s." << endl; }
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m vortex.mesh -g vortex-final.gf -gc 1".
@@ -435,7 +430,7 @@ int main(int argc, char *argv[])
    if (t_final == 2.0)
    {
       const double error = sol.ComputeLpError(2, u0);
-      cout << "Solution error: " << error << endl;
+      if (mpi.Root()) { cout << "Solution error: " << error << endl; }
    }
 
    // Free the used memory.
@@ -708,7 +703,6 @@ void FE_Evolution::GetFlux(const DenseMatrix &x, DenseTensor &flux) const
    {
       for (int k = 0; k < num_equation; k++) state(k) = x(i, k);
       ComputeFlux(state, dim, f);
-
       for (int d = 0; d < dim; d++)
       {
          for (int k = 0; k < num_equation; k++)
@@ -716,6 +710,10 @@ void FE_Evolution::GetFlux(const DenseMatrix &x, DenseTensor &flux) const
             flux(i, d, k) = f(k, d);
          }
       }
+
+      // Update max char speed
+      const double mcs = ComputeMaxCharSpeed(state, dim);
+      if (mcs > max_char_speed) max_char_speed = mcs;
    }
 }
 
