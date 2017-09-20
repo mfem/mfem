@@ -2457,8 +2457,9 @@ MaxwellBlochWaveSolver::MaxwellBlochWaveSolver(ParMesh & pmesh,
                                                BravaisLattice & bravais,
                                                Coefficient & epsCoef,
                                                Coefficient & muCoef,
+                                               int max_ref,
                                                double tol)
-   : max_lvl_(3)
+   : max_lvl_(max_ref)
    , nev_(24)
    , tol_(tol)
    , pmesh_(0)
@@ -2798,10 +2799,16 @@ MaxwellDispersion::MaxwellDispersion(ParMesh & pmesh,
                                      BravaisLattice & bravais,
                                      Coefficient & epsCoef,
                                      Coefficient & muCoef,
+                                     int max_ref,
                                      double tol)
-   : bravais_(&bravais)
+   : bravais_(&bravais),
+     n_pow_(16),
+     n_div_(-1)
 {
-   mbws_ = new MaxwellBlochWaveSolver(pmesh, bravais, epsCoef, muCoef, tol);
+   mbws_ = new MaxwellBlochWaveSolver(pmesh, bravais, epsCoef, muCoef,
+                                      max_ref, tol);
+
+   n_div_ = (int)pow(2, n_pow_);
 }
 
 MaxwellDispersion::~MaxwellDispersion()
@@ -2843,6 +2850,7 @@ MaxwellBandGap::MaxwellBandGap(ParMesh & pmesh,
                                BravaisLattice & bravais,
                                Coefficient & epsCoef,
                                Coefficient & muCoef,
+                               int max_ref,
                                double tol)
    : Homogenization(pmesh.GetComm())
      //, pmesh_(&pmesh)
@@ -2850,7 +2858,8 @@ MaxwellBandGap::MaxwellBandGap(ParMesh & pmesh,
      //, epsCoef_(&epsCoef)
      //, muCoef_(&muCoef)
 {
-   disp_ = new MaxwellDispersion(pmesh, bravais, epsCoef, muCoef, tol);
+   disp_ = new MaxwellDispersion(pmesh, bravais, epsCoef, muCoef,
+                                 max_ref, tol);
 }
 
 MaxwellBandGap::~MaxwellBandGap()

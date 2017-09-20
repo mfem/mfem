@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
    int bl_type = 1;
    string lattice_label = "";
    int order = 1;
-   int sr = 0, pr = 2;
+   // int sr = 0, pr = 2;
    int logging = 0;
 
    bool visualization = 1;
@@ -53,6 +53,7 @@ int main(int argc, char *argv[])
    double density_tol = 0.05;
    double stiffness_tol = 0.05;
    double band_gap_tol = 0.05;
+   int    band_gap_max_ref = 2;
    // double lambda = 2.07748e+9;
    // double mu = 0.729927e+9;
    // Gallium Arsenide at T=300K
@@ -114,13 +115,16 @@ int main(int argc, char *argv[])
    args.AddOption(&band_gap_tol, "-bgtol", "--band-gap-tolerance",
                   "Stopping tolerance specified as a relative difference "
                   "in the computed band gap");
+   args.AddOption(&band_gap_max_ref, "-bgmr", "--band-gap-max-ref",
+                  "Maximum number of uniform mesh refinements to perform "
+                  "when computing the band gap");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&sr, "-sr", "--serial-refinement",
-                  "Number of serial refinement levels.");
-   args.AddOption(&pr, "-pr", "--parallel-refinement",
-                  "Number of parallel refinement levels.");
+   // args.AddOption(&sr, "-sr", "--serial-refinement",
+   //               "Number of serial refinement levels.");
+   // args.AddOption(&pr, "-pr", "--parallel-refinement",
+   //               "Number of parallel refinement levels.");
    // args.AddOption(&prob_, "-p", "--problem-type",
    //                "Problem Geometry.");
    // args.AddOption(&lambda, "-l", "--lambda",
@@ -182,8 +186,8 @@ int main(int argc, char *argv[])
               << "-" << (int)round(100.0*c)
               << "-" << (int)round(180.0*alpha / M_PI)
               << "-" << (int)round(180.0*beta  / M_PI)
-              << "-" << (int)round(180.0*gamma / M_PI)
-              << "-r" << sr + pr;
+              << "-" << (int)round(180.0*gamma / M_PI);
+   // << "-r" << sr + pr;
 
    CreateDirectory(oss_prefix.str(),comm,myid);
 
@@ -391,7 +395,8 @@ int main(int argc, char *argv[])
       delete mesh_bg;
 
       meta_material::MaxwellBandGap maxwell_bg(*pmesh_bg, *bravais,
-                                               epsCoef, muCoef, band_gap_tol);
+                                               epsCoef, muCoef,
+                                               band_gap_max_ref, band_gap_tol);
 
       vector<double> bg;
       maxwell_bg.GetHomogenizedProperties(bg);

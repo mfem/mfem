@@ -575,7 +575,7 @@ class MaxwellBlochWaveSolver
 public:
    MaxwellBlochWaveSolver(ParMesh & pmesh, BravaisLattice & bravais,
                           Coefficient & epsCoef, Coefficient & muCoef,
-                          double tol = 0.05);
+                          int max_ref = 2, double tol = 0.05);
    ~MaxwellBlochWaveSolver();
 
    // Where kappa is the phase shift vector
@@ -626,7 +626,7 @@ class MaxwellDispersion
 public:
    MaxwellDispersion(ParMesh & pmesh, BravaisLattice & bravais,
                      Coefficient & epsCoef, Coefficient & muCoef,
-                     double tol = 0.05);
+                     int max_ref = 2, double tol = 0.05);
    ~MaxwellDispersion();
 
    void GetDispersionPlot();
@@ -651,7 +651,7 @@ class MaxwellBandGap : public Homogenization
 public:
    MaxwellBandGap(ParMesh & pmesh, BravaisLattice & bravais,
                   Coefficient & epsCoef, Coefficient & muCoef,
-                  double tol = 0.05);
+                  int max_ref = 2, double tol = 0.05);
    ~MaxwellBandGap();
 
    void GetHomogenizedProperties(std::vector<double> & p);
