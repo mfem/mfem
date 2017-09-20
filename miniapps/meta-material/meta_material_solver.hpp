@@ -629,7 +629,10 @@ public:
                      int max_ref = 2, double tol = 0.05);
    ~MaxwellDispersion();
 
-   void GetDispersionPlot();
+   const std::vector<std::vector<std::map<int,std::vector<double> > > > &
+   GetDispersionData();
+
+   void PrintDispersionPlot(std::ostream & os);
 
    void InitializeGLVis(VisData & vd);
 
@@ -644,6 +647,12 @@ private:
 
    BravaisLattice         * bravais_;
    MaxwellBlochWaveSolver * mbws_;
+
+   std::map<std::string,std::vector<double> > sp_eigs_;
+   std::vector<std::vector<std::map<int,std::vector<double> > > > seg_eigs_;
+
+   int n_pow_;
+   int n_div_;
 };
 
 class MaxwellBandGap : public Homogenization

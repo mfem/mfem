@@ -635,13 +635,14 @@ StiffnessTensor::GetHomogenizedProperties(vector<double> & p)
          */
          if ( i == 0 )
          {
-            if ( false )
-            {
-               ostringstream oss;
-               oss << "A_" << (int)floor(100.0*drand48()) << ".mat";
-               A.Print(oss.str().c_str());
-            }
-
+            /*
+                 if ( false )
+                 {
+                    ostringstream oss;
+                    oss << "A_" << (int)floor(100.0*drand48()) << ".mat";
+                    A.Print(oss.str().c_str());
+                 }
+            */
             amg = new HypreBoomerAMG(A);
             if ( amg_elast_ )
             {
@@ -786,7 +787,7 @@ StiffnessTensor::GetHomogenizedProperties(vector<double> & p)
          newProb = true;
       }
    }
-
+   /*
    if ( seqVF_ == 1 )
    {
       ofstream ofs;
@@ -803,6 +804,7 @@ StiffnessTensor::GetHomogenizedProperties(vector<double> & p)
       ofs.open("F_XZ.vec"); F_[4]->Print(ofs, 1); ofs.close();
       ofs.open("F_XY.vec"); F_[5]->Print(ofs, 1); ofs.close();
    }
+   */
    //cout << myid_ << ": Leaving GetHomogenizedProperties" << endl;
 }
 /*
@@ -2816,10 +2818,76 @@ MaxwellDispersion::~MaxwellDispersion()
    delete mbws_;
 }
 
-void
-MaxwellDispersion::GetDispersionPlot()
+const std::vector<std::vector<std::map<int,std::vector<double> > > > &
+MaxwellDispersion::GetDispersionData()
 {
    this->traverseBrillouinZone();
+
+   return seg_eigs_;
+}
+
+void
+MaxwellDispersion::PrintDispersionPlot(ostream & os)
+{
+   int off = 0;
+   for (unsigned int p=0; p<bravais_->GetNumberPaths(); p++)
+   {
+      int e0 = -1, e1 = -1;
+      string label0 = "", label1 = "", labelI = "";
+
+      for (unsigned int s=0; s<bravais_->GetNumberPathSegments(p); s++)
+      {
+         label0 = bravais_->GetSymmetryPointLabel(e0);
+         label1 = bravais_->GetSymmetryPointLabel(e1);
+         labelI = bravais_->GetIntermediatePointLabel(p, s);
+
+         map<int,vector<double> > & eigs = seg_eigs_[p][s];
+         map<int,vector<double> >::iterator mit;
+         for (mit=eigs.begin(); mit!=eigs.end(); mit++)
+         {
+            int i0 = 0;
+            if ( (label0 == "Gamma" && mit->first == 0) ||
+                 (label1 == "Gamma" && mit->first == n_div_) )
+            {
+               i0 += 2;
+            }
+
+            string label = "-";
+            if ( mit->first == 0 )
+            {
+               label = label0;
+            }
+            else if ( mit->first == n_div_ / 2 )
+            {
+               label = labelI;
+            }
+            else if ( mit->first == n_div_ )
+            {
+               label = label1;
+            }
+
+            os << mit->first + off * n_div_ << "\t" << label;
+            for (unsigned int i=i0; i<mit->second.size(); i++)
+            {
+               if ( mit->second[i] > 0.0 )
+               {
+                  os << "\t" << sqrt(mit->second[i]);
+               }
+               else if ( mit->second[i] > -1.0e-6 )
+               {
+                  os << "\t" << 0.0;
+               }
+               else
+               {
+                  os << "\t" << -1.0;
+               }
+            }
+            os << endl << flush;
+         }
+
+         off++;
+      }
+   }
 }
 
 void
@@ -2839,11 +2907,85 @@ void
 MaxwellDispersion::traverseBrillouinZone()
 {
    Vector kappa(3);
+   Vector kappa0(3);
+   Vector kappa1(3);
+   /*
    bravais_->GetSymmetryPoint(1, kappa);
    mbws_->SetKappa(kappa);
 
    vector<double> omega;
    mbws_->GetEigenfrequencies(omega);
+   */
+
+   for (unsigned int p=0; p<bravais_->GetNumberPaths(); p++)
+   {
+      int e0 = -1, e1 = -1;
+      string label0 = "", label1 = "";//, labelI = "";
+
+      for (unsigned int s=0; s<bravais_->GetNumberPathSegments(p); s++)
+      {
+         bravais_->GetPathSegmentEndPointIndices(p, s, e0, e1);
+
+         bravais_->GetSymmetryPoint(e0, kappa0);
+         bravais_->GetSymmetryPoint(e1, kappa1);
+
+         label0 = bravais_->GetSymmetryPointLabel(e0);
+         label1 = bravais_->GetSymmetryPointLabel(e1);
+         // labelI = bravais_->GetIntermediatePointLabel(p, s);
+
+         if ( sp_eigs_.find(label0) == sp_eigs_.end() )
+         {
+            mbws_->SetKappa(kappa0);
+            mbws_->GetEigenfrequencies(sp_eigs_[label0]);
+         }
+         for (unsigned int i=0; i<sp_eigs_[label0].size(); i++)
+         {
+            seg_eigs_[p][s][0].push_back(sp_eigs_[label0][i]);
+         }
+
+         if ( label0 == "Gamma" || label1 == "Gamma" )
+         {
+            Vector zeta(3);
+            add(0.5, kappa0, 0.5, kappa1, zeta);
+            zeta /= zeta.Norml2();
+
+            mbws_->SetZeta(zeta);
+
+            double beta0 = kappa0.Norml2();
+            double beta1 = kappa1.Norml2();
+
+            for (int i=1; i<4; i++)
+            {
+               mbws_->SetBeta(0.25 * double(4 - i) * beta0 +
+                              0.25 * double(i) * beta1);
+               mbws_->GetEigenfrequencies(seg_eigs_[p][s][i * n_div_ / 4]);
+            }
+         }
+         else
+         {
+            for (int i=1; i<4; i++)
+            {
+               add(0.25 * double(4 - i), kappa0, 0.25 * double(i), kappa1, kappa);
+               mbws_->SetKappa(kappa);
+               mbws_->GetEigenfrequencies(seg_eigs_[p][s][i * n_div_ / 4]);
+            }
+         }
+         if ( sp_eigs_.find(label1) == sp_eigs_.end() )
+         {
+            mbws_->SetKappa(kappa1);
+            mbws_->GetEigenfrequencies(sp_eigs_[label1]);
+         }
+         for (unsigned int i=0; i<sp_eigs_[label1].size(); i++)
+         {
+            seg_eigs_[p][s][n_div_].push_back(sp_eigs_[label1][i]);
+         }
+         /*
+         add(double(np+1-i)/(np+1),kappa0,double(i)/(np+1),kappa1,kappa);
+         mbws_->SetKappa(kappa);
+         mbws_->GetEigenfrequencies(omega);
+         */
+      }
+   }
 }
 
 MaxwellBandGap::MaxwellBandGap(ParMesh & pmesh,
@@ -2872,7 +3014,8 @@ MaxwellBandGap::GetHomogenizedProperties(std::vector<double> & p)
 {
    p.resize(0);
 
-   disp_->GetDispersionPlot();
+   const vector<vector<map<int,vector<double> > > > seg_eigs =
+      disp_->GetDispersionData();
 }
 
 void
