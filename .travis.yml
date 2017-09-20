@@ -41,6 +41,10 @@ matrix:
            CODECOV=NO
            MFEM_TEST_TARGET=check
            NPROCS=2
+      cache:
+        directories:
+          - $HOME/../hypre-2.10.0b/src/hypre/lib
+          - $HOME/../hypre-2.10.0b/src/hypre/include
     #
     - os: linux
       compiler: gcc
@@ -62,6 +66,10 @@ matrix:
            CODECOV=YES
            MFEM_TEST_TARGET=test
            NPROCS=2
+      cache:
+        directories:
+          - $HOME/../hypre-2.10.0b/src/hypre/lib
+          - $HOME/../hypre-2.10.0b/src/hypre/include
     #
     # Mac OS X
     #
@@ -90,6 +98,10 @@ matrix:
            MFEM_TEST_TARGET=check
            NPROCS=4
            TMPDIR=/tmp
+      cache:
+        directories:
+          - $HOME/../hypre-2.10.0b/src/hypre/lib
+          - $HOME/../hypre-2.10.0b/src/hypre/include
     #
     - os: osx
       # osx_image: xcode7.3
@@ -100,6 +112,10 @@ matrix:
            MFEM_TEST_TARGET=test
            NPROCS=4
            TMPDIR=/tmp
+      cache:
+        directories:
+          - $HOME/../hypre-2.10.0b/src/hypre/lib
+          - $HOME/../hypre-2.10.0b/src/hypre/include
 
 
 before_install:
