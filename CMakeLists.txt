@@ -87,14 +87,13 @@ else()
   set(MFEM_DEBUG OFF)
 endif()
 
-# MPI -> hypre, METIS
+# MPI -> hypre; PETSc (optional)
 if (MFEM_USE_MPI)
   find_package(MPI REQUIRED)
   set(MPI_CXX_INCLUDE_DIRS ${MPI_CXX_INCLUDE_PATH})
-  # Parallel MFEM depends on hypre and METIS
+  # Parallel MFEM depends on hypre
   find_package(HYPRE REQUIRED)
   set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
-  find_package(METIS REQUIRED)
   if (MFEM_USE_PETSC)
     find_package(PETSc REQUIRED)
     message(STATUS "Found PETSc version ${PETSC_VERSION}")
@@ -111,6 +110,10 @@ else()
       set(MFEM_USE_${PKG} OFF CACHE BOOL "Disabled - requires MPI" FORCE)
     endif()
   endforeach()
+endif()
+
+if (MFEM_USE_METIS)
+  find_package(METIS REQUIRED)
 endif()
 
 # GZSTREAM -> zlib
