@@ -4523,6 +4523,41 @@ void ParMesh::ParPrint(ostream &out) const
    out << "\nmfem_mesh_end" << endl;
 }
 
+int ParMesh::FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,
+                        Array<IntegrationPoint>& ip, bool warn)
+{
+   const int npts = point_mat.Width();
+   if (npts == 0) { return 0; }
+
+   const bool no_warn = false;
+   Mesh::FindPoints(point_mat, elem_id, ip, no_warn);
+
+   // If multiple processors find the same point, we need to choose only one of
+   // the processors to mark that point as found.
+   // Here, we choose the processor with the minimal rank.
+
+   Array<int> my_point_rank(npts), glob_point_rank(npts);
+   for (int k = 0; k < npts; k++)
+   {
+      my_point_rank[k] = (elem_id[k] == -1) ? NRanks : MyRank;
+   }
+
+   MPI_Allreduce(my_point_rank.GetData(), glob_point_rank.GetData(), npts,
+                 MPI_INT, MPI_MIN, MyComm);
+
+   int pts_found = 0;
+   for (int k = 0; k < npts; k++)
+   {
+      if (glob_point_rank[k] != MyRank) { elem_id[k] = -1; }
+      if (glob_point_rank[k] != NRanks) { pts_found++; }
+   }
+   if (warn && pts_found != npts && MyRank == 0)
+   {
+      MFEM_WARNING((npts-pts_found) << " points were not found");
+   }
+   return pts_found;
+}
+
 ParMesh::~ParMesh()
 {
    delete pncmesh;

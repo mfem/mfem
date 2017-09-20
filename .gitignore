@@ -1,0 +1,127 @@
+# ------------------------------------------------------------------------------
+# Ignore files that are generated from the repository sources by either building
+# the code or running it. These should be the same as the files erased by
+# `make distclean`.
+#
+# Also ignore OS-specific files like .DS_Store on Mac
+# ------------------------------------------------------------------------------
+
+# Object and library files
+*.o
+/libmfem.a
+
+# Backup files
+*~
+
+# Default install location
+/mfem/
+
+# Generated files in main directory, config/ and docs/
+/deps.mk
+config/_config.hpp
+config/config.mk
+doc/CodeDocumentation.conf
+doc/CodeDocumentation.html
+doc/CodeDocumentation
+
+# Totalview breakpoint files
+*.TVD.*breakpoints
+
+# OS-specific: Mac
+*.dSYM
+.DS_Store
+
+# Example and miniapp binaries and outputs
+
+examples/ex[1-9]
+examples/ex[1-9]p
+examples/ex1[04-7]
+examples/ex1[0-7]p
+
+examples/refined.mesh
+examples/displaced.mesh
+examples/mesh.*
+examples/ex5.mesh
+examples/Example5*
+examples/Example9*
+examples/Example15*
+examples/Example16*
+examples/sphere_refined.*
+examples/sol.*
+examples/sol_u.*
+examples/sol_p.*
+examples/ex9.mesh
+examples/ex9-mesh.*
+examples/ex9-init.*
+examples/ex9-final.*
+examples/deformed.*
+examples/velocity.*
+examples/elastic_energy.*
+examples/mode_*
+examples/ex16.mesh
+examples/ex16-mesh.*
+examples/ex16-init.*
+examples/ex16-final.*
+
+examples/sundials/ex9
+examples/sundials/ex1[06]
+examples/sundials/ex9p
+examples/sundials/ex1[06]p
+
+examples/sundials/ex9.mesh
+examples/sundials/ex9-mesh.*
+examples/sundials/ex9-init.*
+examples/sundials/ex9-final.*
+examples/sundials/Example9*
+examples/sundials/deformed.*
+examples/sundials/velocity.*
+examples/sundials/elastic_energy.*
+examples/sundials/ex16.mesh
+examples/sundials/ex16-mesh.*
+examples/sundials/ex16-init.*
+examples/sundials/ex16-final.*
+examples/sundials/Example16*
+
+examples/petsc/ex[1-69]p
+examples/petsc/ex10p
+
+examples/petsc/mesh.*
+examples/petsc/sol.*
+examples/petsc/sol_p.*
+examples/petsc/sol_u.*
+examples/petsc/Example5*
+examples/petsc/ex9-mesh.*
+examples/petsc/ex9-init.*
+examples/petsc/ex9-final.*
+examples/petsc/Example9*
+examples/petsc/deformed.*
+examples/petsc/velocity.*
+examples/petsc/elastic_energy.*
+
+miniapps/electromagnetics/volta
+miniapps/electromagnetics/tesla
+miniapps/electromagnetics/joule
+
+miniapps/electromagnetics/Volta-AMR*
+miniapps/electromagnetics/Tesla-AMR*
+miniapps/electromagnetics/Joule_*
+
+miniapps/meshing/mobius-strip
+miniapps/meshing/klein-bottle
+miniapps/meshing/mesh-explorer
+miniapps/meshing/shaper
+
+miniapps/meshing/mobius-strip.mesh
+miniapps/meshing/klein-bottle.mesh
+miniapps/meshing/mesh-explorer.mesh
+miniapps/meshing/partitioning.txt
+miniapps/meshing/shaper.mesh
+
+miniapps/performance/ex1
+miniapps/performance/ex1p
+
+miniapps/performance/refined.mesh
+miniapps/performance/mesh.*
+miniapps/performance/sol.*
+
+miniapps/tools/display-basis

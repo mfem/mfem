@@ -109,6 +109,7 @@ public:
 class ElementTransformation;
 class Coefficient;
 class VectorCoefficient;
+class MatrixCoefficient;
 class KnotVector;
 
 /// Abstract class for Finite Elements
@@ -313,6 +314,13 @@ public:
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
 
+   /** Given a matrix coefficient and a transformation, compute an approximation
+       ("projection") in the local finite dimensional space in terms of the
+       degrees of freedom. For VectorFiniteElements, the rows of the coefficient
+       are projected in the vector space. */
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
+
    /** Compute a representation (up to multiplicative constant) for
        the delta function at the vertex with the given index. */
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
@@ -423,6 +431,10 @@ public:
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
 
+   // (mc.height x mc.width) @ DOFs -> (Dof x mc.width x mc.height) in dofs
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
+
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const;
 
@@ -493,6 +505,11 @@ protected:
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
+   // project the rows of the matrix coefficient in an RT space
+   void ProjectMatrixCoefficient_RT(
+      const double *nk, const Array<int> &d2n,
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
+
    void Project_RT(const double *nk, const Array<int> &d2n,
                    const FiniteElement &fe, ElementTransformation &Trans,
                    DenseMatrix &I) const;
@@ -515,6 +532,11 @@ protected:
    void Project_ND(const double *tk, const Array<int> &d2t,
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
+
+   // project the rows of the matrix coefficient in an ND space
+   void ProjectMatrixCoefficient_ND(
+      const double *tk, const Array<int> &d2t,
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
 
    void Project_ND(const double *tk, const Array<int> &d2t,
                    const FiniteElement &fe, ElementTransformation &Trans,
@@ -1977,6 +1999,9 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const
    { Project_RT(nk, dof2nk, fe, Trans, I); }
@@ -2023,6 +2048,9 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const
    { Project_RT(nk, dof2nk, fe, Trans, I); }
@@ -2062,6 +2090,9 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const
    { Project_RT(nk, dof2nk, fe, Trans, I); }
@@ -2107,6 +2138,9 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const
    { Project_RT(nk, dof2nk, fe, Trans, I); }
@@ -2152,6 +2186,10 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
 
    virtual void Project(const FiniteElement &fe,
                         ElementTransformation &Trans,
@@ -2199,6 +2237,9 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
    virtual void Project(const FiniteElement &fe,
                         ElementTransformation &Trans,
                         DenseMatrix &I) const
@@ -2238,6 +2279,9 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
    virtual void Project(const FiniteElement &fe,
                         ElementTransformation &Trans,
                         DenseMatrix &I) const
@@ -2282,6 +2326,9 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
    virtual void Project(const FiniteElement &fe,
                         ElementTransformation &Trans,
                         DenseMatrix &I) const
@@ -2319,6 +2366,9 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
    virtual void Project(const FiniteElement &fe,
                         ElementTransformation &Trans,
                         DenseMatrix &I) const

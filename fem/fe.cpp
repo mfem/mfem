@@ -125,6 +125,12 @@ void FiniteElement::Project (
    mfem_error ("FiniteElement::Project (...) (vector) is not overloaded !");
 }
 
+void FiniteElement::ProjectMatrixCoefficient(
+   MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+{
+   mfem_error("FiniteElement::ProjectMatrixCoefficient() is not overloaded !");
+}
+
 void FiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    mfem_error("FiniteElement::ProjectDelta(...) is not implemented for "
@@ -255,6 +261,7 @@ void NodalFiniteElement::Project (
 void NodalFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
+   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*Dof, "");
    Vector x(vc.GetVDim());
 
    for (int i = 0; i < Dof; i++)
@@ -269,6 +276,28 @@ void NodalFiniteElement::Project (
       for (int j = 0; j < x.Size(); j++)
       {
          dofs(Dof*j+i) = x(j);
+      }
+   }
+}
+
+void NodalFiniteElement::ProjectMatrixCoefficient(
+   MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+{
+   // (mc.height x mc.width) @ DOFs -> (Dof x mc.width x mc.height) in dofs
+   MFEM_ASSERT(dofs.Size() == mc.GetHeight()*mc.GetWidth()*Dof, "");
+   DenseMatrix MQ(mc.GetHeight(), mc.GetWidth());
+
+   for (int k = 0; k < Dof; k++)
+   {
+      T.SetIntPoint(&Nodes.IntPoint(k));
+      mc.Eval(MQ, T, Nodes.IntPoint(k));
+      if (MapType == INTEGRAL) { MQ *= T.Weight(); }
+      for (int r = 0; r < MQ.Height(); r++)
+      {
+         for (int d = 0; d < MQ.Width(); d++)
+         {
+            dofs(k+Dof*(d+MQ.Width()*r)) = MQ(r,d);
+         }
       }
    }
 }
@@ -546,6 +575,34 @@ void VectorFiniteElement::Project_RT(
    }
 }
 
+void VectorFiniteElement::ProjectMatrixCoefficient_RT(
+   const double *nk, const Array<int> &d2n,
+   MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+{
+   // project the rows of the matrix coefficient in an RT space
+
+   const int sdim = T.GetSpaceDim();
+   MFEM_ASSERT(mc.GetWidth() == sdim, "");
+   const bool square_J = (Dim == sdim);
+   DenseMatrix MQ(mc.GetHeight(), mc.GetWidth());
+   Vector nk_phys(sdim), dofs_k(MQ.Height());
+   MFEM_ASSERT(dofs.Size() == Dof*MQ.Height(), "");
+
+   for (int k = 0; k < Dof; k++)
+   {
+      T.SetIntPoint(&Nodes.IntPoint(k));
+      mc.Eval(MQ, T, Nodes.IntPoint(k));
+      // nk_phys = adj(J)^t nk
+      T.AdjugateJacobian().MultTranspose(nk + d2n[k]*Dim, nk_phys);
+      if (!square_J) { nk_phys /= T.Weight(); }
+      MQ.Mult(nk_phys, dofs_k);
+      for (int r = 0; r < MQ.Height(); r++)
+      {
+         dofs(k+Dof*r) = dofs_k(r);
+      }
+   }
+}
+
 void VectorFiniteElement::Project_RT(
    const double *nk, const Array<int> &d2n, const FiniteElement &fe,
    ElementTransformation &Trans, DenseMatrix &I) const
@@ -691,6 +748,32 @@ void VectorFiniteElement::Project_ND(
       vc.Eval(xk, Trans, Nodes.IntPoint(k));
       // dof_k = xk^t J tk
       dofs(k) = Trans.Jacobian().InnerProduct(tk + d2t[k]*Dim, vk);
+   }
+}
+
+void VectorFiniteElement::ProjectMatrixCoefficient_ND(
+   const double *tk, const Array<int> &d2t,
+   MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+{
+   // project the rows of the matrix coefficient in an ND space
+
+   const int sdim = T.GetSpaceDim();
+   MFEM_ASSERT(mc.GetWidth() == sdim, "");
+   DenseMatrix MQ(mc.GetHeight(), mc.GetWidth());
+   Vector tk_phys(sdim), dofs_k(MQ.Height());
+   MFEM_ASSERT(dofs.Size() == Dof*MQ.Height(), "");
+
+   for (int k = 0; k < Dof; k++)
+   {
+      T.SetIntPoint(&Nodes.IntPoint(k));
+      mc.Eval(MQ, T, Nodes.IntPoint(k));
+      // tk_phys = J tk
+      T.Jacobian().Mult(tk + d2t[k]*Dim, tk_phys);
+      MQ.Mult(tk_phys, dofs_k);
+      for (int r = 0; r < MQ.Height(); r++)
+      {
+         dofs(k+Dof*r) = dofs_k(r);
+      }
    }
 }
 
