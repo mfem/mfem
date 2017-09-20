@@ -178,8 +178,9 @@ install:
 
    # hypre
    - if [ $MPI == "YES" ]; then
-        if [ ! -d hypre-2.10.0b ]; then
+        if [ ! -e hypre-2.10.0b/src/lib/libHYPRE.a ]; then
            wget https://computation.llnl.gov/project/linear_solvers/download/hypre-2.10.0b.tar.gz --no-check-certificate;
+           rm -rf hypre-2.10.0b;
            tar xvzf hypre-2.10.0b.tar.gz;
            cd hypre-2.10.0b/src;
            ./configure --disable-fortran --without-fei CC=mpicc CXX=mpic++;
@@ -194,12 +195,11 @@ install:
 
    # METIS
    - if [ $MPI == "YES" ]; then
-        if [ ! -d metis-4.0 ]; then
+        if [ ! -e metis-4.0/libmetis.a ]; then
            wget http://glaros.dtc.umn.edu/gkhome/fetch/sw/metis/OLD/metis-4.0.3.tar.gz;
            tar xvzf metis-4.0.3.tar.gz;
-           cd metis-4.0.3;
-           make -j3 -C Lib CC="$CC" OPTFLAGS="-O2";
-           cd ..;
+           make -j3 -C metis-4.0.3/Lib CC="$CC" OPTFLAGS="-O2";
+           rm -rf metis-4.0;
            mv metis-4.0.3 metis-4.0;
         else
            echo "Reusing cached metis-4.0/";
