@@ -45,6 +45,10 @@ matrix:
         directories:
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../metis-4.0
+      before_cache:
+        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
+          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
     #
     - os: linux
       compiler: gcc
@@ -70,6 +74,10 @@ matrix:
         directories:
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../metis-4.0
+      before_cache:
+        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
+          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
     #
     # Mac OS X
     #
@@ -102,6 +110,10 @@ matrix:
         directories:
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../metis-4.0
+      before_cache:
+        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
+          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
     #
     - os: osx
       # osx_image: xcode7.3
@@ -116,6 +128,10 @@ matrix:
         directories:
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../metis-4.0
+      before_cache:
+        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
+          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
 
 
 before_install:
