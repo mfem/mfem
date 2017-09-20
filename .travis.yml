@@ -43,8 +43,8 @@ matrix:
            NPROCS=2
       cache:
         directories:
-          - $HOME/../hypre-2.10.0b/src/hypre/lib
-          - $HOME/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
     #
     - os: linux
       compiler: gcc
@@ -68,8 +68,8 @@ matrix:
            NPROCS=2
       cache:
         directories:
-          - $HOME/../hypre-2.10.0b/src/hypre/lib
-          - $HOME/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
     #
     # Mac OS X
     #
@@ -100,8 +100,8 @@ matrix:
            TMPDIR=/tmp
       cache:
         directories:
-          - $HOME/../hypre-2.10.0b/src/hypre/lib
-          - $HOME/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
     #
     - os: osx
       # osx_image: xcode7.3
@@ -114,8 +114,8 @@ matrix:
            TMPDIR=/tmp
       cache:
         directories:
-          - $HOME/../hypre-2.10.0b/src/hypre/lib
-          - $HOME/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
 
 
 before_install:
