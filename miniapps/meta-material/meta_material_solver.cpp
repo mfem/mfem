@@ -1417,6 +1417,7 @@ MaxwellBlochWaveEquation::~MaxwellBlochWaveEquation()
 void
 MaxwellBlochWaveEquation::SetKappa(const Vector & kappa)
 {
+  cout << "Setting Kappa: "; kappa.Print(cout);
    kappa_ = kappa;
    beta_  = kappa.Norml2();  newBeta_ = true;
    zeta_  = kappa;           newZeta_ = true;
@@ -1429,12 +1430,14 @@ MaxwellBlochWaveEquation::SetKappa(const Vector & kappa)
 void
 MaxwellBlochWaveEquation::SetBeta(double beta)
 {
+  cout << "Setting Beta: " << beta << endl;
    beta_ = beta; newBeta_ = true;
 }
 
 void
 MaxwellBlochWaveEquation::SetZeta(const Vector & zeta)
 {
+  cout << "Setting Zeta: "; zeta.Print(cout);
    zeta_ = zeta; newZeta_ = true;
 }
 
@@ -2478,6 +2481,7 @@ MaxwellBlochWaveSolver::MaxwellBlochWaveSolver(ParMesh & pmesh,
 
    mbwe_[0]->SetMassCoef(*epsCoef_);
    mbwe_[0]->SetStiffnessCoef(muInvCoef_);
+   mbwe_[0]->SetNumEigs(nev_);
 
    ParFiniteElementSpace *  fespace = mbwe_[0]->GetHCurlFESpace();
 
@@ -2602,7 +2606,6 @@ MaxwellBlochWaveSolver::GetEigenfrequencies(std::vector<double> & omega)
    vector<double> coarse_eigs;
    vector<double> fine_eigs;
 
-   mbwe_[0]->SetNumEigs(nev_);
    mbwe_[0]->Setup();
    mbwe_[0]->Solve();
    mbwe_[0]->GetEigenvalues(fine_eigs);
@@ -2690,9 +2693,8 @@ MaxwellBlochWaveSolver::GetEigenfrequencies(std::vector<double> & omega)
 
          mbwe_[lvl]->SetMassCoef(*epsCoef_);
          mbwe_[lvl]->SetStiffnessCoef(muInvCoef_);
-         mbwe_[lvl]->SetKappa(kappa_);
          mbwe_[lvl]->SetNumEigs(nev_);
-         mbwe_[lvl]->Setup();
+	 mbwe_[lvl]->SetKappa(kappa_);
       }
 
 
@@ -2717,6 +2719,8 @@ MaxwellBlochWaveSolver::GetEigenfrequencies(std::vector<double> & omega)
          efield_[lvl].first->ParallelProject(*EField_[lvl].first);
          efield_[lvl].second->ParallelProject(*EField_[lvl].second);
       }
+      
+      mbwe_[lvl]->Setup();
       mbwe_[lvl]->SetInitialVectors(nev_, &initialVecs_[lvl][0]);
       mbwe_[lvl]->Solve();
       mbwe_[lvl]->GetEigenvalues(fine_eigs);
@@ -2917,10 +2921,16 @@ MaxwellDispersion::traverseBrillouinZone()
    mbws_->GetEigenfrequencies(omega);
    */
 
+   int ni = 8; // should be a power of 2
+
+   seg_eigs_.resize(bravais_->GetNumberPaths());
+   
    for (unsigned int p=0; p<bravais_->GetNumberPaths(); p++)
    {
       int e0 = -1, e1 = -1;
       string label0 = "", label1 = "";//, labelI = "";
+
+      seg_eigs_[p].resize(bravais_->GetNumberPathSegments(p));
 
       for (unsigned int s=0; s<bravais_->GetNumberPathSegments(p); s++)
       {
@@ -2954,20 +2964,20 @@ MaxwellDispersion::traverseBrillouinZone()
             double beta0 = kappa0.Norml2();
             double beta1 = kappa1.Norml2();
 
-            for (int i=1; i<4; i++)
+            for (int i=1; i<ni; i++)
             {
-               mbws_->SetBeta(0.25 * double(4 - i) * beta0 +
-                              0.25 * double(i) * beta1);
-               mbws_->GetEigenfrequencies(seg_eigs_[p][s][i * n_div_ / 4]);
+	      mbws_->SetBeta( (double(ni - i) * beta0 +
+			       double(i) * beta1 )/ ni);
+               mbws_->GetEigenfrequencies(seg_eigs_[p][s][i * n_div_ / ni]);
             }
          }
          else
          {
-            for (int i=1; i<4; i++)
+            for (int i=1; i<ni; i++)
             {
-               add(0.25 * double(4 - i), kappa0, 0.25 * double(i), kappa1, kappa);
+               add(double(ni - i) / ni, kappa0, double(i) / ni, kappa1, kappa);
                mbws_->SetKappa(kappa);
-               mbws_->GetEigenfrequencies(seg_eigs_[p][s][i * n_div_ / 4]);
+               mbws_->GetEigenfrequencies(seg_eigs_[p][s][i * n_div_ / ni]);
             }
          }
          if ( sp_eigs_.find(label1) == sp_eigs_.end() )
@@ -2979,11 +2989,6 @@ MaxwellDispersion::traverseBrillouinZone()
          {
             seg_eigs_[p][s][n_div_].push_back(sp_eigs_[label1][i]);
          }
-         /*
-         add(double(np+1-i)/(np+1),kappa0,double(i)/(np+1),kappa1,kappa);
-         mbws_->SetKappa(kappa);
-         mbws_->GetEigenfrequencies(omega);
-         */
       }
    }
 }
@@ -3016,6 +3021,10 @@ MaxwellBandGap::GetHomogenizedProperties(std::vector<double> & p)
 
    const vector<vector<map<int,vector<double> > > > seg_eigs =
       disp_->GetDispersionData();
+
+   ofstream ofs("disp.out");
+   disp_->PrintDispersionPlot(ofs);
+   ofs.close();
 }
 
 void
