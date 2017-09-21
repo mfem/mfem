@@ -2458,6 +2458,8 @@ void VectorRefinedCoefficient::Eval(Vector &V, ElementTransformation &T,
 /**
    Build LOR P for Vector finite element spaces, eg H(curl) or H(div)
 
+   Used in BuildNestedInterpolation()
+
    (this could/should be templated somehow?)
 */
 SparseMatrix * VectorBuildLORP(
@@ -2507,6 +2509,8 @@ SparseMatrix * VectorBuildLORP(
 
 /**
    Construct operator from coarse, high-order mesh to finer, low-order mesh.
+
+   Used in BuildNestedInterpolation()
 */
 SparseMatrix * BuildLORP(
    FiniteElementSpace& ho_fespace, FiniteElementSpace& lor_fespace,
@@ -2557,7 +2561,6 @@ HypreParMatrix *BuildNestedInterpolation(ParFiniteElementSpace &ho_fespace,
    for (int i=0; i<ho_fespace.GetNE(); ++i)
       for (int j=0; j<multiplier; ++j)
          refine_relation[i*multiplier + j] = i;
-   return BuildNestedInterpolation(ho_fespace, lor_fespace, refine_relation);
 
    SparseMatrix * mat;
    if (ho_fespace.GetNVDofs() == 0) // Hdiv or Hcurl
