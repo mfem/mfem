@@ -2485,9 +2485,13 @@ SparseMatrix * VectorBuildLORP(
          Vector v(ho_size); // global vector!
          v = 0.0;
          if (ho_dofs[j] >= 0)
+         {
             v(ho_dofs[j]) = 1.0;
+         }
          else
-            v(-1 - ho_dofs[j]) = -1.0; // ??? I actually think this -1.0 is correct
+         {
+            v(-1 - ho_dofs[j]) = -1.0;   // ??? I actually think this -1.0 is correct
+         }
          GridFunction ho_vgf(&ho_fespace);
          ho_vgf = v;
          VectorGridFunctionCoefficient ho_vgfc(&ho_vgf);
@@ -2544,7 +2548,9 @@ SparseMatrix * BuildLORP(
          lor_fespace.GetFE(finee)->Project(
             ref_coeff, *lor_fespace.GetElementTransformation(finee), lor_proj);
          for (int i=0; i<lor_dofs.Size(); ++i)
+         {
             localP(i,j) = lor_proj[i];
+         }
       }
 
       spmat->SetSubMatrix(lor_dofs, ho_dofs, localP);
@@ -2560,13 +2566,19 @@ HypreParMatrix *BuildNestedInterpolation(ParFiniteElementSpace &ho_fespace,
    int multiplier = lor_fespace.GetNE() / ho_fespace.GetNE();
    for (int i=0; i<ho_fespace.GetNE(); ++i)
       for (int j=0; j<multiplier; ++j)
+      {
          refine_relation[i*multiplier + j] = i;
+      }
 
    SparseMatrix * mat;
    if (ho_fespace.GetNVDofs() == 0) // Hdiv or Hcurl
+   {
       mat = VectorBuildLORP(ho_fespace, lor_fespace, refine_relation);
+   }
    else
+   {
       mat = BuildLORP(ho_fespace, lor_fespace, refine_relation);
+   }
 
    // construct the block-diagonal matrix A
    HypreParMatrix *A =
