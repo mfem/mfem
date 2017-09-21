@@ -111,7 +111,7 @@ matrix:
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
           - $TRAVIS_BUILD_DIR/../metis-4.0
-          - $HOME/bottles
+          - $HOME/local-cached
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
           mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
@@ -130,7 +130,7 @@ matrix:
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
           - $TRAVIS_BUILD_DIR/../metis-4.0
-          - $HOME/bottles
+          - $HOME/local-cached
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
           mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
@@ -142,20 +142,17 @@ before_install:
    #      brew install open-mpi;
    #   fi
 
-   # Use cached bottle for open-mpi:
+   # On Mac OS X, build and cache OpenMPI 2.1.1:
    - if [ $TRAVIS_OS_NAME == "osx" ] && [ $MPI == "YES" ]; then
-        if [ ! -e $HOME/bottles/open-mpi.tgz ]; then
-           mkdir -p $HOME/bottles;
-           cd $HOME/bottles;
-           brew install --build-from-source --build-bottle
-              open-mpi --without-fortran;
-           brew bottle --root-url=$HOME open-mpi;
-           mv open-mpi-*.tar.gz open-mpi.tgz;
-        else
-           brew install --only-dependencies open-mpi --without-fortran;
-           cd $(brew --cellar) && tar zxf $HOME/bottles/open-mpi.tgz;
-           brew link open-mpi;
+        if [ ! -e $HOME/local-cached/bin/mpicc ]; then
+           mkdir -p $HOME/builds && cd $HOME/builds &&
+           wget https://www.open-mpi.org/software/ompi/v2.1/downloads/openmpi-2.1.1.tar.bz2 &&
+           tar jxf openmpi-2.1.1.tar.bz2 &&
+           mkdir openmpi-build && cd openmpi-build &&
+           ../openmpi-2.1.1/configure --prefix=$HOME/local-cached &&
+           make -j3 all && make install;
         fi;
+        PATH=$HOME/local-cached/bin:$PATH;
         cd $TRAVIS_BUILD_DIR;
      fi
 
