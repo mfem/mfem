@@ -143,13 +143,13 @@ HypreParVector& HypreParVector::operator=(double d)
 HypreParVector& HypreParVector::operator=(const HypreParVector &y)
 {
 #ifdef MFEM_DEBUG
-   if (size != y.Size())
+   if (Size() != y.Size())
    {
       mfem_error("HypreParVector::operator=");
    }
 #endif
 
-   for (int i = 0; i < size; i++)
+   for (int i = 0; i < Size(); i++)
    {
       data[i] = y.data[i];
    }
@@ -158,7 +158,8 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
 
 void HypreParVector::SetData(double *_data)
 {
-   Vector::data = hypre_VectorData(hypre_ParVectorLocalVector(x)) = _data;
+   data.MakeRef(_data, Size());
+   hypre_VectorData(hypre_ParVectorLocalVector(x)) = _data;
 }
 
 HYPRE_Int HypreParVector::Randomize(HYPRE_Int seed)
@@ -957,7 +958,7 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    {
       X = new HypreParVector(A->comm,
                              GetGlobalNumCols(),
-                             x.GetData(),
+                             const_cast<double *>(x.GetData()),
                              GetColStarts());
       Y = new HypreParVector(A->comm,
                              GetGlobalNumRows(),
@@ -966,7 +967,7 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    }
    else
    {
-      X->SetData(x.GetData());
+      X->SetData(const_cast<double *>(x.GetData()));
       Y->SetData(y.GetData());
    }
 
@@ -991,13 +992,13 @@ void HypreParMatrix::MultTranspose(double a, const Vector &x,
                              GetColStarts());
       Y = new HypreParVector(A->comm,
                              GetGlobalNumRows(),
-                             x.GetData(),
+                             const_cast<double *>(x.GetData()),
                              GetRowStarts());
    }
    else
    {
       X->SetData(y.GetData());
-      Y->SetData(x.GetData());
+      Y->SetData(const_cast<double *>(x.GetData()));
    }
 
    hypre_ParCSRMatrixMatvecT(a, A, *Y, b, *X);
@@ -1955,7 +1956,7 @@ void HypreSmoother::Mult(const Vector &b, Vector &x) const
    {
       B = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumRows(),
-                             b.GetData(),
+                             const_cast<double *>(b.GetData()),
                              A -> GetRowStarts());
       X = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumCols(),
@@ -1964,7 +1965,7 @@ void HypreSmoother::Mult(const Vector &b, Vector &x) const
    }
    else
    {
-      B -> SetData(b.GetData());
+      B -> SetData(const_cast<double *>(b.GetData()));
       X -> SetData(x.GetData());
    }
 
@@ -2036,7 +2037,7 @@ void HypreSolver::Mult(const Vector &b, Vector &x) const
    {
       B = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumRows(),
-                             b.GetData(),
+                             const_cast<double *>(b.GetData()),
                              A -> GetRowStarts());
       X = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumCols(),
@@ -2045,7 +2046,7 @@ void HypreSolver::Mult(const Vector &b, Vector &x) const
    }
    else
    {
-      B -> SetData(b.GetData());
+      B -> SetData(const_cast<double *>(b.GetData()));
       X -> SetData(x.GetData());
    }
 

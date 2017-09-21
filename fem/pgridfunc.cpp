@@ -360,16 +360,19 @@ void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
 
 void ParGridFunction::Save(std::ostream &out) const
 {
-   for (int i = 0; i < size; i++)
+   // TODO: Find a sane way to salvage this functionality
+   double *d = const_cast<double *>(data.GetData());
+
+   for (int i = 0; i < Size(); i++)
    {
-      if (pfes->GetDofSign(i) < 0) { data[i] = -data[i]; }
+      if (pfes->GetDofSign(i) < 0) { d[i] = -data[i]; }
    }
 
    GridFunction::Save(out);
 
-   for (int i = 0; i < size; i++)
+   for (int i = 0; i < Size(); i++)
    {
-      if (pfes->GetDofSign(i) < 0) { data[i] = -data[i]; }
+      if (pfes->GetDofSign(i) < 0) { d[i] = -data[i]; }
    }
 }
 
