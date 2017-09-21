@@ -600,7 +600,7 @@ weights
 0.94056488160479
 
 FiniteElementSpace
-FiniteElementCollection: NURBS4
+FiniteElementCollection: NURBS
 VDim: 3
 Ordering: 1
 NURBSext: 0

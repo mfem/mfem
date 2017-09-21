@@ -260,26 +260,7 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    }
    else if (!strncmp(name, "NURBS", 5))
    {
-      int Order = atoi(name + 5);
-
-      if (Order < 10)
-      {
-         fec = new NURBSFECollection(Order);
-      }
-      else if (Order > 100)
-      {
-         int px = (Order - Order%100)/100;
-         Order -= px*100;
-         int py = (Order - Order%10)/10;
-         Order -= py*10;
-         int pz = Order;
-         fec = new NURBSFECollection(px,py,pz);
-      }
-      else
-      {
-         mfem_error("FiniteElementCollection::New : "
-                    "Unknown NURBS ORDER!");
-      }
+      fec = new NURBSFECollection();
    }
    else
    {
@@ -2442,45 +2423,19 @@ Local_FECollection::Local_FECollection(const char *fe_name)
    }
 }
 
-void NURBSFECollection::Allocate(int Order)
+NURBSFECollection::NURBSFECollection(int Order)
 {
    SegmentFE        = new NURBS1DFiniteElement(Order);
    QuadrilateralFE  = new NURBS2DFiniteElement(Order);
    ParallelepipedFE = new NURBS3DFiniteElement(Order);
 
    snprintf(name, 16, "NURBS%i", Order);
-   Orders.SetSize(3);
-   Orders[0] = Order;
-   Orders[1] = Order;
-   Orders[2] = Order;
+   snprintf(name, 16, "NURBS");
 }
 
-NURBSFECollection::NURBSFECollection(int px, int py, int pz)
-{
-   SegmentFE        = new NURBS1DFiniteElement(px);
-   QuadrilateralFE  = new NURBS2DFiniteElement(px,py);
-   ParallelepipedFE = new NURBS3DFiniteElement(px,py,pz);
 
-   snprintf(name, 16, "NURBS%i", 100*px+10*py+pz);
 
-   Orders.SetSize(3);
-   Orders[0] = px;
-   Orders[1] = py;
-   Orders[2] = pz;
-}
-
-NURBSFECollection::NURBSFECollection(Array<int>  &Orders_)
-{
-   Orders_.Copy(Orders);
-
-   SegmentFE        = new NURBS1DFiniteElement(Orders.Max());
-   QuadrilateralFE  = new NURBS2DFiniteElement(Orders.Max());
-   ParallelepipedFE = new NURBS3DFiniteElement(Orders.Max());
-
-   snprintf(name, 16, "NURBS%i", Orders.Max());
-}
-
-void NURBSFECollection::Deallocate()
+NURBSFECollection::~NURBSFECollection()
 {
    delete ParallelepipedFE;
    delete QuadrilateralFE;

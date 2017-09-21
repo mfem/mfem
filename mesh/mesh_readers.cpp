@@ -677,7 +677,7 @@ void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf)
    curved = 1;
    if (NURBSext->HavePatches())
    {
-      NURBSFECollection  *fec = new NURBSFECollection(1);
+      NURBSFECollection  *fec = new NURBSFECollection();
       FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
                                                        Ordering::byVDIM);
       Nodes = new GridFunction(fes);
