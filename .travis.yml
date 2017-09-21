@@ -111,6 +111,7 @@ matrix:
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
           - $TRAVIS_BUILD_DIR/../metis-4.0
+          - $HOME/bottles
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
           mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
@@ -129,6 +130,7 @@ matrix:
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
           - $TRAVIS_BUILD_DIR/../metis-4.0
+          - $HOME/bottles
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
           mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
@@ -136,8 +138,25 @@ matrix:
 
 before_install:
    # No addon for brew yet, have to install OSX packages this way.
+   # - if [ $TRAVIS_OS_NAME == "osx" ] && [ $MPI == "YES" ]; then
+   #      brew install open-mpi;
+   #   fi
+
+   # Use cached bottle for open-mpi:
    - if [ $TRAVIS_OS_NAME == "osx" ] && [ $MPI == "YES" ]; then
-        brew install open-mpi;
+        if [ ! -e $HOME/bottles/open-mpi.tgz ]; then
+           mkdir -p $HOME/bottles;
+           cd $HOME/bottles;
+           brew install --build-from-source --build-bottle
+              open-mpi --without-fortran;
+           brew bottle --root-url=$HOME open-mpi;
+           mv open-mpi-*.tar.gz open-mpi.tgz;
+        else
+           brew install --only-dependencies open-mpi --without-fortran;
+           cd $(brew --cellar) && tar zxf $HOME/bottles/open-mpi.tgz;
+           brew link open-mpi;
+        fi;
+        cd $TRAVIS_BUILD_DIR;
      fi
 
    # Update environment to find g++ 4.9 installation first.
