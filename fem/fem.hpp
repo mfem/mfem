@@ -21,6 +21,7 @@
 #include "lininteg.hpp"
 #include "nonlininteg.hpp"
 #include "bilininteg.hpp"
+#include "obilininteg.hpp"
 #include "fespace.hpp"
 #include "gridfunc.hpp"
 #include "linearform.hpp"
