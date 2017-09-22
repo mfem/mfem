@@ -107,13 +107,13 @@ int main(int argc, char *argv[])
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   /* {
+   {
        int par_ref_levels = 2;
        for (int l = 0; l < par_ref_levels; l++)
        {
           pmesh->UniformRefinement();
        }
-    }*/
+    }
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
    NURBSExtension *NURBSext = NULL;
    int own_fec = 0;
 
-   if (order[0] == 0) // Isoparametric
+   if (order[0] == -1) // Isoparametric
    {
       if (pmesh->GetNodes())
       {

@@ -55,14 +55,9 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-
-   args.AddOption(&nelems, "-n", "--elems",
-                  "Minimum number of elements .");
-
    args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree) or 0 for"
+                  "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -86,22 +81,14 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   /*{
+   {
       int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
-   }*/
-
-   while (mesh->GetNE() < nelems)
-   {
-      cout<<"Refine : " <<mesh->GetNE();
-      mesh->UniformRefinement();
-      cout<<" --> "<<mesh->GetNE()<<endl;
    }
-
 
    //      mesh->UniformRefinement();
    // 4. Define a finite element space on the mesh. Here we use continuous
@@ -111,7 +98,7 @@ int main(int argc, char *argv[])
    NURBSExtension *NURBSext = NULL;
    int own_fec = 0;
 
-   if (order[0] == 0) // Isoparametric
+   if (order[0] == -1) // Isoparametric
    {
       if (mesh->GetNodes())
       {
@@ -153,7 +140,6 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
-
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
@@ -175,7 +161,6 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   //exit(-1);
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
