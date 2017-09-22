@@ -4208,7 +4208,8 @@ DenseMatrixSVD::~DenseMatrixSVD()
 }
 
 
-void DenseTensor::AddMult(const Table &elem_dof, const Vector &x, Vector &y) const
+void DenseTensor::AddMult(const Table &elem_dof, const Vector &x,
+                          Vector &y) const
 {
    int n = SizeI(), ne = SizeK();
    const int *I = elem_dof.GetI(), *J = elem_dof.GetJ(), *dofs;
