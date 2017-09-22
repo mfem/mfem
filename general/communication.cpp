@@ -33,6 +33,9 @@ using namespace std;
 namespace mfem
 {
 
+//Use this in place of MPI_COMM_WORLD so that it can be redirectable
+MPI_Comm global_mpi_comm = MPI_COMM_WORLD;
+
 GroupTopology::GroupTopology(const GroupTopology &gt)
    : MyComm(gt.MyComm),
      group_lproc(gt.group_lproc)
@@ -184,7 +187,7 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
 
          if (lproc_proc[groupmaster_lproc[g]] != status.MPI_SOURCE)
          {
-            cerr << "\n\n\nGroupTopology::GroupTopology: "
+            merr << "\n\n\nGroupTopology::GroupTopology: "
                  << MyRank() << ": ERROR\n\n\n" << endl;
             mfem_error();
          }
@@ -1168,12 +1171,12 @@ static void DebugRankCoords(int** coords, int dim, int size)
 {
    for (int i = 0; i < size; i++)
    {
-      std::cout << "Rank " << i << " coords: ";
+      mout << "Rank " << i << " coords: ";
       for (int j = 0; j < dim; j++)
       {
-         std::cout << coords[i][j] << " ";
+         mout << coords[i][j] << " ";
       }
-      std::cout << endl;
+      mout << endl;
    }
 }
 
@@ -1272,7 +1275,6 @@ MPI_Comm ReorderRanksZCurve(MPI_Comm comm)
    return comm;
 }
 #endif // __bgq__
-
 
 } // namespace mfem
 

@@ -13,6 +13,7 @@
 #define MFEM_GLOBAL_OUTPUT_STREAM
 
 #include <iostream>
+#include "communication.hpp"
 
 namespace mfem
 {
@@ -30,47 +31,58 @@ public:
     NullBuffer* rdbuf() { return this; }
 };
 
-class GlobalOutputStream
+
+class WrappedOStream
 {
 private:
-   GlobalOutputStream() {theStream = &std::cout; enabled = true;}
-   GlobalOutputStream(const GlobalOutputStream&);
-   void operator=(const GlobalOutputStream&);
-
-   std::ostream *theStream;
-   NullOStream nullStream;
-   bool enabled;
+    std::ostream *theStream;
+    NullOStream nullStream;
+    bool enabled;
 public:
-   static GlobalOutputStream& Get()
-   {
-      static GlobalOutputStream instance;
-      return instance;
-   }
-
-   inline void SetStream(std::ostream *stream) {theStream = stream;}
-   inline std::ostream& GetStream();
-   inline void Enable() {enabled = true;}
-   inline void Disable() {enabled = false;}
+    WrappedOStream() {theStream = &std::cout; Enable();}
+    WrappedOStream(std::ostream *stream) {theStream = stream; Enable();}
+    void SetStream(std::ostream *stream) {theStream = stream;}
+    std::ostream& GetStream() {return *theStream;}
+    inline void Enable();
+    inline void Disable() {enabled = false;}
+    template <typename T>
+    inline std::ostream& operator<<(T val);
 };
 
-
-inline std::ostream& GlobalOutputStream::GetStream()
+inline void WrappedOStream::Enable() 
 {
-   if (enabled)
-   {
-      return *theStream;
-   }
-   else
-   {
-      return nullStream;
-   }
+#ifdef MFEM_USE_MPI
+    int rank;
+    MPI_Comm_rank(global_mpi_comm, &world_rank);
+    if (world_rank == 0)
+    {
+        enabled = true;
+    }
+    else
+    {
+        enabled = false;
+    }
+#else
+    enabled = true;
+#endif
 }
 
 
-inline static std::ostream &mfem_out()
+template <typename T>
+inline std::ostream& WrappedOStream::operator<<(T val)
 {
-   return GlobalOutputStream::Get().GetStream();
+    if (enabled)
+    {
+        (*theStream) << val;
+        return *theStream;
+    }
+
+    nullStream << val;
+    return nullStream;
 }
+
+extern WrappedOStream mout;
+extern WrappedOStream merr;
 
 }
 

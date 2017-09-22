@@ -16,6 +16,7 @@
 
 #include "mem_alloc.hpp"
 #include "array.hpp"
+#include "globalostream.hpp"
 
 namespace mfem
 {
@@ -141,7 +142,7 @@ public:
    void LoseData() { size = -1; I = J = NULL; }
 
    /// Prints the table to stream out.
-   void Print(std::ostream & out = std::cout, int width = 4) const;
+   void Print(WrappedOStream & out = mout, int width = 4) const;
    void PrintMatlab(std::ostream & out) const;
 
    void Save(std::ostream &out) const;

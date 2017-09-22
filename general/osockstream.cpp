@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "osockstream.hpp"
+#include "globalostream.hpp"
 
 namespace mfem
 {
@@ -18,7 +19,7 @@ osockstream::osockstream(int port, const char *hostname)
    : socketstream(hostname, port)
 {
    if (!is_open())
-      std::cerr << "Unable to connect to port " << port << " on "
+      merr << "Unable to connect to port " << port << " on "
                 << hostname << '\n';
 }
 

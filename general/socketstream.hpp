@@ -14,7 +14,7 @@
 
 #include "../config/config.hpp"
 #include "../general/error.hpp"
-#include <iostream>
+#include "globalostream.hpp"
 
 #ifdef MFEM_USE_GNUTLS
 #include <gnutls/gnutls.h>
@@ -99,7 +99,7 @@ public:
    void print_on_error(const char *msg) const
    {
       if (good()) { return; }
-      std::cout << "Error in " << msg << ": " << gnutls_strerror(res)
+      mout << "Error in " << msg << ": " << gnutls_strerror(res)
                 << std::endl;
    }
 };

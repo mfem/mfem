@@ -13,6 +13,7 @@
 #define MFEM_COMMUNICATION
 
 #include "../config/config.hpp"
+#include "globalostream.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -21,29 +22,32 @@
 #include "sets.hpp"
 #include <mpi.h>
 
+
 namespace mfem
 {
 
+extern MPI_Comm global_mpi_comm = MPI_COMM_WORLD;
+
 /** @brief A simple convenience class that calls MPI_Init() at construction and
     MPI_Finalize() at destruction. It also provides easy access to
-    MPI_COMM_WORLD's rank and size. */
+    to the global_mpi_comm rank and size. */
 class MPI_Session
 {
 protected:
    int world_rank, world_size;
    void GetRankAndSize()
    {
-      MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-      MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+      MPI_Comm_rank(global_mpi_comm, &world_rank);
+      MPI_Comm_size(global_mpi_comm, &world_size);
    }
 public:
    MPI_Session() { MPI_Init(NULL, NULL); GetRankAndSize(); }
    MPI_Session(int &argc, char **&argv)
    { MPI_Init(&argc, &argv); GetRankAndSize(); }
    ~MPI_Session() { MPI_Finalize(); }
-   /// Return MPI_COMM_WORLD's rank.
+   /// Return global_mpi_comm's rank.
    int WorldRank() const { return world_rank; }
-   /// Return MPI_COMM_WORLD's size.
+   /// Return global_mpi_comm's size.
    int WorldSize() const { return world_size; }
    /// Return true if WorldRank() == 0.
    bool Root() const { return world_rank == 0; }
@@ -291,7 +295,7 @@ public:
    template <class T> static void BitOR(OpData<T>);
 
    /// Print information about the GroupCommunicator from all MPI ranks.
-   void PrintInfo(std::ostream &out = std::cout) const;
+   void PrintInfo(std::ostream &out = mout) const;
 
    /** @brief Destroy a GroupCommunicator object, deallocating internal data
        structures and buffers. */

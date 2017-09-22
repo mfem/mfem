@@ -14,6 +14,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <errno.h>
+#include "globalostream.hpp"
 #ifndef _WIN32
 #include <netinet/in.h>
 #include <netdb.h>
@@ -39,7 +40,7 @@ isockstream::isockstream(int port)
    portnum = port;
 
    if ( (portID = establish()) < 0)
-      cout << "Server couldn't be established on port "
+      mout << "Server couldn't be established on port "
            << portnum << endl;
    Buf = NULL;
 }
@@ -58,7 +59,7 @@ int isockstream::establish()
 
    if (hp == NULL)
    {
-      cerr << "isockstream::establish(): gethostbyname() failed!\n"
+      merr << "isockstream::establish(): gethostbyname() failed!\n"
            << "isockstream::establish(): gethostname() returned: '"
            << myname << "'" << endl;
       error = 1;
@@ -70,7 +71,7 @@ int isockstream::establish()
 
    if ((port = socket(AF_INET, SOCK_STREAM, 0)) < 0)
    {
-      cerr << "isockstream::establish(): socket() failed!" << endl;
+      merr << "isockstream::establish(): socket() failed!" << endl;
       error = 2;
       return (-1);
    }
@@ -80,7 +81,7 @@ int isockstream::establish()
 
    if (bind(port,(const sockaddr*)&sa,(socklen_t)sizeof(struct sockaddr_in)) < 0)
    {
-      cerr << "isockstream::establish(): bind() failed!" << endl;
+      merr << "isockstream::establish(): bind() failed!" << endl;
       close(port);
       error = 3;
       return (-1);
@@ -131,7 +132,7 @@ void isockstream::receive(std::istringstream **in)
 
    if ((socketID = accept(portID, NULL, NULL)) < 0)
    {
-      cout << "Server failed to accept connection." << endl;
+      mout << "Server failed to accept connection." << endl;
       error = 5;
       return;
    }
@@ -150,12 +151,12 @@ void isockstream::receive(std::istringstream **in)
    Buf = new char[size+1];
    if (size != read_data(socketID, Buf, size))
    {
-      cout << "Not all the data has been read" << endl;
+      mout << "Not all the data has been read" << endl;
    }
 #ifdef DEBUG
    else
    {
-      cout << "Reading " << size << " bytes is successful" << endl;
+      mout << "Reading " << size << " bytes is successful" << endl;
    }
 #endif
    Buf[size] = '\0';
