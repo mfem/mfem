@@ -62,46 +62,36 @@ PADiffusionIntegrator::PADiffusionIntegrator(FiniteElementSpace *_fes, const int
    ComputeBasis1d(fes, tfe, ir_order, shape1d, dshape1d);
 
    // Create the operator
-   const int nelem = fes->GetNE();
-   const int quads = IntRule->GetNPoints();
-   const int dim   = fe->GetDim();
-   oper.SetSize(quads*dim, dim, nelem);
+   const int nelem   = fes->GetNE();
+   const int dim     = fe->GetDim();
+   const int quads   = IntRule->GetNPoints();
+   const int entries = dim * (dim + 1) / 2;
+   Dtensor.SetSize(entries, quads, nelem);
 
    DenseMatrix invdfdx(dim, dim);
    DenseMatrix mat(dim, dim);
-   DenseMatrix deoper;
    for (int e = 0; e < fes->GetNE(); e++)
    {
       ElementTransformation *Tr = fes->GetElementTransformation(e);
-
-      DenseMatrix &eoper = oper(e);
-      for (int i = 0; i < quads; i++)
+      DenseMatrix &Dmat = Dtensor(e);
+      for (int q = 0; q < quads; q++)
       {
-         const IntegrationPoint &ip = IntRule->IntPoint(i);
+         const IntegrationPoint &ip = IntRule->IntPoint(q);
          Tr->SetIntPoint(&ip);
          const DenseMatrix &temp = Tr->AdjugateJacobian();
          MultABt(temp, temp, mat);
          mat *= ip.weight / Tr->Weight();
 
-         // Reshape the input
-         // TODO: We probably don't need to store all these components
-         for (int d1 = 0; d1 < dim; d1++)
-         {
-            for (int d2 = 0; d2 < dim; d2++)
+         for (int j = 0, k = 0; j < dim; j++)
+            for (int i = j; i < dim; i++, k++)
             {
-               eoper(d1*quads + i, d2) = mat(d1, d2);
+               Dmat(k, q) = mat(i, j);
             }
-         }
       }
    }
-
-   // Size some of the temporary data for Mult calls
-   const int dofs1d = shape1d.Height();
-   const int quads1d = shape1d.Width();
-   DQ.SetSize(dofs1d, quads1d);
 }
 
-void PADiffusionIntegrator::MultQuad(const Vector &fun, Vector &vect)
+void PADiffusionIntegrator::MultQuad(const Vector &V, Vector &U)
 {
    const int dim = 2;
 
@@ -112,54 +102,173 @@ void PADiffusionIntegrator::MultQuad(const Vector &fun, Vector &vect)
    const int quads1d = shape1d.Width();
 
    DenseTensor QQ(quads1d, quads1d, dim);
-   DenseTensor QQd(quads1d, quads1d, dim);
+   DenseMatrix DQ(dofs1d, quads1d);
 
    int offset = 0;
    for (int e = 0; e < fes->GetNE(); e++)
    {
-      E.UseExternalData(fun.GetData() + offset, dofs1d, dofs1d);
-      V.UseExternalData(vect.GetData() + offset, dofs1d, dofs1d);
+      const DenseMatrix Vmat(V.GetData() + offset, dofs1d, dofs1d);
+      DenseMatrix Umat(U.GetData() + offset, dofs1d, dofs1d);
 
-      // DQ_j2_k1  = E_j1_j2 * DQd_j1_k1 -- contract in x direction
-      // QQx_k1_k2 = DQ_j2_k1 * DQs_j2_k2 -- contract in y direction
-      MultAtB(E, dshape1d, DQ);
+      // DQ_j2_k1   = E_j1_j2  * dshape_j1_k1 -- contract in x direction
+      // QQ_0_k1_k2 = DQ_j2_k1 * shape_j2_k2  -- contract in y direction
+      MultAtB(Vmat, dshape1d, DQ);
       MultAtB(DQ, shape1d, QQ(0));
 
-      // DQ_j2_k1  = E_j1_j2 * DQs_j1_k1 -- contract in x direction
-      // QQy_k1_k2 = DQ_j2_k1 * DQd_j2_k2 -- contract in y direction
-      MultAtB(E, shape1d, DQ);
+      // DQ_j2_k1   = E_j1_j2  * shape_j1_k1  -- contract in x direction
+      // QQ_1_k1_k2 = DQ_j2_k1 * dshape_j2_k2 -- contract in y direction
+      MultAtB(Vmat, shape1d, DQ);
       MultAtB(DQ, dshape1d, QQ(1));
 
-      DenseMatrix &eoper = oper(e);
-
-      for (int c = 0; c < 2; c++)
+      // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
+      // NOTE: (k1, k2) = q -- 1d index over tensor product of quad points
+      DenseMatrix &Dmat = Dtensor(e);
+      double *data_qq = QQ(0).GetData();
+      for (int q = 0; q < quads; q++)
       {
-         // data_d points to the data that multiplies both blocks of
-         // QQ. Returns a pointer to the c-th ROW of the dim x dim
-         // diagonal D matrix for each quadrature point
-         const double *data_dx = eoper.GetColumn(c);
-         const double *data_dy = eoper.GetColumn(c) + quads;
+         const double D00 = Dmat(0, q);
+         const double D01 = Dmat(1, q);
+         const double D11 = Dmat(2, q);
 
-         double *data_qd       = QQd(c).GetData();
-         const double *data_qx = QQ(0).GetData();
-         const double *data_qy = QQ(1).GetData();
+         const double q0 = data_qq[0*quads + q];
+         const double q1 = data_qq[1*quads + q];
 
-         // QQd_1_k1_k2  = QQ_1_k1_k2 * oper_k1_k2(c,0) + QQ_2_k1_k2 * oper_k1_k2(c,1)
-         for (int k = 0; k < quads; k++)
-         {
-            data_qd[k] = data_qx[k] * data_dx[k] + data_qy[k] * data_dy[k];
-         }
+         data_qq[0*quads + q] = D00 * q0 + D01 * q1;
+         data_qq[1*quads + q] = D01 * q0 + D11 * q1;
       }
 
-      // DQ_i2_k1   = DQs_i2_k2 * QQd_1_k1_k2
-      // V_i1_i2   += DQd_i1_k1 * DQ_i2_k1
-      MultABt(shape1d, QQd(0), DQ);
-      AddMultABt(dshape1d, DQ, V);
+      // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
+      // U_i1_i2   += dshape_i1_k1 * DQ_i2_k1
+      MultABt(shape1d, QQ(0), DQ);
+      AddMultABt(dshape1d, DQ, Umat);
 
-      // DQ_i2_k1   = DQd_i2_k2 * QQd_2_k1_k2
-      // V_i1_i2   += DQs_i1_k1 * DQ_i2_k1
-      MultABt(dshape1d, QQd(1), DQ);
-      AddMultABt(shape1d, DQ, V);
+      // DQ_i2_k1   = dshape_i2_k2 * QQ_1_k1_k2
+      // U_i1_i2   += shape_i1_k1  * DQ_i2_k1
+      MultABt(dshape1d, QQ(1), DQ);
+      AddMultABt(shape1d, DQ, Umat);
+
+      // increment offset
+      offset += dofs;
+   }
+}
+
+void PADiffusionIntegrator::MultHex(const Vector &V, Vector &U)
+{
+   const int dim = 3;
+
+   const int dofs   = fe->GetDof();
+   const int quads  = IntRule->GetNPoints();
+
+   const int dofs1d = shape1d.Height();
+   const int quads1d = shape1d.Width();
+
+   DenseMatrix Q(quads1d, dim);
+   DenseTensor QQ(quads1d, quads1d, dim);
+
+   Array<double> QQQmem(quads1d * quads1d * quads1d * dim);
+   double *data_qqq = QQQmem.GetData();
+   DenseTensor QQQ0(data_qqq + 0*quads, quads1d, quads1d, quads1d);
+   DenseTensor QQQ1(data_qqq + 1*quads, quads1d, quads1d, quads1d);
+   DenseTensor QQQ2(data_qqq + 2*quads, quads1d, quads1d, quads1d);
+
+   int offset = 0;
+   for (int e = 0; e < fes->GetNE(); e++)
+   {
+      const DenseTensor Vmat(V.GetData() + offset, dofs1d, dofs1d, dofs1d);
+      DenseTensor Umat(U.GetData() + offset, dofs1d, dofs1d, dofs1d);
+
+      // QQQ_0_k1_k2_k3 = dshape_j1_k1 * shape_j2_k2  * shape_j3_k3  * Vmat_j1_j2_j3
+      // QQQ_1_k1_k2_k3 = shape_j1_k1  * dshape_j2_k2 * shape_j3_k3  * Vmat_j1_j2_j3
+      // QQQ_2_k1_k2_k3 = shape_j1_k1  * shape_j2_k2  * dshape_j3_k3 * Vmat_j1_j2_j3
+      QQQ0 = 0.; QQQ1 = 0.; QQQ2 = 0.;
+      for (int j3 = 0; j3 < dofs1d; ++j3)
+      {
+         QQ = 0.;
+         for (int j2 = 0; j2 < dofs1d; ++j2)
+         {
+            Q = 0.;
+            for (int j1 = 0; j1 < dofs1d; ++j1)
+            {
+               for (int k1 = 0; k1 < quads1d; ++k1)
+               {
+                  Q(k1, 0) += Vmat(j1, j2, j3) * dshape1d(j1, k1);
+                  Q(k1, 1) += Vmat(j1, j2, j3) * shape1d(j1, k1);
+               }
+            }
+            for (int k2 = 0; k2 < quads1d; ++k2)
+               for (int k1 = 0; k1 < quads1d; ++k1)
+               {
+                  QQ(k1, k2, 0) += Q(k1, 0) * shape1d(j2, k2);
+                  QQ(k1, k2, 1) += Q(k1, 1) * dshape1d(j2, k2);
+                  QQ(k1, k2, 2) += Q(k1, 1) * shape1d(j2, k2);
+               }
+         }
+         for (int k3 = 0; k3 < quads1d; ++k3)
+            for (int k2 = 0; k2 < quads1d; ++k2)
+               for (int k1 = 0; k1 < quads1d; ++k1)
+               {
+                  QQQ0(k1, k2, k3) += QQ(k1, k2, 0) * shape1d(j3, k3);
+                  QQQ1(k1, k2, k3) += QQ(k1, k2, 1) * shape1d(j3, k3);
+                  QQQ2(k1, k2, k3) += QQ(k1, k2, 2) * dshape1d(j3, k3);
+               }
+      }
+
+      // QQQ_c_k1_k2_k3 = Dmat_c_d_k1_k2_k3 * QQQ_d_k1_k2_k3
+      // NOTE: (k1, k2, k3) = q -- 1d quad point index
+      DenseMatrix &Dmat = Dtensor(e);
+      for (int q = 0; q < quads; q++)
+      {
+         const double D00 = Dmat(0, q);
+         const double D01 = Dmat(1, q);
+         const double D02 = Dmat(2, q);
+         const double D11 = Dmat(3, q);
+         const double D12 = Dmat(4, q);
+         const double D22 = Dmat(5, q);
+
+         const double q0 = data_qqq[0*quads + q];
+         const double q1 = data_qqq[1*quads + q];
+         const double q2 = data_qqq[2*quads + q];
+
+         data_qqq[0*quads + q] = D00 * q0 + D01 * q1 + D02 * q2;
+         data_qqq[1*quads + q] = D01 * q0 + D11 * q1 + D12 * q2;
+         data_qqq[2*quads + q] = D02 * q0 + D12 * q1 + D22 * q2;
+      }
+
+      // Apply transpose of the first operator that takes V -> QQQd -- QQQd -> U
+      for (int k3 = 0; k3 < quads1d; ++k3)
+      {
+         QQ = 0.;
+         for (int k2 = 0; k2 < quads1d; ++k2)
+         {
+            Q = 0.;
+            for (int k1 = 0; k1 < quads1d; ++k1)
+            {
+               for (int i1 = 0; i1 < dofs1d; ++i1)
+               {
+                  Q(i1, 0) += QQQ0(k1, k2, k3) * dshape1d(i1, k1);
+                  Q(i1, 1) += QQQ1(k1, k2, k3) * shape1d(i1, k1);
+                  Q(i1, 2) += QQQ2(k1, k2, k3) * shape1d(i1, k1);
+               }
+            }
+            for (int i2 = 0; i2 < dofs1d; ++i2)
+               for (int i1 = 0; i1 < dofs1d; ++i1)
+               {
+                  QQ(i1, i2, 0) += Q(i1, 0) * shape1d(i2, k2);
+                  QQ(i1, i2, 1) += Q(i1, 1) * dshape1d(i2, k2);
+                  QQ(i1, i2, 2) += Q(i1, 2) * shape1d(i2, k2);
+               }
+         }
+         for (int i3 = 0; i3 < dofs1d; ++i3)
+            for (int i2 = 0; i2 < dofs1d; ++i2)
+               for (int i1 = 0; i1 < dofs1d; ++i1)
+               {
+                  Umat(i1, i2, i3) +=
+                     QQ(i1, i2, 0) * shape1d(i3, k3) +
+                     QQ(i1, i2, 1) * shape1d(i3, k3) +
+                     QQ(i1, i2, 2) * dshape1d(i3, k3);
+               }
+               
+      }
 
       // increment offset
       offset += dofs;
@@ -167,15 +276,15 @@ void PADiffusionIntegrator::MultQuad(const Vector &fun, Vector &vect)
 }
 
 void PADiffusionIntegrator::AssembleVector(const FiniteElementSpace &fespace,
-                                         const Vector &fun, Vector &vect)
+                                           const Vector &fun, Vector &vect)
 {
-   // NOTES:
-   // - fespace is ignored here it
-   // - fun and vect are E-vectors here
+   // NOTE: fun and vect are E-vectors at this point
+   MFEM_ASSERT(fespace.GetFE(0)->GetDim() == dim, "");
 
    switch (dim)
    {
    case 2: MultQuad(fun, vect); break;
+   case 3: MultHex(fun, vect); break;
    default: mfem_error("Not yet supported"); break;
    }
 }

@@ -33,14 +33,12 @@ protected:
 
    const int dim;
 
-   DenseTensor oper;
-   DenseTensor QQ, QQd;
+   DenseTensor Dtensor;
    DenseMatrix shape1d, dshape1d;
-   DenseMatrix DQ;
-   DenseMatrix E, V;
 
    // Action methods
-   void MultQuad(const Vector &fun, Vector &vect);
+   void MultQuad(const Vector &V, Vector &U);
+   void MultHex(const Vector &V, Vector &U);
 
 public:
    PADiffusionIntegrator(FiniteElementSpace *_fes, const int ir_order);
