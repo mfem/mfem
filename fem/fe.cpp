@@ -6171,170 +6171,181 @@ void RotTriLinearHexFiniteElement::CalcDShape(const IntegrationPoint &ip,
 Poly_1D::Basis::Basis(const int p, const double *nodes, const int _btype)
    : btype(_btype), x(p + 1), w(p + 1)
 {
-   switch (btype) {
-   case ChangeOfBasis: {
-      DenseMatrix A(p + 1);
-      for (int i = 0; i <= p; i++)
+   switch (btype)
+   {
+      case ChangeOfBasis:
       {
-         CalcBasis(p, nodes[i], x);
-         for (int j = 0; j <= p; j++)
+         DenseMatrix A(p + 1);
+         for (int i = 0; i <= p; i++)
          {
-            A(j, i) = x(j);
+            CalcBasis(p, nodes[i], x);
+            for (int j = 0; j <= p; j++)
+            {
+               A(j, i) = x(j);
+            }
          }
-      }
-      Ai.Factor(A);
-   } break;
-   case Barycentric: {
-      x = nodes;
-      w = 1.0;
-      for (int i = 0; i <= p; i++)
+         Ai.Factor(A);
+      } break;
+      case Barycentric:
       {
-         for (int j = 0; j < i; j++)
+         x = nodes;
+         w = 1.0;
+         for (int i = 0; i <= p; i++)
          {
-            double xij = x(i) - x(j);
-            w(i) *=  xij;
-            w(j) *= -xij;
+            for (int j = 0; j < i; j++)
+            {
+               double xij = x(i) - x(j);
+               w(i) *=  xij;
+               w(j) *= -xij;
+            }
          }
-      }
-      for (int i = 0; i <= p; i++)
-      {
-         w(i) = 1.0/w(i);
-      }
+         for (int i = 0; i <= p; i++)
+         {
+            w(i) = 1.0/w(i);
+         }
 
 #ifdef MFEM_DEBUG
-      // Make sure the nodes are increasing
-      for (int i = 0; i < p; i++)
-      {
-         if (x(i) >= x(i+1))
+         // Make sure the nodes are increasing
+         for (int i = 0; i < p; i++)
          {
-            mfem_error("Poly_1D::Basis::Basis : nodes are not increasing!");
+            if (x(i) >= x(i+1))
+            {
+               mfem_error("Poly_1D::Basis::Basis : nodes are not increasing!");
+            }
          }
-      }
 #endif
-   } break;
-   default: break;
+      } break;
+      default: break;
    }
 }
 
 void Poly_1D::Basis::Eval(const double y, Vector &u) const
 {
-   switch (btype) {
-   case ChangeOfBasis: {
-      CalcBasis(Ai.Width() - 1, y, x);
-      Ai.Mult(x, u);
-   } break;
-   case Barycentric: {
-      int i, k, p = x.Size() - 1;
-      double l, lk;
-
-      if (p == 0)
+   switch (btype)
+   {
+      case ChangeOfBasis:
       {
-         u(0) = 1.0;
-         return;
-      }
-
-      lk = 1.0;
-      for (k = 0; k < p; k++)
+         CalcBasis(Ai.Width() - 1, y, x);
+         Ai.Mult(x, u);
+      } break;
+      case Barycentric:
       {
-         if (y >= (x(k) + x(k+1))/2)
+         int i, k, p = x.Size() - 1;
+         double l, lk;
+
+         if (p == 0)
          {
-            lk *= y - x(k);
+            u(0) = 1.0;
+            return;
          }
-         else
+
+         lk = 1.0;
+         for (k = 0; k < p; k++)
          {
-            for (i = k+1; i <= p; i++)
+            if (y >= (x(k) + x(k+1))/2)
             {
-               lk *= y - x(i);
+               lk *= y - x(k);
             }
-            break;
+            else
+            {
+               for (i = k+1; i <= p; i++)
+               {
+                  lk *= y - x(i);
+               }
+               break;
+            }
          }
-      }
-      l = lk * (y - x(k));
+         l = lk * (y - x(k));
 
-      for (i = 0; i < k; i++)
+         for (i = 0; i < k; i++)
+         {
+            u(i) = l * w(i) / (y - x(i));
+         }
+         u(k) = lk * w(k);
+         for (i++; i <= p; i++)
+         {
+            u(i) = l * w(i) / (y - x(i));
+         }
+      } break;
+      case Positive:
       {
-         u(i) = l * w(i) / (y - x(i));
-      }
-      u(k) = lk * w(k);
-      for (i++; i <= p; i++)
-      {
-         u(i) = l * w(i) / (y - x(i));
-      }
-   } break;
-   case Positive: {
-      CalcBernstein(x.Size() - 1, y, u);
-   } break;
-   default: break;
+         CalcBernstein(x.Size() - 1, y, u);
+      } break;
+      default: break;
    }
 }
 
 void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d) const
 {
-   switch (btype) {
-   case ChangeOfBasis: {
-      CalcBasis(Ai.Width() - 1, y, x, w);
-      Ai.Mult(x, u);
-      Ai.Mult(w, d);
-   } break;
-   case Barycentric: {
-      int i, k, p = x.Size() - 1;
-      double l, lp, lk, sk, si;
-
-      if (p == 0)
+   switch (btype)
+   {
+      case ChangeOfBasis:
       {
-         u(0) = 1.0;
-         d(0) = 0.0;
-         return;
-      }
-
-      lk = 1.0;
-      for (k = 0; k < p; k++)
+         CalcBasis(Ai.Width() - 1, y, x, w);
+         Ai.Mult(x, u);
+         Ai.Mult(w, d);
+      } break;
+      case Barycentric:
       {
-         if (y >= (x(k) + x(k+1))/2)
+         int i, k, p = x.Size() - 1;
+         double l, lp, lk, sk, si;
+
+         if (p == 0)
          {
-            lk *= y - x(k);
+            u(0) = 1.0;
+            d(0) = 0.0;
+            return;
          }
-         else
+
+         lk = 1.0;
+         for (k = 0; k < p; k++)
          {
-            for (i = k+1; i <= p; i++)
+            if (y >= (x(k) + x(k+1))/2)
             {
-               lk *= y - x(i);
+               lk *= y - x(k);
             }
-            break;
+            else
+            {
+               for (i = k+1; i <= p; i++)
+               {
+                  lk *= y - x(i);
+               }
+               break;
+            }
          }
-      }
-      l = lk * (y - x(k));
+         l = lk * (y - x(k));
 
-      sk = 0.0;
-      for (i = 0; i < k; i++)
-      {
-         si = 1.0/(y - x(i));
-         sk += si;
-         u(i) = l * si * w(i);
-      }
-      u(k) = lk * w(k);
-      for (i++; i <= p; i++)
-      {
-         si = 1.0/(y - x(i));
-         sk += si;
-         u(i) = l * si * w(i);
-      }
-      lp = l * sk + lk;
+         sk = 0.0;
+         for (i = 0; i < k; i++)
+         {
+            si = 1.0/(y - x(i));
+            sk += si;
+            u(i) = l * si * w(i);
+         }
+         u(k) = lk * w(k);
+         for (i++; i <= p; i++)
+         {
+            si = 1.0/(y - x(i));
+            sk += si;
+            u(i) = l * si * w(i);
+         }
+         lp = l * sk + lk;
 
-      for (i = 0; i < k; i++)
+         for (i = 0; i < k; i++)
+         {
+            d(i) = (lp * w(i) - u(i))/(y - x(i));
+         }
+         d(k) = sk * u(k);
+         for (i++; i <= p; i++)
+         {
+            d(i) = (lp * w(i) - u(i))/(y - x(i));
+         }
+      } break;
+      case Positive:
       {
-         d(i) = (lp * w(i) - u(i))/(y - x(i));
-      }
-      d(k) = sk * u(k);
-      for (i++; i <= p; i++)
-      {
-         d(i) = (lp * w(i) - u(i))/(y - x(i));
-      }
-   } break;
-   case Positive: {
-      CalcBernstein(x.Size() - 1, y, u, d);
-   } break;
-   default: break;
+         CalcBernstein(x.Size() - 1, y, u, d);
+      } break;
+      default: break;
    }
 }
 
@@ -6556,8 +6567,9 @@ const double *Poly_1D::GetPoints(const int p, const int type, const int btype)
 {
    BasisType::Check(btype);
 
-   if (BasisType::GetQuadrature1D(btype) == Quadrature1D::Invalid) {
-     return NULL;
+   if (BasisType::GetQuadrature1D(btype) == Quadrature1D::Invalid)
+   {
+      return NULL;
    }
 
    PointsMap &container = points_container[type];
@@ -6597,7 +6609,7 @@ Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int type, const int btype)
    }
    if (bases[p] == NULL)
    {
-     bases[p] = new Basis(p, GetPoints(p, type, btype), btype);
+      bases[p] = new Basis(p, GetPoints(p, type, btype), btype);
    }
    return *bases[p];
 }
@@ -6606,8 +6618,8 @@ Poly_1D::~Poly_1D()
 {
    for (int btype = 0; btype < NumBasisType; ++btype)
    {
-     PointsMap &pointsContainer = points_container[btype];
-     BasisMap &basisContainer = bases_container[btype];
+      PointsMap &pointsContainer = points_container[btype];
+      BasisMap &basisContainer = bases_container[btype];
       for (std::map<int, Array<double*>*>::iterator it = pointsContainer.begin();
            it != pointsContainer.end() ; ++it)
       {
@@ -6640,181 +6652,224 @@ TensorBasisElement::TensorBasisElement(const int dims,
                                        const int dofs,
                                        const int type,
                                        const int btype) :
-  pt_type(type),
-  dof_map(dofs),
-  basis1d(poly1d.GetBasis(p, pt_type, btype)) {
+   pt_type(type),
+   dof_map(dofs),
+   basis1d(poly1d.GetBasis(p, pt_type, btype))
+{
 
-  if (FiniteElement::IsClosedType(pt_type)) {
-    switch (dims) {
-    case 1: {
-      dof_map[0] = 0;
-      dof_map[p] = 1;
-      for (int i = 1; i < p; i++) {
-        dof_map[i] = i+1;
-      }
-      break;
-    }
-    case 2: {
-      const int p1 = p + 1;
+   if (FiniteElement::IsClosedType(pt_type))
+   {
+      switch (dims)
+      {
+         case 1:
+         {
+            dof_map[0] = 0;
+            dof_map[p] = 1;
+            for (int i = 1; i < p; i++)
+            {
+               dof_map[i] = i+1;
+            }
+            break;
+         }
+         case 2:
+         {
+            const int p1 = p + 1;
 
-      // vertices
-      dof_map[0 + 0*p1] = 0;
-      dof_map[p + 0*p1] = 1;
-      dof_map[p + p*p1] = 2;
-      dof_map[0 + p*p1] = 3;
+            // vertices
+            dof_map[0 + 0*p1] = 0;
+            dof_map[p + 0*p1] = 1;
+            dof_map[p + p*p1] = 2;
+            dof_map[0 + p*p1] = 3;
 
-      // edges
-      int o = 4;
-      for (int i = 1; i < p; i++) {
-        dof_map[i + 0*p1] = o++;
-      }
-      for (int i = 1; i < p; i++) {
-        dof_map[p + i*p1] = o++;
-      }
-      for (int i = 1; i < p; i++) {
-        dof_map[(p-i) + p*p1] = o++;
-      }
-      for (int i = 1; i < p; i++) {
-        dof_map[0 + (p-i)*p1] = o++;
-      }
+            // edges
+            int o = 4;
+            for (int i = 1; i < p; i++)
+            {
+               dof_map[i + 0*p1] = o++;
+            }
+            for (int i = 1; i < p; i++)
+            {
+               dof_map[p + i*p1] = o++;
+            }
+            for (int i = 1; i < p; i++)
+            {
+               dof_map[(p-i) + p*p1] = o++;
+            }
+            for (int i = 1; i < p; i++)
+            {
+               dof_map[0 + (p-i)*p1] = o++;
+            }
 
-      // interior
-      for (int j = 1; j < p; j++) {
-        for (int i = 1; i < p; i++) {
-          dof_map[i + j*p1] = o++;
-        }
-      }
-      break;
-    }
-    case 3: {
-      const int p1 = p + 1;
+            // interior
+            for (int j = 1; j < p; j++)
+            {
+               for (int i = 1; i < p; i++)
+               {
+                  dof_map[i + j*p1] = o++;
+               }
+            }
+            break;
+         }
+         case 3:
+         {
+            const int p1 = p + 1;
 
-      // vertices
-      dof_map[0 + (0 + 0*p1)*p1] = 0;
-      dof_map[p + (0 + 0*p1)*p1] = 1;
-      dof_map[p + (p + 0*p1)*p1] = 2;
-      dof_map[0 + (p + 0*p1)*p1] = 3;
-      dof_map[0 + (0 + p*p1)*p1] = 4;
-      dof_map[p + (0 + p*p1)*p1] = 5;
-      dof_map[p + (p + p*p1)*p1] = 6;
-      dof_map[0 + (p + p*p1)*p1] = 7;
+            // vertices
+            dof_map[0 + (0 + 0*p1)*p1] = 0;
+            dof_map[p + (0 + 0*p1)*p1] = 1;
+            dof_map[p + (p + 0*p1)*p1] = 2;
+            dof_map[0 + (p + 0*p1)*p1] = 3;
+            dof_map[0 + (0 + p*p1)*p1] = 4;
+            dof_map[p + (0 + p*p1)*p1] = 5;
+            dof_map[p + (p + p*p1)*p1] = 6;
+            dof_map[0 + (p + p*p1)*p1] = 7;
 
-      // edges (see Hexahedron::edges in mesh/hexahedron.cpp)
-      int o = 8;
-      for (int i = 1; i < p; i++) {
-        dof_map[i + (0 + 0*p1)*p1] = o++;   // (0,1)
-      }
-      for (int i = 1; i < p; i++) {
-        dof_map[p + (i + 0*p1)*p1] = o++;   // (1,2)
-      }
-      for (int i = 1; i < p; i++) {
-        dof_map[i + (p + 0*p1)*p1] = o++;   // (3,2)
-      }
-      for (int i = 1; i < p; i++) {
-        dof_map[0 + (i + 0*p1)*p1] = o++;   // (0,3)
-      }
-      for (int i = 1; i < p; i++) {
-        dof_map[i + (0 + p*p1)*p1] = o++;   // (4,5)
-      }
-      for (int i = 1; i < p; i++) {
-        dof_map[p + (i + p*p1)*p1] = o++;   // (5,6)
-      }
-      for (int i = 1; i < p; i++) {
-        dof_map[i + (p + p*p1)*p1] = o++;   // (7,6)
-      }
-      for (int i = 1; i < p; i++) {
-        dof_map[0 + (i + p*p1)*p1] = o++;   // (4,7)
-      }
-      for (int i = 1; i < p; i++) {
-        dof_map[0 + (0 + i*p1)*p1] = o++;   // (0,4)
-      }
-      for (int i = 1; i < p; i++) {
-        dof_map[p + (0 + i*p1)*p1] = o++;   // (1,5)
-      }
-      for (int i = 1; i < p; i++) {
-        dof_map[p + (p + i*p1)*p1] = o++;   // (2,6)
-      }
-      for (int i = 1; i < p; i++) {
-        dof_map[0 + (p + i*p1)*p1] = o++;   // (3,7)
-      }
+            // edges (see Hexahedron::edges in mesh/hexahedron.cpp)
+            int o = 8;
+            for (int i = 1; i < p; i++)
+            {
+               dof_map[i + (0 + 0*p1)*p1] = o++;   // (0,1)
+            }
+            for (int i = 1; i < p; i++)
+            {
+               dof_map[p + (i + 0*p1)*p1] = o++;   // (1,2)
+            }
+            for (int i = 1; i < p; i++)
+            {
+               dof_map[i + (p + 0*p1)*p1] = o++;   // (3,2)
+            }
+            for (int i = 1; i < p; i++)
+            {
+               dof_map[0 + (i + 0*p1)*p1] = o++;   // (0,3)
+            }
+            for (int i = 1; i < p; i++)
+            {
+               dof_map[i + (0 + p*p1)*p1] = o++;   // (4,5)
+            }
+            for (int i = 1; i < p; i++)
+            {
+               dof_map[p + (i + p*p1)*p1] = o++;   // (5,6)
+            }
+            for (int i = 1; i < p; i++)
+            {
+               dof_map[i + (p + p*p1)*p1] = o++;   // (7,6)
+            }
+            for (int i = 1; i < p; i++)
+            {
+               dof_map[0 + (i + p*p1)*p1] = o++;   // (4,7)
+            }
+            for (int i = 1; i < p; i++)
+            {
+               dof_map[0 + (0 + i*p1)*p1] = o++;   // (0,4)
+            }
+            for (int i = 1; i < p; i++)
+            {
+               dof_map[p + (0 + i*p1)*p1] = o++;   // (1,5)
+            }
+            for (int i = 1; i < p; i++)
+            {
+               dof_map[p + (p + i*p1)*p1] = o++;   // (2,6)
+            }
+            for (int i = 1; i < p; i++)
+            {
+               dof_map[0 + (p + i*p1)*p1] = o++;   // (3,7)
+            }
 
-      // faces (see Mesh::GenerateFaces in mesh/mesh.cpp)
-      for (int j = 1; j < p; j++) {
-        for (int i = 1; i < p; i++) {
-          dof_map[i + ((p-j) + 0*p1)*p1] = o++;   // (3,2,1,0)
-        }
-      }
-      for (int j = 1; j < p; j++) {
-        for (int i = 1; i < p; i++) {
-          dof_map[i + (0 + j*p1)*p1] = o++;   // (0,1,5,4)
-        }
-      }
-      for (int j = 1; j < p; j++) {
-        for (int i = 1; i < p; i++) {
-          dof_map[p + (i + j*p1)*p1] = o++;   // (1,2,6,5)
-        }
-      }
-      for (int j = 1; j < p; j++) {
-        for (int i = 1; i < p; i++) {
-          dof_map[(p-i) + (p + j*p1)*p1] = o++;   // (2,3,7,6)
-        }
-      }
-      for (int j = 1; j < p; j++) {
-        for (int i = 1; i < p; i++) {
-          dof_map[0 + ((p-i) + j*p1)*p1] = o++;   // (3,0,4,7)
-        }
-      }
-      for (int j = 1; j < p; j++) {
-        for (int i = 1; i < p; i++) {
-          dof_map[i + (j + p*p1)*p1] = o++;   // (4,5,6,7)
-        }
-      }
+            // faces (see Mesh::GenerateFaces in mesh/mesh.cpp)
+            for (int j = 1; j < p; j++)
+            {
+               for (int i = 1; i < p; i++)
+               {
+                  dof_map[i + ((p-j) + 0*p1)*p1] = o++;   // (3,2,1,0)
+               }
+            }
+            for (int j = 1; j < p; j++)
+            {
+               for (int i = 1; i < p; i++)
+               {
+                  dof_map[i + (0 + j*p1)*p1] = o++;   // (0,1,5,4)
+               }
+            }
+            for (int j = 1; j < p; j++)
+            {
+               for (int i = 1; i < p; i++)
+               {
+                  dof_map[p + (i + j*p1)*p1] = o++;   // (1,2,6,5)
+               }
+            }
+            for (int j = 1; j < p; j++)
+            {
+               for (int i = 1; i < p; i++)
+               {
+                  dof_map[(p-i) + (p + j*p1)*p1] = o++;   // (2,3,7,6)
+               }
+            }
+            for (int j = 1; j < p; j++)
+            {
+               for (int i = 1; i < p; i++)
+               {
+                  dof_map[0 + ((p-i) + j*p1)*p1] = o++;   // (3,0,4,7)
+               }
+            }
+            for (int j = 1; j < p; j++)
+            {
+               for (int i = 1; i < p; i++)
+               {
+                  dof_map[i + (j + p*p1)*p1] = o++;   // (4,5,6,7)
+               }
+            }
 
-      // interior
-      for (int k = 1; k < p; k++) {
-        for (int j = 1; j < p; j++) {
-          for (int i = 1; i < p; i++) {
-            dof_map[i + (j + k*p1)*p1] = o++;
-          }
-        }
+            // interior
+            for (int k = 1; k < p; k++)
+            {
+               for (int j = 1; j < p; j++)
+               {
+                  for (int i = 1; i < p; i++)
+                  {
+                     dof_map[i + (j + k*p1)*p1] = o++;
+                  }
+               }
+            }
+            break;
+         }
+         default:
+            break;
       }
-      break;
-    }
-    default:
-      break;
-    }
-  } else {
-    for (int i = 0; i < dofs; ++i) {
-      dof_map[i] = i;
-    }
-  }
+   }
+   else
+   {
+      for (int i = 0; i < dofs; ++i)
+      {
+         dof_map[i] = i;
+      }
+   }
 }
 
 NodalTensorFiniteElement::NodalTensorFiniteElement(const int dims,
                                                    const int p,
                                                    const int dofs,
                                                    const int type) :
-  NodalFiniteElement(dims,
-                     dims == 1 ? Geometry::SEGMENT
-                     : ((dims == 2) ? Geometry::SQUARE
-                        : Geometry::CUBE),
-                     dofs, p,
-                     dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
-  TensorBasisElement(dims, p, dofs, type, Poly_1D::Barycentric) {}
+   NodalFiniteElement(dims,
+                      dims == 1 ? Geometry::SEGMENT
+                      : ((dims == 2) ? Geometry::SQUARE
+                         : Geometry::CUBE),
+                      dofs, p,
+                      dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
+   TensorBasisElement(dims, p, dofs, type, Poly_1D::Barycentric) {}
 
 PositiveTensorFiniteElement::PositiveTensorFiniteElement(const int dims,
                                                          const int p,
                                                          const int dofs) :
-  PositiveFiniteElement(dims,
-                        dims == 1 ? Geometry::SEGMENT
-                        : ((dims == 2) ? Geometry::SQUARE
-                           : Geometry::CUBE),
-                        dofs, p,
-                        dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
-  TensorBasisElement(dims, p, dofs, Quadrature1D::Invalid, Poly_1D::Positive) {}
+   PositiveFiniteElement(dims,
+                         dims == 1 ? Geometry::SEGMENT
+                         : ((dims == 2) ? Geometry::SQUARE
+                            : Geometry::CUBE),
+                         dofs, p,
+                         dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
+   TensorBasisElement(dims, p, dofs, Quadrature1D::Invalid, Poly_1D::Positive) {}
 
 H1_SegmentElement::H1_SegmentElement(const int p, const int type)
-  : NodalTensorFiniteElement(1, p, p + 1, VerifyClosed(type))
+   : NodalTensorFiniteElement(1, p, p + 1, VerifyClosed(type))
 {
    const double *cp = poly1d.ClosedPoints(p, pt_type);
 
@@ -6898,7 +6953,7 @@ void H1_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1_QuadrilateralElement::H1_QuadrilateralElement(const int p, const int type)
-  : NodalTensorFiniteElement(2, p, (p + 1)*(p + 1), VerifyClosed(type))
+   : NodalTensorFiniteElement(2, p, (p + 1)*(p + 1), VerifyClosed(type))
 {
    const double *cp = poly1d.ClosedPoints(p, pt_type);
 
@@ -7012,7 +7067,7 @@ void H1_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1_HexahedronElement::H1_HexahedronElement(const int p, const int type)
-  : NodalTensorFiniteElement(3, p, (p + 1)*(p + 1)*(p + 1), VerifyClosed(type))
+   : NodalTensorFiniteElement(3, p, (p + 1)*(p + 1)*(p + 1), VerifyClosed(type))
 {
    const double *cp = poly1d.ClosedPoints(p, pt_type);
 
@@ -7167,7 +7222,7 @@ void H1_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1Pos_SegmentElement::H1Pos_SegmentElement(const int p)
-  : PositiveTensorFiniteElement(1, p, p + 1)
+   : PositiveTensorFiniteElement(1, p, p + 1)
 {
 #ifndef MFEM_THREAD_SAFE
    // thread private versions; see class header.
@@ -7232,7 +7287,7 @@ void H1Pos_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1Pos_QuadrilateralElement::H1Pos_QuadrilateralElement(const int p)
-  : PositiveTensorFiniteElement(2, p, (p + 1)*(p + 1))
+   : PositiveTensorFiniteElement(2, p, (p + 1)*(p + 1))
 {
    const int p1 = p + 1;
 
@@ -7300,7 +7355,7 @@ void H1Pos_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1Pos_HexahedronElement::H1Pos_HexahedronElement(const int p)
-  : PositiveTensorFiniteElement(3, p, (p + 1)*(p + 1)*(p + 1))
+   : PositiveTensorFiniteElement(3, p, (p + 1)*(p + 1)*(p + 1))
 {
    const int p1 = p + 1;
 
@@ -8060,7 +8115,7 @@ void H1Pos_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
 
 
 L2_SegmentElement::L2_SegmentElement(const int p, const int type)
-    : NodalTensorFiniteElement(1, p, p + 1, VerifyOpen(type))
+   : NodalTensorFiniteElement(1, p, p + 1, VerifyOpen(type))
 {
    const double *op = poly1d.OpenPoints(p, type);
 
@@ -8117,7 +8172,7 @@ void L2_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 L2Pos_SegmentElement::L2Pos_SegmentElement(const int p)
-  : PositiveTensorFiniteElement(1, p, p + 1)
+   : PositiveTensorFiniteElement(1, p, p + 1)
 {
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -8162,7 +8217,7 @@ void L2Pos_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 L2_QuadrilateralElement::L2_QuadrilateralElement(const int p, const int type)
-    : NodalTensorFiniteElement(2, p, (p + 1)*(p + 1), VerifyOpen(type))
+   : NodalTensorFiniteElement(2, p, (p + 1)*(p + 1), VerifyOpen(type))
 {
    const double *op = poly1d.OpenPoints(p, pt_type);
 
@@ -8269,7 +8324,7 @@ void L2_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 L2Pos_QuadrilateralElement::L2Pos_QuadrilateralElement(const int p)
-  : PositiveTensorFiniteElement(2, p, (p + 1)*(p + 1))
+   : PositiveTensorFiniteElement(2, p, (p + 1)*(p + 1))
 {
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -8347,7 +8402,7 @@ void L2Pos_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 L2_HexahedronElement::L2_HexahedronElement(const int p, const int type)
-  : NodalTensorFiniteElement(3, p, (p + 1)*(p + 1)*(p + 1), VerifyOpen(type))
+   : NodalTensorFiniteElement(3, p, (p + 1)*(p + 1)*(p + 1), VerifyOpen(type))
 {
    const double *op = poly1d.OpenPoints(p, type);
 
@@ -8499,7 +8554,7 @@ void L2_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 L2Pos_HexahedronElement::L2Pos_HexahedronElement(const int p)
-  : PositiveTensorFiniteElement(3, p, (p + 1)*(p + 1)*(p + 1))
+   : PositiveTensorFiniteElement(3, p, (p + 1)*(p + 1)*(p + 1))
 {
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
