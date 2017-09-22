@@ -78,7 +78,8 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
                                                  const Vector &c) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
-   FiniteElementSpace *fes = nlf->FESpace();
+   MFEM_VERIFY(nlf != NULL, "invalid Operator subclass");
+   const FiniteElementSpace *fes = nlf->FESpace();
 
    const int NE = fes->GetMesh()->GetNE(), dim = fes->GetFE(0)->GetDim(),
              dof = fes->GetFE(0)->GetDof(), nsp = ir.GetNPoints();
@@ -144,7 +145,8 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
                                                  const Vector &c) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
-   FiniteElementSpace *fes = nlf->FESpace();
+   MFEM_VERIFY(nlf != NULL, "invalid Operator subclass");
+   const FiniteElementSpace *fes = nlf->FESpace();
 
    const int NE = fes->GetMesh()->GetNE(), dim = fes->GetFE(0)->GetDim(),
              dof = fes->GetFE(0)->GetDof(), nsp = ir.GetNPoints();
@@ -190,6 +192,11 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    return scale;
 }
+
+// Additional IntegrationRules that can be used with the --quad-type option.
+IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
+IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
+
 
 int main (int argc, char *argv[])
 {

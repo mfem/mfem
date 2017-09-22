@@ -37,8 +37,8 @@ public:
    NonlinearForm(FiniteElementSpace *f)
       : Operator(f->GetVSize()) { fes = f; Grad = NULL; }
 
-   FiniteElementSpace *FESpace() const
-   { return (FiniteElementSpace *)fes; }
+   FiniteElementSpace *FESpace() { return fes; }
+   const FiniteElementSpace *FESpace() const { return fes; }
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(NonlinearFormIntegrator *nlfi)

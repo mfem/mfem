@@ -52,9 +52,10 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 %-test-seq: %
 	@$(call mfem-test-file,$<,, Meshing miniapp,$(<).mesh)
 mesh-optimizer-test-seq: mesh-optimizer
-	@$(call mfem-test,$<,, Meshing miniapp)
+	@$(call mfem-test,$<,, Meshing miniapp,-m $(SRC)icf.mesh)
 pmesh-optimizer-test-par: pmesh-optimizer
-	@$(call mfem-test,$<, $(RUN_MPI), Meshing miniapp)
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp,\
+	-m $(SRC)icf.mesh)
 
 # Testing: Specific execution options
 mesh-explorer-test-seq:

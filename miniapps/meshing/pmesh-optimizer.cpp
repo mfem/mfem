@@ -83,6 +83,7 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
                                                  const Vector &c) const
 {
    const ParNonlinearForm *nlf = dynamic_cast<const ParNonlinearForm *>(oper);
+   MFEM_VERIFY(nlf != NULL, "invalid Operator subclass");
    ParFiniteElementSpace *pfes = nlf->ParFESpace();
 
    const int NE = pfes->GetParMesh()->GetNE(), dim = pfes->GetFE(0)->GetDim(),
@@ -92,7 +93,7 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
    Vector posV(pos.Data(), dof * dim);
 
    Vector x_out(x.Size());
-   ParGridFunction x_out_gf(nlf->ParFESpace());
+   ParGridFunction x_out_gf(pfes);
    bool x_out_ok = false;
    const double energy_in = nlf->GetEnergy(x);
    double scale = 1.0, energy_out;
@@ -164,6 +165,7 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
                                                  const Vector &c) const
 {
    const ParNonlinearForm *nlf = dynamic_cast<const ParNonlinearForm *>(oper);
+   MFEM_VERIFY(nlf != NULL, "invalid Operator subclass");
    ParFiniteElementSpace *pfes = nlf->ParFESpace();
 
    const int NE = pfes->GetParMesh()->GetNE(), dim = pfes->GetFE(0)->GetDim(),
@@ -172,7 +174,7 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
    DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
    Vector posV(pos.Data(), dof * dim);
 
-   ParGridFunction x_gf(nlf->ParFESpace());
+   ParGridFunction x_gf(pfes);
    x_gf.Distribute(x);
 
    double min_detJ = numeric_limits<double>::infinity();
@@ -221,6 +223,11 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    return scale;
 }
+
+// Additional IntegrationRules that can be used with the --quad-type option.
+IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
+IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
+
 
 int main (int argc, char *argv[])
 {
