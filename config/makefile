@@ -58,7 +58,8 @@ header: $(if $(MPI),get-hypre-version,)
 	for def in $${MFEM_DEFINES} $(if $(MPI),MFEM_HYPRE_VERSION,); do \
 	   eval var=\$$$$def && \
 	   if [ "NO" != "$${var}" ]; then \
-	      set -- "$$@" -e "s|// \(#define $${def}\)|\1|" && \
+	      set -- "$$@" -e "s|// \(#define $${def} \)|\1|" && \
+	      set -- "$$@" -e "s|// \(#define $${def}\)$$|\1|" && \
 	      set -- "$$@" -e "s#@$${def}@#$${var}#g"; \
 	   fi; \
 	done && \
