@@ -136,14 +136,14 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
    {
-   case 1: ode_solver = new ForwardEulerSolver; break;
-   case 2: ode_solver = new RK2Solver(1.0); break;
-   case 3: ode_solver = new RK3SSPSolver; break;
-   case 4: ode_solver = new RK4Solver; break;
-   case 6: ode_solver = new RK6Solver; break;
-   default:
-      cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-      return 3;
+      case 1: ode_solver = new ForwardEulerSolver; break;
+      case 2: ode_solver = new RK2Solver(1.0); break;
+      case 3: ode_solver = new RK3SSPSolver; break;
+      case 4: ode_solver = new RK4Solver; break;
+      case 6: ode_solver = new RK6Solver; break;
+      default:
+         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         return 3;
    }
 
    // 5. Define the discontinuous DG finite element space of the given
@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
       ParGridFunction uk(&fes, u_block.GetBlock(k));
       ostringstream sol_name;
       sol_name << "vortex-" << k << "-init."
-                << setfill('0') << setw(6) << mpi.WorldRank();
+               << setfill('0') << setw(6) << mpi.WorldRank();
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(precision);
       sol_ofs << uk;
@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
                  << vishost << ':' << visport << endl;
          }
          visualization = false;
-         if (mpi.Root()) cout << "GLVis visualization disabled.\n";
+         if (mpi.Root()) { cout << "GLVis visualization disabled.\n"; }
       }
       else
       {
@@ -332,7 +332,7 @@ int main(int argc, char *argv[])
       ParGridFunction uk(&fes, u_block.GetBlock(k));
       ostringstream sol_name;
       sol_name << "vortex-" << k << "-final."
-                << setfill('0') << setw(6) << mpi.WorldRank();
+               << setfill('0') << setw(6) << mpi.WorldRank();
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(precision);
       sol_ofs << uk;

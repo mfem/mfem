@@ -114,14 +114,14 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
    {
-   case 1: ode_solver = new ForwardEulerSolver; break;
-   case 2: ode_solver = new RK2Solver(1.0); break;
-   case 3: ode_solver = new RK3SSPSolver; break;
-   case 4: ode_solver = new RK4Solver; break;
-   case 6: ode_solver = new RK6Solver; break;
-   default:
-      cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-      return 3;
+      case 1: ode_solver = new ForwardEulerSolver; break;
+      case 2: ode_solver = new RK2Solver(1.0); break;
+      case 3: ode_solver = new RK3SSPSolver; break;
+      case 4: ode_solver = new RK4Solver; break;
+      case 6: ode_solver = new RK6Solver; break;
+      default:
+         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         return 3;
    }
 
    // 4. Refine the mesh to increase the resolution. In this example we do
