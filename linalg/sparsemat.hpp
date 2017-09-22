@@ -49,14 +49,14 @@ protected:
        this array is always zero, I[0] = 0, and the last entry, I[height], gives
        the total number of entries stored (at a minimum, all nonzeros must be
        represented) in the sparse matrix. */
-  __attribute__ ((aligned(32))) int *I;
-   /** @brief %Array with size #I[#height], containing the column indices for
-       all matrix entries, as indexed by the #I array. */
-  __attribute__ ((aligned(32))) int *J;
-   /** @brief %Array with size #I[#height], containing the actual entries of the
-       sparse matrix, as indexed by the #I array. */
-  __attribute__ ((aligned(32))) double *A;
-   ///@}
+  int *I;
+  /** @brief %Array with size #I[#height], containing the column indices for
+      all matrix entries, as indexed by the #I array. */
+  int *J;
+  /** @brief %Array with size #I[#height], containing the actual entries of the
+      sparse matrix, as indexed by the #I array. */
+  double *A;
+  ///@}
 
    /** @brief %Array of linked lists, one for every row. This array represents
        the linked list (LIL) storage format. */
@@ -472,12 +472,7 @@ SparseMatrix * Add(Array<SparseMatrix *> & Ai);
 // ****************************************************************************
 // * SetColPtr - gather
 // ****************************************************************************
-inline void SparseMatrix::SetColPtr(const x86::vint_t row) const{
-  /*for(int k=0;k<x86::width;k+=1) {
-    //SetColPtr(x86::width-row[k]+1);
-    std::cout<<"[33;1m[SetColPtr] row["<<k<<"]:"<<row[k]<<"[0m"<<std::endl;
-    }*/
-  
+inline void SparseMatrix::SetColPtr(const x86::vint_t row) const{ 
   if (ColPtrJ == NULL){
     ColPtrJ = new int[width*x86::width];
     for (int i = 0; i < width; i++)
@@ -485,7 +480,7 @@ inline void SparseMatrix::SetColPtr(const x86::vint_t row) const{
         ColPtrJ[k*width+i] = -1;
   }
   for(int k=0;k<x86::width;k+=1){
-    const int r=((int*)&row)[k];
+    const int r=row[k];
     for (int j = I[r], end = I[r+1]; j < end; j++){
       ColPtrJ[k*width+J[j]] = j;
     }
@@ -501,7 +496,6 @@ inline void SparseMatrix::SearchRow(const x86::vint_t col, const x86::vreal_t a)
       const int j=ColPtrJ[k*width+col[k]];
       MFEM_VERIFY(j != -1, "Entry for column " << col[k] << " is not allocated.");
       A[j]+=a[k];
-      //SearchRow(col[k])+=a[k];
     }
   }
   
