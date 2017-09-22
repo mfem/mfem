@@ -42,7 +42,8 @@ public:
        error; otherwise return the input. */
    static int Check(int b_type)
    {
-      MFEM_VERIFY(0 <= b_type && b_type < NumBasisType, "unknown BasisType: " << b_type);
+      MFEM_VERIFY(0 <= b_type &&
+                  b_type < NumBasisType, "unknown BasisType: " << b_type);
       return b_type;
    }
    /** @brief Get the corresponding Quadrature1D constant, when that makes
@@ -1447,10 +1448,10 @@ class Poly_1D
 public:
    enum
    {
-     ChangeOfBasis = 0, // Use change of basis, O(p^2) Evals
-     Barycentric   = 1, // Use barycentric Lagrangian interpolation, O(p) Evals
-     Positive      = 2, // Use bernstein polynomials
-     NumBasisType  = 3  // Keep count of number of basis types
+      ChangeOfBasis = 0, // Use change of basis, O(p^2) Evals
+      Barycentric   = 1, // Use barycentric Lagrangian interpolation, O(p) Evals
+      Positive      = 2, // Use bernstein polynomials
+      NumBasisType  = 3  // Keep count of number of basis types
    };
 
    class Basis
@@ -1498,7 +1499,8 @@ public:
        @param type the BasisType type.
        @return a pointer to an array containing the `p+1` coordiantes of the
                quadrature points. */
-   const double *GetPoints(const int p, const int type, const int btype = Barycentric);
+   const double *GetPoints(const int p, const int type,
+                           const int btype = Barycentric);
    const double *OpenPoints(const int p,
                             const int type = BasisType::GaussLegendre)
    { return GetPoints(p, type); }
@@ -1558,47 +1560,53 @@ public:
 
 extern Poly_1D poly1d;
 
-class TensorBasisElement {
+class TensorBasisElement
+{
 protected:
-  int pt_type;
-  Array<int> dof_map;
-  Poly_1D::Basis &basis1d;
+   int pt_type;
+   Array<int> dof_map;
+   Poly_1D::Basis &basis1d;
 
 public:
-  TensorBasisElement(const int dims,
-                     const int p,
-                     const int dofs,
-                     const int type,
-                     const int btype);
+   TensorBasisElement(const int dims,
+                      const int p,
+                      const int dofs,
+                      const int type,
+                      const int btype);
 
-  inline int GetBasisType() const {
-    return pt_type;
-  }
+   inline int GetBasisType() const
+   {
+      return pt_type;
+   }
 
-  inline const Poly_1D::Basis& GetBasis1D() const {
-    return basis1d;
-  }
+   inline const Poly_1D::Basis& GetBasis1D() const
+   {
+      return basis1d;
+   }
 
-  inline const Array<int> &GetDofMap() const {
-    return dof_map;
-  }
+   inline const Array<int> &GetDofMap() const
+   {
+      return dof_map;
+   }
 };
 
 class NodalTensorFiniteElement : public NodalFiniteElement,
-                                 public TensorBasisElement {
+   public TensorBasisElement
+{
 public:
-  NodalTensorFiniteElement(const int dims,
-                           const int p,
-                           const int dofs,
-                           const int type);
+   NodalTensorFiniteElement(const int dims,
+                            const int p,
+                            const int dofs,
+                            const int type);
 };
 
 class PositiveTensorFiniteElement : public PositiveFiniteElement,
-                                    public TensorBasisElement {
+   public TensorBasisElement
+{
 public:
-  PositiveTensorFiniteElement(const int dims,
-                              const int p,
-                              const int dofs);
+   PositiveTensorFiniteElement(const int dims,
+                               const int p,
+                               const int dofs);
 };
 
 class H1_SegmentElement : public NodalTensorFiniteElement
