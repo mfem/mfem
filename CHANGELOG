@@ -86,6 +86,8 @@ Miscellaneous
   (i.e. even patch number) denotes a "release" version, while an odd number
   denotes a "development" version. See config/config.hpp.in.
 
+- Added an option for building in parallel without METIS dependency.
+
 - Added Linux, Mac and Windows CI testing on GitHub with Travis CI and Appveyor.
 
 - Various small fixes and styling updates.
