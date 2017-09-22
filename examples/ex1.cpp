@@ -48,9 +48,8 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    bool static_cond = false;
    bool visualization = 1;
-   int  nelems = 1;
    Array<int> order(1);
-   order[0] = 0;
+   order[0] = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",

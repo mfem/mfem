@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    Array<int> order(1);
-   order[0] = 0;
+   order[0] = 1;
    bool static_cond = false;
    bool visualization = 1;
 
