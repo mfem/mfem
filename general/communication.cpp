@@ -33,7 +33,7 @@ using namespace std;
 namespace mfem
 {
 
-//Use this in place of MPI_COMM_WORLD so that it can be redirectable
+// Use this in place of MPI_COMM_WORLD so that it can be redirectable
 MPI_Comm global_mpi_comm = MPI_COMM_WORLD;
 
 GroupTopology::GroupTopology(const GroupTopology &gt)

@@ -27,10 +27,9 @@ public:
 class NullOStream : private NullBuffer, public std::ostream
 {
 public:
-   NullOStream() : std::ostream( this ) {}
+   NullOStream() : std::ostream(this) {}
    NullBuffer* rdbuf() { return this; }
 };
-
 
 class WrappedOStream
 {
@@ -39,12 +38,12 @@ private:
    NullOStream nullStream;
    bool enabled;
 public:
-   WrappedOStream() {theStream = &std::cout; Enable();}
-   WrappedOStream(std::ostream *stream) {theStream = stream; Enable();}
-   void SetStream(std::ostream *stream) {theStream = stream;}
-   std::ostream& GetStream() {return *theStream;}
+   WrappedOStream() { theStream = &std::cout; Enable(); }
+   WrappedOStream(std::ostream *stream) { theStream = stream; Enable(); }
+   void SetStream(std::ostream *stream) { theStream = stream; }
+   std::ostream& GetStream() { return *theStream; }
    inline void Enable();
-   inline void Disable() {enabled = false;}
+   inline void Disable() { enabled = false; }
    template <typename T>
    inline std::ostream& operator<<(T val);
 };
@@ -66,7 +65,6 @@ inline void WrappedOStream::Enable()
    enabled = true;
 #endif
 }
-
 
 template <typename T>
 inline std::ostream& WrappedOStream::operator<<(T val)
