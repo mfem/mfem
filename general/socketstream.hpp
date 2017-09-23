@@ -100,7 +100,7 @@ public:
    {
       if (good()) { return; }
       mout << "Error in " << msg << ": " << gnutls_strerror(res)
-                << std::endl;
+           << std::endl;
    }
 };
 

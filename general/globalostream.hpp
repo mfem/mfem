@@ -21,49 +21,49 @@ namespace mfem
 class NullBuffer : public std::streambuf
 {
 public:
-  int overflow(int c) { return c; }
+   int overflow(int c) { return c; }
 };
 
 class NullOStream : private NullBuffer, public std::ostream
 {
 public:
-    NullOStream() : std::ostream( this ) {}
-    NullBuffer* rdbuf() { return this; }
+   NullOStream() : std::ostream( this ) {}
+   NullBuffer* rdbuf() { return this; }
 };
 
 
 class WrappedOStream
 {
 private:
-    std::ostream *theStream;
-    NullOStream nullStream;
-    bool enabled;
+   std::ostream *theStream;
+   NullOStream nullStream;
+   bool enabled;
 public:
-    WrappedOStream() {theStream = &std::cout; Enable();}
-    WrappedOStream(std::ostream *stream) {theStream = stream; Enable();}
-    void SetStream(std::ostream *stream) {theStream = stream;}
-    std::ostream& GetStream() {return *theStream;}
-    inline void Enable();
-    inline void Disable() {enabled = false;}
-    template <typename T>
-    inline std::ostream& operator<<(T val);
+   WrappedOStream() {theStream = &std::cout; Enable();}
+   WrappedOStream(std::ostream *stream) {theStream = stream; Enable();}
+   void SetStream(std::ostream *stream) {theStream = stream;}
+   std::ostream& GetStream() {return *theStream;}
+   inline void Enable();
+   inline void Disable() {enabled = false;}
+   template <typename T>
+   inline std::ostream& operator<<(T val);
 };
 
-inline void WrappedOStream::Enable() 
+inline void WrappedOStream::Enable()
 {
 #ifdef MFEM_USE_MPI
-    int rank;
-    MPI_Comm_rank(global_mpi_comm, &world_rank);
-    if (world_rank == 0)
-    {
-        enabled = true;
-    }
-    else
-    {
-        enabled = false;
-    }
+   int rank;
+   MPI_Comm_rank(global_mpi_comm, &world_rank);
+   if (world_rank == 0)
+   {
+      enabled = true;
+   }
+   else
+   {
+      enabled = false;
+   }
 #else
-    enabled = true;
+   enabled = true;
 #endif
 }
 
@@ -71,14 +71,14 @@ inline void WrappedOStream::Enable()
 template <typename T>
 inline std::ostream& WrappedOStream::operator<<(T val)
 {
-    if (enabled)
-    {
-        (*theStream) << val;
-        return *theStream;
-    }
+   if (enabled)
+   {
+      (*theStream) << val;
+      return *theStream;
+   }
 
-    nullStream << val;
-    return nullStream;
+   nullStream << val;
+   return nullStream;
 }
 
 extern WrappedOStream mout;

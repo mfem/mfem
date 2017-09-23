@@ -20,7 +20,7 @@ osockstream::osockstream(int port, const char *hostname)
 {
    if (!is_open())
       merr << "Unable to connect to port " << port << " on "
-                << hostname << '\n';
+           << hostname << '\n';
 }
 
 }

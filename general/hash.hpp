@@ -414,7 +414,7 @@ void HashTable<T>::DoRehash()
 
 #if defined(MFEM_DEBUG) && !defined(MFEM_USE_MPI)
    mout << _MFEM_FUNC_NAME << ": rehashing to size " << new_table_size
-             << std::endl;
+        << std::endl;
 #endif
 
    // reinsert all items
@@ -501,7 +501,7 @@ template<typename T>
 void HashTable<T>::PrintMemoryDetail() const
 {
    mout << Base::MemoryUsage() << " + " << (mask+1) * sizeof(int)
-             << " + " << unused.MemoryUsage();
+        << " + " << unused.MemoryUsage();
 }
 
 } // namespace mfem

@@ -65,7 +65,7 @@ void mfem_backtrace(int mode, int depth)
       }
 
       merr << addrs.Size() << ") [0x" << std::hex << ip - 1 << std::dec
-                << "]: " << name_p << std::endl;
+           << "]: " << name_p << std::endl;
       addrs.Append(ip - 1);
 
       if (demangle_status == 0)
@@ -94,7 +94,7 @@ void mfem_backtrace(int mode, int depth)
             merr << "addr2line -C -e " << fname;
 #else
             merr << "atos -o " << fname << " -l "
-                      << (err ? 0 : info.dli_fbase);
+                 << (err ? 0 : info.dli_fbase);
 #endif
          }
          merr << " 0x" << std::hex << addrs[i] << std::dec;
