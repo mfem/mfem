@@ -299,61 +299,55 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const;
 };
 
-/** Auxiliary class used by BuildNestedInterpolation
-
-    This coefficient evaluates a GridFunctionCoefficient that lives
-    on a coarser mesh on "this" mesh which is a refinement of
-    that other one. */
-class RefinedCoefficient : public mfem::Coefficient
-{
-public:
-   /**
-      @param refine_relation tells for each fine cell the coarse
-             cell it comes from
-   */
-   RefinedCoefficient(const mfem::Array<int>& refine_relation,
-                      mfem::GridFunctionCoefficient& ho_coeff);
-   ~RefinedCoefficient() {}
-
-   double Eval(mfem::ElementTransformation &T,
-               const mfem::IntegrationPoint &ip);
-
-private:
-   const mfem::Array<int>& refine_relation_;
-   mfem::GridFunctionCoefficient& ho_coeff_; // why is Eval not const???
-};
-
-/**
-   Vector version of RefinedCoefficient
-*/
-class VectorRefinedCoefficient : public mfem::VectorCoefficient
-{
-public:
-   VectorRefinedCoefficient(const mfem::Array<int>& refine_relation,
-                            mfem::VectorGridFunctionCoefficient& ho_coeff);
-   ~VectorRefinedCoefficient() {}
-
-   virtual void Eval(mfem::Vector &V, mfem::ElementTransformation &T,
-                     const mfem::IntegrationPoint &ip);
-
-private:
-   const mfem::Array<int>& refine_relation_;
-   mfem::VectorGridFunctionCoefficient& ho_coeff_;
-};
 
 /** For a low-order refined ParFiniteElementSpace created on a ParMesh that was
     built with the LOR constructor:
 
       ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
 
-    This returnss an interpolation operator from the original FE space to the LOR
-    space.
+    This returns an interpolation operator from the original (high-order) FE
+    space to the LOR space.
 
     For traditional LOR this just constructs the identity, but for different
     quadrature rules (ref_type above) and also for H(curl) and H(div) spaces the
-    operator may be more complex and this routine is useful. */
+    operator may be more complex. */
 HypreParMatrix *BuildNestedInterpolation(ParFiniteElementSpace &ho_fespace,
                                          ParFiniteElementSpace &lor_fespace);
+
+
+/** This coefficient evaluates a GridFunctionCoefficient that lives on a coarser
+    mesh on "this" mesh which is a refinement of the coarse one. Auxiliary class
+    used by BuildNestedInterpolation. */
+class RefinedCoefficient : public Coefficient
+{
+public:
+   /// @param refine_relation: for each fine cell the coarse cell it comes from
+   RefinedCoefficient(const Array<int>& refine_relation,
+                      GridFunctionCoefficient& ho_coeff);
+   ~RefinedCoefficient() {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+
+private:
+   const Array<int>& refine_relation_;
+   GridFunctionCoefficient& ho_coeff_; // why is Eval not const???
+};
+
+/// Vector version of RefinedCoefficient
+class VectorRefinedCoefficient : public VectorCoefficient
+{
+public:
+   VectorRefinedCoefficient(const Array<int>& refine_relation,
+                            VectorGridFunctionCoefficient& ho_coeff);
+   ~VectorRefinedCoefficient() {}
+
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+private:
+   const Array<int>& refine_relation_;
+   VectorGridFunctionCoefficient& ho_coeff_;
+};
 
 }
 

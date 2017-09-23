@@ -2399,9 +2399,7 @@ RefinedCoefficient::RefinedCoefficient(
 {
 }
 
-/**
-   T and ip come from fine, LOR mesh
-*/
+// T and ip come from fine, LOR mesh
 double RefinedCoefficient::Eval(ElementTransformation &T,
                                 const IntegrationPoint &ip)
 {
@@ -2455,7 +2453,7 @@ void VectorRefinedCoefficient::Eval(Vector &V, ElementTransformation &T,
    ho_coeff_.Eval(V, *ho_eltrans, ho_ip);
 }
 
-/**
+/*
    Build LOR P for Vector finite element spaces, eg H(curl) or H(div)
 
    Used in BuildNestedInterpolation()
@@ -2490,7 +2488,7 @@ SparseMatrix * VectorBuildLORP(
          }
          else
          {
-            v(-1 - ho_dofs[j]) = -1.0;   // ??? I actually think this -1.0 is correct
+            v(-1-ho_dofs[j]) = -1.0;   // ??? I actually think this -1.0 is correct
          }
          GridFunction ho_vgf(&ho_fespace);
          ho_vgf = v;
@@ -2511,11 +2509,8 @@ SparseMatrix * VectorBuildLORP(
    return spmat;
 }
 
-/**
-   Construct operator from coarse, high-order mesh to finer, low-order mesh.
-
-   Used in BuildNestedInterpolation()
-*/
+/* Construct operator from coarse, high-order mesh to finer, low-order
+   mesh.  Used in BuildNestedInterpolation(). */
 SparseMatrix * BuildLORP(
    FiniteElementSpace& ho_fespace, FiniteElementSpace& lor_fespace,
    const Array<int>& refine_relation)
