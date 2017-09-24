@@ -49,7 +49,7 @@ public:
    /** Construct a DenseMatrix using existing data array. The DenseMatrix does
        not assume ownership of the data array, i.e. it will not delete the
        array. */
-   DenseMatrix(double *d, int h, int w) : Matrix(h, w), data(h*w) { }
+   DenseMatrix(double *d, int h, int w) : Matrix(h, w), data(d, h*w) { }
 
    DenseMatrix(const double *d, int h, int w) : Matrix(h, w), data(d, h*w) { }
 
