@@ -183,6 +183,10 @@ int main(int argc, char *argv[])
       GSSmoother M(A_sp);
       PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
    }
+   else if (use_smoother)
+   {
+      mfem_error("Cannot use GSSmoother with partial assembly");
+   }
    else
    {
       CG(*A, B, X, 1, 200, 1e-12, 0.0);

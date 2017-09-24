@@ -36,14 +36,14 @@ static void ComputeBasis1d(FiniteElementSpace *fes,
 
    Vector u(dofs);
    Vector d(dofs);
-   for (int q = 0; q < quads1d; q++)
+   for (int k = 0; k < quads1d; k++)
    {
-      const IntegrationPoint &ip = ir1d.IntPoint(q);
+      const IntegrationPoint &ip = ir1d.IntPoint(k);
       basis1d.Eval(ip.x, u, d);
       for (int i = 0; i < dofs; i++)
       {
-         shape1d(i, q) = u(i);
-         dshape1d(i, q) = d(i);
+         shape1d(i, k) = u(i);
+         dshape1d(i, k) = d(i);
       }
    }
 }
@@ -74,18 +74,18 @@ PADiffusionIntegrator::PADiffusionIntegrator(FiniteElementSpace *_fes, const int
    {
       ElementTransformation *Tr = fes->GetElementTransformation(e);
       DenseMatrix &Dmat = Dtensor(e);
-      for (int q = 0; q < quads; q++)
+      for (int k = 0; k < quads; k++)
       {
-         const IntegrationPoint &ip = IntRule->IntPoint(q);
+         const IntegrationPoint &ip = IntRule->IntPoint(k);
          Tr->SetIntPoint(&ip);
          const DenseMatrix &temp = Tr->AdjugateJacobian();
          MultABt(temp, temp, mat);
          mat *= ip.weight / Tr->Weight();
 
-         for (int j = 0, k = 0; j < dim; j++)
-            for (int i = j; i < dim; i++, k++)
+         for (int j = 0, l = 0; j < dim; j++)
+            for (int i = j; i < dim; i++, l++)
             {
-               Dmat(k, q) = mat(i, j);
+               Dmat(l, k) = mat(i, j);
             }
       }
    }
@@ -121,20 +121,20 @@ void PADiffusionIntegrator::MultQuad(const Vector &V, Vector &U)
       MultAtB(DQ, dshape1d, QQ(1));
 
       // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
-      // NOTE: (k1, k2) = q -- 1d index over tensor product of quad points
+      // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
       DenseMatrix &Dmat = Dtensor(e);
       double *data_qq = QQ(0).GetData();
-      for (int q = 0; q < quads; q++)
+      for (int k = 0; k < quads; k++)
       {
-         const double D00 = Dmat(0, q);
-         const double D01 = Dmat(1, q);
-         const double D11 = Dmat(2, q);
+         const double D00 = Dmat(0, k);
+         const double D01 = Dmat(1, k);
+         const double D11 = Dmat(2, k);
 
-         const double q0 = data_qq[0*quads + q];
-         const double q1 = data_qq[1*quads + q];
+         const double q0 = data_qq[0*quads + k];
+         const double q1 = data_qq[1*quads + k];
 
-         data_qq[0*quads + q] = D00 * q0 + D01 * q1;
-         data_qq[1*quads + q] = D01 * q0 + D11 * q1;
+         data_qq[0*quads + k] = D00 * q0 + D01 * q1;
+         data_qq[1*quads + k] = D01 * q0 + D11 * q1;
       }
 
       // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
@@ -216,22 +216,22 @@ void PADiffusionIntegrator::MultHex(const Vector &V, Vector &U)
       // QQQ_c_k1_k2_k3 = Dmat_c_d_k1_k2_k3 * QQQ_d_k1_k2_k3
       // NOTE: (k1, k2, k3) = q -- 1d quad point index
       DenseMatrix &Dmat = Dtensor(e);
-      for (int q = 0; q < quads; q++)
+      for (int k = 0; k < quads; k++)
       {
-         const double D00 = Dmat(0, q);
-         const double D01 = Dmat(1, q);
-         const double D02 = Dmat(2, q);
-         const double D11 = Dmat(3, q);
-         const double D12 = Dmat(4, q);
-         const double D22 = Dmat(5, q);
+         const double D00 = Dmat(0, k);
+         const double D01 = Dmat(1, k);
+         const double D02 = Dmat(2, k);
+         const double D11 = Dmat(3, k);
+         const double D12 = Dmat(4, k);
+         const double D22 = Dmat(5, k);
 
-         const double q0 = data_qqq[0*quads + q];
-         const double q1 = data_qqq[1*quads + q];
-         const double q2 = data_qqq[2*quads + q];
+         const double q0 = data_qqq[0*quads + k];
+         const double q1 = data_qqq[1*quads + k];
+         const double q2 = data_qqq[2*quads + k];
 
-         data_qqq[0*quads + q] = D00 * q0 + D01 * q1 + D02 * q2;
-         data_qqq[1*quads + q] = D01 * q0 + D11 * q1 + D12 * q2;
-         data_qqq[2*quads + q] = D02 * q0 + D12 * q1 + D22 * q2;
+         data_qqq[0*quads + k] = D00 * q0 + D01 * q1 + D02 * q2;
+         data_qqq[1*quads + k] = D01 * q0 + D11 * q1 + D12 * q2;
+         data_qqq[2*quads + k] = D02 * q0 + D12 * q1 + D22 * q2;
       }
 
       // Apply transpose of the first operator that takes V -> QQQd -- QQQd -> U
@@ -267,7 +267,6 @@ void PADiffusionIntegrator::MultHex(const Vector &V, Vector &U)
                      QQ(i1, i2, 1) * shape1d(i3, k3) +
                      QQ(i1, i2, 2) * dshape1d(i3, k3);
                }
-               
       }
 
       // increment offset

@@ -1198,7 +1198,7 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
 static void BuildDofMaps(FiniteElementSpace *fespace, Array<int> &offsets,
                          Array<int> &indices)
 {
-   Array<int> elemDof, globalMap;
+   Array<int> elem_dof, global_map;
 
    // Get the total size without vdim
    int size = 0;
@@ -1207,27 +1207,27 @@ static void BuildDofMaps(FiniteElementSpace *fespace, Array<int> &offsets,
       const FiniteElement *fe = fespace->GetFE(e);
       size += fe->GetDof();
    }
-   const int localSize = size;
-   const int globalSize = fespace->GetNDofs();
+   const int local_size = size;
+   const int global_size = fespace->GetNDofs();
 
    // Now we can allocate and fill the global map
-   offsets.SetSize(globalSize + 1);
-   indices.SetSize(localSize);
-   globalMap.SetSize(localSize);
+   offsets.SetSize(global_size + 1);
+   indices.SetSize(local_size);
+   global_map.SetSize(local_size);
 
    int offset = 0;
    for (int e = 0; e < fespace->GetNE(); e++)
    {
-      const FiniteElement *fe = fespace->GetFE(0);
+      const FiniteElement *fe = fespace->GetFE(e);
       const int dofs = fe->GetDof();
       const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement *>(fe);
-      const Array<int> &dofMap = tfe->GetDofMap();
+      const Array<int> &dof_map = tfe->GetDofMap();
 
-      fespace->GetElementDofs(e, elemDof);
+      fespace->GetElementDofs(e, elem_dof);
 
       for (int i = 0; i < dofs; i++)
       {
-         globalMap[offset + i] = elemDof[dofMap[i]];
+         global_map[offset + i] = elem_dof[dof_map[i]];
       }
       offset += dofs;
    }
@@ -1239,26 +1239,26 @@ static void BuildDofMaps(FiniteElementSpace *fespace, Array<int> &offsets,
 
    // Keep track of how many local dof point to its global dof
    // Count how many times each dof gets hit
-   for (int i = 0; i < localSize; i++)
+   for (int i = 0; i < local_size; i++)
    {
-      const int g = globalMap[i];
+      const int g = global_map[i];
       ++offsets[g + 1];
    }
    // Aggregate the offsets
-   for (int i = 1; i <= globalSize; i++)
+   for (int i = 1; i <= global_size; i++)
    {
       offsets[i] += offsets[i - 1];
    }
 
-   for (int i = 0; i < localSize; i++)
+   for (int i = 0; i < local_size; i++)
    {
-      const int g = globalMap[i];
+      const int g = global_map[i];
       indices[offsets[g]++] = i;
    }
 
    // Shift the offset vector back by one, since it was used as a
    // counter above.
-   for (int i = globalSize; i > 0; i--)
+   for (int i = global_size; i > 0; i--)
    {
       offsets[i] = offsets[i - 1];
    }
