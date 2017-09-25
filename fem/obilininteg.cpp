@@ -91,9 +91,41 @@ PADiffusionIntegrator::PADiffusionIntegrator(FiniteElementSpace *_fes, const int
    }
 }
 
+void PADiffusionIntegrator::MultSeg(const Vector &V, Vector &U)
+{
+   const int dim = 1;
+   const int dofs1d = shape1d.Height();
+   const int quads1d = shape1d.Width();
+   const int quads = quads1d;
+
+   Vector Q(quads1d);
+
+   int offset = 0;
+   for (int e = 0; e < fes->GetNE(); e++)
+   {
+      const Vector Vmat(V.GetData() + offset, dofs1d);
+      Vector Umat(U.GetData() + offset, dofs1d);
+
+      // Q_k1 = dshape_j1_k1 * V_i1
+      dshape1d.MultTranspose(Vmat, Q);
+
+      double *data_q = Q.GetData();
+      const double *data_d = Dtensor(e).GetData();
+      for (int k = 0; k < quads; ++k)
+      {
+         data_q[k] *= data_d[k];
+      }
+
+      // Q_k1 = dshape_j1_k1 * Q_k1
+      dshape1d.AddMult(Q, Umat);
+   }
+}
+
+
 void PADiffusionIntegrator::MultQuad(const Vector &V, Vector &U)
 {
    const int dim = 2;
+   const int terms = dim*(dim+1)/2;
 
    const int dofs   = fe->GetDof();
    const int quads  = IntRule->GetNPoints();
@@ -122,13 +154,13 @@ void PADiffusionIntegrator::MultQuad(const Vector &V, Vector &U)
 
       // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
       // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
-      DenseMatrix &Dmat = Dtensor(e);
       double *data_qq = QQ(0).GetData();
-      for (int k = 0; k < quads; k++)
+      const double *data_d = Dtensor(e).GetData();
+      for (int k = 0; k < quads; ++k)
       {
-         const double D00 = Dmat(0, k);
-         const double D01 = Dmat(1, k);
-         const double D11 = Dmat(2, k);
+         const double D00 = data_d[terms*k + 0];
+         const double D01 = data_d[terms*k + 1];
+         const double D11 = data_d[terms*k + 2];
 
          const double q0 = data_qq[0*quads + k];
          const double q1 = data_qq[1*quads + k];
@@ -155,6 +187,7 @@ void PADiffusionIntegrator::MultQuad(const Vector &V, Vector &U)
 void PADiffusionIntegrator::MultHex(const Vector &V, Vector &U)
 {
    const int dim = 3;
+   const int terms = dim*(dim+1)/2;
 
    const int dofs   = fe->GetDof();
    const int quads  = IntRule->GetNPoints();
@@ -215,15 +248,15 @@ void PADiffusionIntegrator::MultHex(const Vector &V, Vector &U)
 
       // QQQ_c_k1_k2_k3 = Dmat_c_d_k1_k2_k3 * QQQ_d_k1_k2_k3
       // NOTE: (k1, k2, k3) = q -- 1d quad point index
-      DenseMatrix &Dmat = Dtensor(e);
-      for (int k = 0; k < quads; k++)
+      const double *data_d = Dtensor(e).GetData();
+      for (int k = 0; k < quads; ++k)
       {
-         const double D00 = Dmat(0, k);
-         const double D01 = Dmat(1, k);
-         const double D02 = Dmat(2, k);
-         const double D11 = Dmat(3, k);
-         const double D12 = Dmat(4, k);
-         const double D22 = Dmat(5, k);
+         const double D00 = data_d[terms*k + 0];
+         const double D01 = data_d[terms*k + 1];
+         const double D02 = data_d[terms*k + 2];
+         const double D11 = data_d[terms*k + 3];
+         const double D12 = data_d[terms*k + 4];
+         const double D22 = data_d[terms*k + 5];
 
          const double q0 = data_qqq[0*quads + k];
          const double q1 = data_qqq[1*quads + k];
@@ -282,6 +315,7 @@ void PADiffusionIntegrator::AssembleVector(const FiniteElementSpace &fespace,
 
    switch (dim)
    {
+   case 1: MultSeg(fun, vect); break;
    case 2: MultQuad(fun, vect); break;
    case 3: MultHex(fun, vect); break;
    default: mfem_error("Not yet supported"); break;

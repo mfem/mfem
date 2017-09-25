@@ -37,6 +37,7 @@ protected:
    DenseMatrix shape1d, dshape1d;
 
    // Action methods
+   void MultSeg(const Vector &V, Vector &U);
    void MultQuad(const Vector &V, Vector &U);
    void MultHex(const Vector &V, Vector &U);
 
