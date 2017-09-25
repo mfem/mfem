@@ -241,7 +241,7 @@ script:
         CPPFLAGS="--coverage -g";
      fi;
      if [ "$CXX" == "clang++" ]; then
-        EXTRA_BUILD_OPTS="MFEM_PERF_SW=clang"
+        EXTRA_BUILD_OPTS="MFEM_PERF_SW=clang";
      fi
 
    # Configure the library
