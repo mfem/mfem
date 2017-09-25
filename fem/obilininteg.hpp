@@ -49,6 +49,34 @@ public:
                                const Vector &fun, Vector &vect);
 };
 
+/** Class for computing the action of (u, v) from a scalar fespace
+ * using a partially assembled operator at quadrature points. */
+class PAMassIntegrator : public BilinearFormIntegrator
+{
+protected:
+   FiniteElementSpace *fes;
+   const FiniteElement *fe;
+   const TensorBasisElement *tfe;
+
+   const int dim;
+
+   Vector Dvec;
+   DenseMatrix Dmat;
+   DenseMatrix shape1d;
+
+   // Action methods
+   void MultSeg(const Vector &V, Vector &U);
+   void MultQuad(const Vector &V, Vector &U);
+   void MultHex(const Vector &V, Vector &U);
+
+public:
+   PAMassIntegrator(FiniteElementSpace *_fes, const int ir_order);
+
+   /// Perform the action of the BilinearFormIntegrator
+   virtual void AssembleVector(const FiniteElementSpace &fes,
+                               const Vector &fun, Vector &vect);
+};
+
 }
 
 #endif
