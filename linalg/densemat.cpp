@@ -768,7 +768,8 @@ void DenseMatrix::FNorm(double &scale_factor, double &scaled_fnorm2) const
 
    if (max_norm == 0.0)
    {
-      return 0.0;
+      scale_factor = scaled_fnorm2 = 0.0;
+      return;
    }
 
    fnorm2 = 0.0;
