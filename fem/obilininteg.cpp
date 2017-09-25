@@ -48,12 +48,7 @@ static void ComputeBasis1d(FiniteElementSpace *fes,
    }
 }
 
-PADiffusionIntegrator::PADiffusionIntegrator(FiniteElementSpace *_fes, const int ir_order)
-   : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
-     fes(_fes),
-     fe(fes->GetFE(0)),
-     tfe(dynamic_cast<const TensorBasisElement*>(fe)),
-     dim(fe->GetDim())
+void PADiffusionIntegrator::ComputePA(const int ir_order)
 {
    // ASSUMPTION: All finite elements are the same (element type and order are the same)
    MFEM_ASSERT(fes->GetVDim() == 1, "Only implemented for vdim == 1");
@@ -62,14 +57,16 @@ PADiffusionIntegrator::PADiffusionIntegrator(FiniteElementSpace *_fes, const int
    ComputeBasis1d(fes, tfe, ir_order, shape1d, dshape1d);
 
    // Create the operator
-   const int nelem   = fes->GetNE();
+   const int elems   = fes->GetNE();
    const int dim     = fe->GetDim();
    const int quads   = IntRule->GetNPoints();
    const int entries = dim * (dim + 1) / 2;
-   Dtensor.SetSize(entries, quads, nelem);
+   Dtensor.SetSize(entries, quads, elems);
 
    DenseMatrix invdfdx(dim, dim);
    DenseMatrix mat(dim, dim);
+   DenseMatrix cmat(dim, dim);
+
    for (int e = 0; e < fes->GetNE(); e++)
    {
       ElementTransformation *Tr = fes->GetElementTransformation(e);
@@ -82,14 +79,65 @@ PADiffusionIntegrator::PADiffusionIntegrator(FiniteElementSpace *_fes, const int
          MultABt(temp, temp, mat);
          mat *= ip.weight / Tr->Weight();
 
-         for (int j = 0, l = 0; j < dim; j++)
-            for (int i = j; i < dim; i++, l++)
-            {
-               Dmat(l, k) = mat(i, j);
-            }
+         if (coeff != NULL)
+         {
+            const double c = coeff->Eval(*Tr, ip);
+            for (int j = 0, l = 0; j < dim; j++)
+               for (int i = j; i < dim; i++, l++)
+               {
+                  Dmat(l, k) = c * mat(i, j);
+               }
+
+         }
+         else if (mcoeff != NULL)
+         {
+            mcoeff->Eval(cmat, *Tr, ip);
+            for (int j = 0, l = 0; j < dim; j++)
+               for (int i = j; i < dim; i++, l++)
+               {
+                  Dmat(l, k) = cmat(i, j) * mat(i, j);
+               }
+
+         }
+         else
+         {
+            for (int j = 0, l = 0; j < dim; j++)
+               for (int i = j; i < dim; i++, l++)
+               {
+                  Dmat(l, k) = mat(i, j);
+               }
+         }
+
       }
    }
 }
+
+PADiffusionIntegrator::PADiffusionIntegrator(
+   FiniteElementSpace *_fes, const int ir_order)
+   : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
+     fes(_fes),
+     fe(fes->GetFE(0)),
+     tfe(dynamic_cast<const TensorBasisElement*>(fe)),
+     dim(fe->GetDim()), coeff(NULL), mcoeff(NULL) { ComputePA(ir_order); }
+
+
+PADiffusionIntegrator::PADiffusionIntegrator(
+   FiniteElementSpace *_fes, const int ir_order, Coefficient &_coeff)
+   : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
+     fes(_fes),
+     fe(fes->GetFE(0)),
+     tfe(dynamic_cast<const TensorBasisElement*>(fe)),
+     dim(fe->GetDim()), coeff(&_coeff), mcoeff(NULL) { ComputePA(ir_order); }
+
+
+PADiffusionIntegrator::PADiffusionIntegrator(
+   FiniteElementSpace *_fes, const int ir_order, MatrixCoefficient &_mcoeff)
+   : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
+     fes(_fes),
+     fe(fes->GetFE(0)),
+     tfe(dynamic_cast<const TensorBasisElement*>(fe)),
+     dim(fe->GetDim()), coeff(NULL), mcoeff(&_mcoeff) { ComputePA(ir_order); }
+
 
 void PADiffusionIntegrator::MultSeg(const Vector &V, Vector &U)
 {
@@ -321,12 +369,7 @@ void PADiffusionIntegrator::AssembleVector(const FiniteElementSpace &fespace,
    }
 }
 
-PAMassIntegrator::PAMassIntegrator(FiniteElementSpace *_fes, const int ir_order)
-   : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
-     fes(_fes),
-     fe(fes->GetFE(0)),
-     tfe(dynamic_cast<const TensorBasisElement*>(fe)),
-     dim(fe->GetDim())
+void PAMassIntegrator::ComputePA(const int ir_order)
 {
    // ASSUMPTION: All finite elements are the same (element type and order are the same)
    MFEM_ASSERT(fes->GetVDim() == 1, "Only implemented for vdim == 1");
@@ -352,10 +395,28 @@ PAMassIntegrator::PAMassIntegrator(FiniteElementSpace *_fes, const int ir_order)
       {
          const IntegrationPoint &ip = IntRule->IntPoint(k);
          Tr->SetIntPoint(&ip);
-         Dmat(k, e) = ip.weight * Tr->Weight();
+         const double weight = ip.weight * Tr->Weight();
+         Dmat(k, e) = (coeff == NULL) ? weight : coeff->Eval(*Tr, ip) * weight;
       }
    }
 }
+
+PAMassIntegrator::PAMassIntegrator(
+   FiniteElementSpace *_fes, const int ir_order)
+   : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
+     fes(_fes),
+     fe(fes->GetFE(0)),
+     tfe(dynamic_cast<const TensorBasisElement*>(fe)),
+     dim(fe->GetDim()), coeff(NULL) { ComputePA(ir_order); }
+
+PAMassIntegrator::PAMassIntegrator(
+   FiniteElementSpace *_fes, const int ir_order, Coefficient &_coeff)
+   : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
+     fes(_fes),
+     fe(fes->GetFE(0)),
+     tfe(dynamic_cast<const TensorBasisElement*>(fe)),
+     dim(fe->GetDim()), coeff(&_coeff) { ComputePA(ir_order); }
+
 
 
 void PAMassIntegrator::MultSeg(const Vector &V, Vector &U)

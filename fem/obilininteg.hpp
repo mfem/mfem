@@ -35,14 +35,22 @@ protected:
 
    DenseTensor Dtensor;
    DenseMatrix shape1d, dshape1d;
+   Coefficient *coeff;
+   MatrixCoefficient *mcoeff;
 
    // Action methods
    void MultSeg(const Vector &V, Vector &U);
    void MultQuad(const Vector &V, Vector &U);
    void MultHex(const Vector &V, Vector &U);
 
+   void ComputePA(const int ir_order);
+
 public:
    PADiffusionIntegrator(FiniteElementSpace *_fes, const int ir_order);
+   PADiffusionIntegrator(FiniteElementSpace *_fes, const int ir_order,
+                         Coefficient &_coeff);
+   PADiffusionIntegrator(FiniteElementSpace *_fes, const int ir_order,
+                         MatrixCoefficient &_mcoeff);
 
    /// Perform the action of the BilinearFormIntegrator
    virtual void AssembleVector(const FiniteElementSpace &fes,
@@ -63,14 +71,18 @@ protected:
    Vector Dvec;
    DenseMatrix Dmat;
    DenseMatrix shape1d;
+   Coefficient *coeff;
 
    // Action methods
    void MultSeg(const Vector &V, Vector &U);
    void MultQuad(const Vector &V, Vector &U);
    void MultHex(const Vector &V, Vector &U);
 
+   void ComputePA(const int ir_order);
+
 public:
    PAMassIntegrator(FiniteElementSpace *_fes, const int ir_order);
+   PAMassIntegrator(FiniteElementSpace *_fes, const int ir_order, Coefficient &_coeff);
 
    /// Perform the action of the BilinearFormIntegrator
    virtual void AssembleVector(const FiniteElementSpace &fes,
