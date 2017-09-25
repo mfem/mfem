@@ -378,8 +378,8 @@ install: $(BLD)libmfem.a
 	$(INSTALL) -m 640 $(SRC)config/test.mk $(PREFIX_SHARE)/test.mk
 
 $(CONFIG_MK):
-# Skip the error message when '-B' make flag is used (unconditionally 
-# make all targets), but still checks for the $(CONFIG_MK) file
+# Skip the error message when '-B' make flag is used (unconditionally
+# make all targets), but still check for the $(CONFIG_MK) file
 ifeq (,$(and $(findstring B,$(MAKEFLAGS)),$(wildcard $(CONFIG_MK))))
 	$(info )
 	$(info MFEM is not configured.)
