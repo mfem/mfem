@@ -24,17 +24,18 @@ MFEM_LIB_FILE = mfem_is_not_built
 # Distinguish x86 from PowerPC systems
 MFEM_MACHINE ?= $(shell uname -m)
 
-# Choose the switch MFEM_PERF_SW: gcc_x86_64, gcc_ppc64, clang.
+# Choose the switch MFEM_PERF_SW: gcc_x86_64, gcc_ppc64, or clang.
 # The value of MFEM_PERF_SW is used to select MFEM_PERF_CXXFLAGS below.
-ifneq (,$(filter %g++ %mpicxx %mpic++,$(MFEM_CXX)))
+ifneq (,$(MFEM_PERF_SW))
+   # Use the value of MFEM_PERF_SW if already defined
+else ifneq (,$(filter %clang++ %mpiclang++,$(MFEM_CXX)))
+   MFEM_PERF_SW = clang
+else ifneq (,$(filter %g++ %mpicxx %mpic++,$(MFEM_CXX)))
    ifeq ($(MFEM_MACHINE),x86_64)
       MFEM_PERF_SW = gcc_x86_64
    else ifneq (,$(findstring ppc64,$(MFEM_MACHINE)))
       MFEM_PERF_SW = gcc_ppc64
    endif
-endif
-ifeq ($(MFEM_CXX),clang++)
-   MFEM_PERF_SW = clang
 endif
 
 # Compiler specific optimizations.

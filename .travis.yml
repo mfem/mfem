@@ -241,7 +241,7 @@ script:
         CPPFLAGS="--coverage -g";
      fi;
      if [ "$CXX" == "clang++" ]; then
-        EXTRA_BUILD_OPTS="MFEM_PERF_SW=clang";
+        export MFEM_PERF_SW=clang;
      fi
 
    # Configure the library
@@ -252,7 +252,7 @@ script:
    # Build the library
    - make -j3
    # Build the examples and the miniapps
-   - make -j3 $EXTRA_BUILD_OPTS all
+   - make -j3 all
    # Run tests
    - make $MFEM_TEST_TARGET SKIP_TEST_DIRS="$SKIP_TEST_DIRS"
 
