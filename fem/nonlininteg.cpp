@@ -35,8 +35,7 @@ double HyperelasticModel::Dim2Invariant1(const DenseMatrix &M)
 {
    MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
 
-   const double fnorm = M.FNorm();
-   return fnorm * fnorm / M.Det();
+   return M.FNorm2() / M.Det();
 }
 
 // I2 = det(M).
@@ -47,17 +46,16 @@ double HyperelasticModel::Dim2Invariant2(const DenseMatrix &M)
    return M.Det();
 }
 
-// dI1_dM = [ 2 det(M) M - |M|^2 adj(M)^T ] / det(T)^2.
+// dI1_dM = [ 2 det(M) M - |M|^2 adj(M)^T ] / det(M)^2.
 void HyperelasticModel::Dim2Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM)
 {
    MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
 
-   const double fnorm = M.FNorm(), det = M.Det();
+   const double fnorm2 = M.FNorm2(), det = M.Det();
 
    Dim2Invariant2_dM(M, dM);
-   dM *= - fnorm * fnorm;
-   dM.Add(2.0 * det, M);
-   dM *= 1.0 / (det * det);
+   dM *= - fnorm2/(det*det);
+   dM.Add(2.0/det, M);
 }
 
 // dI2_dM = d(det(M))_dM = adj(M)^T.
@@ -69,7 +67,7 @@ void HyperelasticModel::Dim2Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM)
    dM(1, 0) = -M(0, 1); dM(1, 1) =  M(0, 0);
 }
 
-// (dI1_dM)_d(Mij) = d[(2 det(M) M - |M|^2 adj(M)^T) / det(T)^2]_d[Mij].
+// (dI1_dM)_d(Mij) = d[(2 det(M) M - |M|^2 adj(M)^T) / det(M)^2]_d[Mij].
 void HyperelasticModel::Dim2Invariant1_dMdM(const DenseMatrix &M, int i, int j,
                                             DenseMatrix &dMdM)
 {
@@ -79,33 +77,37 @@ void HyperelasticModel::Dim2Invariant1_dMdM(const DenseMatrix &M, int i, int j,
    DenseMatrix dI(2);
    Dim2Invariant2_dM(M, dI);
    const double ddet   = dI(i,j);
-   const double dfnorm = 2.0 * M(i,j);
+   const double dfnorm2 = 2.0 * M(i,j);
 
    const double det    = M.Det();
    const double det2   = det * det;
-   const double fnorm  = M.FNorm();
+   const double fnorm2 = M.FNorm2();
 
    DenseMatrix dM(2); dM = 0.0; dM(i, j) = 1.0;
+   DenseMatrix ddI(2);
+   Dim2Invariant2_dMdM(M, i, j, ddI);
    for (int r = 0; r < 2; r++)
    {
       for (int c = 0; c < 2; c++)
       {
          dMdM(r,c) =
             (det2 *
-             (2.0 * ddet * M(r,c) + 2.0 * det * dM(r,c) - dfnorm * dI(r,c))
+             (2.0 * ddet * M(r,c) + 2.0 * det * dM(r,c)
+              - dfnorm2 * dI(r,c) - fnorm2 * ddI(r,c))
              - 2.0 * det * ddet *
-             (2.0 * det * M(r,c) - fnorm * fnorm * dI(r,c)) ) / (det2 * det2);
+             (2.0 * det * M(r,c) - fnorm2 * dI(r,c)) ) / (det2 * det2);
       }
    }
 }
 
-// (dI2_dM)_d(Mij) = 0.
+// (dI2_dM)_d(Mij) = ...
 void HyperelasticModel::Dim2Invariant2_dMdM(const DenseMatrix &M, int i, int j,
                                             DenseMatrix &dMdM)
 {
    MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
 
-   dMdM(i, j) = 0.0;
+   dMdM = 0.0;
+   dMdM(1-i,1-j) = (i == j) ? 1.0 : -1.0;
 }
 
 // I1 = |M|^2/ det(M)^(2/3).
@@ -312,10 +314,10 @@ void InverseHarmonicModel::AssembleH(
       }
 
    // 2.
-   for (int i = 0; i < dof; i++)
+   for (int i = 1; i < dof; i++)
       for (int j = 0; j < i; j++)
       {
-         for (int k = 0; k < dim; k++)
+         for (int k = 1; k < dim; k++)
             for (int l = 0; l < k; l++)
             {
                double a =
@@ -1760,6 +1762,7 @@ double HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
    Jpt.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
 
+   const IntegrationRule *ir = IntRule;
    if (!ir)
    {
       ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
@@ -1864,6 +1867,7 @@ void HyperelasticNLFIntegrator::AssembleElementVector(
    elvect.SetSize(dof*dim);
    PMatO.UseExternalData(elvect.GetData(), dof, dim);
 
+   const IntegrationRule *ir = IntRule;
    if (!ir)
    {
       ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
@@ -1972,6 +1976,7 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
    elmat.SetSize(dof*dim);
 
+   const IntegrationRule *ir = IntRule;
    if (!ir)
    {
       ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---

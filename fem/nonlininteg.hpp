@@ -26,12 +26,18 @@ namespace mfem
 class NonlinearFormIntegrator
 {
 protected:
-   const IntegrationRule *ir;
+   const IntegrationRule *IntRule;
+
+   NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
+      : IntRule(NULL) { }
 
 public:
-   NonlinearFormIntegrator() : ir(NULL) { }
+   /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
+       let the integrator choose (when @a ir == NULL). */
+   void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
 
-   void SetIntegrationRule(const IntegrationRule &irule) { ir = &irule; }
+   /// Prescribe a fixed IntegrationRule to use.
+   void SetIntegrationRule(const IntegrationRule &irule) { IntRule = &irule; }
 
    /// Perform the local action of the NonlinearFormIntegrator
    virtual void AssembleElementVector(const FiniteElement &el,
@@ -117,14 +123,15 @@ public:
        zone, e.g., in the TMOP paradigm. */
    void SetTargetJacobian(const DenseMatrix &_Jtr) { Jtr = &_Jtr; }
 
-   /** @brief Evaluate the strain energy density function, W = W(Jtp).
-       @param[in] Jtp  Represents the target->physical transformation
+   /** @brief Evaluate the strain energy density function, W = W(Jpt).
+       @param[in] Jpt  Represents the target->physical transformation
                        Jacobian matrix. */
    virtual double EvalW(const DenseMatrix &Jpt) const = 0;
 
    /** @brief Evaluate the 1st Piola-Kirchhoff stress tensor, P = P(Jpt).
-       @param[in] Jtp  Represents the target->physical transformation
-                       Jacobian matrix. */
+       @param[in] Jpt  Represents the target->physical transformation
+                       Jacobian matrix.
+       @param[out]  P  The evaluated 1st Piola-Kirchhoff stress tensor. */
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const = 0;
 
    /** @brief Evaluate the derivative of the 1st Piola-Kirchhoff stress tensor
@@ -133,6 +140,8 @@ public:
                           Jacobian matrix.
        @param[in] DS      Gradient of the basis matrix (dof x dim).
        @param[in] weight  Quadrature weight coefficient for the point.
+       @param[in,out]  A  Local gradient matrix where the contribution from this
+                          point will be added.
 
        Computes weight * d(dW_dxi)_d(xj) at the current point, for all i and j,
        where x1 ... xn are the FE dofs. This function is usually defined using

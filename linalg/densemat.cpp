@@ -752,7 +752,7 @@ double DenseMatrix::MaxMaxNorm() const
    return norm;
 }
 
-double DenseMatrix::FNorm() const
+void DenseMatrix::FNorm(double &scale_factor, double &scaled_fnorm2) const
 {
    int i, hw = Height() * Width();
    double max_norm = 0.0, entry, fnorm2;
@@ -778,7 +778,8 @@ double DenseMatrix::FNorm() const
       fnorm2 += entry * entry;
    }
 
-   return max_norm * sqrt(fnorm2);
+   scale_factor = max_norm;
+   scaled_fnorm2 = fnorm2;
 }
 
 #ifdef MFEM_USE_LAPACK
@@ -1698,7 +1699,8 @@ inline void GetScalingFactor(const double &d_max, double &mult)
 double DenseMatrix::CalcSingularvalue(const int i) const
 {
    MFEM_ASSERT(Height() == Width() && Height() > 0 && Height() < 4,
-               "The matrix must be square and sized 1, 2, or 3 to compute the singular values."
+               "The matrix must be square and sized 1, 2, or 3 to compute the"
+               " singular values."
                << "  Height() = " << Height()
                << ", Width() = " << Width());
 

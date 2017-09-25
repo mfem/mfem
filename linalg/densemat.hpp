@@ -30,6 +30,9 @@ private:
 
    void Eigensystem(Vector &ev, DenseMatrix *evect = NULL);
 
+   // Auxiliary merthod used in FNorm2() and FNorm()
+   void FNorm(double &scale_factor, double &scaled_fnorm2) const;
+
 public:
    /** Default constructor for DenseMatrix.
        Sets data = NULL and height = width = 0. */
@@ -193,7 +196,10 @@ public:
    double MaxMaxNorm() const;
 
    /// Compute the Frobenius norm of the matrix
-   double FNorm() const;
+   double FNorm() const { double s, n2; FNorm(s, n2); return s*sqrt(n2); }
+
+   /// Compute the square of the Frobenius norm of the matrix
+   double FNorm2() const { double s, n2; FNorm(s, n2); return s*s*n2; }
 
    void Eigenvalues(Vector &ev)
    { Eigensystem(ev); }

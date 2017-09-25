@@ -462,5 +462,15 @@ style:
 	fi
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
-print-%: ; @printf "%s:\n" $*
-	@printf "%s\n" $($*)
+print-%:
+	$(info [ variable name]: $*)
+	$(info [        origin]: $(origin $*))
+	$(info [         value]: $(value $*))
+	$(info [expanded value]: $($*))
+	$(info )
+	@true
+
+# Print the contents of all makefile variables.
+.PHONY: printall
+printall: $(foreach var,$(.VARIABLES),print-$(var))
+	@true
