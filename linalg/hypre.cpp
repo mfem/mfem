@@ -1243,9 +1243,13 @@ void HypreParMatrix::Threshold(double threshold)
    row_starts = hypre_ParCSRMatrixRowStarts(A);
    col_starts = hypre_ParCSRMatrixColStarts(A);
 
+   bool old_owns_row = hypre_ParCSRMatrixOwnsRowStarts(A);
+   bool old_owns_col = hypre_ParCSRMatrixOwnsColStarts(A);
    parcsr_A_ptr = hypre_ParCSRMatrixCreate(comm,row_starts[num_procs],
                                            col_starts[num_procs],row_starts,
                                            col_starts,0,0,0);
+   hypre_ParCSRMatrixOwnsRowStarts(parcsr_A_ptr) = old_owns_row;
+   hypre_ParCSRMatrixOwnsColStarts(parcsr_A_ptr) = old_owns_col;
 
    csr_A = hypre_MergeDiagAndOffd(A);
 
