@@ -1544,6 +1544,52 @@ void GridFunction::ProjectBdrCoefficient(
    }
 }
 
+void GridFunction::ProjectBdrCoefficient(VectorFunctionCoefficient &vfcoeff, 
+                                         Array<int> &attr)
+{
+   int i, j, fdof, d, ind, vdim;
+   Vector val;
+   const FiniteElement *fe;
+   ElementTransformation *transf;
+   Array<int> vdofs;
+
+   vdim = fes->GetVDim();
+   // loop over boundary elements
+   for (i = 0; i < fes->GetNBE(); i++)
+   {
+      // if boundary attribute is 1 (Dirichlet)
+      if (attr[fes->GetBdrAttribute(i) - 1])
+      {
+         fe = fes->GetBE(i);
+         fdof = fe->GetDof();
+         transf = fes->GetBdrElementTransformation(i);
+         const IntegrationRule &ir = fe->GetNodes();
+         fes->GetBdrElementVDofs(i, vdofs);
+
+         // loop over dofs
+         for (j = 0; j < fdof; j++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(j);
+            transf->SetIntPoint(&ip);
+            
+            vfcoeff.Eval(val, *transf, ip);
+
+            // loop over vector dimensions
+            for (d = 0; d < vdim; d++)
+            {
+               ind = vdofs[fdof*d+j];
+               if ( (ind = vdofs[fdof*d+j]) < 0 )
+               {
+                  val(d) = -val(d), ind = -1-ind;
+               }
+               (*this)(ind) = val(d);
+            }
+         }
+      }
+   }
+
+}
+
 void GridFunction::ProjectBdrCoefficientNormal(
    VectorCoefficient &vcoeff, Array<int> &bdr_attr)
 {

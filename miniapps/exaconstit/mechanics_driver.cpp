@@ -64,7 +64,6 @@
 //                -Visco-plasticity constitutive model
 //                -enhanced user control of Dirichlet BCs
 //                -debug ability to read different mesh formats
-//                -iterative solver
 //
 //***********************************************************************
 #include "mfem.hpp"
@@ -125,7 +124,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // Parse command-line options.
-   const char *mesh_file = "./beam-hex.mesh";
+   const char *mesh_file = "../../data/beam-hex.mesh";
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
    int order = 1;
@@ -268,23 +267,6 @@ int main(int argc, char *argv[])
    // set nonzero Dirichlet boundary attributes to 1
    ess_bdr[1] = 1;
 
-   //**************************************************************************
-   //
-   // DEBUGGING, to be removed
-   //
-   // construct an array of dofs associated with nonzero Dirichlet BCs
-   // 
-
-   Array<int> non_zero_ess_tdof_list;
-   fe_space.GetEssentialTrueDofs(ess_bdr, non_zero_ess_tdof_list);
-
-//   for (int kk = 0; kk<non_zero_ess_tdof_list.Size(); ++kk) {
-//      cout << "tdof list: " << kk << " " << non_zero_ess_tdof_list[kk] << endl;
-//   }
-   
-   //
-   //**************************************************************************
-
    // reset ALL Dirichlet BCs, i.e. boundary attribute = 1
    ess_bdr = 0;
    ess_bdr[0] = 1;
@@ -303,10 +285,6 @@ int main(int argc, char *argv[])
    {
       x[k] = 0.;
    }
-
-   // populate solution vector with initialized current configuration
-   // grid function
-//   x_gf.GetTrueDofs(x);
 
    // initialize visualization if requested 
    socketstream vis_u, vis_p;
@@ -354,11 +332,6 @@ int main(int argc, char *argv[])
       add(x_non_zero_ess, x_gf, x_bar_gf);
       x_bar_gf.GetTrueDofs(x);
  
-      // debugging prints, remove
-//      for (int k=0; k<fe_space.TrueVSize(); ++k ) {
-//         cout << "x: " << k << "    " << x[k] << endl;
-//      }
-
       // Solve the Newton system 
       oper.Solve(x);
 
@@ -513,7 +486,7 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name, bool init_vis)
 {
    if (!out)
-   {
+   {  
       return;
    }
 
