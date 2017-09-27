@@ -16,6 +16,7 @@
 
 #include "../general/mem_alloc.hpp"
 #include "../general/table.hpp"
+#include "../general/globalostream.hpp"
 #include "densemat.hpp"
 #include <iostream>
 
@@ -352,13 +353,13 @@ public:
    SparseMatrix &operator*=(double a);
 
    /// Prints matrix to stream out.
-   void Print(std::ostream &out = std::cout, int width_ = 4) const;
+   void Print(std::ostream &out = mfem::out, int width_ = 4) const;
 
    /// Prints matrix in matlab format.
-   void PrintMatlab(std::ostream &out = std::cout) const;
+   void PrintMatlab(std::ostream &out = mfem::out) const;
 
    /// Prints matrix in Matrix Market sparse format.
-   void PrintMM(std::ostream &out = std::cout) const;
+   void PrintMM(std::ostream &out = mfem::out) const;
 
    /// Prints matrix to stream out in hypre_CSRMatrix format.
    void PrintCSR(std::ostream &out) const;

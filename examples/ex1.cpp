@@ -45,10 +45,10 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 0. Print out version and configuration info
-   mout.Disable();
-   mout << "MFEM Version:  " << get_version_str() << endl;
-   mout.Enable();
-   mout << "MFEM Configuration:  " << endl << get_config_str() << endl;
+   mfem::out.Disable();
+   mfem::out << "MFEM Version:  " << get_version_str() << endl;
+   mfem::out.Enable();
+   mfem::out << "MFEM Configuration:  " << endl << get_config_str() << endl;
 
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";

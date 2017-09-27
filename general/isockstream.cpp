@@ -40,7 +40,7 @@ isockstream::isockstream(int port)
    portnum = port;
 
    if ( (portID = establish()) < 0)
-      mout << "Server couldn't be established on port "
+      mfem::out << "Server couldn't be established on port "
            << portnum << endl;
    Buf = NULL;
 }
@@ -59,9 +59,9 @@ int isockstream::establish()
 
    if (hp == NULL)
    {
-      merr << "isockstream::establish(): gethostbyname() failed!\n"
-           << "isockstream::establish(): gethostname() returned: '"
-           << myname << "'" << endl;
+      mfem::err << "isockstream::establish(): gethostbyname() failed!\n"
+                << "isockstream::establish(): gethostname() returned: '"
+                << myname << "'" << endl;
       error = 1;
       return (-1);
    }
@@ -71,7 +71,7 @@ int isockstream::establish()
 
    if ((port = socket(AF_INET, SOCK_STREAM, 0)) < 0)
    {
-      merr << "isockstream::establish(): socket() failed!" << endl;
+      mfem::err << "isockstream::establish(): socket() failed!" << endl;
       error = 2;
       return (-1);
    }
@@ -81,7 +81,7 @@ int isockstream::establish()
 
    if (bind(port,(const sockaddr*)&sa,(socklen_t)sizeof(struct sockaddr_in)) < 0)
    {
-      merr << "isockstream::establish(): bind() failed!" << endl;
+      mfem::err << "isockstream::establish(): bind() failed!" << endl;
       close(port);
       error = 3;
       return (-1);
@@ -132,7 +132,7 @@ void isockstream::receive(std::istringstream **in)
 
    if ((socketID = accept(portID, NULL, NULL)) < 0)
    {
-      mout << "Server failed to accept connection." << endl;
+      mfem::out << "Server failed to accept connection." << endl;
       error = 5;
       return;
    }
@@ -151,12 +151,12 @@ void isockstream::receive(std::istringstream **in)
    Buf = new char[size+1];
    if (size != read_data(socketID, Buf, size))
    {
-      mout << "Not all the data has been read" << endl;
+      mfem::out << "Not all the data has been read" << endl;
    }
 #ifdef DEBUG
    else
    {
-      mout << "Reading " << size << " bytes is successful" << endl;
+      mfem::out << "Reading " << size << " bytes is successful" << endl;
    }
 #endif
    Buf[size] = '\0';

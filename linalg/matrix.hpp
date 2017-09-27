@@ -13,6 +13,7 @@
 #define MFEM_MATRIX
 
 #include "../general/array.hpp"
+#include "../general/globalostream.hpp"
 #include "operator.hpp"
 #include <iostream>
 
@@ -47,7 +48,7 @@ public:
    virtual void Finalize(int) { }
 
    /// Prints matrix to stream out.
-   virtual void Print (std::ostream & out = std::cout, int width_ = 4) const;
+   virtual void Print (std::ostream & out = mfem::out, int width_ = 4) const;
 
    /// Destroys matrix.
    virtual ~Matrix() { }

@@ -99,7 +99,7 @@ public:
    void print_on_error(const char *msg) const
    {
       if (good()) { return; }
-      mout << "Error in " << msg << ": " << gnutls_strerror(res)
+      mfem::out << "Error in " << msg << ": " << gnutls_strerror(res)
            << std::endl;
    }
 };

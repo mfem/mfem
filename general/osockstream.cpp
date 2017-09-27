@@ -19,8 +19,8 @@ osockstream::osockstream(int port, const char *hostname)
    : socketstream(hostname, port)
 {
    if (!is_open())
-      merr << "Unable to connect to port " << port << " on "
-           << hostname << '\n';
+      mfem::err << "Unable to connect to port " << port << " on "
+                << hostname << '\n';
 }
 
 }

@@ -26,6 +26,7 @@
 #include "_hypre_parcsr_mv.h"
 #include "_hypre_parcsr_ls.h"
 #include "temp_multivector.h"
+#include "../general/globalostream.hpp"
 
 #ifdef HYPRE_COMPLEX
 #error "MFEM does not work with HYPRE's complex numbers support"
@@ -465,7 +466,7 @@ public:
    void Read_IJMatrix(MPI_Comm comm, const char *fname);
 
    /// Print information about the hypre_ParCSRCommPkg of the HypreParMatrix.
-   void PrintCommPkg(std::ostream &out = std::cout) const;
+   void PrintCommPkg(std::ostream &out = mfem::out) const;
 
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }

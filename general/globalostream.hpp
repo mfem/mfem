@@ -13,7 +13,7 @@
 #define MFEM_GLOBAL_OUTPUT_STREAM
 
 #include <iostream>
-#include "communication.hpp"
+#include "globalcomm.hpp"
 
 namespace mfem
 {
@@ -31,7 +31,7 @@ public:
    NullBuffer* rdbuf() { return this; }
 };
 
-class WrappedOStream
+class WrappedOStream : public std::ostream
 {
 private:
    std::ostream *theStream;
@@ -40,47 +40,44 @@ private:
 public:
    WrappedOStream() { theStream = &std::cout; Enable(); }
    WrappedOStream(std::ostream *stream) { theStream = stream; Enable(); }
-   void SetStream(std::ostream *stream) { theStream = stream; }
-   std::ostream& GetStream() { return *theStream; }
-   inline void Enable();
+   inline void SetStream(std::ostream *stream) { theStream = stream; }
+   inline std::ostream& GetStream();
+   inline void Enable()  { enabled = true; }
    inline void Disable() { enabled = false; }
-   template <typename T>
-   inline std::ostream& operator<<(T val);
+   inline bool IsEnabled() {return enabled;}
 };
 
-inline void WrappedOStream::Enable()
-{
-#ifdef MFEM_USE_MPI
-   int rank;
-   MPI_Comm_rank(global_mpi_comm, &world_rank);
-   if (world_rank == 0)
-   {
-      enabled = true;
-   }
-   else
-   {
-      enabled = false;
-   }
-#else
-   enabled = true;
-#endif
-}
 
-template <typename T>
-inline std::ostream& WrappedOStream::operator<<(T val)
-{
-   if (enabled)
+inline std::ostream& WrappedOStream::GetStream() 
+{ 
+#ifdef MFEM_USE_MPI
+   int world_rank;
+   MPI_Comm_rank(MFEM_COMM_WORLD, &world_rank);
+   if (enabled && world_rank == 0)
    {
-      (*theStream) << val;
       return *theStream;
    }
+#else
+   if (enabled)
+   {
+      return *theStream;
+   }
+#endif
 
-   nullStream << val;
    return nullStream;
 }
 
-extern WrappedOStream mout;
-extern WrappedOStream merr;
+
+template <typename T>
+std::ostream& operator <<(WrappedOStream& wos, T const& value) 
+{
+    wos.GetStream() << value;
+    return wos.GetStream();
+}
+
+
+extern WrappedOStream out;
+extern WrappedOStream err;
 
 }
 

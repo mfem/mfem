@@ -292,7 +292,7 @@ int Table::Width() const
    return width + 1;
 }
 
-void Table::Print(WrappedOStream & out, int width) const
+void Table::Print(std::ostream & out, int width) const
 {
    int i, j;
 

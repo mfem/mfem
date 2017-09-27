@@ -9,20 +9,21 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_VERSION_H
-#define MFEM_VERSION_H
+#ifndef MFEM_GLOBAL_COMM
+#define MFEM_GLOBAL_COMM
+
+#include "../config/config.hpp"
+#include <mpi.h>
+
+#ifdef MFEM_USE_MPI
 
 namespace mfem
 {
 
-int get_version();
-int get_version_major();
-int get_version_minor();
-int get_version_patch();
+extern MPI_Comm MFEM_COMM_WORLD;
 
-const char *get_version_str();
-const char *get_config_str();
+}
 
-} // namespace mfem
+#endif
 
 #endif

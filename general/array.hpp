@@ -173,7 +173,7 @@ public:
    inline void GetSubArray(int offset, int sa_size, Array<T> &sa);
 
    /// Prints array to stream with width elements per row
-   void Print(std::ostream &out = mout, int width = 4) const;
+   void Print(std::ostream &out = mfem::out, int width = 4) const;
 
    /** @brief Save the Array to the stream @a out using the format @a fmt.
        The format @a fmt can be:
@@ -309,7 +309,7 @@ public:
    { N = master.N; array1d.MakeRef(master.array1d);}
 
    /// Prints array to stream with width elements per row
-   void Print(std::ostream &out = mout, int width = 4);
+   void Print(std::ostream &out = mfem::out, int width = 4);
 };
 
 

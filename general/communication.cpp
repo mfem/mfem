@@ -24,6 +24,7 @@
 #include "communication.hpp"
 #include "text.hpp"
 #include "sort_pairs.hpp"
+#include "globalostream.hpp"
 
 #include <iostream>
 #include <map>
@@ -33,8 +34,12 @@ using namespace std;
 namespace mfem
 {
 
-// Use this in place of MPI_COMM_WORLD so that it can be redirectable
-MPI_Comm global_mpi_comm = MPI_COMM_WORLD;
+void MPI_Session::GetRankAndSize()
+{
+   MPI_Comm_rank(MFEM_COMM_WORLD, &world_rank);
+   MPI_Comm_size(MFEM_COMM_WORLD, &world_size);
+}
+
 
 GroupTopology::GroupTopology(const GroupTopology &gt)
    : MyComm(gt.MyComm),
@@ -187,7 +192,7 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
 
          if (lproc_proc[groupmaster_lproc[g]] != status.MPI_SOURCE)
          {
-            merr << "\n\n\nGroupTopology::GroupTopology: "
+            mfem::err << "\n\n\nGroupTopology::GroupTopology: "
                  << MyRank() << ": ERROR\n\n\n" << endl;
             mfem_error();
          }
@@ -1171,12 +1176,12 @@ static void DebugRankCoords(int** coords, int dim, int size)
 {
    for (int i = 0; i < size; i++)
    {
-      mout << "Rank " << i << " coords: ";
+      mfem::out << "Rank " << i << " coords: ";
       for (int j = 0; j < dim; j++)
       {
-         mout << coords[i][j] << " ";
+         mfem::out << coords[i][j] << " ";
       }
-      mout << endl;
+      mfem::out << endl;
    }
 }
 

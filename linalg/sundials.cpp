@@ -356,7 +356,7 @@ void CVODESolver::PrintInfo() const
 {
    CVodeMem mem = Mem(this);
 
-   cout <<
+   mfem::out <<
         "CVODE:\n  "
         "num steps: " << mem->cv_nst << ", "
         "num evals: " << mem->cv_nfe << ", "
@@ -637,7 +637,7 @@ void ARKODESolver::PrintInfo() const
 {
    ARKodeMem mem = Mem(this);
 
-   cout <<
+   mfem::out <<
         "ARKODE:\n  "
         "num steps: " << mem->ark_nst << ", "
         "num evals: " << mem->ark_nfe << ", "
