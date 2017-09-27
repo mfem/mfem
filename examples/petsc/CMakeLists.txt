@@ -35,7 +35,7 @@ if (MFEM_USE_MPI)
 endif()
 
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
-include_directories(${PROJECT_BINARY_DIR})
+include_directories(BEFORE ${PROJECT_BINARY_DIR})
 
 # Add targets to copy rc_* files from the source directory
 foreach(RC_FILE ${PETSC_RC_FILES})
