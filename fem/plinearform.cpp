@@ -33,13 +33,13 @@ void ParLinearForm::Update(ParFiniteElementSpace *pf, Vector &v, int v_offset)
 
 void ParLinearForm::ParallelAssemble(Vector &tv)
 {
-   pfes->Dof_TrueDof_Matrix()->MultTranspose(*this, tv);
+   pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
 }
 
 HypreParVector *ParLinearForm::ParallelAssemble()
 {
    HypreParVector *tv = pfes->NewTrueDofVector();
-   pfes->Dof_TrueDof_Matrix()->MultTranspose(*this, *tv);
+   pfes->GetProlongationMatrix()->MultTranspose(*this, *tv);
    return tv;
 }
 
