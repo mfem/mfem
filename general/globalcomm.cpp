@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-extern MPI_Comm MFEM_COMM_WORLD = MPI_COMM_WORLD;
+MPI_Comm MFEM_COMM_WORLD = MPI_COMM_WORLD;
 
 }
 

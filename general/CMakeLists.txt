@@ -12,6 +12,8 @@
 list(APPEND SRCS
   array.cpp
   error.cpp
+  globalcomm.cpp
+  globalostream.cpp
   gzstream.cpp
   isockstream.cpp
   optparser.cpp
@@ -27,6 +29,8 @@ list(APPEND SRCS
 list(APPEND HDRS
   array.hpp
   error.hpp
+  globalcomm.hpp
+  globalostream.hpp
   gzstream.hpp
   hash.hpp
   isockstream.hpp
@@ -42,7 +46,6 @@ list(APPEND HDRS
   tic_toc.hpp
   text.hpp
   version.hpp
-  globalostream.hpp
   )
 
 if (MFEM_USE_MPI)

@@ -49,7 +49,6 @@ int main(int argc, char *argv[])
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-   mfem::out.Disable();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -73,14 +72,14 @@ int main(int argc, char *argv[])
    {
       if (myid == 0)
       {
-         args.PrintUsage(mfem::out);
+         args.PrintUsage(cout);
       }
       MPI_Finalize();
       return 1;
    }
    if (myid == 0)
    {
-      args.PrintOptions(mfem::out);
+      args.PrintOptions(cout);
    }
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
@@ -128,7 +127,7 @@ int main(int argc, char *argv[])
       fec = pmesh->GetNodes()->OwnFEC();
       if (myid == 0)
       {
-         mfem::out << "Using isoparametric FEs: " << fec->Name() << endl;
+         cout << "Using isoparametric FEs: " << fec->Name() << endl;
       }
    }
    else
@@ -139,7 +138,7 @@ int main(int argc, char *argv[])
    HYPRE_Int size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
-      mfem::out << "Number of finite element unknowns: " << size << endl;
+      cout << "Number of finite element unknowns: " << size << endl;
    }
 
    // 7. Determine the list of true (i.e. parallel conforming) essential
@@ -187,7 +186,7 @@ int main(int argc, char *argv[])
 
    if (myid == 0)
    {
-      mfem::out << "Size of linear system: " << A.GetGlobalNumRows() << endl;
+      cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
    }
 
    // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
@@ -196,7 +195,7 @@ int main(int argc, char *argv[])
    HyprePCG *pcg = new HyprePCG(A);
    pcg->SetTol(1e-12);
    pcg->SetMaxIter(200);
-   pcg->SetPrintLevel(0);
+   pcg->SetPrintLevel(2);
    pcg->SetPreconditioner(*amg);
    pcg->Mult(B, X);
 
