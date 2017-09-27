@@ -313,7 +313,7 @@ void HyperelasticNLFIntegrator::AssembleElementVector(
       MultAtB(PMatI, DS, J);
 
       model->EvalP(J, P);
-
+ 
       P *= ip.weight*Tr.Weight();
       AddMultABt(DS, P, PMatO);
    }
@@ -359,7 +359,7 @@ HyperelasticNLFIntegrator::~HyperelasticNLFIntegrator()
 
 double BlockNonlinearFormIntegrator::GetElementEnergy(Array<const FiniteElement *>&el,
                                                       ElementTransformation &Tr,
-                                                      Array<const Vector >&elfun)
+                                                      Array<const Vector *>&elfun)
 {
    mfem_error("BlockNonlinearFormIntegrator::GetElementEnergy"
               " is not overloaded!");
@@ -371,8 +371,8 @@ double BlockNonlinearFormIntegrator::GetElementEnergy(Array<const FiniteElement 
 
 void BlockNonlinearFormIntegrator::AssembleElementVector(Array<const FiniteElement *> &el,
                                                          ElementTransformation &Tr,
-                                                         Array<Vector> &elfun, 
-                                                         Array<Vector> &elvec)
+                                                         Array<Vector *> &elfun, 
+                                                         Array<Vector *> &elvec)
 {
    mfem_error("BlockNonlinearFormIntegrator::AssembleElementVector"
               " is not overloaded!");
@@ -381,8 +381,8 @@ void BlockNonlinearFormIntegrator::AssembleElementVector(Array<const FiniteEleme
 
 void BlockNonlinearFormIntegrator::AssembleRHSElementVector(Array<const FiniteElement *> &el,
                                          FaceElementTransformations &Tr,
-                                         Array<Vector> &elfun, 
-                                         Array<Vector> &elvec)
+                                         Array<Vector *> &elfun, 
+                                         Array<Vector *> &elvec)
 {
    mfem_error("BlockNonlinearFormIntegrator::AssembleRHSElementVector"
               " is not overloaded!");
@@ -390,17 +390,50 @@ void BlockNonlinearFormIntegrator::AssembleRHSElementVector(Array<const FiniteEl
 
 void BlockNonlinearFormIntegrator::AssembleElementGrad(Array<const FiniteElement*> &el,
                                     ElementTransformation &Tr,
-                                    Array<Vector> &elfun, 
-                                    Array2D<DenseMatrix> &elmats)
+                                    Array<Vector *> &elfun, 
+                                    Array2D<DenseMatrix *> &elmats)
 {
-   mfem_error("BlockNonlinearFormIntegrator::AssembleElementGrad"
-              " is not overloaded!");
+   double diff_step = 1.0e-8;
+   Array<Vector *> temps(el.Size());
+   Array<Vector *> temp_out_1(el.Size());
+   Array<Vector *> temp_out_2(el.Size());
+   Array<int> dofs(el.Size());
+
+   for (int s1=0; s1<el.Size(); s1++) {
+      temps[s1] = new Vector(elfun[s1]->GetData(), elfun[s1]->Size());
+      temp_out_1[s1] = new Vector();
+      temp_out_2[s1] = new Vector();
+      dofs[s1] = elfun[s1]->Size();
+   }
+
+   for (int s1=0; s1<el.Size(); s1++) {
+      for (int s2=0; s2<el.Size(); s2++) {
+         elmats(s1,s2)->SetSize(dofs[s1],dofs[s2]);
+      }
+   }
+   
+   for (int s1=0; s1<el.Size(); s1++) {
+      for (int j=0; j<temps[s1]->Size(); j++) {
+         (*temps[s1])[j] += diff_step;
+         AssembleElementVector(el, Tr, temps, temp_out_1);
+         (*temps[s1])[j] -= 2.0*diff_step;
+         AssembleElementVector(el, Tr, temps, temp_out_2);
+
+         for (int s2=0; s2<el.Size(); s2++) {
+            for (int k=0; k<temps[s2]->Size(); k++) {
+               (*elmats(s2,s1))(k,j) = ((*temp_out_1[s2])[k] - (*temp_out_2[s2])[k]) / (2.0*diff_step);
+            }
+         }
+         (*temps[s1])[j] = (*elfun[s1])[j];
+      }
+   }
+
 }
 
 void BlockNonlinearFormIntegrator::AssembleRHSElementGrad(Array<const FiniteElement*> &el,
                                        FaceElementTransformations &Tr,
-                                       Array<Vector> &elfun, 
-                                       Array2D<DenseMatrix> &elmats)
+                                       Array<Vector *> &elfun, 
+                                       Array2D<DenseMatrix *> &elmats)
 {
    mfem_error("BlockNonlinearFormIntegrator::AssembleRHSElementGrad"
               " is not overloaded!");
@@ -408,7 +441,7 @@ void BlockNonlinearFormIntegrator::AssembleRHSElementGrad(Array<const FiniteElem
 
 double IncompressibleNeoHookeanIntegrator::GetElementEnergy(Array<const FiniteElement *>&el,
                                                             ElementTransformation &Tr,
-                                                            Array<const Vector >&elfun)
+                                                            Array<const Vector *>&elfun)
 {
    if (el.Size() != 2) {
       mfem_error("IncompressibleNeoHookeanIntegrator::GetElementEnergy"
@@ -422,7 +455,7 @@ double IncompressibleNeoHookeanIntegrator::GetElementEnergy(Array<const FiniteEl
    J0i.SetSize(dim);
    J1.SetSize(dim);
    J.SetSize(dim);
-   PMatI_u.UseExternalData(elfun[0].GetData(), dof_u, dim);
+   PMatI_u.UseExternalData(elfun[0]->GetData(), dof_u, dim);
 
    int intorder = 2*el[0]->GetOrder() + 3; // <---
    const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
@@ -442,7 +475,7 @@ double IncompressibleNeoHookeanIntegrator::GetElementEnergy(Array<const FiniteEl
 
       mu = c_mu->Eval(Tr, ip);      
 
-      energy += ip.weight*Tr.Weight()*2.0*mu*(J*J - 3);
+      energy += ip.weight*Tr.Weight()*(mu/2.0)*(J*J - 3);
    }
    
    return energy;
@@ -451,8 +484,8 @@ double IncompressibleNeoHookeanIntegrator::GetElementEnergy(Array<const FiniteEl
 
 void IncompressibleNeoHookeanIntegrator::AssembleElementVector(Array<const FiniteElement *> &el,
                                                          ElementTransformation &Tr,
-                                                         Array<Vector> &elfun, 
-                                                         Array<Vector> &elvec)
+                                                         Array<Vector *> &elfun, 
+                                                         Array<Vector *> &elvec)
 {
    if (el.Size() != 2) {
       mfem_error("IncompressibleNeoHookeanIntegrator::AssembleElementVector"
@@ -468,20 +501,21 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementVector(Array<const Finit
    DS_u.SetSize(dof_u, dim);
    J0i.SetSize(dim);
    J.SetSize(dim);
-   Jinv.SetSize(dim);
+   F.SetSize(dim);
+   FinvT.SetSize(dim);
    P.SetSize(dim);
-   PMatI_u.UseExternalData(elfun[0].GetData(), dof_u, dim);
-   elvec[0].SetSize(dof_u*dim);
-   PMatO_u.UseExternalData(elvec[0].GetData(), dof_u, dim);
+   PMatI_u.UseExternalData(elfun[0]->GetData(), dof_u, dim);
+   elvec[0]->SetSize(dof_u*dim);
+   PMatO_u.UseExternalData(elvec[0]->GetData(), dof_u, dim);
 
    Sh_p.SetSize(dof_p);
-   elvec[1].SetSize(dof_p);
+   elvec[1]->SetSize(dof_p);
 
    int intorder = 2*el[0]->GetOrder() + 3; // <---
    const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
 
-   elvec[0] = 0.0;
-   elvec[1] = 0.0;
+   *elvec[0] = 0.0;
+   *elvec[1] = 0.0;
 
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
@@ -494,64 +528,32 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementVector(Array<const Finit
       MultAtB(PMatI_u, DS_u, J);
 
       el[1]->CalcShape(ip, Sh_p);
-      double pres = Sh_p * elfun[1];
-
-      CalcInverse(J, Jinv);
-
+    
+      double pres = Sh_p * *elfun[1];
+      double mu = c_mu->Eval(Tr, ip);      
       double dJ = J.Det();
 
-      double mu = c_mu->Eval(Tr, ip);      
-      
+      F.Transpose(J);
+      CalcInverseTranspose(F, FinvT);
+
       P = 0.0;
-      P.Add(4.0 * mu, J);
-      P.Add(dJ * pres, Jinv);
-      
+      P.Add(mu * dJ, F);
+      P.Add(-1.0 * pres * dJ, FinvT);
       P *= ip.weight*Tr.Weight();
+
+      P.Transpose();
       AddMultABt(DS_u, P, PMatO_u);
       
-      elvec[1].Add(ip.weight * Tr.Weight() * (J.Det() - 1.0), Sh_p);
+      elvec[1]->Add(ip.weight * Tr.Weight() * (dJ - 1.0), Sh_p);
    }
 
 }
 
 void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(Array<const FiniteElement*> &el,
                                     ElementTransformation &Tr,
-                                    Array<Vector> &elfun, 
-                                    Array2D<DenseMatrix> &elmats)
+                                    Array<Vector *> &elfun, 
+                                    Array2D<DenseMatrix *> &elmats)
 {
-
-   double diff_step = 1.0e-8;
-   Array<Vector> temps(el.Size());
-   Array<Vector> temp_out_1(el.Size());
-   Array<Vector> temp_out_2(el.Size());
-   Array<int> dofs(el.Size());
-
-   for (int s1=0; s1<el.Size(); s1++) {
-      temps[s1] = elfun[s1];
-      dofs[s1] = el[s1]->GetDof();
-   }
-
-   for (int s1=0; s1<el.Size(); s1++) {
-      for (int s2=0; s2<el.Size(); s2++) {
-         elmats(s1,s2).SetSize(dofs[s1],dofs[s2]);
-      }
-   }
-   
-   for (int s1=0; s1<el.Size(); s1++) {
-      for (int j=0; j<temps[s1].Size(); j++) {
-         temps[s1][j] += diff_step;
-         AssembleElementVector(el, Tr, temps, temp_out_1);
-         temps[s1][j] -= 2.0*diff_step;
-         AssembleElementVector(el, Tr, temps, temp_out_2);
-
-         for (int s2=0; s2<el.Size(); s2++) {
-            for (int k=0; k<temps[s2].Size(); k++) {
-               elmats(s2,s1)(k,j) = (temp_out_1[s2][k] - temp_out_2[s2][k]) / (2.0*diff_step);
-            }
-         }
-         temps[s1][j] = elfun[s1][j];
-      }
-   }
 
 }
 

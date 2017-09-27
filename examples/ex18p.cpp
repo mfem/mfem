@@ -63,8 +63,8 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    int order = 2;
    bool visualization = true;
-   double newton_rel_tol = 1.0e-12;
-   double newton_abs_tol = 1.0e-12;
+   double newton_rel_tol = 1.0e-6;
+   double newton_abs_tol = 1.0e-8;
    int newton_iter = 500;
    double mu = 1.0;
 
@@ -294,19 +294,14 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    // Set the essential boundary conditions
    Hform->SetEssentialBC(ess_bdr, rhs);
 
-   HypreSmoother *J_hypreSmoother = new HypreSmoother;
-   J_hypreSmoother->SetType(HypreSmoother::l1Jacobi);
-   J_hypreSmoother->SetPositiveDiagonal(true);
-   J_prec = J_hypreSmoother;
-
+   SuperLUSolver *superlu = NULL;
+   superlu = new SuperLUSolver(MPI_COMM_WORLD);
+   superlu->SetPrintStatistics(false);
+   superlu->SetSymmetricPattern(false);
+   superlu->SetColumnPermutation(superlu::PARMETIS);
    
-   MINRESSolver *J_minres = new MINRESSolver(MPI_COMM_WORLD);
-   J_minres->SetRelTol(rel_tol);
-   J_minres->SetAbsTol(0.0);
-   J_minres->SetMaxIter(300);
-   J_minres->SetPrintLevel(1);
-   J_minres->SetPreconditioner(*J_prec);
-   J_solver = J_minres;  
+   J_solver = superlu;
+   J_prec = NULL;
 
    // Set the newton solve parameters
    newton_solver.iterative_mode = true;

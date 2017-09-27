@@ -16,6 +16,7 @@
 
 #ifdef MFEM_USE_SUPERLU
 #ifdef MFEM_USE_MPI
+#include "blockoperator.hpp"
 #include "operator.hpp"
 #include "hypre.hpp"
 
@@ -55,6 +56,8 @@ public:
    /** Creates a copy of the parallel matrix hypParMat in SuperLU's RowLoc
        format. All data is copied so the original matrix may be deleted. */
    SuperLURowLocMatrix(const HypreParMatrix & hypParMat);
+
+   SuperLURowLocMatrix(const BlockOperator &ops);
 
    ~SuperLURowLocMatrix();
 

@@ -155,6 +155,21 @@ ifeq ($(MFEM_DEBUG),YES)
 endif
 CXXFLAGS ?= $(OPTIM_FLAGS)
 
+# List of MFEM dependencies, processed below
+MFEM_DEPENDENCIES = LIBUNWIND SIDRE LAPACK OPENMP SUNDIALS MESQUITE SUITESPARSE\
+ SUPERLU GECKO GNUTLS NETCDF MPFR
+
+# Macro for adding dependencies
+define mfem_add_dependency
+ifeq ($(MFEM_USE_$(1)),YES)
+   INCFLAGS += $($(1)_OPT)
+   ALL_LIBS += $($(1)_LIB)
+endif
+endef
+
+# Process dependencies
+$(foreach dep,$(MFEM_DEPENDENCIES),$(eval $(call mfem_add_dependency,$(dep))))
+
 # MPI configuration
 ifneq ($(MFEM_USE_MPI),YES)
    MFEM_CXX ?= $(CXX)
@@ -185,20 +200,6 @@ ifeq ($(MFEM_USE_STRUMPACK),YES)
    endif
 endif
 
-# List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = LIBUNWIND SIDRE LAPACK OPENMP SUNDIALS MESQUITE SUITESPARSE\
- SUPERLU STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR
-
-# Macro for adding dependencies
-define mfem_add_dependency
-ifeq ($(MFEM_USE_$(1)),YES)
-   INCFLAGS += $($(1)_OPT)
-   ALL_LIBS += $($(1)_LIB)
-endif
-endef
-
-# Process dependencies
-$(foreach dep,$(MFEM_DEPENDENCIES),$(eval $(call mfem_add_dependency,$(dep))))
 
 # Timer option
 ifeq ($(MFEM_TIMER_TYPE),2)

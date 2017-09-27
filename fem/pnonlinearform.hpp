@@ -65,7 +65,7 @@ class ParBlockNonlinearForm : public BlockNonlinearForm
 {
 protected:
    mutable Array<ParGridFunction *> X, Y;
-   mutable Array2D<OperatorHandle> phBlockGrad;
+   mutable Array2D<OperatorHandle *> phBlockGrad;
    mutable BlockOperator *pBlockGrad;
 
 public:
