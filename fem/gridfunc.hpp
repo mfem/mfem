@@ -218,6 +218,10 @@ public:
 
    void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr);
 
+   // add ProjectBdrCoefficient() taking a VectorFunctionCoefficient, srw
+   void ProjectBdrCoefficient(VectorFunctionCoefficient &vfcoeff, 
+                              Array<int> &attr);
+
    /** Project the normal component of the given VectorCoefficient on
        the boundary. Only boundary attributes that are marked in
        'bdr_attr' are projected. Assumes RT-type VectorFE GridFunction. */
