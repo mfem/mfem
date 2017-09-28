@@ -410,7 +410,7 @@ void SuperLUSolver::SetupGrid()
    {
       if ( myid_ == 0 )
       {
-         mfem:err << "Warning: User specified nprow and npcol are such that "
+      mfem:err << "Warning: User specified nprow and npcol are such that "
                   << "(nprow * npcol) > numProcs or (nprow * npcol) < 1.  "
                   << "Using default values for nprow and npcol instead." << endl;
       }

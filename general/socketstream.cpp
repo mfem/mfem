@@ -362,7 +362,7 @@ void GnuTLS_global_state::generate_dh_params()
          unsigned bits = 1024;
 #endif
          mfem::out << "Generating DH params (" << bits << " bits) ..."
-              << std::flush;
+                   << std::flush;
          status.set_result(gnutls_dh_params_generate2(dh_params, bits));
          mfem::out << " done." << std::endl;
          status.print_on_error("gnutls_dh_params_generate2");
@@ -384,7 +384,7 @@ static int mfem_gnutls_verify_callback(gnutls_session_t session)
    if (ret < 0)
    {
       mfem::out << "Error in gnutls_certificate_verify_peers3:"
-           << gnutls_strerror(ret) << std::endl;
+                << gnutls_strerror(ret) << std::endl;
       return GNUTLS_E_CERTIFICATE_ERROR;
    }
 
@@ -395,7 +395,7 @@ static int mfem_gnutls_verify_callback(gnutls_session_t session)
    if (ret < 0)
    {
       mfem::out << "Error in gnutls_certificate_verification_status_print:"
-           << gnutls_strerror(ret) << std::endl;
+                << gnutls_strerror(ret) << std::endl;
       return GNUTLS_E_CERTIFICATE_ERROR;
    }
    mfem::out << out.data << std::endl;
@@ -406,13 +406,13 @@ static int mfem_gnutls_verify_callback(gnutls_session_t session)
    if (ret < 0)
    {
       mfem::out << "Error in gnutls_certificate_verify_peers2:"
-           << gnutls_strerror(ret) << std::endl;
+                << gnutls_strerror(ret) << std::endl;
       return GNUTLS_E_CERTIFICATE_ERROR;
    }
 #ifdef MFEM_DEBUG
    mfem::out << (status ?
-            "The certificate is NOT trusted." :
-            "The certificate is trusted.") << std::endl;
+                 "The certificate is NOT trusted." :
+                 "The certificate is trusted.") << std::endl;
 #endif
 #endif
 
@@ -496,8 +496,8 @@ void GnuTLS_socketbuf::handshake()
       {
 #if 0
          mfem::out << "handshake successful, TLS version is "
-              << gnutls_protocol_get_name(
-                 gnutls_protocol_get_version(session)) << std::endl;
+                   << gnutls_protocol_get_name(
+                      gnutls_protocol_get_version(session)) << std::endl;
 #endif
          return;
       }
@@ -885,12 +885,12 @@ GnuTLS_session_params &socketstream::add_socket()
       if (!params->status.good())
       {
          mfem::out << "  public key   = " << pubkey << '\n'
-              << "  private key  = " << privkey << '\n'
-              << "  trusted keys = " << trustedkeys << std::endl;
+                   << "  private key  = " << privkey << '\n'
+                   << "  trusted keys = " << trustedkeys << std::endl;
          mfem::out << "Error setting GLVis client parameters.\n"
-              "Use the following GLVis script to create your GLVis keys:\n"
-              "   bash glvis-keygen.sh [\"Your Name\"] [\"Your Email\"]"
-              << std::endl;
+                   "Use the following GLVis script to create your GLVis keys:\n"
+                   "   bash glvis-keygen.sh [\"Your Name\"] [\"Your Email\"]"
+                   << std::endl;
       }
    }
    num_glvis_sockets++;

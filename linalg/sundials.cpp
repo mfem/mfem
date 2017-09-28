@@ -357,16 +357,16 @@ void CVODESolver::PrintInfo() const
    CVodeMem mem = Mem(this);
 
    mfem::out <<
-        "CVODE:\n  "
-        "num steps: " << mem->cv_nst << ", "
-        "num evals: " << mem->cv_nfe << ", "
-        "num lin setups: " << mem->cv_nsetups << ", "
-        "num nonlin sol iters: " << mem->cv_nni << "\n  "
-        "last order: " << mem->cv_qu << ", "
-        "next order: " << mem->cv_next_q << ", "
-        "last dt: " << mem->cv_hu << ", "
-        "next dt: " << mem->cv_next_h
-        << endl;
+             "CVODE:\n  "
+             "num steps: " << mem->cv_nst << ", "
+             "num evals: " << mem->cv_nfe << ", "
+             "num lin setups: " << mem->cv_nsetups << ", "
+             "num nonlin sol iters: " << mem->cv_nni << "\n  "
+             "last order: " << mem->cv_qu << ", "
+             "next order: " << mem->cv_next_q << ", "
+             "last dt: " << mem->cv_hu << ", "
+             "next dt: " << mem->cv_next_h
+             << endl;
 }
 
 CVODESolver::~CVODESolver()
@@ -638,15 +638,15 @@ void ARKODESolver::PrintInfo() const
    ARKodeMem mem = Mem(this);
 
    mfem::out <<
-        "ARKODE:\n  "
-        "num steps: " << mem->ark_nst << ", "
-        "num evals: " << mem->ark_nfe << ", "
-        "num lin setups: " << mem->ark_nsetups << ", "
-        "num nonlin sol iters: " << mem->ark_nni << "\n  "
-        "method order: " << mem->ark_q << ", "
-        "last dt: " << mem->ark_h << ", "
-        "next dt: " << mem->ark_next_h
-        << endl;
+             "ARKODE:\n  "
+             "num steps: " << mem->ark_nst << ", "
+             "num evals: " << mem->ark_nfe << ", "
+             "num lin setups: " << mem->ark_nsetups << ", "
+             "num nonlin sol iters: " << mem->ark_nni << "\n  "
+             "method order: " << mem->ark_q << ", "
+             "last dt: " << mem->ark_h << ", "
+             "next dt: " << mem->ark_next_h
+             << endl;
 }
 
 ARKODESolver::~ARKODESolver()

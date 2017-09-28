@@ -41,7 +41,7 @@ isockstream::isockstream(int port)
 
    if ( (portID = establish()) < 0)
       mfem::out << "Server couldn't be established on port "
-           << portnum << endl;
+                << portnum << endl;
    Buf = NULL;
 }
 

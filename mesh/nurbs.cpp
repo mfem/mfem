@@ -487,7 +487,7 @@ int NURBSPatch::SetLoopDirection(int dir)
       else
       {
          mfem::err << "NURBSPatch::SetLoopDirection :\n"
-              " Direction error in 2D patch, dir = " << dir << '\n';
+                   " Direction error in 2D patch, dir = " << dir << '\n';
          mfem_error();
       }
    }
@@ -517,7 +517,7 @@ int NURBSPatch::SetLoopDirection(int dir)
       else
       {
          mfem::err << "NURBSPatch::SetLoopDirection :\n"
-              " Direction error in 3D patch, dir = " << dir << '\n';
+                   " Direction error in 3D patch, dir = " << dir << '\n';
          mfem_error();
       }
    }
@@ -1619,7 +1619,7 @@ void NURBSExtension::CheckPatches()
             edges[8] != edges[11])))
       {
          mfem::err << "NURBSExtension::CheckPatch (patch = " << p
-              << ")\n  Inconsistent edge-to-knot mapping!\n";
+                   << ")\n  Inconsistent edge-to-knot mapping!\n";
          mfem_error();
       }
 
@@ -1630,7 +1630,7 @@ void NURBSExtension::CheckPatches()
            (edges[0] < 0 || edges[3] < 0 || edges[8] < 0)))
       {
          mfem::err << "NURBSExtension::CheckPatch (patch = " << p
-              << ") : Bad orientation!\n";
+                   << ") : Bad orientation!\n";
          mfem_error();
       }
    }
@@ -1658,7 +1658,7 @@ void NURBSExtension::CheckBdrPatches()
           (Dimension() == 3 && (edges[0] < 0 || edges[1] < 0)))
       {
          mfem::err << "NURBSExtension::CheckBdrPatch (boundary patch = "
-              << p << ") : Bad orientation!\n";
+                   << p << ") : Bad orientation!\n";
          mfem_error();
       }
    }

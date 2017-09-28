@@ -193,7 +193,7 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
          if (lproc_proc[groupmaster_lproc[g]] != status.MPI_SOURCE)
          {
             mfem::err << "\n\n\nGroupTopology::GroupTopology: "
-                 << MyRank() << ": ERROR\n\n\n" << endl;
+                      << MyRank() << ": ERROR\n\n\n" << endl;
             mfem_error();
          }
       }

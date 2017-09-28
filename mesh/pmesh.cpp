@@ -359,7 +359,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    if (Dim < 3 && mesh.GetNFaces() != 0)
    {
       mfem::err << "ParMesh::ParMesh (proc " << MyRank << ") : "
-                   "(Dim < 3 && mesh.GetNFaces() != 0) is true!" << endl;
+                "(Dim < 3 && mesh.GetNFaces() != 0) is true!" << endl;
       mfem_error();
    }
 #endif
@@ -1135,7 +1135,7 @@ void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
 #if 0
       // Debug message from every MPI rank.
       mfem::out << "proc. " << MyRank << '/' << NRanks << ": d_max = " << d_max
-           << endl;
+                << endl;
 #else
       // Debug message just from rank 0.
       double glob_d_max;
@@ -2284,8 +2284,8 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       if (MyRank == 0)
       {
          mfem::out << "\n\nParMesh::LocalRefinement : max. ref_loops_all = "
-              << ref_loops_all << ", ref_loops_par = " << ref_loops_par
-              << '\n' << endl;
+                   << ref_loops_all << ", ref_loops_par = " << ref_loops_par
+                   << '\n' << endl;
       }
 #endif
 
@@ -2519,8 +2519,8 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       if (MyRank == 0)
       {
          mfem::out << "\n\nParMesh::LocalRefinement : max. ref_loops_all = "
-              << ref_loops_all << ", ref_loops_par = " << ref_loops_par
-              << '\n' << endl;
+                   << ref_loops_all << ", ref_loops_par = " << ref_loops_par
+                   << '\n' << endl;
       }
 #endif
 

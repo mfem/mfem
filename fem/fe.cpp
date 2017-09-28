@@ -2667,7 +2667,7 @@ void RT0TriangleFiniteElement::GetLocalInterpolation (
          if (fabs(d) > 1.0e-12)
          {
             mfem::err << "RT0TriangleFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -2782,7 +2782,7 @@ void RT0QuadFiniteElement::GetLocalInterpolation (
          if (fabs(d) > 1.0e-12)
          {
             mfem::err << "RT0QuadFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -2924,7 +2924,7 @@ void RT1TriangleFiniteElement::GetLocalInterpolation (
          if (fabs(d) > 1.0e-12)
          {
             mfem::err << "RT1QuadFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -3106,7 +3106,7 @@ void RT1QuadFiniteElement::GetLocalInterpolation (
          if (fabs(d) > 1.0e-12)
          {
             mfem::err << "RT1QuadFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -3558,7 +3558,7 @@ void RT2QuadFiniteElement::GetLocalInterpolation (
          if (fabs(d) > 1.0e-12)
          {
             mfem::err << "RT2QuadFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -5189,7 +5189,7 @@ void Nedelec1HexFiniteElement::GetLocalInterpolation (
          if (fabs(d) > 1.0e-12)
          {
             mfem::err << "Nedelec1HexFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -5355,7 +5355,7 @@ void Nedelec1TetFiniteElement::GetLocalInterpolation (
          if (fabs(d) > 1.0e-12)
          {
             mfem::err << "Nedelec1TetFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -5504,7 +5504,7 @@ void RT0HexFiniteElement::GetLocalInterpolation (
          if (fabs(d) > 1.0e-12)
          {
             mfem::err << "RT0HexFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -5893,7 +5893,7 @@ void RT1HexFiniteElement::GetLocalInterpolation (
          if (fabs(d) > 1.0e-12)
          {
             mfem::err << "RT0HexFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -6028,7 +6028,7 @@ void RT0TetFiniteElement::GetLocalInterpolation (
          if (fabs(d) > 1.0e-12)
          {
             mfem::err << "RT0TetFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }

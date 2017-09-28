@@ -1073,8 +1073,8 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
       boundary_queue.run_instructions(&mesh, mesh_domain, err);
       if (MSQ_CHKERR(err)) {mfem::out << err << std::endl; exit(EXIT_FAILURE);}
       mfem::out<<" boundary smooth completed in "<<boundaryTermOuter->get_iteration_count()
-          <<" outer and "<<boundaryTermInner->get_iteration_count()
-          <<" inner iterations."<<endl;
+               <<" outer and "<<boundaryTermInner->get_iteration_count()
+               <<" inner iterations."<<endl;
 
 
       // smooth interior only
@@ -1121,8 +1121,8 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
       interior_queue.run_instructions(&mesh, &geom, err);
       if (MSQ_CHKERR(err)) {mfem::out << err << std::endl; exit(EXIT_FAILURE);}
       mfem::out<<" interior smooth completed in "<<interiorTermOuter->get_iteration_count()
-          <<" outer and "<<interiorTermInner->get_iteration_count()
-          <<" inner iterations."<<endl;
+               <<" outer and "<<interiorTermInner->get_iteration_count()
+               <<" inner iterations."<<endl;
 
    }
 

@@ -21,38 +21,38 @@ namespace mfem
 
 int get_version()
 {
-    return MFEM_VERSION;
+   return MFEM_VERSION;
 }
 
 
 int get_version_major()
 {
-    return MFEM_VERSION_MAJOR;
+   return MFEM_VERSION_MAJOR;
 }
 
 
 int get_version_minor()
 {
-    return MFEM_VERSION_MINOR;
+   return MFEM_VERSION_MINOR;
 }
 
 
 int get_version_patch()
 {
-    return MFEM_VERSION_PATCH;
+   return MFEM_VERSION_PATCH;
 }
 
 
 const char *get_version_str()
 {
-    static const char *version_str = EXPAND_AND_QUOTE(MFEM_VERSION);
-    return version_str;
+   static const char *version_str = EXPAND_AND_QUOTE(MFEM_VERSION);
+   return version_str;
 }
 
 
 const char *get_config_str()
 {
-    static const char *config_str = ""
+   static const char *config_str = ""
 #ifdef MFEM_USE_MPI
                                    "MFEM_USE_MPI\n"
 #endif
@@ -119,7 +119,7 @@ const char *get_config_str()
                                    "MFEM_TIMER_TYPE = " EXPAND_AND_QUOTE(MFEM_TIMER_TYPE)
                                    ;
 
-    return config_str;
+   return config_str;
 }
 
 }

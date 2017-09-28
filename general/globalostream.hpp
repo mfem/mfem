@@ -48,8 +48,8 @@ public:
 };
 
 
-inline std::ostream& WrappedOStream::GetStream() 
-{ 
+inline std::ostream& WrappedOStream::GetStream()
+{
 #ifdef MFEM_USE_MPI
    int world_rank;
    MPI_Comm_rank(MFEM_COMM_WORLD, &world_rank);
@@ -69,10 +69,10 @@ inline std::ostream& WrappedOStream::GetStream()
 
 
 template <typename T>
-std::ostream& operator <<(WrappedOStream& wos, T const& value) 
+std::ostream& operator <<(WrappedOStream& wos, T const& value)
 {
-    wos.GetStream() << value;
-    return wos.GetStream();
+   wos.GetStream() << value;
+   return wos.GetStream();
 }
 
 
