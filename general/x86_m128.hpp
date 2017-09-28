@@ -31,10 +31,10 @@ public:
   inline integer& operator^=(const integer &a) { return *this = (integer) _mm_xor_si128(vec,a); }
   friend inline integer operator<(const integer &a, const integer &b)  { return _mm_cmpeq_epi32(a, b); }
   // Arithmetics
-  friend inline integer operator +(const integer &a, const integer &b) { return _mm_add_epi32(a,b); }
-  friend inline integer operator -(const integer &a, const integer &b) { return _mm_sub_epi32(a,b); }
-  friend inline integer operator *(const integer &a, const integer &b) { return _mm_mul_epi32(a,b); }
-  friend inline integer operator /(const integer &a, const integer &b) {
+  friend inline integer operator+(const integer &a, const integer &b) { return _mm_add_epi32(a,b); }
+  friend inline integer operator-(const integer &a, const integer &b) { return _mm_sub_epi32(a,b); }
+  //friend inline integer operator*(const integer &a, const integer &b) { return _mm_mul_epi32(a,b); }
+  friend inline integer operator/(const integer &a, const integer &b) {
     return _mm_set_epi32(a[0]/b[0],a[1]/b[1],0,0);
   }
   friend inline integer operator %(const integer &a, const integer &b) {
@@ -109,8 +109,8 @@ struct __attribute__ ((aligned(16))) real {
   friend inline real sqrt(const real &a) { return _mm_sqrt_pd(a); }
   friend inline real min(const real &r, const real &s){ return _mm_min_pd(r,s);}
   friend inline real max(const real &r, const real &s){ return _mm_max_pd(r,s);}
-  friend inline real cube_root(const real &a){return real(::cbrt(a[0]),::cbrt(a[1]));}
-  friend inline real norm(const real &u){ return real(::fabs(u[0]),::fabs(u[1]));}
+  //friend inline real cube_root(const real &a){return real(::cbrt(a[0]),::cbrt(a[1]));}
+  //friend inline real norm(const real &u){ return real(::fabs(u[0]),::fabs(u[1]));}
   // Compares: Mask is returned
   friend inline real cmp_eq(const real &a, const real &b)  { return _mm_cmpeq_pd(a, b); }
   friend inline real cmp_lt(const real &a, const real &b)  { return _mm_cmplt_pd(a, b); }

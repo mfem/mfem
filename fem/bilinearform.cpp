@@ -54,8 +54,8 @@ void BilinearForm::AllocMat()
 
    int *I = dof_dof.GetI();
    int *J = dof_dof.GetJ();
-   //double *data = new double[I[height]];
-   __attribute__ ((aligned(32))) double *data = (double*) aligned_alloc(32,I[height]*sizeof(double));
+   double *data = new double[I[height]];
+   //double *data = (double*) aligned_alloc(x86::align,I[height]*sizeof(double));
 
    mat = new SparseMatrix(I, J, data, height, height, true, true, true);
    *mat = 0.0;

@@ -70,6 +70,7 @@ template <typename real_t>
 void CalcShapes(const FiniteElement &fe, const IntegrationRule &ir,
                 real_t *B, real_t *G, const Array<int> *dof_map)
 {
+  std::cout<<"[34;1m[CalcShapes][m"<<std::endl;
    if (B) { mfem::CalcShapeMatrix(fe, ir, B, dof_map); }
    if (G) { mfem::CalcGradTensor(fe, ir, G, dof_map); }
 }
@@ -133,6 +134,7 @@ public:
    template <typename real_t>
    void CalcShapes(const IntegrationRule &ir, real_t *B, real_t *G) const
    {
+     std::cout<<"[34;1m[CalcShapes] H1[m"<<std::endl;
       mfem::CalcShapes(*my_fe, ir, B, G, my_dof_map);
    }
    template <typename real_t>
@@ -191,6 +193,7 @@ public:
    template <typename real_t>
    void CalcShapes(const IntegrationRule &ir, real_t *B, real_t *G) const
    {
+     std::cout<<"[34;1m[CalcShapes] H1 bis[m"<<std::endl;
       mfem::CalcShapes(*my_fe, ir, B, G, NULL);
    }
    const Array<int> *GetDofMap() const { return NULL; }
@@ -252,11 +255,13 @@ public:
    template <typename real_t>
    void CalcShapes(const IntegrationRule &ir, real_t *B, real_t *G) const
    {
-      mfem::CalcShapes(*my_fe, ir, B, G, my_dof_map);
+     std::cout<<"[34;1m[H1_FiniteElement::CalcShapes][m"<<std::endl;
+     mfem::CalcShapes(*my_fe, ir, B, G, my_dof_map);
    }
    template <typename real_t>
    void Calc1DShapes(const IntegrationRule &ir, real_t *B, real_t *G) const
    {
+     std::cout<<"[34;1m[H1_FiniteElement::Calc1DShapes][m"<<std::endl;
       mfem::CalcShapes(*my_fe_1d, ir, B, G, NULL);
    }
    const Array<int> *GetDofMap() const { return my_dof_map; }
@@ -310,6 +315,7 @@ public:
    template <typename real_t>
    void CalcShapes(const IntegrationRule &ir, real_t *B, real_t *G) const
    {
+     std::cout<<"[34;1m[CalcShapes] H1 TETRAHEDRON[m"<<std::endl;
       mfem::CalcShapes(*my_fe, ir, B, G, NULL);
    }
    const Array<int> *GetDofMap() const { return NULL; }
@@ -440,6 +446,7 @@ public:
    template <typename real_t>
    void CalcShapes(const IntegrationRule &ir, real_t *B, real_t *Grad) const
    {
+     std::cout<<"[34;1m[CalcShapes] L2[m"<<std::endl;
       mfem::CalcShapes(*my_fe, ir, B, Grad, NULL);
    }
    template <typename real_t>

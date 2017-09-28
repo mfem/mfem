@@ -16,7 +16,7 @@
 // ****************************************************************************
 struct __attribute__ ((aligned(16))) integer {
 protected:
-  __m128i vec;
+  __attribute__ ((aligned(16))) __m128i vec;
 public:
   // Constructors
   inline integer(){}
@@ -45,8 +45,10 @@ public:
 
 // ****************************************************************************
 // * AVX real type class
+// * error 0x81e350
+// * ok with: 0x81e020
 // ****************************************************************************
-struct __attribute__ ((aligned(32))) real {
+struct real {
  protected:
   __m256d vec;
  public:

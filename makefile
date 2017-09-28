@@ -378,11 +378,13 @@ install: $(BLD)libmfem.a
 	$(INSTALL) -m 640 $(SRC)config/test.mk $(PREFIX_SHARE)/test.mk
 
 $(CONFIG_MK):
+ifeq (,$(findstring B,$(MAKEFLAGS)))
 	$(info )
 	$(info MFEM is not configured.)
 	$(info Run "make config" first, or see "make help".)
 	$(info )
 	$(error )
+endif
 
 config: $(if $(BUILD_DIR_DEF),build-config,local-config)
 

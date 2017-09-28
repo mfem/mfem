@@ -15,10 +15,6 @@
 // the main MFEM config header
 #include "config.hpp"
 
-#ifdef MFEM_USE_X86INTRIN
-#include "general/x86intrin.hpp"
-#endif
-
 // --- MFEM_STATIC_ASSERT
 #if (__cplusplus >= 201103L)
 #define MFEM_STATIC_ASSERT(cond, msg) static_assert((cond), msg)
@@ -31,6 +27,10 @@
 #define MFEM_ALWAYS_INLINE __attribute__((always_inline))
 #else
 #define MFEM_ALWAYS_INLINE
+#endif
+
+#ifdef MFEM_USE_X86INTRIN
+#include "general/x86intrin.hpp"
 #endif
 
 #define MFEM_TEMPLATE_BLOCK_SIZE 4

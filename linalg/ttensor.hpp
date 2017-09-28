@@ -246,7 +246,13 @@ public:
    static const int size = S;
    static const int aligned_size = align ? MFEM_ALIGN_SIZE(S,data_t) : size;
    typedef data_t data_type;
-  __attribute__ ((aligned(32))) data_t data[aligned_size>0?aligned_size:1];
+
+   //__attribute__ ((aligned(32))) data_t data[aligned_size>0?aligned_size:1];
+   data_t *data = (data_t*)aligned_alloc(x86::align, sizeof(data_t)*(aligned_size>0?aligned_size:1));
+   /*TVector(){
+    std::cout<<"[32;1m[TVector] size="<<size<<", aligned_size="<<aligned_size<<", alignof="<<alignof(this)<<"[m"<<std::endl;
+    std::cout<<"[32;1m[TVector] data @"<<&data[0]<<", alignof="<<alignof(data)<<"[m"<<std::endl;
+    }*/
 
    typedef StridedLayout1D<S,1> layout_type;
    static const layout_type layout;
@@ -309,6 +315,11 @@ struct TMatrix : public TVector<N1*N2,data_t,align>
 
    typedef ColumnMajorLayout2D<N1,N2> layout_type;
    static const layout_type layout;
+
+  /*TMatrix(){
+    std::cout<<"[33;1m[TMatrix][m"<<std::endl;
+    }*/
+
    static inline int ind(int i1, int i2) { return layout.ind(i1,i2); }
 
    data_t &operator()(int i, int j) { return data[ind(i,j)]; }

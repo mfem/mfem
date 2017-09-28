@@ -13,6 +13,7 @@
 // Implementation of data types dense matrix, inverse dense matrix
 
 
+#include "../general/x86intrin.hpp"
 #include "vector.hpp"
 #include "matrix.hpp"
 #include "densemat.hpp"
@@ -44,7 +45,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
    int hw = height * width;
    if (hw > 0)
    {
-      data = new double[hw];
+     data = (double*) aligned_alloc(x86::align,sizeof(double)*(hw));//new double[hw];
       capacity = hw;
       for (int i = 0; i < hw; i++)
       {
@@ -64,7 +65,7 @@ DenseMatrix::DenseMatrix(int s) : Matrix(s)
    capacity = s*s;
    if (capacity > 0)
    {
-      data = new double[capacity](); // init with zeroes
+     data = (double*) aligned_alloc(x86::align,sizeof(double)*(capacity));//new double[capacity](); // init with zeroes
    }
    else
    {
@@ -79,7 +80,7 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
    capacity = m*n;
    if (capacity > 0)
    {
-      data = new double[capacity](); // init with zeroes
+     data = (double*) aligned_alloc(x86::align,sizeof(double)*(capacity));//new double[capacity](); // init with zeroes
    }
    else
    {
@@ -93,7 +94,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    capacity = height*width;
    if (capacity > 0)
    {
-      data = new double[capacity];
+     data = (double*) aligned_alloc(x86::align,sizeof(double)*(capacity));//new double[capacity];
 
       for (int i = 0; i < height; i++)
          for (int j = 0; j < width; j++)
@@ -125,7 +126,8 @@ void DenseMatrix::SetSize(int h, int w)
          delete [] data;
       }
       capacity = hw;
-      data = new double[hw](); // init with zeroes
+      //data = new double[hw](); // init with zeroes
+      data = (double*) aligned_alloc(x86::align,sizeof(double)*(hw)); // init with zeroes
    }
 }
 

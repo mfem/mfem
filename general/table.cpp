@@ -17,6 +17,8 @@
 #include "array.hpp"
 #include "table.hpp"
 #include "error.hpp"
+#include "error.hpp"
+#include "x86intrin.hpp"
 
 namespace mfem
 {
@@ -29,8 +31,10 @@ Table::Table(const Table &table)
    if (size >= 0)
    {
       const int nnz = table.I[size];
-      I = new int[size+1];
-      J = new int[nnz];
+      //I = new int[size+1];
+      I = (int*)aligned_alloc(x86::align,sizeof(int)*(size+1));
+      //J = new int[nnz];
+      J = (int*)aligned_alloc(x86::align,sizeof(int)*(nnz));
       memcpy(I, table.I, sizeof(int)*(size+1));
       memcpy(J, table.J, sizeof(int)*nnz);
    }
@@ -45,8 +49,10 @@ Table::Table (int dim, int connections_per_row)
    int i, j, sum = dim * connections_per_row;
 
    size = dim;
-   I = new int[size+1];
-   J = new int[sum];
+   //I = new int[size+1];
+   I = (int*)aligned_alloc(x86::align,sizeof(int)*(size+1));
+   //J = new int[sum];
+   J = (int*)aligned_alloc(x86::align,sizeof(int)*(sum));
 
    I[0] = 0;
    for (i = 1; i <= size; i++)
@@ -60,8 +66,10 @@ Table::Table (int nrows, int *partitioning)
 {
    size = nrows;
 
-   I = new int[size+1];
-   J = new int[size];
+   //I = new int[size+1];
+   I = (int*)aligned_alloc(x86::align,sizeof(int)*(size+1));
+   //J = new int[size];
+   J = (int*)aligned_alloc(x86::align,sizeof(int)*(size));
 
    for (int i = 0; i < size; i++)
    {
@@ -90,7 +98,8 @@ void Table::MakeJ()
       j = I[i], I[i] = k, k += j;
    }
 
-   J = new int[I[size]=k];
+   //J = new int[I[size]=k];
+   J = (int*)aligned_alloc(x86::align,sizeof(int)*(I[size]=k));
 }
 
 void Table::AddConnections (int r, const int *c, int nc)
@@ -137,14 +146,16 @@ void Table::SetDims(int rows, int nnz)
    if (size != rows)
    {
       size = rows;
-      if (I) { delete [] I; }
-      I = (rows >= 0) ? (new int[rows+1]) : (NULL);
+      //if (I) { delete [] I; }
+      //I = (rows >= 0) ? (new int[rows+1]) : (NULL);
+      I = (rows >= 0) ? (int*)aligned_alloc(x86::align,sizeof(int)*(rows+1)) : (NULL);
    }
 
    if (j != nnz)
    {
-      if (J) { delete [] J; }
-      J = (nnz > 0) ? (new int[nnz]) : (NULL);
+     //if (J) { delete [] J; }
+      //J = (nnz > 0) ? (new int[nnz]) : (NULL);
+      J = (nnz >= 0) ? (int*)aligned_alloc(x86::align,sizeof(int)*(nnz)) : (NULL);
    }
 
    if (size >= 0)
@@ -238,7 +249,8 @@ void Table::Finalize()
 
    if (sum != I[size])
    {
-      int *NewJ = new int[sum];
+     //int *NewJ = new int[sum];
+      int *NewJ = (int*)aligned_alloc(x86::align,sizeof(int)*(sum));
 
       for (i=0; i<size; i++)
       {
@@ -268,8 +280,8 @@ void Table::MakeFromList(int nrows, const Array<Connection> &list)
    size = nrows;
    int nnz = list.Size();
 
-   I = new int[size+1];
-   J = new int[nnz];
+   I = (int*)aligned_alloc(x86::align,sizeof(int)*(size+1));//new int[size+1];
+   J = (int*)aligned_alloc(x86::align,sizeof(int)*(nnz));//new int[nnz];
 
    for (int i = 0, k = 0; i <= size; i++)
    {
@@ -347,13 +359,13 @@ void Table::Load(istream &in)
    delete [] J;
 
    in >> size;
-   I = new int[size+1];
+   I = (int*)aligned_alloc(x86::align,sizeof(int)*(size+1));//new int[size+1];
    for (int i = 0; i <= size; i++)
    {
       in >> I[i];
    }
    int nnz = I[size];
-   J = new int[nnz];
+   J = (int*)aligned_alloc(x86::align,sizeof(int)*(nnz));//new int[nnz];
    for (int j = 0; j < nnz; j++)
    {
       in >> J[j];
@@ -401,8 +413,8 @@ long Table::MemoryUsage() const
 
 Table::~Table ()
 {
-   if (I) { delete [] I; }
-   if (J) { delete [] J; }
+  //if (I) { delete [] I; }
+  //if (J) { delete [] J; }
 }
 
 void Transpose (const Table &A, Table &At, int _ncols_A)

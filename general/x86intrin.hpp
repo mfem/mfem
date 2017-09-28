@@ -16,9 +16,13 @@
 // x86 intrinsic class forward description
 template <int> struct x86intrin;
 
+
 // ****************************************************************************
 // * ifdef switch between SCALAR, SSE, AVX, AVX2, AVX512F
-// gcc --machine-avx512f -ffreestanding -C -E general/x86intrin.hpp|more
+// * gcc --machine-avx512f -ffreestanding -C -E general/x86intrin.hpp|more
+// * strings /usr/local/cuda/bin/nvcc | grep [-]D
+// * gcc -dM -E -m64 - < /dev/null|sort|grep -i x86
+// * __CUDA_ARCH__ vs __x86_64__
 // ****************************************************************************
 #ifndef __SSE2__
 #define __SSE2__ 0

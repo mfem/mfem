@@ -34,7 +34,16 @@ template <typename meshType, typename solFESpace,
           typename complex_t = double, typename real_t = double>
 class TBilinearForm : public Operator
 {
-protected:
+ public:
+  static void* operator new(size_t count) { return Allocate(count); }
+private:
+  static void* Allocate(size_t count) {
+    void* result = nullptr;
+    const auto alloc_failed = posix_memalign(&result, 32, count);
+    if (alloc_failed)  throw ::std::bad_alloc();
+    return result;
+  }
+ protected:
    typedef complex_t complex_type;
    typedef real_t    real_type;
 
@@ -450,15 +459,19 @@ public:
       DenseMatrix M_loc_perm(dofs*vdim,dofs*vdim); // initialized with zeros
       TDenseMatrix<x86::vreal_t> tM_loc_perm(dofs*vdim,dofs*vdim); // initialized with zeros
 
-
+      TMatrix<dofs,dofs> M_loc;
+      TMatrix<dofs,dofs,real_t,true> tM_loc;
+      f_assembled_t asm_qpt_data;
+      
       const int NE = mesh.GetNE();
+      
       MFEM_VERIFY((NE%x86::width)==0,"x86::width should be modulo NE");
       std::cout<<"NE="<<NE<<std::endl<<std::flush;
       a.AllocMat();
+      
       for (int el = 0; el < NE; el+=x86::width)
       {
-         f_assembled_t asm_qpt_data;
-         {
+        {
             typename T_result<BE>::Type F;
             T.Eval(el, F);
 
@@ -470,9 +483,7 @@ public:
 
          // For now, when vdim > 1, assume block-diagonal matrix with the same
          // diagonal block for all components.
-         TMatrix<dofs,dofs> M_loc;
-         TMatrix<dofs,dofs,real_t,true> tM_loc;
-         S_spec<BE>::ElementMatrix::Compute(
+          S_spec<BE>::ElementMatrix::Compute(
             asm_qpt_data.layout, asm_qpt_data, tM_loc.layout, tM_loc, solEval);
 
          if (dof_map) // switch from tensor-product ordering

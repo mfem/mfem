@@ -108,9 +108,12 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
-   I = new int[nrows + 1];
-   J = new int[nrows * rowsize];
-   A = new double[nrows * rowsize];
+   I = (int*)aligned_alloc(x86::align,sizeof(int)*(nrows+1));
+   //I = new int[nrows + 1];
+   J = (int*)aligned_alloc(x86::align,sizeof(int)*(nrows*rowsize));
+   //J = new int[nrows * rowsize];
+   A = (double*)aligned_alloc(x86::align,sizeof(double)*nrows*rowsize);
+   //A = new double[nrows * rowsize];
 
    for (int i = 0; i <= nrows; i++)
    {
@@ -754,7 +757,8 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
    delete [] ColPtrNode;
    ColPtrNode = NULL;
 
-   I = new int[height+1];
+   //I = new int[height+1];
+   I = (int*)aligned_alloc(x86::align,sizeof(int)*(height+1));
    I[0] = 0;
    for (i = 1; i <= height; i++)
    {
@@ -769,8 +773,10 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
    }
 
    nz = I[height];
-   J = new int[nz];
-   A = new double[nz];
+   //J = new int[nz];
+   J = (int*)aligned_alloc(x86::align,sizeof(int)*nz);
+   //A = new double[nz];
+   A = (double*)aligned_alloc(x86::align,sizeof(double)*nz);
    // Assume we're sorted until we find out otherwise
    isSorted = true;
    for (j = i = 0; i < height; i++)
@@ -2531,15 +2537,15 @@ void SparseMatrix::Destroy()
 {
    if (I != NULL && ownGraph)
    {
-      delete [] I;
+     //delete [] I;
    }
    if (J != NULL && ownGraph)
    {
-      delete [] J;
+     //delete [] J;
    }
    if (A != NULL && ownData)
    {
-     #warning delete A
+#warning delete A
      //delete [] A;
    }
 

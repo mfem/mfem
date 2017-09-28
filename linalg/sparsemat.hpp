@@ -480,7 +480,7 @@ inline void SparseMatrix::SetColPtr(const x86::vint_t row) const{
         ColPtrJ[k*width+i] = -1;
   }
   for(int k=0;k<x86::width;k+=1){
-    const int r=row[k];
+    const int r=((int*)&row)[k];
     for (int j = I[r], end = I[r+1]; j < end; j++){
       ColPtrJ[k*width+J[j]] = j;
     }

@@ -26,18 +26,20 @@ namespace mfem{
 template<typename data_t = double>
 class TDenseMatrix : public Matrix{
 private:
-   __attribute__ ((aligned(32))) data_t *data;
+  data_t *data;
    int capacity; // zero or negative capacity means we do not own the data.
 public:
   
   /// Creates rectangular matrix of size m x n.
   TDenseMatrix(int m, int n) : Matrix(m, n){
-     MFEM_ASSERT(m >= 0 && n >= 0,
+    std::cout<<"[33;1m[TDenseMatrix][m"<<std::endl;
+
+    MFEM_ASSERT(m >= 0 && n >= 0,
                 "invalid TDenseMatrix size: " << m << " x " << n);
     capacity = m*n;
     MFEM_ASSERT(capacity>0,"invalid TDenseMatrix capacity");
     //data = new data_t[capacity]();
-    data = (data_t*)aligned_alloc(32,capacity*sizeof(data_t));
+    data = (data_t*)aligned_alloc(x86::align,capacity*sizeof(data_t));
   }
 
   /// Returns reference to a_{ij}.
