@@ -58,6 +58,343 @@ public:
 };
 
 
+class InvariantsEvaluator2D
+{
+protected:
+   // Transformation Jacobian
+   const double *J;
+
+   // Invariants: I_1 = ||J||_F^2, \bar{I}_1 = I_1/det(J), \bar{I}_2 = det(J).
+   double I1, I1b, I2b;
+
+   // Derivatives of I1, I1b, I2, and I2b using column-major storage.
+   double dI1[4], dI1b[4], dI2[4], dI2b[4];
+
+   DenseMatrix D; // Always points to external data or is empty
+   DenseMatrix DaJ, DJt;
+
+   enum EvalMasks
+   {
+      HAVE_I1   = 1,
+      HAVE_I1b  = 2,
+      HAVE_I2b  = 4,
+      HAVE_dI1  = 8,
+      HAVE_dI1b = 16,
+      HAVE_dI2  = 32,
+      HAVE_dI2b = 64,
+      HAVE_DaJ  = 128, // D adj(J) = D dI2b^t
+      HAVE_DJt  = 256  // D J^t
+   };
+
+   // Bitwise OR of EvalMasks
+   int eval_state;
+
+   bool dont(int have_mask) const { return !(eval_state & have_mask); }
+
+   void Eval_I1()
+   {
+      eval_state |= HAVE_I1;
+      I1 = J[0]*J[0] + J[1]*J[1] + J[2]*J[2] + J[3]*J[3];
+   }
+   void Eval_I1b()
+   {
+      eval_state |= HAVE_I1b;
+      I1b = Get_I1()/Get_I2b();
+   }
+   void Eval_I2b()
+   {
+      eval_state |= HAVE_I2b;
+      I2b = J[0]*J[3] - J[1]*J[2];
+   }
+   void Eval_dI1()
+   {
+      eval_state |= HAVE_dI1;
+      dI1[0] = 2*J[0]; dI1[1] = 2*J[1]; dI1[2] = 2*J[2]; dI1[3] = 2*J[3];
+   }
+   void Eval_dI1b()
+   {
+      eval_state |= HAVE_dI1b;
+      // I1b = I1/I2b
+      // dI1b = (1/I2b)*dI1 - (I1/I2b^2)*dI2b = (2/I2b)*[J - (I1b/2)*dI2b]
+      const double c1 = 2.0/Get_I2b();
+      const double c2 = Get_I1b()/2;
+      Get_dI2b();
+      dI1b[0] = c1*(J[0] - c2*dI2b[0]);
+      dI1b[1] = c1*(J[1] - c2*dI2b[1]);
+      dI1b[2] = c1*(J[2] - c2*dI2b[2]);
+      dI1b[3] = c1*(J[3] - c2*dI2b[3]);
+   }
+   void Eval_dI2()
+   {
+      eval_state |= HAVE_dI2;
+      // I2 = I2b^2
+      // dI2 = 2*I2b*dI2b = 2*det(J)*adj(J)^T
+      const double c1 = 2*Get_I2b();
+      Get_dI2b();
+      dI2[0] = c1*dI2b[0];
+      dI2[1] = c1*dI2b[1];
+      dI2[2] = c1*dI2b[2];
+      dI2[3] = c1*dI2b[3];
+   }
+   void Eval_dI2b()
+   {
+      eval_state |= HAVE_dI1b;
+      // I2b = det(J)
+      // dI2b = adj(J)^T
+      dI2b[0] =  J[3];
+      dI2b[1] = -J[2];
+      dI2b[2] = -J[1];
+      dI2b[3] =  J[0];
+   }
+   void Eval_DaJ()
+   {
+      MFEM_ASSERT(D.GetData(), "");
+      eval_state |= HAVE_DaJ;
+      DaJ.SetSize(D.Height(), D.Width());
+      Get_dI2b();
+      const int nd = D.Height();
+      for (int i = 0; i < nd; i++)
+      {
+         // adj(J) = dI2b^t
+         DaJ(i,0) = D(i,0)*dI2b[0] + D(i,1)*dI2b[2];
+         DaJ(i,1) = D(i,0)*dI2b[1] + D(i,1)*dI2b[3];
+      }
+   }
+   void Eval_DJt()
+   {
+      MFEM_ASSERT(D.GetData(), "");
+      eval_state |= HAVE_DJt;
+      DJt.SetSize(D.Height(), D.Width());
+      const int nd = D.Height();
+      for (int i = 0; i < nd; i++)
+      {
+         DJt(i,0) = D(i,0)*J[0] + D(i,1)*J[2];
+         DJt(i,1) = D(i,0)*J[1] + D(i,1)*J[3];
+      }
+   }
+
+public:
+   /// The Jacobian should use column-major storage.
+   InvariantsEvaluator2D(const double *Jac = NULL)
+      : J(Jac), eval_state(0) { }
+
+   /// The Jacobian should use column-major storage.
+   void SetJacobian(const double *Jac) { J = Jac; eval_state = 0; }
+
+   void SetJacobian(const DenseMatrix &Jac) { SetJacobian(Jac.GetData()); }
+
+   void SetDerivativeMatrix(const DenseMatrix &Deriv)
+   {
+      MFEM_ASSERT(Deriv.Width() == 2, "");
+      D.UseExternalData(Deriv.GetData(), Deriv.Height(), Deriv.Width());
+      eval_state &= ~(HAVE_DaJ | HAVE_DJt);
+   }
+
+   double Get_I1()  { if (dont(HAVE_I1 )) { Eval_I1();  } return I1; }
+   double Get_I1b() { if (dont(HAVE_I1b)) { Eval_I1b(); } return I1b; }
+   double Get_I2()  { if (dont(HAVE_I2b)) { Eval_I2b(); } return I2b*I2b; }
+   double Get_I2b() { if (dont(HAVE_I2b)) { Eval_I2b(); } return I2b; }
+
+   const double *Get_dI1()
+   {
+      if (dont(HAVE_dI1 )) { Eval_dI1();  } return dI1;
+   }
+   const double *Get_dI1b()
+   {
+      if (dont(HAVE_dI1b)) { Eval_dI1b(); } return dI1b;
+   }
+   const double *Get_dI2()
+   {
+      if (dont(HAVE_dI2)) { Eval_dI2(); } return dI2;
+   }
+   const double *Get_dI2b()
+   {
+      if (dont(HAVE_dI2b)) { Eval_dI2b(); } return dI2b;
+   }
+
+   // Assemble operation for tensor X with components X_jslt:
+   //    A(i+nd*j,k+nd*l) += (\sum_st  w D_is X_jslt D_kt)
+   //    0 <= i,k < nd,  0 <= j,l,s,t < 2
+   // where nd is the height of D, i.e. the number of DOFs in one component.
+
+   void Assemble_ddI1(double w, DenseMatrix &A)
+   {
+      // ddI1_jslt = 2 I_jslt = 2 δ_jl δ_st
+      //    A(i+nd*j,k+nd*l) += (\sum_st  2 w D_is δ_jl δ_st D_kt)
+      // or
+      //    A(i+nd*j,k+nd*l) += (2 w) (\sum_s  D_is D_ks) δ_jl
+      //    A(i+nd*j,k+nd*l) += (2 w) (D D^t)_ik δ_jl
+
+      const int nd = D.Height();
+      const double a = 2*w;
+      for (int i = 0; i < nd; i++)
+      {
+         const double aDi0 = a*D(i,0), aDi1 = a*D(i,1);
+         // k == i
+         const double aDDt_ii = aDi0*D(i,0) + aDi1*D(i,1);
+         A(i+nd*0,i+nd*0) += aDDt_ii;
+         A(i+nd*1,i+nd*1) += aDDt_ii;
+         // 0 <= k < i
+         for (int k = 0; k < i; k++)
+         {
+            const double aDDt_ik = aDi0*D(k,0) + aDi1*D(k,1);
+            A(i+nd*0,k+nd*0) += aDDt_ik;
+            A(k+nd*0,i+nd*0) += aDDt_ik;
+            A(i+nd*1,k+nd*1) += aDDt_ik;
+            A(k+nd*1,i+nd*1) += aDDt_ik;
+         }
+      }
+   }
+   void Assemble_ddI1b(double w, DenseMatrix &A)
+   {
+      // ddI1b = X1 + X2 + X3, where
+      // X1_ijkl = (I1b/I2) [ (δ_ks δ_it + δ_kt δ_si) dI2b_tj dI2b_sl ]
+      //         = (I1b/I2) [ dI2b_ij dI2b_kl + dI2b_kj dI2b_il ]
+      // X2_ijkl = (2/I2b) δ_ik δ_jl = (1/I2b) ddI1_ijkl
+      // X3_ijkl = -(2/I2) (δ_ks δ_it) (J_tj dI2b_sl + dI2b_tj J_sl)
+      //         = -(2/I2) (J_ij dI2b_kl + dI2b_ij J_kl)
+      //
+      //    A(i+nd*j,k+nd*l) += (\sum_st  w D_is ddI1b_jslt D_kt)
+      // or
+      //    A(i+nd*j,k+nd*l) +=
+      //       w (I1b/I2) [(D dI2b^t)_ij (D dI2b^t)_kl +
+      //                   (D dI2b^t)_il (D dI2b^t)_kj]
+      //     + w (2/I2b)  δ_jl (D D^t)_ik
+      //     - w (2/I2)   [(D J^t)_ij (D dI2b^t)_kl + (D dI2b^t)_ij (D J^t)_kl]
+
+      if (dont(HAVE_DaJ)) { Eval_DaJ(); }
+      if (dont(HAVE_DJt)) { Eval_DJt(); }
+      const int nd = D.Height();
+      const double a = w*Get_I1b()/Get_I2();
+      const double b = 2*w/Get_I2b();
+      const double c = -2*w/Get_I2();
+      for (int i = 0; i < nd; i++)
+      {
+         const double aDaJ_i0 = a*DaJ(i,0), aDaJ_i1 = a*DaJ(i,1);
+         const double bD_i0 = b*D(i,0), bD_i1 = b*D(i,1);
+         const double cDJt_i0 = c*DJt(i,0), cDJt_i1 = c*DJt(i,1);
+         const double cDaJ_i0 = c*DaJ(i,0), cDaJ_i1 = c*DaJ(i,1);
+         // k == i
+         {
+            // Symmetries: A2_ii_00 = A2_ii_11
+            const double A2_ii = bD_i0*D(i,0) + bD_i1*D(i,1);
+
+            A(i+nd*0,i+nd*0) += 2*(aDaJ_i0 + cDJt_i0)*DaJ(i,0) + A2_ii;
+
+            // Symmetries: A_ii_01 = A_ii_10
+            const double A_ii_01 =
+               2*aDaJ_i0*DaJ(i,1) + cDJt_i0*DaJ(i,1) + cDaJ_i0*DJt(i,1);
+            A(i+nd*0,i+nd*1) += A_ii_01;
+            A(i+nd*1,i+nd*0) += A_ii_01;
+
+            A(i+nd*1,i+nd*1) += 2*(aDaJ_i1 + cDJt_i1)*DaJ(i,1) + A2_ii;
+         }
+         // 0 <= k < i
+         for (int k = 0; k < i; k++)
+         {
+            // Symmetries: A1_ik_01 = A1_ik_10 = A1_ki_01 = A1_ki_10
+            const double A1_ik_01 = aDaJ_i0*DaJ(k,1) + aDaJ_i1*DaJ(k,0);
+
+            // Symmetries: A2_ik_00 = A2_ik_11 = A2_ki_00 = A2_ki_11
+            const double A2_ik = bD_i0*D(k,0) + bD_i1*D(k,1);
+
+            const double A_ik_00 =
+               (2*aDaJ_i0 + cDJt_i0)*DaJ(k,0) + A2_ik + cDaJ_i0*DJt(k,0);
+            A(i+nd*0,k+nd*0) += A_ik_00;
+            A(k+nd*0,i+nd*0) += A_ik_00;
+
+            const double A_ik_01 =
+               A1_ik_01 + cDJt_i0*DaJ(k,1) + cDaJ_i0*DJt(k,1);
+            A(i+nd*0,k+nd*1) += A_ik_01;
+            A(k+nd*1,i+nd*0) += A_ik_01;
+
+            const double A_ik_10 =
+               A1_ik_01 + cDJt_i1*DaJ(k,0) + cDaJ_i1*DJt(k,0);
+            A(i+nd*1,k+nd*0) += A_ik_10;
+            A(k+nd*0,i+nd*1) += A_ik_10;
+
+            const double A_ik_11 =
+               (2*aDaJ_i1 + cDJt_i1)*DaJ(k,1) + A2_ik + cDaJ_i1*DJt(k,1);
+            A(i+nd*1,k+nd*1) += A_ik_11;
+            A(k+nd*1,i+nd*1) += A_ik_11;
+         }
+      }
+   }
+   void Assemble_ddI2(double w, DenseMatrix &A)
+   {
+      // ddI2_ijkl = 2 (2 δ_ks δ_it - δ_kt δ_si) dI2b_tj dI2b_sl
+      //           = 4 dI2b_ij dI2b_kl - 2 dI2b_kj dI2b_il
+      //           = 2 dI2b_ij dI2b_kl + 2 (dI2b_ij dI2b_kl - dI2b_kj dI2b_il)
+      //
+      //    A(i+nd*j,k+nd*l) += (\sum_st  w D_is ddI2_jslt D_kt)
+      // or
+      //    A(i+nd*j,k+nd*l) +=
+      //       (\sum_st  w D_is (4 dI2b_js dI2b_lt - 2 dI2b_ls dI2b_jt) D_kt)
+      //    A(i+nd*j,k+nd*l) +=
+      //       2 w [2 (D dI2b^t)_ij (D dI2b^t)_kl - (D dI2b^t)_il (D dI2b^t)_kj]
+      //
+      // Note: the expression
+      //    (D dI2b^t)_ij (D dI2b^t)_kl - (D dI2b^t)_il (D dI2b^t)_kj
+      // is the determinant of the 2x2 matrix formed by rows {i,k} and columns
+      // {j,l} from the matrix (D dI2b^t).
+
+      if (dont(HAVE_DaJ)) { Eval_DaJ(); }
+      const int nd = D.Height();
+      const double a = 2*w;
+      Vector DaJ_as_vec(DaJ.GetData(), 2*nd);
+      AddMult_a_VVt(a, DaJ_as_vec, A);
+      const int j = 1, l = 0;
+      for (int i = 0; i < nd; i++)
+      {
+         const double aDaJ_ij = a*DaJ(i,j), aDaJ_il = a*DaJ(i,l);
+         for (int k = 0; k < i; k++)
+         {
+            const double A_ijkl = aDaJ_ij*DaJ(k,l) - aDaJ_il*DaJ(k,j);
+            A(i+nd*j,k+nd*l) += A_ijkl;
+            A(k+nd*l,i+nd*j) += A_ijkl;
+            A(k+nd*j,i+nd*l) -= A_ijkl;
+            A(i+nd*l,k+nd*j) -= A_ijkl;
+         }
+      }
+   }
+   void Assemble_ddI2b(double w, DenseMatrix &A)
+   {
+      // ddI2b_ijkl = (1/I2b) (δ_ks δ_it - δ_kt δ_si) dI2b_tj dI2b_sl
+      //    [j -> u], [l -> v], [i -> j], [k -> l]
+      // ddI2b_julv = (1/I2b) (δ_ls δ_jt - δ_lt δ_sj) dI2b_tu dI2b_sv
+      //
+      //    A(i+nd*j,k+nd*l) += (\sum_st  w D_is ddI2b_jslt D_kt)
+      // or
+      //    A(i+nd*j,k+nd*l) += (\sum_uv  w D_iu ddI2b_julv D_kv)
+      //    A(i+nd*j,k+nd*l) +=
+      //       (\sum_uvst (w/I2b)
+      //          D_iu (δ_ls δ_jt - δ_lt δ_sj) dI2b_tu dI2b_sv D_kv)
+      //    A(i+nd*j,k+nd*l) +=
+      //       (\sum_st (w/I2b)
+      //          (D dI2b^t)_it (δ_ls δ_jt - δ_lt δ_sj) (D dI2b^t)_ks)
+      //    A(i+nd*j,k+nd*l) += (w/I2b)
+      //       [ (D dI2b^t)_ij (D dI2b^t)_kl - (D dI2b^t)_il (D dI2b^t)_kj ]
+
+      if (dont(HAVE_DaJ)) { Eval_DaJ(); }
+      const int nd = D.Height();
+      const int j = 1, l = 0;
+      const double a = w/Get_I2b();
+      for (int i = 0; i < nd; i++)
+      {
+         const double aDaJ_ij = a*DaJ(i,j), aDaJ_il = a*DaJ(i,l);
+         for (int k = 0; k < i; k++)
+         {
+            const double A_ijkl = aDaJ_ij*DaJ(k,l) - aDaJ_il*DaJ(k,j);
+            A(i+nd*j,k+nd*l) += A_ijkl;
+            A(k+nd*l,i+nd*j) += A_ijkl;
+            A(k+nd*j,i+nd*l) -= A_ijkl;
+            A(i+nd*l,k+nd*j) -= A_ijkl;
+         }
+      }
+   }
+};
+
+
 /// Abstract class for hyperelastic models
 class HyperelasticModel
 {
@@ -218,6 +555,8 @@ public:
 
 class TMOPHyperelasticModel002 : public HyperelasticModel
 {
+protected:
+   mutable InvariantsEvaluator2D ie;
 public:
    // W = 0.5|J|^2 / det(J) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;

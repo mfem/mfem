@@ -11,6 +11,8 @@
 
 #include "fem.hpp"
 
+// #define MFEM_USE_OLD_TMOP_INVARIANTS
+
 namespace mfem
 {
 
@@ -537,14 +539,25 @@ void TMOPHyperelasticModel001::AssembleH(const DenseMatrix &Jpt,
 
 double TMOPHyperelasticModel002::EvalW(const DenseMatrix &Jpt) const
 {
+#ifdef MFEM_USE_OLD_TMOP_INVARIANTS
    return 0.5 * Dim2Invariant1(Jpt) - 1.0;
+#else
+   ie.SetJacobian(Jpt);
+   return 0.5 * ie.Get_I1b() - 1.0;
+#endif
 }
 
 void TMOPHyperelasticModel002::EvalP(const DenseMatrix &Jpt,
                                      DenseMatrix &P) const
 {
+#ifdef MFEM_USE_OLD_TMOP_INVARIANTS
    Dim2Invariant1_dM(Jpt, P);
    P *= 0.5;
+#else
+   ie.SetJacobian(Jpt);
+   P = ie.Get_dI1b();
+   P *= 0.5;
+#endif
 }
 
 void TMOPHyperelasticModel002::AssembleH(const DenseMatrix &Jpt,
@@ -552,6 +565,7 @@ void TMOPHyperelasticModel002::AssembleH(const DenseMatrix &Jpt,
                                          const double weight,
                                          DenseMatrix &A) const
 {
+#ifdef MFEM_USE_OLD_TMOP_INVARIANTS
    const int dof = DS.Height(), dim = DS.Width();
    DenseMatrix dI1_dMdM(dim);
 
@@ -581,6 +595,11 @@ void TMOPHyperelasticModel002::AssembleH(const DenseMatrix &Jpt,
          }
       }
    }
+#else
+   ie.SetJacobian(Jpt);
+   ie.SetDerivativeMatrix(DS);
+   ie.Assemble_ddI1b(0.5*weight, A);
+#endif
 }
 
 double TMOPHyperelasticModel007::EvalW(const DenseMatrix &Jpt) const
