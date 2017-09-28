@@ -26,7 +26,7 @@
 //
 //                To run this code:
 //
-//                srun -np mechanics_driver -m ../../data/cube-hex.mesh -rp 1 -rs 0 -tf 1.0 -dt 0.2
+//                srun -np mechanics_driver -m ../../data/cube-hex.mesh -tf 1.0 -dt 0.2
 //
 //                where "np" is number of processors, the mesh is a 
 //                simple cube mesh containing 8 elements, "tf" is the 
