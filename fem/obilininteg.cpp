@@ -21,6 +21,32 @@ namespace mfem
 
 static void ComputeBasis1d(FiniteElementSpace *fes,
                            const TensorBasisElement *tfe, int ir_order,
+                           DenseMatrix &shape1d)
+{
+   // Compute the 1d shape functions and gradients
+   const Poly_1D::Basis& basis1d = tfe->GetBasis1D();
+   const FiniteElement *fe = fes->GetFE(0);
+   const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, ir_order);
+
+   const int quads1d = ir1d.GetNPoints();
+   const int dofs = fe->GetOrder() + 1;
+
+   shape1d.SetSize(dofs, quads1d);
+
+   Vector u(dofs);
+   for (int k = 0; k < quads1d; k++)
+   {
+      const IntegrationPoint &ip = ir1d.IntPoint(k);
+      basis1d.Eval(ip.x, u);
+      for (int i = 0; i < dofs; i++)
+      {
+         shape1d(i, k) = u(i);
+      }
+   }
+}
+
+static void ComputeBasis1d(FiniteElementSpace *fes,
+                           const TensorBasisElement *tfe, int ir_order,
                            DenseMatrix &shape1d, DenseMatrix &dshape1d)
 {
    // Compute the 1d shape functions and gradients
@@ -374,11 +400,7 @@ void PAMassIntegrator::ComputePA(const int ir_order)
    // ASSUMPTION: All finite elements are the same (element type and order are the same)
    MFEM_ASSERT(fes->GetVDim() == 1, "Only implemented for vdim == 1");
 
-   {
-      // Store the 1d shape functions -- discard the gradients
-      DenseMatrix dshape1d;
-      ComputeBasis1d(fes, tfe, ir_order, shape1d, dshape1d);
-   }
+   ComputeBasis1d(fes, tfe, ir_order, shape1d);
 
    // Create the operator
    const int nelem   = fes->GetNE();
