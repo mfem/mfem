@@ -464,10 +464,13 @@ public:
    /// Read a matrix saved as a HYPRE_IJMatrix
    void Read_IJMatrix(MPI_Comm comm, const char *fname);
 
+   /// Print information about the hypre_ParCSRCommPkg of the HypreParMatrix.
+   void PrintCommPkg(std::ostream &out = std::cout) const;
+
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }
 
-   Type GetType() const { return HYPRE_PARCSR; }
+   Type GetType() const { return Hypre_ParCSR; }
 };
 
 /** @brief Return a new matrix `C = alpha*A + beta*B`, assuming that both `A`

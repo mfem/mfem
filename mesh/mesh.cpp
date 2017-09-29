@@ -23,6 +23,13 @@
 #include <cmath>
 #include <cstring>
 #include <ctime>
+#include <functional>
+
+// Include the METIS header, if using version 5. If using METIS 4, the needed
+// declarations are inlined below, i.e. no header is needed.
+#if defined(MFEM_USE_METIS) && defined(MFEM_USE_METIS_5)
+#include "metis.h"
+#endif
 
 #ifdef MFEM_USE_GECKO
 #include "graph.h"
@@ -4539,8 +4546,7 @@ void Mesh::ReorientTetMesh()
    }
 }
 
-#ifdef MFEM_USE_MPI
-#ifndef MFEM_USE_METIS_5
+#if defined(MFEM_USE_METIS) && !defined(MFEM_USE_METIS_5)
 // METIS 4 prototypes
 typedef int idxtype;
 extern "C" {
@@ -4551,9 +4557,6 @@ extern "C" {
    void METIS_PartGraphVKway(int*, idxtype*, idxtype*, idxtype*, idxtype*,
                              int*, int*, int*, int*, int*, idxtype*);
 }
-#else
-#include "metis.h"
-#endif
 #endif
 
 int *Mesh::CartesianPartitioning(int nxyz[])
@@ -4603,7 +4606,7 @@ int *Mesh::CartesianPartitioning(int nxyz[])
 
 int *Mesh::GeneratePartitioning(int nparts, int part_method)
 {
-#ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_METIS
    int i, *partitioning;
 
    ElementToElementTable();
@@ -5918,7 +5921,8 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
          // for (i = 0; i < onoe; i++)
          for (i = 0; i < NumOfElements; i++)
          {
-            // ((Tetrahedron *)elements[i])->ParseRefinementFlag(redges, type, flag);
+            // ((Tetrahedron *)elements[i])->
+            // ParseRefinementFlag(redges, type, flag);
             // if (flag > max_gen)  max_gen = flag;
             if (elements[i]->NeedRefinement(v_to_v, middle))
             {
@@ -8082,7 +8086,8 @@ void Mesh::PrintSurfaces(const Table & Aface_face, std::ostream &out) const
    const int * const j_AF_f = Aface_face.GetJ();
 
    for (int iAF=0; iAF < Aface_face.Size(); ++iAF)
-      for (const int * iface = j_AF_f + i_AF_f[iAF]; iface < j_AF_f + i_AF_f[iAF+1];
+      for (const int * iface = j_AF_f + i_AF_f[iAF];
+           iface < j_AF_f + i_AF_f[iAF+1];
            ++iface)
       {
          out << iAF+1 << ' ';
@@ -8520,6 +8525,120 @@ std::ostream &operator<<(std::ostream &out, const Mesh &mesh)
    return out;
 }
 
+int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
+                     Array<IntegrationPoint>& ips, bool warn)
+{
+   const int npts = point_mat.Width();
+   if (!npts) { return 0; }
+   MFEM_VERIFY(point_mat.Height() == spaceDim,"Invalid points matrix");
+   elem_ids.SetSize(npts);
+   ips.SetSize(npts);
+   elem_ids = -1;
+   if (!GetNE()) { return 0; }
+
+   double *data = point_mat.GetData();
+
+   // For each point in 'point_mat', find the element whose center is closest.
+   Vector min_dist(npts);
+   Array<int> e_idx(npts);
+   min_dist = std::numeric_limits<double>::max();
+   e_idx = -1;
+
+   Vector p(spaceDim);
+   for (int i = 0; i < GetNE(); i++)
+   {
+      p = 0.0;
+      GetElementTransformation(i)->Transform(
+         Geometries.GetCenter(GetElementBaseGeometry(i)), p);
+      for (int k = 0; k < npts; k++)
+      {
+         double *center = data+k*spaceDim;
+         double dist = Distance(center,p.GetData(),spaceDim);
+         if (dist < min_dist(k))
+         {
+            min_dist(k) = dist;
+            e_idx[k] = i;
+         }
+      }
+   }
+
+   // Checks if centers lie in the closest element
+   bool refinesearch = false;
+   for (int k = 0; k < npts; k++)
+   {
+      ips[k].x = ips[k].y = ips[k].z = -1.;
+      Vector center(data+k*spaceDim,spaceDim);
+      int res = GetElementTransformation(e_idx[k])->TransformBack(center,ips[k]);
+      if (!res)
+      {
+         elem_ids[k] = e_idx[k];
+      }
+      else
+      {
+         refinesearch = true;
+      }
+   }
+   if (refinesearch)
+   {
+      bool usevtoel = false;
+      Array<bool> tbf(npts);
+      Vector vmin,vmax;
+      GetBoundingBox(vmin,vmax);
+      for (int k = 0; k < npts; k++)
+      {
+         tbf[k] = false;
+         if (elem_ids[k] != -1) { continue; }
+         bool outside = false;
+         for (int d = 0; d < spaceDim; d++)
+         {
+            double c = data[k*spaceDim + d];
+            outside = outside && (c < vmin(d) || c > vmax(d));
+         }
+         tbf[k] = !outside;
+         if (!outside) { usevtoel = true; }
+      }
+      if (usevtoel)
+      {
+         Array<int> vertices;
+         Table *vtoel = GetVertexToElementTable();
+         for (int k = 0; k < npts; k++)
+         {
+            if (!tbf[k]) { continue; }
+            Vector center(data+k*spaceDim,spaceDim);
+            GetElementVertices(e_idx[k], vertices);
+            for (int v = 0; v < vertices.Size() || elem_ids[k] != -1; v++)
+            {
+               int vv = vertices[v];
+               int ne = vtoel->RowSize(vv);
+               const int* els = vtoel->GetRow(vv);
+               for (int e = 0; e < ne; e++)
+               {
+                  if (els[e] == e_idx[k]) { continue; }
+                  int res = GetElementTransformation(els[e])->
+                            TransformBack(center,ips[k]);
+                  if (!res)
+                  {
+                     elem_ids[k] = els[e];
+                     break;
+                  }
+               }
+            }
+         }
+         delete vtoel;
+      }
+   }
+
+   int pts_found = 0;
+   for (int k = 0; k < npts; k++)
+   {
+      if (elem_ids[k] != -1) { pts_found++; }
+   }
+   if (warn && pts_found != npts)
+   {
+      MFEM_WARNING((npts-pts_found) << " points were not found");
+   }
+   return pts_found;
+}
 
 NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int _n,
                                                const double _s)

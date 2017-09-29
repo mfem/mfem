@@ -14,12 +14,9 @@ MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/examples/petsc/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-TEST_MK = $(MFEM_DIR)/config/test.mk
 # Use the MFEM install directory
-# SRC = $(if $(MFEM_DIR),$(MFEM_DIR)/examples/petsc/,)
-# MFEM_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_DIR)/config.mk
-# TEST_MK = $(MFEM_DIR)/test.mk
+# MFEM_INSTALL_DIR = ../../mfem
+# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
@@ -62,10 +59,10 @@ $(EXAMPLES):
 endif
 
 MFEM_TESTS = EXAMPLES
-include $(TEST_MK)
+include $(MFEM_TEST_MK)
 
 # Testing: Parallel runs
-RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 TESTNAME = Parallel PETSc example
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME))
@@ -114,6 +111,6 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf sol_p.* sol_u.* Example5*
-	@rm -f ex9.mesh ex9-mesh.* ex9-init.* ex9-final.* Example9*
-	@rm -f mesh.* sol.* deformed.* velocity.* elastic_energy.*
+	@rm -rf mesh.* sol.* sol_p.* sol_u.* Example5*
+	@rm -f ex9-mesh.* ex9-init.* ex9-final.* Example9*
+	@rm -f deformed.* velocity.* elastic_energy.*

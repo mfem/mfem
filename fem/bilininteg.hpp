@@ -2167,11 +2167,11 @@ class DGElasticityIntegrator : public BilinearFormIntegrator
 {
 public:
    DGElasticityIntegrator(double alpha_, double kappa_)
-      : lambda(NULL), mu(NULL), alpha(alpha_), kappa(kappa_) {}
+      : lambda(NULL), mu(NULL), alpha(alpha_), kappa(kappa_) { }
 
    DGElasticityIntegrator(Coefficient &lambda_, Coefficient &mu_,
                           double alpha_, double kappa_)
-      : lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) {}
+      : lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
@@ -2326,6 +2326,90 @@ public:
                                        const FiniteElement &ran_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+};
+
+/** Interpolator of a scalar coefficient multiplied by a scalar field onto
+    another scalar field. Note that this can produce inaccurate fields unless
+    the target is sufficiently high order. */
+class ScalarProductInterpolator : public DiscreteInterpolator
+{
+public:
+   ScalarProductInterpolator(Coefficient & sc) : Q(sc) { }
+
+   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                                       const FiniteElement &ran_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
+protected:
+   Coefficient &Q;
+};
+
+/** Interpolator of a scalar coefficient multiplied by a vector field onto
+    another vector field. Note that this can produce inaccurate fields unless
+    the target is sufficiently high order. */
+class ScalarVectorProductInterpolator : public DiscreteInterpolator
+{
+public:
+   ScalarVectorProductInterpolator(Coefficient & sc)
+      : Q(sc) { }
+
+   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                                       const FiniteElement &ran_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+protected:
+   Coefficient &Q;
+};
+
+/** Interpolator of a vector coefficient multiplied by a scalar field onto
+    another vector field. Note that this can produce inaccurate fields unless
+    the target is sufficiently high order. */
+class VectorScalarProductInterpolator : public DiscreteInterpolator
+{
+public:
+   VectorScalarProductInterpolator(VectorCoefficient & vc)
+      : VQ(vc) { }
+
+   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                                       const FiniteElement &ran_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+protected:
+   VectorCoefficient &VQ;
+};
+
+/** Interpolator of the cross product between a vector coefficient and an
+    H(curl)-conforming field onto an H(div)-conforming field. The range space
+    can also be vector L2. */
+class VectorCrossProductInterpolator : public DiscreteInterpolator
+{
+public:
+   VectorCrossProductInterpolator(VectorCoefficient & vc)
+      : VQ(vc) { }
+
+   virtual void AssembleElementMatrix2(const FiniteElement &nd_fe,
+                                       const FiniteElement &rt_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+protected:
+   VectorCoefficient &VQ;
+};
+
+/** Interpolator of the inner product between a vector coefficient and an
+    H(div)-conforming field onto an L2-conforming field. The range space can
+    also be H1. */
+class VectorInnerProductInterpolator : public DiscreteInterpolator
+{
+public:
+   VectorInnerProductInterpolator(VectorCoefficient & vc) : VQ(vc) { }
+
+   virtual void AssembleElementMatrix2(const FiniteElement &rt_fe,
+                                       const FiniteElement &l2_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+protected:
+   VectorCoefficient &VQ;
 };
 
 }

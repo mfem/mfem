@@ -31,7 +31,7 @@ protected:
 
 public:
    ParNonlinearForm(ParFiniteElementSpace *pf)
-      : NonlinearForm(pf), X(pf), Y(pf), pGrad(Operator::HYPRE_PARCSR)
+      : NonlinearForm(pf), X(pf), Y(pf), pGrad(Operator::Hypre_ParCSR)
    { height = width = pf->TrueVSize(); }
 
    ParFiniteElementSpace *ParFESpace() const
