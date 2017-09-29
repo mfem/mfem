@@ -17,7 +17,7 @@
 #include "matrix.hpp"
 #include "densemat.hpp"
 #include "../general/table.hpp"
-#include "../general/globalostream.hpp"
+#include "../general/globals.hpp"
 
 #include <iostream>
 #include <iomanip>

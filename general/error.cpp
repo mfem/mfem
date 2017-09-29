@@ -10,11 +10,11 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "error.hpp"
+#include "globals.hpp"
 #include "array.hpp"
+#include "communication.hpp"
 #include <cstdlib>
 #include <iostream>
-#include "communication.hpp"
-#include "globalostream.hpp"
 
 #ifdef MFEM_USE_LIBUNWIND
 #define UNW_LOCAL_ONLY
@@ -125,7 +125,7 @@ void mfem_error(const char *msg)
    int init_flag, fin_flag;
    MPI_Initialized(&init_flag);
    MPI_Finalized(&fin_flag);
-   if (init_flag && !fin_flag) { MPI_Abort(MPI_COMM_WORLD, 1); }
+   if (init_flag && !fin_flag) { MPI_Abort(GetGlobalMPI_Comm(), 1); }
 #endif
    std::abort(); // force crash by calling abort
 }

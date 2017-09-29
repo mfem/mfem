@@ -13,7 +13,7 @@
 #define MFEM_DENSEMAT
 
 #include "../config/config.hpp"
-#include "../general/globalostream.hpp"
+#include "../general/globals.hpp"
 #include "matrix.hpp"
 
 namespace mfem

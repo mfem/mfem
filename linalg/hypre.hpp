@@ -26,7 +26,7 @@
 #include "_hypre_parcsr_mv.h"
 #include "_hypre_parcsr_ls.h"
 #include "temp_multivector.h"
-#include "../general/globalostream.hpp"
+#include "../general/globals.hpp"
 
 #ifdef HYPRE_COMPLEX
 #error "MFEM does not work with HYPRE's complex numbers support"

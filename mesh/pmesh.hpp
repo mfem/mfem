@@ -17,7 +17,7 @@
 #ifdef MFEM_USE_MPI
 
 #include "../general/communication.hpp"
-#include "../general/globalostream.hpp"
+#include "../general/globals.hpp"
 #include "mesh.hpp"
 #include "pncmesh.hpp"
 #include <iostream>

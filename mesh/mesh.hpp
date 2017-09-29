@@ -14,7 +14,7 @@
 
 #include "../config/config.hpp"
 #include "../general/stable3d.hpp"
-#include "../general/globalostream.hpp"
+#include "../general/globals.hpp"
 #include "triangle.hpp"
 #include "tetrahedron.hpp"
 #include "vertex.hpp"
@@ -23,7 +23,6 @@
 #include "../fem/coefficient.hpp"
 #include "../general/gzstream.hpp"
 #include <iostream>
-#include <fstream>
 
 namespace mfem
 {

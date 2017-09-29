@@ -10,11 +10,11 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "isockstream.hpp"
+#include "globals.hpp"
 #include <iostream>
 #include <cstring>
 #include <cstdlib>
 #include <errno.h>
-#include "globalostream.hpp"
 #ifndef _WIN32
 #include <netinet/in.h>
 #include <netdb.h>

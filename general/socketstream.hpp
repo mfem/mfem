@@ -13,8 +13,8 @@
 #define MFEM_SOCKETSTREAM
 
 #include "../config/config.hpp"
-#include "../general/error.hpp"
-#include "globalostream.hpp"
+#include "error.hpp"
+#include "globals.hpp"
 
 #ifdef MFEM_USE_GNUTLS
 #include <gnutls/gnutls.h>

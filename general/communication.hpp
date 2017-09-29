@@ -19,8 +19,7 @@
 #include "array.hpp"
 #include "table.hpp"
 #include "sets.hpp"
-#include "globalostream.hpp"
-#include "globalcomm.hpp"
+#include "globals.hpp"
 #include <mpi.h>
 
 
@@ -28,21 +27,22 @@ namespace mfem
 {
 
 /** @brief A simple convenience class that calls MPI_Init() at construction and
-    MPI_Finalize() at destruction. It also provides easy access to
-    to the global_mpi_comm rank and size. */
+    MPI_Finalize() at destruction. It also provides easy access to the rank and
+    size of the given "world" communicator. */
 class MPI_Session
 {
 protected:
    int world_rank, world_size;
-   void GetRankAndSize();
+   void GetRankAndSize(MPI_Comm);
 public:
-   MPI_Session() { MPI_Init(NULL, NULL); GetRankAndSize(); }
-   MPI_Session(int &argc, char **&argv)
-   { MPI_Init(&argc, &argv); GetRankAndSize(); }
+   MPI_Session(MPI_Comm world_comm = MPI_COMM_WORLD)
+   { MPI_Init(NULL, NULL); GetRankAndSize(world_comm); }
+   MPI_Session(int &argc, char **&argv, MPI_Comm world_comm = MPI_COMM_WORLD)
+   { MPI_Init(&argc, &argv); GetRankAndSize(world_comm); }
    ~MPI_Session() { MPI_Finalize(); }
-   /// Return global_mpi_comm's rank.
+   /// Return the rank of the associated communicator.
    int WorldRank() const { return world_rank; }
-   /// Return global_mpi_comm's size.
+   /// Return the size of the associated communicator.
    int WorldSize() const { return world_size; }
    /// Return true if WorldRank() == 0.
    bool Root() const { return world_rank == 0; }

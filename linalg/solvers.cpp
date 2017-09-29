@@ -10,7 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "linalg.hpp"
-#include "../general/globalostream.hpp"
+#include "../general/globals.hpp"
 #include <iostream>
 #include <iomanip>
 #include <algorithm>

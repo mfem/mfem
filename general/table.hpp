@@ -16,7 +16,7 @@
 
 #include "mem_alloc.hpp"
 #include "array.hpp"
-#include "globalostream.hpp"
+#include "globals.hpp"
 
 namespace mfem
 {

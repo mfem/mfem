@@ -10,7 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../general/array.hpp"
-#include "../general/globalostream.hpp"
+#include "../general/globals.hpp"
 #include "matrix.hpp"
 #include "sparsemat.hpp"
 #include "blockvector.hpp"

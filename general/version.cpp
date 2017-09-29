@@ -9,8 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "version.hpp"
 #include "../config/config.hpp"
+#include "version.hpp"
 
 #define QUOTE(str) #str
 #define EXPAND_AND_QUOTE(str) QUOTE(str)
@@ -52,72 +52,73 @@ const char *get_version_str()
 
 const char *get_config_str()
 {
-   static const char *config_str = ""
+   static const char *config_str =
+      ""
 #ifdef MFEM_USE_MPI
-                                   "MFEM_USE_MPI\n"
+      "MFEM_USE_MPI\n"
 #endif
 #ifdef MFEM_USE_METIS
-                                   "MFEM_USE_METIS\n"
+      "MFEM_USE_METIS\n"
 #endif
 #ifdef MFEM_USE_METIS_5
-                                   "MFEM_USE_METIS_5\n"
+      "MFEM_USE_METIS_5\n"
 #endif
 #ifdef MFEM_DEBUG
-                                   "MFEM_DEBUG\n"
+      "MFEM_DEBUG\n"
 #endif
 #ifdef MFEM_USE_GZSTREAM
-                                   "MFEM_USE_GZSTREAM\n"
+      "MFEM_USE_GZSTREAM\n"
 #endif
 #ifdef MFEM_USE_LIBUNWIND
-                                   "MFEM_USE_LIBUNWIND\n"
+      "MFEM_USE_LIBUNWIND\n"
 #endif
 #ifdef MFEM_USE_LAPACK
-                                   "MFEM_USE_LAPACK\n"
+      "MFEM_USE_LAPACK\n"
 #endif
 #ifdef MFEM_THREAD_SAFE
-                                   "MFEM_THREAD_SAFE\n"
+      "MFEM_THREAD_SAFE\n"
 #endif
 #ifdef MFEM_USE_OPENMP
-                                   "MFEM_USE_OPENMP\n"
+      "MFEM_USE_OPENMP\n"
 #endif
 #ifdef MFEM_USE_MEMALLOC
-                                   "MFEM_USE_MEMALLOC\n"
+      "MFEM_USE_MEMALLOC\n"
 #endif
 #ifdef MFEM_USE_SUNDIALS
-                                   "MFEM_USE_SUNDIALS\n"
+      "MFEM_USE_SUNDIALS\n"
 #endif
 #ifdef MFEM_USE_MESQUITE
-                                   "MFEM_USE_MESQUITE\n"
+      "MFEM_USE_MESQUITE\n"
 #endif
 #ifdef MFEM_USE_SUITESPARSE
-                                   "MFEM_USE_SUITESPARSE\n"
+      "MFEM_USE_SUITESPARSE\n"
 #endif
 #ifdef MFEM_USE_SUPERLU
-                                   "MFEM_USE_SUPERLU\n"
+      "MFEM_USE_SUPERLU\n"
 #endif
 #ifdef MFEM_USE_STRUMPACK
-                                   "MFEM_USE_STRUMPACK\n"
+      "MFEM_USE_STRUMPACK\n"
 #endif
 #ifdef MFEM_USE_GECKO
-                                   "MFEM_USE_GECKO\n"
+      "MFEM_USE_GECKO\n"
 #endif
 #ifdef MFEM_USE_GNUTLS
-                                   "MFEM_USE_GNUTLS\n"
+      "MFEM_USE_GNUTLS\n"
 #endif
 #ifdef MFEM_USE_NETCDF
-                                   "MFEM_USE_NETCDF\n"
+      "MFEM_USE_NETCDF\n"
 #endif
 #ifdef MFEM_USE_PETSC
-                                   "MFEM_USE_PETSC\n"
+      "MFEM_USE_PETSC\n"
 #endif
 #ifdef MFEM_USE_MPFR
-                                   "MFEM_USE_MPFR\n"
+      "MFEM_USE_MPFR\n"
 #endif
 #ifdef MFEM_USE_SIDRE
-                                   "MFEM_USE_SIDRE\n"
+      "MFEM_USE_SIDRE\n"
 #endif
-                                   "MFEM_TIMER_TYPE = " EXPAND_AND_QUOTE(MFEM_TIMER_TYPE)
-                                   ;
+      "MFEM_TIMER_TYPE = " EXPAND_AND_QUOTE(MFEM_TIMER_TYPE)
+      ;
 
    return config_str;
 }

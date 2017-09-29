@@ -14,7 +14,7 @@
 
 #include "../config/config.hpp"
 #include "../general/hash.hpp"
-#include "../general/globalostream.hpp"
+#include "../general/globals.hpp"
 #include "../linalg/densemat.hpp"
 #include "element.hpp"
 #include "vertex.hpp"

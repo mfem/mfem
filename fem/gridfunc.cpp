@@ -2452,10 +2452,10 @@ void GridFunction::SaveSTL(std::ostream &out, int TimesToRefine)
       }
    }
 
-   out << "[xmin,xmax] = [" << bbox[0][0] << ',' << bbox[0][1] << "]\n"
-       << "[ymin,ymax] = [" << bbox[1][0] << ',' << bbox[1][1] << "]\n"
-       << "[zmin,zmax] = [" << bbox[2][0] << ',' << bbox[2][1] << ']'
-       << endl;
+   mfem::out << "[xmin,xmax] = [" << bbox[0][0] << ',' << bbox[0][1] << "]\n"
+             << "[ymin,ymax] = [" << bbox[1][0] << ',' << bbox[1][1] << "]\n"
+             << "[zmin,zmax] = [" << bbox[2][0] << ',' << bbox[2][1] << ']'
+             << endl;
 
    out << "endsolid GridFunction" << endl;
 }

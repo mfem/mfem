@@ -14,7 +14,7 @@
 
 #include "../config/config.hpp"
 #include "array.hpp"
-#include "globalostream.hpp"
+#include "globals.hpp"
 
 namespace mfem
 {

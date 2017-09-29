@@ -16,9 +16,9 @@
 
 #ifdef MFEM_USE_MPI
 
+#include "../general/globals.hpp"
 #include "pfespace.hpp"
 #include "gridfunc.hpp"
-#include "../general/globalostream.hpp"
 #include <iostream>
 #include <limits>
 

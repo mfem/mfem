@@ -18,7 +18,7 @@
 #include "../general/sets.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../general/text.hpp"
-#include "../general/globalostream.hpp"
+#include "../general/globals.hpp"
 
 #include <iostream>
 using namespace std;

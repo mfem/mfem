@@ -13,9 +13,8 @@
 #define MFEM_MATRIX
 
 #include "../general/array.hpp"
-#include "../general/globalostream.hpp"
+#include "../general/globals.hpp"
 #include "operator.hpp"
-#include <iostream>
 
 namespace mfem
 {

@@ -16,9 +16,8 @@
 
 #include "../general/mem_alloc.hpp"
 #include "../general/table.hpp"
-#include "../general/globalostream.hpp"
+#include "../general/globals.hpp"
 #include "densemat.hpp"
-#include <iostream>
 
 namespace mfem
 {

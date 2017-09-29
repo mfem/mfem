@@ -24,7 +24,7 @@
 #include "communication.hpp"
 #include "text.hpp"
 #include "sort_pairs.hpp"
-#include "globalostream.hpp"
+#include "globals.hpp"
 
 #include <iostream>
 #include <map>
@@ -34,10 +34,10 @@ using namespace std;
 namespace mfem
 {
 
-void MPI_Session::GetRankAndSize()
+void MPI_Session::GetRankAndSize(MPI_Comm comm)
 {
-   MPI_Comm_rank(MFEM_COMM_WORLD, &world_rank);
-   MPI_Comm_size(MFEM_COMM_WORLD, &world_size);
+   MPI_Comm_rank(comm, &world_rank);
+   MPI_Comm_size(comm, &world_size);
 }
 
 

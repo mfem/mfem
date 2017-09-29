@@ -11,11 +11,11 @@
 
 // Implementation of data types for sparse matrix smoothers
 
-#include <iostream>
 #include "vector.hpp"
 #include "matrix.hpp"
 #include "sparsemat.hpp"
 #include "sparsesmoothers.hpp"
+#include <iostream>
 
 namespace mfem
 {

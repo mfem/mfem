@@ -14,7 +14,7 @@
 
 #include "../config/config.hpp"
 #include "error.hpp"
-#include "globalostream.hpp"
+#include "globals.hpp"
 
 #include <iostream>
 #include <cstdlib>
