@@ -123,7 +123,7 @@ ParBlockNonlinearForm::ParBlockNonlinearForm(Array<ParFiniteElementSpace *> &pf)
    
    for (int s1=0; s1<fes.Size(); s1++) {
       for (int s2=0; s2<fes.Size(); s2++) {
-         phBlockGrad(s1,s2) = new OperatorHandle(Operator::HYPRE_PARCSR);
+         phBlockGrad(s1,s2) = new OperatorHandle(Operator::Hypre_ParCSR);
       }
    }
 
