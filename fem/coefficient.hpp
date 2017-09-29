@@ -28,7 +28,7 @@ class ParMesh;
 
 
 /// Base class Coefficient that may optionally depend on time.
-  class Coefficient
+class Coefficient
 {
 protected:
    double time;

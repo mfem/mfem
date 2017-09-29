@@ -14,12 +14,12 @@
 
 // Data types for sparse matrix
 
+#include "../general/x86intrin.hpp"
 #include "../general/mem_alloc.hpp"
 #include "../general/table.hpp"
 #include "densemat.hpp"
+#include "tdensemat.hpp"
 #include <iostream>
-#include "../general/x86intrin.hpp"
-#include "../linalg/tdensemat.hpp"
 
 namespace mfem
 {
@@ -49,14 +49,14 @@ protected:
        this array is always zero, I[0] = 0, and the last entry, I[height], gives
        the total number of entries stored (at a minimum, all nonzeros must be
        represented) in the sparse matrix. */
-  int *I;
-  /** @brief %Array with size #I[#height], containing the column indices for
-      all matrix entries, as indexed by the #I array. */
-  int *J;
-  /** @brief %Array with size #I[#height], containing the actual entries of the
-      sparse matrix, as indexed by the #I array. */
-  double *A;
-  ///@}
+   int *I;
+   /** @brief %Array with size #I[#height], containing the column indices for
+       all matrix entries, as indexed by the #I array. */
+   int *J;
+   /** @brief %Array with size #I[#height], containing the actual entries of the
+       sparse matrix, as indexed by the #I array. */
+   double *A;
+   ///@}
 
    /** @brief %Array of linked lists, one for every row. This array represents
        the linked list (LIL) storage format. */
@@ -501,7 +501,6 @@ inline void SparseMatrix::SearchRow(const x86::vint_t col, const x86::vreal_t a)
   
 inline void SparseMatrix::SetColPtr(const int row) const
 {
-  //std::cout<<"[33;1m[SetColPtr] row:"<<row<<"[0m"<<std::endl;
    if (Rows)
    {
       if (ColPtrNode == NULL)

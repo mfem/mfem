@@ -26,7 +26,7 @@ namespace mfem{
 template<typename data_t = double>
 class TDenseMatrix : public Matrix{
 private:
-  data_t *data;
+   data_t *data;
    int capacity; // zero or negative capacity means we do not own the data.
 public:
   
@@ -41,6 +41,9 @@ public:
     //data = new data_t[capacity]();
     data = (data_t*)aligned_alloc(x86::align,capacity*sizeof(data_t));
   }
+   
+   TDenseMatrix(data_t *d, int h, int w) : Matrix(h, w)
+   { data = d; capacity = -h*w; }
 
   /// Returns reference to a_{ij}.
   inline data_t &operator()(int i, int j){

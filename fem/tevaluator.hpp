@@ -41,19 +41,15 @@ protected:
    TMatrix<NIP,DOF,real_t,true> B;
    TMatrix<DOF,NIP,real_t,true> Bt;
    TTensor3<NIP,DIM,DOF,real_t,true> G;
-   TTensor3<DOF,NIP,DIM,real_t,true> Gt;
+   TTensor3<DOF,NIP,DIM,real_t> Gt;
 
 public:
    ShapeEvaluator_base(const FE &fe)
    {
-     std::cout<<"[34;1m[ShapeEvaluator_base][m"<<std::endl;
       fe.CalcShapes(IR::GetIntRule(), B.data, G.data);
-     std::cout<<"[34;1m[ShapeEvaluator_base] CalcShaped[m"<<std::endl;
       TAssign<AssignOp::Set>(Bt.layout, Bt, B.layout.transpose_12(), B);
-     std::cout<<"[34;1m[ShapeEvaluator_base] CalcTransposed[m"<<std::endl;
       TAssign<AssignOp::Set>(Gt.layout.merge_23(), Gt,
                              G.layout.merge_12().transpose_12(), G);
-     std::cout<<"[34;1m[ShapeEvaluator_base] CalcMerged[m"<<std::endl;
    }
 
    // default copy constructor
@@ -66,7 +62,6 @@ public:
    void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
              const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
    {
-     std::cout<<"[34;1m[ShapeEvaluator_base::Calc][m"<<std::endl;
       MFEM_STATIC_ASSERT(dof_layout_t::rank  == 2 &&
                          dof_layout_t::dim_1 == DOF,
                          "invalid dof_layout_t.");
@@ -90,7 +85,6 @@ public:
    void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
               const dof_layout_t &dof_layout, dof_data_t &dof_data) const
    {
-     std::cout<<"[34;1m[ShapeEvaluator_base::CalcT][m"<<std::endl;
       MFEM_STATIC_ASSERT(dof_layout_t::rank  == 2 &&
                          dof_layout_t::dim_1 == DOF,
                          "invalid dof_layout_t.");
@@ -115,8 +109,7 @@ public:
                  const grad_layout_t &grad_layout,
                  grad_data_t         &grad_data) const
    {
-     std::cout<<"[34;1m[ShapeEvaluator_base::CalcGrad][m"<<std::endl;
-     MFEM_STATIC_ASSERT(dof_layout_t::rank  == 2 &&
+      MFEM_STATIC_ASSERT(dof_layout_t::rank  == 2 &&
                          dof_layout_t::dim_1 == DOF,
                          "invalid dof_layout_t.");
       MFEM_STATIC_ASSERT(grad_layout_t::rank  == 3 &&
@@ -142,7 +135,6 @@ public:
                   const dof_layout_t  &dof_layout,
                   dof_data_t          &dof_data) const
    {
-     std::cout<<"[34;1m[ShapeEvaluator_base::CalcGradT][m"<<std::endl;
       MFEM_STATIC_ASSERT(dof_layout_t::rank  == 2 &&
                          dof_layout_t::dim_1 == DOF,
                          "invalid dof_layout_t.");
@@ -166,7 +158,6 @@ public:
    void Assemble(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
                  const M_layout_t &M_layout, M_data_t &M_data) const
    {
-     std::cout<<"[34;1m[ShapeEvaluator_base::Assemble][m"<<std::endl;
       // M_{i,j,k} = \sum_{s} B_{s,i} B_{s,j} qpt_data_{s,k}
       // Using TensorAssemble: <1,NIP,NC> --> <DOF,1,DOF,NC>
 #if 0
@@ -193,7 +184,6 @@ public:
                          const D_layout_t   &D_layout,
                          D_data_t           &D_data) const
    {
-     std::cout<<"[34;1m[ShapeEvaluator_base::AssembleGradGrad][m"<<std::endl;
       const int NC = qpt_layout_t::dim_4;
       TTensor4<NIP,DIM,DOF,NC> F;
       for (int k = 0; k < NC; k++)
@@ -228,7 +218,7 @@ protected:
    TMatrix<DOF,NIP,real_t,true> Bt_1d, Gt_1d;
 
 public:
-   TProductShapeEvaluator() { std::cout<<"[34;1m[TProductShapeEvaluator<1D>][m"<<std::endl; }
+   TProductShapeEvaluator() { }
 
    // Multi-component shape evaluation from DOFs to quadrature points.
    // dof_layout is (DOF x NumComp) and qpt_layout is (NIP x NumComp).
@@ -353,7 +343,7 @@ public:
    static const int TDOF = DOF*DOF; // total dofs
    static const int TNIP = NIP*NIP; // total qpts
 
-  TProductShapeEvaluator() {std::cout<<"[32;1m[TProductShapeEvaluator<2D>] NIP="<<NIP<<", DOF="<<DOF<<"[m"<<std::endl;}
+   TProductShapeEvaluator() { }
 
    template <bool Dx, bool Dy,
              typename dof_layout_t, typename dof_data_t,
@@ -362,7 +352,6 @@ public:
    void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
              const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
    {
-     //std::cout<<"[32;1m[TProductShapeEvaluator<2D>::Calc][m"<<std::endl;
       const int NC = dof_layout_t::dim_2;
       // DOF x DOF x NC --> NIP x DOF x NC --> NIP x NIP x NC
       TTensor3<NIP,DOF,NC,real_t> A;
@@ -385,7 +374,6 @@ public:
    void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
              const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
    {
-     //std::cout<<"[32;1m[TProductShapeEvaluator<2D>::Calc] bis[m"<<std::endl;
       Calc<false,false>(dof_layout, dof_data, qpt_layout, qpt_data);
    }
 
@@ -396,7 +384,6 @@ public:
    void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
               const dof_layout_t &dof_layout, dof_data_t &dof_data) const
    {
-     //std::cout<<"[32;1m[TProductShapeEvaluator<2D>::CalcT][m"<<std::endl;
       const int NC = dof_layout_t::dim_2;
       // NIP x NIP X NC --> NIP x DOF x NC --> DOF x DOF x NC
       TTensor3<NIP,DOF,NC,real_t> A;
@@ -420,7 +407,6 @@ public:
    void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
               const dof_layout_t &dof_layout, dof_data_t &dof_data) const
    {
-     //std::cout<<"[32;1m[TProductShapeEvaluator<2D>::Calc] bis[m"<<std::endl;
       CalcT<false,false,Add>(qpt_layout, qpt_data, dof_layout, dof_data);
    }
 
@@ -434,7 +420,6 @@ public:
                  const grad_layout_t &grad_layout,
                  grad_data_t &grad_data) const
    {
-     //std::cout<<"[32;1m[TProductShapeEvaluator<2D>::CalcGrad][m"<<std::endl;
       Calc<true,false>(dof_layout, dof_data,
                        grad_layout.ind2(0), grad_data);
       Calc<false,true>(dof_layout, dof_data,
@@ -453,7 +438,6 @@ public:
                   const dof_layout_t  &dof_layout,
                   dof_data_t          &dof_data) const
    {
-     //std::cout<<"[32;1m[TProductShapeEvaluator<2D>::CalcGradT][m"<<std::endl;
       CalcT<true,false, Add>(grad_layout.ind2(0), grad_data,
                              dof_layout, dof_data);
       CalcT<false,true,true>(grad_layout.ind2(1), grad_data,
@@ -468,7 +452,6 @@ public:
    void Assemble(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
                  const M_layout_t &M_layout, M_data_t &M_data) const
    {
-     //std::cout<<"[32;1m[TProductShapeEvaluator<2D>::Assemble][m"<<std::endl;
       const int NC = qpt_layout_t::dim_2;
 
       // Using TensorAssemble: <I,NIP,J> --> <DOF,I,DOF,J>
@@ -533,7 +516,6 @@ public:
                  const D_layout_t   &D_layout,
                  D_data_t           &D_data) const
    {
-     //std::cout<<"[32;1m[TProductShapeEvaluator<2D>::Assemble] bis[m"<<std::endl;
       const int NC = qpt_layout_t::dim_2;
       TTensor4<DOF,NIP,DOF,NC,real_t> A;
 
@@ -564,7 +546,6 @@ public:
                          const D_layout_t   &D_layout,
                          D_data_t           &D_data) const
    {
-     //std::cout<<"[32;1m[TProductShapeEvaluator<2D>::AssembleGradGrad][m"<<std::endl;
 #if 1
       Assemble<0,0,false>(qpt_layout.ind23(0,0), qpt_data, D_layout, D_data);
       Assemble<1,0,true >(qpt_layout.ind23(1,0), qpt_data, D_layout, D_data);
@@ -638,7 +619,7 @@ public:
    static const int TDOF = DOF*DOF*DOF; // total dofs
    static const int TNIP = NIP*NIP*NIP; // total qpts
 
-   TProductShapeEvaluator() { std::cout<<"[32;1m[TProductShapeEvaluator] 3D[m"<<std::endl;}
+   TProductShapeEvaluator() { }
 
    template <bool Dx, bool Dy, bool Dz,
              typename dof_layout_t, typename dof_data_t,
@@ -930,12 +911,9 @@ protected:
 public:
    ShapeEvaluator_base(const FE &fe)
    {
-     std::cout<<"[33;1m[ShapeEvaluator_base] Calc1DShapes:[m"<<std::endl;
       fe.Calc1DShapes(IR::Get1DIntRule(), B_1d.data, G_1d.data);
-     std::cout<<"[33;1m[ShapeEvaluator_base] B Transpose:[m"<<std::endl;
       TAssign<AssignOp::Set>(Bt_1d.layout, Bt_1d,
                              B_1d.layout.transpose_12(), B_1d);
-     std::cout<<"[33;1m[ShapeEvaluator_base] G Transpose:[m"<<std::endl;
       TAssign<AssignOp::Set>(Gt_1d.layout, Gt_1d,
                              G_1d.layout.transpose_12(), G_1d);
    }
@@ -1027,15 +1005,24 @@ protected:
    using base_class::fespace;
    using base_class::shapeEval;
    using base_class::vec_layout;
-   const double *data_in;
-   double       *data_out;
+#ifndef MFEM_USE_X86INTRIN
+   const complex_t *data_in;
+   complex_t       *data_out;
+#else
+   const double *data_in; // x86 complex_t
+   double       *data_out; // x86 complex_t
+#endif
 
 public:
    // With this constructor, fespace is a shallow copy of tfes.
    inline MFEM_ALWAYS_INLINE
    FieldEvaluator(const FESpace_t &tfes, const ShapeEval_type &shape_eval,
                   const VecLayout_type &vec_layout,
+#ifndef MFEM_USE_X86INTRIN
+                  const complex_t *global_data_in, complex_t *global_data_out)
+#else
                   const double *global_data_in, double *global_data_out)
+#endif
       : base_class(tfes, shape_eval, vec_layout),
         data_in(global_data_in),
         data_out(global_data_out)
@@ -1044,7 +1031,11 @@ public:
    // With this constructor, fespace is a shallow copy of f.fespace.
    inline MFEM_ALWAYS_INLINE
    FieldEvaluator(const FieldEvaluator &f,
+#ifndef MFEM_USE_X86INTRIN
+                  const complex_t *global_data_in, complex_t *global_data_out)
+#else
                   const double *global_data_in, double *global_data_out)
+#endif
       : base_class(f.fespace, f.shapeEval, f.vec_layout),
         data_in(global_data_in),
         data_out(global_data_out)
@@ -1053,7 +1044,11 @@ public:
    // This constructor creates a new fespace, not a shallow copy.
    inline MFEM_ALWAYS_INLINE
    FieldEvaluator(const FiniteElementSpace &fes,
+#ifndef MFEM_USE_X86INTRIN
+                  const complex_t *global_data_in, complex_t *global_data_out)
+#else
                   const double *global_data_in, double *global_data_out)
+#endif
       : base_class(FE_type(*fes.FEColl()), fes),
         data_in(global_data_in),
         data_out(global_data_out)
@@ -1079,7 +1074,11 @@ public:
       const int ne = val_layout_t::dim_3;
       TTensor3<dofs,vdim,ne,complex_type> val_dofs;
       SetElement(el);
+#ifndef MFEM_USE_X86INTRIN
+      fespace.VectorExtract(vec_layout, data_in, val_dofs.layout, val_dofs);
+#else
       fespace.VectorExtract(el,vec_layout, data_in, val_dofs.layout, val_dofs);
+#endif
       shapeEval.Calc(val_dofs.layout.merge_23(), val_dofs, l.merge_23(), vals);
    }
 
@@ -1091,7 +1090,11 @@ public:
       const int ne = grad_layout_t::dim_4;
       TTensor3<dofs,vdim,ne,complex_type> val_dofs;
       SetElement(el);
+#ifndef MFEM_USE_X86INTRIN
+      fespace.VectorExtract(vec_layout, data_in, val_dofs.layout, val_dofs);
+#else
       fespace.VectorExtract(el,vec_layout, data_in, val_dofs.layout, val_dofs);
+#endif
       shapeEval.CalcGrad(val_dofs.layout.merge_23(), val_dofs,
                          l.merge_34(), grad);
    }
@@ -1111,16 +1114,24 @@ public:
    void Eval(int el, DataType &F)
    {
       SetElement(el);
-      Eval(F);//Eval(el,F);
+      Eval(F);
    }
 
    template <bool Add, typename DataType>
    inline MFEM_ALWAYS_INLINE
+#ifndef MFEM_USE_X86INTRIN
+   void Assemble(DataType &F)
+#else
    void AssembleOp(int el, DataType &F)
+#endif
    {
       // T.SetElement() must be called outside
       Action<DataType::OutData,true>::
-        template Assemble<Add>(el,vec_layout, *this, F);
+#ifndef MFEM_USE_X86INTRIN
+      template Assemble<Add>(vec_layout, *this, F);
+#else
+      template Assemble<Add>(el,vec_layout, *this, F);
+#endif
    }
 
    template <bool Add, typename DataType>
@@ -1128,7 +1139,11 @@ public:
    void Assemble(int el, DataType &F)
    {
       SetElement(el);
+#ifndef MFEM_USE_X86INTRIN
+      Assemble<Add>(F);
+#else
       AssembleOp<Add>(el,F);
+#endif
    }
 
 #ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
@@ -1235,7 +1250,11 @@ public:
 #else
          typename AData_t::val_dofs_t val_dofs;
 #endif
+#ifndef MFEM_USE_X86INTRIN
+         T.fespace.VectorExtract(l, T.data_in, val_dofs.layout, val_dofs);
+#else
          T.fespace.VectorExtract(0,l, T.data_in, val_dofs.layout, val_dofs);
+#endif
          T.shapeEval.Calc(val_dofs.layout.merge_23(), val_dofs,
                           D.val_qpts.layout.merge_23(), D.val_qpts);
       }
@@ -1288,14 +1307,22 @@ public:
 #else
          typename AData_t::val_dofs_t val_dofs;
 #endif
+#ifndef MFEM_USE_X86INTRIN
+         T.fespace.VectorExtract(l, T.data_in, val_dofs.layout, val_dofs);
+#else
          T.fespace.VectorExtract(0,l, T.data_in, val_dofs.layout, val_dofs);
+#endif
          T.shapeEval.CalcGrad(val_dofs.layout.merge_23(),  val_dofs,
                               D.grad_qpts.layout.merge_34(), D.grad_qpts);
       }
 
       template <bool Add, typename vec_layout_t, typename AData_t>
       static inline MFEM_ALWAYS_INLINE
+#ifndef MFEM_USE_X86INTRIN
+      void Assemble(const vec_layout_t &l, T_type &T, AData_t &D)
+#else
       void Assemble(int el, const vec_layout_t &l, T_type &T, AData_t &D)
+#endif
       {
          const AssignOp::Type Op = Add ? AssignOp::Add : AssignOp::Set;
 #ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
@@ -1306,7 +1333,11 @@ public:
          T.shapeEval.template CalcGradT<false>(
             D.grad_qpts.layout.merge_34(), D.grad_qpts,
             val_dofs.layout.merge_23(), val_dofs);
+#ifndef MFEM_USE_X86INTRIN
+         T.fespace.template VectorAssemble<Op>(
+#else
          T.fespace.template VectorAssemble<Op>(el,
+#endif
             val_dofs.layout, val_dofs, l, T.data_out);
       }
 
@@ -1341,7 +1372,11 @@ public:
 #else
          typename AData_t::val_dofs_t val_dofs;
 #endif
+#ifndef MFEM_USE_X86INTRIN
+         T.fespace.VectorExtract(l, T.data_in, val_dofs.layout, val_dofs);
+#else
          T.fespace.VectorExtract(0,l, T.data_in, val_dofs.layout, val_dofs);
+#endif
          T.shapeEval.Calc(val_dofs.layout.merge_23(), val_dofs,
                           D.val_qpts.layout.merge_23(), D.val_qpts);
          T.shapeEval.CalcGrad(val_dofs.layout.merge_23(),  val_dofs,

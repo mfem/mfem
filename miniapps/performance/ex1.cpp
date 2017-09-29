@@ -53,15 +53,25 @@ typedef H1_FiniteElement<geom,sol_p>          sol_fe_t;
 typedef H1_FiniteElementSpace<sol_fe_t>       sol_fes_t;
 
 // Static quadrature, coefficient and integrator types
+#ifdef MFEM_USE_X86INTRIN
 typedef TIntegrationRule<geom,ir_order,x86::vreal_t> int_rule_t;
 typedef TConstantCoefficient<x86::vreal_t>         coeff_t;
+#else
+typedef TIntegrationRule<geom,ir_order>       int_rule_t;
+typedef TConstantCoefficient<>                coeff_t;
+#endif
+
 typedef TIntegrator<coeff_t,TDiffusionKernel> integ_t;
 
 // Static bilinear form type, combining the above types
+#ifdef MFEM_USE_X86INTRIN
 typedef TBilinearForm<mesh_t,sol_fes_t,
                       int_rule_t,integ_t,
                       ScalarLayout,
                       x86::vreal_t,x86::vreal_t> HPCBilinearForm;
+#else
+typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t> HPCBilinearForm;
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -291,7 +301,7 @@ int main(int argc, char *argv[])
    else
    {
      cout << "[35;1m[perf][m High-performance assembly/evaluation using the templated operator type" << flush<< endl;
-     a_hpc = new HPCBilinearForm(integ_t(coeff_t(x86::set(1.0))), *fespace);
+     a_hpc = new HPCBilinearForm(integ_t(coeff_t(1.0)), *fespace);
      if (matrix_free)
         {
           cout<<"[37;1m[perf & free][m partial assembly"<<flush<< endl;

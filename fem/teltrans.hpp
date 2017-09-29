@@ -75,13 +75,17 @@ public:
 
 protected:
 #ifdef MFEM_TEMPLATE_ELTRANS_HAS_NODE_DOFS
-  TTensor3<dofs,sdim,1,real_t,true> nodes_dof;
+   TTensor3<dofs,sdim,1,real_t> nodes_dof;
 #endif
 
    ShapeEval        evaluator;
    FESpace_type     fes;
    nodeLayout_type  node_layout;
+#ifndef MFEM_USE_X86INTRIN   
+   const real_t    *nodes;
+#else
    const double    *nodes;
+#endif
 
    const Element* const *elements;
 
@@ -150,7 +154,7 @@ public:
 #endif
       x_type x;
 
-     typedef TTensor3<dofs,sdim,NE,real_t,true> nodes_dof_t;
+      typedef TTensor3<dofs,sdim,NE,real_t> nodes_dof_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
       nodes_dof_t nodes_dof;
 #endif
@@ -160,12 +164,16 @@ public:
       {
 #ifdef MFEM_TEMPLATE_ELTRANS_HAS_NODE_DOFS
          MFEM_STATIC_ASSERT(NE == 1, "only NE == 1 is supported");
-         TTensor3<dofs,sdim,1,real_t,true> &nodes_dof = T.nodes_dof;
+         TTensor3<dofs,sdim,1,real_t> &nodes_dof = T.nodes_dof;
 #elif !defined(MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES)
          nodes_dof_t nodes_dof;
 #endif
          T.fes.SetElement(el);
+#ifndef MFEM_USE_X86INTRIN
+         T.fes.VectorExtract(T.node_layout, T.nodes,
+#else
          T.fes.VectorExtract(el,T.node_layout, T.nodes,
+#endif
                              nodes_dof.layout, nodes_dof);
          T.evaluator.Calc(nodes_dof.layout.merge_23(), nodes_dof,
                           x.layout.merge_23(), x);
@@ -191,7 +199,7 @@ public:
 #endif
       Jt_type Jt;
 
-      typedef TTensor3<dofs,sdim,NE,real_t,true> nodes_dof_t;
+      typedef TTensor3<dofs,sdim,NE,real_t> nodes_dof_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
       nodes_dof_t nodes_dof;
 #endif
@@ -201,12 +209,16 @@ public:
       {
 #ifdef MFEM_TEMPLATE_ELTRANS_HAS_NODE_DOFS
          MFEM_STATIC_ASSERT(NE == 1, "only NE == 1 is supported");
-         TTensor3<dofs,sdim,1,real_t,true> &nodes_dof = T.nodes_dof;
+         TTensor3<dofs,sdim,1,real_t> &nodes_dof = T.nodes_dof;
 #elif !defined(MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES)
          nodes_dof_t nodes_dof;
 #endif
          T.fes.SetElement(el);
+#ifndef MFEM_USE_X86INTRIN
+         T.fes.VectorExtract(T.node_layout, T.nodes,
+#else
          T.fes.VectorExtract(el,T.node_layout, T.nodes,
+#endif
                              nodes_dof.layout, nodes_dof);
          T.evaluator.CalcGrad(nodes_dof.layout.merge_23(), nodes_dof,
                               Jt.layout.merge_34(), Jt);
@@ -234,7 +246,7 @@ public:
 #endif
       Jt_type Jt;
 
-     typedef TTensor3<dofs,sdim,NE,real_t,true> nodes_dof_t;
+      typedef TTensor3<dofs,sdim,NE,real_t> nodes_dof_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
       nodes_dof_t nodes_dof;
 #endif
@@ -244,12 +256,16 @@ public:
       {
 #ifdef MFEM_TEMPLATE_ELTRANS_HAS_NODE_DOFS
          MFEM_STATIC_ASSERT(NE == 1, "only NE == 1 is supported");
-         TTensor3<dofs,sdim,1,real_t,true> &nodes_dof = T.nodes_dof;
+         TTensor3<dofs,sdim,1,real_t> &nodes_dof = T.nodes_dof;
 #elif !defined(MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES)
          nodes_dof_t nodes_dof;
 #endif
          T.fes.SetElement(el);
+#ifndef MFEM_USE_X86INTRIN
+         T.fes.VectorExtract(T.node_layout, T.nodes,
+#else
          T.fes.VectorExtract(el,T.node_layout, T.nodes,
+#endif
                              nodes_dof.layout, nodes_dof);
          T.evaluator.Calc(nodes_dof.layout.merge_23(), nodes_dof,
                           x.layout.merge_23(), x);
@@ -280,7 +296,7 @@ public:
 #endif
       Jt_type Jt;
 
-      typedef TTensor3<dofs,sdim,NE,real_t,true> nodes_dof_t;
+      typedef TTensor3<dofs,sdim,NE,real_t> nodes_dof_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
       nodes_dof_t nodes_dof;
 #endif
@@ -291,12 +307,16 @@ public:
       {
 #ifdef MFEM_TEMPLATE_ELTRANS_HAS_NODE_DOFS
          MFEM_STATIC_ASSERT(NE == 1, "only NE == 1 is supported");
-         TTensor3<dofs,sdim,1,real_t,true> &nodes_dof = T.nodes_dof;
+         TTensor3<dofs,sdim,1,real_t> &nodes_dof = T.nodes_dof;
 #elif !defined(MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES)
          nodes_dof_t nodes_dof;
 #endif
          T.fes.SetElement(el);
+#ifndef MFEM_USE_X86INTRIN
+         T.fes.VectorExtract(T.node_layout, T.nodes,
+#else
          T.fes.VectorExtract(el,T.node_layout, T.nodes,
+#endif
                              nodes_dof.layout, nodes_dof);
          T.evaluator.CalcGrad(nodes_dof.layout.merge_23(), nodes_dof,
                               Jt.layout.merge_34(), Jt);
@@ -324,7 +344,7 @@ public:
 #endif
       Jt_type Jt;
 
-      typedef TTensor3<dofs,sdim,NE,real_t,true> nodes_dof_t;
+      typedef TTensor3<dofs,sdim,NE,real_t> nodes_dof_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
       nodes_dof_t nodes_dof;
 #endif
@@ -335,12 +355,16 @@ public:
       {
 #ifdef MFEM_TEMPLATE_ELTRANS_HAS_NODE_DOFS
          MFEM_STATIC_ASSERT(NE == 1, "only NE == 1 is supported");
-         TTensor3<dofs,sdim,1,real_t,true> &nodes_dof = T.nodes_dof;
+         TTensor3<dofs,sdim,1,real_t> &nodes_dof = T.nodes_dof;
 #elif !defined(MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES)
          nodes_dof_t nodes_dof;
 #endif
          T.fes.SetElement(el);
+#ifndef MFEM_USE_X86INTRIN
+         T.fes.VectorExtract(T.node_layout, T.nodes,
+#else
          T.fes.VectorExtract(el,T.node_layout, T.nodes,
+#endif
                              nodes_dof.layout, nodes_dof);
          T.evaluator.CalcGrad(nodes_dof.layout.merge_23(), nodes_dof,
                               Jt.layout.merge_34(), Jt);

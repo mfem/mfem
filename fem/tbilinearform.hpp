@@ -34,16 +34,7 @@ template <typename meshType, typename solFESpace,
           typename complex_t = double, typename real_t = double>
 class TBilinearForm : public Operator
 {
- public:
-  static void* operator new(size_t count) { return Allocate(count); }
-private:
-  static void* Allocate(size_t count) {
-    void* result = nullptr;
-    const auto alloc_failed = posix_memalign(&result, 32, count);
-    if (alloc_failed)  throw ::std::bad_alloc();
-    return result;
-  }
- protected:
+protected:
    typedef complex_t complex_type;
    typedef real_t    real_type;
 
@@ -120,6 +111,9 @@ public:
       delete [] assembled_data;
    }
 
+   // Allocate aligned memory with x86 intrinsics alignment requirements
+   static void* operator new(size_t count) { return x86::alloc(count); }
+
    /// Get the input finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
    { return ((FiniteElementSpace &)in_fes).GetProlongationMatrix(); }
@@ -180,7 +174,11 @@ public:
 
          kernel_t::Action(0, F, wQ, res, R);
 
+#ifndef MFEM_USE_X86INTRIN
+         solFEval.template Assemble<true>(R);
+#else
          solFEval.template Assemble<true>(el,R);
+#endif         
       }
    }
 
@@ -226,7 +224,11 @@ public:
          kernel_t::MultAssembled(k, assembled_data[el+k], R);
       }
 
+#ifndef MFEM_USE_X86INTRIN
+      solFEval.template Assemble<true>(R);
+#else
       solFEval.template Assemble<true>(el,R);
+#endif
    }
 
    // complex_t = double
@@ -452,26 +454,28 @@ public:
       solShapeEval solEval(this->solEval);
       coeff_eval_t wQ(int_rule, coeff);
 
+#ifndef MFEM_USE_X86INTRIN      
       Array<int> vdofs;
-      Array<x86::vint_t> vdofs128;
       const Array<int> *dof_map = sol_fe.GetDofMap();
       const int *dof_map_ = dof_map->GetData();
       DenseMatrix M_loc_perm(dofs*vdim,dofs*vdim); // initialized with zeros
-      TDenseMatrix<x86::vreal_t> tM_loc_perm(dofs*vdim,dofs*vdim); // initialized with zeros
+#else // MFEM_USE_X86INTRIN      
+      Array<x86::vint_t> vdofs;
+      const Array<int> *dof_map = sol_fe.GetDofMap();
+      const int *dof_map_ = dof_map->GetData();
+      TDenseMatrix<x86::vreal_t> M_loc_perm(dofs*vdim,dofs*vdim); // initialized with zeros
+      MFEM_VERIFY((mesh.GetNE()%x86::width)==0,"x86::width should be modulo NE");
+#endif
 
-      TMatrix<dofs,dofs> M_loc;
-      TMatrix<dofs,dofs,real_t,true> tM_loc;
-      f_assembled_t asm_qpt_data;
-      
       const int NE = mesh.GetNE();
-      
-      MFEM_VERIFY((NE%x86::width)==0,"x86::width should be modulo NE");
-      std::cout<<"NE="<<NE<<std::endl<<std::flush;
-      a.AllocMat();
-      
+#ifndef MFEM_USE_X86INTRIN      
+      for (int el = 0; el < NE; el++)
+#else
       for (int el = 0; el < NE; el+=x86::width)
+#endif
       {
-        {
+         f_assembled_t asm_qpt_data;
+         {
             typename T_result<BE>::Type F;
             T.Eval(el, F);
 
@@ -483,8 +487,13 @@ public:
 
          // For now, when vdim > 1, assume block-diagonal matrix with the same
          // diagonal block for all components.
-          S_spec<BE>::ElementMatrix::Compute(
-            asm_qpt_data.layout, asm_qpt_data, tM_loc.layout, tM_loc, solEval);
+#ifndef MFEM_USE_X86INTRIN      
+         TMatrix<dofs,dofs> M_loc;
+#else // MFEM_USE_X86INTRIN      
+         TMatrix<dofs,dofs,real_t,true> M_loc;
+#endif
+         S_spec<BE>::ElementMatrix::Compute(
+            asm_qpt_data.layout, asm_qpt_data, M_loc.layout, M_loc, solEval);
 
          if (dof_map) // switch from tensor-product ordering
          {
@@ -492,19 +501,23 @@ public:
             {
                for (int j = 0; j < dofs; j++)
                {
-                  tM_loc_perm(dof_map_[i],dof_map_[j]) = tM_loc(i,j);
+                  M_loc_perm(dof_map_[i],dof_map_[j]) = M_loc(i,j);
                }
             }
             for (int bi = 1; bi < vdim; bi++)
             {
-               tM_loc_perm.CopyMN(tM_loc_perm, dofs, dofs, 0, 0,
+               M_loc_perm.CopyMN(M_loc_perm, dofs, dofs, 0, 0,
                                  bi*dofs, bi*dofs);
             }
-            a.AssembleElementMatrix(el, tM_loc_perm, vdofs128);
+            a.AssembleElementMatrix(el, M_loc_perm, vdofs);
          }
          else
          {
+#ifndef MFEM_USE_X86INTRIN      
             DenseMatrix DM(M_loc.data, dofs, dofs);
+#else
+            TDenseMatrix<x86::vreal_t> DM(M_loc.data,dofs*vdim,dofs*vdim); // initialized with zeros
+#endif
             if (vdim == 1)
             {
                a.AssembleElementMatrix(el, DM, vdofs);

@@ -132,7 +132,8 @@ void FiniteElementSpace::AdjustVDofs (Array<int> &vdofs)
   
 void FiniteElementSpace::GetElementVDofs(int i, Array<x86::vint_t> &vdofs) const
 {
-  GetElementDofs(i, vdofs);
+   GetElementDofs(i, vdofs);
+   //DofsToVDofs(vdofs); // Should it be done?
 }
 void FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs) const
 {

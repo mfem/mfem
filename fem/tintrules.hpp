@@ -220,7 +220,7 @@ public:
       MFEM_ASSERT(ir_1d.GetNPoints() == qpts_1d, "quadrature rule mismatch");
       for (int j = 0; j < qpts_1d; j++)
       {
-        weights_1d.data[j] = x86::set(ir_1d.IntPoint(j).weight);
+         weights_1d.data[j] = ir_1d.IntPoint(j).weight;
       }
    }
 

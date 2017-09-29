@@ -18,7 +18,7 @@ namespace mfem
 {
 
 /// Abstract operator
-  class Operator
+class Operator
 {
 protected:
    int height; ///< Dimension of the output / number of rows in the matrix.

@@ -11,6 +11,7 @@
 #ifndef MFEM_X86INTRIN_HPP
 #define MFEM_X86INTRIN_HPP
 
+#include <stdlib.h>
 #include "x86intrin.h"
 
 // x86 intrinsic class forward description
@@ -53,6 +54,7 @@ public:
   typedef real vreal_t;
   typedef integer vint_t;
   static inline vreal_t set(double a){return _mm512_set1_pd(a);}
+  static inline void* alloc(size_t size){return ::aligned_alloc(align,size);}
 };
 #endif // __AVX512__
 
@@ -69,6 +71,7 @@ public:
   typedef real vreal_t;
   typedef integer vint_t;
   static inline vreal_t set(double a){return _mm256_set1_pd(a);}
+  static inline void* alloc(size_t size){return ::aligned_alloc(align,size);}
 };
 #endif // __AVX2__
 
@@ -85,6 +88,7 @@ public:
   typedef real vreal_t;
   typedef integer vint_t;
   static inline vreal_t set(double a){return _mm256_set1_pd(a);}
+  static inline void* alloc(size_t size){return ::aligned_alloc(align,size);}
 };
 #endif // __AVX__
 
@@ -101,6 +105,7 @@ public:
   typedef real vreal_t;
   typedef integer vint_t;
   static inline vreal_t set(double a){return _mm_set1_pd(a);}
+  static inline void* alloc(size_t size){return ::aligned_alloc(align,size);}
 };
 #endif // __SSE__
 
@@ -117,6 +122,7 @@ public:
   typedef real vreal_t;
   typedef integer vint_t;
   static inline vreal_t set(double a){return a;}
+  static inline void* alloc(size_t size){return ::aligned_alloc(align,size);}
 };
 #endif // __STD__
 

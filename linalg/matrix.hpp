@@ -24,7 +24,7 @@ namespace mfem
 class MatrixInverse;
 
 /// Abstract data type matrix
-  class Matrix : public Operator
+class Matrix : public Operator
 {
    friend class MatrixInverse;
 public:

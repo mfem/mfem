@@ -10,7 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../general/array.hpp"
-#include "../general/x86intrin.hpp"
 #include "matrix.hpp"
 #include "sparsemat.hpp"
 #include "blockvector.hpp"
