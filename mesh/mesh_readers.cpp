@@ -14,6 +14,7 @@
 #include "../general/text.hpp"
 
 #include <iostream>
+#include <cstdio>
 
 #ifdef MFEM_USE_NETCDF
 #include "netcdf.h"

@@ -37,7 +37,7 @@ protected:
 public:
    /** @brief Construct an OutStream from the given stream @a out, by using its
        `rdbuf()`. */
-   OutStream(std::ostream &out) { SetStream(out); }
+   OutStream(std::ostream &out) : std::ostream(NULL) { SetStream(out); }
 
    /** @brief Replace the `rdbuf()` and `tie()` of the OutStream with that of
        @a out, enabling output. */
