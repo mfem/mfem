@@ -1224,7 +1224,6 @@ void HypreParMatrix::Threshold(double threshold)
    int  ierr = 0;
 
    MPI_Comm comm;
-   int num_procs;
    hypre_CSRMatrix * csr_A;
    hypre_CSRMatrix * csr_A_wo_z;
    hypre_ParCSRMatrix * parcsr_A_ptr;
@@ -1233,8 +1232,6 @@ void HypreParMatrix::Threshold(double threshold)
    HYPRE_Int col_start = -1;   HYPRE_Int col_end = -1;
 
    comm = hypre_ParCSRMatrixComm(A);
-
-   MPI_Comm_size(comm, &num_procs);
 
    ierr += hypre_ParCSRMatrixGetLocalRange(A,
                                            &row_start,&row_end,
