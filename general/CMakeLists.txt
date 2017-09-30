@@ -12,8 +12,7 @@
 list(APPEND SRCS
   array.cpp
   error.cpp
-  globalcomm.cpp
-  globalostream.cpp
+  globals.cpp
   gzstream.cpp
   isockstream.cpp
   optparser.cpp
@@ -29,8 +28,7 @@ list(APPEND SRCS
 list(APPEND HDRS
   array.hpp
   error.hpp
-  globalcomm.hpp
-  globalostream.hpp
+  globals.hpp
   gzstream.hpp
   hash.hpp
   isockstream.hpp
