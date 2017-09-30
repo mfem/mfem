@@ -45,7 +45,13 @@ int get_version_patch()
 
 const char *get_version_str()
 {
-   static const char *version_str = EXPAND_AND_QUOTE(MFEM_VERSION);
+#if MFEM_VERSION_TYPE == MFEM_VERSION_TYPE_RELEASE
+#define MFEM_VERSION_TYPE_STR " (release)"
+#elif MFEM_VERSION_TYPE == MFEM_VERSION_TYPE_DEVELOPMENT
+#define MFEM_VERSION_TYPE_STR " (development)"
+#endif
+   static const char *version_str =
+      "MFEM v" MFEM_VERSION_STRING MFEM_VERSION_TYPE_STR;
    return version_str;
 }
 

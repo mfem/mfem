@@ -15,6 +15,9 @@
 // MFEM version: integer of the form: (major*100 + minor)*100 + patch.
 // #define MFEM_VERSION @MFEM_VERSION@
 
+// MFEM version string of the form "3.3" or "3.3.1".
+// #define MFEM_VERSION_STRING "@MFEM_VERSION_STRING@"
+
 // MFEM version type, see the MFEM_VERSION_TYPE_* constants below.
 #define MFEM_VERSION_TYPE ((MFEM_VERSION)%2)
 
