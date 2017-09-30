@@ -1245,15 +1245,18 @@ void HypreParMatrix::Threshold(double threshold)
 
    bool old_owns_row = hypre_ParCSRMatrixOwnsRowStarts(A);
    bool old_owns_col = hypre_ParCSRMatrixOwnsColStarts(A);
-   parcsr_A_ptr = hypre_ParCSRMatrixCreate(comm,row_starts[num_procs],
-                                           col_starts[num_procs],row_starts,
-                                           col_starts,0,0,0);
+   HYPRE_Int global_num_rows = hypre_ParCSRMatrixGlobalNumRows(A);
+   HYPRE_Int global_num_cols = hypre_ParCSRMatrixGlobalNumCols(A);
+   parcsr_A_ptr = hypre_ParCSRMatrixCreate(comm, global_num_rows,
+                                           global_num_cols,
+                                           row_starts, col_starts,
+                                           0, 0, 0);
    hypre_ParCSRMatrixOwnsRowStarts(parcsr_A_ptr) = old_owns_row;
    hypre_ParCSRMatrixOwnsColStarts(parcsr_A_ptr) = old_owns_col;
 
    csr_A = hypre_MergeDiagAndOffd(A);
 
-   csr_A_wo_z =  hypre_CSRMatrixDeleteZeros(csr_A,threshold);
+   csr_A_wo_z = hypre_CSRMatrixDeleteZeros(csr_A,threshold);
 
    /* hypre_CSRMatrixDeleteZeros will return a NULL pointer rather than a usable
       CSR matrix if it finds no non-zeros */
