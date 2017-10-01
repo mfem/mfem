@@ -34,10 +34,10 @@ using namespace std;
 namespace mfem
 {
 
-void MPI_Session::GetRankAndSize(MPI_Comm comm)
+void MPI_Session::GetRankAndSize()
 {
-   MPI_Comm_rank(comm, &world_rank);
-   MPI_Comm_size(comm, &world_size);
+   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 }
 
 

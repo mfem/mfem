@@ -715,7 +715,7 @@ void MesquiteMesh::elements_get_topologies(const ElementHandle
 
 MesquiteMesh::~MesquiteMesh()
 {
-   MsqPrintError err(mfem::err.GetStream());
+   MsqPrintError err(mfem::err);
    delete myTags;
 
    delete dof_elem;
@@ -847,7 +847,7 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
 {
 
    MsqDebug::enable(1);
-   MsqPrintError err(mfem::err.GetStream());
+   MsqPrintError err(mfem::err);
 
    int pOrder = 2;
    int mNumInterfaceSmoothIters = 5;
@@ -1145,7 +1145,7 @@ void mfem::Mesh::MesquiteSmooth(const int mesquite_option)
 {
    mfem::MesquiteMesh msq_mesh(this);
    MsqDebug::enable(1);
-   MsqPrintError err(mfem::err.GetStream());
+   MsqPrintError err(mfem::err);
 
    Wrapper *method;
 

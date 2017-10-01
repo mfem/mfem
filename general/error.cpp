@@ -12,7 +12,6 @@
 #include "error.hpp"
 #include "globals.hpp"
 #include "array.hpp"
-#include "communication.hpp"
 #include <cstdlib>
 #include <iostream>
 

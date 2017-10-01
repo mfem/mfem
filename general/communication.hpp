@@ -27,22 +27,21 @@ namespace mfem
 {
 
 /** @brief A simple convenience class that calls MPI_Init() at construction and
-    MPI_Finalize() at destruction. It also provides easy access to the rank and
-    size of the given "world" communicator. */
+    MPI_Finalize() at destruction. It also provides easy access to
+    MPI_COMM_WORLD's rank and size. */
 class MPI_Session
 {
 protected:
    int world_rank, world_size;
-   void GetRankAndSize(MPI_Comm);
+   void GetRankAndSize();
 public:
-   MPI_Session(MPI_Comm world_comm = MPI_COMM_WORLD)
-   { MPI_Init(NULL, NULL); GetRankAndSize(world_comm); }
-   MPI_Session(int &argc, char **&argv, MPI_Comm world_comm = MPI_COMM_WORLD)
-   { MPI_Init(&argc, &argv); GetRankAndSize(world_comm); }
+   MPI_Session() { MPI_Init(NULL, NULL); GetRankAndSize(); }
+   MPI_Session(int &argc, char **&argv)
+   { MPI_Init(&argc, &argv); GetRankAndSize(); }
    ~MPI_Session() { MPI_Finalize(); }
-   /// Return the rank of the associated communicator.
+   /// Return MPI_COMM_WORLD's rank.
    int WorldRank() const { return world_rank; }
-   /// Return the size of the associated communicator.
+   /// Return MPI_COMM_WORLD's size.
    int WorldSize() const { return world_size; }
    /// Return true if WorldRank() == 0.
    bool Root() const { return world_rank == 0; }
