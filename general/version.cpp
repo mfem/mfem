@@ -56,6 +56,13 @@ const char *get_version_str()
 }
 
 
+const char *get_git_str()
+{
+   static const char *git_str = MFEM_GIT_STRING;
+   return git_str;
+}
+
+
 const char *get_config_str()
 {
    static const char *config_str =

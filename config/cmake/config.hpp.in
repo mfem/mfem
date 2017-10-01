@@ -30,6 +30,9 @@
 #define MFEM_VERSION_MINOR (((MFEM_VERSION)/100)%100)
 #define MFEM_VERSION_PATCH ((MFEM_VERSION)%100)
 
+// Description of the git commit used to build MFEM.
+#cmakedefine MFEM_GIT_STRING "@MFEM_GIT_STRING@"
+
 // Build the parallel MFEM library.
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
 #cmakedefine MFEM_USE_MPI

@@ -76,6 +76,16 @@ include(MfemCmakeUtilities)
 string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UC)
 mfem_version_to_int(${${PROJECT_NAME}_VERSION} ${PROJECT_NAME_UC}_VERSION)
 set(${PROJECT_NAME_UC}_VERSION_STRING ${${PROJECT_NAME}_VERSION})
+if (EXISTS ${PROJECT_SOURCE_DIR}/.git)
+   execute_process(
+     COMMAND git -C ${PROJECT_SOURCE_DIR}
+                describe --all --long --abbrev=40 --dirty --always
+     OUTPUT_VARIABLE ${PROJECT_NAME_UC}_GIT_STRING
+     ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
+endif()
+if (NOT ${PROJECT_NAME_UC}_GIT_STRING)
+   set(${PROJECT_NAME_UC}_GIT_STRING "")
+endif()
 
 #-------------------------------------------------------------------------------
 # Process configuration options
@@ -258,6 +268,8 @@ if (OPENMP_FOUND)
 endif()
 
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
+message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
+message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
 
 # Windows specific
 set(_USE_MATH_DEFINES ${WIN32})

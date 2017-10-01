@@ -21,6 +21,7 @@ int get_version_minor();
 int get_version_patch();
 
 const char *get_version_str();
+const char *get_git_str();
 const char *get_config_str();
 
 } // namespace mfem
