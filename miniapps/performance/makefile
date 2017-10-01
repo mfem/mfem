@@ -93,10 +93,10 @@ include $(MFEM_TEST_MK)
 
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-%-test-par: %
-	@$(call mfem-test,$<, $(RUN_MPI), Performance miniapp)
-%-test-seq: %
-	@$(call mfem-test,$<,, Performance miniapp)
+ex1p-test-par: ex1p
+	@$(call mfem-test,$<, $(RUN_MPI), Performance miniapp,-rs 2)
+ex1-test-seq: ex1
+	@$(call mfem-test,$<,, Performance miniapp,-r 2)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 

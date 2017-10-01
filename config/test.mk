@@ -70,7 +70,7 @@ mfem-test-file = \
    then $(PRINT_OK); else $(PRINT_FAILED); cat $(1).stderr; fi; \
    rm -f $(1).stderr; exit $$3
 
-.PHONY: test test-par-YES test-par-NO
+.PHONY: test test-par-YES test-par-NO test-clean
 
 # What sets of tests to run in serial and parallel
 test-par-YES: $(PAR_$(MFEM_TESTS):=-test-par) $(SEQ_$(MFEM_TESTS):=-test-seq)
@@ -78,3 +78,6 @@ test-par-NO:  $(SEQ_$(MFEM_TESTS):=-test-seq)
 test-ser:     test-par-NO
 test-par:     test-par-YES
 test:         all test-par-$(MFEM_USE_MPI) clean-exec
+test-clean: ; @rm -f *.stderr
+
+clean-exec: test-clean
