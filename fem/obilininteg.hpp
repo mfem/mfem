@@ -31,7 +31,7 @@ protected:
    const FiniteElement *fe;
    const TensorBasisElement *tfe;
 
-   const int dim;
+   const int dim, vdim;
 
    DenseTensor Dtensor;
    DenseMatrix shape1d, dshape1d;
@@ -66,7 +66,7 @@ protected:
    const FiniteElement *fe;
    const TensorBasisElement *tfe;
 
-   const int dim;
+   const int dim, vdim;
 
    Vector Dvec;
    DenseMatrix Dmat;
