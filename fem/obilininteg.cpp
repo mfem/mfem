@@ -191,6 +191,8 @@ void PADiffusionIntegrator::MultSeg(const Vector &V, Vector &U)
 
       // Q_k1 = dshape_j1_k1 * Q_k1
       dshape1d.AddMult(Q, Umat);
+
+      offset += dofs1d;
    }
 }
 
@@ -464,6 +466,8 @@ void PAMassIntegrator::MultSeg(const Vector &V, Vector &U)
 
       // Q_k1 = dshape_j1_k1 * Q_k1
       shape1d.AddMult(Q, Umat);
+
+      offset += dofs1d;
    }
 }
 

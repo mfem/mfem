@@ -1198,17 +1198,18 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
 static void BuildDofMaps(FiniteElementSpace *fespace, Array<int> &offsets,
                          Array<int> &indices)
 {
-   Array<int> elem_dof, global_map;
+   Array<int> elem_vdof, global_map;
 
    // Get the total size without vdim
    int size = 0;
+   const int vdim = fespace->GetVDim();
    for (int e = 0; e < fespace->GetNE(); e++)
    {
       const FiniteElement *fe = fespace->GetFE(e);
       size += fe->GetDof();
    }
-   const int local_size = size;
-   const int global_size = fespace->GetNDofs();
+   const int local_size = size * vdim;
+   const int global_size = fespace->GetVSize();
 
    // Now we can allocate and fill the global map
    offsets.SetSize(global_size + 1);
@@ -1220,16 +1221,18 @@ static void BuildDofMaps(FiniteElementSpace *fespace, Array<int> &offsets,
    {
       const FiniteElement *fe = fespace->GetFE(e);
       const int dofs = fe->GetDof();
+      const int vdofs = dofs * vdim;
       const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement *>(fe);
       const Array<int> &dof_map = tfe->GetDofMap();
 
-      fespace->GetElementDofs(e, elem_dof);
+      fespace->GetElementVDofs(e, elem_vdof);
 
-      for (int i = 0; i < dofs; i++)
-      {
-         global_map[offset + i] = elem_dof[dof_map[i]];
-      }
-      offset += dofs;
+      for (int vd = 0; vd < vdim; vd++)
+         for (int i = 0; i < vdofs; i++)
+         {
+            global_map[offset + dofs*vd + i] = elem_vdof[dofs*vd + dof_map[i]];
+         }
+      offset += vdofs;
    }
 
    // Store and use a set of offsets and indices instead of this map
@@ -1277,8 +1280,7 @@ BilinearFormOperator::BilinearFormOperator(FiniteElementSpace *f)
 
 void BilinearFormOperator::LToEVector(const Vector &v, Vector &V) const
 {
-   // TODO: vdim > 1 support.
-   const int size = fes->GetNDofs();
+   const int size = fes->GetVSize();
    for (int i = 0; i < size; i++)
    {
       const int offset = offsets[i];
@@ -1290,8 +1292,7 @@ void BilinearFormOperator::LToEVector(const Vector &v, Vector &V) const
 
 void BilinearFormOperator::EToLVector(const Vector &V, Vector &v) const
 {
-   // TODO: vdim > 1 support.
-   const int size = fes->GetNDofs();
+   const int size = fes->GetVSize();
    for (int i = 0; i < size; i++)
    {
       const int offset = offsets[i];
