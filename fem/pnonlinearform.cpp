@@ -67,11 +67,7 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 
    if (fbfi.Size())
    {
-      // Still need to add integrals over shared faces.
-
-      // First exchange data in X with neighbors.
-      X.ExchangeFaceNbrData();
-
+      // Terms over shared interior faces in parallel.
       ParFiniteElementSpace *pfes = ParFESpace();
       ParMesh *pmesh = pfes->GetParMesh();
       FaceElementTransformations *tr;
@@ -79,6 +75,7 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
       Array<int> vdofs1, vdofs2;
       Vector el_x, el_y;
 
+      X.ExchangeFaceNbrData();
       for (int i = 0; i < pmesh->GetNSharedFaces(); i++)
       {
          tr = pmesh->GetSharedFaceTransformations(i, true);
