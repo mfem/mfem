@@ -19,31 +19,31 @@ namespace mfem
 {
 
 
-int get_version()
+int GetVersion()
 {
    return MFEM_VERSION;
 }
 
 
-int get_version_major()
+int GetVersionMajor()
 {
    return MFEM_VERSION_MAJOR;
 }
 
 
-int get_version_minor()
+int GetVersionMinor()
 {
    return MFEM_VERSION_MINOR;
 }
 
 
-int get_version_patch()
+int GetVersionPatch()
 {
    return MFEM_VERSION_PATCH;
 }
 
 
-const char *get_version_str()
+const char *GetVersionStr()
 {
 #if MFEM_VERSION_TYPE == MFEM_VERSION_TYPE_RELEASE
 #define MFEM_VERSION_TYPE_STR " (release)"
@@ -56,14 +56,14 @@ const char *get_version_str()
 }
 
 
-const char *get_git_str()
+const char *GetGitStr()
 {
    static const char *git_str = MFEM_GIT_STRING;
    return git_str;
 }
 
 
-const char *get_config_str()
+const char *GetConfigStr()
 {
    static const char *config_str =
       ""

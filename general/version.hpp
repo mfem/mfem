@@ -15,14 +15,14 @@
 namespace mfem
 {
 
-int get_version();
-int get_version_major();
-int get_version_minor();
-int get_version_patch();
+int GetVersion();
+int GetVersionMajor();
+int GetVersionMinor();
+int GetVersionPatch();
 
-const char *get_version_str();
-const char *get_git_str();
-const char *get_config_str();
+const char *GetVersionStr();
+const char *GetGitStr();
+const char *GetConfigStr();
 
 } // namespace mfem
 
