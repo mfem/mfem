@@ -1024,7 +1024,7 @@ function exampleVisible(num)
 
 function update(id)
 {
-   var group1 = ["all1", "laplace", "elasticity", "maxwell", "graddiv", "darcy", "advection", "conduction", "euler", "meshing", "hpc"];
+   var group1 = ["all1", "laplace", "elasticity", "maxwell", "graddiv", "darcy", "advection", "conduction", "meshing", "hpc"];
    var group2 = ["all2", "l2", "h1", "hcurl", "hdiv", "h12"];
    var group3 = ["all3", "galerkin", "mixed", "dg", "dpg", "hybr", "staticcond", "nurbs", "amr" ];
    var group4 = ["all4", "jacobi", "gs", "pcg", "minres", "gmres", "amg", "ams", "ads", "superlu", "umfpack", "newton", "rk", "sdirk", "lobpcg", "sundials", "petsc"];
@@ -1053,7 +1053,6 @@ function update(id)
    showElement("ex15", laplace && h1 && (galerkin || nurbs || amr) && (gs || pcg || umfpack || amg));
    showElement("ex16", conduction && h1 && galerkin && (pcg || jacobi || rk || sdirk));
    showElement("ex17", elasticity && l2 && dg && (gs || pcg || gmres || umfpack || amg));
-   showElement("ex18", euler && l2 && dg && rk);
 
    // Electromagnetic miniapps
    numExamples += 3; // update when adding miniapps!
