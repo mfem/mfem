@@ -1,5 +1,4 @@
 //                  MFEM Example 18 - Serial/Parallel Shared Code
-//
 
 #include "mfem.hpp"
 
@@ -16,8 +15,8 @@ extern const int num_equation;
 extern const double specific_heat_ratio;
 extern const double gas_constant;
 
-// Time-dependent operator for the right-hand side of the ODE
-// representing the DG weak form.
+// Time-dependent operator for the right-hand side of the ODE representing the
+// DG weak form.
 class FE_Evolution : public TimeDependentOperator
 {
 private:
@@ -135,11 +134,10 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    A.Mult(x, z);
 
    // 2. Add the element terms.
-   // i.  computing the flux approximately as a grid function by
-   //     interpolating at the solution nodes.
-   // ii. multiplying this grid function by a (constant) mixed
-   //     bilinear form for each of the num_equation, computing
-   //     (F(u), grad(w)) for each equation.
+   // i.  computing the flux approximately as a grid function by interpolating
+   //     at the solution nodes.
+   // ii. multiplying this grid function by a (constant) mixed bilinear form for
+   //     each of the num_equation, computing (F(u), grad(w)) for each equation.
 
    DenseMatrix xmat(x.GetData(), vfes.GetNDofs(), num_equation);
    GetFlux(xmat, flux);

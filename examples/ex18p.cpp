@@ -10,27 +10,26 @@
 //       mpirun -np 4 ex18p -p 2 -rs 1 -rp 1 -o 1 -s 3
 //       mpirun -np 4 ex18p -p 2 -rs 0 -rp 1 -o 3 -s 3
 //
-// Description: This example code solves the compressible Euler system
-//              of equations, a model nonlinear hyperbolic PDE, with a
+// Description: This example code solves the compressible Euler system of
+//              equations, a model nonlinear hyperbolic PDE, with a
 //              discontinuous Galerkin (DG) formulation.
 //
-//              Specifically, it solves for an exact solution of the
-//              equations whereby a vortex is transported by a uniform
-//              flow. Since all boundaries are periodic here, the
-//              method's accuracy can be assessed by measuring the
-//              difference between the solution and the initial
-//              condition at a later time when the vortex returns to
+//              Specifically, it solves for an exact solution of the equations
+//              whereby a vortex is transported by a uniform flow. Since all
+//              boundaries are periodic here, the method's accuracy can be
+//              assessed by measuring the difference between the solution and
+//              the initial condition at a later time when the vortex returns to
 //              its initial location.
 //
-//              Note that as the order of the spatial discretization
-//              increases, the timestep must become smaller. This
-//              example currently uses a simple estimate derived by
-//              Cockburn and Shu for the 1D RKDG method. An additional
-//              factor is given by passing the --cfl or -c flag.
+//              Note that as the order of the spatial discretization increases,
+//              the timestep must become smaller. This example currently uses a
+//              simple estimate derived by Cockburn and Shu for the 1D RKDG
+//              method. An additional factor is given by passing the --cfl or -c
+//              flag.
 //
-//              Since the solution is a vector grid function,
-//              components need to be visualized separately in GLvis
-//              using the -gc flag to select the component.
+//              Since the solution is a vector grid function, components need to
+//              be visualized separately in GLvis using the -gc flag to select
+//              the component.
 //
 
 #include "mfem.hpp"
@@ -65,7 +64,7 @@ int main(int argc, char *argv[])
    double t_final = 2;
    double dt = -0.01;
    double cfl = 0.3;
-   bool visualization = false;
+   bool visualization = true;
    int vis_steps = 50;
 
    int precision = 8;
@@ -107,8 +106,8 @@ int main(int argc, char *argv[])
    }
    if (mpi.Root()) { args.PrintOptions(cout); }
 
-   // 2. Read the mesh from the given mesh file. This example requires
-   // a periodic mesh to function correctly.
+   // 2. Read the mesh from the given mesh file. This example requires a
+   //    periodic mesh to function correctly.
    Mesh mesh(mesh_file, 1, 1);
    const int dim = mesh.Dimension();
 
@@ -157,9 +156,9 @@ int main(int argc, char *argv[])
    // Much of this example depends on this ordering of the space.
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
 
-   // 6. Define the initial conditions, save the corresponding mesh
-   //    and grid functions to a file. Note again that the file can be
-   //    opened with GLvis with the -gc option.
+   // 6. Define the initial conditions, save the corresponding mesh and grid
+   //    functions to a file. Note again that the file can be opened with GLvis
+   //    with the -gc option.
    Array<int> offsets(num_equation + 1);
    for (int k = 0; k <= num_equation; k++) { offsets[k] = k * vfes.GetNDofs(); }
    BlockVector u_block(offsets);
@@ -167,8 +166,8 @@ int main(int argc, char *argv[])
    // Density grid function for visualization.
    ParGridFunction mom(&dfes, u_block.GetData() + offsets[1]);
 
-   // Initialize the block vector state: define a vector finite
-   // element space for all equations and initialize together.
+   // Initialize the block vector state: define a vector finite element space
+   // for all equations and initialize together.
    VectorFunctionCoefficient u0(num_equation, u0_function);
    ParGridFunction sol(&vfes, u_block.GetData());
    sol.ProjectCoefficient(u0);
@@ -195,9 +194,8 @@ int main(int argc, char *argv[])
       sol_ofs << uk;
    }
 
-   // 7. Set up the nonlinear form corresponding to the DG
-   //    discretization of the flux divergence, and assemble the
-   //    corresponding mass matrix.
+   // 7. Set up the nonlinear form corresponding to the DG discretization of the
+   //    flux divergence, and assemble the corresponding mass matrix.
    MixedBilinearForm Aflux(&dfes, &fes);
    Aflux.AddDomainIntegrator(new DomainIntegrator(dim));
    Aflux.Assemble();
