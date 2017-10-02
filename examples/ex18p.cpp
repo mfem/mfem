@@ -183,8 +183,6 @@ int main(int argc, char *argv[])
 
    for (int k = 0; k < num_equation; k++)
    {
-      // TODO: Does fes need to be a ParFiniteElementSpace to create a ParGridFunction for output?
-      // TODO: Furthermore, does uk HAVE to be ParGridFunction to be output here?
       ParGridFunction uk(&fes, u_block.GetBlock(k));
       ostringstream sol_name;
       sol_name << "vortex-" << k << "-init."

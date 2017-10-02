@@ -406,7 +406,6 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
    const int order = std::max(el1.GetOrder(), el2.GetOrder());
    const int intorder = 2 * order + 2;
    const IntegrationRule *ir = &IntRules.Get(Tr.FaceGeom, intorder);
-   IntegrationPoint eip1, eip2;
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
