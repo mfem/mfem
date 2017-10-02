@@ -267,7 +267,7 @@ int main (int argc, char *argv[])
    args.AddOption(&newton_iter, "-ni", "--newton-iters",
                   "Maximum number of Newton iterations.");
    args.AddOption(&lin_solver, "-ls", "--lin-solver",
-                  "ODE solver: 0 - l1-Jacobi, 1 - CG, 2 - MINRES.");
+                  "Linear solver: 0 - l1-Jacobi, 1 - CG, 2 - MINRES.");
    args.AddOption(&max_lin_iter, "-li", "--lin-iter",
                   "Maximum number of iterations in the linear solve.");
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
