@@ -1323,8 +1323,8 @@ public:
       RowInfo(int ent, int idx, int edof, GroupId grp, const PMatrixRow &row)
          : entity(ent), index(idx), edof(edof), group(grp), row(row) {}
 
-      RowInfo(int ent, int idx, int edof)
-         : entity(ent), index(idx), edof(edof) {}
+      RowInfo(int ent, int idx, int edof, GroupId grp)
+         : entity(ent), index(idx), edof(edof), group(grp) {}
 
       typedef std::vector<RowInfo> List;
    };
@@ -1428,7 +1428,7 @@ void NeighborRowMessage::Decode()
    int ne = fec->DofForGeometry(Geometry::SEGMENT);
 
    // read rows
-   for (int ent = 0; ent < 3; ent++)
+   for (int ent = 0, gi = 0; ent < 3; ent++)
    {
       const Array<NCMesh::MeshId> &ids = ent_ids[ent];
       for (int i = 0; i < ids.Size(); i++)
@@ -1439,7 +1439,7 @@ void NeighborRowMessage::Decode()
          {
             edof = ne-1 - edof;
          }
-         rows.push_back(RowInfo(ent, id.index, edof));
+         rows.push_back(RowInfo(ent, id.index, edof, group_ids[gi++]));
          rows.back().row.read(stream);
       }
    }
