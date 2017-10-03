@@ -493,6 +493,11 @@ void ParNCMesh::AugmentMasterGroups()
    {
       // TODO
    }
+
+   // force recreate shared entities by new groups
+   shared_vertices.Clear();
+   shared_edges.Clear();
+   shared_faces.Clear();
 }
 
 void ParNCMesh::GetGroupShared(Array<bool> &group_shared)

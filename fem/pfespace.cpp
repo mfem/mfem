@@ -1419,9 +1419,11 @@ void NeighborRowMessage::Decode()
    pncmesh->DecodeMeshIds(stream, ent_ids);
    pncmesh->DecodeGroups(stream, group_ids);
 
+   int nrows = ent_ids[0].Size() + ent_ids[1].Size() + ent_ids[2].Size();
+   MFEM_ASSERT(nrows == group_ids.Size(), "");
+
    rows.clear();
-   rows.reserve(ent_ids[0].Size() + ent_ids[1].Size() + ent_ids[2].Size());
-   MFEM_ASSERT(int(rows.size()) == group_ids.Size(), "");
+   rows.reserve(nrows);
 
    int ne = fec->DofForGeometry(Geometry::SEGMENT);
 
@@ -1643,7 +1645,10 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
             PMatrixElement(my_tdof_offset + true_dof, 1.0));
 
          // prepare messages to neighbors with identity rows
-         ScheduleSendRow(pmatrix[dof], dof, dof_group[dof], send_msg.back());
+         if (dof < nvdofs + nedofs + nfdofs)
+         {
+            ScheduleSendRow(pmatrix[dof], dof, dof_group[dof], send_msg.back());
+         }
 
          R->Add(true_dof, dof, 1.0);
          ldof_ltdof[dof] = true_dof;
