@@ -339,16 +339,8 @@ private:
 
    char name[16];
 
-   void Allocate(int Order);
-   void Deallocate();
-
 public:
-   explicit NURBSFECollection(int Order) { Allocate(Order); }
-
-   int GetOrder() const { return SegmentFE->GetOrder(); }
-
-   /// Change the order of the collection
-   void UpdateOrder(int Order) { Deallocate(); Allocate(Order); }
+   explicit NURBSFECollection(int Order = 1);
 
    void Reset() const
    {
@@ -368,7 +360,7 @@ public:
 
    FiniteElementCollection *GetTraceCollection() const;
 
-   virtual ~NURBSFECollection() { Deallocate(); }
+   virtual ~NURBSFECollection();
 };
 
 

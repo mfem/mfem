@@ -924,9 +924,9 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    return R;
 }
 
-FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
-                                       const FiniteElementCollection *fec,
-                                       int vdim, int ordering)
+void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
+                                     const FiniteElementCollection *fec,
+                                     int vdim, int ordering)
 {
    this->mesh = mesh;
    this->fec = fec;
@@ -945,35 +945,33 @@ FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
          mfem_error("FiniteElementSpace::FiniteElementSpace :\n"
                     "   NURBS FE space requires NURBS mesh.");
       }
+
+      if (NURBSext == NULL)
+      {
+         this->NURBSext = mesh->NURBSext;
+         own_ext = 0;
+      }
       else
       {
-         int Order = nurbs_fec->GetOrder();
-         if (mesh->NURBSext->GetOrder() == Order)
-         {
-            NURBSext = mesh->NURBSext;
-            own_ext = 0;
-         }
-         else
-         {
-            NURBSext = new NURBSExtension(mesh->NURBSext, Order);
-            own_ext = 1;
-         }
-         UpdateNURBS();
-         cP = cR = NULL;
-         cP_is_set = false;
-         T = NULL;
-         own_T = true;
+         this->NURBSext = NURBSext;
+         own_ext = 1;
       }
+      UpdateNURBS();
+      cP = cR = NULL;
+      cP_is_set = false;
+      T = NULL;
+      own_T = true;
+
    }
    else
    {
-      NURBSext = NULL;
+      this->NURBSext = NULL;
       own_ext = 0;
       Construct();
    }
-
    BuildElementToDofTable();
 }
+
 
 NURBSExtension *FiniteElementSpace::StealNURBSext()
 {
@@ -1558,6 +1556,21 @@ void FiniteElementSpace::Save(std::ostream &out) const
        << "FiniteElementCollection: " << fec->Name() << '\n'
        << "VDim: " << vdim << '\n'
        << "Ordering: " << ordering << '\n';
+
+   if (NURBSext)
+   {
+      if (NURBSext == mesh->NURBSext)
+      {
+         out << "NURBSext: " << 0 << '\n';
+      }
+      else
+      {
+         Array<int> Orders;
+         NURBSext->GetOrders(Orders);
+         out << "NURBSext: " << Orders.Size() << '\n';
+         Orders.Save(out);
+      }
+   }
 }
 
 

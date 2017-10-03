@@ -43,6 +43,11 @@ New and updated examples and miniapps
 
 Discretization improvements
 ---------------------------
+- Added variable order NURBS: for each space each knot vector in the mesh can
+  have a different order. The order information is now part of the finite
+  element space header in the NURBS mesh output, so NURBS meshes in the old
+  format need to be updated.
+
 - Added the ability to integrate delta functions on the righ-hand side (by
   sampling the test function at the center of the delta coefficient). Currently
   this is supported in the DomainLFIntegrator, VectorDomainLFIntegrator and

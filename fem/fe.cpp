@@ -10938,6 +10938,14 @@ void ND_SegmentElement::CalcVShape(const IntegrationPoint &ip,
    obasis1d.Eval(ip.x, vshape);
 }
 
+void NURBS1DFiniteElement::SetOrder() const
+{
+   Order = kv[0]->GetOrder();
+   Dof = Order + 1;
+
+   weights.SetSize(Dof);
+   shape_x.SetSize(Dof);
+}
 
 void NURBS1DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                      Vector &shape) const
@@ -10972,6 +10980,21 @@ void NURBS1DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    add(sum, grad, -dsum*sum*sum, shape_x, grad);
 }
 
+void NURBS2DFiniteElement::SetOrder() const
+{
+   px = kv[0]->GetOrder();
+   py = kv[1]->GetOrder();
+   shape_x.SetSize(px+1);
+   shape_y.SetSize(py+1);
+   dshape_x.SetSize(px+1);
+   dshape_y.SetSize(py+1);
+
+   Order = max(px,py);
+   Dof = (px + 1)*(py + 1);
+   u.SetSize(Dof);
+   weights.SetSize(Dof);
+}
+
 void NURBS2DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                      Vector &shape) const
 {
@@ -10979,10 +11002,10 @@ void NURBS2DFiniteElement::CalcShape(const IntegrationPoint &ip,
    kv[1]->CalcShape(shape_y, ijk[1], ip.y);
 
    double sum = 0.0;
-   for (int o = 0, j = 0; j <= Order; j++)
+   for (int o = 0, j = 0; j <= py; j++)
    {
       const double sy = shape_y(j);
-      for (int i = 0; i <= Order; i++, o++)
+      for (int i = 0; i <= px; i++, o++)
       {
          sum += ( shape(o) = shape_x(i)*sy*weights(o) );
       }
@@ -11003,10 +11026,10 @@ void NURBS2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    kv[1]->CalcDShape(dshape_y, ijk[1], ip.y);
 
    sum = dsum[0] = dsum[1] = 0.0;
-   for (int o = 0, j = 0; j <= Order; j++)
+   for (int o = 0, j = 0; j <= py; j++)
    {
       const double sy = shape_y(j), dsy = dshape_y(j);
-      for (int i = 0; i <= Order; i++, o++)
+      for (int i = 0; i <= px; i++, o++)
       {
          sum += ( u(o) = shape_x(i)*sy*weights(o) );
 
@@ -11025,6 +11048,25 @@ void NURBS2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
       dshape(o,1) = dshape(o,1)*sum - u(o)*dsum[1];
    }
 }
+//---------------------------------------------------------------------
+void NURBS3DFiniteElement::SetOrder() const
+{
+   px = kv[0]->GetOrder();
+   py = kv[1]->GetOrder();
+   pz = kv[2]->GetOrder();
+   shape_x.SetSize(px+1);
+   shape_y.SetSize(py+1);
+   shape_z.SetSize(pz+1);
+
+   dshape_x.SetSize(px+1);
+   dshape_y.SetSize(py+1);
+   dshape_z.SetSize(pz+1);
+
+   Order = max(max(px,py),pz);
+   Dof = (px + 1)*(py + 1)*(pz + 1);
+   u.SetSize(Dof);
+   weights.SetSize(Dof);
+}
 
 void NURBS3DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                      Vector &shape) const
@@ -11034,13 +11076,13 @@ void NURBS3DFiniteElement::CalcShape(const IntegrationPoint &ip,
    kv[2]->CalcShape(shape_z, ijk[2], ip.z);
 
    double sum = 0.0;
-   for (int o = 0, k = 0; k <= Order; k++)
+   for (int o = 0, k = 0; k <= pz; k++)
    {
       const double sz = shape_z(k);
-      for (int j = 0; j <= Order; j++)
+      for (int j = 0; j <= py; j++)
       {
          const double sy_sz = shape_y(j)*sz;
-         for (int i = 0; i <= Order; i++, o++)
+         for (int i = 0; i <= px; i++, o++)
          {
             sum += ( shape(o) = shape_x(i)*sy_sz*weights(o) );
          }
@@ -11064,15 +11106,15 @@ void NURBS3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    kv[2]->CalcDShape(dshape_z, ijk[2], ip.z);
 
    sum = dsum[0] = dsum[1] = dsum[2] = 0.0;
-   for (int o = 0, k = 0; k <= Order; k++)
+   for (int o = 0, k = 0; k <= pz; k++)
    {
       const double sz = shape_z(k), dsz = dshape_z(k);
-      for (int j = 0; j <= Order; j++)
+      for (int j = 0; j <= py; j++)
       {
          const double  sy_sz  =  shape_y(j)* sz;
          const double dsy_sz  = dshape_y(j)* sz;
          const double  sy_dsz =  shape_y(j)*dsz;
-         for (int i = 0; i <= Order; i++, o++)
+         for (int i = 0; i <= px; i++, o++)
          {
             sum += ( u(o) = shape_x(i)*sy_sz*weights(o) );
 

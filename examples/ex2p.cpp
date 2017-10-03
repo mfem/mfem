@@ -107,9 +107,16 @@ int main(int argc, char *argv[])
 
    // 4. Select the order of the finite element discretization space. For NURBS
    //    meshes, we increase the order by degree elevation.
-   if (mesh->NURBSext && order > mesh->NURBSext->GetOrder())
+   if (mesh->NURBSext)
    {
-      mesh->DegreeElevate(order - mesh->NURBSext->GetOrder());
+      Array<int> mOrder;
+      mesh->NURBSext->GetOrders(mOrder);
+      if (mOrder.Max() != mOrder.Min()) { mfem_error("NURBS Mesh should have uniform order"); }
+
+      if (order > mOrder[0])
+      {
+         mesh->DegreeElevate(order - mOrder[0]);
+      }
    }
 
    // 5. Refine the serial mesh on all processors to increase the resolution. In

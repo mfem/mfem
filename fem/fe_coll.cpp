@@ -260,10 +260,11 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    }
    else if (!strncmp(name, "NURBS", 5))
    {
-      fec = new NURBSFECollection(atoi(name + 5));
+      fec = new NURBSFECollection();
    }
    else
    {
+      cout<<"NAME = "<<name<<endl;
       mfem_error("FiniteElementCollection::New : "
                  "Unknown FiniteElementCollection!");
    }
@@ -2422,17 +2423,19 @@ Local_FECollection::Local_FECollection(const char *fe_name)
    }
 }
 
-
-void NURBSFECollection::Allocate(int Order)
+NURBSFECollection::NURBSFECollection(int Order)
 {
    SegmentFE        = new NURBS1DFiniteElement(Order);
    QuadrilateralFE  = new NURBS2DFiniteElement(Order);
    ParallelepipedFE = new NURBS3DFiniteElement(Order);
 
    snprintf(name, 16, "NURBS%i", Order);
+   snprintf(name, 16, "NURBS");
 }
 
-void NURBSFECollection::Deallocate()
+
+
+NURBSFECollection::~NURBSFECollection()
 {
    delete ParallelepipedFE;
    delete QuadrilateralFE;

@@ -44,15 +44,33 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
    input >> std::ws;
    input.getline(buff, bufflen);
    fec = FiniteElementCollection::New(buff);
+
    input.getline(buff, bufflen, ' '); // 'VDim:'
    input >> vdim;
    input.getline(buff, bufflen, ' '); // 'Ordering:'
    int ordering;
    input >> ordering;
+
+   NURBSExtension *NURBSext = NULL;
+   if (m->NURBSext && dynamic_cast<NURBSFECollection *>(fec) )
+   {
+      input.getline(buff, bufflen, ' '); // 'NURBSext:'
+      int size;
+      input >> size;
+
+      if (size > 0)
+      {
+         Array<int> Orders(size);
+         Orders.Load(input);
+         NURBSext = new NURBSExtension(m->NURBSext, Orders);
+      }
+   }
+
    input.getline(buff, bufflen); // read the empty line
-   fes = new FiniteElementSpace(m, fec, vdim, ordering);
+   fes = new FiniteElementSpace(m, NURBSext, fec, vdim, ordering);
    Vector::Load(input, fes->GetVSize());
    sequence = 0;
+
 }
 
 GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
