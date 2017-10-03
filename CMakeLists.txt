@@ -41,7 +41,7 @@ endif()
 #-------------------------------------------------------------------------------
 # Project name and version
 #-------------------------------------------------------------------------------
-project(mfem CXX)
+project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
@@ -53,17 +53,36 @@ if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
     "MFEM does not support in-source CMake builds at this time.")
 endif (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
 
+# Set xSDK defaults.
+set(USE_XSDK_DEFAULTS_DEFAULT OFF)
+set(XSDK_ENABLE_CXX ON)
+set(XSDK_ENABLE_C OFF)
+set(XSDK_ENABLE_Fortran OFF)
+
+# Check if we need to enable C or Fortran.
 if (CMAKE_VERSION VERSION_LESS 3.2 OR MFEM_USE_SIDRE OR MFEM_USE_PETSC)
    # This seems to be needed by:
    #  * find_package(BLAS REQUIRED) and
    #  * find_package(HDF5 REQUIRED) needed, in turn, by:
    #    - find_package(AXOM REQUIRED)
    #  * find_package(PETSc REQUIRED)
-   enable_language(C)
+   set(XSDK_ENABLE_C ON)
 endif()
 if (MFEM_USE_STRUMPACK)
   # Just needed to find the MPI_Fortran libraries to link with
-  enable_language(Fortran)
+  set(XSDK_ENABLE_Fortran ON)
+endif()
+
+# Include xSDK default CMake file.
+include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
+
+# Enable languages.
+enable_language(CXX)
+if (XSDK_ENABLE_C)
+   enable_language(C)
+endif()
+if (XSDK_ENABLE_Fortran)
+   enable_language(Fortran)
 endif()
 
 # CMake needs to know where to find things
