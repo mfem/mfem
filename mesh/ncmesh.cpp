@@ -1523,12 +1523,12 @@ const double* NCMesh::CalcVertexPos(int node) const
 
 void NCMesh::GetMeshComponents(Array<mfem::Vertex>& mvertices,
                                Array<mfem::Element*>& melements,
-                               Array<mfem::Element*>& mboundary,
-                               bool want_vertices) const
+                               Array<mfem::Element*>& mboundary) const
 {
-   if (want_vertices)
+   mvertices.SetSize(vertex_nodeId.Size());
+   if (top_vertex_pos.Size())
    {
-      mvertices.SetSize(vertex_nodeId.Size());
+      // calculate vertex positions from stored top-level vertex coordinates
       tmp_vertex = new TmpVertex[nodes.NumIds()];
       for (int i = 0; i < mvertices.Size(); i++)
       {
@@ -1536,6 +1536,9 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex>& mvertices,
       }
       delete [] tmp_vertex;
    }
+   // NOTE: if the mesh is curved (top_vertex_pos is empty), mvertices are left
+   // uninitialized here; they will be initialized later by the Mesh from Nodes
+   // - here we just make sure mvertices has the correct size.
 
    melements.SetSize(leaf_elements.Size() - GetNumGhosts());
    melements.SetSize(0);
