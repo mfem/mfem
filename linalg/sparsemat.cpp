@@ -1114,18 +1114,37 @@ void SparseMatrix::EliminateRow(int row, int setOneDiagonal)
    }
 }
 
-void SparseMatrix::EliminateCol(int col)
+void SparseMatrix::EliminateCol(int col, int setOneDiagonal)
 {
-   RowNode *aux;
+   MFEM_ASSERT(col < width && col >= 0,
+               "Col " << col << " not in matrix of width " << width);
 
-   MFEM_VERIFY(!Finalized(), "Matrix must NOT be finalized.");
-
-   for (int i = 0; i < height; i++)
-      for (aux = Rows[i]; aux != NULL; aux = aux->Prev)
-         if (aux -> Column == col)
-         {
-            aux->Value = 0.0;
-         }
+   MFEM_ASSERT(!setOneDiagonal || height == width,
+               "if setOneDiagonal, must be rectangular matrix, not height = "
+               << height << ",  width = " << width);
+   if (Rows == NULL)
+   {
+      for (int i = 0; i < height; i++)
+         for (int jpos = I[i]; jpos != I[i+1]; ++jpos)
+            if (J[jpos] == col)
+            {
+               A[jpos] = 0.0;
+            }
+   }
+   else
+   {
+      RowNode *aux;
+      for (int i = 0; i < height; i++)
+         for (aux = Rows[i]; aux != NULL; aux = aux->Prev)
+            if (aux -> Column == col)
+            {
+               aux->Value = 0.0;
+            }
+   }
+   if (setOneDiagonal)
+   {
+      SearchRow(col, col) = 1.;
+   }
 }
 
 void SparseMatrix::EliminateCols(Array<int> &cols, Vector *x, Vector *b)
