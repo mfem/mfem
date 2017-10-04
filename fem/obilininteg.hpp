@@ -21,6 +21,26 @@
 namespace mfem
 {
 
+//Should be in DenseTensor?
+template <int Dim>
+class PAOperator
+{
+
+protected:
+  DenseMatrix shape1d, dshape1d;
+
+public:
+  PAOperator(FiniteElementSpace *_fes, const int ir_order);
+  /**
+  * Computes V = B^T D B U where B is a tensor product of shape1d. 
+  */
+  void MultBtDB(const DenseMatrix D, const Vector &U, Vector &V);
+  void MultGtDG(const DenseTensor D, const Vector &U, Vector &V);
+  //void MultBtDG(const DenseMatrix D, const Vector &U, Vector &V);
+  //void MultGtDB(const DenseMatrix D, const Vector &U, Vector &V);
+  
+};
+
 /** Class for computing the action of (grad(u), grad(v)) from a scalar
  * fespace using a partially assembled operator at quadrature
  * points. */
@@ -55,6 +75,50 @@ public:
    /// Perform the action of the BilinearFormIntegrator
    virtual void AssembleVector(const FiniteElementSpace &fes,
                                const Vector &fun, Vector &vect);
+};
+
+/** Class for computing the action of (alpha (q u, grad v)) from a scalar fespace
+* using a partially assembled operator at quadrature points.
+* */
+class PAConvectionIntegrator : public BilinearFormIntegrator
+{
+   FiniteElementSpace *fes;
+   const FiniteElement *fe;
+   const TensorBasisElement *tfe;
+
+   const int dim;
+
+   DenseTensor Dtensor;
+   DenseMatrix shape1d, dshape1d;
+   VectorCoefficient *q;
+public:
+  PAConvectionIntegrator(FiniteElementSpace *_fes, const int ir_order
+                        VectorCoefficient &q, double a = 1.0);
+  
+  // Perform the action of the BilinearFormIntegrator
+  virtual void AssembleVector(const FiniteElementSpace &fes,
+                              const Vector &fun, Vector &vect);
+};
+
+/** Class for computing the action of 
+    (alpha < rho_q (q.n) {u},[v] > + beta < rho_q |q.n| [u],[v] >),
+    where u and v are the trial and test variables, respectively, and rho/u are
+    given scalar/vector coefficients. The vector coefficient, q, is assumed to
+    be continuous across the faces and when given the scalar coefficient, rho,
+    is assumed to be discontinuous. The integrator uses the upwind value of rho,
+    rho_q, which is value from the side into which the vector coefficient, q,
+    points. This uses a partially assembled operator at quadrature points.
+* */
+class PADGConvectionFaceIntegrator : public BilinearFormIntegrator
+{
+
+public:
+  PADGConvectionFaceIntegrator(FiniteElementSpace *_fes, const int ir_order
+                        VectorCoefficient &q, double a = 1.0);
+
+  // Perform the action of the BilinearFormIntegrator
+  virtual void AssembleVector(const FiniteElementSpace &fes,
+                              const Vector &fun, Vector &vect);
 };
 
 /** Class for computing the action of (u, v) from a scalar fespace
