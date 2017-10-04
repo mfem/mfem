@@ -59,6 +59,11 @@ public:
    const Array<int> & ColOffsets() const { return col_offsets; }
    //! Return the number of non zeros in row i
    int RowSize(const int i) const;
+   /** Eliminates the column and row 'rc'
+   replaces the element (rc,rc) with 1.0; assumes that element (i,rc)
+    is assembled if and only if the element (rc,i) is assembled.
+   If d != 0 then the element (rc,rc) remains the same. */
+   void EliminateRowCol(int rc, int d = 0);
    //! Symmetric elimination of the marked degree of freedom.
    /**
     * ess_bc_dofs: marker of the degree of freedom to be eliminated
