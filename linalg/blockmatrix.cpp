@@ -358,6 +358,18 @@ void BlockMatrix::EliminateZeroRows()
    }
 }
 
+void BlockMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
+{
+   for (int iblock = 0; iblock < nRowBlocks; ++iblock)
+   {
+      for (int jblock = 0; jblock < nColBlocks; ++jblock)
+      {
+         if (!Aij(iblock,jblock)) { continue; }
+         if (!Aij(iblock,jblock)->Finalized()) { Aij(iblock,jblock)->Finalize(skip_zeros, fix_empty_rows); }
+      }
+   }
+}
+
 void BlockMatrix::Mult(const Vector & x, Vector & y) const
 {
    if (x.GetData() == y.GetData())

@@ -73,6 +73,12 @@ public:
     * rhs: vector that stores the rhs of the system.
     */
    void EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol, Vector & rhs);
+
+   ///  Finalize all the submatrices
+   virtual void Finalize(int skip_zeros = 1) { Finalize(skip_zeros, false); }
+   /// A slightly more general version of the Finalize(int) method.
+   void Finalize(int skip_zeros, bool fix_empty_rows);
+
    //! Returns a monolithic CSR matrix that represents this operator.
    SparseMatrix * CreateMonolithic() const;
    //! Export the monolithic matrix to file.
