@@ -344,6 +344,11 @@ public:
                        std::vector<double> & eigenvalues);
 
    /// Extract a single eigenvector
+   HypreParVector * ReturnEigenvector(unsigned int i);
+
+   void CopyEigenvector(unsigned int i,
+                        HypreParVector & V);
+
    void GetEigenvector(unsigned int i,
                        HypreParVector & Er,
                        HypreParVector & Ei,

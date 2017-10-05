@@ -1932,6 +1932,94 @@ MaxwellBlochWaveEquation::GetEigenvectorB(unsigned int i,
 }
 
 void
+MaxwellBlochWaveEquation::CopyEigenvector(unsigned int i,
+                                          HypreParVector & V)
+{
+   if ( vecs_ != NULL )
+   {
+      V = *vecs_[i];
+   }
+   else
+   {
+      if ( lobpcg_ )
+      {
+         V = lobpcg_->GetEigenvector(i);
+      }
+      else if ( ame_ )
+      {
+         HypreParVector Vr(comm_, HCurlFESpace_->GlobalTrueVSize(),
+                           &V.GetData()[0],
+                           HCurlFESpace_->GetTrueDofOffsets());
+         HypreParVector Vi(comm_, HCurlFESpace_->GlobalTrueVSize(),
+                           &V.GetData()[HCurlFESpace_->TrueVSize()],
+                           HCurlFESpace_->GetTrueDofOffsets());
+
+         HypreParVector Er(comm_, HCurlFESpace_->GlobalTrueVSize(),
+                           NULL, HCurlFESpace_->GetTrueDofOffsets());
+         HypreParVector Ei(comm_, HCurlFESpace_->GlobalTrueVSize(),
+                           NULL, HCurlFESpace_->GetTrueDofOffsets());
+
+         if ( i%2 == 0 )
+         {
+            double * data = (double*)ame_->GetEigenvector(i/2);
+            Er.SetData(&data[0]);
+            Ei.SetData(vec0_->GetData());
+         }
+         else
+         {
+            double * data = (double*)ame_->GetEigenvector((i-1)/2);
+            Er.SetData(vec0_->GetData());
+            Ei.SetData(&data[0]);
+         }
+         Vr = Er;
+         Vi = Ei;
+      }
+   }
+}
+
+HypreParVector *
+MaxwellBlochWaveEquation::ReturnEigenvector(unsigned int i)
+{
+   int locSize = 2*HCurlFESpace_->TrueVSize();
+   int glbSize = 0;
+
+   HYPRE_Int * part = NULL;
+
+   if (HYPRE_AssumedPartitionCheck())
+   {
+      part = new HYPRE_Int[2];
+
+      MPI_Scan(&locSize, &part[1], 1, HYPRE_MPI_INT, MPI_SUM, comm_);
+
+      part[0] = part[1] - locSize;
+
+      MPI_Allreduce(&locSize, &glbSize, 1, HYPRE_MPI_INT, MPI_SUM, comm_);
+   }
+   else
+   {
+      int numProcs = HCurlFESpace_->GetNRanks();
+      part = new HYPRE_Int[numProcs+1];
+
+      MPI_Allgather(&locSize, 1, MPI_INT,
+                    &part[1], 1, HYPRE_MPI_INT, comm_);
+
+      part[0] = 0;
+      for (int i=0; i<numProcs; i++)
+      {
+         part[i+1] += part[i];
+      }
+
+      glbSize = part[numProcs];
+   }
+
+   HypreParVector * V = new HypreParVector(comm_, glbSize, part);
+
+   this->CopyEigenvector(i, *V);
+
+   return V;
+}
+
+void
 MaxwellBlochWaveEquation::IdentifyDegeneracies(double zero_tol, double rel_tol,
                                                vector<set<int> > & degen)
 {
