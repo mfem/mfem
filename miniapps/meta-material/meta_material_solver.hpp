@@ -394,6 +394,8 @@ public:
                        double &meanIter, double &stdDevIter,
                        int &nSolves);
 
+   void TestProjector() const;
+
 private:
 
    MPI_Comm comm_;

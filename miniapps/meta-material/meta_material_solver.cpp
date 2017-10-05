@@ -1746,6 +1746,8 @@ MaxwellBlochWaveEquation::Setup()
    newMCoef_ = false;
    newKCoef_ = false;
 
+   this->TestProjector();
+
    if ( myid_ == 0 ) { cout << "Leaving Setup" << endl; }
 }
 
@@ -2149,6 +2151,43 @@ MaxwellBlochWaveEquation::GetSolverStats(double &meanTime, double &stdDevTime,
    var /= solve_iters_.size();
    */
    stdDevIter = sqrt(var);
+}
+
+void
+MaxwellBlochWaveEquation::TestProjector() const
+{
+   if ( SubSpaceProj_ )
+   {
+      BlockVector X(block_trueOffsets_);
+      BlockVector ProjectedX(block_trueOffsets_);
+      BlockVector Diff(block_trueOffsets_);
+
+      X.Randomize();
+
+      SubSpaceProj_->Mult(X, ProjectedX);
+      add(1.0, X, -1.0, ProjectedX, Diff);
+
+      BlockVector dX(block_trueOffsets2_);
+      BlockVector dProjectedX(block_trueOffsets2_);
+      BlockVector dDiff(block_trueOffsets2_);
+
+      C_->Mult(X, dX);
+      C_->Mult(ProjectedX, dProjectedX);
+      C_->Mult(Diff, dDiff);
+
+      cout << "Testing Projector:" << endl
+           << "  Norm of X:                " << X.Norml2() << endl
+           << "  Norm of Projected X:      " << ProjectedX.Norml2() << endl
+           << "  Norm of Difference:       " << Diff.Norml2() << endl
+           << "  Norm of Curl X:           " << dX.Norml2() << endl
+           << "  Norm of Curl Projected X: " << dProjectedX.Norml2() << endl
+           << "  Norm of Curl Difference:  " << dDiff.Norml2() << endl
+           << endl;
+   }
+   else
+   {
+      cout << "Subspace Projector is NULL so we won't test it..." << endl;
+   }
 }
 
 MaxwellBlochWaveEquation::MaxwellBlochWavePrecond::
