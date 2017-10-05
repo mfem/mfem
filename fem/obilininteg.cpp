@@ -19,13 +19,12 @@
 namespace mfem
 {
 
-static void ComputeBasis1d(FiniteElementSpace *fes,
+static void ComputeBasis1d(const FiniteElement *fe,
                            const TensorBasisElement *tfe, int ir_order,
                            DenseMatrix &shape1d)
 {
    // Compute the 1d shape functions and gradients
-   const Poly_1D::Basis& basis1d = tfe->GetBasis1D();
-   const FiniteElement *fe = fes->GetFE(0);
+   const Poly_1D::Basis &basis1d = tfe->GetBasis1D();
    const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, ir_order);
 
    const int quads1d = ir1d.GetNPoints();
@@ -45,13 +44,12 @@ static void ComputeBasis1d(FiniteElementSpace *fes,
    }
 }
 
-static void ComputeBasis1d(FiniteElementSpace *fes,
+static void ComputeBasis1d(const FiniteElement *fe,
                            const TensorBasisElement *tfe, int ir_order,
                            DenseMatrix &shape1d, DenseMatrix &dshape1d)
 {
    // Compute the 1d shape functions and gradients
-   const Poly_1D::Basis& basis1d = tfe->GetBasis1D();
-   const FiniteElement *fe = fes->GetFE(0);
+   const Poly_1D::Basis &basis1d = tfe->GetBasis1D();
    const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, ir_order);
 
    const int quads1d = ir1d.GetNPoints();
@@ -80,7 +78,7 @@ void PADiffusionIntegrator::ComputePA(const int ir_order)
    MFEM_ASSERT(fes->GetVDim() == 1, "Only implemented for vdim == 1");
 
    // Store the 1d shape functions and gradients
-   ComputeBasis1d(fes, tfe, ir_order, shape1d, dshape1d);
+   ComputeBasis1d(fes->GetFE(0), tfe, ir_order, shape1d, dshape1d);
 
    // Create the operator
    const int elems   = fes->GetNE();
@@ -420,7 +418,7 @@ void PAMassIntegrator::ComputePA(const int ir_order)
    // ASSUMPTION: All finite elements are the same (element type and order are the same)
    MFEM_ASSERT(fes->GetVDim() == 1, "Only implemented for vdim == 1");
 
-   ComputeBasis1d(fes, tfe, ir_order, shape1d);
+   ComputeBasis1d(fes->GetFE(0), tfe, ir_order, shape1d);
 
    // Create the operator
    const int nelem   = fes->GetNE();
