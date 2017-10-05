@@ -904,7 +904,7 @@ struct THcurlcurlKernel<2,2,complex_t>
 		const int NC = S_data_t::eval_type::vdim;
 		MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
 						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(M*(4+NC*14));
+		MFEM_FLOPS_ADD(M*(4+NC));
 		for (int i = 0; i < M; i++)
 		{
 			typedef typename T_result_t::Jt_type::data_type real_t;
@@ -1030,14 +1030,13 @@ struct THcurlcurlKernel<3,3,complex_t>
 		const int NC = S_data_t::eval_type::vdim;
 		MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
 						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(37*M); // just need to count Q/detJ
+		MFEM_FLOPS_ADD(M); // just need to count Q/detJ
 		for (int i = 0; i < M; i++)
 		{
 			//TMatrix<3,3,real_t> adj_J;
 			const complex_t w_det_J =
 				(Q.get(q,i,k) / TDet<double>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt));
-				 //TAdjDet<real_t>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt,
-				//				 adj_J.layout, adj_J));
+
 			TMatrix<3,NC,complex_t> z; // z = adj(J)^t x
 			sMult_AB<false>(F.Jt.layout.ind14(i,k), F.Jt,
 							R.curl_qpts.layout.ind14(i,k), R.curl_qpts,
@@ -1253,7 +1252,7 @@ struct THDivMassKernel<2,2,complex_t>
 		const int M = S_data_t::eval_type::qpts;
 		const int NC = S_data_t::eval_type::vdim;
 		MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
-		MFEM_FLOPS_ADD(M*NC);
+		MFEM_FLOPS_ADD(6*M*NC);
 		for (int i = 0; i < M; i++)
 		{
 			const complex_t A11 = A(i,0);
@@ -1319,7 +1318,7 @@ struct THDivMassKernel<3,3,complex_t>
 		const int NC = S_data_t::eval_type::vdim;
 		MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
 						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(37*M); // just need to count Q/detJ
+		MFEM_FLOPS_ADD(M); // just need to count Q/detJ
 		for (int i = 0; i < M; i++)
 		{
 			//TMatrix<3,3,real_t> adj_J;
@@ -1468,7 +1467,7 @@ struct THDivDivKernel<2,2,complex_t>
 		const int NC = S_data_t::eval_type::vdim;
 		MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
 						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(M*4);
+		MFEM_FLOPS_ADD(M*(4+NC));
 		for (int i = 0; i < M; i++)
 		{
 			typedef typename T_result_t::Jt_type::data_type real_t;
@@ -1593,7 +1592,7 @@ struct THDivDivKernel<3,3,complex_t>
 		const int NC = S_data_t::eval_type::vdim;
 		MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
 						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(M); // just need to count Q/detJ
+		MFEM_FLOPS_ADD(M*(1+NC)); // just need to count Q/detJ
 		for (int i = 0; i < M; i++)
 		{
 			const complex_t w_det_J =
@@ -1626,7 +1625,7 @@ struct THDivDivKernel<3,3,complex_t>
 		const int M = T_result_t::Jt_type::layout_type::dim_1;
 		MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
 						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(37*M);
+		MFEM_FLOPS_ADD(M);
 		for (int i = 0; i < M; i++)
 		{
 			const complex_t w_det_J =
