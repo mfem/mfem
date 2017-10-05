@@ -53,6 +53,49 @@ void BilinearFormIntegrator::AssembleFaceMatrix(
               " Integrator class.");
 }
 
+/* HDG optimized integrators starts */
+void BilinearFormIntegrator::AssembleElementMatrix2FES(const FiniteElement &fe_q,
+   const FiniteElement &fe_u,
+   ElementTransformation &Trans,
+   DenseMatrix &elmat1)
+{
+   MFEM_ABORT("AssembleElementMatrix2FES is not implemented for this"
+              " Integrator class.");
+}
+
+void BilinearFormIntegrator::AssembleFaceMatrixOneElement1and1FES(const FiniteElement &fe_uL,
+   const FiniteElement &fe_uR,
+   const FiniteElement &face_fe,
+   FaceElementTransformations &Trans,
+   const int elem1or2,
+   const bool onlyB,
+   DenseMatrix &elmat1,
+   DenseMatrix &elmat2,
+   DenseMatrix &elmat3,
+   DenseMatrix &elmat4)
+{
+   MFEM_ABORT("AssembleFaceMatrixOneElement1and1FES is not implemented for this"
+              " Integrator class.");
+}
+
+void BilinearFormIntegrator::AssembleFaceMatrixOneElement2and1FES(const FiniteElement &fe_qL,
+   const FiniteElement &fe_qR,
+   const FiniteElement &fe_uL,
+   const FiniteElement &fe_uR,
+   const FiniteElement &face_fe,
+   FaceElementTransformations &Trans,
+   const int elem1or2,
+   const bool onlyB,
+   DenseMatrix &elmat1,
+   DenseMatrix &elmat2,
+   DenseMatrix &elmat3,
+   DenseMatrix &elmat4)
+{
+   MFEM_ABORT("AssembleFaceMatrixOneElement2and1FES is not implemented for this"
+              " Integrator class.");
+}
+/* HDG optimized integrators ends */
+
 void BilinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
    Vector &elvect)
@@ -716,6 +759,41 @@ double DiffusionIntegrator::ComputeFluxEnergy
    return energy;
 }
 
+/* HDG */
+void SkeletonMassIntegrator::AssembleFaceMatrix(const FiniteElement &face_fe, 
+                                                FaceElementTransformations &Trans,
+                                                DenseMatrix &elmat)
+{
+   int ndof;
+   double w;
+   
+   ndof = face_fe.GetDof();
+   elmat.SetSize(ndof, ndof);
+   elmat = 0.0;
+   shape.SetSize(ndof);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order = 2 * face_fe.GetOrder();
+      order *= 2;
+
+      ir = &IntRules.Get(Trans.FaceGeom, order);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      face_fe.CalcShape(ip, shape);
+
+      Trans.Face->SetIntPoint(&ip);
+      
+      w = Trans.Face->Weight() * ip.weight;
+      
+      AddMult_a_VVt(w, shape, elmat);
+   }
+
+}
 
 void MassIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,

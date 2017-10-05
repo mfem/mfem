@@ -19,6 +19,8 @@
 #include <limits>
 #include <ostream>
 #include <string>
+/* HDG */
+#include "lininteg.hpp"
 
 namespace mfem
 {
@@ -177,6 +179,9 @@ public:
        all element use the same projection matrix. */
    void ProjectGridFunction(const GridFunction &src);
 
+   /* HDG */
+   void ProjectCoefficientSkeletonDG(Coefficient &coeff);
+   
    virtual void ProjectCoefficient(Coefficient &coeff);
 
    // call fes -> BuildDofToArrays() before using this projection
@@ -273,6 +278,10 @@ public:
    virtual double ComputeL1Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
+
+   /* HDG */
+   double ComputeMeanLpError(const double p, Coefficient &exsol,
+                             const IntegrationRule *irs[] = NULL) const;
 
    virtual double ComputeLpError(const double p, Coefficient &exsol,
                                  Coefficient *weight = NULL,

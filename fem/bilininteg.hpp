@@ -55,6 +55,40 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
+   /* HDG */
+   /* For the case when there are 2 finite element spaces - such as LHDG */
+   virtual void AssembleElementMatrix2FES(const FiniteElement &fe_q,
+                                          const FiniteElement &fe_u,
+                                          ElementTransformation &Trans,
+                                          DenseMatrix &elmat1);
+
+   /* HDG */
+   /* For the optimized HDG calculations  */
+   /* 1 element based 1 face based FES */
+   virtual void AssembleFaceMatrixOneElement1and1FES(const FiniteElement &fe_uL,
+                                                     const FiniteElement &fe_uR,
+                                                     const FiniteElement &face_fe,
+                                                     FaceElementTransformations &Trans,
+                                                     const int elem1or2,
+                                                     const bool onlyB,
+                                                     DenseMatrix &elmat1,
+                                                     DenseMatrix &elmat2,
+                                                     DenseMatrix &elmat3,
+                                                     DenseMatrix &elmat4);
+   /* 2 element based 1 face based FES */
+   virtual void AssembleFaceMatrixOneElement2and1FES(const FiniteElement &fe_qL,
+                                                     const FiniteElement &fe_qR,
+                                                     const FiniteElement &fe_uL,
+                                                     const FiniteElement &fe_uR,
+                                                     const FiniteElement &face_fe,
+                                                     FaceElementTransformations &Trans,
+                                                     const int elem1or2,
+                                                     const bool onlyB,
+                                                     DenseMatrix &elmat1,
+                                                     DenseMatrix &elmat2,
+                                                     DenseMatrix &elmat3,
+                                                     DenseMatrix &elmat4);
+
    /// Perform the local action of the BilinearFormIntegrator
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
@@ -1620,6 +1654,23 @@ public:
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
+};
+
+/* HDG */
+/** Class for local mass matrix assembling a(\lamda,\mu) := <\lambda, \mu> 
+    It is used for the boundary elimination for skeleton variables */
+class SkeletonMassIntegrator : public BilinearFormIntegrator
+{
+private:
+    Vector shape;
+    
+public:
+    SkeletonMassIntegrator(const IntegrationRule *ir = NULL)
+      : BilinearFormIntegrator(ir) { }
+
+    virtual void AssembleFaceMatrix(const FiniteElement &face_fe,
+                                    FaceElementTransformations &Trans,
+                                    DenseMatrix &elmat);
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */

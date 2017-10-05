@@ -36,12 +36,46 @@ public:
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
 
+   /* HDG */
+   virtual void AssembleRHSFaceVectNeumann(const FiniteElement &face_S,
+                                           FaceElementTransformations &Trans,
+                                           Vector &favect);
+
    void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
    const IntegrationRule* GetIntRule() { return IntRule; }
 
    virtual ~LinearFormIntegrator() { }
 };
 
+/* HDG */
+/** Class for local mass RHS vector assembling l(\lamda,u) := <\lambda, u> 
+    It is used for the boundary elimination */
+class SkeletonMassIntegratorRHS: public LinearFormIntegrator
+{
+private:
+    Vector shape;
+    Coefficient &Q;
+    int oa, ob;
+    
+public:
+    SkeletonMassIntegratorRHS(Coefficient &QF, int a = 2, int b = 0, const IntegrationRule *ir = NULL)
+      : LinearFormIntegrator(ir), Q(QF), oa(a), ob(b) { }
+
+    using LinearFormIntegrator::AssembleRHSElementVect;
+    virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                        FaceElementTransformations &Tr,
+                                        Vector &elvect);
+    
+    
+    virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+    using LinearFormIntegrator::AssembleRHSFaceVectNeumann;
+    virtual void AssembleRHSFaceVectNeumann(const FiniteElement &face_S,
+                                            FaceElementTransformations &Trans,
+                                            Vector &favect);
+};
 
 /// Abstract class for integrators that support delta coefficients
 class DeltaLFIntegrator : public LinearFormIntegrator

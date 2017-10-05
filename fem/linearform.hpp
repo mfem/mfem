@@ -45,6 +45,10 @@ private:
    /// The reference coordinates where the centers of the delta functions lie
    Array<IntegrationPoint> dlfi_delta_ip;
 
+   /* HDG */
+   /// Set of Boundary Skeleton Integrators .
+   Array<LinearFormIntegrator*> bdrsklneufi;
+
    /// If true, the delta locations are not (re)computed during assembly.
    bool HaveDeltaLocations() { return (dlfi_delta_elem_id.Size() != 0); }
 
@@ -68,6 +72,10 @@ public:
 
    /// Adds new Boundary Face Integrator.
    void AddBdrFaceIntegrator (LinearFormIntegrator * lfi);
+
+   /* HDG */
+   /// Adds new Boundary Face Integrator with face number.
+   void AddSktBoundaryNeumannIntegrator (LinearFormIntegrator * lfi);
 
    /** @brief Add new Boundary Face Integrator, restricted to the given boundary
        attributes. */

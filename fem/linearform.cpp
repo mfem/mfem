@@ -48,6 +48,12 @@ void LinearForm::AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
    flfi_marker.Append(&bdr_attr_marker);
 }
 
+/* HDG */
+void LinearForm::AddSktBoundaryNeumannIntegrator(LinearFormIntegrator * lfi)
+{
+   bdrsklneufi.Append (lfi);
+}
+
 void LinearForm::Assemble()
 {
    Array<int> vdofs;
@@ -131,6 +137,34 @@ void LinearForm::Assemble()
          }
       }
    }
+   
+   /* HDG */
+   if (bdrsklneufi.Size())
+   {
+      FaceElementTransformations *ftr;
+      const FiniteElement *face_fe;
+      int nbdrfaces = fes->GetNBE();
+      Mesh *mesh = fes -> GetMesh();
+       
+      for (i = 0; i < nbdrfaces; i++)
+      {
+         int face;
+         mesh->GetBdrFaceToEdge(i, &face);
+         ftr = mesh->GetBdrFaceTransformations(i); // the transformation of the face
+         fes->GetFaceVDofs(face, vdofs);   // the defrees of freedom related to the face
+         face_fe = fes->GetFaceElement(face);   // point face_fe to the FiniteElement over the edge
+         if (ftr != NULL)
+         {
+            for (int k = 0; k < bdrsklneufi.Size(); k++) // Loop over the related interals
+            {
+               bdrsklneufi[k] -> AssembleRHSFaceVectNeumann (*face_fe, *ftr, elemvect);
+               AddElementVector (vdofs, elemvect);
+            }
+         }
+         
+      }
+   }
+
 }
 
 void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
@@ -187,6 +221,8 @@ LinearForm::~LinearForm()
    for (k=0; k < dlfi.Size(); k++) { delete dlfi[k]; }
    for (k=0; k < blfi.Size(); k++) { delete blfi[k]; }
    for (k=0; k < flfi.Size(); k++) { delete flfi[k]; }
+   /* HDG */
+   for (k=0; k < bdrsklneufi.Size(); k++) { delete bdrsklneufi[k]; }
 }
 
 }

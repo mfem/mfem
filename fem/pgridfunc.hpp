@@ -177,6 +177,10 @@ public:
    using GridFunction::ProjectCoefficient;
    virtual void ProjectCoefficient(Coefficient &coeff);
 
+   /* HDG */
+   using GridFunction::ProjectCoefficientSkeletonDG;
+   void ProjectCoefficientSkeletonDG(Coefficient &coeff);
+
    using GridFunction::ProjectDiscCoefficient;
    /** @brief Project a discontinuous vector coefficient as a grid function on
        a continuous finite element space. The values in shared dofs are

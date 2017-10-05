@@ -1290,6 +1290,35 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
    }
 }
 
+/* HDG */
+/* For the boundary elimination */
+void GridFunction::ProjectCoefficientSkeletonDG(Coefficient &coeff)
+{
+   Array<int> vdofs;
+   Vector vals, local_rhs, shape;
+   DenseMatrix local_mtx;
+   Mesh *mesh = fes->GetMesh();
+   int nfaces = mesh->GetNumFaces();
+   FaceElementTransformations *ftr;
+   SkeletonMassIntegrator Mi;
+   SkeletonMassIntegratorRHS MiRHS(coeff);
+
+   for (int i = 0; i < nfaces; i++)
+   {
+      ftr = mesh->GetFaceElementTransformations(i);
+      Mi.AssembleFaceMatrix(*fes->GetFaceElement(i),
+                              *ftr, local_mtx); 
+      MiRHS.AssembleRHSElementVect(*fes->GetFaceElement(i),
+                                    *ftr, local_rhs);
+      fes->GetFaceVDofs(i, vdofs);
+      vals.SetSize(vdofs.Size());
+         
+      local_mtx.Invert();
+      local_mtx.Mult(local_rhs, vals);
+      SetSubVector(vdofs, vals);
+   }
+}
+
 void GridFunction::ProjectCoefficient(Coefficient &coeff)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
@@ -2070,6 +2099,70 @@ double GridFunction::ComputeW11Error(
          }
       }
 
+   return error;
+}
+
+/* HDG */
+/// To compute \| mean(u) - mean(u_h) \|_p
+double GridFunction::ComputeMeanLpError(const double p, Coefficient &exsol,
+                                    const IntegrationRule *irs[]) const
+{
+   double error = 0.0;
+   double err, local_error, local_size ;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Vector vals;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         int intorder = 2*fe->GetOrder() + 1; // <----------
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      GetValues(i, *ir, vals);
+      T = fes->GetElementTransformation(i);
+      local_error = local_size = 0.0 ;
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+         err = (vals(j) - exsol.Eval(*T, ip));
+         local_error += ip.weight * T->Weight() * err;
+         local_size += ip.weight * T->Weight();
+      }
+      
+      if (p < numeric_limits<double>::infinity())
+      {
+         err = pow(fabs(local_error), p) / pow(local_size, p-1.);
+         error += err; 
+      }
+      else
+      {
+         err = fabs(local_error) / fabs(local_size);
+         error = std::max(error, err);
+      }
+   }
+
+   if (p < numeric_limits<double>::infinity())
+   {
+      // negative quadrature weights may cause the error to be negative
+      if (error < 0.)
+      {
+         error = -pow(-error, 1./p);
+      }
+      else
+      {
+         error = pow(error, 1./p);
+      }
+   }
+   
    return error;
 }
 

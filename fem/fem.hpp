@@ -30,6 +30,10 @@
 #include "datacollection.hpp"
 #include "estimators.hpp"
 #include "staticcond.hpp"
+/* HDG */
+#include "hdg_integrators.hpp"
+#include "HDGBilinearForm2.hpp"
+#include "HDGBilinearForm3.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
@@ -37,6 +41,9 @@
 #include "plinearform.hpp"
 #include "pbilinearform.hpp"
 #include "pnonlinearform.hpp"
+/* HDG */
+#include "pHDGBilinearForm2.hpp"
+#include "pHDGBilinearForm3.hpp"
 #endif
 
 #ifdef MFEM_USE_SIDRE

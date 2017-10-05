@@ -293,6 +293,28 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
    }
 }
 
+/* HDG */
+void ParGridFunction::ProjectCoefficientSkeletonDG(Coefficient &coeff)
+{
+   DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
+
+   if (delta_c == NULL)
+   {
+      GridFunction::ProjectCoefficientSkeletonDG(coeff);
+   }
+   else
+   {
+      double loc_integral, glob_integral;
+
+      ProjectDeltaCoefficient(*delta_c, loc_integral);
+
+      MPI_Allreduce(&loc_integral, &glob_integral, 1, MPI_DOUBLE, MPI_SUM,
+                    pfes->GetComm());
+
+      (*this) *= (delta_c->Scale() / glob_integral);
+   }
+}
+
 void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
 {
    // local maximal element attribute for each dof
