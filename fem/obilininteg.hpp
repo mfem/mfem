@@ -29,7 +29,6 @@ class PADiffusionIntegrator : public BilinearFormIntegrator
 protected:
    FiniteElementSpace *fes;
    const FiniteElement *fe;
-   const TensorBasisElement *tfe;
 
    const int dim, vdim;
 
@@ -64,7 +63,6 @@ class PAMassIntegrator : public BilinearFormIntegrator
 protected:
    FiniteElementSpace *fes;
    const FiniteElement *fe;
-   const TensorBasisElement *tfe;
 
    const int dim, vdim;
 

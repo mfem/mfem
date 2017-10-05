@@ -74,8 +74,8 @@ static void ComputeBasis1d(const FiniteElement *fe,
 
 void PADiffusionIntegrator::ComputePA(const int ir_order)
 {
-   // ASSUMPTION: All finite elements are the same (element type and order are the same)
-   MFEM_ASSERT(fes->GetVDim() == 1, "Only implemented for vdim == 1");
+   // Get the corresponding tensor basis element
+   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
 
    // Store the 1d shape functions and gradients
    ComputeBasis1d(fes->GetFE(0), tfe, ir_order, shape1d, dshape1d);
@@ -141,7 +141,6 @@ PADiffusionIntegrator::PADiffusionIntegrator(
    : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
      fes(_fes),
      fe(fes->GetFE(0)),
-     tfe(dynamic_cast<const TensorBasisElement*>(fe)),
      dim(fe->GetDim()),
      vdim(fes->GetVDim()),
      coeff(NULL),
@@ -153,7 +152,6 @@ PADiffusionIntegrator::PADiffusionIntegrator(
    : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
      fes(_fes),
      fe(fes->GetFE(0)),
-     tfe(dynamic_cast<const TensorBasisElement*>(fe)),
      dim(fe->GetDim()),
      vdim(fes->GetVDim()),
      coeff(&_coeff),
@@ -165,7 +163,6 @@ PADiffusionIntegrator::PADiffusionIntegrator(
    : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
      fes(_fes),
      fe(fes->GetFE(0)),
-     tfe(dynamic_cast<const TensorBasisElement*>(fe)),
      dim(fe->GetDim()),
      vdim(fes->GetVDim()),
      coeff(NULL),
@@ -415,8 +412,8 @@ void PADiffusionIntegrator::AssembleVector(const FiniteElementSpace &fespace,
 
 void PAMassIntegrator::ComputePA(const int ir_order)
 {
-   // ASSUMPTION: All finite elements are the same (element type and order are the same)
-   MFEM_ASSERT(fes->GetVDim() == 1, "Only implemented for vdim == 1");
+   // Get the corresponding tensor basis element
+   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
 
    ComputeBasis1d(fes->GetFE(0), tfe, ir_order, shape1d);
 
@@ -446,7 +443,6 @@ PAMassIntegrator::PAMassIntegrator(
    : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
      fes(_fes),
      fe(fes->GetFE(0)),
-     tfe(dynamic_cast<const TensorBasisElement*>(fe)),
      dim(fe->GetDim()),
      vdim(fes->GetVDim()),
      coeff(NULL) { ComputePA(ir_order); }
@@ -456,7 +452,6 @@ PAMassIntegrator::PAMassIntegrator(
    : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
      fes(_fes),
      fe(fes->GetFE(0)),
-     tfe(dynamic_cast<const TensorBasisElement*>(fe)),
      dim(fe->GetDim()),
      vdim(fes->GetVDim()),
      coeff(&_coeff) { ComputePA(ir_order); }
