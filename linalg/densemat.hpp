@@ -637,9 +637,6 @@ public:
       own_data = false;
    }
 
-   DenseTensor(const double *d, int i, int j, int k)
-      : DenseTensor(const_cast<double *>(d), i, j, k) { }
-
    int SizeI() const { return Mk.Height(); }
    int SizeJ() const { return Mk.Width(); }
    int SizeK() const { return nk; }
