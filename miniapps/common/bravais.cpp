@@ -390,7 +390,7 @@ SquareLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
 }
 
 Mesh *
-SquareLattice::GetWignerSeitzMesh() const
+SquareLattice::GetWignerSeitzMesh(bool triMesh) const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 4,
                           (int*)ws_e2v_, Geometry::SQUARE,
@@ -404,9 +404,9 @@ SquareLattice::GetWignerSeitzMesh() const
 }
 
 Mesh *
-SquareLattice::GetPeriodicWignerSeitzMesh() const
+SquareLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh();
+   Mesh * mesh = this->GetWignerSeitzMesh(triMesh);
 
    mesh->UniformRefinement();
    mesh->UniformRefinement();
@@ -543,7 +543,7 @@ HexagonalLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-HexagonalLattice::GetWignerSeitzMesh() const
+HexagonalLattice::GetWignerSeitzMesh(bool triMesh) const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 7,
                           (int*)ws_e2v_, Geometry::SQUARE,
@@ -557,9 +557,9 @@ HexagonalLattice::GetWignerSeitzMesh() const
 }
 
 Mesh *
-HexagonalLattice::GetPeriodicWignerSeitzMesh() const
+HexagonalLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh();
+   Mesh * mesh = this->GetWignerSeitzMesh(triMesh);
 
    mesh->UniformRefinement();
 
@@ -691,17 +691,17 @@ CubicLattice::CubicLattice(double a)
       }
    }
    */
-   ws_vert_tet_[ 0] =  0.0;
-   ws_vert_tet_[ 1] =  0.0;
-   ws_vert_tet_[ 2] =  0.0;
+   ws_tet_vert_[ 0] =  0.0;
+   ws_tet_vert_[ 1] =  0.0;
+   ws_tet_vert_[ 2] =  0.0;
 
-   ws_vert_tet_[ 3] = -0.5 * a_;
-   ws_vert_tet_[ 4] =  0.0;
-   ws_vert_tet_[ 5] =  0.0;
+   ws_tet_vert_[ 3] = -0.5 * a_;
+   ws_tet_vert_[ 4] =  0.0;
+   ws_tet_vert_[ 5] =  0.0;
 
-   ws_vert_tet_[78] =  0.5 * a_;
-   ws_vert_tet_[79] =  0.0;
-   ws_vert_tet_[80] =  0.0;
+   ws_tet_vert_[78] =  0.5 * a_;
+   ws_tet_vert_[79] =  0.0;
+   ws_tet_vert_[80] =  0.0;
 
    int vtx = 2;
 
@@ -714,13 +714,13 @@ CubicLattice::CubicLattice(double a)
          double yc = 0.5 * a_ * ((j % 2 - 1) + (j / 2) * (4 - j));
          double zc = 0.5 * a_ * ( j / 3 - 1);
 
-         ws_vert_tet_[3 * vtx + 0] = xc;
-         ws_vert_tet_[3 * vtx + 1] = yc;
-         ws_vert_tet_[3 * vtx + 2] = zc;
+         ws_tet_vert_[3 * vtx + 0] = xc;
+         ws_tet_vert_[3 * vtx + 1] = yc;
+         ws_tet_vert_[3 * vtx + 2] = zc;
 
-         ws_vert_tet_[3 * vtx + 12] =  xc;
-         ws_vert_tet_[3 * vtx + 13] = -yc;
-         ws_vert_tet_[3 * vtx + 14] = -zc;
+         ws_tet_vert_[3 * vtx + 12] =  xc;
+         ws_tet_vert_[3 * vtx + 13] = -yc;
+         ws_tet_vert_[3 * vtx + 14] = -zc;
 
          vtx++;
       }
@@ -759,28 +759,28 @@ CubicLattice::CubicLattice(double a)
    // Elements touching plane at x = -a/2
    for (int i=0; i<8; i++)
    {
-      ws_e2v_tet_[4*elm+0] = 0;
-      ws_e2v_tet_[4*elm+1] = 1;
-      ws_e2v_tet_[4*elm+2] = i + 2;
-      ws_e2v_tet_[4*elm+3] = (i + 7) % 8 + 2;
+      ws_tet_e2v_[4*elm+0] = 0;
+      ws_tet_e2v_[4*elm+1] = 1;
+      ws_tet_e2v_[4*elm+2] = i + 2;
+      ws_tet_e2v_[4*elm+3] = (i + 7) % 8 + 2;
 
-      ws_be2v_tet_[3*elm+0] = 1;
-      ws_be2v_tet_[3*elm+1] = i + 2;
-      ws_be2v_tet_[3*elm+2] = (i + 7) % 8 + 2;
+      ws_tet_be2v_[3*elm+0] = 1;
+      ws_tet_be2v_[3*elm+1] = i + 2;
+      ws_tet_be2v_[3*elm+2] = (i + 7) % 8 + 2;
 
       elm++;
    }
    // Elements touching plane at x = a/2
    for (int i=0; i<8; i++)
    {
-      ws_e2v_tet_[4*elm+0] = 0;
-      ws_e2v_tet_[4*elm+1] = 26;
-      ws_e2v_tet_[4*elm+2] = (i + 7) % 8 + 18;
-      ws_e2v_tet_[4*elm+3] = i + 18;
+      ws_tet_e2v_[4*elm+0] = 0;
+      ws_tet_e2v_[4*elm+1] = 26;
+      ws_tet_e2v_[4*elm+2] = (i + 7) % 8 + 18;
+      ws_tet_e2v_[4*elm+3] = i + 18;
 
-      ws_be2v_tet_[3*elm+0] = 26;
-      ws_be2v_tet_[3*elm+1] = (i + 7) % 8 + 18;
-      ws_be2v_tet_[3*elm+2] = i + 18;
+      ws_tet_be2v_[3*elm+0] = 26;
+      ws_tet_be2v_[3*elm+1] = (i + 7) % 8 + 18;
+      ws_tet_be2v_[3*elm+2] = i + 18;
 
       elm++;
    }
@@ -788,14 +788,14 @@ CubicLattice::CubicLattice(double a)
    int f2[8] = {2,10,18,25,24,16,8,9};
    for (int i=0; i<8; i++)
    {
-      ws_e2v_tet_[4*elm+0] = 0;
-      ws_e2v_tet_[4*elm+1] = 17;
-      ws_e2v_tet_[4*elm+2] = f2[i];
-      ws_e2v_tet_[4*elm+3] = f2[(i + 1) % 8];
+      ws_tet_e2v_[4*elm+0] = 0;
+      ws_tet_e2v_[4*elm+1] = 17;
+      ws_tet_e2v_[4*elm+2] = f2[i];
+      ws_tet_e2v_[4*elm+3] = f2[(i + 1) % 8];
 
-      ws_be2v_tet_[3*elm+0] = 17;
-      ws_be2v_tet_[3*elm+1] = f2[i];
-      ws_be2v_tet_[3*elm+2] = f2[(i + 1) % 8];
+      ws_tet_be2v_[3*elm+0] = 17;
+      ws_tet_be2v_[3*elm+1] = f2[i];
+      ws_tet_be2v_[3*elm+2] = f2[(i + 1) % 8];
 
       elm++;
    }
@@ -803,14 +803,14 @@ CubicLattice::CubicLattice(double a)
    int f3[8] = {4,5,6,14,22,21,20,12};
    for (int i=0; i<8; i++)
    {
-      ws_e2v_tet_[4*elm+0] = 0;
-      ws_e2v_tet_[4*elm+1] = 13;
-      ws_e2v_tet_[4*elm+2] = f3[i];
-      ws_e2v_tet_[4*elm+3] = f3[(i + 1) % 8];
+      ws_tet_e2v_[4*elm+0] = 0;
+      ws_tet_e2v_[4*elm+1] = 13;
+      ws_tet_e2v_[4*elm+2] = f3[i];
+      ws_tet_e2v_[4*elm+3] = f3[(i + 1) % 8];
 
-      ws_be2v_tet_[3*elm+0] = 13;
-      ws_be2v_tet_[3*elm+1] = f3[i];
-      ws_be2v_tet_[3*elm+2] = f3[(i + 1) % 8];
+      ws_tet_be2v_[3*elm+0] = 13;
+      ws_tet_be2v_[3*elm+1] = f3[i];
+      ws_tet_be2v_[3*elm+2] = f3[(i + 1) % 8];
 
       elm++;
    }
@@ -818,14 +818,14 @@ CubicLattice::CubicLattice(double a)
    int f4[8] = {2,3,4,12,20,19,18,10};
    for (int i=0; i<8; i++)
    {
-      ws_e2v_tet_[4*elm+0] = 0;
-      ws_e2v_tet_[4*elm+1] = 11;
-      ws_e2v_tet_[4*elm+2] = f4[i];
-      ws_e2v_tet_[4*elm+3] = f4[(i + 1) % 8];
+      ws_tet_e2v_[4*elm+0] = 0;
+      ws_tet_e2v_[4*elm+1] = 11;
+      ws_tet_e2v_[4*elm+2] = f4[i];
+      ws_tet_e2v_[4*elm+3] = f4[(i + 1) % 8];
 
-      ws_be2v_tet_[3*elm+0] = 11;
-      ws_be2v_tet_[3*elm+1] = f4[i];
-      ws_be2v_tet_[3*elm+2] = f4[(i + 1) % 8];
+      ws_tet_be2v_[3*elm+0] = 11;
+      ws_tet_be2v_[3*elm+1] = f4[i];
+      ws_tet_be2v_[3*elm+2] = f4[(i + 1) % 8];
 
       elm++;
    }
@@ -833,20 +833,20 @@ CubicLattice::CubicLattice(double a)
    int f5[8] = {6,7,8,16,24,23,22,14};
    for (int i=0; i<8; i++)
    {
-      ws_e2v_tet_[4*elm+0] = 0;
-      ws_e2v_tet_[4*elm+1] = 15;
-      ws_e2v_tet_[4*elm+2] = f5[i];
-      ws_e2v_tet_[4*elm+3] = f5[(i + 1) % 8];
+      ws_tet_e2v_[4*elm+0] = 0;
+      ws_tet_e2v_[4*elm+1] = 15;
+      ws_tet_e2v_[4*elm+2] = f5[i];
+      ws_tet_e2v_[4*elm+3] = f5[(i + 1) % 8];
 
-      ws_be2v_tet_[3*elm+0] = 15;
-      ws_be2v_tet_[3*elm+1] = f5[i];
-      ws_be2v_tet_[3*elm+2] = f5[(i + 1) % 8];
+      ws_tet_be2v_[3*elm+0] = 15;
+      ws_tet_be2v_[3*elm+1] = f5[i];
+      ws_tet_be2v_[3*elm+2] = f5[(i + 1) % 8];
 
       elm++;
    }
 
-   for (int i=0; i<48; i++) { ws_elem_att_tet_[i]  = 1; }
-   for (int i=0; i<48; i++) { ws_belem_att_tet_[i] = 1; }
+   for (int i=0; i<48; i++) { ws_tet_elem_att_[i]  = 1; }
+   for (int i=0; i<48; i++) { ws_tet_belem_att_[i] = 1; }
 }
 
 bool
@@ -894,29 +894,46 @@ CubicLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
 }
 
 Mesh *
-CubicLattice::GetWignerSeitzMesh() const
+CubicLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
-   Mesh * mesh = new Mesh((double*)ws_vert_, 8,
-                          (int*)ws_e2v_, Geometry::CUBE,
-                          (int*)ws_elem_att_, 1,
-                          (int*)ws_be2v_, Geometry::SQUARE,
-                          (int*)ws_belem_att_, 6,
-                          3, 3);
-   mesh->Finalize();
+   Mesh * mesh = NULL;
+
+   if ( tetMesh )
+   {
+      mesh = new Mesh((double*)ws_tet_vert_, 27,
+                      (int*)ws_tet_e2v_, Geometry::TETRAHEDRON,
+                      (int*)ws_tet_elem_att_, 48,
+                      (int*)ws_tet_be2v_, Geometry::TRIANGLE,
+                      (int*)ws_tet_belem_att_, 48,
+                      3, 3);
+      mesh->FinalizeTetMesh(1,1,true);
+      mesh->ReorientTetMesh();
+   }
+   else
+   {
+      mesh = new Mesh((double*)ws_vert_, 8,
+                      (int*)ws_e2v_, Geometry::CUBE,
+                      (int*)ws_elem_att_, 1,
+                      (int*)ws_be2v_, Geometry::SQUARE,
+                      (int*)ws_belem_att_, 6,
+                      3, 3);
+      mesh->Finalize();
+   }
 
    return mesh;
 }
 
 Mesh *
-CubicLattice::GetPeriodicWignerSeitzMesh() const
+CubicLattice::GetPeriodicWignerSeitzMesh(bool tetMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh();
-
+   Mesh * mesh = this->GetWignerSeitzMesh(tetMesh);
+   cout << "gpwsm 1" << endl;
    mesh->UniformRefinement();
+   cout << "gpwsm 2" << endl;
    mesh->UniformRefinement();
-
+   cout << "gpwsm 3" << endl;
    Mesh * per_mesh = MakePeriodicMesh(mesh, trn_vecs_);
-
+   cout << "gpwsm 4" << endl;
    delete mesh;
 
    return per_mesh;
@@ -944,13 +961,21 @@ FaceCenteredCubicLattice::FaceCenteredCubicLattice(double a)
    {
       trn_vecs_[i].SetSize(3);
    }
+
    trn_vecs_[0][0] =  0.5; trn_vecs_[0][1] =  0.5; trn_vecs_[0][2] =  0.0;
    trn_vecs_[1][0] =  0.5; trn_vecs_[1][1] = -0.5; trn_vecs_[1][2] =  0.0;
    trn_vecs_[2][0] =  0.5; trn_vecs_[2][1] =  0.0; trn_vecs_[2][2] =  0.5;
    trn_vecs_[3][0] =  0.0; trn_vecs_[3][1] =  0.5; trn_vecs_[3][2] =  0.5;
    trn_vecs_[4][0] = -0.5; trn_vecs_[4][1] =  0.0; trn_vecs_[4][2] =  0.5;
    trn_vecs_[5][0] =  0.0; trn_vecs_[5][1] = -0.5; trn_vecs_[5][2] =  0.5;
-
+   /*
+   trn_vecs_[0][0] =  0.5; trn_vecs_[0][1] =  0.0; trn_vecs_[0][2] =  0.5;
+   trn_vecs_[1][0] =  0.0; trn_vecs_[1][1] =  0.5; trn_vecs_[1][2] =  0.5;
+   trn_vecs_[2][0] =  0.0; trn_vecs_[2][1] = -0.5; trn_vecs_[2][2] =  0.5;
+   trn_vecs_[3][0] = -0.5; trn_vecs_[3][1] =  0.0; trn_vecs_[3][2] =  0.5;
+   trn_vecs_[4][0] =  0.5; trn_vecs_[4][1] = -0.5; trn_vecs_[4][2] =  0.0;
+   trn_vecs_[5][0] =  0.5; trn_vecs_[5][1] =  0.5; trn_vecs_[5][2] =  0.0;
+   */
    for (unsigned int i=0; i<lat_vecs_.size(); i++)
    {
       lat_vecs_[i] *= a_;
@@ -1091,7 +1116,7 @@ FaceCenteredCubicLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-FaceCenteredCubicLattice::GetWignerSeitzMesh() const
+FaceCenteredCubicLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 15,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -1101,19 +1126,27 @@ FaceCenteredCubicLattice::GetWignerSeitzMesh() const
                           3, 3);
    mesh->Finalize();
 
+   ofstream ofs("fcc.mesh");
+   mesh->Print(ofs);
+   ofs.close();
+
    return mesh;
 }
 
 Mesh *
-FaceCenteredCubicLattice::GetPeriodicWignerSeitzMesh() const
+FaceCenteredCubicLattice::GetPeriodicWignerSeitzMesh(bool tetMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh();
+   Mesh * mesh = this->GetWignerSeitzMesh(tetMesh);
 
    mesh->UniformRefinement();
 
    Mesh * per_mesh = MakePeriodicMesh(mesh, trn_vecs_);
 
    delete mesh;
+
+   ofstream ofs("fcc_per.mesh");
+   per_mesh->Print(ofs);
+   ofs.close();
 
    return per_mesh;
 }
@@ -1351,7 +1384,7 @@ BodyCenteredCubicLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-BodyCenteredCubicLattice::GetWignerSeitzMesh() const
+BodyCenteredCubicLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 38,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -1365,9 +1398,9 @@ BodyCenteredCubicLattice::GetWignerSeitzMesh() const
 }
 
 Mesh *
-BodyCenteredCubicLattice::GetPeriodicWignerSeitzMesh() const
+BodyCenteredCubicLattice::GetPeriodicWignerSeitzMesh(bool tetMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh();
+   Mesh * mesh = this->GetWignerSeitzMesh(tetMesh);
 
    mesh->UniformRefinement();
 
@@ -1461,7 +1494,7 @@ TetragonalLattice::TetragonalLattice(double a, double c)
    this->SetIntermediatePoints();
 
    // Set Intermediate Symmetry Point Labels
-   il_[0][0] = "GammaX"; // Gamma -> X
+   il_[0][0] = "Delta";  // Gamma -> X
    il_[0][1] = "XM";     // X     -> M
    il_[0][2] = "MGamma"; // M     -> Gamma
    il_[0][3] = "GammaZ"; // Gamma -> Z
@@ -1540,7 +1573,7 @@ TetragonalLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
 }
 
 Mesh *
-TetragonalLattice::GetWignerSeitzMesh() const
+TetragonalLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 8,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -1554,9 +1587,9 @@ TetragonalLattice::GetWignerSeitzMesh() const
 }
 
 Mesh *
-TetragonalLattice::GetPeriodicWignerSeitzMesh() const
+TetragonalLattice::GetPeriodicWignerSeitzMesh(bool tetMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh();
+   Mesh * mesh = this->GetWignerSeitzMesh(tetMesh);
 
    mesh->UniformRefinement();
    mesh->UniformRefinement();
@@ -2128,7 +2161,7 @@ BodyCenteredTetragonalLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-BodyCenteredTetragonalLattice::GetWignerSeitzMesh() const
+BodyCenteredTetragonalLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, (c_>M_SQRT2*a_)?24:38,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -2143,9 +2176,9 @@ BodyCenteredTetragonalLattice::GetWignerSeitzMesh() const
 }
 
 Mesh *
-BodyCenteredTetragonalLattice::GetPeriodicWignerSeitzMesh() const
+BodyCenteredTetragonalLattice::GetPeriodicWignerSeitzMesh(bool tetMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh();
+   Mesh * mesh = this->GetWignerSeitzMesh(tetMesh);
 
    mesh->UniformRefinement();
 
@@ -2335,7 +2368,7 @@ OrthorhombicLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-OrthorhombicLattice::GetWignerSeitzMesh() const
+OrthorhombicLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 8,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -2349,9 +2382,9 @@ OrthorhombicLattice::GetWignerSeitzMesh() const
 }
 
 Mesh *
-OrthorhombicLattice::GetPeriodicWignerSeitzMesh() const
+OrthorhombicLattice::GetPeriodicWignerSeitzMesh(bool tetMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh();
+   Mesh * mesh = this->GetWignerSeitzMesh(tetMesh);
 
    mesh->UniformRefinement();
    mesh->UniformRefinement();
@@ -2969,7 +3002,7 @@ FaceCenteredOrthorhombicLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-FaceCenteredOrthorhombicLattice::GetWignerSeitzMesh() const
+FaceCenteredOrthorhombicLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 38,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -2983,9 +3016,9 @@ FaceCenteredOrthorhombicLattice::GetWignerSeitzMesh() const
 }
 
 Mesh *
-FaceCenteredOrthorhombicLattice::GetPeriodicWignerSeitzMesh() const
+FaceCenteredOrthorhombicLattice::GetPeriodicWignerSeitzMesh(bool tetMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh();
+   Mesh * mesh = this->GetWignerSeitzMesh(tetMesh);
 
    {
       ofstream ofs("orcf.mesh");
@@ -3564,7 +3597,7 @@ BodyCenteredOrthorhombicLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-BodyCenteredOrthorhombicLattice::GetWignerSeitzMesh() const
+BodyCenteredOrthorhombicLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
    bool ed = c_ > sqrt( a_ * a_ + b_ * b_ );
 
@@ -3581,9 +3614,9 @@ BodyCenteredOrthorhombicLattice::GetWignerSeitzMesh() const
 }
 
 Mesh *
-BodyCenteredOrthorhombicLattice::GetPeriodicWignerSeitzMesh() const
+BodyCenteredOrthorhombicLattice::GetPeriodicWignerSeitzMesh(bool tetMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh();
+   Mesh * mesh = this->GetWignerSeitzMesh(tetMesh);
 
    {
       ofstream ofs("orci.mesh");
@@ -3867,7 +3900,7 @@ BaseCenteredOrthorhombicLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-BaseCenteredOrthorhombicLattice::GetWignerSeitzMesh() const
+BaseCenteredOrthorhombicLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 21,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -3881,9 +3914,9 @@ BaseCenteredOrthorhombicLattice::GetWignerSeitzMesh() const
 }
 
 Mesh *
-BaseCenteredOrthorhombicLattice::GetPeriodicWignerSeitzMesh() const
+BaseCenteredOrthorhombicLattice::GetPeriodicWignerSeitzMesh(bool tetMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh();
+   Mesh * mesh = this->GetWignerSeitzMesh(tetMesh);
 
    {
       ofstream ofs("orcc.mesh");
@@ -4117,7 +4150,7 @@ HexagonalPrismLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-HexagonalPrismLattice::GetWignerSeitzMesh() const
+HexagonalPrismLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 21,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -4131,9 +4164,9 @@ HexagonalPrismLattice::GetWignerSeitzMesh() const
 }
 
 Mesh *
-HexagonalPrismLattice::GetPeriodicWignerSeitzMesh() const
+HexagonalPrismLattice::GetPeriodicWignerSeitzMesh(bool tetMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh();
+   Mesh * mesh = this->GetWignerSeitzMesh(tetMesh);
 
    {
       ofstream ofs("hex.mesh");
@@ -4852,7 +4885,7 @@ RhombohedralLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-RhombohedralLattice::GetWignerSeitzMesh() const
+RhombohedralLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
    bool rd = alpha_ < 0.5 * M_PI;
 
@@ -4865,19 +4898,17 @@ RhombohedralLattice::GetWignerSeitzMesh() const
 
    mesh->Finalize();
 
+   ofstream ofs("rhl.mesh");
+   mesh->Print(ofs);
+   ofs.close();
+
    return mesh;
 }
 
 Mesh *
-RhombohedralLattice::GetPeriodicWignerSeitzMesh() const
+RhombohedralLattice::GetPeriodicWignerSeitzMesh(bool tetMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh();
-
-   {
-      ofstream ofs("rhl.mesh");
-      mesh->Print(ofs);
-      ofs.close();
-   }
+   Mesh * mesh = this->GetWignerSeitzMesh(tetMesh);
 
    // if ( rd )
    // mesh->UniformRefinement();
@@ -4888,7 +4919,7 @@ RhombohedralLattice::GetPeriodicWignerSeitzMesh() const
    delete mesh;
 
    {
-      ofstream ofs("per-rhl.mesh");
+      ofstream ofs("rhl_per.mesh");
       per_mesh->Print(ofs);
       ofs.close();
    }
@@ -4900,8 +4931,8 @@ MonoclinicLattice::MonoclinicLattice(double a, double b, double c,
                                      double alpha)
    : BravaisLattice3D(a, b, c, alpha, 0.5 * M_PI, 0.5 * M_PI)
 {
-   MFEM_ASSERT( a_ <= c_ && b_ <= c_,
-                "Monoclinic unit cells must have a, b <= c!");
+   MFEM_ASSERT( b_ <= c_,
+                "Monoclinic unit cells must have b <= c!");
    MFEM_ASSERT( c_ * cos(alpha_) < b_ && alpha_ < 0.5 * M_PI,
                 "Monoclinic unit cells must have arccos(b/c) < alpha < pi/2!");
 
@@ -5171,7 +5202,7 @@ MonoclinicLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-MonoclinicLattice::GetWignerSeitzMesh() const
+MonoclinicLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
    Mesh * mesh = new Mesh((double*)ws_vert_, 21,
                           (int*)ws_e2v_, Geometry::CUBE,
@@ -5185,9 +5216,9 @@ MonoclinicLattice::GetWignerSeitzMesh() const
 }
 
 Mesh *
-MonoclinicLattice::GetPeriodicWignerSeitzMesh() const
+MonoclinicLattice::GetPeriodicWignerSeitzMesh(bool tetMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh();
+   Mesh * mesh = this->GetWignerSeitzMesh(tetMesh);
 
    {
       ofstream ofs("mcl.mesh");
@@ -6013,7 +6044,7 @@ BaseCenteredMonoclinicLattice::MapToFundamentalDomain(const Vector & pt,
 }
 
 Mesh *
-BaseCenteredMonoclinicLattice::GetWignerSeitzMesh() const
+BaseCenteredMonoclinicLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
    bool ed = 2.0 * b_ * c_ * cos(alpha_) + a_ * a_ - b_ * b_ < 0.0;
    Mesh * mesh = new Mesh((double*)ws_vert_, ed?24:38,
@@ -6028,9 +6059,9 @@ BaseCenteredMonoclinicLattice::GetWignerSeitzMesh() const
 }
 
 Mesh *
-BaseCenteredMonoclinicLattice::GetPeriodicWignerSeitzMesh() const
+BaseCenteredMonoclinicLattice::GetPeriodicWignerSeitzMesh(bool tetMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh();
+   Mesh * mesh = this->GetWignerSeitzMesh(tetMesh);
 
    {
       ofstream ofs("mclc.mesh");
@@ -6532,7 +6563,7 @@ double todouble(int d, int v)
 }
 
 Mesh *
-MakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
+OldMakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
 {
    int dim  = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
@@ -6617,6 +6648,9 @@ MakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
       {
          cout << "trans_vecs = ";
          trans_vecs[i].Print(cout,sdim);
+         cout << "toint(trans_vecs) = " << toint(d,trans_vecs[i][0]) << " "
+              << toint(d,trans_vecs[i][1]) << " "
+              << toint(d,trans_vecs[i][2]) << endl;
       }
       for (mxyz=c2v.begin(); mxyz!=c2v.end(); mxyz++)
       {
@@ -6663,6 +6697,7 @@ MakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
                      slaves[*sit] = master;
                   }
                   masters.erase(slave);
+                  if ( masters.find(0) != masters.end() ) { cout << "*** masters contains 0 ***" << endl; }
                }
                else if ( mInM && !sInM )
                {
@@ -6685,6 +6720,7 @@ MakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
                      }
                      masters.erase(master);
                   }
+                  if ( masters.find(0) != masters.end() ) { cout << "*** masters contains 0 ***" << endl; }
                }
                else if ( !mInM && sInM )
                {
@@ -6708,6 +6744,7 @@ MakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
                      }
                      masters.erase(slave);
                   }
+                  if ( masters.find(0) != masters.end() ) { cout << "*** masters contains 0 ***" << endl; }
                }
                else
                {
@@ -6753,6 +6790,7 @@ MakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
                                masters.erase(slaves[slave]);
                             }
                   */
+                  if ( masters.find(0) != masters.end() ) { cout << "*** masters contains 0 ***" << endl; }
                }
                c++;
             }

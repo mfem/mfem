@@ -119,8 +119,9 @@ public:
 
    void GetPathSegmentEndPointIndices(int p, int s, int & e0, int & e1);
 
-   virtual mfem::Mesh * GetWignerSeitzMesh() const = 0;
-   virtual mfem::Mesh * GetPeriodicWignerSeitzMesh() const = 0;
+   virtual mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const = 0;
+   virtual mfem::Mesh *
+   GetPeriodicWignerSeitzMesh(bool tetMesh = false) const = 0;
 
 protected:
    BravaisLattice(unsigned int dim);
@@ -254,8 +255,8 @@ public:
    virtual unsigned int GetNumberPaths()              { return 1; }
    virtual unsigned int GetNumberPathSegments(int i)  { return 3; }
 
-   mfem::Mesh * GetWignerSeitzMesh() const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
+   mfem::Mesh * GetWignerSeitzMesh(bool triMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool triMesh = false) const;
 
 private:
    // double a_;
@@ -281,8 +282,8 @@ public:
    virtual unsigned int GetNumberPaths()              { return 1; }
    virtual unsigned int GetNumberPathSegments(int i)  { return 3; }
 
-   mfem::Mesh * GetWignerSeitzMesh() const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
+   mfem::Mesh * GetWignerSeitzMesh(bool triMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool triMesh = false) const;
 
 private:
    // double a_;
@@ -308,8 +309,8 @@ public:
    virtual unsigned int GetNumberPaths()              { return 2; }
    virtual unsigned int GetNumberPathSegments(int i)  { return (i==0)?5:1; }
 
-   mfem::Mesh * GetWignerSeitzMesh() const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
+   mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
 private:
 
@@ -320,11 +321,11 @@ private:
    int ws_be2v_[24];     // Boundary Element to vertex connectivity
    int ws_belem_att_[6]; // Boundary element Attributes
 
-   double ws_vert_tet_[81];   // Vertex coordinates
-   int ws_e2v_tet_[192];      // Element to vertex connectivity
-   int ws_elem_att_tet_[48];  // Element Attributes
-   int ws_be2v_tet_[144];     // Boundary Element to vertex connectivity
-   int ws_belem_att_tet_[48]; // Boundary element Attributes
+   double ws_tet_vert_[81];   // Vertex coordinates
+   int ws_tet_e2v_[192];      // Element to vertex connectivity
+   int ws_tet_elem_att_[48];  // Element Attributes
+   int ws_tet_be2v_[144];     // Boundary Element to vertex connectivity
+   int ws_tet_belem_att_[48]; // Boundary element Attributes
 };
 
 class FaceCenteredCubicLattice : public BravaisLattice3D
@@ -340,8 +341,8 @@ public:
    virtual unsigned int GetNumberPaths()              { return 2; }
    virtual unsigned int GetNumberPathSegments(int i)  { return (i==0)?9:1; }
 
-   mfem::Mesh * GetWignerSeitzMesh() const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
+   mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
 private:
 
@@ -366,8 +367,8 @@ public:
    virtual unsigned int GetNumberPaths()              { return 2; }
    virtual unsigned int GetNumberPathSegments(int i)  { return (i==0)?5:1; }
 
-   mfem::Mesh * GetWignerSeitzMesh() const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
+   mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
 private:
 
@@ -392,8 +393,8 @@ public:
    virtual unsigned int GetNumberPaths()              { return 3; }
    virtual unsigned int GetNumberPathSegments(int i)  { return (i==0)?7:1; }
 
-   mfem::Mesh * GetWignerSeitzMesh() const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
+   mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
 private:
 
@@ -422,8 +423,8 @@ public:
    virtual unsigned int GetNumberPathSegments(int i)
    { return (c_<a_)?((i==0)?8:1):((i==0)?10:1); }
 
-   mfem::Mesh * GetWignerSeitzMesh() const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
+   mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
 private:
 
@@ -460,8 +461,8 @@ public:
    virtual unsigned int GetNumberPaths()              { return 4; }
    virtual unsigned int GetNumberPathSegments(int i)  { return (i==0)?9:1; }
 
-   mfem::Mesh * GetWignerSeitzMesh() const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
+   mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
 private:
 
@@ -505,8 +506,8 @@ public:
             return 0;
       };
    }
-   mfem::Mesh * GetWignerSeitzMesh() const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
+   mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
 private:
 
@@ -534,8 +535,8 @@ public:
    virtual unsigned int GetNumberPaths()              { return 3; }
    virtual unsigned int GetNumberPathSegments(int i)  { return (i==0)?11:1; }
 
-   mfem::Mesh * GetWignerSeitzMesh() const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
+   mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
 private:
 
@@ -573,8 +574,8 @@ public:
    virtual unsigned int GetNumberPaths()              { return 2; }
    virtual unsigned int GetNumberPathSegments(int i)  { return (i==0)?11:1; }
 
-   mfem::Mesh * GetWignerSeitzMesh() const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
+   mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
 private:
 
@@ -599,8 +600,8 @@ public:
    virtual unsigned int GetNumberPaths()              { return 3; }
    virtual unsigned int GetNumberPathSegments(int i)  { return (i==0)?7:1; }
 
-   mfem::Mesh * GetWignerSeitzMesh() const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
+   mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
 private:
 
@@ -625,8 +626,8 @@ public:
    virtual unsigned int GetNumberPaths()              { return (alpha_ < 0.5 * M_PI)?4:1; }
    virtual unsigned int GetNumberPathSegments(int i)  { return (alpha_ < 0.5 * M_PI)?((i==0)?2:((i==1)?3:((i==2)?3:1))):9; }
 
-   mfem::Mesh * GetWignerSeitzMesh() const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
+   mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
 private:
 
@@ -665,8 +666,8 @@ public:
    virtual unsigned int GetNumberPathSegments(int i)
    { return (i==0)?8:((i==1)?2:1); }
 
-   mfem::Mesh * GetWignerSeitzMesh() const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
+   mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
 private:
 
@@ -702,8 +703,8 @@ public:
    virtual unsigned int GetNumberPathSegments(int i)
    { return (i==0)?8:((i==1)?2:1); }
 
-   mfem::Mesh * GetWignerSeitzMesh() const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh() const;
+   mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
 private:
 
