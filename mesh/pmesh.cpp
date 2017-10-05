@@ -3690,7 +3690,8 @@ void ParMesh::PrintAsOne(std::ostream &out)
             out << p+1 << ' ' << ints[i];
             if (Dim==1) 
             {
-               k = 2;
+               k = 1;
+               i++;
             }
             else { k = Geometries.GetVertices(ints[i++])->GetNPoints(); }
             // vertices
