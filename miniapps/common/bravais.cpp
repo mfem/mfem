@@ -223,6 +223,7 @@ BravaisLattice::GetSymmetryPointIndex(const string & label)
 void
 BravaisLattice::GetIntermediatePoint(int p, int s, Vector & pt)
 {
+   pt.SetSize(ip_[p][s].Size());
    pt.Set(2.0 * M_PI, ip_[p][s]);
 }
 
