@@ -4318,7 +4318,7 @@ RhombohedralLattice::RhombohedralLattice(double a, double alpha)
    if ( alpha_ < 0.5 * M_PI )
    {
       double cosa = cos(alpha_);
-      double  eta = (1.0 + 4.0 * cosa) * (2.0 + 4.0 * cosa);
+      double  eta = (1.0 + 4.0 * cosa) / (2.0 + 4.0 * cosa);
       double   nu = 0.75 - 0.5 * eta;
 
       sl_[0] = "Gamma";
@@ -4734,7 +4734,8 @@ RhombohedralLattice::createTruncatedOctahedron()
    ws_vert_[ 98] =  0.25 * a_ * (1.0 + 3.0 * cosa) * sqrt(1.0 + 2.0 * cosa)
                     * sech * csch;
 
-   ws_vert_[ 99] =  0.50 * a_ * (1.0 + 2.0 * cosa) * sech;
+   ws_vert_[ 99] = -0.50 * a_ * cosa * sech;
+   ws_vert_[100] =  0.50 * a_ * (1.0 + 3.0 * cosa) * csch;
    ws_vert_[101] =  0.25 * a_ * (1.0 + 3.0 * cosa) * sqrt(1.0 + 2.0 * cosa)
                     * sech * csch;
 
