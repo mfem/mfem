@@ -19,6 +19,13 @@
 #include "../common/pfem_extras.hpp"
 #include "../common/bravais.hpp"
 
+extern "C"
+{
+   void dsygv_(int *ITYPE, char *JOBZ, char *UPLO, int *N,
+               double *A, int * LDA, double *B, int *LDB, double *W,
+               double *WORK, int *LWORK, int *INFO);
+}
+
 namespace mfem
 {
 
@@ -582,7 +589,7 @@ class MaxwellBlochWaveSolver
 public:
    MaxwellBlochWaveSolver(ParMesh & pmesh, BravaisLattice & bravais,
                           Coefficient & epsCoef, Coefficient & muCoef,
-                          int max_ref = 2, double tol = 0.05);
+                          int max_ref = 2, int nev = 24, double tol = 0.05);
    ~MaxwellBlochWaveSolver();
 
    // Where kappa is the phase shift vector
@@ -593,6 +600,11 @@ public:
    void SetZeta(const Vector & zeta);
 
    void GetEigenfrequencies(std::vector<double> & omega);
+
+   MaxwellBlochWaveEquation * GetFineSolver()
+   { return mbwe_[mbwe_.size()-1]; }
+
+   HypreParVector * ReturnFineEigenvector(int i);
 
    void InitializeGLVis(VisData & vd);
 
@@ -632,8 +644,10 @@ class MaxwellDispersion
 {
 public:
    MaxwellDispersion(ParMesh & pmesh, BravaisLattice & bravais,
+		     int sample_power,
                      Coefficient & epsCoef, Coefficient & muCoef,
-                     int max_ref = 2, double tol = 0.05);
+		     bool midPts = false, int max_ref = 2,
+		     int nev = 24, double tol = 0.05);
    ~MaxwellDispersion();
 
    const std::vector<std::vector<std::map<int,std::vector<double> > > > &
@@ -650,6 +664,10 @@ public:
 
 private:
 
+   void buildRawBasis();
+
+   void approxEigenfrequencies(std::vector<double> & omega);
+
    void traverseBrillouinZone();
 
    std::string modLabel(const std::string & label) const;
@@ -660,23 +678,39 @@ private:
    BravaisLattice         * bravais_;
    MaxwellBlochWaveSolver * mbws_;
 
+   HypreParVector * Ax_;
+   HypreParVector * Mx_;
+
+   DenseMatrix A_;
+   DenseMatrix M_;
+
+   std::vector<HypreParVector*> rawBasis_;
+   std::vector<HypreParVector*> projBasis_;
+
    std::map<std::string,std::vector<double> > sp_eigs_;
    std::vector<std::vector<std::map<int,std::vector<double> > > > seg_eigs_;
 
    int n_pow_;
    int n_div_;
+   int samp_pow_;
+   int nev_;
+
+   bool midPts_;
 };
 
 class MaxwellBandGap : public Homogenization
 {
 public:
    MaxwellBandGap(ParMesh & pmesh, BravaisLattice & bravais,
+		  int samp_pow,
                   Coefficient & epsCoef, Coefficient & muCoef,
-                  int max_ref = 2, double tol = 0.05);
+                  bool midPts = false, int max_ref = 2, double tol = 0.05);
    ~MaxwellBandGap();
 
    void GetHomogenizedProperties(std::vector<double> & p);
    void GetPropertySensitivities(std::vector<ParGridFunction> & dp) {}
+
+   void PrintDispersionPlot(std::ostream & os);
 
    void InitializeGLVis(VisData & vd);
 
