@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
    bool stiffnessCalc = false;
    bool bandGapCalc = false;
    bool band_gap_mid_pts = false;
-   
+
    double a = -1.0, b = -1.0, c = -1.0;
    double alpha = -1.0, beta = -1.0, gamma = -1.0;
    double alpha_deg = -1.0, beta_deg = -1.0, gamma_deg = -1.0;
@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
                   "Number of sampling points per segment is 2^samp_pow "
                   "when computing the band gap");
    args.AddOption(&band_gap_mid_pts, "-bgmp", "--band-gap-mid-pts",
-		  "-no-bgmp", "--no-band-gap-mid-pts",
+                  "-no-bgmp", "--no-band-gap-mid-pts",
                   "Whether to include mid points in the band gap computation");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
@@ -436,11 +436,11 @@ int main(int argc, char *argv[])
       delete mesh_bg;
 
       meta_material::MaxwellBandGap maxwell_bg(*pmesh_bg, *bravais,
-					       band_gap_samp_pow,
-					       epsCoef, muCoef,
-					       band_gap_mid_pts,
+                                               band_gap_samp_pow,
+                                               epsCoef, muCoef,
+                                               band_gap_mid_pts,
                                                band_gap_max_ref,
-					       band_gap_tol);
+                                               band_gap_tol);
 
       vector<double> bg;
       maxwell_bg.GetHomogenizedProperties(bg);

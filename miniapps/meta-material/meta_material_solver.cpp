@@ -2590,7 +2590,7 @@ MaxwellBlochWaveSolver::MaxwellBlochWaveSolver(ParMesh & pmesh,
                                                Coefficient & epsCoef,
                                                Coefficient & muCoef,
                                                int max_ref,
-					       int nev,
+                                               int nev,
                                                double tol)
    : max_lvl_(max_ref)
    , nev_(nev)
@@ -2937,12 +2937,12 @@ WriteVisItFields(const std::string & prefix,
 
 MaxwellDispersion::MaxwellDispersion(ParMesh & pmesh,
                                      BravaisLattice & bravais,
-				     int sample_power,
+                                     int sample_power,
                                      Coefficient & epsCoef,
                                      Coefficient & muCoef,
                                      bool midPts,
                                      int max_ref,
-				     int nev,
+                                     int nev,
                                      double tol)
    : bravais_(&bravais),
      Ax_(NULL),
@@ -2956,7 +2956,7 @@ MaxwellDispersion::MaxwellDispersion(ParMesh & pmesh,
    mbws_ = new MaxwellBlochWaveSolver(pmesh, bravais, epsCoef, muCoef,
                                       max_ref, nev, tol);
 
-   if ( sample_power > n_pow_) samp_pow_ = n_pow_;
+   if ( sample_power > n_pow_) { samp_pow_ = n_pow_; }
    n_div_ = (int)pow(2, n_pow_);
 }
 
@@ -3241,7 +3241,7 @@ MaxwellDispersion::approxEigenfrequencies(std::vector<double> & omega)
    tic();
 
    mbwe->Setup();
-   
+
    for (unsigned int i=0; i<rawBasis_.size(); i++)
    {
       mbwe->GetSubSpaceProjector()->Mult(*rawBasis_[i], *projBasis_[i]);
@@ -3313,7 +3313,7 @@ MaxwellDispersion::approxEigenfrequencies(std::vector<double> & omega)
    omega.resize(nev_);
    for (int i=0; i<nev_; i++)
    {
-     omega[i] = sqrt(fabs(redEigs[i]));
+      omega[i] = sqrt(fabs(redEigs[i]));
    }
 }
 
@@ -3370,7 +3370,7 @@ MaxwellDispersion::traverseBrillouinZone()
                {
                   mbws_->SetBeta( (double(ni - i) * beta0 +
                                    double(i) * beta1 )/ ni);
-		  
+
                   int ind = i * n_div_ / ni;
                   cout << "index " << ind << endl;
                   this->approxEigenfrequencies(seg_eigs_[p][s][i * n_div_ / ni]);
@@ -3411,10 +3411,10 @@ MaxwellDispersion::traverseBrillouinZone()
 
 MaxwellBandGap::MaxwellBandGap(ParMesh & pmesh,
                                BravaisLattice & bravais,
-			       int samp_pow,
-			       Coefficient & epsCoef,
+                               int samp_pow,
+                               Coefficient & epsCoef,
                                Coefficient & muCoef,
-			       bool midPts,
+                               bool midPts,
                                int max_ref,
                                double tol)
    : Homogenization(pmesh.GetComm())

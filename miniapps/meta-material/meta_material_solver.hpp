@@ -644,10 +644,10 @@ class MaxwellDispersion
 {
 public:
    MaxwellDispersion(ParMesh & pmesh, BravaisLattice & bravais,
-		     int sample_power,
+                     int sample_power,
                      Coefficient & epsCoef, Coefficient & muCoef,
-		     bool midPts = false, int max_ref = 2,
-		     int nev = 24, double tol = 0.05);
+                     bool midPts = false, int max_ref = 2,
+                     int nev = 24, double tol = 0.05);
    ~MaxwellDispersion();
 
    const std::vector<std::vector<std::map<int,std::vector<double> > > > &
@@ -702,7 +702,7 @@ class MaxwellBandGap : public Homogenization
 {
 public:
    MaxwellBandGap(ParMesh & pmesh, BravaisLattice & bravais,
-		  int samp_pow,
+                  int samp_pow,
                   Coefficient & epsCoef, Coefficient & muCoef,
                   bool midPts = false, int max_ref = 2, double tol = 0.05);
    ~MaxwellBandGap();
