@@ -29,6 +29,7 @@ namespace mfem
 // real_t - mesh nodes, sol basis, mesh basis data type
 template <typename meshType, typename solFESpace,
           typename IR, typename IntegratorType,
+          typename solShapeEval, typename solFieldEval,
           typename solVecLayout_t = ScalarLayout,
           typename complex_t = double, typename real_t = double>
 class TBilinearForm : public Operator
@@ -40,7 +41,7 @@ protected:
    typedef typename meshType::FE_type            meshFE_type;
    typedef ShapeEvaluator<meshFE_type,IR,real_t> meshShapeEval;
    typedef typename solFESpace::FE_type          solFE_type;
-   typedef ShapeEvaluator<solFE_type,IR,real_t>  solShapeEval;
+   //typedef ShapeEvaluator<solFE_type,IR,real_t>  solShapeEval;
    typedef solVecLayout_t                        solVecLayout_type;
 
    static const int dim  = meshType::dim;
@@ -63,8 +64,8 @@ protected:
       typedef typename Trans_t::template Result<EvalOps,NE> Type;
    };
 
-   typedef FieldEvaluator<solFESpace,solVecLayout_t,IR,
-           complex_t,real_t> solFieldEval;
+   //typedef FieldEvaluator<solFESpace,solVecLayout_t,IR,
+   //        complex_t,real_t> solFieldEval;
    template <int BE> struct S_spec
    {
       typedef typename solFieldEval::template Spec<kernel_t,BE> Spec;
@@ -466,14 +467,26 @@ public:
          TMatrix<dofs,dofs> M_loc;
          S_spec<BE>::ElementMatrix::Compute(
             asm_qpt_data.layout, asm_qpt_data, M_loc.layout, M_loc, solEval);
-
          if (dof_map) // switch from tensor-product ordering
          {
             for (int i = 0; i < dofs; i++)
             {
                for (int j = 0; j < dofs; j++)
                {
-                  M_loc_perm(dof_map_[i],dof_map_[j]) = M_loc(i,j);
+                  int dofi = (dof_map_[i]);
+                  int dofj = (dof_map_[j]);
+                  int s    = 1.0;
+                  if (dofi < 0)
+                  {
+                     dofi = -1-dofi;
+                     s*=-1;
+                  }
+                  if (dofj < 0)
+                  {
+                     dofj = -1-dofj;
+                     s*=-1;
+                  }
+                  M_loc_perm(dofi,dofj) = s*M_loc(i,j);
                }
             }
             for (int bi = 1; bi < vdim; bi++)

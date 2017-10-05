@@ -1912,6 +1912,7 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectGrad_RT(nk, dof2nk, fe, Trans, curl); }
+   const Array<int> &GetDofMap() const { return dof_map; }
 };
 
 
@@ -1955,6 +1956,7 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+   const Array<int> &GetDofMap() const { return dof_map; }
 };
 
 
@@ -2102,6 +2104,7 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
+   const Array<int> &GetDofMap() const { return dof_map; }
 };
 
 
@@ -2145,6 +2148,7 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &grad) const
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+    const Array<int> &GetDofMap() const { return dof_map; }
 };
 
 

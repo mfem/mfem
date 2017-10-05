@@ -1417,6 +1417,3241 @@ public:
    };
 };
 
+template <class FE, class IR, bool TP, typename real_t>
+class NDShapeEvaluator_base;
+    
+// ShapeEvaluator without tensor-product structure
+template <class FE, class IR, typename real_t>
+class NDShapeEvaluator_base<FE, IR, false, real_t>
+{
+public:
+	static const int DOF  = FE::dofs;
+	static const int NIP  = IR::qpts;
+	static const int DIM  = FE::dim;
+	static const int DIMC = (FE::dim == 3) ? 3 : 1;
+	
+protected:
+	TTensor3<NIP,DIM,DOF,real_t,true> B;
+	TTensor3<DOF,NIP,DIM,real_t> Bt;
+	TTensor3<NIP,DIMC,DOF,real_t,true> C;
+	TTensor3<DOF,NIP,DIMC,real_t> Ct;
+        
+public:
+	NDShapeEvaluator_base(const FE &fe)
+	{
+		fe.CalcShapes(IR::GetIntRule(), B.data, C.data);
+		TAssign<AssignOp::Set>(Bt.layout.merge_23(), Bt,
+							   B.layout.merge_12().transpose_12(), B);
+		TAssign<AssignOp::Set>(Ct.layout.merge_23(), Ct,
+							   C.layout.merge_12().transpose_12(), C);
+	}
+	// default copy constructor
+        
+	// Multi-component shape evaluation from DOFs to quadrature points.
+	// dof_layout is (DOF x NumComp) and qpt_layout is (NIP x DIM x NumComp).
+	template <typename dof_layout_t, typename dof_data_t,
+	typename qpt_layout_t, typename qpt_data_t>
+	MFEM_ALWAYS_INLINE
+	void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
+			  const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
+	{
+		MFEM_STATIC_ASSERT(dof_layout_t::rank  == 2 &&
+						   dof_layout_t::dim_1 == DOF,
+						   "invalid dof_layout_t.");
+		MFEM_STATIC_ASSERT(qpt_layout_t::rank  == 3 &&
+						   qpt_layout_t::dim_1 == NIP &&
+						   qpt_layout_t::dim_2 == DIM,
+						   "invalid qpt_layout_t.");
+		MFEM_STATIC_ASSERT(dof_layout_t::dim_2 == qpt_layout_t::dim_3,
+						   "incompatible dof- and qpt- layouts.");
+            
+		Mult_AB<false>(B.layout.merge_12(), B,
+					   dof_layout, dof_data,
+					   qpt_layout.merge_12(), qpt_data);
+	}
+        
+	// Multi-component shape evaluation transpose from quadrature points to DOFs.
+	// qpt_layout is (NIP x DIM x NumComp) and dof_layout is (DOF x NumComp).
+	template <bool Add,
+	typename qpt_layout_t, typename qpt_data_t,
+	typename dof_layout_t, typename dof_data_t>
+	MFEM_ALWAYS_INLINE
+	void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
+			   const dof_layout_t &dof_layout, dof_data_t &dof_data) const
+	{
+		MFEM_STATIC_ASSERT(dof_layout_t::rank  == 2 &&
+						   dof_layout_t::dim_1 == DOF,
+						   "invalid dof_layout_t.");
+		MFEM_STATIC_ASSERT(qpt_layout_t::rank  == 3 &&
+						   qpt_layout_t::dim_1 == NIP &&
+						   qpt_layout_t::dim_2 == DIM,
+						   "invalid qpt_layout_t.");
+		MFEM_STATIC_ASSERT(dof_layout_t::dim_2 == qpt_layout_t::dim_3,
+						   "incompatible dof- and qpt- layouts.");
+            
+		Mult_AB<Add>(Bt.layout.merge_23(), Bt,
+					 qpt_layout.merge_12(), qpt_data,
+					 dof_layout, dof_data);
+	}
+        
+	// Multi-component gradient evaluation from DOFs to quadrature points.
+	// dof_layout is (DOF x NumComp) and curl_layout is (NIP x DIMC x NumComp).
+	template <typename dof_layout_t, typename dof_data_t,
+	typename curl_layout_t, typename curl_data_t>
+	MFEM_ALWAYS_INLINE
+	void CalcCurl(const dof_layout_t  &dof_layout,
+				  const dof_data_t    &dof_data,
+				  const curl_layout_t &curl_layout,
+				  curl_data_t         &curl_data) const
+	{
+		MFEM_STATIC_ASSERT(dof_layout_t::rank  == 2 &&
+						   dof_layout_t::dim_1 == DOF,
+						   "invalid dof_layout_t.");
+		MFEM_STATIC_ASSERT(curl_layout_t::rank  == 3 &&
+						   curl_layout_t::dim_1 == NIP &&
+						   curl_layout_t::dim_2 == DIMC,
+						   "invalid grad_layout_t.");
+		MFEM_STATIC_ASSERT(dof_layout_t::dim_2 == curl_layout_t::dim_3,
+						   "incompatible dof- and grad- layouts.");
+            
+		Mult_AB<false>(C.layout.merge_12(), C,
+					   dof_layout, dof_data,
+					   curl_layout.merge_12(), curl_data);
+	}
+        
+	// Multi-component gradient evaluation transpose from quadrature points to
+	// DOFs. curl_layout is (NIP x DIMC x NumComp), dof_layout is (DOF x NumComp).
+	template <bool Add,
+	typename curl_layout_t, typename curl_data_t,
+	typename dof_layout_t, typename dof_data_t>
+	MFEM_ALWAYS_INLINE
+	void CalcCurlT(const curl_layout_t &curl_layout,
+				   const curl_data_t   &curl_data,
+				   const dof_layout_t  &dof_layout,
+				   dof_data_t          &dof_data) const
+	{
+		MFEM_STATIC_ASSERT(dof_layout_t::rank  == 2 &&
+						   dof_layout_t::dim_1 == DOF,
+						   "invalid dof_layout_t.");
+		MFEM_STATIC_ASSERT(curl_layout_t::rank  == 3 &&
+						   curl_layout_t::dim_1 == NIP &&
+						   curl_layout_t::dim_2 == DIMC,
+						   "invalid grad_layout_t.");
+		MFEM_STATIC_ASSERT(dof_layout_t::dim_2 == curl_layout_t::dim_3,
+						   "incompatible dof- and grad- layouts.");
+            
+		Mult_AB<Add>(Ct.layout.merge_23(), Ct,
+					 curl_layout.merge_12(), curl_data,
+					 dof_layout, dof_data);
+	}
+        
+	// Multi-component assemble.
+	// ?? qpt_layout is (NIP x DIM x DIM x NumComp), M_layout is (DOF x DOF x NumComp)
+	template <typename qpt_layout_t, typename qpt_data_t,
+	typename M_layout_t, typename M_data_t>
+	MFEM_ALWAYS_INLINE
+	void Assemble(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
+				  const M_layout_t &M_layout, M_data_t &M_data) const
+	{
+		const int NC = qpt_layout_t::dim_4;
+		TTensor4<NIP,DIM,DOF,NC> F;
+		//TTensor3<NIP,DIM,DOF,real_t,true> B;
+		for (int k = 0; k < NC; k++)
+		{
+			// Next loop performs a batch of matrix-matrix products of size
+			// (DIM x DIM) x (DIM x DOF) --> (DIM x DOF)
+			for (int j = 0; j < NIP; j++)
+			{
+				Mult_AB<false>(qpt_layout.ind14(j,k), qpt_data,
+							   B.layout.ind1(j), B,
+							   F.layout.ind14(j,k), F);
+			}
+		}
+		// (DOF x (NIP x DIM)) x ((NIP x DIM) x DOF x NC) --> (DOF x DOF x NC)
+		Mult_2_1<false>(Bt.layout.merge_23(), Bt,
+						F.layout.merge_12(), F,
+						M_layout, M_data);
+	}
+        
+	// Multi-component assemble of grad-grad element matrices.
+	// qpt_layout is (NIP x DIMC x DIMC x NumComp), and
+	// D_layout is (DOF x DOF x NumComp).
+	template <typename qpt_layout_t, typename qpt_data_t,
+	typename D_layout_t, typename D_data_t>
+	MFEM_ALWAYS_INLINE
+	void AssembleCurlCurl(const qpt_layout_t &qpt_layout,
+						  const qpt_data_t   &qpt_data,
+						  const D_layout_t   &D_layout,
+						  D_data_t           &D_data) const
+	{
+		const int NC = qpt_layout_t::dim_4;
+		TTensor4<NIP,DIMC,DOF,NC> F;
+		for (int k = 0; k < NC; k++)
+		{
+			// Next loop performs a batch of matrix-matrix products of size
+			// (DIM x DIM) x (DIM x DOF) --> (DIM x DOF)
+			for (int j = 0; j < NIP; j++)
+			{
+				Mult_AB<false>(qpt_layout.ind14(j,k), qpt_data,
+							   C.layout.ind1(j), C,
+							   F.layout.ind14(j,k), F);
+			}
+		}
+		// (DOF x (NIP x DIM)) x ((NIP x DIM) x DOF x NC) --> (DOF x DOF x NC)
+		Mult_2_1<false>(Ct.layout.merge_23(), Ct,
+						F.layout.merge_12(), F,
+						D_layout, D_data);
+	}
+};
+// Templated classes for transitioning between degrees of freedom and quadrature
+// points values.
+    
+// Shape evaluators -- values of basis functions on the reference element
+    
+template <int Dim, int DOF1,int DOF2, int NIP, typename real_t>
+class NDTProductShapeEvaluator;
+
+// ShapeEvaluator with 2D tensor-product structure
+template <int DOF1,int DOF2, int NIP, typename real_t>
+class NDTProductShapeEvaluator<2, DOF1, DOF2, NIP, real_t>
+{
+protected:
+	TMatrix<NIP,DOF1,real_t,true>  B_1d_c,  G_1d_c;
+	TMatrix<DOF1,NIP,real_t,true> Bt_1d_c, Gt_1d_c;
+	TMatrix<NIP,DOF2,real_t,true>  B_1d_o,B_1d_o_neg;
+	TMatrix<DOF2,NIP,real_t,true> Bt_1d_o,Bt_1d_o_neg;
+public:
+        static const int TDOF = 2*DOF1*DOF2; // total dofs
+        static const int TNIP = NIP*NIP; // total qpts
+        
+        NDTProductShapeEvaluator() 
+		{
+		}
+		void init()
+		{	
+			for (int ip = 0; ip < NIP; ip++)
+			{
+				for (int id = 0; id < DOF2; id++)		
+				{
+					B_1d_o_neg.data[ip+NIP*id] = - B_1d_o.data[ip+NIP*id];
+				}
+			}
+
+			TAssign<AssignOp::Set>(Bt_1d_o_neg.layout, Bt_1d_o_neg,
+								   B_1d_o_neg.layout.transpose_12(), B_1d_o_neg);
+		}
+        
+		template <typename dof_data_t>
+		void AddOrientation(dof_data_t &dof_data) const
+		{
+			for (int i = 0; i < DOF2; i++)  // (2,3)
+			{
+				int idx = 0*TDOF/2 + (DOF2 - 1 - i) + DOF2*DOF2;
+				dof_data.data[idx] *= -1.0;
+			}
+			for (int j = 0; j < DOF2; j++)  // (3,0)
+			{
+				int idx = 1*TDOF/2 + 0 + (DOF2 - 1 - j)*(DOF2 + 1);
+				dof_data.data[idx] *= -1.0;
+			}
+		}
+
+        template <int D1, bool Add,
+				typename dof_layout_t, typename dof_data_t,
+				typename qpt_layout_t, typename qpt_data_t,
+				typename D1_layout_t,typename D1_data_t,
+				typename D2_layout_t,typename D2_data_t>
+        MFEM_ALWAYS_INLINE
+        void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
+                  const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data,
+				  const D1_layout_t &D1_layout,const D1_data_t &D1_data,
+				  const D2_layout_t &D2_layout,const D2_data_t &D2_data) const
+        {
+			const int NC = dof_layout_t::dim_2;
+			const int dof0 = D1_layout_t::dim_2;
+			const int dof1 = D2_layout_t::dim_1;
+			
+			TTensor3<NIP,dof1,NC> A1;
+			OffsetStridedLayout3D<dof0,1,dof1,dof0,NC,dof0*dof1> dof_layout1(D1*dof0*dof1*NC);
+			
+			// (1) A_{i,j,k} = \sum_s B_1d_{i,s} dof_data_{s,j,k}
+			Mult_2_1<false>(D1_layout, D1_data,
+							dof_layout1, dof_data,
+							A1.layout, A1);
+
+			// (2) qpt_data_{i,j,k} = \sum_s B_1d_{j,s} A_{i,s,k}
+			Mult_1_2<Add>(D2_layout,  D2_data,
+							A1.layout, A1,
+							qpt_layout.template split_1<NIP,NIP>(), qpt_data);
+        }
+        
+        // Multi-component shape evaluation from DOFs to quadrature points.
+        // dof_layout is (TDOF x NumComp) and qpt_layout is (TNIP x NumComp).
+        template <typename dof_layout_t, typename dof_data_t,
+        typename qpt_layout_t, typename qpt_data_t>
+        MFEM_ALWAYS_INLINE
+        void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
+                  const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
+        {
+			TMatrix<TDOF,1,real_t,true> dof_data_s;
+			TAssign<AssignOp::Set>(dof_layout, dof_data_s,dof_layout,dof_data);
+			AddOrientation(dof_data_s);
+			// DOF x DOF x NC --> NIP x DOF x NC --> NIP x NIP x NC
+			Calc<0,false>(dof_layout, dof_data_s,
+						  qpt_layout.ind2(0), qpt_data,
+						   B_1d_o.layout,  B_1d_o,
+						  Bt_1d_c.layout, Bt_1d_c);
+
+			Calc<1,false>(dof_layout, dof_data_s,
+						  qpt_layout.ind2(1), qpt_data,
+						  B_1d_c.layout,  B_1d_c,
+						  Bt_1d_o.layout, Bt_1d_o);
+        }
+        
+        template <bool D1, bool Add,
+				typename qpt_layout_t, typename qpt_data_t,
+				typename dof_layout_t, typename dof_data_t,
+				typename D1_layout_t,typename D1_data_t,
+				typename D2_layout_t,typename D2_data_t>
+        MFEM_ALWAYS_INLINE
+        void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
+                   const dof_layout_t &dof_layout, dof_data_t &dof_data,
+				   const D1_layout_t &D1_layout,const D1_data_t &D1_data,
+				   const D2_layout_t &D2_layout,const D2_data_t &D2_data) const
+        {
+			const int NC = dof_layout_t::dim_2;
+			const int dof0 = D1_layout_t::dim_1;
+			const int dof1 = D2_layout_t::dim_2;
+			
+			TTensor3<NIP,dof1,NC> A1;
+			OffsetStridedLayout3D<dof0,1,dof1,dof0,NC,dof0*dof1> dof_layout1(D1*dof0*dof1*NC);
+			// (1) A_{i,j,k} = \sum_s B_1d_{s,j} qpt_data_{i,s,k}
+			Mult_1_2<false>(D2_layout,  D2_data,
+							qpt_layout.template split_1<NIP,NIP>(), qpt_data,
+							A1.layout, A1);
+
+			// (2) dof_data_{i,j,k} = \sum_s B_1d_{s,i} A_{s,j,k}
+			Mult_2_1<Add>(D1_layout, D1_data,
+						  A1.layout, A1,
+						  dof_layout1, dof_data);
+        }
+        
+        // Multi-component shape evaluation transpose from quadrature points to DOFs.
+        // qpt_layout is (TNIP x NumComp) and dof_layout is (TDOF x NumComp).
+        template <bool Add,
+        typename qpt_layout_t, typename qpt_data_t,
+        typename dof_layout_t, typename dof_data_t>
+        MFEM_ALWAYS_INLINE
+        void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
+                   const dof_layout_t &dof_layout, dof_data_t &dof_data) const
+        {
+			CalcT<0,Add>(qpt_layout.ind2(0),qpt_data,
+						 dof_layout, dof_data,
+						 Bt_1d_o.layout, Bt_1d_o,
+						 B_1d_c.layout,  B_1d_c);
+			CalcT<1,Add>(qpt_layout.ind2(1),qpt_data,
+						 dof_layout, dof_data,
+						 Bt_1d_c.layout, Bt_1d_c,
+						 B_1d_o.layout,  B_1d_o);
+			AddOrientation(dof_data);
+        }
+        // Multi-component gradient evaluation from DOFs to quadrature points.
+        // dof_layout is (TDOF x NumComp) and grad_layout is (TNIP x DIM x NumComp).
+        template <typename dof_layout_t, typename dof_data_t,
+        typename curl_layout_t, typename curl_data_t>
+        MFEM_ALWAYS_INLINE
+        void CalcCurl(const dof_layout_t  &dof_layout,
+                      const dof_data_t    &dof_data,
+                      const curl_layout_t &curl_layout,
+                      curl_data_t &curl_data) const
+        {
+			TMatrix<TDOF,1,real_t,true> dof_data_s;
+			TAssign<AssignOp::Set>(dof_layout, dof_data_s,dof_layout,dof_data);
+			AddOrientation(dof_data_s);
+			Calc<0,false>(dof_layout, dof_data_s,
+						  curl_layout.ind2(0), curl_data,
+						  B_1d_o.layout,  B_1d_o_neg,
+						  Gt_1d_c.layout, Gt_1d_c);
+
+			Calc<1,true>(dof_layout, dof_data_s,
+						 curl_layout.ind2(0), curl_data,
+						 G_1d_c.layout,  G_1d_c,
+						 Bt_1d_o.layout, Bt_1d_o);
+        }
+        
+        // Multi-component gradient evaluation transpose from quadrature points to
+        // DOFs. grad_layout is (TNIP x DIM x NumComp), dof_layout is
+        // (TDOF x NumComp).
+        template <bool Add,
+        typename curl_layout_t, typename curl_data_t,
+        typename dof_layout_t, typename dof_data_t>
+        MFEM_ALWAYS_INLINE
+        void CalcCurlT(const curl_layout_t &curl_layout,
+                       const curl_data_t   &curl_data,
+                       const dof_layout_t  &dof_layout,
+                       dof_data_t          &dof_data) const
+        {
+			CalcT<0,Add>(curl_layout.ind2(0),curl_data,
+						 dof_layout, dof_data,
+						 Bt_1d_o.layout, Bt_1d_o_neg,
+						 G_1d_c.layout,  G_1d_c);
+			CalcT<1,Add>(curl_layout.ind2(0),curl_data,
+						 dof_layout, dof_data,
+						 Gt_1d_c.layout, Gt_1d_c,
+						 B_1d_o.layout,  B_1d_o);
+			AddOrientation(dof_data);
+        }
+        
+		template <int D1, int D2, bool Add,
+				  typename qpt_layout_t, typename qpt_data_t,
+				  typename M_layout_t,  typename M_data_t,
+				  typename D11_layout_t,typename D11_data_t,
+				  typename D12_layout_t,typename D12_data_t,
+				  typename D21_layout_t,typename D21_data_t,
+				  typename D22_layout_t,typename D22_data_t>
+        MFEM_ALWAYS_INLINE
+        void AssembleBlock(const qpt_layout_t &qpt_layout,const qpt_data_t   &qpt_data,
+                           const M_layout_t   &M_layout,  M_data_t           &M_data,
+						   const D11_layout_t &D11_layout,const D11_data_t &D11_data,
+						   const D12_layout_t &D12_layout,const D12_data_t &D12_data,
+						   const D21_layout_t &D21_layout,const D21_data_t &D21_data,
+						   const D22_layout_t &D22_layout,const D22_data_t &D22_data) const
+        {	
+			const int NC = qpt_layout_t::dim_2;
+			const int dof00 = D11_layout_t::dim_1;
+			const int dof10 = D21_layout_t::dim_2;
+			const int dof01 = D12_layout_t::dim_1;
+			const int dof11 = D22_layout_t::dim_2;
+			
+			TTensor4<dof01,NIP,dof11,NC> A1;
+			OffsetStridedLayout4D<dof00,1,dof01,dof00,dof10,2*dof00*dof01,dof11*NC,2*dof00*dof01*dof10> M1_layout(D1*2*dof00*dof01*dof10*dof11+D2*dof00*dof01);
+			// qpt_data<NIP1,NIP2,NC> --> A1<DOF11,NIP1,DOF21,NC>
+			TensorAssemble<false>(
+				D12_layout, D12_data,
+				D22_layout, D22_data,
+				qpt_layout.template split_1<NIP,NIP>(), qpt_data,
+				A1.layout, A1);
+			// A1<DOF11,NIP1,DOF21,NC> --> AA1<DOF2,DOF3*NIP1,DOF2,DOF3*NC>
+			TensorAssemble<Add>(
+				D11_layout, D11_data,
+				D21_layout, D21_data,
+				TTensor3<dof01,NIP,dof11*NC>::layout, A1,
+				M1_layout, M_data);
+        }
+		
+        // Multi-component assemble.
+        // qpt_layout is (TNIP x NumComp), M_layout is (TDOF x TDOF x NumComp)
+        template <typename qpt_layout_t, typename qpt_data_t,
+        typename M_layout_t, typename M_data_t>
+        MFEM_ALWAYS_INLINE
+        void Assemble(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
+                      const M_layout_t &M_layout, M_data_t &M_data) const
+        {
+			AssembleBlock<0,0,false>(qpt_layout.ind23(0,0), qpt_data,
+									 M_layout, M_data,
+									 Bt_1d_o.layout, Bt_1d_o, 
+									 Bt_1d_c.layout, Bt_1d_c,
+									 B_1d_o.layout,  B_1d_o,
+									 B_1d_c.layout, B_1d_c);
+			AssembleBlock<0,1,false>(qpt_layout.ind23(0,1), qpt_data,
+									 M_layout, M_data,
+									 Bt_1d_o.layout, Bt_1d_o, 
+									 Bt_1d_c.layout, Bt_1d_c,
+									 B_1d_c.layout,  B_1d_c,
+									 B_1d_o.layout, B_1d_o);
+			AssembleBlock<1,0,false>(qpt_layout.ind23(1,0), qpt_data,
+									 M_layout, M_data,
+									 Bt_1d_c.layout, Bt_1d_c, 
+									 Bt_1d_o.layout, Bt_1d_o,
+									 B_1d_o.layout,  B_1d_o,
+									 B_1d_c.layout, B_1d_c);
+			AssembleBlock<1,1,false>(qpt_layout.ind23(1,1), qpt_data,
+									 M_layout, M_data,
+									 Bt_1d_c.layout, Bt_1d_c, 
+									 Bt_1d_o.layout, Bt_1d_o,
+									 B_1d_c.layout,  B_1d_c,
+									 B_1d_o.layout, B_1d_o);
+		}
+        
+        // Multi-component assemble of grad-grad element matrices.
+        // qpt_layout is (TNIP x DIM x DIM x NumComp), and
+        // D_layout is (TDOF x TDOF x NumComp).
+        template <typename qpt_layout_t, typename qpt_data_t,
+        typename D_layout_t, typename D_data_t>
+        MFEM_ALWAYS_INLINE
+        void AssembleCurlCurl(const qpt_layout_t &qpt_layout,
+                              const qpt_data_t   &qpt_data,
+                              const D_layout_t   &D_layout,
+                              D_data_t           &D_data) const
+        {
+			AssembleBlock<0,0,false>(qpt_layout.ind23(0,0), qpt_data,
+									 D_layout, D_data,
+									 Bt_1d_o.layout, Bt_1d_o_neg, 
+									 Gt_1d_c.layout, Gt_1d_c,
+									 B_1d_o.layout,  B_1d_o_neg,
+									 G_1d_c.layout, G_1d_c);
+			AssembleBlock<1,0,false>(qpt_layout.ind23(0,0), qpt_data,
+									 D_layout, D_data,
+									 Bt_1d_o.layout, Bt_1d_o_neg, 
+									 Gt_1d_c.layout, Gt_1d_c,
+									 G_1d_c.layout,  G_1d_c,
+									 B_1d_o.layout, B_1d_o);
+			AssembleBlock<0,1,false>(qpt_layout.ind23(0,0), qpt_data,
+									 D_layout, D_data,
+									 Gt_1d_c.layout, Gt_1d_c, 
+									 Bt_1d_o.layout, Bt_1d_o,
+									 B_1d_o.layout,  B_1d_o_neg,
+									 G_1d_c.layout, G_1d_c);
+			AssembleBlock<1,1,false>(qpt_layout.ind23(0,0), qpt_data,
+									 D_layout, D_data,
+									 Gt_1d_c.layout, Gt_1d_c, 
+									 Bt_1d_o.layout, Bt_1d_o,
+									 G_1d_c.layout,  G_1d_c,
+									 B_1d_o.layout, B_1d_o);
+        }
+    };
+    
+	// ShapeEvaluator with 3D tensor-product structure
+    template <int DOF1,int DOF2, int NIP, typename real_t>
+    class NDTProductShapeEvaluator<3, DOF1, DOF2, NIP, real_t>
+    {
+    protected:
+        TMatrix<NIP,DOF1,real_t,true>  B_1d_c,  G_1d_c;
+        TMatrix<DOF1,NIP,real_t,true> Bt_1d_c, Gt_1d_c;
+        TMatrix<NIP,DOF2,real_t,true>  B_1d_o,B_1d_o_neg;
+        TMatrix<DOF2,NIP,real_t,true> Bt_1d_o,Bt_1d_o_neg;
+    public:
+        static const int TDOF = 3*DOF1*DOF1*DOF2; // total dofs
+        static const int TNIP = NIP*NIP*NIP; // total qpts
+        
+        NDTProductShapeEvaluator() 
+		{
+		}
+		void init()
+		{
+			for (int ip = 0; ip < NIP; ip++)
+			{
+				for (int id = 0; id < DOF2; id++)		
+				{
+					B_1d_o_neg.data[ip+NIP*id] = -B_1d_o.data[ip+NIP*id];
+				}
+			}
+			
+			//B_1d_o_neg.Scale(-1);
+			TAssign<AssignOp::Set>(Bt_1d_o_neg.layout, Bt_1d_o_neg,
+								   B_1d_o_neg.layout.transpose_12(), B_1d_o_neg);
+		}
+        
+		template <typename dof_data_t>
+		void AddOrientation(dof_data_t &dof_data) const
+		{
+			// (3,2,1,0) -- bottom
+			for (int j = 0; j < DOF2; j++) // y - components
+				for (int i = 1; i < DOF2; i++)
+				{
+					int idx = 1*TDOF/3 + i + ((DOF2 - 1 - j) + 0*DOF2)*(DOF2 + 1);
+					dof_data.data[idx] *= -1.0;
+				}
+			// (2,3,7,6) -- back
+			for (int k = 1; k < DOF2; k++) // x - components
+				for (int i = 0; i < DOF2; i++)
+				{
+					int idx = 0*TDOF/3 + (DOF2 - 1 - i) + (DOF2 + k*(DOF2 + 1))*DOF2;
+					dof_data.data[idx] *= -1.0;
+				}
+			// (3,0,4,7) -- left
+			for (int k = 1; k < DOF2; k++) // y - components
+				for (int j = 0; j < DOF2; j++)
+			{
+				int idx = 1*TDOF/3 + 0 + ((DOF2- 1 - j) + k*DOF2)*(DOF2 + 1);
+				dof_data.data[idx] *= -1.0;
+			}
+		}
+
+        template <int D1, bool Add,
+				  typename dof_layout_t, typename dof_data_t,
+				  typename qpt_layout_t, typename qpt_data_t,
+				  typename D1_layout_t,typename D1_data_t,
+				  typename D2_layout_t,typename D2_data_t,
+				  typename D3_layout_t,typename D3_data_t>
+        MFEM_ALWAYS_INLINE
+        void CalcBlock(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
+                  const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data,
+				  const D1_layout_t &D1_layout,const D1_data_t &D1_data,
+				  const D2_layout_t &D2_layout,const D2_data_t &D2_data,
+				  const D3_layout_t &D3_layout,const D3_data_t &D3_data) const
+        {
+			const int NC = dof_layout_t::dim_2;
+			const int dof0 = D1_layout_t::dim_2;
+			const int dof1 = D2_layout_t::dim_1;
+			const int dof2 = D3_layout_t::dim_1;
+			
+			TVector<NIP*dof1*dof2*NC> QDD;
+			TVector<NIP*NIP*dof2*NC> QQD;
+			OffsetStridedLayout3D<dof0,1,dof1*dof2,dof0,NC,dof0*dof1*dof2> dof_layout1(D1*dof0*dof1*dof2*NC);
+			// QDD_{i,jj,k} = \sum_s B_1d_{i,s} dof_data_{s,jj,k}
+			Mult_2_1<false>(D1_layout, D1_data,
+							dof_layout1, dof_data,
+							TTensor3<NIP,dof1*dof2,NC>::layout, QDD);
+			// QQD_{i,j,kk} = \sum_s B_1d_{j,s} QDD_{i,s,kk}
+			Mult_1_2<false>(D2_layout,D2_data,
+							TTensor3<NIP,dof1,dof2*NC>::layout, QDD,
+							TTensor3<NIP,NIP,dof2*NC>::layout, QQD);
+			// qpt_data_{ii,j,k} = \sum_s B_1d_{j,s} QQD_{ii,s,k}
+			Mult_1_2<Add>(D3_layout, D3_data,
+						  TTensor3<NIP*NIP,dof2,NC>::layout, QQD,
+						  qpt_layout.template split_1<NIP*NIP,NIP>(), qpt_data);
+        }
+        
+        // Multi-component shape evaluation from DOFs to quadrature points.
+        // dof_layout is (TDOF x NumComp) and qpt_layout is (TNIP x NumComp).
+        template <typename dof_layout_t, typename dof_data_t,
+				  typename qpt_layout_t, typename qpt_data_t>
+        MFEM_ALWAYS_INLINE
+        void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
+                  const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
+        {
+			TMatrix<TDOF,1,real_t,true> dof_data_s;
+			TAssign<AssignOp::Set>(dof_layout, dof_data_s,dof_layout,dof_data);
+			AddOrientation(dof_data_s);
+			CalcBlock<0,false>(dof_layout, dof_data_s,
+							 qpt_layout.ind2(0), qpt_data,
+							  B_1d_o.layout,  B_1d_o,
+							 Bt_1d_c.layout, Bt_1d_c,
+							 Bt_1d_c.layout, Bt_1d_c);
+			
+			CalcBlock<1,false>(dof_layout, dof_data_s,
+							 qpt_layout.ind2(1), qpt_data,
+							 B_1d_c.layout, B_1d_c,
+							 Bt_1d_o.layout,Bt_1d_o,
+							 Bt_1d_c.layout, Bt_1d_c);
+			
+			CalcBlock<2,false>(dof_layout, dof_data_s,
+							 qpt_layout.ind2(2), qpt_data,
+							 B_1d_c.layout, B_1d_c,
+							 Bt_1d_c.layout,Bt_1d_c,
+							 Bt_1d_o.layout,Bt_1d_o);
+        }
+        
+        template <int D1, bool Add,
+				  typename qpt_layout_t, typename qpt_data_t,
+				  typename dof_layout_t, typename dof_data_t,
+				  typename D1_layout_t,typename D1_data_t,
+				  typename D2_layout_t,typename D2_data_t,
+				  typename D3_layout_t,typename D3_data_t>
+        MFEM_ALWAYS_INLINE
+        void CalcTBlock(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
+                   const dof_layout_t &dof_layout, dof_data_t &dof_data,
+				   const D1_layout_t &D1_layout,const D1_data_t &D1_data,
+				   const D2_layout_t &D2_layout,const D2_data_t &D2_data,
+				   const D3_layout_t &D3_layout,const D3_data_t &D3_data) const
+        {
+			const int NC = dof_layout_t::dim_2;
+			const int dof0 = D1_layout_t::dim_1;
+			const int dof1 = D2_layout_t::dim_2;
+			const int dof2 = D3_layout_t::dim_2;
+			TVector<NIP*dof1*dof2*NC> QDD;
+			TVector<NIP*NIP*dof2*NC> QQD;
+			OffsetStridedLayout3D<dof0,1,dof1*dof2,dof0,NC,dof1*dof2*dof0> dof_layout1(D1*dof1*dof2*dof0*NC);
+			// qpt_data_{ii,j,k} = \sum_s B_1d_{j,s} QQD_{ii,s,k}
+			Mult_1_2<false>(D3_layout, D3_data,
+						    qpt_layout.template split_1<NIP*NIP,NIP>(), qpt_data,
+						    TTensor3<NIP*NIP,dof2,NC>::layout, QQD);
+			
+			// QQD_{i,j,kk} = \sum_s B_1d_{j,s} QDD_{i,s,kk}
+			Mult_1_2<false>(D2_layout,D2_data,
+							TTensor3<NIP,NIP,dof2*NC>::layout, QQD,
+							TTensor3<NIP,dof1,dof2*NC>::layout, QDD);
+			// QDD_{i,jj,k} = \sum_s B_1d_{i,s} dof_data_{s,jj,k}
+			Mult_2_1<Add>(D1_layout, D1_data,
+							TTensor3<NIP,dof1*dof2,NC>::layout, QDD,
+							dof_layout1, dof_data);
+			
+        }
+        
+        // Multi-component shape evaluation transpose from quadrature points to DOFs.
+        // qpt_layout is (TNIP x NumComp) and dof_layout is (TDOF x NumComp).
+        template <bool Add,
+				  typename qpt_layout_t, typename qpt_data_t,
+				  typename dof_layout_t, typename dof_data_t>
+        MFEM_ALWAYS_INLINE
+        void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
+                   const dof_layout_t &dof_layout, dof_data_t &dof_data) const
+        {
+			CalcTBlock<0,Add>(qpt_layout.ind2(0), qpt_data,
+							dof_layout, dof_data,
+							Bt_1d_o.layout, Bt_1d_o,
+							 B_1d_c.layout,  B_1d_c,
+							 B_1d_c.layout,  B_1d_c);
+			CalcTBlock<1,Add>(qpt_layout.ind2(1), qpt_data,
+							  dof_layout, dof_data,
+							  Bt_1d_c.layout, Bt_1d_c,
+							  B_1d_o.layout,B_1d_o,
+							  B_1d_c.layout, B_1d_c);
+			CalcTBlock<2,Add>(qpt_layout.ind2(2), qpt_data,
+							  dof_layout, dof_data,
+							  Bt_1d_c.layout, Bt_1d_c,
+							  B_1d_c.layout,B_1d_c,
+							  B_1d_o.layout,B_1d_o);
+			AddOrientation(dof_data);
+        }
+        // Multi-component gradient evaluation from DOFs to quadrature points.
+        // dof_layout is (TDOF x NumComp) and grad_layout is (TNIP x DIM x NumComp).
+        template <typename dof_layout_t, typename dof_data_t,
+				  typename curl_layout_t, typename curl_data_t>
+        MFEM_ALWAYS_INLINE
+        void CalcCurl(const dof_layout_t  &dof_layout,
+                      const dof_data_t    &dof_data,
+                      const curl_layout_t &curl_layout,
+                      curl_data_t &curl_data) const
+        {
+			TMatrix<TDOF,1,real_t,true> dof_data_s;
+			TAssign<AssignOp::Set>(dof_layout, dof_data_s,dof_layout,dof_data);
+			AddOrientation(dof_data_s);
+			CalcBlock<1,false>(dof_layout, dof_data_s,
+							   curl_layout.ind2(0), curl_data,
+							   B_1d_c.layout,  B_1d_c,
+							   Bt_1d_o.layout, Bt_1d_o_neg,
+							   Gt_1d_c.layout, Gt_1d_c);
+			CalcBlock<2,true>(dof_layout, dof_data_s,
+							   curl_layout.ind2(0), curl_data,
+							   B_1d_c.layout,  B_1d_c,
+							   Gt_1d_c.layout, Gt_1d_c,
+							   Bt_1d_o.layout, Bt_1d_o);
+			
+			CalcBlock<0,false>(dof_layout, dof_data_s,
+							   curl_layout.ind2(1), curl_data,
+							    B_1d_o.layout,  B_1d_o,
+							   Bt_1d_c.layout, Bt_1d_c,
+							   Gt_1d_c.layout, Gt_1d_c);
+			CalcBlock<2,true>(dof_layout, dof_data_s,
+							   curl_layout.ind2(1), curl_data,
+							    G_1d_c.layout,  G_1d_c,
+							   Bt_1d_c.layout, Bt_1d_c,
+							   Bt_1d_o.layout, Bt_1d_o_neg);
+			
+			CalcBlock<0,false>(dof_layout, dof_data_s,
+							   curl_layout.ind2(2), curl_data,
+							    B_1d_o.layout, B_1d_o_neg,
+							   Gt_1d_c.layout,Gt_1d_c,
+							   Bt_1d_c.layout,Bt_1d_c);
+			CalcBlock<1,true>(dof_layout, dof_data_s,
+							   curl_layout.ind2(2), curl_data,
+							    G_1d_c.layout, G_1d_c,
+							   Bt_1d_o.layout,Bt_1d_o,
+							   Bt_1d_c.layout,Bt_1d_c);
+        }
+        
+        // Multi-component gradient evaluation transpose from quadrature points to
+        // DOFs. grad_layout is (TNIP x DIM x NumComp), dof_layout is
+        // (TDOF x NumComp).
+        template <bool Add,
+				  typename curl_layout_t, typename curl_data_t,
+				  typename dof_layout_t, typename dof_data_t>
+        MFEM_ALWAYS_INLINE
+        void CalcCurlT(const curl_layout_t &curl_layout,
+                       const curl_data_t   &curl_data,
+                       const dof_layout_t  &dof_layout,
+                       dof_data_t          &dof_data) const
+        {
+			CalcTBlock<0,Add>(curl_layout.ind2(1), curl_data,
+							  dof_layout, dof_data,
+							  Bt_1d_o.layout, Bt_1d_o,
+							  B_1d_c.layout,  B_1d_c,
+							  G_1d_c.layout,  G_1d_c);
+			CalcTBlock<0,true>(curl_layout.ind2(2), curl_data,
+							  dof_layout, dof_data,
+							  Bt_1d_o.layout, Bt_1d_o_neg,
+							  G_1d_c.layout,  G_1d_c,
+							  B_1d_c.layout,  B_1d_c);
+			CalcTBlock<1,Add>(curl_layout.ind2(0), curl_data,
+							  dof_layout, dof_data,
+							  Bt_1d_c.layout, Bt_1d_c,
+							  B_1d_o.layout,B_1d_o_neg,
+							  G_1d_c.layout, G_1d_c);
+			CalcTBlock<1,true>(curl_layout.ind2(2), curl_data,
+							  dof_layout, dof_data,
+							  Gt_1d_c.layout, Gt_1d_c,
+							  B_1d_o.layout, B_1d_o,
+							  B_1d_c.layout, B_1d_c);
+			CalcTBlock<2,Add>(curl_layout.ind2(0), curl_data,
+							  dof_layout, dof_data,
+							  Bt_1d_c.layout, Bt_1d_c,
+							  G_1d_c.layout,G_1d_c,
+							  B_1d_o.layout,B_1d_o);
+			CalcTBlock<2,true>(curl_layout.ind2(1), curl_data,
+							  dof_layout, dof_data,
+							  Gt_1d_c.layout, Gt_1d_c,
+							  B_1d_c.layout,B_1d_c,
+							  B_1d_o.layout,B_1d_o_neg);
+			AddOrientation(dof_data);
+        }
+        
+        // Multi-component assemble.
+        // qpt_layout is (TNIP x NumComp), M_layout is (TDOF x TDOF x NumComp)
+        template <typename qpt_layout_t, typename qpt_data_t,
+				  typename M_layout_t, typename M_data_t>
+        MFEM_ALWAYS_INLINE
+        void Assemble(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
+                      const M_layout_t &M_layout, M_data_t &M_data) const
+        {
+			AssembleBlock<0,0,false>(qpt_layout.ind23(0,0), qpt_data, M_layout, M_data,
+							   Bt_1d_o.layout, Bt_1d_o,
+							   Bt_1d_c.layout,Bt_1d_c,
+							   Bt_1d_c.layout,Bt_1d_c,
+							    B_1d_o.layout, B_1d_o,
+								B_1d_c.layout, B_1d_c,
+								B_1d_c.layout, B_1d_c);
+			AssembleBlock<1,0,false>(qpt_layout.ind23(1,0), qpt_data, M_layout, M_data,
+							   Bt_1d_o.layout, Bt_1d_o,
+							   Bt_1d_c.layout,Bt_1d_c,
+							   Bt_1d_c.layout,Bt_1d_c,
+							   B_1d_c.layout,  B_1d_c,
+							   B_1d_o.layout, B_1d_o,
+							   B_1d_c.layout,B_1d_c);
+			AssembleBlock<2,0,false>(qpt_layout.ind23(2,0), qpt_data, M_layout, M_data,
+							   Bt_1d_o.layout, Bt_1d_o,
+							   Bt_1d_c.layout,Bt_1d_c,
+							   Bt_1d_c.layout,Bt_1d_c,
+							   B_1d_c.layout,  B_1d_c,
+							   B_1d_c.layout, B_1d_c,
+							   B_1d_o.layout, B_1d_o);
+			AssembleBlock<0,1,false>(qpt_layout.ind23(0,1), qpt_data, M_layout, M_data,
+							   Bt_1d_c.layout, Bt_1d_c,
+							   Bt_1d_o.layout,   Bt_1d_o,
+							   Bt_1d_c.layout, Bt_1d_c,
+							   B_1d_o.layout,   B_1d_o,
+							   B_1d_c.layout, B_1d_c,
+							   B_1d_c.layout, B_1d_c);
+			AssembleBlock<1,1,false>(qpt_layout.ind23(1,1), qpt_data, M_layout, M_data,
+							   Bt_1d_c.layout, Bt_1d_c,
+							   Bt_1d_o.layout,   Bt_1d_o,
+							   Bt_1d_c.layout, Bt_1d_c,
+							   B_1d_c.layout, B_1d_c,
+							   B_1d_o.layout, B_1d_o,
+							   B_1d_c.layout, B_1d_c);
+			AssembleBlock<2,1,false>(qpt_layout.ind23(2,1), qpt_data, M_layout, M_data,
+							   Bt_1d_c.layout, Bt_1d_c,
+							   Bt_1d_o.layout, Bt_1d_o,
+							   Bt_1d_c.layout, Bt_1d_c,
+							   B_1d_c.layout, B_1d_c,
+							   B_1d_c.layout, B_1d_c,
+							   B_1d_o.layout, B_1d_o);
+			AssembleBlock<0,2,false>(qpt_layout.ind23(0,2), qpt_data, M_layout, M_data,
+							   Bt_1d_c.layout, Bt_1d_c,
+							   Bt_1d_c.layout, Bt_1d_c,
+							   Bt_1d_o.layout,   Bt_1d_o,
+							   B_1d_o.layout, B_1d_o,
+							   B_1d_c.layout, B_1d_c,
+							   B_1d_c.layout, B_1d_c);
+			AssembleBlock<1,2,false>(qpt_layout.ind23(1,2), qpt_data, M_layout, M_data,
+							   Bt_1d_c.layout, Bt_1d_c,
+							   Bt_1d_c.layout, Bt_1d_c,
+							   Bt_1d_o.layout, Bt_1d_o,
+							   B_1d_c.layout, B_1d_c,
+							   B_1d_o.layout, B_1d_o,
+							   B_1d_c.layout, B_1d_c);
+			AssembleBlock<2,2,false>(qpt_layout.ind23(2,2), qpt_data, M_layout, M_data,
+							   Bt_1d_c.layout, Bt_1d_c,
+							   Bt_1d_c.layout, Bt_1d_c,
+							   Bt_1d_o.layout,   Bt_1d_o,
+							   B_1d_c.layout,  B_1d_c,
+							   B_1d_c.layout,  B_1d_c,
+							   B_1d_o.layout,    B_1d_o);
+		}
+        
+        template <int D1, int D2, bool Add,
+				  typename qpt_layout_t, typename qpt_data_t,
+				  typename D_layout_t, typename D_data_t,
+				  typename D11_layout_t,typename D11_data_t,
+				  typename D12_layout_t,typename D12_data_t,
+				  typename D13_layout_t,typename D13_data_t,
+				  typename D21_layout_t,typename D21_data_t,
+				  typename D22_layout_t,typename D22_data_t,
+				  typename D23_layout_t,typename D23_data_t>
+        MFEM_ALWAYS_INLINE
+        void AssembleBlock(const qpt_layout_t &qpt_layout,
+						   const qpt_data_t   &qpt_data,
+                           const D_layout_t   &D_layout,
+                           D_data_t           &D_data,
+						   const D11_layout_t &D11_layout,const D11_data_t &D11_data,
+						   const D12_layout_t &D12_layout,const D12_data_t &D12_data,
+						   const D13_layout_t &D13_layout,const D13_data_t &D13_data,
+						   const D21_layout_t &D21_layout,const D21_data_t &D21_data,
+						   const D22_layout_t &D22_layout,const D22_data_t &D22_data,
+						   const D23_layout_t &D23_layout,const D23_data_t &D23_data) const
+        {
+			const int NC = qpt_layout_t::dim_2;
+			const int dof00 = D11_layout_t::dim_1;//D1 == 0 ? DOF2 : DOF1;
+			const int dof01 = D12_layout_t::dim_1;//D1 == 1 ? DOF2 : DOF1;
+			const int dof02 = D13_layout_t::dim_1;//D1 == 2 ? DOF2 : DOF1;
+			const int dof10 = D21_layout_t::dim_2;//D2 == 0 ? DOF2 : DOF1;
+			const int dof11 = D22_layout_t::dim_2;//D2 == 1 ? DOF2 : DOF1;
+			const int dof12 = D23_layout_t::dim_2;//D2 == 2 ? DOF2 : DOF1;
+				
+			TTensor4<dof02,NIP*NIP,dof12,NC> A1;
+			TTensor4<dof01,dof02*NIP,dof11,dof12*NC> AA1;
+			OffsetStridedLayout4D<dof00,1,dof01*dof02,dof00,dof10,3*dof00*dof01*dof02*NC,dof11*dof12*NC,3*dof10*dof00*dof01*dof02> M1_layout(D1*(dof00*dof01*dof02*NC)*3*dof10*dof11*dof12*NC+D2*dof10*dof11*dof12*NC);
+			// Using TensorAssemble: <I,NIP,J> --> <DOF,I,DOF,J>
+
+			// qpt_data<NIP1*NIP2,NIP3,NC> --> A1<DOF3,NIP1*NIP2,DOF3,NC>
+			TensorAssemble<false>(
+				D13_layout, D13_data,
+				D23_layout, D23_data,
+				qpt_layout.template split_1<NIP*NIP,NIP>(), qpt_data,
+				A1.layout, A1);
+			// A1<DOF3*NIP1,NIP2,DOF3*NC> --> AA1<DOF2,DOF3*NIP1,DOF2,DOF3*NC>
+			TensorAssemble<false>(
+				D12_layout, D12_data,
+				D22_layout, D22_data,
+				TTensor3<dof02*NIP,NIP,dof12*NC>::layout, A1,
+				AA1.layout, AA1);
+			// AA1<DOF2*DOF3,NIP1,DOF2*DOF3*NC> --> M<DOF1,DOF2*DOF3,DOF1,DOF2*DOF3*NC>
+			
+			//TTensor4<DOF1,DOF1*DOF2,DOF1,DOF1*DOF2*NC> M1;
+			TensorAssemble<Add>(
+				D11_layout, D11_data,
+				D21_layout, D21_data,
+				TTensor3<dof01*dof02,NIP,dof11*dof12*NC>::layout, AA1,
+				M1_layout, D_data);
+        }
+        
+        // Multi-component assemble of grad-grad element matrices.
+        // qpt_layout is (TNIP x DIM x DIM x NumComp), and
+        // D_layout is (TDOF x TDOF x NumComp).
+        template <typename qpt_layout_t, typename qpt_data_t,
+				  typename D_layout_t, typename D_data_t>
+        MFEM_ALWAYS_INLINE
+        void AssembleCurlCurl(const qpt_layout_t &qpt_layout,
+                              const qpt_data_t   &qpt_data,
+                              const D_layout_t   &D_layout,
+                              D_data_t           &D_data) const
+        {
+			//block (0,0)
+			AssembleBlock<0,0,false>(qpt_layout.ind23(1,1), qpt_data, D_layout, D_data,
+									Bt_1d_o.layout, Bt_1d_o,
+									Bt_1d_c.layout, Bt_1d_c,
+									Gt_1d_c.layout, Gt_1d_c,
+									B_1d_o.layout, B_1d_o,
+									B_1d_c.layout, B_1d_c,
+									G_1d_c.layout, G_1d_c);
+			AssembleBlock<0,0,true>(qpt_layout.ind23(2,1), qpt_data, D_layout, D_data,
+									Bt_1d_o.layout, Bt_1d_o,
+									Bt_1d_c.layout, Bt_1d_c,
+									Gt_1d_c.layout, Gt_1d_c,
+									B_1d_o.layout, B_1d_o_neg,
+									G_1d_c.layout, G_1d_c,
+									B_1d_c.layout, B_1d_c);
+			AssembleBlock<0,0,true>(qpt_layout.ind23(1,2), qpt_data, D_layout, D_data,
+									Bt_1d_o.layout, Bt_1d_o,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_c.layout, Bt_1d_c,
+									 B_1d_o.layout,  B_1d_o_neg,
+									 B_1d_c.layout,  B_1d_c,
+									 G_1d_c.layout,  G_1d_c);
+			AssembleBlock<0,0,true>(qpt_layout.ind23(2,2), qpt_data, D_layout, D_data,
+									Bt_1d_o.layout, Bt_1d_o,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_c.layout, Bt_1d_c,
+									 B_1d_o.layout,  B_1d_o,
+									 G_1d_c.layout,  G_1d_c,
+									 B_1d_c.layout,  B_1d_c);
+			//block (0,1)
+			AssembleBlock<0,1,false>(qpt_layout.ind23(1,0), qpt_data, D_layout, D_data,
+									 Bt_1d_c.layout, Bt_1d_c,
+									 Bt_1d_o.layout,Bt_1d_o,
+									 Gt_1d_c.layout,Gt_1d_c,
+									 B_1d_o.layout, B_1d_o_neg,
+									 B_1d_c.layout, B_1d_c,
+									 G_1d_c.layout, G_1d_c);
+			AssembleBlock<0,1,true>(qpt_layout.ind23(2,0), qpt_data, D_layout, D_data,
+									Bt_1d_c.layout, Bt_1d_c,
+									Bt_1d_o.layout,Bt_1d_o,
+									Gt_1d_c.layout,Gt_1d_c,
+									B_1d_o.layout, B_1d_o,
+									G_1d_c.layout, G_1d_c,
+									B_1d_c.layout, B_1d_c);
+			AssembleBlock<0,1,true>(qpt_layout.ind23(1,2), qpt_data, D_layout, D_data,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_o.layout, Bt_1d_o,
+									Bt_1d_c.layout, Bt_1d_c,
+									 B_1d_o.layout,  B_1d_o,
+									 B_1d_c.layout,  B_1d_c,
+									 G_1d_c.layout,  G_1d_c);
+			AssembleBlock<0,1,true>(qpt_layout.ind23(2,2), qpt_data, D_layout, D_data,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_o.layout, Bt_1d_o,
+									Bt_1d_c.layout, Bt_1d_c,
+									 B_1d_o.layout,  B_1d_o_neg,
+									 G_1d_c.layout,  G_1d_c,
+									 B_1d_c.layout,  B_1d_c);
+			//block (0,2)
+			AssembleBlock<0,2,false>(qpt_layout.ind23(1,0), qpt_data, D_layout, D_data,
+									 Bt_1d_c.layout, Bt_1d_c,
+									 Gt_1d_c.layout, Gt_1d_c,
+									 Bt_1d_o.layout, Bt_1d_o,
+									  B_1d_o.layout, B_1d_o,
+									  B_1d_c.layout, B_1d_c,
+									  G_1d_c.layout, G_1d_c);
+			AssembleBlock<0,2,true>(qpt_layout.ind23(2,0), qpt_data, D_layout, D_data,
+									Bt_1d_c.layout, Bt_1d_c,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_o.layout, Bt_1d_o,
+									 B_1d_o.layout,  B_1d_o_neg,
+									 G_1d_c.layout,  G_1d_c,
+									 B_1d_c.layout,  B_1d_c);
+			AssembleBlock<0,2,true>(qpt_layout.ind23(1,1), qpt_data, D_layout, D_data,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_c.layout, Bt_1d_c,
+									Bt_1d_o.layout, Bt_1d_o,
+									B_1d_o.layout, B_1d_o_neg,
+									B_1d_c.layout, B_1d_c,
+									G_1d_c.layout, G_1d_c);
+			AssembleBlock<0,2,true>(qpt_layout.ind23(2,1), qpt_data, D_layout, D_data,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_c.layout, Bt_1d_c,
+									Bt_1d_o.layout, Bt_1d_o,
+									B_1d_o.layout, B_1d_o,
+									G_1d_c.layout, G_1d_c,
+									B_1d_c.layout, B_1d_c);
+			//block (1,0)
+			AssembleBlock<1,0,false>(qpt_layout.ind23(0,1), qpt_data, D_layout, D_data,
+									 Bt_1d_o.layout, Bt_1d_o,
+									 Bt_1d_c.layout, Bt_1d_c,
+									 Gt_1d_c.layout, Gt_1d_c,
+									  B_1d_c.layout, B_1d_c,
+									  B_1d_o.layout, B_1d_o_neg,
+									  G_1d_c.layout, G_1d_c);
+			AssembleBlock<1,0,true>(qpt_layout.ind23(2,1), qpt_data, D_layout, D_data,
+									Bt_1d_o.layout, Bt_1d_o,
+									Bt_1d_c.layout, Bt_1d_c,
+									Gt_1d_c.layout, Gt_1d_c,
+									 G_1d_c.layout,  G_1d_c,
+									 B_1d_o.layout,  B_1d_o,
+									 B_1d_c.layout,  B_1d_c);
+			AssembleBlock<1,0,true>(qpt_layout.ind23(0,2), qpt_data, D_layout, D_data,
+									Bt_1d_o.layout, Bt_1d_o,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_c.layout, Bt_1d_c,
+									 B_1d_c.layout, B_1d_c,
+									 B_1d_o.layout, B_1d_o,
+									 G_1d_c.layout, G_1d_c);
+			AssembleBlock<1,0,true>(qpt_layout.ind23(2,2), qpt_data, D_layout, D_data,
+									Bt_1d_o.layout, Bt_1d_o,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_c.layout, Bt_1d_c,
+									 G_1d_c.layout, G_1d_c,
+									 B_1d_o.layout, B_1d_o_neg,
+									 B_1d_c.layout, B_1d_c);
+			
+			//block (1,1)
+			AssembleBlock<1,1,false>(qpt_layout.ind23(0,0), qpt_data, D_layout, D_data,
+									 Bt_1d_c.layout, Bt_1d_c,
+									 Bt_1d_o.layout,Bt_1d_o,
+									 Gt_1d_c.layout,Gt_1d_c,
+									  B_1d_c.layout, B_1d_c,
+									  B_1d_o.layout, B_1d_o,
+									  G_1d_c.layout, G_1d_c);
+			AssembleBlock<1,1,true>(qpt_layout.ind23(2,0), qpt_data, D_layout, D_data,
+									Bt_1d_c.layout, Bt_1d_c,
+									Bt_1d_o.layout,Bt_1d_o,
+									Gt_1d_c.layout,Gt_1d_c,
+									 G_1d_c.layout, G_1d_c,
+									 B_1d_o.layout, B_1d_o_neg,
+									 B_1d_c.layout, B_1d_c);
+			AssembleBlock<1,1,true>(qpt_layout.ind23(0,2), qpt_data, D_layout, D_data,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_o.layout, Bt_1d_o,
+									Bt_1d_c.layout, Bt_1d_c,
+									 B_1d_c.layout, B_1d_c,
+									 B_1d_o.layout, B_1d_o_neg,
+									 G_1d_c.layout, G_1d_c);
+			AssembleBlock<1,1,true>(qpt_layout.ind23(2,2), qpt_data, D_layout, D_data,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_o.layout, Bt_1d_o,
+									Bt_1d_c.layout, Bt_1d_c,
+									 G_1d_c.layout, G_1d_c,
+									 B_1d_o.layout, B_1d_o,
+									 B_1d_c.layout, B_1d_c);
+			
+			//block (1,2)
+			AssembleBlock<1,2,false>(qpt_layout.ind23(0,0), qpt_data, D_layout, D_data,
+									 Bt_1d_c.layout, Bt_1d_c,
+									 Gt_1d_c.layout, Gt_1d_c,
+									 Bt_1d_o.layout, Bt_1d_o,
+									 B_1d_c.layout, B_1d_c,
+									 B_1d_o.layout, B_1d_o_neg,
+									 G_1d_c.layout, G_1d_c);
+			AssembleBlock<1,2,true>(qpt_layout.ind23(2,0), qpt_data, D_layout, D_data,
+									Bt_1d_c.layout, Bt_1d_c,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_o.layout, Bt_1d_o,
+									G_1d_c.layout, G_1d_c,
+									B_1d_o.layout, B_1d_o,
+									B_1d_c.layout, B_1d_c);
+			AssembleBlock<1,2,true>(qpt_layout.ind23(0,1), qpt_data, D_layout, D_data,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_c.layout, Bt_1d_c,
+									Bt_1d_o.layout, Bt_1d_o,
+									B_1d_c.layout, B_1d_c,
+									B_1d_o.layout, B_1d_o,
+									G_1d_c.layout, G_1d_c);
+			AssembleBlock<1,2,true>(qpt_layout.ind23(2,1), qpt_data, D_layout, D_data,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_c.layout, Bt_1d_c,
+									Bt_1d_o.layout, Bt_1d_o,
+									G_1d_c.layout, G_1d_c,
+									B_1d_o.layout, B_1d_o_neg,
+									B_1d_c.layout, B_1d_c);
+			
+			//block (2,0)
+			AssembleBlock<2,0,false>(qpt_layout.ind23(0,1), qpt_data, D_layout, D_data,
+									 Bt_1d_o.layout, Bt_1d_o,
+									 Bt_1d_c.layout, Bt_1d_c,
+									 Gt_1d_c.layout, Gt_1d_c,
+									 B_1d_c.layout, B_1d_c,
+									 G_1d_c.layout, G_1d_c,
+									 B_1d_o.layout, B_1d_o);
+			AssembleBlock<2,0,true>(qpt_layout.ind23(1,1), qpt_data, D_layout, D_data,
+									Bt_1d_o.layout, Bt_1d_o,
+									Bt_1d_c.layout, Bt_1d_c,
+									Gt_1d_c.layout, Gt_1d_c,
+									G_1d_c.layout, G_1d_c,
+									B_1d_c.layout, B_1d_c,
+									B_1d_o.layout, B_1d_o_neg);
+			AssembleBlock<2,0,true>(qpt_layout.ind23(0,2), qpt_data, D_layout, D_data,
+									Bt_1d_o.layout, Bt_1d_o,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_c.layout, Bt_1d_c,
+									B_1d_c.layout, B_1d_c,
+									G_1d_c.layout, G_1d_c,
+									B_1d_o.layout, B_1d_o_neg);
+			AssembleBlock<2,0,true>(qpt_layout.ind23(1,2), qpt_data, D_layout, D_data,
+									Bt_1d_o.layout, Bt_1d_o,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_c.layout, Bt_1d_c,
+									G_1d_c.layout, G_1d_c,
+									B_1d_c.layout, B_1d_c,
+									B_1d_o.layout, B_1d_o);
+									
+			//block (2,1)
+			AssembleBlock<2,1,false>(qpt_layout.ind23(0,0), qpt_data, D_layout, D_data,
+									 Bt_1d_c.layout, Bt_1d_c,
+									 Bt_1d_o.layout,Bt_1d_o,
+									 Gt_1d_c.layout,Gt_1d_c,
+									 B_1d_c.layout, B_1d_c,
+									 G_1d_c.layout, G_1d_c,
+									 B_1d_o.layout, B_1d_o_neg);
+			AssembleBlock<2,1,true>(qpt_layout.ind23(1,0), qpt_data, D_layout, D_data,
+									Bt_1d_c.layout, Bt_1d_c,
+									Bt_1d_o.layout,Bt_1d_o,
+									Gt_1d_c.layout,Gt_1d_c,
+									G_1d_c.layout, G_1d_c,
+									B_1d_c.layout, B_1d_c,
+									B_1d_o.layout, B_1d_o);
+			AssembleBlock<2,1,true>(qpt_layout.ind23(0,2), qpt_data, D_layout, D_data,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_o.layout, Bt_1d_o,
+									Bt_1d_c.layout, Bt_1d_c,
+									B_1d_c.layout, B_1d_c,
+									G_1d_c.layout, G_1d_c,
+									B_1d_o.layout, B_1d_o);
+			AssembleBlock<2,1,true>(qpt_layout.ind23(1,2), qpt_data, D_layout, D_data,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_o.layout, Bt_1d_o,
+									Bt_1d_c.layout, Bt_1d_c,
+									G_1d_c.layout, G_1d_c,
+									B_1d_c.layout, B_1d_c,
+									B_1d_o.layout, B_1d_o_neg);
+			
+			//block (2,2)
+			AssembleBlock<2,2,false>(qpt_layout.ind23(0,0), qpt_data, D_layout, D_data,
+									 Bt_1d_c.layout, Bt_1d_c,
+									 Gt_1d_c.layout, Gt_1d_c,
+									 Bt_1d_o.layout, Bt_1d_o,
+									 B_1d_c.layout, B_1d_c,
+									 G_1d_c.layout, G_1d_c,
+									 B_1d_o.layout, B_1d_o);
+			AssembleBlock<2,2,true>(qpt_layout.ind23(1,0), qpt_data, D_layout, D_data,
+									Bt_1d_c.layout, Bt_1d_c,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_o.layout, Bt_1d_o,
+									G_1d_c.layout, G_1d_c,
+									B_1d_c.layout, B_1d_c,
+									B_1d_o.layout, B_1d_o_neg);
+			AssembleBlock<2,2,true>(qpt_layout.ind23(0,1), qpt_data, D_layout, D_data,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_c.layout, Bt_1d_c,
+									Bt_1d_o.layout, Bt_1d_o,
+									B_1d_c.layout, B_1d_c,
+									G_1d_c.layout, G_1d_c,
+									B_1d_o.layout, B_1d_o_neg);
+			AssembleBlock<2,2,true>(qpt_layout.ind23(1,1), qpt_data, D_layout, D_data,
+									Gt_1d_c.layout, Gt_1d_c,
+									Bt_1d_c.layout, Bt_1d_c,
+									Bt_1d_o.layout, Bt_1d_o,
+									G_1d_c.layout, G_1d_c,
+									B_1d_c.layout, B_1d_c,
+									B_1d_o.layout, B_1d_o);
+		}
+    };
+	
+// ShapeEvaluator with tensor-product structure in any dimension
+template <class FE, class IR, typename real_t>
+class NDShapeEvaluator_base<FE, IR, true, real_t>
+: public NDTProductShapeEvaluator<FE::dim, FE::dofs_1d_c, FE::dofs_1d_o, IR::qpts_1d, real_t>
+{
+protected:
+	typedef NDTProductShapeEvaluator<FE::dim, FE::dofs_1d_c, FE::dofs_1d_o,
+	IR::qpts_1d, real_t> base_class;
+	using base_class::B_1d_c;
+	using base_class::Bt_1d_c;
+	using base_class::G_1d_c;
+	using base_class::Gt_1d_c;
+	using base_class::B_1d_o;
+	using base_class::Bt_1d_o;
+public:
+	NDShapeEvaluator_base(const FE &fe)
+	{
+		fe.Calc1DShapes(IR::Get1DIntRule(), B_1d_c.data,B_1d_o.data, G_1d_c.data);
+		TAssign<AssignOp::Set>(Bt_1d_c.layout, Bt_1d_c,
+							   B_1d_c.layout.transpose_12(), B_1d_c);
+		TAssign<AssignOp::Set>(Bt_1d_o.layout, Bt_1d_o,
+							   B_1d_o.layout.transpose_12(), B_1d_o);
+		TAssign<AssignOp::Set>(Gt_1d_c.layout, Gt_1d_c,
+							   G_1d_c.layout.transpose_12(), G_1d_c);
+		base_class::init();
+	}    
+	// default copy constructor
+};
+    
+// General ShapeEvaluator for any scalar FE type (L2 or H1)
+template <class FE, class IR, typename real_t=double>
+class NDShapeEvaluator
+: public NDShapeEvaluator_base<FE,IR,true,real_t>//FE::tensor_prod && IR::tensor_prod
+{
+public:
+	typedef real_t real_type;
+	static const int dim  = FE::dim;
+	static const int qpts = IR::qpts;
+	static const bool tensor_prod = true;//FE::tensor_prod && IR::tensor_prod;
+	typedef FE FE_type;
+	typedef IR IR_type;
+	typedef NDShapeEvaluator_base<FE,IR,tensor_prod,real_t> base_class;
+        
+	using base_class::Calc;
+	using base_class::CalcT;
+	using base_class::CalcCurl;
+	using base_class::CalcCurlT;
+	
+	NDShapeEvaluator(const FE &fe) : base_class(fe) { }
+	
+	// default copy constructor
+};
+    
+    
+// Field evaluators -- values of a given global FE grid function
+    
+template <typename FESpace_t, typename VecLayout_t, typename IR,
+typename complex_t, typename real_t>
+class NDFieldEvaluator_base
+{
+protected:
+	typedef typename FESpace_t::FE_type       FE_type;
+	typedef NDShapeEvaluator<FE_type,IR,real_t> ShapeEval_type;
+    
+	FESpace_t       fespace;
+	ShapeEval_type  shapeEval;
+	VecLayout_t     vec_layout;
+
+	// With this constructor, fespace is a shallow copy.
+	inline MFEM_ALWAYS_INLINE
+	NDFieldEvaluator_base(const FESpace_t &tfes, const ShapeEval_type &shape_eval,
+						  const VecLayout_t &vec_layout)
+	: fespace(tfes),
+	shapeEval(shape_eval),
+	vec_layout(vec_layout)
+	{ }
+
+	// This constructor creates new fespace, not a shallow copy.
+	inline MFEM_ALWAYS_INLINE
+	NDFieldEvaluator_base(const FE_type &fe, const FiniteElementSpace &fes)
+	: fespace(fe, fes), shapeEval(fe), vec_layout(fes)
+	{ }
+};
+    
+    // complex_t - dof/qpt data type, real_t - ShapeEvaluator (FE basis) data type
+    template <typename FESpace_t, typename VecLayout_t, typename IR,
+    typename complex_t = double, typename real_t = double>
+    class NDFieldEvaluator
+    : public NDFieldEvaluator_base<FESpace_t,VecLayout_t,IR,complex_t,real_t>
+    {
+    public:
+        typedef complex_t                         complex_type;
+        typedef FESpace_t                         FESpace_type;
+        typedef typename FESpace_t::FE_type       FE_type;
+        typedef NDShapeEvaluator<FE_type,IR,real_t> ShapeEval_type;
+        typedef VecLayout_t                       VecLayout_type;
+        
+        // this type
+        typedef NDFieldEvaluator<FESpace_t,VecLayout_t,IR,complex_t,real_t> T_type;
+        
+        static const int dofs = FE_type::dofs;
+        static const int dim  = FE_type::dim;
+        static const int qpts = IR::qpts;
+        static const int vdim = VecLayout_t::vec_dim;
+        static const int dimc = (FE_type::dim == 3) ? 3 : 1;
+        
+    protected:
+        
+        typedef NDFieldEvaluator_base<FESpace_t,VecLayout_t,IR,complex_t,real_t>
+        base_class;
+        
+        using base_class::fespace;
+        using base_class::shapeEval;
+        using base_class::vec_layout;
+        const complex_t *data_in;
+        complex_t       *data_out;
+        
+    public:
+        // With this constructor, fespace is a shallow copy of tfes.
+        inline MFEM_ALWAYS_INLINE
+        NDFieldEvaluator(const FESpace_t &tfes, const ShapeEval_type &shape_eval,
+                         const VecLayout_type &vec_layout,
+                         const complex_t *global_data_in, complex_t *global_data_out)
+        : base_class(tfes, shape_eval, vec_layout),
+        data_in(global_data_in),
+        data_out(global_data_out)
+        { }
+        
+        // With this constructor, fespace is a shallow copy of f.fespace.
+        inline MFEM_ALWAYS_INLINE
+        NDFieldEvaluator(const NDFieldEvaluator &f,
+                         const complex_t *global_data_in, complex_t *global_data_out)
+        : base_class(f.fespace, f.shapeEval, f.vec_layout),
+        data_in(global_data_in),
+        data_out(global_data_out)
+        { }
+        
+        // This constructor creates a new fespace, not a shallow copy.
+        inline MFEM_ALWAYS_INLINE
+        NDFieldEvaluator(const FiniteElementSpace &fes,
+                         const complex_t *global_data_in, complex_t *global_data_out)
+        : base_class(FE_type(*fes.FEColl()), fes),
+        data_in(global_data_in),
+        data_out(global_data_out)
+        { }
+        
+        // Default copy constructor
+        
+        inline MFEM_ALWAYS_INLINE FESpace_type &FESpace() { return fespace; }
+        inline MFEM_ALWAYS_INLINE ShapeEval_type &ShapeEval() { return shapeEval; }
+        inline MFEM_ALWAYS_INLINE VecLayout_type &VecLayout() { return vec_layout; }
+        
+        inline MFEM_ALWAYS_INLINE
+        void SetElement(int el)
+        {
+            fespace.SetElement(el);
+        }
+        
+        // val_layout_t is (qpts x dim x vdim x NE)
+        template <typename val_layout_t, typename val_data_t>
+        inline MFEM_ALWAYS_INLINE
+        void GetValues(int el, const val_layout_t &l, val_data_t &vals)
+        {
+            const int ne = val_layout_t::dim_4;
+            TTensor3<dofs,1,ne,complex_type> val_dofs;
+            SetElement(el);
+            fespace.VectorExtract(vec_layout, data_in, val_dofs.layout, val_dofs);
+            shapeEval.Calc(val_dofs.layout.merge_23(), val_dofs, l.merge_34(), vals);
+        }
+        
+        // curl_layout_t is (qpts x dimc x vdim x NE)
+        template <typename curl_layout_t, typename curl_data_t>
+        inline MFEM_ALWAYS_INLINE
+        void GetCurl(int el, const curl_layout_t &l, curl_data_t &curl)
+        {
+            const int ne = curl_layout_t::dim_4;
+            TTensor3<dofs,1,ne,complex_type> val_dofs;
+            SetElement(el);
+            fespace.VectorExtract(vec_layout, data_in, val_dofs.layout, val_dofs);
+            shapeEval.CalcCurl(val_dofs.layout.merge_23(), val_dofs,
+                               l.merge_34(), curl);
+        }
+        
+        template <typename DataType>
+        inline MFEM_ALWAYS_INLINE
+        void Eval(DataType &F)
+        {
+            // T.SetElement() must be called outside
+            Action<DataType::InData,true>::Eval(vec_layout, *this, F);
+        }
+        
+        template <typename DataType>
+        inline MFEM_ALWAYS_INLINE
+        void Eval(int el, DataType &F)
+        {
+            SetElement(el);
+            Eval(F);
+        }
+        
+        template <bool Add, typename DataType>
+        inline MFEM_ALWAYS_INLINE
+        void Assemble(DataType &F)
+        {
+            // T.SetElement() must be called outside
+            Action<DataType::OutData,true>::
+            template Assemble<Add>(vec_layout, *this, F);
+        }
+        
+        template <bool Add, typename DataType>
+        inline MFEM_ALWAYS_INLINE
+        void Assemble(int el, DataType &F)
+        {
+            SetElement(el);
+            Assemble<Add>(F);
+        }
+        
+#ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
+        template <typename DataType>
+        inline MFEM_ALWAYS_INLINE
+        void EvalSerialized(const complex_t *loc_dofs, DataType &F)
+        {
+            Action<DataType::InData,true>::EvalSerialized(*this, loc_dofs, F);
+        }
+        
+        template <bool Add, typename DataType>
+        inline MFEM_ALWAYS_INLINE
+        void AssembleSerialized(const DataType &F, complex_t *loc_dofs)
+        {
+            Action<DataType::OutData,true>::
+            template AssembleSerialized<Add>(*this, F, loc_dofs);
+        }
+#endif
+        
+        // Enumeration for the data type used by the Eval() and Assemble() methods.
+        // The types can obtained by summing constants from this enumeration and used
+        // as a template parameter in struct Data.
+        enum InOutData
+        {
+            None      = 0,
+            Values    = 1,
+            Curls     = 2
+        };
+        
+        // Auxiliary templated struct AData, used by the Eval() and Assemble()
+        // methods. The template parameter IOData is "bitwise or" of constants from
+        // the enum InOutData. The parameter NE is the number of elements to be
+        // processed in the Eval() and Assemble() methods.
+        template<int IOData, int NE> struct AData;
+        
+        template <int NE> struct AData<0,NE> // 0 = None
+        {
+            // Do we need this?
+        };
+        
+        template <int NE> struct AData<1,NE> // 1 = Values
+        {
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+            typedef TTensor3<dofs,1,NE,complex_t,true> val_dofs_t;
+            val_dofs_t val_dofs;
+#else
+            typedef TTensor3<dofs,1,NE,complex_t> val_dofs_t;
+#endif
+            TTensor4<qpts,dim,1,NE,complex_t>      val_qpts;
+        };
+        
+        template <int NE> struct AData<2,NE> // 2 = Curl
+        {
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+            typedef TTensor3<dofs,1,NE,complex_t,true> val_dofs_t;
+            val_dofs_t val_dofs;
+#else
+            typedef TTensor3<dofs,1,NE,complex_t> val_dofs_t;
+#endif
+            TTensor4<qpts,dimc,1,NE,complex_t>      curl_qpts;
+        };
+        
+        template <int NE> struct AData<3,NE> // 3 = Values+Gradients
+        {
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+            typedef TTensor3<dofs,1,NE,complex_t,true> val_dofs_t;
+            val_dofs_t val_dofs;
+#else
+            typedef TTensor3<dofs,1,NE,complex_t> val_dofs_t;
+#endif
+            TTensor4<qpts, dim,1,NE,complex_t,true>  val_qpts;
+            TTensor4<qpts,dimc,1,NE,complex_t>      curl_qpts;
+        };
+        
+        // This struct is similar to struct AData, adding separate static data
+        // members for the input (InData) and output (OutData) data types.
+        template <int IData, int OData, int NE>
+        struct BData : public AData<IData|OData,NE>
+        {
+            typedef T_type eval_type;
+            static const int ne = NE;
+            static const int InData = IData;
+            static const int OutData = OData;
+        };
+        
+        // This struct implements the input (Eval, EvalSerialized) and output
+        // (Assemble, AssembleSerialized) operations for the given Ops.
+        // Ops is "bitwise or" of constants from the enum InOutData.
+        template <int Ops, bool dummy> struct Action;
+        
+        template <bool dummy> struct Action<0,dummy> // 0 = None
+        {
+            // Do we need this?
+        };
+        
+        template <bool dummy> struct Action<1,dummy> // 1 = Values
+        {
+            template <typename vec_layout_t, typename AData_t>
+            static inline MFEM_ALWAYS_INLINE
+            void Eval(const vec_layout_t &l, T_type &T, AData_t &D)
+            {
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+                typename AData_t::val_dofs_t &val_dofs = D.val_dofs;
+#else
+                typename AData_t::val_dofs_t val_dofs;
+#endif
+				//
+                T.fespace.VectorExtract(l, T.data_in, val_dofs.layout, val_dofs);
+                T.shapeEval.Calc(val_dofs.layout.merge_23(), val_dofs,
+                                 D.val_qpts.layout.merge_34(), D.val_qpts);
+            }
+            
+            template <bool Add, typename vec_layout_t, typename AData_t>
+            static inline MFEM_ALWAYS_INLINE
+            void Assemble(const vec_layout_t &l, T_type &T, AData_t &D)
+            {
+                const AssignOp::Type Op = Add ? AssignOp::Add : AssignOp::Set;
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+                typename AData_t::val_dofs_t &val_dofs = D.val_dofs;
+#else
+                typename AData_t::val_dofs_t val_dofs;
+#endif
+                T.shapeEval.template CalcT<false>(
+                                                  D.val_qpts.layout.merge_34(), D.val_qpts,
+                                                  val_dofs.layout.merge_23(), val_dofs);
+                T.fespace.template VectorAssemble<Op>(
+                                                      val_dofs.layout, val_dofs, l, T.data_out);
+            }
+            
+#ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
+            template <typename AData_t>
+            static inline MFEM_ALWAYS_INLINE
+            void EvalSerialized(T_type &T, const complex_t *loc_dofs, AData_t &D)
+            {
+                T.shapeEval.Calc(AData_t::val_dofs_t::layout.merge_23(), loc_dofs,
+                                 D.val_qpts.layout.merge_34(), D.val_qpts);
+            }
+            
+            template <bool Add, typename AData_t>
+            static inline MFEM_ALWAYS_INLINE
+            void AssembleSerialized(T_type &T, const AData_t &D, complex_t *loc_dofs)
+            {
+                T.shapeEval.template CalcT<Add>(
+                                                D.val_qpts.layout.merge_23(), D.val_qpts,
+                                                AData_t::val_dofs_t::layout.merge_34(), loc_dofs);
+            }
+#endif
+        };
+        
+        template <bool dummy> struct Action<2,dummy> // 2 = curl
+        {
+            template <typename vec_layout_t, typename AData_t>
+            static inline MFEM_ALWAYS_INLINE
+            void Eval(const vec_layout_t &l, T_type &T, AData_t &D)
+            {
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+                typename AData_t::val_dofs_t &val_dofs = D.val_dofs;
+#else
+                typename AData_t::val_dofs_t val_dofs;
+#endif
+                T.fespace.VectorExtract(l, T.data_in, val_dofs.layout, val_dofs);
+                T.shapeEval.CalcCurl(val_dofs.layout.merge_23(),  val_dofs,
+                                     D.curl_qpts.layout.merge_34(), D.curl_qpts);
+            }
+            
+            template <bool Add, typename vec_layout_t, typename AData_t>
+            static inline MFEM_ALWAYS_INLINE
+            void Assemble(const vec_layout_t &l, T_type &T, AData_t &D)
+            {
+                const AssignOp::Type Op = Add ? AssignOp::Add : AssignOp::Set;
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+                typename AData_t::val_dofs_t &val_dofs = D.val_dofs;
+#else
+                typename AData_t::val_dofs_t val_dofs;
+#endif
+                T.shapeEval.template CalcCurlT<false>(
+                                                      D.curl_qpts.layout.merge_34(), D.curl_qpts,
+                                                      val_dofs.layout.merge_23(), val_dofs);
+                T.fespace.template VectorAssemble<Op>(
+                                                      val_dofs.layout, val_dofs, l, T.data_out);
+            }
+            
+#ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
+            template <typename AData_t>
+            static inline MFEM_ALWAYS_INLINE
+            void EvalSerialized(T_type &T, const complex_t *loc_dofs, AData_t &D)
+            {
+                T.shapeEval.CalcCurl(AData_t::val_dofs_t::layout.merge_23(), loc_dofs,
+                                     D.curl_qpts.layout.merge_34(), D.curl_qpts);
+            }
+            
+            template <bool Add, typename AData_t>
+            static inline MFEM_ALWAYS_INLINE
+            void AssembleSerialized(T_type &T, const AData_t &D, complex_t *loc_dofs)
+            {
+                T.shapeEval.template CalcCurlT<Add>(
+                                                    D.curl_qpts.layout.merge_34(), D.curl_qpts,
+                                                    AData_t::val_dofs_t::layout.merge_23(), loc_dofs);
+            }
+#endif
+        };
+        
+        template <bool dummy> struct Action<3,dummy> // 3 = Values+Curl
+        {
+            template <typename vec_layout_t, typename AData_t>
+            static inline MFEM_ALWAYS_INLINE
+            void Eval(const vec_layout_t &l, T_type &T, AData_t &D)
+            {
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+                typename AData_t::val_dofs_t &val_dofs = D.val_dofs;
+#else
+                typename AData_t::val_dofs_t val_dofs;
+#endif
+                T.fespace.VectorExtract(l, T.data_in, val_dofs.layout, val_dofs);
+                T.shapeEval.Calc(val_dofs.layout.merge_23(), val_dofs,
+                                 D.val_qpts.layout.merge_34(), D.val_qpts);
+                T.shapeEval.CalcCurl(val_dofs.layout.merge_23(),  val_dofs,
+                                     D.curl_qpts.layout.merge_34(), D.curl_qpts);
+            }
+            
+            template <bool Add, typename vec_layout_t, typename AData_t>
+            static inline MFEM_ALWAYS_INLINE
+            void Assemble(const vec_layout_t &l, T_type &T, AData_t &D)
+            {
+                const AssignOp::Type Op = Add ? AssignOp::Add : AssignOp::Set;
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+                typename AData_t::val_dofs_t &val_dofs = D.val_dofs;
+#else
+                typename AData_t::val_dofs_t val_dofs;
+#endif
+                T.shapeEval.template CalcT<false>(
+                                                  D.val_qpts.layout.merge_34(), D.val_qpts,
+                                                  val_dofs.layout.merge_23(), val_dofs);
+                T.shapeEval.template CalcCurlT<true>(
+                                                     D.curl_qpts.layout.merge_34(), D.curl_qpts,
+                                                     val_dofs.layout.merge_23(),  val_dofs);
+                T.fespace.template VectorAssemble<Op>(
+                                                      val_dofs.layout, val_dofs, l, T.data_out);
+            }
+            
+#ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
+            template <typename AData_t>
+            static inline MFEM_ALWAYS_INLINE
+            void EvalSerialized(T_type &T, const complex_t *loc_dofs, AData_t &D)
+            {
+                T.shapeEval.Calc(AData_t::val_dofs_t::layout.merge_23(), loc_dofs,
+                                 D.val_qpts.layout.merge_34(), D.val_qpts);
+                T.shapeEval.CalcCurl(AData_t::val_dofs_t::layout.merge_23(), loc_dofs,
+                                     D.curl_qpts.layout.merge_34(), D.curl_qpts);
+            }
+            
+            template <bool Add, typename AData_t>
+            static inline MFEM_ALWAYS_INLINE
+            void AssembleSerialized(T_type &T, const AData_t &D, complex_t *loc_dofs)
+            {
+                T.shapeEval.template CalcT<Add>(
+                                                D.val_qpts.layout.merge_23(), D.val_qpts,
+                                                AData_t::val_dofs_t::layout.merge_34(), loc_dofs);
+                T.shapeEval.template CalcCurlT<true>(
+                                                     D.curl_qpts.layout.merge_34(), D.curl_qpts,
+                                                     AData_t::val_dofs_t::layout.merge_23(), loc_dofs);
+            }
+#endif
+        };
+        
+        // This struct implements element matrix computation for some combinations
+        // of input (InOps) and output (OutOps) operations.
+        template <int InOps, int OutOps, int NE> struct TElementMatrix;
+        
+        template <int NE> struct TElementMatrix<1,1,NE> // 1,1 = Values,Values
+        {
+            // qpt_layout_t is (nip x dim x dim), M_layout_t is (dof x dof)
+            // NE = 1 is assumed
+            template <typename qpt_layout_t, typename qpt_data_t,
+            typename M_layout_t, typename M_data_t>
+            static inline MFEM_ALWAYS_INLINE
+            void Compute(const qpt_layout_t &a, const qpt_data_t &A,
+                         const M_layout_t &m, M_data_t &M, ShapeEval_type &ev)
+            {
+                ev.Assemble(a.template split_3< dim,1>(), A,
+                            m.template split_2<dofs,1>(), M);
+            }
+        };
+        
+        template <int NE> struct TElementMatrix<2,2,NE> // 2,2 = Curl,Curl
+        {
+            // qpt_layout_t is (nip x dimc x dimc), M_layout_t is (dof x dof)
+            // NE = 1 is assumed
+            template <typename qpt_layout_t, typename qpt_data_t,
+            typename M_layout_t, typename M_data_t>
+            static inline MFEM_ALWAYS_INLINE
+            void Compute(const qpt_layout_t &a, const qpt_data_t &A,
+                         const M_layout_t &m, M_data_t &M, ShapeEval_type &ev)
+            {
+                ev.AssembleCurlCurl(a.template split_3<dimc,1>(), A,
+                                    m.template split_2<dofs,1>(), M);
+            }
+        };
+        
+        template <typename kernel_t, int NE> struct Spec
+        {
+            static const int InData =
+            Values*kernel_t::in_values + Curls*kernel_t::in_curls;
+            static const int OutData =
+            Values*kernel_t::out_values + Curls*kernel_t::out_curls;
+            
+            typedef BData<InData,OutData,NE>          DataType;
+            typedef TElementMatrix<InData,OutData,NE> ElementMatrix;
+        };
+    };
+	
+template <class FE, class IR, bool TP, typename real_t>
+class RTShapeEvaluator_base;	
+
+// ShapeEvaluator without tensor-product structure
+template <class FE, class IR, typename real_t>
+class RTShapeEvaluator_base<FE, IR, false, real_t>
+{
+public:
+	static const int DOF  = FE::dofs;
+	static const int NIP  = IR::qpts;
+	static const int DIM  = FE::dim;
+	static const int DIMC = (FE::dim == 3) ? 3 : 1;
+	
+protected:
+	TTensor3<NIP,DIM,DOF,real_t,true> B;
+	TTensor3<DOF,NIP,DIM,real_t> Bt;
+	TTensor3<NIP,DIMC,DOF,real_t,true> C;
+	TTensor3<DOF,NIP,DIMC,real_t> Ct;
+        
+public:
+	RTShapeEvaluator_base(const FE &fe)
+	{
+		fe.CalcShapes(IR::GetIntRule(), B.data, C.data);
+		TAssign<AssignOp::Set>(Bt.layout.merge_23(), Bt,
+							   B.layout.merge_12().transpose_12(), B);
+		TAssign<AssignOp::Set>(Ct.layout.merge_23(), Ct,
+							   C.layout.merge_12().transpose_12(), C);
+	}
+	// default copy constructor
+        
+	// Multi-component shape evaluation from DOFs to quadrature points.
+	// dof_layout is (DOF x NumComp) and qpt_layout is (NIP x DIM x NumComp).
+	template <typename dof_layout_t, typename dof_data_t,
+	typename qpt_layout_t, typename qpt_data_t>
+	MFEM_ALWAYS_INLINE
+	void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
+			  const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
+	{
+		MFEM_STATIC_ASSERT(dof_layout_t::rank  == 2 &&
+						   dof_layout_t::dim_1 == DOF,
+						   "invalid dof_layout_t.");
+		MFEM_STATIC_ASSERT(qpt_layout_t::rank  == 3 &&
+						   qpt_layout_t::dim_1 == NIP &&
+						   qpt_layout_t::dim_2 == DIM,
+						   "invalid qpt_layout_t.");
+		MFEM_STATIC_ASSERT(dof_layout_t::dim_2 == qpt_layout_t::dim_3,
+						   "incompatible dof- and qpt- layouts.");
+            
+		Mult_AB<false>(B.layout.merge_12(), B,
+					   dof_layout, dof_data,
+					   qpt_layout.merge_12(), qpt_data);
+	}
+        
+	// Multi-component shape evaluation transpose from quadrature points to DOFs.
+	// qpt_layout is (NIP x DIM x NumComp) and dof_layout is (DOF x NumComp).
+	template <bool Add,
+	typename qpt_layout_t, typename qpt_data_t,
+	typename dof_layout_t, typename dof_data_t>
+	MFEM_ALWAYS_INLINE
+	void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
+			   const dof_layout_t &dof_layout, dof_data_t &dof_data) const
+	{
+		MFEM_STATIC_ASSERT(dof_layout_t::rank  == 2 &&
+						   dof_layout_t::dim_1 == DOF,
+						   "invalid dof_layout_t.");
+		MFEM_STATIC_ASSERT(qpt_layout_t::rank  == 3 &&
+						   qpt_layout_t::dim_1 == NIP &&
+						   qpt_layout_t::dim_2 == DIM,
+						   "invalid qpt_layout_t.");
+		MFEM_STATIC_ASSERT(dof_layout_t::dim_2 == qpt_layout_t::dim_3,
+						   "incompatible dof- and qpt- layouts.");
+            
+		Mult_AB<Add>(Bt.layout.merge_23(), Bt,
+					 qpt_layout.merge_12(), qpt_data,
+					 dof_layout, dof_data);
+	}
+        
+	// Multi-component gradient evaluation from DOFs to quadrature points.
+	// dof_layout is (DOF x NumComp) and curl_layout is (NIP x DIMC x NumComp).
+	template <typename dof_layout_t, typename dof_data_t,
+	typename curl_layout_t, typename curl_data_t>
+	MFEM_ALWAYS_INLINE
+	void CalcDiv(const dof_layout_t  &dof_layout,
+				  const dof_data_t    &dof_data,
+				  const curl_layout_t &curl_layout,
+				  curl_data_t         &curl_data) const
+	{
+		MFEM_STATIC_ASSERT(dof_layout_t::rank  == 2 &&
+						   dof_layout_t::dim_1 == DOF,
+						   "invalid dof_layout_t.");
+		MFEM_STATIC_ASSERT(curl_layout_t::rank  == 3 &&
+						   curl_layout_t::dim_1 == NIP &&
+						   curl_layout_t::dim_2 == DIMC,
+						   "invalid grad_layout_t.");
+		MFEM_STATIC_ASSERT(dof_layout_t::dim_2 == curl_layout_t::dim_3,
+						   "incompatible dof- and grad- layouts.");
+            
+		Mult_AB<false>(C.layout.merge_12(), C,
+					   dof_layout, dof_data,
+					   curl_layout.merge_12(), curl_data);
+	}
+        
+	// Multi-component gradient evaluation transpose from quadrature points to
+	// DOFs. curl_layout is (NIP x DIMC x NumComp), dof_layout is (DOF x NumComp).
+	template <bool Add,
+	typename curl_layout_t, typename curl_data_t,
+	typename dof_layout_t, typename dof_data_t>
+	MFEM_ALWAYS_INLINE
+	void CalcDivT(const curl_layout_t &curl_layout,
+				   const curl_data_t   &curl_data,
+				   const dof_layout_t  &dof_layout,
+				   dof_data_t          &dof_data) const
+	{
+		MFEM_STATIC_ASSERT(dof_layout_t::rank  == 2 &&
+						   dof_layout_t::dim_1 == DOF,
+						   "invalid dof_layout_t.");
+		MFEM_STATIC_ASSERT(curl_layout_t::rank  == 3 &&
+						   curl_layout_t::dim_1 == NIP &&
+						   curl_layout_t::dim_2 == DIMC,
+						   "invalid grad_layout_t.");
+		MFEM_STATIC_ASSERT(dof_layout_t::dim_2 == curl_layout_t::dim_3,
+						   "incompatible dof- and grad- layouts.");
+            
+		Mult_AB<Add>(Ct.layout.merge_23(), Ct,
+					 curl_layout.merge_12(), curl_data,
+					 dof_layout, dof_data);
+	}
+        
+	// Multi-component assemble.
+	// ?? qpt_layout is (NIP x DIM x DIM x NumComp), M_layout is (DOF x DOF x NumComp)
+	template <typename qpt_layout_t, typename qpt_data_t,
+	typename M_layout_t, typename M_data_t>
+	MFEM_ALWAYS_INLINE
+	void Assemble(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
+				  const M_layout_t &M_layout, M_data_t &M_data) const
+	{
+		const int NC = qpt_layout_t::dim_4;
+		TTensor4<NIP,DIM,DOF,NC> F;
+		for (int k = 0; k < NC; k++)
+		{
+			// Next loop performs a batch of matrix-matrix products of size
+			// (DIM x DIM) x (DIM x DOF) --> (DIM x DOF)
+			for (int j = 0; j < NIP; j++)
+			{
+				Mult_AB<false>(qpt_layout.ind14(j,k), qpt_data,
+							   B.layout.ind1(j), B,
+							   F.layout.ind14(j,k), F);
+			}
+		}
+		// (DOF x (NIP x DIM)) x ((NIP x DIM) x DOF x NC) --> (DOF x DOF x NC)
+		Mult_2_1<false>(Bt.layout.merge_23(), Bt,
+						F.layout.merge_12(), F,
+						M_layout, M_data);
+	}
+        
+	// Multi-component assemble of grad-grad element matrices.
+	// qpt_layout is (NIP x DIMC x DIMC x NumComp), and
+	// D_layout is (DOF x DOF x NumComp).
+	template <typename qpt_layout_t, typename qpt_data_t,
+	typename D_layout_t, typename D_data_t>
+	MFEM_ALWAYS_INLINE
+	void AssembleDivDiv(const qpt_layout_t &qpt_layout,
+						  const qpt_data_t   &qpt_data,
+						  const D_layout_t   &D_layout,
+						  D_data_t           &D_data) const
+	{
+		const int NC = qpt_layout_t::dim_4;
+		TTensor4<NIP,DIMC,DOF,NC> F;
+		for (int k = 0; k < NC; k++)
+		{
+			// Next loop performs a batch of matrix-matrix products of size
+			// (DIM x DIM) x (DIM x DOF) --> (DIM x DOF)
+			for (int j = 0; j < NIP; j++)
+			{
+				Mult_AB<false>(qpt_layout.ind14(j,k), qpt_data,
+							   C.layout.ind1(j), C,
+							   F.layout.ind14(j,k), F);
+			}
+		}
+		// (DOF x (NIP x DIM)) x ((NIP x DIM) x DOF x NC) --> (DOF x DOF x NC)
+		Mult_2_1<false>(Ct.layout.merge_23(), Ct,
+						F.layout.merge_12(), F,
+						D_layout, D_data);
+	}
+};
+
+template <int Dim, int DOF1,int DOF2, int NIP, typename real_t>
+class RTTProductShapeEvaluator;
+	
+// ShapeEvaluator with 2D tensor-product structure
+template <int DOF1,int DOF2, int NIP, typename real_t>
+class RTTProductShapeEvaluator<2, DOF1, DOF2, NIP, real_t>
+{
+protected:
+	TMatrix<NIP,DOF1,real_t,true>  B_1d_c,  G_1d_c;
+	TMatrix<DOF1,NIP,real_t,true> Bt_1d_c, Gt_1d_c;
+	TMatrix<NIP,DOF2,real_t,true>  B_1d_o,B_1d_o_neg;
+	TMatrix<DOF2,NIP,real_t,true> Bt_1d_o,Bt_1d_o_neg;
+public:
+	static const int TDOF = 2*DOF1*DOF2; // total dofs
+	static const int TNIP = NIP*NIP; // total qpts
+        
+	RTTProductShapeEvaluator() 
+	{
+	}
+
+	void init()
+	{	
+		for (int ip = 0; ip < NIP; ip++)
+		{
+			for (int id = 0; id < DOF2; id++)		
+			{
+				B_1d_o_neg.data[ip+NIP*id] = - B_1d_o.data[ip+NIP*id];
+			}
+		}
+
+		TAssign<AssignOp::Set>(Bt_1d_o_neg.layout, Bt_1d_o_neg,
+							   B_1d_o_neg.layout.transpose_12(), B_1d_o_neg);
+	}
+        
+	template <int D1, bool Add,
+			  typename dof_layout_t, typename dof_data_t,
+			  typename qpt_layout_t, typename qpt_data_t,
+			  typename D1_layout_t,typename D1_data_t,
+			  typename D2_layout_t,typename D2_data_t>
+	MFEM_ALWAYS_INLINE
+	void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
+			  const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data,
+			  const D1_layout_t &D1_layout,const D1_data_t &D1_data,
+			  const D2_layout_t &D2_layout,const D2_data_t &D2_data) const
+	{
+		const int NC = dof_layout_t::dim_2;
+		const int dof0 = D1_layout_t::dim_2;
+		const int dof1 = D2_layout_t::dim_1;
+			
+		TTensor3<NIP,dof1,NC> A1;
+		OffsetStridedLayout3D<dof0,1,dof1,dof0,NC,dof0*dof1> dof_layout1(D1*dof0*dof1*NC);
+			
+		// (1) A_{i,j,k} = \sum_s B_1d_{i,s} dof_data_{s,j,k}
+		Mult_2_1<false>(D1_layout, D1_data,
+						dof_layout1, dof_data,
+						A1.layout, A1);
+
+		// (2) qpt_data_{i,j,k} = \sum_s B_1d_{j,s} A_{i,s,k}
+		Mult_1_2<Add>(D2_layout,  D2_data,
+					  A1.layout, A1,
+					  qpt_layout.template split_1<NIP,NIP>(), qpt_data);
+	}
+        
+	template <typename dof_data_t>
+	void AddOrientation(dof_data_t &dof_data) const
+	{
+		//adjust the sign based on the orientation
+		// x-components
+		for (int j = 0;j < DOF2;j++)
+			for (int i = 0;i < DOF1/2;i++)
+			{
+				int idx = i + j*DOF1;
+				dof_data.data[idx] *= -1.0;
+			}
+	    if (DOF1%2 == 1)
+		{
+			for (int j = DOF1/2; j < DOF2; j++)
+			{
+				int idx = DOF1/2 + j*DOF1;
+				dof_data.data[idx] *= -1.0;
+			}
+		}
+		// y-components
+		for (int j = 0;j < DOF1/2;j++)
+			for (int i = 0;i < DOF2;i++)
+			{
+				int idx = DOF1*DOF2 + i + j*DOF2;
+				dof_data.data[idx] *= -1.0;
+			}
+		if (DOF1%2 == 1)
+		{
+			for (int i = 0; i < DOF1/2; i++)
+			{
+				int idx = DOF1*DOF2 + i + DOF1/2*DOF2;
+				dof_data.data[idx] *= -1.0;
+			}
+		}
+	}
+	// Multi-component shape evaluation from DOFs to quadrature points.
+	// dof_layout is (TDOF x NumComp) and qpt_layout is (TNIP x NumComp).
+	template <typename dof_layout_t, typename dof_data_t,
+	typename qpt_layout_t, typename qpt_data_t>
+	MFEM_ALWAYS_INLINE
+	void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
+			  const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
+	{
+		TMatrix<TDOF,1,real_t,true> dof_data_s;
+		for (int j = 0;j < DOF2;j++)
+			for (int i = 0;i < DOF1;i++)
+			{
+				int idx = i + j*DOF1;
+				dof_data_s.data[idx] = dof_data[idx];
+				idx = DOF1*DOF2 + j + i*DOF2;
+				dof_data_s.data[idx] = dof_data[idx];
+			}
+		AddOrientation(dof_data_s);
+		// DOF x DOF x NC --> NIP x DOF x NC --> NIP x NIP x NC
+		Calc<0,false>(dof_layout, dof_data_s,
+					  qpt_layout.ind2(0), qpt_data,
+					  B_1d_c.layout,  B_1d_c,
+					  Bt_1d_o.layout, Bt_1d_o);
+		Calc<1,false>(dof_layout, dof_data_s,
+					  qpt_layout.ind2(1), qpt_data,
+					   B_1d_o.layout,  B_1d_o,
+					  Bt_1d_c.layout, Bt_1d_c);
+		
+	}
+        
+	template <bool D1, bool Add,
+			  typename qpt_layout_t, typename qpt_data_t,
+			  typename dof_layout_t, typename dof_data_t,
+			  typename D1_layout_t,typename D1_data_t,
+			  typename D2_layout_t,typename D2_data_t>
+	MFEM_ALWAYS_INLINE
+	void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
+			   const dof_layout_t &dof_layout, dof_data_t &dof_data,
+			   const D1_layout_t &D1_layout,const D1_data_t &D1_data,
+			   const D2_layout_t &D2_layout,const D2_data_t &D2_data) const
+	{
+		const int NC = dof_layout_t::dim_2;
+		const int dof0 = D1_layout_t::dim_1;
+		const int dof1 = D2_layout_t::dim_2;
+			
+		TTensor3<NIP,dof1,NC> A1;
+		OffsetStridedLayout3D<dof0,1,dof1,dof0,NC,dof0*dof1> dof_layout1(D1*dof0*dof1*NC);
+		// (1) A_{i,j,k} = \sum_s B_1d_{s,j} qpt_data_{i,s,k}
+		Mult_1_2<false>(D2_layout,  D2_data,
+						qpt_layout.template split_1<NIP,NIP>(), qpt_data,
+						A1.layout, A1);
+
+		// (2) dof_data_{i,j,k} = \sum_s B_1d_{s,i} A_{s,j,k}
+		Mult_2_1<Add>(D1_layout, D1_data,
+					  A1.layout, A1,
+					  dof_layout1, dof_data);
+	}
+        
+	// Multi-component shape evaluation transpose from quadrature points to DOFs.
+	// qpt_layout is (TNIP x NumComp) and dof_layout is (TDOF x NumComp).
+	template <bool Add,
+	typename qpt_layout_t, typename qpt_data_t,
+	typename dof_layout_t, typename dof_data_t>
+	MFEM_ALWAYS_INLINE
+	void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
+			   const dof_layout_t &dof_layout, dof_data_t &dof_data) const
+	{
+		CalcT<0,Add>(qpt_layout.ind2(0),qpt_data,
+					 dof_layout, dof_data,
+					 Bt_1d_c.layout, Bt_1d_c,
+					 B_1d_o.layout,  B_1d_o);
+		CalcT<1,Add>(qpt_layout.ind2(1),qpt_data,
+					 dof_layout, dof_data,
+					 Bt_1d_o.layout, Bt_1d_o,
+					  B_1d_c.layout,  B_1d_c);
+
+		//adjust the sign
+		AddOrientation(dof_data);
+	}
+
+	// Multi-component gradient evaluation from DOFs to quadrature points.
+	// dof_layout is (TDOF x NumComp) and grad_layout is (TNIP x DIM x NumComp).
+	template <typename dof_layout_t, typename dof_data_t,
+	typename div_layout_t, typename div_data_t>
+	MFEM_ALWAYS_INLINE
+	void CalcDiv(const dof_layout_t  &dof_layout,
+				 const dof_data_t    &dof_data,
+				 const div_layout_t  &div_layout,
+				 div_data_t &div_data) const
+	{
+		TMatrix<TDOF,1,real_t,true> dof_data_s;
+		for (int j = 0;j < DOF2;j++)
+			for (int i = 0;i < DOF1;i++)
+			{
+				int idx = i + j*DOF1;
+				dof_data_s.data[idx] = dof_data[idx];
+				idx = DOF1*DOF2 + j + i*DOF2;
+				dof_data_s.data[idx] = dof_data[idx];
+			}
+		AddOrientation(dof_data_s);
+		Calc<1,false>(dof_layout, dof_data_s,
+					  div_layout.ind2(0), div_data,
+					  B_1d_o.layout,  B_1d_o,
+					  Gt_1d_c.layout, Gt_1d_c);
+
+		Calc<0,true>(dof_layout, dof_data_s,
+					 div_layout.ind2(0), div_data,
+					 G_1d_c.layout,  G_1d_c,
+					 Bt_1d_o.layout, Bt_1d_o);
+	}
+        
+	// Multi-component gradient evaluation transpose from quadrature points to
+	// DOFs. grad_layout is (TNIP x DIM x NumComp), dof_layout is
+	// (TDOF x NumComp).
+	template <bool Add,
+			  typename div_layout_t, typename div_data_t,
+			  typename dof_layout_t, typename dof_data_t>
+	MFEM_ALWAYS_INLINE
+	void CalcDivT(const div_layout_t &div_layout,
+				  const div_data_t   &div_data,
+				  const dof_layout_t  &dof_layout,
+				  dof_data_t          &dof_data) const
+	{
+		CalcT<1,Add>(div_layout.ind2(0),div_data,
+					 dof_layout, dof_data,
+					 Bt_1d_o.layout, Bt_1d_o,
+					 G_1d_c.layout,  G_1d_c);
+		CalcT<0,Add>(div_layout.ind2(0),div_data,
+					 dof_layout, dof_data,
+					 Gt_1d_c.layout, Gt_1d_c,
+					 B_1d_o.layout,  B_1d_o);
+		//adjust the sign
+		AddOrientation(dof_data);
+	}
+
+	template <int D1, int D2, bool Add,
+			  typename qpt_layout_t, typename qpt_data_t,
+			  typename M_layout_t,  typename M_data_t,
+			  typename D11_layout_t,typename D11_data_t,
+			  typename D12_layout_t,typename D12_data_t,
+			  typename D21_layout_t,typename D21_data_t,
+			  typename D22_layout_t,typename D22_data_t>
+	MFEM_ALWAYS_INLINE
+	void AssembleBlock(const qpt_layout_t &qpt_layout,const qpt_data_t   &qpt_data,
+					   const M_layout_t   &M_layout,  M_data_t           &M_data,
+					   const D11_layout_t &D11_layout,const D11_data_t &D11_data,
+					   const D12_layout_t &D12_layout,const D12_data_t &D12_data,
+					   const D21_layout_t &D21_layout,const D21_data_t &D21_data,
+					   const D22_layout_t &D22_layout,const D22_data_t &D22_data) const
+	{
+		const int NC = qpt_layout_t::dim_2;
+		const int dof00 = D11_layout_t::dim_1;
+		const int dof10 = D21_layout_t::dim_2;
+		const int dof01 = D12_layout_t::dim_1;
+		const int dof11 = D22_layout_t::dim_2;
+			
+		TTensor4<dof01,NIP,dof11,NC> A1;
+		OffsetStridedLayout4D<dof00,1,dof01,dof00,dof10,2*dof00*dof01,dof11*NC,2*dof00*dof01*dof10> M1_layout(D1*2*dof00*dof01*dof10*dof11+D2*dof00*dof01);
+		// qpt_data<NIP1,NIP2,NC> --> A1<DOF11,NIP1,DOF21,NC>
+		TensorAssemble<false>(D12_layout, D12_data,
+							  D22_layout, D22_data,
+							  qpt_layout.template split_1<NIP,NIP>(), qpt_data,
+							  A1.layout, A1);
+		// A1<DOF11,NIP1,DOF21,NC> --> AA1<DOF2,DOF3*NIP1,DOF2,DOF3*NC>
+		TensorAssemble<Add>(D11_layout, D11_data,
+							D21_layout, D21_data,
+							TTensor3<dof01,NIP,dof11*NC>::layout, A1,
+							M1_layout, M_data);
+	}
+		
+	// Multi-component assemble.
+	// qpt_layout is (TNIP x NumComp), M_layout is (TDOF x TDOF x NumComp)
+	template <typename qpt_layout_t, typename qpt_data_t,
+	typename M_layout_t, typename M_data_t>
+	MFEM_ALWAYS_INLINE
+	void Assemble(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
+				  const M_layout_t &M_layout, M_data_t &M_data) const
+	{
+		AssembleBlock<1,1,false>(qpt_layout.ind23(0,0), qpt_data,
+								 M_layout, M_data,
+								 Bt_1d_o.layout, Bt_1d_o, 
+								 Bt_1d_c.layout, Bt_1d_c,
+								 B_1d_o.layout,  B_1d_o,
+								 B_1d_c.layout, B_1d_c);
+		AssembleBlock<0,1,false>(qpt_layout.ind23(0,1), qpt_data,
+								 M_layout, M_data,
+								 Bt_1d_o.layout, Bt_1d_o, 
+								 Bt_1d_c.layout, Bt_1d_c,
+								 B_1d_c.layout,  B_1d_c,
+								 B_1d_o.layout, B_1d_o);
+		AssembleBlock<1,0,false>(qpt_layout.ind23(1,0), qpt_data,
+								 M_layout, M_data,
+								 Bt_1d_c.layout, Bt_1d_c, 
+								 Bt_1d_o.layout, Bt_1d_o,
+								 B_1d_o.layout,  B_1d_o,
+								 B_1d_c.layout, B_1d_c);
+		AssembleBlock<0,0,false>(qpt_layout.ind23(1,1), qpt_data,
+								 M_layout, M_data,
+								 Bt_1d_c.layout, Bt_1d_c, 
+								 Bt_1d_o.layout, Bt_1d_o,
+								 B_1d_c.layout,  B_1d_c,
+								 B_1d_o.layout, B_1d_o);
+	}
+        
+	// Multi-component assemble of grad-grad element matrices.
+	// qpt_layout is (TNIP x DIM x DIM x NumComp), and
+	// D_layout is (TDOF x TDOF x NumComp).
+	template <typename qpt_layout_t, typename qpt_data_t,
+	typename D_layout_t, typename D_data_t>
+	MFEM_ALWAYS_INLINE
+	void AssembleDivDiv(const qpt_layout_t &qpt_layout,
+						const qpt_data_t   &qpt_data,
+						const D_layout_t   &D_layout,
+						D_data_t           &D_data) const
+	{
+		AssembleBlock<1,1,false>(qpt_layout, qpt_data,
+								 D_layout, D_data,
+								 Bt_1d_o.layout, Bt_1d_o, 
+								 Gt_1d_c.layout, Gt_1d_c,
+								 B_1d_o.layout,  B_1d_o,
+								 G_1d_c.layout,  G_1d_c);
+		AssembleBlock<0,1,false>(qpt_layout, qpt_data,
+								 D_layout, D_data,
+								 Bt_1d_o.layout, Bt_1d_o, 
+								 Gt_1d_c.layout, Gt_1d_c,
+								 G_1d_c.layout,  G_1d_c,
+								 B_1d_o.layout, B_1d_o);
+		AssembleBlock<1,0,false>(qpt_layout, qpt_data,
+								 D_layout, D_data,
+								 Gt_1d_c.layout, Gt_1d_c, 
+								 Bt_1d_o.layout, Bt_1d_o,
+								 B_1d_o.layout,  B_1d_o,
+								 G_1d_c.layout,  G_1d_c);
+		AssembleBlock<0,0,false>(qpt_layout, qpt_data,
+								 D_layout, D_data,
+								 Gt_1d_c.layout, Gt_1d_c, 
+								 Bt_1d_o.layout, Bt_1d_o,
+								 G_1d_c.layout,  G_1d_c,
+								 B_1d_o.layout, B_1d_o);
+	}
+};
+
+// ShapeEvaluator with 3D tensor-product structure
+template <int DOF1,int DOF2, int NIP, typename real_t>
+class RTTProductShapeEvaluator<3, DOF1, DOF2, NIP, real_t>
+{
+protected:
+	TMatrix<NIP,DOF1,real_t,true>  B_1d_c,  G_1d_c;
+	TMatrix<DOF1,NIP,real_t,true> Bt_1d_c, Gt_1d_c;
+	TMatrix<NIP,DOF2,real_t,true>  B_1d_o;
+	TMatrix<DOF2,NIP,real_t,true> Bt_1d_o;
+public:
+	static const int TDOF = 3*DOF1*DOF2*DOF2; // total dofs
+	static const int TNIP = NIP*NIP*NIP; // total qpts
+	
+	RTTProductShapeEvaluator() 
+	{
+	}
+	void init()
+	{
+	}
+	
+	template <typename dof_data_t>
+	void AddOrientation(dof_data_t &dof_data) const
+	{
+		//adjust the sign based on the orientation
+		// dof orientations
+		// for odd p, do not change the orientations in the mid-planes
+		// {i = p/2 + 1}, {j = p/2 + 1}, {k = p/2 + 1} in the x, y, z-components
+		// respectively.
+		// x-components
+		for (int k = 0; k < DOF2; k++)
+			for (int j = 0; j < DOF2; j++)
+				for (int i = 0; i < DOF1/2; i++)
+				{
+					int idx = i + (j + k*DOF2)*DOF1;
+					dof_data.data[idx] *= -1.0;
+				}
+		// y-components
+		for (int k = 0; k < DOF2; k++)
+			for (int j = 0; j < DOF1/2; j++)
+				for (int i = 0; i < DOF2; i++)
+				{
+					int idx = DOF1*DOF2*DOF2 + i + (j + k*DOF1)*DOF2;
+					dof_data.data[idx] *= -1.0;
+				}
+		// z-components
+		for (int k = 0; k < DOF1/2; k++)
+			for (int j = 0; j < DOF2; j++)
+				for (int i = 0; i < DOF2; i++)
+				{
+					int idx = 2*DOF1*DOF2*DOF2 + i + (j + k*DOF2)*DOF2;
+					dof_data.data[idx] *= -1.0;
+				}
+	}
+	template <int D1, bool Add,
+			  typename dof_layout_t, typename dof_data_t,
+			  typename qpt_layout_t, typename qpt_data_t,
+			  typename D1_layout_t,typename D1_data_t,
+			  typename D2_layout_t,typename D2_data_t,
+			  typename D3_layout_t,typename D3_data_t>
+	MFEM_ALWAYS_INLINE
+	void CalcBlock(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
+				   const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data,
+				   const D1_layout_t &D1_layout,const D1_data_t &D1_data,
+				   const D2_layout_t &D2_layout,const D2_data_t &D2_data,
+				   const D3_layout_t &D3_layout,const D3_data_t &D3_data) const
+	{
+		const int NC = dof_layout_t::dim_2;
+		const int dof0 = D1_layout_t::dim_2;
+		const int dof1 = D2_layout_t::dim_1;
+		const int dof2 = D3_layout_t::dim_1;
+		
+		TVector<NIP*dof1*dof2*NC> QDD;
+		TVector<NIP*NIP*dof2*NC> QQD;
+		OffsetStridedLayout3D<dof0,1,dof1*dof2,dof0,NC,dof0*dof1*dof2> dof_layout1(D1*dof0*dof1*dof2*NC);
+		// QDD_{i,jj,k} = \sum_s B_1d_{i,s} dof_data_{s,jj,k}
+		Mult_2_1<false>(D1_layout, D1_data,
+						dof_layout1, dof_data,
+						TTensor3<NIP,dof1*dof2,NC>::layout, QDD);
+		// QQD_{i,j,kk} = \sum_s B_1d_{j,s} QDD_{i,s,kk}
+		Mult_1_2<false>(D2_layout,D2_data,
+						TTensor3<NIP,dof1,dof2*NC>::layout, QDD,
+						TTensor3<NIP,NIP,dof2*NC>::layout, QQD);
+		// qpt_data_{ii,j,k} = \sum_s B_1d_{j,s} QQD_{ii,s,k}
+		Mult_1_2<Add>(D3_layout, D3_data,
+					  TTensor3<NIP*NIP,dof2,NC>::layout, QQD,
+					  qpt_layout.template split_1<NIP*NIP,NIP>(), qpt_data);
+	}
+	
+	// Multi-component shape evaluation from DOFs to quadrature points.
+	// dof_layout is (TDOF x NumComp) and qpt_layout is (TNIP x NumComp).
+	template <typename dof_layout_t, typename dof_data_t,
+			  typename qpt_layout_t, typename qpt_data_t>
+	MFEM_ALWAYS_INLINE
+	void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
+			  const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
+	{
+		TMatrix<TDOF,1,real_t,true> dof_data_s;
+		for (int k = 0;k < DOF2;k++)
+			for (int j = 0;j < DOF2;j++)
+				for (int i = 0;i < DOF1;i++)
+				{
+					int idx = i + (j + k*DOF2)*DOF1;
+					dof_data_s.data[idx] = dof_data[idx];
+					idx = DOF1*DOF2*DOF2 + j + (k + i*DOF2)*DOF2;
+					dof_data_s.data[idx] = dof_data[idx];
+					idx = 2*DOF1*DOF2*DOF2 + k + (i + j*DOF1)*DOF2;
+					dof_data_s.data[idx] = dof_data[idx];
+				}
+		AddOrientation(dof_data_s);
+		CalcBlock<0,false>(dof_layout, dof_data_s,
+						   qpt_layout.ind2(0), qpt_data,
+						   B_1d_c.layout,  B_1d_c,
+						   Bt_1d_o.layout, Bt_1d_o,
+						   Bt_1d_o.layout, Bt_1d_o);
+		
+		CalcBlock<1,false>(dof_layout, dof_data_s,
+						   qpt_layout.ind2(1), qpt_data,
+						   B_1d_o.layout, B_1d_o,
+						   Bt_1d_c.layout,Bt_1d_c,
+						   Bt_1d_o.layout, Bt_1d_o);
+		
+		CalcBlock<2,false>(dof_layout, dof_data_s,
+						   qpt_layout.ind2(2), qpt_data,
+						   B_1d_o.layout, B_1d_o,
+						   Bt_1d_o.layout,Bt_1d_o,
+						   Bt_1d_c.layout,Bt_1d_c);
+	}
+	
+	template <int D1, bool Add,
+			  typename qpt_layout_t, typename qpt_data_t,
+			  typename dof_layout_t, typename dof_data_t,
+			  typename D1_layout_t,typename D1_data_t,
+			  typename D2_layout_t,typename D2_data_t,
+			  typename D3_layout_t,typename D3_data_t>
+	MFEM_ALWAYS_INLINE
+	void CalcTBlock(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
+					const dof_layout_t &dof_layout, dof_data_t &dof_data,
+					const D1_layout_t &D1_layout,const D1_data_t &D1_data,
+					const D2_layout_t &D2_layout,const D2_data_t &D2_data,
+					const D3_layout_t &D3_layout,const D3_data_t &D3_data) const
+	{
+		const int NC = dof_layout_t::dim_2;
+		const int dof0 = D1_layout_t::dim_1;
+		const int dof1 = D2_layout_t::dim_2;
+		const int dof2 = D3_layout_t::dim_2;
+		TVector<NIP*dof1*dof2*NC> QDD;
+		TVector<NIP*NIP*dof2*NC> QQD;
+		OffsetStridedLayout3D<dof0,1,dof1*dof2,dof0,NC,dof1*dof2*dof0> dof_layout1(D1*dof1*dof2*dof0*NC);
+		// qpt_data_{ii,j,k} = \sum_s B_1d_{j,s} QQD_{ii,s,k}
+		Mult_1_2<false>(D3_layout, D3_data,
+						qpt_layout.template split_1<NIP*NIP,NIP>(), qpt_data,
+						TTensor3<NIP*NIP,dof2,NC>::layout, QQD);
+		
+		// QQD_{i,j,kk} = \sum_s B_1d_{j,s} QDD_{i,s,kk}
+		Mult_1_2<false>(D2_layout,D2_data,
+						TTensor3<NIP,NIP,dof2*NC>::layout, QQD,
+						TTensor3<NIP,dof1,dof2*NC>::layout, QDD);
+		// QDD_{i,jj,k} = \sum_s B_1d_{i,s} dof_data_{s,jj,k}
+		Mult_2_1<Add>(D1_layout, D1_data,
+					  TTensor3<NIP,dof1*dof2,NC>::layout, QDD,
+					  dof_layout1, dof_data);
+		
+	}
+	
+	// Multi-component shape evaluation transpose from quadrature points to DOFs.
+	// qpt_layout is (TNIP x NumComp) and dof_layout is (TDOF x NumComp).
+	template <bool Add,
+			  typename qpt_layout_t, typename qpt_data_t,
+			  typename dof_layout_t, typename dof_data_t>
+	MFEM_ALWAYS_INLINE
+	void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
+			   const dof_layout_t &dof_layout, dof_data_t &dof_data) const
+	{
+		CalcTBlock<0,Add>(qpt_layout.ind2(0), qpt_data,
+						  dof_layout, dof_data,
+						  Bt_1d_c.layout, Bt_1d_c,
+						  B_1d_o.layout,  B_1d_o,
+						  B_1d_o.layout,  B_1d_o);
+		CalcTBlock<1,Add>(qpt_layout.ind2(1), qpt_data,
+						  dof_layout, dof_data,
+						  Bt_1d_o.layout, Bt_1d_o,
+						  B_1d_c.layout,B_1d_c,
+						  B_1d_o.layout, B_1d_o);
+		CalcTBlock<2,Add>(qpt_layout.ind2(2), qpt_data,
+						  dof_layout, dof_data,
+						  Bt_1d_o.layout, Bt_1d_o,
+						  B_1d_o.layout,B_1d_o,
+						  B_1d_c.layout,B_1d_c);
+
+		AddOrientation(dof_data);
+	}
+	// Multi-component gradient evaluation from DOFs to quadrature points.
+	// dof_layout is (TDOF x NumComp) and grad_layout is (TNIP x DIM x NumComp).
+	template <typename dof_layout_t, typename dof_data_t,
+			  typename div_layout_t, typename div_data_t>
+	MFEM_ALWAYS_INLINE
+	void CalcDiv(const dof_layout_t  &dof_layout,
+				 const dof_data_t    &dof_data,
+				 const div_layout_t &div_layout,
+				 div_data_t &div_data) const
+	{
+		TMatrix<TDOF,1,real_t,true> dof_data_s;
+		for (int k = 0;k < DOF2;k++)
+			for (int j = 0;j < DOF2;j++)
+				for (int i = 0;i < DOF1;i++)
+				{
+					int idx = i + (j + k*DOF2)*DOF1;
+					dof_data_s.data[idx] = dof_data[idx];
+					idx = DOF1*DOF2*DOF2 + j + (k + i*DOF2)*DOF2;
+					dof_data_s.data[idx] = dof_data[idx];
+					idx = 2*DOF1*DOF2*DOF2 + k + (i + j*DOF1)*DOF2;
+					dof_data_s.data[idx] = dof_data[idx];
+				}
+		AddOrientation(dof_data_s);
+		CalcBlock<0,false>(dof_layout, dof_data_s,
+						   div_layout.ind2(0), div_data,
+						   G_1d_c.layout,  G_1d_c,
+						   Bt_1d_o.layout, Bt_1d_o,
+						   Bt_1d_o.layout, Bt_1d_o);
+		CalcBlock<1,true>(dof_layout, dof_data_s,
+						  div_layout.ind2(0), div_data,
+						  B_1d_o.layout,  B_1d_o,
+						  Gt_1d_c.layout, Gt_1d_c,
+						  Bt_1d_o.layout, Bt_1d_o);
+		
+		CalcBlock<2,true>(dof_layout, dof_data_s,
+						  div_layout.ind2(0), div_data,
+						  B_1d_o.layout,  B_1d_o,
+						  Bt_1d_o.layout, Bt_1d_o,
+						  Gt_1d_c.layout, Gt_1d_c);
+	}
+	
+	// Multi-component gradient evaluation transpose from quadrature points to
+	// DOFs. grad_layout is (TNIP x DIM x NumComp), dof_layout is
+	// (TDOF x NumComp).
+	template <bool Add,
+			  typename div_layout_t, typename div_data_t,
+			  typename dof_layout_t, typename dof_data_t>
+	MFEM_ALWAYS_INLINE
+	void CalcDivT(const div_layout_t &div_layout,
+				   const div_data_t   &div_data,
+				   const dof_layout_t  &dof_layout,
+				   dof_data_t          &dof_data) const
+	{
+		CalcTBlock<0,Add>(div_layout.ind2(0), div_data,
+						  dof_layout, dof_data,
+						  Gt_1d_c.layout, Gt_1d_c,
+						  B_1d_o.layout,  B_1d_o,
+						  B_1d_o.layout,  B_1d_o);
+		CalcTBlock<1,Add>(div_layout.ind2(0), div_data,
+						  dof_layout, dof_data,
+						  Bt_1d_o.layout, Bt_1d_o,
+						  G_1d_c.layout,G_1d_c,
+						  B_1d_o.layout, B_1d_o);
+		CalcTBlock<2,Add>(div_layout.ind2(0), div_data,
+						  dof_layout, dof_data,
+						  Bt_1d_o.layout, Bt_1d_o,
+						  B_1d_o.layout,B_1d_o,
+						  G_1d_c.layout,G_1d_c);
+		AddOrientation(dof_data);
+	}
+	
+	// Multi-component assemble.
+	// qpt_layout is (TNIP x NumComp), M_layout is (TDOF x TDOF x NumComp)
+	template <typename qpt_layout_t, typename qpt_data_t,
+			  typename M_layout_t, typename M_data_t>
+	MFEM_ALWAYS_INLINE
+	void Assemble(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
+				  const M_layout_t &M_layout, M_data_t &M_data) const
+	{
+		AssembleBlock<0,0,false>(qpt_layout.ind23(0,0), qpt_data, M_layout, M_data,
+								 Bt_1d_c.layout, Bt_1d_c,
+								 Bt_1d_o.layout,Bt_1d_o,
+								 Bt_1d_o.layout,Bt_1d_o,
+								 B_1d_c.layout, B_1d_c,
+								 B_1d_o.layout, B_1d_o,
+								 B_1d_o.layout, B_1d_o);
+		AssembleBlock<1,0,false>(qpt_layout.ind23(1,0), qpt_data, M_layout, M_data,
+								 Bt_1d_c.layout, Bt_1d_c,
+								 Bt_1d_o.layout,Bt_1d_o,
+								 Bt_1d_o.layout,Bt_1d_o,
+								 B_1d_o.layout,  B_1d_o,
+								 B_1d_c.layout, B_1d_c,
+								 B_1d_o.layout,B_1d_o);
+		AssembleBlock<2,0,false>(qpt_layout.ind23(2,0), qpt_data, M_layout, M_data,
+								 Bt_1d_c.layout, Bt_1d_c,
+								 Bt_1d_o.layout,Bt_1d_o,
+								 Bt_1d_o.layout,Bt_1d_o,
+								 B_1d_o.layout,  B_1d_o,
+								 B_1d_o.layout, B_1d_o,
+								 B_1d_c.layout, B_1d_c);
+		AssembleBlock<0,1,false>(qpt_layout.ind23(0,1), qpt_data, M_layout, M_data,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 Bt_1d_c.layout, Bt_1d_c,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 B_1d_c.layout, B_1d_c,
+								 B_1d_o.layout, B_1d_o,
+								 B_1d_o.layout, B_1d_o);
+		AssembleBlock<1,1,false>(qpt_layout.ind23(1,1), qpt_data, M_layout, M_data,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 Bt_1d_c.layout, Bt_1d_c,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 B_1d_o.layout, B_1d_o,
+								 B_1d_c.layout, B_1d_c,
+								 B_1d_o.layout, B_1d_o);
+		AssembleBlock<2,1,false>(qpt_layout.ind23(2,1), qpt_data, M_layout, M_data,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 Bt_1d_c.layout, Bt_1d_c,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 B_1d_o.layout, B_1d_o,
+								 B_1d_o.layout, B_1d_o,
+								 B_1d_c.layout, B_1d_c);
+		AssembleBlock<0,2,false>(qpt_layout.ind23(0,2), qpt_data, M_layout, M_data,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 Bt_1d_c.layout, Bt_1d_c,
+								 B_1d_c.layout, B_1d_c,
+								 B_1d_o.layout, B_1d_o,
+								 B_1d_o.layout, B_1d_o);
+		AssembleBlock<1,2,false>(qpt_layout.ind23(1,2), qpt_data, M_layout, M_data,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 Bt_1d_c.layout, Bt_1d_c,
+								 B_1d_o.layout, B_1d_o,
+								 B_1d_c.layout, B_1d_c,
+								 B_1d_o.layout, B_1d_o);
+		AssembleBlock<2,2,false>(qpt_layout.ind23(2,2), qpt_data, M_layout, M_data,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 Bt_1d_c.layout, Bt_1d_c,
+								 B_1d_o.layout,  B_1d_o,
+								 B_1d_o.layout,  B_1d_o,
+								 B_1d_c.layout,  B_1d_c);
+	}
+	
+	template <int D1, int D2, bool Add,
+			  typename qpt_layout_t, typename qpt_data_t,
+			  typename D_layout_t, typename D_data_t,
+			  typename D11_layout_t,typename D11_data_t,
+			  typename D12_layout_t,typename D12_data_t,
+			  typename D13_layout_t,typename D13_data_t,
+			  typename D21_layout_t,typename D21_data_t,
+			  typename D22_layout_t,typename D22_data_t,
+			  typename D23_layout_t,typename D23_data_t>
+	MFEM_ALWAYS_INLINE
+	void AssembleBlock(const qpt_layout_t &qpt_layout,
+					   const qpt_data_t   &qpt_data,
+					   const D_layout_t   &D_layout,
+					   D_data_t           &D_data,
+					   const D11_layout_t &D11_layout,const D11_data_t &D11_data,
+					   const D12_layout_t &D12_layout,const D12_data_t &D12_data,
+					   const D13_layout_t &D13_layout,const D13_data_t &D13_data,
+					   const D21_layout_t &D21_layout,const D21_data_t &D21_data,
+					   const D22_layout_t &D22_layout,const D22_data_t &D22_data,
+					   const D23_layout_t &D23_layout,const D23_data_t &D23_data) const
+	{
+		const int NC = qpt_layout_t::dim_2;
+		const int dof00 = D11_layout_t::dim_1;//D1 == 0 ? DOF2 : DOF1;
+		const int dof01 = D12_layout_t::dim_1;//D1 == 1 ? DOF2 : DOF1;
+		const int dof02 = D13_layout_t::dim_1;//D1 == 2 ? DOF2 : DOF1;
+		const int dof10 = D21_layout_t::dim_2;//D2 == 0 ? DOF2 : DOF1;
+		const int dof11 = D22_layout_t::dim_2;//D2 == 1 ? DOF2 : DOF1;
+		const int dof12 = D23_layout_t::dim_2;//D2 == 2 ? DOF2 : DOF1;
+		
+		TTensor4<dof02,NIP*NIP,dof12,NC> A1;
+		TTensor4<dof01,dof02*NIP,dof11,dof12*NC> AA1;
+		OffsetStridedLayout4D<dof00,1,dof01*dof02,dof00,dof10,3*dof00*dof01*dof02*NC,dof11*dof12*NC,3*dof10*dof00*dof01*dof02> M1_layout(D1*(dof00*dof01*dof02*NC)*3*dof10*dof11*dof12*NC+D2*dof10*dof11*dof12*NC);
+		// Using TensorAssemble: <I,NIP,J> --> <DOF,I,DOF,J>
+
+		// qpt_data<NIP1*NIP2,NIP3,NC> --> A1<DOF3,NIP1*NIP2,DOF3,NC>
+		TensorAssemble<false>(
+			D13_layout, D13_data,
+			D23_layout, D23_data,
+			qpt_layout.template split_1<NIP*NIP,NIP>(), qpt_data,
+			A1.layout, A1);
+		// A1<DOF3*NIP1,NIP2,DOF3*NC> --> AA1<DOF2,DOF3*NIP1,DOF2,DOF3*NC>
+		TensorAssemble<false>(
+			D12_layout, D12_data,
+			D22_layout, D22_data,
+			TTensor3<dof02*NIP,NIP,dof12*NC>::layout, A1,
+			AA1.layout, AA1);
+		// AA1<DOF2*DOF3,NIP1,DOF2*DOF3*NC> --> M<DOF1,DOF2*DOF3,DOF1,DOF2*DOF3*NC>
+		
+		//TTensor4<DOF1,DOF1*DOF2,DOF1,DOF1*DOF2*NC> M1;
+		TensorAssemble<Add>(
+			D11_layout, D11_data,
+			D21_layout, D21_data,
+			TTensor3<dof01*dof02,NIP,dof11*dof12*NC>::layout, AA1,
+			M1_layout, D_data);
+	}
+	
+	// Multi-component assemble of grad-grad element matrices.
+	// qpt_layout is (TNIP x DIM x DIM x NumComp), and
+	// D_layout is (TDOF x TDOF x NumComp).
+	template <typename qpt_layout_t, typename qpt_data_t,
+			  typename D_layout_t, typename D_data_t>
+	MFEM_ALWAYS_INLINE
+	void AssembleDivDiv  (const qpt_layout_t &qpt_layout,
+						  const qpt_data_t   &qpt_data,
+						  const D_layout_t   &D_layout,
+						  D_data_t           &D_data) const
+	{
+		//block (0,0)
+		AssembleBlock<0,0,false>(qpt_layout, qpt_data, D_layout, D_data,
+								 Gt_1d_c.layout, Gt_1d_c,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 G_1d_c.layout, G_1d_c,
+								 B_1d_o.layout, B_1d_o,
+								 B_1d_o.layout, B_1d_o);
+		//block (1,0)
+		AssembleBlock<1,0,false>(qpt_layout, qpt_data, D_layout, D_data,
+								 Gt_1d_c.layout, Gt_1d_c,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 B_1d_o.layout, B_1d_o,
+								 G_1d_c.layout, G_1d_c,
+								 B_1d_o.layout, B_1d_o);
+		//block (2,0)
+		AssembleBlock<2,0,false>(qpt_layout, qpt_data, D_layout, D_data,
+								 Gt_1d_c.layout, Gt_1d_c,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 B_1d_o.layout,  B_1d_o,
+								 B_1d_o.layout,  B_1d_o,
+								 G_1d_c.layout,  G_1d_c);
+		//block (0,1)
+		AssembleBlock<0,1,false>(qpt_layout, qpt_data, D_layout, D_data,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 Gt_1d_c.layout, Gt_1d_c,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 G_1d_c.layout, G_1d_c,
+								 B_1d_o.layout, B_1d_o,
+								 B_1d_o.layout, B_1d_o);
+		
+		//block (1,1)
+		AssembleBlock<1,1,false>(qpt_layout, qpt_data, D_layout, D_data,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 Gt_1d_c.layout, Gt_1d_c,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 B_1d_o.layout, B_1d_o,
+								 G_1d_c.layout, G_1d_c,
+								 B_1d_o.layout, B_1d_o);
+		
+		//block (2,1)
+		AssembleBlock<2,1,false>(qpt_layout, qpt_data, D_layout, D_data,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 Gt_1d_c.layout, Gt_1d_c,
+								 Bt_1d_o.layout, Bt_1d_o,
+								 B_1d_o.layout,  B_1d_o,
+								 B_1d_o.layout,  B_1d_o,
+								 G_1d_c.layout,  G_1d_c);
+		
+		//block (0,2)
+		AssembleBlock<0,2,false>(qpt_layout, qpt_data, D_layout, D_data,
+								 Bt_1d_o.layout,  Bt_1d_o,
+								 Bt_1d_o.layout,  Bt_1d_o,
+								 Gt_1d_c.layout,  Gt_1d_c,
+								 G_1d_c.layout, G_1d_c,
+								 B_1d_o.layout, B_1d_o,
+								 B_1d_o.layout, B_1d_o);
+		
+		//block (1,2)
+		AssembleBlock<1,2,false>(qpt_layout, qpt_data, D_layout, D_data,
+								 Bt_1d_o.layout,  Bt_1d_o,
+								 Bt_1d_o.layout,  Bt_1d_o,
+								 Gt_1d_c.layout,  Gt_1d_c,
+								 B_1d_o.layout, B_1d_o,
+								 G_1d_c.layout, G_1d_c,
+								 B_1d_o.layout, B_1d_o);
+		
+		//block (2,2)
+		AssembleBlock<2,2,false>(qpt_layout, qpt_data, D_layout, D_data,
+								 Bt_1d_o.layout,  Bt_1d_o,
+								 Bt_1d_o.layout,  Bt_1d_o,
+								 Gt_1d_c.layout,  Gt_1d_c,
+								 B_1d_o.layout,  B_1d_o,
+								 B_1d_o.layout,  B_1d_o,
+								 G_1d_c.layout,  G_1d_c);
+	}
+};
+
+// ShapeEvaluator with tensor-product structure in any dimension
+template <class FE, class IR, typename real_t>
+class RTShapeEvaluator_base<FE, IR, true, real_t>
+: public RTTProductShapeEvaluator<FE::dim, FE::dofs_1d_c, FE::dofs_1d_o, IR::qpts_1d, real_t>
+{
+protected:
+	typedef RTTProductShapeEvaluator<FE::dim, FE::dofs_1d_c, FE::dofs_1d_o,
+	IR::qpts_1d, real_t> base_class;
+	using base_class::B_1d_c;
+	using base_class::Bt_1d_c;
+	using base_class::G_1d_c;
+	using base_class::Gt_1d_c;
+	using base_class::B_1d_o;
+	using base_class::Bt_1d_o;
+public:
+	RTShapeEvaluator_base(const FE &fe)
+	{
+		fe.Calc1DShapes(IR::Get1DIntRule(), B_1d_c.data,B_1d_o.data, G_1d_c.data);
+		TAssign<AssignOp::Set>(Bt_1d_c.layout, Bt_1d_c,
+							   B_1d_c.layout.transpose_12(), B_1d_c);
+		TAssign<AssignOp::Set>(Bt_1d_o.layout, Bt_1d_o,
+							   B_1d_o.layout.transpose_12(), B_1d_o);
+		TAssign<AssignOp::Set>(Gt_1d_c.layout, Gt_1d_c,
+							   G_1d_c.layout.transpose_12(), G_1d_c);
+		base_class::init();
+	}    
+	// default copy constructor
+};
+	
+// General ShapeEvaluator for any scalar FE type (L2 or H1)
+template <class FE, class IR, typename real_t=double>
+class RTShapeEvaluator
+: public RTShapeEvaluator_base<FE,IR,true,real_t>//FE::tensor_prod && IR::tensor_prod
+{
+public:
+	typedef real_t real_type;
+	static const int dim  = FE::dim;
+	static const int qpts = IR::qpts;
+	static const bool tensor_prod = true;//FE::tensor_prod && IR::tensor_prod;
+	typedef FE FE_type;
+	typedef IR IR_type;
+	typedef RTShapeEvaluator_base<FE,IR,tensor_prod,real_t> base_class;
+        
+	using base_class::Calc;
+	using base_class::CalcT;
+	using base_class::CalcDiv;
+	using base_class::CalcDivT;
+	
+	RTShapeEvaluator(const FE &fe) : base_class(fe) { }
+	
+	// default copy constructor
+};
+
+// Field evaluators -- values of a given global FE grid function
+
+template <typename FESpace_t, typename VecLayout_t, typename IR,
+		  typename complex_t, typename real_t>
+class RTFieldEvaluator_base
+{
+protected:
+	typedef typename FESpace_t::FE_type       FE_type;
+	typedef RTShapeEvaluator<FE_type,IR,real_t> ShapeEval_type;
+	
+	FESpace_t       fespace;
+	ShapeEval_type  shapeEval;
+	VecLayout_t     vec_layout;
+	
+	// With this constructor, fespace is a shallow copy.
+	inline MFEM_ALWAYS_INLINE
+	RTFieldEvaluator_base(const FESpace_t &tfes, const ShapeEval_type &shape_eval,
+						  const VecLayout_t &vec_layout)
+        : fespace(tfes),
+		  shapeEval(shape_eval),
+		  vec_layout(vec_layout)
+	{ }
+	
+	// This constructor creates new fespace, not a shallow copy.
+	inline MFEM_ALWAYS_INLINE
+	RTFieldEvaluator_base(const FE_type &fe, const FiniteElementSpace &fes)
+        : fespace(fe, fes), shapeEval(fe), vec_layout(fes)
+	{ }
+};
+
+// complex_t - dof/qpt data type, real_t - ShapeEvaluator (FE basis) data type
+template <typename FESpace_t, typename VecLayout_t, typename IR,
+		  typename complex_t = double, typename real_t = double>
+class RTFieldEvaluator
+    : public RTFieldEvaluator_base<FESpace_t,VecLayout_t,IR,complex_t,real_t>
+{
+public:
+	typedef complex_t                         complex_type;
+	typedef FESpace_t                         FESpace_type;
+	typedef typename FESpace_t::FE_type       FE_type;
+	typedef RTShapeEvaluator<FE_type,IR,real_t> ShapeEval_type;
+	typedef VecLayout_t                       VecLayout_type;
+
+	// this type
+	typedef RTFieldEvaluator<FESpace_t,VecLayout_t,IR,complex_t,real_t> T_type;
+	
+	static const int dofs = FE_type::dofs;
+	static const int dim  = FE_type::dim;
+	static const int qpts = IR::qpts;
+	static const int vdim = VecLayout_t::vec_dim;
+	static const int dimc = 1;
+	
+protected:
+	
+	typedef RTFieldEvaluator_base<FESpace_t,VecLayout_t,IR,complex_t,real_t>
+	base_class;
+	
+	using base_class::fespace;
+	using base_class::shapeEval;
+	using base_class::vec_layout;
+	const complex_t *data_in;
+	complex_t       *data_out;
+	
+public:
+	// With this constructor, fespace is a shallow copy of tfes.
+	inline MFEM_ALWAYS_INLINE
+	RTFieldEvaluator(const FESpace_t &tfes, const ShapeEval_type &shape_eval,
+					 const VecLayout_type &vec_layout,
+					 const complex_t *global_data_in, complex_t *global_data_out)
+        : base_class(tfes, shape_eval, vec_layout),
+		  data_in(global_data_in),
+		  data_out(global_data_out)
+	{ }
+	
+	// With this constructor, fespace is a shallow copy of f.fespace.
+	inline MFEM_ALWAYS_INLINE
+	RTFieldEvaluator(const RTFieldEvaluator &f,
+					 const complex_t *global_data_in, complex_t *global_data_out)
+        : base_class(f.fespace, f.shapeEval, f.vec_layout),
+		  data_in(global_data_in),
+		  data_out(global_data_out)
+	{ }
+	
+	// This constructor creates a new fespace, not a shallow copy.
+	inline MFEM_ALWAYS_INLINE
+	RTFieldEvaluator(const FiniteElementSpace &fes,
+					 const complex_t *global_data_in, complex_t *global_data_out)
+        : base_class(FE_type(*fes.FEColl()), fes),
+		  data_in(global_data_in),
+		  data_out(global_data_out)
+	{ }
+	
+	// Default copy constructor
+	
+	inline MFEM_ALWAYS_INLINE FESpace_type &FESpace() { return fespace; }
+	inline MFEM_ALWAYS_INLINE ShapeEval_type &ShapeEval() { return shapeEval; }
+	inline MFEM_ALWAYS_INLINE VecLayout_type &VecLayout() { return vec_layout; }
+	
+	inline MFEM_ALWAYS_INLINE
+	void SetElement(int el)
+	{
+		fespace.SetElement(el);
+	}
+	
+	// val_layout_t is (qpts x dim x vdim x NE)
+	template <typename val_layout_t, typename val_data_t>
+	inline MFEM_ALWAYS_INLINE
+	void GetValues(int el, const val_layout_t &l, val_data_t &vals)
+	{
+		const int ne = val_layout_t::dim_4;
+		TTensor3<dofs,1,ne,complex_type> val_dofs;
+		SetElement(el);
+		fespace.VectorExtract(vec_layout, data_in, val_dofs.layout, val_dofs);
+		shapeEval.Calc(val_dofs.layout.merge_23(), val_dofs, l.merge_34(), vals);
+	}
+	
+	// curl_layout_t is (qpts x dimc x vdim x NE)
+	template <typename div_layout_t, typename div_data_t>
+	inline MFEM_ALWAYS_INLINE
+	void GetDiv(int el, const div_layout_t &l, div_data_t &div)
+	{
+		const int ne = div_layout_t::dim_4;
+		TTensor3<dofs,1,ne,complex_type> val_dofs;
+		SetElement(el);
+		fespace.VectorExtract(vec_layout, data_in, val_dofs.layout, val_dofs);
+		shapeEval.CalcCurl(val_dofs.layout.merge_23(), val_dofs,
+						   l.merge_34(), div);
+	}
+	
+	template <typename DataType>
+	inline MFEM_ALWAYS_INLINE
+	void Eval(DataType &F)
+	{
+		// T.SetElement() must be called outside
+		Action<DataType::InData,true>::Eval(vec_layout, *this, F);
+	}
+	
+	template <typename DataType>
+	inline MFEM_ALWAYS_INLINE
+	void Eval(int el, DataType &F)
+	{
+		SetElement(el);
+		Eval(F);
+	}
+	
+	template <bool Add, typename DataType>
+	inline MFEM_ALWAYS_INLINE
+	void Assemble(DataType &F)
+	{
+		// T.SetElement() must be called outside
+		Action<DataType::OutData,true>::
+		template Assemble<Add>(vec_layout, *this, F);
+	}
+	
+	template <bool Add, typename DataType>
+	inline MFEM_ALWAYS_INLINE
+	void Assemble(int el, DataType &F)
+	{
+		SetElement(el);
+		Assemble<Add>(F);
+	}
+	
+#ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
+	template <typename DataType>
+	inline MFEM_ALWAYS_INLINE
+	void EvalSerialized(const complex_t *loc_dofs, DataType &F)
+	{
+		Action<DataType::InData,true>::EvalSerialized(*this, loc_dofs, F);
+	}
+	
+	template <bool Add, typename DataType>
+	inline MFEM_ALWAYS_INLINE
+	void AssembleSerialized(const DataType &F, complex_t *loc_dofs)
+	{
+		Action<DataType::OutData,true>::
+		template AssembleSerialized<Add>(*this, F, loc_dofs);
+	}
+#endif
+	
+	// Enumeration for the data type used by the Eval() and Assemble() methods.
+	// The types can obtained by summing constants from this enumeration and used
+	// as a template parameter in struct Data.
+	enum InOutData
+	{
+		None      = 0,
+		Values    = 1,
+		Divs     = 2
+	};
+	
+	// Auxiliary templated struct AData, used by the Eval() and Assemble()
+	// methods. The template parameter IOData is "bitwise or" of constants from
+	// the enum InOutData. The parameter NE is the number of elements to be
+	// processed in the Eval() and Assemble() methods.
+	template<int IOData, int NE> struct AData;
+	
+	template <int NE> struct AData<0,NE> // 0 = None
+	{
+		// Do we need this?
+	};
+	
+	template <int NE> struct AData<1,NE> // 1 = Values
+	{
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+		typedef TTensor3<dofs,1,NE,complex_t,true> val_dofs_t;
+		val_dofs_t val_dofs;
+#else
+		typedef TTensor3<dofs,1,NE,complex_t> val_dofs_t;
+#endif
+		TTensor4<qpts,dim,1,NE,complex_t>      val_qpts;
+	};
+	
+	template <int NE> struct AData<2,NE> // 2 = Div
+	{
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+		typedef TTensor3<dofs,1,NE,complex_t,true> val_dofs_t;
+		val_dofs_t val_dofs;
+#else
+		typedef TTensor3<dofs,1,NE,complex_t> val_dofs_t;
+#endif
+		TTensor4<qpts,dimc,1,NE,complex_t>      div_qpts;
+	};
+	
+	template <int NE> struct AData<3,NE> // 3 = Values+Divs
+	{
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+		typedef TTensor3<dofs,1,NE,complex_t,true> val_dofs_t;
+		val_dofs_t val_dofs;
+#else
+		typedef TTensor3<dofs,1,NE,complex_t> val_dofs_t;
+#endif
+		TTensor4<qpts, dim,1,NE,complex_t,true>  val_qpts;
+		TTensor4<qpts,dimc,1,NE,complex_t>       div_qpts;
+	};
+	
+	// This struct is similar to struct AData, adding separate static data
+	// members for the input (InData) and output (OutData) data types.
+	template <int IData, int OData, int NE>
+	struct BData : public AData<IData|OData,NE>
+	{
+		typedef T_type eval_type;
+		static const int ne = NE;
+		static const int InData = IData;
+		static const int OutData = OData;
+	};
+	
+	// This struct implements the input (Eval, EvalSerialized) and output
+	// (Assemble, AssembleSerialized) operations for the given Ops.
+	// Ops is "bitwise or" of constants from the enum InOutData.
+	template <int Ops, bool dummy> struct Action;
+	
+	template <bool dummy> struct Action<0,dummy> // 0 = None
+	{
+		// Do we need this?
+	};
+	
+	template <bool dummy> struct Action<1,dummy> // 1 = Values
+	{
+		template <typename vec_layout_t, typename AData_t>
+		static inline MFEM_ALWAYS_INLINE
+		void Eval(const vec_layout_t &l, T_type &T, AData_t &D)
+		{
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+			typename AData_t::val_dofs_t &val_dofs = D.val_dofs;
+#else
+			typename AData_t::val_dofs_t val_dofs;
+#endif
+			T.fespace.VectorExtract(l, T.data_in, val_dofs.layout, val_dofs);
+			T.shapeEval.Calc(val_dofs.layout.merge_23(), val_dofs,
+							 D.val_qpts.layout.merge_34(), D.val_qpts);
+		}
+		
+		template <bool Add, typename vec_layout_t, typename AData_t>
+		static inline MFEM_ALWAYS_INLINE
+		void Assemble(const vec_layout_t &l, T_type &T, AData_t &D)
+		{
+			const AssignOp::Type Op = Add ? AssignOp::Add : AssignOp::Set;
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+			typename AData_t::val_dofs_t &val_dofs = D.val_dofs;
+#else
+			typename AData_t::val_dofs_t val_dofs;
+#endif
+			T.shapeEval.template CalcT<false>(
+				D.val_qpts.layout.merge_34(), D.val_qpts,
+				val_dofs.layout.merge_23(), val_dofs);
+			T.fespace.template VectorAssemble<Op>(
+				val_dofs.layout, val_dofs, l, T.data_out);
+		}
+		
+#ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
+		template <typename AData_t>
+		static inline MFEM_ALWAYS_INLINE
+		void EvalSerialized(T_type &T, const complex_t *loc_dofs, AData_t &D)
+		{
+			T.shapeEval.Calc(AData_t::val_dofs_t::layout.merge_23(), loc_dofs,
+							 D.val_qpts.layout.merge_34(), D.val_qpts);
+		}
+		
+		template <bool Add, typename AData_t>
+		static inline MFEM_ALWAYS_INLINE
+		void AssembleSerialized(T_type &T, const AData_t &D, complex_t *loc_dofs)
+		{
+			T.shapeEval.template CalcT<Add>(
+				D.val_qpts.layout.merge_23(), D.val_qpts,
+				AData_t::val_dofs_t::layout.merge_34(), loc_dofs);
+		}
+#endif
+	};
+	
+	template <bool dummy> struct Action<2,dummy> // 2 = div
+	{
+		template <typename vec_layout_t, typename AData_t>
+		static inline MFEM_ALWAYS_INLINE
+		void Eval(const vec_layout_t &l, T_type &T, AData_t &D)
+		{
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+			typename AData_t::val_dofs_t &val_dofs = D.val_dofs;
+#else
+			typename AData_t::val_dofs_t val_dofs;
+#endif
+			T.fespace.VectorExtract(l, T.data_in, val_dofs.layout, val_dofs);
+			T.shapeEval.CalcDiv(val_dofs.layout.merge_23(),  val_dofs,
+								D.div_qpts.layout.merge_34(), D.div_qpts);
+		}
+		
+		template <bool Add, typename vec_layout_t, typename AData_t>
+		static inline MFEM_ALWAYS_INLINE
+		void Assemble(const vec_layout_t &l, T_type &T, AData_t &D)
+		{
+			const AssignOp::Type Op = Add ? AssignOp::Add : AssignOp::Set;
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+			typename AData_t::val_dofs_t &val_dofs = D.val_dofs;
+#else
+			typename AData_t::val_dofs_t val_dofs;
+#endif
+			T.shapeEval.template CalcDivT<false>(
+				D.div_qpts.layout.merge_34(), D.div_qpts,
+				val_dofs.layout.merge_23(), val_dofs);
+			T.fespace.template VectorAssemble<Op>(
+				val_dofs.layout, val_dofs, l, T.data_out);
+		}
+		
+#ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
+		template <typename AData_t>
+		static inline MFEM_ALWAYS_INLINE
+		void EvalSerialized(T_type &T, const complex_t *loc_dofs, AData_t &D)
+		{
+			T.shapeEval.CalcDiv(AData_t::val_dofs_t::layout.merge_23(), loc_dofs,
+								 D.div_qpts.layout.merge_34(), D.div_qpts);
+		}
+		
+		template <bool Add, typename AData_t>
+		static inline MFEM_ALWAYS_INLINE
+		void AssembleSerialized(T_type &T, const AData_t &D, complex_t *loc_dofs)
+		{
+			T.shapeEval.template CalcDivT<Add>(
+				D.div_qpts.layout.merge_34(), D.div_qpts,
+				AData_t::val_dofs_t::layout.merge_23(), loc_dofs);
+		}
+#endif
+	};
+	
+	template <bool dummy> struct Action<3,dummy> // 3 = Values+Div
+	{
+		template <typename vec_layout_t, typename AData_t>
+		static inline MFEM_ALWAYS_INLINE
+		void Eval(const vec_layout_t &l, T_type &T, AData_t &D)
+		{
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+			typename AData_t::val_dofs_t &val_dofs = D.val_dofs;
+#else
+			typename AData_t::val_dofs_t val_dofs;
+#endif
+			T.fespace.VectorExtract(l, T.data_in, val_dofs.layout, val_dofs);
+			T.shapeEval.Calc(val_dofs.layout.merge_23(), val_dofs,
+							 D.val_qpts.layout.merge_34(), D.val_qpts);
+			T.shapeEval.CalcDiv(val_dofs.layout.merge_23(),  val_dofs,
+								D.div_qpts.layout.merge_34(), D.div_qpts);
+		}
+		
+		template <bool Add, typename vec_layout_t, typename AData_t>
+		static inline MFEM_ALWAYS_INLINE
+		void Assemble(const vec_layout_t &l, T_type &T, AData_t &D)
+		{
+			const AssignOp::Type Op = Add ? AssignOp::Add : AssignOp::Set;
+#ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
+			typename AData_t::val_dofs_t &val_dofs = D.val_dofs;
+#else
+			typename AData_t::val_dofs_t val_dofs;
+#endif
+			T.shapeEval.template CalcT<false>(
+				D.val_qpts.layout.merge_34(), D.val_qpts,
+				val_dofs.layout.merge_23(), val_dofs);
+			T.shapeEval.template CalcCurlT<true>(
+				D.div_qpts.layout.merge_34(), D.div_qpts,
+				val_dofs.layout.merge_23(),  val_dofs);
+			T.fespace.template VectorAssemble<Op>(
+				val_dofs.layout, val_dofs, l, T.data_out);
+		}
+		
+#ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
+		template <typename AData_t>
+		static inline MFEM_ALWAYS_INLINE
+		void EvalSerialized(T_type &T, const complex_t *loc_dofs, AData_t &D)
+		{
+			T.shapeEval.Calc(AData_t::val_dofs_t::layout.merge_23(), loc_dofs,
+							 D.val_qpts.layout.merge_34(), D.val_qpts);
+			T.shapeEval.CalcDiv(AData_t::val_dofs_t::layout.merge_23(), loc_dofs,
+								D.div_qpts.layout.merge_34(), D.div_qpts);
+		}
+		
+		template <bool Add, typename AData_t>
+		static inline MFEM_ALWAYS_INLINE
+		void AssembleSerialized(T_type &T, const AData_t &D, complex_t *loc_dofs)
+		{
+			T.shapeEval.template CalcT<Add>(
+				D.val_qpts.layout.merge_23(), D.val_qpts,
+				AData_t::val_dofs_t::layout.merge_34(), loc_dofs);
+			T.shapeEval.template CalcDivT<true>(
+				D.curl_qpts.layout.merge_34(), D.curl_qpts,
+				AData_t::val_dofs_t::layout.merge_23(), loc_dofs);
+		}
+#endif
+	};
+	
+	// This struct implements element matrix computation for some combinations
+	// of input (InOps) and output (OutOps) operations.
+	template <int InOps, int OutOps, int NE> struct TElementMatrix;
+	
+	template <int NE> struct TElementMatrix<1,1,NE> // 1,1 = Values,Values
+	{
+		// qpt_layout_t is (nip x dim x dim), M_layout_t is (dof x dof)
+		// NE = 1 is assumed
+		template <typename qpt_layout_t, typename qpt_data_t,
+				  typename M_layout_t, typename M_data_t>
+		static inline MFEM_ALWAYS_INLINE
+		void Compute(const qpt_layout_t &a, const qpt_data_t &A,
+					 const M_layout_t &m, M_data_t &M, ShapeEval_type &ev)
+		{
+			ev.Assemble(a.template split_3< dim,1>(), A,
+						m.template split_2<dofs,1>(), M);
+		}
+	};
+	
+	template <int NE> struct TElementMatrix<2,2,NE> // 2,2 = Div,Div
+	{
+		// qpt_layout_t is (nip x dimc x dimc), M_layout_t is (dof x dof)
+		// NE = 1 is assumed
+		template <typename qpt_layout_t, typename qpt_data_t,
+				  typename M_layout_t, typename M_data_t>
+		static inline MFEM_ALWAYS_INLINE
+		void Compute(const qpt_layout_t &a, const qpt_data_t &A,
+					 const M_layout_t &m, M_data_t &M, ShapeEval_type &ev)
+		{
+			ev.AssembleDivDiv(a.template split_1<qpts,1>(), A,
+							  m.template split_2<dofs,1>(), M);
+		}
+	};
+	
+	template <typename kernel_t, int NE> struct Spec
+	{
+		static const int InData =
+            Values*kernel_t::in_values + Divs*kernel_t::in_divs;
+		static const int OutData =
+            Values*kernel_t::out_values + Divs*kernel_t::out_divs;
+		
+		typedef BData<InData,OutData,NE>          DataType;
+		typedef TElementMatrix<InData,OutData,NE> ElementMatrix;
+	};
+};
+
 } // namespace mfem
 
 #endif // MFEM_TEMPLATE_EVALUATOR

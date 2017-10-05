@@ -114,7 +114,6 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    }
 
    A->Mult(w, z);
-
    b -= z;
 
    for (int i = 0; i < constraint_list.Size(); i++)

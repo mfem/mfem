@@ -14,24 +14,19 @@ MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/performance/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
+TEST_MK = $(MFEM_DIR)/config/test.mk
 # Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
+# MFEM_DIR = ../../mfem
+# CONFIG_MK = $(MFEM_DIR)/config.mk
+# TEST_MK = $(MFEM_DIR)/test.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-# Distinguish x86 from PowerPC systems
-MFEM_MACHINE ?= $(shell uname -m)
-
 # Compiler specific optimizations.
 # For best performance, GCC 5 (or newer) is recommended.
 ifneq (,$(findstring $(MFEM_CXX),g++ mpicxx))
-   ifeq ($(MFEM_MACHINE),x86_64)
-      MFEM_CXXFLAGS += -march=native
-   else ifneq (,$(findstring ppc64,$(MFEM_MACHINE)))
-      MFEM_CXXFLAGS += -mcpu=native -mtune=native
-   endif
+   MFEM_CXXFLAGS += -march=native
    # MFEM_CXXFLAGS += -std=c++03
    MFEM_CXXFLAGS += -std=c++11
    MFEM_CXXFLAGS += -pedantic -Wall
@@ -53,7 +48,7 @@ ifeq ($(MFEM_CXX),clang++)
    MFEM_CXXFLAGS += -ffp-contract=fast
 endif
 
-SEQ_MINIAPPS = ex1
+SEQ_MINIAPPS = ex1 ex3 ex4
 PAR_MINIAPPS = ex1p
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -75,12 +70,11 @@ endif
 all: $(MINIAPPS)
 
 MFEM_TESTS = MINIAPPS
-include $(MFEM_TEST_MK)
+include $(TEST_MK)
 
 # Testing: Parallel vs. serial runs
-RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 %-test-par: %
-	@$(call mfem-test,$<, $(RUN_MPI), Performance miniapp)
+	@$(call mfem-test,$<, mpirun -np 4, Performance miniapp)
 %-test-seq: %
 	@$(call mfem-test,$<,, Performance miniapp)
 
@@ -93,7 +87,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ ex1 ex1p
+	rm -f *.o *~ ex1 ex1p ex3 ex3p ex4 ex4p
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

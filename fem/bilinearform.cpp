@@ -27,9 +27,19 @@ void BilinearForm::AllocMat()
       return;
    }
 
-   const Table &elem_dof = fes->GetElementToDofTable();
+   Table elem_dof(fes->GetElementToDofTable());
    Table dof_dof;
 
+   int* elemJ = elem_dof.GetJ();
+   for (int i = 0; i < elem_dof.Size(); i++)
+   {
+	   for (int j = elem_dof.GetI()[i]; j < elem_dof.GetI()[i+1]; j++)
+	   {
+		   int Jval = elemJ[j];
+		   if (Jval<0) {elemJ[j] = -1 - Jval;}
+	   }
+   }
+   
    if (fbfi.Size() > 0)
    {
       // the sparsity pattern is defined from the map: face->element->dof
@@ -49,7 +59,6 @@ void BilinearForm::AllocMat()
       Transpose(elem_dof, dof_elem, height);
       mfem::Mult(dof_elem, elem_dof, dof_dof);
    }
-
    dof_dof.SortRows();
 
    int *I = dof_dof.GetI();

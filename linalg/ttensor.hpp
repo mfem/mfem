@@ -329,6 +329,25 @@ struct TMatrix : public TVector<N1*N2,data_t,align>
    {
       return TAdjDet<data_t>(layout, data, layout, adj.data);
    }
+   
+   void Print(std::ostream &out = std::cout)
+   {
+	   // save current output flags
+	   std::ios::fmtflags old_flags = out.flags();
+	   // output flags = scientific + show sign
+	   out << std::setiosflags(std::ios::scientific | std::ios::showpos);
+	   for (int i = 0; i < N1; i++)
+	   {
+		   //out << "[row " << i << "]\n";
+		   for (int j = 0; j < N2; j++)
+		   {
+			   out << (*this)(i,j)<<" ";
+		   }
+		   out << '\n';
+	   }
+	   // reset output flags to original values
+	   out.flags(old_flags);
+   }
 };
 
 template <int N1, int N2, typename data_t, bool align>
