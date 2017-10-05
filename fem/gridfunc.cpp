@@ -1307,12 +1307,12 @@ void GridFunction::ProjectCoefficientSkeletonDG(Coefficient &coeff)
    {
       ftr = mesh->GetFaceElementTransformations(i);
       Mi.AssembleFaceMatrix(*fes->GetFaceElement(i),
-                              *ftr, local_mtx); 
+                            *ftr, local_mtx);
       MiRHS.AssembleRHSElementVect(*fes->GetFaceElement(i),
-                                    *ftr, local_rhs);
+                                   *ftr, local_rhs);
       fes->GetFaceVDofs(i, vdofs);
       vals.SetSize(vdofs.Size());
-         
+
       local_mtx.Invert();
       local_mtx.Mult(local_rhs, vals);
       SetSubVector(vdofs, vals);
@@ -2105,7 +2105,7 @@ double GridFunction::ComputeW11Error(
 /* HDG */
 /// To compute \| mean(u) - mean(u_h) \|_p
 double GridFunction::ComputeMeanLpError(const double p, Coefficient &exsol,
-                                    const IntegrationRule *irs[]) const
+                                        const IntegrationRule *irs[]) const
 {
    double error = 0.0;
    double err, local_error, local_size ;
@@ -2137,11 +2137,11 @@ double GridFunction::ComputeMeanLpError(const double p, Coefficient &exsol,
          local_error += ip.weight * T->Weight() * err;
          local_size += ip.weight * T->Weight();
       }
-      
+
       if (p < numeric_limits<double>::infinity())
       {
          err = pow(fabs(local_error), p) / pow(local_size, p-1.);
-         error += err; 
+         error += err;
       }
       else
       {
@@ -2162,7 +2162,7 @@ double GridFunction::ComputeMeanLpError(const double p, Coefficient &exsol,
          error = pow(error, 1./p);
       }
    }
-   
+
    return error;
 }
 

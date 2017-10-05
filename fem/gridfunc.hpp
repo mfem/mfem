@@ -181,7 +181,7 @@ public:
 
    /* HDG */
    void ProjectCoefficientSkeletonDG(Coefficient &coeff);
-   
+
    virtual void ProjectCoefficient(Coefficient &coeff);
 
    // call fes -> BuildDofToArrays() before using this projection

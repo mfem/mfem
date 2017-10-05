@@ -15,20 +15,20 @@
 // Description:  This example code demonstrates the use of MFEM to define a
 //               finite element discretization of the advection-reaction problem
 //               mu u + a.grad(u) = f with inhomogeneous Dirichlet boundary conditions.
-//               Specifically, we discretize using a HDG space of the 
+//               Specifically, we discretize using a HDG space of the
 //               specified order.
 //
 // The weak form is: seek (u,ubar) such that for all (v, vbar)
 //
 // \mu (u,v)   + (v, a.grad(u) - < 1, [zeta a.n u v] >  + < ubar, [zeta a.n v] > = (f, w)
-// < ubar, [zeta a.n v] >  + 
+// < ubar, [zeta a.n v] >  +
 //       < 1, [zeta a.n ubar vbar] > + < 1, [(1-zeta) a.n ubar vbar >_{\Gamma_N} = < g, vbar >
 //
 // where (.,.) is the d-dimensional L2 product, <.,.> is the d-1 dimensional L2 product,
 // zeta = 1 for inflow boundaries, and 0 otherwise.
 //
 // The discretization is based on the paper:
-// 
+//
 // G. N. Wells, Analysis of an interface stabilized finite element method: the advection-diffusion-reaction equation, SIAM J. Numer. Anal., 2011, 49:1, 87--109.
 //
 // Contributed by: T. Horvath, S. Rhebergen, A. Sivas
@@ -66,23 +66,23 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
-      "Mesh file to use.");
+                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
-      "Finite element order (polynomial degree > 1).");
+                  "Finite element order (polynomial degree > 1).");
    args.AddOption(&initial_ref_levels, "-r", "--refine",
-      "Number of times to refine the mesh uniformly for the initial calculation.");
+                  "Number of times to refine the mesh uniformly for the initial calculation.");
    args.AddOption(&total_ref_levels, "-tr", "--refine",
-      "Number of times to refine the mesh uniformly.");
+                  "Number of times to refine the mesh uniformly.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-      "--no-visualization",
-      "Enable or disable GLVis visualization.");
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.AddOption(&save, "-save", "--save-files", "-no-save",
-      "--no-save-files",
-      "Enable or disable file saving.");
+                  "--no-save-files",
+                  "Enable or disable file saving.");
    args.AddOption(&memA, "-memA", "--memoryA",
-      "Storage of A.");
+                  "Storage of A.");
    args.AddOption(&memB, "-memB", "--memoryB",
-      "Storage of B.");
+                  "Storage of B.");
    args.Parse();
    if (!args.Good())
    {
@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
- 
+
    if (order < 1)
    {
       cout << "Polynomial order should be > 0. Changing to order 1.";
@@ -100,27 +100,32 @@ int main(int argc, char *argv[])
    // memA, memB \in [0,1], memB <= memA
    if (memB > memA)
    {
-      std::cout << "memB cannot be more than memA. Resetting to be equal" << std::endl << std::flush;
+      std::cout << "memB cannot be more than memA. Resetting to be equal" << std::endl
+                << std::flush;
       memA = memB;
    }
    if (memA > 1.0)
    {
-      std::cout << "memA cannot be more than 1. Resetting to 1" << std::endl << std::flush;
+      std::cout << "memA cannot be more than 1. Resetting to 1" << std::endl <<
+                std::flush;
       memA = 1.0;
    }
    else if (memA < 0.0)
    {
-      std::cout << "memA cannot be less than 0. Resetting to 0." << std::endl << std::flush;
+      std::cout << "memA cannot be less than 0. Resetting to 0." << std::endl <<
+                std::flush;
       memA = 0.0;
    }
    if (memB > 1.0)
    {
-      std::cout << "memB cannot be more than 1. Resetting to 1" << std::endl << std::flush;
+      std::cout << "memB cannot be more than 1. Resetting to 1" << std::endl <<
+                std::flush;
       memB = 1.0;
    }
    else if (memB < 0.0)
    {
-      std::cout << "memB cannot be less than 0. Resetting to 0." << std::endl << std::flush;
+      std::cout << "memB cannot be less than 0. Resetting to 0." << std::endl <<
+                std::flush;
       memB = 0.0;
    }
 
@@ -128,8 +133,10 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
 
-   for(int ii=0;ii<initial_ref_levels; ii++)
+   for (int ii=0; ii<initial_ref_levels; ii++)
+   {
       mesh->UniformRefinement();
+   }
 
    // 3. Define the vectors that will contain the errors and the iteration count at every refinement level
    Vector l2errors(total_ref_levels);
@@ -179,7 +186,8 @@ int main(int argc, char *argv[])
    // side of the linear system, which in this case is <g, bar_phi_i>_{Gamma_N} and
    // bar_phi_i are the basis functions in the finite element Uhbar_space.
    LinearForm *gform(new LinearForm);
-   gform->AddSktBoundaryNeumannIntegrator(new HDGInflowLFIntegrator(ucoeff, advection));
+   gform->AddSktBoundaryNeumannIntegrator(new HDGInflowLFIntegrator(ucoeff,
+                                                                    advection));
 
    // Set up the bilinear form for the whole system. HDGBilinearForm2 can compute
    // the Schur complement locally for a 2x2 problem.
@@ -202,18 +210,18 @@ int main(int argc, char *argv[])
       std::cout << "dim(Uh) = " << dimUh << "\n";
       std::cout << "dim(Uhbar) = " << dimUhbar << "\n";
       std::cout << "***********************************************************\n";
-     
+
       Vector rhs_F(dimUh);
       Vector rhs_G(dimUhbar);
       Vector UBAR(dimUhbar);
-     
+
       // 8. Assemble the RHS and the bilinear forms
       fform->Update(Uh_space, rhs_F, 0);
       fform->Assemble(); // This is a vector
-     
+
       gform->Update(Uhbar_space, rhs_G, 0);
       gform->Assemble(); // This is a vector
-     
+
       // Compute and Finalize the Schur complement
       AVarf->AssembleSC(rhs_F, memA, memB);
       AVarf->Finalize();
@@ -225,7 +233,7 @@ int main(int argc, char *argv[])
       // AVarf->VectorSC() provides -C*A^{-1} F, but the RHS for the
       // Schur complement is  G - C*A^{-1} F
       *rhs_SC += rhs_G;
-     
+
       // 9. Solve the Schur complement system
       const int maxIter(1000);
       const double rtol(1.e-15);
@@ -244,29 +252,29 @@ int main(int argc, char *argv[])
       chrono.Start();
       solver.Mult(*rhs_SC, UBAR);
       chrono.Stop();
-     
+
       if (solver.GetConverged())
          std::cout << "Iterative method converged in "
-            << solver.GetNumIterations()
-            << " iterations with a residual norm of "
-            << solver.GetFinalNorm() << ".\n";
+                   << solver.GetNumIterations()
+                   << " iterations with a residual norm of "
+                   << solver.GetFinalNorm() << ".\n";
       else
          std::cout << "Iterative method did not converge in "
-            << solver.GetNumIterations()
-            << " iterations. Residual norm is "
-            << solver.GetFinalNorm() << ".\n";
-     
+                   << solver.GetNumIterations()
+                   << " iterations. Residual norm is "
+                   << solver.GetFinalNorm() << ".\n";
+
       std::cout << "Iterative method solver took "
-         << chrono.RealTime() << "s. \n";
+                << chrono.RealTime() << "s. \n";
       iterativeMethodIts[ref_levels] = solver.GetNumIterations();
-     
+
       // Delete the SC matrix to save memory
       SC = NULL;
 
       // 10. Reconstruction
       // Create a grid function from the solution to the linear system
       ubar = GridFunction(Uhbar_space, UBAR);
-     
+
       // Create a gridfunction from the right hand side.
       // It is mostly important for the parallel code,
       // here it is done this way to make the 2 codes more similar
@@ -284,7 +292,8 @@ int main(int argc, char *argv[])
       }
 
       const double err_u  = u.ComputeL2Error(ucoeff, irs);
-      l2errors(ref_levels) = fabs(err_u); // fabs() to avoid negative values that ComputeL2Error can create
+      l2errors(ref_levels) = fabs(
+                                err_u); // fabs() to avoid negative values that ComputeL2Error can create
 
       // 12. Save the mesh and the solution.
       if (save)
@@ -292,16 +301,16 @@ int main(int argc, char *argv[])
          ofstream mesh_ofs("refined.mesh");
          mesh_ofs.precision(8);
          mesh->Print(mesh_ofs);
-         
+
          ofstream u_ofs("sol_u.gf");
          u_ofs.precision(8);
          u.Save(u_ofs);
-         
+
          ofstream ubar_ofs("sol_lambda.gf");
          ubar_ofs.precision(8);
          ubar.Save(ubar_ofs);
       }
-     
+
       // 13. Send the solution by socket to a GLVis server.
       if (visualization)
       {
@@ -311,18 +320,18 @@ int main(int argc, char *argv[])
          u_sock.precision(8);
          u_sock << "solution\n" << *mesh << u << flush;
       }
-        
+
       // 14. Refine the mesh to increase the resolution and update the spaces and the forms.
       mesh->UniformRefinement();
-     
+
       Uh_space->Update(0);
       Uhbar_space->Update(0);
-     
+
       AVarf->Update();
-     
+
       u.Update();
       ubar.Update();
-     
+
    }
 
    // 15. Print the results and compute the rates
@@ -334,20 +343,20 @@ int main(int argc, char *argv[])
       if (ref_levels == 0)
       {
          std::cout << "  " << ref_levels << "   "
-            << std::setprecision(2) << std::scientific
-            << l2errors(ref_levels)
-            << "  " << "-    " << "    "
-            << iterativeMethodIts[ref_levels] << std::endl;
+                   << std::setprecision(2) << std::scientific
+                   << l2errors(ref_levels)
+                   << "  " << "-    " << "    "
+                   << iterativeMethodIts[ref_levels] << std::endl;
       }
       else
       {
          const double order = log(l2errors(ref_levels)/l2errors(ref_levels-1))/log(0.5);
          std::cout << "  " << ref_levels << "   "
-            << std::setprecision(2) << std::scientific
-            << l2errors(ref_levels)
-            << "  " << std::setprecision(4) << std::fixed
-            << order << "   "
-            << iterativeMethodIts[ref_levels] << std::endl;
+                   << std::setprecision(2) << std::scientific
+                   << l2errors(ref_levels)
+                   << "  " << std::setprecision(4) << std::fixed
+                   << order << "   "
+                   << iterativeMethodIts[ref_levels] << std::endl;
       }
    }
    std::cout << "\n\n";
@@ -400,10 +409,10 @@ double f_rhs(const Vector &x)
    {
       const double uu = 1.0 + sin(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+yy));
       const double dudx = 0.125 * M_PI * (1.0+yy) * (1.0+yy)
-        * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+yy));
+                          * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+yy));
       const double dudy =  0.25 * M_PI * (1.0+xx) * (1.0+yy)
-        * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+yy));
-     
+                           * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+yy));
+
       rhs = mu * uu + ax * dudx + ay * dudy;
    }
 
@@ -413,14 +422,14 @@ double f_rhs(const Vector &x)
       const double zz = x(2);
       const double uu = 1.0 + sin(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
       const double dudx = 0.125 * M_PI * (1.0+yy) * (1.0+zz)
-        * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
-        
+                          * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
+
       const double dudy = 0.125 * M_PI * (1.0+xx) * (1.0+zz)
-        * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
-     
+                          * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
+
       const double dudz = 0.125 * M_PI * (1.0+xx) * (1.0+yy)
-        * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
-   
+                          * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
+
       rhs = mu * uu + ax * dudx + ay * dudy + az * dudz;
    }
 

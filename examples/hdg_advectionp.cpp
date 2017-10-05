@@ -13,7 +13,7 @@
 // Description:  This example code demonstrates the use of MFEM to define a
 //               finite element discretization of the advection-reaction problem
 //               mu u + a.grad(u) = f with inhomogeneous Dirichlet boundary conditions.
-//               Specifically, we discretize using a HDG space of the 
+//               Specifically, we discretize using a HDG space of the
 //               specified order.
 //
 // The weak form is: seek (u,ubar) such that for all (v, vbar)
@@ -25,7 +25,7 @@
 // where (.,.) is the d-dimensional L2 product, <.,.> is the d-1 dimensional L2 product.
 //
 // The discretization is based on the paper:
-// 
+//
 // G. N. Wells, Analysis of an interface stabilized finite element method: the advection-diffusion-reaction equation, SIAM J. Numer. Anal., 2011, 49:1, 87--109.
 //
 // Contributed by: T. Horvath, S. Rhebergen, A. Sivas
@@ -55,10 +55,10 @@ int main(int argc, char *argv[])
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-   
+
    double assemblyTime, solveTime, reconstructTime;
    double GassemblyTime, GsolveTime, GreconstructTime;
-   
+
    // 2. Parse command-line options.
    const char *mesh_file = "../data/inline-tri.mesh";
    int order          = 1;
@@ -74,28 +74,28 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
-      "Mesh file to use.");
+                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
-      "Finite element order (polynomial degree > 1).");
+                  "Finite element order (polynomial degree > 1).");
    args.AddOption(&initial_ref_levels, "-r", "--refine",
-      "Number of times to refine the mesh uniformly for the initial calculation.");
+                  "Number of times to refine the mesh uniformly for the initial calculation.");
    args.AddOption(&total_ref_levels, "-tr", "--refine",
-      "Number of times to refine the mesh uniformly.");
+                  "Number of times to refine the mesh uniformly.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-      "--no-visualization",
-      "Enable or disable GLVis visualization.");
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.AddOption(&save, "-save", "--save-files", "-no-save",
-      "--no-save-files",
-      "Enable or disable file saving.");
+                  "--no-save-files",
+                  "Enable or disable file saving.");
    args.AddOption(&memA, "-memA", "--memoryA",
-      "Storage of A.");
+                  "Storage of A.");
    args.AddOption(&memB, "-memB", "--memoryB",
-      "Storage of B.");
+                  "Storage of B.");
    args.AddOption(&petsc, "-petsc", "--use-petsc",
-      "-no-petsc", "--no-use-petsc",
-      "Enable or disable SC solver.");
+                  "-no-petsc", "--no-use-petsc",
+                  "Enable or disable SC solver.");
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
-      "PetscOptions file to use.");
+                  "PetscOptions file to use.");
    args.Parse();
    if (!args.Good())
    {
@@ -119,7 +119,8 @@ int main(int argc, char *argv[])
 #ifndef MFEM_USE_PETSC
    if (petsc)
    {
-      std::cout << "MFEM does not use PETSc. Change the solver to hypre" << std::endl << std::flush;
+      std::cout << "MFEM does not use PETSc. Change the solver to hypre" << std::endl
+                << std::flush;
       petsc = false;
    }
 #endif
@@ -132,36 +133,43 @@ int main(int argc, char *argv[])
 
    if (memB > memA)
    {
-      std::cout << "memB cannot be more than memA. Resetting to be equal" << std::endl << std::flush;
+      std::cout << "memB cannot be more than memA. Resetting to be equal" << std::endl
+                << std::flush;
       memA = memB;
    }
    if (memA > 1.0)
    {
-      std::cout << "memA cannot be more than 1. Resetting to 1" << std::endl << std::flush;
+      std::cout << "memA cannot be more than 1. Resetting to 1" << std::endl <<
+                std::flush;
       memA = 1.0;
    }
    else if (memA < 0.0)
    {
-      std::cout << "memA cannot be less than 0. Resetting to 0." << std::endl << std::flush;
+      std::cout << "memA cannot be less than 0. Resetting to 0." << std::endl <<
+                std::flush;
       memA = 0.0;
    }
    if (memB > 1.0)
    {
-      std::cout << "memB cannot be more than 1. Resetting to 1" << std::endl << std::flush;
+      std::cout << "memB cannot be more than 1. Resetting to 1" << std::endl <<
+                std::flush;
       memB = 1.0;
    }
    else if (memB < 0.0)
    {
-      std::cout << "memB cannot be less than 0. Resetting to 0." << std::endl << std::flush;
+      std::cout << "memB cannot be less than 0. Resetting to 0." << std::endl <<
+                std::flush;
       memB = 0.0;
    }
-   
+
    // 3. Read the mesh from the given mesh file. Refine it up to the initial_ref_levels.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
 
-   for(int ii=0;ii<initial_ref_levels; ii++)
+   for (int ii=0; ii<initial_ref_levels; ii++)
+   {
       mesh->UniformRefinement();
+   }
 
    // Define a parallel mesh. The serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -186,7 +194,8 @@ int main(int argc, char *argv[])
    FiniteElementCollection *Uhbar_fec(new DG_Interface_FECollection(order, dim));
 
    ParFiniteElementSpace *Uh_space   = new ParFiniteElementSpace(pmesh, Uh_fec);
-   ParFiniteElementSpace *Uhbar_space = new ParFiniteElementSpace(pmesh, Uhbar_fec);
+   ParFiniteElementSpace *Uhbar_space = new ParFiniteElementSpace(pmesh,
+                                                                  Uhbar_fec);
 
    // 6. Define the coefficients
    FunctionCoefficient fcoeff(f_rhs);
@@ -210,7 +219,8 @@ int main(int argc, char *argv[])
    // bar_phi_i are the basis functions in the finite element Uhbar_space.
 
    ParLinearForm *gform = new ParLinearForm(Uhbar_space);
-   gform->AddSktBoundaryNeumannIntegrator(new HDGInflowLFIntegrator(ucoeff, advection));
+   gform->AddSktBoundaryNeumannIntegrator(new HDGInflowLFIntegrator(ucoeff,
+                                                                    advection));
 
    // We apply static condensation to the system
    //
@@ -245,11 +255,11 @@ int main(int argc, char *argv[])
 
       if (verbose)
       {
-            std::cout << "****************************************************\n";
-            std::cout << "dim(Uh)      = " << dimUh << "\n";
-            std::cout << "dim(Uhbar)   = " << dimUhbar << "\n";
-            std::cout << "dim(Uh+Uhbar) = " << dimUh + dimUhbar << "\n";
-            std::cout << "****************************************************\n";
+         std::cout << "****************************************************\n";
+         std::cout << "dim(Uh)      = " << dimUh << "\n";
+         std::cout << "dim(Uhbar)   = " << dimUhbar << "\n";
+         std::cout << "dim(Uh+Uhbar) = " << dimUh + dimUhbar << "\n";
+         std::cout << "****************************************************\n";
       }
 
       ubar = 0.0;
@@ -317,11 +327,12 @@ int main(int argc, char *argv[])
          {
             if (petsc_solver->GetConverged())
                std::cout << "Solver converged in " << petsc_solver->GetNumIterations()
-                  << " iterations with a residual norm of " << petsc_solver->GetFinalNorm() << ".\n";
+                         << " iterations with a residual norm of " << petsc_solver->GetFinalNorm() <<
+                         ".\n";
             else
                std::cout << "Solver did not converge in " << petsc_solver->GetNumIterations()
-                  << " iterations. Residual norm is " << petsc_solver->GetFinalNorm() << ".\n";
-            
+                         << " iterations. Residual norm is " << petsc_solver->GetFinalNorm() << ".\n";
+
             std::cout << "Solver solver took " << chrono.RealTime() << "s. \n";
          }
          delete petsc_solver;
@@ -347,7 +358,7 @@ int main(int argc, char *argv[])
          if (verbose)
          {
             std::cout << "\nIterative method converged in "
-                  << numIterations << ".\n";
+                      << numIterations << ".\n";
 
             iterativeMethodIts[ref_levels] = numIterations;
             std::cout << "Iterative solver took " << chrono.RealTime() << "s. \n";
@@ -375,10 +386,12 @@ int main(int argc, char *argv[])
       }
 
       const double err_u  = u.ComputeL2Error(ucoeff, irs);
-      if (verbose){
+      if (verbose)
+      {
          std::cout << "\nL2 error " << err_u << ".\n";
       }
-      l2errors(ref_levels) = fabs(err_u); // fabs() to avoid negative values that ComputeL2Error can create
+      l2errors(ref_levels) = fabs(
+                                err_u); // fabs() to avoid negative values that ComputeL2Error can create
 
       // 14. Save the mesh and the solution.
       if (save)
@@ -406,7 +419,7 @@ int main(int argc, char *argv[])
          u_sock << "parallel " << num_procs << " " << myid << "\n";
          u_sock.precision(8);
          u_sock << "solution\n" << *pmesh << u << "window_title 'Velocity'"
-                     << endl;
+                << endl;
          // Make sure all ranks have sent their 'u' solution before initiating
          // another set of GLVis connections (one from each rank):
          MPI_Barrier(pmesh->GetComm());
@@ -422,11 +435,12 @@ int main(int argc, char *argv[])
 
       u.Update();
       ubar.Update();
-      MPI_Reduce(&assemblyTime,&GassemblyTime,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);      
-      MPI_Reduce(&solveTime,&GsolveTime,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);      
-      MPI_Reduce(&reconstructTime,&GreconstructTime,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);      
+      MPI_Reduce(&assemblyTime,&GassemblyTime,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+      MPI_Reduce(&solveTime,&GsolveTime,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+      MPI_Reduce(&reconstructTime,&GreconstructTime,1,MPI_DOUBLE,MPI_MAX,0,
+                 MPI_COMM_WORLD);
 
-      if(verbose)
+      if (verbose)
       {
          printf("\t Assembly time   = %.2f\n",GassemblyTime);
          printf("\t Solve time      = %.2f\n",GsolveTime);
@@ -445,21 +459,21 @@ int main(int argc, char *argv[])
          if (ref_levels == 0)
          {
             std::cout << "  " << ref_levels << "   "
-               << std::setprecision(2) << std::scientific
-               << l2errors(ref_levels)
-               << "  " << "-    " << "    "
-               << iterativeMethodIts[ref_levels] << std::endl;
+                      << std::setprecision(2) << std::scientific
+                      << l2errors(ref_levels)
+                      << "  " << "-    " << "    "
+                      << iterativeMethodIts[ref_levels] << std::endl;
          }
          else
          {
             const double order = log(l2errors(ref_levels)/l2errors(ref_levels-1))
-               /log(0.5);
+                                 /log(0.5);
             std::cout << "  " << ref_levels << "   "
-               << std::setprecision(2) << std::scientific
-               << l2errors(ref_levels)
-               << "  " << std::setprecision(4) << std::fixed
-               << order << "   "
-               << iterativeMethodIts[ref_levels] << std::endl;
+                      << std::setprecision(2) << std::scientific
+                      << l2errors(ref_levels)
+                      << "  " << std::setprecision(4) << std::fixed
+                      << order << "   "
+                      << iterativeMethodIts[ref_levels] << std::endl;
          }
       }
       std::cout << "\n\n";
@@ -480,7 +494,7 @@ int main(int argc, char *argv[])
    PetscFinalize();
 #endif
    MPI_Finalize();
-  
+
    return 0;
 }
 //---------------------------------------------------------------------
@@ -517,9 +531,9 @@ double f_rhs(const Vector &x)
    {
       const double uu = 1.0 + sin(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+yy));
       const double dudx = 0.125 * M_PI * (1.0+yy) * (1.0+yy)
-         * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+yy));
+                          * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+yy));
       const double dudy =  0.25 * M_PI * (1.0+xx) * (1.0+yy)
-         * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+yy));
+                           * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+yy));
 
       rhs = mu * uu + ax * dudx + ay * dudy;
    }
@@ -530,13 +544,13 @@ double f_rhs(const Vector &x)
       const double zz = x(2);
       const double uu = 1.0 + sin(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
       const double dudx = 0.125 * M_PI * (1.0+yy) * (1.0+zz)
-         * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
+                          * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
 
       const double dudy = 0.125 * M_PI * (1.0+xx) * (1.0+zz)
-         * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
+                          * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
 
       const double dudz = 0.125 * M_PI * (1.0+xx) * (1.0+yy)
-         * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
+                          * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
 
       rhs = mu * uu + ax * dudx + ay * dudy + az * dudz;
    }

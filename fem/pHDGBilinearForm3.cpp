@@ -25,7 +25,7 @@ void ParHDGBilinearForm3::AssembleSC(const ParGridFunction *R,
    // ExchangeFaceNbrData to be able to use shared faces
    pfes1->ExchangeFaceNbrData();
 
-   // Allocate the matrices and the RHS vectors on every processor. 
+   // Allocate the matrices and the RHS vectors on every processor.
    // Also, compute the el_to_face and Edge_to_be tables
    HDGBilinearForm3::Allocate(bdr_attr_is_ess, memA, memB);
 
@@ -34,7 +34,7 @@ void ParHDGBilinearForm3::AssembleSC(const ParGridFunction *R,
 }
 
 /* Parallel Assembly of the Schur complement. Similar to the serial one,
- * but it computes the integrals over shared faces using the necessary 
+ * but it computes the integrals over shared faces using the necessary
  * communication between the processors
  */
 void ParHDGBilinearForm3::ParallelAssemble(const ParGridFunction *R,
@@ -56,8 +56,8 @@ void ParHDGBilinearForm3::ParallelAssemble(const ParGridFunction *R,
    int nsharedfaces = pmesh->GetNSharedFaces();
    int nedge = Edge_to_Be.Size();
 
-   // Create an array to identify the shared faces. The entry is -1 
-   // if the face is not shared, otherwise, is gives the number of 
+   // Create an array to identify the shared faces. The entry is -1
+   // if the face is not shared, otherwise, is gives the number of
    // the face in the shared face list, so that GetSharedFaceTransformation
    // can be used.
    Array<int> Edge_to_SharedEdge;
@@ -70,7 +70,7 @@ void ParHDGBilinearForm3::ParallelAssemble(const ParGridFunction *R,
 
    double *A_local_data, *B_local_data;
 
-   for(int i=0; i< pfes1->GetNE(); i++)
+   for (int i=0; i< pfes1->GetNE(); i++)
    {
       pfes1 -> GetElementVDofs (i, vdofs_q);
       ndof_q  = vdofs_q.Size();
@@ -92,17 +92,21 @@ void ParHDGBilinearForm3::ParallelAssemble(const ParGridFunction *R,
       DenseMatrix D_local[no_faces];
       Vector L_local;
 
-      // Get the right hand side vectors and merge them into one, 
+      // Get the right hand side vectors and merge them into one,
       // so it has the same size as A_local
       R->GetSubVector(vdofs_q, R_local);
       F->GetSubVector(vdofs_u, F_local);
       RF_local.SetSize(ndof_q + ndof_u);
-      for(int ii = 0; ii<ndof_q; ii++)
+      for (int ii = 0; ii<ndof_q; ii++)
+      {
          RF_local(ii) = R_local(ii);
-      for(int ii = 0; ii<ndof_u; ii++)
+      }
+      for (int ii = 0; ii<ndof_u; ii++)
+      {
          RF_local(ii+ndof_q) = F_local(ii);
+      }
 
-      for(int edge1=0; edge1<no_faces; edge1++)
+      for (int edge1=0; edge1<no_faces; edge1++)
       {
          fes3 -> GetFaceVDofs(fcs[edge1], vdofs_e1);
          ndof_e1 = vdofs_e1.Size();
@@ -119,13 +123,14 @@ void ParHDGBilinearForm3::ParallelAssemble(const ParGridFunction *R,
          if ( Edge_to_SharedEdge[fcs[edge1]] == -1 )
          {
             HDGBilinearForm3::compute_face_integrals(i, fcs[edge1],
-                              Edge_to_Be[fcs[edge1]], false,
-                              &A_local, &B_local[edge1], &C_local[edge1], &D_local[edge1]);
+                                                     Edge_to_Be[fcs[edge1]], false,
+                                                     &A_local, &B_local[edge1], &C_local[edge1], &D_local[edge1]);
          }
          else
          {
-            compute_face_integrals_shared(i, fcs[edge1], Edge_to_SharedEdge[fcs[edge1]], false,
-                              &A_local, &B_local[edge1], &C_local[edge1], &D_local[edge1]);
+            compute_face_integrals_shared(i, fcs[edge1], Edge_to_SharedEdge[fcs[edge1]],
+                                          false,
+                                          &A_local, &B_local[edge1], &C_local[edge1], &D_local[edge1]);
          }
       }
 
@@ -138,27 +143,31 @@ void ParHDGBilinearForm3::ParallelAssemble(const ParGridFunction *R,
       {
          A_local_data = A_local.GetData();
 
-         for(int j = 0; j<((ndof_u+ndof_q)*(ndof_u+ndof_q)); j++)
+         for (int j = 0; j<((ndof_u+ndof_q)*(ndof_u+ndof_q)); j++)
+         {
             A_data[A_offsets[i] + j] = A_local_data[j];
+         }
       }
 
       if (i<elements_B)
       {
          int size_B_copied = 0;
-         for(int edge1=0; edge1<no_faces; edge1++)
+         for (int edge1=0; edge1<no_faces; edge1++)
          {
             B_local_data = B_local[edge1].GetData();
             fes3->GetFaceVDofs(fcs[edge1], vdofs_e1);
 
-            for(int j = 0; j<((ndof_u+ndof_q)*(vdofs_e1.Size())); j++)
-            B_data[B_offsets[i] + size_B_copied + j] = B_local_data[j];
+            for (int j = 0; j<((ndof_u+ndof_q)*(vdofs_e1.Size())); j++)
+            {
+               B_data[B_offsets[i] + size_B_copied + j] = B_local_data[j];
+            }
 
             size_B_copied += (ndof_u+ndof_q)*(vdofs_e1.Size());
          }
       }
 
       // Eliminate the boundary conditions
-      for(int edge1=0; edge1<no_faces; edge1++)
+      for (int edge1=0; edge1<no_faces; edge1++)
       {
          pfes3 -> GetFaceVDofs(fcs[edge1], vdofs_e1);
          ndof_e1 = vdofs_e1.Size();
@@ -167,19 +176,19 @@ void ParHDGBilinearForm3::ParallelAssemble(const ParGridFunction *R,
          L_local = 0.0;
 
          Eliminate_BC(vdofs_e1, ndof_u, ndof_q, sol, &RF_local,
-               &L_local, &B_local[edge1], &C_local[edge1], &D_local[edge1]);
+                      &L_local, &B_local[edge1], &C_local[edge1], &D_local[edge1]);
 
          rhs_SC->AddElementVector(vdofs_e1, 1.0, L_local);
 
       }
-      
+
       AinvRF.SetSize(ndof_q + ndof_u);
-      
+
       // Compute -A^{-1}*F_local
       A_local.Mult(RF_local, AinvRF);
 
       // Loop over all the possible face pairs
-      for(int edge1=0; edge1<fcs.Size(); edge1++)
+      for (int edge1=0; edge1<fcs.Size(); edge1++)
       {
          // Get the unknowns belonging to the edge
          pfes3 -> GetFaceVDofs(fcs[edge1], vdofs_e1);
@@ -196,7 +205,7 @@ void ParHDGBilinearForm3::ParallelAssemble(const ParGridFunction *R,
          AC_local.SetSize(ndof_e1, ndof_q+ndof_u);
          Mult(C_local[edge1], A_local, AC_local);
 
-         for(int edge2=0; edge2<fcs.Size(); edge2++)
+         for (int edge2=0; edge2<fcs.Size(); edge2++)
          {
             // Get the unknowns belonging to the edge
             pfes3 -> GetFaceVDofs(fcs[edge2], vdofs_e2);
@@ -241,15 +250,15 @@ void ParHDGBilinearForm3::compute_face_integrals_shared(const int elem,
    // is needed. Over a shared face every processor uses the element it owns
    // as element 1
    hdg_bbfi[0]->AssembleFaceMatrixOneElement2and1FES(testq_fe1, testq_fe2,
-                  testu_fe1, testu_fe2, trial_face_fe,
-                  *tr, 1, is_reconstruction, elemmat1, elemmat2, elemmat3, elemmat4);
+                                                     testu_fe1, testu_fe2, trial_face_fe,
+                                                     *tr, 1, is_reconstruction, elemmat1, elemmat2, elemmat3, elemmat4);
 
    // Add the face matrices to the local matrices
    A_local->Add(1.0, elemmat1);
    B_local->Add(1.0, elemmat2);
-   
+
    // C and D are not necessary for recontruction, only when setting up
-   // the Schur complement  
+   // the Schur complement
    if (!is_reconstruction)
    {
       C_local->Add(1.0, elemmat3);
@@ -257,8 +266,8 @@ void ParHDGBilinearForm3::compute_face_integrals_shared(const int elem,
    }
 }
 
-void ParHDGBilinearForm3::Eliminate_BC(const Array<int> &vdofs_e1, 
-                                       const int ndof_u, const int ndof_q, 
+void ParHDGBilinearForm3::Eliminate_BC(const Array<int> &vdofs_e1,
+                                       const int ndof_u, const int ndof_q,
                                        const ParGridFunction &sol,
                                        Vector *rhs_RF, Vector *rhs_L,
                                        DenseMatrix *B_local, DenseMatrix *C_local, DenseMatrix *D_local)
@@ -268,12 +277,12 @@ void ParHDGBilinearForm3::Eliminate_BC(const Array<int> &vdofs_e1,
 
    // First we set the BC on the rhs vector for the unknowns on the boundary
    // and eliminate the rows and columns of D
-   for(int j = 0; j < ndof_e1; j++) // j is the column
+   for (int j = 0; j < ndof_e1; j++) // j is the column
    {
       if (ess_dofs[vdofs_e1[j]] < 0)
       {
          (*rhs_L)(j) += sol(vdofs_e1[j]);
-         for(int i = 0; i < ndof_e1; i++)
+         for (int i = 0; i < ndof_e1; i++)
          {
             (*D_local)(j,i) = (i == j);
             (*D_local)(i,j) = (i == j);
@@ -285,18 +294,20 @@ void ParHDGBilinearForm3::Eliminate_BC(const Array<int> &vdofs_e1,
    // From the rhs we have to modify only the values
    // which do not belong to a boundary unknown,
    // since those values or the RHS are already set.
-   for(int j = 0; j < ndof_e1; j++) // j is the column
+   for (int j = 0; j < ndof_e1; j++) // j is the column
    {
       if (ess_dofs[vdofs_e1[j]] < 0)
       {
          solution = sol(vdofs_e1[j]);
-         for(int i = 0; i < ndof_e1; i++)
+         for (int i = 0; i < ndof_e1; i++)
          {
             if (!(ess_dofs[vdofs_e1[i]] < 0))
+            {
                (*rhs_L)(i) -= solution * (*D_local)(i,j);
+            }
          }
 
-         for(int i = 0; i < (ndof_q+ndof_u); i++)
+         for (int i = 0; i < (ndof_q+ndof_u); i++)
          {
             (*rhs_RF)(i) -= solution * (*B_local)(i,j);
             (*B_local)(i,j) = 0.0;
@@ -307,13 +318,15 @@ void ParHDGBilinearForm3::Eliminate_BC(const Array<int> &vdofs_e1,
 }
 
 // Reconstruct u and q from the facet solution
-void ParHDGBilinearForm3::Reconstruct(const ParGridFunction *R, const ParGridFunction *F,
+void ParHDGBilinearForm3::Reconstruct(const ParGridFunction *R,
+                                      const ParGridFunction *F,
                                       ParGridFunction *ubar,
                                       ParGridFunction *q, ParGridFunction *u)
 {
    ParMesh *pmesh = pfes1 -> GetParMesh();
    DenseMatrix A_local;
-   Vector q_local, u_local, qu_local, R_local, F_local, RF_local, ubar_local, Bubar_local;
+   Vector q_local, u_local, qu_local, R_local, F_local, RF_local, ubar_local,
+          Bubar_local;
 
    Array<int> fcs;
 
@@ -332,7 +345,7 @@ void ParHDGBilinearForm3::Reconstruct(const ParGridFunction *R, const ParGridFun
       Edge_to_SharedEdge[pmesh->GetSharedFace(i)] = i;
    }
 
-   for(int i=0; i< pfes1->GetNE(); i++)
+   for (int i=0; i< pfes1->GetNE(); i++)
    {
       pfes1 -> GetElementVDofs (i, vdofs_q);
       ndof_q  = vdofs_q.Size();
@@ -345,7 +358,9 @@ void ParHDGBilinearForm3::Reconstruct(const ParGridFunction *R, const ParGridFun
       A_local.SetSize(ndof_q + ndof_u, ndof_q+ndof_u);
       A_local = 0.0;
       if (i>=elements_A)
+      {
          HDGBilinearForm3::compute_domain_integrals(i, &A_local);
+      }
 
       // Get the element faces
       el_to_face->GetRow(i, fcs);
@@ -363,16 +378,20 @@ void ParHDGBilinearForm3::Reconstruct(const ParGridFunction *R, const ParGridFun
       F->GetSubVector(vdofs_u, F_local);
 
       RF_local.SetSize(ndof_q + ndof_u);
-      for(int ii = 0; ii<ndof_q; ii++)
+      for (int ii = 0; ii<ndof_q; ii++)
+      {
          RF_local(ii) = R_local(ii);
-      for(int ii = 0; ii<ndof_u; ii++)
+      }
+      for (int ii = 0; ii<ndof_u; ii++)
+      {
          RF_local(ii+ndof_q) = F_local(ii);
+      }
 
       Bubar_local.SetSize(ndof_q+ndof_u);
 
       int B_values_read = 0;
 
-      for(int edge1=0; edge1<no_faces; edge1++)
+      for (int edge1=0; edge1<no_faces; edge1++)
       {
          fes3 -> GetFaceVDofs(fcs[edge1], vdofs_e1);
          ndof_e1 = vdofs_e1.Size();
@@ -383,24 +402,26 @@ void ParHDGBilinearForm3::Reconstruct(const ParGridFunction *R, const ParGridFun
          // otherwise load the matrices
          if (i>=elements_B)
          {
-         if ( Edge_to_SharedEdge[fcs[edge1]] == -1 )
-         {
-            HDGBilinearForm3::compute_face_integrals(i, fcs[edge1], Edge_to_Be[fcs[edge1]], true,
-                  &A_local, &B_local[edge1], &dummy_DM, &dummy_DM);
+            if ( Edge_to_SharedEdge[fcs[edge1]] == -1 )
+            {
+               HDGBilinearForm3::compute_face_integrals(i, fcs[edge1], Edge_to_Be[fcs[edge1]],
+                                                        true,
+                                                        &A_local, &B_local[edge1], &dummy_DM, &dummy_DM);
+            }
+            else
+            {
+               compute_face_integrals_shared(i, fcs[edge1], Edge_to_SharedEdge[fcs[edge1]],
+                                             true,
+                                             &A_local, &B_local[edge1], &dummy_DM, &dummy_DM);
+            }
          }
-         else
+         else if (i < elements_B)
          {
-            compute_face_integrals_shared(i, fcs[edge1], Edge_to_SharedEdge[fcs[edge1]], true,
-                  &A_local, &B_local[edge1], &dummy_DM, &dummy_DM);
-         }
-         }
-         else
-         if (i < elements_B)
-         {
-            for(int row = 0; row < ndof_e1; row++)
-               for(int col = 0; col < (ndof_q+ndof_u); col++)
+            for (int row = 0; row < ndof_e1; row++)
+               for (int col = 0; col < (ndof_q+ndof_u); col++)
                {
-                  (B_local[edge1])(col,row) = B_data[B_offsets[i] + B_values_read + row*(ndof_q+ndof_u) + col];
+                  (B_local[edge1])(col,row) = B_data[B_offsets[i] + B_values_read + row*
+                                                     (ndof_q+ndof_u) + col];
                }
 
             B_values_read += (ndof_q+ndof_u)*ndof_e1;
@@ -426,8 +447,8 @@ void ParHDGBilinearForm3::Reconstruct(const ParGridFunction *R, const ParGridFun
       }
       else
       {
-         for(int row = 0; row < (ndof_q+ndof_u); row++)
-            for(int col = 0; col < (ndof_q+ndof_u); col++)
+         for (int row = 0; row < (ndof_q+ndof_u); row++)
+            for (int col = 0; col < (ndof_q+ndof_u); col++)
             {
                A_local(col,row) = A_data[A_offsets[i] + row*(ndof_q+ndof_u) + col];
             }
@@ -443,10 +464,14 @@ void ParHDGBilinearForm3::Reconstruct(const ParGridFunction *R, const ParGridFun
 
       A_local.Mult(RF_local, qu_local);
 
-      for(int ii = 0; ii<ndof_q; ii++)
+      for (int ii = 0; ii<ndof_q; ii++)
+      {
          q_local(ii) = qu_local(ii);
-      for(int ii = 0; ii<ndof_u; ii++)
+      }
+      for (int ii = 0; ii<ndof_u; ii++)
+      {
          u_local(ii) = qu_local(ii+ndof_q);
+      }
 
       q->SetSubVector(vdofs_q, q_local);
       u->SetSubVector(vdofs_u, u_local);
@@ -480,11 +505,12 @@ HypreParMatrix *ParHDGBilinearForm3::ParallelAssembleSC(SparseMatrix *m)
       }
    }
 
-   HypreParMatrix *A = new HypreParMatrix(pfes3->GetComm(), lvsize, pfes3->GlobalVSize(),
+   HypreParMatrix *A = new HypreParMatrix(pfes3->GetComm(), lvsize,
+                                          pfes3->GlobalVSize(),
                                           pfes3->GlobalVSize(), m->GetI(), glob_J,
                                           m->GetData(), pfes3->GetDofOffsets(),
                                           pfes3->GetDofOffsets());
-   
+
    HypreParMatrix *rap = RAP(A, pfes3->Dof_TrueDof_Matrix());
 
    delete A;
@@ -501,7 +527,8 @@ HypreParVector *ParHDGBilinearForm3::ParallelVectorSC()
    return tv;
 }
 
-void ParHDGBilinearForm3::Update(FiniteElementSpace *nfes1, FiniteElementSpace *nfes2, FiniteElementSpace *nfes3)
+void ParHDGBilinearForm3::Update(FiniteElementSpace *nfes1,
+                                 FiniteElementSpace *nfes2, FiniteElementSpace *nfes3)
 {
    HDGBilinearForm3::Update(nfes1, nfes2, nfes3);
 }

@@ -75,12 +75,13 @@ protected:
    const IntegrationRule *IntRule;
 
 public:
-   HDGPostProcessing(FiniteElementSpace *f, GridFunction &_q, GridFunction &_u, Coefficient &_diffcoeff)
+   HDGPostProcessing(FiniteElementSpace *f, GridFunction &_q, GridFunction &_u,
+                     Coefficient &_diffcoeff)
       : q(&_q), u(&_u), fes(f), diffcoeff(&_diffcoeff) {IntRule = NULL; }
 
    void Postprocessing(GridFunction &u_postprocessed) ;
 };
-   
+
 int main(int argc, char *argv[])
 {
    StopWatch chrono;
@@ -98,26 +99,26 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
-              "Mesh file to use.");
+                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
-              "Finite element order (polynomial degree).");
+                  "Finite element order (polynomial degree).");
    args.AddOption(&initial_ref_levels, "-r", "--refine",
-              "Number of times to refine the mesh uniformly for the initial calculation.");
+                  "Number of times to refine the mesh uniformly for the initial calculation.");
    args.AddOption(&total_ref_levels, "-tr", "--totalrefine",
-              "Number of times to refine the mesh uniformly to get the convergence rates.");
+                  "Number of times to refine the mesh uniformly to get the convergence rates.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-              "--no-visualization",
-              "Enable or disable GLVis visualization.");
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.AddOption(&post, "-post", "--postprocessing",
-              "-no-post", "--no-postprocessing",
-              "Enable or disable postprocessing.");
+                  "-no-post", "--no-postprocessing",
+                  "Enable or disable postprocessing.");
    args.AddOption(&save, "-save", "--save-files", "-no-save",
-              "--no-save-files",
-              "Enable or disable file saving.");
+                  "--no-save-files",
+                  "Enable or disable file saving.");
    args.AddOption(&memA, "-memA", "--memoryA",
-              "Storage of A.");
+                  "Storage of A.");
    args.AddOption(&memB, "-memB", "--memoryB",
-              "Storage of B.");
+                  "Storage of B.");
 
    args.Parse();
    if (!args.Good())
@@ -130,39 +131,47 @@ int main(int argc, char *argv[])
    // memA, memB \in [0,1], memB <= memA
    if (memB > memA)
    {
-      std::cout << "memB cannot be more than memA. Resetting to be equal" << std::endl << std::flush;
+      std::cout << "memB cannot be more than memA. Resetting to be equal" << std::endl
+                << std::flush;
       memA = memB;
    }
    if (memA > 1.0)
    {
-      std::cout << "memA cannot be more than 1. Resetting to 1" << std::endl << std::flush;
+      std::cout << "memA cannot be more than 1. Resetting to 1" << std::endl <<
+                std::flush;
       memA = 1.0;
    }
    else if (memA < 0.0)
    {
-      std::cout << "memA cannot be less than 0. Resetting to 0." << std::endl << std::flush;
+      std::cout << "memA cannot be less than 0. Resetting to 0." << std::endl <<
+                std::flush;
       memA = 0.0;
    }
    if (memB > 1.0)
    {
-      std::cout << "memB cannot be more than 1. Resetting to 1" << std::endl << std::flush;
+      std::cout << "memB cannot be more than 1. Resetting to 1" << std::endl <<
+                std::flush;
       memB = 1.0;
    }
    else if (memB < 0.0)
    {
-      std::cout << "memB cannot be less than 0. Resetting to 0." << std::endl << std::flush;
+      std::cout << "memB cannot be less than 0. Resetting to 0." << std::endl <<
+                std::flush;
       memB = 0.0;
    }
 
    // 2. Read the mesh from the given mesh file. Refine it up to the initial_ref_levels.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-   
-   for(int ii=0;ii<initial_ref_levels; ii++)
+
+   for (int ii=0; ii<initial_ref_levels; ii++)
+   {
       mesh->UniformRefinement();
-   
+   }
+
    // 3. Vectors for the different discretization errors
-   Vector u_l2errors(total_ref_levels), q_l2errors(total_ref_levels), mean_l2errors(total_ref_levels), u_star_l2errors(total_ref_levels);
+   Vector u_l2errors(total_ref_levels), q_l2errors(total_ref_levels),
+          mean_l2errors(total_ref_levels), u_star_l2errors(total_ref_levels);
 
    // 4. Define a finite element collections and spaces on the mesh.
    FiniteElementCollection *dg_coll(new DG_FECollection(order, dim));
@@ -175,7 +184,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace *V_space = new FiniteElementSpace(mesh, dg_coll, dim);
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, dg_coll);
    FiniteElementSpace *M_space = new FiniteElementSpace(mesh, face);
-   
+
    // 5. Define the coefficients, the exact solutions, the right hand side and the diffusion coefficient along with the diffusion penalty parameter.
    FunctionCoefficient fcoeff(fFun);
 
@@ -185,7 +194,7 @@ int main(int argc, char *argv[])
    diff = 1.;
    ConstantCoefficient diffusion(diff); // diffusion constant
    double tau_D = 5.0;
-   
+
    // 6. Define the different forms and gridfunctions.
    HDGBilinearForm3 *AVarf(new HDGBilinearForm3(V_space, W_space, M_space));
    AVarf->AddHDGDomainIntegrator(new HDGDomainIntegratorDiffusion(diffusion));
@@ -197,7 +206,8 @@ int main(int argc, char *argv[])
    LinearForm *fform(new LinearForm);
    fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
 
-   for (int ref_levels = initial_ref_levels; ref_levels < (initial_ref_levels + total_ref_levels); ref_levels++)
+   for (int ref_levels = initial_ref_levels;
+        ref_levels < (initial_ref_levels + total_ref_levels); ref_levels++)
    {
       // 7. Compute the problem size and define the right hand side vectors
       int dimV = V_space->GetVSize();
@@ -259,10 +269,11 @@ int main(int argc, char *argv[])
 
       if (solver.GetConverged())
          std::cout << "Iterative method converged in " << solver.GetNumIterations()
-               << " iterations with a residual norm of " << solver.GetFinalNorm() << ".\n";
+                   << " iterations with a residual norm of " << solver.GetFinalNorm() << ".\n";
       else
-         std::cout << "Iterative method did not converge in " << solver.GetNumIterations()
-               << " iterations. Residual norm is " << solver.GetFinalNorm() << ".\n";
+         std::cout << "Iterative method did not converge in " <<
+                   solver.GetNumIterations()
+                   << " iterations. Residual norm is " << solver.GetFinalNorm() << ".\n";
       std::cout << "Iterative method solver took " << chrono.RealTime() << "s. \n";
 
       // Delete the SC matrix to save memory
@@ -325,11 +336,13 @@ int main(int argc, char *argv[])
          int  visport   = 19916;
          socketstream u_sock(vishost, visport);
          u_sock.precision(8);
-         u_sock << "solution\n" << *mesh << u_variable << "window_title 'Solution u'" << endl;
+         u_sock << "solution\n" << *mesh << u_variable << "window_title 'Solution u'" <<
+                endl;
 
          socketstream q_sock(vishost, visport);
          q_sock.precision(8);
-         q_sock << "solution\n" << *mesh << q_variable << "window_title 'Solution q'" << endl;
+         q_sock << "solution\n" << *mesh << q_variable << "window_title 'Solution q'" <<
+                endl;
       }
 
       // 15. Postprocessing
@@ -340,7 +353,8 @@ int main(int argc, char *argv[])
 
          GridFunction u_post(Vstar_space);
 
-         HDGPostProcessing *hdgpost(new HDGPostProcessing(Vstar_space, q_variable, u_variable, diffusion));
+         HDGPostProcessing *hdgpost(new HDGPostProcessing(Vstar_space, q_variable,
+                                                          u_variable, diffusion));
 
          hdgpost->Postprocessing(u_post);
 
@@ -368,7 +382,8 @@ int main(int argc, char *argv[])
             int  visport   = 19916;
             socketstream u_star_sock(vishost, visport);
             u_star_sock.precision(8);
-            u_star_sock << "solution\n" << *mesh << u_post << "window_title 'Solution u_star'" << endl;
+            u_star_sock << "solution\n" << *mesh << u_post <<
+                        "window_title 'Solution u_star'" << endl;
          }
       }
 
@@ -387,37 +402,44 @@ int main(int argc, char *argv[])
 
    // 17. Print the results
    std::cout << "\n\n-----------------------\n";
-   std::cout << "level  u_l2errors  order   q_l2errors  order   mean_l2errors  order u_star_l2errors   order\n";
+   std::cout <<
+             "level  u_l2errors  order   q_l2errors  order   mean_l2errors  order u_star_l2errors   order\n";
    std::cout << "-----------------------\n";
    for (int ref_levels = 0; ref_levels < total_ref_levels; ref_levels++)
    {
       if (ref_levels == 0)
       {
          std::cout << "  " << ref_levels << "    "
-           << std::setprecision(2) << std::scientific << u_l2errors(ref_levels)
-           << "   " << " -       "
-                << std::setprecision(2) << std::scientific << q_l2errors(ref_levels)
-           << "    " << " -       "
-                << std::setprecision(2) << std::scientific << mean_l2errors(ref_levels)
-           << "    " << " -       "
-                << std::setprecision(2) << std::scientific << u_star_l2errors(ref_levels)
-           << "    " << " -       " << std::endl;
+                   << std::setprecision(2) << std::scientific << u_l2errors(ref_levels)
+                   << "   " << " -       "
+                   << std::setprecision(2) << std::scientific << q_l2errors(ref_levels)
+                   << "    " << " -       "
+                   << std::setprecision(2) << std::scientific << mean_l2errors(ref_levels)
+                   << "    " << " -       "
+                   << std::setprecision(2) << std::scientific << u_star_l2errors(ref_levels)
+                   << "    " << " -       " << std::endl;
       }
       else
       {
-      double u_order     = log(u_l2errors(ref_levels)/u_l2errors(ref_levels-1))/log(0.5);
-        double q_order     = log(q_l2errors(ref_levels)/q_l2errors(ref_levels-1))/log(0.5);
-        double mean_order   = log(mean_l2errors(ref_levels)/mean_l2errors(ref_levels-1))/log(0.5);
-        double u_star_order = log(u_star_l2errors(ref_levels)/u_star_l2errors(ref_levels-1))/log(0.5);
-      std::cout << "  " << ref_levels << "    "
-          << std::setprecision(2) << std::scientific << u_l2errors(ref_levels)
-          << "  " << std::setprecision(4) << std::fixed << u_order
-          << "    " << std::setprecision(2) << std::scientific << q_l2errors(ref_levels)
-          << "   " << std::setprecision(4) << std::fixed << q_order
-          << "    " << std::setprecision(2) << std::scientific << mean_l2errors(ref_levels)
-          << "   " << std::setprecision(4) << std::fixed << mean_order
-          << "    " << std::setprecision(2) << std::scientific << u_star_l2errors(ref_levels)
-          << "   " << std::setprecision(4) << std::fixed << u_star_order << std::endl;
+         double u_order     = log(u_l2errors(ref_levels)/u_l2errors(ref_levels-1))/log(
+                                 0.5);
+         double q_order     = log(q_l2errors(ref_levels)/q_l2errors(ref_levels-1))/log(
+                                 0.5);
+         double mean_order   = log(mean_l2errors(ref_levels)/mean_l2errors(
+                                      ref_levels-1))/log(0.5);
+         double u_star_order = log(u_star_l2errors(ref_levels)/u_star_l2errors(
+                                      ref_levels-1))/log(0.5);
+         std::cout << "  " << ref_levels << "    "
+                   << std::setprecision(2) << std::scientific << u_l2errors(ref_levels)
+                   << "  " << std::setprecision(4) << std::fixed << u_order
+                   << "    " << std::setprecision(2) << std::scientific << q_l2errors(ref_levels)
+                   << "   " << std::setprecision(4) << std::fixed << q_order
+                   << "    " << std::setprecision(2) << std::scientific << mean_l2errors(
+                      ref_levels)
+                   << "   " << std::setprecision(4) << std::fixed << mean_order
+                   << "    " << std::setprecision(2) << std::scientific << u_star_l2errors(
+                      ref_levels)
+                   << "   " << std::setprecision(4) << std::fixed << u_star_order << std::endl;
       }
    }
    std::cout << "\n\n";
@@ -433,7 +455,7 @@ int main(int argc, char *argv[])
    delete face;
 
    std::cout << "Done." << std::endl ;
-   
+
    return 0;
 }
 
@@ -480,7 +502,8 @@ void qFun_ex(const Vector & x, Vector & q)
       case 3:
       {
          double zi(x(2));
-         q(0) = -diff*1.0 - diff*2.0*M_PI*cos(2.0*M_PI*xi)*sin(2.0*M_PI*yi)*sin(2.0*M_PI*zi);
+         q(0) = -diff*1.0 - diff*2.0*M_PI*cos(2.0*M_PI*xi)*sin(2.0*M_PI*yi)*sin(
+                   2.0*M_PI*zi);
          q(1) =  0.0 - diff*2.0*M_PI*sin(2.0*M_PI*xi)*cos(2.0*M_PI*yi)*sin(2.0*M_PI*zi);
          q(2) =  0.0 - diff*2.0*M_PI*sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi)*cos(2.0*M_PI*zi);
          break;

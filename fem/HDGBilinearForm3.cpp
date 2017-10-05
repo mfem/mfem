@@ -11,7 +11,8 @@
 namespace mfem
 {
 
-HDGBilinearForm3::HDGBilinearForm3 (FiniteElementSpace * f1, FiniteElementSpace * f2, FiniteElementSpace * f3)
+HDGBilinearForm3::HDGBilinearForm3 (FiniteElementSpace * f1,
+                                    FiniteElementSpace * f2, FiniteElementSpace * f3)
 {
    fes1 = f1;
    fes2 = f2;
@@ -23,7 +24,7 @@ HDGBilinearForm3::HDGBilinearForm3 (FiniteElementSpace * f1, FiniteElementSpace 
    A_data = NULL; B_data = NULL;
    elements_A = elements_B = 0;
 }
- 
+
 
 double& HDGBilinearForm3::Elem (int i, int j)
 {
@@ -37,7 +38,7 @@ const double& HDGBilinearForm3::Elem (int i, int j) const
 
 void HDGBilinearForm3::Finalize (int skip_zeros)
 {
-    mat->Finalize(skip_zeros);
+   mat->Finalize(skip_zeros);
 }
 
 void HDGBilinearForm3::AddHDGDomainIntegrator(BilinearFormIntegrator * bfi)
@@ -49,7 +50,8 @@ void HDGBilinearForm3::AddHDGBdrIntegrator(BilinearFormIntegrator * bfi)
    hdg_bbfi.Append (bfi);
 }
 
-void HDGBilinearForm3::Update(FiniteElementSpace *nfes1, FiniteElementSpace *nfes2, FiniteElementSpace *nfes3)
+void HDGBilinearForm3::Update(FiniteElementSpace *nfes1,
+                              FiniteElementSpace *nfes2, FiniteElementSpace *nfes3)
 {
    if (nfes1)
    {
@@ -93,7 +95,8 @@ HDGBilinearForm3::~HDGBilinearForm3()
  * el_to_faces has number of element rows and the i-th row contains the faces of the i-th element
  * elements_A and elements_B are the number of elements on which A and B are stored, respectively
  */
-void HDGBilinearForm3::Allocate(Array<int> &bdr_attr_is_ess, const double memA, const double memB)
+void HDGBilinearForm3::Allocate(Array<int> &bdr_attr_is_ess, const double memA,
+                                const double memB)
 {
    Mesh *mesh = fes1 -> GetMesh();
    mesh->GetEdgeToBdrFace(Edge_to_Be);
@@ -127,7 +130,7 @@ void HDGBilinearForm3::Allocate(Array<int> &bdr_attr_is_ess, const double memA, 
    int ndof_q, ndof_u;
 
    // loop over the elements to find the offset entries
-   for(int i=0; i< fes1->GetNE(); i++)
+   for (int i=0; i< fes1->GetNE(); i++)
    {
       // Get the local number of dof for q and u
       fes1 -> GetElementVDofs (i, vdofs_q);
@@ -143,7 +146,7 @@ void HDGBilinearForm3::Allocate(Array<int> &bdr_attr_is_ess, const double memA, 
          A_offsets[i+1] = A_offsets[i] + (ndof_q + ndof_u)*(ndof_q + ndof_u);
       }
 
-      // To find the next offset entry of B the local number of dofs 
+      // To find the next offset entry of B the local number of dofs
       // from the faces are needed
       el_to_face->GetRow(i, fcs);
       int no_faces = fcs.Size();
@@ -152,7 +155,7 @@ void HDGBilinearForm3::Allocate(Array<int> &bdr_attr_is_ess, const double memA, 
       // Sum up the face dofs for all faces
       if (i < elements_B)
       {
-         for(int edge1=0; edge1<no_faces; edge1++)
+         for (int edge1=0; edge1<no_faces; edge1++)
          {
             fes3->GetFaceVDofs(fcs[edge1], vdofs_e1);
             ndof_edge_all += vdofs_e1.Size();
@@ -195,7 +198,7 @@ void HDGBilinearForm3::AssembleSC(const Vector rhs_R, const Vector rhs_F,
 
    Allocate(bdr_attr_is_ess, memA, memB);
 
-   for(int i=0; i< fes1->GetNE(); i++)
+   for (int i=0; i< fes1->GetNE(); i++)
    {
       fes1 -> GetElementVDofs (i, vdofs_q);
       ndof_q  = vdofs_q.Size();
@@ -210,14 +213,14 @@ void HDGBilinearForm3::AssembleSC(const Vector rhs_R, const Vector rhs_F,
 
       // Get the element faces
       el_to_face->GetRow(i, fcs);
-      
+
       int no_faces = fcs.Size();
       DenseMatrix B_local[no_faces];
       DenseMatrix C_local[no_faces];
       DenseMatrix D_local[no_faces];
       Vector L_local;
 
-      for(int edge1=0; edge1<no_faces; edge1++)
+      for (int edge1=0; edge1<no_faces; edge1++)
       {
          fes3 -> GetFaceVDofs(fcs[edge1], vdofs_e1);
          ndof_e1 = vdofs_e1.Size();
@@ -244,20 +247,24 @@ void HDGBilinearForm3::AssembleSC(const Vector rhs_R, const Vector rhs_F,
       {
          A_local_data = A_local.GetData();
 
-         for(int j = 0; j<((ndof_u+ndof_q)*(ndof_u+ndof_q)); j++)
+         for (int j = 0; j<((ndof_u+ndof_q)*(ndof_u+ndof_q)); j++)
+         {
             A_data[A_offsets[i] + j] = A_local_data[j];
+         }
       }
 
       if (i<elements_B)
       {
          int size_B_copied = 0;
-         for(int edge1=0; edge1<no_faces; edge1++)
+         for (int edge1=0; edge1<no_faces; edge1++)
          {
             B_local_data = B_local[edge1].GetData();
             fes3->GetFaceVDofs(fcs[edge1], vdofs_e1);
 
-            for(int j = 0; j<((ndof_u+ndof_q)*(vdofs_e1.Size())); j++)
+            for (int j = 0; j<((ndof_u+ndof_q)*(vdofs_e1.Size())); j++)
+            {
                B_data[B_offsets[i] + size_B_copied + j] = B_local_data[j];
+            }
 
             size_B_copied += (ndof_u+ndof_q)*(vdofs_e1.Size());
          }
@@ -268,13 +275,17 @@ void HDGBilinearForm3::AssembleSC(const Vector rhs_R, const Vector rhs_F,
       rhs_R.GetSubVector(vdofs_q, R_local);
       rhs_F.GetSubVector(vdofs_u, F_local);
       RF_local.SetSize(ndof_q + ndof_u);
-      for(int ii = 0; ii<ndof_q; ii++)
-            RF_local(ii) = R_local(ii);
-      for(int ii = 0; ii<ndof_u; ii++)
-            RF_local(ii+ndof_q) = F_local(ii);
+      for (int ii = 0; ii<ndof_q; ii++)
+      {
+         RF_local(ii) = R_local(ii);
+      }
+      for (int ii = 0; ii<ndof_u; ii++)
+      {
+         RF_local(ii+ndof_q) = F_local(ii);
+      }
 
       // eliminate BC
-      for(int edge1=0; edge1<fcs.Size(); edge1++)
+      for (int edge1=0; edge1<fcs.Size(); edge1++)
       {
          fes3 -> GetFaceVDofs(fcs[edge1], vdofs_e1);
          ndof_e1 = vdofs_e1.Size();
@@ -282,8 +293,8 @@ void HDGBilinearForm3::AssembleSC(const Vector rhs_R, const Vector rhs_F,
          L_local.SetSize(ndof_e1);
          L_local = 0.0;
 
-         Eliminate_BC(vdofs_e1, 
-                      ndof_u, ndof_q, 
+         Eliminate_BC(vdofs_e1,
+                      ndof_u, ndof_q,
                       sol,
                       &RF_local, &L_local,
                       &B_local[edge1], &C_local[edge1], &D_local[edge1]);
@@ -295,7 +306,7 @@ void HDGBilinearForm3::AssembleSC(const Vector rhs_R, const Vector rhs_F,
       A_local.Mult(RF_local, AinvRF);
 
       // Loop over all the possible face pairs
-      for(int edge1=0; edge1<fcs.Size(); edge1++)
+      for (int edge1=0; edge1<fcs.Size(); edge1++)
       {
          // Get the unknowns belonging to the edge
          fes3 -> GetFaceVDofs(fcs[edge1], vdofs_e1);
@@ -312,7 +323,7 @@ void HDGBilinearForm3::AssembleSC(const Vector rhs_R, const Vector rhs_F,
          AC_local.SetSize(ndof_e1, ndof_q+ndof_u);
          Mult(C_local[edge1], A_local, AC_local);
 
-         for(int edge2=0; edge2<fcs.Size(); edge2++)
+         for (int edge2=0; edge2<fcs.Size(); edge2++)
          {
             // Get the unknowns belonging to the edge
             fes3 -> GetFaceVDofs(fcs[edge2], vdofs_e2);
@@ -331,7 +342,8 @@ void HDGBilinearForm3::AssembleSC(const Vector rhs_R, const Vector rhs_F,
 }
 
 // compute all the domain based integrals in one loop over the quadrature nodes
-void HDGBilinearForm3::compute_domain_integrals(const int elem, DenseMatrix *A_local)
+void HDGBilinearForm3::compute_domain_integrals(const int elem,
+                                                DenseMatrix *A_local)
 {
    // get the element transformation and the finite elements for the variables
    ElementTransformation *eltrans;
@@ -347,7 +359,7 @@ void HDGBilinearForm3::compute_domain_integrals(const int elem, DenseMatrix *A_l
 }
 
 // compute all the face based integrals in one loop over the quadrature nodes
-void HDGBilinearForm3::compute_face_integrals(const int elem, 
+void HDGBilinearForm3::compute_face_integrals(const int elem,
                                               const int edge,
                                               const int isboundary,
                                               const bool is_reconstruction,
@@ -375,14 +387,14 @@ void HDGBilinearForm3::compute_face_integrals(const int elem,
       if (tr->Elem2No == elem)
       {
          hdg_bbfi[0]->AssembleFaceMatrixOneElement2and1FES(testq_fe1, testq_fe2,
-                        testu_fe1, testu_fe2, trial_face_fe,
-                        *tr, 2, is_reconstruction, elemmat1, elemmat2, elemmat3, elemmat4);
+                                                           testu_fe1, testu_fe2, trial_face_fe,
+                                                           *tr, 2, is_reconstruction, elemmat1, elemmat2, elemmat3, elemmat4);
       }
       else
       {
          hdg_bbfi[0]->AssembleFaceMatrixOneElement2and1FES(testq_fe1, testq_fe2,
-                        testu_fe1, testu_fe2, trial_face_fe,
-                        *tr, 1, is_reconstruction, elemmat1, elemmat2, elemmat3, elemmat4);
+                                                           testu_fe1, testu_fe2, trial_face_fe,
+                                                           *tr, 1, is_reconstruction, elemmat1, elemmat2, elemmat3, elemmat4);
       }
 
       // D is not necessary for recontruction, only when setting up
@@ -393,7 +405,7 @@ void HDGBilinearForm3::compute_face_integrals(const int elem,
       // adjacent elements
       if (!is_reconstruction)
       {
-            D_local->Add(0.5, elemmat4);
+         D_local->Add(0.5, elemmat4);
       }
    }
    else
@@ -409,20 +421,20 @@ void HDGBilinearForm3::compute_face_integrals(const int elem,
 
       // compute the integrals
       hdg_bbfi[0]->AssembleFaceMatrixOneElement2and1FES(testq_fe1, testq_fe1,
-                     testu_fe1, testu_fe1, trial_face_fe,
-                     *tr, 1, is_reconstruction, elemmat1, elemmat2, elemmat3, elemmat4);
+                                                        testu_fe1, testu_fe1, trial_face_fe,
+                                                        *tr, 1, is_reconstruction, elemmat1, elemmat2, elemmat3, elemmat4);
       if (!is_reconstruction)
       {
-            D_local->Add(1., elemmat4);
+         D_local->Add(1., elemmat4);
       }
    }
 
    // Add the face matrices to the local matrices
    A_local->Add(1.0, elemmat1);
    B_local->Add(1.0, elemmat2);
-   
+
    // C is not necessary for recontruction, only when setting up
-   // the Schur complement  
+   // the Schur complement
    if (!is_reconstruction)
    {
       C_local->Add(1.0, elemmat3);
@@ -431,24 +443,24 @@ void HDGBilinearForm3::compute_face_integrals(const int elem,
 }
 
 // Eliminate boundary conditions
-void HDGBilinearForm3::Eliminate_BC(const Array<int> &vdofs_e1, 
+void HDGBilinearForm3::Eliminate_BC(const Array<int> &vdofs_e1,
                                     const int ndof_u, const int ndof_q,
-                                    const Vector &sol, 
+                                    const Vector &sol,
                                     Vector *rhs_RF, Vector *rhs_L,
                                     DenseMatrix *B_local, DenseMatrix *C_local, DenseMatrix *D_local)
 {
    int ndof_e1 = vdofs_e1.Size();
    double solution;
 
-   // First we set the BC on the rhs vector for 
+   // First we set the BC on the rhs vector for
    // the unknowns on the boundary
    // and eliminate the rows and columns of D
-   for(int j = 0; j < ndof_e1; j++) // j is the column
+   for (int j = 0; j < ndof_e1; j++) // j is the column
    {
       if (ess_dofs[vdofs_e1[j]] < 0)
       {
          (*rhs_L)(j) += sol(vdofs_e1[j]);
-         for(int i = 0; i < ndof_e1; i++)
+         for (int i = 0; i < ndof_e1; i++)
          {
             (*D_local)(j,i) = (i == j);
             (*D_local)(i,j) = (i == j);
@@ -460,18 +472,20 @@ void HDGBilinearForm3::Eliminate_BC(const Array<int> &vdofs_e1,
    // From the rhs we have to modify only the values which do not
    // belong to a boundary unknown,
    // since those values or the RHS are already set.
-   for(int j = 0; j < ndof_e1; j++) // j is the column
+   for (int j = 0; j < ndof_e1; j++) // j is the column
    {
       if (ess_dofs[vdofs_e1[j]] < 0)
       {
          solution = sol(vdofs_e1[j]);
-         for(int i = 0; i < ndof_e1; i++)
+         for (int i = 0; i < ndof_e1; i++)
          {
             if (!(ess_dofs[vdofs_e1[i]] < 0))
+            {
                (*rhs_L)(i) -= solution * (*D_local)(i,j);
+            }
          }
 
-         for(int i = 0; i < (ndof_q+ndof_u); i++)
+         for (int i = 0; i < (ndof_q+ndof_u); i++)
          {
             (*rhs_RF)(i) -= solution * (*B_local)(i,j);
             (*B_local)(i,j) = 0.0;
@@ -483,12 +497,13 @@ void HDGBilinearForm3::Eliminate_BC(const Array<int> &vdofs_e1,
 }
 
 // Reconstruct u and q from the facet solution
-void HDGBilinearForm3::Reconstruct(const GridFunction *R, const GridFunction *F, 
+void HDGBilinearForm3::Reconstruct(const GridFunction *R, const GridFunction *F,
                                    Vector &sol,
                                    GridFunction *q, GridFunction *u)
 {
    DenseMatrix A_local;
-   Vector q_local, u_local, qu_local, R_local, F_local, RF_local, ubar_local, Bubar_local;
+   Vector q_local, u_local, qu_local, R_local, F_local, RF_local, ubar_local,
+          Bubar_local;
 
    Array<int> fcs;
 
@@ -499,7 +514,7 @@ void HDGBilinearForm3::Reconstruct(const GridFunction *R, const GridFunction *F,
    dof_done.SetSize(fes3->GetVSize());
    dof_done = 0;
 
-   for(int i=0; i< fes1->GetNE(); i++)
+   for (int i=0; i< fes1->GetNE(); i++)
    {
       fes1 -> GetElementVDofs (i, vdofs_q);
       ndof_q  = vdofs_q.Size();
@@ -512,13 +527,15 @@ void HDGBilinearForm3::Reconstruct(const GridFunction *R, const GridFunction *F,
       A_local.SetSize(ndof_q + ndof_u, ndof_q+ndof_u);
       A_local = 0.0;
       if (i>=elements_A)
+      {
          compute_domain_integrals(i, &A_local);
+      }
 
       // Get the element faces
       el_to_face->GetRow(i, fcs);
-      
+
       int no_faces = fcs.Size();
-      
+
       DenseMatrix B_local[no_faces], dummy_DM;
 
       R_local.SetSize(ndof_q);
@@ -530,16 +547,20 @@ void HDGBilinearForm3::Reconstruct(const GridFunction *R, const GridFunction *F,
       F->GetSubVector(vdofs_u, F_local);
 
       RF_local.SetSize(ndof_q + ndof_u);
-      for(int ii = 0; ii<ndof_q; ii++)
+      for (int ii = 0; ii<ndof_q; ii++)
+      {
          RF_local(ii) = R_local(ii);
-      for(int ii = 0; ii<ndof_u; ii++)
+      }
+      for (int ii = 0; ii<ndof_u; ii++)
+      {
          RF_local(ii+ndof_q) = F_local(ii);
+      }
 
       Bubar_local.SetSize(ndof_q+ndof_u);
 
       int B_values_read = 0;
 
-      for(int edge1=0; edge1<no_faces; edge1++)
+      for (int edge1=0; edge1<no_faces; edge1++)
       {
          fes3 -> GetFaceVDofs(fcs[edge1], vdofs_e1);
          ndof_e1 = vdofs_e1.Size();
@@ -553,11 +574,12 @@ void HDGBilinearForm3::Reconstruct(const GridFunction *R, const GridFunction *F,
                                    &A_local, &B_local[edge1], &dummy_DM, &dummy_DM);
          else
          {
-         for(int row = 0; row < ndof_e1; row++)
-            for(int col = 0; col < (ndof_q+ndof_u); col++)
-            {
-               (B_local[edge1])(col,row) = B_data[B_offsets[i] + B_values_read + row*(ndof_q+ndof_u) + col];
-            }
+            for (int row = 0; row < ndof_e1; row++)
+               for (int col = 0; col < (ndof_q+ndof_u); col++)
+               {
+                  (B_local[edge1])(col,row) = B_data[B_offsets[i] + B_values_read + row*
+                                                     (ndof_q+ndof_u) + col];
+               }
 
             B_values_read += (ndof_q+ndof_u)*ndof_e1;
          }
@@ -582,8 +604,8 @@ void HDGBilinearForm3::Reconstruct(const GridFunction *R, const GridFunction *F,
       }
       else
       {
-         for(int row = 0; row < (ndof_q+ndof_u); row++)
-            for(int col = 0; col < (ndof_q+ndof_u); col++)
+         for (int row = 0; row < (ndof_q+ndof_u); row++)
+            for (int col = 0; col < (ndof_q+ndof_u); col++)
             {
                A_local(col,row) = A_data[A_offsets[i] + row*(ndof_q+ndof_u) + col];
             }
@@ -598,10 +620,14 @@ void HDGBilinearForm3::Reconstruct(const GridFunction *R, const GridFunction *F,
 
       A_local.Mult(RF_local, qu_local);
 
-      for(int ii = 0; ii<ndof_q; ii++)
+      for (int ii = 0; ii<ndof_q; ii++)
+      {
          q_local(ii) = qu_local(ii);
-      for(int ii = 0; ii<ndof_u; ii++)
+      }
+      for (int ii = 0; ii<ndof_u; ii++)
+      {
          u_local(ii) = qu_local(ii+ndof_q);
+      }
 
       q->SetSubVector(vdofs_q, q_local);
       u->SetSubVector(vdofs_u, u_local);

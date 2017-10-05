@@ -73,8 +73,9 @@ protected:
    const IntegrationRule *IntRule;
 
 public:
-   pHDGPostProcessing(ParFiniteElementSpace *f, ParGridFunction &_q, ParGridFunction &_u, Coefficient &_diffcoeff)
-     : q(&_q), u(&_u), pfes(f), diffcoeff(&_diffcoeff) {IntRule = NULL; }
+   pHDGPostProcessing(ParFiniteElementSpace *f, ParGridFunction &_q,
+                      ParGridFunction &_u, Coefficient &_diffcoeff)
+      : q(&_q), u(&_u), pfes(f), diffcoeff(&_diffcoeff) {IntRule = NULL; }
 
    void Postprocessing(ParGridFunction &u_postprocessed) ;
 };
@@ -108,31 +109,31 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
-           "Mesh file to use.");
+                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
-           "Finite element order (polynomial degree).");
+                  "Finite element order (polynomial degree).");
    args.AddOption(&initial_ref_levels, "-r", "--refine",
-           "Number of times to refine the mesh uniformly for the initial calculation.");
+                  "Number of times to refine the mesh uniformly for the initial calculation.");
    args.AddOption(&total_ref_levels, "-tr", "--totalrefine",
-           "Number of times to refine the mesh uniformly to get the convergence rates.");
+                  "Number of times to refine the mesh uniformly to get the convergence rates.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-           "--no-visualization",
-           "Enable or disable GLVis visualization.");
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.AddOption(&post, "-post", "--postprocessing",
-           "-no-post", "--no-postprocessing",
-           "Enable or disable postprocessing.");
+                  "-no-post", "--no-postprocessing",
+                  "Enable or disable postprocessing.");
    args.AddOption(&save, "-save", "--save-files", "-no-save",
-           "--no-save-files",
-           "Enable or disable file saving.");
+                  "--no-save-files",
+                  "Enable or disable file saving.");
    args.AddOption(&memA, "-memA", "--memoryA",
-           "Storage of A.");
+                  "Storage of A.");
    args.AddOption(&memB, "-memB", "--memoryB",
-           "Storage of B.");
+                  "Storage of B.");
    args.AddOption(&petsc, "-petsc", "--use-petsc",
-           "-no-petsc", "--no-use-petsc",
-           "Enable or disable SC solver.");
+                  "-no-petsc", "--no-use-petsc",
+                  "Enable or disable SC solver.");
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
-           "PetscOptions file to use.");
+                  "PetscOptions file to use.");
 
    args.Parse();
    if (!args.Good())
@@ -157,7 +158,8 @@ int main(int argc, char *argv[])
 #ifndef MFEM_USE_PETSC
    if (petsc)
    {
-      std::cout << "MFEM does not use PETSc. Change the solver to hypre" << std::endl << std::flush;
+      std::cout << "MFEM does not use PETSc. Change the solver to hypre" << std::endl
+                << std::flush;
       petsc = false;
    }
 #endif
@@ -165,42 +167,50 @@ int main(int argc, char *argv[])
    // memA, memB \in [0,1], memB <= memA
    if (memB > memA)
    {
-      std::cout << "memB cannot be more than memA. Resetting to be equal" << std::endl << std::flush;
+      std::cout << "memB cannot be more than memA. Resetting to be equal" << std::endl
+                << std::flush;
       memA = memB;
    }
    if (memA > 1.0)
    {
-      std::cout << "memA cannot be more than 1. Resetting to 1" << std::endl << std::flush;
+      std::cout << "memA cannot be more than 1. Resetting to 1" << std::endl <<
+                std::flush;
       memA = 1.0;
    }
    else if (memA < 0.0)
    {
-      std::cout << "memA cannot be less than 0. Resetting to 0." << std::endl << std::flush;
+      std::cout << "memA cannot be less than 0. Resetting to 0." << std::endl <<
+                std::flush;
       memA = 0.0;
    }
    if (memB > 1.0)
    {
-      std::cout << "memB cannot be more than 1. Resetting to 1" << std::endl << std::flush;
+      std::cout << "memB cannot be more than 1. Resetting to 1" << std::endl <<
+                std::flush;
       memB = 1.0;
    }
    else if (memB < 0.0)
    {
-      std::cout << "memB cannot be less than 0. Resetting to 0." << std::endl << std::flush;
+      std::cout << "memB cannot be less than 0. Resetting to 0." << std::endl <<
+                std::flush;
       memB = 0.0;
    }
 
    // 3. Read the mesh from the given mesh file. Refine it up to the initial_ref_levels.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-   
-   for(int ii=0;ii<initial_ref_levels; ii++)
+
+   for (int ii=0; ii<initial_ref_levels; ii++)
+   {
       mesh->UniformRefinement();
-   
+   }
+
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
    // 4. Vectors for the different discretization errors
-   Vector u_l2errors(total_ref_levels), q_l2errors(total_ref_levels), mean_l2errors(total_ref_levels), u_star_l2errors(total_ref_levels);
+   Vector u_l2errors(total_ref_levels), q_l2errors(total_ref_levels),
+          mean_l2errors(total_ref_levels), u_star_l2errors(total_ref_levels);
 
    // 5. Define a finite element collections and spaces on the mesh.
    FiniteElementCollection *dg_coll(new DG_FECollection(order, dim));
@@ -212,7 +222,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *V_space = new ParFiniteElementSpace(pmesh, dg_coll, dim);
    ParFiniteElementSpace *W_space = new ParFiniteElementSpace(pmesh, dg_coll);
    ParFiniteElementSpace *M_space = new ParFiniteElementSpace(pmesh, face);
-   
+
    // 6. Define the coefficients, the exact solutions, the right hand side and the diffusion coefficient along with the diffusion penalty parameter.
    FunctionCoefficient fcoeff(fFun);
 
@@ -222,7 +232,7 @@ int main(int argc, char *argv[])
    diff = 1.;
    ConstantCoefficient diffusion(diff); // diffusion constant
    double tau_D = 5.0;
-   
+
    // 7. Define the different forms and gridfunctions.
    ParHDGBilinearForm3 *AVarf(new ParHDGBilinearForm3(V_space, W_space, M_space));
    AVarf->AddHDGDomainIntegrator(new HDGDomainIntegratorDiffusion(diffusion));
@@ -234,7 +244,8 @@ int main(int argc, char *argv[])
    ParLinearForm *fform(new ParLinearForm);
    fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
 
-   for (int ref_levels = initial_ref_levels; ref_levels < (initial_ref_levels + total_ref_levels); ref_levels++)
+   for (int ref_levels = initial_ref_levels;
+        ref_levels < (initial_ref_levels + total_ref_levels); ref_levels++)
    {
       // 8. Compute the problem size and define the right hand side vectors
       HYPRE_Int dimV = V_space->GlobalTrueVSize();
@@ -315,14 +326,15 @@ int main(int argc, char *argv[])
          if (verbose)
          {
             if (petsc_solver->GetConverged())
-                  std::cout << "Solver converged in " << petsc_solver->GetNumIterations()
-                  << " iterations with a residual norm of " << petsc_solver->GetFinalNorm() << ".\n";
+               std::cout << "Solver converged in " << petsc_solver->GetNumIterations()
+                         << " iterations with a residual norm of " << petsc_solver->GetFinalNorm() <<
+                         ".\n";
             else
-                  std::cout << "Solver did not converge in " << petsc_solver->GetNumIterations()
-                  << " iterations. Residual norm is " << petsc_solver->GetFinalNorm() << ".\n";
-                  std::cout << "Solver solver took " << chrono.RealTime() << "s. \n";
+               std::cout << "Solver did not converge in " << petsc_solver->GetNumIterations()
+                         << " iterations. Residual norm is " << petsc_solver->GetFinalNorm() << ".\n";
+            std::cout << "Solver solver took " << chrono.RealTime() << "s. \n";
          }
-         
+
          delete petsc_solver;
          delete petsc_precon;
 #endif
@@ -348,7 +360,7 @@ int main(int argc, char *argv[])
          if (verbose)
          {
             std::cout << "\nIterative method converged in "
-               << numIterations << ".\n";
+                      << numIterations << ".\n";
 
             std::cout << "Iterative solver took " << chrono.RealTime() << "s. \n";
          }
@@ -368,7 +380,7 @@ int main(int argc, char *argv[])
       chrono.Start();
       AVarf->Reconstruct(R, F, &lambda, &q_variable, &u_variable);
       chrono.Stop();
-      
+
       reconstructTime = chrono.RealTime();
 
       // 13. Compute the discretization error
@@ -435,7 +447,7 @@ int main(int argc, char *argv[])
          u_sock << "parallel " << num_procs << " " << myid << "\n";
          u_sock.precision(8);
          u_sock << "solution\n" << *pmesh << u_variable << "window_title 'U'"
-               << endl;
+                << endl;
          // Make sure all ranks have sent their 'u' solution before initiating
          // another set of GLVis connections (one from each rank):
          MPI_Barrier(pmesh->GetComm());
@@ -443,18 +455,20 @@ int main(int argc, char *argv[])
          q_sock << "parallel " << num_procs << " " << myid << "\n";
          q_sock.precision(8);
          q_sock << "solution\n" << *pmesh << q_variable << "window_title 'Q'"
-               << endl;
+                << endl;
       }
 
       // 16. Postprocessing
       if (post)
       {
          FiniteElementCollection *dg_coll_pstar(new DG_FECollection(order+1, dim));
-         ParFiniteElementSpace *Vstar_space = new ParFiniteElementSpace(pmesh, dg_coll_pstar);
+         ParFiniteElementSpace *Vstar_space = new ParFiniteElementSpace(pmesh,
+                                                                        dg_coll_pstar);
 
          ParGridFunction u_post(Vstar_space);
 
-         pHDGPostProcessing *hdgpost(new pHDGPostProcessing(Vstar_space, q_variable, u_variable, diffusion));
+         pHDGPostProcessing *hdgpost(new pHDGPostProcessing(Vstar_space, q_variable,
+                                                            u_variable, diffusion));
 
          chrono.Clear();
          chrono.Start();
@@ -497,7 +511,7 @@ int main(int argc, char *argv[])
             u_star_sock << "parallel " << num_procs << " " << myid << "\n";
             u_star_sock.precision(8);
             u_star_sock << "solution\n" << *pmesh << u_post << "window_title 'U_star'"
-               << endl;
+                        << endl;
          }
 
       }
@@ -513,12 +527,13 @@ int main(int argc, char *argv[])
       q_variable.Update();
       u_variable.Update();
       lambda.Update();
-      MPI_Reduce(&assemblyTime,&GassemblyTime,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);     
-      MPI_Reduce(&solveTime,&GsolveTime,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);     
-      MPI_Reduce(&reconstructTime,&GreconstructTime,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);     
-      MPI_Reduce(&pprocessTime,&GpprocessTime,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);     
+      MPI_Reduce(&assemblyTime,&GassemblyTime,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+      MPI_Reduce(&solveTime,&GsolveTime,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+      MPI_Reduce(&reconstructTime,&GreconstructTime,1,MPI_DOUBLE,MPI_MAX,0,
+                 MPI_COMM_WORLD);
+      MPI_Reduce(&pprocessTime,&GpprocessTime,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
 
-      if(verbose)
+      if (verbose)
       {
          printf("\t Assembly time   = %.2f\n",GassemblyTime);
          printf("\t Solve time     = %.2f\n",GsolveTime);
@@ -531,37 +546,43 @@ int main(int argc, char *argv[])
    if (verbose)
    {
       std::cout << "\n\n-----------------------\n";
-      std::cout << "level  u_l2errors  order   q_l2errors  order   mean_l2errors  order u_star_l2errors   order\n";
+      std::cout <<
+                "level  u_l2errors  order   q_l2errors  order   mean_l2errors  order u_star_l2errors   order\n";
       std::cout << "-----------------------\n";
       for (int ref_levels = 0; ref_levels < total_ref_levels; ref_levels++)
       {
          if (ref_levels == 0)
          {
             std::cout << "  " << ref_levels << "   "
-               << std::setprecision(2) << std::scientific << u_l2errors(ref_levels)
-               << "   " << " -      "
-               << std::setprecision(2) << std::scientific << q_l2errors(ref_levels)
-               << "    " << " -      "
-               << std::setprecision(2) << std::scientific << mean_l2errors(ref_levels)
-               << "    " << " -      "
-               << std::setprecision(2) << std::scientific << u_star_l2errors(ref_levels)
-               << "    " << " -      " << std::endl;
+                      << std::setprecision(2) << std::scientific << u_l2errors(ref_levels)
+                      << "   " << " -      "
+                      << std::setprecision(2) << std::scientific << q_l2errors(ref_levels)
+                      << "    " << " -      "
+                      << std::setprecision(2) << std::scientific << mean_l2errors(ref_levels)
+                      << "    " << " -      "
+                      << std::setprecision(2) << std::scientific << u_star_l2errors(ref_levels)
+                      << "    " << " -      " << std::endl;
          }
          else
          {
-            double u_order    = log(u_l2errors(ref_levels)/u_l2errors(ref_levels-1))/log(0.5);
-            double q_order    = log(q_l2errors(ref_levels)/q_l2errors(ref_levels-1))/log(0.5);
-            double mean_order   = log(mean_l2errors(ref_levels)/mean_l2errors(ref_levels-1))/log(0.5);
-            double u_star_order = log(u_star_l2errors(ref_levels)/u_star_l2errors(ref_levels-1))/log(0.5);
+            double u_order    = log(u_l2errors(ref_levels)/u_l2errors(ref_levels-1))/log(
+                                   0.5);
+            double q_order    = log(q_l2errors(ref_levels)/q_l2errors(ref_levels-1))/log(
+                                   0.5);
+            double mean_order   = log(mean_l2errors(ref_levels)/mean_l2errors(
+                                         ref_levels-1))/log(0.5);
+            double u_star_order = log(u_star_l2errors(ref_levels)/u_star_l2errors(
+                                         ref_levels-1))/log(0.5);
             std::cout << "  " << ref_levels << "   "
-               << std::setprecision(2) << std::scientific << u_l2errors(ref_levels)
-               << "  " << std::setprecision(4) << std::fixed << u_order
-               << "   " << std::setprecision(2) << std::scientific << q_l2errors(ref_levels)
-               << "   " << std::setprecision(4) << std::fixed << q_order
-               << "   " << std::setprecision(2) << std::scientific << mean_l2errors(ref_levels)
-               << "   " << std::setprecision(4) << std::fixed << mean_order
-               << "   " << std::setprecision(2) << std::scientific << u_star_l2errors(ref_levels)
-               << "   " << std::setprecision(4) << std::fixed << u_star_order << std::endl;
+                      << std::setprecision(2) << std::scientific << u_l2errors(ref_levels)
+                      << "  " << std::setprecision(4) << std::fixed << u_order
+                      << "   " << std::setprecision(2) << std::scientific << q_l2errors(ref_levels)
+                      << "   " << std::setprecision(4) << std::fixed << q_order
+                      << "   " << std::setprecision(2) << std::scientific << mean_l2errors(ref_levels)
+                      << "   " << std::setprecision(4) << std::fixed << mean_order
+                      << "   " << std::setprecision(2) << std::scientific << u_star_l2errors(
+                         ref_levels)
+                      << "   " << std::setprecision(4) << std::fixed << u_star_order << std::endl;
          }
       }
    }
@@ -575,10 +596,12 @@ int main(int argc, char *argv[])
    delete fform;
    delete dg_coll;
    delete face;
-   
+
    if (verbose)
+   {
       std::cout << "\n\nDone." << std::endl ;
-   
+   }
+
 #ifdef MFEM_USE_PETSC
    PetscFinalize();
 #endif
@@ -595,17 +618,17 @@ double uFun_ex(const Vector & x)
 
    switch (dim)
    {
-     case 2:
-     {
+      case 2:
+      {
          return 1.0 + xi + sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi);
          break;
-     }
-     case 3:
-     {
+      }
+      case 3:
+      {
          double zi(x(2));
          return xi + sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi)*sin(2.0*M_PI*zi);
          break;
-     }
+      }
    }
 
    return 0;
@@ -619,20 +642,21 @@ void qFun_ex(const Vector & x, Vector & q)
 
    switch (dim)
    {
-     case 2:
-     {
+      case 2:
+      {
          q(0) = -diff*1.0 - diff*2.0*M_PI*cos(2.0*M_PI*xi)*sin(2.0*M_PI*yi);
          q(1) =  0.0 - diff*2.0*M_PI*sin(2.0*M_PI*xi)*cos(2.0*M_PI*yi);
          break;
-     }
-     case 3:
-     {
+      }
+      case 3:
+      {
          double zi(x(2));
-         q(0) = -diff*1.0 - diff*2.0*M_PI*cos(2.0*M_PI*xi)*sin(2.0*M_PI*yi)*sin(2.0*M_PI*zi);
+         q(0) = -diff*1.0 - diff*2.0*M_PI*cos(2.0*M_PI*xi)*sin(2.0*M_PI*yi)*sin(
+                   2.0*M_PI*zi);
          q(1) =  0.0 - diff*2.0*M_PI*sin(2.0*M_PI*xi)*cos(2.0*M_PI*yi)*sin(2.0*M_PI*zi);
          q(2) =  0.0 - diff*2.0*M_PI*sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi)*cos(2.0*M_PI*zi);
          break;
-     }
+      }
    }
 }
 
@@ -645,17 +669,17 @@ double fFun(const Vector & x)
 
    switch (dim)
    {
-     case 2:
-     {
-       return diff*8.0*M_PI*M_PI*sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi);
-       break;
-     }
-     case 3:
-     {
-       double zi(x(2));
-       return diff*12.0*M_PI*M_PI*sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi)*sin(2.0*M_PI*zi);
-       break;
-     }
+      case 2:
+      {
+         return diff*8.0*M_PI*M_PI*sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi);
+         break;
+      }
+      case 3:
+      {
+         double zi(x(2));
+         return diff*12.0*M_PI*M_PI*sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi)*sin(2.0*M_PI*zi);
+         break;
+      }
    }
 
    return 0;
@@ -731,8 +755,10 @@ void pHDGPostProcessing::Postprocessing(ParGridFunction &u_postprocessed)
          dshapedxt *= ip.weight ;
 
          qval_col = 0.0;
-         for(int ii = 0; ii<dim; ii++)
+         for (int ii = 0; ii<dim; ii++)
+         {
             qval_col(ii) = q->GetValue(i, ip, (ii+1));
+         }
 
          dshapedxt.Mult(qval_col, to_RHS);
 
@@ -747,18 +773,18 @@ void pHDGPostProcessing::Postprocessing(ParGridFunction &u_postprocessed)
          double rhs_weight = (Trans->Weight() * ip.weight);
          RHS2  += (uvalsj*rhs_weight);
 
-     }
+      }
 
-     // changing the last row and the last entry
-     for (int j = 0; j < ndofs; j++)
-     {
+      // changing the last row and the last entry
+      for (int j = 0; j < ndofs; j++)
+      {
          elmat(ndofs-1,j) = elmat2(j);
-     }
-     RHS(ndofs-1) = RHS2;
+      }
+      RHS(ndofs-1) = RHS2;
 
-     elmat.Invert();
-     elmat.Mult(RHS, vals);
-     u_postprocessed.SetSubVector(vdofs, vals);
+      elmat.Invert();
+      elmat.Mult(RHS, vals);
+      u_postprocessed.SetSubVector(vdofs, vals);
 
    }
 }

@@ -1657,20 +1657,20 @@ public:
 };
 
 /* HDG */
-/** Class for local mass matrix assembling a(\lamda,\mu) := <\lambda, \mu> 
+/** Class for local mass matrix assembling a(\lamda,\mu) := <\lambda, \mu>
     It is used for the boundary elimination for skeleton variables */
 class SkeletonMassIntegrator : public BilinearFormIntegrator
 {
 private:
-    Vector shape;
-    
+   Vector shape;
+
 public:
-    SkeletonMassIntegrator(const IntegrationRule *ir = NULL)
+   SkeletonMassIntegrator(const IntegrationRule *ir = NULL)
       : BilinearFormIntegrator(ir) { }
 
-    virtual void AssembleFaceMatrix(const FiniteElement &face_fe,
-                                    FaceElementTransformations &Trans,
-                                    DenseMatrix &elmat);
+   virtual void AssembleFaceMatrix(const FiniteElement &face_fe,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */

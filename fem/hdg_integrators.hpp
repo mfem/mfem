@@ -38,12 +38,12 @@ private:
 
 public:
    HDGDomainIntegratorAdvection(Coefficient &mass, VectorCoefficient &_avec)
-   : mass_coeff(&mass), avec(&_avec)  {  }
+      : mass_coeff(&mass), avec(&_avec)  {  }
 
    using BilinearFormIntegrator::AssembleElementMatrix;
    virtual void AssembleElementMatrix(const FiniteElement &fe_u,
-      ElementTransformation &Trans,
-      DenseMatrix &elmat1);
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat1);
 };
 
 // Advection integrator to compute all the face based integrals
@@ -66,19 +66,19 @@ private:
 
 public:
    HDGFaceIntegratorAdvection(VectorCoefficient &_avec)
-         : avec(&_avec)  {  }
+      : avec(&_avec)  {  }
 
    using BilinearFormIntegrator::AssembleFaceMatrixOneElement1and1FES;
    virtual void AssembleFaceMatrixOneElement1and1FES(const FiniteElement &fe_uL,
-      const FiniteElement &fe_uR,
-      const FiniteElement &face_fe,
-      FaceElementTransformations &Trans,
-      const int elem1or2,
-      const bool onlyB,
-      DenseMatrix &elmat1,
-      DenseMatrix &elmat2,
-      DenseMatrix &elmat3,
-      DenseMatrix &elmat4);
+                                                     const FiniteElement &fe_uR,
+                                                     const FiniteElement &face_fe,
+                                                     FaceElementTransformations &Trans,
+                                                     const int elem1or2,
+                                                     const bool onlyB,
+                                                     DenseMatrix &elmat1,
+                                                     DenseMatrix &elmat2,
+                                                     DenseMatrix &elmat3,
+                                                     DenseMatrix &elmat4);
 
 };
 
@@ -98,24 +98,24 @@ protected:
 
    // these are not thread-safe!
    Vector shape_f, n_L;
-  
+
 public:
    HDGInflowLFIntegrator(Coefficient &_u, VectorCoefficient &_avec)
-       { u_in = &_u; avec = &_avec; }
+   { u_in = &_u; avec = &_avec; }
 
    using LinearFormIntegrator::AssembleRHSElementVect;
    virtual void AssembleRHSElementVect(const FiniteElement &el,
-      ElementTransformation &Tr,
-      Vector &elvect);
-  
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
    virtual void AssembleRHSElementVect(const FiniteElement &el,
-      FaceElementTransformations &Tr,
-      Vector &elvect);
-  
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
+
    using LinearFormIntegrator::AssembleRHSFaceVectNeumann;
    virtual void AssembleRHSFaceVectNeumann(const FiniteElement &face_S,
-      FaceElementTransformations &Trans,
-      Vector &favect);
+                                           FaceElementTransformations &Trans,
+                                           Vector &favect);
 };
 
 //---------------------------------------------------------------------
@@ -145,13 +145,13 @@ private:
 
 public:
    HDGDomainIntegratorDiffusion(ConstantCoefficient &_nu)
-   : nu(&_nu) { }
+      : nu(&_nu) { }
 
    using BilinearFormIntegrator::AssembleElementMatrix2FES;
    virtual void AssembleElementMatrix2FES(const FiniteElement &fe_q,
-      const FiniteElement &fe_u,
-      ElementTransformation &Trans,
-      DenseMatrix &elmat);
+                                          const FiniteElement &fe_u,
+                                          ElementTransformation &Trans,
+                                          DenseMatrix &elmat);
 
 };
 
@@ -191,24 +191,24 @@ private:
 
 public:
    HDGFaceIntegratorDiffusion(double a)
-   : q_diff_coeff(NULL) { tauD = a; }
+      : q_diff_coeff(NULL) { tauD = a; }
 
    HDGFaceIntegratorDiffusion(ConstantCoefficient &_q_diff_coeff, double a)
-   : q_diff_coeff(&_q_diff_coeff)  { tauD = a; }
+      : q_diff_coeff(&_q_diff_coeff)  { tauD = a; }
 
    using BilinearFormIntegrator::AssembleFaceMatrixOneElement2and1FES;
    virtual void AssembleFaceMatrixOneElement2and1FES(const FiniteElement &fe_qL,
-      const FiniteElement &fe_qR,
-      const FiniteElement &fe_uL,
-      const FiniteElement &fe_uR,
-      const FiniteElement &face_fe,
-      FaceElementTransformations &Trans,
-      const int elem1or2,
-      const bool onlyB,
-      DenseMatrix &elmat1,
-      DenseMatrix &elmat2,
-      DenseMatrix &elmat3,
-      DenseMatrix &elmat4);
+                                                     const FiniteElement &fe_qR,
+                                                     const FiniteElement &fe_uL,
+                                                     const FiniteElement &fe_uR,
+                                                     const FiniteElement &face_fe,
+                                                     FaceElementTransformations &Trans,
+                                                     const int elem1or2,
+                                                     const bool onlyB,
+                                                     DenseMatrix &elmat1,
+                                                     DenseMatrix &elmat2,
+                                                     DenseMatrix &elmat3,
+                                                     DenseMatrix &elmat4);
 
 };
 
