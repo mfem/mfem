@@ -2963,19 +2963,21 @@ MaxwellDispersion::PrintDispersionPlot(ostream & os)
    int off = 0;
    for (unsigned int p=0; p<bravais_->GetNumberPaths(); p++)
    {
-      int e0 = -1, e1 = -1;
-      string label0 = "", label1 = "", labelI = "";
-
       for (unsigned int s=0; s<bravais_->GetNumberPathSegments(p); s++)
       {
-         label0 = bravais_->GetSymmetryPointLabel(e0);
-         label1 = bravais_->GetSymmetryPointLabel(e1);
-         labelI = bravais_->GetIntermediatePointLabel(p, s);
+         int e0 = -1, e1 = -1;
+         bravais_->GetPathSegmentEndPointIndices(p, s, e0, e1);
 
-         map<int,vector<double> > & eigs = seg_eigs_[p][s];
+         string label0 = bravais_->GetSymmetryPointLabel(e0);
+         string label1 = bravais_->GetSymmetryPointLabel(e1);
+         string labelI = bravais_->GetIntermediatePointLabel(p, s);
+
+         //map<int,vector<double> > & eigs = seg_eigs_[p][s];
          map<int,vector<double> >::iterator mit;
-         for (mit=eigs.begin(); mit!=eigs.end(); mit++)
+         for (mit=seg_eigs_[p][s].begin(); mit!=seg_eigs_[p][s].end(); mit++)
          {
+            if ( mit == seg_eigs_[p][s].begin() && s > 0 ) { continue; }
+
             int i0 = 0;
             if ( (label0 == "Gamma" && mit->first == 0) ||
                  (label1 == "Gamma" && mit->first == n_div_) )
@@ -2997,7 +2999,7 @@ MaxwellDispersion::PrintDispersionPlot(ostream & os)
                label = label1;
             }
 
-            os << mit->first + off * n_div_ << "\t" << label;
+            os << mit->first + off << "\t" << this->modLabel(label);
             for (unsigned int i=i0; i<mit->second.size(); i++)
             {
                if ( mit->second[i] > 0.0 )
@@ -3016,10 +3018,86 @@ MaxwellDispersion::PrintDispersionPlot(ostream & os)
             os << endl << flush;
          }
 
-         off++;
+         off += n_div_;
       }
+      off += n_div_ / 8;
+      os << endl;
    }
 }
+
+string
+MaxwellDispersion::modLabel(const string & label) const
+{
+   if ( label == "-" ) { return label; }
+
+   // size_t = -1;
+   string mod_label = label;
+
+   this->findAndReplace("Gamma", "$\\\\Gamma$", mod_label);
+   this->findAndReplace("Sigma", "$\\\\Sigma$", mod_label);
+   this->findAndReplace("Delta", "$\\\\Delta$", mod_label);
+   this->findAndReplace("Lambda", "$\\\\Lambda$", mod_label);
+   this->findAndReplace("1", "$_1$", mod_label);
+   this->findAndReplace("2", "$_2$", mod_label);
+   this->findAndReplace("3", "$_3$", mod_label);
+   /*
+   pos = mod_label.find("Gamma");
+   if ( pos < mod_lable.size() )
+   {
+     mod_label.replace(pos, 5, "$\\Gamma$");
+   }
+
+   pos = mod_label.find("Sigma");
+   if ( pos < mod_lable.size() )
+   {
+     mod_label.replace(pos, 5, "$\\Sigma$");
+   }
+
+   pos = mod_label.find("Delta");
+   if ( pos < mod_lable.size() )
+   {
+     mod_label.replace(pos, 5, "$\\Delta$");
+   }
+
+   pos = mod_label.find("Lambda");
+   if ( pos < mod_lable.size() )
+   {
+     mod_label.replace(pos, 6, "$\\Lambda$");
+   }
+
+   pos = mod_label.find("1");
+   if ( pos < mod_lable.size() )
+   {
+     mod_label.replace(pos, 1, "$_1$");
+   }
+
+   pos = mod_label.find("2");
+   if ( pos < mod_lable.size() )
+   {
+     mod_label.replace(pos, 1, "$_2$");
+   }
+
+   pos = mod_label.find("3");
+   if ( pos < mod_lable.size() )
+   {
+     mod_label.replace(pos, 1, "$_3$");
+   }
+   */
+   return mod_label;
+}
+
+void
+MaxwellDispersion::findAndReplace(const string & f,
+                                  const string & r,
+                                  string & str) const
+{
+   size_t pos = str.find(f);
+   if ( pos < str.size() )
+   {
+      str.replace(pos, f.size(), r);
+   }
+}
+
 
 void
 MaxwellDispersion::InitializeGLVis(VisData & vd)

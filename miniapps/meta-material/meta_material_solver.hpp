@@ -652,6 +652,11 @@ private:
 
    void traverseBrillouinZone();
 
+   std::string modLabel(const std::string & label) const;
+
+   void findAndReplace(const std::string & f, const std::string & r,
+                       std::string & str) const;
+
    BravaisLattice         * bravais_;
    MaxwellBlochWaveSolver * mbws_;
 
