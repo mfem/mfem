@@ -555,301 +555,301 @@ struct TDiffusionKernel<3,3,complex_t>
 };
 
 // Mass kernel for Nedelec Finite Element
-    
+
 // complex_t - type for the assembled data
 template <int SDim, int Dim, typename complex_t>
 struct THcurlMassKernel;
-    
+
 // Mass kernel for Nedelec Finite Element kernel in 2D
 template <typename complex_t>
 struct THcurlMassKernel<2,2,complex_t>
 {
-	typedef complex_t complex_type;
+   typedef complex_t complex_type;
 
-	// needed for the TElementTransformation::Result class
-	static const bool uses_Jacobians = true;
+   // needed for the TElementTransformation::Result class
+   static const bool uses_Jacobians = true;
 
-	// needed for the FieldEvaluator::Data class
-	static const bool in_values  = true;
-	static const bool in_curls   = false;
-	static const bool out_values = true;
-	static const bool out_curls  = false;
-        
-	// Partially assembled data type for one element with the given number of
-	// quadrature points. This type is used in partial assembly, and partially
-	// assembled action. Stores one symmetric 2 x 2 matrix per point.
-	template <int qpts>
-	struct p_asm_data { typedef TMatrix<qpts,3,complex_t> type; };
-        
-	// Partially assembled data type for one element with the given number of
-	// quadrature points. This type is used in full element matrix assembly.
-	// Stores one general (non-symmetric) 2 x 2 matrix per point.
-	template <int qpts>
-	struct f_asm_data { typedef TTensor3<qpts,2,2,complex_t> type; };
-        
-	template <typename IR, typename coeff_t, int NE>
-	struct CoefficientEval
-	{
-		typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
-	};
-        
-	// Method used for un-assembled (matrix free) action.
-	// Jt        [M x Dim x SDim x NE] - Jacobian transposed, data member in F
-	// Q                               - CoefficientEval<>::Type
-	// q                               - CoefficientEval<>::Type::result_t
-	// val_qpts [M x SDim x NC x NE]  - in/out data member in R
-	//
-	// val_qpts = (w/det(J)) adj(J) adj(J)^t val_qpts
-	template <typename T_result_t, typename Q_t, typename q_t,
-	typename S_data_t>
-	static inline MFEM_ALWAYS_INLINE
-	void Action(const int k, const T_result_t &F,
-				const Q_t &Q, const q_t &q, S_data_t &R)
-	{
-		const int M = S_data_t::eval_type::qpts;
-		const int NC = S_data_t::eval_type::vdim;
-		MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
-						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(M*(4+NC*14));
-		for (int i = 0; i < M; i++)
-		{
-			typedef typename T_result_t::Jt_type::data_type real_t;
-			const real_t J11 = F.Jt(i,0,0,k);
-			const real_t J12 = F.Jt(i,1,0,k);
-			const real_t J21 = F.Jt(i,0,1,k);
-			const real_t J22 = F.Jt(i,1,1,k);
-			const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
-			for (int j = 0; j < NC; j++)
-			{
-				const complex_t x1 = R.val_qpts(i,0,j,k);
-				const complex_t x2 = R.val_qpts(i,1,j,k);
-				// z = adj(J)^t x
-				const complex_t z1 = J22 * x1 - J21 * x2;
-				const complex_t z2 = J11 * x2 - J12 * x1;
-				R.val_qpts(i,0,j,k) = w_det_J * (J22 * z1 - J12 * z2);
-				R.val_qpts(i,1,j,k) = w_det_J * (J11 * z2 - J21 * z1);
-			}
-		}
-	}
+   // needed for the FieldEvaluator::Data class
+   static const bool in_values  = true;
+   static const bool in_curls   = false;
+   static const bool out_values = true;
+   static const bool out_curls  = false;
 
-	// Method defining partial assembly. The pointwise Dim x Dim matrices are
-	// stored as symmetric (when asm_type == p_asm_data, i.e. A.layout.rank == 2)
-	// or non-symmetric (when asm_type == f_asm_data, i.e. A.layout.rank == 3)
-	// matrices.
-	// Jt   [M x Dim x SDim x NE] - Jacobian transposed, data member in F
-	// Q                          - CoefficientEval<>::Type
-	// q                          - CoefficientEval<>::Type::result_t
-	// A    [M x Dim*(Dim+1)/2]   - partially assembled Dim x Dim symm. matrices
-	// A    [M x Dim x Dim]       - partially assembled Dim x Dim matrices
-	//
-	// A = (w/det(J)) adj(J) adj(J)^t
-	template <typename T_result_t, typename Q_t, typename q_t, typename asm_type>
-	static inline MFEM_ALWAYS_INLINE
-	void Assemble(const int k, const T_result_t &F,
-			  const Q_t &Q, const q_t &q, asm_type &A)
-	{
-		typedef typename T_result_t::Jt_type::data_type real_t;
-		const int M = T_result_t::Jt_type::layout_type::dim_1;
-		MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
-						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(16*M);
-		const bool Symm = (asm_type::layout_type::rank == 2);
-		for (int i = 0; i < M; i++)
-		{
-			const real_t J11 = F.Jt(i,0,0,k);
-			const real_t J12 = F.Jt(i,1,0,k);
-			const real_t J21 = F.Jt(i,0,1,k);
-			const real_t J22 = F.Jt(i,1,1,k);
-			const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
-			internal::MatrixOps<2,2>::Symm<Symm>::Set(
-													  A.layout.ind1(i), A,
-													  + w_det_J * (J12*J12 + J22*J22), // (1,1)
-													  - w_det_J * (J11*J12 + J21*J22), // (2,1)
-													  + w_det_J * (J11*J11 + J21*J21)  // (2,2)
-													  );
-		}
-	}
-    
-	// Method for partially assembled action.
-	// A         [M x Dim*(Dim+1)/2]  - partially assembled Dim x Dim symmetric
-	//                                  matrices
-	// val_qpts [M x SDim x NC x NE] - in/out data member in R
-	//
-	// val_qpts = A val_qpts
-	template <int qpts, typename S_data_t>
-	static inline MFEM_ALWAYS_INLINE
-	void MultAssembled(const int k, const TMatrix<qpts,3,complex_t> &A,
-					   S_data_t &R)
-	{
-		const int M = S_data_t::eval_type::qpts;
-		const int NC = S_data_t::eval_type::vdim;
-		MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
-		MFEM_FLOPS_ADD(6*M*NC);
-		for (int i = 0; i < M; i++)
-		{
-			const complex_t A11 = A(i,0);
-			const complex_t A21 = A(i,1);
-			const complex_t A22 = A(i,2);
-			for (int j = 0; j < NC; j++)
-			{
-				const complex_t x1 = R.val_qpts(i,0,j,k);
-				const complex_t x2 = R.val_qpts(i,1,j,k);
-				R.val_qpts(i,0,j,k) = A11 * x1 + A21 * x2;
-				R.val_qpts(i,1,j,k) = A21 * x1 + A22 * x2;
-			}
-		}
-	}
+   // Partially assembled data type for one element with the given number of
+   // quadrature points. This type is used in partial assembly, and partially
+   // assembled action. Stores one symmetric 2 x 2 matrix per point.
+   template <int qpts>
+   struct p_asm_data { typedef TMatrix<qpts,3,complex_t> type; };
+
+   // Partially assembled data type for one element with the given number of
+   // quadrature points. This type is used in full element matrix assembly.
+   // Stores one general (non-symmetric) 2 x 2 matrix per point.
+   template <int qpts>
+   struct f_asm_data { typedef TTensor3<qpts,2,2,complex_t> type; };
+
+   template <typename IR, typename coeff_t, int NE>
+   struct CoefficientEval
+   {
+      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+   };
+
+   // Method used for un-assembled (matrix free) action.
+   // Jt        [M x Dim x SDim x NE] - Jacobian transposed, data member in F
+   // Q                               - CoefficientEval<>::Type
+   // q                               - CoefficientEval<>::Type::result_t
+   // val_qpts [M x SDim x NC x NE]  - in/out data member in R
+   //
+   // val_qpts = (w/det(J)) adj(J) adj(J)^t val_qpts
+   template <typename T_result_t, typename Q_t, typename q_t,
+             typename S_data_t>
+   static inline MFEM_ALWAYS_INLINE
+   void Action(const int k, const T_result_t &F,
+               const Q_t &Q, const q_t &q, S_data_t &R)
+   {
+      const int M = S_data_t::eval_type::qpts;
+      const int NC = S_data_t::eval_type::vdim;
+      MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
+                         "incompatible dimensions");
+      MFEM_FLOPS_ADD(M*(4+NC*14));
+      for (int i = 0; i < M; i++)
+      {
+         typedef typename T_result_t::Jt_type::data_type real_t;
+         const real_t J11 = F.Jt(i,0,0,k);
+         const real_t J12 = F.Jt(i,1,0,k);
+         const real_t J21 = F.Jt(i,0,1,k);
+         const real_t J22 = F.Jt(i,1,1,k);
+         const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
+         for (int j = 0; j < NC; j++)
+         {
+            const complex_t x1 = R.val_qpts(i,0,j,k);
+            const complex_t x2 = R.val_qpts(i,1,j,k);
+            // z = adj(J)^t x
+            const complex_t z1 = J22 * x1 - J21 * x2;
+            const complex_t z2 = J11 * x2 - J12 * x1;
+            R.val_qpts(i,0,j,k) = w_det_J * (J22 * z1 - J12 * z2);
+            R.val_qpts(i,1,j,k) = w_det_J * (J11 * z2 - J21 * z1);
+         }
+      }
+   }
+
+   // Method defining partial assembly. The pointwise Dim x Dim matrices are
+   // stored as symmetric (when asm_type == p_asm_data, i.e. A.layout.rank == 2)
+   // or non-symmetric (when asm_type == f_asm_data, i.e. A.layout.rank == 3)
+   // matrices.
+   // Jt   [M x Dim x SDim x NE] - Jacobian transposed, data member in F
+   // Q                          - CoefficientEval<>::Type
+   // q                          - CoefficientEval<>::Type::result_t
+   // A    [M x Dim*(Dim+1)/2]   - partially assembled Dim x Dim symm. matrices
+   // A    [M x Dim x Dim]       - partially assembled Dim x Dim matrices
+   //
+   // A = (w/det(J)) adj(J) adj(J)^t
+   template <typename T_result_t, typename Q_t, typename q_t, typename asm_type>
+   static inline MFEM_ALWAYS_INLINE
+   void Assemble(const int k, const T_result_t &F,
+                 const Q_t &Q, const q_t &q, asm_type &A)
+   {
+      typedef typename T_result_t::Jt_type::data_type real_t;
+      const int M = T_result_t::Jt_type::layout_type::dim_1;
+      MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
+                         "incompatible dimensions");
+      MFEM_FLOPS_ADD(16*M);
+      const bool Symm = (asm_type::layout_type::rank == 2);
+      for (int i = 0; i < M; i++)
+      {
+         const real_t J11 = F.Jt(i,0,0,k);
+         const real_t J12 = F.Jt(i,1,0,k);
+         const real_t J21 = F.Jt(i,0,1,k);
+         const real_t J22 = F.Jt(i,1,1,k);
+         const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
+         internal::MatrixOps<2,2>::Symm<Symm>::Set(
+            A.layout.ind1(i), A,
+            + w_det_J * (J12*J12 + J22*J22), // (1,1)
+            - w_det_J * (J11*J12 + J21*J22), // (2,1)
+            + w_det_J * (J11*J11 + J21*J21)  // (2,2)
+         );
+      }
+   }
+
+   // Method for partially assembled action.
+   // A         [M x Dim*(Dim+1)/2]  - partially assembled Dim x Dim symmetric
+   //                                  matrices
+   // val_qpts [M x SDim x NC x NE] - in/out data member in R
+   //
+   // val_qpts = A val_qpts
+   template <int qpts, typename S_data_t>
+   static inline MFEM_ALWAYS_INLINE
+   void MultAssembled(const int k, const TMatrix<qpts,3,complex_t> &A,
+                      S_data_t &R)
+   {
+      const int M = S_data_t::eval_type::qpts;
+      const int NC = S_data_t::eval_type::vdim;
+      MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
+      MFEM_FLOPS_ADD(6*M*NC);
+      for (int i = 0; i < M; i++)
+      {
+         const complex_t A11 = A(i,0);
+         const complex_t A21 = A(i,1);
+         const complex_t A22 = A(i,2);
+         for (int j = 0; j < NC; j++)
+         {
+            const complex_t x1 = R.val_qpts(i,0,j,k);
+            const complex_t x2 = R.val_qpts(i,1,j,k);
+            R.val_qpts(i,0,j,k) = A11 * x1 + A21 * x2;
+            R.val_qpts(i,1,j,k) = A21 * x1 + A22 * x2;
+         }
+      }
+   }
 };
-    
+
 // Mass kernel for Nedelec Finite Element kernel in 3D
 template <typename complex_t>
 struct THcurlMassKernel<3,3,complex_t>
 {
-	typedef complex_t complex_type;
+   typedef complex_t complex_type;
 
-	// needed for the TElementTransformation::Result class
-	static const bool uses_Jacobians = true;
+   // needed for the TElementTransformation::Result class
+   static const bool uses_Jacobians = true;
 
-	// needed for the FieldEvaluator::Data class
-	static const bool in_values  = true;
-	static const bool in_curls   = false;
-	static const bool out_values = true;
-	static const bool out_curls  = false;
+   // needed for the FieldEvaluator::Data class
+   static const bool in_values  = true;
+   static const bool in_curls   = false;
+   static const bool out_values = true;
+   static const bool out_curls  = false;
 
-	// Partially assembled data type for one element with the given number of
-	// quadrature points. This type is used in partial assembly, and partially
-	// assembled action. Stores one symmetric 3 x 3 matrix per point.
-	template <int qpts>
-	struct p_asm_data { typedef TMatrix<qpts,6,complex_t> type; };
-    
-	// Partially assembled data type for one element with the given number of
-	// quadrature points. This type is used in full element matrix assembly.
-	// Stores one general (non-symmetric) 3 x 3 matrix per point.
-	template <int qpts>
-	struct f_asm_data { typedef TTensor3<qpts,3,3,complex_t> type; };
+   // Partially assembled data type for one element with the given number of
+   // quadrature points. This type is used in partial assembly, and partially
+   // assembled action. Stores one symmetric 3 x 3 matrix per point.
+   template <int qpts>
+   struct p_asm_data { typedef TMatrix<qpts,6,complex_t> type; };
 
-	template <typename IR, typename coeff_t, int NE>
-	struct CoefficientEval
-	{
-		typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
-	};
+   // Partially assembled data type for one element with the given number of
+   // quadrature points. This type is used in full element matrix assembly.
+   // Stores one general (non-symmetric) 3 x 3 matrix per point.
+   template <int qpts>
+   struct f_asm_data { typedef TTensor3<qpts,3,3,complex_t> type; };
 
-	// Method used for un-assembled (matrix free) action.
-	// Jt        [M x Dim x SDim x NE] - Jacobian transposed, data member in F
-	// Q                               - CoefficientEval<>::Type
-	// q                               - CoefficientEval<>::Type::result_t
-	// val_qpts [M x SDim x NC x NE]  - in/out data member in R
-	//
-	// val_qpts = (w/det(J)) adj(J) adj(J)^t val_qpts
-	template <typename T_result_t, typename Q_t, typename q_t,
-	typename S_data_t>
-	static inline MFEM_ALWAYS_INLINE
-	void Action(const int k, const T_result_t &F,
-				const Q_t &Q, const q_t &q, S_data_t &R)
-	{
-		const int M = S_data_t::eval_type::qpts;
-		const int NC = S_data_t::eval_type::vdim;
-		MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
-						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(M); // just need to count Q/detJ
-		for (int i = 0; i < M; i++)
-		{
-			typedef typename T_result_t::Jt_type::data_type real_t;
-			TMatrix<3,3,real_t> adj_J;
-			const complex_t w_det_J =
-			(Q.get(q,i,k) /
-			 TAdjDet<real_t>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt,
-							 adj_J.layout, adj_J));
-			TMatrix<3,NC,complex_t> z; // z = adj(J)^t x
-			sMult_AB<false>(adj_J.layout.transpose_12(), adj_J,
-							R.val_qpts.layout.ind14(i,k), R.val_qpts,
-							z.layout, z);
-			z.Scale(w_det_J);
-			sMult_AB<false>(adj_J.layout, adj_J,
-							z.layout, z,
-							R.val_qpts.layout.ind14(i,k), R.val_qpts);
-		}
-	}
+   template <typename IR, typename coeff_t, int NE>
+   struct CoefficientEval
+   {
+      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+   };
 
-	// Method defining partial assembly. The pointwise Dim x Dim matrices are
-	// stored as symmetric (when asm_type == p_asm_data, i.e. A.layout.rank == 2)
-	// or non-symmetric (when asm_type == f_asm_data, i.e. A.layout.rank == 3)
-	// matrices.
-	// Jt   [M x Dim x SDim x NE] - Jacobian transposed, data member in F
-	// Q                          - CoefficientEval<>::Type
-	// q                          - CoefficientEval<>::Type::result_t
-	// A    [M x Dim*(Dim+1)/2]   - partially assembled Dim x Dim symm. matrices
-	// A    [M x Dim x Dim]       - partially assembled Dim x Dim matrices
-	//
-	// A = (w/det(J)) adj(J) adj(J)^t
-	template <typename T_result_t, typename Q_t, typename q_t, typename asm_type>
-	static inline MFEM_ALWAYS_INLINE
-	void Assemble(const int k, const T_result_t &F,
-				  const Q_t &Q, const q_t &q, asm_type &A)
-	{
-		typedef typename T_result_t::Jt_type::data_type real_t;
-		const int M = T_result_t::Jt_type::layout_type::dim_1;
-		MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
-						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(37*M);
-		const bool Symm = (asm_type::layout_type::rank == 2);
-		for (int i = 0; i < M; i++)
-		{
-			TMatrix<3,3,real_t> B; // = adj(J)
-			const complex_t u =
-			(Q.get(q,i,k) /
-			 TAdjDet<real_t>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt,
-							 B.layout, B));
-			internal::MatrixOps<3,3>::Symm<Symm>::Set(
-													  A.layout.ind1(i), A,
-													  u*(B(0,0)*B(0,0)+B(0,1)*B(0,1)+B(0,2)*B(0,2)), // 1,1
-													  u*(B(0,0)*B(1,0)+B(0,1)*B(1,1)+B(0,2)*B(1,2)), // 2,1
-													  u*(B(0,0)*B(2,0)+B(0,1)*B(2,1)+B(0,2)*B(2,2)), // 3,1
-													  u*(B(1,0)*B(1,0)+B(1,1)*B(1,1)+B(1,2)*B(1,2)), // 2,2
-													  u*(B(1,0)*B(2,0)+B(1,1)*B(2,1)+B(1,2)*B(2,2)), // 3,2
-													  u*(B(2,0)*B(2,0)+B(2,1)*B(2,1)+B(2,2)*B(2,2))  // 3,3
-													  );
-		}
-	}
+   // Method used for un-assembled (matrix free) action.
+   // Jt        [M x Dim x SDim x NE] - Jacobian transposed, data member in F
+   // Q                               - CoefficientEval<>::Type
+   // q                               - CoefficientEval<>::Type::result_t
+   // val_qpts [M x SDim x NC x NE]  - in/out data member in R
+   //
+   // val_qpts = (w/det(J)) adj(J) adj(J)^t val_qpts
+   template <typename T_result_t, typename Q_t, typename q_t,
+             typename S_data_t>
+   static inline MFEM_ALWAYS_INLINE
+   void Action(const int k, const T_result_t &F,
+               const Q_t &Q, const q_t &q, S_data_t &R)
+   {
+      const int M = S_data_t::eval_type::qpts;
+      const int NC = S_data_t::eval_type::vdim;
+      MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
+                         "incompatible dimensions");
+      MFEM_FLOPS_ADD(M); // just need to count Q/detJ
+      for (int i = 0; i < M; i++)
+      {
+         typedef typename T_result_t::Jt_type::data_type real_t;
+         TMatrix<3,3,real_t> adj_J;
+         const complex_t w_det_J =
+            (Q.get(q,i,k) /
+             TAdjDet<real_t>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt,
+                             adj_J.layout, adj_J));
+         TMatrix<3,NC,complex_t> z; // z = adj(J)^t x
+         sMult_AB<false>(adj_J.layout.transpose_12(), adj_J,
+                         R.val_qpts.layout.ind14(i,k), R.val_qpts,
+                         z.layout, z);
+         z.Scale(w_det_J);
+         sMult_AB<false>(adj_J.layout, adj_J,
+                         z.layout, z,
+                         R.val_qpts.layout.ind14(i,k), R.val_qpts);
+      }
+   }
 
-	// Method for partially assembled action.
-	// A         [M x Dim*(Dim+1)/2]  - partially assembled Dim x Dim symmetric
-	//                                  matrices
-	// val_qpts [M x SDim x NC x NE] - in/out data member in R
-	//
-	// val_qpts = A val_qpts
-	template <int qpts, typename S_data_t>
-	static inline MFEM_ALWAYS_INLINE
-	void MultAssembled(const int k, const TMatrix<qpts,6,complex_t> &A,
-					   S_data_t &R)
-	{
-		const int M = S_data_t::eval_type::qpts;
-		const int NC = S_data_t::eval_type::vdim;
-		MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
-		MFEM_FLOPS_ADD(15*M*NC);
-		for (int i = 0; i < M; i++)
-		{
-			const complex_t A11 = A(i,0);
-			const complex_t A21 = A(i,1);
-			const complex_t A31 = A(i,2);
-			const complex_t A22 = A(i,3);
-			const complex_t A32 = A(i,4);
-			const complex_t A33 = A(i,5);
-			for (int j = 0; j < NC; j++)
-			{
-				const complex_t x1 = R.val_qpts(i,0,j,k);
-				const complex_t x2 = R.val_qpts(i,1,j,k);
-				const complex_t x3 = R.val_qpts(i,2,j,k);
-				R.val_qpts(i,0,j,k) = A11*x1 + A21*x2 + A31*x3;
-				R.val_qpts(i,1,j,k) = A21*x1 + A22*x2 + A32*x3;
-			R.val_qpts(i,2,j,k) = A31*x1 + A32*x2 + A33*x3;
-			}
-		}
-	}
+   // Method defining partial assembly. The pointwise Dim x Dim matrices are
+   // stored as symmetric (when asm_type == p_asm_data, i.e. A.layout.rank == 2)
+   // or non-symmetric (when asm_type == f_asm_data, i.e. A.layout.rank == 3)
+   // matrices.
+   // Jt   [M x Dim x SDim x NE] - Jacobian transposed, data member in F
+   // Q                          - CoefficientEval<>::Type
+   // q                          - CoefficientEval<>::Type::result_t
+   // A    [M x Dim*(Dim+1)/2]   - partially assembled Dim x Dim symm. matrices
+   // A    [M x Dim x Dim]       - partially assembled Dim x Dim matrices
+   //
+   // A = (w/det(J)) adj(J) adj(J)^t
+   template <typename T_result_t, typename Q_t, typename q_t, typename asm_type>
+   static inline MFEM_ALWAYS_INLINE
+   void Assemble(const int k, const T_result_t &F,
+                 const Q_t &Q, const q_t &q, asm_type &A)
+   {
+      typedef typename T_result_t::Jt_type::data_type real_t;
+      const int M = T_result_t::Jt_type::layout_type::dim_1;
+      MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
+                         "incompatible dimensions");
+      MFEM_FLOPS_ADD(37*M);
+      const bool Symm = (asm_type::layout_type::rank == 2);
+      for (int i = 0; i < M; i++)
+      {
+         TMatrix<3,3,real_t> B; // = adj(J)
+         const complex_t u =
+            (Q.get(q,i,k) /
+             TAdjDet<real_t>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt,
+                             B.layout, B));
+         internal::MatrixOps<3,3>::Symm<Symm>::Set(
+            A.layout.ind1(i), A,
+            u*(B(0,0)*B(0,0)+B(0,1)*B(0,1)+B(0,2)*B(0,2)), // 1,1
+            u*(B(0,0)*B(1,0)+B(0,1)*B(1,1)+B(0,2)*B(1,2)), // 2,1
+            u*(B(0,0)*B(2,0)+B(0,1)*B(2,1)+B(0,2)*B(2,2)), // 3,1
+            u*(B(1,0)*B(1,0)+B(1,1)*B(1,1)+B(1,2)*B(1,2)), // 2,2
+            u*(B(1,0)*B(2,0)+B(1,1)*B(2,1)+B(1,2)*B(2,2)), // 3,2
+            u*(B(2,0)*B(2,0)+B(2,1)*B(2,1)+B(2,2)*B(2,2))  // 3,3
+         );
+      }
+   }
+
+   // Method for partially assembled action.
+   // A         [M x Dim*(Dim+1)/2]  - partially assembled Dim x Dim symmetric
+   //                                  matrices
+   // val_qpts [M x SDim x NC x NE] - in/out data member in R
+   //
+   // val_qpts = A val_qpts
+   template <int qpts, typename S_data_t>
+   static inline MFEM_ALWAYS_INLINE
+   void MultAssembled(const int k, const TMatrix<qpts,6,complex_t> &A,
+                      S_data_t &R)
+   {
+      const int M = S_data_t::eval_type::qpts;
+      const int NC = S_data_t::eval_type::vdim;
+      MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
+      MFEM_FLOPS_ADD(15*M*NC);
+      for (int i = 0; i < M; i++)
+      {
+         const complex_t A11 = A(i,0);
+         const complex_t A21 = A(i,1);
+         const complex_t A31 = A(i,2);
+         const complex_t A22 = A(i,3);
+         const complex_t A32 = A(i,4);
+         const complex_t A33 = A(i,5);
+         for (int j = 0; j < NC; j++)
+         {
+            const complex_t x1 = R.val_qpts(i,0,j,k);
+            const complex_t x2 = R.val_qpts(i,1,j,k);
+            const complex_t x3 = R.val_qpts(i,2,j,k);
+            R.val_qpts(i,0,j,k) = A11*x1 + A21*x2 + A31*x3;
+            R.val_qpts(i,1,j,k) = A21*x1 + A22*x2 + A32*x3;
+            R.val_qpts(i,2,j,k) = A31*x1 + A32*x2 + A33*x3;
+         }
+      }
+   }
 };
-    
+
 // Curl kernel for Nedelec Finite Element
-    
+
 // complex_t - type for the assembled data
 template <int SDim, int Dim, typename complex_t>
 struct THcurlcurlKernel;
@@ -858,272 +858,278 @@ struct THcurlcurlKernel;
 template <typename complex_t>
 struct THcurlcurlKernel<2,2,complex_t>
 {
-	typedef complex_t complex_type;
+   typedef complex_t complex_type;
 
-	// needed for the TElementTransformation::Result class
-	static const bool uses_Jacobians = true;
+   // needed for the TElementTransformation::Result class
+   static const bool uses_Jacobians = true;
 
-	// needed for the FieldEvaluator::Data class
-	static const bool in_values  = false;
-	static const bool in_curls   = true;
-	static const bool out_values = false;
-	static const bool out_curls  = true;
+   // needed for the FieldEvaluator::Data class
+   static const bool in_values  = false;
+   static const bool in_curls   = true;
+   static const bool out_values = false;
+   static const bool out_curls  = true;
 
-	// Partially assembled data type for one element with the given number of
-	// quadrature points. This type is used in partial assembly, and partially
-	// assembled action. Stores one symmetric 2 x 2 matrix per point.
-	template <int qpts>
-	struct p_asm_data { typedef TMatrix<qpts,1,complex_t> type; };
+   // Partially assembled data type for one element with the given number of
+   // quadrature points. This type is used in partial assembly, and partially
+   // assembled action. Stores one symmetric 2 x 2 matrix per point.
+   template <int qpts>
+   struct p_asm_data { typedef TMatrix<qpts,1,complex_t> type; };
 
-	// Partially assembled data type for one element with the given number of
-	// quadrature points. This type is used in full element matrix assembly.
-	// Stores one general (non-symmetric) 1 x 1 matrix per point.
-	template <int qpts>
-	struct f_asm_data { typedef TTensor3<qpts,1,1,complex_t> type; };
+   // Partially assembled data type for one element with the given number of
+   // quadrature points. This type is used in full element matrix assembly.
+   // Stores one general (non-symmetric) 1 x 1 matrix per point.
+   template <int qpts>
+   struct f_asm_data { typedef TTensor3<qpts,1,1,complex_t> type; };
 
-	template <typename IR, typename coeff_t, int NE>
-	struct CoefficientEval
-	{
-		typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
-	};
+   template <typename IR, typename coeff_t, int NE>
+   struct CoefficientEval
+   {
+      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+   };
 
-	// Method used for un-assembled (matrix free) action.
-	// Jt        [M x Dim x SDim x NE] - Jacobian transposed, data member in F
-	// Q                               - CoefficientEval<>::Type
-	// q                               - CoefficientEval<>::Type::result_t
-	// val_qpts [M x SDim x NC x NE]  - in/out data member in R
-	//
-	// curl_qpts = (w/det(J)) curl_qpts
-	template <typename T_result_t, typename Q_t, typename q_t,
-	typename S_data_t>
-	static inline MFEM_ALWAYS_INLINE
-	void Action(const int k, const T_result_t &F,
-				const Q_t &Q, const q_t &q, S_data_t &R)
-	{
-		const int M = S_data_t::eval_type::qpts;
-		const int NC = S_data_t::eval_type::vdim;
-		MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
-						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(M*(4+NC));
-		for (int i = 0; i < M; i++)
-		{
-			typedef typename T_result_t::Jt_type::data_type real_t;
-			const real_t J11 = F.Jt(i,0,0,k);
-			const real_t J12 = F.Jt(i,1,0,k);
-			const real_t J21 = F.Jt(i,0,1,k);
-			const real_t J22 = F.Jt(i,1,1,k);
-			const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
-			for (int j = 0; j < NC; j++)
-			{
-				const complex_t x1 = R.curl_qpts(i,0,j,k);
-				R.curl_qpts(i,0,j,k) = w_det_J * x1;
-			}
-		}
-	}
+   // Method used for un-assembled (matrix free) action.
+   // Jt        [M x Dim x SDim x NE] - Jacobian transposed, data member in F
+   // Q                               - CoefficientEval<>::Type
+   // q                               - CoefficientEval<>::Type::result_t
+   // val_qpts [M x SDim x NC x NE]  - in/out data member in R
+   //
+   // curl_qpts = (w/det(J)) curl_qpts
+   template <typename T_result_t, typename Q_t, typename q_t,
+             typename S_data_t>
+   static inline MFEM_ALWAYS_INLINE
+   void Action(const int k, const T_result_t &F,
+               const Q_t &Q, const q_t &q, S_data_t &R)
+   {
+      const int M = S_data_t::eval_type::qpts;
+      const int NC = S_data_t::eval_type::vdim;
+      MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
+                         "incompatible dimensions");
+      MFEM_FLOPS_ADD(M*(4+NC));
+      for (int i = 0; i < M; i++)
+      {
+         typedef typename T_result_t::Jt_type::data_type real_t;
+         const real_t J11 = F.Jt(i,0,0,k);
+         const real_t J12 = F.Jt(i,1,0,k);
+         const real_t J21 = F.Jt(i,0,1,k);
+         const real_t J22 = F.Jt(i,1,1,k);
+         const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
+         for (int j = 0; j < NC; j++)
+         {
+            const complex_t x1 = R.curl_qpts(i,0,j,k);
+            R.curl_qpts(i,0,j,k) = w_det_J * x1;
+         }
+      }
+   }
 
-	// Method defining partial assembly. The pointwise Dim x Dim matrices are
-	// stored as symmetric (when asm_type == p_asm_data, i.e. A.layout.rank == 2)
-	// or non-symmetric (when asm_type == f_asm_data, i.e. A.layout.rank == 3)
-	// matrices.
-	// Jt   [M x Dim x SDim x NE] - Jacobian transposed, data member in F
-	// Q                          - CoefficientEval<>::Type
-	// q                          - CoefficientEval<>::Type::result_t
-	// A    [M x Dim*(Dim+1)/2]   - partially assembled Dim x Dim symm. matrices
-	// A    [M x Dim x Dim]       - partially assembled Dim x Dim matrices
-	//
-	// A = (w/det(J))
-	template <typename T_result_t, typename Q_t, typename q_t, typename asm_type>
-	static inline MFEM_ALWAYS_INLINE
-	void Assemble(const int k, const T_result_t &F,
-				  const Q_t &Q, const q_t &q, asm_type &A)
-	{
-		typedef typename T_result_t::Jt_type::data_type real_t;
-		const int M = T_result_t::Jt_type::layout_type::dim_1;
-		MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
-						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(4*M);
-		for (int i = 0; i < M; i++)
-		{
-			const real_t J11 = F.Jt(i,0,0,k);
-			const real_t J12 = F.Jt(i,1,0,k);
-			const real_t J21 = F.Jt(i,0,1,k);
-			const real_t J22 = F.Jt(i,1,1,k);
-			const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
-			A[i] = w_det_J;
-		}
-	}
-        
-	// Method for partially assembled action.
-	// A         [M x Dim*(Dim+1)/2]  - partially assembled Dim x Dim symmetric
-	//                                  matrices
-	// val_qpts [M x SDim x NC x NE] - in/out data member in R
-	//
-	// val_qpts = A val_qpts
-	template <int qpts, typename S_data_t>
-	static inline MFEM_ALWAYS_INLINE
-	void MultAssembled(const int k, const TMatrix<qpts,1,complex_t> &A,
-					   S_data_t &R)
-	{
-		const int M = S_data_t::eval_type::qpts;
-		const int NC = S_data_t::eval_type::vdim;
-		MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
-		MFEM_FLOPS_ADD(M*NC);
-		for (int i = 0; i < M; i++)
-		{
-			const complex_t A11 = A(i,0);
-			for (int j = 0; j < NC; j++)
-			{
-				const complex_t x1 = R.curl_qpts(i,0,j,k);
-				R.curl_qpts(i,0,j,k) = A11 * x1;
-			}
-		}
-	}
+   // Method defining partial assembly. The pointwise Dim x Dim matrices are
+   // stored as symmetric (when asm_type == p_asm_data, i.e. A.layout.rank == 2)
+   // or non-symmetric (when asm_type == f_asm_data, i.e. A.layout.rank == 3)
+   // matrices.
+   // Jt   [M x Dim x SDim x NE] - Jacobian transposed, data member in F
+   // Q                          - CoefficientEval<>::Type
+   // q                          - CoefficientEval<>::Type::result_t
+   // A    [M x Dim*(Dim+1)/2]   - partially assembled Dim x Dim symm. matrices
+   // A    [M x Dim x Dim]       - partially assembled Dim x Dim matrices
+   //
+   // A = (w/det(J))
+   template <typename T_result_t, typename Q_t, typename q_t, typename asm_type>
+   static inline MFEM_ALWAYS_INLINE
+   void Assemble(const int k, const T_result_t &F,
+                 const Q_t &Q, const q_t &q, asm_type &A)
+   {
+      typedef typename T_result_t::Jt_type::data_type real_t;
+      const int M = T_result_t::Jt_type::layout_type::dim_1;
+      MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
+                         "incompatible dimensions");
+      MFEM_FLOPS_ADD(4*M);
+      for (int i = 0; i < M; i++)
+      {
+         const real_t J11 = F.Jt(i,0,0,k);
+         const real_t J12 = F.Jt(i,1,0,k);
+         const real_t J21 = F.Jt(i,0,1,k);
+         const real_t J22 = F.Jt(i,1,1,k);
+         const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
+         A[i] = w_det_J;
+      }
+   }
+
+   // Method for partially assembled action.
+   // A         [M x Dim*(Dim+1)/2]  - partially assembled Dim x Dim symmetric
+   //                                  matrices
+   // val_qpts [M x SDim x NC x NE] - in/out data member in R
+   //
+   // val_qpts = A val_qpts
+   template <int qpts, typename S_data_t>
+   static inline MFEM_ALWAYS_INLINE
+   void MultAssembled(const int k, const TMatrix<qpts,1,complex_t> &A,
+                      S_data_t &R)
+   {
+      const int M = S_data_t::eval_type::qpts;
+      const int NC = S_data_t::eval_type::vdim;
+      MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
+      MFEM_FLOPS_ADD(M*NC);
+      for (int i = 0; i < M; i++)
+      {
+         const complex_t A11 = A(i,0);
+         for (int j = 0; j < NC; j++)
+         {
+            const complex_t x1 = R.curl_qpts(i,0,j,k);
+            R.curl_qpts(i,0,j,k) = A11 * x1;
+         }
+      }
+   }
 };
-	
+
 // Curl-curl kernel for Nedelec Finite Element kernel in 3D
 template <typename complex_t>
 struct THcurlcurlKernel<3,3,complex_t>
 {
-	typedef complex_t complex_type;
+   typedef complex_t complex_type;
 
-	// needed for the TElementTransformation::Result class
-	static const bool uses_Jacobians = true;
+   // needed for the TElementTransformation::Result class
+   static const bool uses_Jacobians = true;
 
-	// needed for the FieldEvaluator::Data class
-	static const bool in_values  = false;
-	static const bool in_curls   = true;
-	static const bool out_values = false;
-	static const bool out_curls  = true;
+   // needed for the FieldEvaluator::Data class
+   static const bool in_values  = false;
+   static const bool in_curls   = true;
+   static const bool out_values = false;
+   static const bool out_curls  = true;
 
-	// Partially assembled data type for one element with the given number of
-	// quadrature points. This type is used in partial assembly, and partially
-	// assembled action. Stores one symmetric 3 x 3 matrix per point.
-	template <int qpts>
-	struct p_asm_data { typedef TMatrix<qpts,6,complex_t> type; };
+   // Partially assembled data type for one element with the given number of
+   // quadrature points. This type is used in partial assembly, and partially
+   // assembled action. Stores one symmetric 3 x 3 matrix per point.
+   template <int qpts>
+   struct p_asm_data { typedef TMatrix<qpts,6,complex_t> type; };
 
-	// Partially assembled data type for one element with the given number of
-	// quadrature points. This type is used in full element matrix assembly.
-	// Stores one general (non-symmetric) 3 x 3 matrix per point.
-	template <int qpts>
-	struct f_asm_data { typedef TTensor3<qpts,3,3,complex_t> type; };
+   // Partially assembled data type for one element with the given number of
+   // quadrature points. This type is used in full element matrix assembly.
+   // Stores one general (non-symmetric) 3 x 3 matrix per point.
+   template <int qpts>
+   struct f_asm_data { typedef TTensor3<qpts,3,3,complex_t> type; };
 
-	template <typename IR, typename coeff_t, int NE>
-	struct CoefficientEval
-	{
-		typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
-	};
+   template <typename IR, typename coeff_t, int NE>
+   struct CoefficientEval
+   {
+      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+   };
 
-	// Method used for un-assembled (matrix free) action.
-	// Jt        [M x Dim x SDim x NE] - Jacobian transposed, data member in F
-	// Q                               - CoefficientEval<>::Type
-	// q                               - CoefficientEval<>::Type::result_t
-	// val_qpts [M x SDim x NC x NE]  - in/out data member in R
-	//
-	// val_qpts = (w/det(J)) J^T*J val_qpts
-	template <typename T_result_t, typename Q_t, typename q_t,
-			  typename S_data_t>
-	static inline MFEM_ALWAYS_INLINE
-	void Action(const int k, const T_result_t &F,
-				const Q_t &Q, const q_t &q, S_data_t &R)
-	{
-		const int M = S_data_t::eval_type::qpts;
-		const int NC = S_data_t::eval_type::vdim;
-		MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
-						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(M); // just need to count Q/detJ
-		for (int i = 0; i < M; i++)
-		{
-			//TMatrix<3,3,real_t> adj_J;
-			const complex_t w_det_J =
-				(Q.get(q,i,k) / TDet<double>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt));
+   // Method used for un-assembled (matrix free) action.
+   // Jt        [M x Dim x SDim x NE] - Jacobian transposed, data member in F
+   // Q                               - CoefficientEval<>::Type
+   // q                               - CoefficientEval<>::Type::result_t
+   // val_qpts [M x SDim x NC x NE]  - in/out data member in R
+   //
+   // val_qpts = (w/det(J)) J^T*J val_qpts
+   template <typename T_result_t, typename Q_t, typename q_t,
+             typename S_data_t>
+   static inline MFEM_ALWAYS_INLINE
+   void Action(const int k, const T_result_t &F,
+               const Q_t &Q, const q_t &q, S_data_t &R)
+   {
+      const int M = S_data_t::eval_type::qpts;
+      const int NC = S_data_t::eval_type::vdim;
+      MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
+                         "incompatible dimensions");
+      MFEM_FLOPS_ADD(M); // just need to count Q/detJ
+      for (int i = 0; i < M; i++)
+      {
+         //TMatrix<3,3,real_t> adj_J;
+         const complex_t w_det_J =
+            (Q.get(q,i,k) / TDet<double>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt));
 
-			TMatrix<3,NC,complex_t> z; // z = adj(J)^t x
-			sMult_AB<false>(F.Jt.layout.ind14(i,k), F.Jt,
-							R.curl_qpts.layout.ind14(i,k), R.curl_qpts,
-							z.layout, z);
-			z.Scale(w_det_J);
-			sMult_AB<false>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt,
-							z.layout, z,
-							R.curl_qpts.layout.ind14(i,k), R.curl_qpts);
-		}
-	}
-    
-	// Method defining partial assembly. The pointwise Dim x Dim matrices are
-	// stored as symmetric (when asm_type == p_asm_data, i.e. A.layout.rank == 2)
-	// or non-symmetric (when asm_type == f_asm_data, i.e. A.layout.rank == 3)
-	// matrices.
-	// Jt   [M x Dim x SDim x NE] - Jacobian transposed, data member in F
-	// Q                          - CoefficientEval<>::Type
-	// q                          - CoefficientEval<>::Type::result_t
-	// A    [M x Dim*(Dim+1)/2]   - partially assembled Dim x Dim symm. matrices
-	// A    [M x Dim x Dim]       - partially assembled Dim x Dim matrices
-	//
-	// A = (w/det(J)) JJ^t
-	template <typename T_result_t, typename Q_t, typename q_t, typename asm_type>
-	static inline MFEM_ALWAYS_INLINE
-	void Assemble(const int k, const T_result_t &F,
-				  const Q_t &Q, const q_t &q, asm_type &A)
-	{
-		const int M = T_result_t::Jt_type::layout_type::dim_1;
-		MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
-						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(37*M);
-		const bool Symm = (asm_type::layout_type::rank == 2);
-		for (int i = 0; i < M; i++)
-		{
-			//TMatrix<3,3,real_t> B; // = adj(J)
-			const complex_t u =
-				(Q.get(q,i,k) / TDet<double>(F.Jt.layout.ind14(i,k), F.Jt));
-			internal::MatrixOps<3,3>::Symm<Symm>::Set(
-				A.layout.ind1(i), A,
-				u*(F.Jt(i,0,0,k)*F.Jt(i,0,0,k)+F.Jt(i,1,0,k)*F.Jt(i,1,0,k)+F.Jt(i,2,0,k)*F.Jt(i,2,0,k)), // 1,1
-				u*(F.Jt(i,0,1,k)*F.Jt(i,0,0,k)+F.Jt(i,1,1,k)*F.Jt(i,1,0,k)+F.Jt(i,2,1,k)*F.Jt(i,2,0,k)), // 2,1
-				u*(F.Jt(i,0,2,k)*F.Jt(i,0,0,k)+F.Jt(i,1,2,k)*F.Jt(i,1,0,k)+F.Jt(i,2,2,k)*F.Jt(i,2,0,k)), // 3,1
-				u*(F.Jt(i,0,1,k)*F.Jt(i,0,1,k)+F.Jt(i,1,1,k)*F.Jt(i,1,1,k)+F.Jt(i,2,1,k)*F.Jt(i,2,1,k)), // 2,2
-				u*(F.Jt(i,0,2,k)*F.Jt(i,0,1,k)+F.Jt(i,1,2,k)*F.Jt(i,1,1,k)+F.Jt(i,2,2,k)*F.Jt(i,1,2,k)), // 3,2
-				u*(F.Jt(i,0,2,k)*F.Jt(i,0,2,k)+F.Jt(i,1,2,k)*F.Jt(i,1,2,k)+F.Jt(i,2,2,k)*F.Jt(i,2,2,k))  // 3,3
-			);
-		}
-	}
+         TMatrix<3,NC,complex_t> z; // z = adj(J)^t x
+         sMult_AB<false>(F.Jt.layout.ind14(i,k), F.Jt,
+                         R.curl_qpts.layout.ind14(i,k), R.curl_qpts,
+                         z.layout, z);
+         z.Scale(w_det_J);
+         sMult_AB<false>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt,
+                         z.layout, z,
+                         R.curl_qpts.layout.ind14(i,k), R.curl_qpts);
+      }
+   }
 
-	// Method for partially assembled action.
-	// A         [M x Dim*(Dim+1)/2]  - partially assembled Dim x Dim symmetric
-	//                                  matrices
-	// val_qpts [M x SDim x NC x NE] - in/out data member in R
-	//
-	// val_qpts = A val_qpts
-	template <int qpts, typename S_data_t>
-	static inline MFEM_ALWAYS_INLINE
-	void MultAssembled(const int k, const TMatrix<qpts,6,complex_t> &A,
-					   S_data_t &R)
-	{
-		const int M = S_data_t::eval_type::qpts;
-		const int NC = S_data_t::eval_type::vdim;
-		MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
-		MFEM_FLOPS_ADD(15*M*NC);
-		for (int i = 0; i < M; i++)
-		{
-			const complex_t A11 = A(i,0);
-			const complex_t A21 = A(i,1);
-			const complex_t A31 = A(i,2);
-			const complex_t A22 = A(i,3);
-			const complex_t A32 = A(i,4);
-			const complex_t A33 = A(i,5);
-			for (int j = 0; j < NC; j++)
-			{
-				const complex_t x1 = R.curl_qpts(i,0,j,k);
-				const complex_t x2 = R.curl_qpts(i,1,j,k);
-				const complex_t x3 = R.curl_qpts(i,2,j,k);
-				R.curl_qpts(i,0,j,k) = A11*x1 + A21*x2 + A31*x3;
-				R.curl_qpts(i,1,j,k) = A21*x1 + A22*x2 + A32*x3;
-				R.curl_qpts(i,2,j,k) = A31*x1 + A32*x2 + A33*x3;
-			}
-		}
-	}
+   // Method defining partial assembly. The pointwise Dim x Dim matrices are
+   // stored as symmetric (when asm_type == p_asm_data, i.e. A.layout.rank == 2)
+   // or non-symmetric (when asm_type == f_asm_data, i.e. A.layout.rank == 3)
+   // matrices.
+   // Jt   [M x Dim x SDim x NE] - Jacobian transposed, data member in F
+   // Q                          - CoefficientEval<>::Type
+   // q                          - CoefficientEval<>::Type::result_t
+   // A    [M x Dim*(Dim+1)/2]   - partially assembled Dim x Dim symm. matrices
+   // A    [M x Dim x Dim]       - partially assembled Dim x Dim matrices
+   //
+   // A = (w/det(J)) JJ^t
+   template <typename T_result_t, typename Q_t, typename q_t, typename asm_type>
+   static inline MFEM_ALWAYS_INLINE
+   void Assemble(const int k, const T_result_t &F,
+                 const Q_t &Q, const q_t &q, asm_type &A)
+   {
+      const int M = T_result_t::Jt_type::layout_type::dim_1;
+      MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
+                         "incompatible dimensions");
+      MFEM_FLOPS_ADD(37*M);
+      const bool Symm = (asm_type::layout_type::rank == 2);
+      for (int i = 0; i < M; i++)
+      {
+         //TMatrix<3,3,real_t> B; // = adj(J)
+         const complex_t u =
+            (Q.get(q,i,k) / TDet<double>(F.Jt.layout.ind14(i,k), F.Jt));
+         internal::MatrixOps<3,3>::Symm<Symm>::Set(
+            A.layout.ind1(i), A,
+            u*(F.Jt(i,0,0,k)*F.Jt(i,0,0,k)+F.Jt(i,1,0,k)*F.Jt(i,1,0,k)+F.Jt(i,2,0,k)*F.Jt(i,
+                  2,0,k)), // 1,1
+            u*(F.Jt(i,0,1,k)*F.Jt(i,0,0,k)+F.Jt(i,1,1,k)*F.Jt(i,1,0,k)+F.Jt(i,2,1,k)*F.Jt(i,
+                  2,0,k)), // 2,1
+            u*(F.Jt(i,0,2,k)*F.Jt(i,0,0,k)+F.Jt(i,1,2,k)*F.Jt(i,1,0,k)+F.Jt(i,2,2,k)*F.Jt(i,
+                  2,0,k)), // 3,1
+            u*(F.Jt(i,0,1,k)*F.Jt(i,0,1,k)+F.Jt(i,1,1,k)*F.Jt(i,1,1,k)+F.Jt(i,2,1,k)*F.Jt(i,
+                  2,1,k)), // 2,2
+            u*(F.Jt(i,0,2,k)*F.Jt(i,0,1,k)+F.Jt(i,1,2,k)*F.Jt(i,1,1,k)+F.Jt(i,2,2,k)*F.Jt(i,
+                  1,2,k)), // 3,2
+            u*(F.Jt(i,0,2,k)*F.Jt(i,0,2,k)+F.Jt(i,1,2,k)*F.Jt(i,1,2,k)+F.Jt(i,2,2,k)*F.Jt(i,
+                  2,2,k))  // 3,3
+         );
+      }
+   }
+
+   // Method for partially assembled action.
+   // A         [M x Dim*(Dim+1)/2]  - partially assembled Dim x Dim symmetric
+   //                                  matrices
+   // val_qpts [M x SDim x NC x NE] - in/out data member in R
+   //
+   // val_qpts = A val_qpts
+   template <int qpts, typename S_data_t>
+   static inline MFEM_ALWAYS_INLINE
+   void MultAssembled(const int k, const TMatrix<qpts,6,complex_t> &A,
+                      S_data_t &R)
+   {
+      const int M = S_data_t::eval_type::qpts;
+      const int NC = S_data_t::eval_type::vdim;
+      MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
+      MFEM_FLOPS_ADD(15*M*NC);
+      for (int i = 0; i < M; i++)
+      {
+         const complex_t A11 = A(i,0);
+         const complex_t A21 = A(i,1);
+         const complex_t A31 = A(i,2);
+         const complex_t A22 = A(i,3);
+         const complex_t A32 = A(i,4);
+         const complex_t A33 = A(i,5);
+         for (int j = 0; j < NC; j++)
+         {
+            const complex_t x1 = R.curl_qpts(i,0,j,k);
+            const complex_t x2 = R.curl_qpts(i,1,j,k);
+            const complex_t x3 = R.curl_qpts(i,2,j,k);
+            R.curl_qpts(i,0,j,k) = A11*x1 + A21*x2 + A31*x3;
+            R.curl_qpts(i,1,j,k) = A21*x1 + A22*x2 + A32*x3;
+            R.curl_qpts(i,2,j,k) = A31*x1 + A32*x2 + A33*x3;
+         }
+      }
+   }
 };
 
 // mass kernel for RT Finite Element
-    
+
 // complex_t - type for the assembled data
 template <int SDim, int Dim, typename complex_t>
 struct THDivMassKernel;
@@ -1132,287 +1138,293 @@ struct THDivMassKernel;
 template <typename complex_t>
 struct THDivMassKernel<2,2,complex_t>
 {
-	typedef complex_t complex_type;
+   typedef complex_t complex_type;
 
-	// needed for the TElementTransformation::Result class
-	static const bool uses_Jacobians = true;
+   // needed for the TElementTransformation::Result class
+   static const bool uses_Jacobians = true;
 
-	// needed for the FieldEvaluator::Data class
-	static const bool in_values  = true;
-	static const bool in_divs    = false;
-	static const bool out_values = true;
-	static const bool out_divs   = false;
+   // needed for the FieldEvaluator::Data class
+   static const bool in_values  = true;
+   static const bool in_divs    = false;
+   static const bool out_values = true;
+   static const bool out_divs   = false;
 
-	// Partially assembled data type for one element with the given number of
-	// quadrature points. This type is used in partial assembly, and partially
-	// assembled action. Stores one symmetric 2 x 2 matrix per point.
-	template <int qpts>
-	struct p_asm_data { typedef TMatrix<qpts,3,complex_t> type; };
+   // Partially assembled data type for one element with the given number of
+   // quadrature points. This type is used in partial assembly, and partially
+   // assembled action. Stores one symmetric 2 x 2 matrix per point.
+   template <int qpts>
+   struct p_asm_data { typedef TMatrix<qpts,3,complex_t> type; };
 
-	// Partially assembled data type for one element with the given number of
-	// quadrature points. This type is used in full element matrix assembly.
-	// Stores one general (non-symmetric) 1 x 1 matrix per point.
-	template <int qpts>
-	struct f_asm_data { typedef TTensor3<qpts,2,2,complex_t> type; };
+   // Partially assembled data type for one element with the given number of
+   // quadrature points. This type is used in full element matrix assembly.
+   // Stores one general (non-symmetric) 1 x 1 matrix per point.
+   template <int qpts>
+   struct f_asm_data { typedef TTensor3<qpts,2,2,complex_t> type; };
 
-	template <typename IR, typename coeff_t, int NE>
-	struct CoefficientEval
-	{
-		typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
-	};
+   template <typename IR, typename coeff_t, int NE>
+   struct CoefficientEval
+   {
+      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+   };
 
-	// Method used for un-assembled (matrix free) action.
-	// Jt        [M x Dim x SDim x NE] - Jacobian transposed, data member in F
-	// Q                               - CoefficientEval<>::Type
-	// q                               - CoefficientEval<>::Type::result_t
-	// val_qpts [M x SDim x NC x NE]  - in/out data member in R
-	//
-	// curl_qpts = (w/det(J))J val_qpts
-	template <typename T_result_t, typename Q_t, typename q_t,
-	typename S_data_t>
-	static inline MFEM_ALWAYS_INLINE
-	void Action(const int k, const T_result_t &F,
-				const Q_t &Q, const q_t &q, S_data_t &R)
-	{
-		const int M = S_data_t::eval_type::qpts;
-		const int NC = S_data_t::eval_type::vdim;
-		MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
-						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(M*(4+NC*14));
-		for (int i = 0; i < M; i++)
-		{
-			typedef typename T_result_t::Jt_type::data_type real_t;
-			const real_t J11 = F.Jt(i,0,0,k);
-			const real_t J12 = F.Jt(i,1,0,k);
-			const real_t J21 = F.Jt(i,0,1,k);
-			const real_t J22 = F.Jt(i,1,1,k);
-			const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
-			for (int j = 0; j < NC; j++)
-			{
-				const complex_t x1 = R.val_qpts(i,0,j,k);
-				const complex_t x2 = R.val_qpts(i,0,j,k);
-				// z = J x
-				const complex_t z1 = J11 * x1 + J21 * x2;
-				const complex_t z2 = J12 * x1 + J22 * x2;
-				R.val_qpts(i,0,j,k) = w_det_J * (J11*z1+J12*z2);
-				R.val_qpts(i,1,j,k) = w_det_J * (J21*z1+J22*z2);
-			}
-		}
-	}
+   // Method used for un-assembled (matrix free) action.
+   // Jt        [M x Dim x SDim x NE] - Jacobian transposed, data member in F
+   // Q                               - CoefficientEval<>::Type
+   // q                               - CoefficientEval<>::Type::result_t
+   // val_qpts [M x SDim x NC x NE]  - in/out data member in R
+   //
+   // curl_qpts = (w/det(J))J val_qpts
+   template <typename T_result_t, typename Q_t, typename q_t,
+             typename S_data_t>
+   static inline MFEM_ALWAYS_INLINE
+   void Action(const int k, const T_result_t &F,
+               const Q_t &Q, const q_t &q, S_data_t &R)
+   {
+      const int M = S_data_t::eval_type::qpts;
+      const int NC = S_data_t::eval_type::vdim;
+      MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
+                         "incompatible dimensions");
+      MFEM_FLOPS_ADD(M*(4+NC*14));
+      for (int i = 0; i < M; i++)
+      {
+         typedef typename T_result_t::Jt_type::data_type real_t;
+         const real_t J11 = F.Jt(i,0,0,k);
+         const real_t J12 = F.Jt(i,1,0,k);
+         const real_t J21 = F.Jt(i,0,1,k);
+         const real_t J22 = F.Jt(i,1,1,k);
+         const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
+         for (int j = 0; j < NC; j++)
+         {
+            const complex_t x1 = R.val_qpts(i,0,j,k);
+            const complex_t x2 = R.val_qpts(i,0,j,k);
+            // z = J x
+            const complex_t z1 = J11 * x1 + J21 * x2;
+            const complex_t z2 = J12 * x1 + J22 * x2;
+            R.val_qpts(i,0,j,k) = w_det_J * (J11*z1+J12*z2);
+            R.val_qpts(i,1,j,k) = w_det_J * (J21*z1+J22*z2);
+         }
+      }
+   }
 
-	// Method defining partial assembly. The pointwise Dim x Dim matrices are
-	// stored as symmetric (when asm_type == p_asm_data, i.e. A.layout.rank == 2)
-	// or non-symmetric (when asm_type == f_asm_data, i.e. A.layout.rank == 3)
-	// matrices.
-	// Jt   [M x Dim x SDim x NE] - Jacobian transposed, data member in F
-	// Q                          - CoefficientEval<>::Type
-	// q                          - CoefficientEval<>::Type::result_t
-	// A    [M x Dim*(Dim+1)/2]   - partially assembled Dim x Dim symm. matrices
-	// A    [M x Dim x Dim]       - partially assembled Dim x Dim matrices
-	//
-	// A = (w/det(J))Jt*J
-	template <typename T_result_t, typename Q_t, typename q_t, typename asm_type>
-	static inline MFEM_ALWAYS_INLINE
-	void Assemble(const int k, const T_result_t &F,
-				  const Q_t &Q, const q_t &q, asm_type &A)
-	{
-		typedef typename T_result_t::Jt_type::data_type real_t;
-		const int M = T_result_t::Jt_type::layout_type::dim_1;
-		MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
-						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(16*M);
-		const bool Symm = (asm_type::layout_type::rank == 2);
-		for (int i = 0; i < M; i++)
-		{
-			const real_t J11 = F.Jt(i,0,0,k);
-			const real_t J12 = F.Jt(i,1,0,k);
-			const real_t J21 = F.Jt(i,0,1,k);
-			const real_t J22 = F.Jt(i,1,1,k);
-			const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
-			internal::MatrixOps<2,2>::Symm<Symm>::Set(
-				A.layout.ind1(i), A,
-				w_det_J*(J11*J11+J21*J21), // (1,1)
-				w_det_J*(J11*J21+J12*J22), // (2,1)
-				w_det_J*(J21*J21+J22*J22)  // (2,2)
-			);
-		}
-	}
-        
-	// Method for partially assembled action.
-	// A         [M x Dim*(Dim+1)/2]  - partially assembled Dim x Dim symmetric
-	//                                  matrices
-	// val_qpts [M x SDim x NC x NE] - in/out data member in R
-	//
-	// val_qpts = A val_qpts
-	template <int qpts, typename S_data_t>
-	static inline MFEM_ALWAYS_INLINE
-	void MultAssembled(const int k, const TMatrix<qpts,3,complex_t> &A,
-					   S_data_t &R)
-	{
-		const int M = S_data_t::eval_type::qpts;
-		const int NC = S_data_t::eval_type::vdim;
-		MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
-		MFEM_FLOPS_ADD(6*M*NC);
-		for (int i = 0; i < M; i++)
-		{
-			const complex_t A11 = A(i,0);
-			const complex_t A21 = A(i,1);
-			const complex_t A22 = A(i,2);
-			for (int j = 0; j < NC; j++)
-			{
-				const complex_t x1 = R.val_qpts(i,0,j,k);
-				const complex_t x2 = R.val_qpts(i,1,j,k);
-				R.val_qpts(i,0,j,k) = A11 * x1 + A21 * x2;
-				R.val_qpts(i,1,j,k) = A21 * x1 + A22 * x2;
-			}
-		}
-	}
+   // Method defining partial assembly. The pointwise Dim x Dim matrices are
+   // stored as symmetric (when asm_type == p_asm_data, i.e. A.layout.rank == 2)
+   // or non-symmetric (when asm_type == f_asm_data, i.e. A.layout.rank == 3)
+   // matrices.
+   // Jt   [M x Dim x SDim x NE] - Jacobian transposed, data member in F
+   // Q                          - CoefficientEval<>::Type
+   // q                          - CoefficientEval<>::Type::result_t
+   // A    [M x Dim*(Dim+1)/2]   - partially assembled Dim x Dim symm. matrices
+   // A    [M x Dim x Dim]       - partially assembled Dim x Dim matrices
+   //
+   // A = (w/det(J))Jt*J
+   template <typename T_result_t, typename Q_t, typename q_t, typename asm_type>
+   static inline MFEM_ALWAYS_INLINE
+   void Assemble(const int k, const T_result_t &F,
+                 const Q_t &Q, const q_t &q, asm_type &A)
+   {
+      typedef typename T_result_t::Jt_type::data_type real_t;
+      const int M = T_result_t::Jt_type::layout_type::dim_1;
+      MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
+                         "incompatible dimensions");
+      MFEM_FLOPS_ADD(16*M);
+      const bool Symm = (asm_type::layout_type::rank == 2);
+      for (int i = 0; i < M; i++)
+      {
+         const real_t J11 = F.Jt(i,0,0,k);
+         const real_t J12 = F.Jt(i,1,0,k);
+         const real_t J21 = F.Jt(i,0,1,k);
+         const real_t J22 = F.Jt(i,1,1,k);
+         const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
+         internal::MatrixOps<2,2>::Symm<Symm>::Set(
+            A.layout.ind1(i), A,
+            w_det_J*(J11*J11+J21*J21), // (1,1)
+            w_det_J*(J11*J21+J12*J22), // (2,1)
+            w_det_J*(J21*J21+J22*J22)  // (2,2)
+         );
+      }
+   }
+
+   // Method for partially assembled action.
+   // A         [M x Dim*(Dim+1)/2]  - partially assembled Dim x Dim symmetric
+   //                                  matrices
+   // val_qpts [M x SDim x NC x NE] - in/out data member in R
+   //
+   // val_qpts = A val_qpts
+   template <int qpts, typename S_data_t>
+   static inline MFEM_ALWAYS_INLINE
+   void MultAssembled(const int k, const TMatrix<qpts,3,complex_t> &A,
+                      S_data_t &R)
+   {
+      const int M = S_data_t::eval_type::qpts;
+      const int NC = S_data_t::eval_type::vdim;
+      MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
+      MFEM_FLOPS_ADD(6*M*NC);
+      for (int i = 0; i < M; i++)
+      {
+         const complex_t A11 = A(i,0);
+         const complex_t A21 = A(i,1);
+         const complex_t A22 = A(i,2);
+         for (int j = 0; j < NC; j++)
+         {
+            const complex_t x1 = R.val_qpts(i,0,j,k);
+            const complex_t x2 = R.val_qpts(i,1,j,k);
+            R.val_qpts(i,0,j,k) = A11 * x1 + A21 * x2;
+            R.val_qpts(i,1,j,k) = A21 * x1 + A22 * x2;
+         }
+      }
+   }
 };
 
 template <typename complex_t>
 struct THDivMassKernel<3,3,complex_t>
 {
-	typedef complex_t complex_type;
+   typedef complex_t complex_type;
 
-	// needed for the TElementTransformation::Result class
-	static const bool uses_Jacobians = true;
+   // needed for the TElementTransformation::Result class
+   static const bool uses_Jacobians = true;
 
-	// needed for the FieldEvaluator::Data class
-	static const bool in_values  = true;
-	static const bool in_divs    = false;
-	static const bool out_values = true;
-	static const bool out_divs   = false;
+   // needed for the FieldEvaluator::Data class
+   static const bool in_values  = true;
+   static const bool in_divs    = false;
+   static const bool out_values = true;
+   static const bool out_divs   = false;
 
-	// Partially assembled data type for one element with the given number of
-	// quadrature points. This type is used in partial assembly, and partially
-	// assembled action. Stores one symmetric 3 x 3 matrix per point.
-	template <int qpts>
-	struct p_asm_data { typedef TMatrix<qpts,6,complex_t> type; };
+   // Partially assembled data type for one element with the given number of
+   // quadrature points. This type is used in partial assembly, and partially
+   // assembled action. Stores one symmetric 3 x 3 matrix per point.
+   template <int qpts>
+   struct p_asm_data { typedef TMatrix<qpts,6,complex_t> type; };
 
-	// Partially assembled data type for one element with the given number of
-	// quadrature points. This type is used in full element matrix assembly.
-	// Stores one general (non-symmetric) 3 x 3 matrix per point.
-	template <int qpts>
-	struct f_asm_data { typedef TTensor3<qpts,3,3,complex_t> type; };
+   // Partially assembled data type for one element with the given number of
+   // quadrature points. This type is used in full element matrix assembly.
+   // Stores one general (non-symmetric) 3 x 3 matrix per point.
+   template <int qpts>
+   struct f_asm_data { typedef TTensor3<qpts,3,3,complex_t> type; };
 
-	template <typename IR, typename coeff_t, int NE>
-	struct CoefficientEval
-	{
-		typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
-	};
+   template <typename IR, typename coeff_t, int NE>
+   struct CoefficientEval
+   {
+      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+   };
 
-	// Method used for un-assembled (matrix free) action.
-	// Jt        [M x Dim x SDim x NE] - Jacobian transposed, data member in F
-	// Q                               - CoefficientEval<>::Type
-	// q                               - CoefficientEval<>::Type::result_t
-	// val_qpts [M x SDim x NC x NE]  - in/out data member in R
-	//
-	// val_qpts = (w/det(J)) J^T*J val_qpts
-	template <typename T_result_t, typename Q_t, typename q_t,
-			  typename S_data_t>
-	static inline MFEM_ALWAYS_INLINE
-	void Action(const int k, const T_result_t &F,
-				const Q_t &Q, const q_t &q, S_data_t &R)
-	{
-		const int M = S_data_t::eval_type::qpts;
-		const int NC = S_data_t::eval_type::vdim;
-		MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
-						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(M); // just need to count Q/detJ
-		for (int i = 0; i < M; i++)
-		{
-			//TMatrix<3,3,real_t> adj_J;
-			const complex_t w_det_J =
-				(Q.get(q,i,k) / TDet<double>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt));
-			//TAdjDet<real_t>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt,
-			//				 adj_J.layout, adj_J));
-			TMatrix<3,NC,complex_t> z; // z = adj(J)^t x
-			sMult_AB<false>(F.Jt.layout.ind14(i,k), F.Jt,
-							R.val_qpts.layout.ind14(i,k), R.val_qpts,
-							z.layout, z);
-			z.Scale(w_det_J);
-			sMult_AB<false>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt,
-							z.layout, z,
-							R.val_qpts.layout.ind14(i,k), R.val_qpts);
-		}
-	}
-    
-	// Method defining partial assembly. The pointwise Dim x Dim matrices are
-	// stored as symmetric (when asm_type == p_asm_data, i.e. A.layout.rank == 2)
-	// or non-symmetric (when asm_type == f_asm_data, i.e. A.layout.rank == 3)
-	// matrices.
-	// Jt   [M x Dim x SDim x NE] - Jacobian transposed, data member in F
-	// Q                          - CoefficientEval<>::Type
-	// q                          - CoefficientEval<>::Type::result_t
-	// A    [M x Dim*(Dim+1)/2]   - partially assembled Dim x Dim symm. matrices
-	// A    [M x Dim x Dim]       - partially assembled Dim x Dim matrices
-	//
-	// A = (w/det(J)) JJ^t
-	template <typename T_result_t, typename Q_t, typename q_t, typename asm_type>
-	static inline MFEM_ALWAYS_INLINE
-	void Assemble(const int k, const T_result_t &F,
-				  const Q_t &Q, const q_t &q, asm_type &A)
-	{
-		const int M = T_result_t::Jt_type::layout_type::dim_1;
-		MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
-						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(37*M);
-		const bool Symm = (asm_type::layout_type::rank == 2);
-		for (int i = 0; i < M; i++)
-		{
-			//TMatrix<3,3,real_t> B; // = adj(J)
-			const complex_t u =
-				(Q.get(q,i,k) / TDet<double>(F.Jt.layout.ind14(i,k), F.Jt));
-			internal::MatrixOps<3,3>::Symm<Symm>::Set(
-				A.layout.ind1(i), A,
-				u*(F.Jt(i,0,0,k)*F.Jt(i,0,0,k)+F.Jt(i,1,0,k)*F.Jt(i,1,0,k)+F.Jt(i,2,0,k)*F.Jt(i,2,0,k)), // 1,1
-				u*(F.Jt(i,0,1,k)*F.Jt(i,0,0,k)+F.Jt(i,1,1,k)*F.Jt(i,1,0,k)+F.Jt(i,2,1,k)*F.Jt(i,2,0,k)), // 2,1
-				u*(F.Jt(i,0,2,k)*F.Jt(i,0,0,k)+F.Jt(i,1,2,k)*F.Jt(i,1,0,k)+F.Jt(i,2,2,k)*F.Jt(i,2,0,k)), // 3,1
-				u*(F.Jt(i,0,1,k)*F.Jt(i,0,1,k)+F.Jt(i,1,1,k)*F.Jt(i,1,1,k)+F.Jt(i,2,1,k)*F.Jt(i,2,1,k)), // 2,2
-				u*(F.Jt(i,0,2,k)*F.Jt(i,0,1,k)+F.Jt(i,1,2,k)*F.Jt(i,1,1,k)+F.Jt(i,2,2,k)*F.Jt(i,1,2,k)), // 3,2
-				u*(F.Jt(i,0,2,k)*F.Jt(i,0,2,k)+F.Jt(i,1,2,k)*F.Jt(i,1,2,k)+F.Jt(i,2,2,k)*F.Jt(i,2,2,k))  // 3,3
-			);
-		}
-	}
+   // Method used for un-assembled (matrix free) action.
+   // Jt        [M x Dim x SDim x NE] - Jacobian transposed, data member in F
+   // Q                               - CoefficientEval<>::Type
+   // q                               - CoefficientEval<>::Type::result_t
+   // val_qpts [M x SDim x NC x NE]  - in/out data member in R
+   //
+   // val_qpts = (w/det(J)) J^T*J val_qpts
+   template <typename T_result_t, typename Q_t, typename q_t,
+             typename S_data_t>
+   static inline MFEM_ALWAYS_INLINE
+   void Action(const int k, const T_result_t &F,
+               const Q_t &Q, const q_t &q, S_data_t &R)
+   {
+      const int M = S_data_t::eval_type::qpts;
+      const int NC = S_data_t::eval_type::vdim;
+      MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
+                         "incompatible dimensions");
+      MFEM_FLOPS_ADD(M); // just need to count Q/detJ
+      for (int i = 0; i < M; i++)
+      {
+         //TMatrix<3,3,real_t> adj_J;
+         const complex_t w_det_J =
+            (Q.get(q,i,k) / TDet<double>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt));
+         //TAdjDet<real_t>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt,
+         //           adj_J.layout, adj_J));
+         TMatrix<3,NC,complex_t> z; // z = adj(J)^t x
+         sMult_AB<false>(F.Jt.layout.ind14(i,k), F.Jt,
+                         R.val_qpts.layout.ind14(i,k), R.val_qpts,
+                         z.layout, z);
+         z.Scale(w_det_J);
+         sMult_AB<false>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt,
+                         z.layout, z,
+                         R.val_qpts.layout.ind14(i,k), R.val_qpts);
+      }
+   }
 
-	// Method for partially assembled action.
-	// A         [M x Dim*(Dim+1)/2]  - partially assembled Dim x Dim symmetric
-	//                                  matrices
-	// val_qpts [M x SDim x NC x NE] - in/out data member in R
-	//
-	// val_qpts = A val_qpts
-	template <int qpts, typename S_data_t>
-	static inline MFEM_ALWAYS_INLINE
-	void MultAssembled(const int k, const TMatrix<qpts,6,complex_t> &A,
-					   S_data_t &R)
-	{
-		const int M = S_data_t::eval_type::qpts;
-		const int NC = S_data_t::eval_type::vdim;
-		MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
-		MFEM_FLOPS_ADD(15*M*NC);
-		for (int i = 0; i < M; i++)
-		{
-			const complex_t A11 = A(i,0);
-			const complex_t A21 = A(i,1);
-			const complex_t A31 = A(i,2);
-			const complex_t A22 = A(i,3);
-			const complex_t A32 = A(i,4);
-			const complex_t A33 = A(i,5);
-			for (int j = 0; j < NC; j++)
-			{
-				const complex_t x1 = R.val_qpts(i,0,j,k);
-				const complex_t x2 = R.val_qpts(i,1,j,k);
-				const complex_t x3 = R.val_qpts(i,2,j,k);
-				R.val_qpts(i,0,j,k) = A11*x1 + A21*x2 + A31*x3;
-				R.val_qpts(i,1,j,k) = A21*x1 + A22*x2 + A32*x3;
-				R.val_qpts(i,2,j,k) = A31*x1 + A32*x2 + A33*x3;
-			}
-		}
-	}
+   // Method defining partial assembly. The pointwise Dim x Dim matrices are
+   // stored as symmetric (when asm_type == p_asm_data, i.e. A.layout.rank == 2)
+   // or non-symmetric (when asm_type == f_asm_data, i.e. A.layout.rank == 3)
+   // matrices.
+   // Jt   [M x Dim x SDim x NE] - Jacobian transposed, data member in F
+   // Q                          - CoefficientEval<>::Type
+   // q                          - CoefficientEval<>::Type::result_t
+   // A    [M x Dim*(Dim+1)/2]   - partially assembled Dim x Dim symm. matrices
+   // A    [M x Dim x Dim]       - partially assembled Dim x Dim matrices
+   //
+   // A = (w/det(J)) JJ^t
+   template <typename T_result_t, typename Q_t, typename q_t, typename asm_type>
+   static inline MFEM_ALWAYS_INLINE
+   void Assemble(const int k, const T_result_t &F,
+                 const Q_t &Q, const q_t &q, asm_type &A)
+   {
+      const int M = T_result_t::Jt_type::layout_type::dim_1;
+      MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
+                         "incompatible dimensions");
+      MFEM_FLOPS_ADD(37*M);
+      const bool Symm = (asm_type::layout_type::rank == 2);
+      for (int i = 0; i < M; i++)
+      {
+         //TMatrix<3,3,real_t> B; // = adj(J)
+         const complex_t u =
+            (Q.get(q,i,k) / TDet<double>(F.Jt.layout.ind14(i,k), F.Jt));
+         internal::MatrixOps<3,3>::Symm<Symm>::Set(
+            A.layout.ind1(i), A,
+            u*(F.Jt(i,0,0,k)*F.Jt(i,0,0,k)+F.Jt(i,1,0,k)*F.Jt(i,1,0,k)+F.Jt(i,2,0,k)*F.Jt(i,
+                  2,0,k)), // 1,1
+            u*(F.Jt(i,0,1,k)*F.Jt(i,0,0,k)+F.Jt(i,1,1,k)*F.Jt(i,1,0,k)+F.Jt(i,2,1,k)*F.Jt(i,
+                  2,0,k)), // 2,1
+            u*(F.Jt(i,0,2,k)*F.Jt(i,0,0,k)+F.Jt(i,1,2,k)*F.Jt(i,1,0,k)+F.Jt(i,2,2,k)*F.Jt(i,
+                  2,0,k)), // 3,1
+            u*(F.Jt(i,0,1,k)*F.Jt(i,0,1,k)+F.Jt(i,1,1,k)*F.Jt(i,1,1,k)+F.Jt(i,2,1,k)*F.Jt(i,
+                  2,1,k)), // 2,2
+            u*(F.Jt(i,0,2,k)*F.Jt(i,0,1,k)+F.Jt(i,1,2,k)*F.Jt(i,1,1,k)+F.Jt(i,2,2,k)*F.Jt(i,
+                  1,2,k)), // 3,2
+            u*(F.Jt(i,0,2,k)*F.Jt(i,0,2,k)+F.Jt(i,1,2,k)*F.Jt(i,1,2,k)+F.Jt(i,2,2,k)*F.Jt(i,
+                  2,2,k))  // 3,3
+         );
+      }
+   }
+
+   // Method for partially assembled action.
+   // A         [M x Dim*(Dim+1)/2]  - partially assembled Dim x Dim symmetric
+   //                                  matrices
+   // val_qpts [M x SDim x NC x NE] - in/out data member in R
+   //
+   // val_qpts = A val_qpts
+   template <int qpts, typename S_data_t>
+   static inline MFEM_ALWAYS_INLINE
+   void MultAssembled(const int k, const TMatrix<qpts,6,complex_t> &A,
+                      S_data_t &R)
+   {
+      const int M = S_data_t::eval_type::qpts;
+      const int NC = S_data_t::eval_type::vdim;
+      MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
+      MFEM_FLOPS_ADD(15*M*NC);
+      for (int i = 0; i < M; i++)
+      {
+         const complex_t A11 = A(i,0);
+         const complex_t A21 = A(i,1);
+         const complex_t A31 = A(i,2);
+         const complex_t A22 = A(i,3);
+         const complex_t A32 = A(i,4);
+         const complex_t A33 = A(i,5);
+         for (int j = 0; j < NC; j++)
+         {
+            const complex_t x1 = R.val_qpts(i,0,j,k);
+            const complex_t x2 = R.val_qpts(i,1,j,k);
+            const complex_t x3 = R.val_qpts(i,2,j,k);
+            R.val_qpts(i,0,j,k) = A11*x1 + A21*x2 + A31*x3;
+            R.val_qpts(i,1,j,k) = A21*x1 + A22*x2 + A32*x3;
+            R.val_qpts(i,2,j,k) = A31*x1 + A32*x2 + A33*x3;
+         }
+      }
+   }
 };
 
 // mass kernel for RT Finite Element
-    
+
 // complex_t - type for the assembled data
 template <int SDim, int Dim, typename complex_t>
 struct THDivDivKernel;
@@ -1421,245 +1433,245 @@ struct THDivDivKernel;
 template <typename complex_t>
 struct THDivDivKernel<2,2,complex_t>
 {
-	typedef complex_t complex_type;
+   typedef complex_t complex_type;
 
-	// needed for the TElementTransformation::Result class
-	static const bool uses_Jacobians = true;
+   // needed for the TElementTransformation::Result class
+   static const bool uses_Jacobians = true;
 
-	// needed for the FieldEvaluator::Data class
-	static const bool in_values  = false;
-	static const bool in_divs    = true;
-	static const bool out_values = false;
-	static const bool out_divs   = true;
+   // needed for the FieldEvaluator::Data class
+   static const bool in_values  = false;
+   static const bool in_divs    = true;
+   static const bool out_values = false;
+   static const bool out_divs   = true;
 
-	// Partially assembled data type for one element with the given number of
-	// quadrature points. This type is used in partial assembly, and partially
-	// assembled action. Stores one symmetric 1 x 1 matrix per point.
-	template <int qpts>
-	struct p_asm_data { typedef TVector<qpts,complex_t> type; };
+   // Partially assembled data type for one element with the given number of
+   // quadrature points. This type is used in partial assembly, and partially
+   // assembled action. Stores one symmetric 1 x 1 matrix per point.
+   template <int qpts>
+   struct p_asm_data { typedef TVector<qpts,complex_t> type; };
 
-	// Partially assembled data type for one element with the given number of
-	// quadrature points. This type is used in full element matrix assembly.
-	// Stores one general (non-symmetric) 1 x 1 matrix per point.
-	template <int qpts>
-	struct f_asm_data { typedef TVector<qpts,complex_t> type; };
+   // Partially assembled data type for one element with the given number of
+   // quadrature points. This type is used in full element matrix assembly.
+   // Stores one general (non-symmetric) 1 x 1 matrix per point.
+   template <int qpts>
+   struct f_asm_data { typedef TVector<qpts,complex_t> type; };
 
-	template <typename IR, typename coeff_t, int NE>
-	struct CoefficientEval
-	{
-		typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
-	};
+   template <typename IR, typename coeff_t, int NE>
+   struct CoefficientEval
+   {
+      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+   };
 
-	// Method used for un-assembled (matrix free) action.
-	// Jt        [M x Dim x SDim x NE] - Jacobian transposed, data member in F
-	// Q                               - CoefficientEval<>::Type
-	// q                               - CoefficientEval<>::Type::result_t
-	// val_qpts [M x SDim x NC x NE]  - in/out data member in R
-	//
-	// curl_qpts = (w/det(J))J val_qpts
-	template <typename T_result_t, typename Q_t, typename q_t,
-	typename S_data_t>
-	static inline MFEM_ALWAYS_INLINE
-	void Action(const int k, const T_result_t &F,
-				const Q_t &Q, const q_t &q, S_data_t &R)
-	{
-		const int M = S_data_t::eval_type::qpts;
-		const int NC = S_data_t::eval_type::vdim;
-		MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
-						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(M*(4+NC));
-		for (int i = 0; i < M; i++)
-		{
-			typedef typename T_result_t::Jt_type::data_type real_t;
-			const real_t J11 = F.Jt(i,0,0,k);
-			const real_t J12 = F.Jt(i,1,0,k);
-			const real_t J21 = F.Jt(i,0,1,k);
-			const real_t J22 = F.Jt(i,1,1,k);
-			const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
-			for (int j = 0; j < NC; j++)
-			{
-				const complex_t x1 = R.div_qpts(i,0,j,k);
-				R.div_qpts(i,0,j,k) = w_det_J * x1;
-			}
-		}
-	}
+   // Method used for un-assembled (matrix free) action.
+   // Jt        [M x Dim x SDim x NE] - Jacobian transposed, data member in F
+   // Q                               - CoefficientEval<>::Type
+   // q                               - CoefficientEval<>::Type::result_t
+   // val_qpts [M x SDim x NC x NE]  - in/out data member in R
+   //
+   // curl_qpts = (w/det(J))J val_qpts
+   template <typename T_result_t, typename Q_t, typename q_t,
+             typename S_data_t>
+   static inline MFEM_ALWAYS_INLINE
+   void Action(const int k, const T_result_t &F,
+               const Q_t &Q, const q_t &q, S_data_t &R)
+   {
+      const int M = S_data_t::eval_type::qpts;
+      const int NC = S_data_t::eval_type::vdim;
+      MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
+                         "incompatible dimensions");
+      MFEM_FLOPS_ADD(M*(4+NC));
+      for (int i = 0; i < M; i++)
+      {
+         typedef typename T_result_t::Jt_type::data_type real_t;
+         const real_t J11 = F.Jt(i,0,0,k);
+         const real_t J12 = F.Jt(i,1,0,k);
+         const real_t J21 = F.Jt(i,0,1,k);
+         const real_t J22 = F.Jt(i,1,1,k);
+         const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
+         for (int j = 0; j < NC; j++)
+         {
+            const complex_t x1 = R.div_qpts(i,0,j,k);
+            R.div_qpts(i,0,j,k) = w_det_J * x1;
+         }
+      }
+   }
 
-	// Method defining partial assembly. The pointwise Dim x Dim matrices are
-	// stored as symmetric (when asm_type == p_asm_data, i.e. A.layout.rank == 2)
-	// or non-symmetric (when asm_type == f_asm_data, i.e. A.layout.rank == 3)
-	// matrices.
-	// Jt   [M x Dim x SDim x NE] - Jacobian transposed, data member in F
-	// Q                          - CoefficientEval<>::Type
-	// q                          - CoefficientEval<>::Type::result_t
-	// A    [M x Dim*(Dim+1)/2]   - partially assembled Dim x Dim symm. matrices
-	// A    [M x Dim x Dim]       - partially assembled Dim x Dim matrices
-	//
-	// A = (w/det(J))Jt*J
-	template <typename T_result_t, typename Q_t, typename q_t, typename asm_type>
-	static inline MFEM_ALWAYS_INLINE
-	void Assemble(const int k, const T_result_t &F,
-				  const Q_t &Q, const q_t &q, asm_type &A)
-	{
-		typedef typename T_result_t::Jt_type::data_type real_t;
-		const int M = T_result_t::Jt_type::layout_type::dim_1;
-		MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
-						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(4*M);
-		for (int i = 0; i < M; i++)
-		{
-			const real_t J11 = F.Jt(i,0,0,k);
-			const real_t J12 = F.Jt(i,1,0,k);
-			const real_t J21 = F.Jt(i,0,1,k);
-			const real_t J22 = F.Jt(i,1,1,k);
-			const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
-			A[i] = w_det_J;
-		}
-	}
-        
-	// Method for partially assembled action.
-	// A         [M x Dim*(Dim+1)/2]  - partially assembled Dim x Dim symmetric
-	//                                  matrices
-	// val_qpts [M x SDim x NC x NE] - in/out data member in R
-	//
-	// val_qpts = A val_qpts
-	template <int qpts, typename S_data_t>
-	static inline MFEM_ALWAYS_INLINE
-	void MultAssembled(const int k, const TVector<qpts,complex_t> &A,
-					   S_data_t &R)
-	{
-		const int M = S_data_t::eval_type::qpts;
-		const int NC = S_data_t::eval_type::vdim;
-		MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
-		MFEM_FLOPS_ADD(M*NC);
-		for (int i = 0; i < M; i++)
-		{
-			const complex_t A11 = A[i];
-			for (int j = 0; j < NC; j++)
-			{
-				const complex_t x1 = R.div_qpts(i,0,j,k);
-				R.div_qpts(i,0,j,k) = A11 * x1;
-			}
-		}
-	}
+   // Method defining partial assembly. The pointwise Dim x Dim matrices are
+   // stored as symmetric (when asm_type == p_asm_data, i.e. A.layout.rank == 2)
+   // or non-symmetric (when asm_type == f_asm_data, i.e. A.layout.rank == 3)
+   // matrices.
+   // Jt   [M x Dim x SDim x NE] - Jacobian transposed, data member in F
+   // Q                          - CoefficientEval<>::Type
+   // q                          - CoefficientEval<>::Type::result_t
+   // A    [M x Dim*(Dim+1)/2]   - partially assembled Dim x Dim symm. matrices
+   // A    [M x Dim x Dim]       - partially assembled Dim x Dim matrices
+   //
+   // A = (w/det(J))Jt*J
+   template <typename T_result_t, typename Q_t, typename q_t, typename asm_type>
+   static inline MFEM_ALWAYS_INLINE
+   void Assemble(const int k, const T_result_t &F,
+                 const Q_t &Q, const q_t &q, asm_type &A)
+   {
+      typedef typename T_result_t::Jt_type::data_type real_t;
+      const int M = T_result_t::Jt_type::layout_type::dim_1;
+      MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
+                         "incompatible dimensions");
+      MFEM_FLOPS_ADD(4*M);
+      for (int i = 0; i < M; i++)
+      {
+         const real_t J11 = F.Jt(i,0,0,k);
+         const real_t J12 = F.Jt(i,1,0,k);
+         const real_t J21 = F.Jt(i,0,1,k);
+         const real_t J22 = F.Jt(i,1,1,k);
+         const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
+         A[i] = w_det_J;
+      }
+   }
+
+   // Method for partially assembled action.
+   // A         [M x Dim*(Dim+1)/2]  - partially assembled Dim x Dim symmetric
+   //                                  matrices
+   // val_qpts [M x SDim x NC x NE] - in/out data member in R
+   //
+   // val_qpts = A val_qpts
+   template <int qpts, typename S_data_t>
+   static inline MFEM_ALWAYS_INLINE
+   void MultAssembled(const int k, const TVector<qpts,complex_t> &A,
+                      S_data_t &R)
+   {
+      const int M = S_data_t::eval_type::qpts;
+      const int NC = S_data_t::eval_type::vdim;
+      MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
+      MFEM_FLOPS_ADD(M*NC);
+      for (int i = 0; i < M; i++)
+      {
+         const complex_t A11 = A[i];
+         for (int j = 0; j < NC; j++)
+         {
+            const complex_t x1 = R.div_qpts(i,0,j,k);
+            R.div_qpts(i,0,j,k) = A11 * x1;
+         }
+      }
+   }
 };
 
 template <typename complex_t>
 struct THDivDivKernel<3,3,complex_t>
 {
-	typedef complex_t complex_type;
+   typedef complex_t complex_type;
 
-	// needed for the TElementTransformation::Result class
-	static const bool uses_Jacobians = true;
+   // needed for the TElementTransformation::Result class
+   static const bool uses_Jacobians = true;
 
-	// needed for the FieldEvaluator::Data class
-	static const bool in_values  = false;
-	static const bool in_divs    = true;
-	static const bool out_values = false;
-	static const bool out_divs   = true;
+   // needed for the FieldEvaluator::Data class
+   static const bool in_values  = false;
+   static const bool in_divs    = true;
+   static const bool out_values = false;
+   static const bool out_divs   = true;
 
-	// Partially assembled data type for one element with the given number of
-	// quadrature points. This type is used in partial assembly, and partially
-	// assembled action. Stores one symmetric 3 x 3 matrix per point.
-	template <int qpts>
-	struct p_asm_data { typedef TVector<qpts,complex_t> type; };
+   // Partially assembled data type for one element with the given number of
+   // quadrature points. This type is used in partial assembly, and partially
+   // assembled action. Stores one symmetric 3 x 3 matrix per point.
+   template <int qpts>
+   struct p_asm_data { typedef TVector<qpts,complex_t> type; };
 
-	// Partially assembled data type for one element with the given number of
-	// quadrature points. This type is used in full element matrix assembly.
-	// Stores one general (non-symmetric) 3 x 3 matrix per point.
-	template <int qpts>
-	struct f_asm_data { typedef TVector<qpts,complex_t> type; };
+   // Partially assembled data type for one element with the given number of
+   // quadrature points. This type is used in full element matrix assembly.
+   // Stores one general (non-symmetric) 3 x 3 matrix per point.
+   template <int qpts>
+   struct f_asm_data { typedef TVector<qpts,complex_t> type; };
 
-	template <typename IR, typename coeff_t, int NE>
-	struct CoefficientEval
-	{
-		typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
-	};
+   template <typename IR, typename coeff_t, int NE>
+   struct CoefficientEval
+   {
+      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+   };
 
-	// Method used for un-assembled (matrix free) action.
-	// Jt        [M x Dim x SDim x NE] - Jacobian transposed, data member in F
-	// Q                               - CoefficientEval<>::Type
-	// q                               - CoefficientEval<>::Type::result_t
-	// val_qpts [M x SDim x NC x NE]  - in/out data member in R
-	//
-	// val_qpts = (w/det(J)) J^T*J val_qpts
-	template <typename T_result_t, typename Q_t, typename q_t,
-			  typename S_data_t>
-	static inline MFEM_ALWAYS_INLINE
-	void Action(const int k, const T_result_t &F,
-				const Q_t &Q, const q_t &q, S_data_t &R)
-	{
-		const int M = S_data_t::eval_type::qpts;
-		const int NC = S_data_t::eval_type::vdim;
-		MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
-						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(M*(1+NC)); // just need to count Q/detJ
-		for (int i = 0; i < M; i++)
-		{
-			const complex_t w_det_J =
-				(Q.get(q,i,k) / TDet<double>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt));
-			for (int j = 0; j < NC; j++)
-			{
-				const complex_t x1 = R.div_qpts(i,0,j,k);
-				R.div_qpts(i,0,j,k) = w_det_J * x1;
-			}
-		}
-	}
-    
-	// Method defining partial assembly. The pointwise Dim x Dim matrices are
-	// stored as symmetric (when asm_type == p_asm_data, i.e. A.layout.rank == 2)
-	// or non-symmetric (when asm_type == f_asm_data, i.e. A.layout.rank == 3)
-	// matrices.
-	// Jt   [M x Dim x SDim x NE] - Jacobian transposed, data member in F
-	// Q                          - CoefficientEval<>::Type
-	// q                          - CoefficientEval<>::Type::result_t
-	// A    [M x Dim*(Dim+1)/2]   - partially assembled Dim x Dim symm. matrices
-	// A    [M x Dim x Dim]       - partially assembled Dim x Dim matrices
-	//
-	// A = (w/det(J)) JJ^t
-	template <typename T_result_t, typename Q_t, typename q_t, typename asm_type>
-	static inline MFEM_ALWAYS_INLINE
-	void Assemble(const int k, const T_result_t &F,
-				  const Q_t &Q, const q_t &q, asm_type &A)
-	{
-		typedef typename T_result_t::Jt_type::data_type real_t;
-		const int M = T_result_t::Jt_type::layout_type::dim_1;
-		MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
-						   "incompatible dimensions");
-		MFEM_FLOPS_ADD(M);
-		for (int i = 0; i < M; i++)
-		{
-			const complex_t w_det_J =
-				(Q.get(q,i,k) / TDet<real_t>(F.Jt.layout.ind14(i,k), F.Jt));
-			A[i] = w_det_J;
-		}
-	}
+   // Method used for un-assembled (matrix free) action.
+   // Jt        [M x Dim x SDim x NE] - Jacobian transposed, data member in F
+   // Q                               - CoefficientEval<>::Type
+   // q                               - CoefficientEval<>::Type::result_t
+   // val_qpts [M x SDim x NC x NE]  - in/out data member in R
+   //
+   // val_qpts = (w/det(J)) J^T*J val_qpts
+   template <typename T_result_t, typename Q_t, typename q_t,
+             typename S_data_t>
+   static inline MFEM_ALWAYS_INLINE
+   void Action(const int k, const T_result_t &F,
+               const Q_t &Q, const q_t &q, S_data_t &R)
+   {
+      const int M = S_data_t::eval_type::qpts;
+      const int NC = S_data_t::eval_type::vdim;
+      MFEM_STATIC_ASSERT(T_result_t::Jt_type::layout_type::dim_1 == M,
+                         "incompatible dimensions");
+      MFEM_FLOPS_ADD(M*(1+NC)); // just need to count Q/detJ
+      for (int i = 0; i < M; i++)
+      {
+         const complex_t w_det_J =
+            (Q.get(q,i,k) / TDet<double>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt));
+         for (int j = 0; j < NC; j++)
+         {
+            const complex_t x1 = R.div_qpts(i,0,j,k);
+            R.div_qpts(i,0,j,k) = w_det_J * x1;
+         }
+      }
+   }
 
-	// Method for partially assembled action.
-	// A         [M x Dim*(Dim+1)/2]  - partially assembled Dim x Dim symmetric
-	//                                  matrices
-	// val_qpts [M x SDim x NC x NE] - in/out data member in R
-	//
-	// val_qpts = A val_qpts
-	template <int qpts, typename S_data_t>
-	static inline MFEM_ALWAYS_INLINE
-	void MultAssembled(const int k, const TVector<qpts,complex_t> &A,
-					   S_data_t &R)
-	{
-		const int M = S_data_t::eval_type::qpts;
-		const int NC = S_data_t::eval_type::vdim;
-		MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
-		MFEM_FLOPS_ADD(M*NC);
-		for (int i = 0; i < M; i++)
-		{
-			const complex_t A11 = A[i];
-			
-			for (int j = 0; j < NC; j++)
-			{
-				const complex_t x1 = R.div_qpts(i,0,j,k);
-				R.div_qpts(i,0,j,k) = A11*x1;
-			}
-		}
-	}
+   // Method defining partial assembly. The pointwise Dim x Dim matrices are
+   // stored as symmetric (when asm_type == p_asm_data, i.e. A.layout.rank == 2)
+   // or non-symmetric (when asm_type == f_asm_data, i.e. A.layout.rank == 3)
+   // matrices.
+   // Jt   [M x Dim x SDim x NE] - Jacobian transposed, data member in F
+   // Q                          - CoefficientEval<>::Type
+   // q                          - CoefficientEval<>::Type::result_t
+   // A    [M x Dim*(Dim+1)/2]   - partially assembled Dim x Dim symm. matrices
+   // A    [M x Dim x Dim]       - partially assembled Dim x Dim matrices
+   //
+   // A = (w/det(J)) JJ^t
+   template <typename T_result_t, typename Q_t, typename q_t, typename asm_type>
+   static inline MFEM_ALWAYS_INLINE
+   void Assemble(const int k, const T_result_t &F,
+                 const Q_t &Q, const q_t &q, asm_type &A)
+   {
+      typedef typename T_result_t::Jt_type::data_type real_t;
+      const int M = T_result_t::Jt_type::layout_type::dim_1;
+      MFEM_STATIC_ASSERT(asm_type::layout_type::dim_1 == M,
+                         "incompatible dimensions");
+      MFEM_FLOPS_ADD(M);
+      for (int i = 0; i < M; i++)
+      {
+         const complex_t w_det_J =
+            (Q.get(q,i,k) / TDet<real_t>(F.Jt.layout.ind14(i,k), F.Jt));
+         A[i] = w_det_J;
+      }
+   }
+
+   // Method for partially assembled action.
+   // A         [M x Dim*(Dim+1)/2]  - partially assembled Dim x Dim symmetric
+   //                                  matrices
+   // val_qpts [M x SDim x NC x NE] - in/out data member in R
+   //
+   // val_qpts = A val_qpts
+   template <int qpts, typename S_data_t>
+   static inline MFEM_ALWAYS_INLINE
+   void MultAssembled(const int k, const TVector<qpts,complex_t> &A,
+                      S_data_t &R)
+   {
+      const int M = S_data_t::eval_type::qpts;
+      const int NC = S_data_t::eval_type::vdim;
+      MFEM_STATIC_ASSERT(qpts == M, "incompatible dimensions");
+      MFEM_FLOPS_ADD(M*NC);
+      for (int i = 0; i < M; i++)
+      {
+         const complex_t A11 = A[i];
+
+         for (int j = 0; j < NC; j++)
+         {
+            const complex_t x1 = R.div_qpts(i,0,j,k);
+            R.div_qpts(i,0,j,k) = A11*x1;
+         }
+      }
+   }
 };
 
 } // namespace mfem

@@ -33,13 +33,13 @@ void BilinearForm::AllocMat()
    int* elemJ = elem_dof.GetJ();
    for (int i = 0; i < elem_dof.Size(); i++)
    {
-	   for (int j = elem_dof.GetI()[i]; j < elem_dof.GetI()[i+1]; j++)
-	   {
-		   int Jval = elemJ[j];
-		   if (Jval<0) {elemJ[j] = -1 - Jval;}
-	   }
+      for (int j = elem_dof.GetI()[i]; j < elem_dof.GetI()[i+1]; j++)
+      {
+         int Jval = elemJ[j];
+         if (Jval<0) {elemJ[j] = -1 - Jval;}
+      }
    }
-   
+
    if (fbfi.Size() > 0)
    {
       // the sparsity pattern is defined from the map: face->element->dof

@@ -50,7 +50,8 @@ double freq = 1.0, kappa;
 int dim;
 
 // Define template parameters for optimized build.
-const Geometry::Type geom     = Geometry::CUBE;//Geometry::SQUARE;// // mesh elements  (default: hex)
+const Geometry::Type geom     =
+   Geometry::CUBE;//Geometry::SQUARE;// // mesh elements  (default: hex)
 const int            mesh_p   = 3;              // mesh curvature (default: 3)
 const int            sol_p    = 4;              // solution order (default: 3)
 const int            rdim     = Geometry::Constants<geom>::Dimension;
@@ -74,12 +75,14 @@ typedef RTShapeEvaluator<sol_fe_t,int_rule_t>  sol_Shape_Eval;
 typedef RTFieldEvaluator<sol_fes_t,ScalarLayout,int_rule_t> sol_Field_Eval;
 
 // Static bilinear form type, combining the above types
-typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t,sol_Shape_Eval,sol_Field_Eval> HPCBilinearForm;
+typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t,sol_Shape_Eval,sol_Field_Eval>
+HPCBilinearForm;
 
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/beam-hex.mesh";//"../../data/beam-quad.mesh";//
+   const char *mesh_file =
+      "../../data/beam-hex.mesh";//"../../data/beam-quad.mesh";//
    int order = sol_p;
    bool static_cond = false;
    bool perf = true;
@@ -95,18 +98,18 @@ int main(int argc, char *argv[])
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
                   " solution.");
    args.AddOption(&perf, "-perf", "--hpc-version", "-std", "--standard-version",
-                   "Enable high-performance, tensor-based, assembly/evaluation.");
+                  "Enable high-performance, tensor-based, assembly/evaluation.");
    args.AddOption(&compare, "-comp", "--compare-hpc", "-solve", "--solve-hpc",
-				  "compare the high performance tensor-based assembly and standard assembly ");
+                  "compare the high performance tensor-based assembly and standard assembly ");
    args.AddOption(&matrix_free, "-mf", "--matrix-free", "-asm", "--assembly",
-                   "Use matrix-free evaluation or efficient matrix assembly in "
-                   "the high-performance version.");
+                  "Use matrix-free evaluation or efficient matrix assembly in "
+                  "the high-performance version.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                   "--no-static-condensation", "Enable static condensation.");
+                  "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                   "--no-visualization",
-                   "Enable or disable GLVis visualization.");
-    args.Parse();
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
+   args.Parse();
    if (!args.Good())
    {
       args.PrintUsage(cout);
@@ -115,11 +118,11 @@ int main(int argc, char *argv[])
    if (static_cond && perf && matrix_free)
    {
       cout << "\nStatic condensation can not be used with matrix-free"
-            " evaluation!\n" << endl;
+           " evaluation!\n" << endl;
       return 2;
    }
    MFEM_VERIFY(perf || !matrix_free,
-                "--standard-version is not compatible with --matrix-free");
+               "--standard-version is not compatible with --matrix-free");
    args.PrintOptions(cout);
    kappa = freq * M_PI;
 
@@ -137,25 +140,25 @@ int main(int argc, char *argv[])
            << int_rule_t::qpts << " points ..." << endl;
       if (!mesh_t::MatchesGeometry(*mesh))
       {
-          cout << "The given mesh does not match the optimized 'geom' parameter.\n"
-               << "Recompile with suitable 'geom' value." << endl;
-          delete mesh;
-          return 4;
+         cout << "The given mesh does not match the optimized 'geom' parameter.\n"
+              << "Recompile with suitable 'geom' value." << endl;
+         delete mesh;
+         return 4;
       }
       else if (!mesh_t::MatchesNodes(*mesh))
       {
-          cout << "Switching the mesh curvature to match the "
-               << "optimized value (order " << mesh_p << ") ..." << endl;
-          mesh->SetCurvature(mesh_p, false, -1, Ordering::byNODES);
+         cout << "Switching the mesh curvature to match the "
+              << "optimized value (order " << mesh_p << ") ..." << endl;
+         mesh->SetCurvature(mesh_p, false, -1, Ordering::byNODES);
       }
    }
-    
+
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-       int ref_levels = 1;//(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = 1;//(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -221,38 +224,38 @@ int main(int argc, char *argv[])
    //     static condensation, etc.
    if (static_cond)
    {
-	   a_h->EnableStaticCondensation();
+      a_h->EnableStaticCondensation();
    }
-   
+
    cout << "Assembling the bilinear form ..." << endl;
    tic_toc.Clear();
    tic_toc.Start();
 
    // Pre-allocate sparsity assuming dense element matrices
    a_h->UsePrecomputedSparsity();
-   
+
    HPCBilinearForm *a_hpc = NULL;
    Operator *a_oper = NULL;
 
    if (!perf)
    {
-	   a_h->AddDomainIntegrator(new DivDivIntegrator(*alpha));
-	   //a_h->AddDomainIntegrator(new VectorFEMassIntegrator(*alpha));
-	   if (static_cond) { a_h->EnableStaticCondensation(); }
-	   a_h->Assemble();
+      a_h->AddDomainIntegrator(new DivDivIntegrator(*alpha));
+      //a_h->AddDomainIntegrator(new VectorFEMassIntegrator(*alpha));
+      if (static_cond) { a_h->EnableStaticCondensation(); }
+      a_h->Assemble();
    }
    else
    {
-	   // High-performance assembly/evaluation using the templated operator type
-	   a_hpc = new HPCBilinearForm(integ_t(coeff_t(1.0)), *fespace);
-	   if (matrix_free)
-	   {
-		   a_hpc->Assemble(); // partial assembly
-	   }
-	   else
-	   {
-		   a_hpc->AssembleBilinearForm(*a_h); // full matrix assembly
-	   }
+      // High-performance assembly/evaluation using the templated operator type
+      a_hpc = new HPCBilinearForm(integ_t(coeff_t(1.0)), *fespace);
+      if (matrix_free)
+      {
+         a_hpc->Assemble(); // partial assembly
+      }
+      else
+      {
+         a_hpc->AssembleBilinearForm(*a_h); // full matrix assembly
+      }
    }
    tic_toc.Stop();
    cout << " done, " << tic_toc.RealTime() << "s." << endl;
@@ -265,97 +268,97 @@ int main(int argc, char *argv[])
 
    if (compare)
    {
-	   LinearForm *b1 = new LinearForm(fespace);
-	   b1->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
-	   b1->Assemble();
-	   
-	   GridFunction x1(fespace);
-	   x1 = 1.0;
-	   
-	   BilinearForm *a = new BilinearForm(fespace);
-	   
-	   if (static_cond)
-	   {
-		   a->EnableStaticCondensation();
-	   }
-	   a->UsePrecomputedSparsity();
-	   a->AddDomainIntegrator(new DivDivIntegrator(*alpha));
-	   //a->AddDomainIntegrator(new VectorFEMassIntegrator(*alpha));
-	   if (static_cond) { a->EnableStaticCondensation(); }
-	   a->Assemble();
-	   
-	   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-	   
-	   SparseMatrix A1;
-	   Vector B1, X1;
+      LinearForm *b1 = new LinearForm(fespace);
+      b1->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
+      b1->Assemble();
 
-	   if (matrix_free)
-	   {
-		   a_hpc->FormLinearSystem(ess_tdof_list, x1, *b1, a_oper, X1, B1);
-		   cout << "Size of linear system: " << a_hpc->Height() << endl;
-		   Vector BB(B1);
-		   BB = 1.0;
-		   BB.Add(-1.0, X);
-		   Vector X_tmp(X);
-		   A.Mult(BB, X_tmp);
-		   std::cout<<"Comparison of Mat-Vec(Y is computed from matrix, Y1 is computed by PA)"<<std::endl;
-		   std::cout<<"|Y| = "<<X_tmp.Normlinf()<<std::endl;
-		   Vector X_tmp1(X);
-		   a_oper->Mult(BB, X_tmp1);
-		   std::cout<<"|Y1| = "<<X_tmp.Normlinf()<<std::endl;
-		   X_tmp1.Add(-1.0, X_tmp);
-		   std::cout<<"|Y1-Y| = "<<X_tmp1.Normlinf()<<std::endl;
-	   }
-	   else
-	   {
-		   std::cout<<"Comparison of Matrix (A is computed from matrix, A1 is assembled from PA)"<<std::endl;
-		   std::cout<<"|A| = "<<A.MaxNorm()<<std::endl;
-		   a_h->FormLinearSystem(ess_tdof_list, x1, *b1, A1, X1, B1);
-		   std::cout<<"|A1| = "<<A1.MaxNorm()<<std::endl;
-		   A.Add(-1,A1);
-		   std::cout<<"|A1-A| = "<<A.MaxNorm()<<std::endl;
-		   A.PrintInfo(std::cout);
-	   }
-	   
-	   delete a;
-	   delete b1;
+      GridFunction x1(fespace);
+      x1 = 1.0;
+
+      BilinearForm *a = new BilinearForm(fespace);
+
+      if (static_cond)
+      {
+         a->EnableStaticCondensation();
+      }
+      a->UsePrecomputedSparsity();
+      a->AddDomainIntegrator(new DivDivIntegrator(*alpha));
+      //a->AddDomainIntegrator(new VectorFEMassIntegrator(*alpha));
+      if (static_cond) { a->EnableStaticCondensation(); }
+      a->Assemble();
+
+      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+
+      SparseMatrix A1;
+      Vector B1, X1;
+
+      if (matrix_free)
+      {
+         a_hpc->FormLinearSystem(ess_tdof_list, x1, *b1, a_oper, X1, B1);
+         cout << "Size of linear system: " << a_hpc->Height() << endl;
+         Vector BB(B1);
+         BB = 1.0;
+         BB.Add(-1.0, X);
+         Vector X_tmp(X);
+         A.Mult(BB, X_tmp);
+         std::cout<<"Comparison of Mat-Vec(Y is computed from matrix, Y1 is computed by PA)"<<std::endl;
+         std::cout<<"|Y| = "<<X_tmp.Normlinf()<<std::endl;
+         Vector X_tmp1(X);
+         a_oper->Mult(BB, X_tmp1);
+         std::cout<<"|Y1| = "<<X_tmp.Normlinf()<<std::endl;
+         X_tmp1.Add(-1.0, X_tmp);
+         std::cout<<"|Y1-Y| = "<<X_tmp1.Normlinf()<<std::endl;
+      }
+      else
+      {
+         std::cout<<"Comparison of Matrix (A is computed from matrix, A1 is assembled from PA)"<<std::endl;
+         std::cout<<"|A| = "<<A.MaxNorm()<<std::endl;
+         a_h->FormLinearSystem(ess_tdof_list, x1, *b1, A1, X1, B1);
+         std::cout<<"|A1| = "<<A1.MaxNorm()<<std::endl;
+         A.Add(-1,A1);
+         std::cout<<"|A1-A| = "<<A.MaxNorm()<<std::endl;
+         A.PrintInfo(std::cout);
+      }
+
+      delete a;
+      delete b1;
    }
    else
    {
-	   if (perf && matrix_free)
-	   {
-		   a_hpc->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
-		   cout << "Size of linear system: " << a_hpc->Height() << endl;
-	   }
-	   else
-	   {
-		   a_h->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-		   cout << "Size of linear system: " << A.Height() << endl;
-		   a_oper = &A;
-	   }
-	   
-	   CG(*a_oper, B, X, 1, 500, 1e-12, 0.0);
-	   
-	   // 11. Recover the solution as a finite element grid function.
-	   if (perf && matrix_free)
-	   {
-		   a_hpc->RecoverFEMSolution(X, *b, x);
-	   }
-	   else
-	   {
-		   a_h->RecoverFEMSolution(X, *b, x);
-	   }
+      if (perf && matrix_free)
+      {
+         a_hpc->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
+         cout << "Size of linear system: " << a_hpc->Height() << endl;
+      }
+      else
+      {
+         a_h->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+         cout << "Size of linear system: " << A.Height() << endl;
+         a_oper = &A;
+      }
+
+      CG(*a_oper, B, X, 1, 500, 1e-12, 0.0);
+
+      // 11. Recover the solution as a finite element grid function.
+      if (perf && matrix_free)
+      {
+         a_hpc->RecoverFEMSolution(X, *b, x);
+      }
+      else
+      {
+         a_h->RecoverFEMSolution(X, *b, x);
+      }
    }
 
    // 13. Send the solution by socket to a GLVis server.
-  // if (visualization)
-  // {
-  //    char vishost[] = "localhost";
-  //    int  visport   = 19916;
-  //    socketstream sol_sock(vishost, visport);
-  //    sol_sock.precision(8);
-  //    sol_sock << "solution\n" << *mesh << x << flush;
-  // }
+   // if (visualization)
+   // {
+   //    char vishost[] = "localhost";
+   //    int  visport   = 19916;
+   //    socketstream sol_sock(vishost, visport);
+   //    sol_sock.precision(8);
+   //    sol_sock << "solution\n" << *mesh << x << flush;
+   // }
 
    // 14. Free the used memory.
    delete a_h;
@@ -371,34 +374,34 @@ int main(int argc, char *argv[])
 
 void F_exact(const Vector &p, Vector &F)
 {
-	int dim = p.Size();
+   int dim = p.Size();
 
-	double x = p(0);
-	double y = p(1);
-	// double z = (dim == 3) ? p(2) : 0.0;
+   double x = p(0);
+   double y = p(1);
+   // double z = (dim == 3) ? p(2) : 0.0;
 
-	F(0) = cos(kappa*x)*sin(kappa*y);
-	F(1) = cos(kappa*y)*sin(kappa*x);
-	if (dim == 3)
-	{
-		F(2) = 0.0;
-	}
+   F(0) = cos(kappa*x)*sin(kappa*y);
+   F(1) = cos(kappa*y)*sin(kappa*x);
+   if (dim == 3)
+   {
+      F(2) = 0.0;
+   }
 }
 
 void f_exact(const Vector &p, Vector &f)
 {
-	int dim = p.Size();
+   int dim = p.Size();
 
-	double x = p(0);
-	double y = p(1);
-	// double z = (dim == 3) ? p(2) : 0.0;
+   double x = p(0);
+   double y = p(1);
+   // double z = (dim == 3) ? p(2) : 0.0;
 
-	double temp = 1 + 2*kappa*kappa;
+   double temp = 1 + 2*kappa*kappa;
 
-	f(0) = temp*cos(kappa*x)*sin(kappa*y);
-	f(1) = temp*cos(kappa*y)*sin(kappa*x);
-	if (dim == 3)
-	{
-		f(2) = 0;
-	}
+   f(0) = temp*cos(kappa*x)*sin(kappa*y);
+   f(1) = temp*cos(kappa*y)*sin(kappa*x);
+   if (dim == 3)
+   {
+      f(2) = 0;
+   }
 }
