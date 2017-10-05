@@ -45,7 +45,8 @@ int main(int argc, char *argv[])
    bool densityCalc = true;
    bool stiffnessCalc = false;
    bool bandGapCalc = false;
-
+   bool band_gap_mid_pts = false;
+   
    double a = -1.0, b = -1.0, c = -1.0;
    double alpha = -1.0, beta = -1.0, gamma = -1.0;
    double alpha_deg = -1.0, beta_deg = -1.0, gamma_deg = -1.0;
@@ -54,6 +55,7 @@ int main(int argc, char *argv[])
    double stiffness_tol = 0.05;
    double band_gap_tol = 0.05;
    int    band_gap_max_ref = 2;
+   int    band_gap_samp_pow = 2;
    // double lambda = 2.07748e+9;
    // double mu = 0.729927e+9;
    // Gallium Arsenide at T=300K
@@ -62,7 +64,8 @@ int main(int argc, char *argv[])
    // double rho0 = 0.0;
 
    // Acrylonitrile Butadiene Styrene (ABS)
-   double    rho = 1110.0; // Mass density 1.075 kg/m^3
+   // double    rho = 1110.0; // Mass density 1.075 kg/m^3
+   double    rho = 1000.0; // Mass density 1.0 kg/m^3
    double      E = 2.0e9;  // Young's Modulus 2GPa
    double     nu = 0.4064; // Poisson's Ratio
    double epsRel = 10.0;   // Relative Dielectric Permittivity
@@ -118,6 +121,12 @@ int main(int argc, char *argv[])
    args.AddOption(&band_gap_max_ref, "-bgmr", "--band-gap-max-ref",
                   "Maximum number of uniform mesh refinements to perform "
                   "when computing the band gap");
+   args.AddOption(&band_gap_samp_pow, "-bgsp", "--band-gap-samp-pow",
+                  "Number of sampling points per segment is 2^samp_pow "
+                  "when computing the band gap");
+   args.AddOption(&band_gap_mid_pts, "-bgmp", "--band-gap-mid-pts",
+		  "-no-bgmp", "--no-band-gap-mid-pts",
+                  "Whether to include mid points in the band gap computation");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -176,6 +185,11 @@ int main(int argc, char *argv[])
 
    lattice_label = bravais->GetLatticeTypeLabel();
 
+   if ( myid == 0 )
+   {
+      cout << "Lattice Type: " << lattice_label << endl;
+   }
+
    bravais3d->GetAxialLengths(a, b, c);
    bravais3d->GetInteraxialAngles(alpha, beta, gamma);
 
@@ -186,7 +200,8 @@ int main(int argc, char *argv[])
               << "-" << (int)round(100.0*c)
               << "-" << (int)round(180.0*alpha / M_PI)
               << "-" << (int)round(180.0*beta  / M_PI)
-              << "-" << (int)round(180.0*gamma / M_PI);
+              << "-" << (int)round(180.0*gamma / M_PI)
+              << "-" << (int)round(1000.0*lcf);
    // << "-r" << sr + pr;
 
    CreateDirectory(oss_prefix.str(),comm,myid);
@@ -273,6 +288,12 @@ int main(int argc, char *argv[])
 
    density.SetVolumeFraction(*vf0);
    */
+   if ( myid == 0 )
+   {
+      cout << "Volume of the unit cell: "
+           << bravais->GetUnitCellVolume() << endl;
+   }
+
    if (densityCalc)
    {
       LatticeCoefficient rhoCoef(*bravais, lcf, 0.0, rho);
@@ -280,6 +301,8 @@ int main(int argc, char *argv[])
       // The density computation does not require a periodic mesh
       Mesh * mesh_rho = bravais->GetWignerSeitzMesh();
       mesh_rho->EnsureNCMesh();
+      mesh_rho->UniformRefinement();
+      mesh_rho->UniformRefinement();
       ParMesh *pmesh_rho = new ParMesh(MPI_COMM_WORLD, *mesh_rho);
       delete mesh_rho;
 
@@ -334,9 +357,18 @@ int main(int argc, char *argv[])
       elasticity.SetVolumeFraction(*vf0);
       */
       Mesh * mesh_C = bravais->GetPeriodicWignerSeitzMesh();
+
+      if ( mesh_C->EulerNumber() != 0 )
+      {
+         MFEM_ABORT("Euler number equal to " << mesh_C->EulerNumber()
+                    << ". Periodic Bravais Lattice meshes "
+                    "should have Euler number 0!");
+      }
+
       // mesh_C->UniformRefinement();
-      // mesh_C->UniformRefinement();
+      mesh_C->UniformRefinement();
       mesh_C->EnsureNCMesh();
+
       ParMesh *pmesh_C = new ParMesh(MPI_COMM_WORLD, *mesh_C);
       delete mesh_C;
 
@@ -391,16 +423,37 @@ int main(int argc, char *argv[])
       LatticeCoefficient  muCoef(*bravais, lcf, 1.0,  muRel);
 
       Mesh * mesh_bg = bravais->GetPeriodicWignerSeitzMesh();
+
+      if ( mesh_bg->EulerNumber() != 0 )
+      {
+         MFEM_ABORT("Euler number equal to " << mesh_bg->EulerNumber()
+                    << ". Periodic Bravais Lattice meshes "
+                    "should have Euler number 0!");
+      }
+      // mesh_bg->UniformRefinement();
+
       ParMesh *pmesh_bg = new ParMesh(MPI_COMM_WORLD, *mesh_bg);
       delete mesh_bg;
 
       meta_material::MaxwellBandGap maxwell_bg(*pmesh_bg, *bravais,
-                                               epsCoef, muCoef,
-                                               band_gap_max_ref, band_gap_tol);
+					       band_gap_samp_pow,
+					       epsCoef, muCoef,
+					       band_gap_mid_pts,
+                                               band_gap_max_ref,
+					       band_gap_tol);
 
       vector<double> bg;
       maxwell_bg.GetHomogenizedProperties(bg);
 
+      if ( myid == 0 )
+      {
+         ostringstream oss;
+         oss << oss_prefix.str() << "/disp.dat";
+         ofstream ofs(oss.str().c_str());
+
+         maxwell_bg.PrintDispersionPlot(ofs);
+         ofs.close();
+      }
       if (visualization)
       {
          maxwell_bg.InitializeGLVis(vd);
