@@ -71,10 +71,10 @@ public:
                         "incompatible element-to-dof Table!");
             for (int j = 0; j < FE::dofs; j++)
             {
-		int loc_idx = loc_dof_map_[j];
-		if (loc_idx < 0) loc_idx = -1-loc_idx;//change the signed index for dof_map
-		int el_idx  = el_dof.GetJ()[loc_idx+FE::dofs*i];
-		//if (el_idx < 0) el_idx = -1-el_idx;//change the signed index for el_idx
+               int loc_idx = loc_dof_map_[j];
+               if (loc_idx < 0) { loc_idx = -1-loc_idx; }//change the signed index for dof_map
+               int el_idx  = el_dof.GetJ()[loc_idx+FE::dofs*i];
+               //if (el_idx < 0) el_idx = -1-el_idx;//change the signed index for el_idx
                el_dof_list_[j+FE::dofs*i] = el_idx;
             }
          }
@@ -216,19 +216,19 @@ public:
          {
             for (int i = 0; i < FE::dofs; i++)
             {
-		int global_idx = vl.ind(ind.map(i,j), k);
+               int global_idx = vl.ind(ind.map(i,j), k);
 
-		if (global_idx < 0)
-		{
-		    global_idx = -1 - global_idx;
-		    Assign<Op>(vdof_data[vdof_layout.ind(i,k,j)],
-			       -glob_vdof_data[global_idx]);
-		}
-		else
-		{
-		    Assign<Op>(vdof_data[vdof_layout.ind(i,k,j)],
-				glob_vdof_data[global_idx]);
-		}
+               if (global_idx < 0)
+               {
+                  global_idx = -1 - global_idx;
+                  Assign<Op>(vdof_data[vdof_layout.ind(i,k,j)],
+                             -glob_vdof_data[global_idx]);
+               }
+               else
+               {
+                  Assign<Op>(vdof_data[vdof_layout.ind(i,k,j)],
+                             glob_vdof_data[global_idx]);
+               }
             }
          }
       }
@@ -266,20 +266,20 @@ public:
          {
             for (int i = 0; i < FE::dofs; i++)
             {
-		int global_idx = vl.ind(ind.map(i,j), k);
-		
-		if (global_idx < 0)
-		{
-		    global_idx = -1 - global_idx;
-		    Assign<Op>(glob_vdof_data[global_idx],
-				-vdof_data[vdof_layout.ind(i,k,j)]);
-		}
-		else
-		{
-		    Assign<Op>(glob_vdof_data[global_idx],
-				vdof_data[vdof_layout.ind(i,k,j)]);
-		}
-               
+               int global_idx = vl.ind(ind.map(i,j), k);
+
+               if (global_idx < 0)
+               {
+                  global_idx = -1 - global_idx;
+                  Assign<Op>(glob_vdof_data[global_idx],
+                             -vdof_data[vdof_layout.ind(i,k,j)]);
+               }
+               else
+               {
+                  Assign<Op>(glob_vdof_data[global_idx],
+                             vdof_data[vdof_layout.ind(i,k,j)]);
+               }
+
             }
          }
       }
@@ -497,71 +497,71 @@ public:
 };
 
 // Nedelec Finite Element Space
-    
+
 template <typename FE>
 class ND_FiniteElementSpace
-: public TFiniteElementSpace_simple<FE,ElementDofIndexer<FE> >
+   : public TFiniteElementSpace_simple<FE,ElementDofIndexer<FE> >
 {
 public:
-	typedef FE FE_type;
-	typedef TFiniteElementSpace_simple<FE,ElementDofIndexer<FE> > base_class;
-	
-	ND_FiniteElementSpace(const FE &fe, const FiniteElementSpace &fes)
-	: base_class(fe, fes)
-	{ }
+   typedef FE FE_type;
+   typedef TFiniteElementSpace_simple<FE,ElementDofIndexer<FE> > base_class;
 
-	// default copy constructor
-    
-	static bool Matches(const FiniteElementSpace &fes)
-	{
-		const FiniteElementCollection *fec = fes.FEColl();
-		const ND_FECollection *nd_fec =
-		dynamic_cast<const ND_FECollection *>(fec);
-		if (!nd_fec) { return false; }
-		const FiniteElement *fe = nd_fec->FiniteElementForGeometry(FE_type::geom);
-		if (fe->GetOrder() != FE_type::degree) { return false; }
-		return true;
-	}
-        
-	template <typename vec_layout_t>
-	static bool VectorMatches(const FiniteElementSpace &fes)
-	{
-	return Matches(fes) && vec_layout_t::Matches(fes);
-	}
+   ND_FiniteElementSpace(const FE &fe, const FiniteElementSpace &fes)
+      : base_class(fe, fes)
+   { }
+
+   // default copy constructor
+
+   static bool Matches(const FiniteElementSpace &fes)
+   {
+      const FiniteElementCollection *fec = fes.FEColl();
+      const ND_FECollection *nd_fec =
+         dynamic_cast<const ND_FECollection *>(fec);
+      if (!nd_fec) { return false; }
+      const FiniteElement *fe = nd_fec->FiniteElementForGeometry(FE_type::geom);
+      if (fe->GetOrder() != FE_type::degree) { return false; }
+      return true;
+   }
+
+   template <typename vec_layout_t>
+   static bool VectorMatches(const FiniteElementSpace &fes)
+   {
+      return Matches(fes) && vec_layout_t::Matches(fes);
+   }
 };
 
 // Raviart and Thomas Finite Element Space
 
 template <typename FE>
 class RT_FiniteElementSpace
-	: public TFiniteElementSpace_simple<FE,ElementDofIndexer<FE> >
+   : public TFiniteElementSpace_simple<FE,ElementDofIndexer<FE> >
 {
 public:
-	typedef FE FE_type;
-	typedef TFiniteElementSpace_simple<FE,ElementDofIndexer<FE> > base_class;
-	
-	RT_FiniteElementSpace(const FE &fe, const FiniteElementSpace &fes)
-		: base_class(fe, fes)
-	{ }
+   typedef FE FE_type;
+   typedef TFiniteElementSpace_simple<FE,ElementDofIndexer<FE> > base_class;
 
-	// default copy constructor
-    
-	static bool Matches(const FiniteElementSpace &fes)
-	{
-		const FiniteElementCollection *fec = fes.FEColl();
-		const RT_FECollection *rt_fec =
-			dynamic_cast<const RT_FECollection *>(fec);
-		if (!rt_fec) { return false; }
-		const FiniteElement *fe = rt_fec->FiniteElementForGeometry(FE_type::geom);
-		if (fe->GetOrder() != FE_type::degree) { return false; }
-		return true;
-	}
-	
-	template <typename vec_layout_t>
-	static bool VectorMatches(const FiniteElementSpace &fes)
-	{
-		return Matches(fes) && vec_layout_t::Matches(fes);
-	}
+   RT_FiniteElementSpace(const FE &fe, const FiniteElementSpace &fes)
+      : base_class(fe, fes)
+   { }
+
+   // default copy constructor
+
+   static bool Matches(const FiniteElementSpace &fes)
+   {
+      const FiniteElementCollection *fec = fes.FEColl();
+      const RT_FECollection *rt_fec =
+         dynamic_cast<const RT_FECollection *>(fec);
+      if (!rt_fec) { return false; }
+      const FiniteElement *fe = rt_fec->FiniteElementForGeometry(FE_type::geom);
+      if (fe->GetOrder() != FE_type::degree) { return false; }
+      return true;
+   }
+
+   template <typename vec_layout_t>
+   static bool VectorMatches(const FiniteElementSpace &fes)
+   {
+      return Matches(fes) && vec_layout_t::Matches(fes);
+   }
 };
 
 } // namespace mfem

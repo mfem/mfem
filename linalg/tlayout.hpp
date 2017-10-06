@@ -445,10 +445,10 @@ struct OffsetStridedLayout4D
    }
    OffsetStridedLayout3D<N1*N2,S1,N3,S3,N4,S4> merge_12() const
    {
-	   // use: (S1*i1+S2*i2+S3*i3+S4*i4) == (S1*(i1+S2/S1*i2)+S3*i3+S4*i4)
-	   // assuming S2 == S1*N1
-	   MFEM_STATIC_ASSERT(S2 == S1*N1, "invalid reshape");
-	   return OffsetStridedLayout3D<N1*N2,S1,N3,S3,N4,S4>(offset);
+      // use: (S1*i1+S2*i2+S3*i3+S4*i4) == (S1*(i1+S2/S1*i2)+S3*i3+S4*i4)
+      // assuming S2 == S1*N1
+      MFEM_STATIC_ASSERT(S2 == S1*N1, "invalid reshape");
+      return OffsetStridedLayout3D<N1*N2,S1,N3,S3,N4,S4>(offset);
    }
 };
 
