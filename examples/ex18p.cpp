@@ -24,8 +24,8 @@
 //              Note that as the order of the spatial discretization increases,
 //              the timestep must become smaller. This example currently uses a
 //              simple estimate derived by Cockburn and Shu for the 1D RKDG
-//              method. An additional factor is given by passing the --cfl or -c
-//              flag.
+//              method. An additional factor can be tuned by passing the
+//              --cfl (or -c shorter) flag.
 //
 //              Since the solution is a vector grid function, components need to
 //              be visualized separately in GLvis using the -gc flag to select
@@ -148,13 +148,17 @@ int main(int argc, char *argv[])
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim);
+   // Finite element space for a scalar (thermodynamic quantity)
    ParFiniteElementSpace fes(&pmesh, &fec);
+   // Finite element space for a mesh-dim vector quantity (momentum)
    ParFiniteElementSpace dfes(&pmesh, &fec, dim, Ordering::byNODES);
+   // Finite element space for all variables together (total thermodynamic state)
    ParFiniteElementSpace vfes(&pmesh, &fec, num_equation, Ordering::byNODES);
-   if (mpi.Root()) { cout << "Number of unknowns: " << vfes.GetVSize() << endl; }
 
-   // Much of this example depends on this ordering of the space.
+   // This example depends on this ordering of the space.
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
+
+   if (mpi.Root()) { cout << "Number of unknowns: " << vfes.GetVSize() << endl; }
 
    // 6. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. Note again that the file can be opened with GLvis
@@ -264,7 +268,9 @@ int main(int argc, char *argv[])
 
    if (cfl > 0)
    {
-      // Find a safe dt, using a temporary vector.
+      // Find a safe dt, using a temporary vector. Calling Mult()
+      // computes the maximum char speed at all quadrature points on
+      // all faces.
       max_char_speed = 0.;
       Vector z(sol.Size());
       A.Mult(sol, z);
