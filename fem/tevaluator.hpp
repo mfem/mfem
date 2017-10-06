@@ -922,7 +922,7 @@ public:
 };
 
 // General ShapeEvaluator for any scalar FE type (L2 or H1)
-template <class FE, class IR, typename real_t>
+template <class FE, class IR, typename real_t=double>
 class ShapeEvaluator
    : public ShapeEvaluator_base<FE,IR,FE::tensor_prod && IR::tensor_prod,real_t>
 {
