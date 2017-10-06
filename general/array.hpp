@@ -620,7 +620,7 @@ inline int Array<T>::FindSorted(const T &el) const
 {
    const T *begin = (const T*) data, *end = begin + size;
    const T* first = std::lower_bound(begin, end, el);
-   if (first == end || *first != el) { return  -1; }
+   if (first == end || !(*first == el)) { return  -1; }
    return first - begin;
 }
 

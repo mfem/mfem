@@ -18,6 +18,7 @@
 #include "../fem/fe_coll.hpp"
 #include "../fem/fespace.hpp"
 #include "../general/binaryio.hpp"
+#include "../general/sort_pairs.hpp"
 
 #include <map>
 #include <climits> // INT_MIN, INT_MAX
@@ -472,11 +473,6 @@ void ParNCMesh::AugmentMasterGroups()
       {
          vertex_group[v[j]] = JoinGroups(vertex_group[v[j]],
                                          edge_group[edge_id.index]);
-
-         // also make sure the MeshIds of the vertices are representable in
-         // the neighbor ranks, i.e., that the element/local pairs refer to
-         // elements existing in the neighbor refinement trees
-         //ChangeVertexMeshIdElement(vertex_list.LookUp(v[j]), edge_id.element);
       }
    }
 
@@ -487,7 +483,7 @@ void ParNCMesh::AugmentMasterGroups()
       // TODO
    }
 
-   // force recreate shared entities by new groups
+   // force recreating shared entities according to new groups
    shared_vertices.Clear();
    shared_edges.Clear();
    shared_faces.Clear();
@@ -1931,26 +1927,37 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
    GetSharedEdges();
    GetSharedFaces();
 
+   Array<bool> contains_rank(groups.size());
+   for (unsigned i = 0; i < groups.size(); i++)
+   {
+      contains_rank[i] = GroupContains(i, rank);
+   }
+
    if (shared_edges.masters.size())
    {
-      /*Array<MeshId> vertex_ids;
-      ids[0].Copy(vertex_ids);
-      vertex_ids.Sort();*/        // TODO search index
+      Array<Pair<int, int> > findv(ids[0].Size());
+      for (int i = 0; i < ids[0].Size(); i++)
+      {
+         findv[i].one = ids[0][i].index;
+         findv[i].two = i;
+      }
+      findv.Sort();
 
       // find vertices of master edges shared with 'rank', and modify their
       // MeshIds so their element/local matches the element of the master edge
       for (unsigned i = 0; i < shared_edges.masters.size(); i++)
       {
          const MeshId &edge_id = shared_edges.masters[i];
-         if (GroupContains(edge_group[edge_id.index], rank))
+         if (contains_rank[edge_group[edge_id.index]])
          {
             int v[2], pos;
             GetEdgeVertices(edge_id, v);
             for (int j = 0; j < 2; j++)
             {
-               if ((pos = ids[0].Find(MeshId(v[j]))) != -1)
+               if ((pos = findv.FindSorted(Pair<int, int>(v[j], 0))) != -1)
                {
                   // switch to an element/local that is safe for 'rank'
+                  pos = findv[pos].two;
                   ChangeVertexMeshIdElement(ids[0][pos], edge_id.element);
                }
             }
