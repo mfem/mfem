@@ -2051,7 +2051,7 @@ long NCMesh::NCList::TotalSize() const
    return conforming.size() + masters.size() + slaves.size();
 }
 
-NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type)
+const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
 {
    if (!inv_index.Size())
    {
@@ -2099,11 +2099,6 @@ NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type)
       case 2: return slaves[key >> 2];
       default: MFEM_ABORT("internal error"); throw 0;
    }
-}
-
-const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
-{
-   return const_cast<NCMesh::NCList*>(this)->LookUp(index, type);
 }
 
 

@@ -193,7 +193,7 @@ struct VarMessage
    /// Non-blocking send to processor 'rank'.
    void Isend(int rank, MPI_Comm comm)
    {
-      Encode();
+      Encode(rank);
       MPI_Isend((void*) data.data(), data.length(), MPI_BYTE, rank, Tag, comm,
                 &send_request);
    }
@@ -258,7 +258,7 @@ struct VarMessage
       MPI_Get_count(&status, MPI_BYTE, &count);
       MFEM_VERIFY(count == size, "");
 #endif
-      Decode();
+      Decode(rank);
    }
 
    /// Helper to receive all messages in a rank-to-message map container.
@@ -295,8 +295,8 @@ struct VarMessage
    }
 
 protected:
-   virtual void Encode() {}
-   virtual void Decode() {}
+   virtual void Encode(int rank) {}
+   virtual void Decode(int rank) {}
 };
 
 

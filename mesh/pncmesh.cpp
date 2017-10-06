@@ -373,6 +373,17 @@ ParNCMesh::GroupId ParNCMesh::GetSingletonGroup(int rank)
    return GetGroupId(group);
 }
 
+bool ParNCMesh::GroupContains(GroupId id, int rank) const
+{
+   // TODO: would std::lower_bound() pay off here? Groups are usually small.
+   const CommGroup &group = groups[id];
+   for (unsigned i = 0; i < group.size(); i++)
+   {
+      if (group[i] == rank) { return true; }
+   }
+   return false;
+}
+
 void ParNCMesh::InitOwners(int num, Array<GroupId> &entity_owner)
 {
    entity_owner.SetSize(num);
@@ -443,24 +454,6 @@ void ParNCMesh::AddMasterSlaveConnections(int nitems, const NCList& list)
    }
 }
 
-void ParNCMesh::ChangeVertexMeshIdElement(NCMesh::MeshId &id, int elem)
-{
-   Element &el = elements[elem];
-   MFEM_ASSERT(el.ref_type == 0, "");
-
-   GeomInfo& gi = GI[(int) el.geom];
-   for (int i = 0; i < gi.nv; i++)
-   {
-      if (nodes[el.node[i]].vert_index == id.index)
-      {
-         id.local = i;
-         id.element = elem;
-         return;
-      }
-   }
-   MFEM_ABORT("Vertex not found.");
-}
-
 void ParNCMesh::AugmentMasterGroups()
 {
    GetSharedVertices();
@@ -468,7 +461,7 @@ void ParNCMesh::AugmentMasterGroups()
    GetSharedFaces();
 
    // augment comm groups of vertices of shared master edges, so that their
-   // DOFs get sent to the slave ranks along with edge DOFs
+   // DOFs get sent to the slave ranks along with master edge DOFs
    for (unsigned i = 0; i < shared_edges.masters.size(); i++)
    {
       int v[2];
@@ -483,7 +476,7 @@ void ParNCMesh::AugmentMasterGroups()
          // also make sure the MeshIds of the vertices are representable in
          // the neighbor ranks, i.e., that the element/local pairs refer to
          // elements existing in the neighbor refinement trees
-         ChangeVertexMeshIdElement(vertex_list.LookUp(v[j]), edge_id.element);
+         //ChangeVertexMeshIdElement(vertex_list.LookUp(v[j]), edge_id.element);
       }
    }
 
@@ -1932,6 +1925,68 @@ void ParNCMesh::ElementSet::Load(std::istream &is)
 
 //// EncodeMeshIds/DecodeMeshIds ///////////////////////////////////////////////
 
+void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
+{
+   GetSharedVertices();
+   GetSharedEdges();
+   GetSharedFaces();
+
+   if (shared_edges.masters.size())
+   {
+      /*Array<MeshId> vertex_ids;
+      ids[0].Copy(vertex_ids);
+      vertex_ids.Sort();*/        // TODO search index
+
+      // find vertices of master edges shared with 'rank', and modify their
+      // MeshIds so their element/local matches the element of the master edge
+      for (unsigned i = 0; i < shared_edges.masters.size(); i++)
+      {
+         const MeshId &edge_id = shared_edges.masters[i];
+         if (GroupContains(edge_group[edge_id.index], rank))
+         {
+            int v[2], pos;
+            GetEdgeVertices(edge_id, v);
+            for (int j = 0; j < 2; j++)
+            {
+               if ((pos = ids[0].Find(MeshId(v[j]))) != -1)
+               {
+                  // switch to an element/local that is safe for 'rank'
+                  ChangeVertexMeshIdElement(ids[0][pos], edge_id.element);
+               }
+            }
+         }
+      }
+   }
+
+   if (shared_faces.masters.size())
+   {
+      // TODO
+   }
+}
+
+void ParNCMesh::ChangeVertexMeshIdElement(NCMesh::MeshId &id, int elem)
+{
+   Element &el = elements[elem];
+   MFEM_ASSERT(el.ref_type == 0, "");
+
+   GeomInfo& gi = GI[(int) el.geom];
+   for (int i = 0; i < gi.nv; i++)
+   {
+      if (nodes[el.node[i]].vert_index == id.index)
+      {
+         id.local = i;
+         id.element = elem;
+         return;
+      }
+   }
+   MFEM_ABORT("Vertex not found.");
+}
+
+void ParNCMesh::ChangeEdgeMeshIdElement(NCMesh::MeshId &id, int elem)
+{
+   // TODO
+}
+
 void ParNCMesh::EncodeMeshIds(std::ostream &os, Array<MeshId> ids[])
 {
    std::map<int, int> stream_id;
@@ -2099,7 +2154,7 @@ void ParNCMesh::DecodeGroups(std::istream &is, Array<GroupId> &ids)
 //// Messages //////////////////////////////////////////////////////////////////
 
 template<class ValueType, bool RefTypes, int Tag>
-void ParNCMesh::ElementValueMessage<ValueType, RefTypes, Tag>::Encode()
+void ParNCMesh::ElementValueMessage<ValueType, RefTypes, Tag>::Encode(int)
 {
    std::ostringstream ostream;
 
@@ -2134,7 +2189,7 @@ void ParNCMesh::ElementValueMessage<ValueType, RefTypes, Tag>::Encode()
 }
 
 template<class ValueType, bool RefTypes, int Tag>
-void ParNCMesh::ElementValueMessage<ValueType, RefTypes, Tag>::Decode()
+void ParNCMesh::ElementValueMessage<ValueType, RefTypes, Tag>::Decode(int)
 {
    std::istringstream istream(data);
 
@@ -2190,7 +2245,7 @@ static void read_dofs(std::istream &is, std::vector<int> &dofs)
    is.read((char*) dofs.data(), dofs.size() * sizeof(int));
 }
 
-void ParNCMesh::RebalanceDofMessage::Encode()
+void ParNCMesh::RebalanceDofMessage::Encode(int)
 {
    std::ostringstream stream;
 
@@ -2201,7 +2256,7 @@ void ParNCMesh::RebalanceDofMessage::Encode()
    stream.str().swap(data);
 }
 
-void ParNCMesh::RebalanceDofMessage::Decode()
+void ParNCMesh::RebalanceDofMessage::Decode(int)
 {
    std::istringstream stream(data);
 

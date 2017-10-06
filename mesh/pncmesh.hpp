@@ -183,6 +183,9 @@ public:
       return groups[id];
    }
 
+   /// Return true if group 'id' contains the given rank.
+   bool GroupContains(GroupId id, int rank) const;
+
    ///
    void AugmentMasterGroups();
 
@@ -337,9 +340,6 @@ protected:
    void MakeShared(const Array<GroupId> &entity_group,
                    const NCList &list, NCList &shared);
 
-   void ChangeVertexMeshIdElement(NCMesh::MeshId &id, int elem);
-   void ChangeEdgeMeshIdElement(NCMesh::MeshId &id, int elem);
-
    /** Uniquely encodes a set of leaf elements in the refinement hierarchy of
        an NCMesh. Can be dumped to a stream, sent to another processor, loaded,
        and decoded to identify the same set of elements (refinements) in a
@@ -374,6 +374,13 @@ protected:
       int  GetInt(int pos) const;
       void FlagElements(const Array<int> &elements, char flag);
    };
+
+   /** Adjust some of the MeshIds before encoding for recipient 'rank', so that
+       they only reference elements that exist in the recipient's ref. tree. */
+   void AdjustMeshIds(Array<MeshId> ids[], int rank);
+
+   void ChangeVertexMeshIdElement(NCMesh::MeshId &id, int elem);
+   void ChangeEdgeMeshIdElement(NCMesh::MeshId &id, int elem);
 
    // Write/read a processor-independent encoding of vertex/edge/face IDs.
    void EncodeMeshIds(std::ostream &os, Array<MeshId> ids[]);
@@ -431,8 +438,8 @@ protected:
    protected:
       ParNCMesh* pncmesh;
 
-      virtual void Encode();
-      virtual void Decode();
+      virtual void Encode(int);
+      virtual void Decode(int);
    };
 
    /** Used by ParNCMesh::Refine() to inform neighbors about refinements at
@@ -492,8 +499,8 @@ protected:
    protected:
       ElementSet eset;
 
-      virtual void Encode();
-      virtual void Decode();
+      virtual void Encode(int);
+      virtual void Decode(int);
    };
 
    /** Assign new Element::rank to leaf elements and send them to their new
@@ -527,6 +534,12 @@ protected:
 inline bool operator< (const NCMesh::MeshId &a, const NCMesh::MeshId &b)
 {
    return a.index < b.index;
+}
+
+// equality of MeshId is based on 'index' (element/local are not unique)
+inline bool operator== (const NCMesh::MeshId &a, const NCMesh::MeshId &b)
+{
+   return a.index == b.index;
 }
 
 } // namespace mfem

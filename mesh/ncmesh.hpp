@@ -179,11 +179,10 @@ public:
       long TotalSize() const;
       long MemoryUsage() const;
 
-      MeshId& LookUp(int index, int *type = NULL);
       const MeshId& LookUp(int index, int *type = NULL) const;
 
    private:
-      Array<int> inv_index;
+      mutable Array<int> inv_index;
    };
 
    /// Return the current list of conforming and nonconforming faces.

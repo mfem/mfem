@@ -1350,24 +1350,26 @@ protected:
    ParNCMesh *pncmesh;
    const FiniteElementCollection* fec;
 
-   virtual void Encode();
-   virtual void Decode();
+   virtual void Encode(int rank);
+   virtual void Decode(int);
 };
 
 
-void NeighborRowMessage::Encode()
+void NeighborRowMessage::Encode(int rank)
 {
    std::ostringstream stream;
 
    Array<NCMesh::MeshId> ent_ids[3];
    Array<ParNCMesh::GroupId> group_ids[3];
+   Array<int> row_idx[3];
 
    // encode MeshIds and groups
    for (unsigned i = 0; i < rows.size(); i++)
    {
       const RowInfo &ri = rows[i];
       const NCMesh::MeshId &id = pncmesh->GetNCList(ri.entity).LookUp(ri.index);
-      ent_ids[ri.entity].Append(NCMesh::MeshId(i, id.element, id.local));
+      ent_ids[ri.entity].Append(id);
+      row_idx[ri.entity].Append(i);
       group_ids[ri.entity].Append(ri.group);
    }
 
@@ -1378,6 +1380,7 @@ void NeighborRowMessage::Encode()
       all_group_ids.Append(group_ids[i]);
    }
 
+   pncmesh->AdjustMeshIds(ent_ids, rank);
    pncmesh->EncodeMeshIds(stream, ent_ids);
    pncmesh->EncodeGroups(stream, all_group_ids);
 
@@ -1390,7 +1393,7 @@ void NeighborRowMessage::Encode()
       for (int i = 0; i < ids.Size(); i++)
       {
          const NCMesh::MeshId &id = ids[i];
-         const RowInfo &ri = rows[id.index];
+         const RowInfo &ri = rows[row_idx[ent][i]];
          MFEM_ASSERT(ent == ri.entity, "");
 
          int edof = ri.edof;
@@ -1408,7 +1411,7 @@ void NeighborRowMessage::Encode()
    stream.str().swap(data);
 }
 
-void NeighborRowMessage::Decode()
+void NeighborRowMessage::Decode(int)
 {
    std::istringstream stream(data);
 
@@ -1466,16 +1469,6 @@ void ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
    }
 }
 
-static bool group_contains(const ParNCMesh::CommGroup &group, int rank)
-{
-   // TODO: we could try std::lower_bound since the group is sorted
-   for (unsigned i = 0; i < group.size(); i++)
-   {
-      if (group[i] == rank) { return true; }
-   }
-   return false;
-}
-
 void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
                                        ParNCMesh::GroupId group_sent_id,
                                        ParNCMesh::GroupId group_id,
@@ -1484,13 +1477,11 @@ void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
    int ent, idx, edof;
    UnpackDof(dof, ent, idx, edof);
 
-   const ParNCMesh::CommGroup &group =      pncmesh->GetGroup(group_id);
-   const ParNCMesh::CommGroup &group_sent = pncmesh->GetGroup(group_sent_id);
-
+   const ParNCMesh::CommGroup &group = pncmesh->GetGroup(group_id);
    for (unsigned i = 0; i < group.size(); i++)
    {
       int rank = group[i];
-      if (rank != MyRank && !group_contains(group_sent, rank))
+      if (rank != MyRank && !pncmesh->GroupContains(group_sent_id, rank))
       {
          NeighborRowMessage &msg = send_msg[rank];
          msg.AddRow(ent, idx, edof, group_id, row);
