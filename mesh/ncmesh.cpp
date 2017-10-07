@@ -2958,7 +2958,7 @@ void NCMesh::GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const
    }
 }
 
-int NCMesh::GetEdgeOrientation(const NCMesh::MeshId &edge_id) const
+int NCMesh::GetEdgeNCOrientation(const NCMesh::MeshId &edge_id) const
 {
    const Element &el = elements[edge_id.element];
    const GeomInfo& gi = GI[(int) el.geom];
@@ -2993,37 +2993,41 @@ int NCMesh::GetFaceOrientationElement(const Face &face) const
    }
 }
 
-void NCMesh::GetFaceVertices(const MeshId &face_id, int vert_index[4]) const
+void NCMesh::GetFaceVerticesEdges(const MeshId &face_id,
+                                  int vert_index[4], int edge_index[4],
+                                  int edge_orientation[4]) const
 {
    const Face &fa = faces[face_id.index];
 
    int elem = GetFaceOrientationElement(fa);
    const Element &el = elements[elem];
 
-   const int* fv;
-   if (elem == face_id.element)
+   int local = face_id.local;
+   if (elem != face_id.element)
    {
-      fv = GI[(int) el.geom].faces[face_id.local];
+      local = find_hex_face(find_node(el, fa.p1),
+                            find_node(el, fa.p2),
+                            find_node(el, fa.p3));
    }
-   else
-   {
-      int local = find_hex_face(find_node(el, fa.p1),
-                                find_node(el, fa.p2),
-                                find_node(el, fa.p3));
-
-      fv = GI[(int) el.geom].faces[local];
-   }
+   const int* fv = GI[(int) el.geom].faces[local];
 
    for (int i = 0; i < 4; i++)
    {
       vert_index[i] = nodes[el.node[fv[i]]].vert_index;
    }
-}
 
-void NCMesh::GetFaceEdges(const MeshId &face_id, int edge_index[4],
-                          int edge_orientation[4]) const
-{
-   // TODO
+   for (int i = 0; i < 4; i++)
+   {
+      int j = (i+1) & 0x3;
+      int n1 = el.node[fv[i]];
+      int n2 = el.node[fv[j]];
+
+      const Node* en = nodes.Find(n1, n2);
+      MFEM_ASSERT(en != NULL, "edge not found.");
+
+      edge_index[i] = en->edge_index;
+      edge_orientation[i] = (vert_index[i] < vert_index[j]) ? 1 : -1;
+   }
 }
 
 int NCMesh::GetEdgeMaster(int node) const

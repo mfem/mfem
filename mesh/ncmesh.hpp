@@ -243,17 +243,15 @@ public:
    // utility
 
    ///
-   int GetEdgeOrientation(const MeshId &edge_id) const;
-
-   ///
    void GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const;
 
    ///
-   void GetFaceVertices(const MeshId &face_id, int vert_index[4]) const;
+   int GetEdgeNCOrientation(const MeshId &edge_id) const;
 
    ///
-   void GetFaceEdges(const MeshId &face_id, int edge_index[4],
-                     int edge_orientation[4]) const;
+   void GetFaceVerticesEdges(const MeshId &face_id,
+                             int vert_index[4], int edge_index[4],
+                             int edge_orientation[4]) const;
 
    /** Given an edge (by its vertex indices v1 and v2) return the first
        (geometric) parent edge that exists in the Mesh or -1 if there is no such

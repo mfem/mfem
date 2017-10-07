@@ -1397,7 +1397,7 @@ void NeighborRowMessage::Encode(int rank)
          MFEM_ASSERT(ent == ri.entity, "");
 
          int edof = ri.edof;
-         if (ent == 1 && pncmesh->GetEdgeOrientation(id))
+         if (ent == 1 && pncmesh->GetEdgeNCOrientation(id))
          {
             edof = ne-1 - edof;
          }
@@ -1438,7 +1438,7 @@ void NeighborRowMessage::Decode(int)
       {
          const NCMesh::MeshId &id = ids[i];
          int edof = read<int>(stream);
-         if (ent == 1 && pncmesh->GetEdgeOrientation(id))
+         if (ent == 1 && pncmesh->GetEdgeNCOrientation(id))
          {
             edof = ne-1 - edof;
          }
