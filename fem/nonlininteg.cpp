@@ -1206,13 +1206,19 @@ void TMOPHyperelasticModel211::AssembleH(const DenseMatrix &Jpt,
 
 double TMOPHyperelasticModel301::EvalW(const DenseMatrix &Jpt) const
 {
+#ifdef MFEM_USE_OLD_TMOP_INVARIANTS
    const double I1 = Dim3Invariant1(Jpt), I2 = Dim3Invariant2(Jpt);
    return  pow(I1*I2,0.5)/3. - 1.;
+#else
+   ie.SetJacobian(Jpt);
+   return std::sqrt(ie.Get_I1b()*ie.Get_I2b())/3. - 1.;
+#endif
 }
 
 void TMOPHyperelasticModel301::EvalP(const DenseMatrix &Jpt,
                                      DenseMatrix &P) const
 {
+#ifdef MFEM_USE_OLD_TMOP_INVARIANTS
    const double I1 = Dim3Invariant1(Jpt), I2 = Dim3Invariant2(Jpt);
    double I1I2 = I1*I2;
 
@@ -1224,6 +1230,13 @@ void TMOPHyperelasticModel301::EvalP(const DenseMatrix &Jpt,
    PP *= (I1);
    P += PP;
    P *= (1./6.)*pow(I1I2,-0.5);
+#else
+   //  W = (1/3)*sqrt(I1b*I2b) - 1
+   // dW = (1/6)/sqrt(I1b*I2b)*[I2b*dI1b + I1b*dI2b]
+   ie.SetJacobian(Jpt);
+   const double a = 1./(6.*std::sqrt(ie.Get_I1b()*ie.Get_I2b()));
+   Add(a*ie.Get_I2b(), ie.Get_dI1b(), a*ie.Get_I1b(), ie.Get_dI2b(), P);
+#endif
 }
 
 void TMOPHyperelasticModel301::AssembleH(const DenseMatrix &Jpt,
@@ -1231,6 +1244,7 @@ void TMOPHyperelasticModel301::AssembleH(const DenseMatrix &Jpt,
                                          const double weight,
                                          DenseMatrix &A) const
 {
+#ifdef MFEM_USE_OLD_TMOP_INVARIANTS
    const int dof = DS.Height(), dim = DS.Width();
    const double I1 = Dim3Invariant1(Jpt), I2 = Dim3Invariant2(Jpt);
    DenseMatrix dI1_dM(dim), dI1_dMdM(dim), dI2_dM(dim), dI2_dMdM(dim);
@@ -1272,6 +1286,36 @@ void TMOPHyperelasticModel301::AssembleH(const DenseMatrix &Jpt,
          }
       }
    }
+#else
+   //  dW = (1/6)/sqrt(I1b*I2b)*[I2b*dI1b + I1b*dI2b]
+   //  dW = (1/6)*[z2*dI1b + z1*dI2b], z1 = sqrt(I1b/I2b), z2 = sqrt(I2b/I1b)
+   // ddW = (1/6)*[dI1b x dz2 + z2*ddI1b + dI2b x dz1 + z1*ddI2b]
+   //
+   // dz1 = (1/2)*sqrt(I2b/I1b) [ (1/I2b)*dI1b + (I1b/(I2b*I2b))*dI2b ]
+   //     = (1/2)/sqrt(I1b*I2b) [ dI1b + (I1b/I2b)*dI2b ]
+   // dz2 = (1/2)/sqrt(I1b*I2b) [ (I2b/I1b)*dI1b + dI2b ]
+   //
+   // dI1b x dz2 + dI2b x dz1 =
+   //    (1/2)/sqrt(I1b*I2b) dI1b x [ (I2b/I1b)*dI1b + dI2b ] +
+   //    (1/2)/sqrt(I1b*I2b) dI2b x [ dI1b + (I1b/I2b)*dI2b ] =
+   //    (1/2)/sqrt(I1b*I2b) [sqrt(I2b/I1b)*dI1b + sqrt(I1b/I2b)*dI2b] x
+   //                        [sqrt(I2b/I1b)*dI1b + sqrt(I1b/I2b)*dI2b] =
+   //    (1/2)/sqrt(I1b*I2b) [ 6*dW x 6*dW ] =
+   //    (1/2)*(I1b*I2b)^{-3/2} (I2b*dI1b + I1b*dI2b) x (I2b*dI1b + I1b*dI2b)
+   //
+   // z1 = I1b/sqrt(I1b*I2b), z2 = I2b/sqrt(I1b*I2b)
+
+   ie.SetJacobian(Jpt);
+   ie.SetDerivativeMatrix(DS);
+   double d_I1b_I2b_data[9];
+   DenseMatrix d_I1b_I2b(d_I1b_I2b_data, 3, 3);
+   Add(ie.Get_I2b(), ie.Get_dI1b(), ie.Get_I1b(), ie.Get_dI2b(), d_I1b_I2b);
+   const double I1b_I2b = ie.Get_I1b()*ie.Get_I2b();
+   const double a = weight/(6*std::sqrt(I1b_I2b));
+   ie.Assemble_ddI1b(a*ie.Get_I2b(), A);
+   ie.Assemble_ddI2b(a*ie.Get_I1b(), A);
+   ie.Assemble_TProd(a/(2*I1b_I2b), d_I1b_I2b_data, A);
+#endif
 }
 
 double TMOPHyperelasticModel302::EvalW(const DenseMatrix &Jpt) const
