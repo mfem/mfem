@@ -328,6 +328,10 @@ void Add(const DenseMatrix &A, const DenseMatrix &B,
          double alpha, DenseMatrix &C);
 
 /// C = alpha*A + beta*B
+void Add(double alpha, const double *A,
+         double beta,  const double *B, DenseMatrix &C);
+
+/// C = alpha*A + beta*B
 void Add(double alpha, const DenseMatrix &A,
          double beta,  const DenseMatrix &B, DenseMatrix &C);
 

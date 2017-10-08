@@ -2891,14 +2891,25 @@ void Add(const DenseMatrix &A, const DenseMatrix &B,
       }
 }
 
+void Add(double alpha, const double *A,
+         double beta,  const double *B, DenseMatrix &C)
+{
+   const int m = C.Height()*C.Width();
+   double *C_data = C.GetData();
+   for (int i = 0; i < m; i++)
+   {
+      C_data[i] = alpha*A[i] + beta*B[i];
+   }
+}
+
 void Add(double alpha, const DenseMatrix &A,
          double beta,  const DenseMatrix &B, DenseMatrix &C)
 {
-   for (int j = 0; j < C.Width(); j++)
-      for (int i = 0; i < C.Height(); i++)
-      {
-         C(i,j) = alpha * A(i,j) + beta * B(i,j);
-      }
+   MFEM_ASSERT(A.Height() == C.Height(), "");
+   MFEM_ASSERT(B.Height() == C.Height(), "");
+   MFEM_ASSERT(A.Width() == C.Width(), "");
+   MFEM_ASSERT(B.Width() == C.Width(), "");
+   Add(alpha, A.GetData(), beta, B.GetData(), C);
 }
 
 
