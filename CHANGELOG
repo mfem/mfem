@@ -57,6 +57,9 @@ Discretization improvements
 
 Miscellaneous
 -------------
+- Various changes to comply with the Extreme-scale Scientific Software
+  Development Kit (xSDK) community policies, https://xsdk.info/policies.
+
 - Modified the installation layout: all headers, except the master headers
   (mfem.hpp and mfem-performance.hpp), are installed in <PREFIX>/include/mfem;
   the master headers are installed in both <PREFIX>/include/mfem and in
