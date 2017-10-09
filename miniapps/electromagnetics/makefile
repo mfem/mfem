@@ -14,11 +14,9 @@ MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/electromagnetics/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-TEST_MK = $(MFEM_DIR)/config/test.mk
 # Use the MFEM install directory
-# MFEM_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_DIR)/config.mk
-# TEST_MK = $(MFEM_DIR)/test.mk
+# MFEM_INSTALL_DIR = ../../mfem
+# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
@@ -55,10 +53,10 @@ $(COMMON_O) $(addsuffix _solver.o,$(MINIAPPS)): \
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
 MFEM_TESTS = MINIAPPS
-include $(TEST_MK)
+include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
-RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 volta-test-par: volta
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
 	-maxit 2 -dbcs 1 -dbcg -ds '0.0 0.0 0.0 0.2 8.0')

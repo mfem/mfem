@@ -194,7 +194,7 @@ public:
 
        In particular, if @a op is a BlockOperator, then a MATNEST Mat object is
        created using @a tid as the type for the blocks.
-       Note that is @a op is already a PetscParMatrix of the same type as
+       Note that if @a op is already a PetscParMatrix of the same type as
        @a tid, the resulting PetscParMatrix will share the same Mat object */
    PetscParMatrix(MPI_Comm comm, const Operator *op, Operator::Type tid);
 

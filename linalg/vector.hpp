@@ -156,6 +156,7 @@ public:
    /// Return the inner-product.
    double operator*(const Vector &v) const;
 
+   /// Copy Size() entries from @a v.
    Vector & operator=(const double *v);
 
    /// Redefine '=' for vector = vector.

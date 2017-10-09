@@ -549,9 +549,11 @@ void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
 
 void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
 {
+   MFEM_ASSERT(dofs.Size() == elemvect.Size(), "");
    int i, j, n = dofs.Size();
 
    for (i = 0; i < n; i++)
+   {
       if ((j=dofs[i]) >= 0)
       {
          data[j] += elemvect(i);
@@ -560,6 +562,7 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
       {
          data[-1-j] -= elemvect(i);
       }
+   }
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
