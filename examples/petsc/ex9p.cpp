@@ -419,8 +419,8 @@ int main(int argc, char *argv[])
       bool done = false;
       for (int ti = 0; !done; )
       {
-         dt = min(dt, t_final - t);
-         ode_solver->Step(*U, t, dt);
+         double dt_real = min(dt, t_final - t);
+         ode_solver->Step(*U, t, dt_real);
          ti++;
 
          done = (t >= t_final - 1e-8*dt);
@@ -431,7 +431,6 @@ int main(int argc, char *argv[])
             {
                cout << "time step: " << ti << ", time: " << t << endl;
             }
-
             // 11. Extract the parallel grid function corresponding to the finite
             //     element approximation U (the local solution on each processor).
             *u = *U;

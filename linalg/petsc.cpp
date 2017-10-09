@@ -2838,12 +2838,12 @@ void PetscODESolver::Step(Vector &x, double &t, double &dt)
    ierr = TSStep(ts); PCHKERRQ(ts, ierr);
    X->ResetArray();
 
-   // Get back current time and time step to caller.
+   // Get back current time and the time step used to caller.
+   // We cannot use TSGetTimeStep() as it returns the next candidate step
    PetscReal pt;
    ierr = TSGetTime(ts,&pt); PCHKERRQ(ts,ierr);
+   dt = pt - (PetscReal)t;
    t = pt;
-   ierr = TSGetTimeStep(ts,&pt); PCHKERRQ(ts,ierr);
-   dt = pt;
 }
 
 void PetscODESolver::Run(Vector &x, double &t, double &dt, double t_final)
