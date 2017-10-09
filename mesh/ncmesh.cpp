@@ -1503,7 +1503,11 @@ const double* NCMesh::CalcVertexPos(int node) const
       return &top_vertex_pos[3*nd.p1];
    }
 
+#ifdef MFEM_DEBUG
+   TmpVertex &tv = tmp_vertex[node]; // to make DebugDump work
+#else
    TmpVertex &tv = tmp_vertex[nd.vert_index];
+#endif
    if (tv.valid) { return tv.pos; }
 
    MFEM_VERIFY(tv.visited == false, "cyclic vertex dependencies.");
@@ -2972,7 +2976,7 @@ int NCMesh::GetEdgeNCOrientation(const NCMesh::MeshId &edge_id) const
 
 int NCMesh::GetFaceOrientationElement(const Face &face) const
 {
-   if (face.elem[0] < 0 && face.elem[1] < 0)
+   if (face.elem[0] < 0 || face.elem[1] < 0)
    {
       return face.GetSingleElement();
    }
@@ -3009,8 +3013,8 @@ void NCMesh::GetFaceVerticesEdges(const MeshId &face_id,
                             find_node(el, fa.p2),
                             find_node(el, fa.p3));
    }
-   const int* fv = GI[(int) el.geom].faces[local];
 
+   const int* fv = GI[(int) el.geom].faces[local];
    for (int i = 0; i < 4; i++)
    {
       vert_index[i] = nodes[el.node[fv[i]]].vert_index;
@@ -3656,5 +3660,64 @@ void NCMesh::DebugLeafOrder() const
    }
 }
 #endif
+
+void NCMesh::DebugDump(std::ostream &out) const
+{
+   // dump nodes
+   tmp_vertex = new TmpVertex[nodes.NumIds()];
+   out << nodes.Size() << "\n";
+   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
+   {
+      const double *pos = CalcVertexPos(node.index());
+      out << pos[0] << " " << pos[1] << " " << pos[2] << " "
+          << node->p1 << " " << node->p2 << " " << node->edge_index << "\n";
+   }
+   //delete [] tmp_vertex;
+   out << "\n";
+
+   // dump elements
+   int nleaves = 0;
+   for (int i = 0; i < elements.Size(); i++)
+   {
+      if (!elements[i].ref_type) { nleaves++; }
+   }
+   out << nleaves << "\n";
+   for (int i = 0; i < elements.Size(); i++)
+   {
+      const Element &el = elements[i];
+      if (el.ref_type) { continue; }
+      const GeomInfo& gi = GI[(int) el.geom];
+      out << gi.nv << " ";
+      for (int j = 0; j < gi.nv; j++)
+      {
+         out << el.node[j] << " ";
+      }
+      out << el.attribute << " " << i << "\n";
+   }
+   out << "\n";
+
+   // dump faces
+   out << faces.Size() << "\n";
+   for (face_const_iterator face = faces.cbegin(); face != faces.cend(); ++face)
+   {
+      int elem = face->elem[0];
+      if (elem < 0) { elem = face->elem[1]; }
+      MFEM_ASSERT(elem >= 0, "");
+      const Element &el = elements[elem];
+
+      int lf = find_hex_face(find_node(el, face->p1),
+                             find_node(el, face->p2),
+                             find_node(el, face->p3));
+
+      out << "4";
+      const int* fv = GI[Geometry::CUBE].faces[lf];
+      for (int i = 0; i < 4; i++)
+      {
+         out << " " << el.node[fv[i]];
+      }
+      //out << " # face " << face.index() << ", index " << face->index << "\n";
+      out << "\n";
+   }
+}
 
 } // namespace mfem

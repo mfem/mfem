@@ -730,6 +730,8 @@ public:
 
    /// Print the space-filling curve formed by the sequence of leaf elements.
    void DebugLeafOrder() const;
+
+   void DebugDump(std::ostream &out) const;
 #endif
 
    friend class ParNCMesh; // for ParNCMesh::ElementSet

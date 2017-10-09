@@ -478,9 +478,18 @@ void ParNCMesh::AugmentMasterGroups()
 
    // similarly, augment comm groups of vertices and edges of shared master
    // faces, to make sure slave ranks receive all the necessary master DOFs
-   for (unsigned i = 0; i < face_list.masters.size(); i++)
+   for (unsigned i = 0; i < shared_faces.masters.size(); i++)
    {
-      // TODO
+      int v[4], e[4], eo[4];
+      const MeshId &face_id = shared_faces.masters[i];
+      GetFaceVerticesEdges(face_id, v, e, eo);
+
+      int f_group = face_group[face_id.index];
+      for (int j = 0; j < 4; j++)
+      {
+         vertex_group[v[j]] = JoinGroups(vertex_group[v[j]], f_group);
+         edge_group[e[j]]   = JoinGroups(edge_group[e[j]], f_group);
+      }
    }
 
    // force recreating shared entities according to new groups

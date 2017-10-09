@@ -1025,10 +1025,15 @@ void ParFiniteElementSpace::ConstructTrueNURBSDofs()
    gcomm->Bcast(ldof_ltdof);
 }
 
-/*inline int decode_dof(int dof, double& sign)
+inline int decode_dof(int dof, double& sign)
 {
    return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof));
-}*/
+}
+
+inline int encode_dof(int first, int ind)
+{
+   return (ind >= 0) ? (first + ind) : (-1 - (first + (-1 - ind)));
+}
 
 void ParFiniteElementSpace::GetGhostVertexDofs(const NCMesh::MeshId &id,
                                                Array<int> &dofs) const
@@ -1041,39 +1046,74 @@ void ParFiniteElementSpace::GetGhostVertexDofs(const NCMesh::MeshId &id,
    }
 }
 
-void ParFiniteElementSpace::GetGhostEdgeDofs(const NCMesh::MeshId &id,
+void ParFiniteElementSpace::GetGhostEdgeDofs(const NCMesh::MeshId &edge_id,
                                              Array<int> &dofs) const
 {
-   int nv = fec->DofForGeometry(Geometry::POINT), V[2];
-   if (nv > 0)
-   {
-      pmesh->pncmesh->GetEdgeVertices(id, V);
-   }
+   int nv = fec->DofForGeometry(Geometry::POINT);
    int ne = fec->DofForGeometry(Geometry::SEGMENT);
    dofs.SetSize(2*nv + ne);
-   if (nv > 0)
+
+   int V[2], ghost = pncmesh->GetNVertices();
+   pmesh->pncmesh->GetEdgeVertices(edge_id, V);
+
+   for (int i = 0; i < 2; i++)
    {
-      int ghost = pncmesh->GetNVertices();
-      for (int i = 0; i < 2; i++)
+      int k = (V[i] < ghost) ? V[i]*nv : (ndofs + (V[i] - ghost)*nv);
+      for (int j = 0; j < nv; j++)
       {
-         int k = (V[i] < ghost) ? V[i]*nv : (ndofs + (V[i] - ghost)*nv);
-         for (int j = 0; j < nv; j++)
-         {
-            dofs[i*nv + j] = k++;
-         }
+         dofs[i*nv + j] = k++;
       }
    }
-   int k = ndofs + ngvdofs + (id.index - pncmesh->GetNEdges())*ne;
+
+   int k = ndofs + ngvdofs + (edge_id.index - pncmesh->GetNEdges())*ne;
    for (int j = 0; j < ne; j++)
    {
       dofs[2*nv + j] = k++;
    }
 }
 
-void ParFiniteElementSpace::GetGhostFaceDofs(const NCMesh::MeshId &id,
+void ParFiniteElementSpace::GetGhostFaceDofs(const NCMesh::MeshId &face_id,
                                              Array<int> &dofs) const
 {
-   // TODO
+   MFEM_ASSERT(mesh->GetFaceBaseGeometry(0) == Geometry::SQUARE, "");
+
+   int nv = fec->DofForGeometry(Geometry::POINT);
+   int ne = fec->DofForGeometry(Geometry::SEGMENT);
+   int nf = fec->DofForGeometry(Geometry::SQUARE);
+   dofs.SetSize(4*nv + 4*ne + nf);
+
+   int V[4], E[4], Eo[4];
+   pmesh->pncmesh->GetFaceVerticesEdges(face_id, V, E, Eo);
+
+   int offset = 0;
+   for (int i = 0; i < 4; i++)
+   {
+      int ghost = pncmesh->GetNVertices();
+      int first = (V[i] < ghost) ? V[i]*nv : (ndofs + (V[i] - ghost)*nv);
+      for (int j = 0; j < nv; j++)
+      {
+         dofs[offset++] = first + j;
+      }
+   }
+
+   for (int i = 0; i < 4; i++)
+   {
+      int ghost = pncmesh->GetNEdges();
+      int first = (E[i] < ghost) ? nvdofs + E[i]*ne
+                  /*          */ : ndofs + ngvdofs + (E[i] - ghost)*ne;
+      const int *ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[i]);
+      for (int j = 0; j < ne; j++)
+      {
+         dofs[offset++] = encode_dof(first, ind[j]);
+      }
+   }
+
+   int first = ndofs + ngvdofs + ngedofs +
+               (face_id.index - pncmesh->GetNFaces())*nf;
+   for (int j = 0; j < nf; j++)
+   {
+      dofs[offset++] = first + j;
+   }
 }
 
 void
@@ -1636,7 +1676,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
             PMatrixElement(my_tdof_offset + true_dof, 1.0));
 
          // prepare messages to neighbors with identity rows
-         if (dof < nvdofs + nedofs + nfdofs)
+         if (dof_group[dof] != 0)
          {
             ScheduleSendRow(pmatrix[dof], dof, dof_group[dof], send_msg.back());
          }
