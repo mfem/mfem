@@ -130,7 +130,7 @@ set(NetCDF_REQUIRED_PACKAGES "" CACHE STRING
 
 set(PETSC_DIR "${MFEM_DIR}/../petsc" CACHE PATH
     "Path to the PETSc main directory.")
-set(PETSC_ARCH "arch-linux2-c-debug" CACHE PATH "PETSc build architecture.")
+set(PETSC_ARCH "arch-linux2-c-debug" CACHE STRING "PETSc build architecture.")
 
 set(MPFR_DIR "" CACHE PATH "Path to the MPFR library.")
 
