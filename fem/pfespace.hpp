@@ -118,6 +118,12 @@ private:
                    ParNCMesh::GroupId group_id,
                    std::map<int, NeighborRowMessage> &send_msg);
 
+   void DebugDumpDOFs(std::ofstream &os,
+                      const SparseMatrix &deps,
+                      const Array<ParNCMesh::GroupId> &dof_group,
+                      const Array<ParNCMesh::GroupId> &dof_owner,
+                      const Array<bool> &finalized);
+
    HypreParMatrix*
       MakeHypreMatrix(const std::vector<PMatrixRow> &rows, int local_rows,
                       HYPRE_Int glob_rows, HYPRE_Int glob_cols,

@@ -104,9 +104,10 @@ int main(int argc, char *argv[])
       for (int l = 0; l < ref_levels; l++)
       {
          //mesh->UniformRefinement();
-         mesh->RandomRefinement(0.5);
+         mesh->RandomRefinement(0.5, true);
       }
    }
+   cout << "Number of elements: " << mesh->GetNE() << endl;
 
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
@@ -128,6 +129,11 @@ int main(int argc, char *argv[])
       sprintf(fname, "dbg%02d.mesh", myid);
       std::ofstream f(fname);
       dbg.Print(f);
+
+      /*char fname[100];
+      sprintf(fname, "ncmesh%02d.dbg", myid);
+      std::ofstream f(fname);
+      pmesh->pncmesh->DebugDump(f);*/
    }
 
 

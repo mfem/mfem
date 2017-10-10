@@ -1436,6 +1436,9 @@ void NeighborRowMessage::Encode(int rank)
          const RowInfo &ri = rows[row_idx[ent][i]];
          MFEM_ASSERT(ent == ri.entity, "");
 
+         /*std::cout << "To " << rank << ": sending ent " << ri.entity
+                   << ", index " << ri.index << ", edof " << ri.edof << std::endl;*/
+
          int edof = ri.edof;
          if (ent == 1 && pncmesh->GetEdgeNCOrientation(id))
          {
@@ -1451,7 +1454,7 @@ void NeighborRowMessage::Encode(int rank)
    stream.str().swap(data);
 }
 
-void NeighborRowMessage::Decode(int)
+void NeighborRowMessage::Decode(int rank)
 {
    std::istringstream stream(data);
 
@@ -1484,6 +1487,10 @@ void NeighborRowMessage::Decode(int)
          }
          rows.push_back(RowInfo(ent, id.index, edof, group_ids[gi++]));
          rows.back().row.read(stream);
+
+         /*std::cout << "From " << rank << ": receiving " << rows.back().entity
+                   << ", index " << rows.back().index
+                   << ", edof " << rows.back().edof << std::endl;*/
       }
    }
 }
@@ -1528,6 +1535,62 @@ void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
          msg.SetNCMesh(pncmesh);
          msg.SetFEC(fec);
       }
+   }
+}
+
+void ParFiniteElementSpace
+   ::DebugDumpDOFs(std::ofstream &os,
+                   const SparseMatrix &deps,
+                   const Array<ParNCMesh::GroupId> &dof_group,
+                   const Array<ParNCMesh::GroupId> &dof_owner,
+                   const Array<bool> &finalized)
+{
+   for (int i = 0; i < dof_group.Size(); i++)
+   {
+      os << i << ": ";
+      if (i < (nvdofs + nedofs + nfdofs) || i > ndofs)
+      {
+         int ent, idx, edof;
+         UnpackDof(i, ent, idx, edof);
+
+         os << edof << " @ ";
+         if (i > ndofs)
+         {
+            os << "ghost ";
+         }
+         switch (ent)
+         {
+            case 0: os << "vertex "; break;
+            case 1: os << "edge "; break;
+            default: os << "face "; break;
+         }
+         os << idx << "; ";
+
+         if (i < deps.Height() && deps.RowSize(i))
+         {
+            os << "depends on ";
+            for (int j = 0; j < deps.RowSize(i); j++)
+            {
+               os << deps.GetRowColumns(i)[j] << " ("
+                  << deps.GetRowEntries(i)[j] << ")";
+               if (j < deps.RowSize(i)-1) { os << ", "; }
+            }
+            os << "; ";
+         }
+         else
+         {
+            os << "no deps; ";
+         }
+
+         os << "group " << dof_group[i];
+         os << ", owner " << dof_owner[i];
+         os << "; " << (finalized[i] ? "finalized" : "NOT finalized");
+      }
+      else
+      {
+         os << "internal";
+      }
+      os << "\n";
    }
 }
 
@@ -1768,6 +1831,16 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
             }
          }
       }
+
+      /*static int dump = 0;
+      if (dump < 10)
+      {
+         char fname[100];
+         sprintf(fname, "dofs%02d.txt", MyRank);
+         std::ofstream f(fname);
+         DebugDumpDOFs(f, deps, dof_group, dof_owner, finalized);
+         dump++;
+      }*/
 
       // send current batch of messages
       NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
