@@ -1316,12 +1316,33 @@ void BilinearFormOperator::Mult(const Vector &x, Vector &y) const
          dbfi[i]->AssembleVector(*fes, X, Y);
       }
    }
-   else if ((bbfi.Size() > 0) ||
-            (fbfi.Size() > 0) ||
-            (bfbfi.Size() > 0))
+   if (fbfi.Size())
+   {
+      for (int i = 0; i < fbfi.Size(); i++)
+      {
+         fbfi[i]->AssembleVector(*fes, X, Y);
+      }
+   }
+   if (fbfi.Size())
+   {
+      for (int i = 0; i < fbfi.Size(); i++)
+      {
+         fbfi[i]->AssembleVector(*fes, X, Y);
+      }
+   }
+   if (fbfi.Size())
+   {
+      for (int i = 0; i < fbfi.Size(); i++)
+      {
+         fbfi[i]->AssembleVector(*fes, X, Y);
+      }
+   }
+   /*if ((bbfi.Size() > 0) ||
+       (fbfi.Size() > 0) ||
+       (bfbfi.Size() > 0))
    {
       mfem_error("Not yet supported");
-   }
+   }*/
 
    // y: E -> L
    EToLVector(Y, y);

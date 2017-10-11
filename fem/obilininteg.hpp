@@ -31,21 +31,41 @@ protected:
 
 public:
   PAOperator(FiniteElementSpace *_fes, const int ir_order);
+
   /**
   * Computes V = B^T D B U where B is a tensor product of shape1d. 
   */
   void MultBtDB1(DenseMatrix &D, const Vector &U, Vector &V) const ;
+
+    /**
+  * Computes V = G^T D G U where G is a tensor product of shape1d and dshape1d. 
+  */
   void MultGtDG1(DenseTensor &D, const Vector &U, Vector &V) const ;
+
+    /**
+  * Computes V = B^T D G U where B and G are a tensor product of shape1d and dshape1d. 
+  */
   void MultBtDG1(DenseTensor &D, const Vector &U, Vector &V) const ;
+
+    /**
+  * Computes V = G^T D B U where B and G are a tensor product of shape1d and dshape1d. 
+  */
   void MultGtDB1(DenseTensor &D, const Vector &U, Vector &V) const ;
+
+  // Same functions for 2d
   void MultBtDB2(DenseMatrix &D, const Vector &U, Vector &V) const ;
   void MultGtDG2(DenseTensor &D, const Vector &U, Vector &V) const ;
   void MultBtDG2(DenseTensor &D, const Vector &U, Vector &V) const ;
   void MultGtDB2(DenseTensor &D, const Vector &U, Vector &V) const ;
+  // Same functions for 3d
   void MultBtDB3(DenseMatrix &D, const Vector &U, Vector &V) const ;
   void MultGtDG3(DenseTensor &D, const Vector &U, Vector &V) const ;
   void MultBtDG3(DenseTensor &D, const Vector &U, Vector &V) const ;
   void MultGtDB3(DenseTensor &D, const Vector &U, Vector &V) const ;
+
+  //Face operations
+  void MultFaceGtDB2(DenseTensor &D, const Vector &U, Vector &V,
+                          int face_ind, int orientation) const ;
   
 };
 
@@ -80,7 +100,7 @@ public:
                          MatrixCoefficient &_mcoeff);
 
    /// Perform the action of the BilinearFormIntegrator
-   virtual void AssembleVector(const Vector &fun, Vector &vect);
+   virtual void AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect);
 };
 
 /** Class for computing the action of (alpha (q u, grad v)) from a scalar fespace
@@ -88,6 +108,7 @@ public:
 * */
 class PAConvectionIntegrator : public BilinearFormIntegrator
 {
+protected:
    FiniteElementSpace *fes;
    const FiniteElement *fe;
 
@@ -98,10 +119,10 @@ class PAConvectionIntegrator : public BilinearFormIntegrator
    VectorCoefficient *q;
 public:
   PAConvectionIntegrator(FiniteElementSpace *_fes, const int ir_order,
-                        VectorCoefficient &q);
+                        VectorCoefficient &q, double a = 1.0);
   
   // Perform the action of the BilinearFormIntegrator
-  virtual void AssembleVector(const Vector &fun, Vector &vect);
+  virtual void AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect);
 };
 
 /** Class for computing the action of 
@@ -115,13 +136,21 @@ public:
 * */
 class PADGConvectionFaceIntegrator : public BilinearFormIntegrator
 {
+protected:
+   FiniteElementSpace *fes;
+   const FiniteElement *fe;
+
+   const int dim;
+
+   PAOperator pao;
+
 
 public:
   PADGConvectionFaceIntegrator(FiniteElementSpace *_fes, const int ir_order,
-                        VectorCoefficient &q, double a = 1.0);
+                        VectorCoefficient &q, double a = 1.0, double b = 1.0);
 
   // Perform the action of the BilinearFormIntegrator
-  virtual void AssembleVector(const Vector &fun, Vector &vect);
+  virtual void AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect);
 };
 
 /** Class for computing the action of (u, v) from a scalar fespace

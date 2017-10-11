@@ -60,7 +60,7 @@ Vector bb_min, bb_max;
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   Operator *Moper,*Koper;
+   BilinearForm &M,&K;
    const Vector &b;
 
    CGSolver M_solver;
@@ -69,7 +69,7 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(Operator *M, Operator *_K, const Vector &_b);
+   FE_Evolution(FiniteElementSpace* fes, BilinearForm &_M, BilinearForm &_K, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -167,7 +167,9 @@ int main(int argc, char *argv[])
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim);
+   
+   //DG_FECollection fec(order, dim);
+   H1_FECollection fec(order, dim);
    FiniteElementSpace fes(mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
@@ -180,20 +182,17 @@ int main(int argc, char *argv[])
    FunctionCoefficient u0(u0_function);
 
    //Initialization of the Mass operator
-   BilinearForm m(&fes);
+   BilinearFormOperator m(&fes);
    m.AddDomainIntegrator(new PAMassIntegrator(&fes,ir_order));
    //Initialization of the Stiffness operator
-   BilinearForm k(&fes);
-   //TODO create PAConvectionIntegrator
+   BilinearFormOperator k(&fes);
    k.AddDomainIntegrator(new PAConvectionIntegrator(&fes,ir_order,velocity, -1.0));
    //TODO create PADGConvectionFaceIntegrator (transpose needed?)
    k.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(
-         new PADGConvectionFaceIntegrator(&fes,ir_order,velocity, 1.0, -0.5)));
+         new PADGConvectionFaceIntegrator(&fes,ir_order,velocity, 1.0, -0.5));
    k.AddBdrFaceIntegrator(
-      new TransposeIntegrator(
-         new PADGConvectionFaceIntegrator(&fes,ir_order,velocity, 1.0, -0.5)));
-
+         new PADGConvectionFaceIntegrator(&fes,ir_order,velocity, 1.0, -0.5));
+   
    //No need to do PA
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
@@ -274,7 +273,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(m.SpMat(), k.SpMat(), b);
+   FE_Evolution adv(&fes, m, k, b);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -324,12 +323,12 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(Operator *_M, Operator *_K, const Vector &_b)
-   : TimeDependentOperator(_M.Size()), M(_M), K(_K), b(_b), z(_M.Size())
+FE_Evolution::FE_Evolution(FiniteElementSpace *fes, BilinearForm &_M, BilinearForm &_K, const Vector &_b)
+   : TimeDependentOperator(fes->GetTrueVSize(), 0.0), M(_M), K(_K), b(_b), z(height)
 {
    //TODO have to take into account the block diagonal structure of M
-   M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
+   //M_solver.SetPreconditioner(M_prec);
 
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);

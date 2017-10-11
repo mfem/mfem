@@ -73,7 +73,8 @@ static void ComputeBasis1d(const FiniteElement *fe,
 }
 
 PAOperator::PAOperator(FiniteElementSpace *fes, const int ir_order)
-:fes(fes)
+:BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), ir_order)),
+fes(fes)
 {
    const TensorBasisElement* tfe(dynamic_cast<const TensorBasisElement*>(fes->GetFE(0)));
    // Store the 1d shape functions and gradients
@@ -748,7 +749,7 @@ void PAOperator::MultGtDB2(DenseTensor &Dtensor, const Vector &V, Vector &U) con
          const double q0  =data_qq[0*quads + k];
          const double q1 = data_qq[1*quads + k];
 
-         data_qq[0*quads  +k] = D00 * q0 + D01 * q1;
+         data_qq[0*quads + k] = D00 * q0 + D01 * q1;
          data_qq[1*quads + k] = D10 * q0 + D11 * q1;
       }
 
@@ -1219,11 +1220,8 @@ void PADiffusionIntegrator::MultHex(const Vector &V, Vector &U)
    }
 }
 
-void PADiffusionIntegrator::AssembleVector(const Vector &fun, Vector &vect)
+void PADiffusionIntegrator::AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
 {
-   // NOTE: fun and vect are E-vectors at this point
-   MFEM_ASSERT(fespace.GetFE(0)->GetDim() == dim, "");
-
    switch (dim)
    {
    case 1: MultSeg(fun, vect); break;
@@ -1234,7 +1232,7 @@ void PADiffusionIntegrator::AssembleVector(const Vector &fun, Vector &vect)
 }
 
 PAConvectionIntegrator::PAConvectionIntegrator(FiniteElementSpace *_fes,
-                           const int ir_order, VectorCoefficient &q)
+                           const int ir_order, VectorCoefficient &q, double a)
 :  BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
    fes(_fes),
    fe(fes->GetFE(0)),
@@ -1269,13 +1267,13 @@ PAConvectionIntegrator::PAConvectionIntegrator(FiniteElementSpace *_fes,
          for (int j = 0, l = 0; j < dim; j++)
             for (int i = 0; i < dim; i++, l++)
             {
-               Dmat(l, k) = qvec(i) * mat(i, j);
+               Dmat(l, k) = - a * qvec(j) * mat(i, j);
             }
       }
    }   
 }
 
-void PAConvectionIntegrator::AssembleVector(const Vector &fun, Vector &vect)
+void PAConvectionIntegrator::AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
 {
    switch(dim)
    {
@@ -1291,6 +1289,21 @@ void PAConvectionIntegrator::AssembleVector(const Vector &fun, Vector &vect)
    }
 }
 
+PADGConvectionFaceIntegrator::PADGConvectionFaceIntegrator(FiniteElementSpace *_fes,
+       const int ir_order, VectorCoefficient &q, double a, double b)
+:  BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
+   fes(_fes),
+   fe(fes->GetFE(0)),
+   dim(fe->GetDim()),
+   pao(_fes, ir_order)
+{
+
+}
+
+void PADGConvectionFaceIntegrator::AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
+{
+   
+}
 
 void PAMassIntegrator::ComputePA(const int ir_order)
 {
