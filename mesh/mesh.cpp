@@ -782,7 +782,7 @@ void Mesh::GetEdgeToBdrFace(Array<int> &Edge_to_Be)
 /* HDG */
 Table* Mesh::GetElementEdges()
 {
-   Table *out;
+   Table *out = NULL;
    NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
    if (Dim == 2)
    {

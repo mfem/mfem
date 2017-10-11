@@ -1668,6 +1668,7 @@ public:
    SkeletonMassIntegrator(const IntegrationRule *ir = NULL)
       : BilinearFormIntegrator(ir) { }
 
+   using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &face_fe,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);

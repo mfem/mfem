@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
    // 7. Define the different forms and gridfunctions.
    ParHDGBilinearForm3 *AVarf(new ParHDGBilinearForm3(V_space, W_space, M_space));
    AVarf->AddHDGDomainIntegrator(new HDGDomainIntegratorDiffusion(diffusion));
-   AVarf->AddHDGBdrIntegrator(new HDGFaceIntegratorDiffusion(diffusion, tau_D));
+   AVarf->AddHDGBdrIntegrator(new HDGFaceIntegratorDiffusion(tau_D));
 
    ParGridFunction lambda(M_space);
    ParGridFunction q_variable(V_space), u_variable(W_space);

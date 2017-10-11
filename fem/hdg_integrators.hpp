@@ -183,7 +183,6 @@ public:
 class HDGFaceIntegratorDiffusion : public BilinearFormIntegrator
 {
 private:
-   ConstantCoefficient *q_diff_coeff;
    double tauD;
 
    Vector shapeu, shapeq, normal, shape_face;
@@ -191,10 +190,7 @@ private:
 
 public:
    HDGFaceIntegratorDiffusion(double a)
-      : q_diff_coeff(NULL) { tauD = a; }
-
-   HDGFaceIntegratorDiffusion(ConstantCoefficient &_q_diff_coeff, double a)
-      : q_diff_coeff(&_q_diff_coeff)  { tauD = a; }
+      { tauD = a; }
 
    using BilinearFormIntegrator::AssembleFaceMatrixOneElement2and1FES;
    virtual void AssembleFaceMatrixOneElement2and1FES(const FiniteElement &fe_qL,
