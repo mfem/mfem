@@ -177,9 +177,9 @@ public:
    /// Sets the matrix size and elements equal to those of m
    DenseMatrix &operator=(const DenseMatrix &m);
 
-   DenseMatrix &operator+=(DenseMatrix &m);
+   DenseMatrix &operator+=(const DenseMatrix &m);
 
-   DenseMatrix &operator-=(DenseMatrix &m);
+   DenseMatrix &operator-=(const DenseMatrix &m);
 
    DenseMatrix &operator*=(double c);
 

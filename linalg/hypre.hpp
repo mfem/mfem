@@ -354,7 +354,7 @@ public:
                   bool interleaved_cols = false) const;
 
    /// Returns the transpose of *this
-   HypreParMatrix * Transpose();
+   HypreParMatrix * Transpose() const;
 
    /// Returns the number of rows in the diagonal block of the ParCSRMatrix
    int GetNumRows() const

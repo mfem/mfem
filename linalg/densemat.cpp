@@ -557,7 +557,7 @@ DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
    return *this;
 }
 
-DenseMatrix &DenseMatrix::operator+=(DenseMatrix &m)
+DenseMatrix &DenseMatrix::operator+=(const DenseMatrix &m)
 {
    MFEM_ASSERT(Height() == m.Height() && Width() == m.Width(),
                "incompatible matrix sizes.");
@@ -571,7 +571,7 @@ DenseMatrix &DenseMatrix::operator+=(DenseMatrix &m)
    return *this;
 }
 
-DenseMatrix &DenseMatrix::operator-=(DenseMatrix &m)
+DenseMatrix &DenseMatrix::operator-=(const DenseMatrix &m)
 {
    for (int j = 0; j < width; j++)
       for (int i = 0; i < height; i++)

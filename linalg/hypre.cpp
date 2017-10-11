@@ -929,7 +929,7 @@ void HypreParMatrix::GetBlocks(Array2D<HypreParMatrix*> &blocks,
    delete [] hypre_blocks;
 }
 
-HypreParMatrix * HypreParMatrix::Transpose()
+HypreParMatrix * HypreParMatrix::Transpose() const
 {
    hypre_ParCSRMatrix * At;
    hypre_ParCSRMatrixTranspose(A, &At, 1);
