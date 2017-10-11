@@ -32,8 +32,10 @@
 // Compile with: make pmesh-optimizer
 //
 // Sample runs:
-//   mpirun -np 4 pmesh-optimizer -m blade.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 20 -ls 1 -bnd
-//   mpirun -np 4 pmesh-optimizer i -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lim -lc 0.001 -ni 10 -ls 1 -bnd
+//   mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 9 -tid 3 -ni 5000 -ls 2 -li 20 -bnd -qt 1 -qo 8
+
 
 #include "mfem.hpp"
 
@@ -254,7 +256,7 @@ int main (int argc, char *argv[])
    int max_lin_iter      = 100;
    bool move_bnd         = true;
    bool visualization    = true;
-   int combomet          = 0;
+   bool combomet         = 0;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -316,8 +318,8 @@ int main (int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&combomet, "-cmb", "--combination-of-metrics",
-                  "Metric combination");
+   args.AddOption(&combomet, "-cmb", "--combo-met", "-no-cmb", "--no-combo-met",
+                  "Combination of metrics.");
    args.Parse();
    if (!args.Good())
    {
@@ -462,9 +464,12 @@ int main (int argc, char *argv[])
    TargetJacobian *tj = NULL;
    switch (target_id)
    {
-      case 1: tj = new TargetJacobian(TargetJacobian::IDEAL); break;
-      case 2: tj = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE); break;
-      case 3: tj = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE); break;
+      case 1: tj = new TargetJacobian(TargetJacobian::IDEAL,
+                                      MPI_COMM_WORLD); break;
+      case 2: tj = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE,
+                                      MPI_COMM_WORLD); break;
+      case 3: tj = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE,
+                                      MPI_COMM_WORLD); break;
       default:
          if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
          return 3;
@@ -504,16 +509,18 @@ int main (int argc, char *argv[])
    HyperelasticModel *model2 = NULL;
    TargetJacobian *tj2 = NULL;
    FunctionCoefficient coeff2(weight_fun);
-   if (combomet == 1)
+
+   if (combomet)
    {
       // Weight of the original metric.
-      coeff1 = new ConstantCoefficient(1.25);
+      coeff1 = new ConstantCoefficient(0.01);
       he_nlf_integ->SetCoefficient(*coeff1);
       a.AddDomainIntegrator(he_nlf_integ);
 
       model2 = new TMOPHyperelasticModel077;
-      tj2    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE);
-      tj2->size_scale = 0.005;
+      tj2    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE,
+                                  MPI_COMM_WORLD);
+      tj2->size_scale = 0.001;
       tj2->SetNodes(x);
       tj2->SetInitialNodes(x0);
       HyperelasticNLFIntegrator *he_nlf_integ2;
@@ -729,7 +736,8 @@ double weight_fun(const Vector &x)
 {
    const double r = sqrt(x(0)*x(0) + x(1)*x(1) + 1e-12);
    const double den = 0.002;
-   double l2 = 0.2 + 0.5*std::tanh((r-0.16)/den) - 0.5*std::tanh((r-0.17)/den)
-               + 0.5*std::tanh((r-0.23)/den) - 0.5*std::tanh((r-0.24)/den);
+   double l2 = 0.3 + 0.5 * (std::tanh((r-0.14)/den) - std::tanh((r-0.16)/den)
+               + std::tanh((r-0.23)/den) - std::tanh((r-0.25)/den));
+   //double l2 = 0.4 + 0.5 * (std::tanh((r-0.15)/den) - std::tanh((r-0.2)/den));
    return l2;
 }
