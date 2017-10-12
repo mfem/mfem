@@ -177,8 +177,7 @@ private:
    DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
 
 public:
-   /** @param[in] m  HyperelasticModel that defines F(T).
-       @param[in] tJ See HyperelasticModel::SetTargetJacobian(). */
+   /** @param[in] m  HyperelasticModel that will be integrated. */
    HyperelasticNLFIntegrator(HyperelasticModel *m) : model(m) { }
 
    /** @brief Computes the integral of W(Jacobian(Trt)) over a target zone

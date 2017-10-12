@@ -24,7 +24,8 @@ namespace mfem
 class TMOP_QualityMetric : public HyperelasticModel
 {
 protected:
-   const DenseMatrix *Jtr; // Reference element to target Jacobian matrix
+   const DenseMatrix *Jtr; /**< Jacobian of the reference-element to
+                                target-element transformation. */
 
    /// First invariant of the given 2x2 matrix @a M.
    static double Dim2Invariant1(const DenseMatrix &M);
@@ -74,7 +75,7 @@ public:
    /** @brief Specify the reference-element -> target-element Jacobian matrix
        for the point of interest.
 
-       Using @a Jtr is an alternative to using %Ttr, when one cannot define
+       Using #Jtr is an alternative to using #Ttr, when one cannot define
        the target Jacobians by a single ElementTransformation for the whole
        zone, e.g., in the TMOP paradigm. */
    void SetTargetJacobian(const DenseMatrix &_Jtr) { Jtr = &_Jtr; }
@@ -418,14 +419,14 @@ public:
 };
 
 
-/** FIXME: Hyperelastic integrator for any given TMOP_QualityMetric.
-    Represents @f$ \int W(Jpt) dx @f$ over a target zone,
-    where W is the @a model's strain energy density function, and
-    Jpt is the Jacobian of the target->physical coordinates transformation. */
+/// A TMOP integrator class based on any given TMOP_QualityMetric.
+/** Represents @f$ \int W(Jpt) dx @f$ over a target zone, where W is the
+    metric's strain energy density function, and Jpt is the Jacobian of the
+    target->physical coordinates transformation. */
 class TMOP_Integrator : public NonlinearFormIntegrator
 {
 private:
-   TMOP_QualityMetric *model;
+   TMOP_QualityMetric *metric;
    const TargetJacobian *targetJ;
 
    // Data used for "limiting" the HyperelasticNLFIntegrator.
@@ -447,10 +448,10 @@ private:
    DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
 
 public:
-   /** @param[in] m  TMOP_QualityMetric that defines F(T).
+   /** @param[in] m  TMOP_QualityMetric that will be integrated.
        @param[in] tJ See TMOP_QualityMetric::SetTargetJacobian(). */
    TMOP_Integrator(TMOP_QualityMetric *m, TargetJacobian *tJ = NULL)
-      : model(m), targetJ(tJ),
+      : metric(m), targetJ(tJ),
         limited(false), eps(0.0), nodes0(NULL), coeff(NULL) { }
 
    const TargetJacobian *GetTargetJacobian() { return targetJ; } const
@@ -492,7 +493,7 @@ public:
 };
 
 
-/// Interpolates the @a model's values at the nodes of @a gf.
+/// Interpolates the @a metric's values at the nodes of @a gf.
 /** Assumes that @a gf's FiniteElementSpace is initialized. */
 void InterpolateTMOP_QualityMetric(TMOP_QualityMetric &metric,
                                    const TargetJacobian &tj,
