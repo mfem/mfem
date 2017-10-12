@@ -189,7 +189,7 @@ class IncompressibleNeoHookeanIntegrator : public BlockNonlinearFormIntegrator
 {
 private:
    Coefficient *c_mu;
-   DenseMatrix DSh_u, DS_u, J0i, J, J1, P, F, FinvT, PMatI_u, PMatO_u, PMatI_p, PMatO_p, Z, G, C;
+   DenseMatrix DSh_u, DS_u, J0i, J, J1, Finv, P, F, FinvT, PMatI_u, PMatO_u, PMatI_p, PMatO_p, Z, G, C;
    Vector Sh_p;
 
 public:
@@ -211,7 +211,6 @@ public:
                                     ElementTransformation &Tr,
                                     Array<Vector *> &elfun, 
                                     Array2D<DenseMatrix *> &elmats);
-
    virtual ~IncompressibleNeoHookeanIntegrator() { };
 };
 
