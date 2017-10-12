@@ -22,8 +22,8 @@
 // quadrature point. The combination of targets & quality metrics is used to
 // optimize the physical node positions, i.e., they must be as close as possible
 // to the shape / size / alignment of their targets. This code also demonstrates
-// a possible use of nonlinear operators (the class HyperelasticModel, defining
-// mu(J), and the class HyperelasticNLFIntegrator, defining int mu(J)), as well
+// a possible use of nonlinear operators (the class TMOP_QualityMetric, defining
+// mu(J), and the class TMOP_Integrator, defining int mu(J)), as well
 // as their coupling to Newton methods for solving minimization problems. Note
 // that the utilized Newton methods are oriented towards avoiding invalid meshes
 // with negative Jacobian determinants. Each Newton step requires the inversion
@@ -44,13 +44,13 @@ double weight_fun(const Vector &x);
 
 // Metric values are visualized by creating an L2 finite element functions and
 // computing the metric values at the nodes.
-void vis_metric(int order, HyperelasticModel &model, const TargetJacobian &tj,
+void vis_metric(int order, TMOP_QualityMetric &qm, const TargetJacobian &tj,
                 Mesh &mesh, char *title, int position)
 {
    L2_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec, 1);
    GridFunction metric(&fes);
-   InterpolateHyperElasticModel(model, tj, mesh, metric);
+   InterpolateTMOP_QualityMetric(qm, tj, mesh, metric);
    osockstream sock(19916, "localhost");
    sock << "solution\n";
    mesh.Print(sock);
@@ -378,28 +378,28 @@ int main (int argc, char *argv[])
 
    // 11. Form the integrator that uses the chosen metric and target.
    double tauval = -0.1;
-   HyperelasticModel *model = NULL;
+   TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
-      case 1: model = new TMOPHyperelasticModel001; break;
-      case 2: model = new TMOPHyperelasticModel002; break;
-      case 7: model = new TMOPHyperelasticModel007; break;
-      case 9: model = new TMOPHyperelasticModel009; break;
-      case 22: model = new TMOPHyperelasticModel022(tauval); break;
-      case 50: model = new TMOPHyperelasticModel050; break;
-      case 52: model = new TMOPHyperelasticModel052(tauval); break;
-      case 55: model = new TMOPHyperelasticModel055; break;
-      case 56: model = new TMOPHyperelasticModel056; break;
-      case 58: model = new TMOPHyperelasticModel058; break;
-      case 77: model = new TMOPHyperelasticModel077; break;
-      case 211: model = new TMOPHyperelasticModel211; break;
-      case 301: model = new TMOPHyperelasticModel301; break;
-      case 302: model = new TMOPHyperelasticModel302; break;
-      case 303: model = new TMOPHyperelasticModel303; break;
-      case 315: model = new TMOPHyperelasticModel315; break;
-      case 316: model = new TMOPHyperelasticModel316; break;
-      case 321: model = new TMOPHyperelasticModel321; break;
-      case 352: model = new TMOPHyperelasticModel352(tauval); break;
+      case 1: metric = new TMOP_Metric_001; break;
+      case 2: metric = new TMOP_Metric_002; break;
+      case 7: metric = new TMOP_Metric_007; break;
+      case 9: metric = new TMOP_Metric_009; break;
+      case 22: metric = new TMOP_Metric_022(tauval); break;
+      case 50: metric = new TMOP_Metric_050; break;
+      case 52: metric = new TMOP_Metric_052(tauval); break;
+      case 55: metric = new TMOP_Metric_055; break;
+      case 56: metric = new TMOP_Metric_056; break;
+      case 58: metric = new TMOP_Metric_058; break;
+      case 77: metric = new TMOP_Metric_077; break;
+      case 211: metric = new TMOP_Metric_211; break;
+      case 301: metric = new TMOP_Metric_301; break;
+      case 302: metric = new TMOP_Metric_302; break;
+      case 303: metric = new TMOP_Metric_303; break;
+      case 315: metric = new TMOP_Metric_315; break;
+      case 316: metric = new TMOP_Metric_316; break;
+      case 321: metric = new TMOP_Metric_321; break;
+      case 352: metric = new TMOP_Metric_352(tauval); break;
       default: cout << "Unknown metric_id: " << metric_id << endl; return 3;
    }
    TargetJacobian *tj = NULL;
@@ -412,8 +412,8 @@ int main (int argc, char *argv[])
    }
    tj->SetNodes(*x);
    tj->SetInitialNodes(x0);
-   HyperelasticNLFIntegrator *he_nlf_integ;
-   he_nlf_integ = new HyperelasticNLFIntegrator(model, tj);
+   TMOP_Integrator *he_nlf_integ;
+   he_nlf_integ = new TMOP_Integrator(metric, tj);
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -439,7 +439,7 @@ int main (int argc, char *argv[])
    //     metric; one should update those in the code.
    NonlinearForm a(fespace);
    Coefficient *coeff1 = NULL;
-   HyperelasticModel *model2 = NULL;
+   TMOP_QualityMetric *metric2 = NULL;
    TargetJacobian *tj2 = NULL;
    FunctionCoefficient coeff2(weight_fun);
    if (combomet == 1)
@@ -449,13 +449,13 @@ int main (int argc, char *argv[])
       he_nlf_integ->SetCoefficient(*coeff1);
       a.AddDomainIntegrator(he_nlf_integ);
 
-      model2 = new TMOPHyperelasticModel077;
-      tj2    = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE);
+      metric2 = new TMOP_Metric_077;
+      tj2     = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE);
       tj2->size_scale = 0.005;
       tj2->SetNodes(*x);
       tj2->SetInitialNodes(x0);
-      HyperelasticNLFIntegrator *he_nlf_integ2;
-      he_nlf_integ2 = new HyperelasticNLFIntegrator(model2, tj2);
+      TMOP_Integrator *he_nlf_integ2;
+      he_nlf_integ2 = new TMOP_Integrator(metric2, tj2);
       he_nlf_integ2->SetIntegrationRule(*ir);
 
       // Weight of metric2.
@@ -470,7 +470,7 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char title[] = "Initial metric values";
-      vis_metric(mesh_poly_deg, *model, *tj, *mesh, title, 0);
+      vis_metric(mesh_poly_deg, *metric, *tj, *mesh, title, 0);
    }
 
    // 16. Fix all boundary nodes, or fix only a given component depending on the
@@ -613,7 +613,7 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char title[] = "Final metric values";
-      vis_metric(mesh_poly_deg, *model, *tj, *mesh, title, 600);
+      vis_metric(mesh_poly_deg, *metric, *tj, *mesh, title, 600);
    }
 
    // 23. Visualize the mesh displacement.
@@ -633,9 +633,9 @@ int main (int argc, char *argv[])
 
    // 24. Free the used memory.
    delete S;
-   delete model2;
+   delete metric2;
    delete coeff1;
-   delete model;
+   delete metric;
    delete fespace;
    delete fec;
    delete mesh;
