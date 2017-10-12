@@ -899,7 +899,7 @@ void TMOP_Metric_077::AssembleH(const DenseMatrix &Jpt,
             for (int cc = 0; cc < dim; cc++)
             {
                const double entry_rr_cc =
-                  dI2_dMdM(rr,cc)*(I2 - alpha)
+                  dI2_dMdM(r,c)*(I2 - alpha)
                   + dI2_dM(rr,cc)*dI2_dM(r,c)
                   + 3.*alpha2*dI2_dM(rr,cc)*dI2_dM(r,c);
 

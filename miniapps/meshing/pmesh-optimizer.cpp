@@ -32,11 +32,18 @@
 // Compile with: make pmesh-optimizer
 //
 // Sample runs:
-//   mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
-//   mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
-//   mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 9 -tid 3 -ni 5000 -ls 2 -li 20 -bnd -qt 1 -qo 8
-
-
+//   Blade shape:
+//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   ICF shape and equal size:
+//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   ICF shape and initial size:
+//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 9 -tid 3 -ni 5000 -ls 2 -li 20 -bnd -qt 1 -qo 8
+//   ICF shape:
+//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   ICF limited shape:
+//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lim -lc 0.15
+//   ICF combo shape + size (rings):
+//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb
 #include "mfem.hpp"
 
 using namespace mfem;
@@ -513,14 +520,14 @@ int main (int argc, char *argv[])
    if (combomet)
    {
       // Weight of the original metric.
-      coeff1 = new ConstantCoefficient(0.01);
+      coeff1 = new ConstantCoefficient(1.0);
       he_nlf_integ->SetCoefficient(*coeff1);
       a.AddDomainIntegrator(he_nlf_integ);
 
       metric2 = new TMOP_Metric_077;
       tj2     = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE,
                                    MPI_COMM_WORLD);
-      tj2->size_scale = 0.001;
+      tj2->size_scale = 0.01;
       tj2->SetNodes(x);
       tj2->SetInitialNodes(x0);
       TMOP_Integrator *he_nlf_integ2;
@@ -736,8 +743,7 @@ double weight_fun(const Vector &x)
 {
    const double r = sqrt(x(0)*x(0) + x(1)*x(1) + 1e-12);
    const double den = 0.002;
-   double l2 = 0.3 + 0.5 * (std::tanh((r-0.14)/den) - std::tanh((r-0.16)/den)
-                            + std::tanh((r-0.23)/den) - std::tanh((r-0.25)/den));
-   //double l2 = 0.4 + 0.5 * (std::tanh((r-0.15)/den) - std::tanh((r-0.2)/den));
+   double l2 = 0.2 + 0.5 * (std::tanh((r-0.16)/den) - std::tanh((r-0.17)/den)
+                            + std::tanh((r-0.23)/den) - std::tanh((r-0.24)/den));
    return l2;
 }
