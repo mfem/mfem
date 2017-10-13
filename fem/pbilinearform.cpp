@@ -177,7 +177,7 @@ void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
 
 HypreParMatrix *ParBilinearForm::ParallelAssemble(SparseMatrix *m)
 {
-   OperatorHandle Mh(Operator::HYPRE_PARCSR);
+   OperatorHandle Mh(Operator::Hypre_ParCSR);
    ParallelAssemble(Mh, m);
    Mh.SetOperatorOwner(false);
    return Mh.As<HypreParMatrix>();
@@ -284,7 +284,7 @@ void ParBilinearForm::FormLinearSystem(
    // eliminated part of the matrix.
    FormSystemMatrix(ess_tdof_list, A);
 
-   HypreParMatrix &P = *pfes->Dof_TrueDof_Matrix();
+   const Operator &P = *pfes->GetProlongationMatrix();
    const SparseMatrix &R = *pfes->GetRestrictionMatrix();
 
    // Transform the system and perform the elimination in B, based on the
@@ -365,7 +365,7 @@ void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 void ParBilinearForm::RecoverFEMSolution(
    const Vector &X, const Vector &b, Vector &x)
 {
-   HypreParMatrix &P = *pfes->Dof_TrueDof_Matrix();
+   const Operator &P = *pfes->GetProlongationMatrix();
 
    if (static_cond)
    {

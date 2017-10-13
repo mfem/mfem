@@ -25,7 +25,7 @@ if (MFEM_USE_MPI)
 endif()
 
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
-include_directories(${PROJECT_BINARY_DIR})
+include_directories(BEFORE ${PROJECT_BINARY_DIR})
 
 # Add "test_sundials" target, see below.
 add_custom_target(test_sundials
