@@ -16,6 +16,7 @@
 #include "error.hpp"
 
 #include <iostream>
+#include <fstream>
 #include <cstdlib>
 #include <cstring>
 #include <algorithm>
@@ -296,6 +297,50 @@ public:
 
    const T *GetRow(int i) const { return (*this)[i]; }
    T       *GetRow(int i)       { return (*this)[i]; }
+
+   void GetRow(int i, Array<T> &sa) const
+   {
+      sa.SetSize(N);
+      for (int j = 0; j < N; j++)
+      {
+         sa[j] = (*this)[i][j];
+      }
+   }
+   /** @brief Save the Array to the stream @a out using the format @a fmt.
+       The format @a fmt can be:
+
+          0 - write the size followed by all entries
+          1 - write only the entries
+   */
+   void Save(std::ostream &out, int fmt = 0) const { array1d.Save(out, fmt); };
+
+   /** @brief Read an Array from the stream @a in using format @a fmt.
+       The format @a fmt can be:
+
+          0 - read the size then the entries
+          1 - read Size() entries
+   */
+   void Load(std::istream &in, int fmt = 0) { array1d.Load(in, fmt); };
+
+   void Load(const char *filename, int fmt = 0)
+   {
+      std::ifstream in;
+      in.open(filename, std::ifstream::in);
+      if (!in.is_open())
+      {
+         std::cout<<"File "<<filename<<" does not exist."<<std::endl;
+         mfem_error();
+      }
+      array1d.Load(in, fmt);
+      in.close();
+   }
+
+
+   /** @brief Set the Array size to @a new_size and read that many entries from
+       the stream @a in. */
+   void Load(int new_size0,int new_size1, std::istream &in)
+   { SetSize(new_size0,new_size1); Load(in, 1); }
+
 
    void Copy(Array2D &copy) const
    { copy.N = N; array1d.Copy(copy.array1d); }
