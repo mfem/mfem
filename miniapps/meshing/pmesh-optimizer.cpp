@@ -37,7 +37,7 @@
 //   ICF shape and equal size:
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   ICF shape and initial size:
-//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 9 -tid 3 -ni 5000 -ls 2 -li 20 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 9 -tid 3 -ni 5000 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   ICF shape:
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   ICF limited shape:
@@ -158,7 +158,7 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
       }*/
       double norm = Norm(r);
 
-      if (norm > 1.5*norm0)
+      if (norm > 1.2*norm0)
       {
          if (print_level >= 0)
          { cout << "Scale = " << scale << " Norm increased." << endl; }
