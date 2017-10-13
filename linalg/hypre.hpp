@@ -489,7 +489,8 @@ HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B);
 /// Returns the matrix P^t * A * P
 HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P);
 /// Returns the matrix Rt^t * A * P
-HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A, const HypreParMatrix *P);
+HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
+                     const HypreParMatrix *P);
 
 /** Eliminate essential BC specified by 'ess_dof_list' from the solution X to
     the r.h.s. B. Here A is a matrix with eliminated BC, while Ae is such that

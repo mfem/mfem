@@ -1489,7 +1489,8 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
    return new HypreParMatrix(rap);
 }
 
-HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A, const HypreParMatrix *P)
+HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
+                     const HypreParMatrix *P)
 {
    HYPRE_Int P_owns_its_col_starts =
       hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
