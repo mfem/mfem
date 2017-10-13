@@ -247,6 +247,9 @@ public:
 
 class TMOP_Metric_077 : public TMOP_QualityMetric
 {
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+
 public:
    // W = 0.5(det(J) - 1 / det(J))^2.
    virtual double EvalW(const DenseMatrix &Jpt) const;

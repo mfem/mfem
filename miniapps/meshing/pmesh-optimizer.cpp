@@ -43,7 +43,7 @@
 //   ICF limited shape:
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lim -lc 0.15
 //   ICF combo shape + size (rings):
-//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb
+//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 1000 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb
 //   3D pinched sphere shape (the mesh is in the mfem/data Github repository):
 //     mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -rs 0 -mid 303 -tid 1 -ni 20 -ls 2 -li 500 -fix-bnd
 
@@ -110,15 +110,19 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
    const double energy_in = nlf->GetEnergy(x);
    double scale = 1.0, energy_out;
 
+   double norm0 = Norm(r);
+
    // Decreases the scaling of the update until the new mesh is valid.
-   for (int i = 0; i < 7; i++)
+   for (int i = 0; i < 12; i++)
    {
       add(x, -scale, c, x_out);
       x_out_gf.Distribute(x_out);
 
       energy_out = nlf->GetEnergy(x_out_gf);
-      if (energy_out > energy_in || isnan(energy_out) != 0)
+      if (energy_out > 1.2*energy_in || isnan(energy_out) != 0)
       {
+         if (print_level >= 0)
+         { cout << "Scale = " << scale << " Increasing energy." << endl; }
          scale *= 0.5; continue;
       }
 
@@ -139,7 +143,27 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
       MPI_Allreduce(&jac_ok, &jac_ok_all, 1, MPI_INT, MPI_LAND,
                     pfes->GetComm());
 
-      if (jac_ok_all == 0) { scale *= 0.5; }
+      if (jac_ok_all == 0)
+      {
+         if (print_level >= 0)
+         { cout << "Scale = " << scale << " Neg det(J) found." << endl; }
+         scale *= 0.5; continue;
+      }
+
+      oper->Mult(x_out, r);
+      /*
+      if (have_b)
+      {
+         r -= b;
+      }*/
+      double norm = Norm(r);
+
+      if (norm > 1.5*norm0)
+      {
+         if (print_level >= 0)
+         { cout << "Scale = " << scale << " Norm increased." << endl; }
+         scale *= 0.5; continue;
+      }
       else { x_out_ok = true; break; }
    }
 

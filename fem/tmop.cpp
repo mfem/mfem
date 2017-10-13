@@ -861,18 +861,33 @@ void TMOP_Metric_058::AssembleH(const DenseMatrix &Jpt,
 
 double TMOP_Metric_077::EvalW(const DenseMatrix &Jpt) const
 {
+#ifndef MFEM_USE_OLD_INVARIANTS
    const double I2 = Dim2Invariant2(Jpt);
    return  0.5*(I2*I2 + 1./(I2*I2) - 2.);
+#else
+   ie.SetJacobian(Jpt.GetData());
+   const double I2 = ie.Get_I2b();
+   return  0.5*(I2*I2 + 1./(I2*I2) - 2.);
+#endif
 }
 
 void TMOP_Metric_077::EvalP(const DenseMatrix &Jpt,
                             DenseMatrix &P) const
 {
+#ifdef MFEM_USE_OLD_INVARIANTS
    const double I2 = Dim2Invariant2(Jpt);
    double alpha = 1./(I2*I2*I2);
 
    Dim2Invariant2_dM(Jpt, P);
    P *= (I2 - alpha);
+#else
+   // Using I2b^2 = I2.
+   // dmu77_dJ = 1/2 (1 - 1/I2^2) dI2_dJ.
+   ie.SetJacobian(Jpt.GetData());
+   const double I2 = ie.Get_I2();
+   P = ie.Get_dI2();
+   P *= 0.5 * (1.0 - 1.0 / (I2 * I2));
+#endif
 }
 
 void TMOP_Metric_077::AssembleH(const DenseMatrix &Jpt,
@@ -880,6 +895,7 @@ void TMOP_Metric_077::AssembleH(const DenseMatrix &Jpt,
                                 const double weight,
                                 DenseMatrix &A) const
 {
+#ifdef MFEM_USE_OLD_INVARIANTS
    const int dof = DS.Height(), dim = DS.Width();
    const double I2 = Dim2Invariant2(Jpt);
    DenseMatrix dI2_dM(dim), dI2_dMdM(dim);
@@ -899,7 +915,7 @@ void TMOP_Metric_077::AssembleH(const DenseMatrix &Jpt,
             for (int cc = 0; cc < dim; cc++)
             {
                const double entry_rr_cc =
-                  dI2_dMdM(r,c)*(I2 - alpha)
+                  dI2_dMdM(rr,cc)*(I2 - alpha)
                   + dI2_dM(rr,cc)*dI2_dM(r,c)
                   + 3.*alpha2*dI2_dM(rr,cc)*dI2_dM(r,c);
 
@@ -915,6 +931,13 @@ void TMOP_Metric_077::AssembleH(const DenseMatrix &Jpt,
          }
       }
    }
+#else
+   ie.SetJacobian(Jpt.GetData());
+   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+   const double I2 = ie.Get_I2(), I2inv_sq = 1.0 / (I2 * I2);
+   ie.Assemble_ddI2(weight*0.5*(1.0 - I2inv_sq), A.GetData());
+   ie.Assemble_TProd(weight * I2inv_sq / I2, ie.Get_dI2(), A.GetData());
+#endif
 }
 
 double TMOP_Metric_211::EvalW(const DenseMatrix &Jpt) const

@@ -58,7 +58,7 @@ protected:
 
    int D_height, alloc_height;
    const scalar_t *D; // Always points to external data or is empty
-   scalar_t *DaJ, *DJt;
+   scalar_t *DaJ, *DJt, *DXt;
 
    scalar_t sign_detJ;
 
@@ -141,40 +141,38 @@ protected:
    }
    void Eval_DaJ() // D adj(J) = D dI2b^t
    {
-      MFEM_ASSERT(D != NULL, "");
       eval_state |= HAVE_DaJ;
-      const int nd = D_height;
-      if (DaJ == NULL) { DaJ = new scalar_t[2*alloc_height]; }
       Get_dI2b();
-      for (int i = 0; i < nd; i++)
-      {
-         // adj(J) = dI2b^t
-         const int i0 = i+nd*0, i1 = i+nd*1;
-         DaJ[i0] = D[i0]*dI2b[0] + D[i1]*dI2b[2];
-         DaJ[i1] = D[i0]*dI2b[1] + D[i1]*dI2b[3];
-      }
+      Eval_DZt(dI2b, &DaJ);
    }
    void Eval_DJt() // D J^t
    {
-      MFEM_ASSERT(D != NULL, "");
       eval_state |= HAVE_DJt;
+      Eval_DZt(J, &DJt);
+   }
+   void Eval_DZt(const scalar_t *Z, scalar_t **DZt_ptr)
+   {
+      MFEM_ASSERT(D != NULL, "");
       const int nd = D_height;
-      if (DJt == NULL) { DJt = new scalar_t[2*alloc_height]; }
+      scalar_t *DZt = *DZt_ptr;
+      if (DZt == NULL) { *DZt_ptr = DZt = new scalar_t[2*alloc_height]; }
       for (int i = 0; i < nd; i++)
       {
          const int i0 = i+nd*0, i1 = i+nd*1;
-         DJt[i0] = D[i0]*J[0] + D[i1]*J[2];
-         DJt[i1] = D[i0]*J[1] + D[i1]*J[3];
+         DZt[i0] = D[i0]*Z[0] + D[i1]*Z[2];
+         DZt[i1] = D[i0]*Z[1] + D[i1]*Z[3];
       }
    }
 
 public:
    /// The Jacobian should use column-major storage.
    InvariantsEvaluator2D(const scalar_t *Jac = NULL)
-      : J(Jac), D_height(), alloc_height(), D(), DaJ(), DJt(), eval_state(0) { }
+      : J(Jac), D_height(), alloc_height(), D(), DaJ(), DJt(), DXt(),
+        eval_state(0) { }
 
    ~InvariantsEvaluator2D()
    {
+      delete [] DXt;
       delete [] DJt;
       delete [] DaJ;
    }
@@ -188,6 +186,7 @@ public:
       eval_state &= ~(HAVE_DaJ | HAVE_DJt);
       if (alloc_height < height)
       {
+         delete [] DXt; DXt = NULL;
          delete [] DJt; DJt = NULL;
          delete [] DaJ; DaJ = NULL;
          alloc_height = height;
@@ -416,6 +415,32 @@ public:
             A[kl+ah*ij] += A_ijkl;
             A[kj+ah*il] -= A_ijkl;
             A[il+ah*kj] -= A_ijkl;
+         }
+      }
+   }
+
+   // Assemble the contribution from the term: T_ijkl = X_ij X_kl, where X is a
+   // pointer to a 2x2 matrix stored in column-major layout.
+   //
+   // The contribution to the matrix A is given by:
+   //    A(i+nd*j,k+nd*l) += \sum_st  w D_is X_js X_lt D_kt
+   // or
+   //    A(i+nd*j,k+nd*l) += \sum_st  w [ (D X^t)_ij (D X^t)_kl ]
+   void Assemble_TProd(scalar_t w, const scalar_t *X, scalar_t *A)
+   {
+      Eval_DZt(X, &DXt);
+      const int nd = D_height;
+      const int ah = 2*nd;
+
+      for (int i = 0; i < ah; i++)
+      {
+         const scalar_t axi = w*DXt[i];
+         A[i+ah*i] += axi*DXt[i];
+         for (int j = 0; j < i; j++)
+         {
+            const scalar_t A_ij = axi*DXt[j];
+            A[i+ah*j] += A_ij;
+            A[j+ah*i] += A_ij;
          }
       }
    }
