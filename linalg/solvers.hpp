@@ -93,7 +93,7 @@ public:
    virtual void SetOperator(const Operator &op)
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
-   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void Mult(const Vector &b, Vector &x) const;
 };
 
 /// Stationary linear iteration. (tolerances are squared)
@@ -125,7 +125,7 @@ public:
    virtual void SetOperator(const Operator &op)
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
-   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void Mult(const Vector &b, Vector &x) const;
 };
 
 /// Conjugate gradient method. (tolerances are squared)
@@ -154,7 +154,7 @@ public:
 
    void SetKDim(int dim) { m = dim; }
 
-   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void Mult(const Vector &b, Vector &x) const;
 };
 
 /// FGMRES method
@@ -172,7 +172,7 @@ public:
 
    void SetKDim(int dim) { m = dim; }
 
-   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void Mult(const Vector &b, Vector &x) const;
 };
 
 /// GMRES method. (tolerances are squared)
@@ -203,7 +203,7 @@ public:
    virtual void SetOperator(const Operator &op)
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
-   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void Mult(const Vector &b, Vector &x) const;
 };
 
 /// BiCGSTAB method. (tolerances are squared)

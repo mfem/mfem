@@ -136,6 +136,11 @@ check the results from all the serial/parallel MFEM examples and miniapps use:
 
    make test
 
+Note that by default MFEM uses "mpirun -np" in its test runs (this is also what
+is used in the sample runs of its examples and miniapps). The MPI launcher can
+be changed by the user as described in the "Specifying a MPI job launcher"
+section at the end of this file.
+
 Running all the tests may take a while. Implementation details about the check
 and test targets can be found in the top-level makefile and the config/test.mk
 file.
@@ -226,13 +231,16 @@ MFEM_USE_MEMALLOC = YES/NO
    Internal MFEM option: enable batch allocation for some small objects.
    Recommended value is YES.
 
-MFEM_TIMER_TYPE = 0/1/2/3/NO
+MFEM_TIMER_TYPE = 0/1/2/3/4/5/6/NO
    Specify which library functions to use in the class StopWatch used for
    measuring time. The available options are:
       0  - use std::clock from <ctime>, standard C++
       1  - use times from <sys/times.h>
       2  - use high-resolution POSIX clocks (see option POSIX_CLOCKS_LIB)
       3  - use QueryPerformanceCounter from <windows.h>
+      4  - use mach_absolute_time from <mach/mach_time.h> + std::clock (Mac)
+      5  - use gettimeofday from <sys/time.h>
+      6  - use MPI_Wtime from <mpi.h>
       NO - use option 3 if the compiler macro _WIN32 is defined, 0 otherwise
 
 MFEM_USE_SUNDIALS = YES/NO
@@ -255,6 +263,12 @@ MFEM_USE_SUPERLU = YES/NO
    option adds the classes SuperLUSolver (a parallel sparse direct solver) and
    SuperLURowLocMatrix a distributed CSR matrix class needed by SuperLU. When
    enabled, this option uses the SUPERLU_* library options, see below.
+
+MFEM_USE_STRUMPACK = YES/NO
+   Enable MFEM functionality based on the STRUMPACK sparse direct solver and
+   preconditioner through the STRUMPACKSolver and STRUMPACKRowLocMatrix
+   classes. When enabled, this option uses the STRUMPACK_* library options, see
+   below.
 
 MFEM_USE_GNUTLS = YES/NO
    Enable secure socket support in class socketstream, using the auxiliary
@@ -287,11 +301,11 @@ MFEM_USE_MPFR = YES/NO
    see below.
 
 MFEM_USE_SIDRE = YES/NO
-   Sidre is a component of LLNL's ASC toolkit, http://goo.gl/cZyJdn, that
+   Sidre is a component of LLNL's axom project, http://goo.gl/cZyJdn, that
    provides an HDF5-based file format for visualization or restart capability
    following the Conduit (https://github.com/LLNL/conduit) mesh blueprint
    specification. When enabled, this option requires installation of HDF5 (see
-   also MFEM_USE_NETCDF), Conduit and LLNL's ASC toolkit.
+   also MFEM_USE_NETCDF), Conduit and LLNL's axom project.
 
 MFEM_USE_GZSTREAM = YES/NO
    Enables use of on-the-fly gzip compressed streams. With this feature enabled
@@ -366,6 +380,12 @@ The specific libraries and their options are:
   URL: http://crd-legacy.lbl.gov/~xiaoye/SuperLU
   Options: SUPERLU_OPT, SUPERLU_LIB.
 
+- STRUMPACK (optional), used when MFEM_USE_STRUMPACK = YES. Note that STRUMPACK
+  requires the PT-Scotch and Scalapack libraries as well as ParMETIS, which
+  includes METIS 5 in its distribution.
+  URL: http://portal.nersc.gov/project/sparse/strumpack
+  Options: STRUMPACK_OPT, STRUMPACK_LIB.
+
 - GnuTLS (optional), used when MFEM_USE_GNUTLS = YES. On most Linux systems,
   GnuTLS is available as a development package, e.g. gnutls-devel. On Mac OS X,
   one can get the library through the Homebrew package manager (http://brew.sh).
@@ -390,8 +410,8 @@ The specific libraries and their options are:
   URL: https://www.mcs.anl.gov/petsc
   Options: PETSC_OPT, PETSC_LIB.
 
-- ATK/Sidre (optional), used when MFEM_USE_SIDRE = YES.
-  URL: http://goo.gl/cZyJdn (ASC toolkit, to be released)
+- Sidre (optional), part of LLNL's axom project, used when MFEM_USE_SIDRE = YES.
+  URL: http://goo.gl/cZyJdn (axom, to be released)
        https://github.com/LLNL/conduit (Conduit)
        https://support.hdfgroup.org/HDF5 (HDF5)
   Options: SIDRE_OPT, SIDRE_LIB.
@@ -437,6 +457,12 @@ Debug and optimization options are controlled through the CMake variable
 CMAKE_BUILD_TYPE which can be set to standard values like "Debug", and "Release"
 (default).
 
+To use a specific generator use the "-G <generator>" option of cmake:
+
+   cmake <mfem-source-dir> -G "Xcode"
+   cmake <mfem-source-dir> -G "Visual Studio 12 2013"
+   cmake <mfem-source-dir> -G "MinGW Makefiles"
+
 With CMake it is possible to build MFEM as a shared library using the standard
 CMake option -DBUILD_SHARED_LIBS=1.
 
@@ -444,15 +470,30 @@ Once configured, the library can be built simply with (assuming a UNIX type
 system, where the default is to generate "UNIX Makefiles")
 
    make -j 4
+or
+   cmake --build .
+or
+   cmake --build . --config Release  [Visual Studio, Xcode]
 
 The build can be quick-tested by running
 
    make check
+or
+   cmake --build . --target check
+or
+   cmake --build . --config Release --target check  [Visual Studio, Xcode]
 
 which will simply compile and run Example 1/1p. For more extensive tests that
 check the results from all the serial/parallel MFEM examples and miniapps use:
 
+   make exec -j 4
    make test
+or
+   cmake --build . --target exec
+   cmake --build . --target test
+or
+   cmake --build . --config Release --target exec  [Visual Studio, Xcode]
+   cmake --build . --config Release --target RUN_TESTS  [Visual Studio, Xcode]
 
 Note that running all the tests may take a while.
 
@@ -460,6 +501,11 @@ Installation prefix can be configured by setting the standard CMake variable
 CMAKE_INSTALL_PREFIX. To install the library, use
 
    make install
+or
+   cmake --build . --target install
+or
+   cmake --build . --config Release --target install  [Xcode]
+   cmake --build . --config Release --target INSTALL  [Visual Studio]
 
 The library will be installed in <PREFIX>/lib, the headers in <PREFIX>/include,
 and the configuration CMake files in <PREFIX>/lib/cmake/mfem.
@@ -489,6 +535,7 @@ MFEM_TIMER_TYPE - Set automatically, can be overwritten.
 MFEM_USE_MESQUITE
 MFEM_USE_SUITESPARSE
 MFEM_USE_SUPERLU
+MFEM_USE_STRUMPACK
 MFEM_USE_GNUTLS
 MFEM_USE_NETCDF
 MFEM_USE_MPFR
@@ -558,3 +605,18 @@ config/config.hpp.in:
 The file config/config.hpp can then be edited to enable desired options.  The
 MFEM library is simply a combination of all object files obtained by compiling
 the .cpp source files in the source directories: general, linalg, mesh, and fem.
+
+
+Specifying a MPI job launcher
+=============================
+By default, MFEM will use 'mpirun -np #' to launch any of its parallel tests or
+miniapps, where # is the number of MPI tasks.  An alternate MPI launcher can be
+provided by setting the MFEM_MPIEXEC and MFEM_MPIEXEC_NP config variables.
+
+MFEM will expect the launcher command, plus the command line option to allow it
+to specify a number of MPI tasks.
+
+MFEM_MPIEXEC    = mpirun # default
+MFEM_MPIEXEC_NP = -np    # default
+MFEM_MPIEXEC    = srun   # example for platforms using SLURM
+MFEM_MPIEXEC_NP = -n     # example for platforms using SLURM

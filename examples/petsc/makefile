@@ -65,14 +65,15 @@ MFEM_TESTS = EXAMPLES
 include $(TEST_MK)
 
 # Testing: Parallel runs
-MPIRUN = mpirun -np 4
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4
 TESTNAME = Parallel PETSc example
 %-test-par: %
-	@$(call mfem-test,$<, $(MPIRUN), $(TESTNAME))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME))
 
 
 # Testing PETSc execution options.
-EX1_ARGS      := -m ../../data/amr-quad.mesh --usepetsc --petscopts rc_ex1p
+EX1_ARGS_W    := -m ../../data/amr-quad.mesh --usepetsc
+EX1_ARGS_P    := -m ../../data/amr-quad.mesh --usepetsc --petscopts rc_ex1p
 EX2_ARGS      := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex2p
 EX3_ARGS      := -m ../../data/klein-bottle.mesh -o 2 -f 0.1 --usepetsc --petscopts rc_ex3p_bddc --nonoverlapping
 EX4_ARGS      := -m ../../data/klein-bottle.mesh -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping
@@ -82,22 +83,23 @@ EX6_ARGS      := -m ../../data/amr-quad.mesh --usepetsc
 EX9_ARGS      := -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl
 EX10_ARGS     := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p -tf 30 -s 3 -rs 2 -dt 3
 ex1p-test-par: ex1p
-	@$(call mfem-test,$<, $(MPIRUN), $(TESTNAME),$(EX1_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX1_ARGS_W))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX1_ARGS_P))
 ex2p-test-par: ex2p
-	@$(call mfem-test,$<, $(MPIRUN), $(TESTNAME),$(EX2_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX2_ARGS))
 ex3p-test-par: ex3p
-	@$(call mfem-test,$<, $(MPIRUN), $(TESTNAME),$(EX3_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX3_ARGS))
 ex4p-test-par: ex4p
-	@$(call mfem-test,$<, $(MPIRUN), $(TESTNAME),$(EX4_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX4_ARGS))
 ex5p-test-par: ex5p
-	@$(call mfem-test,$<, $(MPIRUN), $(TESTNAME),$(EX5_BDDC_ARGS))
-	@$(call mfem-test,$<, $(MPIRUN), $(TESTNAME),$(EX5_FSPL_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX5_BDDC_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX5_FSPL_ARGS))
 ex6p-test-par: ex6p
-	@$(call mfem-test,$<, $(MPIRUN), $(TESTNAME),$(EX6_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX6_ARGS))
 ex9p-test-par: ex9p
-	@$(call mfem-test,$<, $(MPIRUN), $(TESTNAME),$(EX9_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX9_ARGS))
 ex10p-test-par: ex10p
-	@$(call mfem-test,$<, $(MPIRUN), $(TESTNAME),$(EX10_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX10_ARGS))
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
