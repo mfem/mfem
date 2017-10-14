@@ -53,6 +53,9 @@ if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
     "MFEM does not support in-source CMake builds at this time.")
 endif (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
 
+# Suppress warnings about MACOSX_RPATH
+set(CMAKE_MACOSX_RPATH OFF CACHE BOOL "")
+
 if (CMAKE_VERSION VERSION_LESS 3.2 OR MFEM_USE_SIDRE OR MFEM_USE_PETSC)
    # This seems to be needed by:
    #  * find_package(BLAS REQUIRED) and
@@ -277,6 +280,11 @@ set(MASTER_HEADERS
   ${PROJECT_SOURCE_DIR}/mfem.hpp
   ${PROJECT_SOURCE_DIR}/mfem-performance.hpp)
 
+set(_lib_path "${CMAKE_INSTALL_PREFIX}/lib")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
+set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
+set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
+
 # Declaring the library
 add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
@@ -288,6 +296,8 @@ endif()
 if (MINGW)
   target_link_libraries(mfem ws2_32)
 endif()
+set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
+set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
 # If building out-of-source, define MFEM_BUILD_DIR to point to the build
 # directory.
