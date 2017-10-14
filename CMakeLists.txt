@@ -281,12 +281,12 @@ set(MASTER_HEADERS
 add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 if (CMAKE_VERSION VERSION_GREATER 2.8.11)
-  target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
+  target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES} ${CMAKE_DL_LIBS})
 else()
-  target_link_libraries(mfem ${TPL_LIBRARIES})
+  target_link_libraries(mfem ${TPL_LIBRARIES} ${CMAKE_DL_LIBS})
 endif()
 if (MINGW)
-  target_link_libraries(mfem ws2_32)
+  target_link_libraries(mfem ws2_32 ${CMAKE_DL_LIBS})
 endif()
 
 # If building out-of-source, define MFEM_BUILD_DIR to point to the build
