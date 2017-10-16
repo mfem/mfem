@@ -200,6 +200,46 @@ void IsoparametricTransformation::Transform (const DenseMatrix &matrix,
    }
 }
 
+const IntegrationPoint IsoparametricTransformation::FindInitialIntegrationPoint(const Vector& pt)
+{
+  IntegrationPoint xip;
+
+  const int geom = FElem->GetGeomType();
+  const IntegrationRule* ir = &(RefinedIntRules.Get(geom, FElem->GetOrder() ) );
+
+  Vector v;
+
+  // Initialize distance to center
+  int minIndex = -1;
+  this->Transform(Geometries.GetCenter(geom),v);
+  double minDist = v.DistanceTo(pt);
+
+  // Check against other integration points for this cell
+  const int npts = ir->GetNPoints();
+  for(int i=0; i < npts; ++i)
+  {
+    this->Transform(ir->IntPoint(i), v);
+
+    double dist = v.DistanceTo(pt);
+    if(dist < minDist)
+    {
+      minDist = dist;
+      minIndex = i;
+    }
+  }
+
+  if( minIndex >= 0)
+  {
+    xip = ir->IntPoint(minIndex);
+  }
+  else
+  {
+    xip = Geometries.GetCenter(geom);
+  }
+
+  return xip;
+}
+
 int IsoparametricTransformation::TransformBack(const Vector &pt,
                                                IntegrationPoint &ip)
 {
@@ -217,7 +257,7 @@ int IsoparametricTransformation::TransformBack(const Vector &pt,
    bool hit_bdr = false, prev_hit_bdr;
 
    // Use the center of the element as initial guess
-   xip = Geometries.GetCenter(geom);
+   xip = FindInitialIntegrationPoint(pt);
    xip.Get(xd, dim); // xip -> x
 
    for (int it = 0; it < max_iter; it++)
