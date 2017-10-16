@@ -722,8 +722,6 @@ namespace mfem {
 		const moonolith::SearchSettings &settings) 
 	{
 		using namespace moonolith;
-		using namespace moonolith;
-		using namespace moonolith;
 
 		typedef mfem::MFEMTree<Dimensions> NTreeT;
 		typedef typename NTreeT::DataContainer DataContainer;
