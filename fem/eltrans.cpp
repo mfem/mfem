@@ -250,11 +250,10 @@ int IsoparametricTransformation::TransformBack(const Vector &pt,
    const int dim = FElem->GetDim();
    const int sdim = PointMat.Height();
    const int geom = FElem->GetGeomType();
-   IntegrationPoint xip, prev_xip;
+   IntegrationPoint xip;
    double xd[3], yd[3], dxd[3], Jid[9];
    Vector x(xd, dim), y(yd, sdim), dx(dxd, dim);
    DenseMatrix Jinv(Jid, dim, sdim);
-   bool hit_bdr = false, prev_hit_bdr;
 
    // Use the center of the element as initial guess
    xip = FindInitialIntegrationPoint(pt);
@@ -266,29 +265,24 @@ int IsoparametricTransformation::TransformBack(const Vector &pt,
       // or when dim != sdim: x := x + [J^t.J]^{-1}.J^t [pt-F(x)]
       Transform(xip, y);
       subtract(pt, y, y); // y = pt-y
-      if (y.Normlinf() < phys_tol) { ip = xip; return 0; }
+      if (y.Normlinf() < phys_tol)
+      {
+        ip = xip;
+        return Geometry::CheckPoint(geom, ip ) ? 0 : 1;
+      }
+
       SetIntPoint(&xip);
       CalcInverse(Jacobian(), Jinv);
       Jinv.Mult(y, dx);
       x += dx;
-      prev_xip = xip;
-      prev_hit_bdr = hit_bdr;
       xip.Set(xd, dim); // x -> xip
-      // If xip is ouside project it on the boundary on the line segment
-      // between prev_xip and xip
-      hit_bdr = !Geometry::ProjectPoint(geom, prev_xip, xip);
-      if (dx.Normlinf() < ref_tol) { ip = xip; return 0; }
-      if (hit_bdr)
+      if (dx.Normlinf() < ref_tol)
       {
-         xip.Get(xd, dim); // xip -> x
-         if (prev_hit_bdr)
-         {
-            prev_xip.Get(dxd, dim); // prev_xip -> dx
-            subtract(x, dx, dx);    // dx = xip - prev_xip
-            if (dx.Normlinf() < ref_tol) { return 1; }
-         }
+        ip = xip;
+        return Geometry::CheckPoint(geom, ip) ? 0 : 1;
       }
    }
+
    ip = xip;
    return 2;
 }
