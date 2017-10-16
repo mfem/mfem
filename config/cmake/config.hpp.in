@@ -83,6 +83,9 @@
 // Enable MFEM functionality based on the Sidre library
 #cmakedefine MFEM_USE_SIDRE
 
+// Enable MFEM functionality based on the Moonolith library
+#cmakedefine MFEM_USE_MOONOLITH
+
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.
 // If not defined, an option is selected automatically.

@@ -2,6 +2,7 @@
 #define MFEM_L2P_MORTAR_ASSEMBLE_HPP 
 
 #include <memory>
+#include <math.h>
 
 #include "HashGrid.hpp"
 #include "opencl_adapter.hpp"
@@ -11,10 +12,17 @@
 
 namespace mfem {
 
-	class Intersector : public clipp::OpenCLAdapter {
+	class Intersector : public moonolith::OpenCLAdapter {
 	public:
+		//I do not know why the compiler wants this...
+		template<typename T>
+		inline static T sqrt(const T v) {
+			return std::sqrt(v);
+		}
+
 		#include "all_kernels.cl"
 	};
+
 
 	typedef mfem::Intersector::PMesh Polyhedron;
 
@@ -42,4 +50,5 @@ namespace mfem {
 	bool Intersect3D(const Mesh &m1, const int el1, const Mesh &m2, const int el2, Polyhedron &intersection);
 }
 
+#undef mortar_assemble
 #endif //MFEM_L2P_MORTAR_ASSEMBLE_HPP

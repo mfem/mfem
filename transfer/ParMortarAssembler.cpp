@@ -2,17 +2,17 @@
 #include "MeshUtils.cpp"
 #include "MortarAssemble.hpp"
 
-#include "cutlibpp.hpp"
-#include "cutlibpp_Base.hpp"
-#include "cutlibpp_Tree.hpp"
-#include "cutlibpp_NTreeMutatorFactory.hpp"
-#include "cutlibpp_NTreeWithSpanMutatorFactory.hpp"
-#include "cutlibpp_NTreeWithTagsMutatorFactory.hpp"
-#include "cutlibpp_API.hpp"
 
-#include "express_Profiler.hpp"
-#include "express_Redistribute.hpp"
-#include "MapSparseMatrix.hpp"
+#include "moonolith_profiler.hpp"
+#include "moonolith_redistribute.hpp"
+#include "moonolith_tree.hpp"
+#include "moonolith_n_tree_mutator_factory.hpp"
+#include "moonolith_n_tree_with_span_mutator_factory.hpp"
+#include "moonolith_n_tree_with_tags_mutator_factory.hpp"
+#include "moonolith_sparse_matrix.hpp"
+#include "par_moonolith.hpp"
+
+#include <memory>
 
 namespace mfem {
 
@@ -28,12 +28,12 @@ namespace mfem {
 
 	static std::ostream &logger()
 	{
-		return express::Express::Instance().logger().os();
+		return moonolith::logger();
 	}
 
-	class BoxAdapter : public cutk::Serializable, public cutk::Describable, public Box {
+	class BoxAdapter : public moonolith::Serializable, public moonolith::Describable, public Box {
 	public:
-		void read(cutk::InputStream &is) override 
+		void read(moonolith::InputStream &is) override 
 		{
 			auto &min = GetMin();
 			auto &max = GetMax();
@@ -49,7 +49,7 @@ namespace mfem {
 			}
 		}
 
-		void write(cutk::OutputStream &os) const override
+		void write(moonolith::OutputStream &os) const override
 		{
 			const int n = GetDims();
 			auto &min = GetMin();
@@ -86,27 +86,27 @@ namespace mfem {
 			Enlarge(value);
 		}
 
-		inline bool isEmpty() const
+		inline bool empty() const
 		{
 			return Empty();
 		}
 
-		inline double getMinAt(const int coord) const
+		inline double min(const int coord) const
 		{
 			return GetMin(coord);
 		}
 
-		inline double getMaxAt(const int coord) const
+		inline double max(const int coord) const
 		{
 			return GetMax(coord);
 		}
 
-		inline void setMinAt(const int coord, const double value)
+		inline void set_min(const int coord, const double value)
 		{
 			GetMin().Elem(coord) = value;
 		}
 
-		inline void setMaxAt(const int coord, const double value)
+		inline void set_max(const int coord, const double value)
 		{
 			GetMax().Elem(coord) = value;
 		}
@@ -116,17 +116,17 @@ namespace mfem {
 			Reset();
 		}
 
-		inline int nDims() const {
+		inline int n_dims() const {
 			return GetDims();
 		}
 	};
 
 	template<int Dimension>
-	class BoxBoxAdapter : public cutk::Describable, public cutk::Serializable {
+	class BoxBoxAdapter : public moonolith::Describable, public moonolith::Serializable {
 	public:
 		typedef mfem::BoxAdapter StaticBound;
 
-		void read(cutk::InputStream &is)
+		void read(moonolith::InputStream &is)
 		{
 			is >> static_;
 			bool is_empty;
@@ -135,10 +135,10 @@ namespace mfem {
 		}
 
 
-		void write(cutk::OutputStream &os) const
+		void write(moonolith::OutputStream &os) const
 		{
 			os << static_;
-			bool is_empty = dynamic_.isEmpty();
+			bool is_empty = dynamic_.empty();
 			os << is_empty;
 			if(!is_empty) { os << dynamic_; }
 		}
@@ -158,41 +158,41 @@ namespace mfem {
 			return static_.intersects(bound);
 		}
 
-		inline double getMinAt(const int coord) const
+		inline double min(const int coord) const
 		{
-			return static_.getMinAt(coord);
+			return static_.min(coord);
 		}
 
-		inline double getMaxAt(const int coord) const
+		inline double max(const int coord) const
 		{
-			return static_.getMaxAt(coord);
+			return static_.max(coord);
 		}
 
-		inline void setMinAt(const int coord, const double value)
+		inline void set_min(const int coord, const double value)
 		{
-			static_.setMinAt(coord, value);
+			static_.set_min(coord, value);
 		}
 
-		inline void setMaxAt(const int coord, const double value)
+		inline void set_max(const int coord, const double value)
 		{
-			static_.setMaxAt(coord, value);
+			static_.set_max(coord, value);
 		}
 
 	            //expands to contain the union of this and CompositeBound
 		BoxBoxAdapter &operator +=(const BoxBoxAdapter &bound)
 		{
 			static_ += bound.static_;
-			if(dynamic_.isEmpty()) {
+			if(dynamic_.empty()) {
 				dynamic_ = bound.dynamic_;
-			} else if(!bound.dynamic_.isEmpty()) {
+			} else if(!bound.dynamic_.empty()) {
 				dynamic_ += bound.dynamic_;
 			}
 			return *this;
 		}
 
-		bool isEmpty() const
+		bool empty() const
 		{
-			return static_.isEmpty();
+			return static_.empty();
 		}
 
 		void clear()
@@ -214,11 +214,11 @@ namespace mfem {
 			os << "\n";
 		}
 
-		inline BoxAdapter &staticBound() { return static_; }
-		inline const BoxAdapter &staticBound() const { return static_; }
+		inline BoxAdapter &static_bound() { return static_; }
+		inline const BoxAdapter &static_bound() const { return static_; }
 
-		inline BoxAdapter &dynamicBound() { return dynamic_; }
-		inline const BoxAdapter &dynamicBound() const { return dynamic_; }
+		inline BoxAdapter &dynamic_bound() { return dynamic_; }
+		inline const BoxAdapter &dynamic_bound() const { return dynamic_; }
 
 	private:
 		BoxAdapter static_;
@@ -227,24 +227,24 @@ namespace mfem {
 
 
 	template<int Dimension>
-	class ElementAdapter : public cutk::Serializable {
+	class ElementAdapter : public moonolith::Serializable {
 	public:
 		inline int tag() const
 		{
 			return tag_;
 		}
 
-		const BoxBoxAdapter<Dimension> &getBound() const
+		const BoxBoxAdapter<Dimension> &bound() const
 		{
 			return bound_;
 		}
 
-		BoxBoxAdapter<Dimension> &getBound()
+		BoxBoxAdapter<Dimension> &bound()
 		{
 			return bound_;
 		}
 
-		void applyRW(cutk::Stream &stream) 
+		void applyRW(moonolith::Stream &stream) 
 		{
 			stream & bound_;
 			stream & element_;
@@ -259,8 +259,8 @@ namespace mfem {
 			DenseMatrix pts;
 			fe_->GetMesh()->GetPointMatrix(element, pts);
 
-			bound_.staticBound()  += pts; 
-			bound_.dynamicBound() += pts;
+			bound_.static_bound()  += pts; 
+			bound_.dynamic_bound() += pts;
 		}
 
 		ElementAdapter()
@@ -332,45 +332,45 @@ namespace mfem {
 	};
 
 	template<int Dimension>
-	class MFEMTree : public cutlibpp::Tree< TreeTraits<Dimension> > {
+	class MFEMTree : public moonolith::Tree< TreeTraits<Dimension> > {
 	public:
 		typedef mfem::TreeTraits<Dimension> Traits;
 		
 		MFEMTree() {};
 
-		static cutk::shared_ptr<MFEMTree> New(const int maxElementsXNode = cutlibpp::DEFAULT_REFINE_MAX_ELEMENTS, const int maxDepth = cutlibpp::DEFAULT_REFINE_DEPTH)
+		static std::shared_ptr<MFEMTree> New(const int maxElementsXNode = moonolith::DEFAULT_REFINE_MAX_ELEMENTS, const int maxDepth = moonolith::DEFAULT_REFINE_DEPTH)
 		{
-			using namespace cutlibpp;
+			using namespace moonolith;
 
-			cutk::shared_ptr<MFEMTree> tree = cutk::make_shared<MFEMTree>();
-			cutk::shared_ptr< NTreeWithSpanMutatorFactory<MFEMTree> > factory = cutk::make_shared< NTreeWithSpanMutatorFactory<MFEMTree> >();
-			factory->setRefineParams(maxElementsXNode, maxDepth);
-			tree->setMutatorFactory(factory);
+			std::shared_ptr<MFEMTree> tree = std::make_shared<MFEMTree>();
+			std::shared_ptr< NTreeWithSpanMutatorFactory<MFEMTree> > factory = std::make_shared< NTreeWithSpanMutatorFactory<MFEMTree> >();
+			factory->set_refine_params(maxElementsXNode, maxDepth);
+			tree->set_mutator_factory(factory);
 			return tree;
 		}
 
-		static cutk::shared_ptr<MFEMTree> New(const cutk::shared_ptr<cutlibpp::Predicate> &predicate,
-			const int maxElementsXNode = cutlibpp::DEFAULT_REFINE_MAX_ELEMENTS,
-			const int maxDepth = cutlibpp::DEFAULT_REFINE_DEPTH)
+		static std::shared_ptr<MFEMTree> New(const std::shared_ptr<moonolith::Predicate> &predicate,
+			const int maxElementsXNode = moonolith::DEFAULT_REFINE_MAX_ELEMENTS,
+			const int maxDepth = moonolith::DEFAULT_REFINE_DEPTH)
 		{
-			using namespace cutlibpp;
+			using namespace moonolith;
 
 			if (!predicate) {
 				return New(maxElementsXNode, maxDepth);
 			}
 
-			cutk::shared_ptr<MFEMTree> tree = cutk::make_shared<MFEMTree>();
-			cutk::shared_ptr< NTreeWithTagsMutatorFactory<MFEMTree> > factory =
-			cutk::make_shared< NTreeWithTagsMutatorFactory<MFEMTree> > (predicate);
-			factory->setRefineParams(maxElementsXNode, maxDepth);
-			tree->setMutatorFactory(factory);
+			std::shared_ptr<MFEMTree> tree = std::make_shared<MFEMTree>();
+			std::shared_ptr< NTreeWithTagsMutatorFactory<MFEMTree> > factory =
+			std::make_shared< NTreeWithTagsMutatorFactory<MFEMTree> > (predicate);
+			factory->set_refine_params(maxElementsXNode, maxDepth);
+			tree->set_mutator_factory(factory);
 			return tree;
 		}
 	};
 
-	class ElementDofMap : public cutk::Serializable {
+	class ElementDofMap : public moonolith::Serializable {
 	public:
-		void read(cutk::InputStream &is) override
+		void read(moonolith::InputStream &is) override
 		{
 			int n;
 			is >> n;
@@ -378,7 +378,7 @@ namespace mfem {
 			is.read(&global[0], n);
 		}
 
-		void write(cutk::OutputStream &os) const override
+		void write(moonolith::OutputStream &os) const override
 		{
 			int n = global.size();
 			os << n;
@@ -390,7 +390,7 @@ namespace mfem {
 
 	class Spaces {
 	public:
-		explicit Spaces(const express::Communicator &comm) : comm(comm) {
+		explicit Spaces(const moonolith::Communicator &comm) : comm(comm) {
 			must_destroy_attached[0] = false;
 			must_destroy_attached[1] = false;
 		}
@@ -473,7 +473,7 @@ namespace mfem {
 		
 	private:
 		std::vector< std::shared_ptr<FiniteElementSpace> > spaces_;
-		express::Communicator comm;
+		moonolith::Communicator comm;
 		std::vector<ElementDofMap> dof_maps_[2];
 		bool must_destroy_attached[2];
 
@@ -498,7 +498,7 @@ namespace mfem {
 	};
 
 	template<class Iterator>
-	static void write_space(const Iterator &begin, const Iterator &end, FiniteElementSpace &space, const std::vector<ElementDofMap> &dof_map, const int role, cutk::OutputStream &os)
+	static void write_space(const Iterator &begin, const Iterator &end, FiniteElementSpace &space, const std::vector<ElementDofMap> &dof_map, const int role, moonolith::OutputStream &os)
 	{	
 		const int dim 		  = space.GetMesh()->Dimension();
 		const long n_elements = std::distance(begin, end);
@@ -519,7 +519,7 @@ namespace mfem {
 		long n_nodes = nodeIds.size();
 
 		// Estimate for allocation
-		os.requestSpace( (n_elements * 8 + n_nodes * dim) * (sizeof(double) + sizeof(long)) );
+		os.request_space( (n_elements * 8 + n_nodes * dim) * (sizeof(double) + sizeof(long)) );
 
 		auto fe_coll 		   = space.FEColl();
 		const char * name 	   = fe_coll->Name();
@@ -577,7 +577,7 @@ namespace mfem {
 	}
 
 	template<class Iterator>
-	static void write_element_selection(const Iterator &begin, const Iterator &end, const Spaces &spaces, cutk::OutputStream &os)
+	static void write_element_selection(const Iterator &begin, const Iterator &end, const Spaces &spaces, moonolith::OutputStream &os)
 	{
 		if(spaces.spaces().empty()) {
 			assert(false);
@@ -633,7 +633,7 @@ namespace mfem {
 		return FiniteElementCollection::New(comp_name.c_str());
 	}
 
-	static void read_space(cutk::InputStream &is, cutk::shared_ptr<FiniteElementSpace> &space, std::vector<ElementDofMap> &dof_map)
+	static void read_space(moonolith::InputStream &is, std::shared_ptr<FiniteElementSpace> &space, std::vector<ElementDofMap> &dof_map)
 	{
 		using namespace std;
 
@@ -692,7 +692,7 @@ namespace mfem {
 		space = make_shared<FiniteElementSpace>(mesh_ptr, fe_coll);
 	}
 
-	static void read_spaces(cutk::InputStream &is, Spaces &spaces)
+	static void read_spaces(moonolith::InputStream &is, Spaces &spaces)
 	{
 		bool has_master, has_slave;
 		is >> has_master >> has_slave;
@@ -715,44 +715,37 @@ namespace mfem {
 	}
 
 	template<int Dimensions, class Fun>
-	static bool Assemble(express::Communicator &comm, 
+	static bool Assemble(moonolith::Communicator &comm, 
 		std::shared_ptr<ParFiniteElementSpace> &master, 
 		std::shared_ptr<ParFiniteElementSpace> &slave, 
 		Fun process_fun, 
-		const cutk::Settings &settings) 
+		const moonolith::SearchSettings &settings) 
 	{
-		using namespace cutlibpp;
-		using namespace express;
-		using namespace cutk;
+		using namespace moonolith;
+		using namespace moonolith;
+		using namespace moonolith;
 
 		typedef mfem::MFEMTree<Dimensions> NTreeT;
 		typedef typename NTreeT::DataContainer DataContainer;
 		typedef typename NTreeT::DataType Adapter;
 
-		long maxNElements = 40;
-		long maxDepth = 5;
+		long maxNElements = settings.max_elements;
+		long maxDepth = settings.max_depth;
 
-		if (!settings.get("max_elements").isNull()) {
-			maxNElements = settings.get("max_elements").toInt();
-		}
-
-		if (!settings.get("max_depth").isNull()) {
-			maxDepth = settings.get("max_depth").toInt();
-		}
 
 		const int n_elements_master = master->GetNE();
 		const int n_elements_slave  = slave->GetNE();
 		const int n_elements 		= n_elements_master + n_elements_slave;
 
-		auto predicate = make_shared<MasterAndSlave>();
+		auto predicate = std::make_shared<MasterAndSlave>();
 		predicate->add(0, 1);
 
-		EXPRESS_EVENT_BEGIN("create_adapters");
+		MOONOLITH_EVENT_BEGIN("create_adapters");
 		////////////////////////////////////////////////////////////////////////////////////////////////////
-		cutk::shared_ptr<NTreeT> tree = NTreeT::New(predicate, maxNElements, maxDepth);
+		std::shared_ptr<NTreeT> tree = NTreeT::New(predicate, maxNElements, maxDepth);
 		tree->reserve(n_elements);
 
-		std::shared_ptr<Spaces> local_spaces = make_shared<Spaces>(master, slave);
+		std::shared_ptr<Spaces> local_spaces = std::make_shared<Spaces>(master, slave);
 
 		int offset = 0;
 		int space_num = 0;
@@ -771,13 +764,13 @@ namespace mfem {
 			++space_num;
 		}
 
-		tree->getRoot()->getBound().staticBound().enlarge(1e-6);
+		tree->root()->bound().static_bound().enlarge(1e-6);
 		////////////////////////////////////////////////////////////////////////////////////////////////////
-		EXPRESS_EVENT_END("create_adapters");
+		MOONOLITH_EVENT_END("create_adapters");
 
 		 //Just to have an indexed-storage
-		std::map<long, cutk::shared_ptr<Spaces> > spaces;
-		std::map<long, std::vector<cutk::shared_ptr<Spaces> > > migrated_spaces;
+		std::map<long, std::shared_ptr<Spaces> > spaces;
+		std::map<long, std::vector<std::shared_ptr<Spaces> > > migrated_spaces;
 		
 		auto read = [&spaces, &migrated_spaces, comm]
 		(
@@ -788,7 +781,7 @@ namespace mfem {
 			) {
 			CHECK_STREAM_READ_BEGIN("vol_proj", in);
 
-			cutk::shared_ptr<Spaces> proc_space = cutk::make_shared<Spaces>(comm);
+			std::shared_ptr<Spaces> proc_space = std::make_shared<Spaces>(comm);
 
 			read_spaces(in, *proc_space);
 
@@ -832,7 +825,7 @@ namespace mfem {
 			} else {
 				auto it = spaces.find(ownerrank);
 				assert(it != spaces.end());
-				cutk::shared_ptr<Spaces> spaceptr = it->second;
+				std::shared_ptr<Spaces> spaceptr = it->second;
 				assert(std::distance(begin, end) > 0);
 				write_element_selection(begin, end, *spaceptr, out);
 			}
@@ -857,14 +850,14 @@ namespace mfem {
 			return true;
 		};
 
-		cutlibpp::search_and_compute(comm, tree, predicate, read, write, fun, settings);
+		moonolith::search_and_compute(comm, tree, predicate, read, write, fun, settings);
 
 		long n_total_candidates = n_intersections + n_false_positives;
 
 		long n_collection[3] = {n_intersections, n_total_candidates, n_false_positives};
-		comm.allReduce(n_collection, 3, express::MPISum());
+		comm.all_reduce(n_collection, 3, moonolith::MPISum());
 
-		if (comm.isRoot()) {
+		if (comm.is_root()) {
 			std::cout << "n_intersections: "   		<< n_collection[0]
 			<< ", n_total_candidates: " 	<< n_collection[1] 
 			<< ", n_false_positives: " 	<< n_collection[2] << std::endl;
@@ -876,12 +869,12 @@ namespace mfem {
 
 	template<int Dimensions>
 	static bool Assemble(
-		express::Communicator &comm, 
+		moonolith::Communicator &comm, 
 		std::shared_ptr<ParFiniteElementSpace> &master, 
 		std::shared_ptr<ParFiniteElementSpace> &slave, 
 		std::vector< std::shared_ptr<MortarIntegrator> > &integrators,
 		std::shared_ptr<HypreParMatrix> &pmat, 
-		const cutk::Settings &settings) 
+		const moonolith::SearchSettings &settings) 
 	{
 
 		int max_q_order = 0;
@@ -918,7 +911,8 @@ namespace mfem {
 		const auto s_global_n_dofs = slave->GlobalVSize();
 		auto * s_offsets	   	   = slave->GetDofOffsets();
 
-		express::MapSparseMatrix<double> mat_buffer(s_global_n_dofs, m_global_n_dofs);
+		moonolith::SparseMatrix<double> mat_buffer(comm);
+		mat_buffer.set_size(s_global_n_dofs, m_global_n_dofs);
 
 		auto fun = [&](const ElementAdapter<Dimensions> &master, const ElementAdapter<Dimensions> &slave) -> bool {
 			bool pair_intersected = false;
@@ -1030,25 +1024,24 @@ namespace mfem {
 		}
 
 		double volumes[2] = { local_element_matrices_sum,  total_intersection_volume };
-		comm.allReduce(volumes, 2, express::MPISum());
+		comm.all_reduce(volumes, 2, moonolith::MPISum());
 
 
-		if(comm.isRoot()) {
+		if(comm.is_root()) {
 			std::cout << "sum(B): " << volumes[0] << ", vol(I): " << volumes[1] << std::endl;
 		}
 
-		express::Array<express::SizeType> slave_ranges(comm.size() + 1);
-		slave_ranges.allSet(0);
+		std::vector<moonolith::Integer> slave_ranges(comm.size() + 1, 0);
 
 		std::copy(s_offsets, s_offsets + 2, slave_ranges.begin()  + comm.rank());
-		comm.allReduce(&slave_ranges[0],  slave_ranges.size(), express::MPIMax());
+		comm.all_reduce(&slave_ranges[0],  slave_ranges.size(), moonolith::MPIMax());
 
-		// if(comm.isRoot()) {
+		// if(comm.is_root()) {
 		// 	std::cout << slave_ranges << std::endl;
 		// }
 
-		express::Redistribute< express::MapSparseMatrix<double> > redist(comm.getMPIComm());
-		redist.apply(slave_ranges, mat_buffer, express::AddAssign<double>());
+		moonolith::Redistribute< moonolith::SparseMatrix<double> > redist(comm.get_mpi_comm());
+		redist.apply(slave_ranges, mat_buffer, moonolith::AddAssign<double>());
 
 		// mat_buffer.save("mat" + std::to_string(comm.rank()) + ".txt");
 		// comm.barrier();
@@ -1058,7 +1051,7 @@ namespace mfem {
 
 		std::vector<HYPRE_Int> J;
 		std::vector<double> data;
-		J.reserve(mat_buffer.nEntries());
+		J.reserve(mat_buffer.n_local_entries());
 		data.reserve(J.size());
 
 		for(auto it = mat_buffer.iter(); it; ++it) {
@@ -1071,10 +1064,10 @@ namespace mfem {
 			I[i] += I[i-1];
 		}
 
-		pmat = std::make_shared<HypreParMatrix>(comm.getMPIComm(),
+		pmat = std::make_shared<HypreParMatrix>(comm.get_mpi_comm(),
 			s_offsets[1] - s_offsets[0],
 			mat_buffer.rows(),
-			mat_buffer.columns(),
+			mat_buffer.cols(),
 			&I[0],
 			&J[0],
 			&data[0],
@@ -1097,11 +1090,11 @@ namespace mfem {
 	{
 		assert(!integrators_.empty() && "it must have at least on integrator see class MortarIntegrator");
 
-		cutk::Settings settings;
-		// settings.set("disable_redistribution", cutk::Boolean(true));
-		// settings.set("disable_asynch", cutk::Boolean(true));
+		moonolith::SearchSettings settings;
+		// settings.set("disable_redistribution", moonolith::Boolean(true));
+		// settings.set("disable_asynch", moonolith::Boolean(true));
 
-		express::Communicator comm(comm_);
+		moonolith::Communicator comm(comm_);
 		if(master_->GetMesh()->Dimension() == 2) {
 			return mfem::Assemble<2>(comm, master_, slave_, integrators_, pmat, settings);
 		}
@@ -1122,24 +1115,24 @@ namespace mfem {
 
 		shared_ptr<HypreParMatrix> B = nullptr;
 
-		express::Communicator comm(comm_);
+		moonolith::Communicator comm(comm_);
 
 
-		express::RootDescribe(
+		moonolith::root_describe(
 			"--------------------------------------------------------"
 			"Assembly begin: ", comm, std::cout);
-		cutk::Clock c;
+		// moonolith::Clock c;
 
 		if(!Assemble(B)) {
 			return false;
 		}
 
-		c.tock();
-		express::RootDescribe(
+		// c.tock();
+		moonolith::root_describe(
 			"Assembly end: "
 			"--------------------------------------------------------"
 			, comm, std::cout);
-		express::RootDescribe(c, comm, std::cout);
+		// moonolith::root_describe(c, comm, std::cout);
 
 		if(dof_transformation) {
 			B.reset(RAP( slave_->Dof_TrueDof_Matrix(), 
@@ -1162,7 +1155,7 @@ namespace mfem {
 
 		comm.barrier();
 
-		if(comm.isRoot()) { 
+		if(comm.is_root()) { 
 			std::cout << "P in R^(" << master_->Dof_TrueDof_Matrix()->Height();
 			std::cout << " x "		<< master_->Dof_TrueDof_Matrix()->Width() << ")\n";
 
@@ -1173,7 +1166,7 @@ namespace mfem {
 		comm.barrier();
 
 
-		if(!comm.isRoot()) { 
+		if(!comm.is_root()) { 
 			std::cout << "P in R^(" << master_->Dof_TrueDof_Matrix()->Height();
 			std::cout << " x "		<< master_->Dof_TrueDof_Matrix()->Width() << ")\n";
 
@@ -1190,7 +1183,7 @@ namespace mfem {
 
 		comm.barrier();
 		
-		if(comm.isRoot()) {
+		if(comm.is_root()) {
 			std::cout << "--------------------------------------------------------"    << std::endl;
 			std::cout << "B in R^(" << B->GetGlobalNumRows()    << " x " << B->GetGlobalNumCols()    << ")" << std::endl;
 			std::cout << "D in R^(" << Dptr->GetGlobalNumRows() << " x " << Dptr->GetGlobalNumCols() << ")" << std::endl;
@@ -1210,7 +1203,7 @@ namespace mfem {
 			D.Mult(v, Dv);
 
 			double sum_Dv = Dv.Sum();
-			if(comm.isRoot()) {
+			if(comm.is_root()) {
 				std::cout << "sum(D): " << sum_Dv << std::endl;
 			}
 		}
@@ -1218,7 +1211,7 @@ namespace mfem {
 		auto &P_master = *master_->Dof_TrueDof_Matrix();
 		auto &P_slave  = *slave_->Dof_TrueDof_Matrix();
 
-		CGSolver Dinv(comm.getMPIComm());
+		CGSolver Dinv(comm.get_mpi_comm());
 		Dinv.SetOperator(D);
 		Dinv.SetRelTol(1e-6); 
 		Dinv.SetMaxIter(20);
