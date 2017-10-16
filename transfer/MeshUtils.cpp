@@ -2,6 +2,8 @@
 #include <assert.h>
 #include "MeshUtils.hpp"
 
+#include <iostream>
+
 
 namespace mfem {
 
@@ -10,12 +12,13 @@ namespace mfem {
       switch (type)
       {
          case Geometry::TRIANGLE:      return new Triangle(cells_data, attr);
-         case Geometry::SQUARE:        return new Quadrilateral(cells_data, attr);
-         case Geometry::CUBE:          return new Hexahedron(cells_data, attr);
          case Geometry::TETRAHEDRON:   return new Tetrahedron(cells_data, attr);
+         case Geometry::SQUARE:        return new Quadrilateral(cells_data, attr); 
+         case Geometry::CUBE:          return new Hexahedron(cells_data, attr);    
         
          default: {
             assert(false && "unknown type");
+            std::cerr << "NewElem: unknown type " << type << std::endl;
             return nullptr;
          }
       }
@@ -35,6 +38,7 @@ namespace mfem {
         
          default: {
             assert(false && "unknown type");
+            std::cerr << "Finalize: unknown type " << type << std::endl;
             return;
          }
       }
