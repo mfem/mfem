@@ -251,6 +251,32 @@ void Geometry::GetRandomPoint(int GeomType, IntegrationPoint &ip)
    }
 }
 
+
+namespace internal
+{
+
+// Fuzzy equality operator with absolute tolerance eps
+inline bool NearlyEqual(double x, double y, double eps)
+{
+  return fabs(x-y) <= eps;
+}
+
+// Fuzzy greater than comparison operator with absolute tolerance eps
+// Returns true when x is greater than y by at least eps
+inline bool FuzzyGT(double x, double y, double eps)
+{
+  return (x > y) && ! NearlyEqual(x,y,eps);
+}
+
+// Fuzzy less than comparison operator with absolute tolerance eps
+// Returns true when x is less than y by at least eps
+inline bool FuzzyLT(double x, double y, double eps)
+{
+  return (x < y) && ! NearlyEqual(x,y,eps);
+}
+
+}
+
 // static method
 bool Geometry::CheckPoint(int GeomType, const IntegrationPoint &ip)
 {
@@ -282,6 +308,67 @@ bool Geometry::CheckPoint(int GeomType, const IntegrationPoint &ip)
    }
    return true;
 }
+
+bool Geometry::CheckPoint(int GeomType, const IntegrationPoint &ip, double eps)
+{
+   switch (GeomType)
+   {
+      case Geometry::POINT:
+         if (! internal::NearlyEqual(ip.x,0.0, eps)) 
+         { 
+            return false; 
+         }
+         break;
+      case Geometry::SEGMENT:
+         if ( internal::FuzzyLT(ip.x, 0.0, eps)
+           || internal::FuzzyGT(ip.x, 1.0, eps) ) 
+         { 
+            return false; 
+         }
+         break;
+      case Geometry::TRIANGLE:
+         if ( internal::FuzzyLT(ip.x, 0.0, eps)
+           || internal::FuzzyLT(ip.y, 0.0, eps)
+           || internal::FuzzyGT(ip.x+ip.y, 1.0, eps) ) 
+         { 
+            return false; 
+         }
+         break;
+      case Geometry::SQUARE:
+         if ( internal::FuzzyLT(ip.x, 0.0, eps)
+          || internal::FuzzyGT(ip.x, 1.0, eps)
+          || internal::FuzzyLT(ip.y, 0.0, eps)
+          || internal::FuzzyGT(ip.y, 1.0, eps) )
+        {
+          return false;
+        }
+         break;
+      case Geometry::TETRAHEDRON:
+         if ( internal::FuzzyLT(ip.x, 0.0, eps)
+          || internal::FuzzyLT(ip.y, 0.0, eps)
+          || internal::FuzzyLT(ip.z, 0.0, eps)
+          || internal::FuzzyGT(ip.x+ip.y+ip.z, 1.0, eps) )
+         { 
+            return false; 
+         }
+        break;
+      case Geometry::CUBE:
+         if ( internal::FuzzyLT(ip.x, 0.0, eps)
+          || internal::FuzzyGT(ip.x, 1.0, eps)
+          || internal::FuzzyLT(ip.y, 0.0, eps)
+          || internal::FuzzyGT(ip.y, 1.0, eps)
+          || internal::FuzzyLT(ip.z, 0.0, eps)
+          || internal::FuzzyGT(ip.z, 1.0, eps) ) 
+         { 
+            return false; 
+         }
+         break;
+      default:
+         MFEM_ABORT("Unknown type of reference element!");
+   }
+   return true;
+}
+
 
 namespace internal
 {

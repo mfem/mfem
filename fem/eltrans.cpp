@@ -246,6 +246,7 @@ int IsoparametricTransformation::TransformBack(const Vector &pt,
    const int    max_iter = 16;
    const double  ref_tol = 1e-15;
    const double phys_tol = 1e-15*pt.Normlinf();
+   const double ip_tol   = 1e-8;
 
    const int dim = FElem->GetDim();
    const int sdim = PointMat.Height();
@@ -268,7 +269,7 @@ int IsoparametricTransformation::TransformBack(const Vector &pt,
       if (y.Normlinf() < phys_tol)
       {
         ip = xip;
-        return Geometry::CheckPoint(geom, ip ) ? 0 : 1;
+        return Geometry::CheckPoint(geom, ip, ip_tol ) ? 0 : 1;
       }
 
       SetIntPoint(&xip);
@@ -279,7 +280,7 @@ int IsoparametricTransformation::TransformBack(const Vector &pt,
       if (dx.Normlinf() < ref_tol)
       {
         ip = xip;
-        return Geometry::CheckPoint(geom, ip) ? 0 : 1;
+        return Geometry::CheckPoint(geom, ip, ip_tol) ? 0 : 1;
       }
    }
 

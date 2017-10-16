@@ -59,8 +59,12 @@ public:
    /** Get a random point in the reference element specified by GeomType.
        This method uses the function rand() for random number generation. */
    static void GetRandomPoint(int GeomType, IntegrationPoint &ip);
+
    /// Check if the given point is inside the given reference element.
    static bool CheckPoint(int GeomType, const IntegrationPoint &ip);
+   /// Check if the given point is inside the given reference element. Overload for fuzzy tolerance.
+   static bool CheckPoint(int GeomType, const IntegrationPoint &ip, double eps);
+
    /** Check if the end point is inside the reference element, if not overwrite
        it with the point on the boundary that lies on the line segment between
        beg and end (beg must be inside the element). Return true if end is
