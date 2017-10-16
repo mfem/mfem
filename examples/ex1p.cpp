@@ -129,11 +129,12 @@ int main(int argc, char *argv[])
       sprintf(fname, "dbg%02d.mesh", myid);
       std::ofstream f(fname);
       dbg.Print(f);
-
-      /*char fname[100];
+   }
+   {
+      char fname[100];
       sprintf(fname, "ncmesh%02d.dbg", myid);
       std::ofstream f(fname);
-      pmesh->pncmesh->DebugDump(f);*/
+      pmesh->pncmesh->DebugDump(f);
    }
 
 

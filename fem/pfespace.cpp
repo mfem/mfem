@@ -1436,8 +1436,8 @@ void NeighborRowMessage::Encode(int rank)
          const RowInfo &ri = rows[row_idx[ent][i]];
          MFEM_ASSERT(ent == ri.entity, "");
 
-         /*std::cout << "To " << rank << ": sending ent " << ri.entity
-                   << ", index " << ri.index << ", edof " << ri.edof << std::endl;*/
+         std::cout << "To " << rank << ": sending ent " << ri.entity
+                   << ", index " << ri.index << ", edof " << ri.edof << std::endl;
 
          int edof = ri.edof;
          if (ent == 1 && pncmesh->GetEdgeNCOrientation(id))
@@ -1488,9 +1488,9 @@ void NeighborRowMessage::Decode(int rank)
          rows.push_back(RowInfo(ent, id.index, edof, group_ids[gi++]));
          rows.back().row.read(stream);
 
-         /*std::cout << "From " << rank << ": receiving " << rows.back().entity
+         std::cout << "From " << rank << ": receiving " << rows.back().entity
                    << ", index " << rows.back().index
-                   << ", edof " << rows.back().edof << std::endl;*/
+                   << ", edof " << rows.back().edof << std::endl;
       }
    }
 }
@@ -1501,6 +1501,8 @@ void ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
 {
    int ent, idx, edof;
    UnpackDof(dof, ent, idx, edof);
+
+   MFEM_ASSERT(pncmesh->GetNCList(ent).LookUp(idx).element >= 0, "");
 
    const ParNCMesh::CommGroup &group = pncmesh->GetGroup(group_id);
    for (unsigned i = 0; i < group.size(); i++)
@@ -1826,8 +1828,11 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
                done = false;
 
                // send row to neighbors who need it
-               ScheduleSendRow(pmatrix[dof], dof, dof_group[dof],
-                               send_msg.back());
+               if (dof_group[dof] != 0)
+               {
+                  ScheduleSendRow(pmatrix[dof], dof, dof_group[dof],
+                                  send_msg.back());
+               }
             }
          }
       }

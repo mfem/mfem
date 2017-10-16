@@ -3670,7 +3670,9 @@ void NCMesh::DebugDump(std::ostream &out) const
    {
       const double *pos = CalcVertexPos(node.index());
       out << pos[0] << " " << pos[1] << " " << pos[2] << " "
-          << node->p1 << " " << node->p2 << " " << node->edge_index << "\n";
+          << node->p1 << " " << node->p2 << " "
+          << node->vert_index << " " << node->edge_index << " "
+          << 0 << "\n";
    }
    //delete [] tmp_vertex;
    out << "\n";
