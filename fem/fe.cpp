@@ -3714,6 +3714,8 @@ void Lagrange1DFiniteElement::CalcShape(const IntegrationPoint &ip,
 #endif
 
    k = (int) floor ( m * x + 0.5 );
+   k = k > m ? m : k < 0? 0 : k; // clamp k to [0,m]
+
    wk = 1.0;
    for (i = 0; i <= m; i++)
       if (i != k)
@@ -3760,6 +3762,8 @@ void Lagrange1DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 #endif
 
    k = (int) floor ( m * x + 0.5 );
+   k = k > m ? m : k < 0? 0 : k; // clamp k to [0,m]
+
    wk = 1.0;
    for (i = 0; i <= m; i++)
       if (i != k)
