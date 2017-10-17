@@ -200,44 +200,45 @@ void IsoparametricTransformation::Transform (const DenseMatrix &matrix,
    }
 }
 
-const IntegrationPoint IsoparametricTransformation::FindInitialIntegrationPoint(const Vector& pt)
+const IntegrationPoint IsoparametricTransformation::FindInitialIntegrationPoint(
+   const Vector& pt)
 {
-  IntegrationPoint xip;
+   IntegrationPoint xip;
 
-  const int geom = FElem->GetGeomType();
-  const IntegrationRule* ir = &(RefinedIntRules.Get(geom, FElem->GetOrder() ) );
+   const int geom = FElem->GetGeomType();
+   const IntegrationRule* ir = &(RefinedIntRules.Get(geom, FElem->GetOrder() ) );
 
-  Vector v;
+   Vector v;
 
-  // Initialize distance to center
-  int minIndex = -1;
-  this->Transform(Geometries.GetCenter(geom),v);
-  double minDist = v.DistanceTo(pt);
+   // Initialize distance to center
+   int minIndex = -1;
+   this->Transform(Geometries.GetCenter(geom),v);
+   double minDist = v.DistanceTo(pt);
 
-  // Check against other integration points for this cell
-  const int npts = ir->GetNPoints();
-  for(int i=0; i < npts; ++i)
-  {
-    this->Transform(ir->IntPoint(i), v);
+   // Check against other integration points for this cell
+   const int npts = ir->GetNPoints();
+   for (int i=0; i < npts; ++i)
+   {
+      this->Transform(ir->IntPoint(i), v);
 
-    double dist = v.DistanceTo(pt);
-    if(dist < minDist)
-    {
-      minDist = dist;
-      minIndex = i;
-    }
-  }
+      double dist = v.DistanceTo(pt);
+      if (dist < minDist)
+      {
+         minDist = dist;
+         minIndex = i;
+      }
+   }
 
-  if( minIndex >= 0)
-  {
-    xip = ir->IntPoint(minIndex);
-  }
-  else
-  {
-    xip = Geometries.GetCenter(geom);
-  }
+   if ( minIndex >= 0)
+   {
+      xip = ir->IntPoint(minIndex);
+   }
+   else
+   {
+      xip = Geometries.GetCenter(geom);
+   }
 
-  return xip;
+   return xip;
 }
 
 int IsoparametricTransformation::TransformBack(const Vector &pt,
@@ -268,8 +269,8 @@ int IsoparametricTransformation::TransformBack(const Vector &pt,
       subtract(pt, y, y); // y = pt-y
       if (y.Normlinf() < phys_tol)
       {
-        ip = xip;
-        return Geometry::CheckPoint(geom, ip, ip_tol ) ? 0 : 1;
+         ip = xip;
+         return Geometry::CheckPoint(geom, ip, ip_tol ) ? 0 : 1;
       }
 
       SetIntPoint(&xip);
@@ -279,8 +280,8 @@ int IsoparametricTransformation::TransformBack(const Vector &pt,
       xip.Set(xd, dim); // x -> xip
       if (dx.Normlinf() < ref_tol)
       {
-        ip = xip;
-        return Geometry::CheckPoint(geom, ip, ip_tol) ? 0 : 1;
+         ip = xip;
+         return Geometry::CheckPoint(geom, ip, ip_tol) ? 0 : 1;
       }
    }
 

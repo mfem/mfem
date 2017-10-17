@@ -104,7 +104,7 @@ private:
    // in dFdx.
    virtual const DenseMatrix &EvalJacobian();
 
-   // Choose an initial IntegrationPoint for TransformBack() on pt 
+   // Choose an initial IntegrationPoint for TransformBack() on pt
    const IntegrationPoint FindInitialIntegrationPoint(const Vector& pt);
 
 public:
