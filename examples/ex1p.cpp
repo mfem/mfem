@@ -122,6 +122,12 @@ int main(int argc, char *argv[])
       }
    }
 
+   /*{
+      Array<Refinement> refs;
+      if (myid == 0) { refs.Append(Refinement(0, 6)); }
+      pmesh->GeneralRefinement(refs);
+   }*/
+
    {
       Mesh dbg;
       pmesh->pncmesh->GetDebugMesh(dbg);

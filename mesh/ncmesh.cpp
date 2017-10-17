@@ -3001,6 +3001,7 @@ void NCMesh::GetFaceVerticesEdges(const MeshId &face_id,
                                   int vert_index[4], int edge_index[4],
                                   int edge_orientation[4]) const
 {
+#if 0
    const Face &fa = faces[face_id.index];
 
    int elem = GetFaceOrientationElement(fa);
@@ -3013,6 +3014,10 @@ void NCMesh::GetFaceVerticesEdges(const MeshId &face_id,
                             find_node(el, fa.p2),
                             find_node(el, fa.p3));
    }
+#else
+   const Element &el = elements[face_id.element];
+   int local = face_id.local;
+#endif
 
    const int* fv = GI[(int) el.geom].faces[local];
    for (int i = 0; i < 4; i++)
