@@ -76,7 +76,7 @@ public:
    // Here, rhs is a true dof vector
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                Array<Vector *> &rhs);
-   
+
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /// Return the local gradient matrix for the given true-dof vector x

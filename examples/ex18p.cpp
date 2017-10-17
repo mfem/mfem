@@ -29,7 +29,9 @@ protected:
    Coefficient &mu;
 
 public:
-   RubberOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr, Array<int> &block_trueOffsets, double rel_tol, double abs_tol, int iter, Coefficient &mu);
+   RubberOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
+                  Array<int> &block_trueOffsets, double rel_tol, double abs_tol, int iter,
+                  Coefficient &mu);
 
    /// Required to use the native newton solver
    virtual Operator &GetGradient(const Vector &xp) const;
@@ -121,14 +123,14 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = NULL;
 
    for (int lev = 0; lev < ser_ref_levels; lev++)
-      {
-         mesh->UniformRefinement();
-      }
+   {
+      mesh->UniformRefinement();
+   }
    pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    for (int lev = 0; lev < par_ref_levels; lev++)
-      {
-         pmesh->UniformRefinement();
-      }
+   {
+      pmesh->UniformRefinement();
+   }
 
    delete mesh;
    int dim = pmesh->Dimension();
@@ -154,7 +156,7 @@ int main(int argc, char *argv[])
 
    Array<int> ess_bdr_u(R_space.GetMesh()->bdr_attributes.Max());
    Array<int> ess_bdr_p(W_space.GetMesh()->bdr_attributes.Max());
-      
+
    ess_bdr_p = 0;
    ess_bdr_u = 0;
    ess_bdr_u[0] = 1;
@@ -174,13 +176,13 @@ int main(int argc, char *argv[])
    }
 
    // Define the block structure of the solution vector (u then p)
-   Array<int> block_offsets(3); 
+   Array<int> block_offsets(3);
    block_offsets[0] = 0;
    block_offsets[1] = R_space.GetVSize();
    block_offsets[2] = W_space.GetVSize();
    block_offsets.PartialSum();
 
-   Array<int> block_trueOffsets(3); 
+   Array<int> block_trueOffsets(3);
    block_trueOffsets[0] = 0;
    block_trueOffsets[1] = R_space.TrueVSize();
    block_trueOffsets[2] = W_space.TrueVSize();
@@ -198,10 +200,10 @@ int main(int argc, char *argv[])
    // Project the initial and reference configuration functions onto the appropriate grid functions
    VectorFunctionCoefficient deform(dim, InitialDeformation);
    VectorFunctionCoefficient refconfig(dim, ReferenceConfiguration);
-  
+
    x_gf.ProjectCoefficient(deform);
    x_ref.ProjectCoefficient(refconfig);
-   
+
    // Set up the block solution vectors
    x_gf.GetTrueDofs(xp.GetBlock(0));
    p_gf.GetTrueDofs(xp.GetBlock(1));
@@ -210,7 +212,7 @@ int main(int argc, char *argv[])
    RubberOperator oper(spaces, ess_bdr, block_trueOffsets,
                        newton_rel_tol, newton_abs_tol, newton_iter, c_mu);
 
-   // Solve the Newton system 
+   // Solve the Newton system
    oper.Solve(xp);
 
    // Distribute the ghost dofs
@@ -222,7 +224,8 @@ int main(int argc, char *argv[])
 
    // Visualize the results if requested
    socketstream vis_u, vis_p;
-   if (visualization) {
+   if (visualization)
+   {
       char vishost[] = "localhost";
       int  visport   = 19916;
       vis_u.open(vishost, visport);
@@ -250,7 +253,7 @@ int main(int argc, char *argv[])
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
       pmesh->Print(mesh_ofs);
-    
+
       ofstream pressure_ofs(pressure_name.str().c_str());
       pressure_ofs.precision(8);
       p_gf.Save(pressure_ofs);
@@ -276,7 +279,8 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
                                double abs_tol,
                                int iter,
                                Coefficient &c_mu)
-   : Operator(fes[0]->TrueVSize() + fes[1]->TrueVSize()), newton_solver(fes[0]->GetComm()), mu(c_mu)
+   : Operator(fes[0]->TrueVSize() + fes[1]->TrueVSize()),
+     newton_solver(fes[0]->GetComm()), mu(c_mu)
 {
    Array<Vector *> rhs(2);
 
@@ -285,7 +289,7 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
 
    fes.Copy(spaces);
 
-   // Define the mixed nonlinear form 
+   // Define the mixed nonlinear form
    Hform = new ParBlockNonlinearForm(spaces);
 
    // Add the passive stress integrator
@@ -299,7 +303,7 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    superlu->SetPrintStatistics(false);
    superlu->SetSymmetricPattern(false);
    superlu->SetColumnPermutation(superlu::PARMETIS);
-   
+
    J_solver = superlu;
    J_prec = NULL;
 
@@ -307,7 +311,7 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    newton_solver.iterative_mode = true;
    newton_solver.SetSolver(*J_solver);
    newton_solver.SetOperator(*this);
-   newton_solver.SetPrintLevel(1); 
+   newton_solver.SetPrintLevel(1);
    newton_solver.SetRelTol(rel_tol);
    newton_solver.SetAbsTol(abs_tol);
    newton_solver.SetMaxIter(iter);
@@ -339,7 +343,8 @@ Operator &RubberOperator::GetGradient(const Vector &xp) const
 RubberOperator::~RubberOperator()
 {
    delete J_solver;
-   if (J_prec != NULL) {
+   if (J_prec != NULL)
+   {
       delete J_prec;
    }
 }

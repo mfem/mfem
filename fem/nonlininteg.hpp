@@ -55,23 +55,23 @@ public:
    /// Perform the local action of the NonlinearFormIntegrator
    virtual void AssembleElementVector(Array<const FiniteElement *> &el,
                                       ElementTransformation &Tr,
-                                      Array<Vector *> &elfun, 
+                                      Array<Vector *> &elfun,
                                       Array<Vector *> &elvec) = 0;
 
    virtual void AssembleRHSElementVector(Array<const FiniteElement *> &el,
                                          FaceElementTransformations &Tr,
-                                         Array<Vector *> &elfun, 
+                                         Array<Vector *> &elfun,
                                          Array<Vector *> &elvec);
 
    /// Assemble the local gradient matrix
    virtual void AssembleElementGrad(Array<const FiniteElement*> &el,
                                     ElementTransformation &Tr,
-                                    Array<Vector *> &elfun, 
+                                    Array<Vector *> &elfun,
                                     Array2D<DenseMatrix *> &elmats);
 
    virtual void AssembleRHSElementGrad(Array<const FiniteElement*> &el,
                                        FaceElementTransformations &Tr,
-                                       Array<Vector *> &elfun, 
+                                       Array<Vector *> &elfun,
                                        Array2D<DenseMatrix *> &elmats);
 
    virtual ~BlockNonlinearFormIntegrator() { }
@@ -189,13 +189,14 @@ class IncompressibleNeoHookeanIntegrator : public BlockNonlinearFormIntegrator
 {
 private:
    Coefficient *c_mu;
-   DenseMatrix DSh_u, DS_u, J0i, J, J1, Finv, P, F, FinvT, PMatI_u, PMatO_u, PMatI_p, PMatO_p, Z, G, C;
+   DenseMatrix DSh_u, DS_u, J0i, J, J1, Finv, P, F, FinvT, PMatI_u, PMatO_u,
+               PMatI_p, PMatO_p, Z, G, C;
    Vector Sh_p;
 
 public:
    IncompressibleNeoHookeanIntegrator(Coefficient &_mu)
       : c_mu(&_mu) {};
-   
+
    virtual double GetElementEnergy(Array<const FiniteElement *>&el,
                                    ElementTransformation &Tr,
                                    Array<const Vector *> &elfun);
@@ -203,13 +204,13 @@ public:
    /// Perform the local action of the NonlinearFormIntegrator
    virtual void AssembleElementVector(Array<const FiniteElement *> &el,
                                       ElementTransformation &Tr,
-                                      Array<Vector *> &elfun, 
+                                      Array<Vector *> &elfun,
                                       Array<Vector *> &elvec);
 
    /// Assemble the local gradient matrix
    virtual void AssembleElementGrad(Array<const FiniteElement*> &el,
                                     ElementTransformation &Tr,
-                                    Array<Vector *> &elfun, 
+                                    Array<Vector *> &elfun,
                                     Array2D<DenseMatrix *> &elmats);
    virtual ~IncompressibleNeoHookeanIntegrator() { };
 };
