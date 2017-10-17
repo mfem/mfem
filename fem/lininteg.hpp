@@ -417,6 +417,30 @@ public:
                                        Vector &elvect);
 };
 
+/** Domain integration L(v) := tau * (f, grad q)*/
+class StabGradDomainLFIntegrator : public LinearFormIntegrator
+{
+   DenseMatrix dshape, gshape, Jinv;
+   VectorCoefficient &Q;
+   Vector Qvec;
+   int oa, ob;
+   double nu, sgn;
+public:
+   /// Constructs a domain integrator with a given Coefficient
+   StabGradDomainLFIntegrator(VectorCoefficient &QF, double sign = 1.0, double visc = 1.0, int a = 1, int b = 1)
+   // the old default was a = 1, b = 1
+   // for simple elliptic problems a = 2, b = -2 is ok
+      : Q(QF), oa(a), ob(b), nu(visc), sgn(sign) { }
+
+   /** Given a particular Finite Element and a transformation (Tr)
+       computes the element right hand side element vector, elvect. */
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
 }
 
 #endif
