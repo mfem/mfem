@@ -85,6 +85,9 @@ if (XSDK_ENABLE_Fortran)
    enable_language(Fortran)
 endif()
 
+# Suppress warnings about MACOSX_RPATH
+set(CMAKE_MACOSX_RPATH OFF CACHE BOOL "")
+
 # CMake needs to know where to find things
 set(MFEM_CMAKE_PATH ${PROJECT_SOURCE_DIR}/config)
 set(CMAKE_MODULE_PATH ${MFEM_CMAKE_PATH}/cmake/modules)
@@ -127,8 +130,8 @@ if (MFEM_USE_MPI)
   if (MFEM_USE_PETSC)
     find_package(PETSc REQUIRED)
     message(STATUS "Found PETSc version ${PETSC_VERSION}")
-    if (PETSC_VERSION AND (PETSC_VERSION VERSION_LESS 3.7.5.99))
-      message(FATAL_ERROR "PETSc version >= 3.7.5.99 is required")
+    if (PETSC_VERSION AND (PETSC_VERSION VERSION_LESS 3.8.0))
+      message(FATAL_ERROR "PETSc version >= 3.8.0 is required")
     endif()
     set(PETSC_INCLUDE_DIRS ${PETSC_INCLUDES})
   endif()
@@ -309,6 +312,11 @@ set(MASTER_HEADERS
   ${PROJECT_SOURCE_DIR}/mfem.hpp
   ${PROJECT_SOURCE_DIR}/mfem-performance.hpp)
 
+set(_lib_path "${CMAKE_INSTALL_PREFIX}/lib")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
+set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
+set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
+
 # Declaring the library
 add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
@@ -320,6 +328,8 @@ endif()
 if (MINGW)
   target_link_libraries(mfem ws2_32)
 endif()
+set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
+set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
 # If building out-of-source, define MFEM_BUILD_DIR to point to the build
 # directory.
