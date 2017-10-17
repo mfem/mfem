@@ -139,11 +139,10 @@ public:
    }
 
    /** @brief Find an IntegrationPoint whose transform is closest to pt. */
-   /** This function uses the element's RefinedIntRules of
-       order @a order to find the closest IntegrationPoint to the query
-       point @pt.
+   /** This function uses the element's RefinedIntRules of order @a order to
+       find the closest IntegrationPoint to the query point @pt.
 
-       @param pt The query point
+       @param pt The query point.
        @param order The refinement order.  Default value of -1 uses
        the underlying element's order. Value of 0 returns the IntegrationPoint
        at the element's center.
