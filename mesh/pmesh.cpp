@@ -3688,7 +3688,7 @@ void ParMesh::PrintAsOne(std::ostream &out)
          {
             // processor number + 1 as bdr. attr. and bdr. geometry type
             out << p+1 << ' ' << ints[i];
-            k = Geometries.GetVertices(ints[i++])->GetNPoints();
+            k = Geometries.NumVerts[ints[i++]];
             // vertices
             for (j = 0; j < k; j++)
             {
