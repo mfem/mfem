@@ -457,7 +457,10 @@ public:
       : metric(m), targetJ(tJ),
         limited(false), eps(0.0), nodes0(NULL), coeff(NULL) { }
 
-   TargetJacobian *GetTargetJacobian() { return targetJ; } const
+   TargetJacobian *GetTargetJacobian() const
+   {
+      return (TargetJacobian *) targetJ;
+   }
 
    /// Adds an extra term to the integral.
    /** The integral of interest becomes
