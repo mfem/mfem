@@ -2391,13 +2391,9 @@ void ConformingProlongationOperator::MultTranspose(
 }
 
 RefinedCoefficient::RefinedCoefficient(
-   const Array<int>& refine_relation,
-   GridFunctionCoefficient& ho_coeff)
-   :
-   refine_relation_(refine_relation),
-   ho_coeff_(ho_coeff)
-{
-}
+   const Array<int>& refine_relation, GridFunctionCoefficient& ho_coeff)
+   : refine_relation_(refine_relation), ho_coeff_(ho_coeff)
+{ }
 
 // T and ip come from fine, LOR mesh
 double RefinedCoefficient::Eval(ElementTransformation &T,
@@ -2423,14 +2419,10 @@ double RefinedCoefficient::Eval(ElementTransformation &T,
 }
 
 VectorRefinedCoefficient::VectorRefinedCoefficient(
-   const Array<int>& refine_relation,
-   VectorGridFunctionCoefficient& ho_coeff)
-   :
-   VectorCoefficient(ho_coeff.GetVDim()),
-   refine_relation_(refine_relation),
-   ho_coeff_(ho_coeff)
-{
-}
+   const Array<int>& refine_relation, VectorGridFunctionCoefficient& ho_coeff)
+   : VectorCoefficient(ho_coeff.GetVDim()), refine_relation_(refine_relation),
+     ho_coeff_(ho_coeff)
+{ }
 
 void VectorRefinedCoefficient::Eval(Vector &V, ElementTransformation &T,
                                     const IntegrationPoint &ip)
@@ -2453,10 +2445,8 @@ void VectorRefinedCoefficient::Eval(Vector &V, ElementTransformation &T,
    ho_coeff_.Eval(V, *ho_eltrans, ho_ip);
 }
 
-/*
-   Build LOR P for Vector finite element spaces, eg H(curl) or H(div)
-
-   Used in BuildNestedInterpolation()
+/* Build LOR P for Vector finite element spaces, e.g. H(curl) or H(div). Used in
+   BuildNestedInterpolation()
 
    (this could/should be templated somehow?)
 */
@@ -2509,8 +2499,8 @@ SparseMatrix * VectorBuildLORP(
    return spmat;
 }
 
-/* Construct operator from coarse, high-order mesh to finer, low-order
-   mesh.  Used in BuildNestedInterpolation(). */
+/* Construct operator from coarse, high-order mesh to finer, low-order mesh.
+   Used in BuildNestedInterpolation(). */
 SparseMatrix * BuildLORP(
    FiniteElementSpace& ho_fespace, FiniteElementSpace& lor_fespace,
    const Array<int>& refine_relation)
@@ -2547,7 +2537,6 @@ SparseMatrix * BuildLORP(
             localP(i,j) = lor_proj[i];
          }
       }
-
       spmat->SetSubMatrix(lor_dofs, ho_dofs, localP);
    }
    spmat->Finalize();
@@ -2560,10 +2549,12 @@ HypreParMatrix *BuildNestedInterpolation(ParFiniteElementSpace &ho_fespace,
    Array<int> refine_relation(lor_fespace.GetNE());
    int multiplier = lor_fespace.GetNE() / ho_fespace.GetNE();
    for (int i=0; i<ho_fespace.GetNE(); ++i)
+   {
       for (int j=0; j<multiplier; ++j)
       {
          refine_relation[i*multiplier + j] = i;
       }
+   }
 
    SparseMatrix * mat;
    if (ho_fespace.GetNVDofs() == 0) // Hdiv or Hcurl
@@ -2576,13 +2567,12 @@ HypreParMatrix *BuildNestedInterpolation(ParFiniteElementSpace &ho_fespace,
    }
 
    // construct the block-diagonal matrix A
-   HypreParMatrix *A =
-      new HypreParMatrix(ho_fespace.GetComm(),
-                         lor_fespace.GlobalVSize(),
-                         ho_fespace.GlobalVSize(),
-                         lor_fespace.GetDofOffsets(),
-                         ho_fespace.GetDofOffsets(),
-                         mat);
+   HypreParMatrix *A = new HypreParMatrix(ho_fespace.GetComm(),
+                                          lor_fespace.GlobalVSize(),
+                                          ho_fespace.GlobalVSize(),
+                                          lor_fespace.GetDofOffsets(),
+                                          ho_fespace.GetDofOffsets(),
+                                          mat);
 
    // this *adds* in some places where we want to *set*
    HypreParMatrix *rap = RAP(lor_fespace.Dof_TrueDof_Matrix(), A,

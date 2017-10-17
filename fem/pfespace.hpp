@@ -308,7 +308,7 @@ public:
     This returns an interpolation operator from the original (high-order) FE
     space to the LOR space.
 
-    For traditional LOR this just constructs the identity, but for different
+    For traditional H1 LOR this operator is the identity, but for different
     quadrature rules (ref_type above) and also for H(curl) and H(div) spaces the
     operator may be more complex. */
 HypreParMatrix *BuildNestedInterpolation(ParFiniteElementSpace &ho_fespace,
