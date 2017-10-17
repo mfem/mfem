@@ -8563,11 +8563,13 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
 
    // Checks if centers lie in the closest element
    bool refinesearch = false;
+   IsoparametricTransformation tr;
    for (int k = 0; k < npts; k++)
    {
       ips[k].x = ips[k].y = ips[k].z = -1.;
       Vector center(data+k*spaceDim,spaceDim);
-      int res = GetElementTransformation(e_idx[k])->TransformBack(center,ips[k]);
+      GetElementTransformation(e_idx[k], &tr);
+      int res = tr.TransformBack(center,ips[k], 0);
       if (!res)
       {
          elem_ids[k] = e_idx[k];
@@ -8613,8 +8615,8 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
                for (int e = 0; e < ne; e++)
                {
                   if (els[e] == e_idx[k]) { continue; }
-                  int res = GetElementTransformation(els[e])->
-                            TransformBack(center,ips[k]);
+                  GetElementTransformation(els[e], &tr);
+                  int res = tr.TransformBack(center,ips[k], 0);
                   if (!res)
                   {
                      elem_ids[k] = els[e];
