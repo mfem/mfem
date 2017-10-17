@@ -200,22 +200,29 @@ void IsoparametricTransformation::Transform (const DenseMatrix &matrix,
    }
 }
 
-const IntegrationPoint IsoparametricTransformation::FindInitialIntegrationPoint(
-   const Vector& pt)
+const IntegrationPoint IsoparametricTransformation::FindClosestRefinedPoint(
+   const Vector& pt, int order)
 {
-   IntegrationPoint xip;
-
    const int geom = FElem->GetGeomType();
-   const IntegrationRule* ir = &(RefinedIntRules.Get(geom, FElem->GetOrder()));
 
+   // Deal with default and invalid values for order parameter
+   int refOrder = (order < 0) ? FElem->GetOrder() : order;
+
+   // Early return for order 0 -- simply use element center
+   if (refOrder == 0)
+   {
+      return Geometries.GetCenter(geom);
+   }
+
+   // Otherwise, use appropriate RefinedIntRules
+   const IntegrationRule* ir = &(RefinedIntRules.Get(geom, refOrder));
    Vector v;
 
-   // Initialize distance to center
+   // Initialize distance and index of closest point
    int minIndex = -1;
-   this->Transform(Geometries.GetCenter(geom),v);
-   double minDist = v.DistanceTo(pt);
+   double minDist = std::numeric_limits<double>::max();
 
-   // Check against other integration points for this cell
+   // Check against element's refinement integration points
    const int npts = ir->GetNPoints();
    for (int i = 0; i < npts; ++i)
    {
@@ -229,20 +236,13 @@ const IntegrationPoint IsoparametricTransformation::FindInitialIntegrationPoint(
       }
    }
 
-   if (minIndex >= 0)
-   {
-      xip = ir->IntPoint(minIndex);
-   }
-   else
-   {
-      xip = Geometries.GetCenter(geom);
-   }
-
-   return xip;
+   // Return corresponding IntegrationPoint
+   return ir->IntPoint(minIndex);
 }
 
 int IsoparametricTransformation::TransformBack(const Vector &pt,
-                                               IntegrationPoint &ip)
+                                               IntegrationPoint &ip,
+                                               int refinementOrder)
 {
    const int    max_iter = 16;
    const double  ref_tol = 1e-15;
@@ -258,7 +258,7 @@ int IsoparametricTransformation::TransformBack(const Vector &pt,
    DenseMatrix Jinv(Jid, dim, sdim);
 
    // Use closest refinement point as initial guess
-   xip = FindInitialIntegrationPoint(pt);
+   xip = FindClosestRefinedPoint(pt, refinementOrder);
    xip.Get(xd, dim); // xip -> x
 
    for (int it = 0; it < max_iter; it++)

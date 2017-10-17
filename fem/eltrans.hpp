@@ -104,9 +104,6 @@ private:
    // in dFdx.
    virtual const DenseMatrix &EvalJacobian();
 
-   // Choose an initial IntegrationPoint for TransformBack() on pt
-   const IntegrationPoint FindInitialIntegrationPoint(const Vector& pt);
-
 public:
    void SetFE(const FiniteElement *FE) { FElem = FE; }
    const FiniteElement* GetFE() const { return FElem; }
@@ -141,7 +138,30 @@ public:
       return PointMat.Height();
    }
 
-   virtual int TransformBack(const Vector &, IntegrationPoint &);
+   /** @brief Find an IntegrationPoint whose transform is closest to pt. */
+   /** This function uses the element's RefinedIntRules of
+       order @a order to find the closest IntegrationPoint to the query
+       point @pt.
+
+       @param pt The query point
+       @param order The refinement order.  Default value of -1 uses
+       the underlying element's order. Value of 0 returns the IntegrationPoint
+       at the element's center.
+       @return The IntegrationPoint from RefinedIntRules of order @a order
+       whose transform is closest to pt */
+   const IntegrationPoint FindClosestRefinedPoint(const Vector& pt,
+                                                  int order = -1);
+
+   virtual int TransformBack(const Vector & v, IntegrationPoint & ip)
+   {
+      // Call overload with default refinement order
+      return this->TransformBack(v, ip, -1);
+   }
+
+   /** @brief Overload of TransformBack that allows setting the
+       refinement order for choosing solver's starting point. */
+   /** @see FindClosestRefinedPoint for values of @a refinementOrder. */
+   int TransformBack(const Vector &, IntegrationPoint &, int refinementOrder);
 
    virtual ~IsoparametricTransformation() { }
 };
