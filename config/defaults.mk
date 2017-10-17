@@ -210,6 +210,12 @@ ifeq ($(MFEM_USE_PETSC),YES)
  -L$(abspath $(PETSC_DIR))/lib -lpetsc $(PETSC_LIBS_PRIVATE)
 endif
 
+
+ifeq ($(MFEM_USE_MOONOLITH),YES)
+	MOONOLITH_DIR ?= @MFEM_DIR@/../moonolith/build
+	include $(MOONOLITH_DIR)/config/moonolith_config.makefile
+endif
+
 # MPFR library configuration
 MPFR_OPT =
 MPFR_LIB = -lmpfr

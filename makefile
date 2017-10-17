@@ -273,9 +273,10 @@ ifeq ($(MFEM_USE_MOONOLITH),YES)
 endif
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
-	MFEM_FLAGS += -std=c++11 -DWITH_AUTOMATIC_DIFFERENTIATION -DWITH_MPI -DPLAIN_INSTALLATION
-	MFEM_INCFLAGS += -I$(MFEM_DIR)/transfer/moonolith/headers -I$(MFEM_DIR)/transfer/moonolith/kernels -I$(MFEM_DIR)/transfer/moonolith/external -I$(MFEM_DIR)/transfer
-	DIRS += $(MFEM_DIR)/transfer $(MFEM_DIR)/transfer/moonolith/sources
+	MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
+	MFEM_INCFLAGS += -I$(MFEM_DIR)/transfer $(MOONOLITH_INCLUDES)
+	MFEM_TPLFLAGS += $(MOONOLITH_INCLUDES)
+	DIRS += transfer 
 endif
 #MOONOLITH end
 
