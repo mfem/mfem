@@ -206,7 +206,7 @@ const IntegrationPoint IsoparametricTransformation::FindInitialIntegrationPoint(
    IntegrationPoint xip;
 
    const int geom = FElem->GetGeomType();
-   const IntegrationRule* ir = &(RefinedIntRules.Get(geom, FElem->GetOrder() ) );
+   const IntegrationRule* ir = &(RefinedIntRules.Get(geom, FElem->GetOrder()));
 
    Vector v;
 
@@ -217,7 +217,7 @@ const IntegrationPoint IsoparametricTransformation::FindInitialIntegrationPoint(
 
    // Check against other integration points for this cell
    const int npts = ir->GetNPoints();
-   for (int i=0; i < npts; ++i)
+   for (int i = 0; i < npts; ++i)
    {
       this->Transform(ir->IntPoint(i), v);
 
@@ -229,7 +229,7 @@ const IntegrationPoint IsoparametricTransformation::FindInitialIntegrationPoint(
       }
    }
 
-   if ( minIndex >= 0)
+   if (minIndex >= 0)
    {
       xip = ir->IntPoint(minIndex);
    }
@@ -257,7 +257,7 @@ int IsoparametricTransformation::TransformBack(const Vector &pt,
    Vector x(xd, dim), y(yd, sdim), dx(dxd, dim);
    DenseMatrix Jinv(Jid, dim, sdim);
 
-   // Use the center of the element as initial guess
+   // Use closest refinement point as initial guess
    xip = FindInitialIntegrationPoint(pt);
    xip.Get(xd, dim); // xip -> x
 

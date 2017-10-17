@@ -255,21 +255,21 @@ void Geometry::GetRandomPoint(int GeomType, IntegrationPoint &ip)
 namespace internal
 {
 
-// Fuzzy equality operator with absolute tolerance eps
+// Fuzzy equality operator with absolute tolerance eps.
 inline bool NearlyEqual(double x, double y, double eps)
 {
    return fabs(x-y) <= eps;
 }
 
-// Fuzzy greater than comparison operator with absolute tolerance eps
-// Returns true when x is greater than y by at least eps
+// Fuzzy greater than comparison operator with absolute tolerance eps.
+// Returns true when x is greater than y by at least eps.
 inline bool FuzzyGT(double x, double y, double eps)
 {
    return (x > y) && ! NearlyEqual(x,y,eps);
 }
 
-// Fuzzy less than comparison operator with absolute tolerance eps
-// Returns true when x is less than y by at least eps
+// Fuzzy less than comparison operator with absolute tolerance eps.
+// Returns true when x is less than y by at least eps.
 inline bool FuzzyLT(double x, double y, double eps)
 {
    return (x < y) && ! NearlyEqual(x,y,eps);

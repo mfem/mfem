@@ -62,7 +62,8 @@ public:
 
    /// Check if the given point is inside the given reference element.
    static bool CheckPoint(int GeomType, const IntegrationPoint &ip);
-   /// Check if the given point is inside the given reference element. Overload for fuzzy tolerance.
+   /// Check if the given point is inside the given reference element. Overload
+   /// for fuzzy tolerance.
    static bool CheckPoint(int GeomType, const IntegrationPoint &ip, double eps);
 
    /** Check if the end point is inside the reference element, if not overwrite
