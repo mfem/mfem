@@ -83,6 +83,7 @@ MFEM_USE_NETCDF      = NO
 MFEM_USE_PETSC       = NO
 MFEM_USE_MPFR        = NO
 MFEM_USE_SIDRE       = NO
+MFEM_USE_MOONOLITH   = NO
 
 LIBUNWIND_OPT = -g
 LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
@@ -207,6 +208,12 @@ ifeq ($(MFEM_USE_PETSC),YES)
    PETSC_LIBS_PRIVATE := $(shell sed -n "s/Libs\.private: *//p" $(PETSC_PC))
    PETSC_LIB := -Wl,-rpath -Wl,$(abspath $(PETSC_DIR))/lib\
  -L$(abspath $(PETSC_DIR))/lib -lpetsc $(PETSC_LIBS_PRIVATE)
+endif
+
+
+ifeq ($(MFEM_USE_MOONOLITH),YES)
+	MOONOLITH_DIR ?= @MFEM_DIR@/../moonolith/build
+	include $(MOONOLITH_DIR)/config/moonolith_config.makefile
 endif
 
 # MPFR library configuration

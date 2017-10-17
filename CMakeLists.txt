@@ -29,6 +29,12 @@ if (NOT CMAKE_CXX_COMPILER)
     unset(CXX)
     unset(CXX CACHE)
   endif()
+  if(CC)
+    set(CMAKE_CXX_COMPILER ${CC})
+    # Avoid some issues when CXX is defined
+    unset(CC)
+    unset(CC CACHE)
+  endif()
   if (MFEM_USE_MPI AND MPICXX)
     # In parallel MPICXX takes precedence, if defined.
     set(CMAKE_CXX_COMPILER ${MPICXX})
@@ -213,6 +219,18 @@ if (MFEM_USE_SIDRE)
   endif()
 endif()
 
+
+# Moonolith
+if (MFEM_USE_MOONOLITH)
+  if (NOT MFEM_USE_MPI)
+    message(FATAL_ERROR "Moonolith requires mpi. Compile MFEM with the flag -DMFEM_USE_MPI=ON")
+  else()
+    find_package(ParMoonolith)
+    add_definitions(-std=c++11)
+  endif()
+  include_directories(${MOONOLITH_INCLUDES})
+endif()
+
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
@@ -232,13 +250,17 @@ if (NOT DEFINED MFEM_TIMER_TYPE)
 endif()
 
 # List all possible libraries in order of dependencies.
+
+
 # [METIS < SuiteSparse]:
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
     MESQUITE SuperLUDist STRUMPACK AXOM GECKO GNUTLS NETCDF MPFR POSIXCLOCKS
-    MFEMBacktrace ZLIB)
+    MFEMBacktrace ZLIB MOONOLITH)
+
+
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
@@ -272,6 +294,11 @@ set(_USE_MATH_DEFINES ${WIN32})
 set(SOURCES "")
 set(HEADERS "")
 set(MFEM_SOURCE_DIRS general linalg mesh fem)
+
+if(MFEM_USE_MOONOLITH)
+  set(MFEM_SOURCE_DIRS ${MFEM_SOURCE_DIRS} transfer)
+endif()
+
 foreach(DIR IN LISTS MFEM_SOURCE_DIRS)
   add_subdirectory(${DIR})
 endforeach()

@@ -30,6 +30,16 @@ else
    EXAMPLES = $(PAR_EXAMPLES) $(SEQ_EXAMPLES)
 endif
 
+TRANSFER_EXAMPLES = projection \
+                    projection_non_conforming_p \
+                    projection_p \
+                    projection_vector_fe \
+                    projection_vector_fe_p
+
+ifeq ($(MFEM_USE_MOONOLITH), YES)
+	EXAMPLES += $(TRANSFER_EXAMPLES)
+endif
+
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
@@ -76,7 +86,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
+	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES) $(TRANSFER_EXAMPLES)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

@@ -27,6 +27,7 @@
 #include "general/osockstream.hpp"
 #include "general/socketstream.hpp"
 #include "general/optparser.hpp"
+#include "transfer/transfer.hpp"
 #include "general/gzstream.hpp"
 #ifdef MFEM_USE_MPI
 #include "general/communication.hpp"
@@ -35,5 +36,9 @@
 #include "linalg/linalg.hpp"
 #include "mesh/mesh_headers.hpp"
 #include "fem/fem.hpp"
+
+#ifdef MFEM_USE_MOONOLITH
+#include "transfer/transfer.hpp"
+#endif //MFEM_USE_MOONOLITH
 
 #endif
