@@ -76,11 +76,11 @@ protected:
    /// Precision (number of digits) used for the text output of doubles
    int precision;
    /// Number of digits used for the cycle and MPI rank in filenames
-   int pad_digits;
+   int pad_digits_cycle, pad_digits_rank;
 
    /// Default value for precision
    static const int precision_default = 6;
-   /// Default value for pad_digits
+   /// Default value for pad_digits_*
    static const int pad_digits_default = 6;
 
    /// Output mesh format: 0 - serial format (default), 1 - parallel format
@@ -189,8 +189,12 @@ public:
 
    /// Set the precision (number of digits) used for the text output of doubles
    void SetPrecision(int prec) { precision = prec; }
-   /// Set the number of digits used for the cycle and MPI rank in filenames
-   void SetPadDigits(int digits) { pad_digits = digits; }
+   /// Set the number of digits used for both the cycle and the MPI rank
+   void SetPadDigits(int digits) { pad_digits_cycle=pad_digits_rank = digits; }
+   /// Set the number of digits used for the cycle
+   void SetPadDigitsCycle(int digits) { pad_digits_cycle = digits; }
+   /// Set the number of digits used for the MPI rank in filenames
+   void SetPadDigitsRank(int digits) { pad_digits_rank = digits; }
    /** @brief Set the desired output mesh format: 0 - serial format (default),
        1 - parallel format. */
    void SetFormat(int fmt) { format = fmt; }

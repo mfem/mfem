@@ -31,32 +31,32 @@
 
 namespace mfem
 {
-    
+
 class PumiMesh : public Mesh
 {
-        
+
 protected:
-   
-   Element *ReadElement(apf::MeshEntity* Ent, const int geom, apf::Downward Verts, 
-               const int Attr, apf::Numbering* vert_num);
-   void CountBoundaryEntity(apf::Mesh2* apf_mesh, const int BcDim, int &NumBC);    
+
+   Element *ReadElement(apf::MeshEntity* Ent, const int geom, apf::Downward Verts,
+                        const int Attr, apf::Numbering* vert_num);
+   void CountBoundaryEntity(apf::Mesh2* apf_mesh, const int BcDim, int &NumBC);
 
    // Readers for PUMI mesh formats, used in the Load() method.
-   void ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc, 
-   const int curved);
-   
+   void ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
+                       const int curved);
+
 public:
-    
+
    ///This is to generate a MFEM mesh from a PUMI mesh
    PumiMesh(apf::Mesh2* apf_mesh, int generate_edges = 0, int refine = 1,
-         bool fix_orientation = true);
-   
+            bool fix_orientation = true);
+
    /** This is to load a PUMI mesh, it is written following the
       steps in MFEM load function*/
-    void Load(apf::Mesh2* apf_mesh, int generate_edges = 0, int refine = 1,
-                bool fix_orientation = true);
-    
-  
+   void Load(apf::Mesh2* apf_mesh, int generate_edges = 0, int refine = 1,
+             bool fix_orientation = true);
+
+
    /// Destroys Mesh.
    virtual ~PumiMesh() { }
 };

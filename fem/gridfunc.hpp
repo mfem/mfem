@@ -86,8 +86,8 @@ public:
    GridFunction(Mesh *m, std::istream &input);
 
    GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces);
-  
- /// Make the GridFunction the owner of 'fec' and 'fes'
+
+   /// Make the GridFunction the owner of 'fec' and 'fes'
    void MakeOwner(FiniteElementCollection *_fec) { fec = _fec; }
 
    FiniteElementCollection *OwnFEC() { return fec; }

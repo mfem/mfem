@@ -27,13 +27,13 @@ namespace mfem
 class ParPumiMesh : public ParMesh
 {
 protected:
-    Element *ReadElement(apf::MeshEntity* Ent, const int geom, apf::Downward Verts, 
-               const int Attr, apf::Numbering* vert_num);
+   Element *ReadElement(apf::MeshEntity* Ent, const int geom, apf::Downward Verts,
+                        const int Attr, apf::Numbering* vert_num);
 public:
    ///Build a parallel MFEM mesh from a parallel PUMI mesh
    ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh);
 
-   virtual ~ParPumiMesh(){};
+   virtual ~ParPumiMesh() {};
 };
 
 }

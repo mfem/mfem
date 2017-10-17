@@ -1,8 +1,8 @@
 //                                MFEM Example 2 modified
 //
 //
-// Sample runs:  atr_ex2 -m ../data/pumi/serial/pillbox.smb 
-//               -p ../data/pumi/geom/pillbox.smd 
+// Sample runs:  atr_ex2 -m ../data/pumi/serial/pillbox.smb
+//               -p ../data/pumi/geom/pillbox.smd
 //               -bf ../data/pumi/serial/boundary.mesh
 //
 // Description:  This example code solves a simple linear elasticity problem
@@ -63,12 +63,12 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-    //initilize mpi 
-    int num_proc, myId;
-    MPI_Init(&argc, &argv);
-    MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
-    MPI_Comm_rank(MPI_COMM_WORLD, &myId);
-    
+   //initilize mpi
+   int num_proc, myId;
+   MPI_Init(&argc, &argv);
+   MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
+   MPI_Comm_rank(MPI_COMM_WORLD, &myId);
+
    // 1. Parse command-line options.
    const char *mesh_file = "../data/pumi/serial/pillbox.smb";
    const char *boundary_file = "../data/pumi/serial/boundary.mesh";
@@ -77,11 +77,10 @@ int main(int argc, char *argv[])
 #else
    const char *model_file = "../data/pumi/geom/pillbox.dmg";
 #endif    
-    
-   int order = 1;
+   
    bool static_cond = false;
    bool visualization = 1;
-   int geom_order = 1;   
+   int geom_order = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -94,12 +93,12 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&model_file, "-p", "--parasolid",
-                  "Parasolid model to use."); 
+                  "Parasolid model to use.");
    args.AddOption(&geom_order, "-go", "--geometry_order",
                   "Geometric order of the model");
-   args.AddOption(&boundary_file, "-bf", "--txt", 
-                   "txt file containing boundary tags");
-   
+   args.AddOption(&boundary_file, "-bf", "--txt",
+                  "txt file containing boundary tags");
+
    args.Parse();
    if (!args.Good())
    {
@@ -110,7 +109,7 @@ int main(int argc, char *argv[])
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral or hexahedral elements with the same code.
-// 3. Read the SCOREC Mesh 
+   // 3. Read the SCOREC Mesh
    PCU_Comm_Init();
 #ifdef MFEM_USE_SIMMETRIX
    SimUtil_start();
@@ -119,36 +118,39 @@ int main(int argc, char *argv[])
    gmi_register_sim();
 #endif
    gmi_register_mesh();
-   
+
    apf::Mesh2* pumi_mesh;
    pumi_mesh = apf::loadMdsMesh(model_file, mesh_file);
-   
+
    // 4. Increase the geometry order if necessary.
-   if (geom_order > 1){
-       crv::BezierCurver bc(pumi_mesh, geom_order, 0);
-       bc.run();
-   }     
-   pumi_mesh->verify();    
-   
+   if (geom_order > 1)
+   {
+      crv::BezierCurver bc(pumi_mesh, geom_order, 0);
+      bc.run();
+   }
+   pumi_mesh->verify();
+
    //Read boundary
    string bdr_tags;
    named_ifgzstream input_bdr(boundary_file);
    input_bdr >> ws;
    getline(input_bdr, bdr_tags);
-   filter_dos(bdr_tags);   
+   filter_dos(bdr_tags);
    cout << " the boundary tag is : " << bdr_tags << endl;
    Array<int> Dirichlet;
    int numOfent;
    if (bdr_tags == "Dirichlet")
    {
-       input_bdr >> numOfent; 
-       cout << " num of Dirirchlet bdr conditions : " << numOfent << endl;
-       Dirichlet.SetSize(numOfent);
-       for (int kk = 0; kk < numOfent; kk++)
-           input_bdr >> Dirichlet[kk]; 
+      input_bdr >> numOfent;
+      cout << " num of Dirirchlet bdr conditions : " << numOfent << endl;
+      Dirichlet.SetSize(numOfent);
+      for (int kk = 0; kk < numOfent; kk++)
+      {
+         input_bdr >> Dirichlet[kk];
+      }
    }
    Dirichlet.Print();
-   
+
    Array<int> load_bdr;
    skip_comment_lines(input_bdr, '#');
    input_bdr >> bdr_tags;
@@ -156,72 +158,75 @@ int main(int argc, char *argv[])
    cout << " the boundary tag is : " << bdr_tags << endl;
    if (bdr_tags == "Load")
    {
-       input_bdr >> numOfent;
-       load_bdr.SetSize(numOfent);
-       cout << " num of load bdr conditions : " << numOfent << endl;
-       for (int kk = 0; kk < numOfent; kk++)
-           input_bdr >> load_bdr[kk];
+      input_bdr >> numOfent;
+      load_bdr.SetSize(numOfent);
+      cout << " num of load bdr conditions : " << numOfent << endl;
+      for (int kk = 0; kk < numOfent; kk++)
+      {
+         input_bdr >> load_bdr[kk];
+      }
    }
    load_bdr.Print();
-   
+
 
    // 5. Create the MFEM mesh object from the PUMI mesh. We can handle triangular
-   //    and tetrahedral meshes. Other inputs are the same as MFEM default 
+   //    and tetrahedral meshes. Other inputs are the same as MFEM default
    //    constructor.
-   Mesh *mesh = new PumiMesh(pumi_mesh, 1, 1); 
+   Mesh *mesh = new PumiMesh(pumi_mesh, 1, 1);
    int dim = mesh->Dimension();
-   
-   //Hack for the boundary condition 
+
+   //Hack for the boundary condition
    apf::MeshIterator* itr = pumi_mesh->begin(dim-1);
-   apf::MeshEntity* ent ;   
+   apf::MeshEntity* ent ;
    int bdr_cnt = 0;
    while ((ent = pumi_mesh->iterate(itr)))
    {
-       apf::ModelEntity *me = pumi_mesh->toModel(ent);
-       if (pumi_mesh->getModelType(me) == (dim-1))
-       {
-           //Evrywhere 3 as initial
-           (mesh->GetBdrElement(bdr_cnt))->SetAttribute(3);
-            int tag = pumi_mesh->getModelTag(me);
-            if (Dirichlet.Find(tag) != -1)
-            {
-              //Dirichlet attr -> 1
-                (mesh->GetBdrElement(bdr_cnt))->SetAttribute(1);  
-            }
-            else if (load_bdr.Find(tag) != -1)
-            {
-              //load attr -> 2
-                (mesh->GetBdrElement(bdr_cnt))->SetAttribute(2);
-            }
-            bdr_cnt++;
-       }
+      apf::ModelEntity *me = pumi_mesh->toModel(ent);
+      if (pumi_mesh->getModelType(me) == (dim-1))
+      {
+         //Evrywhere 3 as initial
+         (mesh->GetBdrElement(bdr_cnt))->SetAttribute(3);
+         int tag = pumi_mesh->getModelTag(me);
+         if (Dirichlet.Find(tag) != -1)
+         {
+            //Dirichlet attr -> 1
+            (mesh->GetBdrElement(bdr_cnt))->SetAttribute(1);
+         }
+         else if (load_bdr.Find(tag) != -1)
+         {
+            //load attr -> 2
+            (mesh->GetBdrElement(bdr_cnt))->SetAttribute(2);
+         }
+         bdr_cnt++;
+      }
    }
    pumi_mesh->end(itr);
-     
-   //assign attr for elements 
+
+   //assign attr for elements
    double ppt[3];
    Vector cent(ppt, dim);
    for (int el = 0; el < mesh->GetNE(); el++)
    {
-       (mesh->GetElementTransformation(el))->Transform(Geometries.GetCenter(
-               mesh->GetElementBaseGeometry(el)),cent);       
-       if (cent(0) <= -0.05)
-       {
-           mesh->SetAttribute(el , 1);
-       }
-       else if (cent(0) >= 0.05)
-       {
-           mesh->SetAttribute(el , 2);    
-       }
-       else
-       {
-           mesh->SetAttribute(el , 3);  
-       }
-           
-   }  
+      (mesh->GetElementTransformation(el))->Transform(Geometries.GetCenter(
+                                                         mesh->GetElementBaseGeometry(el)),cent);
+      if (cent(0) <= -0.05)
+      {
+         mesh->SetAttribute(el , 1);
+      }
+      else if (cent(0) >= 0.05)
+      {
+         mesh->SetAttribute(el , 2);
+      }
+      else
+      {
+         mesh->SetAttribute(el , 3);
+      }
+
+   }
    mesh->SetAttributes();
-   
-   cout << " elem attr max " << mesh->attributes.Max() << " bdr attr max " << mesh->bdr_attributes.Max() <<endl;
+
+   cout << " elem attr max " << mesh->attributes.Max() << " bdr attr max " <<
+        mesh->bdr_attributes.Max() <<endl;
    if (mesh->attributes.Max() < 2 || mesh->bdr_attributes.Max() < 2)
    {
       cerr << "\nInput mesh should have at least two materials and "
@@ -407,7 +412,7 @@ int main(int argc, char *argv[])
       delete fec;
    }
    delete mesh;
-   
+
    pumi_mesh->destroyNative();
    apf::destroyMesh(pumi_mesh);
    PCU_Comm_Free();
@@ -416,8 +421,8 @@ int main(int argc, char *argv[])
    Sim_unregisterAllKeys();
    SimUtil_stop();
 #endif
-   
-   MPI_Finalize();     
+
+   MPI_Finalize();
 
    return 0;
 }
