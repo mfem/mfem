@@ -181,18 +181,21 @@ int main(int argc, char *argv[])
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
 
+   //Creating a partial assembly Kernel
+   DummyDomainPAK pak(&fes,ir_order,4);
+   DummyFacePAK pak_int(&fes,ir_order,2);
+   DummyFacePAK pak_ext(&fes,ir_order,2);
+
    //Initialization of the Mass operator
    BilinearFormOperator m(&fes);
    m.AddDomainIntegrator(new PAMassIntegrator(&fes,ir_order));
    //Initialization of the Stiffness operator
    BilinearFormOperator k(&fes);
-   k.AddDomainIntegrator(new PAConvectionIntegrator(&fes,ir_order,velocity, -1.0));
-   //TODO create PADGConvectionFaceIntegrator (transpose needed?)
+   k.AddDomainIntegrator(new PAConvectionIntegrator<DummyDomainPAK>(pak,&fes,ir_order,velocity, -1.0));
    k.AddInteriorFaceIntegrator(
-         new PADGConvectionFaceIntegrator(&fes,ir_order,velocity, 1.0, -0.5));
+         new PADGConvectionFaceIntegrator<DummyFacePAK>(pak_int,&fes,ir_order,velocity, 1.0, -0.5));
    k.AddBdrFaceIntegrator(
-         new PADGConvectionFaceIntegrator(&fes,ir_order,velocity, 1.0, -0.5));
-   
+         new PADGConvectionFaceIntegrator<DummyFacePAK>(pak_ext,&fes,ir_order,velocity, 1.0, -0.5));
    //No need to do PA
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(

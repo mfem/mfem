@@ -1316,6 +1316,14 @@ void BilinearFormOperator::Mult(const Vector &x, Vector &y) const
          dbfi[i]->AssembleVector(*fes, X, Y);
       }
    }
+   if (bbfi.Size())
+   {
+      for (int i = 0; i < bbfi.Size(); i++)
+      {
+         bbfi[i]->AssembleVector(*fes, X, Y);
+      }
+   }
+   // Discontinuous Galerkin operators
    if (fbfi.Size())
    {
       for (int i = 0; i < fbfi.Size(); i++)
@@ -1323,18 +1331,11 @@ void BilinearFormOperator::Mult(const Vector &x, Vector &y) const
          fbfi[i]->AssembleVector(*fes, X, Y);
       }
    }
-   if (fbfi.Size())
+   if (bfbfi.Size())
    {
-      for (int i = 0; i < fbfi.Size(); i++)
+      for (int i = 0; i < bfbfi.Size(); i++)
       {
-         fbfi[i]->AssembleVector(*fes, X, Y);
-      }
-   }
-   if (fbfi.Size())
-   {
-      for (int i = 0; i < fbfi.Size(); i++)
-      {
-         fbfi[i]->AssembleVector(*fes, X, Y);
+         bfbfi[i]->AssembleVector(*fes, X, Y);
       }
    }
    /*if ((bbfi.Size() > 0) ||
