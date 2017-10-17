@@ -43,7 +43,7 @@ New and updated examples and miniapps
 
 Discretization improvements
 ---------------------------
-- Added the ability to integrate delta functions on the righ-hand side (by
+- Added the ability to integrate delta functions on the right-hand side (by
   sampling the test function at the center of the delta coefficient). Currently
   this is supported in the DomainLFIntegrator, VectorDomainLFIntegrator and
   VectorFEDomainLFIntegrator classes.
@@ -54,6 +54,10 @@ Discretization improvements
   if a point is shared by multiple processors, only one of them will mark that
   point as found. Note that the current implementation of this method is not
   optimal and/or 100% reliable.
+
+- Improved the robustness of IsoparametricTransformation's TransformBack
+  function, which attempts to find the IntegrationPoint within a specified
+  element that is transformed to a given point in space.
 
 Miscellaneous
 -------------
@@ -79,6 +83,12 @@ API changes
 - The methods GetCoeff of VectorArrayCoefficient and MatrixArrayCoefficient now
   return a pointer to Coefficient (instead of reference). Note that NULL pointer
   is a valid entry for these two classes - it is treated as the zero function.
+
+- Added an overload for IsoparametricTranformation::TransformBack() that allows 
+  users to set the refinement level for finding the initial IntegrationPoint.
+  The default value uses the underlying finite element's order. Note that 
+  the previous behavior was to use the element's center, which can be achieved
+  by setting the refinement order to 0 in the new overload.
 
 - When building with PETSc, the required PETSc version is now 3.8.0. Newer
   versions may work too, as long as there are no interface changes in PETSc.
