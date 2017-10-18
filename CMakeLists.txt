@@ -213,6 +213,13 @@ if (MFEM_USE_SIDRE)
   endif()
 endif()
 
+# If SCOREC_PREFIX was specified, only link to that directory,
+# i.e. don't link to another installation in /usr/lib by mistake
+if (MFEM_USE_SCOREC)
+  find_package(SCOREC 2.1.0 REQUIRED OPTIONAL_COMPONENTS gmi_sim
+    CONFIG PATHS ${SCOREC_PREFIX} NO_DEFAULT_PATH)
+endif()
+
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
@@ -260,6 +267,15 @@ if (OPENMP_FOUND)
 endif()
 
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
+
+if (SCOREC_FOUND)
+ message(STATUS "MFEM: using package SCOREC")
+ #define a header file with the MFEM_USE_SIMMETRIX preprocessor variable
+ set(MFEM_USE_SIMMETRIX ${SCOREC_gmi_sim_FOUND})
+ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/examples/pumi_config.h.in"
+               "${CMAKE_CURRENT_BINARY_DIR}/pumi_config.h")
+ list(APPEND TPL_LIBRARIES SCOREC::core)
+endif()
 
 # Windows specific
 set(_USE_MATH_DEFINES ${WIN32})

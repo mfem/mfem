@@ -1,0 +1,41 @@
+**ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz**************************
+**PARASOLID !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~0123456789**************************
+**PART1;
+MC=SUSE Linux-64;
+MC_MODEL=genuineintel family 6 model 13 stepping 7, intel(r) core(tm) i7-3820 cpu @ 3.60ghz;
+MC_ID=twister;
+OS=linux;
+OS_RELEASE=2.6.32-5-amd64 #1 smp wed feb 18 13:14:10 utc 2015;
+FRU=mdc_ugii_v7.0_djl_can_vrh;
+APPL=unigraphics;
+SITE=unknown;
+USER=zaided;
+FORMAT=text;
+GUISE=transmit;
+KEY=sphere1;
+FILE=/users/zaided/sphere1.xmt_txt;
+DATE=9-mar-2015;
+**PART2;
+SCH=SCH_2600169_25001;
+USFLD_SIZE=0;
+**PART3;
+**END_OF_HEADER*****************************************************************
+T51 : TRANSMIT FILE created by modeller version 260016923 SCH_2600169_25001_1300
+6189 0 12 29 CCCCCCCCCCCCCDI5 owner1040 0 CCCCCCCCCA16 index_map_offset0 0 1 dA9
+ index_map82 0 A17 node_id_index_map82 0 A20 schema_embedding_map82 0 A5 child12
+ 0 A14 lowest_node_id0 0 1 dZ1 19 2 3 0 0 0 0 1e3 1e-8 0 0 0 1 0 1 1 4 5 0 0 6 0
+ 0 0 0 0 0 0 0 81 255 1 2 19 7 1 8 0 0 0 9 70 11 CI9 list_type0 0 1 uI10 notrans
+mit0 0 1 lCCCDCCDI12 finger_index0 0 1 dI12 finger_block1012 0 CZ3 0 4 T1 0 0 5
+ 20 1 10 10 13 255 4 3 0 1 0 11 0 0 12 0 53 255 5 6 0 11 0 0 0 +0 0 0 .5 0 0 1 1
+ 0 0 19 8 CCCCCCCA5 owner12 0 Z6 1 0 1 12 0 13 V0 19 12 5 0 1 0 6 4 S0 13 13 4 0
+ 0 0 0 0 0 6 11 14 255 11 2 14 ?0 0 0 4 5 +0 0 0 0 13 81 1 14 18 15 11 16 0 0 0
+ 17 80 255 1 15 0 18 8001 0 0 0 0 3 5 0 0 0 FFFFTFTFFFFFFF2 81 1 16 16 19 11 0 1
+4 0 0 20 83 255 3 17 .5960784 .6666667 .6862745 80 1 19 21 22 9000 1 1 1 1 1 1 1
+ 1 0 FFFFTFTFFFFFFF3 84 255 32 20 0fd9a822a133542dee86dee250f4bedc79 255 15 22 U
+GS/ObjectState79 15 18 SDL/TYSA_COLOUR74 4 CI16 index_map_offset0 0 1 dCCZ20 10
+ 5 0 0 23 16 8 14 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 81 2 23 15 24 1 0 8 0 0 25 26
+ 81 1 8 17 27 1 23 2 0 0 28 80 1 27 29 30 9000 0 0 0 0 3 5 0 0 0 FFTFFFFFFFFFFF1
+ 82 255 1 28 8 79 7 30 body_id80 2 24 31 32 8004 0 0 0 0 3 5 0 0 0 FFTFFFFFFFFFF
+F2 3 83 1 25 7830.64 84 8 26 Kg/Cu M 79 16 32 SDL/TYSA_DENSITY80 1 7 33 34 9000
+ 0 0 0 0 3 5 0 0 0 FFTFFFFFFFFFFF1 82 1 9 129 79 24 34 UG2/BODY_COLOR_ATTRIBUTE1
+ 0 

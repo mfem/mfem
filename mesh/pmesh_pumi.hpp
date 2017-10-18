@@ -9,36 +9,36 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_MESH_HEADERS
-#define MFEM_MESH_HEADERS
+#ifndef MFEM_PMESH_PUMI
+#define MFEM_PMESH_PUMI
 
-// Mesh header file
-
-#include "vertex.hpp"
-#include "element.hpp"
-#include "point.hpp"
-#include "segment.hpp"
-#include "triangle.hpp"
-#include "quadrilateral.hpp"
-#include "hexahedron.hpp"
-#include "tetrahedron.hpp"
-#include "ncmesh.hpp"
-#include "mesh.hpp"
-#include "mesh_operators.hpp"
-#include "nurbs.hpp"
-
-#ifdef MFEM_USE_MESQUITE
-#include "mesquite.hpp"
-#endif
+#include "../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
-#include "pncmesh.hpp"
-#include "pmesh.hpp"
-#endif
-
 #ifdef MFEM_USE_SCOREC
+
+#include "pmesh.hpp"
 #include "mesh_pumi.hpp"
-#include "pmesh_pumi.hpp"
-#endif
+
+namespace mfem
+{
+
+/// Class for parallel meshes
+class ParPumiMesh : public ParMesh
+{
+protected:
+   Element *ReadElement(apf::MeshEntity* Ent, const int geom, apf::Downward Verts,
+                        const int Attr, apf::Numbering* vert_num);
+public:
+   ///Build a parallel MFEM mesh from a parallel PUMI mesh
+   ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh);
+
+   virtual ~ParPumiMesh() {};
+};
+
+}
+
+#endif // MFEM_USE_MPI
+#endif // MFEM_USE_SCOREC
 
 #endif

@@ -84,6 +84,11 @@ if (MFEM_USE_MPI)
     pnonlinearform.hpp)
 endif()
 
+if (MFEM_USE_SCOREC)
+  list(APPEND SRCS gridfunc_pumi.cpp)
+  list(APPEND HDRS gridfunc_pumi.hpp)
+endif()
+
 convert_filenames_to_full_paths(SRCS)
 convert_filenames_to_full_paths(HDRS)
 

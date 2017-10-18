@@ -2408,6 +2408,7 @@ Mesh::Mesh(std::istream &input, int generate_edges, int refine,
    Load(input, generate_edges, refine, fix_orientation);
 }
 
+
 void Mesh::ChangeVertexDataOwnership(double *vertex_data, int len_vertex_data,
                                      bool zerocopy)
 {

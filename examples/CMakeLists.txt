@@ -24,6 +24,12 @@ list(APPEND ALL_EXE_SRCS
   ex15.cpp
   ex16.cpp
   ex17.cpp
+  Stokes.cpp
+  NS.cpp
+  atr_pumi_ex1.cpp
+  atr_ex16.cpp
+  up_NS.cpp
+  cavity.cpp
   )
 
 if (MFEM_USE_MPI)
@@ -45,6 +51,19 @@ if (MFEM_USE_MPI)
     ex15p.cpp
     ex16p.cpp
     ex17p.cpp
+    par_cavity.cpp
+    )
+endif()
+
+if (MFEM_USE_SCOREC AND MFEM_USE_MPI)
+  list(APPEND ALL_EXE_SRCS
+    GenerateMFEMMesh.cpp
+    pumi_ex1.cpp
+    pumi_ex1p.cpp
+    pumi_atr_ex2.cpp
+    cylinder_Stokes.cpp
+    3dcavity.cpp
+    pumi_cavity_par.cpp
     )
 endif()
 
@@ -59,7 +78,7 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
   get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
   string(REPLACE ".cpp" "" TEST_NAME ${SRC_FILENAME})
 
-  string(FIND ${TEST_NAME} "p" is_parallel_test)
+  string(REGEX MATCH "p$" is_parallel_test ${TEST_NAME})
 
   set(THIS_TEST_OPTIONS "-no-vis")
   if (${TEST_NAME} MATCHES "ex10p*")
@@ -68,7 +87,7 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
     list(APPEND THIS_TEST_OPTIONS "-e" "1")
   endif()
 
-  if (is_parallel_test EQUAL -1)
+  if ( NOT is_parallel_test STREQUAL "p" )
     add_test(NAME ${TEST_NAME}_ser
       COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
   else()

@@ -24,6 +24,7 @@
 #include <iostream>
 #include <fstream>
 
+
 namespace mfem
 {
 
@@ -190,6 +191,7 @@ protected:
 
    Element *ReadElement(std::istream &);
    static void PrintElement(const Element *, std::ostream &);
+
 
    // Readers for different mesh formats, used in the Load() method.
    // The implementations of these methods are in mesh_readers.cpp.
@@ -594,6 +596,9 @@ public:
       Loader(input, generate_edges);
       Finalize(refine, fix_orientation);
    }
+
+   /**This is to load a PUMI mesh, it is written following the
+      steps in MFEM load function*/
 
    /// Clear the contents of the Mesh.
    void Clear() { Destroy(); SetEmpty(); }
