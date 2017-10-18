@@ -329,7 +329,7 @@ void DomainIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
    // Assemble the form (vec(v), grad(w))
 
    // Trial space = vector L2 space (mesh dim)
-   // Test space = scalar L2 space
+   // Test space  = scalar L2 space
 
    const int dof_trial = trial_fe.GetDof();
    const int dof_test = test_fe.GetDof();

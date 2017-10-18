@@ -86,3 +86,4 @@ clean-exec:
 	@rm -f ex9.mesh ex9-mesh.* ex9-init.* ex9-final.*
 	@rm -f deformed.* velocity.* elastic_energy.* mode_*
 	@rm -f ex16.mesh ex16-mesh.* ex16-init.* ex16-final.*
+	@rm -f vortex-mesh.* vortex.mesh vortex-?-init.* vortex-?-final.*

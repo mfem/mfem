@@ -35,9 +35,9 @@ Performance improvements
 New and updated examples and miniapps
 -------------------------------------
 - Added a new serial and parallel example (ex18) that solves the transient Euler
-  equations on a periodic domain with explicit time integrators. This required
-  extending the NonlinearForm to allow for integrals over faces and exchanging
-  face-neighbor data in parallel.
+  equations on a periodic domain with explicit time integrators. In the process
+  extended the NonlinearForm class to allow for integrals over faces and
+  exchanging face-neighbor data in parallel.
 
 - Added a new meshing miniapp, Shaper, that can be used to resolve complicated
   material interfaces by mesh refinement, e.g. as a tool for initial mesh

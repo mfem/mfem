@@ -10,33 +10,39 @@
 //       mpirun -np 4 ex18p -p 2 -rs 1 -rp 1 -o 1 -s 3
 //       mpirun -np 4 ex18p -p 2 -rs 0 -rp 1 -o 3 -s 3
 //
-// Description: This example code solves the compressible Euler system of
-//              equations, a model nonlinear hyperbolic PDE, with a
-//              discontinuous Galerkin (DG) formulation.
+// Description:  This example code solves the compressible Euler system of
+//               equations, a model nonlinear hyperbolic PDE, with a
+//               discontinuous Galerkin (DG) formulation.
 //
-//              Specifically, it solves for an exact solution of the equations
-//              whereby a vortex is transported by a uniform flow. Since all
-//              boundaries are periodic here, the method's accuracy can be
-//              assessed by measuring the difference between the solution and
-//              the initial condition at a later time when the vortex returns to
-//              its initial location.
+//               Specifically, it solves for an exact solution of the equations
+//               whereby a vortex is transported by a uniform flow. Since all
+//               boundaries are periodic here, the method's accuracy can be
+//               assessed by measuring the difference between the solution and
+//               the initial condition at a later time when the vortex returns
+//               to its initial location.
 //
-//              Note that as the order of the spatial discretization increases,
-//              the timestep must become smaller. This example currently uses a
-//              simple estimate derived by Cockburn and Shu for the 1D RKDG
-//              method. An additional factor can be tuned by passing the
-//              --cfl (or -c shorter) flag.
+//               Note that as the order of the spatial discretization increases,
+//               the timestep must become smaller. This example currently uses a
+//               simple estimate derived by Cockburn and Shu for the 1D RKDG
+//               method. An additional factor can be tuned by passing the --cfl
+//               (or -c shorter) flag.
 //
-//              Since the solution is a vector grid function, components need to
-//              be visualized separately in GLvis using the -gc flag to select
-//              the component.
+//               The example demonstrates user-defined bilinear and nonlinear
+//               form integrators, simple Riemann solver (Rusanov flux) for DG,
+//               as well as the use of block vectors and explicit time
+//               integrators.
 //
+//               We recommend viewing examples 9, 14 and 17 before viewing this
+//               example.
 
 #include "mfem.hpp"
-#include "ex18.hpp"
 #include <fstream>
 #include <sstream>
 #include <iostream>
+
+// Classes FE_Evolution, RiemannSolver, DomainIntegrator and FaceIntegrator
+// shared between the serial and parallel version of the example.
+#include "ex18.hpp"
 
 // Choice for the problem setup. See the u0_function for details.
 int problem;
@@ -61,7 +67,7 @@ int main(int argc, char *argv[])
    int par_ref_levels = 1;
    int order = 3;
    int ode_solver_type = 4;
-   double t_final = 2;
+   double t_final = 2.0;
    double dt = -0.01;
    double cfl = 0.3;
    bool visualization = true;
@@ -106,29 +112,12 @@ int main(int argc, char *argv[])
    }
    if (mpi.Root()) { args.PrintOptions(cout); }
 
-   // 2. Read the mesh from the given mesh file. This example requires a
-   //    periodic mesh to function correctly.
+   // 3. Read the mesh from the given mesh file. This example requires a 2D
+   //    periodic mesh, such as ../data/periodic-square.mesh.
    Mesh mesh(mesh_file, 1, 1);
    const int dim = mesh.Dimension();
 
    MFEM_ASSERT(dim == 2, "Need a two-dimensional mesh for the problem definition");
-
-   // 3. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement, where 'ref_levels' is a
-   //    command-line parameter.
-   for (int lev = 0; lev < ser_ref_levels; lev++)
-   {
-      mesh.UniformRefinement();
-   }
-
-   // Distribute and and refine.
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
-   mesh.Clear();
-
-   for (int lev = 0; lev < par_ref_levels; lev++)
-   {
-      pmesh.UniformRefinement();
-   }
 
    // 4. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
@@ -141,11 +130,32 @@ int main(int argc, char *argv[])
       case 4: ode_solver = new RK4Solver; break;
       case 6: ode_solver = new RK6Solver; break;
       default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         if (mpi.Root())
+         {
+            cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         }
          return 3;
    }
 
-   // 5. Define the discontinuous DG finite element space of the given
+   // 5. Refine the mesh in serial to increase the resolution. In this example
+   //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
+   //    a command-line parameter.
+   for (int lev = 0; lev < ser_ref_levels; lev++)
+   {
+      mesh.UniformRefinement();
+   }
+
+   // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   //    this mesh further in parallel to increase the resolution. Once the
+   //    parallel mesh is defined, the serial mesh can be deleted.
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
+   for (int lev = 0; lev < par_ref_levels; lev++)
+   {
+      pmesh.UniformRefinement();
+   }
+
+   // 7. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim);
    // Finite element space for a scalar (thermodynamic quantity)
@@ -160,9 +170,8 @@ int main(int argc, char *argv[])
 
    if (mpi.Root()) { cout << "Number of unknowns: " << vfes.GetVSize() << endl; }
 
-   // 6. Define the initial conditions, save the corresponding mesh and grid
-   //    functions to a file. Note again that the file can be opened with GLvis
-   //    with the -gc option.
+   // 8. Define the initial conditions, save the corresponding mesh and grid
+   //    functions to a file. This can be opened with GLVis with the -gc option.
    Array<int> offsets(num_equation + 1);
    for (int k = 0; k <= num_equation; k++) { offsets[k] = k * vfes.GetNDofs(); }
    BlockVector u_block(offsets);
@@ -183,20 +192,20 @@ int main(int argc, char *argv[])
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(precision);
       mesh_ofs << pmesh;
+
+      for (int k = 0; k < num_equation; k++)
+      {
+         ParGridFunction uk(&fes, u_block.GetBlock(k));
+         ostringstream sol_name;
+         sol_name << "vortex-" << k << "-init."
+                  << setfill('0') << setw(6) << mpi.WorldRank();
+         ofstream sol_ofs(sol_name.str().c_str());
+         sol_ofs.precision(precision);
+         sol_ofs << uk;
+      }
    }
 
-   for (int k = 0; k < num_equation; k++)
-   {
-      ParGridFunction uk(&fes, u_block.GetBlock(k));
-      ostringstream sol_name;
-      sol_name << "vortex-" << k << "-init."
-               << setfill('0') << setw(6) << mpi.WorldRank();
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(precision);
-      sol_ofs << uk;
-   }
-
-   // 7. Set up the nonlinear form corresponding to the DG discretization of the
+   // 9. Set up the nonlinear form corresponding to the DG discretization of the
    //    flux divergence, and assemble the corresponding mass matrix.
    MixedBilinearForm Aflux(&dfes, &fes);
    Aflux.AddDomainIntegrator(new DomainIntegrator(dim));
@@ -206,9 +215,9 @@ int main(int argc, char *argv[])
    RiemannSolver rsolver;
    A.AddInteriorFaceIntegrator(new FaceIntegrator(rsolver, dim));
 
-   // 8. Define the time-dependent evolution operator describing the ODE
-   //    right-hand side, and perform time-integration (looping over the time
-   //    iterations, ti, with a time-step dt).
+   // 10. Define the time-dependent evolution operator describing the ODE
+   //     right-hand side, and perform time-integration (looping over the time
+   //     iterations, ti, with a time-step dt).
    FE_Evolution euler(vfes, A, Aflux.SpMat());
 
    // Visualize the density
@@ -268,9 +277,8 @@ int main(int argc, char *argv[])
 
    if (cfl > 0)
    {
-      // Find a safe dt, using a temporary vector. Calling Mult()
-      // computes the maximum char speed at all quadrature points on
-      // all faces.
+      // Find a safe dt, using a temporary vector. Calling Mult() computes the
+      // maximum char speed at all quadrature points on all faces.
       max_char_speed = 0.;
       Vector z(sol.Size());
       A.Mult(sol, z);
@@ -281,7 +289,6 @@ int main(int argc, char *argv[])
                        1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
          max_char_speed = all_max_char_speed;
       }
-
       dt = cfl * hmin / max_char_speed / (2*order+1);
    }
 
@@ -292,7 +299,6 @@ int main(int argc, char *argv[])
       double dt_real = min(dt, t_final - t);
 
       ode_solver->Step(sol, t, dt_real);
-
       if (cfl > 0)
       {
          // Reduce to find the global maximum wave speed
@@ -320,15 +326,13 @@ int main(int argc, char *argv[])
             sout << "solution\n" << pmesh << mom << flush;
          }
       }
-
    }
 
    tic_toc.Stop();
    if (mpi.Root()) { cout << " done, " << tic_toc.RealTime() << "s." << endl; }
 
-   // 9. Save the final solution. This output can be viewed later using GLVis:
-   //    "glvis -m vortex.mesh -g vortex-final.gf -gc 1".
-   // Output the initial solution
+   // 11. Save the final solution. This output can be viewed later using GLVis:
+   //     "glvis -np 4 -m vortex-mesh -g vortex-1-final".
    for (int k = 0; k < num_equation; k++)
    {
       ParGridFunction uk(&fes, u_block.GetBlock(k));
@@ -340,7 +344,7 @@ int main(int argc, char *argv[])
       sol_ofs << uk;
    }
 
-   // 10. Compute the L2 solution error summed for all components.
+   // 12. Compute the L2 solution error summed for all components.
    if (t_final == 2.0)
    {
       const double error = sol.ComputeLpError(2, u0);

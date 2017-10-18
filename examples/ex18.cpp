@@ -10,36 +10,39 @@
 //       ex18 -p 2 -r 1 -o 1 -s 3
 //       ex18 -p 2 -r 0 -o 3 -s 3
 //
-// Description: This example code solves the compressible Euler system of
-//              equations, a model nonlinear hyperbolic PDE, with a
-//              discontinuous Galerkin (DG) formulation.
+// Description:  This example code solves the compressible Euler system of
+//               equations, a model nonlinear hyperbolic PDE, with a
+//               discontinuous Galerkin (DG) formulation.
 //
-//              Specifically, it solves for an exact solution of the equations
-//              whereby a vortex is transported by a uniform flow. Since all
-//              boundaries are periodic here, the method's accuracy can be
-//              assessed by measuring the difference between the solution and
-//              the initial condition at a later time when the vortex returns to
-//              its initial location.
+//               Specifically, it solves for an exact solution of the equations
+//               whereby a vortex is transported by a uniform flow. Since all
+//               boundaries are periodic here, the method's accuracy can be
+//               assessed by measuring the difference between the solution and
+//               the initial condition at a later time when the vortex returns
+//               to its initial location.
 //
-//              Note that as the order of the spatial discretization increases,
-//              the timestep must become smaller. This example currently uses a
-//              simple estimate derived by Cockburn and Shu for the 1D RKDG
-//              method. An additional factor can be tuned by passing the
-//              --cfl (or -c shorter) flag.
+//               Note that as the order of the spatial discretization increases,
+//               the timestep must become smaller. This example currently uses a
+//               simple estimate derived by Cockburn and Shu for the 1D RKDG
+//               method. An additional factor can be tuned by passing the --cfl
+//               (or -c shorter) flag.
 //
-//              Since the solution is a vector grid function, components need to
-//              be visualized separately in GLvis using the -gc flag to select
-//              the component.
+//               The example demonstrates user-defined bilinear and nonlinear
+//               form integrators, simple Riemann solver (Rusanov flux) for DG,
+//               as well as the use of block vectors and explicit time
+//               integrators.
 //
+//               We recommend viewing examples 9, 14 and 17 before viewing this
+//               example.
 
 #include "mfem.hpp"
-#include "ex18.hpp"
 #include <fstream>
 #include <sstream>
 #include <iostream>
 
-using namespace std;
-using namespace mfem;
+// Classes FE_Evolution, RiemannSolver, DomainIntegrator and FaceIntegrator
+// shared between the serial and parallel version of the example.
+#include "ex18.hpp"
 
 // Choice for the problem setup. See the u0_function for details.
 int problem;
@@ -60,7 +63,7 @@ int main(int argc, char *argv[])
    int ref_levels = 1;
    int order = 3;
    int ode_solver_type = 4;
-   double t_final = 2;
+   double t_final = 2.0;
    double dt = -0.01;
    double cfl = 0.3;
    bool visualization = true;
@@ -101,8 +104,8 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Read the mesh from the given mesh file. This example requires a
-   //    periodic mesh to function correctly.
+   // 2. Read the mesh from the given mesh file. This example requires a 2D
+   //    periodic mesh, such as ../data/periodic-square.mesh.
    Mesh mesh(mesh_file, 1, 1);
    const int dim = mesh.Dimension();
 
@@ -146,9 +149,8 @@ int main(int argc, char *argv[])
 
    cout << "Number of unknowns: " << vfes.GetVSize() << endl;
 
-   // 6. Define the initial conditions, save the corresponding mesh
-   //    and grid functions to a file. Note again that the file can be
-   //    opened with GLvis with the -gc option.
+   // 6. Define the initial conditions, save the corresponding mesh and grid
+   //    functions to a file. This can be opened with GLVis with the -gc option.
    Array<int> offsets(num_equation + 1);
    for (int k = 0; k <= num_equation; k++) { offsets[k] = k * vfes.GetNDofs(); }
    BlockVector u_block(offsets);
@@ -241,9 +243,8 @@ int main(int argc, char *argv[])
 
    if (cfl > 0)
    {
-      // Find a safe dt, using a temporary vector. Calling Mult()
-      // computes the maximum char speed at all quadrature points on
-      // all faces.
+      // Find a safe dt, using a temporary vector. Calling Mult() computes the
+      // maximum char speed at all quadrature points on all faces.
       Vector z(A.Width());
       max_char_speed = 0.;
       A.Mult(sol, z);
@@ -278,8 +279,7 @@ int main(int argc, char *argv[])
    cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
-   //    "glvis -m vortex.mesh -g vortex-final.gf -gc 1".
-   // Output the initial solution
+   //    "glvis -m vortex.mesh -g vortex-1-final.gf".
    for (int k = 0; k < num_equation; k++)
    {
       GridFunction uk(&fes, u_block.GetBlock(k));
