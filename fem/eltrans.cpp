@@ -245,8 +245,8 @@ int IsoparametricTransformation::TransformBack(const Vector &pt,
                                                int refinementOrder)
 {
    const int    max_iter = 16;
-   const double  ref_tol = 1e-15;
-   const double phys_tol = 1e-15*pt.Normlinf();
+   const double  ref_tol = 1e-14;
+   const double phys_tol = 1e-14*pt.Normlinf();
    const double ip_tol   = 1e-8;
 
    const int dim = FElem->GetDim();
