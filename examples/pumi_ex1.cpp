@@ -10,10 +10,10 @@
 //               classified on a geometric model and then load it to the MFEM mesh
 //               format.The inputs are a Parasolid model, "*.xmt_txt"
 //               and a SCOREC mesh "*.smb". Switch "-o" is used for the Finite
-//               Element order and switch "-go" for the geometry order. Note that
-//               they can be used independently. i.e. "-o 8 -go 3" solves for
-//               8th order FE on a third order geometry.
-//
+//               Element order and switch "-go" for the geometry order. Note that 
+//               they can be used independently. i.e. "-o 8 -go 3" solves for  
+//               8th order FE on a third order geometry.  
+//               
 
 #include "mfem.hpp"
 #include <fstream>
@@ -38,12 +38,12 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   //initilize mpi
-   int num_proc, myId;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myId);
-
+    //initilize mpi 
+    int num_proc, myId;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
+    MPI_Comm_rank(MPI_COMM_WORLD, &myId);
+    
    // 2. Parse command-line options.
    const char *mesh_file = "../data/pumi/serial/Kova.smb";
 #ifdef MFEM_USE_SIMMETRIX
@@ -68,27 +68,27 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&model_file, "-p", "--parasolid",
-                  "Parasolid model to use.");
+                  "Parasolid model to use."); 
    args.AddOption(&geom_order, "-go", "--geometry_order",
                   "Geometric order of the model");
-
+   
    args.Parse();
    if (!args.Good())
    {
-      if (myId == 0)
-      {
-         args.PrintUsage(cout);
-      }
-      MPI_Finalize();
-      return 1;
+       if (myId == 0)
+       {
+            args.PrintUsage(cout);
+       }
+       MPI_Finalize();
+       return 1;
    }
-
+   
    if (myId == 1)
    {
-      args.PrintOptions(cout);
+        args.PrintOptions(cout);
    }
-
-   // 3. Read the SCOREC Mesh
+   
+   // 3. Read the SCOREC Mesh 
    PCU_Comm_Init();
 #ifdef MFEM_USE_SIMMETRIX
    SimUtil_start();
@@ -97,25 +97,24 @@ int main(int argc, char *argv[])
    gmi_register_sim();
 #endif
    gmi_register_mesh();
-
+   
    apf::Mesh2* pumi_mesh;
    pumi_mesh = apf::loadMdsMesh(model_file, mesh_file);
-
+   
    // 4. Increase the geometry order if necessary.
-   if (geom_order > 1)
-   {
-      crv::BezierCurver bc(pumi_mesh, geom_order, 2);
-      bc.run();
-   }
-
-   pumi_mesh->verify();
+   if (geom_order > 1){
+       crv::BezierCurver bc(pumi_mesh, geom_order, 2);
+       bc.run();
+   }     
+   
+   pumi_mesh->verify(); 
 
    // 5. Create the MFEM mesh object from the PUMI mesh. We can handle triangular
-   //    and tetrahedral meshes. Other inputs are the same as MFEM default
+   //    and tetrahedral meshes. Other inputs are the same as MFEM default 
    //    constructor.
-   Mesh *mesh = new PumiMesh(pumi_mesh, 1, 1);
+   Mesh *mesh = new PumiMesh(pumi_mesh, 1, 1); 
    int dim = mesh->Dimension();
-
+ 
    // 6. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 10,000
@@ -245,7 +244,7 @@ int main(int argc, char *argv[])
    Sim_unregisterAllKeys();
    SimUtil_stop();
 #endif
-
+   
    MPI_Finalize();
    return 0;
 }

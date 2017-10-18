@@ -28,6 +28,7 @@ set(SRCS
   nonlinearform.cpp
   nonlininteg.cpp
   staticcond.cpp
+  NSnonlininteg.cpp
   )
 
 set(HDRS
@@ -58,6 +59,7 @@ set(HDRS
   tfe.hpp
   tfespace.hpp
   tintrules.hpp
+  NSnonlininteg.hpp
   )
 
 if (MFEM_USE_SIDRE)

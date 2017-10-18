@@ -1,14 +1,14 @@
-//                                PUMI Example
+//                                PUMI Example 
 //
 // Compile with: Add GenerateMFEMMesh.cpp in the CMakeLists.txt
 //
 // Sample runs:  ./GenerateMFEMMesh -m ../data/pumi/serial/sphere.smb
-//                    -p ../data/pumi/geom/sphere.x_t -o 1
+//                    -p ../data/pumi/geom/sphere.x_t -o 1 
 //
-// Description:  The purpose of this example is to generate MFEM meshes for
+// Description:  The purpose of this example is to generate MFEM meshes for 
 //               complex geometry. The inputs are a Parasolid model, "*.xmt_txt"
-//               and a SCOREC mesh "*.smb". Switch "-o" can be used to increase the
-//               geometric order up to order 6 and consequently write the mesh
+//               and a SCOREC mesh "*.smb". Switch "-o" can be used to increase the 
+//               geometric order up to order 6 and consequently write the mesh 
 //               in that order.
 
 #include "mfem.hpp"
@@ -34,12 +34,12 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   //initilize mpi
-   int num_proc, myId;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myId);
-
+    //initilize mpi 
+    int num_proc, myId;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
+    MPI_Comm_rank(MPI_COMM_WORLD, &myId);
+    
    // 1. Parse command-line options.
    const char *mesh_file = "../data/pumi/serial/sphere.smb";
 #ifdef MFEM_USE_SIMMETRIX
@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
    const char *model_file = "../data/pumi/geom/sphere.dmg";
 #endif
    int order = 1;
-   bool visualization = 1;
+   bool visualization = 1;  
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -59,8 +59,8 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&model_file, "-p", "--parasolid",
-                  "Parasolid model to use.");
-
+                  "Parasolid model to use.");   
+  
    args.Parse();
    if (!args.Good())
    {
@@ -68,8 +68,8 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-
-   //Read the SCOREC Mesh
+   
+   //Read the SCOREC Mesh 
    PCU_Comm_Init();
 #ifdef MFEM_USE_SIMMETRIX
    SimUtil_start();
@@ -78,30 +78,30 @@ int main(int argc, char *argv[])
    gmi_register_sim();
 #endif
    gmi_register_mesh();
-
+   
    apf::Mesh2* pumi_mesh;
    pumi_mesh = apf::loadMdsMesh(model_file, mesh_file);
-
-
+   
+   
    //If it is higher order change shape
-   if (order > 1)
-   {
-      crv::BezierCurver bc(pumi_mesh, order, 2);
-      bc.run();
-   }
-   pumi_mesh->verify();
+   if (order > 1){
+       crv::BezierCurver bc(pumi_mesh, order, 2);
+       bc.run();
+   }   
+   pumi_mesh->verify();           
 
    // 2. Create the MFEM mesh object from the PUMI mesh. We can handle triangular
-   //    and tetrahedral meshes. Other inputs are the same as MFEM default
+   //    and tetrahedral meshes. Other inputs are the same as MFEM default 
    //    constructor.
-   Mesh *mesh = new PumiMesh(pumi_mesh, 1, 0);
+   Mesh *mesh = new PumiMesh(pumi_mesh, 1, 0);   
 
    //Write mesh in MFEM fromat
    ofstream fout("MFEMformat.mesh");
-   fout.precision(8);
+   //ofstream fout("MFEMformat.vtku");
+   fout.precision(8); 
    mesh->Print(fout);
-
-
+   //mesh->PrintVTK(fout);
+   
    delete mesh;
 
    pumi_mesh->destroyNative();
@@ -114,6 +114,6 @@ int main(int argc, char *argv[])
    SimUtil_stop();
 #endif
 
-   MPI_Finalize();
+   MPI_Finalize();   
    return 0;
 }

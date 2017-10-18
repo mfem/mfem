@@ -24,6 +24,12 @@ list(APPEND ALL_EXE_SRCS
   ex15.cpp
   ex16.cpp
   ex17.cpp
+  Stokes.cpp
+  NS.cpp
+  atr_pumi_ex1.cpp
+  atr_ex16.cpp
+  up_NS.cpp
+  cavity.cpp
   )
 
 if (MFEM_USE_MPI)
@@ -45,6 +51,7 @@ if (MFEM_USE_MPI)
     ex15p.cpp
     ex16p.cpp
     ex17p.cpp
+    par_cavity.cpp
     )
 endif()
 
@@ -54,6 +61,9 @@ if (MFEM_USE_SCOREC AND MFEM_USE_MPI)
     pumi_ex1.cpp
     pumi_ex1p.cpp
     pumi_atr_ex2.cpp
+    cylinder_Stokes.cpp
+    3dcavity.cpp
+    pumi_cavity_par.cpp
     )
 endif()
 
