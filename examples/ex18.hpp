@@ -403,8 +403,19 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
    DenseMatrix elvect2_mat(elvect.GetData() + dof1 * num_equation, dof2,
                            num_equation);
 
-   const int order = std::max(el1.GetOrder(), el2.GetOrder());
-   const int intorder = 2 * order + 2;
+   // Integration order calculation from DGTraceIntegrator
+   int intorder;
+   if (Tr.Elem2No >= 0)
+      intorder = (min(Tr.Elem1->OrderW(), Tr.Elem2->OrderW()) +
+                  2*max(el1.GetOrder(), el2.GetOrder()));
+   else
+   {
+      intorder = Tr.Elem1->OrderW() + 2*el1.GetOrder();
+   }
+   if (el1.Space() == FunctionSpace::Pk)
+   {
+      intorder++;
+   }
    const IntegrationRule *ir = &IntRules.Get(Tr.FaceGeom, intorder);
 
    for (int i = 0; i < ir->GetNPoints(); i++)
