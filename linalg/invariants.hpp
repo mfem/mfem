@@ -489,7 +489,7 @@ public:
     The type `scalar_ops` must define the static methods:
 
         scalar_t sign(const scalar_t &);
-        scalar_t pow(const scaar_t &x, int a, int b); // x^(a/b)
+        scalar_t pow(const scalar_t &x, int a, int b); // x^(a/b)
 */
 template <typename scalar_t, typename scalar_ops = ScalarOps<scalar_t> >
 class InvariantsEvaluator3D

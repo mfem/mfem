@@ -61,7 +61,7 @@ New and updated examples and miniapps
 
 Discretization improvements
 ---------------------------
-- Added the ability to integrate delta functions on the righ-hand side (by
+- Added the ability to integrate delta functions on the right-hand side (by
   sampling the test function at the center of the delta coefficient). Currently
   this is supported in the DomainLFIntegrator, VectorDomainLFIntegrator and
   VectorFEDomainLFIntegrator classes.

@@ -1973,7 +1973,7 @@ double DenseMatrix::CalcSingularvalue(const int i) const
          Reduce3S(mode, b11, b22, b33, b12, b13, b23,
                   c1, c2, c3, v1, v2, v3, g);
          // Q = I - g v v^t
-         // P - permitation matrix switching rows and columns 1 and k
+         // P - permutation matrix switching rows and columns 1 and k
 
          // find the eigenvalues of
          //  | b22 b23 |
@@ -2166,7 +2166,7 @@ void DenseMatrix::CalcEigenvalues(double *lambda, double *vec) const
          int k = Reduce3S(mode, d11, d22, d33, d12, d13, d23,
                           c1, c2, c3, v1, v2, v3, g);
          // Q = I - 2 v v^t
-         // P - permitation matrix switching entries 1 and k
+         // P - permutation matrix switching entries 1 and k
 
          // find the eigenvalues and eigenvectors for
          // | d22 d23 |

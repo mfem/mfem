@@ -30,7 +30,7 @@ private:
 
    void Eigensystem(Vector &ev, DenseMatrix *evect = NULL);
 
-   // Auxiliary merthod used in FNorm2() and FNorm()
+   // Auxiliary method used in FNorm2() and FNorm()
    void FNorm(double &scale_factor, double &scaled_fnorm2) const;
 
 public:

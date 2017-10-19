@@ -162,7 +162,7 @@ public:
     Represents @f$ \int W(Jpt) dx @f$ over a target zone, where W is the
     @a model's strain energy density function, and Jpt is the Jacobian of the
     target->physical coordinates transformation. The target configuration is
-    given by the current mesh at the time of the evaluation of the intergrator.
+    given by the current mesh at the time of the evaluation of the integrator.
 */
 class HyperelasticNLFIntegrator : public NonlinearFormIntegrator
 {

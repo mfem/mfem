@@ -503,7 +503,7 @@ public:
 #endif
    virtual ~TargetConstructor() { }
 
-   /** @brief Set the nodes to be used in the target-matrix contruction.
+   /** @brief Set the nodes to be used in the target-matrix construction.
 
        This method should be called every time the target nodes are updated
        externally and recomputation of the target average volume is needed. The
