@@ -18,19 +18,19 @@
 
 #include <sstream>
 
-class dbg
-{
+class dbg{
 public:
-   dbg() {}
+  dbg();
    ~dbg();
    template<class T>
-   dbg& operator<<(const T& t)
-   {
+   dbg& operator<<(const T& t){
       stream << t;
       return *this;
    }
 private:
-   std::stringstream  stream;
+  std::stringstream stream;
 };
+
+void dbgIni(char*);
 
 #endif // LIB_CEED_DBG

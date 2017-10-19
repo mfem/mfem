@@ -28,45 +28,16 @@ private:
   int number_of_frames_to_skip = 0;
   dbgBackTraceData *data = NULL;
 public:
-  dbgBackTrace();
+  dbgBackTrace(const char*,const int);
   ~dbgBackTrace();
-
+public:
   void dbg();
-
-  bool is_inited();
-    
-  void ini(const char*);
-
-  void* address();
-    
   int depth();
-    
+  void* address();
+  bool is_inited();
   const char* function_name();
-    
 private:
   void bt_print();
-  static void error_callback(void *data,
-                      const char *msg,
-                      int errnum);
-  
-  static void syminfo_callback (void *data,
-                         uintptr_t pc,
-                         const char *symname,
-                         uintptr_t symval,
-                         uintptr_t symsize);
-  
-  static int full_callback(void *data,
-                    uintptr_t pc,
-                    const char *filename,
-                    int lineno,
-                    const char *function);
-
-  static int simple_callback(void *data, uintptr_t pc);
-  
 }; // dbgBackTrace
-  
-extern dbgBackTrace backTrace;
-
-void backTraceIni(char* main);
 
 #endif // LIB_CEED_BACKTRACE_DBG

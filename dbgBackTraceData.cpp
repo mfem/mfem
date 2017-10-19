@@ -29,29 +29,26 @@
 // * Backtrace library
 // *****************************************************************************
 
-dbgBackTraceData::dbgBackTraceData(backtrace_state* s):state(s),
-                                   function_name(NULL),
-                                   address(0x0),
-                                   hit_main(false),
-                                   depth(0){
-  _dbgc(33,"* Backtrace library initialized!\n");
-  _dbgc(33,"new dbgBackTraceData!");
-}
+dbgBackTraceData::dbgBackTraceData(backtrace_state* s):
+  state(s),
+  function_name(NULL),
+  address(0x0),
+  hit_main(false),
+  depth(0){ _dbg("\t\tnew dbgBackTraceData!"); }
     
-dbgBackTraceData::~dbgBackTraceData(){
-  _dbgc(33,"del dbgBackTraceData!");
-  free((void*)function_name);
-}
+dbgBackTraceData::~dbgBackTraceData(){ _dbg("\t\tdel dbgBackTraceData!"); }
     
 backtrace_state* dbgBackTraceData::data(){ return state; }
     
-void dbgBackTraceData::flush() {function_name=NULL; depth=0;}
+void dbgBackTraceData::flush() {
+  function_name=NULL;
+  depth=0;
+}
     
 void dbgBackTraceData::set_function_name(const char* f, void* adrs) {
   if (function_name) return;
   function_name=f;
   address=adrs;
-  //std::cout << "[34;1m[function_name] function_name="<<f<<"[m"<<std::endl; 
 }
     
 const char* dbgBackTraceData::get_function_name(){

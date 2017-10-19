@@ -17,6 +17,5 @@
 #define LIB_CEED_DBG_VARIADIC
 
 void _dbg(const char*,...);
-void _dbgc(const int,const char*,...);
 
 #endif // LIB_CEED_DBG_VARIADIC

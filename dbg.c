@@ -19,23 +19,15 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#define _DBG_MODE_ false
-
-void _dbgc(const int color,const char *format,...){
-  if (!_DBG_MODE_) return;
-  va_list args;
-  va_start(args, format);
-  fflush(stdout);
-  fprintf(stdout,"\033[%d;1m",color);
-  vfprintf(stdout,format,args);
-  fprintf(stdout,"\033[m\n");
-  va_end(args);
-}
+#define _DBG_MODE_ true
 
 void _dbg(const char *format,...){
   if (!_DBG_MODE_) return;
   va_list args;
   va_start(args, format);
-  _dbgc(31,format,args);
+  fflush(stdout);
+  fprintf(stdout,"\033[32;1m");
+  vfprintf(stdout,format,args);
+  fprintf(stdout,"\033[m\n");
   va_end(args);
 }
