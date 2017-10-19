@@ -26,14 +26,14 @@ public:
   dbgBackTraceData(backtrace_state*);
   ~dbgBackTraceData();
 public:
-  void inc();
+  void flush();
   void update(const char*, uintptr_t);
-  int continue_tracing();
+  int continue_tracing(){ return m_hit?1:0; }
 public:
-  int depth();
-  uintptr_t address();
-  const char* function();
-  backtrace_state* state();
+  int depth(){ return m_depth; }
+  uintptr_t address(){ return m_address; }
+  const char* function(){ return m_function; }
+  backtrace_state* state(){ return m_state; }
 private:
   backtrace_state* m_state;
   const char *m_function;

@@ -13,42 +13,41 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-
 #include <iostream>
-
 #include <string.h>
 
-#include "dbg.h"
-
 #include "dbgBackTraceData.hpp"
-
 
 // *****************************************************************************
 // * Backtrace library
 // *****************************************************************************
-
 dbgBackTraceData::dbgBackTraceData(backtrace_state* s):
   m_state(s),
   m_function(nullptr),
   m_address(0x0),
   m_hit(false),
   m_depth(0){}
-    
-dbgBackTraceData::~dbgBackTraceData(){ free((void*)m_function); }
 
 // *****************************************************************************
-void dbgBackTraceData::inc() { m_depth+=1; }
+dbgBackTraceData::~dbgBackTraceData(){
+  if (m_function)
+    free((void*)m_function);
+}
+
+// *****************************************************************************
+void dbgBackTraceData::flush(){
+  if (m_function) free((void*)m_function);
+  m_function=nullptr;
+  m_address=0;
+  m_hit=false;
+  m_depth=0;
+}
+
+// *****************************************************************************
 void dbgBackTraceData::update(const char* f, uintptr_t adrs) {
   m_hit = !strncmp(f,"main",4);
+  m_depth+=1;
   if (m_function!=nullptr) return;
   m_function=strdup(f);
   m_address=adrs;
 }
-int dbgBackTraceData::continue_tracing() { return m_hit?1:0; }
-
-// *****************************************************************************
-int dbgBackTraceData::depth(){ return m_depth; }
-uintptr_t dbgBackTraceData::address(){ return m_address; }
-const char* dbgBackTraceData::function(){ return m_function; }
-backtrace_state* dbgBackTraceData::state(){ return m_state; }
-    

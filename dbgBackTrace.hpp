@@ -27,8 +27,11 @@ private:
   backtrace_state *state;
   dbgBackTraceData *data;
 public:
-  dbgBackTrace(const char*,const int);
+  dbgBackTrace();
   ~dbgBackTrace();
+public:
+  void ini(const char*);
+  int dbg();
 public:
   int depth();
   uintptr_t address();

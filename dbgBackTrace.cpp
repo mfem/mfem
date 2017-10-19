@@ -13,18 +13,34 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-
-#include <iostream>
 #include <cxxabi.h>
 #include <string.h>
 
 #include "dbg.h"
+#include "assert.h"
+
 #include <backtrace.h>
 #include <backtrace-supported.h>
 
 #include "dbgBackTrace.hpp"
 #include "dbgBackTraceData.hpp"
 
+// *****************************************************************************
+#define DEMANGLE_LENGTH 4096
+static const char* demangle(const char* mangled_name){
+  int status;
+  static size_t length = DEMANGLE_LENGTH;
+  static char output_buffer[DEMANGLE_LENGTH];
+  const char *demangled_name =
+    abi::__cxa_demangle(mangled_name,output_buffer,&length,&status);
+  return (status==0)?demangled_name:mangled_name;
+}
+
+// *****************************************************************************
+static int filter(const char* demangled){
+  printf("\033[32;1m[full_callback] Filtering OUT '%s'!\033[m\n",demangled);
+  return 0;
+}
 
 // *****************************************************************************
 static void sym_callback(void *data,
@@ -32,17 +48,10 @@ static void sym_callback(void *data,
                              const char *symname,
                              uintptr_t symval,
                              uintptr_t symsize){
-  if (!symname) return;
+  assert(symname);
   dbgBackTraceData *ctx=static_cast<dbgBackTraceData*>(data);
-  int status;
-  static size_t length = 8192;
-  static char output_buffer[8192];
-  printf("\t\033[32;1m[sym_callback] symval=%s\033[m\n",symname);
-  const char *realname = abi::__cxa_demangle(symname,
-                                             output_buffer,
-                                             &length, &status);
-  const char *symbol = status?symname:realname;
-  //printf("\033[32;1m[sym_callback] %s\033[m\n",symbol);
+  const char *symbol = demangle(symname);
+  printf("\033[32;1m[sym_callback] %s\033[m\n",symbol);
   ctx->update(symbol,pc);
 }
 
@@ -58,27 +67,15 @@ static int full_callback(void *data,
                          int lineno,
                          const char *function){
   dbgBackTraceData *ctx=static_cast<dbgBackTraceData*>(data);
-  if (function){
-    int status;
-    static size_t length = 8192;
-    static char output_buffer[8192];
-    const char *realname =
-      abi::__cxa_demangle(function, output_buffer, &length, &status);
-    const char *function_name = status?function:realname;
-    ctx->update(function_name,pc);
-    //printf("\t\033[33m[full_callback] '%s'\033[m\n",function_name);
-    // get rid of std::functions
-    if (strncmp("std::",function_name,5)==0
-        || strncmp("void",function_name,4)==0){
-      //printf("\t\033[32;1m[full_callback] starts with std or void!\033[m\n");
-      return 0;
-    }
-    ctx->inc();
-    return 0;
-  }
-  ctx->inc();
-  return backtrace_syminfo(ctx->state(), pc,
-                           sym_callback, err_callback, data);
+  if (!function) // symbol hit
+    return backtrace_syminfo(ctx->state(), pc,
+                             sym_callback, err_callback, data);
+  const char *demangled = demangle(function);
+  //printf("\t\033[33m[full_callback] '%s'\033[m\n",demangled);
+  if (strncmp("std::",demangled,5)==0) return filter(demangled);
+  //if (strncmp("void",demangled,4)==0) return filter(demangled);
+  ctx->update(demangled,pc);
+  return 0;
 }
 
 // *****************************************************************************
@@ -92,17 +89,25 @@ static int simple_callback(void *data, uintptr_t pc){
 // ***************************************************************************
 // * dbgBackTrace
 // ***************************************************************************
-dbgBackTrace::dbgBackTrace(const char* argv0,
-                           const int skip):
-  state(backtrace_create_state(argv0,
+dbgBackTrace::dbgBackTrace():state(NULL),data(NULL){}
+dbgBackTrace::~dbgBackTrace(){ delete data; }
+
+// *****************************************************************************
+void dbgBackTrace::ini(const char* argv0){
+  state=backtrace_create_state(argv0,
                                BACKTRACE_SUPPORTS_THREADS,
-                               err_callback,NULL)),
-  data(new dbgBackTraceData(state)){
-  backtrace_simple(state,skip,simple_callback,err_callback,data);
+                               err_callback,NULL);
+  data=new dbgBackTraceData(state);
 }
 
 // *****************************************************************************
-dbgBackTrace::~dbgBackTrace(){ delete data; }
+int dbgBackTrace::dbg(){
+  if (state==NULL || data==NULL) return -1;
+  data->flush();
+  // skip 2 frames to be on last function call
+  backtrace_simple(state,2,simple_callback,err_callback,data);
+  return 0;
+}
 
 // *****************************************************************************
 int dbgBackTrace::depth(){ return data->depth(); }

@@ -61,4 +61,4 @@ $(obj)/%.co: $(pwd)/%.c $(pwd)/%.h;$(rule)
 
 #### Clean ####
 clean cln:;$(rule)
-	rm -rf $(obj) lib$(tgt).so
+	rm -rf $(obj) lib$(tgt).so tst
