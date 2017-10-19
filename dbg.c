@@ -19,7 +19,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#define _DBG_MODE_ true
+#define _DBG_MODE_ false
 
 void _dbg(const char *format,...){
   if (!_DBG_MODE_) return;

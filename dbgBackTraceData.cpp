@@ -16,8 +16,6 @@
 
 #include <iostream>
 
-#undef NDEBUG
-#include <assert.h>
 #include <string.h>
 
 #include "dbg.h"
@@ -30,40 +28,27 @@
 // *****************************************************************************
 
 dbgBackTraceData::dbgBackTraceData(backtrace_state* s):
-  state(s),
-  function_name(NULL),
-  address(0x0),
-  hit_main(false),
-  depth(0){ _dbg("\t\tnew dbgBackTraceData!"); }
+  m_state(s),
+  m_function(nullptr),
+  m_address(0x0),
+  m_hit(false),
+  m_depth(0){}
     
-dbgBackTraceData::~dbgBackTraceData(){ _dbg("\t\tdel dbgBackTraceData!"); }
-    
-backtrace_state* dbgBackTraceData::data(){ return state; }
-    
-void dbgBackTraceData::flush() {
-  function_name=NULL;
-  depth=0;
+dbgBackTraceData::~dbgBackTraceData(){ free((void*)m_function); }
+
+// *****************************************************************************
+void dbgBackTraceData::inc() { m_depth+=1; }
+void dbgBackTraceData::update(const char* f, uintptr_t adrs) {
+  m_hit = !strncmp(f,"main",4);
+  if (m_function!=nullptr) return;
+  m_function=strdup(f);
+  m_address=adrs;
 }
+int dbgBackTraceData::continue_tracing() { return m_hit?1:0; }
+
+// *****************************************************************************
+int dbgBackTraceData::depth(){ return m_depth; }
+uintptr_t dbgBackTraceData::address(){ return m_address; }
+const char* dbgBackTraceData::function(){ return m_function; }
+backtrace_state* dbgBackTraceData::state(){ return m_state; }
     
-void dbgBackTraceData::set_function_name(const char* f, void* adrs) {
-  if (function_name) return;
-  function_name=f;
-  address=adrs;
-}
-    
-const char* dbgBackTraceData::get_function_name(){
-  assert(function_name);
-  return function_name;
-}
-    
-void dbgBackTraceData::inc() { depth+=1; }
-    
-int dbgBackTraceData::get_depth(){ return depth; }
-void* dbgBackTraceData::get_address(){ return address; }
-    
-int dbgBackTraceData::continue_tracing() { return hit_main?1:0; }
-    
-bool dbgBackTraceData::hit(const char *f)  {
-  hit_main = !strncmp(f,"main",4);
-  return hit_main;
-}

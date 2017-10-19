@@ -112,7 +112,7 @@ dbg::~dbg(){
     {"sys",5},
     {"serial",6}
   };
-  static std::unordered_map<void*,std::string> known_functions;
+  static std::unordered_map<uintptr_t,std::string> known_functions;
 
   // If no DBG varibale environment is set, just return
   if (!getenv("DBG")) return;
@@ -124,64 +124,34 @@ dbg::~dbg(){
   // Get the backtrace depth and last function
   int frames = 0;
   int nb_addresses = 0;
-  void* address = NULL;
-  int status = 0;
-  char* glib_bt_function = NULL;
+  uintptr_t address = 0;
+  std::string demangled_function;
   
-  dbgBackTrace bt(dbg_argv0,2);
+  { // backtracing here
+    dbgBackTrace bt(dbg_argv0,2);
   
-  // First mode with google backtrace library
-  const bool inited = bt.is_inited();
-  if (inited){
-    bt.dbg();
     nb_addresses = bt.depth();
     assert(nb_addresses>=0);
     frames = nb_addresses-(org_mode?-1:1);
     address = bt.address();
-    const char* ggle_bt_function = bt.function_name();
-    assert(ggle_bt_function);
-  }else{
-    assert(false);
-    // Otherwise, use glib backtrace library
-    // Looking how deep we are in the stack
-    const int size = 64;
-    void *buffer[size];
-    nb_addresses = ::backtrace(buffer, size);
-    assert(nb_addresses>=4);
-    frames = nb_addresses-(org_mode?3:4);
-    char **symbols = ::backtrace_symbols(buffer, size);
-    address = buffer[1];
-    //for(int k=0;k<nb_addresses;++k) std::cout << symbols[k] << std::endl;
-    char* symbol = symbols[1];
-    // Now within a shared lib, backtrace_symbols have lib name
-    if (symbol[0]=='/'){
-      char *first_parenthesis = strchr(symbol,'(');
-      assert(first_parenthesis);
-      symbol=1+first_parenthesis;
-      char* next_plus = strchr(symbol,'+');
-      assert(next_plus);
-      *next_plus=0;
-    }
-    glib_bt_function = abi::__cxa_demangle(symbol,NULL,0, &status);
-    assert(glib_bt_function);
+    const char *backtraced_function = bt.function();
+    //_dbg("[dbg] bt_function is '%s'",backtraced_function);
+    demangled_function=std::string(backtraced_function);
   }
-
-  const char *backtraced_function =
-    inited ? bt.function_name():glib_bt_function;
-  _dbg("backtraced_function is '%s'",backtraced_function);
   
-  std::string demangled_function(backtraced_function);
+   
   if (known_functions.find(address)==known_functions.end()){
     const int first_parenthesis = demangled_function.find_first_of('(');
     //std::cout << "demangled_function: '"<<demangled_function<<"'\n";
     const std::string function = demangled_function.substr(0,first_parenthesis);
     //std::cout << "function: '"<<function<<"'\n";
-    const std::string offunction = std::regex_replace(function,std::regex("occa::"),std::string());
+    const std::string offunction =
+      std::regex_replace(function,std::regex("occa::"),std::string());
     known_functions[address]=offunction;
   }
 
   const std::string display_function = known_functions[address];
-  std::cout << "display_function: '"<<display_function<<"'\n";
+  //std::cout << "display_function: '"<<display_function<<"'\n";
 
   //std::cout << "offunction: '"<<offunction<<"'\n";
   const int first_3A = display_function.find_first_of(':');

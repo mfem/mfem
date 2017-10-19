@@ -16,28 +16,23 @@
 #ifndef LIB_CEED_BACKTRACE_DBG
 #define LIB_CEED_BACKTRACE_DBG
 
-#include "dbgBackTraceData.hpp"
-#include <backtrace.h>
+struct backtrace_state;
+class dbgBackTraceData;
 
 // ***************************************************************************
 // * dbgBackTrace
 // ***************************************************************************
 class dbgBackTrace {
 private:
-  backtrace_state* state = NULL;
-  int number_of_frames_to_skip = 0;
-  dbgBackTraceData *data = NULL;
+  backtrace_state *state;
+  dbgBackTraceData *data;
 public:
   dbgBackTrace(const char*,const int);
   ~dbgBackTrace();
 public:
-  void dbg();
   int depth();
-  void* address();
-  bool is_inited();
-  const char* function_name();
-private:
-  void bt_print();
-}; // dbgBackTrace
+  uintptr_t address();
+  const char* function();
+};
 
 #endif // LIB_CEED_BACKTRACE_DBG

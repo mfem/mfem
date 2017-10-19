@@ -12,5 +12,6 @@ int f0(void){dbg();return f1();}
 
 int main(int argc, char *argv[]){
   dbgIni(argv[0]);
+  dbg();
   return f0();
 }
