@@ -750,21 +750,21 @@ void DenseMatrix::SquareRootInverse()
          tmp3.Invert();
 
          tmp1 += tmp3;
-         (*this)  += tmp2;
+         (*this) += tmp2;
 
          tmp1 *= 0.5;
-         (*this)  *= 0.5;
+         (*this) *= 0.5;
       }
       mfem::Mult((*this), tmp1, tmp2);
       for (int v = 0; v < Height() ; v++) { tmp2(v,v) -= 1.0; }
       if (tmp2.FNorm() < 1e-10) { break; }
    }
 
-   if (tmp2.FNorm() > 1e-10) { mfem_error("DenseMatrix::SquareRootInverse not converged"); }
-
+   if (tmp2.FNorm() > 1e-10)
+   {
+      mfem_error("DenseMatrix::SquareRootInverse not converged");
+   }
 }
-
-
 
 void DenseMatrix::Norm2(double *v) const
 {
