@@ -365,7 +365,6 @@ void BilinearForm::Assemble (int skip_zeros)
 
    if (bbfi.Size())
    {
-
       // Which boundary attributes need to be processed?
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                  mesh->bdr_attributes.Max() : 0);
