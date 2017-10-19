@@ -515,6 +515,15 @@ double DenseMatrix::Weight() const
    return 0.0;
 }
 
+void DenseMatrix::Set(double alpha, const double *A)
+{
+   const int s = Width()*Height();
+   for (int i = 0; i < s; i++)
+   {
+      data[i] = alpha*A[i];
+   }
+}
+
 void DenseMatrix::Add(const double c, const DenseMatrix &A)
 {
    for (int j = 0; j < Width(); j++)
@@ -557,21 +566,24 @@ DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
    return *this;
 }
 
-DenseMatrix &DenseMatrix::operator+=(DenseMatrix &m)
+DenseMatrix &DenseMatrix::operator+=(const double *m)
 {
-   MFEM_ASSERT(Height() == m.Height() && Width() == m.Width(),
-               "incompatible matrix sizes.");
-
-   for (int j = 0; j < width; j++)
-      for (int i = 0; i < height; i++)
-      {
-         (*this)(i, j) += m(i, j);
-      }
-
+   const int hw = Height()*Width();
+   for (int i = 0; i < hw; i++)
+   {
+      data[i] += m[i];
+   }
    return *this;
 }
 
-DenseMatrix &DenseMatrix::operator-=(DenseMatrix &m)
+DenseMatrix &DenseMatrix::operator+=(const DenseMatrix &m)
+{
+   MFEM_ASSERT(Height() == m.Height() && Width() == m.Width(),
+               "incompatible matrix sizes.");
+   return *this += m.GetData();
+}
+
+DenseMatrix &DenseMatrix::operator-=(const DenseMatrix &m)
 {
    for (int j = 0; j < width; j++)
       for (int i = 0; i < height; i++)
@@ -2362,7 +2374,7 @@ void DenseMatrix::Transpose()
    }
 }
 
-void DenseMatrix::Transpose(DenseMatrix &A)
+void DenseMatrix::Transpose(const DenseMatrix &A)
 {
    SetSize(A.Width(),A.Height());
 

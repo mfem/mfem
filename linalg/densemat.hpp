@@ -168,6 +168,16 @@ public:
 
    double Weight() const;
 
+   /** @brief Set the matrix to alpha * A, assuming that A has the same
+       dimensions as the matrix and uses column-major layout. */
+   void Set(double alpha, const double *A);
+   /// Set the matrix to alpha * A.
+   void Set(double alpha, const DenseMatrix &A)
+   {
+      SetSize(A.Height(), A.Width());
+      Set(alpha, A.GetData());
+   }
+
    /// Adds the matrix A multiplied by the number c to the matrix
    void Add(const double c, const DenseMatrix &A);
 
@@ -180,9 +190,10 @@ public:
    /// Sets the matrix size and elements equal to those of m
    DenseMatrix &operator=(const DenseMatrix &m);
 
-   DenseMatrix &operator+=(DenseMatrix &m);
+   DenseMatrix &operator+=(const double *m);
+   DenseMatrix &operator+=(const DenseMatrix &m);
 
-   DenseMatrix &operator-=(DenseMatrix &m);
+   DenseMatrix &operator-=(const DenseMatrix &m);
 
    DenseMatrix &operator*=(double c);
 
@@ -250,7 +261,7 @@ public:
    /// (*this) = (*this)^t
    void Transpose();
    /// (*this) = A^t
-   void Transpose(DenseMatrix &A);
+   void Transpose(const DenseMatrix &A);
    /// (*this) = 1/2 ((*this) + (*this)^t)
    void Symmetrize();
 
