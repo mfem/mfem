@@ -58,7 +58,7 @@ protected:
 
    int D_height, alloc_height;
    const scalar_t *D; // Always points to external data or is empty
-   scalar_t *DaJ, *DJt, *DXt;
+   scalar_t *DaJ, *DJt, *DXt, *DYt;
 
    scalar_t sign_detJ;
 
@@ -167,11 +167,12 @@ protected:
 public:
    /// The Jacobian should use column-major storage.
    InvariantsEvaluator2D(const scalar_t *Jac = NULL)
-      : J(Jac), D_height(), alloc_height(), D(), DaJ(), DJt(), DXt(),
+      : J(Jac), D_height(), alloc_height(), D(), DaJ(), DJt(), DXt(), DYt(),
         eval_state(0) { }
 
    ~InvariantsEvaluator2D()
    {
+      delete [] DYt;
       delete [] DXt;
       delete [] DJt;
       delete [] DaJ;
@@ -186,6 +187,7 @@ public:
       eval_state &= ~(HAVE_DaJ | HAVE_DJt);
       if (alloc_height < height)
       {
+         delete [] DYt; DYt = NULL;
          delete [] DXt; DXt = NULL;
          delete [] DJt; DJt = NULL;
          delete [] DaJ; DaJ = NULL;
@@ -415,6 +417,36 @@ public:
             A[kl+ah*ij] += A_ijkl;
             A[kj+ah*il] -= A_ijkl;
             A[il+ah*kj] -= A_ijkl;
+         }
+      }
+   }
+   // Assemble the contribution from the term: T_ijkl = X_ij Y_kl + Y_ij X_kl,
+   // where X and Y are pointers to 2x2 matrices stored in column-major layout.
+   //
+   // The contribution to the matrix A is given by:
+   //    A(i+nd*j,k+nd*l) += \sum_st  w D_is T_jslt D_kt
+   // or
+   //    A(i+nd*j,k+nd*l) += \sum_st  w D_is (X_js Y_lt + Y_js X_lt) D_kt
+   // or
+   //    A(i+nd*j,k+nd*l) +=
+   //       \sum_st  w [ (D X^t)_ij (D Y^t)_kl + (D Y^t)_ij (D X^t)_kl ]
+   void Assemble_TProd(scalar_t w, const scalar_t *X, const scalar_t *Y,
+                       scalar_t *A)
+   {
+      Eval_DZt(X, &DXt);
+      Eval_DZt(Y, &DYt);
+      const int nd = D_height;
+      const int ah = 2*nd;
+
+      for (int i = 0; i < ah; i++)
+      {
+         const scalar_t axi = w*DXt[i], ayi = w*DYt[i];
+         A[i+ah*i] += 2*axi*DYt[i];
+         for (int j = 0; j < i; j++)
+         {
+            const scalar_t A_ij = axi*DYt[j] + ayi*DXt[j];
+            A[i+ah*j] += A_ij;
+            A[j+ah*i] += A_ij;
          }
       }
    }
