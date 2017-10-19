@@ -43,7 +43,7 @@
 //   ICF limited shape:
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lim -lc 0.15
 //   ICF combo shape + size (rings):
-//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 1000 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb
+//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 2 -ni 1000 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb
 //   3D pinched sphere shape (the mesh is in the mfem/data Github repository):
 //     mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -rs 0 -mid 303 -tid 1 -ni 20 -ls 2 -li 500 -fix-bnd
 
@@ -56,22 +56,28 @@ double weight_fun(const Vector &x);
 
 // Metric values are visualized by creating an L2 finite element functions and
 // computing the metric values at the nodes.
-void vis_metric(int order, TMOP_QualityMetric &qm, const TargetJacobian &tj,
+void vis_metric(int order, TMOP_QualityMetric &qm, const TargetConstructor &tc,
                 ParMesh &pmesh, char *title, int position)
 {
    L2_FECollection fec(order, pmesh.Dimension(), BasisType::GaussLobatto);
    ParFiniteElementSpace fes(&pmesh, &fec, 1);
    ParGridFunction metric(&fes);
-   InterpolateTMOP_QualityMetric(qm, tj, pmesh, metric);
-   osockstream sock(19916, "localhost");
-   sock << "solution\n";
+   InterpolateTMOP_QualityMetric(qm, tc, pmesh, metric);
+   socketstream sock;
+   if (pmesh.GetMyRank() == 0)
+   {
+      sock.open("localhost", 19916);
+      sock << "solution\n";
+   }
    pmesh.PrintAsOne(sock);
    metric.SaveAsOne(sock);
-   sock.send();
-   sock << "window_title '"<< title << "'\n"
-        << "window_geometry "
-        << position << " " << 0 << " " << 600 << " " << 600 << "\n"
-        << "keys jRmclA" << endl;
+   if (pmesh.GetMyRank() == 0)
+   {
+      sock << "window_title '"<< title << "'\n"
+           << "window_geometry "
+           << position << " " << 0 << " " << 600 << " " << 600 << "\n"
+           << "keys jRmclA" << endl;
+   }
 }
 
 class RelaxedNewtonSolver : public NewtonSolver
@@ -88,14 +94,15 @@ public:
       : NewtonSolver(_comm), ir(irule) { }
 #endif
 
-   virtual double ComputeScalingFactor(const Vector &x, const Vector &c) const;
+   virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 };
 
 double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
-                                                 const Vector &c) const
+                                                 const Vector &b) const
 {
    const ParNonlinearForm *nlf = dynamic_cast<const ParNonlinearForm *>(oper);
    MFEM_VERIFY(nlf != NULL, "invalid Operator subclass");
+   const bool have_b = (b.Size() == Height());
    ParFiniteElementSpace *pfes = nlf->ParFESpace();
 
    const int NE = pfes->GetParMesh()->GetNE(), dim = pfes->GetFE(0)->GetDim(),
@@ -109,7 +116,6 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
    bool x_out_ok = false;
    const double energy_in = nlf->GetEnergy(x);
    double scale = 1.0, energy_out;
-
    double norm0 = Norm(r);
 
    // Decreases the scaling of the update until the new mesh is valid.
@@ -151,11 +157,7 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
       }
 
       oper->Mult(x_out, r);
-      /*
-      if (have_b)
-      {
-         r -= b;
-      }*/
+      if (have_b) { r -= b; }
       double norm = Norm(r);
 
       if (norm > 1.2*norm0)
@@ -194,11 +196,11 @@ public:
       : NewtonSolver(_comm), ir(irule) { }
 #endif
 
-   virtual double ComputeScalingFactor(const Vector &x, const Vector &c) const;
+   virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 };
 
 double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
-                                                 const Vector &c) const
+                                                 const Vector &b) const
 {
    const ParNonlinearForm *nlf = dynamic_cast<const ParNonlinearForm *>(oper);
    MFEM_VERIFY(nlf != NULL, "invalid Operator subclass");
@@ -286,6 +288,7 @@ int main (int argc, char *argv[])
    int quad_type         = 1;
    int quad_order        = 8;
    int newton_iter       = 10;
+   double newton_rtol    = 1e-12;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -312,12 +315,12 @@ int main (int argc, char *argv[])
                   "9  : tau*|T-T^-t|^2                 -- 2D shape+size\n\t"
                   "22 : 0.5(|T|^2-2*tau)/(tau-tau_0)   -- 2D untangling\n\t"
                   "50 : 0.5|T^tT|^2/tau^2-1            -- 2D shape\n\t"
-                  "52 : 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
                   "55 : (tau-1)^2                      -- 2D size\n\t"
                   "56 : 0.5(sqrt(tau)-1/sqrt(tau))^2   -- 2D size\n\t"
                   "58 : |T^tT|^2/(tau^2)-2*|T|^2/tau+2 -- 2D shape\n\t"
                   "77 : 0.5(tau-1/tau)^2               -- 2D size\n\t"
                   "211: (tau-1)^2-tau+sqrt(tau^2)      -- 2D untangling\n\t"
+                  "252: 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
                   "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
                   "302: (|T|^2|T^-1|^2)/9-1          -- 3D shape\n\t"
                   "303: (|T|^2)/3*tau^(2/3)-1        -- 3D shape\n\t"
@@ -327,9 +330,9 @@ int main (int argc, char *argv[])
                   "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling");
    args.AddOption(&target_id, "-tid", "--target-id",
                   "Target (ideal element) type:\n\t"
-                  "1: IDEAL\n\t"
-                  "2: IDEAL_EQ_SIZE\n\t"
-                  "3: IDEAL_INIT_SIZE");
+                  "1: Ideal shape, unit size\n\t"
+                  "2: Ideal shape, equal size\n\t"
+                  "3: Ideal shape, initial size");
    args.AddOption(&limited, "-lim", "--limiting", "-no-lim", "--no-limiting",
                   "Enable limiting of the node movement.");
    args.AddOption(&lim_eps, "-lc", "--limit-const", "Limiting constant.");
@@ -342,8 +345,10 @@ int main (int argc, char *argv[])
                   "Order of the quadrature rule.");
    args.AddOption(&newton_iter, "-ni", "--newton-iters",
                   "Maximum number of Newton iterations.");
+   args.AddOption(&newton_rtol, "-rtol", "--newton-rel-tolerance",
+                  "Relative tolerance for the Newton solver.");
    args.AddOption(&lin_solver, "-ls", "--lin-solver",
-                  "ODE solver: 0 - l1-Jacobi, 1 - CG, 2 - MINRES.");
+                  "Linear solver: 0 - l1-Jacobi, 1 - CG, 2 - MINRES.");
    args.AddOption(&max_lin_iter, "-li", "--lin-iter",
                   "Maximum number of iterations in the linear solve.");
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
@@ -363,7 +368,7 @@ int main (int argc, char *argv[])
    if (myid == 0) { args.PrintOptions(cout); }
 
    // 3. Initialize and refine the starting mesh.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1,false);
+   Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension();
    if (myid == 0)
@@ -478,12 +483,12 @@ int main (int argc, char *argv[])
       case 9: metric = new TMOP_Metric_009; break;
       case 22: metric = new TMOP_Metric_022(tauval); break;
       case 50: metric = new TMOP_Metric_050; break;
-      case 52: metric = new TMOP_Metric_052(tauval); break;
       case 55: metric = new TMOP_Metric_055; break;
       case 56: metric = new TMOP_Metric_056; break;
       case 58: metric = new TMOP_Metric_058; break;
       case 77: metric = new TMOP_Metric_077; break;
       case 211: metric = new TMOP_Metric_211; break;
+      case 252: metric = new TMOP_Metric_252(tauval); break;
       case 301: metric = new TMOP_Metric_301; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
@@ -495,23 +500,21 @@ int main (int argc, char *argv[])
          if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
          return 3;
    }
-   TargetJacobian *tj = NULL;
+   TargetConstructor::TargetType target_t;
    switch (target_id)
    {
-      case 1: tj = new TargetJacobian(TargetJacobian::IDEAL,
-                                         MPI_COMM_WORLD); break;
-      case 2: tj = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE,
-                                         MPI_COMM_WORLD); break;
-      case 3: tj = new TargetJacobian(TargetJacobian::IDEAL_INIT_SIZE,
-                                         MPI_COMM_WORLD); break;
+      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
+      case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
+      case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
       default:
          if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
          return 3;
    }
-   tj->SetNodes(x);
-   tj->SetInitialNodes(x0);
+   TargetConstructor *target_c;
+   target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
+   target_c->SetNodes(x);
    TMOP_Integrator *he_nlf_integ;
-   he_nlf_integ = new TMOP_Integrator(metric, tj);
+   he_nlf_integ = new TMOP_Integrator(metric, target_c);
 
    // 13. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -526,7 +529,7 @@ int main (int argc, char *argv[])
          return 3;
    }
    if (myid == 0)
-   { cout << "Quadrature point per cell: " << ir->GetNPoints() << endl; }
+   { cout << "Quadrature points per cell: " << ir->GetNPoints() << endl; }
    he_nlf_integ->SetIntegrationRule(*ir);
 
    // 14. Limit the node movement.
@@ -541,7 +544,7 @@ int main (int argc, char *argv[])
    ParNonlinearForm a(pfespace);
    Coefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
-   TargetJacobian *tj2 = NULL;
+   TargetConstructor *target_c2 = NULL;
    FunctionCoefficient coeff2(weight_fun);
 
    if (combomet)
@@ -552,13 +555,11 @@ int main (int argc, char *argv[])
       a.AddDomainIntegrator(he_nlf_integ);
 
       metric2 = new TMOP_Metric_077;
-      tj2     = new TargetJacobian(TargetJacobian::IDEAL_EQ_SIZE,
-                                   MPI_COMM_WORLD);
-      tj2->size_scale = 0.01;
-      tj2->SetNodes(x);
-      tj2->SetInitialNodes(x0);
+      target_c2 = new TargetConstructor(target_t, MPI_COMM_WORLD);
+      target_c2->SetVolumeScale(0.01);
+      target_c2->SetNodes(x);
       TMOP_Integrator *he_nlf_integ2;
-      he_nlf_integ2 = new TMOP_Integrator(metric2, tj2);
+      he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
       he_nlf_integ2->SetIntegrationRule(*ir);
 
       // Weight of metric2.
@@ -573,7 +574,7 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char title[] = "Initial metric values";
-      vis_metric(mesh_poly_deg, *metric, *tj, *pmesh, title, 0);
+      vis_metric(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
    }
 
    // 17. Fix all boundary nodes, or fix only a given component depending on the
@@ -630,7 +631,7 @@ int main (int argc, char *argv[])
    // 18. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL;
-   const double rtol  = 1e-12;
+   const double linsol_rtol = 1e-12;
    if (lin_solver == 0)
    {
       S = new DSmoother(1, 1.0, max_lin_iter);
@@ -639,7 +640,7 @@ int main (int argc, char *argv[])
    {
       CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
       cg->SetMaxIter(max_lin_iter);
-      cg->SetRelTol(rtol);
+      cg->SetRelTol(linsol_rtol);
       cg->SetAbsTol(0.0);
       cg->SetPrintLevel(3);
       S = cg;
@@ -648,7 +649,7 @@ int main (int argc, char *argv[])
    {
       MINRESSolver *minres = new MINRESSolver(MPI_COMM_WORLD);
       minres->SetMaxIter(max_lin_iter);
-      minres->SetRelTol(rtol);
+      minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
       minres->SetPrintLevel(3);
       S = minres;
@@ -683,7 +684,7 @@ int main (int argc, char *argv[])
    }
    else
    {
-      if ( (dim == 2 && metric_id != 22 && metric_id != 52) ||
+      if ( (dim == 2 && metric_id != 22 && metric_id != 252) ||
            (dim == 3 && metric_id != 352) )
       {
          if (myid == 0)
@@ -699,7 +700,7 @@ int main (int argc, char *argv[])
    }
    newton->SetPreconditioner(*S);
    newton->SetMaxIter(newton_iter);
-   newton->SetRelTol(rtol);
+   newton->SetRelTol(newton_rtol);
    newton->SetAbsTol(0.0);
    newton->SetPrintLevel(1);
    newton->SetOperator(a);
@@ -707,7 +708,10 @@ int main (int argc, char *argv[])
    pfespace->GetRestrictionMatrix()->Mult(x, X);
    newton->Mult(b, X);
    if (myid == 0 && newton->GetConverged() == false)
-   { cout << "NewtonIteration: rtol = " << rtol << " not achieved." << endl; }
+   {
+      cout << "NewtonIteration: rtol = " << newton_rtol << " not achieved."
+           << endl;
+   }
    pfespace->Dof_TrueDof_Matrix()->Mult(X, x);
    delete newton;
 
@@ -734,28 +738,36 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char title[] = "Final metric values";
-      vis_metric(mesh_poly_deg, *metric, *tj, *pmesh, title, 600);
+      vis_metric(mesh_poly_deg, *metric, *target_c, *pmesh, title, 600);
    }
 
    // 23. Visualize the mesh displacement.
    if (visualization)
    {
       x0 -= x;
-      osockstream sock(19916, "localhost");
-      sock << "solution\n";
+      socketstream sock;
+      if (myid == 0)
+      {
+         sock.open("localhost", 19916);
+         sock << "solution\n";
+      }
       pmesh->PrintAsOne(sock);
       x0.SaveAsOne(sock);
-      sock.send();
-      sock << "window_title 'Displacements'\n"
-           << "window_geometry "
-           << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
-           << "keys jRmclA" << endl;
+      if (myid == 0)
+      {
+         sock << "window_title 'Displacements'\n"
+              << "window_geometry "
+              << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
+              << "keys jRmclA" << endl;
+      }
    }
 
    // 24. Free the used memory.
    delete S;
+   delete target_c2;
    delete metric2;
    delete coeff1;
+   delete target_c;
    delete metric;
    delete pfespace;
    delete fec;
