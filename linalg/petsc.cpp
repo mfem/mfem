@@ -403,6 +403,26 @@ PetscParMatrix::PetscParMatrix()
    Init();
 }
 
+PetscParMatrix::PetscParMatrix(const PetscParMatrix& pB,
+                               const mfem::Array<PetscInt>& rows, const mfem::Array<PetscInt>& cols)
+{
+   Init();
+
+   Mat B = const_cast<PetscParMatrix&>(pB);
+
+   IS isr,isc;
+   ierr = ISCreateGeneral(PetscObjectComm((PetscObject)B),rows.Size(),
+                          rows.GetData(),PETSC_USE_POINTER,&isr); PCHKERRQ(B,ierr);
+   ierr = ISCreateGeneral(PetscObjectComm((PetscObject)B),cols.Size(),
+                          cols.GetData(),PETSC_USE_POINTER,&isc); PCHKERRQ(B,ierr);
+   ierr = MatCreateSubMatrix(B,isr,isc,MAT_INITIAL_MATRIX,&A); PCHKERRQ(B,ierr);
+   ierr = ISDestroy(&isr); PCHKERRQ(B,ierr);
+   ierr = ISDestroy(&isc); PCHKERRQ(B,ierr);
+
+   height = GetNumRows();
+   width  = GetNumCols();
+}
+
 PetscParMatrix::PetscParMatrix(const HypreParMatrix *ha, Operator::Type tid)
 {
    Init();
