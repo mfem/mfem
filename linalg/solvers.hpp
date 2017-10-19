@@ -280,7 +280,7 @@ public:
        search algorithms. */
    /** The base class implementation (NewtonSolver) simply returns 1. A return
        value of 0 indicates a failure, interrupting the Newton iteration. */
-   virtual double ComputeScalingFactor(const Vector &x, const Vector &c) const
+   virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const
    { return 1.0; }
 };
 

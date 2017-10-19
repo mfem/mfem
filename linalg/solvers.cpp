@@ -1243,8 +1243,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
 
    int it;
-   double norm, norm_goal;
-   bool have_b = (b.Size() == Height());
+   double norm0, norm, norm_goal;
+   const bool have_b = (b.Size() == Height());
 
    if (!iterative_mode)
    {
@@ -1257,7 +1257,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       r -= b;
    }
 
-   norm = Norm(r);
+   norm0 = norm = Norm(r);
    norm_goal = std::max(rel_tol*norm, abs_tol);
 
    prec->iterative_mode = false;
@@ -1267,8 +1267,15 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    {
       MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
       if (print_level >= 0)
+      {
          cout << "Newton iteration " << setw(2) << it
-              << " : ||r|| = " << norm << '\n';
+              << " : ||r|| = " << norm;
+         if (it > 0)
+         {
+            cout << ", ||r||/||r_0|| = " << norm/norm0;
+         }
+         cout << '\n';
+      }
 
       if (norm <= norm_goal)
       {
@@ -1286,7 +1293,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
 
-      const double c_scale = ComputeScalingFactor(x, c);
+      const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {
          converged = 0;
