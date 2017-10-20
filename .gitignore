@@ -65,6 +65,8 @@ examples/ex16.mesh
 examples/ex16-mesh.*
 examples/ex16-init.*
 examples/ex16-final.*
+examples/deformation.*
+examples/pressure.*
 
 examples/sundials/ex9
 examples/sundials/ex1[06]
