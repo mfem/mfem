@@ -57,7 +57,7 @@ public:
    /// Set the operator type id for the parallel gradient matrix/operator.
    void SetGradientType(Operator::Type tid) { pGrad.SetType(tid); }
 
-   virtual ~ParNonlinearForm() { };
+   virtual ~ParNonlinearForm() { }
 };
 
 /// Parallel non-linear operator on the true dofs
