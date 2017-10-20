@@ -727,7 +727,7 @@ void DenseMatrix::SquareRootInverse()
 #ifdef MFEM_DEBUG
    if (Height() <= 0 || Height() != Width())
    {
-      mfem_error("DenseMatrix::Invert()");
+      mfem_error("DenseMatrix::SquareRootInverse() matrix not square.");
    }
 #endif
 
