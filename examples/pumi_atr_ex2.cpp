@@ -81,6 +81,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool visualization = 1;
    int geom_order = 1;
+   int order = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
