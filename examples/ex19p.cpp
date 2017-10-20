@@ -337,7 +337,7 @@ Operator &RubberOperator::GetGradientSolver(const Vector &xp) const
    J_prec = NULL;
 
    J_solver->SetOperator(*Jacobian);
-   
+
    return *J_solver;
 }
 

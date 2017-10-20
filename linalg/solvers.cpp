@@ -1240,7 +1240,8 @@ void NewtonSolver::SetOperator(const Operator &op)
 void NewtonSolver::Mult(const Vector &b, Vector &x) const
 {
    MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
-   if (!updateSolver) {
+   if (!updateSolver)
+   {
       MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
       prec->iterative_mode = false;
    }
@@ -1283,11 +1284,13 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          break;
       }
 
-      if (!updateSolver) {
+      if (!updateSolver)
+      {
          prec->SetOperator(oper->GetGradient(x));
          prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
       }
-      else {
+      else
+      {
          Operator *solv = &oper->GetGradientSolver(x);
          solv->Mult(r,c);
       }

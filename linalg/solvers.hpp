@@ -260,7 +260,7 @@ class NewtonSolver : public IterativeSolver
 protected:
    bool updateSolver;
    mutable Vector r, c;
-   
+
 public:
    NewtonSolver(bool us = false) { updateSolver = us; }
 
