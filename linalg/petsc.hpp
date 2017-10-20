@@ -251,6 +251,12 @@ public:
    /// Typecasting to PETSc's Mat type
    operator Mat() const { return A; }
 
+   /// Returns the global index of the first local row
+   PetscInt GetRowStart() const;
+
+   /// Returns the global index of the first local column
+   PetscInt GetColStart() const;
+
    /// Returns the local number of rows
    PetscInt GetNumRows() const;
 

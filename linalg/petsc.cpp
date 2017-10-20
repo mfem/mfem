@@ -356,6 +356,20 @@ void PetscParVector::Print(const char *fname, bool binary) const
 
 // PetscParMatrix methods
 
+PetscInt PetscParMatrix::GetRowStart() const
+{
+   PetscInt N;
+   ierr = MatGetOwnershipRange(A,&N,NULL); PCHKERRQ(A,ierr);
+   return N;
+}
+
+PetscInt PetscParMatrix::GetColStart() const
+{
+   PetscInt N;
+   ierr = MatGetOwnershipRangeColumn(A,&N,NULL); PCHKERRQ(A,ierr);
+   return N;
+}
+
 PetscInt PetscParMatrix::GetNumRows() const
 {
    PetscInt N;
