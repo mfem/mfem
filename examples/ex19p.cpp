@@ -305,6 +305,10 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    newton_solver.SetRelTol(rel_tol);
    newton_solver.SetAbsTol(abs_tol);
    newton_solver.SetMaxIter(iter);
+
+   J_solver = NULL;
+   J_prec = NULL;
+
 }
 
 // Solve the Newton system
@@ -326,6 +330,10 @@ void RubberOperator::Mult(const Vector &k, Vector &y) const
 Operator &RubberOperator::GetGradientSolver(const Vector &xp) const
 {
    Jacobian = &Hform->GetGradient(xp);
+
+   if (J_solver != NULL) {
+      delete J_solver;
+   }
 
    SuperLUSolver *superlu = NULL;
    superlu = new SuperLUSolver(MPI_COMM_WORLD);
