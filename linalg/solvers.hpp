@@ -258,13 +258,14 @@ void MINRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
 class NewtonSolver : public IterativeSolver
 {
 protected:
+   bool updateSolver;
    mutable Vector r, c;
-
+   
 public:
-   NewtonSolver() { }
+   NewtonSolver(bool us = false) { updateSolver = us; }
 
 #ifdef MFEM_USE_MPI
-   NewtonSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   NewtonSolver(MPI_Comm _comm, bool us = false) : IterativeSolver(_comm) { updateSolver = us; }
 #endif
    virtual void SetOperator(const Operator &op);
 

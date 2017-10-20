@@ -6,10 +6,10 @@
 using namespace std;
 using namespace mfem;
 
-/** After spatial discretization, the cardiac model can be written as:
+/** After spatial discretization, the rubber model can be written as:
  *     0=H(x)
  *  where x is the block vector representing the deformation and pressure
- *  and H(x) is the nonlinear cardiac operator. */
+ *  and H(x) is the nonlinear incompressible neo-Hookean operator. */
 class RubberOperator : public Operator
 {
 protected:
@@ -22,9 +22,9 @@ protected:
    /// Newton solver for the hyperelastic operator
    NewtonSolver newton_solver;
    /// Solver for the Jacobian solve in the Newton method
-   Solver *J_solver;
+   mutable Solver *J_solver;
    /// Preconditioner for the Jacobian
-   Solver *J_prec;
+   mutable Solver *J_prec;
 
    Coefficient &mu;
 
@@ -34,7 +34,7 @@ public:
                   Coefficient &mu);
 
    /// Required to use the native newton solver
-   virtual Operator &GetGradient(const Vector &xp) const;
+   virtual Operator &GetGradientSolver(const Vector &xp) const;
    virtual void Mult(const Vector &k, Vector &y) const;
 
    /// Driver for the newton solver
@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
    x_gf.GetTrueDofs(xp.GetBlock(0));
    p_gf.GetTrueDofs(xp.GetBlock(1));
 
-   // Initialize the cardiac mechanics operator
+   // Initialize the incompressible neo-Hookean operator
    RubberOperator oper(spaces, ess_bdr, block_trueOffsets,
                        newton_rel_tol, newton_abs_tol, newton_iter, c_mu);
 
@@ -280,7 +280,7 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
                                int iter,
                                Coefficient &c_mu)
    : Operator(fes[0]->TrueVSize() + fes[1]->TrueVSize()),
-     newton_solver(fes[0]->GetComm()), mu(c_mu)
+     newton_solver(fes[0]->GetComm(), true), mu(c_mu)
 {
    Array<Vector *> rhs(2);
 
@@ -297,19 +297,9 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
 
    // Set the essential boundary conditions
    Hform->SetEssentialBC(ess_bdr, rhs);
-
-   SuperLUSolver *superlu = NULL;
-   superlu = new SuperLUSolver(MPI_COMM_WORLD);
-   superlu->SetPrintStatistics(false);
-   superlu->SetSymmetricPattern(false);
-   superlu->SetColumnPermutation(superlu::PARMETIS);
-
-   J_solver = superlu;
-   J_prec = NULL;
-
    // Set the newton solve parameters
    newton_solver.iterative_mode = true;
-   newton_solver.SetSolver(*J_solver);
+
    newton_solver.SetOperator(*this);
    newton_solver.SetPrintLevel(1);
    newton_solver.SetRelTol(rel_tol);
@@ -333,11 +323,22 @@ void RubberOperator::Mult(const Vector &k, Vector &y) const
 }
 
 // Compute the Jacobian from the nonlinear form
-Operator &RubberOperator::GetGradient(const Vector &xp) const
+Operator &RubberOperator::GetGradientSolver(const Vector &xp) const
 {
    Jacobian = &Hform->GetGradient(xp);
 
-   return *Jacobian;
+   SuperLUSolver *superlu = NULL;
+   superlu = new SuperLUSolver(MPI_COMM_WORLD);
+   superlu->SetPrintStatistics(false);
+   superlu->SetSymmetricPattern(false);
+   superlu->SetColumnPermutation(superlu::PARMETIS);
+
+   J_solver = superlu;
+   J_prec = NULL;
+
+   J_solver->SetOperator(*Jacobian);
+   
+   return *J_solver;
 }
 
 RubberOperator::~RubberOperator()

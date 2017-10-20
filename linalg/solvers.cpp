@@ -1240,7 +1240,10 @@ void NewtonSolver::SetOperator(const Operator &op)
 void NewtonSolver::Mult(const Vector &b, Vector &x) const
 {
    MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
-   MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
+   if (!updateSolver) {
+      MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
+      prec->iterative_mode = false;
+   }
 
    int it;
    double norm, norm_goal;
@@ -1259,8 +1262,6 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 
    norm = Norm(r);
    norm_goal = std::max(rel_tol*norm, abs_tol);
-
-   prec->iterative_mode = false;
 
    // x_{i+1} = x_i - [DF(x_i)]^{-1} [F(x_i)-b]
    for (it = 0; true; it++)
@@ -1282,9 +1283,14 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          break;
       }
 
-      prec->SetOperator(oper->GetGradient(x));
-
-      prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
+      if (!updateSolver) {
+         prec->SetOperator(oper->GetGradient(x));
+         prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
+      }
+      else {
+         Operator *solv = &oper->GetGradientSolver(x);
+         solv->Mult(r,c);
+      }
 
       x -= c;
 
