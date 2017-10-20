@@ -397,6 +397,7 @@ double TMOP_Metric_007::EvalW(const DenseMatrix &Jpt) const
    return Dim2Invariant1(Jpt) * (I2 + 1.0 / I2) - 4.0;
 #else
    // mu_7 = |J-J^{-t}|^2 = |J|^2 + |J^{-1}|^2 - 4
+   ie.SetJacobian(Jpt.GetData());
    return ie.Get_I1()*(1. + 1./ie.Get_I2()) - 4.0;
 #endif
 }
@@ -415,6 +416,7 @@ void TMOP_Metric_007::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    P += PP;
 #else
    // P = d(I1*(1 + 1/I2)) = (1 + 1/I2) dI1 - I1/I2^2 dI2
+   ie.SetJacobian(Jpt.GetData());
    const double I2 = ie.Get_I2();
    Add(1. + 1./I2, ie.Get_dI1(), -ie.Get_I1()/(I2*I2), ie.Get_dI2(), P);
 #endif
@@ -1466,8 +1468,7 @@ void TMOP_Metric_303::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    P *= 1.0 / 3.0;
 #else
    ie.SetJacobian(Jpt.GetData());
-   P = ie.Get_dI1b();
-   P *= 1./3.;
+   P.Set(1./3., ie.Get_dI1b());
 #endif
 }
 
@@ -2021,7 +2022,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    // Limited case.
    Vector shape, p, p0;
    DenseMatrix pos0;
-   if (limited)
+   if (coeff0)
    {
       shape.SetSize(dof);
       p.SetSize(dim);
@@ -2033,9 +2034,9 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       nodes0->GetSubVector(pos_dofs, pos0V);
    }
 
-   // Define ref->physical transformation, for the case when coeff is used.
+   // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (coeff)
+   if (coeff1 || coeff0)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
@@ -2057,15 +2058,14 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       Mult(Jpr, Jrt, Jpt);
 
       double val = metric->EvalW(Jpt);
-      if (coeff) { val *= coeff->Eval(*Tpr, ip); }
+      if (coeff1) { val *= coeff1->Eval(*Tpr, ip); }
 
-      if (limited)
+      if (coeff0)
       {
-         val *= lim_eps;
          el.CalcShape(ip, shape);
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
-         val += 0.5*p.DistanceSquaredTo(p0);
+         val += 0.5*p.DistanceSquaredTo(p0)*coeff0->Eval(*Tpr, ip);
       }
       energy += weight * val;
    }
@@ -2101,7 +2101,7 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
    // Limited case.
    DenseMatrix pos0;
    Vector shape, p, p0;
-   if (limited)
+   if (coeff0)
    {
       shape.SetSize(dof);
       p.SetSize(dim);
@@ -2113,9 +2113,9 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
       nodes0->GetSubVector(pos_dofs, pos0V);
    }
 
-   // Define ref->physical transformation, for the case when coeff is used.
+   // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (coeff)
+   if (coeff1 || coeff0)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
@@ -2139,18 +2139,18 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
 
       metric->EvalP(Jpt, P);
 
-      if (coeff) { weight_m *= coeff->Eval(*Tpr, ip); }
-      if (limited) { weight_m *= lim_eps; }
+      if (coeff1) { weight_m *= coeff1->Eval(*Tpr, ip); }
 
       P *= weight_m;
       AddMultABt(DS, P, PMatO);
 
-      if (limited)
+      if (coeff0)
       {
          el.CalcShape(ip, shape);
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
-         subtract(weight, p, p0, p); // p = weight * (p - p0)
+         weight_m = weight * coeff0->Eval(*Tpr, ip);
+         subtract(weight_m, p, p0, p); // p = weight_m * (p - p0)
          AddMultVWt(shape, p, PMatO);
       }
    }
@@ -2182,9 +2182,9 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
    DenseTensor Jtr(dim, dim, ir->GetNPoints());
    targetC->ComputeElementTargets(T.ElementNo, el, *ir, Jtr);
 
-   // Define ref->physical transformation, for the case when coeff is used.
+   // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (coeff)
+   if (coeff1 || coeff0)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
@@ -2193,7 +2193,7 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
       Tpr->GetPointMat().Transpose(PMatI);
    }
 
-   Vector shape(limited ? dof : 0);
+   Vector shape(coeff0 ? dof : 0);
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -2208,17 +2208,17 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
 
-      if (coeff) { weight_m *= coeff->Eval(*Tpr, ip); }
-      if (limited) { weight_m *= lim_eps; }
+      if (coeff1) { weight_m *= coeff1->Eval(*Tpr, ip); }
 
       metric->AssembleH(Jpt, DS, weight_m, elmat);
 
-      if (limited)
+      if (coeff0)
       {
          el.CalcShape(ip, shape);
+         weight_m = weight * coeff0->Eval(*Tpr, ip);
          for (int i = 0; i < dof; i++)
          {
-            const double w_shape_i = weight * shape(i);
+            const double w_shape_i = weight_m * shape(i);
             for (int j = 0; j <= i; j++)
             {
                const double a = w_shape_i * shape(j);

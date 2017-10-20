@@ -534,13 +534,12 @@ protected:
    TMOP_QualityMetric *metric;        // not owned
    const TargetConstructor *targetC;  // not owned
 
-   // Data used for "limiting" the HyperelasticNLFIntegrator.
-   bool limited;
-   double lim_eps;
-   const GridFunction *nodes0; // not owned
+   // Weight Coefficient multiplying the quality metric term.
+   Coefficient *coeff1; // not owned, if NULL -> coeff1 is 1.
 
-   // Can be used to create "composite" integrators for the TMOP purposes.
-   Coefficient *coeff; // not owned
+   // Nodes and weight Coefficient used for "limiting" the TMOP_Integrator.
+   const GridFunction *nodes0; // not owned
+   Coefficient *coeff0; // not owned, if NULL -> coeff0 is 0, i.e. no limiting
 
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
    //   Jpr: the ref->physical transformation Jacobian, Jpr = PMatI^t DS.
@@ -559,30 +558,31 @@ public:
        @param[in] tc Target-matrix construction algorithm to use (not owned). */
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
       : metric(m), targetC(tc),
-        limited(false), lim_eps(0.0), nodes0(NULL), coeff(NULL) { }
+        coeff1(NULL), nodes0(NULL), coeff0(NULL) { }
 
-   /** @brief Adds a limiting term to the integrator, rescaling the quality
-       metric term. */
+   /// Sets a scaling Coefficient for the quality metric term of the integrator.
    /** With this addition, the integrator becomes
-          @f$ \int \epsilon W(Jpt) + 0.5 (x - x_0)^2 dx @f$,
+          @f$ \int w1 W(Jpt) dx @f$.
+
+       Note that the Coefficient is evaluated in the physical configuration and
+       not in the target configuration which may be undefined. */
+   void SetCoefficient(Coefficient &w1) { coeff1 = &w1; }
+
+   /// Adds a limiting term to the integrator.
+   /** With this addition, the integrator becomes
+          @f$ \int w1 W(Jpt) + w0/2 (x - x_0)^2 dx @f$,
        where the second term measures the change with respect to the original
        physical positions, @a n0.
-       @param[in] eps  Scaling of the metric's contribution.
-       @param[in] n0   Original mesh node coordinates. */
-   void SetLimited(double eps, const GridFunction &n0)
+       @param[in] n0  Original mesh node coordinates.
+       @param[in] w0  Coefficient scaling the limiting term. */
+   void EnableLimiting(const GridFunction &n0, Coefficient &w0)
    {
-      limited = true;
-      lim_eps = eps;
       nodes0 = &n0;
+      coeff0 =&w0;
    }
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { nodes0 = &n0; }
-
-   /// Sets a scaling Coefficient for the quality metric term of the integrator.
-   /** Note that the Coefficient is evaluated in the physical configuration and
-       not in the target configuration which may be undefined. */
-   void SetCoefficient(Coefficient &c) { coeff = &c; }
 
    /** @brief Computes the integral of W(Jacobian(Trt)) over a target zone.
        @param[in] el     Type of FiniteElement.
