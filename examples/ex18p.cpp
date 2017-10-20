@@ -28,9 +28,12 @@
 //               (or -c shorter) flag.
 //
 //               The example demonstrates user-defined bilinear and nonlinear
-//               form integrators, simple Riemann solver (Rusanov flux) for DG,
-//               as well as the use of block vectors and explicit time
-//               integrators.
+//               form integrators for systems of equations that are defined with
+//               block vectors, and how these are used with an operator for
+//               explicit time integrators. In this case the system also
+//               involves an external approximate Riemann solver for the DG
+//               interface flux. It also demonstrates how to use GLVis for
+//               in-situ visualization of vector grid functions.
 //
 //               We recommend viewing examples 9, 14 and 17 before viewing this
 //               example.
@@ -44,7 +47,7 @@
 // shared between the serial and parallel version of the example.
 #include "ex18.hpp"
 
-// Choice for the problem setup. See the u0_function for details.
+// Choice for the problem setup. See InitialCondition in ex18.hpp.
 int problem;
 
 // Equation constant parameters.
@@ -52,7 +55,7 @@ const int num_equation = 4;
 const double specific_heat_ratio = 1.4;
 const double gas_constant = 1.0;
 
-// Maximum char speed (updated by integrators)
+// Maximum characteristic speed (updated by integrators)
 double max_char_speed;
 
 int main(int argc, char *argv[])
@@ -172,16 +175,18 @@ int main(int argc, char *argv[])
 
    // 8. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
+
+   // The solution u has components {density, x-momentum, y-momentum, energy}.
+   // These are stored contiguously in the BlockVector u_block.
    Array<int> offsets(num_equation + 1);
    for (int k = 0; k <= num_equation; k++) { offsets[k] = k * vfes.GetNDofs(); }
    BlockVector u_block(offsets);
 
-   // Density grid function for visualization.
+   // Momentum grid function on dfes for visualization.
    ParGridFunction mom(&dfes, u_block.GetData() + offsets[1]);
 
-   // Initialize the block vector state: define a vector finite element space
-   // for all equations and initialize together.
-   VectorFunctionCoefficient u0(num_equation, u0_function);
+   // Initialize the state.
+   VectorFunctionCoefficient u0(num_equation, InitialCondition);
    ParGridFunction sol(&vfes, u_block.GetData());
    sol.ProjectCoefficient(u0);
 

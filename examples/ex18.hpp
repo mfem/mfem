@@ -505,7 +505,7 @@ bool StateIsPhysical(const Vector &state, const int dim)
 }
 
 // Initial condition
-void u0_function(const Vector &x, Vector &y)
+void InitialCondition(const Vector &x, Vector &y)
 {
    const int dim = x.Size();
    MFEM_ASSERT(dim == 2, "");
