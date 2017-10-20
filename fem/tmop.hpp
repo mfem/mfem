@@ -576,6 +576,9 @@ public:
       nodes0 = &n0;
    }
 
+   /// Update the original/reference nodes used for limiting.
+   void SetLimitingNodes(const GridFunction &n0) { nodes0 = &n0; }
+
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
    /** Note that the Coefficient is evaluated in the physical configuration and
        not in the target configuration which may be undefined. */
