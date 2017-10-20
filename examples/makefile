@@ -38,7 +38,10 @@ endif
 %: %.cpp
 
 # Additional dependencies
-ex18 ex18p: ex18.hpp
+ex18: ex18.hpp
+ifeq ($(MFEM_USE_MPI),YES)
+ex18p: ex18.hpp
+endif
 
 # Replace the default implicit rule for *.cpp files
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
