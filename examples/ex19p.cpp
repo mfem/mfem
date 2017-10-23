@@ -16,7 +16,7 @@ protected:
    Array<ParFiniteElementSpace *> spaces;
 
    ParBlockNonlinearForm *Hform;
-   mutable Operator *Jacobian;
+   mutable BlockOperator *Jacobian;
    const BlockVector *x;
 
    /// Newton solver for the hyperelastic operator
@@ -25,8 +25,13 @@ protected:
    mutable Solver *J_solver;
    /// Preconditioner for the Jacobian
    mutable Solver *J_prec;
+   mutable HypreBoomerAMG *invK, *invS;
+   mutable HypreParMatrix *K, *B, *KinvBt, *S;
+   mutable HypreParVector *Kd;
 
    Coefficient &mu;
+
+   Array<int> &block_trueOffsets;
 
 public:
    RubberOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
@@ -274,13 +279,13 @@ int main(int argc, char *argv[])
 
 RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
                                Array<Array<int> *> &ess_bdr,
-                               Array<int> &block_trueOffsets,
+                               Array<int> &trueOffsets,
                                double rel_tol,
                                double abs_tol,
                                int iter,
                                Coefficient &c_mu)
    : Operator(fes[0]->TrueVSize() + fes[1]->TrueVSize()),
-     newton_solver(fes[0]->GetComm(), true), mu(c_mu)
+     newton_solver(fes[0]->GetComm(), true), mu(c_mu), block_trueOffsets(trueOffsets)
 {
    Array<Vector *> rhs(2);
 
@@ -308,6 +313,8 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
 
    J_solver = NULL;
    J_prec = NULL;
+   invK = NULL;
+   invS = NULL;
 
 }
 
@@ -329,22 +336,49 @@ void RubberOperator::Mult(const Vector &k, Vector &y) const
 // Compute the Jacobian from the nonlinear form
 Operator &RubberOperator::GetGradientSolver(const Vector &xp) const
 {
+
    Jacobian = &Hform->GetGradient(xp);
 
    if (J_solver != NULL) {
       delete J_solver;
+      delete invK;
+      delete invS;
+      delete KinvBt, Kd, S;
    }
 
-   SuperLUSolver *superlu = NULL;
-   superlu = new SuperLUSolver(MPI_COMM_WORLD);
-   superlu->SetPrintStatistics(false);
-   superlu->SetSymmetricPattern(false);
-   superlu->SetColumnPermutation(superlu::PARMETIS);
 
-   J_solver = superlu;
-   J_prec = NULL;
+   K = (HypreParMatrix*) &Jacobian->GetBlock(0,0);
+   B = (HypreParMatrix*) &Jacobian->GetBlock(1,0);
 
-   J_solver->SetOperator(*Jacobian);
+   *B *= -1.0; 
+
+   KinvBt = B->Transpose();
+   Kd = new HypreParVector(MPI_COMM_WORLD, K->GetGlobalNumRows(),
+                           K->GetRowStarts());
+   K->GetDiag(*Kd);
+
+   KinvBt->InvScaleRows(*Kd);
+   S = ParMult(B, KinvBt);
+
+   invK = new HypreBoomerAMG(*K);
+   invS = new HypreBoomerAMG(*S);
+
+   invK->SetPrintLevel(0);
+   invS->SetPrintLevel(0);
+
+   BlockDiagonalPreconditioner *blockPr = new BlockDiagonalPreconditioner(block_trueOffsets);
+   blockPr->SetDiagonalBlock(0, invK);
+   blockPr->SetDiagonalBlock(1, invS);
+
+   MINRESSolver *solver = new MINRESSolver(MPI_COMM_WORLD);
+   solver->SetAbsTol(1.0e-4);
+   solver->SetRelTol(1.0e-4);
+   solver->SetMaxIter(100000);
+   solver->SetOperator(*Jacobian);
+   solver->SetPreconditioner(*blockPr);
+   solver->SetPrintLevel(0);
+
+   J_solver = solver;
 
    return *J_solver;
 }
