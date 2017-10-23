@@ -1917,6 +1917,10 @@ void NCMesh::BuildEdgeList()
    Array<char> processed_edges(nodes.NumIds());
    processed_edges = 0;
 
+   Array<int> edge_element(nodes.NumIds());
+   Array<char> edge_local(nodes.NumIds());
+   edge_local = -1;
+
    // visit edges of leaf elements
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
@@ -1947,6 +1951,10 @@ void NCMesh::BuildEdgeList()
             MFEM_ASSERT(face >= 0, "face not found!");
             if (faces[face].Boundary()) { boundary_faces.Append(face); }
          }
+
+         // store element/local for later
+         edge_element[nd.edge_index] = elem;
+         edge_local[nd.edge_index] = j;
 
          // skip slave edges here, they will be reached from their masters
          if (GetEdgeMaster(enode) >= 0) { continue; }
@@ -1983,6 +1991,15 @@ void NCMesh::BuildEdgeList()
             edge_list.conforming.push_back(MeshId(nd.edge_index, elem, j));
          }
       }
+   }
+
+   // fix up slave edge element/local
+   for (unsigned i = 0; i < edge_list.slaves.size(); i++)
+   {
+      Slave &sl = edge_list.slaves[i];
+      sl.element = edge_element[sl.index];
+      sl.local = edge_local[sl.index];
+      MFEM_ASSERT(sl.local >= 0, "");
    }
 }
 

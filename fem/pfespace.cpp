@@ -1502,8 +1502,6 @@ void ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
    int ent, idx, edof;
    UnpackDof(dof, ent, idx, edof);
 
-   MFEM_ASSERT(pncmesh->GetNCList(ent).LookUp(idx).element >= 0, "");
-
    const ParNCMesh::CommGroup &group = pncmesh->GetGroup(group_id);
    for (unsigned i = 0; i < group.size(); i++)
    {
@@ -1556,10 +1554,7 @@ void ParFiniteElementSpace
          UnpackDof(i, ent, idx, edof);
 
          os << edof << " @ ";
-         if (i > ndofs)
-         {
-            os << "ghost ";
-         }
+         if (i > ndofs) { os << "ghost "; }
          switch (ent)
          {
             case 0: os << "vertex "; break;
@@ -1584,8 +1579,7 @@ void ParFiniteElementSpace
             os << "no deps; ";
          }
 
-         os << "group " << dof_group[i];
-         os << ", owner " << dof_owner[i];
+         os << "group " << dof_group[i] << ", owner " << dof_owner[i];
          os << "; " << (finalized[i] ? "finalized" : "NOT finalized");
       }
       else
@@ -1807,8 +1801,13 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
          done = true;
          for (int dof = 0; dof < num_dofs; dof++)
          {
-            if (!finalized[dof] && (dof_owner[dof] == 0) &&
-                DofFinalizable(dof, finalized, deps))
+            if (finalized[dof]) { continue; }
+
+            bool owned = (dof_owner[dof] == 0);
+            bool slave = (deps.RowSize(dof) != 0);
+            bool shared = (dof_group[dof] != 0);
+
+            if ((owned || slave) && DofFinalizable(dof, finalized, deps))
             {
                const int* dep_col = deps.GetRowColumns(dof);
                const double* dep_coef = deps.GetRowEntries(dof);
@@ -1828,7 +1827,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
                done = false;
 
                // send row to neighbors who need it
-               if (dof_group[dof] != 0)
+               if (shared && owned)
                {
                   ScheduleSendRow(pmatrix[dof], dof, dof_group[dof],
                                   send_msg.back());
