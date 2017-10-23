@@ -20,9 +20,10 @@ using namespace std;
 
 namespace mfem
 {
-void HDGDomainIntegratorAdvection::AssembleElementMatrix(const FiniteElement &fe_u,
-        ElementTransformation &Trans,
-        DenseMatrix &elmat)
+void HDGDomainIntegratorAdvection::AssembleElementMatrix(
+   const FiniteElement &fe_u,
+   ElementTransformation &Trans,
+   DenseMatrix &elmat)
 {
    int ndof_u = fe_u.GetDof();
    int dim  = fe_u.GetDim();
@@ -94,16 +95,17 @@ void HDGDomainIntegratorAdvection::AssembleElementMatrix(const FiniteElement &fe
    }
 }
 //---------------------------------------------------------------------
-void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(const FiniteElement &fe_uL,
-         const FiniteElement &fe_uR,
-         const FiniteElement &face_fe,
-         FaceElementTransformations &Trans,
-         const int elem1or2,
-         const bool onlyB,
-         DenseMatrix &elmat1,
-         DenseMatrix &elmat2,
-         DenseMatrix &elmat3,
-         DenseMatrix &elmat4)
+void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
+   const FiniteElement &fe_uL,
+   const FiniteElement &fe_uR,
+   const FiniteElement &face_fe,
+   FaceElementTransformations &Trans,
+   const int elem1or2,
+   const bool onlyB,
+   DenseMatrix &elmat1,
+   DenseMatrix &elmat2,
+   DenseMatrix &elmat3,
+   DenseMatrix &elmat4)
 {
    int dim, ndof_uL, ndof, ndof_face;
    double w;
@@ -184,7 +186,9 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(const Fini
 
       double zeta_R = 0.0, zeta_L = 0.0, zeta = 0.0;
       if (an < 0.0)
+      {
          zeta_L = 1.0;
+      }
 
       if (elem1or2 == 1)
       {
@@ -218,7 +222,7 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(const Fini
 
          for (int j = 0; j < ndof_face; j++)
          {
-            if(!onlyB)
+            if (!onlyB)
             {
                // - < ubar, [(1-zeta) a.n v] >
                elmat3(i, j) -= w * an * (1.-zeta) * shape(i) * shape_face(j);
@@ -282,7 +286,7 @@ void HDGInflowLFIntegrator::AssembleRHSFaceVectNeumann(
 
    dim = face_S.GetDim(); // This is face dimension which is 1 less than
    dim += 1;              // space dimension so add 1 to face dim to
-                   // get the space dim.
+   // get the space dim.
    n_L.SetSize(dim);
    Vector adv(dim);
 
@@ -336,7 +340,9 @@ void HDGInflowLFIntegrator::AssembleRHSFaceVectNeumann(
 
          double zeta_L = 0.0;
          if (an_L < 0.0)
-         zeta_L = 1.0;
+         {
+            zeta_L = 1.0;
+         }
 
          w = ip.weight;
 
@@ -350,10 +356,11 @@ void HDGInflowLFIntegrator::AssembleRHSFaceVectNeumann(
 }
 //---------------------------------------------------------------------
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-void HDGDomainIntegratorDiffusion::AssembleElementMatrix2FES(const FiniteElement &fe_q,
-         const FiniteElement &fe_u,
-         ElementTransformation &Trans,
-         DenseMatrix &elmat)
+void HDGDomainIntegratorDiffusion::AssembleElementMatrix2FES(
+   const FiniteElement &fe_q,
+   const FiniteElement &fe_u,
+   ElementTransformation &Trans,
+   DenseMatrix &elmat)
 {
    // get the number of degrees of freedoms and the dimension of the problem
    int ndof_u = fe_u.GetDof();
@@ -424,7 +431,7 @@ void HDGDomainIntegratorDiffusion::AssembleElementMatrix2FES(const FiniteElement
 
       // mulitply by 1.0/nu
       partelmat *= 1.0/nu->Eval(Trans, ip);
-      
+
       shape *= c;
       // compute the (u, \div v) term
       AddMultVWt (shape, divshape, elmat2);
@@ -444,21 +451,21 @@ void HDGDomainIntegratorDiffusion::AssembleElementMatrix2FES(const FiniteElement
    int block_size1 = dim*ndof_q;
    int block_size2 = ndof_u;
 
-   for(int i = 0; i<block_size1; i++)
+   for (int i = 0; i<block_size1; i++)
    {
-      for(int j = 0; j<block_size1; j++)
+      for (int j = 0; j<block_size1; j++)
       {
          elmat(i,j) = elmat1(i,j);
       }
-      for(int j = 0; j<block_size2; j++)
+      for (int j = 0; j<block_size2; j++)
       {
          elmat(i,j+block_size1) = elmat2(i,j);
       }
    }
 
-   for(int i = 0; i<block_size2; i++)
+   for (int i = 0; i<block_size2; i++)
    {
-      for(int j = 0; j<block_size1; j++)
+      for (int j = 0; j<block_size1; j++)
       {
          elmat(i+block_size1,j) = elmat3(i,j);
       }
@@ -467,18 +474,18 @@ void HDGDomainIntegratorDiffusion::AssembleElementMatrix2FES(const FiniteElement
 
 
 void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
-         const FiniteElement &fe_qL,
-         const FiniteElement &fe_qR,
-         const FiniteElement &fe_uL,
-         const FiniteElement &fe_uR,
-         const FiniteElement &face_fe,
-         FaceElementTransformations &Trans,
-         const int elem1or2,
-         const bool onlyB,
-         DenseMatrix &elmat1,
-         DenseMatrix &elmat2,
-         DenseMatrix &elmat3,
-         DenseMatrix &elmat4)
+   const FiniteElement &fe_qL,
+   const FiniteElement &fe_qR,
+   const FiniteElement &fe_uL,
+   const FiniteElement &fe_uR,
+   const FiniteElement &face_fe,
+   FaceElementTransformations &Trans,
+   const int elem1or2,
+   const bool onlyB,
+   DenseMatrix &elmat1,
+   DenseMatrix &elmat2,
+   DenseMatrix &elmat3,
+   DenseMatrix &elmat4)
 {
    // Get DoF from faces and the dimension
    int ndof_face = face_fe.GetDof();
@@ -613,7 +620,9 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
       double w1 = ip.weight*(-1.0);
 
       if (elem1or2 == 2)
+      {
          w1 *=-1.0;
+      }
 
       double w2 = tauD*Trans.Face->Weight()* ip.weight;
 
@@ -621,27 +630,27 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
 
       // local1 = < \lambda,\nu v\cdot n>
       for (int i = 0; i < vdim; i++)
-          for (int k = 0; k < ndof_q; k++)
-             for (int j = 0; j < ndof_face; j++)
-             {
-                local1(i*ndof_q + k, j) +=
-                      shape_face(j) * shape_dot_n(k,i) * w1;
-             }
+         for (int k = 0; k < ndof_q; k++)
+            for (int j = 0; j < ndof_face; j++)
+            {
+               local1(i*ndof_q + k, j) +=
+                  shape_face(j) * shape_dot_n(k,i) * w1;
+            }
 
       // local2 =  < \tau u, w>
       // local3 = -< tau \lambda, w>
       // local5 = -< tau \lambda, w>
       for (int i = 0; i < ndof_u; i++)
       {
-          for (int j = 0; j < ndof_u; j++)
-          {
-             local2(i, j) += w2 * shapeu(i) * shapeu(j);
-          }
+         for (int j = 0; j < ndof_u; j++)
+         {
+            local2(i, j) += w2 * shapeu(i) * shapeu(j);
+         }
 
-          for (int j = 0; j < ndof_face; j++)
-          {
-             local3(i, j) += w3 * shapeu(i) * shape_face(j);
-          }
+         for (int j = 0; j < ndof_face; j++)
+         {
+            local3(i, j) += w3 * shapeu(i) * shape_face(j);
+         }
       }
 
       if (!onlyB)
@@ -658,23 +667,23 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
    local4.Transpose();
    local5.Transpose();
 
-   for(int i = 0; i<sub_block_size2; i++)
+   for (int i = 0; i<sub_block_size2; i++)
    {
-      for(int j = 0; j<sub_block_size2; j++)
+      for (int j = 0; j<sub_block_size2; j++)
       {
          elmat1(i+sub_block_size1,j+sub_block_size1) = local2(i,j);
       }
    }
 
-   for(int i = 0; i<block_size2; i++)
+   for (int i = 0; i<block_size2; i++)
    {
-      for(int j = 0; j<sub_block_size1; j++)
+      for (int j = 0; j<sub_block_size1; j++)
       {
          elmat2(j,i) = local1(j,i);
 
          elmat3(i,j) = local4(i,j);
       }
-      for(int j = 0; j<sub_block_size2; j++)
+      for (int j = 0; j<sub_block_size2; j++)
       {
          elmat2(j+sub_block_size1,i) = local3(j,i);
 

@@ -747,8 +747,8 @@ void Mesh::GetBdrFaceToEdge(int BdrElemNo, int *fn)
 /* HDG */
 void Mesh::GetEdgeToBdrFace(Array<int> &Edge_to_Be)
 {
-   int no_faces; 
-    
+   int no_faces;
+
    if (Dim == 3)
    {
       no_faces = NumOfFaces;
@@ -761,24 +761,28 @@ void Mesh::GetEdgeToBdrFace(Array<int> &Edge_to_Be)
    {
       no_faces = NumOfEdges;
    }
-   
+
    Edge_to_Be.SetSize(no_faces);
    Edge_to_Be = -1;
-   
-   for(int i = 0; i < NumOfBdrElements; i++)
+
+   for (int i = 0; i < NumOfBdrElements; i++)
    {
-       if (Dim == 2)
-            Edge_to_Be[be_to_edge[i]] = i;
-       else if (Dim == 3)
-           Edge_to_Be[be_to_face[i]] = i;
+      if (Dim == 2)
+      {
+         Edge_to_Be[be_to_edge[i]] = i;
+      }
+      else if (Dim == 3)
+      {
+         Edge_to_Be[be_to_face[i]] = i;
+      }
    }
-   
+
 }
 
 /* HDG */
 Table* Mesh::GetElementEdges()
 {
-   Table *out; 
+   Table *out = NULL;
    NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
    if (Dim == 2)
    {
@@ -790,7 +794,7 @@ Table* Mesh::GetElementEdges()
    }
    else
    {
-       mfem_error(" GetElementEdges defined only for 2D and 3D ");
+      mfem_error(" GetElementEdges defined only for 2D and 3D ");
    }
    return out;
 }

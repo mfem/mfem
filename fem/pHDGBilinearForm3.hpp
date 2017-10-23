@@ -33,7 +33,8 @@ protected:
                          int skip_zeros);
 public:
    /// Creates bilinear form associated with FE space *pf1, pf2, pf3.
-   ParHDGBilinearForm3(ParFiniteElementSpace *pf1, ParFiniteElementSpace *pf2, ParFiniteElementSpace *pf3)
+   ParHDGBilinearForm3(ParFiniteElementSpace *pf1, ParFiniteElementSpace *pf2,
+                       ParFiniteElementSpace *pf3)
       : HDGBilinearForm3 (pf1, pf2, pf3), pfes1(pf1), pfes2(pf2), pfes3(pf3) { }
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
@@ -53,7 +54,7 @@ public:
                    int skip_zeros = 1);
 
    /// Computes face based integrators for shared faces
-   void compute_face_integrals_shared(const int elem, 
+   void compute_face_integrals_shared(const int elem,
                                       const int edge,
                                       const int sf,
                                       const bool is_reconstruction,
@@ -62,11 +63,11 @@ public:
                                       DenseMatrix *C_local,
                                       DenseMatrix *D_local);
 
-   /// Eliminates boundary conditions from the local 
+   /// Eliminates boundary conditions from the local
    /// matrices and modifies the right hand side vector
-   void Eliminate_BC(const Array<int> &vdofs_e1, 
+   void Eliminate_BC(const Array<int> &vdofs_e1,
                      const int ndof_u, const int ndof_q,
-                     const ParGridFunction &sol, 
+                     const ParGridFunction &sol,
                      Vector *rhs_RF, Vector *rhs_L,
                      DenseMatrix *B_local, DenseMatrix *C_local, DenseMatrix *D_local);
 
@@ -76,7 +77,8 @@ public:
                     ParGridFunction *q, ParGridFunction *u);
 
    /// Updates the spaces
-   virtual void Update(FiniteElementSpace *nfes1 = NULL, FiniteElementSpace *nfes2 = NULL, FiniteElementSpace *nfes3 = NULL);
+   virtual void Update(FiniteElementSpace *nfes1 = NULL,
+                       FiniteElementSpace *nfes2 = NULL, FiniteElementSpace *nfes3 = NULL);
 
    /// Returns the FE space associated with the BilinearForm.
    ParFiniteElementSpace *ParFE1Space() const { return pfes1; }

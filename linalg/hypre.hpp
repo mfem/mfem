@@ -714,7 +714,7 @@ public:
       HYPRE_ParCSRGMRESGetNumIterations(gmres_solver, &num_it);
       num_iterations = internal::to_int(num_it);
    }
-  
+
    /// The typecast to HYPRE_Solver returns the internal gmres_solver
    virtual operator HYPRE_Solver() const  { return gmres_solver; }
 

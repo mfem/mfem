@@ -137,7 +137,7 @@ void LinearForm::Assemble()
          }
       }
    }
-   
+
    /* HDG */
    if (bdrsklneufi.Size())
    {
@@ -145,14 +145,15 @@ void LinearForm::Assemble()
       const FiniteElement *face_fe;
       int nbdrfaces = fes->GetNBE();
       Mesh *mesh = fes -> GetMesh();
-       
+
       for (i = 0; i < nbdrfaces; i++)
       {
          int face;
          mesh->GetBdrFaceToEdge(i, &face);
          ftr = mesh->GetBdrFaceTransformations(i); // the transformation of the face
          fes->GetFaceVDofs(face, vdofs);   // the defrees of freedom related to the face
-         face_fe = fes->GetFaceElement(face);   // point face_fe to the FiniteElement over the edge
+         face_fe = fes->GetFaceElement(
+                      face);   // point face_fe to the FiniteElement over the edge
          if (ftr != NULL)
          {
             for (int k = 0; k < bdrsklneufi.Size(); k++) // Loop over the related interals
@@ -161,7 +162,7 @@ void LinearForm::Assemble()
                AddElementVector (vdofs, elemvect);
             }
          }
-         
+
       }
    }
 

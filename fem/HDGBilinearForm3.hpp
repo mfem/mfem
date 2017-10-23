@@ -17,14 +17,14 @@ namespace mfem
 {
 /**
    Class for HDG bilinear forms
-   
+
    a0(q, v)    a1(u, v)    b1(lambda, v)
    a1(w, q)    a3(u, w)    b2(lambda, w)
    b1(q, mu)   b2(u, mu)    d(mu, lambda)
-   
+
    where q,v are defined on fes1, u,w are defined on fes2, lambda, mu are defined on fes3.
    All 3 spaces should be defined on the same mesh.
-   
+
    Using the notations Q, V, U, W, LAMBDA and MU for the vectors representing the
    functions q, v, u, w, lambda and mu, respectively, the forms can be written as
 
@@ -110,7 +110,8 @@ protected:
 
 public:
    /// Creates bilinear form associated with FE spaces *f1, f2, f3
-   HDGBilinearForm3(FiniteElementSpace *f1, FiniteElementSpace *f2, FiniteElementSpace *f3);
+   HDGBilinearForm3(FiniteElementSpace *f1, FiniteElementSpace *f2,
+                    FiniteElementSpace *f3);
 
    // Arrays of the HDG domain integrators
    Array<BilinearFormIntegrator*> *GetHDG_DBFI() { return &hdg_dbfi; }
@@ -133,19 +134,19 @@ public:
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       return mat;
    }
-   
+
    SparseMatrix *SpMatSC()
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       return mat;
    }
-   
+
    /// Returns a reference to the right hand side vector
    const Vector *VectorSC() const
    {
       return rhs_SC;
    }
-   
+
    Vector *VectorSC()
    {
       return rhs_SC;
@@ -156,7 +157,8 @@ public:
    void AddHDGBdrIntegrator(BilinearFormIntegrator *bfi);
 
    /// Allocates the vectors for the part of A and B that will be stored
-   void Allocate(Array<int> &bdr_attr_is_ess, const double memA = 0.0, const double memB = 0.0);
+   void Allocate(Array<int> &bdr_attr_is_ess, const double memA = 0.0,
+                 const double memB = 0.0);
 
    /// Assembles the Schur complement
    void AssembleSC(const Vector rhs_R, const Vector rhs_F,
@@ -178,21 +180,22 @@ public:
                                DenseMatrix *C_local,
                                DenseMatrix *D_local);
 
-   /// Eliminates boundary conditions from the local 
+   /// Eliminates boundary conditions from the local
    /// matrices and modifies the right hand side vector
-   void Eliminate_BC(const Array<int> &vdofs_e1, 
+   void Eliminate_BC(const Array<int> &vdofs_e1,
                      const int ndof_u, const int ndof_q,
-                     const Vector &sol, 
+                     const Vector &sol,
                      Vector *rhs_RF, Vector *rhs_L,
                      DenseMatrix *B_local, DenseMatrix *C_local, DenseMatrix *D_local);
 
    /// Reconstructs u and q from the facet unknowns
-   void Reconstruct(const GridFunction *R, const GridFunction *F, 
-                    Vector &sol, 
+   void Reconstruct(const GridFunction *R, const GridFunction *F,
+                    Vector &sol,
                     GridFunction *q, GridFunction *u);
 
    /// Updates the spaces
-   virtual void Update(FiniteElementSpace *nfes1 = NULL, FiniteElementSpace *nfes2 = NULL, FiniteElementSpace *nfes3 = NULL);
+   virtual void Update(FiniteElementSpace *nfes1 = NULL,
+                       FiniteElementSpace *nfes2 = NULL, FiniteElementSpace *nfes3 = NULL);
 
    /// Returns the FE space associated with the BilinearForm.
    FiniteElementSpace *GetFES1() { return fes1; }

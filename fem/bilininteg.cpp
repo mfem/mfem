@@ -54,16 +54,18 @@ void BilinearFormIntegrator::AssembleFaceMatrix(
 }
 
 /* HDG optimized integrators starts */
-void BilinearFormIntegrator::AssembleElementMatrix2FES(const FiniteElement &fe_q,
-   const FiniteElement &fe_u,
-   ElementTransformation &Trans,
-   DenseMatrix &elmat1)
+void BilinearFormIntegrator::AssembleElementMatrix2FES(const FiniteElement
+                                                       &fe_q,
+                                                       const FiniteElement &fe_u,
+                                                       ElementTransformation &Trans,
+                                                       DenseMatrix &elmat1)
 {
    MFEM_ABORT("AssembleElementMatrix2FES is not implemented for this"
               " Integrator class.");
 }
 
-void BilinearFormIntegrator::AssembleFaceMatrixOneElement1and1FES(const FiniteElement &fe_uL,
+void BilinearFormIntegrator::AssembleFaceMatrixOneElement1and1FES(
+   const FiniteElement &fe_uL,
    const FiniteElement &fe_uR,
    const FiniteElement &face_fe,
    FaceElementTransformations &Trans,
@@ -78,7 +80,8 @@ void BilinearFormIntegrator::AssembleFaceMatrixOneElement1and1FES(const FiniteEl
               " Integrator class.");
 }
 
-void BilinearFormIntegrator::AssembleFaceMatrixOneElement2and1FES(const FiniteElement &fe_qL,
+void BilinearFormIntegrator::AssembleFaceMatrixOneElement2and1FES(
+   const FiniteElement &fe_qL,
    const FiniteElement &fe_qR,
    const FiniteElement &fe_uL,
    const FiniteElement &fe_uR,
@@ -760,13 +763,13 @@ double DiffusionIntegrator::ComputeFluxEnergy
 }
 
 /* HDG */
-void SkeletonMassIntegrator::AssembleFaceMatrix(const FiniteElement &face_fe, 
+void SkeletonMassIntegrator::AssembleFaceMatrix(const FiniteElement &face_fe,
                                                 FaceElementTransformations &Trans,
                                                 DenseMatrix &elmat)
 {
    int ndof;
    double w;
-   
+
    ndof = face_fe.GetDof();
    elmat.SetSize(ndof, ndof);
    elmat = 0.0;
@@ -787,9 +790,9 @@ void SkeletonMassIntegrator::AssembleFaceMatrix(const FiniteElement &face_fe,
       face_fe.CalcShape(ip, shape);
 
       Trans.Face->SetIntPoint(&ip);
-      
+
       w = Trans.Face->Weight() * ip.weight;
-      
+
       AddMult_a_VVt(w, shape, elmat);
    }
 
