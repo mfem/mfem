@@ -705,26 +705,40 @@ double Vector::Normlp(double p) const
    }
    if (p < std::numeric_limits<double>::infinity())
    {
-      // Scale entries of Vector by L-infinity norm to prevent overflow
-      // when taking entries to the pth power, which may occur when p
-      // is large and/or data[i] is large in absolute value for some
-      // valid value of i. Computing this scaling factor, performing
-      // the scaling, and then rescaling the result at the end of the
-      // computation costs n divisions and (n - 1) comparisons, but
-      // ensures that every exponentiated term in the summation has
-      // magnitude no greater than one.
-      const double inf_norm = Normlinf();
+      // Scale entries of Vector on the fly, using algorithms from
+      // std::hypot() and LAPACK's drm2. This scaling ensures that the
+      // argument of each call to pow is <= 1 to avoid overflow.
+      if (0 == size)
+      {
+         return 0.0;
+      } // end if 0 == size
+
+      if (1 == size)
+      {
+         return fabs(data[0]);
+      } // end if 1 == size
+
+      double scale = 0.0;
       double sum = 0.0;
+
       for (int i = 0; i < size; i++)
       {
-         sum += pow(fabs(data[i] / inf_norm), p);
+         if (data[i] != 0.0)
+         {
+            const double absdata = fabs(data[i]);
+            if (scale <= absdata)
+            {
+               sum = 1.0 + sum * pow(scale / absdata, p);
+               scale = absdata;
+               continue;
+            } // end if scale <= absdata
+            sum += pow(absdata / scale, p); // else scale > absdata
+         } // end if data[i] != 0
       }
-      return pow(sum, 1.0/p) * inf_norm;
-   }
-   else
-   {
-      return Normlinf();
-   }
+      return scale * pow(sum, 1.0/p);
+   } // end if p < std::numeric_limits<double>::infinity()
+
+   return Normlinf(); // else p >= std::numeric_limits<double>::infinity()
 }
 
 double Vector::Max() const
