@@ -330,7 +330,7 @@ public:
 
 private:
    const Array<int>& refine_relation_;
-   GridFunctionCoefficient& ho_coeff_; // why is Eval not const???
+   GridFunctionCoefficient& ho_coeff_;
 };
 
 /// Vector version of RefinedCoefficient

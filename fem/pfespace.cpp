@@ -2447,8 +2447,6 @@ void VectorRefinedCoefficient::Eval(Vector &V, ElementTransformation &T,
 
 /* Build LOR P for Vector finite element spaces, e.g. H(curl) or H(div). Used in
    BuildNestedInterpolation()
-
-   (this could/should be templated somehow?)
 */
 SparseMatrix * VectorBuildLORP(
    FiniteElementSpace& ho_fespace, FiniteElementSpace& lor_fespace,
@@ -2470,7 +2468,7 @@ SparseMatrix * VectorBuildLORP(
       DenseMatrix localP(lor_dofs.Size(), ho_dofs.Size());
       for (int j=0; j<ho_dofs.Size(); ++j)
       {
-         Vector v(ho_size); // global vector!
+         Vector v(ho_size);
          v = 0.0;
          if (ho_dofs[j] >= 0)
          {
@@ -2478,7 +2476,7 @@ SparseMatrix * VectorBuildLORP(
          }
          else
          {
-            v(-1-ho_dofs[j]) = -1.0;   // ??? I actually think this -1.0 is correct
+            v(-1-ho_dofs[j]) = -1.0;
          }
          GridFunction ho_vgf(&ho_fespace);
          ho_vgf = v;
@@ -2509,7 +2507,7 @@ SparseMatrix * BuildLORP(
    int lor_size = lor_fespace.GetVSize();
    Mesh * lor_mesh = lor_fespace.GetMesh();
 
-   SparseMatrix * spmat = new SparseMatrix(lor_size, ho_size); // global P size
+   SparseMatrix * spmat = new SparseMatrix(lor_size, ho_size);
    // loop over elements of fine, low-order mesh
    for (int finee=0; finee<lor_mesh->GetNE(); ++finee)
    {
@@ -2521,7 +2519,7 @@ SparseMatrix * BuildLORP(
       DenseMatrix localP(lor_dofs.Size(), ho_dofs.Size());
       for (int j=0; j<ho_dofs.Size(); ++j)
       {
-         Vector v(ho_size); // global vector!
+         Vector v(ho_size);
          v = 0.0;
          v(ho_dofs[j]) = 1.0;
          GridFunction ho_vgf(&ho_fespace);
@@ -2561,7 +2559,7 @@ HypreParMatrix *BuildNestedInterpolation(ParFiniteElementSpace &ho_fespace,
    {
       mat = VectorBuildLORP(ho_fespace, lor_fespace, refine_relation);
    }
-   else
+   else // H1
    {
       mat = BuildLORP(ho_fespace, lor_fespace, refine_relation);
    }
