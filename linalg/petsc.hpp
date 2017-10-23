@@ -656,6 +656,9 @@ public:
                      enum PetscODESolver::Type type);
    virtual void Init(TimeDependentOperator &f_) { Init(f_,ODE_SOLVER_GENERAL); }
 
+   void SetType(PetscODESolver::Type);
+   PetscODESolver::Type GetType() const;
+
    /// Specifies the desired format of the Jacobian in case a PetscParMatrix
    /// is not returned by the GetGradient methods
    void SetJacobianType(Operator::Type type);
