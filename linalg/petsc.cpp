@@ -2834,6 +2834,30 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
    }
    operatorset = true;
 
+   SetType(type);
+
+   // Set solution vector
+   PetscParVector X(PetscObjectComm(obj),*f,false,true);
+   ierr = TSSetSolution(ts,X); PCHKERRQ(ts,ierr);
+}
+
+void PetscODESolver::SetJacobianType(Operator::Type jacType)
+{
+   __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
+   ts_ctx->jacType = jacType;
+}
+
+PetscODESolver::Type PetscODESolver::GetType() const
+{
+   __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
+   return ts_ctx->type;
+}
+
+void PetscODESolver::SetType(PetscODESolver::Type type)
+{
+   __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
+
+   TS ts = (TS)obj;
    ts_ctx->type = type;
    if (type == ODE_SOLVER_LINEAR)
    {
@@ -2845,12 +2869,6 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
       ierr = TSSetProblemType(ts, TS_NONLINEAR);
       PCHKERRQ(ts, ierr);
    }
-}
-
-void PetscODESolver::SetJacobianType(Operator::Type jacType)
-{
-   __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
-   ts_ctx->jacType = jacType;
 }
 
 void PetscODESolver::Step(Vector &x, double &t, double &dt)
