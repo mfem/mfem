@@ -687,13 +687,13 @@ public:
    int GetBdrElementBaseGeometry(int i = 0) const
    { return i < GetNBE() ? boundary[i]->GetGeometryType() : BaseBdrGeom; }
 
-   /// Returns the indices of the dofs of element i.
-   void GetElementVertices(int i, Array<int> &dofs) const
-   { elements[i]->GetVertices(dofs); }
+   /// Returns the indices of the vertices of element i.
+   void GetElementVertices(int i, Array<int> &v) const
+   { elements[i]->GetVertices(v); }
 
-   /// Returns the indices of the dofs of boundary element i.
-   void GetBdrElementVertices(int i, Array<int> &dofs) const
-   { boundary[i]->GetVertices(dofs); }
+   /// Returns the indices of the vertices of boundary element i.
+   void GetBdrElementVertices(int i, Array<int> &v) const
+   { boundary[i]->GetVertices(v); }
 
    /// Return the indices and the orientations of all edges of element i.
    void GetElementEdges(int i, Array<int> &edges, Array<int> &cor) const;
@@ -748,14 +748,14 @@ public:
    /// Returns the type of boundary element i.
    int GetBdrElementType(int i) const;
 
-   /* Return point matrix of element i of dimension Dim X #dofs, where for
-      every degree of freedom we give its coordinates in space of dimension
+   /* Return point matrix of element i of dimension Dim X #v, where
+      for every vertex we give its coordinates in space of dimension
       Dim. */
    void GetPointMatrix(int i, DenseMatrix &pointmat) const;
 
-   /* Return point matrix of boundary element i of dimension Dim X #dofs,
-      where for every degree of freedom we give its coordinates in space
-      of dimension Dim. */
+   /* Return point matrix of boundary element i of dimension Dim X #v,
+      where for every vertex we give its coordinates in space of
+      dimension Dim. */
    void GetBdrPointMatrix(int i, DenseMatrix &pointmat) const;
 
    static FiniteElement *GetTransformationFEforElementType(int);
