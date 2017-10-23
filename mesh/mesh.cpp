@@ -8605,8 +8605,9 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
             if (!tbf[k]) { continue; }
             Vector center(data+k*spaceDim,spaceDim);
             GetElementVertices(e_idx[k], vertices);
-            for (int v = 0; v < vertices.Size() || elem_ids[k] != -1; v++)
+            for (int v = 0; v < vertices.Size(); v++)
             {
+               if (elem_ids[k] != -1) { break; }
                int vv = vertices[v];
                int ne = vtoel->RowSize(vv);
                const int* els = vtoel->GetRow(vv);
