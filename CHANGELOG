@@ -25,6 +25,9 @@ New and improved solvers and preconditioners
   subspace (e.g. divergence-free). Other small changes in LOBPCG include the
   ability to set the starting vectors and support for relative tolerance.
 
+- Added support for low-order refined interpolation in H(curl) and H(div)
+  spaces and with a LOR mesh whose polynomial order is not necessarily 1.
+
 Performance improvements
 ------------------------
 - Memory optimizations in the NCMesh class, which now uses 50% less memory.
