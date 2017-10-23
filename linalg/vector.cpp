@@ -669,7 +669,39 @@ void Vector::Randomize(int seed)
 
 double Vector::Norml2() const
 {
-   return sqrt((*this)*(*this));
+   // Scale entries of Vector on the fly, using algorithms from
+   // std::hypot() and LAPACK's drm2. This scaling ensures that the
+   // argument of each call to pow is <= 1 to avoid overflow.
+   if (0 == size)
+   {
+      return 0.0;
+   } // end if 0 == size
+
+   if (1 == size)
+   {
+      return fabs(data[0]);
+   } // end if 1 == size
+
+   double scale = 0.0;
+   double sum = 0.0;
+
+   for (int i = 0; i < size; i++)
+   {
+      if (data[i] != 0.0)
+      {
+         const double absdata = fabs(data[i]);
+         if (scale <= absdata)
+         {
+            const double sqr_arg = scale / absdata;
+            sum = 1.0 + (sqr_arg * sqr_arg);
+            scale = absdata;
+            continue;
+         } // end if scale <= absdata
+         const double sqr_arg = absdata / scale;
+         sum += (sqr_arg * sqr_arg); // else scale > absdata
+      } // end if data[i] != 0
+   }
+   return scale * sqrt(sum);
 }
 
 double Vector::Normlinf() const
