@@ -212,9 +212,9 @@ void HDGBilinearForm3::AssembleSC(const Vector rhs_R, const Vector rhs_F,
       el_to_face->GetRow(i, fcs);
       
       int no_faces = fcs.Size();
-      DenseMatrix B_local[no_faces];
-      DenseMatrix C_local[no_faces];
-      DenseMatrix D_local[no_faces];
+      DenseMatrix *B_local = new DenseMatrix[no_faces];
+      DenseMatrix *C_local = new DenseMatrix[no_faces];
+      DenseMatrix *D_local = new DenseMatrix[no_faces];
       Vector L_local;
 
       for(int edge1=0; edge1<no_faces; edge1++)
@@ -387,13 +387,9 @@ void HDGBilinearForm3::compute_face_integrals(const int elem,
 
       // D is not necessary for recontruction, only when setting up
       // the Schur complement
-      // Over an interior edge only 1/2*D_local has to be assembled
-      // since the functions \lambda and \mu are defined only on the face
-      // therefore the same integral will be computed for both
-      // adjacent elements
       if (!is_reconstruction)
       {
-            D_local->Add(0.5, elemmat4);
+            D_local->Add(1.0, elemmat4);
       }
    }
    else
@@ -413,7 +409,7 @@ void HDGBilinearForm3::compute_face_integrals(const int elem,
                      *tr, 1, is_reconstruction, elemmat1, elemmat2, elemmat3, elemmat4);
       if (!is_reconstruction)
       {
-            D_local->Add(1., elemmat4);
+            D_local->Add(1.0, elemmat4);
       }
    }
 
@@ -519,7 +515,8 @@ void HDGBilinearForm3::Reconstruct(const GridFunction *R, const GridFunction *F,
       
       int no_faces = fcs.Size();
       
-      DenseMatrix B_local[no_faces], dummy_DM;
+      DenseMatrix dummy_DM;
+      DenseMatrix *B_local = new DenseMatrix[no_faces];
 
       R_local.SetSize(ndof_q);
       R_local = 0.0;

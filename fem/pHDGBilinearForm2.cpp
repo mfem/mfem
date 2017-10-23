@@ -76,9 +76,9 @@ void ParHDGBilinearForm2::ParallelAssemble(const ParGridFunction *F,
       el_to_face->GetRow(i, fcs);
       int no_faces = fcs.Size();
       
-      DenseMatrix B_local[no_faces];
-      DenseMatrix C_local[no_faces];
-      DenseMatrix D_local[no_faces];
+      DenseMatrix *B_local = new DenseMatrix[no_faces];
+      DenseMatrix *C_local = new DenseMatrix[no_faces];
+      DenseMatrix *D_local = new DenseMatrix[no_faces];
       Vector G_local;
 
       F_local.SetSize(ndof_u);
@@ -212,12 +212,7 @@ void ParHDGBilinearForm2::compute_face_integrals_shared(const int elem,
    {
       // If it is not reconstruction C and D are necessary
       C_local->Add(1.0, elemmat3);
-
-      // Over an interior edge only 1/2*D_local has to be assembled
-      // since the functions \lambda and \mu are defined only on the face
-      // therefore the same integral will be computed for both
-      // adjacent elements
-      D_local->Add(0.5, elemmat4);
+      D_local->Add(1.0, elemmat4);
    }
 }
 
@@ -264,7 +259,8 @@ void ParHDGBilinearForm2::Reconstruct(const ParGridFunction *F,
       
       int no_faces = fcs.Size();
       
-      DenseMatrix B_local[no_faces], dummy_DM;
+      DenseMatrix dummy_DM;
+      DenseMatrix *B_local = new DenseMatrix[no_faces];
       
       F_local.SetSize(ndof_u);
       F_local = 0.0;

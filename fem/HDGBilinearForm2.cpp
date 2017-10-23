@@ -202,9 +202,9 @@ void HDGBilinearForm2::AssembleSC(const Vector rhs_F,
       el_to_face->GetRow(i, fcs);
       
       int no_faces = fcs.Size();
-      DenseMatrix B_local[no_faces];
-      DenseMatrix C_local[no_faces];
-      DenseMatrix D_local[no_faces];
+      DenseMatrix *B_local = new DenseMatrix[no_faces];
+      DenseMatrix *C_local = new DenseMatrix[no_faces];
+      DenseMatrix *D_local = new DenseMatrix[no_faces];
       Vector G_local;
 
       F_local.SetSize(ndof_u);
@@ -348,12 +348,8 @@ void HDGBilinearForm2::compute_face_integrals(const int elem,
 
       // D is not necessary for recontruction, only when setting up
       // the Schur complement
-      // Over an interior edge only 1/2*D_local has to be assembled
-      // since the functions \lambda and \mu are defined only on the face
-      // therefore the same integral will be computed for both
-      // adjacent elements
       if (!is_reconstruction)
-         D_local->Add(0.5, elemmat4);
+         D_local->Add(1.0, elemmat4);
    }
    else
    {
@@ -414,7 +410,8 @@ void HDGBilinearForm2::Reconstruct(const GridFunction *F, const GridFunction *ub
       
       int no_faces = fcs.Size();
       
-      DenseMatrix B_local[no_faces], dummy_DM;
+      DenseMatrix dummy_DM;
+      DenseMatrix *B_local = new DenseMatrix[no_faces];
       
       Bubar_local.SetSize(ndof_u);
       

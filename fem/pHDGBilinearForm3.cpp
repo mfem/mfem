@@ -87,9 +87,9 @@ void ParHDGBilinearForm3::ParallelAssemble(const ParGridFunction *R,
       el_to_face->GetRow(i, fcs);
       int no_faces = fcs.Size();
 
-      DenseMatrix B_local[no_faces];
-      DenseMatrix C_local[no_faces];
-      DenseMatrix D_local[no_faces];
+      DenseMatrix *B_local = new DenseMatrix[no_faces];
+      DenseMatrix *C_local = new DenseMatrix[no_faces];
+      DenseMatrix *D_local = new DenseMatrix[no_faces];
       Vector L_local;
 
       // Get the right hand side vectors and merge them into one, 
@@ -253,7 +253,7 @@ void ParHDGBilinearForm3::compute_face_integrals_shared(const int elem,
    if (!is_reconstruction)
    {
       C_local->Add(1.0, elemmat3);
-      D_local->Add(0.5, elemmat4);
+      D_local->Add(1.0, elemmat4);
    }
 }
 
@@ -352,7 +352,8 @@ void ParHDGBilinearForm3::Reconstruct(const ParGridFunction *R, const ParGridFun
 
       int no_faces = fcs.Size();
 
-      DenseMatrix B_local[no_faces], dummy_DM;
+      DenseMatrix dummy_DM;
+      DenseMatrix *B_local = new DenseMatrix[no_faces];
 
       R_local.SetSize(ndof_q);
       R_local = 0.0;

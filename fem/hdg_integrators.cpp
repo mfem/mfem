@@ -235,12 +235,17 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(const Fini
          for (int i = 0; i < ndof_face; i++)
             for (int j = 0; j < ndof_face; j++)
             {
-               // HDGInterfaceConvectionIntegrator
                // - < 1, [zeta a.n ubar vbar] > + < 1, [(1-zeta) a.n ubar vbar >_{\Gamma_N}
                if (Trans.Elem2No >= 0)
                {
-                  elmat4(i, j) += -w * zeta_L * an_L * shape_face(i) * shape_face(j)
-                                  - w * (1.0 - zeta_L) * (-an_L) * shape_face(i) * shape_face(j);
+                  if (elem1or2 == 1)
+                  {
+                     elmat4(i, j) += -w * zeta_L * an_L * shape_face(i) * shape_face(j);
+                  }
+                  else
+                  {
+                     elmat4(i, j) += - w * (1.0 - zeta_L) * (-an_L) * shape_face(i) * shape_face(j);                     
+                  }
                }
                else
                {
@@ -614,7 +619,7 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
 
       double w3 = -w2;
 
-      // elemmat1 = < \lambda,\nu v\cdot n>
+      // local1 = < \lambda,\nu v\cdot n>
       for (int i = 0; i < vdim; i++)
           for (int k = 0; k < ndof_q; k++)
              for (int j = 0; j < ndof_face; j++)
@@ -623,9 +628,9 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
                       shape_face(j) * shape_dot_n(k,i) * w1;
              }
 
-      // elmat2 =  < \tau u, w>
-      // elmat3 = -< tau \lambda, w>
-      // elmat5 = -< tau \lambda, w>
+      // local2 =  < \tau u, w>
+      // local3 = -< tau \lambda, w>
+      // local5 = -< tau \lambda, w>
       for (int i = 0; i < ndof_u; i++)
       {
           for (int j = 0; j < ndof_u; j++)
@@ -641,14 +646,9 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
 
       if (!onlyB)
       {
-         // elmat6 = < \tau \lambda, \mu>
-         double w4 = w2;
-         if (Trans.Elem2No >= 0)
-         {
-            w4 *= 2.0;
-         }
+         // local6 = < \tau \lambda, \mu>
 
-         AddMult_a_VVt(w4, shape_face, local6);
+         AddMult_a_VVt(w2, shape_face, local6);
       }
    }
 
