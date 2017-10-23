@@ -663,7 +663,7 @@ void Vector::Randomize(int seed)
 
    for (int i = 0; i < size; i++)
    {
-      data[i] = fabs(rand()/max);
+      data[i] = std::abs(rand()/max);
    }
 }
 
@@ -671,7 +671,7 @@ double Vector::Norml2() const
 {
    // Scale entries of Vector on the fly, using algorithms from
    // std::hypot() and LAPACK's drm2. This scaling ensures that the
-   // argument of each call to pow is <= 1 to avoid overflow.
+   // argument of each call to std::pow is <= 1 to avoid overflow.
    if (0 == size)
    {
       return 0.0;
@@ -679,7 +679,7 @@ double Vector::Norml2() const
 
    if (1 == size)
    {
-      return fabs(data[0]);
+      return std::abs(data[0]);
    } // end if 1 == size
 
    double scale = 0.0;
@@ -689,7 +689,7 @@ double Vector::Norml2() const
    {
       if (data[i] != 0.0)
       {
-         const double absdata = fabs(data[i]);
+         const double absdata = std::abs(data[i]);
          if (scale <= absdata)
          {
             const double sqr_arg = scale / absdata;
@@ -701,7 +701,7 @@ double Vector::Norml2() const
          sum += (sqr_arg * sqr_arg); // else scale > absdata
       } // end if data[i] != 0
    }
-   return scale * sqrt(sum);
+   return scale * std::sqrt(sum);
 }
 
 double Vector::Normlinf() const
@@ -739,7 +739,7 @@ double Vector::Normlp(double p) const
    {
       // Scale entries of Vector on the fly, using algorithms from
       // std::hypot() and LAPACK's drm2. This scaling ensures that the
-      // argument of each call to pow is <= 1 to avoid overflow.
+      // argument of each call to std::pow is <= 1 to avoid overflow.
       if (0 == size)
       {
          return 0.0;
@@ -747,7 +747,7 @@ double Vector::Normlp(double p) const
 
       if (1 == size)
       {
-         return fabs(data[0]);
+         return std::abs(data[0]);
       } // end if 1 == size
 
       double scale = 0.0;
@@ -757,17 +757,17 @@ double Vector::Normlp(double p) const
       {
          if (data[i] != 0.0)
          {
-            const double absdata = fabs(data[i]);
+            const double absdata = std::abs(data[i]);
             if (scale <= absdata)
             {
-               sum = 1.0 + sum * pow(scale / absdata, p);
+               sum = 1.0 + sum * std::pow(scale / absdata, p);
                scale = absdata;
                continue;
             } // end if scale <= absdata
-            sum += pow(absdata / scale, p); // else scale > absdata
+            sum += std::pow(absdata / scale, p); // else scale > absdata
          } // end if data[i] != 0
       }
-      return scale * pow(sum, 1.0/p);
+      return scale * std::pow(sum, 1.0/p);
    } // end if p < std::numeric_limits<double>::infinity()
 
    return Normlinf(); // else p >= std::numeric_limits<double>::infinity()
