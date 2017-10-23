@@ -74,8 +74,8 @@ public:
                            const Vector &y_pred, const Vector &f_pred,
                            int &jac_cur, Vector &v_temp1,
                            Vector &v_temp2, Vector &v_temp3) = 0;
-   virtual int SolveSystem(void *sundials_mem, Vector &b, const Vector &weight,
-                           const Vector &y_cur, const Vector &f_cur) = 0;
+   virtual int SolveSystem(void *sundials_mem, Vector &b, Vector &w,
+                           const Vector &y_cur, const Vector &f_cur) = 0;   
    virtual int FreeSystem(void *sundials_mem) = 0;
    ///@}
 };

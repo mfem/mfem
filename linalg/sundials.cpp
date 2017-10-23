@@ -23,8 +23,10 @@
 #include <nvector/nvector_parallel.h>
 #endif
 
+#include <sunlinsol/sunlinsol_spgmr.h>
 #include <cvode/cvode_impl.h>
-#include <cvode/cvode_spgmr.h>
+#include <cvode/cvode_spils.h>
+
 
 // This just hides a warning (to be removed after it's fixed in SUNDIALS).
 #ifdef MSG_TIME_INT
@@ -32,10 +34,8 @@
 #endif
 
 #include <arkode/arkode_impl.h>
-#include <arkode/arkode_spgmr.h>
-
 #include <kinsol/kinsol_impl.h>
-#include <kinsol/kinsol_spgmr.h>
+#include <kinsol/kinsol_spils.h>
 
 using namespace std;
 
@@ -77,7 +77,7 @@ static int cvLinSysSetup(CVodeMem cv_mem, int convfail,
                                                   *jcurPtr, vt1, vt2, vt3);
 }
 
-static int cvLinSysSolve(CVodeMem cv_mem, N_Vector b, N_Vector weight,
+static int cvLinSysSolve(struct CVodeMemRec *cv_mem, N_Vector b, N_Vector weight,
                          N_Vector ycur, N_Vector fcur)
 {
    Vector bb(b), w(weight), yc(ycur), fc(fcur);
@@ -210,7 +210,6 @@ void CVODESolver::SetLinearSolver(SundialsODELinearSolver &ls_spec)
    mem->cv_lsolve = cvLinSysSolve;
    mem->cv_lfree  = cvLinSysFree;
    mem->cv_lmem   = &ls_spec;
-   mem->cv_setupNonNull = TRUE;
    ls_spec.type = SundialsODELinearSolver::CVODE;
 }
 
@@ -239,7 +238,6 @@ static inline void cvCopyInit(CVodeMem src, CVodeMem dest)
    dest->cv_lsolve = src->cv_lsolve;
    dest->cv_lfree  = src->cv_lfree;
    dest->cv_lmem   = src->cv_lmem;
-   dest->cv_setupNonNull = src->cv_setupNonNull;
 
    dest->cv_reltol  = src->cv_reltol;
    dest->cv_Sabstol = src->cv_Sabstol;
@@ -336,7 +334,9 @@ void CVODESolver::Step(Vector &x, double &t, double &dt)
       // Set default linear solver, if not already set.
       if (mem->cv_iter == CV_NEWTON && mem->cv_lsolve == NULL)
       {
-         flag = CVSpgmr(sundials_mem, PREC_NONE, 0);
+         SUNLinearSolver LS;
+         LS = SUNSPGMR(y, PREC_NONE, 0);
+         flag = CVSpilsSetLinearSolver(sundials_mem, LS);
       }
       // Set the actual t0 and y0.
       mem->cv_tn = t;
@@ -455,7 +455,6 @@ void ARKODESolver::SetLinearSolver(SundialsODELinearSolver &ls_spec)
    mem->ark_lsolve = arkLinSysSolve;
    mem->ark_lfree  = arkLinSysFree;
    mem->ark_lmem   = &ls_spec;
-   mem->ark_setupNonNull = TRUE;
    ls_spec.type = SundialsODELinearSolver::ARKODE;
 }
 
@@ -499,7 +498,6 @@ static inline void arkCopyInit(ARKodeMem src, ARKodeMem dest)
    dest->ark_lsolve       = src->ark_lsolve;
    dest->ark_lfree        = src->ark_lfree;
    dest->ark_lmem         = src->ark_lmem;
-   dest->ark_setupNonNull = src->ark_setupNonNull;
 
    dest->ark_reltol  = src->ark_reltol;
    dest->ark_Sabstol = src->ark_Sabstol;
@@ -615,7 +613,9 @@ void ARKODESolver::Step(Vector &x, double &t, double &dt)
       // Set default linear solver, if not already set.
       if (mem->ark_implicit && mem->ark_linit == NULL)
       {
-         flag = ARKSpgmr(sundials_mem, PREC_NONE, 0);
+         SUNLinearSolver LS;
+         LS = SUNSPGMR(y, PREC_NONE, 0);
+         flag = ARKSpilsSetLinearSolver(sundials_mem, LS);
       }
       // Set the actual t0 and y0.
       mem->ark_tn = t;
@@ -793,7 +793,6 @@ static inline void kinCopyInit(KINMem src, KINMem dest)
    dest->kin_lsolve       = src->kin_lsolve;
    dest->kin_lfree        = src->kin_lfree;
    dest->kin_lmem         = src->kin_lmem;
-   dest->kin_setupNonNull = src->kin_setupNonNull;
    dest->kin_msbset       = src->kin_msbset;
 
    dest->kin_globalstrategy = src->kin_globalstrategy;
@@ -880,7 +879,9 @@ void KinSolver::SetOperator(const Operator &op)
    if (!prec)
    {
       // Set scaled preconditioned GMRES linear solver.
-      flag = KINSpgmr(sundials_mem, 0);
+      SUNLinearSolver LS = NULL;
+      LS = SUNSPGMR(y, PREC_NONE, 0);
+      flag = KINSpilsSetLinearSolver(sundials_mem, LS);
       MFEM_ASSERT(flag >= 0, "KINSpgmr() failed!");
       if (use_oper_grad)
       {
@@ -902,7 +903,6 @@ void KinSolver::SetSolver(Solver &solver)
    mem->kin_lsolve = KinSolver::LinSysSolve;
    mem->kin_lfree  = NULL;
    mem->kin_lmem   = this;
-   mem->kin_setupNonNull = TRUE;
    // Set mem->kin_inexact_ls? How?
 }
 
