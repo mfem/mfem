@@ -354,17 +354,6 @@ void HDGBilinearForm2::compute_face_integrals(const int elem,
                                                            *tr, 1, is_reconstruction, elemmat1, elemmat2, elemmat3,
                                                            elemmat4);
       }
-
-      // D is not necessary for recontruction, only when setting up
-      // the Schur complement
-      if (!is_reconstruction)
-<<<<<<< HEAD
-         D_local->Add(1.0, elemmat4);
-=======
-      {
-         D_local->Add(0.5, elemmat4);
-      }
->>>>>>> fed88d9380a012be7071ed169a2190e4d472ad9a
    }
    else
    {
@@ -381,21 +370,18 @@ void HDGBilinearForm2::compute_face_integrals(const int elem,
                                                         trial_face_fe,
                                                         *tr, 1, is_reconstruction, elemmat1, elemmat2, elemmat3,
                                                         elemmat4);
-      if (!is_reconstruction)
-      {
-         D_local->Add(1.0, elemmat4);
-      }
    }
 
    // Add the face matrices to the local matrices
    A_local->Add(1.0, elemmat1);
    B_local->Add(1.0, elemmat2);
 
-   // C is not necessary for recontruction, only when setting up
+   // C and D are not necessary for recontruction, only when setting up
    // the Schur complement
    if (!is_reconstruction)
    {
       C_local->Add(1.0, elemmat3);
+      D_local->Add(1.0, elemmat4);
    }
 }
 
@@ -430,16 +416,9 @@ void HDGBilinearForm2::Reconstruct(const GridFunction *F,
       el_to_face->GetRow(i, fcs);
 
       int no_faces = fcs.Size();
-<<<<<<< HEAD
-      
       DenseMatrix dummy_DM;
       DenseMatrix *B_local = new DenseMatrix[no_faces];
-      
-=======
 
-      DenseMatrix B_local[no_faces], dummy_DM;
-
->>>>>>> fed88d9380a012be7071ed169a2190e4d472ad9a
       Bubar_local.SetSize(ndof_u);
 
       int B_values_read = 0;

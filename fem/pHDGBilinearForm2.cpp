@@ -75,17 +75,10 @@ void ParHDGBilinearForm2::ParallelAssemble(const ParGridFunction *F,
       // Get the element faces
       el_to_face->GetRow(i, fcs);
       int no_faces = fcs.Size();
-<<<<<<< HEAD
-      
       DenseMatrix *B_local = new DenseMatrix[no_faces];
       DenseMatrix *C_local = new DenseMatrix[no_faces];
       DenseMatrix *D_local = new DenseMatrix[no_faces];
-=======
 
-      DenseMatrix B_local[no_faces];
-      DenseMatrix C_local[no_faces];
-      DenseMatrix D_local[no_faces];
->>>>>>> fed88d9380a012be7071ed169a2190e4d472ad9a
       Vector G_local;
 
       F_local.SetSize(ndof_u);
@@ -274,16 +267,9 @@ void ParHDGBilinearForm2::Reconstruct(const ParGridFunction *F,
       el_to_face->GetRow(i, fcs);
 
       int no_faces = fcs.Size();
-<<<<<<< HEAD
-      
       DenseMatrix dummy_DM;
       DenseMatrix *B_local = new DenseMatrix[no_faces];
-      
-=======
 
-      DenseMatrix B_local[no_faces], dummy_DM;
-
->>>>>>> fed88d9380a012be7071ed169a2190e4d472ad9a
       F_local.SetSize(ndof_u);
       F_local = 0.0;
       F->GetSubVector(vdofs_u, F_local);
