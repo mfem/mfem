@@ -77,7 +77,8 @@ static int cvLinSysSetup(CVodeMem cv_mem, int convfail,
                                                   *jcurPtr, vt1, vt2, vt3);
 }
 
-static int cvLinSysSolve(struct CVodeMemRec *cv_mem, N_Vector b, N_Vector weight,
+static int cvLinSysSolve(struct CVodeMemRec *cv_mem, N_Vector b,
+                         N_Vector weight,
                          N_Vector ycur, N_Vector fcur)
 {
    Vector bb(b), w(weight), yc(ycur), fc(fcur);
