@@ -37,15 +37,15 @@ void getBaseVector3D(Vector& e1, Vector& e2, Vector& e3);
 *   element coordinate.
 */
 // Highly dependent of the node ordering from geom.cpp
-void InitFaceCoord2D(const int face_id, DenseMatrix& base);
+void InitFaceCoord2D(const int face_id, IntMatrix& base);
 
 // Highly dependent of the node ordering from geom.cpp
-void InitFaceCoord3D(const int face_id, DenseMatrix& base);
+void InitFaceCoord3D(const int face_id, IntMatrix& base);
 
 /** Maps the coordinate vectors of the first face to the coordinate vectors of the second face.
 *   nb_rot is the number of rotation to opperate so that the first node of each face match.
-*   The result map contains pairs of int, where the first int is the cofficient, and the 
-*   second int is the indice of the second face vector.
+*   The result map contains pairs of int, where the first int is a direction cofficient,
+*	 and the second int is the indice of the second face vector.
 */
 // There shouldn't be any rotation in 2D.
 void GetLocalCoordMap2D(vector<pair<int,int> >& map, const int nb_rot = 0);
@@ -57,8 +57,8 @@ void GetLocalCoordMap3D(vector<pair<int,int> >& map, const int nb_rot = 0);
 /**
 *	Returns the change of matrix P from base_K2 to base_K1 according to the mapping map.
 */
-void GetChangeOfBasis(const DenseMatrix& base_K1, DenseMatrix& base_K2,
-								const vector<pair<int,int> >& map, DenseMatrix& P);
+void GetChangeOfBasis(const IntMatrix& base_K1, IntMatrix& base_K2,
+								const vector<pair<int,int> >& map, IntMatrix& P);
 
 /**
 *	Returns the face_id that identifies the face on the reference element, and nb_rot the

@@ -140,7 +140,7 @@ public:
 	   D12.SetSize(sizes);
 	   D21.SetSize(sizes);
 	   D22.SetSize(sizes);
-	   DenseMatrix P(dim,dim);
+	   IntMatrix P(dim,dim);
 	   // We have a per face approach for the fluxes, so we should initialize the four different
 	   // fluxes.
 	   for (int face = 0; face < nb_faces; ++face)
@@ -156,8 +156,10 @@ public:
 	      int face_id1, face_id2;
 	      GetIdRotInfo(ind_elt1,face_id1,nb_rot1);
 	      GetIdRotInfo(ind_elt2,face_id2,nb_rot2);
+	      // Trial basis shouldn't rotate, since we apply B1d to dofs directly
 	      int nb_rot = nb_rot1 - nb_rot2;//TODO check that it's correct!!!
-	      DenseMatrix base_E1, base_E2;
+	      IntMatrix base_E1, base_E2;
+	      // The mapping "map" stores the cahnge of basis from element e1 to element e2
 	      vector<pair<int,int> > map;
 	      switch(dim){
 	      	case 1:mfem_error("1D Advection not yet implemented");break;
@@ -175,27 +177,49 @@ public:
 	      		mfem_error("Wrong dimension");break;
 	      }
 	      GetChangeOfBasis(base_E1,base_E2,map,P);
-	      pak.InitPb(P);
+	      pak.InitPb(face,P);
 	      for (int k = 0; k < quads; ++k)
 	      {
-        		const IntegrationPoint &ip = pak.IntPoint(k);//2D point?
-        		FaceElementTransformations* face_tr = mesh->GetFaceElementTransformations(face);
-	         face_tr->Face->SetIntPoint(&ip);
-      		IntegrationPoint eip1;
-      		face_tr->Loc1.Transform(ip, eip1);
-				//face_tr->Elem1->SetIntPoint(&eip1);
-	         q.Eval(qvec, *(face_tr->Elem1), eip1);
-	         Vector n;
-	         CalcOrtho(face_tr->Face->Jacobian(), n);//includes the determinant?
-	         double res = qvec*n;
+	      	// We need to be sure that we go in the same order as for the partial assembly
+	      	// So we take the points on the face for the element that has the trial function
+	      	// So we can only compute 2 of the 4 matrices with a set of points
+	      	// IntPoint are not the same from e1 to e2 than from e2 to e1, because
+	      	// dofs are usually not oriented the same way on the face
+	      	// IntPoints are the same for e1 to e2 (D21) and for e1 to e1 (D11)
+	         // Shared parameters
 	         int ind[] = {face,k};
-	         double val = ip.weight * ( a/2 * res + b * abs(res) );
-	         D11.SetVal(ind,val);
-	         D22.SetVal(ind,val);
-	         val = ip.weight * ( a/2 * res + b * abs(res) );
-	         D21.SetVal(ind,val);
-	         val = ip.weight * ( a/2 * res - b * abs(res) );
-	         D12.SetVal(ind,val);
+	         double val = 0;
+	         Vector n;
+	         double res;
+        		FaceElementTransformations* face_tr = mesh->GetFaceElementTransformations(face);
+        		const IntegrationRule *ir = IntRule;
+        		const IntegrationPoint &ip = ir->IntPoint(k);
+	      	// We compute D11 and D21
+        		//ip = pak.IntPoint( face_id1, k );//2D point ordered according to coord on element 1
+	         face_tr->Face->SetIntPoint( &ip );
+      		IntegrationPoint eip1;
+      		face_tr->Loc1.Transform( ip, eip1 );
+				face_tr->Elem1->SetIntPoint( &eip1 );
+	         q.Eval( qvec, *(face_tr->Elem1), eip1 );
+	         CalcOrtho( face_tr->Face->Jacobian(), n );
+	         res = qvec * n;
+	         val = ip.weight * (   a/2 * res + b * abs(res) );
+	         D11.SetVal( ind, val );
+	         val = ip.weight * ( - a/2 * res - b * abs(res) );
+	         D21.SetVal( ind, val );
+	         // We compute D12 and D22
+	         //ip = pak.IntPoint( face_id2, k );
+	         face_tr->Face->SetIntPoint( &ip );
+      		IntegrationPoint eip2;
+      		face_tr->Loc2.Transform( ip, eip2 );
+				face_tr->Elem2->SetIntPoint( &eip2 );
+	         q.Eval( qvec, *(face_tr->Elem2), eip2 );
+	         CalcOrtho( face_tr->Face->Jacobian(), n );
+	         res = qvec * n;
+	         val = ip.weight * (   a/2 * res - b * abs(res) );
+	         D22.SetVal( ind, val );
+	         val = ip.weight * ( - a/2 * res + b * abs(res) );
+	         D12.SetVal( ind, val );
 	      }
 	   }
 	}

@@ -58,11 +58,11 @@ void getBaseVector3D(Vector& e1, Vector& e2, Vector& e3)
 *   element coordinate.
 */
 // Highly dependent of the node ordering from geom.cpp
-void InitFaceCoord2D(const int face_id, DenseMatrix& base)
+void InitFaceCoord2D(const int face_id, IntMatrix& base)
 {
 	//Vector e1,e2;
 	//getBaseVector2D(e1,e2);
-	//TODO initialize base to zero
+	base.Zero();
 	switch(face_id)
 	{
 		case 0://SOUTH
@@ -88,11 +88,11 @@ void InitFaceCoord2D(const int face_id, DenseMatrix& base)
 }
 
 // Highly dependent of the node ordering from geom.cpp
-void InitFaceCoord3D(const int face_id, DenseMatrix& base)
+void InitFaceCoord3D(const int face_id, IntMatrix& base)
 {
 	//Vector e1,e2,e3;
 	//getBaseVector3D(e1,e2,e3);
-	//TODO initialize base to zero
+	base.Zero();
 	switch(face_id)
 	{
 		case 0://BOTTOM
@@ -183,8 +183,8 @@ void GetLocalCoordMap3D(vector<pair<int,int> >& map, const int nb_rot)
 /**
 *	Returns the change of matrix P from base_K2 to base_K1 according to the mapping map.
 */
-void GetChangeOfBasis(const DenseMatrix& base_K1, DenseMatrix& base_K2,
-								const vector<pair<int,int> >& map, DenseMatrix& P)
+void GetChangeOfBasis(const IntMatrix& base_K1, IntMatrix& base_K2,
+								const vector<pair<int,int> >& map, IntMatrix& P)
 {
 	int dim = map.size();
 	for (int j = 0; j < dim; j++)
@@ -192,7 +192,7 @@ void GetChangeOfBasis(const DenseMatrix& base_K1, DenseMatrix& base_K2,
 		int i = 0;
 		//we look if the vector is colinear with e_j
 		// Can be replaced by base_K2(j,i)!=0
-		while (base_K2.GetColumn(i)[j]!=0) i++;
+		while (base_K2(j,i)!=0) i++;
 		int coeff = map[i].first;
 		int ind = map[i].second;
 		for (int k = 0; k < dim; ++k)
