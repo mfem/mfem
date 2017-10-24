@@ -24,6 +24,9 @@ doc/CodeDocumentation.conf
 doc/CodeDocumentation.html
 doc/CodeDocumentation
 
+# Temporary files created by the tests.
+*.stderr
+
 # Totalview breakpoint files
 *.TVD.*breakpoints
 
