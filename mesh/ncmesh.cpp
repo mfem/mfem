@@ -2991,7 +2991,7 @@ int NCMesh::GetEdgeNCOrientation(const NCMesh::MeshId &edge_id) const
    return (v0 < v1 && ev[0] > ev[1]) || (v0 > v1 && ev[0] < ev[1]);
 }
 
-int NCMesh::GetFaceOrientationElement(const Face &face) const
+/*int NCMesh::GetFaceOrientationElement(const Face &face) const
 {
    if (face.elem[0] < 0 || face.elem[1] < 0)
    {
@@ -3012,31 +3012,15 @@ int NCMesh::GetFaceOrientationElement(const Face &face) const
       // choose element with smaller rank
       return (el0.rank < el1.rank) ? face.elem[0] : face.elem[1];
    }
-}
+}*/
 
 void NCMesh::GetFaceVerticesEdges(const MeshId &face_id,
                                   int vert_index[4], int edge_index[4],
                                   int edge_orientation[4]) const
 {
-#if 0
-   const Face &fa = faces[face_id.index];
-
-   int elem = GetFaceOrientationElement(fa);
-   const Element &el = elements[elem];
-
-   int local = face_id.local;
-   if (elem != face_id.element)
-   {
-      local = find_hex_face(find_node(el, fa.p1),
-                            find_node(el, fa.p2),
-                            find_node(el, fa.p3));
-   }
-#else
    const Element &el = elements[face_id.element];
-   int local = face_id.local;
-#endif
+   const int* fv = GI[(int) el.geom].faces[face_id.local];
 
-   const int* fv = GI[(int) el.geom].faces[local];
    for (int i = 0; i < 4; i++)
    {
       vert_index[i] = nodes[el.node[fv[i]]].vert_index;
@@ -3716,7 +3700,7 @@ void NCMesh::DebugDump(std::ostream &out) const
       {
          out << el.node[j] << " ";
       }
-      out << el.attribute << " " << i << "\n";
+      out << el.rank << " " << i << "\n";
    }
    out << "\n";
 

@@ -142,11 +142,11 @@ public:
       }
    }
 
-   /// Return (shared) face orientation relative to the owner element.
-   /*int GetFaceOrientation(int index) const
+   /// Return (shared) face orientation relative to its owner element.
+   int GetFaceOrientation(int index) const
    {
-      return face_orient[index];
-   }*/
+      return (index < NFaces) ? face_orient[index] : 0;
+   }
 
    typedef short GroupId;
    typedef std::vector<int> CommGroup;

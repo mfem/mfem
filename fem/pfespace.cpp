@@ -1436,8 +1436,8 @@ void NeighborRowMessage::Encode(int rank)
          const RowInfo &ri = rows[row_idx[ent][i]];
          MFEM_ASSERT(ent == ri.entity, "");
 
-         std::cout << "To " << rank << ": sending ent " << ri.entity
-                   << ", index " << ri.index << ", edof " << ri.edof << std::endl;
+         /*std::cout << "To " << rank << ": sending ent " << ri.entity <<
+            ", index " << ri.index << ", edof " << ri.edof << std::endl;*/
 
          int edof = ri.edof;
          if (ent == 1 && pncmesh->GetEdgeNCOrientation(id))
@@ -1472,6 +1472,7 @@ void NeighborRowMessage::Decode(int rank)
    rows.reserve(nrows);
 
    int ne = fec->DofForGeometry(Geometry::SEGMENT);
+   int ori, fgeom = pncmesh->GetFaceGeometry();
 
    // read rows
    for (int ent = 0, gi = 0; ent < 3; ent++)
@@ -1481,16 +1482,30 @@ void NeighborRowMessage::Decode(int rank)
       {
          const NCMesh::MeshId &id = ids[i];
          int edof = read<int>(stream);
+
+         //pncmesh->GetFaceVerticesEdges(
+
+         // handle orientation
          if (ent == 1 && pncmesh->GetEdgeNCOrientation(id))
          {
             edof = ne-1 - edof;
          }
+         else if (ent == 2 && (ori = pncmesh->GetFaceOrientation(id.index)))
+         {
+            const int* ind = fec->DofOrderForOrientation(fgeom, ori);
+            std::cout << "From " << rank << ": face " << id.index
+                      << ", changing by ori " << ori << ", edof "
+                      << edof << " -> " << ind[edof] << std::endl;
+
+            edof = ind[edof];
+         }
+
          rows.push_back(RowInfo(ent, id.index, edof, group_ids[gi++]));
          rows.back().row.read(stream);
 
-         std::cout << "From " << rank << ": receiving " << rows.back().entity
+         /*std::cout << "From " << rank << ": receiving " << rows.back().entity
                    << ", index " << rows.back().index
-                   << ", edof " << rows.back().edof << std::endl;
+                   << ", edof " << rows.back().edof << std::endl;*/
       }
    }
 }
