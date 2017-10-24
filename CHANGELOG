@@ -11,8 +11,8 @@
 Development version 3.3.1, not released
 =======================================
 
-Powerful high-order mesh optimization
--------------------------------------
+High-order mesh optimization
+----------------------------
 
 - Added support for mesh optimization via node-movement based on the Target-
   Matrix Optimization Paradigm (TMOP) developed by P.Knupp et al.  A variety of

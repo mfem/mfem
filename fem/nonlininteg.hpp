@@ -71,8 +71,8 @@ public:
 
    /// A reference-element to target-element transformation that can be used to
    /// evaluate Coefficient%s.
-   /** @note It's assumed that _Ttr.SetIntPoint() is already called for
-       the point of interest. */
+   /** @note It is assumed that _Ttr.SetIntPoint() is already called for the
+       point of interest. */
    void SetTransformation(ElementTransformation &_Ttr) { Ttr = &_Ttr; }
 
    /** @brief Evaluate the strain energy density function, W = W(Jpt).
