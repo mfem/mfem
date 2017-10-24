@@ -100,7 +100,10 @@ ex1p-test-par: ex1p
 	@$(call mfem-test,$<, $(RUN_MPI), Performance miniapp,-rs 2)
 ex1-test-seq: ex1
 	@$(call mfem-test,$<,, Performance miniapp,-r 2)
-
+ex3-test-seq: ex3
+	@$(call mfem-test,$<,, Performance miniapp,-r 2)
+ex4-test-seq: ex4
+	@$(call mfem-test,$<,, Performance miniapp,-r 2)
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
 # Generate an error message if the MFEM library is not built and exit
