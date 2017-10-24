@@ -299,7 +299,6 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const;
 };
 
-
 /** For a low-order refined ParFiniteElementSpace created on a ParMesh that was
     built with the LOR constructor:
 
@@ -311,43 +310,8 @@ public:
     For traditional H1 LOR this operator is the identity, but for different
     quadrature rules (ref_type above) and also for H(curl) and H(div) spaces the
     operator may be more complex. */
-HypreParMatrix *BuildNestedInterpolation(ParFiniteElementSpace &ho_fespace,
-                                         ParFiniteElementSpace &lor_fespace);
-
-
-/** This coefficient evaluates a GridFunctionCoefficient that lives on a coarser
-    mesh on "this" mesh which is a refinement of the coarse one. Auxiliary class
-    used by BuildNestedInterpolation. */
-class RefinedCoefficient : public Coefficient
-{
-public:
-   /// @param refine_relation: for each fine cell the coarse cell it comes from
-   RefinedCoefficient(const Array<int>& refine_relation,
-                      GridFunctionCoefficient& ho_coeff);
-   ~RefinedCoefficient() {}
-
-   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
-
-private:
-   const Array<int>& refine_relation_;
-   GridFunctionCoefficient& ho_coeff_;
-};
-
-/// Vector version of RefinedCoefficient
-class VectorRefinedCoefficient : public VectorCoefficient
-{
-public:
-   VectorRefinedCoefficient(const Array<int>& refine_relation,
-                            VectorGridFunctionCoefficient& ho_coeff);
-   ~VectorRefinedCoefficient() {}
-
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
-
-private:
-   const Array<int>& refine_relation_;
-   VectorGridFunctionCoefficient& ho_coeff_;
-};
+HypreParMatrix *ParBuildNestedInterpolation(ParFiniteElementSpace &ho_fespace,
+                                            ParFiniteElementSpace &lor_fespace);
 
 }
 
