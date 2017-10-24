@@ -103,10 +103,10 @@ static int arkLinSysSetup(ARKodeMem ark_mem, int convfail,
                                                     *jcurPtr, vt1, vt2, vt3);
 }
 
-static int arkLinSysSolve(ARKodeMem ark_mem, N_Vector b, N_Vector weight,
+static int arkLinSysSolve(ARKodeMem ark_mem, N_Vector b,
                           N_Vector ycur, N_Vector fcur)
 {
-   Vector bb(b), w(weight), yc(ycur), fc(fcur);
+   Vector bb(b), w(ark_mem->ark_rwt), yc(ycur), fc(fcur);
    return to_solver(ark_mem->ark_lmem)->SolveSystem(ark_mem, bb, w, yc, fc);
 }
 
