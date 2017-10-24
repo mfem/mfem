@@ -748,14 +748,12 @@ public:
    /// Returns the type of boundary element i.
    int GetBdrElementType(int i) const;
 
-   /* Return point matrix of element i of dimension Dim X #v, where
-      for every vertex we give its coordinates in space of dimension
-      Dim. */
+   /* Return point matrix of element i of dimension Dim X #v, where for every
+      vertex we give its coordinates in space of dimension Dim. */
    void GetPointMatrix(int i, DenseMatrix &pointmat) const;
 
-   /* Return point matrix of boundary element i of dimension Dim X #v,
-      where for every vertex we give its coordinates in space of
-      dimension Dim. */
+   /* Return point matrix of boundary element i of dimension Dim X #v, where for
+      every vertex we give its coordinates in space of dimension Dim. */
    void GetBdrPointMatrix(int i, DenseMatrix &pointmat) const;
 
    static FiniteElement *GetTransformationFEforElementType(int);
