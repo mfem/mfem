@@ -20,7 +20,7 @@
 //
 // Description:  This example code solves a simple electromagnetic diffusion
 //               problem corresponding to the second order definite Maxwell
-//               equation curl curl E + E = f with boundary condition
+//               equation curl curl E = f with boundary condition
 //               E x n = <given tangential field>. Here, we use a given exact
 //               solution E and compute the corresponding r.h.s. f.
 //               We discretize with Nedelec finite elements in 2D or 3D.

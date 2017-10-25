@@ -1,4 +1,4 @@
-//                         MFEM Example 3  - High-Performance
+//                         MFEM Example 4  - High-Performance
 //
 // Compile with: make ex4
 //
@@ -356,14 +356,14 @@ int main(int argc, char *argv[])
    }
 
    // 13. Send the solution by socket to a GLVis server.
-   // if (visualization)
-   // {
-   //    char vishost[] = "localhost";
-   //    int  visport   = 19916;
-   //    socketstream sol_sock(vishost, visport);
-   //    sol_sock.precision(8);
-   //    sol_sock << "solution\n" << *mesh << x << flush;
-   // }
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << *mesh << x << flush;
+   }
 
    // 14. Free the used memory.
    delete a_h;

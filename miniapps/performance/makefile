@@ -21,7 +21,7 @@ TEST_MK = $(MFEM_DIR)/config/test.mk
 
 
 
-MFEM_LIB_FILE = mfem_is_not_built
+MFEM_LIB_FILE = fem_is_not_built
 -include $(CONFIG_MK)
 
 # Distinguish x86 from PowerPC systems
@@ -71,7 +71,7 @@ MFEM_PERF_CXXFLAGS = $(MFEM_PERF_CXXFLAGS_$(MFEM_PERF_SW))
 MFEM_CXXFLAGS += $(MFEM_PERF_CXXFLAGS)
 
 SEQ_MINIAPPS = ex1 ex3 ex4
-PAR_MINIAPPS = ex1p
+PAR_MINIAPPS = ex1p ex3p ex4p
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -97,6 +97,10 @@ include $(MFEM_TEST_MK)
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 ex1p-test-par: ex1p
+	@$(call mfem-test,$<, $(RUN_MPI), Performance miniapp,-rs 2)
+ex3p-test-par: ex3p
+	@$(call mfem-test,$<, $(RUN_MPI), Performance miniapp,-rs 2)
+ex4p-test-par: ex4p
 	@$(call mfem-test,$<, $(RUN_MPI), Performance miniapp,-rs 2)
 ex1-test-seq: ex1
 	@$(call mfem-test,$<,, Performance miniapp,-r 2)
