@@ -11,8 +11,8 @@
 Development version 3.3.1, not released
 =======================================
 
-Powerful high-order mesh optimization
--------------------------------------
+High-order mesh optimization
+----------------------------
 
 - Added support for mesh optimization via node-movement based on the Target-
   Matrix Optimization Paradigm (TMOP) developed by P.Knupp et al.  A variety of
@@ -97,6 +97,9 @@ API changes
 - The methods GetCoeff of VectorArrayCoefficient and MatrixArrayCoefficient now
   return a pointer to Coefficient (instead of reference). Note that NULL pointer
   is a valid entry for these two classes - it is treated as the zero function.
+
+- When building with PETSc, the required PETSc version is now 3.8.0. Newer
+  versions may work too, as long as there are no interface changes in PETSc.
 
 
 Version 3.3, released on Jan 28, 2017

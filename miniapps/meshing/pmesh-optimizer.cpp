@@ -41,7 +41,7 @@
 //   ICF shape:
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   ICF limited shape:
-//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lim -lc 0.15
+//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 6.67
 //   ICF combo shape + size (rings):
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 2 -ni 1000 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb
 //   3D pinched sphere shape (the mesh is in the mfem/data GitHub repository):
@@ -285,8 +285,7 @@ int main (int argc, char *argv[])
    double jitter         = 0.0;
    int metric_id         = 1;
    int target_id         = 1;
-   bool limited          = false;
-   double lim_eps        = 1.0;
+   double lim_const      = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
    int newton_iter       = 10;
@@ -335,9 +334,7 @@ int main (int argc, char *argv[])
                   "1: Ideal shape, unit size\n\t"
                   "2: Ideal shape, equal size\n\t"
                   "3: Ideal shape, initial size");
-   args.AddOption(&limited, "-lim", "--limiting", "-no-lim", "--no-limiting",
-                  "Enable limiting of the node movement.");
-   args.AddOption(&lim_eps, "-lc", "--limit-const", "Limiting constant.");
+   args.AddOption(&lim_const, "-lc", "--limit-const", "Limiting constant.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
                   "Quadrature rule type:\n\t"
                   "1: Gauss-Lobatto\n\t"
@@ -535,7 +532,8 @@ int main (int argc, char *argv[])
    he_nlf_integ->SetIntegrationRule(*ir);
 
    // 14. Limit the node movement.
-   if (limited) { he_nlf_integ->SetLimited(lim_eps, x0); }
+   ConstantCoefficient lim_coeff(lim_const);
+   if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, lim_coeff); }
 
    // 15. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of

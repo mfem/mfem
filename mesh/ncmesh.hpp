@@ -266,8 +266,7 @@ protected: // interface for Mesh to be able to construct itself from NCMesh
    /// Return the basic Mesh arrays for the current finest level.
    void GetMeshComponents(Array<mfem::Vertex>& mvertices,
                           Array<mfem::Element*>& melements,
-                          Array<mfem::Element*>& mboundary,
-                          bool want_vertices) const;
+                          Array<mfem::Element*>& mboundary) const;
 
    /** Get edge and face numbering from 'mesh' (i.e., set all Edge::index and
        Face::index) after a new mesh was created from us. */
