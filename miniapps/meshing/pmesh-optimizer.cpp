@@ -48,6 +48,8 @@
 //     mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -rs 0 -mid 303 -tid 1 -ni 20 -ls 2 -li 500 -fix-bnd
 
 #include "mfem.hpp"
+#include <fstream>
+#include <iostream>
 
 using namespace mfem;
 using namespace std;

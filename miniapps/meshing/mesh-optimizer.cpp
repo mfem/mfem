@@ -36,6 +36,8 @@
 //   mesh-optimizer -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lim -lc 0.001 -ni 10 -ls 1 -bnd
 
 #include "mfem.hpp"
+#include <fstream>
+#include <iostream>
 
 using namespace mfem;
 using namespace std;
