@@ -13,7 +13,7 @@ protected:
    mutable Operator *Pressure_mass;
 
    /// Newton solver for the hyperelastic operator
-   mutable HypreBoomerAMG *mass_prec;
+   //mutable HypreBoomerAMG *mass_prec;
    mutable SuperLUSolver *mass_pcg;
    //mutable HypreBoomerAMG *stiff_prec;
    mutable SuperLUSolver *stiff_prec;
@@ -21,8 +21,7 @@ protected:
    Array<int> &block_trueOffsets;
 
 public:
-   JacobianPreconditioner(BlockOperator &jac, Operator &mass,
-                          Array<int> &offsets);
+   JacobianPreconditioner(Operator &mass, Array<int> &offsets);
    
    virtual void Mult(const Vector &k, Vector &y) const;
    virtual void SetOperator(const Operator &op);
@@ -40,19 +39,17 @@ protected:
    Array<ParFiniteElementSpace *> spaces;
 
    ParBlockNonlinearForm *Hform;
-   mutable BlockOperator *Jacobian;
+   mutable Operator *Jacobian;
    const BlockVector *x;
+
    Operator *Pressure_mass;
 
    /// Newton solver for the hyperelastic operator
    NewtonSolver newton_solver;
    /// Solver for the Jacobian solve in the Newton method
-   mutable IterativeSolver *J_solver;
+   Solver *J_solver;
    /// Preconditioner for the Jacobian
-   mutable Solver *J_prec;
-   mutable HypreBoomerAMG *invK, *invS;
-   mutable HypreParMatrix *K, *B, *KinvBt, *S;
-   mutable HypreParVector *Kd;
+   Solver *J_prec;
 
    Coefficient &mu;
 
@@ -302,9 +299,9 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-JacobianPreconditioner::JacobianPreconditioner(BlockOperator &jac, Operator &mass,
+JacobianPreconditioner::JacobianPreconditioner(Operator &mass,
                                                Array<int> &offsets)
-   : Solver(offsets[2]), block_trueOffsets(offsets), Jacobian(&jac), Pressure_mass(&mass)
+   : Solver(offsets[2]), block_trueOffsets(offsets), Pressure_mass(&mass)
 {
    /*
    mass_prec = new HypreBoomerAMG();
@@ -325,14 +322,6 @@ JacobianPreconditioner::JacobianPreconditioner(BlockOperator &jac, Operator &mas
    mass_pcg->SetSymmetricPattern(false);
    mass_pcg->SetColumnPermutation(superlu::PARMETIS);
    mass_pcg->SetOperator(*Pressure_mass);
-
-
-   stiff_prec = new SuperLUSolver(MPI_COMM_WORLD);
-   stiff_prec->SetPrintStatistics(false);
-   stiff_prec->SetSymmetricPattern(false);
-   stiff_prec->SetColumnPermutation(superlu::PARMETIS);
-   stiff_prec->SetOperator(Jacobian->GetBlock(0,0));
-
 }
 
  
@@ -361,12 +350,21 @@ void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
 
 void JacobianPreconditioner::SetOperator(const Operator &op)
 {
+
+   Jacobian = (BlockOperator *) &op;
+
+   stiff_prec = new SuperLUSolver(MPI_COMM_WORLD);
+   stiff_prec->SetPrintStatistics(false);
+   stiff_prec->SetSymmetricPattern(false);
+   stiff_prec->SetColumnPermutation(superlu::PARMETIS);
+   stiff_prec->SetOperator(Jacobian->GetBlock(0,0));
+
 }
 
 JacobianPreconditioner::~JacobianPreconditioner()
 {
    delete mass_pcg;
-   delete mass_prec;
+   //delete mass_prec;
    delete stiff_prec;
 }
 
@@ -395,11 +393,21 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
 
    // Set the essential boundary conditions
    Hform->SetEssentialBC(ess_bdr, rhs);
+
+   SuperLUSolver *superlu = NULL;
+   superlu = new SuperLUSolver(MPI_COMM_WORLD);
+   superlu->SetPrintStatistics(false);
+   superlu->SetSymmetricPattern(false);
+   superlu->SetColumnPermutation(superlu::PARMETIS);
+
+   J_solver = superlu;
+   J_prec = NULL;
+
    // Set the newton solve parameters
    newton_solver.iterative_mode = true;
-
+   newton_solver.SetSolver(*J_solver);
    newton_solver.SetOperator(*this);
-   newton_solver.SetPrintLevel(0);
+   newton_solver.SetPrintLevel(1);
    newton_solver.SetRelTol(rel_tol);
    newton_solver.SetAbsTol(abs_tol);
    newton_solver.SetMaxIter(iter);
@@ -414,7 +422,6 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    mass.SetOperatorOwner(false);
    Pressure_mass = mass.Ptr();
 
-   J_solver = NULL;
 
 }
 
@@ -430,12 +437,12 @@ void RubberOperator::Solve(Vector &xp) const
 void RubberOperator::Mult(const Vector &k, Vector &y) const
 {
    Hform->Mult(k, y);
+
 }
 
 // Compute the Jacobian from the nonlinear form
 Operator &RubberOperator::GetGradient(const Vector &xp) const
 {
-
    Jacobian = &Hform->GetGradient(xp);
 
    return *Jacobian;
