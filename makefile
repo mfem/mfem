@@ -187,8 +187,8 @@ MFEM_REQ_LIB_DEPS = METIS SIDRE LAPACK SUNDIALS MESQUITE SUITESPARSE SUPERLU\
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
 define mfem_check_dependency
-ifeq ($(MFEM_USE_$(1)),YES)
-   $(if $($(1)_LIB),,$(error $(1)_LIB is empty$($(1)_ERROR_MSG)))
+ifeq ($$(MFEM_USE_$(1)),YES)
+   $$(if $$($(1)_LIB),,$$(error $(1)_LIB is empty$$($(1)_ERROR_MSG)))
 endif
 endef
 
