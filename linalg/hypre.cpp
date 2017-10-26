@@ -1509,7 +1509,7 @@ HypreParMatrix * RAP(HypreParMatrix * Rt, HypreParMatrix *A, HypreParMatrix *P)
    }
    if (Rt_owns_its_col_starts)
    {
-      hypre_ParCSRMatrixSetRowStartsOwner(*Rt, 1);
+      hypre_ParCSRMatrixSetColStartsOwner(*Rt, 1);
    }
 
    return new HypreParMatrix(rap);
