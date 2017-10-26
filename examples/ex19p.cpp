@@ -6,6 +6,30 @@
 using namespace std;
 using namespace mfem;
 
+class JacobianPreconditioner : public Solver
+{
+protected:
+   mutable BlockOperator *Jacobian;
+   mutable Operator *Pressure_mass;
+
+   /// Newton solver for the hyperelastic operator
+   mutable HypreBoomerAMG *mass_prec;
+   mutable SuperLUSolver *mass_pcg;
+   //mutable HypreBoomerAMG *stiff_prec;
+   mutable SuperLUSolver *stiff_prec;
+
+   Array<int> &block_trueOffsets;
+
+public:
+   JacobianPreconditioner(BlockOperator &jac, Operator &mass,
+                          Array<int> &offsets);
+   
+   virtual void Mult(const Vector &k, Vector &y) const;
+   virtual void SetOperator(const Operator &op);
+
+   virtual ~JacobianPreconditioner();
+};
+
 /** After spatial discretization, the rubber model can be written as:
  *     0=H(x)
  *  where x is the block vector representing the deformation and pressure
@@ -18,11 +42,12 @@ protected:
    ParBlockNonlinearForm *Hform;
    mutable BlockOperator *Jacobian;
    const BlockVector *x;
+   Operator *Pressure_mass;
 
    /// Newton solver for the hyperelastic operator
    NewtonSolver newton_solver;
    /// Solver for the Jacobian solve in the Newton method
-   mutable Solver *J_solver;
+   mutable IterativeSolver *J_solver;
    /// Preconditioner for the Jacobian
    mutable Solver *J_prec;
    mutable HypreBoomerAMG *invK, *invS;
@@ -39,7 +64,7 @@ public:
                   Coefficient &mu);
 
    /// Required to use the native newton solver
-   virtual Operator &GetGradientSolver(const Vector &xp) const;
+   virtual Operator &GetGradient(const Vector &xp) const;
    virtual void Mult(const Vector &k, Vector &y) const;
 
    /// Driver for the newton solver
@@ -277,6 +302,74 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+JacobianPreconditioner::JacobianPreconditioner(BlockOperator &jac, Operator &mass,
+                                               Array<int> &offsets)
+   : Solver(offsets[2]), block_trueOffsets(offsets), Jacobian(&jac), Pressure_mass(&mass)
+{
+   /*
+   mass_prec = new HypreBoomerAMG();
+   mass_prec->SetOperator(*Pressure_mass);
+   mass_prec->SetPrintLevel(0);
+
+   mass_pcg = new CGSolver();
+   mass_pcg->SetOperator(*Pressure_mass);
+   mass_pcg->SetRelTol(1e-12);
+   mass_pcg->SetAbsTol(1e-12);
+   mass_pcg->SetMaxIter(20000);
+   mass_pcg->SetPrintLevel(0);
+   mass_pcg->SetPreconditioner(*mass_prec);
+   */
+
+   mass_pcg = new SuperLUSolver(MPI_COMM_WORLD);
+   mass_pcg->SetPrintStatistics(false);
+   mass_pcg->SetSymmetricPattern(false);
+   mass_pcg->SetColumnPermutation(superlu::PARMETIS);
+   mass_pcg->SetOperator(*Pressure_mass);
+
+
+   stiff_prec = new SuperLUSolver(MPI_COMM_WORLD);
+   stiff_prec->SetPrintStatistics(false);
+   stiff_prec->SetSymmetricPattern(false);
+   stiff_prec->SetColumnPermutation(superlu::PARMETIS);
+   stiff_prec->SetOperator(Jacobian->GetBlock(0,0));
+
+}
+
+ 
+void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
+{
+
+   Vector disp_in(k.GetData() + block_trueOffsets[0], block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector pres_in(k.GetData() + block_trueOffsets[1], block_trueOffsets[2]-block_trueOffsets[1]);
+
+   Vector disp_out(y.GetData() + block_trueOffsets[0], block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector pres_out(y.GetData() + block_trueOffsets[1], block_trueOffsets[2]-block_trueOffsets[1]);
+   
+   Vector temp(block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector temp2(block_trueOffsets[1]-block_trueOffsets[0]);
+
+   pres_in *= -1.0;
+
+   mass_pcg->Mult(pres_in, pres_out);
+
+   Jacobian->GetBlock(0,1).Mult(pres_out, temp);
+   subtract(disp_in, temp, temp2);
+
+   stiff_prec->Mult(temp2, disp_out);
+
+}
+
+void JacobianPreconditioner::SetOperator(const Operator &op)
+{
+}
+
+JacobianPreconditioner::~JacobianPreconditioner()
+{
+   delete mass_pcg;
+   delete mass_prec;
+   delete stiff_prec;
+}
+
 RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
                                Array<Array<int> *> &ess_bdr,
                                Array<int> &trueOffsets,
@@ -285,7 +378,7 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
                                int iter,
                                Coefficient &c_mu)
    : Operator(fes[0]->TrueVSize() + fes[1]->TrueVSize()),
-     newton_solver(fes[0]->GetComm(), true), mu(c_mu), block_trueOffsets(trueOffsets)
+     newton_solver(fes[0]->GetComm()), mu(c_mu), block_trueOffsets(trueOffsets)
 {
    Array<Vector *> rhs(2);
 
@@ -306,15 +399,22 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    newton_solver.iterative_mode = true;
 
    newton_solver.SetOperator(*this);
-   newton_solver.SetPrintLevel(1);
+   newton_solver.SetPrintLevel(0);
    newton_solver.SetRelTol(rel_tol);
    newton_solver.SetAbsTol(abs_tol);
    newton_solver.SetMaxIter(iter);
 
+   ParBilinearForm *a = new ParBilinearForm(spaces[1]);
+   ConstantCoefficient one(1.0);
+   OperatorHandle mass(Operator::Hypre_ParCSR);
+   a->AddDomainIntegrator(new MassIntegrator(one));
+   a->Assemble();
+   a->Finalize();
+   a->ParallelAssemble(mass);
+   mass.SetOperatorOwner(false);
+   Pressure_mass = mass.Ptr();
+
    J_solver = NULL;
-   J_prec = NULL;
-   invK = NULL;
-   invS = NULL;
 
 }
 
@@ -330,57 +430,15 @@ void RubberOperator::Solve(Vector &xp) const
 void RubberOperator::Mult(const Vector &k, Vector &y) const
 {
    Hform->Mult(k, y);
-
 }
 
 // Compute the Jacobian from the nonlinear form
-Operator &RubberOperator::GetGradientSolver(const Vector &xp) const
+Operator &RubberOperator::GetGradient(const Vector &xp) const
 {
 
    Jacobian = &Hform->GetGradient(xp);
 
-   if (J_solver != NULL) {
-      delete J_solver;
-      delete invK;
-      delete invS;
-      delete KinvBt, Kd, S;
-   }
-
-
-   K = (HypreParMatrix*) &Jacobian->GetBlock(0,0);
-   B = (HypreParMatrix*) &Jacobian->GetBlock(1,0);
-
-   *B *= -1.0; 
-
-   KinvBt = B->Transpose();
-   Kd = new HypreParVector(MPI_COMM_WORLD, K->GetGlobalNumRows(),
-                           K->GetRowStarts());
-   K->GetDiag(*Kd);
-
-   KinvBt->InvScaleRows(*Kd);
-   S = ParMult(B, KinvBt);
-
-   invK = new HypreBoomerAMG(*K);
-   invS = new HypreBoomerAMG(*S);
-
-   invK->SetPrintLevel(0);
-   invS->SetPrintLevel(0);
-
-   BlockDiagonalPreconditioner *blockPr = new BlockDiagonalPreconditioner(block_trueOffsets);
-   blockPr->SetDiagonalBlock(0, invK);
-   blockPr->SetDiagonalBlock(1, invS);
-
-   MINRESSolver *solver = new MINRESSolver(MPI_COMM_WORLD);
-   solver->SetAbsTol(1.0e-4);
-   solver->SetRelTol(1.0e-4);
-   solver->SetMaxIter(100000);
-   solver->SetOperator(*Jacobian);
-   solver->SetPreconditioner(*blockPr);
-   solver->SetPrintLevel(0);
-
-   J_solver = solver;
-
-   return *J_solver;
+   return *Jacobian;
 }
 
 RubberOperator::~RubberOperator()

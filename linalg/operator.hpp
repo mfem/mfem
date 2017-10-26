@@ -60,15 +60,6 @@ public:
       return const_cast<Operator &>(*this);
    }
 
-   /** @brief Evaluate the solver for the gradient operator at the point @a x. The default
-       behavior in class Operator is to generate an error. */
-   virtual Operator &GetGradientSolver(const Vector &x) const
-   {
-      mfem_error("Operator::GetGradientSolver() is not overloaded!");
-      return const_cast<Operator &>(*this);
-   }
-
-
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
        to input vectors for the operator. `NULL` means identity. */
    virtual const Operator *GetProlongation() const { return NULL; }
