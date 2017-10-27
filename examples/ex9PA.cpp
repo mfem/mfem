@@ -79,6 +79,8 @@ public:
 
 int main(int argc, char *argv[])
 {
+   tic_toc.Clear();
+   tic_toc.Start();
    // 1. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../data/periodic-hexagon.mesh";
@@ -168,8 +170,8 @@ int main(int argc, char *argv[])
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
    
-   //DG_FECollection fec(order, dim);
-   H1_FECollection fec(order, dim);
+   DG_FECollection fec(order, dim);
+   //H1_FECollection fec(order, dim);
    FiniteElementSpace fes(mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
@@ -183,8 +185,7 @@ int main(int argc, char *argv[])
 
    //Creating a partial assembly Kernel
    DummyDomainPAK pak(&fes,ir_order,4);
-   DummyFacePAK pak_int(&fes,ir_order,2);
-   DummyFacePAK pak_ext(&fes,ir_order,2);
+   DummyFacePAK pak_face(&fes,ir_order,2);
 
    //Initialization of the Mass operator
    BilinearFormOperator m(&fes);
@@ -193,9 +194,9 @@ int main(int argc, char *argv[])
    BilinearFormOperator k(&fes);
    k.AddDomainIntegrator(new PAConvectionIntegrator<DummyDomainPAK>(pak,&fes,ir_order,velocity, -1.0));
    k.AddInteriorFaceIntegrator(
-         new PADGConvectionFaceIntegrator<DummyFacePAK>(pak_int,&fes,ir_order,velocity, 1.0, -0.5));
-   k.AddBdrFaceIntegrator(
-         new PADGConvectionFaceIntegrator<DummyFacePAK>(pak_ext,&fes,ir_order,velocity, 1.0, -0.5));
+         new PADGConvectionFaceIntegrator<DummyFacePAK>(pak_face,&fes,ir_order,velocity, 1.0, -0.5));
+   //k.AddBdrFaceIntegrator(
+   //      new PADGConvectionFaceIntegrator<DummyFacePAK>(pak_ext,&fes,ir_order,velocity, 1.0, -0.5));
    //No need to do PA
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
@@ -308,6 +309,9 @@ int main(int argc, char *argv[])
          }
       }
    }
+
+   tic_toc.Stop();
+   cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".

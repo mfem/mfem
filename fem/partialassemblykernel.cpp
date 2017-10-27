@@ -934,7 +934,122 @@ void InitTestB2d(const int face, const int face_id,
    }
 }
 
-void MultBtDB2(FiniteElementSpace* fes,
+void MultBtDB2int(int ind_trial, FiniteElementSpace* fes,
+   DenseMatrix & shape1d, DenseMatrix & shape0d0, DenseMatrix & shape0d1, 
+   DummyTensor & D, const Vector &U, Vector &V)
+{
+   Mesh* mesh = fes->GetMesh();
+   const int nb_faces = mesh->GetNumFaces();
+   // indice of first and second element on the face, e1 is "master" element
+   int e1, e2;
+   int info_e1, info_e2;
+   int face_id1, face_id2;
+   // the element we're working on
+   int e, info_e, face_id;
+   // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   int dofs1d = fes->GetFE(0)->GetOrder() + 1;
+   // number of degrees of freedom in 3d
+   int dofs2d = dofs1d*dofs1d;
+   // number of quadrature points
+   int quads1d = shape1d.Width();
+   // number of dofs for trial functions in every direction relative to
+   // the element on which trial functions are.
+   int i1(dofs1d),i2(dofs1d);
+   // number of dofs for test functions in every direction relative to
+   // the element on which trial functions are.
+   int j1(dofs1d),j2(dofs1d);
+   // number of quadrature points in every direction
+   int k1,k2;
+   // The different B1d and B0d that will be applied, initialized in function
+   // of the change of coordinate and of the face.
+   DenseMatrix B1,B2,B3,B4;
+   // Temporary tensors (we can most likely reduce their number)
+   DenseMatrix T0,T1,T2,T3,T4,R;
+   int i,j,l;
+   for(int face = 0; face < nb_faces; face++)
+   {
+      // We collect the indices of the two elements on
+      // the face, element1 is the master element,
+      // the one that defines the normal to the face.
+      mesh->GetFaceElements(face,&e1,&e2);
+      mesh->GetFaceInfos(face,&info_e1,&info_e2);
+      face_id1 = info_e1 / 64;
+      face_id2 = info_e2 / 64;
+      if(ind_trial==1){
+         e = e1;
+         face_id = face_id1;
+         info_e = info_e1;
+      }else{
+         e = e2;
+         face_id = face_id2;
+         info_e = info_e2;
+      }
+      InitTrialB2d(face_id,shape1d,shape0d0,shape0d1,B1,B2,B3,B4);
+      // Initialization of T0 with the dofs of element e1: T0 = U(e1)
+      DenseMatrix T0(U.GetData()+e*dofs2d, dofs1d, dofs1d);
+      DenseMatrix R(V.GetData() +e*dofs2d, dofs1d, dofs1d);
+      // We perform T1 = B1 . T0
+      k1 = B1.Width();
+      T1.SetSize(i2,k1);
+      for (j = 0; j < k1; j++){
+         for (i = 0; i < i2; i++){
+            T1(i,j) = 0;
+            for (l = 0; l < i1; l++){
+               T1(i,j) += B1(l,j) * T0(l,i);
+            }
+         }
+      }
+      // We perform T2 = B2 . T1
+      k2 = B2.Width();
+      T2.SetSize(k1,k2);
+      for (j = 0; j < k2; j++){
+         for (i = 0; i < k1; i++){
+            T2(i,j) = 0;
+            for (l = 0; l < i2; l++){
+               T2(i,j) += B2(l,j) * T1(l,i);
+            }
+         }
+      }
+      // Above code can be factorized and applied to e1 and e2 (if no hp-adaptivity)
+      // ToSelf: Complexity can be in there too
+      // We perform T4 = D : T3
+      T3.SetSize(k1,k2);
+      for (j = 0; j < k2; j++){
+         for (i = 0; i < k1; i++){
+            // ToSelf: T4 with indirection? I(i,j,k),J(i,j,k),K(i,j,k)? B x (i,j,k)?
+            // Id for F_int
+            int real_k = i + quads1d*j;
+            int ind[] = {real_k,face};
+            T3(i,j) = D(ind) * T2(i,j);
+         }
+      }
+      // We perform T5 = B4 . T4
+      T4.SetSize(k2,j1);
+      for (j = 0; j < j1; j++){
+         for (i = 0; i < k2; i++){
+            T4(i,j) = 0;
+            for (l = 0; l < k1; l++){
+               //T4(i,j) += B3(l,j) * T3(l,i);//for later
+               T4(i,j) += B3(j,l) * T3(l,i);
+            }
+         }
+      }
+      // We perform V = B6 . T6
+      // We sort the result so that dofs are j1 then j2 then j3.
+      //R.SetSize(j1,j2);
+      for (j = 0; j < j2; j++){
+         for (i = 0; i < j1; i++){
+            //R(i,j) = 0; //should be initialized by someone else
+            for (l = 0; l < k2; l++){
+               //R(i,j) += B4(l,*m) * T4(l,*n);//for later
+               R(i,j) += B4(j,l) * T4(l,i);
+            }
+         }
+      }
+   }
+}
+
+void MultBtDB2ext(int ind_trial, FiniteElementSpace* fes,
    DenseMatrix & shape1d, DenseMatrix & shape0d0, DenseMatrix & shape0d1,
    IntMatrix & coord_change, IntMatrix & backward, 
    DummyTensor & D, const Vector &U, Vector &V)
@@ -945,6 +1060,8 @@ void MultBtDB2(FiniteElementSpace* fes,
    int e1, e2;
    int info_e1, info_e2;
    int face_id1, face_id2;
+   // the element we're working on
+   int e_trial, e_test, info_e, face_id;
    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
    int dofs1d = fes->GetFE(0)->GetOrder() + 1;
    // number of degrees of freedom in 3d
@@ -976,10 +1093,22 @@ void MultBtDB2(FiniteElementSpace* fes,
       mesh->GetFaceInfos(face,&info_e1,&info_e2);
       face_id1 = info_e1 / 64;
       face_id2 = info_e2 / 64;
-      InitTrialB2d(face_id1,shape1d,shape0d0,shape0d1,B1,B2,B3,B4);
+      if(ind_trial==1){
+         e_trial = e1;
+         e_test  = e2;
+         face_id = face_id1;
+         info_e = info_e1;
+      }else{
+         e_trial = e2;
+         e_test  = e1;
+         face_id = face_id2;
+         info_e = info_e2;
+      }
+      InitTrialB2d(face_id,shape1d,shape0d0,shape0d1,B1,B2,B3,B4);
       //InitTestB2d(face,face_id2,coord_change,backward,shape1d,shape0d0,shape0d1,B3,B4);
       // Initialization of T0 with the dofs of element e1: T0 = U(e1)
-      T0.UseExternalData(U.GetData()+e1*dofs2d,dofs1d,dofs1d);
+      DenseMatrix T0(U.GetData() + e_trial * dofs2d, dofs1d, dofs1d);
+      DenseMatrix R(V.GetData()  + e_test  * dofs2d, dofs1d, dofs1d);
       // We perform T1 = B1 . T0
       k1 = B1.Width();
       T1.SetSize(i2,k1);
@@ -1015,6 +1144,7 @@ void MultBtDB2(FiniteElementSpace* fes,
             T3(i,j) = D(ind) * T2(i,j);
          }
       }
+      //TODO use backward here
       //complexity starts here
       // We perform T5 = B4 . T4
       h1 = B3.Height();// j1 | j2 | j3
@@ -1028,6 +1158,7 @@ void MultBtDB2(FiniteElementSpace* fes,
             }
          }
       }
+      //TODO use backward here
       // We perform V = B6 . T6
       // We sort the result so that dofs are j1 then j2 then j3.
       switch( coord_change(1,e1) ){
@@ -1040,10 +1171,10 @@ void MultBtDB2(FiniteElementSpace* fes,
          n  = &j;
          break;
       }
-      R.SetSize(j1,j2);
+      //R.SetSize(j1,j2);
       for (j = 0; j < j2; j++){
          for (i = 0; i < j1; i++){
-            R(i,j) = 0; //should be initialized by someone else
+            //R(i,j) = 0; //should be initialized by someone else
             for (l = 0; l < k2; l++){
                //R(i,j) += B4(l,*m) * T4(l,*n);//for later
                R(i,j) += B4(*m,l) * T4(l,*n);

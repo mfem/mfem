@@ -105,23 +105,17 @@ class PADGConvectionFaceIntegrator : public BilinearFormIntegrator
 {
 protected:
    PAK& pak;
-	//TODO check what's needed
-   FiniteElementSpace *fes;
-   const FiniteElement *fe;
-   const int dim;
 
 public:
 	//using Tensor = DummyTensor;
 	typedef DummyTensor Tensor;
 
-  	PADGConvectionFaceIntegrator(PAK& _pak, FiniteElementSpace *_fes, const int ir_order,
+  	PADGConvectionFaceIntegrator(PAK& _pak, FiniteElementSpace *fes, const int ir_order,
                         VectorCoefficient &q, double a = 1.0, double b = 1.0)
-  	:BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
-  		pak(_pak),
-   	fes(_fes),
-   	fe(fes->GetFE(0)),
-   	dim(fe->GetDim())
+  	:BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), ir_order)),
+  		pak(_pak)
 	{
+		const int dim = fes->GetFE(0)->GetDim();
 	   Mesh* mesh = fes->GetMesh();
 	   const int nb_faces = mesh->GetNumFaces();
 		const int quads  = pow(ir_order,dim-1);
@@ -161,6 +155,7 @@ public:
 	      IntMatrix base_E1(dim,dim), base_E2(dim,dim);
 	      // The mapping "map" stores the cahnge of basis from element e1 to element e2
 	      vector<pair<int,int> > map;
+	      //TODO: This code should be factorized and put somewhere else
 	      switch(dim){
 	      	case 1:mfem_error("1D Advection not yet implemented");break;
 	      	case 2:
@@ -184,18 +179,19 @@ public:
 	      //TODO should be on k1,k2,k3
 	      for (int k = 0; k < quads; ++k)
 	      {
-	      	// We need to be sure that we go in the same order as for the partial assembly
-	      	// So we take the points on the face for the element that has the trial function
-	      	// So we can only compute 2 of the 4 matrices with a set of points
+	      	// We need to be sure that we go in the same order as for the partial assembly.
+	      	// So we take the points on the face for the element that has the trial function.
+	      	// So we can only compute 2 of the 4 matrices with a set of points.
 	      	// IntPoint are not the same from e1 to e2 than from e2 to e1, because
-	      	// dofs are usually not oriented the same way on the face
-	      	// IntPoints are the same for e1 to e2 (D21) and for e1 to e1 (D11)
+	      	// dofs are usually not oriented the same way on the face.
+	      	// IntPoints are the same for e1 to e2 (D21) and for e1 to e1 (D11).
 	         // Shared parameters
 	         int ind[] = {k,face};
 	         double val = 0;
 	         Vector n(dim);
 	         double res;
         		//ir = &IntRules.Get(face_tr->FaceGeom, order);
+        		//TODO use own quadrature points
         		const IntegrationPoint &ip = ir->IntPoint(k);
 	      	// We compute D11 and D21
         		//ip = pak.IntPoint( face_id1, k );//2D point ordered according to coord on element 1
@@ -207,9 +203,9 @@ public:
 	         CalcOrtho( face_tr->Face->Jacobian(), n );
 	         res = qvec * n;
 	         val = ip.weight * (   a/2 * res + b * abs(res) );
-	         D11.SetVal( ind, val );
+	         D11(ind) = val;
 	         val = ip.weight * ( - a/2 * res - b * abs(res) );
-	         D21.SetVal( ind, val );
+	         D21(ind) = val;
 	         // We compute D12 and D22
 	         //ip = pak.IntPoint( face_id2, k );
       		IntegrationPoint eip2;
@@ -220,9 +216,9 @@ public:
 	         CalcOrtho( face_tr->Face->Jacobian(), n );
 	         res = qvec * n;
 	         val = ip.weight * (   a/2 * res - b * abs(res) );
-	         D22.SetVal( ind, val );
+	         D22(ind) = val;
 	         val = ip.weight * ( - a/2 * res + b * abs(res) );
-	         D12.SetVal( ind, val );
+	         D12(ind) = val;
 	      }  
 	   }
 	}

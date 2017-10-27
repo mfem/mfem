@@ -373,7 +373,10 @@ public:
    }
 };
 
-void MultBtDB2(FiniteElementSpace* fes,
+void MultBtDB2int(int ind_trial, FiniteElementSpace* fes,
+   DenseMatrix & shape1d, DenseMatrix & shape0d0, DenseMatrix & shape0d1,
+   DummyTensor & D, const Vector &U, Vector &V);
+void MultBtDB2ext(int ind_trial, FiniteElementSpace* fes,
    DenseMatrix & shape1d, DenseMatrix & shape0d0, DenseMatrix & shape0d1,
    IntMatrix & coord_change, IntMatrix & backward, 
    DummyTensor & D, const Vector &U, Vector &V);
@@ -443,7 +446,7 @@ public:
          }
       }
    }
-/*
+   /*
    // Returns the k-th IntegrationPoint on the face
    IntegrationPoint& IntPoint(int face, int k){
       //TODO!!!
@@ -460,16 +463,23 @@ public:
    Tensor& GetD22() { return D22; }
 
    /**
-   * Computes V = B^T D B U where B is a tensor product of shape1d. 
+   * Computes V = B^T D B U where B is a tensor product of shape1d and shape0d. 
    */
    void MultBtDB(const Vector &U, Vector &V)
    {
       switch(dim)
       {
       //case 1:MultBtDB1(fes,shape1d,D,U,V);break;
-      case 2:MultBtDB2(fes,shape1d,shape0d0,shape0d1,coord_change,backward,D11,U,V);break;
-      case 3:MultBtDB3(fes,shape1d,shape0d0,shape0d1,coord_change,backward,D11,U,V);break;
-      default: mfem_error("More than # dimension not yet supported"); break;
+      case 2:
+         MultBtDB2int(1,fes,shape1d,shape0d0,shape0d1,D11,U,V);
+         MultBtDB2int(2,fes,shape1d,shape0d0,shape0d1,D22,U,V);
+         MultBtDB2ext(1,fes,shape1d,shape0d0,shape0d1,coord_change,backward,D21,U,V);
+         MultBtDB2ext(2,fes,shape1d,shape0d0,shape0d1,coord_change,backward,D12,U,V);
+         break;
+      case 3:
+         MultBtDB3(fes,shape1d,shape0d0,shape0d1,coord_change,backward,D11,U,V);
+         break;
+      default: mfem_error("Dimension not yet supported"); break;
       }
    }
 
@@ -479,13 +489,13 @@ public:
    void MultGtDG(const Vector &U, Vector &V)
    {
       
-      // switch(dim)
-      // {
+      switch(dim)
+      {
       // case 1:MultGtDG1(fes,shape1d,dshape1d,D,U,V);break;
       // case 2:MultGtDG2(fes,shape1d,dshape1d,D,U,V);break;
       // case 3:MultGtDG3(fes,shape1d,dshape1d,D,U,V);break;
-      // default: mfem_error("More than # dimension not yet supported"); break;
-      // }
+      default: mfem_error("Dimension not yet supported"); break;
+      }
    }
 
    /**
@@ -494,13 +504,13 @@ public:
    void MultBtDG(const Vector &U, Vector &V)
    {
       
-      // switch(dim)
-      // {
+      switch(dim)
+      {
       // case 1:MultBtDG1(fes,shape1d,dshape1d,D,U,V);break;
       // case 2:MultBtDG2(fes,shape1d,dshape1d,D,U,V);break;
       // case 3:MultBtDG3(fes,shape1d,dshape1d,D,U,V);break;
-      // default: mfem_error("More than # dimension not yet supported"); break;
-      // }
+      default: mfem_error("Dimension not yet supported"); break;
+      }
    }
 
    /**
@@ -508,13 +518,13 @@ public:
    */
    void MultGtDB(const Vector &U, Vector &V)
    {
-      // switch(dim)
-      // {
+      switch(dim)
+      {
       // case 1:MultGtDB1(fes,shape1d,dshape1d,D,U,V);break;
       // case 2:MultGtDB2(fes,shape1d,dshape1d,D,U,V);break;
       // case 3:MultGtDB3(fes,shape1d,dshape1d,D,U,V);break;
-      // default: mfem_error("More than # dimension not yet supported"); break;
-      // }
+      default: mfem_error("Dimension not yet supported"); break;
+      }
    }
 };
 
