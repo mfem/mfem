@@ -31,7 +31,7 @@ namespace mfem
 /**
 * PAK (Partial Assembly Kernel) dependent partial assembly for Convection Integrator.
 * Assumes:
-*  - InitPb, GetD, MultGtDB for Device
+*  - InitPb, GetD, MultGtDB for Kernel
 *  - SetSize, SetVal for the D tensor inside Device
 */
 template <typename PAK>
@@ -77,7 +77,7 @@ public:
           {
             double val = - a * qvec(j) * locD(i,j);
             int ind[] = {i,j,k,e};
-            D.SetVal(ind,val);
+            D(ind) = val;
           }
         }
       }
@@ -158,7 +158,7 @@ public:
 	      GetIdRotInfo(ind_elt2,face_id2,nb_rot2);
 	      // Trial basis shouldn't rotate, since we apply B1d to dofs directly
 	      int nb_rot = nb_rot1 - nb_rot2;//TODO check that it's correct!!!
-	      IntMatrix base_E1, base_E2;
+	      IntMatrix base_E1(dim,dim), base_E2(dim,dim);
 	      // The mapping "map" stores the cahnge of basis from element e1 to element e2
 	      vector<pair<int,int> > map;
 	      switch(dim){
@@ -177,7 +177,11 @@ public:
 	      		mfem_error("Wrong dimension");break;
 	      }
 	      GetChangeOfBasis(base_E1,base_E2,map,P);
+	      //TODO InitPb should initialize the size of D11 D12 D21 D22
 	      pak.InitPb(face,P);
+	      const IntegrationRule *ir = IntRule;
+   		FaceElementTransformations* face_tr = mesh->GetFaceElementTransformations(face);
+	      //TODO should be on k1,k2,k3
 	      for (int k = 0; k < quads; ++k)
 	      {
 	      	// We need to be sure that we go in the same order as for the partial assembly
@@ -187,18 +191,17 @@ public:
 	      	// dofs are usually not oriented the same way on the face
 	      	// IntPoints are the same for e1 to e2 (D21) and for e1 to e1 (D11)
 	         // Shared parameters
-	         int ind[] = {face,k};
+	         int ind[] = {k,face};
 	         double val = 0;
-	         Vector n;
+	         Vector n(dim);
 	         double res;
-        		FaceElementTransformations* face_tr = mesh->GetFaceElementTransformations(face);
-        		const IntegrationRule *ir = IntRule;
+        		//ir = &IntRules.Get(face_tr->FaceGeom, order);
         		const IntegrationPoint &ip = ir->IntPoint(k);
 	      	// We compute D11 and D21
         		//ip = pak.IntPoint( face_id1, k );//2D point ordered according to coord on element 1
-	         face_tr->Face->SetIntPoint( &ip );
       		IntegrationPoint eip1;
       		face_tr->Loc1.Transform( ip, eip1 );
+	         face_tr->Face->SetIntPoint( &ip );
 				face_tr->Elem1->SetIntPoint( &eip1 );
 	         q.Eval( qvec, *(face_tr->Elem1), eip1 );
 	         CalcOrtho( face_tr->Face->Jacobian(), n );
@@ -209,8 +212,8 @@ public:
 	         D21.SetVal( ind, val );
 	         // We compute D12 and D22
 	         //ip = pak.IntPoint( face_id2, k );
-	         face_tr->Face->SetIntPoint( &ip );
       		IntegrationPoint eip2;
+	         face_tr->Face->SetIntPoint( &ip );
       		face_tr->Loc2.Transform( ip, eip2 );
 				face_tr->Elem2->SetIntPoint( &eip2 );
 	         q.Eval( qvec, *(face_tr->Elem2), eip2 );
@@ -220,7 +223,7 @@ public:
 	         D22.SetVal( ind, val );
 	         val = ip.weight * ( - a/2 * res + b * abs(res) );
 	         D12.SetVal( ind, val );
-	      }
+	      }  
 	   }
 	}
    

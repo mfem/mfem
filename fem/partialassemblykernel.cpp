@@ -842,7 +842,218 @@ void MultGtDB3(FiniteElementSpace* fes, DenseMatrix const& shape1d,
    }   
 }
 
-void InitTrialB(const int face_id, DenseMatrix& shape1d,
+
+
+void InitTrialB2d(const int face_id, DenseMatrix& shape1d,
+   DenseMatrix& shape0d0, DenseMatrix& shape0d1,
+   DenseMatrix& B1, DenseMatrix& B2, DenseMatrix& B3, DenseMatrix& B4)
+{
+   // face_id in
+   switch(face_id)
+   {
+   case 0://SOUTH
+      B1.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
+      B2.UseExternalData(shape0d0.GetData(),shape0d0.Height(),shape0d0.Width());//y=0
+      B3.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
+      B4.UseExternalData(shape0d0.GetData(),shape0d0.Height(),shape0d0.Width());//y=0
+      break;
+   case 1://EAST
+      B1.UseExternalData(shape0d1.GetData(),shape0d1.Height(),shape0d1.Width());//x=1
+      B2.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
+      B3.UseExternalData(shape0d1.GetData(),shape0d1.Height(),shape0d1.Width());//x=1
+      B4.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
+      break;
+   case 2://NORTH
+      B1.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
+      B2.UseExternalData(shape0d1.GetData(),shape0d1.Height(),shape0d1.Width());//y=1
+      B3.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
+      B4.UseExternalData(shape0d1.GetData(),shape0d1.Height(),shape0d1.Width());//y=1
+      break;
+   case 3://WEST
+      B1.UseExternalData(shape0d0.GetData(),shape0d0.Height(),shape0d0.Width());//x=0
+      B2.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
+      B3.UseExternalData(shape0d0.GetData(),shape0d0.Height(),shape0d0.Width());//x=0
+      B4.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
+      break;
+   default:
+      mfem_error("The face_id exceeds the number of faces in this dimension.");
+      break;
+   }
+}
+
+//TODO on devrait pas permuter les matrices avec notre approche
+void InitTestB2d(const int face, const int face_id,
+   IntMatrix& coord_change, IntMatrix& backward,
+   DenseMatrix& shape1d, DenseMatrix& shape0d0, DenseMatrix& shape0d1,
+   DenseMatrix& B3, DenseMatrix& B4)
+{
+   //TODO take into account backward
+   DenseMatrix Bx,By,Bz;
+   // face_id out
+   switch(face_id)
+   {
+   case 0://SOUTH
+      //DenseMatrix& B1d = backward(0,face) ? shape1d : shape1db;
+      Bx.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
+      By.UseExternalData(shape0d0.GetData(),shape0d0.Height(),shape0d0.Width());//y=0
+      break;
+   case 1://EAST
+      Bx.UseExternalData(shape0d1.GetData(),shape0d1.Height(),shape0d1.Width());//x=1
+      By.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
+      break;
+   case 2://NORTH
+      Bx.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
+      By.UseExternalData(shape0d1.GetData(),shape0d1.Height(),shape0d1.Width());//y=1
+      break;
+   case 3://WEST
+      Bx.UseExternalData(shape0d0.GetData(),shape0d0.Height(),shape0d0.Width());//x=0
+      By.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
+      break;
+   default:
+      mfem_error("The face_id exceeds the number of faces in this dimension.");
+      break;
+   }
+   // We need to compute according to the order of quadrature points
+   int ind_k1 = coord_change(0,face);
+   switch(ind_k1)
+   {
+   case 0:B3.UseExternalData(Bx.GetData(),Bx.Height(),Bx.Width());break;//x=x'
+   case 1:B3.UseExternalData(By.GetData(),By.Height(),By.Width());break;//x=y'
+   default:
+      mfem_error("The ind_k1 exceeds the number of dimensions.");
+      break;
+   }
+   int ind_k2 = coord_change(1,face);
+   switch(ind_k2)
+   {
+   case 0:B4.UseExternalData(Bx.GetData(),Bx.Height(),Bx.Width());break;//y=x'
+   case 1:B4.UseExternalData(By.GetData(),By.Height(),By.Width());break;//y=y'
+   default:
+      mfem_error("The ind_k2 exceeds the number of dimensions.");
+      break;
+   }
+}
+
+void MultBtDB2(FiniteElementSpace* fes,
+   DenseMatrix & shape1d, DenseMatrix & shape0d0, DenseMatrix & shape0d1,
+   IntMatrix & coord_change, IntMatrix & backward, 
+   DummyTensor & D, const Vector &U, Vector &V)
+{
+   Mesh* mesh = fes->GetMesh();
+   const int nb_faces = mesh->GetNumFaces();
+   // indice of first and second element on the face, e1 is "master" element
+   int e1, e2;
+   int info_e1, info_e2;
+   int face_id1, face_id2;
+   // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   int dofs1d = fes->GetFE(0)->GetOrder() + 1;
+   // number of degrees of freedom in 3d
+   int dofs2d = dofs1d*dofs1d;
+   // number of quadrature points
+   int quads1d = shape1d.Width();
+   // number of dofs for trial functions in every direction relative to
+   // the element on which trial functions are.
+   int i1(dofs1d),i2(dofs1d);
+   // number of dofs for test functions in every direction relative to
+   // the element on which trial functions are.
+   int j1(dofs1d),j2(dofs1d);
+   // number of quadrature points in every direction
+   int k1,k2;
+   int h1;
+   // The different B1d and B0d that will be applied, initialized in function
+   // of the change of coordinate and of the face.
+   DenseMatrix B1,B2,B3,B4;
+   // Temporary tensors (we can most likely reduce their number)
+   DenseMatrix T0,T1,T2,T3,T4,R;
+   int i,j,l;
+   int *m,*n;
+   for(int face = 0; face < nb_faces; face++)
+   {
+      // We collect the indices of the two elements on
+      // the face, element1 is the master element,
+      // the one that defines the normal to the face.
+      mesh->GetFaceElements(face,&e1,&e2);
+      mesh->GetFaceInfos(face,&info_e1,&info_e2);
+      face_id1 = info_e1 / 64;
+      face_id2 = info_e2 / 64;
+      InitTrialB2d(face_id1,shape1d,shape0d0,shape0d1,B1,B2,B3,B4);
+      //InitTestB2d(face,face_id2,coord_change,backward,shape1d,shape0d0,shape0d1,B3,B4);
+      // Initialization of T0 with the dofs of element e1: T0 = U(e1)
+      T0.UseExternalData(U.GetData()+e1*dofs2d,dofs1d,dofs1d);
+      // We perform T1 = B1 . T0
+      k1 = B1.Width();
+      T1.SetSize(i2,k1);
+      for (j = 0; j < k1; j++){
+         for (i = 0; i < i2; i++){
+            T1(i,j) = 0;
+            for (l = 0; l < i1; l++){
+               T1(i,j) += B1(l,j) * T0(l,i);
+            }
+         }
+      }
+      // We perform T2 = B2 . T1
+      k2 = B2.Width();
+      T2.SetSize(k1,k2);
+      for (j = 0; j < k2; j++){
+         for (i = 0; i < k1; i++){
+            T2(i,j) = 0;
+            for (l = 0; l < i2; l++){
+               T2(i,j) += B2(l,j) * T1(l,i);
+            }
+         }
+      }
+      // Above code can be factorized and applied to e1 and e2 (if no hp-adaptivity)
+      // Complexity can be in there too
+      // We perform T4 = D : T3
+      T3.SetSize(k1,k2);
+      for (j = 0; j < k2; j++){
+         for (i = 0; i < k1; i++){
+            // ToSelf: T4 with indirection? I(i,j,k),J(i,j,k),K(i,j,k)? B x (i,j,k)?
+            // Id for F_int
+            int real_k = i + quads1d*j;
+            int ind[] = {real_k,face};
+            T3(i,j) = D(ind) * T2(i,j);
+         }
+      }
+      //complexity starts here
+      // We perform T5 = B4 . T4
+      h1 = B3.Height();// j1 | j2 | j3
+      T4.SetSize(k2,h1);
+      for (j = 0; j < h1; j++){
+         for (i = 0; i < k2; i++){
+            T4(i,j) = 0;
+            for (l = 0; l < k1; l++){
+               //T4(i,j) += B3(l,j) * T3(l,i);//for later
+               T4(i,j) += B3(j,l) * T3(l,i);
+            }
+         }
+      }
+      // We perform V = B6 . T6
+      // We sort the result so that dofs are j1 then j2 then j3.
+      switch( coord_change(1,e1) ){
+      case 0://B_j1^k3 T_k3j2j3
+         m  = &j;
+         n  = &i;
+         break;
+      case 1://B_j2^k3 T_k3j1j3
+         m  = &i;
+         n  = &j;
+         break;
+      }
+      R.SetSize(j1,j2);
+      for (j = 0; j < j2; j++){
+         for (i = 0; i < j1; i++){
+            R(i,j) = 0; //should be initialized by someone else
+            for (l = 0; l < k2; l++){
+               //R(i,j) += B4(l,*m) * T4(l,*n);//for later
+               R(i,j) += B4(*m,l) * T4(l,*n);
+            }
+         }
+      }
+   }
+}
+
+void InitTrialB3d(const int face_id, DenseMatrix& shape1d,
    DenseMatrix& shape0d0, DenseMatrix& shape0d1,
    DenseMatrix& B1, DenseMatrix& B2, DenseMatrix& B3)
 {
@@ -884,7 +1095,8 @@ void InitTrialB(const int face_id, DenseMatrix& shape1d,
    }
 }
 
-void InitTestB(const int face, const int face_id,
+//Do not use this method ;)
+void InitTestB3d(const int face, const int face_id,
    IntMatrix& coord_change, IntMatrix& backward,
    DenseMatrix& shape1d, DenseMatrix& shape0d0, DenseMatrix& shape0d1,
    DenseMatrix& B4, DenseMatrix& B5, DenseMatrix& B6)
@@ -935,6 +1147,9 @@ void InitTestB(const int face, const int face_id,
    case 0:B4.UseExternalData(Bx.GetData(),Bx.Height(),Bx.Width());break;//x=x'
    case 1:B4.UseExternalData(By.GetData(),By.Height(),By.Width());break;//x=y'
    case 2:B4.UseExternalData(Bz.GetData(),Bz.Height(),Bz.Width());break;//x=z'
+   default:
+      mfem_error("The face_id exceeds the number of faces in this dimension.");
+      break;
    }
    int ind_k2 = coord_change(1,face);
    switch(ind_k2)
@@ -942,6 +1157,9 @@ void InitTestB(const int face, const int face_id,
    case 0:B5.UseExternalData(Bx.GetData(),Bx.Height(),Bx.Width());break;//y=x'
    case 1:B5.UseExternalData(By.GetData(),By.Height(),By.Width());break;//y=y'
    case 2:B5.UseExternalData(Bz.GetData(),Bz.Height(),Bz.Width());break;//y=z'
+   default:
+      mfem_error("The face_id exceeds the number of faces in this dimension.");
+      break;
    }
    int ind_k3 = coord_change(2,face);
       switch(ind_k3)
@@ -949,6 +1167,9 @@ void InitTestB(const int face, const int face_id,
    case 0:B6.UseExternalData(Bx.GetData(),Bx.Height(),Bx.Width());break;//z=x'
    case 1:B6.UseExternalData(By.GetData(),By.Height(),By.Width());break;//z=y'
    case 2:B6.UseExternalData(Bz.GetData(),Bz.Height(),Bz.Width());break;//z=z'
+   default:
+      mfem_error("The face_id exceeds the number of faces in this dimension.");
+      break;
    }
 }
 
@@ -967,6 +1188,8 @@ void MultBtDB3(FiniteElementSpace* fes,
    int dofs1d = fes->GetFE(0)->GetOrder() + 1;
    // number of degrees of freedom in 3d
    int dofs3d = dofs1d*dofs1d*dofs1d;
+   // number of quadrature points
+   int quads1d = shape1d.Width();
    // number of dofs for trial functions in every direction relative to
    // the element on which trial functions are.
    int i1(dofs1d),i2(dofs1d),i3(dofs1d);
@@ -992,8 +1215,9 @@ void MultBtDB3(FiniteElementSpace* fes,
       mesh->GetFaceInfos(face,&info_e1,&info_e2);
       face_id1 = info_e1 / 64;
       face_id2 = info_e2 / 64;
-      InitTrialB(face_id1,shape1d,shape0d0,shape0d1,B1,B2,B3);
-      InitTestB(face,face_id2,coord_change,backward,shape1d,shape0d0,shape0d1,B4,B5,B6);
+      InitTrialB3d(face_id1,shape1d,shape0d0,shape0d1,B1,B2,B3);
+      // TODO this approach is not correct, all tensors should be initialized by the previous function
+      InitTestB3d(face,face_id2,coord_change,backward,shape1d,shape0d0,shape0d1,B4,B5,B6);
       // Initialization of T0 with the dofs of element e1: T0 = U(e1)
       T0.UseExternalData(U.GetData()+e1*dofs3d,dofs1d,dofs1d,dofs1d);
       // We perform T1 = B1 . T0
@@ -1040,7 +1264,8 @@ void MultBtDB3(FiniteElementSpace* fes,
             for (i = 0; i < k1; i++){
                // ToSelf: T4 with indirection? I(i,j,k),J(i,j,k),K(i,j,k)? B x (i,j,k)?
                // Id for F_int
-               int ind[] = {i,j,k,e1};
+               int real_k = i + quads1d*j + quads1d*quads1d*k;
+               int ind[] = {real_k,face};
                T4(i,j,k) = D(ind) * T3(i,j,k);
             }
          }

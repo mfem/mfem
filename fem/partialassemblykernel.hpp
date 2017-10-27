@@ -155,7 +155,7 @@ public:
       return data[real_ind];
    }
 
-   double operator()(int* ind)
+   double& operator()(int* ind)
    {
       int real_ind = GetRealInd(ind);
       return data[real_ind];
@@ -373,6 +373,10 @@ public:
    }
 };
 
+void MultBtDB2(FiniteElementSpace* fes,
+   DenseMatrix & shape1d, DenseMatrix & shape0d0, DenseMatrix & shape0d1,
+   IntMatrix & coord_change, IntMatrix & backward, 
+   DummyTensor & D, const Vector &U, Vector &V);
 void MultBtDB3(FiniteElementSpace* fes,
    DenseMatrix & shape1d, DenseMatrix & shape0d0, DenseMatrix & shape0d1,
    IntMatrix & coord_change, IntMatrix & backward, 
@@ -398,7 +402,7 @@ public:
 
    DummyFacePAK(FiniteElementSpace *_fes, int ir_order, int tensor_dim)
    : fes(_fes), dim(fes->GetFE(0)->GetDim()),
-   coord_change(fes->GetMesh()->GetNumFaces(),dim),backward(fes->GetMesh()->GetNumFaces(),dim),
+   coord_change(2*dim,fes->GetMesh()->GetNumFaces()),backward(2*dim,fes->GetMesh()->GetNumFaces()),
    D11(tensor_dim), D12(tensor_dim), D21(tensor_dim), D22(tensor_dim)
    {
       // Store the two 0d shape functions and gradients
@@ -463,7 +467,7 @@ public:
       switch(dim)
       {
       //case 1:MultBtDB1(fes,shape1d,D,U,V);break;
-      //case 2:MultBtDB2(fes,shape1d,D,U,V);break;
+      case 2:MultBtDB2(fes,shape1d,shape0d0,shape0d1,coord_change,backward,D11,U,V);break;
       case 3:MultBtDB3(fes,shape1d,shape0d0,shape0d1,coord_change,backward,D11,U,V);break;
       default: mfem_error("More than # dimension not yet supported"); break;
       }

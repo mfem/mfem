@@ -141,8 +141,8 @@ void GetLocalCoordMap2D(vector<pair<int,int> >& map, const int nb_rot)
 {
 	map.resize(2);
 	//First and second coordinate vectors should always be of opposite direction in 2D.
-	map[0] = pair<int,int>(-1,1);
-	map[1] = pair<int,int>(-1,2);
+	map[0] = pair<int,int>(-1,0);
+	map[1] = pair<int,int>(-1,1);
 }
 
 // Default parameter nb_rot=0 should be only use with a structured mesh.
@@ -210,7 +210,7 @@ void GetIdRotInfo(const int face_info, int& face_id, int& nb_rot){
 	int orientation = face_info % 64;
 	face_id = face_info / 64;
 	// Test if ny understanding of mfem code is correct, error if not
-	MFEM_ASSERT(orientation % 2 == 0, "Unexpected inside out face");
+	//MFEM_ASSERT(orientation % 2 == 0, "Unexpected inside out face");
 	nb_rot = orientation / 2;
 }
 
