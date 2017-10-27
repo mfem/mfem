@@ -166,9 +166,9 @@ void HDGBilinearForm2::Allocate(const double memA, const double memB)
    }
 
    // Create A_data and B_data as a vector with the proper size
-   delete A_data;
+   delete [] A_data;
    A_data = new double[A_offsets[elements_A]];
-   delete B_data;
+   delete [] B_data;
    B_data = new double[B_offsets[elements_B]];
 }
 
@@ -190,6 +190,11 @@ void HDGBilinearForm2::AssembleSC(const Vector rhs_F,
 
    Allocate(memA, memB);
 
+   DenseMatrix *B_local;
+   DenseMatrix *C_local;
+   DenseMatrix *D_local;
+   Vector G_local;
+   
    for (int i=0; i< fes1->GetNE(); i++)
    {
       fes1 -> GetElementVDofs (i, vdofs_u);
@@ -204,10 +209,9 @@ void HDGBilinearForm2::AssembleSC(const Vector rhs_F,
       el_to_face->GetRow(i, fcs);
 
       int no_faces = fcs.Size();
-      DenseMatrix *B_local = new DenseMatrix[no_faces];
-      DenseMatrix *C_local = new DenseMatrix[no_faces];
-      DenseMatrix *D_local = new DenseMatrix[no_faces];
-      Vector G_local;
+      B_local = new DenseMatrix[no_faces];
+      C_local = new DenseMatrix[no_faces];
+      D_local = new DenseMatrix[no_faces];
 
       F_local.SetSize(ndof_u);
       F_local = 0.0;
@@ -297,6 +301,10 @@ void HDGBilinearForm2::AssembleSC(const Vector rhs_F,
             mat->AddSubMatrix(vdofs_e1, vdofs_e2, SC_local, skip_zeros);
          }
       }
+      
+      delete [] B_local;
+      delete [] C_local;
+      delete [] D_local;
    }
 
 }
@@ -397,6 +405,9 @@ void HDGBilinearForm2::Reconstruct(const GridFunction *F,
    Array<int> vdofs_u, vdofs_e1;
    int ndof_u, ndof_e1;
 
+   DenseMatrix dummy_DM;
+   DenseMatrix *B_local;
+
    for (int i=0; i< fes1->GetNE(); i++)
    {
       fes1 -> GetElementVDofs (i, vdofs_u);
@@ -416,8 +427,7 @@ void HDGBilinearForm2::Reconstruct(const GridFunction *F,
       el_to_face->GetRow(i, fcs);
 
       int no_faces = fcs.Size();
-      DenseMatrix dummy_DM;
-      DenseMatrix *B_local = new DenseMatrix[no_faces];
+      B_local = new DenseMatrix[no_faces];
 
       Bubar_local.SetSize(ndof_u);
 
@@ -485,6 +495,8 @@ void HDGBilinearForm2::Reconstruct(const GridFunction *F,
       A_local.Mult(F_local, u_local);
 
       u->SetSubVector(vdofs_u, u_local);
+      
+      delete [] B_local;
    }
 
 }

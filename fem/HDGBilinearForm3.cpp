@@ -198,6 +198,11 @@ void HDGBilinearForm3::AssembleSC(const Vector rhs_R, const Vector rhs_F,
 
    Allocate(bdr_attr_is_ess, memA, memB);
 
+   DenseMatrix *B_local;
+   DenseMatrix *C_local;
+   DenseMatrix *D_local;
+   Vector L_local;
+
    for (int i=0; i< fes1->GetNE(); i++)
    {
       fes1 -> GetElementVDofs (i, vdofs_q);
@@ -215,11 +220,10 @@ void HDGBilinearForm3::AssembleSC(const Vector rhs_R, const Vector rhs_F,
       el_to_face->GetRow(i, fcs);
 
       int no_faces = fcs.Size();
-      DenseMatrix *B_local = new DenseMatrix[no_faces];
-      DenseMatrix *C_local = new DenseMatrix[no_faces];
-      DenseMatrix *D_local = new DenseMatrix[no_faces];
-      Vector L_local;
-
+      B_local = new DenseMatrix[no_faces];
+      C_local = new DenseMatrix[no_faces];
+      D_local = new DenseMatrix[no_faces];
+      
       for (int edge1=0; edge1<no_faces; edge1++)
       {
          fes3 -> GetFaceVDofs(fcs[edge1], vdofs_e1);
@@ -337,6 +341,10 @@ void HDGBilinearForm3::AssembleSC(const Vector rhs_R, const Vector rhs_F,
             mat->AddSubMatrix(vdofs_e1, vdofs_e2, SC_local, skip_zeros);
          }
       }
+
+      delete [] B_local;
+      delete [] C_local;
+      delete [] D_local;
    }
 
 }
@@ -496,9 +504,8 @@ void HDGBilinearForm3::Reconstruct(const GridFunction *R, const GridFunction *F,
    Array<int> vdofs_q, vdofs_u, vdofs_e1;
    int ndof_q, ndof_u, ndof_e1;
 
-   Array <int> dof_done;
-   dof_done.SetSize(fes3->GetVSize());
-   dof_done = 0;
+   DenseMatrix dummy_DM;
+   DenseMatrix *B_local;
 
    for (int i=0; i< fes1->GetNE(); i++)
    {
@@ -521,8 +528,7 @@ void HDGBilinearForm3::Reconstruct(const GridFunction *R, const GridFunction *F,
       el_to_face->GetRow(i, fcs);
 
       int no_faces = fcs.Size();
-      DenseMatrix dummy_DM;
-      DenseMatrix *B_local = new DenseMatrix[no_faces];
+      B_local = new DenseMatrix[no_faces];
 
       R_local.SetSize(ndof_q);
       R_local = 0.0;
@@ -617,6 +623,8 @@ void HDGBilinearForm3::Reconstruct(const GridFunction *R, const GridFunction *F,
 
       q->SetSubVector(vdofs_q, q_local);
       u->SetSubVector(vdofs_u, u_local);
+      
+      delete [] B_local;
 
    }
 }

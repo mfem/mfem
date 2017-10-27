@@ -69,6 +69,11 @@ void ParHDGBilinearForm3::ParallelAssemble(const ParGridFunction *R,
    }
 
    double *A_local_data, *B_local_data;
+   
+   DenseMatrix *B_local;
+   DenseMatrix *C_local;
+   DenseMatrix *D_local;
+   Vector L_local;
 
    for (int i=0; i< pfes1->GetNE(); i++)
    {
@@ -87,11 +92,10 @@ void ParHDGBilinearForm3::ParallelAssemble(const ParGridFunction *R,
       el_to_face->GetRow(i, fcs);
       int no_faces = fcs.Size();
 
-      DenseMatrix *B_local = new DenseMatrix[no_faces];
-      DenseMatrix *C_local = new DenseMatrix[no_faces];
-      DenseMatrix *D_local = new DenseMatrix[no_faces];
-      Vector L_local;
-
+      B_local = new DenseMatrix[no_faces];
+      C_local = new DenseMatrix[no_faces];
+      D_local = new DenseMatrix[no_faces];
+      
       // Get the right hand side vectors and merge them into one,
       // so it has the same size as A_local
       R->GetSubVector(vdofs_q, R_local);
@@ -219,6 +223,10 @@ void ParHDGBilinearForm3::ParallelAssemble(const ParGridFunction *R,
             mat->AddSubMatrix(vdofs_e1, vdofs_e2, SC_local, skip_zeros);
          }
       }
+      
+      delete [] B_local;
+      delete [] C_local;
+      delete [] D_local;      
    }
 }
 
@@ -345,6 +353,9 @@ void ParHDGBilinearForm3::Reconstruct(const ParGridFunction *R,
       Edge_to_SharedEdge[pmesh->GetSharedFace(i)] = i;
    }
 
+   DenseMatrix dummy_DM;
+   DenseMatrix *B_local;
+
    for (int i=0; i< pfes1->GetNE(); i++)
    {
       pfes1 -> GetElementVDofs (i, vdofs_q);
@@ -366,9 +377,7 @@ void ParHDGBilinearForm3::Reconstruct(const ParGridFunction *R,
       el_to_face->GetRow(i, fcs);
 
       int no_faces = fcs.Size();
-
-      DenseMatrix dummy_DM;
-      DenseMatrix *B_local = new DenseMatrix[no_faces];
+      B_local = new DenseMatrix[no_faces];
 
       R_local.SetSize(ndof_q);
       R_local = 0.0;
@@ -477,6 +486,7 @@ void ParHDGBilinearForm3::Reconstruct(const ParGridFunction *R,
       q->SetSubVector(vdofs_q, q_local);
       u->SetSubVector(vdofs_u, u_local);
 
+      delete [] B_local;
    }
 }
 

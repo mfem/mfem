@@ -62,6 +62,11 @@ void ParHDGBilinearForm2::ParallelAssemble(const ParGridFunction *F,
       Edge_to_SharedEdge[pmesh->GetSharedFace(i)] = i;
    }
 
+   DenseMatrix *B_local;
+   DenseMatrix *C_local;
+   DenseMatrix *D_local;
+   Vector G_local;
+   
    for (int i=0; i< pfes1->GetNE(); i++)
    {
       pfes1 -> GetElementVDofs (i, vdofs_u);
@@ -75,11 +80,9 @@ void ParHDGBilinearForm2::ParallelAssemble(const ParGridFunction *F,
       // Get the element faces
       el_to_face->GetRow(i, fcs);
       int no_faces = fcs.Size();
-      DenseMatrix *B_local = new DenseMatrix[no_faces];
-      DenseMatrix *C_local = new DenseMatrix[no_faces];
-      DenseMatrix *D_local = new DenseMatrix[no_faces];
-
-      Vector G_local;
+      B_local = new DenseMatrix[no_faces];
+      C_local = new DenseMatrix[no_faces];
+      D_local = new DenseMatrix[no_faces];
 
       F_local.SetSize(ndof_u);
       F_local = 0.0;
@@ -179,6 +182,11 @@ void ParHDGBilinearForm2::ParallelAssemble(const ParGridFunction *F,
             mat->AddSubMatrix(vdofs_e1, vdofs_e2, SC_local, skip_zeros);
          }
       }
+      
+      delete [] B_local;
+      delete [] C_local;
+      delete [] D_local;
+
    }
 }
 
@@ -249,6 +257,9 @@ void ParHDGBilinearForm2::Reconstruct(const ParGridFunction *F,
       Edge_to_SharedEdge[pmesh->GetSharedFace(i)] = i;
    }
 
+   DenseMatrix dummy_DM;
+   DenseMatrix *B_local;
+
    for (int i=0; i< pfes1->GetNE(); i++)
    {
       pfes1 -> GetElementVDofs (i, vdofs_u);
@@ -267,8 +278,7 @@ void ParHDGBilinearForm2::Reconstruct(const ParGridFunction *F,
       el_to_face->GetRow(i, fcs);
 
       int no_faces = fcs.Size();
-      DenseMatrix dummy_DM;
-      DenseMatrix *B_local = new DenseMatrix[no_faces];
+      B_local = new DenseMatrix[no_faces];
 
       F_local.SetSize(ndof_u);
       F_local = 0.0;
@@ -345,6 +355,8 @@ void ParHDGBilinearForm2::Reconstruct(const ParGridFunction *F,
       A_local.Mult(F_local, u_local);
 
       u->SetSubVector(vdofs_u, u_local);
+      
+      delete [] B_local;
    }
 }
 
