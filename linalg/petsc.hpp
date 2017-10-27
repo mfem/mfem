@@ -343,7 +343,7 @@ public:
    virtual ~PetscBCHandler() {}
 
    /// Returns the type of boundary conditions
-   Type Type() const { return bctype; }
+   Type GetType() const { return bctype; }
 
    /// Sets the type of boundary conditions
    void SetType(enum Type _type) { bctype = _type; setup = false; }

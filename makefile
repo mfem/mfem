@@ -181,9 +181,25 @@ ifeq ($(MFEM_USE_OPENMP),YES)
    endif
 endif
 
+# List of MFEM dependencies, that require the *_LIB variable to be non-empty
+MFEM_REQ_LIB_DEPS = METIS SIDRE LAPACK SUNDIALS MESQUITE SUITESPARSE SUPERLU\
+ STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR
+PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
+
+define mfem_check_dependency
+ifeq ($$(MFEM_USE_$(1)),YES)
+   $$(if $$($(1)_LIB),,$$(error $(1)_LIB is empty$$($(1)_ERROR_MSG)))
+endif
+endef
+
+# During configuration, check dependencies from MFEM_REQ_LIB_DEPS
+ifeq ($(MAKECMDGOALS),config)
+   $(foreach dep,$(MFEM_REQ_LIB_DEPS),\
+      $(eval $(call mfem_check_dependency,$(dep))))
+endif
+
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = METIS LIBUNWIND SIDRE LAPACK OPENMP SUNDIALS MESQUITE\
- SUITESPARSE SUPERLU STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR
+MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP
 
 # Macro for adding dependencies
 define mfem_add_dependency
