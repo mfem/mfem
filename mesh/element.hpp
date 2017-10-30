@@ -35,7 +35,7 @@ public:
 
    /// Constants for the classes derived from Element.
    enum Type { POINT, SEGMENT, TRIANGLE, QUADRILATERAL, TETRAHEDRON,
-               HEXAHEDRON
+               PRISM, HEXAHEDRON
              };
 
    /// Default element constructor.

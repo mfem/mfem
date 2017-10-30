@@ -25,13 +25,14 @@ namespace mfem
     Geometry::TRIANGLE - triangle with vertices (0,0), (1,0), (0,1)
     Geometry::SQUARE   - the unit square (0,1)x(0,1)
     Geometry::TETRAHEDRON - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1)
+    Geometry::PRISM - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1),(1,0,1),(0,1,1)
     Geometry::CUBE - the unit cube                                    */
 class Geometry
 {
 public:
-   enum Type { POINT, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE };
+   enum Type { POINT, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, PRISM, CUBE };
 
-   static const int NumGeom = 6;
+   static const int NumGeom = 7;
    static const int NumBdrArray[];
    static const char *Name[NumGeom];
    static const double Volume[NumGeom];
@@ -154,6 +155,24 @@ template <> struct Geometry::Constants<Geometry::TETRAHEDRON>
    static const int NumFaces = 4;
    static const int FaceTypes[NumFaces];
    static const int MaxFaceVert = 3;
+   static const int FaceVert[NumFaces][MaxFaceVert];
+   // Lower-triangular part of the local vertex-to-vertex graph.
+   struct VertToVert
+   {
+      static const int I[NumVert];
+      static const int J[NumEdges][2]; // {end,edge_idx}
+   };
+};
+
+template <> struct Geometry::Constants<Geometry::PRISM>
+{
+   static const int Dimension = 3;
+   static const int NumVert = 6;
+   static const int NumEdges = 9;
+   static const int Edges[NumEdges][2];
+   static const int NumFaces = 5;
+   static const int FaceTypes[NumFaces];
+   static const int MaxFaceVert = 4;
    static const int FaceVert[NumFaces][MaxFaceVert];
    // Lower-triangular part of the local vertex-to-vertex graph.
    struct VertToVert
