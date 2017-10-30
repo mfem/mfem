@@ -1997,9 +1997,12 @@ void NCMesh::BuildEdgeList()
    for (unsigned i = 0; i < edge_list.slaves.size(); i++)
    {
       Slave &sl = edge_list.slaves[i];
-      sl.element = edge_element[sl.index];
-      sl.local = edge_local[sl.index];
-      MFEM_ASSERT(sl.local >= 0, "");
+      int local = edge_local[sl.index];
+      if (local >= 0)
+      {
+         sl.local = local;
+         sl.element = edge_element[sl.index];
+      }
    }
 }
 
