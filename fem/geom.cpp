@@ -378,14 +378,14 @@ bool Geometry::ProjectPoint(int GeomType, const IntegrationPoint &beg,
       }
       case Geometry::TRIANGLE:
       {
-         double lend[3] = { end.x, end.y, 1-end.x-end.y };
-         double lbeg[3] = { beg.x, beg.y, 1-beg.x-beg.y };
+         double lend[3] = { end.x, end.y, 1.0-end.x-end.y };
+         double lbeg[3] = { beg.x, beg.y, 1.0-beg.x-beg.y };
          return internal::IntersectSegment<3,2>(lbeg, lend, end);
       }
       case Geometry::SQUARE:
       {
-         double lend[4] = { end.x, end.y, 1-end.x, 1.0-end.y };
-         double lbeg[4] = { beg.x, beg.y, 1-beg.x, 1.0-beg.y };
+         double lend[4] = { end.x, end.y, 1.0-end.x, 1.0-end.y };
+         double lbeg[4] = { beg.x, beg.y, 1.0-beg.x, 1.0-beg.y };
          return internal::IntersectSegment<4,2>(lbeg, lend, end);
       }
       case Geometry::TETRAHEDRON:
