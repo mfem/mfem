@@ -40,8 +40,7 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh)
       elements[leaf_elements[i]].rank = InitialPartition(i);
    }
 
-   AssignLeafIndices();
-   UpdateVertices();
+   Update();
 
    // note that at this point all processors still have all the leaf elements;
    // we however may now start pruning the refinement tree to get rid of
