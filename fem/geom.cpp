@@ -15,10 +15,10 @@ namespace mfem
 {
 
 const char *Geometry::Name[NumGeom] =
-{ "Point", "Segment", "Triangle", "Square", "Tetrahedron", "Prism", "Cube" };
+{ "Point", "Segment", "Triangle", "Square", "Tetrahedron", "Cube", "Prism" };
 
 const double Geometry::Volume[NumGeom] =
-{ 1.0, 1.0, 0.5, 1.0, 1./6, 0.5, 1.0 };
+{ 1.0, 1.0, 0.5, 1.0, 1./6, 1.0, 0.5 };
 
 Geometry::Geometry()
 {
@@ -76,8 +76,9 @@ Geometry::Geometry()
    GeomVert[4]->IntPoint(3).y = 0.0;
    GeomVert[4]->IntPoint(3).z = 1.0;
 
-   // Vertices for Geometry::PRISM
-   GeomVert[5] = new IntegrationRule(6);
+   // Vertices for Geometry::CUBE
+   GeomVert[5] = new IntegrationRule(8);
+
    GeomVert[5]->IntPoint(0).x = 0.0;
    GeomVert[5]->IntPoint(0).y = 0.0;
    GeomVert[5]->IntPoint(0).z = 0.0;
@@ -86,25 +87,32 @@ Geometry::Geometry()
    GeomVert[5]->IntPoint(1).y = 0.0;
    GeomVert[5]->IntPoint(1).z = 0.0;
 
-   GeomVert[5]->IntPoint(2).x = 0.0;
+   GeomVert[5]->IntPoint(2).x = 1.0;
    GeomVert[5]->IntPoint(2).y = 1.0;
    GeomVert[5]->IntPoint(2).z = 0.0;
 
    GeomVert[5]->IntPoint(3).x = 0.0;
-   GeomVert[5]->IntPoint(3).y = 0.0;
-   GeomVert[5]->IntPoint(3).z = 1.0;
+   GeomVert[5]->IntPoint(3).y = 1.0;
+   GeomVert[5]->IntPoint(3).z = 0.0;
 
-   GeomVert[5]->IntPoint(4).x = 1.0;
+   GeomVert[5]->IntPoint(4).x = 0.0;
    GeomVert[5]->IntPoint(4).y = 0.0;
    GeomVert[5]->IntPoint(4).z = 1.0;
 
-   GeomVert[5]->IntPoint(5).x = 0.0;
-   GeomVert[5]->IntPoint(5).y = 1.0;
+   GeomVert[5]->IntPoint(5).x = 1.0;
+   GeomVert[5]->IntPoint(5).y = 0.0;
    GeomVert[5]->IntPoint(5).z = 1.0;
 
-   // Vertices for Geometry::CUBE
-   GeomVert[6] = new IntegrationRule(8);
+   GeomVert[5]->IntPoint(6).x = 1.0;
+   GeomVert[5]->IntPoint(6).y = 1.0;
+   GeomVert[5]->IntPoint(6).z = 1.0;
 
+   GeomVert[5]->IntPoint(7).x = 0.0;
+   GeomVert[5]->IntPoint(7).y = 1.0;
+   GeomVert[5]->IntPoint(7).z = 1.0;
+
+   // Vertices for Geometry::PRISM
+   GeomVert[6] = new IntegrationRule(6);
    GeomVert[6]->IntPoint(0).x = 0.0;
    GeomVert[6]->IntPoint(0).y = 0.0;
    GeomVert[6]->IntPoint(0).z = 0.0;
@@ -113,29 +121,21 @@ Geometry::Geometry()
    GeomVert[6]->IntPoint(1).y = 0.0;
    GeomVert[6]->IntPoint(1).z = 0.0;
 
-   GeomVert[6]->IntPoint(2).x = 1.0;
+   GeomVert[6]->IntPoint(2).x = 0.0;
    GeomVert[6]->IntPoint(2).y = 1.0;
    GeomVert[6]->IntPoint(2).z = 0.0;
 
    GeomVert[6]->IntPoint(3).x = 0.0;
-   GeomVert[6]->IntPoint(3).y = 1.0;
-   GeomVert[6]->IntPoint(3).z = 0.0;
+   GeomVert[6]->IntPoint(3).y = 0.0;
+   GeomVert[6]->IntPoint(3).z = 1.0;
 
-   GeomVert[6]->IntPoint(4).x = 0.0;
+   GeomVert[6]->IntPoint(4).x = 1.0;
    GeomVert[6]->IntPoint(4).y = 0.0;
    GeomVert[6]->IntPoint(4).z = 1.0;
 
-   GeomVert[6]->IntPoint(5).x = 1.0;
-   GeomVert[6]->IntPoint(5).y = 0.0;
+   GeomVert[6]->IntPoint(5).x = 0.0;
+   GeomVert[6]->IntPoint(5).y = 1.0;
    GeomVert[6]->IntPoint(5).z = 1.0;
-
-   GeomVert[6]->IntPoint(6).x = 1.0;
-   GeomVert[6]->IntPoint(6).y = 1.0;
-   GeomVert[6]->IntPoint(6).z = 1.0;
-
-   GeomVert[6]->IntPoint(7).x = 0.0;
-   GeomVert[6]->IntPoint(7).y = 1.0;
-   GeomVert[6]->IntPoint(7).z = 1.0;
 
    GeomCenter[POINT].x = 0.0;
    GeomCenter[POINT].y = 0.0;
@@ -189,6 +189,14 @@ Geometry::Geometry()
       tet_T.SetIntPoint(&GeomCenter[TETRAHEDRON]);
       CalcInverse(tet_T.Jacobian(), *PerfGeomToGeomJac[TETRAHEDRON]);
    }
+   {
+      Linear3DFiniteElement PriFE;
+      IsoparametricTransformation pri_T;
+      pri_T.SetFE(&PriFE);
+      GetPerfPointMat (PRISM, pri_T.GetPointMat());
+      pri_T.SetIntPoint(&GeomCenter[PRISM]);
+      CalcInverse(pri_T.Jacobian(), *PerfGeomToGeomJac[PRISM]);
+   }
 }
 
 Geometry::~Geometry()
@@ -209,8 +217,8 @@ const IntegrationRule * Geometry::GetVertices(int GeomType)
       case Geometry::TRIANGLE:    return GeomVert[2];
       case Geometry::SQUARE:      return GeomVert[3];
       case Geometry::TETRAHEDRON: return GeomVert[4];
-      case Geometry::PRISM:       return GeomVert[5];
-      case Geometry::CUBE:        return GeomVert[6];
+      case Geometry::CUBE:        return GeomVert[5];
+      case Geometry::PRISM:       return GeomVert[6];
       default:
          mfem_error ("Geometry::GetVertices(...)");
    }
@@ -502,11 +510,11 @@ void Geometry::JacToPerfJac(int GeomType, const DenseMatrix &J,
    }
 }
 
-const int Geometry::NumBdrArray[] = { 0, 2, 3, 4, 4, 5, 6 };
+const int Geometry::NumBdrArray[] = { 0, 2, 3, 4, 4, 6, 5 };
 const int Geometry::Dimension[NumGeom] = { 0, 1, 2, 2, 3, 3, 3 };
-const int Geometry::NumVerts[NumGeom] = { 1, 2, 3, 4, 4, 6, 8 };
-const int Geometry::NumEdges[NumGeom] = { 0, 1, 3, 4, 6, 9, 12 };
-const int Geometry::NumFaces[NumGeom] = { 0, 0, 1, 1, 4, 5, 6 };
+const int Geometry::NumVerts[NumGeom] = { 1, 2, 3, 4, 4, 8, 6 };
+const int Geometry::NumEdges[NumGeom] = { 0, 1, 3, 4, 6, 12, 9 };
+const int Geometry::NumFaces[NumGeom] = { 0, 0, 1, 1, 4, 6, 5 };
 
 const int Geometry::
 Constants<Geometry::POINT>::Orient[1][1] = {{0}};

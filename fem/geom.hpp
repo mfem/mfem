@@ -30,7 +30,7 @@ namespace mfem
 class Geometry
 {
 public:
-   enum Type { POINT, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, PRISM, CUBE };
+   enum Type { POINT, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM };
 
    static const int NumGeom = 7;
    static const int NumBdrArray[];
