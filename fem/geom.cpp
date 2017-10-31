@@ -1031,6 +1031,66 @@ RefinedGeometry * GeometryRefiner::Refine (int Geom, int Times, int ETimes)
          return RGeom[g];
       }
 
+      case Geometry::PRISM:
+      {
+         const int g = Geometry::PRISM;
+         if (RGeom[g] != NULL && RGeom[g]->Times == Times &&
+             RGeom[g]->ETimes == ETimes)
+         {
+            return RGeom[g];
+         }
+
+         if (RGeom[g] != NULL)
+         {
+            delete RGeom[g];
+         }
+         RGeom[g] = new RefinedGeometry ((Times+1)*(Times+1)*(Times+2)/2,
+                                         6*Times*Times*Times, 0);
+         RGeom[g]->Times = Times;
+         RGeom[g]->ETimes = ETimes;
+         for (l = k = 0; k <= Times; k++)
+	   for (j = 0; j <= Times; j++)
+               for (i = 0; i <= Times-j; i++, l++)
+               {
+                  IntegrationPoint &ip = RGeom[g]->RefPts.IntPoint(l);
+                  if (type == 0)
+                  {
+                     ip.x = double(i) / Times;
+                     ip.y = double(j) / Times;
+                     ip.z = double(k) / Times;
+                  }
+                  else
+                  {
+		     ip.x = cp[i]/(cp[i] + cp[j] + cp[Times-i-j]);
+		     ip.y = cp[j]/(cp[i] + cp[j] + cp[Times-i-j]);
+                     ip.z = cp[k];
+                  }
+               }
+         Array<int> &G = RGeom[g]->RefGeoms;
+         for (m = k = 0; k < Times; k++)
+	   for (l = j = 0; j < Times; j++, l++)
+	     for (i = 0; i < Times-j; i++, l++)
+             {
+		 G[m++] = l + (k+0) * (Times+1) * (Times+2)/2;
+		 G[m++] = l + 1 + (k+0) * (Times+1) * (Times+2)/2;
+		 G[m++] = l + Times - j + 1 + (k+0) * (Times+1) * (Times+2)/2;
+		 G[m++] = l + (k+1) * (Times+1) * (Time+2)/2;
+		 G[m++] = l + 1 + (k+1) * (Times+1) * (Times+2)/2;
+		 G[m++] = l + Times - j + 1 + (k+1) * (Times+1) * (Times+2)/2;
+		 if (i+j+1 < Times)
+		 {
+		    G[m++] = l + 1 + (k+0) * (Times+1) * (Time+2)/2;
+		    G[m++] = l + Times - j + 2 + (k+0) * (Times+1)*(Times+2)/2;
+		    G[m++] = l + Times - j + 1 + (k+0) * (Times+1)*(Times+2)/2;
+		    G[m++] = l + 1 + (k+1) * (Times+1) * (Times+2)/2;
+		    G[m++] = l + Times - j + 2 + (k+1) * (Times+1) * (Times+2)/2;
+		    G[m++] = l + Times - j + 1 + (k+1) * (Times+1) * (Times+2)/2;
+		 }
+               }
+
+         return RGeom[g];
+      }
+
       default:
 
          return RGeom[0];
