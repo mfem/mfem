@@ -170,7 +170,7 @@ Geometry::Geometry()
    PerfGeomToGeomJac[TRIANGLE]    = new DenseMatrix(2);
    PerfGeomToGeomJac[SQUARE]      = NULL;
    PerfGeomToGeomJac[TETRAHEDRON] = new DenseMatrix(3);
-   PerfGeomToGeomJac[PRISM]       = new DenseMatrix(3); // MLS: Not sure about this
+   PerfGeomToGeomJac[PRISM]       = new DenseMatrix(3);
    PerfGeomToGeomJac[CUBE]        = NULL;
 
    {
@@ -190,7 +190,7 @@ Geometry::Geometry()
       CalcInverse(tet_T.Jacobian(), *PerfGeomToGeomJac[TETRAHEDRON]);
    }
    {
-      Linear3DFiniteElement PriFE;
+      BiLinear3DFiniteElement PriFE;
       IsoparametricTransformation pri_T;
       pri_T.SetFE(&PriFE);
       GetPerfPointMat (PRISM, pri_T.GetPointMat());
