@@ -756,11 +756,6 @@ double Vector::Sum() const
    return sum;
 }
 
-double Vector::DistanceTo(const double *p) const
-{
-   return Distance(data, p, size);
-}
-
 #ifdef MFEM_USE_SUNDIALS
 
 Vector::Vector(N_Vector nv)

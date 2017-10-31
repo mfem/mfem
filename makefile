@@ -73,6 +73,8 @@ endef
 
 # Do not pass down variables from the command-line to sub-make:
 MAKEOVERRIDES =
+# Note: this produces some undesired results, e.g. the following does not work
+# as expected: "make pdebug -j 4 MPICXX=mpic++".
 
 # Path to the mfem source directory, defaults to this makefile's directory:
 THIS_MK := $(lastword $(MAKEFILE_LIST))
@@ -482,5 +484,15 @@ style:
 	fi
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
-print-%: ; @printf "%s:\n" $*
-	@printf "%s\n" $($*)
+print-%:
+	$(info [ variable name]: $*)
+	$(info [        origin]: $(origin $*))
+	$(info [         value]: $(value $*))
+	$(info [expanded value]: $($*))
+	$(info )
+	@true
+
+# Print the contents of all makefile variables.
+.PHONY: printall
+printall: $(foreach var,$(.VARIABLES),print-$(var))
+	@true
