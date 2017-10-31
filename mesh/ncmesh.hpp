@@ -242,13 +242,16 @@ public:
 
    // utility
 
-   ///
+   /// Return Mesh vertex indices of an edge identified by 'edge_id'.
    void GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const;
 
-   ///
+   /** Return "NC" orientation of an edge. As opposed standard Mesh edge
+       orientation based on vertex IDs, "NC" edge orientation follows the local
+       edge orientation within the element 'edge_id.element' and is thus
+       processor independent. */
    int GetEdgeNCOrientation(const MeshId &edge_id) const;
 
-   ///
+   /// Return Mesh vertex and edge indices of a face identified by 'face_id'.
    void GetFaceVerticesEdges(const MeshId &face_id,
                              int vert_index[4], int edge_index[4],
                              int edge_orientation[4]) const;

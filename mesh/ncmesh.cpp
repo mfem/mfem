@@ -2994,29 +2994,6 @@ int NCMesh::GetEdgeNCOrientation(const NCMesh::MeshId &edge_id) const
    return (v0 < v1 && ev[0] > ev[1]) || (v0 > v1 && ev[0] < ev[1]);
 }
 
-/*int NCMesh::GetFaceOrientationElement(const Face &face) const
-{
-   if (face.elem[0] < 0 || face.elem[1] < 0)
-   {
-      return face.GetSingleElement();
-   }
-
-   // decide which element of face->elem will determine face orientation
-   const Element &el0 = elements[face.elem[0]];
-   const Element &el1 = elements[face.elem[1]];
-
-   if (el0.rank == el1.rank)
-   {
-      // same rank, take the smaller ID element
-      return std::min(face.elem[0], face.elem[1]);
-   }
-   else
-   {
-      // choose element with smaller rank
-      return (el0.rank < el1.rank) ? face.elem[0] : face.elem[1];
-   }
-}*/
-
 void NCMesh::GetFaceVerticesEdges(const MeshId &face_id,
                                   int vert_index[4], int edge_index[4],
                                   int edge_orientation[4]) const

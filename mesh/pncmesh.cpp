@@ -1064,14 +1064,14 @@ void ParNCMesh::Prune()
 
 void ParNCMesh::Refine(const Array<Refinement> &refinements)
 {
-/*   for (int i = 0; i < refinements.Size(); i++)
+   for (int i = 0; i < refinements.Size(); i++)
    {
       const Refinement &ref = refinements[i];
       MFEM_VERIFY(ref.ref_type == 7 || Dim < 3,
                   "anisotropic parallel refinement not supported yet in 3D.");
    }
    MFEM_VERIFY(Iso || Dim < 3,
-               "parallel refinement of 3D aniso meshes not supported yet.");*/
+               "parallel refinement of 3D aniso meshes not supported yet.");
 
    NeighborRefinementMessage::Map send_ref;
 
@@ -1939,47 +1939,77 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
    GetSharedEdges();
    GetSharedFaces();
 
+   if (!shared_edges.masters.size() &&
+       !shared_faces.masters.size()) { return; }
+
    Array<bool> contains_rank(groups.size());
    for (unsigned i = 0; i < groups.size(); i++)
    {
       contains_rank[i] = GroupContains(i, rank);
    }
 
-   if (shared_edges.masters.size())
+   Array<Pair<int, int> > find_v(ids[0].Size());
+   for (int i = 0; i < ids[0].Size(); i++)
    {
-      Array<Pair<int, int> > findv(ids[0].Size());
-      for (int i = 0; i < ids[0].Size(); i++)
-      {
-         findv[i].one = ids[0][i].index;
-         findv[i].two = i;
-      }
-      findv.Sort();
+      find_v[i].one = ids[0][i].index;
+      find_v[i].two = i;
+   }
+   find_v.Sort();
 
-      // find vertices of master edges shared with 'rank', and modify their
-      // MeshIds so their element/local matches the element of the master edge
-      for (unsigned i = 0; i < shared_edges.masters.size(); i++)
+   // find vertices of master edges shared with 'rank', and modify their
+   // MeshIds so their element/local matches the element of the master edge
+   for (unsigned i = 0; i < shared_edges.masters.size(); i++)
+   {
+      const MeshId &edge_id = shared_edges.masters[i];
+      if (contains_rank[edge_group[edge_id.index]])
       {
-         const MeshId &edge_id = shared_edges.masters[i];
-         if (contains_rank[edge_group[edge_id.index]])
+         int v[2], pos;
+         GetEdgeVertices(edge_id, v);
+         for (int j = 0; j < 2; j++)
          {
-            int v[2], pos;
-            GetEdgeVertices(edge_id, v);
-            for (int j = 0; j < 2; j++)
+            if ((pos = find_v.FindSorted(Pair<int, int>(v[j], 0))) != -1)
             {
-               if ((pos = findv.FindSorted(Pair<int, int>(v[j], 0))) != -1)
-               {
-                  // switch to an element/local that is safe for 'rank'
-                  pos = findv[pos].two;
-                  ChangeVertexMeshIdElement(ids[0][pos], edge_id.element);
-               }
+               // switch to an element/local that is safe for 'rank'
+               pos = find_v[pos].two;
+               ChangeVertexMeshIdElement(ids[0][pos], edge_id.element);
             }
          }
       }
    }
 
-   if (shared_faces.masters.size())
+   if (!shared_faces.masters.size()) { return; }
+
+   Array<Pair<int, int> > find_e(ids[1].Size());
+   for (int i = 0; i < ids[1].Size(); i++)
    {
-      // TODO, this will become an issue when 3D aniso pruning works
+      find_e[i].one = ids[1][i].index;
+      find_e[i].two = i;
+   }
+   find_e.Sort();
+
+   // find vertices/edges of master faces shared with 'rank', and modify their
+   // MeshIds so their element/local matches the element of the master face
+   for (unsigned i = 0; i < shared_faces.masters.size(); i++)
+   {
+      const MeshId &face_id = shared_faces.masters[i];
+      if (contains_rank[face_group[face_id.index]])
+      {
+         int v[4], e[4], eo[4], pos;
+         GetFaceVerticesEdges(face_id, v, e, eo);
+         for (int j = 0; j < 4; j++)
+         {
+            if ((pos = find_v.FindSorted(Pair<int, int>(v[j], 0))) != -1)
+            {
+               pos = find_v[pos].two;
+               ChangeVertexMeshIdElement(ids[0][pos], face_id.element);
+            }
+            if ((pos = find_e.FindSorted(Pair<int, int>(e[j], 0))) != -1)
+            {
+               pos = find_e[pos].two;
+               ChangeEdgeMeshIdElement(ids[1][pos], face_id.element);
+            }
+         }
+      }
    }
 }
 
@@ -2003,7 +2033,28 @@ void ParNCMesh::ChangeVertexMeshIdElement(NCMesh::MeshId &id, int elem)
 
 void ParNCMesh::ChangeEdgeMeshIdElement(NCMesh::MeshId &id, int elem)
 {
-   // TODO
+   Element &el_old = elements[id.element];
+   const int *ev = GI[(int) el_old.geom].edges[id.local];
+   Node* node = nodes.Find(el_old.node[ev[0]], el_old.node[ev[1]]);
+   MFEM_ASSERT(node != NULL, "Edge not found.");
+
+   Element &el = elements[elem];
+   MFEM_ASSERT(el.ref_type == 0, "");
+
+   GeomInfo& gi = GI[(int) el.geom];
+   for (int i = 0; i < gi.ne; i++)
+   {
+      const int* ev = gi.edges[i];
+      if ((el.node[ev[0]] == node->p1 && el.node[ev[1]] == node->p2) ||
+          (el.node[ev[1]] == node->p1 && el.node[ev[0]] == node->p2))
+      {
+         id.local = i;
+         id.element = elem;
+         return;
+      }
+
+   }
+   MFEM_ABORT("Edge not found.");
 }
 
 void ParNCMesh::EncodeMeshIds(std::ostream &os, Array<MeshId> ids[])
