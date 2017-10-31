@@ -94,7 +94,7 @@ void ParFiniteElementSpace::Construct()
       if (pmesh->Dimension() > 2)
       {
          ngfdofs = pncmesh->GetNGhostFaces()
-                   * fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
+                   * fec->DofForGeometry(mesh->GetBdrElementBaseGeometry());
       }
 
       // total number of ghost DOFs. Ghost DOFs start at index 'ndofs', i.e.,
@@ -1436,9 +1436,9 @@ void NeighborRowMessage::Encode(int rank)
          const RowInfo &ri = rows[row_idx[ent][i]];
          MFEM_ASSERT(ent == ri.entity, "");
 
-         std::cout << "Rank " << pncmesh->MyRank << " sending to " << rank
+         /*std::cout << "Rank " << pncmesh->MyRank << " sending to " << rank
                    << ": ent " << ri.entity << ", index " << ri.index
-                   << ", edof " << ri.edof << std::endl;
+                   << ", edof " << ri.edof << std::endl;*/
 
          int edof = ri.edof;
          if (ent == 1 && pncmesh->GetEdgeNCOrientation(id))
@@ -1492,20 +1492,16 @@ void NeighborRowMessage::Decode(int rank)
          else if (ent == 2 && (ori = pncmesh->GetFaceOrientation(id.index)))
          {
             const int* ind = fec->DofOrderForOrientation(fgeom, ori);
-            /*std::cout << "From " << rank << ": face " << id.index
-                      << ", changing by ori " << ori << ", edof "
-                      << edof << " -> " << ind[edof] << std::endl;*/
-
             edof = ind[edof];
          }
 
          rows.push_back(RowInfo(ent, id.index, edof, group_ids[gi++]));
          rows.back().row.read(stream);
 
-         std::cout << "Rank " << pncmesh->MyRank << " receiving from " << rank
+         /*std::cout << "Rank " << pncmesh->MyRank << " receiving from " << rank
                    << ": ent " << rows.back().entity << ", index "
                    << rows.back().index << ", edof " << rows.back().edof
-                   << std::endl;
+                   << std::endl;*/
       }
    }
 }
@@ -1550,9 +1546,9 @@ void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
          msg.SetNCMesh(pncmesh);
          msg.SetFEC(fec);
 
-         std::cout << "Rank " << pncmesh->GetMyRank() << " forwarding to "
+         /*std::cout << "Rank " << pncmesh->GetMyRank() << " forwarding to "
                    << rank << ": ent " << ent << ", index" << idx
-                   << ", edof " << edof << std::endl;
+                   << ", edof " << edof << std::endl;*/
       }
    }
 }
@@ -1881,8 +1877,8 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    P = MakeHypreMatrix(pmatrix, num_dofs, glob_dofs, glob_true_dofs,
                        dof_offsets.GetData(), tdof_offsets.GetData());
 
-   // make sure we can discard all send buffers
-   // TODO: maybe unnecessary beacuse of global communication in MakeHypreMatrix
+   // make sure we can discard all send buffers; NOTE: this is a formality
+   // since the processes are all synchronized at this point
    for (std::list<NeighborRowMessage::Map>::iterator
         it = send_msg.begin(); it != send_msg.end(); ++it)
    {

@@ -162,7 +162,7 @@ public:
       }
    }
 
-   /**  */
+   /// Return the communication group ID for a vertex/edge/face.
    GroupId GetGroupId(int entity, int index) const
    {
       switch (entity)
@@ -173,6 +173,7 @@ public:
       }
    }
 
+   /// Return a list of ranks contained in the group of the given ID.
    const CommGroup& GetGroup(GroupId id) const
    {
       return groups[id];
@@ -181,10 +182,11 @@ public:
    /// Return true if group 'id' contains the given rank.
    bool GroupContains(GroupId id, int rank) const;
 
-   ///
+   /// Make sure comm groups of master edges and faces contain all ranks
+   /// necessary to communicate master DOFs correctly.
    void AugmentMasterGroups();
 
-   /// Returns true if the specified vertex/edge/face is a ghost.
+   /// Return true if the specified vertex/edge/face is a ghost.
    bool IsGhost(int entity, int index) const
    {
       switch (entity)

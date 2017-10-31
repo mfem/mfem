@@ -104,10 +104,9 @@ int main(int argc, char *argv[])
       for (int l = 0; l < ref_levels; l++)
       {
          //mesh->UniformRefinement();
-         mesh->RandomRefinement(0.5, true);
+         mesh->RandomRefinement(0.5, false);
       }
    }
-   cout << "Number of elements: " << mesh->GetNE() << endl;
 
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
@@ -128,21 +127,20 @@ int main(int argc, char *argv[])
       pmesh->GeneralRefinement(refs);
    }*/
 
-   {
+   /*{
       Mesh dbg;
       pmesh->pncmesh->GetDebugMesh(dbg);
       char fname[100];
       sprintf(fname, "dbg%02d.mesh", myid);
       std::ofstream f(fname);
       dbg.Print(f);
-   }
+   }*/
    {
       char fname[100];
       sprintf(fname, "ncmesh%02d.dbg", myid);
       std::ofstream f(fname);
       pmesh->pncmesh->DebugDump(f);
    }
-
 
    /*Array<Refinement> refs;
    if (myid == 0) { refs.Append(Refinement(0)); }
@@ -174,6 +172,12 @@ int main(int argc, char *argv[])
    {
       cout << "Number of finite element unknowns: " << size << endl;
    }
+
+   /*///// DEBUG
+   MPI_Finalize();
+   return 0;
+   ///// DEBUG*/
+
 
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined

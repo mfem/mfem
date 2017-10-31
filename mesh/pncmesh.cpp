@@ -601,9 +601,9 @@ void ParNCMesh::CalcFaceOrientations()
 
          face_orient[face->index] = get_face_orientation(*face, *e1, *e2);
 
-         std::cout << "Rank " << MyRank << " face " << face->index << " ("
+         /*std::cout << "Rank " << MyRank << " face " << face->index << " ("
                    << face->p1 << ", " << face->p2 << ", " << face->p3 << ") ori "
-                   << (int) face_orient[face->index] << std::endl;
+                   << (int) face_orient[face->index] << std::endl;*/
       }
    }
 }
@@ -1064,14 +1064,14 @@ void ParNCMesh::Prune()
 
 void ParNCMesh::Refine(const Array<Refinement> &refinements)
 {
-   for (int i = 0; i < refinements.Size(); i++)
+/*   for (int i = 0; i < refinements.Size(); i++)
    {
       const Refinement &ref = refinements[i];
       MFEM_VERIFY(ref.ref_type == 7 || Dim < 3,
                   "anisotropic parallel refinement not supported yet in 3D.");
    }
    MFEM_VERIFY(Iso || Dim < 3,
-               "parallel refinement of 3D aniso meshes not supported yet.");
+               "parallel refinement of 3D aniso meshes not supported yet.");*/
 
    NeighborRefinementMessage::Map send_ref;
 
@@ -1979,7 +1979,7 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
 
    if (shared_faces.masters.size())
    {
-      // TODO
+      // TODO, this will become an issue when 3D aniso pruning works
    }
 }
 
