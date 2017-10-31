@@ -661,7 +661,7 @@ GeometryRefiner::~GeometryRefiner()
 
 RefinedGeometry * GeometryRefiner::Refine (int Geom, int Times, int ETimes)
 {
-   int i, j, k, l;
+   int i, j, k, l, m;
 
    const double *cp = NULL;
    if (type)
@@ -932,7 +932,7 @@ RefinedGeometry * GeometryRefiner::Refine (int Geom, int Times, int ETimes)
          // enumerate and define the vertices
          Array<int> vi((n+1)*(n+1)*(n+1));
          vi = -1;
-         int m = 0;
+         m = 0;
          for (k = 0; k <= n; k++)
             for (j = 0; j <= k; j++)
                for (i = 0; i <= j; i++)
@@ -1074,12 +1074,12 @@ RefinedGeometry * GeometryRefiner::Refine (int Geom, int Times, int ETimes)
                   G[m++] = l + (k+0) * (Times+1) * (Times+2) / 2;
                   G[m++] = l + 1 + (k+0) * (Times+1) * (Times+2) / 2;
                   G[m++] = l - j + (2 + (k+0) * (Times+2)) * (Times+1) / 2;
-                  G[m++] = l + (k+1) * (Times+1) * (Time+2) / 2;
+                  G[m++] = l + (k+1) * (Times+1) * (Times+2) / 2;
                   G[m++] = l + 1 + (k+1) * (Times+1) * (Times+2) / 2;
                   G[m++] = l - j + (2 + (k+1) * (Times+2)) * (Times+1) / 2;
                   if (i+j+1 < Times)
                   {
-                     G[m++] = l + 1 + (k+0) * (Times+1) * (Time+2)/2;
+                     G[m++] = l + 1 + (k+0) * (Times+1) * (Times+2)/2;
                      G[m++] = l - j + (2 + (k+0) * (Times+1)) * (Times+2) / 2;
                      G[m++] = l - j + (2 + (k+0) * (Times+2)) * (Times+1) / 2;
                      G[m++] = l + 1 + (k+1) * (Times+1) * (Times+2) / 2;
