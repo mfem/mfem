@@ -529,6 +529,7 @@ LinearFECollection::FiniteElementForGeometry(int GeomType) const
       case Geometry::TRIANGLE:    return &TriangleFE;
       case Geometry::SQUARE:      return &QuadrilateralFE;
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
+      case Geometry::PRISM:       return &PrismFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       default:
          mfem_error ("LinearFECollection: unknown geometry type.");
@@ -545,6 +546,7 @@ int LinearFECollection::DofForGeometry(int GeomType) const
       case Geometry::TRIANGLE:    return 0;
       case Geometry::SQUARE:      return 0;
       case Geometry::TETRAHEDRON: return 0;
+      case Geometry::PRISM:       return 0;
       case Geometry::CUBE:        return 0;
       default:
          mfem_error ("LinearFECollection: unknown geometry type.");
@@ -568,6 +570,7 @@ QuadraticFECollection::FiniteElementForGeometry(int GeomType) const
       case Geometry::TRIANGLE:    return &TriangleFE;
       case Geometry::SQUARE:      return &QuadrilateralFE;
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
+      case Geometry::PRISM:       return &PrismFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       default:
          mfem_error ("QuadraticFECollection: unknown geometry type.");
@@ -584,6 +587,7 @@ int QuadraticFECollection::DofForGeometry(int GeomType) const
       case Geometry::TRIANGLE:    return 0;
       case Geometry::SQUARE:      return 1;
       case Geometry::TETRAHEDRON: return 0;
+      case Geometry::PRISM:       return 1;
       case Geometry::CUBE:        return 1;
       default:
          mfem_error ("QuadraticFECollection: unknown geometry type.");
@@ -644,6 +648,7 @@ CubicFECollection::FiniteElementForGeometry(int GeomType) const
       case Geometry::TRIANGLE:    return &TriangleFE;
       case Geometry::SQUARE:      return &QuadrilateralFE;
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
+      case Geometry::PRISM:       return &PrismFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       default:
          mfem_error ("CubicFECollection: unknown geometry type.");
@@ -660,6 +665,7 @@ int CubicFECollection::DofForGeometry(int GeomType) const
       case Geometry::TRIANGLE:    return 1;
       case Geometry::SQUARE:      return 4;
       case Geometry::TETRAHEDRON: return 0;
+      case Geometry::PRISM:       return 2;
       case Geometry::CUBE:        return 8;
       default:
          mfem_error ("CubicFECollection: unknown geometry type.");
