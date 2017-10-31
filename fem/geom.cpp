@@ -404,7 +404,7 @@ bool Geometry::ProjectPoint(int GeomType, const IntegrationPoint &beg,
       }
       case Geometry::PRISM:
       {
- 	 double lend[5] = { end.x, end.y, end.z, 1.0-end.x-end.y, 1.0-end.z };
+         double lend[5] = { end.x, end.y, end.z, 1.0-end.x-end.y, 1.0-end.z };
          double lbeg[5] = { beg.x, beg.y, beg.z, 1.0-beg.x-beg.y, 1.0-beg.z };
          return internal::IntersectSegment<5,3>(lbeg, lend, end);
       }
@@ -598,11 +598,11 @@ Constants<Geometry::PRISM>::VertToVert::I[6] = {0, 3, 5, 6, 8, 9};
 const int Geometry::
 Constants<Geometry::PRISM>::VertToVert::J[9][2] =
 {
-  {1, 0}, {2, -3}, {3, 6}, // 0,1:0   0,2:-3  0,3:6
-  {2, 1}, {4, 7},          // 1,2:1   1,4:7
-  {5, 8},                  // 2,5:8
-  {4, 3}, {5, -6},         // 3,4:3   3,5:-6
-  {5, 4}                   // 4,5:4
+   {1, 0}, {2, -3}, {3, 6}, // 0,1:0   0,2:-3  0,3:6
+   {2, 1}, {4, 7},          // 1,2:1   1,4:7
+   {5, 8},                  // 2,5:8
+   {4, 3}, {5, -6},         // 3,4:3   3,5:-6
+   {5, 4}                   // 4,5:4
 };
 
 const int Geometry::
@@ -1049,7 +1049,7 @@ RefinedGeometry * GeometryRefiner::Refine (int Geom, int Times, int ETimes)
          RGeom[g]->Times = Times;
          RGeom[g]->ETimes = ETimes;
          for (l = k = 0; k <= Times; k++)
-	   for (j = 0; j <= Times; j++)
+            for (j = 0; j <= Times; j++)
                for (i = 0; i <= Times-j; i++, l++)
                {
                   IntegrationPoint &ip = RGeom[g]->RefPts.IntPoint(l);
@@ -1061,31 +1061,31 @@ RefinedGeometry * GeometryRefiner::Refine (int Geom, int Times, int ETimes)
                   }
                   else
                   {
-		     ip.x = cp[i]/(cp[i] + cp[j] + cp[Times-i-j]);
-		     ip.y = cp[j]/(cp[i] + cp[j] + cp[Times-i-j]);
+                     ip.x = cp[i]/(cp[i] + cp[j] + cp[Times-i-j]);
+                     ip.y = cp[j]/(cp[i] + cp[j] + cp[Times-i-j]);
                      ip.z = cp[k];
                   }
                }
          Array<int> &G = RGeom[g]->RefGeoms;
          for (m = k = 0; k < Times; k++)
-	   for (l = j = 0; j < Times; j++, l++)
-	     for (i = 0; i < Times-j; i++, l++)
-             {
-		 G[m++] = l + (k+0) * (Times+1) * (Times+2)/2;
-		 G[m++] = l + 1 + (k+0) * (Times+1) * (Times+2)/2;
-		 G[m++] = l + Times - j + 1 + (k+0) * (Times+1) * (Times+2)/2;
-		 G[m++] = l + (k+1) * (Times+1) * (Time+2)/2;
-		 G[m++] = l + 1 + (k+1) * (Times+1) * (Times+2)/2;
-		 G[m++] = l + Times - j + 1 + (k+1) * (Times+1) * (Times+2)/2;
-		 if (i+j+1 < Times)
-		 {
-		    G[m++] = l + 1 + (k+0) * (Times+1) * (Time+2)/2;
-		    G[m++] = l + Times - j + 2 + (k+0) * (Times+1)*(Times+2)/2;
-		    G[m++] = l + Times - j + 1 + (k+0) * (Times+1)*(Times+2)/2;
-		    G[m++] = l + 1 + (k+1) * (Times+1) * (Times+2)/2;
-		    G[m++] = l + Times - j + 2 + (k+1) * (Times+1) * (Times+2)/2;
-		    G[m++] = l + Times - j + 1 + (k+1) * (Times+1) * (Times+2)/2;
-		 }
+            for (l = j = 0; j < Times; j++, l++)
+               for (i = 0; i < Times-j; i++, l++)
+               {
+                  G[m++] = l + (k+0) * (Times+1) * (Times+2) / 2;
+                  G[m++] = l + 1 + (k+0) * (Times+1) * (Times+2) / 2;
+                  G[m++] = l - j + (2 + (k+0) * (Times+2)) * (Times+1) / 2;
+                  G[m++] = l + (k+1) * (Times+1) * (Time+2) / 2;
+                  G[m++] = l + 1 + (k+1) * (Times+1) * (Times+2) / 2;
+                  G[m++] = l - j + (2 + (k+1) * (Times+2)) * (Times+1) / 2;
+                  if (i+j+1 < Times)
+                  {
+                     G[m++] = l + 1 + (k+0) * (Times+1) * (Time+2)/2;
+                     G[m++] = l - j + (2 + (k+0) * (Times+1)) * (Times+2) / 2;
+                     G[m++] = l - j + (2 + (k+0) * (Times+2)) * (Times+1) / 2;
+                     G[m++] = l + 1 + (k+1) * (Times+1) * (Times+2) / 2;
+                     G[m++] = l - j + (2 + (k+1) * (Times+1)) * (Times+2) / 2;
+                     G[m++] = l - j + (2 + (k+1) * (Times+2)) * (Times+1) / 2;
+                  }
                }
 
          return RGeom[g];
