@@ -435,7 +435,7 @@ void ParNCMesh::AddMasterSlaveConnections(int nitems, const NCList& list)
 
    // We need the processor groups of master edges/faces to contain the ranks of
    // their slaves, so that master DOFs get sent to those who share the slaves.
-   // This be done by appending more items to the 'index_rank' array, before it
+   // This is done by appending more items to the 'index_rank' array, before it
    // is sorted and converted to groups.
    // (Note that a master/slave edge can be shared by more than one processor.)
 
@@ -2314,7 +2314,6 @@ void ParNCMesh::GetDebugMesh(Mesh &debug_mesh) const
    debug_mesh.SetAttributes();
    debug_mesh.ncmesh = copy;
 }
-
 
 } // namespace mfem
 

@@ -151,10 +151,10 @@ public:
    typedef short GroupId;
    typedef std::vector<int> CommGroup;
 
-   /// Return vertex/edge/face ('type' == 0/1/2, resp.) owner.
-   GroupId GetOwnerId(int type, int index) const
+   /// Return vertex/edge/face ('entity' == 0/1/2, resp.) owner.
+   GroupId GetOwnerId(int entity, int index) const
    {
-      switch (type)
+      switch (entity)
       {
          case 0: return vertex_owner[index];
          case 1: return edge_owner[index];
@@ -162,15 +162,10 @@ public:
       }
    }
 
-   /*int GetOwner(int type, int index) const
-   {
-      return groups[GetOwnerId(type, index)][0];
-   }*/
-
    /**  */
-   GroupId GetGroupId(int type, int index) const
+   GroupId GetGroupId(int entity, int index) const
    {
-      switch (type)
+      switch (entity)
       {
          case 0: return vertex_group[index];
          case 1: return edge_group[index];
@@ -190,9 +185,9 @@ public:
    void AugmentMasterGroups();
 
    /// Returns true if the specified vertex/edge/face is a ghost.
-   bool IsGhost(int type, int index) const
+   bool IsGhost(int entity, int index) const
    {
-      switch (type)
+      switch (entity)
       {
          case 0: return index >= NVertices;
          case 1: return index >= NEdges;
@@ -247,6 +242,8 @@ public:
    /** Extract a debugging Mesh containing all leaf elements, including ghosts.
        The debug mesh will have element attributes set to element rank + 1. */
    void GetDebugMesh(Mesh &debug_mesh) const;
+
+   int GetMyRank() const { return MyRank; }
 
 
 protected:

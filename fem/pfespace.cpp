@@ -1436,8 +1436,9 @@ void NeighborRowMessage::Encode(int rank)
          const RowInfo &ri = rows[row_idx[ent][i]];
          MFEM_ASSERT(ent == ri.entity, "");
 
-         /*std::cout << "To " << rank << ": sending ent " << ri.entity <<
-            ", index " << ri.index << ", edof " << ri.edof << std::endl;*/
+         std::cout << "Rank " << pncmesh->MyRank << " sending to " << rank
+                   << ": ent " << ri.entity << ", index " << ri.index
+                   << ", edof " << ri.edof << std::endl;
 
          int edof = ri.edof;
          if (ent == 1 && pncmesh->GetEdgeNCOrientation(id))
@@ -1483,8 +1484,6 @@ void NeighborRowMessage::Decode(int rank)
          const NCMesh::MeshId &id = ids[i];
          int edof = read<int>(stream);
 
-         //pncmesh->GetFaceVerticesEdges(
-
          // handle orientation
          if (ent == 1 && pncmesh->GetEdgeNCOrientation(id))
          {
@@ -1493,9 +1492,9 @@ void NeighborRowMessage::Decode(int rank)
          else if (ent == 2 && (ori = pncmesh->GetFaceOrientation(id.index)))
          {
             const int* ind = fec->DofOrderForOrientation(fgeom, ori);
-            std::cout << "From " << rank << ": face " << id.index
+            /*std::cout << "From " << rank << ": face " << id.index
                       << ", changing by ori " << ori << ", edof "
-                      << edof << " -> " << ind[edof] << std::endl;
+                      << edof << " -> " << ind[edof] << std::endl;*/
 
             edof = ind[edof];
          }
@@ -1503,9 +1502,10 @@ void NeighborRowMessage::Decode(int rank)
          rows.push_back(RowInfo(ent, id.index, edof, group_ids[gi++]));
          rows.back().row.read(stream);
 
-         /*std::cout << "From " << rank << ": receiving " << rows.back().entity
-                   << ", index " << rows.back().index
-                   << ", edof " << rows.back().edof << std::endl;*/
+         std::cout << "Rank " << pncmesh->MyRank << " receiving from " << rank
+                   << ": ent " << rows.back().entity << ", index "
+                   << rows.back().index << ", edof " << rows.back().edof
+                   << std::endl;
       }
    }
 }
@@ -1549,9 +1549,14 @@ void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
          msg.AddRow(ent, idx, edof, group_id, row);
          msg.SetNCMesh(pncmesh);
          msg.SetFEC(fec);
+
+         std::cout << "Rank " << pncmesh->GetMyRank() << " forwarding to "
+                   << rank << ": ent " << ent << ", index" << idx
+                   << ", edof " << edof << std::endl;
       }
    }
 }
+
 
 void ParFiniteElementSpace
    ::DebugDumpDOFs(std::ofstream &os,
@@ -1594,8 +1599,17 @@ void ParFiniteElementSpace
             os << "no deps; ";
          }
 
-         os << "group " << dof_group[i] << ", owner " << dof_owner[i];
-         os << "; " << (finalized[i] ? "finalized" : "NOT finalized");
+         os << "group " << dof_group[i] << " (";
+         const ParNCMesh::CommGroup &g = pncmesh->GetGroup(dof_group[i]);
+         for (unsigned j = 0; j < g.size(); j++)
+         {
+            if (j) { os << ", "; }
+            os << g[j];
+         }
+
+         os << "), owner " << dof_owner[i] << " (rank "
+            << pncmesh->GetGroup(dof_owner[i])[0] << "); "
+            << (finalized[i] ? "finalized" : "NOT finalized");
       }
       else
       {
@@ -1819,10 +1833,9 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
             if (finalized[dof]) { continue; }
 
             bool owned = (dof_owner[dof] == 0);
-            bool slave = (deps.RowSize(dof) != 0);
             bool shared = (dof_group[dof] != 0);
 
-            if ((owned || slave) && DofFinalizable(dof, finalized, deps))
+            if (owned && DofFinalizable(dof, finalized, deps))
             {
                const int* dep_col = deps.GetRowColumns(dof);
                const double* dep_coef = deps.GetRowEntries(dof);
@@ -1842,7 +1855,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
                done = false;
 
                // send row to neighbors who need it
-               if (shared && owned)
+               if (shared)
                {
                   ScheduleSendRow(pmatrix[dof], dof, dof_group[dof],
                                   send_msg.back());
