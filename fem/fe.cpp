@@ -2438,6 +2438,69 @@ void Quadratic3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    dshape(9,0) = 0.0; dshape(9,1) = 4.0 * z; dshape(9,2) = 4.0 * y;
 }
 
+BiLinear3DFiniteElement::BiLinear3DFiniteElement()
+   : NodalFiniteElement(3, Geometry::PRISM, 6, 1)
+{
+   Nodes.IntPoint(0).x = 0.0;
+   Nodes.IntPoint(0).y = 0.0;
+   Nodes.IntPoint(0).z = 0.0;
+   Nodes.IntPoint(1).x = 1.0;
+   Nodes.IntPoint(1).y = 0.0;
+   Nodes.IntPoint(1).z = 0.0;
+   Nodes.IntPoint(2).x = 0.0;
+   Nodes.IntPoint(2).y = 1.0;
+   Nodes.IntPoint(2).z = 0.0;
+   Nodes.IntPoint(3).x = 0.0;
+   Nodes.IntPoint(3).y = 0.0;
+   Nodes.IntPoint(3).z = 1.0;
+   Nodes.IntPoint(4).x = 1.0;
+   Nodes.IntPoint(4).y = 0.0;
+   Nodes.IntPoint(4).z = 1.0;
+   Nodes.IntPoint(5).x = 0.0;
+   Nodes.IntPoint(5).y = 1.0;
+   Nodes.IntPoint(5).z = 1.0;
+}
+
+void BiLinear3DFiniteElement::CalcShape(const IntegrationPoint &ip,
+					Vector &shape) const
+{
+   double x = ip.x, y = ip.y, z = ip.z;
+   double os = 1. - x - y, oz = 1.-z;
+
+   shape(0) = os * oz;
+   shape(1) =  x * oz;
+   shape(2) =  y * oz;
+   shape(3) = os *  z;
+   shape(4) =  x *  z;
+   shape(5) =  y *  z;
+}
+
+void BiLinear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
+					 DenseMatrix &dshape) const
+{
+   double x = ip.x, y = ip.y, z = ip.z;
+   double os = 1. - x - y, oz = 1.-z;
+
+   dshape(0,0) = -oz; dshape(0,1) = -oz; dshape(0,2) = -os;
+   dshape(1,0) =  oz; dshape(1,1) =  0.; dshape(1,2) =  -x;
+   dshape(2,0) =  0.; dshape(2,1) =  oz; dshape(2,2) =  -y;
+
+   dshape(3,0) =  -z; dshape(3,1) =  -z; dshape(3,2) =  os;
+   dshape(4,0) =   z; dshape(4,1) =  0.; dshape(4,2) =   x;
+   dshape(5,0) =  0.; dshape(5,1) =   z; dshape(5,2) =   y;
+}
+
+void BiLinear3DFiniteElement::GetFaceDofs (int face, int **dofs, int *ndofs)
+const
+{
+   static int face_dofs[5][4] =
+     {{2, 1, 0, -1}, {3, 4, 5, -1}, {0, 1, 4, 3}, {1, 2, 5, 4}, {2, 0, 3, 5}};
+
+   *ndofs = (face < 2)? 3 : 4;
+   *dofs  = face_dofs[face];
+}
+
+
 TriLinear3DFiniteElement::TriLinear3DFiniteElement()
    : NodalFiniteElement(3, Geometry::CUBE, 8, 1, FunctionSpace::Qk)
 {
