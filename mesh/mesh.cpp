@@ -245,6 +245,7 @@ FiniteElement *Mesh::GetTransformationFEforElementType(int ElemType)
       case Element::TRIANGLE :       return &TriangleFE;
       case Element::QUADRILATERAL :  return &QuadrilateralFE;
       case Element::TETRAHEDRON :    return &TetrahedronFE;
+      case Element::PRISM :          return &PrismFE;
       case Element::HEXAHEDRON :     return &HexahedronFE;
    }
    MFEM_ABORT("Unknown element type");
@@ -961,6 +962,11 @@ void Mesh::AddTet(const int *vi, int attr)
 #else
    elements[NumOfElements++] = new Tetrahedron(vi, attr);
 #endif
+}
+
+void Mesh::AddPri(const int *vi, int attr)
+{
+   elements[NumOfElements++] = new Prism(vi, attr);
 }
 
 void Mesh::AddHex(const int *vi, int attr)
@@ -2482,6 +2488,7 @@ Element *Mesh::NewElement(int geom)
       case Geometry::SEGMENT:   return (new Segment);
       case Geometry::TRIANGLE:  return (new Triangle);
       case Geometry::SQUARE:    return (new Quadrilateral);
+      case Geometry::PRISM:     return (new Prism);
       case Geometry::CUBE:      return (new Hexahedron);
       case Geometry::TETRAHEDRON:
 #ifdef MFEM_USE_MEMALLOC
@@ -4312,6 +4319,22 @@ void Mesh::GenerateFaces()
                }
                break;
             }
+            case Element::PRISM:
+            {
+               for (int j = 0; j < 2; j++)
+               {
+                  const int *fv = pri_t::FaceVert[j];
+                  AddTriangleFaceElement(j, ef[j], i,
+                                         v[fv[0]], v[fv[1]], v[fv[2]]);
+               }
+               for (int j = 2; j < 5; j++)
+               {
+                  const int *fv = pri_t::FaceVert[j];
+                  AddQuadFaceElement(j, ef[j], i,
+				     v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]);
+               }
+               break;
+            }
             case Element::HEXAHEDRON:
             {
                for (int j = 0; j < 6; j++)
@@ -4393,6 +4416,20 @@ STable3D *Mesh::GetFacesTable()
             }
             break;
          }
+         case Element::PRISM:
+         {
+            for (int j = 0; j < 2; j++)
+            {
+               const int *fv = pri_t::FaceVert[j];
+               faces_tbl->Push(v[fv[0]], v[fv[1]], v[fv[2]]);
+            }
+            for (int j = 2; j < 5; j++)
+            {
+               const int *fv = pri_t::FaceVert[j];
+               faces_tbl->Push4(v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]);
+            }
+            break;
+         }
          case Element::HEXAHEDRON:
          {
             // find the face by the vertices with the smallest 3 numbers
@@ -4434,6 +4471,22 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
                const int *fv = tet_t::FaceVert[j];
                el_to_face->Push(
                   i, faces_tbl->Push(v[fv[0]], v[fv[1]], v[fv[2]]));
+            }
+            break;
+         }
+         case Element::PRISM:
+         {
+            for (int j = 0; j < 2; j++)
+            {
+               const int *fv = pri_t::FaceVert[j];
+               el_to_face->Push(
+                  i, faces_tbl->Push(v[fv[0]], v[fv[1]], v[fv[2]]));
+            }
+            for (int j = 2; j < 5; j++)
+            {
+               const int *fv = pri_t::FaceVert[j];
+               el_to_face->Push(
+                  i, faces_tbl->Push4(v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]));
             }
             break;
          }
@@ -7282,6 +7335,8 @@ void Mesh::PrintVTK(std::ostream &out)
                   vtk_mfem = vtk_quadratic_hex; break; // identity map
                case Geometry::TETRAHEDRON:
                   vtk_mfem = vtk_quadratic_tet; break;
+               case Geometry::PRISM:
+                  vtk_mfem = vtk_quadratic_pri; break;
                case Geometry::CUBE:
                default:
                   vtk_mfem = vtk_quadratic_hex; break;
@@ -7306,6 +7361,7 @@ void Mesh::PrintVTK(std::ostream &out)
             case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
             case Geometry::SQUARE:       vtk_cell_type = 9;   break;
             case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
+            case Geometry::PRISM:        vtk_cell_type = 13;  break;
             case Geometry::CUBE:         vtk_cell_type = 12;  break;
          }
       }
@@ -7316,6 +7372,7 @@ void Mesh::PrintVTK(std::ostream &out)
             case Geometry::TRIANGLE:     vtk_cell_type = 22;  break;
             case Geometry::SQUARE:       vtk_cell_type = 28;  break;
             case Geometry::TETRAHEDRON:  vtk_cell_type = 24;  break;
+            case Geometry::PRISM:        vtk_cell_type = 32;  break;
             case Geometry::CUBE:         vtk_cell_type = 29;  break;
          }
       }
@@ -7437,6 +7494,7 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
          case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
          case Geometry::SQUARE:       vtk_cell_type = 9;   break;
          case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
+         case Geometry::PRISM:        vtk_cell_type = 13;  break;
          case Geometry::CUBE:         vtk_cell_type = 12;  break;
       }
 
@@ -7575,6 +7633,7 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
        "# SQUARE      = 3\n"
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
+       "# PRISM       = 6\n"
        "#\n";
 
    out << "\ndimension\n" << Dim
@@ -8071,6 +8130,7 @@ void Mesh::PrintSurfaces(const Table & Aface_face, std::ostream &out) const
        "# SQUARE      = 3\n"
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
+       "# PRISM       = 6\n"
        "#\n";
 
    out << "\ndimension\n" << Dim

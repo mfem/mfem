@@ -150,6 +150,7 @@ protected:
    int own_nodes;
 
    static const int vtk_quadratic_tet[10];
+   static const int vtk_quadratic_pri[18];
    static const int vtk_quadratic_hex[27];
 
 #ifdef MFEM_USE_MEMALLOC
@@ -162,6 +163,7 @@ public:
    typedef Geometry::Constants<Geometry::TRIANGLE>    tri_t;
    typedef Geometry::Constants<Geometry::SQUARE>      quad_t;
    typedef Geometry::Constants<Geometry::TETRAHEDRON> tet_t;
+   typedef Geometry::Constants<Geometry::PRISM>       pri_t;
    typedef Geometry::Constants<Geometry::CUBE>        hex_t;
 
    enum Operation { NONE, REFINE, DEREFINE, REBALANCE };
@@ -460,6 +462,7 @@ public:
    void AddTriangle(const int *vi, int attr = 1);
    void AddQuad(const int *vi, int attr = 1);
    void AddTet(const int *vi, int attr = 1);
+   void AddPri(const int *vi, int attr = 1);
    void AddHex(const int *vi, int attr = 1);
    void AddHexAsTets(const int *vi, int attr = 1);
    // 'elem' should be allocated using the NewElement method
