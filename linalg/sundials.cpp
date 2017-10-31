@@ -254,7 +254,7 @@ void CVODESolver::Init(TimeDependentOperator &f_)
    CVodeMem mem = Mem(this);
    CVodeMemRec backup;
 
-   if (mem->cv_MallocDone == TRUE)
+   if (mem->cv_MallocDone == SUNTRUE)
    {
       // TODO: preserve more options.
       cvCopyInit(mem, &backup);
@@ -515,7 +515,7 @@ void ARKODESolver::Init(TimeDependentOperator &f_)
    ARKodeMemRec backup;
 
    // Check if ARKodeInit() has already been called.
-   if (mem->ark_MallocDone == TRUE)
+   if (mem->ark_MallocDone == SUNTRUE)
    {
       // TODO: preserve more options.
       arkCopyInit(mem, &backup);
@@ -684,7 +684,7 @@ int KinSolver::GradientMult(N_Vector v, N_Vector Jv, N_Vector u,
    {
       const Vector mfem_u(u);
       self->jacobian = &self->oper->GetGradient(mfem_u);
-      *new_u = FALSE;
+      *new_u = SUNFALSE;
    }
    self->jacobian->Mult(mfem_v, mfem_Jv);
    return 0;
@@ -809,7 +809,7 @@ void KinSolver::SetOperator(const Operator &op)
    KINMemRec backup;
 
    // Check if SetOperator() has already been called.
-   if (mem->kin_MallocDone == TRUE)
+   if (mem->kin_MallocDone == SUNTRUE)
    {
       // TODO: preserve more options.
       kinCopyInit(mem, &backup);
