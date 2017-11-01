@@ -11,6 +11,16 @@
 Development version 3.3.1, not released
 =======================================
 
+Inclusion in the xSDK 0.3.0 package
+-----------------------------------
+- MFEM code brought up to the community standards of the xSDK package.
+- MFEM is now included in the extreme scale scientific software development
+  kit.  (https://xsdk.info/)
+
+Increased version of SUNDIALS to >= 3.0.0
+-----------------------------------------
+- Updated MFEM integration to use the new SUNDIALS 3.0.0 interface.
+
 New and improved solvers and preconditioners
 --------------------------------------------
 - Added optional support for the STRUMPACK parallel sparse direct solver and

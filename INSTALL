@@ -371,7 +371,7 @@ The specific libraries and their options are:
   Option: POSIX_CLOCKS_LIB (default = -lrt).
 
 - SUNDIALS (optional), used when MFEM_USE_SUNDIALS = YES.
-  In parallel we expect that SUNDIALS is built with support for MPI and hypre.
+  In parallel we expect that SUNDIALS version >=3.0.0 is built with support for MPI and hypre.
   URL: http://computation.llnl.gov/projects/sundials/sundials-software
   Options: SUNDIALS_OPT, SUNDIALS_LIB.
 

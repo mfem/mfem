@@ -59,10 +59,10 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 volta-test-par: volta
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
-	-maxit 2 -dbcs 1 -dbcg -ds "0.0 0.0 0.0 0.2 8.0")
+	-maxit 2 -dbcs 1 -dbcg -ds '0.0 0.0 0.0 0.2 8.0')
 tesla-test-par: tesla
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
-	-maxit 2 -cr "0 0 -0.2 0 0 0.2 0.2 0.4 1")
+	-maxit 2 -cr '0 0 -0.2 0 0 0.2 0.2 0.4 1')
 joule-test-par: joule
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
 	-p rod -tf 3 -m $(SRC)cylinder-hex.mesh)
