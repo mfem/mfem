@@ -8,7 +8,7 @@ using namespace mfem;
 // Problem definition
 extern int problem;
 
-// Maximum char speed (updated by integrators)
+// Maximum characteristic speed (updated by integrators)
 extern double max_char_speed;
 
 extern const int num_equation;
@@ -57,7 +57,9 @@ public:
 };
 
 
-// Constant mixed bilinear form multiplying the flux grid function
+// Constant (in time) mixed bilinear form multiplying the flux grid function.
+// The form is (vec(v), grad(w)) where the trial space = vector L2 space (mesh
+// dim) and test space = scalar L2 space.
 class DomainIntegrator : public BilinearFormIntegrator
 {
 private:
@@ -75,7 +77,7 @@ public:
                                        DenseMatrix &elmat);
 };
 
-// Interior face term
+// Interior face term: <F.n(u),[w]>
 class FaceIntegrator : public NonlinearFormIntegrator
 {
 private:

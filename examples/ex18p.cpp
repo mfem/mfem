@@ -171,7 +171,8 @@ int main(int argc, char *argv[])
    // This example depends on this ordering of the space.
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
 
-   if (mpi.Root()) { cout << "Number of unknowns: " << vfes.GetVSize() << endl; }
+   HYPRE_Int glob_size = vfes.GlobalTrueVSize();
+   if (mpi.Root()) { cout << "Number of unknowns: " << glob_size << endl; }
 
    // 8. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
