@@ -693,7 +693,7 @@ double Vector::Norml2() const
          if (scale <= absdata)
          {
             const double sqr_arg = scale / absdata;
-            sum = 1.0 + (sqr_arg * sqr_arg);
+            sum = 1.0 + sum * (sqr_arg * sqr_arg);
             scale = absdata;
             continue;
          } // end if scale <= absdata
