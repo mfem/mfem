@@ -11,18 +11,25 @@
 Development version 3.3.1, not released
 =======================================
 
-Inclusion in the xSDK 0.3.0 package
------------------------------------
-- MFEM code brought up to the community standards of the xSDK package.
-- MFEM is now included in the extreme scale scientific software development
-  kit.  (https://xsdk.info/)
+High-order mesh optimization
+----------------------------
 
-Increased version of SUNDIALS to >= 3.0.0
------------------------------------------
-- Updated MFEM integration to use the new SUNDIALS 3.0.0 interface.
+- Added support for mesh optimization via node-movement based on the Target-
+  Matrix Optimization Paradigm (TMOP) developed by P.Knupp et al.  A variety of
+  mesh quality metrics, with their first and second derivatives have been
+  implemented. The combination of targets & quality metrics is used to optimize
+  the physical node positions, i.e., they must be as close as possible to the
+  shape / size / alignment of their targets. The optimization of arbitrary
+  high-order meshes is supported.
 
 New and improved solvers and preconditioners
 --------------------------------------------
+- MFEM is now included in xSDK, the Extreme-scale Scientific Software Development
+  Kit as of version 0.3.0. Various changes were made to comply with xSDK's community
+  policies, https://xsdk.info/policies.
+
+- Updated MFEM integration to use the new SUNDIALS 3.0.0 interface.
+
 - Added optional support for the STRUMPACK parallel sparse direct solver and
   preconditioner. STRUMPACK uses Hierarchically Semi-Separable (HSS) compression
   in a fully algebraic manner, with interface similar to SuperLU_DIST. See
@@ -34,6 +41,9 @@ New and improved solvers and preconditioners
 - Added an optional operator in LOBPCG to projects vectors onto a desired
   subspace (e.g. divergence-free). Other small changes in LOBPCG include the
   ability to set the starting vectors and support for relative tolerance.
+
+- The Newton solver supports an optional scaling factor, that can limit the
+  increment in the Newton step, see e.g. the Mesh Optimizer miniapp.
 
 Performance improvements
 ------------------------
@@ -49,11 +59,15 @@ New and updated examples and miniapps
   generation from prescribed "material()" function.  Both conforming and
   non-conforming (isotropic and anisotropic) refinements are supported.
 
+- Added a new miniapp, Mesh Optimizer, that performs mesh optimization using
+  TMOP and demonstrates the use of nonlinear operators and their coupling to
+  Newton methods for solving minimization problems.
+
 - Added SUNDIALS version of Example 16/16p.
 
 Discretization improvements
 ---------------------------
-- Added the ability to integrate delta functions on the righ-hand side (by
+- Added the ability to integrate delta functions on the right-hand side (by
   sampling the test function at the center of the delta coefficient). Currently
   this is supported in the DomainLFIntegrator, VectorDomainLFIntegrator and
   VectorFEDomainLFIntegrator classes.
@@ -67,9 +81,6 @@ Discretization improvements
 
 Miscellaneous
 -------------
-- Various changes to comply with the Extreme-scale Scientific Software
-  Development Kit (xSDK) community policies, https://xsdk.info/policies.
-
 - Modified the installation layout: all headers, except the master headers
   (mfem.hpp and mfem-performance.hpp), are installed in <PREFIX>/include/mfem;
   the master headers are installed in both <PREFIX>/include/mfem and in

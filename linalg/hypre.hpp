@@ -355,7 +355,7 @@ public:
                   bool interleaved_cols = false) const;
 
    /// Returns the transpose of *this
-   HypreParMatrix * Transpose();
+   HypreParMatrix * Transpose() const;
 
    /// Returns the number of rows in the diagonal block of the ParCSRMatrix
    int GetNumRows() const
@@ -481,16 +481,17 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
                     double beta,  const HypreParMatrix &B);
 
 /// Returns the matrix A * B
-HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B);
+HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B);
 /// Returns the matrix A + B
 /** It is assumed that both matrices use the same row and column partitions and
     the same col_map_offd arrays. */
-HypreParMatrix * ParAdd(HypreParMatrix *A, HypreParMatrix *B);
+HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B);
 
 /// Returns the matrix P^t * A * P
-HypreParMatrix * RAP(HypreParMatrix *A, HypreParMatrix *P);
+HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P);
 /// Returns the matrix Rt^t * A * P
-HypreParMatrix * RAP(HypreParMatrix * Rt, HypreParMatrix *A, HypreParMatrix *P);
+HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
+                     const HypreParMatrix *P);
 
 /** Eliminate essential BC specified by 'ess_dof_list' from the solution X to
     the r.h.s. B. Here A is a matrix with eliminated BC, while Ae is such that
