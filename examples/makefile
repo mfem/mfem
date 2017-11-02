@@ -21,9 +21,9 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = ex1 ex2 ex3 ex4 ex5 ex6 ex7 ex8 ex9 ex10 ex14 ex15 ex16 ex17
+SEQ_EXAMPLES = ex1 ex2 ex3 ex4 ex5 ex6 ex7 ex8 ex9 ex10 ex14 ex15 ex16 ex17 ex18
 PAR_EXAMPLES = ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex8p ex9p ex10p ex11p ex12p\
- ex13p ex14p ex15p ex16p ex17p
+ ex13p ex14p ex15p ex16p ex17p ex18p
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -42,6 +42,12 @@ endif
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 all: $(EXAMPLES)
+
+# Additional dependencies
+ex18: ex18.hpp
+ifeq ($(MFEM_USE_MPI),YES)
+ex18p: ex18.hpp
+endif
 
 MFEM_TESTS = EXAMPLES
 include $(MFEM_TEST_MK)
@@ -86,3 +92,4 @@ clean-exec:
 	@rm -f ex9.mesh ex9-mesh.* ex9-init.* ex9-final.*
 	@rm -f deformed.* velocity.* elastic_energy.* mode_*
 	@rm -f ex16.mesh ex16-mesh.* ex16-init.* ex16-final.*
+	@rm -f vortex-mesh.* vortex.mesh vortex-?-init.* vortex-?-final.*
