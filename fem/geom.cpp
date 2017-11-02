@@ -135,6 +135,13 @@ Geometry::Geometry()
    GeomCenter[CUBE].y = 0.5;
    GeomCenter[CUBE].z = 0.5;
 
+   GeomToPerfGeomJac[POINT]       = NULL;
+   GeomToPerfGeomJac[SEGMENT]     = new DenseMatrix(1);
+   GeomToPerfGeomJac[TRIANGLE]    = new DenseMatrix(2);
+   GeomToPerfGeomJac[SQUARE]      = new DenseMatrix(2);
+   GeomToPerfGeomJac[TETRAHEDRON] = new DenseMatrix(3);
+   GeomToPerfGeomJac[CUBE]        = new DenseMatrix(3);
+
    PerfGeomToGeomJac[POINT]       = NULL;
    PerfGeomToGeomJac[SEGMENT]     = NULL;
    PerfGeomToGeomJac[TRIANGLE]    = new DenseMatrix(2);
@@ -142,22 +149,27 @@ Geometry::Geometry()
    PerfGeomToGeomJac[TETRAHEDRON] = new DenseMatrix(3);
    PerfGeomToGeomJac[CUBE]        = NULL;
 
+   GeomToPerfGeomJac[SEGMENT]->Diag(1.0, 1);
    {
       Linear2DFiniteElement TriFE;
       IsoparametricTransformation tri_T;
       tri_T.SetFE(&TriFE);
       GetPerfPointMat (TRIANGLE, tri_T.GetPointMat());
       tri_T.SetIntPoint(&GeomCenter[TRIANGLE]);
+      *GeomToPerfGeomJac[TRIANGLE] = tri_T.Jacobian();
       CalcInverse(tri_T.Jacobian(), *PerfGeomToGeomJac[TRIANGLE]);
    }
+   GeomToPerfGeomJac[SQUARE]->Diag(1.0, 2);
    {
       Linear3DFiniteElement TetFE;
       IsoparametricTransformation tet_T;
       tet_T.SetFE(&TetFE);
       GetPerfPointMat (TETRAHEDRON, tet_T.GetPointMat());
       tet_T.SetIntPoint(&GeomCenter[TETRAHEDRON]);
+      *GeomToPerfGeomJac[TETRAHEDRON] = tet_T.Jacobian();
       CalcInverse(tet_T.Jacobian(), *PerfGeomToGeomJac[TETRAHEDRON]);
    }
+   GeomToPerfGeomJac[CUBE]->Diag(1.0, 3);
 }
 
 Geometry::~Geometry()
@@ -165,6 +177,7 @@ Geometry::~Geometry()
    for (int i = 0; i < NumGeom; i++)
    {
       delete PerfGeomToGeomJac[i];
+      delete GeomToPerfGeomJac[i];
       delete GeomVert[i];
    }
 }

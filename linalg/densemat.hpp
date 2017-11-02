@@ -31,6 +31,9 @@ private:
 
    void Eigensystem(Vector &ev, DenseMatrix *evect = NULL);
 
+   // Auxiliary method used in FNorm2() and FNorm()
+   void FNorm(double &scale_factor, double &scaled_fnorm2) const;
+
 public:
    /** Default constructor for DenseMatrix.
        Sets data = NULL and height = width = 0. */
@@ -166,6 +169,16 @@ public:
 
    double Weight() const;
 
+   /** @brief Set the matrix to alpha * A, assuming that A has the same
+       dimensions as the matrix and uses column-major layout. */
+   void Set(double alpha, const double *A);
+   /// Set the matrix to alpha * A.
+   void Set(double alpha, const DenseMatrix &A)
+   {
+      SetSize(A.Height(), A.Width());
+      Set(alpha, A.GetData());
+   }
+
    /// Adds the matrix A multiplied by the number c to the matrix
    void Add(const double c, const DenseMatrix &A);
 
@@ -178,9 +191,10 @@ public:
    /// Sets the matrix size and elements equal to those of m
    DenseMatrix &operator=(const DenseMatrix &m);
 
-   DenseMatrix &operator+=(DenseMatrix &m);
+   DenseMatrix &operator+=(const double *m);
+   DenseMatrix &operator+=(const DenseMatrix &m);
 
-   DenseMatrix &operator-=(DenseMatrix &m);
+   DenseMatrix &operator-=(const DenseMatrix &m);
 
    DenseMatrix &operator*=(double c);
 
@@ -194,7 +208,10 @@ public:
    double MaxMaxNorm() const;
 
    /// Compute the Frobenius norm of the matrix
-   double FNorm() const;
+   double FNorm() const { double s, n2; FNorm(s, n2); return s*sqrt(n2); }
+
+   /// Compute the square of the Frobenius norm of the matrix
+   double FNorm2() const { double s, n2; FNorm(s, n2); return s*s*n2; }
 
    void Eigenvalues(Vector &ev)
    { Eigensystem(ev); }
@@ -245,7 +262,7 @@ public:
    /// (*this) = (*this)^t
    void Transpose();
    /// (*this) = A^t
-   void Transpose(DenseMatrix &A);
+   void Transpose(const DenseMatrix &A);
    /// (*this) = 1/2 ((*this) + (*this)^t)
    void Symmetrize();
 
@@ -321,6 +338,10 @@ public:
 /// C = A + alpha*B
 void Add(const DenseMatrix &A, const DenseMatrix &B,
          double alpha, DenseMatrix &C);
+
+/// C = alpha*A + beta*B
+void Add(double alpha, const double *A,
+         double beta,  const double *B, DenseMatrix &C);
 
 /// C = alpha*A + beta*B
 void Add(double alpha, const DenseMatrix &A,
