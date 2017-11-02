@@ -8,12 +8,11 @@
                                http://mfem.org
 
 
-Development version 3.3.1, not released
+Version 3.3.2, released on Nov 10, 2017
 =======================================
 
 High-order mesh optimization
 ----------------------------
-
 - Added support for mesh optimization via node-movement based on the Target-
   Matrix Optimization Paradigm (TMOP) developed by P.Knupp et al.  A variety of
   mesh quality metrics, with their first and second derivatives have been
@@ -22,18 +21,23 @@ High-order mesh optimization
   shape / size / alignment of their targets. The optimization of arbitrary
   high-order meshes is supported.
 
+- New miniapp, Mesh Optimizer, can be used to perform mesh optimization using
+  TMOP in serial and parallel. (The miniapp also demonstrates the use of
+  nonlinear operators and their coupling to Newton methods for solving
+  minimization problems.)
+
 New and improved solvers and preconditioners
 --------------------------------------------
 - MFEM is now included in xSDK, the Extreme-scale Scientific Software
   Development Kit as of version 0.3.0. Various changes were made to
   comply with xSDK's community policies, https://xsdk.info/policies.
 
-- Updated MFEM integration to use the new SUNDIALS 3.0.0 interface.
-
 - Added optional support for the STRUMPACK parallel sparse direct solver and
   preconditioner. STRUMPACK uses Hierarchically Semi-Separable (HSS) compression
   in a fully algebraic manner, with interface similar to SuperLU_DIST. See
   http://portal.nersc.gov/project/sparse/strumpack for more details.
+
+- Updated MFEM integration to use the new SUNDIALS 3.0.0 interface.
 
 - Added a block lower triangular preconditioner based (only) on the actions of
   each block, see class BlockLowerTriangularPreconditioner.
@@ -63,10 +67,6 @@ New and updated examples and miniapps
   material interfaces by mesh refinement, e.g. as a tool for initial mesh
   generation from prescribed "material()" function.  Both conforming and
   non-conforming (isotropic and anisotropic) refinements are supported.
-
-- Added a new miniapp, Mesh Optimizer, that performs mesh optimization using
-  TMOP and demonstrates the use of nonlinear operators and their coupling to
-  Newton methods for solving minimization problems.
 
 - Added SUNDIALS version of Example 16/16p.
 
