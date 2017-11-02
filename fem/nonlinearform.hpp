@@ -48,15 +48,15 @@ public:
    void AddDomainIntegrator(NonlinearFormIntegrator *nlfi)
    { dnfi.Append(nlfi); }
 
-   /// Adds new interior face Integrator.
+   /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi)
    { fnfi.Append(nlfi); }
 
-   /// Adds new boundary face Integrator.
+   /// Adds new Boundary Face Integrator.
    void AddBdrFaceIntegrator(NonlinearFormIntegrator *nlfi)
    { bfnfi.Append(nlfi); bfnfi_marker.Append(NULL); }
 
-   /** @brief Adds new boundary Face Integrator, restricted to specific boundary
+   /** @brief Adds new Boundary Face Integrator, restricted to specific boundary
        attributes. */
    void AddBdrFaceIntegrator(NonlinearFormIntegrator *nfi,
                              Array<int> &bdr_marker)
