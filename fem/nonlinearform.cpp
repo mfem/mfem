@@ -53,29 +53,27 @@ double NonlinearForm::GetEnergy(const Vector &x) const
    ElementTransformation *T;
    double energy = 0.0;
 
-   if (dfi.Size())
+   if (dnfi.Size())
       for (int i = 0; i < fes->GetNE(); i++)
       {
          fe = fes->GetFE(i);
          fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
          x.GetSubVector(vdofs, el_x);
-         for (int k = 0; k < dfi.Size(); k++)
+         for (int k = 0; k < dnfi.Size(); k++)
          {
-            energy += dfi[k]->GetElementEnergy(*fe, *T, el_x);
+            energy += dnfi[k]->GetElementEnergy(*fe, *T, el_x);
          }
       }
 
-   if (fbfi.Size())
+   if (fnfi.Size())
    {
-      MFEM_WARNING("WARNING: Skipping interior faces "
-                   "in NonlinearForm::GetEnergy()!");
+      MFEM_ABORT("TODO: add energy contribution from interior face terms");
    }
 
-   if (bfbfi.Size())
+   if (bfnfi.Size())
    {
-      MFEM_WARNING("WARNING: Skipping boundary faces "
-                   "in NonlinearForm::GetEnergy()!");
+      MFEM_ABORT("TODO: add energy contribution from boundary face terms");
    }
 
    return energy;
@@ -91,7 +89,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
    y = 0.0;
 
-   if (dfi.Size())
+   if (dnfi.Size())
    {
       for (int i = 0; i < fes->GetNE(); i++)
       {
@@ -99,15 +97,15 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
          fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
          x.GetSubVector(vdofs, el_x);
-         for (int k = 0; k < dfi.Size(); k++)
+         for (int k = 0; k < dnfi.Size(); k++)
          {
-            dfi[k]->AssembleElementVector(*fe, *T, el_x, el_y);
+            dnfi[k]->AssembleElementVector(*fe, *T, el_x, el_y);
             y.AddElementVector(vdofs, el_y);
          }
       }
    }
 
-   if (fbfi.Size())
+   if (fnfi.Size())
    {
       FaceElementTransformations *tr;
       const FiniteElement *fe1, *fe2;
@@ -127,16 +125,16 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
             fe1 = fes->GetFE(tr->Elem1No);
             fe2 = fes->GetFE(tr->Elem2No);
 
-            for (int k = 0; k < fbfi.Size(); k++)
+            for (int k = 0; k < fnfi.Size(); k++)
             {
-               fbfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
+               fnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
                y.AddElementVector(vdofs, el_y);
             }
          }
       }
    }
 
-   if (bfbfi.Size())
+   if (bfnfi.Size())
    {
       FaceElementTransformations *tr;
       const FiniteElement *fe1, *fe2;
@@ -145,14 +143,14 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                  mesh->bdr_attributes.Max() : 0);
       bdr_attr_marker = 0;
-      for (int k = 0; k < bfbfi.Size(); k++)
+      for (int k = 0; k < bfnfi.Size(); k++)
       {
-         if (bfbfi_marker[k] == NULL)
+         if (bfnfi_marker[k] == NULL)
          {
             bdr_attr_marker = 1;
             break;
          }
-         Array<int> &bdr_marker = *bfbfi_marker[k];
+         Array<int> &bdr_marker = *bfnfi_marker[k];
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                      "invalid boundary marker for boundary face integrator #"
                      << k << ", counting from zero");
@@ -178,12 +176,12 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
             // but we can't dereference a NULL pointer, and we don't want to
             // actually make a fake element.
             fe2 = fe1;
-            for (int k = 0; k < bfbfi.Size(); k++)
+            for (int k = 0; k < bfnfi.Size(); k++)
             {
-               if (bfbfi_marker[k] &&
-                   (*bfbfi_marker[k])[bdr_attr-1] == 0) { continue; }
+               if (bfnfi_marker[k] &&
+                   (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
 
-               bfbfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
+               bfnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
                y.AddElementVector(vdofs, el_y);
             }
          }
@@ -216,7 +214,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
       *Grad = 0.0;
    }
 
-   if (dfi.Size())
+   if (dnfi.Size())
    {
       for (int i = 0; i < fes->GetNE(); i++)
       {
@@ -224,16 +222,16 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
          fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
          x.GetSubVector(vdofs, el_x);
-         for (int k = 0; k < dfi.Size(); k++)
+         for (int k = 0; k < dnfi.Size(); k++)
          {
-            dfi[k]->AssembleElementGrad(*fe, *T, el_x, elmat);
+            dnfi[k]->AssembleElementGrad(*fe, *T, el_x, elmat);
             Grad->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
             // Grad->AddSubMatrix(vdofs, vdofs, elmat, 1);
          }
       }
    }
 
-   if (fbfi.Size())
+   if (fnfi.Size())
    {
       FaceElementTransformations *tr;
       const FiniteElement *fe1, *fe2;
@@ -253,16 +251,16 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
             fe1 = fes->GetFE(tr->Elem1No);
             fe2 = fes->GetFE(tr->Elem2No);
 
-            for (int k = 0; k < fbfi.Size(); k++)
+            for (int k = 0; k < fnfi.Size(); k++)
             {
-               fbfi[k]->AssembleFaceGrad(*fe1, *fe2, *tr, el_x, elmat);
+               fnfi[k]->AssembleFaceGrad(*fe1, *fe2, *tr, el_x, elmat);
                Grad->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
             }
          }
       }
    }
 
-   if (bfbfi.Size())
+   if (bfnfi.Size())
    {
       FaceElementTransformations *tr;
       const FiniteElement *fe1, *fe2;
@@ -271,14 +269,14 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                  mesh->bdr_attributes.Max() : 0);
       bdr_attr_marker = 0;
-      for (int k = 0; k < bfbfi.Size(); k++)
+      for (int k = 0; k < bfnfi.Size(); k++)
       {
-         if (bfbfi_marker[k] == NULL)
+         if (bfnfi_marker[k] == NULL)
          {
             bdr_attr_marker = 1;
             break;
          }
-         Array<int> &bdr_marker = *bfbfi_marker[k];
+         Array<int> &bdr_marker = *bfnfi_marker[k];
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                      "invalid boundary marker for boundary face integrator #"
                      << k << ", counting from zero");
@@ -304,12 +302,12 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
             // but we can't dereference a NULL pointer, and we don't want to
             // actually make a fake element.
             fe2 = fe1;
-            for (int k = 0; k < bfbfi.Size(); k++)
+            for (int k = 0; k < bfnfi.Size(); k++)
             {
-               if (bfbfi_marker[k] &&
-                   (*bfbfi_marker[k])[bdr_attr-1] == 0) { continue; }
+               if (bfnfi_marker[k] &&
+                   (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
 
-               bfbfi[k]->AssembleFaceGrad(*fe1, *fe2, *tr, el_x, elmat);
+               bfnfi[k]->AssembleFaceGrad(*fe1, *fe2, *tr, el_x, elmat);
                Grad->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
             }
          }
@@ -332,10 +330,9 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
 NonlinearForm::~NonlinearForm()
 {
    delete Grad;
-   for (int i = 0; i < dfi.Size(); i++)
-   {
-      delete dfi[i];
-   }
+   for (int i = 0; i <  dnfi.Size(); i++) { delete  dnfi[i]; }
+   for (int i = 0; i <  fnfi.Size(); i++) { delete  fnfi[i]; }
+   for (int i = 0; i < bfnfi.Size(); i++) { delete bfnfi[i]; }
 }
 
 }

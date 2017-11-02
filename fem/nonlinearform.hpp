@@ -23,19 +23,19 @@ class NonlinearForm : public Operator
 {
 protected:
    /// FE space on which the form lives.
-   FiniteElementSpace *fes;
+   FiniteElementSpace *fes; // not owned
 
    /// Set of Domain Integrators to be assembled (added).
-   Array<NonlinearFormIntegrator*> dfi;
+   Array<NonlinearFormIntegrator*> dnfi; // owned
 
    /// Set of interior face Integrators to be assembled (added).
-   Array<NonlinearFormIntegrator*> fbfi;
+   Array<NonlinearFormIntegrator*> fnfi; // owned
 
    /// Set of boundary face Integrators to be assembled (added).
-   Array<NonlinearFormIntegrator*> bfbfi;
-   Array<Array<int>*>              bfbfi_marker;
+   Array<NonlinearFormIntegrator*> bfnfi; // owned
+   Array<Array<int>*>              bfnfi_marker; // not owned
 
-   mutable SparseMatrix *Grad;
+   mutable SparseMatrix *Grad; // owned
 
    // A list of all essential vdofs
    Array<int> ess_vdofs;
@@ -46,15 +46,21 @@ public:
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(NonlinearFormIntegrator *nlfi)
-   { dfi.Append(nlfi); }
+   { dnfi.Append(nlfi); }
 
    /// Adds new interior face Integrator.
    void AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi)
-   { fbfi.Append(nlfi); }
+   { fnfi.Append(nlfi); }
 
    /// Adds new boundary face Integrator.
    void AddBdrFaceIntegrator(NonlinearFormIntegrator *nlfi)
-   { bfbfi.Append(nlfi); }
+   { bfnfi.Append(nlfi); bfnfi_marker.Append(NULL); }
+
+   /** @brief Adds new boundary Face Integrator, restricted to specific boundary
+       attributes. */
+   void AddBdrFaceIntegrator(NonlinearFormIntegrator *nfi,
+                             Array<int> &bdr_marker)
+   { bfnfi.Append(nfi); bfnfi_marker.Append(&bdr_marker); }
 
    virtual void SetEssentialBC(const Array<int> &bdr_attr_is_ess,
                                Vector *rhs = NULL);

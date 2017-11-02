@@ -65,7 +65,7 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 
    NonlinearForm::Mult(X, Y);
 
-   if (fbfi.Size())
+   if (fnfi.Size())
    {
       // Terms over shared interior faces in parallel.
       ParFiniteElementSpace *pfes = ParFESpace();
@@ -76,7 +76,8 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
       Vector el_x, el_y;
 
       X.ExchangeFaceNbrData();
-      for (int i = 0; i < pmesh->GetNSharedFaces(); i++)
+      const int n_shared_faces = pmesh->GetNSharedFaces();
+      for (int i = 0; i < n_shared_faces; i++)
       {
          tr = pmesh->GetSharedFaceTransformations(i, true);
 
@@ -90,9 +91,9 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
          X.GetSubVector(vdofs1, el_x.GetData());
          X.FaceNbrData().GetSubVector(vdofs2, el_x.GetData() + vdofs1.Size());
 
-         for (int k = 0; k < fbfi.Size(); k++)
+         for (int k = 0; k < fnfi.Size(); k++)
          {
-            fbfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
+            fnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
             Y.AddElementVector(vdofs1, el_y.GetData());
          }
       }
@@ -121,8 +122,17 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
    NonlinearForm::GetGradient(X); // (re)assemble Grad with b.c.
 
    OperatorHandle dA(pGrad.Type()), Ph(pGrad.Type());
-   dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
-                          pfes->GetDofOffsets(), Grad);
+
+   if (fnfi.Size() == 0)
+   {
+      dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
+                             pfes->GetDofOffsets(), Grad);
+   }
+   else
+   {
+      MFEM_ABORT("TODO: assemble contributions from shared face terms");
+   }
+
    // TODO - construct Dof_TrueDof_Matrix directly in the pGrad format
    Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
    pGrad.MakePtAP(dA, Ph);
