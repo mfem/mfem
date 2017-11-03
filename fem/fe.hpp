@@ -834,6 +834,29 @@ public:
                            DenseMatrix &dshape) const;
 };
 
+/// Class for tri-linear FE on cube
+class TriLinear3DFiniteElement : public NodalFiniteElement
+{
+public:
+   /// Construct a tri-linear FE on cube
+   TriLinear3DFiniteElement();
+
+   /** virtual function which evaluates the values of all
+       shape functions at a given point ip and stores
+       them in the vector shape of dimension Dof (8) */
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+
+   /** virtual function which evaluates the values of all
+       partial derivatives of all shape functions at a given
+       point ip and stores them in the matrix dshape (Dof x Dim) (8 x 3)
+       so that each row contains the derivatives of one shape function */
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+
+   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   { dofs = 0.0; dofs(vertex) = 1.0; }
+};
+
 /// Class for linear FE on prism
 class BiLinear3DFiniteElement : public NodalFiniteElement
 {
@@ -859,21 +882,21 @@ public:
    virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
 };
 
-/// Class for tri-linear FE on cube
-class TriLinear3DFiniteElement : public NodalFiniteElement
+/// Class for quadratic FE on prism
+class BiQuadratic3DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct a tri-linear FE on cube
-   TriLinear3DFiniteElement();
+   /// Construct a quadratic FE on prism
+   BiQuadratic3DFiniteElement();
 
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
-       them in the vector shape of dimension Dof (8) */
+       them in the vector shape of dimension Dof (6) */
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
 
    /** virtual function which evaluates the values of all
        partial derivatives of all shape functions at a given
-       point ip and stores them in the matrix dshape (Dof x Dim) (8 x 3)
+       point ip and stores them in the matrix dshape (Dof x Dim) (6 x 3)
        so that each row contains the derivatives of one shape function */
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;

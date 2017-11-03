@@ -405,7 +405,7 @@ private:
    const Quad2DFiniteElement TriangleFE;
    const BiQuad2DFiniteElement QuadrilateralFE;
    const Quadratic3DFiniteElement TetrahedronFE;
-   // const BiLinear3DFiniteElement PrismFE;
+   const BiQuadratic3DFiniteElement PrismFE;
    const LagrangeHexFiniteElement ParallelepipedFE;
 
 public:
