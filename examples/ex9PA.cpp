@@ -32,6 +32,9 @@
 #include <iostream>
 #include <algorithm>
 
+#include "../fem/dgfacefunctions.hpp"
+#include "../fem/partialassemblykernel.hpp"
+
 using namespace std;
 using namespace mfem;
 
@@ -60,7 +63,8 @@ Vector bb_min, bb_max;
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   BilinearForm &M,&K;
+   SparseMatrix &M;
+   BilinearForm &K;
    const Vector &b;
 
    CGSolver M_solver;
@@ -69,7 +73,7 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(FiniteElementSpace* fes, BilinearForm &_M, BilinearForm &_K, const Vector &_b);
+   FE_Evolution(SparseMatrix &_M, BilinearForm &_K, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -79,6 +83,7 @@ public:
 
 int main(int argc, char *argv[])
 {
+
    tic_toc.Clear();
    tic_toc.Start();
    // 1. Parse command-line options.
@@ -86,7 +91,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/periodic-hexagon.mesh";
    int ref_levels = 2;
    int order = 3;
-   int ir_order = 2*order;
+   int ir_order = order+1;
    int ode_solver_type = 4;
    double t_final = 10.0;
    double dt = 0.01;
@@ -184,25 +189,27 @@ int main(int argc, char *argv[])
    FunctionCoefficient u0(u0_function);
 
    //Creating a partial assembly Kernel
-   DummyDomainPAK pak(&fes,ir_order,4);
+   //Maybe not the right place to initialize tensor size.
+   DummyDomainPAK pak(&fes,ir_order,3);
    DummyFacePAK pak_face(&fes,ir_order,2);
 
    //Initialization of the Mass operator
-   BilinearFormOperator m(&fes);
-   m.AddDomainIntegrator(new PAMassIntegrator(&fes,ir_order));
+   BilinearForm m(&fes);
+   m.AddDomainIntegrator(new MassIntegrator());
+   m.Assemble();
+   m.Finalize();
    //Initialization of the Stiffness operator
    BilinearFormOperator k(&fes);
    k.AddDomainIntegrator(new PAConvectionIntegrator<DummyDomainPAK>(pak,&fes,ir_order,velocity, -1.0));
-   k.AddInteriorFaceIntegrator(
+   k.AddDomainIntegrator(
          new PADGConvectionFaceIntegrator<DummyFacePAK>(pak_face,&fes,ir_order,velocity, 1.0, -0.5));
-   //k.AddBdrFaceIntegrator(
-   //      new PADGConvectionFaceIntegrator<DummyFacePAK>(pak_ext,&fes,ir_order,velocity, 1.0, -0.5));
    //No need to do PA
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
 
-   /* TODO remove?
+   /*
+   //TODO remove?
    m.Assemble();
    m.Finalize();
    int skip_zeros = 0;
@@ -277,7 +284,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(&fes, m, k, b);
+   FE_Evolution adv(m.SpMat(), k, b);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -290,6 +297,7 @@ int main(int argc, char *argv[])
       ode_solver->Step(u, t, dt_real);
       ti++;
 
+      //done = true;
       done = (t >= t_final - 1e-8*dt);
 
       if (done || ti % vis_steps == 0)
@@ -311,7 +319,7 @@ int main(int argc, char *argv[])
    }
 
    tic_toc.Stop();
-   cout << " done, " << tic_toc.RealTime() << "s." << endl;
+   // cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
@@ -330,14 +338,14 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(FiniteElementSpace *fes, BilinearForm &_M, BilinearForm &_K, const Vector &_b)
-   : TimeDependentOperator(fes->GetTrueVSize(), 0.0), M(_M), K(_K), b(_b), z(height)
+FE_Evolution::FE_Evolution(SparseMatrix &_M, BilinearForm &_K, const Vector &_b)
+   : TimeDependentOperator(_M.Size(), 0.0), M(_M), K(_K), b(_b), z(_M.Size())
 {
    //TODO have to take into account the block diagonal structure of M
-   M_solver.SetOperator(M);
    //M_solver.SetPreconditioner(M_prec);
+   M_solver.SetOperator(M);
 
-   M_solver.iterative_mode = false;
+   M_solver.iterative_mode = true;
    M_solver.SetRelTol(1e-9);
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(100);
@@ -346,7 +354,26 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes, BilinearForm &_M, BilinearFo
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   // y = M^{-1} (K x + b)
+   /*y = 0.;
+   Vector xx(x);
+   int size = xx.Size();
+   int n = size;
+   int order = 1;
+   int dofs = (order+1)*(order+1);
+   for (int i = 0; i < n; ++i)
+   {
+      cout << "cacahuete " << i << endl;
+      xx = 0.;
+      xx(i) = 1000.;
+      // y = M^{-1} (K x + b)
+      K.Mult(xx, z);
+      for (int j = 0; j < z.Size(); ++j)
+      {
+         z(j) = abs(z(j)) < 1e-12 ? 0 : z(j);
+      }
+      z.Print(std::cout,dofs);
+      y += z;
+   }*/
    K.Mult(x, z);
    z += b;
    M_solver.Mult(z, y);
@@ -426,6 +453,7 @@ double u0_function(const Vector &x)
    switch (problem)
    {
       case 0:
+
       case 1:
       {
          switch (dim)

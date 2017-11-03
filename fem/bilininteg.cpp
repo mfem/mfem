@@ -2302,7 +2302,6 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       }
       ir = &IntRules.Get(Trans.FaceGeom, order);
    }
-
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);

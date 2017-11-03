@@ -38,56 +38,55 @@ template <typename PAK>
 class PAConvectionIntegrator : public BilinearFormIntegrator
 {
 protected:
-  PAK& pak;
+  	PAK& pak;
 
 public:
-  PAConvectionIntegrator(PAK& _pak, FiniteElementSpace *fes, const int ir_order,
+  	PAConvectionIntegrator(PAK& _pak, FiniteElementSpace *fes, const int ir_order,
                         VectorCoefficient &q, double a = 1.0)
-  : BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), ir_order)),
-    pak(_pak)
-  {
-  	const int nb_elts = fes->GetNE();
-	const int quads  = IntRule->GetNPoints();
-
-   const FiniteElement* fe = fes->GetFE(0);
-   int dim = fe->GetDim();
-	Vector qvec(dim);
-    //device initialization prototype (should evolve)
-    //int tensorDim = 4;
-    //pak.InitPb(fes,tensorDim,ir_order);
-    //gets the D tensor, whatever his type
-    typename PAK::Tensor& D = pak.GetD();
-    int sizes[] = {dim,dim,quads,nb_elts};
-    D.SetSize(sizes);
-    //the local D tensor
-    DenseMatrix locD(dim, dim);
-    for (int e = 0; e < nb_elts; ++e)
-    {
-      ElementTransformation *Tr = fes->GetElementTransformation(e);
-      for (int k = 0; k < quads; ++k)
-      {
-        const IntegrationPoint &ip = IntRule->IntPoint(k);
-  	    Tr->SetIntPoint(&ip);
-        DenseMatrix locD = Tr->AdjugateJacobian();
-        locD *= ip.weight;
-        q.Eval(qvec, *Tr, ip);
-        for (int j = 0; j < dim; ++j)
-        {
-          for (int i = 0; i < dim; ++i)
-          {
-            double val = - a * qvec(j) * locD(i,j);
-            int ind[] = {i,j,k,e};
-            D(ind) = val;
-          }
-        }
-      }
-    }
-  }
+  	: BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), ir_order)),
+     pak(_pak)
+  	{
+	  	const int nb_elts = fes->GetNE();
+		const int quads  = IntRule->GetNPoints();
+	   const FiniteElement* fe = fes->GetFE(0);
+	   int dim = fe->GetDim();
+		Vector qvec(dim);
+		//device initialization prototype (should evolve)
+		//int tensorDim = 3;
+		//pak.InitPb(fes,tensorDim,ir_order);
+		//gets the D tensor, whatever his type
+		typename PAK::Tensor& D = pak.GetD();
+		int sizes[] = {dim,quads,nb_elts};
+		D.SetSize(sizes);
+		//the local D tensor
+		//DenseMatrix locD(dim, dim);
+		for (int e = 0; e < nb_elts; ++e)
+		{
+		   ElementTransformation *Tr = fes->GetElementTransformation(e);
+		   for (int k = 0; k < quads; ++k)
+		   {
+		     	const IntegrationPoint &ip = IntRule->IntPoint(k);
+			   Tr->SetIntPoint(&ip);
+		     	const DenseMatrix& locD = Tr->AdjugateJacobian();
+		     	q.Eval(qvec, *Tr, ip);
+		     	for (int i = 0; i < dim; ++i)
+		     	{
+		     		double val = 0;
+		     		for (int j = 0; j < dim; ++j)
+		       	{
+		         	val += locD(i,j) * qvec(j);
+		       	}
+	         	int ind[] = {i,k,e};
+	         	D(ind) = ip.weight * a * val;
+		     	}
+		   }
+		}
+  	}
 
   virtual void AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
   {
-    //We assume that the device has such a method.
-    pak.MultGtDB(fun,vect);
+    //We assume that the kernel has such a method.
+    pak.MultBtDG(fun,vect);
   }
 };
 
@@ -99,6 +98,8 @@ public:
     is assumed to be discontinuous. The integrator uses the upwind value of rho,
     rho_q, which is value from the side into which the vector coefficient, q,
     points. This uses a partially assembled operator at quadrature points.
+    Assumes:
+      - IntegrationRule for PAK
 * */
 template <typename PAK>
 class PADGConvectionFaceIntegrator : public BilinearFormIntegrator
@@ -107,8 +108,6 @@ protected:
    PAK& pak;
 
 public:
-	//using Tensor = DummyTensor;
-	typedef DummyTensor Tensor;
 
   	PADGConvectionFaceIntegrator(PAK& _pak, FiniteElementSpace *fes, const int ir_order,
                         VectorCoefficient &q, double a = 1.0, double b = 1.0)
@@ -118,17 +117,23 @@ public:
 		const int dim = fes->GetFE(0)->GetDim();
 	   Mesh* mesh = fes->GetMesh();
 	   const int nb_faces = mesh->GetNumFaces();
-		const int quads  = pow(ir_order,dim-1);
+	   int geom;
+	   switch(dim){
+	   	case 1:geom = Geometry::POINT;break;
+	   	case 2:geom = Geometry::SEGMENT;break;
+	   	case 3:geom = Geometry::SQUARE;break;
+	   }
+		const int quads  = IntRules.Get(geom, ir_order).GetNPoints();//pow(ir_order,dim-1);
 		Vector qvec(dim);
 	   // D11 and D22 are the matrices for the flux of the element on himself for elemt 1 and 2
 	   // respectively (we can add together the matrices for the different faces,
 	   // (element approach > face approach?)
 	   // D12 and D21 are the flux matrices for Element 1 on Element 2, and Element 2 on Element 1
 	   // respectively.
-	   Tensor& D11 = pak.GetD11();
-	   Tensor& D12 = pak.GetD12();
-	   Tensor& D21 = pak.GetD21();
-	   Tensor& D22 = pak.GetD22();
+	   typename PAK::Tensor& D11 = pak.GetD11();
+	   typename PAK::Tensor& D12 = pak.GetD12();
+	   typename PAK::Tensor& D21 = pak.GetD21();
+	   typename PAK::Tensor& D22 = pak.GetD22();
 	   int sizes[] = {quads,nb_faces};
 	   D11.SetSize(sizes);
 	   D12.SetSize(sizes);
@@ -148,35 +153,37 @@ public:
 	      mesh->GetFaceInfos(face,&info_elt1,&info_elt2);
 	      int nb_rot1, nb_rot2;
 	      int face_id1, face_id2;
-	      GetIdRotInfo(ind_elt1,face_id1,nb_rot1);
-	      GetIdRotInfo(ind_elt2,face_id2,nb_rot2);
+	      GetIdRotInfo(info_elt1,face_id1,nb_rot1);
+	      GetIdRotInfo(info_elt2,face_id2,nb_rot2);
 	      // Trial basis shouldn't rotate, since we apply B1d to dofs directly
-	      int nb_rot = nb_rot1 - nb_rot2;//TODO check that it's correct!!!
-	      IntMatrix base_E1(dim,dim), base_E2(dim,dim);
+	      //int nb_rot = nb_rot1 - nb_rot2;//TODO check that it's correct!!!
+	      //IntMatrix base_E1(dim,dim), base_E2(dim,dim);
 	      // The mapping "map" stores the cahnge of basis from element e1 to element e2
-	      vector<pair<int,int> > map;
-	      //TODO: This code should be factorized and put somewhere else
+	      //vector<pair<int,int> > map;
+	      // //TODO: This code should be factorized and put somewhere else
+	      // cout << "face No=" << face << endl;
+	      // cout << "info_elt1=" << info_elt1 << ",info_elt2=" << info_elt2 << endl;
+	      // cout << "face_id1=" << face_id1 << ",face_id2=" << face_id2 << endl;
 	      switch(dim){
 	      	case 1:mfem_error("1D Advection not yet implemented");break;
 	      	case 2:
-	      		GetLocalCoordMap2D(map,nb_rot);
+	      		GetChangeOfBasis2D(face_id1,face_id2,P);
+	      		/*GetLocalCoordMap2D(map,nb_rot);
 	      		InitFaceCoord2D(face_id1,base_E1);
-	      		InitFaceCoord2D(face_id2,base_E2);
+	      		InitFaceCoord2D(face_id2,base_E2);*/
 	      		break;
 	      	case 3:
-	      		GetLocalCoordMap3D(map,nb_rot);
+	      		mfem_error("3D Advection not yet implemented");
+	      		/*GetLocalCoordMap3D(map,nb_rot);
 	      		InitFaceCoord3D(face_id1,base_E1);
-	      		InitFaceCoord3D(face_id2,base_E2);
+	      		InitFaceCoord3D(face_id2,base_E2);*/
 	      		break;
 	      	default:
 	      		mfem_error("Wrong dimension");break;
 	      }
-	      GetChangeOfBasis(base_E1,base_E2,map,P);
-	      //TODO InitPb should initialize the size of D11 D12 D21 D22
+	      //GetChangeOfBasis(base_E1,base_E2,map,P);
 	      pak.InitPb(face,P);
-	      const IntegrationRule *ir = IntRule;
    		FaceElementTransformations* face_tr = mesh->GetFaceElementTransformations(face);
-	      //TODO should be on k1,k2,k3
 	      for (int k = 0; k < quads; ++k)
 	      {
 	      	// We need to be sure that we go in the same order as for the partial assembly.
@@ -190,36 +197,40 @@ public:
 	         double val = 0;
 	         Vector n(dim);
 	         double res;
-        		//ir = &IntRules.Get(face_tr->FaceGeom, order);
-        		//TODO use own quadrature points
-        		const IntegrationPoint &ip = ir->IntPoint(k);
+	      	const IntegrationRule& ir = IntRules.Get(geom, ir_order);
+        		const IntegrationPoint &ip = ir.IntPoint(k);
 	      	// We compute D11 and D21
-        		//ip = pak.IntPoint( face_id1, k );//2D point ordered according to coord on element 1
       		IntegrationPoint eip1;
-      		face_tr->Loc1.Transform( ip, eip1 );
+        		eip1 = pak.IntPoint( face_id1, k );//2D point ordered according to coord on element 1
+      		//face_tr->Loc1.Transform( ip, eip1 );
 	         face_tr->Face->SetIntPoint( &ip );
 				face_tr->Elem1->SetIntPoint( &eip1 );
 	         q.Eval( qvec, *(face_tr->Elem1), eip1 );
 	         CalcOrtho( face_tr->Face->Jacobian(), n );
 	         res = qvec * n;
-	         val = ip.weight * (   a/2 * res + b * abs(res) );
-	         D11(ind) = val;
-	         val = ip.weight * ( - a/2 * res - b * abs(res) );
-	         D21(ind) = val;
-	         // We compute D12 and D22
-	         //ip = pak.IntPoint( face_id2, k );
-      		IntegrationPoint eip2;
-	         face_tr->Face->SetIntPoint( &ip );
-      		face_tr->Loc2.Transform( ip, eip2 );
-				face_tr->Elem2->SetIntPoint( &eip2 );
-	         q.Eval( qvec, *(face_tr->Elem2), eip2 );
-	         CalcOrtho( face_tr->Face->Jacobian(), n );
-	         res = qvec * n;
-	         val = ip.weight * (   a/2 * res - b * abs(res) );
-	         D22(ind) = val;
-	         val = ip.weight * ( - a/2 * res + b * abs(res) );
-	         D12(ind) = val;
-	      }  
+	         if(face_tr->Elem2No!=-1){
+		         val = eip1.weight * (   a/2 * res + b * abs(res) );
+		         D11(ind) = val;
+		         val = eip1.weight * (   a/2 * res - b * abs(res) );
+		         D21(ind) = val;
+		         // We compute D12 and D22
+	      		IntegrationPoint eip2;
+	      		eip2 = pak.IntPoint( face_id2, k );
+	      		//face_tr->Loc2.Transform( ip, eip2 );
+		        	face_tr->Face->SetIntPoint( &ip );
+					face_tr->Elem2->SetIntPoint( &eip2 );
+			      q.Eval( qvec, *(face_tr->Elem2), eip2 );
+			      CalcOrtho( face_tr->Face->Jacobian(), n );
+			      res = qvec * n;
+			      val = eip2.weight * ( - a/2 * res + b * abs(res) );
+			      D22(ind) = val;
+			      val = eip2.weight * ( - a/2 * res - b * abs(res) );
+			      D12(ind) = val;
+		      }else{//Boundary face
+		        	//val = eip1.weight * (   a * res + b * abs(res) );
+		        	//D11(ind) = val;	      	
+		      }
+	      }
 	   }
 	}
    

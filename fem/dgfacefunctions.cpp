@@ -141,6 +141,7 @@ void GetLocalCoordMap2D(vector<pair<int,int> >& map, const int nb_rot)
 {
 	map.resize(2);
 	//First and second coordinate vectors should always be of opposite direction in 2D.
+	//TODO Maybe not
 	map[0] = pair<int,int>(-1,0);
 	map[1] = pair<int,int>(-1,1);
 }
@@ -186,7 +187,7 @@ void GetLocalCoordMap3D(vector<pair<int,int> >& map, const int nb_rot)
 void GetChangeOfBasis(const IntMatrix& base_K1, IntMatrix& base_K2,
 								const vector<pair<int,int> >& map, IntMatrix& P)
 {
-	int dim = map.size();
+/*	int dim = map.size();
 	for (int j = 0; j < dim; j++)
 	{
 		int i = 0;
@@ -199,8 +200,56 @@ void GetChangeOfBasis(const IntMatrix& base_K1, IntMatrix& base_K2,
 		{
 			P(k,j) = coeff * base_K1(k,ind);
 		}
+	}*/
+	//TODO make it valid for 3D!!!
+	int dim = base_K1.Height();
+	for (int i = 0; i < dim; ++i)
+	{
+		int coeff = map[i].first;
+		int ind = map[i].second;
+		for (int j = 0; j < dim; ++j)
+		{
+			int sum = 0;
+			for (int k = 0; k < dim; ++k)
+			{
+				sum += coeff*base_K1(i,k)*base_K2(j,k);
+			}
+			P(ind,j) =  sum;
+		}
 	}
 }
+
+void GetChangeOfBasis2D(const int face_id1, const int face_id2, IntMatrix& P)
+{
+	// We add 8 because of C++ stupid definition of modulo
+	int nb_rot = (8 + face_id2 - face_id1 - 2)%4;
+	// if (face_id2!=-1)
+	// {
+		// cout << "face_id1=" << face_id1 << ", face_id2=" << face_id2 << ", nb_rot=" << nb_rot << endl;
+	// }
+	P.Zero();
+	switch(nb_rot)
+	{
+	case 0://Id=R^4
+		P(0,0) = 1;
+		P(1,1) = 1;
+		break;
+	case 1://R
+		P(1,0) = 1;
+		P(0,1) =-1;
+		break;
+	case 2://R²
+		P(0,0) =-1;
+		P(1,1) =-1;
+		break;
+	case 3://R³
+		P(1,0) =-1;
+		P(0,1) = 1;
+		break;
+	default:mfem_error("C++ modulo error in GetChangeOfBasis2D");
+	}
+}
+
 
 /**
 *	Returns the face_id that identifies the face on the reference element, and nb_rot the

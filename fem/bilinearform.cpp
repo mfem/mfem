@@ -1307,6 +1307,7 @@ void BilinearFormOperator::Mult(const Vector &x, Vector &y) const
 {
    // x: L -> E
    LToEVector(x, X);
+   //X = x;
 
    Y = 0.0;
    if (dbfi.Size())
@@ -1347,6 +1348,7 @@ void BilinearFormOperator::Mult(const Vector &x, Vector &y) const
 
    // y: E -> L
    EToLVector(Y, y);
+   //y = Y;
 }
 
 }

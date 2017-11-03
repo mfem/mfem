@@ -61,6 +61,11 @@ void GetChangeOfBasis(const IntMatrix& base_K1, IntMatrix& base_K2,
 								const vector<pair<int,int> >& map, IntMatrix& P);
 
 /**
+*	Returns the change of coordinate from second element to first element on a 2D face.
+*/
+void GetChangeOfBasis2D(const int face_id1, const int face_id2, IntMatrix& P);
+
+/**
 *	Returns the face_id that identifies the face on the reference element, and nb_rot the
 *  "rotations" the face did between reference to physical spaces.
 */

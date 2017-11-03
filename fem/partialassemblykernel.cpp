@@ -426,7 +426,6 @@ void MultBtDG2(FiniteElementSpace* fes, DenseMatrix const& shape1d,
    DenseMatrix const& dshape1d, DummyTensor & D, const Vector &V, Vector &U)
 {
    const int dim = 2;
-   const int terms = dim*dim;
 
    const FiniteElement *fe = fes->GetFE(0);
    const int dofs   = fe->GetDof();
@@ -457,29 +456,27 @@ void MultBtDG2(FiniteElementSpace* fes, DenseMatrix const& shape1d,
       // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
       // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
       double *data_qq = QQ(0).GetData();
-      const double *data_d = D.GetElmtData(e);
+      //const double *data_d = D.GetElmtData(e);
       for (int k = 0; k < quads; ++k)
       {
-         const double D00 = data_d[terms*k + 0];
-         const double D10 = data_d[terms*k + 1];
-         const double D01 = data_d[terms*k + 2];
-         const double D11 = data_d[terms*k + 3];
+         // const double D00 = data_d[terms*k + 0];
+         // const double D10 = data_d[terms*k + 1];
+         // const double D01 = data_d[terms*k + 2];
+         // const double D11 = data_d[terms*k + 3];
+         int ind0[] = {0,k,e};
+         int ind1[] = {1,k,e};
+         const double D0 = D(ind0);
+         const double D1 = D(ind1);
 
          const double q0 = data_qq[0*quads + k];
          const double q1 = data_qq[1*quads + k];
 
-         data_qq[0*quads + k] = D00 * q0 + D01 * q1;
-         data_qq[1*quads + k] = D10 * q0 + D11 * q1;
+         data_qq[0*quads + k] = D0 * q0 + D1 * q1;
       }
 
       // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
       // U_i1_i2   += dshape_i1_k1 * DQ_i2_k1
       MultABt(shape1d, QQ(0), DQ);
-      AddMultABt(shape1d, DQ, Umat);
-
-      // DQ_i2_k1   = dshape_i2_k2 * QQ_1_k1_k2
-      // U_i1_i2   += shape_i1_k1  * DQ_i2_k1
-      MultABt(shape1d, QQ(1), DQ);
       AddMultABt(shape1d, DQ, Umat);
 
       // increment offset
@@ -646,10 +643,9 @@ void MultGtDB1(FiniteElementSpace* fes, DenseMatrix const& shape1d,
 }
 
 void MultGtDB2(FiniteElementSpace* fes, DenseMatrix const& shape1d,
-   DenseMatrix const& dshape1d, DummyTensor & D, const Vector &V, Vector &U)
+   DenseMatrix const& dshape1d, DummyTensor& D, const Vector &V, Vector &U)
 {
    const int dim = 2;
-   const int terms = dim*dim;
 
    const FiniteElement *fe = fes->GetFE(0);
    const int dofs   = fe->GetDof();
@@ -676,25 +672,25 @@ void MultGtDB2(FiniteElementSpace* fes, DenseMatrix const& shape1d,
       // DQ_j2_k1   = E_j1_j2  * shape_j1_k1  -- contract in x direction
       // QQ_1_k1_k2 = DQ_j2_k1 * dshape_j2_k2 -- contract in y direction
       //Can be optimized since this is the same data
-      MultAtB(Vmat, shape1d, DQ);
-      MultAtB(DQ, shape1d, QQ(1));
+      //MultAtB(Vmat, shape1d, DQ);
+      //MultAtB(DQ, shape1d, QQ(1));
 
       // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
       // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
       double *data_qq = QQ(0).GetData();
-      const double *data_d = D.GetElmtData(e);
+      //const double *data_d = D.GetElmtData(e);
       for (int k = 0; k < quads; ++k)
       {
-         const double D00 = data_d[terms*k + 0];
-         const double D10 = data_d[terms*k + 1];
-         const double D01=  data_d[terms*k + 2];
-         const double D11 = data_d[terms*k + 3];
+         int ind0[] = {0,k,e};
+         int ind1[] = {1,k,e};
+         // const double D0 = data_d[terms*k + 0];
+         // const double D1 = data_d[terms*k + 1];
+         const double D0 = D(ind0);
+         const double D1 = D(ind1);
+         const double q = data_qq[0*quads + k];
 
-         const double q0  =data_qq[0*quads + k];
-         const double q1 = data_qq[1*quads + k];
-
-         data_qq[0*quads + k] = D00 * q0 + D01 * q1;
-         data_qq[1*quads + k] = D10 * q0 + D11 * q1;
+         data_qq[0*quads + k] = D0 * q;
+         data_qq[1*quads + k] = D1 * q;
       }
 
       // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
@@ -846,7 +842,7 @@ void MultGtDB3(FiniteElementSpace* fes, DenseMatrix const& shape1d,
 
 void InitTrialB2d(const int face_id, DenseMatrix& shape1d,
    DenseMatrix& shape0d0, DenseMatrix& shape0d1,
-   DenseMatrix& B1, DenseMatrix& B2, DenseMatrix& B3, DenseMatrix& B4)
+   DenseMatrix& B1, DenseMatrix& B2)
 {
    // face_id in
    switch(face_id)
@@ -854,24 +850,46 @@ void InitTrialB2d(const int face_id, DenseMatrix& shape1d,
    case 0://SOUTH
       B1.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
       B2.UseExternalData(shape0d0.GetData(),shape0d0.Height(),shape0d0.Width());//y=0
-      B3.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
-      B4.UseExternalData(shape0d0.GetData(),shape0d0.Height(),shape0d0.Width());//y=0
       break;
    case 1://EAST
       B1.UseExternalData(shape0d1.GetData(),shape0d1.Height(),shape0d1.Width());//x=1
       B2.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
-      B3.UseExternalData(shape0d1.GetData(),shape0d1.Height(),shape0d1.Width());//x=1
-      B4.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
       break;
    case 2://NORTH
       B1.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
       B2.UseExternalData(shape0d1.GetData(),shape0d1.Height(),shape0d1.Width());//y=1
-      B3.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
-      B4.UseExternalData(shape0d1.GetData(),shape0d1.Height(),shape0d1.Width());//y=1
       break;
    case 3://WEST
       B1.UseExternalData(shape0d0.GetData(),shape0d0.Height(),shape0d0.Width());//x=0
       B2.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
+      break;
+   default:
+      mfem_error("The face_id exceeds the number of faces in this dimension.");
+      break;
+   }
+}
+
+void InitTestIntB2d(const int face_id,
+   DenseMatrix& shape1d, DenseMatrix& shape0d0, DenseMatrix& shape0d1,
+   DenseMatrix& B3, DenseMatrix& B4)
+{
+   // face_id out (same as int)
+   switch(face_id)
+   {
+   case 0://SOUTH
+      //DenseMatrix& B1d = backward(0,face) ? shape1d : shape1db;
+      B3.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
+      B4.UseExternalData(shape0d0.GetData(),shape0d0.Height(),shape0d0.Width());//y=0
+      break;
+   case 1://EAST
+      B3.UseExternalData(shape0d1.GetData(),shape0d1.Height(),shape0d1.Width());//x=1
+      B4.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
+      break;
+   case 2://NORTH
+      B3.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
+      B4.UseExternalData(shape0d1.GetData(),shape0d1.Height(),shape0d1.Width());//y=1
+      break;
+   case 3://WEST
       B3.UseExternalData(shape0d0.GetData(),shape0d0.Height(),shape0d0.Width());//x=0
       B4.UseExternalData(shape1d.GetData(),shape1d.Height(),shape1d.Width());
       break;
@@ -881,13 +899,11 @@ void InitTrialB2d(const int face_id, DenseMatrix& shape1d,
    }
 }
 
-//TODO on devrait pas permuter les matrices avec notre approche
-void InitTestB2d(const int face, const int face_id,
+void InitTestExtB2d(const int face, const int face_id,
    IntMatrix& coord_change, IntMatrix& backward,
    DenseMatrix& shape1d, DenseMatrix& shape0d0, DenseMatrix& shape0d1,
    DenseMatrix& B3, DenseMatrix& B4)
 {
-   //TODO take into account backward
    DenseMatrix Bx,By,Bz;
    // face_id out
    switch(face_id)
@@ -917,21 +933,27 @@ void InitTestB2d(const int face, const int face_id,
    int ind_k1 = coord_change(0,face);
    switch(ind_k1)
    {
-   case 0:B3.UseExternalData(Bx.GetData(),Bx.Height(),Bx.Width());break;//x=x'
-   case 1:B3.UseExternalData(By.GetData(),By.Height(),By.Width());break;//x=y'
+   case 0://x=x' and y=y'
+      B3.UseExternalData(Bx.GetData(),Bx.Height(),Bx.Width());
+      B4.UseExternalData(By.GetData(),By.Height(),By.Width());
+      break;
+   case 1://x=y' and y=x'
+      B3.UseExternalData(By.GetData(),By.Height(),By.Width());
+      B4.UseExternalData(Bx.GetData(),Bx.Height(),Bx.Width());
+      break;
    default:
       mfem_error("The ind_k1 exceeds the number of dimensions.");
       break;
    }
-   int ind_k2 = coord_change(1,face);
-   switch(ind_k2)
-   {
-   case 0:B4.UseExternalData(Bx.GetData(),Bx.Height(),Bx.Width());break;//y=x'
-   case 1:B4.UseExternalData(By.GetData(),By.Height(),By.Width());break;//y=y'
-   default:
-      mfem_error("The ind_k2 exceeds the number of dimensions.");
-      break;
-   }
+   // int ind_k2 = coord_change(1,face);
+   // switch(ind_k2)
+   // {
+   // case 0:B4.UseExternalData(Bx.GetData(),Bx.Height(),Bx.Width());break;//y=x'
+   // case 1:B4.UseExternalData(By.GetData(),By.Height(),By.Width());break;//y=y'
+   // default:
+   //    mfem_error("The ind_k2 exceeds the number of dimensions.");
+   //    break;
+   // }
 }
 
 void MultBtDB2int(int ind_trial, FiniteElementSpace* fes,
@@ -965,7 +987,7 @@ void MultBtDB2int(int ind_trial, FiniteElementSpace* fes,
    DenseMatrix B1,B2,B3,B4;
    // Temporary tensors (we can most likely reduce their number)
    DenseMatrix T0,T1,T2,T3,T4,R;
-   int i,j,l;
+   int i,j,k,l;
    for(int face = 0; face < nb_faces; face++)
    {
       // We collect the indices of the two elements on
@@ -984,65 +1006,67 @@ void MultBtDB2int(int ind_trial, FiniteElementSpace* fes,
          face_id = face_id2;
          info_e = info_e2;
       }
-      InitTrialB2d(face_id,shape1d,shape0d0,shape0d1,B1,B2,B3,B4);
-      // Initialization of T0 with the dofs of element e1: T0 = U(e1)
-      DenseMatrix T0(U.GetData()+e*dofs2d, dofs1d, dofs1d);
-      DenseMatrix R(V.GetData() +e*dofs2d, dofs1d, dofs1d);
-      // We perform T1 = B1 . T0
-      k1 = B1.Width();
-      T1.SetSize(i2,k1);
-      for (j = 0; j < k1; j++){
-         for (i = 0; i < i2; i++){
-            T1(i,j) = 0;
-            for (l = 0; l < i1; l++){
-               T1(i,j) += B1(l,j) * T0(l,i);
+      if(e!=-1){// Checks if this is a boundary face
+         InitTrialB2d(face_id,shape1d,shape0d0,shape0d1,B1,B2);
+         InitTestIntB2d(face_id,shape1d,shape0d0,shape0d1,B3,B4);
+         // Initialization of T0 with the dofs of element e1: T0 = U(e1)
+         DenseMatrix T0(U.GetData()+e*dofs2d, dofs1d, dofs1d);
+         DenseMatrix R(V.GetData() +e*dofs2d, dofs1d, dofs1d);
+         // We perform T1 = B1 . T0
+         k1 = B1.Width();
+         T1.SetSize(i2,k1);
+         for (j = 0; j < k1; j++){
+            for (i = 0; i < i2; i++){
+               T1(i,j) = 0;
+               for (l = 0; l < i1; l++){
+                  T1(i,j) += B1(l,j) * T0(l,i);
+               }
             }
          }
-      }
-      // We perform T2 = B2 . T1
-      k2 = B2.Width();
-      T2.SetSize(k1,k2);
-      for (j = 0; j < k2; j++){
-         for (i = 0; i < k1; i++){
-            T2(i,j) = 0;
-            for (l = 0; l < i2; l++){
-               T2(i,j) += B2(l,j) * T1(l,i);
+         // We perform T2 = B2 . T1
+         k2 = B2.Width();
+         T2.SetSize(k1,k2);
+         for (j = 0; j < k2; j++){
+            for (i = 0; i < k1; i++){
+               T2(i,j) = 0;
+               for (l = 0; l < i2; l++){
+                  T2(i,j) += B2(l,j) * T1(l,i);
+               }
             }
          }
-      }
-      // Above code can be factorized and applied to e1 and e2 (if no hp-adaptivity)
-      // ToSelf: Complexity can be in there too
-      // We perform T4 = D : T3
-      T3.SetSize(k1,k2);
-      for (j = 0; j < k2; j++){
-         for (i = 0; i < k1; i++){
-            // ToSelf: T4 with indirection? I(i,j,k),J(i,j,k),K(i,j,k)? B x (i,j,k)?
-            // Id for F_int
-            int real_k = i + quads1d*j;
-            int ind[] = {real_k,face};
-            T3(i,j) = D(ind) * T2(i,j);
-         }
-      }
-      // We perform T5 = B4 . T4
-      T4.SetSize(k2,j1);
-      for (j = 0; j < j1; j++){
-         for (i = 0; i < k2; i++){
-            T4(i,j) = 0;
-            for (l = 0; l < k1; l++){
-               //T4(i,j) += B3(l,j) * T3(l,i);//for later
-               T4(i,j) += B3(j,l) * T3(l,i);
+         // Above code can be factorized and applied to e1 and e2 (if no hp-adaptivity)
+         // ToSelf: Complexity can be in there too
+         // We perform T4 = D : T3
+         T3.SetSize(k1,k2);
+         for (j = 0, k = 0; j < k2; j++){
+            for (i = 0; i < k1; i++, k++){
+               // ToSelf: T4 with indirection? I(i,j,k),J(i,j,k),K(i,j,k)? B x (i,j,k)?
+               // Id for F_int
+               int ind[] = {k,face};
+               T3(i,j) = D(ind) * T2(i,j);
             }
          }
-      }
-      // We perform V = B6 . T6
-      // We sort the result so that dofs are j1 then j2 then j3.
-      //R.SetSize(j1,j2);
-      for (j = 0; j < j2; j++){
-         for (i = 0; i < j1; i++){
-            //R(i,j) = 0; //should be initialized by someone else
-            for (l = 0; l < k2; l++){
-               //R(i,j) += B4(l,*m) * T4(l,*n);//for later
-               R(i,j) += B4(j,l) * T4(l,i);
+         // We perform T5 = B4 . T4
+         T4.SetSize(k2,j1);
+         for (j = 0; j < j1; j++){
+            for (i = 0; i < k2; i++){
+               T4(i,j) = 0;
+               for (l = 0; l < k1; l++){
+                  //T4(i,j) += B3(l,j) * T3(l,i);//for later
+                  T4(i,j) += B3(j,l) * T3(l,i);
+               }
+            }
+         }
+         // We perform V = B6 . T6
+         // We sort the result so that dofs are j1 then j2 then j3.
+         //R.SetSize(j1,j2);
+         for (j = 0; j < j2; j++){
+            for (i = 0; i < j1; i++){
+               //R(i,j) = 0; //should be initialized by someone else
+               for (l = 0; l < k2; l++){
+                  //R(i,j) += B4(l,*m) * T4(l,*n);//for later
+                  R(i,j) += B4(j,l) * T4(l,i);
+               }
             }
          }
       }
@@ -1061,7 +1085,7 @@ void MultBtDB2ext(int ind_trial, FiniteElementSpace* fes,
    int info_e1, info_e2;
    int face_id1, face_id2;
    // the element we're working on
-   int e_trial, e_test, info_e, face_id;
+   int e_trial, e_test, face_id_trial, face_id_test;
    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
    int dofs1d = fes->GetFE(0)->GetOrder() + 1;
    // number of degrees of freedom in 3d
@@ -1082,7 +1106,7 @@ void MultBtDB2ext(int ind_trial, FiniteElementSpace* fes,
    DenseMatrix B1,B2,B3,B4;
    // Temporary tensors (we can most likely reduce their number)
    DenseMatrix T0,T1,T2,T3,T4,R;
-   int i,j,l;
+   int i,j,k,l;
    int *m,*n;
    for(int face = 0; face < nb_faces; face++)
    {
@@ -1096,88 +1120,92 @@ void MultBtDB2ext(int ind_trial, FiniteElementSpace* fes,
       if(ind_trial==1){
          e_trial = e1;
          e_test  = e2;
-         face_id = face_id1;
-         info_e = info_e1;
-      }else{
+         face_id_trial = face_id1;
+         face_id_test = face_id2;
+      }else{//ind_trial==2
          e_trial = e2;
          e_test  = e1;
-         face_id = face_id2;
-         info_e = info_e2;
+         face_id_trial = face_id2;
+         face_id_test = face_id1;
       }
-      InitTrialB2d(face_id,shape1d,shape0d0,shape0d1,B1,B2,B3,B4);
-      //InitTestB2d(face,face_id2,coord_change,backward,shape1d,shape0d0,shape0d1,B3,B4);
-      // Initialization of T0 with the dofs of element e1: T0 = U(e1)
-      DenseMatrix T0(U.GetData() + e_trial * dofs2d, dofs1d, dofs1d);
-      DenseMatrix R(V.GetData()  + e_test  * dofs2d, dofs1d, dofs1d);
-      // We perform T1 = B1 . T0
-      k1 = B1.Width();
-      T1.SetSize(i2,k1);
-      for (j = 0; j < k1; j++){
-         for (i = 0; i < i2; i++){
-            T1(i,j) = 0;
-            for (l = 0; l < i1; l++){
-               T1(i,j) += B1(l,j) * T0(l,i);
+      if(e_test!=-1 && e_trial!=-1){
+         // cout << "face=" << face << endl;
+         // cout << "(e_trial,e_test)=(" << e_trial << "," << e_test << ")\n";
+         // cout << "(face_id_trial,face_id_test)=(" << face_id_trial << "," << face_id_test << ")\n";
+         // cout << "(orient1,orient2)=(" << info_e1%64 << ", " << info_e2%64 << ")\n";
+         InitTrialB2d(face_id_trial,shape1d,shape0d0,shape0d1,B1,B2);
+         //InitTestIntB2d(face_id_test,shape1d,shape0d0,shape0d1,B3,B4);
+         InitTestExtB2d(face,face_id_test,coord_change,backward,shape1d,shape0d0,shape0d1,B3,B4);
+         // Initialization of T0 with the dofs of element e1: T0 = U(e1)
+         DenseMatrix T0(U.GetData() + e_trial * dofs2d, dofs1d, dofs1d);
+         DenseMatrix R(V.GetData()  + e_test  * dofs2d, dofs1d, dofs1d);
+         // We perform T1 = B1 . T0
+         k1 = B1.Width();
+         T1.SetSize(i2,k1);
+         for (j = 0; j < k1; j++){
+            for (i = 0; i < i2; i++){
+               T1(i,j) = 0;
+               for (l = 0; l < i1; l++){
+                  T1(i,j) += B1(l,j) * T0(l,i);
+               }
             }
          }
-      }
-      // We perform T2 = B2 . T1
-      k2 = B2.Width();
-      T2.SetSize(k1,k2);
-      for (j = 0; j < k2; j++){
-         for (i = 0; i < k1; i++){
-            T2(i,j) = 0;
-            for (l = 0; l < i2; l++){
-               T2(i,j) += B2(l,j) * T1(l,i);
+         // We perform T2 = B2 . T1
+         k2 = B2.Width();
+         T2.SetSize(k1,k2);
+         for (j = 0; j < k2; j++){
+            for (i = 0; i < k1; i++){
+               T2(i,j) = 0;
+               for (l = 0; l < i2; l++){
+                  T2(i,j) += B2(l,j) * T1(l,i);
+               }
             }
          }
-      }
-      // Above code can be factorized and applied to e1 and e2 (if no hp-adaptivity)
-      // Complexity can be in there too
-      // We perform T4 = D : T3
-      T3.SetSize(k1,k2);
-      for (j = 0; j < k2; j++){
-         for (i = 0; i < k1; i++){
-            // ToSelf: T4 with indirection? I(i,j,k),J(i,j,k),K(i,j,k)? B x (i,j,k)?
-            // Id for F_int
-            int real_k = i + quads1d*j;
-            int ind[] = {real_k,face};
-            T3(i,j) = D(ind) * T2(i,j);
-         }
-      }
-      //TODO use backward here
-      //complexity starts here
-      // We perform T5 = B4 . T4
-      h1 = B3.Height();// j1 | j2 | j3
-      T4.SetSize(k2,h1);
-      for (j = 0; j < h1; j++){
-         for (i = 0; i < k2; i++){
-            T4(i,j) = 0;
-            for (l = 0; l < k1; l++){
-               //T4(i,j) += B3(l,j) * T3(l,i);//for later
-               T4(i,j) += B3(j,l) * T3(l,i);
+         // We perform T3 = D : T2
+         T3.SetSize(k1,k2);
+         for (j = 0, k = 0; j < k2; j++){
+            for (i = 0; i < k1; i++, k++){
+               int ind[] = {k,face};
+               T3(i,j) = D(ind) * T2(i,j);
             }
          }
-      }
-      //TODO use backward here
-      // We perform V = B6 . T6
-      // We sort the result so that dofs are j1 then j2 then j3.
-      switch( coord_change(1,e1) ){
-      case 0://B_j1^k3 T_k3j2j3
-         m  = &j;
-         n  = &i;
-         break;
-      case 1://B_j2^k3 T_k3j1j3
-         m  = &i;
-         n  = &j;
-         break;
-      }
-      //R.SetSize(j1,j2);
-      for (j = 0; j < j2; j++){
-         for (i = 0; i < j1; i++){
-            //R(i,j) = 0; //should be initialized by someone else
-            for (l = 0; l < k2; l++){
-               //R(i,j) += B4(l,*m) * T4(l,*n);//for later
-               R(i,j) += B4(*m,l) * T4(l,*n);
+         // We perform T4 = B3 . T3
+         h1 = B3.Height();// j1 | j2 | j3
+         T4.SetSize(k2,h1);
+         for (j = 0; j < h1; j++){
+            for (i = 0; i < k2; i++){
+               T4(i,j) = 0;
+               for (l = 0; l < k1; l++){
+                  // Checks if quadrature points should be scaned backward
+                  int ind = backward(0,face) ? (k1-1) - l : l;
+                  //T4(i,j) += B3(l,j) * T3(l,i);//for later
+                  //Careful we assume that transpose isn't achieved
+                  T4(i,j) += B3(j,ind) * T3(l,i);
+               }
+            }
+         }
+         // We perform V = B4 . T4
+         // We sort the result so that dofs are j1 then j2 then j3.
+         switch( coord_change(1,face) ){
+         case 0://B_j1^k2 T_k2j1
+            m  = &i;
+            n  = &j;
+            break;
+         case 1://B_j2^k2 T_k2j2
+            m  = &j;
+            n  = &i;
+            break;
+         }
+         for (j = 0; j < j2; j++){
+            for (i = 0; i < j1; i++){
+               //R(i,j) = 0; //should be initialized by someone else
+               for (l = 0; l < k2; l++){
+                  // Checks if quadrature points should be scaned backward
+                  int ind = backward(1,face) ? (k2-1) - l : l;
+                  //R(i,j) += B4(l,*m) * T4(l,*n);//for later
+                  //Careful we assume that transpose isn't achieved
+                  R(i,j) += B4(*m,ind) * T4(l,*n);
+               }
             }
          }
       }
