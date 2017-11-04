@@ -2797,7 +2797,470 @@ const
    *ndofs = (face < 2)? 6 : 9;
    *dofs  = face_dofs[face];
 }
+
+
+BiCubic3DFiniteElement::BiCubic3DFiniteElement()
+   : NodalFiniteElement(3, Geometry::PRISM, 40, 3)
+{
+   // Vertices
+   Nodes.IntPoint(0).x = 0.0;
+   Nodes.IntPoint(0).y = 0.0;
+   Nodes.IntPoint(0).z = 0.0;
+   Nodes.IntPoint(1).x = 1.0;
+   Nodes.IntPoint(1).y = 0.0;
+   Nodes.IntPoint(1).z = 0.0;
+   Nodes.IntPoint(2).x = 0.0;
+   Nodes.IntPoint(2).y = 1.0;
+   Nodes.IntPoint(2).z = 0.0;
+   Nodes.IntPoint(3).x = 0.0;
+   Nodes.IntPoint(3).y = 0.0;
+   Nodes.IntPoint(3).z = 1.0;
+   Nodes.IntPoint(4).x = 1.0;
+   Nodes.IntPoint(4).y = 0.0;
+   Nodes.IntPoint(4).z = 1.0;
+   Nodes.IntPoint(5).x = 0.0;
+   Nodes.IntPoint(5).y = 1.0;
+   Nodes.IntPoint(5).z = 1.0;
+
+   // Edges
+   Nodes.IntPoint(6).x = 1./3.;
+   Nodes.IntPoint(6).y = 0.0;
+   Nodes.IntPoint(6).z = 0.0;
+   Nodes.IntPoint(7).x = 2./3.;
+   Nodes.IntPoint(7).y = 0.0;
+   Nodes.IntPoint(7).z = 0.0;
+
+   Nodes.IntPoint(8).x = 2./3.;
+   Nodes.IntPoint(8).y = 1./3.;
+   Nodes.IntPoint(8).z = 0.0;
+   Nodes.IntPoint(9).x = 1./3.;
+   Nodes.IntPoint(9).y = 2./3.;
+   Nodes.IntPoint(9).z = 0.0;
+
+   Nodes.IntPoint(10).x = 0.0;
+   Nodes.IntPoint(10).y = 2./3.;
+   Nodes.IntPoint(10).z = 0.0;
+   Nodes.IntPoint(11).x = 0.0;
+   Nodes.IntPoint(11).y = 1./3.;
+   Nodes.IntPoint(11).z = 0.0;
+
+   Nodes.IntPoint(12).x = 1./3.;
+   Nodes.IntPoint(12).y = 0.0;
+   Nodes.IntPoint(12).z = 1.0;
+   Nodes.IntPoint(13).x = 2./3.;
+   Nodes.IntPoint(13).y = 0.0;
+   Nodes.IntPoint(13).z = 1.0;
+
+   Nodes.IntPoint(14).x = 2./3.;
+   Nodes.IntPoint(14).y = 1./3.;
+   Nodes.IntPoint(14).z = 1.0;
+   Nodes.IntPoint(15).x = 1./3.;
+   Nodes.IntPoint(15).y = 2./3.;
+   Nodes.IntPoint(15).z = 1.0;
+
+   Nodes.IntPoint(16).x = 0.0;
+   Nodes.IntPoint(16).y = 2./3.;
+   Nodes.IntPoint(16).z = 1.0;
+   Nodes.IntPoint(17).x = 0.0;
+   Nodes.IntPoint(17).y = 1./3.;
+   Nodes.IntPoint(17).z = 1.0;
+
+   Nodes.IntPoint(18).x = 0.0;
+   Nodes.IntPoint(18).y = 0.0;
+   Nodes.IntPoint(18).z = 1./3.;
+   Nodes.IntPoint(19).x = 0.0;
+   Nodes.IntPoint(19).y = 0.0;
+   Nodes.IntPoint(19).z = 2./3.;
+
+   Nodes.IntPoint(20).x = 1.0;
+   Nodes.IntPoint(20).y = 0.0;
+   Nodes.IntPoint(20).z = 1./3.;
+   Nodes.IntPoint(21).x = 1.0;
+   Nodes.IntPoint(21).y = 0.0;
+   Nodes.IntPoint(21).z = 2./3.;
+
+   Nodes.IntPoint(22).x = 0.0;
+   Nodes.IntPoint(22).y = 1.0;
+   Nodes.IntPoint(22).z = 1./3.;
+   Nodes.IntPoint(23).x = 0.0;
+   Nodes.IntPoint(23).y = 1.0;
+   Nodes.IntPoint(23).z = 2./3.;
+
+   // Faces
+   Nodes.IntPoint(24).x = 1./3.;
+   Nodes.IntPoint(24).y = 1./3.;
+   Nodes.IntPoint(24).z = 0.0;
+   Nodes.IntPoint(25).x = 1./3.;
+   Nodes.IntPoint(25).y = 1./3.;
+   Nodes.IntPoint(25).z = 1.0;
+
+   Nodes.IntPoint(26).x = 1./3.;
+   Nodes.IntPoint(26).y = 0.0;
+   Nodes.IntPoint(26).z = 1./3.;
+   Nodes.IntPoint(27).x = 2./3.;
+   Nodes.IntPoint(27).y = 0.0;
+   Nodes.IntPoint(27).z = 1./3.;
+   Nodes.IntPoint(28).x = 1./3.;
+   Nodes.IntPoint(28).y = 0.0;
+   Nodes.IntPoint(28).z = 2./3.;
+   Nodes.IntPoint(29).x = 2./3.;
+   Nodes.IntPoint(29).y = 0.0;
+   Nodes.IntPoint(29).z = 2./3.;
+   
+   Nodes.IntPoint(30).x = 2./3.;
+   Nodes.IntPoint(30).y = 1./3.;
+   Nodes.IntPoint(30).z = 1./3.;
+   Nodes.IntPoint(31).x = 1./3.;
+   Nodes.IntPoint(31).y = 2./3.;
+   Nodes.IntPoint(31).z = 1./3.;
+   Nodes.IntPoint(32).x = 2./3.;
+   Nodes.IntPoint(32).y = 1./3.;
+   Nodes.IntPoint(32).z = 2./3.;
+   Nodes.IntPoint(33).x = 1./3.;
+   Nodes.IntPoint(33).y = 2./3.;
+   Nodes.IntPoint(33).z = 2./3.;
+   
+   Nodes.IntPoint(34).x = 0.0;
+   Nodes.IntPoint(34).y = 2./3.;
+   Nodes.IntPoint(34).z = 1./3.;
+   Nodes.IntPoint(35).x = 0.0;
+   Nodes.IntPoint(35).y = 1./3.;
+   Nodes.IntPoint(35).z = 1./3.;
+   Nodes.IntPoint(36).x = 0.0;
+   Nodes.IntPoint(36).y = 2./3.;
+   Nodes.IntPoint(36).z = 2./3.;
+   Nodes.IntPoint(37).x = 0.0;
+   Nodes.IntPoint(37).y = 1./3.;
+   Nodes.IntPoint(37).z = 2./3.;
+
+   // Interior
+   Nodes.IntPoint(38).x = 1./3.;
+   Nodes.IntPoint(38).y = 1./3.;
+   Nodes.IntPoint(38).z = 1./3.;
+   Nodes.IntPoint(39).x = 1./3.;
+   Nodes.IntPoint(39).y = 1./3.;
+   Nodes.IntPoint(39).z = 2./3.;
 }
+
+void BiCubic3DFiniteElement::CalcShape(const IntegrationPoint &ip,
+				       Vector &shape) const
+{
+   double x = ip.x, y = ip.y, z = ip.z;
+   double lt = (-1. + x + y),
+          lx = (-1. + 3.*x),
+          ly = (-1. + 3.*y);
+
+   double l1z = z,
+          l2z = (1. - z),
+          l3z = (1./3. - z),
+          l4z = (2./3. - z);
+
+   double bz0 =   4.5 * l2z * l3z * l4z;
+   double bz1 =   4.5 * l1z * l3z * l4z;
+   double bz2 =  13.5 * l1z * l2z * l4z;
+   double bz3 = -13.5 * l1z * l2z * l3z;
+
+   double bt0 = -0.5*lt*(3.*lt + 1.)*(3.*lt + 2.);
+   double bt1 =  0.5*x*(lx - 1.)*lx;
+   double bt2 =  0.5*y*(-1. + ly)*ly;
+   double bt3 =  4.5*x*lt*(3.*lt + 1.);
+   double bt4 = -4.5*x*lx*lt;
+   double bt5 =  4.5*x*lx*y;
+   double bt6 =  4.5*x*y*ly;
+   double bt7 = -4.5*y*lt*ly;
+   double bt8 =  4.5*y*lt*(1. + 3.*lt);
+   double bt9 = -27.*x*y*lt;
+
+   // Vertices
+   shape( 0) = bt0 * bz0;
+   shape( 1) = bt1 * bz0;
+   shape( 2) = bt2 * bz0;
+   shape( 3) = bt0 * bz1;
+   shape( 4) = bt1 * bz1;
+   shape( 5) = bt2 * bz1;
+
+   // Edges
+   shape( 6) = bt3 * bz0;
+   shape( 7) = bt4 * bz0;
+
+   shape( 8) = bt5 * bz0;
+   shape( 9) = bt6 * bz0;
+
+   shape(10) = bt7 * bz0;
+   shape(11) = bt8 * bz0;
+
+   shape(12) = bt3 * bz1;
+   shape(13) = bt4 * bz1;
+
+   shape(14) = bt5 * bz1;
+   shape(15) = bt6 * bz1;
+
+   shape(16) = bt7 * bz1;
+   shape(17) = bt8 * bz1;
+
+   shape(18) = bt0 * bz2;
+   shape(19) = bt0 * bz3;
+
+   shape(20) = bt1 * bz2;
+   shape(21) = bt1 * bz3;
+
+   shape(22) = bt2 * bz2;
+   shape(23) = bt2 * bz3;
+
+   // Faces
+   shape(24) = bt9 * bz0;
+   shape(25) = bt9 * bz1;
+
+   shape(26) = bt3 * bz2;
+   shape(27) = bt4 * bz2;
+   shape(28) = bt3 * bz3;
+   shape(29) = bt4 * bz3;
+
+   shape(30) = bt5 * bz2;
+   shape(31) = bt6 * bz2;
+   shape(32) = bt5 * bz3;
+   shape(33) = bt6 * bz3;
+
+   shape(34) = bt7 * bz2;
+   shape(35) = bt8 * bz2;
+   shape(36) = bt7 * bz3;
+   shape(37) = bt8 * bz3;
+
+   // Interior
+   shape(38) = bt9 * bz2;
+   shape(39) = bt9 * bz3;
+}
+
+void BiCubic3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
+					DenseMatrix &dshape) const
+{
+   double x = ip.x, y = ip.y, z = ip.z;
+
+   double lt = (-1. + x + y), dlt = 1.,
+          lx = (-1. + 3.*x),  dlx = 3.,
+          ly = (-1. + 3.*y), dly = 3.;
+
+   double l1z = z, dl1z = 1.,
+          l2z = (1. - z), dl2z = -1.,
+          l3z = (1./3. - z), dl3z = -1.,
+          l4z = (2./3. - z), dl4z = -1.;
+
+   double bz0 =   4.5 * l2z * l3z * l4z;
+   double bz1 =   4.5 * l1z * l3z * l4z;
+   double bz2 =  13.5 * l1z * l2z * l4z;
+   double bz3 = -13.5 * l1z * l2z * l3z;
+
+   double dbz0 =   4.5 * (dl2z * l3z * l4z +
+			  l2z * dl3z * l4z +
+			  l2z * l3z * dl4z);
+   double dbz1 =   4.5 * (dl1z * l3z * l4z +
+			  l1z * dl3z * l4z +
+			  l1z * l3z * dl4z);
+   double dbz2 =  13.5 * (dl1z * l2z * l4z +
+			  l1z * dl2z * l4z +
+			  l1z * l2z * dl4z);
+   double dbz3 = -13.5 * (dl1z * l2z * l3z +
+			  l1z * dl2z * l3z +
+			  l1z * l2z * dl3z);
+
+   double bt0 = -0.5*lt*(3.*lt + 1.)*(3.*lt + 2.);
+   double bt1 =  0.5*x*(lx - 1.)*lx;
+   double bt2 =  0.5*y*(-1. + ly)*ly;
+   double bt3 =  4.5*x*lt*(3.*lt + 1.);
+   double bt4 = -4.5*x*lx*lt;
+   double bt5 =  4.5*x*lx*y;
+   double bt6 =  4.5*x*y*ly;
+   double bt7 = -4.5*y*lt*ly;
+   double bt8 =  4.5*y*lt*(1. + 3.*lt);
+   double bt9 = -27.*x*y*lt;
+
+   double dbt0x = -0.5*(dlt*(3.*lt + 1.)*(3.*lt + 2.) +
+			lt*(3.*dlt)*(3.*lt + 2.) +
+			lt*(3.*lt + 1.)*(3.*dlt));
+   double dbt0y = dbt0x;
+   double dbt1x =  0.5*((lx - 1.)*lx + x*dlx*lx + x*(lx - 1.)*dlx);
+   double dbt1y =  0.0;
+   double dbt2x =  0.0;
+   double dbt2y =  0.5*((-1. + ly)*ly + y*(dly)*ly + y*(-1. + ly)*dly);
+   double dbt3x =  4.5*(lt*(3.*lt + 1.) + x*dlt*(3.*lt + 1.) + x*lt*(3.*dlt));
+   double dbt3y =  4.5*(x*dlt*(3.*lt + 1.) + x*lt*(3.*dlt));
+   double dbt4x = -4.5*(lx*lt + x*dlx*lt + x*lx*dlt);
+   double dbt4y = -4.5*(x*lx*dlt);
+   double dbt5x =  4.5*(lx*y + x*dlx*y);
+   double dbt5y =  4.5*(x*lx);
+   double dbt6x =  4.5*(y*ly);
+   double dbt6y =  4.5*(x*ly + x*y*dly);
+   double dbt7x = -4.5*(y*dlt*ly);
+   double dbt7y = -4.5*(lt*ly + y*dlt*ly + y*lt*dly);
+   double dbt8x =  4.5*(y*dlt*(1. + 3.*lt) + y*lt*(3.*dlt));
+   double dbt8y =  4.5*(lt*(1. + 3.*lt) + y*dlt*(1. + 3.*lt) + y*lt*(3.*dlt));
+   double dbt9x = -27.*(y*lt + x*y*dlt);
+   double dbt9y = -27.*(x*lt + x*y*dlt);
+
+   // Vertices
+   dshape( 0, 0) = dbt0x * bz0;
+   dshape( 0, 1) = dbt0y * bz0;
+   dshape( 0, 2) = bt0 * dbz0;
+
+   dshape( 1, 0) = dbt1x * bz0;
+   dshape( 1, 1) = dbt1y * bz0;
+   dshape( 1, 2) = bt1 * dbz0;
+
+   dshape( 2, 0) = dbt2x * bz0;
+   dshape( 2, 1) = dbt2y * bz0;
+   dshape( 2, 2) = bt2 * dbz0;
+
+   dshape( 3, 0) = dbt0x * bz1;
+   dshape( 3, 1) = dbt0y * bz1;
+   dshape( 3, 2) = bt0 * dbz1;
+
+   dshape( 4, 0) = dbt1x * bz1;
+   dshape( 4, 1) = dbt1y * bz1;
+   dshape( 4, 2) = bt1 * dbz1;
+
+   dshape( 5, 0) = dbt2x * bz1;
+   dshape( 5, 1) = dbt2y * bz1;
+   dshape( 5, 2) = bt2 * dbz1;
+
+   // Edges
+   dshape( 6, 0) = dbt3x * bz0;
+   dshape( 6, 1) = dbt3y * bz0;
+   dshape( 6, 2) = bt3 * dbz0;
+
+   dshape( 7, 0) = dbt4x * bz0;
+   dshape( 7, 1) = dbt4y * bz0;
+   dshape( 7, 2) = bt4 * dbz0;
+
+   dshape( 8, 0) = dbt5x * bz0;
+   dshape( 8, 1) = dbt5y * bz0;
+   dshape( 8, 2) = bt5 * dbz0;
+
+   dshape( 9, 0) = dbt6x * bz0;
+   dshape( 9, 1) = dbt6y * bz0;
+   dshape( 9, 2) = bt6 * dbz0;
+
+   dshape(10, 0) = dbt7x * bz0;
+   dshape(10, 1) = dbt7y * bz0;
+   dshape(10, 2) = bt7 * dbz0;
+
+   dshape(11, 0) = dbt8x * bz0;
+   dshape(11, 1) = dbt8y * bz0;
+   dshape(11, 2) = bt8 * dbz0;
+
+   dshape(12, 0) = dbt3x * bz1;
+   dshape(12, 1) = dbt3y * bz1;
+   dshape(12, 2) = bt3 * dbz1;
+
+   dshape(13, 0) = dbt4x * bz1;
+   dshape(13, 1) = dbt4y * bz1;
+   dshape(13, 2) = bt4 * dbz1;
+
+   dshape(14, 0) = dbt5x * bz1;
+   dshape(14, 1) = dbt5y * bz1;
+   dshape(14, 2) = bt5 * dbz1;
+
+   dshape(15, 0) = dbt6x * bz1;
+   dshape(15, 1) = dbt6y * bz1;
+   dshape(15, 2) = bt6 * dbz1;
+
+   dshape(16, 0) = dbt7x * bz1;
+   dshape(16, 1) = dbt7y * bz1;
+   dshape(16, 2) = bt7 * dbz1;
+
+   dshape(17, 0) = dbt8x * bz1;
+   dshape(17, 1) = dbt8y * bz1;
+   dshape(17, 2) = bt8 * dbz1;
+
+   dshape(18, 0) = dbt0x * bz2;
+   dshape(18, 1) = dbt0y * bz2;
+   dshape(18, 2) = bt0 * dbz2;
+
+   dshape(19, 0) = dbt0x * bz3;
+   dshape(19, 1) = dbt0y * bz3;
+   dshape(19, 2) = bt0 * dbz3;
+
+   dshape(20, 0) = dbt1x * bz2;
+   dshape(20, 1) = dbt1y * bz2;
+   dshape(20, 2) = bt1 * dbz2;
+
+   dshape(21, 0) = dbt1x * bz3;
+   dshape(21, 1) = dbt1y * bz3;
+   dshape(21, 2) = bt1 * dbz3;
+
+   dshape(22, 0) = dbt2x * bz2;
+   dshape(22, 1) = dbt2y * bz2;
+   dshape(22, 2) = bt2 * dbz2;
+
+   dshape(23, 0) = dbt2x * bz3;
+   dshape(23, 1) = dbt2y * bz3;
+   dshape(23, 2) = bt2 * dbz3;
+
+   // Faces
+   dshape(24, 0) = dbt9x * bz0;
+   dshape(24, 1) = dbt9y * bz0;
+   dshape(24, 2) = bt9 * dbz0;
+
+   dshape(25, 0) = dbt9x * bz1;
+   dshape(25, 1) = dbt9y * bz1;
+   dshape(25, 2) = bt9 * dbz1;
+
+   dshape(26, 0) = dbt3x * bz2;
+   dshape(26, 1) = dbt3y * bz2;
+   dshape(26, 2) = bt3 * dbz2;
+
+   dshape(27, 0) = dbt4x * bz2;
+   dshape(27, 1) = dbt4y * bz2;
+   dshape(27, 2) = bt4 * dbz2;
+
+   dshape(28, 0) = dbt3x * bz3;
+   dshape(28, 1) = dbt3y * bz3;
+   dshape(28, 2) = bt3 * dbz3;
+
+   dshape(29, 0) = dbt4x * bz3;
+   dshape(29, 1) = dbt4y * bz3;
+   dshape(29, 2) = bt4 * dbz3;
+
+   dshape(30, 0) = dbt5x * bz2;
+   dshape(30, 1) = dbt5y * bz2;
+   dshape(30, 2) = bt5 * dbz2;
+
+   dshape(31, 0) = dbt6x * bz2;
+   dshape(31, 1) = dbt6y * bz2;
+   dshape(31, 2) = bt6 * dbz2;
+
+   dshape(32, 0) = dbt5x * bz3;
+   dshape(32, 1) = dbt5y * bz3;
+   dshape(32, 2) = bt5 * dbz3;
+
+   dshape(33, 0) = dbt6x * bz3;
+   dshape(33, 1) = dbt6y * bz3;
+   dshape(33, 2) = bt6 * dbz3;
+
+   dshape(34, 0) = dbt7x * bz2;
+   dshape(34, 1) = dbt7y * bz2;
+   dshape(34, 2) = bt7 * dbz2;
+
+   dshape(35, 0) = dbt8x * bz2;
+   dshape(35, 1) = dbt8y * bz2;
+   dshape(35, 2) = bt8 * dbz2;
+
+   dshape(36, 0) = dbt7x * bz3;
+   dshape(36, 1) = dbt7y * bz3;
+   dshape(36, 2) = bt7 * dbz3;
+
+   dshape(37, 0) = dbt8x * bz3;
+   dshape(37, 1) = dbt8y * bz3;
+   dshape(37, 2) = bt8 * dbz3;
+
+   // Interior
+   dshape(38, 0) = dbt9x * bz2;
+   dshape(38, 1) = dbt9y * bz2;
+   dshape(38, 2) = bt9 * dbz2;
+   dshape(39, 0) = dbt9x * bz3;
+   dshape(39, 1) = dbt9y * bz3;
+   dshape(39, 2) = bt9 * dbz3;
+}
+
 
 P0SegmentFiniteElement::P0SegmentFiniteElement(int Ord)
    : NodalFiniteElement(1, Geometry::SEGMENT , 1, Ord)  // defaul Ord = 0
