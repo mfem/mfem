@@ -32,9 +32,9 @@ public:
        */
    enum DiagonalPolicy
    {
-      DIAG_KEEP   = 0, ///< keep the value
-      DIAG_ZERO   = 1, ///< set diagonal value to zero
-      DIAG_ONE    = 2, ///< set diagonal value to one
+     DIAG_ZERO, ///< set diagonal value to zero
+     DIAG_ONE,  ///< set diagonal value to one
+     DIAG_KEEP, ///< keep the value
    };
 
    /// Creates a square matrix of size s.
