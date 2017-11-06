@@ -53,6 +53,323 @@ const DenseMatrix &ElementTransformation::EvalInverseJ()
    return invJ;
 }
 
+
+int InverseElementTransformation::FindClosestPhysPoint(
+   const Vector& pt, const IntegrationRule &ir)
+{
+   MFEM_VERIFY(T != NULL, "invalid ElementTransformation");
+   MFEM_VERIFY(pt.Size() == T->GetSpaceDim(), "invalid point");
+
+   DenseMatrix physPts;
+   T->Transform(ir, physPts);
+
+   // Initialize distance and index of closest point
+   int minIndex = -1;
+   double minDist = std::numeric_limits<double>::max();
+
+   // Check all integration points in ir
+   const int npts = ir.GetNPoints();
+   for (int i = 0; i < npts; ++i)
+   {
+      double dist = pt.DistanceTo(physPts.GetColumn(i));
+      if (dist < minDist)
+      {
+         minDist = dist;
+         minIndex = i;
+      }
+   }
+   return minIndex;
+}
+
+int InverseElementTransformation::FindClosestRefPoint(
+   const Vector& pt, const IntegrationRule &ir)
+{
+   MFEM_VERIFY(T != NULL, "invalid ElementTransformation");
+   MFEM_VERIFY(pt.Size() == T->GetSpaceDim(), "invalid point");
+
+   // Initialize distance and index of closest point
+   int minIndex = -1;
+   double minDist = std::numeric_limits<double>::max();
+
+   // Check all integration points in ir using the local metric at each point
+   // induced by the transformation.
+   Vector dp(T->GetSpaceDim()), dr(T->GetDimension());
+   const int npts = ir.GetNPoints();
+   for (int i = 0; i < npts; ++i)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      T->Transform(ip, dp);
+      dp -= pt;
+      T->SetIntPoint(&ip);
+      T->InverseJacobian().Mult(dp, dr);
+      double dist = dr.Norml2();
+      // double dist = dr.Normlinf();
+      if (dist < minDist)
+      {
+         minDist = dist;
+         minIndex = i;
+      }
+   }
+   return minIndex;
+}
+
+void InverseElementTransformation::NewtonPrint(int mode, double val)
+{
+   std::ostream &out = std::cout;
+
+   // separator:
+   switch (mode%3)
+   {
+      case 0: out << ", "; break;
+      case 1: out << "Newton: "; break;
+      case 2: out << "                   "; break;
+         //          "Newton: iter = xx, "
+   }
+   switch ((mode/3)%4)
+   {
+      case 0: out << "iter = " << std::setw(2) << int(val); break;
+      case 1: out << "delta_ref = " << std::setw(11) << val; break;
+      case 2: out << " err_phys = " << std::setw(11) << val; break;
+      case 3: break;
+   }
+   // ending:
+   switch ((mode/12)%4)
+   {
+      case 0: break;
+      case 1: out << '\n'; break;
+      case 2: out << " (converged)\n"; break;
+      case 3: out << " (actual)\n"; break;
+   }
+}
+
+void InverseElementTransformation::NewtonPrintPoint(const char *prefix,
+                                                    const Vector &pt,
+                                                    const char *suffix)
+{
+   std::ostream &out = std::cout;
+
+   out << prefix << " = (";
+   for (int j = 0; j < pt.Size(); j++)
+   {
+      out << (j > 0 ? ", " : "") << pt(j);
+   }
+   out << ')' << suffix;
+}
+
+int InverseElementTransformation::NewtonSolve(const Vector &pt,
+                                              IntegrationPoint &ip)
+{
+   MFEM_ASSERT(pt.Size() == T->GetSpaceDim(), "invalid point");
+
+   const double phys_tol = phys_rtol*pt.Normlinf();
+
+   const int geom = T->GetGeometryType();
+   const int dim = T->GetDimension();
+   const int sdim = T->GetSpaceDim();
+   IntegrationPoint xip, prev_xip;
+   double xd[3], yd[3], dxd[3], dx_norm = -1.0, err_phys, real_dx_norm;
+   Vector x(xd, dim), y(yd, sdim), dx(dxd, dim);
+   bool hit_bdr = false, prev_hit_bdr;
+
+   // Use ip0 as initial guess:
+   xip = *ip0;
+   xip.Get(xd, dim); // xip -> x
+   if (print_level >= 3)
+   {
+      NewtonPrint(1, 0.); // iter 0
+      NewtonPrintPoint(",    ref_pt", x, "\n");
+   }
+
+   for (int it = 0; true; )
+   {
+      // Remarks:
+      // If f(x) := 1/2 |pt-F(x)|^2, then grad(f)(x) = -J^t(x) [pt-F(x)].
+      // Linearize F(y) at y=x: F(y) ~ L[x](y) := F(x) + J(x) [y-x].
+      // Newton iteration for F(y)=b is given by L[x_old](x_new) = b, i.e.
+      // F(x_old) + J(x_old) [x_new-x_old] = b.
+      //
+      // To minimize: 1/2 |F(y)-b|^2, subject to: l(y) >= 0, we may consider the
+      // iteration: minimize: |L[x_old](x_new)-b|^2, subject to l(x_new) >= 0,
+      // i.e. minimize: |F(x_old) + J(x_old) [x_new-x_old] - b|^2.
+
+      // This method uses:
+      // Newton iteration:    x := x + J(x)^{-1} [pt-F(x)]
+      // or when dim != sdim: x := x + [J^t.J]^{-1}.J^t [pt-F(x)]
+
+      // Compute the physical coordinates of the current point:
+      T->Transform(xip, y);
+      if (print_level >= 3)
+      {
+         NewtonPrint(11, 0.); // continuation line
+         NewtonPrintPoint("approx_pt", y, ", ");
+         NewtonPrintPoint("exact_pt", pt, "\n");
+      }
+      subtract(pt, y, y); // y = pt-y
+
+      // Check for convergence in physical coordinates:
+      err_phys = y.Normlinf();
+      if (err_phys < phys_tol)
+      {
+         if (print_level >= 1)
+         {
+            NewtonPrint(1, (double)it);
+            NewtonPrint(3, dx_norm);
+            NewtonPrint(30, err_phys);
+         }
+         ip = xip;
+         if (solver_type != Newton) { return Inside; }
+         return Geometry::CheckPoint(geom, ip, ip_tol) ? Inside : Outside;
+      }
+      if (print_level >= 1)
+      {
+         if (it == 0 || print_level >= 2)
+         {
+            NewtonPrint(1, (double)it);
+            NewtonPrint(3, dx_norm);
+            NewtonPrint(18, err_phys);
+         }
+      }
+
+      if (hit_bdr)
+      {
+         xip.Get(xd, dim); // xip -> x
+         if (prev_hit_bdr || it == max_iter || print_level >= 2)
+         {
+            prev_xip.Get(dxd, dim); // prev_xip -> dx
+            subtract(x, dx, dx);    // dx = xip - prev_xip
+            real_dx_norm = dx.Normlinf();
+            if (print_level >= 2)
+            {
+               NewtonPrint(41, real_dx_norm);
+            }
+            if (prev_hit_bdr && real_dx_norm < ref_tol)
+            {
+               if (print_level >= 0)
+               {
+                  if (print_level <= 1)
+                  {
+                     NewtonPrint(1, (double)it);
+                     NewtonPrint(3, dx_norm);
+                     NewtonPrint(18, err_phys);
+                     NewtonPrint(41, real_dx_norm);
+                  }
+                  std::cout << "Newton: *** stuck on boundary!\n";
+               }
+               return Outside;
+            }
+         }
+      }
+
+      if (it == max_iter) { break; }
+
+      // Perform a Newton step:
+      T->SetIntPoint(&xip);
+      T->InverseJacobian().Mult(y, dx);
+      x += dx;
+      it++;
+      if (solver_type != Newton)
+      {
+         prev_xip = xip;
+         prev_hit_bdr = hit_bdr;
+      }
+      xip.Set(xd, dim); // x -> xip
+
+      // Perform projection based on solver_type:
+      switch (solver_type)
+      {
+         case Newton: break;
+         case NewtonSegmentProject:
+            hit_bdr = !Geometry::ProjectPoint(geom, prev_xip, xip); break;
+         case NewtonElementProject:
+            hit_bdr = !Geometry::ProjectPoint(geom, xip); break;
+         default: MFEM_ABORT("invalid solver type");
+      }
+      if (print_level >= 3)
+      {
+         NewtonPrint(1, double(it));
+         xip.Get(xd, dim); // xip -> x
+         NewtonPrintPoint(",    ref_pt", x, "\n");
+      }
+
+      // Check for convergence in reference coordinates:
+      dx_norm = dx.Normlinf();
+      if (dx_norm < ref_tol)
+      {
+         if (print_level >= 1)
+         {
+            NewtonPrint(1, (double)it);
+            NewtonPrint(27, dx_norm);
+         }
+         ip = xip;
+         if (solver_type != Newton) { return Inside; }
+         return Geometry::CheckPoint(geom, ip, ip_tol) ? Inside : Outside;
+      }
+   }
+   if (print_level >= 0)
+   {
+      if (print_level <= 1)
+      {
+         NewtonPrint(1, (double)max_iter);
+         NewtonPrint(3, dx_norm);
+         NewtonPrint(18, err_phys);
+         if (hit_bdr) { NewtonPrint(41, real_dx_norm); }
+      }
+      std::cout << "Newton: *** iteration did not converge!\n";
+   }
+   ip = xip;
+   return Unknown;
+}
+
+int InverseElementTransformation::Transform(const Vector &pt,
+                                            IntegrationPoint &ip)
+{
+   MFEM_VERIFY(T != NULL, "invalid ElementTransformation");
+
+   // Select initial guess ...
+   switch (init_guess_type)
+   {
+      case Center:
+         ip0 = &Geometries.GetCenter(T->GetGeometryType());
+         break;
+
+      case ClosestPhysNode:
+      {
+         const int old_type = GlobGeometryRefiner.GetType();
+         // GlobGeometryRefiner.SetType(1); // Gauss-Lobatto points
+         GlobGeometryRefiner.SetType(0); // Uniform points
+         RefinedGeometry &RefG =
+            *GlobGeometryRefiner.Refine(T->GetGeometryType(), T->Order());
+         const int closest_idx = FindClosestPhysPoint(pt, RefG.RefPts);
+         ip0 = &RefG.RefPts.IntPoint(closest_idx);
+         GlobGeometryRefiner.SetType(old_type);
+         break;
+      }
+
+      case ClosestRefNode:
+      {
+         const int old_type = GlobGeometryRefiner.GetType();
+         // GlobGeometryRefiner.SetType(1); // Gauss-Lobatto points
+         GlobGeometryRefiner.SetType(0); // Uniform points
+         RefinedGeometry &RefG =
+            *GlobGeometryRefiner.Refine(T->GetGeometryType(), T->Order());
+         const int closest_idx = FindClosestRefPoint(pt, RefG.RefPts);
+         ip0 = &RefG.RefPts.IntPoint(closest_idx);
+         GlobGeometryRefiner.SetType(old_type);
+         break;
+      }
+
+      case GivenPoint:
+         break;
+
+      default:
+         MFEM_ABORT("invalid initial guess type");
+   }
+
+   // Call the solver ...
+   return NewtonSolve(pt, ip);
+}
+
+
 void IsoparametricTransformation::SetIdentityTransformation(int GeomType)
 {
    switch (GeomType)
@@ -74,10 +391,15 @@ void IsoparametricTransformation::SetIdentityTransformation(int GeomType)
    {
       nodes.IntPoint(j).Get(&PointMat(0,j), dim);
    }
+   geom = GeomType;
+   space_dim = dim;
 }
 
 const DenseMatrix &IsoparametricTransformation::EvalJacobian()
 {
+   MFEM_ASSERT(space_dim == PointMat.Height(),
+               "the IsoparametricTransformation has not been finalized;"
+               " call FinilizeTransformation() after setup");
    MFEM_ASSERT((EvalState & JACOBIAN_MASK) == 0, "");
 
    dshape.SetSize(FElem->GetDof(), FElem->GetDim());
@@ -178,6 +500,7 @@ void IsoparametricTransformation::Transform (const IntegrationRule &ir,
 void IsoparametricTransformation::Transform (const DenseMatrix &matrix,
                                              DenseMatrix &result)
 {
+   MFEM_ASSERT(matrix.Height() == GetDimension(), "invalid input");
    result.SetSize(PointMat.Height(), matrix.Width());
 
    IntegrationPoint ip;
@@ -185,108 +508,11 @@ void IsoparametricTransformation::Transform (const DenseMatrix &matrix,
 
    for (int j = 0; j < matrix.Width(); j++)
    {
-      ip.x = matrix(0, j);
-      if (matrix.Height() > 1)
-      {
-         ip.y = matrix(1, j);
-         if (matrix.Height() > 2)
-         {
-            ip.z = matrix(2, j);
-         }
-      }
+      ip.Set(matrix.GetColumn(j), matrix.Height());
 
       result.GetColumnReference(j, col);
       Transform(ip, col);
    }
-}
-
-const IntegrationPoint IsoparametricTransformation::FindClosestRefinedPoint(
-   const Vector& pt, int order)
-{
-   const int geom = FElem->GetGeomType();
-
-   // Deal with default and invalid values for order parameter
-   int refOrder = (order < 0) ? FElem->GetOrder() : order;
-
-   // Early return for order 0 -- simply use element center
-   if (refOrder == 0)
-   {
-      return Geometries.GetCenter(geom);
-   }
-
-   // Otherwise, use appropriate RefinedIntRules
-   const IntegrationRule* ir = &(RefinedIntRules.Get(geom, refOrder));
-   Vector v;
-
-   // Initialize distance and index of closest point
-   int minIndex = -1;
-   double minDist = std::numeric_limits<double>::max();
-
-   // Check against element's refinement integration points
-   const int npts = ir->GetNPoints();
-   for (int i = 0; i < npts; ++i)
-   {
-      this->Transform(ir->IntPoint(i), v);
-
-      double dist = v.DistanceTo(pt);
-      if (dist < minDist)
-      {
-         minDist = dist;
-         minIndex = i;
-      }
-   }
-
-   // Return corresponding IntegrationPoint
-   return ir->IntPoint(minIndex);
-}
-
-int IsoparametricTransformation::TransformBack(const Vector &pt,
-                                               IntegrationPoint &ip,
-                                               int refinementOrder)
-{
-   const int    max_iter = 16;
-   const double  ref_tol = 1e-14;
-   const double phys_tol = 1e-14*pt.Normlinf();
-   const double ip_tol   = 1e-8;
-
-   const int dim = FElem->GetDim();
-   const int sdim = PointMat.Height();
-   const int geom = FElem->GetGeomType();
-   IntegrationPoint xip;
-   double xd[3], yd[3], dxd[3], Jid[9];
-   Vector x(xd, dim), y(yd, sdim), dx(dxd, dim);
-   DenseMatrix Jinv(Jid, dim, sdim);
-
-   // Use closest refinement point as initial guess
-   xip = FindClosestRefinedPoint(pt, refinementOrder);
-   xip.Get(xd, dim); // xip -> x
-
-   for (int it = 0; it < max_iter; it++)
-   {
-      // Newton iteration:    x := x + J(x)^{-1} [pt-F(x)]
-      // or when dim != sdim: x := x + [J^t.J]^{-1}.J^t [pt-F(x)]
-      Transform(xip, y);
-      subtract(pt, y, y); // y = pt-y
-      if (y.Normlinf() < phys_tol)
-      {
-         ip = xip;
-         return Geometry::CheckPoint(geom, ip, ip_tol ) ? 0 : 1;
-      }
-
-      SetIntPoint(&xip);
-      CalcInverse(Jacobian(), Jinv);
-      Jinv.Mult(y, dx);
-      x += dx;
-      xip.Set(xd, dim); // x -> xip
-      if (dx.Normlinf() < ref_tol)
-      {
-         ip = xip;
-         return Geometry::CheckPoint(geom, ip, ip_tol) ? 0 : 1;
-      }
-   }
-
-   ip = xip;
-   return 2;
 }
 
 void IntegrationPointTransformation::Transform (const IntegrationPoint &ip1,

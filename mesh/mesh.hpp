@@ -1090,24 +1090,34 @@ public:
 
    void MesquiteSmooth(const int mesquite_option = 0);
 
-   /// Returns the ids of the elements that contain the given points.
-   /** The DenseMatrix @a point_mat describes the given points - one point for
+   /** @brief Find the ids of the elements that contain the given points, and
+       their corresponding reference coodinates.
+
+       The DenseMatrix @a point_mat describes the given points - one point for
        each column; it should have SpaceDimension() rows.
 
-       If no element is found for the i-th point, elem_id[i] is set to -1.
+       The InverseElementTransformation object, @a inv_trans, is used to attempt
+       the element transformation inversion. If NULL pointer is given, the
+       method will use a default constructed InverseElementTransformation. Note
+       that the algorithms in the base class InverseElementTransformation can be
+       completely overwritten by deriving custom classes that override the
+       Transform() method.
 
-       If an element is found, the method also returns the coordinates of the
-       point in the reference space of the corresponding element.
+       If no element is found for the i-th point, elem_ids[i] is set to -1.
 
-       In parallel, if a point is shared by multiple processors, only one of
-       them will mark that point as found.
+       In the ParMesh implementation, the @a point_mat is expected to be the
+       same on all ranks. If the i-th point is found by multiple ranks, only one
+       of them will mark that point as found, i.e. set its elem_ids[i] to a
+       non-negative number; the other ranks will set their elem_ids[i] to -2 to
+       indicate that the point was found but assigned to another rank.
 
        @returns The total number of points that were found.
 
        @note This method is not 100 percent reliable, i.e. it is not guaranteed
        to find a point, even if it lies inside a mesh element. */
-   virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,
-                          Array<IntegrationPoint>& ip, bool warn = true);
+   virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
+                          Array<IntegrationPoint>& ips, bool warn = true,
+                          InverseElementTransformation *inv_trans = NULL);
 
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }

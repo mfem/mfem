@@ -278,6 +278,7 @@ void Mesh::GetElementTransformation(int i, IsoparametricTransformation *ElTr)
       }
       ElTr->SetFE(Nodes->FESpace()->GetFE(i));
    }
+   ElTr->FinalizeTransformation();
 }
 
 void Mesh::GetElementTransformation(int i, const Vector &nodes,
@@ -316,6 +317,7 @@ void Mesh::GetElementTransformation(int i, const Vector &nodes,
       }
       ElTr->SetFE(Nodes->FESpace()->GetFE(i));
    }
+   ElTr->FinalizeTransformation();
 }
 
 ElementTransformation *Mesh::GetElementTransformation(int i)
@@ -357,6 +359,7 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
       }
       ElTr->SetFE(Nodes->FESpace()->GetBE(i));
    }
+   ElTr->FinalizeTransformation();
 }
 
 void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
@@ -419,6 +422,7 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
          FTr->SetFE(face_el);
       }
    }
+   FTr->FinalizeTransformation();
 }
 
 ElementTransformation *Mesh::GetFaceTransformation(int FaceNo)
@@ -480,6 +484,7 @@ void Mesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
          MFEM_ABORT("Not implemented.");
       }
    }
+   EdTr->FinalizeTransformation();
 }
 
 ElementTransformation *Mesh::GetEdgeTransformation(int EdgeNo)
@@ -501,6 +506,7 @@ void Mesh::GetLocalPtToSegTransformation(
    locpm(0, 0) = SegVert->IntPoint(i/64).x;
    //  (i/64) is the local face no. in the segment
    //  (i%64) is the orientation of the point (not used)
+   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalSegToTriTransformation(
@@ -520,6 +526,7 @@ void Mesh::GetLocalSegToTriTransformation(
       locpm(0, so[j]) = TriVert->IntPoint(tv[j]).x;
       locpm(1, so[j]) = TriVert->IntPoint(tv[j]).y;
    }
+   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalSegToQuadTransformation(
@@ -539,6 +546,7 @@ void Mesh::GetLocalSegToQuadTransformation(
       locpm(0, so[j]) = QuadVert->IntPoint(qv[j]).x;
       locpm(1, so[j]) = QuadVert->IntPoint(qv[j]).y;
    }
+   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalTriToTetTransformation(
@@ -562,6 +570,7 @@ void Mesh::GetLocalTriToTetTransformation(
       locpm(1, j) = vert.y;
       locpm(2, j) = vert.z;
    }
+   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalQuadToHexTransformation(
@@ -583,6 +592,7 @@ void Mesh::GetLocalQuadToHexTransformation(
       locpm(1, j) = vert.y;
       locpm(2, j) = vert.z;
    }
+   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalFaceTransformation(
@@ -699,6 +709,7 @@ void Mesh::ApplyLocalSlaveTransformation(IsoparametricTransformation &transf,
    MFEM_ASSERT(fi.NCFace >= 0, "");
    transf.Transform(*nc_faces_info[fi.NCFace].PointMatrix, composition);
    transf.GetPointMat() = composition;
+   transf.FinalizeTransformation();
 }
 
 FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
@@ -4123,9 +4134,8 @@ const Table & Mesh::ElementToElementTable()
       return *el_to_el;
    }
 
-   int num_faces = GetNumFaces();
    // Note that, for ParNCMeshes, faces_info will contain also the ghost faces
-   MFEM_ASSERT(faces_info.Size() >= num_faces, "faces were not generated!");
+   MFEM_ASSERT(faces_info.Size() >= GetNumFaces(), "faces were not generated!");
 
    Array<Connection> conn;
    conn.Reserve(2*faces_info.Size());
@@ -8525,7 +8535,8 @@ std::ostream &operator<<(std::ostream &out, const Mesh &mesh)
 }
 
 int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
-                     Array<IntegrationPoint>& ips, bool warn)
+                     Array<IntegrationPoint>& ips, bool warn,
+                     InverseElementTransformation *inv_trans)
 {
    const int npts = point_mat.Width();
    if (!npts) { return 0; }
@@ -8536,6 +8547,8 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
    if (!GetNE()) { return 0; }
 
    double *data = point_mat.GetData();
+   InverseElementTransformation *inv_tr = inv_trans;
+   inv_tr = inv_tr ? inv_tr : new InverseElementTransformation;
 
    // For each point in 'point_mat', find the element whose center is closest.
    Vector min_dist(npts);
@@ -8543,16 +8556,14 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
    min_dist = std::numeric_limits<double>::max();
    e_idx = -1;
 
-   Vector p(spaceDim);
+   Vector pt(spaceDim);
    for (int i = 0; i < GetNE(); i++)
    {
-      p = 0.0;
       GetElementTransformation(i)->Transform(
-         Geometries.GetCenter(GetElementBaseGeometry(i)), p);
+         Geometries.GetCenter(GetElementBaseGeometry(i)), pt);
       for (int k = 0; k < npts; k++)
       {
-         double *center = data+k*spaceDim;
-         double dist = Distance(center,p.GetData(),spaceDim);
+         double dist = pt.DistanceTo(data+k*spaceDim);
          if (dist < min_dist(k))
          {
             min_dist(k) = dist;
@@ -8561,79 +8572,54 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
       }
    }
 
-   // Checks if centers lie in the closest element
-   bool refinesearch = false;
-   IsoparametricTransformation tr;
+   // Checks if the points lie in the closest element
+   int pts_found = 0;
+   pt.NewDataAndSize(NULL, spaceDim);
    for (int k = 0; k < npts; k++)
    {
-      ips[k].x = ips[k].y = ips[k].z = -1.;
-      Vector center(data+k*spaceDim,spaceDim);
-      GetElementTransformation(e_idx[k], &tr);
-      int res = tr.TransformBack(center,ips[k], 0);
-      if (!res)
+      pt.SetData(data+k*spaceDim);
+      inv_tr->SetTransformation(*GetElementTransformation(e_idx[k]));
+      int res = inv_tr->Transform(pt, ips[k]);
+      if (res == InverseElementTransformation::Inside)
       {
          elem_ids[k] = e_idx[k];
-      }
-      else
-      {
-         refinesearch = true;
+         pts_found++;
       }
    }
-   if (refinesearch)
+   if (pts_found != npts)
    {
-      bool usevtoel = false;
-      Array<bool> tbf(npts);
-      Vector vmin,vmax;
-      GetBoundingBox(vmin,vmax);
+      Array<int> vertices;
+      Table *vtoel = GetVertexToElementTable();
       for (int k = 0; k < npts; k++)
       {
-         tbf[k] = false;
          if (elem_ids[k] != -1) { continue; }
-         bool outside = false;
-         for (int d = 0; d < spaceDim; d++)
+         // Try all vertex-neighbors of element e_idx[k]
+         pt.SetData(data+k*spaceDim);
+         GetElementVertices(e_idx[k], vertices);
+         for (int v = 0; v < vertices.Size(); v++)
          {
-            double c = data[k*spaceDim + d];
-            outside = outside && (c < vmin(d) || c > vmax(d));
-         }
-         tbf[k] = !outside;
-         if (!outside) { usevtoel = true; }
-      }
-      if (usevtoel)
-      {
-         Array<int> vertices;
-         Table *vtoel = GetVertexToElementTable();
-         for (int k = 0; k < npts; k++)
-         {
-            if (!tbf[k]) { continue; }
-            Vector center(data+k*spaceDim,spaceDim);
-            GetElementVertices(e_idx[k], vertices);
-            for (int v = 0; v < vertices.Size() || elem_ids[k] != -1; v++)
+            int vv = vertices[v];
+            int ne = vtoel->RowSize(vv);
+            const int* els = vtoel->GetRow(vv);
+            for (int e = 0; e < ne; e++)
             {
-               int vv = vertices[v];
-               int ne = vtoel->RowSize(vv);
-               const int* els = vtoel->GetRow(vv);
-               for (int e = 0; e < ne; e++)
+               if (els[e] == e_idx[k]) { continue; }
+               inv_tr->SetTransformation(*GetElementTransformation(els[e]));
+               int res = inv_tr->Transform(pt, ips[k]);
+               if (res == InverseElementTransformation::Inside)
                {
-                  if (els[e] == e_idx[k]) { continue; }
-                  GetElementTransformation(els[e], &tr);
-                  int res = tr.TransformBack(center,ips[k], 0);
-                  if (!res)
-                  {
-                     elem_ids[k] = els[e];
-                     break;
-                  }
+                  elem_ids[k] = els[e];
+                  pts_found++;
+                  goto next_point;
                }
             }
          }
-         delete vtoel;
+      next_point: ;
       }
+      delete vtoel;
    }
+   if (inv_trans == NULL) { delete inv_tr; }
 
-   int pts_found = 0;
-   for (int k = 0; k < npts; k++)
-   {
-      if (elem_ids[k] != -1) { pts_found++; }
-   }
    if (warn && pts_found != npts)
    {
       MFEM_WARNING((npts-pts_found) << " points were not found");
