@@ -279,17 +279,17 @@ int main(int argc, char *argv[])
       if (!in.is_open()) { mfem_error("Reference file does not exist"); }
       GridFunction ref(mesh,in);
       in.close();
-      ref -= x;
+      ref -= x0;
 
       double eps = 1e-12;
 
-      if ((ref.Norml1()   > eps*x.Norml1())  ||
-          (ref.Norml2()   > eps*x.Norml2())  ||
-          (ref.Normlinf() > eps*x.Normlinf()))
+      if ((ref.Norml1()   > eps*x0.Norml1())  ||
+          (ref.Norml2()   > eps*x0.Norml2())  ||
+          (ref.Normlinf() > eps*x0.Normlinf()))
       {
-         cout<<ref.Norml1()<<" "<<x.Norml1() <<" "<<ref.Norml1()/x.Norml1()<<endl;
-         cout<<ref.Norml2()<<" "<<x.Norml2() <<" "<<ref.Norml2()/x.Norml2()<<endl;
-         cout<<ref.Normlinf()<<" "<<x.Normlinf() <<" "<<ref.Normlinf()/x.Normlinf()
+         cout<<ref.Norml1()<<" "<<x0.Norml1() <<" "<<ref.Norml1()/x0.Norml1()<<endl;
+         cout<<ref.Norml2()<<" "<<x0.Norml2() <<" "<<ref.Norml2()/x0.Norml2()<<endl;
+         cout<<ref.Normlinf()<<" "<<x0.Normlinf() <<" "<<ref.Normlinf()/x0.Normlinf()
              <<endl;
          mfem_error("Norm exceeded");
       }
