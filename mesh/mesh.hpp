@@ -1089,7 +1089,7 @@ public:
    void MesquiteSmooth(const int mesquite_option = 0);
 
    /** @brief Find the ids of the elements that contain the given points, and
-       their corresponding reference coodinates.
+       their corresponding reference coordinates.
 
        The DenseMatrix @a point_mat describes the given points - one point for
        each column; it should have SpaceDimension() rows.
