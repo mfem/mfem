@@ -286,7 +286,8 @@ void StaticCondensation::Finalize()
 }
 
 void StaticCondensation::EliminateReducedTrueDofs(
-   const Array<int> &ess_rtdof_list, int keep_diagonal)
+   const Array<int> &ess_rtdof_list,
+   Matrix::DiagonalPolicy keep_diagonal)
 {
    if (!Parallel() || S) // not parallel or not finalized
    {

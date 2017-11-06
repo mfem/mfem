@@ -217,12 +217,12 @@ public:
    void EliminateRow(int row, const double sol, Vector &rhs);
    /// Eliminates a row from the matrix.
    /*!
-    * If setOneDiagonal = 0, all the entries in the row will be set to 0.
-    * If setOneDiagonal = 1 (matrix must be square),
+    * If dpolicy = DIAG_ZERO, all the entries in the row will be set to 0.
+    * If dpolicy = DIAG_ONE (matrix must be square),
     *    the diagonal entry will be set equal to 1
     *    and all the others entries to 0.
     */
-   void EliminateRow(int row, int setOneDiagonal = 0);
+   void EliminateRow(int row, DiagonalPolicy dpolicy = DIAG_ZERO);
    void EliminateCol(int col);
    /// Eliminate all columns 'i' for which cols[i] != 0
    void EliminateCols(Array<int> &cols, Vector *x = NULL, Vector *b = NULL);
@@ -230,20 +230,24 @@ public:
    /** Eliminates the column 'rc' to the 'rhs', deletes the row 'rc' and
        replaces the element (rc,rc) with 1.0; assumes that element (i,rc)
        is assembled if and only if the element (rc,i) is assembled.
-       If d != 0 then the element (rc,rc) remains the same. */
-   void EliminateRowCol(int rc, const double sol, Vector &rhs, int d = 0);
+       By default, elements (rc,rc) are set to 1.0, although this behavour
+       can be adjusted by changing 'dpolicy' parameter. */
+   void EliminateRowCol(int rc, const double sol, Vector &rhs,
+                        DiagonalPolicy dpolicy = DIAG_ONE);
 
    /** Like previous one, but multiple values for eliminated unknowns are
        accepted, and accordingly multiple right-hand-sides are used. */
    void EliminateRowColMultipleRHS(int rc, const Vector &sol,
-                                   DenseMatrix &rhs, int d = 0);
+                                   DenseMatrix &rhs,
+                                   DiagonalPolicy dpolicy = DIAG_ONE);
 
-   void EliminateRowCol(int rc, int d = 0);
+   void EliminateRowCol(int rc, DiagonalPolicy dpolicy = DIAG_ONE);
    /// Perform elimination and set the diagonal entry to the given value
    void EliminateRowColDiag(int rc, double value);
-   // Same as above + save the eliminated entries in Ae so that
-   // (*this) + Ae is the original matrix
-   void EliminateRowCol(int rc, SparseMatrix &Ae, int d = 0);
+   /** Same as above + save the eliminated entries in Ae so that
+       (*this) + Ae is the original matrix */
+   void EliminateRowCol(int rc, SparseMatrix &Ae,
+                        DiagonalPolicy dpolicy = DIAG_ONE);
 
    /// If a row contains only one diag entry of zero, set it to 1.
    void SetDiagIdentity();

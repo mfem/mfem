@@ -292,7 +292,7 @@ void BlockMatrix::EliminateZeroRows()
                for (int jblock = 0; jblock < nColBlocks; ++jblock)
                   if (Aij(iblock,jblock))
                   {
-                     Aij(iblock,jblock)->EliminateRow(i, iblock==jblock);
+                     Aij(iblock,jblock)->EliminateRow(i, (iblock==jblock) ? DIAG_ONE : DIAG_ZERO);
                   }
             }
          }

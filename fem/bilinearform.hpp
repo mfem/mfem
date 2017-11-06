@@ -288,34 +288,38 @@ public:
 
    /** Eliminate essential boundary DOFs from the system. The array
        'bdr_attr_is_ess' marks boundary attributes that constitute the essential
-       part of the boundary. If d == 0, the diagonal at the essential DOFs is
-       set to 1.0, otherwise it is left the same. */
+       part of the boundary. By default, the diagonal at the essential DOFs is
+       set to 1.0. This behavior is controlled by 'dpolicy' argument. */
    void EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-                             Vector &sol, Vector &rhs, int d = 0);
+                             Vector &sol, Vector &rhs,
+                             DiagonalPolicy dpolicy = DIAG_ONE);
 
-   void EliminateEssentialBC(const Array<int> &bdr_attr_is_ess, int d = 0);
+   void EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
+                             DiagonalPolicy dpolicy = DIAG_ONE);
    /// Perform elimination and set the diagonal entry to the given value
    void EliminateEssentialBCDiag(const Array<int> &bdr_attr_is_ess,
                                  double value);
 
    /// Eliminate the given vdofs. NOTE: here, vdofs is a list of DOFs.
    void EliminateVDofs(const Array<int> &vdofs, Vector &sol, Vector &rhs,
-                       int d = 0);
+                       DiagonalPolicy dpolicy = DIAG_ONE);
 
    /** Eliminate the given vdofs storing the eliminated part internally; this
        method works in conjunction with EliminateVDofsInRHS and allows
        elimination of boundary conditions in multiple right-hand sides. In this
        method, vdofs is a list of DOFs. */
-   void EliminateVDofs(const Array<int> &vdofs, int d = 0);
+   void EliminateVDofs(const Array<int> &vdofs,
+                       DiagonalPolicy dpolicy = DIAG_ONE);
 
    /** Similar to EliminateVDofs but here ess_dofs is a marker
        (boolean) array on all vdofs (ess_dofs[i] < 0 is true). */
    void EliminateEssentialBCFromDofs(const Array<int> &ess_dofs, Vector &sol,
-                                     Vector &rhs, int d = 0);
+                                     Vector &rhs, DiagonalPolicy dpolicy = DIAG_ONE);
 
    /** Similar to EliminateVDofs but here ess_dofs is a marker
        (boolean) array on all vdofs (ess_dofs[i] < 0 is true). */
-   void EliminateEssentialBCFromDofs(const Array<int> &ess_dofs, int d = 0);
+   void EliminateEssentialBCFromDofs(const Array<int> &ess_dofs,
+                                     DiagonalPolicy dpolicy = DIAG_ONE);
    /// Perform elimination and set the diagonal entry to the given value
    void EliminateEssentialBCFromDofsDiag(const Array<int> &ess_dofs,
                                          double value);
