@@ -4605,6 +4605,27 @@ void P0TetFiniteElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 
+P0PriFiniteElement::P0PriFiniteElement()
+   : NodalFiniteElement(3, Geometry::PRISM, 1, 0)
+{
+   Nodes.IntPoint(0).x = 1./3.;
+   Nodes.IntPoint(0).y = 1./3.;
+   Nodes.IntPoint(0).z = 0.5;
+}
+
+void P0PriFiniteElement::CalcShape(const IntegrationPoint &ip,
+                                   Vector &shape) const
+{
+   shape(0) = 1.0;
+}
+
+void P0PriFiniteElement::CalcDShape(const IntegrationPoint &ip,
+                                    DenseMatrix &dshape) const
+{
+   dshape(0,0) =  0.0; dshape(0,1) =  0.0; dshape(0,2) = 0.0;
+}
+
+
 P0HexFiniteElement::P0HexFiniteElement()
    : NodalFiniteElement(3, Geometry::CUBE, 1, 0, FunctionSpace::Qk)
 {

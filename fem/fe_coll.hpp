@@ -733,6 +733,7 @@ class Const3DFECollection : public FiniteElementCollection
 {
 private:
    const P0TetFiniteElement TetrahedronFE;
+   const P0PriFiniteElement PrismFE;
    const P0HexFiniteElement ParallelepipedFE;
 
 public:

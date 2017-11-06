@@ -27,6 +27,7 @@ int FiniteElementCollection::HasFaceDofs(int GeomType) const
    switch (GeomType)
    {
       case Geometry::TETRAHEDRON: return DofForGeometry (Geometry::TRIANGLE);
+      case Geometry::PRISM:       return DofForGeometry (Geometry::SQUARE);
       case Geometry::CUBE:        return DofForGeometry (Geometry::SQUARE);
       default:
          mfem_error ("FiniteElementCollection::HasFaceDofs:"
@@ -1179,6 +1180,7 @@ Const3DFECollection::FiniteElementForGeometry(int GeomType) const
    switch (GeomType)
    {
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
+      case Geometry::PRISM:       return &PrismFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       default:
          mfem_error ("Const3DFECollection: unknown geometry type.");
@@ -1196,6 +1198,7 @@ int Const3DFECollection::DofForGeometry(int GeomType) const
       case Geometry::TETRAHEDRON: return 1;
       case Geometry::SQUARE:      return 0;
       case Geometry::CUBE:        return 1;
+      case Geometry::PRISM:       return 1;
       default:
          mfem_error ("Const3DFECollection: unknown geometry type.");
    }
