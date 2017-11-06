@@ -104,7 +104,7 @@ public:
 };
 
 
-/// An inverse transformation of a given ElementTransformation.
+/// The inverse transformation of a given ElementTransformation.
 class InverseElementTransformation
 {
 public:
@@ -125,16 +125,16 @@ public:
    enum SolverType
    {
       Newton = 0, /**<
-         Use Newton's algorithm, without restricting the refernce-space points
+         Use Newton's algorithm, without restricting the reference-space points
          (iterates) to the reference element. */
       NewtonSegmentProject = 1, /**<
-         Use Newton's algorithm, restricting the refernce-space points to the
+         Use Newton's algorithm, restricting the reference-space points to the
          reference element by scaling back the Newton increments, i.e.
-         projecting new iterates, x_new, lying ouside the element, to the
-         intersecton of the line segment [x_old, x_new] with the boundary. */
+         projecting new iterates, x_new, lying outside the element, to the
+         intersection of the line segment [x_old, x_new] with the boundary. */
       NewtonElementProject = 2 /**<
-         Use Newton's algorithm, restricting the refernce-space points to the
-         reference element by projecting new iterates, x_new, lying ouside the
+         Use Newton's algorithm, restricting the reference-space points to the
+         reference element by projecting new iterates, x_new, lying outside the
          element, to the point on the boundary closest (in reference-space) to
          x_new. */
    };
@@ -167,7 +167,7 @@ protected:
    int NewtonSolve(const Vector &pt, IntegrationPoint &ip);
 
 public:
-   /// Construct an InverseElementTransformation with default parameters.
+   /// Construct the InverseElementTransformation with default parameters.
    /** Some practical considerations regarding the choice of initial guess type
        and solver type:
        1. The combination of #Center and #NewtonSegmentProject provides the
@@ -177,15 +177,15 @@ public:
        2. [Default] The combination of #Center and #NewtonElementProject
           provides a somewhat slower alternative to 1 with the benefit of being
           more reliable in the case when the query point is inside the element
-          but potentially slower in the case the query point is outside the
+          but potentially slower in the case when the query point is outside the
           element.
        3. The combination of #ClosestPhysNode and #NewtonElementProject is
           slower than 1 and 2 but much more reliable, especially in the case of
           highly distorted elements which do not have very high aspect ratios.
        4. The combination of #ClosestRefNode and #NewtonElementProject should
           generally be the most reliable, coming at a bit higher computational
-          cost than 3 while performing better on distorted meshes with high
-          aspect ratio elements.
+          cost than 3 while performing better on distorted meshes with elements
+          having high aspect ratios.
        @note None of these choices provide a guarantee that if a query point is
        inside the element then it will be found. The only guarantee is that if
        the Transform() method returns #Inside then the point lies inside the
