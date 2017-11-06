@@ -1185,7 +1185,7 @@ void SparseMatrix::EliminateRowCol(int rc, const double sol, Vector &rhs,
              break;
            case DIAG_ZERO:
              A[j] = 0.;
-             rhs(rc) = sol;
+             rhs(rc) = 0.;
              break;
            default:
              mfem_error("SparseMatrix::EliminateRowCol () #2");
@@ -1228,7 +1228,7 @@ void SparseMatrix::EliminateRowCol(int rc, const double sol, Vector &rhs,
              break;
            case DIAG_ZERO:
              aux->Value = 0.;
-             rhs(rc) = sol;
+             rhs(rc) = 0.;
              break;
            default:
              mfem_error("SparseMatrix::EliminateRowCol () #4");
@@ -1291,7 +1291,7 @@ void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
              A[j] = 0.;
              for (int r = 0; r < num_rhs; r++)
              {
-                rhs(rc,r) = sol(r);
+                rhs(rc,r) = 0.;
              }
              break;
            default:
@@ -1340,7 +1340,7 @@ void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
              aux->Value = 0.;
              for (int r = 0; r < num_rhs; r++)
              {
-                rhs(rc,r) = sol(r);
+                rhs(rc,r) = 0.;
              }
              break;
            default:
@@ -1516,7 +1516,7 @@ void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae, DiagonalPolicy dpol
               nd->Value = 1.0;
               break;
             case DIAG_ZERO:
-//              Ae.Add(rc, rc, nd->Value); ???
+              Ae.Add(rc, rc, nd->Value);
               nd->Value = 0.;
               break;
             case DIAG_KEEP:
@@ -1559,7 +1559,7 @@ void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae, DiagonalPolicy dpol
              A[j] = 1.0;
              break;
            case DIAG_ZERO:
-//             Ae.Add(rc, rc, A[j] - 1.0); ???
+             Ae.Add(rc, rc, A[j]);
              A[j] = 0.;
              break;
            case DIAG_KEEP:
