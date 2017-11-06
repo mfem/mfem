@@ -46,6 +46,7 @@ int main(int argc, char *argv[])
 
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
+   const char *ref_file = "";
    int order = 1;
    bool visualization = 1;
 
@@ -57,6 +58,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&ref_file, "-r", "--ref",
+                  "Reference file for checking final solution.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -197,7 +201,7 @@ int main(int argc, char *argv[])
    // 10. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
    int maxIter(1000);
-   double rtol(1.e-6);
+   double rtol(1.e-10);
    double atol(1.e-10);
 
    chrono.Clear();
@@ -277,7 +281,45 @@ int main(int argc, char *argv[])
       p_sock << "solution\n" << *mesh << p << "window_title 'Pressure'" << endl;
    }
 
-   // 15. Free the used memory.
+   // 15. Check solution with reference
+   if (strlen(ref_file) != 0)
+   {
+      cout<<"Comparing with: "<<ref_file<<endl;
+      std::ifstream in;
+      in.open(ref_file, std::ifstream::in);
+      if (!in.is_open()) { mfem_error("Reference file does not exist"); }
+      GridFunction ref_u(mesh,in);
+      GridFunction ref_p(mesh,in);
+      in.close();
+      ref_u -= u;
+      ref_p -= p;
+      double eps = 1e-9;
+
+      if ((ref_u.Norml1()   > eps*u.Norml1())  ||
+          (ref_u.Norml2()   > eps*u.Norml2())  ||
+          (ref_u.Normlinf() > eps*u.Normlinf())||
+          (ref_p.Norml1()   > eps*p.Norml1())  ||
+          (ref_p.Norml2()   > eps*p.Norml2())  ||
+          (ref_p.Normlinf() > eps*p.Normlinf()))
+      {
+         cout<<ref_u.Norml1()  <<" "<<u.Norml1()   <<" "<<ref_u.Norml1()  /u.Norml1()
+             <<endl;
+         cout<<ref_u.Norml2()  <<" "<<u.Norml2()   <<" "<<ref_u.Norml2()  /u.Norml2()
+             <<endl;
+         cout<<ref_u.Normlinf()<<" "<<u.Normlinf() <<" "<<ref_u.Normlinf()/u.Normlinf()
+             <<endl;
+         cout<<ref_p.Norml1()  <<" "<<p.Norml1()   <<" "<<ref_p.Norml1()  /p.Norml1()
+             <<endl;
+         cout<<ref_p.Norml2()  <<" "<<p.Norml2()   <<" "<<ref_p.Norml2()  /p.Norml2()
+             <<endl;
+         cout<<ref_p.Normlinf()<<" "<<p.Normlinf() <<" "<<ref_p.Normlinf()/p.Normlinf()
+             <<endl;
+         mfem_error("Norm exceeded");
+      }
+      cout<<"Passed check."<<endl;
+   }
+
+   // 16. Free the used memory.
    delete fform;
    delete gform;
    delete invM;

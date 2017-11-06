@@ -156,6 +156,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/beam-quad.mesh";
+   const char *ref_file = "";
    int ref_levels = 2;
    int order = 2;
    int ode_solver_type = 3;
@@ -193,6 +194,9 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&ref_file, "-r", "--ref",
+                  "Reference file for checking final solution.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -357,7 +361,45 @@ int main(int argc, char *argv[])
       w.Save(ee_ofs);
    }
 
-   // 10. Free the used memory.
+   // 10. Check solution with reference
+   if (strlen(ref_file) != 0)
+   {
+      cout<<"Comparing with: "<<ref_file<<endl;
+      std::ifstream in;
+      in.open(ref_file, std::ifstream::in);
+      if (!in.is_open()) { mfem_error("Reference file does not exist"); }
+      GridFunction ref_v(mesh,in);
+      GridFunction ref_w(mesh,in);
+      in.close();
+      ref_v -= v;
+      ref_w -= w;
+      double eps = 1e-9;
+
+      if ((ref_v.Norml1()   > eps*v.Norml1())  ||
+          (ref_v.Norml2()   > eps*v.Norml2())  ||
+          (ref_v.Normlinf() > eps*v.Normlinf())||
+          (ref_w.Norml1()   > eps*w.Norml1())  ||
+          (ref_w.Norml2()   > eps*w.Norml2())  ||
+          (ref_w.Normlinf() > eps*w.Normlinf()))
+      {
+         cout<<ref_v.Norml1()  <<" "<<v.Norml1()   <<" "<<ref_v.Norml1()  /v.Norml1()
+             <<endl;
+         cout<<ref_v.Norml2()  <<" "<<v.Norml2()   <<" "<<ref_v.Norml2()  /v.Norml2()
+             <<endl;
+         cout<<ref_v.Normlinf()<<" "<<v.Normlinf() <<" "<<ref_v.Normlinf()/v.Normlinf()
+             <<endl;
+         cout<<ref_w.Norml1()  <<" "<<w.Norml1()   <<" "<<ref_w.Norml1()  /w.Norml1()
+             <<endl;
+         cout<<ref_w.Norml2()  <<" "<<w.Norml2()   <<" "<<ref_w.Norml2()  /w.Norml2()
+             <<endl;
+         cout<<ref_w.Normlinf()<<" "<<w.Normlinf() <<" "<<ref_w.Normlinf()/w.Normlinf()
+             <<endl;
+         mfem_error("Norm exceeded");
+      }
+      cout<<"Passed check."<<endl;
+   }
+
+   // 11. Free the used memory.
    delete ode_solver;
    delete mesh;
 
