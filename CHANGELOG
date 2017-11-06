@@ -71,7 +71,7 @@ Discretization improvements
   the points in the reference space of the corresponding element.  In parallel,
   if a point is shared by multiple processors, only one of them will mark that
   point as found. Note that the current implementation of this method is not
-  optimal and/or 100% reliable.
+  optimal and/or 100% reliable. See the mesh-explorer miniapp for an example.
 
 - Improved the robustness of IsoparametricTransformation's TransformBack
   function, which attempts to find the IntegrationPoint within a specified
