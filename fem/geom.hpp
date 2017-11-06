@@ -46,6 +46,7 @@ public:
 private:
    IntegrationRule *GeomVert[NumGeom];
    IntegrationPoint GeomCenter[NumGeom];
+   DenseMatrix *GeomToPerfGeomJac[NumGeom];
    DenseMatrix *PerfGeomToGeomJac[NumGeom];
 
 public:
@@ -84,6 +85,8 @@ public:
        otherwise, return true without changing @a ip. */
    static bool ProjectPoint(int GeomType, IntegrationPoint &ip);
 
+   const DenseMatrix &GetGeomToPerfGeomJac(int GeomType) const
+   { return *GeomToPerfGeomJac[GeomType]; }
    DenseMatrix *GetPerfGeomToGeomJac(int GeomType)
    { return PerfGeomToGeomJac[GeomType]; }
    void GetPerfPointMat(int GeomType, DenseMatrix &pm);
@@ -206,7 +209,7 @@ public:
    int Times, ETimes;
    IntegrationRule RefPts;
    Array<int> RefGeoms, RefEdges;
-   int NumBdrEdges; // at the begining of RefEdges
+   int NumBdrEdges; // at the beginning of RefEdges
    int Type;
 
    RefinedGeometry(int NPts, int NRefG, int NRefE, int NBdrE = 0) :

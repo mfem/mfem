@@ -22,10 +22,8 @@ namespace mfem
 class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
 protected:
-   const IntegrationRule *IntRule;
-
-   BilinearFormIntegrator(const IntegrationRule *ir = NULL)
-   { IntRule = ir; }
+   BilinearFormIntegrator(const IntegrationRule *ir = NULL) :
+      NonlinearFormIntegrator(ir) { }
 
 public:
    /// Given a particular Finite Element computes the element matrix elmat.
@@ -75,8 +73,6 @@ public:
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
-
-   void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
 
    virtual ~BilinearFormIntegrator() { }
 };

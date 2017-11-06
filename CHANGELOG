@@ -11,6 +11,17 @@
 Development version 3.3.1, not released
 =======================================
 
+High-order mesh optimization
+----------------------------
+
+- Added support for mesh optimization via node-movement based on the Target-
+  Matrix Optimization Paradigm (TMOP) developed by P.Knupp et al.  A variety of
+  mesh quality metrics, with their first and second derivatives have been
+  implemented. The combination of targets & quality metrics is used to optimize
+  the physical node positions, i.e., they must be as close as possible to the
+  shape / size / alignment of their targets. The optimization of arbitrary
+  high-order meshes is supported.
+
 New and improved solvers and preconditioners
 --------------------------------------------
 - Added optional support for the STRUMPACK parallel sparse direct solver and
@@ -25,6 +36,9 @@ New and improved solvers and preconditioners
   subspace (e.g. divergence-free). Other small changes in LOBPCG include the
   ability to set the starting vectors and support for relative tolerance.
 
+- The Newton solver supports an optional scaling factor, that can limit the
+  increment in the Newton step, see e.g. the Mesh Optimizer miniapp.
+
 Performance improvements
 ------------------------
 - Memory optimizations in the NCMesh class, which now uses 50% less memory.
@@ -38,6 +52,10 @@ New and updated examples and miniapps
   material interfaces by mesh refinement, e.g. as a tool for initial mesh
   generation from prescribed "material()" function.  Both conforming and
   non-conforming (isotropic and anisotropic) refinements are supported.
+
+- Added a new miniapp, Mesh Optimizer, that performs mesh optimization using
+  TMOP and demonstrates the use of nonlinear operators and their coupling to
+  Newton methods for solving minimization problems.
 
 - Added SUNDIALS version of Example 16/16p.
 
