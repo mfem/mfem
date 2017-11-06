@@ -289,6 +289,7 @@ void Mesh::GetElementTransformation(int i, const Vector &nodes,
    DenseMatrix &pm = ElTr->GetPointMat();
    if (Nodes == NULL)
    {
+      MFEM_ASSERT(nodes.Size() == spaceDim*GetNV(), "");
       int       nv = elements[i]->GetNVertices();
       const int *v = elements[i]->GetVertices();
       int n = vertices.Size();
@@ -304,6 +305,7 @@ void Mesh::GetElementTransformation(int i, const Vector &nodes,
    }
    else
    {
+      MFEM_ASSERT(nodes.Size() == Nodes->Size(), "");
       Array<int> vdofs;
       Nodes->FESpace()->GetElementVDofs(i, vdofs);
       int n = vdofs.Size()/spaceDim;

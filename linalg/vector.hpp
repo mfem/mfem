@@ -251,8 +251,10 @@ public:
    double Min() const;
    /// Return the sum of the vector entries
    double Sum() const;
+   /// Compute the square of the Euclidean distance to another vector.
+   inline double DistanceSquaredTo(const double *p) const;
    /// Compute the Euclidean distance to another vector.
-   double DistanceTo (const double *p) const;
+   inline double DistanceTo(const double *p) const;
 
    /** Count the number of entries in the Vector for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
@@ -378,9 +380,8 @@ inline Vector::~Vector()
    }
 }
 
-inline double Distance(const double *x, const double *y, const int n)
+inline double DistanceSquared(const double *x, const double *y, const int n)
 {
-   using namespace std;
    double d = 0.0;
 
    for (int i = 0; i < n; i++)
@@ -388,7 +389,22 @@ inline double Distance(const double *x, const double *y, const int n)
       d += (x[i]-y[i])*(x[i]-y[i]);
    }
 
-   return sqrt(d);
+   return d;
+}
+
+inline double Distance(const double *x, const double *y, const int n)
+{
+   return std::sqrt(DistanceSquared(x, y, n));
+}
+
+inline double Vector::DistanceSquaredTo(const double *p) const
+{
+   return DistanceSquared(data, p, size);
+}
+
+inline double Vector::DistanceTo(const double *p) const
+{
+   return Distance(data, p, size);
 }
 
 /// Returns the inner product of x and y

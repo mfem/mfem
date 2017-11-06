@@ -21,8 +21,8 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = mobius-strip klein-bottle mesh-explorer shaper
-PAR_MINIAPPS =
+SEQ_MINIAPPS = mobius-strip klein-bottle mesh-explorer shaper mesh-optimizer
+PAR_MINIAPPS = pmesh-optimizer
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -51,6 +51,11 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 	@$(call mfem-test-file,$<, $(RUN_MPI), Meshing miniapp,$(<).mesh)
 %-test-seq: %
 	@$(call mfem-test-file,$<,, Meshing miniapp,$(<).mesh)
+mesh-optimizer-test-seq: mesh-optimizer
+	@$(call mfem-test,$<,, Meshing miniapp,-m $(SRC)icf.mesh)
+pmesh-optimizer-test-par: pmesh-optimizer
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp,\
+	-m $(SRC)icf.mesh)
 
 # Testing: Specific execution options
 mesh-explorer-test-seq:
@@ -68,8 +73,10 @@ clean: clean-build clean-exec
 
 clean-build:
 	rm -f *.o *~ mobius-strip klein-bottle mesh-explorer shaper
+	rm -f mesh-optimizer pmesh-optimizer
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh
 	@rm -f partitioning.txt shaper.mesh
+	@rm -f optimized* perturbed*
