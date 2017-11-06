@@ -84,9 +84,9 @@ API changes
   return a pointer to Coefficient (instead of reference). Note that NULL pointer
   is a valid entry for these two classes - it is treated as the zero function.
 
-- Added an overload for IsoparametricTranformation::TransformBack() that allows 
+- Added an overload for IsoparametricTranformation::TransformBack() that allows
   users to set the refinement level for finding the initial IntegrationPoint.
-  The default value uses the underlying finite element's order. Note that 
+  The default value uses the underlying finite element's order. Note that
   the previous behavior was to use the element's center, which can be achieved
   by setting the refinement order to 0 in the new overload.
 
