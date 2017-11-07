@@ -733,6 +733,51 @@ void DenseMatrix::Invert()
 #endif
 }
 
+void DenseMatrix::SquareRootInverse()
+{
+   // Square root inverse using Denman--Beavers
+#ifdef MFEM_DEBUG
+   if (Height() <= 0 || Height() != Width())
+   {
+      mfem_error("DenseMatrix::SquareRootInverse() matrix not square.");
+   }
+#endif
+
+   DenseMatrix tmp1(Height());
+   DenseMatrix tmp2(Height());
+   DenseMatrix tmp3(Height());
+
+   tmp1 = (*this);
+   (*this) = 0.0;
+   for (int v = 0; v < Height() ; v++) { (*this)(v,v) = 1.0; }
+
+   for (int j = 0; j < 10; j++)
+   {
+      for (int i = 0; i < 10; i++)
+      {
+         tmp2 = tmp1;
+         tmp3 = (*this);
+
+         tmp2.Invert();
+         tmp3.Invert();
+
+         tmp1 += tmp3;
+         (*this) += tmp2;
+
+         tmp1 *= 0.5;
+         (*this) *= 0.5;
+      }
+      mfem::Mult((*this), tmp1, tmp2);
+      for (int v = 0; v < Height() ; v++) { tmp2(v,v) -= 1.0; }
+      if (tmp2.FNorm() < 1e-10) { break; }
+   }
+
+   if (tmp2.FNorm() > 1e-10)
+   {
+      mfem_error("DenseMatrix::SquareRootInverse not converged");
+   }
+}
+
 void DenseMatrix::Norm2(double *v) const
 {
    for (int j = 0; j < Width(); j++)

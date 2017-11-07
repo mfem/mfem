@@ -162,6 +162,9 @@ public:
    /// Replaces the current matrix with its inverse
    void Invert();
 
+   /// Replaces the current matrix with its square root inverse
+   void SquareRootInverse();
+
    /// Calculates the determinant of the matrix
    /// (optimized for 2x2, 3x3, and 4x4 matrices)
    double Det() const;
