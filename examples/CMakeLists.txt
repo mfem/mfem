@@ -80,7 +80,11 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
   endif()
 endforeach()
 
-# Include the examples/sundials directory.
-add_subdirectory(sundials)
-# Include the examples/petsc directory.
-add_subdirectory(petsc)
+# Include the examples/sundials directory if SUNDIALS is enabled.
+if (MFEM_USE_SUNDIALS)
+  add_subdirectory(sundials)
+endif()
+# Include the examples/petsc directory if PETSc is enabled.
+if (MFEM_USE_PETSC)
+  add_subdirectory(petsc)
+endif()
