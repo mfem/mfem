@@ -28,7 +28,7 @@ New and improved solvers and preconditioners
   Development Kit as of version 0.3.0. Various changes were made to
   comply with xSDK's community policies, https://xsdk.info/policies.
 
-- Updated MFEM integration to use the new SUNDIALS 3.0.0 interface.
+- Updated MFEM integration to support the new SUNDIALS 3.0.0 interface.
 
 - Added optional support for the STRUMPACK parallel sparse direct solver and
   preconditioner. STRUMPACK uses Hierarchically Semi-Separable (HSS) compression
