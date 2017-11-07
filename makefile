@@ -153,14 +153,6 @@ else
    $(call mfem-info, NOT including $(CONFIG_MK))
 endif
 
-# Add the SUNDIALS and PETSc tests if enabled
-ifeq ($(MFEM_USE_SUNDIALS),YES)
-   EXAMPLE_TEST_DIRS += examples/sundials
-endif
-ifeq ($(MFEM_USE_PETSC),YES)
-   EXAMPLE_TEST_DIRS += examples/petsc
-endif
-
 # Compile flags used by MFEM: CPPFLAGS, CXXFLAGS, plus library flags
 INCFLAGS =
 # Link flags used by MFEM: library link flags plus LDFLAGS (added last)
