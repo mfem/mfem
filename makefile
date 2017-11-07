@@ -91,12 +91,6 @@ MFEM_GIT_STRING = $(shell [ -d $(MFEM_DIR)/.git ] && git -C $(MFEM_DIR) \
 EXAMPLE_SUBDIRS = sundials petsc
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
-ifeq ($(MFEM_USE_SUNDIALS),YES)
-   EXAMPLE_TEST_DIRS += examples/sundials
-endif
-ifeq ($(MFEM_USE_PETSC),YES)
-   EXAMPLE_TEST_DIRS += examples/petsc
-endif
 
 MINIAPP_SUBDIRS = common electromagnetics meshing performance tools
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
@@ -157,6 +151,14 @@ else
       combined with other targets)
    endif
    $(call mfem-info, NOT including $(CONFIG_MK))
+endif
+
+# Add the SUNDIALS and PETSc tests if enabled
+ifeq ($(MFEM_USE_SUNDIALS),YES)
+   EXAMPLE_TEST_DIRS += examples/sundials
+endif
+ifeq ($(MFEM_USE_PETSC),YES)
+   EXAMPLE_TEST_DIRS += examples/petsc
 endif
 
 # Compile flags used by MFEM: CPPFLAGS, CXXFLAGS, plus library flags
