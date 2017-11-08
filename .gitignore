@@ -115,12 +115,16 @@ miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
 miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
+miniapps/meshing/mesh-optimizer
+miniapps/meshing/pmesh-optimizer
 
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/mesh-explorer.mesh
 miniapps/meshing/partitioning.txt
 miniapps/meshing/shaper.mesh
+miniapps/meshing/optimized*
+miniapps/meshing/perturbed*
 
 miniapps/performance/ex1
 miniapps/performance/ex1p

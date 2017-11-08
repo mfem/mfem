@@ -515,6 +515,15 @@ double DenseMatrix::Weight() const
    return 0.0;
 }
 
+void DenseMatrix::Set(double alpha, const double *A)
+{
+   const int s = Width()*Height();
+   for (int i = 0; i < s; i++)
+   {
+      data[i] = alpha*A[i];
+   }
+}
+
 void DenseMatrix::Add(const double c, const DenseMatrix &A)
 {
    for (int j = 0; j < Width(); j++)
@@ -557,21 +566,24 @@ DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
    return *this;
 }
 
-DenseMatrix &DenseMatrix::operator+=(DenseMatrix &m)
+DenseMatrix &DenseMatrix::operator+=(const double *m)
 {
-   MFEM_ASSERT(Height() == m.Height() && Width() == m.Width(),
-               "incompatible matrix sizes.");
-
-   for (int j = 0; j < width; j++)
-      for (int i = 0; i < height; i++)
-      {
-         (*this)(i, j) += m(i, j);
-      }
-
+   const int hw = Height()*Width();
+   for (int i = 0; i < hw; i++)
+   {
+      data[i] += m[i];
+   }
    return *this;
 }
 
-DenseMatrix &DenseMatrix::operator-=(DenseMatrix &m)
+DenseMatrix &DenseMatrix::operator+=(const DenseMatrix &m)
+{
+   MFEM_ASSERT(Height() == m.Height() && Width() == m.Width(),
+               "incompatible matrix sizes.");
+   return *this += m.GetData();
+}
+
+DenseMatrix &DenseMatrix::operator-=(const DenseMatrix &m)
 {
    for (int j = 0; j < width; j++)
       for (int i = 0; i < height; i++)
@@ -721,6 +733,51 @@ void DenseMatrix::Invert()
 #endif
 }
 
+void DenseMatrix::SquareRootInverse()
+{
+   // Square root inverse using Denman--Beavers
+#ifdef MFEM_DEBUG
+   if (Height() <= 0 || Height() != Width())
+   {
+      mfem_error("DenseMatrix::SquareRootInverse() matrix not square.");
+   }
+#endif
+
+   DenseMatrix tmp1(Height());
+   DenseMatrix tmp2(Height());
+   DenseMatrix tmp3(Height());
+
+   tmp1 = (*this);
+   (*this) = 0.0;
+   for (int v = 0; v < Height() ; v++) { (*this)(v,v) = 1.0; }
+
+   for (int j = 0; j < 10; j++)
+   {
+      for (int i = 0; i < 10; i++)
+      {
+         tmp2 = tmp1;
+         tmp3 = (*this);
+
+         tmp2.Invert();
+         tmp3.Invert();
+
+         tmp1 += tmp3;
+         (*this) += tmp2;
+
+         tmp1 *= 0.5;
+         (*this) *= 0.5;
+      }
+      mfem::Mult((*this), tmp1, tmp2);
+      for (int v = 0; v < Height() ; v++) { tmp2(v,v) -= 1.0; }
+      if (tmp2.FNorm() < 1e-10) { break; }
+   }
+
+   if (tmp2.FNorm() > 1e-10)
+   {
+      mfem_error("DenseMatrix::SquareRootInverse not converged");
+   }
+}
+
 void DenseMatrix::Norm2(double *v) const
 {
    for (int j = 0; j < Width(); j++)
@@ -752,7 +809,7 @@ double DenseMatrix::MaxMaxNorm() const
    return norm;
 }
 
-double DenseMatrix::FNorm() const
+void DenseMatrix::FNorm(double &scale_factor, double &scaled_fnorm2) const
 {
    int i, hw = Height() * Width();
    double max_norm = 0.0, entry, fnorm2;
@@ -768,7 +825,8 @@ double DenseMatrix::FNorm() const
 
    if (max_norm == 0.0)
    {
-      return 0.0;
+      scale_factor = scaled_fnorm2 = 0.0;
+      return;
    }
 
    fnorm2 = 0.0;
@@ -778,7 +836,8 @@ double DenseMatrix::FNorm() const
       fnorm2 += entry * entry;
    }
 
-   return max_norm * sqrt(fnorm2);
+   scale_factor = max_norm;
+   scaled_fnorm2 = fnorm2;
 }
 
 #ifdef MFEM_USE_LAPACK
@@ -1698,7 +1757,8 @@ inline void GetScalingFactor(const double &d_max, double &mult)
 double DenseMatrix::CalcSingularvalue(const int i) const
 {
    MFEM_ASSERT(Height() == Width() && Height() > 0 && Height() < 4,
-               "The matrix must be square and sized 1, 2, or 3 to compute the singular values."
+               "The matrix must be square and sized 1, 2, or 3 to compute the"
+               " singular values."
                << "  Height() = " << Height()
                << ", Width() = " << Width());
 
@@ -1958,7 +2018,7 @@ double DenseMatrix::CalcSingularvalue(const int i) const
          Reduce3S(mode, b11, b22, b33, b12, b13, b23,
                   c1, c2, c3, v1, v2, v3, g);
          // Q = I - g v v^t
-         // P - permitation matrix switching rows and columns 1 and k
+         // P - permutation matrix switching rows and columns 1 and k
 
          // find the eigenvalues of
          //  | b22 b23 |
@@ -2151,7 +2211,7 @@ void DenseMatrix::CalcEigenvalues(double *lambda, double *vec) const
          int k = Reduce3S(mode, d11, d22, d33, d12, d13, d23,
                           c1, c2, c3, v1, v2, v3, g);
          // Q = I - 2 v v^t
-         // P - permitation matrix switching entries 1 and k
+         // P - permutation matrix switching entries 1 and k
 
          // find the eigenvalues and eigenvectors for
          // | d22 d23 |
@@ -2359,7 +2419,7 @@ void DenseMatrix::Transpose()
    }
 }
 
-void DenseMatrix::Transpose(DenseMatrix &A)
+void DenseMatrix::Transpose(const DenseMatrix &A)
 {
    SetSize(A.Width(),A.Height());
 
@@ -2888,14 +2948,25 @@ void Add(const DenseMatrix &A, const DenseMatrix &B,
       }
 }
 
+void Add(double alpha, const double *A,
+         double beta,  const double *B, DenseMatrix &C)
+{
+   const int m = C.Height()*C.Width();
+   double *C_data = C.GetData();
+   for (int i = 0; i < m; i++)
+   {
+      C_data[i] = alpha*A[i] + beta*B[i];
+   }
+}
+
 void Add(double alpha, const DenseMatrix &A,
          double beta,  const DenseMatrix &B, DenseMatrix &C)
 {
-   for (int j = 0; j < C.Width(); j++)
-      for (int i = 0; i < C.Height(); i++)
-      {
-         C(i,j) = alpha * A(i,j) + beta * B(i,j);
-      }
+   MFEM_ASSERT(A.Height() == C.Height(), "");
+   MFEM_ASSERT(B.Height() == C.Height(), "");
+   MFEM_ASSERT(A.Width() == C.Width(), "");
+   MFEM_ASSERT(B.Width() == C.Width(), "");
+   Add(alpha, A.GetData(), beta, B.GetData(), C);
 }
 
 

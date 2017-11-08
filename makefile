@@ -73,6 +73,8 @@ endef
 
 # Do not pass down variables from the command-line to sub-make:
 MAKEOVERRIDES =
+# Note: this produces some undesired results, e.g. the following does not work
+# as expected: "make pdebug -j 4 MPICXX=mpic++".
 
 # Path to the mfem source directory, defaults to this makefile's directory:
 THIS_MK := $(lastword $(MAKEFILE_LIST))
