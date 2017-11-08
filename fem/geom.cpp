@@ -761,7 +761,7 @@ Geometry Geometries;
 
 GeometryRefiner::GeometryRefiner()
 {
-   type = 0;
+   type = Quadrature1D::ClosedUniform;
 }
 
 GeometryRefiner::~GeometryRefiner()
@@ -803,11 +803,7 @@ RefinedGeometry * GeometryRefiner::Refine(int Geom, int Times, int ETimes)
 {
    int i, j, k, l;
 
-   const double *cp = NULL;
-   if (type)
-   {
-      cp = poly1d.ClosedPoints(Times);
-   }
+   const double *cp = poly1d.GetPoints(Times, type);
 
    RefinedGeometry *RG = FindInRGeom(Geom, Times, ETimes, type);
    if (RG) { return RG; }
@@ -823,7 +819,7 @@ RefinedGeometry * GeometryRefiner::Refine(int Geom, int Times, int ETimes)
          for (i = 0; i <= Times; i++)
          {
             IntegrationPoint &ip = RG->RefPts.IntPoint(i);
-            ip.x = (type == 0) ? double(i) / Times : cp[i];
+            ip.x = cp[i];
          }
          Array<int> &G = RG->RefGeoms;
          for (i = 0; i < Times; i++)
@@ -847,16 +843,8 @@ RefinedGeometry * GeometryRefiner::Refine(int Geom, int Times, int ETimes)
             for (i = 0; i <= Times-j; i++, k++)
             {
                IntegrationPoint &ip = RG->RefPts.IntPoint(k);
-               if (type == 0)
-               {
-                  ip.x = double(i) / Times;
-                  ip.y = double(j) / Times;
-               }
-               else
-               {
-                  ip.x = cp[i]/(cp[i] + cp[j] + cp[Times-i-j]);
-                  ip.y = cp[j]/(cp[i] + cp[j] + cp[Times-i-j]);
-               }
+               ip.x = cp[i]/(cp[i] + cp[j] + cp[Times-i-j]);
+               ip.y = cp[j]/(cp[i] + cp[j] + cp[Times-i-j]);
             }
          Array<int> &G = RG->RefGeoms;
          for (l = k = j = 0; j < Times; j++, k++)
@@ -923,16 +911,8 @@ RefinedGeometry * GeometryRefiner::Refine(int Geom, int Times, int ETimes)
             for (i = 0; i <= Times; i++, k++)
             {
                IntegrationPoint &ip = RG->RefPts.IntPoint(k);
-               if (type == 0)
-               {
-                  ip.x = double(i) / Times;
-                  ip.y = double(j) / Times;
-               }
-               else
-               {
-                  ip.x = cp[i];
-                  ip.y = cp[j];
-               }
+               ip.x = cp[i];
+               ip.y = cp[j];
             }
          Array<int> &G = RG->RefGeoms;
          for (l = k = j = 0; j < Times; j++, k++)
@@ -982,18 +962,9 @@ RefinedGeometry * GeometryRefiner::Refine(int Geom, int Times, int ETimes)
                for (i = 0; i <= Times; i++, l++)
                {
                   IntegrationPoint &ip = RG->RefPts.IntPoint(l);
-                  if (type == 0)
-                  {
-                     ip.x = double(i) / Times;
-                     ip.y = double(j) / Times;
-                     ip.z = double(k) / Times;
-                  }
-                  else
-                  {
-                     ip.x = cp[i];
-                     ip.y = cp[j];
-                     ip.z = cp[k];
-                  }
+                  ip.x = cp[i];
+                  ip.y = cp[j];
+                  ip.z = cp[k];
                }
          Array<int> &G = RG->RefGeoms;
          for (l = k = 0; k < Times; k++)
@@ -1048,19 +1019,10 @@ RefinedGeometry * GeometryRefiner::Refine(int Geom, int Times, int ETimes)
                   // (0,0,1) -> (1,0,0)
                   // (1,1,1) -> (0,1,0)
                   // (0,1,1) -> (0,0,1)
-                  if (type == 0)
-                  {
-                     ip.x = double(k - j) / n;
-                     ip.y = double(i) / n;
-                     ip.z = double(j - i) / n;
-                  }
-                  else
-                  {
-                     double w = cp[k-j] + cp[i] + cp[j-i] + cp[Times-k];
-                     ip.x = cp[k-j]/w;
-                     ip.y = cp[i]/w;
-                     ip.z = cp[j-i]/w;
-                  }
+                  double w = cp[k-j] + cp[i] + cp[j-i] + cp[Times-k];
+                  ip.x = cp[k-j]/w;
+                  ip.y = cp[i]/w;
+                  ip.z = cp[j-i]/w;
                   l = i + (j + k * (n+1)) * (n+1);
                   vi[l] = m;
                   m++;

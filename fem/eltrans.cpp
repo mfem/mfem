@@ -333,26 +333,16 @@ int InverseElementTransformation::Transform(const Vector &pt,
          break;
 
       case ClosestPhysNode:
-      {
-         const int old_type = GlobGeometryRefiner.GetType();
-         // GlobGeometryRefiner.SetType(1); // Gauss-Lobatto points
-         GlobGeometryRefiner.SetType(0); // Uniform points
-         RefinedGeometry &RefG =
-            *GlobGeometryRefiner.Refine(T->GetGeometryType(), T->Order());
-         const int closest_idx = FindClosestPhysPoint(pt, RefG.RefPts);
-         ip0 = &RefG.RefPts.IntPoint(closest_idx);
-         GlobGeometryRefiner.SetType(old_type);
-         break;
-      }
-
       case ClosestRefNode:
       {
          const int old_type = GlobGeometryRefiner.GetType();
-         // GlobGeometryRefiner.SetType(1); // Gauss-Lobatto points
-         GlobGeometryRefiner.SetType(0); // Uniform points
+         GlobGeometryRefiner.SetType(qpts_type);
+         const int order = std::max(T->Order()+rel_qpts_order, 0);
          RefinedGeometry &RefG =
-            *GlobGeometryRefiner.Refine(T->GetGeometryType(), T->Order());
-         const int closest_idx = FindClosestRefPoint(pt, RefG.RefPts);
+            *GlobGeometryRefiner.Refine(T->GetGeometryType(), order);
+         int closest_idx = (init_guess_type == ClosestPhysNode) ?
+                           FindClosestPhysPoint(pt, RefG.RefPts) :
+                           FindClosestRefPoint(pt, RefG.RefPts);
          ip0 = &RefG.RefPts.IntPoint(closest_idx);
          GlobGeometryRefiner.SetType(old_type);
          break;
