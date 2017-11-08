@@ -31,20 +31,19 @@ namespace mfem
 /**
 * PAK (Partial Assembly Kernel) dependent partial assembly for Convection Integrator.
 * Assumes:
-*  - InitPb, GetD, MultGtDB for Kernel
-*  - SetSize, SetVal for the D tensor inside Device
+*  - MultGtDB Operation and SetSizeD, SetValD for the D tensor inside the Kernel
 */
 template <typename PAK>
 class PAConvectionIntegrator : public BilinearFormIntegrator
 {
 protected:
-  	PAK& pak;
+  	PAK pak;
 
 public:
-  	PAConvectionIntegrator(PAK& _pak, FiniteElementSpace *fes, const int order,
+  	PAConvectionIntegrator(FiniteElementSpace *fes, const int order,
                         VectorCoefficient &q, double a = 1.0)
   	: BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
-     pak(_pak)
+     pak(fes,order,3)
   	{
 	  	const int nb_elts = fes->GetNE();
 		const int quads  = IntRule->GetNPoints();
@@ -134,7 +133,7 @@ public:
 
   virtual void AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
   {
-    //We assume that the kernel has such a method.
+    //We assume that the kernel has such a method. Operation is set in the type of PAK.
     pak.Mult(fun,vect);
   }
 };
@@ -154,14 +153,14 @@ template <typename PAK>
 class PADGConvectionFaceIntegrator : public BilinearFormIntegrator
 {
 protected:
-   PAK& pak;
+   PAK pak;
 
 public:
 
-  	PADGConvectionFaceIntegrator(PAK& _pak, FiniteElementSpace *fes, const int order,
+  	PADGConvectionFaceIntegrator(FiniteElementSpace *fes, const int order,
                         VectorCoefficient &q, double a = 1.0, double b = 1.0)
   	:BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
-  		pak(_pak)
+  	pak(fes,order,2)
 	{
 		const int dim = fes->GetFE(0)->GetDim();
 	   Mesh* mesh = fes->GetMesh();

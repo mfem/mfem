@@ -190,8 +190,6 @@ int main(int argc, char *argv[])
    //Creating a partial assembly Kernel
    //Maybe not the right place to initialize tensor size.
    int ir_order = 2*order+1;
-   DummyDomainPAK pak(&fes,ir_order,3);
-   DummyFacePAK pak_face(&fes,ir_order,2);
 
    //Initialization of the Mass operator
    BilinearForm m(&fes);
@@ -200,10 +198,10 @@ int main(int argc, char *argv[])
    m.Finalize();
    //Initialization of the Stiffness operator
    BilinearFormOperator k(&fes);
-   k.AddDomainIntegrator(new EigenPAConvectionIntegrator<2,EigenDomainPAK>(&fes,ir_order,velocity, -1.0));
-   //k.AddDomainIntegrator(new PAConvectionIntegrator<DummyDomainPAK>(pak,&fes,ir_order,velocity, -1.0));
+   //k.AddDomainIntegrator(new EigenPAConvectionIntegrator<2,EigenDomainPAK>(&fes,ir_order,velocity, -1.0));
+   k.AddDomainIntegrator(new PAConvectionIntegrator<DummyDomainPAK>(&fes,ir_order,velocity, -1.0));
    k.AddDomainIntegrator(
-         new PADGConvectionFaceIntegrator<DummyFacePAK>(pak_face,&fes,ir_order,velocity, 1.0, -0.5));
+         new PADGConvectionFaceIntegrator<DummyFacePAK>(&fes,ir_order,velocity, 1.0, -0.5));
    //No need to do PA
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
