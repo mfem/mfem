@@ -91,7 +91,6 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/periodic-hexagon.mesh";
    int ref_levels = 2;
    int order = 3;
-   int ir_order = order+1;
    int ode_solver_type = 4;
    double t_final = 10.0;
    double dt = 0.01;
@@ -190,6 +189,7 @@ int main(int argc, char *argv[])
 
    //Creating a partial assembly Kernel
    //Maybe not the right place to initialize tensor size.
+   int ir_order = 2*order+1;
    DummyDomainPAK pak(&fes,ir_order,3);
    DummyFacePAK pak_face(&fes,ir_order,2);
 
@@ -200,7 +200,8 @@ int main(int argc, char *argv[])
    m.Finalize();
    //Initialization of the Stiffness operator
    BilinearFormOperator k(&fes);
-   k.AddDomainIntegrator(new PAConvectionIntegrator<DummyDomainPAK>(pak,&fes,ir_order,velocity, -1.0));
+   k.AddDomainIntegrator(new EigenPAConvectionIntegrator<2,EigenDomainPAK>(&fes,ir_order,velocity, -1.0));
+   //k.AddDomainIntegrator(new PAConvectionIntegrator<DummyDomainPAK>(pak,&fes,ir_order,velocity, -1.0));
    k.AddDomainIntegrator(
          new PADGConvectionFaceIntegrator<DummyFacePAK>(pak_face,&fes,ir_order,velocity, 1.0, -0.5));
    //No need to do PA
@@ -319,7 +320,7 @@ int main(int argc, char *argv[])
    }
 
    tic_toc.Stop();
-   // cout << " done, " << tic_toc.RealTime() << "s." << endl;
+   cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".

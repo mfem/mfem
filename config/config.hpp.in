@@ -49,6 +49,9 @@
 // Use LAPACK routines for various dense linear algebra operations.
 // #define MFEM_USE_LAPACK
 
+// Use Eigen for math routines
+// #define MFEM_USE_EIGEN
+
 // Use thread-safe implementation. This comes at the cost of extra memory
 // allocation and de-allocation.
 // #define MFEM_THREAD_SAFE

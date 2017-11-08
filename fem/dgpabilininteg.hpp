@@ -41,9 +41,9 @@ protected:
   	PAK& pak;
 
 public:
-  	PAConvectionIntegrator(PAK& _pak, FiniteElementSpace *fes, const int ir_order,
+  	PAConvectionIntegrator(PAK& _pak, FiniteElementSpace *fes, const int order,
                         VectorCoefficient &q, double a = 1.0)
-  	: BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), ir_order)),
+  	: BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
      pak(_pak)
   	{
 	  	const int nb_elts = fes->GetNE();
@@ -51,15 +51,10 @@ public:
 	   const FiniteElement* fe = fes->GetFE(0);
 	   int dim = fe->GetDim();
 		Vector qvec(dim);
-		//device initialization prototype (should evolve)
-		//int tensorDim = 3;
-		//pak.InitPb(fes,tensorDim,ir_order);
-		//gets the D tensor, whatever his type
-		typename PAK::Tensor& D = pak.GetD();
+		// Initialization of the size of the D tensor
+		//ToSelf: should initialization change since we know the number of args
 		int sizes[] = {dim,quads,nb_elts};
-		D.SetSize(sizes);
-		//the local D tensor
-		//DenseMatrix locD(dim, dim);
+		pak.SetSizeD(sizes);
 		for (int e = 0; e < nb_elts; ++e)
 		{
 		   ElementTransformation *Tr = fes->GetElementTransformation(e);
@@ -76,8 +71,9 @@ public:
 		       	{
 		         	val += locD(i,j) * qvec(j);
 		       	}
+					//ToSelf: should SetValD change since we know the number of args
 	         	int ind[] = {i,k,e};
-	         	D(ind) = ip.weight * a * val;
+	         	pak.SetValD(ind, ip.weight * a * val);
 		     	}
 		   }
 		}
@@ -87,6 +83,59 @@ public:
   {
     //We assume that the kernel has such a method.
     pak.MultBtDG(fun,vect);
+  }
+};
+
+template <int Dim, template<int,PAOp> class PAK>
+class EigenPAConvectionIntegrator : public BilinearFormIntegrator
+{
+protected:
+	// BtDG specifies which operation in the kernel we're using
+  	PAK<Dim,PAOp::BtDG> pak;
+
+public:
+  	EigenPAConvectionIntegrator(FiniteElementSpace *fes, const int order,
+                        VectorCoefficient &q, double a = 1.0)
+  	: BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
+     pak(fes,order)
+  	{
+	  	const int nb_elts = fes->GetNE();
+		const int quads  = IntRule->GetNPoints();
+	   const FiniteElement* fe = fes->GetFE(0);
+	   int dim = fe->GetDim();
+		Vector qvec(dim);
+		// Initialization of the size of the D tensor
+		//ToSelf: should initialization change since we know the number of args
+		int sizes[] = {dim,quads,nb_elts};
+		pak.SetSizeD(sizes);
+		for (int e = 0; e < nb_elts; ++e)
+		{
+		   ElementTransformation *Tr = fes->GetElementTransformation(e);
+		   for (int k = 0; k < quads; ++k)
+		   {
+		     	const IntegrationPoint &ip = IntRule->IntPoint(k);
+			   Tr->SetIntPoint(&ip);
+		     	const DenseMatrix& locD = Tr->AdjugateJacobian();
+		     	q.Eval(qvec, *Tr, ip);
+		     	for (int i = 0; i < dim; ++i)
+		     	{
+		     		double val = 0;
+		     		for (int j = 0; j < dim; ++j)
+		       	{
+		         	val += locD(i,j) * qvec(j);
+		       	}
+					//ToSelf: should SetValD change since we know the number of args
+	         	int ind[] = {i,k,e};
+	         	pak.SetValD(ind, ip.weight * a * val);
+		     	}
+		   }
+		}
+  	}
+
+  virtual void AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
+  {
+    //We assume that the kernel has such a method.
+    pak.Mult(fun,vect);
   }
 };
 
@@ -109,9 +158,9 @@ protected:
 
 public:
 
-  	PADGConvectionFaceIntegrator(PAK& _pak, FiniteElementSpace *fes, const int ir_order,
+  	PADGConvectionFaceIntegrator(PAK& _pak, FiniteElementSpace *fes, const int order,
                         VectorCoefficient &q, double a = 1.0, double b = 1.0)
-  	:BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), ir_order)),
+  	:BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
   		pak(_pak)
 	{
 		const int dim = fes->GetFE(0)->GetDim();
@@ -123,11 +172,11 @@ public:
 	   	case 2:geom = Geometry::SEGMENT;break;
 	   	case 3:geom = Geometry::SQUARE;break;
 	   }
-		const int quads  = IntRules.Get(geom, ir_order).GetNPoints();//pow(ir_order,dim-1);
+		const int quads  = IntRules.Get(geom, order).GetNPoints();//pow(ir_order,dim-1);
 		Vector qvec(dim);
 	   // D11 and D22 are the matrices for the flux of the element on himself for elemt 1 and 2
-	   // respectively (we can add together the matrices for the different faces,
-	   // (element approach > face approach?)
+	   // respectively
+	   // (ToSelf: element approach > face approach?)
 	   // D12 and D21 are the flux matrices for Element 1 on Element 2, and Element 2 on Element 1
 	   // respectively.
 	   typename PAK::Tensor& D11 = pak.GetD11();
@@ -161,9 +210,6 @@ public:
 	      // The mapping "map" stores the cahnge of basis from element e1 to element e2
 	      //vector<pair<int,int> > map;
 	      // //TODO: This code should be factorized and put somewhere else
-	      // cout << "face No=" << face << endl;
-	      // cout << "info_elt1=" << info_elt1 << ",info_elt2=" << info_elt2 << endl;
-	      // cout << "face_id1=" << face_id1 << ",face_id2=" << face_id2 << endl;
 	      switch(dim){
 	      	case 1:mfem_error("1D Advection not yet implemented");break;
 	      	case 2:
@@ -197,7 +243,7 @@ public:
 	         double val = 0;
 	         Vector n(dim);
 	         double res;
-	      	const IntegrationRule& ir = IntRules.Get(geom, ir_order);
+	      	const IntegrationRule& ir = IntRules.Get(geom, order);
         		const IntegrationPoint &ip = ir.IntPoint(k);
 	      	// We compute D11 and D21
       		IntegrationPoint eip1;
@@ -227,8 +273,8 @@ public:
 			      val = eip2.weight * ( - a/2 * res - b * abs(res) );
 			      D12(ind) = val;
 		      }else{//Boundary face
-		        	//val = eip1.weight * (   a * res + b * abs(res) );
-		        	//D11(ind) = val;	      	
+		        	val = eip1.weight * (   a * res + b * abs(res) );
+		        	D11(ind) = val;	      	
 		      }
 	      }
 	   }

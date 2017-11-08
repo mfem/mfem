@@ -15,225 +15,21 @@
 #ifndef MFEM_PAK
 #define MFEM_PAK
 
+#include "fem.hpp"
 #include "../config/config.hpp"
 #include "bilininteg.hpp"
-#include <vector>
+#include "dalg.hpp"
 #include <iostream>
+#include <Eigen/Dense>
+#include <unsupported/Eigen/CXX11/Tensor>
 
-using namespace std;
-using std::vector;
+//using namespace std;
+//using std::vector;
 
 namespace mfem
 {
 
-/**
-* A dummy Matrix implementation that handles any type
-*/
-template <typename Scalar>
-class DummyMatrix
-{
-protected:
-   Scalar* data;
-   int sizes[2];
-
-public:
-   DummyMatrix()
-   {
-      sizes[0] = 0;
-      sizes[1] = 0;
-      data = NULL;
-   }
-
-   DummyMatrix(int rows, int cols)
-   {
-      sizes[0] = rows;
-      sizes[1] = cols;
-      data = new Scalar[rows*cols];//rows*cols*sizeof(Scalar) );
-   }
-
-   // Sets all the coefficients to zero
-   void Zero()
-   {
-      for (int i = 0; i < sizes[0]*sizes[1]; ++i)
-      {
-         data[i] = Scalar();
-      }
-   }
-
-   // Accessor for the Matrix
-   const Scalar operator()(int row, int col) const
-   {
-      return data[ row + sizes[0]*col ];
-   }
-
-   // Accessor for the Matrix
-   Scalar& operator()(int row, int col)
-   {
-      return data[ row + sizes[0]*col ];
-   }
-
-   int Height() const
-   {
-      return sizes[0];
-   }
-
-   int Width() const
-   {
-      return sizes[1];
-   }
-
-   friend ostream& operator<<(ostream& os, const DummyMatrix& M){
-      for (int i = 0; i < M.Height(); ++i)
-      {
-         for (int j = 0; j < M.Width(); ++j)
-         {
-            os << M(i,j) << " ";
-         }
-         os << "\n";
-      }
-      return os;
-   }
-
-};
-
-typedef DummyMatrix<double> DMatrix;
-typedef DummyMatrix<int> IntMatrix;
-
-/**
-*  A dummy tensor class
-*/
-class DummyTensor
-{
-protected:
-   double* data;
-   int dim;
-   vector<int> sizes;
-   vector<int> offsets;
-
-public:
-   DummyTensor(int dim) : dim(dim), sizes(dim,1), offsets(dim,1)
-   {
-   }
-
-   int GetNumVal()
-   {
-      int result = 1;
-      for (int i = 0; i < dim; ++i)
-      {
-         result *= sizes[i];
-      }
-      return result;
-   }
-
-   // Memory leak if used more than one time
-   void SetSize(int* _sizes)
-   {
-      for (int i = 0; i < dim; ++i)
-      {
-         sizes[i] = _sizes[i];
-         int dim_ind = 1;
-         // We don't really need to recompute from beginning, but that shouldn't
-         // be a performance issue...
-         for (int j = 0; j < i; ++j)
-         {
-            dim_ind *= sizes[j];
-         }
-         offsets[i] = dim_ind;
-      }
-      data = new double[GetNumVal()];//(double*)malloc(GetNumVal()*sizeof(double));
-   }
-
-   // Returns the data pointer, to change container for instance, or access data
-   // in an unsafe way...
-   double* GetData()
-   {
-      return data;
-   }
-
-   // The function that defines the Layout
-   int GetRealInd(int* ind)
-   {
-      int real_ind = 0;
-      for (int i = 0; i < dim; ++i)
-      {
-         real_ind += ind[i]*offsets[i];
-      }
-      return real_ind;
-   }
-
-   // really unsafe!
-   void SetVal(int* ind, double val)
-   {
-      int real_ind = GetRealInd(ind);
-      data[real_ind] = val;
-   }
-
-   double GetVal(int real_ind)
-   {
-      return data[real_ind];
-   }
-
-   double GetVal(int* ind)
-   {
-      int real_ind = GetRealInd(ind);
-      return data[real_ind];
-   }
-
-   double& operator()(int* ind)
-   {
-      int real_ind = GetRealInd(ind);
-      return data[real_ind];
-   }
-
-   // Assumes that elements/faces indice is always the last indice
-   double* GetElmtData(int e){
-      return &data[ e * offsets[dim-1] ];
-   }
-
-   friend ostream& operator<<(ostream& os, const DummyTensor& T){
-      int nb_elts = 1;
-      for (int i = 0; i < T.dim; ++i)
-      {
-         nb_elts *= T.sizes[i];
-      }
-      for (int i = 0; i < nb_elts; ++i)
-      {
-         os << T.data[i] << " ";
-         if ((i+1)%T.sizes[0]==0)
-         {
-            os << "\n";
-         }
-      }
-      os << "\n";
-      return os;
-   }
-
-};
-
-/*static void ComputeBasis1d(const FiniteElement *fe, int ir_order,
-                           DenseMatrix &shape1d)
-{
-   const TensorBasisElement* tfe(dynamic_cast<const TensorBasisElement*>(fe));
-   // Compute the 1d shape functions and gradients
-   const Poly_1D::Basis &basis1d = tfe->GetBasis1D();
-   const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, ir_order);
-
-   const int quads1d = ir1d.GetNPoints();
-   const int dofs = fe->GetOrder() + 1;
-
-   shape1d.SetSize(dofs, quads1d);
-
-   Vector u(dofs);
-   for (int k = 0; k < quads1d; k++)
-   {
-      const IntegrationPoint &ip = ir1d.IntPoint(k);
-      basis1d.Eval(ip.x, u);
-      for (int i = 0; i < dofs; i++)
-      {
-         shape1d(i, k) = u(i);
-      }
-   }
-}*/
+enum PAOp { BtDB, BtDG, GtDB, GtDG };
 
 /**
 * Gives the evaluation of the 1d basis functions and their derivative at one point @param x
@@ -265,12 +61,12 @@ static void ComputeBasis0d(const FiniteElement *fe, double x, DenseMatrix &shape
 /**
 * Gives the evaluation of the 1d basis functions and their derivative at all quadrature points
 */
-static void ComputeBasis1d(const FiniteElement *fe, int ir_order,
+static void ComputeBasis1d(const FiniteElement *fe, int order,
                            DenseMatrix &shape1d, DenseMatrix &dshape1d, bool backward=false)
 {
    const TensorBasisElement* tfe(dynamic_cast<const TensorBasisElement*>(fe));
    const Poly_1D::Basis &basis1d = tfe->GetBasis1D();
-   const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, ir_order);
+   const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, order);
 
    const int quads1d = ir1d.GetNPoints();
    const int dofs = fe->GetOrder() + 1;
@@ -282,7 +78,7 @@ static void ComputeBasis1d(const FiniteElement *fe, int ir_order,
    Vector d(dofs);
    for (int k = 0; k < quads1d; k++)
    {
-      int ind = k;//backward ? quads1d -1 - k : k;
+      int ind = backward ? quads1d -1 - k : k;
       const IntegrationPoint &ip = ir1d.IntPoint(k);
       basis1d.Eval(ip.x, u, d);
       for (int i = 0; i < dofs; i++)
@@ -346,15 +142,31 @@ protected:
 
 public:
 
-   DummyDomainPAK(FiniteElementSpace *_fes, int ir_order, int tensor_dim)
+   DummyDomainPAK(FiniteElementSpace *_fes, int order, int tensor_dim)
    : fes(_fes), dim(fes->GetFE(0)->GetDim()), D(tensor_dim)
    {
       // Store the 1d shape functions and gradients
-      ComputeBasis1d(fes->GetFE(0), ir_order, shape1d, dshape1d);
+      ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
    }
 
    // Returns the tensor D
    Tensor& GetD() { return D; }
+
+   /**
+   *  Sets the dimensions of the tensor D
+   */
+   void SetSizeD(int* sizes)
+   {
+      D.SetSize(sizes);
+   }
+
+   /**
+   *  Sets the value at indice @a ind to @a val. @a ind is a raw integer array of size 2.
+   */
+   void SetValD(int* ind, double val)
+   {
+      D(ind) = val;
+   }
 
    /**
    * Computes V = B^T D B U where B is a tensor product of shape1d. 
@@ -447,7 +259,7 @@ protected:
 
 public:
 
-   DummyFacePAK(FiniteElementSpace *_fes, int ir_order, int tensor_dim)
+   DummyFacePAK(FiniteElementSpace *_fes, int order, int tensor_dim)
    : fes(_fes), dim(fes->GetFE(0)->GetDim()),
    coord_change1(dim,fes->GetMesh()->GetNumFaces()),backward1(dim,fes->GetMesh()->GetNumFaces()),
    coord_change2(dim,fes->GetMesh()->GetNumFaces()),backward2(dim,fes->GetMesh()->GetNumFaces()),
@@ -459,9 +271,9 @@ public:
       // in y = 0.0
       ComputeBasis0d(fes->GetFE(0), 1.0, shape0d1, dshape0d1);
       // Store the 1d shape functions and gradients
-      ComputeBasis1d(fes->GetFE(0), ir_order, shape1d, dshape1d);
+      ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
       // Creates the integration points for each face
-      const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, ir_order);
+      const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, order);
       const int quads1d = ir1d.GetNPoints();
       intPts = DummyMatrix<IntegrationPoint>(pow(quads1d,dim-1),2*dim);
       switch(dim){
@@ -643,6 +455,241 @@ public:
    }
 };
 
+/**
+*  A shortcut for EigenOp type names
+*/
+template <int Dim, PAOp OpName>
+class EigenOp;
+
+/**
+*  A Domain Partial Assembly Kernel using Eigen's Tensor library
+*/
+template <int Dim, PAOp OpName >
+class EigenDomainPAK
+{
+public:
+   typedef typename EigenOp<Dim,OpName>::Op Op;
+   typedef typename Op::DTensor DTensor;
+   typedef typename Op::Tensor2d Tensor2d;
+
+private:
+   FiniteElementSpace* fes;
+   Tensor2d shape1d, dshape1d;
+   DTensor D;
+
+public:
+   EigenDomainPAK(FiniteElementSpace* _fes, int order)
+   : fes(_fes)
+   {
+      // Store the 1d shape functions and gradients
+      // TODO: template computeBasis1d so that no copy is needed or just overload......
+      DenseMatrix _shape1d, _dshape1d;
+      ComputeBasis1d(fes->GetFE(0), order, _shape1d, _dshape1d);
+      shape1d = Tensor2d(_shape1d.Height(),_shape1d.Width());
+      for (int i = 0; i < shape1d.dimension(0); ++i){
+         for (int j = 0; j < shape1d.dimension(1); ++j){
+            shape1d(i,j) = _shape1d(i,j);
+         }
+      }
+      dshape1d = Tensor2d(_dshape1d.Height(),_dshape1d.Width());
+      for (int i = 0; i < dshape1d.dimension(0); ++i){
+         for (int j = 0; j < dshape1d.dimension(1); ++j){
+            dshape1d(i,j) = _dshape1d(i,j);
+         }
+      }
+   }
+
+   /**
+   *  Sets the dimensions of the tensor D
+   */
+   void SetSizeD(int* sizes)
+   {
+      Op::SetSizeD(D, sizes);
+   }
+
+   /**
+   *  Sets the value at indice @a ind to @a val. @a ind is a raw integer array of size 2.
+   */
+   void SetValD(int* ind, double val)
+   {
+      Op::SetValD(D, ind, val);
+   }
+
+   /**
+   *  Applies the partial assembly operator
+   */
+   void Mult(const Vector& U, Vector& V)
+   {
+      Op::eval(fes, shape1d, dshape1d, D, U, V);
+   }
+};
+
+template <int Dim>
+class EigenMultBtDB;
+
+template <int Dim>
+class EigenMultBtDG;
+
+template <int Dim>
+class EigenMultGtDB;
+
+template <int Dim>
+class EigenMultGtDG;
+
+template <int Dim>
+class EigenOp<Dim,PAOp::BtDB>
+{
+public:
+   using Op = EigenMultBtDB<Dim>;
+};
+
+template <int Dim>
+class EigenOp<Dim,PAOp::BtDG>
+{
+public:
+   using Op = EigenMultBtDG<Dim>;
+};
+
+template <int Dim>
+class EigenOp<Dim,PAOp::GtDB>
+{
+public:
+   using Op = EigenMultGtDB<Dim>;
+};
+
+template <int Dim>
+class EigenOp<Dim,PAOp::GtDG>
+{
+public:
+   using Op = EigenMultGtDG<Dim>;
+};
+
+template <>
+class EigenMultBtDB<2>{
+public:
+   static const int tensor_dim = 2;
+   using Tensor2d = Eigen::Tensor<double,2>;
+   using DTensor = Eigen::Tensor<double,2>;
+
+   /**
+   * Computes V = B^T D B U where B is a tensor product of shape1d. 
+   */
+   static void eval(FiniteElementSpace* fes, Tensor2d const & shape1d, Tensor2d const& dshape1d,
+                        DTensor & D, const Vector &U, Vector &V)
+   {
+      const int dofs1d = shape1d.dimension(0);
+      const int dofs = dofs1d*dofs1d;
+      const int quads1d = shape1d.dimension(1);
+      //const int quads  = quads1d*quads1d;
+      array<Eigen::IndexPair<int>, 1> cont_ind;
+      for (int e = 0; e < fes->GetNE(); e++){
+         Eigen::TensorMap<Eigen::Tensor<double,2>> T0(U.GetData() + e*dofs, dofs1d, dofs1d);
+         Eigen::TensorMap<Eigen::Tensor<double,2>> R(V.GetData() + e*dofs, dofs1d, dofs1d);
+         // T1 = B.T0
+         cont_ind = { Eigen::IndexPair<int>(0, 0) };
+         auto T1 = T0.contract(shape1d, cont_ind);
+         // T2 = B.T1
+         cont_ind = { Eigen::IndexPair<int>(0, 0) };
+         auto T2 = T1.contract(shape1d, cont_ind);
+         // T3 = D*T2
+         array<int, 2> dims{{quads1d, quads1d}};
+         //auto T3 = D.chip(1,e).reshape(dims) * T2;
+         auto T3 = D.chip(1,e) * T2;
+         // T4 = Bt.T3
+         cont_ind = { Eigen::IndexPair<int>(0, 1) };
+         auto T4 = T3.contract(shape1d, cont_ind);
+         // R = Bt.T4
+         cont_ind = { Eigen::IndexPair<int>(0, 1) };
+         R += T4.contract(shape1d, cont_ind);
+      }
+   }
+
+   /**
+   *  Sets the dimensions of the tensor D
+   */
+   static void SetSizeD(DTensor& D, int* sizes)
+   {
+      D = DTensor(sizes[0],sizes[1]);
+   }
+
+   /**
+   *  Sets the value at indice @a ind to @a val. @a ind is a raw integer array of size 2.
+   */
+   static void SetValD(DTensor& D, int* ind, double val)
+   {
+      D(ind[0],ind[1]) = val;
+   }
+
+};
+
+template <>
+class EigenMultBtDG<2>{
+public:
+   static const int tensor_dim = 2;
+   using Tensor2d = Eigen::Tensor<double,2>;
+   using DTensor = Eigen::Tensor<double,3>;
+
+   /**
+   * Computes V = B^T D B U where B is a tensor product of shape1d. 
+   */
+   static void eval(FiniteElementSpace* fes, Tensor2d const & shape1d, Tensor2d const& dshape1d,
+                        DTensor & D, const Vector &U, Vector &V)
+   {
+      const int dofs1d = shape1d.dimension(0);
+      const int dofs = dofs1d*dofs1d;
+      const int quads1d = shape1d.dimension(1);
+      //const int quads  = quads1d*quads1d;
+      array<Eigen::IndexPair<int>, 1> cont_ind;
+      array<int, 2> dims{{quads1d, quads1d}};
+      for (int e = 0; e < fes->GetNE(); e++){
+         Eigen::TensorMap<Eigen::Tensor<double,2>> T0(U.GetData() + e*dofs, dofs1d, dofs1d);
+         Eigen::TensorMap<Eigen::Tensor<double,2>> R(V.GetData() + e*dofs, dofs1d, dofs1d);
+         // V = B G U
+         // T1 = G.T0
+         cont_ind = { Eigen::IndexPair<int>(0, 0) };
+         auto T1 = T0.contract(dshape1d, cont_ind);
+         // T2 = B.T1
+         cont_ind = { Eigen::IndexPair<int>(0, 0) };
+         auto T2 = T1.contract(shape1d, cont_ind);
+         // T3 = D*T2
+         auto T3 = D.chip(e,2).chip(0,0).reshape(dims) * T2;
+         // V = G B U
+         // T1 = B.T0
+         cont_ind = { Eigen::IndexPair<int>(0, 0) };
+         auto T1b = T0.contract(shape1d, cont_ind);
+         // T2 = G.T1
+         cont_ind = { Eigen::IndexPair<int>(0, 0) };
+         auto T2b = T1b.contract(dshape1d, cont_ind);
+         // V = ( D_0 B G + D_1 G B ) U
+         // T3 = D*T2
+         auto T3b = T3 + D.chip(e,2).chip(1,0).reshape(dims) * T2b;
+         // T4 = Bt.T3
+         cont_ind = { Eigen::IndexPair<int>(0, 1) };
+         auto T4 = T3b.contract(shape1d, cont_ind);
+         // V = B B D ( B G + G B ) U
+         // R = Bt.T4
+         cont_ind = { Eigen::IndexPair<int>(0, 1) };
+         R += T4.contract(shape1d, cont_ind);
+      }
+   }
+
+   /**
+   *  Sets the dimensions of the tensor D
+   */
+   static void SetSizeD(DTensor& D, int* sizes)
+   {
+      D = DTensor(sizes[0],sizes[1],sizes[2]);
+   }
+
+   /**
+   *  Sets the value at indice @a ind to @a val. @a ind is a raw integer array of size 2.
+   */
+   static void SetValD(DTensor& D, int* ind, double val)
+   {
+      D(ind[0],ind[1],ind[2]) = val;
+   }
+
+};
 
 }
 

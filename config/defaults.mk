@@ -21,7 +21,7 @@ NOTMAC := $(subst Darwin,,$(shell uname -s))
 CXX = g++
 MPICXX = mpicxx
 
-OPTIM_FLAGS = -O3
+OPTIM_FLAGS = -O3 
 DEBUG_FLAGS = -g -Wall
 
 # Destination location of make install
@@ -68,6 +68,7 @@ MFEM_DEBUG           = NO
 MFEM_USE_GZSTREAM    = NO
 MFEM_USE_LIBUNWIND   = NO
 MFEM_USE_LAPACK      = NO
+MFEM_USE_EIGEN       = NO
 MFEM_THREAD_SAFE     = NO
 MFEM_USE_OPENMP      = NO
 MFEM_USE_MEMALLOC    = YES
@@ -115,6 +116,11 @@ endif
 # LAPACK library configuration
 LAPACK_OPT =
 LAPACK_LIB = $(if $(NOTMAC),-llapack -lblas,-framework Accelerate)
+
+# Eigen configuration
+EIGEN_DIR = @MFEM_DIR@/../eigen
+EIGEN_OPT = -I$(EIGEN_DIR) -std=c++11
+EIGEN_LIB =
 
 # OpenMP configuration
 OPENMP_OPT = -fopenmp

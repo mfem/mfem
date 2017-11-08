@@ -60,7 +60,7 @@ void MultBtDB2(FiniteElementSpace* fes, DenseMatrix const & shape1d,
       const DenseMatrix Vmat(V.GetData() + offset, dofs1d, dofs1d);
       DenseMatrix Umat(U.GetData() + offset, dofs1d, dofs1d);
 
-      // DQ_j2_k1   = E_j1_j2  * dshape_j1_k1 -- contract in x direction
+      // DQ_j2_k1   = E_j1_j2  * shape_j1_k1 -- contract in x direction
       // QQ_0_k1_k2 = DQ_j2_k1 * shape_j2_k2  -- contract in y direction
       MultAtB(Vmat, shape1d, DQ);
       MultAtB(DQ, shape1d, QQ);
@@ -456,13 +456,8 @@ void MultBtDG2(FiniteElementSpace* fes, DenseMatrix const& shape1d,
       // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
       // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
       double *data_qq = QQ(0).GetData();
-      //const double *data_d = D.GetElmtData(e);
       for (int k = 0; k < quads; ++k)
       {
-         // const double D00 = data_d[terms*k + 0];
-         // const double D10 = data_d[terms*k + 1];
-         // const double D01 = data_d[terms*k + 2];
-         // const double D11 = data_d[terms*k + 3];
          int ind0[] = {0,k,e};
          int ind1[] = {1,k,e};
          const double D0 = D(ind0);
@@ -481,7 +476,7 @@ void MultBtDG2(FiniteElementSpace* fes, DenseMatrix const& shape1d,
 
       // increment offset
       offset += dofs;
-   }   
+   }
 }
 
 void MultBtDG3(FiniteElementSpace* fes, DenseMatrix const& shape1d,
@@ -967,13 +962,13 @@ void MultBtDB2int(int ind_trial, FiniteElementSpace* fes,
    int info_e1, info_e2;
    int face_id1, face_id2;
    // the element we're working on
-   int e, info_e, face_id;
+   int e, face_id;
    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
    int dofs1d = fes->GetFE(0)->GetOrder() + 1;
    // number of degrees of freedom in 3d
    int dofs2d = dofs1d*dofs1d;
    // number of quadrature points
-   int quads1d = shape1d.Width();
+   //int quads1d = shape1d.Width();
    // number of dofs for trial functions in every direction relative to
    // the element on which trial functions are.
    int i1(dofs1d),i2(dofs1d);
@@ -987,7 +982,7 @@ void MultBtDB2int(int ind_trial, FiniteElementSpace* fes,
    DenseMatrix B1,B2,B3,B4;
    // Temporary tensors (we can most likely reduce their number)
    DenseMatrix T0,T1,T2,T3,T4,R;
-   int i,j,k,l;
+   int i,j,k;
    for(int face = 0; face < nb_faces; face++)
    {
       // We collect the indices of the two elements on
@@ -1000,42 +995,40 @@ void MultBtDB2int(int ind_trial, FiniteElementSpace* fes,
       if(ind_trial==1){
          e = e1;
          face_id = face_id1;
-         info_e = info_e1;
       }else{
          e = e2;
          face_id = face_id2;
-         info_e = info_e2;
       }
       if(e!=-1){// Checks if this is a boundary face
          InitTrialB2d(face_id,shape1d,shape0d0,shape0d1,B1,B2);
          InitTestIntB2d(face_id,shape1d,shape0d0,shape0d1,B3,B4);
          // Initialization of T0 with the dofs of element e1: T0 = U(e1)
-         DenseMatrix T0(U.GetData()+e*dofs2d, dofs1d, dofs1d);
-         DenseMatrix R(V.GetData() +e*dofs2d, dofs1d, dofs1d);
+         DenseMatrix T0(U.GetData()+e*dofs2d, i1, i2);
+         DenseMatrix R(V.GetData() +e*dofs2d, j1, j2);
          // We perform T1 = B1 . T0
          k1 = B1.Width();
          T1.SetSize(i2,k1);
-         for (j = 0; j < k1; j++){
+         /*for (j = 0; j < k1; j++){
             for (i = 0; i < i2; i++){
                T1(i,j) = 0;
                for (l = 0; l < i1; l++){
                   T1(i,j) += B1(l,j) * T0(l,i);
                }
             }
-         }
+         }*/
+         MultAtB(T0,B1,T1);
          // We perform T2 = B2 . T1
          k2 = B2.Width();
          T2.SetSize(k1,k2);
-         for (j = 0; j < k2; j++){
+         /*for (j = 0; j < k2; j++){
             for (i = 0; i < k1; i++){
                T2(i,j) = 0;
                for (l = 0; l < i2; l++){
                   T2(i,j) += B2(l,j) * T1(l,i);
                }
             }
-         }
-         // Above code can be factorized and applied to e1 and e2 (if no hp-adaptivity)
-         // ToSelf: Complexity can be in there too
+         }*/
+         MultAtB(T1,B2,T2);
          // We perform T4 = D : T3
          T3.SetSize(k1,k2);
          for (j = 0, k = 0; j < k2; j++){
@@ -1047,7 +1040,7 @@ void MultBtDB2int(int ind_trial, FiniteElementSpace* fes,
             }
          }
          // We perform T5 = B4 . T4
-         T4.SetSize(k2,j1);
+         /*T4.SetSize(k2,j1);
          for (j = 0; j < j1; j++){
             for (i = 0; i < k2; i++){
                T4(i,j) = 0;
@@ -1056,19 +1049,20 @@ void MultBtDB2int(int ind_trial, FiniteElementSpace* fes,
                   T4(i,j) += B3(j,l) * T3(l,i);
                }
             }
-         }
+         }*/
+         T4.SetSize(j1,k2);
+         Mult(B3,T3,T4);
          // We perform V = B6 . T6
          // We sort the result so that dofs are j1 then j2 then j3.
-         //R.SetSize(j1,j2);
-         for (j = 0; j < j2; j++){
+         /*for (j = 0; j < j2; j++){
             for (i = 0; i < j1; i++){
-               //R(i,j) = 0; //should be initialized by someone else
                for (l = 0; l < k2; l++){
                   //R(i,j) += B4(l,*m) * T4(l,*n);//for later
                   R(i,j) += B4(j,l) * T4(l,i);
                }
             }
-         }
+         }*/
+         AddMultABt(T4,B4,R);
       }
    }
 }
@@ -1091,7 +1085,7 @@ void MultBtDB2ext(int ind_trial, FiniteElementSpace* fes,
    // number of degrees of freedom in 3d
    int dofs2d = dofs1d*dofs1d;
    // number of quadrature points
-   int quads1d = shape1d.Width();
+   // int quads1d = shape1d.Width();
    // number of dofs for trial functions in every direction relative to
    // the element on which trial functions are.
    int i1(dofs1d),i2(dofs1d);
@@ -1129,12 +1123,8 @@ void MultBtDB2ext(int ind_trial, FiniteElementSpace* fes,
          face_id_test = face_id1;
       }
       if(e_test!=-1 && e_trial!=-1){
-         // cout << "face=" << face << endl;
-         // cout << "(e_trial,e_test)=(" << e_trial << "," << e_test << ")\n";
-         // cout << "(face_id_trial,face_id_test)=(" << face_id_trial << "," << face_id_test << ")\n";
-         // cout << "(orient1,orient2)=(" << info_e1%64 << ", " << info_e2%64 << ")\n";
+         // Initialization of B1,B2,B3,B4
          InitTrialB2d(face_id_trial,shape1d,shape0d0,shape0d1,B1,B2);
-         //InitTestIntB2d(face_id_test,shape1d,shape0d0,shape0d1,B3,B4);
          InitTestExtB2d(face,face_id_test,coord_change,backward,shape1d,shape0d0,shape0d1,B3,B4);
          // Initialization of T0 with the dofs of element e1: T0 = U(e1)
          DenseMatrix T0(U.GetData() + e_trial * dofs2d, dofs1d, dofs1d);
@@ -1142,25 +1132,27 @@ void MultBtDB2ext(int ind_trial, FiniteElementSpace* fes,
          // We perform T1 = B1 . T0
          k1 = B1.Width();
          T1.SetSize(i2,k1);
-         for (j = 0; j < k1; j++){
+         /*for (j = 0; j < k1; j++){
             for (i = 0; i < i2; i++){
                T1(i,j) = 0;
                for (l = 0; l < i1; l++){
                   T1(i,j) += B1(l,j) * T0(l,i);
                }
             }
-         }
+         }*/
+         MultAtB(T0,B1,T1);         
          // We perform T2 = B2 . T1
          k2 = B2.Width();
          T2.SetSize(k1,k2);
-         for (j = 0; j < k2; j++){
+         /*for (j = 0; j < k2; j++){
             for (i = 0; i < k1; i++){
                T2(i,j) = 0;
                for (l = 0; l < i2; l++){
                   T2(i,j) += B2(l,j) * T1(l,i);
                }
             }
-         }
+         }*/
+         MultAtB(T1,B2,T2);
          // We perform T3 = D : T2
          T3.SetSize(k1,k2);
          for (j = 0, k = 0; j < k2; j++){

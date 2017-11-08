@@ -78,6 +78,9 @@ public:
 
 int main(int argc, char *argv[])
 {
+
+   tic_toc.Clear();
+   tic_toc.Start();
    // 1. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../data/periodic-hexagon.mesh";
@@ -183,8 +186,8 @@ int main(int argc, char *argv[])
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    k.AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
-   k.AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   //k.AddBdrFaceIntegrator(
+   //   new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
@@ -304,6 +307,9 @@ int main(int argc, char *argv[])
       u.Save(osol);
    }
 
+   tic_toc.Stop();
+   cout << " done, " << tic_toc.RealTime() << "s." << endl;
+
    // 10. Free the used memory.
    delete ode_solver;
    delete dc;
@@ -328,6 +334,26 @@ FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b)
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
+	/*y = 0.;
+   Vector xx(x);
+   int size = xx.Size();
+   int n = size;
+   int order = 1;
+   int dofs = (order+1)*(order+1);
+   for (int i = 0; i < n; ++i)
+   {
+      cout << "cacahuete " << i << endl;
+      xx = 0.;
+      xx(i) = 1000.;
+      // y = M^{-1} (K x + b)
+      K.Mult(xx, z);
+      for (int j = 0; j < z.Size(); ++j)
+      {
+         z(j) = abs(z(j)) < 1e-12 ? 0 : z(j);
+      }
+      z.Print(std::cout,dofs);
+      y += z;
+   }*/
    // y = M^{-1} (K x + b)
    K.Mult(x, z);
    z += b;
