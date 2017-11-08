@@ -113,11 +113,13 @@ public:
    {
       Center = 0, ///< Use the center of the reference element.
       ClosestPhysNode = 1, /**<
-         Use the point returned by FindClosestPhysPoint() from a uniform
-         reference-space grid of size ElementTransformation::Order(). */
+         Use the point returned by FindClosestPhysPoint() from a reference-space
+         grid of type and size controlled by SetInitGuessPointsType() and
+         SetInitGuessRelOrder(), respectively. */
       ClosestRefNode = 2, /**<
-         Use the point returned by FindClosestRefPoint() from a uniform
-         reference-space grid of size ElementTransformation::Order(). */
+         Use the point returned by FindClosestRefPoint() from a reference-space
+         grid of type and size controlled by SetInitGuessPointsType() and
+         SetInitGuessRelOrder(), respectively. */
       GivenPoint = 3 ///< Use a specific point, set with SetInitialGuess().
    };
 
@@ -154,6 +156,8 @@ protected:
    // Parameters of the inversion algorithms:
    const IntegrationPoint *ip0;
    int init_guess_type; // algorithm to use
+   int qpts_type; // Quadrature1D type for the initial guess type
+   int rel_qpts_order; // num_1D_qpts = max(trans_order+rel_qpts_order,0)+1
    int solver_type; // solution strategy to use
    int max_iter; // max. number of Newton iterations
    double ref_tol; // reference space tolerance
@@ -195,6 +199,8 @@ public:
       : T(Trans),
         ip0(NULL),
         init_guess_type(Center),
+        qpts_type(Quadrature1D::OpenHalfUniform),
+        rel_qpts_order(-1),
         solver_type(NewtonElementProject),
         max_iter(16),
         ref_tol(1e-15),
@@ -216,6 +222,15 @@ public:
        switching to the #GivenPoint #InitGuessType at the same time. */
    void SetInitialGuess(const IntegrationPoint &init_ip)
    { ip0 = &init_ip; SetInitialGuessType(GivenPoint); }
+
+   /// Set the Quadrature1D type used for the `Closest*` initial guess types.
+   void SetInitGuessPointsType(int q_type) { qpts_type = q_type; }
+
+   /// Set the relative order used for the `Closest*` initial guess types.
+   /** The number of points in each spatial direction is given by the formula
+       max(trans_order+order,0)+1, where trans_order is the order of the current
+       ElementTransformation. */
+   void SetInitGuessRelOrder(int order) { rel_qpts_order = order; }
 
    /** @brief Specify which algorithm to use for solving the transformation
        equation, i.e. when calling the Transform() method. */

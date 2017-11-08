@@ -219,7 +219,7 @@ public:
 class GeometryRefiner
 {
 private:
-   int type; // 0 - uniform points, otherwise - poly1d.ClosedPoints
+   int type; // Quadrature1D type (ClosedUniform is default)
    Array<RefinedGeometry *> RGeom[Geometry::NumGeom];
    Array<IntegrationRule *> IntPts[Geometry::NumGeom];
 
@@ -229,9 +229,14 @@ private:
 public:
    GeometryRefiner();
 
+   /// Set the Quadrature1D type of points to use for subdivision.
    void SetType(const int t) { type = t; }
+   /// Get the Quadrature1D type of points used for subdivision.
    int GetType() const { return type; }
+
    RefinedGeometry *Refine(int Geom, int Times, int ETimes = 1);
+
+   /// @note This method always uses Quadrature1D::OpenUniform points.
    const IntegrationRule *RefineInterior(int Geom, int Times);
 
    ~GeometryRefiner();
