@@ -19,9 +19,10 @@ protected:
    mutable SuperLUSolver *stiff_prec;
 
    Array<int> &block_trueOffsets;
+   Array<Array<int> *> &ess_bdr;
 
 public:
-   JacobianPreconditioner(Operator &mass, Array<int> &offsets);
+   JacobianPreconditioner(Operator &mass, Array<int> &offsets, Array<Array<int> *> &bdr);
    
    virtual void Mult(const Vector &k, Vector &y) const;
    virtual void SetOperator(const Operator &op);
@@ -300,8 +301,9 @@ int main(int argc, char *argv[])
 }
 
 JacobianPreconditioner::JacobianPreconditioner(Operator &mass,
-                                               Array<int> &offsets)
-   : Solver(offsets[2]), block_trueOffsets(offsets), Pressure_mass(&mass)
+                                               Array<int> &offsets,
+                                               Array<Array<int> *> &bdr)
+   : Solver(offsets[2]), block_trueOffsets(offsets), Pressure_mass(&mass), ess_bdr(bdr)
 {
    /*
    mass_prec = new HypreBoomerAMG();
@@ -352,12 +354,13 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
 {
 
    Jacobian = (BlockOperator *) &op;
-
+   
    stiff_prec = new SuperLUSolver(MPI_COMM_WORLD);
    stiff_prec->SetPrintStatistics(false);
    stiff_prec->SetSymmetricPattern(false);
    stiff_prec->SetColumnPermutation(superlu::PARMETIS);
    stiff_prec->SetOperator(Jacobian->GetBlock(0,0));
+   
 
 }
 
@@ -394,24 +397,6 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    // Set the essential boundary conditions
    Hform->SetEssentialBC(ess_bdr, rhs);
 
-   SuperLUSolver *superlu = NULL;
-   superlu = new SuperLUSolver(MPI_COMM_WORLD);
-   superlu->SetPrintStatistics(false);
-   superlu->SetSymmetricPattern(false);
-   superlu->SetColumnPermutation(superlu::PARMETIS);
-
-   J_solver = superlu;
-   J_prec = NULL;
-
-   // Set the newton solve parameters
-   newton_solver.iterative_mode = true;
-   newton_solver.SetSolver(*J_solver);
-   newton_solver.SetOperator(*this);
-   newton_solver.SetPrintLevel(1);
-   newton_solver.SetRelTol(rel_tol);
-   newton_solver.SetAbsTol(abs_tol);
-   newton_solver.SetMaxIter(iter);
-
    ParBilinearForm *a = new ParBilinearForm(spaces[1]);
    ConstantCoefficient one(1.0);
    OperatorHandle mass(Operator::Hypre_ParCSR);
@@ -422,6 +407,27 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    mass.SetOperatorOwner(false);
    Pressure_mass = mass.Ptr();
 
+   JacobianPreconditioner *Jac_prec = new JacobianPreconditioner(*Pressure_mass, block_trueOffsets, ess_bdr);
+   J_prec = Jac_prec;
+
+   MINRESSolver *J_minres = new MINRESSolver(spaces[0]->GetComm());
+   J_minres->SetRelTol(1.0e-8);
+   J_minres->SetAbsTol(1.0e-8);
+   J_minres->SetMaxIter(3000000);
+   J_minres->SetPrintLevel(0);
+   J_minres->SetPreconditioner(*J_prec);
+   J_solver = J_minres;
+
+   J_solver = J_minres;
+
+   // Set the newton solve parameters
+   newton_solver.iterative_mode = true;
+   newton_solver.SetSolver(*J_solver);
+   newton_solver.SetOperator(*this);
+   newton_solver.SetPrintLevel(1);
+   newton_solver.SetRelTol(rel_tol);
+   newton_solver.SetAbsTol(abs_tol);
+   newton_solver.SetMaxIter(iter);
 
 }
 
