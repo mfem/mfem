@@ -73,9 +73,11 @@ Discretization improvements
   point as found. Note that the current implementation of this method is not
   optimal and/or 100% reliable. See the mesh-explorer miniapp for an example.
 
-- Improved the robustness of IsoparametricTransformation's TransformBack
-  function, which attempts to find the IntegrationPoint within a specified
-  element that is transformed to a given point in space.
+- Added a new class InverseElementTransformation, that supports a number of
+  algorithms for inversion of general ElementTransformations. This class can be
+  used as a more flexible and extensible alternative to ElementTransformation's
+  TransformBack method. It is also used in the FindPoints methods as a tunable
+  and customizable inversion algorithm.
 
 Miscellaneous
 -------------
@@ -102,14 +104,12 @@ API changes
   return a pointer to Coefficient (instead of reference). Note that NULL pointer
   is a valid entry for these two classes - it is treated as the zero function.
 
-- Added an overload for IsoparametricTranformation::TransformBack() that allows
-  users to set the refinement level for finding the initial IntegrationPoint.
-  The default value uses the underlying finite element's order. Note that
-  the previous behavior was to use the element's center, which can be achieved
-  by setting the refinement order to 0 in the new overload.
-
 - When building with PETSc, the required PETSc version is now 3.8.0. Newer
   versions may work too, as long as there are no interface changes in PETSc.
+
+- The class GeometryRefiner now uses the enum in Quadrature1D for its type
+  specification. In particular, this will affect older versions of GLVis. A
+  simple upgrade to the latest version of GLVis should resolve this issue.
 
 
 Version 3.3, released on Jan 28, 2017
