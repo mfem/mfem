@@ -37,8 +37,9 @@ protected:
 public:
 
    /// Constants for the classes derived from Element.
-   enum Type { POINT, SEGMENT, TRIANGLE, QUADRILATERAL, TETRAHEDRON,
-               HEXAHEDRON, PRISM
+   enum Type { INVALID = -2, MIXED = -1, POINT, SEGMENT,
+               TRIANGLE, QUADRILATERAL,
+               TETRAHEDRON, PRISM, HEXAHEDRON
              };
 
    /// Default element constructor.
@@ -49,6 +50,8 @@ public:
    virtual Type GetType() const = 0;
 
    Geometry::Type GetGeometryType() const { return base_geom; }
+
+   static Geometry::Type GeometryType(Element::Type type);
 
    /// Return element's attribute.
    inline int GetAttribute() const { return attribute; }
