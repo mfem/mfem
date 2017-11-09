@@ -1070,6 +1070,76 @@ void Mesh::FinalizeCheck()
                << boundary.Size() << ", actually added: " << NumOfBdrElements);
 }
 
+void Mesh::PruneExtraVertices()
+{
+   // Mark vertices belonging to the elements
+   Array<bool> ownv(NumOfVertices);
+   ownv = false;
+   for (int i=0; i < NumOfElements; i++)
+   {
+      Array<int> v;
+      GetElementVertices(i, v);
+      for (int j=0; j<v.Size(); j++)
+      {
+         ownv[v[j]] = true;
+      }
+   }
+
+   // Determine lone vertices
+   Array<int> lonev;
+   lonev.Reserve(NumOfVertices);
+   for (int i=0; i < NumOfVertices; i++)
+   {
+      if (!ownv[i])
+      {
+         lonev.Append(i);
+      }
+   }
+
+   // Prune the extra vertices
+   if (lonev.Size() > 0)
+   {
+      int cv = 0;
+      Array<Vertex> newvertices(NumOfVertices-lonev.Size());
+      Array<int> neword(NumOfVertices);
+      neword = -1;
+      for (int i = 0; i < NumOfVertices; i++)
+      {
+         if (!ownv[i]) { continue; }
+         neword[i] = cv;
+         newvertices[cv] = vertices[i];
+         cv++;
+      }
+      NumOfVertices = newvertices.Size();
+      mfem::Swap(vertices, newvertices);
+      newvertices.DeleteAll();
+
+      // Replace the vertex ids in the elements with the reordered
+      // vertex numbers
+      for (int i=0; i < NumOfElements; i++)
+      {
+         int *elem_vert = elements[i]->GetVertices();
+         int nv = elements[i]->GetNVertices();
+         for (int vi = 0; vi < nv; ++vi)
+         {
+            elem_vert[vi] = neword[elem_vert[vi]];
+         }
+      }
+
+      // Replace the vertex ids in the boundary with the reordered
+      // vertex numbers
+      for (int i = 0; i < NumOfBdrElements; ++i)
+      {
+         int *be_vert = boundary[i]->GetVertices();
+         int nv = boundary[i]->GetNVertices();
+         for (int vi = 0; vi < nv; ++vi)
+         {
+            be_vert[vi] = neword[be_vert[vi]];
+         }
+      }
+   }
+}
+
 void Mesh::FinalizeTriMesh(int generate_edges, int refine, bool fix_orientation)
 {
    FinalizeCheck();
@@ -1833,7 +1903,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
    }
 
    // Requirements:
-   //  1) FinilizeTopology() or equivalent was called
+   //  1) FinalizeTopology() or equivalent was called
    //  2) if (Nodes == NULL), vertices must be defined
    //  3) if (Nodes != NULL), Nodes must be defined
 
