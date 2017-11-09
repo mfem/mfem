@@ -86,6 +86,7 @@ endforeach()
 if (MFEM_USE_SUNDIALS)
   add_subdirectory(sundials)
 endif()
+
 # Include the examples/petsc directory if PETSc is enabled.
 if (MFEM_USE_PETSC)
   add_subdirectory(petsc)

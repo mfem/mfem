@@ -72,12 +72,18 @@ New and updated examples and miniapps
 
 Discretization improvements
 ---------------------------
-- Added a FindPoints method to the Mesh and ParMesh classes that returns the
-  elements containing a given set of points, together with the coordinates of
-  the points in the reference space of the corresponding element. In parallel,
+- Added a FindPoints method of the Mesh and ParMesh classes that returns the
+  elements that contain a given set of points, together with the coordinates of
+  the points in the reference space of the corresponding element.  In parallel,
   if a point is shared by multiple processors, only one of them will mark that
   point as found. Note that the current implementation of this method is not
-  optimal and/or 100% reliable.
+  optimal and/or 100% reliable. See the mesh-explorer miniapp for an example.
+
+- Added a new class InverseElementTransformation, that supports a number of
+  algorithms for inversion of general ElementTransformations. This class can be
+  used as a more flexible and extensible alternative to ElementTransformation's
+  TransformBack method. It is also used in the FindPoints methods as a tunable
+  and customizable inversion algorithm.
 
 - Memory optimizations in the NCMesh class, which now uses 50% less memory than
   before. The average cost of an element in a uniformly refined mesh (including
@@ -135,6 +141,10 @@ API changes
 
 - When building with PETSc, the required PETSc version is now 3.8.0. Newer
   versions may work too, as long as there are no interface changes in PETSc.
+
+- The class GeometryRefiner now uses the enum in Quadrature1D for its type
+  specification. In particular, this will affect older versions of GLVis. A
+  simple upgrade to the latest version of GLVis should resolve this issue.
 
 
 Version 3.3, released on Jan 28, 2017
