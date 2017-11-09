@@ -17,6 +17,7 @@
 #include "matrix.hpp"
 #include "densemat.hpp"
 #include "../general/table.hpp"
+#include "../general/globals.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -919,17 +920,17 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 
    if (INFO != 0)
    {
-      cerr << "dsyevr_Eigensystem(...): DSYEVR error code: "
-           << INFO << endl;
+      mfem::err << "dsyevr_Eigensystem(...): DSYEVR error code: "
+                << INFO << endl;
       mfem_error();
    }
 
 #ifdef MFEM_DEBUG
    if (M < N)
    {
-      cerr << "dsyevr_Eigensystem(...):\n"
-           << " DSYEVR did not find all eigenvalues "
-           << M << "/" << N << endl;
+      mfem::err << "dsyevr_Eigensystem(...):\n"
+                << " DSYEVR did not find all eigenvalues "
+                << M << "/" << N << endl;
       mfem_error();
    }
    if (CheckFinite(W, N) > 0)
@@ -963,19 +964,19 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
          }
          if (VU > 0.5)
          {
-            cerr << "dsyevr_Eigensystem(...):"
-                 << " Z^t Z - I deviation = " << VU
-                 << "\n W[max] = " << W[N-1] << ", W[min] = "
-                 << W[0] << ", N = " << N << endl;
+            mfem::err << "dsyevr_Eigensystem(...):"
+                      << " Z^t Z - I deviation = " << VU
+                      << "\n W[max] = " << W[N-1] << ", W[min] = "
+                      << W[0] << ", N = " << N << endl;
             mfem_error();
          }
       }
    if (VU > 1e-9)
    {
-      cerr << "dsyevr_Eigensystem(...):"
-           << " Z^t Z - I deviation = " << VU
-           << "\n W[max] = " << W[N-1] << ", W[min] = "
-           << W[0] << ", N = " << N << endl;
+      mfem::err << "dsyevr_Eigensystem(...):"
+                << " Z^t Z - I deviation = " << VU
+                << "\n W[max] = " << W[N-1] << ", W[min] = "
+                << W[0] << ", N = " << N << endl;
    }
    if (VU > 1e-5)
    {
@@ -998,10 +999,10 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
       }
    if (VU > 1e-9)
    {
-      cerr << "dsyevr_Eigensystem(...):"
-           << " max matrix deviation = " << VU
-           << "\n W[max] = " << W[N-1] << ", W[min] = "
-           << W[0] << ", N = " << N << endl;
+      mfem::err << "dsyevr_Eigensystem(...):"
+                << " max matrix deviation = " << VU
+                << "\n W[max] = " << W[N-1] << ", W[min] = "
+                << W[0] << ", N = " << N << endl;
    }
    if (VU > 1e-5)
    {
@@ -1063,7 +1064,7 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 
    if (INFO != 0)
    {
-      cerr << "dsyev_Eigensystem: DSYEV error code: " << INFO << endl;
+      mfem::err << "dsyev_Eigensystem: DSYEV error code: " << INFO << endl;
       mfem_error();
    }
 
@@ -1118,7 +1119,7 @@ void DenseMatrix::SingularValues(Vector &sv) const
    delete [] work;
    if (info)
    {
-      cerr << "DenseMatrix::SingularValues : info = " << info << endl;
+      mfem::err << "DenseMatrix::SingularValues : info = " << info << endl;
       mfem_error();
    }
 #else
@@ -2924,8 +2925,8 @@ void DenseMatrix::TestInversion()
    {
       C(i,i) -= 1.0;
    }
-   cout << "size = " << width << ", i_max = " << C.MaxMaxNorm()
-        << ", cond_F = " << FNorm()*copy.FNorm() << endl;
+   mfem::out << "size = " << width << ", i_max = " << C.MaxMaxNorm()
+             << ", cond_F = " << FNorm()*copy.FNorm() << endl;
 }
 
 DenseMatrix::~DenseMatrix()
@@ -4191,7 +4192,7 @@ void DenseMatrixInverse::TestInversion()
    {
       C(i,i) -= 1.0;
    }
-   cout << "size = " << width << ", i_max = " << C.MaxMaxNorm() << endl;
+   mfem::out << "size = " << width << ", i_max = " << C.MaxMaxNorm() << endl;
 }
 
 DenseMatrixInverse::~DenseMatrixInverse()
@@ -4238,8 +4239,8 @@ void DenseMatrixEigensystem::Eval()
 
    if (info != 0)
    {
-      cerr << "DenseMatrixEigensystem::Eval(): DSYEV error code: "
-           << info << endl;
+      mfem::err << "DenseMatrixEigensystem::Eval(): DSYEV error code: "
+                << info << endl;
       mfem_error();
    }
 #else
@@ -4304,7 +4305,7 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
 
    if (info)
    {
-      cerr << "DenseMatrixSVD::Eval() : info = " << info << endl;
+      mfem::err << "DenseMatrixSVD::Eval() : info = " << info << endl;
       mfem_error();
    }
 #else

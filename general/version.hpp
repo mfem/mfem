@@ -9,20 +9,21 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "osockstream.hpp"
-#include "globals.hpp"
+#ifndef MFEM_VERSION_HPP
+#define MFEM_VERSION_HPP
 
 namespace mfem
 {
 
-osockstream::osockstream(int port, const char *hostname)
-   : socketstream(hostname, port)
-{
-   if (!is_open())
-   {
-      mfem::err << "Unable to connect to port " << port << " on "
-                << hostname << '\n';
-   }
-}
+int GetVersion();
+int GetVersionMajor();
+int GetVersionMinor();
+int GetVersionPatch();
 
-}
+const char *GetVersionStr();
+const char *GetGitStr();
+const char *GetConfigStr();
+
+} // namespace mfem
+
+#endif
