@@ -18,8 +18,6 @@ Geometry::Type GeometryType(Element::Type type)
 {
    switch (type)
    {
-      case Element::INVALID:
-         return Geometry::INVALID;
       case Element::MIXED:
          return Geometry::MIXED;
       case Element::POINT:
@@ -36,6 +34,8 @@ Geometry::Type GeometryType(Element::Type type)
          return Geometry::PRISM;
       case Element::HEXAHEDRON:
          return Geometry::CUBE;
+      default:
+         return Geometry::INVALID;
    }
 }
 

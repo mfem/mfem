@@ -66,12 +66,17 @@ protected:
    // Mesh, such as FiniteElementSpace, GridFunction, etc.
    long sequence;
 
-   std::map<Element::Type, Array<Element *> > elements;
+   typedef std::map<Element::Type, Array<Element*> > ElemArray;
+   typedef std::map<Element::Type, Array<Element*> >::iterator ElemIterator;
+   typedef std::map<Element::Type,
+           Array<Element*> >::const_iterator ElemConstIterator;
+
+   ElemArray elements;
    // Vertices are only at the corners of elements, where you would expect them
    // in the lowest-order mesh.
    Array<Vertex> vertices;
-   std::map<Element::Type, Array<Element *> > boundary;
-   std::map<Element::Type, Array<Element *> > faces;
+   ElemArray boundary;
+   ElemArray faces;
 
    struct FaceInfo
    {
@@ -179,8 +184,7 @@ public:
 
 protected:
 
-   int CountJaggedArrayEntries(const std::map<Element::Type,
-                               Array<Element*> > & m) const;
+   static int CountJaggedArrayEntries(const ElemArray & m);
 
    int CountElements() const
    { return CountJaggedArrayEntries(elements); }
@@ -192,12 +196,11 @@ protected:
    { return CountJaggedArrayEntries(faces); }
 
 
-   void GetTypeAndIndex(const std::map<Element::Type, Array<Element*> > & m,
+   void GetTypeAndIndex(const ElemArray & m,
                         int i, Element::Type & type, int & index) const;
 
-   const Array<Element*> &
-   GetArrayAndOffset(const std::map<Element::Type, Array<Element*> > & m,
-                     int i, int & offset) const;
+   const Array<Element*> & GetArrayAndOffset(const ElemArray & m,
+                                             int i, int & offset) const;
 
    Mesh::Operation last_operation;
 
@@ -284,20 +287,20 @@ protected:
    void UpdateNodes();
 
    /// Refine quadrilateral mesh.
-   virtual void QuadUniformRefinement();
+   // virtual void QuadUniformRefinement();
 
    /// Refine hexahedral mesh.
-   virtual void HexUniformRefinement();
+   // virtual void HexUniformRefinement();
 
    /// Refine NURBS mesh.
    virtual void NURBSUniformRefinement();
 
    /// This function is not public anymore. Use GeneralRefinement instead.
-   virtual void LocalRefinement(const Array<int> &marked_el, int type = 3);
+   // virtual void LocalRefinement(const Array<int> &marked_el, int type = 3);
 
    /// This function is not public anymore. Use GeneralRefinement instead.
-   virtual void NonconformingRefinement(const Array<Refinement> &refinements,
-                                        int nc_limit = 0);
+   // virtual void NonconformingRefinement(const Array<Refinement> &refinements,
+   //                                    int nc_limit = 0);
 
    /// NC version of GeneralDerefinement.
    virtual bool NonconformingDerefinement(Array<double> &elem_error,
@@ -341,7 +344,7 @@ protected:
    /// Returns the orientation of "test" relative to "base"
    static int GetQuadOrientation (const int * base, const int * test);
 
-   static void GetElementArrayEdgeTable(const Array<Element*> &elem_array,
+   static void GetElementArrayEdgeTable(const ElemArray & elem_array,
                                         const DSTable &v_to_v,
                                         Table &el_to_edge);
 
@@ -380,7 +383,7 @@ protected:
    // shift cyclically 3 integers so that the smallest is first
    inline static void Rotate3(int &, int &, int &);
 
-   void FreeElements(std::map<Element::Type, Array<Element*> > & m);
+   void FreeElements(ElemArray & m);
 
    void FreeElement(Element *E);
 
@@ -798,10 +801,10 @@ public:
    void GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const;
 
    /// Returns the type of element i.
-   int GetElementType(int i) const;
+   Element::Type GetElementType(int i) const;
 
    /// Returns the type of boundary element i.
-   int GetBdrElementType(int i) const;
+   Element::Type GetBdrElementType(int i) const;
 
    /* Return point matrix of element i of dimension Dim X #v, where for every
       vertex we give its coordinates in space of dimension Dim. */
