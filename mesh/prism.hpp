@@ -43,7 +43,7 @@ public:
          int attr = 1);
 
    /// Return element's type.
-   virtual int GetType() const { return Element::PRISM; }
+   virtual Type GetType() const { return Element::PRISM; }
 
    // void  ParseRefinementFlag(int refinement_edges[2], int &type, int &flag);
    // void CreateRefinementFlag(int refinement_edges[2], int  type, int  flag = 0);

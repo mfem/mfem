@@ -29,22 +29,26 @@ class Element
 protected:
 
    /// Element's attribute (specifying material property, etc).
-   int attribute, base_geom;
+   int attribute;
+
+   /// Element's type from the Finite Element's perspective
+   Geometry::Type base_geom;
 
 public:
 
    /// Constants for the classes derived from Element.
    enum Type { POINT, SEGMENT, TRIANGLE, QUADRILATERAL, TETRAHEDRON,
-               PRISM, HEXAHEDRON
+               HEXAHEDRON, PRISM
              };
 
    /// Default element constructor.
-   explicit Element(int bg = Geometry::POINT) { attribute = -1; base_geom = bg; }
+   explicit Element(Geometry::Type bg = Geometry::POINT)
+   { attribute = -1; base_geom = bg; }
 
    /// Returns element's type
-   virtual int GetType() const = 0;
+   virtual Type GetType() const = 0;
 
-   int GetGeometryType() const { return base_geom; }
+   Geometry::Type GetGeometryType() const { return base_geom; }
 
    /// Return element's attribute.
    inline int GetAttribute() const { return attribute; }

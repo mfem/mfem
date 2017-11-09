@@ -39,7 +39,7 @@ public:
    Triangle(int ind1, int ind2, int ind3, int attr = 1);
 
    /// Return element's type.
-   virtual int GetType() const { return Element::TRIANGLE; }
+   virtual Type GetType() const { return Element::TRIANGLE; }
 
    /// Return 1 if the element needs refinement in order to get conforming mesh.
    virtual int NeedRefinement(DSTable &v_to_v, int *middle) const;

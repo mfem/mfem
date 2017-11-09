@@ -52,7 +52,7 @@ public:
    Tetrahedron(int ind1, int ind2, int ind3, int ind4, int attr = 1);
 
    /// Return element's type.
-   virtual int GetType() const { return Element::TETRAHEDRON; }
+   virtual Type GetType() const { return Element::TETRAHEDRON; }
 
    void  ParseRefinementFlag(int refinement_edges[2], int &type, int &flag);
    void CreateRefinementFlag(int refinement_edges[2], int  type, int  flag = 0);

@@ -33,7 +33,7 @@ public:
    Point( const int *ind, int attr = -1 );
 
    /// Return element's type.
-   virtual int GetType() const { return Element::POINT; }
+   virtual Type GetType() const { return Element::POINT; }
 
    /// Returns the indices of the element's  vertices.
    virtual void GetVertices( Array<int> &v ) const;
