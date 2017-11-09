@@ -49,7 +49,7 @@ add_custom_target(copy_petsc_rc_files DEPENDS ${PETSC_RC_FILES}
 
 # Add "test_petsc" target, see below.
 add_custom_target(test_petsc
-  ${CMAKE_CTEST_COMMAND} -R petsc -C PETSC USES_TERMINAL)
+  ${CMAKE_CTEST_COMMAND} -R petsc USES_TERMINAL)
 
 # Add one executable per cpp file, adding "petsc_" as prefix. Sets
 # "copy_petsc_rc_files" as a prerequisite for the given examples. Also, sets
@@ -58,10 +58,9 @@ set(PFX petsc_)
 add_mfem_examples(PETSC_EXAMPLES_SRCS ${PFX} copy_petsc_rc_files test_petsc)
 
 # Testing.
-# We do not want these tests to be run by default, so we add them to their own
-# configuration - PETSC. To run the tests defined here use the "test_petsc"
-# target which builds the examples and runs:
-#   ctest -C PETSC -R petsc
+# The PETSc tests can be run separately using the target "test_petsc" which
+# builds the examples and runs:
+#   ctest -R petsc
 
 # Command line options for the tests.
 set(EX1P_ARGS -m ../../data/amr-quad.mesh --usepetsc --petscopts rc_ex1p)
@@ -97,10 +96,11 @@ foreach(TEST_OPTIONS_VAR
   # message(STATUS "${TEST_NAME_FULL} --> ${TEST_NAME} ${TEST_OPTIONS}")
 
   # All PETSC tests are parallel.
-  add_test(NAME ${TEST_NAME_FULL}_np=4
-    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4
-    ${MPIEXEC_PREFLAGS}
-    $<TARGET_FILE:${TEST_NAME}> ${TEST_OPTIONS}
-    ${MPIEXEC_POSTFLAGS}
-    CONFIGURATIONS PETSC)
+  if (MFEM_USE_MPI)
+    add_test(NAME ${TEST_NAME_FULL}_np=4
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:${TEST_NAME}> ${TEST_OPTIONS}
+      ${MPIEXEC_POSTFLAGS})
+  endif()
 endforeach()
