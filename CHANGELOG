@@ -24,6 +24,12 @@ High-order mesh optimization
 
 New and improved solvers and preconditioners
 --------------------------------------------
+- MFEM is now included in xSDK, the Extreme-scale Scientific Software
+  Development Kit as of version 0.3.0. Various changes were made to
+  comply with xSDK's community policies, https://xsdk.info/policies.
+
+- Updated MFEM integration to support the new SUNDIALS 3.0.0 interface.
+
 - Added optional support for the STRUMPACK parallel sparse direct solver and
   preconditioner. STRUMPACK uses Hierarchically Semi-Separable (HSS) compression
   in a fully algebraic manner, with interface similar to SuperLU_DIST. See
@@ -48,6 +54,11 @@ Performance improvements
 
 New and updated examples and miniapps
 -------------------------------------
+- Added a new serial and parallel example (ex18) that solves the transient Euler
+  equations on a periodic domain with explicit time integrators. In the process
+  extended the NonlinearForm class to allow for integrals over faces and
+  exchanging face-neighbor data in parallel.
+
 - Added a new meshing miniapp, Shaper, that can be used to resolve complicated
   material interfaces by mesh refinement, e.g. as a tool for initial mesh
   generation from prescribed "material()" function.  Both conforming and

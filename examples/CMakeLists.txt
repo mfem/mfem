@@ -24,6 +24,7 @@ list(APPEND ALL_EXE_SRCS
   ex15.cpp
   ex16.cpp
   ex17.cpp
+  ex18.cpp
   )
 
 if (MFEM_USE_MPI)
@@ -45,6 +46,7 @@ if (MFEM_USE_MPI)
     ex15p.cpp
     ex16p.cpp
     ex17p.cpp
+    ex18p.cpp
     )
 endif()
 
@@ -80,12 +82,12 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
   endif()
 endforeach()
 
-# Include the examples/sundials directory.
-if(MFEM_USE_SUNDIALS)
+# Include the examples/sundials directory if SUNDIALS is enabled.
+if (MFEM_USE_SUNDIALS)
   add_subdirectory(sundials)
 endif()
 
-# Include the examples/petsc directory.
-if(MFEM_USE_PETSC)
+# Include the examples/petsc directory if PETSc is enabled.
+if (MFEM_USE_PETSC)
   add_subdirectory(petsc)
 endif()

@@ -63,6 +63,12 @@ public:
                                     const Vector &elfun, DenseMatrix &elmat)
    { AssembleElementMatrix(el, Tr, elmat); }
 
+   virtual void AssembleFaceGrad(const FiniteElement &el1,
+                                 const FiniteElement &el2,
+                                 FaceElementTransformations &Tr,
+                                 const Vector &elfun, DenseMatrix &elmat)
+   { AssembleFaceMatrix(el1, el2, Tr, elmat); }
+
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u,

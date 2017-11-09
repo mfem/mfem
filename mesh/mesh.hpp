@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "../general/stable3d.hpp"
+#include "../general/globals.hpp"
 #include "triangle.hpp"
 #include "tetrahedron.hpp"
 #include "vertex.hpp"
@@ -22,7 +23,6 @@
 #include "../fem/coefficient.hpp"
 #include "../general/gzstream.hpp"
 #include <iostream>
-#include <fstream>
 
 namespace mfem
 {
@@ -375,7 +375,7 @@ protected:
    // If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1 format.
    // If section_delimiter is empty, write mfem v1.0 format. Otherwise, write
    // mfem v1.2 format with the given section_delimiter at the end.
-   void Printer(std::ostream &out = std::cout,
+   void Printer(std::ostream &out = mfem::out,
                 std::string section_delimiter = "") const;
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
@@ -1012,11 +1012,11 @@ public:
    long GetSequence() const { return sequence; }
 
    /// Print the mesh to the given stream using Netgen/Truegrid format.
-   virtual void PrintXG(std::ostream &out = std::cout) const;
+   virtual void PrintXG(std::ostream &out = mfem::out) const;
 
    /// Print the mesh to the given stream using the default MFEM mesh format.
    /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
-   virtual void Print(std::ostream &out = std::cout) const { Printer(out); }
+   virtual void Print(std::ostream &out = mfem::out) const { Printer(out); }
 
    /// Print the mesh in VTK format (linear and quadratic meshes only).
    /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
@@ -1079,9 +1079,9 @@ public:
                            Vector *Vh = NULL, Vector *Vk = NULL);
 
    void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL,
-                             std::ostream &out = std::cout);
+                             std::ostream &out = mfem::out);
 
-   virtual void PrintInfo(std::ostream &out = std::cout)
+   virtual void PrintInfo(std::ostream &out = mfem::out)
    {
       PrintCharacteristics(NULL, NULL, out);
    }
