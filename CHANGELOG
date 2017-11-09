@@ -98,7 +98,7 @@ Discretization improvements
 - Added five new linear interpolators in fem/bilininteg.cpp to compute products
   of scalar and vector fields or products with arbitrary coefficients.
 
-- Added MatrixCoefficient to CurlCurlIntegrator.
+- Added matrix coefficient support to CurlCurlIntegrator.
 
 - Extend the method NodalFiniteElement::Project for VectorCoefficient to work
   with arbitrary number of vector components.
@@ -116,10 +116,6 @@ Miscellaneous
   (i.e. even patch number) denotes a "release" version, while an odd number
   denotes a "development" version. See config/config.hpp.in.
 
-- Add three more options for MFEM_TIMER_TYPE.
-
-- Support independent number of digits for cycle and rank in DataCollection.
-
 - Added an option for building in parallel without a METIS dependency. This is
   used for example the Laghos miniapp, https://github.com/CEED/Laghos.
 
@@ -128,6 +124,10 @@ Miscellaneous
   the master headers are installed in both <PREFIX>/include/mfem and in
   <PREFIX>/include. The mfem configuration and testing makefiles (config.mk and
   test.mk) are installed in <PREFIX>/share/mfem, instead of <PREFIX>.
+
+- Add three more options for MFEM_TIMER_TYPE.
+
+- Support independent number of digits for cycle and rank in DataCollection.
 
 - Converted Sidre usage from "asctoolkit" to "axom" namespace.
 
