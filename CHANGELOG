@@ -28,8 +28,8 @@ High-order mesh optimization
 
 New and improved solvers and preconditioners
 --------------------------------------------
-- MFEM is now included in the xSDK project (the Extreme-scale Scientific
-  Software Development Kit) as of xSDK-0.3.0. Various changes were made to
+- MFEM is now included in the xSDK project, the Extreme-scale Scientific
+  Software Development Kit, as of xSDK-0.3.0. Various changes were made to
   comply with xSDK's community policies, https://xsdk.info/policies, including:
   xSDK-specific options in CMake, support for user-provided MPI communicators,
   runtime API for version number, and the ability to disable/redirect output.
@@ -51,7 +51,7 @@ New and improved solvers and preconditioners
 - The Newton solver supports an optional scaling factor, that can limit the
   increment in the Newton step, see e.g. the Mesh Optimizer miniapp.
 
-- Updated MFEM integration to use the new SUNDIALS 3.0.0 interface.
+- Updated MFEM integration to support the new SUNDIALS 3.0.0 interface.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -97,7 +97,6 @@ Discretization improvements
 - Extend the method NodalFiniteElement::Project for VectorCoefficient to work
   with arbitrary number of vector components.
 
-
 Miscellaneous
 -------------
 - Added a .gitignore file that ignores all files erased by "make distclean",
@@ -124,7 +123,7 @@ Miscellaneous
   <PREFIX>/include. The mfem configuration and testing makefiles (config.mk and
   test.mk) are installed in <PREFIX>/share/mfem, instead of <PREFIX>.
 
-- Converted Sidre usage from 'asctoolkit' to 'axom' namespace.
+- Converted Sidre usage from "asctoolkit" to "axom" namespace.
 
 - Various small fixes and styling updates.
 
