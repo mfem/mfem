@@ -158,8 +158,8 @@ void MixedMesh::GetBoundingBox(Vector &min, Vector &max, int ref)
 }
 
 void MixedMesh::GetCharacteristics(double &h_min, double &h_max,
-                              double &kappa_min, double &kappa_max,
-                              Vector *Vh, Vector *Vk)
+                                   double &kappa_min, double &kappa_max,
+                                   Vector *Vh, Vector *Vk)
 {
    int i, dim, sdim;
    DenseMatrix J;
@@ -253,73 +253,102 @@ FiniteElement *MixedMesh::GetTransformationFEforElementType(int ElemType)
    return &TriangleFE;
 }
 
-void MixedMesh::GetTypeAndIndex(const std::map<Element::Type,
-				Array<Element*> > & m,
-				int i, Element::Type & type, int & index) const
+int MixedMesh::CountJaggedArrayEntries(const std::map<Element::Type,
+                                       Array<Element*> > & m) const
 {
-  std::map<Element::Type, Array<Element*> >::const_iterator
-    it = m.begin();
+   int count = 0;
 
-  type = it->first;
-  index = i;
+   std::map<Element::Type, Array<Element*> >::const_iterator it;
+   for (it=m.begin(); it!=m.end(); it++)
+   {
+      count += it->second.Size();
+   }
+   return count;
+}
 
-  while ( index > it->second.Size() && it != m.end())
-  {
-    type = it->first;
-    index -= it->second.Size();
-    it++;
-  }
+void MixedMesh::GetTypeAndIndex(const std::map<Element::Type,
+                                Array<Element*> > & m,
+                                int i, Element::Type & type, int & index) const
+{
+   std::map<Element::Type, Array<Element*> >::const_iterator
+   it = m.begin();
+
+   type = it->first;
+   index = i;
+
+   while ( index > it->second.Size() && it != m.end())
+   {
+      type = it->first;
+      index -= it->second.Size();
+      it++;
+   }
+}
+
+const Array<Element*> &
+MixedMesh::GetArrayAndOffset(const std::map<Element::Type,
+                             Array<Element*> > & m,
+                             int i, int & offset) const
+{
+   std::map<Element::Type, Array<Element*> >::const_iterator
+   it = m.begin();
+
+   offset = 0;
+
+   while ( i - offset > it->second.Size() && it != m.end())
+   {
+      offset += it->second.Size();
+      it++;
+   }
+   return it->second;
 }
 
 const Element * MixedMesh::GetElement(int i) const
 {
-  Element::Type type;
-  int index;
-  this->GetElementTypeAndIndex(i, type, index);  
-  return elements[type][index];
+   int offset;
+   const Array<Element*> & a = this->GetElementArrayAndOffset(i, offset);
+   return a[i-offset];
 }
 
-Element * MixedMesh::GetElement(int i)
+Element *& MixedMesh::GetElement(int i)
 {
    Element::Type type;
    int index;
-   this->GetElementTypeAndIndex(i, type, index);  
+   this->GetElementTypeAndIndex(i, type, index);
    return elements[type][index];
 }
 
 const Element * MixedMesh::GetBdrElement(int i) const
 {
-   Element::Type type;
-   int index;
-   this->GetBdrElementTypeAndIndex(i, type, index);  
-   return boundary[type][index];
+   int offset;
+   const Array<Element*> & a = this->GetBdrElementArrayAndOffset(i, offset);
+   return a[i-offset];
 }
-  
-Element * MixedMesh::GetBdrElement(int i)
+
+Element *& MixedMesh::GetBdrElement(int i)
 {
    Element::Type type;
    int index;
-   this->GetBdrElementTypeAndIndex(i, type, index);  
+   this->GetBdrElementTypeAndIndex(i, type, index);
    return boundary[type][index];
 }
 
 const Element * MixedMesh::GetFace(int i) const
 {
-   Element::Type type;
-   int index;
-   this->GetFaceTypeAndIndex(i, type, index);  
-   return faces[type][index];
+   int offset;
+   const Array<Element*> & a = this->GetFaceArrayAndOffset(i, offset);
+   return a[i-offset];
 }
-  
-Element * MixedMesh::GetFace(int i)
+
+Element *& MixedMesh::GetFace(int i)
 {
    Element::Type type;
    int index;
-   this->GetFaceTypeAndIndex(i, type, index);  
+   this->GetFaceTypeAndIndex(i, type, index);
    return faces[type][index];
 }
-  
-void MixedMesh::GetElementTransformation(int i, IsoparametricTransformation *ElTr)
+
+void MixedMesh::GetElementTransformation(int i,
+                                         IsoparametricTransformation *ElTr)
 {
    ElTr->Attribute = GetAttribute(i);
    ElTr->ElementNo = i;
@@ -348,7 +377,7 @@ void MixedMesh::GetElementTransformation(int i, IsoparametricTransformation *ElT
 }
 
 void MixedMesh::GetElementTransformation(int i, const Vector &nodes,
-                                    IsoparametricTransformation *ElTr)
+                                         IsoparametricTransformation *ElTr)
 {
    ElTr->Attribute = GetAttribute(i);
    ElTr->ElementNo = i;
@@ -398,7 +427,8 @@ ElementTransformation *MixedMesh::GetBdrElementTransformation(int i)
    return &FaceTransformation;
 }
 
-void MixedMesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
+void MixedMesh::GetBdrElementTransformation(int i,
+                                            IsoparametricTransformation* ElTr)
 {
    ElTr->Attribute = GetBdrAttribute(i);
    ElTr->ElementNo = i; // boundary element number
@@ -426,15 +456,16 @@ void MixedMesh::GetBdrElementTransformation(int i, IsoparametricTransformation* 
    }
 }
 
-void MixedMesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
+void MixedMesh::GetFaceTransformation(int FaceNo,
+                                      IsoparametricTransformation *FTr)
 {
-   FTr->Attribute = (Dim == 1) ? 1 : faces[FaceNo]->GetAttribute();
+   FTr->Attribute = (Dim == 1) ? 1 : this->GetFace(FaceNo)->GetAttribute();
    FTr->ElementNo = FaceNo;
    DenseMatrix &pm = FTr->GetPointMat();
    if (Nodes == NULL)
    {
-      const int *v = (Dim == 1) ? &FaceNo : faces[FaceNo]->GetVertices();
-      const int nv = (Dim == 1) ? 1 : faces[FaceNo]->GetNVertices();
+      const int *v = (Dim == 1) ? &FaceNo : GetFace(FaceNo)->GetVertices();
+      const int nv = (Dim == 1) ? 1 : GetFace(FaceNo)->GetNVertices();
       pm.SetSize(spaceDim, nv);
       for (int i = 0; i < spaceDim; i++)
       {
@@ -494,7 +525,8 @@ ElementTransformation *MixedMesh::GetFaceTransformation(int FaceNo)
    return &FaceTransformation;
 }
 
-void MixedMesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
+void MixedMesh::GetEdgeTransformation(int EdgeNo,
+                                      IsoparametricTransformation *EdTr)
 {
    if (Dim == 2)
    {
@@ -686,7 +718,7 @@ void MixedMesh::GetLocalFaceTransformation(
 }
 
 FaceElementTransformations *MixedMesh::GetFaceElementTransformations(int FaceNo,
-                                                                int mask)
+                                                                     int mask)
 {
    FaceInfo &face_info = faces_info[FaceNo];
 
@@ -755,8 +787,9 @@ bool MixedMesh::IsSlaveFace(const FaceInfo &fi) const
    return fi.NCFace >= 0 && nc_faces_info[fi.NCFace].Slave;
 }
 
-void MixedMesh::ApplyLocalSlaveTransformation(IsoparametricTransformation &transf,
-                                         const FaceInfo &fi)
+void MixedMesh::ApplyLocalSlaveTransformation(IsoparametricTransformation
+                                              &transf,
+                                              const FaceInfo &fi)
 {
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix composition;
@@ -782,7 +815,7 @@ FaceElementTransformations *MixedMesh::GetBdrFaceTransformations(int BdrElemNo)
    }
    else
    {
-      fn = boundary[BdrElemNo]->GetVertices()[0];
+      fn = GetBdrElement(BdrElemNo)->GetVertices()[0];
    }
    // Check if the face is interior, shared, or non-conforming.
    if (FaceIsTrueInterior(fn) || faces_info[fn].NCFace >= 0)
@@ -790,7 +823,7 @@ FaceElementTransformations *MixedMesh::GetBdrFaceTransformations(int BdrElemNo)
       return NULL;
    }
    tr = GetFaceElementTransformations(fn);
-   tr->Face->Attribute = boundary[BdrElemNo]->GetAttribute();
+   tr->Face->Attribute = GetBdrElement(BdrElemNo)->GetAttribute();
    return tr;
 }
 
@@ -823,7 +856,7 @@ void MixedMesh::Init()
    NumOfVertices = -1;
    NumOfElements = NumOfBdrElements = 0;
    NumOfEdges = NumOfFaces = 0;
-   BaseGeom = BaseBdrGeom = -2; // invailid
+   BaseGeom = BaseBdrGeom = Geometry::INVALID; // invailid
    meshgen = 0;
    sequence = 0;
    Nodes = NULL;
@@ -843,7 +876,7 @@ void MixedMesh::SetEmpty()
 {
    // Members not touched by Init() or InitTables()
    Dim = spaceDim = 0;
-   BaseGeom = BaseBdrGeom = -1;
+   BaseGeom = BaseBdrGeom = Geometry::INVALID;
    meshgen = 0;
    NumOfFaces = 0;
 
@@ -888,15 +921,15 @@ void MixedMesh::Destroy()
    map<Element::Type, Array<Element*> >::iterator it;
    for (it=elements.begin(); it!=elements.end(); it++)
    {
-     it->second.DeleteAll();
+      it->second.DeleteAll();
    }
    for (it=boundary.begin(); it!=boundary.end(); it++)
    {
-     it->second.DeleteAll();
+      it->second.DeleteAll();
    }
    for (it=faces.begin(); it!=faces.end(); it++)
    {
-     it->second.DeleteAll();
+      it->second.DeleteAll();
    }
    vertices.DeleteAll();
    faces_info.DeleteAll();
@@ -950,7 +983,8 @@ void MixedMesh::SetAttributes()
    }
 }
 
-void MixedMesh::InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem)
+void MixedMesh::InitMesh(int _Dim, int _spaceDim, int NVert, int NElem,
+                         int NBdrElem)
 {
    SetEmpty();
 
@@ -969,7 +1003,7 @@ void MixedMesh::InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdr
 
 void MixedMesh::InitBaseGeom()
 {
-   BaseGeom = BaseBdrGeom = -1;
+   BaseGeom = BaseBdrGeom = Geometry::INVALID;
 
    std::map<Element::Type, Array<Element*> >::iterator it;
 
@@ -977,28 +1011,28 @@ void MixedMesh::InitBaseGeom()
    {
       if ( it->second.Size() > 0 )
       {
-	 if ( BaseGeom == -1 )
-	 {
-	    BaseGeom = it->first;
-	 }
-	 else
-	 {
-	    BaseGeom = -1; break;
-	 }
+         if ( BaseGeom == Geometry::INVALID )
+         {
+            BaseGeom = Element::GeometryType(it->first);
+         }
+         else
+         {
+            BaseGeom = Geometry::MIXED; break;
+         }
       }
    }
    for (it=boundary.begin(); it!=boundary.end(); it++)
    {
       if ( it->second.Size() > 0 )
       {
-	 if ( BaseBdrGeom == -1 )
-	 {
-	    BaseBdrGeom = it->first;
-	 }
-	 else
-	 {
-	    BaseBdrGeom = -1; break;
-	 }
+         if ( BaseBdrGeom == Geometry::INVALID )
+         {
+            BaseBdrGeom = Element::GeometryType(it->first);
+         }
+         else
+         {
+            BaseBdrGeom = Geometry::MIXED; break;
+         }
       }
    }
 }
@@ -1016,22 +1050,26 @@ void MixedMesh::AddVertex(const double *x)
 
 void MixedMesh::AddSegment(const int *vi, int attr)
 {
-   elements[SEGMENT].Append(new Segment(vi, attr)); NumOfElements++
+   elements[Element::SEGMENT].Append(new Segment(vi, attr));
+   NumOfElements++;
 }
 
 void MixedMesh::AddTri(const int *vi, int attr)
 {
-   elements[TRIANGLE].Append(new Triangle(vi, attr)); NumOfElements++
+   elements[Element::TRIANGLE].Append(new Triangle(vi, attr));
+   NumOfElements++;
 }
 
 void MixedMesh::AddTriangle(const int *vi, int attr)
 {
-   elements[TRIANGLE].Append(new Triangle(vi, attr)); NumOfElements++
+   elements[Element::TRIANGLE].Append(new Triangle(vi, attr));
+   NumOfElements++;
 }
 
 void MixedMesh::AddQuad(const int *vi, int attr)
 {
-   elements[QUADRILATERAL].Append(new Quadrilateral(vi, attr)); NumOfElements++
+   elements[Element::QUADRILATERAL].Append(new Quadrilateral(vi, attr));
+   NumOfElements++;
 }
 
 void MixedMesh::AddTet(const int *vi, int attr)
@@ -1041,20 +1079,23 @@ void MixedMesh::AddTet(const int *vi, int attr)
    tet = TetMemory.Alloc();
    tet->SetVertices(vi);
    tet->SetAttribute(attr);
-   elements[TETRAHEDRON].Append(tet); NumOfElements++
+   elements[Element::TETRAHEDRON].Append(tet);
 #else
-   elements[TETRAHEDRON].Append(new Tetrahedron(vi, attr)); NumOfElements++
+   elements[Element::TETRAHEDRON].Append(new Tetrahedron(vi, attr));
 #endif
+   NumOfElements++;
 }
 
 void MixedMesh::AddPri(const int *vi, int attr)
 {
-   elements[PRISM].Append(new Prism(vi, attr)); NumOfElements++
+   elements[Element::PRISM].Append(new Prism(vi, attr));
+   NumOfElements++;
 }
 
 void MixedMesh::AddHex(const int *vi, int attr)
 {
-   elements[HEXAHEDRON].Append(new Hexahedron(vi, attr)); NumOfElements++
+   elements[Element::HEXAHEDRON].Append(new Hexahedron(vi, attr));
+   NumOfElements++;
 }
 
 void MixedMesh::AddHexAsTets(const int *vi, int attr)
@@ -1077,23 +1118,26 @@ void MixedMesh::AddHexAsTets(const int *vi, int attr)
 }
 
 void MixedMesh::AddElement(Element *elem)
-{ 
-   elements[elem->GetType()].Append(elem); NumOfElements++
+{
+   elements[elem->GetType()].Append(elem);
+   NumOfElements++;
 }
 
 void MixedMesh::AddBdrSegment(const int *vi, int attr)
 {
-   boundary[SEGMENT].Append(new Segment(vi, attr)); NumOfBdrElements++;
+   boundary[Element::SEGMENT].Append(new Segment(vi, attr));
+   NumOfBdrElements++;
 }
 
 void MixedMesh::AddBdrTriangle(const int *vi, int attr)
 {
-   boundary[TRIANGLE].Append(new Triangle(vi, attr)); NumOfBdrElements++;
+   boundary[Element::TRIANGLE].Append(new Triangle(vi, attr));
+   NumOfBdrElements++;
 }
 
 void MixedMesh::AddBdrQuad(const int *vi, int attr)
 {
-   boundary[QUADRILATERAL].Append(new Quadrilateral(vi, attr));
+   boundary[Element::QUADRILATERAL].Append(new Quadrilateral(vi, attr));
    NumOfBdrElements++;
 }
 
@@ -1113,8 +1157,9 @@ void MixedMesh::AddBdrQuadAsTriangles(const int *vi, int attr)
 }
 
 void MixedMesh::AddBdrElement(Element *elem)
-{ 
-   boundary[elem->GetType()].Append(elem); NumOfBdrElements++
+{
+   boundary[elem->GetType()].Append(elem);
+   NumOfBdrElements++;
 }
 
 void MixedMesh::GenerateBoundaryElements()
@@ -1139,13 +1184,13 @@ void MixedMesh::GenerateBoundaryElements()
       if (faces_info[i].Elem2No < 0) { NumOfBdrElements++; }
    }
 
-   boundary.SetSize(NumOfBdrElements);
+   // boundary.SetSize(NumOfBdrElements);
    be2face.SetSize(NumOfBdrElements);
    for (j = i = 0; i < faces_info.Size(); i++)
    {
       if (faces_info[i].Elem2No < 0)
       {
-         boundary[j] = faces[i]->Duplicate(this);
+         GetBdrElement(j) = GetFace(i)->Duplicate(this);
          be2face[j++] = i;
       }
    }
@@ -1157,15 +1202,20 @@ void MixedMesh::FinalizeCheck()
    MFEM_VERIFY(vertices.Size() == NumOfVertices,
                "incorrect number of vertices: preallocated: " << vertices.Size()
                << ", actually added: " << NumOfVertices);
-   MFEM_VERIFY(elements.Size() == NumOfElements,
-               "incorrect number of elements: preallocated: " << elements.Size()
+
+   int numE = CountElements();
+   MFEM_VERIFY(numE == NumOfElements,
+               "incorrect number of elements: preallocated: " << numE
                << ", actually added: " << NumOfElements);
-   MFEM_VERIFY(boundary.Size() == NumOfBdrElements,
+
+   int numBE = CountBdrElements();
+   MFEM_VERIFY(numBE == NumOfBdrElements,
                "incorrect number of boundary elements: preallocated: "
-               << boundary.Size() << ", actually added: " << NumOfBdrElements);
+               << numBE << ", actually added: " << NumOfBdrElements);
 }
 
-void MixedMesh::FinalizeTriMesh(int generate_edges, int refine, bool fix_orientation)
+void MixedMesh::FinalizeTriMesh(int generate_edges, int refine,
+                                bool fix_orientation)
 {
    FinalizeCheck();
    CheckElementOrientation(fix_orientation);
@@ -1198,7 +1248,7 @@ void MixedMesh::FinalizeTriMesh(int generate_edges, int refine, bool fix_orienta
 }
 
 void MixedMesh::FinalizeQuadMesh(int generate_edges, int refine,
-                            bool fix_orientation)
+                                 bool fix_orientation)
 {
    FinalizeCheck();
    if (fix_orientation)
@@ -1274,7 +1324,7 @@ void MixedMesh::GetGeckoElementReordering(Array<int> &ordering)
 }
 #endif
 
-
+/*
 void MixedMesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
 {
    if (NURBSext)
@@ -1369,8 +1419,8 @@ void MixedMesh::ReorderElements(const Array<int> &ordering, bool reorder_vertice
       // numbers
       for (int new_elid = 0; new_elid < GetNE(); ++new_elid)
       {
-         int *elem_vert = elements[new_elid]->GetVertices();
-         int nv = elements[new_elid]->GetNVertices();
+    int *elem_vert = GetElement(new_elid)->GetVertices();
+         int nv = GetElement(new_elid)->GetNVertices();
          for (int vi = 0; vi < nv; ++vi)
          {
             elem_vert[vi] = vertex_ordering[elem_vert[vi]];
@@ -1380,8 +1430,8 @@ void MixedMesh::ReorderElements(const Array<int> &ordering, bool reorder_vertice
       // Replace the vertex ids in the boundary with reordered vertex numbers
       for (int belid = 0; belid < GetNBE(); ++belid)
       {
-         int *be_vert = boundary[belid]->GetVertices();
-         int nv = boundary[belid]->GetNVertices();
+    int *be_vert = GetBdrElement(belid)->GetVertices();
+         int nv = GetBdrElement(belid)->GetNVertices();
          for (int vi = 0; vi < nv; ++vi)
          {
             be_vert[vi] = vertex_ordering[be_vert[vi]];
@@ -1420,7 +1470,7 @@ void MixedMesh::ReorderElements(const Array<int> &ordering, bool reorder_vertice
       }
    }
 }
-
+*/
 
 void MixedMesh::MarkForRefinement()
 {
@@ -1446,10 +1496,10 @@ void MixedMesh::MarkTriMeshForRefinement()
    DenseMatrix pmat;
    for (int i = 0; i < NumOfElements; i++)
    {
-      if (elements[i]->GetType() == Element::TRIANGLE)
+      if (GetElement(i)->GetType() == Element::TRIANGLE)
       {
          GetPointMatrix(i, pmat);
-         elements[i]->MarkEdge(pmat);
+         GetElement(i)->MarkEdge(pmat);
       }
    }
 }
@@ -1488,282 +1538,285 @@ void MixedMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
 
    for (int i = 0; i < NumOfElements; i++)
    {
-      if (elements[i]->GetType() == Element::TETRAHEDRON)
+      if (GetElement(i)->GetType() == Element::TETRAHEDRON)
       {
-         elements[i]->MarkEdge(v_to_v, order);
+         GetElement(i)->MarkEdge(v_to_v, order);
       }
    }
    for (int i = 0; i < NumOfBdrElements; i++)
    {
-      if (boundary[i]->GetType() == Element::TRIANGLE)
+      if (GetBdrElement(i)->GetType() == Element::TRIANGLE)
       {
-         boundary[i]->MarkEdge(v_to_v, order);
+         GetBdrElement(i)->MarkEdge(v_to_v, order);
       }
    }
 }
-
+/*
 void MixedMesh::PrepareNodeReorder(DSTable **old_v_to_v, Table **old_elem_vert)
 {
-   if (*old_v_to_v && *old_elem_vert)
-   {
-      return;
-   }
+ if (*old_v_to_v && *old_elem_vert)
+ {
+    return;
+ }
 
-   FiniteElementSpace *fes = Nodes->FESpace();
-   const FiniteElementCollection *fec = fes->FEColl();
+ FiniteElementSpace *fes = Nodes->FESpace();
+ const FiniteElementCollection *fec = fes->FEColl();
 
-   if (*old_v_to_v == NULL)
-   {
-      int num_edge_dofs = fec->DofForGeometry(Geometry::SEGMENT);
-      if (num_edge_dofs > 0)
-      {
-         *old_v_to_v = new DSTable(NumOfVertices);
-         GetVertexToVertexTable(*(*old_v_to_v));
-      }
-   }
-   if (*old_elem_vert == NULL)
-   {
-      // assuming all elements have the same geometry
-      int num_elem_dofs = fec->DofForGeometry(GetElementBaseGeometry(0));
-      if (num_elem_dofs > 1)
-      {
-         *old_elem_vert = new Table;
-         (*old_elem_vert)->MakeI(GetNE());
-         for (int i = 0; i < GetNE(); i++)
-         {
-            (*old_elem_vert)->AddColumnsInRow(i, elements[i]->GetNVertices());
-         }
-         (*old_elem_vert)->MakeJ();
-         for (int i = 0; i < GetNE(); i++)
-         {
-            (*old_elem_vert)->AddConnections(i, elements[i]->GetVertices(),
-                                             elements[i]->GetNVertices());
-         }
-         (*old_elem_vert)->ShiftUpI();
-      }
-   }
+ if (*old_v_to_v == NULL)
+ {
+    int num_edge_dofs = fec->DofForGeometry(Geometry::SEGMENT);
+    if (num_edge_dofs > 0)
+    {
+       *old_v_to_v = new DSTable(NumOfVertices);
+       GetVertexToVertexTable(*(*old_v_to_v));
+    }
+ }
+ if (*old_elem_vert == NULL)
+ {
+    // assuming all elements have the same geometry
+    int num_elem_dofs = fec->DofForGeometry(GetElementBaseGeometry(0));
+    if (num_elem_dofs > 1)
+    {
+       *old_elem_vert = new Table;
+       (*old_elem_vert)->MakeI(GetNE());
+       for (int i = 0; i < GetNE(); i++)
+       {
+    (*old_elem_vert)->AddColumnsInRow(i, GetElement(i)->GetNVertices());
+       }
+       (*old_elem_vert)->MakeJ();
+       for (int i = 0; i < GetNE(); i++)
+       {
+    (*old_elem_vert)->AddConnections(i, GetElement(i)->GetVertices(),
+                                           GetElement(i)->GetNVertices());
+       }
+       (*old_elem_vert)->ShiftUpI();
+    }
+ }
 }
-
+*/
+/*
 void MixedMesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
 {
-   FiniteElementSpace *fes = Nodes->FESpace();
-   const FiniteElementCollection *fec = fes->FEColl();
-   int num_edge_dofs = fec->DofForGeometry(Geometry::SEGMENT);
-   // assuming all faces have the same geometry
-   int num_face_dofs =
-      (Dim < 3) ? 0 : fec->DofForGeometry(GetFaceBaseGeometry(0));
-   // assuming all elements have the same geometry
-   int num_elem_dofs = fec->DofForGeometry(GetElementBaseGeometry(0));
+ FiniteElementSpace *fes = Nodes->FESpace();
+ const FiniteElementCollection *fec = fes->FEColl();
+ int num_edge_dofs = fec->DofForGeometry(Geometry::SEGMENT);
+ // assuming all faces have the same geometry
+ // int num_face_dofs =
+ //   (Dim < 3) ? 0 : fec->DofForGeometry(GetFaceBaseGeometry(0));
+ // assuming all elements have the same geometry
+ // int num_elem_dofs = fec->DofForGeometry(GetElementBaseGeometry(0));
 
-   // reorder the Nodes
-   Vector onodes = *Nodes;
+ // reorder the Nodes
+ Vector onodes = *Nodes;
 
-   Array<int> old_dofs, new_dofs;
-   int offset;
+ Array<int> old_dofs, new_dofs;
+ int offset;
 #ifdef MFEM_DEBUG
-   int redges = 0;
+ int redges = 0;
 #endif
 
-   // vertex dofs do not need to be moved
-   offset = NumOfVertices * fec->DofForGeometry(Geometry::POINT);
+ // vertex dofs do not need to be moved
+ offset = NumOfVertices * fec->DofForGeometry(Geometry::POINT);
 
-   // edge dofs:
-   // edge enumeration may be different but edge orientation is the same
-   if (num_edge_dofs > 0)
-   {
-      DSTable new_v_to_v(NumOfVertices);
-      GetVertexToVertexTable(new_v_to_v);
+ // edge dofs:
+ // edge enumeration may be different but edge orientation is the same
+ if (num_edge_dofs > 0)
+ {
+    DSTable new_v_to_v(NumOfVertices);
+    GetVertexToVertexTable(new_v_to_v);
 
-      for (int i = 0; i < NumOfVertices; i++)
-      {
-         for (DSTable::RowIterator it(new_v_to_v, i); !it; ++it)
-         {
-            int old_i = (*old_v_to_v)(i, it.Column());
-            int new_i = it.Index();
+    for (int i = 0; i < NumOfVertices; i++)
+    {
+       for (DSTable::RowIterator it(new_v_to_v, i); !it; ++it)
+       {
+          int old_i = (*old_v_to_v)(i, it.Column());
+          int new_i = it.Index();
 #ifdef MFEM_DEBUG
-            if (old_i != new_i)
-            {
-               redges++;
-            }
+          if (old_i != new_i)
+          {
+             redges++;
+          }
 #endif
-            old_dofs.SetSize(num_edge_dofs);
-            new_dofs.SetSize(num_edge_dofs);
-            for (int j = 0; j < num_edge_dofs; j++)
-            {
-               old_dofs[j] = offset + old_i * num_edge_dofs + j;
-               new_dofs[j] = offset + new_i * num_edge_dofs + j;
-            }
-            fes->DofsToVDofs(old_dofs);
-            fes->DofsToVDofs(new_dofs);
-            for (int j = 0; j < old_dofs.Size(); j++)
-            {
-               (*Nodes)(new_dofs[j]) = onodes(old_dofs[j]);
-            }
-         }
-      }
-      offset += NumOfEdges * num_edge_dofs;
-   }
+          old_dofs.SetSize(num_edge_dofs);
+          new_dofs.SetSize(num_edge_dofs);
+          for (int j = 0; j < num_edge_dofs; j++)
+          {
+             old_dofs[j] = offset + old_i * num_edge_dofs + j;
+             new_dofs[j] = offset + new_i * num_edge_dofs + j;
+          }
+          fes->DofsToVDofs(old_dofs);
+          fes->DofsToVDofs(new_dofs);
+          for (int j = 0; j < old_dofs.Size(); j++)
+          {
+             (*Nodes)(new_dofs[j]) = onodes(old_dofs[j]);
+          }
+       }
+    }
+    offset += NumOfEdges * num_edge_dofs;
+ }
 #ifdef MFEM_DEBUG
-   cout << "MixedMesh::DoNodeReorder : redges = " << redges << endl;
+ cout << "MixedMesh::DoNodeReorder : redges = " << redges << endl;
 #endif
 
-   // face dofs:
-   // both enumeration and orientation of the faces may be different
-   if (num_face_dofs > 0)
-   {
-      // generate the old face-vertex table using the unmodified 'faces'
-      Table old_face_vertex;
-      old_face_vertex.MakeI(NumOfFaces);
-      for (int i = 0; i < NumOfFaces; i++)
-      {
-         old_face_vertex.AddColumnsInRow(i, faces[i]->GetNVertices());
-      }
-      old_face_vertex.MakeJ();
-      for (int i = 0; i < NumOfFaces; i++)
-         old_face_vertex.AddConnections(i, faces[i]->GetVertices(),
-                                        faces[i]->GetNVertices());
-      old_face_vertex.ShiftUpI();
+ // face dofs:
+ // both enumeration and orientation of the faces may be different
+ if (Dim >= 3)
+ {
+    // generate the old face-vertex table using the unmodified 'faces'
+    Table old_face_vertex;
+    old_face_vertex.MakeI(NumOfFaces);
+    for (int i = 0; i < NumOfFaces; i++)
+    {
+ old_face_vertex.AddColumnsInRow(i, GetFace(i)->GetNVertices());
+    }
+    old_face_vertex.MakeJ();
+    for (int i = 0; i < NumOfFaces; i++)
+ old_face_vertex.AddConnections(i, GetFace(i)->GetVertices(),
+                                      GetFace(i)->GetNVertices());
+    old_face_vertex.ShiftUpI();
 
-      // update 'el_to_face', 'be_to_face', 'faces', and 'faces_info'
-      STable3D *faces_tbl = GetElementToFaceTable(1);
-      GenerateFaces();
+    // update 'el_to_face', 'be_to_face', 'faces', and 'faces_info'
+    STable3D *faces_tbl = GetElementToFaceTable(1);
+    GenerateFaces();
 
-      // loop over the old face numbers
-      for (int i = 0; i < NumOfFaces; i++)
-      {
-         int *old_v = old_face_vertex.GetRow(i), *new_v;
-         int new_i, new_or, *dof_ord;
-         switch (old_face_vertex.RowSize(i))
-         {
-            case 3:
-               new_i = (*faces_tbl)(old_v[0], old_v[1], old_v[2]);
-               new_v = faces[new_i]->GetVertices();
-               new_or = GetTriOrientation(old_v, new_v);
-               dof_ord = fec->DofOrderForOrientation(Geometry::TRIANGLE, new_or);
-               break;
-            case 4:
-            default:
-               new_i = (*faces_tbl)(old_v[0], old_v[1], old_v[2], old_v[3]);
-               new_v = faces[new_i]->GetVertices();
-               new_or = GetQuadOrientation(old_v, new_v);
-               dof_ord = fec->DofOrderForOrientation(Geometry::SQUARE, new_or);
-               break;
-         }
+    // loop over the old face numbers
+    for (int i = 0; i < NumOfFaces; i++)
+    {
+       int *old_v = old_face_vertex.GetRow(i), *new_v;
+       int new_i, new_or, *dof_ord;
+ int num_face_dofs = fec->DofForGeometry(GetFaceBaseGeometry(i));
+ switch (old_face_vertex.RowSize(i))
+       {
+          case 3:
+             new_i = (*faces_tbl)(old_v[0], old_v[1], old_v[2]);
+             new_v = GetFace(new_i)->GetVertices();
+             new_or = GetTriOrientation(old_v, new_v);
+             dof_ord = fec->DofOrderForOrientation(Geometry::TRIANGLE, new_or);
+             break;
+          case 4:
+          default:
+             new_i = (*faces_tbl)(old_v[0], old_v[1], old_v[2], old_v[3]);
+             new_v = GetFace(new_i)->GetVertices();
+             new_or = GetQuadOrientation(old_v, new_v);
+             dof_ord = fec->DofOrderForOrientation(Geometry::SQUARE, new_or);
+             break;
+       }
 
-         old_dofs.SetSize(num_face_dofs);
-         new_dofs.SetSize(num_face_dofs);
-         for (int j = 0; j < num_face_dofs; j++)
-         {
-            old_dofs[j] = offset +     i * num_face_dofs + j;
-            new_dofs[j] = offset + new_i * num_face_dofs + dof_ord[j];
-            // we assumed the dofs are non-directional
-            // i.e. dof_ord[j] is >= 0
-         }
-         fes->DofsToVDofs(old_dofs);
-         fes->DofsToVDofs(new_dofs);
-         for (int j = 0; j < old_dofs.Size(); j++)
-         {
-            (*Nodes)(new_dofs[j]) = onodes(old_dofs[j]);
-         }
-      }
+       old_dofs.SetSize(num_face_dofs);
+       new_dofs.SetSize(num_face_dofs);
+       for (int j = 0; j < num_face_dofs; j++)
+       {
+          old_dofs[j] = offset +     i * num_face_dofs + j;
+          new_dofs[j] = offset + new_i * num_face_dofs + dof_ord[j];
+          // we assumed the dofs are non-directional
+          // i.e. dof_ord[j] is >= 0
+       }
+       fes->DofsToVDofs(old_dofs);
+       fes->DofsToVDofs(new_dofs);
+       for (int j = 0; j < old_dofs.Size(); j++)
+       {
+          (*Nodes)(new_dofs[j]) = onodes(old_dofs[j]);
+       }
+    }
 
-      offset += NumOfFaces * num_face_dofs;
-      delete faces_tbl;
-   }
+    offset += NumOfFaces * num_face_dofs;
+    delete faces_tbl;
+ }
 
-   // element dofs:
-   // element orientation may be different
-   if (num_elem_dofs > 1)
-   {
-      // matters when the 'fec' is
-      // (this code is executed only for triangles/tets)
-      // - Pk on triangles, k >= 4
-      // - Qk on quads,     k >= 3
-      // - Pk on tets,      k >= 5
-      // - Qk on hexes,     k >= 3
-      // - DG spaces
-      // - ...
+ // element dofs:
+ // element orientation may be different
+ if (num_elem_dofs > 1)
+ {
+    // matters when the 'fec' is
+    // (this code is executed only for triangles/tets)
+    // - Pk on triangles, k >= 4
+    // - Qk on quads,     k >= 3
+    // - Pk on tets,      k >= 5
+    // - Qk on hexes,     k >= 3
+    // - DG spaces
+    // - ...
 
-      // loop over all elements
-      for (int i = 0; i < GetNE(); i++)
-      {
-         int *old_v = old_elem_vert->GetRow(i);
-         int *new_v = elements[i]->GetVertices();
-         int new_or, *dof_ord;
-         int geom = elements[i]->GetGeometryType();
-         switch (geom)
-         {
-            case Geometry::SEGMENT:
-               new_or = (old_v[0] == new_v[0]) ? +1 : -1;
-               break;
-            case Geometry::TRIANGLE:
-               new_or = GetTriOrientation(old_v, new_v);
-               break;
-            case Geometry::SQUARE:
-               new_or = GetQuadOrientation(old_v, new_v);
-               break;
-            default:
-               new_or = 0;
-               cerr << "MixedMesh::DoNodeReorder : " << Geometry::Name[geom]
-                    << " elements (" << fec->Name()
-                    << " FE collection) are not supported yet!" << endl;
-               mfem_error();
-               break;
-         }
-         dof_ord = fec->DofOrderForOrientation(geom, new_or);
-         if (dof_ord == NULL)
-         {
-            cerr << "MixedMesh::DoNodeReorder : FE collection '" << fec->Name()
-                 << "' does not define reordering for " << Geometry::Name[geom]
-                 << " elements!" << endl;
-            mfem_error();
-         }
-         old_dofs.SetSize(num_elem_dofs);
-         new_dofs.SetSize(num_elem_dofs);
-         for (int j = 0; j < num_elem_dofs; j++)
-         {
-            // we assume the dofs are non-directional, i.e. dof_ord[j] is >= 0
-            old_dofs[j] = offset + dof_ord[j];
-            new_dofs[j] = offset + j;
-         }
-         fes->DofsToVDofs(old_dofs);
-         fes->DofsToVDofs(new_dofs);
-         for (int j = 0; j < old_dofs.Size(); j++)
-         {
-            (*Nodes)(new_dofs[j]) = onodes(old_dofs[j]);
-         }
+    // loop over all elements
+    for (int i = 0; i < GetNE(); i++)
+    {
+       int *old_v = old_elem_vert->GetRow(i);
+       int *new_v = GetElement(i)->GetVertices();
+       int new_or, *dof_ord;
+       int geom = GetElement(i)->GetGeometryType();
+       switch (geom)
+       {
+          case Geometry::SEGMENT:
+             new_or = (old_v[0] == new_v[0]) ? +1 : -1;
+             break;
+          case Geometry::TRIANGLE:
+             new_or = GetTriOrientation(old_v, new_v);
+             break;
+          case Geometry::SQUARE:
+             new_or = GetQuadOrientation(old_v, new_v);
+             break;
+          default:
+             new_or = 0;
+             cerr << "MixedMesh::DoNodeReorder : " << Geometry::Name[geom]
+                  << " elements (" << fec->Name()
+                  << " FE collection) are not supported yet!" << endl;
+             mfem_error();
+             break;
+       }
+       dof_ord = fec->DofOrderForOrientation(geom, new_or);
+       if (dof_ord == NULL)
+       {
+          cerr << "MixedMesh::DoNodeReorder : FE collection '" << fec->Name()
+               << "' does not define reordering for " << Geometry::Name[geom]
+               << " elements!" << endl;
+          mfem_error();
+       }
+       old_dofs.SetSize(num_elem_dofs);
+       new_dofs.SetSize(num_elem_dofs);
+       for (int j = 0; j < num_elem_dofs; j++)
+       {
+          // we assume the dofs are non-directional, i.e. dof_ord[j] is >= 0
+          old_dofs[j] = offset + dof_ord[j];
+          new_dofs[j] = offset + j;
+       }
+       fes->DofsToVDofs(old_dofs);
+       fes->DofsToVDofs(new_dofs);
+       for (int j = 0; j < old_dofs.Size(); j++)
+       {
+          (*Nodes)(new_dofs[j]) = onodes(old_dofs[j]);
+       }
 
-         offset += num_elem_dofs;
-      }
-   }
+       offset += num_elem_dofs;
+    }
+ }
 
-   // Update Tables, faces, etc
-   if (Dim > 2)
-   {
-      if (num_face_dofs == 0)
-      {
-         // needed for FE spaces that have face dofs, even if
-         // the 'Nodes' do not have face dofs.
-         GetElementToFaceTable();
-         GenerateFaces();
-      }
-      CheckBdrElementOrientation();
-   }
-   if (el_to_edge)
-   {
-      // update 'el_to_edge', 'be_to_edge' (2D), 'bel_to_edge' (3D)
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
-      if (Dim == 2)
-      {
-         // update 'faces' and 'faces_info'
-         GenerateFaces();
-         CheckBdrElementOrientation();
-      }
-   }
-   Nodes->FESpace()->RebuildElementToDofTable();
+ // Update Tables, faces, etc
+ if (Dim > 2)
+ {
+    if (num_face_dofs == 0)
+    {
+       // needed for FE spaces that have face dofs, even if
+       // the 'Nodes' do not have face dofs.
+       GetElementToFaceTable();
+       GenerateFaces();
+    }
+    CheckBdrElementOrientation();
+ }
+ if (el_to_edge)
+ {
+    // update 'el_to_edge', 'be_to_edge' (2D), 'bel_to_edge' (3D)
+    NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+    if (Dim == 2)
+    {
+       // update 'faces' and 'faces_info'
+       GenerateFaces();
+       CheckBdrElementOrientation();
+    }
+ }
+ Nodes->FESpace()->RebuildElementToDofTable();
 }
-
-void MixedMesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
+*/
+void MixedMesh::FinalizeTetMesh(int generate_edges, int refine,
+                                bool fix_orientation)
 {
    FinalizeCheck();
    CheckElementOrientation(fix_orientation);
@@ -1807,7 +1860,8 @@ void MixedMesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orienta
    meshgen = 1;
 }
 
-void MixedMesh::FinalizeHexMesh(int generate_edges, int refine, bool fix_orientation)
+void MixedMesh::FinalizeHexMesh(int generate_edges, int refine,
+                                bool fix_orientation)
 {
    FinalizeCheck();
    CheckElementOrientation(fix_orientation);
@@ -1977,402 +2031,405 @@ void MixedMesh::Finalize(bool refine, bool fix_orientation)
    // check and fix boundary element orientation
    CheckBdrElementOrientation();
 }
-
+/*
 void MixedMesh::Make3D(int nx, int ny, int nz, Element::Type type,
-                  int generate_edges, double sx, double sy, double sz)
+                int generate_edges, double sx, double sy, double sz)
 {
-   int x, y, z;
+ int x, y, z;
 
-   int NVert, NElem, NBdrElem;
+ int NVert, NElem, NBdrElem;
 
-   NVert = (nx+1) * (ny+1) * (nz+1);
-   NElem = nx * ny * nz;
-   NBdrElem = 2*(nx*ny+nx*nz+ny*nz);
-   if (type == Element::TETRAHEDRON)
-   {
-      NElem *= 6;
-      NBdrElem *= 2;
-   }
+ NVert = (nx+1) * (ny+1) * (nz+1);
+ NElem = nx * ny * nz;
+ NBdrElem = 2*(nx*ny+nx*nz+ny*nz);
+ if (type == Element::TETRAHEDRON)
+ {
+    NElem *= 6;
+    NBdrElem *= 2;
+ }
 
-   InitMesh(3, 3, NVert, NElem, NBdrElem);
+ InitMesh(3, 3, NVert, NElem, NBdrElem);
 
-   double coord[3];
-   int ind[8];
+ double coord[3];
+ int ind[8];
 
-   // Sets vertices and the corresponding coordinates
-   for (z = 0; z <= nz; z++)
-   {
-      coord[2] = ((double) z / nz) * sz;
-      for (y = 0; y <= ny; y++)
-      {
-         coord[1] = ((double) y / ny) * sy;
-         for (x = 0; x <= nx; x++)
-         {
-            coord[0] = ((double) x / nx) * sx;
-            AddVertex(coord);
-         }
-      }
-   }
+ // Sets vertices and the corresponding coordinates
+ for (z = 0; z <= nz; z++)
+ {
+    coord[2] = ((double) z / nz) * sz;
+    for (y = 0; y <= ny; y++)
+    {
+       coord[1] = ((double) y / ny) * sy;
+       for (x = 0; x <= nx; x++)
+       {
+          coord[0] = ((double) x / nx) * sx;
+          AddVertex(coord);
+       }
+    }
+ }
 
 #define VTX(XC, YC, ZC) ((XC)+((YC)+(ZC)*(ny+1))*(nx+1))
 
-   // Sets elements and the corresponding indices of vertices
-   for (z = 0; z < nz; z++)
-   {
-      for (y = 0; y < ny; y++)
-      {
-         for (x = 0; x < nx; x++)
-         {
-            ind[0] = VTX(x  , y  , z  );
-            ind[1] = VTX(x+1, y  , z  );
-            ind[2] = VTX(x+1, y+1, z  );
-            ind[3] = VTX(x  , y+1, z  );
-            ind[4] = VTX(x  , y  , z+1);
-            ind[5] = VTX(x+1, y  , z+1);
-            ind[6] = VTX(x+1, y+1, z+1);
-            ind[7] = VTX(x  , y+1, z+1);
-            if (type == Element::TETRAHEDRON)
-            {
-               AddHexAsTets(ind, 1);
-            }
-            else
-            {
-               AddHex(ind, 1);
-            }
-         }
-      }
-   }
+ // Sets elements and the corresponding indices of vertices
+ for (z = 0; z < nz; z++)
+ {
+    for (y = 0; y < ny; y++)
+    {
+       for (x = 0; x < nx; x++)
+       {
+          ind[0] = VTX(x  , y  , z  );
+          ind[1] = VTX(x+1, y  , z  );
+          ind[2] = VTX(x+1, y+1, z  );
+          ind[3] = VTX(x  , y+1, z  );
+          ind[4] = VTX(x  , y  , z+1);
+          ind[5] = VTX(x+1, y  , z+1);
+          ind[6] = VTX(x+1, y+1, z+1);
+          ind[7] = VTX(x  , y+1, z+1);
+          if (type == Element::TETRAHEDRON)
+          {
+             AddHexAsTets(ind, 1);
+          }
+          else
+          {
+             AddHex(ind, 1);
+          }
+       }
+    }
+ }
 
-   // Sets boundary elements and the corresponding indices of vertices
-   // bottom, bdr. attribute 1
-   for (y = 0; y < ny; y++)
-      for (x = 0; x < nx; x++)
-      {
-         ind[0] = VTX(x  , y  , 0);
-         ind[1] = VTX(x  , y+1, 0);
-         ind[2] = VTX(x+1, y+1, 0);
-         ind[3] = VTX(x+1, y  , 0);
-         if (type == Element::TETRAHEDRON)
-         {
-            AddBdrQuadAsTriangles(ind, 1);
-         }
-         else
-         {
-            AddBdrQuad(ind, 1);
-         }
-      }
-   // top, bdr. attribute 6
-   for (y = 0; y < ny; y++)
-      for (x = 0; x < nx; x++)
-      {
-         ind[0] = VTX(x  , y  , nz);
-         ind[1] = VTX(x+1, y  , nz);
-         ind[2] = VTX(x+1, y+1, nz);
-         ind[3] = VTX(x  , y+1, nz);
-         if (type == Element::TETRAHEDRON)
-         {
-            AddBdrQuadAsTriangles(ind, 6);
-         }
-         else
-         {
-            AddBdrQuad(ind, 6);
-         }
-      }
-   // left, bdr. attribute 5
-   for (z = 0; z < nz; z++)
-      for (y = 0; y < ny; y++)
-      {
-         ind[0] = VTX(0  , y  , z  );
-         ind[1] = VTX(0  , y  , z+1);
-         ind[2] = VTX(0  , y+1, z+1);
-         ind[3] = VTX(0  , y+1, z  );
-         if (type == Element::TETRAHEDRON)
-         {
-            AddBdrQuadAsTriangles(ind, 5);
-         }
-         else
-         {
-            AddBdrQuad(ind, 5);
-         }
-      }
-   // right, bdr. attribute 3
-   for (z = 0; z < nz; z++)
-      for (y = 0; y < ny; y++)
-      {
-         ind[0] = VTX(nx, y  , z  );
-         ind[1] = VTX(nx, y+1, z  );
-         ind[2] = VTX(nx, y+1, z+1);
-         ind[3] = VTX(nx, y  , z+1);
-         if (type == Element::TETRAHEDRON)
-         {
-            AddBdrQuadAsTriangles(ind, 3);
-         }
-         else
-         {
-            AddBdrQuad(ind, 3);
-         }
-      }
-   // front, bdr. attribute 2
-   for (x = 0; x < nx; x++)
-      for (z = 0; z < nz; z++)
-      {
-         ind[0] = VTX(x  , 0, z  );
-         ind[1] = VTX(x+1, 0, z  );
-         ind[2] = VTX(x+1, 0, z+1);
-         ind[3] = VTX(x  , 0, z+1);
-         if (type == Element::TETRAHEDRON)
-         {
-            AddBdrQuadAsTriangles(ind, 2);
-         }
-         else
-         {
-            AddBdrQuad(ind, 2);
-         }
-      }
-   // back, bdr. attribute 4
-   for (x = 0; x < nx; x++)
-      for (z = 0; z < nz; z++)
-      {
-         ind[0] = VTX(x  , ny, z  );
-         ind[1] = VTX(x  , ny, z+1);
-         ind[2] = VTX(x+1, ny, z+1);
-         ind[3] = VTX(x+1, ny, z  );
-         if (type == Element::TETRAHEDRON)
-         {
-            AddBdrQuadAsTriangles(ind, 4);
-         }
-         else
-         {
-            AddBdrQuad(ind, 4);
-         }
-      }
+ // Sets boundary elements and the corresponding indices of vertices
+ // bottom, bdr. attribute 1
+ for (y = 0; y < ny; y++)
+    for (x = 0; x < nx; x++)
+    {
+       ind[0] = VTX(x  , y  , 0);
+       ind[1] = VTX(x  , y+1, 0);
+       ind[2] = VTX(x+1, y+1, 0);
+       ind[3] = VTX(x+1, y  , 0);
+       if (type == Element::TETRAHEDRON)
+       {
+          AddBdrQuadAsTriangles(ind, 1);
+       }
+       else
+       {
+          AddBdrQuad(ind, 1);
+       }
+    }
+ // top, bdr. attribute 6
+ for (y = 0; y < ny; y++)
+    for (x = 0; x < nx; x++)
+    {
+       ind[0] = VTX(x  , y  , nz);
+       ind[1] = VTX(x+1, y  , nz);
+       ind[2] = VTX(x+1, y+1, nz);
+       ind[3] = VTX(x  , y+1, nz);
+       if (type == Element::TETRAHEDRON)
+       {
+          AddBdrQuadAsTriangles(ind, 6);
+       }
+       else
+       {
+          AddBdrQuad(ind, 6);
+       }
+    }
+ // left, bdr. attribute 5
+ for (z = 0; z < nz; z++)
+    for (y = 0; y < ny; y++)
+    {
+       ind[0] = VTX(0  , y  , z  );
+       ind[1] = VTX(0  , y  , z+1);
+       ind[2] = VTX(0  , y+1, z+1);
+       ind[3] = VTX(0  , y+1, z  );
+       if (type == Element::TETRAHEDRON)
+       {
+          AddBdrQuadAsTriangles(ind, 5);
+       }
+       else
+       {
+          AddBdrQuad(ind, 5);
+       }
+    }
+ // right, bdr. attribute 3
+ for (z = 0; z < nz; z++)
+    for (y = 0; y < ny; y++)
+    {
+       ind[0] = VTX(nx, y  , z  );
+       ind[1] = VTX(nx, y+1, z  );
+       ind[2] = VTX(nx, y+1, z+1);
+       ind[3] = VTX(nx, y  , z+1);
+       if (type == Element::TETRAHEDRON)
+       {
+          AddBdrQuadAsTriangles(ind, 3);
+       }
+       else
+       {
+          AddBdrQuad(ind, 3);
+       }
+    }
+ // front, bdr. attribute 2
+ for (x = 0; x < nx; x++)
+    for (z = 0; z < nz; z++)
+    {
+       ind[0] = VTX(x  , 0, z  );
+       ind[1] = VTX(x+1, 0, z  );
+       ind[2] = VTX(x+1, 0, z+1);
+       ind[3] = VTX(x  , 0, z+1);
+       if (type == Element::TETRAHEDRON)
+       {
+          AddBdrQuadAsTriangles(ind, 2);
+       }
+       else
+       {
+          AddBdrQuad(ind, 2);
+       }
+    }
+ // back, bdr. attribute 4
+ for (x = 0; x < nx; x++)
+    for (z = 0; z < nz; z++)
+    {
+       ind[0] = VTX(x  , ny, z  );
+       ind[1] = VTX(x  , ny, z+1);
+       ind[2] = VTX(x+1, ny, z+1);
+       ind[3] = VTX(x+1, ny, z  );
+       if (type == Element::TETRAHEDRON)
+       {
+          AddBdrQuadAsTriangles(ind, 4);
+       }
+       else
+       {
+          AddBdrQuad(ind, 4);
+       }
+    }
 
 #if 0
-   ofstream test_stream("debug.mesh");
-   Print(test_stream);
-   test_stream.close();
+ ofstream test_stream("debug.mesh");
+ Print(test_stream);
+ test_stream.close();
 #endif
 
-   int refine = 1;
-   bool fix_orientation = true;
+ int refine = 1;
+ bool fix_orientation = true;
 
-   if (type == Element::TETRAHEDRON)
-   {
-      FinalizeTetMesh(generate_edges, refine, fix_orientation);
-   }
-   else
-   {
-      FinalizeHexMesh(generate_edges, refine, fix_orientation);
-   }
+ if (type == Element::TETRAHEDRON)
+ {
+    FinalizeTetMesh(generate_edges, refine, fix_orientation);
+ }
+ else
+ {
+    FinalizeHexMesh(generate_edges, refine, fix_orientation);
+ }
 }
-
+*/
+/*
 void MixedMesh::Make2D(int nx, int ny, Element::Type type, int generate_edges,
-                  double sx, double sy)
+        double sx, double sy)
 {
-   int i, j, k;
+ int i, j, k;
 
-   SetEmpty();
+ SetEmpty();
 
-   Dim = spaceDim = 2;
+ Dim = spaceDim = 2;
 
-   // Creates quadrilateral mesh
-   if (type == Element::QUADRILATERAL)
-   {
-      meshgen = 2;
-      NumOfVertices = (nx+1) * (ny+1);
-      NumOfElements = nx * ny;
-      NumOfBdrElements = 2 * nx + 2 * ny;
-      BaseGeom = Geometry::SQUARE;
-      BaseBdrGeom = Geometry::SEGMENT;
+ // Creates quadrilateral mesh
+ if (type == Element::QUADRILATERAL)
+ {
+    meshgen = 2;
+    NumOfVertices = (nx+1) * (ny+1);
+    NumOfElements = nx * ny;
+    NumOfBdrElements = 2 * nx + 2 * ny;
+    BaseGeom = Geometry::SQUARE;
+    BaseBdrGeom = Geometry::SEGMENT;
 
-      vertices.SetSize(NumOfVertices);
-      elements.SetSize(NumOfElements);
-      boundary.SetSize(NumOfBdrElements);
+    vertices.SetSize(NumOfVertices);
+    elements.SetSize(NumOfElements);
+    boundary.SetSize(NumOfBdrElements);
 
-      double cx, cy;
-      int ind[4];
+    double cx, cy;
+    int ind[4];
 
-      // Sets vertices and the corresponding coordinates
-      k = 0;
-      for (j = 0; j < ny+1; j++)
-      {
-         cy = ((double) j / ny) * sy;
-         for (i = 0; i < nx+1; i++)
-         {
-            cx = ((double) i / nx) * sx;
-            vertices[k](0) = cx;
-            vertices[k](1) = cy;
-            k++;
-         }
-      }
+    // Sets vertices and the corresponding coordinates
+    k = 0;
+    for (j = 0; j < ny+1; j++)
+    {
+       cy = ((double) j / ny) * sy;
+       for (i = 0; i < nx+1; i++)
+       {
+          cx = ((double) i / nx) * sx;
+          vertices[k](0) = cx;
+          vertices[k](1) = cy;
+          k++;
+       }
+    }
 
-      // Sets elements and the corresponding indices of vertices
-      k = 0;
-      for (j = 0; j < ny; j++)
-      {
-         for (i = 0; i < nx; i++)
-         {
-            ind[0] = i + j*(nx+1);
-            ind[1] = i + 1 +j*(nx+1);
-            ind[2] = i + 1 + (j+1)*(nx+1);
-            ind[3] = i + (j+1)*(nx+1);
-            elements[k] = new Quadrilateral(ind);
-            k++;
-         }
-      }
+    // Sets elements and the corresponding indices of vertices
+    k = 0;
+    for (j = 0; j < ny; j++)
+    {
+       for (i = 0; i < nx; i++)
+       {
+          ind[0] = i + j*(nx+1);
+          ind[1] = i + 1 +j*(nx+1);
+          ind[2] = i + 1 + (j+1)*(nx+1);
+          ind[3] = i + (j+1)*(nx+1);
+          elements[k] = new Quadrilateral(ind);
+          k++;
+       }
+    }
 
-      // Sets boundary elements and the corresponding indices of vertices
-      int m = (nx+1)*ny;
-      for (i = 0; i < nx; i++)
-      {
-         boundary[i] = new Segment(i, i+1, 1);
-         boundary[nx+i] = new Segment(m+i+1, m+i, 3);
-      }
-      m = nx+1;
-      for (j = 0; j < ny; j++)
-      {
-         boundary[2*nx+j] = new Segment((j+1)*m, j*m, 4);
-         boundary[2*nx+ny+j] = new Segment(j*m+nx, (j+1)*m+nx, 2);
-      }
-   }
-   // Creates triangular mesh
-   else if (type == Element::TRIANGLE)
-   {
-      meshgen = 1;
-      NumOfVertices = (nx+1) * (ny+1);
-      NumOfElements = 2 * nx * ny;
-      NumOfBdrElements = 2 * nx + 2 * ny;
-      BaseGeom = Geometry::TRIANGLE;
-      BaseBdrGeom = Geometry::SEGMENT;
+    // Sets boundary elements and the corresponding indices of vertices
+    int m = (nx+1)*ny;
+    for (i = 0; i < nx; i++)
+    {
+       boundary[i] = new Segment(i, i+1, 1);
+       boundary[nx+i] = new Segment(m+i+1, m+i, 3);
+    }
+    m = nx+1;
+    for (j = 0; j < ny; j++)
+    {
+       boundary[2*nx+j] = new Segment((j+1)*m, j*m, 4);
+       boundary[2*nx+ny+j] = new Segment(j*m+nx, (j+1)*m+nx, 2);
+    }
+ }
+ // Creates triangular mesh
+ else if (type == Element::TRIANGLE)
+ {
+    meshgen = 1;
+    NumOfVertices = (nx+1) * (ny+1);
+    NumOfElements = 2 * nx * ny;
+    NumOfBdrElements = 2 * nx + 2 * ny;
+    BaseGeom = Geometry::TRIANGLE;
+    BaseBdrGeom = Geometry::SEGMENT;
 
-      vertices.SetSize(NumOfVertices);
-      elements.SetSize(NumOfElements);
-      boundary.SetSize(NumOfBdrElements);
+    vertices.SetSize(NumOfVertices);
+    elements.SetSize(NumOfElements);
+    boundary.SetSize(NumOfBdrElements);
 
-      double cx, cy;
-      int ind[3];
+    double cx, cy;
+    int ind[3];
 
-      // Sets vertices and the corresponding coordinates
-      k = 0;
-      for (j = 0; j < ny+1; j++)
-      {
-         cy = ((double) j / ny) * sy;
-         for (i = 0; i < nx+1; i++)
-         {
-            cx = ((double) i / nx) * sx;
-            vertices[k](0) = cx;
-            vertices[k](1) = cy;
-            k++;
-         }
-      }
+    // Sets vertices and the corresponding coordinates
+    k = 0;
+    for (j = 0; j < ny+1; j++)
+    {
+       cy = ((double) j / ny) * sy;
+       for (i = 0; i < nx+1; i++)
+       {
+          cx = ((double) i / nx) * sx;
+          vertices[k](0) = cx;
+          vertices[k](1) = cy;
+          k++;
+       }
+    }
 
-      // Sets the elements and the corresponding indices of vertices
-      k = 0;
-      for (j = 0; j < ny; j++)
-      {
-         for (i = 0; i < nx; i++)
-         {
-            ind[0] = i + j*(nx+1);
-            ind[1] = i + 1 + (j+1)*(nx+1);
-            ind[2] = i + (j+1)*(nx+1);
-            elements[k] = new Triangle(ind);
-            k++;
-            ind[1] = i + 1 + j*(nx+1);
-            ind[2] = i + 1 + (j+1)*(nx+1);
-            elements[k] = new Triangle(ind);
-            k++;
-         }
-      }
+    // Sets the elements and the corresponding indices of vertices
+    k = 0;
+    for (j = 0; j < ny; j++)
+    {
+       for (i = 0; i < nx; i++)
+       {
+          ind[0] = i + j*(nx+1);
+          ind[1] = i + 1 + (j+1)*(nx+1);
+          ind[2] = i + (j+1)*(nx+1);
+          elements[k] = new Triangle(ind);
+          k++;
+          ind[1] = i + 1 + j*(nx+1);
+          ind[2] = i + 1 + (j+1)*(nx+1);
+          elements[k] = new Triangle(ind);
+          k++;
+       }
+    }
 
-      // Sets boundary elements and the corresponding indices of vertices
-      int m = (nx+1)*ny;
-      for (i = 0; i < nx; i++)
-      {
-         boundary[i] = new Segment(i, i+1, 1);
-         boundary[nx+i] = new Segment(m+i+1, m+i, 3);
-      }
-      m = nx+1;
-      for (j = 0; j < ny; j++)
-      {
-         boundary[2*nx+j] = new Segment((j+1)*m, j*m, 4);
-         boundary[2*nx+ny+j] = new Segment(j*m+nx, (j+1)*m+nx, 2);
-      }
+    // Sets boundary elements and the corresponding indices of vertices
+    int m = (nx+1)*ny;
+    for (i = 0; i < nx; i++)
+    {
+       boundary[i] = new Segment(i, i+1, 1);
+       boundary[nx+i] = new Segment(m+i+1, m+i, 3);
+    }
+    m = nx+1;
+    for (j = 0; j < ny; j++)
+    {
+       boundary[2*nx+j] = new Segment((j+1)*m, j*m, 4);
+       boundary[2*nx+ny+j] = new Segment(j*m+nx, (j+1)*m+nx, 2);
+    }
 
-      MarkTriMeshForRefinement();
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported element type.");
-   }
+    MarkTriMeshForRefinement();
+ }
+ else
+ {
+    MFEM_ABORT("Unsupported element type.");
+ }
 
-   CheckElementOrientation();
+ CheckElementOrientation();
 
-   if (generate_edges == 1)
-   {
-      el_to_edge = new Table;
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
-      GenerateFaces();
-      CheckBdrElementOrientation();
-   }
-   else
-   {
-      NumOfEdges = 0;
-   }
+ if (generate_edges == 1)
+ {
+    el_to_edge = new Table;
+    NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+    GenerateFaces();
+    CheckBdrElementOrientation();
+ }
+ else
+ {
+    NumOfEdges = 0;
+ }
 
-   NumOfFaces = 0;
+ NumOfFaces = 0;
 
-   attributes.Append(1);
-   bdr_attributes.Append(1); bdr_attributes.Append(2);
-   bdr_attributes.Append(3); bdr_attributes.Append(4);
+ attributes.Append(1);
+ bdr_attributes.Append(1); bdr_attributes.Append(2);
+ bdr_attributes.Append(3); bdr_attributes.Append(4);
 }
-
+*/
+/*
 void MixedMesh::Make1D(int n, double sx)
 {
-   int j, ind[1];
+ int j, ind[1];
 
-   SetEmpty();
+ SetEmpty();
 
-   Dim = 1;
-   spaceDim = 1;
+ Dim = 1;
+ spaceDim = 1;
 
-   BaseGeom = Geometry::SEGMENT;
-   BaseBdrGeom = Geometry::POINT;
+ BaseGeom = Geometry::SEGMENT;
+ BaseBdrGeom = Geometry::POINT;
 
-   meshgen = 1;
+ meshgen = 1;
 
-   NumOfVertices = n + 1;
-   NumOfElements = n;
-   NumOfBdrElements = 2;
-   vertices.SetSize(NumOfVertices);
-   elements.SetSize(NumOfElements);
-   boundary.SetSize(NumOfBdrElements);
+ NumOfVertices = n + 1;
+ NumOfElements = n;
+ NumOfBdrElements = 2;
+ vertices.SetSize(NumOfVertices);
+ elements.SetSize(NumOfElements);
+ boundary.SetSize(NumOfBdrElements);
 
-   // Sets vertices and the corresponding coordinates
-   for (j = 0; j < n+1; j++)
-   {
-      vertices[j](0) = ((double) j / n) * sx;
-   }
+ // Sets vertices and the corresponding coordinates
+ for (j = 0; j < n+1; j++)
+ {
+    vertices[j](0) = ((double) j / n) * sx;
+ }
 
-   // Sets elements and the corresponding indices of vertices
-   for (j = 0; j < n; j++)
-   {
-      elements[j] = new Segment(j, j+1, 1);
-   }
+ // Sets elements and the corresponding indices of vertices
+ for (j = 0; j < n; j++)
+ {
+    elements[j] = new Segment(j, j+1, 1);
+ }
 
-   // Sets the boundary elements
-   ind[0] = 0;
-   boundary[0] = new Point(ind, 1);
-   ind[0] = n;
-   boundary[1] = new Point(ind, 2);
+ // Sets the boundary elements
+ ind[0] = 0;
+ boundary[0] = new Point(ind, 1);
+ ind[0] = n;
+ boundary[1] = new Point(ind, 2);
 
-   NumOfEdges = 0;
-   NumOfFaces = 0;
+ NumOfEdges = 0;
+ NumOfFaces = 0;
 
-   GenerateFaces();
+ GenerateFaces();
 
-   attributes.Append(1);
-   bdr_attributes.Append(1); bdr_attributes.Append(2);
+ attributes.Append(1);
+ bdr_attributes.Append(1); bdr_attributes.Append(2);
 }
+*/
 /*
 MixedMesh::MixedMesh(const Mesh &mesh, bool copy_nodes)
 {
@@ -2481,7 +2538,7 @@ MixedMesh::MixedMesh(const Mesh &mesh, bool copy_nodes)
 }
 */
 MixedMesh::MixedMesh(const char *filename, int generate_edges, int refine,
-           bool fix_orientation)
+                     bool fix_orientation)
 {
    // Initialization as in the default constructor
    SetEmpty();
@@ -2499,14 +2556,15 @@ MixedMesh::MixedMesh(const char *filename, int generate_edges, int refine,
 }
 
 MixedMesh::MixedMesh(std::istream &input, int generate_edges, int refine,
-           bool fix_orientation)
+                     bool fix_orientation)
 {
    SetEmpty();
    Load(input, generate_edges, refine, fix_orientation);
 }
 
-void MixedMesh::ChangeVertexDataOwnership(double *vertex_data, int len_vertex_data,
-                                     bool zerocopy)
+void MixedMesh::ChangeVertexDataOwnership(double *vertex_data,
+                                          int len_vertex_data,
+                                          bool zerocopy)
 {
    // A dimension of 3 is now required since we use mfem::Vertex objects as PODs
    // and these object have a hardcoded double[3] entry
@@ -2530,11 +2588,11 @@ void MixedMesh::ChangeVertexDataOwnership(double *vertex_data, int len_vertex_da
 }
 
 MixedMesh::MixedMesh(double *_vertices, int num_vertices,
-           int *element_indices, Geometry::Type element_type,
-           int *element_attributes, int num_elements,
-           int *boundary_indices, Geometry::Type boundary_type,
-           int *boundary_attributes, int num_boundary_elements,
-           int dimension, int space_dimension)
+                     int *element_indices, Geometry::Type geom_type,
+                     int *element_attributes, int num_elements,
+                     int *boundary_indices, Geometry::Type bdr_geom_type,
+                     int *boundary_attributes, int num_boundary_elements,
+                     int dimension, int space_dimension)
 {
    if (space_dimension == -1)
    {
@@ -2544,34 +2602,41 @@ MixedMesh::MixedMesh(double *_vertices, int num_vertices,
    InitMesh(dimension, space_dimension, /*num_vertices*/ 0, num_elements,
             num_boundary_elements);
 
-   int element_index_stride = Geometry::NumVerts[element_type];
+   Element::Type element_type = (Element::Type)geom_type;
+   Element::Type boundary_type = (Element::Type)bdr_geom_type;
+
+   int element_index_stride = Geometry::NumVerts[geom_type];
    int boundary_index_stride = num_boundary_elements > 0 ?
-                               Geometry::NumVerts[boundary_type] : 0;
+                               Geometry::NumVerts[bdr_geom_type] : 0;
 
    // assuming Vertex is POD
    vertices.MakeRef(reinterpret_cast<Vertex*>(_vertices), num_vertices);
    NumOfVertices = num_vertices;
 
+   elements[element_type].SetSize(num_elements);
    for (int i = 0; i < num_elements; i++)
    {
-      elements[i] = NewElement(element_type);
-      elements[i]->SetVertices(element_indices + i * element_index_stride);
-      elements[i]->SetAttribute(element_attributes[i]);
+      elements[element_type][i] = NewElement(geom_type);
+      elements[element_type][i]->SetVertices(element_indices +
+                                             i * element_index_stride);
+      elements[element_type][i]->SetAttribute(element_attributes[i]);
    }
    NumOfElements = num_elements;
 
+   boundary[boundary_type].SetSize(num_boundary_elements);
    for (int i = 0; i < num_boundary_elements; i++)
    {
-      boundary[i] = NewElement(boundary_type);
-      boundary[i]->SetVertices(boundary_indices + i * boundary_index_stride);
-      boundary[i]->SetAttribute(boundary_attributes[i]);
+      boundary[boundary_type][i] = NewElement(bdr_geom_type);
+      boundary[boundary_type][i]->SetVertices(boundary_indices +
+                                              i * boundary_index_stride);
+      boundary[boundary_type][i]->SetAttribute(boundary_attributes[i]);
    }
    NumOfBdrElements = num_boundary_elements;
 
    FinalizeTopology();
 }
 
-Element *MixedMesh::NewElement(int geom)
+Element *MixedMesh::NewElement(Geometry::Type geom)
 {
    switch (geom)
    {
@@ -2587,9 +2652,9 @@ Element *MixedMesh::NewElement(int geom)
 #else
          return (new Tetrahedron);
 #endif
+      default:
+         return NULL;
    }
-
-   return NULL;
 }
 
 Element *MixedMesh::ReadElementWithoutAttr(std::istream &input)
@@ -2598,7 +2663,7 @@ Element *MixedMesh::ReadElementWithoutAttr(std::istream &input)
    Element *el;
 
    input >> geom;
-   el = NewElement(geom);
+   el = NewElement((Geometry::Type)geom);
    nv = el->GetNVertices();
    v  = el->GetVertices();
    for (int i = 0; i < nv; i++)
@@ -2644,7 +2709,7 @@ void MixedMesh::SetMeshGen()
    meshgen = 0;
    for (int i = 0; i < NumOfElements; i++)
    {
-      switch (elements[i]->GetType())
+      switch (GetElement(i)->GetType())
       {
          case Element::SEGMENT:
          case Element::TRIANGLE:
@@ -2653,13 +2718,20 @@ void MixedMesh::SetMeshGen()
 
          case Element::QUADRILATERAL:
          case Element::HEXAHEDRON:
-            meshgen |= 2;
+            meshgen |= 2; break;
+
+         case Element::PRISM:
+            meshgen |= 4; break;
+         default:
+            MFEM_VERIFY(false, "MixedMesh::SetMeshGen "
+                        "invalid element type " << GetElement(i)->GetType());
+            break;
       }
    }
 }
 
 void MixedMesh::Loader(std::istream &input, int generate_edges,
-                  std::string parse_tag)
+                       std::string parse_tag)
 {
    int curved = 0, read_gf = 1;
 
@@ -3033,7 +3105,8 @@ MixedMesh::MixedMesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    int max_nv = 0;
    for (int el = 0; el < orig_mesh->GetNE(); el++)
    {
-      int geom = orig_mesh->GetElementBaseGeometry(el);
+      Geometry::Type geom =
+         (Geometry::Type)orig_mesh->GetElementBaseGeometry(el);
       int attrib = orig_mesh->GetAttribute(el);
       int nvert = Geometry::NumVerts[geom];
       RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
@@ -3065,7 +3138,8 @@ MixedMesh::MixedMesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    // Add refined boundary elements
    for (int el = 0; el < orig_mesh->GetNBE(); el++)
    {
-      int geom = orig_mesh->GetBdrElementBaseGeometry(el);
+      Geometry::Type geom =
+         (Geometry::Type)orig_mesh->GetBdrElementBaseGeometry(el);
       int attrib = orig_mesh->GetBdrAttribute(el);
       int nvert = Geometry::NumVerts[geom];
       RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
@@ -3178,70 +3252,65 @@ void MixedMesh::DegreeElevate(int t)
 
    UpdateNURBS();
 }
-
+/*
 void MixedMesh::UpdateNURBS()
 {
-   NURBSext->SetKnotsFromPatches();
+ NURBSext->SetKnotsFromPatches();
 
-   Dim = NURBSext->Dimension();
-   spaceDim = Dim;
+ Dim = NURBSext->Dimension();
+ spaceDim = Dim;
 
-   if (NumOfElements != NURBSext->GetNE())
-   {
-      for (int i = 0; i < elements.Size(); i++)
-      {
-         FreeElement(elements[i]);
-      }
-      NumOfElements = NURBSext->GetNE();
-      NURBSext->GetElementTopo(elements);
-   }
+ if (NumOfElements != NURBSext->GetNE())
+ {
+    FreeElements(elements);
+    NumOfElements = NURBSext->GetNE();
+    NURBSext->GetElementTopo(elements);
+ }
 
-   if (NumOfBdrElements != NURBSext->GetNBE())
-   {
-      for (int i = 0; i < boundary.Size(); i++)
-      {
-         FreeElement(boundary[i]);
-      }
-      NumOfBdrElements = NURBSext->GetNBE();
-      NURBSext->GetBdrElementTopo(boundary);
-   }
+ if (NumOfBdrElements != NURBSext->GetNBE())
+ {
+    FreeElements(boundary);
+    NumOfBdrElements = NURBSext->GetNBE();
+    NURBSext->GetBdrElementTopo(boundary);
+ }
 
-   Nodes->FESpace()->Update();
-   Nodes->Update();
-   NURBSext->SetCoordsFromPatches(*Nodes);
+ Nodes->FESpace()->Update();
+ Nodes->Update();
+ NURBSext->SetCoordsFromPatches(*Nodes);
 
-   if (NumOfVertices != NURBSext->GetNV())
-   {
-      NumOfVertices = NURBSext->GetNV();
-      vertices.SetSize(NumOfVertices);
-      int vd = Nodes->VectorDim();
-      for (int i = 0; i < vd; i++)
-      {
-         Vector vert_val;
-         Nodes->GetNodalValues(vert_val, i+1);
-         for (int j = 0; j < NumOfVertices; j++)
-         {
-            vertices[j](i) = vert_val(j);
-         }
-      }
-   }
+ if (NumOfVertices != NURBSext->GetNV())
+ {
+    NumOfVertices = NURBSext->GetNV();
+    vertices.SetSize(NumOfVertices);
+    int vd = Nodes->VectorDim();
+    for (int i = 0; i < vd; i++)
+    {
+       Vector vert_val;
+       Nodes->GetNodalValues(vert_val, i+1);
+       for (int j = 0; j < NumOfVertices; j++)
+       {
+          vertices[j](i) = vert_val(j);
+       }
+    }
+ }
 
-   if (el_to_edge)
-   {
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
-      if (Dim == 2)
-      {
-         GenerateFaces();
-      }
-   }
+ if (el_to_edge)
+ {
+    NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+    if (Dim == 2)
+    {
+       GenerateFaces();
+    }
+ }
 
-   if (el_to_face)
-   {
-      GetElementToFaceTable();
-      GenerateFaces();
-   }
+ if (el_to_face)
+ {
+    GetElementToFaceTable();
+    GenerateFaces();
+ }
 }
-
+*/
+/*
 void MixedMesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
 {
    SetEmpty();
@@ -3342,7 +3411,7 @@ void MixedMesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
    // generate the arrays 'attributes' and ' bdr_attributes'
    SetAttributes();
 }
-
+*/
 void XYZ_VectorFunction(const Vector &p, Vector &v)
 {
    if (p.Size() >= v.Size())
@@ -3397,7 +3466,8 @@ const FiniteElementSpace *MixedMesh::GetNodalFESpace() const
    return ((Nodes) ? Nodes->FESpace() : NULL);
 }
 
-void MixedMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
+void MixedMesh::SetCurvature(int order, bool discont, int space_dim,
+                             int ordering)
 {
    space_dim = (space_dim == -1) ? spaceDim : space_dim;
    FiniteElementCollection* nfec;
@@ -3444,7 +3514,7 @@ int MixedMesh::CheckElementOrientation(bool fix_it)
       {
          if (Nodes == NULL)
          {
-            vi = elements[i]->GetVertices();
+            vi = GetElement(i)->GetVertices();
             for (j = 0; j < 3; j++)
             {
                v[j] = vertices[vi[j]]();
@@ -3486,7 +3556,7 @@ int MixedMesh::CheckElementOrientation(bool fix_it)
 
       for (i = 0; i < NumOfElements; i++)
       {
-         vi = elements[i]->GetVertices();
+         vi = GetElement(i)->GetVertices();
          switch (GetElementType(i))
          {
             case Element::TETRAHEDRON:
@@ -3648,8 +3718,8 @@ int MixedMesh::CheckBdrElementOrientation(bool fix_it)
       {
          if (faces_info[be_to_edge[i]].Elem2No < 0) // boundary face
          {
-            int *bv = boundary[i]->GetVertices();
-            int *fv = faces[be_to_edge[i]]->GetVertices();
+            int *bv = GetBdrElement(i)->GetVertices();
+            int *fv = GetFace(be_to_edge[i])->GetVertices();
             if (bv[0] != fv[0])
             {
                if (fix_it)
@@ -3672,14 +3742,14 @@ int MixedMesh::CheckBdrElementOrientation(bool fix_it)
          if (faces_info[be_to_face[i]].Elem2No < 0)
          {
             // boundary face
-            bv = boundary[i]->GetVertices();
+            bv = GetBdrElement(i)->GetVertices();
             el = faces_info[be_to_face[i]].Elem1No;
-            ev = elements[el]->GetVertices();
+            ev = GetElement(el)->GetVertices();
             switch (GetElementType(el))
             {
                case Element::TETRAHEDRON:
                {
-                  int *fv = faces[be_to_face[i]]->GetVertices();
+                  int *fv = GetFace(be_to_face[i])->GetVertices();
                   int orientation; // orientation of the bdr. elem. w.r.t. the
                   // corresponding face element (that's the base)
                   orientation = GetTriOrientation(fv, bv);
@@ -3752,24 +3822,25 @@ void MixedMesh::GetElementEdges(int i, Array<int> &edges, Array<int> &cor) const
                  "is not generated.");
    }
 
-   const int *v = elements[i]->GetVertices();
-   const int ne = elements[i]->GetNEdges();
+   const int *v = GetElement(i)->GetVertices();
+   const int ne = GetElement(i)->GetNEdges();
    cor.SetSize(ne);
    for (int j = 0; j < ne; j++)
    {
-      const int *e = elements[i]->GetEdgeVertices(j);
+      const int *e = GetElement(i)->GetEdgeVertices(j);
       cor[j] = (v[e[0]] < v[e[1]]) ? (1) : (-1);
    }
 }
 
-void MixedMesh::GetBdrElementEdges(int i, Array<int> &edges, Array<int> &cor) const
+void MixedMesh::GetBdrElementEdges(int i, Array<int> &edges,
+                                   Array<int> &cor) const
 {
    if (Dim == 2)
    {
       edges.SetSize(1);
       cor.SetSize(1);
       edges[0] = be_to_edge[i];
-      const int *v = boundary[i]->GetVertices();
+      const int *v = GetBdrElement(i)->GetVertices();
       cor[0] = (v[0] < v[1]) ? (1) : (-1);
    }
    else if (Dim == 3)
@@ -3783,12 +3854,12 @@ void MixedMesh::GetBdrElementEdges(int i, Array<int> &edges, Array<int> &cor) co
          mfem_error("MixedMesh::GetBdrElementEdges(...)");
       }
 
-      const int *v = boundary[i]->GetVertices();
-      const int ne = boundary[i]->GetNEdges();
+      const int *v = GetBdrElement(i)->GetVertices();
+      const int ne = GetBdrElement(i)->GetNEdges();
       cor.SetSize(ne);
       for (int j = 0; j < ne; j++)
       {
-         const int *e = boundary[i]->GetEdgeVertices(j);
+         const int *e = GetBdrElement(i)->GetEdgeVertices(j);
          cor[j] = (v[e[0]] < v[e[1]]) ? (1) : (-1);
       }
    }
@@ -3801,7 +3872,7 @@ void MixedMesh::GetFaceEdges(int i, Array<int> &edges, Array<int> &o) const
       edges.SetSize(1);
       edges[0] = i;
       o.SetSize(1);
-      const int *v = faces[i]->GetVertices();
+      const int *v = GetFace(i)->GetVertices();
       o[0] = (v[0] < v[1]) ? (1) : (-1);
    }
 
@@ -3814,12 +3885,12 @@ void MixedMesh::GetFaceEdges(int i, Array<int> &edges, Array<int> &o) const
 
    face_edge->GetRow(i, edges);
 
-   const int *v = faces[i]->GetVertices();
-   const int ne = faces[i]->GetNEdges();
+   const int *v = GetFace(i)->GetVertices();
+   const int ne = GetFace(i)->GetNEdges();
    o.SetSize(ne);
    for (int j = 0; j < ne; j++)
    {
-      const int *e = faces[i]->GetEdgeVertices(j);
+      const int *e = GetFace(i)->GetEdgeVertices(j);
       o[j] = (v[e[0]] < v[e[1]]) ? (1) : (-1);
    }
 }
@@ -3897,8 +3968,8 @@ Table *MixedMesh::GetVertexToElementTable()
 
    for (i = 0; i < NumOfElements; i++)
    {
-      nv = elements[i]->GetNVertices();
-      v  = elements[i]->GetVertices();
+      nv = GetElement(i)->GetNVertices();
+      v  = GetElement(i)->GetVertices();
       for (j = 0; j < nv; j++)
       {
          vert_elem->AddAColumnInRow(v[j]);
@@ -3909,8 +3980,8 @@ Table *MixedMesh::GetVertexToElementTable()
 
    for (i = 0; i < NumOfElements; i++)
    {
-      nv = elements[i]->GetNVertices();
-      v  = elements[i]->GetVertices();
+      nv = GetElement(i)->GetNVertices();
+      v  = GetElement(i)->GetVertices();
       for (j = 0; j < nv; j++)
       {
          vert_elem->AddConnection(v[j], i);
@@ -3999,7 +4070,7 @@ void MixedMesh::GetBdrElementFace(int i, int *f, int *o) const
    const int *bv, *fv;
 
    *f = be_to_face[i];
-   bv = boundary[i]->GetVertices();
+   bv = GetBdrElement(i)->GetVertices();
    fv = faces[be_to_face[i]]->GetVertices();
 
    // find the orientation of the bdr. elem. w.r.t.
@@ -4043,7 +4114,7 @@ int MixedMesh::GetBdrElementEdgeIndex(int i) const
 {
    switch (Dim)
    {
-      case 1: return boundary[i]->GetVertices()[0];
+      case 1: return GetBdrElement(i)->GetVertices()[0];
       case 2: return be_to_edge[i];
       case 3: return be_to_face[i];
       default: mfem_error("MixedMesh::GetBdrElementEdgeIndex: invalid dimension!");
@@ -4051,7 +4122,8 @@ int MixedMesh::GetBdrElementEdgeIndex(int i) const
    return -1;
 }
 
-void MixedMesh::GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const
+void MixedMesh::GetBdrElementAdjacentElement(int bdr_el, int &el,
+                                             int &info) const
 {
    int fid = GetBdrElementEdgeIndex(bdr_el);
    const FaceInfo &fi = faces_info[fid];
@@ -4129,7 +4201,7 @@ double MixedMesh::GetLength(int i, int j) const
 
 // static method
 void MixedMesh::GetElementArrayEdgeTable(const Array<Element*> &elem_array,
-                                    const DSTable &v_to_v, Table &el_to_edge)
+                                         const DSTable &v_to_v, Table &el_to_edge)
 {
    el_to_edge.MakeI(elem_array.Size());
    for (int i = 0; i < elem_array.Size(); i++)
@@ -4164,11 +4236,11 @@ void MixedMesh::GetVertexToVertexTable(DSTable &v_to_v) const
    {
       for (int i = 0; i < NumOfElements; i++)
       {
-         const int *v = elements[i]->GetVertices();
-         const int ne = elements[i]->GetNEdges();
+         const int *v = GetElement(i)->GetVertices();
+         const int ne = GetElement(i)->GetNEdges();
          for (int j = 0; j < ne; j++)
          {
-            const int *e = elements[i]->GetEdgeVertices(j);
+            const int *e = GetElement(i)->GetEdgeVertices(j);
             v_to_v.Push(v[e[0]], v[e[1]]);
          }
       }
@@ -4193,7 +4265,7 @@ int MixedMesh::GetElementToEdgeTable(Table & e_to_f, Array<int> &be_to_f)
       be_to_f.SetSize(NumOfBdrElements);
       for (i = 0; i < NumOfBdrElements; i++)
       {
-         const int *v = boundary[i]->GetVertices();
+         const int *v = GetBdrElement(i)->GetVertices();
          be_to_f[i] = v_to_v(v[0], v[1]);
       }
    }
@@ -4275,11 +4347,11 @@ void MixedMesh::AddPointFaceElement(int lf, int gf, int el)
    {
       Element::Type type;
       int index;
-      this->GetFaceTypeAndIndex(gf, type, index);  
+      this->GetFaceTypeAndIndex(gf, type, index);
       MFEM_ASSERT(type == Element::POINT,
-		  "MixedMesh::AddPointFaceElement: Face " << gf
-		  << " is of type " << type << " rather than "
-		  << Element::POINT);
+                  "MixedMesh::AddPointFaceElement: Face " << gf
+                  << " is of type " << type << " rather than "
+                  << Element::POINT);
       faces[type][index] = new Point(&gf);
       faces_info[gf].Elem1No  = el;
       faces_info[gf].Elem1Inf = 64 * lf; // face lf with orientation 0
@@ -4297,11 +4369,11 @@ void MixedMesh::AddSegmentFaceElement(int lf, int gf, int el, int v0, int v1)
 {
    Element::Type type;
    int index;
-   this->GetFaceTypeAndIndex(gf, type, index);  
+   this->GetFaceTypeAndIndex(gf, type, index);
    MFEM_ASSERT(type == Element::SEGMENT,
-	       "MixedMesh::AddSegmentFaceElement: Face " << gf
-	       << " is of type " << type << " rather than "
-	       << Element::SEGMENT);
+               "MixedMesh::AddSegmentFaceElement: Face " << gf
+               << " is of type " << type << " rather than "
+               << Element::SEGMENT);
    if (faces[type][index] == NULL)  // this will be elem1
    {
       faces[type][index] = new Segment(v0, v1);
@@ -4331,15 +4403,15 @@ void MixedMesh::AddSegmentFaceElement(int lf, int gf, int el, int v0, int v1)
 }
 
 void MixedMesh::AddTriangleFaceElement(int lf, int gf, int el,
-                                  int v0, int v1, int v2)
+                                       int v0, int v1, int v2)
 {
    Element::Type type;
    int index;
    this->GetFaceTypeAndIndex(gf, type, index);
    MFEM_ASSERT(type == Element::TRIANGLE,
-	       "MixedMesh::AddTriangleFaceElement: Face " << gf
-	       << " is of type " << type << " rather than "
-	       << Element::TRIANGLE);
+               "MixedMesh::AddTriangleFaceElement: Face " << gf
+               << " is of type " << type << " rather than "
+               << Element::TRIANGLE);
    if (faces[type][index] == NULL)  // this will be elem1
    {
       faces[type][index] = new Triangle(v0, v1, v2);
@@ -4359,15 +4431,15 @@ void MixedMesh::AddTriangleFaceElement(int lf, int gf, int el,
 }
 
 void MixedMesh::AddQuadFaceElement(int lf, int gf, int el,
-                              int v0, int v1, int v2, int v3)
+                                   int v0, int v1, int v2, int v3)
 {
    Element::Type type;
    int index;
-   this->GetFaceTypeAndIndex(gf, type, index);  
+   this->GetFaceTypeAndIndex(gf, type, index);
    MFEM_ASSERT(type == Element::QUADRILATERAL,
-	       "MixedMesh::AddQuadFaceElement: Face " << gf
-	       << " is of type " << type << " rather than "
-	       << Element::QUADRILATERAL);
+               "MixedMesh::AddQuadFaceElement: Face " << gf
+               << " is of type " << type << " rather than "
+               << Element::QUADRILATERAL);
    if (faces[type][index] == NULL)  // this will be elem1
    {
       faces[type][index] = new Quadrilateral(v0, v1, v2, v3);
@@ -4397,7 +4469,7 @@ void MixedMesh::GenerateFaces()
    faces_info.SetSize(nfaces);
    for (i = 0; i < nfaces; i++)
    {
-      // faces[i] = NULL;
+      // GetFace(i) = NULL;
       faces_info[i].Elem1No = -1;
       faces_info[i].NCFace = -1;
    }
@@ -4416,7 +4488,7 @@ void MixedMesh::GenerateFaces()
          const int ne = this->GetElement(i)->GetNEdges();
          for (int j = 0; j < ne; j++)
          {
- 	    const int *e = this->GetElement(i)->GetEdgeVertices(j);
+            const int *e = this->GetElement(i)->GetEdgeVertices(j);
             AddSegmentFaceElement(j, ef[j], i, v[e[0]], v[e[1]]);
          }
       }
@@ -4447,7 +4519,7 @@ void MixedMesh::GenerateFaces()
                {
                   const int *fv = pri_t::FaceVert[j];
                   AddQuadFaceElement(j, ef[j], i,
-				     v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]);
+                                     v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]);
                }
                break;
             }
@@ -4520,7 +4592,7 @@ STable3D *MixedMesh::GetFacesTable()
    STable3D *faces_tbl = new STable3D(NumOfVertices);
    for (int i = 0; i < NumOfElements; i++)
    {
-      const int *v = elements[i]->GetVertices();
+      const int *v = GetElement(i)->GetVertices();
       switch (GetElementType(i))
       {
          case Element::TETRAHEDRON:
@@ -4577,7 +4649,7 @@ STable3D *MixedMesh::GetElementToFaceTable(int ret_ftbl)
    faces_tbl = new STable3D(NumOfVertices);
    for (i = 0; i < NumOfElements; i++)
    {
-      v = elements[i]->GetVertices();
+      v = GetElement(i)->GetVertices();
       switch (GetElementType(i))
       {
          case Element::TETRAHEDRON:
@@ -4627,7 +4699,7 @@ STable3D *MixedMesh::GetElementToFaceTable(int ret_ftbl)
    be_to_face.SetSize(NumOfBdrElements);
    for (i = 0; i < NumOfBdrElements; i++)
    {
-      v = boundary[i]->GetVertices();
+      v = GetBdrElement(i)->GetVertices();
       switch (GetBdrElementType(i))
       {
          case Element::TRIANGLE:
@@ -4674,7 +4746,7 @@ void MixedMesh::ReorientTetMesh()
    {
       if (GetElementType(i) == Element::TETRAHEDRON)
       {
-         v = elements[i]->GetVertices();
+         v = GetElement(i)->GetVertices();
 
          Rotate3(v[0], v[1], v[2]);
          if (v[0] < v[3])
@@ -4692,7 +4764,7 @@ void MixedMesh::ReorientTetMesh()
    {
       if (GetBdrElementType(i) == Element::TRIANGLE)
       {
-         v = boundary[i]->GetVertices();
+         v = GetBdrElement(i)->GetVertices();
 
          Rotate3(v[0], v[1], v[2]);
       }
@@ -5412,7 +5484,7 @@ void MixedMesh::CheckDisplacements(const Vector &displacements, double &tmax)
    }
    for (int i = 0; i < NumOfElements; i++)
    {
-      Element *el = elements[i];
+      Element *el = GetElement(i);
       int nv = el->GetNVertices();
       int *v = el->GetVertices();
       P.SetSize(spaceDim, nv);
@@ -5651,7 +5723,7 @@ void MixedMesh::QuadUniformRefinement()
 
    for (i = 0; i < NumOfElements; i++)
    {
-      v = elements[i]->GetVertices();
+      v = GetElement(i)->GetVertices();
 
       AverageVertices(v, 4, oelem+i);
 
@@ -5666,8 +5738,8 @@ void MixedMesh::QuadUniformRefinement()
    elements.SetSize(4 * NumOfElements);
    for (i = 0; i < NumOfElements; i++)
    {
-      attr = elements[i]->GetAttribute();
-      v = elements[i]->GetVertices();
+      attr = GetElement(i)->GetAttribute();
+      v = GetElement(i)->GetVertices();
       e = el_to_edge->GetRow(i);
       j = NumOfElements + 3 * i;
 
@@ -5686,8 +5758,8 @@ void MixedMesh::QuadUniformRefinement()
    boundary.SetSize(2 * NumOfBdrElements);
    for (i = 0; i < NumOfBdrElements; i++)
    {
-      attr = boundary[i]->GetAttribute();
-      v = boundary[i]->GetVertices();
+      attr = GetBdrElement(i)->GetAttribute();
+      v = GetBdrElement(i)->GetVertices();
       j = NumOfBdrElements + i;
 
       boundary[j] = new Segment(oedge+be_to_edge[i], v[1], attr);
@@ -5759,9 +5831,9 @@ void MixedMesh::HexUniformRefinement()
    vertices.SetSize(oelem + NumOfElements);
    for (i = 0; i < NumOfElements; i++)
    {
-      MFEM_ASSERT(elements[i]->GetType() == Element::HEXAHEDRON,
+      MFEM_ASSERT(GetElement(i)->GetType() == Element::HEXAHEDRON,
                   "Element is not a hex!");
-      v = elements[i]->GetVertices();
+      v = GetElement(i)->GetVertices();
 
       AverageVertices(v, 8, oelem+i);
 
@@ -5792,8 +5864,8 @@ void MixedMesh::HexUniformRefinement()
    elements.SetSize(8 * NumOfElements);
    for (i = 0; i < NumOfElements; i++)
    {
-      attr = elements[i]->GetAttribute();
-      v = elements[i]->GetVertices();
+      attr = GetElement(i)->GetAttribute();
+      v = GetElement(i)->GetVertices();
       e = el_to_edge->GetRow(i);
       f = el_to_face->GetRow(i);
       j = NumOfElements + 7 * i;
@@ -5832,10 +5904,10 @@ void MixedMesh::HexUniformRefinement()
    boundary.SetSize(4 * NumOfBdrElements);
    for (i = 0; i < NumOfBdrElements; i++)
    {
-      MFEM_ASSERT(boundary[i]->GetType() == Element::QUADRILATERAL,
+      MFEM_ASSERT(GetBdrElement(i)->GetType() == Element::QUADRILATERAL,
                   "boundary Element is not a quad!");
-      attr = boundary[i]->GetAttribute();
-      v = boundary[i]->GetVertices();
+      attr = GetBdrElement(i)->GetAttribute();
+      v = GetBdrElement(i)->GetVertices();
       e = bel_to_edge->GetRow(i);
       f = & be_to_face[i];
       j = NumOfBdrElements + 3 * i;
@@ -5924,7 +5996,7 @@ void MixedMesh::LocalRefinement(const Array<int> &marked_el, int type)
       for (j = 0; j < marked_el.Size(); j++)
       {
          i = marked_el[j];
-         Segment *c_seg = (Segment *)elements[i];
+         Segment *c_seg = (Segment *)GetElement(i);
          int *vert = c_seg->GetVertices(), attr = c_seg->GetAttribute();
          int new_v = cnv + j, new_e = cne + j;
          AverageVertices(vert, 2, new_v);
@@ -5960,7 +6032,7 @@ void MixedMesh::LocalRefinement(const Array<int> &marked_el, int type)
 
       for (i = 0; i < NumOfElements; i++)
       {
-         elements[i]->GetVertices(v);
+         GetElement(i)->GetVertices(v);
          for (j = 1; j < v.Size(); j++)
          {
             ind = v_to_v(v[j-1], v[j]);
@@ -5997,17 +6069,17 @@ void MixedMesh::LocalRefinement(const Array<int> &marked_el, int type)
       temp = NumOfBdrElements;
       for (i = 0; i < temp; i++)
       {
-         boundary[i]->GetVertices(v);
+         GetBdrElement(i)->GetVertices(v);
          bisect = v_to_v(v[0], v[1]);
          if (middle[bisect] != -1) // the element was refined (needs updating)
          {
-            if (boundary[i]->GetType() == Element::SEGMENT)
+            if (GetBdrElement(i)->GetType() == Element::SEGMENT)
             {
                v1[0] =           v[0]; v1[1] = middle[bisect];
                v2[0] = middle[bisect]; v2[1] =           v[1];
 
-               boundary[i]->SetVertices(v1);
-               boundary.Append(new Segment(v2, boundary[i]->GetAttribute()));
+               GetBdrElement(i)->SetVertices(v1);
+               boundary.Append(new Segment(v2, GetBdrElement(i)->GetAttribute()));
             }
             else
                mfem_error("Only bisection of segment is implemented"
@@ -6090,10 +6162,10 @@ void MixedMesh::LocalRefinement(const Array<int> &marked_el, int type)
          // for (i = 0; i < onoe; i++)
          for (i = 0; i < NumOfElements; i++)
          {
-            // ((Tetrahedron *)elements[i])->
+            // ((Tetrahedron *)GetElement(i))->
             // ParseRefinementFlag(redges, type, flag);
             // if (flag > max_gen)  max_gen = flag;
-            if (elements[i]->NeedRefinement(v_to_v, middle))
+            if (GetElement(i)->NeedRefinement(v_to_v, middle))
             {
                need_refinement = 1;
                Bisection(i, v_to_v, NULL, NULL, middle);
@@ -6109,7 +6181,7 @@ void MixedMesh::LocalRefinement(const Array<int> &marked_el, int type)
       {
          need_refinement = 0;
          for (i = 0; i < NumOfBdrElements; i++)
-            if (boundary[i]->NeedRefinement(v_to_v, middle))
+            if (GetBdrElement(i)->NeedRefinement(v_to_v, middle))
             {
                need_refinement = 1;
                Bisection(i, v_to_v, middle);
@@ -6121,7 +6193,7 @@ void MixedMesh::LocalRefinement(const Array<int> &marked_el, int type)
       int refinement_edges[2], type, flag;
       for (i = 0; i < NumOfElements; i++)
       {
-         Tetrahedron* el = (Tetrahedron*) elements[i];
+         Tetrahedron* el = (Tetrahedron*) GetElement(i);
          el->ParseRefinementFlag(refinement_edges, type, flag);
 
          if (type == Tetrahedron::TYPE_PF)
@@ -6408,35 +6480,35 @@ void MixedMesh::Swap(MixedMesh& other, bool non_geometry)
       mfem::Swap(own_nodes, other.own_nodes);
    }
 }
-  /*
+/*
 void MixedMesh::GetElementData(const Array<Element*> &elem_array, int geom,
-                          Array<int> &elem_vtx, Array<int> &attr) const
+                        Array<int> &elem_vtx, Array<int> &attr) const
 {
-   // protected method
-   const int nv = Geometry::NumVerts[geom];
-   int num_elems = 0;
-   for (int i = 0; i < elem_array.Size(); i++)
-   {
-      if (elem_array[i]->GetGeometryType() == geom)
-      {
-         num_elems++;
-      }
-   }
-   elem_vtx.SetSize(nv*num_elems);
-   attr.SetSize(num_elems);
-   elem_vtx.SetSize(0);
-   attr.SetSize(0);
-   for (int i = 0; i < elem_array.Size(); i++)
-   {
-      Element *el = elem_array[i];
-      if (el->GetGeometryType() != geom) { continue; }
+ // protected method
+ const int nv = Geometry::NumVerts[geom];
+ int num_elems = 0;
+ for (int i = 0; i < elem_array.Size(); i++)
+ {
+    if (elem_array[i]->GetGeometryType() == geom)
+    {
+       num_elems++;
+    }
+ }
+ elem_vtx.SetSize(nv*num_elems);
+ attr.SetSize(num_elems);
+ elem_vtx.SetSize(0);
+ attr.SetSize(0);
+ for (int i = 0; i < elem_array.Size(); i++)
+ {
+    Element *el = elem_array[i];
+    if (el->GetGeometryType() != geom) { continue; }
 
-      Array<int> loc_vtx(el->GetVertices(), nv);
-      elem_vtx.Append(loc_vtx);
-      attr.Append(el->GetAttribute());
-   }
+    Array<int> loc_vtx(el->GetVertices(), nv);
+    elem_vtx.Append(loc_vtx);
+    attr.Append(el->GetAttribute());
+ }
 }
-  */
+*/
 void MixedMesh::UniformRefinement()
 {
    if (NURBSext)
@@ -6477,7 +6549,7 @@ void MixedMesh::UniformRefinement()
 }
 
 void MixedMesh::GeneralRefinement(const Array<Refinement> &refinements,
-                             int nonconforming, int nc_limit)
+                                  int nonconforming, int nc_limit)
 {
    if (Dim == 1 || (Dim == 3 && meshgen & 1))
    {
@@ -6530,8 +6602,9 @@ void MixedMesh::GeneralRefinement(const Array<Refinement> &refinements,
    }
 }
 
-void MixedMesh::GeneralRefinement(const Array<int> &el_to_refine, int nonconforming,
-                             int nc_limit)
+void MixedMesh::GeneralRefinement(const Array<int> &el_to_refine,
+                                  int nonconforming,
+                                  int nc_limit)
 {
    Array<Refinement> refinements(el_to_refine.Size());
    for (int i = 0; i < el_to_refine.Size(); i++)
@@ -6557,9 +6630,9 @@ void MixedMesh::GeneralRefinement(const Array<int> &el_to_refine, int nonconform
 //       }
 //    }
 // }
-  
+
 void MixedMesh::RandomRefinement(double prob, bool aniso, int nonconforming,
-                            int nc_limit)
+                                 int nc_limit)
 {
    Array<Refinement> refs;
    for (int i = 0; i < GetNE(); i++)
@@ -6577,7 +6650,8 @@ void MixedMesh::RandomRefinement(double prob, bool aniso, int nonconforming,
    GeneralRefinement(refs, nonconforming, nc_limit);
 }
 
-void MixedMesh::RefineAtVertex(const Vertex& vert, double eps, int nonconforming)
+void MixedMesh::RefineAtVertex(const Vertex& vert, double eps,
+                               int nonconforming)
 {
    Array<int> v;
    Array<Refinement> refs;
@@ -6604,7 +6678,7 @@ void MixedMesh::RefineAtVertex(const Vertex& vert, double eps, int nonconforming
 }
 
 bool MixedMesh::RefineByError(const Array<double> &elem_error, double threshold,
-                         int nonconforming, int nc_limit)
+                              int nonconforming, int nc_limit)
 {
    MFEM_VERIFY(elem_error.Size() == GetNE(), "");
    Array<Refinement> refs;
@@ -6624,7 +6698,7 @@ bool MixedMesh::RefineByError(const Array<double> &elem_error, double threshold,
 }
 
 bool MixedMesh::RefineByError(const Vector &elem_error, double threshold,
-                         int nonconforming, int nc_limit)
+                              int nonconforming, int nc_limit)
 {
    Array<double> tmp(const_cast<double*>(elem_error.GetData()),
                      elem_error.Size());
@@ -6633,11 +6707,11 @@ bool MixedMesh::RefineByError(const Vector &elem_error, double threshold,
 
 
 void MixedMesh::Bisection(int i, const DSTable &v_to_v,
-                     int *edge1, int *edge2, int *middle)
+                          int *edge1, int *edge2, int *middle)
 {
    int *vert;
    int v[2][4], v_new, bisect, t;
-   Element *el = elements[i];
+   Element *el = GetElement(i);
    Vertex V;
 
    t = el->GetType();
@@ -6843,7 +6917,7 @@ void MixedMesh::Bisection(int i, const DSTable &v_to_v, int *middle)
 {
    int *vert;
    int v[2][3], v_new, bisect, t;
-   Element *bdr_el = boundary[i];
+   Element *bdr_el = GetBdrElement(i);
 
    t = bdr_el->GetType();
    if (t == Element::TRIANGLE)
@@ -6876,15 +6950,15 @@ void MixedMesh::Bisection(int i, const DSTable &v_to_v, int *middle)
 }
 
 void MixedMesh::UniformRefinement(int i, const DSTable &v_to_v,
-                             int *edge1, int *edge2, int *middle)
+                                  int *edge1, int *edge2, int *middle)
 {
    Array<int> v;
    int j, v1[3], v2[3], v3[3], v4[3], v_new[3], bisect[3];
    Vertex V;
 
-   if (elements[i]->GetType() == Element::TRIANGLE)
+   if (GetElement(i)->GetType() == Element::TRIANGLE)
    {
-      Triangle *tri0 = (Triangle*) elements[i];
+      Triangle *tri0 = (Triangle*) GetElement(i);
       tri0->GetVertices(v);
 
       // 1. Get the indeces for the new vertices in array v_new
@@ -6972,7 +7046,7 @@ void MixedMesh::InitRefinementTransforms()
    CoarseFineTr.embeddings.SetSize(NumOfElements);
    for (int i = 0; i < NumOfElements; i++)
    {
-      elements[i]->ResetTransform(0);
+      GetElement(i)->ResetTransform(0);
       CoarseFineTr.embeddings[i] = Embedding(i);
    }
 }
@@ -7008,7 +7082,7 @@ const CoarseFineTransformations& MixedMesh::GetRefinementTransforms()
          for (int i = 0; i < elements.Size(); i++)
          {
             int index = 0;
-            unsigned code = elements[i]->GetTransform();
+            unsigned code = GetElement(i)->GetTransform();
             if (code)
             {
                int &matrix = mat_no[code];
@@ -7067,9 +7141,9 @@ void MixedMesh::PrintXG(std::ostream &out) const
       out << NumOfBdrElements << '\n';
       for (i = 0; i < NumOfBdrElements; i++)
       {
-         boundary[i]->GetVertices(v);
+         GetBdrElement(i)->GetVertices(v);
 
-         out << boundary[i]->GetAttribute();
+         out << GetBdrElement(i)->GetAttribute();
          for (j = 0; j < v.Size(); j++)
          {
             out << ' ' << v[j] + 1;
@@ -7081,9 +7155,9 @@ void MixedMesh::PrintXG(std::ostream &out) const
       out << NumOfElements << '\n';
       for (i = 0; i < NumOfElements; i++)
       {
-         elements[i]->GetVertices(v);
+         GetElement(i)->GetVertices(v);
 
-         out << elements[i]->GetAttribute() << ' ' << v.Size();
+         out << GetElement(i)->GetAttribute() << ' ' << v.Size();
          for (j = 0; j < v.Size(); j++)
          {
             out << ' ' << v[j] + 1;
@@ -7139,9 +7213,9 @@ void MixedMesh::PrintXG(std::ostream &out) const
          out << NumOfElements << '\n';
          for (i = 0; i < NumOfElements; i++)
          {
-            nv = elements[i]->GetNVertices();
-            ind = elements[i]->GetVertices();
-            out << elements[i]->GetAttribute();
+            nv = GetElement(i)->GetNVertices();
+            ind = GetElement(i)->GetVertices();
+            out << GetElement(i)->GetAttribute();
             for (j = 0; j < nv; j++)
             {
                out << ' ' << ind[j]+1;
@@ -7153,9 +7227,9 @@ void MixedMesh::PrintXG(std::ostream &out) const
          out << NumOfBdrElements << '\n';
          for (i = 0; i < NumOfBdrElements; i++)
          {
-            nv = boundary[i]->GetNVertices();
-            ind = boundary[i]->GetVertices();
-            out << boundary[i]->GetAttribute();
+            nv = GetBdrElement(i)->GetNVertices();
+            ind = GetBdrElement(i)->GetVertices();
+            out << GetBdrElement(i)->GetAttribute();
             for (j = 0; j < nv; j++)
             {
                out << ' ' << ind[j]+1;
@@ -7182,9 +7256,9 @@ void MixedMesh::PrintXG(std::ostream &out) const
 
          for (i = 0; i < NumOfElements; i++)
          {
-            nv = elements[i]->GetNVertices();
-            ind = elements[i]->GetVertices();
-            out << i+1 << ' ' << elements[i]->GetAttribute();
+            nv = GetElement(i)->GetNVertices();
+            ind = GetElement(i)->GetVertices();
+            out << i+1 << ' ' << GetElement(i)->GetAttribute();
             for (j = 0; j < nv; j++)
             {
                out << ' ' << ind[j]+1;
@@ -7194,9 +7268,9 @@ void MixedMesh::PrintXG(std::ostream &out) const
 
          for (i = 0; i < NumOfBdrElements; i++)
          {
-            nv = boundary[i]->GetNVertices();
-            ind = boundary[i]->GetVertices();
-            out << boundary[i]->GetAttribute();
+            nv = GetBdrElement(i)->GetNVertices();
+            ind = GetBdrElement(i)->GetVertices();
+            out << GetBdrElement(i)->GetAttribute();
             for (j = 0; j < nv; j++)
             {
                out << ' ' << ind[j]+1;
@@ -7246,13 +7320,13 @@ void MixedMesh::Printer(std::ostream &out, std::string section_delimiter) const
        << "\n\nelements\n" << NumOfElements << '\n';
    for (i = 0; i < NumOfElements; i++)
    {
-      PrintElement(elements[i], out);
+      PrintElement(GetElement(i), out);
    }
 
    out << "\nboundary\n" << NumOfBdrElements << '\n';
    for (i = 0; i < NumOfBdrElements; i++)
    {
-      PrintElement(boundary[i], out);
+      PrintElement(GetBdrElement(i), out);
    }
 
    if (ncmesh)
@@ -7310,13 +7384,13 @@ void MixedMesh::PrintTopo(std::ostream &out,const Array<int> &e_to_k) const
        << "\n\nelements\n" << NumOfElements << '\n';
    for (i = 0; i < NumOfElements; i++)
    {
-      PrintElement(elements[i], out);
+      PrintElement(GetElement(i), out);
    }
 
    out << "\nboundary\n" << NumOfBdrElements << '\n';
    for (i = 0; i < NumOfBdrElements; i++)
    {
-      PrintElement(boundary[i], out);
+      PrintElement(GetBdrElement(i), out);
    }
 
    out << "\nedges\n" << NumOfEdges << '\n';
@@ -7388,13 +7462,13 @@ void MixedMesh::PrintVTK(std::ostream &out)
       int size = 0;
       for (int i = 0; i < NumOfElements; i++)
       {
-         size += elements[i]->GetNVertices() + 1;
+         size += GetElement(i)->GetNVertices() + 1;
       }
       out << "CELLS " << NumOfElements << ' ' << size << '\n';
       for (int i = 0; i < NumOfElements; i++)
       {
-         const int *v = elements[i]->GetVertices();
-         const int nv = elements[i]->GetNVertices();
+         const int *v = GetElement(i)->GetVertices();
+         const int nv = GetElement(i)->GetNVertices();
          out << nv;
          for (int j = 0; j < nv; j++)
          {
@@ -7447,7 +7521,7 @@ void MixedMesh::PrintVTK(std::ostream &out)
          else if (order == 2)
          {
             const int *vtk_mfem;
-            switch (elements[i]->GetGeometryType())
+            switch (GetElement(i)->GetGeometryType())
             {
                case Geometry::TRIANGLE:
                case Geometry::SQUARE:
@@ -7475,7 +7549,7 @@ void MixedMesh::PrintVTK(std::ostream &out)
       int vtk_cell_type = 5;
       if (order == 1)
       {
-         switch (elements[i]->GetGeometryType())
+         switch (GetElement(i)->GetGeometryType())
          {
             case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
             case Geometry::SQUARE:       vtk_cell_type = 9;   break;
@@ -7486,7 +7560,7 @@ void MixedMesh::PrintVTK(std::ostream &out)
       }
       else if (order == 2)
       {
-         switch (elements[i]->GetGeometryType())
+         switch (GetElement(i)->GetGeometryType())
          {
             case Geometry::TRIANGLE:     vtk_cell_type = 22;  break;
             case Geometry::SQUARE:       vtk_cell_type = 28;  break;
@@ -7505,7 +7579,7 @@ void MixedMesh::PrintVTK(std::ostream &out)
        << "LOOKUP_TABLE default\n";
    for (int i = 0; i < NumOfElements; i++)
    {
-      out << elements[i]->GetAttribute() << '\n';
+      out << GetElement(i)->GetAttribute() << '\n';
    }
    out.flush();
 }
@@ -7735,7 +7809,7 @@ void MixedMesh::GetElementColoring(Array<int> &colors, int el0)
 }
 
 void MixedMesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
-                                 int elem_attr) const
+                                      int elem_attr) const
 {
    if (Dim != 3 && Dim != 2) { return; }
 
@@ -7759,10 +7833,10 @@ void MixedMesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
        << "\n\nelements\n" << NumOfElements << '\n';
    for (i = 0; i < NumOfElements; i++)
    {
-      out << int((elem_attr) ? partitioning[i]+1 : elements[i]->GetAttribute())
-          << ' ' << elements[i]->GetGeometryType();
-      nv = elements[i]->GetNVertices();
-      v  = elements[i]->GetVertices();
+      out << int((elem_attr) ? partitioning[i]+1 : GetElement(i)->GetAttribute())
+          << ' ' << GetElement(i)->GetGeometryType();
+      nv = GetElement(i)->GetNVertices();
+      v  = GetElement(i)->GetVertices();
       for (j = 0; j < nv; j++)
       {
          out << ' ' << v[j];
@@ -7799,9 +7873,9 @@ void MixedMesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
          l = partitioning[l];
          if (k != l)
          {
-            nv = faces[i]->GetNVertices();
-            v  = faces[i]->GetVertices();
-            out << k+1 << ' ' << faces[i]->GetGeometryType();
+            nv = GetFace(i)->GetNVertices();
+            v  = GetFace(i)->GetVertices();
+            out << k+1 << ' ' << GetFace(i)->GetGeometryType();
             for (j = 0; j < nv; j++)
             {
                out << ' ' << v[j];
@@ -7809,7 +7883,7 @@ void MixedMesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
             out << '\n';
             if (!Nonconforming() || !IsSlaveFace(faces_info[i]))
             {
-               out << l+1 << ' ' << faces[i]->GetGeometryType();
+               out << l+1 << ' ' << GetFace(i)->GetGeometryType();
                for (j = nv-1; j >= 0; j--)
                {
                   out << ' ' << v[j];
@@ -7821,9 +7895,9 @@ void MixedMesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
       else
       {
          k = partitioning[faces_info[i].Elem1No];
-         nv = faces[i]->GetNVertices();
-         v  = faces[i]->GetVertices();
-         out << k+1 << ' ' << faces[i]->GetGeometryType();
+         nv = GetFace(i)->GetNVertices();
+         v  = GetFace(i)->GetVertices();
+         out << k+1 << ' ' << GetFace(i)->GetGeometryType();
          for (j = 0; j < nv; j++)
          {
             out << ' ' << v[j];
@@ -7854,8 +7928,8 @@ void MixedMesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
 }
 
 void MixedMesh::PrintElementsWithPartitioning(int *partitioning,
-                                         std::ostream &out,
-                                         int interior_faces)
+                                              std::ostream &out,
+                                              int interior_faces)
 {
    MFEM_ASSERT(Dim == spaceDim, "2D Manifolds not supported\n");
    if (Dim != 3 && Dim != 2) { return; }
@@ -7872,8 +7946,8 @@ void MixedMesh::PrintElementsWithPartitioning(int *partitioning,
    }
    for (i = 0; i < NumOfElements; i++)
    {
-      nv = elements[i]->GetNVertices();
-      ind = elements[i]->GetVertices();
+      nv = GetElement(i)->GetNVertices();
+      ind = GetElement(i)->GetVertices();
       for (j = 0; j < nv; j++)
       {
          vcount[ind[j]]++;
@@ -7905,8 +7979,8 @@ void MixedMesh::PrintElementsWithPartitioning(int *partitioning,
       // Fake printing of the elements.
       for (i = 0; i < NumOfElements; i++)
       {
-         nv  = elements[i]->GetNVertices();
-         ind = elements[i]->GetVertices();
+         nv  = GetElement(i)->GetNVertices();
+         ind = GetElement(i)->GetVertices();
          for (j = 0; j < nv; j++)
          {
             vcount[ind[j]]--;
@@ -7990,8 +8064,8 @@ void MixedMesh::PrintElementsWithPartitioning(int *partitioning,
       out << NumOfElements << '\n';
       for (i = 0; i < NumOfElements; i++)
       {
-         nv  = elements[i]->GetNVertices();
-         ind = elements[i]->GetVertices();
+         nv  = GetElement(i)->GetNVertices();
+         ind = GetElement(i)->GetVertices();
          out << partitioning[i]+1 << ' '; // use subdomain number as attribute
          out << nv << ' ';
          for (j = 0; j < nv; j++)
@@ -8042,8 +8116,8 @@ void MixedMesh::PrintElementsWithPartitioning(int *partitioning,
       out << NumOfElements << '\n';
       for (i = 0; i < NumOfElements; i++)
       {
-         nv = elements[i]->GetNVertices();
-         ind = elements[i]->GetVertices();
+         nv = GetElement(i)->GetNVertices();
+         ind = GetElement(i)->GetVertices();
          out << partitioning[i]+1; // use subdomain number as attribute
          for (j = 0; j < nv; j++)
          {
@@ -8084,8 +8158,8 @@ void MixedMesh::PrintElementsWithPartitioning(int *partitioning,
             l = partitioning[l];
             if (interior_faces || k != l)
             {
-               nv = faces[i]->GetNVertices();
-               ind = faces[i]->GetVertices();
+               nv = GetFace(i)->GetNVertices();
+               ind = GetFace(i)->GetVertices();
                out << k+1; // attribute
                for (j = 0; j < nv; j++)
                   for (s = 0; s < vcount[ind[j]]; s++)
@@ -8107,8 +8181,8 @@ void MixedMesh::PrintElementsWithPartitioning(int *partitioning,
          else
          {
             k = partitioning[faces_info[i].Elem1No];
-            nv = faces[i]->GetNVertices();
-            ind = faces[i]->GetVertices();
+            nv = GetFace(i)->GetNVertices();
+            ind = GetFace(i)->GetVertices();
             out << k+1; // attribute
             for (j = 0; j < nv; j++)
                for (s = 0; s < vcount[ind[j]]; s++)
@@ -8160,8 +8234,8 @@ void MixedMesh::PrintElementsWithPartitioning(int *partitioning,
 
       for (i = 0; i < NumOfElements; i++)
       {
-         nv = elements[i]->GetNVertices();
-         ind = elements[i]->GetVertices();
+         nv = GetElement(i)->GetNVertices();
+         ind = GetElement(i)->GetVertices();
          out << i+1 << ' ' << partitioning[i]+1; // partitioning as attribute
          for (j = 0; j < nv; j++)
          {
@@ -8184,8 +8258,8 @@ void MixedMesh::PrintElementsWithPartitioning(int *partitioning,
             l = partitioning[l];
             if (interior_faces || k != l)
             {
-               nv = faces[i]->GetNVertices();
-               ind = faces[i]->GetVertices();
+               nv = GetFace(i)->GetNVertices();
+               ind = GetFace(i)->GetVertices();
                out << k+1; // attribute
                for (j = 0; j < nv; j++)
                   for (s = 0; s < vcount[ind[j]]; s++)
@@ -8207,8 +8281,8 @@ void MixedMesh::PrintElementsWithPartitioning(int *partitioning,
          else
          {
             k = partitioning[faces_info[i].Elem1No];
-            nv = faces[i]->GetNVertices();
-            ind = faces[i]->GetVertices();
+            nv = GetFace(i)->GetNVertices();
+            ind = GetFace(i)->GetVertices();
             out << k+1; // attribute
             for (j = 0; j < nv; j++)
                for (s = 0; s < vcount[ind[j]]; s++)
@@ -8256,7 +8330,7 @@ void MixedMesh::PrintSurfaces(const Table & Aface_face, std::ostream &out) const
        << "\n\nelements\n" << NumOfElements << '\n';
    for (i = 0; i < NumOfElements; i++)
    {
-      PrintElement(elements[i], out);
+      PrintElement(GetElement(i), out);
    }
 
    out << "\nboundary\n" << Aface_face.Size_of_connections() << '\n';
@@ -8600,7 +8674,7 @@ void MixedMesh::RemoveInternalBoundaries()
    {
       if (FaceIsInterior(GetBdrElementEdgeIndex(i)))
       {
-         FreeElement(boundary[i]);
+         FreeElement(GetBdrElement(i));
       }
       else
       {
@@ -8632,7 +8706,7 @@ void MixedMesh::RemoveInternalBoundaries()
    {
       if (!FaceIsInterior(GetBdrElementEdgeIndex(i)))
       {
-         new_boundary.Append(boundary[i]);
+         new_boundary.Append(GetBdrElement(i));
          if (Dim == 2)
          {
             new_be_to_edge.Append(be_to_edge[i]);
@@ -8685,12 +8759,12 @@ void MixedMesh::FreeElements(std::map<Element::Type, Array<Element*> > & m)
    {
       for (int i=0; i<it->second.Size(); i++)
       {
-	 FreeElement(it->second[i]);
-	 it->second[i] = NULL;
+         FreeElement(it->second[i]);
+         it->second[i] = NULL;
       }
    }
 }
-  
+
 void MixedMesh::FreeElement(Element *E)
 {
 #ifdef MFEM_USE_MEMALLOC
@@ -8717,7 +8791,7 @@ std::ostream &operator<<(std::ostream &out, const MixedMesh &mesh)
 }
 
 int MixedMesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
-                     Array<IntegrationPoint>& ips, bool warn)
+                          Array<IntegrationPoint>& ips, bool warn)
 {
    const int npts = point_mat.Width();
    if (!npts) { return 0; }
@@ -8855,7 +8929,8 @@ void NodeExtrudeCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 
-MixedMesh *Extrude1D(MixedMesh *mesh, const int ny, const double sy, const bool closed)
+MixedMesh *Extrude1D(MixedMesh *mesh, const int ny, const double sy,
+                     const bool closed)
 {
    if (mesh->Dimension() != 1)
    {
@@ -8874,7 +8949,7 @@ MixedMesh *Extrude1D(MixedMesh *mesh, const int ny, const double sy, const bool 
    }
    else
       mesh2d = new MixedMesh(2, nvt, mesh->GetNE()*ny,
-                        mesh->GetNBE()*ny+2*mesh->GetNE());
+                             mesh->GetNBE()*ny+2*mesh->GetNE());
 
    // vertices
    double vc[2];

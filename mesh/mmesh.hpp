@@ -56,7 +56,8 @@ protected:
    int NumOfVertices, NumOfElements, NumOfBdrElements;
    int NumOfEdges, NumOfFaces;
 
-   int BaseGeom, BaseBdrGeom; // element base geometries, -1 if not all the same
+   // element base geometries, -1 if not all the same
+   Geometry::Type BaseGeom, BaseBdrGeom;
 
    int meshgen; // see MeshGenerator()
 
@@ -178,8 +179,25 @@ public:
 
 protected:
 
+   int CountJaggedArrayEntries(const std::map<Element::Type,
+                               Array<Element*> > & m) const;
+
+   int CountElements() const
+   { return CountJaggedArrayEntries(elements); }
+
+   int CountBdrElements() const
+   { return CountJaggedArrayEntries(boundary); }
+
+   int CountFaces() const
+   { return CountJaggedArrayEntries(faces); }
+
+
    void GetTypeAndIndex(const std::map<Element::Type, Array<Element*> > & m,
-			int i, Element::Type & type, int & index) const;
+                        int i, Element::Type & type, int & index) const;
+
+   const Array<Element*> &
+   GetArrayAndOffset(const std::map<Element::Type, Array<Element*> > & m,
+                     int i, int & offset) const;
 
    Mesh::Operation last_operation;
 
@@ -228,8 +246,8 @@ protected:
    void GetEdgeOrdering(DSTable &v_to_v, Array<int> &order);
    virtual void MarkTetMeshForRefinement(DSTable &v_to_v);
 
-   void PrepareNodeReorder(DSTable **old_v_to_v, Table **old_elem_vert);
-   void DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert);
+   // void PrepareNodeReorder(DSTable **old_v_to_v, Table **old_elem_vert);
+   // void DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert);
 
    STable3D *GetFacesTable();
    STable3D *GetElementToFaceTable(int ret_ftbl = 0);
@@ -290,9 +308,9 @@ protected:
    void DerefineMesh(const Array<int> &derefinements);
 
    /// Read NURBS patch/macro-element mesh
-   void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
+   // void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
 
-   void UpdateNURBS();
+   // void UpdateNURBS();
 
    void PrintTopo(std::ostream &out, const Array<int> &e_to_k) const;
 
@@ -363,7 +381,7 @@ protected:
    inline static void Rotate3(int &, int &, int &);
 
    void FreeElements(std::map<Element::Type, Array<Element*> > & m);
-  
+
    void FreeElement(Element *E);
 
    void GenerateFaces();
@@ -390,18 +408,18 @@ protected:
        nx*ny*nz hexahedrals if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons
        if type=TETRAHEDRON. If generate_edges = 0 (default) edges are not
        generated, if 1 edges are generated. */
-   void Make3D(int nx, int ny, int nz, Element::Type type, int generate_edges,
-               double sx, double sy, double sz);
+   // void Make3D(int nx, int ny, int nz, Element::Type type, int generate_edges,
+   //           double sx, double sy, double sz);
 
    /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
        quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
        type = TRIANGLE. If generate_edges = 0 (default) edges are not generated,
        if 1 edges are generated. */
-   void Make2D(int nx, int ny, Element::Type type, int generate_edges,
-               double sx, double sy);
+   // void Make2D(int nx, int ny, Element::Type type, int generate_edges,
+   //           double sx, double sy);
 
    /// Creates a 1D mesh for the interval [0,sx] divided into n equal intervals.
-   void Make1D(int n, double sx = 1.0);
+   // void Make1D(int n, double sx = 1.0);
 
    /// Initialize vertices/elements/boundary/tables from a nonconforming mesh.
    void InitFromNCMesh(const NCMesh &ncmesh);
@@ -414,8 +432,8 @@ protected:
    void Swap(MixedMesh& other, bool non_geometry = false);
 
    // used in GetElementData() and GetBdrElementData()
-  // void GetElementData(const Array<Element*> &elem_array, int geom,
-  //		      Array<int> &elem_vtx, Array<int> &attr) const;
+   // void GetElementData(const Array<Element*> &elem_array, int geom,
+   //           Array<int> &elem_vtx, Array<int> &attr) const;
 
 public:
 
@@ -438,11 +456,11 @@ public:
        may be called after this constructor and after optionally setting the
        MixedMesh nodes. */
    MixedMesh(double *vertices, int num_vertices,
-        int *element_indices, Geometry::Type element_type,
-        int *element_attributes, int num_elements,
-        int *boundary_indices, Geometry::Type boundary_type,
-        int *boundary_attributes, int num_boundary_elements,
-        int dimension, int space_dimension= -1);
+             int *element_indices, Geometry::Type element_type,
+             int *element_attributes, int num_elements,
+             int *boundary_indices, Geometry::Type boundary_type,
+             int *boundary_attributes, int num_boundary_elements,
+             int dimension, int space_dimension= -1);
 
    /** @anchor mfem_MixedMesh_init_ctor
        @brief _Init_ constructor: begin the construction of a MixedMesh object. */
@@ -461,7 +479,7 @@ public:
        "init constructor". */
    ///@{
 
-   Element *NewElement(int geom);
+   Element *NewElement(Geometry::Type geom);
 
    void AddVertex(const double *);
    void AddSegment(const int *vi, int attr = 1);
@@ -536,14 +554,14 @@ public:
    /** Rebuilds the mesh with a different order of elements.  The ordering
        vector maps the old element number to the new element number.  This also
        reorders the vertices and nodes edges and faces along with the elements.  */
-   void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
+   // void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
        nx*ny*nz hexahedrals if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons
        if type=TETRAHEDRON. If generate_edges = 0 (default) edges are not
        generated, if 1 edges are generated. */
    MixedMesh(int nx, int ny, int nz, Element::Type type, int generate_edges = 0,
-        double sx = 1.0, double sy = 1.0, double sz = 1.0)
+             double sx = 1.0, double sy = 1.0, double sz = 1.0)
    {
       Make3D(nx, ny, nz, type, generate_edges, sx, sy, sz);
    }
@@ -553,7 +571,7 @@ public:
        type = TRIANGLE. If generate_edges = 0 (default) edges are not generated,
        if 1 edges are generated. */
    MixedMesh(int nx, int ny, Element::Type type, int generate_edges = 0,
-        double sx = 1.0, double sy = 1.0)
+             double sx = 1.0, double sy = 1.0)
    {
       Make2D(nx, ny, type, generate_edges, sx, sy);
    }
@@ -568,13 +586,13 @@ public:
        generate_edges = 0 (default) edges are not generated, if 1 edges are
        generated. */
    MixedMesh(const char *filename, int generate_edges = 0, int refine = 1,
-        bool fix_orientation = true);
+             bool fix_orientation = true);
 
    /** Creates mesh by reading data stream in MFEM, netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
        generated. */
    MixedMesh(std::istream &input, int generate_edges = 0, int refine = 1,
-        bool fix_orientation = true);
+             bool fix_orientation = true);
 
    /// Create a disjoint mesh from the given mesh array
    MixedMesh(Mesh *mesh_array[], int num_pieces);
@@ -613,6 +631,7 @@ public:
        @return A bitmask:
        - bit 0 - simplices are present in the mesh (triangles, tets),
        - bit 1 - tensor product elements are present in the mesh (quads, hexes).
+       - bit 2 - other elements are present in the mesh (prisms, pyramids).
    */
    inline int MeshGenerator() { return meshgen; }
 
@@ -653,14 +672,24 @@ public:
 
    void GetElementTypeAndIndex(int i, Element::Type & type, int & index) const
    { this->GetTypeAndIndex(elements, i, type, index); }
-  
+
+   const Array<Element*> & GetElementArrayAndOffset(int i, int & offset) const
+   { return this->GetArrayAndOffset(elements, i, offset); }
+
    void GetBdrElementTypeAndIndex(int i,
-				  Element::Type & type, int & index) const
+                                  Element::Type & type, int & index) const
    { this->GetTypeAndIndex(boundary, i, type, index); }
+
+   const Array<Element*> & GetBdrElementArrayAndOffset(int i,
+                                                       int & offset) const
+   { return this->GetArrayAndOffset(boundary, i, offset); }
 
    void GetFaceTypeAndIndex(int i, Element::Type & type, int & index) const
    { this->GetTypeAndIndex(faces, i, type, index); }
-  
+
+   const Array<Element*> & GetFaceArrayAndOffset(int i, int & offset) const
+   { return this->GetArrayAndOffset(faces, i, offset); }
+
    /// @brief Return pointer to vertex i's coordinates.
    /// @warning For high-order meshes (when #Nodes != NULL) vertices may not be
    /// updated and should not be used!
@@ -671,13 +700,13 @@ public:
    /// being updated and should not be used!
    double *GetVertex(int i) { return vertices[i](); }
 
-  // The interface for the next two methods may need tweaking in mixed meshes
-  // void GetElementData(int geom, Array<int> &elem_vtx, Array<int> &attr) const
-  // { GetElementData(elements, geom, elem_vtx, attr); }
+   // The interface for the next two methods may need tweaking in mixed meshes
+   // void GetElementData(int geom, Array<int> &elem_vtx, Array<int> &attr) const
+   // { GetElementData(elements, geom, elem_vtx, attr); }
 
-  // void GetBdrElementData(int geom, Array<int> &bdr_elem_vtx,
-  //                       Array<int> &bdr_attr) const
-  // { GetElementData(boundary, geom, bdr_elem_vtx, bdr_attr); }
+   // void GetBdrElementData(int geom, Array<int> &bdr_elem_vtx,
+   //                       Array<int> &bdr_attr) const
+   // { GetElementData(boundary, geom, bdr_elem_vtx, bdr_attr); }
 
    /** @brief Set the internal Vertex array to point to the given @a vertices
        array without assuming ownership of the pointer. */
@@ -690,26 +719,28 @@ public:
    // const Element* const *GetElementsArray() const
    // { return elements.GetData(); }
 
-   const Element *GetElement(int i) const;
+   const Element * GetElement(int i) const;
 
-   Element *GetElement(int i);
+   Element *& GetElement(int i);
 
-   const Element *GetBdrElement(int i) const;
+   const Element * GetBdrElement(int i) const;
 
-   Element *GetBdrElement(int i);
+   Element *& GetBdrElement(int i);
 
-   const Element *GetFace(int i) const;
-  
-   Element *GetFace(int i);
+   const Element * GetFace(int i) const;
 
-   int GetFaceBaseGeometry(int i) const;
+   Element *& GetFace(int i);
 
-   int GetElementBaseGeometry(int i = 0) const
+   Geometry::Type GetFaceBaseGeometry(int i) const;
+
+   Geometry::Type GetElementBaseGeometry(int i = 0) const
    { return i < GetNE() ? this->GetElement(i)->GetGeometryType() : BaseGeom; }
 
-   int GetBdrElementBaseGeometry(int i = 0) const
-   { return i < GetNBE() ?
-		this->GetBdrElement(i)->GetGeometryType() : BaseBdrGeom; }
+   Geometry::Type GetBdrElementBaseGeometry(int i = 0) const
+   {
+      return i < GetNBE() ?
+             this->GetBdrElement(i)->GetGeometryType() : BaseBdrGeom;
+   }
 
    /// Returns the indices of the vertices of element i.
    void GetElementVertices(int i, Array<int> &v) const
@@ -738,7 +769,7 @@ public:
       }
       else
       {
- 	 this->GetFace(i)->GetVertices(vert);
+         this->GetFace(i)->GetVertices(vert);
       }
    }
 
@@ -1145,7 +1176,7 @@ std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
 
 /// Extrude a 2D mesh
 MixedMesh *Extrude2D(Mesh *mesh, const int nz, const double sz,
-		     const bool closed = false);
+                     const bool closed = false);
 
 
 // inline functions
