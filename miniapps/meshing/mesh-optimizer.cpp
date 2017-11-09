@@ -32,8 +32,8 @@
 // Compile with: make mesh-optimizer
 //
 // Sample runs:
-//   mesh-optimizer -m blade.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 20 -ls 1 -bnd
-//   mesh-optimizer -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lc 1e3 -ni 10 -ls 1 -bnd
+//   mesh-optimizer -m blade.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 20 -ls 2 -bnd
+//   mesh-optimizer -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lc 1e3 -ni 20 -ls 2 -bnd
 
 #include "mfem.hpp"
 #include <fstream>
@@ -240,8 +240,9 @@ int main (int argc, char *argv[])
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
-   bool visualization    = true;
    bool combomet         = 0;
+   bool visualization    = true;
+   int verbosity_level   = 0;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -298,11 +299,13 @@ int main (int argc, char *argv[])
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
                   "--fix-boundary",
                   "Enable motion along horizontal and vertical boundaries.");
+   args.AddOption(&combomet, "-cmb", "--combo-met", "-no-cmb", "--no-combo-met",
+                  "Combination of metrics.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&combomet, "-cmb", "--combo-met", "-no-cmb", "--no-combo-met",
-                  "Combination of metrics.");
+   args.AddOption(&verbosity_level, "-vl", "--verbosity-level",
+                  "Set the verbosity level - 0, 1, or 2.");
    args.Parse();
    if (!args.Good())
    {
@@ -561,7 +564,7 @@ int main (int argc, char *argv[])
       cg->SetMaxIter(max_lin_iter);
       cg->SetRelTol(linsol_rtol);
       cg->SetAbsTol(0.0);
-      cg->SetPrintLevel(3);
+      cg->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
       S = cg;
    }
    else
@@ -570,7 +573,7 @@ int main (int argc, char *argv[])
       minres->SetMaxIter(max_lin_iter);
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
-      minres->SetPrintLevel(3);
+      minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
       S = minres;
    }
 
@@ -612,7 +615,7 @@ int main (int argc, char *argv[])
    newton->SetMaxIter(newton_iter);
    newton->SetRelTol(newton_rtol);
    newton->SetAbsTol(0.0);
-   newton->SetPrintLevel(1);
+   newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    newton->SetOperator(a);
    newton->Mult(b, *x);
    if (newton->GetConverged() == false)
