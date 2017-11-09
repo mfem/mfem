@@ -355,7 +355,7 @@ const int Mesh::vtk_quadratic_tet[10] =
 
 // see Prism::edges & Mesh::GenerateFaces
 const int Mesh::vtk_quadratic_pri[18] =
-  { 0, 2, 1, 3, 5, 4, 8, 7, 6, 11, 10, 9, 12, 14, 13, 17, 16, 15};
+{ 0, 2, 1, 3, 5, 4, 8, 7, 6, 11, 10, 9, 12, 14, 13, 17, 16, 15};
 
 // see Hexahedron::edges & Mesh::GenerateFaces
 const int Mesh::vtk_quadratic_hex[27] =

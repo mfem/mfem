@@ -4331,7 +4331,7 @@ void Mesh::GenerateFaces()
                {
                   const int *fv = pri_t::FaceVert[j];
                   AddQuadFaceElement(j, ef[j], i,
-				     v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]);
+                                     v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]);
                }
                break;
             }

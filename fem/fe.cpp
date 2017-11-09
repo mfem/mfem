@@ -2553,7 +2553,7 @@ BiLinear3DFiniteElement::BiLinear3DFiniteElement()
 }
 
 void BiLinear3DFiniteElement::CalcShape(const IntegrationPoint &ip,
-					Vector &shape) const
+                                        Vector &shape) const
 {
    double x = ip.x, y = ip.y, z = ip.z;
    double os = 1. - x - y, oz = 1.-z;
@@ -2567,7 +2567,7 @@ void BiLinear3DFiniteElement::CalcShape(const IntegrationPoint &ip,
 }
 
 void BiLinear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
-					 DenseMatrix &dshape) const
+                                         DenseMatrix &dshape) const
 {
    double x = ip.x, y = ip.y, z = ip.z;
    double os = 1. - x - y, oz = 1.-z;
@@ -2585,7 +2585,7 @@ void BiLinear3DFiniteElement::GetFaceDofs (int face, int **dofs, int *ndofs)
 const
 {
    static int face_dofs[5][4] =
-     {{2, 1, 0, -1}, {3, 4, 5, -1}, {0, 1, 4, 3}, {1, 2, 5, 4}, {2, 0, 3, 5}};
+   {{2, 1, 0, -1}, {3, 4, 5, -1}, {0, 1, 4, 3}, {1, 2, 5, 4}, {2, 0, 3, 5}};
 
    *ndofs = (face < 2)? 3 : 4;
    *dofs  = face_dofs[face];
@@ -2657,12 +2657,12 @@ BiQuadratic3DFiniteElement::BiQuadratic3DFiniteElement()
 }
 
 void BiQuadratic3DFiniteElement::CalcShape(const IntegrationPoint &ip,
-					   Vector &shape) const
+                                           Vector &shape) const
 {
    double x = ip.x, y = ip.y, z = ip.z;
    double l1t = 1.-x-y, l2t = x, l3t = y;
    double l1z, l2z, l3z;
-   
+
    l1z = (z - 1.) * (2. * z - 1);
    l2z = 4. * z * (1. - z);
    l3z = z * (2. * z - 1.);
@@ -2685,7 +2685,7 @@ void BiQuadratic3DFiniteElement::CalcShape(const IntegrationPoint &ip,
    shape(12) = l1t * (2. * l1t - 1.) * l2z;
    shape(13) = l2t * (2. * l2t - 1.) * l2z;
    shape(14) = l3t * (2. * l3t - 1.) * l2z;
-   
+
    // Faces
    shape(15) = 4. * l1t * l2t * l2z;
    shape(16) = 4. * l2t * l3t * l2z;
@@ -2693,13 +2693,13 @@ void BiQuadratic3DFiniteElement::CalcShape(const IntegrationPoint &ip,
 }
 
 void BiQuadratic3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
-					    DenseMatrix &dshape) const
+                                            DenseMatrix &dshape) const
 {
    double x = ip.x, y = ip.y, z = ip.z;
    double l1t = 1.-x-y, l2t = x, l3t = y;
    double l1z, l2z, l3z;
    double dl1z, dl2z, dl3z;
-   
+
    l1z = (z - 1.) * (2. * z - 1);
    l2z = 4. * z * (1. - z);
    l3z = z * (2. * z - 1.);
@@ -2741,7 +2741,7 @@ void BiQuadratic3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    dshape(7,0) = 4. * l3t * l1z;
    dshape(7,1) = 4. * l2t * l1z;
    dshape(7,2) = 4. * l2t * l3t * dl1z;
-   
+
    dshape(8,0) = -4. * l3t * l1z;
    dshape(8,1) = 4. * (l1t - l3t) * l1z;
    dshape(8,2) = 4. * l3t * l1t * dl1z;
@@ -2753,7 +2753,7 @@ void BiQuadratic3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    dshape(10,0) = 4. * l3t * l3z;
    dshape(10,1) = 4. * l2t * l3z;
    dshape(10,2) = 4. * l2t * l3t * dl3z;
-   
+
    dshape(11,0) = -4. * l3t * l3z;
    dshape(11,1) = 4. * (l1t - l3t) * l3z;
    dshape(11,2) = 4. * l3t * l1t * dl3z;
@@ -2769,7 +2769,7 @@ void BiQuadratic3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    dshape(14,0) = 0.;
    dshape(14,1) = (4. * l3t - 1.) * l2z;
    dshape(14,2) = l3t * (2. * l3t - 1.) * dl2z;
-   
+
    // Faces
    dshape(15,0) = 4. * (l1t - l2t) * l2z;
    dshape(15,1) = -4. * l2t * l2z;
@@ -2778,7 +2778,7 @@ void BiQuadratic3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    dshape(16,0) = 4. * l3t * l2z;
    dshape(16,1) = 4. * l2t * l2z;
    dshape(16,2) = 4. * l2t * l3t * dl2z;
-   
+
    dshape(17,0) = -4. * l3t * l2z;
    dshape(17,1) = 4. * (l1t - l3t) * l2z;
    dshape(17,2) = 4. * l3t * l1t * dl2z;
@@ -2788,11 +2788,13 @@ void BiQuadratic3DFiniteElement::GetFaceDofs (int face, int **dofs, int *ndofs)
 const
 {
    static int face_dofs[5][9] =
-     {{2, 1, 0, 7,  6,  8, -1, -1, -1},
+   {
+      {2, 1, 0, 7,  6,  8, -1, -1, -1},
       {3, 4, 5, 9, 10, 11, -1, -1, -1},
       {0, 1, 4, 3,  6, 13,  9, 12, 15},
       {1, 2, 5, 4,  7, 14, 10, 13, 16},
-      {2, 0, 3, 5,  8, 12, 11, 14, 17}};
+      {2, 0, 3, 5,  8, 12, 11, 14, 17}
+   };
 
    *ndofs = (face < 2)? 6 : 9;
    *dofs  = face_dofs[face];
@@ -2906,7 +2908,7 @@ BiCubic3DFiniteElement::BiCubic3DFiniteElement()
    Nodes.IntPoint(29).x = 2./3.;
    Nodes.IntPoint(29).y = 0.0;
    Nodes.IntPoint(29).z = 2./3.;
-   
+
    Nodes.IntPoint(30).x = 2./3.;
    Nodes.IntPoint(30).y = 1./3.;
    Nodes.IntPoint(30).z = 1./3.;
@@ -2919,7 +2921,7 @@ BiCubic3DFiniteElement::BiCubic3DFiniteElement()
    Nodes.IntPoint(33).x = 1./3.;
    Nodes.IntPoint(33).y = 2./3.;
    Nodes.IntPoint(33).z = 2./3.;
-   
+
    Nodes.IntPoint(34).x = 0.0;
    Nodes.IntPoint(34).y = 2./3.;
    Nodes.IntPoint(34).z = 1./3.;
@@ -2943,7 +2945,7 @@ BiCubic3DFiniteElement::BiCubic3DFiniteElement()
 }
 
 void BiCubic3DFiniteElement::CalcShape(const IntegrationPoint &ip,
-				       Vector &shape) const
+                                       Vector &shape) const
 {
    double x = ip.x, y = ip.y, z = ip.z;
    double lt = (-1. + x + y),
@@ -3032,7 +3034,7 @@ void BiCubic3DFiniteElement::CalcShape(const IntegrationPoint &ip,
 }
 
 void BiCubic3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
-					DenseMatrix &dshape) const
+                                        DenseMatrix &dshape) const
 {
    double x = ip.x, y = ip.y, z = ip.z;
 
@@ -3051,17 +3053,17 @@ void BiCubic3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    double bz3 = -13.5 * l1z * l2z * l3z;
 
    double dbz0 =   4.5 * (dl2z * l3z * l4z +
-			  l2z * dl3z * l4z +
-			  l2z * l3z * dl4z);
+                          l2z * dl3z * l4z +
+                          l2z * l3z * dl4z);
    double dbz1 =   4.5 * (dl1z * l3z * l4z +
-			  l1z * dl3z * l4z +
-			  l1z * l3z * dl4z);
+                          l1z * dl3z * l4z +
+                          l1z * l3z * dl4z);
    double dbz2 =  13.5 * (dl1z * l2z * l4z +
-			  l1z * dl2z * l4z +
-			  l1z * l2z * dl4z);
+                          l1z * dl2z * l4z +
+                          l1z * l2z * dl4z);
    double dbz3 = -13.5 * (dl1z * l2z * l3z +
-			  l1z * dl2z * l3z +
-			  l1z * l2z * dl3z);
+                          l1z * dl2z * l3z +
+                          l1z * l2z * dl3z);
 
    double bt0 = -0.5*lt*(3.*lt + 1.)*(3.*lt + 2.);
    double bt1 =  0.5*x*(lx - 1.)*lx;
@@ -3075,8 +3077,8 @@ void BiCubic3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    double bt9 = -27.*x*y*lt;
 
    double dbt0x = -0.5*(dlt*(3.*lt + 1.)*(3.*lt + 2.) +
-			lt*(3.*dlt)*(3.*lt + 2.) +
-			lt*(3.*lt + 1.)*(3.*dlt));
+                        lt*(3.*dlt)*(3.*lt + 2.) +
+                        lt*(3.*lt + 1.)*(3.*dlt));
    double dbt0y = dbt0x;
    double dbt1x =  0.5*((lx - 1.)*lx + x*dlx*lx + x*(lx - 1.)*dlx);
    double dbt1y =  0.0;
