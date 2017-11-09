@@ -1520,7 +1520,7 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
       offset += NumOfEdges * num_edge_dofs;
    }
 #ifdef MFEM_DEBUG
-   cout << "Mesh::DoNodeReorder : redges = " << redges << endl;
+   mfem::out << "Mesh::DoNodeReorder : redges = " << redges << endl;
 #endif
 
    // face dofs:
@@ -1620,18 +1620,18 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
                break;
             default:
                new_or = 0;
-               cerr << "Mesh::DoNodeReorder : " << Geometry::Name[geom]
-                    << " elements (" << fec->Name()
-                    << " FE collection) are not supported yet!" << endl;
+               mfem::err << "Mesh::DoNodeReorder : " << Geometry::Name[geom]
+                         << " elements (" << fec->Name()
+                         << " FE collection) are not supported yet!" << endl;
                mfem_error();
                break;
          }
          dof_ord = fec->DofOrderForOrientation(geom, new_or);
          if (dof_ord == NULL)
          {
-            cerr << "Mesh::DoNodeReorder : FE collection '" << fec->Name()
-                 << "' does not define reordering for " << Geometry::Name[geom]
-                 << " elements!" << endl;
+            mfem::err << "Mesh::DoNodeReorder : FE collection '" << fec->Name()
+                      << "' does not define reordering for " << Geometry::Name[geom]
+                      << " elements!" << endl;
             mfem_error();
          }
          old_dofs.SetSize(num_elem_dofs);
@@ -3450,9 +3450,9 @@ int Mesh::CheckElementOrientation(bool fix_it)
    }
 #if (!defined(MFEM_USE_MPI) || defined(MFEM_DEBUG))
    if (wo > 0)
-      cout << "Elements with wrong orientation: " << wo << " / "
-           << NumOfElements << " (" << fixed_or_not[(wo == fo) ? 0 : 1]
-           << ")" << endl;
+      mfem::out << "Elements with wrong orientation: " << wo << " / "
+                << NumOfElements << " (" << fixed_or_not[(wo == fo) ? 0 : 1]
+                << ")" << endl;
 #endif
    return wo;
 }
@@ -3529,18 +3529,18 @@ int Mesh::GetQuadOrientation(const int *base, const int *test)
    for (int j = 0; j < 4; j++)
       if (test[aor[j]] != base[j])
       {
-         cerr << "Mesh::GetQuadOrientation(...)" << endl;
-         cerr << " base = [";
+         mfem::err << "Mesh::GetQuadOrientation(...)" << endl;
+         mfem::err << " base = [";
          for (int k = 0; k < 4; k++)
          {
-            cerr << " " << base[k];
+            mfem::err << " " << base[k];
          }
-         cerr << " ]\n test = [";
+         mfem::err << " ]\n test = [";
          for (int k = 0; k < 4; k++)
          {
-            cerr << " " << test[k];
+            mfem::err << " " << test[k];
          }
-         cerr << " ]" << endl;
+         mfem::err << " ]" << endl;
          mfem_error();
       }
 #endif
@@ -3647,9 +3647,9 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
 #ifdef MFEM_DEBUG
    if (wo > 0)
    {
-      cout << "Boundary elements with wrong orientation: " << wo << " / "
-           << NumOfBdrElements << " (" << fixed_or_not[fix_it ? 0 : 1]
-           << ")" << endl;
+      mfem::out << "Boundary elements with wrong orientation: " << wo << " / "
+                << NumOfBdrElements << " (" << fixed_or_not[fix_it ? 0 : 1]
+                << ")" << endl;
    }
 #endif
    return wo;
@@ -4779,8 +4779,8 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       }
 
 #ifdef MFEM_DEBUG
-      cout << "Mesh::GeneratePartitioning(...): edgecut = "
-           << edgecut << endl;
+      mfem::out << "Mesh::GeneratePartitioning(...): edgecut = "
+                << edgecut << endl;
 #endif
    }
 
@@ -4815,8 +4815,8 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       // Do we need to replace it with something better?
       if (empty_parts)
       {
-         cerr << "Mesh::GeneratePartitioning returned " << empty_parts
-              << " empty parts!" << endl;
+         mfem::err << "Mesh::GeneratePartitioning returned " << empty_parts
+                   << " empty parts!" << endl;
 
          SortPairs<int,int>(psize, nparts);
 
@@ -4946,29 +4946,29 @@ void Mesh::CheckPartitioning(int *partitioning)
 
    if (n_empty > 0)
    {
-      cout << "Mesh::CheckPartitioning(...) :\n"
-           << "The following subdomains are empty :\n";
+      mfem::out << "Mesh::CheckPartitioning(...) :\n"
+                << "The following subdomains are empty :\n";
       for (i = 0; i < num_comp.Size(); i++)
          if (num_comp[i] == 0)
          {
-            cout << ' ' << i;
+            mfem::out << ' ' << i;
          }
-      cout << endl;
+      mfem::out << endl;
    }
    if (n_mcomp > 0)
    {
-      cout << "Mesh::CheckPartitioning(...) :\n"
-           << "The following subdomains are NOT connected :\n";
+      mfem::out << "Mesh::CheckPartitioning(...) :\n"
+                << "The following subdomains are NOT connected :\n";
       for (i = 0; i < num_comp.Size(); i++)
          if (num_comp[i] > 1)
          {
-            cout << ' ' << i;
+            mfem::out << ' ' << i;
          }
-      cout << endl;
+      mfem::out << endl;
    }
    if (n_empty == 0 && n_mcomp == 0)
-      cout << "Mesh::CheckPartitioning(...) : "
-           "All subdomains are connected." << endl;
+      mfem::out << "Mesh::CheckPartitioning(...) : "
+                "All subdomains are connected." << endl;
 
    if (el_to_el)
    {
@@ -5945,7 +5945,7 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       }
       while (need_refinement == 1);
 
-      // cout << "Maximum generation: " << max_gen << endl;
+      // mfem::out << "Maximum generation: " << max_gen << endl;
 
       // 5. Update the boundary elements.
       do
@@ -6570,11 +6570,11 @@ void Mesh::Bisection(int i, const DSTable &v_to_v,
       if (bisect == -1)
       {
          tet->ParseRefinementFlag(old_redges, type, flag);
-         cerr << "Error in Bisection(...) of tetrahedron!" << endl
-              << "   redge[0] = " << old_redges[0]
-              << "   redge[1] = " << old_redges[1]
-              << "   type = " << type
-              << "   flag = " << flag << endl;
+         mfem::err << "Error in Bisection(...) of tetrahedron!" << endl
+                   << "   redge[0] = " << old_redges[0]
+                   << "   redge[1] = " << old_redges[1]
+                   << "   type = " << type
+                   << "   flag = " << flag << endl;
          mfem_error();
       }
 
@@ -7269,8 +7269,8 @@ void Mesh::PrintVTK(std::ostream &out)
       }
       if (order == -1)
       {
-         cerr << "Mesh::PrintVTK : can not save '"
-              << fec_name << "' elements!" << endl;
+         mfem::err << "Mesh::PrintVTK : can not save '"
+                   << fec_name << "' elements!" << endl;
          mfem_error();
       }
       for (int i = 0; i < NumOfElements; i++)
@@ -8657,7 +8657,7 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy, const bool closed)
 {
    if (mesh->Dimension() != 1)
    {
-      cerr << "Extrude1D : Not a 1D mesh!" << endl;
+      mfem::err << "Extrude1D : Not a 1D mesh!" << endl;
       mfem_error();
    }
 
@@ -8785,8 +8785,8 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy, const bool closed)
       else
       {
          delete mesh2d;
-         cerr << "Extrude1D : The mesh uses unknown FE collection : "
-              << cname << endl;
+         mfem::err << "Extrude1D : The mesh uses unknown FE collection : "
+                   << cname << endl;
          mfem_error();
       }
       fes2d = new FiniteElementSpace(mesh2d, fec2d, 2);

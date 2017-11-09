@@ -15,6 +15,7 @@
 // Data type vector
 
 #include "../general/array.hpp"
+#include "../general/globals.hpp"
 #ifdef MFEM_USE_SUNDIALS
 #include <nvector/nvector_serial.h>
 #endif
@@ -230,7 +231,7 @@ public:
    void SetSubVectorComplement(const Array<int> &dofs, const double val);
 
    /// Prints vector to stream out.
-   void Print(std::ostream & out = std::cout, int width = 8) const;
+   void Print(std::ostream & out = mfem::out, int width = 8) const;
 
    /// Prints vector to stream out in HYPRE_Vector format.
    void Print_HYPRE(std::ostream &out) const;
