@@ -1438,7 +1438,8 @@ void NeighborRowMessage::Encode(int rank)
 
          /*std::cout << "Rank " << pncmesh->MyRank << " sending to " << rank
                    << ": ent " << ri.entity << ", index " << ri.index
-                   << ", edof " << ri.edof << std::endl;*/
+                   << ", edof " << ri.edof << " (id " << id.element << "/"
+                   << id.local << ")" << std::endl;*/
 
          int edof = ri.edof;
          if (ent == 1 && pncmesh->GetEdgeNCOrientation(id))

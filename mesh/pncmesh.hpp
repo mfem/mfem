@@ -21,6 +21,7 @@
 
 #include "ncmesh.hpp"
 #include "../general/communication.hpp"
+#include "../general/sort_pairs.hpp"
 
 namespace mfem
 {
@@ -380,6 +381,8 @@ protected:
 
    void ChangeVertexMeshIdElement(NCMesh::MeshId &id, int elem);
    void ChangeEdgeMeshIdElement(NCMesh::MeshId &id, int elem);
+   void ChangeRemainingMeshIds(Array<MeshId> &ids, int pos,
+                               const Array<Pair<int, int> > &find);
 
    // Write/read a processor-independent encoding of vertex/edge/face IDs.
    void EncodeMeshIds(std::ostream &os, Array<MeshId> ids[]);

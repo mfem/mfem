@@ -3655,32 +3655,34 @@ void NCMesh::DebugDump(std::ostream &out) const
    for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
    {
       const double *pos = CalcVertexPos(node.index());
-      out << pos[0] << " " << pos[1] << " " << pos[2] << " "
+      out << node.index() << " "
+          << pos[0] << " " << pos[1] << " " << pos[2] << " "
           << node->p1 << " " << node->p2 << " "
           << node->vert_index << " " << node->edge_index << " "
           << 0 << "\n";
    }
-   //delete [] tmp_vertex;
+   delete [] tmp_vertex;
    out << "\n";
 
    // dump elements
    int nleaves = 0;
    for (int i = 0; i < elements.Size(); i++)
    {
-      if (!elements[i].ref_type) { nleaves++; }
+      const Element &el = elements[i];
+      if (!el.ref_type && el.parent != -2 /*freed*/) { nleaves++; }
    }
    out << nleaves << "\n";
    for (int i = 0; i < elements.Size(); i++)
    {
       const Element &el = elements[i];
-      if (el.ref_type) { continue; }
+      if (el.ref_type || el.parent == -2) { continue; }
       const GeomInfo& gi = GI[(int) el.geom];
       out << gi.nv << " ";
       for (int j = 0; j < gi.nv; j++)
       {
          out << el.node[j] << " ";
       }
-      out << el.rank << " " << i << "\n";
+      out << el.attribute << " " << el.rank << " " << i << "\n";
    }
    out << "\n";
 

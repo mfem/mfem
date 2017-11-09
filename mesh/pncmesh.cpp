@@ -15,10 +15,7 @@
 
 #include "mesh_headers.hpp"
 #include "pncmesh.hpp"
-#include "../fem/fe_coll.hpp"
-#include "../fem/fespace.hpp"
 #include "../general/binaryio.hpp"
-#include "../general/sort_pairs.hpp"
 
 #include <map>
 #include <climits> // INT_MIN, INT_MAX
@@ -1963,15 +1960,16 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
       const MeshId &edge_id = shared_edges.masters[i];
       if (contains_rank[edge_group[edge_id.index]])
       {
-         int v[2], pos;
+         int v[2], pos, k;
          GetEdgeVertices(edge_id, v);
          for (int j = 0; j < 2; j++)
          {
             if ((pos = find_v.FindSorted(Pair<int, int>(v[j], 0))) != -1)
             {
                // switch to an element/local that is safe for 'rank'
-               pos = find_v[pos].two;
-               ChangeVertexMeshIdElement(ids[0][pos], edge_id.element);
+               k = find_v[pos].two;
+               ChangeVertexMeshIdElement(ids[0][k], edge_id.element);
+               ChangeRemainingMeshIds(ids[0], pos, find_v);
             }
          }
       }
@@ -1994,19 +1992,21 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
       const MeshId &face_id = shared_faces.masters[i];
       if (contains_rank[face_group[face_id.index]])
       {
-         int v[4], e[4], eo[4], pos;
+         int v[4], e[4], eo[4], pos, k;
          GetFaceVerticesEdges(face_id, v, e, eo);
          for (int j = 0; j < 4; j++)
          {
             if ((pos = find_v.FindSorted(Pair<int, int>(v[j], 0))) != -1)
             {
-               pos = find_v[pos].two;
-               ChangeVertexMeshIdElement(ids[0][pos], face_id.element);
+               k = find_v[pos].two;
+               ChangeVertexMeshIdElement(ids[0][k], face_id.element);
+               ChangeRemainingMeshIds(ids[0], pos, find_v);
             }
             if ((pos = find_e.FindSorted(Pair<int, int>(e[j], 0))) != -1)
             {
-               pos = find_e[pos].two;
-               ChangeEdgeMeshIdElement(ids[1][pos], face_id.element);
+               k = find_e[pos].two;
+               ChangeEdgeMeshIdElement(ids[1][k], face_id.element);
+               ChangeRemainingMeshIds(ids[1], pos, find_e);
             }
          }
       }
@@ -2033,9 +2033,9 @@ void ParNCMesh::ChangeVertexMeshIdElement(NCMesh::MeshId &id, int elem)
 
 void ParNCMesh::ChangeEdgeMeshIdElement(NCMesh::MeshId &id, int elem)
 {
-   Element &el_old = elements[id.element];
-   const int *ev = GI[(int) el_old.geom].edges[id.local];
-   Node* node = nodes.Find(el_old.node[ev[0]], el_old.node[ev[1]]);
+   Element &old = elements[id.element];
+   const int *ev = GI[(int) old.geom].edges[id.local];
+   Node* node = nodes.Find(old.node[ev[0]], old.node[ev[1]]);
    MFEM_ASSERT(node != NULL, "Edge not found.");
 
    Element &el = elements[elem];
@@ -2055,6 +2055,18 @@ void ParNCMesh::ChangeEdgeMeshIdElement(NCMesh::MeshId &id, int elem)
 
    }
    MFEM_ABORT("Edge not found.");
+}
+
+void ParNCMesh::ChangeRemainingMeshIds(Array<MeshId> &ids, int pos,
+                                       const Array<Pair<int, int> > &find)
+{
+   const MeshId &first = ids[find[pos].two];
+   while (++pos < find.Size() && ids[find[pos].two].index == first.index)
+   {
+      MeshId &other = ids[find[pos].two];
+      other.element = first.element;
+      other.local = first.local;
+   }
 }
 
 void ParNCMesh::EncodeMeshIds(std::ostream &os, Array<MeshId> ids[])

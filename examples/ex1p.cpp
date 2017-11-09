@@ -173,10 +173,10 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   /*///// DEBUG
+   ///// DEBUG
    MPI_Finalize();
    return 0;
-   ///// DEBUG*/
+   ///// DEBUG
 
 
    // 7. Determine the list of true (i.e. parallel conforming) essential
