@@ -524,7 +524,7 @@ int main (int argc, char *argv[])
       case 2: ir = &IntRules.Get(geom_type, quad_order); break;
       case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
       default:
-         if (myid == 0) { cout << "Unknown quad_type: " << target_id << endl; }
+         if (myid == 0) { cout << "Unknown quad_type: " << quad_type << endl; }
          return 3;
    }
    if (myid == 0)
