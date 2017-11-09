@@ -29,6 +29,16 @@ ifeq ($(MFEM_USE_MPI),NO)
 else
    EXAMPLES = $(PAR_EXAMPLES) $(SEQ_EXAMPLES)
 endif
+SUBDIRS =
+ifeq ($(MFEM_USE_SUNDIALS),YES)
+   SUBDIRS += sundials
+endif
+ifeq ($(MFEM_USE_PETSC),YES)
+   SUBDIRS += petsc
+endif
+SUBDIRS_ALL = $(addsuffix /all,$(SUBDIRS))
+SUBDIRS_TEST = $(addsuffix /test,$(SUBDIRS))
+SUBDIRS_CLEAN = $(addsuffix /clean,$(SUBDIRS))
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
@@ -41,7 +51,11 @@ endif
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
-all: $(EXAMPLES)
+all: $(EXAMPLES) $(SUBDIRS_ALL)
+
+.PHONY: $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN)
+$(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN):
+	$(MAKE) -C $(@D) $(@F)
 
 # Additional dependencies
 ex18: ex18.hpp
@@ -51,6 +65,7 @@ endif
 
 MFEM_TESTS = EXAMPLES
 include $(MFEM_TEST_MK)
+test: $(SUBDIRS_TEST)
 
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
@@ -79,7 +94,7 @@ ex15p-test-par: ex15p
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-clean: clean-build clean-exec
+clean: clean-build clean-exec $(SUBDIRS_CLEAN)
 
 clean-build:
 	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)

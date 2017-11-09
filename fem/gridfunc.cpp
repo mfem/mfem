@@ -2452,10 +2452,10 @@ void GridFunction::SaveSTL(std::ostream &out, int TimesToRefine)
       }
    }
 
-   cout << "[xmin,xmax] = [" << bbox[0][0] << ',' << bbox[0][1] << "]\n"
-        << "[ymin,ymax] = [" << bbox[1][0] << ',' << bbox[1][1] << "]\n"
-        << "[zmin,zmax] = [" << bbox[2][0] << ',' << bbox[2][1] << ']'
-        << endl;
+   mfem::out << "[xmin,xmax] = [" << bbox[0][0] << ',' << bbox[0][1] << "]\n"
+             << "[ymin,ymax] = [" << bbox[1][0] << ',' << bbox[1][1] << "]\n"
+             << "[zmin,zmax] = [" << bbox[2][0] << ',' << bbox[2][1] << ']'
+             << endl;
 
    out << "endsolid GridFunction" << endl;
 }
@@ -2690,8 +2690,8 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
    }
    else
    {
-      cerr << "Extrude1DGridFunction : unknown FE collection : "
-           << cname << endl;
+      mfem::err << "Extrude1DGridFunction : unknown FE collection : "
+                << cname << endl;
       return NULL;
    }
    FiniteElementSpace *solfes2d;

@@ -11,12 +11,12 @@
 
 // Implementation of data types Table.
 
-#include <iostream>
-#include <iomanip>
-
 #include "array.hpp"
 #include "table.hpp"
 #include "error.hpp"
+
+#include <iostream>
+#include <iomanip>
 
 namespace mfem
 {
@@ -341,7 +341,7 @@ void Table::Save(std::ostream &out) const
    }
 }
 
-void Table::Load(istream &in)
+void Table::Load(std::istream &in)
 {
    delete [] I;
    delete [] J;

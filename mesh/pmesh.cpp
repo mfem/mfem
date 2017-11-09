@@ -18,6 +18,7 @@
 #include "../general/sets.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../general/text.hpp"
+#include "../general/globals.hpp"
 
 #include <iostream>
 using namespace std;
@@ -357,8 +358,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 #ifdef MFEM_DEBUG
    if (Dim < 3 && mesh.GetNFaces() != 0)
    {
-      cerr << "ParMesh::ParMesh (proc " << MyRank << ") : "
-           "(Dim < 3 && mesh.GetNFaces() != 0) is true!" << endl;
+      mfem::err << "ParMesh::ParMesh (proc " << MyRank << ") : "
+                "(Dim < 3 && mesh.GetNFaces() != 0) is true!" << endl;
       mfem_error();
    }
 #endif
@@ -607,8 +608,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                     v_to_v(vert_global_local[vert[0]],
                            vert_global_local[vert[1]])) < 0)
             {
-               cerr << "\n\n\n" << MyRank << ": ParMesh::ParMesh: "
-                    << "ERROR in v_to_v\n\n" << endl;
+               mfem::err << "\n\n\n" << MyRank << ": ParMesh::ParMesh: "
+                         << "ERROR in v_to_v\n\n" << endl;
                mfem_error();
             }
 
@@ -763,8 +764,8 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input)
       input >> ident >> g; // group
       if (g != gr)
       {
-         cerr << "ParMesh::ParMesh : expecting group " << gr
-              << ", read group " << g << endl;
+         mfem::err << "ParMesh::ParMesh : expecting group " << gr
+                   << ", read group " << g << endl;
          mfem_error();
       }
 
@@ -1133,15 +1134,15 @@ void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
 
 #if 0
       // Debug message from every MPI rank.
-      cout << "proc. " << MyRank << '/' << NRanks << ": d_max = " << d_max
-           << endl;
+      mfem::out << "proc. " << MyRank << '/' << NRanks << ": d_max = " << d_max
+                << endl;
 #else
       // Debug message just from rank 0.
       double glob_d_max;
       MPI_Reduce(&d_max, &glob_d_max, 1, MPI_DOUBLE, MPI_MAX, 0, MyComm);
       if (MyRank == 0)
       {
-         cout << "glob_d_max = " << glob_d_max << endl;
+         mfem::out << "glob_d_max = " << glob_d_max << endl;
       }
 #endif
    }
@@ -2282,9 +2283,9 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       MPI_Reduce(&i, &ref_loops_all, 1, MPI_INT, MPI_MAX, 0, MyComm);
       if (MyRank == 0)
       {
-         cout << "\n\nParMesh::LocalRefinement : max. ref_loops_all = "
-              << ref_loops_all << ", ref_loops_par = " << ref_loops_par
-              << '\n' << endl;
+         mfem::out << "\n\nParMesh::LocalRefinement : max. ref_loops_all = "
+                   << ref_loops_all << ", ref_loops_par = " << ref_loops_par
+                   << '\n' << endl;
       }
 #endif
 
@@ -2517,9 +2518,9 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       MPI_Reduce(&i, &ref_loops_all, 1, MPI_INT, MPI_MAX, 0, MyComm);
       if (MyRank == 0)
       {
-         cout << "\n\nParMesh::LocalRefinement : max. ref_loops_all = "
-              << ref_loops_all << ", ref_loops_par = " << ref_loops_par
-              << '\n' << endl;
+         mfem::out << "\n\nParMesh::LocalRefinement : max. ref_loops_all = "
+                   << ref_loops_all << ", ref_loops_par = " << ref_loops_par
+                   << '\n' << endl;
       }
 #endif
 
@@ -3181,7 +3182,7 @@ void ParMesh::NURBSUniformRefinement()
 {
    if (MyRank == 0)
    {
-      cout << "\nParMesh::NURBSUniformRefinement : Not supported yet!\n";
+      mfem::out << "\nParMesh::NURBSUniformRefinement : Not supported yet!\n";
    }
 }
 

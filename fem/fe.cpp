@@ -2666,8 +2666,8 @@ void RT0TriangleFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "RT0TriangleFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "RT0TriangleFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -2781,8 +2781,8 @@ void RT0QuadFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "RT0QuadFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "RT0QuadFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -2923,8 +2923,8 @@ void RT1TriangleFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "RT1QuadFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "RT1QuadFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -3105,8 +3105,8 @@ void RT1QuadFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "RT1QuadFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "RT1QuadFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -3557,8 +3557,8 @@ void RT2QuadFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "RT2QuadFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "RT2QuadFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -5192,8 +5192,8 @@ void Nedelec1HexFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "Nedelec1HexFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "Nedelec1HexFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -5358,8 +5358,8 @@ void Nedelec1TetFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "Nedelec1TetFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "Nedelec1TetFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -5507,8 +5507,8 @@ void RT0HexFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "RT0HexFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "RT0HexFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -5896,8 +5896,8 @@ void RT1HexFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "RT0HexFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "RT0HexFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -6031,8 +6031,8 @@ void RT0TetFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "RT0TetFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "RT0TetFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -6188,7 +6188,7 @@ Poly_1D::Basis::Basis(const int p, const double *nodes, int _mode)
       }
 
       Ai.Factor(A);
-      // cout << "Poly_1D::Basis(" << p << ",...) : "; Ai.TestInversion();
+      // mfem::out << "Poly_1D::Basis(" << p << ",...) : "; Ai.TestInversion();
    }
    else
    {
@@ -7534,7 +7534,7 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int type)
    }
 
    Ti.Factor(T);
-   // cout << "H1_TriangleElement(" << p << ") : "; Ti.TestInversion();
+   // mfem::out << "H1_TriangleElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void H1_TriangleElement::CalcShape(const IntegrationPoint &ip,
@@ -7697,7 +7697,7 @@ H1_TetrahedronElement::H1_TetrahedronElement(const int p, const int type)
    }
 
    Ti.Factor(T);
-   // cout << "H1_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
+   // mfem::out << "H1_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void H1_TetrahedronElement::CalcShape(const IntegrationPoint &ip,
@@ -8738,7 +8738,7 @@ L2_TriangleElement::L2_TriangleElement(const int p, const int type)
    }
 
    Ti.Factor(T);
-   // cout << "L2_TriangleElement(" << p << ") : "; Ti.TestInversion();
+   // mfem::out << "L2_TriangleElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void L2_TriangleElement::CalcShape(const IntegrationPoint &ip,
@@ -8919,7 +8919,7 @@ L2_TetrahedronElement::L2_TetrahedronElement(const int p, const int type)
    }
 
    Ti.Factor(T);
-   // cout << "L2_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
+   // mfem::out << "L2_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void L2_TetrahedronElement::CalcShape(const IntegrationPoint &ip,
@@ -9671,7 +9671,7 @@ RT_TriangleElement::RT_TriangleElement(const int p)
    }
 
    Ti.Factor(T);
-   // cout << "RT_TriangleElement(" << p << ") : "; Ti.TestInversion();
+   // mfem::out << "RT_TriangleElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void RT_TriangleElement::CalcVShape(const IntegrationPoint &ip,
@@ -9848,7 +9848,7 @@ RT_TetrahedronElement::RT_TetrahedronElement(const int p)
    }
 
    Ti.Factor(T);
-   // cout << "RT_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
+   // mfem::out << "RT_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void RT_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
@@ -10641,7 +10641,7 @@ ND_TetrahedronElement::ND_TetrahedronElement(const int p)
    }
 
    Ti.Factor(T);
-   // cout << "ND_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
+   // mfem::out << "ND_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void ND_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
@@ -10836,7 +10836,7 @@ ND_TriangleElement::ND_TriangleElement(const int p)
    }
 
    Ti.Factor(T);
-   // cout << "ND_TriangleElement(" << p << ") : "; Ti.TestInversion();
+   // mfem::out << "ND_TriangleElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void ND_TriangleElement::CalcVShape(const IntegrationPoint &ip,
