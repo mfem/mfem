@@ -4670,17 +4670,20 @@ STable3D *MixedMesh::GetFacesTable()
    return faces_tbl;
 }
 
-STable3D *MixedMesh::GetElementToFaceTable(int ret_ftbl)
+MixedMesh::FacesTable * MixedMesh::GetElementToFaceTable(bool ret_ftbls)
 {
    int i, *v;
-   STable3D *faces_tbl;
+   Table *el_to_tri_face, *el_to_quad_face;
+   STable3D *tri_faces_tbl, *quad_faces_tbl;
 
    if (el_to_face != NULL)
    {
       delete el_to_face;
    }
-   el_to_face = new Table(NumOfElements, 6);  // must be 6 for hexahedra
-   faces_tbl = new STable3D(NumOfVertices);
+   el_to_tri_face  = new Table(NumOfElements, 4);  // must be 4 for tetrahedra
+   el_to_quad_face = new Table(NumOfElements, 6);  // must be 6 for hexahedra
+   tri_faces_tbl   = new STable3D(NumOfVertices);
+   quad_faces_tbl  = new STable3D(NumOfVertices);
    for (i = 0; i < NumOfElements; i++)
    {
       v = GetElement(i)->GetVertices();
@@ -4691,8 +4694,8 @@ STable3D *MixedMesh::GetElementToFaceTable(int ret_ftbl)
             for (int j = 0; j < 4; j++)
             {
                const int *fv = tet_t::FaceVert[j];
-               el_to_face->Push(
-                  i, faces_tbl->Push(v[fv[0]], v[fv[1]], v[fv[2]]));
+               el_to_tri_face->Push(
+                  i, tri_faces_tbl->Push(v[fv[0]], v[fv[1]], v[fv[2]]));
             }
             break;
          }
@@ -4701,14 +4704,15 @@ STable3D *MixedMesh::GetElementToFaceTable(int ret_ftbl)
             for (int j = 0; j < 2; j++)
             {
                const int *fv = pri_t::FaceVert[j];
-               el_to_face->Push(
-                  i, faces_tbl->Push(v[fv[0]], v[fv[1]], v[fv[2]]));
+               el_to_tri_face->Push(
+                  i, tri_faces_tbl->Push(v[fv[0]], v[fv[1]], v[fv[2]]));
             }
             for (int j = 2; j < 5; j++)
             {
                const int *fv = pri_t::FaceVert[j];
-               el_to_face->Push(
-                  i, faces_tbl->Push4(v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]));
+               el_to_quad_face->Push(
+                  i, quad_faces_tbl->Push4(v[fv[0]], v[fv[1]],
+					   v[fv[2]], v[fv[3]]));
             }
             break;
          }
@@ -4719,8 +4723,9 @@ STable3D *MixedMesh::GetElementToFaceTable(int ret_ftbl)
             for (int j = 0; j < 6; j++)
             {
                const int *fv = hex_t::FaceVert[j];
-               el_to_face->Push(
-                  i, faces_tbl->Push4(v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]));
+               el_to_quad_face->Push(
+                  i, quad_faces_tbl->Push4(v[fv[0]], v[fv[1]],
+					   v[fv[2]], v[fv[3]]));
             }
             break;
          }
@@ -4728,8 +4733,34 @@ STable3D *MixedMesh::GetElementToFaceTable(int ret_ftbl)
             MFEM_ABORT("Unexpected type of Element.");
       }
    }
-   el_to_face->Finalize();
-   NumOfFaces = faces_tbl->NumberOfElements();
+   el_to_tri_face->Finalize();
+   el_to_quad_face->Finalize();
+   int NumOfTriFaces  = tri_faces_tbl->NumberOfElements();
+   int NumOfQuadFaces = quad_faces_tbl->NumberOfElements();
+   NumOfFaces = NumOfTriFaces + NumOfQuadFaces;
+
+   if (el_to_face != NULL)
+   {
+      delete el_to_face;
+   }
+   el_to_face  = new Table(NumOfElements, 6);  // must be 6 for hexahedra
+   for (i = 0; i < NumOfElements; i++)
+   {
+     int tri_row_size = el_to_tri_face->RowSize(i);
+     const int * tri_row = el_to_tri_face->GetRow(i);
+     for (int j=0; j<tri_row_size; j++)
+     {
+       el_to_face->Push(i, tri_row[j]);
+     }
+     
+     int quad_row_size = el_to_quad_face->RowSize(i);
+     const int * quad_row = el_to_quad_face->GetRow(i);
+     for (int j=0; j<quad_row_size; j++)
+     {
+       el_to_face->Push(i, quad_row[j] + NumOfTriFaces);
+     }
+   }
+   
    be_to_face.SetSize(NumOfBdrElements);
    for (i = 0; i < NumOfBdrElements; i++)
    {
@@ -4738,24 +4769,29 @@ STable3D *MixedMesh::GetElementToFaceTable(int ret_ftbl)
       {
          case Element::TRIANGLE:
          {
-            be_to_face[i] = (*faces_tbl)(v[0], v[1], v[2]);
+            be_to_face[i] = (*tri_faces_tbl)(v[0], v[1], v[2]);
             break;
          }
          case Element::QUADRILATERAL:
          {
-            be_to_face[i] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
-            break;
+            be_to_face[i] = (*quad_faces_tbl)(v[0], v[1], v[2], v[3])
+	      + NumOfTriFaces;
+	    break;
          }
          default:
             MFEM_ABORT("Unexpected type of boundary Element.");
       }
    }
 
-   if (ret_ftbl)
+   if (ret_ftbls)
    {
-      return faces_tbl;
+      FacesTable * ftbl = new FacesTable;
+      ftbl->tri  = tri_faces_tbl;
+      ftbl->quad = quad_faces_tbl;
+      return ftbl;
    }
-   delete faces_tbl;
+   delete tri_faces_tbl;
+   delete quad_faces_tbl;
    return NULL;
 }
 

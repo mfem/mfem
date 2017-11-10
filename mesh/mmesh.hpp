@@ -78,6 +78,12 @@ protected:
    ElemArray boundary;
    ElemArray faces;
 
+   struct FacesTable
+   {
+     STable3D * tri;
+     STable3D * quad;
+   };
+  
    struct FaceInfo
    {
       // Inf = 64 * LocalFaceIndex + FaceOrientation
@@ -253,7 +259,7 @@ protected:
    // void DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert);
 
    STable3D *GetFacesTable();
-   STable3D *GetElementToFaceTable(int ret_ftbl = 0);
+   FacesTable * GetElementToFaceTable(bool ret_ftbls = false);
 
    /** Red refinement. Element with index i is refined. The default
        red refinement for now is Uniform. */
