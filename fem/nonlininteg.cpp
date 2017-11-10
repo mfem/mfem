@@ -183,10 +183,10 @@ void InverseHarmonicModel::AssembleH(
       }
 
    // 2.
-   for (int i = 0; i < dof; i++)
+   for (int i = 1; i < dof; i++)
       for (int j = 0; j < i; j++)
       {
-         for (int k = 0; k < dim; k++)
+         for (int k = 1; k < dim; k++)
             for (int l = 0; l < k; l++)
             {
                double a =
@@ -206,11 +206,11 @@ void InverseHarmonicModel::AssembleH(
 
 inline void NeoHookeanModel::EvalCoeffs() const
 {
-   mu = c_mu->Eval(*T, T->GetIntPoint());
-   K = c_K->Eval(*T, T->GetIntPoint());
+   mu = c_mu->Eval(*Ttr, Ttr->GetIntPoint());
+   K = c_K->Eval(*Ttr, Ttr->GetIntPoint());
    if (c_g)
    {
-      g = c_g->Eval(*T, T->GetIntPoint());
+      g = c_g->Eval(*Ttr, Ttr->GetIntPoint());
    }
 }
 
@@ -320,105 +320,115 @@ void NeoHookeanModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
 }
 
 double HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
-                                                   ElementTransformation &Tr,
+                                                   ElementTransformation &Ttr,
                                                    const Vector &elfun)
 {
    int dof = el.GetDof(), dim = el.GetDim();
    double energy;
 
    DSh.SetSize(dof, dim);
-   J0i.SetSize(dim);
-   J1.SetSize(dim);
-   J.SetSize(dim);
+   Jrt.SetSize(dim);
+   Jpr.SetSize(dim);
+   Jpt.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
 
-   int intorder = 2*el.GetOrder() + 3; // <---
-   const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), intorder);
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
+   }
 
    energy = 0.0;
-   model->SetTransformation(Tr);
-   for (int i = 0; i < ir.GetNPoints(); i++)
+   model->SetTransformation(Ttr);
+   for (int i = 0; i < ir->GetNPoints(); i++)
    {
-      const IntegrationPoint &ip = ir.IntPoint(i);
-      Tr.SetIntPoint(&ip);
-      CalcInverse(Tr.Jacobian(), J0i);
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Ttr.SetIntPoint(&ip);
+      CalcInverse(Ttr.Jacobian(), Jrt);
 
       el.CalcDShape(ip, DSh);
-      MultAtB(PMatI, DSh, J1);
-      Mult(J1, J0i, J);
+      MultAtB(PMatI, DSh, Jpr);
+      Mult(Jpr, Jrt, Jpt);
 
-      energy += ip.weight*Tr.Weight()*model->EvalW(J);
+      energy += ip.weight * Ttr.Weight() * model->EvalW(Jpt);
    }
 
    return energy;
 }
 
 void HyperelasticNLFIntegrator::AssembleElementVector(
-   const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
-   Vector &elvect)
+   const FiniteElement &el, ElementTransformation &Ttr,
+   const Vector &elfun, Vector &elvect)
 {
    int dof = el.GetDof(), dim = el.GetDim();
 
    DSh.SetSize(dof, dim);
    DS.SetSize(dof, dim);
-   J0i.SetSize(dim);
-   J.SetSize(dim);
+   Jrt.SetSize(dim);
+   Jpt.SetSize(dim);
    P.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
    elvect.SetSize(dof*dim);
    PMatO.UseExternalData(elvect.GetData(), dof, dim);
 
-   int intorder = 2*el.GetOrder() + 3; // <---
-   const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), intorder);
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
+   }
 
    elvect = 0.0;
-   model->SetTransformation(Tr);
-   for (int i = 0; i < ir.GetNPoints(); i++)
+   model->SetTransformation(Ttr);
+   for (int i = 0; i < ir->GetNPoints(); i++)
    {
-      const IntegrationPoint &ip = ir.IntPoint(i);
-      Tr.SetIntPoint(&ip);
-      CalcInverse(Tr.Jacobian(), J0i);
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Ttr.SetIntPoint(&ip);
+      CalcInverse(Ttr.Jacobian(), Jrt);
 
       el.CalcDShape(ip, DSh);
-      Mult(DSh, J0i, DS);
-      MultAtB(PMatI, DS, J);
+      Mult(DSh, Jrt, DS);
+      MultAtB(PMatI, DS, Jpt);
 
-      model->EvalP(J, P);
+      model->EvalP(Jpt, P);
 
-      P *= ip.weight*Tr.Weight();
+      P *= ip.weight * Ttr.Weight();
       AddMultABt(DS, P, PMatO);
    }
 }
 
-void HyperelasticNLFIntegrator::AssembleElementGrad(
-   const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
-   DenseMatrix &elmat)
+void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
+                                                    ElementTransformation &Ttr,
+                                                    const Vector &elfun,
+                                                    DenseMatrix &elmat)
 {
    int dof = el.GetDof(), dim = el.GetDim();
 
    DSh.SetSize(dof, dim);
    DS.SetSize(dof, dim);
-   J0i.SetSize(dim);
-   J.SetSize(dim);
+   Jrt.SetSize(dim);
+   Jpt.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
    elmat.SetSize(dof*dim);
 
-   int intorder = 2*el.GetOrder() + 3; // <---
-   const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), intorder);
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
+   }
 
    elmat = 0.0;
-   model->SetTransformation(Tr);
-   for (int i = 0; i < ir.GetNPoints(); i++)
+   model->SetTransformation(Ttr);
+   for (int i = 0; i < ir->GetNPoints(); i++)
    {
-      const IntegrationPoint &ip = ir.IntPoint(i);
-      Tr.SetIntPoint(&ip);
-      CalcInverse(Tr.Jacobian(), J0i);
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Ttr.SetIntPoint(&ip);
+      CalcInverse(Ttr.Jacobian(), Jrt);
 
       el.CalcDShape(ip, DSh);
-      Mult(DSh, J0i, DS);
-      MultAtB(PMatI, DS, J);
+      Mult(DSh, Jrt, DS);
+      MultAtB(PMatI, DS, Jpt);
 
-      model->AssembleH(J, DS, ip.weight*Tr.Weight(), elmat);
+      model->AssembleH(Jpt, DS, ip.weight * Ttr.Weight(), elmat);
    }
 }
 
