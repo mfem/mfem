@@ -83,12 +83,13 @@ public:
    virtual void AssembleElementVector(Array<const FiniteElement *> &el,
                                       ElementTransformation &Tr,
                                       Array<Vector *> &elfun,
-                                      Array<Vector *> &elvec) = 0;
+                                      Array<Vector *> &elvec);
 
-   virtual void AssembleRHSElementVector(Array<const FiniteElement *> &el,
-                                         FaceElementTransformations &Tr,
-                                         Array<Vector *> &elfun,
-                                         Array<Vector *> &elvec);
+   virtual void AssembleFaceVector(Array<const FiniteElement *> &el1,
+                                   Array<const FiniteElement *> &el2,
+                                   FaceElementTransformations &Tr,
+                                   Array<Vector *> &elfun, 
+                                   Array<Vector *> &elvect);
 
    /// Assemble the local gradient matrix
    virtual void AssembleElementGrad(Array<const FiniteElement*> &el,
@@ -96,10 +97,11 @@ public:
                                     Array<Vector *> &elfun,
                                     Array2D<DenseMatrix *> &elmats);
 
-   virtual void AssembleRHSElementGrad(Array<const FiniteElement*> &el,
-                                       FaceElementTransformations &Tr,
-                                       Array<Vector *> &elfun,
-                                       Array2D<DenseMatrix *> &elmats);
+   virtual void AssembleFaceGrad(Array<const FiniteElement *>&el1,
+                                 Array<const FiniteElement *>&el2,
+                                 FaceElementTransformations &Tr,
+                                 Array<Vector *> &elfun, 
+                                 Array2D<DenseMatrix *> &elmats);
 
    virtual ~BlockNonlinearFormIntegrator() { }
 };

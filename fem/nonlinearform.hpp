@@ -89,14 +89,14 @@ protected:
    Array<FiniteElementSpace*> fes;
 
    /// Set of Domain Integrators to be assembled (added).
-   Array<BlockNonlinearFormIntegrator*> dfi;
+   Array<BlockNonlinearFormIntegrator*> dnfi;
 
-   /// Set of Boundary Integrators to be assembled (added).
-   Array<BlockNonlinearFormIntegrator*> bfi;
+   /// Set of interior face Integrators to be assembled (added).
+   Array<BlockNonlinearFormIntegrator*> fnfi;
 
    /// Set of Boundary Face Integrators to be assembled (added).
-   Array<BlockNonlinearFormIntegrator*> ffi;
-   Array<Array<int>*>           ffi_marker;
+   Array<BlockNonlinearFormIntegrator*> bfnfi;
+   Array<Array<int>*>           bfnfi_marker;
 
    mutable Array2D<SparseMatrix*> Grads;
    mutable BlockOperator *BlockGrad;
@@ -116,17 +116,21 @@ public:
    void SetSpaces(Array<FiniteElementSpace *> &f);
 
    /// Adds new Domain Integrator.
-   void AddDomainIntegrator(BlockNonlinearFormIntegrator *mnlfi)
-   { dfi.Append(mnlfi); }
+   void AddDomainIntegrator(BlockNonlinearFormIntegrator *nlfi)
+   { dnfi.Append(nlfi); }
 
-   /// Adds new Boundary Integrator.
-   void AddBoundaryIntegrator(BlockNonlinearFormIntegrator *mnlfi)
-   { bfi.Append(mnlfi); }
+   /// Adds new Interior Face Integrator.
+   void AddInteriorFaceIntegrator(BlockNonlinearFormIntegrator *nlfi)
+   { fnfi.Append(nlfi); }
 
-   /** @brief Add new Boundary Face Integrator, restricted to the given boundary
+   /// Adds new Boundary Face Integrator.
+   void AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *nlfi)
+   { bfnfi.Append(nlfi); bfnfi_marker.Append(NULL); }
+
+   /** @brief Adds new Boundary Face Integrator, restricted to specific boundary
        attributes. */
-   void AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *fi,
-                             Array<int> &bdr_attr_marker);
+   void AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *nlfi,
+                             Array<int> &bdr_marker);
 
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                Array<Vector *> &rhs);
