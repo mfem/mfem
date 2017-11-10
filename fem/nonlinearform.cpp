@@ -384,11 +384,11 @@ BlockNonlinearForm::BlockNonlinearForm(Array<FiniteElementSpace *> &f)
    SetSpaces(f);
 }
 
-void BlockNonlinearForm::AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *fi,
+void BlockNonlinearForm::AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *nfi,
                                               Array<int> &bdr_attr_marker)
 {
-   ffi.Append(fi);
-   ffi_marker.Append(&bdr_attr_marker);
+   bfnfi.Append(nfi);
+   bfnfi_marker.Append(&bdr_attr_marker);
 }
 
 
@@ -438,9 +438,11 @@ void BlockNonlinearForm::SetEssentialBC(const
 void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
    Array<Array<int> *>vdofs(fes.Size());
+   Array<Array<int> *>vdofs2(fes.Size());
    Array<Vector *> el_x(fes.Size());
    Array<Vector *> el_y(fes.Size());
    Array<const FiniteElement *> fe(fes.Size());
+   Array<const FiniteElement *> fe2(fes.Size());
    ElementTransformation *T;
 
    Array<Vector *> xs(fes.Size()), ys(fes.Size());
@@ -453,6 +455,7 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
       el_x[i] = new Vector();
       el_y[i] = new Vector();
       vdofs[i] = new Array<int>;
+      vdofs2[i] = new Array<int>;
    }
 
    if (dfi.Size())
@@ -480,32 +483,46 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
       }
    }
 
-   if (bfi.Size())
+
+   if (fnfi.Size())
    {
-      for (int i = 0; i < fes[0]->GetNBE(); i++)
+      Mesh *mesh = fes[0]->GetMesh();
+      FaceElementTransformations *tr;
+
+      for (int i = 0; i < mesh->GetNumFaces(); i++)
       {
-         T = fes[0]->GetBdrElementTransformation(i);
-         for (int s=0; s<fes.Size(); s++)
+         tr = mesh->GetInteriorFaceTransformations(i);
+         if (tr != NULL)
          {
-            fe[s] = fes[s]->GetBE(i);
-            fes[s]->GetBdrElementVDofs(i, *(vdofs[s]));
-            xs[s]->GetSubVector(*(vdofs[s]), *el_x[s]);
-         }
-
-         for (int k = 0; k < bfi.Size(); k++)
-         {
-            bfi[k]->AssembleElementVector(fe, *T,
-                                          el_x, el_y);
-
-            for (int s = 0; s < fes.Size(); s++)
+            for (int s=0; s<fes.Size(); s++)
             {
-               ys[s]->AddElementVector(*(vdofs[s]), *el_y[s]);
+               fe[s] = fes[s]->GetFE(tr->Elem1No);
+               fe2[s] = fes[s]->GetFE(tr->Elem2No);
+
+               fes[s]->GetElementVDofs(tr->Elem1No, *(vdofs[s]));
+               fes[s]->GetElementVDofs(tr->Elem2No, *(vdofs2[s]));
+
+               vdofs[s]->Append(*(vdofs2[s]));
+
+               xs[s]->GetSubVector(*(vdofs[s]), *el_x[s]);
+            }
+
+            for (int k = 0; k < fnfi.Size(); k++)
+            {
+
+               fnfi[k]->AssembleFaceVector(fe, fe2, *tr, el_x, el_y);
+
+               for (int s=0; s<fes.Size(); s++)
+               {
+                  ys[s]->AddElementVector(*(vdofs[s]), *el_y[s]);
+               }
             }
          }
       }
    }
 
-   if (ffi.Size())
+
+   if (bfnfi.Size())
    {
       Mesh *mesh = fes[0]->GetMesh();
       FaceElementTransformations *tr;
@@ -513,14 +530,14 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                  mesh->bdr_attributes.Max() : 0);
       bdr_attr_marker = 0;
-      for (int k = 0; k < ffi.Size(); k++)
+      for (int k = 0; k < bfnfi.Size(); k++)
       {
-         if (ffi_marker[k] == NULL)
+         if (bfnfi_marker[k] == NULL)
          {
             bdr_attr_marker = 1;
             break;
          }
-         Array<int> &bdr_marker = *ffi_marker[k];
+         Array<int> &bdr_marker = *bfnfi_marker[k];
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                      "invalid boundary marker for boundary face integrator #"
                      << k << ", counting from zero");
@@ -541,17 +558,18 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
             for (int s=0; s<fes.Size(); s++)
             {
                fe[s] = fes[s]->GetFE(tr->Elem1No);
+               fe2[s] = fes[s]->GetFE(tr->Elem1No);
+
                fes[s]->GetElementVDofs(tr->Elem1No, *(vdofs[s]));
                xs[s]->GetSubVector(*(vdofs[s]), *el_x[s]);
             }
 
             for (int k = 0; k < ffi.Size(); k++)
             {
-               if (ffi_marker[k] &&
-                   (*ffi_marker[k])[bdr_attr-1] == 0) { continue; }
+               if (bfnfi_marker[k] &&
+                   (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
 
-               ffi[k]->AssembleRHSElementVector(fe, *tr,
-                                                el_x, el_y);
+               bfnfi[k]->AssembleFaceVector(fe, fe2, *tr, el_x, el_y);
 
                for (int s=0; s<fes.Size(); s++)
                {
@@ -577,9 +595,11 @@ Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
 {
    const int skip_zeros = 0;
    Array<Array<int> *> vdofs(fes.Size());
+   Array<Array<int> *> vdofs2(fes.Size());
    Array<Vector *> el_x(fes.Size());
    Array2D<DenseMatrix *> elmats(fes.Size(), fes.Size());
    Array<const FiniteElement *>fe(fes.Size());
+   Array<const FiniteElement *>fe2(fes.Size());
    ElementTransformation * T;
    Array<Vector *> xs(fes.Size()), ys(fes.Size());
 
@@ -595,6 +615,7 @@ Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
       xs[i] = new Vector(x.GetData() + block_offsets[i], fes[i]->GetVSize());
       el_x[i] = new Vector();
       vdofs[i] = new Array<int>;
+      vdofs2[i] = new Array<int>;
       for (int j=0; j<fes.Size(); j++)
       {
          elmats(i,j) = new DenseMatrix();
@@ -613,7 +634,7 @@ Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
       }
    }
 
-   if (dfi.Size())
+   if (dnfi.Size())
    {
       for (int i = 0; i < fes[0]->GetNE(); i++)
       {
@@ -627,8 +648,8 @@ Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
 
          for (int k = 0; k < dfi.Size(); k++)
          {
-            dfi[k]->AssembleElementGrad(fe, *T,
-                                        el_x, elmats);
+            dnfi[k]->AssembleElementGrad(fe, *T, el_x, elmats);
+
             for (int j=0; j<fes.Size(); j++)
             {
                for (int l=0; l<fes.Size(); l++)
@@ -639,22 +660,31 @@ Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
          }
       }
    }
-   if (bfi.Size())
+
+   if (fnfi.Size())
    {
-      for (int i = 0; i < fes[0]->GetNBE(); i++)
+      FaceElementTransformations *tr;
+      Mesh *mesh = fes[0]->GetMesh();
+
+      for (int i = 0; i < mesh->GetNumFaces(); i++)
       {
-         T = fes[0]->GetBdrElementTransformation(i);
+         tr = mesh->GetInteriorFaceTransformations(i);
+
          for (int s=0; s < fes.Size(); s++)
          {
-            fe[s] = fes[s]->GetBE(i);
-            fes[s]->GetBdrElementVDofs(i, *vdofs[s]);
+            fe[s] = fes[s]->GetFE(tr->Elem1No);
+            fe2[s] = fes[s]->GetFE(tr->Elem2No);
+
+            fes[s]->GetElementVDofs(tr->Elem1No, *vdofs[s]);
+            fes[s]->GetElementVDofs(tr->Elem2No, *vdofs2[s]);
+            vdofs[s]->Append(*(vdofs2[s]));
+
             xs[s]->GetSubVector(*vdofs[s], *el_x[s]);
          }
 
-         for (int k = 0; k < dfi.Size(); k++)
+         for (int k = 0; k < fnfi.Size(); k++)
          {
-            bfi[k]->AssembleElementGrad(fe, *T,
-                                        el_x, elmats);
+            fnfi[k]->AssembleFaceGrad(fe, fe2, *tr, el_x, elmats);
             for (int j=0; j<fes.Size(); j++)
             {
                for (int l=0; l<fes.Size(); l++)
@@ -666,7 +696,7 @@ Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
       }
    }
 
-   if (ffi.Size())
+   if (bfnfi.Size())
    {
       FaceElementTransformations *tr;
       Mesh *mesh = fes[0]->GetMesh();
@@ -675,14 +705,14 @@ Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                  mesh->bdr_attributes.Max() : 0);
       bdr_attr_marker = 0;
-      for (int k = 0; k < ffi.Size(); k++)
+      for (int k = 0; k < bfnfi.Size(); k++)
       {
-         if (ffi_marker[k] == NULL)
+         if (bfnfi_marker[k] == NULL)
          {
             bdr_attr_marker = 1;
             break;
          }
-         Array<int> &bdr_marker = *ffi_marker[k];
+         Array<int> &bdr_marker = *bfnfi_marker[k];
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                      "invalid boundary marker for boundary face integrator #"
                      << k << ", counting from zero");
@@ -699,19 +729,19 @@ Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
 
          tr = mesh->GetBdrFaceTransformations(i);
          if (tr != NULL)
-         {
-            T = fes[0]->GetElementTransformation(i);
+         {            
             for (int s = 0; s < fes.Size(); s++)
             {
-               fe[s] = fes[s]->GetFE(i);
+               fe[s] = fes[s]->GetFE(tr->Elem1No);
+               fe2[s] = fe[s];
+
                fes[s]->GetElementVDofs(i, *vdofs[s]);
                xs[s]->GetSubVector(*vdofs[s], *el_x[s]);
             }
 
             for (int k = 0; k < dfi.Size(); k++)
             {
-               ffi[k]->AssembleElementGrad(fe, *T,
-                                           el_x, elmats);
+               bfnfi[k]->AssembleFaceGrad(fe, fe2, *tr, el_x, elmats);
                for (int l=0; l<fes.Size(); l++)
                {
                   for (int j=0; j<fes.Size(); j++)
@@ -780,17 +810,17 @@ BlockNonlinearForm::~BlockNonlinearForm()
 
    for (int i = 0; i < dfi.Size(); i++)
    {
-      delete dfi[i];
+      delete dnfi[i];
    }
 
    for (int i = 0; i < bfi.Size(); i++)
    {
-      delete bfi[i];
+      delete fnfi[i];
    }
 
    for (int i = 0; i < bfi.Size(); i++)
    {
-      delete ffi[i];
+      delete bfnfi[i];
    }
 
 }
