@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
       for (int l = 0; l < ref_levels; l++)
       {
          //mesh->UniformRefinement();
-         mesh->RandomRefinement(0.5, false);
+         mesh->RandomRefinement(0.5, true);
       }
    }
 
@@ -135,12 +135,12 @@ int main(int argc, char *argv[])
       std::ofstream f(fname);
       dbg.Print(f);
    }*/
-   {
+   /*{
       char fname[100];
       sprintf(fname, "ncmesh%02d.dbg", myid);
       std::ofstream f(fname);
       pmesh->pncmesh->DebugDump(f);
-   }
+   }*/
 
    /*Array<Refinement> refs;
    if (myid == 0) { refs.Append(Refinement(0)); }
@@ -173,10 +173,10 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   ///// DEBUG
+   /*///// DEBUG
    MPI_Finalize();
    return 0;
-   ///// DEBUG
+   ///// DEBUG*/
 
 
    // 7. Determine the list of true (i.e. parallel conforming) essential

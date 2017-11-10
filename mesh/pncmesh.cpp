@@ -457,6 +457,11 @@ void ParNCMesh::AugmentMasterGroups()
    GetSharedEdges();
    GetSharedFaces();
 
+   if (!shared_edges.masters.size() && !shared_faces.masters.size())
+   {
+      return;
+   }
+
    // augment comm groups of vertices of shared master edges, so that their
    // DOFs get sent to the slave ranks along with master edge DOFs
    for (unsigned i = 0; i < shared_edges.masters.size(); i++)
@@ -1032,7 +1037,10 @@ void ParNCMesh::Prune()
 {
    if (!Iso && Dim == 3)
    {
-      MFEM_WARNING("Can't prune 3D aniso meshes yet.");
+      if (MyRank == 0)
+      {
+         MFEM_WARNING("Can't prune 3D aniso meshes yet.");
+      }
       return;
    }
 

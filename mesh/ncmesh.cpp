@@ -2991,7 +2991,7 @@ int NCMesh::GetEdgeNCOrientation(const NCMesh::MeshId &edge_id) const
    int v0 = nodes[el.node[ev[0]]].vert_index;
    int v1 = nodes[el.node[ev[1]]].vert_index;
 
-   return (v0 < v1 && ev[0] > ev[1]) || (v0 > v1 && ev[0] < ev[1]);
+   return ((v0 < v1 && ev[0] > ev[1]) || (v0 > v1 && ev[0] < ev[1])) ? -1 : 1;
 }
 
 void NCMesh::GetFaceVerticesEdges(const MeshId &face_id,
@@ -3647,6 +3647,7 @@ void NCMesh::DebugLeafOrder() const
 }
 #endif
 
+#ifdef MFEM_DEBUG
 void NCMesh::DebugDump(std::ostream &out) const
 {
    // dump nodes
@@ -3709,5 +3710,6 @@ void NCMesh::DebugDump(std::ostream &out) const
       out << "\n";
    }
 }
+#endif
 
 } // namespace mfem

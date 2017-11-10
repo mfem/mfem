@@ -495,6 +495,7 @@ bool FiniteElementSpace::DofFinalizable(int dof, const Array<bool>& finalized,
     DOF list is returned. */
 void FiniteElementSpace::GetEdgeFaceDofs(int type, int index, Array<int> &dofs)
 {
+   // TODO remove?
    dofs.SetSize(0);
    if (type)
    {

@@ -1025,16 +1025,6 @@ void ParFiniteElementSpace::ConstructTrueNURBSDofs()
    gcomm->Bcast(ldof_ltdof);
 }
 
-inline int decode_dof(int dof, double& sign)
-{
-   return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof));
-}
-
-inline int encode_dof(int first, int ind)
-{
-   return (ind >= 0) ? (first + ind) : (-1 - (first + (-1 - ind)));
-}
-
 void ParFiniteElementSpace::GetGhostVertexDofs(const NCMesh::MeshId &id,
                                                Array<int> &dofs) const
 {
@@ -1104,7 +1094,8 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const NCMesh::MeshId &face_id,
       const int *ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[i]);
       for (int j = 0; j < ne; j++)
       {
-         dofs[offset++] = encode_dof(first, ind[j]);
+         dofs[offset++] = (ind[j] >= 0) ? (first + ind[j])
+                          /*         */ : (-1 - (first + (-1 - ind[j])));
       }
    }
 
@@ -1325,23 +1316,23 @@ struct PMatrixRow
       elems.resize(j+1);
    }
 
-   void write(std::ostream &os) const
+   void write(std::ostream &os, double sign) const
    {
       mfem::write<int>(os, elems.size());
       for (unsigned i = 0; i < elems.size(); i++)
       {
          mfem::write<HYPRE_Int>(os, elems[i].column);
-         mfem::write<double>(os, elems[i].value);
+         mfem::write<double>(os, elems[i].value * sign);
       }
    }
 
-   void read(std::istream &is)
+   void read(std::istream &is, double sign)
    {
       elems.resize(mfem::read<int>(is));
       for (unsigned i = 0; i < elems.size(); i++)
       {
          elems[i].column = mfem::read<HYPRE_Int>(is);
-         elems[i].value = mfem::read<double>(is);
+         elems[i].value = mfem::read<double>(is) * sign;
       }
    }
 };
@@ -1424,8 +1415,6 @@ void NeighborRowMessage::Encode(int rank)
    pncmesh->EncodeMeshIds(stream, ent_ids);
    pncmesh->EncodeGroups(stream, all_group_ids);
 
-   int ne = fec->DofForGeometry(Geometry::SEGMENT);
-
    // write all rows to the stream
    for (int ent = 0; ent < 3; ent++)
    {
@@ -1441,14 +1430,22 @@ void NeighborRowMessage::Encode(int rank)
                    << ", edof " << ri.edof << " (id " << id.element << "/"
                    << id.local << ")" << std::endl;*/
 
+         // handle orientation and sign change
          int edof = ri.edof;
-         if (ent == 1 && pncmesh->GetEdgeNCOrientation(id))
+         double s = 1.0;
+         if (ent == 1)
          {
-            edof = ne-1 - edof;
+            int eo = pncmesh->GetEdgeNCOrientation(id);
+            const int* ind = fec->DofOrderForOrientation(Geometry::SEGMENT, eo);
+            if ((edof = ind[edof]) < 0)
+            {
+               edof = -1 - edof;
+               s = -1;
+            }
          }
 
          write<int>(stream, edof);
-         ri.row.write(stream);
+         ri.row.write(stream, s);
       }
    }
 
@@ -1473,8 +1470,7 @@ void NeighborRowMessage::Decode(int rank)
    rows.clear();
    rows.reserve(nrows);
 
-   int ne = fec->DofForGeometry(Geometry::SEGMENT);
-   int ori, fgeom = pncmesh->GetFaceGeometry();
+   int fgeom = pncmesh->GetFaceGeometry();
 
    // read rows
    for (int ent = 0, gi = 0; ent < 3; ent++)
@@ -1485,19 +1481,28 @@ void NeighborRowMessage::Decode(int rank)
          const NCMesh::MeshId &id = ids[i];
          int edof = read<int>(stream);
 
-         // handle orientation
-         if (ent == 1 && pncmesh->GetEdgeNCOrientation(id))
+         // handle orientation and sign change
+         const int *ind = NULL;
+         if (ent == 1)
          {
-            edof = ne-1 - edof;
+            int eo = pncmesh->GetEdgeNCOrientation(id);
+            ind = fec->DofOrderForOrientation(Geometry::SEGMENT, eo);
          }
-         else if (ent == 2 && (ori = pncmesh->GetFaceOrientation(id.index)))
+         else if (ent == 2)
          {
-            const int* ind = fec->DofOrderForOrientation(fgeom, ori);
-            edof = ind[edof];
+            int fo = pncmesh->GetFaceOrientation(id.index);
+            ind = fec->DofOrderForOrientation(fgeom, fo);
+         }
+
+         double s = 1.0;
+         if (ind && (edof = ind[edof]) < 0)
+         {
+            edof = -1 - edof;
+            s = -1.0;
          }
 
          rows.push_back(RowInfo(ent, id.index, edof, group_ids[gi++]));
-         rows.back().row.read(stream);
+         rows.back().row.read(stream, s);
 
          /*std::cout << "Rank " << pncmesh->MyRank << " receiving from " << rank
                    << ": ent " << rows.back().entity << ", index "
