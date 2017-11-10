@@ -1330,6 +1330,7 @@ void ParMesh::GetFaceNbrElementTransformation(
          MFEM_ABORT("Nodes are not ParGridFunction!");
       }
    }
+   ElTr->FinalizeTransformation();
 }
 
 void ParMesh::DeleteFaceNbrData()
@@ -1915,6 +1916,7 @@ ElementTransformation* ParMesh::GetGhostFaceTransformation(
 #endif
       FaceTransformation.SetFE(face_el);
    }
+   FaceTransformation.FinalizeTransformation();
    return &FaceTransformation;
 }
 
@@ -4525,13 +4527,14 @@ void ParMesh::ParPrint(ostream &out) const
 }
 
 int ParMesh::FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,
-                        Array<IntegrationPoint>& ip, bool warn)
+                        Array<IntegrationPoint>& ip, bool warn,
+                        InverseElementTransformation *inv_trans)
 {
    const int npts = point_mat.Width();
    if (npts == 0) { return 0; }
 
    const bool no_warn = false;
-   Mesh::FindPoints(point_mat, elem_id, ip, no_warn);
+   Mesh::FindPoints(point_mat, elem_id, ip, no_warn, inv_trans);
 
    // If multiple processors find the same point, we need to choose only one of
    // the processors to mark that point as found.
@@ -4549,8 +4552,12 @@ int ParMesh::FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,
    int pts_found = 0;
    for (int k = 0; k < npts; k++)
    {
-      if (glob_point_rank[k] != MyRank) { elem_id[k] = -1; }
-      if (glob_point_rank[k] != NRanks) { pts_found++; }
+      if (glob_point_rank[k] == NRanks) { elem_id[k] = -1; }
+      else
+      {
+         pts_found++;
+         if (glob_point_rank[k] != MyRank) { elem_id[k] = -2; }
+      }
    }
    if (warn && pts_found != npts && MyRank == 0)
    {
