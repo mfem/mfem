@@ -9,20 +9,31 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "osockstream.hpp"
+
+#include "../config/config.hpp"
 #include "globals.hpp"
+#include <iostream>
 
 namespace mfem
 {
 
-osockstream::osockstream(int port, const char *hostname)
-   : socketstream(hostname, port)
+OutStream out(std::cout);
+OutStream err(std::cerr);
+
+#ifdef MFEM_USE_MPI
+
+MPI_Comm MFEM_COMM_WORLD = MPI_COMM_WORLD;
+
+MPI_Comm GetGlobalMPI_Comm()
 {
-   if (!is_open())
-   {
-      mfem::err << "Unable to connect to port " << port << " on "
-                << hostname << '\n';
-   }
+   return MFEM_COMM_WORLD;
 }
+
+void SetGlobalMPI_Comm(MPI_Comm comm)
+{
+   MFEM_COMM_WORLD = comm;
+}
+
+#endif
 
 }

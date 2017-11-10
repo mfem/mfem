@@ -13,6 +13,7 @@
 #define MFEM_DENSEMAT
 
 #include "../config/config.hpp"
+#include "../general/globals.hpp"
 #include "matrix.hpp"
 
 namespace mfem
@@ -237,6 +238,7 @@ public:
    void GetRow(int r, Vector &row);
    void GetColumn(int c, Vector &col) const;
    double *GetColumn(int col) { return data + col*height; }
+   const double *GetColumn(int col) const { return data + col*height; }
 
    void GetColumnReference(int c, Vector &col)
    { col.SetDataAndSize(data + c * height, height); }
@@ -323,10 +325,10 @@ public:
    int CheckFinite() const { return mfem::CheckFinite(data, height*width); }
 
    /// Prints matrix to stream out.
-   virtual void Print(std::ostream &out = std::cout, int width_ = 4) const;
-   virtual void PrintMatlab(std::ostream &out = std::cout) const;
+   virtual void Print(std::ostream &out = mfem::out, int width_ = 4) const;
+   virtual void PrintMatlab(std::ostream &out = mfem::out) const;
    /// Prints the transpose matrix to stream out.
-   virtual void PrintT(std::ostream &out = std::cout, int width_ = 4) const;
+   virtual void PrintT(std::ostream &out = mfem::out, int width_ = 4) const;
 
    /// Invert and print the numerical conditioning of the inversion.
    void TestInversion();

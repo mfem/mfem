@@ -181,12 +181,16 @@ HypreParVector::~HypreParVector()
 
 #ifdef MFEM_USE_SUNDIALS
 
+#ifndef SUNFALSE
+#define SUNFALSE FALSE
+#endif
+
 void HypreParVector::ToNVector(N_Vector &nv)
 {
    MFEM_ASSERT(nv && N_VGetVectorID(nv) == SUNDIALS_NVEC_PARHYP,
                "invalid N_Vector");
    N_VectorContent_ParHyp nv_c = (N_VectorContent_ParHyp)(nv->content);
-   MFEM_ASSERT(nv_c->own_parvector == FALSE, "invalid N_Vector");
+   MFEM_ASSERT(nv_c->own_parvector == SUNFALSE, "invalid N_Vector");
    nv_c->local_length = x->local_vector->size;
    nv_c->global_length = x->global_size;
    nv_c->comm = x->comm;
@@ -1266,6 +1270,9 @@ void HypreParMatrix::Threshold(double threshold)
       ierr += hypre_CSRMatrixDestroy(csr_A);
    }
 
+   /* FIXME: GenerateDiagAndOffd() uses an int array of size equal to the number
+      of columns in csr_A_wo_z which is the global number of columns in A. This
+      does not scale well. */
    ierr += GenerateDiagAndOffd(csr_A_wo_z,parcsr_A_ptr,
                                col_start,col_end);
 
@@ -1502,18 +1509,21 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
 
    hypre_ParCSRMatrixSetNumNonzeros(rap);
    // hypre_MatvecCommPkgCreate(rap);
-   if (!P_owns_its_col_starts)
+
+   /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
+      from Rt and P (even if they do not own them)! */
+   hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
+   hypre_ParCSRMatrixSetColStartsOwner(rap,0);
+
+   if (P_owns_its_col_starts)
    {
-      /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
-         from P (even if it does not own them)! */
-      hypre_ParCSRMatrixSetColStartsOwner(rap,0);
+      hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
    }
-   if (!Rt_owns_its_col_starts)
+   if (Rt_owns_its_col_starts)
    {
-      /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
-         from P (even if it does not own them)! */
-      hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
+      hypre_ParCSRMatrixSetColStartsOwner(*Rt, 1);
    }
+
    return new HypreParMatrix(rap);
 }
 
@@ -2181,9 +2191,9 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
 
       if (myid == 0)
       {
-         cout << "PCG Iterations = " << num_iterations << endl
-              << "Final PCG Relative Residual Norm = " << final_res_norm
-              << endl;
+         mfem::out << "PCG Iterations = " << num_iterations << endl
+                   << "Final PCG Relative Residual Norm = " << final_res_norm
+                   << endl;
       }
    }
    HYPRE_ParCSRPCGSetPrintLevel(pcg_solver, print_level);
@@ -2307,9 +2317,9 @@ void HypreGMRES::Mult(const HypreParVector &b, HypreParVector &x) const
 
       if (myid == 0)
       {
-         cout << "GMRES Iterations = " << num_iterations << endl
-              << "Final GMRES Relative Residual Norm = " << final_res_norm
-              << endl;
+         mfem::out << "GMRES Iterations = " << num_iterations << endl
+                   << "Final GMRES Relative Residual Norm = " << final_res_norm
+                   << endl;
       }
    }
 }
