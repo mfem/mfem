@@ -10,6 +10,10 @@
 *.o
 /libmfem.a
 
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+
 # Backup files
 *~
 

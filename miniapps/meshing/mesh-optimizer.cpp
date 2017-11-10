@@ -447,7 +447,7 @@ int main (int argc, char *argv[])
       case 1: ir = &IntRulesLo.Get(geom_type, quad_order); break;
       case 2: ir = &IntRules.Get(geom_type, quad_order); break;
       case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
-      default: cout << "Unknown quad_type: " << target_id << endl; return 3;
+      default: cout << "Unknown quad_type: " << quad_type << endl; return 3;
    }
    cout << "Quadrature points per cell: " << ir->GetNPoints() << endl;
    he_nlf_integ->SetIntegrationRule(*ir);

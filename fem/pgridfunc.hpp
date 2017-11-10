@@ -16,6 +16,7 @@
 
 #ifdef MFEM_USE_MPI
 
+#include "../general/globals.hpp"
 #include "pfespace.hpp"
 #include "gridfunc.hpp"
 #include <iostream>
@@ -271,7 +272,7 @@ public:
    virtual void Save(std::ostream &out) const;
 
    /// Merge the local grid functions
-   void SaveAsOne(std::ostream &out = std::cout);
+   void SaveAsOne(std::ostream &out = mfem::out);
 
    virtual ~ParGridFunction() { }
 };

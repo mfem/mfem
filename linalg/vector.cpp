@@ -813,6 +813,13 @@ double Vector::Sum() const
 
 #ifdef MFEM_USE_SUNDIALS
 
+#ifndef SUNTRUE
+#define SUNTRUE TRUE
+#endif
+#ifndef SUNFALSE
+#define SUNFALSE FALSE
+#endif
+
 Vector::Vector(N_Vector nv)
 {
    N_Vector_ID nvid = N_VGetVectorID(nv);
@@ -844,13 +851,13 @@ void Vector::ToNVector(N_Vector &nv)
    switch (nvid)
    {
       case SUNDIALS_NVEC_SERIAL:
-         MFEM_ASSERT(NV_OWN_DATA_S(nv) == FALSE, "invalid serial N_Vector");
+         MFEM_ASSERT(NV_OWN_DATA_S(nv) == SUNFALSE, "invalid serial N_Vector");
          NV_DATA_S(nv) = data;
          NV_LENGTH_S(nv) = size;
          break;
 #ifdef MFEM_USE_MPI
       case SUNDIALS_NVEC_PARALLEL:
-         MFEM_ASSERT(NV_OWN_DATA_P(nv) == FALSE, "invalid parallel N_Vector");
+         MFEM_ASSERT(NV_OWN_DATA_P(nv) == SUNFALSE, "invalid parallel N_Vector");
          NV_DATA_P(nv) = data;
          NV_LOCLENGTH_P(nv) = size;
          break;
