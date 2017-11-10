@@ -458,7 +458,7 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
       vdofs2[i] = new Array<int>;
    }
 
-   if (dfi.Size())
+   if (dnfi.Size())
    {
       for (int i = 0; i < fes[0]->GetNE(); i++)
       {
@@ -470,9 +470,9 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
             xs[s]->GetSubVector(*(vdofs[s]), *el_x[s]);
          }
 
-         for (int k = 0; k < dfi.Size(); k++)
+         for (int k = 0; k < dnfi.Size(); k++)
          {
-            dfi[k]->AssembleElementVector(fe, *T,
+            dnfi[k]->AssembleElementVector(fe, *T,
                                           el_x, el_y);
 
             for (int s=0; s<fes.Size(); s++)
@@ -564,7 +564,7 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
                xs[s]->GetSubVector(*(vdofs[s]), *el_x[s]);
             }
 
-            for (int k = 0; k < ffi.Size(); k++)
+            for (int k = 0; k < bfnfi.Size(); k++)
             {
                if (bfnfi_marker[k] &&
                    (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
@@ -646,7 +646,7 @@ Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
             xs[s]->GetSubVector(*vdofs[s], *el_x[s]);
          }
 
-         for (int k = 0; k < dfi.Size(); k++)
+         for (int k = 0; k < dnfi.Size(); k++)
          {
             dnfi[k]->AssembleElementGrad(fe, *T, el_x, elmats);
 
@@ -739,7 +739,7 @@ Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
                xs[s]->GetSubVector(*vdofs[s], *el_x[s]);
             }
 
-            for (int k = 0; k < dfi.Size(); k++)
+            for (int k = 0; k < bfnfi.Size(); k++)
             {
                bfnfi[k]->AssembleFaceGrad(fe, fe2, *tr, el_x, elmats);
                for (int l=0; l<fes.Size(); l++)
@@ -808,17 +808,17 @@ BlockNonlinearForm::~BlockNonlinearForm()
       delete ess_vdofs[i];
    }
 
-   for (int i = 0; i < dfi.Size(); i++)
+   for (int i = 0; i < dnfi.Size(); i++)
    {
       delete dnfi[i];
    }
 
-   for (int i = 0; i < bfi.Size(); i++)
+   for (int i = 0; i < fnfi.Size(); i++)
    {
       delete fnfi[i];
    }
 
-   for (int i = 0; i < bfi.Size(); i++)
+   for (int i = 0; i < bfnfi.Size(); i++)
    {
       delete bfnfi[i];
    }
