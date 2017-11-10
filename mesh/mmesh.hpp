@@ -309,12 +309,12 @@ protected:
    //                                    int nc_limit = 0);
 
    /// NC version of GeneralDerefinement.
-   virtual bool NonconformingDerefinement(Array<double> &elem_error,
-                                          double threshold, int nc_limit = 0,
-                                          int op = 1);
+  // virtual bool NonconformingDerefinement(Array<double> &elem_error,
+  //                                      double threshold, int nc_limit = 0,
+  //                                      int op = 1);
 
    /// Derefine elements once a list of derefinements is known.
-   void DerefineMesh(const Array<int> &derefinements);
+  // void DerefineMesh(const Array<int> &derefinements);
 
    /// Read NURBS patch/macro-element mesh
    // void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
@@ -487,7 +487,6 @@ public:
        These methods are intended to be used with the @ref mfem_MixedMesh_init_ctor
        "init constructor". */
    ///@{
-
    Element *NewElement(Geometry::Type geom);
 
    void AddVertex(const double *);
@@ -1176,6 +1175,7 @@ public:
 
    /// Destroys Mesh.
    virtual ~MixedMesh() { DestroyPointers(); }
+
 };
 
 /** Overload operator<< for std::ostream and Mesh; valid also for the derived

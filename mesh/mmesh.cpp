@@ -2759,6 +2759,7 @@ void MixedMesh::Loader(std::istream &input, int generate_edges,
       }
       ReadMFEMMesh(input, mfem_v11, curved);
    }
+   /*
    else if (mesh_type == "linemesh") // 1D mesh
    {
       ReadLineMesh(input);
@@ -2821,6 +2822,7 @@ void MixedMesh::Loader(std::istream &input, int generate_edges,
          return;
       }
    }
+   */
    else
    {
       MFEM_ABORT("Unknown input mesh format: " << mesh_type);
@@ -3408,7 +3410,8 @@ void MixedMesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
    SetAttributes();
 }
 */
-void XYZ_VectorFunction(const Vector &p, Vector &v)
+
+void Mixed_XYZ_VectorFunction(const Vector &p, Vector &v)
 {
    if (p.Size() >= v.Size())
    {
@@ -3436,7 +3439,7 @@ void MixedMesh::GetNodes(GridFunction &nodes) const
    if (Nodes == NULL || Nodes->FESpace() != nodes.FESpace())
    {
       const int newSpaceDim = nodes.FESpace()->GetVDim();
-      VectorFunctionCoefficient xyz(newSpaceDim, XYZ_VectorFunction);
+      VectorFunctionCoefficient xyz(newSpaceDim, Mixed_XYZ_VectorFunction);
       nodes.ProjectCoefficient(xyz);
    }
    else
@@ -5151,7 +5154,7 @@ int *MixedMesh::GeneratePartitioning(int nparts, int part_method)
 }
 
 /* required: 0 <= partitioning[i] < num_part */
-void FindPartitioningComponents(Table &elem_elem,
+void Mixed_FindPartitioningComponents(Table &elem_elem,
                                 const Array<int> &partitioning,
                                 Array<int> &component,
                                 Array<int> &num_comp)
@@ -5230,7 +5233,7 @@ void MixedMesh::CheckPartitioning(int *partitioning)
 
    ElementToElementTable();
 
-   FindPartitioningComponents(*el_to_el, _partitioning, component, num_comp);
+   Mixed_FindPartitioningComponents(*el_to_el, _partitioning, component, num_comp);
 
    n_empty = n_mcomp = 0;
    for (i = 0; i < num_comp.Size(); i++)
@@ -5279,7 +5282,7 @@ void MixedMesh::CheckPartitioning(int *partitioning)
 // compute the coefficients of the polynomial in t:
 //   c(0)+c(1)*t+...+c(d)*t^d = det(A+t*B)
 // where A, B are (d x d), d=2,3
-void DetOfLinComb(const DenseMatrix &A, const DenseMatrix &B, Vector &c)
+void Mixed_DetOfLinComb(const DenseMatrix &A, const DenseMatrix &B, Vector &c)
 {
    const double *a = A.Data();
    const double *b = B.Data();
@@ -5359,7 +5362,7 @@ void DetOfLinComb(const DenseMatrix &A, const DenseMatrix &B, Vector &c)
 // it is assumed that x is at least of size d;
 // return the number of roots counting multiplicity;
 // return -1 if all z(i) are 0.
-int FindRoots(const Vector &z, Vector &x)
+int Mixed_FindRoots(const Vector &z, Vector &x)
 {
    int d = z.Size()-1;
    if (d > 3 || d < 0)
@@ -5506,12 +5509,12 @@ int FindRoots(const Vector &z, Vector &x)
    return 0;
 }
 
-void FindTMax(Vector &c, Vector &x, double &tmax,
+void Mixed_FindTMax(Vector &c, Vector &x, double &tmax,
               const double factor, const int Dim)
 {
    const double c0 = c(0);
    c(0) = c0 * (1.0 - pow(factor, -Dim));
-   int nr = FindRoots(c, x);
+   int nr = Mixed_FindRoots(c, x);
    for (int j = 0; j < nr; j++)
    {
       if (x(j) > tmax)
@@ -5525,7 +5528,7 @@ void FindTMax(Vector &c, Vector &x, double &tmax,
       }
    }
    c(0) = c0 * (1.0 - pow(factor, Dim));
-   nr = FindRoots(c, x);
+   nr = Mixed_FindRoots(c, x);
    for (int j = 0; j < nr; j++)
    {
       if (x(j) > tmax)
@@ -5578,14 +5581,14 @@ void MixedMesh::CheckDisplacements(const Vector &displacements, double &tmax)
             fe->CalcDShape(Geometries.GetCenter(fe->GetGeomType()), DS);
             Mult(P, DS, PDS);
             Mult(V, DS, VDS);
-            DetOfLinComb(PDS, VDS, c);
+            Mixed_DetOfLinComb(PDS, VDS, c);
             if (c(0) <= 0.0)
             {
                tmax = 0.0;
             }
             else
             {
-               FindTMax(c, x, tmax, factor, Dim);
+               Mixed_FindTMax(c, x, tmax, factor, Dim);
             }
          }
          break;
@@ -5598,14 +5601,14 @@ void MixedMesh::CheckDisplacements(const Vector &displacements, double &tmax)
                fe->CalcDShape(ir.IntPoint(j), DS);
                Mult(P, DS, PDS);
                Mult(V, DS, VDS);
-               DetOfLinComb(PDS, VDS, c);
+               Mixed_DetOfLinComb(PDS, VDS, c);
                if (c(0) <= 0.0)
                {
                   tmax = 0.0;
                }
                else
                {
-                  FindTMax(c, x, tmax, factor, Dim);
+                  Mixed_FindTMax(c, x, tmax, factor, Dim);
                }
             }
          }
@@ -7600,14 +7603,14 @@ void MixedMesh::PrintVTK(std::ostream &out)
             {
                case Geometry::TRIANGLE:
                case Geometry::SQUARE:
-                  vtk_mfem = vtk_quadratic_hex; break; // identity map
+		  vtk_mfem = Mesh::vtk_quadratic_hex; break; // identity map
                case Geometry::TETRAHEDRON:
-                  vtk_mfem = vtk_quadratic_tet; break;
+		  vtk_mfem = Mesh::vtk_quadratic_tet; break;
                case Geometry::PRISM:
-                  vtk_mfem = vtk_quadratic_pri; break;
+		  vtk_mfem = Mesh::vtk_quadratic_pri; break;
                case Geometry::CUBE:
                default:
-                  vtk_mfem = vtk_quadratic_hex; break;
+		  vtk_mfem = Mesh::vtk_quadratic_hex; break;
             }
             for (int j = 0; j < dofs.Size(); j++)
             {
@@ -8982,7 +8985,7 @@ int MixedMesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
    }
    return pts_found;
 }
-
+/*
 NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int _n,
                                                const double _s)
    : VectorCoefficient(dim), n(_n), s(_s), tip(p, dim-1)
@@ -9166,6 +9169,97 @@ MixedMesh *Extrude1D(MixedMesh *mesh, const int ny, const double sy,
       }
    }
    return mesh2d;
+}
+*/
+void MixedMesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
+{
+   // Read MFEM mesh v1.0 format
+   string ident;
+
+   // read lines beginning with '#' (comments)
+   skip_comment_lines(input, '#');
+   input >> ident; // 'dimension'
+
+   MFEM_VERIFY(ident == "dimension", "invalid mesh file");
+   input >> Dim;
+
+   skip_comment_lines(input, '#');
+   input >> ident; // 'elements'
+
+   MFEM_VERIFY(ident == "elements", "invalid mesh file");
+   input >> NumOfElements;
+   // elements.SetSize(NumOfElements);
+   for (int j = 0; j < NumOfElements; j++)
+   {
+     Element * elem = ReadElement(input); 
+     MFEM_VERIFY(elem != NULL, "ReadElement failed!");
+     elements[elem->GetType()].Append(elem); 
+   }
+   int nelem = CountElements();
+   MFEM_VERIFY(nelem == NumOfElements, "mismatch in number of elements");
+   
+   skip_comment_lines(input, '#');
+   input >> ident; // 'boundary'
+
+   MFEM_VERIFY(ident == "boundary", "invalid mesh file");
+   input >> NumOfBdrElements;
+   // boundary.SetSize(NumOfBdrElements);
+   for (int j = 0; j < NumOfBdrElements; j++)
+   {
+     Element * elem = ReadElement(input);
+     MFEM_VERIFY(elem != NULL, "ReadElement failed!");
+     boundary[elem->GetType()].Append(elem);
+   }
+   int nbelem = CountBdrElements();
+   MFEM_VERIFY(nbelem == NumOfBdrElements,
+	       "mismatch in number of boundary elements");
+
+   skip_comment_lines(input, '#');
+   input >> ident;
+
+   if (mfem_v11 && ident == "vertex_parents")
+   {
+      ncmesh = new NCMesh(this, &input);
+      // NOTE: the constructor above will call LoadVertexParents
+
+      skip_comment_lines(input, '#');
+      input >> ident;
+
+      if (ident == "coarse_elements")
+      {
+         ncmesh->LoadCoarseElements(input);
+
+         skip_comment_lines(input, '#');
+         input >> ident;
+      }
+   }
+
+   MFEM_VERIFY(ident == "vertices", "invalid mesh file");
+   input >> NumOfVertices;
+   vertices.SetSize(NumOfVertices);
+
+   input >> ws >> ident;
+   if (ident != "nodes")
+   {
+      // read the vertices
+      spaceDim = atoi(ident.c_str());
+      for (int j = 0; j < NumOfVertices; j++)
+      {
+         for (int i = 0; i < spaceDim; i++)
+         {
+            input >> vertices[j](i);
+         }
+      }
+
+      // initialize vertex positions in NCMesh
+      if (ncmesh) { ncmesh->SetVertexPositions(vertices); }
+   }
+   else
+   {
+      // prepare to read the nodes
+      input >> ws;
+      curved = 1;
+   }
 }
 
 }

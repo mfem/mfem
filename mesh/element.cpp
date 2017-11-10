@@ -14,7 +14,7 @@
 namespace mfem
 {
 
-Geometry::Type GeometryType(Element::Type type)
+Geometry::Type Element::GeometryType(Element::Type type)
 {
    switch (type)
    {
