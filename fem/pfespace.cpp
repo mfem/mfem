@@ -1262,14 +1262,15 @@ void ParFiniteElementSpace::UnpackDof(int dof,
 }
 
 /** Represents an element of the P matrix. The column number is global.
+ *  'next_dim' is the offset between the vector dimension columns.
  */
 struct PMatrixElement
 {
-   HYPRE_Int column;
+   HYPRE_Int column, next_dim;
    double value;
 
-   PMatrixElement(HYPRE_Int col = 0, double val = 0)
-      : column(col), value(val) {}
+   PMatrixElement(HYPRE_Int col = 0, HYPRE_Int next = 0, double val = 0)
+      : column(col), next_dim(next), value(val) {}
 
    bool operator<(const PMatrixElement &other) const
    { return column < other.column; }
@@ -1291,7 +1292,8 @@ struct PMatrixRow
       for (unsigned i = 0; i < other.elems.size(); i++)
       {
          const PMatrixElement &oei = other.elems[i];
-         elems.push_back(PMatrixElement(oei.column, coef * oei.value));
+         elems.push_back(
+            PMatrixElement(oei.column, oei.next_dim, coef * oei.value));
       }
    }
 
@@ -1321,8 +1323,10 @@ struct PMatrixRow
       mfem::write<int>(os, elems.size());
       for (unsigned i = 0; i < elems.size(); i++)
       {
-         mfem::write<HYPRE_Int>(os, elems[i].column);
-         mfem::write<double>(os, elems[i].value * sign);
+         const PMatrixElement &e = elems[i];
+         mfem::write<HYPRE_Int>(os, e.column);
+         mfem::write<int>(os, e.next_dim);
+         mfem::write<double>(os, e.value * sign);
       }
    }
 
@@ -1331,8 +1335,10 @@ struct PMatrixRow
       elems.resize(mfem::read<int>(is));
       for (unsigned i = 0; i < elems.size(); i++)
       {
-         elems[i].column = mfem::read<HYPRE_Int>(is);
-         elems[i].value = mfem::read<double>(is) * sign;
+         PMatrixElement &e = elems[i];
+         e.column = mfem::read<HYPRE_Int>(is);
+         e.next_dim = mfem::read<int>(is);
+         e.value = mfem::read<double>(is) * sign;
       }
    }
 };
@@ -1628,11 +1634,10 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
 
    // *** STEP 1: build dependency lists ***
 
-   int num_dofs = ndofs * vdim;
-   int num_ghost_dofs = ngdofs * vdim;
-   int total_dofs = num_dofs + num_ghost_dofs;
+   int total_dofs = ndofs + ngdofs;
+   int next_dim = 1;
 
-   SparseMatrix deps(num_dofs, total_dofs);
+   SparseMatrix deps(ndofs, total_dofs);
 
    Array<ParNCMesh::GroupId> dof_group(total_dofs);
    Array<ParNCMesh::GroupId> dof_owner(total_dofs);
@@ -1731,7 +1736,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
 
    // DOFs that stayed independent and are ours are true DOFs
    ltdof_size = 0;
-   for (int i = 0; i < num_dofs; i++)
+   for (int i = 0; i < ndofs; i++)
    {
       if (dof_owner[i] == 0 && deps.RowSize(i) == 0)
       {
@@ -1748,7 +1753,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    std::vector<PMatrixRow> pmatrix(total_dofs);
 
    // initialize the R matrix (also parallel but block-diagonal)
-   R = new SparseMatrix(ltdof_size, num_dofs);
+   R = new SparseMatrix(ltdof_size, ndofs);
 
    // big container for all messages we send (the list is for iterations)
    std::list<NeighborRowMessage::Map> send_msg;
@@ -1756,14 +1761,14 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
 
    // put identity in P and R for true DOFs, set ldof_ltdof
    HYPRE_Int my_tdof_offset = GetMyTDofOffset();
-   ldof_ltdof.SetSize(num_dofs);
+   ldof_ltdof.SetSize(ndofs);
    ldof_ltdof = -1;
-   for (int dof = 0, true_dof = 0; dof < num_dofs; dof++)
+   for (int dof = 0, true_dof = 0; dof < ndofs; dof++)
    {
       if (finalized[dof])
       {
          pmatrix[dof].elems.push_back(
-            PMatrixElement(my_tdof_offset + true_dof, 1.0));
+            PMatrixElement(my_tdof_offset + true_dof, next_dim, 1.0));
 
          // prepare messages to neighbors with identity rows
          if (dof_group[dof] != 0)
@@ -1793,7 +1798,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    PMatrixRow buffer;
    buffer.elems.reserve(1024);
 
-   while (num_finalized < num_dofs)
+   while (num_finalized < ndofs)
    {
       // prepare a new round of send buffers
       if (send_msg.back().size())
@@ -1814,7 +1819,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
             int dof = PackDof(ri.entity, ri.index, ri.edof);
             pmatrix[dof] = ri.row;
 
-            if (dof < num_dofs && !finalized[dof]) { num_finalized++; }
+            if (dof < ndofs && !finalized[dof]) { num_finalized++; }
             finalized[dof] = true;
 
             if (dof_group[dof] != ri.group)
@@ -1830,7 +1835,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
       while (!done)
       {
          done = true;
-         for (int dof = 0; dof < num_dofs; dof++)
+         for (int dof = 0; dof < ndofs; dof++)
          {
             if (finalized[dof]) { continue; }
 
@@ -1880,7 +1885,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
       NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
    }
 
-   P = MakeHypreMatrix(pmatrix, num_dofs, glob_dofs, glob_true_dofs,
+   P = MakeHypreMatrix(pmatrix, ndofs, glob_dofs, glob_true_dofs,
                        dof_offsets.GetData(), tdof_offsets.GetData());
 
    // make sure we can discard all send buffers; NOTE: this is a formality
