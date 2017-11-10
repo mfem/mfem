@@ -15,6 +15,8 @@
 namespace mfem
 {
 
+// Target-matrix optimization paradigm (TMOP) mesh quality metrics.
+
 double TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());

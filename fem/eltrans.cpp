@@ -115,7 +115,7 @@ int InverseElementTransformation::FindClosestRefPoint(
 
 void InverseElementTransformation::NewtonPrint(int mode, double val)
 {
-   std::ostream &out = std::cout;
+   std::ostream &out = mfem::out;
 
    // separator:
    switch (mode%3)
@@ -146,7 +146,7 @@ void InverseElementTransformation::NewtonPrintPoint(const char *prefix,
                                                     const Vector &pt,
                                                     const char *suffix)
 {
-   std::ostream &out = std::cout;
+   std::ostream &out = mfem::out;
 
    out << prefix << " = (";
    for (int j = 0; j < pt.Size(); j++)
@@ -253,7 +253,7 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
                      NewtonPrint(18, err_phys);
                      NewtonPrint(41, real_dx_norm);
                   }
-                  std::cout << "Newton: *** stuck on boundary!\n";
+                  mfem::out << "Newton: *** stuck on boundary!\n";
                }
                return Outside;
             }
@@ -314,7 +314,7 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
          NewtonPrint(18, err_phys);
          if (hit_bdr) { NewtonPrint(41, real_dx_norm); }
       }
-      std::cout << "Newton: *** iteration did not converge!\n";
+      mfem::out << "Newton: *** iteration did not converge!\n";
    }
    ip = xip;
    return Unknown;

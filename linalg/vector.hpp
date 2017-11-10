@@ -77,7 +77,9 @@ public:
        data array remains the same. Otherwise, the old array is deleted, if
        owned, and a new array of size @a s is allocated without copying the
        previous content of the Vector.
-       @warning New entries are not initialized! */
+       @warning In the second case above (new size greater than current one),
+       the vector will allocate new data array, even if it did not own the
+       original data! Also, new entries are not initialized! */
    void SetSize(int s);
 
    /// Set the Vector data.
