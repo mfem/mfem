@@ -273,6 +273,8 @@ protected:
 
    Array<char> face_orient; // see CalcFaceOrientations
 
+   bool groups_augmented; // was AugmentMasterGroups called?
+
    /** Type of each leaf element:
          1 - our element (rank == MyRank),
          3 - our element, and neighbor to the ghost layer,

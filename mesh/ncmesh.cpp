@@ -190,6 +190,7 @@ void NCMesh::Update()
    UpdateLeafElements();
    UpdateVertices();
 
+   vertex_list.Clear();
    face_list.Clear();
    edge_list.Clear();
 

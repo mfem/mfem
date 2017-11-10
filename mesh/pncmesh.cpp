@@ -55,6 +55,7 @@ void ParNCMesh::Update()
 
    groups.clear();
    group_id.clear();
+   groups_augmented = false;
 
    CommGroup self;
    self.push_back(MyRank);
@@ -453,14 +454,13 @@ void ParNCMesh::AddMasterSlaveConnections(int nitems, const NCList& list)
 
 void ParNCMesh::AugmentMasterGroups()
 {
+   if (groups_augmented) { return; }
+
    GetSharedVertices();
    GetSharedEdges();
    GetSharedFaces();
 
-   if (!shared_edges.masters.size() && !shared_faces.masters.size())
-   {
-      return;
-   }
+   if (!shared_edges.masters.size() && !shared_faces.masters.size()) { return; }
 
    // augment comm groups of vertices of shared master edges, so that their
    // DOFs get sent to the slave ranks along with master edge DOFs
@@ -492,6 +492,8 @@ void ParNCMesh::AugmentMasterGroups()
          edge_group[e[j]]   = JoinGroups(edge_group[e[j]], f_group);
       }
    }
+
+   groups_augmented = true;
 
    // force recreating shared entities according to new groups
    shared_vertices.Clear();
