@@ -58,9 +58,9 @@ $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN):
 	$(MAKE) -C $(@D) $(@F)
 
 # Additional dependencies
-ex18: ex18.hpp
+ex18: $(SRC)ex18.hpp
 ifeq ($(MFEM_USE_MPI),YES)
-ex18p: ex18.hpp
+ex18p: $(SRC)ex18.hpp
 endif
 
 MFEM_TESTS = EXAMPLES
