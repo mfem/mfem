@@ -10,6 +10,7 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 # Utilities for the "make test" and "make check" targets.
+
 # Colors used below:
 # green    '\033[0;32m'
 # red      '\033[0;31m'

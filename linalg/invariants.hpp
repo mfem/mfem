@@ -19,6 +19,8 @@
 namespace mfem
 {
 
+// Matrix invariants and their derivatives for 2x2 and 3x3 matrices.
+
 /** @brief Auxiliary class used as the default for the second template parameter
     in the classes InvariantsEvaluator2D and InvariantsEvaluator3D. */
 template <typename scalar_t>
