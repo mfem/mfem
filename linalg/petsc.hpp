@@ -63,6 +63,9 @@ public:
    /// Creates vector compatible with @a y
    PetscParVector(const PetscParVector &y);
 
+   /// Creates a PetscParVector from a Vector (data is not copied)
+   PetscParVector(MPI_Comm comm, const Vector &_x);
+
    /** @brief Creates vector compatible with the Operator (i.e. in the domain
        of) @a op or its adjoint. */
    /** The argument @a allocate determines if the memory is actually allocated
@@ -190,7 +193,9 @@ public:
        Otherwise, it tries to convert the operator in PETSc's classes.
 
        In particular, if @a op is a BlockOperator, then a MATNEST Mat object is
-       created using @a tid as the type for the blocks. */
+       created using @a tid as the type for the blocks.
+       Note that if @a op is already a PetscParMatrix of the same type as
+       @a tid, the resulting PetscParMatrix will share the same Mat object */
    PetscParMatrix(MPI_Comm comm, const Operator *op, Operator::Type tid);
 
    /// Creates block-diagonal square parallel matrix.
@@ -338,7 +343,10 @@ public:
    virtual ~PetscBCHandler() {}
 
    /// Returns the type of boundary conditions
-   Type Type() const { return bctype; }
+   Type GetType() const { return bctype; }
+
+   /// Sets the type of boundary conditions
+   void SetType(enum Type _type) { bctype = _type; setup = false; }
 
    /// Boundary conditions evaluation
    /** In the result vector, @a g, only values at the essential dofs need to be
@@ -406,9 +414,6 @@ protected:
 
    /// Right-hand side and solution vector
    mutable PetscParVector *B, *X;
-
-   /// Monitor context
-   PetscSolverMonitor *monitor_ctx;
 
    /// Handler for boundary conditions
    PetscBCHandler *bchandler;
