@@ -356,7 +356,7 @@ void Hybridization::Init(const Array<int> &ess_tdof_list)
 #endif
    int i_size = Af_f_offsets[NE] - b_size;
    int e_size = num_hat_dofs - (i_size + b_size);
-   std::cout << "\nHybridization::Init:"
+   mfem::out << "\nHybridization::Init:"
              << " [" << myid << "] hat dofs - \"internal\": " << i_size
              << ", \"boundary\": " << b_size
              << ", \"essential\": " << e_size << '\n' << std::endl;
