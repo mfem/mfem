@@ -16,7 +16,6 @@
 #include "operator.hpp"
 #ifdef MFEM_USE_MPI
 #include "hypre.hpp"
-#include "petsc.hpp"
 #endif
 
 namespace mfem
@@ -26,7 +25,7 @@ namespace mfem
 /** This class provides a common interface for global, matrix-type operators to
     be used in bilinear forms, gradients of nonlinear forms, static condensation,
     hybridization, etc. The following backends are currently supported:
-      - HYPRE parallel sparse matrix (HYPRE_PARCSR)
+      - HYPRE parallel sparse matrix (Hypre_ParCSR)
       - PETSC globally assembled parallel sparse matrix (PETSC_MATAIJ)
       - PETSC parallel matrix assembled on each processor (PETSC_MATIS)
     See also Operator::Type.

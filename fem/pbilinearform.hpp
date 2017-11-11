@@ -43,12 +43,12 @@ protected:
 public:
    ParBilinearForm(ParFiniteElementSpace *pf)
       : BilinearForm(pf), pfes(pf),
-        p_mat(Operator::HYPRE_PARCSR), p_mat_e(Operator::HYPRE_PARCSR)
+        p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    { keep_nbr_block = false; }
 
    ParBilinearForm(ParFiniteElementSpace *pf, ParBilinearForm *bf)
       : BilinearForm(pf, bf), pfes(pf),
-        p_mat(Operator::HYPRE_PARCSR), p_mat_e(Operator::HYPRE_PARCSR)
+        p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    { keep_nbr_block = false; }
 
    /** When set to true and the ParBilinearForm has interior face integrators,
@@ -140,7 +140,7 @@ public:
 
    /// Get the parallel finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
-   { return pfes->Dof_TrueDof_Matrix(); }
+   { return pfes->GetProlongationMatrix(); }
    /// Get the parallel finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return pfes->GetRestrictionMatrix(); }
