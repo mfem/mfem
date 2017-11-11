@@ -181,12 +181,16 @@ HypreParVector::~HypreParVector()
 
 #ifdef MFEM_USE_SUNDIALS
 
+#ifndef SUNFALSE
+#define SUNFALSE FALSE
+#endif
+
 void HypreParVector::ToNVector(N_Vector &nv)
 {
    MFEM_ASSERT(nv && N_VGetVectorID(nv) == SUNDIALS_NVEC_PARHYP,
                "invalid N_Vector");
    N_VectorContent_ParHyp nv_c = (N_VectorContent_ParHyp)(nv->content);
-   MFEM_ASSERT(nv_c->own_parvector == FALSE, "invalid N_Vector");
+   MFEM_ASSERT(nv_c->own_parvector == SUNFALSE, "invalid N_Vector");
    nv_c->local_length = x->local_vector->size;
    nv_c->global_length = x->global_size;
    nv_c->comm = x->comm;
@@ -929,7 +933,7 @@ void HypreParMatrix::GetBlocks(Array2D<HypreParMatrix*> &blocks,
    delete [] hypre_blocks;
 }
 
-HypreParMatrix * HypreParMatrix::Transpose()
+HypreParMatrix * HypreParMatrix::Transpose() const
 {
    hypre_ParCSRMatrix * At;
    hypre_ParCSRMatrixTranspose(A, &At, 1);
@@ -1020,41 +1024,53 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
                                              HYPRE_Int* row_starts) const
 {
    const bool assumed_partition = HYPRE_AssumedPartitionCheck();
-   const bool same_rows = (D.Height() == hypre_CSRMatrixNumRows(A->diag));
+   if (row_starts == NULL)
+   {
+      row_starts = hypre_ParCSRMatrixRowStarts(A);
+      MFEM_VERIFY(D.Height() == hypre_CSRMatrixNumRows(A->diag),
+                  "the matrix D is NOT compatible with the row starts of"
+                  " this HypreParMatrix, row_starts must be given.");
+   }
+   else
+   {
+      int offset;
+      if (assumed_partition)
+      {
+         offset = 0;
+      }
+      else
+      {
+         MPI_Comm_rank(GetComm(), &offset);
+      }
+      int local_num_rows = row_starts[offset+1]-row_starts[offset];
+      MFEM_VERIFY(local_num_rows == D.Height(), "the number of rows in D is "
+                  " not compatible with the given row_starts");
+   }
+   // D.Width() will be checked for compatibility by the SparseMatrix
+   // multiplication function, mfem::Mult(), called below.
 
    int part_size;
+   HYPRE_Int global_num_rows;
    if (assumed_partition)
    {
       part_size = 2;
+      global_num_rows = row_starts[2];
+      // Here, we use row_starts[2], so row_starts must come from the methods
+      // GetDofOffsets/GetTrueDofOffsets of ParFiniteElementSpace (HYPRE's
+      // partitions have only 2 entries).
    }
    else
    {
       MPI_Comm_size(GetComm(), &part_size);
+      global_num_rows = row_starts[part_size];
       part_size++;
-   }
-
-   HYPRE_Int global_num_rows;
-   if (same_rows)
-   {
-      row_starts = hypre_ParCSRMatrixRowStarts(A);
-      global_num_rows = hypre_ParCSRMatrixGlobalNumRows(A);
-   }
-   else
-   {
-      MFEM_VERIFY(row_starts != NULL, "the number of rows in D and A is not "
-                  "the same; row_starts must be given (not NULL)");
-      // Here, when assumed_partition is true we use row_starts[2], so
-      // row_starts must come from the GetDofOffsets/GetTrueDofOffsets methods
-      // of ParFiniteElementSpace (HYPRE's partitions have only 2 entries).
-      global_num_rows =
-         assumed_partition ? row_starts[2] : row_starts[part_size-1];
    }
 
    HYPRE_Int *col_starts = hypre_ParCSRMatrixColStarts(A);
    HYPRE_Int *col_map_offd;
 
    // get the diag and offd blocks as SparseMatrix wrappers
-   SparseMatrix A_diag(0), A_offd(0);
+   SparseMatrix A_diag, A_offd;
    GetDiag(A_diag);
    GetOffd(A_offd, col_map_offd);
 
@@ -1212,7 +1228,6 @@ void HypreParMatrix::Threshold(double threshold)
    int  ierr = 0;
 
    MPI_Comm comm;
-   int num_procs;
    hypre_CSRMatrix * csr_A;
    hypre_CSRMatrix * csr_A_wo_z;
    hypre_ParCSRMatrix * parcsr_A_ptr;
@@ -1222,8 +1237,6 @@ void HypreParMatrix::Threshold(double threshold)
 
    comm = hypre_ParCSRMatrixComm(A);
 
-   MPI_Comm_size(comm, &num_procs);
-
    ierr += hypre_ParCSRMatrixGetLocalRange(A,
                                            &row_start,&row_end,
                                            &col_start,&col_end );
@@ -1231,13 +1244,20 @@ void HypreParMatrix::Threshold(double threshold)
    row_starts = hypre_ParCSRMatrixRowStarts(A);
    col_starts = hypre_ParCSRMatrixColStarts(A);
 
-   parcsr_A_ptr = hypre_ParCSRMatrixCreate(comm,row_starts[num_procs],
-                                           col_starts[num_procs],row_starts,
-                                           col_starts,0,0,0);
+   bool old_owns_row = hypre_ParCSRMatrixOwnsRowStarts(A);
+   bool old_owns_col = hypre_ParCSRMatrixOwnsColStarts(A);
+   HYPRE_Int global_num_rows = hypre_ParCSRMatrixGlobalNumRows(A);
+   HYPRE_Int global_num_cols = hypre_ParCSRMatrixGlobalNumCols(A);
+   parcsr_A_ptr = hypre_ParCSRMatrixCreate(comm, global_num_rows,
+                                           global_num_cols,
+                                           row_starts, col_starts,
+                                           0, 0, 0);
+   hypre_ParCSRMatrixOwnsRowStarts(parcsr_A_ptr) = old_owns_row;
+   hypre_ParCSRMatrixOwnsColStarts(parcsr_A_ptr) = old_owns_col;
 
    csr_A = hypre_MergeDiagAndOffd(A);
 
-   csr_A_wo_z =  hypre_CSRMatrixDeleteZeros(csr_A,threshold);
+   csr_A_wo_z = hypre_CSRMatrixDeleteZeros(csr_A,threshold);
 
    /* hypre_CSRMatrixDeleteZeros will return a NULL pointer rather than a usable
       CSR matrix if it finds no non-zeros */
@@ -1250,6 +1270,9 @@ void HypreParMatrix::Threshold(double threshold)
       ierr += hypre_CSRMatrixDestroy(csr_A);
    }
 
+   /* FIXME: GenerateDiagAndOffd() uses an int array of size equal to the number
+      of columns in csr_A_wo_z which is the global number of columns in A. This
+      does not scale well. */
    ierr += GenerateDiagAndOffd(csr_A_wo_z,parcsr_A_ptr,
                                col_start,col_end);
 
@@ -1324,6 +1347,43 @@ void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const char *fname)
    width = GetNumCols();
 }
 
+void HypreParMatrix::PrintCommPkg(std::ostream &out) const
+{
+   hypre_ParCSRCommPkg *comm_pkg = A->comm_pkg;
+   MPI_Comm comm = A->comm;
+   char c = '\0';
+   const int tag = 46801;
+   int myid, nproc;
+   MPI_Comm_rank(comm, &myid);
+   MPI_Comm_size(comm, &nproc);
+
+   if (myid != 0)
+   {
+      MPI_Recv(&c, 1, MPI_CHAR, myid-1, tag, comm, MPI_STATUS_IGNORE);
+   }
+   else
+   {
+      out << "\nHypreParMatrix: hypre_ParCSRCommPkg:\n";
+   }
+   out << "Rank " << myid << ":\n"
+       "   number of sends  = " << comm_pkg->num_sends <<
+       " (" << sizeof(double)*comm_pkg->send_map_starts[comm_pkg->num_sends] <<
+       " bytes)\n"
+       "   number of recvs  = " << comm_pkg->num_recvs <<
+       " (" << sizeof(double)*comm_pkg->recv_vec_starts[comm_pkg->num_recvs] <<
+       " bytes)\n";
+   if (myid != nproc-1)
+   {
+      out << std::flush;
+      MPI_Send(&c, 1, MPI_CHAR, myid+1, tag, comm);
+   }
+   else
+   {
+      out << std::endl;
+   }
+   MPI_Barrier(comm);
+}
+
 void HypreParMatrix::Destroy()
 {
    if ( X != NULL ) { delete X; }
@@ -1393,7 +1453,7 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
    return C;
 }
 
-HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B)
+HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B)
 {
    hypre_ParCSRMatrix * ab;
    ab = hypre_ParMatmul(*A,*B);
@@ -1404,7 +1464,7 @@ HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B)
    return new HypreParMatrix(ab);
 }
 
-HypreParMatrix * ParAdd(HypreParMatrix *A, HypreParMatrix *B)
+HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
 {
    hypre_ParCSRMatrix * C = internal::hypre_ParCSRMatrixAdd(*A,*B);
 
@@ -1413,7 +1473,7 @@ HypreParMatrix * ParAdd(HypreParMatrix *A, HypreParMatrix *B)
    return new HypreParMatrix(C);
 }
 
-HypreParMatrix * RAP(HypreParMatrix *A, HypreParMatrix *P)
+HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
 {
    HYPRE_Int P_owns_its_col_starts =
       hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
@@ -1436,7 +1496,8 @@ HypreParMatrix * RAP(HypreParMatrix *A, HypreParMatrix *P)
    return new HypreParMatrix(rap);
 }
 
-HypreParMatrix * RAP(HypreParMatrix * Rt, HypreParMatrix *A, HypreParMatrix *P)
+HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
+                     const HypreParMatrix *P)
 {
    HYPRE_Int P_owns_its_col_starts =
       hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
@@ -1448,18 +1509,21 @@ HypreParMatrix * RAP(HypreParMatrix * Rt, HypreParMatrix *A, HypreParMatrix *P)
 
    hypre_ParCSRMatrixSetNumNonzeros(rap);
    // hypre_MatvecCommPkgCreate(rap);
-   if (!P_owns_its_col_starts)
+
+   /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
+      from Rt and P (even if they do not own them)! */
+   hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
+   hypre_ParCSRMatrixSetColStartsOwner(rap,0);
+
+   if (P_owns_its_col_starts)
    {
-      /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
-         from P (even if it does not own them)! */
-      hypre_ParCSRMatrixSetColStartsOwner(rap,0);
+      hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
    }
-   if (!Rt_owns_its_col_starts)
+   if (Rt_owns_its_col_starts)
    {
-      /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
-         from P (even if it does not own them)! */
-      hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
+      hypre_ParCSRMatrixSetColStartsOwner(*Rt, 1);
    }
+
    return new HypreParMatrix(rap);
 }
 
@@ -2127,9 +2191,9 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
 
       if (myid == 0)
       {
-         cout << "PCG Iterations = " << num_iterations << endl
-              << "Final PCG Relative Residual Norm = " << final_res_norm
-              << endl;
+         mfem::out << "PCG Iterations = " << num_iterations << endl
+                   << "Final PCG Relative Residual Norm = " << final_res_norm
+                   << endl;
       }
    }
    HYPRE_ParCSRPCGSetPrintLevel(pcg_solver, print_level);
@@ -2253,9 +2317,9 @@ void HypreGMRES::Mult(const HypreParVector &b, HypreParVector &x) const
 
       if (myid == 0)
       {
-         cout << "GMRES Iterations = " << num_iterations << endl
-              << "Final GMRES Relative Residual Norm = " << final_res_norm
-              << endl;
+         mfem::out << "GMRES Iterations = " << num_iterations << endl
+                   << "Final GMRES Relative Residual Norm = " << final_res_norm
+                   << endl;
       }
    }
 }

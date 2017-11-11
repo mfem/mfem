@@ -15,6 +15,14 @@
 #include "petsc.hpp"
 #endif
 
+// Make sure that hypre and PETSc use the same size indices.
+#if defined(MFEM_USE_MPI) && defined(MFEM_USE_PETSC)
+#if (defined(HYPRE_BIGINT) && !defined(PETSC_USE_64BIT_INDICES)) || \
+    (!defined(HYPRE_BIGINT) && defined(PETSC_USE_64BIT_INDICES))
+#error HYPRE and PETSC do not use the same size integers!
+#endif
+#endif
+
 namespace mfem
 {
 
@@ -26,7 +34,7 @@ Operator::Type OperatorHandle::CheckType(Operator::Type tid)
    switch (tid)
    {
       case Operator::MFEM_SPARSEMAT: break;
-      case Operator::HYPRE_PARCSR:
+      case Operator::Hypre_ParCSR:
 #ifdef MFEM_USE_MPI
          break;
 #else
@@ -56,13 +64,13 @@ void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_Int glob_size,
 
    switch (type_id)
    {
-      case Operator::HYPRE_PARCSR:
+      case Operator::Hypre_ParCSR:
          oper = new HypreParMatrix(comm, glob_size, row_starts, diag);
          break;
 #ifdef MFEM_USE_PETSC
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
-         // Assuming that PetscInt is the same size as HYPRE_Int.
+         // Assuming that PetscInt is the same size as HYPRE_Int, checked above.
          oper = new PetscParMatrix(comm, glob_size, row_starts, diag, type_id);
          break;
 #endif
@@ -80,14 +88,14 @@ MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_Int glob_num_rows,
 
    switch (type_id)
    {
-      case Operator::HYPRE_PARCSR:
+      case Operator::Hypre_ParCSR:
          oper = new HypreParMatrix(comm, glob_num_rows, glob_num_cols,
                                    row_starts, col_starts, diag);
          break;
 #ifdef MFEM_USE_PETSC
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
-         // Assuming that PetscInt is the same size as HYPRE_Int.
+         // Assuming that PetscInt is the same size as HYPRE_Int, checked above.
          oper = new PetscParMatrix(comm, glob_num_rows, glob_num_cols,
                                    row_starts, col_starts, diag, type_id);
          break;
@@ -114,7 +122,7 @@ void OperatorHandle::MakePtAP(OperatorHandle &A, OperatorHandle &P)
          break;
       }
 #ifdef MFEM_USE_MPI
-      case Operator::HYPRE_PARCSR:
+      case Operator::Hypre_ParCSR:
          pSet(mfem::RAP(A.As<HypreParMatrix>(), P.As<HypreParMatrix>()));
          break;
 #ifdef MFEM_USE_PETSC
@@ -145,7 +153,7 @@ void OperatorHandle::MakeRAP(OperatorHandle &Rt, OperatorHandle &A,
          break;
       }
 #ifdef MFEM_USE_MPI
-      case Operator::HYPRE_PARCSR:
+      case Operator::Hypre_ParCSR:
          pSet(mfem::RAP(Rt.As<HypreParMatrix>(), A.As<HypreParMatrix>(),
                         P.As<HypreParMatrix>()));
          break;
@@ -179,7 +187,7 @@ void OperatorHandle::ConvertFrom(OperatorHandle &A)
       case Operator::PETSC_MATIS:
          switch (A.Type()) // source type id
          {
-            case Operator::HYPRE_PARCSR:
+            case Operator::Hypre_ParCSR:
 #ifdef MFEM_USE_PETSC
                oper = new PetscParMatrix(A.As<HypreParMatrix>(), Type());
 #endif
@@ -213,12 +221,12 @@ void OperatorHandle::EliminateRowsCols(OperatorHandle &A,
          pSet(Ae);
          break;
       }
-      case Operator::HYPRE_PARCSR:
+      case Operator::Hypre_ParCSR:
       {
 #ifdef MFEM_USE_MPI
          pSet(A.As<HypreParMatrix>()->EliminateRowsCols(ess_dof_list));
 #else
-         MFEM_ABORT("type id = Operator::HYPRE_PARCSR requires MFEM_USE_MPI");
+         MFEM_ABORT("type id = Hypre_ParCSR requires MFEM_USE_MPI");
 #endif
          break;
       }
@@ -248,13 +256,13 @@ void OperatorHandle::EliminateBC(const OperatorHandle &A_e,
          As<SparseMatrix>()->PartMult(ess_dof_list, X, B);
          break;
       }
-      case Operator::HYPRE_PARCSR:
+      case Operator::Hypre_ParCSR:
       {
 #ifdef MFEM_USE_MPI
          mfem::EliminateBC(*As<HypreParMatrix>(), *A_e.As<HypreParMatrix>(),
                            ess_dof_list, X, B);
 #else
-         MFEM_ABORT("type id = Operator::HYPRE_PARCSR requires MFEM_USE_MPI");
+         MFEM_ABORT("type id = Hypre_ParCSR requires MFEM_USE_MPI");
 #endif
          break;
       }
