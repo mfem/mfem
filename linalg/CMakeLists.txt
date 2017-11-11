@@ -30,6 +30,7 @@ list(APPEND HDRS
   blockvector.hpp
   densemat.hpp
   handle.hpp
+  invariants.hpp
   linalg.hpp
   matrix.hpp
   ode.hpp

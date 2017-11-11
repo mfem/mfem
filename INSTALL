@@ -371,7 +371,10 @@ The specific libraries and their options are:
   Option: POSIX_CLOCKS_LIB (default = -lrt).
 
 - SUNDIALS (optional), used when MFEM_USE_SUNDIALS = YES.
-  In parallel we expect that SUNDIALS is built with support for MPI and hypre.
+  Beginning with MFEM v3.3, SUNDIALS v2.7.0 is supported.
+  Beginning with MFEM v3.3.2, SUNDIALS v3.0.0 is also supported.
+  If MFEM_USE_MPI is enabled, we expect that SUNDIALS is built with support for
+  both MPI and hypre.
   URL: http://computation.llnl.gov/projects/sundials/sundials-software
   Options: SUNDIALS_OPT, SUNDIALS_LIB.
 
@@ -392,9 +395,9 @@ The specific libraries and their options are:
 
 - STRUMPACK (optional), used when MFEM_USE_STRUMPACK = YES. Note that STRUMPACK
   requires the PT-Scotch and Scalapack libraries as well as ParMETIS, which
-  includes METIS 5 in its distribution. Currently requires the git version from
-  https://github.com/pghysels/STRUMPACK. Version "STRUMPACK-Sparse 1.1.0" and
-  older are not supported.
+  includes METIS 5 in its distribution.
+  The support for STRUMPACK was added in MFEM v3.3.2 and it requires STRUMPACK
+  2.0.0 or later.
   URL: http://portal.nersc.gov/project/sparse/strumpack
   Options: STRUMPACK_OPT, STRUMPACK_LIB.
 
