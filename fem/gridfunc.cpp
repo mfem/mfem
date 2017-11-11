@@ -55,7 +55,7 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
    NURBSExtension *NURBSext = NULL;
    if (m->NURBSext && dynamic_cast<NURBSFECollection *>(fec) )
    {
-      input.getline(buff, bufflen, ' '); // 'NURBSext:'
+      getline(input, buff); // 'NURBSext:'
       int size;
       input >> size;
 
