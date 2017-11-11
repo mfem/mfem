@@ -31,7 +31,7 @@ protected:
 
 public:
    ParNonlinearForm(ParFiniteElementSpace *pf)
-      : NonlinearForm(pf), X(pf), Y(pf), pGrad(Operator::HYPRE_PARCSR)
+      : NonlinearForm(pf), X(pf), Y(pf), pGrad(Operator::Hypre_ParCSR)
    { height = width = pf->TrueVSize(); }
 
    ParFiniteElementSpace *ParFESpace() const
@@ -56,6 +56,13 @@ public:
 
    /// Set the operator type id for the parallel gradient matrix/operator.
    void SetGradientType(Operator::Type tid) { pGrad.SetType(tid); }
+
+   /// Get the parallel finite element space prolongation matrix
+   virtual const Operator *GetProlongation() const
+   { return ParFESpace()->GetProlongationMatrix(); }
+   /// Get the parallel finite element space restriction matrix
+   virtual const Operator *GetRestriction() const
+   { return ParFESpace()->GetRestrictionMatrix(); }
 
    virtual ~ParNonlinearForm() { }
 };

@@ -11,7 +11,10 @@
 
 # Variables corresponding to defines in config.hpp (YES, NO, or value)
 MFEM_VERSION         = @MFEM_VERSION@
+MFEM_VERSION_STRING  = @MFEM_VERSION_STRING@
+MFEM_GIT_STRING      = @MFEM_GIT_STRING@
 MFEM_USE_MPI         = @MFEM_USE_MPI@
+MFEM_USE_METIS       = @MFEM_USE_METIS@
 MFEM_USE_METIS_5     = @MFEM_USE_METIS_5@
 MFEM_DEBUG           = @MFEM_DEBUG@
 MFEM_USE_GZSTREAM    = @MFEM_USE_GZSTREAM@
@@ -47,9 +50,13 @@ MFEM_PREFIX    = @MFEM_PREFIX@
 MFEM_INC_DIR   = @MFEM_INC_DIR@
 MFEM_LIB_DIR   = @MFEM_LIB_DIR@
 
+# Location of test.mk
+MFEM_TEST_MK = @MFEM_TEST_MK@
+
 # Command used to launch MPI jobs
 MFEM_MPIEXEC    = @MFEM_MPIEXEC@
 MFEM_MPIEXEC_NP = @MFEM_MPIEXEC_NP@
+MFEM_MPI_NP     = @MFEM_MPI_NP@
 
 # Optional extra configuration
 @MFEM_CONFIG_EXTRA@

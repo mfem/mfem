@@ -43,9 +43,22 @@ void transformation(const Vector &p, Vector &v)
 {
    // simple shear transformation
    double s = 0.1;
-   v(0) = p(0) + s*p(1) + s*p(2);
-   v(1) = p(1) + s*p(2) + s*p(0);
-   v(2) = p(2);
+
+   if (p.Size() == 3)
+   {
+      v(0) = p(0) + s*p(1) + s*p(2);
+      v(1) = p(1) + s*p(2) + s*p(0);
+      v(2) = p(2);
+   }
+   else if (p.Size() == 2)
+   {
+      v(0) = p(0) + s*p(1);
+      v(1) = p(1) + s*p(0);
+   }
+   else
+   {
+      v = p;
+   }
 }
 
 Mesh *read_par_mesh(int np, const char *mesh_prefix)
@@ -192,6 +205,7 @@ int main (int argc, char *argv[])
            "h) View element sizes, h\n"
            "k) View element ratios, kappa\n"
            "x) Print sub-element stats\n"
+           "f) Find physical point in reference space\n"
            "p) Generate a partitioning\n"
            "S) Save\n"
            "--> " << flush;
@@ -389,14 +403,48 @@ int main (int argc, char *argv[])
                nz++;
             }
          }
-         cout
-               << "\nbad elements = " << nz
+         cout  << "\nbad elements = " << nz
                << "\nmin det(J)   = " << min_det_J
                << "\nmax det(J)   = " << max_det_J
                << "\nglobal ratio = " << max_det_J/min_det_J
                << "\nmax el ratio = " << max_ratio_det_J_z
                << "\nmin kappa    = " << min_kappa
                << "\nmax kappa    = " << max_kappa << endl;
+      }
+
+      if (mk == 'f')
+      {
+         DenseMatrix point_mat(sdim,1);
+         cout << "\npoint in physical space ---> " << flush;
+         for (int i = 0; i < sdim; i++)
+         {
+            cin >> point_mat(i,0);
+         }
+         Array<int> elem_ids;
+         Array<IntegrationPoint> ips;
+
+         // physical -> reference space
+         mesh->FindPoints(point_mat, elem_ids, ips);
+
+         cout << "point in reference space:";
+         if (elem_ids[0] == -1)
+         {
+            cout << " NOT FOUND!\n";
+         }
+         else
+         {
+            cout << " element " << elem_ids[0] << ", ip =";
+            cout << " " << ips[0].x;
+            if (sdim > 1)
+            {
+               cout << " " << ips[0].y;
+               if (sdim > 2)
+               {
+                  cout << " " << ips[0].z;
+               }
+            }
+            cout << endl;
+         }
       }
 
       if (mk == 'm' || mk == 'b' || mk == 'e' || mk == 'v' || mk == 'h' ||

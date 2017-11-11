@@ -124,6 +124,12 @@ void FiniteElement::Project (
    mfem_error ("FiniteElement::Project (...) (vector) is not overloaded !");
 }
 
+void FiniteElement::ProjectMatrixCoefficient(
+   MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+{
+   mfem_error("FiniteElement::ProjectMatrixCoefficient() is not overloaded !");
+}
+
 void FiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    mfem_error("FiniteElement::ProjectDelta(...) is not implemented for "
@@ -254,6 +260,7 @@ void NodalFiniteElement::Project (
 void NodalFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
+   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*Dof, "");
    Vector x(vc.GetVDim());
 
    for (int i = 0; i < Dof; i++)
@@ -268,6 +275,28 @@ void NodalFiniteElement::Project (
       for (int j = 0; j < x.Size(); j++)
       {
          dofs(Dof*j+i) = x(j);
+      }
+   }
+}
+
+void NodalFiniteElement::ProjectMatrixCoefficient(
+   MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+{
+   // (mc.height x mc.width) @ DOFs -> (Dof x mc.width x mc.height) in dofs
+   MFEM_ASSERT(dofs.Size() == mc.GetHeight()*mc.GetWidth()*Dof, "");
+   DenseMatrix MQ(mc.GetHeight(), mc.GetWidth());
+
+   for (int k = 0; k < Dof; k++)
+   {
+      T.SetIntPoint(&Nodes.IntPoint(k));
+      mc.Eval(MQ, T, Nodes.IntPoint(k));
+      if (MapType == INTEGRAL) { MQ *= T.Weight(); }
+      for (int r = 0; r < MQ.Height(); r++)
+      {
+         for (int d = 0; d < MQ.Width(); d++)
+         {
+            dofs(k+Dof*(d+MQ.Width()*r)) = MQ(r,d);
+         }
       }
    }
 }
@@ -545,6 +574,34 @@ void VectorFiniteElement::Project_RT(
    }
 }
 
+void VectorFiniteElement::ProjectMatrixCoefficient_RT(
+   const double *nk, const Array<int> &d2n,
+   MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+{
+   // project the rows of the matrix coefficient in an RT space
+
+   const int sdim = T.GetSpaceDim();
+   MFEM_ASSERT(mc.GetWidth() == sdim, "");
+   const bool square_J = (Dim == sdim);
+   DenseMatrix MQ(mc.GetHeight(), mc.GetWidth());
+   Vector nk_phys(sdim), dofs_k(MQ.Height());
+   MFEM_ASSERT(dofs.Size() == Dof*MQ.Height(), "");
+
+   for (int k = 0; k < Dof; k++)
+   {
+      T.SetIntPoint(&Nodes.IntPoint(k));
+      mc.Eval(MQ, T, Nodes.IntPoint(k));
+      // nk_phys = adj(J)^t nk
+      T.AdjugateJacobian().MultTranspose(nk + d2n[k]*Dim, nk_phys);
+      if (!square_J) { nk_phys /= T.Weight(); }
+      MQ.Mult(nk_phys, dofs_k);
+      for (int r = 0; r < MQ.Height(); r++)
+      {
+         dofs(k+Dof*r) = dofs_k(r);
+      }
+   }
+}
+
 void VectorFiniteElement::Project_RT(
    const double *nk, const Array<int> &d2n, const FiniteElement &fe,
    ElementTransformation &Trans, DenseMatrix &I) const
@@ -690,6 +747,32 @@ void VectorFiniteElement::Project_ND(
       vc.Eval(xk, Trans, Nodes.IntPoint(k));
       // dof_k = xk^t J tk
       dofs(k) = Trans.Jacobian().InnerProduct(tk + d2t[k]*Dim, vk);
+   }
+}
+
+void VectorFiniteElement::ProjectMatrixCoefficient_ND(
+   const double *tk, const Array<int> &d2t,
+   MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+{
+   // project the rows of the matrix coefficient in an ND space
+
+   const int sdim = T.GetSpaceDim();
+   MFEM_ASSERT(mc.GetWidth() == sdim, "");
+   DenseMatrix MQ(mc.GetHeight(), mc.GetWidth());
+   Vector tk_phys(sdim), dofs_k(MQ.Height());
+   MFEM_ASSERT(dofs.Size() == Dof*MQ.Height(), "");
+
+   for (int k = 0; k < Dof; k++)
+   {
+      T.SetIntPoint(&Nodes.IntPoint(k));
+      mc.Eval(MQ, T, Nodes.IntPoint(k));
+      // tk_phys = J tk
+      T.Jacobian().Mult(tk + d2t[k]*Dim, tk_phys);
+      MQ.Mult(tk_phys, dofs_k);
+      for (int r = 0; r < MQ.Height(); r++)
+      {
+         dofs(k+Dof*r) = dofs_k(r);
+      }
    }
 }
 
@@ -2583,8 +2666,8 @@ void RT0TriangleFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "RT0TriangleFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "RT0TriangleFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -2698,8 +2781,8 @@ void RT0QuadFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "RT0QuadFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "RT0QuadFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -2840,8 +2923,8 @@ void RT1TriangleFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "RT1QuadFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "RT1QuadFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -3022,8 +3105,8 @@ void RT1QuadFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "RT1QuadFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "RT1QuadFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -3474,8 +3557,8 @@ void RT2QuadFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "RT2QuadFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "RT2QuadFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -3631,6 +3714,8 @@ void Lagrange1DFiniteElement::CalcShape(const IntegrationPoint &ip,
 #endif
 
    k = (int) floor ( m * x + 0.5 );
+   k = k > m ? m : k < 0 ? 0 : k; // clamp k to [0,m]
+
    wk = 1.0;
    for (i = 0; i <= m; i++)
       if (i != k)
@@ -3677,6 +3762,8 @@ void Lagrange1DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 #endif
 
    k = (int) floor ( m * x + 0.5 );
+   k = k > m ? m : k < 0 ? 0 : k; // clamp k to [0,m]
+
    wk = 1.0;
    for (i = 0; i <= m; i++)
       if (i != k)
@@ -5105,8 +5192,8 @@ void Nedelec1HexFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "Nedelec1HexFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "Nedelec1HexFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -5271,8 +5358,8 @@ void Nedelec1TetFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "Nedelec1TetFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "Nedelec1TetFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -5420,8 +5507,8 @@ void RT0HexFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "RT0HexFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "RT0HexFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -5809,8 +5896,8 @@ void RT1HexFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "RT0HexFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "RT0HexFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -5944,8 +6031,8 @@ void RT0TetFiniteElement::GetLocalInterpolation (
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
-            cerr << "RT0TetFiniteElement::GetLocalInterpolation (...)\n"
-                 " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem::err << "RT0TetFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
             mfem_error();
          }
       }
@@ -6101,7 +6188,7 @@ Poly_1D::Basis::Basis(const int p, const double *nodes, int _mode)
       }
 
       Ai.Factor(A);
-      // cout << "Poly_1D::Basis(" << p << ",...) : "; Ai.TestInversion();
+      // mfem::out << "Poly_1D::Basis(" << p << ",...) : "; Ai.TestInversion();
    }
    else
    {
@@ -7447,7 +7534,7 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int type)
    }
 
    Ti.Factor(T);
-   // cout << "H1_TriangleElement(" << p << ") : "; Ti.TestInversion();
+   // mfem::out << "H1_TriangleElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void H1_TriangleElement::CalcShape(const IntegrationPoint &ip,
@@ -7610,7 +7697,7 @@ H1_TetrahedronElement::H1_TetrahedronElement(const int p, const int type)
    }
 
    Ti.Factor(T);
-   // cout << "H1_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
+   // mfem::out << "H1_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void H1_TetrahedronElement::CalcShape(const IntegrationPoint &ip,
@@ -8651,7 +8738,7 @@ L2_TriangleElement::L2_TriangleElement(const int p, const int type)
    }
 
    Ti.Factor(T);
-   // cout << "L2_TriangleElement(" << p << ") : "; Ti.TestInversion();
+   // mfem::out << "L2_TriangleElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void L2_TriangleElement::CalcShape(const IntegrationPoint &ip,
@@ -8832,7 +8919,7 @@ L2_TetrahedronElement::L2_TetrahedronElement(const int p, const int type)
    }
 
    Ti.Factor(T);
-   // cout << "L2_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
+   // mfem::out << "L2_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void L2_TetrahedronElement::CalcShape(const IntegrationPoint &ip,
@@ -9584,7 +9671,7 @@ RT_TriangleElement::RT_TriangleElement(const int p)
    }
 
    Ti.Factor(T);
-   // cout << "RT_TriangleElement(" << p << ") : "; Ti.TestInversion();
+   // mfem::out << "RT_TriangleElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void RT_TriangleElement::CalcVShape(const IntegrationPoint &ip,
@@ -9761,7 +9848,7 @@ RT_TetrahedronElement::RT_TetrahedronElement(const int p)
    }
 
    Ti.Factor(T);
-   // cout << "RT_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
+   // mfem::out << "RT_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void RT_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
@@ -10554,7 +10641,7 @@ ND_TetrahedronElement::ND_TetrahedronElement(const int p)
    }
 
    Ti.Factor(T);
-   // cout << "ND_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
+   // mfem::out << "ND_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void ND_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
@@ -10749,7 +10836,7 @@ ND_TriangleElement::ND_TriangleElement(const int p)
    }
 
    Ti.Factor(T);
-   // cout << "ND_TriangleElement(" << p << ") : "; Ti.TestInversion();
+   // mfem::out << "ND_TriangleElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void ND_TriangleElement::CalcVShape(const IntegrationPoint &ip,

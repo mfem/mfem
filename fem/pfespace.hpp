@@ -24,6 +24,9 @@
 namespace mfem
 {
 
+class ConformingProlongationOperator;
+
+
 /// Abstract parallel finite element space.
 class ParFiniteElementSpace : public FiniteElementSpace
 {
@@ -64,6 +67,7 @@ private:
 
    /// The matrix P (interpolation from true dof to dof).
    mutable HypreParMatrix *P;
+   ConformingProlongationOperator *Pconf;
 
    /// The (block-diagonal) matrix R (restriction of dof to true dof)
    mutable SparseMatrix *R;
@@ -159,9 +163,9 @@ public:
    ParFiniteElementSpace(ParMesh *pm, const FiniteElementCollection *f,
                          int dim = 1, int ordering = Ordering::byNODES);
 
-   MPI_Comm GetComm() { return MyComm; }
-   int GetNRanks() { return NRanks; }
-   int GetMyRank() { return MyRank; }
+   MPI_Comm GetComm() const { return MyComm; }
+   int GetNRanks() const { return NRanks; }
+   int GetMyRank() const { return MyRank; }
 
    inline ParMesh *GetParMesh() { return pmesh; }
 
@@ -241,8 +245,7 @@ public:
    HYPRE_Int GetMyDofOffset() const;
    HYPRE_Int GetMyTDofOffset() const;
 
-   virtual const Operator *GetProlongationMatrix()
-   { return Dof_TrueDof_Matrix(); }
+   virtual const Operator *GetProlongationMatrix();
    /// Get the R matrix which restricts a local dof vector to true dof vector.
    virtual const SparseMatrix *GetRestrictionMatrix()
    { Dof_TrueDof_Matrix(); return R; }
@@ -278,6 +281,22 @@ public:
 
    // Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }
+};
+
+
+/// Auxiliary class used by ParFiniteElementSpace.
+class ConformingProlongationOperator : public Operator
+{
+protected:
+   Array<int> external_ldofs;
+   GroupCommunicator &gc;
+
+public:
+   ConformingProlongationOperator(ParFiniteElementSpace &pfes);
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
 };
 
 }

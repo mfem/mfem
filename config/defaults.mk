@@ -54,12 +54,15 @@ endif
 # Command used to launch MPI jobs
 MFEM_MPIEXEC    = mpirun
 MFEM_MPIEXEC_NP = -np
+# Number of mpi tasks for parallel jobs
+MFEM_MPI_NP = 4
 
 # MFEM configuration options: YES/NO values, which are exported to config.mk and
 # config.hpp. The values below are the defaults for generating the actual values
 # in config.mk and config.hpp.
 
 MFEM_USE_MPI         = NO
+MFEM_USE_METIS       = $(MFEM_USE_MPI)
 MFEM_USE_METIS_5     = NO
 MFEM_DEBUG           = NO
 MFEM_USE_GZSTREAM    = NO
@@ -101,7 +104,7 @@ ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK),NONO)
      METIS_LIB = -L$(METIS_DIR)/lib -lmetis
    endif
 else
-   # ParMETIS currently needed only with SuperLU. We assume that METIS 5
+   # ParMETIS: currently needed by SuperLU or STRUMPACK. We assume that METIS 5
    # (included with ParMETIS) is installed in the same location.
    METIS_DIR = @MFEM_DIR@/../parmetis-4.0.3
    METIS_OPT = -I$(METIS_DIR)/include
@@ -121,7 +124,7 @@ OPENMP_LIB =
 POSIX_CLOCKS_LIB = -lrt
 
 # SUNDIALS library configuration
-SUNDIALS_DIR = @MFEM_DIR@/../sundials-2.7.0
+SUNDIALS_DIR = @MFEM_DIR@/../sundials-3.0.0
 SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
 SUNDIALS_LIB = -Wl,-rpath,$(SUNDIALS_DIR)/lib -L$(SUNDIALS_DIR)/lib\
   -lsundials_arkode -lsundials_cvode -lsundials_nvecserial -lsundials_kinsol
@@ -150,22 +153,32 @@ SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
 SUPERLU_OPT = -I$(SUPERLU_DIR)/SRC
 SUPERLU_LIB = -L$(SUPERLU_DIR)/SRC -lsuperlu_dist
 
-# SCOTCH library configuration
+# SCOTCH library configuration (required by STRUMPACK)
 SCOTCH_DIR = @MFEM_DIR@/../scotch_6.0.4
 SCOTCH_OPT = -I$(SCOTCH_DIR)/include
-SCOTCH_LIB = -L$(SCOTCH_DIR)/lib -lptscotch -lptscotcherr -lptscotcherrexit\
- -lptscotchparmetis -lscotch -lscotcherr -lscotcherrexit -lscotchmetis
+SCOTCH_LIB = -L$(SCOTCH_DIR)/lib -lptscotch -lptscotcherr -lscotch -lscotcherr\
+ -lpthread
 
-# SCALAPACK library configuration
-SCALAPACK_DIR = @MFEM_DIR@/../scalapack_2.0.2
+# SCALAPACK library configuration (required by STRUMPACK)
+SCALAPACK_DIR = @MFEM_DIR@/../scalapack-2.0.2
 SCALAPACK_OPT = -I$(SCALAPACK_DIR)/SRC
-SCALAPACK_LIB = -L$(SCALAPACK_DIR) -lscalapack
+SCALAPACK_LIB = -L$(SCALAPACK_DIR)/lib -lscalapack $(LAPACK_LIB)
+
+# MPI Fortran library, needed e.g. by STRUMPACK
+# MPICH:
+MPI_FORTRAN_LIB = -lmpifort
+# OpenMPI:
+# MPI_FORTRAN_LIB = -lmpi_mpifh
+# Additional Fortan library:
+# MPI_FORTRAN_LIB += -lgfortran
 
 # STRUMPACK library configuration
 STRUMPACK_DIR = @MFEM_DIR@/../STRUMPACK-build
-STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include
-STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(SCOTCH_LIB)\
- $(SCALAPACK_LIB)
+STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
+# If STRUMPACK was build with OpenMP support, the following may be need:
+# STRUMPACK_OPT += $(OPENMP_OPT)
+STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
+ $(SCOTCH_LIB) $(SCALAPACK_LIB)
 
 # Gecko library configuration
 GECKO_DIR = @MFEM_DIR@/../gecko
@@ -185,14 +198,17 @@ NETCDF_LIB  = -L$(NETCDF_DIR)/lib -lnetcdf -L$(HDF5_DIR)/lib -lhdf5_hl -lhdf5\
  -L$(ZLIB_DIR)/lib -lz
 
 # PETSc library configuration (version greater or equal to 3.8 or the dev branch)
-ifeq ($(MFEM_USE_PETSC),YES)
-   PETSC_DIR := $(MFEM_DIR)/../petsc/arch-linux2-c-debug
-   PETSC_PC  := $(PETSC_DIR)/lib/pkgconfig/PETSc.pc
-   $(if $(wildcard $(PETSC_PC)),,$(error PETSc config not found - $(PETSC_PC)))
-   PETSC_OPT := $(shell sed -n "s/Cflags: *//p" $(PETSC_PC))
-   PETSC_LIBS_PRIVATE := $(shell sed -n "s/Libs\.private: *//p" $(PETSC_PC))
-   PETSC_LIB := -Wl,-rpath -Wl,$(abspath $(PETSC_DIR))/lib\
- -L$(abspath $(PETSC_DIR))/lib -lpetsc $(PETSC_LIBS_PRIVATE)
+PETSC_ARCH := arch-linux2-c-debug
+PETSC_DIR  := $(MFEM_DIR)/../petsc/$(PETSC_ARCH)
+PETSC_VARS := $(PETSC_DIR)/lib/petsc/conf/petscvariables
+PETSC_FOUND := $(if $(wildcard $(PETSC_VARS)),YES,)
+PETSC_INC_VAR = PETSC_CC_INCLUDES
+PETSC_LIB_VAR = PETSC_EXTERNAL_LIB_BASIC
+ifeq ($(PETSC_FOUND),YES)
+   PETSC_OPT := $(shell sed -n "s/$(PETSC_INC_VAR) = *//p" $(PETSC_VARS))
+   PETSC_LIB := $(shell sed -n "s/$(PETSC_LIB_VAR) = *//p" $(PETSC_VARS))
+   PETSC_LIB := -Wl,-rpath,$(abspath $(PETSC_DIR))/lib\
+      -L$(abspath $(PETSC_DIR))/lib -lpetsc $(PETSC_LIB)
 endif
 
 # MPFR library configuration
