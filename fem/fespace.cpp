@@ -585,6 +585,7 @@ void FiniteElementSpace::GetConformingInterpolation() const
             if (!slave_dofs.Size()) { continue; }
 
             slave.OrientedPointMatrix(T.GetPointMat());
+            T.FinalizeTransformation();
             fe->GetLocalInterpolation(T, I);
 
             // make each slave DOF dependent on all master DOFs
@@ -766,6 +767,7 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
    for (int i = 0; i < nmat; i++)
    {
       isotr.GetPointMat() = rtrans.point_matrices(i);
+      isotr.FinalizeTransformation();
       fe->GetLocalInterpolation(isotr, localP(i));
    }
 
@@ -848,6 +850,7 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(
       lR = numeric_limits<double>::infinity(); // marks invalid rows
 
       isotr.GetPointMat() = dt.point_matrices(i);
+      isotr.FinalizeTransformation();
       isotr.SetIntPoint(&nodes[0]);
       CalcInverse(isotr.Jacobian(), invdfdx);
 

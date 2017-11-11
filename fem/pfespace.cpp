@@ -1319,6 +1319,7 @@ void ParFiniteElementSpace::GetParallelConformingInterpolation() const
                if (!slave_dofs.Size()) { continue; }
 
                sf.OrientedPointMatrix(T.GetPointMat());
+               T.FinalizeTransformation();
                fe->GetLocalInterpolation(T, I);
 
                // make each slave DOF dependent on all master DOFs
@@ -2387,7 +2388,7 @@ void ConformingProlongationOperator::MultTranspose(
    std::copy(xdata+j, xdata+Height(), ydata+j-m);
 
    const int out_layout = 2; // 2 - output is an array on all ltdofs
-   gc.ReduceEnd(ydata, out_layout, GroupCommunicator::Sum);
+   gc.ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
 }
 
 HypreParMatrix *ParBuildNestedInterpolation(ParFiniteElementSpace &ho_fespace,
