@@ -57,6 +57,13 @@ public:
    /// Set the operator type id for the parallel gradient matrix/operator.
    void SetGradientType(Operator::Type tid) { pGrad.SetType(tid); }
 
+   /// Get the parallel finite element space prolongation matrix
+   virtual const Operator *GetProlongation() const
+   { return ParFESpace()->GetProlongationMatrix(); }
+   /// Get the parallel finite element space restriction matrix
+   virtual const Operator *GetRestriction() const
+   { return ParFESpace()->GetRestrictionMatrix(); }
+
    virtual ~ParNonlinearForm() { }
 };
 

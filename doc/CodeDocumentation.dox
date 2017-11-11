@@ -67,6 +67,8 @@ namespace mfem {
  * - <a class="el" href="ex16p_8cpp_source.html">Example 16p</a>: parallel time-dependent nonlinear heat equation
  * - <a class="el" href="ex17_8cpp_source.html">Example 17</a>: Discontinuous Galerkin (DG) for linear elasticity
  * - <a class="el" href="ex17p_8cpp_source.html">Example 17p</a>: parallel Discontinuous Galerkin (DG) for linear elasticity
+ * - <a class="el" href="ex18_8cpp_source.html">Example 18</a>: Discontinuous Galerkin (DG) for the Euler equations
+ * - <a class="el" href="ex18p_8cpp_source.html">Example 18p</a>: parallel Discontinuous Galerkin (DG) for the Euler equations
  *
  * <H4>SUNDIALS Examples</H4>
  * - Variants of Examples
@@ -100,6 +102,7 @@ namespace mfem {
  * - <a class="el" href="klein-bottle_8cpp_source.html">Klein Bottle</a>: generate three types of Klein bottle surfaces
  * - <a class="el" href="shaper_8cpp_source.html">Shaper</a>: resolve material interfaces by mesh refinement
  * - <a class="el" href="mesh-explorer_8cpp_source.html">Mesh Explorer</a>: visualize and manipulate meshes
+ * - <a class="el" href="mesh-optimizer_8cpp_source.html">Mesh Optimizer</a>: optimize high-order meshes, <a class="el" href="mesh-optimizer_8cpp_source.html">serial</a> and <a class="el" href="pmesh-optimizer_8cpp_source.html">parallel</a> versions
  * - <a class="el" href="display-basis_8cpp_source.html">Display Basis</a>: visualize finite element basis functions
  * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Laplace problem
  * - <a class="el" href="miniapps_2performance_2ex1p_8cpp_source.html">HPC Example 1p</a>: high-performance parallel nodal H1 FEM for the Laplace problem
