@@ -21,4 +21,28 @@ add_mfem_miniapp(mobius-strip
   MAIN mobius-strip.cpp
   LIBRARIES mfem)
 
-# Add tests?
+add_mfem_miniapp(shaper
+  MAIN shaper.cpp
+  LIBRARIES mfem)
+
+add_mfem_miniapp(mesh-optimizer
+  MAIN mesh-optimizer.cpp
+  LIBRARIES mfem)
+
+# Add serial tests.
+add_test(NAME mesh-optimizer
+  COMMAND mesh-optimizer -no-vis -m ${CMAKE_CURRENT_SOURCE_DIR}/icf.mesh)
+
+# Parallel apps.
+if (MFEM_USE_MPI)
+  add_mfem_miniapp(pmesh-optimizer
+    MAIN pmesh-optimizer.cpp
+    LIBRARIES mfem)
+
+  # Add parallel tests.
+  add_test(NAME pmesh-optimizer_np=4
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4
+    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pmesh-optimizer> -no-vis
+    -m ${CMAKE_CURRENT_SOURCE_DIR}/icf.mesh
+    ${MPIEXEC_POSTFLAGS})
+endif()

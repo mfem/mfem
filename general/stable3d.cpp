@@ -10,7 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 
-#include <iostream>
 #include "error.hpp"
 #include "stable3d.hpp"
 

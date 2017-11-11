@@ -13,8 +13,8 @@
 #define MFEM_SOCKETSTREAM
 
 #include "../config/config.hpp"
-#include "../general/error.hpp"
-#include <iostream>
+#include "error.hpp"
+#include "globals.hpp"
 
 #ifdef MFEM_USE_GNUTLS
 #include <gnutls/gnutls.h>
@@ -99,7 +99,7 @@ public:
    void print_on_error(const char *msg) const
    {
       if (good()) { return; }
-      std::cout << "Error in " << msg << ": " << gnutls_strerror(res)
+      mfem::out << "Error in " << msg << ": " << gnutls_strerror(res)
                 << std::endl;
    }
 };
@@ -269,7 +269,7 @@ private:
    int listen_socket;
 
 public:
-   explicit socketserver(int port);
+   explicit socketserver(int port, int backlog=4);
 
    bool good() { return (listen_socket >= 0); }
 

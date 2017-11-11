@@ -28,7 +28,7 @@ void mfem_warning(const char *msg = NULL);
 }
 
 #ifndef _MFEM_FUNC_NAME
-#ifndef _WIN32
+#ifndef _MSC_VER
 // This is nice because it shows the class and method name
 #define _MFEM_FUNC_NAME __PRETTY_FUNCTION__
 // This one is C99 standard.
