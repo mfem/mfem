@@ -15,6 +15,14 @@
 #include "petsc.hpp"
 #endif
 
+// Make sure that hypre and PETSc use the same size indices.
+#if defined(MFEM_USE_MPI) && defined(MFEM_USE_PETSC)
+#if (defined(HYPRE_BIGINT) && !defined(PETSC_USE_64BIT_INDICES)) || \
+    (!defined(HYPRE_BIGINT) && defined(PETSC_USE_64BIT_INDICES))
+#error HYPRE and PETSC do not use the same size integers!
+#endif
+#endif
+
 namespace mfem
 {
 
@@ -62,7 +70,7 @@ void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_Int glob_size,
 #ifdef MFEM_USE_PETSC
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
-         // Assuming that PetscInt is the same size as HYPRE_Int.
+         // Assuming that PetscInt is the same size as HYPRE_Int, checked above.
          oper = new PetscParMatrix(comm, glob_size, row_starts, diag, type_id);
          break;
 #endif
@@ -87,7 +95,7 @@ MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_Int glob_num_rows,
 #ifdef MFEM_USE_PETSC
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
-         // Assuming that PetscInt is the same size as HYPRE_Int.
+         // Assuming that PetscInt is the same size as HYPRE_Int, checked above.
          oper = new PetscParMatrix(comm, glob_num_rows, glob_num_cols,
                                    row_starts, col_starts, diag, type_id);
          break;

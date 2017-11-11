@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "../general/array.hpp"
+#include "../general/globals.hpp"
 #include "vector.hpp"
 #include "sparsemat.hpp"
 
@@ -82,7 +83,7 @@ public:
    //! Returns a monolithic CSR matrix that represents this operator.
    SparseMatrix * CreateMonolithic() const;
    //! Export the monolithic matrix to file.
-   void PrintMatlab(std::ostream & os = std::cout) const;
+   void PrintMatlab(std::ostream & os = mfem::out) const;
 
    //@name Matrix interface
    //@{
