@@ -163,9 +163,9 @@ public:
    ParFiniteElementSpace(ParMesh *pm, const FiniteElementCollection *f,
                          int dim = 1, int ordering = Ordering::byNODES);
 
-   MPI_Comm GetComm() { return MyComm; }
-   int GetNRanks() { return NRanks; }
-   int GetMyRank() { return MyRank; }
+   MPI_Comm GetComm() const { return MyComm; }
+   int GetNRanks() const { return NRanks; }
+   int GetMyRank() const { return MyRank; }
 
    inline ParMesh *GetParMesh() { return pmesh; }
 
