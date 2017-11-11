@@ -13,6 +13,7 @@
 #define MFEM_DENSEMAT
 
 #include "../config/config.hpp"
+#include "../general/globals.hpp"
 #include "matrix.hpp"
 
 namespace mfem
@@ -29,6 +30,9 @@ private:
    int capacity; // zero or negative capacity means we do not own the data.
 
    void Eigensystem(Vector &ev, DenseMatrix *evect = NULL);
+
+   // Auxiliary method used in FNorm2() and FNorm()
+   void FNorm(double &scale_factor, double &scaled_fnorm2) const;
 
 public:
    /** Default constructor for DenseMatrix.
@@ -124,10 +128,13 @@ public:
    /// y += A.x
    void AddMult(const Vector &x, Vector &y) const;
 
+   /// y += A^t x
+   void AddMultTranspose(const Vector &x, Vector &y) const;
+
    /// y += a * A.x
    void AddMult_a(double a, const Vector &x, Vector &y) const;
 
-   // y += a * A^t x
+   /// y += a * A^t x
    void AddMultTranspose_a(double a, const Vector &x, Vector &y) const;
 
    /// Compute y^t A x
@@ -156,10 +163,24 @@ public:
    /// Replaces the current matrix with its inverse
    void Invert();
 
-   /// Calculates the determinant of the matrix (for 2x2 or 3x3 matrices)
+   /// Replaces the current matrix with its square root inverse
+   void SquareRootInverse();
+
+   /// Calculates the determinant of the matrix
+   /// (optimized for 2x2, 3x3, and 4x4 matrices)
    double Det() const;
 
    double Weight() const;
+
+   /** @brief Set the matrix to alpha * A, assuming that A has the same
+       dimensions as the matrix and uses column-major layout. */
+   void Set(double alpha, const double *A);
+   /// Set the matrix to alpha * A.
+   void Set(double alpha, const DenseMatrix &A)
+   {
+      SetSize(A.Height(), A.Width());
+      Set(alpha, A.GetData());
+   }
 
    /// Adds the matrix A multiplied by the number c to the matrix
    void Add(const double c, const DenseMatrix &A);
@@ -173,9 +194,10 @@ public:
    /// Sets the matrix size and elements equal to those of m
    DenseMatrix &operator=(const DenseMatrix &m);
 
-   DenseMatrix &operator+=(DenseMatrix &m);
+   DenseMatrix &operator+=(const double *m);
+   DenseMatrix &operator+=(const DenseMatrix &m);
 
-   DenseMatrix &operator-=(DenseMatrix &m);
+   DenseMatrix &operator-=(const DenseMatrix &m);
 
    DenseMatrix &operator*=(double c);
 
@@ -189,7 +211,10 @@ public:
    double MaxMaxNorm() const;
 
    /// Compute the Frobenius norm of the matrix
-   double FNorm() const;
+   double FNorm() const { double s, n2; FNorm(s, n2); return s*sqrt(n2); }
+
+   /// Compute the square of the Frobenius norm of the matrix
+   double FNorm2() const { double s, n2; FNorm(s, n2); return s*s*n2; }
 
    void Eigenvalues(Vector &ev)
    { Eigensystem(ev); }
@@ -213,6 +238,7 @@ public:
    void GetRow(int r, Vector &row);
    void GetColumn(int c, Vector &col) const;
    double *GetColumn(int col) { return data + col*height; }
+   const double *GetColumn(int col) const { return data + col*height; }
 
    void GetColumnReference(int c, Vector &col)
    { col.SetDataAndSize(data + c * height, height); }
@@ -240,7 +266,7 @@ public:
    /// (*this) = (*this)^t
    void Transpose();
    /// (*this) = A^t
-   void Transpose(DenseMatrix &A);
+   void Transpose(const DenseMatrix &A);
    /// (*this) = 1/2 ((*this) + (*this)^t)
    void Symmetrize();
 
@@ -275,6 +301,8 @@ public:
    void CopyMNDiag(double c, int n, int row_offset, int col_offset);
    /// Copy diag on the diagonal of size n to *this at row_offset, col_offset
    void CopyMNDiag(double *diag, int n, int row_offset, int col_offset);
+   /// Copy All rows and columns except m and n from A
+   void CopyExceptMN(const DenseMatrix &A, int m, int n);
 
    /// Perform (ro+i,co+j)+=A(i,j) for 0<=i<A.Height, 0<=j<A.Width
    void AddMatrix(DenseMatrix &A, int ro, int co);
@@ -297,10 +325,10 @@ public:
    int CheckFinite() const { return mfem::CheckFinite(data, height*width); }
 
    /// Prints matrix to stream out.
-   virtual void Print(std::ostream &out = std::cout, int width_ = 4) const;
-   virtual void PrintMatlab(std::ostream &out = std::cout) const;
+   virtual void Print(std::ostream &out = mfem::out, int width_ = 4) const;
+   virtual void PrintMatlab(std::ostream &out = mfem::out) const;
    /// Prints the transpose matrix to stream out.
-   virtual void PrintT(std::ostream &out = std::cout, int width_ = 4) const;
+   virtual void PrintT(std::ostream &out = mfem::out, int width_ = 4) const;
 
    /// Invert and print the numerical conditioning of the inversion.
    void TestInversion();
@@ -314,6 +342,10 @@ public:
 /// C = A + alpha*B
 void Add(const DenseMatrix &A, const DenseMatrix &B,
          double alpha, DenseMatrix &C);
+
+/// C = alpha*A + beta*B
+void Add(double alpha, const double *A,
+         double beta,  const double *B, DenseMatrix &C);
 
 /// C = alpha*A + beta*B
 void Add(double alpha, const DenseMatrix &A,
@@ -420,6 +452,10 @@ public:
        factors. The factorization is such that L.U = P.A, where A is the
        original matrix and P is a permutation matrix represented by ipiv. */
    void Factor(int m);
+
+   /** Assuming L.U = P.A factored data of size (m x m), compute |A|
+       from the diagonal values of U and the permutation information. */
+   double Det(int m) const;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- A X,
        for a matrix X of size (m x n). */
@@ -529,6 +565,9 @@ public:
       lu.GetInverseMatrix(width, Ainv.Data());
    }
 
+   /// Compute the determinant of the original DenseMatrix using the LU factors.
+   double Det() const { return lu.Det(width); }
+
    /// Print the numerical conditioning of the inversion: ||A^{-1} A - I||.
    void TestInversion();
 
@@ -637,6 +676,9 @@ public:
       tdata = ext_data;
       own_data = false;
    }
+
+   /// Sets the tensor elements equal to constant c
+   DenseTensor &operator=(double c);
 
    DenseMatrix &operator()(int k) { Mk.data = GetData(k); return Mk; }
    const DenseMatrix &operator()(int k) const
