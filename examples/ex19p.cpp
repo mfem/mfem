@@ -23,7 +23,7 @@ protected:
 public:
    JacobianPreconditioner(BlockOperator &jac, Operator &mass,
                           Array<int> &offsets);
-   
+
    virtual void Mult(const Vector &k, Vector &y) const;
    virtual void SetOperator(const Operator &op);
 
@@ -302,9 +302,11 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-JacobianPreconditioner::JacobianPreconditioner(BlockOperator &jac, Operator &mass,
+JacobianPreconditioner::JacobianPreconditioner(BlockOperator &jac,
+                                               Operator &mass,
                                                Array<int> &offsets)
-   : Solver(offsets[2]), block_trueOffsets(offsets), Jacobian(&jac), Pressure_mass(&mass)
+   : Solver(offsets[2]), block_trueOffsets(offsets), Jacobian(&jac),
+     Pressure_mass(&mass)
 {
    /*
    mass_prec = new HypreBoomerAMG();
@@ -335,16 +337,20 @@ JacobianPreconditioner::JacobianPreconditioner(BlockOperator &jac, Operator &mas
 
 }
 
- 
+
 void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
 {
 
-   Vector disp_in(k.GetData() + block_trueOffsets[0], block_trueOffsets[1]-block_trueOffsets[0]);
-   Vector pres_in(k.GetData() + block_trueOffsets[1], block_trueOffsets[2]-block_trueOffsets[1]);
+   Vector disp_in(k.GetData() + block_trueOffsets[0],
+                  block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector pres_in(k.GetData() + block_trueOffsets[1],
+                  block_trueOffsets[2]-block_trueOffsets[1]);
 
-   Vector disp_out(y.GetData() + block_trueOffsets[0], block_trueOffsets[1]-block_trueOffsets[0]);
-   Vector pres_out(y.GetData() + block_trueOffsets[1], block_trueOffsets[2]-block_trueOffsets[1]);
-   
+   Vector disp_out(y.GetData() + block_trueOffsets[0],
+                   block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector pres_out(y.GetData() + block_trueOffsets[1],
+                   block_trueOffsets[2]-block_trueOffsets[1]);
+
    Vector temp(block_trueOffsets[1]-block_trueOffsets[0]);
    Vector temp2(block_trueOffsets[1]-block_trueOffsets[0]);
 
