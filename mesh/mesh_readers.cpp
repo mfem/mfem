@@ -14,6 +14,7 @@
 #include "../general/text.hpp"
 
 #include <iostream>
+#include <cstdio>
 
 #ifdef MFEM_USE_NETCDF
 #include "netcdf.h"
@@ -1764,8 +1765,8 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
       // int nTotDofs = fes->GetNDofs();
       // int nTotVDofs = fes->GetVSize();
-      //    cout << endl << "nTotDofs = " << nTotDofs << "  nTotVDofs "
-      //         << nTotVDofs << endl << endl;
+      //    mfem::out << endl << "nTotDofs = " << nTotDofs << "  nTotVDofs "
+      //              << nTotVDofs << endl << endl;
 
       for (int i = 0; i < NumOfElements; i++)
       {
