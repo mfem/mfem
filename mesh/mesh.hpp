@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "../general/stable3d.hpp"
+#include "../general/globals.hpp"
 #include "triangle.hpp"
 #include "tetrahedron.hpp"
 #include "vertex.hpp"
@@ -22,7 +23,6 @@
 #include "../fem/coefficient.hpp"
 #include "../general/gzstream.hpp"
 #include <iostream>
-#include <fstream>
 
 
 namespace mfem
@@ -377,7 +377,7 @@ protected:
    // If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1 format.
    // If section_delimiter is empty, write mfem v1.0 format. Otherwise, write
    // mfem v1.2 format with the given section_delimiter at the end.
-   void Printer(std::ostream &out = std::cout,
+   void Printer(std::ostream &out = mfem::out,
                 std::string section_delimiter = "") const;
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
@@ -692,13 +692,13 @@ public:
    int GetBdrElementBaseGeometry(int i = 0) const
    { return i < GetNBE() ? boundary[i]->GetGeometryType() : BaseBdrGeom; }
 
-   /// Returns the indices of the dofs of element i.
-   void GetElementVertices(int i, Array<int> &dofs) const
-   { elements[i]->GetVertices(dofs); }
+   /// Returns the indices of the vertices of element i.
+   void GetElementVertices(int i, Array<int> &v) const
+   { elements[i]->GetVertices(v); }
 
-   /// Returns the indices of the dofs of boundary element i.
-   void GetBdrElementVertices(int i, Array<int> &dofs) const
-   { boundary[i]->GetVertices(dofs); }
+   /// Returns the indices of the vertices of boundary element i.
+   void GetBdrElementVertices(int i, Array<int> &v) const
+   { boundary[i]->GetVertices(v); }
 
    /// Return the indices and the orientations of all edges of element i.
    void GetElementEdges(int i, Array<int> &edges, Array<int> &cor) const;
@@ -753,14 +753,12 @@ public:
    /// Returns the type of boundary element i.
    int GetBdrElementType(int i) const;
 
-   /* Return point matrix of element i of dimension Dim X #dofs, where for
-      every degree of freedom we give its coordinates in space of dimension
-      Dim. */
+   /* Return point matrix of element i of dimension Dim X #v, where for every
+      vertex we give its coordinates in space of dimension Dim. */
    void GetPointMatrix(int i, DenseMatrix &pointmat) const;
 
-   /* Return point matrix of boundary element i of dimension Dim X #dofs,
-      where for every degree of freedom we give its coordinates in space
-      of dimension Dim. */
+   /* Return point matrix of boundary element i of dimension Dim X #v, where for
+      every vertex we give its coordinates in space of dimension Dim. */
    void GetBdrPointMatrix(int i, DenseMatrix &pointmat) const;
 
    static FiniteElement *GetTransformationFEforElementType(int);
@@ -1019,11 +1017,11 @@ public:
    long GetSequence() const { return sequence; }
 
    /// Print the mesh to the given stream using Netgen/Truegrid format.
-   virtual void PrintXG(std::ostream &out = std::cout) const;
+   virtual void PrintXG(std::ostream &out = mfem::out) const;
 
    /// Print the mesh to the given stream using the default MFEM mesh format.
    /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
-   virtual void Print(std::ostream &out = std::cout) const { Printer(out); }
+   virtual void Print(std::ostream &out = mfem::out) const { Printer(out); }
 
    /// Print the mesh in VTK format (linear and quadratic meshes only).
    /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
@@ -1086,33 +1084,43 @@ public:
                            Vector *Vh = NULL, Vector *Vk = NULL);
 
    void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL,
-                             std::ostream &out = std::cout);
+                             std::ostream &out = mfem::out);
 
-   virtual void PrintInfo(std::ostream &out = std::cout)
+   virtual void PrintInfo(std::ostream &out = mfem::out)
    {
       PrintCharacteristics(NULL, NULL, out);
    }
 
    void MesquiteSmooth(const int mesquite_option = 0);
 
-   /// Returns the ids of the elements that contain the given points.
-   /** The DenseMatrix @a point_mat describes the given points - one point for
+   /** @brief Find the ids of the elements that contain the given points, and
+       their corresponding reference coordinates.
+
+       The DenseMatrix @a point_mat describes the given points - one point for
        each column; it should have SpaceDimension() rows.
 
-       If no element is found for the i-th point, elem_id[i] is set to -1.
+       The InverseElementTransformation object, @a inv_trans, is used to attempt
+       the element transformation inversion. If NULL pointer is given, the
+       method will use a default constructed InverseElementTransformation. Note
+       that the algorithms in the base class InverseElementTransformation can be
+       completely overwritten by deriving custom classes that override the
+       Transform() method.
 
-       If an element is found, the method also returns the coordinates of the
-       point in the reference space of the corresponding element.
+       If no element is found for the i-th point, elem_ids[i] is set to -1.
 
-       In parallel, if a point is shared by multiple processors, only one of
-       them will mark that point as found.
+       In the ParMesh implementation, the @a point_mat is expected to be the
+       same on all ranks. If the i-th point is found by multiple ranks, only one
+       of them will mark that point as found, i.e. set its elem_ids[i] to a
+       non-negative number; the other ranks will set their elem_ids[i] to -2 to
+       indicate that the point was found but assigned to another rank.
 
        @returns The total number of points that were found.
 
        @note This method is not 100 percent reliable, i.e. it is not guaranteed
        to find a point, even if it lies inside a mesh element. */
-   virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,
-                          Array<IntegrationPoint>& ip, bool warn = true);
+   virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
+                          Array<IntegrationPoint>& ips, bool warn = true,
+                          InverseElementTransformation *inv_trans = NULL);
 
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }

@@ -15,6 +15,7 @@
 // Data type vector
 
 #include "../general/array.hpp"
+#include "../general/globals.hpp"
 #ifdef MFEM_USE_SUNDIALS
 #include <nvector/nvector_serial.h>
 #endif
@@ -76,7 +77,9 @@ public:
        data array remains the same. Otherwise, the old array is deleted, if
        owned, and a new array of size @a s is allocated without copying the
        previous content of the Vector.
-       @warning New entries are not initialized! */
+       @warning In the second case above (new size greater than current one),
+       the vector will allocate new data array, even if it did not own the
+       original data! Also, new entries are not initialized! */
    void SetSize(int s);
 
    /// Set the Vector data.
@@ -230,7 +233,7 @@ public:
    void SetSubVectorComplement(const Array<int> &dofs, const double val);
 
    /// Prints vector to stream out.
-   void Print(std::ostream & out = std::cout, int width = 8) const;
+   void Print(std::ostream & out = mfem::out, int width = 8) const;
 
    /// Prints vector to stream out in HYPRE_Vector format.
    void Print_HYPRE(std::ostream &out) const;
@@ -251,8 +254,10 @@ public:
    double Min() const;
    /// Return the sum of the vector entries
    double Sum() const;
+   /// Compute the square of the Euclidean distance to another vector.
+   inline double DistanceSquaredTo(const double *p) const;
    /// Compute the Euclidean distance to another vector.
-   double DistanceTo (const double *p) const;
+   inline double DistanceTo(const double *p) const;
 
    /** Count the number of entries in the Vector for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
@@ -378,9 +383,8 @@ inline Vector::~Vector()
    }
 }
 
-inline double Distance(const double *x, const double *y, const int n)
+inline double DistanceSquared(const double *x, const double *y, const int n)
 {
-   using namespace std;
    double d = 0.0;
 
    for (int i = 0; i < n; i++)
@@ -388,7 +392,22 @@ inline double Distance(const double *x, const double *y, const int n)
       d += (x[i]-y[i])*(x[i]-y[i]);
    }
 
-   return sqrt(d);
+   return d;
+}
+
+inline double Distance(const double *x, const double *y, const int n)
+{
+   return std::sqrt(DistanceSquared(x, y, n));
+}
+
+inline double Vector::DistanceSquaredTo(const double *p) const
+{
+   return DistanceSquared(data, p, size);
+}
+
+inline double Vector::DistanceTo(const double *p) const
+{
+   return Distance(data, p, size);
 }
 
 /// Returns the inner product of x and y

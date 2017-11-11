@@ -70,7 +70,7 @@ set(METIS_DIR "${MFEM_DIR}/../metis-4.0" CACHE PATH "Path to the METIS library."
 
 set(LIBUNWIND_DIR "" CACHE PATH "Path to Libunwind.")
 
-set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-2.7.0" CACHE PATH
+set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-3.0.0" CACHE PATH
     "Path to the SUNDIALS library.")
 # The following may be necessary, if SUNDIALS was built with KLU:
 # set(SUNDIALS_REQUIRED_PACKAGES "SuiteSparse/KLU/AMD/BTF/COLAMD/config"
@@ -132,7 +132,7 @@ set(NetCDF_REQUIRED_PACKAGES "" CACHE STRING
 
 set(PETSC_DIR "${MFEM_DIR}/../petsc" CACHE PATH
     "Path to the PETSc main directory.")
-set(PETSC_ARCH "arch-linux2-c-debug" CACHE PATH "PETSc build architecture.")
+set(PETSC_ARCH "arch-linux2-c-debug" CACHE STRING "PETSc build architecture.")
 
 set(MPFR_DIR "" CACHE PATH "Path to the MPFR library.")
 
