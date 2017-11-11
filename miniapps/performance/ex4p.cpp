@@ -318,7 +318,7 @@ int main(int argc, char *argv[])
    {
       // Standard assembly using a diffusion domain integrator
       a->AddDomainIntegrator(new DivDivIntegrator(*alpha));
-    //a->AddDomainIntegrator(new VectorFEMassIntegrator(*alpha));
+      //a->AddDomainIntegrator(new VectorFEMassIntegrator(*alpha));
       a->Assemble();
    }
    else
@@ -494,34 +494,34 @@ int main(int argc, char *argv[])
 
 void F_exact(const Vector &p, Vector &F)
 {
-    int dim = p.Size();
-    
-    double x = p(0);
-    double y = p(1);
-    // double z = (dim == 3) ? p(2) : 0.0;
-    
-    F(0) = cos(kappa*x)*sin(kappa*y);
-    F(1) = cos(kappa*y)*sin(kappa*x);
-    if (dim == 3)
-    {
-        F(2) = 0.0;
-    }
+   int dim = p.Size();
+
+   double x = p(0);
+   double y = p(1);
+   // double z = (dim == 3) ? p(2) : 0.0;
+
+   F(0) = cos(kappa*x)*sin(kappa*y);
+   F(1) = cos(kappa*y)*sin(kappa*x);
+   if (dim == 3)
+   {
+      F(2) = 0.0;
+   }
 }
 
 void f_exact(const Vector &p, Vector &f)
 {
-    int dim = p.Size();
-    
-    double x = p(0);
-    double y = p(1);
-    // double z = (dim == 3) ? p(2) : 0.0;
-    
-    double temp = 1 + 2*kappa*kappa;
-    
-    f(0) = temp*cos(kappa*x)*sin(kappa*y);
-    f(1) = temp*cos(kappa*y)*sin(kappa*x);
-    if (dim == 3)
-    {
-        f(2) = 0;
-    }
+   int dim = p.Size();
+
+   double x = p(0);
+   double y = p(1);
+   // double z = (dim == 3) ? p(2) : 0.0;
+
+   double temp = 1 + 2*kappa*kappa;
+
+   f(0) = temp*cos(kappa*x)*sin(kappa*y);
+   f(1) = temp*cos(kappa*y)*sin(kappa*x);
+   if (dim == 3)
+   {
+      f(2) = 0;
+   }
 }

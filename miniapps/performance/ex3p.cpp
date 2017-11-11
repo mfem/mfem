@@ -494,32 +494,32 @@ int main(int argc, char *argv[])
 
 void E_exact(const Vector &x, Vector &E)
 {
-    if (dim == 3)
-    {
-        E(0) = sin(kappa * x(1));
-        E(1) = sin(kappa * x(2));
-        E(2) = sin(kappa * x(0));
-    }
-    else
-    {
-        E(0) = sin(kappa * x(1));
-        E(1) = sin(kappa * x(0));
-        if (x.Size() == 3) { E(2) = 0.0; }
-    }
+   if (dim == 3)
+   {
+      E(0) = sin(kappa * x(1));
+      E(1) = sin(kappa * x(2));
+      E(2) = sin(kappa * x(0));
+   }
+   else
+   {
+      E(0) = sin(kappa * x(1));
+      E(1) = sin(kappa * x(0));
+      if (x.Size() == 3) { E(2) = 0.0; }
+   }
 }
 
 void f_exact(const Vector &x, Vector &f)
 {
-    if (dim == 3)
-    {
-        f(0) = (1. + kappa * kappa) * sin(kappa * x(1));
-        f(1) = (1. + kappa * kappa) * sin(kappa * x(2));
-        f(2) = (1. + kappa * kappa) * sin(kappa * x(0));
-    }
-    else
-    {
-        f(0) = (1. + kappa * kappa) * sin(kappa * x(1));
-        f(1) = (1. + kappa * kappa) * sin(kappa * x(0));
-        if (x.Size() == 3) { f(2) = 0.0; }
-    }
+   if (dim == 3)
+   {
+      f(0) = (1. + kappa * kappa) * sin(kappa * x(1));
+      f(1) = (1. + kappa * kappa) * sin(kappa * x(2));
+      f(2) = (1. + kappa * kappa) * sin(kappa * x(0));
+   }
+   else
+   {
+      f(0) = (1. + kappa * kappa) * sin(kappa * x(1));
+      f(1) = (1. + kappa * kappa) * sin(kappa * x(0));
+      if (x.Size() == 3) { f(2) = 0.0; }
+   }
 }
