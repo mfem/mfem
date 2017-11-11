@@ -10,6 +10,10 @@
 *.o
 /libmfem.a
 
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+
 # Backup files
 *~
 
@@ -38,8 +42,8 @@ doc/CodeDocumentation
 
 examples/ex[1-9]
 examples/ex[1-9]p
-examples/ex1[04-7]
-examples/ex1[0-7]p
+examples/ex1[04-8]
+examples/ex1[0-8]p
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -65,6 +69,10 @@ examples/ex16.mesh
 examples/ex16-mesh.*
 examples/ex16-init.*
 examples/ex16-final.*
+examples/vortex-mesh.*
+examples/vortex.mesh
+examples/vortex-?-init.*
+examples/vortex-?-final.*
 
 examples/sundials/ex9
 examples/sundials/ex1[06]
@@ -113,12 +121,16 @@ miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
 miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
+miniapps/meshing/mesh-optimizer
+miniapps/meshing/pmesh-optimizer
 
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/mesh-explorer.mesh
 miniapps/meshing/partitioning.txt
 miniapps/meshing/shaper.mesh
+miniapps/meshing/optimized*
+miniapps/meshing/perturbed*
 
 miniapps/performance/ex1
 miniapps/performance/ex1p

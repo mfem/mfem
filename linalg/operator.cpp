@@ -9,11 +9,11 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include <iostream>
-#include <iomanip>
-
 #include "vector.hpp"
 #include "operator.hpp"
+
+#include <iostream>
+#include <iomanip>
 
 namespace mfem
 {
