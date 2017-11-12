@@ -1992,7 +1992,7 @@ void SparseMatrix::SetSubMatrixTranspose(const Array<int> &rows,
 }
 
 void SparseMatrix::GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
-                                DenseMatrix &subm)
+                                DenseMatrix &subm) const
 {
    int i, j, gi, gj, s, t;
    double a;
