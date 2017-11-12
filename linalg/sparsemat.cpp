@@ -1128,7 +1128,7 @@ void SparseMatrix::EliminateCol(int col)
          }
 }
 
-void SparseMatrix::EliminateCols(Array<int> &cols, Vector *x, Vector *b)
+void SparseMatrix::EliminateCols(const Array<int> &cols, Vector *x, Vector *b)
 {
    if (Rows == NULL)
    {
