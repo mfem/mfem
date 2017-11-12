@@ -213,7 +213,7 @@ void BlockMatrix::EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol,
    for (int iiblock = 0; iiblock < nRowBlocks; ++iiblock)
       if (row_offsets[iiblock] != col_offsets[iiblock])
       {
-         std::cout << "BlockMatrix::EliminateRowCol: row_offests["
+         mfem::out << "BlockMatrix::EliminateRowCol: row_offests["
                    << iiblock << "] != col_offsets["<<iiblock<<"]\n";
          mfem_error();
       }
@@ -311,8 +311,8 @@ void BlockMatrix::EliminateZeroRows()
 
             if (norm < 1e-12)
             {
-               std::cout<<"i = " << i << "\n";
-               std::cout<<"norm = " << norm << "\n";
+               mfem::out<<"i = " << i << "\n";
+               mfem::out<<"norm = " << norm << "\n";
                mfem_error("BlockMatrix::EliminateZeroRows() #2");
             }
          }
@@ -461,9 +461,9 @@ SparseMatrix * BlockMatrix::CreateMonolithic() const
 #ifdef MFEM_DEBUG
                if (glob_start_index > nnz)
                {
-                  std::cout<<"glob_start_index = " << glob_start_index << "\n";
-                  std::cout<<"Block:" << iblock << " " << jblock << "\n";
-                  std::cout<<std::endl;
+                  mfem::out<<"glob_start_index = " << glob_start_index << "\n";
+                  mfem::out<<"Block:" << iblock << " " << jblock << "\n";
+                  mfem::out<<std::endl;
                }
 #endif
                loc_end_index = *(i_it_aij);
