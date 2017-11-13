@@ -330,8 +330,14 @@ public:
 
    virtual void Update(FiniteElementSpace *nfes = NULL);
 
-   /// Return the FE space associated with the BilinearForm.
+   /// (DEPRECATED) Return the FE space associated with the BilinearForm.
+   /** @deprecated Use FESpace() instead. */
    FiniteElementSpace *GetFES() { return fes; }
+
+   /// Return the FE space associated with the BilinearForm.
+   FiniteElementSpace *FESpace() { return fes; }
+   /// Read-only access to the associated FiniteElementSpace.
+   const FiniteElementSpace *FESpace() const { return fes; }
 
    /// Destroys bilinear form.
    virtual ~BilinearForm();

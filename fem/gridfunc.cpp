@@ -13,6 +13,7 @@
 
 #include "gridfunc.hpp"
 #include "../mesh/nurbs.hpp"
+#include "../general/text.hpp"
 
 #include <limits>
 #include <cstring>
@@ -29,27 +30,28 @@ using namespace std;
 GridFunction::GridFunction(Mesh *m, std::istream &input)
    : Vector()
 {
-   const int bufflen = 256;
-   char buff[bufflen];
+   std::string buff;
    int vdim;
 
    input >> std::ws;
-   input.getline(buff, bufflen);  // 'FiniteElementSpace'
-   if (strcmp(buff, "FiniteElementSpace"))
+   getline(input, buff);  // 'FiniteElementSpace'
+   filter_dos(buff);
+   if (buff != "FiniteElementSpace")
    {
       mfem_error("GridFunction::GridFunction():"
                  " input stream is not a GridFunction!");
    }
-   input.getline(buff, bufflen, ' '); // 'FiniteElementCollection:'
+   getline(input, buff, ' '); // 'FiniteElementCollection:'
    input >> std::ws;
-   input.getline(buff, bufflen);
-   fec = FiniteElementCollection::New(buff);
-   input.getline(buff, bufflen, ' '); // 'VDim:'
+   getline(input, buff);
+   filter_dos(buff);
+   fec = FiniteElementCollection::New(buff.c_str());
+   getline(input, buff, ' '); // 'VDim:'
    input >> vdim;
-   input.getline(buff, bufflen, ' '); // 'Ordering:'
+   getline(input, buff, ' '); // 'Ordering:'
    int ordering;
    input >> ordering;
-   input.getline(buff, bufflen); // read the empty line
+   getline(input, buff); // read the empty line
    fes = new FiniteElementSpace(m, fec, vdim, ordering);
    Vector::Load(input, fes->GetVSize());
    sequence = 0;
@@ -2441,10 +2443,10 @@ void GridFunction::SaveSTL(std::ostream &out, int TimesToRefine)
       }
    }
 
-   cout << "[xmin,xmax] = [" << bbox[0][0] << ',' << bbox[0][1] << "]\n"
-        << "[ymin,ymax] = [" << bbox[1][0] << ',' << bbox[1][1] << "]\n"
-        << "[zmin,zmax] = [" << bbox[2][0] << ',' << bbox[2][1] << ']'
-        << endl;
+   mfem::out << "[xmin,xmax] = [" << bbox[0][0] << ',' << bbox[0][1] << "]\n"
+             << "[ymin,ymax] = [" << bbox[1][0] << ',' << bbox[1][1] << "]\n"
+             << "[zmin,zmax] = [" << bbox[2][0] << ',' << bbox[2][1] << ']'
+             << endl;
 
    out << "endsolid GridFunction" << endl;
 }
@@ -2679,8 +2681,8 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
    }
    else
    {
-      cerr << "Extrude1DGridFunction : unknown FE collection : "
-           << cname << endl;
+      mfem::err << "Extrude1DGridFunction : unknown FE collection : "
+                << cname << endl;
       return NULL;
    }
    FiniteElementSpace *solfes2d;
