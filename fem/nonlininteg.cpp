@@ -94,9 +94,9 @@ void BlockNonlinearFormIntegrator::AssembleFaceGrad(Array<const FiniteElement *>
               " is not overloaded!");
 }
 
-double GetElementEnergy(Array<const FiniteElement *>&el,
-                        ElementTransformation &Tr,
-                        Array<const Vector *>&elfun)
+double BlockNonlinearFormIntegrator::GetElementEnergy(Array<const FiniteElement *>&el,
+                                     ElementTransformation &Tr,
+                                     Array<const Vector *>&elfun)
 {
    mfem_error("BlockNonlinearFormIntegrator::GetElementEnergy"
               " is not overloaded!");
@@ -430,6 +430,228 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
 
       model->AssembleH(Jpt, DS, ip.weight * Ttr.Weight(), elmat);
    }
+}
+
+double IncompressibleNeoHookeanIntegrator::GetElementEnergy(
+   Array<const FiniteElement *>&el,
+   ElementTransformation &Tr,
+   Array<const Vector *>&elfun)
+{
+   if (el.Size() != 2)
+   {
+      mfem_error("IncompressibleNeoHookeanIntegrator::GetElementEnergy"
+                 " has incorrect block finite element space size!");
+   }
+
+   int dof_u = el[0]->GetDof();
+   int dim = el[0]->GetDim();
+
+   DSh_u.SetSize(dof_u, dim);
+   J0i.SetSize(dim);
+   J1.SetSize(dim);
+   J.SetSize(dim);
+   PMatI_u.UseExternalData(elfun[0]->GetData(), dof_u, dim);
+
+   int intorder = 2*el[0]->GetOrder() + 3; // <---
+   const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
+
+   double energy = 0.0;
+   double mu = 0.0;
+
+   for (int i = 0; i < ir.GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      Tr.SetIntPoint(&ip);
+      CalcInverse(Tr.Jacobian(), J0i);
+
+      el[0]->CalcDShape(ip, DSh_u);
+      MultAtB(PMatI_u, DSh_u, J1);
+      Mult(J1, J0i, J);
+
+      mu = c_mu->Eval(Tr, ip);
+
+      energy += ip.weight*Tr.Weight()*(mu/2.0)*(J*J - 3);
+   }
+
+   return energy;
+}
+
+
+void IncompressibleNeoHookeanIntegrator::AssembleElementVector(
+   Array<const FiniteElement *> &el,
+   ElementTransformation &Tr,
+   Array<Vector *> &elfun,
+   Array<Vector *> &elvec)
+{
+   if (el.Size() != 2)
+   {
+      mfem_error("IncompressibleNeoHookeanIntegrator::AssembleElementVector"
+                 " has finite element space of incorrect block number");
+   }
+
+   int dof_u = el[0]->GetDof();
+   int dof_p = el[1]->GetDof();
+
+   int dim = el[0]->GetDim();
+
+   DSh_u.SetSize(dof_u, dim);
+   DS_u.SetSize(dof_u, dim);
+   J0i.SetSize(dim);
+   F.SetSize(dim);
+   FinvT.SetSize(dim);
+   P.SetSize(dim);
+   PMatI_u.UseExternalData(elfun[0]->GetData(), dof_u, dim);
+   elvec[0]->SetSize(dof_u*dim);
+   PMatO_u.UseExternalData(elvec[0]->GetData(), dof_u, dim);
+
+   Sh_p.SetSize(dof_p);
+   elvec[1]->SetSize(dof_p);
+
+   int intorder = 2*el[0]->GetOrder() + 3; // <---
+   const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
+
+   *elvec[0] = 0.0;
+   *elvec[1] = 0.0;
+
+   for (int i = 0; i < ir.GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      Tr.SetIntPoint(&ip);
+      CalcInverse(Tr.Jacobian(), J0i);
+
+      el[0]->CalcDShape(ip, DSh_u);
+      Mult(DSh_u, J0i, DS_u);
+      MultAtB(PMatI_u, DS_u, F);
+
+      el[1]->CalcShape(ip, Sh_p);
+
+      double pres = Sh_p * *elfun[1];
+      double mu = c_mu->Eval(Tr, ip);
+      double dJ = F.Det();
+
+      CalcInverseTranspose(F, FinvT);
+
+      P = 0.0;
+      P.Add(mu * dJ, F);
+      P.Add(-1.0 * pres * dJ, FinvT);
+      P *= ip.weight*Tr.Weight();
+
+      AddMultABt(DS_u, P, PMatO_u);
+
+      elvec[1]->Add(ip.weight * Tr.Weight() * (dJ - 1.0), Sh_p);
+   }
+
+}
+
+void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
+   Array<const FiniteElement*> &el,
+   ElementTransformation &Tr,
+   Array<Vector *> &elfun,
+   Array2D<DenseMatrix *> &elmats)
+{
+   int dof_u = el[0]->GetDof();
+   int dof_p = el[1]->GetDof();
+
+   int dim = el[0]->GetDim();
+
+   elmats(0,0)->SetSize(dof_u*dim, dof_u*dim);
+   elmats(0,1)->SetSize(dof_u*dim, dof_p);
+   elmats(1,0)->SetSize(dof_p, dof_u*dim);
+   elmats(1,1)->SetSize(dof_p, dof_p);
+
+   *elmats(0,0) = 0.0;
+   *elmats(0,1) = 0.0;
+   *elmats(1,0) = 0.0;
+   *elmats(1,1) = 0.0;
+
+   DSh_u.SetSize(dof_u, dim);
+   DS_u.SetSize(dof_u, dim);
+   J0i.SetSize(dim);
+   F.SetSize(dim);
+   FinvT.SetSize(dim);
+   Finv.SetSize(dim);
+   P.SetSize(dim);
+   PMatI_u.UseExternalData(elfun[0]->GetData(), dof_u, dim);
+   Sh_p.SetSize(dof_p);
+
+   int intorder = 2*el[0]->GetOrder() + 3; // <---
+   const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
+
+   for (int i = 0; i < ir.GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      Tr.SetIntPoint(&ip);
+      CalcInverse(Tr.Jacobian(), J0i);
+
+      el[0]->CalcDShape(ip, DSh_u);
+      Mult(DSh_u, J0i, DS_u);
+      MultAtB(PMatI_u, DS_u, F);
+
+      el[1]->CalcShape(ip, Sh_p);
+      double pres = Sh_p * *elfun[1];
+      double mu = c_mu->Eval(Tr, ip);
+      double dJ = F.Det();
+
+      CalcInverseTranspose(F, FinvT);
+
+      // u,u block
+      for (int i_u = 0; i_u < dof_u; i_u++)
+      {
+         for (int i_dim = 0; i_dim < dim; i_dim++)
+         {
+            for (int j_u = 0; j_u < dof_u; j_u++)
+            {
+               for (int j_dim = 0; j_dim < dim; j_dim++)
+               {
+
+                  // m = j_dim;
+                  // k = i_dim;
+
+                  for (int n=0; n<dim; n++)
+                  {
+                     for (int l=0; l<dim; l++)
+                     {
+
+                        (*elmats(0,0))(i_u + i_dim*dof_u, j_u + j_dim*dof_u) += dJ * (mu * F(i_dim,
+                                                                                             l) - pres * FinvT(i_dim,l)) * FinvT(j_dim,n) * DS_u(i_u,l) * DS_u(j_u,
+                                                                                                   n) * ip.weight * Tr.Weight();
+
+                        if (j_dim == i_dim && n==l)
+                        {
+                           (*elmats(0,0))(i_u + i_dim*dof_u, j_u + j_dim*dof_u) += dJ * mu * DS_u(i_u,
+                                                                                                  l) * DS_u(j_u,n) * ip.weight * Tr.Weight();
+                        }
+
+                        // a = n;
+                        // b = m;
+                        (*elmats(0,0))(i_u + i_dim*dof_u, j_u + j_dim*dof_u) += dJ * pres * FinvT(i_dim,
+                                                                                                  n) * FinvT(j_dim,l) * DS_u(i_u,l) * DS_u(j_u,n) * ip.weight * Tr.Weight();
+                     }
+                  }
+               }
+            }
+         }
+      }
+
+      // u,p and p,u blocks
+      for (int i_p = 0; i_p < dof_p; i_p++)
+      {
+         for (int j_u = 0; j_u < dof_u; j_u++)
+         {
+            for (int dim_u = 0; dim_u < dim; dim_u++)
+            {
+               for (int l=0; l<dim; l++)
+               {
+                  (*elmats(1,0))(i_p, j_u + dof_u * dim_u) += dJ * FinvT(dim_u,l) * DS_u(j_u,
+                                                                                         l) * Sh_p(i_p) * ip.weight * Tr.Weight();
+                  (*elmats(0,1))(j_u + dof_u * dim_u, i_p) -= dJ * FinvT(dim_u,l) * DS_u(j_u,
+                                                                                         l) * Sh_p(i_p) * ip.weight * Tr.Weight();
+               }
+            }
+         }
+      }
+   }
+
 }
 
 }
