@@ -431,26 +431,45 @@ public:
     assumed that these vectors store the real part of the vector first
     followed by its imaginary part.
 
+    Operator allows one to choose a convention upon construction, which
+    facilitates symmetry.
+
     Matrix-vector products are then computed as:
 
+    1. When Convention::BLOCK_ANTISYMMETRIC is used (default)
     / y_r \   / Op_r -Op_i \ / x_r \
     |     | = |            | |     |
     \ y_i /   \ Op_i  Op_r / \ x_i /
+
+    2. When Convention::BLOCK_SYMMETRIC is used
+    / y_r \   / Op_r -Op_i \ / x_r \
+    |     | = |            | |     |
+    \-y_i /   \-Op_i -Op_r / \ x_i /
 
  */
 class ComplexOperator : public Operator
 {
 public:
+   enum Convention
+   {
+      BLOCK_ANTISYMMETRIC,   ///< Native convention leading to an anti-symmetric matrix
+      BLOCK_SYMMETRIC,       ///< Multiplies second row by -1 leading to real symmetrix matrix
+   };
+
    ComplexOperator(Operator * Op_Real, Operator * Op_Imag,
-                   bool ownReal, bool ownImag);
+                   bool ownReal, bool ownImag,
+                   Convention convention = BLOCK_ANTISYMMETRIC);
 
    virtual ~ComplexOperator();
 
    virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
+
+protected:
+   // Let this be hidden from the public interface since their
+   // implementation depends on internal members
    virtual void Mult(const Vector &x_r, const Vector &x_i,
                      Vector &y_r, Vector &y_i) const;
-
-   virtual void MultTranspose(const Vector &x, Vector &y) const;
    virtual void MultTranspose(const Vector &x_r, const Vector &x_i,
                               Vector &y_r, Vector &y_i) const;
 
@@ -460,6 +479,8 @@ protected:
 
    bool ownReal_;
    bool ownImag_;
+
+   Convention convention_;
 
    mutable Vector x_r_, x_i_, y_r_, y_i_;
    mutable Vector *u_, *v_;

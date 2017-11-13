@@ -3156,26 +3156,28 @@ ComplexSparseMatrix::GetSystemMatrix() const
    SparseMatrix * A_r = dynamic_cast<SparseMatrix*>(Op_Real_);
    SparseMatrix * A_i = dynamic_cast<SparseMatrix*>(Op_Imag_);
 
-   int  nrows_r = (A_r)?A_r->Height():0;
-   int  nrows_i = (A_i)?A_i->Height():0;
-   int    nrows = max(nrows_r, nrows_i);
+   const int  nrows_r = (A_r)?A_r->Height():0;
+   const int  nrows_i = (A_i)?A_i->Height():0;
+   const int    nrows = std::max(nrows_r, nrows_i);
 
-   int    * I_r = (A_r)?A_r->GetI():NULL;
-   int    * I_i = (A_i)?A_i->GetI():NULL;
+   const int    * I_r = (A_r)?A_r->GetI():NULL;
+   const int    * I_i = (A_i)?A_i->GetI():NULL;
 
-   int    * J_r = (A_r)?A_r->GetJ():NULL;
-   int    * J_i = (A_i)?A_i->GetJ():NULL;
+   const int    * J_r = (A_r)?A_r->GetJ():NULL;
+   const int    * J_i = (A_i)?A_i->GetJ():NULL;
 
-   double * D_r = (A_r)?A_r->GetData():NULL;
-   double * D_i = (A_i)?A_i->GetData():NULL;
+   const double * D_r = (A_r)?A_r->GetData():NULL;
+   const double * D_i = (A_i)?A_i->GetData():NULL;
 
-   int    nnz_r = (I_r)?I_r[nrows]:0;
-   int    nnz_i = (I_i)?I_i[nrows]:0;
-   int    nnz   = 2 * (nnz_r + nnz_i);
+   const int    nnz_r = (I_r)?I_r[nrows]:0;
+   const int    nnz_i = (I_i)?I_i[nrows]:0;
+   const int    nnz   = 2 * (nnz_r + nnz_i);
 
    int      * I = new int[this->Height()+1];
    int      * J = new int[nnz];
    double   * D = new double[nnz];
+
+   const double factor = (convention_ == BLOCK_ANTISYMMETRIC) ? 1.0 : -1.0;
 
    I[0] = 0;
    I[nrows] = nnz_r + nnz_i;
@@ -3186,26 +3188,26 @@ ComplexSparseMatrix::GetSystemMatrix() const
 
       if (I_r)
       {
-         int off_i = (I_i)?(I_i[i+1] - I_i[i]):0;
+         const int off_i = (I_i)?(I_i[i+1] - I_i[i]):0;
          for (int j=0; j<I_r[i+1] - I_r[i]; j++)
          {
             J[I[i] + j] = J_r[I_r[i] + j];
             D[I[i] + j] = D_r[I_r[i] + j];
 
             J[I[i+nrows] + off_i + j] = J_r[I_r[i] + j] + nrows;
-            D[I[i+nrows] + off_i + j] = D_r[I_r[i] + j];
+            D[I[i+nrows] + off_i + j] = factor*D_r[I_r[i] + j];
          }
       }
       if (I_i)
       {
-         int off_r = (I_r)?(I_r[i+1] - I_r[i]):0;
+         const int off_r = (I_r)?(I_r[i+1] - I_r[i]):0;
          for (int j=0; j<I_i[i+1] - I_i[i]; j++)
          {
             J[I[i] + off_r + j] =  J_i[I_i[i] + j] + nrows;
             D[I[i] + off_r + j] = -D_i[I_i[i] + j];
 
             J[I[i+nrows] + j] = J_i[I_i[i] + j];
-            D[I[i+nrows] + j] = D_i[I_i[i] + j];
+            D[I[i+nrows] + j] = factor*D_i[I_i[i] + j];
          }
       }
    }
