@@ -21,7 +21,7 @@ NOTMAC := $(subst Darwin,,$(shell uname -s))
 CXX = g++
 MPICXX = mpicxx
 
-OPTIM_FLAGS = -O3 
+OPTIM_FLAGS = -O3 -pg
 DEBUG_FLAGS = -g -Wall
 
 # Destination location of make install
@@ -119,7 +119,7 @@ LAPACK_LIB = $(if $(NOTMAC),-llapack -lblas,-framework Accelerate)
 
 # Eigen configuration
 EIGEN_DIR = @MFEM_DIR@/../eigen
-EIGEN_OPT = -I$(EIGEN_DIR) -std=c++11
+EIGEN_OPT = -I$(EIGEN_DIR) -std=c++11 -Wno-enum-compare
 EIGEN_LIB =
 
 # OpenMP configuration

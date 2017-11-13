@@ -79,8 +79,6 @@ public:
 int main(int argc, char *argv[])
 {
 
-   tic_toc.Clear();
-   tic_toc.Start();
    // 1. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../data/periodic-hexagon.mesh";
@@ -272,6 +270,9 @@ int main(int argc, char *argv[])
    adv.SetTime(t);
    ode_solver->Init(adv);
 
+   tic_toc.Clear();
+   tic_toc.Start();
+
    bool done = false;
    for (int ti = 0; !done; )
    {
@@ -299,6 +300,9 @@ int main(int argc, char *argv[])
       }
    }
 
+   tic_toc.Stop();
+   cout << " done, " << tic_toc.RealTime() << "s." << endl;
+
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
    {
@@ -306,9 +310,6 @@ int main(int argc, char *argv[])
       osol.precision(precision);
       u.Save(osol);
    }
-
-   tic_toc.Stop();
-   cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
    // 10. Free the used memory.
    delete ode_solver;
@@ -358,6 +359,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    K.Mult(x, z);
    z += b;
    M_solver.Mult(z, y);
+	// K.Mult(x, y);
 }
 
 

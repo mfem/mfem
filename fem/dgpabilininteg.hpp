@@ -85,6 +85,77 @@ public:
   }
 };
 
+/**
+*	A Mass Integrator using Partial Assembly based on Eigen Tensors.
+*  TODO: should be merged with legacy one
+*/
+template <int Dim, template<int,PAOp> class PAK>
+class EigenPAMassIntegrator : public BilinearFormIntegrator
+{
+protected:
+	// BtDB specifies which operation in the kernel we're using
+  	PAK<Dim,PAOp::BtDB> pak;
+
+public:
+	EigenPAMassIntegrator(FiniteElementSpace* fes, const int order)
+	: BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
+     pak(fes,order)
+	{
+		
+	   const int nelem   = fes->GetNE();
+	   const int quads   = IntRule->GetNPoints();
+	   int sizes[2] = {quads,nelem};
+	   pak.SetSizeD(sizes);
+
+	   for (int e = 0; e < fes->GetNE(); e++)
+	   {
+	      ElementTransformation *Tr = fes->GetElementTransformation(e);
+	      for (int k = 0; k < quads; k++)
+	      {
+	         const IntegrationPoint &ip = IntRule->IntPoint(k);
+	         Tr->SetIntPoint(&ip);
+	         double val = ip.weight * Tr->Weight();
+	         int ind[2] = {k,e};
+	         pak.SetValD(ind,val);
+	      }
+	   }
+	}
+
+	EigenPAMassIntegrator(FiniteElementSpace* fes, const int order, Coefficient& coeff)
+	: BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
+     pak(fes,order)
+	{
+		
+	   const int nelem   = fes->GetNE();
+	   const int quads   = IntRule->GetNPoints();
+	   int sizes[2] = {quads,nelem};
+	   pak.SetSizeD(sizes);
+
+	   for (int e = 0; e < fes->GetNE(); e++)
+	   {
+	      ElementTransformation *Tr = fes->GetElementTransformation(e);
+	      for (int k = 0; k < quads; k++)
+	      {
+	         const IntegrationPoint &ip = IntRule->IntPoint(k);
+	         Tr->SetIntPoint(&ip);
+	         const double weight = ip.weight * Tr->Weight();
+	         double val = coeff.Eval(*Tr, ip) * weight;
+	         int ind[2] = {k,e};
+	         pak.SetValD(ind,val);
+	      }
+	   }
+	}
+
+	virtual void AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
+	{
+		pak.Mult(fun,vect);
+	}
+};
+
+/**
+*	A Convection Integrator using Partial Assembly based on Eigen Tensors.
+*  TODO: should be merged with legacy one
+*/
 template <int Dim, template<int,PAOp> class PAK>
 class EigenPAConvectionIntegrator : public BilinearFormIntegrator
 {
@@ -272,8 +343,7 @@ public:
 			      val = eip2.weight * ( - a/2 * res - b * abs(res) );
 			      D12(ind) = val;
 		      }else{//Boundary face
-		        	val = eip1.weight * (   a * res + b * abs(res) );
-		        	D11(ind) = val;	      	
+		        	D11(ind) = 0;	      	
 		      }
 	      }
 	   }

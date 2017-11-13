@@ -237,10 +237,14 @@ void MultGtDG2(FiniteElementSpace* fes, DenseMatrix const& shape1d,
       const double *data_d = D.GetElmtData(e);
       for (int k = 0; k < quads; ++k)
       {
-         const double D00 = data_d[terms*k + 0];
-         const double D10 = data_d[terms*k + 1];
-         const double D01 = data_d[terms*k + 2];
-         const double D11 = data_d[terms*k + 3];
+         int ind1[] = {0,0,k,e};
+         const double D00 = D(ind0);
+         int ind1[] = {1,0,k,e};
+         const double D10 = D(ind1);
+         int ind1[] = {0,1,k,e};
+         const double D01 = D(ind2);
+         int ind1[] = {1,1,k,e};
+         const double D11 = D(ind3);
 
          const double q0 = data_qq[0*quads + k];
          const double q1 = data_qq[1*quads + k];
@@ -333,15 +337,24 @@ void MultGtDG3(FiniteElementSpace* fes, DenseMatrix const& shape1d,
       const double *data_d = D.GetElmtData(e);
       for (int k = 0; k < quads; ++k)
       {
-         const double D00 = data_d[terms*k + 0];
-         const double D10 = data_d[terms*k + 1];
-         const double D20 = data_d[terms*k + 2];
-         const double D01 = data_d[terms*k + 3];
-         const double D11 = data_d[terms*k + 4];
-         const double D21 = data_d[terms*k + 5];
-         const double D02 = data_d[terms*k + 6];
-         const double D12 = data_d[terms*k + 7];
-         const double D22 = data_d[terms*k + 8];
+         int ind1[] = {0,0,k,e};
+         const double D00 = D(ind0);
+         int ind1[] = {1,0,k,e};
+         const double D10 = D(ind1);
+         int ind1[] = {2,0,k,e};
+         const double D20 = D(ind2);
+         int ind1[] = {0,1,k,e};
+         const double D01 = D(ind3);
+         int ind1[] = {1,1,k,e};
+         const double D11 = D(ind4);
+         int ind1[] = {2,1,k,e};
+         const double D21 = D(ind5);
+         int ind1[] = {0,2,k,e};
+         const double D02 = D(ind6);
+         int ind1[] = {1,2,k,e};
+         const double D12 = D(ind7);
+         int ind1[] = {2,2,k,e};
+         const double D22 = D(ind8);
 
          const double q0 = data_qqq[0*quads + k];
          const double q1 = data_qqq[1*quads + k];
@@ -459,8 +472,8 @@ void MultBtDG2(FiniteElementSpace* fes, DenseMatrix const& shape1d,
       for (int k = 0; k < quads; ++k)
       {
          int ind0[] = {0,k,e};
-         int ind1[] = {1,k,e};
          const double D0 = D(ind0);
+         int ind1[] = {1,k,e};
          const double D1 = D(ind1);
 
          const double q0 = data_qq[0*quads + k];
@@ -548,23 +561,16 @@ void MultBtDG3(FiniteElementSpace* fes, DenseMatrix const& shape1d,
       const double *data_d = D.GetElmtData(e);
       for (int k = 0; k < quads; ++k)
       {
-         const double D00 = data_d[terms*k + 0];
-         const double D10 = data_d[terms*k + 1];
-         const double D20 = data_d[terms*k + 2];
-         const double D01 = data_d[terms*k + 3];
-         const double D11 = data_d[terms*k + 4];
-         const double D21 = data_d[terms*k + 5];
-         const double D02 = data_d[terms*k + 6];
-         const double D12 = data_d[terms*k + 7];
-         const double D22 = data_d[terms*k + 8];
+         int ind0[] = {0,k,e};
+         const double D0 = D(ind0);
+         int ind1[] = {1,k,e};
+         const double D1 = D(ind1);
+         int ind2[] = {2,k,e};
+         const double D2 = D(ind2);
 
          const double q0 = data_qqq[0*quads + k];
-         const double q1 = data_qqq[1*quads + k];
-         const double q2 = data_qqq[2*quads + k];
 
-         data_qqq[0*quads + k] = D00 * q0 + D01 * q1 + D02 * q2;
-         data_qqq[1*quads + k] = D10 * q0 + D11 * q1 + D12 * q2;
-         data_qqq[2*quads + k] = D20 * q0 + D21 * q1 + D22 * q2;
+         data_qqq[0*quads + k] = D0 * q0 + D1 * q1 + D2 * q2;
       }
 
       // Apply transpose of the first operator that takes V -> QQQd -- QQQd -> U
@@ -579,26 +585,19 @@ void MultBtDG3(FiniteElementSpace* fes, DenseMatrix const& shape1d,
                for (int i1 = 0; i1 < dofs1d; ++i1)
                {
                   Q(i1, 0) += QQQ0(k1, k2, k3) * shape1d(i1, k1);
-                  Q(i1, 1) += QQQ1(k1, k2, k3) * shape1d(i1, k1);
-                  Q(i1, 2) += QQQ2(k1, k2, k3) * shape1d(i1, k1);
                }
             }
             for (int i2 = 0; i2 < dofs1d; ++i2)
                for (int i1 = 0; i1 < dofs1d; ++i1)
                {
                   QQ(i1, i2, 0) += Q(i1, 0) * shape1d(i2, k2);
-                  QQ(i1, i2, 1) += Q(i1, 1) * shape1d(i2, k2);
-                  QQ(i1, i2, 2) += Q(i1, 2) * shape1d(i2, k2);
                }
          }
          for (int i3 = 0; i3 < dofs1d; ++i3)
             for (int i2 = 0; i2 < dofs1d; ++i2)
                for (int i1 = 0; i1 < dofs1d; ++i1)
                {
-                  Umat(i1, i2, i3) +=
-                     QQ(i1, i2, 0) * shape1d(i3, k3) +
-                     QQ(i1, i2, 1) * shape1d(i3, k3) +
-                     QQ(i1, i2, 2) * shape1d(i3, k3);
+                  Umat(i1, i2, i3) += QQ(i1, i2, 0) * shape1d(i3, k3);
                }
       }
 
@@ -747,15 +746,12 @@ void MultGtDB3(FiniteElementSpace* fes, DenseMatrix const& shape1d,
                for (int k1 = 0; k1 < quads1d; ++k1)
                {
                   Q(k1, 0) += Vmat(j1, j2, j3) * shape1d(j1, k1);
-                  Q(k1, 1) += Vmat(j1, j2, j3) * shape1d(j1, k1);
                }
             }
             for (int k2 = 0; k2 < quads1d; ++k2)
                for (int k1 = 0; k1 < quads1d; ++k1)
                {
                   QQ(k1, k2, 0) += Q(k1, 0) * shape1d(j2, k2);
-                  QQ(k1, k2, 1) += Q(k1, 1) * shape1d(j2, k2);
-                  QQ(k1, k2, 2) += Q(k1, 1) * shape1d(j2, k2);
                }
          }
          for (int k3 = 0; k3 < quads1d; ++k3)
@@ -763,8 +759,6 @@ void MultGtDB3(FiniteElementSpace* fes, DenseMatrix const& shape1d,
                for (int k1 = 0; k1 < quads1d; ++k1)
                {
                   QQQ0(k1, k2, k3) += QQ(k1, k2, 0) * shape1d(j3, k3);
-                  QQQ1(k1, k2, k3) += QQ(k1, k2, 1) * shape1d(j3, k3);
-                  QQQ2(k1, k2, k3) += QQ(k1, k2, 2) * shape1d(j3, k3);
                }
       }
 
@@ -774,23 +768,18 @@ void MultGtDB3(FiniteElementSpace* fes, DenseMatrix const& shape1d,
       const double *data_d = D.GetElmtData(e);
       for (int k = 0; k < quads; ++k)
       {
-         const double D00 = data_d[terms*k + 0];
-         const double D10 = data_d[terms*k + 1];
-         const double D20 = data_d[terms*k + 2];
-         const double D01 = data_d[terms*k + 3];
-         const double D11 = data_d[terms*k + 4];
-         const double D21 = data_d[terms*k + 5];
-         const double D02 = data_d[terms*k + 6];
-         const double D12 = data_d[terms*k + 7];
-         const double D22 = data_d[terms*k + 8];
+         int ind0[] = {0,k,e};
+         const double D0 = D(ind0);
+         int ind0[] = {1,k,e};
+         const double D1 = D(ind1);
+         int ind0[] = {2,k,e};
+         const double D2 = D(ind2);
 
          const double q0 = data_qqq[0*quads + k];
-         const double q1 = data_qqq[1*quads + k];
-         const double q2 = data_qqq[2*quads + k];
 
-         data_qqq[0*quads + k] = D00 * q0 + D01 * q1 + D02 * q2;
-         data_qqq[1*quads + k] = D10 * q0 + D11 * q1 + D12 * q2;
-         data_qqq[2*quads + k] = D20 * q0 + D21 * q1 + D22 * q2;
+         data_qqq[0*quads + k] = D0 * q0;
+         data_qqq[1*quads + k] = D1 * q0;
+         data_qqq[2*quads + k] = D2 * q0;
       }
 
       // Apply transpose of the first operator that takes V -> QQQd -- QQQd -> U
@@ -1102,6 +1091,7 @@ void MultBtDB2ext(int ind_trial, FiniteElementSpace* fes,
    DenseMatrix T0,T1,T2,T3,T4,R;
    int i,j,k,l;
    int *m,*n;
+   int ind;
    for(int face = 0; face < nb_faces; face++)
    {
       // We collect the indices of the two elements on
@@ -1164,15 +1154,29 @@ void MultBtDB2ext(int ind_trial, FiniteElementSpace* fes,
          // We perform T4 = B3 . T3
          h1 = B3.Height();// j1 | j2 | j3
          T4.SetSize(k2,h1);
-         for (j = 0; j < h1; j++){
-            for (i = 0; i < k2; i++){
-               T4(i,j) = 0;
-               for (l = 0; l < k1; l++){
-                  // Checks if quadrature points should be scaned backward
-                  int ind = backward(0,face) ? (k1-1) - l : l;
-                  //T4(i,j) += B3(l,j) * T3(l,i);//for later
-                  //Careful we assume that transpose isn't achieved
-                  T4(i,j) += B3(j,ind) * T3(l,i);
+         if (backward(0,face))
+         {
+            for (j = 0; j < h1; j++){
+               for (i = 0; i < k2; i++){
+                  T4(i,j) = 0;
+                  for (l = 0, ind = k1-1; l < k1; l++, ind--){
+                     // Checks if quadrature points should be scaned backward
+                     //T4(i,j) += B3(l,j) * T3(l,i);//for later
+                     //Careful we assume that transpose isn't achieved
+                     T4(i,j) += B3(j,ind) * T3(l,i);
+                  }
+               }
+            }  
+         }else{
+            for (j = 0; j < h1; j++){
+               for (i = 0; i < k2; i++){
+                  T4(i,j) = 0;
+                  for (l = 0; l < k1; l++){
+                     // Checks if quadrature points should be scaned backward
+                     //T4(i,j) += B3(l,j) * T3(l,i);//for later
+                     //Careful we assume that transpose isn't achieved
+                     T4(i,j) += B3(j,l) * T3(l,i);
+                  }
                }
             }
          }
@@ -1188,15 +1192,29 @@ void MultBtDB2ext(int ind_trial, FiniteElementSpace* fes,
             n  = &i;
             break;
          }
-         for (j = 0; j < j2; j++){
-            for (i = 0; i < j1; i++){
-               //R(i,j) = 0; //should be initialized by someone else
-               for (l = 0; l < k2; l++){
-                  // Checks if quadrature points should be scaned backward
-                  int ind = backward(1,face) ? (k2-1) - l : l;
-                  //R(i,j) += B4(l,*m) * T4(l,*n);//for later
-                  //Careful we assume that transpose isn't achieved
-                  R(i,j) += B4(*m,ind) * T4(l,*n);
+         if (backward(1,face))
+         {
+            for (j = 0; j < j2; j++){
+               for (i = 0; i < j1; i++){
+                  //R(i,j) = 0; //should be initialized by someone else
+                  for (l = 0, ind=k2-1; l < k2; l++, ind--){
+                     // Checks if quadrature points should be scaned backward
+                     //R(i,j) += B4(l,*m) * T4(l,*n);//for later
+                     //Careful we assume that transpose isn't achieved
+                     R(i,j) += B4(*m,ind) * T4(l,*n);
+                  }
+               }
+            }
+         }else{
+            for (j = 0; j < j2; j++){
+               for (i = 0; i < j1; i++){
+                  //R(i,j) = 0; //should be initialized by someone else
+                  for (l = 0; l < k2; l++){
+                     // Checks if quadrature points should be scaned backward
+                     //R(i,j) += B4(l,*m) * T4(l,*n);//for later
+                     //Careful we assume that transpose isn't achieved
+                     R(i,j) += B4(*m,l) * T4(l,*n);
+                  }
                }
             }
          }

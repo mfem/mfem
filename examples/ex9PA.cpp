@@ -63,6 +63,7 @@ Vector bb_min, bb_max;
 class FE_Evolution : public TimeDependentOperator
 {
 private:
+   //BilinearForm &M;
    SparseMatrix &M;
    BilinearForm &K;
    const Vector &b;
@@ -73,6 +74,7 @@ private:
    mutable Vector z;
 
 public:
+   //FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b);
    FE_Evolution(SparseMatrix &_M, BilinearForm &_K, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -84,8 +86,6 @@ public:
 int main(int argc, char *argv[])
 {
 
-   tic_toc.Clear();
-   tic_toc.Start();
    // 1. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../data/periodic-hexagon.mesh";
@@ -189,9 +189,11 @@ int main(int argc, char *argv[])
 
    //Creating a partial assembly Kernel
    //Maybe not the right place to initialize tensor size.
-   int ir_order = 2*order+1;
+   int ir_order = 2*order-1;
 
    //Initialization of the Mass operator
+   // BilinearFormOperator m(&fes);
+   // m.AddDomainIntegrator(new EigenPAMassIntegrator<2,EigenDomainPAK>(&fes,ir_order));
    BilinearForm m(&fes);
    m.AddDomainIntegrator(new MassIntegrator());
    m.Assemble();
@@ -283,11 +285,15 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
+   // FE_Evolution adv(m, k, b);
    FE_Evolution adv(m.SpMat(), k, b);
 
    double t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
+
+   tic_toc.Clear();
+   tic_toc.Start();
 
    bool done = false;
    for (int ti = 0; !done; )
@@ -337,11 +343,24 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
+// FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b)
+//    : TimeDependentOperator(_M.Size(), 0.0), M(_M), K(_K), b(_b), z(_M.Size())
+// {
+//    //TODO have to take into account the block diagonal structure of M
+//    //M_solver.SetPreconditioner(M_prec);
+//    M_solver.SetOperator(M);
+
+//    M_solver.iterative_mode = true;
+//    M_solver.SetRelTol(1e-9);
+//    M_solver.SetAbsTol(0.0);
+//    M_solver.SetMaxIter(100);
+//    M_solver.SetPrintLevel(0);
+// }
 FE_Evolution::FE_Evolution(SparseMatrix &_M, BilinearForm &_K, const Vector &_b)
    : TimeDependentOperator(_M.Size(), 0.0), M(_M), K(_K), b(_b), z(_M.Size())
 {
    //TODO have to take into account the block diagonal structure of M
-   //M_solver.SetPreconditioner(M_prec);
+   M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
 
    M_solver.iterative_mode = true;
@@ -376,6 +395,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    K.Mult(x, z);
    z += b;
    M_solver.Mult(z, y);
+   // K.Mult(x, y);
 }
 
 

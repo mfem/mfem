@@ -29,13 +29,12 @@
 namespace mfem
 {
 
-enum PAOp { BtDB, BtDG, GtDB, GtDG };
-
 /**
 * Gives the evaluation of the 1d basis functions and their derivative at one point @param x
 */
-static void ComputeBasis0d(const FiniteElement *fe, double x, DenseMatrix &shape0d,
-                              DenseMatrix &dshape0d)
+template <typename Tensor>
+static void ComputeBasis0d(const FiniteElement *fe, double x,
+                     Tensor& shape0d, Tensor& dshape0d)
 {
    const TensorBasisElement* tfe(dynamic_cast<const TensorBasisElement*>(fe));
    const Poly_1D::Basis &basis0d = tfe->GetBasis1D();
@@ -45,8 +44,8 @@ static void ComputeBasis0d(const FiniteElement *fe, double x, DenseMatrix &shape
 
    // We use Matrix and not Vector because we don't want shape0d and dshape0d to have
    // a different treatment than shape1d and dshape1d
-   shape0d.SetSize(dofs, quads0d);
-   dshape0d.SetSize(dofs, quads0d);
+   shape0d  = Tensor(dofs, quads0d);
+   dshape0d = Tensor(dofs, quads0d);
 
    Vector u(dofs);
    Vector d(dofs);
@@ -61,8 +60,9 @@ static void ComputeBasis0d(const FiniteElement *fe, double x, DenseMatrix &shape
 /**
 * Gives the evaluation of the 1d basis functions and their derivative at all quadrature points
 */
-static void ComputeBasis1d(const FiniteElement *fe, int order,
-                           DenseMatrix &shape1d, DenseMatrix &dshape1d, bool backward=false)
+template <typename Tensor>
+static void ComputeBasis1d(const FiniteElement *fe, int order, Tensor& shape1d,
+                           Tensor& dshape1d, bool backward=false)
 {
    const TensorBasisElement* tfe(dynamic_cast<const TensorBasisElement*>(fe));
    const Poly_1D::Basis &basis1d = tfe->GetBasis1D();
@@ -71,8 +71,8 @@ static void ComputeBasis1d(const FiniteElement *fe, int order,
    const int quads1d = ir1d.GetNPoints();
    const int dofs = fe->GetOrder() + 1;
 
-   shape1d.SetSize(dofs, quads1d);
-   dshape1d.SetSize(dofs, quads1d);
+   shape1d  = Tensor(dofs, quads1d);
+   dshape1d = Tensor(dofs, quads1d);
 
    Vector u(dofs);
    Vector d(dofs);
@@ -88,6 +88,16 @@ static void ComputeBasis1d(const FiniteElement *fe, int order,
       }
    }
 }
+
+
+/////////////////////////////////////////////////
+//                                             //
+//                                             //
+//                 DUMMY KERNEL                //
+//                                             //
+//                                             //
+/////////////////////////////////////////////////
+
 
 /**
 *  The Kernels for BtDB in 1d,2d and 3d.
@@ -147,6 +157,7 @@ public:
    {
       // Store the 1d shape functions and gradients
       ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
+      cout << "quads1d=" << shape1d.Width() << endl;
    }
 
    // Returns the tensor D
@@ -455,6 +466,18 @@ public:
    }
 };
 
+
+/////////////////////////////////////////////////
+//                                             //
+//                                             //
+//                 EIGEN KERNEL                //
+//                                             //
+//                                             //
+/////////////////////////////////////////////////
+
+
+enum PAOp { BtDB, BtDG, GtDB, GtDG };
+
 /**
 *  A shortcut for EigenOp type names
 */
@@ -482,21 +505,7 @@ public:
    : fes(_fes)
    {
       // Store the 1d shape functions and gradients
-      // TODO: template computeBasis1d so that no copy is needed or just overload......
-      DenseMatrix _shape1d, _dshape1d;
-      ComputeBasis1d(fes->GetFE(0), order, _shape1d, _dshape1d);
-      shape1d = Tensor2d(_shape1d.Height(),_shape1d.Width());
-      for (int i = 0; i < shape1d.dimension(0); ++i){
-         for (int j = 0; j < shape1d.dimension(1); ++j){
-            shape1d(i,j) = _shape1d(i,j);
-         }
-      }
-      dshape1d = Tensor2d(_dshape1d.Height(),_dshape1d.Width());
-      for (int i = 0; i < dshape1d.dimension(0); ++i){
-         for (int j = 0; j < dshape1d.dimension(1); ++j){
-            dshape1d(i,j) = _dshape1d(i,j);
-         }
-      }
+      ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
    }
 
    /**
@@ -593,14 +602,76 @@ public:
          auto T2 = T1.contract(shape1d, cont_ind);
          // T3 = D*T2
          array<int, 2> dims{{quads1d, quads1d}};
-         //auto T3 = D.chip(1,e).reshape(dims) * T2;
-         auto T3 = D.chip(1,e) * T2;
+         auto T3 = D.chip(e,1).reshape(dims) * T2;
          // T4 = Bt.T3
          cont_ind = { Eigen::IndexPair<int>(0, 1) };
          auto T4 = T3.contract(shape1d, cont_ind);
          // R = Bt.T4
          cont_ind = { Eigen::IndexPair<int>(0, 1) };
          R += T4.contract(shape1d, cont_ind);
+      }
+   }
+
+   /**
+   *  Sets the dimensions of the tensor D
+   */
+   static void SetSizeD(DTensor& D, int* sizes)
+   {
+      D = DTensor(sizes[0],sizes[1]);
+   }
+
+   /**
+   *  Sets the value at indice @a ind to @a val. @a ind is a raw integer array of size 2.
+   */
+   static void SetValD(DTensor& D, int* ind, double val)
+   {
+      D(ind[0],ind[1]) = val;
+   }
+
+};
+
+template <>
+class EigenMultBtDB<3>{
+public:
+   static const int tensor_dim = 2;
+   using Tensor2d = Eigen::Tensor<double,2>;
+   using DTensor = Eigen::Tensor<double,2>;
+
+   /**
+   * Computes V = B^T D B U where B is a tensor product of shape1d. 
+   */
+   static void eval(FiniteElementSpace* fes, Tensor2d const & shape1d, Tensor2d const& dshape1d,
+                        DTensor & D, const Vector &U, Vector &V)
+   {
+      const int dofs1d = shape1d.dimension(0);
+      const int dofs = dofs1d*dofs1d*dofs1d;
+      const int quads1d = shape1d.dimension(1);
+      //const int quads  = quads1d*quads1d;
+      array<Eigen::IndexPair<int>, 1> cont_ind;
+      for (int e = 0; e < fes->GetNE(); e++){
+         Eigen::TensorMap<Eigen::Tensor<double,3>> T0(U.GetData() + e*dofs, dofs1d, dofs1d, dofs1d);
+         Eigen::TensorMap<Eigen::Tensor<double,3>> R(V.GetData() + e*dofs, dofs1d, dofs1d, dofs1d);
+         // T1 = B.T0
+         cont_ind = { Eigen::IndexPair<int>(0, 0) };
+         auto T1 = T0.contract(shape1d, cont_ind);
+         // T2 = B.T1
+         cont_ind = { Eigen::IndexPair<int>(0, 0) };
+         auto T2 = T1.contract(shape1d, cont_ind);
+         // T3 = B.T2
+         cont_ind = { Eigen::IndexPair<int>(0, 0) };
+         auto T3 = T2.contract(shape1d, cont_ind);
+         // T4 = D*T3
+         array<int, 3> dims{{quads1d, quads1d, quads1d}};
+         auto T4 = D.chip(e,1).reshape(dims) * T3;
+         // T5 = Bt.T4
+         cont_ind = { Eigen::IndexPair<int>(0, 1) };
+         auto T5 = T4.contract(shape1d, cont_ind);
+         // T6 = Bt.T5
+         cont_ind = { Eigen::IndexPair<int>(0, 1) };
+         auto T6 = T5.contract(shape1d, cont_ind);
+         // R = Bt.T6
+         cont_ind = { Eigen::IndexPair<int>(0, 1) };
+         R += T6.contract(shape1d, cont_ind);
       }
    }
 
@@ -652,7 +723,7 @@ public:
          cont_ind = { Eigen::IndexPair<int>(0, 0) };
          auto T2 = T1.contract(shape1d, cont_ind);
          // T3 = D*T2
-         auto T3 = D.chip(e,2).chip(0,0).reshape(dims) * T2;
+         auto T3 = D.chip(e,2).chip(0,1).reshape(dims) * T2;
          // V = G B U
          // T1 = B.T0
          cont_ind = { Eigen::IndexPair<int>(0, 0) };
@@ -662,7 +733,7 @@ public:
          auto T2b = T1b.contract(dshape1d, cont_ind);
          // V = ( D_0 B G + D_1 G B ) U
          // T3 = D*T2
-         auto T3b = T3 + D.chip(e,2).chip(1,0).reshape(dims) * T2b;
+         auto T3b = T3 + D.chip(e,2).chip(1,1).reshape(dims) * T2b;
          // T4 = Bt.T3
          cont_ind = { Eigen::IndexPair<int>(0, 1) };
          auto T4 = T3b.contract(shape1d, cont_ind);
@@ -674,11 +745,58 @@ public:
    }
 
    /**
+   * Computes V = B^T D B U where B is a tensor product of shape1d. 
+   */
+   static void feval(FiniteElementSpace* fes, Tensor2d const & shape1d, Tensor2d const& dshape1d,
+                        DTensor & D, const Vector &U, Vector &V)
+   {
+      using Tensor3d = Eigen::Tensor<double,3>;
+      const int nb_e = fes->GetNE();
+      const int dofs1d = shape1d.dimension(0);
+      const int dofs = dofs1d*dofs1d;
+      const int quads1d = shape1d.dimension(1);
+      //const int quads  = quads1d*quads1d;
+      array<Eigen::IndexPair<int>, 1> cont_ind;
+      array<int, 3> dims{{quads1d, quads1d, nb_e}};
+      array<int, 3> new_order{{0, 2, 1}};
+      Eigen::TensorMap<Eigen::Tensor<double,3>> T0(U.GetData(), dofs1d, dofs1d, nb_e);
+      Eigen::TensorMap<Eigen::Tensor<double,3>> R(V.GetData(), dofs1d, dofs1d, nb_e);
+      // TODO swap T and B
+      // V = B G U
+      // T1 = G.T0
+      cont_ind = { Eigen::IndexPair<int>(0, 0) };
+      Tensor3d T1 = T0.contract(dshape1d, cont_ind).shuffle(new_order);
+      // T2 = B.T1
+      cont_ind = { Eigen::IndexPair<int>(0, 0) };
+      Tensor3d T2 = T1.contract(shape1d, cont_ind).shuffle(new_order);
+      // T3 = D*T2
+      Tensor3d T3 = D.chip(0,1).reshape(dims) * T2;
+      // V = G B U
+      // T1 = B.T0
+      cont_ind = { Eigen::IndexPair<int>(0, 0) };
+      Tensor3d T1b = T0.contract(shape1d, cont_ind).shuffle(new_order);
+      // T2 = G.T1
+      cont_ind = { Eigen::IndexPair<int>(0, 0) };
+      Tensor3d T2b = T1b.contract(dshape1d, cont_ind).shuffle(new_order);
+      // V = ( D_0 B G + D_1 G B ) U
+      // T3 = D*T2
+      Tensor3d T3b = T3 + D.chip(1,1).reshape(dims) * T2b;
+      // T4 = Bt.T3
+      cont_ind = { Eigen::IndexPair<int>(0, 1) };
+      Tensor3d T4 = T3b.contract(shape1d, cont_ind).shuffle(new_order);
+      // V = B B D ( B G + G B ) U
+      // R = Bt.T4
+      cont_ind = { Eigen::IndexPair<int>(0, 1) };
+      R += T4.contract(shape1d, cont_ind).shuffle(new_order);
+   }
+
+
+   /**
    *  Sets the dimensions of the tensor D
    */
    static void SetSizeD(DTensor& D, int* sizes)
    {
-      D = DTensor(sizes[0],sizes[1],sizes[2]);
+      D = DTensor(sizes[1],sizes[0],sizes[2]);
    }
 
    /**
@@ -686,7 +804,7 @@ public:
    */
    static void SetValD(DTensor& D, int* ind, double val)
    {
-      D(ind[0],ind[1],ind[2]) = val;
+      D(ind[1],ind[0],ind[2]) = val;
    }
 
 };
