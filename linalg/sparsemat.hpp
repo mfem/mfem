@@ -615,8 +615,9 @@ class ComplexSparseMatrix : public ComplexOperator
 {
 public:
    ComplexSparseMatrix(SparseMatrix * A_Real, SparseMatrix * A_Imag,
-                       bool ownReal, bool ownImag)
-      : ComplexOperator(A_Real, A_Imag, ownReal, ownImag)
+                       bool ownReal, bool ownImag,
+                       Convention convention = BLOCK_ANTISYMMETRIC)
+      : ComplexOperator(A_Real, A_Imag, ownReal, ownImag, convention)
    {}
 
    SparseMatrix * GetSystemMatrix() const;
