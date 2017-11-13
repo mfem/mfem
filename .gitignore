@@ -69,12 +69,12 @@ examples/ex16.mesh
 examples/ex16-mesh.*
 examples/ex16-init.*
 examples/ex16-final.*
-examples/deformation.*
-examples/pressure.*
 examples/vortex-mesh.*
 examples/vortex.mesh
 examples/vortex-?-init.*
 examples/vortex-?-final.*
+examples/deformation.*
+examples/pressure.*
 
 examples/sundials/ex9
 examples/sundials/ex1[06]

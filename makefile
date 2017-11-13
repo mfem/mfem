@@ -186,9 +186,24 @@ ifeq ($(MFEM_USE_OPENMP),YES)
    endif
 endif
 
+# List of MFEM dependencies, that require the *_LIB variable to be non-empty
+MFEM_REQ_LIB_DEPS = SUPERLU METIS SIDRE LAPACK SUNDIALS MESQUITE SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR
+PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
+
+define mfem_check_dependency
+ifeq ($$(MFEM_USE_$(1)),YES)
+   $$(if $$($(1)_LIB),,$$(error $(1)_LIB is empty$$($(1)_ERROR_MSG)))
+endif
+endef
+
+# During configuration, check dependencies from MFEM_REQ_LIB_DEPS
+ifeq ($(MAKECMDGOALS),config)
+   $(foreach dep,$(MFEM_REQ_LIB_DEPS),\
+      $(eval $(call mfem_check_dependency,$(dep))))
+endif
+
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = SUPERLU METIS LIBUNWIND SIDRE LAPACK OPENMP SUNDIALS MESQUITE\
- SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR
+MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP
 
 # Macro for adding dependencies
 define mfem_add_dependency
@@ -472,5 +487,15 @@ style:
 	fi
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
-print-%: ; @printf "%s:\n" $*
-	@printf "%s\n" $($*)
+print-%:
+	$(info [ variable name]: $*)
+	$(info [        origin]: $(origin $*))
+	$(info [         value]: $(value $*))
+	$(info [expanded value]: $($*))
+	$(info )
+	@true
+
+# Print the contents of all makefile variables.
+.PHONY: printall
+printall: $(foreach var,$(.VARIABLES),print-$(var))
+	@true
