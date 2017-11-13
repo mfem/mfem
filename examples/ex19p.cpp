@@ -13,10 +13,10 @@ protected:
    mutable Operator *Pressure_mass;
 
    /// Newton solver for the hyperelastic operator
-   //mutable HypreBoomerAMG *mass_prec;
-   mutable SuperLUSolver *mass_pcg;
-   //mutable HypreBoomerAMG *stiff_prec;
-   mutable SuperLUSolver *stiff_prec;
+
+   mutable Solver *mass_pcg;
+   mutable Solver *stiff_prec;
+   mutable Solver *mass_prec;
 
    Array<int> &block_trueOffsets;
    Array<Array<int> *> &ess_bdr;
@@ -307,25 +307,32 @@ JacobianPreconditioner::JacobianPreconditioner(Operator &mass,
    : Solver(offsets[2]), block_trueOffsets(offsets), Pressure_mass(&mass),
      ess_bdr(bdr)
 {
-   /*
-   mass_prec = new HypreBoomerAMG();
-   mass_prec->SetOperator(*Pressure_mass);
-   mass_prec->SetPrintLevel(0);
 
-   mass_pcg = new CGSolver();
-   mass_pcg->SetOperator(*Pressure_mass);
-   mass_pcg->SetRelTol(1e-12);
-   mass_pcg->SetAbsTol(1e-12);
-   mass_pcg->SetMaxIter(20000);
-   mass_pcg->SetPrintLevel(0);
-   mass_pcg->SetPreconditioner(*mass_prec);
-   */
+#ifdef MFEM_USE_SUPERLU
+   SuperLUSolver *mass_slu = new SuperLUSolver(MPI_COMM_WORLD);
+   mass_slu->SetPrintStatistics(false);
+   mass_slu->SetSymmetricPattern(false);
+   mass_slu->SetColumnPermutation(superlu::PARMETIS);
+   mass_slu->SetOperator(*Pressure_mass);
+   mass_pcg = mass_slu;
+#else
+   HypreBoomerAMG *mass_prec_amg = new HypreBoomerAMG();
+   mass_prec_amg->SetOperator(*Pressure_mass);
+   mass_prec_amg->SetPrintLevel(0);
 
-   mass_pcg = new SuperLUSolver(MPI_COMM_WORLD);
-   mass_pcg->SetPrintStatistics(false);
-   mass_pcg->SetSymmetricPattern(false);
-   mass_pcg->SetColumnPermutation(superlu::PARMETIS);
-   mass_pcg->SetOperator(*Pressure_mass);
+   mass_pcg_amg = new CGSolver();
+   mass_pcg_amg->SetOperator(*Pressure_mass);
+   mass_pcg_amg->SetRelTol(1e-12);
+   mass_pcg_amg->SetAbsTol(1e-12);
+   mass_pcg_amg->SetMaxIter(20000);
+   mass_pcg_amg->SetPrintLevel(0);
+   mass_pcg_amg->SetPreconditioner(*mass_prec_amg);
+
+   mass_pcg = mass_pcg_amg;
+   mass_prec = mass_prec_amg;
+
+#endif
+
 }
 
 
@@ -361,19 +368,30 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
 
    Jacobian = (BlockOperator *) &op;
 
-   stiff_prec = new SuperLUSolver(MPI_COMM_WORLD);
-   stiff_prec->SetPrintStatistics(false);
-   stiff_prec->SetSymmetricPattern(false);
-   stiff_prec->SetColumnPermutation(superlu::PARMETIS);
-   stiff_prec->SetOperator(Jacobian->GetBlock(0,0));
+#ifdef MFEM_USE_SUPERLU
+   SuperLUSolver *stiff_prec_slu = new SuperLUSolver(MPI_COMM_WORLD);
+   stiff_prec_slu->SetPrintStatistics(false);
+   stiff_prec_slu->SetSymmetricPattern(false);
+   stiff_prec_slu->SetColumnPermutation(superlu::PARMETIS);
+   stiff_prec_slu->SetOperator(Jacobian->GetBlock(0,0));
+   
+   stiff_prec = stiff_prec_slu;
 
+#else
+   HypreBoomerAMG *stiff_prec_amg = new HypreBoomerAMG();
+   stiff_prec_amg->SetOperator(Jacobian->GetBlock(0,0));
+   stiff_prec_amg->SetPrintLevel(0);
+
+   stiff_prec = stiff_prec_amg;
+
+#endif
 
 }
 
 JacobianPreconditioner::~JacobianPreconditioner()
 {
    delete mass_pcg;
-   //delete mass_prec;
+   delete mass_prec;
    delete stiff_prec;
 }
 
