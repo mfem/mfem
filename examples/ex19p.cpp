@@ -320,7 +320,7 @@ JacobianPreconditioner::JacobianPreconditioner(Operator &mass,
    mass_prec_amg->SetOperator(*Pressure_mass);
    mass_prec_amg->SetPrintLevel(0);
 
-   mass_pcg_amg = new CGSolver();
+   CGSolver *mass_pcg_amg = new CGSolver();
    mass_pcg_amg->SetOperator(*Pressure_mass);
    mass_pcg_amg->SetRelTol(1e-12);
    mass_pcg_amg->SetAbsTol(1e-12);
