@@ -56,47 +56,52 @@ double NonlinearFormIntegrator::GetElementEnergy(
    return 0.0;
 }
 
-void BlockNonlinearFormIntegrator::AssembleElementVector(Array<const FiniteElement *> &el,
-                                                         ElementTransformation &Tr,
-                                                         Array<Vector *> &elfun,
-                                                         Array<Vector *> &elvec)
+void BlockNonlinearFormIntegrator::AssembleElementVector(
+   Array<const FiniteElement *> &el,
+   ElementTransformation &Tr,
+   Array<Vector *> &elfun,
+   Array<Vector *> &elvec)
 {
    mfem_error("BlockNonlinearFormIntegrator::AssembleElementVector"
               " is not overloaded!");
 }
 
-void BlockNonlinearFormIntegrator::AssembleFaceVector(Array<const FiniteElement *> &el1,
-                                                      Array<const FiniteElement *> &el2,
-                                                      FaceElementTransformations &Tr,
-                                                      Array<Vector *> &elfun, 
-                                                      Array<Vector *> &elvect)
+void BlockNonlinearFormIntegrator::AssembleFaceVector(
+   Array<const FiniteElement *> &el1,
+   Array<const FiniteElement *> &el2,
+   FaceElementTransformations &Tr,
+   Array<Vector *> &elfun,
+   Array<Vector *> &elvect)
 {
    mfem_error("BlockNonlinearFormIntegrator::AssembleFaceVector"
               " is not overloaded!");
 }
 
-void BlockNonlinearFormIntegrator::AssembleElementGrad(Array<const FiniteElement*> &el,
-                                                       ElementTransformation &Tr,
-                                                       Array<Vector *> &elfun,
-                                                       Array2D<DenseMatrix *> &elmats)   
+void BlockNonlinearFormIntegrator::AssembleElementGrad(
+   Array<const FiniteElement*> &el,
+   ElementTransformation &Tr,
+   Array<Vector *> &elfun,
+   Array2D<DenseMatrix *> &elmats)
 {
    mfem_error("BlockNonlinearFormIntegrator::AssembleElementGrad"
               " is not overloaded!");
 }
 
-void BlockNonlinearFormIntegrator::AssembleFaceGrad(Array<const FiniteElement *>&el1,
-                                                    Array<const FiniteElement *>&el2,
-                                                    FaceElementTransformations &Tr,
-                                                    Array<Vector *> &elfun, 
-                                                    Array2D<DenseMatrix *> &elmats)
+void BlockNonlinearFormIntegrator::AssembleFaceGrad(
+   Array<const FiniteElement *>&el1,
+   Array<const FiniteElement *>&el2,
+   FaceElementTransformations &Tr,
+   Array<Vector *> &elfun,
+   Array2D<DenseMatrix *> &elmats)
 {
    mfem_error("BlockNonlinearFormIntegrator::AssembleFaceGrad"
               " is not overloaded!");
 }
 
-double BlockNonlinearFormIntegrator::GetElementEnergy(Array<const FiniteElement *>&el,
-                                     ElementTransformation &Tr,
-                                     Array<const Vector *>&elfun)
+double BlockNonlinearFormIntegrator::GetElementEnergy(
+   Array<const FiniteElement *>&el,
+   ElementTransformation &Tr,
+   Array<const Vector *>&elfun)
 {
    mfem_error("BlockNonlinearFormIntegrator::GetElementEnergy"
               " is not overloaded!");

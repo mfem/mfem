@@ -473,7 +473,7 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
          for (int k = 0; k < dnfi.Size(); k++)
          {
             dnfi[k]->AssembleElementVector(fe, *T,
-                                          el_x, el_y);
+                                           el_x, el_y);
 
             for (int s=0; s<fes.Size(); s++)
             {
@@ -729,7 +729,7 @@ Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
 
          tr = mesh->GetBdrFaceTransformations(i);
          if (tr != NULL)
-         {            
+         {
             for (int s = 0; s < fes.Size(); s++)
             {
                fe[s] = fes[s]->GetFE(tr->Elem1No);
