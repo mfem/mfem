@@ -22,8 +22,9 @@ protected:
    Array<Array<int> *> &ess_bdr;
 
 public:
-   JacobianPreconditioner(Operator &mass, Array<int> &offsets, Array<Array<int> *> &bdr);
-   
+   JacobianPreconditioner(Operator &mass, Array<int> &offsets,
+                          Array<Array<int> *> &bdr);
+
    virtual void Mult(const Vector &k, Vector &y) const;
    virtual void SetOperator(const Operator &op);
 
@@ -303,7 +304,8 @@ int main(int argc, char *argv[])
 JacobianPreconditioner::JacobianPreconditioner(Operator &mass,
                                                Array<int> &offsets,
                                                Array<Array<int> *> &bdr)
-   : Solver(offsets[2]), block_trueOffsets(offsets), Pressure_mass(&mass), ess_bdr(bdr)
+   : Solver(offsets[2]), block_trueOffsets(offsets), Pressure_mass(&mass),
+     ess_bdr(bdr)
 {
    /*
    mass_prec = new HypreBoomerAMG();
@@ -326,16 +328,20 @@ JacobianPreconditioner::JacobianPreconditioner(Operator &mass,
    mass_pcg->SetOperator(*Pressure_mass);
 }
 
- 
+
 void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
 {
 
-   Vector disp_in(k.GetData() + block_trueOffsets[0], block_trueOffsets[1]-block_trueOffsets[0]);
-   Vector pres_in(k.GetData() + block_trueOffsets[1], block_trueOffsets[2]-block_trueOffsets[1]);
+   Vector disp_in(k.GetData() + block_trueOffsets[0],
+                  block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector pres_in(k.GetData() + block_trueOffsets[1],
+                  block_trueOffsets[2]-block_trueOffsets[1]);
 
-   Vector disp_out(y.GetData() + block_trueOffsets[0], block_trueOffsets[1]-block_trueOffsets[0]);
-   Vector pres_out(y.GetData() + block_trueOffsets[1], block_trueOffsets[2]-block_trueOffsets[1]);
-   
+   Vector disp_out(y.GetData() + block_trueOffsets[0],
+                   block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector pres_out(y.GetData() + block_trueOffsets[1],
+                   block_trueOffsets[2]-block_trueOffsets[1]);
+
    Vector temp(block_trueOffsets[1]-block_trueOffsets[0]);
    Vector temp2(block_trueOffsets[1]-block_trueOffsets[0]);
 
@@ -354,13 +360,13 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
 {
 
    Jacobian = (BlockOperator *) &op;
-   
+
    stiff_prec = new SuperLUSolver(MPI_COMM_WORLD);
    stiff_prec->SetPrintStatistics(false);
    stiff_prec->SetSymmetricPattern(false);
    stiff_prec->SetColumnPermutation(superlu::PARMETIS);
    stiff_prec->SetOperator(Jacobian->GetBlock(0,0));
-   
+
 
 }
 
@@ -407,7 +413,8 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    mass.SetOperatorOwner(false);
    Pressure_mass = mass.Ptr();
 
-   JacobianPreconditioner *Jac_prec = new JacobianPreconditioner(*Pressure_mass, block_trueOffsets, ess_bdr);
+   JacobianPreconditioner *Jac_prec = new JacobianPreconditioner(*Pressure_mass,
+                                                                 block_trueOffsets, ess_bdr);
    J_prec = Jac_prec;
 
    MINRESSolver *J_minres = new MINRESSolver(spaces[0]->GetComm());

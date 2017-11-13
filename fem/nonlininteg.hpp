@@ -88,7 +88,7 @@ public:
    virtual void AssembleFaceVector(Array<const FiniteElement *> &el1,
                                    Array<const FiniteElement *> &el2,
                                    FaceElementTransformations &Tr,
-                                   Array<Vector *> &elfun, 
+                                   Array<Vector *> &elfun,
                                    Array<Vector *> &elvect);
 
    /// Assemble the local gradient matrix
@@ -100,7 +100,7 @@ public:
    virtual void AssembleFaceGrad(Array<const FiniteElement *>&el1,
                                  Array<const FiniteElement *>&el2,
                                  FaceElementTransformations &Tr,
-                                 Array<Vector *> &elfun, 
+                                 Array<Vector *> &elfun,
                                  Array2D<DenseMatrix *> &elmats);
 
    virtual ~BlockNonlinearFormIntegrator() { }
