@@ -610,6 +610,8 @@ template<> inline void Swap<SparseMatrix>(SparseMatrix &a, SparseMatrix &b)
     that the ComplexOperator mimics.  The resulting SparseMatrix can
     then be passed along to solvers which require access to the CSR
     matrix data such as SuperLU, STRUMPACK, or similar sparse solvers.
+
+    See ComplexOperator documentation in operator.hpp for more information.
  */
 class ComplexSparseMatrix : public ComplexOperator
 {
