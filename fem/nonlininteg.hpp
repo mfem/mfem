@@ -248,8 +248,6 @@ public:
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &Ttr,
                                     const Vector &elfun, DenseMatrix &elmat);
-
-   virtual ~HyperelasticNLFIntegrator();
 };
 
 class IncompressibleNeoHookeanIntegrator : public BlockNonlinearFormIntegrator
@@ -278,7 +276,6 @@ public:
                                     ElementTransformation &Tr,
                                     Array<Vector *> &elfun,
                                     Array2D<DenseMatrix *> &elmats);
-   virtual ~IncompressibleNeoHookeanIntegrator() { };
 };
 
 }
