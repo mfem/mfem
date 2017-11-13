@@ -259,8 +259,7 @@ private:
    Vector Sh_p;
 
 public:
-   IncompressibleNeoHookeanIntegrator(Coefficient &_mu)
-      : c_mu(&_mu) {};
+   IncompressibleNeoHookeanIntegrator(Coefficient &_mu) : c_mu(&_mu) { }
 
    virtual double GetElementEnergy(Array<const FiniteElement *>&el,
                                    ElementTransformation &Tr,
