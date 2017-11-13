@@ -431,8 +431,8 @@ public:
     assumed that these vectors store the real part of the vector first
     followed by its imaginary part.
 
-    Operator allows one to choose a convention upon construction, which
-    facilitates symmetry.
+    ComplexOperator allows one to choose a convention upon
+    construction, which facilitates symmetry.
 
     Matrix-vector products are then computed as:
 
@@ -446,14 +446,27 @@ public:
     |     | = |            | |     |
     \-y_i /   \-Op_i -Op_r / \ x_i /
 
+    Either convention can be used with a given complex operator,
+    however, each of them is best suited for certain classes of
+    problems.  For example:
+
+    1. Convention::BLOCK_ANTISYMMETRIC, is well suited for Hermitian
+    operators, i.e. operators where the real part is symmetric and the
+    imaginary part of the operator is anti-symmetric, hence the name.
+    In such cases the resulting 2x2 operator will be symmetric.
+
+    2. Convention::BLOCK_SYMMETRIC, is well suited for operators where
+    both the real and imaginary parts are symmetric.  In this case the
+    resulting 2x2 operator will again be symmetric.  Such operators
+    are common when studying damped oscillations, for example.
  */
 class ComplexOperator : public Operator
 {
 public:
    enum Convention
    {
-      BLOCK_ANTISYMMETRIC,   ///< Native convention leading to an anti-symmetric matrix
-      BLOCK_SYMMETRIC,       ///< Multiplies second row by -1 leading to real symmetrix matrix
+      BLOCK_ANTISYMMETRIC,  ///< Native convention for Hermitian opertators
+      BLOCK_SYMMETRIC       ///< Alternate convention for damping operators
    };
 
    ComplexOperator(Operator * Op_Real, Operator * Op_Imag,
