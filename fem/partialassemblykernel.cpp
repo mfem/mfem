@@ -237,14 +237,14 @@ void MultGtDG2(FiniteElementSpace* fes, DenseMatrix const& shape1d,
       const double *data_d = D.GetElmtData(e);
       for (int k = 0; k < quads; ++k)
       {
-         int ind1[] = {0,0,k,e};
-         const double D00 = D(ind0);
-         int ind1[] = {1,0,k,e};
-         const double D10 = D(ind1);
-         int ind1[] = {0,1,k,e};
-         const double D01 = D(ind2);
-         int ind1[] = {1,1,k,e};
-         const double D11 = D(ind3);
+         int ind00[] = {0,0,k,e};
+         const double D00 = D(ind00);
+         int ind10[] = {1,0,k,e};
+         const double D10 = D(ind10);
+         int ind01[] = {0,1,k,e};
+         const double D01 = D(ind01);
+         int ind11[] = {1,1,k,e};
+         const double D11 = D(ind11);
 
          const double q0 = data_qq[0*quads + k];
          const double q1 = data_qq[1*quads + k];
@@ -337,24 +337,24 @@ void MultGtDG3(FiniteElementSpace* fes, DenseMatrix const& shape1d,
       const double *data_d = D.GetElmtData(e);
       for (int k = 0; k < quads; ++k)
       {
-         int ind1[] = {0,0,k,e};
-         const double D00 = D(ind0);
-         int ind1[] = {1,0,k,e};
-         const double D10 = D(ind1);
-         int ind1[] = {2,0,k,e};
-         const double D20 = D(ind2);
-         int ind1[] = {0,1,k,e};
-         const double D01 = D(ind3);
-         int ind1[] = {1,1,k,e};
-         const double D11 = D(ind4);
-         int ind1[] = {2,1,k,e};
-         const double D21 = D(ind5);
-         int ind1[] = {0,2,k,e};
-         const double D02 = D(ind6);
-         int ind1[] = {1,2,k,e};
-         const double D12 = D(ind7);
-         int ind1[] = {2,2,k,e};
-         const double D22 = D(ind8);
+         int ind00[] = {0,0,k,e};
+         const double D00 = D(ind00);
+         int ind10[] = {1,0,k,e};
+         const double D10 = D(ind10);
+         int ind20[] = {2,0,k,e};
+         const double D20 = D(ind20);
+         int ind01[] = {0,1,k,e};
+         const double D01 = D(ind01);
+         int ind11[] = {1,1,k,e};
+         const double D11 = D(ind11);
+         int ind21[] = {2,1,k,e};
+         const double D21 = D(ind21);
+         int ind02[] = {0,2,k,e};
+         const double D02 = D(ind02);
+         int ind12[] = {1,2,k,e};
+         const double D12 = D(ind12);
+         int ind22[] = {2,2,k,e};
+         const double D22 = D(ind22);
 
          const double q0 = data_qqq[0*quads + k];
          const double q1 = data_qqq[1*quads + k];
@@ -569,6 +569,8 @@ void MultBtDG3(FiniteElementSpace* fes, DenseMatrix const& shape1d,
          const double D2 = D(ind2);
 
          const double q0 = data_qqq[0*quads + k];
+         const double q1 = data_qqq[1*quads + k];
+         const double q2 = data_qqq[2*quads + k];
 
          data_qqq[0*quads + k] = D0 * q0 + D1 * q1 + D2 * q2;
       }
@@ -675,11 +677,11 @@ void MultGtDB2(FiniteElementSpace* fes, DenseMatrix const& shape1d,
       //const double *data_d = D.GetElmtData(e);
       for (int k = 0; k < quads; ++k)
       {
-         int ind0[] = {0,k,e};
-         int ind1[] = {1,k,e};
          // const double D0 = data_d[terms*k + 0];
          // const double D1 = data_d[terms*k + 1];
+         int ind0[] = {0,k,e};
          const double D0 = D(ind0);
+         int ind1[] = {1,k,e};
          const double D1 = D(ind1);
          const double q = data_qq[0*quads + k];
 
@@ -770,9 +772,9 @@ void MultGtDB3(FiniteElementSpace* fes, DenseMatrix const& shape1d,
       {
          int ind0[] = {0,k,e};
          const double D0 = D(ind0);
-         int ind0[] = {1,k,e};
+         int ind1[] = {1,k,e};
          const double D1 = D(ind1);
-         int ind0[] = {2,k,e};
+         int ind2[] = {2,k,e};
          const double D2 = D(ind2);
 
          const double q0 = data_qqq[0*quads + k];
