@@ -42,8 +42,8 @@ doc/CodeDocumentation
 
 examples/ex[1-9]
 examples/ex[1-9]p
-examples/ex1[04-8]
-examples/ex1[0-8]p
+examples/ex1[04-9]
+examples/ex1[0-9]p
 
 examples/refined.mesh
 examples/displaced.mesh
