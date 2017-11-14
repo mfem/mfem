@@ -50,8 +50,10 @@ protected:
 
    /// Newton solver for the hyperelastic operator
    NewtonSolver newton_solver;
+
    /// Solver for the Jacobian solve in the Newton method
    Solver *J_solver;
+   Solver *J_solver_direct;
    /// Preconditioner for the Jacobian
    Solver *J_prec;
 
@@ -310,7 +312,7 @@ JacobianPreconditioner::JacobianPreconditioner(Operator &mass,
      ess_bdr(bdr)
 {
 
-   gamma = .0001;
+   gamma = .00001;
 
 #ifdef MFEM_USE_SUPERLU
    SuperLUSolver *mass_slu = new SuperLUSolver(MPI_COMM_WORLD);
@@ -425,6 +427,7 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    // Set the essential boundary conditions
    Hform->SetEssentialBC(ess_bdr, rhs);
 
+   
    ParBilinearForm *a = new ParBilinearForm(spaces[1]);
    ConstantCoefficient one(1.0);
    OperatorHandle mass(Operator::Hypre_ParCSR);
@@ -439,14 +442,14 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
                                                                  block_trueOffsets, ess_bdr);
    J_prec = Jac_prec;
 
-   MINRESSolver *J_minres = new MINRESSolver(spaces[0]->GetComm());
-   J_minres->SetRelTol(1.0e-14);
-   J_minres->SetAbsTol(1.0e-14);
-   J_minres->SetMaxIter(3000000);
-   J_minres->SetPrintLevel(1);
-   J_minres->SetPreconditioner(*J_prec);
-   J_solver = J_minres;
-
+   GMRESSolver *J_gmres = new GMRESSolver(spaces[0]->GetComm());
+   J_gmres->SetRelTol(1.0e-12);
+   J_gmres->SetAbsTol(0.0);
+   J_gmres->SetMaxIter(3000);
+   J_gmres->SetPrintLevel(0);
+   J_gmres->SetPreconditioner(*J_prec);
+   J_solver = J_gmres;
+   
    // Set the newton solve parameters
    newton_solver.iterative_mode = true;
    newton_solver.SetSolver(*J_solver);
