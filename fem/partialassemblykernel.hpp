@@ -89,18 +89,79 @@ static void ComputeBasis1d(const FiniteElement *fe, int order, Tensor& shape1d,
    }
 }
 
+/**
+*  The different operators implemented
+*/
+enum PAOp { BtDB, BtDG, GtDB, GtDG };
 
 /////////////////////////////////////////////////
 //                                             //
 //                                             //
-//                 DUMMY KERNEL                //
+//            DUMMY DOMAIN KERNEL              //
 //                                             //
 //                                             //
 /////////////////////////////////////////////////
-
 
 /**
-*  The Kernels for BtDB in 1d,2d and 3d.
+*  A shortcut for DummyOp type names
+*/
+template <PAOp OpName>
+class DummyDomainPAK;
+
+/**
+*  A dummy partial assembly kernel class for domain integrals
+*/
+template <PAOp OpName, template<PAOp> class IMPL = DummyDomainPAK >
+class PADomainIntegrator
+{
+public:
+   typedef typename IMPL<OpName>::Op Op;
+   typedef typename Op::DTensor DTensor;
+   typedef typename Op::Tensor2d Tensor2d;
+
+protected:
+   FiniteElementSpace *fes;
+   int dim;
+   Tensor2d shape1d, dshape1d;
+   DTensor D;
+
+public:
+
+   PADomainIntegrator(FiniteElementSpace *_fes, int order, int tensor_dim)
+   : fes(_fes), dim(fes->GetFE(0)->GetDim()), D(tensor_dim)
+   {
+      // Store the 1d shape functions and gradients
+      ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
+   }
+
+   /**
+   *  Sets the dimensions of the tensor D
+   */
+   void SetSizeD(int* sizes)
+   {
+      Op::SetSizeD(D, sizes);
+   }
+
+   /**
+   *  Sets the value at indice @a ind to @a val. @a ind is a raw integer array of size 2.
+   */
+   void SetValD(int* ind, double val)
+   {
+      Op::SetValD(D, ind, val);
+   }
+
+   /**
+   *  Applies the partial assembly operator
+   */
+   void Mult(const Vector& U, Vector& V)
+   {
+      Op::eval(fes, shape1d, dshape1d, D, U, V);
+   }
+
+};
+
+/**
+*  The Dummy Kernels for BtDB in 1d,2d and 3d.
 */
 void MultBtDB1(FiniteElementSpace* fes, DenseMatrix const & shape1d,
    DummyTensor & D, const Vector &V, Vector &U);
@@ -109,7 +170,7 @@ void MultBtDB2(FiniteElementSpace* fes, DenseMatrix const & shape1d,
 void MultBtDB3(FiniteElementSpace* fes, DenseMatrix const & shape1d,
    DummyTensor & D, const Vector &V, Vector &U);
 /**
-*  The Kernels for GtDG in 1d,2d and 3d.
+*  The Dummy Kernels for GtDG in 1d,2d and 3d.
 */
 void MultGtDG1(FiniteElementSpace* fes, DenseMatrix const& shape1d,
    DenseMatrix const& dshape1d, DummyTensor & D, const Vector &V, Vector &U);
@@ -118,7 +179,7 @@ void MultGtDG2(FiniteElementSpace* fes, DenseMatrix const& shape1d,
 void MultGtDG3(FiniteElementSpace* fes, DenseMatrix const& shape1d,
    DenseMatrix const& dshape1d, DummyTensor & D, const Vector &V, Vector &U);
 /**
-*  The Kernels for BtDG in 1d,2d and 3d.
+*  The Dummy Kernels for BtDG in 1d,2d and 3d.
 */
 void MultBtDG1(FiniteElementSpace* fes, DenseMatrix const& shape1d,
    DenseMatrix const& dshape1d, DummyTensor & D, const Vector &V, Vector &U);
@@ -127,7 +188,7 @@ void MultBtDG2(FiniteElementSpace* fes, DenseMatrix const& shape1d,
 void MultBtDG3(FiniteElementSpace* fes, DenseMatrix const& shape1d,
    DenseMatrix const& dshape1d, DummyTensor & D, const Vector &V, Vector &U);
 /**
-*  The Kernels for GtDB in 1d,2d and 3d.
+*  The Dummy Kernels for GtDB in 1d,2d and 3d.
 */
 void MultGtDB1(FiniteElementSpace* fes, DenseMatrix const& shape1d,
    DenseMatrix const& dshape1d, DummyTensor & D, const Vector &V, Vector &U);
@@ -136,54 +197,19 @@ void MultGtDB2(FiniteElementSpace* fes, DenseMatrix const& shape1d,
 void MultGtDB3(FiniteElementSpace* fes, DenseMatrix const& shape1d,
    DenseMatrix const& dshape1d, DummyTensor & D, const Vector &V, Vector &U);
 
-/**
-*  A dummy partial assembly kernel class for domain integrals
-*/
-class DummyDomainPAK
+class DummyMultBtDB
 {
 public:
-   typedef DummyTensor Tensor;
-
-protected:
-   FiniteElementSpace *fes;
-   int dim;
-   DenseMatrix shape1d, dshape1d;
-   Tensor D;
-
-public:
-
-   DummyDomainPAK(FiniteElementSpace *_fes, int order, int tensor_dim)
-   : fes(_fes), dim(fes->GetFE(0)->GetDim()), D(tensor_dim)
-   {
-      // Store the 1d shape functions and gradients
-      ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
-      cout << "quads1d=" << shape1d.Width() << endl;
-   }
-
-   // Returns the tensor D
-   Tensor& GetD() { return D; }
-
-   /**
-   *  Sets the dimensions of the tensor D
-   */
-   void SetSizeD(int* sizes)
-   {
-      D.SetSize(sizes);
-   }
-
-   /**
-   *  Sets the value at indice @a ind to @a val. @a ind is a raw integer array of size 2.
-   */
-   void SetValD(int* ind, double val)
-   {
-      D(ind) = val;
-   }
+   using DTensor = DummyTensor;
+   using Tensor2d = DenseMatrix;
 
    /**
    * Computes V = B^T D B U where B is a tensor product of shape1d. 
    */
-   void MultBtDB(const Vector &U, Vector &V)
+   static void eval(FiniteElementSpace* fes, const Tensor2d& shape1d, const Tensor2d& dshape1d,
+                  DTensor& D, const Vector &U, Vector &V)
    {
+      int dim = fes->GetFE(0)->GetDim();
       switch(dim)
       {
       case 1:MultBtDB1(fes,shape1d,D,U,V);break;
@@ -194,11 +220,36 @@ public:
    }
 
    /**
+   *  Sets the dimensions of the tensor D
+   */
+   static void SetSizeD(DTensor& D, int* sizes)
+   {
+      D.SetSize(sizes);
+   }
+
+   /**
+   *  Sets the value at indice @a ind to @a val. @a ind is a raw integer array of size 2.
+   */
+   static void SetValD(DTensor& D, int* ind, double val)
+   {
+      D(ind) = val;
+   }
+
+};
+
+class DummyMultGtDG
+{
+public:
+   using DTensor = DummyTensor;
+   using Tensor2d = DenseMatrix;
+
+   /**
    * Computes V = G^T D G U where G is a tensor product of shape1d and dshape1d. 
    */
-   void MultGtDG(const Vector &U, Vector &V)
+   static void eval(FiniteElementSpace* fes, const Tensor2d& shape1d, const Tensor2d& dshape1d,
+                  DTensor& D, const Vector &U, Vector &V)
    {
-      
+      int dim = fes->GetFE(0)->GetDim();
       switch(dim)
       {
       case 1:MultGtDG1(fes,shape1d,dshape1d,D,U,V);break;
@@ -209,11 +260,36 @@ public:
    }
 
    /**
+   *  Sets the dimensions of the tensor D
+   */
+   static void SetSizeD(DTensor& D, int* sizes)
+   {
+      D.SetSize(sizes);
+   }
+
+   /**
+   *  Sets the value at indice @a ind to @a val. @a ind is a raw integer array of size 2.
+   */
+   static void SetValD(DTensor& D, int* ind, double val)
+   {
+      D(ind) = val;
+   }
+
+};
+
+class DummyMultBtDG
+{
+public:
+   using DTensor = DummyTensor;
+   using Tensor2d = DenseMatrix;
+
+   /**
    * Computes V = B^T D G U where B and G are a tensor product of shape1d and dshape1d. 
    */
-   void MultBtDG(const Vector &U, Vector &V)
+   static void eval(FiniteElementSpace* fes, const Tensor2d& shape1d, const Tensor2d& dshape1d,
+                  DTensor& D, const Vector &U, Vector &V)
    {
-      
+      int dim = fes->GetFE(0)->GetDim();
       switch(dim)
       {
       case 1:MultBtDG1(fes,shape1d,dshape1d,D,U,V);break;
@@ -224,10 +300,36 @@ public:
    }
 
    /**
+   *  Sets the dimensions of the tensor D
+   */
+   static void SetSizeD(DTensor& D, int* sizes)
+   {
+      D.SetSize(sizes);
+   }
+
+   /**
+   *  Sets the value at indice @a ind to @a val. @a ind is a raw integer array of size 2.
+   */
+   static void SetValD(DTensor& D, int* ind, double val)
+   {
+      D(ind) = val;
+   }
+
+};
+
+class DummyMultGtDB
+{
+public:
+   using DTensor = DummyTensor;
+   using Tensor2d = DenseMatrix;
+
+   /**
    * Computes V = G^T D B U where B and G are a tensor product of shape1d and dshape1d. 
    */
-   void MultGtDB(const Vector &U, Vector &V)
+   static void eval(FiniteElementSpace* fes, const Tensor2d& shape1d, const Tensor2d& dshape1d,
+                  DTensor& D, const Vector &U, Vector &V)
    {
+      int dim = fes->GetFE(0)->GetDim();
       switch(dim)
       {
       case 1:MultGtDB1(fes,shape1d,dshape1d,D,U,V);break;
@@ -236,7 +338,58 @@ public:
       default: mfem_error("More than # dimension not yet supported"); break;
       }
    }
+
+   /**
+   *  Sets the dimensions of the tensor D
+   */
+   static void SetSizeD(DTensor& D, int* sizes)
+   {
+      D.SetSize(sizes);
+   }
+
+   /**
+   *  Sets the value at indice @a ind to @a val. @a ind is a raw integer array of size 2.
+   */
+   static void SetValD(DTensor& D, int* ind, double val)
+   {
+      D(ind) = val;
+   }
+
 };
+
+template <>
+class DummyDomainPAK<PAOp::BtDB>{
+public:
+   using Op = DummyMultBtDB;
+};
+
+template <>
+class DummyDomainPAK<PAOp::BtDG>{
+public:
+   using Op = DummyMultBtDG;
+};
+
+template <>
+class DummyDomainPAK<PAOp::GtDB>{
+public:
+   using Op = DummyMultGtDB;
+};
+
+template <>
+class DummyDomainPAK<PAOp::GtDG>{
+public:
+   using Op = DummyMultGtDG;
+};
+
+/////////////////////////////////////////////////
+//                                             //
+//                                             //
+//             DUMMY FACE KERNEL               //
+//                                             //
+//                                             //
+/////////////////////////////////////////////////
+
+
 
 void MultBtDB2int(int ind_trial, FiniteElementSpace* fes,
    DenseMatrix & shape1d, DenseMatrix & shape0d0, DenseMatrix & shape0d1,
@@ -470,13 +623,10 @@ public:
 /////////////////////////////////////////////////
 //                                             //
 //                                             //
-//                 EIGEN KERNEL                //
+//            EIGEN DOMAIN KERNEL              //
 //                                             //
 //                                             //
 /////////////////////////////////////////////////
-
-
-enum PAOp { BtDB, BtDG, GtDB, GtDG };
 
 /**
 *  A shortcut for EigenOp type names
@@ -701,9 +851,9 @@ public:
    using DTensor = Eigen::Tensor<double,3>;
 
    /**
-   * Computes V = B^T D B U where B is a tensor product of shape1d. 
+   * Computes V = B^T D G U where B is a tensor product of shape1d. 
    */
-   static void eval(FiniteElementSpace* fes, Tensor2d const & shape1d, Tensor2d const& dshape1d,
+   static void feval(FiniteElementSpace* fes, Tensor2d const & shape1d, Tensor2d const& dshape1d,
                         DTensor & D, const Vector &U, Vector &V)
    {
       const int dofs1d = shape1d.dimension(0);
@@ -745,9 +895,9 @@ public:
    }
 
    /**
-   * Computes V = B^T D B U where B is a tensor product of shape1d. 
+   * Computes V = B^T D G U where B is a tensor product of shape1d. 
    */
-   static void feval(FiniteElementSpace* fes, Tensor2d const & shape1d, Tensor2d const& dshape1d,
+   static void eval(FiniteElementSpace* fes, Tensor2d const & shape1d, Tensor2d const& dshape1d,
                         DTensor & D, const Vector &U, Vector &V)
    {
       using Tensor3d = Eigen::Tensor<double,3>;
@@ -764,30 +914,30 @@ public:
       // TODO swap T and B
       // V = B G U
       // T1 = G.T0
-      cont_ind = { Eigen::IndexPair<int>(0, 0) };
-      Tensor3d T1 = T0.contract(dshape1d, cont_ind).shuffle(new_order);
+      cont_ind = { Eigen::IndexPair<int>(0, 1) };
+      auto T1 = shape1d.contract(T0, cont_ind);
       // T2 = B.T1
-      cont_ind = { Eigen::IndexPair<int>(0, 0) };
-      Tensor3d T2 = T1.contract(shape1d, cont_ind).shuffle(new_order);
+      cont_ind = { Eigen::IndexPair<int>(0, 1) };
+      auto T2 = dshape1d.contract(T1, cont_ind);
       // T3 = D*T2
-      Tensor3d T3 = D.chip(0,1).reshape(dims) * T2;
+      auto T3 = D.chip(0,1).reshape(dims) * T2;
       // V = G B U
       // T1 = B.T0
-      cont_ind = { Eigen::IndexPair<int>(0, 0) };
-      Tensor3d T1b = T0.contract(shape1d, cont_ind).shuffle(new_order);
+      cont_ind = { Eigen::IndexPair<int>(0, 1) };
+      auto T1b = dshape1d.contract(T0, cont_ind);
       // T2 = G.T1
-      cont_ind = { Eigen::IndexPair<int>(0, 0) };
-      Tensor3d T2b = T1b.contract(dshape1d, cont_ind).shuffle(new_order);
+      cont_ind = { Eigen::IndexPair<int>(0, 1) };
+      auto T2b = shape1d.contract(T1b, cont_ind);
       // V = ( D_0 B G + D_1 G B ) U
       // T3 = D*T2
-      Tensor3d T3b = T3 + D.chip(1,1).reshape(dims) * T2b;
+      auto T3b = T3 + D.chip(1,1).reshape(dims) * T2b;
       // T4 = Bt.T3
-      cont_ind = { Eigen::IndexPair<int>(0, 1) };
-      Tensor3d T4 = T3b.contract(shape1d, cont_ind).shuffle(new_order);
+      cont_ind = { Eigen::IndexPair<int>(1, 1) };
+      auto T4 = shape1d.contract(T3b, cont_ind);
       // V = B B D ( B G + G B ) U
       // R = Bt.T4
-      cont_ind = { Eigen::IndexPair<int>(0, 1) };
-      R += T4.contract(shape1d, cont_ind).shuffle(new_order);
+      cont_ind = { Eigen::IndexPair<int>(1, 1) };
+      R += shape1d.contract(T4, cont_ind);
    }
 
 

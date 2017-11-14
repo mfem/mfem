@@ -14,6 +14,14 @@
 namespace mfem
 {
 
+
+//////////////////////////////////
+//                              //
+//     DUMMY DOMAIN KERNELS     //
+//                              //
+//////////////////////////////////
+
+
 void MultBtDB1(FiniteElementSpace* fes, DenseMatrix const & shape1d,
    DummyTensor & D, const Vector &V, Vector &U)
 {
@@ -824,7 +832,11 @@ void MultGtDB3(FiniteElementSpace* fes, DenseMatrix const& shape1d,
    }   
 }
 
-
+//////////////////////////////////
+//                              //
+//      DUMMY FACE KERNELS      //
+//                              //
+//////////////////////////////////
 
 void InitTrialB2d(const int face_id, DenseMatrix& shape1d,
    DenseMatrix& shape0d0, DenseMatrix& shape0d1,

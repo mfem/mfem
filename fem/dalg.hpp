@@ -179,6 +179,11 @@ public:
       return data[real_ind];
    }
 
+   double& operator()(int real_ind)
+   {
+      return data[real_ind];
+   }
+
    double& operator()(int* ind)
    {
       int real_ind = GetRealInd(ind);

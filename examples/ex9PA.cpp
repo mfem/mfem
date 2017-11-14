@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
 
    //Creating a partial assembly Kernel
    //Maybe not the right place to initialize tensor size.
-   int ir_order = 2*order-1;
+   int ir_order = 2*order;
 
    //Initialization of the Mass operator
    // BilinearFormOperator m(&fes);

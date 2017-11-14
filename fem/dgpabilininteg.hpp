@@ -33,11 +33,11 @@ namespace mfem
 * Assumes:
 *  - MultGtDB Operation and SetSizeD, SetValD for the D tensor inside the Kernel
 */
-template <typename PAK>
+template <template<PAOp> class PAK = DummyDomainPAK >
 class PAConvectionIntegrator : public BilinearFormIntegrator
 {
 protected:
-  	PAK pak;
+  	PADomainIntegrator<PAOp::BtDG, PAK> pak;
 
 public:
   	PAConvectionIntegrator(FiniteElementSpace *fes, const int order,
@@ -81,7 +81,7 @@ public:
   virtual void AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
   {
     //We assume that the kernel has such a method.
-    pak.MultBtDG(fun,vect);
+    pak.Mult(fun,vect);
   }
 };
 
