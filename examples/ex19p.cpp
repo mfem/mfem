@@ -12,6 +12,8 @@ protected:
    mutable BlockOperator *Jacobian;
    mutable Operator *Pressure_mass;
 
+   mutable double gamma;
+
    /// Newton solver for the hyperelastic operator
 
    mutable Solver *mass_pcg;
@@ -308,6 +310,8 @@ JacobianPreconditioner::JacobianPreconditioner(Operator &mass,
      ess_bdr(bdr)
 {
 
+   gamma = .0001;
+
 #ifdef MFEM_USE_SUPERLU
    SuperLUSolver *mass_slu = new SuperLUSolver(MPI_COMM_WORLD);
    mass_slu->SetPrintStatistics(false);
@@ -352,7 +356,7 @@ void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
    Vector temp(block_trueOffsets[1]-block_trueOffsets[0]);
    Vector temp2(block_trueOffsets[1]-block_trueOffsets[0]);
 
-   pres_in *= -1.0;
+   pres_in *= -1.0 * gamma;
 
    mass_pcg->Mult(pres_in, pres_out);
 
@@ -436,13 +440,11 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    J_prec = Jac_prec;
 
    MINRESSolver *J_minres = new MINRESSolver(spaces[0]->GetComm());
-   J_minres->SetRelTol(1.0e-8);
-   J_minres->SetAbsTol(1.0e-8);
+   J_minres->SetRelTol(1.0e-14);
+   J_minres->SetAbsTol(1.0e-14);
    J_minres->SetMaxIter(3000000);
-   J_minres->SetPrintLevel(0);
+   J_minres->SetPrintLevel(1);
    J_minres->SetPreconditioner(*J_prec);
-   J_solver = J_minres;
-
    J_solver = J_minres;
 
    // Set the newton solve parameters
