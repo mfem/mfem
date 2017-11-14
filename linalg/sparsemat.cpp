@@ -186,9 +186,9 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
 
 SparseMatrix& SparseMatrix::operator=(SparseMatrix other)
 {
-    Swap(other);
+   Swap(other);
 
-    return *this;
+   return *this;
 }
 
 void SparseMatrix::MakeRef(const SparseMatrix &master)
