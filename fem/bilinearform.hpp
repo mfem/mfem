@@ -24,11 +24,16 @@
 namespace mfem
 {
 
+class BilinearFormOperator;
+
 /** Class for bilinear form - "Matrix" with associated FE space and
     BLFIntegrators. */
 class BilinearForm : public Matrix
 {
 protected:
+   // Friend the BilinearFormOperator class so it has access to the integrators.
+   friend class BilinearFormOperator;
+
    /// Sparse matrix to be associated with the form.
    SparseMatrix *mat;
 
@@ -65,11 +70,15 @@ protected:
    StaticCondensation *static_cond;
    Hybridization *hybridization;
 
+   mutable BilinearFormOperator *bfo;
+
    int precompute_sparsity;
    // Allocate appropriate SparseMatrix and assign it to mat
    void AllocMat();
 
    void ConformingAssemble();
+
+   bool CanTensorizeAssembly() const;
 
    // may be used in the construction of derived classes
    BilinearForm() : Matrix (0)
@@ -151,7 +160,7 @@ public:
    virtual const double &Elem(int i, int j) const;
 
    /// Matrix vector multiplication.
-   virtual void Mult(const Vector &x, Vector &y) const { mat->Mult(x, y); }
+   virtual void Mult(const Vector &x, Vector &y) const;
 
    void FullMult(const Vector &x, Vector &y) const
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
@@ -265,6 +274,13 @@ public:
                          SparseMatrix &A, Vector &X, Vector &B,
                          int copy_interior = 0);
 
+   /** Generic operator version of the method above. */
+   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                         Operator * &A, Vector &X, Vector &B,
+                         int copy_interior = 0)
+   { Operator::FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior); }
+
+
    /// Form the linear system matrix A, see FormLinearSystem for details.
    void FormSystemMatrix(const Array<int> &ess_tdof_list, SparseMatrix &A);
 
@@ -341,6 +357,12 @@ public:
 
    /// Destroys bilinear form.
    virtual ~BilinearForm();
+
+   // Options:
+   enum Assembly { None, Partial, Full };
+   enum Assembly AssemblyType;
+
+   bool OptimMatrixAssembly;
 };
 
 /**
@@ -490,28 +512,39 @@ public:
 };
 
 // Matrix-free bilinear form
-class BilinearFormOperator : public BilinearForm
+class BilinearFormOperator
 {
 protected:
-   mutable Vector X;
-   mutable Vector Y;
-   Array<int> offsets, indices;
+   BilinearForm *bf;  // Do not own
+   const FiniteElementSpace *trial_fes;  // Do not own
+   const FiniteElementSpace *test_fes;  // Do not own
+   bool trial_gs, test_gs;
+
+   Array<int> *trial_offsets, *trial_indices;
+   Array<int> *test_offsets, *test_indices;
+   Vector *X;
+   Vector *Y;
 
    // Convert between vector types before calling Mult.
-   void LToEVector(const Vector &v, Vector &V) const;
-   void EToLVector(const Vector &V, Vector &v) const;
+   void LToEVector(const Array<int> &offsets, const Array<int> &indices,
+                   const Vector &v, Vector &V);
+   void EToLVector(const Array<int> &offsets, const Array<int> &indices,
+                   const Vector &V, Vector &v);
 
 public:
-   BilinearFormOperator(FiniteElementSpace *f);
+   BilinearFormOperator(BilinearForm *_bf);
+
+   ~BilinearFormOperator();
+
+   /// Assemble what is needed by the bilinear form integrators to
+   /// later compute the action.
+   void Assemble();
 
    /// Perform the action of the bilinear form on a vector.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void MultAdd(const Vector &x, Vector &y);
 
-   /// For the linear system.
-   virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                                 Operator* &A, Vector &X, Vector &B,
-                                 int copy_interior = 0)
-      { Operator::FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior); }
+   /// Perform the action of the bilinear form on a vector.
+   void MultAddTranspose(const Vector &x, Vector &y);
 };
 
 }

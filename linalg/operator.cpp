@@ -52,6 +52,7 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
                                                     rap != this);
    A->EliminateRHS(X, B);
    Aout = A;
+   std::cout << Aout << " " << A << std::endl;
 }
 
 void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)

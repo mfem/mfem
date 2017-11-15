@@ -331,18 +331,22 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
 {
    const double rel_tol = 1e-8;
 
+   M = new BilinearForm(&fespace);
+   M->AddDomainIntegrator(new MassIntegrator());
+   if (use_partial_assembly)
+   {
+      M->AssemblyType = BilinearForm::Assembly::Partial;
+   }
+
+   M->Assemble();
+
    if (!use_partial_assembly)
    {
-      M = new BilinearForm(&fespace);
-      M->AddDomainIntegrator(new MassIntegrator());
-      M->Assemble();
       M->FormSystemMatrix(ess_tdof_list, Mmat);
       M_solver.SetOperator(Mmat);
    }
    else
    {
-      M = new BilinearFormOperator(&fespace);
-      M->AddDomainIntegrator(new PAMassIntegrator(&fespace, 2*order));
       M_solver.SetOperator(*M);
    }
 
@@ -420,18 +424,17 @@ void ConductionOperator::SetParameters(const Vector &u)
    GridFunctionCoefficient u_coeff(&u_alpha_gf);
 
    delete K;
+   K = new BilinearForm(&fespace);
+   K->AddDomainIntegrator(new DiffusionIntegrator(u_coeff));
+   if (use_partial_assembly) K->AssemblyType = BilinearForm::Assembly::Partial;
+   K->Assemble();
    if (!use_partial_assembly)
    {
-      K = new BilinearForm(&fespace);
-      K->AddDomainIntegrator(new DiffusionIntegrator(u_coeff));
-      K->Assemble();
       K->FormSystemMatrix(ess_tdof_list, Kmat);
       Koper = &Kmat;
    }
    else
    {
-      K = new BilinearFormOperator(&fespace);
-      K->AddDomainIntegrator(new PADiffusionIntegrator(&fespace, 2*order + dim - 2, u_coeff));
       Koper = K;
    }
 

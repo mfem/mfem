@@ -61,10 +61,17 @@ void BilinearFormIntegrator::AssembleElementVector(
               "   is not implemented fot this class.");
 }
 
-void BilinearFormIntegrator::AssembleVector(
-   const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
+void BilinearFormIntegrator::AssembleMult(
+   const Vector &x, Vector& y)
 {
-   mfem_error("BilinearFormIntegrator::AssembleVector\n"
+   mfem_error("BilinearFormIntegrator::AssembleMult\n"
+              "   is not implemented fot this class.");
+}
+
+void BilinearFormIntegrator::AssembleMultTranspose(
+   const Vector &x, Vector& y)
+{
+   mfem_error("BilinearFormIntegrator::AssembleMultTranspose\n"
               "   is not implemented fot this class.");
 }
 
@@ -811,6 +818,28 @@ void MassIntegrator::AssembleElementMatrix2(
       AddMultVWt(te_shape, shape, elmat);
    }
 }
+
+MassIntegrator::~MassIntegrator() { delete pa_integ; }
+
+void MassIntegrator::AssembleOperator(const FiniteElementSpace *trial_fes,
+                                      const FiniteElementSpace *test_fes)
+{
+   if (!pa_integ) { pa_integ = new PAMassIntegrator(this); }
+   pa_integ->AssembleOperator(trial_fes, test_fes);
+}
+
+void MassIntegrator::AssembleMult(const Vector &fun, Vector &vect)
+{
+   if (!pa_integ) { pa_integ = new PAMassIntegrator(this); }
+   pa_integ->AssembleMult(fun, vect);
+}
+
+void MassIntegrator::AssembleMultTranspose(const Vector &fun, Vector &vect)
+{
+   if (!pa_integ) { pa_integ = new PAMassIntegrator(this); }
+   pa_integ->AssembleMultTranspose(fun, vect);
+}
+
 
 void BoundaryMassIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
@@ -2056,6 +2085,27 @@ void DivDivIntegrator::AssembleElementMatrix(
       // elmat += c * divshape * divshape ^ t
       AddMult_a_VVt (c, divshape, elmat);
    }
+}
+
+DiffusionIntegrator::~DiffusionIntegrator() { delete pa_integ; }
+
+void DiffusionIntegrator::AssembleOperator(const FiniteElementSpace *trial_fes,
+                                           const FiniteElementSpace *test_fes)
+{
+   if (!pa_integ) { pa_integ = new PADiffusionIntegrator(this); }
+   pa_integ->AssembleOperator(trial_fes, test_fes);
+}
+
+void DiffusionIntegrator::AssembleMult(const Vector &fun, Vector &vect)
+{
+   if (!pa_integ) { pa_integ = new PADiffusionIntegrator(this); }
+   pa_integ->AssembleMult(fun, vect);
+}
+
+void DiffusionIntegrator::AssembleMultTranspose(const Vector &fun, Vector &vect)
+{
+   if (!pa_integ) { pa_integ = new PADiffusionIntegrator(this); }
+   pa_integ->AssembleMultTranspose(fun, vect);
 }
 
 

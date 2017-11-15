@@ -130,10 +130,10 @@ int main(int argc, char *argv[])
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
-   LinearForm *b = new LinearForm(fespace);
+   LinearForm b(fespace);
    ConstantCoefficient one(1.0);
-   b->AddDomainIntegrator(new DomainLFIntegrator(one));
-   b->Assemble();
+   b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   b.Assemble();
 
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -145,31 +145,26 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    SparseMatrix A_sp;
-   BilinearForm *a;
    Operator *A;
    Vector B, X;
-   if (use_partial_assembly)
-   {
-      BilinearFormOperator *a_oper = new BilinearFormOperator(fespace);
-      const int ir_order = 2 * order + dim - 1;
-      a_oper->AddDomainIntegrator(new PADiffusionIntegrator(fespace, ir_order));
-      a_oper->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-      a = a_oper;
+   BilinearForm a(fespace);
+   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   if (static_cond) { a.EnableStaticCondensation(); }
+   if (use_partial_assembly) a.AssemblyType = BilinearForm::Assembly::Partial;
+   a.Assemble();
+   if (use_partial_assembly) {
+      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    }
    else
    {
-      a = new BilinearForm(fespace);
-      a->AddDomainIntegrator(new DiffusionIntegrator(one));
-
-      // 9. Assemble the bilinear form and the corresponding linear system,
-      //    applying any necessary transformations such as: eliminating boundary
-      //    conditions, applying conforming constraints for non-conforming AMR,
-      //    static condensation, etc.
-      if (static_cond) { a->EnableStaticCondensation(); }
-      a->Assemble();
-      a->FormLinearSystem(ess_tdof_list, x, *b, A_sp, X, B);
+      a.FormLinearSystem(ess_tdof_list, x, b, A_sp, X, B);
       A = &A_sp;
    }
+
+   // 9. Assemble the bilinear form and the corresponding linear system,
+   //    applying any necessary transformations such as: eliminating boundary
+   //    conditions, applying conforming constraints for non-conforming AMR,
+   //    static condensation, etc.
 
    cout << "Size of linear system: " << A->Height() << endl;
 
@@ -179,7 +174,6 @@ int main(int argc, char *argv[])
 
    if (use_smoother && !use_partial_assembly)
    {
-      // Preserve the original feature to use the GSSmoother option
       GSSmoother M(A_sp);
       PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
    }
@@ -204,7 +198,7 @@ int main(int argc, char *argv[])
 #endif
 
    // 11. Recover the solution as a finite element grid function.
-   a->RecoverFEMSolution(X, *b, x);
+   a.RecoverFEMSolution(X, b, x);
 
    // 12. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -226,11 +220,9 @@ int main(int argc, char *argv[])
    }
 
    // 14. Free the used memory.
-   delete a;
-   delete b;
+   delete mesh;
    delete fespace;
    if (order > 0) { delete fec; }
-   delete mesh;
 
    return 0;
 }

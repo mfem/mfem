@@ -72,10 +72,46 @@ static void ComputeBasis1d(const FiniteElement *fe,
    }
 }
 
-void PADiffusionIntegrator::ComputePA(const int ir_order)
+void PADiffusionIntegrator::AssembleOperator(const FiniteElementSpace *_trial_fes,
+                                             const FiniteElementSpace *_test_fes)
 {
+   // Assumption: trial and test fespaces are the same (no mixed forms yet)
+   fes = _trial_fes;
+
+   // Assumption: all are same finite elements
+   const FiniteElement *fe = fes->GetFE(0);
+
    // Get the corresponding tensor basis element
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+
+   // Set integration rule
+   int ir_order;
+   if (!IntRule)
+   {
+      const int dim = fe->GetDim();
+      if (fe->Space() == FunctionSpace::Pk)
+      {
+         ir_order = 2*fe->GetOrder() - 2;
+      }
+      else
+         // order = 2*fe.GetOrder() - 2;  // <-- this seems to work fine too
+      {
+         ir_order = 2*fe->GetOrder() + dim - 1;
+      }
+
+      if (fe->Space() == FunctionSpace::rQk)
+      {
+         SetIntegrationRule(RefinedIntRules.Get(fe->GetGeomType(), ir_order));
+      }
+      else
+      {
+         SetIntegrationRule(IntRules.Get(fe->GetGeomType(), ir_order));
+      }
+   }
+   else
+   {
+      ir_order = IntRule->GetOrder();
+   }
 
    // Store the 1d shape functions and gradients
    ComputeBasis1d(fes->GetFE(0), tfe, ir_order, shape1d, dshape1d);
@@ -91,6 +127,8 @@ void PADiffusionIntegrator::ComputePA(const int ir_order)
    DenseMatrix mat(dim, dim);
    DenseMatrix cmat(dim, dim);
 
+   Coefficient *coeff = integ->Q;
+   MatrixCoefficient *mcoeff = integ->MQ;
    for (int e = 0; e < fes->GetNE(); e++)
    {
       ElementTransformation *Tr = fes->GetElementTransformation(e);
@@ -136,43 +174,13 @@ void PADiffusionIntegrator::ComputePA(const int ir_order)
    }
 }
 
-PADiffusionIntegrator::PADiffusionIntegrator(
-   FiniteElementSpace *_fes, const int ir_order)
-   : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
-     fes(_fes),
-     fe(fes->GetFE(0)),
-     dim(fe->GetDim()),
-     vdim(fes->GetVDim()),
-     coeff(NULL),
-     mcoeff(NULL) { ComputePA(ir_order); }
-
-
-PADiffusionIntegrator::PADiffusionIntegrator(
-   FiniteElementSpace *_fes, const int ir_order, Coefficient &_coeff)
-   : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
-     fes(_fes),
-     fe(fes->GetFE(0)),
-     dim(fe->GetDim()),
-     vdim(fes->GetVDim()),
-     coeff(&_coeff),
-     mcoeff(NULL) { ComputePA(ir_order); }
-
-
-PADiffusionIntegrator::PADiffusionIntegrator(
-   FiniteElementSpace *_fes, const int ir_order, MatrixCoefficient &_mcoeff)
-   : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
-     fes(_fes),
-     fe(fes->GetFE(0)),
-     dim(fe->GetDim()),
-     vdim(fes->GetVDim()),
-     coeff(NULL),
-     mcoeff(&_mcoeff) { ComputePA(ir_order); }
 
 void PADiffusionIntegrator::MultSeg(const Vector &V, Vector &U)
 {
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
    const int quads = quads1d;
+   const int vdim = fes->GetVDim();
 
    Vector Q(quads1d);
 
@@ -208,12 +216,13 @@ void PADiffusionIntegrator::MultQuad(const Vector &V, Vector &U)
 {
    const int dim = 2;
    const int terms = dim*(dim+1)/2;
-
-   const int dofs   = fe->GetDof();
-   const int quads  = IntRule->GetNPoints();
+   const int vdim = fes->GetVDim();
 
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
+
+   const int dofs   = dofs1d * dofs1d;
+   const int quads  = IntRule->GetNPoints();
 
    DenseTensor QQ(quads1d, quads1d, dim);
    DenseMatrix DQ(dofs1d, quads1d);
@@ -273,12 +282,13 @@ void PADiffusionIntegrator::MultHex(const Vector &V, Vector &U)
 {
    const int dim = 3;
    const int terms = dim*(dim+1)/2;
-
-   const int dofs   = fe->GetDof();
-   const int quads  = IntRule->GetNPoints();
+   const int vdim = fes->GetVDim();
 
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
+
+   const int dofs   = dofs1d * dofs1d * dofs1d;
+   const int quads  = IntRule->GetNPoints();
 
    DenseMatrix Q(quads1d, dim);
    DenseTensor QQ(quads1d, quads1d, dim);
@@ -395,11 +405,9 @@ void PADiffusionIntegrator::MultHex(const Vector &V, Vector &U)
    }
 }
 
-void PADiffusionIntegrator::AssembleVector(const FiniteElementSpace &fespace,
-                                           const Vector &fun, Vector &vect)
+void PADiffusionIntegrator::AssembleMult(const Vector &fun, Vector &vect)
 {
-   // NOTE: fun and vect are E-vectors at this point
-   MFEM_ASSERT(fespace.GetFE(0)->GetDim() == dim, "");
+   const int dim = fes->GetMesh()->Dimension();
 
    switch (dim)
    {
@@ -410,10 +418,40 @@ void PADiffusionIntegrator::AssembleVector(const FiniteElementSpace &fespace,
    }
 }
 
-void PAMassIntegrator::ComputePA(const int ir_order)
+
+void PAMassIntegrator::AssembleOperator(const FiniteElementSpace *_trial_fes,
+                                        const FiniteElementSpace *_test_fes)
 {
+   // Assumption: trial and test fespaces are the same (no mixed forms yet)
+   fes = _trial_fes;
+
+   // Assumption: all are same finite elements
+   const FiniteElement *fe = fes->GetFE(0);
+
    // Get the corresponding tensor basis element
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+
+   // Set integration rule
+   int ir_order;
+   if (!IntRule)
+   {
+      // int order = 2 * el.GetOrder();
+      // ir_order = 2 * fe.GetOrder() + Trans.OrderW();
+      ir_order = 2 * fe->GetOrder() + 1;
+
+      if (fe->Space() == FunctionSpace::rQk)
+      {
+         SetIntegrationRule(RefinedIntRules.Get(fe->GetGeomType(), ir_order));
+      }
+      else
+      {
+         SetIntegrationRule(IntRules.Get(fe->GetGeomType(), ir_order));
+      }
+   }
+   else
+   {
+      ir_order = IntRule->GetOrder();
+   }
 
    ComputeBasis1d(fes->GetFE(0), tfe, ir_order, shape1d);
 
@@ -423,6 +461,7 @@ void PAMassIntegrator::ComputePA(const int ir_order)
    const int quads   = IntRule->GetNPoints();
    Dmat.SetSize(quads, nelem);
 
+   Coefficient *coeff = integ->Q;
    DenseMatrix invdfdx(dim, dim);
    DenseMatrix mat(dim, dim);
    for (int e = 0; e < fes->GetNE(); e++)
@@ -438,31 +477,12 @@ void PAMassIntegrator::ComputePA(const int ir_order)
    }
 }
 
-PAMassIntegrator::PAMassIntegrator(
-   FiniteElementSpace *_fes, const int ir_order)
-   : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
-     fes(_fes),
-     fe(fes->GetFE(0)),
-     dim(fe->GetDim()),
-     vdim(fes->GetVDim()),
-     coeff(NULL) { ComputePA(ir_order); }
-
-PAMassIntegrator::PAMassIntegrator(
-   FiniteElementSpace *_fes, const int ir_order, Coefficient &_coeff)
-   : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), ir_order)),
-     fes(_fes),
-     fe(fes->GetFE(0)),
-     dim(fe->GetDim()),
-     vdim(fes->GetVDim()),
-     coeff(&_coeff) { ComputePA(ir_order); }
-
-
-
 void PAMassIntegrator::MultSeg(const Vector &V, Vector &U)
 {
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
    const int quads = quads1d;
+   const int vdim = fes->GetVDim();
 
    Vector Q(quads1d);
 
@@ -492,11 +512,12 @@ void PAMassIntegrator::MultSeg(const Vector &V, Vector &U)
 
 void PAMassIntegrator::MultQuad(const Vector &V, Vector &U)
 {
-   const int dofs   = fe->GetDof();
-   const int quads  = IntRule->GetNPoints();
-
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
+
+   const int dofs   = dofs1d * dofs1d;
+   const int quads  = IntRule->GetNPoints();
+   const int vdim = fes->GetVDim();
 
    DenseMatrix QQ(quads1d, quads1d);
    DenseMatrix DQ(dofs1d, quads1d);
@@ -533,11 +554,12 @@ void PAMassIntegrator::MultQuad(const Vector &V, Vector &U)
 
 void PAMassIntegrator::MultHex(const Vector &V, Vector &U)
 {
-   const int dofs   = fe->GetDof();
-   const int quads  = IntRule->GetNPoints();
-
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
+
+   const int dofs   = dofs1d * dofs1d * dofs1d;
+   const int quads  = IntRule->GetNPoints();
+   const int vdim = fes->GetVDim();
 
    Vector Q(quads1d);
    DenseMatrix QQ(quads1d, quads1d);
@@ -620,11 +642,9 @@ void PAMassIntegrator::MultHex(const Vector &V, Vector &U)
    }
 }
 
-void PAMassIntegrator::AssembleVector(const FiniteElementSpace &fespace,
-                                      const Vector &fun, Vector &vect)
+void PAMassIntegrator::AssembleMult(const Vector &fun, Vector &vect)
 {
-   // NOTE: fun and vect are E-vectors at this point
-   MFEM_ASSERT(fespace.GetFE(0)->GetDim() == dim, "");
+   const int dim = fes->GetMesh()->Dimension();
 
    switch (dim)
    {

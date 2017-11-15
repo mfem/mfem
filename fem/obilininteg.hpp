@@ -27,33 +27,24 @@ namespace mfem
 class PADiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
-   FiniteElementSpace *fes;
-   const FiniteElement *fe;
-
-   const int dim, vdim;
-
+   // Carry pointer in order to have access to coefficient
+   DiffusionIntegrator *integ;     // Do not own
+   const FiniteElementSpace *fes;  // TODO: support mixed spaces
    DenseTensor Dtensor;
    DenseMatrix shape1d, dshape1d;
-   Coefficient *coeff;
-   MatrixCoefficient *mcoeff;
 
    // Action methods
    void MultSeg(const Vector &V, Vector &U);
    void MultQuad(const Vector &V, Vector &U);
    void MultHex(const Vector &V, Vector &U);
 
-   void ComputePA(const int ir_order);
-
 public:
-   PADiffusionIntegrator(FiniteElementSpace *_fes, const int ir_order);
-   PADiffusionIntegrator(FiniteElementSpace *_fes, const int ir_order,
-                         Coefficient &_coeff);
-   PADiffusionIntegrator(FiniteElementSpace *_fes, const int ir_order,
-                         MatrixCoefficient &_mcoeff);
+   PADiffusionIntegrator(DiffusionIntegrator *_integ) : integ(_integ) {}
 
-   /// Perform the action of the BilinearFormIntegrator
-   virtual void AssembleVector(const FiniteElementSpace &fes,
-                               const Vector &fun, Vector &vect);
+   virtual void AssembleOperator(const FiniteElementSpace *_trial_fes,
+                                 const FiniteElementSpace *_test_fes);
+
+   virtual void AssembleMult(const Vector &fun, Vector &vect);
 };
 
 /** Class for computing the action of (u, v) from a scalar fespace
@@ -61,30 +52,23 @@ public:
 class PAMassIntegrator : public BilinearFormIntegrator
 {
 protected:
-   FiniteElementSpace *fes;
-   const FiniteElement *fe;
-
-   const int dim, vdim;
-
-   Vector Dvec;
+   MassIntegrator *integ;     // Do not own
+   const FiniteElementSpace *fes;  // TODO: support mixed spaces
    DenseMatrix Dmat;
    DenseMatrix shape1d;
-   Coefficient *coeff;
 
    // Action methods
    void MultSeg(const Vector &V, Vector &U);
    void MultQuad(const Vector &V, Vector &U);
    void MultHex(const Vector &V, Vector &U);
 
-   void ComputePA(const int ir_order);
-
 public:
-   PAMassIntegrator(FiniteElementSpace *_fes, const int ir_order);
-   PAMassIntegrator(FiniteElementSpace *_fes, const int ir_order, Coefficient &_coeff);
+   PAMassIntegrator(MassIntegrator *_integ) : integ(_integ) {}
 
-   /// Perform the action of the BilinearFormIntegrator
-   virtual void AssembleVector(const FiniteElementSpace &fes,
-                               const Vector &fun, Vector &vect);
+   virtual void AssembleOperator(const FiniteElementSpace *_trial_fes,
+                                 const FiniteElementSpace *_test_fes);
+
+   virtual void AssembleMult(const Vector &fun, Vector &vect);
 };
 
 }

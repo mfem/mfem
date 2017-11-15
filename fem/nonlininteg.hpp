@@ -30,7 +30,7 @@ protected:
    const IntegrationRule *IntRule;
 
    NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
-      : IntRule(NULL) { }
+      : IntRule(NULL), TensorAssembly(false) { }
 
 public:
    /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
@@ -70,6 +70,10 @@ public:
                                    const Vector &elfun);
 
    virtual ~NonlinearFormIntegrator() { }
+
+   // False by default, set to true to indicate that this integrator
+   // supports tensor assembly.
+   bool TensorAssembly;
 };
 
 
