@@ -63,7 +63,8 @@ protected:
       int i, IsoparametricTransformation *ElTr);
 
    ElementTransformation* GetGhostFaceTransformation(
-      FaceElementTransformations* FETr, int face_type, int face_geom);
+      FaceElementTransformations* FETr, Element::Type face_type,
+      Geometry::Type face_geom);
 
    /// Refine quadrilateral mesh.
    virtual void QuadUniformRefinement();

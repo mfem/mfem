@@ -576,6 +576,10 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                   sface_lface[sface_counter] =
                      (*faces_tbl)(v[0], v[1], v[2], v[3]);
                   break;
+               default:
+                  MFEM_ABORT("Invalid 2D element type \""
+                             << shared_faces[sface_counter]->GetType() << "\"");
+                  break;
             }
             sface_counter++;
          }
@@ -819,6 +823,10 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input)
                case Element::QUADRILATERAL:
                   sface_lface[sface_counter] =
                      (*faces_tbl)(v[0], v[1], v[2], v[3]);
+                  break;
+               default:
+                  MFEM_ABORT("Invalid 2D element type \""
+                             << sface->GetType() << "\"");
                   break;
             }
          }
@@ -1889,7 +1897,8 @@ Table *ParMesh::GetFaceToAllElementTable() const
 }
 
 ElementTransformation* ParMesh::GetGhostFaceTransformation(
-   FaceElementTransformations* FETr, int face_type, int face_geom)
+   FaceElementTransformations* FETr, Element::Type face_type,
+   Geometry::Type face_geom)
 {
    // calculate composition of FETr->Loc1 and FETr->Elem1
    DenseMatrix &face_pm = FaceTransformation.GetPointMat();
@@ -1931,8 +1940,8 @@ GetSharedFaceTransformations(int sf, bool fill2)
    if (is_slave) { nc_info = &nc_faces_info[face_info.NCFace]; }
 
    int local_face = is_ghost ? nc_info->MasterFace : FaceNo;
-   int face_type = GetFaceElementType(local_face);
-   int face_geom = GetFaceGeometryType(local_face);
+   Element::Type  face_type = GetFaceElementType(local_face);
+   Geometry::Type face_geom = GetFaceGeometryType(local_face);
 
    // setup the transformation for the first element
    FaceElemTr.Elem1No = face_info.Elem1No;

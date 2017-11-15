@@ -236,7 +236,7 @@ void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &out)
    out << '\n' << std::flush;
 }
 
-FiniteElement *Mesh::GetTransformationFEforElementType(int ElemType)
+FiniteElement *Mesh::GetTransformationFEforElementType(Element::Type ElemType)
 {
    switch (ElemType)
    {
@@ -247,9 +247,12 @@ FiniteElement *Mesh::GetTransformationFEforElementType(int ElemType)
       case Element::TETRAHEDRON :    return &TetrahedronFE;
       case Element::PRISM :          return &PrismFE;
       case Element::HEXAHEDRON :     return &HexahedronFE;
+      default:
+         MFEM_ABORT("Unknown element type \"" << ElemType << "\"");
+         break;
    }
    MFEM_ABORT("Unknown element type");
-   return &TriangleFE;
+   return NULL;
 }
 
 
@@ -740,12 +743,12 @@ void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2)
    *Inf2 = faces_info[Face].Elem2Inf;
 }
 
-int Mesh::GetFaceGeometryType(int Face) const
+Geometry::Type Mesh::GetFaceGeometryType(int Face) const
 {
    return (Dim == 1) ? Geometry::POINT : faces[Face]->GetGeometryType();
 }
 
-int Mesh::GetFaceElementType(int Face) const
+Element::Type Mesh::GetFaceElementType(int Face) const
 {
    return (Dim == 1) ? Element::POINT : faces[Face]->GetType();
 }
@@ -757,7 +760,7 @@ void Mesh::Init()
    NumOfVertices = -1;
    NumOfElements = NumOfBdrElements = 0;
    NumOfEdges = NumOfFaces = 0;
-   BaseGeom = BaseBdrGeom = -2; // invailid
+   BaseGeom = BaseBdrGeom = Geometry::INVALID;
    meshgen = 0;
    sequence = 0;
    Nodes = NULL;
@@ -777,7 +780,7 @@ void Mesh::SetEmpty()
 {
    // Members not touched by Init() or InitTables()
    Dim = spaceDim = 0;
-   BaseGeom = BaseBdrGeom = -1;
+   BaseGeom = BaseBdrGeom = Geometry::INVALID;
    meshgen = 0;
    NumOfFaces = 0;
 
@@ -904,22 +907,22 @@ void Mesh::InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem)
 
 void Mesh::InitBaseGeom()
 {
-   BaseGeom = BaseBdrGeom = -1;
+   BaseGeom = BaseBdrGeom = Geometry::INVALID;
    for (int i = 0; i < NumOfElements; i++)
    {
-      int geom = elements[i]->GetGeometryType();
+      Geometry::Type geom = elements[i]->GetGeometryType();
       if (geom != BaseGeom && BaseGeom >= 0)
       {
-         BaseGeom = -1; break;
+         BaseGeom = Geometry::MIXED; break;
       }
       BaseGeom = geom;
    }
    for (int i = 0; i < NumOfBdrElements; i++)
    {
-      int geom = boundary[i]->GetGeometryType();
+      Geometry::Type geom = boundary[i]->GetGeometryType();
       if (geom != BaseBdrGeom && BaseBdrGeom >= 0)
       {
-         BaseBdrGeom = -1; break;
+         BaseBdrGeom = Geometry::MIXED; break;
       }
       BaseBdrGeom = geom;
    }
@@ -2551,9 +2554,11 @@ void Mesh::PrintElement(const Element *el, std::ostream &out)
 void Mesh::SetMeshGen()
 {
    meshgen = 0;
+   Element::Type type = Element::INVALID;
    for (int i = 0; i < NumOfElements; i++)
    {
-      switch (elements[i]->GetType())
+      type = GetElement(i)->GetType();
+      switch (type)
       {
          case Element::SEGMENT:
          case Element::TRIANGLE:
@@ -2562,7 +2567,14 @@ void Mesh::SetMeshGen()
 
          case Element::QUADRILATERAL:
          case Element::HEXAHEDRON:
-            meshgen |= 2;
+            meshgen |= 2; break;
+
+         case Element::PRISM:
+            meshgen |= 4; break;
+         default:
+            MFEM_VERIFY(false, "MixedMesh::SetMeshGen "
+                        "invalid element type " << type);
+            break;
       }
    }
 }
@@ -3381,6 +3393,10 @@ int Mesh::CheckElementOrientation(bool fix_it)
                   case Element::QUADRILATERAL:
                      mfem::Swap(vi[1], vi[3]);
                      break;
+                  default:
+                     MFEM_ABORT("Invalid 2D element type \""
+                                << GetElementType(i) << "\"");
+                     break;
                }
                fo++;
             }
@@ -3427,6 +3443,19 @@ int Mesh::CheckElementOrientation(bool fix_it)
                }
                break;
 
+            case Element::PRISM:
+               // only check the Jacobian at the center of the element
+               GetElementJacobian(i, J);
+               if (J.Det() < 0.0)
+               {
+                  wo++;
+                  if (fix_it)
+                  {
+                     // how?
+                  }
+               }
+               break;
+
             case Element::HEXAHEDRON:
                // only check the Jacobian at the center of the element
                GetElementJacobian(i, J);
@@ -3438,6 +3467,11 @@ int Mesh::CheckElementOrientation(bool fix_it)
                      // how?
                   }
                }
+               break;
+
+            default:
+               MFEM_ABORT("Invalid 3D element type \""
+                          << GetElementType(i) << "\"");
                break;
          }
       }
@@ -3610,6 +3644,67 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
                }
                break;
 
+               case Element::PRISM:
+               {
+                  switch (GetBdrElementType(i))
+                  {
+                     case Element::TRIANGLE:
+                     {
+                        int *fv = faces[be_to_face[i]]->GetVertices();
+                        int orientation; // orientation of the bdr. elem. w.r.t. the
+                        // corresponding face element (that's the base)
+                        orientation = GetTriOrientation(fv, bv);
+                        if (orientation % 2)
+                        {
+                           // wrong orientation -- swap vertices 0 and 1 so that
+                           //  we don't change the marked edge:  (0,1,2) -> (1,0,2)
+                           if (fix_it)
+                           {
+                              mfem::Swap<int>(bv[0], bv[1]);
+                              if (bel_to_edge)
+                              {
+                                 int *be = bel_to_edge->GetRow(i);
+                                 mfem::Swap<int>(be[1], be[2]);
+                              }
+                           }
+                           wo++;
+                        }
+
+                     }
+                     break;
+                     case Element::QUADRILATERAL:
+                     {
+                        MFEM_ABORT("Need to fix this!");
+                        // The following is almost certainly wrong for PRISMs
+                        int lf = faces_info[be_to_face[i]].Elem1Inf/64;
+                        for (int j = 0; j < 4; j++)
+                        {
+                           v[j] = ev[pri_t::FaceVert[lf][j]];
+                        }
+                        if (GetQuadOrientation(v, bv) % 2)
+                        {
+                           if (fix_it)
+                           {
+                              mfem::Swap<int>(bv[0], bv[2]);
+                              if (bel_to_edge)
+                              {
+                                 int *be = bel_to_edge->GetRow(i);
+                                 mfem::Swap<int>(be[0], be[1]);
+                                 mfem::Swap<int>(be[2], be[3]);
+                              }
+                           }
+                           wo++;
+                        }
+                     }
+                     break;
+                     default:
+                        MFEM_ABORT("Invalid 2D element type \""
+                                   << GetElementType(i) << "\"");
+                        break;
+                  }
+               }
+               break;
+
                case Element::HEXAHEDRON:
                {
                   int lf = faces_info[be_to_face[i]].Elem1Inf/64;
@@ -3631,8 +3726,13 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
                      }
                      wo++;
                   }
-                  break;
                }
+               break;
+
+               default:
+                  MFEM_ABORT("Invalid 3D element type \""
+                             << GetElementType(i) << "\"");
+                  break;
             }
          }
       }
@@ -3980,12 +4080,12 @@ void Mesh::GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const
    info = fi.Elem1Inf + ori;
 }
 
-int Mesh::GetElementType(int i) const
+Element::Type Mesh::GetElementType(int i) const
 {
    return elements[i]->GetType();
 }
 
-int Mesh::GetBdrElementType(int i) const
+Element::Type Mesh::GetBdrElementType(int i) const
 {
    return boundary[i]->GetType();
 }
@@ -6207,7 +6307,7 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
          BaseBdrGeom = Geometry::SQUARE;
          break;
       default:
-         BaseBdrGeom = -1;
+         BaseBdrGeom = Geometry::MIXED;
    }
 
    DeleteTables();
@@ -7354,26 +7454,29 @@ void Mesh::PrintVTK(std::ostream &out)
    for (int i = 0; i < NumOfElements; i++)
    {
       int vtk_cell_type = 5;
+      Geometry::Type geom_type = GetElement(i)->GetGeometryType();
       if (order == 1)
       {
-         switch (elements[i]->GetGeometryType())
+         switch (geom_type)
          {
             case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
             case Geometry::SQUARE:       vtk_cell_type = 9;   break;
             case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
             case Geometry::PRISM:        vtk_cell_type = 13;  break;
             case Geometry::CUBE:         vtk_cell_type = 12;  break;
+            default: break;
          }
       }
       else if (order == 2)
       {
-         switch (elements[i]->GetGeometryType())
+         switch (geom_type)
          {
             case Geometry::TRIANGLE:     vtk_cell_type = 22;  break;
             case Geometry::SQUARE:       vtk_cell_type = 28;  break;
             case Geometry::TETRAHEDRON:  vtk_cell_type = 24;  break;
             case Geometry::PRISM:        vtk_cell_type = 32;  break;
             case Geometry::CUBE:         vtk_cell_type = 29;  break;
+            default: break;
          }
       }
 

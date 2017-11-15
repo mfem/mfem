@@ -56,7 +56,8 @@ protected:
    int NumOfVertices, NumOfElements, NumOfBdrElements;
    int NumOfEdges, NumOfFaces;
 
-   int BaseGeom, BaseBdrGeom; // element base geometries, -1 if not all the same
+   // element base geometries, Geometry::MIXED = -1 if not all the same
+   Geometry::Type BaseGeom, BaseBdrGeom;
 
    int meshgen; // see MeshGenerator()
 
@@ -746,10 +747,10 @@ public:
    void GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const;
 
    /// Returns the type of element i.
-   int GetElementType(int i) const;
+   Element::Type GetElementType(int i) const;
 
    /// Returns the type of boundary element i.
-   int GetBdrElementType(int i) const;
+   Element::Type GetBdrElementType(int i) const;
 
    /* Return point matrix of element i of dimension Dim X #v, where for every
       vertex we give its coordinates in space of dimension Dim. */
@@ -759,7 +760,7 @@ public:
       every vertex we give its coordinates in space of dimension Dim. */
    void GetBdrPointMatrix(int i, DenseMatrix &pointmat) const;
 
-   static FiniteElement *GetTransformationFEforElementType(int);
+   static FiniteElement *GetTransformationFEforElementType(Element::Type);
 
    /** Builds the transformation defining the i-th element in the user-defined
        variable. */
@@ -838,8 +839,8 @@ public:
    void GetFaceElements (int Face, int *Elem1, int *Elem2);
    void GetFaceInfos (int Face, int *Inf1, int *Inf2);
 
-   int GetFaceGeometryType(int Face) const;
-   int GetFaceElementType(int Face) const;
+   Geometry::Type GetFaceGeometryType(int Face) const;
+   Element::Type  GetFaceElementType(int Face) const;
 
    /// Check the orientation of the elements
    /** @return The number of elements with wrong orientation. */

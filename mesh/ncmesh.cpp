@@ -114,7 +114,7 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
    {
       const mfem::Element *elem = mesh->GetElement(i);
 
-      int geom = elem->GetGeometryType();
+      Geometry::Type geom = elem->GetGeometryType();
       if (geom != Geometry::TRIANGLE &&
           geom != Geometry::SQUARE &&
           geom != Geometry::CUBE)
@@ -420,7 +420,7 @@ int NCMesh::FindAltParents(int node1, int node2)
 
 //// Refinement & Derefinement /////////////////////////////////////////////////
 
-NCMesh::Element::Element(int geom, int attr)
+NCMesh::Element::Element(Geometry::Type geom, int attr)
    : geom(geom), ref_type(0), flag(0), index(-1), rank(0), attribute(attr)
    , parent(-1)
 {
@@ -3256,7 +3256,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
       int ref_type;
       input >> ref_type;
 
-      int elem = AddElement(Element(0, 0));
+      int elem = AddElement(Element(Geometry::INVALID, 0));
       Element &el = elements[elem];
       el.ref_type = ref_type;
 
