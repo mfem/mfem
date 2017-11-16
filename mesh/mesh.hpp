@@ -683,17 +683,21 @@ public:
 
    const Element *GetFace(int i) const { return faces[i]; }
 
-   Geometry::Type GetFaceBaseGeometry(int i) const;
+   Geometry::Type GetFaceBaseGeometry(int i = 0) const
+   {
+      return ( i >= 0 && i < GetNFaces() ) ?
+             GetFace(i)->GetGeometryType() : BaseGeom;
+   }
 
    Geometry::Type GetElementBaseGeometry(int i = 0) const
    {
-      return (i >= 0 && i < GetNE() ) ?
+      return ( i >= 0 && i < GetNE() ) ?
              elements[i]->GetGeometryType() : BaseGeom;
    }
 
    Geometry::Type GetBdrElementBaseGeometry(int i = 0) const
    {
-      return (i >= 0 && i < GetNBE() ) ?
+      return ( i >= 0 && i < GetNBE() ) ?
              boundary[i]->GetGeometryType() : BaseBdrGeom;
    }
 

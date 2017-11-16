@@ -4047,33 +4047,29 @@ void Mesh::GetBdrElementFace(int i, int *f, int *o) const
          mfem_error("Mesh::GetBdrElementFace(...) 2");
    }
 }
-
+/*
 Geometry::Type Mesh::GetFaceBaseGeometry(int i) const
 {
-   /*
-    // Here, we assume all faces are of the same type
-    switch (GetElementType(0))
-    {
-       case Element::SEGMENT:
-          return Geometry::POINT;
+  // Here, we assume all faces are of the same type
+  switch (GetElementType(0))
+  {
+     case Element::SEGMENT:
+        return Geometry::POINT;
 
-       case Element::TRIANGLE:
-       case Element::QUADRILATERAL:
-          return Geometry::SEGMENT; // in 2D 'face' is an edge
+     case Element::TRIANGLE:
+     case Element::QUADRILATERAL:
+        return Geometry::SEGMENT; // in 2D 'face' is an edge
 
-       case Element::TETRAHEDRON:
-          return Geometry::TRIANGLE;
-       case Element::HEXAHEDRON:
-          return Geometry::SQUARE;
-       default:
-          mfem_error("Mesh::GetFaceBaseGeometry(...) #1");
-    }
-    return (Geometry::INVALID);
-   */
-   return ( i >= 0 && i < GetNFaces() ) ?
-          GetFace(i)->GetGeometryType() : BaseFaceGeom;
+     case Element::TETRAHEDRON:
+        return Geometry::TRIANGLE;
+     case Element::HEXAHEDRON:
+        return Geometry::SQUARE;
+     default:
+        mfem_error("Mesh::GetFaceBaseGeometry(...) #1");
+  }
+  return (Geometry::INVALID);
 }
-
+*/
 int Mesh::GetBdrElementEdgeIndex(int i) const
 {
    switch (Dim)
