@@ -907,7 +907,7 @@ void Mesh::InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem)
 
 void Mesh::InitBaseGeom()
 {
-   BaseGeom = BaseBdrGeom = Geometry::INVALID;
+   BaseGeom = BaseBdrGeom = BaseFaceGeom = Geometry::INVALID;
    for (int i = 0; i < NumOfElements; i++)
    {
       Geometry::Type geom = elements[i]->GetGeometryType();
@@ -925,6 +925,28 @@ void Mesh::InitBaseGeom()
          BaseBdrGeom = Geometry::MIXED; break;
       }
       BaseBdrGeom = geom;
+   }
+   switch (BaseGeom)
+   {
+      case Geometry::SEGMENT:
+         BaseFaceGeom = Geometry::POINT;
+         break;
+      case Geometry::TRIANGLE:
+      case Geometry::SQUARE:
+         BaseFaceGeom = Geometry::SEGMENT;
+         break;
+      case Geometry::TETRAHEDRON:
+         BaseFaceGeom = Geometry::TRIANGLE;
+         break;
+      case Geometry::CUBE:
+         BaseFaceGeom = Geometry::SQUARE;
+         break;
+      case Geometry::PRISM:
+         BaseFaceGeom = Geometry::MIXED;
+         break;
+      default:
+         BaseFaceGeom = Geometry::INVALID;
+         break;
    }
 }
 
@@ -4028,24 +4050,28 @@ void Mesh::GetBdrElementFace(int i, int *f, int *o) const
 
 Geometry::Type Mesh::GetFaceBaseGeometry(int i) const
 {
-   // Here, we assume all faces are of the same type
-   switch (GetElementType(0))
-   {
-      case Element::SEGMENT:
-         return Geometry::POINT;
+   /*
+    // Here, we assume all faces are of the same type
+    switch (GetElementType(0))
+    {
+       case Element::SEGMENT:
+          return Geometry::POINT;
 
-      case Element::TRIANGLE:
-      case Element::QUADRILATERAL:
-         return Geometry::SEGMENT; // in 2D 'face' is an edge
+       case Element::TRIANGLE:
+       case Element::QUADRILATERAL:
+          return Geometry::SEGMENT; // in 2D 'face' is an edge
 
-      case Element::TETRAHEDRON:
-         return Geometry::TRIANGLE;
-      case Element::HEXAHEDRON:
-         return Geometry::SQUARE;
-      default:
-         mfem_error("Mesh::GetFaceBaseGeometry(...) #1");
-   }
-   return (Geometry::INVALID);
+       case Element::TETRAHEDRON:
+          return Geometry::TRIANGLE;
+       case Element::HEXAHEDRON:
+          return Geometry::SQUARE;
+       default:
+          mfem_error("Mesh::GetFaceBaseGeometry(...) #1");
+    }
+    return (Geometry::INVALID);
+   */
+   return ( i >= 0 && i < GetNFaces() ) ?
+          GetFace(i)->GetGeometryType() : BaseFaceGeom;
 }
 
 int Mesh::GetBdrElementEdgeIndex(int i) const
@@ -6301,13 +6327,19 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
    {
       case Geometry::TRIANGLE:
       case Geometry::SQUARE:
-         BaseBdrGeom = Geometry::SEGMENT;
+         BaseBdrGeom  = Geometry::SEGMENT;
+         BaseFaceGeom = Geometry::SEGMENT;
          break;
+      case Geometry::TETRAHEDRON:
+         BaseBdrGeom  = Geometry::TRIANGLE;
+         BaseFaceGeom = Geometry::TRIANGLE;
       case Geometry::CUBE:
-         BaseBdrGeom = Geometry::SQUARE;
+         BaseBdrGeom  = Geometry::SQUARE;
+         BaseFaceGeom = Geometry::SQUARE;
          break;
       default:
-         BaseBdrGeom = Geometry::MIXED;
+         BaseBdrGeom  = Geometry::MIXED;
+         BaseFaceGeom = Geometry::MIXED;
    }
 
    DeleteTables();

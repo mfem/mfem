@@ -57,7 +57,7 @@ protected:
    int NumOfEdges, NumOfFaces;
 
    // element base geometries, Geometry::MIXED = -1 if not all the same
-   Geometry::Type BaseGeom, BaseBdrGeom;
+   Geometry::Type BaseGeom, BaseBdrGeom, BaseFaceGeom;
 
    int meshgen; // see MeshGenerator()
 
@@ -686,10 +686,16 @@ public:
    Geometry::Type GetFaceBaseGeometry(int i) const;
 
    Geometry::Type GetElementBaseGeometry(int i = 0) const
-   { return i < GetNE() ? elements[i]->GetGeometryType() : BaseGeom; }
+   {
+      return (i >= 0 && i < GetNE() ) ?
+             elements[i]->GetGeometryType() : BaseGeom;
+   }
 
    Geometry::Type GetBdrElementBaseGeometry(int i = 0) const
-   { return i < GetNBE() ? boundary[i]->GetGeometryType() : BaseBdrGeom; }
+   {
+      return (i >= 0 && i < GetNBE() ) ?
+             boundary[i]->GetGeometryType() : BaseBdrGeom;
+   }
 
    /// Returns the indices of the vertices of element i.
    void GetElementVertices(int i, Array<int> &v) const
