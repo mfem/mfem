@@ -1261,16 +1261,17 @@ void ParFiniteElementSpace::UnpackDof(int dof,
    }
 }
 
-/** Represents an element of the P matrix. The column number is global.
- *  'next_dim' is the offset between the vector dimension columns.
+/** Represents an element of the P matrix. The column number is global and
+ *  corresponds to vector dimension 0. The other dimension columns are offset
+ *  by 'stride'.
  */
 struct PMatrixElement
 {
-   HYPRE_Int column, next_dim;
+   HYPRE_Int column, stride;
    double value;
 
-   PMatrixElement(HYPRE_Int col = 0, HYPRE_Int next = 0, double val = 0)
-      : column(col), next_dim(next), value(val) {}
+   PMatrixElement(HYPRE_Int col = 0, HYPRE_Int str = 0, double val = 0)
+      : column(col), stride(str), value(val) {}
 
    bool operator<(const PMatrixElement &other) const
    { return column < other.column; }
@@ -1293,7 +1294,7 @@ struct PMatrixRow
       {
          const PMatrixElement &oei = other.elems[i];
          elems.push_back(
-            PMatrixElement(oei.column, oei.next_dim, coef * oei.value));
+            PMatrixElement(oei.column, oei.stride, coef * oei.value));
       }
    }
 
@@ -1325,7 +1326,7 @@ struct PMatrixRow
       {
          const PMatrixElement &e = elems[i];
          mfem::write<HYPRE_Int>(os, e.column);
-         mfem::write<int>(os, e.next_dim);
+         mfem::write<int>(os, e.stride);
          mfem::write<double>(os, e.value * sign);
       }
    }
@@ -1337,7 +1338,7 @@ struct PMatrixRow
       {
          PMatrixElement &e = elems[i];
          e.column = mfem::read<HYPRE_Int>(is);
-         e.next_dim = mfem::read<int>(is);
+         e.stride = mfem::read<int>(is);
          e.value = mfem::read<double>(is) * sign;
       }
    }
@@ -1635,7 +1636,6 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    // *** STEP 1: build dependency lists ***
 
    int total_dofs = ndofs + ngdofs;
-   int next_dim = 1;
 
    SparseMatrix deps(ndofs, total_dofs);
 
@@ -1735,25 +1735,28 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    finalized = false;
 
    // DOFs that stayed independent and are ours are true DOFs
-   ltdof_size = 0;
+   int num_true_dofs = 0;
    for (int i = 0; i < ndofs; i++)
    {
       if (dof_owner[i] == 0 && deps.RowSize(i) == 0)
       {
-         ltdof_size++;
+         num_true_dofs++;
          finalized[i] = true;
       }
    }
+   ltdof_size = num_true_dofs*vdim;
 
    GenerateGlobalOffsets(); // calls MPI_Scan, MPI_Bcast
 
-   HYPRE_Int glob_true_dofs = tdof_offsets.Last();
-   HYPRE_Int glob_dofs = dof_offsets.Last();
+   bool bynodes = (ordering == Ordering::byNODES);
+   int vdim_factor = bynodes ? 1 : vdim;
+   int dof_stride = bynodes ? ndofs : 1;
+   int tdof_stride = bynodes ? num_true_dofs : 1;
 
    std::vector<PMatrixRow> pmatrix(total_dofs);
 
    // initialize the R matrix (also parallel but block-diagonal)
-   R = new SparseMatrix(ltdof_size, ndofs);
+   R = new SparseMatrix(num_true_dofs*vdim, ndofs*vdim);
 
    // big container for all messages we send (the list is for iterations)
    std::list<NeighborRowMessage::Map> send_msg;
@@ -1761,14 +1764,14 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
 
    // put identity in P and R for true DOFs, set ldof_ltdof
    HYPRE_Int my_tdof_offset = GetMyTDofOffset();
-   ldof_ltdof.SetSize(ndofs);
+   ldof_ltdof.SetSize(ndofs*vdim);
    ldof_ltdof = -1;
-   for (int dof = 0, true_dof = 0; dof < ndofs; dof++)
+   for (int dof = 0, tdof = 0; dof < ndofs; dof++)
    {
       if (finalized[dof])
       {
-         pmatrix[dof].elems.push_back(
-            PMatrixElement(my_tdof_offset + true_dof, next_dim, 1.0));
+         pmatrix[dof].elems.push_back(PMatrixElement
+            (my_tdof_offset + vdim_factor*tdof, tdof_stride, 1.0) );
 
          // prepare messages to neighbors with identity rows
          if (dof_group[dof] != 0)
@@ -1776,9 +1779,15 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
             ScheduleSendRow(pmatrix[dof], dof, dof_group[dof], send_msg.back());
          }
 
-         R->Add(true_dof, dof, 1.0);
-         ldof_ltdof[dof] = true_dof;
-         true_dof++;
+         for (int vd = 0; vd < vdim; vd++)
+         {
+            int vdof = dof*vdim_factor + vd*dof_stride;
+            int vtdof = tdof*vdim_factor + vd*tdof_stride;
+
+            R->Add(vtdof, vdof, 1.0);
+            ldof_ltdof[vdof] = vtdof;
+         }
+         tdof++;
       }
    }
 
@@ -1794,7 +1803,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    recv_msg.SetNCMesh(pncmesh);
    recv_msg.SetFEC(fec);
 
-   int num_finalized = ltdof_size;
+   int num_finalized = num_true_dofs;
    PMatrixRow buffer;
    buffer.elems.reserve(1024);
 
@@ -1885,7 +1894,8 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
       NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
    }
 
-   P = MakeHypreMatrix(pmatrix, ndofs, glob_dofs, glob_true_dofs,
+   P = MakeHypreMatrix(pmatrix, ndofs,
+                       dof_offsets.Last(), tdof_offsets.Last(),
                        dof_offsets.GetData(), tdof_offsets.GetData());
 
    // make sure we can discard all send buffers; NOTE: this is a formality
@@ -1898,16 +1908,17 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
 }
 
 
-/// Helper: create a HypreParMatrix from a list of global rows.
+/// Helper: create a HypreParMatrix from a list of PMatrixRows.
 HypreParMatrix* ParFiniteElementSpace::MakeHypreMatrix(
    const std::vector<PMatrixRow> &rows, int local_rows,
    HYPRE_Int glob_rows, HYPRE_Int glob_cols,
    HYPRE_Int *row_starts, HYPRE_Int *col_starts)
 {
-   HYPRE_Int first_col =
-      HYPRE_AssumedPartitionCheck() ? col_starts[0] : col_starts[MyRank];
-   HYPRE_Int next_col =
-      HYPRE_AssumedPartitionCheck() ? col_starts[1] : col_starts[MyRank+1];
+   bool assumed = HYPRE_AssumedPartitionCheck();
+   bool bynodes = (ordering == Ordering::byNODES);
+
+   HYPRE_Int first_col = col_starts[assumed ? 0 : MyRank];
+   HYPRE_Int next_col = col_starts[assumed ? 1 : MyRank+1];
 
    // count nonzeros in diagonal/offdiagonal parts
    HYPRE_Int nnz_diag = 0, nnz_offd = 0;
@@ -1916,15 +1927,20 @@ HypreParMatrix* ParFiniteElementSpace::MakeHypreMatrix(
    {
       for (unsigned j = 0; j < rows[i].elems.size(); j++)
       {
-         HYPRE_Int col = rows[i].elems[j].column;
+         const PMatrixElement &elem = rows[i].elems[j];
+         HYPRE_Int col = elem.column;
          if (col >= first_col && col < next_col)
          {
-            nnz_diag++;
+            nnz_diag += vdim;
          }
          else
          {
-            nnz_offd++;
-            col_map[col] = -1;
+            nnz_offd += vdim;
+            for (int vd = 0; vd < vdim; vd++)
+            {
+               col_map[col] = -1;
+               col += elem.stride;
+            }
          }
       }
    }
@@ -1939,8 +1955,8 @@ HypreParMatrix* ParFiniteElementSpace::MakeHypreMatrix(
       it->second = offd_col++;
    }
 
-   HYPRE_Int *I_diag = new HYPRE_Int[local_rows+1];
-   HYPRE_Int *I_offd = new HYPRE_Int[local_rows+1];
+   HYPRE_Int *I_diag = new HYPRE_Int[vdim*local_rows + 1];
+   HYPRE_Int *I_offd = new HYPRE_Int[vdim*local_rows + 1];
 
    HYPRE_Int *J_diag = new HYPRE_Int[nnz_diag];
    HYPRE_Int *J_offd = new HYPRE_Int[nnz_offd];
@@ -1948,30 +1964,43 @@ HypreParMatrix* ParFiniteElementSpace::MakeHypreMatrix(
    double *A_diag = new double[nnz_diag];
    double *A_offd = new double[nnz_offd];
 
+   int vdim1 = bynodes ? vdim : 1;
+   int vdim2 = bynodes ? 1 : vdim;
+   int vdim_offset = bynodes ? ltdof_size/vdim : 1;
+
    // copy the diag/offd elements
    nnz_diag = nnz_offd = 0;
-   for (int i = 0; i < local_rows; i++)
+   int vrow = 0;
+   for (int vd1 = 0; vd1 < vdim1; vd1++)
    {
-      I_diag[i] = nnz_diag;
-      I_offd[i] = nnz_offd;
-
-      for (unsigned j = 0; j < rows[i].elems.size(); j++)
+      for (int i = 0; i < local_rows; i++)
       {
-         const PMatrixElement &elem = rows[i].elems[j];
-         if (elem.column >= first_col && elem.column < next_col)
+         for (int vd2 = 0; vd2 < vdim2; vd2++)
          {
-            J_diag[nnz_diag] = elem.column - first_col;
-            A_diag[nnz_diag++] = elem.value;
-         }
-         else
-         {
-            J_offd[nnz_offd] = col_map[elem.column];
-            A_offd[nnz_offd++] = elem.value;
+            I_diag[vrow] = nnz_diag;
+            I_offd[vrow++] = nnz_offd;
+
+            int vd = bynodes ? vd1 : vd2;
+            for (unsigned j = 0; j < rows[i].elems.size(); j++)
+            {
+               const PMatrixElement &elem = rows[i].elems[j];
+               if (elem.column >= first_col && elem.column < next_col)
+               {
+                  J_diag[nnz_diag] = elem.column + vd*vdim_offset - first_col;
+                  A_diag[nnz_diag++] = elem.value;
+               }
+               else
+               {
+                  J_offd[nnz_offd] = col_map[elem.column + vd*elem.stride];
+                  A_offd[nnz_offd++] = elem.value;
+               }
+            }
          }
       }
    }
-   I_diag[local_rows] = nnz_diag;
-   I_offd[local_rows] = nnz_offd;
+   MFEM_ASSERT(vrow == vdim*local_rows, "");
+   I_diag[vrow] = nnz_diag;
+   I_offd[vrow] = nnz_offd;
 
    return new HypreParMatrix(MyComm, glob_rows, glob_cols,
                              row_starts, col_starts,
