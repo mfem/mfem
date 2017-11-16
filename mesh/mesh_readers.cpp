@@ -105,6 +105,10 @@ void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
       input >> ws;
       curved = 1;
    }
+
+   // When visualizing solutions on non-conforming grids, PETSc
+   // may dump additional vertices
+   RemoveUnusedVertices();
 }
 
 void Mesh::ReadLineMesh(std::istream &input)

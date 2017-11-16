@@ -369,11 +369,6 @@ protected:
    // Used in the methods FinalizeXXXMesh() and FinalizeTopology()
    void FinalizeCheck();
 
-   // Remove vertices that do not belong to any element and change the
-   // elements and boundary Arrays accordingly
-   // Used in FinalizeTopology() (PETSc may generate such meshes)
-   void PruneExtraVertices();
-
    void Loader(std::istream &input, int generate_edges = 0,
                std::string parse_tag = "");
 
