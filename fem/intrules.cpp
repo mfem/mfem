@@ -888,8 +888,14 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
       {
          if (!HaveIntRule(*ir_array, Order))
          {
-            GenerateIntegrationRule(GeomType, Order);
-            (*ir_array)[Order]->SetOrder(Order);
+            IntegrationRule *ir = GenerateIntegrationRule(GeomType, Order);
+            int RealOrder = Order;
+            while (RealOrder+1 < ir_array->Size() &&
+                   (*ir_array)[RealOrder+1] == ir)
+            {
+               RealOrder++;
+            }
+            ir->SetOrder(RealOrder);
          }
       }
    }
