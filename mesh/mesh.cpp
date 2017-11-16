@@ -42,7 +42,7 @@ namespace mfem
 
 void Mesh::GetElementJacobian(int i, DenseMatrix &J)
 {
-   int geom = GetElementBaseGeometry(i);
+   Geometry::Type geom = GetElementBaseGeometry(i);
    ElementTransformation *eltransf = GetElementTransformation(i);
    eltransf->SetIntPoint(&Geometries.GetCenter(geom));
    Geometries.JacToPerfJac(geom, eltransf->Jacobian(), J);
@@ -404,8 +404,8 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
       {
          FaceInfo &face_info = faces_info[FaceNo];
 
-         int face_geom = GetFaceGeometryType(FaceNo);
-         int face_type = GetFaceElementType(FaceNo);
+         Geometry::Type face_geom = GetFaceGeometryType(FaceNo);
+         Element::Type  face_type = GetFaceElementType(FaceNo);
 
          GetLocalFaceTransformation(face_type,
                                     GetElementType(face_info.Elem1No),
@@ -1602,7 +1602,7 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
          int *old_v = old_elem_vert->GetRow(i);
          int *new_v = elements[i]->GetVertices();
          int new_or, *dof_ord;
-         int geom = elements[i]->GetGeometryType();
+         Geometry::Type geom = elements[i]->GetGeometryType();
          switch (geom)
          {
             case Geometry::SEGMENT:
@@ -2954,7 +2954,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    int max_nv = 0;
    for (int el = 0; el < orig_mesh->GetNE(); el++)
    {
-      int geom = orig_mesh->GetElementBaseGeometry(el);
+      Geometry::Type geom = orig_mesh->GetElementBaseGeometry(el);
       int attrib = orig_mesh->GetAttribute(el);
       int nvert = Geometry::NumVerts[geom];
       RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
@@ -2986,7 +2986,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    // Add refined boundary elements
    for (int el = 0; el < orig_mesh->GetNBE(); el++)
    {
-      int geom = orig_mesh->GetBdrElementBaseGeometry(el);
+      Geometry::Type geom = orig_mesh->GetBdrElementBaseGeometry(el);
       int attrib = orig_mesh->GetBdrAttribute(el);
       int nvert = Geometry::NumVerts[geom];
       RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
@@ -3019,7 +3019,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    if (orig_mesh->GetNE() > 0)
    {
       const int el = 0;
-      int geom = orig_mesh->GetElementBaseGeometry(el);
+      Geometry::Type geom = orig_mesh->GetElementBaseGeometry(el);
       int nvert = Geometry::NumVerts[geom];
       RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
       const int *c2h_map = rfec.GetDofMap(geom);
@@ -4026,7 +4026,7 @@ void Mesh::GetBdrElementFace(int i, int *f, int *o) const
    }
 }
 
-int Mesh::GetFaceBaseGeometry(int i) const
+Geometry::Type Mesh::GetFaceBaseGeometry(int i) const
 {
    // Here, we assume all faces are of the same type
    switch (GetElementType(0))
@@ -4045,7 +4045,7 @@ int Mesh::GetFaceBaseGeometry(int i) const
       default:
          mfem_error("Mesh::GetFaceBaseGeometry(...) #1");
    }
-   return (-1);
+   return (Geometry::INVALID);
 }
 
 int Mesh::GetBdrElementEdgeIndex(int i) const
@@ -6467,7 +6467,7 @@ void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
    else if (nonconforming < 0)
    {
       // determine if nonconforming refinement is suitable
-      int geom = GetElementBaseGeometry();
+      Geometry::Type geom = GetElementBaseGeometry();
       if (geom == Geometry::CUBE || geom == Geometry::SQUARE)
       {
          nonconforming = 1;
@@ -7522,7 +7522,7 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
    np = nc = size = 0;
    for (int i = 0; i < GetNE(); i++)
    {
-      int geom = GetElementBaseGeometry(i);
+      Geometry::Type geom = GetElementBaseGeometry(i);
       int nv = Geometries.GetVertices(geom)->GetNPoints();
       RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       np += RefG->RefPts.GetNPoints();
@@ -7566,7 +7566,7 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
    np = 0;
    for (int i = 0; i < GetNE(); i++)
    {
-      int geom = GetElementBaseGeometry(i);
+      Geometry::Type geom = GetElementBaseGeometry(i);
       int nv = Geometries.GetVertices(geom)->GetNPoints();
       RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       Array<int> &RG = RefG->RefGeoms;
@@ -7585,7 +7585,7 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
    out << "CELL_TYPES " << nc << '\n';
    for (int i = 0; i < GetNE(); i++)
    {
-      int geom = GetElementBaseGeometry(i);
+      Geometry::Type geom = GetElementBaseGeometry(i);
       int nv = Geometries.GetVertices(geom)->GetNPoints();
       RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       Array<int> &RG = RefG->RefGeoms;
@@ -7599,6 +7599,9 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
          case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
          case Geometry::PRISM:        vtk_cell_type = 13;  break;
          case Geometry::CUBE:         vtk_cell_type = 12;  break;
+         default:
+            MFEM_ABORT("Unrecognized VTK element type \"" << geom << "\"");
+            break;
       }
 
       for (int j = 0; j < RG.Size(); j += nv)
@@ -7612,7 +7615,7 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
        << "LOOKUP_TABLE default\n";
    for (int i = 0; i < GetNE(); i++)
    {
-      int geom = GetElementBaseGeometry(i);
+      Geometry::Type geom = GetElementBaseGeometry(i);
       int nv = Geometries.GetVertices(geom)->GetNPoints();
       RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       int attr = GetAttribute(i);
@@ -7631,7 +7634,7 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
        << "LOOKUP_TABLE default\n";
    for (int i = 0; i < GetNE(); i++)
    {
-      int geom = GetElementBaseGeometry(i);
+      Geometry::Type geom = GetElementBaseGeometry(i);
       int nv = Geometries.GetVertices(geom)->GetNPoints();
       RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)

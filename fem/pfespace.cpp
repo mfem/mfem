@@ -882,7 +882,7 @@ void ParFiniteElementSpace::GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const
    const int nd = face_nbr_element_dof.RowSize(el2);
    const int *vol_vdofs = face_nbr_element_dof.GetRow(el2);
    const Element *face_nbr_el = pmesh->face_nbr_elements[el2];
-   const int geom = face_nbr_el->GetGeometryType();
+   Geometry::Type geom = face_nbr_el->GetGeometryType();
    const int face_dim = Geometry::Dimension[geom]-1;
 
    fec->SubDofOrder(geom, face_dim, inf2, vdofs);
@@ -914,8 +914,8 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFaceFE(int i) const
 {
    // Works in tandem with GetFaceNbrFaceVDofs() defined above.
    MFEM_ASSERT(Nonconforming() && !NURBSext, "");
-   const int geom = (pmesh->Dimension() == 2) ?
-                    Geometry::SEGMENT : Geometry::SQUARE;
+   Geometry::Type geom = (pmesh->Dimension() == 2) ?
+     Geometry::SEGMENT : Geometry::SQUARE;
    return fec->FiniteElementForGeometry(geom);
 }
 
@@ -1282,7 +1282,8 @@ void ParFiniteElementSpace::GetParallelConformingInterpolation() const
          if (type > 1) { T.SetFE(&QuadrilateralFE); }
          else { T.SetFE(&SegmentFE); }
 
-         int geom = (type > 1) ? Geometry::SQUARE : Geometry::SEGMENT;
+	 Geometry::Type geom = (type > 1) ?
+	   Geometry::SQUARE : Geometry::SEGMENT;
          const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
          if (!fe) { continue; }
 
@@ -2014,7 +2015,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    Vector row;
 
    ParNCMesh* pncmesh = pmesh->pncmesh;
-   int geom = pncmesh->GetElementGeometry();
+   Geometry::Type geom = pncmesh->GetElementGeometry();
    int ldof = fec->FiniteElementForGeometry(geom)->GetDof();
 
    const CoarseFineTransformations &dtrans = pncmesh->GetDerefinementTransforms();

@@ -881,7 +881,7 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
       for (int fi = 0; fi < orig_nf; fi++)
       {
          const int orig_l_face = orig_mesh->sface_lface[orig_sf[fi]];
-         const int geom = orig_mesh->GetFaceBaseGeometry(orig_l_face);
+	 Geometry::Type geom = orig_mesh->GetFaceBaseGeometry(orig_l_face);
          const int nvert = Geometry::NumVerts[geom];
          RefinedGeometry &RG =
             *GlobGeometryRefiner.Refine(geom, ref_factor, ref_factor);
@@ -919,7 +919,7 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
 
       // add refined shared edges; add shared vertices from refined shared edges
       const int orig_n_edges = orig_mesh->GroupNEdges(gr);
-      const int geom = Geometry::SEGMENT;
+      Geometry::Type geom = Geometry::SEGMENT;
       const int nvert = Geometry::NumVerts[geom];
       RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
       for (int e = 0; e < orig_n_edges; e++)
@@ -951,7 +951,7 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
       for (int f = 0; f < orig_nf; f++)
       {
          const int orig_l_face = orig_mesh->sface_lface[orig_sf[f]];
-         const int geom = orig_mesh->GetFaceBaseGeometry(orig_l_face);
+         Geometry::Type geom = orig_mesh->GetFaceBaseGeometry(orig_l_face);
          const int nvert = Geometry::NumVerts[geom];
          RefinedGeometry &RG =
             *GlobGeometryRefiner.Refine(geom, ref_factor, ref_factor);

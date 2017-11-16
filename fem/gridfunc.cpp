@@ -262,7 +262,7 @@ int GridFunction::VectorDim() const
    if (!fes->GetNE())
    {
       const FiniteElementCollection *fec = fes->FEColl();
-      static const int geoms[3] =
+      static const Geometry::Type geoms[3] =
       { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
       fe = fec->FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
    }

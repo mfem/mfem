@@ -121,7 +121,8 @@ protected:
    /// Calculate GridFunction interpolation matrix after mesh refinement.
    SparseMatrix* RefinementMatrix(int old_ndofs, const Table* old_elem_dof);
 
-   void GetLocalDerefinementMatrices(int geom, const CoarseFineTransformations &dt,
+   void GetLocalDerefinementMatrices(Geometry::Type geom,
+                                     const CoarseFineTransformations &dt,
                                      DenseTensor &localR);
 
    /// Calculate GridFunction restriction matrix after mesh derefinement.
@@ -302,7 +303,7 @@ public:
    const FiniteElement *GetEdgeElement(int i) const;
 
    /// Return the trace element from element 'i' to the given 'geom_type'
-   const FiniteElement *GetTraceElement(int i, int geom_type) const;
+   const FiniteElement *GetTraceElement(int i, Geometry::Type geom_type) const;
 
    /** Mark degrees of freedom associated with boundary elements with
        the specified boundary attributes (marked in 'bdr_attr_is_ess').

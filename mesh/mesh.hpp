@@ -683,12 +683,12 @@ public:
 
    const Element *GetFace(int i) const { return faces[i]; }
 
-   int GetFaceBaseGeometry(int i) const;
+   Geometry::Type GetFaceBaseGeometry(int i) const;
 
-   int GetElementBaseGeometry(int i = 0) const
+   Geometry::Type GetElementBaseGeometry(int i = 0) const
    { return i < GetNE() ? elements[i]->GetGeometryType() : BaseGeom; }
 
-   int GetBdrElementBaseGeometry(int i = 0) const
+   Geometry::Type GetBdrElementBaseGeometry(int i = 0) const
    { return i < GetNBE() ? boundary[i]->GetGeometryType() : BaseBdrGeom; }
 
    /// Returns the indices of the vertices of element i.

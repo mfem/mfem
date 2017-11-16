@@ -55,13 +55,13 @@ DofsToVDofs<Ordering::byVDIM>(int ndofs, int vdim, Array<int> &dofs)
 
 int FiniteElementSpace::GetOrder(int i) const
 {
-   int GeomType = mesh->GetElementBaseGeometry(i);
+   Geometry::Type GeomType = mesh->GetElementBaseGeometry(i);
    return fec->FiniteElementForGeometry(GeomType)->GetOrder();
 }
 
 int FiniteElementSpace::GetFaceOrder(int i) const
 {
-   int GeomType = mesh->GetFaceBaseGeometry(i);
+   Geometry::Type GeomType = mesh->GetFaceBaseGeometry(i);
    return fec->FiniteElementForGeometry(GeomType)->GetOrder();
 }
 
@@ -564,7 +564,7 @@ void FiniteElementSpace::GetConformingInterpolation() const
       if (type) { T.SetFE(&QuadrilateralFE); }
       else { T.SetFE(&SegmentFE); }
 
-      int geom = type ? Geometry::SQUARE : Geometry::SEGMENT;
+      Geometry::Type geom = type ? Geometry::SQUARE : Geometry::SEGMENT;
       const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
       if (!fe) { continue; }
 
@@ -752,7 +752,7 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
 
-   int geom = mesh->GetElementBaseGeometry(); // assuming the same geom
+   Geometry::Type geom = mesh->GetElementBaseGeometry(); // assuming the same geom
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
 
    IsoparametricTransformation isotr;
@@ -823,7 +823,8 @@ void InvertLinearTrans(IsoparametricTransformation &trans,
 }
 
 void FiniteElementSpace::GetLocalDerefinementMatrices(
-   int geom, const CoarseFineTransformations &dt, DenseTensor &localR)
+   Geometry::Type geom, const CoarseFineTransformations &dt,
+   DenseTensor &localR)
 {
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
    const IntegrationRule &nodes = fe->GetNodes();
@@ -880,7 +881,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    const CoarseFineTransformations &dtrans =
       mesh->ncmesh->GetDerefinementTransforms();
 
-   int geom = mesh->ncmesh->GetElementGeometry();
+   Geometry::Type geom = mesh->ncmesh->GetElementGeometry();
    int ldof = fec->FiniteElementForGeometry(geom)->GetDof();
 
    DenseTensor localR;
@@ -1455,7 +1456,7 @@ const FiniteElement *FiniteElementSpace::GetEdgeElement(int i) const
 }
 
 const FiniteElement *FiniteElementSpace::GetTraceElement(
-   int i, int geom_type) const
+   int i, Geometry::Type geom_type) const
 {
    return fec->TraceFiniteElementForGeometry(geom_type);
 }
