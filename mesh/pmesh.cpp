@@ -881,7 +881,7 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
       for (int fi = 0; fi < orig_nf; fi++)
       {
          const int orig_l_face = orig_mesh->sface_lface[orig_sf[fi]];
-	 Geometry::Type geom = orig_mesh->GetFaceBaseGeometry(orig_l_face);
+         Geometry::Type geom = orig_mesh->GetFaceBaseGeometry(orig_l_face);
          const int nvert = Geometry::NumVerts[geom];
          RefinedGeometry &RG =
             *GlobGeometryRefiner.Refine(geom, ref_factor, ref_factor);

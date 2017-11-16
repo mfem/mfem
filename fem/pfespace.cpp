@@ -915,7 +915,7 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFaceFE(int i) const
    // Works in tandem with GetFaceNbrFaceVDofs() defined above.
    MFEM_ASSERT(Nonconforming() && !NURBSext, "");
    Geometry::Type geom = (pmesh->Dimension() == 2) ?
-     Geometry::SEGMENT : Geometry::SQUARE;
+                         Geometry::SEGMENT : Geometry::SQUARE;
    return fec->FiniteElementForGeometry(geom);
 }
 
@@ -1282,8 +1282,8 @@ void ParFiniteElementSpace::GetParallelConformingInterpolation() const
          if (type > 1) { T.SetFE(&QuadrilateralFE); }
          else { T.SetFE(&SegmentFE); }
 
-	 Geometry::Type geom = (type > 1) ?
-	   Geometry::SQUARE : Geometry::SEGMENT;
+         Geometry::Type geom = (type > 1) ?
+                               Geometry::SQUARE : Geometry::SEGMENT;
          const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
          if (!fe) { continue; }
 
