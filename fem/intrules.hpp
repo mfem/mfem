@@ -224,8 +224,8 @@ public:
    /// Returns the order of the integration rule
    int GetOrder() const { return Order; }
 
-   /** @brief Sets the order of the integration rule. This is only for
-       keeping order information, it does not alter any data in the IntegrationRule */
+   /** @brief Sets the order of the integration rule. This is only for keeping
+       order information, it does not alter any data in the IntegrationRule. */
    void SetOrder(const int order) { Order = order; }
 
    /// Returns the number of the points in the integration rule
