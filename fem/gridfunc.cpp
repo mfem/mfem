@@ -1051,8 +1051,9 @@ void GridFunction::GetElementAverages(GridFunction &avgs)
 
 void GridFunction::ProjectGridFunction(const GridFunction &src)
 {
-   // Assuming that the projection matrix is the same for all elements
+
    Mesh *mesh = fes->GetMesh();
+   bool sameP = false;
    DenseMatrix P;
 
    if (!fes->GetNE())
@@ -1060,8 +1061,15 @@ void GridFunction::ProjectGridFunction(const GridFunction &src)
       return;
    }
 
-   fes->GetFE(0)->Project(*src.fes->GetFE(0),
-                          *mesh->GetElementTransformation(0), P);
+
+   if ( mesh->GetElementBaseGeometry() != Geometry::MIXED &&
+        mesh->GetElementBaseGeometry() != Geometry::INVALID )
+   {
+      // Assuming that the projection matrix is the same for all elements
+      sameP = true;
+      fes->GetFE(0)->Project(*src.fes->GetFE(0),
+                             *mesh->GetElementTransformation(0), P);
+   }
    int vdim = fes->GetVDim();
    if (vdim != src.fes->GetVDim())
       mfem_error("GridFunction::ProjectGridFunction() :"
@@ -1071,6 +1079,13 @@ void GridFunction::ProjectGridFunction(const GridFunction &src)
 
    for (int i = 0; i < mesh->GetNE(); i++)
    {
+      if ( !sameP )
+      {
+         fes->GetFE(i)->Project(*src.fes->GetFE(i),
+                                *mesh->GetElementTransformation(i), P);
+         dest_lvec.SetSize(vdim*P.Height());
+      }
+
       src.fes->GetElementVDofs(i, src_vdofs);
       src.GetSubVector(src_vdofs, src_lvec);
       for (int vd = 0; vd < vdim; vd++)
