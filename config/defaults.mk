@@ -229,10 +229,6 @@ SIDRE_LIB = \
    -Wl,-rpath -Wl,$(HDF5_DIR)/lib \
    -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 -lz -ldl
 
-ifeq ($(MFEM_USE_MPI),YES)
-   SIDRE_LIB += -lspio
-endif
-
 # If YES, enable some informational messages
 VERBOSE = NO
 
