@@ -104,7 +104,7 @@ void ParFiniteElementSpace::Construct()
       // get P and R matrices, initialize DOF offsets, etc. NOTE: in the NC
       // case this needs to be done here to get the number of true DOFs
       ltdof_size = BuildParallelConformingInterpolation(
-                       &P, &R, dof_offsets, tdof_offsets, &ldof_ltdof, false);
+                      &P, &R, dof_offsets, tdof_offsets, &ldof_ltdof, false);
 
       // TODO future: split BuildParallelConformingInterpolation into two parts
       // to overlap its communication with processing between this constructor
@@ -1134,29 +1134,29 @@ void ParFiniteElementSpace::GetBareDofs(int entity, const MeshId &id,
    int ned, ghost, first;
    switch (entity)
    {
-   case 0:
-      ned = fec->DofForGeometry(Geometry::POINT);
-      ghost = pncmesh->GetNVertices();
-      first = (id.index < ghost)
-         ? id.index*ned // regular vertex
-         : ndofs + (id.index - ghost)*ned; // ghost vertex
-      break;
+      case 0:
+         ned = fec->DofForGeometry(Geometry::POINT);
+         ghost = pncmesh->GetNVertices();
+         first = (id.index < ghost)
+                 ? id.index*ned // regular vertex
+                 : ndofs + (id.index - ghost)*ned; // ghost vertex
+         break;
 
-   case 1:
-      ned = fec->DofForGeometry(Geometry::SEGMENT);
-      ghost = pncmesh->GetNEdges();
-      first = (id.index < ghost)
-         ? nvdofs + id.index*ned // regular edge
-         : ndofs + ngvdofs + (id.index - ghost)*ned; // ghost edge
-      break;
+      case 1:
+         ned = fec->DofForGeometry(Geometry::SEGMENT);
+         ghost = pncmesh->GetNEdges();
+         first = (id.index < ghost)
+                 ? nvdofs + id.index*ned // regular edge
+                 : ndofs + ngvdofs + (id.index - ghost)*ned; // ghost edge
+         break;
 
-   default:
-      ned = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
-      ghost = pncmesh->GetNFaces();
-      first = (id.index < ghost)
-         ? nvdofs + nedofs + id.index*ned // regular face
-         : ndofs + ngvdofs + ngedofs + (id.index - ghost)*ned; // ghost face
-      break;
+      default:
+         ned = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
+         ghost = pncmesh->GetNFaces();
+         first = (id.index < ghost)
+                 ? nvdofs + nedofs + id.index*ned // regular face
+                 : ndofs + ngvdofs + ngedofs + (id.index - ghost)*ned; // ghost
+         break;
    }
 
    dofs.SetSize(ned);
@@ -1174,29 +1174,29 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof) const
    int ghost, ned;
    switch (entity)
    {
-   case 0:
-      ghost = pncmesh->GetNVertices();
-      ned = fec->DofForGeometry(Geometry::POINT);
+      case 0:
+         ghost = pncmesh->GetNVertices();
+         ned = fec->DofForGeometry(Geometry::POINT);
 
-      return (index < ghost)
-         ? index*ned + edof // regular vertex
-         : ndofs + (index - ghost)*ned + edof; // ghost vertex
+         return (index < ghost)
+                ? index*ned + edof // regular vertex
+                : ndofs + (index - ghost)*ned + edof; // ghost vertex
 
-   case 1:
-      ghost = pncmesh->GetNEdges();
-      ned = fec->DofForGeometry(Geometry::SEGMENT);
+      case 1:
+         ghost = pncmesh->GetNEdges();
+         ned = fec->DofForGeometry(Geometry::SEGMENT);
 
-      return (index < ghost)
-         ? nvdofs + index*ned + edof // regular edge
-         : ndofs + ngvdofs + (index - ghost)*ned + edof; // ghost edge
+         return (index < ghost)
+                ? nvdofs + index*ned + edof // regular edge
+                : ndofs + ngvdofs + (index - ghost)*ned + edof; // ghost edge
 
-   default:
-      ghost = pncmesh->GetNFaces();
-      ned = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
+      default:
+         ghost = pncmesh->GetNFaces();
+         ned = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
 
-      return (index < ghost)
-         ? nvdofs + nedofs + index*ned + edof // regular face
-         : ndofs + ngvdofs + ngedofs + (index - ghost)*ned + edof; // ghost face
+         return (index < ghost)
+                ? nvdofs + nedofs + index*ned + edof // regular face
+                : ndofs + ngvdofs + ngedofs + (index - ghost)*ned + edof; //ghost
    }
 }
 
@@ -1572,11 +1572,11 @@ void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
 
 #ifdef MFEM_DEBUG_PMATRIX
 void ParFiniteElementSpace
-   ::DebugDumpDOFs(std::ofstream &os,
-                   const SparseMatrix &deps,
-                   const Array<GroupId> &dof_group,
-                   const Array<GroupId> &dof_owner,
-                   const Array<bool> &finalized) const
+::DebugDumpDOFs(std::ofstream &os,
+                const SparseMatrix &deps,
+                const Array<GroupId> &dof_group,
+                const Array<GroupId> &dof_owner,
+                const Array<bool> &finalized) const
 {
    for (int i = 0; i < dof_group.Size(); i++)
    {
@@ -1634,11 +1634,11 @@ void ParFiniteElementSpace
 #endif
 
 int ParFiniteElementSpace
-   ::BuildParallelConformingInterpolation(HypreParMatrix **P, SparseMatrix **R,
-                                          Array<HYPRE_Int> &dof_offs,
-                                          Array<HYPRE_Int> &tdof_offs,
-                                          Array<int> *dof_tdof,
-                                          bool partial) const
+::BuildParallelConformingInterpolation(HypreParMatrix **P, SparseMatrix **R,
+                                       Array<HYPRE_Int> &dof_offs,
+                                       Array<HYPRE_Int> &tdof_offs,
+                                       Array<int> *dof_tdof,
+                                       bool partial) const
 {
    bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
 
@@ -1674,8 +1674,8 @@ int ParFiniteElementSpace
 
             // get master DOFs
             pncmesh->IsGhost(entity, mf.index)
-                  ? GetGhostDofs(entity, mf, master_dofs)
-                  : GetDofs(entity, mf.index, master_dofs);
+            ? GetGhostDofs(entity, mf, master_dofs)
+            : GetDofs(entity, mf.index, master_dofs);
 
             if (!master_dofs.Size()) { continue; }
 
@@ -1766,7 +1766,7 @@ int ParFiniteElementSpace
    pmesh->GenerateOffsets(2, loc_sizes, offsets); // calls MPI_Scan, MPI_Bcast
 
    HYPRE_Int my_tdof_offset =
-         tdof_offs[HYPRE_AssumedPartitionCheck() ? 0 : MyRank];
+      tdof_offs[HYPRE_AssumedPartitionCheck() ? 0 : MyRank];
 
    if (R)
    {
@@ -1795,8 +1795,8 @@ int ParFiniteElementSpace
    {
       if (finalized[dof])
       {
-         pmatrix[dof].elems.push_back(PMatrixElement
-            (my_tdof_offset + vdim_factor*tdof, tdof_stride, 1.0) );
+         pmatrix[dof].elems.push_back(
+            PMatrixElement(my_tdof_offset + vdim_factor*tdof, tdof_stride, 1.));
 
          // prepare messages to neighbors with identity rows
          if (dof_group[dof] != 0)
@@ -1940,10 +1940,10 @@ int ParFiniteElementSpace
 
 
 HypreParMatrix* ParFiniteElementSpace
-   ::MakeVDimHypreMatrix(const std::vector<PMatrixRow> &rows,
-                         int local_rows,
-                         Array<HYPRE_Int> &row_starts,
-                         Array<HYPRE_Int> &col_starts) const
+::MakeVDimHypreMatrix(const std::vector<PMatrixRow> &rows,
+                      int local_rows,
+                      Array<HYPRE_Int> &row_starts,
+                      Array<HYPRE_Int> &col_starts) const
 {
    bool assumed = HYPRE_AssumedPartitionCheck();
    bool bynodes = (ordering == Ordering::byNODES);

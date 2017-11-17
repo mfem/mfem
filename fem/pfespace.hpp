@@ -123,10 +123,10 @@ private:
 
    /// Helper: create a HypreParMatrix from a list of PMatrixRows.
    HypreParMatrix*
-      MakeVDimHypreMatrix(const std::vector<struct PMatrixRow> &rows,
-                          int local_rows,
-                          Array<HYPRE_Int> &row_starts,
-                          Array<HYPRE_Int> &col_starts) const;
+   MakeVDimHypreMatrix(const std::vector<struct PMatrixRow> &rows,
+                       int local_rows,
+                       Array<HYPRE_Int> &row_starts,
+                       Array<HYPRE_Int> &col_starts) const;
 
    /// Build the P and R matrices.
    void Build_Dof_TrueDof_Matrix();
