@@ -1014,7 +1014,8 @@ public:
 
    /** Return fine element transformations following a mesh refinement.
        Space uses this to construct a global interpolation matrix. */
-   const CoarseFineTransformations &GetRefinementTransforms();
+   const CoarseFineTransformations &GetRefinementTransforms(
+				       Geometry::Type geom = Geometry::INVALID);
 
    /// Return type of last modification of the mesh.
    Operation GetLastOperation() const { return last_operation; }

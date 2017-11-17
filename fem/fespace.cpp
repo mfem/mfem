@@ -465,17 +465,33 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
       return R;
    }
 
-   const FiniteElement *h_fe = this -> GetFE (0);
-   const FiniteElement *l_fe = lfes -> GetFE (0);
-   IsoparametricTransformation T;
-   T.SetIdentityTransformation(h_fe->GetGeomType());
-   h_fe->Project(*l_fe, T, loc_restr);
+   bool mixedMesh = this->GetMesh()->GetElementBaseGeometry();
 
+   const FiniteElement *h_fe = NULL;
+   const FiniteElement *l_fe = NULL;
+   IsoparametricTransformation T;
+
+   if ( !mixedMesh )
+   {
+     h_fe = this -> GetFE (0);
+     l_fe = lfes -> GetFE (0);
+     T.SetIdentityTransformation(h_fe->GetGeomType());
+     h_fe->Project(*l_fe, T, loc_restr);
+   }
+   
    for (int i = 0; i < mesh -> GetNE(); i++)
    {
       this -> GetElementDofs (i, h_dofs);
       lfes -> GetElementDofs (i, l_dofs);
 
+      if ( mixedMesh )
+      {
+ 	 h_fe = this -> GetFE (i);
+	 l_fe = lfes -> GetFE (i);
+	 T.SetIdentityTransformation(h_fe->GetGeomType());
+	 h_fe->Project(*l_fe, T, loc_restr);
+      }
+      
       R -> SetSubMatrix (l_dofs, h_dofs, loc_restr, 1);
    }
 
@@ -747,19 +763,27 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
    MFEM_VERIFY(mesh->GetLastOperation() == Mesh::REFINE, "");
    MFEM_VERIFY(ndofs >= old_ndofs, "Previous space is not coarser.");
 
+   Geometry::Type geom = mesh->GetElementBaseGeometry(-1);
+   MFEM_VERIFY(geom != Geometry::INVALID, "Invalid element base geometry.");
+
+   bool mixedMesh = (geom == Geometry::MIXED);
+
    Array<int> dofs, old_dofs, old_vdofs;
    Vector row;
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
-
-   Geometry::Type geom = mesh->GetElementBaseGeometry(); // assuming the same geom
-   const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
+   
+   const FiniteElement *fe = (!mixedMesh) ?
+     fec->FiniteElementForGeometry(geom) : NULL;
 
    IsoparametricTransformation isotr;
-   isotr.SetIdentityTransformation(geom);
-
-   int nmat = rtrans.point_matrices.SizeK();
-   int ldof = fe->GetDof(); // assuming the same FE everywhere
+   if ( !mixedMesh )
+   {
+     isotr.SetIdentityTransformation(geom);
+   }
+   
+   int nmat = (!mixedMesh) ? rtrans.point_matrices.SizeK() : 0;
+   int ldof = (!mixedMesh) ? fe->GetDof() : 0;
 
    // calculate local interpolation matrices for all refinement types
    DenseTensor localP(ldof, ldof, nmat);
@@ -769,13 +793,36 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
       fe->GetLocalInterpolation(isotr, localP(i));
    }
 
-   SparseMatrix *P = new SparseMatrix(ndofs*vdim, old_ndofs*vdim, ldof);
+   SparseMatrix *P = (!mixedMesh) ?
+     new SparseMatrix(ndofs*vdim, old_ndofs*vdim, ldof) :
+     new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
 
    Array<int> mark(P->Height());
    mark = 0;
    for (int k = 0; k < mesh->GetNE(); k++)
    {
-      const Embedding &emb = rtrans.embeddings[k];
+      if ( mixedMesh)
+      {
+	 geom = mesh->GetElementBaseGeometry(k);
+      }
+      const CoarseFineTransformations &el_rtrans =
+	(!mixedMesh) ? rtrans : mesh->GetRefinementTransforms(geom);
+      if ( mixedMesh )
+      {
+	fe = fec->FiniteElementForGeometry(geom);
+	isotr.SetIdentityTransformation(geom);
+
+	nmat = el_rtrans.point_matrices.SizeK();
+	ldof = fe->GetDof();
+	localP.SetSize(ldof, ldof, nmat);
+	for (int i = 0; i < nmat; i++)
+	{
+	  isotr.GetPointMat() = el_rtrans.point_matrices(i);
+	  fe->GetLocalInterpolation(isotr, localP(i));
+	}
+      }
+      
+      const Embedding &emb = el_rtrans.embeddings[k];
       DenseMatrix &lP = localP(emb.matrix);
 
       elem_dof->GetRow(k, dofs);

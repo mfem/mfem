@@ -6996,7 +6996,8 @@ int Mesh::FindCoarseElement(int i)
    return coarse;
 }
 
-const CoarseFineTransformations& Mesh::GetRefinementTransforms()
+const CoarseFineTransformations& Mesh::GetRefinementTransforms(
+   Geometry::Type geom)
 {
    MFEM_VERIFY(GetLastOperation() == Mesh::REFINE, "");
 
@@ -7005,10 +7006,15 @@ const CoarseFineTransformations& Mesh::GetRefinementTransforms()
       return ncmesh->GetRefinementTransforms();
    }
 
+   if ( geom == Geometry::INVALID )
+   {
+     geom = BaseGeom;
+   }
+   
    if (!CoarseFineTr.point_matrices.SizeK())
    {
-      if (BaseGeom == Geometry::TRIANGLE ||
-          BaseGeom == Geometry::TETRAHEDRON)
+      if (geom == Geometry::TRIANGLE ||
+          geom == Geometry::TETRAHEDRON)
       {
          std::map<unsigned, int> mat_no;
          mat_no[0] = 1; // identity
@@ -7034,7 +7040,7 @@ const CoarseFineTransformations& Mesh::GetRefinementTransforms()
          std::map<unsigned, int>::iterator it;
          for (it = mat_no.begin(); it != mat_no.end(); ++it)
          {
-            if (BaseGeom == Geometry::TRIANGLE)
+            if (geom == Geometry::TRIANGLE)
             {
                Triangle::GetPointMatrix(it->first, pmats(it->second-1));
             }
