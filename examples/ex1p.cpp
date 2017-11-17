@@ -57,6 +57,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool visualization = 1;
    int seed = 0;
+   bool ptest;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -72,6 +73,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&ptest, "-pt", "--ptest", "-npt", "--no-ptest",
+                  "Run P matrix test only.");
    args.Parse();
    if (!args.Good())
    {
@@ -104,7 +107,7 @@ int main(int argc, char *argv[])
       for (int l = 0; l < ref_levels; l++)
       {
          //mesh->UniformRefinement();
-         mesh->RandomRefinement(0.5, true);
+         mesh->RandomRefinement(0.5, false);
       }
    }
 
@@ -114,7 +117,7 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 1;//2;
+      int par_ref_levels = 1;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -148,11 +151,11 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   /*///// DEBUG
-   MPI_Finalize();
-   return 0;
-   ///// DEBUG*/
-
+   if (ptest)
+   {
+      MPI_Finalize();
+      return 0;
+   }
 
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
