@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool visualization = 1;
    int seed = 0;
-   bool ptest;
+   bool ptest = false, aniso = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -75,6 +75,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&ptest, "-pt", "--ptest", "-npt", "--no-ptest",
                   "Run P matrix test only.");
+   args.AddOption(&aniso, "-a", "--aniso", "-i", "--iso",
+                  "Enable anisotropic refinement.");
    args.Parse();
    if (!args.Good())
    {
