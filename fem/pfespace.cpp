@@ -1129,18 +1129,6 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
    }
 }
 
-void
-ParFiniteElementSpace::GetDofs(int entity, int index, Array<int> &dofs) const
-{
-   // helper to get vertex, edge or face DOFs
-   switch (entity)
-   {
-      case 0: GetVertexDofs(index, dofs); break;
-      case 1: GetEdgeDofs(index, dofs); break;
-      case 2: GetFaceDofs(index, dofs); break;
-   }
-}
-
 void ParFiniteElementSpace::GetGhostDofs(int entity, const MeshId &id,
                                          Array<int> &dofs) const
 {
@@ -1700,7 +1688,7 @@ int ParFiniteElementSpace
             // get master DOFs
             pncmesh->IsGhost(entity, mf.index)
             ? GetGhostDofs(entity, mf, master_dofs)
-            : GetDofs(entity, mf.index, master_dofs);
+            : GetEntityDofs(entity, mf.index, master_dofs);
 
             if (!master_dofs.Size()) { continue; }
 
@@ -1710,7 +1698,7 @@ int ParFiniteElementSpace
                const NCMesh::Slave &sf = list.slaves[si];
                if (pncmesh->IsGhost(entity, sf.index)) { continue; }
 
-               GetDofs(entity, sf.index, slave_dofs);
+               GetEntityDofs(entity, sf.index, slave_dofs);
                if (!slave_dofs.Size()) { continue; }
 
                sf.OrientedPointMatrix(T.GetPointMat());
