@@ -114,37 +114,12 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 0;//2;
+      int par_ref_levels = 1;//2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
       }
    }
-
-   /*{
-      Array<Refinement> refs;
-      if (myid == 0) { refs.Append(Refinement(0, 6)); }
-      pmesh->GeneralRefinement(refs);
-   }*/
-
-   /*{
-      Mesh dbg;
-      pmesh->pncmesh->GetDebugMesh(dbg);
-      char fname[100];
-      sprintf(fname, "dbg%02d.mesh", myid);
-      std::ofstream f(fname);
-      dbg.Print(f);
-   }*/
-   /*{
-      char fname[100];
-      sprintf(fname, "ncmesh%02d.dbg", myid);
-      std::ofstream f(fname);
-      pmesh->pncmesh->DebugDump(f);
-   }*/
-
-   /*Array<Refinement> refs;
-   if (myid == 0) { refs.Append(Refinement(0)); }
-   pmesh->GeneralRefinement(refs);*/
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
