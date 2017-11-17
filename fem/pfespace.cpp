@@ -1717,7 +1717,7 @@ int ParFiniteElementSpace
       deps.Finalize();
    }
 
-   // *** STEP 2:
+   // *** STEP 2: initialize group and owner ID for each DOF ***
 
    Array<GroupId> dof_group(total_dofs);
    Array<GroupId> dof_owner(total_dofs);
@@ -1758,7 +1758,7 @@ int ParFiniteElementSpace
       }
    }
 
-   // *** STEP 3: count true DOFs and calculate P column partition ***
+   // *** STEP 3: count true DOFs and calculate P row/column partitions ***
 
    Array<bool> finalized(total_dofs);
    finalized = false;
