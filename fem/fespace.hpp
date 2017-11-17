@@ -192,7 +192,7 @@ public:
    /// Returns number of elements in the mesh.
    inline int GetNE() const { return mesh->GetNE(); }
 
-   /// Returns number of nodes in the mesh.
+   /// Returns number of faces in the mesh.
    inline int GetNF() const { return mesh->GetNumFaces(); }
 
    /// Returns number of boundary elements in the mesh.
