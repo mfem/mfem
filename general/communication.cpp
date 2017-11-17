@@ -23,6 +23,8 @@
 #include "sets.hpp"
 #include "communication.hpp"
 #include "text.hpp"
+#include "sort_pairs.hpp"
+#include "globals.hpp"
 
 #include <iostream>
 #include <map>
@@ -31,6 +33,13 @@ using namespace std;
 
 namespace mfem
 {
+
+void MPI_Session::GetRankAndSize()
+{
+   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+}
+
 
 GroupTopology::GroupTopology(const GroupTopology &gt)
    : MyComm(gt.MyComm),
@@ -183,8 +192,8 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
 
          if (lproc_proc[groupmaster_lproc[g]] != status.MPI_SOURCE)
          {
-            cerr << "\n\n\nGroupTopology::GroupTopology: "
-                 << MyRank() << ": ERROR\n\n\n" << endl;
+            mfem::err << "\n\n\nGroupTopology::GroupTopology: "
+                      << MyRank() << ": ERROR\n\n\n" << endl;
             mfem_error();
          }
       }
@@ -262,12 +271,16 @@ template<> const MPI_Datatype MPITypeMap<int>::mpi_type = MPI_INT;
 template<> const MPI_Datatype MPITypeMap<double>::mpi_type = MPI_DOUBLE;
 
 
-GroupCommunicator::GroupCommunicator(GroupTopology &gt)
-   : gtopo(gt)
+GroupCommunicator::GroupCommunicator(GroupTopology &gt, Mode m)
+   : gtopo(gt), mode(m)
 {
    group_buf_size = 0;
    requests = NULL;
-   statuses = NULL;
+   // statuses = NULL;
+   comm_lock = 0;
+   num_requests = 0;
+   request_marker = NULL;
+   buf_offsets = NULL;
 }
 
 void GroupCommunicator::Create(Array<int> &ldof_group)
@@ -300,7 +313,11 @@ void GroupCommunicator::Finalize()
 {
    int request_counter = 0;
 
+   // size buf_offsets = max(number of groups, number of neighbors)
+   buf_offsets = new int[max(group_ldof.Size(), gtopo.GetNumNeighbors())];
+   buf_offsets[0] = 0;
    for (int gr = 1; gr < group_ldof.Size(); gr++)
+   {
       if (group_ldof.RowSize(gr) != 0)
       {
          int gr_requests;
@@ -316,200 +333,635 @@ void GroupCommunicator::Finalize()
          request_counter += gr_requests;
          group_buf_size += gr_requests * group_ldof.RowSize(gr);
       }
+   }
 
    requests = new MPI_Request[request_counter];
-   statuses = new MPI_Status[request_counter];
-}
+   // statuses = new MPI_Status[request_counter];
+   request_marker = new int[request_counter];
 
-template <class T>
-void GroupCommunicator::Bcast(T *ldata, int layout)
-{
-   if (group_buf_size == 0) { return; }
-
-   T *buf;
-   if (layout == 0)
-   {
-      group_buf.SetSize(group_buf_size*sizeof(T));
-      buf = (T *)group_buf.GetData();
-   }
-   else
-   {
-      buf = ldata;
-   }
-
-   int i, gr, request_counter = 0;
-
-   for (gr = 1; gr < group_ldof.Size(); gr++)
+   // Construct nbr_send_groups and nbr_recv_groups: (nbr 0 = me)
+   nbr_send_groups.MakeI(gtopo.GetNumNeighbors());
+   nbr_recv_groups.MakeI(gtopo.GetNumNeighbors());
+   for (int gr = 1; gr < group_ldof.Size(); gr++)
    {
       const int nldofs = group_ldof.RowSize(gr);
-
-      // ignore groups without dofs
       if (nldofs == 0) { continue; }
 
       if (!gtopo.IAmMaster(gr)) // we are not the master
       {
-         MPI_Irecv(buf,
-                   nldofs,
-                   MPITypeMap<T>::mpi_type,
-                   gtopo.GetGroupMasterRank(gr),
-                   40822 + gtopo.GetGroupMasterGroup(gr),
-                   gtopo.GetComm(),
-                   &requests[request_counter]);
-         request_counter++;
+         nbr_recv_groups.AddAColumnInRow(gtopo.GetGroupMaster(gr));
       }
       else // we are the master
       {
-         if (layout == 0)
+         const int grp_size = gtopo.GetGroupSize(gr);
+         const int *grp_nbr_list = gtopo.GetGroup(gr);
+         for (int i = 0; i < grp_size; i++)
          {
-            // fill send buffer
-            const int *ldofs = group_ldof.GetRow(gr);
-            for (i = 0; i < nldofs; i++)
+            if (grp_nbr_list[i] != 0)
             {
-               buf[i] = ldata[ldofs[i]];
-            }
-         }
-
-         const int  gs  = gtopo.GetGroupSize(gr);
-         const int *nbs = gtopo.GetGroup(gr);
-         for (i = 0; i < gs; i++)
-         {
-            if (nbs[i] != 0)
-            {
-               MPI_Isend(buf,
-                         nldofs,
-                         MPITypeMap<T>::mpi_type,
-                         gtopo.GetNeighborRank(nbs[i]),
-                         40822 + gtopo.GetGroupMasterGroup(gr),
-                         gtopo.GetComm(),
-                         &requests[request_counter]);
-               request_counter++;
+               nbr_send_groups.AddAColumnInRow(grp_nbr_list[i]);
             }
          }
       }
-      buf += nldofs;
    }
-
-   MPI_Waitall(request_counter, requests, statuses);
-
-   if (layout == 0)
+   nbr_send_groups.MakeJ();
+   nbr_recv_groups.MakeJ();
+   for (int gr = 1; gr < group_ldof.Size(); gr++)
    {
-      // copy the received data from the buffer to ldata
-      buf = (T *)group_buf.GetData();
-      for (gr = 1; gr < group_ldof.Size(); gr++)
+      const int nldofs = group_ldof.RowSize(gr);
+      if (nldofs == 0) { continue; }
+
+      if (!gtopo.IAmMaster(gr)) // we are not the master
       {
-         const int nldofs = group_ldof.RowSize(gr);
-
-         // ignore groups without dofs
-         if (nldofs == 0) { continue; }
-
-         if (!gtopo.IAmMaster(gr)) // we are not the master
+         nbr_recv_groups.AddConnection(gtopo.GetGroupMaster(gr), gr);
+      }
+      else // we are the master
+      {
+         const int grp_size = gtopo.GetGroupSize(gr);
+         const int *grp_nbr_list = gtopo.GetGroup(gr);
+         for (int i = 0; i < grp_size; i++)
          {
-            const int *ldofs = group_ldof.GetRow(gr);
-            for (i = 0; i < nldofs; i++)
+            if (grp_nbr_list[i] != 0)
             {
-               ldata[ldofs[i]] = buf[i];
+               nbr_send_groups.AddConnection(grp_nbr_list[i], gr);
             }
          }
-         buf += nldofs;
+      }
+   }
+   nbr_send_groups.ShiftUpI();
+   nbr_recv_groups.ShiftUpI();
+   // The above construction creates the Tables with the column indices
+   // sorted, i.e. the group lists are sorted. To coordinate this order between
+   // processors, we will sort the group lists in the nbr_recv_groups Table
+   // according to their indices in the master. This does not require any
+   // communication because we have access to the group indices in the master
+   // by calling: master_group_id = gtopo.GetGroupMasterGroup(my_group_id).
+   Array<Pair<int,int> > group_ids;
+   for (int nbr = 1; nbr < nbr_recv_groups.Size(); nbr++)
+   {
+      const int num_recv_groups = nbr_recv_groups.RowSize(nbr);
+      if (num_recv_groups > 0)
+      {
+         int *grp_list = nbr_recv_groups.GetRow(nbr);
+         group_ids.SetSize(num_recv_groups);
+         for (int i = 0; i < num_recv_groups; i++)
+         {
+            group_ids[i].one = gtopo.GetGroupMasterGroup(grp_list[i]);
+            group_ids[i].two = grp_list[i]; // my_group_id
+         }
+         group_ids.Sort();
+         for (int i = 0; i < num_recv_groups; i++)
+         {
+            grp_list[i] = group_ids[i].two;
+         }
+      }
+   }
+}
+
+void GroupCommunicator::SetLTDofTable(Array<int> &ldof_ltdof)
+{
+   if (group_ltdof.Size() == group_ldof.Size()) { return; }
+
+   group_ltdof.MakeI(group_ldof.Size());
+   for (int gr = 1; gr < group_ldof.Size(); gr++)
+   {
+      if (gtopo.IAmMaster(gr))
+      {
+         group_ltdof.AddColumnsInRow(gr, group_ldof.RowSize(gr));
+      }
+   }
+   group_ltdof.MakeJ();
+   for (int gr = 1; gr < group_ldof.Size(); gr++)
+   {
+      if (gtopo.IAmMaster(gr))
+      {
+         const int *ldofs = group_ldof.GetRow(gr);
+         const int nldofs = group_ldof.RowSize(gr);
+         for (int i = 0; i < nldofs; i++)
+         {
+            group_ltdof.AddConnection(gr, ldof_ltdof[ldofs[i]]);
+         }
+      }
+   }
+   group_ltdof.ShiftUpI();
+}
+
+template <class T>
+T *GroupCommunicator::CopyGroupToBuffer(const T *ldata, T *buf, int group,
+                                        int layout) const
+{
+   switch (layout)
+   {
+      case 1:
+      {
+         return std::copy(ldata + group_ldof.GetI()[group],
+                          ldata + group_ldof.GetI()[group+1],
+                          buf);
+      }
+      case 2:
+      {
+         const int nltdofs = group_ltdof.RowSize(group);
+         const int *ltdofs = group_ltdof.GetRow(group);
+         for (int j = 0; j < nltdofs; j++)
+         {
+            buf[j] = ldata[ltdofs[j]];
+         }
+         return buf + nltdofs;
+      }
+      default:
+      {
+         const int nldofs = group_ldof.RowSize(group);
+         const int *ldofs = group_ldof.GetRow(group);
+         for (int j = 0; j < nldofs; j++)
+         {
+            buf[j] = ldata[ldofs[j]];
+         }
+         return buf + nldofs;
       }
    }
 }
 
 template <class T>
-void GroupCommunicator::Reduce(T *ldata, void (*Op)(OpData<T>))
+const T *GroupCommunicator::CopyGroupFromBuffer(const T *buf, T *ldata,
+                                                int group, int layout) const
 {
+   const int nldofs = group_ldof.RowSize(group);
+   switch (layout)
+   {
+      case 1:
+      {
+         std::copy(buf, buf + nldofs, ldata + group_ldof.GetI()[group]);
+         break;
+      }
+      case 2:
+      {
+         const int *ltdofs = group_ltdof.GetRow(group);
+         for (int j = 0; j < nldofs; j++)
+         {
+            ldata[ltdofs[j]] = buf[j];
+         }
+         break;
+      }
+      default:
+      {
+         const int *ldofs = group_ldof.GetRow(group);
+         for (int j = 0; j < nldofs; j++)
+         {
+            ldata[ldofs[j]] = buf[j];
+         }
+         break;
+      }
+   }
+   return buf + nldofs;
+}
+
+template <class T>
+const T *GroupCommunicator::ReduceGroupFromBuffer(const T *buf, T *ldata,
+                                                  int group, int layout,
+                                                  void (*Op)(OpData<T>)) const
+{
+   OpData<T> opd;
+   opd.ldata = ldata;
+   opd.nldofs = group_ldof.RowSize(group);
+   opd.nb = 1;
+   opd.buf = const_cast<T*>(buf);
+
+   switch (layout)
+   {
+      case 1:
+      {
+         MFEM_ABORT("layout 1 is not supported");
+         T *dest = ldata + group_ldof.GetI()[group];
+         for (int j = 0; j < opd.nldofs; j++)
+         {
+            dest[j] += buf[j];
+         }
+         break;
+      }
+      case 2:
+      {
+         opd.ldofs = const_cast<int*>(group_ltdof.GetRow(group));
+         Op(opd);
+         break;
+      }
+      default:
+      {
+         opd.ldofs = const_cast<int*>(group_ldof.GetRow(group));
+         Op(opd);
+         break;
+      }
+   }
+   return buf + opd.nldofs;
+}
+
+template <class T>
+void GroupCommunicator::BcastBegin(T *ldata, int layout)
+{
+   MFEM_VERIFY(comm_lock == 0, "object is already in use");
+
    if (group_buf_size == 0) { return; }
 
-   int i, gr, request_counter = 0;
-   OpData<T> opd;
-
-   group_buf.SetSize(group_buf_size*sizeof(T));
-   opd.ldata = ldata;
-   opd.buf = (T *)group_buf.GetData();
-   for (gr = 1; gr < group_ldof.Size(); gr++)
+   int request_counter = 0;
+   switch (mode)
    {
-      opd.nldofs = group_ldof.RowSize(gr);
-
-      // ignore groups without dofs
-      if (opd.nldofs == 0) { continue; }
-
-      opd.ldofs = group_ldof.GetRow(gr);
-
-      if (!gtopo.IAmMaster(gr)) // we are not the master
+      case byGroup: // ***** Communication by groups *****
       {
-         for (i = 0; i < opd.nldofs; i++)
+         T *buf;
+         if (layout != 1)
          {
-            opd.buf[i] = ldata[opd.ldofs[i]];
+            group_buf.SetSize(group_buf_size*sizeof(T));
+            buf = (T *)group_buf.GetData();
+            MFEM_VERIFY(layout != 2 || group_ltdof.Size() == group_ldof.Size(),
+                        "'group_ltdof' is not set, use SetLTDofTable()");
+         }
+         else
+         {
+            buf = ldata;
          }
 
-         MPI_Isend(opd.buf,
-                   opd.nldofs,
-                   MPITypeMap<T>::mpi_type,
-                   gtopo.GetGroupMasterRank(gr),
-                   43822 + gtopo.GetGroupMasterGroup(gr),
-                   gtopo.GetComm(),
-                   &requests[request_counter]);
-         request_counter++;
-         opd.buf += opd.nldofs;
-      }
-      else // we are the master
-      {
-         const int  gs  = gtopo.GetGroupSize(gr);
-         const int *nbs = gtopo.GetGroup(gr);
-         for (i = 0; i < gs; i++)
+         for (int gr = 1; gr < group_ldof.Size(); gr++)
          {
-            if (nbs[i] != 0)
+            const int nldofs = group_ldof.RowSize(gr);
+
+            // ignore groups without dofs
+            if (nldofs == 0) { continue; }
+
+            if (!gtopo.IAmMaster(gr)) // we are not the master
             {
-               MPI_Irecv(opd.buf,
-                         opd.nldofs,
+               MPI_Irecv(buf,
+                         nldofs,
                          MPITypeMap<T>::mpi_type,
-                         gtopo.GetNeighborRank(nbs[i]),
+                         gtopo.GetGroupMasterRank(gr),
+                         40822 + gtopo.GetGroupMasterGroup(gr),
+                         gtopo.GetComm(),
+                         &requests[request_counter]);
+               request_marker[request_counter] = gr;
+               request_counter++;
+            }
+            else // we are the master
+            {
+               if (layout != 1)
+               {
+                  CopyGroupToBuffer(ldata, buf, gr, layout);
+               }
+               const int  gs  = gtopo.GetGroupSize(gr);
+               const int *nbs = gtopo.GetGroup(gr);
+               for (int i = 0; i < gs; i++)
+               {
+                  if (nbs[i] != 0)
+                  {
+                     MPI_Isend(buf,
+                               nldofs,
+                               MPITypeMap<T>::mpi_type,
+                               gtopo.GetNeighborRank(nbs[i]),
+                               40822 + gtopo.GetGroupMasterGroup(gr),
+                               gtopo.GetComm(),
+                               &requests[request_counter]);
+                     request_marker[request_counter] = -1; // mark as send req.
+                     request_counter++;
+                  }
+               }
+            }
+            buf += nldofs;
+         }
+         break;
+      }
+
+      case byNeighbor: // ***** Communication by neighbors *****
+      {
+         group_buf.SetSize(group_buf_size*sizeof(T));
+         T *buf = (T *)group_buf.GetData();
+         for (int nbr = 1; nbr < nbr_send_groups.Size(); nbr++)
+         {
+            const int num_send_groups = nbr_send_groups.RowSize(nbr);
+            if (num_send_groups > 0)
+            {
+               // Possible optimization:
+               //    if (num_send_groups == 1) and (layout == 1) then we do not
+               //    need to copy the data in order to send it.
+               T *buf_start = buf;
+               const int *grp_list = nbr_send_groups.GetRow(nbr);
+               for (int i = 0; i < num_send_groups; i++)
+               {
+                  buf = CopyGroupToBuffer(ldata, buf, grp_list[i], layout);
+               }
+               MPI_Isend(buf_start,
+                         buf - buf_start,
+                         MPITypeMap<T>::mpi_type,
+                         gtopo.GetNeighborRank(nbr),
+                         40822,
+                         gtopo.GetComm(),
+                         &requests[request_counter]);
+               request_marker[request_counter] = -1; // mark as send request
+               request_counter++;
+            }
+
+            const int num_recv_groups = nbr_recv_groups.RowSize(nbr);
+            if (num_recv_groups > 0)
+            {
+               // Possible optimization (requires interface change):
+               //    if (num_recv_groups == 1) and the (output layout == 1) then
+               //    we can receive directly in the output buffer; however, at
+               //    this point we do not have that information.
+               const int *grp_list = nbr_recv_groups.GetRow(nbr);
+               int recv_size = 0;
+               for (int i = 0; i < num_recv_groups; i++)
+               {
+                  recv_size += group_ldof.RowSize(grp_list[i]);
+               }
+               MPI_Irecv(buf,
+                         recv_size,
+                         MPITypeMap<T>::mpi_type,
+                         gtopo.GetNeighborRank(nbr),
+                         40822,
+                         gtopo.GetComm(),
+                         &requests[request_counter]);
+               request_marker[request_counter] = nbr;
+               request_counter++;
+               buf_offsets[nbr] = buf - (T*)group_buf.GetData();
+               buf += recv_size;
+            }
+         }
+         MFEM_ASSERT(buf - (T*)group_buf.GetData() == group_buf_size, "");
+         break;
+      }
+   }
+
+   comm_lock = 1; // 1 - locked fot Bcast
+   num_requests = request_counter;
+}
+
+template <class T>
+void GroupCommunicator::BcastEnd(T *ldata, int layout)
+{
+   if (comm_lock == 0) { return; }
+   // The above also handles the case (group_buf_size == 0).
+   MFEM_VERIFY(comm_lock == 1, "object is NOT locked for Bcast");
+
+   switch (mode)
+   {
+      case byGroup: // ***** Communication by groups *****
+      {
+         if (layout == 1)
+         {
+            MPI_Waitall(num_requests, requests, MPI_STATUSES_IGNORE);
+         }
+         else if (layout == 0)
+         {
+            // copy the received data from the buffer to ldata, as it arrives
+            int idx;
+            while (MPI_Waitany(num_requests, requests, &idx, MPI_STATUS_IGNORE),
+                   idx != MPI_UNDEFINED)
+            {
+               int gr = request_marker[idx];
+               if (gr == -1) { continue; } // skip send requests
+
+               // groups without dofs are skipped, so here nldofs > 0.
+               T *buf = (T *)group_buf.GetData() + group_ldof.GetI()[gr];
+               CopyGroupFromBuffer(buf, ldata, gr, layout);
+            }
+         }
+         break;
+      }
+
+      case byNeighbor: // ***** Communication by neighbors *****
+      {
+         // copy the received data from the buffer to ldata, as it arrives
+         int idx;
+         while (MPI_Waitany(num_requests, requests, &idx, MPI_STATUS_IGNORE),
+                idx != MPI_UNDEFINED)
+         {
+            int nbr = request_marker[idx];
+            if (nbr == -1) { continue; } // skip send requests
+
+            const int num_recv_groups = nbr_recv_groups.RowSize(nbr);
+            if (num_recv_groups > 0)
+            {
+               const int *grp_list = nbr_recv_groups.GetRow(nbr);
+               const T *buf = (T*)group_buf.GetData() + buf_offsets[nbr];
+               for (int i = 0; i < num_recv_groups; i++)
+               {
+                  buf = CopyGroupFromBuffer(buf, ldata, grp_list[i], layout);
+               }
+            }
+         }
+         break;
+      }
+   }
+
+   comm_lock = 0; // 0 - no lock
+   num_requests = 0;
+}
+
+template <class T>
+void GroupCommunicator::ReduceBegin(const T *ldata)
+{
+   MFEM_VERIFY(comm_lock == 0, "object is already in use");
+
+   if (group_buf_size == 0) { return; }
+
+   int request_counter = 0;
+   group_buf.SetSize(group_buf_size*sizeof(T));
+   T *buf = (T *)group_buf.GetData();
+   switch (mode)
+   {
+      case byGroup: // ***** Communication by groups *****
+      {
+         for (int gr = 1; gr < group_ldof.Size(); gr++)
+         {
+            const int nldofs = group_ldof.RowSize(gr);
+            // ignore groups without dofs
+            if (nldofs == 0) { continue; }
+
+            if (!gtopo.IAmMaster(gr)) // we are not the master
+            {
+               const int layout = 0;
+               CopyGroupToBuffer(ldata, buf, gr, layout);
+               MPI_Isend(buf,
+                         nldofs,
+                         MPITypeMap<T>::mpi_type,
+                         gtopo.GetGroupMasterRank(gr),
                          43822 + gtopo.GetGroupMasterGroup(gr),
                          gtopo.GetComm(),
                          &requests[request_counter]);
+               request_marker[request_counter] = -1; // mark as send request
                request_counter++;
-               opd.buf += opd.nldofs;
+               buf += nldofs;
+            }
+            else // we are the master
+            {
+               const int  gs  = gtopo.GetGroupSize(gr);
+               const int *nbs = gtopo.GetGroup(gr);
+               buf_offsets[gr] = buf - (T *)group_buf.GetData();
+               for (int i = 0; i < gs; i++)
+               {
+                  if (nbs[i] != 0)
+                  {
+                     MPI_Irecv(buf,
+                               nldofs,
+                               MPITypeMap<T>::mpi_type,
+                               gtopo.GetNeighborRank(nbs[i]),
+                               43822 + gtopo.GetGroupMasterGroup(gr),
+                               gtopo.GetComm(),
+                               &requests[request_counter]);
+                     request_marker[request_counter] = gr;
+                     request_counter++;
+                     buf += nldofs;
+                  }
+               }
             }
          }
+         break;
+      }
+
+      case byNeighbor: // ***** Communication by neighbors *****
+      {
+         for (int nbr = 1; nbr < nbr_send_groups.Size(); nbr++)
+         {
+            // In Reduce operation: send_groups <--> recv_groups
+            const int num_send_groups = nbr_recv_groups.RowSize(nbr);
+            if (num_send_groups > 0)
+            {
+               T *buf_start = buf;
+               const int *grp_list = nbr_recv_groups.GetRow(nbr);
+               for (int i = 0; i < num_send_groups; i++)
+               {
+                  const int layout = 0; // ldata is an array on all ldofs
+                  buf = CopyGroupToBuffer(ldata, buf, grp_list[i], layout);
+               }
+               MPI_Isend(buf_start,
+                         buf - buf_start,
+                         MPITypeMap<T>::mpi_type,
+                         gtopo.GetNeighborRank(nbr),
+                         43822,
+                         gtopo.GetComm(),
+                         &requests[request_counter]);
+               request_marker[request_counter] = -1; // mark as send request
+               request_counter++;
+            }
+
+            // In Reduce operation: send_groups <--> recv_groups
+            const int num_recv_groups = nbr_send_groups.RowSize(nbr);
+            if (num_recv_groups > 0)
+            {
+               const int *grp_list = nbr_send_groups.GetRow(nbr);
+               int recv_size = 0;
+               for (int i = 0; i < num_recv_groups; i++)
+               {
+                  recv_size += group_ldof.RowSize(grp_list[i]);
+               }
+               MPI_Irecv(buf,
+                         recv_size,
+                         MPITypeMap<T>::mpi_type,
+                         gtopo.GetNeighborRank(nbr),
+                         43822,
+                         gtopo.GetComm(),
+                         &requests[request_counter]);
+               request_marker[request_counter] = nbr;
+               request_counter++;
+               buf_offsets[nbr] = buf - (T*)group_buf.GetData();
+               buf += recv_size;
+            }
+         }
+         MFEM_ASSERT(buf - (T*)group_buf.GetData() == group_buf_size, "");
+         break;
       }
    }
 
-   MPI_Waitall(request_counter, requests, statuses);
+   comm_lock = 2;
+   num_requests = request_counter;
+}
 
-   // perform the reduce operation
-   opd.buf = (T *)group_buf.GetData();
-   for (gr = 1; gr < group_ldof.Size(); gr++)
+template <class T>
+void GroupCommunicator::ReduceEnd(T *ldata, int layout, void (*Op)(OpData<T>))
+{
+   if (comm_lock == 0) { return; }
+   // The above also handles the case (group_buf_size == 0).
+   MFEM_VERIFY(comm_lock == 2, "object is NOT locked for Reduce");
+
+   switch (mode)
    {
-      opd.nldofs = group_ldof.RowSize(gr);
-
-      // ignore groups without dofs
-      if (opd.nldofs == 0) { continue; }
-
-      if (!gtopo.IAmMaster(gr)) // we are not the master
+      case byGroup: // ***** Communication by groups *****
       {
-         opd.buf += opd.nldofs;
+         OpData<T> opd;
+         opd.ldata = ldata;
+         Array<int> group_num_req(group_ldof.Size());
+         for (int gr = 1; gr < group_ldof.Size(); gr++)
+         {
+            group_num_req[gr] =
+               gtopo.IAmMaster(gr) ? gtopo.GetGroupSize(gr)-1 : 0;
+         }
+         int idx;
+         while (MPI_Waitany(num_requests, requests, &idx, MPI_STATUS_IGNORE),
+                idx != MPI_UNDEFINED)
+         {
+            int gr = request_marker[idx];
+            if (gr == -1) { continue; } // skip send requests
+
+            // Delay the processing of a group until all receive requests, for
+            // that group, are done:
+            if ((--group_num_req[gr]) != 0) { continue; }
+
+            opd.nldofs = group_ldof.RowSize(gr);
+            // groups without dofs are skipped, so here nldofs > 0.
+
+            opd.buf = (T *)group_buf.GetData() + buf_offsets[gr];
+            opd.ldofs = (layout == 0) ?
+                        group_ldof.GetRow(gr) : group_ltdof.GetRow(gr);
+            opd.nb = gtopo.GetGroupSize(gr)-1;
+            Op(opd);
+         }
+         break;
       }
-      else // we are the master
+
+      case byNeighbor: // ***** Communication by neighbors *****
       {
-         opd.ldofs = group_ldof.GetRow(gr);
-         opd.nb = gtopo.GetGroupSize(gr)-1;
-         Op(opd);
-         opd.buf += opd.nb * opd.nldofs;
+         MPI_Waitall(num_requests, requests, MPI_STATUSES_IGNORE);
+
+         for (int nbr = 1; nbr < nbr_send_groups.Size(); nbr++)
+         {
+            // In Reduce operation: send_groups <--> recv_groups
+            const int num_recv_groups = nbr_send_groups.RowSize(nbr);
+            if (num_recv_groups > 0)
+            {
+               const int *grp_list = nbr_send_groups.GetRow(nbr);
+               const T *buf = (T*)group_buf.GetData() + buf_offsets[nbr];
+               for (int i = 0; i < num_recv_groups; i++)
+               {
+                  buf = ReduceGroupFromBuffer(buf, ldata, grp_list[i],
+                                              layout, Op);
+               }
+            }
+         }
+         break;
       }
    }
+
+   comm_lock = 0; // 0 - no lock
+   num_requests = 0;
 }
 
 template <class T>
 void GroupCommunicator::Sum(OpData<T> opd)
 {
-   for (int i = 0; i < opd.nldofs; i++)
+   if (opd.nb == 1)
    {
-      T data = opd.ldata[opd.ldofs[i]];
-      for (int j = 0; j < opd.nb; j++)
+      for (int i = 0; i < opd.nldofs; i++)
       {
-         data += opd.buf[j*opd.nldofs+i];
+         opd.ldata[opd.ldofs[i]] += opd.buf[i];
       }
-      opd.ldata[opd.ldofs[i]] = data;
+   }
+   else
+   {
+      for (int i = 0; i < opd.nldofs; i++)
+      {
+         T data = opd.ldata[opd.ldofs[i]];
+         for (int j = 0; j < opd.nb; j++)
+         {
+            data += opd.buf[j*opd.nldofs+i];
+         }
+         opd.ldata[opd.ldofs[i]] = data;
+      }
    }
 }
 
@@ -563,23 +1015,148 @@ void GroupCommunicator::BitOR(OpData<T> opd)
    }
 }
 
+void GroupCommunicator::PrintInfo(std::ostream &out) const
+{
+   char c = '\0';
+   const int tag = 46800;
+   const int myid = gtopo.MyRank();
+
+   int num_sends = 0, num_recvs = 0;
+   size_t mem_sends = 0, mem_recvs = 0;
+   int num_master_groups = 0, num_empty_groups = 0;
+   int num_active_neighbors = 0; // for mode == byNeighbor
+   switch (mode)
+   {
+      case byGroup:
+         for (int gr = 1; gr < group_ldof.Size(); gr++)
+         {
+            const int nldofs = group_ldof.RowSize(gr);
+            if (nldofs == 0)
+            {
+               num_empty_groups++;
+               continue;
+            }
+            if (gtopo.IAmMaster(gr))
+            {
+               num_sends += (gtopo.GetGroupSize(gr)-1);
+               mem_sends += sizeof(double)*nldofs*(gtopo.GetGroupSize(gr)-1);
+               num_master_groups++;
+            }
+            else
+            {
+               num_recvs++;
+               mem_recvs += sizeof(double)*nldofs;
+            }
+         }
+         break;
+
+      case byNeighbor:
+         for (int gr = 1; gr < group_ldof.Size(); gr++)
+         {
+            const int nldofs = group_ldof.RowSize(gr);
+            if (nldofs == 0)
+            {
+               num_empty_groups++;
+               continue;
+            }
+            if (gtopo.IAmMaster(gr))
+            {
+               num_master_groups++;
+            }
+         }
+         for (int nbr = 1; nbr < nbr_send_groups.Size(); nbr++)
+         {
+            const int num_send_groups = nbr_send_groups.RowSize(nbr);
+            if (num_send_groups > 0)
+            {
+               const int *grp_list = nbr_send_groups.GetRow(nbr);
+               for (int i = 0; i < num_send_groups; i++)
+               {
+                  mem_sends += sizeof(double)*group_ldof.RowSize(grp_list[i]);
+               }
+               num_sends++;
+            }
+
+            const int num_recv_groups = nbr_recv_groups.RowSize(nbr);
+            if (num_recv_groups > 0)
+            {
+               const int *grp_list = nbr_recv_groups.GetRow(nbr);
+               for (int i = 0; i < num_recv_groups; i++)
+               {
+                  mem_recvs += sizeof(double)*group_ldof.RowSize(grp_list[i]);
+               }
+               num_recvs++;
+            }
+            if (num_send_groups > 0 || num_recv_groups > 0)
+            {
+               num_active_neighbors++;
+            }
+         }
+         break;
+   }
+   if (myid != 0)
+   {
+      MPI_Recv(&c, 1, MPI_CHAR, myid-1, tag, gtopo.GetComm(),
+               MPI_STATUS_IGNORE);
+   }
+   else
+   {
+      out << "\nGroupCommunicator:\n";
+   }
+   out << "Rank " << myid << ":\n"
+       "   mode             = " <<
+       (mode == byGroup ? "byGroup" : "byNeighbor") << "\n"
+       "   number of sends  = " << num_sends <<
+       " (" << mem_sends << " bytes)\n"
+       "   number of recvs  = " << num_recvs <<
+       " (" << mem_recvs << " bytes)\n";
+   out <<
+       "   num groups       = " << group_ldof.Size() << " = " <<
+       num_master_groups << " + " <<
+       group_ldof.Size()-num_master_groups-num_empty_groups << " + " <<
+       num_empty_groups << " (master + slave + empty)\n";
+   if (mode == byNeighbor)
+   {
+      out <<
+          "   num neighbors    = " << nbr_send_groups.Size() << " = " <<
+          num_active_neighbors << " + " <<
+          nbr_send_groups.Size()-num_active_neighbors <<
+          " (active + inactive)\n";
+   }
+   if (myid != gtopo.NRanks()-1)
+   {
+      out << std::flush;
+      MPI_Send(&c, 1, MPI_CHAR, myid+1, tag, gtopo.GetComm());
+   }
+   else
+   {
+      out << std::endl;
+   }
+   MPI_Barrier(gtopo.GetComm());
+}
+
 GroupCommunicator::~GroupCommunicator()
 {
-   delete [] statuses;
+   delete [] buf_offsets;
+   delete [] request_marker;
+   // delete [] statuses;
    delete [] requests;
 }
 
 // @cond DOXYGEN_SKIP
 
 // instantiate GroupCommunicator::Bcast and Reduce for int and double
-template void GroupCommunicator::Bcast<int>(int *);
-template void GroupCommunicator::Bcast<int>(int *, int);
-template void GroupCommunicator::Reduce<int>(int *, void (*)(OpData<int>));
+template void GroupCommunicator::BcastBegin<int>(int *, int);
+template void GroupCommunicator::BcastEnd<int>(int *, int);
+template void GroupCommunicator::ReduceBegin<int>(const int *);
+template void GroupCommunicator::ReduceEnd<int>(
+   int *, int, void (*)(OpData<int>));
 
-template void GroupCommunicator::Bcast<double>(double *);
-template void GroupCommunicator::Bcast<double>(double *, int);
-template void GroupCommunicator::Reduce<double>(
-   double *, void (*)(OpData<double>));
+template void GroupCommunicator::BcastBegin<double>(double *, int);
+template void GroupCommunicator::BcastEnd<double>(double *, int);
+template void GroupCommunicator::ReduceBegin<double>(const double *);
+template void GroupCommunicator::ReduceEnd<double>(
+   double *, int, void (*)(OpData<double>));
 
 // @endcond
 
@@ -599,12 +1176,12 @@ static void DebugRankCoords(int** coords, int dim, int size)
 {
    for (int i = 0; i < size; i++)
    {
-      std::cout << "Rank " << i << " coords: ";
+      mfem::out << "Rank " << i << " coords: ";
       for (int j = 0; j < dim; j++)
       {
-         std::cout << coords[i][j] << " ";
+         mfem::out << coords[i][j] << " ";
       }
-      std::cout << endl;
+      mfem::out << endl;
    }
 }
 
@@ -703,7 +1280,6 @@ MPI_Comm ReorderRanksZCurve(MPI_Comm comm)
    return comm;
 }
 #endif // __bgq__
-
 
 } // namespace mfem
 

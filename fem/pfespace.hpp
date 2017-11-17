@@ -24,6 +24,9 @@
 namespace mfem
 {
 
+class ConformingProlongationOperator;
+
+
 /// Abstract parallel finite element space.
 class ParFiniteElementSpace : public FiniteElementSpace
 {
@@ -40,7 +43,7 @@ private:
    GroupCommunicator *gcomm;
 
    /// Number of true dofs in this processor (local true dofs).
-   int ltdof_size;
+   mutable int ltdof_size;
 
    /// Number of vertex/edge/face/total ghost DOFs (nonconforming case).
    int ngvdofs, ngedofs, ngfdofs, ngdofs;
@@ -49,16 +52,16 @@ private:
    Array<int> ldof_group;
 
    /// For a local dof: the local true dof number in the master of its group.
-   Array<int> ldof_ltdof;
+   mutable Array<int> ldof_ltdof;
 
    /// Offsets for the dofs in each processor in global numbering.
-   Array<HYPRE_Int> dof_offsets;
+   mutable Array<HYPRE_Int> dof_offsets;
 
    /// Offsets for the true dofs in each processor in global numbering.
-   Array<HYPRE_Int> tdof_offsets;
+   mutable Array<HYPRE_Int> tdof_offsets;
 
    /// Offsets for the true dofs in neighbor processor in global numbering.
-   Array<HYPRE_Int> tdof_nb_offsets;
+   mutable Array<HYPRE_Int> tdof_nb_offsets;
 
    /// Previous 'dof_offsets' (before Update()), column partition of T.
    Array<HYPRE_Int> old_dof_offsets;
@@ -67,10 +70,11 @@ private:
    Array<int> ldof_sign;
 
    /// The matrix P (interpolation from true dof to dof).
-   HypreParMatrix *P;
+   mutable HypreParMatrix *P;
+   ConformingProlongationOperator *Pconf;
 
    /// The (block-diagonal) matrix R (restriction of dof to true dof)
-   SparseMatrix *R;
+   mutable SparseMatrix *R;
 
    ParNURBSExtension *pNURBSext() const
    { return dynamic_cast<ParNURBSExtension *>(NURBSext); }
@@ -86,7 +90,7 @@ private:
                      Array<int> *ldof_sign = NULL);
 
    /// Construct dof_offsets and tdof_offsets using global communication.
-   void GenerateGlobalOffsets();
+   void GenerateGlobalOffsets() const;
 
    /// Construct ldof_group and ldof_ltdof.
    void ConstructTrueDofs();
@@ -129,7 +133,7 @@ private:
                        Array<HYPRE_Int> &col_starts) const;
 
    /// Build the P and R matrices.
-   void Build_Dof_TrueDof_Matrix();
+   void Build_Dof_TrueDof_Matrix() const;
 
    /** Used when the ParMesh is non-conforming, i.e. pmesh->pncmesh != NULL.
        Constructs the matrices P and R, the DOF and true DOF offset arrays,
@@ -170,23 +174,23 @@ public:
    ParFiniteElementSpace(ParMesh *pm, const FiniteElementCollection *f,
                          int dim = 1, int ordering = Ordering::byNODES);
 
-   MPI_Comm GetComm() { return MyComm; }
-   int GetNRanks() { return NRanks; }
-   int GetMyRank() { return MyRank; }
+   MPI_Comm GetComm() const { return MyComm; }
+   int GetNRanks() const { return NRanks; }
+   int GetMyRank() const { return MyRank; }
 
    inline ParMesh *GetParMesh() { return pmesh; }
 
    int GetDofSign(int i)
    { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }
-   HYPRE_Int *GetDofOffsets()     { return dof_offsets; }
-   HYPRE_Int *GetTrueDofOffsets() { return tdof_offsets; }
-   HYPRE_Int GlobalVSize()
+   HYPRE_Int *GetDofOffsets()     const { return dof_offsets; }
+   HYPRE_Int *GetTrueDofOffsets() const { return tdof_offsets; }
+   HYPRE_Int GlobalVSize() const
    { return Dof_TrueDof_Matrix()->GetGlobalNumRows(); }
-   HYPRE_Int GlobalTrueVSize()
+   HYPRE_Int GlobalTrueVSize() const
    { return Dof_TrueDof_Matrix()->GetGlobalNumCols(); }
 
    /// Return the number of local vector true dofs.
-   virtual int GetTrueVSize() { return ltdof_size; }
+   virtual int GetTrueVSize() const { return ltdof_size; }
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
    virtual void GetElementDofs(int i, Array<int> &dofs) const;
@@ -202,7 +206,7 @@ public:
    void GetSharedFaceDofs(int group, int fi, Array<int> &dofs) const;
 
    /// The true dof-to-dof interpolation matrix
-   HypreParMatrix *Dof_TrueDof_Matrix()
+   HypreParMatrix *Dof_TrueDof_Matrix() const
    { if (!P) { Build_Dof_TrueDof_Matrix(); } return P; }
 
    /** Create and return a new HypreParVector on the true dofs, which is
@@ -225,18 +229,20 @@ public:
 
    /// Determine the boundary degrees of freedom
    virtual void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
-                                  Array<int> &ess_dofs) const;
+                                  Array<int> &ess_dofs,
+                                  int component = -1) const;
 
    /** Get a list of essential true dofs, ess_tdof_list, corresponding to the
        boundary attributes marked in the array bdr_attr_is_ess. */
    virtual void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
-                                     Array<int> &ess_tdof_list);
+                                     Array<int> &ess_tdof_list,
+                                     int component = -1);
 
    /** If the given ldof is owned by the current processor, return its local
        tdof number, otherwise return -1 */
-   int GetLocalTDofNumber(int ldof);
+   int GetLocalTDofNumber(int ldof) const;
    /// Returns the global tdof number of the given local degree of freedom
-   HYPRE_Int GetGlobalTDofNumber(int ldof);
+   HYPRE_Int GetGlobalTDofNumber(int ldof) const;
    /** Returns the global tdof number of the given local degree of freedom in
        the scalar version of the current finite element space. The input should
        be a scalar local dof. */
@@ -245,8 +251,7 @@ public:
    HYPRE_Int GetMyDofOffset() const;
    HYPRE_Int GetMyTDofOffset() const;
 
-   virtual const Operator *GetProlongationMatrix()
-   { return Dof_TrueDof_Matrix(); }
+   virtual const Operator *GetProlongationMatrix();
    /// Get the R matrix which restricts a local dof vector to true dof vector.
    virtual const SparseMatrix *GetRestrictionMatrix()
    { Dof_TrueDof_Matrix(); return R; }
@@ -281,9 +286,25 @@ public:
    virtual ~ParFiniteElementSpace() { Destroy(); }
 
    // Obsolete, kept for backward compatibility
-   int TrueVSize() { return ltdof_size; }
+   int TrueVSize() const { return ltdof_size; }
 
    friend class Hybridization;
+};
+
+
+/// Auxiliary class used by ParFiniteElementSpace.
+class ConformingProlongationOperator : public Operator
+{
+protected:
+   Array<int> external_ldofs;
+   GroupCommunicator &gc;
+
+public:
+   ConformingProlongationOperator(ParFiniteElementSpace &pfes);
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
 };
 
 }
