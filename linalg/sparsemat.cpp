@@ -184,9 +184,12 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
    isSorted = mat.isSorted;
 }
 
-SparseMatrix& SparseMatrix::operator=(SparseMatrix other)
+SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
 {
-   Swap(other);
+   Clear();
+
+   SparseMatrix copy(rhs);
+   Swap(copy);
 
    return *this;
 }

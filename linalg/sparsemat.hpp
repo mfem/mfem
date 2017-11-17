@@ -112,8 +112,8 @@ public:
        ownership. */
    SparseMatrix(const SparseMatrix &mat, bool copy_graph = true);
 
-   /// Deep copy
-   SparseMatrix& operator=(SparseMatrix mat);
+   /// Assignment operator: deep copy
+   SparseMatrix& operator=(const SparseMatrix &rhs);
 
    /** @brief Clear the contents of the SparseMatrix and make it a reference to
        @a master */
