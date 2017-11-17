@@ -19,12 +19,10 @@
 #include "../config/config.hpp"
 #include "bilininteg.hpp"
 #include "dalg.hpp"
+#include "dgfacefunctions.hpp"
 #include <iostream>
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
-
-//using namespace std;
-//using std::vector;
 
 namespace mfem
 {
@@ -89,27 +87,36 @@ static void ComputeBasis1d(const FiniteElement *fe, int order, Tensor& shape1d,
    }
 }
 
+
+/////////////////////////////////////////////////
+//                                             //
+//                                             //
+//        PARTIAL ASSEMBLY INTEGRATORS         //
+//                                             //
+//                                             //
+/////////////////////////////////////////////////
+
 /**
-*  The different operators implemented
+*  The different operators available for the Kernels
 */
 enum PAOp { BtDB, BtDG, GtDB, GtDG };
 
-/////////////////////////////////////////////////
-//                                             //
-//                                             //
-//            DUMMY DOMAIN KERNEL              //
-//                                             //
-//                                             //
-/////////////////////////////////////////////////
+  //////////////////////////////
+ // Available Domain Kernels //
+//////////////////////////////
 
 /**
-*  A shortcut for DummyOp type names
+*  A shortcut for DummyDomainPAK type names
 */
 template <PAOp OpName>
 class DummyDomainPAK;
 
+  /////////////////////////////
+ // Domain Kernel Interface //
+/////////////////////////////
+
 /**
-*  A dummy partial assembly kernel class for domain integrals
+*  A dummy partial assembly Integrator interface class for domain integrals
 */
 template <PAOp OpName, template<PAOp> class IMPL = DummyDomainPAK >
 class PADomainIntegrator
@@ -119,16 +126,15 @@ public:
    typedef typename Op::DTensor DTensor;
    typedef typename Op::Tensor2d Tensor2d;
 
-protected:
+private:
    FiniteElementSpace *fes;
-   int dim;
    Tensor2d shape1d, dshape1d;
    DTensor D;
 
 public:
-
-   PADomainIntegrator(FiniteElementSpace *_fes, int order, int tensor_dim)
-   : fes(_fes), dim(fes->GetFE(0)->GetDim()), D(tensor_dim)
+   // ToFix: the initialization of D should be done in the Kernel
+   PADomainIntegrator(FiniteElementSpace *_fes, int order)
+   : fes(_fes), D(Op::dimD)
    {
       // Store the 1d shape functions and gradients
       ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
@@ -137,15 +143,16 @@ public:
    /**
    *  Sets the dimensions of the tensor D
    */
-   void SetSizeD(int* sizes)
+   void SetSizeD(int (&sizes)[Op::dimD])
    {
       Op::SetSizeD(D, sizes);
    }
 
    /**
-   *  Sets the value at indice @a ind to @a val. @a ind is a raw integer array of size 2.
+   *  Sets the value at indice @a ind to @a val. @a ind is a raw integer array of size
+   *  the dimension of the tensor D.
    */
-   void SetValD(int* ind, double val)
+   void SetValD(int (&ind)[Op::dimD], double val)
    {
       Op::SetValD(D, ind, val);
    }
@@ -159,6 +166,111 @@ public:
    }
 
 };
+
+  ////////////////////////////
+ // Available Face Kernels //
+////////////////////////////
+
+/**
+*  The Operator selector class
+*/
+template <PAOp Op>
+class DummyFacePAK2;
+
+  ///////////////////////////
+ // Face Kernel Interface //
+///////////////////////////
+
+/**
+*  A dummy partial assembly Integrator interface class for face integrals
+*/
+template <PAOp OpName, template<PAOp> class IMPL = DummyFacePAK2>
+class PAFaceIntegrator
+{
+public:
+   typedef typename IMPL<OpName>::Op Op;
+   typedef typename Op::KData KData;
+   typedef typename Op::DTensor DTensor;
+   typedef typename Op::Tensor2d Tensor2d;
+
+private:
+   FiniteElementSpace *fes;
+   const int dim;
+   Tensor2d shape1d, dshape1d;
+   Tensor2d shape0d0, shape0d1, dshape0d0, dshape0d1;
+   DTensor Dint, Dext;
+   KData kernel_data;//indirections, permutations;
+
+public:
+   /**
+   *  Creates a Partial Assembly Face Integrator given a finite element space and the total
+   *  order of the functions to integrate.
+   */
+   PAFaceIntegrator(FiniteElementSpace* _fes, int order)
+   : fes(_fes), dim(fes->GetFE(0)->GetDim()), Dint(Op::dimD), Dext(Op::dimD)
+   {
+      // Store the two 0d shape functions and gradients
+      // in x = 0.0
+      ComputeBasis0d(fes->GetFE(0), 0.0, shape0d0, dshape0d0);
+      // in y = 0.0
+      ComputeBasis0d(fes->GetFE(0), 1.0, shape0d1, dshape0d1);
+      // Store the 1d shape functions and gradients
+      ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
+   }
+
+   /**
+   *  Set the sizes of Dint and Dext tensors.
+   */
+   void SetSizeD(int (&sizes)[Op::dimD])
+   {
+      Op::SetSizeD(Dint, Dext, sizes);
+   }
+
+   /**
+   *  Set a value of Dint tensor.
+   *  The ind array contains for:
+   *  -BtDB: quad, element, face_id
+   *  -BtDG and GtDB: dim, quad, element, face_id
+   *  -GtDG: dim, dim, quad, element, face_id
+   */
+   void SetValDint(int (&ind)[Op::dimD], double val)
+   {
+      Op::SetValDint(Dint, ind, val);
+   }
+
+   /**
+   *  Set a value of Dext tensor.
+   *  The ind array contains for:
+   *  -BtDB: quad, elt_trial, face_id_trial, elt_test, face_id_test
+   *  -BtDG and GtDB: dim, quad, elt_trial, face_id_trial, elt_test, face_id_test
+   *  -GtDG: dim, dim, quad, elt_trial, face_id_trial, elt_test, face_id_test
+   */
+   void SetValDext(int (&ind)[Op::dimD+2], double val)
+   {
+      Op::SetValDext(Dext, kernel_data, ind, val);
+   }
+
+   /**
+   *  Calls the Operators to compute internal and external fluxes.
+   */
+   void Mult(const Vector& U, Vector& V)
+   {
+      Op::EvalInt(fes, shape1d, dshape1d, shape0d0, shape0d1, dshape0d0, dshape0d1,
+                  Dint, U, V);
+      Op::EvalExt(fes, shape1d, dshape1d, shape0d0, shape0d1, dshape0d0, dshape0d1,
+                  kernel_data, Dext, U, V);
+   }
+};
+
+
+/////////////////////////////////////////////////
+//                                             //
+//                                             //
+//            DUMMY DOMAIN KERNEL              //
+//                                             //
+//                                             //
+/////////////////////////////////////////////////
+
 
 /**
 *  The Dummy Kernels for BtDB in 1d,2d and 3d.
@@ -201,6 +313,7 @@ class DummyMultBtDB
 {
 public:
    using DTensor = DummyTensor;
+   static const int dimD = 2;
    using Tensor2d = DenseMatrix;
 
    /**
@@ -241,6 +354,7 @@ class DummyMultGtDG
 {
 public:
    using DTensor = DummyTensor;
+   static const int dimD = 3;
    using Tensor2d = DenseMatrix;
 
    /**
@@ -281,6 +395,7 @@ class DummyMultBtDG
 {
 public:
    using DTensor = DummyTensor;
+   static const int dimD = 3;
    using Tensor2d = DenseMatrix;
 
    /**
@@ -321,6 +436,7 @@ class DummyMultGtDB
 {
 public:
    using DTensor = DummyTensor;
+   static const int dimD = 4;
    using Tensor2d = DenseMatrix;
 
    /**
@@ -380,6 +496,7 @@ class DummyDomainPAK<PAOp::GtDG>{
 public:
    using Op = DummyMultGtDG;
 };
+
 
 /////////////////////////////////////////////////
 //                                             //
@@ -623,6 +740,92 @@ public:
 /////////////////////////////////////////////////
 //                                             //
 //                                             //
+//            DUMMY FACE KERNEL 2              //
+//                                             //
+//                                             //
+/////////////////////////////////////////////////
+
+/**
+*  A face kernel to compute BtDB
+*/
+class DummyFaceMultBtDB{
+
+struct PermIndir{
+   int indirection;
+   int permutation;   
+};
+
+public:
+   using DTensor = DummyTensor;
+   static const int dimD = 3;
+   using Tensor2d = DenseMatrix;
+   using KData = DummyMatrix<PermIndir>;
+
+   /**
+   *  Sets the dimensions of the tensor D
+   */
+   static void SetSizeD(DTensor& Dint, DTensor& Dext, int* sizes)
+   {
+      Dint.SetSize(sizes);
+      Dext.SetSize(sizes);
+   }
+
+   /**
+   *  Sets the value at indice @a ind to @a val. @a ind is a raw integer array of size 2.
+   *  The ind array contains: quad, elt, face_id
+   */
+   static void SetValDint(DTensor& Dint, int (&ind)[dimD], double val)
+   {
+      Dint(ind) = val;
+      // Dint(quad,element,face_id) = val;
+   }
+
+   /**
+   *  Sets the value at indice @a ind to @a val. @a ind is a raw integer array of size 2.
+   *  The ind array contains: quad, elt_trial, face_id_trial, elt_test, face_id_test
+   */
+   static void SetValDext(DTensor& Dext, KData& kernel_data,
+                           int (&ind)[dimD+2], double val)
+   {
+      int quad(ind[0]), elt_trial(ind[1]), face_id_trial(ind[2]), elt_test(ind[3]), face_id_test(ind[4]);
+      // We do the indirections and permutations at the beginning so that each element receives
+      // one and only one flux per face. So this is a per face for test element approach.
+      kernel_data(elt_trial,face_id_test).indirection = elt_test;
+      kernel_data(elt_trial,face_id_test).permutation = Permutation(face_id_trial,face_id_test);
+      // int ind_Dext[3] = {quad,elt_trial,face_id_trial};
+      // Dext(quad,elt_trial,face_id_trial) = val;
+      // Careful this uses only the 3 first element of 'ind'
+      Dext(ind) = val;
+   }
+
+   static void EvalInt(FiniteElementSpace* fes, Tensor2d& shape1d, Tensor2d& dshape1d,
+                        Tensor2d& shape0d0, Tensor2d& shape0d1,
+                        Tensor2d& dshape0d0, Tensor2d& dshape0d1,
+                        DTensor& Dint, const Vector& U, Vector& V)
+   {
+      //TODO
+   }
+
+   static void EvalExt(FiniteElementSpace* fes, Tensor2d& shape1d, Tensor2d& dshape1d,
+                        Tensor2d& shape0d0, Tensor2d& shape0d1,
+                        Tensor2d& dshape0d0, Tensor2d& dshape0d1,
+                        KData& kernel_data ,DTensor& Dint, const Vector& U, Vector& V)
+   {
+      //TODO
+   }
+};
+
+
+template <>
+class DummyFacePAK2<PAOp::BtDB>{
+public:
+   using Op = DummyFaceMultBtDB;
+};
+
+
+/////////////////////////////////////////////////
+//                                             //
+//                                             //
 //            EIGEN DOMAIN KERNEL              //
 //                                             //
 //                                             //
@@ -733,7 +936,7 @@ public:
    /**
    * Computes V = B^T D B U where B is a tensor product of shape1d. 
    */
-   static void eval(FiniteElementSpace* fes, Tensor2d const & shape1d, Tensor2d const& dshape1d,
+   static void eval_old(FiniteElementSpace* fes, Tensor2d const & shape1d, Tensor2d const& dshape1d,
                         DTensor & D, const Vector &U, Vector &V)
    {
       const int dofs1d = shape1d.dimension(0);
@@ -760,6 +963,37 @@ public:
          cont_ind = { Eigen::IndexPair<int>(0, 1) };
          R += T4.contract(shape1d, cont_ind);
       }
+   }
+
+   /**
+   * Computes V = B^T D B U where B is a tensor product of shape1d. 
+   */
+   static void eval(FiniteElementSpace* fes, Tensor2d const & shape1d, Tensor2d const& dshape1d,
+                        DTensor & D, const Vector &U, Vector &V)
+   {
+      const int dofs1d = shape1d.dimension(0);
+      const int dofs = dofs1d*dofs1d;
+      const int quads1d = shape1d.dimension(1);
+      const int nbe = fes->GetNE();
+      //const int quads  = quads1d*quads1d;
+      array<Eigen::IndexPair<int>, 1> cont_ind;
+      Eigen::TensorMap<Eigen::Tensor<double,3>> T0(U.GetData(), dofs1d, dofs1d, nbe);
+      Eigen::TensorMap<Eigen::Tensor<double,3>> R(V.GetData(), dofs1d, dofs1d, nbe);
+      // T1 = B.T0
+      cont_ind = { Eigen::IndexPair<int>(0, 1) };
+      auto T1 = shape1d.contract(T0, cont_ind);
+      // T2 = B.T1
+      cont_ind = { Eigen::IndexPair<int>(0, 1) };
+      auto T2 = shape1d.contract(T1, cont_ind);
+      // T3 = D*T2
+      array<int, 3> dims{{quads1d, quads1d, nbe}};
+      auto T3 = D.reshape(dims) * T2;
+      // T4 = Bt.T3
+      cont_ind = { Eigen::IndexPair<int>(1, 1) };
+      auto T4 = shape1d.contract(T3, cont_ind);
+      // R = Bt.T4
+      cont_ind = { Eigen::IndexPair<int>(1, 1) };
+      R += shape1d.contract(T4, cont_ind);
    }
 
    /**
@@ -853,7 +1087,7 @@ public:
    /**
    * Computes V = B^T D G U where B is a tensor product of shape1d. 
    */
-   static void feval(FiniteElementSpace* fes, Tensor2d const & shape1d, Tensor2d const& dshape1d,
+   static void eval_old(FiniteElementSpace* fes, Tensor2d const & shape1d, Tensor2d const& dshape1d,
                         DTensor & D, const Vector &U, Vector &V)
    {
       const int dofs1d = shape1d.dimension(0);

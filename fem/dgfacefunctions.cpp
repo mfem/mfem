@@ -263,4 +263,10 @@ void GetIdRotInfo(const int face_info, int& face_id, int& nb_rot){
 	nb_rot = orientation / 2;
 }
 
+//TODO
+int Permutation(int face_id_trial, int face_id_test)
+{
+	return 0;
+}
+
 }

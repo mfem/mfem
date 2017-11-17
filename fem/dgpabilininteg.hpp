@@ -43,7 +43,7 @@ public:
   	PAConvectionIntegrator(FiniteElementSpace *fes, const int order,
                         VectorCoefficient &q, double a = 1.0)
   	: BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
-     pak(fes,order,3)
+     pak(fes,order)
   	{
 	  	const int nb_elts = fes->GetNE();
 		const int quads  = IntRule->GetNPoints();
@@ -83,13 +83,14 @@ public:
     //We assume that the kernel has such a method.
     pak.Mult(fun,vect);
   }
+
 };
 
 /**
 *	A Mass Integrator using Partial Assembly based on Eigen Tensors.
 *  TODO: should be merged with legacy one
 */
-template <int Dim, template<int,PAOp> class PAK>
+template <int Dim, template<int,PAOp> class PAK = EigenDomainPAK>
 class EigenPAMassIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -156,7 +157,7 @@ public:
 *	A Convection Integrator using Partial Assembly based on Eigen Tensors.
 *  TODO: should be merged with legacy one
 */
-template <int Dim, template<int,PAOp> class PAK>
+template <int Dim, template<int,PAOp> class PAK = EigenDomainPAK>
 class EigenPAConvectionIntegrator : public BilinearFormIntegrator
 {
 protected:

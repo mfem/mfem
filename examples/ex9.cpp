@@ -323,7 +323,7 @@ int main(int argc, char *argv[])
 FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b)
    : TimeDependentOperator(_M.Size()), M(_M), K(_K), b(_b), z(_M.Size())
 {
-   M_solver.SetPreconditioner(M_prec);
+   //M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
 
    M_solver.iterative_mode = false;

@@ -106,7 +106,7 @@ class DummyTensor
 {
 protected:
    double* data;
-   int dim;
+   const int dim;
    vector<int> sizes;
    vector<int> offsets;
 
@@ -126,7 +126,7 @@ public:
    }
 
    // Memory leak if used more than one time
-   void SetSize(int* _sizes)
+   void SetSize(int *_sizes)
    {
       for (int i = 0; i < dim; ++i)
       {

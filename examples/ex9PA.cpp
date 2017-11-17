@@ -63,8 +63,8 @@ Vector bb_min, bb_max;
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   //BilinearForm &M;
-   SparseMatrix &M;
+   BilinearForm &M;
+   //SparseMatrix &M;
    BilinearForm &K;
    const Vector &b;
 
@@ -74,8 +74,8 @@ private:
    mutable Vector z;
 
 public:
-   //FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b);
-   FE_Evolution(SparseMatrix &_M, BilinearForm &_K, const Vector &_b);
+   FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b);
+   //FE_Evolution(SparseMatrix &_M, BilinearForm &_K, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -192,15 +192,17 @@ int main(int argc, char *argv[])
    int ir_order = 2*order;
 
    //Initialization of the Mass operator
-   // BilinearFormOperator m(&fes);
+   BilinearFormOperator m(&fes);
+   m.AddDomainIntegrator(new PAMassIntegrator(&fes,ir_order));
+   // m.AddDomainIntegrator(new EigenPAMassIntegrator<2>(&fes,ir_order));
    // m.AddDomainIntegrator(new EigenPAMassIntegrator<2,EigenDomainPAK>(&fes,ir_order));
-   BilinearForm m(&fes);
-   m.AddDomainIntegrator(new MassIntegrator());
-   m.Assemble();
-   m.Finalize();
+   // BilinearForm m(&fes);
+   // m.AddDomainIntegrator(new MassIntegrator());
+   // m.Assemble();
+   // m.Finalize();
    //Initialization of the Stiffness operator
    BilinearFormOperator k(&fes);
-   //k.AddDomainIntegrator(new EigenPAConvectionIntegrator<2,EigenDomainPAK>(&fes,ir_order,velocity, -1.0));
+   //k.AddDomainIntegrator(new EigenPAConvectionIntegrator<2>(&fes,ir_order,velocity, -1.0));
    k.AddDomainIntegrator(new PAConvectionIntegrator<DummyDomainPAK>(&fes,ir_order,velocity, -1.0));
    k.AddDomainIntegrator(
          new PADGConvectionFaceIntegrator<DummyFacePAK>(&fes,ir_order,velocity, 1.0, -0.5));
@@ -209,14 +211,6 @@ int main(int argc, char *argv[])
    b.AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
 
-   /*
-   //TODO remove?
-   m.Assemble();
-   m.Finalize();
-   int skip_zeros = 0;
-   k.Assemble(skip_zeros);
-   k.Finalize(skip_zeros);
-   */
    b.Assemble();
 
    // 7. Define the initial conditions, save the corresponding grid function to
@@ -286,7 +280,7 @@ int main(int argc, char *argv[])
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
    // FE_Evolution adv(m, k, b);
-   FE_Evolution adv(m.SpMat(), k, b);
+   FE_Evolution adv(m, k, b);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -356,11 +350,11 @@ int main(int argc, char *argv[])
 //    M_solver.SetMaxIter(100);
 //    M_solver.SetPrintLevel(0);
 // }
-FE_Evolution::FE_Evolution(SparseMatrix &_M, BilinearForm &_K, const Vector &_b)
+FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b)
    : TimeDependentOperator(_M.Size(), 0.0), M(_M), K(_K), b(_b), z(_M.Size())
 {
    //TODO have to take into account the block diagonal structure of M
-   M_solver.SetPreconditioner(M_prec);
+   //M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
 
    M_solver.iterative_mode = true;
