@@ -151,8 +151,7 @@ public:
          : MeshId(index, element, local), slaves_begin(sb), slaves_end(se) {}
    };
 
-   /** Nonconforming edge/face within a bigger edge/face.
-       NOTE: only the 'index' member of MeshId is currently valid for slaves. */
+   /// Nonconforming edge/face within a bigger edge/face.
    struct Slave : public MeshId
    {
       int master; ///< master number (in Mesh numbering)
@@ -181,7 +180,6 @@ public:
       long MemoryUsage() const;
 
       const MeshId& LookUp(int index, int *type = NULL) const;
-
    private:
       mutable Array<int> inv_index;
    };
