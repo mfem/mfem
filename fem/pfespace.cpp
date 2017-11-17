@@ -101,9 +101,14 @@ void ParFiniteElementSpace::Construct()
       // after all regular DOFs
       ngdofs = ngvdofs + ngedofs + ngfdofs;
 
-      // get P matrix and also initialize DOF offsets etc.
-      //GetParallelConformingInterpolation();
-      NewParallelConformingInterpolation();
+      // get P and R matrices, initialize DOF offsets, etc. NOTE: in the NC
+      // case this needs to be done here to get the number of true DOFs
+      ltdof_size = BuildParallelConformingInterpolation(
+                       &P, &R, dof_offsets, tdof_offsets, &ldof_ltdof, false);
+
+      // TODO future: split BuildParallelConformingInterpolation into two parts
+      // to overlap its communication with processing between this constructor
+      // and the point where the P matrix is actually needed.
    }
 }
 
@@ -262,6 +267,8 @@ void ParFiniteElementSpace::GetGroupComm(
 
 void ParFiniteElementSpace::ApplyLDofSigns(Array<int> &dofs) const
 {
+   MFEM_ASSERT(Conforming(), "wrong code path");
+
    for (int i = 0; i < dofs.Size(); i++)
    {
       if (dofs[i] < 0)
@@ -366,6 +373,8 @@ void ParFiniteElementSpace::GetSharedFaceDofs(
 
 void ParFiniteElementSpace::GenerateGlobalOffsets()
 {
+   MFEM_ASSERT(Conforming(), "wrong code path");
+
    HYPRE_Int ldof[2];
    Array<HYPRE_Int> *offsets[2] = { &dof_offsets, &tdof_offsets };
 
@@ -376,52 +385,40 @@ void ParFiniteElementSpace::GenerateGlobalOffsets()
 
    if (HYPRE_AssumedPartitionCheck())
    {
-      if (Conforming())
-      {
-         // Communicate the neighbor offsets in tdof_nb_offsets
-         GroupTopology &gt = GetGroupTopo();
-         int nsize = gt.GetNumNeighbors()-1;
-         MPI_Request *requests = new MPI_Request[2*nsize];
-         MPI_Status  *statuses = new MPI_Status[2*nsize];
-         tdof_nb_offsets.SetSize(nsize+1);
-         tdof_nb_offsets[0] = tdof_offsets[0];
+      // communicate the neighbor offsets in tdof_nb_offsets
+      GroupTopology &gt = GetGroupTopo();
+      int nsize = gt.GetNumNeighbors()-1;
+      MPI_Request *requests = new MPI_Request[2*nsize];
+      MPI_Status  *statuses = new MPI_Status[2*nsize];
+      tdof_nb_offsets.SetSize(nsize+1);
+      tdof_nb_offsets[0] = tdof_offsets[0];
 
-         int request_counter = 0;
-         // send and receive neighbors' local tdof offsets
-         for (int i = 1; i <= nsize; i++)
-         {
-            MPI_Irecv(&tdof_nb_offsets[i], 1, HYPRE_MPI_INT,
-                      gt.GetNeighborRank(i), 5365, MyComm,
-                      &requests[request_counter++]);
-         }
-         for (int i = 1; i <= nsize; i++)
-         {
-            MPI_Isend(&tdof_nb_offsets[0], 1, HYPRE_MPI_INT,
-                      gt.GetNeighborRank(i), 5365, MyComm,
-                      &requests[request_counter++]);
-         }
-         MPI_Waitall(request_counter, requests, statuses);
-
-         delete [] statuses;
-         delete [] requests;
-      }
-      else
+      // send and receive neighbors' local tdof offsets
+      int request_counter = 0;
+      for (int i = 1; i <= nsize; i++)
       {
-         // Do nothing
+         MPI_Irecv(&tdof_nb_offsets[i], 1, HYPRE_MPI_INT,
+                   gt.GetNeighborRank(i), 5365, MyComm,
+                   &requests[request_counter++]);
       }
+      for (int i = 1; i <= nsize; i++)
+      {
+         MPI_Isend(&tdof_nb_offsets[0], 1, HYPRE_MPI_INT,
+                   gt.GetNeighborRank(i), 5365, MyComm,
+                   &requests[request_counter++]);
+      }
+      MPI_Waitall(request_counter, requests, statuses);
+
+      delete [] statuses;
+      delete [] requests;
    }
 }
 
 void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() // matrix P
 {
-   if (P) { return; }
+   MFEM_ASSERT(Conforming(), "wrong code path");
 
-   if (Nonconforming())
-   {
-      //GetParallelConformingInterpolation();
-      NewParallelConformingInterpolation();
-      return;
-   }
+   if (P) { return; }
 
    int ldof  = GetVSize();
    int ltdof = TrueVSize();
@@ -1025,7 +1022,7 @@ void ParFiniteElementSpace::ConstructTrueNURBSDofs()
    gcomm->Bcast(ldof_ltdof);
 }
 
-void ParFiniteElementSpace::GetGhostVertexDofs(const NCMesh::MeshId &id,
+void ParFiniteElementSpace::GetGhostVertexDofs(const MeshId &id,
                                                Array<int> &dofs) const
 {
    int nv = fec->DofForGeometry(Geometry::POINT);
@@ -1036,7 +1033,7 @@ void ParFiniteElementSpace::GetGhostVertexDofs(const NCMesh::MeshId &id,
    }
 }
 
-void ParFiniteElementSpace::GetGhostEdgeDofs(const NCMesh::MeshId &edge_id,
+void ParFiniteElementSpace::GetGhostEdgeDofs(const MeshId &edge_id,
                                              Array<int> &dofs) const
 {
    int nv = fec->DofForGeometry(Geometry::POINT);
@@ -1062,7 +1059,7 @@ void ParFiniteElementSpace::GetGhostEdgeDofs(const NCMesh::MeshId &edge_id,
    }
 }
 
-void ParFiniteElementSpace::GetGhostFaceDofs(const NCMesh::MeshId &face_id,
+void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
                                              Array<int> &dofs) const
 {
    MFEM_ASSERT(mesh->GetFaceBaseGeometry(0) == Geometry::SQUARE, "");
@@ -1108,7 +1105,7 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const NCMesh::MeshId &face_id,
 }
 
 void
-ParFiniteElementSpace::GetDofs(int entity, int index, Array<int>& dofs) const
+ParFiniteElementSpace::GetDofs(int entity, int index, Array<int> &dofs) const
 {
    // helper to get vertex, edge or face DOFs
    switch (entity)
@@ -1119,8 +1116,8 @@ ParFiniteElementSpace::GetDofs(int entity, int index, Array<int>& dofs) const
    }
 }
 
-void ParFiniteElementSpace::GetGhostDofs(int entity, const NCMesh::MeshId &id,
-                                         Array<int>& dofs) const
+void ParFiniteElementSpace::GetGhostDofs(int entity, const MeshId &id,
+                                         Array<int> &dofs) const
 {
    // helper to get ghost vertex, ghost edge or ghost face DOFs
    switch (entity)
@@ -1131,8 +1128,8 @@ void ParFiniteElementSpace::GetGhostDofs(int entity, const NCMesh::MeshId &id,
    }
 }
 
-void ParFiniteElementSpace::GetBareDofs(int entity, const NCMesh::MeshId &id,
-                                        Array<int>& dofs) const
+void ParFiniteElementSpace::GetBareDofs(int entity, const MeshId &id,
+                                        Array<int> &dofs) const
 {
    int ned, ghost, first;
    switch (entity)
@@ -1169,7 +1166,7 @@ void ParFiniteElementSpace::GetBareDofs(int entity, const NCMesh::MeshId &id,
    }
 }
 
-int ParFiniteElementSpace::PackDof(int entity, int index, int edof)
+int ParFiniteElementSpace::PackDof(int entity, int index, int edof) const
 {
    // DOFs are ordered as follows:
    // vertices | edges | faces | internal | ghost vert. | g. edges | g. faces
@@ -1207,7 +1204,7 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof)
  *  entity index and the DOF number within the entity.
  */
 void ParFiniteElementSpace::UnpackDof(int dof,
-                                      int &entity, int &index, int &edof)
+                                      int &entity, int &index, int &edof) const
 {
    MFEM_VERIFY(dof >= 0, "");
    if (dof < ndofs)
@@ -1350,6 +1347,7 @@ struct PMatrixRow
 class NeighborRowMessage : public VarMessage<314>
 {
 public:
+   typedef NCMesh::MeshId MeshId;
    typedef ParNCMesh::GroupId GroupId;
 
    struct RowInfo
@@ -1397,21 +1395,21 @@ void NeighborRowMessage::Encode(int rank)
 {
    std::ostringstream stream;
 
-   Array<NCMesh::MeshId> ent_ids[3];
-   Array<ParNCMesh::GroupId> group_ids[3];
+   Array<MeshId> ent_ids[3];
+   Array<GroupId> group_ids[3];
    Array<int> row_idx[3];
 
    // encode MeshIds and groups
    for (unsigned i = 0; i < rows.size(); i++)
    {
       const RowInfo &ri = rows[i];
-      const NCMesh::MeshId &id = pncmesh->GetNCList(ri.entity).LookUp(ri.index);
+      const MeshId &id = pncmesh->GetNCList(ri.entity).LookUp(ri.index);
       ent_ids[ri.entity].Append(id);
       row_idx[ri.entity].Append(i);
       group_ids[ri.entity].Append(ri.group);
    }
 
-   Array<ParNCMesh::GroupId> all_group_ids;
+   Array<GroupId> all_group_ids;
    all_group_ids.Reserve(rows.size());
    for (int i = 0; i < 3; i++)
    {
@@ -1425,17 +1423,19 @@ void NeighborRowMessage::Encode(int rank)
    // write all rows to the stream
    for (int ent = 0; ent < 3; ent++)
    {
-      const Array<NCMesh::MeshId> &ids = ent_ids[ent];
+      const Array<MeshId> &ids = ent_ids[ent];
       for (int i = 0; i < ids.Size(); i++)
       {
-         const NCMesh::MeshId &id = ids[i];
+         const MeshId &id = ids[i];
          const RowInfo &ri = rows[row_idx[ent][i]];
          MFEM_ASSERT(ent == ri.entity, "");
 
-         /*std::cout << "Rank " << pncmesh->MyRank << " sending to " << rank
+#ifdef MFEM_DEBUG_PMATRIX
+         std::cout << "Rank " << pncmesh->MyRank << " sending to " << rank
                    << ": ent " << ri.entity << ", index " << ri.index
                    << ", edof " << ri.edof << " (id " << id.element << "/"
-                   << id.local << ")" << std::endl;*/
+                   << id.local << ")" << std::endl;
+#endif
 
          // handle orientation and sign change
          int edof = ri.edof;
@@ -1464,8 +1464,8 @@ void NeighborRowMessage::Decode(int rank)
 {
    std::istringstream stream(data);
 
-   Array<NCMesh::MeshId> ent_ids[3];
-   Array<ParNCMesh::GroupId> group_ids;
+   Array<MeshId> ent_ids[3];
+   Array<GroupId> group_ids;
 
    // decode vertex/edge/face IDs and groups
    pncmesh->DecodeMeshIds(stream, ent_ids);
@@ -1482,10 +1482,10 @@ void NeighborRowMessage::Decode(int rank)
    // read rows
    for (int ent = 0, gi = 0; ent < 3; ent++)
    {
-      const Array<NCMesh::MeshId> &ids = ent_ids[ent];
+      const Array<MeshId> &ids = ent_ids[ent];
       for (int i = 0; i < ids.Size(); i++)
       {
-         const NCMesh::MeshId &id = ids[i];
+         const MeshId &id = ids[i];
          int edof = read<int>(stream);
 
          // handle orientation and sign change
@@ -1511,17 +1511,20 @@ void NeighborRowMessage::Decode(int rank)
          rows.push_back(RowInfo(ent, id.index, edof, group_ids[gi++]));
          rows.back().row.read(stream, s);
 
-         /*std::cout << "Rank " << pncmesh->MyRank << " receiving from " << rank
+#ifdef MFEM_DEBUG_PMATRIX
+         std::cout << "Rank " << pncmesh->MyRank << " receiving from " << rank
                    << ": ent " << rows.back().entity << ", index "
                    << rows.back().index << ", edof " << rows.back().edof
-                   << std::endl;*/
+                   << std::endl;
+#endif
       }
    }
 }
 
-void ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
-                                            ParNCMesh::GroupId group_id,
-                                            NeighborRowMessage::Map &send_msg)
+void
+ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
+                                       GroupId group_id,
+                                       NeighborRowMessage::Map &send_msg) const
 {
    int ent, idx, edof;
    UnpackDof(dof, ent, idx, edof);
@@ -1541,9 +1544,8 @@ void ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
 }
 
 void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
-                                       ParNCMesh::GroupId group_sent_id,
-                                       ParNCMesh::GroupId group_id,
-                                       NeighborRowMessage::Map &send_msg)
+                                       GroupId group_sent_id, GroupId group_id,
+                                       NeighborRowMessage::Map &send_msg) const
 {
    int ent, idx, edof;
    UnpackDof(dof, ent, idx, edof);
@@ -1559,20 +1561,22 @@ void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
          msg.SetNCMesh(pncmesh);
          msg.SetFEC(fec);
 
-         /*std::cout << "Rank " << pncmesh->GetMyRank() << " forwarding to "
+#ifdef MFEM_DEBUG_PMATRIX
+         std::cout << "Rank " << pncmesh->GetMyRank() << " forwarding to "
                    << rank << ": ent " << ent << ", index" << idx
-                   << ", edof " << edof << std::endl;*/
+                   << ", edof " << edof << std::endl;
+#endif
       }
    }
 }
 
-
+#ifdef MFEM_DEBUG_PMATRIX
 void ParFiniteElementSpace
    ::DebugDumpDOFs(std::ofstream &os,
                    const SparseMatrix &deps,
-                   const Array<ParNCMesh::GroupId> &dof_group,
-                   const Array<ParNCMesh::GroupId> &dof_owner,
-                   const Array<bool> &finalized)
+                   const Array<GroupId> &dof_group,
+                   const Array<GroupId> &dof_owner,
+                   const Array<bool> &finalized) const
 {
    for (int i = 0; i < dof_group.Size(); i++)
    {
@@ -1627,26 +1631,25 @@ void ParFiniteElementSpace
       os << "\n";
    }
 }
+#endif
 
-
-void ParFiniteElementSpace::NewParallelConformingInterpolation()
+int ParFiniteElementSpace
+   ::BuildParallelConformingInterpolation(HypreParMatrix **P, SparseMatrix **R,
+                                          Array<HYPRE_Int> &dof_offs,
+                                          Array<HYPRE_Int> &tdof_offs,
+                                          Array<int> *dof_tdof,
+                                          bool partial) const
 {
    bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
 
-   // *** STEP 1: build dependency lists ***
+   // *** STEP 1: build master-slave dependency lists ***
 
    int total_dofs = ndofs + ngdofs;
-
    SparseMatrix deps(ndofs, total_dofs);
 
-   Array<ParNCMesh::GroupId> dof_group(total_dofs);
-   Array<ParNCMesh::GroupId> dof_owner(total_dofs);
-   dof_group = 0;
-   dof_owner = 0;
-
-   if (!dg)
+   if (!dg && !partial)
    {
-      Array<int> dofs, master_dofs, slave_dofs;
+      Array<int> master_dofs, slave_dofs;
 
       // loop through *all* master edges/faces, constrain their slaves
       for (int entity = 0; entity <= 2; entity++)
@@ -1697,6 +1700,20 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
       // make sure all master DOFs are transmitted to participating slave ranks
       pncmesh->AugmentMasterGroups();
 
+      deps.Finalize();
+   }
+
+   // *** STEP 2:
+
+   Array<GroupId> dof_group(total_dofs);
+   Array<GroupId> dof_owner(total_dofs);
+   dof_group = 0;
+   dof_owner = 0;
+
+   if (!dg)
+   {
+      Array<int> dofs;
+
       // initialize dof_group[], dof_owner[]
       for (int entity = 0; entity <= 2; entity++)
       {
@@ -1709,10 +1726,10 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
          {
             for (std::size_t i = 0; i < lsize[l]; i++)
             {
-               const NCMesh::MeshId &id =
+               const MeshId &id =
                   (l == 0) ? list.conforming[i] :
-                  (l == 1) ? (const NCMesh::MeshId&) list.masters[i]
-                  /*    */ : (const NCMesh::MeshId&) list.slaves[i];
+                  (l == 1) ? (const MeshId&) list.masters[i]
+                  /*    */ : (const MeshId&) list.slaves[i];
 
                GetBareDofs(entity, id, dofs);
 
@@ -1725,11 +1742,9 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
             }
          }
       }
-
-      deps.Finalize();
    }
 
-   // *** STEP 2: count true DOFs and calculate P column partition ***
+   // *** STEP 3: count true DOFs and calculate P column partition ***
 
    Array<bool> finalized(total_dofs);
    finalized = false;
@@ -1744,28 +1759,38 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
          finalized[i] = true;
       }
    }
-   ltdof_size = num_true_dofs*vdim;
 
-   GenerateGlobalOffsets(); // calls MPI_Scan, MPI_Bcast
+   // calculate global offsets
+   HYPRE_Int loc_sizes[2] = { ndofs*vdim, num_true_dofs*vdim };
+   Array<HYPRE_Int>* offsets[2] = { &dof_offs, &tdof_offs };
+   pmesh->GenerateOffsets(2, loc_sizes, offsets); // calls MPI_Scan, MPI_Bcast
+
+   HYPRE_Int my_tdof_offset =
+         tdof_offs[HYPRE_AssumedPartitionCheck() ? 0 : MyRank];
+
+   if (R)
+   {
+      // initialize the restriction matrix (also parallel but block-diagonal)
+      *R = new SparseMatrix(num_true_dofs*vdim, ndofs*vdim);
+   }
+   if (dof_tdof)
+   {
+      dof_tdof->SetSize(ndofs*vdim);
+      *dof_tdof = -1;
+   }
+
+   std::vector<PMatrixRow> pmatrix(total_dofs);
 
    bool bynodes = (ordering == Ordering::byNODES);
    int vdim_factor = bynodes ? 1 : vdim;
    int dof_stride = bynodes ? ndofs : 1;
    int tdof_stride = bynodes ? num_true_dofs : 1;
 
-   std::vector<PMatrixRow> pmatrix(total_dofs);
-
-   // initialize the R matrix (also parallel but block-diagonal)
-   R = new SparseMatrix(num_true_dofs*vdim, ndofs*vdim);
-
    // big container for all messages we send (the list is for iterations)
    std::list<NeighborRowMessage::Map> send_msg;
    send_msg.push_back(NeighborRowMessage::Map());
 
    // put identity in P and R for true DOFs, set ldof_ltdof
-   HYPRE_Int my_tdof_offset = GetMyTDofOffset();
-   ldof_ltdof.SetSize(ndofs*vdim);
-   ldof_ltdof = -1;
    for (int dof = 0, tdof = 0; dof < ndofs; dof++)
    {
       if (finalized[dof])
@@ -1784,8 +1809,8 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
             int vdof = dof*vdim_factor + vd*dof_stride;
             int vtdof = tdof*vdim_factor + vd*tdof_stride;
 
-            R->Add(vtdof, vdof, 1.0);
-            ldof_ltdof[vdof] = vtdof;
+            if (R) { (*R)->Add(vtdof, vdof, 1.0); }
+            if (dof_tdof) { (*dof_tdof)[vdof] = vtdof; }
          }
          tdof++;
       }
@@ -1794,9 +1819,9 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
    // send identity rows
    NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
 
-   R->Finalize();
+   if (R) { (*R)->Finalize(); }
 
-   // *** STEP 3: main loop ***
+   // *** STEP 4: main loop ***
 
    // a single instance (recv_msg) is reused for all incoming messages
    NeighborRowMessage recv_msg;
@@ -1880,6 +1905,7 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
          }
       }
 
+#ifdef MFEM_DEBUG_PMATRIX
       /*static int dump = 0;
       if (dump < 10)
       {
@@ -1889,30 +1915,35 @@ void ParFiniteElementSpace::NewParallelConformingInterpolation()
          DebugDumpDOFs(f, deps, dof_group, dof_owner, finalized);
          dump++;
       }*/
+#endif
 
       // send current batch of messages
       NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
    }
 
-   P = MakeHypreMatrix(pmatrix, ndofs,
-                       dof_offsets.Last(), tdof_offsets.Last(),
-                       dof_offsets.GetData(), tdof_offsets.GetData());
+   if (P)
+   {
+      *P = MakeVDimHypreMatrix(pmatrix, ndofs, dof_offs, tdof_offs);
+   }
 
-   // make sure we can discard all send buffers; NOTE: this is a formality
-   // since the processes are all synchronized at this point
+   // make sure we can discard all send buffers; this is a formality since
+   // the processes are synchronized at this point and they must already have
+   // sent all their messages
    for (std::list<NeighborRowMessage::Map>::iterator
         it = send_msg.begin(); it != send_msg.end(); ++it)
    {
       NeighborRowMessage::WaitAllSent(*it);
    }
+
+   return num_true_dofs*vdim;
 }
 
 
-/// Helper: create a HypreParMatrix from a list of PMatrixRows.
-HypreParMatrix* ParFiniteElementSpace::MakeHypreMatrix(
-   const std::vector<PMatrixRow> &rows, int local_rows,
-   HYPRE_Int glob_rows, HYPRE_Int glob_cols,
-   HYPRE_Int *row_starts, HYPRE_Int *col_starts)
+HypreParMatrix* ParFiniteElementSpace
+   ::MakeVDimHypreMatrix(const std::vector<PMatrixRow> &rows,
+                         int local_rows,
+                         Array<HYPRE_Int> &row_starts,
+                         Array<HYPRE_Int> &col_starts) const
 {
    bool assumed = HYPRE_AssumedPartitionCheck();
    bool bynodes = (ordering == Ordering::byNODES);
@@ -2002,672 +2033,12 @@ HypreParMatrix* ParFiniteElementSpace::MakeHypreMatrix(
    I_diag[vrow] = nnz_diag;
    I_offd[vrow] = nnz_offd;
 
-   return new HypreParMatrix(MyComm, glob_rows, glob_cols,
-                             row_starts, col_starts,
+   return new HypreParMatrix(MyComm,
+                             row_starts.Last(), col_starts.Last(),
+                             row_starts.GetData(), col_starts.GetData(),
                              I_diag, J_diag, A_diag,
                              I_offd, J_offd, A_offd,
                              col_map.size(), cmap);
-}
-
-
-void ParFiniteElementSpace::GetParallelConformingInterpolation()
-{
-#if 0
-   ParNCMesh* pncmesh = pmesh->pncmesh;
-
-   bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
-
-   // *** STEP 1: exchange shared vertex/edge/face DOFs with neighbors ***
-
-   NeighborDofMessage::Map send_dofs, recv_dofs;
-
-   // prepare neighbor DOF messages for shared vertices/edges/faces
-   if (!dg)
-   {
-      for (int type = 0; type < 3; type++)
-      {
-         const NCMesh::NCList &list = pncmesh->GetSharedList(type);
-         Array<int> dofs;
-
-         int cs = list.conforming.size(), ms = list.masters.size();
-         for (int i = 0; i < cs+ms; i++)
-         {
-            // loop through all (shared) conforming+master vertices/edges/faces
-            const NCMesh::MeshId& id =
-               (i < cs) ? (const NCMesh::MeshId&) list.conforming[i]
-               /*    */ : (const NCMesh::MeshId&) list.masters[i-cs];
-
-            int owner = pncmesh->GetOwner(type, id.index), gsize;
-            if (owner == MyRank)
-            {
-               // we own a shared v/e/f, send its DOFs to others in group
-               GetDofs(type, id.index, dofs);
-               const int *group = pncmesh->GetGroup(type, id.index, gsize);
-               for (int j = 0; j < gsize; j++)
-               {
-                  if (group[j] != MyRank)
-                  {
-                     NeighborDofMessage &send_msg = send_dofs[group[j]];
-                     send_msg.Init(pncmesh, fec, ndofs);
-                     send_msg.AddDofs(type, id, dofs);
-                  }
-               }
-            }
-            else
-            {
-               // we don't own this v/e/f and expect to receive DOFs for it
-               recv_dofs[owner].Init(pncmesh, fec, 0);
-            }
-         }
-      }
-
-      // send/receive all DOF messages
-      NeighborDofMessage::IsendAll(send_dofs, MyComm);
-      NeighborDofMessage::RecvAll(recv_dofs, MyComm);
-   }
-
-   // *** STEP 2: build dependency lists ***
-
-   int num_dofs = ndofs * vdim;
-   DepList* deps = new DepList[num_dofs]; // NOTE: 'deps' is over vdofs
-
-   Array<int> master_dofs, slave_dofs;
-   Array<int> owner_dofs, my_dofs;
-
-   if (!dg)
-   {
-      // loop through *all* master edges/faces, constrain their slaves
-      for (int type = 1; type < 3; type++)
-      {
-         const NCMesh::NCList &list = (type > 1) ? pncmesh->GetFaceList()
-                                      /*      */ : pncmesh->GetEdgeList();
-         if (!list.masters.size()) { continue; }
-
-         IsoparametricTransformation T;
-         if (type > 1) { T.SetFE(&QuadrilateralFE); }
-         else { T.SetFE(&SegmentFE); }
-
-         int geom = (type > 1) ? Geometry::SQUARE : Geometry::SEGMENT;
-         const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
-         if (!fe) { continue; }
-
-         DenseMatrix I(fe->GetDof());
-
-         // process masters that we own or that affect our edges/faces
-         for (unsigned mi = 0; mi < list.masters.size(); mi++)
-         {
-            const NCMesh::Master &mf = list.masters[mi];
-            if (!pncmesh->RankInGroup(type, mf.index, MyRank)) { continue; }
-
-            // get master DOFs
-            int master_ndofs, master_rank = pncmesh->GetOwner(type, mf.index);
-            if (master_rank == MyRank)
-            {
-               GetDofs(type, mf.index, master_dofs);
-               master_ndofs = ndofs;
-            }
-            else
-            {
-               recv_dofs[master_rank].GetDofs(type, mf, master_dofs,
-                                              master_ndofs);
-            }
-
-            if (!master_dofs.Size()) { continue; }
-
-            // constrain slaves that exist in our mesh
-            for (int si = mf.slaves_begin; si < mf.slaves_end; si++)
-            {
-               const NCMesh::Slave &sf = list.slaves[si];
-               if (pncmesh->IsGhost(type, sf.index)) { continue; }
-
-               GetDofs(type, sf.index, slave_dofs);
-               if (!slave_dofs.Size()) { continue; }
-
-               sf.OrientedPointMatrix(T.GetPointMat());
-               fe->GetLocalInterpolation(T, I);
-
-               // make each slave DOF dependent on all master DOFs
-               MaskSlaveDofs(slave_dofs, T.GetPointMat(), fec);
-               AddSlaveDependencies(deps, master_rank, master_dofs, master_ndofs,
-                                    slave_dofs, I);
-            }
-
-            // special case for master edges that we don't own but still exist
-            // in our mesh: this is a conforming-like situation, create 1-to-1
-            // deps
-            if (master_rank != MyRank && !pncmesh->IsGhost(type, mf.index))
-            {
-               GetDofs(type, mf.index, my_dofs);
-               Add1To1Dependencies(deps, master_rank, master_dofs, master_ndofs,
-                                   my_dofs);
-            }
-         }
-      }
-
-      // add one-to-one dependencies between shared conforming verts/edges/faces
-      for (int type = 0; type < 3; type++)
-      {
-         const NCMesh::NCList &list = pncmesh->GetSharedList(type);
-         for (unsigned i = 0; i < list.conforming.size(); i++)
-         {
-            const NCMesh::MeshId &id = list.conforming[i];
-            GetDofs(type, id.index, my_dofs);
-
-            int owner_ndofs, owner = pncmesh->GetOwner(type, id.index);
-            if (owner != MyRank)
-            {
-               recv_dofs[owner].GetDofs(type, id, owner_dofs, owner_ndofs);
-               if (type == 2)
-               {
-                  int fo = pncmesh->GetFaceOrientation(id.index);
-                  ReorderFaceDofs(owner_dofs, fo);
-               }
-               Add1To1Dependencies(deps, owner, owner_dofs, owner_ndofs,
-                                   my_dofs);
-            }
-            else
-            {
-               // we own this v/e/f, assert ownership of the DOFs
-               Add1To1Dependencies(deps, owner, my_dofs, ndofs, my_dofs);
-            }
-         }
-      }
-   }
-
-   // *** STEP 3: request P matrix rows that we need from neighbors ***
-
-   NeighborRowRequest::Map send_requests, recv_requests;
-
-   // copy communication topology from the DOF messages
-   NeighborDofMessage::Map::iterator it;
-   for (it = send_dofs.begin(); it != send_dofs.end(); ++it)
-   {
-      recv_requests[it->first];
-   }
-   for (it = recv_dofs.begin(); it != recv_dofs.end(); ++it)
-   {
-      send_requests[it->first];
-   }
-
-   // request rows we depend on
-   for (int i = 0; i < num_dofs; i++)
-   {
-      const DepList &dl = deps[i];
-      for (int j = 0; j < dl.list.Size(); j++)
-      {
-         const Dependency &dep = dl.list[j];
-         if (dep.rank != MyRank)
-         {
-            send_requests[dep.rank].RequestRow(dep.dof);
-         }
-      }
-   }
-   NeighborRowRequest::IsendAll(send_requests, MyComm);
-
-   // *** STEP 4: iteratively build the P matrix ***
-
-   // DOFs that stayed independent or are ours are true DOFs
-   ltdof_size = 0;
-   for (int i = 0; i < num_dofs; i++)
-   {
-      if (deps[i].IsTrueDof(MyRank)) { ltdof_size++; }
-   }
-
-   GenerateGlobalOffsets();
-
-   HYPRE_Int glob_true_dofs = tdof_offsets.Last();
-   HYPRE_Int glob_cdofs = dof_offsets.Last();
-
-   // create the local part (local rows) of the P matrix
-#ifdef HYPRE_BIGINT
-   MFEM_VERIFY(glob_true_dofs >= 0 && glob_true_dofs < (1ll << 31),
-               "64bit matrix size not supported yet in non-conforming P.");
-#else
-   MFEM_VERIFY(glob_true_dofs >= 0,
-               "overflow of non-conforming P matrix columns.");
-#endif
-   SparseMatrix localP(num_dofs, glob_true_dofs); // TODO bigint
-
-   // initialize the R matrix (also parallel but block-diagonal)
-   R = new SparseMatrix(ltdof_size, num_dofs);
-
-   Array<bool> finalized(num_dofs);
-   finalized = false;
-
-   // put identity in P and R for true DOFs, set ldof_ltdof
-   HYPRE_Int my_tdof_offset = GetMyTDofOffset();
-   ldof_ltdof.SetSize(num_dofs);
-   ldof_ltdof = -1;
-   for (int i = 0, true_dof = 0; i < num_dofs; i++)
-   {
-      if (deps[i].IsTrueDof(MyRank))
-      {
-         localP.Add(i, my_tdof_offset + true_dof, 1.0);
-         R->Add(true_dof, i, 1.0);
-         finalized[i] = true;
-         ldof_ltdof[i] = true_dof;
-         true_dof++;
-      }
-   }
-
-   Array<int> cols;
-   Vector srow;
-
-   NeighborRowReply::Map recv_replies;
-   std::list<NeighborRowReply::Map> send_replies;
-
-   NeighborRowRequest::RecvAll(recv_requests, MyComm); // finish Step 3
-
-   int num_finalized = ltdof_size;
-   while (1)
-   {
-      // finalize all rows that can currently be finalized
-      bool done;
-      do
-      {
-         done = true;
-         for (int dof = 0, i; dof < num_dofs; dof++)
-         {
-            if (finalized[dof]) { continue; }
-
-            // check that rows of all constraining DOFs are available
-            const DepList &dl = deps[dof];
-            for (i = 0; i < dl.list.Size(); i++)
-            {
-               const Dependency &dep = dl.list[i];
-               if (dep.rank == MyRank)
-               {
-                  if (!finalized[dep.dof]) { break; }
-               }
-               else if (!recv_replies[dep.rank].HaveRow(dep.dof))
-               {
-                  break;
-               }
-            }
-            if (i < dl.list.Size()) { continue; }
-
-            // form a linear combination of rows that 'dof' depends on
-            for (i = 0; i < dl.list.Size(); i++)
-            {
-               const Dependency &dep = dl.list[i];
-               if (dep.rank == MyRank)
-               {
-                  localP.GetRow(dep.dof, cols, srow);
-               }
-               else
-               {
-                  recv_replies[dep.rank].GetRow(dep.dof, cols, srow);
-               }
-               srow *= dep.coef;
-               localP.AddRow(dof, cols, srow);
-            }
-
-            finalized[dof] = true;
-            num_finalized++;
-            done = false;
-         }
-      }
-      while (!done);
-
-      // send rows that are requested by neighbors and are available
-      send_replies.push_back(NeighborRowReply::Map());
-
-      NeighborRowRequest::Map::iterator it;
-      for (it = recv_requests.begin(); it != recv_requests.end(); ++it)
-      {
-         NeighborRowRequest &req = it->second;
-         std::set<int>::iterator row;
-         for (row = req.rows.begin(); row != req.rows.end(); )
-         {
-            if (finalized[*row])
-            {
-               localP.GetRow(*row, cols, srow);
-               send_replies.back()[it->first].AddRow(*row, cols, srow);
-               req.rows.erase(row++);
-            }
-            else { ++row; }
-         }
-      }
-      NeighborRowReply::IsendAll(send_replies.back(), MyComm);
-
-      // are we finished?
-      if (num_finalized >= num_dofs) { break; }
-
-      // wait for a reply from neighbors
-      int rank, size;
-      NeighborRowReply::Probe(rank, size, MyComm);
-      recv_replies[rank].Recv(rank, size, MyComm);
-
-      // there may be more, receive all replies available
-      while (NeighborRowReply::IProbe(rank, size, MyComm))
-      {
-         recv_replies[rank].Recv(rank, size, MyComm);
-      }
-   }
-
-   delete [] deps;
-   localP.Finalize();
-
-   // create the parallel matrix P
-#ifndef HYPRE_BIGINT
-   P = new HypreParMatrix(MyComm, num_dofs, glob_cdofs, glob_true_dofs,
-                          localP.GetI(), localP.GetJ(), localP.GetData(),
-                          dof_offsets.GetData(), tdof_offsets.GetData());
-#else
-   (void) glob_cdofs;
-   MFEM_ABORT("HYPRE_BIGINT not supported yet.");
-#endif
-
-   R->Finalize();
-
-   // make sure we can discard all send buffers
-   NeighborDofMessage::WaitAllSent(send_dofs);
-   NeighborRowRequest::WaitAllSent(send_requests);
-
-   for (std::list<NeighborRowReply::Map>::iterator
-        it = send_replies.begin(); it != send_replies.end(); ++it)
-   {
-      NeighborRowReply::WaitAllSent(*it);
-   }
-#endif
-}
-
-HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
-{
-#if 0
-   // TODO: we should refactor the code to remove duplication in this
-   // and the previous function
-
-   if (Conforming()) { return NULL; }
-
-   ParNCMesh* pncmesh = pmesh->pncmesh;
-
-   bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
-
-   // *** STEP 1: exchange shared vertex/edge/face DOFs with neighbors ***
-
-   NeighborDofMessage::Map send_dofs, recv_dofs;
-
-   // prepare neighbor DOF messages for shared vertices/edges/faces
-   if (!dg)
-   {
-      for (int type = 0; type < 3; type++)
-      {
-         const NCMesh::NCList &list = pncmesh->GetSharedList(type);
-         Array<int> dofs;
-
-         int cs = list.conforming.size(), ms = list.masters.size();
-         for (int i = 0; i < cs+ms; i++)
-         {
-            // loop through all (shared) conforming+master vertices/edges/faces
-            const NCMesh::MeshId& id =
-               (i < cs) ? (const NCMesh::MeshId&) list.conforming[i]
-               /*    */ : (const NCMesh::MeshId&) list.masters[i-cs];
-
-            int owner = pncmesh->GetOwner(type, id.index), gsize;
-            if (owner == MyRank)
-            {
-               // we own a shared v/e/f, send its DOFs to others in group
-               GetDofs(type, id.index, dofs);
-               const int *group = pncmesh->GetGroup(type, id.index, gsize);
-               for (int j = 0; j < gsize; j++)
-               {
-                  if (group[j] != MyRank)
-                  {
-                     NeighborDofMessage &send_msg = send_dofs[group[j]];
-                     send_msg.Init(pncmesh, fec, ndofs);
-                     send_msg.AddDofs(type, id, dofs);
-                  }
-               }
-            }
-            else
-            {
-               // we don't own this v/e/f and expect to receive DOFs for it
-               recv_dofs[owner].Init(pncmesh, fec, 0);
-            }
-         }
-      }
-
-      // send/receive all DOF messages
-      NeighborDofMessage::IsendAll(send_dofs, MyComm);
-      NeighborDofMessage::RecvAll(recv_dofs, MyComm);
-   }
-
-   // *** STEP 2: build dependency lists ***
-
-   int num_dofs = ndofs * vdim;
-   DepList* deps = new DepList[num_dofs]; // NOTE: 'deps' is over vdofs
-
-   // Array<int> master_dofs, slave_dofs;
-   Array<int> owner_dofs, my_dofs;
-
-   if (!dg)
-   {
-      // add one-to-one dependencies between shared conforming verts/edges/faces
-      for (int type = 0; type < 3; type++)
-      {
-         const NCMesh::NCList &list = pncmesh->GetSharedList(type);
-         for (unsigned i = 0; i < list.conforming.size(); i++)
-         {
-            const NCMesh::MeshId &id = list.conforming[i];
-            GetDofs(type, id.index, my_dofs);
-
-            int owner_ndofs, owner = pncmesh->GetOwner(type, id.index);
-            if (owner != MyRank)
-            {
-               recv_dofs[owner].GetDofs(type, id, owner_dofs, owner_ndofs);
-               if (type == 2)
-               {
-                  int fo = pncmesh->GetFaceOrientation(id.index);
-                  ReorderFaceDofs(owner_dofs, fo);
-               }
-               Add1To1Dependencies(deps, owner, owner_dofs, owner_ndofs,
-                                   my_dofs);
-            }
-            else
-            {
-               // we own this v/e/f, assert ownership of the DOFs
-               Add1To1Dependencies(deps, owner, my_dofs, ndofs, my_dofs);
-            }
-         }
-      }
-   }
-
-   // *** STEP 3: request P matrix rows that we need from neighbors ***
-
-   NeighborRowRequest::Map send_requests, recv_requests;
-
-   // copy communication topology from the DOF messages
-   NeighborDofMessage::Map::iterator it;
-   for (it = send_dofs.begin(); it != send_dofs.end(); ++it)
-   {
-      recv_requests[it->first];
-   }
-   for (it = recv_dofs.begin(); it != recv_dofs.end(); ++it)
-   {
-      send_requests[it->first];
-   }
-
-   // request rows we depend on
-   for (int i = 0; i < num_dofs; i++)
-   {
-      const DepList &dl = deps[i];
-      for (int j = 0; j < dl.list.Size(); j++)
-      {
-         const Dependency &dep = dl.list[j];
-         if (dep.rank != MyRank)
-         {
-            send_requests[dep.rank].RequestRow(dep.dof);
-         }
-      }
-   }
-   NeighborRowRequest::IsendAll(send_requests, MyComm);
-
-   // *** STEP 4: iteratively build the P matrix ***
-
-   // DOFs that stayed independent or are ours are true DOFs
-   HYPRE_Int ltdof_sz = 0;
-   for (int i = 0; i < num_dofs; i++)
-   {
-      if (deps[i].IsTrueDof(MyRank)) { ltdof_sz++; }
-   }
-
-   Array<HYPRE_Int> tdof_off, *offsets[1] = { &tdof_off };
-   pmesh->GenerateOffsets(1, &ltdof_sz, offsets);
-
-   HYPRE_Int glob_true_dofs = tdof_off.Last();
-   HYPRE_Int glob_cdofs = dof_offsets.Last();
-
-   // create the local part (local rows) of the P matrix
-#ifdef HYPRE_BIGINT
-   MFEM_VERIFY(glob_true_dofs >= 0 && glob_true_dofs < (1ll << 31),
-               "64bit matrix size not supported yet in non-conforming P.");
-#else
-   MFEM_VERIFY(glob_true_dofs >= 0,
-               "overflow of non-conforming P matrix columns.");
-#endif
-   // TODO bigint
-   SparseMatrix localP(num_dofs, internal::to_int(glob_true_dofs));
-
-   Array<bool> finalized(num_dofs);
-   finalized = false;
-
-   // put identity in P for true DOFs
-   HYPRE_Int my_tdof_offset = HYPRE_AssumedPartitionCheck() ?
-                              tdof_off[0] : tdof_off[MyRank];
-   for (int i = 0, true_dof = 0; i < num_dofs; i++)
-   {
-      if (deps[i].IsTrueDof(MyRank))
-      {
-         localP.Add(i, my_tdof_offset + true_dof, 1.0);
-         finalized[i] = true;
-         true_dof++;
-      }
-   }
-
-   Array<int> cols;
-   Vector srow;
-
-   NeighborRowReply::Map recv_replies;
-   std::list<NeighborRowReply::Map> send_replies;
-
-   NeighborRowRequest::RecvAll(recv_requests, MyComm); // finish Step 3
-
-   int num_finalized = ltdof_sz;
-   while (1)
-   {
-      // finalize all rows that can currently be finalized
-      bool done;
-      do
-      {
-         done = true;
-         for (int dof = 0, i; dof < num_dofs; dof++)
-         {
-            if (finalized[dof]) { continue; }
-
-            // check that rows of all constraining DOFs are available
-            const DepList &dl = deps[dof];
-            for (i = 0; i < dl.list.Size(); i++)
-            {
-               const Dependency &dep = dl.list[i];
-               if (dep.rank == MyRank)
-               {
-                  if (!finalized[dep.dof]) { break; }
-               }
-               else if (!recv_replies[dep.rank].HaveRow(dep.dof))
-               {
-                  break;
-               }
-            }
-            if (i < dl.list.Size()) { continue; }
-
-            // form a linear combination of rows that 'dof' depends on
-            for (i = 0; i < dl.list.Size(); i++)
-            {
-               const Dependency &dep = dl.list[i];
-               if (dep.rank == MyRank)
-               {
-                  localP.GetRow(dep.dof, cols, srow);
-               }
-               else
-               {
-                  recv_replies[dep.rank].GetRow(dep.dof, cols, srow);
-               }
-               srow *= dep.coef;
-               localP.AddRow(dof, cols, srow);
-            }
-
-            finalized[dof] = true;
-            num_finalized++;
-            done = false;
-         }
-      }
-      while (!done);
-
-      // send rows that are requested by neighbors and are available
-      send_replies.push_back(NeighborRowReply::Map());
-
-      NeighborRowRequest::Map::iterator it;
-      for (it = recv_requests.begin(); it != recv_requests.end(); ++it)
-      {
-         NeighborRowRequest &req = it->second;
-         std::set<int>::iterator row;
-         for (row = req.rows.begin(); row != req.rows.end(); )
-         {
-            if (finalized[*row])
-            {
-               localP.GetRow(*row, cols, srow);
-               send_replies.back()[it->first].AddRow(*row, cols, srow);
-               req.rows.erase(row++);
-            }
-            else { ++row; }
-         }
-      }
-      NeighborRowReply::IsendAll(send_replies.back(), MyComm);
-
-      // are we finished?
-      if (num_finalized >= num_dofs) { break; }
-
-      // wait for a reply from neighbors
-      int rank, size;
-      NeighborRowReply::Probe(rank, size, MyComm);
-      recv_replies[rank].Recv(rank, size, MyComm);
-
-      // there may be more, receive all replies available
-      while (NeighborRowReply::IProbe(rank, size, MyComm))
-      {
-         recv_replies[rank].Recv(rank, size, MyComm);
-      }
-   }
-
-   delete [] deps;
-   localP.Finalize();
-
-   // create the parallel matrix P
-   HypreParMatrix *PP;
-#ifndef HYPRE_BIGINT
-   PP = new HypreParMatrix(MyComm, num_dofs, glob_cdofs, glob_true_dofs,
-                           localP.GetI(), localP.GetJ(), localP.GetData(),
-                           dof_offsets.GetData(), tdof_off.GetData());
-#else
-   (void) glob_cdofs;
-   PP = NULL;
-   MFEM_ABORT("HYPRE_BIGINT not supported yet.");
-#endif
-
-   // make sure we can discard all send buffers
-   NeighborDofMessage::WaitAllSent(send_dofs);
-   NeighborRowRequest::WaitAllSent(send_requests);
-
-   for (std::list<NeighborRowReply::Map>::iterator
-        it = send_replies.begin(); it != send_replies.end(); ++it)
-   {
-      NeighborRowReply::WaitAllSent(*it);
-   }
-   return PP;
-#else
-   return NULL;
-#endif
 }
 
 

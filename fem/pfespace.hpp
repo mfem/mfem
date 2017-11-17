@@ -24,10 +24,6 @@
 namespace mfem
 {
 
-struct PMatrixRow;
-class NeighborRowMessage;
-
-
 /// Abstract parallel finite element space.
 class ParFiniteElementSpace : public FiniteElementSpace
 {
@@ -98,45 +94,52 @@ private:
 
    void ApplyLDofSigns(Array<int> &dofs) const;
 
-   void GetGhostVertexDofs(const NCMesh::MeshId &id, Array<int> &dofs) const;
-   void GetGhostEdgeDofs(const NCMesh::MeshId &edge_id, Array<int> &dofs) const;
-   void GetGhostFaceDofs(const NCMesh::MeshId &face_id, Array<int> &dofs) const;
+   typedef NCMesh::MeshId MeshId;
+   typedef ParNCMesh::GroupId GroupId;
+
+   void GetGhostVertexDofs(const MeshId &id, Array<int> &dofs) const;
+   void GetGhostEdgeDofs(const MeshId &edge_id, Array<int> &dofs) const;
+   void GetGhostFaceDofs(const MeshId &face_id, Array<int> &dofs) const;
 
    void GetDofs(int entity, int index, Array<int>& dofs) const;
-   void GetGhostDofs(int entity, const NCMesh::MeshId &id, Array<int> &dofs) const;
-   void GetBareDofs(int entity, const NCMesh::MeshId &id, Array<int> &dofs) const;
+   void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
+   void GetBareDofs(int entity, const MeshId &id, Array<int> &dofs) const;
 
-   int  PackDof(int entity, int index, int edof);
-   void UnpackDof(int dof, int &entity, int &index, int &edof);
+   int  PackDof(int entity, int index, int edof) const;
+   void UnpackDof(int dof, int &entity, int &index, int &edof) const;
 
-   void ScheduleSendRow(const PMatrixRow &row, int dof,
-                        ParNCMesh::GroupId group_id,
-                        std::map<int, NeighborRowMessage> &send_msg);
+   void ScheduleSendRow(const struct PMatrixRow &row, int dof, GroupId group_id,
+                        std::map<int, class NeighborRowMessage> &send_msg) const;
 
-   void ForwardRow(const PMatrixRow &row, int dof,
-                   ParNCMesh::GroupId group_sent_id,
-                   ParNCMesh::GroupId group_id,
-                   std::map<int, NeighborRowMessage> &send_msg);
+   void ForwardRow(const struct PMatrixRow &row, int dof,
+                   GroupId group_sent_id, GroupId group_id,
+                   std::map<int, class NeighborRowMessage> &send_msg) const;
 
    void DebugDumpDOFs(std::ofstream &os,
                       const SparseMatrix &deps,
-                      const Array<ParNCMesh::GroupId> &dof_group,
-                      const Array<ParNCMesh::GroupId> &dof_owner,
-                      const Array<bool> &finalized);
+                      const Array<GroupId> &dof_group,
+                      const Array<GroupId> &dof_owner,
+                      const Array<bool> &finalized) const;
 
+   /// Helper: create a HypreParMatrix from a list of PMatrixRows.
    HypreParMatrix*
-      MakeHypreMatrix(const std::vector<PMatrixRow> &rows, int local_rows,
-                      HYPRE_Int glob_rows, HYPRE_Int glob_cols,
-                      HYPRE_Int *row_starts, HYPRE_Int *col_starts);
+      MakeVDimHypreMatrix(const std::vector<struct PMatrixRow> &rows,
+                          int local_rows,
+                          Array<HYPRE_Int> &row_starts,
+                          Array<HYPRE_Int> &col_starts) const;
 
    /// Build the P and R matrices.
    void Build_Dof_TrueDof_Matrix();
 
-   // Used when the ParMesh is non-conforming, i.e. pmesh->pncmesh != NULL.
-   // Constructs the matrices P and R. Determines ltdof_size. Calls
-   // GenerateGlobalOffsets(). Constructs ldof_ltdof.
-   void GetParallelConformingInterpolation();
-   void NewParallelConformingInterpolation();
+   /** Used when the ParMesh is non-conforming, i.e. pmesh->pncmesh != NULL.
+       Constructs the matrices P and R, the DOF and true DOF offset arrays,
+       and the DOF -> true DOF map ('dof_tdof'). Returns the number of
+       vector true DOFs. All pointer arguments are optional and can be NULL. */
+   int BuildParallelConformingInterpolation(HypreParMatrix **P, SparseMatrix **R,
+                                            Array<HYPRE_Int> &dof_offs,
+                                            Array<HYPRE_Int> &tdof_offs,
+                                            Array<int> *dof_tdof,
+                                            bool partial = false) const;
 
    /** Calculate a GridFunction migration matrix after mesh load balancing.
        The result is a parallel permutation matrix that can be used to update
@@ -201,11 +204,6 @@ public:
    /// The true dof-to-dof interpolation matrix
    HypreParMatrix *Dof_TrueDof_Matrix()
    { if (!P) { Build_Dof_TrueDof_Matrix(); } return P; }
-
-   /** @brief For a non-conforming mesh, construct and return the interpolation
-       matrix from the partially conforming true dofs to the local dofs. The
-       returned pointer must be deleted by the caller. */
-   HypreParMatrix *GetPartialConformingInterpolation();
 
    /** Create and return a new HypreParVector on the true dofs, which is
        owned by (i.e. it must be destroyed by) the calling function. */
@@ -284,6 +282,8 @@ public:
 
    // Obsolete, kept for backward compatibility
    int TrueVSize() { return ltdof_size; }
+
+   friend class Hybridization;
 };
 
 }

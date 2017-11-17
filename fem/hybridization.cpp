@@ -198,7 +198,8 @@ void Hybridization::ConstructC()
          if (pmesh->Nonconforming())
          {
             // TODO - Construct P_pc directly in the pH format
-            P_pc = c_pfes->GetPartialConformingInterpolation();
+            c_pfes->BuildParallelConformingInterpolation(
+                     &P_pc, NULL, P_pc_row_starts, P_pc_col_starts, NULL, true);
          }
       }
 #endif

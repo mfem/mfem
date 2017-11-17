@@ -114,7 +114,7 @@ protected:
    void GetEdgeFaceDofs(int type, int index, Array<int> &dofs);
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
-   void GetConformingInterpolation();
+   void BuildConformingInterpolation();
 
    static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
                                Array<int>& slave_dofs, DenseMatrix& I);

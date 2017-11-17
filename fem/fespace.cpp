@@ -507,12 +507,13 @@ void FiniteElementSpace::GetEdgeFaceDofs(int type, int index, Array<int> &dofs)
    }
 }
 
-void FiniteElementSpace::GetConformingInterpolation()
+void FiniteElementSpace::BuildConformingInterpolation()
 {
 #ifdef MFEM_USE_MPI
    MFEM_VERIFY(dynamic_cast<ParFiniteElementSpace*>(this) == NULL,
                "This method should not be used with a ParFiniteElementSpace!");
 #endif
+
    if (cP_is_set) { return; }
    cP_is_set = true;
 
@@ -692,14 +693,14 @@ void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
 const SparseMatrix* FiniteElementSpace::GetConformingProlongation()
 {
    if (Conforming()) { return NULL; }
-   if (!cP_is_set) { GetConformingInterpolation(); }
+   if (!cP_is_set) { BuildConformingInterpolation(); }
    return cP;
 }
 
 const SparseMatrix* FiniteElementSpace::GetConformingRestriction()
 {
    if (Conforming()) { return NULL; }
-   if (!cP_is_set) { GetConformingInterpolation(); }
+   if (!cP_is_set) { BuildConformingInterpolation(); }
    return cR;
 }
 
@@ -1503,7 +1504,7 @@ void FiniteElementSpace::Update(bool want_transform)
 
          case Mesh::DEREFINE:
          {
-            GetConformingInterpolation();
+            BuildConformingInterpolation();
             T = DerefinementMatrix(old_ndofs, old_elem_dof);
             if (cP && cR)
             {
