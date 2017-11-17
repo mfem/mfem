@@ -14,18 +14,15 @@ MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/examples/sundials/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-TEST_MK = $(MFEM_DIR)/config/test.mk
 # Use the MFEM install directory
-# SRC = $(if $(MFEM_DIR),$(MFEM_DIR)/examples/sundials/,)
-# MFEM_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_DIR)/config.mk
-# TEST_MK = $(MFEM_DIR)/test.mk
+# MFEM_INSTALL_DIR = ../../mfem
+# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = ex9 ex10
-PAR_EXAMPLES = ex9p ex10p
+SEQ_EXAMPLES = ex9 ex10 ex16
+PAR_EXAMPLES = ex9p ex10p ex16p
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -51,12 +48,16 @@ $(EXAMPLES):
 endif
 
 MFEM_TESTS = EXAMPLES
-include $(TEST_MK)
+include $(MFEM_TEST_MK)
 
 # Testing: Parallel vs. serial runs
-RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 SERIAL_NAME := Serial SUNDIALS example
 PARALLEL_NAME := Parallel SUNDIALS example
+%-test-par: %
+	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME))
+%-test-seq: %
+	@$(call mfem-test,$<,, $(SERIAL_NAME))
 
 # Testing: Specific execution options:
 # Example 9: test explicit CVODE time stepping
@@ -91,3 +92,4 @@ clean-build:
 clean-exec:
 	@rm -f ex9.mesh ex9-mesh.* ex9-init.* ex9-final.* Example9*
 	@rm -f deformed.* velocity.* elastic_energy.*
+	@rm -f ex16.mesh ex16-mesh.* ex16-init.* ex16-final.* Example16*

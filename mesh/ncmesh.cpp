@@ -1105,7 +1105,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       Update: what about a FIFO instead of ref_stack? */
 
 #if defined(MFEM_DEBUG) && !defined(MFEM_USE_MPI)
-   std::cout << "Refined " << refinements.Size() << " + " << nforced
+   mfem::out << "Refined " << refinements.Size() << " + " << nforced
              << " elements" << std::endl;
 #endif
    ref_stack.DeleteAll();
@@ -1527,12 +1527,12 @@ const double* NCMesh::CalcVertexPos(int node) const
 
 void NCMesh::GetMeshComponents(Array<mfem::Vertex>& mvertices,
                                Array<mfem::Element*>& melements,
-                               Array<mfem::Element*>& mboundary,
-                               bool want_vertices) const
+                               Array<mfem::Element*>& mboundary) const
 {
-   if (want_vertices)
+   mvertices.SetSize(vertex_nodeId.Size());
+   if (top_vertex_pos.Size())
    {
-      mvertices.SetSize(vertex_nodeId.Size());
+      // calculate vertex positions from stored top-level vertex coordinates
       tmp_vertex = new TmpVertex[nodes.NumIds()];
       for (int i = 0; i < mvertices.Size(); i++)
       {
@@ -1540,6 +1540,9 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex>& mvertices,
       }
       delete [] tmp_vertex;
    }
+   // NOTE: if the mesh is curved (top_vertex_pos is empty), mvertices are left
+   // uninitialized here; they will be initialized later by the Mesh from Nodes
+   // - here we just make sure mvertices has the correct size.
 
    melements.SetSize(leaf_elements.Size() - GetNumGhostElements());
    melements.SetSize(0);
@@ -3552,10 +3555,10 @@ long NCMesh::MemoryUsage() const
 
 int NCMesh::PrintMemoryDetail() const
 {
-   nodes.PrintMemoryDetail(); std::cout << " nodes\n";
-   faces.PrintMemoryDetail(); std::cout << " faces\n";
+   nodes.PrintMemoryDetail(); mfem::out << " nodes\n";
+   faces.PrintMemoryDetail(); mfem::out << " faces\n";
 
-   std::cout << elements.MemoryUsage() << " elements\n"
+   mfem::out << elements.MemoryUsage() << " elements\n"
              << free_element_ids.MemoryUsage() << " free_element_ids\n"
              << top_vertex_pos.MemoryUsage() << " top_vertex_pos\n"
              << leaf_elements.MemoryUsage() << " leaf_elements\n"
@@ -3641,9 +3644,9 @@ void NCMesh::DebugLeafOrder() const
                count++;
             }
          }
-         std::cout << sum / count << " ";
+         mfem::out << sum / count << " ";
       }
-      std::cout << "\n";
+      mfem::out << "\n";
    }
 }
 #endif

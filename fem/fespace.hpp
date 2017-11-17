@@ -90,10 +90,10 @@ protected:
    /** Matrix representing the prolongation from the global conforming dofs to
        a set of intermediate partially conforming dofs, e.g. the dofs associated
        with a "cut" space on a non-conforming mesh. */
-   SparseMatrix *cP;
+   mutable SparseMatrix *cP;
    /// Conforming restriction matrix such that cR.cP=I.
-   SparseMatrix *cR;
-   bool cP_is_set;
+   mutable SparseMatrix *cR;
+   mutable bool cP_is_set;
 
    /// Transformation to apply to GridFunctions after space Update().
    Operator *T;
@@ -111,10 +111,10 @@ protected:
    /** This is a helper function to get edge (type == 0) or face (type == 1)
        DOFs. The function is aware of ghost edges/faces in parallel, for which
        an empty DOF list is returned. */
-   void GetEdgeFaceDofs(int type, int index, Array<int> &dofs);
+   void GetEdgeFaceDofs(int type, int index, Array<int> &dofs) const;
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
-   void BuildConformingInterpolation();
+   void BuildConformingInterpolation() const;
 
    static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
                                Array<int>& slave_dofs, DenseMatrix& I);
@@ -147,8 +147,8 @@ public:
    bool Conforming() const { return mesh->Conforming(); }
    bool Nonconforming() const { return mesh->Nonconforming(); }
 
-   const SparseMatrix *GetConformingProlongation();
-   const SparseMatrix *GetConformingRestriction();
+   const SparseMatrix *GetConformingProlongation() const;
+   const SparseMatrix *GetConformingRestriction() const;
 
    virtual const Operator *GetProlongationMatrix()
    { return GetConformingProlongation(); }
@@ -169,13 +169,13 @@ public:
    inline int GetVSize() const { return vdim * ndofs; }
 
    /// Return the number of vector true (conforming) dofs.
-   virtual int GetTrueVSize() { return GetConformingVSize(); }
+   virtual int GetTrueVSize() const { return GetConformingVSize(); }
 
    /// Returns the number of conforming ("true") degrees of freedom
    /// (if the space is on a nonconforming mesh with hanging nodes).
-   int GetNConformingDofs();
+   int GetNConformingDofs() const;
 
-   int GetConformingVSize() { return vdim * GetNConformingDofs(); }
+   int GetConformingVSize() const { return vdim * GetNConformingDofs(); }
 
    /// Return the ordering method.
    inline Ordering::Type GetOrdering() const { return ordering; }
@@ -314,14 +314,20 @@ public:
    const FiniteElement *GetTraceElement(int i, int geom_type) const;
 
    /** Mark degrees of freedom associated with boundary elements with
-       the specified boundary attributes (marked in 'bdr_attr_is_ess'). */
+       the specified boundary attributes (marked in 'bdr_attr_is_ess').
+       For spaces with 'vdim' > 1, the 'component' parameter can be used
+       to restricts the marked vDOFs to the specified component. */
    virtual void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
-                                  Array<int> &ess_vdofs) const;
+                                  Array<int> &ess_vdofs,
+                                  int component = -1) const;
 
    /** Get a list of essential true dofs, ess_tdof_list, corresponding to the
-       boundary attributes marked in the array bdr_attr_is_ess. */
+       boundary attributes marked in the array bdr_attr_is_ess.
+       For spaces with 'vdim' > 1, the 'component' parameter can be used
+       to restricts the marked tDOFs to the specified component. */
    virtual void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
-                                     Array<int> &ess_tdof_list);
+                                     Array<int> &ess_tdof_list,
+                                     int component = -1);
 
    /// Convert a Boolean marker array to a list containing all marked indices.
    static void MarkerToList(const Array<int> &marker, Array<int> &list);

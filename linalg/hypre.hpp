@@ -26,6 +26,7 @@
 #include "_hypre_parcsr_mv.h"
 #include "_hypre_parcsr_ls.h"
 #include "temp_multivector.h"
+#include "../general/globals.hpp"
 
 #ifdef HYPRE_COMPLEX
 #error "MFEM does not work with HYPRE's complex numbers support"
@@ -354,7 +355,7 @@ public:
                   bool interleaved_cols = false) const;
 
    /// Returns the transpose of *this
-   HypreParMatrix * Transpose();
+   HypreParMatrix * Transpose() const;
 
    /// Returns the number of rows in the diagonal block of the ParCSRMatrix
    int GetNumRows() const
@@ -464,10 +465,13 @@ public:
    /// Read a matrix saved as a HYPRE_IJMatrix
    void Read_IJMatrix(MPI_Comm comm, const char *fname);
 
+   /// Print information about the hypre_ParCSRCommPkg of the HypreParMatrix.
+   void PrintCommPkg(std::ostream &out = mfem::out) const;
+
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }
 
-   Type GetType() const { return HYPRE_PARCSR; }
+   Type GetType() const { return Hypre_ParCSR; }
 };
 
 /** @brief Return a new matrix `C = alpha*A + beta*B`, assuming that both `A`
@@ -477,16 +481,17 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
                     double beta,  const HypreParMatrix &B);
 
 /// Returns the matrix A * B
-HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B);
+HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B);
 /// Returns the matrix A + B
 /** It is assumed that both matrices use the same row and column partitions and
     the same col_map_offd arrays. */
-HypreParMatrix * ParAdd(HypreParMatrix *A, HypreParMatrix *B);
+HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B);
 
 /// Returns the matrix P^t * A * P
-HypreParMatrix * RAP(HypreParMatrix *A, HypreParMatrix *P);
+HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P);
 /// Returns the matrix Rt^t * A * P
-HypreParMatrix * RAP(HypreParMatrix * Rt, HypreParMatrix *A, HypreParMatrix *P);
+HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
+                     const HypreParMatrix *P);
 
 /** Eliminate essential BC specified by 'ess_dof_list' from the solution X to
     the r.h.s. B. Here A is a matrix with eliminated BC, while Ae is such that
