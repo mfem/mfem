@@ -24,9 +24,6 @@
 namespace mfem
 {
 
-class ConformingProlongationOperator;
-
-
 /// Abstract parallel finite element space.
 class ParFiniteElementSpace : public FiniteElementSpace
 {
@@ -71,7 +68,7 @@ private:
 
    /// The matrix P (interpolation from true dof to dof).
    mutable HypreParMatrix *P;
-   ConformingProlongationOperator *Pconf;
+   class ConformingProlongationOperator *Pconf;
 
    /// The (block-diagonal) matrix R (restriction of dof to true dof)
    mutable SparseMatrix *R;
