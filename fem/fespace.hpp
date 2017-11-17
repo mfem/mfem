@@ -108,10 +108,8 @@ protected:
 
    void BuildElementToDofTable() const;
 
-   /** This is a helper function to get edge (type == 0) or face (type == 1)
-       DOFs. The function is aware of ghost edges/faces in parallel, for which
-       an empty DOF list is returned. */
-   void GetEdgeFaceDofs(int type, int index, Array<int> &dofs) const;
+   /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
+   void GetEntityDofs(int entity, int index, Array<int> &dofs) const;
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;

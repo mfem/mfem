@@ -105,7 +105,6 @@ private:
    void GetGhostEdgeDofs(const MeshId &edge_id, Array<int> &dofs) const;
    void GetGhostFaceDofs(const MeshId &face_id, Array<int> &dofs) const;
 
-   void GetDofs(int entity, int index, Array<int>& dofs) const;
    void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
    void GetBareDofs(int entity, const MeshId &id, Array<int> &dofs) const;
 
