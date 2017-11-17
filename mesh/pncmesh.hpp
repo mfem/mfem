@@ -26,9 +26,6 @@
 namespace mfem
 {
 
-class ParMesh;
-
-
 /** \brief A parallel extension of the NCMesh class.
  *
  *  The basic idea (and assumption) is that all processors share the coarsest
@@ -210,7 +207,7 @@ public:
 
    /** Populate face neighbor members of ParMesh from the ghost layer, without
        communication. */
-   void GetFaceNeighbors(ParMesh &pmesh);
+   void GetFaceNeighbors(class ParMesh &pmesh);
 
 
    // utility
