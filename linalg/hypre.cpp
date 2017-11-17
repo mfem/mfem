@@ -310,6 +310,7 @@ void HypreParMatrix::CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J)
 }
 
 // Square block-diagonal constructor
+// 4 params, v1
 HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size,
                                HYPRE_Int *row_starts, SparseMatrix *diag)
    : Operator(diag->Height(), diag->Width())
@@ -345,6 +346,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size,
 }
 
 // Rectangular block-diagonal constructor
+// 6 params, v1
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                HYPRE_Int global_num_rows,
                                HYPRE_Int global_num_cols,
@@ -382,6 +384,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 }
 
 // General rectangular constructor with diagonal and off-diagonal
+// 8 params
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                HYPRE_Int global_num_rows,
                                HYPRE_Int global_num_cols,
@@ -426,6 +429,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 }
 
 // General rectangular constructor with diagonal and off-diagonal
+// 13 params
 HypreParMatrix::HypreParMatrix(
    MPI_Comm comm,
    HYPRE_Int global_num_rows, HYPRE_Int global_num_cols,
@@ -480,6 +484,7 @@ HypreParMatrix::HypreParMatrix(
 }
 
 // Constructor from a CSR matrix on rank 0
+// 4 params, v2
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                HYPRE_Int *row_starts, HYPRE_Int *col_starts,
                                SparseMatrix *sm_a)
@@ -520,6 +525,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 }
 
 // Boolean, rectangular, block-diagonal constructor
+// 6 params, v2
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                HYPRE_Int global_num_rows,
                                HYPRE_Int global_num_cols,
@@ -559,6 +565,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 }
 
 // Boolean, general rectangular constructor with diagonal and off-diagonal
+// 11 params
 HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
                                HYPRE_Int *row, HYPRE_Int *col,
                                HYPRE_Int *i_diag, HYPRE_Int *j_diag,
@@ -639,6 +646,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 
 // General rectangular constructor with diagonal and off-diagonal constructed
 // from a CSR matrix that contains both diagonal and off-diagonal blocks
+// 9 params
 HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
                                HYPRE_Int glob_ncols, int *I, HYPRE_Int *J,
                                double *data, HYPRE_Int *rows, HYPRE_Int *cols)
