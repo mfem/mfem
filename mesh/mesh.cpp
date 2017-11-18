@@ -655,27 +655,27 @@ void Mesh::GetLocalFaceTransformation(
          break;
 
       case Element::TRIANGLE:
-  	 if (elem_type == Element::TETRAHEDRON)
-	 {
-	   GetLocalTriToTetTransformation(Transf, inf);
-	 }
-	 else
-	 {
-	   MFEM_ASSERT(elem_type == Element::PRISM, "");
-	   GetLocalTriToPriTransformation(Transf, inf);
-	 }
+         if (elem_type == Element::TETRAHEDRON)
+         {
+            GetLocalTriToTetTransformation(Transf, inf);
+         }
+         else
+         {
+            MFEM_ASSERT(elem_type == Element::PRISM, "");
+            GetLocalTriToPriTransformation(Transf, inf);
+         }
          break;
 
       case Element::QUADRILATERAL:
-	 if (elem_type == Element::HEXAHEDRON)
-	 {
-	   GetLocalQuadToHexTransformation(Transf, inf);
-	 }
-	 else
-	 {
-	   MFEM_ASSERT(elem_type == Element::PRISM, "");
-	   GetLocalQuadToPriTransformation(Transf, inf);
-	 }
+         if (elem_type == Element::HEXAHEDRON)
+         {
+            GetLocalQuadToHexTransformation(Transf, inf);
+         }
+         else
+         {
+            MFEM_ASSERT(elem_type == Element::PRISM, "");
+            GetLocalQuadToPriTransformation(Transf, inf);
+         }
          break;
    }
 }
@@ -3754,7 +3754,7 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
                      break;
                      case Element::QUADRILATERAL:
                      {
-                       // MFEM_ABORT("Need to fix this!");
+                        // MFEM_ABORT("Need to fix this!");
                         // The following is almost certainly wrong for PRISMs
                         int lf = faces_info[be_to_face[i]].Elem1Inf/64;
                         for (int j = 0; j < 4; j++)
@@ -7066,9 +7066,9 @@ const CoarseFineTransformations& Mesh::GetRefinementTransforms(
 
    if ( geom == Geometry::INVALID )
    {
-     geom = BaseGeom;
+      geom = BaseGeom;
    }
-   
+
    if (!CoarseFineTr.point_matrices.SizeK())
    {
       if (geom == Geometry::TRIANGLE ||
