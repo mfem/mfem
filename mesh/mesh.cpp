@@ -568,6 +568,29 @@ void Mesh::GetLocalTriToTetTransformation(
    }
 }
 
+void Mesh::GetLocalTriToPriTransformation(
+   IsoparametricTransformation &Transf, int i)
+{
+   DenseMatrix &locpm = Transf.GetPointMat();
+
+   Transf.SetFE(&TriangleFE);
+   //  (i/64) is the local face no. in the pri
+   const int *pv = pri_t::FaceVert[i/64];
+   //  (i%64) is the orientation of the prism face
+   //         w.r.t. the face element
+   const int *to = tri_t::Orient[i%64];
+   const IntegrationRule *PriVert =
+      Geometries.GetVertices(Geometry::PRISM);
+   locpm.SetSize(3, 3);
+   for (int j = 0; j < 3; j++)
+   {
+      const IntegrationPoint &vert = PriVert->IntPoint(pv[to[j]]);
+      locpm(0, j) = vert.x;
+      locpm(1, j) = vert.y;
+      locpm(2, j) = vert.z;
+   }
+}
+
 void Mesh::GetLocalQuadToHexTransformation(
    IsoparametricTransformation &Transf, int i)
 {
@@ -583,6 +606,27 @@ void Mesh::GetLocalQuadToHexTransformation(
    for (int j = 0; j < 4; j++)
    {
       const IntegrationPoint &vert = HexVert->IntPoint(hv[qo[j]]);
+      locpm(0, j) = vert.x;
+      locpm(1, j) = vert.y;
+      locpm(2, j) = vert.z;
+   }
+}
+
+void Mesh::GetLocalQuadToPriTransformation(
+   IsoparametricTransformation &Transf, int i)
+{
+   DenseMatrix &locpm = Transf.GetPointMat();
+
+   Transf.SetFE(&QuadrilateralFE);
+   //  (i/64) is the local face no. in the pri
+   const int *pv = pri_t::FaceVert[i/64];
+   //  (i%64) is the orientation of the quad
+   const int *qo = quad_t::Orient[i%64];
+   const IntegrationRule *PriVert = Geometries.GetVertices(Geometry::PRISM);
+   locpm.SetSize(3, 4);
+   for (int j = 0; j < 4; j++)
+   {
+      const IntegrationPoint &vert = PriVert->IntPoint(pv[qo[j]]);
       locpm(0, j) = vert.x;
       locpm(1, j) = vert.y;
       locpm(2, j) = vert.z;
@@ -611,13 +655,27 @@ void Mesh::GetLocalFaceTransformation(
          break;
 
       case Element::TRIANGLE:
-         MFEM_ASSERT(elem_type == Element::TETRAHEDRON, "");
-         GetLocalTriToTetTransformation(Transf, inf);
+  	 if (elem_type == Element::TETRAHEDRON)
+	 {
+	   GetLocalTriToTetTransformation(Transf, inf);
+	 }
+	 else
+	 {
+	   MFEM_ASSERT(elem_type == Element::PRISM, "");
+	   GetLocalTriToPriTransformation(Transf, inf);
+	 }
          break;
 
       case Element::QUADRILATERAL:
-         MFEM_ASSERT(elem_type == Element::HEXAHEDRON, "");
-         GetLocalQuadToHexTransformation(Transf, inf);
+	 if (elem_type == Element::HEXAHEDRON)
+	 {
+	   GetLocalQuadToHexTransformation(Transf, inf);
+	 }
+	 else
+	 {
+	   MFEM_ASSERT(elem_type == Element::PRISM, "");
+	   GetLocalQuadToPriTransformation(Transf, inf);
+	 }
          break;
    }
 }
@@ -3696,7 +3754,7 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
                      break;
                      case Element::QUADRILATERAL:
                      {
-                        MFEM_ABORT("Need to fix this!");
+                       // MFEM_ABORT("Need to fix this!");
                         // The following is almost certainly wrong for PRISMs
                         int lf = faces_info[be_to_face[i]].Elem1Inf/64;
                         for (int j = 0; j < 4; j++)

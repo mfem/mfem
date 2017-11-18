@@ -303,7 +303,13 @@ protected:
    void GetLocalTriToTetTransformation (IsoparametricTransformation &loc,
                                         int i);
    /// Used in GetFaceElementTransformations (...)
+   void GetLocalTriToPriTransformation (IsoparametricTransformation &loc,
+                                        int i);
+   /// Used in GetFaceElementTransformations (...)
    void GetLocalQuadToHexTransformation (IsoparametricTransformation &loc,
+                                         int i);
+   /// Used in GetFaceElementTransformations (...)
+   void GetLocalQuadToPriTransformation (IsoparametricTransformation &loc,
                                          int i);
    /// Used in GetFaceElementTransformations (...)
    void GetLocalFaceTransformation(int face_type, int elem_type,
