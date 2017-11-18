@@ -1637,16 +1637,19 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
       if (dim >= 3)
       {
          H1_dof[Geometry::TETRAHEDRON] = (TriDof*pm3)/3;
+         H1_dof[Geometry::PRISM] = TriDof*pm1;
          H1_dof[Geometry::CUBE] = QuadDof*pm1;
          if (m_type == BasisType::Positive)
          {
             H1_Elements[Geometry::TETRAHEDRON] = new H1Pos_TetrahedronElement(p);
+            H1_Elements[Geometry::PRISM] = new H1Pos_PrismElement(p);
             H1_Elements[Geometry::CUBE] = new H1Pos_HexahedronElement(p);
          }
          else
          {
             H1_Elements[Geometry::TETRAHEDRON] =
                new H1_TetrahedronElement(p, pt_type);
+            H1_Elements[Geometry::PRISM] = new H1_PrismElement(p);
             H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, pt_type);
          }
       }
