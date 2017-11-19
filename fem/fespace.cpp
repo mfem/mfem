@@ -473,12 +473,12 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
 
    if ( !mixedMesh )
    {
-     h_fe = this -> GetFE (0);
-     l_fe = lfes -> GetFE (0);
-     T.SetIdentityTransformation(h_fe->GetGeomType());
-     h_fe->Project(*l_fe, T, loc_restr);
+      h_fe = this -> GetFE (0);
+      l_fe = lfes -> GetFE (0);
+      T.SetIdentityTransformation(h_fe->GetGeomType());
+      h_fe->Project(*l_fe, T, loc_restr);
    }
-   
+
    for (int i = 0; i < mesh -> GetNE(); i++)
    {
       this -> GetElementDofs (i, h_dofs);
@@ -486,12 +486,12 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
 
       if ( mixedMesh )
       {
- 	 h_fe = this -> GetFE (i);
-	 l_fe = lfes -> GetFE (i);
-	 T.SetIdentityTransformation(h_fe->GetGeomType());
-	 h_fe->Project(*l_fe, T, loc_restr);
+         h_fe = this -> GetFE (i);
+         l_fe = lfes -> GetFE (i);
+         T.SetIdentityTransformation(h_fe->GetGeomType());
+         h_fe->Project(*l_fe, T, loc_restr);
       }
-      
+
       R -> SetSubMatrix (l_dofs, h_dofs, loc_restr, 1);
    }
 
@@ -772,16 +772,16 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
    Vector row;
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
-   
+
    const FiniteElement *fe = (!mixedMesh) ?
-     fec->FiniteElementForGeometry(geom) : NULL;
+                             fec->FiniteElementForGeometry(geom) : NULL;
 
    IsoparametricTransformation isotr;
    if ( !mixedMesh )
    {
-     isotr.SetIdentityTransformation(geom);
+      isotr.SetIdentityTransformation(geom);
    }
-   
+
    int nmat = (!mixedMesh) ? rtrans.point_matrices.SizeK() : 0;
    int ldof = (!mixedMesh) ? fe->GetDof() : 0;
 
@@ -794,8 +794,8 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
    }
 
    SparseMatrix *P = (!mixedMesh) ?
-     new SparseMatrix(ndofs*vdim, old_ndofs*vdim, ldof) :
-     new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
+                     new SparseMatrix(ndofs*vdim, old_ndofs*vdim, ldof) :
+                     new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
 
    Array<int> mark(P->Height());
    mark = 0;
@@ -803,25 +803,25 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
    {
       if ( mixedMesh)
       {
-	 geom = mesh->GetElementBaseGeometry(k);
+         geom = mesh->GetElementBaseGeometry(k);
       }
       const CoarseFineTransformations &el_rtrans =
-	(!mixedMesh) ? rtrans : mesh->GetRefinementTransforms(geom);
+         (!mixedMesh) ? rtrans : mesh->GetRefinementTransforms(geom);
       if ( mixedMesh )
       {
-	fe = fec->FiniteElementForGeometry(geom);
-	isotr.SetIdentityTransformation(geom);
+         fe = fec->FiniteElementForGeometry(geom);
+         isotr.SetIdentityTransformation(geom);
 
-	nmat = el_rtrans.point_matrices.SizeK();
-	ldof = fe->GetDof();
-	localP.SetSize(ldof, ldof, nmat);
-	for (int i = 0; i < nmat; i++)
-	{
-	  isotr.GetPointMat() = el_rtrans.point_matrices(i);
-	  fe->GetLocalInterpolation(isotr, localP(i));
-	}
+         nmat = el_rtrans.point_matrices.SizeK();
+         ldof = fe->GetDof();
+         localP.SetSize(ldof, ldof, nmat);
+         for (int i = 0; i < nmat; i++)
+         {
+            isotr.GetPointMat() = el_rtrans.point_matrices(i);
+            fe->GetLocalInterpolation(isotr, localP(i));
+         }
       }
-      
+
       const Embedding &emb = el_rtrans.embeddings[k];
       DenseMatrix &lP = localP(emb.matrix);
 
@@ -1085,34 +1085,34 @@ void FiniteElementSpace::Construct()
 
       if ( face_geom != Geometry::MIXED )
       {
-	 // All faces are the same type thus we do not need to generate
-	 // all the faces in the mesh since we do not need them.
+         // All faces are the same type thus we do not need to generate
+         // all the faces in the mesh since we do not need them.
          int fdof = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
-	 if (fdof > 0)
-	 {
-	   fdofs = new int[mesh->GetNFaces()+1];
-	   fdofs[0] = 0;
-	   for (i = 0; i < mesh->GetNFaces(); i++)
-	     {
-	       nfdofs += fdof;
-	       // nfdofs += fec->DofForGeometry(mesh->GetFaceBaseGeometry(i));
-	       fdofs[i+1] = nfdofs;
-	     }
-	 }
+         if (fdof > 0)
+         {
+            fdofs = new int[mesh->GetNFaces()+1];
+            fdofs[0] = 0;
+            for (i = 0; i < mesh->GetNFaces(); i++)
+            {
+               nfdofs += fdof;
+               // nfdofs += fec->DofForGeometry(mesh->GetFaceBaseGeometry(i));
+               fdofs[i+1] = nfdofs;
+            }
+         }
       }
       else
       {
-	 fdofs = new int[mesh->GetNFaces()+1];
-	 fdofs[0] = 0;
-	 for (i = 0; i < mesh->GetNFaces(); i++)
-	 {
-	   nfdofs += fec->DofForGeometry(mesh->GetFaceBaseGeometry(i));
-	   fdofs[i+1] = nfdofs;
-	 }
-	 if ( nfdofs == 0 )
-	 {
-	   delete [] fdofs; fdofs = NULL;
-	 }
+         fdofs = new int[mesh->GetNFaces()+1];
+         fdofs[0] = 0;
+         for (i = 0; i < mesh->GetNFaces(); i++)
+         {
+            nfdofs += fec->DofForGeometry(mesh->GetFaceBaseGeometry(i));
+            fdofs[i+1] = nfdofs;
+         }
+         if ( nfdofs == 0 )
+         {
+            delete [] fdofs; fdofs = NULL;
+         }
       }
    }
 
