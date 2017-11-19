@@ -1799,6 +1799,9 @@ protected:
 #ifndef MFEM_THREAD_SAFE
    // mutable Vector m_shape, dshape_1d;
    // mutable DenseMatrix m_dshape;
+   mutable Vector t_shape, s_shape;
+   mutable DenseMatrix t_dshape, s_dshape;
+   Array<int> t_dof, s_dof;
 #endif
    // Array<int> dof_map;
 
