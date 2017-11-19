@@ -8916,7 +8916,9 @@ H1_PrismElement::H1_PrismElement(const int p,
      SegmentFE(p, type)
 {
    t_shape.SetSize(TriangleFE.GetDof());
+   t_dshape.SetSize(TriangleFE.GetDof(), Dim);
    s_shape.SetSize(SegmentFE.GetDof());
+   s_dshape.SetSize(SegmentFE.GetDof(), Dim);
 
    t_dof.SetSize(Dof);
    s_dof.SetSize(Dof);
@@ -9009,7 +9011,21 @@ void H1_PrismElement::CalcShape(const IntegrationPoint &ip,
 
 void H1_PrismElement::CalcDShape(const IntegrationPoint &ip,
                                  DenseMatrix &dshape) const
-{}
+{
+   IntegrationPoint ipz; ipz.x = ip.z; ipz.y = 0.0; ipz.z = 0.0;
+
+   TriangleFE.CalcShape(ip, t_shape);
+   TriangleFE.CalcDShape(ip, t_dshape);
+   SegmentFE.CalcShape(ipz, s_shape);
+   SegmentFE.CalcDShape(ipz, s_dshape);
+
+   for (int i=0; i<Dof; i++)
+   {
+      dshape(i, 0) = t_dshape(t_dof[i],0) * s_shape[s_dof[i]];
+      dshape(i, 1) = t_dshape(t_dof[i],1) * s_shape[s_dof[i]];
+      dshape(i, 2) = t_shape[t_dof[i]] * s_dshape(s_dof[i],0);
+   }
+}
 
 
 H1Pos_PrismElement::H1Pos_PrismElement(const int p)

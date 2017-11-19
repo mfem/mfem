@@ -1776,6 +1776,7 @@ private:
    // mutable Vector dshape_x, dshape_y, dshape_z, dshape_l, u;
    // mutable DenseMatrix du;
    mutable Vector t_shape, s_shape;
+   mutable DenseMatrix t_dshape, s_dshape;
    Array<int> t_dof, s_dof;
 #endif
    // DenseMatrixInverse Ti;
