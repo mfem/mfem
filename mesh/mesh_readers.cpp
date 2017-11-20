@@ -782,6 +782,10 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
          {
             type = Element::HEXAHEDRON;
          }
+         else if (eltype == "pri")
+         {
+            type = Element::PRISM;
+         }
          else if (eltype == "tet")
          {
             type = Element::TETRAHEDRON;
@@ -790,7 +794,7 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
          {
             MFEM_ABORT("unrecognized element type (read '" << eltype
                        << "') in inline mesh format.  "
-                       "Allowed: segment, tri, tet, quad, hex");
+                       "Allowed: segment, tri, tet, quad, hex, pri");
          }
       }
       else
@@ -835,7 +839,8 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
                   << "   sy = " << sy << "\n");
       Make2D(nx, ny, type, generate_edges, sx, sy);
    }
-   else if (type == Element::TETRAHEDRON || type == Element::HEXAHEDRON)
+   else if (type == Element::TETRAHEDRON || type == Element::PRISM ||
+	    type == Element::HEXAHEDRON)
    {
       MFEM_VERIFY(nx > 0 && ny > 0 && nz > 0 &&
                   sx > 0.0 && sy > 0.0 && sz > 0.0,
@@ -852,7 +857,7 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
    else
    {
       MFEM_ABORT("For inline mesh, must specify an element type ="
-                 " [segment, tri, quad, tet, hex]");
+                 " [segment, tri, quad, tet, pri, hex]");
    }
    InitBaseGeom();
    return; // done with inline mesh construction

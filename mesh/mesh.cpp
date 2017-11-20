@@ -1076,6 +1076,24 @@ void Mesh::AddHexAsTets(const int *vi, int attr)
    }
 }
 
+void Mesh::AddHexAsPrisms(const int *vi, int attr)
+{
+   static const int hex_to_pri[2][6] =
+   {
+      { 0, 1, 2, 4, 5, 6 }, { 0, 2, 3, 4, 6, 7 }
+   };
+   int ti[6];
+
+   for (int i = 0; i < 2; i++)
+   {
+      for (int j = 0; j < 6; j++)
+      {
+         ti[j] = vi[hex_to_pri[i][j]];
+      }
+      AddPri(ti, attr);
+   }
+}
+
 void Mesh::AddBdrSegment(const int *vi, int attr)
 {
    boundary[NumOfBdrElements++] = new Segment(vi, attr);
@@ -1799,6 +1817,50 @@ void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
    meshgen = 1;
 }
 
+void Mesh::FinalizePriMesh(int generate_edges, int refine, bool fix_orientation)
+{
+   FinalizeCheck();
+   CheckElementOrientation(fix_orientation);
+
+   if (NumOfBdrElements == 0)
+   {
+      GetElementToFaceTable();
+      GenerateFaces();
+      GenerateBoundaryElements();
+   }
+
+   if (refine)
+   {
+      DSTable v_to_v(NumOfVertices);
+      GetVertexToVertexTable(v_to_v);
+      MarkTetMeshForRefinement(v_to_v);
+   }
+
+   GetElementToFaceTable();
+   GenerateFaces();
+
+   CheckBdrElementOrientation();
+
+   if (generate_edges == 1)
+   {
+      el_to_edge = new Table;
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+   }
+   else
+   {
+      el_to_edge = NULL;  // Not really necessary -- InitTables was called
+      bel_to_edge = NULL;
+      NumOfEdges = 0;
+   }
+
+   SetAttributes();
+
+   BaseGeom = Geometry::PRISM;
+   BaseBdrGeom = Geometry::MIXED;
+
+   meshgen = 4;
+}
+
 void Mesh::FinalizeHexMesh(int generate_edges, int refine, bool fix_orientation)
 {
    FinalizeCheck();
@@ -1985,7 +2047,12 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
       NElem *= 6;
       NBdrElem *= 2;
    }
-
+   else if (type == Element::PRISM)
+   {
+      NElem *= 2;
+      NBdrElem += 2*nx*ny;
+   }
+     
    InitMesh(3, 3, NVert, NElem, NBdrElem);
 
    double coord[3];
@@ -2027,6 +2094,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             {
                AddHexAsTets(ind, 1);
             }
+            else if (type == Element::PRISM)
+            {
+               AddHexAsPrisms(ind, 1);
+            }
             else
             {
                AddHex(ind, 1);
@@ -2048,6 +2119,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          {
             AddBdrQuadAsTriangles(ind, 1);
          }
+	 else if (type == Element::PRISM)
+         {
+            AddBdrQuadAsTriangles(ind, 1);
+         }
          else
          {
             AddBdrQuad(ind, 1);
@@ -2064,6 +2139,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 6);
+         }
+	 else if (type == Element::PRISM)
+         {
+            AddBdrQuadAsTriangles(ind, 1);
          }
          else
          {
@@ -2151,6 +2230,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    if (type == Element::TETRAHEDRON)
    {
       FinalizeTetMesh(generate_edges, refine, fix_orientation);
+   }
+   else if (type == Element::PRISM)
+   {
+      FinalizePriMesh(generate_edges, refine, fix_orientation);
    }
    else
    {
