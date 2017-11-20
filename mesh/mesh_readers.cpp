@@ -1802,7 +1802,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    delete [] coordz;
    for (int i = 0; i < (int) num_el_blk; i++)
    {
-      delete elem_blk[i];
+      delete [] elem_blk[i];
    }
    delete [] elem_blk;
    delete [] start_of_block;
