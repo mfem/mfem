@@ -2403,7 +2403,7 @@ void GridFunction::SaveSTL(std::ostream &out, int TimesToRefine)
    for (i = 0; i < mesh->GetNE(); i++)
    {
       n = fes->GetFE(i)->GetGeomType();
-      RefG = GlobGeometryRefiner.Refine(n, TimesToRefine);
+      RefG = GlobGeometryRefiner.Refine((Geometry::Type)n, TimesToRefine);
       GetValues(i, RefG->RefPts, values, pointmat);
       Array<int> &RG = RefG->RefGeoms;
       n = Geometries.NumBdr(n);

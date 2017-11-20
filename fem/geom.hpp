@@ -226,8 +226,8 @@ public:
    GeometryRefiner();
 
    void SetType(const int t) { type = t; }
-   RefinedGeometry *Refine (int Geom, int Times, int ETimes = 1);
-   const IntegrationRule *RefineInterior(int Geom, int Times);
+   RefinedGeometry *Refine (Geometry::Type Geom, int Times, int ETimes = 1);
+   const IntegrationRule *RefineInterior(Geometry::Type Geom, int Times);
 
    ~GeometryRefiner();
 };
