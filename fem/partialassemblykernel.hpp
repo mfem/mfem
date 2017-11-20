@@ -750,6 +750,9 @@ public:
 */
 class DummyFaceMultBtDB{
 
+/**
+*  A structure that stores the indirection and permutation on dofs for an external flux on a face.
+*/
 struct PermIndir{
    int indirection;
    int permutation;   
@@ -777,7 +780,6 @@ public:
    static void SetValDint(DTensor& Dint, int (&ind)[dimD], double val)
    {
       Dint(ind) = val;
-      // Dint(quad,element,face_id) = val;
    }
 
    /**
@@ -794,7 +796,7 @@ public:
       kernel_data(elt_trial,face_id_test).permutation = Permutation(face_id_trial,face_id_test);
       // int ind_Dext[3] = {quad,elt_trial,face_id_trial};
       // Dext(quad,elt_trial,face_id_trial) = val;
-      // Careful this uses only the 3 first element of 'ind'
+      // Unsafe: this uses only the 3 first elements of 'ind'
       Dext(ind) = val;
    }
 
@@ -803,7 +805,18 @@ public:
                         Tensor2d& dshape0d0, Tensor2d& dshape0d1,
                         DTensor& Dint, const Vector& U, Vector& V)
    {
-      //TODO
+      // North Faces
+      int face_id = 2;
+      MultBtDBintY(fes,shape1d,shape0d1,Dint,face_id,U,V);
+      // South Faces
+      face_id = 0;
+      MultBtDBintY(fes,shape1d,shape0d0,Dint,face_id,U,V);
+      // East Faces
+      face_id = 1;
+      MultBtDBintX(fes,shape1d,shape0d1,Dint,face_id,U,V);
+      // West Faces
+      face_id = 3;
+      MultBtDBintX(fes,shape1d,shape0d0,Dint,face_id,U,V);
    }
 
    static void EvalExt(FiniteElementSpace* fes, Tensor2d& shape1d, Tensor2d& dshape1d,
@@ -811,8 +824,14 @@ public:
                         Tensor2d& dshape0d0, Tensor2d& dshape0d1,
                         KData& kernel_data ,DTensor& Dint, const Vector& U, Vector& V)
    {
-      //TODO
+      // TODO: create a Kernel for each face in each dimension...
    }
+
+private:
+   static void MultBtDBintX(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+                        DTensor& Dint, int face_id, const Vector& U, Vector& V);
+   static void MultBtDBintY(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+                        DTensor& Dint, int face_id, const Vector& U, Vector& V);
 };
 
 

@@ -107,12 +107,19 @@ class DummyTensor
 protected:
    double* data;
    const int dim;
+   bool own_data;
    vector<int> sizes;
    vector<int> offsets;
 
 public:
-   DummyTensor(int dim) : dim(dim), sizes(dim,1), offsets(dim,1)
+   DummyTensor(int dim) : dim(dim), own_data(true), sizes(dim,1), offsets(dim,1)
    {
+   }
+
+   DummyTensor(int dim, double* _data, int* dimensions)
+   : data(_data), dim(dim), own_data(false)
+   {
+      SetSize(dimensions);
    }
 
    int GetNumVal()
