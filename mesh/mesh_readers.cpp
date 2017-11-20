@@ -1815,11 +1815,14 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    for (int i = 0; i < (int) num_side_sets; i++)
    {
       delete [] ss_node_id[i];
+      delete [] elem_ss[i];
+      delete [] side_ss[i];
    }
    delete [] ss_node_id;
+   delete [] elem_ss;
+   delete [] side_ss;
    delete [] ebprop;
    delete [] ssprop;
-
 }
 #endif // #ifdef MFEM_USE_NETCDF
 
