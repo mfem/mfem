@@ -1793,6 +1793,12 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       }
    }
 
+   // close NetCDF file and reclaim memory
+   if ((retval = nc_close(ncid)))
+   {
+      MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
+   }
+
    // clean up all netcdf stuff
    delete [] num_el_in_blk;
    delete [] num_nod_per_el;
@@ -1802,18 +1808,21 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    delete [] coordz;
    for (int i = 0; i < (int) num_el_blk; i++)
    {
-      delete elem_blk[i];
+      delete [] elem_blk[i];
    }
    delete [] elem_blk;
    delete [] start_of_block;
    for (int i = 0; i < (int) num_side_sets; i++)
    {
       delete [] ss_node_id[i];
+      delete [] elem_ss[i];
+      delete [] side_ss[i];
    }
    delete [] ss_node_id;
+   delete [] elem_ss;
+   delete [] side_ss;
    delete [] ebprop;
    delete [] ssprop;
-
 }
 #endif // #ifdef MFEM_USE_NETCDF
 
