@@ -1793,6 +1793,12 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       }
    }
 
+   // close NetCDF file and reclaim memory
+   if ((retval = nc_close(ncid)))
+   {
+      MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
+   }
+
    // clean up all netcdf stuff
    delete [] num_el_in_blk;
    delete [] num_nod_per_el;
