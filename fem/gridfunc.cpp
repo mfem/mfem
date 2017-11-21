@@ -30,48 +30,14 @@ using namespace std;
 GridFunction::GridFunction(Mesh *m, std::istream &input)
    : Vector()
 {
-   std::string buff;
-   int vdim;
+   fes = new FiniteElementSpace;
+   fec = fes->Load(m, input);
 
-   input >> std::ws;
-   getline(input, buff);  // 'FiniteElementSpace'
-   filter_dos(buff);
-   if (buff != "FiniteElementSpace")
-   {
-      mfem_error("GridFunction::GridFunction():"
-                 " input stream is not a GridFunction!");
-   }
-   getline(input, buff, ' '); // 'FiniteElementCollection:'
-   input >> std::ws;
-   getline(input, buff);
-   filter_dos(buff);
-   fec = FiniteElementCollection::New(buff.c_str());
-   getline(input, buff, ' '); // 'VDim:'
-   input >> vdim;
-   getline(input, buff, ' '); // 'Ordering:'
-   int ordering;
-   input >> ordering;
-
-   NURBSExtension *NURBSext = NULL;
-   if (m->NURBSext && dynamic_cast<NURBSFECollection *>(fec) )
-   {
-      getline(input, buff); // 'NURBSext:'
-      int size;
-      input >> size;
-
-      if (size > 0)
-      {
-         Array<int> Orders(size);
-         Orders.Load(input);
-         NURBSext = new NURBSExtension(m->NURBSext, Orders);
-      }
-   }
-
-   getline(input, buff); // read the empty line
-   fes = new FiniteElementSpace(m, fec, vdim, ordering);
+   skip_comment_lines(input, '#');
+   // FIXME: when using NURBS FE space, add an option to read the data by
+   //        patches.
    Vector::Load(input, fes->GetVSize());
-   sequence = 0;
-
+   sequence = fes->GetSequence();
 }
 
 GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)

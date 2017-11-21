@@ -11,6 +11,7 @@
 
 // Implementation of FiniteElementSpace
 
+#include "../general/text.hpp"
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
 
@@ -52,6 +53,18 @@ DofsToVDofs<Ordering::byVDIM>(int ndofs, int vdim, Array<int> &dofs)
       }
    }
 }
+
+
+FiniteElementSpace::FiniteElementSpace()
+   : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
+     ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0),
+     fdofs(NULL), bdofs(NULL),
+     elem_dof(NULL), bdrElem_dof(NULL),
+     NURBSext(NULL), own_ext(false),
+     cP(NULL), cR(NULL), cP_is_set(false),
+     T(NULL), own_T(false),
+     sequence(0)
+{ }
 
 int FiniteElementSpace::GetOrder(int i) const
 {
@@ -964,7 +977,6 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
       cP_is_set = false;
       T = NULL;
       own_T = true;
-
    }
    else
    {
@@ -1555,25 +1567,155 @@ void FiniteElementSpace::Update(bool want_transform)
 
 void FiniteElementSpace::Save(std::ostream &out) const
 {
-   out << "FiniteElementSpace\n"
+   int fes_format = 90;
+   bool nurbs_unit_weights = false;
+
+   // Determine the format that should be used.
+   if (!NURBSext)
+   {
+      // TODO: if this is a variable-order FE space, use fes_format = 100.
+   }
+   else
+   {
+      const NURBSFECollection *nurbs_fec =
+         dynamic_cast<const NURBSFECollection *>(fec);
+      MFEM_VERIFY(nurbs_fec, "invalid FE collection");
+      nurbs_fec->SetOrder(NURBSext->GetOrder());
+      const double eps = 5e-14;
+      nurbs_unit_weights = (NURBSext->GetWeights().Min() >= 1.0-eps &&
+                            NURBSext->GetWeights().Max() <= 1.0+eps);
+      if (NURBSext->GetOrder() == NURBSFECollection::VariableOrder ||
+          (NURBSext != mesh->NURBSext && !nurbs_unit_weights))
+      {
+         fes_format = 100;
+      }
+   }
+
+   out << (fes_format == 90 ?
+           "FiniteElementSpace\n" : "MFEM FiniteElementSpace v1.0\n")
        << "FiniteElementCollection: " << fec->Name() << '\n'
        << "VDim: " << vdim << '\n'
        << "Ordering: " << ordering << '\n';
 
-   if (NURBSext)
+   if (fes_format == 100)
    {
-      if (NURBSext == mesh->NURBSext)
+      if (!NURBSext)
       {
-         out << "NURBSext: " << 0 << '\n';
+         // TODO: this is a variable-order FE space --> write 'element_orders'.
       }
-      else
+      else if (NURBSext != mesh->NURBSext)
       {
-         Array<int> Orders;
-         NURBSext->GetOrders(Orders);
-         out << "NURBSext: " << Orders.Size() << '\n';
-         Orders.Save(out);
+         if (NURBSext->GetOrder() != NURBSFECollection::VariableOrder)
+         {
+            out << "NURBS_order\n" << NURBSext->GetOrder() << '\n';
+         }
+         else
+         {
+            out << "NURBS_orders\n";
+            // 1 = do not write the size, just the entries:
+            NURBSext->GetOrders().Save(out, 1);
+         }
+         // If the weights are not unit, write them to the output:
+         if (!nurbs_unit_weights)
+         {
+            out << "NURBS_weights\n";
+            NURBSext->GetWeights().Print(out, 1);
+         }
+      }
+      out << "End: MFEM FiniteElementSpace v1.0\n";
+   }
+}
+
+FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
+{
+   string buff;
+   int fes_format = 0, ord;
+   FiniteElementCollection *r_fec;
+
+   Destroy();
+
+   input >> std::ws;
+   getline(input, buff);  // 'FiniteElementSpace'
+   filter_dos(buff);
+   if (buff == "FiniteElementSpace") { fes_format = 90; /* v0.9 */ }
+   else if (buff == "MFEM FiniteElementSpace v1.0") { fes_format = 100; }
+   else { MFEM_ABORT("input stream is not a FiniteElementSpace!"); }
+   getline(input, buff, ' '); // 'FiniteElementCollection:'
+   input >> std::ws;
+   getline(input, buff);
+   filter_dos(buff);
+   r_fec = FiniteElementCollection::New(buff.c_str());
+   getline(input, buff, ' '); // 'VDim:'
+   input >> vdim;
+   getline(input, buff, ' '); // 'Ordering:'
+   input >> ord;
+
+   NURBSExtension *NURBSext = NULL;
+   if (fes_format == 90)
+   {
+      NURBSFECollection *nurbs_fec = dynamic_cast<NURBSFECollection*>(r_fec);
+      if (nurbs_fec)
+      {
+         MFEM_VERIFY(m->NURBSext, "NURBS FE Collection requires a NURBS mesh!");
+         const int order = nurbs_fec->GetOrder();
+         if (order != m->NURBSext->GetOrder() &&
+             order != NURBSFECollection::VariableOrder)
+         {
+            NURBSext = new NURBSExtension(m->NURBSext, order);
+         }
       }
    }
+   else if (fes_format == 100)
+   {
+      while (1)
+      {
+         skip_comment_lines(input, '#');
+         MFEM_VERIFY(input.good(), "error reading FiniteElementSpace v1.0");
+         getline(input, buff);
+         filter_dos(buff);
+         if (buff == "NURBS_order" || buff == "NURBS_orders")
+         {
+            MFEM_VERIFY(dynamic_cast<NURBSFECollection*>(r_fec),
+                        buff << ": NURBS FE collection is required!");
+            MFEM_VERIFY(m->NURBSext, buff << ": NURBS mesh is required!");
+            MFEM_VERIFY(!NURBSext, buff << ": order redefinition!");
+            if (buff == "NURBS_order")
+            {
+               int order;
+               input >> order;
+               NURBSext = new NURBSExtension(m->NURBSext, order);
+            }
+            else
+            {
+               Array<int> orders;
+               orders.Load(m->NURBSext->GetNKV(), input);
+               NURBSext = new NURBSExtension(m->NURBSext, orders);
+            }
+         }
+         else if (buff == "NURBS_weights")
+         {
+            MFEM_VERIFY(NURBSext, "NURBS_weights: NURBS_orders have to be "
+                        "specified before NURBS_weights!");
+            NURBSext->GetWeights().Load(input, NURBSext->GetNDof());
+         }
+         else if (buff == "element_orders")
+         {
+            MFEM_ABORT("element_orders: not implemented yet!");
+         }
+         else if (buff == "End: MFEM FiniteElementSpace v1.0")
+         {
+            break;
+         }
+         else
+         {
+            MFEM_ABORT("unknown section: " << buff);
+         }
+      }
+   }
+
+   Constructor(m, NURBSext, r_fec, vdim, ord);
+
+   return r_fec;
 }
 
 

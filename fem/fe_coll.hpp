@@ -337,10 +337,14 @@ private:
    NURBS2DFiniteElement *QuadrilateralFE;
    NURBS3DFiniteElement *ParallelepipedFE;
 
-   char name[16];
+   mutable int mOrder; // >= 1 or VariableOrder
+   mutable char name[16];
 
 public:
-   explicit NURBSFECollection(int Order = 1);
+   enum { VariableOrder = -1 };
+
+   /// @a Order must be positive or VariableOrder (default).
+   explicit NURBSFECollection(int Order = VariableOrder);
 
    void Reset() const
    {
@@ -348,6 +352,12 @@ public:
       QuadrilateralFE->Reset();
       ParallelepipedFE->Reset();
    }
+
+   /// Get the order of the NURBS collection.
+   int GetOrder() const { return mOrder; }
+
+   /// Set the order and the name, based on the given @a Order.
+   void SetOrder(int Order) const;
 
    virtual const FiniteElement *
    FiniteElementForGeometry(int GeomType) const;

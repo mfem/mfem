@@ -3056,6 +3056,9 @@ void Mesh::KnotInsert(Array<KnotVector *> &kv)
 
    NURBSext->KnotInsert(kv);
 
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+   sequence++;
+
    UpdateNURBS();
 }
 
@@ -3066,13 +3069,13 @@ void Mesh::NURBSUniformRefinement()
 
    NURBSext->UniformRefinement();
 
-   last_operation = Mesh::REFINE;
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
    sequence++;
 
    UpdateNURBS();
 }
 
-void Mesh::DegreeElevate(int t)
+void Mesh::DegreeElevate(int rel_degree, int degree)
 {
    if (NURBSext == NULL)
    {
@@ -3081,16 +3084,11 @@ void Mesh::DegreeElevate(int t)
 
    NURBSext->ConvertToPatches(*Nodes);
 
-   NURBSext->DegreeElevate(t);
+   NURBSext->DegreeElevate(rel_degree, degree);
 
-   NURBSFECollection *nurbs_fec =
-      dynamic_cast<NURBSFECollection *>(Nodes->OwnFEC());
-   if (!nurbs_fec)
-   {
-      mfem_error("Mesh::DegreeElevate");
-   }
-   //nurbs_fec->UpdateOrder(nurbs_fec->GetOrder() + t);
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
    sequence++;
+
    UpdateNURBS();
 }
 

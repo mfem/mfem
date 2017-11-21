@@ -11052,6 +11052,7 @@ void NURBS2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
       dshape(o,1) = dshape(o,1)*sum - u(o)*dsum[1];
    }
 }
+
 //---------------------------------------------------------------------
 void NURBS3DFiniteElement::SetOrder() const
 {

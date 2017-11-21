@@ -21,15 +21,21 @@
 namespace mfem
 {
 
-/** The ordering method used when the number of unknowns per mesh
-    node (vector dimension) is bigger than 1. */
+/** @brief The ordering method used when the number of unknowns per mesh node
+    (vector dimension) is bigger than 1. */
 class Ordering
 {
 public:
-   /** Ordering methods:
-       byNODES - loop first over the nodes (inner loop) then over the vector dimension (outer loop),
-       byVDIM  - loop first over the vector dimension (inner loop) then over the nodes (outer loop)  */
-   enum Type { byNODES, byVDIM };
+   /// %Ordering methods:
+   enum Type
+   {
+      byNODES, /**< loop first over the nodes (inner loop) then over the vector
+                    dimension (outer loop); symbolically it can be represented
+                    as: XXX...,YYY...,ZZZ... */
+      byVDIM   /**< loop first over the vector dimension (inner loop) then over
+                    the nodes (outer loop); symbolically it can be represented
+                    as: XYZ,XYZ,XYZ,... */
+   };
 
    template <Type Ord>
    static inline int Map(int ndofs, int vdim, int dof, int vd);
@@ -55,25 +61,26 @@ Ordering::Map<Ordering::byVDIM>(int ndofs, int vdim, int dof, int vd)
 
 class NURBSExtension;
 
-/** Class FiniteElementSpace - responsible for providing FEM view of the mesh
-    (mainly managing the set of degrees of freedom). */
+/** @brief Class FiniteElementSpace - responsible for providing FEM view of the
+    mesh, mainly managing the set of degrees of freedom. */
 class FiniteElementSpace
 {
 protected:
-   /// The mesh that FE space lives on.
+   /// The mesh that FE space lives on (not owned).
    Mesh *mesh;
 
+   /// Associated FE collection (not owned).
    const FiniteElementCollection *fec;
 
-   /// Vector dimension (number of unknowns per degree of freedom).
+   /// %Vector dimension (number of unknowns per degree of freedom).
    int vdim;
 
-   /** Type of ordering of dofs.
-       Ordering::byNODES - first nodes, then vector dimension,
-       Ordering::byVDIM  - first vector dimension, then nodes  */
+   /** Type of ordering of the vector dofs when #vdim > 1.
+       - Ordering::byNODES - first nodes, then vector dimension,
+       - Ordering::byVDIM  - first vector dimension, then nodes */
    Ordering::Type ordering;
 
-   /// Number of degrees of freedom. Number of unknowns are ndofs*vdim.
+   /// Number of degrees of freedom. Number of unknowns is #ndofs * #vdim.
    int ndofs;
 
    int nvdofs, nedofs, nfdofs, nbdofs;
@@ -131,14 +138,18 @@ protected:
    void Constructor(Mesh *mesh, NURBSExtension *ext,
                     const FiniteElementCollection *fec,
                     int vdim = 1, int ordering = Ordering::byNODES);
+
 public:
+   /** @brief Default constructor: the object is invalid until initialized using
+       the method Load(). */
+   FiniteElementSpace();
+
    FiniteElementSpace(Mesh *mesh,
                       const FiniteElementCollection *fec,
                       int vdim = 1, int ordering = Ordering::byNODES)
    { Constructor(mesh, NULL, fec, vdim, ordering); }
 
-
-   FiniteElementSpace(Mesh *mesh,  NURBSExtension *ext,
+   FiniteElementSpace(Mesh *mesh, NURBSExtension *ext,
                       const FiniteElementCollection *fec,
                       int vdim = 1, int ordering = Ordering::byNODES)
    { Constructor(mesh, ext, fec, vdim, ordering); }
@@ -146,6 +157,7 @@ public:
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }
 
+   const NURBSExtension *GetNURBSext() const { return NURBSext; }
    NURBSExtension *GetNURBSext() { return NURBSext; }
    NURBSExtension *StealNURBSext();
 
@@ -171,6 +183,7 @@ public:
    /// Returns number of degrees of freedom.
    inline int GetNDofs() const { return ndofs; }
 
+   /// Return the number of vector dofs, i.e. GetNDofs() x GetVDim().
    inline int GetVSize() const { return vdim * ndofs; }
 
    /// Return the number of vector true (conforming) dofs.
@@ -387,6 +400,10 @@ public:
    long GetSequence() const { return sequence; }
 
    void Save(std::ostream &out) const;
+
+   /** @brief Read a FiniteElementSpace from a stream. The returned
+       FiniteElementCollection is owned by the caller. */
+   FiniteElementCollection *Load(Mesh *m, std::istream &input);
 
    virtual ~FiniteElementSpace();
 };

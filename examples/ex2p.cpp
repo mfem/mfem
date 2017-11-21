@@ -109,14 +109,7 @@ int main(int argc, char *argv[])
    //    meshes, we increase the order by degree elevation.
    if (mesh->NURBSext)
    {
-      Array<int> mOrder;
-      mesh->NURBSext->GetOrders(mOrder);
-      if (mOrder.Max() != mOrder.Min()) { mfem_error("NURBS Mesh should have uniform order"); }
-
-      if (order > mOrder[0])
-      {
-         mesh->DegreeElevate(order - mOrder[0]);
-      }
+      mesh->DegreeElevate(order, order);
    }
 
    // 5. Refine the serial mesh on all processors to increase the resolution. In

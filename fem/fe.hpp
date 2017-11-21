@@ -124,6 +124,8 @@ public:
 
    /// Returns the order of the finite element
    int GetOrder() const { return Order; }
+
+   // FIXME: do we need this?
    virtual void GetOrders(Array<int> &Order) const
    {
       Order.SetSize(Dim);
@@ -2286,8 +2288,9 @@ public:
 class NURBSFiniteElement : public ScalarFiniteElement
 {
 protected:
-   mutable Array <KnotVector*> kv;
-   mutable int *ijk, patch, elem;
+   mutable Array <const KnotVector*> kv;
+   mutable const int *ijk;
+   mutable int patch, elem;
    mutable Vector weights;
 
 public:
@@ -2302,13 +2305,14 @@ public:
    }
 
    void                 Reset      ()         const { patch = elem = -1; }
-   void                 SetIJK     (int *IJK) const { ijk = IJK; }
+   void                 SetIJK     (const int *IJK) const { ijk = IJK; }
    int                  GetPatch   ()         const { return patch; }
    void                 SetPatch   (int p)    const { patch = p; }
    int                  GetElement ()         const { return elem; }
    void                 SetElement (int e)    const { elem = e; }
-   Array <KnotVector*> &KnotVectors()         const { return kv; }
+   Array <const KnotVector*> &KnotVectors()   const { return kv; }
    Vector              &Weights    ()         const { return weights; }
+   /// Update the NURBSFiniteElement according to the currently set knot vectors
    virtual void         SetOrder   ()         const { }
 };
 
@@ -2322,7 +2326,7 @@ public:
       : NURBSFiniteElement(1, Geometry::SEGMENT, p + 1, p, FunctionSpace::Qk),
         shape_x(p + 1) { }
 
-   virtual void SetOrder () const;
+   virtual void SetOrder() const;
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2332,27 +2336,33 @@ class NURBS2DFiniteElement : public NURBSFiniteElement
 {
 protected:
    mutable Vector u, shape_x, shape_y, dshape_x, dshape_y;
+   // FIXME: remove px, py?
    mutable int px, py;
+
 public:
    NURBS2DFiniteElement(int p)
       : NURBSFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
                            FunctionSpace::Qk),
         u(Dof), shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1), dshape_y(p + 1)
-   {px = py = p; }
+   { px = py = p; }
 
+   // FIXME: do we need this?
    NURBS2DFiniteElement(int px_, int py_)
       : NURBSFiniteElement(2, Geometry::SQUARE, (px_ + 1)*(py_ + 1),
                            std::max(px_, py_), FunctionSpace::Qk),
-        u(Dof), shape_x(px_ + 1), shape_y(py_ + 1), dshape_x(px_ + 1), dshape_y(py_ + 1)
-   { px = px_; py = py_;}
+        u(Dof), shape_x(px_ + 1), shape_y(py_ + 1), dshape_x(px_ + 1),
+        dshape_y(py_ + 1)
+   { px = px_; py = py_; }
 
+   // FIXME: do we need this?
    virtual void GetOrders(Array<int> &Order) const
    {
       Order.SetSize(Dim);
       Order[0] = px;
       Order[1] = py;
    }
-   virtual void SetOrder () const;
+
+   virtual void SetOrder() const;
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2362,21 +2372,26 @@ class NURBS3DFiniteElement : public NURBSFiniteElement
 {
 protected:
    mutable Vector u, shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
+   // FIXME: remove px, py, pz?
    mutable int px, py, pz;
+
 public:
    NURBS3DFiniteElement(int p)
       : NURBSFiniteElement(3, Geometry::CUBE, (p + 1)*(p + 1)*(p + 1), p,
                            FunctionSpace::Qk),
         u(Dof), shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
-        dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1)  {px = py = pz = p; }
+        dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1)
+   { px = py = pz = p; }
 
+   // FIXME: do we need this?
    NURBS3DFiniteElement(int px_, int py_, int pz_)
       : NURBSFiniteElement(3, Geometry::CUBE, (px_ + 1)*(py_ + 1)*(pz_ + 1),
                            std::max(std::max(px_,py_),pz_), FunctionSpace::Qk),
         u(Dof), shape_x(px_ + 1), shape_y(py_ + 1), shape_z(pz_ + 1),
         dshape_x(px_ + 1), dshape_y(py_ + 1), dshape_z(pz_ + 1)
-   { px = px_; py = py_; pz = pz_;}
+   { px = px_; py = py_; pz = pz_; }
 
+   // FIXME: do we need this?
    virtual void GetOrders(Array<int> &Order) const
    {
       Order.SetSize(Dim);
@@ -2384,7 +2399,8 @@ public:
       Order[1] = py;
       Order[2] = pz;
    }
-   virtual void SetOrder () const;
+
+   virtual void SetOrder() const;
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
