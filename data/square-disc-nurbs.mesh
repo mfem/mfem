@@ -82,10 +82,9 @@ weights
 0.853553391
 
 FiniteElementSpace
-FiniteElementCollection: NURBS
+FiniteElementCollection: NURBS2
 VDim: 2
 Ordering: 1
-NURBSext: 0
 
 0 0
 1 0

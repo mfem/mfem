@@ -987,7 +987,9 @@ public:
 
    ///@{ @name NURBS mesh refinement methods
    void KnotInsert(Array<KnotVector *> &kv);
-   void DegreeElevate(int t);
+   /* For each knot vector:
+         new_degree = max(old_degree, min(old_degree + rel_degree, degree)). */
+   void DegreeElevate(int rel_degree, int degree = 16);
    ///@}
 
    /** Make sure that a quad/hex mesh is considered to be non-conforming (i.e.,

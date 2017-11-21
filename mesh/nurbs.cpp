@@ -57,10 +57,12 @@ KnotVector &KnotVector::operator=(const KnotVector &kv)
 KnotVector *KnotVector::DegreeElevate(int t) const
 {
    if (t < 0)
+   {
       mfem_error("KnotVector::DegreeElevate :\n"
                  " Parent KnotVector order higher than child");
+   }
 
-   int nOrder = Order + t;
+   const int nOrder = Order + t;
    KnotVector *newkv = new KnotVector(nOrder, GetNCP() + t);
 
    for (int i = 0; i <= nOrder; i++)
@@ -127,19 +129,14 @@ void KnotVector::Print(std::ostream &out) const
 }
 
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
-void KnotVector::CalcShape(Vector &shape, int i, double xi)
+void KnotVector::CalcShape(Vector &shape, int i, double xi) const
 {
+   MFEM_ASSERT(Order <= MaxOrder, "Order > MaxOrder!");
+
    int    p = Order;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
    double u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip), saved, tmp;
    double left[MaxOrder+1], right[MaxOrder+1];
-
-#ifdef MFEM_DEBUG
-   if (p > MaxOrder)
-   {
-      mfem_error("KnotVector::CalcShape : Order > MaxOrder!");
-   }
-#endif
 
    shape(0) = 1.;
    for (int j = 1; j <= p; ++j)
@@ -158,7 +155,7 @@ void KnotVector::CalcShape(Vector &shape, int i, double xi)
 }
 
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
-void KnotVector::CalcDShape(Vector &grad, int i, double xi)
+void KnotVector::CalcDShape(Vector &grad, int i, double xi) const
 {
    int    p = Order, rk, pk;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
@@ -360,7 +357,7 @@ NURBSPatch::NURBSPatch(std::istream &input)
    }
 }
 
-NURBSPatch::NURBSPatch(KnotVector *kv0, KnotVector *kv1, int dim_)
+NURBSPatch::NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim_)
 {
    kv.SetSize(2);
    kv[0] = new KnotVector(*kv0);
@@ -368,8 +365,8 @@ NURBSPatch::NURBSPatch(KnotVector *kv0, KnotVector *kv1, int dim_)
    init(dim_);
 }
 
-NURBSPatch::NURBSPatch(KnotVector *kv0, KnotVector *kv1, KnotVector *kv2,
-                       int dim_)
+NURBSPatch::NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
+                       const KnotVector *kv2, int dim_)
 {
    kv.SetSize(3);
    kv[0] = new KnotVector(*kv0);
@@ -378,7 +375,7 @@ NURBSPatch::NURBSPatch(KnotVector *kv0, KnotVector *kv1, KnotVector *kv2,
    init(dim_);
 }
 
-NURBSPatch::NURBSPatch(Array<KnotVector *> &kv_,  int dim_)
+NURBSPatch::NURBSPatch(Array<const KnotVector *> &kv_,  int dim_)
 {
    kv.SetSize(kv_.Size());
    for (int i = 0; i < kv.Size(); i++)
@@ -442,7 +439,7 @@ NURBSPatch::~NURBSPatch()
    }
 }
 
-void NURBSPatch::Print(std::ostream &out)
+void NURBSPatch::Print(std::ostream &out) const
 {
    int size = 1;
 
@@ -947,13 +944,14 @@ void NURBSPatch::FlipDirection(int dir)
 void NURBSPatch::SwapDirections(int dir1, int dir2)
 {
    if (abs(dir1-dir2) == 2)
+   {
       mfem_error("NURBSPatch::SwapDirections :"
                  " directions 0 and 2 are not supported!");
+   }
 
-   Array<KnotVector *> nkv;
+   Array<const KnotVector *> nkv(kv);
 
-   kv.Copy(nkv);
-   Swap<KnotVector *>(nkv[dir1], nkv[dir2]);
+   Swap<const KnotVector *>(nkv[dir1], nkv[dir2]);
    NURBSPatch *newpatch = new NURBSPatch(nkv, Dim);
 
    int size = SetLoopDirection(dir1);
@@ -1033,21 +1031,25 @@ void NURBSPatch::Rotate3D(double n[], double angle)
    }
 }
 
-int NURBSPatch::MakeUniformDegree()
+int NURBSPatch::MakeUniformDegree(int degree)
 {
-   int maxd = -1;
+   int maxd = degree;
 
-   for (int dir = 0; dir < kv.Size(); dir++)
-      if (maxd < kv[dir]->GetOrder())
+   if (maxd == -1)
+   {
+      for (int dir = 0; dir < kv.Size(); dir++)
       {
-         maxd = kv[dir]->GetOrder();
+         maxd = std::max(maxd, kv[dir]->GetOrder());
       }
+   }
 
    for (int dir = 0; dir < kv.Size(); dir++)
+   {
       if (maxd > kv[dir]->GetOrder())
       {
          DegreeElevate(dir, maxd - kv[dir]->GetOrder());
       }
+   }
 
    return maxd;
 }
@@ -1060,7 +1062,7 @@ NURBSPatch *Interpolate(NURBSPatch &p1, NURBSPatch &p2)
    }
 
    int size = 1, dim = p1.Dim;
-   Array<KnotVector *> kv(p1.kv.Size() + 1);
+   Array<const KnotVector *> kv(p1.kv.Size() + 1);
 
    for (int i = 0; i < p1.kv.Size(); i++)
    {
@@ -1078,11 +1080,11 @@ NURBSPatch *Interpolate(NURBSPatch &p1, NURBSPatch &p2)
       size *= kv[i]->GetNCP();
    }
 
-   kv.Last() = new KnotVector(1, 2);
-   KnotVector &nkv = *kv.Last();
+   KnotVector &nkv = *(new KnotVector(1, 2));
    nkv[0] = nkv[1] = 0.0;
    nkv[2] = nkv[3] = 1.0;
    nkv.GetElements();
+   kv.Last() = &nkv;
 
    NURBSPatch *patch = new NURBSPatch(kv, dim);
    delete kv.Last();
@@ -1107,7 +1109,7 @@ NURBSPatch *Revolve3D(NURBSPatch &patch, double n[], double ang, int times)
    }
 
    int size = 1, ns;
-   Array<KnotVector *> nkv(patch.kv.Size() + 1);
+   Array<const KnotVector *> nkv(patch.kv.Size() + 1);
 
    for (int i = 0; i < patch.kv.Size(); i++)
    {
@@ -1115,8 +1117,8 @@ NURBSPatch *Revolve3D(NURBSPatch &patch, double n[], double ang, int times)
       size *= nkv[i]->GetNCP();
    }
    ns = 2*times + 1;
-   nkv.Last() = new KnotVector(2, ns);
-   KnotVector &lkv = *nkv.Last();
+   KnotVector &lkv = *(new KnotVector(2, ns));
+   nkv.Last() = &lkv;
    lkv[0] = lkv[1] = lkv[2] = 0.0;
    for (int i = 1; i < times; i++)
    {
@@ -1179,11 +1181,9 @@ NURBSExtension::NURBSExtension(std::istream &input)
    {
       input >> NumOfKnotVectors;
       knotVectors.SetSize(NumOfKnotVectors);
-      Order.SetSize(NumOfKnotVectors);
       for (int i = 0; i < NumOfKnotVectors; i++)
       {
          knotVectors[i] = new KnotVector(input);
-         Order[i] = knotVectors[i]->GetOrder();
       }
    }
    else if (ident == "patches")
@@ -1212,27 +1212,42 @@ NURBSExtension::NURBSExtension(std::istream &input)
          if (Dimension() == 2)
          {
             if (knotVectors[KnotInd(edges[0])] == NULL)
+            {
                knotVectors[KnotInd(edges[0])] =
                   new KnotVector(*patches[p]->GetKV(0));
+            }
             if (knotVectors[KnotInd(edges[1])] == NULL)
+            {
                knotVectors[KnotInd(edges[1])] =
                   new KnotVector(*patches[p]->GetKV(1));
+            }
          }
          else
          {
             if (knotVectors[KnotInd(edges[0])] == NULL)
+            {
                knotVectors[KnotInd(edges[0])] =
                   new KnotVector(*patches[p]->GetKV(0));
+            }
             if (knotVectors[KnotInd(edges[3])] == NULL)
+            {
                knotVectors[KnotInd(edges[3])] =
                   new KnotVector(*patches[p]->GetKV(1));
+            }
             if (knotVectors[KnotInd(edges[8])] == NULL)
+            {
                knotVectors[KnotInd(edges[8])] =
                   new KnotVector(*patches[p]->GetKV(2));
+            }
          }
       }
-      Order = knotVectors[0]->GetOrder();
    }
+   else
+   {
+      MFEM_ABORT("invalid section: " << ident);
+   }
+
+   SetOrdersFromKnotVectors();
 
    GenerateOffsets();
    CountElements();
@@ -1288,10 +1303,8 @@ NURBSExtension::NURBSExtension(std::istream &input)
    }
 }
 
-NURBSExtension::NURBSExtension(NURBSExtension *parent, int Order_)
+NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
 {
-   Order = Order_;
-
    patchTopo = parent->patchTopo;
    own_topo = 0;
 
@@ -1299,17 +1312,18 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int Order_)
 
    NumOfKnotVectors = parent->GetNKV();
    knotVectors.SetSize(NumOfKnotVectors);
-   Array<int> pOrders;
-   parent->GetOrders(pOrders);
+   const Array<int> &pOrders = parent->GetOrders();
    for (int i = 0; i < NumOfKnotVectors; i++)
    {
       knotVectors[i] =
-         parent->GetKnotVector(i)->DegreeElevate(Order_ - pOrders[i]);
+         parent->GetKnotVector(i)->DegreeElevate(newOrder - pOrders[i]);
    }
 
    // copy some data from parent
    NumOfElements    = parent->NumOfElements;
    NumOfBdrElements = parent->NumOfBdrElements;
+
+   SetOrdersFromKnotVectors();
 
    GenerateOffsets(); // dof offsets will be different from parent
 
@@ -1327,9 +1341,11 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int Order_)
    weights = 1.0;
 }
 
-NURBSExtension::NURBSExtension(NURBSExtension *parent, const Array<int> &Order_)
+NURBSExtension::NURBSExtension(NURBSExtension *parent,
+                               const Array<int> &newOrders)
 {
-   Order_.Copy(Order);
+   newOrders.Copy(mOrders);
+   SetOrderFromOrders();
 
    patchTopo = parent->patchTopo;
    own_topo = 0;
@@ -1337,13 +1353,13 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, const Array<int> &Order_)
    parent->edge_to_knot.Copy(edge_to_knot);
 
    NumOfKnotVectors = parent->GetNKV();
+   MFEM_VERIFY(mOrders.Size() == NumOfKnotVectors, "invalid newOrders array");
    knotVectors.SetSize(NumOfKnotVectors);
-   Array<int> pOrders;
-   parent->GetOrders(pOrders);
+   const Array<int> &pOrders = parent->GetOrders();
    for (int i = 0; i < NumOfKnotVectors; i++)
    {
       knotVectors[i] =
-         parent->GetKnotVector(i)->DegreeElevate(Order[i] - pOrders[i]);
+         parent->GetKnotVector(i)->DegreeElevate(mOrders[i] - pOrders[i]);
    }
 
    // copy some data from parent
@@ -1371,15 +1387,18 @@ NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
    NURBSExtension *parent = mesh_array[0]->NURBSext;
 
    if (!parent->own_topo)
+   {
       mfem_error("NURBSExtension::NURBSExtension :\n"
                  "  parent does not own the patch topology!");
+   }
    patchTopo = parent->patchTopo;
    own_topo = 1;
    parent->own_topo = 0;
 
    parent->edge_to_knot.Copy(edge_to_knot);
 
-   parent->GetOrders(Order);
+   parent->GetOrders().Copy(mOrders);
+   mOrder = parent->GetOrder();
 
    NumOfKnotVectors = parent->GetNKV();
    knotVectors.SetSize(NumOfKnotVectors);
@@ -1465,12 +1484,16 @@ void NURBSExtension::Print(std::ostream &out) const
    }
 }
 
-void NURBSExtension::PrintCharacteristics(std::ostream &out)
+void NURBSExtension::PrintCharacteristics(std::ostream &out) const
 {
    out <<
        "NURBS Mesh entity sizes:\n"
        "Dimension           = " << Dimension() << "\n"
-       "Order               = "; Order.Print();
+       "Unique Orders       = ";
+   Array<int> unique_orders(mOrders);
+   unique_orders.Sort();
+   unique_orders.Unique();
+   unique_orders.Print(out, unique_orders.Size());
    out <<
        "NumOfKnotVectors    = " << GetNKV() << "\n"
        "NumOfPatches        = " << GetNP() << "\n"
@@ -1496,7 +1519,7 @@ void NURBSExtension::GenerateActiveVertices()
    int vert[8], nv, g_el, nx, ny, nz, dim = Dimension();
 
    NURBSPatchMap p2g(this);
-   KnotVector *kv[3];
+   const KnotVector *kv[3];
 
    g_el = 0;
    activeVert.SetSize(GetGNV());
@@ -1706,8 +1729,28 @@ void NURBSExtension::CheckBdrPatches()
 
 void NURBSExtension::GetPatchKnotVectors(int p, Array<KnotVector *> &kv)
 {
-   Array<int> edges;
-   Array<int> orient;
+   Array<int> edges, orient;
+
+   kv.SetSize(Dimension());
+   patchTopo->GetElementEdges(p, edges, orient);
+
+   if (Dimension() == 2)
+   {
+      kv[0] = KnotVec(edges[0]);
+      kv[1] = KnotVec(edges[1]);
+   }
+   else
+   {
+      kv[0] = KnotVec(edges[0]);
+      kv[1] = KnotVec(edges[3]);
+      kv[2] = KnotVec(edges[8]);
+   }
+}
+
+void NURBSExtension::GetPatchKnotVectors(int p, Array<const KnotVector *> &kv)
+const
+{
+   Array<int> edges, orient;
 
    kv.SetSize(Dimension());
    patchTopo->GetElementEdges(p, edges, orient);
@@ -1742,6 +1785,50 @@ void NURBSExtension::GetBdrPatchKnotVectors(int p, Array<KnotVector *> &kv)
       kv[0] = KnotVec(edges[0]);
       kv[1] = KnotVec(edges[1]);
    }
+}
+
+void NURBSExtension::GetBdrPatchKnotVectors(
+   int p, Array<const KnotVector *> &kv) const
+{
+   Array<int> edges;
+   Array<int> orient;
+
+   kv.SetSize(Dimension() - 1);
+   patchTopo->GetBdrElementEdges(p, edges, orient);
+
+   if (Dimension() == 2)
+   {
+      kv[0] = KnotVec(edges[0]);
+   }
+   else
+   {
+      kv[0] = KnotVec(edges[0]);
+      kv[1] = KnotVec(edges[1]);
+   }
+}
+
+void NURBSExtension::SetOrderFromOrders()
+{
+   MFEM_VERIFY(mOrders.Size() > 0, "");
+   mOrder = mOrders[0];
+   for (int i = 1; i < mOrders.Size(); i++)
+   {
+      if (mOrders[i] != mOrder)
+      {
+         mOrder = NURBSFECollection::VariableOrder;
+         return;
+      }
+   }
+}
+
+void NURBSExtension::SetOrdersFromKnotVectors()
+{
+   mOrders.SetSize(NumOfKnotVectors);
+   for (int i = 0; i < NumOfKnotVectors; i++)
+   {
+      mOrders[i] = knotVectors[i]->GetOrder();
+   }
+   SetOrderFromOrders();
 }
 
 void NURBSExtension::GenerateOffsets()
@@ -1834,7 +1921,7 @@ void NURBSExtension::GenerateOffsets()
 void NURBSExtension::CountElements()
 {
    int dim = Dimension();
-   Array<KnotVector *> kv(dim);
+   Array<const KnotVector *> kv(dim);
 
    NumOfElements = 0;
    for (int p = 0; p < GetNP(); p++)
@@ -1871,7 +1958,7 @@ void NURBSExtension::CountBdrElements()
    }
 }
 
-void NURBSExtension::GetElementTopo(Array<Element *> &elements)
+void NURBSExtension::GetElementTopo(Array<Element *> &elements) const
 {
    elements.SetSize(GetNE());
 
@@ -1885,13 +1972,13 @@ void NURBSExtension::GetElementTopo(Array<Element *> &elements)
    }
 }
 
-void NURBSExtension::Get2DElementTopo(Array<Element *> &elements)
+void NURBSExtension::Get2DElementTopo(Array<Element *> &elements) const
 {
    int el = 0;
    int eg = 0;
    int ind[4];
    NURBSPatchMap p2g(this);
-   KnotVector *kv[2];
+   const KnotVector *kv[2];
 
    for (int p = 0; p < GetNP(); p++)
    {
@@ -1921,13 +2008,13 @@ void NURBSExtension::Get2DElementTopo(Array<Element *> &elements)
    }
 }
 
-void NURBSExtension::Get3DElementTopo(Array<Element *> &elements)
+void NURBSExtension::Get3DElementTopo(Array<Element *> &elements) const
 {
    int el = 0;
    int eg = 0;
    int ind[8];
    NURBSPatchMap p2g(this);
-   KnotVector *kv[3];
+   const KnotVector *kv[3];
 
    for (int p = 0; p < GetNP(); p++)
    {
@@ -1966,7 +2053,7 @@ void NURBSExtension::Get3DElementTopo(Array<Element *> &elements)
    }
 }
 
-void NURBSExtension::GetBdrElementTopo(Array<Element *> &boundary)
+void NURBSExtension::GetBdrElementTopo(Array<Element *> &boundary) const
 {
    boundary.SetSize(GetNBE());
 
@@ -1980,12 +2067,12 @@ void NURBSExtension::GetBdrElementTopo(Array<Element *> &boundary)
    }
 }
 
-void NURBSExtension::Get2DBdrElementTopo(Array<Element *> &boundary)
+void NURBSExtension::Get2DBdrElementTopo(Array<Element *> &boundary) const
 {
    int g_be, l_be;
    int ind[2], okv[1];
    NURBSPatchMap p2g(this);
-   KnotVector *kv[1];
+   const KnotVector *kv[1];
 
    g_be = l_be = 0;
    for (int b = 0; b < GetNBP(); b++)
@@ -2011,12 +2098,12 @@ void NURBSExtension::Get2DBdrElementTopo(Array<Element *> &boundary)
    }
 }
 
-void NURBSExtension::Get3DBdrElementTopo(Array<Element *> &boundary)
+void NURBSExtension::Get3DBdrElementTopo(Array<Element *> &boundary) const
 {
    int g_be, l_be;
    int ind[4], okv[2];
    NURBSPatchMap p2g(this);
-   KnotVector *kv[2];
+   const KnotVector *kv[2];
 
    g_be = l_be = 0;
    for (int b = 0; b < GetNBP(); b++)
@@ -2083,10 +2170,12 @@ void NURBSExtension::Generate2DElementDofTable()
 {
    int el = 0;
    int eg = 0;
-   KnotVector *kv[2];
+   const KnotVector *kv[2];
    NURBSPatchMap p2g(this);
 
-   el_dof = new Table(NumOfActiveElems, (Order.Max() + 1)*(Order.Max() + 1));
+   // FIXME: precompute the I array for el_dof.
+   const int mo = mOrders.Max();
+   el_dof = new Table(NumOfActiveElems, (mo + 1)*(mo + 1));
    el_to_patch.SetSize(NumOfActiveElems);
    el_to_IJK.SetSize(NumOfActiveElems, 2);
 
@@ -2136,11 +2225,12 @@ void NURBSExtension::Generate3DElementDofTable()
    int el = 0;
    int eg = 0;
    int idx;
-   KnotVector *kv[3];
+   const KnotVector *kv[3];
    NURBSPatchMap p2g(this);
 
-   el_dof = new Table(NumOfActiveElems,
-                      (Order.Max() + 1)*(Order.Max() + 1)*(Order.Max() + 1));
+   // FIXME: precompute the I array for el_dof.
+   const int mo = mOrders.Max();
+   el_dof = new Table(NumOfActiveElems, (mo + 1)*(mo + 1)*(mo + 1));
    el_to_patch.SetSize(NumOfActiveElems);
    el_to_IJK.SetSize(NumOfActiveElems, 3);
 
@@ -2219,10 +2309,11 @@ void NURBSExtension::Generate2DBdrElementDofTable()
 {
    int gbe = 0;
    int lbe = 0, okv[1];
-   KnotVector *kv[1];
+   const KnotVector *kv[1];
    NURBSPatchMap p2g(this);
 
-   bel_dof = new Table(NumOfActiveBdrElems, Order.Max() + 1);
+   // FIXME: precompute the I array for bel_dof.
+   bel_dof = new Table(NumOfActiveBdrElems, mOrders.Max() + 1);
    bel_to_patch.SetSize(NumOfActiveBdrElems);
    bel_to_IJK.SetSize(NumOfActiveBdrElems, 1);
 
@@ -2261,10 +2352,12 @@ void NURBSExtension::Generate3DBdrElementDofTable()
 {
    int gbe = 0;
    int lbe = 0, okv[2];
-   KnotVector *kv[2];
+   const KnotVector *kv[2];
    NURBSPatchMap p2g(this);
 
-   bel_dof = new Table(NumOfActiveBdrElems, (Order.Max() + 1)*(Order.Max() + 1));
+   // FIXME: precompute the I array for bel_dof.
+   const int mo = mOrders.Max();
+   bel_dof = new Table(NumOfActiveBdrElems, (mo + 1)*(mo + 1));
    bel_to_patch.SetSize(NumOfActiveBdrElems);
    bel_to_IJK.SetSize(NumOfActiveBdrElems, 2);
 
@@ -2334,7 +2427,7 @@ void NURBSExtension::GetElementLocalToGlobal(Array<int> &lelem_elem)
       }
 }
 
-void NURBSExtension::LoadFE(int i, const FiniteElement *FE)
+void NURBSExtension::LoadFE(int i, const FiniteElement *FE) const
 {
    const NURBSFiniteElement *NURBSFE =
       dynamic_cast<const NURBSFiniteElement *>(FE);
@@ -2355,7 +2448,7 @@ void NURBSExtension::LoadFE(int i, const FiniteElement *FE)
    }
 }
 
-void NURBSExtension::LoadBE(int i, const FiniteElement *BE)
+void NURBSExtension::LoadBE(int i, const FiniteElement *BE) const
 {
    const NURBSFiniteElement *NURBSFE =
       dynamic_cast<const NURBSFiniteElement *>(BE);
@@ -2383,7 +2476,7 @@ void NURBSExtension::ConvertToPatches(const Vector &Nodes)
 
    if (patches.Size() == 0)
    {
-      GetPatchNets(Nodes);
+      GetPatchNets(Nodes, Dimension());
    }
 }
 
@@ -2391,15 +2484,17 @@ void NURBSExtension::SetCoordsFromPatches(Vector &Nodes)
 {
    if (patches.Size() == 0) { return; }
 
-   SetSolutionVector(Nodes);
+   SetSolutionVector(Nodes, Dimension());
    patches.SetSize(0);
 }
 
 void NURBSExtension::SetKnotsFromPatches()
 {
    if (patches.Size() == 0)
+   {
       mfem_error("NURBSExtension::SetKnotsFromPatches :"
                  " No patches available!");
+   }
 
    Array<KnotVector *> kv;
 
@@ -2413,10 +2508,7 @@ void NURBSExtension::SetKnotsFromPatches()
       }
    }
 
-   for (int i = 0; i < NumOfKnotVectors; i++)
-   {
-      Order[i] = knotVectors[i]->GetOrder();
-   }
+   SetOrdersFromKnotVectors();
 
    GenerateOffsets();
    CountElements();
@@ -2433,11 +2525,40 @@ void NURBSExtension::SetKnotsFromPatches()
    GenerateBdrElementDofTable();
 }
 
-void NURBSExtension::DegreeElevate(int t)
+void NURBSExtension::ToPatches(const GridFunction &sol)
+{
+   MFEM_VERIFY(sol.FESpace()->GetNURBSext() == this, "");
+   MFEM_VERIFY(patches.Size() == 0, "");
+   MFEM_VERIFY(sol.FESpace()->GetOrdering() == Ordering::byVDIM,
+               "Ordering::byNODES is not implemented yet");
+
+   GetPatchNets(sol, sol.FESpace()->GetVDim());
+}
+
+void NURBSExtension::FromPatches(GridFunction &sol)
+{
+   MFEM_VERIFY(sol.FESpace()->GetNURBSext() == this, "");
+   MFEM_VERIFY(patches.Size() > 0, "");
+   MFEM_VERIFY(sol.FESpace()->GetOrdering() == Ordering::byVDIM,
+               "Ordering::byNODES is not implemented yet");
+
+   SetSolutionVector(sol, sol.FESpace()->GetVDim());
+   patches.SetSize(0);
+}
+
+void NURBSExtension::DegreeElevate(int rel_degree, int degree)
 {
    for (int p = 0; p < patches.Size(); p++)
    {
-      patches[p]->DegreeElevate(t);
+      for (int dir = 0; dir < patches[p]->GetNKV(); dir++)
+      {
+         int oldd = patches[p]->GetKV(dir)->GetOrder();
+         int newd = std::min(oldd + rel_degree, degree);
+         if (newd > oldd)
+         {
+            patches[p]->DegreeElevate(dir, newd - oldd);
+         }
+      }
    }
 }
 
@@ -2476,28 +2597,28 @@ void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
    }
 }
 
-void NURBSExtension::GetPatchNets(const Vector &coords)
+void NURBSExtension::GetPatchNets(const Vector &coords, int vdim)
 {
    if (Dimension() == 2)
    {
-      Get2DPatchNets(coords);
+      Get2DPatchNets(coords, vdim);
    }
    else
    {
-      Get3DPatchNets(coords);
+      Get3DPatchNets(coords, vdim);
    }
 }
 
-void NURBSExtension::Get2DPatchNets(const Vector &coords)
+void NURBSExtension::Get2DPatchNets(const Vector &coords, int vdim)
 {
-   Array<KnotVector *> kv(2);
+   Array<const KnotVector *> kv(2);
    NURBSPatchMap p2g(this);
 
    patches.SetSize(GetNP());
    for (int p = 0; p < GetNP(); p++)
    {
       p2g.SetPatchDofMap(p, kv);
-      patches[p] = new NURBSPatch(kv, 2+1);
+      patches[p] = new NURBSPatch(kv, vdim+1);
       NURBSPatch &Patch = *patches[p];
 
       for (int j = 0; j < kv[1]->GetNCP(); j++)
@@ -2505,26 +2626,26 @@ void NURBSExtension::Get2DPatchNets(const Vector &coords)
          for (int i = 0; i < kv[0]->GetNCP(); i++)
          {
             int l = p2g(i,j);
-            for (int d = 0; d < 2; d++)
+            for (int d = 0; d < vdim; d++)
             {
-               Patch(i,j,d) = coords(l*2 + d)*weights(l);
+               Patch(i,j,d) = coords(l*vdim + d)*weights(l);
             }
-            Patch(i,j,2) = weights(l);
+            Patch(i,j,vdim) = weights(l);
          }
       }
    }
 }
 
-void NURBSExtension::Get3DPatchNets(const Vector &coords)
+void NURBSExtension::Get3DPatchNets(const Vector &coords, int vdim)
 {
-   Array<KnotVector *> kv(3);
+   Array<const KnotVector *> kv(3);
    NURBSPatchMap p2g(this);
 
    patches.SetSize(GetNP());
    for (int p = 0; p < GetNP(); p++)
    {
       p2g.SetPatchDofMap(p, kv);
-      patches[p] = new NURBSPatch(kv, 3+1);
+      patches[p] = new NURBSPatch(kv, vdim+1);
       NURBSPatch &Patch = *patches[p];
 
       for (int k = 0; k < kv[2]->GetNCP(); k++)
@@ -2534,32 +2655,32 @@ void NURBSExtension::Get3DPatchNets(const Vector &coords)
             for (int i = 0; i < kv[0]->GetNCP(); i++)
             {
                int l = p2g(i,j,k);
-               for (int d = 0; d < 3; d++)
+               for (int d = 0; d < vdim; d++)
                {
-                  Patch(i,j,k,d) = coords(l*3 + d)*weights(l);
+                  Patch(i,j,k,d) = coords(l*vdim + d)*weights(l);
                }
-               Patch(i,j,k,3) = weights(l);
+               Patch(i,j,k,vdim) = weights(l);
             }
          }
       }
    }
 }
 
-void NURBSExtension::SetSolutionVector(Vector &coords)
+void NURBSExtension::SetSolutionVector(Vector &coords, int vdim)
 {
    if (Dimension() == 2)
    {
-      Set2DSolutionVector(coords);
+      Set2DSolutionVector(coords, vdim);
    }
    else
    {
-      Set3DSolutionVector(coords);
+      Set3DSolutionVector(coords, vdim);
    }
 }
 
-void NURBSExtension::Set2DSolutionVector(Vector &coords)
+void NURBSExtension::Set2DSolutionVector(Vector &coords, int vdim)
 {
-   Array<KnotVector *> kv(2);
+   Array<const KnotVector *> kv(2);
    NURBSPatchMap p2g(this);
 
    weights.SetSize(GetNDof());
@@ -2573,20 +2694,20 @@ void NURBSExtension::Set2DSolutionVector(Vector &coords)
          for (int i = 0; i < kv[0]->GetNCP(); i++)
          {
             int l = p2g(i,j);
-            for (int d = 0; d < 2; d++)
+            for (int d = 0; d < vdim; d++)
             {
-               coords(l*2 + d) = Patch(i,j,d)/Patch(i,j,2);
+               coords(l*vdim + d) = Patch(i,j,d)/Patch(i,j,vdim);
             }
-            weights(l) = Patch(i,j,2);
+            weights(l) = Patch(i,j,vdim);
          }
       }
       delete patches[p];
    }
 }
 
-void NURBSExtension::Set3DSolutionVector(Vector &coords)
+void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
 {
-   Array<KnotVector *> kv(3);
+   Array<const KnotVector *> kv(3);
    NURBSPatchMap p2g(this);
 
    weights.SetSize(GetNDof());
@@ -2602,11 +2723,11 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords)
             for (int i = 0; i < kv[0]->GetNCP(); i++)
             {
                int l = p2g(i,j,k);
-               for (int d = 0; d < 3; d++)
+               for (int d = 0; d < vdim; d++)
                {
-                  coords(l*3 + d) = Patch(i,j,k,d)/Patch(i,j,k,3);
+                  coords(l*vdim + d) = Patch(i,j,k,d)/Patch(i,j,k,vdim);
                }
-               weights(l) = Patch(i,j,k,3);
+               weights(l) = Patch(i,j,k,vdim);
             }
          }
       }
@@ -2621,22 +2742,27 @@ ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
    : gtopo(comm)
 {
    if (parent->NumOfActiveElems < parent->NumOfElements)
+   {
       // SetActive (BuildGroups?) and the way the weights are copied
       // do not support this case
       mfem_error("ParNURBSExtension::ParNURBSExtension :\n"
                  " all elements in the parent must be active!");
+   }
 
    patchTopo = parent->patchTopo;
    // steal ownership of patchTopo from the 'parent' NURBS extension
    if (!parent->own_topo)
+   {
       mfem_error("ParNURBSExtension::ParNURBSExtension :\n"
                  "  parent does not own the patch topology!");
+   }
    own_topo = 1;
    parent->own_topo = 0;
 
    parent->edge_to_knot.Copy(edge_to_knot);
 
-   parent->GetOrders(Order);
+   parent->GetOrders().Copy(mOrders);
+   mOrder = parent->GetOrder();
 
    NumOfKnotVectors = parent->GetNKV();
    knotVectors.SetSize(NumOfKnotVectors);
@@ -2688,7 +2814,8 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    : gtopo(par_parent->gtopo.GetComm())
 {
    // steal all data from parent
-   parent->GetOrders(Order);
+   Swap(mOrder, parent->mOrder);
+   Swap(mOrders, parent->mOrders);
 
    patchTopo = parent->patchTopo;
    own_topo = parent->own_topo;
@@ -2739,11 +2866,8 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
 
    partitioning = NULL;
 
-#ifdef MFEM_DEBUG
-   if (par_parent->partitioning == NULL)
-      mfem_error("ParNURBSExtension::ParNURBSExtension :\n"
-                 " parent ParNURBSExtension has no partitioning!");
-#endif
+   MFEM_ASSERT(par_parent->partitioning,
+               "parent ParNURBSExtension has no partitioning!");
 
    Table *serial_elem_dof = GetGlobalElementDofTable();
    BuildGroups(par_parent->partitioning, *serial_elem_dof);
@@ -2765,10 +2889,12 @@ Table *ParNURBSExtension::GetGlobalElementDofTable()
 Table *ParNURBSExtension::Get2DGlobalElementDofTable()
 {
    int el = 0;
-   KnotVector *kv[2];
+   const KnotVector *kv[2];
    NURBSPatchMap p2g(this);
 
-   Table *gel_dof = new Table(GetGNE(), (Order.Max()  + 1)*(Order.Max()  + 1));
+   // FIXME: precompute the I array for gel_dof.
+   const int mo = mOrders.Max();
+   Table *gel_dof = new Table(GetGNE(), (mo + 1)*(mo + 1));
 
    for (int p = 0; p < GetNP(); p++)
    {
@@ -2806,11 +2932,12 @@ Table *ParNURBSExtension::Get2DGlobalElementDofTable()
 Table *ParNURBSExtension::Get3DGlobalElementDofTable()
 {
    int el = 0;
-   KnotVector *kv[3];
+   const KnotVector *kv[3];
    NURBSPatchMap p2g(this);
 
-   Table *gel_dof = new Table(GetGNE(),
-                              (Order.Max() + 1)*(Order.Max() + 1)*(Order.Max() + 1));
+   // FIXME: precompute the I array for gel_dof.
+   const int mo = mOrders.Max();
+   Table *gel_dof = new Table(GetGNE(), (mo + 1)*(mo + 1)*(mo + 1));
 
    for (int p = 0; p < GetNP(); p++)
    {
@@ -2912,7 +3039,7 @@ void ParNURBSExtension::BuildGroups(int *_partitioning, const Table &elem_dof)
 #endif
 
 
-void NURBSPatchMap::GetPatchKnotVectors(int p, KnotVector *kv[])
+void NURBSPatchMap::GetPatchKnotVectors(int p, const KnotVector *kv[])
 {
    Ext->patchTopo->GetElementVertices(p, verts);
    Ext->patchTopo->GetElementEdges(p, edges, oedge);
@@ -2932,7 +3059,8 @@ void NURBSPatchMap::GetPatchKnotVectors(int p, KnotVector *kv[])
    opatch = 0;
 }
 
-void NURBSPatchMap::GetBdrPatchKnotVectors(int p, KnotVector *kv[], int *okv)
+void NURBSPatchMap::GetBdrPatchKnotVectors(int p, const KnotVector *kv[],
+                                           int *okv)
 {
    Ext->patchTopo->GetBdrElementVertices(p, verts);
    Ext->patchTopo->GetBdrElementEdges(p, edges, oedge);
@@ -2949,7 +3077,7 @@ void NURBSPatchMap::GetBdrPatchKnotVectors(int p, KnotVector *kv[], int *okv)
    }
 }
 
-void NURBSPatchMap::SetPatchVertexMap(int p, KnotVector *kv[])
+void NURBSPatchMap::SetPatchVertexMap(int p, const KnotVector *kv[])
 {
    GetPatchKnotVectors(p, kv);
 
@@ -2979,7 +3107,7 @@ void NURBSPatchMap::SetPatchVertexMap(int p, KnotVector *kv[])
    pOffset = Ext->p_meshOffsets[p];
 }
 
-void NURBSPatchMap::SetPatchDofMap(int p, KnotVector *kv[])
+void NURBSPatchMap::SetPatchDofMap(int p, const KnotVector *kv[])
 {
    GetPatchKnotVectors(p, kv);
 
@@ -3009,7 +3137,8 @@ void NURBSPatchMap::SetPatchDofMap(int p, KnotVector *kv[])
    pOffset = Ext->p_spaceOffsets[p];
 }
 
-void NURBSPatchMap::SetBdrPatchVertexMap(int p, KnotVector *kv[], int *okv)
+void NURBSPatchMap::SetBdrPatchVertexMap(int p, const KnotVector *kv[],
+                                         int *okv)
 {
    GetBdrPatchKnotVectors(p, kv, okv);
 
@@ -3037,7 +3166,7 @@ void NURBSPatchMap::SetBdrPatchVertexMap(int p, KnotVector *kv[], int *okv)
    }
 }
 
-void NURBSPatchMap::SetBdrPatchDofMap(int p, KnotVector *kv[],  int *okv)
+void NURBSPatchMap::SetBdrPatchDofMap(int p, const KnotVector *kv[],  int *okv)
 {
    GetBdrPatchKnotVectors(p, kv, okv);
 
