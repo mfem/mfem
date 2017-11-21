@@ -6142,8 +6142,8 @@ void Mesh::PriUniformRefinement()
       int qf3 = f2qf[f[3]];
       int qf4 = f2qf[f[4]];
       
-      elements[j+0] = new Prism(oedge+e[0], oedge+e[1], v[0],
-				oface+qf2, oface+qf3, oedge+e[6],
+      elements[j+0] = new Prism(oedge+e[1], oedge+e[2], oedge+e[0],
+				oface+qf3, oface+qf4, oface+qf2,
 				attr);
       elements[j+1] = new Prism(oedge+e[0], v[1], oedge+e[1],
 				oface+qf2, oedge+e[7], oface+qf3,
@@ -6151,11 +6151,11 @@ void Mesh::PriUniformRefinement()
       elements[j+2] = new Prism(oedge+e[2], oedge+e[1], v[2],
 				oface+qf4, oface+qf3, oedge+e[8],
 				attr);
-      elements[j+3] = new Prism(oface+qf4, oedge+e[6], oface+qf3,
-				oedge+e[5], v[3], oedge+e[4],
+      elements[j+3] = new Prism(oedge+e[6], oface+qf2, oface+qf4,
+				v[3], oedge+e[3], oedge+e[5],
 				attr);
-      elements[j+4] = new Prism(oface+qf2, oface+qf3, oedge+e[6],
-				oedge+e[3], oedge+e[4], v[3],
+      elements[j+4] = new Prism(oface+qf3, oface+qf4, oface+qf2,
+				oedge+e[4], oedge+e[5], oedge+e[3],
                                 attr);
       elements[j+5] = new Prism(oface+qf2, oedge+e[7], oface+qf3,
 				oedge+e[3], v[4], oedge+e[4],
@@ -6164,12 +6164,11 @@ void Mesh::PriUniformRefinement()
 				oedge+e[5], oedge+e[4], v[5],
 				attr);
 
-      v[5] = oface+qf3;
-      v[4] = oedge+e[6];
-      v[3] = oface+qf4;
-      v[2] = oedge+e[1];
-      v[1] = v[0];
-      v[0] = oedge+e[2];
+      v[1] = oedge+e[0];
+      v[2] = oedge+e[2];
+      v[3] = oedge+e[6];
+      v[4] = oface+qf2;
+      v[5] = oface+qf4;
    }
 
    boundary.SetSize(4 * NumOfBdrElements);
@@ -6191,13 +6190,12 @@ void Mesh::PriUniformRefinement()
       
       if (boundary[i]->GetType() == Element::TRIANGLE)
       {
-	 boundary[j+0] = new Triangle(oedge+e[0], oedge+e[1], v[0], attr);
+	 boundary[j+0] = new Triangle(oedge+e[1], oedge+e[2], oedge+e[0], attr);
 	 boundary[j+1] = new Triangle(oedge+e[0], v[1], oedge+e[1], attr);
 	 boundary[j+2] = new Triangle(oedge+e[2], oedge+e[1], v[2], attr);
 
-	 v[2] = oedge+e[1];
-	 v[1] = v[0];
-	 v[0] = oedge+e[2];
+	 v[1] = oedge+e[0];
+	 v[2] = oedge+e[2];
       }
       else if (boundary[i]->GetType() == Element::QUADRILATERAL)
       {
