@@ -6086,8 +6086,6 @@ void Mesh::PriUniformRefinement()
    int oface = oedge + NumOfEdges;
 
    vertices.SetSize(oface + NumOfQuadFaces);
-   cout << "Number of vertices: " << NumOfVertices << " -> "
-	<< vertices.Size() << endl;
    for (i = 0; i < NumOfElements; i++)
    {
       MFEM_ASSERT(elements[i]->GetType() == Element::PRISM,
@@ -6116,18 +6114,7 @@ void Mesh::PriUniformRefinement()
          AverageVertices(vv, 2, oedge+e[j]);
       }
    }
-   cout << "Vertex   0: " << vertices[0](0) << " "
-	<< vertices[0](1) << " " << vertices[0](2) << endl;
-   cout << "Vertex   5: " << vertices[5](0) << " "
-	<< vertices[5](1) << " " << vertices[5](2) << endl;
-   cout << "Vertex   6: " << vertices[6](0) << " "
-	<< vertices[6](1) << " " << vertices[6](2) << endl;
-   cout << "Vertex 127: " << vertices[127](0) << " "
-	<< vertices[127](1) << " " << vertices[127](2) << endl;
-   cout << "Vertex 134: " << vertices[134](0) << " "
-	<< vertices[134](1) << " " << vertices[134](2) << endl;
-   cout << "Vertex 135: " << vertices[135](0) << " "
-	<< vertices[135](1) << " " << vertices[135](2) << endl;
+
    int attr, j;
    elements.SetSize(8 * NumOfElements);
    for (i = 0; i < NumOfElements; i++)
@@ -6180,14 +6167,6 @@ void Mesh::PriUniformRefinement()
       f = &be_to_face[i];
       j = NumOfBdrElements + 3 * i;
 
-      if ( abs(i-1) < 2 || abs(i-10) < 2 )
-      {
-	cout << "Boundary Element " << i
-	     << ", verts " << v[0] << " " << v[1] << " " << v[2]
-	     << ", edges " << e[0] << " " << e[1] << " " << e[2]
-	     << ", edge offset " << oedge << endl;
-      }
-      
       if (boundary[i]->GetType() == Element::TRIANGLE)
       {
 	 boundary[j+0] = new Triangle(oedge+e[1], oedge+e[2], oedge+e[0], attr);
