@@ -660,7 +660,7 @@ GeometryRefiner::~GeometryRefiner()
 }
 
 RefinedGeometry * GeometryRefiner::Refine (Geometry::Type Geom,
-					   int Times, int ETimes)
+                                           int Times, int ETimes)
 {
    int i, j, k, l, m;
 
@@ -1099,7 +1099,7 @@ RefinedGeometry * GeometryRefiner::Refine (Geometry::Type Geom,
 }
 
 const IntegrationRule *GeometryRefiner::RefineInterior(Geometry::Type Geom,
-						       int Times)
+                                                       int Times)
 {
    Geometry::Type g = Geom;
 

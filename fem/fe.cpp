@@ -8966,13 +8966,13 @@ H1_PrismElement::H1_PrismElement(const int p,
    {
       for (int i=1; i<p; i++)
       {
- 	 t_dof[6 + 9 * ne + 2 * nt + 0 * nq + k] = 2 + 0 * ne + i;
- 	 t_dof[6 + 9 * ne + 2 * nt + 1 * nq + k] = 2 + 1 * ne + i;
- 	 t_dof[6 + 9 * ne + 2 * nt + 2 * nq + k] = 2 + 2 * ne + i;
+         t_dof[6 + 9 * ne + 2 * nt + 0 * nq + k] = 2 + 0 * ne + i;
+         t_dof[6 + 9 * ne + 2 * nt + 1 * nq + k] = 2 + 1 * ne + i;
+         t_dof[6 + 9 * ne + 2 * nt + 2 * nq + k] = 2 + 2 * ne + i;
 
-	 s_dof[6 + 9 * ne + 2 * nt + 0 * nq + k] = 1 + j;
- 	 s_dof[6 + 9 * ne + 2 * nt + 1 * nq + k] = 1 + j;
- 	 s_dof[6 + 9 * ne + 2 * nt + 2 * nq + k] = 1 + j;
+         s_dof[6 + 9 * ne + 2 * nt + 0 * nq + k] = 1 + j;
+         s_dof[6 + 9 * ne + 2 * nt + 1 * nq + k] = 1 + j;
+         s_dof[6 + 9 * ne + 2 * nt + 2 * nq + k] = 1 + j;
 
          k++;
       }
@@ -8985,12 +8985,12 @@ H1_PrismElement::H1_PrismElement(const int p,
       int l=0;
       for (int j=1; j<p; j++)
       {
-	 for (int i=1; i<j; i++)
+         for (int i=1; i<j; i++)
          {
-	    t_dof[6 + 9 * ne + 2 * nt + 3 * nq + m] = 3 * p + l;
-	    s_dof[6 + 9 * ne + 2 * nt + 3 * nq + m] = 1 + k;
-	    l++; m++;
-	 }
+            t_dof[6 + 9 * ne + 2 * nt + 3 * nq + m] = 3 * p + l;
+            s_dof[6 + 9 * ne + 2 * nt + 3 * nq + m] = 1 + k;
+            l++; m++;
+         }
       }
    }
 }
@@ -9086,13 +9086,13 @@ H1Pos_PrismElement::H1Pos_PrismElement(const int p)
    {
       for (int i=1; i<p; i++)
       {
- 	 t_dof[6 + 9 * ne + 2 * nt + 0 * nq + k] = 2 + 0 * ne + i;
- 	 t_dof[6 + 9 * ne + 2 * nt + 1 * nq + k] = 2 + 1 * ne + i;
- 	 t_dof[6 + 9 * ne + 2 * nt + 2 * nq + k] = 2 + 2 * ne + i;
+         t_dof[6 + 9 * ne + 2 * nt + 0 * nq + k] = 2 + 0 * ne + i;
+         t_dof[6 + 9 * ne + 2 * nt + 1 * nq + k] = 2 + 1 * ne + i;
+         t_dof[6 + 9 * ne + 2 * nt + 2 * nq + k] = 2 + 2 * ne + i;
 
-	 s_dof[6 + 9 * ne + 2 * nt + 0 * nq + k] = 1 + j;
- 	 s_dof[6 + 9 * ne + 2 * nt + 1 * nq + k] = 1 + j;
- 	 s_dof[6 + 9 * ne + 2 * nt + 2 * nq + k] = 1 + j;
+         s_dof[6 + 9 * ne + 2 * nt + 0 * nq + k] = 1 + j;
+         s_dof[6 + 9 * ne + 2 * nt + 1 * nq + k] = 1 + j;
+         s_dof[6 + 9 * ne + 2 * nt + 2 * nq + k] = 1 + j;
 
          k++;
       }
@@ -9105,12 +9105,12 @@ H1Pos_PrismElement::H1Pos_PrismElement(const int p)
       int l=0;
       for (int j=1; j<p; j++)
       {
-	 for (int i=1; i<j; i++)
+         for (int i=1; i<j; i++)
          {
-	    t_dof[6 + 9 * ne + 2 * nt + 3 * nq + m] = 3 * p + l;
-	    s_dof[6 + 9 * ne + 2 * nt + 3 * nq + m] = 1 + k;
-	    l++; m++;
-	 }
+            t_dof[6 + 9 * ne + 2 * nt + 3 * nq + m] = 3 * p + l;
+            s_dof[6 + 9 * ne + 2 * nt + 3 * nq + m] = 1 + k;
+            l++; m++;
+         }
       }
    }
 }

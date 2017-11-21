@@ -2052,7 +2052,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
       NElem *= 2;
       NBdrElem += 2*nx*ny;
    }
-     
+
    InitMesh(3, 3, NVert, NElem, NBdrElem);
 
    double coord[3];
@@ -2119,7 +2119,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          {
             AddBdrQuadAsTriangles(ind, 1);
          }
-	 else if (type == Element::PRISM)
+         else if (type == Element::PRISM)
          {
             AddBdrQuadAsTriangles(ind, 1);
          }
@@ -2140,7 +2140,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          {
             AddBdrQuadAsTriangles(ind, 6);
          }
-	 else if (type == Element::PRISM)
+         else if (type == Element::PRISM)
          {
             AddBdrQuadAsTriangles(ind, 1);
          }

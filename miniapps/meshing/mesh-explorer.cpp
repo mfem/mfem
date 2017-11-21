@@ -357,7 +357,7 @@ int main (int argc, char *argv[])
          cin >> sd;
          for (int i = 0; i < mesh->GetNE(); i++)
          {
-	    Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+            Geometry::Type geom = mesh->GetElementBaseGeometry(i);
             ElementTransformation *T = mesh->GetElementTransformation(i);
 
             RefinedGeometry *RefG = GlobGeometryRefiner.Refine(geom, sd, 1);

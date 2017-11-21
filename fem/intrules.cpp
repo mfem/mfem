@@ -1594,19 +1594,19 @@ IntegrationRule *IntegrationRules::PrismIntegrationRule(int Order)
    int ns = irs->GetNPoints();
    AllocIntRule(PrismIntRules, Order);
    PrismIntRules[Order] = new IntegrationRule(nt * ns);
-   
+
    for (int ks=0; ks<ns; ks++)
    {
       const IntegrationPoint & ips = irs->IntPoint(ks);
       for (int kt=0; kt<nt; kt++)
       {
-	 int kp = ks * nt + kt;
-	 const IntegrationPoint & ipt = irt->IntPoint(kt);
-	 IntegrationPoint & ipp = PrismIntRules[Order]->IntPoint(kp);
-	 ipp.x = ipt.x;
-	 ipp.y = ipt.y;
-	 ipp.z = ips.x;
-	 ipp.weight = ipt.weight * ips.weight;
+         int kp = ks * nt + kt;
+         const IntegrationPoint & ipt = irt->IntPoint(kt);
+         IntegrationPoint & ipp = PrismIntRules[Order]->IntPoint(kp);
+         ipp.x = ipt.x;
+         ipp.y = ipt.y;
+         ipp.z = ips.x;
+         ipp.weight = ipt.weight * ips.weight;
       }
    }
    return PrismIntRules[Order];
