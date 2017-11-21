@@ -268,6 +268,9 @@ protected:
    /// Refine hexahedral mesh.
    virtual void HexUniformRefinement();
 
+   /// Refine prism mesh.
+   virtual void PriUniformRefinement();
+
    /// Refine NURBS mesh.
    virtual void NURBSUniformRefinement();
 

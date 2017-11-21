@@ -6047,6 +6047,227 @@ void Mesh::HexUniformRefinement()
    UpdateNodes();
 }
 
+void Mesh::PriUniformRefinement()
+{
+   int i;
+   int * v;
+   const int *e, *f;
+   int vv[4];
+
+   if (el_to_edge == NULL)
+   {
+      el_to_edge = new Table;
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+   }
+   if (el_to_face == NULL)
+   {
+      GetElementToFaceTable();
+   }
+
+   int NumOfTriFaces  = 0;
+   int NumOfQuadFaces = 0;
+   map<int,int> f2qf;
+   for (i = 0; i<faces.Size(); i++)
+   {
+      if (faces[i]->GetType() == Element::TRIANGLE)
+      {
+	 NumOfTriFaces++;
+      }
+      else
+      {
+	 f2qf[i] = NumOfQuadFaces;
+	 NumOfQuadFaces++;
+      }
+   }
+   MFEM_VERIFY(NumOfFaces == NumOfTriFaces + NumOfQuadFaces,
+	       "Prism face counts don't match!");
+   
+   int oedge = NumOfVertices;
+   int oface = oedge + NumOfEdges;
+
+   vertices.SetSize(oface + NumOfQuadFaces);
+   cout << "Number of vertices: " << NumOfVertices << " -> "
+	<< vertices.Size() << endl;
+   for (i = 0; i < NumOfElements; i++)
+   {
+      MFEM_ASSERT(elements[i]->GetType() == Element::PRISM,
+                  "Element is not a prism!");
+      v = elements[i]->GetVertices();
+
+      f = el_to_face->GetRow(i);
+
+      for (int j = 2; j < 5; j++)
+      {
+         for (int k = 0; k < 4; k++)
+         {
+            vv[k] = v[pri_t::FaceVert[j][k]];
+         }
+         AverageVertices(vv, 4, oface+f2qf[f[j]]);
+      }
+
+      e = el_to_edge->GetRow(i);
+
+      for (int j = 0; j < 9; j++)
+      {
+         for (int k = 0; k < 2; k++)
+         {
+            vv[k] = v[pri_t::Edges[j][k]];
+         }
+         AverageVertices(vv, 2, oedge+e[j]);
+      }
+   }
+   cout << "Vertex   0: " << vertices[0](0) << " "
+	<< vertices[0](1) << " " << vertices[0](2) << endl;
+   cout << "Vertex   5: " << vertices[5](0) << " "
+	<< vertices[5](1) << " " << vertices[5](2) << endl;
+   cout << "Vertex   6: " << vertices[6](0) << " "
+	<< vertices[6](1) << " " << vertices[6](2) << endl;
+   cout << "Vertex 127: " << vertices[127](0) << " "
+	<< vertices[127](1) << " " << vertices[127](2) << endl;
+   cout << "Vertex 134: " << vertices[134](0) << " "
+	<< vertices[134](1) << " " << vertices[134](2) << endl;
+   cout << "Vertex 135: " << vertices[135](0) << " "
+	<< vertices[135](1) << " " << vertices[135](2) << endl;
+   int attr, j;
+   elements.SetSize(8 * NumOfElements);
+   for (i = 0; i < NumOfElements; i++)
+   {
+      attr = elements[i]->GetAttribute();
+      v = elements[i]->GetVertices();
+      e = el_to_edge->GetRow(i);
+      f = el_to_face->GetRow(i);
+      j = NumOfElements + 7 * i;
+
+      int qf2 = f2qf[f[2]];
+      int qf3 = f2qf[f[3]];
+      int qf4 = f2qf[f[4]];
+      
+      elements[j+0] = new Prism(oedge+e[0], oedge+e[1], v[0],
+				oface+qf2, oface+qf3, oedge+e[6],
+				attr);
+      elements[j+1] = new Prism(oedge+e[0], v[1], oedge+e[1],
+				oface+qf2, oedge+e[7], oface+qf3,
+				attr);
+      elements[j+2] = new Prism(oedge+e[2], oedge+e[1], v[2],
+				oface+qf4, oface+qf3, oedge+e[8],
+				attr);
+      elements[j+3] = new Prism(oface+qf4, oedge+e[6], oface+qf3,
+				oedge+e[5], v[3], oedge+e[4],
+				attr);
+      elements[j+4] = new Prism(oface+qf2, oface+qf3, oedge+e[6],
+				oedge+e[3], oedge+e[4], v[3],
+                                attr);
+      elements[j+5] = new Prism(oface+qf2, oedge+e[7], oface+qf3,
+				oedge+e[3], v[4], oedge+e[4],
+				attr);
+      elements[j+6] = new Prism(oface+qf4, oface+qf3, oedge+e[8],
+				oedge+e[5], oedge+e[4], v[5],
+				attr);
+
+      v[5] = oface+qf3;
+      v[4] = oedge+e[6];
+      v[3] = oface+qf4;
+      v[2] = oedge+e[1];
+      v[1] = v[0];
+      v[0] = oedge+e[2];
+   }
+
+   boundary.SetSize(4 * NumOfBdrElements);
+   for (i = 0; i < NumOfBdrElements; i++)
+   {
+      attr = boundary[i]->GetAttribute();
+      v = boundary[i]->GetVertices();
+      e = bel_to_edge->GetRow(i);
+      f = &be_to_face[i];
+      j = NumOfBdrElements + 3 * i;
+
+      if ( abs(i-1) < 2 || abs(i-10) < 2 )
+      {
+	cout << "Boundary Element " << i
+	     << ", verts " << v[0] << " " << v[1] << " " << v[2]
+	     << ", edges " << e[0] << " " << e[1] << " " << e[2]
+	     << ", edge offset " << oedge << endl;
+      }
+      
+      if (boundary[i]->GetType() == Element::TRIANGLE)
+      {
+	 boundary[j+0] = new Triangle(oedge+e[0], oedge+e[1], v[0], attr);
+	 boundary[j+1] = new Triangle(oedge+e[0], v[1], oedge+e[1], attr);
+	 boundary[j+2] = new Triangle(oedge+e[2], oedge+e[1], v[2], attr);
+
+	 v[2] = oedge+e[1];
+	 v[1] = v[0];
+	 v[0] = oedge+e[2];
+      }
+      else if (boundary[i]->GetType() == Element::QUADRILATERAL)
+      {
+	 int qf = f2qf[f[0]];
+	 boundary[j+0] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
+					   oface+qf, attr);
+	 boundary[j+1] = new Quadrilateral(oface+qf, oedge+e[1], v[2],
+					   oedge+e[2], attr);
+	 boundary[j+2] = new Quadrilateral(oedge+e[3], oface+qf,
+					   oedge+e[2], v[3], attr);
+
+	 v[1] = oedge+e[0];
+	 v[2] = oface+qf;
+	 v[3] = oedge+e[3];
+      }
+      else
+      {
+ 	 MFEM_ABORT("boundary Element is not a triangle or a quad!");
+      }
+      
+   }
+
+   static const double A = 0.0, B = 0.5, C = 1.0;
+   static double pri_children[3*6*8] =
+   {
+      A,B,A, A,A,A, B,B,A, A,B,B, A,A,B, B,B,B, 
+      B,A,A, B,B,A, A,A,A, B,A,B, B,B,B, A,A,B, 
+      B,A,A, C,A,A, B,B,A, B,A,B, C,A,B, B,B,B,
+      A,B,A, B,B,A, A,C,A, A,B,B, B,B,B, A,C,B,
+      A,B,B, A,A,B, B,B,B, A,B,C, A,A,C, B,B,C,
+      B,A,B, B,B,B, A,A,B, B,A,C, B,B,C, A,A,C,
+      B,A,B, C,A,B, B,B,B, B,A,C, C,A,C, B,B,C,
+      A,B,B, B,B,B, A,C,B, A,B,C, B,B,C, A,C,C
+   };
+
+   CoarseFineTr.point_matrices.UseExternalData(pri_children, 3, 6, 8);
+   CoarseFineTr.embeddings.SetSize(elements.Size());
+
+   for (i = 0; i < elements.Size(); i++)
+   {
+      Embedding &emb = CoarseFineTr.embeddings[i];
+      emb.parent = (i < NumOfElements) ? i : (i - NumOfElements) / 7;
+      emb.matrix = (i < NumOfElements) ? 0 : (i - NumOfElements) % 7 + 1;
+   }
+
+   NumOfVertices    = vertices.Size();
+   NumOfElements    = 8 * NumOfElements;
+   NumOfBdrElements = 4 * NumOfBdrElements;
+
+   if (el_to_face != NULL)
+   {
+      GetElementToFaceTable();
+      GenerateFaces();
+   }
+
+#ifdef MFEM_DEBUG
+   CheckBdrElementOrientation(false);
+#endif
+
+   if (el_to_edge != NULL)
+   {
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+   }
+
+   last_operation = Mesh::REFINE;
+   sequence++;
+
+   UpdateNodes();
+}
+
 void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
 {
    int i, j, ind, nedges;
@@ -6593,6 +6814,42 @@ void Mesh::UniformRefinement()
    {
       NURBSUniformRefinement();
    }
+   else
+   {
+      switch (BaseGeom)
+      {
+         case Geometry::SQUARE:
+            QuadUniformRefinement();
+            break;
+         case Geometry::CUBE:
+            HexUniformRefinement();
+            break;
+         case Geometry::PRISM:
+            PriUniformRefinement();
+            break;
+         default:
+         {
+            Array<int> elem_to_refine(GetNE());
+            for (int i = 0; i < elem_to_refine.Size(); i++)
+            {
+               elem_to_refine[i] = i;
+            }
+
+            if (Conforming())
+            {
+               // In parallel we should set the default 2nd argument to -3
+               // to indicate uniform refinement.
+               LocalRefinement(elem_to_refine);
+            }
+            else
+            {
+               GeneralRefinement(elem_to_refine, 1);
+            }
+         }
+         break;
+      }
+   }
+   /*
    else if (meshgen == 1 || ncmesh)
    {
       Array<int> elem_to_refine(GetNE());
@@ -6624,6 +6881,7 @@ void Mesh::UniformRefinement()
    {
       mfem_error("Mesh::UniformRefinement()");
    }
+   */
 }
 
 void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
