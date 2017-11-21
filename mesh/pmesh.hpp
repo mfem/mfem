@@ -72,6 +72,9 @@ protected:
    /// Refine a hexahedral mesh.
    virtual void HexUniformRefinement();
 
+   /// Refine a prism mesh.
+   virtual void PriUniformRefinement();
+
    virtual void NURBSUniformRefinement();
 
    /// This function is not public anymore. Use GeneralRefinement instead.
