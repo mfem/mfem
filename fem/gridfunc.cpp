@@ -34,9 +34,27 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
    fec = fes->Load(m, input);
 
    skip_comment_lines(input, '#');
-   // FIXME: when using NURBS FE space, add an option to read the data by
-   //        patches.
-   Vector::Load(input, fes->GetVSize());
+   istream::int_type next_char = input.peek();
+   if (next_char == 'N') // First letter of "NURBS_patches"
+   {
+      string buff;
+      getline(input, buff);
+      filter_dos(buff);
+      if (buff == "NURBS_patches")
+      {
+         MFEM_VERIFY(fes->GetNURBSext(),
+                     "NURBS_patches requires NURBS FE space");
+         fes->GetNURBSext()->LoadSolution(input, *this);
+      }
+      else
+      {
+         MFEM_ABORT("unknown section: " << buff);
+      }
+   }
+   else
+   {
+      Vector::Load(input, fes->GetVSize());
+   }
    sequence = fes->GetSequence();
 }
 
@@ -2243,6 +2261,16 @@ void GridFunction::Save(std::ostream &out) const
 {
    fes->Save(out);
    out << '\n';
+#if 0
+   // Testing: write NURBS GridFunctions using "NURBS_patches" format.
+   if (fes->GetNURBSext())
+   {
+      out << "NURBS_patches\n";
+      fes->GetNURBSext()->PrintSolution(*this, out);
+      out.flush();
+      return;
+   }
+#endif
    if (fes->GetOrdering() == Ordering::byNODES)
    {
       Vector::Print(out, 1);

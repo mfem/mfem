@@ -987,7 +987,6 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
    BuildElementToDofTable();
 }
 
-
 NURBSExtension *FiniteElementSpace::StealNURBSext()
 {
    if (NURBSext && !own_ext)

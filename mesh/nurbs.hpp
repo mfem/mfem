@@ -122,6 +122,8 @@ public:
    void DegreeElevate(int t);
    void UniformRefinement();
 
+   // Return the number of components stored in the NURBSPatch
+   int GetNC() const { return Dim; }
    int GetNKV() const { return kv.Size(); }
    KnotVector *GetKV(int i) { return kv[i]; }
 
@@ -251,11 +253,13 @@ protected:
    void Generate2DBdrElementDofTable();
    void Generate3DBdrElementDofTable();
 
-   // Patch <--> FE translation functions
+   // FE --> Patch translation functions
    void GetPatchNets  (const Vector &Nodes, int vdim);
    void Get2DPatchNets(const Vector &Nodes, int vdim);
    void Get3DPatchNets(const Vector &Nodes, int vdim);
 
+   // Patch --> FE translation functions
+   // Side effects: delete the patches, update the weights from the patches
    void SetSolutionVector  (Vector &Nodes, int vdim);
    void Set2DSolutionVector(Vector &Nodes, int vdim);
    void Set3DSolutionVector(Vector &Nodes, int vdim);
@@ -342,8 +346,10 @@ public:
    void SetKnotsFromPatches();
    void SetCoordsFromPatches(Vector &Nodes);
 
-   void ToPatches(const GridFunction &sol);
-   void FromPatches(GridFunction &sol);
+   // Read a GridFunction written patch-by-patch, e.g. with PrintSolution().
+   void LoadSolution(std::istream &input, GridFunction &sol) const;
+   // Write a GridFunction patch-by-patch.
+   void PrintSolution(const GridFunction &sol, std::ostream &out) const;
 
    // Refinement methods
    // new_degree = max(old_degree, min(old_degree + rel_degree, degree))
