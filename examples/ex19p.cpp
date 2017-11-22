@@ -9,6 +9,7 @@ using namespace mfem;
 class JacobianPreconditioner : public Solver
 {
 protected:
+   Array<ParFiniteElementSpace *> spaces;
    mutable BlockOperator *Jacobian;
    mutable Operator *Pressure_mass;
 
@@ -17,6 +18,7 @@ protected:
    /// Newton solver for the hyperelastic operator
 
    mutable Solver *mass_pcg;
+   mutable Solver *stiff_pcg;
    mutable Solver *stiff_prec;
    mutable Solver *mass_prec;
 
@@ -24,7 +26,8 @@ protected:
    Array<Array<int> *> &ess_bdr;
 
 public:
-   JacobianPreconditioner(Operator &mass, Array<int> &offsets,
+   JacobianPreconditioner(Array<ParFiniteElementSpace *> &fes,
+                          Operator &mass, Array<int> &offsets,
                           Array<Array<int> *> &bdr);
 
    virtual void Mult(const Vector &k, Vector &y) const;
@@ -53,7 +56,7 @@ protected:
 
    /// Solver for the Jacobian solve in the Newton method
    Solver *J_solver;
-   Solver *J_solver_direct;
+
    /// Preconditioner for the Jacobian
    Solver *J_prec;
 
@@ -98,8 +101,8 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    int order = 2;
    bool visualization = true;
-   double newton_rel_tol = 1.0e-6;
-   double newton_abs_tol = 1.0e-8;
+   double newton_rel_tol = 1.0e-8;
+   double newton_abs_tol = 1.0e-12;
    int newton_iter = 500;
    double mu = 1.0;
 
@@ -305,39 +308,36 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-JacobianPreconditioner::JacobianPreconditioner(Operator &mass,
+JacobianPreconditioner::JacobianPreconditioner(Array<ParFiniteElementSpace *> &fes,
+                                               Operator &mass,
                                                Array<int> &offsets,
                                                Array<Array<int> *> &bdr)
    : Solver(offsets[2]), block_trueOffsets(offsets), Pressure_mass(&mass),
      ess_bdr(bdr)
 {
 
-   gamma = .00001;
+   fes.Copy(spaces);
 
-#ifdef MFEM_USE_SUPERLU
-   SuperLUSolver *mass_slu = new SuperLUSolver(MPI_COMM_WORLD);
-   mass_slu->SetPrintStatistics(false);
-   mass_slu->SetSymmetricPattern(false);
-   mass_slu->SetColumnPermutation(superlu::PARMETIS);
-   mass_slu->SetOperator(*Pressure_mass);
-   mass_pcg = mass_slu;
-#else
+   gamma = 0.00001;
+
    HypreBoomerAMG *mass_prec_amg = new HypreBoomerAMG();
    mass_prec_amg->SetOperator(*Pressure_mass);
    mass_prec_amg->SetPrintLevel(0);
 
-   CGSolver *mass_pcg_amg = new CGSolver();
-   mass_pcg_amg->SetOperator(*Pressure_mass);
-   mass_pcg_amg->SetRelTol(1e-12);
-   mass_pcg_amg->SetAbsTol(1e-12);
-   mass_pcg_amg->SetMaxIter(20000);
-   mass_pcg_amg->SetPrintLevel(0);
-   mass_pcg_amg->SetPreconditioner(*mass_prec_amg);
-
-   mass_pcg = mass_pcg_amg;
    mass_prec = mass_prec_amg;
 
-#endif
+   GMRESSolver *mass_pcg_iter = new GMRESSolver();
+   mass_pcg_iter->SetOperator(*Pressure_mass);
+   mass_pcg_iter->SetRelTol(1e-12);
+   mass_pcg_iter->SetAbsTol(1e-12);
+   mass_pcg_iter->SetMaxIter(200);
+   mass_pcg_iter->SetPrintLevel(0);
+   mass_pcg_iter->SetPreconditioner(*mass_prec);
+
+   mass_pcg = mass_pcg_iter;
+
+   stiff_pcg = NULL;
+   stiff_prec = NULL;
 
 }
 
@@ -365,7 +365,7 @@ void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
    Jacobian->GetBlock(0,1).Mult(pres_out, temp);
    subtract(disp_in, temp, temp2);
 
-   stiff_prec->Mult(temp2, disp_out);
+   stiff_pcg->Mult(temp2, disp_out);
 
 }
 
@@ -374,23 +374,23 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
 
    Jacobian = (BlockOperator *) &op;
 
-#ifdef MFEM_USE_SUPERLU
-   SuperLUSolver *stiff_prec_slu = new SuperLUSolver(MPI_COMM_WORLD);
-   stiff_prec_slu->SetPrintStatistics(false);
-   stiff_prec_slu->SetSymmetricPattern(false);
-   stiff_prec_slu->SetColumnPermutation(superlu::PARMETIS);
-   stiff_prec_slu->SetOperator(Jacobian->GetBlock(0,0));
-   
-   stiff_prec = stiff_prec_slu;
-
-#else
    HypreBoomerAMG *stiff_prec_amg = new HypreBoomerAMG();
    stiff_prec_amg->SetOperator(Jacobian->GetBlock(0,0));
    stiff_prec_amg->SetPrintLevel(0);
+   stiff_prec_amg->SetElasticityOptions(spaces[0]);
 
    stiff_prec = stiff_prec_amg;
 
-#endif
+   GMRESSolver *stiff_pcg_iter = new GMRESSolver();
+   stiff_pcg_iter->SetOperator(Jacobian->GetBlock(0,0));
+   stiff_pcg_iter->SetRelTol(1e-12);
+   stiff_pcg_iter->SetAbsTol(1e-12);
+   stiff_pcg_iter->SetMaxIter(200);
+   stiff_pcg_iter->SetPrintLevel(0);
+   stiff_pcg_iter->SetPreconditioner(*stiff_prec);
+
+   stiff_pcg = stiff_pcg_iter;
+
 
 }
 
@@ -399,6 +399,7 @@ JacobianPreconditioner::~JacobianPreconditioner()
    delete mass_pcg;
    delete mass_prec;
    delete stiff_prec;
+   delete stiff_pcg;
 }
 
 RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
@@ -438,14 +439,15 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    mass.SetOperatorOwner(false);
    Pressure_mass = mass.Ptr();
 
-   JacobianPreconditioner *Jac_prec = new JacobianPreconditioner(*Pressure_mass,
+   JacobianPreconditioner *Jac_prec = new JacobianPreconditioner(fes,
+                                                                 *Pressure_mass,
                                                                  block_trueOffsets, ess_bdr);
    J_prec = Jac_prec;
 
    GMRESSolver *J_gmres = new GMRESSolver(spaces[0]->GetComm());
-   J_gmres->SetRelTol(1.0e-12);
-   J_gmres->SetAbsTol(0.0);
-   J_gmres->SetMaxIter(3000);
+   J_gmres->SetRelTol(1.0e-14);
+   J_gmres->SetAbsTol(1.0e-14);
+   J_gmres->SetMaxIter(300);
    J_gmres->SetPrintLevel(0);
    J_gmres->SetPreconditioner(*J_prec);
    J_solver = J_gmres;
