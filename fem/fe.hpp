@@ -54,6 +54,7 @@ protected:
    mutable
    int  Dof,      ///< Number of degrees of freedom
         Order;    ///< Order/degree of the shape functions
+   mutable int Orders[Geometry::MaxDim]; ///< Anisotropic orders
    IntegrationRule Nodes;
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix vshape; // Dof x Dim
@@ -122,15 +123,16 @@ public:
    /// Returns the number of degrees of freedom in the finite element
    int GetDof() const { return Dof; }
 
-   /// Returns the order of the finite element
+   /** @brief Returns the order of the finite element. In the case of
+       anisotropic orders, returns the maximum order. */
    int GetOrder() const { return Order; }
 
-   // FIXME: do we need this?
-   virtual void GetOrders(Array<int> &Order) const
-   {
-      Order.SetSize(Dim);
-      Order = FiniteElement::Order;
-   }
+   /** @brief Returns true if the FiniteElement basis *may be using* different
+       orders/degrees in different spatial directions. */
+   bool HasAnisotropicOrders() const { return Orders[0] != -1; }
+
+   /// Returns an array containing the anisotropic orders/degrees.
+   const int *GetAnisotropicOrders() const { return Orders; }
 
    /// Returns the type of space on each element
    int Space() const { return FuncSpace; }
@@ -2336,31 +2338,20 @@ class NURBS2DFiniteElement : public NURBSFiniteElement
 {
 protected:
    mutable Vector u, shape_x, shape_y, dshape_x, dshape_y;
-   // FIXME: remove px, py?
-   mutable int px, py;
 
 public:
    NURBS2DFiniteElement(int p)
       : NURBSFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
                            FunctionSpace::Qk),
         u(Dof), shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1), dshape_y(p + 1)
-   { px = py = p; }
+   { Orders[0] = Orders[1] = p; }
 
-   // FIXME: do we need this?
-   NURBS2DFiniteElement(int px_, int py_)
-      : NURBSFiniteElement(2, Geometry::SQUARE, (px_ + 1)*(py_ + 1),
-                           std::max(px_, py_), FunctionSpace::Qk),
-        u(Dof), shape_x(px_ + 1), shape_y(py_ + 1), dshape_x(px_ + 1),
-        dshape_y(py_ + 1)
-   { px = px_; py = py_; }
-
-   // FIXME: do we need this?
-   virtual void GetOrders(Array<int> &Order) const
-   {
-      Order.SetSize(Dim);
-      Order[0] = px;
-      Order[1] = py;
-   }
+   NURBS2DFiniteElement(int px, int py)
+      : NURBSFiniteElement(2, Geometry::SQUARE, (px + 1)*(py + 1),
+                           std::max(px, py), FunctionSpace::Qk),
+        u(Dof), shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
+        dshape_y(py + 1)
+   { Orders[0] = px; Orders[1] = py; }
 
    virtual void SetOrder() const;
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -2372,8 +2363,6 @@ class NURBS3DFiniteElement : public NURBSFiniteElement
 {
 protected:
    mutable Vector u, shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
-   // FIXME: remove px, py, pz?
-   mutable int px, py, pz;
 
 public:
    NURBS3DFiniteElement(int p)
@@ -2381,24 +2370,14 @@ public:
                            FunctionSpace::Qk),
         u(Dof), shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
         dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1)
-   { px = py = pz = p; }
+   { Orders[0] = Orders[1] = Orders[2] = p; }
 
-   // FIXME: do we need this?
-   NURBS3DFiniteElement(int px_, int py_, int pz_)
-      : NURBSFiniteElement(3, Geometry::CUBE, (px_ + 1)*(py_ + 1)*(pz_ + 1),
-                           std::max(std::max(px_,py_),pz_), FunctionSpace::Qk),
-        u(Dof), shape_x(px_ + 1), shape_y(py_ + 1), shape_z(pz_ + 1),
-        dshape_x(px_ + 1), dshape_y(py_ + 1), dshape_z(pz_ + 1)
-   { px = px_; py = py_; pz = pz_; }
-
-   // FIXME: do we need this?
-   virtual void GetOrders(Array<int> &Order) const
-   {
-      Order.SetSize(Dim);
-      Order[0] = px;
-      Order[1] = py;
-      Order[2] = pz;
-   }
+   NURBS3DFiniteElement(int px, int py, int pz)
+      : NURBSFiniteElement(3, Geometry::CUBE, (px + 1)*(py + 1)*(pz + 1),
+                           std::max(std::max(px,py),pz), FunctionSpace::Qk),
+        u(Dof), shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
+        dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1)
+   { Orders[0] = px; Orders[1] = py; Orders[2] = pz; }
 
    virtual void SetOrder() const;
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;

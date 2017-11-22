@@ -338,6 +338,8 @@ private:
    NURBS3DFiniteElement *ParallelepipedFE;
 
    mutable int mOrder; // >= 1 or VariableOrder
+   // The name is updated before writing it to a stream, for example, see
+   // FiniteElementSpace::Save().
    mutable char name[16];
 
 public:
