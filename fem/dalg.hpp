@@ -112,12 +112,13 @@ protected:
    vector<int> offsets;
 
 public:
-   DummyTensor(int dim) : dim(dim), own_data(true), sizes(dim,1), offsets(dim,1)
+   DummyTensor(int dim)
+   : data(NULL), dim(dim), own_data(true), sizes(dim,1), offsets(dim,1)
    {
    }
 
    DummyTensor(int dim, double* _data, int* dimensions)
-   : data(_data), dim(dim), own_data(false)
+   : data(_data), dim(dim), own_data(false), sizes(dim,1), offsets(dim,1)
    {
       SetSize(dimensions);
    }
@@ -132,22 +133,29 @@ public:
       return result;
    }
 
-   // Memory leak if used more than one time
+   void Zero()
+   {
+      for (int i = 0; i < GetNumVal(); ++i)
+      {
+         data[i] = 0.0;
+      }
+   }
+
    void SetSize(int *_sizes)
    {
-      for (int i = 0; i < dim; ++i)
+      sizes[0] = _sizes[0];
+      int dim_ind = 1;
+      offsets[0] = dim_ind;
+      for (int i = 1; i < dim; ++i)
       {
          sizes[i] = _sizes[i];
-         int dim_ind = 1;
-         // We don't really need to recompute from beginning, but that shouldn't
-         // be a performance issue...
-         for (int j = 0; j < i; ++j)
-         {
-            dim_ind *= sizes[j];
-         }
+         dim_ind *= sizes[i-1];
          offsets[i] = dim_ind;
       }
-      data = new double[GetNumVal()];//(double*)malloc(GetNumVal()*sizeof(double));
+      if (own_data && data==NULL)
+      {
+         data = new double[GetNumVal()]();
+      }
    }
 
    // Returns the data pointer, to change container for instance, or access data

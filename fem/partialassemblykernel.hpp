@@ -23,6 +23,7 @@
 #include <iostream>
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
+#include "../../Tensor/tensor.hpp"
 
 namespace mfem
 {
@@ -199,7 +200,8 @@ private:
    Tensor2d shape1d, dshape1d;
    Tensor2d shape0d0, shape0d1, dshape0d0, dshape0d1;
    DTensor Dint, Dext;
-   KData kernel_data;//indirections, permutations;
+   DummyMatrix<IntegrationPoint> intPts;
+   KData kernel_data;// Data needed by the Kernel
 
 public:
    /**
@@ -207,7 +209,7 @@ public:
    *  order of the functions to integrate.
    */
    PAFaceIntegrator(FiniteElementSpace* _fes, int order)
-   : fes(_fes), dim(fes->GetFE(0)->GetDim()), Dint(Op::dimD), Dext(Op::dimD)
+   : fes(_fes), dim(fes->GetFE(0)->GetDim())
    {
       // Store the two 0d shape functions and gradients
       // in x = 0.0
@@ -216,14 +218,88 @@ public:
       ComputeBasis0d(fes->GetFE(0), 1.0, shape0d1, dshape0d1);
       // Store the 1d shape functions and gradients
       ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
+      // Creates the integration points for each face
+      const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, order);
+      const int quads1d = ir1d.GetNPoints();
+      intPts = DummyMatrix<IntegrationPoint>(pow(quads1d,dim-1),2*dim);
+      switch(dim){
+      case 1:
+         intPts(0,0).x = 0.0;
+         intPts(0,0).weight = 1.0;
+         intPts(1,0).x = 1.0;
+         intPts(1,0).weight = 1.0;
+         break;
+      case 2:
+         for (int i = 0; i < quads1d; ++i)
+         {
+            //SOUTH
+            intPts(i,0).x = ir1d.IntPoint(i).x;
+            intPts(i,0).y = 0.0;
+            intPts(i,0).weight = ir1d.IntPoint(i).weight;
+            //EAST
+            intPts(i,1).x = 1.0;
+            intPts(i,1).y = ir1d.IntPoint(i).x;
+            intPts(i,1).weight = ir1d.IntPoint(i).weight;
+            //NORTH
+            intPts(i,2).x = ir1d.IntPoint(i).x;
+            intPts(i,2).y = 1.0;
+            intPts(i,2).weight = ir1d.IntPoint(i).weight;
+            //WEST
+            intPts(i,3).x = 0.0;
+            intPts(i,3).y = ir1d.IntPoint(i).x;
+            intPts(i,3).weight = ir1d.IntPoint(i).weight;
+         }
+         break;
+      case 3:
+      //TODO verify that order doesn't matter
+         for (int j = 0; j < quads1d; ++j){
+            for (int i = 0; i < quads1d; ++i){
+               //BOTTOM
+               intPts(i+j*quads1d,0).x = ir1d.IntPoint(i).x;
+               intPts(i+j*quads1d,0).y = ir1d.IntPoint(j).x;
+               intPts(i+j*quads1d,0).z = 0.0;
+               intPts(i+j*quads1d,0).weight = ir1d.IntPoint(i).weight * ir1d.IntPoint(j).weight;
+               //SOUTH
+               intPts(i+j*quads1d,1).x = ir1d.IntPoint(i).x;
+               intPts(i+j*quads1d,1).y = 0.0;
+               intPts(i+j*quads1d,1).z = ir1d.IntPoint(j).x;
+               intPts(i+j*quads1d,1).weight = ir1d.IntPoint(i).weight * ir1d.IntPoint(j).weight;
+               //EAST
+               intPts(i+j*quads1d,2).x = 1.0;
+               intPts(i+j*quads1d,2).y = ir1d.IntPoint(i).x;
+               intPts(i+j*quads1d,2).z = ir1d.IntPoint(j).x;
+               intPts(i+j*quads1d,2).weight = ir1d.IntPoint(i).weight * ir1d.IntPoint(j).weight;
+               //NORTH
+               intPts(i+j*quads1d,3).x = ir1d.IntPoint(i).x;
+               intPts(i+j*quads1d,3).y = 1.0;
+               intPts(i+j*quads1d,3).z = ir1d.IntPoint(j).x;
+               intPts(i+j*quads1d,3).weight = ir1d.IntPoint(i).weight * ir1d.IntPoint(j).weight;
+               //WEST
+               intPts(i+j*quads1d,4).x = 0.0;
+               intPts(i+j*quads1d,4).y = ir1d.IntPoint(i).x;
+               intPts(i+j*quads1d,4).z = ir1d.IntPoint(j).x;
+               intPts(i+j*quads1d,4).weight = ir1d.IntPoint(i).weight * ir1d.IntPoint(j).weight;
+               //TOP
+               intPts(i+j*quads1d,5).x = ir1d.IntPoint(i).x;
+               intPts(i+j*quads1d,5).y = ir1d.IntPoint(j).x;
+               intPts(i+j*quads1d,5).z = 1.0;
+               intPts(i+j*quads1d,5).weight = ir1d.IntPoint(i).weight * ir1d.IntPoint(j).weight;
+            }
+         }
+         break;
+      default:
+         mfem_error("Face of that dimension not handled");
+         break;
+      }
    }
 
    /**
-   *  Set the sizes of Dint and Dext tensors.
+   *  Set the sizes of Dint and Dext tensors, and of KData.
+   *  Contains: quads, nb_elemets, nb_faces_elt and eventually two times dim
    */
-   void SetSizeD(int (&sizes)[Op::dimD])
+   void SetSize(int (&sizes)[Op::dimD])
    {
-      Op::SetSizeD(Dint, Dext, sizes);
+      Op::SetSize(Dint, Dext, kernel_data, sizes);
    }
 
    /**
@@ -248,6 +324,14 @@ public:
    void SetValDext(int (&ind)[Op::dimD+2], double val)
    {
       Op::SetValDext(Dext, kernel_data, ind, val);
+   }
+
+   /**
+   *  Returns k-th integration point on the face "face"
+   */
+   IntegrationPoint& IntPoint(int face, int k)
+   {
+      return intPts(k,face);
    }
 
    /**
@@ -312,8 +396,8 @@ void MultGtDB3(FiniteElementSpace* fes, DenseMatrix const& shape1d,
 class DummyMultBtDB
 {
 public:
-   using DTensor = DummyTensor;
    static const int dimD = 2;
+   using DTensor = DummyTensor;
    using Tensor2d = DenseMatrix;
 
    /**
@@ -325,9 +409,9 @@ public:
       int dim = fes->GetFE(0)->GetDim();
       switch(dim)
       {
-      case 1:MultBtDB1(fes,shape1d,D,U,V);break;
-      case 2:MultBtDB2(fes,shape1d,D,U,V);break;
-      case 3:MultBtDB3(fes,shape1d,D,U,V);break;
+      case 1:MultBtDB1(fes,shape1d,D,U,V); break;
+      case 2:MultBtDB2(fes,shape1d,D,U,V); break;
+      case 3:MultBtDB3(fes,shape1d,D,U,V); break;
       default: mfem_error("More than # dimension not yet supported"); break;
       }
    }
@@ -353,8 +437,8 @@ public:
 class DummyMultGtDG
 {
 public:
-   using DTensor = DummyTensor;
    static const int dimD = 3;
+   using DTensor = DummyTensor;
    using Tensor2d = DenseMatrix;
 
    /**
@@ -366,9 +450,9 @@ public:
       int dim = fes->GetFE(0)->GetDim();
       switch(dim)
       {
-      case 1:MultGtDG1(fes,shape1d,dshape1d,D,U,V);break;
-      case 2:MultGtDG2(fes,shape1d,dshape1d,D,U,V);break;
-      case 3:MultGtDG3(fes,shape1d,dshape1d,D,U,V);break;
+      case 1:MultGtDG1(fes,shape1d,dshape1d,D,U,V); break;
+      case 2:MultGtDG2(fes,shape1d,dshape1d,D,U,V); break;
+      case 3:MultGtDG3(fes,shape1d,dshape1d,D,U,V); break;
       default: mfem_error("More than # dimension not yet supported"); break;
       }
    }
@@ -394,8 +478,8 @@ public:
 class DummyMultBtDG
 {
 public:
-   using DTensor = DummyTensor;
    static const int dimD = 3;
+   using DTensor = DummyTensor;
    using Tensor2d = DenseMatrix;
 
    /**
@@ -407,9 +491,9 @@ public:
       int dim = fes->GetFE(0)->GetDim();
       switch(dim)
       {
-      case 1:MultBtDG1(fes,shape1d,dshape1d,D,U,V);break;
-      case 2:MultBtDG2(fes,shape1d,dshape1d,D,U,V);break;
-      case 3:MultBtDG3(fes,shape1d,dshape1d,D,U,V);break;
+      case 1:MultBtDG1(fes,shape1d,dshape1d,D,U,V); break;
+      case 2:MultBtDG2(fes,shape1d,dshape1d,D,U,V); break;
+      case 3:MultBtDG3(fes,shape1d,dshape1d,D,U,V); break;
       default: mfem_error("More than # dimension not yet supported"); break;
       }
    }
@@ -435,8 +519,8 @@ public:
 class DummyMultGtDB
 {
 public:
-   using DTensor = DummyTensor;
    static const int dimD = 4;
+   using DTensor = DummyTensor;
    using Tensor2d = DenseMatrix;
 
    /**
@@ -448,9 +532,9 @@ public:
       int dim = fes->GetFE(0)->GetDim();
       switch(dim)
       {
-      case 1:MultGtDB1(fes,shape1d,dshape1d,D,U,V);break;
-      case 2:MultGtDB2(fes,shape1d,dshape1d,D,U,V);break;
-      case 3:MultGtDB3(fes,shape1d,dshape1d,D,U,V);break;
+      case 1:MultGtDB1(fes,shape1d,dshape1d,D,U,V); break;
+      case 2:MultGtDB2(fes,shape1d,dshape1d,D,U,V); break;
+      case 3:MultGtDB3(fes,shape1d,dshape1d,D,U,V); break;
       default: mfem_error("More than # dimension not yet supported"); break;
       }
    }
@@ -679,8 +763,8 @@ public:
       {
       // case 1:MultBtDB1(fes,shape1d,D,U,V);break;
       case 2:
-         MultBtDB2int(1,fes,shape1d,shape0d0,shape0d1,D11,U,V);
-         MultBtDB2int(2,fes,shape1d,shape0d0,shape0d1,D22,U,V);
+         // MultBtDB2int(1,fes,shape1d,shape0d0,shape0d1,D11,U,V);
+         // MultBtDB2int(2,fes,shape1d,shape0d0,shape0d1,D22,U,V);
          MultBtDB2ext(1,fes,shape1d,shape0d0,shape0d1,coord_change1,backward1,D21,U,V);
          MultBtDB2ext(2,fes,shape1d,shape0d0,shape0d1,coord_change2,backward2,D12,U,V);
          break;
@@ -759,18 +843,23 @@ struct PermIndir{
 };
 
 public:
-   using DTensor = DummyTensor;
    static const int dimD = 3;
+   using DTensor = Tensor<dimD,double>;
    using Tensor2d = DenseMatrix;
    using KData = DummyMatrix<PermIndir>;
 
    /**
    *  Sets the dimensions of the tensor D
    */
-   static void SetSizeD(DTensor& Dint, DTensor& Dext, int* sizes)
+   static void SetSize(DTensor& Dint, DTensor& Dext, KData& kernel_data, int* sizes)
    {
-      Dint.SetSize(sizes);
-      Dext.SetSize(sizes);
+      // Dint.SetSize(sizes);
+      // Dext.SetSize(sizes);
+      Dint = DTensor(sizes[0],sizes[1],sizes[2]);
+      Dext = DTensor(sizes[0],sizes[1],sizes[2]);
+      int nb_elts = sizes[1];
+      int nb_faces = sizes[2];
+      kernel_data = KData(nb_elts,nb_faces);
    }
 
    /**
@@ -779,7 +868,8 @@ public:
    */
    static void SetValDint(DTensor& Dint, int (&ind)[dimD], double val)
    {
-      Dint(ind) = val;
+      // Dint(ind) = val;
+      Dint(ind[0],ind[1],ind[2]) = val;
    }
 
    /**
@@ -797,7 +887,8 @@ public:
       // int ind_Dext[3] = {quad,elt_trial,face_id_trial};
       // Dext(quad,elt_trial,face_id_trial) = val;
       // Unsafe: this uses only the 3 first elements of 'ind'
-      Dext(ind) = val;
+      // Dext(ind) = val;
+      Dext(ind[0],ind[1],ind[2]) = val;
    }
 
    static void EvalInt(FiniteElementSpace* fes, Tensor2d& shape1d, Tensor2d& dshape1d,
@@ -824,7 +915,18 @@ public:
                         Tensor2d& dshape0d0, Tensor2d& dshape0d1,
                         KData& kernel_data ,DTensor& Dint, const Vector& U, Vector& V)
    {
-      // TODO: create a Kernel for each face in each dimension...
+      // North Faces
+      int face_id = 2;
+      MultBtDBextY(fes,shape1d,shape0d0,shape0d1,kernel_data,Dint,face_id,U,V);
+      // South Faces
+      face_id = 0;
+      MultBtDBextY(fes,shape1d,shape0d1,shape0d0,kernel_data,Dint,face_id,U,V);
+      // East Faces
+      face_id = 1;
+      MultBtDBextX(fes,shape1d,shape0d0,shape0d1,kernel_data,Dint,face_id,U,V);
+      // West Faces
+      face_id = 3;
+      MultBtDBextX(fes,shape1d,shape0d1,shape0d0,kernel_data,Dint,face_id,U,V);      
    }
 
 private:
@@ -832,6 +934,12 @@ private:
                         DTensor& Dint, int face_id, const Vector& U, Vector& V);
    static void MultBtDBintY(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
                         DTensor& Dint, int face_id, const Vector& U, Vector& V);
+   static void MultBtDBextX(FiniteElementSpace* fes, Tensor2d& B,
+                        Tensor2d& B0dTrial, Tensor2d& B0dtest, KData& kernel_data,
+                        DTensor& D, int face_id, const Vector& U, Vector& V);
+   static void MultBtDBextY(FiniteElementSpace* fes, Tensor2d& B,
+                        Tensor2d& B0dTrial, Tensor2d& B0dtest, KData& kernel_data,
+                        DTensor& D, int face_id, const Vector& U, Vector& V);
 };
 
 

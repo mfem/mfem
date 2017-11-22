@@ -204,8 +204,10 @@ int main(int argc, char *argv[])
    BilinearFormOperator k(&fes);
    //k.AddDomainIntegrator(new EigenPAConvectionIntegrator<2>(&fes,ir_order,velocity, -1.0));
    k.AddDomainIntegrator(new PAConvectionIntegrator<DummyDomainPAK>(&fes,ir_order,velocity, -1.0));
+   // k.AddDomainIntegrator(
+   //       new PADGConvectionFaceIntegrator<DummyFacePAK>(&fes,ir_order,velocity, 1.0, -0.5));
    k.AddDomainIntegrator(
-         new PADGConvectionFaceIntegrator<DummyFacePAK>(&fes,ir_order,velocity, 1.0, -0.5));
+         new PADGConvectionFaceIntegrator2<DummyFacePAK2>(&fes,ir_order,velocity, 1.0, -0.5));
    //No need to do PA
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
@@ -366,26 +368,26 @@ FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b)
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   /*y = 0.;
-   Vector xx(x);
-   int size = xx.Size();
-   int n = size;
-   int order = 1;
-   int dofs = (order+1)*(order+1);
-   for (int i = 0; i < n; ++i)
-   {
-      cout << "cacahuete " << i << endl;
-      xx = 0.;
-      xx(i) = 1000.;
-      // y = M^{-1} (K x + b)
-      K.Mult(xx, z);
-      for (int j = 0; j < z.Size(); ++j)
-      {
-         z(j) = abs(z(j)) < 1e-12 ? 0 : z(j);
-      }
-      z.Print(std::cout,dofs);
-      y += z;
-   }*/
+   // y = 0.;
+   // Vector xx(x);
+   // int size = xx.Size();
+   // int n = size;
+   // int order = 1;
+   // int dofs = (order+1)*(order+1);
+   // for (int i = 0; i < n; ++i)
+   // {
+   //    cout << "cacahuete " << i << endl;
+   //    xx = 0.;
+   //    xx(i) = 1000.;
+   //    // y = M^{-1} (K x + b)
+   //    K.Mult(xx, z);
+   //    for (int j = 0; j < z.Size(); ++j)
+   //    {
+   //       z(j) = abs(z(j)) < 1e-12 ? 0 : z(j);
+   //    }
+   //    z.Print(std::cout,dofs);
+   //    y += z;
+   // }
    K.Mult(x, z);
    z += b;
    M_solver.Mult(z, y);

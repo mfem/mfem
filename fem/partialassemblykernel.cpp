@@ -1537,6 +1537,7 @@ void MultBtDB3(FiniteElementSpace* fes,
 //                                 //
 /////////////////////////////////////
 
+
 void DummyFaceMultBtDB::MultBtDBintX(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
                         DTensor& D, int face_id, const Vector& U, Vector& V)
 {
@@ -1547,9 +1548,9 @@ void DummyFaceMultBtDB::MultBtDBintX(FiniteElementSpace* fes, Tensor2d& B, Tenso
    // number of quadrature points
    int quads1d = B.Width();
    int ind[3];
-   int dimensions[3] = {dofs1d,dofs1d,nbe};
-   DummyTensor T0(3,U.GetData(),dimensions);
-   DummyTensor R(3,V.GetData(),dimensions);
+   // int dimensions[3] = {dofs1d,dofs1d,nbe};
+   DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
+   DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
    Tensor2d T1(dofs1d,nbe),T2(quads1d,nbe),T3(dofs1d,nbe);
    //T1_i2 = B0d^i1 U_i1i2
    for (int e = 0; e < nbe; ++e)
@@ -1558,8 +1559,9 @@ void DummyFaceMultBtDB::MultBtDBintX(FiniteElementSpace* fes, Tensor2d& B, Tenso
       {
          for (int i1 = 0; i1 < dofs1d; ++i1)
          {
-            int ind[3] = {i1,i2,e};
-            T1(i2,e) += B0d(i1,0) * T0(ind);
+            // int ind[3] = {i1,i2,e};
+            // T1(i2,e) += B0d(i1,0) * T0(ind);
+            T1(i2,e) += B0d(i1,0) * T0(i1,i2,e);
          }
       }
    }
@@ -1579,8 +1581,9 @@ void DummyFaceMultBtDB::MultBtDBintX(FiniteElementSpace* fes, Tensor2d& B, Tenso
    {
       for (int k2 = 0; k2 < quads1d; ++k2)
       {
-         int ind[3] = {k2,e,face_id};
-         T2(k2,e) = D(ind) * T2(k2,e);
+         // int ind[3] = {k2,e,face_id};
+         // T2(k2,e) = D(ind) * T2(k2,e);
+         T2(k2,e) = D(k2,e,face_id) * T2(k2,e);
       }
    }
    //T3_j2 = B_j2^k2 T2_k2
@@ -1601,8 +1604,9 @@ void DummyFaceMultBtDB::MultBtDBintX(FiniteElementSpace* fes, Tensor2d& B, Tenso
       {
          for (int j1 = 0; j1 < dofs1d; ++j1)
          {
-            int ind[3] = {j1,j2,e};
-            R(ind) += B0d(j1,0) * T3(j2,e);
+            // int ind[3] = {j1,j2,e};
+            // R(ind) += B0d(j1,0) * T3(j2,e);
+            R(j1,j2,e) += B0d(j1,0) * T3(j2,e);
          }
       }
    }
@@ -1617,11 +1621,10 @@ void DummyFaceMultBtDB::MultBtDBintY(FiniteElementSpace* fes, Tensor2d& B, Tenso
    const int dofs1d = fes->GetFE(0)->GetOrder() + 1;
    // number of quadrature points
    int quads1d = B.Width();
-   int dimensions[3] = {dofs1d,dofs1d,nbe};
-   DummyTensor T0(3,U.GetData(),dimensions);
-   DummyTensor R(3,V.GetData(),dimensions);
+   // int dimensions[3] = {dofs1d,dofs1d,nbe};
+   DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
+   DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
    Tensor2d T1(dofs1d,nbe),T2(quads1d,nbe),T3(dofs1d,nbe);
-   // ToSelf: Essayer un element a la fois
    //T1_i1 = B0d^i2 U_i1i2
    for (int e = 0; e < nbe; ++e)
    {
@@ -1630,8 +1633,9 @@ void DummyFaceMultBtDB::MultBtDBintY(FiniteElementSpace* fes, Tensor2d& B, Tenso
          for (int i1 = 0; i1 < dofs1d; ++i1)
          {
             //TODO: Vectorize
-            int ind[3] = {i1,i2,e};
-            T1(i1,e) += B0d(i2,0) * T0(ind);
+            // int ind[3] = {i1,i2,e};
+            // T1(i1,e) += B0d(i2,0) * T0(ind);
+            T1(i1,e) += B0d(i2,0) * T0(i1,i2,e);
          }
       }
    }
@@ -1651,16 +1655,17 @@ void DummyFaceMultBtDB::MultBtDBintY(FiniteElementSpace* fes, Tensor2d& B, Tenso
    {
       for (int k1 = 0; k1 < quads1d; ++k1)
       {
-         int ind[3] = {k1,e,face_id};
-         T2(k1,e) = D(ind) * T2(k1,e);
+         // int ind[3] = {k1,e,face_id};
+         // T2(k1,e) = D(ind) * T2(k1,e);
+         T2(k1,e) = D(k1,e,face_id) * T2(k1,e);
       }
    }
    //T3_j1 = B^k1_j1 T2_k1
    for (int e = 0; e < nbe; ++e)
    {
-      for (int j1 = 0; j1 < dofs1d; ++j1)
+      for (int k1 = 0; k1 < quads1d; ++k1)
       {
-         for (int k1 = 0; k1 < quads1d; ++k1)
+         for (int j1 = 0; j1 < dofs1d; ++j1)
          {
             T3(j1,e) += B(j1,k1) * T2(k1,e);
          }
@@ -1674,8 +1679,240 @@ void DummyFaceMultBtDB::MultBtDBintY(FiniteElementSpace* fes, Tensor2d& B, Tenso
          for (int j1 = 0; j1 < dofs1d; ++j1)
          {
             //TODO: Vectorize
-            int ind[3] = {j1,j2,e};
-            R(ind) += B0d(j2,0) * T3(j1,e);
+            // int ind[3] = {j1,j2,e};
+            // R(ind) += B0d(j2,0) * T3(j1,e);
+            R(j1,j2,e) += B0d(j2,0) * T3(j1,e);
+         }
+      }
+   }
+}
+
+// void DummyFaceMultBtDB::MultBtDBintY(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+//                         DTensor& D, int face_id, const Vector& U, Vector& V)
+// {
+//    // nunber of elements
+//    const int nbe = fes->GetNE();
+//    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+//    const int dofs1d = fes->GetFE(0)->GetOrder() + 1;
+//    // number of quadrature points
+//    int quads1d = B.Width();
+//    // int dimensions[3] = {dofs1d,dofs1d,nbe};
+//    DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
+//    DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
+//    Vector T1(dofs1d),T2(quads1d),T3(dofs1d);
+//    // ToSelf: Essayer un element a la fois
+//    //T1_i1 = B0d^i2 U_i1i2
+//    for (int e = 0; e < nbe; ++e)
+//    {
+//       for (int i2 = 0; i2 < dofs1d; ++i2)
+//       {
+//          for (int i1 = 0; i1 < dofs1d; ++i1)
+//          {
+//             //TODO: Vectorize
+//             T1(i1) += B0d(i2,0) * T0(i1,i2,e);
+//          }
+//       }
+//       for (int k1 = 0; k1 < quads1d; ++k1)
+//       {
+//          for (int i1 = 0; i1 < dofs1d; ++i1)
+//          {
+//             T2(k1) += B(i1,k1) * T1(i1);
+//          }
+//       }
+//       for (int k1 = 0; k1 < quads1d; ++k1)
+//       {
+//          T2(k1) = D(k1,e,face_id) * T2(k1);
+//       }
+//       for (int j1 = 0; j1 < dofs1d; ++j1)
+//       {
+//          for (int k1 = 0; k1 < quads1d; ++k1)
+//          {
+//             T3(j1) += B(j1,k1) * T2(k1);
+//          }
+//       }
+//       for (int j2 = 0; j2 < dofs1d; ++j2)
+//       {
+//          for (int j1 = 0; j1 < dofs1d; ++j1)
+//          {
+//             //TODO: Vectorize
+//             R(j1,j2,e) += B0d(j2,0) * T3(j1);
+//          }
+//       }
+//    }
+// }
+
+void DummyFaceMultBtDB::MultBtDBextX(FiniteElementSpace* fes, Tensor2d& B,
+                        Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
+                        DTensor& D, int face_id, const Vector& U, Vector& V)
+{
+   // nunber of elements
+   const int nbe = fes->GetNE();
+   // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   const int dofs1d = fes->GetFE(0)->GetOrder() + 1;
+   // number of quadrature points
+   int quads1d = B.Width();
+   int ind[3];
+   // int dimensions[3] = {dofs1d,dofs1d,nbe};
+   DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
+   DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
+   Tensor2d T1(dofs1d,nbe),T2(quads1d,nbe),T3(dofs1d,nbe);
+   // Indirections
+   DTensor T0p(dofs1d,dofs1d,nbe);
+   for (int e = 0; e < nbe; ++e)
+   {
+      int target = kernel_data(e,face_id).indirection;
+      for (int i2 = 0; i2 < dofs1d; ++i2)
+      {
+         for (int i1 = 0; i1 < dofs1d; ++i1)
+         {
+            T0p(i1,i2,target) = T0(i1,i2,e);
+         }
+      }
+   }
+   //T1_i2 = B0d^i1 U_i1i2
+   for (int e = 0; e < nbe; ++e)
+   {
+      for (int i2 = 0; i2 < dofs1d; ++i2)
+      {
+         for (int i1 = 0; i1 < dofs1d; ++i1)
+         {
+            // int ind[3] = {i1,i2,e};
+            // T1(i2,e) += B0d(i1,0) * T0(ind);
+            T1(i2,e) += B0dTrial(i1,0) * T0p(i1,i2,e);
+         }
+      }
+   }
+   //T2_k2 = B_k2^i2 T1_k1
+   for (int e = 0; e < nbe; ++e)
+   {
+      for (int i2 = 0; i2 < dofs1d; ++i2)
+      {
+         for (int k2 = 0; k2 < quads1d; ++k2)
+         {
+            T2(k2,e) += B(i2,k2) * T1(i2,e);
+         }
+      }
+   }
+   //T2_k2 = D_k2 T2_k2
+   for (int e = 0; e < nbe; ++e)
+   {
+      for (int k2 = 0; k2 < quads1d; ++k2)
+      {
+         // int ind[3] = {k2,e,face_id};
+         // T2(k2,e) = D(ind) * T2(k2,e);
+         T2(k2,e) = D(k2,e,face_id) * T2(k2,e);
+      }
+   }
+   //T3_j2 = B_j2^k2 T2_k2
+   for (int e = 0; e < nbe; ++e)
+   {
+      for (int k2 = 0; k2 < quads1d; ++k2)
+      {
+         for (int j2 = 0; j2 < dofs1d; ++j2)
+         {
+            T3(j2,e) += B(j2,k2) * T2(k2,e);
+         }
+      }
+   }
+   //R_j1j2 = B0d_j1 T3_j2
+   for (int e = 0; e < nbe; ++e)
+   {
+      for (int j2 = 0; j2 < dofs1d; ++j2)
+      {
+         for (int j1 = 0; j1 < dofs1d; ++j1)
+         {
+            // int ind[3] = {j1,j2,e};
+            // R(ind) += B0d(j1,0) * T3(j2,e);
+            R(j1,j2,e) += B0dTest(j1,0) * T3(j2,e);
+         }
+      }
+   }
+}
+
+void DummyFaceMultBtDB::MultBtDBextY(FiniteElementSpace* fes, Tensor2d& B,
+                        Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
+                        DTensor& D, int face_id, const Vector& U, Vector& V)
+{
+   // nunber of elements
+   const int nbe = fes->GetNE();
+   // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   const int dofs1d = fes->GetFE(0)->GetOrder() + 1;
+   // number of quadrature points
+   int quads1d = B.Width();
+   // int dimensions[3] = {dofs1d,dofs1d,nbe};
+   DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
+   DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
+   Tensor2d T1(dofs1d,nbe),T2(quads1d,nbe),T3(dofs1d,nbe);
+   // Indirections
+   DTensor T0p(dofs1d,dofs1d,nbe);
+   for (int e = 0; e < nbe; ++e)
+   {
+      int target = kernel_data(e,face_id).indirection;
+      for (int i2 = 0; i2 < dofs1d; ++i2)
+      {
+         for (int i1 = 0; i1 < dofs1d; ++i1)
+         {
+            T0p(i1,i2,target) = T0(i1,i2,e);
+         }
+      }
+   }
+   //T1_i1 = B0d^i2 U_i1i2
+   for (int e = 0; e < nbe; ++e)
+   {
+      for (int i2 = 0; i2 < dofs1d; ++i2)
+      {
+         for (int i1 = 0; i1 < dofs1d; ++i1)
+         {
+            //TODO: Vectorize
+            // int ind[3] = {i1,i2,e};
+            // T1(i1,e) += B0d(i2,0) * T0(ind);
+            T1(i1,e) += B0dTrial(i2,0) * T0p(i1,i2,e);
+         }
+      }
+   }
+   //T2_k1 = B_k1^i1 T1_i1
+   for (int e = 0; e < nbe; ++e)
+   {
+      for (int k1 = 0; k1 < quads1d; ++k1)
+      {
+         for (int i1 = 0; i1 < dofs1d; ++i1)
+         {
+            T2(k1,e) += B(i1,k1) * T1(i1,e);
+         }
+      }
+   }
+   //T2_k1 = D_k1 * T2_k1
+   for (int e = 0; e < nbe; ++e)
+   {
+      for (int k1 = 0; k1 < quads1d; ++k1)
+      {
+         // int ind[3] = {k1,e,face_id};
+         // T2(k1,e) = D(ind) * T2(k1,e);
+         T2(k1,e) = D(k1,e,face_id) * T2(k1,e);
+      }
+   }
+   //T3_j1 = B^k1_j1 T2_k1
+   for (int e = 0; e < nbe; ++e)
+   {
+      for (int k1 = 0; k1 < quads1d; ++k1)
+      {
+         for (int j1 = 0; j1 < dofs1d; ++j1)
+         {
+            T3(j1,e) += B(j1,k1) * T2(k1,e);
+         }
+      }
+   }
+   //T4_j1j2 = B0d_j2 T3_j1
+   for (int e = 0; e < nbe; ++e)
+   {
+      for (int j2 = 0; j2 < dofs1d; ++j2)
+      {
+         for (int j1 = 0; j1 < dofs1d; ++j1)
+         {
+            //TODO: Vectorize
+            // int ind[3] = {j1,j2,e};
+            // R(ind) += B0d(j2,0) * T3(j1,e);
+            R(j1,j2,e) += B0dTest(j2,0) * T3(j1,e);
          }
       }
    }
