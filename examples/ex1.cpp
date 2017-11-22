@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
       {
          fec = mesh->GetNodes()->OwnFEC();
          own_fec = 0;
-         cout << "Using isoparametric FEs: q" << fec->Name() << endl;
+         cout << "Using isoparametric FEs: " << fec->Name() << endl;
       }
       else
       {

@@ -2525,25 +2525,77 @@ void NURBSExtension::SetKnotsFromPatches()
    GenerateBdrElementDofTable();
 }
 
-void NURBSExtension::ToPatches(const GridFunction &sol)
+void NURBSExtension::LoadSolution(std::istream &input, GridFunction &sol) const
 {
-   MFEM_VERIFY(sol.FESpace()->GetNURBSext() == this, "");
-   MFEM_VERIFY(patches.Size() == 0, "");
-   MFEM_VERIFY(sol.FESpace()->GetOrdering() == Ordering::byVDIM,
-               "Ordering::byNODES is not implemented yet");
+   const FiniteElementSpace *fes = sol.FESpace();
+   MFEM_VERIFY(fes->GetNURBSext() == this, "");
 
-   GetPatchNets(sol, sol.FESpace()->GetVDim());
+   sol.SetSize(fes->GetVSize());
+
+   Array<const KnotVector *> kv(Dimension());
+   NURBSPatchMap p2g(this);
+   const int vdim = fes->GetVDim();
+
+   for (int p = 0; p < GetNP(); p++)
+   {
+      skip_comment_lines(input, '#');
+
+      p2g.SetPatchDofMap(p, kv);
+      const int nx = kv[0]->GetNCP();
+      const int ny = kv[1]->GetNCP();
+      const int nz = (kv.Size() == 2) ? 1 : kv[2]->GetNCP();
+      for (int k = 0; k < nz; k++)
+      {
+         for (int j = 0; j < ny; j++)
+         {
+            for (int i = 0; i < nx; i++)
+            {
+               const int l = (kv.Size() == 2) ? p2g(i,j) : p2g(i,j,k);
+               for (int vd = 0; vd < vdim; vd++)
+               {
+                  input >> sol(fes->DofToVDof(l,vd));
+               }
+            }
+         }
+      }
+   }
 }
 
-void NURBSExtension::FromPatches(GridFunction &sol)
+void NURBSExtension::PrintSolution(const GridFunction &sol, std::ostream &out)
+const
 {
-   MFEM_VERIFY(sol.FESpace()->GetNURBSext() == this, "");
-   MFEM_VERIFY(patches.Size() > 0, "");
-   MFEM_VERIFY(sol.FESpace()->GetOrdering() == Ordering::byVDIM,
-               "Ordering::byNODES is not implemented yet");
+   const FiniteElementSpace *fes = sol.FESpace();
+   MFEM_VERIFY(fes->GetNURBSext() == this, "");
 
-   SetSolutionVector(sol, sol.FESpace()->GetVDim());
-   patches.SetSize(0);
+   Array<const KnotVector *> kv(Dimension());
+   NURBSPatchMap p2g(this);
+   const int vdim = fes->GetVDim();
+
+   for (int p = 0; p < GetNP(); p++)
+   {
+      out << "\n# patch " << p << "\n\n";
+
+      p2g.SetPatchDofMap(p, kv);
+      const int nx = kv[0]->GetNCP();
+      const int ny = kv[1]->GetNCP();
+      const int nz = (kv.Size() == 2) ? 1 : kv[2]->GetNCP();
+      for (int k = 0; k < nz; k++)
+      {
+         for (int j = 0; j < ny; j++)
+         {
+            for (int i = 0; i < nx; i++)
+            {
+               const int l = (kv.Size() == 2) ? p2g(i,j) : p2g(i,j,k);
+               out << sol(fes->DofToVDof(l,0));
+               for (int vd = 1; vd < vdim; vd++)
+               {
+                  out << ' ' << sol(fes->DofToVDof(l,vd));
+               }
+               out << '\n';
+            }
+         }
+      }
+   }
 }
 
 void NURBSExtension::DegreeElevate(int rel_degree, int degree)
@@ -2625,7 +2677,7 @@ void NURBSExtension::Get2DPatchNets(const Vector &coords, int vdim)
       {
          for (int i = 0; i < kv[0]->GetNCP(); i++)
          {
-            int l = p2g(i,j);
+            const int l = p2g(i,j);
             for (int d = 0; d < vdim; d++)
             {
                Patch(i,j,d) = coords(l*vdim + d)*weights(l);
@@ -2654,7 +2706,7 @@ void NURBSExtension::Get3DPatchNets(const Vector &coords, int vdim)
          {
             for (int i = 0; i < kv[0]->GetNCP(); i++)
             {
-               int l = p2g(i,j,k);
+               const int l = p2g(i,j,k);
                for (int d = 0; d < vdim; d++)
                {
                   Patch(i,j,k,d) = coords(l*vdim + d)*weights(l);
@@ -2688,12 +2740,13 @@ void NURBSExtension::Set2DSolutionVector(Vector &coords, int vdim)
    {
       p2g.SetPatchDofMap(p, kv);
       NURBSPatch &Patch = *patches[p];
+      MFEM_ASSERT(vdim+1 == Patch.GetNC(), "");
 
       for (int j = 0; j < kv[1]->GetNCP(); j++)
       {
          for (int i = 0; i < kv[0]->GetNCP(); i++)
          {
-            int l = p2g(i,j);
+            const int l = p2g(i,j);
             for (int d = 0; d < vdim; d++)
             {
                coords(l*vdim + d) = Patch(i,j,d)/Patch(i,j,vdim);
@@ -2715,6 +2768,7 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
    {
       p2g.SetPatchDofMap(p, kv);
       NURBSPatch &Patch = *patches[p];
+      MFEM_ASSERT(vdim+1 == Patch.GetNC(), "");
 
       for (int k = 0; k < kv[2]->GetNCP(); k++)
       {
@@ -2722,7 +2776,7 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
          {
             for (int i = 0; i < kv[0]->GetNCP(); i++)
             {
-               int l = p2g(i,j,k);
+               const int l = p2g(i,j,k);
                for (int d = 0; d < vdim; d++)
                {
                   coords(l*vdim + d) = Patch(i,j,k,d)/Patch(i,j,k,vdim);
