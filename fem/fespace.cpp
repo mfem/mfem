@@ -1566,7 +1566,7 @@ void FiniteElementSpace::Update(bool want_transform)
 
 void FiniteElementSpace::Save(std::ostream &out) const
 {
-   int fes_format = 90;
+   int fes_format = 90; // the original format, v0.9
    bool nurbs_unit_weights = false;
 
    // Determine the format that should be used.
@@ -1586,7 +1586,7 @@ void FiniteElementSpace::Save(std::ostream &out) const
       if (NURBSext->GetOrder() == NURBSFECollection::VariableOrder ||
           (NURBSext != mesh->NURBSext && !nurbs_unit_weights))
       {
-         fes_format = 100;
+         fes_format = 100; // v1.0 format
       }
    }
 
@@ -1596,7 +1596,7 @@ void FiniteElementSpace::Save(std::ostream &out) const
        << "VDim: " << vdim << '\n'
        << "Ordering: " << ordering << '\n';
 
-   if (fes_format == 100)
+   if (fes_format == 100) // v1.0
    {
       if (!NURBSext)
       {
@@ -1649,13 +1649,13 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    getline(input, buff, ' '); // 'Ordering:'
    input >> ord;
 
+   NURBSFECollection *nurbs_fec = dynamic_cast<NURBSFECollection*>(r_fec);
    NURBSExtension *NURBSext = NULL;
-   if (fes_format == 90)
+   if (fes_format == 90) // original format, v0.9
    {
-      NURBSFECollection *nurbs_fec = dynamic_cast<NURBSFECollection*>(r_fec);
       if (nurbs_fec)
       {
-         MFEM_VERIFY(m->NURBSext, "NURBS FE Collection requires a NURBS mesh!");
+         MFEM_VERIFY(m->NURBSext, "NURBS FE collection requires a NURBS mesh!");
          const int order = nurbs_fec->GetOrder();
          if (order != m->NURBSext->GetOrder() &&
              order != NURBSFECollection::VariableOrder)
@@ -1664,7 +1664,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
          }
       }
    }
-   else if (fes_format == 100)
+   else if (fes_format == 100) // v1.0
    {
       while (1)
       {
@@ -1674,7 +1674,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
          filter_dos(buff);
          if (buff == "NURBS_order" || buff == "NURBS_orders")
          {
-            MFEM_VERIFY(dynamic_cast<NURBSFECollection*>(r_fec),
+            MFEM_VERIFY(nurbs_fec,
                         buff << ": NURBS FE collection is required!");
             MFEM_VERIFY(m->NURBSext, buff << ": NURBS mesh is required!");
             MFEM_VERIFY(!NURBSext, buff << ": order redefinition!");
@@ -1699,6 +1699,8 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
          }
          else if (buff == "element_orders")
          {
+            MFEM_VERIFY(!nurbs_fec, "section element_orders cannot be used "
+                        "with a NURBS FE collection");
             MFEM_ABORT("element_orders: not implemented yet!");
          }
          else if (buff == "End: MFEM FiniteElementSpace v1.0")
