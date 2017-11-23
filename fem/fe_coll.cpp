@@ -1649,7 +1649,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
          {
             H1_Elements[Geometry::TETRAHEDRON] =
                new H1_TetrahedronElement(p, pt_type);
-            H1_Elements[Geometry::PRISM] = new H1_PrismElement(p);
+            H1_Elements[Geometry::PRISM] = new H1_PrismElement(p, pt_type);
             H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, pt_type);
          }
       }
