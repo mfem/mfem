@@ -3270,57 +3270,57 @@ void ParMesh::PriUniformRefinement()
          for (i = 0; i < group_sface.RowSize(group); i++)
          {
             shared_faces[group_faces[i]]->GetVertices(v);
-	    attr = shared_faces[group_faces[i]]->GetAttribute();
-	    if (shared_faces[group_faces[i]]->GetType() == Element::TRIANGLE)
-	    {
-	      // add the refinement edges
-	      m[0] = oedge + v_to_v(v[0], v[1]);
-	      m[1] = oedge + v_to_v(v[1], v[2]);
-	      m[2] = oedge + v_to_v(v[2], v[0]);
-	      shared_edges.Append(new Segment(m[0], m[1], attr));
-	      group_edges.Append(sedge_ledge.Append(-1)-1);
-	      shared_edges.Append(new Segment(m[1], m[2], attr));
-	      group_edges.Append(sedge_ledge.Append(-1)-1);
-	      shared_edges.Append(new Segment(m[0], m[2], attr));
-	      group_edges.Append(sedge_ledge.Append(-1)-1);
-	      // update faces
-	      newv[0] = v[0]; newv[1] = m[0]; newv[2] = m[2];
-	      shared_faces[group_faces[i]]->SetVertices(newv);
-	      shared_faces.Append(new Triangle(m[1],m[2],m[0],attr));
-	      group_faces.Append(sface_lface.Append(-1)-1);
-	      shared_faces.Append(new Triangle(m[0],v[1],m[1],attr));
-	      group_faces.Append(sface_lface.Append(-1)-1);
-	      shared_faces.Append(new Triangle(m[2],m[1],v[2],attr));
-	      group_faces.Append(sface_lface.Append(-1)-1);
-	    }
-	    else
-	    {
-	      m[0] = oface+(*faces_tbl)(v[0], v[1], v[2], v[3]);
-	      // add a vertex
-	      group_verts.Append(svert_lvert.Append(m[0])-1);
-	      // add the refinement edges
-	      m[1] = oedge + v_to_v(v[0], v[1]);
-	      m[2] = oedge + v_to_v(v[1], v[2]);
-	      m[3] = oedge + v_to_v(v[2], v[3]);
-	      m[4] = oedge + v_to_v(v[3], v[0]);
-	      shared_edges.Append(new Segment(m[1], m[0], attr));
-	      group_edges.Append(sedge_ledge.Append(-1)-1);
-	      shared_edges.Append(new Segment(m[2], m[0], attr));
-	      group_edges.Append(sedge_ledge.Append(-1)-1);
-	      shared_edges.Append(new Segment(m[3], m[0], attr));
-	      group_edges.Append(sedge_ledge.Append(-1)-1);
-	      shared_edges.Append(new Segment(m[4], m[0], attr));
-	      group_edges.Append(sedge_ledge.Append(-1)-1);
-	      // update faces
-	      newv[0] = v[0]; newv[1] = m[1]; newv[2] = m[0]; newv[3] = m[4];
-	      shared_faces[group_faces[i]]->SetVertices(newv);
-	      shared_faces.Append(new Quadrilateral(m[1],v[1],m[2],m[0],attr));
-	      group_faces.Append(sface_lface.Append(-1)-1);
-	      shared_faces.Append(new Quadrilateral(m[0],m[2],v[2],m[3],attr));
-	      group_faces.Append(sface_lface.Append(-1)-1);
-	      shared_faces.Append(new Quadrilateral(m[4],m[0],m[3],v[3],attr));
-	      group_faces.Append(sface_lface.Append(-1)-1);
-	    }
+            attr = shared_faces[group_faces[i]]->GetAttribute();
+            if (shared_faces[group_faces[i]]->GetType() == Element::TRIANGLE)
+            {
+               // add the refinement edges
+               m[0] = oedge + v_to_v(v[0], v[1]);
+               m[1] = oedge + v_to_v(v[1], v[2]);
+               m[2] = oedge + v_to_v(v[2], v[0]);
+               shared_edges.Append(new Segment(m[0], m[1], attr));
+               group_edges.Append(sedge_ledge.Append(-1)-1);
+               shared_edges.Append(new Segment(m[1], m[2], attr));
+               group_edges.Append(sedge_ledge.Append(-1)-1);
+               shared_edges.Append(new Segment(m[0], m[2], attr));
+               group_edges.Append(sedge_ledge.Append(-1)-1);
+               // update faces
+               newv[0] = v[0]; newv[1] = m[0]; newv[2] = m[2];
+               shared_faces[group_faces[i]]->SetVertices(newv);
+               shared_faces.Append(new Triangle(m[1],m[2],m[0],attr));
+               group_faces.Append(sface_lface.Append(-1)-1);
+               shared_faces.Append(new Triangle(m[0],v[1],m[1],attr));
+               group_faces.Append(sface_lface.Append(-1)-1);
+               shared_faces.Append(new Triangle(m[2],m[1],v[2],attr));
+               group_faces.Append(sface_lface.Append(-1)-1);
+            }
+            else
+            {
+               m[0] = oface+(*faces_tbl)(v[0], v[1], v[2], v[3]);
+               // add a vertex
+               group_verts.Append(svert_lvert.Append(m[0])-1);
+               // add the refinement edges
+               m[1] = oedge + v_to_v(v[0], v[1]);
+               m[2] = oedge + v_to_v(v[1], v[2]);
+               m[3] = oedge + v_to_v(v[2], v[3]);
+               m[4] = oedge + v_to_v(v[3], v[0]);
+               shared_edges.Append(new Segment(m[1], m[0], attr));
+               group_edges.Append(sedge_ledge.Append(-1)-1);
+               shared_edges.Append(new Segment(m[2], m[0], attr));
+               group_edges.Append(sedge_ledge.Append(-1)-1);
+               shared_edges.Append(new Segment(m[3], m[0], attr));
+               group_edges.Append(sedge_ledge.Append(-1)-1);
+               shared_edges.Append(new Segment(m[4], m[0], attr));
+               group_edges.Append(sedge_ledge.Append(-1)-1);
+               // update faces
+               newv[0] = v[0]; newv[1] = m[1]; newv[2] = m[0]; newv[3] = m[4];
+               shared_faces[group_faces[i]]->SetVertices(newv);
+               shared_faces.Append(new Quadrilateral(m[1],v[1],m[2],m[0],attr));
+               group_faces.Append(sface_lface.Append(-1)-1);
+               shared_faces.Append(new Quadrilateral(m[0],m[2],v[2],m[3],attr));
+               group_faces.Append(sface_lface.Append(-1)-1);
+               shared_faces.Append(new Quadrilateral(m[4],m[0],m[3],v[3],attr));
+               group_faces.Append(sface_lface.Append(-1)-1);
+            }
          }
 
          I_group_svert[group+1] = I_group_svert[group] + group_verts.Size();
@@ -3359,14 +3359,14 @@ void ParMesh::PriUniformRefinement()
       for (i = 0; i < shared_faces.Size(); i++)
       {
          shared_faces[i]->GetVertices(v);
-	 if (shared_faces[i]->GetType() == Element::TRIANGLE)
-	 {
-	    sface_lface[i] = (*faces_tbl)(v[0], v[1], v[2]);
-	 }
-	 else
-	 {
-	    sface_lface[i] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
-	 }
+         if (shared_faces[i]->GetType() == Element::TRIANGLE)
+         {
+            sface_lface[i] = (*faces_tbl)(v[0], v[1], v[2]);
+         }
+         else
+         {
+            sface_lface[i] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
+         }
       }
       delete faces_tbl;
 

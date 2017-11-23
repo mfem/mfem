@@ -3029,7 +3029,7 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
    }
 
    InitBaseGeom();
-   
+
    // set the mesh type ('meshgen')
    meshgen = 0;
    for (i = 0; i < num_pieces; i++)
@@ -6072,17 +6072,17 @@ void Mesh::PriUniformRefinement()
    {
       if (faces[i]->GetType() == Element::TRIANGLE)
       {
-	 NumOfTriFaces++;
+         NumOfTriFaces++;
       }
       else
       {
-	 f2qf[i] = NumOfQuadFaces;
-	 NumOfQuadFaces++;
+         f2qf[i] = NumOfQuadFaces;
+         NumOfQuadFaces++;
       }
    }
    MFEM_VERIFY(NumOfFaces == NumOfTriFaces + NumOfQuadFaces,
-	       "Prism face counts don't match!");
-   
+               "Prism face counts don't match!");
+
    int oedge = NumOfVertices;
    int oface = oedge + NumOfEdges;
 
@@ -6129,28 +6129,28 @@ void Mesh::PriUniformRefinement()
       int qf2 = f2qf[f[2]];
       int qf3 = f2qf[f[3]];
       int qf4 = f2qf[f[4]];
-      
+
       elements[j+0] = new Prism(oedge+e[1], oedge+e[2], oedge+e[0],
-				oface+qf3, oface+qf4, oface+qf2,
-				attr);
+                                oface+qf3, oface+qf4, oface+qf2,
+                                attr);
       elements[j+1] = new Prism(oedge+e[0], v[1], oedge+e[1],
-				oface+qf2, oedge+e[7], oface+qf3,
-				attr);
+                                oface+qf2, oedge+e[7], oface+qf3,
+                                attr);
       elements[j+2] = new Prism(oedge+e[2], oedge+e[1], v[2],
-				oface+qf4, oface+qf3, oedge+e[8],
-				attr);
+                                oface+qf4, oface+qf3, oedge+e[8],
+                                attr);
       elements[j+3] = new Prism(oedge+e[6], oface+qf2, oface+qf4,
-				v[3], oedge+e[3], oedge+e[5],
-				attr);
+                                v[3], oedge+e[3], oedge+e[5],
+                                attr);
       elements[j+4] = new Prism(oface+qf3, oface+qf4, oface+qf2,
-				oedge+e[4], oedge+e[5], oedge+e[3],
+                                oedge+e[4], oedge+e[5], oedge+e[3],
                                 attr);
       elements[j+5] = new Prism(oface+qf2, oedge+e[7], oface+qf3,
-				oedge+e[3], v[4], oedge+e[4],
-				attr);
+                                oedge+e[3], v[4], oedge+e[4],
+                                attr);
       elements[j+6] = new Prism(oface+qf4, oface+qf3, oedge+e[8],
-				oedge+e[5], oedge+e[4], v[5],
-				attr);
+                                oedge+e[5], oedge+e[4], v[5],
+                                attr);
 
       v[1] = oedge+e[0];
       v[2] = oedge+e[2];
@@ -6170,39 +6170,39 @@ void Mesh::PriUniformRefinement()
 
       if (boundary[i]->GetType() == Element::TRIANGLE)
       {
-	 boundary[j+0] = new Triangle(oedge+e[1], oedge+e[2], oedge+e[0], attr);
-	 boundary[j+1] = new Triangle(oedge+e[0], v[1], oedge+e[1], attr);
-	 boundary[j+2] = new Triangle(oedge+e[2], oedge+e[1], v[2], attr);
+         boundary[j+0] = new Triangle(oedge+e[1], oedge+e[2], oedge+e[0], attr);
+         boundary[j+1] = new Triangle(oedge+e[0], v[1], oedge+e[1], attr);
+         boundary[j+2] = new Triangle(oedge+e[2], oedge+e[1], v[2], attr);
 
-	 v[1] = oedge+e[0];
-	 v[2] = oedge+e[2];
+         v[1] = oedge+e[0];
+         v[2] = oedge+e[2];
       }
       else if (boundary[i]->GetType() == Element::QUADRILATERAL)
       {
-	 int qf = f2qf[f[0]];
-	 boundary[j+0] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
-					   oface+qf, attr);
-	 boundary[j+1] = new Quadrilateral(oface+qf, oedge+e[1], v[2],
-					   oedge+e[2], attr);
-	 boundary[j+2] = new Quadrilateral(oedge+e[3], oface+qf,
-					   oedge+e[2], v[3], attr);
+         int qf = f2qf[f[0]];
+         boundary[j+0] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
+                                           oface+qf, attr);
+         boundary[j+1] = new Quadrilateral(oface+qf, oedge+e[1], v[2],
+                                           oedge+e[2], attr);
+         boundary[j+2] = new Quadrilateral(oedge+e[3], oface+qf,
+                                           oedge+e[2], v[3], attr);
 
-	 v[1] = oedge+e[0];
-	 v[2] = oface+qf;
-	 v[3] = oedge+e[3];
+         v[1] = oedge+e[0];
+         v[2] = oface+qf;
+         v[3] = oedge+e[3];
       }
       else
       {
- 	 MFEM_ABORT("boundary Element is not a triangle or a quad!");
+         MFEM_ABORT("boundary Element is not a triangle or a quad!");
       }
-      
+
    }
 
    static const double A = 0.0, B = 0.5, C = 1.0;
    static double pri_children[3*6*8] =
    {
-      A,B,A, A,A,A, B,B,A, A,B,B, A,A,B, B,B,B, 
-      B,A,A, B,B,A, A,A,A, B,A,B, B,B,B, A,A,B, 
+      A,B,A, A,A,A, B,B,A, A,B,B, A,A,B, B,B,B,
+      B,A,A, B,B,A, A,A,A, B,A,B, B,B,B, A,A,B,
       B,A,A, C,A,A, B,B,A, B,A,B, C,A,B, B,B,B,
       A,B,A, B,B,A, A,C,A, A,B,B, B,B,B, A,C,B,
       A,B,B, A,A,B, B,B,B, A,B,C, A,A,C, B,B,C,

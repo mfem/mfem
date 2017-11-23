@@ -1083,8 +1083,8 @@ void FiniteElementSpace::Construct()
    {
       Geometry::Type face_geom = mesh->GetFaceBaseGeometry(-1);
       MFEM_VERIFY(face_geom != Geometry::INVALID,
-		  "Invalid face geometry!");
-      
+                  "Invalid face geometry!");
+
       if ( face_geom != Geometry::MIXED )
       {
          // All faces are the same type thus we do not need to generate
