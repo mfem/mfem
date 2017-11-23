@@ -262,12 +262,12 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    {
       if (name[5] != '\0')
       {
-         // Fixed order nurbs collection
+         // "NURBS" + "number" --> fixed order nurbs collection
          fec = new NURBSFECollection(atoi(name + 5));
       }
       else
       {
-         // Variable order nurbs collection
+         // "NURBS" --> variable order nurbs collection
          fec = new NURBSFECollection();
       }
    }
