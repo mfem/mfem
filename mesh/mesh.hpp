@@ -699,7 +699,7 @@ public:
    Geometry::Type GetFaceBaseGeometry(int i = 0) const
    {
       return ( i >= 0 && i < GetNFaces() ) ?
-             GetFace(i)->GetGeometryType() : BaseGeom;
+             GetFace(i)->GetGeometryType() : BaseFaceGeom;
    }
 
    Geometry::Type GetElementBaseGeometry(int i = 0) const
