@@ -575,6 +575,8 @@ void Mesh::GetLocalTriToPriTransformation(
 
    Transf.SetFE(&TriangleFE);
    //  (i/64) is the local face no. in the pri
+   MFEM_VERIFY(i < 128, "Local face index " << i/64
+	       << " is not a triangular face of a prism.");
    const int *pv = pri_t::FaceVert[i/64];
    //  (i%64) is the orientation of the prism face
    //         w.r.t. the face element
@@ -619,6 +621,8 @@ void Mesh::GetLocalQuadToPriTransformation(
 
    Transf.SetFE(&QuadrilateralFE);
    //  (i/64) is the local face no. in the pri
+   MFEM_VERIFY(i >= 128, "Local face index " << i/64
+	       << " is not aquadrilateral face of a prism.");
    const int *pv = pri_t::FaceVert[i/64];
    //  (i%64) is the orientation of the quad
    const int *qo = quad_t::Orient[i%64];
@@ -838,7 +842,7 @@ void Mesh::SetEmpty()
 {
    // Members not touched by Init() or InitTables()
    Dim = spaceDim = 0;
-   BaseGeom = BaseBdrGeom = Geometry::INVALID;
+   BaseGeom = BaseBdrGeom = BaseFaceGeom = Geometry::INVALID;
    meshgen = 0;
    NumOfFaces = 0;
 
@@ -1204,7 +1208,8 @@ void Mesh::FinalizeTriMesh(int generate_edges, int refine, bool fix_orientation)
 
    BaseGeom = Geometry::TRIANGLE;
    BaseBdrGeom = Geometry::SEGMENT;
-
+   BaseFaceGeom = Geometry::SEGMENT;
+   
    meshgen = 1;
 }
 
@@ -1235,6 +1240,7 @@ void Mesh::FinalizeQuadMesh(int generate_edges, int refine,
 
    BaseGeom = Geometry::SQUARE;
    BaseBdrGeom = Geometry::SEGMENT;
+   BaseFaceGeom = Geometry::SEGMENT;
 
    meshgen = 2;
 }
@@ -1814,6 +1820,7 @@ void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
 
    BaseGeom = Geometry::TETRAHEDRON;
    BaseBdrGeom = Geometry::TRIANGLE;
+   BaseFaceGeom = Geometry::TRIANGLE;
 
    meshgen = 1;
 }
@@ -1858,6 +1865,7 @@ void Mesh::FinalizePriMesh(int generate_edges, int refine, bool fix_orientation)
 
    BaseGeom = Geometry::PRISM;
    BaseBdrGeom = Geometry::MIXED;
+   BaseFaceGeom = Geometry::MIXED;
 
    meshgen = 4;
 }
@@ -1891,6 +1899,7 @@ void Mesh::FinalizeHexMesh(int generate_edges, int refine, bool fix_orientation)
 
    BaseGeom = Geometry::CUBE;
    BaseBdrGeom = Geometry::SQUARE;
+   BaseFaceGeom = Geometry::SQUARE;
 
    meshgen = 2;
 }
@@ -2260,6 +2269,7 @@ void Mesh::Make2D(int nx, int ny, Element::Type type, int generate_edges,
       NumOfBdrElements = 2 * nx + 2 * ny;
       BaseGeom = Geometry::SQUARE;
       BaseBdrGeom = Geometry::SEGMENT;
+      BaseFaceGeom = Geometry::SEGMENT;
 
       vertices.SetSize(NumOfVertices);
       elements.SetSize(NumOfElements);
@@ -2320,6 +2330,7 @@ void Mesh::Make2D(int nx, int ny, Element::Type type, int generate_edges,
       NumOfBdrElements = 2 * nx + 2 * ny;
       BaseGeom = Geometry::TRIANGLE;
       BaseBdrGeom = Geometry::SEGMENT;
+      BaseFaceGeom = Geometry::SEGMENT;
 
       vertices.SetSize(NumOfVertices);
       elements.SetSize(NumOfElements);
@@ -2413,6 +2424,7 @@ void Mesh::Make1D(int n, double sx)
 
    BaseGeom = Geometry::SEGMENT;
    BaseBdrGeom = Geometry::POINT;
+   BaseFaceGeom = Geometry::POINT;
 
    meshgen = 1;
 
