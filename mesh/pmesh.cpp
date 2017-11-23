@@ -132,6 +132,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
    BaseGeom = mesh.BaseGeom;
    BaseBdrGeom = mesh.BaseBdrGeom;
+   BaseFaceGeom = mesh.BaseFaceGeom;
 
    ncmesh = pncmesh = NULL;
 

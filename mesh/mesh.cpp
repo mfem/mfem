@@ -818,7 +818,7 @@ void Mesh::Init()
    NumOfVertices = -1;
    NumOfElements = NumOfBdrElements = 0;
    NumOfEdges = NumOfFaces = 0;
-   BaseGeom = BaseBdrGeom = Geometry::INVALID;
+   BaseGeom = BaseBdrGeom = BaseFaceGeom = Geometry::INVALID;
    meshgen = 0;
    sequence = 0;
    Nodes = NULL;
@@ -1000,6 +1000,7 @@ void Mesh::InitBaseGeom()
          BaseFaceGeom = Geometry::SQUARE;
          break;
       case Geometry::PRISM:
+      case Geometry::MIXED:
          BaseFaceGeom = Geometry::MIXED;
          break;
       default:
@@ -2462,6 +2463,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 
    BaseGeom = mesh.BaseGeom;
    BaseBdrGeom = mesh.BaseBdrGeom;
+   BaseFaceGeom = mesh.BaseFaceGeom;
 
    meshgen = mesh.meshgen;
 
@@ -2916,9 +2918,6 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
    Dim = mesh_array[0]->Dimension();
    spaceDim = mesh_array[0]->SpaceDimension();
 
-   BaseGeom = mesh_array[0]->BaseGeom;
-   BaseBdrGeom = mesh_array[0]->BaseBdrGeom;
-
    if (mesh_array[0]->NURBSext)
    {
       // assuming the pieces form a partition of a NURBS mesh
@@ -3029,6 +3028,8 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
       }
    }
 
+   InitBaseGeom();
+   
    // set the mesh type ('meshgen')
    meshgen = 0;
    for (i = 0; i < num_pieces; i++)
