@@ -2173,9 +2173,7 @@ void NURBSExtension::Generate2DElementDofTable()
    const KnotVector *kv[2];
    NURBSPatchMap p2g(this);
 
-   // FIXME: precompute the I array for el_dof.
-   const int mo = mOrders.Max();
-   el_dof = new Table(NumOfActiveElems, (mo + 1)*(mo + 1));
+   Array<Connection> el_dof_list;
    el_to_patch.SetSize(NumOfActiveElems);
    el_to_IJK.SetSize(NumOfActiveElems, 2);
 
@@ -2184,6 +2182,8 @@ void NURBSExtension::Generate2DElementDofTable()
       p2g.SetPatchDofMap(p, kv);
 
       // Load dofs
+      const int ord0 = kv[0]->GetOrder();
+      const int ord1 = kv[1]->GetOrder();
       for (int j = 0; j < kv[1]->GetNKS(); j++)
       {
          if (kv[1]->isElement(j))
@@ -2194,15 +2194,14 @@ void NURBSExtension::Generate2DElementDofTable()
                {
                   if (activeElem[eg])
                   {
-                     int *dofs = el_dof->GetRow(el);
-                     int idx = 0;
-                     for (int jj = 0; jj <= kv[1]->GetOrder(); jj++)
+                     Connection conn(el,0);
+                     for (int jj = 0; jj <= ord1; jj++)
                      {
-                        for (int ii = 0; ii <= kv[0]->GetOrder(); ii++)
+                        for (int ii = 0; ii <= ord0; ii++)
                         {
-                           dofs[idx] = p2g(i+ii,j+jj);
-                           activeDof[dofs[idx]] = 1;
-                           idx++;
+                           conn.to = p2g(i+ii,j+jj);
+                           activeDof[conn.to] = 1;
+                           el_dof_list.Append(conn);
                         }
                      }
                      el_to_patch[el] = p;
@@ -2217,20 +2216,18 @@ void NURBSExtension::Generate2DElementDofTable()
          }
       }
    }
-   el_dof->Finalize();
+   // We must NOT sort el_dof_list in this case.
+   el_dof = new Table(NumOfActiveElems, el_dof_list);
 }
 
 void NURBSExtension::Generate3DElementDofTable()
 {
    int el = 0;
    int eg = 0;
-   int idx;
    const KnotVector *kv[3];
    NURBSPatchMap p2g(this);
 
-   // FIXME: precompute the I array for el_dof.
-   const int mo = mOrders.Max();
-   el_dof = new Table(NumOfActiveElems, (mo + 1)*(mo + 1)*(mo + 1));
+   Array<Connection> el_dof_list;
    el_to_patch.SetSize(NumOfActiveElems);
    el_to_IJK.SetSize(NumOfActiveElems, 3);
 
@@ -2239,6 +2236,9 @@ void NURBSExtension::Generate3DElementDofTable()
       p2g.SetPatchDofMap(p, kv);
 
       // Load dofs
+      const int ord0 = kv[0]->GetOrder();
+      const int ord1 = kv[1]->GetOrder();
+      const int ord2 = kv[2]->GetOrder();
       for (int k = 0; k < kv[2]->GetNKS(); k++)
       {
          if (kv[2]->isElement(k))
@@ -2253,17 +2253,16 @@ void NURBSExtension::Generate3DElementDofTable()
                      {
                         if (activeElem[eg])
                         {
-                           idx = 0;
-                           int *dofs = el_dof->GetRow(el);
-                           for (int kk = 0; kk <= kv[2]->GetOrder(); kk++)
+                           Connection conn(el,0);
+                           for (int kk = 0; kk <= ord2; kk++)
                            {
-                              for (int jj = 0; jj <= kv[1]->GetOrder(); jj++)
+                              for (int jj = 0; jj <= ord1; jj++)
                               {
-                                 for (int ii = 0; ii <= kv[0]->GetOrder(); ii++)
+                                 for (int ii = 0; ii <= ord0; ii++)
                                  {
-                                    dofs[idx] = p2g(i+ii,j+jj,k+kk);
-                                    activeDof[dofs[idx]] = 1;
-                                    idx++;
+                                    conn.to = p2g(i+ii, j+jj, k+kk);
+                                    activeDof[conn.to] = 1;
+                                    el_dof_list.Append(conn);
                                  }
                               }
                            }
@@ -2283,7 +2282,8 @@ void NURBSExtension::Generate3DElementDofTable()
          }
       }
    }
-   el_dof->Finalize();
+   // We must NOT sort el_dof_list in this case.
+   el_dof = new Table(NumOfActiveElems, el_dof_list);
 }
 
 void NURBSExtension::GenerateBdrElementDofTable()
@@ -2312,30 +2312,29 @@ void NURBSExtension::Generate2DBdrElementDofTable()
    const KnotVector *kv[1];
    NURBSPatchMap p2g(this);
 
-   // FIXME: precompute the I array for bel_dof.
-   bel_dof = new Table(NumOfActiveBdrElems, mOrders.Max() + 1);
+   Array<Connection> bel_dof_list;
    bel_to_patch.SetSize(NumOfActiveBdrElems);
    bel_to_IJK.SetSize(NumOfActiveBdrElems, 1);
 
    for (int b = 0; b < GetNBP(); b++)
    {
       p2g.SetBdrPatchDofMap(b, kv, okv);
-      int nx = p2g.nx(); // NCP-1
+      const int nx = p2g.nx(); // NCP-1
 
       // Load dofs
-      int nks0 = kv[0]->GetNKS();
+      const int nks0 = kv[0]->GetNKS();
+      const int ord0 = kv[0]->GetOrder();
       for (int i = 0; i < nks0; i++)
       {
          if (kv[0]->isElement(i))
          {
             if (activeBdrElem[gbe])
             {
-               int *dofs = bel_dof->GetRow(lbe);
-               int idx = 0;
-               for (int ii = 0; ii <= kv[0]->GetOrder(); ii++)
+               Connection conn(lbe,0);
+               for (int ii = 0; ii <= ord0; ii++)
                {
-                  dofs[idx] = p2g[(okv[0] >= 0) ? (i+ii) : (nx-i-ii)];
-                  idx++;
+                  conn.to = p2g[(okv[0] >= 0) ? (i+ii) : (nx-i-ii)];
+                  bel_dof_list.Append(conn);
                }
                bel_to_patch[lbe] = b;
                bel_to_IJK(lbe,0) = (okv[0] >= 0) ? i : (-1-i);
@@ -2345,7 +2344,8 @@ void NURBSExtension::Generate2DBdrElementDofTable()
          }
       }
    }
-   bel_dof->Finalize();
+   // We must NOT sort bel_dof_list in this case.
+   bel_dof = new Table(NumOfActiveBdrElems, bel_dof_list);
 }
 
 void NURBSExtension::Generate3DBdrElementDofTable()
@@ -2355,21 +2355,21 @@ void NURBSExtension::Generate3DBdrElementDofTable()
    const KnotVector *kv[2];
    NURBSPatchMap p2g(this);
 
-   // FIXME: precompute the I array for bel_dof.
-   const int mo = mOrders.Max();
-   bel_dof = new Table(NumOfActiveBdrElems, (mo + 1)*(mo + 1));
+   Array<Connection> bel_dof_list;
    bel_to_patch.SetSize(NumOfActiveBdrElems);
    bel_to_IJK.SetSize(NumOfActiveBdrElems, 2);
 
    for (int b = 0; b < GetNBP(); b++)
    {
       p2g.SetBdrPatchDofMap(b, kv, okv);
-      int nx = p2g.nx(); // NCP0-1
-      int ny = p2g.ny(); // NCP1-1
+      const int nx = p2g.nx(); // NCP0-1
+      const int ny = p2g.ny(); // NCP1-1
 
       // Load dofs
-      int nks0 = kv[0]->GetNKS();
-      int nks1 = kv[1]->GetNKS();
+      const int nks0 = kv[0]->GetNKS();
+      const int ord0 = kv[0]->GetOrder();
+      const int nks1 = kv[1]->GetNKS();
+      const int ord1 = kv[1]->GetOrder();
       for (int j = 0; j < nks1; j++)
       {
          if (kv[1]->isElement(j))
@@ -2380,16 +2380,15 @@ void NURBSExtension::Generate3DBdrElementDofTable()
                {
                   if (activeBdrElem[gbe])
                   {
-                     int *dofs = bel_dof->GetRow(lbe);
-                     int idx = 0;
-                     for (int jj = 0; jj <= kv[1]->GetOrder(); jj++)
+                     Connection conn(lbe,0);
+                     for (int jj = 0; jj <= ord1; jj++)
                      {
-                        int _jj = (okv[1] >= 0) ? (j+jj) : (ny-j-jj);
-                        for (int ii = 0; ii <= kv[0]->GetOrder(); ii++)
+                        const int _jj = (okv[1] >= 0) ? (j+jj) : (ny-j-jj);
+                        for (int ii = 0; ii <= ord0; ii++)
                         {
-                           int _ii = (okv[0] >= 0) ? (i+ii) : (nx-i-ii);
-                           dofs[idx] = p2g(_ii,_jj);
-                           idx++;
+                           const int _ii = (okv[0] >= 0) ? (i+ii) : (nx-i-ii);
+                           conn.to = p2g(_ii, _jj);
+                           bel_dof_list.Append(conn);
                         }
                      }
                      bel_to_patch[lbe] = b;
@@ -2403,8 +2402,8 @@ void NURBSExtension::Generate3DBdrElementDofTable()
          }
       }
    }
-
-   bel_dof->Finalize();
+   // We must NOT sort bel_dof_list in this case.
+   bel_dof = new Table(NumOfActiveBdrElems, bel_dof_list);
 }
 
 void NURBSExtension::GetVertexLocalToGlobal(Array<int> &lvert_vert)
@@ -2945,16 +2944,15 @@ Table *ParNURBSExtension::Get2DGlobalElementDofTable()
    int el = 0;
    const KnotVector *kv[2];
    NURBSPatchMap p2g(this);
-
-   // FIXME: precompute the I array for gel_dof.
-   const int mo = mOrders.Max();
-   Table *gel_dof = new Table(GetGNE(), (mo + 1)*(mo + 1));
+   Array<Connection> gel_dof_list;
 
    for (int p = 0; p < GetNP(); p++)
    {
       p2g.SetPatchDofMap(p, kv);
 
       // Load dofs
+      const int ord0 = kv[0]->GetOrder();
+      const int ord1 = kv[1]->GetOrder();
       for (int j = 0; j < kv[1]->GetNKS(); j++)
       {
          if (kv[1]->isElement(j))
@@ -2963,14 +2961,13 @@ Table *ParNURBSExtension::Get2DGlobalElementDofTable()
             {
                if (kv[0]->isElement(i))
                {
-                  int *dofs = gel_dof->GetRow(el);
-                  int idx = 0;
-                  for (int jj = 0; jj <= kv[1]->GetOrder(); jj++)
+                  Connection conn(el,0);
+                  for (int jj = 0; jj <= ord1; jj++)
                   {
-                     for (int ii = 0; ii <= kv[0]->GetOrder(); ii++)
+                     for (int ii = 0; ii <= ord0; ii++)
                      {
-                        dofs[idx] = p2g(i+ii,j+jj);
-                        idx++;
+                        conn.to = p2g(i+ii,j+jj);
+                        gel_dof_list.Append(conn);
                      }
                   }
                   el++;
@@ -2979,8 +2976,8 @@ Table *ParNURBSExtension::Get2DGlobalElementDofTable()
          }
       }
    }
-   gel_dof->Finalize();
-   return gel_dof;
+   // We must NOT sort gel_dof_list in this case.
+   return (new Table(GetGNE(), gel_dof_list));
 }
 
 Table *ParNURBSExtension::Get3DGlobalElementDofTable()
@@ -2988,16 +2985,16 @@ Table *ParNURBSExtension::Get3DGlobalElementDofTable()
    int el = 0;
    const KnotVector *kv[3];
    NURBSPatchMap p2g(this);
-
-   // FIXME: precompute the I array for gel_dof.
-   const int mo = mOrders.Max();
-   Table *gel_dof = new Table(GetGNE(), (mo + 1)*(mo + 1)*(mo + 1));
+   Array<Connection> gel_dof_list;
 
    for (int p = 0; p < GetNP(); p++)
    {
       p2g.SetPatchDofMap(p, kv);
 
       // Load dofs
+      const int ord0 = kv[0]->GetOrder();
+      const int ord1 = kv[1]->GetOrder();
+      const int ord2 = kv[2]->GetOrder();
       for (int k = 0; k < kv[2]->GetNKS(); k++)
       {
          if (kv[2]->isElement(k))
@@ -3010,16 +3007,15 @@ Table *ParNURBSExtension::Get3DGlobalElementDofTable()
                   {
                      if (kv[0]->isElement(i))
                      {
-                        int *dofs = gel_dof->GetRow(el);
-                        int idx = 0;
-                        for (int kk = 0; kk <= kv[2]->GetOrder(); kk++)
+                        Connection conn(el,0);
+                        for (int kk = 0; kk <= ord2; kk++)
                         {
-                           for (int jj = 0; jj <= kv[1]->GetOrder(); jj++)
+                           for (int jj = 0; jj <= ord1; jj++)
                            {
-                              for (int ii = 0; ii <= kv[0]->GetOrder(); ii++)
+                              for (int ii = 0; ii <= ord0; ii++)
                               {
-                                 dofs[idx] = p2g(i+ii,j+jj,k+kk);
-                                 idx++;
+                                 conn.to = p2g(i+ii,j+jj,k+kk);
+                                 gel_dof_list.Append(conn);
                               }
                            }
                         }
@@ -3031,8 +3027,8 @@ Table *ParNURBSExtension::Get3DGlobalElementDofTable()
          }
       }
    }
-   gel_dof->Finalize();
-   return gel_dof;
+   // We must NOT sort gel_dof_list in this case.
+   return (new Table(GetGNE(), gel_dof_list));
 }
 
 void ParNURBSExtension::SetActive(int *_partitioning,
