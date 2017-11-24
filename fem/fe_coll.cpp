@@ -1865,23 +1865,27 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type,
       if (m_type == BasisType::Positive)
       {
          L2_Elements[Geometry::TETRAHEDRON] = new L2Pos_TetrahedronElement(p);
+         L2_Elements[Geometry::PRISM] = new L2Pos_PrismElement(p);
          L2_Elements[Geometry::CUBE] = new L2Pos_HexahedronElement(p);
       }
       else
       {
          L2_Elements[Geometry::TETRAHEDRON] =
             new L2_TetrahedronElement(p, pt_type);
+         L2_Elements[Geometry::PRISM] = new L2_PrismElement(p, pt_type);
          L2_Elements[Geometry::CUBE] = new L2_HexahedronElement(p, pt_type);
       }
       L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);
+      L2_Elements[Geometry::PRISM]->SetMapType(map_type);
       L2_Elements[Geometry::CUBE]->SetMapType(map_type);
       // All trace element use the default Gauss-Legendre nodal points
       Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p);
       Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p);
 
       const int TetDof = L2_Elements[Geometry::TETRAHEDRON]->GetDof();
+      const int PriDof = L2_Elements[Geometry::PRISM]->GetDof();
       const int HexDof = L2_Elements[Geometry::CUBE]->GetDof();
-      const int MaxDof = std::max(TetDof, HexDof);
+      const int MaxDof = std::max(TetDof, std::max(PriDof, HexDof));
       OtherDofOrd = new int[MaxDof];
       for (int j = 0; j < MaxDof; j++)
       {
