@@ -2530,7 +2530,7 @@ void TriLinear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 BiLinear3DFiniteElement::BiLinear3DFiniteElement()
-   : NodalFiniteElement(3, Geometry::PRISM, 6, 1)
+   : NodalFiniteElement(3, Geometry::PRISM, 6, 1, FunctionSpace::Qk)
 {
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
@@ -2593,7 +2593,7 @@ const
 
 
 BiQuadratic3DFiniteElement::BiQuadratic3DFiniteElement()
-   : NodalFiniteElement(3, Geometry::PRISM, 18, 2)
+   : NodalFiniteElement(3, Geometry::PRISM, 18, 2, FunctionSpace::Qk)
 {
    // Vertices
    Nodes.IntPoint(0).x = 0.0;
@@ -2802,7 +2802,7 @@ const
 
 
 BiCubic3DFiniteElement::BiCubic3DFiniteElement()
-   : NodalFiniteElement(3, Geometry::PRISM, 40, 3)
+   : NodalFiniteElement(3, Geometry::PRISM, 40, 3, FunctionSpace::Qk)
 {
    // Vertices
    Nodes.IntPoint(0).x = 0.0;
@@ -4608,7 +4608,7 @@ void P0TetFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 
 P0PriFiniteElement::P0PriFiniteElement()
-   : NodalFiniteElement(3, Geometry::PRISM, 1, 0)
+   : NodalFiniteElement(3, Geometry::PRISM, 1, 0, FunctionSpace::Qk)
 {
    Nodes.IntPoint(0).x = 1./3.;
    Nodes.IntPoint(0).y = 1./3.;
@@ -8911,14 +8911,14 @@ void H1Pos_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
 H1_PrismElement::H1_PrismElement(const int p,
                                  const int type)
    : NodalFiniteElement(3, Geometry::PRISM, ((p + 1)*(p + 1)*(p + 2))/2,
-                        p, FunctionSpace::Pk),
+                        p, FunctionSpace::Qk),
      TriangleFE(p, type),
      SegmentFE(p, type)
 {
    t_shape.SetSize(TriangleFE.GetDof());
-   t_dshape.SetSize(TriangleFE.GetDof(), Dim);
+   t_dshape.SetSize(TriangleFE.GetDof(), 2);
    s_shape.SetSize(SegmentFE.GetDof());
-   s_dshape.SetSize(SegmentFE.GetDof(), Dim);
+   s_dshape.SetSize(SegmentFE.GetDof(), 1);
 
    t_dof.SetSize(Dof);
    s_dof.SetSize(Dof);
@@ -9040,15 +9040,15 @@ void H1_PrismElement::CalcDShape(const IntegrationPoint &ip,
 
 H1Pos_PrismElement::H1Pos_PrismElement(const int p)
    : PositiveFiniteElement(3, Geometry::PRISM,
-                           ((p + 1)*(p + 1)*(p + 2))/2, p, FunctionSpace::Pk),
+                           ((p + 1)*(p + 1)*(p + 2))/2, p, FunctionSpace::Qk),
      TriangleFE(p),
      SegmentFE(p)
 {
    t_shape.SetSize(TriangleFE.GetDof());
    s_shape.SetSize(SegmentFE.GetDof());
 
-   t_dshape.SetSize(TriangleFE.GetDof(), Dim);
-   s_dshape.SetSize(SegmentFE.GetDof(), Dim);
+   t_dshape.SetSize(TriangleFE.GetDof(), 2);
+   s_dshape.SetSize(SegmentFE.GetDof(), 1);
 
    t_dof.SetSize(Dof);
    s_dof.SetSize(Dof);
