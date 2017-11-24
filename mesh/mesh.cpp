@@ -576,7 +576,7 @@ void Mesh::GetLocalTriToPriTransformation(
    Transf.SetFE(&TriangleFE);
    //  (i/64) is the local face no. in the pri
    MFEM_VERIFY(i < 128, "Local face index " << i/64
-	       << " is not a triangular face of a prism.");
+               << " is not a triangular face of a prism.");
    const int *pv = pri_t::FaceVert[i/64];
    //  (i%64) is the orientation of the prism face
    //         w.r.t. the face element
@@ -622,7 +622,7 @@ void Mesh::GetLocalQuadToPriTransformation(
    Transf.SetFE(&QuadrilateralFE);
    //  (i/64) is the local face no. in the pri
    MFEM_VERIFY(i >= 128, "Local face index " << i/64
-	       << " is not aquadrilateral face of a prism.");
+               << " is not a quadrilateral face of a prism.");
    const int *pv = pri_t::FaceVert[i/64];
    //  (i%64) is the orientation of the quad
    const int *qo = quad_t::Orient[i%64];
@@ -1209,7 +1209,7 @@ void Mesh::FinalizeTriMesh(int generate_edges, int refine, bool fix_orientation)
    BaseGeom = Geometry::TRIANGLE;
    BaseBdrGeom = Geometry::SEGMENT;
    BaseFaceGeom = Geometry::SEGMENT;
-   
+
    meshgen = 1;
 }
 
@@ -7644,6 +7644,7 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
        "# SQUARE      = 3\n"
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
+       "# PRISM       = 6\n"
        "#\n";
 
    out << "\ndimension\n" << Dim
