@@ -592,7 +592,7 @@ Constants<Geometry::PRISM>::FaceTypes[5] =
 };
 const int Geometry::
 Constants<Geometry::PRISM>::FaceVert[5][4] =
-{{2, 1, 0, -1}, {3, 4, 5, -1}, {0, 1, 4, 3}, {1, 2, 5, 4}, {2, 0, 3, 5}};
+{{0, 2, 1, -1}, {3, 4, 5, -1}, {0, 1, 4, 3}, {1, 2, 5, 4}, {2, 0, 3, 5}};
 const int Geometry::
 Constants<Geometry::PRISM>::VertToVert::I[6] = {0, 3, 5, 6, 8, 9};
 const int Geometry::
