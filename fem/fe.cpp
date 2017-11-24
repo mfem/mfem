@@ -8993,6 +8993,16 @@ H1_PrismElement::H1_PrismElement(const int p,
          }
       }
    }
+
+   // Define Nodes
+   const IntegrationRule & t_Nodes = TriangleFE.GetNodes();
+   const IntegrationRule & s_Nodes = SegmentFE.GetNodes();
+   for (int i=0; i<Dof; i++)
+   {
+      Nodes.IntPoint(i).x = t_Nodes.IntPoint(t_dof[i]).x;
+      Nodes.IntPoint(i).y = t_Nodes.IntPoint(t_dof[i]).y;
+      Nodes.IntPoint(i).z = s_Nodes.IntPoint(s_dof[i]).x;
+   }
 }
 
 void H1_PrismElement::CalcShape(const IntegrationPoint &ip,
@@ -9112,6 +9122,16 @@ H1Pos_PrismElement::H1Pos_PrismElement(const int p)
             l++; m++;
          }
       }
+   }
+
+   // Define Nodes
+   const IntegrationRule & t_Nodes = TriangleFE.GetNodes();
+   const IntegrationRule & s_Nodes = SegmentFE.GetNodes();
+   for (int i=0; i<Dof; i++)
+   {
+      Nodes.IntPoint(i).x = t_Nodes.IntPoint(t_dof[i]).x;
+      Nodes.IntPoint(i).y = t_Nodes.IntPoint(t_dof[i]).y;
+      Nodes.IntPoint(i).z = s_Nodes.IntPoint(s_dof[i]).x;
    }
 }
 
