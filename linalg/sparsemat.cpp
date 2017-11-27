@@ -1128,7 +1128,7 @@ void SparseMatrix::EliminateCol(int col)
          }
 }
 
-void SparseMatrix::EliminateCols(Array<int> &cols, Vector *x, Vector *b)
+void SparseMatrix::EliminateCols(const Array<int> &cols, Vector *x, Vector *b)
 {
    if (Rows == NULL)
    {
@@ -1992,7 +1992,7 @@ void SparseMatrix::SetSubMatrixTranspose(const Array<int> &rows,
 }
 
 void SparseMatrix::GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
-                                DenseMatrix &subm)
+                                DenseMatrix &subm) const
 {
    int i, j, gi, gj, s, t;
    double a;
