@@ -225,7 +225,7 @@ public:
    void EliminateRow(int row, int setOneDiagonal = 0);
    void EliminateCol(int col);
    /// Eliminate all columns 'i' for which cols[i] != 0
-   void EliminateCols(Array<int> &cols, Vector *x = NULL, Vector *b = NULL);
+   void EliminateCols(const Array<int> &cols, Vector *x = NULL, Vector *b = NULL);
 
    /** Eliminates the column 'rc' to the 'rhs', deletes the row 'rc' and
        replaces the element (rc,rc) with 1.0; assumes that element (i,rc)
@@ -289,7 +289,7 @@ public:
    void GetBlocks(Array2D<SparseMatrix *> &blocks) const;
 
    void GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
-                     DenseMatrix &subm);
+                     DenseMatrix &subm) const;
 
    inline void SetColPtr(const int row) const;
    inline void ClearColPtr() const;
