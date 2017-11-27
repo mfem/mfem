@@ -184,6 +184,16 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
    isSorted = mat.isSorted;
 }
 
+SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
+{
+   Clear();
+
+   SparseMatrix copy(rhs);
+   Swap(copy);
+
+   return *this;
+}
+
 void SparseMatrix::MakeRef(const SparseMatrix &master)
 {
    MFEM_ASSERT(master.Finalized(), "'master' must be finalized");
