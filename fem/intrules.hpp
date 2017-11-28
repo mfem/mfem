@@ -27,7 +27,7 @@ class IntegrationPoint
 public:
    double x, y, z, weight;
 
-   IntegrationPoint() : x(0.0), y(0.0), z(0.0), weight(0.0) { }
+   void Init() { x = y = z = weight = 0.0; }
 
    void Set(const double *p, const int dim)
    {
@@ -203,7 +203,13 @@ public:
    IntegrationRule() : Array<IntegrationPoint>() { }
 
    /// Construct an integration rule with given number of points
-   explicit IntegrationRule(int NP) : Array<IntegrationPoint>(NP) { }
+   explicit IntegrationRule(int NP) : Array<IntegrationPoint>(NP)
+   {
+      for (int i = 0; i < this->Size(); i++)
+      {
+         (*this)[i].Init();
+      }
+   }
 
    /// Tensor product of two 1D integration rules
    IntegrationRule(IntegrationRule &irx, IntegrationRule &iry);
