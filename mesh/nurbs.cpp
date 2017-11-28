@@ -315,6 +315,22 @@ void NURBSPatch::init(int dim_)
    }
 }
 
+NURBSPatch::NURBSPatch(const NURBSPatch &orig)
+   : ni(orig.ni), nj(orig.nj), nk(orig.nk), Dim(orig.Dim),
+     data(NULL), kv(orig.kv.Size()), sd(orig.sd), nd(orig.nd)
+{
+   // Allocate and copy data:
+   const int data_size = Dim*ni*nj*((kv.Size() == 2) ? 1 : nk);
+   data = new double[data_size];
+   std::memcpy(data, orig.data, data_size*sizeof(double));
+
+   // Copy the knot vectors:
+   for (int i = 0; i < kv.Size(); i++)
+   {
+      kv[i] = new KnotVector(*orig.kv[i]);
+   }
+}
+
 NURBSPatch::NURBSPatch(std::istream &input)
 {
    int pdim, dim, size = 1;
@@ -1161,6 +1177,55 @@ NURBSPatch *Revolve3D(NURBSPatch &patch, double n[], double ang, int times)
    return newpatch;
 }
 
+
+NURBSExtension::NURBSExtension(const NURBSExtension &orig)
+   : mOrder(orig.mOrder), mOrders(orig.mOrders),
+     NumOfKnotVectors(orig.NumOfKnotVectors),
+     NumOfVertices(orig.NumOfVertices),
+     NumOfElements(orig.NumOfElements),
+     NumOfBdrElements(orig.NumOfBdrElements),
+     NumOfDofs(orig.NumOfDofs),
+     NumOfActiveVertices(orig.NumOfActiveVertices),
+     NumOfActiveElems(orig.NumOfActiveElems),
+     NumOfActiveBdrElems(orig.NumOfActiveBdrElems),
+     NumOfActiveDofs(orig.NumOfActiveDofs),
+     activeVert(orig.activeVert),
+     activeElem(orig.activeElem),
+     activeBdrElem(orig.activeBdrElem),
+     activeDof(orig.activeDof),
+     patchTopo(new Mesh(orig.patchTopo)),
+     own_topo(true),
+     edge_to_knot(orig.edge_to_knot),
+     knotVectors(orig.knotVectors.Size()), // knotVectors are copied in the body
+     weights(orig.weights),
+     v_meshOffsets(orig.v_meshOffsets),
+     e_meshOffsets(orig.e_meshOffsets),
+     f_meshOffsets(orig.f_meshOffsets),
+     p_meshOffsets(orig.p_meshOffsets),
+     v_spaceOffsets(orig.v_spaceOffsets),
+     e_spaceOffsets(orig.e_spaceOffsets),
+     f_spaceOffsets(orig.f_spaceOffsets),
+     p_spaceOffsets(orig.p_spaceOffsets),
+     el_dof(orig.el_dof ? new Table(*orig.el_dof) : NULL),
+     bel_dof(orig.bel_dof ? new Table(*orig.bel_dof) : NULL),
+     el_to_patch(orig.el_to_patch),
+     bel_to_patch(orig.bel_to_patch),
+     el_to_IJK(orig.el_to_IJK),
+     bel_to_IJK(orig.bel_to_IJK),
+     patches(orig.patches.Size()) // patches are copied in the body
+{
+   // Copy the knot vectors:
+   for (int i = 0; i < knotVectors.Size(); i++)
+   {
+      knotVectors[i] = new KnotVector(*orig.knotVectors[i]);
+   }
+
+   // Copy the patches:
+   for (int p = 0; p < patches.Size(); p++)
+   {
+      patches[p] = new NURBSPatch(*orig.patches[p]);
+   }
+}
 
 NURBSExtension::NURBSExtension(std::istream &input)
 {
@@ -2790,6 +2855,19 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
 
 
 #ifdef MFEM_USE_MPI
+ParNURBSExtension::ParNURBSExtension(const ParNURBSExtension &orig)
+   : NURBSExtension(orig),
+     partitioning(orig.partitioning ? new int[orig.GetGNE()] : NULL),
+     gtopo(orig.gtopo),
+     ldof_group(orig.ldof_group)
+{
+   // Copy the partitioning, if not NULL
+   if (partitioning)
+   {
+      std::memcpy(partitioning, orig.partitioning, orig.GetGNE()*sizeof(int));
+   }
+}
+
 ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
                                      int *part, const Array<bool> &active_bel)
    : gtopo(comm)
@@ -2863,11 +2941,11 @@ ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
 }
 
 ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
-                                     ParNURBSExtension *par_parent)
+                                     const ParNURBSExtension *par_parent)
    : gtopo(par_parent->gtopo.GetComm())
 {
    // steal all data from parent
-   Swap(mOrder, parent->mOrder);
+   mOrder = parent->mOrder;
    Swap(mOrders, parent->mOrders);
 
    patchTopo = parent->patchTopo;
@@ -2919,12 +2997,56 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
 
    partitioning = NULL;
 
-   MFEM_ASSERT(par_parent->partitioning,
+   MFEM_VERIFY(par_parent->partitioning,
                "parent ParNURBSExtension has no partitioning!");
 
-   Table *serial_elem_dof = GetGlobalElementDofTable();
-   BuildGroups(par_parent->partitioning, *serial_elem_dof);
-   delete serial_elem_dof;
+   // Support for the case when 'parent' is not a local NURBSExtension, i.e.
+   // NumOfActiveElems is not the same as in 'par_parent'. In that case, we
+   // assume 'parent' is a global NURBSExtension, i.e. all elements are active.
+   bool extract_weights = false;
+   if (NumOfActiveElems != par_parent->NumOfActiveElems)
+   {
+      MFEM_ASSERT(NumOfActiveElems == NumOfElements, "internal error");
+
+      SetActive(par_parent->partitioning, par_parent->activeBdrElem);
+      GenerateActiveVertices();
+      delete el_dof;
+      el_to_patch.DeleteAll();
+      el_to_IJK.DeleteAll();
+      GenerateElementDofTable();
+      // GenerateActiveBdrElems(); // done by SetActive for now
+      delete bel_dof;
+      bel_to_patch.DeleteAll();
+      bel_to_IJK.DeleteAll();
+      GenerateBdrElementDofTable();
+      extract_weights = true;
+   }
+
+   Table *glob_elem_dof = GetGlobalElementDofTable();
+   BuildGroups(par_parent->partitioning, *glob_elem_dof);
+   if (extract_weights)
+   {
+      Vector glob_weights;
+      Swap(weights, glob_weights);
+      weights.SetSize(GetNDof());
+      // Copy the local 'weights' from the 'glob_weights'.
+      // Assumption: the local element ids follow the global ordering.
+      for (int gel = 0, lel = 0; gel < GetGNE(); gel++)
+      {
+         if (activeElem[gel])
+         {
+            int  ndofs = el_dof->RowSize(lel);
+            int *ldofs = el_dof->GetRow(lel);
+            int *gdofs = glob_elem_dof->GetRow(gel);
+            for (int i = 0; i < ndofs; i++)
+            {
+               weights(ldofs[i]) = glob_weights(gdofs[i]);
+            }
+            lel++;
+         }
+      }
+   }
+   delete glob_elem_dof;
 }
 
 Table *ParNURBSExtension::GetGlobalElementDofTable()
@@ -3031,13 +3153,13 @@ Table *ParNURBSExtension::Get3DGlobalElementDofTable()
    return (new Table(GetGNE(), gel_dof_list));
 }
 
-void ParNURBSExtension::SetActive(int *_partitioning,
+void ParNURBSExtension::SetActive(const int *_partitioning,
                                   const Array<bool> &active_bel)
 {
    activeElem.SetSize(GetGNE());
    activeElem = false;
    NumOfActiveElems = 0;
-   int MyRank = gtopo.MyRank();
+   const int MyRank = gtopo.MyRank();
    for (int i = 0; i < GetGNE(); i++)
       if (_partitioning[i] == MyRank)
       {
@@ -3054,7 +3176,8 @@ void ParNURBSExtension::SetActive(int *_partitioning,
       }
 }
 
-void ParNURBSExtension::BuildGroups(int *_partitioning, const Table &elem_dof)
+void ParNURBSExtension::BuildGroups(const int *_partitioning,
+                                    const Table &elem_dof)
 {
    Table dof_proc;
 
@@ -3086,7 +3209,7 @@ void ParNURBSExtension::BuildGroups(int *_partitioning, const Table &elem_dof)
 
    gtopo.Create(groups, 1822);
 }
-#endif
+#endif // MFEM_USE_MPI
 
 
 void NURBSPatchMap::GetPatchKnotVectors(int p, const KnotVector *kv[])
