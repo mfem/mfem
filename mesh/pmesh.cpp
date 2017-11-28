@@ -558,17 +558,20 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                   // to which this shared face belongs to.
                   {
                      int lface = sface_lface[sface_counter];
-                     Tetrahedron *tet =
-                        (Tetrahedron *)(elements[faces_info[lface].Elem1No]);
-                     tet->GetMarkedFace(faces_info[lface].Elem1Inf/64, v);
-                     // flip the shared face in the processor that owns the
-                     // second element (in 'mesh')
+                     Tetrahedron *tet = dynamic_cast<Tetrahedron *>
+                                        (elements[faces_info[lface].Elem1No]);
+                     if (tet)
                      {
-                        int gl_el1, gl_el2;
-                        mesh.GetFaceElements(i, &gl_el1, &gl_el2);
-                        if (MyRank == partitioning[gl_el2])
+                        tet->GetMarkedFace(faces_info[lface].Elem1Inf/64, v);
+                        // flip the shared face in the processor that owns the
+                        // second element (in 'mesh')
                         {
-                           std::swap(v[0], v[1]);
+                           int gl_el1, gl_el2;
+                           mesh.GetFaceElements(i, &gl_el1, &gl_el2);
+                           if (MyRank == partitioning[gl_el2])
+                           {
+                              std::swap(v[0], v[1]);
+                           }
                         }
                      }
                   }
