@@ -763,8 +763,8 @@ public:
       {
       // case 1:MultBtDB1(fes,shape1d,D,U,V);break;
       case 2:
-         // MultBtDB2int(1,fes,shape1d,shape0d0,shape0d1,D11,U,V);
-         // MultBtDB2int(2,fes,shape1d,shape0d0,shape0d1,D22,U,V);
+         MultBtDB2int(1,fes,shape1d,shape0d0,shape0d1,D11,U,V);
+         MultBtDB2int(2,fes,shape1d,shape0d0,shape0d1,D22,U,V);
          MultBtDB2ext(1,fes,shape1d,shape0d0,shape0d1,coord_change1,backward1,D21,U,V);
          MultBtDB2ext(2,fes,shape1d,shape0d0,shape0d1,coord_change2,backward2,D12,U,V);
          break;
@@ -846,6 +846,7 @@ public:
    static const int dimD = 3;
    using DTensor = Tensor<dimD,double>;
    using Tensor2d = DenseMatrix;
+   using Tensor3d = Tensor<3,double>;
    using KData = DummyMatrix<PermIndir>;
 
    /**
@@ -853,13 +854,11 @@ public:
    */
    static void SetSize(DTensor& Dint, DTensor& Dext, KData& kernel_data, int* sizes)
    {
-      // Dint.SetSize(sizes);
-      // Dext.SetSize(sizes);
       Dint = DTensor(sizes[0],sizes[1],sizes[2]);
       Dext = DTensor(sizes[0],sizes[1],sizes[2]);
-      int nb_elts = sizes[1];
+      int nb_elts  = sizes[1];
       int nb_faces = sizes[2];
-      kernel_data = KData(nb_elts,nb_faces);
+      kernel_data  = KData(nb_elts,nb_faces);
    }
 
    /**
@@ -868,8 +867,8 @@ public:
    */
    static void SetValDint(DTensor& Dint, int (&ind)[dimD], double val)
    {
-      // Dint(ind) = val;
-      Dint(ind[0],ind[1],ind[2]) = val;
+      int quad(ind[0]), elt(ind[1]), face_id(ind[2]);
+      Dint(quad,elt,face_id) = val;
    }
 
    /**
@@ -882,15 +881,14 @@ public:
       int quad(ind[0]), elt_trial(ind[1]), face_id_trial(ind[2]), elt_test(ind[3]), face_id_test(ind[4]);
       // We do the indirections and permutations at the beginning so that each element receives
       // one and only one flux per face. So this is a per face for test element approach.
-      kernel_data(elt_trial,face_id_test).indirection = elt_test;
-      kernel_data(elt_trial,face_id_test).permutation = Permutation(face_id_trial,face_id_test);
-      // int ind_Dext[3] = {quad,elt_trial,face_id_trial};
-      // Dext(quad,elt_trial,face_id_trial) = val;
-      // Unsafe: this uses only the 3 first elements of 'ind'
-      // Dext(ind) = val;
-      Dext(ind[0],ind[1],ind[2]) = val;
+      kernel_data(elt_test,face_id_test).indirection = elt_trial;
+      kernel_data(elt_test,face_id_test).permutation = Permutation2D(face_id_trial,face_id_test);
+      Dext(quad,elt_test,face_id_test) = val;
    }
 
+   /**
+   *  Computes internal fluxes
+   */
    static void EvalInt(FiniteElementSpace* fes, Tensor2d& shape1d, Tensor2d& dshape1d,
                         Tensor2d& shape0d0, Tensor2d& shape0d1,
                         Tensor2d& dshape0d0, Tensor2d& dshape0d1,
@@ -910,23 +908,26 @@ public:
       MultBtDBintX(fes,shape1d,shape0d0,Dint,face_id,U,V);
    }
 
+   /**
+   *  Computes external fluxes
+   */
    static void EvalExt(FiniteElementSpace* fes, Tensor2d& shape1d, Tensor2d& dshape1d,
                         Tensor2d& shape0d0, Tensor2d& shape0d1,
                         Tensor2d& dshape0d0, Tensor2d& dshape0d1,
-                        KData& kernel_data ,DTensor& Dint, const Vector& U, Vector& V)
+                        KData& kernel_data ,DTensor& Dext, const Vector& U, Vector& V)
    {
       // North Faces
-      int face_id = 2;
-      MultBtDBextY(fes,shape1d,shape0d0,shape0d1,kernel_data,Dint,face_id,U,V);
+      int face_id_test = 2;
+      MultBtDBextY(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
       // South Faces
-      face_id = 0;
-      MultBtDBextY(fes,shape1d,shape0d1,shape0d0,kernel_data,Dint,face_id,U,V);
+      face_id_test = 0;
+      MultBtDBextY(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);
       // East Faces
-      face_id = 1;
-      MultBtDBextX(fes,shape1d,shape0d0,shape0d1,kernel_data,Dint,face_id,U,V);
+      face_id_test = 1;
+      MultBtDBextX(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
       // West Faces
-      face_id = 3;
-      MultBtDBextX(fes,shape1d,shape0d1,shape0d0,kernel_data,Dint,face_id,U,V);      
+      face_id_test = 3;
+      MultBtDBextX(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);      
    }
 
 private:
@@ -940,6 +941,8 @@ private:
    static void MultBtDBextY(FiniteElementSpace* fes, Tensor2d& B,
                         Tensor2d& B0dTrial, Tensor2d& B0dtest, KData& kernel_data,
                         DTensor& D, int face_id, const Vector& U, Vector& V);
+   static void Permutation(int face_id, int nbe, int dofs1d, KData& kernel_data,
+                        const Tensor3d& T0, Tensor3d& T0p);
 };
 
 

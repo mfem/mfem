@@ -72,10 +72,10 @@ void GetChangeOfBasis2D(const int face_id1, const int face_id2, IntMatrix& P);
 void GetIdRotInfo(const int face_info, int& face_id, int& nb_rot);
 
 /**
-*	Returns an integer identifying the permutation to apply to be in structured
+*	Returns an integer identifying the permutation to apply to be in structured-
 *  like configuration.
 */
-int Permutation(int face_id_trial, int face_id_test);
+int Permutation2D(const int face_id_trial, const int face_id_test);
 
 }
 

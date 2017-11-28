@@ -260,13 +260,17 @@ void GetIdRotInfo(const int face_info, int& face_id, int& nb_rot){
 	face_id = face_info / 64;
 	// Test if ny understanding of mfem code is correct, error if not
 	//MFEM_ASSERT(orientation % 2 == 0, "Unexpected inside out face");
-	nb_rot = orientation / 2;
+	nb_rot = orientation;// / 2;
 }
 
-//TODO
-int Permutation(int face_id_trial, int face_id_test)
+/**
+*	Returns the permutation id, so that we can permute dofs to be in a structured case.
+*/
+int Permutation2D(const int face_id_trial, const int face_id_test)
 {
-	return 0;
+	int perm = face_id_trial - face_id_test - 2;
+	perm = perm < 0 ? perm+4 : perm;
+	return perm;
 }
 
 }
