@@ -37,13 +37,13 @@
 //   ICF shape and equal size:
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   ICF shape and initial size:
-//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 9 -tid 3 -ni 5000 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 9 -tid 3 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   ICF shape:
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   ICF limited shape:
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 6.67
 //   ICF combo shape + size (rings, slow convergence):
-//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 2 -ni 1000 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb
+//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 1000 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb
 //   3D pinched sphere shape (the mesh is in the mfem/data GitHub repository):
 //   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -rs 0 -mid 303 -tid 1 -ni 20 -ls 2 -li 500 -fix-bnd
 
@@ -514,7 +514,7 @@ int main (int argc, char *argv[])
    }
    TargetConstructor *target_c;
    target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
-   target_c->SetNodes(x);
+   target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ;
    he_nlf_integ = new TMOP_Integrator(metric, target_c);
 
@@ -558,7 +558,9 @@ int main (int argc, char *argv[])
       a.AddDomainIntegrator(he_nlf_integ);
 
       metric2 = new TMOP_Metric_077;
-      target_c2 = new TargetConstructor(target_t, MPI_COMM_WORLD);
+      target_c2 =
+            new TargetConstructor(TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE,
+                                  MPI_COMM_WORLD);
       target_c2->SetVolumeScale(0.01);
       target_c2->SetNodes(x);
       TMOP_Integrator *he_nlf_integ2;
