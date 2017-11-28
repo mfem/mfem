@@ -104,6 +104,7 @@ protected:
    NURBSPatch(NURBSPatch *parent, int dir, int Order, int NCP);
 
 public:
+   NURBSPatch(const NURBSPatch &orig);
    NURBSPatch(std::istream &input);
    NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim_);
    NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
@@ -276,6 +277,8 @@ protected:
    NURBSExtension() { }
 
 public:
+   /// Copy constructor: deep copy
+   NURBSExtension(const NURBSExtension &orig);
    /// Read-in a NURBSExtension
    NURBSExtension(std::istream &input);
    /** Create a NURBSExtension with elevated order by repeating the endpoints
@@ -369,20 +372,24 @@ private:
    Table *Get2DGlobalElementDofTable();
    Table *Get3DGlobalElementDofTable();
 
-   void SetActive(int *partitioning, const Array<bool> &active_bel);
-   void BuildGroups(int *partitioning, const Table &elem_dof);
+   void SetActive(const int *partitioning, const Array<bool> &active_bel);
+   void BuildGroups(const int *partitioning, const Table &elem_dof);
 
 public:
    GroupTopology gtopo;
 
    Array<int> ldof_group;
 
+   ParNURBSExtension(const ParNURBSExtension &orig);
+
    ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent, int *partitioning,
                      const Array<bool> &active_bel);
 
-   // create a parallel version of 'parent' with partitioning as in
-   // 'par_parent'; the 'parent' object is destroyed
-   ParNURBSExtension(NURBSExtension *parent, ParNURBSExtension *par_parent);
+   // Create a parallel version of 'parent' with partitioning as in
+   // 'par_parent'; the 'parent' object is destroyed.
+   // The 'parent' can be either a local NURBSExtension or a global one.
+   ParNURBSExtension(NURBSExtension *parent,
+                     const ParNURBSExtension *par_parent);
 
    virtual ~ParNURBSExtension() { delete [] partitioning; }
 };
