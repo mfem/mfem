@@ -101,8 +101,8 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    int order = 2;
    bool visualization = true;
-   double newton_rel_tol = 1.0e-8;
-   double newton_abs_tol = 1.0e-12;
+   double newton_rel_tol = 1.0e-4;
+   double newton_abs_tol = 1.0e-6;
    int newton_iter = 500;
    double mu = 1.0;
 
@@ -326,7 +326,7 @@ JacobianPreconditioner::JacobianPreconditioner(Array<ParFiniteElementSpace *> &f
 
    mass_prec = mass_prec_amg;
 
-   GMRESSolver *mass_pcg_iter = new GMRESSolver();
+   GMRESSolver *mass_pcg_iter = new GMRESSolver(spaces[0]->GetComm());
    mass_pcg_iter->SetOperator(*Pressure_mass);
    mass_pcg_iter->SetRelTol(1e-12);
    mass_pcg_iter->SetAbsTol(1e-12);
@@ -385,10 +385,10 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
 
 
 
-   GMRESSolver *stiff_pcg_iter = new GMRESSolver();
+   GMRESSolver *stiff_pcg_iter = new GMRESSolver(spaces[0]->GetComm());
 
-   stiff_pcg_iter->SetRelTol(1e-12);
-   stiff_pcg_iter->SetAbsTol(1e-12);
+   stiff_pcg_iter->SetRelTol(1e-8);
+   stiff_pcg_iter->SetAbsTol(1e-8);
    stiff_pcg_iter->SetMaxIter(200);
    stiff_pcg_iter->SetPrintLevel(0);
    stiff_pcg_iter->SetPreconditioner(*stiff_prec);
