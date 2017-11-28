@@ -8953,9 +8953,10 @@ H1_PrismElement::H1_PrismElement(const int p,
    int nt = (p-1)*(p-2)/2;
    for (int j=1; j<p; j++)
    {
-      for (int i=1; i<j; i++)
+      for (int i=1; i<p-j; i++)
       {
-         t_dof[6 + 9 * ne + k]      = 3 * p + k; s_dof[6 + 9 * ne + k]      = 0;
+	 int l = j - p + (((2 * p - 1) - i) * i) / 2;
+         t_dof[6 + 9 * ne + k]      = 3 * p + l; s_dof[6 + 9 * ne + k]      = 0;
          t_dof[6 + 9 * ne + nt + k] = 3 * p + k; s_dof[6 + 9 * ne + nt + k] = 1;
          k++;
       }
