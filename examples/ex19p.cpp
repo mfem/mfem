@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
    H1_FECollection quad_coll(order, dim);
    H1_FECollection lin_coll(order-1, dim);
 
-   ParFiniteElementSpace R_space(pmesh, &quad_coll, dim);
+   ParFiniteElementSpace R_space(pmesh, &quad_coll, dim, Ordering::byVDIM);
    ParFiniteElementSpace W_space(pmesh, &lin_coll);
 
    Array<ParFiniteElementSpace *> spaces(2);
@@ -333,6 +333,7 @@ JacobianPreconditioner::JacobianPreconditioner(Array<ParFiniteElementSpace *> &f
    mass_pcg_iter->SetMaxIter(200);
    mass_pcg_iter->SetPrintLevel(0);
    mass_pcg_iter->SetPreconditioner(*mass_prec);
+   mass_pcg_iter->iterative_mode = true;
 
    mass_pcg = mass_pcg_iter;
 
@@ -381,13 +382,18 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
 
    stiff_prec = stiff_prec_amg;
 
+
+
+
    GMRESSolver *stiff_pcg_iter = new GMRESSolver();
-   stiff_pcg_iter->SetOperator(Jacobian->GetBlock(0,0));
+
    stiff_pcg_iter->SetRelTol(1e-12);
    stiff_pcg_iter->SetAbsTol(1e-12);
    stiff_pcg_iter->SetMaxIter(200);
    stiff_pcg_iter->SetPrintLevel(0);
    stiff_pcg_iter->SetPreconditioner(*stiff_prec);
+   stiff_pcg_iter->SetOperator(Jacobian->GetBlock(0,0));
+   stiff_pcg_iter->iterative_mode = true;
 
    stiff_pcg = stiff_pcg_iter;
 
@@ -445,8 +451,9 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    J_prec = Jac_prec;
 
    GMRESSolver *J_gmres = new GMRESSolver(spaces[0]->GetComm());
-   J_gmres->SetRelTol(1.0e-14);
-   J_gmres->SetAbsTol(1.0e-14);
+   J_gmres->iterative_mode = true;
+   J_gmres->SetRelTol(1.0e-12);
+   J_gmres->SetAbsTol(1.0e-12);
    J_gmres->SetMaxIter(300);
    J_gmres->SetPrintLevel(0);
    J_gmres->SetPreconditioner(*J_prec);
