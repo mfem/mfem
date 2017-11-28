@@ -66,6 +66,31 @@ FiniteElementSpace::FiniteElementSpace()
      sequence(0)
 { }
 
+FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
+                                       Mesh *mesh,
+                                       const FiniteElementCollection *fec)
+{
+   mesh = mesh ? mesh : orig.mesh;
+   fec = fec ? fec : orig.fec;
+   NURBSExtension *NURBSext = NULL;
+   if (orig.NURBSext && orig.NURBSext != orig.mesh->NURBSext)
+   {
+#ifdef MFEM_USE_MPI
+      ParNURBSExtension *pNURBSext =
+         dynamic_cast<ParNURBSExtension *>(orig.NURBSext);
+      if (pNURBSext)
+      {
+         NURBSext = new ParNURBSExtension(*pNURBSext);
+      }
+      else
+#endif
+      {
+         NURBSext = new NURBSExtension(*orig.NURBSext);
+      }
+   }
+   Constructor(mesh, NURBSext, fec, orig.vdim, orig.ordering);
+}
+
 int FiniteElementSpace::GetOrder(int i) const
 {
    int GeomType = mesh->GetElementBaseGeometry(i);
@@ -1016,7 +1041,8 @@ void FiniteElementSpace::UpdateNURBS()
 
 void FiniteElementSpace::Construct()
 {
-   int i;
+   // This method should be used only for non-NURBS spaces.
+   MFEM_ASSERT(!NURBSext, "internal error");
 
    elem_dof = NULL;
    bdrElem_dof = NULL;
@@ -1055,7 +1081,7 @@ void FiniteElementSpace::Construct()
       {
          fdofs = new int[mesh->GetNFaces()+1];
          fdofs[0] = 0;
-         for (i = 0; i < mesh->GetNFaces(); i++)
+         for (int i = 0; i < mesh->GetNFaces(); i++)
          {
             nfdofs += fdof;
             // nfdofs += fec->DofForGeometry(mesh->GetFaceBaseGeometry(i));
@@ -1066,7 +1092,7 @@ void FiniteElementSpace::Construct()
 
    bdofs = new int[mesh->GetNE()+1];
    bdofs[0] = 0;
-   for (i = 0; i < mesh->GetNE(); i++)
+   for (int i = 0; i < mesh->GetNE(); i++)
    {
       nbdofs += fec->DofForGeometry(mesh->GetElementBaseGeometry(i));
       bdofs[i+1] = nbdofs;

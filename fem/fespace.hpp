@@ -86,8 +86,8 @@ protected:
    int nvdofs, nedofs, nfdofs, nbdofs;
    int *fdofs, *bdofs;
 
-   mutable Table *elem_dof;
-   Table *bdrElem_dof;
+   mutable Table *elem_dof; // if NURBS FE space, not owned; otherwise, owned.
+   Table *bdrElem_dof; // used only with NURBS FE spaces; not owned.
 
    Array<int> dof_elem_array, dof_ldof_array;
 
@@ -97,9 +97,9 @@ protected:
    /** Matrix representing the prolongation from the global conforming dofs to
        a set of intermediate partially conforming dofs, e.g. the dofs associated
        with a "cut" space on a non-conforming mesh. */
-   mutable SparseMatrix *cP;
+   mutable SparseMatrix *cP; // owned
    /// Conforming restriction matrix such that cR.cP=I.
-   mutable SparseMatrix *cR;
+   mutable SparseMatrix *cR; // owned
    mutable bool cP_is_set;
 
    /// Transformation to apply to GridFunctions after space Update().
@@ -143,6 +143,23 @@ public:
    /** @brief Default constructor: the object is invalid until initialized using
        the method Load(). */
    FiniteElementSpace();
+
+   /** @brief Copy constructor: deep copy all data from @a orig except the Mesh,
+       the FiniteElementCollection, ans some derived data. */
+   /** If the @a mesh or @a fec poiters are NULL (default), then the new
+       FiniteElementSpace will reuse the respective pointers from @a orig. If
+       any of these pointers is not NULL, the given pointer will be used instead
+       of the one used by @a orig.
+
+       @note The objects pointed to by the @a mesh and @a fec parameters must be
+       either the same objects as the ones used by @a orig, or copies of them.
+       Otherwise, the behavior is undefined.
+
+       @note Derived data objects, such as the conforming prolongation and
+       restriction matrices, and the update operator, will not be copied, even
+       if they are created in the @a orig object. */
+   FiniteElementSpace(const FiniteElementSpace &orig, Mesh *mesh = NULL,
+                      const FiniteElementCollection *fec = NULL);
 
    FiniteElementSpace(Mesh *mesh,
                       const FiniteElementCollection *fec,
