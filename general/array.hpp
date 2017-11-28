@@ -285,6 +285,7 @@ class Array2D;
 template <class T>
 void Swap(Array2D<T> &, Array2D<T> &);
 
+/// Two dimensional array using row-major storage
 template <class T>
 class Array2D
 {
@@ -323,7 +324,10 @@ public:
 
    /// Make this Array a reference to 'master'
    inline void MakeRef(const Array2D &master)
-   { N = master.N; array1d.MakeRef(master.array1d);}
+   { N = master.N; array1d.MakeRef(master.array1d); }
+
+   /// Delete all dynamically allocated memory, reseting all dimentions to zero.
+   inline void DeleteAll() { N = 0; array1d.DeleteAll(); }
 
    /// Prints array to stream with width elements per row
    void Print(std::ostream &out = mfem::out, int width = 4);
