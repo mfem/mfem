@@ -2365,12 +2365,23 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    mesh.attributes.Copy(attributes);
    mesh.bdr_attributes.Copy(bdr_attributes);
 
-   // No support for NURBS meshes, yet. Need deep copy for NURBSExtension.
-   MFEM_VERIFY(mesh.NURBSext == NULL,
-               "copying NURBS meshes is not implemented");
-   NURBSext = NULL;
+   // Deep copy the NURBSExtension.
+#ifdef MFEM_USE_MPI
+   ParNURBSExtension *pNURBSext =
+      dynamic_cast<ParNURBSExtension *>(mesh.NURBSext);
+   if (pNURBSext)
+   {
+      NURBSext = new ParNURBSExtension(*pNURBSext);
+   }
+   else
+#endif
+   {
+      NURBSext = mesh.NURBSext ? new NURBSExtension(*mesh.NURBSext) : NULL;
+   }
 
    // Deep copy the NCMesh.
+   // TODO: ParNCMesh; ParMesh has a separate 'pncmesh' pointer, and 'ncmesh'
+   //       is initialized from it. Need ParNCMesh copy constructor.
    ncmesh = mesh.ncmesh ? new NCMesh(*mesh.ncmesh) : NULL;
 
    // Duplicate the Nodes, including the FiniteElementCollection and the
@@ -2382,8 +2393,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
       FiniteElementCollection *fec_copy =
          FiniteElementCollection::New(fec->Name());
       FiniteElementSpace *fes_copy =
-         new FiniteElementSpace(this, fec_copy, fes->GetVDim(),
-                                fes->GetOrdering());
+         new FiniteElementSpace(*fes, this, fec_copy);
       Nodes = new GridFunction(fes_copy);
       Nodes->MakeOwner(fec_copy);
       *Nodes = *mesh.Nodes;
