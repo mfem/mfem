@@ -8921,7 +8921,7 @@ H1_PrismElement::H1_PrismElement(const int p,
    t_dshape.SetSize(TriangleFE.GetDof(), 2);
    s_dshape.SetSize(SegmentFE.GetDof(), 1);
 #endif
-   
+
    t_dof.SetSize(Dof);
    s_dof.SetSize(Dof);
 
@@ -8955,7 +8955,7 @@ H1_PrismElement::H1_PrismElement(const int p,
    {
       for (int i=1; i<p-j; i++)
       {
-	 int l = j - p + (((2 * p - 1) - i) * i) / 2;
+         int l = j - p + (((2 * p - 1) - i) * i) / 2;
          t_dof[6 + 9 * ne + k]      = 3 * p + l; s_dof[6 + 9 * ne + k]      = 0;
          t_dof[6 + 9 * ne + nt + k] = 3 * p + k; s_dof[6 + 9 * ne + nt + k] = 1;
          k++;
@@ -9065,7 +9065,7 @@ H1Pos_PrismElement::H1Pos_PrismElement(const int p)
    t_dshape.SetSize(TriangleFE.GetDof(), 2);
    s_dshape.SetSize(SegmentFE.GetDof(), 1);
 #endif
-   
+
    t_dof.SetSize(Dof);
    s_dof.SetSize(Dof);
 
@@ -10121,7 +10121,7 @@ L2_PrismElement::L2_PrismElement(const int p, const int type)
    t_dshape.SetSize(TriangleFE.GetDof(), 2);
    s_dshape.SetSize(SegmentFE.GetDof(), 1);
 #endif
-   
+
    t_dof.SetSize(Dof);
    s_dof.SetSize(Dof);
 
@@ -10209,7 +10209,7 @@ L2Pos_PrismElement::L2Pos_PrismElement(const int p)
    t_dshape.SetSize(TriangleFE.GetDof(), 2);
    s_dshape.SetSize(SegmentFE.GetDof(), 1);
 #endif
-   
+
    t_dof.SetSize(Dof);
    s_dof.SetSize(Dof);
 
