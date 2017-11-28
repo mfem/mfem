@@ -78,9 +78,9 @@ public:
    GroupTopology(const GroupTopology &gt);
    void SetComm(MPI_Comm comm) { MyComm = comm; }
 
-   MPI_Comm GetComm() { return MyComm; }
-   int MyRank() { int r; MPI_Comm_rank(MyComm, &r); return r; }
-   int NRanks() { int s; MPI_Comm_size(MyComm, &s); return s; }
+   MPI_Comm GetComm() const { return MyComm; }
+   int MyRank() const { int r; MPI_Comm_rank(MyComm, &r); return r; }
+   int NRanks() const { int s; MPI_Comm_size(MyComm, &s); return s; }
 
    void Create(ListOfIntegerSets &groups, int mpitag);
 
