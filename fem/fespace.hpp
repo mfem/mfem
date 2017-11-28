@@ -166,6 +166,10 @@ public:
                       int vdim = 1, int ordering = Ordering::byNODES)
    { Constructor(mesh, NULL, fec, vdim, ordering); }
 
+   /// Construct a NURBS FE space based on the given NURBSExtension, @a ext.
+   /** @note If the pointer @a ext is NULL, this constructor is equivalent to
+       the standard constructor with the same arguments minus the
+       NURBSExtension, @a ext. */
    FiniteElementSpace(Mesh *mesh, NURBSExtension *ext,
                       const FiniteElementCollection *fec,
                       int vdim = 1, int ordering = Ordering::byNODES)

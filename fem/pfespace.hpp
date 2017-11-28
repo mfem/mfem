@@ -208,8 +208,12 @@ public:
    ParFiniteElementSpace(ParMesh *pm, const FiniteElementCollection *f,
                          int dim = 1, int ordering = Ordering::byNODES);
 
+   /// Construct a NURBS FE space based on the given NURBSExtension, @a ext.
    /** The parameter @a ext will be deleted by this constructor, replaced by a
-       ParNURBSExtension owned by the ParFiniteElementSpace. */
+       ParNURBSExtension owned by the ParFiniteElementSpace.
+       @note If the pointer @a ext is NULL, this constructor is equivalent to
+       the standard constructor with the same arguments minus the
+       NURBSExtension, @a ext. */
    ParFiniteElementSpace(ParMesh *pm, NURBSExtension *ext,
                          const FiniteElementCollection *f,
                          int dim = 1, int ordering = Ordering::byNODES);
