@@ -389,6 +389,7 @@ public:
 	   // fluxes.
 	   for (int face = 0; face < nb_faces; ++face)
 	   {
+	   	// cout << "face=" << face << endl;
 	      int ind_elt1, ind_elt2;
 	      // We collect the indices of the two elements on the face, element1 is the master element,
 	      // the one that defines the normal to the face.
@@ -432,18 +433,18 @@ public:
 		         int ind21[5] = {k, ind_elt1, face_id1, ind_elt2, face_id2};
 		         pak.SetValDext(ind21, val);
 		         // We compute D12 and D22
-	      		IntegrationPoint& eip2 = pak.IntPoint( face_id2, k );
-		        	face_tr->Face->SetIntPoint( &ip );
-					face_tr->Elem2->SetIntPoint( &eip2 );
-			      q.Eval( qvec, *(face_tr->Elem2), eip2 );
-			      CalcOrtho( face_tr->Face->Jacobian(), n );
-			      res = qvec * n;
+					// IntegrationPoint& eip2 = pak.IntPoint( face_id2, k );
+					// face_tr->Face->SetIntPoint( &ip );
+					// face_tr->Elem2->SetIntPoint( &eip2 );
+					// q.Eval( qvec, *(face_tr->Elem2), eip2 );
+					// CalcOrtho( face_tr->Face->Jacobian(), n );
+					// res = qvec * n;
 			      // D22
-			      val = eip2.weight * ( - a/2 * res + b * abs(res) );
+			      val = eip1.weight * ( - a/2 * res + b * abs(res) );
 			      int ind22[3] = {k, ind_elt2, face_id2};
 			      pak.SetValDint(ind22, val);
 			      // D12
-			      val = eip2.weight * ( - a/2 * res - b * abs(res) );
+			      val = eip1.weight * ( - a/2 * res - b * abs(res) );
 		         int ind12[5] = {k, ind_elt2, face_id2, ind_elt1, face_id1};
 		         pak.SetValDext(ind12, val);
 		      }else{//Boundary face

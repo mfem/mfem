@@ -880,7 +880,10 @@ public:
       int quad(ind[0]), elt_trial(ind[1]), face_id_trial(ind[2]), elt_test(ind[3]), face_id_test(ind[4]);
       // We do the indirections and permutations at the beginning so that each element receives
       // one and only one flux per face. So this is a per face for test element approach.
+      // TODO should not be here, done too many times
       kernel_data(elt_test,face_id_test).indirection = elt_trial;
+      // cout << "face_id_trial=" << face_id_trial << ", face_id_test=" << face_id_test
+      //       << ", permutation=" << Permutation2D(face_id_trial,face_id_test) << endl;
       kernel_data(elt_test,face_id_test).permutation = Permutation2D(face_id_trial,face_id_test);
       Dext(quad,elt_test,face_id_test) = val;
    }

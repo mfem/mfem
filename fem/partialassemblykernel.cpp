@@ -1704,7 +1704,8 @@ void DummyFaceMultBtDB::Permutation(int face_id, int nbe, int dofs1d, KData& ker
                   T0p(i1,i2,e) = T0(j1,j2,trial);
                }
             }
-         }else if(permutation==3){// || permutation==1){
+         }else if(permutation==3){
+            // cout << "perm" << permutation << endl;
             for (int i2 = 0, j1 = 0; i2 < dofs1d; ++i2, ++j1)
             {
                for (int i1 = 0, j2 = dofs1d-1; i1 < dofs1d; ++i1, --j2)
