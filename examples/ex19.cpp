@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
    std::cout << "dim(u+p) = " << R_size + W_size << "\n";
    std::cout << "***********************************************************\n";
 
-   // 10. Define the block structure of the solution vector (u then p)
+   // 8. Define the block structure of the solution vector (u then p)
    Array<int> block_offsets(3);
    block_offsets[0] = 0;
    block_offsets[1] = R_space.GetVSize();
@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
 
    BlockVector xp(block_offsets);
 
-   // 11. Define grid functions for the current configuration, reference configuration,
+   // 9.  Define grid functions for the current configuration, reference configuration,
    //     final deformation, and pressure
    GridFunction x_gf(&R_space);
    GridFunction x_ref(&R_space);
@@ -246,17 +246,17 @@ int main(int argc, char *argv[])
    x_gf.ProjectCoefficient(deform);
    x_ref.ProjectCoefficient(refconfig);
 
-   // 13. Initialize the incompressible neo-Hookean operator
+   // 10. Initialize the incompressible neo-Hookean operator
    RubberOperator oper(spaces, ess_bdr, block_offsets,
                        newton_rel_tol, newton_abs_tol, newton_iter, c_mu);
 
-   // 14. Solve the Newton system
+   // 11. Solve the Newton system
    oper.Solve(xp);
 
-   // 16. Compute the final deformation
+   // 12. Compute the final deformation
    subtract(x_gf, x_ref, x_def);
 
-   // 17. Visualize the results if requested
+   // 13. Visualize the results if requested
    socketstream vis_u, vis_p;
    if (visualization)
    {
@@ -270,27 +270,27 @@ int main(int argc, char *argv[])
       visualize(vis_p, mesh, &x_gf, &p_gf, "Pressure", true);
    }
 
-   // 18. Save the displaced mesh, the final deformation, and the pressure
+   // 14. Save the displaced mesh, the final deformation, and the pressure
    {
       GridFunction *nodes = &x_gf;
       int owns_nodes = 0;
       mesh->SwapNodes(nodes, owns_nodes);
 
-      ofstream mesh_ofs("mesh");
+      ofstream mesh_ofs("deformed.mesh");
       mesh_ofs.precision(8);
       mesh->Print(mesh_ofs);
 
-      ofstream pressure_ofs("pressure");
+      ofstream pressure_ofs("pressure.sol");
       pressure_ofs.precision(8);
       p_gf.Save(pressure_ofs);
 
-      ofstream deformation_ofs("deformation");
+      ofstream deformation_ofs("deformation.sol");
       deformation_ofs.precision(8);
       x_def.Save(deformation_ofs);
    }
 
 
-   // 19. Free the used memory.
+   // 15. Free the used memory.
    delete mesh;
 
    return 0;
@@ -432,7 +432,7 @@ RubberOperator::RubberOperator(Array<FiniteElementSpace *> &fes,
    a->AddDomainIntegrator(new MassIntegrator(one));
    a->Assemble();
    a->Finalize();
-   pressure_mass = &a->SpMat();
+   pressure_mass = new SparseMatrix(a->SpMat());
    delete a;
 
    // Initialize the Jacobian preconditioner
