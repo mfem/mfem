@@ -51,8 +51,8 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
    }
    else
    {
-      capacity = 0;
       data = NULL;
+      capacity = 0;
    }
 }
 

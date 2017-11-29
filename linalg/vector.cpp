@@ -41,7 +41,7 @@ Vector::Vector(const Vector &v)
    }
    else
    {
-      allocsize = size = s;
+      allocsize = size = 0;
       data = NULL;
    }
 }
