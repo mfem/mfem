@@ -1544,10 +1544,9 @@ void DummyFaceMultBtDB::MultBtDBintX(FiniteElementSpace* fes, Tensor2d& B, Tenso
    // nunber of elements
    const int nbe = fes->GetNE();
    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
-   const int dofs1d = fes->GetFE(0)->GetOrder() + 1;
+   const int dofs1d = B.Height();
    // number of quadrature points
-   int quads1d = B.Width();
-   int ind[3];
+   const int quads1d = B.Width();
    DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
    DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
    Tensor2d T1(dofs1d,nbe),T2(quads1d,nbe),T3(dofs1d,nbe);
@@ -1611,9 +1610,9 @@ void DummyFaceMultBtDB::MultBtDBintY(FiniteElementSpace* fes, Tensor2d& B, Tenso
    // nunber of elements
    const int nbe = fes->GetNE();
    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
-   const int dofs1d = fes->GetFE(0)->GetOrder() + 1;
+   const int dofs1d = B.Height();
    // number of quadrature points
-   int quads1d = B.Width();
+   const int quads1d = B.Width();
    DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
    DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
    Tensor2d T1(dofs1d,nbe),T2(quads1d,nbe),T3(dofs1d,nbe);
@@ -1671,60 +1670,6 @@ void DummyFaceMultBtDB::MultBtDBintY(FiniteElementSpace* fes, Tensor2d& B, Tenso
    }
 }
 
-// void DummyFaceMultBtDB::MultBtDBintY(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
-//                         DTensor& D, int face_id, const Vector& U, Vector& V)
-// {
-//    // nunber of elements
-//    const int nbe = fes->GetNE();
-//    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
-//    const int dofs1d = fes->GetFE(0)->GetOrder() + 1;
-//    // number of quadrature points
-//    int quads1d = B.Width();
-//    // int dimensions[3] = {dofs1d,dofs1d,nbe};
-//    DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
-//    DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
-//    Vector T1(dofs1d),T2(quads1d),T3(dofs1d);
-//    // ToSelf: Essayer un element a la fois
-//    //T1_i1 = B0d^i2 U_i1i2
-//    for (int e = 0; e < nbe; ++e)
-//    {
-//       for (int i2 = 0; i2 < dofs1d; ++i2)
-//       {
-//          for (int i1 = 0; i1 < dofs1d; ++i1)
-//          {
-//             //TODO: Vectorize
-//             T1(i1) += B0d(i2,0) * T0(i1,i2,e);
-//          }
-//       }
-//       for (int k1 = 0; k1 < quads1d; ++k1)
-//       {
-//          for (int i1 = 0; i1 < dofs1d; ++i1)
-//          {
-//             T2(k1) += B(i1,k1) * T1(i1);
-//          }
-//       }
-//       for (int k1 = 0; k1 < quads1d; ++k1)
-//       {
-//          T2(k1) = D(k1,e,face_id) * T2(k1);
-//       }
-//       for (int j1 = 0; j1 < dofs1d; ++j1)
-//       {
-//          for (int k1 = 0; k1 < quads1d; ++k1)
-//          {
-//             T3(j1) += B(j1,k1) * T2(k1);
-//          }
-//       }
-//       for (int j2 = 0; j2 < dofs1d; ++j2)
-//       {
-//          for (int j1 = 0; j1 < dofs1d; ++j1)
-//          {
-//             //TODO: Vectorize
-//             R(j1,j2,e) += B0d(j2,0) * T3(j1);
-//          }
-//       }
-//    }
-// }
-
 void DummyFaceMultBtDB::Permutation(int face_id, int nbe, int dofs1d, KData& kernel_data,
                                     const Tensor3d& T0, Tensor3d& T0p)
 {
@@ -1732,62 +1677,52 @@ void DummyFaceMultBtDB::Permutation(int face_id, int nbe, int dofs1d, KData& ker
    {
       int trial = kernel_data(e,face_id).indirection;
       int permutation = kernel_data(e,face_id).permutation;
-      if(permutation==0)
+      if(trial!=-1)
       {
-         for (int i2 = 0; i2 < dofs1d; ++i2)
+         if(permutation==0)
          {
-            for (int i1 = 0; i1 < dofs1d; ++i1)
+            for (int i2 = 0; i2 < dofs1d; ++i2)
             {
-               T0p(i1,i2,e) = T0(i1,i2,trial);
+               for (int i1 = 0; i1 < dofs1d; ++i1)
+               {
+                  T0p(i1,i2,e) = T0(i1,i2,trial);
+               }
             }
-         }
-      }else if(permutation==1){
-         for (int i2 = 0; i2 < dofs1d; ++i2)
-         {
-            for (int i1 = 0; i1 < dofs1d; ++i1)
+         }else if(permutation==1){
+            for (int i2 = 0, j1 = dofs1d-1; i2 < dofs1d; ++i2, --j1)
             {
-               T0p(i1,i2,e) = T0(dofs1d-1-i2,i1,trial);
+               for (int i1 = 0, j2 = 0; i1 < dofs1d; ++i1, ++j2)
+               {
+                  T0p(i1,i2,e) = T0(j1,j2,trial);
+               }
             }
-         }
-         // for (int i2 = 0, j1 = dofs1d-1; i2 < dofs1d; ++i2, --j1)
-         // {
-         //    for (int i1 = 0, j2 = 0; i1 < dofs1d; ++i1, ++j2)
-         //    {
-         //       T0p(i1,i2,e) = T0(j1,j2,trial);
-         //    }
-         // }
-      }else if(permutation==2){
-         for (int i2 = 0; i2 < dofs1d; ++i2)
-         {
-            for (int i1 = 0; i1 < dofs1d; ++i1)
+         }else if(permutation==2){
+            for (int i2 = 0, j2 = dofs1d-1; i2 < dofs1d; ++i2, --j2)
             {
-               T0p(i1,i2,e) = T0(dofs1d-1-i1,dofs1d-1-i2,trial);
+               for (int i1 = 0, j1 = dofs1d-1; i1 < dofs1d; ++i1, --j1)
+               {
+                  T0p(i1,i2,e) = T0(j1,j2,trial);
+               }
             }
-         }
-         // for (int i2 = 0, j2 = dofs1d-1; i2 < dofs1d; ++i2, --j2)
-         // {
-         //    for (int i1 = 0, j1 = dofs1d-1; i1 < dofs1d; ++i1, --j1)
-         //    {
-         //       T0p(i1,i2,e) = T0(j1,j2,trial);
-         //    }
-         // }
-      }else if(permutation==3){
-         for (int i2 = 0; i2 < dofs1d; ++i2)
-         {
-            for (int i1 = 0; i1 < dofs1d; ++i1)
+         }else if(permutation==3){
+            for (int i2 = 0, j1 = 0; i2 < dofs1d; ++i2, ++j1)
             {
-               T0p(i1,i2,e) = T0(i2,dofs1d-1-i1,trial);
+               for (int i1 = 0, j2 = dofs1d-1; i1 < dofs1d; ++i1, --j2)
+               {
+                  T0p(i1,i2,e) = T0(j1,j2,trial);
+               }
             }
+         }else{
+            mfem_error("This permutation id does not exist");
          }
-         // for (int i2 = 0, j1 = 0; i2 < dofs1d; ++i2, ++j1)
-         // {
-         //    for (int i1 = 0, j2 = dofs1d-1; i1 < dofs1d; ++i1, --j2)
-         //    {
-         //       T0p(i1,i2,e) = T0(j1,j2,trial);
-         //    }
-         // }
       }else{
-         mfem_error("This permutation id does not exist");
+         for (int i2 = 0; i2 < dofs1d; ++i2)
+         {
+            for (int i1 = 0; i1 < dofs1d; ++i1)
+            {
+               T0p(i1,i2,e) = 0.0;
+            }
+         }
       }
    }
 }

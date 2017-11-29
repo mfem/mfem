@@ -63,8 +63,8 @@ Vector bb_min, bb_max;
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   BilinearForm &M;
-   //SparseMatrix &M;
+   // BilinearForm &M;
+   SparseMatrix &M;
    BilinearForm &K;
    const Vector &b;
 
@@ -74,8 +74,8 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b);
-   //FE_Evolution(SparseMatrix &_M, BilinearForm &_K, const Vector &_b);
+   // FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b);
+   FE_Evolution(SparseMatrix &_M, BilinearForm &_K, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -192,14 +192,14 @@ int main(int argc, char *argv[])
    int ir_order = 2*order;
 
    //Initialization of the Mass operator
-   BilinearFormOperator m(&fes);
-   m.AddDomainIntegrator(new PAMassIntegrator(&fes,ir_order));
+   // BilinearFormOperator m(&fes);
+   // m.AddDomainIntegrator(new PAMassIntegrator(&fes,ir_order));
    // m.AddDomainIntegrator(new EigenPAMassIntegrator<2>(&fes,ir_order));
    // m.AddDomainIntegrator(new EigenPAMassIntegrator<2,EigenDomainPAK>(&fes,ir_order));
-   // BilinearForm m(&fes);
-   // m.AddDomainIntegrator(new MassIntegrator());
-   // m.Assemble();
-   // m.Finalize();
+   BilinearForm m(&fes);
+   m.AddDomainIntegrator(new MassIntegrator());
+   m.Assemble();
+   m.Finalize();
    //Initialization of the Stiffness operator
    BilinearFormOperator k(&fes);
    //k.AddDomainIntegrator(new EigenPAConvectionIntegrator<2>(&fes,ir_order,velocity, -1.0));
@@ -281,8 +281,8 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
+   FE_Evolution adv(m.SpMat(), k, b);
    // FE_Evolution adv(m, k, b);
-   FE_Evolution adv(m, k, b);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -352,7 +352,7 @@ int main(int argc, char *argv[])
 //    M_solver.SetMaxIter(100);
 //    M_solver.SetPrintLevel(0);
 // }
-FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b)
+FE_Evolution::FE_Evolution(SparseMatrix &_M, BilinearForm &_K, const Vector &_b)
    : TimeDependentOperator(_M.Size(), 0.0), M(_M), K(_K), b(_b), z(_M.Size())
 {
    //TODO have to take into account the block diagonal structure of M

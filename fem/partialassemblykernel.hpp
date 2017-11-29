@@ -847,18 +847,18 @@ public:
    using DTensor = Tensor<dimD,double>;
    using Tensor2d = DenseMatrix;
    using Tensor3d = Tensor<3,double>;
-   using KData = DummyMatrix<PermIndir>;
+   using KData = Tensor<2,PermIndir>;
 
    /**
    *  Sets the dimensions of the tensor D
    */
    static void SetSize(DTensor& Dint, DTensor& Dext, KData& kernel_data, int* sizes)
    {
-      Dint = DTensor(sizes[0],sizes[1],sizes[2]);
-      Dext = DTensor(sizes[0],sizes[1],sizes[2]);
+      Dint.setSize(sizes[0],sizes[1],sizes[2]);
+      Dext.setSize(sizes[0],sizes[1],sizes[2]);
       int nb_elts  = sizes[1];
       int nb_faces = sizes[2];
-      kernel_data  = KData(nb_elts,nb_faces);
+      kernel_data.setSize(nb_elts,nb_faces);
    }
 
    /**

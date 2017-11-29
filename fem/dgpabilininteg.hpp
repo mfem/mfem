@@ -385,7 +385,6 @@ public:
 		Vector qvec(dim);
 	   int sizes[] = {quads,nb_elts,nb_faces_elt};
 	   pak.SetSize(sizes);
-	   IntMatrix P(dim,dim);
 	   // We have a per face approach for the fluxes, so we should initialize the four different
 	   // fluxes.
 	   for (int face = 0; face < nb_faces; ++face)
@@ -400,9 +399,7 @@ public:
 	      int nb_rot1, nb_rot2;
 	      int face_id1, face_id2;
 	      GetIdRotInfo(info_elt1,face_id1,nb_rot1);
-	      cout << "ind_elt1=" << ind_elt1 << ", face_id1=" << face_id1 << ", nb_rot1=" << nb_rot1;
 	      GetIdRotInfo(info_elt2,face_id2,nb_rot2);
-	      cout << ", ind_elt2=" << ind_elt2 << ", face_id2=" << face_id2 << ", nb_rot2=" << nb_rot2 << endl;
    		FaceElementTransformations* face_tr = mesh->GetFaceElementTransformations(face);
 	      for (int k = 0; k < quads; ++k)
 	      {
