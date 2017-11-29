@@ -230,6 +230,10 @@ MFEM_USE_LAPACK = YES/NO
    enabled, this option uses the LAPACK_* library options, see below. (When not
    enabled MFEM provides simple internal implementations where appropriate.)
 
+MFEM_THREAD_SAFE = YES/NO
+   Use thread-safe implementation for some classes/methods. This comes at the
+   cost of extra memory allocation and de-allocation.
+
 MFEM_USE_MEMALLOC = YES/NO
    Internal MFEM option: enable batch allocation for some small objects.
    Recommended value is YES.
@@ -534,6 +538,7 @@ MFEM_USE_MPI
 MFEM_USE_METIS - Set to ${MFEM_USE_MPI}, can be overwritten.
 MFEM_USE_LIBUNWIND
 MFEM_USE_LAPACK
+MFEM_THREAD_SAFE
 MFEM_USE_MEMALLOC
 MFEM_TIMER_TYPE - Set automatically, can be overwritten.
 MFEM_USE_MESQUITE
