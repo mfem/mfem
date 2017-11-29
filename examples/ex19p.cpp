@@ -1,3 +1,34 @@
+//                       MFEM Example 19 - Parallel Version
+//
+// Compile with: make ex19p
+//
+// Sample runs:
+//    mpirun -np 2 ex10p -m ../data/beam-quad.mesh  
+//    mpirun -np 2 ex10p -m ../data/beam-tri.mesh 
+//    mpirun -np 2 ex10p -m ../data/beam-hex.mesh 
+//    mpirun -np 2 ex10p -m ../data/beam-tet.mesh 
+//
+// Description:  This examples solves a quasi-static incompressible nonlinear
+//               elasticity problem of the form 0 = H(x), where H is an incompressible
+//               hyperelastic model and x is a block state vector containing
+//               displacement and pressure variables. The geometry of the domain 
+//               is assumed to be as follows:
+//
+//                                 +---------------------+
+//                    boundary --->|                     |<--- boundary attribute 2
+//                    attribute 1  |                     |     (fixed)  
+//                    (fixed)      +---------------------+
+//
+//               The example demonstrates the use of block nonlinear operators (the
+//               class RubberOperator defining H(x)) as well as a nonlinear 
+//               Newton solver for the quasi-static problem. Each Newton step 
+//               requires the inversion of a Jacobian matrix, which is done through a
+//               (preconditioned) inner solver. The specialized block preconditioner 
+//               is implemented as a user-defined solver.
+//
+//               We recommend viewing examples 2, 5, and 10 before viewing this
+//               example.
+
 #include "mfem.hpp"
 #include <memory>
 #include <iostream>
@@ -9,26 +40,30 @@ using namespace mfem;
 class JacobianPreconditioner : public Solver
 {
 protected:
+
+   // Finite element spaces for setting up preconditioner blocks
    Array<ParFiniteElementSpace *> spaces;
-   mutable BlockOperator *Jacobian;
-   mutable Operator *Pressure_mass;
 
-   mutable double gamma;
-
-   /// Newton solver for the hyperelastic operator
-
-   mutable Solver *mass_pcg;
-   mutable Solver *stiff_pcg;
-   mutable Solver *stiff_prec;
-   mutable Solver *mass_prec;
-
+   // Offsets for extracting block vector segments
    Array<int> &block_trueOffsets;
-   Array<Array<int> *> &ess_bdr;
+
+   // Jacobian for block access
+   BlockOperator *jacobian;
+
+   // Scaling factor for the pressure mass matrix in 
+   // the block preconditioner
+   double gamma;
+
+   // Objects for the block preconditioner application
+   Operator *pressure_mass;
+   Solver *mass_pcg;
+   Solver *mass_prec;
+   Solver *stiff_pcg;
+   Solver *stiff_prec;
 
 public:
    JacobianPreconditioner(Array<ParFiniteElementSpace *> &fes,
-                          Operator &mass, Array<int> &offsets,
-                          Array<Array<int> *> &bdr);
+                          Operator &mass, Array<int> &offsets);
 
    virtual void Mult(const Vector &k, Vector &y) const;
    virtual void SetOperator(const Operator &op);
@@ -36,32 +71,38 @@ public:
    virtual ~JacobianPreconditioner();
 };
 
-/** After spatial discretization, the rubber model can be written as:
- *     0=H(x)
- *  where x is the block vector representing the deformation and pressure
- *  and H(x) is the nonlinear incompressible neo-Hookean operator. */
+// After spatial discretization, the rubber model can be written as:
+//     0=H(x)
+//  where x is the block vector representing the deformation and pressure
+//  and H(x) is the nonlinear incompressible neo-Hookean operator. */
 class RubberOperator : public Operator
 {
 protected:
+   // Finite element spaces
    Array<ParFiniteElementSpace *> spaces;
 
+   // Block nonlinear form
    ParBlockNonlinearForm *Hform;
-   mutable Operator *Jacobian;
-   const BlockVector *x;
 
-   Operator *Pressure_mass;
+   // Jacobian of the nonlinear form
+   mutable Operator *jacobian;
+
+   // Pressure mass matrix for the preconditioner
+   Operator *pressure_mass;
 
    /// Newton solver for the hyperelastic operator
    NewtonSolver newton_solver;
 
    /// Solver for the Jacobian solve in the Newton method
-   Solver *J_solver;
+   Solver *j_solver;
 
    /// Preconditioner for the Jacobian
-   Solver *J_prec;
+   Solver *j_prec;
 
+   // Shear modulus coefficient
    Coefficient &mu;
 
+   // Block offsets for variable access
    Array<int> &block_trueOffsets;
 
 public:
@@ -79,23 +120,25 @@ public:
    virtual ~RubberOperator();
 };
 
+// Visualization driver
 void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name = NULL,
                bool init_vis = false);
 
+// Configuration definition functions
 void ReferenceConfiguration(const Vector &x, Vector &y);
 void InitialDeformation(const Vector &x, Vector &y);
 
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
+   // 1. Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   // Parse command-line options.
+   // 2. Parse command-line options.
    const char *mesh_file = "../data/beam-hex.mesh";
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
@@ -142,38 +185,34 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // Open the mesh
-   Mesh *mesh;
-   ifstream imesh(mesh_file);
-   if (!imesh)
-   {
-      if (myid == 0)
-      {
-         cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
-      }
-      MPI_Finalize();
-      return 2;
-   }
-   mesh = new Mesh(imesh, 1, 1);
-   imesh.close();
-   ParMesh *pmesh = NULL;
+   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
+   //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
+   //    and volume meshes with the same code.
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   int dim = mesh->Dimension();
 
+   // 4. Refine the mesh in serial to increase the resolution. In this example
+   //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
+   //    a command-line parameter.
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh->UniformRefinement();
    }
-   pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+
+   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   //    this mesh further in parallel to increase the resolution. Once the
+   //    parallel mesh is defined, the serial mesh can be deleted.
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   delete mesh;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh->UniformRefinement();
    }
 
-   delete mesh;
-   int dim = pmesh->Dimension();
-
+   // 6. Define the shear modulus for the incompressible Neo-Hookean material
    ConstantCoefficient c_mu(mu);
 
-   // Definie the finite element spaces for displacement and pressure (Stokes elements)
+   // 7. Definie the finite element spaces for displacement and pressure (Taylor-Hood elements)
    H1_FECollection quad_coll(order, dim);
    H1_FECollection lin_coll(order-1, dim);
 
@@ -187,7 +226,7 @@ int main(int argc, char *argv[])
    HYPRE_Int glob_R_size = R_space.GlobalTrueVSize();
    HYPRE_Int glob_W_size = W_space.GlobalTrueVSize();
 
-   // Define the Dirichlet conditions (set to boundary attribute 1)
+   // 8. Define the Dirichlet conditions (set to boundary attribute 1 and 2)
    Array<Array<int> *> ess_bdr(2);
 
    Array<int> ess_bdr_u(R_space.GetMesh()->bdr_attributes.Max());
@@ -201,7 +240,7 @@ int main(int argc, char *argv[])
    ess_bdr[0] = &ess_bdr_u;
    ess_bdr[1] = &ess_bdr_p;
 
-   // Print the mesh statistics
+   // 9. Print the mesh statistics
    if (myid == 0)
    {
       std::cout << "***********************************************************\n";
@@ -211,7 +250,7 @@ int main(int argc, char *argv[])
       std::cout << "***********************************************************\n";
    }
 
-   // Define the block structure of the solution vector (u then p)
+   // 10. Define the block structure of the solution vector (u then p)
    Array<int> block_offsets(3);
    block_offsets[0] = 0;
    block_offsets[1] = R_space.GetVSize();
@@ -226,39 +265,38 @@ int main(int argc, char *argv[])
 
    BlockVector xp(block_trueOffsets);
 
-   // Define grid functions for the current configuration, reference configuration,
-   // final deformation, and pressure
+   // 11. Define grid functions for the current configuration, reference configuration,
+   //     final deformation, and pressure
    ParGridFunction x_gf(&R_space);
    ParGridFunction x_ref(&R_space);
    ParGridFunction x_def(&R_space);
    ParGridFunction p_gf(&W_space);
 
-   // Project the initial and reference configuration functions onto the appropriate grid functions
    VectorFunctionCoefficient deform(dim, InitialDeformation);
    VectorFunctionCoefficient refconfig(dim, ReferenceConfiguration);
 
    x_gf.ProjectCoefficient(deform);
    x_ref.ProjectCoefficient(refconfig);
 
-   // Set up the block solution vectors
+   // 12. Set up the block solution vectors
    x_gf.GetTrueDofs(xp.GetBlock(0));
    p_gf.GetTrueDofs(xp.GetBlock(1));
 
-   // Initialize the incompressible neo-Hookean operator
+   // 13. Initialize the incompressible neo-Hookean operator
    RubberOperator oper(spaces, ess_bdr, block_trueOffsets,
                        newton_rel_tol, newton_abs_tol, newton_iter, c_mu);
 
-   // Solve the Newton system
+   // 14. Solve the Newton system
    oper.Solve(xp);
 
-   // Distribute the ghost dofs
+   // 15. Distribute the ghost dofs
    x_gf.Distribute(xp.GetBlock(0));
    p_gf.Distribute(xp.GetBlock(1));
 
-   // Set the final deformation
+   // 16. Compute the final deformation
    subtract(x_gf, x_ref, x_def);
 
-   // Visualize the results if requested
+   // 17. Visualize the results if requested
    socketstream vis_u, vis_p;
    if (visualization)
    {
@@ -275,7 +313,7 @@ int main(int argc, char *argv[])
       visualize(vis_p, pmesh, &x_gf, &p_gf, "Pressure", true);
    }
 
-   // Save the displaced mesh, the final deformation, and the pressure
+   // 18. Save the displaced mesh, the final deformation, and the pressure
    {
       GridFunction *nodes = &x_gf;
       int owns_nodes = 0;
@@ -300,7 +338,7 @@ int main(int argc, char *argv[])
    }
 
 
-   // Free the used memory.
+   // 19. Free the used memory.
    delete pmesh;
 
    MPI_Finalize();
@@ -310,24 +348,24 @@ int main(int argc, char *argv[])
 
 JacobianPreconditioner::JacobianPreconditioner(Array<ParFiniteElementSpace *> &fes,
                                                Operator &mass,
-                                               Array<int> &offsets,
-                                               Array<Array<int> *> &bdr)
-   : Solver(offsets[2]), block_trueOffsets(offsets), Pressure_mass(&mass),
-     ess_bdr(bdr)
+                                               Array<int> &offsets)
+   : Solver(offsets[2]), block_trueOffsets(offsets), pressure_mass(&mass)
 {
 
    fes.Copy(spaces);
 
    gamma = 0.00001;
 
+   // The mass matrix and preconditioner do not change every Newton cycle, so
+   // we only need to define them once
    HypreBoomerAMG *mass_prec_amg = new HypreBoomerAMG();
-   mass_prec_amg->SetOperator(*Pressure_mass);
+   mass_prec_amg->SetOperator(*pressure_mass);
    mass_prec_amg->SetPrintLevel(0);
 
    mass_prec = mass_prec_amg;
 
    GMRESSolver *mass_pcg_iter = new GMRESSolver(spaces[0]->GetComm());
-   mass_pcg_iter->SetOperator(*Pressure_mass);
+   mass_pcg_iter->SetOperator(*pressure_mass);
    mass_pcg_iter->SetRelTol(1e-12);
    mass_pcg_iter->SetAbsTol(1e-12);
    mass_pcg_iter->SetMaxIter(200);
@@ -337,6 +375,8 @@ JacobianPreconditioner::JacobianPreconditioner(Array<ParFiniteElementSpace *> &f
 
    mass_pcg = mass_pcg_iter;
 
+   // The stiffness matrix does change every Newton cycle, so we will define it
+   // during SetOperator
    stiff_pcg = NULL;
    stiff_prec = NULL;
 
@@ -346,6 +386,7 @@ JacobianPreconditioner::JacobianPreconditioner(Array<ParFiniteElementSpace *> &f
 void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
 {
 
+   // Extract the blocks from the input and output vectors
    Vector disp_in(k.GetData() + block_trueOffsets[0],
                   block_trueOffsets[1]-block_trueOffsets[0]);
    Vector pres_in(k.GetData() + block_trueOffsets[1],
@@ -359,11 +400,12 @@ void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
    Vector temp(block_trueOffsets[1]-block_trueOffsets[0]);
    Vector temp2(block_trueOffsets[1]-block_trueOffsets[0]);
 
+   // Perform the block elimination for the preconditioner
    pres_in *= -1.0 * gamma;
 
    mass_pcg->Mult(pres_in, pres_out);
 
-   Jacobian->GetBlock(0,1).Mult(pres_out, temp);
+   jacobian->GetBlock(0,1).Mult(pres_out, temp);
    subtract(disp_in, temp, temp2);
 
    stiff_pcg->Mult(temp2, disp_out);
@@ -373,26 +415,31 @@ void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
 void JacobianPreconditioner::SetOperator(const Operator &op)
 {
 
-   Jacobian = (BlockOperator *) &op;
+   jacobian = (BlockOperator *) &op;
 
+   // Clean up the old stiffness solvers
+   if (stiff_prec != NULL) {
+      delete stiff_prec;
+      delete stiff_pcg;
+   }
+
+   // At each Newton cycle, compute the new stiffness AMG
+   // preconditioner
    HypreBoomerAMG *stiff_prec_amg = new HypreBoomerAMG();
-   stiff_prec_amg->SetOperator(Jacobian->GetBlock(0,0));
+   stiff_prec_amg->SetOperator(jacobian->GetBlock(0,0));
    stiff_prec_amg->SetPrintLevel(0);
    stiff_prec_amg->SetElasticityOptions(spaces[0]);
 
    stiff_prec = stiff_prec_amg;
 
 
-
-
    GMRESSolver *stiff_pcg_iter = new GMRESSolver(spaces[0]->GetComm());
-
    stiff_pcg_iter->SetRelTol(1e-8);
    stiff_pcg_iter->SetAbsTol(1e-8);
    stiff_pcg_iter->SetMaxIter(200);
    stiff_pcg_iter->SetPrintLevel(0);
    stiff_pcg_iter->SetPreconditioner(*stiff_prec);
-   stiff_pcg_iter->SetOperator(Jacobian->GetBlock(0,0));
+   stiff_pcg_iter->SetOperator(jacobian->GetBlock(0,0));
    stiff_pcg_iter->iterative_mode = true;
 
    stiff_pcg = stiff_pcg_iter;
@@ -425,16 +472,16 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
 
    fes.Copy(spaces);
 
-   // Define the mixed nonlinear form
+   // Define the block nonlinear form
    Hform = new ParBlockNonlinearForm(spaces);
 
-   // Add the passive stress integrator
+   // Add the incompressible neo-Hookean integrator
    Hform->AddDomainIntegrator(new IncompressibleNeoHookeanIntegrator(mu));
 
    // Set the essential boundary conditions
    Hform->SetEssentialBC(ess_bdr, rhs);
 
-   
+   // Compute the pressure mass stiffness matrix
    ParBilinearForm *a = new ParBilinearForm(spaces[1]);
    ConstantCoefficient one(1.0);
    OperatorHandle mass(Operator::Hypre_ParCSR);
@@ -442,26 +489,30 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    a->Assemble();
    a->Finalize();
    a->ParallelAssemble(mass);
+   delete a;
+
    mass.SetOperatorOwner(false);
-   Pressure_mass = mass.Ptr();
+   pressure_mass = mass.Ptr();
 
-   JacobianPreconditioner *Jac_prec = new JacobianPreconditioner(fes,
-                                                                 *Pressure_mass,
-                                                                 block_trueOffsets, ess_bdr);
-   J_prec = Jac_prec;
+   // Initialize the Jacobian preconditioner
+   JacobianPreconditioner *jac_prec = new JacobianPreconditioner(fes,
+                                                                 *pressure_mass,
+                                                                 block_trueOffsets);
+   j_prec = jac_prec;
 
-   GMRESSolver *J_gmres = new GMRESSolver(spaces[0]->GetComm());
-   J_gmres->iterative_mode = true;
-   J_gmres->SetRelTol(1.0e-12);
-   J_gmres->SetAbsTol(1.0e-12);
-   J_gmres->SetMaxIter(300);
-   J_gmres->SetPrintLevel(0);
-   J_gmres->SetPreconditioner(*J_prec);
-   J_solver = J_gmres;
+   // Set up the Jacobian solver
+   GMRESSolver *j_gmres = new GMRESSolver(spaces[0]->GetComm());
+   j_gmres->iterative_mode = true;
+   j_gmres->SetRelTol(1.0e-12);
+   j_gmres->SetAbsTol(1.0e-12);
+   j_gmres->SetMaxIter(300);
+   j_gmres->SetPrintLevel(0);
+   j_gmres->SetPreconditioner(*j_prec);
+   j_solver = j_gmres;
    
    // Set the newton solve parameters
    newton_solver.iterative_mode = true;
-   newton_solver.SetSolver(*J_solver);
+   newton_solver.SetSolver(*j_solver);
    newton_solver.SetOperator(*this);
    newton_solver.SetPrintLevel(1);
    newton_solver.SetRelTol(rel_tol);
@@ -482,24 +533,22 @@ void RubberOperator::Solve(Vector &xp) const
 void RubberOperator::Mult(const Vector &k, Vector &y) const
 {
    Hform->Mult(k, y);
-
 }
 
 // Compute the Jacobian from the nonlinear form
 Operator &RubberOperator::GetGradient(const Vector &xp) const
 {
-   Jacobian = &Hform->GetGradient(xp);
+   jacobian = &Hform->GetGradient(xp);
 
-   return *Jacobian;
+   return *jacobian;
 }
 
 RubberOperator::~RubberOperator()
 {
-   delete J_solver;
-   if (J_prec != NULL)
-   {
-      delete J_prec;
-   }
+   delete Hform;
+   delete pressure_mass;
+   delete j_solver;
+   delete j_prec;
 }
 
 // In line visualization
