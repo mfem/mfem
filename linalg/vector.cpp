@@ -31,21 +31,17 @@ namespace mfem
 Vector::Vector(const Vector &v)
 {
    int s = v.Size();
-   double * d = v.GetData();
 
-   if (s > 0 && d)
+   if (s > 0)
    {
+      MFEM_ASSERT(v.data, "invalid source vector");
       allocsize = size = s;
       data = new double[s];
-      for (int i = 0; i < s; i++)
-      {
-         data[i] = v(i);
-      }
+      std::memcpy(data, v.data, sizeof(double)*s);
    }
    else
    {
-      size = s > 0 ? s : 0;
-      allocsize = size;
+      allocsize = size = s;
       data = NULL;
    }
 }
@@ -119,20 +115,14 @@ double Vector::operator*(const Vector &v) const
 
 Vector &Vector::operator=(const double *v)
 {
-   for (int i = 0; i < size; i++)
-   {
-      data[i] = v[i];
-   }
+   std::memcpy(data, v, sizeof(double)*size);
    return *this;
 }
 
 Vector &Vector::operator=(const Vector &v)
 {
    SetSize(v.Size());
-   for (int i = 0; i < size; i++)
-   {
-      data[i] = v.data[i];
-   }
+   std::memcpy(data, v.data, sizeof(double)*size);
    return *this;
 }
 

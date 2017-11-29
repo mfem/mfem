@@ -42,18 +42,16 @@ DenseMatrix::DenseMatrix() : Matrix(0)
 DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
 {
    int hw = height * width;
-   if (hw > 0 && m.data)
+   if (hw > 0)
    {
+      MFEM_ASSERT(m.data, "invalid source matrix");
       data = new double[hw];
       capacity = hw;
-      for (int i = 0; i < hw; ++i)
-      {
-         data[i] = m.data[i];
-      }
+      std::memcpy(data, m.data, sizeof(double)*hw);
    }
    else
    {
-      capacity = hw > 0 ? hw : 0;
+      capacity = 0;
       data = NULL;
    }
 }
@@ -4151,9 +4149,10 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
 #endif
 }
 
-DenseMatrixEigensystem::DenseMatrixEigensystem(const DenseMatrixEigensystem
-                                               &other)
-   : mat(other.mat), EVal(other.EVal), EVect(other.EVect), ev(other.ev), n(other.n)
+DenseMatrixEigensystem::DenseMatrixEigensystem(
+   const DenseMatrixEigensystem &other)
+   : mat(other.mat), EVal(other.EVal), EVect(other.EVect), ev(NULL, other.n),
+     n(other.n)
 {
 #ifdef MFEM_USE_LAPACK
    jobz = other.jobz;

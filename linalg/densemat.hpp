@@ -630,21 +630,19 @@ public:
       own_data = true;
    }
 
+   /// Copy constructor: deep copy
    DenseTensor(const DenseTensor& other)
-      : Mk(other.Mk), nk(other.nk), own_data(other.own_data)
+      : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk), own_data(true)
    {
-      if (own_data)
+      const int size = Mk.Height()*Mk.Width()*nk;
+      if (size > 0)
       {
-         int i = Mk.Height();
-         int j = Mk.Width();
-         int k = nk;
-         int size = i*j*k;
          tdata = new double[size];
          std::memcpy(tdata, other.tdata, sizeof(double) * size);
       }
       else
       {
-         tdata = other.tdata;
+         tdata = NULL;
       }
    }
 
