@@ -27,6 +27,245 @@ namespace mfem
 {
 
 /**
+* A Class to compute the real indice from the multi-indice of a tensor
+*/
+template <int N, int Dim, typename T, typename... Args>
+class TensorInd
+{
+public:
+   static int result(const int* sizes, T first, Args... args)
+   {
+      return first + sizes[N-1]*TensorInd<N+1,Dim,Args...>::result(sizes,args...);
+   }
+};
+//Terminal case
+template <int Dim, typename T, typename... Args>
+class TensorInd<Dim,Dim,T,Args...>
+{
+public:
+   static int result(const int* sizes, T first, Args... args)
+   {
+      return first;
+   }
+};
+
+/**
+* A class to initialize the size of a Tensor
+*/
+template <int N, int Dim, typename T, typename... Args>
+class Init
+{
+public:
+   static int result(int* sizes, T first, Args... args){
+      sizes[N-1] = first;
+      return first * Init<N+1,Dim,Args...>::result(sizes,args...);
+   }
+};
+//Terminal case
+template <int Dim, typename T, typename... Args>
+class Init<Dim,Dim,T,Args...>
+{
+public:
+   static int result(int* sizes, T first, Args... args){
+      sizes[Dim-1] = first;
+      return first;
+   }
+};
+
+/**
+*  A basic generic Tensor class
+*/
+template<int Dim, typename Scalar=double>
+class Tensor
+{
+protected:
+   Scalar* data;
+   bool own_data;
+   int capacity;
+   int sizes[Dim];
+
+public:
+   /**
+   *  A default constructor
+   */
+   Tensor()
+   : data(NULL), own_data(true), capacity(0)
+   {
+   }
+
+   /**
+   *  A default destructor
+   */
+   ~Tensor()
+   {
+      if (own_data)
+      {
+         delete [] data;
+      }
+   }
+
+   /**
+   *  A constructor to initialize the sizes of a tensor with an array of integers
+   */
+   Tensor(int* _sizes)
+   : own_data(true)
+   {
+      int nb = 1;
+      for (int i = 0; i < Dim; ++i)
+      {
+         sizes[i] = _sizes[i];
+         nb *= sizes[i];
+      }
+      capacity = nb;
+      data = new Scalar[nb]();
+   }
+
+   /**
+   *  A constructor to initialize the sizes of a tensor with a variadic function
+   */
+   template <typename... Args>
+   Tensor(Args... args)
+   : own_data(true)
+   {
+      static_assert(sizeof...(args)==Dim, "Wrong number of arguments");
+      // Initialize sizes, and compute the number of values
+      long int nb = Init<1,Dim,Args...>::result(sizes,args...);
+      capacity = nb;
+      data = new Scalar[nb]();
+   }
+
+   /**
+   *  A constructor to initialize a tensor from the Scalar array _data
+   */
+   template <typename... Args>
+   Tensor(Scalar* _data, Args... args)
+   : own_data(false)
+   {
+      static_assert(sizeof...(args)==Dim, "Wrong number of arguments");
+      // Initialize sizes, and compute the number of values
+      long int nb = Init<1,Dim,Args...>::result(sizes,args...);
+      capacity = nb;
+      data = _data;
+   }
+
+   /**
+   *  Sets the size of the tensor, and allocate memory if necessary
+   */
+   template <typename... Args>
+   void setSize(Args... args)
+   {
+      static_assert(sizeof...(args)==Dim, "Wrong number of arguments");
+      // Initialize sizes, and compute the number of values
+      long int nb = Init<1,Dim,Args...>::result(sizes,args...);
+      if(nb>capacity)
+      {
+         Scalar* _data = new Scalar[nb];
+         for (int i = 0; i < capacity; ++i)
+         {
+            _data[i] = data[i];
+         }
+         for (int i = capacity; i < nb; ++i)
+         {
+            _data[i] = Scalar();
+         }
+         if (own_data)
+         {
+            delete [] data;
+         }
+         data = _data;
+         own_data = true;
+         capacity = nb;
+      }
+   }
+
+   /**
+   *  A const accessor for the data
+   */
+   template <typename... Args>
+   Scalar operator()(Args... args) const
+   {
+      static_assert(sizeof...(args)==Dim, "Wrong number of arguments");
+      return data[ TensorInd<1,Dim,Args...>::result(sizes,args...) ];
+   }
+
+   /**
+   *  A reference accessor to the data
+   */
+   template <typename... Args>
+   Scalar& operator()(Args... args)
+   {
+      static_assert(sizeof...(args)==Dim, "Wrong number of arguments");
+      return data[ TensorInd<1,Dim,Args...>::result(sizes,args...) ];
+   }
+
+   /**
+   *  A const accessor for the data
+   */
+   template <typename... Args>
+   Scalar operator[](Args... args) const
+   {
+      static_assert(sizeof...(args)==Dim, "Wrong number of arguments");
+      return data[ TensorInd<1,Dim,Args...>::result(sizes,args...) ];
+   }
+
+   /**
+   *  A reference accessor to the data
+   */
+   template <typename... Args>
+   Scalar& operator[](Args... args)
+   {
+      static_assert(sizeof...(args)==Dim, "Wrong number of arguments");
+      return data[ TensorInd<1,Dim,Args...>::result(sizes,args...) ];
+   }
+
+   /**
+   *  Returns the size of the i-th dimension #UNSAFE#
+   */
+   int size(int i) const
+   {
+      return sizes[i];
+   }
+
+   /**
+   *  Returns the dimension of the tensor.
+   */
+   int dimension() const
+   {
+      return Dim;
+   }
+
+   /**
+   *  Returns the Scalar array data
+   */
+   Scalar* getData()
+   {
+      return data;
+   }
+
+   /**
+   *  Basic printing method.
+   */
+   friend std::ostream& operator<<(std::ostream& os, const Tensor& T)
+   {
+      int nb_elts = 1;
+      for (int i = 0; i < T.dimension(); ++i)
+      {
+          nb_elts *= T.size(i);
+      }
+      for (int i = 0; i < nb_elts; ++i)
+      {
+          os << T.data[i] << " ";
+          if ((i+1)%T.sizes[0]==0)
+          {
+             os << "\n";
+          }
+      }
+      os << "\n";    
+      return os;
+   }
+};
+
+/**
 * A dummy Matrix implementation that handles any type
 */
 template <typename Scalar>

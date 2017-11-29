@@ -23,7 +23,6 @@
 #include <iostream>
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
-#include "../../Tensor/tensor.hpp"
 
 namespace mfem
 {

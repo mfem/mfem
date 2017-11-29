@@ -417,8 +417,7 @@ public:
         		const IntegrationPoint& ip = ir.IntPoint(k);
 	         if(face_tr->Elem2No!=-1){
 		      	// We compute D11 and D21
-	      		IntegrationPoint&	eip1 = pak.IntPoint( face_id1, k );//3D point ordered according to coord on element 1
-	      		//face_tr->Loc1.Transform( ip, eip1 );
+	      		IntegrationPoint&	eip1 = pak.IntPoint( face_id1, k );
 		         face_tr->Face->SetIntPoint( &ip );
 					face_tr->Elem1->SetIntPoint( &eip1 );
 		         q.Eval( qvec, *(face_tr->Elem1), eip1 );
@@ -434,7 +433,6 @@ public:
 		         pak.SetValDext(ind21, val);
 		         // We compute D12 and D22
 	      		IntegrationPoint& eip2 = pak.IntPoint( face_id2, k );
-	      		//face_tr->Loc2.Transform( ip, eip2 );
 		        	face_tr->Face->SetIntPoint( &ip );
 					face_tr->Elem2->SetIntPoint( &eip2 );
 			      q.Eval( qvec, *(face_tr->Elem2), eip2 );

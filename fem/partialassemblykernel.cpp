@@ -1675,8 +1675,8 @@ void DummyFaceMultBtDB::Permutation(int face_id, int nbe, int dofs1d, KData& ker
 {
    for (int e = 0; e < nbe; ++e)
    {
-      int trial = kernel_data(e,face_id).indirection;
-      int permutation = kernel_data(e,face_id).permutation;
+      const int trial = kernel_data(e,face_id).indirection;
+      const int permutation = kernel_data(e,face_id).permutation;
       if(trial!=-1)
       {
          if(permutation==0)
@@ -1704,7 +1704,7 @@ void DummyFaceMultBtDB::Permutation(int face_id, int nbe, int dofs1d, KData& ker
                   T0p(i1,i2,e) = T0(j1,j2,trial);
                }
             }
-         }else if(permutation==3){
+         }else if(permutation==3){// || permutation==1){
             for (int i2 = 0, j1 = 0; i2 < dofs1d; ++i2, ++j1)
             {
                for (int i1 = 0, j2 = dofs1d-1; i1 < dofs1d; ++i1, --j2)
