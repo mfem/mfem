@@ -166,15 +166,6 @@ if (MFEM_USE_LAPACK)
   find_package(LAPACK REQUIRED)
 endif()
 
-# OpenMP
-if (MFEM_USE_OPENMP)
-  if (MFEM_THREAD_SAFE)
-    find_package(OpenMP REQUIRED)
-  else()
-    message(FATAL_ERROR " *** MFEM_USE_OPENMP requires MFEM_THREAD_SAFE=ON.")
-  endif()
-endif()
-
 # SuiteSparse (before SUNDIALS which may depend on KLU)
 if (MFEM_USE_SUITESPARSE)
   find_package(SuiteSparse REQUIRED
@@ -266,7 +257,7 @@ endif()
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
+set(MFEM_TPLS MPI_CXX BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
     MESQUITE SuperLUDist STRUMPACK AXOM GECKO GNUTLS NETCDF MPFR POSIXCLOCKS
     MFEMBacktrace ZLIB)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
@@ -283,11 +274,6 @@ list(REMOVE_DUPLICATES TPL_LIBRARIES)
 list(REMOVE_DUPLICATES TPL_INCLUDE_DIRS)
 # message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
 include_directories(${TPL_INCLUDE_DIRS})
-
-if (OPENMP_FOUND)
-  message(STATUS "MFEM: using package OpenMP")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-endif()
 
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")

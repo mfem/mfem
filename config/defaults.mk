@@ -69,7 +69,6 @@ MFEM_USE_GZSTREAM    = NO
 MFEM_USE_LIBUNWIND   = NO
 MFEM_USE_LAPACK      = NO
 MFEM_THREAD_SAFE     = NO
-MFEM_USE_OPENMP      = NO
 MFEM_USE_MEMALLOC    = YES
 MFEM_TIMER_TYPE      = $(if $(NOTMAC),2,4)
 MFEM_USE_SUNDIALS    = NO
@@ -115,10 +114,6 @@ endif
 # LAPACK library configuration
 LAPACK_OPT =
 LAPACK_LIB = $(if $(NOTMAC),-llapack -lblas,-framework Accelerate)
-
-# OpenMP configuration
-OPENMP_OPT = -fopenmp
-OPENMP_LIB =
 
 # Used when MFEM_TIMER_TYPE = 2
 POSIX_CLOCKS_LIB = -lrt
@@ -176,7 +171,6 @@ MPI_FORTRAN_LIB = -lmpifort
 STRUMPACK_DIR = @MFEM_DIR@/../STRUMPACK-build
 STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
 # If STRUMPACK was build with OpenMP support, the following may be need:
-# STRUMPACK_OPT += $(OPENMP_OPT)
 STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
  $(SCOTCH_LIB) $(SCALAPACK_LIB)
 
