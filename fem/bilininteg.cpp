@@ -819,28 +819,6 @@ void MassIntegrator::AssembleElementMatrix2(
    }
 }
 
-MassIntegrator::~MassIntegrator() { delete pa_integ; }
-
-void MassIntegrator::AssembleOperator(const FiniteElementSpace *trial_fes,
-                                      const FiniteElementSpace *test_fes)
-{
-   if (!pa_integ) { pa_integ = new PAMassIntegrator(this); }
-   pa_integ->AssembleOperator(trial_fes, test_fes);
-}
-
-void MassIntegrator::AssembleMult(const Vector &fun, Vector &vect)
-{
-   if (!pa_integ) { pa_integ = new PAMassIntegrator(this); }
-   pa_integ->AssembleMult(fun, vect);
-}
-
-void MassIntegrator::AssembleMultTranspose(const Vector &fun, Vector &vect)
-{
-   if (!pa_integ) { pa_integ = new PAMassIntegrator(this); }
-   pa_integ->AssembleMultTranspose(fun, vect);
-}
-
-
 void BoundaryMassIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
@@ -2086,28 +2064,6 @@ void DivDivIntegrator::AssembleElementMatrix(
       AddMult_a_VVt (c, divshape, elmat);
    }
 }
-
-DiffusionIntegrator::~DiffusionIntegrator() { delete pa_integ; }
-
-void DiffusionIntegrator::AssembleOperator(const FiniteElementSpace *trial_fes,
-                                           const FiniteElementSpace *test_fes)
-{
-   if (!pa_integ) { pa_integ = new PADiffusionIntegrator(this); }
-   pa_integ->AssembleOperator(trial_fes, test_fes);
-}
-
-void DiffusionIntegrator::AssembleMult(const Vector &fun, Vector &vect)
-{
-   if (!pa_integ) { pa_integ = new PADiffusionIntegrator(this); }
-   pa_integ->AssembleMult(fun, vect);
-}
-
-void DiffusionIntegrator::AssembleMultTranspose(const Vector &fun, Vector &vect)
-{
-   if (!pa_integ) { pa_integ = new PADiffusionIntegrator(this); }
-   pa_integ->AssembleMultTranspose(fun, vect);
-}
-
 
 void VectorDiffusionIntegrator::AssembleElementMatrix(
    const FiniteElement &el,

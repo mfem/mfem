@@ -1585,14 +1585,10 @@ protected:
    }
 };
 
-// Forward-declare PADiffusionIntegrator
-class PADiffusionIntegrator;
-
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, grad v) where Q
     can be a scalar or a matrix coefficient. */
 class DiffusionIntegrator: public BilinearFormIntegrator
 {
-   friend class PADiffusionIntegrator;
 private:
    Vector vec, pointflux, shape;
 #ifndef MFEM_THREAD_SAFE
@@ -1602,19 +1598,15 @@ private:
    Coefficient *Q;
    MatrixCoefficient *MQ;
 
-   PADiffusionIntegrator *pa_integ;
-
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
-   DiffusionIntegrator() { Q = NULL; MQ = NULL; pa_integ = NULL; TensorAssembly = true; }
+   DiffusionIntegrator() { Q = NULL; MQ = NULL; }
 
    /// Construct a diffusion integrator with a scalar coefficient q
-   DiffusionIntegrator (Coefficient &q) : Q(&q) { MQ = NULL; pa_integ = NULL; TensorAssembly = true; }
+   DiffusionIntegrator (Coefficient &q) : Q(&q) { MQ = NULL; }
 
    /// Construct a diffusion integrator with a matrix coefficient q
-   DiffusionIntegrator (MatrixCoefficient &q) : MQ(&q) { Q = NULL; pa_integ = NULL; TensorAssembly = true; }
-
-   ~DiffusionIntegrator();
+   DiffusionIntegrator (MatrixCoefficient &q) : MQ(&q) { Q = NULL; }
 
    /** Given a particular Finite Element
        computes the element stiffness matrix elmat. */
@@ -1642,38 +1634,25 @@ public:
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
 
-   /// Partial assembly
-   virtual void AssembleOperator(const FiniteElementSpace *trial_fes,
-                                 const FiniteElementSpace *test_fes);
-
-   /// Partially-assembled and matrix-free action
-   virtual void AssembleMult(const Vector &fun, Vector &vect);
-   virtual void AssembleMultTranspose(const Vector &fun, Vector &vect);
+   // Friend partial assembly version so it has access to the coefficients.
+   friend class PADiffusionIntegrator;
 };
-
-// Forward-declare PAMassIntegrator
-class PAMassIntegrator;
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
 class MassIntegrator: public BilinearFormIntegrator
 {
-   friend class PAMassIntegrator;
 protected:
 #ifndef MFEM_THREAD_SAFE
    Vector shape, te_shape;
 #endif
    Coefficient *Q;
 
-   PAMassIntegrator *pa_integ;
-
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir) { Q = NULL; pa_integ = NULL; TensorAssembly = true; }
+      : BilinearFormIntegrator(ir) { Q = NULL; }
    /// Construct a mass integrator with coefficient q
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir), Q(&q) { pa_integ = NULL; TensorAssembly = true; }
-
-   ~MassIntegrator();
+      : BilinearFormIntegrator(ir), Q(&q) { }
 
    /** Given a particular Finite Element
        computes the element mass matrix elmat. */
@@ -1685,13 +1664,8 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
-   /// Partial assembly
-   virtual void AssembleOperator(const FiniteElementSpace *trial_fes,
-                                 const FiniteElementSpace *test_fes);
-
-   /// Partially-assembled and matrix-free action
-   virtual void AssembleMult(const Vector &fun, Vector &vect);
-   virtual void AssembleMultTranspose(const Vector &fun, Vector &vect);
+   // Friend partial assembly version so it has access to the coefficients.
+   friend class PAMassIntegrator;
 };
 
 class BoundaryMassIntegrator : public MassIntegrator

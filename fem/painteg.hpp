@@ -9,26 +9,31 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-// This file contains operator-based bilinear form integrators used
-// with BilinearFormOperator.
+// This file contains FESpaceIntegrators.
 
-#ifndef MFEM_OBILININTEG
-#define MFEM_OBILININTEG
+
+#ifndef MFEM_PAINTEG
+#define MFEM_PAINTEG
 
 #include "../config/config.hpp"
-#include "bilininteg.hpp"
+#include "nonlininteg.hpp"
+#include "fespaceform.hpp"
 
 namespace mfem
 {
 
+// These integrators use constructors based on the non-PA versions so
+// that the options are consistent. If that is not the case, the
+// friendship can be revoked and those constructors can be removed.
+
 /** Class for computing the action of (grad(u), grad(v)) from a scalar
  * fespace using a partially assembled operator at quadrature
  * points. */
-class PADiffusionIntegrator : public BilinearFormIntegrator
+class PADiffusionIntegrator : public LinearFESpaceIntegrator
 {
 protected:
    // Carry pointer in order to have access to coefficient
-   DiffusionIntegrator *integ;     // Do not own
+   DiffusionIntegrator *integ;     // Own this
    const FiniteElementSpace *fes;  // TODO: support mixed spaces
    DenseTensor Dtensor;
    DenseMatrix shape1d, dshape1d;
@@ -40,19 +45,20 @@ protected:
 
 public:
    PADiffusionIntegrator(DiffusionIntegrator *_integ) : integ(_integ) {}
+   ~PADiffusionIntegrator() { delete integ; }
 
-   virtual void AssembleOperator(const FiniteElementSpace *_trial_fes,
-                                 const FiniteElementSpace *_test_fes);
+   virtual void Assemble(FiniteElementSpace *trial_fes,
+                         FiniteElementSpace *test_fes);
 
-   virtual void AssembleMult(const Vector &fun, Vector &vect);
+   virtual void AddMult(const Vector &x, Vector &y);
 };
 
 /** Class for computing the action of (u, v) from a scalar fespace
  * using a partially assembled operator at quadrature points. */
-class PAMassIntegrator : public BilinearFormIntegrator
+class PAMassIntegrator : public LinearFESpaceIntegrator
 {
 protected:
-   MassIntegrator *integ;     // Do not own
+   MassIntegrator *integ;     // Own this
    const FiniteElementSpace *fes;  // TODO: support mixed spaces
    DenseMatrix Dmat;
    DenseMatrix shape1d;
@@ -64,11 +70,17 @@ protected:
 
 public:
    PAMassIntegrator(MassIntegrator *_integ) : integ(_integ) {}
+   ~PAMassIntegrator() { delete integ; }
 
-   virtual void AssembleOperator(const FiniteElementSpace *_trial_fes,
-                                 const FiniteElementSpace *_test_fes);
+   virtual void Assemble(FiniteElementSpace *_trial_fes,
+                         FiniteElementSpace *_test_fes);
 
-   virtual void AssembleMult(const Vector &fun, Vector &vect);
+   virtual void AddMult(const Vector &x, Vector &y);
+};
+
+struct PAIntegratorMap : public IntegratorMap
+{
+   virtual LinearFESpaceIntegrator *DomainIntegrator(BilinearFormIntegrator *integ) const;
 };
 
 }

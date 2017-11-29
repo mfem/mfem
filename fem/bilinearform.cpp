@@ -72,12 +72,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f)
    element_matrices = NULL;
    static_cond = NULL;
    hybridization = NULL;
-   bfo = NULL;
    precompute_sparsity = 0;
-
-   // Options
-   AssemblyType = Assembly::Full;
-   OptimMatrixAssembly = false;
 }
 
 BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
@@ -93,7 +88,6 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    element_matrices = NULL;
    static_cond = NULL;
    hybridization = NULL;
-   bfo = bf->bfo;
    precompute_sparsity = ps;
 
    bfi = bf->GetDBFI();
@@ -125,10 +119,6 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    }
 
    AllocMat();
-
-   // Options
-   AssemblyType = bf->AssemblyType;
-   OptimMatrixAssembly = bf->OptimMatrixAssembly;
 }
 
 void BilinearForm::EnableStaticCondensation()
@@ -194,19 +184,6 @@ const double& BilinearForm::Elem (int i, int j) const
    return mat -> Elem(i,j);
 }
 
-void BilinearForm::Mult(const Vector &x, Vector &y) const
-{
-   if (mat)
-   {
-      mat->Mult(x, y);
-   }
-   else
-   {
-      y = 0.0;
-      bfo->MultAdd(x, y);
-   }
-}
-
 MatrixInverse * BilinearForm::Inverse() const
 {
    return mat -> Inverse();
@@ -246,6 +223,11 @@ void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
 {
    bfbfi.Append(bfi);
    bfbfi_marker.Append(&bdr_marker);
+}
+
+void BilinearForm::AddIntegrator(LinearFESpaceIntegrator *bfi)
+{
+   fesi.Append(bfi);
 }
 
 void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
@@ -320,43 +302,6 @@ void BilinearForm::AssembleBdrElementMatrix(
    }
 }
 
-bool BilinearForm::CanTensorizeAssembly() const
-{
-   if (dbfi.Size())
-   {
-      for (int i = 0; i < dbfi.Size(); i++)
-      {
-         if (!dbfi[i]->TensorAssembly) { return false; }
-      }
-   }
-
-   if (bbfi.Size())
-   {
-      for (int i = 0; i < bbfi.Size(); i++)
-      {
-         if (!bbfi[i]->TensorAssembly) { return false; }
-      }
-   }
-
-   if (fbfi.Size())
-   {
-      for (int i = 0; i < fbfi.Size(); i++)
-      {
-         if (!fbfi[i]->TensorAssembly) { return false; }
-      }
-   }
-
-   if (bfbfi.Size())
-   {
-      for (int i = 0; i < bfbfi.Size(); i++)
-      {
-         if (!bfbfi[i]->TensorAssembly) { return false; }
-      }
-   }
-
-   return true;
-}
-
 void BilinearForm::Assemble (int skip_zeros)
 {
    ElementTransformation *eltrans;
@@ -364,23 +309,6 @@ void BilinearForm::Assemble (int skip_zeros)
    DenseMatrix elmat, *elmat_p;
 
    int i;
-
-   if (CanTensorizeAssembly()) {
-      if ((AssemblyType == Assembly::Partial) ||
-          (AssemblyType == Assembly::Full && OptimMatrixAssembly)) {
-         if (!bfo) { bfo = new BilinearFormOperator(this); }
-         bfo->Assemble();
-         return;
-      }
-   }
-   else
-   {
-      if (AssemblyType == Assembly::Partial)
-      {
-         mfem_error("Partial assembly is not supported "
-                    "by one or more of the integrators");
-      }
-   }
 
    if (mat == NULL)
    {
@@ -545,6 +473,16 @@ void BilinearForm::Assemble (int skip_zeros)
 #endif
 }
 
+
+// TODO: Pull this out of bilinear form.
+template <>
+void BilinearForm::AssembleForm<SparseMatrix>(SparseMatrix &A, int skip_zeros)
+{ Assemble(skip_zeros); }
+
+template <>
+void BilinearForm::AssembleForm<FESpaceForm>(FESpaceForm &A, int skip_zeros)
+{ A.Assemble(this); }
+
 void BilinearForm::ConformingAssemble()
 {
    // Do not remove zero entries to preserve the symmetric structure of the
@@ -580,10 +518,10 @@ void BilinearForm::ConformingAssemble()
    width = mat->Width();
 }
 
-void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                    Vector &x, Vector &b,
-                                    SparseMatrix &A, Vector &X, Vector &B,
-                                    int copy_interior)
+void BilinearForm::FormLinearSystem_SparseMat(const Array<int> &ess_tdof_list,
+                                              Vector &x, Vector &b,
+                                              SparseMatrix &A, Vector &X, Vector &B,
+                                              int copy_interior)
 {
    const SparseMatrix *P = fes->GetConformingProlongation();
 
@@ -646,6 +584,29 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    }
 }
 
+template <class Op>
+void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                                    Op &A, Vector &X, Vector &B, Operator * &Asys,
+                                    int copy_interior)
+{ mfem_error("Not supported."); }
+
+template <>
+void BilinearForm::FormLinearSystem<FESpaceForm>(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                                                 FESpaceForm &Aoper, Vector &X, Vector &B, Operator * &A,
+                                                 int copy_interior)
+{ Aoper.FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior); }
+
+template <>
+void BilinearForm::FormLinearSystem<SparseMatrix>(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                                                  SparseMatrix &Aoper, Vector &X, Vector &B, Operator * &A,
+                                                  int copy_interior)
+{
+   SparseMatrix *Aout = new SparseMatrix;
+   FormLinearSystem_SparseMat(ess_tdof_list, x, b, Aoper, X, B, copy_interior);
+   Aout->MakeRef(Aoper);
+   A = Aout;
+}
+
 void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
                                     SparseMatrix &A)
 {
@@ -682,6 +643,21 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
          A.MakeRef(*mat);
       }
    }
+}
+
+template <>
+void BilinearForm::FormSystemOperator<SparseMatrix>(const Array<int> &ess_tdof_list,
+                                                    SparseMatrix *Aoper, Operator * &A)
+{
+   FormSystemMatrix(ess_tdof_list, *Aoper);
+   A = Aoper;
+}
+
+template <>
+void BilinearForm::FormSystemOperator<FESpaceForm>(const Array<int> &ess_tdof_list,
+                                                   FESpaceForm *Aoper, Operator * &A)
+{
+   A = Aoper;
 }
 
 void BilinearForm::RecoverFEMSolution(const Vector &X,
@@ -955,7 +931,6 @@ BilinearForm::~BilinearForm()
    delete element_matrices;
    delete static_cond;
    delete hybridization;
-   delete bfo;
 
    if (!extern_bfs)
    {
@@ -964,6 +939,7 @@ BilinearForm::~BilinearForm()
       for (k=0; k < bbfi.Size(); k++) { delete bbfi[k]; }
       for (k=0; k < fbfi.Size(); k++) { delete fbfi[k]; }
       for (k=0; k < bfbfi.Size(); k++) { delete bfbfi[k]; }
+      for (k=0; k < fesi.Size(); k++) { delete fesi[k]; }
    }
 }
 
@@ -1039,6 +1015,12 @@ void MixedBilinearForm::AddTraceFaceIntegrator (BilinearFormIntegrator * bfi)
 {
    skt.Append (bfi);
 }
+
+void MixedBilinearForm::AddIntegrator(LinearFESpaceIntegrator *integ)
+{
+   fesi.Append(integ);
+}
+
 
 void MixedBilinearForm::Assemble (int skip_zeros)
 {
@@ -1216,6 +1198,7 @@ MixedBilinearForm::~MixedBilinearForm()
    for (i = 0; i < dom.Size(); i++) { delete dom[i]; }
    for (i = 0; i < bdr.Size(); i++) { delete bdr[i]; }
    for (i = 0; i < skt.Size(); i++) { delete skt[i]; }
+   for (i = 0; i < fesi.Size(); i++) { delete fesi[i]; }
 }
 
 
@@ -1271,266 +1254,6 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
          mat->SetSubMatrix(ran_vdofs, dom_vdofs, totelmat, skip_zeros);
       }
    }
-}
-
-static void BuildDofMaps(FiniteElementSpace *fespace, Array<int> *&off,
-                         Array<int> *&ind)
-{
-   // Get the total size without vdim
-   int size = 0;
-   const int vdim = fespace->GetVDim();
-   for (int e = 0; e < fespace->GetNE(); e++)
-   {
-      const FiniteElement *fe = fespace->GetFE(e);
-      size += fe->GetDof();
-   }
-   const int local_size = size * vdim;
-   const int global_size = fespace->GetVSize();
-
-   // Now we can allocate and fill the global map
-   off = new Array<int>(global_size + 1);
-   ind = new Array<int>(local_size);
-
-   Array<int> &offsets = *off;
-   Array<int> &indices = *ind;
-
-   Array<int> global_map(local_size);
-   Array<int> elem_vdof;
-
-   int offset = 0;
-   for (int e = 0; e < fespace->GetNE(); e++)
-   {
-      const FiniteElement *fe = fespace->GetFE(e);
-      const int dofs = fe->GetDof();
-      const int vdofs = dofs * vdim;
-      const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement *>(fe);
-      const Array<int> &dof_map = tfe->GetDofMap();
-
-      fespace->GetElementVDofs(e, elem_vdof);
-
-      for (int vd = 0; vd < vdim; vd++)
-         for (int i = 0; i < vdofs; i++)
-         {
-            global_map[offset + dofs*vd + i] = elem_vdof[dofs*vd + dof_map[i]];
-         }
-      offset += vdofs;
-   }
-
-   // Store and use a set of offsets and indices instead of this map
-
-   // Zero the offset vector
-   offsets = 0;
-
-   // Keep track of how many local dof point to its global dof
-   // Count how many times each dof gets hit
-   for (int i = 0; i < local_size; i++)
-   {
-      const int g = global_map[i];
-      ++offsets[g + 1];
-   }
-   // Aggregate the offsets
-   for (int i = 1; i <= global_size; i++)
-   {
-      offsets[i] += offsets[i - 1];
-   }
-
-   for (int i = 0; i < local_size; i++)
-   {
-      const int g = global_map[i];
-      indices[offsets[g]++] = i;
-   }
-
-   // Shift the offset vector back by one, since it was used as a
-   // counter above.
-   for (int i = global_size; i > 0; i--)
-   {
-      offsets[i] = offsets[i - 1];
-   }
-   offsets[0] = 0;
-
-}
-
-BilinearFormOperator::BilinearFormOperator(BilinearForm *_bf)
-   : bf(_bf),
-     trial_fes(bf->fes),
-     test_fes(NULL),
-     trial_gs(false),
-     test_gs(false)
-{
-   // Copy over the lists
-   BuildDofMaps(bf->fes, trial_offsets, trial_indices);
-
-   if (test_fes)
-   {
-      BuildDofMaps(bf->fes, test_offsets, test_indices);
-   }
-   else
-   {
-      // Point to the trial offsets and indices
-      test_offsets = trial_offsets;
-      test_indices = trial_indices;
-   }
-
-   X = new Vector(trial_indices->Size());
-   Y = new Vector(test_indices->Size());
-}
-
-BilinearFormOperator::~BilinearFormOperator()
-{
-   delete trial_offsets;
-   delete trial_indices;
-
-   if (test_fes)
-   {
-      delete test_offsets;
-      delete test_indices;
-   }
-
-   delete X;
-   delete Y;
-}
-
-void BilinearFormOperator::LToEVector(const Array<int> &offsets,
-                                      const Array<int> &indices,
-                                      const Vector &v, Vector &V)
-{
-   const int size = v.Size();
-   for (int i = 0; i < size; i++)
-   {
-      const int offset = offsets[i];
-      const int next_offset = offsets[i + 1];
-      const double dof_value = v(i);
-      for (int j = offset; j < next_offset; j++) { V(indices[j]) = dof_value; }
-   }
-}
-
-void BilinearFormOperator::EToLVector(const Array<int> &offsets,
-                                      const Array<int> &indices,
-                                      const Vector &V, Vector &v)
-{
-   // NOTE: This method ADDS to the output v
-   const int size = v.Size();
-   for (int i = 0; i < size; i++)
-   {
-      const int offset = offsets[i];
-      const int next_offset = offsets[i + 1];
-      double dof_value = 0;
-      for (int j = offset; j < next_offset; j++) { dof_value += V(indices[j]); }
-      v(i) += dof_value;
-   }
-}
-
-void BilinearFormOperator::Assemble()
-{
-   trial_gs = test_gs = true;
-   if (dynamic_cast<const L2_FECollection *>(trial_fes->FEColl()))
-   {
-      trial_gs = test_gs = false;
-   }
-   if (test_fes) {
-      if (dynamic_cast<const L2_FECollection *>(test_fes->FEColl()))
-      {
-         test_gs = false;
-      }
-      else
-      {
-         test_gs = true;
-      }
-   }
-
-   // Simply calls AssembleOperator for each of the integrators.
-   // The integrators each store this data independently.
-   if (bf->dbfi.Size())
-   {
-      for (int k = 0; k < bf->dbfi.Size(); k++)
-         bf->dbfi[k]->AssembleOperator(trial_fes, test_fes);
-   }
-
-   if (bf->bbfi.Size())
-   {
-      for (int k = 0; k < bf->bbfi.Size(); k++)
-         bf->bbfi[k]->AssembleOperator(trial_fes, test_fes);
-   }
-
-   if (bf->fbfi.Size())
-   {
-      for (int k = 0; k < bf->fbfi.Size(); k++)
-         bf->fbfi[k]->AssembleOperator(trial_fes, test_fes);
-   }
-
-   if (bf->bfbfi.Size())
-   {
-      mfem_error("Not supported");
-   }
-}
-
-void BilinearFormOperator::MultAdd(const Vector &x, Vector &y)
-{
-   if (trial_gs) { LToEVector(*trial_offsets, *trial_indices, x, *X); }
-   else { X = const_cast<Vector *>(&x); }
-
-   if (!test_gs) { Y = &y; }
-
-   *Y = 0.0;
-   if (bf->dbfi.Size())
-   {
-      for (int k = 0; k < bf->dbfi.Size(); k++)
-         bf->dbfi[k]->AssembleMult(*X, *Y);
-   }
-
-   if (bf->bbfi.Size())
-   {
-      for (int k = 0; k < bf->bbfi.Size(); k++)
-         bf->bbfi[k]->AssembleMult(*X, *Y);
-   }
-
-   if (bf->fbfi.Size())
-   {
-      for (int k = 0; k < bf->fbfi.Size(); k++)
-         bf->fbfi[k]->AssembleMult(*X, *Y);
-   }
-
-   if (bf->bfbfi.Size() > 0)
-   {
-      mfem_error("Not yet supported");
-   }
-
-   if (test_gs) { EToLVector(*test_offsets, *test_indices, *Y, y); }
-}
-
-
-void BilinearFormOperator::MultAddTranspose(const Vector &x, Vector &y)
-{
-   if (test_gs) { LToEVector(*test_offsets, *test_indices, x, *X); }
-   else { X = const_cast<Vector *>(&x); }
-
-   if (!trial_gs) { Y = &y; }
-
-   *Y = 0.0;
-   if (bf->dbfi.Size())
-   {
-      for (int k = 0; k < bf->dbfi.Size(); k++)
-         bf->dbfi[k]->AssembleMultTranspose(*X, *Y);
-   }
-
-   if (bf->bbfi.Size())
-   {
-      for (int k = 0; k < bf->bbfi.Size(); k++)
-         bf->bbfi[k]->AssembleMultTranspose(*X, *Y);
-   }
-
-   if (bf->fbfi.Size())
-   {
-      for (int k = 0; k < bf->fbfi.Size(); k++)
-         bf->fbfi[k]->AssembleMultTranspose(*X, *Y);
-   }
-
-   if (bf->bfbfi.Size() > 0)
-   {
-      mfem_error("Not yet supported");
-   }
-
-   if (trial_gs) { EToLVector(*trial_offsets, *trial_indices, *Y, y); }
 }
 
 }

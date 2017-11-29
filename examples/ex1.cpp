@@ -130,10 +130,10 @@ int main(int argc, char *argv[])
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
-   LinearForm b(fespace);
+   LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(1.0);
-   b.AddDomainIntegrator(new DomainLFIntegrator(one));
-   b.Assemble();
+   b->AddDomainIntegrator(new DomainLFIntegrator(one));
+   b->Assemble();
 
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -144,21 +144,24 @@ int main(int argc, char *argv[])
    // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   SparseMatrix A_sp;
-   Operator *A;
    Vector B, X;
-   BilinearForm a(fespace);
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
-   if (static_cond) { a.EnableStaticCondensation(); }
-   if (use_partial_assembly) a.AssemblyType = BilinearForm::Assembly::Partial;
-   a.Assemble();
-   if (use_partial_assembly) {
-      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+   BilinearForm *a = new BilinearForm(fespace);
+   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   // Can add a custom FESpaceIntegrator in this way:
+   // a->AddIntegrator(new PADiffusionIntegrator(new DiffusionIntegrator(one)));
+
+   SparseMatrix A_sp;
+   FESpaceForm A_pa(new PAIntegratorMap);
+   Operator *A;
+   if (!use_partial_assembly)
+   {
+      a->AssembleForm(A_sp);
+      a->FormLinearSystem(ess_tdof_list, x, *b, A_sp, X, B, A);
    }
    else
    {
-      a.FormLinearSystem(ess_tdof_list, x, b, A_sp, X, B);
-      A = &A_sp;
+      a->AssembleForm(A_pa);
+      a->FormLinearSystem(ess_tdof_list, x, *b, A_pa, X, B, A);
    }
 
    // 9. Assemble the bilinear form and the corresponding linear system,
@@ -177,10 +180,6 @@ int main(int argc, char *argv[])
       GSSmoother M(A_sp);
       PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
    }
-   else if (use_smoother)
-   {
-      mfem_error("Cannot use GSSmoother with partial assembly");
-   }
    else
    {
       CG(*A, B, X, 1, 200, 1e-12, 0.0);
@@ -198,7 +197,7 @@ int main(int argc, char *argv[])
 #endif
 
    // 11. Recover the solution as a finite element grid function.
-   a.RecoverFEMSolution(X, b, x);
+   a->RecoverFEMSolution(X, *b, x);
 
    // 12. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -220,9 +219,12 @@ int main(int argc, char *argv[])
    }
 
    // 14. Free the used memory.
-   delete mesh;
+   delete A;
+   delete a;
+   delete b;
    delete fespace;
    if (order > 0) { delete fec; }
+   delete mesh;
 
    return 0;
 }

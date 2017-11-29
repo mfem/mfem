@@ -35,10 +35,9 @@
 using namespace std;
 using namespace mfem;
 
-bool use_partial_assembly;
-bool use_preconditioner;
-int order;
-int dim;
+bool partial_assembly_mass;
+bool partial_assembly_diff;
+bool preconditioner;
 
 /** After spatial discretization, the conduction model can be written as:
  *
@@ -59,7 +58,8 @@ protected:
    BilinearForm *M;
    BilinearForm *K;
 
-   Operator *Koper, *Toper;
+   Operator *Koper, *Moper, *Toper;
+   FESpaceForm Mpaop, Kpaop;
    SparseMatrix Mmat, Kmat;
    SparseMatrix *T; // T = M + dt K
    double current_dt;
@@ -119,11 +119,12 @@ double InitialTemperature(const Vector &x);
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   use_partial_assembly = false;
-   use_preconditioner = true;
-   order = 2;
+   partial_assembly_mass = false;
+   partial_assembly_diff = false;
+   preconditioner = true;
    const char *mesh_file = "../data/star.mesh";
    int ref_levels = 2;
+   int order = 2;
    int ode_solver_type = 3;
    double t_final = 0.5;
    double dt = 1.0e-2;
@@ -154,9 +155,11 @@ int main(int argc, char *argv[])
                   "Alpha coefficient.");
    args.AddOption(&kappa, "-k", "--kappa",
                   "Kappa coefficient offset.");
-   args.AddOption(&use_partial_assembly, "-pa", "--partial-assembly",
-                  "-no-pa", "--no-partial-assembly", "Enable partial assembly.");
-   args.AddOption(&use_preconditioner, "-pc", "--peconditioner", "-no-pc",
+   args.AddOption(&partial_assembly_mass, "-pam", "--partial-assembly-mass",
+                  "-no-pam", "--no-partial-assembly-mass", "Enable partial assembly for the mass.");
+   args.AddOption(&partial_assembly_diff, "-pad", "--partial-assembly-diff",
+                  "-no-pad", "--no-partial-assembly-diff", "Enable partial assembly for the diffusion.");
+   args.AddOption(&preconditioner, "-pc", "--peconditioner", "-no-pc",
                   "--no-preconditioner", "Use a Gauss-Seidel preconditioner.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -177,7 +180,7 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   dim = mesh->Dimension();
+   int dim = mesh->Dimension();
 
    // 3. Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
@@ -327,27 +330,24 @@ int main(int argc, char *argv[])
 ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
                                        double kap, const Vector &u)
    : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL), K(NULL),
+     Toper(NULL), Mpaop(new PAIntegratorMap), Kpaop(new PAIntegratorMap),
      T(NULL), current_dt(0.0), z(height)
 {
    const double rel_tol = 1e-8;
 
    M = new BilinearForm(&fespace);
-   M->AddDomainIntegrator(new MassIntegrator());
-   if (use_partial_assembly)
+   M->AddDomainIntegrator(new MassIntegrator);
+   if (!partial_assembly_mass)
    {
-      M->AssemblyType = BilinearForm::Assembly::Partial;
-   }
-
-   M->Assemble();
-
-   if (!use_partial_assembly)
-   {
-      M->FormSystemMatrix(ess_tdof_list, Mmat);
-      M_solver.SetOperator(Mmat);
+      M->AssembleForm(Mmat);
+      M->FormSystemOperator(ess_tdof_list, &Mmat, Moper);
+      M_solver.SetOperator(static_cast<SparseMatrix&>(*Moper));
    }
    else
    {
-      M_solver.SetOperator(*M);
+      M->AssembleForm(Mpaop);
+      M->FormSystemOperator(ess_tdof_list, &Mpaop, Moper);
+      M_solver.SetOperator(*Moper);
    }
 
    M_solver.iterative_mode = false;
@@ -355,7 +355,7 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(30);
    M_solver.SetPrintLevel(0);
-   if (use_preconditioner)
+   if (preconditioner && !partial_assembly_mass)
    {
       M_solver.SetPreconditioner(M_prec);
    }
@@ -368,7 +368,9 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
    T_solver.SetAbsTol(0.0);
    T_solver.SetMaxIter(100);
    T_solver.SetPrintLevel(0);
-   if (use_preconditioner)
+   if (preconditioner &&
+       !partial_assembly_diff &&
+       !partial_assembly_mass)
    {
       T_solver.SetPreconditioner(T_prec);
    }
@@ -392,17 +394,17 @@ void ConductionOperator::ImplicitSolve(const double dt,
    // Solve the equation:
    //    du_dt = M^{-1}*[-K(u + dt*du_dt)]
    // for du_dt
-   if (!T)
+   if (!T && !Toper)
    {
       current_dt = dt;
-      if (!use_partial_assembly)
+      if (!partial_assembly_diff && !partial_assembly_mass)
       {
          T = Add(1.0, Mmat, dt, Kmat);
          T_solver.SetOperator(*T);
       }
       else
       {
-         Toper = new TimeDerivativeOperator(M, dt, Koper);
+         Toper = new TimeDerivativeOperator(Moper, dt, Koper);
          T_solver.SetOperator(*Toper);
       }
    }
@@ -426,35 +428,27 @@ void ConductionOperator::SetParameters(const Vector &u)
    delete K;
    K = new BilinearForm(&fespace);
    K->AddDomainIntegrator(new DiffusionIntegrator(u_coeff));
-   if (use_partial_assembly) K->AssemblyType = BilinearForm::Assembly::Partial;
-   K->Assemble();
-   if (!use_partial_assembly)
+   if (!partial_assembly_diff)
    {
-      K->FormSystemMatrix(ess_tdof_list, Kmat);
-      Koper = &Kmat;
+      K->AssembleForm(Kmat);
+      K->FormSystemOperator(ess_tdof_list, &Kmat, Koper);
    }
    else
    {
-      Koper = K;
-   }
-
-   if (!use_partial_assembly)
-   {
-      delete T;
-   }
-   else
-   {
-      delete Toper;
+      K->AssembleForm(Kpaop);
+      K->FormSystemOperator(ess_tdof_list, &Kpaop, Koper);
    }
 
    // re-compute on the next ImplicitSolve
+   delete T;
+   delete Toper;
    Toper = NULL;
    T = NULL;
 }
 
 ConductionOperator::~ConductionOperator()
 {
-   delete T;
+   delete Toper;
    delete M;
    delete K;
 }

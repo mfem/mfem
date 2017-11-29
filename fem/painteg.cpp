@@ -9,12 +9,9 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-// Implementation of Bilinear Form Integrators for
-// BilinearFormOperator.
+// Implementation of FESpaceIntegrators.
 
 #include "fem.hpp"
-#include <cmath>
-#include <algorithm>
 
 namespace mfem
 {
@@ -72,8 +69,8 @@ static void ComputeBasis1d(const FiniteElement *fe,
    }
 }
 
-void PADiffusionIntegrator::AssembleOperator(const FiniteElementSpace *_trial_fes,
-                                             const FiniteElementSpace *_test_fes)
+void PADiffusionIntegrator::Assemble(FiniteElementSpace *_trial_fes,
+                                     FiniteElementSpace *_test_fes)
 {
    // Assumption: trial and test fespaces are the same (no mixed forms yet)
    fes = _trial_fes;
@@ -101,11 +98,11 @@ void PADiffusionIntegrator::AssembleOperator(const FiniteElementSpace *_trial_fe
 
       if (fe->Space() == FunctionSpace::rQk)
       {
-         SetIntegrationRule(RefinedIntRules.Get(fe->GetGeomType(), ir_order));
+         SetIntegrationRule(&RefinedIntRules.Get(fe->GetGeomType(), ir_order));
       }
       else
       {
-         SetIntegrationRule(IntRules.Get(fe->GetGeomType(), ir_order));
+         SetIntegrationRule(&IntRules.Get(fe->GetGeomType(), ir_order));
       }
    }
    else
@@ -405,22 +402,22 @@ void PADiffusionIntegrator::MultHex(const Vector &V, Vector &U)
    }
 }
 
-void PADiffusionIntegrator::AssembleMult(const Vector &fun, Vector &vect)
+void PADiffusionIntegrator::AddMult(const Vector &x, Vector &y)
 {
    const int dim = fes->GetMesh()->Dimension();
 
    switch (dim)
    {
-   case 1: MultSeg(fun, vect); break;
-   case 2: MultQuad(fun, vect); break;
-   case 3: MultHex(fun, vect); break;
+   case 1: MultSeg(x, y); break;
+   case 2: MultQuad(x, y); break;
+   case 3: MultHex(x, y); break;
    default: mfem_error("Not yet supported"); break;
    }
 }
 
 
-void PAMassIntegrator::AssembleOperator(const FiniteElementSpace *_trial_fes,
-                                        const FiniteElementSpace *_test_fes)
+void PAMassIntegrator::Assemble(FiniteElementSpace *_trial_fes,
+                                FiniteElementSpace *_test_fes)
 {
    // Assumption: trial and test fespaces are the same (no mixed forms yet)
    fes = _trial_fes;
@@ -441,11 +438,11 @@ void PAMassIntegrator::AssembleOperator(const FiniteElementSpace *_trial_fes,
 
       if (fe->Space() == FunctionSpace::rQk)
       {
-         SetIntegrationRule(RefinedIntRules.Get(fe->GetGeomType(), ir_order));
+         SetIntegrationRule(&RefinedIntRules.Get(fe->GetGeomType(), ir_order));
       }
       else
       {
-         SetIntegrationRule(IntRules.Get(fe->GetGeomType(), ir_order));
+         SetIntegrationRule(&IntRules.Get(fe->GetGeomType(), ir_order));
       }
    }
    else
@@ -642,17 +639,32 @@ void PAMassIntegrator::MultHex(const Vector &V, Vector &U)
    }
 }
 
-void PAMassIntegrator::AssembleMult(const Vector &fun, Vector &vect)
+void PAMassIntegrator::AddMult(const Vector &x, Vector &y)
 {
    const int dim = fes->GetMesh()->Dimension();
 
    switch (dim)
    {
-   case 1: MultSeg(fun, vect); break;
-   case 2: MultQuad(fun, vect); break;
-   case 3: MultHex(fun, vect); break;
+   case 1: MultSeg(x, y); break;
+   case 2: MultQuad(x, y); break;
+   case 3: MultHex(x, y); break;
    default: mfem_error("Not yet supported"); break;
    }
+}
+
+LinearFESpaceIntegrator *PAIntegratorMap::DomainIntegrator(BilinearFormIntegrator *integ) const
+{
+   {
+      DiffusionIntegrator *actual_integ = dynamic_cast<DiffusionIntegrator*>(integ);
+      if (actual_integ) { return new PADiffusionIntegrator(actual_integ); }
+   }
+   {
+      MassIntegrator *actual_integ = dynamic_cast<MassIntegrator*>(integ);
+      if (actual_integ) { return new PAMassIntegrator(actual_integ); }
+   }
+
+   mfem_error("Not supported.");
+   return NULL;
 }
 
 
