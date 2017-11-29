@@ -512,7 +512,6 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    if (a == 1.0)
    {
-#ifndef MFEM_USE_OPENMP
       for (i = j = 0; i < height; i++)
       {
          double d = 0.0;
@@ -522,18 +521,6 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
          }
          yp[i] += d;
       }
-#else
-      #pragma omp parallel for private(j,end)
-      for (i = 0; i < height; i++)
-      {
-         double d = 0.0;
-         for (j = Ip[i], end = Ip[i+1]; j < end; j++)
-         {
-            d += Ap[j] * xp[Jp[j]];
-         }
-         yp[i] += d;
-      }
-#endif
    }
    else
    {

@@ -933,9 +933,6 @@ void hypre_CSRMatrixBooleanMatvec(hypre_CSRMatrix *A,
 
    if (alpha == 0)
    {
-#ifdef HYPRE_USING_OPENMP
-      #pragma omp parallel for private(i) HYPRE_SMP_SCHEDULE
-#endif
       for (i = 0; i < num_rows; i++)
       {
          y_data[i] = y_data[i] && beta;
@@ -949,9 +946,6 @@ void hypre_CSRMatrixBooleanMatvec(hypre_CSRMatrix *A,
 
    if (beta == 0)
    {
-#ifdef HYPRE_USING_OPENMP
-      #pragma omp parallel for private(i) HYPRE_SMP_SCHEDULE
-#endif
       for (i = 0; i < num_rows; i++)
       {
          y_data[i] = 0;
@@ -970,9 +964,6 @@ void hypre_CSRMatrixBooleanMatvec(hypre_CSRMatrix *A,
 
    if (num_rownnz < xpar*(num_rows))
    {
-#ifdef HYPRE_USING_OPENMP
-      #pragma omp parallel for private(i,jj,m,tempx) HYPRE_SMP_SCHEDULE
-#endif
       for (i = 0; i < num_rownnz; i++)
       {
          m = A_rownnz[i];
@@ -988,9 +979,6 @@ void hypre_CSRMatrixBooleanMatvec(hypre_CSRMatrix *A,
    }
    else
    {
-#ifdef HYPRE_USING_OPENMP
-      #pragma omp parallel for private(i,jj,temp) HYPRE_SMP_SCHEDULE
-#endif
       for (i = 0; i < num_rows; i++)
       {
          temp = 0;
