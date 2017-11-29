@@ -54,9 +54,7 @@ protected:
        FuncSpace, RangeType, MapType,
        DerivType, DerivRangeType, DerivMapType;
    IntegrationRule Nodes;
-#ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix vshape; // Dof x Dim
-#endif
 
 public:
    /// Enumeration for RangeType and DerivRangeType
@@ -327,18 +325,11 @@ protected:
                        ElementTransformation &Trans,
                        DenseMatrix &curl) const;
 
-#ifndef MFEM_THREAD_SAFE
    mutable Vector c_shape;
-#endif
 
 public:
-#ifdef MFEM_THREAD_SAFE
-   NodalFiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk)
-      : ScalarFiniteElement(D, G, Do, O, F) { }
-#else
    NodalFiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk)
       : ScalarFiniteElement(D, G, Do, O, F), c_shape(Do) { }
-#endif
 
    virtual void GetLocalInterpolation (ElementTransformation &Trans,
                                        DenseMatrix &I) const
@@ -408,10 +399,8 @@ private:
                            DenseMatrix &dshape) const;
 
 protected:
-#ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix J, Jinv;
    mutable DenseMatrix curlshape, curlshape_J;
-#endif
    void SetDerivMembers();
 
    void CalcVShape_RT(ElementTransformation &Trans,
@@ -476,13 +465,8 @@ protected:
 public:
    VectorFiniteElement (int D, int G, int Do, int O, int M,
                         int F = FunctionSpace::Pk) :
-#ifdef MFEM_THREAD_SAFE
-      FiniteElement(D, G, Do, O, F)
-   { RangeType = VECTOR; MapType = M; SetDerivMembers(); }
-#else
       FiniteElement(D, G, Do, O, F), Jinv(D)
    { RangeType = VECTOR; MapType = M; SetDerivMembers(); }
-#endif
 };
 
 class PointFiniteElement : public NodalFiniteElement
@@ -1067,9 +1051,7 @@ class Lagrange1DFiniteElement : public NodalFiniteElement
 {
 private:
    Vector rwk;
-#ifndef MFEM_THREAD_SAFE
    mutable Vector rxxk;
-#endif
 public:
    Lagrange1DFiniteElement (int degree);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -1115,10 +1097,8 @@ private:
    Lagrange1DFiniteElement * fe1d;
    int dof1d;
    int *I, *J, *K;
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape1dx, shape1dy, shape1dz;
    mutable DenseMatrix dshape1dx, dshape1dy, dshape1dz;
-#endif
 
 public:
    LagrangeHexFiniteElement (int degree);
@@ -1479,9 +1459,7 @@ class H1_SegmentElement : public NodalFiniteElement
 private:
    int pt_type;
    Poly_1D::Basis &basis1d;
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, dshape_x;
-#endif
    Array<int> dof_map;
 
 public:
@@ -1499,9 +1477,7 @@ class H1_QuadrilateralElement : public NodalFiniteElement
 private:
    int pt_type;
    Poly_1D::Basis &basis1d;
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, dshape_x, dshape_y;
-#endif
    Array<int> dof_map;
 
 public:
@@ -1520,9 +1496,7 @@ class H1_HexahedronElement : public NodalFiniteElement
 private:
    int pt_type;
    Poly_1D::Basis &basis1d;
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
-#endif
    Array<int> dof_map;
 
 public:
@@ -1537,14 +1511,12 @@ public:
 class H1Pos_SegmentElement : public PositiveFiniteElement
 {
 private:
-#ifndef MFEM_THREAD_SAFE
    // This is to share scratch space between invocations, which helps
    // speed things up, but with OpenMP, we need one copy per thread.
    // Right now, we solve this by allocating this space within each function
    // call every time we call it.  Alternatively, we should do some sort
    // thread private thing.  Brunner, Jan 2014
    mutable Vector shape_x, dshape_x;
-#endif
    Array<int> dof_map;
 
 public:
@@ -1560,10 +1532,8 @@ public:
 class H1Pos_QuadrilateralElement : public PositiveFiniteElement
 {
 private:
-#ifndef MFEM_THREAD_SAFE
    // See comment in H1Pos_SegmentElement
    mutable Vector shape_x, shape_y, dshape_x, dshape_y;
-#endif
    Array<int> dof_map;
 
 public:
@@ -1579,10 +1549,8 @@ public:
 class H1Pos_HexahedronElement : public PositiveFiniteElement
 {
 private:
-#ifndef MFEM_THREAD_SAFE
    // See comment in H1Pos_SegementElement.
    mutable Vector shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
-#endif
    Array<int> dof_map;
 
 public:
@@ -1598,10 +1566,8 @@ public:
 class H1_TriangleElement : public NodalFiniteElement
 {
 private:
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_l, dshape_x, dshape_y, dshape_l, u;
    mutable DenseMatrix du;
-#endif
    DenseMatrixInverse Ti;
 
 public:
@@ -1615,11 +1581,9 @@ public:
 class H1_TetrahedronElement : public NodalFiniteElement
 {
 private:
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, shape_l;
    mutable Vector dshape_x, dshape_y, dshape_z, dshape_l, u;
    mutable DenseMatrix du;
-#endif
    DenseMatrixInverse Ti;
 
 public:
@@ -1634,10 +1598,8 @@ public:
 class H1Pos_TriangleElement : public PositiveFiniteElement
 {
 protected:
-#ifndef MFEM_THREAD_SAFE
    mutable Vector m_shape, dshape_1d;
    mutable DenseMatrix m_dshape;
-#endif
    Array<int> dof_map;
 
 public:
@@ -1660,10 +1622,8 @@ public:
 class H1Pos_TetrahedronElement : public PositiveFiniteElement
 {
 protected:
-#ifndef MFEM_THREAD_SAFE
    mutable Vector m_shape, dshape_1d;
    mutable DenseMatrix m_dshape;
-#endif
    Array<int> dof_map;
 
 public:
@@ -1688,9 +1648,7 @@ class L2_SegmentElement : public NodalFiniteElement
 private:
    int type;
    Poly_1D::Basis &basis1d;
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, dshape_x;
-#endif
 
 public:
    L2_SegmentElement(const int p, const int type = Quadrature1D::GaussLegendre);
@@ -1704,9 +1662,7 @@ public:
 class L2Pos_SegmentElement : public PositiveFiniteElement
 {
 private:
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, dshape_x;
-#endif
 
 public:
    L2Pos_SegmentElement(const int p);
@@ -1722,9 +1678,7 @@ class L2_QuadrilateralElement : public NodalFiniteElement
 private:
    int type;
    Poly_1D::Basis &basis1d;
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, dshape_x, dshape_y;
-#endif
 
 public:
    L2_QuadrilateralElement(const int p,
@@ -1743,9 +1697,7 @@ public:
 class L2Pos_QuadrilateralElement : public PositiveFiniteElement
 {
 private:
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, dshape_x, dshape_y;
-#endif
 
 public:
    L2Pos_QuadrilateralElement(const int p);
@@ -1761,9 +1713,7 @@ class L2_HexahedronElement : public NodalFiniteElement
 private:
    int type;
    Poly_1D::Basis &basis1d;
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
-#endif
 
 public:
    L2_HexahedronElement(const int p,
@@ -1778,9 +1728,7 @@ public:
 class L2Pos_HexahedronElement : public PositiveFiniteElement
 {
 private:
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
-#endif
 
 public:
    L2Pos_HexahedronElement(const int p);
@@ -1794,10 +1742,8 @@ public:
 class L2_TriangleElement : public NodalFiniteElement
 {
 private:
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_l, dshape_x, dshape_y, dshape_l, u;
    mutable DenseMatrix du;
-#endif
    DenseMatrixInverse Ti;
 
 public:
@@ -1817,9 +1763,7 @@ public:
 class L2Pos_TriangleElement : public PositiveFiniteElement
 {
 private:
-#ifndef MFEM_THREAD_SAFE
    mutable Vector dshape_1d;
-#endif
 
 public:
    L2Pos_TriangleElement(const int p);
@@ -1833,11 +1777,9 @@ public:
 class L2_TetrahedronElement : public NodalFiniteElement
 {
 private:
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, shape_l;
    mutable Vector dshape_x, dshape_y, dshape_z, dshape_l, u;
    mutable DenseMatrix du;
-#endif
    DenseMatrixInverse Ti;
 
 public:
@@ -1853,9 +1795,7 @@ public:
 class L2Pos_TetrahedronElement : public PositiveFiniteElement
 {
 private:
-#ifndef MFEM_THREAD_SAFE
    mutable Vector dshape_1d;
-#endif
 
 public:
    L2Pos_TetrahedronElement(const int p);
@@ -1872,10 +1812,8 @@ private:
    static const double nk[8];
 
    Poly_1D::Basis &cbasis1d, &obasis1d;
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
    mutable Vector dshape_cx, dshape_cy;
-#endif
    Array<int> dof_map, dof2nk;
 
 public:
@@ -1920,10 +1858,8 @@ class RT_HexahedronElement : public VectorFiniteElement
    static const double nk[18];
 
    Poly_1D::Basis &cbasis1d, &obasis1d;
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy, shape_cz, shape_oz;
    mutable Vector dshape_cx, dshape_cy, dshape_cz;
-#endif
    Array<int> dof_map, dof2nk;
 
 public:
@@ -1962,12 +1898,10 @@ class RT_TriangleElement : public VectorFiniteElement
 {
    static const double nk[6], c;
 
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_l;
    mutable Vector dshape_x, dshape_y, dshape_l;
    mutable DenseMatrix u;
    mutable Vector divu;
-#endif
    Array<int> dof2nk;
    DenseMatrixInverse Ti;
 
@@ -2010,12 +1944,10 @@ class RT_TetrahedronElement : public VectorFiniteElement
 {
    static const double nk[12], c;
 
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, shape_l;
    mutable Vector dshape_x, dshape_y, dshape_z, dshape_l;
    mutable DenseMatrix u;
    mutable Vector divu;
-#endif
    Array<int> dof2nk;
    DenseMatrixInverse Ti;
 
@@ -2053,10 +1985,8 @@ class ND_HexahedronElement : public VectorFiniteElement
    static const double tk[18];
 
    Poly_1D::Basis &cbasis1d, &obasis1d;
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy, shape_cz, shape_oz;
    mutable Vector dshape_cx, dshape_cy, dshape_cz;
-#endif
    Array<int> dof_map, dof2tk;
 
 public:
@@ -2110,10 +2040,8 @@ class ND_QuadrilateralElement : public VectorFiniteElement
    static const double tk[8];
 
    Poly_1D::Basis &cbasis1d, &obasis1d;
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
    mutable Vector dshape_cx, dshape_cy;
-#endif
    Array<int> dof_map, dof2tk;
 
 public:
@@ -2152,11 +2080,9 @@ class ND_TetrahedronElement : public VectorFiniteElement
 {
    static const double tk[18], c;
 
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, shape_l;
    mutable Vector dshape_x, dshape_y, dshape_z, dshape_l;
    mutable DenseMatrix u;
-#endif
    Array<int> dof2tk;
    DenseMatrixInverse Ti;
 
@@ -2198,12 +2124,10 @@ class ND_TriangleElement : public VectorFiniteElement
 {
    static const double tk[8], c;
 
-#ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_l;
    mutable Vector dshape_x, dshape_y, dshape_l;
    mutable DenseMatrix u;
    mutable Vector curlu;
-#endif
    Array<int> dof2tk;
    DenseMatrixInverse Ti;
 

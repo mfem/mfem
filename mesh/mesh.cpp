@@ -703,11 +703,7 @@ bool Mesh::IsSlaveFace(const FaceInfo &fi) const
 void Mesh::ApplyLocalSlaveTransformation(IsoparametricTransformation &transf,
                                          const FaceInfo &fi)
 {
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix composition;
-#else
    static DenseMatrix composition;
-#endif
    MFEM_ASSERT(fi.NCFace >= 0, "");
    transf.Transform(*nc_faces_info[fi.NCFace].PointMatrix, composition);
    transf.GetPointMat() = composition;

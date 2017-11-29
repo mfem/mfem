@@ -136,12 +136,7 @@ void MixedScalarIntegrator::AssembleElementMatrix2(
    int trial_nd = trial_fe.GetDof(), test_nd = test_fe.GetDof(), i;
    bool same_shapes = same_calc_shape && (&trial_fe == &test_fe);
 
-#ifdef MFEM_THREAD_SAFE
-   Vector test_shape(test_nd);
-   Vector trial_shape;
-#else
    test_shape.SetSize(test_nd);
-#endif
    if (same_shapes)
    {
       trial_shape.NewDataAndSize(test_shape.GetData(), trial_nd);
@@ -177,12 +172,10 @@ void MixedScalarIntegrator::AssembleElementMatrix2(
       }
       AddMult_a_VWt(w, test_shape, trial_shape, elmat);
    }
-#ifndef MFEM_THREAD_SAFE
    if (same_shapes)
    {
       trial_shape.SetDataAndSize(NULL, 0);
    }
-#endif
 }
 
 void MixedVectorIntegrator::AssembleElementMatrix2(
@@ -196,20 +189,11 @@ void MixedVectorIntegrator::AssembleElementMatrix2(
    int spaceDim = Trans.GetSpaceDim();
    bool same_shapes = same_calc_shape && (&trial_fe == &test_fe);
 
-#ifdef MFEM_THREAD_SAFE
-   Vector V(VQ ? VQ->GetVDim() : 0);
-   Vector D(DQ ? DQ->GetVDim() : 0);
-   DenseMatrix M(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
-   DenseMatrix test_shape(test_nd, spaceDim);
-   DenseMatrix trial_shape;
-   DenseMatrix test_shape_tmp(test_nd, spaceDim);
-#else
    V.SetSize(VQ ? VQ->GetVDim() : 0);
    D.SetSize(DQ ? DQ->GetVDim() : 0);
    M.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
    test_shape.SetSize(test_nd, spaceDim);
    test_shape_tmp.SetSize(test_nd, spaceDim);
-#endif
    if (same_shapes)
    {
       trial_shape.Reset(test_shape.Data(), trial_nd, spaceDim);
@@ -286,12 +270,10 @@ void MixedVectorIntegrator::AssembleElementMatrix2(
          }
       }
    }
-#ifndef MFEM_THREAD_SAFE
    if (same_shapes)
    {
       trial_shape.ClearExternalData();
    }
-#endif
 }
 
 void MixedScalarVectorIntegrator::AssembleElementMatrix2(
@@ -310,17 +292,10 @@ void MixedScalarVectorIntegrator::AssembleElementMatrix2(
    int spaceDim = Trans.GetSpaceDim();
    double vtmp;
 
-#ifdef MFEM_THREAD_SAFE
-   Vector V(VQ ? VQ->GetVDim() : 0);
-   DenseMatrix vshape(vec_nd, spaceDim);
-   Vector      shape(sca_nd);
-   Vector      vshape_tmp(vec_nd);
-#else
    V.SetSize(VQ ? VQ->GetVDim() : 0);
    vshape.SetSize(vec_nd, spaceDim);
    shape.SetSize(sca_nd);
    vshape_tmp.SetSize(vec_nd);
-#endif
 
    Vector V_test(transpose?shape.GetData():vshape_tmp.GetData(),test_nd);
    Vector W_trial(transpose?vshape_tmp.GetData():shape.GetData(),trial_nd);
@@ -371,13 +346,9 @@ void DiffusionIntegrator::AssembleElementMatrix
    bool square = (dim == spaceDim);
    double w;
 
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix dshape(nd,dim), dshapedxt(nd,spaceDim), invdfdx(dim,spaceDim);
-#else
    dshape.SetSize(nd,dim);
    dshapedxt.SetSize(nd,spaceDim);
    invdfdx.SetSize(dim,spaceDim);
-#endif
    elmat.SetSize(nd);
 
    const IntegrationRule *ir = IntRule;
@@ -445,17 +416,11 @@ void DiffusionIntegrator::AssembleElementMatrix2(
    bool square = (dim == spaceDim);
    double w;
 
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix dshape(tr_nd, dim), dshapedxt(tr_nd, spaceDim);
-   DenseMatrix te_dshape(te_nd, dim), te_dshapedxt(te_nd, spaceDim);
-   DenseMatrix invdfdx(dim, spaceDim);
-#else
    dshape.SetSize(tr_nd, dim);
    dshapedxt.SetSize(tr_nd, spaceDim);
    te_dshape.SetSize(te_nd, dim);
    te_dshapedxt.SetSize(te_nd, spaceDim);
    invdfdx.SetSize(dim, spaceDim);
-#endif
    elmat.SetSize(te_nd, tr_nd);
 
    const IntegrationRule *ir = IntRule;
@@ -522,13 +487,9 @@ void DiffusionIntegrator::AssembleElementVector(
    int dim = el.GetDim();
    double w;
 
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix dshape(nd,dim), invdfdx(dim), mq(dim);
-#else
    dshape.SetSize(nd,dim);
    invdfdx.SetSize(dim);
    mq.SetSize(dim);
-#endif
    vec.SetSize(dim);
    pointflux.SetSize(dim);
 
@@ -601,12 +562,8 @@ void DiffusionIntegrator::ComputeElementFlux
    dim = el.GetDim();
    spaceDim = Trans.GetSpaceDim();
 
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix dshape(nd,dim), invdfdx(dim, spaceDim);
-#else
    dshape.SetSize(nd,dim);
    invdfdx.SetSize(dim, spaceDim);
-#endif
    vec.SetSize(dim);
    pointflux.SetSize(spaceDim);
 
@@ -656,10 +613,6 @@ double DiffusionIntegrator::ComputeFluxEnergy
    int nd = fluxelem.GetDof();
    int dim = fluxelem.GetDim();
    int spaceDim = Trans.GetSpaceDim();
-
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix mq;
-#endif
 
    shape.SetSize(nd);
    pointflux.SetSize(spaceDim);
@@ -725,9 +678,6 @@ void MassIntegrator::AssembleElementMatrix
    // int dim = el.GetDim();
    double w;
 
-#ifdef MFEM_THREAD_SAFE
-   Vector shape;
-#endif
    elmat.SetSize(nd);
    shape.SetSize(nd);
 
@@ -773,9 +723,6 @@ void MassIntegrator::AssembleElementMatrix2(
    // int dim = trial_fe.GetDim();
    double w;
 
-#ifdef MFEM_THREAD_SAFE
-   Vector shape, te_shape;
-#endif
    elmat.SetSize(te_nd, tr_nd);
    shape.SetSize(tr_nd);
    te_shape.SetSize(te_nd);
@@ -818,9 +765,6 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
    int nd1 = el1.GetDof();
    double w;
 
-#ifdef MFEM_THREAD_SAFE
-   Vector shape;
-#endif
    elmat.SetSize(nd1);
    shape.SetSize(nd1);
 
@@ -858,10 +802,6 @@ void ConvectionIntegrator::AssembleElementMatrix(
    int nd = el.GetDof();
    int dim = el.GetDim();
 
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix dshape, adjJ, Q_ir;
-   Vector shape, vec2, BdFidxT;
-#endif
    elmat.SetSize(nd);
    dshape.SetSize(nd,dim);
    adjJ.SetSize(dim);
@@ -1128,12 +1068,8 @@ void VectorFEDivergenceIntegrator::AssembleElementMatrix2(
 {
    int trial_nd = trial_fe.GetDof(), test_nd = test_fe.GetDof(), i;
 
-#ifdef MFEM_THREAD_SAFE
-   Vector divshape(trial_nd), shape(test_nd);
-#else
    divshape.SetSize(trial_nd);
    shape.SetSize(test_nd);
-#endif
 
    elmat.SetSize(test_nd, trial_nd);
 
@@ -1173,17 +1109,10 @@ void VectorFEWeakDivergenceIntegrator::AssembleElementMatrix2(
                trial_fe.GetMapType()  == mfem::FiniteElement::H_CURL,
                "Trial space must be H(Curl) and test space must be H_1");
 
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix dshape(test_nd, dim);
-   DenseMatrix dshapedxt(test_nd, dim);
-   DenseMatrix vshape(trial_nd, dim);
-   DenseMatrix invdfdx(dim);
-#else
    dshape.SetSize(test_nd, dim);
    dshapedxt.SetSize(test_nd, dim);
    vshape.SetSize(trial_nd, dim);
    invdfdx.SetSize(dim);
-#endif
 
    elmat.SetSize(test_nd, trial_nd);
 
@@ -1267,15 +1196,9 @@ void VectorFECurlIntegrator::AssembleElementMatrix2(
       vec_nd  = trial_nd;
    }
 
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix curlshapeTrial(curl_nd, dimc);
-   DenseMatrix curlshapeTrial_dFT(curl_nd, dimc);
-   DenseMatrix vshapeTest(vec_nd, dimc);
-#else
    curlshapeTrial.SetSize(curl_nd, dimc);
    curlshapeTrial_dFT.SetSize(curl_nd, dimc);
    vshapeTest.SetSize(vec_nd, dimc);
-#endif
    Vector shapeTest(vshapeTest.GetData(), vec_nd);
 
    elmat.SetSize(test_nd, trial_nd);
@@ -1416,12 +1339,8 @@ void CurlCurlIntegrator::AssembleElementMatrix
    int dimc = (dim == 3) ? 3 : 1;
    double w;
 
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix curlshape(nd,dimc), curlshape_dFt(nd,dimc), M;
-#else
    curlshape.SetSize(nd,dimc);
    curlshape_dFt.SetSize(nd,dimc);
-#endif
    elmat.SetSize(nd);
    if (MQ) { M.SetSize(dimc); }
 
@@ -1484,10 +1403,6 @@ void CurlCurlIntegrator
                      Vector &u, const FiniteElement &fluxelem, Vector &flux,
                      int with_coef)
 {
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix projcurl;
-#endif
-
    fluxelem.ProjectCurl(el, Trans, projcurl);
 
    flux.SetSize(projcurl.Height());
@@ -1503,9 +1418,6 @@ double CurlCurlIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
    int nd = fluxelem.GetDof();
    int dim = fluxelem.GetDim();
 
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape;
-#endif
    vshape.SetSize(nd, dim);
    pointflux.SetSize(dim);
    if (d_energy) { vec.SetSize(dim); }
@@ -1608,15 +1520,10 @@ void VectorCurlCurlIntegrator::AssembleElementMatrix(
    int dof = el.GetDof();
    int cld = (dim*(dim-1))/2;
 
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix dshape_hat(dof, dim), dshape(dof, dim);
-   DenseMatrix curlshape(dim*dof, cld), Jadj(dim);
-#else
    dshape_hat.SetSize(dof, dim);
    dshape.SetSize(dof, dim);
    curlshape.SetSize(dim*dof, cld);
    Jadj.SetSize(dim);
-#endif
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -1654,15 +1561,11 @@ double VectorCurlCurlIntegrator::GetElementEnergy(
    int dim = el.GetDim();
    int dof = el.GetDof();
 
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix dshape_hat(dof, dim), Jadj(dim), grad_hat(dim), grad(dim);
-#else
    dshape_hat.SetSize(dof, dim);
 
    Jadj.SetSize(dim);
    grad_hat.SetSize(dim);
    grad.SetSize(dim);
-#endif
    DenseMatrix elfun_mat(elfun.GetData(), dof, dim);
 
    const IntegrationRule *ir = IntRule;
@@ -1724,15 +1627,9 @@ void VectorFEMassIntegrator::AssembleElementMatrix(
 
    double w;
 
-#ifdef MFEM_THREAD_SAFE
-   Vector D(VQ ? VQ->GetVDim() : 0);
-   DenseMatrix trial_vshape(dof, spaceDim);
-   DenseMatrix K(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
-#else
    trial_vshape.SetSize(dof, spaceDim);
    D.SetSize(VQ ? VQ->GetVDim() : 0);
    K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
-#endif
    DenseMatrix tmp(trial_vshape.Height(), K.Width());
 
    elmat.SetSize(dof);
@@ -1795,15 +1692,9 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          mfem_error("VectorFEMassIntegrator::AssembleElementMatrix2(...)\n"
                     "   is not implemented for tensor materials");
 
-#ifdef MFEM_THREAD_SAFE
-      DenseMatrix trial_vshape(trial_dof, dim);
-      Vector shape(test_dof);
-      Vector D(dim);
-#else
       trial_vshape.SetSize(trial_dof, dim);
       shape.SetSize(test_dof);
       D.SetSize(dim);
-#endif
 
       elmat.SetSize (test_dof, trial_dof);
 
@@ -1852,13 +1743,8 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          mfem_error("VectorFEMassIntegrator::AssembleElementMatrix2(...)\n"
                     "   is not implemented for vector/tensor permeability");
 
-#ifdef MFEM_THREAD_SAFE
-      DenseMatrix trial_vshape(trial_dof, dim);
-      Vector shape(test_dof);
-#else
       trial_vshape.SetSize(trial_dof, dim);
       shape.SetSize(test_dof);
-#endif
 
       elmat.SetSize (dim*test_dof, trial_dof);
 
@@ -1909,13 +1795,8 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          mfem_error("VectorFEMassIntegrator::AssembleElementMatrix2(...)\n"
                     "   is not implemented for vector/tensor permeability");
 
-#ifdef MFEM_THREAD_SAFE
-      DenseMatrix trial_vshape(trial_dof, dim);
-      DenseMatrix test_vshape(test_dof,dim);
-#else
       trial_vshape.SetSize(trial_dof, dim);
       test_vshape.SetSize(test_dof,dim);
-#endif
 
       elmat.SetSize (test_dof, trial_dof);
 
@@ -2019,11 +1900,7 @@ void DivDivIntegrator::AssembleElementMatrix(
    int dof = el.GetDof();
    double c;
 
-#ifdef MFEM_THREAD_SAFE
-   Vector divshape(dof);
-#else
    divshape.SetSize(dof);
-#endif
    elmat.SetSize(dof);
 
    const IntegrationRule *ir = IntRule;
@@ -2179,16 +2056,11 @@ void ElasticityIntegrator::AssembleElementMatrix(
    int dim = el.GetDim();
    double w, L, M;
 
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix dshape(dof, dim), Jinv(dim), gshape(dof, dim), pelmat(dof);
-   Vector divshape(dim*dof);
-#else
    Jinv.SetSize(dim);
    dshape.SetSize(dof, dim);
    gshape.SetSize(dof, dim);
    pelmat.SetSize(dof);
    divshape.SetSize(dim*dof);
-#endif
 
    elmat.SetSize(dof * dim);
 
@@ -2669,19 +2541,6 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
-#ifdef MFEM_THREAD_SAFE
-   // For descriptions of these variables, see the class declaration.
-   Vector shape1, shape2;
-   DenseMatrix dshape1, dshape2;
-   DenseMatrix adjJ;
-   DenseMatrix dshape1_ps, dshape2_ps;
-   Vector nor;
-   Vector nL1, nL2;
-   Vector nM1, nM2;
-   Vector dshape1_dnM, dshape2_dnM;
-   DenseMatrix jmat;
-#endif
-
    const int dim = el1.GetDim();
    const int ndofs1 = el1.GetDof();
    const int ndofs2 = (Trans.Elem2No >= 0) ? el2.GetDof() : 0;
