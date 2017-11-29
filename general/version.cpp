@@ -88,6 +88,9 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_LAPACK
       "MFEM_USE_LAPACK\n"
 #endif
+#ifdef MFEM_THREAD_SAFE
+      "MFEM_THREAD_SAFE\n"
+#endif
 #ifdef MFEM_USE_MEMALLOC
       "MFEM_USE_MEMALLOC\n"
 #endif

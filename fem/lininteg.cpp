@@ -612,6 +612,17 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
 {
    MFEM_ASSERT(Tr.Elem2No < 0, "interior boundary is not supported");
 
+#ifdef MFEM_THREAD_SAFE
+   Vector shape;
+   DenseMatrix dshape;
+   DenseMatrix adjJ;
+   DenseMatrix dshape_ps;
+   Vector nor;
+   Vector dshape_dn;
+   Vector dshape_du;
+   Vector u_dir;
+#endif
+
    const int dim = el.GetDim();
    const int ndofs = el.GetDof();
    const int nvdofs = dim*ndofs;

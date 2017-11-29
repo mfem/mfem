@@ -229,8 +229,11 @@ private:
 
    Coefficient *Q;
 
+#ifndef MFEM_THREAD_SAFE
    Vector test_shape;
    Vector trial_shape;
+#endif
+
 };
 
 /** An abstract class for integrating the inner product of two vector basis
@@ -303,12 +306,14 @@ private:
    VectorCoefficient *DQ;
    MatrixCoefficient *MQ;
 
+#ifndef MFEM_THREAD_SAFE
    Vector V;
    Vector D;
    DenseMatrix M;
    DenseMatrix test_shape;
    DenseMatrix trial_shape;
    DenseMatrix test_shape_tmp;
+#endif
 
 };
 
@@ -381,10 +386,12 @@ private:
    bool transpose;
    bool cross_2d;  // In 2D use a cross product rather than a dot product
 
+#ifndef MFEM_THREAD_SAFE
    Vector V;
    DenseMatrix vshape;
    Vector      shape;
    Vector      vshape_tmp;
+#endif
 
 };
 
@@ -1573,8 +1580,10 @@ class DiffusionIntegrator: public BilinearFormIntegrator
 {
 private:
    Vector vec, pointflux, shape;
+#ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape, dshapedxt, invdfdx, mq;
    DenseMatrix te_dshape, te_dshapedxt;
+#endif
    Coefficient *Q;
    MatrixCoefficient *MQ;
 
@@ -1619,7 +1628,9 @@ public:
 class MassIntegrator: public BilinearFormIntegrator
 {
 protected:
+#ifndef MFEM_THREAD_SAFE
    Vector shape, te_shape;
+#endif
    Coefficient *Q;
 
 public:
@@ -1657,8 +1668,10 @@ public:
 class ConvectionIntegrator : public BilinearFormIntegrator
 {
 private:
+#ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape, adjJ, Q_ir;
    Vector shape, vec2, BdFidxT;
+#endif
    VectorCoefficient &Q;
    double alpha;
 
@@ -1743,7 +1756,9 @@ class VectorFEDivergenceIntegrator : public BilinearFormIntegrator
 {
 private:
    Coefficient *Q;
+#ifndef MFEM_THREAD_SAFE
    Vector divshape, shape;
+#endif
 public:
    VectorFEDivergenceIntegrator() { Q = NULL; }
    VectorFEDivergenceIntegrator(Coefficient &q) { Q = &q; }
@@ -1763,10 +1778,12 @@ class VectorFEWeakDivergenceIntegrator: public BilinearFormIntegrator
 {
 private:
    Coefficient *Q;
+#ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape;
    DenseMatrix dshapedxt;
    DenseMatrix vshape;
    DenseMatrix invdfdx;
+#endif
 public:
    VectorFEWeakDivergenceIntegrator() { Q = NULL; }
    VectorFEWeakDivergenceIntegrator(Coefficient &q) { Q = &q; }
@@ -1785,9 +1802,11 @@ class VectorFECurlIntegrator: public BilinearFormIntegrator
 {
 private:
    Coefficient *Q;
+#ifndef MFEM_THREAD_SAFE
    DenseMatrix curlshapeTrial;
    DenseMatrix vshapeTest;
    DenseMatrix curlshapeTrial_dFT;
+#endif
 public:
    VectorFECurlIntegrator() { Q = NULL; }
    VectorFECurlIntegrator(Coefficient &q) { Q = &q; }
@@ -1826,8 +1845,10 @@ class CurlCurlIntegrator: public BilinearFormIntegrator
 {
 private:
    Vector vec, pointflux;
+#ifndef MFEM_THREAD_SAFE
    DenseMatrix curlshape, curlshape_dFt, M;
    DenseMatrix vshape, projcurl;
+#endif
    Coefficient *Q;
    MatrixCoefficient *MQ;
 
@@ -1858,7 +1879,9 @@ public:
 class VectorCurlCurlIntegrator: public BilinearFormIntegrator
 {
 private:
+#ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape_hat, dshape, curlshape, Jadj, grad_hat, grad;
+#endif
    Coefficient *Q;
 
 public:
@@ -1886,11 +1909,13 @@ private:
    void Init(Coefficient *q, VectorCoefficient *vq, MatrixCoefficient *mq)
    { Q = q; VQ = vq; MQ = mq; }
 
+#ifndef MFEM_THREAD_SAFE
    Vector shape;
    Vector D;
    DenseMatrix K;
    DenseMatrix test_vshape;
    DenseMatrix trial_vshape;
+#endif
 
 public:
    VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }
@@ -1939,7 +1964,10 @@ class DivDivIntegrator: public BilinearFormIntegrator
 {
 private:
    Coefficient *Q;
+
+#ifndef MFEM_THREAD_SAFE
    Vector divshape;
+#endif
 
 public:
    DivDivIntegrator() { Q = NULL; }
@@ -1988,8 +2016,11 @@ class ElasticityIntegrator : public BilinearFormIntegrator
 private:
    double q_lambda, q_mu;
    Coefficient *lambda, *mu;
+
+#ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape, Jinv, gshape, pelmat;
    Vector divshape;
+#endif
 
 public:
    ElasticityIntegrator(Coefficient &l, Coefficient &m)
@@ -2154,6 +2185,7 @@ protected:
    Coefficient *lambda, *mu;
    double alpha, kappa;
 
+#ifndef MFEM_THREAD_SAFE
    // values of all scalar basis functions for one component of u (which is a
    // vector) at the integration point in the reference space
    Vector shape1, shape2;
@@ -2172,6 +2204,7 @@ protected:
    Vector dshape1_dnM, dshape2_dnM; // dshape1_dnM = dshape1_ps . nM1
    // 'jmat' corresponds to the term: kappa <h^{-1} {lambda + 2 mu} [u], [v]>
    DenseMatrix jmat;
+#endif
 
    static void AssembleBlock(
       const int dim, const int row_ndofs, const int col_ndofs,
