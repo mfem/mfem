@@ -55,10 +55,6 @@
 // Use LAPACK routines for various dense linear algebra operations.
 #cmakedefine MFEM_USE_LAPACK
 
-// Use thread-safe implementation. This comes at the cost of extra memory
-// allocation and de-allocation.
-#cmakedefine MFEM_THREAD_SAFE
-
 // Enable MFEM functionality based on the Mesquite library.
 #cmakedefine MFEM_USE_MESQUITE
 
