@@ -379,7 +379,8 @@ void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
 }
 
 
-BlockNonlinearForm::BlockNonlinearForm(Array<FiniteElementSpace *> &f)
+BlockNonlinearForm::BlockNonlinearForm(Array<FiniteElementSpace *> &f) :
+   fes(0), BlockGrad(NULL)
 {
    SetSpaces(f);
 }
