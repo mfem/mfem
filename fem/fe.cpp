@@ -6577,7 +6577,7 @@ const double *Poly_1D::GetPoints(const int p, const int type, const int btype)
       return NULL;
    }
 
-   PointsMap &container = points_container[type];
+   PointsMap &container = points_container[btype];
 
    if (container.find(type) == container.end())
    {
@@ -6600,7 +6600,7 @@ Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int type, const int btype)
 {
    BasisType::Check(btype);
 
-   BasisMap &container = bases_container[type];
+   BasisMap &container = bases_container[btype];
 
    if ( container.find(type) == container.end() )
    {
@@ -6637,7 +6637,7 @@ Poly_1D::~Poly_1D()
       }
 
       for (std::map<int, Array<Basis*>*>::iterator it = basisContainer.begin();
-           it != basisContainer.end() ; ++it )
+           it != basisContainer.end() ; ++it)
       {
          Array<Basis*>& bases = *it->second;
          for ( int i = 0 ; i < bases.Size() ; ++i )
