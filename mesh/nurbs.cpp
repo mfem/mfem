@@ -1193,8 +1193,8 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
      activeElem(orig.activeElem),
      activeBdrElem(orig.activeBdrElem),
      activeDof(orig.activeDof),
-     patchTopo(orig.patchTopo),
-     own_topo(false),
+     patchTopo(new Mesh(*orig.patchTopo)),
+     own_topo(true),
      edge_to_knot(orig.edge_to_knot),
      knotVectors(orig.knotVectors.Size()), // knotVectors are copied in the body
      weights(orig.weights),
@@ -1387,13 +1387,6 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
       }
       else
       {
-         if (newOrder < pOrders[i])
-         {
-            MFEM_WARNING("Discarding requested order.\n Parent KnotVector order higher than child.\n" 
-                       <<"KnotVector   = " << i<<"\n"
-                       <<"Child order  = " << newOrder<<"\n"
-                       <<"Parent order = " << pOrders[i]);
-         }
          knotVectors[i] = new KnotVector(*parent->GetKnotVector(i));
       }
    }
@@ -1445,13 +1438,6 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent,
       }
       else
       {
-         if (mOrders[i] < pOrders[i])
-         {
-            MFEM_WARNING("Discarding requested order.\n Parent KnotVector order higher than child.\n" 
-                       <<"KnotVector   = " << i<<"\n"
-                       <<"Child order  = " << mOrders[i]<<"\n"
-                       <<"Parent order = " << pOrders[i]);
-         }
          knotVectors[i] = new KnotVector(*parent->GetKnotVector(i));
       }
    }

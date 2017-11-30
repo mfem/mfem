@@ -281,9 +281,16 @@ public:
    NURBSExtension(const NURBSExtension &orig);
    /// Read-in a NURBSExtension
    NURBSExtension(std::istream &input);
-   /** Create a NURBSExtension with elevated order by repeating the endpoints
-       of the knot vectors and using uniform weights of 1. */
+   /** @brief Create a NURBSExtension with elevated order by repeating the
+       endpoints of the knot vectors and using uniform weights of 1. */
+   /** If a knot vector in @a parent already has order greater than or equal to
+       @a newOrder, it will be used unmodified. */
    NURBSExtension(NURBSExtension *parent, int newOrder);
+   /** @brief Create a NURBSExtension with elevated knot vector orders (by
+       repeating the endpoints of the knot vectors and using uniform weights of
+       1) as given by the array @a newOrders. */
+   /** If a knot vector in @a parent already has order greater than or equal to
+       the corresponding entry in @a newOrder, it will be used unmodified. */
    NURBSExtension(NURBSExtension *parent, const Array<int> &newOrders);
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh
    NURBSExtension(Mesh *mesh_array[], int num_pieces);

@@ -67,7 +67,9 @@ protected:
 
    Array<Element *> elements;
    // Vertices are only at the corners of elements, where you would expect them
-   // in the lowest-order mesh.
+   // in the lowest-order mesh. In some cases, e.g. in a Mesh that defines the
+   // patch topology for a NURBS mesh (see LoadPatchTopo()) the vertices may be
+   // empty while NumOfVertices is positive.
    Array<Vertex> vertices;
    Array<Element *> boundary;
    Array<Element *> faces;
@@ -399,7 +401,7 @@ protected:
    void InitFromNCMesh(const NCMesh &ncmesh);
 
    /// Create from a nonconforming mesh.
-   Mesh(const NCMesh &ncmesh);
+   explicit Mesh(const NCMesh &ncmesh);
 
    /// Swaps internal data with another mesh. By default, non-geometry members
    /// like 'ncmesh' and 'NURBSExt' are only swapped when 'non_geometry' is set.
@@ -557,14 +559,14 @@ public:
    /** Creates mesh by reading a file in MFEM, netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
        generated. */
-   Mesh(const char *filename, int generate_edges = 0, int refine = 1,
-        bool fix_orientation = true);
+   explicit Mesh(const char *filename, int generate_edges = 0, int refine = 1,
+                 bool fix_orientation = true);
 
    /** Creates mesh by reading data stream in MFEM, netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
        generated. */
-   Mesh(std::istream &input, int generate_edges = 0, int refine = 1,
-        bool fix_orientation = true);
+   explicit Mesh(std::istream &input, int generate_edges = 0, int refine = 1,
+                 bool fix_orientation = true);
 
    /// Create a disjoint mesh from the given mesh array
    Mesh(Mesh *mesh_array[], int num_pieces);
