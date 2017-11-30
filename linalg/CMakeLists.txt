@@ -16,7 +16,7 @@ list(APPEND SRCS
   densemat.cpp
   handle.cpp
   matrix.cpp
-  ode.cpp
+  ode.tpp
   operator.cpp
   solvers.cpp
   sparsemat.cpp
