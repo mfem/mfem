@@ -35,6 +35,7 @@ MFEM_USE_NETCDF      = @MFEM_USE_NETCDF@
 MFEM_USE_PETSC       = @MFEM_USE_PETSC@
 MFEM_USE_MPFR        = @MFEM_USE_MPFR@
 MFEM_USE_SIDRE       = @MFEM_USE_SIDRE@
+MFEM_USE_RAJA        = @MFEM_USE_RAJA@
 
 # Compiler, compile options, and link options
 MFEM_CXX       = @MFEM_CXX@

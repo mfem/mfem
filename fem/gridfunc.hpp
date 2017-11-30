@@ -136,7 +136,10 @@ public:
                              DenseMatrix &tr, int comp = 0) const;
 
    /// For a vector grid function, makes sure that the ordering is byNODES.
-   void ReorderByNodes();
+   void ReorderByNodes(const bool force = false);
+
+   /// For a vector grid function, makes sure that the ordering is byVDIM.
+   void ReorderByVDim(const bool force = false);
 
    /// Return the values as a vector on mesh vertices for dimension vdim.
    void GetNodalValues(Vector &nval, int vdim = 1) const;

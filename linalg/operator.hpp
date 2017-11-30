@@ -45,12 +45,23 @@ public:
    inline int NumCols() const { return width; }
 
    /// Operator application: `y=A(x)`.
-   virtual void Mult(const Vector &x, Vector &y) const = 0;
+   virtual void Mult(const Vector &x, Vector &y) const
+   { mfem_error("Operator::Mult(Vector) is not overloaded!"); };
+  
+#if defined(MFEM_USE_RAJA)
+   inline virtual void Mult(const RajaVector &x, RajaVector &y) const
+   { mfem_error("Operator::Mult(RajaVector) is not overloaded!"); }
+#endif
 
    /** @brief Action of the transpose operator: `y=A^t(x)`. The default behavior
        in class Operator is to generate an error. */
    virtual void MultTranspose(const Vector &x, Vector &y) const
    { mfem_error("Operator::MultTranspose() is not overloaded!"); }
+  
+#if defined(MFEM_USE_RAJA)
+   inline virtual void MultTranspose(const RajaVector &x, RajaVector &y) const
+   { mfem_error("Operator::MultTranspose() is not overloaded!"); }
+#endif
 
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
@@ -112,6 +123,8 @@ public:
        method has identical signature to the analogous method for bilinear
        forms, though currently @a b is not used in the implementation. */
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+   template <class TVector>
+   void TRecoverFEMSolution(const TVector &X, const TVector &b, TVector &x);
 
    /// Prints operator with input size n and output size m in Matlab format.
    void PrintMatlab(std::ostream & out, int n = 0, int m = 0) const;
@@ -205,6 +218,10 @@ public:
    {
       mfem_error("TimeDependentOperator::Mult() is not overridden!");
    }
+#if defined(MFEM_USE_RAJA)
+   virtual void Mult(const RajaVector &x, RajaVector &y) const
+   { mfem_error("TimeDependentOperator::Mult() is not overridden!"); }
+#endif
 
    /** @brief Solve the equation: @a k = f(@a x + @a dt @a k, t), for the
        unknown @a k at the current time t.
@@ -226,6 +243,10 @@ public:
    {
       mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
    }
+#if defined(MFEM_USE_RAJA)
+   virtual void ImplicitSolve(const double dt, const RajaVector &x, RajaVector &k)
+   { mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!"); }
+#endif
 
    /** @brief Return an Operator representing (dF/dk @a shift + dF/dx) at the
        given @a x, @a k, and the currently set time.
@@ -279,15 +300,25 @@ public:
 
 
 /// Identity Operator I: x -> x.
-class IdentityOperator : public Operator
+template <class TVector>
+class TIdentityOperator : public Operator
 {
 public:
    /// Create an identity operator of size @a n.
-   explicit IdentityOperator(int n) : Operator(n) { }
+   explicit TIdentityOperator(int n) : Operator(n) { }
 
    /// Operator application
-   virtual void Mult(const Vector &x, Vector &y) const { y = x; }
+   virtual void Mult(const TVector &x, TVector &y) const { y = x; }
+
+   /// Operator application
+   virtual void MultTranspose(const TVector &x, TVector &y) const { y = x; }
 };
+
+typedef TIdentityOperator<Vector> IdentityOperator;
+
+#if defined(MFEM_USE_RAJA)
+typedef TIdentityOperator<RajaVector> RajaIdentityOperator;
+#endif
 
 
 /** @brief The transpose of a given operator. Switches the roles of the methods
@@ -317,30 +348,36 @@ public:
 
 
 /// The operator x -> R*A*P*x.
-class RAPOperator : public Operator
+template <class TVector>
+class TRAPOperator : public Operator
 {
 private:
    const Operator & Rt;
    const Operator & A;
    const Operator & P;
-   mutable Vector Px;
-   mutable Vector APx;
+   mutable TVector Px;
+   mutable TVector APx;
 
 public:
    /// Construct the RAP operator given R^T, A and P.
-   RAPOperator(const Operator &Rt_, const Operator &A_, const Operator &P_)
+   TRAPOperator(const Operator &Rt_, const Operator &A_, const Operator &P_)
       : Operator(Rt_.Width(), P_.Width()), Rt(Rt_), A(A_), P(P_),
         Px(P.Height()), APx(A.Height()) { }
 
    /// Operator application.
-   virtual void Mult(const Vector & x, Vector & y) const
+   virtual void Mult(const TVector & x, TVector & y) const
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
    /// Application of the transpose.
-   virtual void MultTranspose(const Vector & x, Vector & y) const
+   virtual void MultTranspose(const TVector & x, TVector & y) const
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
 };
 
+typedef TRAPOperator<Vector> RAPOperator;
+
+#if defined(MFEM_USE_RAJA)
+typedef TRAPOperator<RajaVector> RajaRAPOperator;
+#endif
 
 /// General triple product operator x -> A*B*C*x, with ownership of the factors.
 class TripleProductOperator : public Operator
