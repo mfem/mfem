@@ -17,7 +17,7 @@
 
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
-#include "fespaceform.hpp"
+#include "bilinearformoper.hpp"
 
 namespace mfem
 {

@@ -29,11 +29,18 @@ namespace mfem
 class BilinearForm : public Matrix
 {
 protected:
+   // TODO remove mat
    /// Sparse matrix to be associated with the form.
    SparseMatrix *mat;
 
    /// Matrix used to eliminate b.c.
    SparseMatrix *mat_e;
+
+   /// Generic operator associated with the form.
+   Operator *oper;
+
+   /// Operator type.
+   Operator::Type oper_type;
 
    /// FE space on which the form lives.
    FiniteElementSpace *fes;
@@ -78,7 +85,9 @@ protected:
    BilinearForm() : Matrix (0)
    {
       fes = NULL; sequence = -1;
-      mat = mat_e = NULL; extern_bfs = 0; element_matrices = NULL;
+      mat = mat_e = NULL;
+      oper = NULL; oper_type = Operator::Type::MFEM_SPARSEMAT;
+      extern_bfs = 0; element_matrices = NULL;
       static_cond = NULL; hybridization = NULL;
       precompute_sparsity = 0;
    }
@@ -272,20 +281,18 @@ public:
        x).
 
        NOTE: If there are no transformations, X simply reuses the data of x. */
-   void FormLinearSystem_SparseMat(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                                   SparseMatrix &A, Vector &X, Vector &B,
-                                   int copy_interior = 0);
-
-   template <class Op>
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                         Op &Aoper, Vector &X, Vector &B, Operator * &A,
+                         Operator * &A, Vector &X, Vector &B,
+                         int copy_interior = 0);
+
+   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                         SparseMatrix &A, Vector &X, Vector &B,
                          int copy_interior = 0);
 
    /// Form the linear system matrix A, see FormLinearSystem for details.
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, SparseMatrix &A);
+   void FormSystemOperator(const Array<int> &ess_tdof_list, Operator * &Aoper);
 
-   template <class Op>
-   void FormSystemOperator(const Array<int> &ess_tdof_list, Op *Aoper, Operator * &A);
+   void FormSystemMatrix(const Array<int> &ess_tdof_list, SparseMatrix &A);
 
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem method to recover the solution as a GridFunction-size

@@ -59,7 +59,7 @@ protected:
    BilinearForm *K;
 
    Operator *Koper, *Moper, *Toper;
-   FESpaceForm Mpaop, Kpaop;
+   BilinearFormOperator Mpaop, Kpaop;
    SparseMatrix Mmat, Kmat;
    SparseMatrix *T; // T = M + dt K
    double current_dt;
@@ -340,13 +340,13 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
    if (!partial_assembly_mass)
    {
       M->AssembleForm(Mmat);
-      M->FormSystemOperator(ess_tdof_list, &Mmat, Moper);
+      M->FormSystemOperator(ess_tdof_list, Moper);
       M_solver.SetOperator(static_cast<SparseMatrix&>(*Moper));
    }
    else
    {
       M->AssembleForm(Mpaop);
-      M->FormSystemOperator(ess_tdof_list, &Mpaop, Moper);
+      M->FormSystemOperator(ess_tdof_list, Moper);
       M_solver.SetOperator(*Moper);
    }
 
@@ -431,12 +431,12 @@ void ConductionOperator::SetParameters(const Vector &u)
    if (!partial_assembly_diff)
    {
       K->AssembleForm(Kmat);
-      K->FormSystemOperator(ess_tdof_list, &Kmat, Koper);
+      K->FormSystemOperator(ess_tdof_list, Koper);
    }
    else
    {
       K->AssembleForm(Kpaop);
-      K->FormSystemOperator(ess_tdof_list, &Kpaop, Koper);
+      K->FormSystemOperator(ess_tdof_list, Koper);
    }
 
    // re-compute on the next ImplicitSolve

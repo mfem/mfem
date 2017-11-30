@@ -147,22 +147,22 @@ int main(int argc, char *argv[])
    Vector B, X;
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   // Can add a custom FESpaceIntegrator in this way:
-   // a->AddIntegrator(new PADiffusionIntegrator(new DiffusionIntegrator(one)));
 
+   BilinearFormOperator A_pa(new PAIntegratorMap);
    SparseMatrix A_sp;
-   FESpaceForm A_pa(new PAIntegratorMap);
-   Operator *A;
    if (!use_partial_assembly)
    {
       a->AssembleForm(A_sp);
-      a->FormLinearSystem(ess_tdof_list, x, *b, A_sp, X, B, A);
    }
    else
    {
+      // Can add a custom FESpaceIntegrator in this way:
+      // a->AddIntegrator(new PADiffusionIntegrator(new DiffusionIntegrator(one)));
       a->AssembleForm(A_pa);
-      a->FormLinearSystem(ess_tdof_list, x, *b, A_pa, X, B, A);
    }
+
+   Operator *A;
+   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary

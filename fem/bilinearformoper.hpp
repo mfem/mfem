@@ -12,8 +12,8 @@
 // Defines the general object for the abstraction of bilinear and
 // nonlinear forms.
 
-#ifndef MFEM_FESPACEFORM
-#define MFEM_FESPACEFORM
+#ifndef MFEM_BILINEARFORMOPER
+#define MFEM_BILINEARFORMOPER
 
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
@@ -38,7 +38,7 @@ struct IntegratorMap
    virtual ~IntegratorMap() { }
 };
 
-class FESpaceForm : public Operator
+class BilinearFormOperator : public Operator
 {
 protected:
    BilinearForm *bf;  // Do not own
@@ -71,8 +71,8 @@ protected:
 public:
    // Create an empty object or assemble what is needed by the
    // bilinear form integrators to later compute the action.
-   FESpaceForm(IntegratorMap *_map = NULL);
-   ~FESpaceForm();
+   BilinearFormOperator(IntegratorMap *_map = NULL);
+   ~BilinearFormOperator();
 
    void Assemble();
    void Assemble(BilinearForm *bf);

@@ -9,7 +9,7 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-// Implementation of FESpaceForm
+// Implementation of BilinearFormOperator
 
 #include "fem.hpp"
 
@@ -92,19 +92,19 @@ static void BuildDofMaps(FiniteElementSpace *fespace, Array<int> *&off,
    offsets[0] = 0;
 }
 
-FESpaceForm::FESpaceForm(IntegratorMap *_map)
+BilinearFormOperator::BilinearFormOperator(IntegratorMap *_map)
    : bf(NULL), mbf(NULL),
      trial_fes(NULL), test_fes(NULL),
      trial_gs(false), test_gs(false),
      map(_map) { }
 
-FESpaceForm::~FESpaceForm()
+BilinearFormOperator::~BilinearFormOperator()
 {
    delete map;
    Clear();
 }
 
-void FESpaceForm::Assemble(BilinearForm *_bf)
+void BilinearFormOperator::Assemble(BilinearForm *_bf)
 {
    if (_bf != bf)
    {
@@ -139,7 +139,7 @@ void FESpaceForm::Assemble(BilinearForm *_bf)
    Assemble();
 }
 
-void FESpaceForm::Assemble(MixedBilinearForm *_mbf)
+void BilinearFormOperator::Assemble(MixedBilinearForm *_mbf)
 {
    if (_mbf != mbf)
    {
@@ -174,7 +174,7 @@ void FESpaceForm::Assemble(MixedBilinearForm *_mbf)
    Assemble();
 }
 
-void FESpaceForm::Assemble()
+void BilinearFormOperator::Assemble()
 {
    // Linear assembly
    for (int i = 0; i < lfesi.Size(); i++)
@@ -183,7 +183,7 @@ void FESpaceForm::Assemble()
    }
 }
 
-void FESpaceForm::Clear()
+void BilinearFormOperator::Clear()
 {
    delete trial_offsets;
    delete trial_indices;
@@ -198,7 +198,7 @@ void FESpaceForm::Clear()
    delete Y;
 }
 
-void FESpaceForm::Init(FiniteElementSpace *_trial_fes,
+void BilinearFormOperator::Init(FiniteElementSpace *_trial_fes,
                            FiniteElementSpace *_test_fes)
 {
    if ((_trial_fes != trial_fes) || (_test_fes != test_fes))
@@ -239,7 +239,7 @@ void FESpaceForm::Init(FiniteElementSpace *_trial_fes,
 }
 
 
-void FESpaceForm::LToEVector(const Array<int> &offsets,
+void BilinearFormOperator::LToEVector(const Array<int> &offsets,
                                       const Array<int> &indices,
                                       const Vector &v, Vector &V) const
 {
@@ -253,7 +253,7 @@ void FESpaceForm::LToEVector(const Array<int> &offsets,
    }
 }
 
-void FESpaceForm::EToLVector(const Array<int> &offsets,
+void BilinearFormOperator::EToLVector(const Array<int> &offsets,
                                       const Array<int> &indices,
                                       const Vector &V, Vector &v) const
 {
@@ -269,7 +269,7 @@ void FESpaceForm::EToLVector(const Array<int> &offsets,
    }
 }
 
-void FESpaceForm::AddMult(const Vector &x, Vector &y) const
+void BilinearFormOperator::AddMult(const Vector &x, Vector &y) const
 {
    if (trial_gs) { LToEVector(*trial_offsets, *trial_indices, x, *X); }
    else { X = const_cast<Vector *>(&x); }
@@ -284,7 +284,7 @@ void FESpaceForm::AddMult(const Vector &x, Vector &y) const
 }
 
 
-void FESpaceForm::AddMultTranspose(const Vector &x, Vector &y) const
+void BilinearFormOperator::AddMultTranspose(const Vector &x, Vector &y) const
 {
    if (test_gs) { LToEVector(*test_offsets, *test_indices, x, *X); }
    else { X = const_cast<Vector *>(&x); }
@@ -298,7 +298,7 @@ void FESpaceForm::AddMultTranspose(const Vector &x, Vector &y) const
    if (trial_gs) { EToLVector(*trial_offsets, *trial_indices, *Y, y); }
 }
 
-void FESpaceForm::Mult(const Vector &x, Vector &y) const
+void BilinearFormOperator::Mult(const Vector &x, Vector &y) const
 { y = 0.0; AddMult(x, y); }
 
 }

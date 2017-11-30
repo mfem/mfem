@@ -26,7 +26,7 @@
 #include "linearform.hpp"
 #include "nonlinearform.hpp"
 #include "bilinearform.hpp"
-#include "fespaceform.hpp"
+#include "bilinearformoper.hpp"
 #include "painteg.hpp"
 #include "hybridization.hpp"
 #include "datacollection.hpp"

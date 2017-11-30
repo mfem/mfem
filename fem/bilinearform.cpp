@@ -68,6 +68,8 @@ BilinearForm::BilinearForm (FiniteElementSpace * f)
    fes = f;
    sequence = f->GetSequence();
    mat = mat_e = NULL;
+   oper = NULL;
+   oper_type = Operator::Type::MFEM_SPARSEMAT;
    extern_bfs = 0;
    element_matrices = NULL;
    static_cond = NULL;
@@ -84,6 +86,8 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    fes = f;
    sequence = f->GetSequence();
    mat_e = NULL;
+   oper = NULL;
+   oper_type = Operator::Type::MFEM_SPARSEMAT;
    extern_bfs = 1;
    element_matrices = NULL;
    static_cond = NULL;
@@ -473,15 +477,21 @@ void BilinearForm::Assemble (int skip_zeros)
 #endif
 }
 
-
-// TODO: Pull this out of bilinear form.
 template <>
 void BilinearForm::AssembleForm<SparseMatrix>(SparseMatrix &A, int skip_zeros)
-{ Assemble(skip_zeros); }
+{
+   Assemble(skip_zeros);
+   oper = &A;
+   oper_type = MFEM_SPARSEMAT;
+}
 
 template <>
-void BilinearForm::AssembleForm<FESpaceForm>(FESpaceForm &A, int skip_zeros)
-{ A.Assemble(this); }
+void BilinearForm::AssembleForm<BilinearFormOperator>(BilinearFormOperator &A, int skip_zeros)
+{
+   A.Assemble(this);
+   oper = &A;
+   oper_type = MFEM_FORMOPER;
+}
 
 void BilinearForm::ConformingAssemble()
 {
@@ -518,14 +528,15 @@ void BilinearForm::ConformingAssemble()
    width = mat->Width();
 }
 
-void BilinearForm::FormLinearSystem_SparseMat(const Array<int> &ess_tdof_list,
-                                              Vector &x, Vector &b,
-                                              SparseMatrix &A, Vector &X, Vector &B,
-                                              int copy_interior)
+void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
+                                    Vector &x, Vector &b,
+                                    SparseMatrix &A, Vector &X, Vector &B,
+                                    int copy_interior)
 {
    const SparseMatrix *P = fes->GetConformingProlongation();
 
    FormSystemMatrix(ess_tdof_list, A);
+   oper = &A;
 
    // Transform the system and perform the elimination in B, based on the
    // essential BC values from x. Restrict the BC part of x in X, and set the
@@ -584,27 +595,27 @@ void BilinearForm::FormLinearSystem_SparseMat(const Array<int> &ess_tdof_list,
    }
 }
 
-template <class Op>
 void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                                    Op &A, Vector &X, Vector &B, Operator * &Asys,
+                                    Operator * &A, Vector &X, Vector &B,
                                     int copy_interior)
-{ mfem_error("Not supported."); }
-
-template <>
-void BilinearForm::FormLinearSystem<FESpaceForm>(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                                                 FESpaceForm &Aoper, Vector &X, Vector &B, Operator * &A,
-                                                 int copy_interior)
-{ Aoper.FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior); }
-
-template <>
-void BilinearForm::FormLinearSystem<SparseMatrix>(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                                                  SparseMatrix &Aoper, Vector &X, Vector &B, Operator * &A,
-                                                  int copy_interior)
 {
-   SparseMatrix *Aout = new SparseMatrix;
-   FormLinearSystem_SparseMat(ess_tdof_list, x, b, Aoper, X, B, copy_interior);
-   Aout->MakeRef(Aoper);
-   A = Aout;
+   if (oper_type == MFEM_SPARSEMAT)
+   {
+      SparseMatrix &Amat = static_cast<SparseMatrix&>(*oper);
+      FormLinearSystem(ess_tdof_list, x, b, Amat,
+                       X, B, copy_interior);
+      SparseMatrix *M = new SparseMatrix;
+      M->MakeRef(Amat);
+      A = M;
+   }
+   else if (oper_type == MFEM_FORMOPER)
+   {
+      oper->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
+   }
+   else
+   {
+      mfem_error("Not supported.");
+   }
 }
 
 void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
@@ -645,19 +656,22 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    }
 }
 
-template <>
-void BilinearForm::FormSystemOperator<SparseMatrix>(const Array<int> &ess_tdof_list,
-                                                    SparseMatrix *Aoper, Operator * &A)
+void BilinearForm::FormSystemOperator(const Array<int> &ess_tdof_list,
+                                      Operator * &A)
 {
-   FormSystemMatrix(ess_tdof_list, *Aoper);
-   A = Aoper;
-}
-
-template <>
-void BilinearForm::FormSystemOperator<FESpaceForm>(const Array<int> &ess_tdof_list,
-                                                   FESpaceForm *Aoper, Operator * &A)
-{
-   A = Aoper;
+   if (oper_type == MFEM_SPARSEMAT)
+   {
+      FormSystemMatrix(ess_tdof_list, static_cast<SparseMatrix&>(*oper));
+      A = oper;
+   }
+   else if (oper_type == MFEM_FORMOPER)
+   {
+      A = oper;
+   }
+   else
+   {
+      mfem_error("Not supported.");
+   }
 }
 
 void BilinearForm::RecoverFEMSolution(const Vector &X,
