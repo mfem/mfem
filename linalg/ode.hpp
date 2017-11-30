@@ -70,7 +70,9 @@ public:
        - If the previous rule has to be broken, e.g. to restart a time stepping
          sequence, then the ODE solver must be re-initialized by calling Init()
          between the two Step() calls. */
-   virtual void Step(Vector &x, double &t, double &dt) = 0;
+   virtual void Step(Vector &x, double &t, double &dt)
+   { mfem_error("ODESolver::Step(Vector) is not overloaded!"); }
+  
 #if defined(MFEM_USE_RAJA)
    virtual void Step(RajaVector &x, double &t, double &dt)
    { mfem_error("ODESolver::Step(RajaVector) is not overloaded!"); }
