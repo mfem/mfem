@@ -23,6 +23,76 @@
 namespace mfem
 {
 
+/// Possible basis types. Note that not all elements can use all BasisType(s).
+class BasisType
+{
+public:
+   enum
+   {
+      Invalid         = -1,
+      GaussLegendre   = 0,  ///< Open type
+      GaussLobatto    = 1,  ///< Closed type
+      Positive        = 2,  ///< Bernstein polynomials
+      OpenUniform     = 3,  ///< Nodes: x_i = (i+1)/(n+1), i=0,...,n-1
+      ClosedUniform   = 4,  ///< Nodes: x_i = i/(n-1),     i=0,...,n-1
+      OpenHalfUniform = 5,  ///< Nodes: x_i = (i+1/2)/n,   i=0,...,n-1
+      NumBasisType    = 6   ///< Keep track of maximum types to prevent hard-coding
+   };
+   /** @brief If the input does not represents a valid BasisType, abort with an
+       error; otherwise return the input. */
+   static int Check(int b_type)
+   {
+      MFEM_VERIFY(0 <= b_type &&
+                  b_type < NumBasisType, "unknown BasisType: " << b_type);
+      return b_type;
+   }
+   /** @brief Get the corresponding Quadrature1D constant, when that makes
+       sense; otherwise return Quadrature1D::Invalid. */
+   static int GetQuadrature1D(int b_type)
+   {
+      switch (b_type)
+      {
+         case GaussLegendre:   return Quadrature1D::GaussLegendre;
+         case GaussLobatto:    return Quadrature1D::GaussLobatto;
+         case OpenUniform:     return Quadrature1D::OpenUniform;
+         case ClosedUniform:   return Quadrature1D::ClosedUniform;
+         case OpenHalfUniform: return Quadrature1D::OpenHalfUniform;
+      }
+      return Quadrature1D::Invalid;
+   }
+   /// Check and convert a BasisType constant to a string identifier.
+   static const char *Name(int b_type)
+   {
+      static const char *name[] =
+      {
+         "Gauss-Legendre", "Gauss-Lobatto", "Positive (Bernstein)",
+         "Open uniform", "Closed uniform", "Open half uniform"
+      };
+      return name[Check(b_type)];
+   }
+   /// Check and convert a BasisType constant to a char basis identifier.
+   static char GetChar(int b_type)
+   {
+      static const char ident[] = { 'g', 'G', 'P', 'u', 'U', 'o' };
+      return ident[Check(b_type)];
+   }
+   /// Convert char basis identifier to a BasisType constant.
+   static int GetType(char b_ident)
+   {
+      switch (b_ident)
+      {
+         case 'g': return GaussLegendre;
+         case 'G': return GaussLobatto;
+         case 'P': return Positive;
+         case 'u': return OpenUniform;
+         case 'U': return ClosedUniform;
+         case 'o': return OpenHalfUniform;
+      }
+      MFEM_ABORT("unknown BasisType identifier");
+      return -1;
+   }
+};
+
 // Base and derived classes for finite elements
 
 /// Describes the space on each element
@@ -285,19 +355,31 @@ public:
 
    virtual ~FiniteElement () { }
 
+   static bool IsClosedType(int pt_type)
+   {
+      const int q_type = BasisType::GetQuadrature1D(pt_type);
+      return ((q_type != Quadrature1D::Invalid) &&
+              (Quadrature1D::CheckClosed(q_type) != Quadrature1D::Invalid));
+   }
+
+   static bool IsOpenType(int pt_type)
+   {
+      const int q_type = BasisType::GetQuadrature1D(pt_type);
+      return ((q_type != Quadrature1D::Invalid) &&
+              (Quadrature1D::CheckOpen(q_type) != Quadrature1D::Invalid));
+   }
+
    static int VerifyClosed(int pt_type)
    {
-      int cp_type = Quadrature1D::CheckClosed(pt_type);
-      MFEM_VERIFY(cp_type != Quadrature1D::Invalid,
+      MFEM_VERIFY(IsClosedType(pt_type),
                   "invalid closed point type: " << pt_type);
-      return cp_type;
+      return pt_type;
    }
    static int VerifyOpen(int pt_type)
    {
-      int op_type = Quadrature1D::CheckOpen(pt_type);
-      MFEM_VERIFY(op_type != Quadrature1D::Invalid,
+      MFEM_VERIFY(IsOpenType(pt_type),
                   "invalid open point type: " << pt_type);
-      return op_type;
+      return pt_type;
    }
 };
 
@@ -1364,11 +1446,18 @@ public:
 class Poly_1D
 {
 public:
+   enum
+   {
+      ChangeOfBasis = 0, // Use change of basis, O(p^2) Evals
+      Barycentric   = 1, // Use barycentric Lagrangian interpolation, O(p) Evals
+      Positive      = 2, // Use bernstein polynomials
+      NumBasisType  = 3  // Keep count of number of basis types
+   };
+
    class Basis
    {
    private:
-      int mode; /* 0 - use change of basis, O(p^2) Evals
-                   1 - use barycentric Lagrangian interpolation, O(p) Evals */
+      int btype;
       DenseMatrixInverse Ai;
       mutable Vector x, w;
 
@@ -1379,8 +1468,11 @@ public:
    };
 
 private:
-   std::map< int, Array<double*>* > points_container;
-   std::map< int, Array<Basis*>* >  bases_container;
+   typedef std::map< int, Array<double*>* > PointsMap;
+   typedef std::map< int, Array<Basis*>* > BasisMap;
+
+   PointsMap points_container[NumBasisType];
+   BasisMap  bases_container[NumBasisType];
 
    static Array2D<int> binom;
 
@@ -1402,32 +1494,27 @@ public:
        choose k" for k=0,...,p for the given p. */
    static const int *Binom(const int p);
 
-   /** @brief Get the coordinates of the points of the given Quadrature1D type.
+   /** @brief Get the coordinates of the points of the given BasisType type.
        @param p    the polynomial degree; the number of points is `p+1`.
-       @param type the Quadrature1D type.
+       @param type the BasisType type.
        @return a pointer to an array containing the `p+1` coordiantes of the
                quadrature points. */
-   const double *GetPoints(const int p, const int type);
+   const double *GetPoints(const int p, const int type,
+                           const int btype = Barycentric);
    const double *OpenPoints(const int p,
-                            const int type = Quadrature1D::GaussLegendre)
+                            const int type = BasisType::GaussLegendre)
    { return GetPoints(p, type); }
    const double *ClosedPoints(const int p,
-                              const int type = Quadrature1D::GaussLobatto)
+                              const int type = BasisType::GaussLobatto)
    { return GetPoints(p, type); }
 
-   /** @brief Get a Poly_1D::Basis object of the given degree and Quadrature1D
+   /** @brief Get a Poly_1D::Basis object of the given degree and BasisType
        type.
        @param p    the polynomial degree of the basis.
-       @param type the Quadrature1D type.
+       @param type the BasisType type.
        @return a reference to an object of type Poly_1D::Basis that represents
        the requested nodal basis. */
-   Basis &GetBasis(const int p, const int type);
-   Basis &OpenBasis(const int p,
-                    const int type = Quadrature1D::GaussLegendre)
-   { return GetBasis(p, type); }
-   Basis &ClosedBasis(const int p,
-                      const int type = Quadrature1D::GaussLobatto)
-   { return GetBasis(p, type); }
+   Basis &GetBasis(const int p, const int type, const int btype = Barycentric);
 
    // Evaluate the values of a hierarchical 1D basis at point x
    // hierarchical = k-th basis function is degree k polynomial
@@ -1473,68 +1560,104 @@ public:
 
 extern Poly_1D poly1d;
 
+class TensorBasisElement
+{
+protected:
+   int pt_type;
+   Array<int> dof_map;
+   Poly_1D::Basis &basis1d;
 
-class H1_SegmentElement : public NodalFiniteElement
+public:
+   TensorBasisElement(const int dims,
+                      const int p,
+                      const int dofs,
+                      const int type,
+                      const int btype);
+
+   inline int GetBasisType() const
+   {
+      return pt_type;
+   }
+
+   inline const Poly_1D::Basis& GetBasis1D() const
+   {
+      return basis1d;
+   }
+
+   inline const Array<int> &GetDofMap() const
+   {
+      return dof_map;
+   }
+};
+
+class NodalTensorFiniteElement : public NodalFiniteElement,
+   public TensorBasisElement
+{
+public:
+   NodalTensorFiniteElement(const int dims,
+                            const int p,
+                            const int dofs,
+                            const int type);
+};
+
+class PositiveTensorFiniteElement : public PositiveFiniteElement,
+   public TensorBasisElement
+{
+public:
+   PositiveTensorFiniteElement(const int dims,
+                               const int p,
+                               const int dofs);
+};
+
+class H1_SegmentElement : public NodalTensorFiniteElement
 {
 private:
-   int pt_type;
-   Poly_1D::Basis &basis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, dshape_x;
 #endif
-   Array<int> dof_map;
 
 public:
-   H1_SegmentElement(const int p, const int type = Quadrature1D::GaussLobatto);
+   H1_SegmentElement(const int p, const int type = BasisType::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
-   const Array<int> &GetDofMap() const { return dof_map; }
 };
 
 
-class H1_QuadrilateralElement : public NodalFiniteElement
+class H1_QuadrilateralElement : public NodalTensorFiniteElement
 {
 private:
-   int pt_type;
-   Poly_1D::Basis &basis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, dshape_x, dshape_y;
 #endif
-   Array<int> dof_map;
 
 public:
    H1_QuadrilateralElement(const int p,
-                           const int type = Quadrature1D::GaussLobatto);
+                           const int type = BasisType::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
-   const Array<int> &GetDofMap() const { return dof_map; }
 };
 
 
-class H1_HexahedronElement : public NodalFiniteElement
+class H1_HexahedronElement : public NodalTensorFiniteElement
 {
 private:
-   int pt_type;
-   Poly_1D::Basis &basis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
 #endif
-   Array<int> dof_map;
 
 public:
-   H1_HexahedronElement(const int p, const int type = Quadrature1D::GaussLobatto);
+   H1_HexahedronElement(const int p, const int type = BasisType::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
-   const Array<int> &GetDofMap() const { return dof_map; }
 };
 
-class H1Pos_SegmentElement : public PositiveFiniteElement
+class H1Pos_SegmentElement : public PositiveTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
@@ -1545,7 +1668,6 @@ private:
    // thread private thing.  Brunner, Jan 2014
    mutable Vector shape_x, dshape_x;
 #endif
-   Array<int> dof_map;
 
 public:
    H1Pos_SegmentElement(const int p);
@@ -1553,18 +1675,16 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
-   const Array<int> &GetDofMap() const { return dof_map; }
 };
 
 
-class H1Pos_QuadrilateralElement : public PositiveFiniteElement
+class H1Pos_QuadrilateralElement : public PositiveTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
    // See comment in H1Pos_SegmentElement
    mutable Vector shape_x, shape_y, dshape_x, dshape_y;
 #endif
-   Array<int> dof_map;
 
 public:
    H1Pos_QuadrilateralElement(const int p);
@@ -1572,18 +1692,16 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
-   const Array<int> &GetDofMap() const { return dof_map; }
 };
 
 
-class H1Pos_HexahedronElement : public PositiveFiniteElement
+class H1Pos_HexahedronElement : public PositiveTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
    // See comment in H1Pos_SegementElement.
    mutable Vector shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
 #endif
-   Array<int> dof_map;
 
 public:
    H1Pos_HexahedronElement(const int p);
@@ -1591,7 +1709,6 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
-   const Array<int> &GetDofMap() const { return dof_map; }
 };
 
 
@@ -1605,7 +1722,7 @@ private:
    DenseMatrixInverse Ti;
 
 public:
-   H1_TriangleElement(const int p, const int type = Quadrature1D::GaussLobatto);
+   H1_TriangleElement(const int p, const int type = BasisType::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1624,7 +1741,7 @@ private:
 
 public:
    H1_TetrahedronElement(const int p,
-                         const int type = Quadrature1D::GaussLobatto);
+                         const int type = BasisType::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1683,17 +1800,15 @@ public:
 };
 
 
-class L2_SegmentElement : public NodalFiniteElement
+class L2_SegmentElement : public NodalTensorFiniteElement
 {
 private:
-   int type;
-   Poly_1D::Basis &basis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, dshape_x;
 #endif
 
 public:
-   L2_SegmentElement(const int p, const int type = Quadrature1D::GaussLegendre);
+   L2_SegmentElement(const int p, const int type = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1701,7 +1816,7 @@ public:
 };
 
 
-class L2Pos_SegmentElement : public PositiveFiniteElement
+class L2Pos_SegmentElement : public PositiveTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
@@ -1717,18 +1832,16 @@ public:
 };
 
 
-class L2_QuadrilateralElement : public NodalFiniteElement
+class L2_QuadrilateralElement : public NodalTensorFiniteElement
 {
 private:
-   int type;
-   Poly_1D::Basis &basis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, dshape_x, dshape_y;
 #endif
 
 public:
    L2_QuadrilateralElement(const int p,
-                           const int _type = Quadrature1D::GaussLegendre);
+                           const int type = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1740,7 +1853,7 @@ public:
 };
 
 
-class L2Pos_QuadrilateralElement : public PositiveFiniteElement
+class L2Pos_QuadrilateralElement : public PositiveTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
@@ -1756,18 +1869,16 @@ public:
 };
 
 
-class L2_HexahedronElement : public NodalFiniteElement
+class L2_HexahedronElement : public NodalTensorFiniteElement
 {
 private:
-   int type;
-   Poly_1D::Basis &basis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
 #endif
 
 public:
    L2_HexahedronElement(const int p,
-                        const int _type = Quadrature1D::GaussLegendre);
+                        const int type = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1775,7 +1886,7 @@ public:
 };
 
 
-class L2Pos_HexahedronElement : public PositiveFiniteElement
+class L2Pos_HexahedronElement : public PositiveTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
@@ -1802,7 +1913,7 @@ private:
 
 public:
    L2_TriangleElement(const int p,
-                      const int type = Quadrature1D::GaussLegendre);
+                      const int type = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1842,7 +1953,7 @@ private:
 
 public:
    L2_TetrahedronElement(const int p,
-                         const int type = Quadrature1D::GaussLegendre);
+                         const int type = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1880,8 +1991,8 @@ private:
 
 public:
    RT_QuadrilateralElement(const int p,
-                           const int cp_type = Quadrature1D::GaussLobatto,
-                           const int op_type = Quadrature1D::GaussLegendre);
+                           const int cp_type = BasisType::GaussLobatto,
+                           const int op_type = BasisType::GaussLegendre);
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
    virtual void CalcVShape(ElementTransformation &Trans,
@@ -1928,8 +2039,8 @@ class RT_HexahedronElement : public VectorFiniteElement
 
 public:
    RT_HexahedronElement(const int p,
-                        const int cp_type = Quadrature1D::GaussLobatto,
-                        const int op_type = Quadrature1D::GaussLegendre);
+                        const int cp_type = BasisType::GaussLobatto,
+                        const int op_type = BasisType::GaussLegendre);
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -2061,8 +2172,8 @@ class ND_HexahedronElement : public VectorFiniteElement
 
 public:
    ND_HexahedronElement(const int p,
-                        const int cp_type = Quadrature1D::GaussLobatto,
-                        const int op_type = Quadrature1D::GaussLegendre);
+                        const int cp_type = BasisType::GaussLobatto,
+                        const int op_type = BasisType::GaussLegendre);
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -2118,8 +2229,8 @@ class ND_QuadrilateralElement : public VectorFiniteElement
 
 public:
    ND_QuadrilateralElement(const int p,
-                           const int cp_type = Quadrature1D::GaussLobatto,
-                           const int op_type = Quadrature1D::GaussLegendre);
+                           const int cp_type = BasisType::GaussLobatto,
+                           const int op_type = BasisType::GaussLegendre);
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
    virtual void CalcVShape(ElementTransformation &Trans,
@@ -2246,7 +2357,7 @@ class ND_SegmentElement : public VectorFiniteElement
 
 public:
    ND_SegmentElement(const int p,
-                     const int op_type = Quadrature1D::GaussLegendre );
+                     const int op_type = BasisType::GaussLegendre );
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const
    { obasis1d.Eval(ip.x, shape); }
    virtual void CalcVShape(const IntegrationPoint &ip,
