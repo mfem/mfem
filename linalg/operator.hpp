@@ -461,6 +461,21 @@ public:
    virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
 };
 
+template <class TVector>
+void Operator::TRecoverFEMSolution(const TVector &X,
+                                   const TVector &b,
+                                   TVector &x)
+{
+   const Operator *P = this->GetProlongation();
+   if (P)
+   {
+      // Apply conforming prolongation
+      x.SetSize(P->Height());
+      P->Mult(X, x);
+   }
+   // Otherwise X and x point to the same data
+}
+
 }
 
 #endif
