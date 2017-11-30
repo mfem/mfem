@@ -60,6 +60,8 @@ protected:
    DenseMatrix elemmat;
    Array<int>  vdofs;
 
+   DenseTensor *element_matrices;
+
    StaticCondensation *static_cond;
    Hybridization *hybridization;
 
@@ -73,7 +75,7 @@ protected:
    BilinearForm() : Matrix (0)
    {
       fes = NULL; sequence = -1;
-      mat = mat_e = NULL; extern_bfs = 0;
+      mat = mat_e = NULL; extern_bfs = 0; element_matrices = NULL;
       static_cond = NULL; hybridization = NULL;
       precompute_sparsity = 0;
    }
@@ -270,6 +272,13 @@ public:
        FormLinearSystem method to recover the solution as a GridFunction-size
        vector in x. Use the same arguments as in the FormLinearSystem call. */
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+
+   /// Compute and store internally all element matrices.
+   void ComputeElementMatrices();
+
+   /// Free the memory used by the element matrices.
+   void FreeElementMatrices()
+   { delete element_matrices; element_matrices = NULL; }
 
    void ComputeElementMatrix(int i, DenseMatrix &elmat);
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,

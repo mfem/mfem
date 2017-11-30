@@ -69,6 +69,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f)
    sequence = f->GetSequence();
    mat = mat_e = NULL;
    extern_bfs = 0;
+   element_matrices = NULL;
    static_cond = NULL;
    hybridization = NULL;
    precompute_sparsity = 0;
@@ -84,6 +85,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    sequence = f->GetSequence();
    mat_e = NULL;
    extern_bfs = 1;
+   element_matrices = NULL;
    static_cond = NULL;
    hybridization = NULL;
    precompute_sparsity = ps;
@@ -621,6 +623,45 @@ void BilinearForm::RecoverFEMSolution(const Vector &X,
          x.SetSize(P->Height());
          P->Mult(X, x);
       }
+   }
+}
+
+void BilinearForm::ComputeElementMatrices()
+{
+   if (element_matrices || dbfi.Size() == 0 || fes->GetNE() == 0)
+   {
+      return;
+   }
+
+   int num_elements = fes->GetNE();
+   int num_dofs_per_el = fes->GetFE(0)->GetDof() * fes->GetVDim();
+
+   element_matrices = new DenseTensor(num_dofs_per_el, num_dofs_per_el,
+                                      num_elements);
+
+   DenseMatrix tmp;
+   IsoparametricTransformation eltrans;
+
+   for (int i = 0; i < num_elements; i++)
+   {
+      DenseMatrix elmat(element_matrices->GetData(i),
+                        num_dofs_per_el, num_dofs_per_el);
+      const FiniteElement &fe = *fes->GetFE(i);
+#ifdef MFEM_DEBUG
+      if (num_dofs_per_el != fe.GetDof()*fes->GetVDim())
+         mfem_error("BilinearForm::ComputeElementMatrices:"
+                    " all elements must have same number of dofs");
+#endif
+      fes->GetElementTransformation(i, &eltrans);
+
+      dbfi[0]->AssembleElementMatrix(fe, eltrans, elmat);
+      for (int k = 1; k < dbfi.Size(); k++)
+      {
+         // note: some integrators may not be thread-safe
+         dbfi[k]->AssembleElementMatrix(fe, eltrans, tmp);
+         elmat += tmp;
+      }
+      elmat.ClearExternalData();
    }
 }
 
