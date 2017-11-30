@@ -1380,8 +1380,22 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
    const Array<int> &pOrders = parent->GetOrders();
    for (int i = 0; i < NumOfKnotVectors; i++)
    {
-      knotVectors[i] =
-         parent->GetKnotVector(i)->DegreeElevate(newOrder - pOrders[i]);
+      if (newOrder > pOrders[i])
+      {
+         knotVectors[i] =
+            parent->GetKnotVector(i)->DegreeElevate(newOrder - pOrders[i]);
+      }
+      else
+      {
+         if (newOrder < pOrders[i])
+         {
+            MFEM_WARNING("Discarding requested order.\n Parent KnotVector order higher than child.\n" 
+                       <<"KnotVector   = " << i<<"\n"
+                       <<"Child order  = " << newOrder<<"\n"
+                       <<"Parent order = " << pOrders[i]);
+         }
+         knotVectors[i] = new KnotVector(*parent->GetKnotVector(i));
+      }
    }
 
    // copy some data from parent
@@ -1421,10 +1435,25 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent,
    MFEM_VERIFY(mOrders.Size() == NumOfKnotVectors, "invalid newOrders array");
    knotVectors.SetSize(NumOfKnotVectors);
    const Array<int> &pOrders = parent->GetOrders();
+
    for (int i = 0; i < NumOfKnotVectors; i++)
    {
-      knotVectors[i] =
-         parent->GetKnotVector(i)->DegreeElevate(mOrders[i] - pOrders[i]);
+      if (mOrders[i] > pOrders[i])
+      {
+         knotVectors[i] =
+            parent->GetKnotVector(i)->DegreeElevate(mOrders[i] - pOrders[i]);
+      }
+      else
+      {
+         if (mOrders[i] < pOrders[i])
+         {
+            MFEM_WARNING("Discarding requested order.\n Parent KnotVector order higher than child.\n" 
+                       <<"KnotVector   = " << i<<"\n"
+                       <<"Child order  = " << mOrders[i]<<"\n"
+                       <<"Parent order = " << pOrders[i]);
+         }
+         knotVectors[i] = new KnotVector(*parent->GetKnotVector(i));
+      }
    }
 
    // copy some data from parent
