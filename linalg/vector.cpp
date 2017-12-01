@@ -115,15 +115,18 @@ double Vector::operator*(const Vector &v) const
 
 Vector &Vector::operator=(const double *v)
 {
-   std::memcpy(data, v, sizeof(double)*size);
+   if (data != v)
+   {
+      MFEM_ASSERT(data + size <= v || v + size <= data, "Vectors overlap!");
+      std::memcpy(data, v, sizeof(double)*size);
+   }
    return *this;
 }
 
 Vector &Vector::operator=(const Vector &v)
 {
    SetSize(v.Size());
-   std::memcpy(data, v.data, sizeof(double)*size);
-   return *this;
+   return operator=(v.data);
 }
 
 Vector &Vector::operator=(double value)
