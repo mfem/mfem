@@ -124,7 +124,7 @@ private:
    /// Helper: create a HypreParMatrix from a list of PMatrixRows.
    HypreParMatrix*
    MakeVDimHypreMatrix(const std::vector<struct PMatrixRow> &rows,
-                       int local_rows,
+                       int local_rows, int local_cols,
                        Array<HYPRE_Int> &row_starts,
                        Array<HYPRE_Int> &col_starts) const;
 
