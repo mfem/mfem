@@ -1854,7 +1854,7 @@ int ParFiniteElementSpace
          send_msg.push_back(NeighborRowMessage::Map());
       }
 
-      // check for incoming messages
+      // check for incoming messages, receive PMatrixRows
       int rank, size;
       while (NeighborRowMessage::IProbe(rank, size, MyComm))
       {
@@ -1937,7 +1937,8 @@ int ParFiniteElementSpace
 
    if (P)
    {
-      *P = MakeVDimHypreMatrix(pmatrix, ndofs, dof_offs, tdof_offs);
+      *P = MakeVDimHypreMatrix(pmatrix, ndofs, num_true_dofs,
+                               dof_offs, tdof_offs);
    }
 
    // make sure we can discard all send buffers; this is a formality since
@@ -1955,7 +1956,7 @@ int ParFiniteElementSpace
 
 HypreParMatrix* ParFiniteElementSpace
 ::MakeVDimHypreMatrix(const std::vector<PMatrixRow> &rows,
-                      int local_rows,
+                      int local_rows, int local_cols,
                       Array<HYPRE_Int> &row_starts,
                       Array<HYPRE_Int> &col_starts) const
 {
@@ -2011,7 +2012,7 @@ HypreParMatrix* ParFiniteElementSpace
 
    int vdim1 = bynodes ? vdim : 1;
    int vdim2 = bynodes ? 1 : vdim;
-   int vdim_offset = bynodes ? ltdof_size/vdim : 1;
+   int vdim_offset = bynodes ? local_cols : 1;
 
    // copy the diag/offd elements
    nnz_diag = nnz_offd = 0;
