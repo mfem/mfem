@@ -1174,23 +1174,23 @@ void SparseMatrix::EliminateRowCol(int rc, const double sol, Vector &rhs,
       {
          if ((col = J[j]) == rc)
          {
-           switch (dpolicy)
-           {
-           case DIAG_KEEP:
-             rhs(rc) = A[j] * sol;
-             break;
-           case DIAG_ONE:
-             A[j] = 1.0;
-             rhs(rc) = sol;
-             break;
-           case DIAG_ZERO:
-             A[j] = 0.;
-             rhs(rc) = 0.;
-             break;
-           default:
-             mfem_error("SparseMatrix::EliminateRowCol () #2");
-             break;
-           }
+            switch (dpolicy)
+            {
+               case DIAG_KEEP:
+                  rhs(rc) = A[j] * sol;
+                  break;
+               case DIAG_ONE:
+                  A[j] = 1.0;
+                  rhs(rc) = sol;
+                  break;
+               case DIAG_ZERO:
+                  A[j] = 0.;
+                  rhs(rc) = 0.;
+                  break;
+               default:
+                  mfem_error("SparseMatrix::EliminateRowCol () #2");
+                  break;
+            }
          }
          else
          {
@@ -1217,23 +1217,23 @@ void SparseMatrix::EliminateRowCol(int rc, const double sol, Vector &rhs,
       {
          if ((col = aux->Column) == rc)
          {
-           switch (dpolicy)
-           {
-           case DIAG_KEEP:
-             rhs(rc) = aux->Value * sol;
-             break;
-           case DIAG_ONE:
-             aux->Value = 1.0;
-             rhs(rc) = sol;
-             break;
-           case DIAG_ZERO:
-             aux->Value = 0.;
-             rhs(rc) = 0.;
-             break;
-           default:
-             mfem_error("SparseMatrix::EliminateRowCol () #4");
-             break;
-           }
+            switch (dpolicy)
+            {
+               case DIAG_KEEP:
+                  rhs(rc) = aux->Value * sol;
+                  break;
+               case DIAG_ONE:
+                  aux->Value = 1.0;
+                  rhs(rc) = sol;
+                  break;
+               case DIAG_ZERO:
+                  aux->Value = 0.;
+                  rhs(rc) = 0.;
+                  break;
+               default:
+                  mfem_error("SparseMatrix::EliminateRowCol () #4");
+                  break;
+            }
          }
          else
          {
@@ -1272,32 +1272,32 @@ void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
       for (int j = I[rc]; j < I[rc+1]; j++)
          if ((col = J[j]) == rc)
          {
-           switch (dpolicy)
-           {
-           case DIAG_KEEP:
-             for (int r = 0; r < num_rhs; r++)
-             {
-                rhs(rc,r) = A[j] * sol(r);
-             }
-             break;
-           case DIAG_ONE:
-             A[j] = 1.0;
-             for (int r = 0; r < num_rhs; r++)
-             {
-                rhs(rc,r) = sol(r);
-             }
-             break;
-           case DIAG_ZERO:
-             A[j] = 0.;
-             for (int r = 0; r < num_rhs; r++)
-             {
-                rhs(rc,r) = 0.;
-             }
-             break;
-           default:
-             mfem_error("SparseMatrix::EliminateRowColMultipleRHS() #3");
-             break;
-           }
+            switch (dpolicy)
+            {
+               case DIAG_KEEP:
+                  for (int r = 0; r < num_rhs; r++)
+                  {
+                     rhs(rc,r) = A[j] * sol(r);
+                  }
+                  break;
+               case DIAG_ONE:
+                  A[j] = 1.0;
+                  for (int r = 0; r < num_rhs; r++)
+                  {
+                     rhs(rc,r) = sol(r);
+                  }
+                  break;
+               case DIAG_ZERO:
+                  A[j] = 0.;
+                  for (int r = 0; r < num_rhs; r++)
+                  {
+                     rhs(rc,r) = 0.;
+                  }
+                  break;
+               default:
+                  mfem_error("SparseMatrix::EliminateRowColMultipleRHS() #3");
+                  break;
+            }
          }
          else
          {
@@ -1321,32 +1321,32 @@ void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
       for (RowNode *aux = Rows[rc]; aux != NULL; aux = aux->Prev)
          if ((col = aux->Column) == rc)
          {
-           switch (dpolicy)
-           {
-           case DIAG_KEEP:
-             for (int r = 0; r < num_rhs; r++)
-             {
-                rhs(rc,r) = aux->Value * sol(r);
-             }
-             break;
-           case DIAG_ONE:
-             aux->Value = 1.0;
-             for (int r = 0; r < num_rhs; r++)
-             {
-                rhs(rc,r) = sol(r);
-             }
-             break;
-           case DIAG_ZERO:
-             aux->Value = 0.;
-             for (int r = 0; r < num_rhs; r++)
-             {
-                rhs(rc,r) = 0.;
-             }
-             break;
-           default:
-             mfem_error("SparseMatrix::EliminateRowColMultipleRHS() #5");
-             break;
-           }
+            switch (dpolicy)
+            {
+               case DIAG_KEEP:
+                  for (int r = 0; r < num_rhs; r++)
+                  {
+                     rhs(rc,r) = aux->Value * sol(r);
+                  }
+                  break;
+               case DIAG_ONE:
+                  aux->Value = 1.0;
+                  for (int r = 0; r < num_rhs; r++)
+                  {
+                     rhs(rc,r) = sol(r);
+                  }
+                  break;
+               case DIAG_ZERO:
+                  aux->Value = 0.;
+                  for (int r = 0; r < num_rhs; r++)
+                  {
+                     rhs(rc,r) = 0.;
+                  }
+                  break;
+               default:
+                  mfem_error("SparseMatrix::EliminateRowColMultipleRHS() #5");
+                  break;
+            }
          }
          else
          {
@@ -1384,7 +1384,7 @@ void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
             {
                A[j] = 1.0;
             }
-            else if(dpolicy == DIAG_ZERO)
+            else if (dpolicy == DIAG_ZERO)
             {
                A[j] = 0.0;
             }
@@ -1416,7 +1416,7 @@ void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
             {
                aux->Value = 1.0;
             }
-            else if(dpolicy == DIAG_ZERO)
+            else if (dpolicy == DIAG_ZERO)
             {
                aux->Value = 0.;
             }
@@ -1498,7 +1498,8 @@ void SparseMatrix::EliminateRowColDiag(int rc, double value)
    }
 }
 
-void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae, DiagonalPolicy dpolicy)
+void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae,
+                                   DiagonalPolicy dpolicy)
 {
    int col;
 
@@ -1509,21 +1510,21 @@ void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae, DiagonalPolicy dpol
       {
          if ((col = nd->Column) == rc)
          {
-            switch(dpolicy)
+            switch (dpolicy)
             {
-            case DIAG_ONE:
-              Ae.Add(rc, rc, nd->Value - 1.0);
-              nd->Value = 1.0;
-              break;
-            case DIAG_ZERO:
-              Ae.Add(rc, rc, nd->Value);
-              nd->Value = 0.;
-              break;
-            case DIAG_KEEP:
-              break;
-            default:
-              mfem_error("SparseMatrix::EliminateRowCol #1");
-              break;
+               case DIAG_ONE:
+                  Ae.Add(rc, rc, nd->Value - 1.0);
+                  nd->Value = 1.0;
+                  break;
+               case DIAG_ZERO:
+                  Ae.Add(rc, rc, nd->Value);
+                  nd->Value = 0.;
+                  break;
+               case DIAG_KEEP:
+                  break;
+               default:
+                  mfem_error("SparseMatrix::EliminateRowCol #1");
+                  break;
             }
          }
          else
@@ -1552,22 +1553,22 @@ void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae, DiagonalPolicy dpol
       {
          if ((col = J[j]) == rc)
          {
-           switch(dpolicy)
-           {
-           case DIAG_ONE:
-             Ae.Add(rc, rc, A[j] - 1.0);
-             A[j] = 1.0;
-             break;
-           case DIAG_ZERO:
-             Ae.Add(rc, rc, A[j]);
-             A[j] = 0.;
-             break;
-           case DIAG_KEEP:
-             break;
-           default:
-             mfem_error("SparseMatrix::EliminateRowCol #3");
-             break;
-           }
+            switch (dpolicy)
+            {
+               case DIAG_ONE:
+                  Ae.Add(rc, rc, A[j] - 1.0);
+                  A[j] = 1.0;
+                  break;
+               case DIAG_ZERO:
+                  Ae.Add(rc, rc, A[j]);
+                  A[j] = 0.;
+                  break;
+               case DIAG_KEEP:
+                  break;
+               default:
+                  mfem_error("SparseMatrix::EliminateRowCol #3");
+                  break;
+            }
          }
          else
          {
