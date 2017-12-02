@@ -766,7 +766,8 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
    }
 }
 
-void BilinearForm::EliminateVDofs(const Array<int> &vdofs, DiagonalPolicy dpolicy)
+void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
+                                  DiagonalPolicy dpolicy)
 {
    if (mat_e == NULL)
    {
