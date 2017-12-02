@@ -380,6 +380,10 @@ void BlockMatrix::Mult(const Vector & x, Vector & y) const
       mfem_error("Error: x and y can't point to the same datas \n");
    }
 
+   MFEM_ASSERT(width == x.Size(), "Input vector size (" << x.Size()
+               << ") must match matrix width (" << width << ")");
+   MFEM_ASSERT(height == y.Size(), "Output vector size (" << y.Size()
+               << ") must match matrix height (" << height << ")");
    y = 0.;
    AddMult(x, y, 1.0);
 }
