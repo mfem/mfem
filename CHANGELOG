@@ -10,6 +10,7 @@
 
 Version 3.3.3 (development)
 ===========================
+- Added support for elimination of boundary conditions in block matrices.
 
 
 Version 3.3.2, released on Nov 10, 2017
