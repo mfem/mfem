@@ -1099,15 +1099,19 @@ void SparseMatrix::EliminateRow(int row, DiagonalPolicy dpolicy)
                << height << ",  width = " << width);
 
    if (Rows == NULL)
+   {
       for (int i=I[row]; i < I[row+1]; ++i)
       {
          A[i]=0.0;
       }
+   }
    else
+   {
       for (aux = Rows[row]; aux != NULL; aux = aux->Prev)
       {
          aux->Value = 0.0;
       }
+   }
 
    if (dpolicy == DIAG_ONE)
    {
