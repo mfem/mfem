@@ -1120,8 +1120,9 @@ void SparseMatrix::EliminateCol(int col, int setOneDiagonal)
                "Col " << col << " not in matrix of width " << width);
 
    MFEM_ASSERT(!setOneDiagonal || height == width,
-               "if setOneDiagonal, must be rectangular matrix, not height = "
+               "if setOneDiagonal, must be square matrix, not height = "
                << height << ",  width = " << width);
+
    if (Rows == NULL)
    {
       for (int i = 0; i < height; i++)
@@ -1141,9 +1142,10 @@ void SparseMatrix::EliminateCol(int col, int setOneDiagonal)
                aux->Value = 0.0;
             }
    }
+
    if (setOneDiagonal)
    {
-      SearchRow(col, col) = 1.;
+      SearchRow(col, col) = 1.0;
    }
 }
 

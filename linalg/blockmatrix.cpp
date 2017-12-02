@@ -205,7 +205,6 @@ int BlockMatrix::GetRow(const int row, Array<int> &cols, Vector &srow) const
 
 void BlockMatrix::EliminateRowCol(int rc, int d)
 {
-
    // Find the block to which the dof belongs and its local number
    int idx, iiblock;
    for (iiblock = 0; iiblock < nRowBlocks; ++iiblock)
@@ -366,7 +365,10 @@ void BlockMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
       for (int jblock = 0; jblock < nColBlocks; ++jblock)
       {
          if (!Aij(iblock,jblock)) { continue; }
-         if (!Aij(iblock,jblock)->Finalized()) { Aij(iblock,jblock)->Finalize(skip_zeros, fix_empty_rows); }
+         if (!Aij(iblock,jblock)->Finalized())
+         {
+            Aij(iblock,jblock)->Finalize(skip_zeros, fix_empty_rows);
+         }
       }
    }
 }
