@@ -424,15 +424,15 @@ public:
    virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
 };
 
+
 /** @brief Mimic the action of a complex operator using two real operators.
 
-    This operator requires vectors that are twice the length of its
-    internally stored real operators, Op_Real and Op_Imag.  It is
-    assumed that these vectors store the real part of the vector first
-    followed by its imaginary part.
+    This operator requires vectors that are twice the length of its internally
+    stored real operators, Op_Real and Op_Imag. It is assumed that these vectors
+    store the real part of the vector first followed by its imaginary part.
 
-    ComplexOperator allows one to choose a convention upon
-    construction, which facilitates symmetry.
+    ComplexOperator allows one to choose a convention upon construction, which
+    facilitates symmetry.
 
     Matrix-vector products are then computed as:
 
@@ -450,22 +450,22 @@ public:
     however, each of them is best suited for certain classes of
     problems.  For example:
 
-    1. Convention::BLOCK_ANTISYMMETRIC, is well suited for Hermitian
-    operators, i.e. operators where the real part is symmetric and the
-    imaginary part of the operator is anti-symmetric, hence the name.
-    In such cases the resulting 2x2 operator will be symmetric.
+    1. Convention::BLOCK_ANTISYMMETRIC, is well suited for Hermitian operators,
+    i.e. operators where the real part is symmetric and the imaginary part of
+    the operator is anti-symmetric, hence the name. In such cases the resulting
+    2 x 2 operator will be symmetric.
 
-    2. Convention::BLOCK_SYMMETRIC, is well suited for operators where
-    both the real and imaginary parts are symmetric.  In this case the
-    resulting 2x2 operator will again be symmetric.  Such operators
-    are common when studying damped oscillations, for example.
+    2. Convention::BLOCK_SYMMETRIC, is well suited for operators where both the
+    real and imaginary parts are symmetric. In this case the resulting 2 x 2
+    operator will again be symmetric. Such operators are common when studying
+    damped oscillations, for example.
  */
 class ComplexOperator : public Operator
 {
 public:
    enum Convention
    {
-      BLOCK_ANTISYMMETRIC,  ///< Native convention for Hermitian opertators
+      BLOCK_ANTISYMMETRIC,  ///< Native convention for Hermitian operators
       BLOCK_SYMMETRIC       ///< Alternate convention for damping operators
    };
 
@@ -479,8 +479,8 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const;
 
 protected:
-   // Let this be hidden from the public interface since their
-   // implementation depends on internal members
+   // Let this be hidden from the public interface since the implementation
+   // depends on internal members
    virtual void Mult(const Vector &x_r, const Vector &x_i,
                      Vector &y_r, Vector &y_i) const;
    virtual void MultTranspose(const Vector &x_r, const Vector &x_i,

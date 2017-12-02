@@ -3150,8 +3150,7 @@ void SparseMatrix::Swap(SparseMatrix &other)
    mfem::Swap(isSorted, other.isSorted);
 }
 
-SparseMatrix *
-ComplexSparseMatrix::GetSystemMatrix() const
+SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
 {
    SparseMatrix * A_r = dynamic_cast<SparseMatrix*>(Op_Real_);
    SparseMatrix * A_i = dynamic_cast<SparseMatrix*>(Op_Imag_);
@@ -3160,22 +3159,22 @@ ComplexSparseMatrix::GetSystemMatrix() const
    const int  nrows_i = (A_i)?A_i->Height():0;
    const int    nrows = std::max(nrows_r, nrows_i);
 
-   const int    * I_r = (A_r)?A_r->GetI():NULL;
-   const int    * I_i = (A_i)?A_i->GetI():NULL;
+   const int     *I_r = (A_r)?A_r->GetI():NULL;
+   const int     *I_i = (A_i)?A_i->GetI():NULL;
 
-   const int    * J_r = (A_r)?A_r->GetJ():NULL;
-   const int    * J_i = (A_i)?A_i->GetJ():NULL;
+   const int     *J_r = (A_r)?A_r->GetJ():NULL;
+   const int     *J_i = (A_i)?A_i->GetJ():NULL;
 
-   const double * D_r = (A_r)?A_r->GetData():NULL;
-   const double * D_i = (A_i)?A_i->GetData():NULL;
+   const double  *D_r = (A_r)?A_r->GetData():NULL;
+   const double  *D_i = (A_i)?A_i->GetData():NULL;
 
    const int    nnz_r = (I_r)?I_r[nrows]:0;
    const int    nnz_i = (I_i)?I_i[nrows]:0;
    const int    nnz   = 2 * (nnz_r + nnz_i);
 
-   int      * I = new int[this->Height()+1];
-   int      * J = new int[nnz];
-   double   * D = new double[nnz];
+   int    *I = new int[this->Height()+1];
+   int    *J = new int[nnz];
+   double *D = new double[nnz];
 
    const double factor = (convention_ == BLOCK_ANTISYMMETRIC) ? 1.0 : -1.0;
 
