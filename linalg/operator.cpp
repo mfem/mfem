@@ -146,6 +146,7 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
    }
 }
 
+
 ComplexOperator::ComplexOperator(Operator * Op_Real, Operator * Op_Imag,
                                  bool ownReal, bool ownImag,
                                  Convention convention)
