@@ -184,6 +184,16 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
    isSorted = mat.isSorted;
 }
 
+SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
+{
+   Clear();
+
+   SparseMatrix copy(rhs);
+   Swap(copy);
+
+   return *this;
+}
+
 void SparseMatrix::MakeRef(const SparseMatrix &master)
 {
    MFEM_ASSERT(master.Finalized(), "'master' must be finalized");
@@ -1149,7 +1159,7 @@ void SparseMatrix::EliminateCol(int col, int setOneDiagonal)
    }
 }
 
-void SparseMatrix::EliminateCols(Array<int> &cols, Vector *x, Vector *b)
+void SparseMatrix::EliminateCols(const Array<int> &cols, Vector *x, Vector *b)
 {
    if (Rows == NULL)
    {
@@ -2013,7 +2023,7 @@ void SparseMatrix::SetSubMatrixTranspose(const Array<int> &rows,
 }
 
 void SparseMatrix::GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
-                                DenseMatrix &subm)
+                                DenseMatrix &subm) const
 {
    int i, j, gi, gj, s, t;
    double a;
