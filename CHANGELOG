@@ -10,6 +10,9 @@
 
 Version 3.3.3 (development)
 ===========================
+- Added class ComplexOperator, that implements the action of a complex operator
+  through the equivalent 2x2 real formulation. Both symmetric and antisymmetric
+  block structures are supported.
 
 
 Version 3.3.2, released on Nov 10, 2017
