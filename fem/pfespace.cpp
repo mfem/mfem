@@ -1950,6 +1950,14 @@ int ParFiniteElementSpace
       NeighborRowMessage::WaitAllSent(*it);
    }
 
+   // after synchronization, clean up possible remaining messages in the queue
+   // to avoid receiving them erroneously in the next run
+   int rank, size;
+   while (NeighborRowMessage::IProbe(rank, size, MyComm))
+   {
+      recv_msg.RecvDrop(rank, size, MyComm);
+   }
+
    return num_true_dofs*vdim;
 }
 
