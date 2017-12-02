@@ -375,6 +375,15 @@ struct VarMessage
       Decode(rank);
    }
 
+   /// Like Recv(), but throw away the messsage.
+   void RecvDrop(int rank, int size, MPI_Comm comm)
+   {
+      data.resize(size);
+      MPI_Status status;
+      MPI_Recv((void*) data.data(), size, MPI_BYTE, rank, Tag, comm, &status);
+      data.resize(0); // don't decode
+   }
+
    /// Helper to receive all messages in a rank-to-message map container.
    template<typename MapT>
    static void RecvAll(MapT& rank_msg, MPI_Comm comm)
