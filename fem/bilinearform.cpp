@@ -978,7 +978,7 @@ const double & MixedBilinearForm::Elem (int i, int j) const
 
 void MixedBilinearForm::Mult (const Vector & x, Vector & y) const
 {
-   mat -> Mult (x, y);
+   oper -> Mult (x, y);
 }
 
 void MixedBilinearForm::AddMult (const Vector & x, Vector & y,
@@ -1119,6 +1119,23 @@ void MixedBilinearForm::Assemble (int skip_zeros)
          }
       }
    }
+
+   oper = mat;
+}
+
+template <>
+void MixedBilinearForm::AssembleForm<SparseMatrix>(SparseMatrix &A, int skip_zeros)
+{
+   Assemble(skip_zeros);
+   oper = mat;
+   A.MakeRef(*mat);
+}
+
+template <>
+void MixedBilinearForm::AssembleForm<BilinearFormOperator>(BilinearFormOperator &A, int skip_zeros)
+{
+   A.Assemble(this);
+   oper = &A;
 }
 
 void MixedBilinearForm::ConformingAssemble()
@@ -1142,6 +1159,8 @@ void MixedBilinearForm::ConformingAssemble()
       delete mat;
       mat = RAP;
    }
+
+   oper = mat;
 
    height = mat->Height();
    width = mat->Width();

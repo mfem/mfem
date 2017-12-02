@@ -389,6 +389,7 @@ class MixedBilinearForm : public Matrix
 {
 protected:
    SparseMatrix *mat;
+   Operator *oper;
 
    FiniteElementSpace *trial_fes, *test_fes;
 
@@ -452,6 +453,9 @@ public:
    void operator= (const double a) { *mat = a; }
 
    void Assemble (int skip_zeros = 1);
+
+   template <class Op>
+   void AssembleForm(Op &A, int skip_zeros = 1);
 
    /** For partially conforming trial and/or test FE spaces, complete the
        assembly process by performing A := P2^t A P1 where A is the internal
