@@ -230,7 +230,7 @@ public:
    /** Eliminates the column 'rc' to the 'rhs', deletes the row 'rc' and
        replaces the element (rc,rc) with 1.0; assumes that element (i,rc)
        is assembled if and only if the element (rc,i) is assembled.
-       By default, elements (rc,rc) are set to 1.0, although this behavour
+       By default, elements (rc,rc) are set to 1.0, although this behavior
        can be adjusted by changing 'dpolicy' parameter. */
    void EliminateRowCol(int rc, const double sol, Vector &rhs,
                         DiagonalPolicy dpolicy = DIAG_ONE);

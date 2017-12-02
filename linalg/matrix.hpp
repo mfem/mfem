@@ -28,13 +28,12 @@ class Matrix : public Operator
 {
    friend class MatrixInverse;
 public:
-   /** @brief Defines matrix diagonal policy upon elemination of rows and/or columns.
-       */
+   //// Defines matrix diagonal policy upon elimination of rows and/or columns.
    enum DiagonalPolicy
    {
       DIAG_ZERO, ///< set diagonal value to zero
       DIAG_ONE,  ///< set diagonal value to one
-      DIAG_KEEP, ///< keep the value
+      DIAG_KEEP, ///< keep the diagonal value
    };
 
    /// Creates a square matrix of size s.
