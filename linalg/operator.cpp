@@ -205,8 +205,10 @@ void ComplexOperator::Mult(const Vector &x_r, const Vector &x_i,
       y_i_ += *v_;
    }
 
-   if(convention_ == BLOCK_SYMMETRIC)
+   if (convention_ == BLOCK_SYMMETRIC)
+   {
       y_i_ *= -1.0;
+   }
 }
 
 void ComplexOperator::MultTranspose(const Vector &x, Vector &y) const
@@ -229,8 +231,10 @@ void ComplexOperator::MultTranspose(const Vector &x_r, const Vector &x_i,
       Op_Real_->MultTranspose(x_r, y_r);
       Op_Real_->MultTranspose(x_i, y_i);
 
-      if(convention_ == BLOCK_SYMMETRIC)
-        y_i *= -1.0;
+      if (convention_ == BLOCK_SYMMETRIC)
+      {
+         y_i *= -1.0;
+      }
    }
    else
    {
