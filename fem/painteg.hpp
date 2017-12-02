@@ -59,8 +59,9 @@ class PAMassIntegrator : public LinearFESpaceIntegrator
 {
 protected:
    MassIntegrator *integ;     // Own this
+   VectorMassIntegrator *vinteg;     // Own this
    const FiniteElementSpace *fes;  // TODO: support mixed spaces
-   DenseMatrix Dmat;
+   DenseTensor Dtensor;
    DenseMatrix shape1d;
 
    // Action methods
@@ -69,8 +70,9 @@ protected:
    void MultHex(const Vector &V, Vector &U);
 
 public:
-   PAMassIntegrator(MassIntegrator *_integ) : integ(_integ) {}
-   ~PAMassIntegrator() { delete integ; }
+   PAMassIntegrator(MassIntegrator *_integ) : integ(_integ), vinteg(NULL) {}
+   PAMassIntegrator(VectorMassIntegrator *_vinteg) : integ(NULL), vinteg(_vinteg) {}
+   ~PAMassIntegrator() { delete integ; delete vinteg; }
 
    virtual void Assemble(FiniteElementSpace *_trial_fes,
                          FiniteElementSpace *_test_fes);

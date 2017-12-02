@@ -456,20 +456,46 @@ void PAMassIntegrator::Assemble(FiniteElementSpace *_trial_fes,
    const int nelem   = fes->GetNE();
    const int dim     = fe->GetDim();
    const int quads   = IntRule->GetNPoints();
-   Dmat.SetSize(quads, nelem);
+   const int vdim    = integ ? 1 : dim;
+   Dtensor.SetSize(quads, vdim, nelem);
 
-   Coefficient *coeff = integ->Q;
+   Coefficient *coeff = NULL;
+   VectorCoefficient *vcoeff = NULL;
+   if (integ)
+   {
+      coeff = integ->Q;
+   }
+   else if (vinteg)
+   {
+      coeff = vinteg->Q;
+      vcoeff = vinteg->VQ;
+      if (vinteg->MQ != NULL) mfem_error("Not supported.");
+   }
    DenseMatrix invdfdx(dim, dim);
    DenseMatrix mat(dim, dim);
+   Vector cv(vdim);
    for (int e = 0; e < fes->GetNE(); e++)
    {
       ElementTransformation *Tr = fes->GetElementTransformation(e);
+      DenseMatrix &Dmat = Dtensor(e);
       for (int k = 0; k < quads; k++)
       {
          const IntegrationPoint &ip = IntRule->IntPoint(k);
          Tr->SetIntPoint(&ip);
          const double weight = ip.weight * Tr->Weight();
-         Dmat(k, e) = (coeff == NULL) ? weight : coeff->Eval(*Tr, ip) * weight;
+         if (vcoeff != NULL)
+         {
+            vcoeff->Eval(cv, *Tr, ip);
+         }
+         for (int v = 0; v < vdim; v++)
+         {
+            Dmat(k, v) = weight;
+            if (coeff != NULL) Dmat(k, v) *= coeff->Eval(*Tr, ip);
+            else if (vcoeff != NULL)
+            {
+               Dmat(k, v) *= cv(v);
+            }
+         }
       }
    }
 }
@@ -486,6 +512,7 @@ void PAMassIntegrator::MultSeg(const Vector &V, Vector &U)
    int offset = 0;
    for (int e = 0; e < fes->GetNE(); ++e)
    {
+      DenseMatrix &Dmat = Dtensor(e);
       for (int vd = 0; vd < vdim; ++vd)
       {
          const Vector Vmat(V.GetData() + offset, dofs1d);
@@ -495,7 +522,7 @@ void PAMassIntegrator::MultSeg(const Vector &V, Vector &U)
          shape1d.MultTranspose(Vmat, Q);
 
          double *data_q = Q.GetData();
-         const double *data_d = Dmat.GetColumn(e);
+         const double *data_d = Dmat.GetColumn(vd);
          for (int k = 0; k < quads; ++k) { data_q[k] *= data_d[k]; }
 
          // Q_k1 = dshape_j1_k1 * Q_k1
@@ -522,6 +549,7 @@ void PAMassIntegrator::MultQuad(const Vector &V, Vector &U)
    int offset = 0;
    for (int e = 0; e < fes->GetNE(); ++e)
    {
+      DenseMatrix &Dmat = Dtensor(e);
       for (int vd = 0; vd < vdim; ++vd)
       {
          const DenseMatrix Vmat(V.GetData() + offset, dofs1d, dofs1d);
@@ -535,7 +563,7 @@ void PAMassIntegrator::MultQuad(const Vector &V, Vector &U)
          // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
          // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
          double *data_qq = QQ.GetData();
-         const double *data_d = Dmat.GetColumn(e);
+         const double *data_d = Dmat.GetColumn(vd);
          for (int k = 0; k < quads; ++k) { data_qq[k] *= data_d[k]; }
 
          // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
@@ -565,6 +593,7 @@ void PAMassIntegrator::MultHex(const Vector &V, Vector &U)
    int offset = 0;
    for (int e = 0; e < fes->GetNE(); ++e)
    {
+      DenseMatrix &Dmat = Dtensor(e);
       for (int vd = 0; vd < vdim; ++vd)
       {
          const DenseTensor Vmat(V.GetData() + offset, dofs1d, dofs1d, dofs1d);
@@ -602,7 +631,7 @@ void PAMassIntegrator::MultHex(const Vector &V, Vector &U)
          // QQQ_k1_k2_k3 = Dmat_k1_k2_k3 * QQQ_k1_k2_k3
          // NOTE: (k1, k2, k3) = q -- 1d quad point index
          double *data_qqq = QQQ.GetData(0);
-         const double *data_d = Dmat.GetColumn(e);
+         const double *data_d = Dmat.GetColumn(vd);
          for (int k = 0; k < quads; ++k) { data_qqq[k] *= data_d[k]; }
 
          // Apply transpose of the first operator that takes V -> QQQ -- QQQ -> U
@@ -660,6 +689,10 @@ LinearFESpaceIntegrator *PAIntegratorMap::DomainIntegrator(BilinearFormIntegrato
    }
    {
       MassIntegrator *actual_integ = dynamic_cast<MassIntegrator*>(integ);
+      if (actual_integ) { return new PAMassIntegrator(actual_integ); }
+   }
+   {
+      VectorMassIntegrator *actual_integ = dynamic_cast<VectorMassIntegrator*>(integ);
       if (actual_integ) { return new PAMassIntegrator(actual_integ); }
    }
 

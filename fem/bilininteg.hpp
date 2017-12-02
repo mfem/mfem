@@ -1759,6 +1759,9 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   // Friend partial assembly version so it has access to the coefficients.
+   friend class PAMassIntegrator;
 };
 
 
