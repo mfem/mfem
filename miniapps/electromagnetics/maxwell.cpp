@@ -38,9 +38,9 @@ double magnetic_shell(const Vector &);
 double muInv(const Vector & x) { return 1.0/magnetic_shell(x); }
 
 // Conductivity Function
-static Vector cs_params_(0);  // Center, Radius, and Conductivity
+//static Vector cs_params_(0);  // Center, Radius, and Conductivity
 //                               of conductive sphere
-double conductive_sphere(const Vector &);
+//double conductive_sphere(const Vector &);
 
 // Polarization
 static Vector vp_params_(0);  // Axis Start, Axis End, Cylinder Radius,
@@ -51,7 +51,13 @@ void voltaic_pile(const Vector &, double t, Vector &);
 static Vector cr_params_(0);  // Axis Start, Axis End, Inner Ring Radius,
 //                               Outer Ring Radius, Total Current of
 //                               current ring (annulus), and Frequency
-void current_ring(const Vector &, double t, Vector &);
+//void current_ring(const Vector &, double t, Vector &);
+
+// Current Density Function
+static Vector cs_params_(0);  // Axis Start, Axis End, Rod Radius,
+//                               Total Current of Rod, and Frequency
+void dipole_current(const Vector &x, double t, Vector &j);
+/*
 void current_src(const Vector &x, double t, Vector &j)
 {
    if ( vp_params_.Size()*cr_params_.Size() == 0 )
@@ -73,7 +79,7 @@ void current_src(const Vector &x, double t, Vector &j)
       j += j_cr;
    }
 }
-
+*/
 /*
 // E Boundary Condition
 static Vector e_uniform_(0);
@@ -162,6 +168,8 @@ int main(int argc, char *argv[])
                   "Axis End Points, Radius, and Polarization of Cylindrical Voltaic Pile");
    args.AddOption(&cr_params_, "-cr", "--current-ring-params",
                   "Axis End Points, Inner Radius, Outer Radius, Total Current of Annulus, and the Frequency of Oscillation");
+   args.AddOption(&cs_params_, "-cs", "--current-source-params",
+                  "Axis End Points, Radius, Total Current, and the Frequency of Oscillation");
    /*
    args.AddOption(&cs_params_, "-cs", "--charged-sphere-params",
                   "Center, Radius, and Total Charge of Charged Sphere");
@@ -371,7 +379,7 @@ int main(int argc, char *argv[])
                          ( ds_params_.Size() > 0 ) ? epsilon     : NULL,
                          ( ms_params_.Size() > 0 ) ? muInv       : NULL,
                          ( vp_params_.Size() > 0 ) ||
-                         ( cr_params_.Size() > 0 ) ? current_src : NULL,
+                         ( cs_params_.Size() > 0 ) ? dipole_current : NULL,
                          dbcs,
                          (       dbcs.Size() > 0 ) ? dEdtBCFunc  : NULL
                         );
@@ -619,25 +627,24 @@ void voltaic_pile(const Vector &x, double t, Vector &p)
    p *= sin(2.0 * M_PI * vp_params_[2*x.Size()+2] * t);
 }
 
-// An annular ring of current density.  The ring has two axis end
-// points, inner and outer radii, and a constant current in Amperes.
-void current_ring(const Vector &x, double t, Vector &j)
+// A cylindrical rod of current density.  The rod has two axis end
+// points, a radus, a current amplitude in Amperes, and a frequency.
+void dipole_current(const Vector &x, double t, Vector &j)
 {
-   MFEM_ASSERT(x.Size() == 3, "current_ring source requires 3D space.");
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
 
    j.SetSize(x.Size());
    j = 0.0;
 
    Vector  a(x.Size());  // Normalized Axis vector
    Vector xu(x.Size());  // x vector relative to the axis end-point
-   Vector ju(x.Size());  // Unit vector in direction of current
 
    xu = x;
 
    for (int i=0; i<x.Size(); i++)
    {
-      xu[i] -= cr_params_[i];
-      a[i]   = cr_params_[x.Size()+i] - cr_params_[i];
+      xu[i] -= cs_params_[i];
+      a[i]   = cs_params_[x.Size()+i] - cs_params_[i];
    }
 
    double h = a.Norml2();
@@ -647,14 +654,10 @@ void current_ring(const Vector &x, double t, Vector &j)
       return;
    }
 
-   double ra = cr_params_[2*x.Size()+0];
-   double rb = cr_params_[2*x.Size()+1];
-   if ( ra > rb )
-   {
-      double rc = ra;
-      ra = rb;
-      rb = rc;
-   }
+   double r = cs_params_[2*x.Size()+0];
+   double amp = cs_params_[2*x.Size()+1];
+   double freq = cs_params_[2*x.Size()+2];
+
    double xa = xu*a;
 
    if ( h > 0.0 )
@@ -664,17 +667,12 @@ void current_ring(const Vector &x, double t, Vector &j)
 
    double xp = xu.Norml2();
 
-   if ( xa >= 0.0 && xa <= h*h && xp >= ra && xp <= rb )
+   if ( xa >= 0.0 && xa <= h*h && xp <= r )
    {
-      ju(0) = a(1) * xu(2) - a(2) * xu(1);
-      ju(1) = a(2) * xu(0) - a(0) * xu(2);
-      ju(2) = a(0) * xu(1) - a(1) * xu(0);
-      ju /= h;
-
-      j.Add(cr_params_[2*x.Size()+2]/(h*(rb-ra)),ju);
+      j.Add(amp/(h*M_PI*r*r), a);
    }
 
-   j *= sin(2.0 * M_PI * cr_params_[2*x.Size()+3] * t);
+   j *= sin(2.0 * M_PI * freq * t);
 }
 /*
 // To produce a uniform electric field the potential can be set
