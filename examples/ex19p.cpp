@@ -3,27 +3,27 @@
 // Compile with: make ex19p
 //
 // Sample runs:
-//    mpirun -np 2 ex10p -m ../data/beam-quad.mesh  
-//    mpirun -np 2 ex10p -m ../data/beam-tri.mesh 
-//    mpirun -np 2 ex10p -m ../data/beam-hex.mesh 
-//    mpirun -np 2 ex10p -m ../data/beam-tet.mesh 
+//    mpirun -np 2 ex10p -m ../data/beam-quad.mesh
+//    mpirun -np 2 ex10p -m ../data/beam-tri.mesh
+//    mpirun -np 2 ex10p -m ../data/beam-hex.mesh
+//    mpirun -np 2 ex10p -m ../data/beam-tet.mesh
 //
 // Description:  This examples solves a quasi-static incompressible nonlinear
 //               elasticity problem of the form 0 = H(x), where H is an incompressible
 //               hyperelastic model and x is a block state vector containing
-//               displacement and pressure variables. The geometry of the domain 
+//               displacement and pressure variables. The geometry of the domain
 //               is assumed to be as follows:
 //
 //                                 +---------------------+
 //                    boundary --->|                     |<--- boundary attribute 2
-//                    attribute 1  |                     |     (fixed)  
+//                    attribute 1  |                     |     (fixed)
 //                    (fixed)      +---------------------+
 //
 //               The example demonstrates the use of block nonlinear operators (the
-//               class RubberOperator defining H(x)) as well as a nonlinear 
-//               Newton solver for the quasi-static problem. Each Newton step 
+//               class RubberOperator defining H(x)) as well as a nonlinear
+//               Newton solver for the quasi-static problem. Each Newton step
 //               requires the inversion of a Jacobian matrix, which is done through a
-//               (preconditioned) inner solver. The specialized block preconditioner 
+//               (preconditioned) inner solver. The specialized block preconditioner
 //               is implemented as a user-defined solver.
 //
 //               We recommend viewing examples 2, 5, and 10 before viewing this
@@ -50,7 +50,7 @@ protected:
    // Jacobian for block access
    BlockOperator *jacobian;
 
-   // Scaling factor for the pressure mass matrix in 
+   // Scaling factor for the pressure mass matrix in
    // the block preconditioner
    double gamma;
 
@@ -346,7 +346,8 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-JacobianPreconditioner::JacobianPreconditioner(Array<ParFiniteElementSpace *> &fes,
+JacobianPreconditioner::JacobianPreconditioner(Array<ParFiniteElementSpace *>
+                                               &fes,
                                                Operator &mass,
                                                Array<int> &offsets)
    : Solver(offsets[2]), block_trueOffsets(offsets), pressure_mass(&mass)
@@ -418,7 +419,8 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
    jacobian = (BlockOperator *) &op;
 
    // Clean up the old stiffness solvers
-   if (stiff_prec != NULL) {
+   if (stiff_prec != NULL)
+   {
       delete stiff_prec;
       delete stiff_pcg;
    }
@@ -509,7 +511,7 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    j_gmres->SetPrintLevel(0);
    j_gmres->SetPreconditioner(*j_prec);
    j_solver = j_gmres;
-   
+
    // Set the newton solve parameters
    newton_solver.iterative_mode = true;
    newton_solver.SetSolver(*j_solver);
