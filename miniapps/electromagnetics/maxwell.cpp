@@ -94,6 +94,9 @@ void BFieldFunc(const Vector &, Vector&);
 
 int SnapTimeStep(double tmax, double dtmax, double & dt);
 
+// Prints the program's logo to the given output stream
+void display_banner(ostream & os);
+
 int main(int argc, char *argv[])
 {
    // Initialize MPI.
@@ -101,6 +104,7 @@ int main(int argc, char *argv[])
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   if ( mpi.Root() ) { display_banner(cout); }
 
    // Parse command-line options.
    const char *mesh_file = "./butterfly_3d.mesh";
@@ -473,6 +477,28 @@ int main(int argc, char *argv[])
    MPI_Finalize();
 
    return 0;
+}
+
+// Print the Maxwell ascii logo to the given ostream
+void display_banner(ostream & os)
+{
+  /*
+   os << "   _____                                .__  .__   " << endl 
+      << "  /     \ _____  ___  _____  _  __ ____ |  | |  |  " << endl
+      << " /  \ /  \\__  \ \  \/  /\ \/ \/ // __ \|  | |  |  " << endl
+      << "/    Y    \/ __ \_>    <  \     /\  ___/|  |_|  |__" << endl
+      << "\____|__  (____  /__/\_ \  \/\_/  \___  >____/____/" << endl
+      << "        \/     \/      \/             \/           " << endl << flush;
+  */
+   os << "     ___    ____                                      " << endl
+      << "    /   |  /   /                           __   __    " << endl 
+      << "   /    |_/ _ /__  ___  _____  _  __ ____ |  | |  |   " << endl
+      << "  /         \\__  \\ \\  \\/  /\\ \\/ \\/ // __ \\|  | |  |   "
+      << endl
+      << " /   /|_/   // __ \\_>    <  \\     /\\  ___/|  |_|  |__ " << endl
+      << "/___/  /_  /(____  /__/\\_ \\  \\/\\_/  \\___  >____/____/ " << endl
+      << "         \\/       \\/      \\/             \\/           " << endl
+      << flush;
 }
 
 // A sphere with constant permittivity.  The sphere has a radius,
