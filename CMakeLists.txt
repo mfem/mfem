@@ -41,11 +41,11 @@ endif()
 #-------------------------------------------------------------------------------
 # Project name and version
 #-------------------------------------------------------------------------------
-project(mfem CXX)
+project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 3.3.1)
+set(${PROJECT_NAME}_VERSION 3.3.3)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -53,13 +53,40 @@ if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
     "MFEM does not support in-source CMake builds at this time.")
 endif (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
 
-if (CMAKE_VERSION VERSION_LESS 3.2 OR MFEM_USE_SIDRE)
+# Set xSDK defaults.
+set(USE_XSDK_DEFAULTS_DEFAULT OFF)
+set(XSDK_ENABLE_CXX ON)
+set(XSDK_ENABLE_C OFF)
+set(XSDK_ENABLE_Fortran OFF)
+
+# Check if we need to enable C or Fortran.
+if (CMAKE_VERSION VERSION_LESS 3.2 OR MFEM_USE_SIDRE OR MFEM_USE_PETSC)
    # This seems to be needed by:
    #  * find_package(BLAS REQUIRED) and
    #  * find_package(HDF5 REQUIRED) needed, in turn, by:
-   #    - find_package(ATK REQUIRED)
+   #    - find_package(AXOM REQUIRED)
+   #  * find_package(PETSc REQUIRED)
+   set(XSDK_ENABLE_C ON)
+endif()
+if (MFEM_USE_STRUMPACK)
+  # Just needed to find the MPI_Fortran libraries to link with
+  set(XSDK_ENABLE_Fortran ON)
+endif()
+
+# Include xSDK default CMake file.
+include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
+
+# Enable languages.
+enable_language(CXX)
+if (XSDK_ENABLE_C)
    enable_language(C)
 endif()
+if (XSDK_ENABLE_Fortran)
+   enable_language(Fortran)
+endif()
+
+# Suppress warnings about MACOSX_RPATH
+set(CMAKE_MACOSX_RPATH OFF CACHE BOOL "")
 
 # CMake needs to know where to find things
 set(MFEM_CMAKE_PATH ${PROJECT_SOURCE_DIR}/config)
@@ -70,6 +97,17 @@ include(MfemCmakeUtilities)
 
 string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UC)
 mfem_version_to_int(${${PROJECT_NAME}_VERSION} ${PROJECT_NAME_UC}_VERSION)
+set(${PROJECT_NAME_UC}_VERSION_STRING ${${PROJECT_NAME}_VERSION})
+if (EXISTS ${PROJECT_SOURCE_DIR}/.git)
+   execute_process(
+     COMMAND git -C ${PROJECT_SOURCE_DIR}
+                describe --all --long --abbrev=40 --dirty --always
+     OUTPUT_VARIABLE ${PROJECT_NAME_UC}_GIT_STRING
+     ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
+endif()
+if (NOT ${PROJECT_NAME_UC}_GIT_STRING)
+   set(${PROJECT_NAME_UC}_GIT_STRING "")
+endif()
 
 #-------------------------------------------------------------------------------
 # Process configuration options
@@ -82,26 +120,23 @@ else()
   set(MFEM_DEBUG OFF)
 endif()
 
-# MPI -> hypre, METIS
+# MPI -> hypre; PETSc (optional)
 if (MFEM_USE_MPI)
   find_package(MPI REQUIRED)
-  include_directories(${MPI_CXX_INCLUDE_PATH})
-  # Parallel MFEM depends on hypre and METIS
+  set(MPI_CXX_INCLUDE_DIRS ${MPI_CXX_INCLUDE_PATH})
+  # Parallel MFEM depends on hypre
   find_package(HYPRE REQUIRED)
   set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
-  include_directories(${HYPRE_INCLUDE_DIRS})
-  find_package(METIS REQUIRED)
-  include_directories(${METIS_INCLUDE_DIRS})
   if (MFEM_USE_PETSC)
     find_package(PETSc REQUIRED)
     message(STATUS "Found PETSc version ${PETSC_VERSION}")
-    if (PETSC_VERSION AND (PETSC_VERSION VERSION_LESS 3.7.5.99))
-      message(FATAL_ERROR "PETSc version >= 3.7.5.99 is required")
+    if (PETSC_VERSION AND (PETSC_VERSION VERSION_LESS 3.8.0))
+      message(FATAL_ERROR "PETSc version >= 3.8.0 is required")
     endif()
-    include_directories(${PETSC_INCLUDES})
+    set(PETSC_INCLUDE_DIRS ${PETSC_INCLUDES})
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU PETSC)
+  set(PKGS_NEED_MPI SUPERLU PETSC STRUMPACK)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -110,17 +145,19 @@ else()
   endforeach()
 endif()
 
+if (MFEM_USE_METIS)
+  find_package(METIS REQUIRED)
+endif()
+
 # GZSTREAM -> zlib
 if (MFEM_USE_GZSTREAM)
   find_package(ZLIB REQUIRED)
-  include_directories(${ZLIB_INCLUDE_DIRS})
 endif()
 
 # Backtrace with libunwind
 if (MFEM_USE_LIBUNWIND)
   set(MFEMBacktrace_REQUIRED_PACKAGES "Libunwind" "LIBDL" "CXXABIDemangle")
   find_package(MFEMBacktrace REQUIRED)
-  include_directories(${LIBUNWIND_INCLUDE_DIRS})
 endif()
 
 # BLAS, LAPACK
@@ -142,7 +179,6 @@ endif()
 if (MFEM_USE_SUITESPARSE)
   find_package(SuiteSparse REQUIRED
     UMFPACK KLU AMD BTF CHOLMOD COLAMD CAMD CCOLAMD config)
-  include_directories(${SuiteSparse_INCLUDE_DIRS})
 endif()
 
 # SUNDIALS
@@ -153,63 +189,66 @@ if (MFEM_USE_SUNDIALS)
     find_package(SUNDIALS REQUIRED
       NVector_Serial NVector_Parallel NVector_ParHyp CVODE ARKODE KINSOL)
   endif()
-  include_directories(${SUNDIALS_INCLUDE_DIRS})
 endif()
 
 # Mesquite
 if (MFEM_USE_MESQUITE)
   find_package(Mesquite REQUIRED)
-  include_directories(${MESQUITE_INCLUDE_DIRS})
 endif()
 
-# SuperLU_DIST can only be enabled if parallel
+# SuperLU_DIST can only be enabled in parallel
 if (MFEM_USE_SUPERLU)
   if (MFEM_USE_MPI)
     find_package(SuperLUDist REQUIRED)
-    include_directories(${SuperLUDist_INCLUDE_DIRS})
   else()
     message(FATAL_ERROR " *** SuperLU_DIST requires that MPI be enabled.")
+  endif()
+endif()
+
+# STRUMPACK can only be enabled in parallel
+if (MFEM_USE_STRUMPACK)
+  if (MFEM_USE_MPI)
+    find_package(STRUMPACK REQUIRED)
+  else()
+    message(FATAL_ERROR " *** STRUMPACK requires that MPI be enabled.")
   endif()
 endif()
 
 # Gecko
 if (MFEM_USE_GECKO)
   find_package(Gecko REQUIRED)
-  include_directories(${GECKO_INCLUDE_DIRS})
 endif()
 
 # GnuTLS
 if (MFEM_USE_GNUTLS)
   find_package(_GnuTLS REQUIRED)
-  include_directories(${GNUTLS_INCLUDE_DIRS})
 endif()
 
 # NetCDF
 if (MFEM_USE_NETCDF)
   find_package(NetCDF REQUIRED)
-  include_directories(${NETCDF_INCLUDE_DIRS})
 endif()
 
 # MPFR
 if (MFEM_USE_MPFR)
   find_package(MPFR REQUIRED)
-  include_directories(${MPFR_INCLUDE_DIRS})
 endif()
 
 # Axom/Sidre
 if (MFEM_USE_SIDRE)
   if (NOT MFEM_USE_MPI)
-    find_package(ATK REQUIRED Sidre SLIC common)
+    find_package(Axom REQUIRED Sidre SLIC axom_utils)
   else()
-    find_package(ATK REQUIRED Sidre SPIO SLIC common)
+    find_package(Axom REQUIRED Sidre SPIO SLIC axom_utils)
   endif()
-  include_directories(${ATK_INCLUDE_DIRS})
 endif()
 
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
-    set(MFEM_TIMER_TYPE 0) # use std::clock from <ctime>
+    # use std::clock from <ctime> for UserTime and
+    # use mach_absolute_time from <mach/mach_time.h> for RealTime
+    set(MFEM_TIMER_TYPE 4)
   elseif (WIN32)
     set(MFEM_TIMER_TYPE 3) # QueryPerformanceCounter from <windows.h>
   else()
@@ -223,17 +262,27 @@ if (NOT DEFINED MFEM_TIMER_TYPE)
 endif()
 
 # List all possible libraries in order of dependencies.
-set(MFEM_TPLS HYPRE OPENMP SUNDIALS MESQUITE SuiteSparse SuperLUDist
-    ParMETIS METIS LAPACK BLAS GECKO GNUTLS NETCDF PETSC MPFR ATK POSIXCLOCKS
+# [METIS < SuiteSparse]:
+#    With newer versions of SuiteSparse which include METIS header using 64-bit
+#    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
+#    be before SuiteSparse.
+set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
+    MESQUITE SuperLUDist STRUMPACK AXOM GECKO GNUTLS NETCDF MPFR POSIXCLOCKS
     MFEMBacktrace ZLIB)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
+set(TPL_INCLUDE_DIRS "")
 foreach(TPL IN LISTS MFEM_TPLS)
   if (${TPL}_FOUND)
     message(STATUS "MFEM: using package ${TPL}")
     list(APPEND TPL_LIBRARIES ${${TPL}_LIBRARIES})
+    list(APPEND TPL_INCLUDE_DIRS ${${TPL}_INCLUDE_DIRS})
   endif()
 endforeach(TPL)
+list(REMOVE_DUPLICATES TPL_LIBRARIES)
+list(REMOVE_DUPLICATES TPL_INCLUDE_DIRS)
+# message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
+include_directories(${TPL_INCLUDE_DIRS})
 
 if (OPENMP_FOUND)
   message(STATUS "MFEM: using package OpenMP")
@@ -241,6 +290,8 @@ if (OPENMP_FOUND)
 endif()
 
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
+message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
+message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
 
 # Windows specific
 set(_USE_MATH_DEFINES ${WIN32})
@@ -261,21 +312,30 @@ set(MASTER_HEADERS
   ${PROJECT_SOURCE_DIR}/mfem.hpp
   ${PROJECT_SOURCE_DIR}/mfem-performance.hpp)
 
+set(_lib_path "${CMAKE_INSTALL_PREFIX}/lib")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
+set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
+set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
+
 # Declaring the library
 add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
-list(REMOVE_DUPLICATES TPL_LIBRARIES)
-# message(STATUS " TPL_LIBRARIES = ${TPL_LIBRARIES}")
+# message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 if (CMAKE_VERSION VERSION_GREATER 2.8.11)
   target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
 else()
   target_link_libraries(mfem ${TPL_LIBRARIES})
 endif()
+if (MINGW)
+  target_link_libraries(mfem ws2_32)
+endif()
+set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
+set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
 # If building out-of-source, define MFEM_BUILD_DIR to point to the build
 # directory.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
   target_compile_definitions(mfem PRIVATE
-    "-DMFEM_BUILD_DIR=${PROJECT_BINARY_DIR}")
+    "MFEM_BUILD_DIR=${PROJECT_BINARY_DIR}")
 endif()
 
 # Generate configuration file in the build directory: config/_config.hpp.
@@ -293,6 +353,11 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
 "// Auto-generated file.
 #define MFEM_BUILD_DIR ${PROJECT_BINARY_DIR}
 #include \"${PROJECT_SOURCE_DIR}/${Header}\"
+")
+    # This version will be installed in the top include directory:
+    file(WRITE "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}"
+"// Auto-generated file.
+#include \"mfem/${Header}\"
 ")
   endforeach()
 endif()
@@ -383,11 +448,15 @@ install(TARGETS ${PROJECT_NAME}
   DESTINATION ${INSTALL_LIB_DIR})
 
 # Install the master headers
-install(FILES ${MASTER_HEADERS} DESTINATION ${INSTALL_INCLUDE_DIR})
+foreach(Header mfem.hpp mfem-performance.hpp)
+  install(FILES ${PROJECT_BINARY_DIR}/InstallHeaders/${Header}
+    DESTINATION ${INSTALL_INCLUDE_DIR})
+endforeach()
+install(FILES ${MASTER_HEADERS} DESTINATION ${INSTALL_INCLUDE_DIR}/mfem)
 
 # Install the headers; currently, the miniapps headers are excluded
 install(DIRECTORY ${MFEM_SOURCE_DIRS}
-  DESTINATION ${INSTALL_INCLUDE_DIR}
+  DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
   FILES_MATCHING PATTERN "*.hpp")
 
 # Install ${HEADERS}
@@ -400,11 +469,11 @@ install(DIRECTORY ${MFEM_SOURCE_DIRS}
 
 # Install the configuration header files
 install(FILES ${PROJECT_BINARY_DIR}/config/_config.hpp
-  DESTINATION ${INSTALL_INCLUDE_DIR}/config
+  DESTINATION ${INSTALL_INCLUDE_DIR}/mfem/config
   RENAME config.hpp)
 
 install(FILES ${PROJECT_SOURCE_DIR}/config/tconfig.hpp
-  DESTINATION ${INSTALL_INCLUDE_DIR}/config)
+  DESTINATION ${INSTALL_INCLUDE_DIR}/mfem/config)
 
 # Package the whole thing up nicely
 include(CMakePackageConfigHelpers)
@@ -414,11 +483,15 @@ export(TARGETS ${PROJECT_NAME}
   FILE "${PROJECT_BINARY_DIR}/MFEMTargets.cmake")
 
 # Export the package for use from the build-tree (this registers the build-tree
-# with a global CMake-registry)
+# with the CMake user package registry.)
+# TODO: How do we register the install-tree? Replacing the build-tree?
 export(PACKAGE ${PROJECT_NAME})
 
 # Extract the include directories required to use MFEM
 get_target_property(MFEM_TPL_INCLUDE_DIRS mfem INCLUDE_DIRECTORIES)
+if (NOT MFEM_TPL_INCLUDE_DIRS)
+  set(MFEM_TPL_INCLUDE_DIRS "")
+endif()
 
 # This is the build-tree version
 set(INCLUDE_INSTALL_DIRS ${PROJECT_BINARY_DIR} ${MFEM_TPL_INCLUDE_DIRS})

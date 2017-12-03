@@ -123,11 +123,13 @@ public:
    enum Type
    {
       MFEM_SPARSEMAT,
-      HYPRE_PARCSR,
+      Hypre_ParCSR,
       PETSC_MATAIJ,
       PETSC_MATIS,
       PETSC_MATSHELL,
-      PETSC_MATNEST
+      PETSC_MATNEST,
+      PETSC_MATHYPRE,
+      PETSC_MATGENERIC
    };
 };
 

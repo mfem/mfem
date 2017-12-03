@@ -188,12 +188,12 @@ public:
 
        With this constructor, the SidreDataCollection does not own the Sidre
        DataStore.
-       @note No mesh or fields are read from the given DataGroups. The mesh has
+       @note No mesh or fields are read from the given Groups. The mesh has
        to be set with SetMesh() and fields registered with RegisterField().
     */
    SidreDataCollection(const std::string& collection_name,
-                       axom::sidre::DataGroup * global_grp,
-                       axom::sidre::DataGroup * domain_grp,
+                       axom::sidre::Group * global_grp,
+                       axom::sidre::Group * domain_grp,
                        bool owns_mesh_data = false);
 
 #ifdef MFEM_USE_MPI
@@ -263,11 +263,11 @@ public:
        reset to valid groups in the datastore.
        @sa Load(const std::string &path, const std::string &protocol).
     */
-   void SetGroupPointers(axom::sidre::DataGroup * global_grp,
-                         axom::sidre::DataGroup * domain_grp);
+   void SetGroupPointers(axom::sidre::Group * global_grp,
+                         axom::sidre::Group * domain_grp);
 
-   axom::sidre::DataGroup * GetBPGroup() { return bp_grp; }
-   axom::sidre::DataGroup * GetBPIndexGroup() { return bp_index_grp; }
+   axom::sidre::Group * GetBPGroup() { return bp_grp; }
+   axom::sidre::Group * GetBPIndexGroup() { return bp_index_grp; }
 
    /// Prepare the DataStore for writing
    virtual void PrepareToSave();
@@ -320,23 +320,27 @@ public:
    /** @name Methods for named buffer access and manipulation. */
    ///@{
 
-   /** @brief Get a pointer to the sidre::DataView holding the named buffer for
+   /** @brief Get a pointer to the sidre::View holding the named buffer for
        @a buffer_name. */
    /** If such named buffer is not allocated, the method returns NULL.
-       @note To access the underlying pointer, use DataView::getData().
-       @note To query the size of the buffer, use DataView::getNumElements().
+       @note To access the underlying pointer, use View::getData().
+       @note To query the size of the buffer, use View::getNumElements().
     */
-   axom::sidre::DataView *
+   axom::sidre::View *
    GetNamedBuffer(const std::string& buffer_name) const
-   { return named_buffers_grp()->getView(buffer_name); }
+   {
+      return named_buffers_grp()->hasView(buffer_name)
+             ? named_buffers_grp()->getView(buffer_name)
+             : NULL;
+   }
 
    /// Return newly allocated or existing named buffer for @a buffer_name.
    /** The buffer is stored in the named_buffers group. If the currently
        allocated buffer size is smaller than @a sz, then the buffer is
        reallocated with size @a sz, destroying its contents.
-       @note To access the underlying pointer, use DataView::getData().
+       @note To access the underlying pointer, use View::getData().
     */
-   axom::sidre::DataView *
+   axom::sidre::View *
    AllocNamedBuffer(const std::string& buffer_name,
                     axom::sidre::SidreLength sz,
                     axom::sidre::TypeID type =
@@ -374,19 +378,19 @@ private:
 #endif
 
 protected:
-   axom::sidre::DataGroup *named_buffers_grp() const;
+   axom::sidre::Group *named_buffers_grp() const;
 
-   axom::sidre::DataView *
-   alloc_view(axom::sidre::DataGroup *grp,
+   axom::sidre::View *
+   alloc_view(axom::sidre::Group *grp,
               const std::string &view_name);
 
-   axom::sidre::DataView *
-   alloc_view(axom::sidre::DataGroup *grp,
+   axom::sidre::View *
+   alloc_view(axom::sidre::Group *grp,
               const std::string &view_name,
               const axom::sidre::DataType &dtype);
 
-   axom::sidre::DataGroup *
-   alloc_group(axom::sidre::DataGroup *grp,
+   axom::sidre::Group *
+   alloc_group(axom::sidre::Group *grp,
                const std::string &group_name);
 
    // return the filename based on prefix_path, collection name and cycle.
@@ -395,11 +399,11 @@ protected:
 private:
    // If the data collection does not own the datastore, it will need pointers
    // to the blueprint and blueprint index group to use.
-   axom::sidre::DataGroup * bp_grp;
-   axom::sidre::DataGroup * bp_index_grp;
+   axom::sidre::Group * bp_grp;
+   axom::sidre::Group * bp_index_grp;
 
    // This is stored for convenience.
-   axom::sidre::DataGroup * named_bufs_grp;
+   axom::sidre::Group * named_bufs_grp;
 
    // Private helper functions
 
@@ -466,6 +470,15 @@ private:
             former has to be created with this method before the latter.
     */
    void createMeshBlueprintTopologies(bool hasBP, const std::string& mesh_name);
+
+#ifdef MFEM_USE_MPI
+   /// Sets up the mesh blueprint 'adjacencies' group.
+   /**
+    * \param hasBP Indicates whether the blueprint has already been set up.
+    * \note Only valid when using parallel meshes
+    */
+   void createMeshBlueprintAdjacencies(bool hasBP);
+#endif
 
    /// Verifies that the contents of the mesh blueprint data is valid.
    void verifyMeshBlueprint();

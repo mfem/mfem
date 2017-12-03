@@ -16,8 +16,8 @@
 
 #include "../general/mem_alloc.hpp"
 #include "../general/table.hpp"
+#include "../general/globals.hpp"
 #include "densemat.hpp"
-#include <iostream>
 
 namespace mfem
 {
@@ -111,6 +111,9 @@ public:
        will use a shallow copy (copy the pointers only) without transferring
        ownership. */
    SparseMatrix(const SparseMatrix &mat, bool copy_graph = true);
+
+   /// Assignment operator: deep copy
+   SparseMatrix& operator=(const SparseMatrix &rhs);
 
    /** @brief Clear the contents of the SparseMatrix and make it a reference to
        @a master */
@@ -225,7 +228,7 @@ public:
    void EliminateRow(int row, int setOneDiagonal = 0);
    void EliminateCol(int col);
    /// Eliminate all columns 'i' for which cols[i] != 0
-   void EliminateCols(Array<int> &cols, Vector *x = NULL, Vector *b = NULL);
+   void EliminateCols(const Array<int> &cols, Vector *x = NULL, Vector *b = NULL);
 
    /** Eliminates the column 'rc' to the 'rhs', deletes the row 'rc' and
        replaces the element (rc,rc) with 1.0; assumes that element (i,rc)
@@ -289,7 +292,7 @@ public:
    void GetBlocks(Array2D<SparseMatrix *> &blocks) const;
 
    void GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
-                     DenseMatrix &subm);
+                     DenseMatrix &subm) const;
 
    inline void SetColPtr(const int row) const;
    inline void ClearColPtr() const;
@@ -352,13 +355,13 @@ public:
    SparseMatrix &operator*=(double a);
 
    /// Prints matrix to stream out.
-   void Print(std::ostream &out = std::cout, int width_ = 4) const;
+   void Print(std::ostream &out = mfem::out, int width_ = 4) const;
 
    /// Prints matrix in matlab format.
-   void PrintMatlab(std::ostream &out = std::cout) const;
+   void PrintMatlab(std::ostream &out = mfem::out) const;
 
    /// Prints matrix in Matrix Market sparse format.
-   void PrintMM(std::ostream &out = std::cout) const;
+   void PrintMM(std::ostream &out = mfem::out) const;
 
    /// Prints matrix to stream out in hypre_CSRMatrix format.
    void PrintCSR(std::ostream &out) const;
