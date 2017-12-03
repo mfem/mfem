@@ -173,6 +173,8 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    */
 
    Curl_ = new ParDiscreteCurlOperator(HCurlFESpace_, HDivFESpace_);
+   Curl_->Assemble();
+   Curl_->Finalize();
    NegCurl_ = Curl_->ParallelAssemble();
    // NegCurl_->Print("T12.mat");
    *NegCurl_ *= -1.0; // Beware this modifies the matrix stored within
