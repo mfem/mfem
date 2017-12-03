@@ -1941,21 +1941,19 @@ int ParFiniteElementSpace
                                dof_offs, tdof_offs);
    }
 
-   // make sure we can discard all send buffers; this is a formality since
-   // the processes are synchronized at this point and they must already have
-   // sent all their messages
-   for (std::list<NeighborRowMessage::Map>::iterator
-        it = send_msg.begin(); it != send_msg.end(); ++it)
-   {
-      NeighborRowMessage::WaitAllSent(*it);
-   }
-
-   // after synchronization, clean up possible remaining messages in the queue
-   // to avoid receiving them erroneously in the next run
+   // clean up possible remaining messages in the queue to avoid receiving
+   // them erroneously in the next run
    int rank, size;
    while (NeighborRowMessage::IProbe(rank, size, MyComm))
    {
       recv_msg.RecvDrop(rank, size, MyComm);
+   }
+
+   // make sure we can discard all send buffers
+   for (std::list<NeighborRowMessage::Map>::iterator
+        it = send_msg.begin(); it != send_msg.end(); ++it)
+   {
+      NeighborRowMessage::WaitAllSent(*it);
    }
 
    return num_true_dofs*vdim;
