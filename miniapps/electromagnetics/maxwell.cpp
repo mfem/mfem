@@ -105,11 +105,8 @@ void display_banner(ostream & os);
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   MPI_Session mpi(argc, argv);
+
    if ( mpi.Root() ) { display_banner(cout); }
 
    // Parse command-line options.
@@ -196,14 +193,14 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0)
+     if (mpi.Root())
       {
          args.PrintUsage(cout);
       }
       MPI_Finalize();
       return 1;
    }
-   if (myid == 0)
+   if (mpi.Root())
    {
       args.PrintOptions(cout);
    }
@@ -215,7 +212,7 @@ int main(int argc, char *argv[])
    ifstream imesh(mesh_file);
    if (!imesh)
    {
-      if (myid == 0)
+      if (mpi.Root())
       {
          cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
       }
@@ -394,7 +391,7 @@ int main(int argc, char *argv[])
    Maxwell.SetInitialBField(BFieldCoef);
 
    double energy = Maxwell.GetEnergy();
-   if ( myid == 0 )
+   if ( mpi.Root() )
    {
       cout << "Energy:  " << energy << endl;
    }
@@ -459,7 +456,7 @@ int main(int argc, char *argv[])
       Maxwell.SetTime(t);
 
       energy = Maxwell.GetEnergy();
-      if ( myid == 0 )
+      if ( mpi.Root() )
       {
          cout << "Energy:  " << energy << endl;
       }
@@ -481,8 +478,6 @@ int main(int argc, char *argv[])
          Maxwell.DisplayToGLVis();
       }
    }
-
-   MPI_Finalize();
 
    return 0;
 }
