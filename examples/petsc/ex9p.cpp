@@ -403,7 +403,14 @@ int main(int argc, char *argv[])
 
    double t = 0.0;
    adv->SetTime(t);
-   ode_solver->Init(*adv);
+   if (use_petsc)
+   {
+      pode_solver->Init(*adv,PetscODESolver::ODE_SOLVER_LINEAR);
+   }
+   else
+   {
+      ode_solver->Init(*adv);
+   }
 
    // Explicitly perform time-integration (looping over the time iterations, ti,
    // with a time-step dt), or use the Run method of the ODE solver class.
@@ -424,7 +431,6 @@ int main(int argc, char *argv[])
             {
                cout << "time step: " << ti << ", time: " << t << endl;
             }
-
             // 11. Extract the parallel grid function corresponding to the finite
             //     element approximation U (the local solution on each processor).
             *u = *U;

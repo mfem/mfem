@@ -10,7 +10,7 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 30301
+MFEM_VERSION = 30303
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -71,6 +71,11 @@ make style
 
 endef
 
+# Do not pass down variables from the command-line to sub-make:
+MAKEOVERRIDES =
+# Note: this produces some undesired results, e.g. the following does not work
+# as expected: "make pdebug -j 4 MPICXX=mpic++".
+
 # Path to the mfem source directory, defaults to this makefile's directory:
 THIS_MK := $(lastword $(MAKEFILE_LIST))
 $(if $(wildcard $(THIS_MK)),,$(error Makefile not found "$(THIS_MK)"))
@@ -79,6 +84,9 @@ MFEM_REAL_DIR := $(realpath $(MFEM_DIR))
 $(if $(MFEM_REAL_DIR),,$(error Source directory "$(MFEM_DIR)" is not valid))
 SRC := $(if $(MFEM_REAL_DIR:$(CURDIR)=),$(MFEM_DIR)/,)
 $(if $(word 2,$(SRC)),$(error Spaces in SRC = "$(SRC)" are not supported))
+
+MFEM_GIT_STRING = $(shell [ -d $(MFEM_DIR)/.git ] && git -C $(MFEM_DIR) \
+   describe --all --long --abbrev=40 --dirty --always 2> /dev/null)
 
 EXAMPLE_SUBDIRS = sundials petsc
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
@@ -90,7 +98,8 @@ MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools)
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
-EM_TEST_DIRS = $(EXAMPLE_TEST_DIRS) $(MINIAPP_TEST_DIRS)
+EM_TEST_DIRS = $(filter-out\
+   $(SKIP_TEST_DIRS),$(EXAMPLE_TEST_DIRS) $(MINIAPP_TEST_DIRS))
 
 # Use BUILD_DIR on the command line; set MFEM_BUILD_DIR before including this
 # makefile or config/config.mk from a separate $(BUILD_DIR).
@@ -158,13 +167,13 @@ CXXFLAGS ?= $(OPTIM_FLAGS)
 # MPI configuration
 ifneq ($(MFEM_USE_MPI),YES)
    MFEM_CXX ?= $(CXX)
-   $(foreach mpidep,SUPERLU PETSC,$(if $(MFEM_USE_$(mpidep):NO=),\
+   $(foreach mpidep,SUPERLU STRUMPACK PETSC,$(if $(MFEM_USE_$(mpidep):NO=),\
      $(warning *** [MPI is OFF] setting MFEM_USE_$(mpidep) = NO)\
      $(eval override MFEM_USE_$(mpidep)=NO),))
 else
    MFEM_CXX ?= $(MPICXX)
-   INCFLAGS += $(METIS_OPT) $(HYPRE_OPT)
-   ALL_LIBS += $(METIS_LIB) $(HYPRE_LIB)
+   INCFLAGS += $(HYPRE_OPT)
+   ALL_LIBS += $(HYPRE_LIB)
 endif
 
 DEP_CXX ?= $(MFEM_CXX)
@@ -177,9 +186,25 @@ ifeq ($(MFEM_USE_OPENMP),YES)
    endif
 endif
 
+# List of MFEM dependencies, that require the *_LIB variable to be non-empty
+MFEM_REQ_LIB_DEPS = METIS SIDRE LAPACK SUNDIALS MESQUITE SUITESPARSE SUPERLU\
+ STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR
+PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
+
+define mfem_check_dependency
+ifeq ($$(MFEM_USE_$(1)),YES)
+   $$(if $$($(1)_LIB),,$$(error $(1)_LIB is empty$$($(1)_ERROR_MSG)))
+endif
+endef
+
+# During configuration, check dependencies from MFEM_REQ_LIB_DEPS
+ifeq ($(MAKECMDGOALS),config)
+   $(foreach dep,$(MFEM_REQ_LIB_DEPS),\
+      $(eval $(call mfem_check_dependency,$(dep))))
+endif
+
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = LIBUNWIND SIDRE LAPACK OPENMP SUNDIALS MESQUITE SUITESPARSE\
- SUPERLU GECKO GNUTLS NETCDF PETSC MPFR
+MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP
 
 # Macro for adding dependencies
 define mfem_add_dependency
@@ -203,16 +228,18 @@ ifeq ($(MFEM_USE_GZSTREAM),YES)
 endif
 
 # List of all defines that may be enabled in config.hpp and config.mk:
-MFEM_DEFINES = MFEM_VERSION MFEM_USE_MPI MFEM_USE_METIS_5 MFEM_DEBUG\
- MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
- MFEM_USE_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
- MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU\
+MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
+ MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_GZSTREAM\
+ MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP\
+ MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS MFEM_USE_MESQUITE\
+ MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU MFEM_USE_STRUMPACK\
  MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
  MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_FLAGS MFEM_LIB_DIR MFEM_LIBS MFEM_LIB_FILE\
- MFEM_BUILD_TAG MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP
+ MFEM_BUILD_TAG MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP\
+ MFEM_MPI_NP MFEM_TEST_MK
 
 # Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
 MFEM_CPPFLAGS  ?= $(CPPFLAGS)
@@ -226,6 +253,7 @@ MFEM_BUILD_TAG ?= $(shell uname -snm)
 MFEM_PREFIX    ?= $(PREFIX)
 MFEM_INC_DIR   ?= $(if $(BUILD_DIR_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_LIB_DIR   ?= $(if $(BUILD_DIR_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
+MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
 # Use "\n" (interpreted by sed) to add a newline.
 MFEM_CONFIG_EXTRA ?= $(if $(BUILD_DIR_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
 
@@ -242,11 +270,14 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    endif
    # Allow changing the PREFIX during install with: make install PREFIX=<dir>
    PREFIX := $(MFEM_PREFIX)
-   PREFIX_INC := $(PREFIX)/include
-   PREFIX_LIB := $(PREFIX)/lib
+   PREFIX_INC   := $(PREFIX)/include
+   PREFIX_LIB   := $(PREFIX)/lib
+   PREFIX_SHARE := $(PREFIX)/share/mfem
    MFEM_PREFIX := $(abspath $(PREFIX))
    MFEM_INC_DIR = $(abspath $(PREFIX_INC))
    MFEM_LIB_DIR = $(abspath $(PREFIX_LIB))
+   MFEM_TEST_MK = $(abspath $(PREFIX_SHARE)/test.mk)
+   MFEM_CONFIG_EXTRA =
    export $(MFEM_DEFINES) MFEM_DEFINES $(MFEM_CONFIG_VARS) MFEM_CONFIG_VARS
    export VERBOSE
 endif
@@ -320,6 +351,7 @@ test:
 	@echo "Testing the MFEM library. This may take a while..."
 	@echo "Building all examples and miniapps..."
 	@$(MAKE) all
+	@echo "Running tests in: [ $(EM_TEST_DIRS) ] ..."
 	@ERR=0; for dir in $(EM_TEST_DIRS); do \
 	   echo "Running tests in $${dir} ..."; \
 	   if ! $(MAKE) -j1 -C $(BLD)$${dir} test; then \
@@ -344,29 +376,38 @@ install: $(BLD)libmfem.a
 	mkdir -p $(PREFIX_LIB)
 	$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB)
 # install top level includes
-	mkdir -p $(PREFIX_INC)
-	$(INSTALL) -m 640 $(SRC)mfem.hpp $(SRC)mfem-performance.hpp $(PREFIX_INC)
+	mkdir -p $(PREFIX_INC)/mfem
+	$(INSTALL) -m 640 $(SRC)mfem.hpp $(SRC)mfem-performance.hpp \
+	   $(PREFIX_INC)/mfem
+	for hdr in mfem.hpp mfem-performance.hpp; do \
+	   printf '// Auto-generated file.\n#include "mfem/'$$hdr'"\n' \
+	      > $(PREFIX_INC)/$$hdr && chmod 640 $(PREFIX_INC)/$$hdr; done
 # install config include
-	mkdir -p $(PREFIX_INC)/config
-	$(INSTALL) -m 640 $(BLD)config/_config.hpp $(PREFIX_INC)/config/config.hpp
-	$(INSTALL) -m 640 $(SRC)config/tconfig.hpp $(PREFIX_INC)/config
+	mkdir -p $(PREFIX_INC)/mfem/config
+	$(INSTALL) -m 640 $(BLD)config/_config.hpp $(PREFIX_INC)/mfem/config/config.hpp
+	$(INSTALL) -m 640 $(SRC)config/tconfig.hpp $(PREFIX_INC)/mfem/config
 # install remaining includes in each subdirectory
 	for dir in $(DIRS); do \
-	   mkdir -p $(PREFIX_INC)/$$dir && \
-	   $(INSTALL) -m 640 $(SRC)$$dir/*.hpp $(PREFIX_INC)/$$dir; done
-# install config.mk at root of install tree
+	   mkdir -p $(PREFIX_INC)/mfem/$$dir && \
+	   $(INSTALL) -m 640 $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; done
+# install config.mk in $(PREFIX_SHARE)
+	mkdir -p $(PREFIX_SHARE)
 	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk
-	$(INSTALL) -m 640 $(BLD)config/config-install.mk $(PREFIX)/config.mk
+	$(INSTALL) -m 640 $(BLD)config/config-install.mk $(PREFIX_SHARE)/config.mk
 	rm -f $(BLD)config/config-install.mk
-# install test.mk at root of install tree
-	$(INSTALL) -m 640 $(SRC)config/test.mk $(PREFIX)/test.mk
+# install test.mk in $(PREFIX_SHARE)
+	$(INSTALL) -m 640 $(SRC)config/test.mk $(PREFIX_SHARE)/test.mk
 
 $(CONFIG_MK):
+# Skip the error message when '-B' make flag is used (unconditionally
+# make all targets), but still check for the $(CONFIG_MK) file
+ifeq (,$(and $(findstring B,$(MAKEFLAGS)),$(wildcard $(CONFIG_MK))))
 	$(info )
 	$(info MFEM is not configured.)
 	$(info Run "make config" first, or see "make help".)
 	$(info )
 	$(error )
+endif
 
 config: $(if $(BUILD_DIR_DEF),build-config,local-config)
 
@@ -397,7 +438,9 @@ help:
 
 status info:
 	$(info MFEM_VERSION         = $(MFEM_VERSION) [v$(MFEM_VERSION_STRING)])
+	$(info MFEM_GIT_STRING      = $(MFEM_GIT_STRING))
 	$(info MFEM_USE_MPI         = $(MFEM_USE_MPI))
+	$(info MFEM_USE_METIS       = $(MFEM_USE_METIS))
 	$(info MFEM_USE_METIS_5     = $(MFEM_USE_METIS_5))
 	$(info MFEM_DEBUG           = $(MFEM_DEBUG))
 	$(info MFEM_USE_GZSTREAM    = $(MFEM_USE_GZSTREAM))
@@ -411,6 +454,7 @@ status info:
 	$(info MFEM_USE_MESQUITE    = $(MFEM_USE_MESQUITE))
 	$(info MFEM_USE_SUITESPARSE = $(MFEM_USE_SUITESPARSE))
 	$(info MFEM_USE_SUPERLU     = $(MFEM_USE_SUPERLU))
+	$(info MFEM_USE_STRUMPACK   = $(MFEM_USE_STRUMPACK))
 	$(info MFEM_USE_GECKO       = $(MFEM_USE_GECKO))
 	$(info MFEM_USE_GNUTLS      = $(MFEM_USE_GNUTLS))
 	$(info MFEM_USE_NETCDF      = $(MFEM_USE_NETCDF))
@@ -432,6 +476,7 @@ status info:
 	$(info MFEM_BUILD_DIR       = $(MFEM_BUILD_DIR))
 	$(info MFEM_MPIEXEC         = $(MFEM_MPIEXEC))
 	$(info MFEM_MPIEXEC_NP      = $(MFEM_MPIEXEC_NP))
+	$(info MFEM_MPI_NP          = $(MFEM_MPI_NP))
 	@true
 
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
@@ -441,3 +486,17 @@ style:
 	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\
 	   echo "No source files were changed.";\
 	fi
+
+# Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
+print-%:
+	$(info [ variable name]: $*)
+	$(info [        origin]: $(origin $*))
+	$(info [         value]: $(value $*))
+	$(info [expanded value]: $($*))
+	$(info )
+	@true
+
+# Print the contents of all makefile variables.
+.PHONY: printall
+printall: $(foreach var,$(.VARIABLES),print-$(var))
+	@true

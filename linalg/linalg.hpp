@@ -26,6 +26,7 @@
 #include "ode.hpp"
 #include "solvers.hpp"
 #include "handle.hpp"
+#include "invariants.hpp"
 
 #ifdef MFEM_USE_SUNDIALS
 #include "sundials.hpp"
@@ -41,6 +42,10 @@
 
 #ifdef MFEM_USE_SUPERLU
 #include "superlu.hpp"
+#endif
+
+#ifdef MFEM_USE_STRUMPACK
+#include "strumpack.hpp"
 #endif
 
 #endif // MFEM_USE_MPI
