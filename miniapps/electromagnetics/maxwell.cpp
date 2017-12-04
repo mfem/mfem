@@ -7,6 +7,7 @@
 //
 //   By default the sources and fields are all zero
 //     mpirun -np 4 maxwell
+//     mpirun -np 4 maxwell -cs '0.3 0.0 -0.3 0.3 0.0 0.3 .2 1 3e8'
 //
 // Description:
 //               This mini app solves a simple 2D or 3D full-wave
@@ -193,7 +194,7 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-     if (mpi.Root())
+      if (mpi.Root())
       {
          args.PrintUsage(cout);
       }
@@ -400,18 +401,27 @@ int main(int argc, char *argv[])
 
    tmax *= 1e-9; // Convert from nanoseconds to seconds
 
-   cout << "Maximum Time Step:  " << dtmax << endl;
+   if ( mpi.Root() )
+   {
+      cout << "Maximum Time Step:  " << dtmax << endl;
+   }
 
    int nsteps = SnapTimeStep(tmax, dtmax, dt);
 
    if ( nsteps > max_its )
    {
-      cout << "Computed number of time steps is too large." << endl;
+      if ( mpi.Root() )
+      {
+         cout << "Computed number of time steps is too large." << endl;
+      }
       nsteps = max_its;
    }
 
-   cout << "Number of Time Steps:  " << nsteps << endl;
-   cout << "Time Step Size:        " << dt << endl;
+   if ( mpi.Root() )
+   {
+      cout << "Number of Time Steps:  " << nsteps << endl;
+      cout << "Time Step Size:        " << dt << endl;
+   }
 
    SIAVSolver siaSolver(tOrder);
    siaSolver.Init(Maxwell.GetNegCurl(), Maxwell);
@@ -461,21 +471,27 @@ int main(int argc, char *argv[])
          cout << "Energy:  " << energy << endl;
       }
 
-      // cout << "Maxwell.Sync" << endl;
-      Maxwell.SyncGridFuncs();
-
-      // Write fields to disk for VisIt
-      if ( visit )
+      if ( it % 10 == 0 )
       {
-         // cout << "Maxwell.WriteVisIt" << endl;
-         Maxwell.WriteVisItFields(it);
-      }
+         // cout << "Maxwell.Sync" << endl;
+         Maxwell.SyncGridFuncs();
 
-      // Send the solution by socket to a GLVis server.
-      if (visualization)
-      {
-         cout << "Maxwell.DisplayGLVis" << endl;
-         Maxwell.DisplayToGLVis();
+         // Write fields to disk for VisIt
+         if ( visit )
+         {
+            // cout << "Maxwell.WriteVisIt" << endl;
+            Maxwell.WriteVisItFields(it);
+         }
+
+         // Send the solution by socket to a GLVis server.
+         if (visualization)
+         {
+            if ( mpi.Root() )
+            {
+               cout << "Maxwell.DisplayGLVis" << endl;
+            }
+            Maxwell.DisplayToGLVis();
+         }
       }
    }
 
@@ -485,16 +501,16 @@ int main(int argc, char *argv[])
 // Print the Maxwell ascii logo to the given ostream
 void display_banner(ostream & os)
 {
-  /*
-   os << "   _____                                .__  .__   " << endl 
-      << "  /     \ _____  ___  _____  _  __ ____ |  | |  |  " << endl
-      << " /  \ /  \\__  \ \  \/  /\ \/ \/ // __ \|  | |  |  " << endl
-      << "/    Y    \/ __ \_>    <  \     /\  ___/|  |_|  |__" << endl
-      << "\____|__  (____  /__/\_ \  \/\_/  \___  >____/____/" << endl
-      << "        \/     \/      \/             \/           " << endl << flush;
-  */
+   /*
+    os << "   _____                                .__  .__   " << endl
+       << "  /     \ _____  ___  _____  _  __ ____ |  | |  |  " << endl
+       << " /  \ /  \\__  \ \  \/  /\ \/ \/ // __ \|  | |  |  " << endl
+       << "/    Y    \/ __ \_>    <  \     /\  ___/|  |_|  |__" << endl
+       << "\____|__  (____  /__/\_ \  \/\_/  \___  >____/____/" << endl
+       << "        \/     \/      \/             \/           " << endl << flush;
+   */
    os << "     ___    ____                                      " << endl
-      << "    /   |  /   /                           __   __    " << endl 
+      << "    /   |  /   /                           __   __    " << endl
       << "   /    |_/ _ /__  ___  _____  _  __ ____ |  | |  |   " << endl
       << "  /         \\__  \\ \\  \\/  /\\ \\/ \\/ // __ \\|  | |  |   "
       << endl
@@ -768,13 +784,13 @@ dEdtBCFunc(const Vector &x, double t, Vector &dE)
                  cos(2.0 * M_PI * freq_ * (t - x(0) * sqrt(epsilon0_ * mu0_)));
          break;
       case 1:
-	{
-	  double arg = 2.0 * M_PI * freq_ * (t - x(0) * sqrt(epsilon0_*mu0_));
+      {
+         double arg = 2.0 * M_PI * freq_ * (t - x(0) * sqrt(epsilon0_*mu0_));
          dE = 0.0;
          dE(2) = 2.0 * M_PI * freq_ * exp(-0.25 * pow(arg,2)) *
-	   (cos(arg) + 0.25 * arg * sin(arg) );
-					  }
-         break;
+                 (cos(arg) + 0.25 * arg * sin(arg) );
+      }
+      break;
       default:
          dE = 0.0;
    }
