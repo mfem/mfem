@@ -135,7 +135,8 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
 
    hCurlMassEps_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsCoef_));
    hDivMassMuInv_->AddDomainIntegrator(new VectorFEMassIntegrator(*muInvCoef_));
-   weakCurlMuInv_->AddDomainIntegrator(new VectorFECurlIntegrator(*muInvCoef_));
+   weakCurlMuInv_->AddDomainIntegrator(
+      new MixedVectorWeakCurlIntegrator(*muInvCoef_));
 
    // Assemble Matrices
    hCurlMassEps_->Assemble();
