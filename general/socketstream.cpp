@@ -445,15 +445,11 @@ GnuTLS_session_params::GnuTLS_session_params(
             my_cred, pubkey_file, privkey_file, GNUTLS_OPENPGP_FMT_RAW));
       status.print_on_error("gnutls_certificate_set_openpgp_key_file");
 #else
-#if GNUTLS_VERSION_NUMBER < 0x03010b
-#error GnuTLS version 3.1.11 or newer is required
-#else
       status.set_result(
          gnutls_certificate_set_x509_key_file(
             my_cred, pubkey_file, privkey_file, GNUTLS_X509_FMT_PEM));
       // e.g. pubkey_file, privkey_file == "cert.pem", "key.pem"
       status.print_on_error("gnutls_certificate_set_x509_key_file");
-#endif
 #endif
    }
 
