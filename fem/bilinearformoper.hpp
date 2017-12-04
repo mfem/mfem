@@ -81,6 +81,9 @@ public:
    /// Perform the action of the bilinear form on a vector and set y.
    virtual void Mult(const Vector &x, Vector &y) const;
 
+   virtual const Operator *GetProlongation() const { return trial_fes->GetProlongationMatrix(); }
+   virtual const Operator *GetRestriction() const  { return trial_fes->GetRestrictionMatrix(); }
+
    /// Perform the action of the bilinear form on a vector and add to y.
    void AddMult(const Vector &x, Vector &y) const;
 

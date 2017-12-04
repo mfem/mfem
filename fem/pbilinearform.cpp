@@ -235,6 +235,20 @@ void ParBilinearForm::Assemble(int skip_zeros)
    }
 }
 
+void ParBilinearForm::AssembleForm(BilinearFormOperator &A, int skip_zeros)
+{
+   A.Assemble(this);
+   oper = &A;
+   oper_type = MFEM_FORMOPER;
+}
+
+void ParBilinearForm::AssembleForm(HypreParMatrix &A, int skip_zeros)
+{
+   Assemble(skip_zeros);
+   oper = &A;
+   oper_type = Hypre_ParCSR;
+}
+
 void ParBilinearForm
 ::ParallelEliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
                                HypreParMatrix &A, const HypreParVector &X,
@@ -319,6 +333,43 @@ void ParBilinearForm::FormLinearSystem(
       if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
    }
 }
+
+template <typename OpType>
+void ParBilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                                       OpType &A, Vector &X, Vector &B,
+                                       int copy_interior)
+{
+   OperatorHandle Ah;
+   FormLinearSystem(ess_tdof_list, x, b, Ah, X, B, copy_interior);
+   OpType *A_ptr = Ah.Is<OpType>();
+   MFEM_VERIFY(A_ptr, "invalid OpType used");
+   A.MakeRef(*A_ptr);
+}
+
+template <>
+void ParBilinearForm::FormLinearSystem<Operator*>(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                                                  Operator * &A, Vector &X, Vector &B,
+                                                  int copy_interior)
+{
+   if (oper_type == Hypre_ParCSR)
+   {
+      HypreParMatrix &Amat = static_cast<HypreParMatrix&>(*oper);
+      FormLinearSystem(ess_tdof_list, x, b, Amat,
+                       X, B, copy_interior);
+      HypreParMatrix *M = new HypreParMatrix;
+      M->MakeRef(Amat);
+      A = M;
+   }
+   else if (oper_type == MFEM_FORMOPER)
+   {
+      oper->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
+   }
+   else
+   {
+      mfem_error("Not supported.");
+   }
+}
+
 
 void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
                                        OperatorHandle &A)

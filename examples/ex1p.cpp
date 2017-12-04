@@ -54,7 +54,9 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
-   bool visualization = 1;
+   bool visualization = true;
+   bool use_partial_assembly = false;
+   bool use_amg = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -62,8 +64,12 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&use_partial_assembly, "-pa", "--partial-assembly",
+                  "-no-pa", "--no-partial-assembly", "Enable partial assembly.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&use_amg, "-pc", "--peconditioner", "-no-pc",
+                  "--no-preconditioner", "Use an algebraic multigrid preconditioner.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -173,30 +179,59 @@ int main(int argc, char *argv[])
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
+   // Use the global map instead
+   BilinearFormOperator A_pa(new PAIntegratorMap);
+   HypreParMatrix A_hpm;
+   Vector B, X;
+
+   if (static_cond) { a->EnableStaticCondensation(); }
    // 11. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
-   if (static_cond) { a->EnableStaticCondensation(); }
-   a->Assemble();
+   if (!use_partial_assembly)
+   {
+      a->AssembleForm(A_hpm);
+   }
+   else
+   {
+      a->AssembleForm(A_pa);
+   }
 
-   HypreParMatrix A;
-   Vector B, X;
+   Operator *A;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    if (myid == 0)
    {
-      cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
+      cout << "Size of linear system: " << A->Height() << endl;
    }
 
    // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
    //     preconditioner from hypre.
-   HypreSolver *amg = new HypreBoomerAMG(A);
-   HyprePCG *pcg = new HyprePCG(A);
-   pcg->SetTol(1e-12);
-   pcg->SetMaxIter(200);
-   pcg->SetPrintLevel(2);
-   pcg->SetPreconditioner(*amg);
+   Solver *pcg = NULL;
+   HypreSolver *amg = NULL;
+   if (!use_partial_assembly)
+   {
+      HyprePCG *hypre_pcg = new HyprePCG(A_hpm);
+      pcg = hypre_pcg;
+      hypre_pcg->SetTol(1e-12);
+      hypre_pcg->SetMaxIter(200);
+      hypre_pcg->SetPrintLevel(2);
+      if (use_amg)
+      {
+         amg = new HypreBoomerAMG(A_hpm);
+         hypre_pcg->SetPreconditioner(*amg);
+      }
+   }
+   else
+   {
+      CGSolver *mfem_pcg = new CGSolver(MPI_COMM_WORLD);
+      pcg = mfem_pcg;
+      mfem_pcg->SetRelTol(1e-12);
+      mfem_pcg->SetMaxIter(200);
+      mfem_pcg->SetPrintLevel(1);
+      mfem_pcg->SetOperator(*A);
+   }
    pcg->Mult(B, X);
 
    // 13. Recover the parallel grid function corresponding to X. This is the
@@ -231,6 +266,7 @@ int main(int argc, char *argv[])
    }
 
    // 16. Free the used memory.
+   delete A;
    delete pcg;
    delete amg;
    delete a;

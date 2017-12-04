@@ -24,6 +24,9 @@
 namespace mfem
 {
 
+// Forward declare BilinearFormOperator
+class BilinearFormOperator;
+
 /** Class for bilinear form - "Matrix" with associated FE space and
     BLFIntegrators. */
 class BilinearForm : public Matrix
@@ -249,8 +252,8 @@ public:
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
 
-   template <class Op>
-   void AssembleForm(Op &A, int skip_zeros = 1);
+   void AssembleForm(BilinearFormOperator &A);
+   void AssembleForm(SparseMatrix &A, int skip_zeros = 1);
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
@@ -454,8 +457,8 @@ public:
 
    void Assemble (int skip_zeros = 1);
 
-   template <class Op>
-   void AssembleForm(Op &A, int skip_zeros = 1);
+   void AssembleForm(BilinearFormOperator &A, int skip_zeros = 1);
+   void AssembleForm(SparseMatrix &A, int skip_zeros = 1);
 
    /** For partially conforming trial and/or test FE spaces, complete the
        assembly process by performing A := P2^t A P1 where A is the internal

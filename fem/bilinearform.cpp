@@ -477,21 +477,20 @@ void BilinearForm::Assemble (int skip_zeros)
 #endif
 }
 
-template <>
-void BilinearForm::AssembleForm<SparseMatrix>(SparseMatrix &A, int skip_zeros)
+void BilinearForm::AssembleForm(SparseMatrix &A, int skip_zeros)
 {
    Assemble(skip_zeros);
    oper = &A;
    oper_type = MFEM_SPARSEMAT;
 }
 
-template <>
-void BilinearForm::AssembleForm<BilinearFormOperator>(BilinearFormOperator &A, int skip_zeros)
+void BilinearForm::AssembleForm(BilinearFormOperator &A)
 {
    A.Assemble(this);
    oper = &A;
    oper_type = MFEM_FORMOPER;
 }
+
 
 void BilinearForm::ConformingAssemble()
 {
@@ -1123,16 +1122,14 @@ void MixedBilinearForm::Assemble (int skip_zeros)
    oper = mat;
 }
 
-template <>
-void MixedBilinearForm::AssembleForm<SparseMatrix>(SparseMatrix &A, int skip_zeros)
+void MixedBilinearForm::AssembleForm(SparseMatrix &A, int skip_zeros)
 {
    Assemble(skip_zeros);
    oper = mat;
    A.MakeRef(*mat);
 }
 
-template <>
-void MixedBilinearForm::AssembleForm<BilinearFormOperator>(BilinearFormOperator &A, int skip_zeros)
+void MixedBilinearForm::AssembleForm(BilinearFormOperator &A, int skip_zeros)
 {
    A.Assemble(this);
    oper = &A;
