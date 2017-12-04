@@ -91,7 +91,10 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    }
    else
    {
-      cout << "Creating Permittivity Coefficient" << endl;
+      if ( myid_ == 0 )
+      {
+         cout << "Creating Permittivity Coefficient" << endl;
+      }
       epsCoef_ = new FunctionCoefficient(eps_);
    }
 
@@ -102,7 +105,10 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    }
    else
    {
-      cout << "Creating Permeability Coefficient" << endl;
+      if ( myid_ == 0 )
+      {
+         cout << "Creating Permeability Coefficient" << endl;
+      }
       muInvCoef_ = new FunctionCoefficient(muInv_);
    }
 
@@ -232,7 +238,10 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    */
    if ( j_src_)
    {
-      cout << "Creating Current Source" << endl;
+      if ( myid_ == 0 )
+      {
+         cout << "Creating Current Source" << endl;
+      }
       jCoef_ = new VectorFunctionCoefficient(3,j_src_);
 
       j_  = new ParGridFunction(HCurlFESpace_);
@@ -340,7 +349,7 @@ MaxwellSolver::Mult(const Vector &B, Vector &dE) const
       jd_->Assemble();
       // jd_->ParallelAssemble(*JD_);
       // *RHS_ -= *JD_;
-      *rhs_ -= *JD_;
+      *rhs_ -= *jd_;
    }
 
    if ( dEdtBCCoef_ && dbcs_ )
@@ -405,7 +414,10 @@ MaxwellSolver::GetMaximumTimeStep() const
       change = fabs((dt1-dt0)/dt0);
       dt0 = dt1;
 
-      cout << iter << ":  " << dt0 << " " << change << endl;
+      if ( myid_ == 0 )
+      {
+         cout << iter << ":  " << dt0 << " " << change << endl;
+      }
 
       vTmp = v0;
       v0   = v1;
