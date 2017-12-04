@@ -2213,12 +2213,19 @@ void ParNCMesh::EncodeGroups(std::ostream &os, const Array<GroupId> &ids)
         it = stream_id.begin(); it != stream_id.end(); ++it)
    {
       write<GroupId>(os, it->second);
-      const CommGroup &group = groups[it->first];
-
-      write<short>(os, group.size());
-      for (unsigned i = 0; i < group.size(); i++)
+      if (it->first >= 0)
       {
-         write<int>(os, group[i]);
+         const CommGroup &group = groups[it->first];
+         write<short>(os, group.size());
+         for (unsigned i = 0; i < group.size(); i++)
+         {
+            write<int>(os, group[i]);
+         }
+      }
+      else
+      {
+         // special "invalid" group, marks forwarded rows
+         write<short>(os, -1);
       }
    }
 
@@ -2242,12 +2249,19 @@ void ParNCMesh::DecodeGroups(std::istream &is, Array<GroupId> &ids)
    {
       int id = read<GroupId>(is);
       int size = read<short>(is);
-      ranks.resize(size);
-      for (int i = 0; i < size; i++)
+      if (size >= 0)
       {
-         ranks[i] = read<int>(is);
+         ranks.resize(size);
+         for (int i = 0; i < size; i++)
+         {
+            ranks[i] = read<int>(is);
+         }
+         groups[id] = GetGroupId(ranks);
       }
-      groups[id] = GetGroupId(ranks);
+      else
+      {
+         groups[id] = -1; // forwarded
+      }
    }
 
    // read the list of IDs
