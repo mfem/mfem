@@ -1570,7 +1570,8 @@ void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
       if (rank != MyRank && !pncmesh->GroupContains(group_sent_id, rank))
       {
          NeighborRowMessage &msg = send_msg[rank];
-         msg.AddRow(ent, idx, edof, group_id, row);
+         GroupId invalid = -1; // to prevent forwarding again
+         msg.AddRow(ent, idx, edof, invalid, row);
          msg.SetNCMesh(pncmesh);
          msg.SetFEC(fec);
 
@@ -1870,7 +1871,7 @@ int ParFiniteElementSpace
             if (dof < ndofs && !finalized[dof]) { num_finalized++; }
             finalized[dof] = true;
 
-            if (dof_group[dof] != ri.group)
+            if (ri.group >= 0 && dof_group[dof] != ri.group)
             {
                // the sender didn't see the complete group, forward the message
                ForwardRow(ri.row, dof, ri.group, dof_group[dof], send_msg.back());
