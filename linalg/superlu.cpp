@@ -163,158 +163,6 @@ SuperLURowLocMatrix::SuperLURowLocMatrix( const HypreParMatrix & hypParMat )
                                   SLU_NR_loc, SLU_D, SLU_GE);
 }
 
-SuperLURowLocMatrix::SuperLURowLocMatrix( const BlockOperator &ops )
-   : rowLocPtr_(NULL)
-{
-
-   rowLocPtr_      = new SuperMatrix;
-   SuperMatrix * A = (SuperMatrix*)rowLocPtr_;
-
-   A->Store = NULL;
-
-   comm_ = (dynamic_cast<HypreParMatrix&>(ops.GetBlock(0,0))).GetComm();
-
-   int myid, num_procs;
-   MPI_Comm_rank(comm_, &myid);
-   MPI_Comm_size(comm_,&num_procs);
-
-   // First cast the parameter to a hypre_ParCSRMatrix
-   int numsysrows = ops.NumRowBlocks();
-   int numsyscols = ops.NumColBlocks();
-
-   Array2D<hypre_ParCSRMatrix *> parcsrmats;
-   Array2D<hypre_CSRMatrix *> mats;
-   parcsrmats.SetSize(numsysrows, numsyscols);
-   mats.SetSize(numsysrows, numsyscols);
-
-   int nnz = 0;
-   int global_cols = 0;
-   int global_rows = 0;
-   int local_rows = 0;
-   int local_cols = 0;
-   int first_index = 0;
-
-   // Fill csr arrays
-   for (int i=0; i<numsysrows; i++)
-   {
-      for (int j=0; j<numsyscols; j++)
-      {
-         if (!ops.IsZeroBlock(i,j))
-         {
-            Operator &op = ops.GetBlock(i,j);
-            parcsrmats(i,j) = (hypre_ParCSRMatrix *)dynamic_cast<HypreParMatrix&>(op);
-
-            MFEM_ASSERT(parcsrmats(i,j) != NULL,
-                        "SuperLU: cast to hypre_ParCSRMatrix failed in SetOperator");
-
-            mats(i,j) = hypre_MergeDiagAndOffd(parcsrmats(i,j));
-            hypre_CSRMatrixSetDataOwner(mats(i,j),0);
-            nnz += hypre_CSRMatrixNumNonzeros(mats(i,j));
-
-            if (i == 0)
-            {
-               global_cols += hypre_ParCSRMatrixGlobalNumCols(parcsrmats(i,j));
-               local_cols += hypre_CSRMatrixNumCols(mats(i,j));
-            }
-
-            if (j == 0)
-            {
-               global_rows += hypre_ParCSRMatrixGlobalNumRows(parcsrmats(i,j));
-               first_index += parcsrmats(i,j)->first_row_index;
-               local_rows += hypre_CSRMatrixNumRows(mats(i,j));
-            }
-         }
-         else
-         {
-            parcsrmats(i,j) = NULL;
-         }
-      }
-   }
-
-   height = local_rows;
-   width  = local_rows;
-
-   int *block_rowptr = intMalloc_dist(local_rows+1);
-   int *block_colind = intMalloc_dist(nnz);
-   double *block_nzval = doubleMalloc_dist(nnz);
-
-   int block_count = 0;
-   int system_row_count = 0;
-
-   block_rowptr[0] = 0;
-
-   for (int i=0; i<numsysrows; i++)
-   {
-      for (int row=0; row<hypre_CSRMatrixNumRows(mats(i,0)); row++)
-      {
-         for (int j=0; j<numsyscols; j++)
-         {
-            if (parcsrmats(i,j) != NULL)
-            {
-               MFEM_VERIFY(!HYPRE_AssumedPartitionCheck(),
-                           "block parallel SUPERLU can not be used with assumed partition");
-
-               double *data = hypre_CSRMatrixData(mats(i,j));
-               HYPRE_Int *row_ptr = hypre_CSRMatrixI(mats(i,j));
-               HYPRE_Int *col_ptr = hypre_CSRMatrixJ(mats(i,j));
-
-               for (int pos=row_ptr[row]; pos<row_ptr[row+1]; pos++)
-               {
-                  block_nzval[block_count] = data[pos];
-                  // find host proc
-                  int host_proc;
-                  for (int ii = 0; ii < num_procs; ii++ )
-                  {
-                     if (col_ptr[pos] >= hypre_ParCSRMatrixColStarts(parcsrmats(i,j))[ii])
-                     {
-                        host_proc = ii;
-                     }
-                  }
-
-                  int host_index = col_ptr[pos] - hypre_ParCSRMatrixColStarts(parcsrmats(i,
-                                                                                         j))[host_proc];
-                  int block_index = 0;
-                  for (int jj=0; jj < numsyscols; jj++)
-                  {
-                     if (jj < j)
-                     {
-                        block_index += hypre_ParCSRMatrixColStarts(parcsrmats(0,jj))[host_proc+1];
-                     }
-                     else
-                     {
-                        block_index += hypre_ParCSRMatrixColStarts(parcsrmats(0,jj))[host_proc];
-                     }
-                  }
-                  block_colind[block_count] = host_index + block_index;
-                  block_count++;
-               }
-            }
-         }
-         block_rowptr[system_row_count + row + 1] = block_count;
-      }
-      system_row_count += hypre_CSRMatrixNumRows(mats(i,0));
-   }
-
-   // Everything has been copied or abducted so delete the structure
-   for (int i=0; i<numsysrows; i++)
-   {
-      for (int j=0; j<numsyscols; j++)
-      {
-         if (parcsrmats(i,j) != NULL)
-         {
-            hypre_CSRMatrixDestroy(mats(i,j));
-         }
-      }
-   }
-
-   // Assign he matrix data to SuperLU's SuperMatrix structure
-   dCreate_CompRowLoc_Matrix_dist(A, global_rows, global_cols, nnz, local_rows,
-                                  first_index,
-                                  block_nzval, block_colind, block_rowptr,
-                                  SLU_NR_loc, SLU_D, SLU_GE);
-
-}
-
 SuperLURowLocMatrix::~SuperLURowLocMatrix()
 {
    SuperMatrix * A = (SuperMatrix*)rowLocPtr_;
@@ -564,7 +412,8 @@ void SuperLUSolver::SetupGrid()
       {
          mfem::err << "Warning: User specified nprow and npcol are such that "
                    << "(nprow * npcol) > numProcs or (nprow * npcol) < 1.  "
-                   << "Using default values for nprow and npcol instead." << endl;
+                   << "Using default values for nprow and npcol instead."
+                   << endl;
       }
 
       nprow_ = (int)superlu_internal::sqrti((unsigned int)numProcs_);
@@ -680,36 +529,10 @@ void SuperLUSolver::Mult( const Vector & x, Vector & y ) const
 void SuperLUSolver::SetOperator( const Operator & op )
 {
    // Verify that we have a compatible operator
-
-   delete APtr_;
-
-   if (gridInitialized_)
-   {
-      this->DismantleGrid();
-      this->Init();
-      this->SetPrintStatistics(false);
-      this->SetSymmetricPattern(false);
-      this->SetColumnPermutation(superlu::PARMETIS);
-   }
-
    APtr_ = dynamic_cast<const SuperLURowLocMatrix*>(&op);
    if ( APtr_ == NULL )
    {
-      const HypreParMatrix* op_ptr = dynamic_cast<const HypreParMatrix*>(&op);
-      const BlockOperator* bl_op_ptr = dynamic_cast<const BlockOperator*>(&op);
-
-      if (op_ptr != NULL)
-      {
-         APtr_ = new SuperLURowLocMatrix(*op_ptr);
-      }
-      else if (bl_op_ptr != NULL)
-      {
-         APtr_ = new SuperLURowLocMatrix(*bl_op_ptr);
-      }
-      else
-      {
-         mfem_error("SuperLUSolver::SetOperator : not compatible operator type!");
-      }
+      mfem_error("SuperLUSolver::SetOperator : not SuperLURowLocMatrix!");
    }
 
    // Everything is OK so finish setting the operator
