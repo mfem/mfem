@@ -227,6 +227,13 @@ void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
 
 void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
 {
+   if (element_matrices)
+   {
+      elmat.SetSize(element_matrices->SizeI(), element_matrices->SizeJ());
+      elmat = element_matrices->GetData(i);
+      return;
+   }
+
    if (dbfi.Size())
    {
       const FiniteElement &fe = *fes->GetFE(i);
@@ -308,15 +315,22 @@ void BilinearForm::Assemble (int skip_zeros)
       for (i = 0; i < fes -> GetNE(); i++)
       {
          fes->GetElementVDofs(i, vdofs);
-         const FiniteElement &fe = *fes->GetFE(i);
-         eltrans = fes->GetElementTransformation(i);
-         dbfi[0]->AssembleElementMatrix(fe, *eltrans, elmat);
-         for (int k = 1; k < dbfi.Size(); k++)
+         if (element_matrices)
          {
-            dbfi[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
-            elmat += elemmat;
+            elmat_p = &(*element_matrices)(i);
          }
-         elmat_p = &elmat;
+         else
+         {
+            const FiniteElement &fe = *fes->GetFE(i);
+            eltrans = fes->GetElementTransformation(i);
+            dbfi[0]->AssembleElementMatrix(fe, *eltrans, elmat);
+            for (int k = 1; k < dbfi.Size(); k++)
+            {
+               dbfi[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
+               elmat += elemmat;
+            }
+            elmat_p = &elmat;
+         }
 
          if (static_cond)
          {
@@ -818,6 +832,7 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
 
    delete mat_e;
    mat_e = NULL;
+   FreeElementMatrices();
    delete static_cond;
    static_cond = NULL;
 
@@ -842,6 +857,7 @@ BilinearForm::~BilinearForm()
 {
    delete mat_e;
    delete mat;
+   delete element_matrices;
    delete static_cond;
    delete hybridization;
 
