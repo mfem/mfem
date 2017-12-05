@@ -8,6 +8,14 @@
                                http://mfem.org
 
 
+Version 3.3.3 (development)
+===========================
+
+Miscellaneous
+-------------
+- Add support for building a shared version of the MFEM library with GNU make.
+
+
 Version 3.3.2, released on Nov 10, 2017
 =======================================
 
