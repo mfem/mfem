@@ -740,13 +740,13 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    return tr;
 }
 
-void Mesh::GetFaceElements(int Face, int *Elem1, int *Elem2)
+void Mesh::GetFaceElements(int Face, int *Elem1, int *Elem2) const
 {
    *Elem1 = faces_info[Face].Elem1No;
    *Elem2 = faces_info[Face].Elem2No;
 }
 
-void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2)
+void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2) const
 {
    *Inf1 = faces_info[Face].Elem1Inf;
    *Inf2 = faces_info[Face].Elem2Inf;
