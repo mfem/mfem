@@ -69,7 +69,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f)
    sequence = f->GetSequence();
    mat = mat_e = NULL;
    oper = NULL;
-   oper_type = Operator::Type::MFEM_SPARSEMAT;
+   oper_type = MFEM_SPARSEMAT;
    extern_bfs = 0;
    element_matrices = NULL;
    static_cond = NULL;
@@ -87,7 +87,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    sequence = f->GetSequence();
    mat_e = NULL;
    oper = NULL;
-   oper_type = Operator::Type::MFEM_SPARSEMAT;
+   oper_type = MFEM_SPARSEMAT;
    extern_bfs = 1;
    element_matrices = NULL;
    static_cond = NULL;

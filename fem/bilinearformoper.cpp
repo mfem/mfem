@@ -96,6 +96,9 @@ BilinearFormOperator::BilinearFormOperator(IntegratorMap *_map)
    : bf(NULL), mbf(NULL),
      trial_fes(NULL), test_fes(NULL),
      trial_gs(false), test_gs(false),
+     trial_offsets(NULL), trial_indices(NULL),
+     test_offsets(NULL), test_indices(NULL),
+     X(NULL), Y(NULL),
      map(_map) { }
 
 BilinearFormOperator::~BilinearFormOperator()

@@ -43,7 +43,7 @@ protected:
    Operator *oper;
 
    /// Operator type.
-   Operator::Type oper_type;
+   enum Type oper_type;
 
    /// FE space on which the form lives.
    FiniteElementSpace *fes;
@@ -89,7 +89,7 @@ protected:
    {
       fes = NULL; sequence = -1;
       mat = mat_e = NULL;
-      oper = NULL; oper_type = Operator::Type::MFEM_SPARSEMAT;
+      oper = NULL; oper_type = MFEM_SPARSEMAT;
       extern_bfs = 0; element_matrices = NULL;
       static_cond = NULL; hybridization = NULL;
       precompute_sparsity = 0;
