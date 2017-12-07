@@ -34,16 +34,14 @@ namespace mfem
 *  - MultGtDB Operation and SetSizeD, SetValD for the D tensor inside the Kernel
 */
 template <template<PAOp> class PAK = DummyDomainPAK >
-class PAConvectionIntegrator : public BilinearFormIntegrator
+class PAConvectionIntegrator
+	: public BilinearFormIntegrator, private PADomainIntegrator<PAOp::BtDG, PAK>
 {
-protected:
-  	PADomainIntegrator<PAOp::BtDG, PAK> pak;
-
 public:
   	PAConvectionIntegrator(FiniteElementSpace *fes, const int order,
                         VectorCoefficient &q, double a = 1.0)
   	: BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
-     pak(fes,order)
+  	  PADomainIntegrator<PAOp::BtDG, PAK>(fes,order)
   	{
 	  	const int nb_elts = fes->GetNE();
 		const int quads  = IntRule->GetNPoints();
@@ -52,8 +50,9 @@ public:
 		Vector qvec(dim);
 		// Initialization of the size of the D tensor
 		//ToSelf: should initialization change since we know the number of args
-		int sizes[] = {dim,quads,nb_elts};
-		pak.SetSizeD(sizes);
+		// int sizes[] = {dim,quads,nb_elts};
+		// this->SetSizeD(sizes);
+		this->SetSizeD(dim,quads,nb_elts);
 		for (int e = 0; e < nb_elts; ++e)
 		{
 		   ElementTransformation *Tr = fes->GetElementTransformation(e);
@@ -71,8 +70,9 @@ public:
 		         	val += locD(i,j) * qvec(j);
 		       	}
 					//ToSelf: should SetValD change since we know the number of args
-	         	int ind[] = {i,k,e};
-	         	pak.SetValD(ind, ip.weight * a * val);
+	         	// int ind[] = {i,k,e};
+	         	// this->SetValD(ind, ip.weight * a * val);
+	         	this->SetValD(ip.weight * a * val, i,k,e);
 		     	}
 		   }
 		}
@@ -81,133 +81,9 @@ public:
   virtual void AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
   {
     //We assume that the kernel has such a method.
-    pak.Mult(fun,vect);
+    this->Mult(fun,vect);
   }
 
-};
-
-/**
-*	A Mass Integrator using Partial Assembly based on Eigen Tensors.
-*  TODO: should be merged with legacy one
-*/
-template <int Dim, template<int,PAOp> class PAK = EigenDomainPAK>
-class EigenPAMassIntegrator : public BilinearFormIntegrator
-{
-protected:
-	// BtDB specifies which operation in the kernel we're using
-  	PAK<Dim,PAOp::BtDB> pak;
-
-public:
-	EigenPAMassIntegrator(FiniteElementSpace* fes, const int order)
-	: BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
-     pak(fes,order)
-	{
-		
-	   const int nelem   = fes->GetNE();
-	   const int quads   = IntRule->GetNPoints();
-	   int sizes[2] = {quads,nelem};
-	   pak.SetSizeD(sizes);
-
-	   for (int e = 0; e < fes->GetNE(); e++)
-	   {
-	      ElementTransformation *Tr = fes->GetElementTransformation(e);
-	      for (int k = 0; k < quads; k++)
-	      {
-	         const IntegrationPoint &ip = IntRule->IntPoint(k);
-	         Tr->SetIntPoint(&ip);
-	         double val = ip.weight * Tr->Weight();
-	         int ind[2] = {k,e};
-	         pak.SetValD(ind,val);
-	      }
-	   }
-	}
-
-	EigenPAMassIntegrator(FiniteElementSpace* fes, const int order, Coefficient& coeff)
-	: BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
-     pak(fes,order)
-	{
-		
-	   const int nelem   = fes->GetNE();
-	   const int quads   = IntRule->GetNPoints();
-	   int sizes[2] = {quads,nelem};
-	   pak.SetSizeD(sizes);
-
-	   for (int e = 0; e < fes->GetNE(); e++)
-	   {
-	      ElementTransformation *Tr = fes->GetElementTransformation(e);
-	      for (int k = 0; k < quads; k++)
-	      {
-	         const IntegrationPoint &ip = IntRule->IntPoint(k);
-	         Tr->SetIntPoint(&ip);
-	         const double weight = ip.weight * Tr->Weight();
-	         double val = coeff.Eval(*Tr, ip) * weight;
-	         int ind[2] = {k,e};
-	         pak.SetValD(ind,val);
-	      }
-	   }
-	}
-
-	virtual void AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
-	{
-		pak.Mult(fun,vect);
-	}
-};
-
-/**
-*	A Convection Integrator using Partial Assembly based on Eigen Tensors.
-*  TODO: should be merged with legacy one
-*/
-template <int Dim, template<int,PAOp> class PAK = EigenDomainPAK>
-class EigenPAConvectionIntegrator : public BilinearFormIntegrator
-{
-protected:
-	// BtDG specifies which operation in the kernel we're using
-  	PAK<Dim,PAOp::BtDG> pak;
-
-public:
-  	EigenPAConvectionIntegrator(FiniteElementSpace *fes, const int order,
-                        VectorCoefficient &q, double a = 1.0)
-  	: BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
-     pak(fes,order)
-  	{
-	  	const int nb_elts = fes->GetNE();
-		const int quads  = IntRule->GetNPoints();
-	   const FiniteElement* fe = fes->GetFE(0);
-	   int dim = fe->GetDim();
-		Vector qvec(dim);
-		// Initialization of the size of the D tensor
-		//ToSelf: should initialization change since we know the number of args
-		int sizes[] = {dim,quads,nb_elts};
-		pak.SetSizeD(sizes);
-		for (int e = 0; e < nb_elts; ++e)
-		{
-		   ElementTransformation *Tr = fes->GetElementTransformation(e);
-		   for (int k = 0; k < quads; ++k)
-		   {
-		     	const IntegrationPoint &ip = IntRule->IntPoint(k);
-			   Tr->SetIntPoint(&ip);
-		     	const DenseMatrix& locD = Tr->AdjugateJacobian();
-		     	q.Eval(qvec, *Tr, ip);
-		     	for (int i = 0; i < dim; ++i)
-		     	{
-		     		double val = 0;
-		     		for (int j = 0; j < dim; ++j)
-		       	{
-		         	val += locD(i,j) * qvec(j);
-		       	}
-					//ToSelf: should SetValD change since we know the number of args
-	         	int ind[] = {i,k,e};
-	         	pak.SetValD(ind, ip.weight * a * val);
-		     	}
-		   }
-		}
-  	}
-
-  virtual void AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
-  {
-    //We assume that the kernel has such a method. Operation is set in the type of PAK.
-    pak.Mult(fun,vect);
-  }
 };
 
 /** Class for computing the action of 
@@ -357,18 +233,17 @@ public:
    }
 };
 
-template <template<PAOp> class PAK = DummyFacePAK2>
-class PADGConvectionFaceIntegrator2 : public BilinearFormIntegrator
+template <template<PAOp> class PAK = FacePAK>
+class PADGConvectionFaceIntegrator2
+	: public BilinearFormIntegrator, private PAFaceIntegrator<PAOp::BtDB, PAK>
 {
-protected:
-   PAFaceIntegrator<PAOp::BtDB, PAK> pak;
-
 public:
 
   	PADGConvectionFaceIntegrator2(FiniteElementSpace *fes, const int order,
                         VectorCoefficient &q, double a = 1.0, double b = 1.0)
   	:BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
-  	pak(fes,order)
+  	PAFaceIntegrator<PAOp::BtDB, PAK>(fes,order)
+  	// pak(fes,order)
 	{
 		const int dim = fes->GetFE(0)->GetDim();
 	   Mesh* mesh = fes->GetMesh();
@@ -384,7 +259,7 @@ public:
 		const int quads  = IntRules.Get(geom, order).GetNPoints();//pow(ir_order,dim-1);
 		Vector qvec(dim);
 	   int sizes[] = {quads,nb_elts,nb_faces_elt};
-	   pak.SetSize(sizes);
+	   this->SetSize(sizes);
 	   // We have a per face approach for the fluxes, so we should initialize the four different
 	   // fluxes.
 	   for (int face = 0; face < nb_faces; ++face)
@@ -418,7 +293,9 @@ public:
         		const IntegrationPoint& ip = ir.IntPoint(k);
 	         if(face_tr->Elem2No!=-1){
 		      	// We compute D11 and D21
-	      		IntegrationPoint&	eip1 = pak.IntPoint( face_id1, k );
+		      	// TODO: maybe pak.IntPoint should return two points, one for each side
+		      	// in case any field is discontinuous
+	      		IntegrationPoint&	eip1 = this->IntPoint( face_id1, k );
 		         face_tr->Face->SetIntPoint( &ip );
 					face_tr->Elem1->SetIntPoint( &eip1 );
 		         q.Eval( qvec, *(face_tr->Elem1), eip1 );
@@ -427,11 +304,11 @@ public:
 	         	// D11
 		         val = eip1.weight * (   a/2 * res + b * abs(res) );
 		         int ind11[3] = {k, ind_elt1, face_id1};
-		         pak.SetValDint(ind11, val);
+		         this->SetValDint(ind11, val);
 		         // D21
 		         val = eip1.weight * (   a/2 * res - b * abs(res) );
 		         int ind21[5] = {k, ind_elt1, face_id1, ind_elt2, face_id2};
-		         pak.SetValDext(ind21, val);
+		         this->SetValDext(ind21, val);
 		         // We compute D12 and D22
 					// IntegrationPoint& eip2 = pak.IntPoint( face_id2, k );
 					// face_tr->Face->SetIntPoint( &ip );
@@ -442,11 +319,11 @@ public:
 			      // D22
 			      val = eip1.weight * ( - a/2 * res + b * abs(res) );
 			      int ind22[3] = {k, ind_elt2, face_id2};
-			      pak.SetValDint(ind22, val);
+			      this->SetValDint(ind22, val);
 			      // D12
 			      val = eip1.weight * ( - a/2 * res - b * abs(res) );
 		         int ind12[5] = {k, ind_elt2, face_id2, ind_elt1, face_id1};
-		         pak.SetValDext(ind12, val);
+		         this->SetValDext(ind12, val);
 		      }else{//Boundary face
 		        	// D11(ind) = 0;	
 		      }
@@ -457,7 +334,7 @@ public:
    // Perform the action of the BilinearFormIntegrator
    virtual void AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
    {
-  		pak.Mult(fun,vect);
+  		this->Mult(fun,vect);
    }
 };
 

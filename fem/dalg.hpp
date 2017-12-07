@@ -218,6 +218,14 @@ public:
       return data[ TensorInd<1,Dim,Args...>::result(sizes,args...) ];
    }
 
+   void zero()
+   {
+      for (int i = 0; i < capacity; ++i)
+      {
+         data[i] = Scalar();
+      }
+   }
+
    /**
    *  Returns the size of the i-th dimension #UNSAFE#
    */
