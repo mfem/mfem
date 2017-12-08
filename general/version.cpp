@@ -127,6 +127,9 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_MPFR
       "MFEM_USE_MPFR\n"
 #endif
+#ifdef MFEM_USE_CONDUIT
+      "MFEM_USE_CONDUIT\n"
+#endif
 #ifdef MFEM_USE_SIDRE
       "MFEM_USE_SIDRE\n"
 #endif

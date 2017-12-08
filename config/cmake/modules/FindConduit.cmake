@@ -19,4 +19,7 @@ mfem_find_package(Conduit CONDUIT CONDUIT_DIR
   "include;include/conduit" conduit.hpp "lib" conduit
   "Paths to headers required by Conduit." "Libraries required by Conduit."
   ADD_COMPONENT relay
-    "include;include/conduit" conduit_relay.hpp "lib" conduit_relay)
+    "include;include/conduit" conduit_relay.hpp "lib" conduit_relay
+  ADD_COMPONENT blueprint
+      "include;include/conduit" conduit_blueprint.hpp "lib" conduit_blueprint)
+    

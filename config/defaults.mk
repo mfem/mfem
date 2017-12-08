@@ -238,10 +238,19 @@ endif
 MPFR_OPT =
 MPFR_LIB = -lmpfr
 
+# Conduit and required libraries configuration
+# Be sure to check the HDF5_DIR (set above) is correct
+CONDUIT_DIR = @MFEM_DIR@/../conduit
+CONDUIT_OPT = -I$(CONDUIT_DIR)/include/conduit\
+              -I$(HDF5_DIR)/include
+CONDUIT_LIB = \
+   -Wl,-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
+   -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
+   -lconduit -lconduit_relay -lconduit_blueprint -lhdf5 -lz -ldl
+
 # Sidre and required libraries configuration
 # Be sure to check the HDF5_DIR (set above) is correct
 SIDRE_DIR = @MFEM_DIR@/../axom
-CONDUIT_DIR = @MFEM_DIR@/../conduit
 SIDRE_OPT = -I$(SIDRE_DIR)/include -I$(CONDUIT_DIR)/include/conduit\
  -I$(HDF5_DIR)/include
 SIDRE_LIB = \
