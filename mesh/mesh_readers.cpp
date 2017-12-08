@@ -1794,18 +1794,32 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    }
 
    // clean up all netcdf stuff
+
+   nc_close(ncid);
+
+   for (int i = 0; i < (int) num_side_sets; i++)
+   {
+      delete [] elem_ss[i];
+      delete [] side_ss[i];
+   }
+
+   delete [] elem_ss;
+   delete [] side_ss;
    delete [] num_el_in_blk;
    delete [] num_nod_per_el;
    delete [] num_side_in_ss;
    delete [] coordx;
    delete [] coordy;
    delete [] coordz;
+
    for (int i = 0; i < (int) num_el_blk; i++)
    {
-      delete elem_blk[i];
+      delete [] elem_blk[i];
    }
+
    delete [] elem_blk;
    delete [] start_of_block;
+
    for (int i = 0; i < (int) num_side_sets; i++)
    {
       delete [] ss_node_id[i];
