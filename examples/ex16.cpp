@@ -89,6 +89,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
+   const char *ref_file = "";
    int ref_levels = 2;
    int order = 2;
    int ode_solver_type = 3;
@@ -129,6 +130,9 @@ int main(int argc, char *argv[])
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&ref_file, "-r", "--ref",
+                  "Reference file for checking final solution.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -280,7 +284,33 @@ int main(int argc, char *argv[])
       u_gf.Save(osol);
    }
 
-   // 10. Free the used memory.
+   // 10. Check solution with reference
+   if (strlen(ref_file) != 0)
+   {
+      cout<<"Comparing with: "<<ref_file<<endl;
+      std::ifstream in;
+      in.open(ref_file, std::ifstream::in);
+      if (!in.is_open()) { mfem_error("Reference file does not exist"); }
+      GridFunction ref(mesh,in);
+      in.close();
+      ref -= u_gf;
+
+      double eps = 1e-12;
+
+      if ((ref.Norml1()   > eps*u_gf.Norml1())  ||
+          (ref.Norml2()   > eps*u_gf.Norml2())  ||
+          (ref.Normlinf() > eps*u_gf.Normlinf()))
+      {
+         cout<<ref.Norml1()<<" "<<u_gf.Norml1() <<" "<<ref.Norml1()/u_gf.Norml1()<<endl;
+         cout<<ref.Norml2()<<" "<<u_gf.Norml2() <<" "<<ref.Norml2()/u_gf.Norml2()<<endl;
+         cout<<ref.Normlinf()<<" "<<u_gf.Normlinf() <<" "<<ref.Normlinf()/u_gf.Normlinf()
+             <<endl;
+         mfem_error("Norm exceeded");
+      }
+      cout<<"Passed check."<<endl;
+   }
+
+   // 11. Free the used memory.
    delete ode_solver;
    delete mesh;
 

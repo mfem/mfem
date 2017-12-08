@@ -71,6 +71,7 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
   endif()
 
   if (is_parallel_test EQUAL -1)
+    list(APPEND THIS_TEST_OPTIONS "--ref" "${PROJECT_SOURCE_DIR}/examples/references/${TEST_NAME}_ser.gf")
     add_test(NAME ${TEST_NAME}_ser
       COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
   else()

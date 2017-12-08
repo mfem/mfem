@@ -81,6 +81,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../data/periodic-hexagon.mesh";
+   const char *ref_file = "";
    int ref_levels = 2;
    int order = 3;
    int ode_solver_type = 4;
@@ -121,6 +122,9 @@ int main(int argc, char *argv[])
                   "Use binary (Sidre) or ascii format for VisIt data files.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&ref_file, "-r", "--ref",
+                  "Reference file for checking final solution.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -304,7 +308,33 @@ int main(int argc, char *argv[])
       u.Save(osol);
    }
 
-   // 10. Free the used memory.
+   // 10. Check solution with reference
+   if (strlen(ref_file) != 0)
+   {
+      cout<<"Comparing with: "<<ref_file<<endl;
+      std::ifstream in;
+      in.open(ref_file, std::ifstream::in);
+      if (!in.is_open()) { mfem_error("Reference file does not exist"); }
+      GridFunction ref(mesh,in);
+      in.close();
+      ref -= u;
+
+      double eps = 1e-12;
+
+      if ((ref.Norml1()   > eps*u.Norml1())  ||
+          (ref.Norml2()   > eps*u.Norml2())  ||
+          (ref.Normlinf() > eps*u.Normlinf()))
+      {
+         cout<<ref.Norml1()<<" "<<u.Norml1() <<" "<<ref.Norml1()/u.Norml1()<<endl;
+         cout<<ref.Norml2()<<" "<<u.Norml2() <<" "<<ref.Norml2()/u.Norml2()<<endl;
+         cout<<ref.Normlinf()<<" "<<u.Normlinf() <<" "<<ref.Normlinf()/u.Normlinf()
+             <<endl;
+         mfem_error("Norm exceeded");
+      }
+      cout<<"Passed check."<<endl;
+   }
+
+   // 11. Free the used memory.
    delete ode_solver;
    delete dc;
 

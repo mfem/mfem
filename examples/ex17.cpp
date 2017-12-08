@@ -101,6 +101,7 @@ int main(int argc, char *argv[])
 {
    // 1. Define and parse command-line options.
    const char *mesh_file = "../data/beam-tri.mesh";
+   const char *ref_file = "";
    int ref_levels = -1;
    int order = 1;
    double alpha = -1.0;
@@ -123,6 +124,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&ref_file, "-r", "--ref",
+                  "Reference file for checking final solution.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -323,6 +327,33 @@ int main(int argc, char *argv[])
                 << position_window << close_connection;
          }
       }
+      x.Neg(); // x = -x
+   }
+
+   // 16. Check solution with reference
+   if (strlen(ref_file) != 0)
+   {
+      cout<<"Comparing with: "<<ref_file<<endl;
+      std::ifstream in;
+      in.open(ref_file, std::ifstream::in);
+      if (!in.is_open()) { mfem_error("Reference file does not exist"); }
+      GridFunction ref(&mesh,in);
+      in.close();
+      ref -= x;
+
+      double eps = 1e-12;
+
+      if ((ref.Norml1()   > eps*x.Norml1())  ||
+          (ref.Norml2()   > eps*x.Norml2())  ||
+          (ref.Normlinf() > eps*x.Normlinf()))
+      {
+         cout<<ref.Norml1()<<" "<<x.Norml1() <<" "<<ref.Norml1()/x.Norml1()<<endl;
+         cout<<ref.Norml2()<<" "<<x.Norml2() <<" "<<ref.Norml2()/x.Norml2()<<endl;
+         cout<<ref.Normlinf()<<" "<<x.Normlinf() <<" "<<ref.Normlinf()/x.Normlinf()
+             <<endl;
+         mfem_error("Norm exceeded");
+      }
+      cout<<"Passed check."<<endl;
    }
 
    return 0;
