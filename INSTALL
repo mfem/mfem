@@ -323,6 +323,13 @@ MFEM_USE_SIDRE = YES/NO
    specification. When enabled, this option requires installation of HDF5 (see
    also MFEM_USE_NETCDF), Conduit and LLNL's axom project.
 
+MFEM_USE_CONDUIT = YES/NO
+   Enables support for converting MFEM Meshes and Grid Function objects to and
+   from Conduit Mesh Blueprint Descriptions (https://github.com/LLNL/conduit/)
+   and support Conduit Relay I/O. When enabled, this option requires
+   installation of Conduit and HDF5 (see also MFEM_USE_NETCDF).
+
+
 MFEM_USE_GZSTREAM = YES/NO
    Enables use of on-the-fly gzip compressed streams. With this feature enabled
    (YES), MFEM can compress its output files on-the-fly. In addition, it can
@@ -436,6 +443,11 @@ The specific libraries and their options are:
        https://github.com/LLNL/conduit (Conduit)
        https://support.hdfgroup.org/HDF5 (HDF5)
   Options: SIDRE_OPT, SIDRE_LIB.
+
+- Conduit, used when MFEM_USE_CONDUIT = YES.
+  URL: https://github.com/LLNL/conduit (Conduit)
+       https://support.hdfgroup.org/HDF5 (HDF5)
+  Options: CONDUIT_OPT, CONDUIT_LIB.
 
 - MPFR (optional), used when MFEM_USE_MPFR = YES.
   URL: http://mpfr.org, it depends on the GMP library: https://gmplib.org

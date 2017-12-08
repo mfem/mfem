@@ -60,7 +60,10 @@ set(XSDK_ENABLE_C OFF)
 set(XSDK_ENABLE_Fortran OFF)
 
 # Check if we need to enable C or Fortran.
-if (CMAKE_VERSION VERSION_LESS 3.2 OR MFEM_USE_SIDRE OR MFEM_USE_PETSC)
+if (CMAKE_VERSION VERSION_LESS 3.2 OR
+    MFEM_USE_CONDUIT OR
+    MFEM_USE_SIDRE OR
+    MFEM_USE_PETSC)
    # This seems to be needed by:
    #  * find_package(BLAS REQUIRED) and
    #  * find_package(HDF5 REQUIRED) needed, in turn, by:
@@ -234,6 +237,10 @@ if (MFEM_USE_MPFR)
   find_package(MPFR REQUIRED)
 endif()
 
+if (MFEM_USE_CONDUIT)
+    find_package(Conduit REQUIRED conduit relay blueprint )
+endif()
+
 # Axom/Sidre
 if (MFEM_USE_SIDRE)
   if (NOT MFEM_USE_MPI)
@@ -267,7 +274,7 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK AXOM GECKO GNUTLS NETCDF MPFR POSIXCLOCKS
+    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR POSIXCLOCKS
     MFEMBacktrace ZLIB)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
