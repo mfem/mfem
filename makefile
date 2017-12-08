@@ -533,5 +533,5 @@ print-%:
 
 # Print the contents of all makefile variables.
 .PHONY: printall
-printall: $(foreach var,$(.VARIABLES),print-$(var))
+printall: $(subst :,\:,$(foreach var,$(.VARIABLES),print-$(var)))
 	@true
