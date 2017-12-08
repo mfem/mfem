@@ -261,7 +261,6 @@ ConduitDataCollection::LoadMeshAndFields(int domain_id,
                   << verify_info.to_json());
    }
 
-   // TODO: make sure we have a new mesh w/o conduit owning any data
    mesh = BlueprintMeshToMesh(n_mesh);
 
    field_map.clear();
@@ -273,8 +272,8 @@ ConduitDataCollection::LoadMeshAndFields(int domain_id,
    {
       const Node &n_field = itr.next();
       std::string field_name = itr.name();
-      // TODO: make sure we have a new gf w/o conduit owning any data
-      GridFunction *gf = BlueprintFieldToGridFunction(mesh,n_field);
+
+      GridFunction *gf = BlueprintFieldToGridFunction(mesh, n_field);
       field_map[field_name] = gf;
    }
 }
@@ -320,6 +319,7 @@ ConduitDataCollection::ShapeNameToGeomType(const std::string &shape_name)
     // init to something to avoid invalid memory access 
     // in the mfem mesh constructor 
     mfem::Geometry::Type res = mfem::Geometry::POINT;
+    
     if(shape_name == "point")
         res = mfem::Geometry::POINT;
     else if(shape_name == "line")
@@ -344,12 +344,10 @@ ConduitDataCollection::ShapeNameToGeomType(const std::string &shape_name)
 mfem::Mesh *
 ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh)
 {
-   
-   if(!n_mesh.has_path("coordsets/coords"))
-   {
-      MFEM_ABORT("Expected topology named \"coords\" "
-                 "(node is missing path \"coordsets/coords\" )");
-   }
+
+   MFEM_ASSERT(n_mesh.has_path("coordsets/coords"),
+               "Expected topology named \"coords\" "
+               "(node is missing path \"coordsets/coords\")");
    
    const Node n_coordset = n_mesh["coordsets/coords"];
 
@@ -363,13 +361,10 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh)
    int num_verts         = coords_values[0].dtype().number_of_elements();
    double *verts_indices = coords_values[0].value();
 
-   if(!n_mesh.has_path("topologies/main"))
-   {
-      MFEM_ABORT("Expected topology named \"main\" "
-                 "(node is missing path \"topologies/main\" )");
-   }
-   
-   
+   MFEM_ASSERT(n_mesh.has_path("topologies/main"),
+               "Expected topology named \"main\" "
+               "(node is missing path \"topologies/main\")");
+
    const Node &n_mesh_topo    = n_mesh["topologies/main"];
    std::string mesh_ele_shape = n_mesh_topo["elements/shape"].as_string();
    
@@ -444,32 +439,38 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh)
    //                << "Number of Boundary Attribute Entries: "
    //                << num_bndry_atts_entires << endl);
    //
-   
-   // Construct MFEM Mesh Object
-   mfem::Mesh *res = new mfem::Mesh(// from coordset
-                                    verts_indices,
-                                    num_verts,
-                                    // from topology
-                                    const_cast<int*>(elem_indices),
-                                    mesh_geo,
-                                    // from mesh_attribute field
-                                    const_cast<int*>(mesh_atts),
-                                    num_mesh_ele,
-                                    // from boundary topology
-                                    const_cast<int*>(bndry_indices),
-                                    bndry_geo,
-                                    // from boundary_attribute field
-                                    const_cast<int*>(bndry_atts),
-                                    num_bndry_ele,
-                                    ndims,
-                                    1); // we need this flag
+
+   // Construct MFEM Mesh Object with externally owned data
+   Mesh *mesh = new Mesh(// from coordset
+                         verts_indices,
+                         num_verts,
+                         // from topology
+                         const_cast<int*>(elem_indices),
+                         mesh_geo,
+                         // from mesh_attribute field
+                         const_cast<int*>(mesh_atts),
+                         num_mesh_ele,
+                         // from boundary topology
+                         const_cast<int*>(bndry_indices),
+                         bndry_geo,
+                         // from boundary_attribute field
+                         const_cast<int*>(bndry_atts),
+                         num_bndry_ele,
+                         ndims,
+                         1); // we need this flag
 
    // Attach Nodes Grid Function
-
-   mfem::GridFunction *nodes = BlueprintFieldToGridFunction(res,
+   mfem::GridFunction *nodes = BlueprintFieldToGridFunction(mesh,
                                                             n_mesh["grid_function"]);
 
-   res->NewNodes(*nodes);
+   mesh->NewNodes(*nodes,true);
+
+   // the mesh above contains references to external data, to get a
+   // copy independent of the conduit data, we use:
+
+   Mesh *res = new Mesh(*mesh,true);
+
+   delete mesh;
 
    return res;
 }
@@ -478,55 +479,58 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh)
 //---------------------------------------------------------------------------//
 mfem::GridFunction *
 ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
-                                                    const Node &field)
+                                                    const Node &n_field)
 {
    // we need basis name to create the proper mfem fec
-   std::string fec_name = field["basis"].as_string();
+   std::string fec_name = n_field["basis"].as_string();
 
    mfem::FiniteElementCollection *fec = FiniteElementCollection::New(fec_name.c_str());
 
-   // TODO: the gf can't take ownership of the data memory, we are leaking ....
-   Node *field_vals= new Node();
+
+   Node n_field_vals;
 
    // TODO: USE ORDERING IN FiniteElementSpace CONSTRUCTOR TO AVOID REPACKING?
    int vdim = 1;
-   if(field["values"].dtype().is_object())
+   if(n_field["values"].dtype().is_object())
    {
       // for mcarray case, the mfem gf constructor we need to use 
       // requires a contiguous (soa) ordering
-      vdim = field["values"].number_of_children();
-      blueprint::mcarray::to_contiguous(field["values"],
-                                        *field_vals);
+      vdim = n_field["values"].number_of_children();
+      blueprint::mcarray::to_contiguous(n_field["values"],
+                                        n_field_vals);
    }
    else
    {
-      field["values"].compact_to(*field_vals);
+      n_field["values"].compact_to(n_field_vals);
    }
 
    mfem::FiniteElementSpace *fes = new FiniteElementSpace(mesh, fec, vdim);
 
 
    double *vals_ptr = NULL;
-   if(field["values"].dtype().is_object())
+   if(n_field["values"].dtype().is_object())
    {
       //the vals are contiguous, we fetch the pointer
       // to the first component in the mcarray
-      vals_ptr = field_vals->child_ptr(0)->value();
+      vals_ptr = n_field_vals.child_ptr(0)->value();
    }
    else
    {
-      vals_ptr = field_vals->value();
+      vals_ptr = n_field_vals.value();
    }
 
-   mfem::GridFunction *res = new GridFunction(fes,vals_ptr);
+   // zero copy case:
+   // mfem::GridFunction *res = new GridFunction(fes,vals_ptr);
+   
+   // copy case
+   mfem::GridFunction *res = new GridFunction(fes,NULL);
+   res->NewDataAndSize(vals_ptr,fes->GetVSize());
 
-   // TODO: I believe this takes ownership of both the fes and its fec
-   // but double check?
+   // TODO: I believe the GF already has ownership of fes, so this
+   // should be all we need to do to avoid leaking objs created
+   // here?
    res->MakeOwner(fec);
    
-   // TODO:  Need to delete field_vals ? 
-   // How can I make the grid func own the data?
-
    return res;
 }
 
