@@ -104,7 +104,7 @@ void dEdtBCFunc(const Vector &x, double t, Vector &E);
 
 static double tScale_ = 1e-9;
 static double freq_ = 750.0e6;
-static int prob_ = 0;
+static int prob_ = -1;
 /*
 double permittivity_func(const Vector &);
 double permeability_func(const Vector &);
@@ -424,7 +424,7 @@ int main(int argc, char *argv[])
    double energy = Maxwell.GetEnergy();
    if ( mpi.Root() )
    {
-     cout << "Energy(" << t0 << "ns):  " << energy << "J" << endl;
+      cout << "Energy(" << t0 << "ns):  " << energy << "J" << endl;
    }
 
    double dtmax = Maxwell.GetMaximumTimeStep();
@@ -440,7 +440,7 @@ int main(int argc, char *argv[])
    }
 
    int nsteps = SnapTimeStep(tf-t0, dtmax, dt);
-
+   /*
    if ( nsteps > max_its )
    {
       if ( mpi.Root() )
@@ -449,7 +449,7 @@ int main(int argc, char *argv[])
       }
       nsteps = max_its;
    }
-
+   */
    if ( mpi.Root() )
    {
       cout << "Number of Time Steps:  " << nsteps << endl;
@@ -502,7 +502,7 @@ int main(int argc, char *argv[])
       energy = Maxwell.GetEnergy();
       if ( mpi.Root() )
       {
- 	 cout << "Energy(" << t/tScale_ << "ns):  " << energy << "J" << endl;
+         cout << "Energy(" << t/tScale_ << "ns):  " << energy << "J" << endl;
       }
 
       // cout << "Maxwell.Sync" << endl;
@@ -659,24 +659,23 @@ void dipole_pulse(const Vector &x, double t, Vector &j)
    {
       return;
    }
+   v /= h;
 
    double r = dp_params_[2*x.Size()+0];
-   double a = dp_params_[2*x.Size()+1];
+   double a = dp_params_[2*x.Size()+1] * tScale_;
    double b = dp_params_[2*x.Size()+2] * tScale_;
    double c = dp_params_[2*x.Size()+3] * tScale_;
 
    double xv = xu * v;
 
-   if ( h > 0.0 )
-   {
-      xu.Add(-xv/(h*h), v);
-   }
+   // Compute perpendicular vector from axis to x
+   xu.Add(-xv, v);
 
    double xp = xu.Norml2();
 
-   if ( xv >= 0.0 && xv <= h*h && xp <= r )
+   if ( xv >= 0.0 && xv <= h && xp <= r )
    {
-      j.Add(1.0/(h*M_PI*r*r), v);
+      j = v;
    }
 
    j *= a * (t - b) * exp(-0.5 * pow((t-b)/c, 2)) / (c * c);
@@ -781,7 +780,7 @@ dEdtBCFunc(const Vector &x, double t, Vector &dE)
          break;
       case 1:
       {
-         double arg = 2.0 * M_PI * freq_ * (t - x(0) * sqrt(epsilon0_*mu0_));
+         double arg = 2.0 * M_PI * freq_ * (t - x(0) * sqrt(epsilon0_ * mu0_));
          dE = 0.0;
          dE(2) = 2.0 * M_PI * freq_ * exp(-0.25 * pow(arg,2)) *
                  (cos(arg) + 0.25 * arg * sin(arg) );
