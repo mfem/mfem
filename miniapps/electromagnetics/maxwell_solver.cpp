@@ -147,10 +147,19 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
       }
 
       abc_marker_.SetSize(pmesh.bdr_attributes.Max());
-      abc_marker_ = 0;
-      for (int i=0; i<abcs.Size(); i++)
+      if ( abcs.Size() == 1 && abcs[0] < 0 )
       {
-         abc_marker_[abcs[i]-1] = 1;
+         // Mark all boundaries as absorbing
+         abc_marker_ = 1;
+      }
+      else
+      {
+         // Mark select boundaries as absorbing
+         abc_marker_ = 0;
+         for (int i=0; i<abcs.Size(); i++)
+         {
+            abc_marker_[abcs[i]-1] = 1;
+         }
       }
 
       // etaCoef_ = new ConstantCoefficient(sqrt(mu0_/epsilon0_));
@@ -165,10 +174,19 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
          cout << "Configuring Dirichlet BC" << endl;
       }
       dbc_marker_.SetSize(pmesh.bdr_attributes.Max());
-      dbc_marker_ = 0;
-      for (int i=0; i<dbcs.Size(); i++)
+      if ( dbcs.Size() == 1 && dbcs[0] < 0 )
       {
-         dbc_marker_[dbcs[i]-1] = 1;
+         // Mark all boundaries as Dirichlet
+         dbc_marker_ = 1;
+      }
+      else
+      {
+         // Mark select boundaries as Dirichlet
+         dbc_marker_ = 0;
+         for (int i=0; i<dbcs.Size(); i++)
+         {
+            dbc_marker_[dbcs[i]-1] = 1;
+         }
       }
 
       HCurlFESpace_->GetEssentialTrueDofs(dbc_marker_, dbc_dofs_);
@@ -543,10 +561,8 @@ MaxwellSolver::implicitSolve(double dt, const Vector &B, Vector &dEdt) const
 
    if ( jd_ )
    {
-      jCoef_->SetTime(t); // Is member data from mfem::TimeDependentOperator
+      jCoef_->SetTime(t); // 't' is member data from mfem::TimeDependentOperator
       jd_->Assemble();
-      // jd_->ParallelAssemble(*JD_);
-      // *RHS_ -= *JD_;
       *rhs_ -= *jd_;
    }
 
