@@ -25,31 +25,38 @@ using namespace miniapps;
 namespace electromagnetics
 {
 
+double prodFunc(double a, double b) { return a * b; }
+
 MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
                              double (*eps     )(const Vector&),
                              double (*muInv   )(const Vector&),
+                             double (*sigma   )(const Vector&),
                              void   (*j_src   )(const Vector&, double, Vector&),
+                             Array<int> & abcs,
                              Array<int> & dbcs,
                              void   (*dEdt_bc )(const Vector&, double, Vector&))
    : myid_(0),
      num_procs_(1),
      order_(order),
+     logging_(1),
      pmesh_(&pmesh),
      visit_dc_(NULL),
      HCurlFESpace_(NULL),
      HDivFESpace_(NULL),
-     hCurlMassEps_(NULL),
+     // hCurlMassEps_(NULL),
      hDivMassMuInv_(NULL),
+     hCurlLosses_(NULL),
      weakCurlMuInv_(NULL),
      Curl_(NULL),
-     pcg_(NULL),
+     // pcg_(NULL),
      e_(NULL),
      b_(NULL),
      j_(NULL),
-     de_(NULL),
+     dedt_(NULL),
      rhs_(NULL),
      jd_(NULL),
-     M1Eps_(NULL),
+     // M1Eps_(NULL),
+     M1Losses_(NULL),
      M2MuInv_(NULL),
      NegCurl_(NULL),
      WeakCurlMuInv_(NULL),
@@ -60,15 +67,21 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
      RHS_(NULL),
      epsCoef_(NULL),
      muInvCoef_(NULL),
+     sigmaCoef_(NULL),
+     etaInvCoef_(NULL),
      eCoef_(NULL),
      bCoef_(NULL),
      jCoef_(NULL),
      dEdtBCCoef_(NULL),
      eps_(eps),
      muInv_(muInv),
+     sigma_(sigma),
      j_src_(j_src),
+     abcs_(&abcs),
+     dbcs_(&dbcs),
      dEdt_bc_(dEdt_bc),
-     dbcs_(&dbcs)
+     dtMax_(-1.0),
+     dtScale_(1.0e6)
 {
    // Initialize MPI variables
    MPI_Comm_size(pmesh_->GetComm(), &num_procs_);
@@ -84,6 +97,11 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    this->height = HCurlFESpace_->GlobalTrueVSize();
    this->width  = HDivFESpace_->GlobalTrueVSize();
 
+   // Check for absorbing materials or boundaries
+   lossy_ = abcs_->Size() > 0 || sigma_ != NULL;
+
+   type = lossy_ ? IMPLICIT : EXPLICIT;
+
    // Electric permittivity
    if ( eps_ == NULL )
    {
@@ -91,7 +109,7 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    }
    else
    {
-      if ( myid_ == 0 )
+      if ( myid_ == 0 && logging_ > 0 )
       {
          cout << "Creating Permittivity Coefficient" << endl;
       }
@@ -105,16 +123,41 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    }
    else
    {
-      if ( myid_ == 0 )
+      if ( myid_ == 0 && logging_ > 0 )
       {
          cout << "Creating Permeability Coefficient" << endl;
       }
       muInvCoef_ = new FunctionCoefficient(muInv_);
    }
 
+   // Electric conductivity
+   if ( sigma_ != NULL )
+   {
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "Creating Conductivity Coefficient" << endl;
+      }
+      sigmaCoef_ = new FunctionCoefficient(sigma_);
+   }
+
+   // Impedance of free space
+   if ( abcs_->Size() > 0 )
+   {
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "Creating Admittance Coefficient" << endl;
+      }
+      // etaCoef_ = new ConstantCoefficient(sqrt(mu0_/epsilon0_));
+      etaInvCoef_ = new ConstantCoefficient(sqrt(epsilon0_/mu0_));
+   }
+
    // Electric Field Boundary Condition
    if ( dbcs.Size() > 0 )
    {
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "Configuring Dirichlet BC" << endl;
+      }
       HCurlFESpace_->GetEssentialTrueDofs(dbcs, dbc_dofs_);
 
       if ( dEdt_bc_ != NULL )
@@ -129,26 +172,70 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    }
 
    // Bilinear Forms
-   hCurlMassEps_  = new ParBilinearForm(HCurlFESpace_);
+   if ( myid_ == 0 && logging_ > 0 )
+   {
+      cout << "Creating H(Div) Mass Operator" << endl;
+   }
+   // hCurlMassEps_  = new ParBilinearForm(HCurlFESpace_);
    hDivMassMuInv_ = new ParBilinearForm(HDivFESpace_);
+   if ( myid_ == 0 && logging_ > 0 )
+   {
+      cout << "Creating Weak Curl Operator" << endl;
+   }
    weakCurlMuInv_ = new ParMixedBilinearForm(HDivFESpace_,HCurlFESpace_);
 
-   hCurlMassEps_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsCoef_));
+
+   // hCurlMassEps_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsCoef_));
    hDivMassMuInv_->AddDomainIntegrator(new VectorFEMassIntegrator(*muInvCoef_));
    weakCurlMuInv_->AddDomainIntegrator(
       new MixedVectorWeakCurlIntegrator(*muInvCoef_));
 
    // Assemble Matrices
-   hCurlMassEps_->Assemble();
+   // hCurlMassEps_->Assemble();
    hDivMassMuInv_->Assemble();
    weakCurlMuInv_->Assemble();
 
-   hCurlMassEps_->Finalize();
+   // hCurlMassEps_->Finalize();
    hDivMassMuInv_->Finalize();
    weakCurlMuInv_->Finalize();
 
+   if ( sigmaCoef_ || etaInvCoef_ )
+   {
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "Creating H(Curl) Loss Operator" << endl;
+      }
+      hCurlLosses_  = new ParBilinearForm(HCurlFESpace_);
+      if ( sigmaCoef_ )
+      {
+         if ( myid_ == 0 && logging_ > 0 )
+         {
+            cout << "Adding domain integrator for conductive regions" << endl;
+         }
+         hCurlLosses_->AddDomainIntegrator(
+            new VectorFEMassIntegrator(*sigmaCoef_));
+      }
+      if ( etaInvCoef_ && abcs_ )
+      {
+         if ( myid_ == 0 && logging_ > 0 )
+         {
+            cout << "Adding boundary integrator for absorbing boundary" << endl;
+         }
+         hCurlLosses_->AddBoundaryIntegrator(
+            new VectorFEMassIntegrator(*etaInvCoef_), *abcs_);
+      }
+      hCurlLosses_->Assemble();
+      hCurlLosses_->Finalize();
+      M1Losses_ = hCurlLosses_->ParallelAssemble();
+      {
+	//ofstream ofs("M1L.mat");
+	M1Losses_->Print("M1L.mat");
+	//ofs.close();
+      }
+   }
+
    // Create Linear Algebra Matrices
-   M1Eps_   = hCurlMassEps_->ParallelAssemble();
+   // M1Eps_   = hCurlMassEps_->ParallelAssemble();
    M2MuInv_ = hDivMassMuInv_->ParallelAssemble();
    WeakCurlMuInv_ = weakCurlMuInv_->ParallelAssemble();
    /*
@@ -179,6 +266,10 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    }
    */
 
+   if ( myid_ == 0 && logging_ > 0 )
+   {
+      cout << "Creating discrete curl operator" << endl;
+   }
    Curl_ = new ParDiscreteCurlOperator(HCurlFESpace_, HDivFESpace_);
    Curl_->Assemble();
    Curl_->Finalize();
@@ -192,10 +283,10 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    // delete MT12;
 
    // Build grid functions
-   e_   = new ParGridFunction(HCurlFESpace_);
-   de_  = new ParGridFunction(HCurlFESpace_);
-   rhs_ = new ParGridFunction(HCurlFESpace_);
-   b_   = new ParGridFunction(HDivFESpace_);
+   e_    = new ParGridFunction(HCurlFESpace_);
+   dedt_ = new ParGridFunction(HCurlFESpace_);
+   rhs_  = new ParGridFunction(HCurlFESpace_);
+   b_    = new ParGridFunction(HDivFESpace_);
 
    E_ = e_->ParallelProject();
    B_ = b_->ParallelProject();
@@ -204,9 +295,10 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    RHS_ = new HypreParVector(HCurlFESpace_);
 
    // Eliminate essential BC dofs from M1Eps
-   *de_ = 0.0;
-   hCurlMassEps_->FormLinearSystem(dbc_dofs_,*de_,*rhs_,*M1Eps_,*E_,*RHS_);
+   *dedt_ = 0.0;
+   // hCurlMassEps_->FormLinearSystem(dbc_dofs_,*dedt_,*rhs_,*M1Eps_,*E_,*RHS_);
 
+   /*
    // Create Solver
    diagScale_ = new HypreDiagScale(*M1Eps_);
 
@@ -215,7 +307,7 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    pcg_->SetMaxIter(1000);
    pcg_->SetLogging(0);
    pcg_->SetPreconditioner(*diagScale_);
-
+   */
    /*
    {
      // Just testing
@@ -239,7 +331,7 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    */
    if ( j_src_)
    {
-      if ( myid_ == 0 )
+      if ( myid_ == 0 && logging_ > 0 )
       {
          cout << "Creating Current Source" << endl;
       }
@@ -254,12 +346,15 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
 
       JD_ = new HypreParVector(HCurlFESpace_);
    }
+
+   dtMax_ = GetMaximumTimeStep();
 }
 
 MaxwellSolver::~MaxwellSolver()
 {
    delete epsCoef_;
    delete muInvCoef_;
+   delete etaInvCoef_;
    delete jCoef_;
    delete dEdtBCCoef_;
 
@@ -271,29 +366,55 @@ MaxwellSolver::~MaxwellSolver()
    delete e_;
    delete b_;
    delete j_;
-   delete de_;
+   delete dedt_;
    delete rhs_;
    delete jd_;
 
    delete Curl_;
 
-   delete pcg_;
-   delete diagScale_;
+   // delete pcg_;
+   // delete diagScale_;
 
-   delete M1Eps_;
+   // delete M1Eps_;
+   delete M1Losses_;
    delete M2MuInv_;
 
-   delete hCurlMassEps_;
+   // delete hCurlMassEps_;
    delete hDivMassMuInv_;
+   delete hCurlLosses_;
    delete weakCurlMuInv_;
 
    delete HCurlFESpace_;
    delete HDivFESpace_;
 
-   map<string,socketstream*>::iterator mit;
-   for (mit=socks_.begin(); mit!=socks_.end(); mit++)
+   map<int, ParBilinearForm*>::iterator mit1;
+   for (mit1=a1_.begin(); mit1!=a1_.end(); mit1++)
    {
-      delete mit->second;
+      int i = mit1->first;
+      delete pcg_[i];
+      delete diagScale_[i];
+      delete A1_[i];
+      delete a1_[i];
+   }
+
+   map<int, Coefficient*>::iterator mit2;
+   for (mit2=dtCoef_.begin(); mit2!=dtCoef_.end(); mit2++)
+   {
+      delete mit2->second;
+   }
+   for (mit2=dtSigmaCoef_.begin(); mit2!=dtSigmaCoef_.end(); mit2++)
+   {
+      delete mit2->second;
+   }
+   for (mit2=dtEtaInvCoef_.begin(); mit2!=dtEtaInvCoef_.end(); mit2++)
+   {
+      delete mit2->second;
+   }
+
+   map<string, socketstream*>::iterator mit3;
+   for (mit3=socks_.begin(); mit3!=socks_.end(); mit3++)
+   {
+      delete mit3->second;
    }
 }
 
@@ -308,7 +429,7 @@ MaxwellSolver::PrintSizes()
 {
    HYPRE_Int size_nd = HCurlFESpace_->GlobalTrueVSize();
    HYPRE_Int size_rt = HDivFESpace_->GlobalTrueVSize();
-   if (myid_ == 0)
+   if ( myid_ == 0 )
    {
       cout << "Number of H(Curl) unknowns: " << size_nd << endl;
       cout << "Number of H(Div)  unknowns: " << size_rt << endl << flush;
@@ -332,7 +453,67 @@ MaxwellSolver::SetInitialBField(VectorCoefficient & BFieldCoef)
 }
 
 void
-MaxwellSolver::Mult(const Vector &B, Vector &dE) const
+MaxwellSolver::Mult(const Vector &B, Vector &dEdt) const
+{
+   implicitSolve(0.0, B, dEdt);
+}
+
+void
+MaxwellSolver::ImplicitSolve(double dt, const Vector &B, Vector &dEdt)
+{
+   implicitSolve(dt, B, dEdt);
+}
+
+void
+MaxwellSolver::setupSolver(const int idt, const double dt) const
+{
+   if ( pcg_.find(idt) == pcg_.end() )
+   {
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "Creating implicit operator for dt = " << dt << endl;
+      }
+
+      a1_[idt] = new ParBilinearForm(HCurlFESpace_);
+      a1_[idt]->AddDomainIntegrator(
+         new VectorFEMassIntegrator(epsCoef_));
+
+      if ( idt != 0 )
+      {
+         dtCoef_[idt] = new ConstantCoefficient(0.5 * dt);
+         if ( sigmaCoef_ )
+         {
+            dtSigmaCoef_[idt] = new TransformedCoefficient(dtCoef_[idt],
+                                                           sigmaCoef_,
+                                                           prodFunc);
+            a1_[idt]->AddDomainIntegrator(
+               new VectorFEMassIntegrator(dtSigmaCoef_[idt]));
+         }
+         if ( etaInvCoef_ && abcs_ )
+         {
+            dtEtaInvCoef_[idt] = new TransformedCoefficient(dtCoef_[idt],
+							    etaInvCoef_,
+							    prodFunc);
+            a1_[idt]->AddBoundaryIntegrator(
+               new VectorFEMassIntegrator(dtEtaInvCoef_[idt]), *abcs_);
+         }
+      }
+
+      a1_[idt]->Assemble();
+      a1_[idt]->Finalize();
+      A1_[idt] = a1_[idt]->ParallelAssemble();
+
+      diagScale_[idt] = new HypreDiagScale(*A1_[idt]);
+      pcg_[idt] = new HyprePCG(*A1_[idt]);
+      pcg_[idt]->SetTol(1.0e-12);
+      pcg_[idt]->SetMaxIter(200);
+      pcg_[idt]->SetPrintLevel(0);
+      pcg_[idt]->SetPreconditioner(*diagScale_[idt]);
+   }
+}
+
+void
+MaxwellSolver::implicitSolve(double dt, const Vector &B, Vector &dEdt) const
 {
    // cout << "MaxwellSolver::Mult 0" << endl;
    // M2MuInv_->Mult(B,*HD_);
@@ -340,9 +521,16 @@ MaxwellSolver::Mult(const Vector &B, Vector &dE) const
    // NegCurl_->MultTranspose(*HD_,*RHS_,-1.0,0.0);
    // cout << "MaxwellSolver::Mult 2" << endl;
    //WeakCurlMuInv_->Mult(B,*RHS_);
+   int idt = hCurlLosses_ ? ((int)(dtScale_ * dt / dtMax_)) : 0;
 
-   *b_ = B;
-   weakCurlMuInv_->Mult(*b_,*rhs_);
+   b_->Distribute(B);
+   weakCurlMuInv_->Mult(*b_, *rhs_);
+
+   if ( hCurlLosses_ )
+   {
+      e_->Distribute(*E_);
+      hCurlLosses_->AddMult(*e_, *rhs_, -1.0);
+   }
 
    if ( jd_ )
    {
@@ -355,10 +543,11 @@ MaxwellSolver::Mult(const Vector &B, Vector &dE) const
 
    if ( dEdtBCCoef_ && dbcs_ )
    {
-      de_->ProjectBdrCoefficientTangent(*dEdtBCCoef_,*dbcs_);
+      dedt_->ProjectBdrCoefficientTangent(*dEdtBCCoef_,*dbcs_);
    }
 
-   hCurlMassEps_->FormLinearSystem(dbc_dofs_,*de_,*rhs_,*M1Eps_,dE,*RHS_);
+   // hCurlMassEps_->FormLinearSystem(dbc_dofs_,*dedt_,*rhs_,*M1Eps_,dEdt,*RHS_);
+   // rhs_->ParallelAssemble(*RHS_);
    /*
    if (diagScale_ == NULL)
    {
@@ -373,7 +562,13 @@ MaxwellSolver::Mult(const Vector &B, Vector &dE) const
      pcg_->SetPreconditioner(*diagScale_);
    }
    */
-   pcg_->Mult(*RHS_,dE);
+   setupSolver(idt, dt);
+
+   a1_[idt]->FormLinearSystem(dbc_dofs_, *dedt_, *rhs_, *A1_[idt], dEdt, *RHS_);
+   pcg_[idt]->Mult(*RHS_, dEdt);
+   a1_[idt]->RecoverFEMSolution(dEdt, *rhs_, *dedt_);
+
+   // pcg_[idt]->Mult(*RHS_,dEdt);
    // hCurlMassEps_->ReconverFEMSolution(dE,*rhs_,*de_);
 
    // cout << "MaxwellSolver::Mult 3" << endl;
@@ -389,6 +584,11 @@ MaxwellSolver::SyncGridFuncs()
 double
 MaxwellSolver::GetMaximumTimeStep() const
 {
+   if ( dtMax_ > 0.0 )
+   {
+      return dtMax_;
+   }
+
    HypreParVector * v0 = new HypreParVector(HCurlFESpace_);
    HypreParVector * v1 = new HypreParVector(HCurlFESpace_);
    HypreParVector * u0 = new HypreParVector(HDivFESpace_);
@@ -399,6 +599,26 @@ MaxwellSolver::GetMaximumTimeStep() const
    int iter = 0, nstep = 20;
    double dt0 = 1.0, dt1 = 1.0, change = 1.0, ptol = 0.001;
 
+   // Create Solver
+   setupSolver(0, 0.0);
+   A1_[0]->Print("M1.mat");
+   /*
+   if ( pcg_.find(0) == pcg_.end() )
+   {
+      a1_[0] = new ParBilinearForm(HCurlFESpace_);
+      a1_[0]->AddDomainIntegrator(new VectorFEMassIntegrator(epsCoef_));
+      a1_[0]->Assemble();
+      a1_[0]->Finalize();
+      A1_[0] = a1_[0]->ParallelAssemble();
+
+      diagScale_[0] = new HypreDiagScale(*A1_[0]);
+      pcg_[0] = new HyprePCG(*A1_[0]);
+      pcg_[0]->SetTol(1.0e-12);
+      pcg_[0]->SetMaxIter(200);
+      pcg_[0]->SetPrintLevel(0);
+      pcg_[0]->SetPreconditioner(*diagScale_[0]);
+   }
+   */
    while ( iter < nstep && change > ptol )
    {
       double normV0 = InnerProduct(*v0,*v0);
@@ -408,14 +628,14 @@ MaxwellSolver::GetMaximumTimeStep() const
       M2MuInv_->Mult(*u0,*HD_);
       NegCurl_->MultTranspose(*HD_,*RHS_);
 
-      pcg_->Mult(*RHS_,*v1);
+      pcg_[0]->Mult(*RHS_,*v1);
 
       double lambda = InnerProduct(*v0,*v1);
       dt1 = 2.0/sqrt(lambda);
       change = fabs((dt1-dt0)/dt0);
       dt0 = dt1;
 
-      if ( myid_ == 0 )
+      if ( myid_ == 0 && logging_ > 0 )
       {
          cout << iter << ":  " << dt0 << " " << change << endl;
       }
@@ -439,7 +659,8 @@ MaxwellSolver::GetEnergy() const
 {
    double energy = 0.0;
 
-   M1Eps_->Mult(*E_,*RHS_);
+   // M1Eps_->Mult(*E_,*RHS_);
+   A1_[0]->Mult(*E_,*RHS_);
    M2MuInv_->Mult(*B_,*HD_);
 
    energy = InnerProduct(*E_,*RHS_) + InnerProduct(*B_,*HD_);
@@ -484,7 +705,8 @@ MaxwellSolver::WriteVisItFields(int it)
 void
 MaxwellSolver::InitializeGLVis()
 {
-   if ( myid_ == 0 ) { cout << "Opening GLVis sockets." << endl << flush; }
+   if ( myid_ == 0 && logging_ > 0 )
+   { cout << "Opening GLVis sockets." << endl << flush; }
 
    socks_["E"] = new socketstream;
    socks_["E"]->precision(8);
@@ -498,13 +720,15 @@ MaxwellSolver::InitializeGLVis()
       socks_["J"]->precision(8);
    }
 
-   if ( myid_ == 0 ) { cout << "GLVis sockets open." << endl << flush; }
+   if ( myid_ == 0 && logging_ > 0 )
+   { cout << "GLVis sockets open." << endl << flush; }
 }
 
 void
 MaxwellSolver::DisplayToGLVis()
 {
-   if (myid_ == 0) { cout << "Sending data to GLVis ..." << flush; }
+   if ( myid_ == 0 && logging_ > 1 )
+   { cout << "Sending data to GLVis ..." << flush; }
 
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -531,7 +755,7 @@ MaxwellSolver::DisplayToGLVis()
       VisualizeField(*socks_["J"], vishost, visport,
                      *j_, "Current Density (J)", Wx, Wy, Ww, Wh);
    }
-   if (myid_ == 0) { cout << " " << flush; }
+   if ( myid_ == 0 && logging_ > 1 ) { cout << " " << flush; }
 }
 
 /// Returns the largest number less than or equal to dt which is of the form
