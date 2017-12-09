@@ -7,11 +7,20 @@
 //
 //   By default the sources and fields are all zero
 //     mpirun -np 4 maxwell
-//     mpirun -np 4 maxwell -cs '0.3 0.0 -0.3 0.3 0.0 0.3 .2 1 3e8'
+//     mpirun -np 4 maxwell -m ../../data/ball-nurbs.mesh -rs 2
+//                          -abcs '-1'
+//                          -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
+//                          -cs '0.0 0.0 -0.5 .2 10'
+//                          -ds '0.0 0.0 0.5 .2 10'
 //
-// -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
-// -cs '0.0 0.0 -0.5 .2 100'
-// -ds '0.0 0.0 0.5 .2 10'
+//     mpirun -np 4 maxwell -m ../../data/fichera.mesh -rs 3
+//                          -ts 0.25 -tf 10 -dbcs '-1'
+//                          -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
+//
+//     mpirun -np 4 maxwell -m ../../data/fichera.mesh -rs 3
+//                          -ts 0.25 -tf 10
+//                           -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
+//                          -dbcs '4 8 19 21' -abcs '5 18'
 //
 // Description:
 //               This mini app solves a simple 3D full-wave
