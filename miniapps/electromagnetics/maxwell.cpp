@@ -9,8 +9,12 @@
 //     mpirun -np 4 maxwell
 //     mpirun -np 4 maxwell -cs '0.3 0.0 -0.3 0.3 0.0 0.3 .2 1 3e8'
 //
+// -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
+// -cs '0.0 0.0 -0.5 .2 100'
+// -ds '0.0 0.0 0.5 .2 10'
+//
 // Description:
-//               This mini app solves a simple 2D or 3D full-wave
+//               This mini app solves a simple 3D full-wave
 //               electromagnetic problem.
 //
 
@@ -39,25 +43,26 @@ double magnetic_shell(const Vector &);
 double muInv(const Vector & x) { return 1.0/magnetic_shell(x); }
 
 // Conductivity Function
-//static Vector cs_params_(0);  // Center, Radius, and Conductivity
+static Vector cs_params_(0);  // Center, Radius, and Conductivity
 //                               of conductive sphere
-//double conductive_sphere(const Vector &);
+double conductive_sphere(const Vector &);
+double sigma(const Vector &x) { return conductive_sphere(x); }
 
 // Polarization
-static Vector vp_params_(0);  // Axis Start, Axis End, Cylinder Radius,
+//static Vector vp_params_(0);  // Axis Start, Axis End, Cylinder Radius,
 //                               Polarization Magnitude, and Frequency
-void voltaic_pile(const Vector &, double t, Vector &);
+//void voltaic_pile(const Vector &, double t, Vector &);
 
 // Current Density Function
-static Vector cr_params_(0);  // Axis Start, Axis End, Inner Ring Radius,
+//static Vector cr_params_(0);  // Axis Start, Axis End, Inner Ring Radius,
 //                               Outer Ring Radius, Total Current of
 //                               current ring (annulus), and Frequency
 //void current_ring(const Vector &, double t, Vector &);
 
 // Current Density Function
-static Vector cs_params_(0);  // Axis Start, Axis End, Rod Radius,
+static Vector dp_params_(0);  // Axis Start, Axis End, Rod Radius,
 //                               Total Current of Rod, and Frequency
-void dipole_current(const Vector &x, double t, Vector &j);
+void dipole_pulse(const Vector &x, double t, Vector &j);
 /*
 void current_src(const Vector &x, double t, Vector &j)
 {
@@ -88,6 +93,7 @@ double phi_bc_uniform(const Vector &);
 */
 void dEdtBCFunc(const Vector &x, double t, Vector &E);
 
+static double tScale_ = 1e-9;
 static double freq_ = 750.0e6;
 static int prob_ = 0;
 /*
@@ -119,8 +125,11 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool visit = true;
    double dt = 1.0e-12;
-   double tmax = 40.0;
+   double t0 = 0.0;
+   double ts = 1.0;
+   double tf = 40.0;
 
+   Array<int> abcs;
    Array<int> dbcs;
    /*
    Array<int> nbcs;
@@ -149,8 +158,12 @@ int main(int argc, char *argv[])
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step size.");
    */
-   args.AddOption(&tmax, "-t", "--time-interval",
-                  "Time interval to simulate (ns).");
+   args.AddOption(&t0, "-t0", "--initial-time",
+                  "Beginning of time interval to simulate (ns).");
+   args.AddOption(&tf, "-tf", "--final-time",
+                  "End of time interval to simulate (ns).");
+   args.AddOption(&ts, "-ts", "--snapshot-time",
+                  "Time between snapshots (ns).");
    args.AddOption(&freq_, "-f", "--frequency",
                   "Frequency.");
 
@@ -162,16 +175,20 @@ int main(int argc, char *argv[])
                   "Center, Radius, and Permittivity of Dielectric Sphere");
    args.AddOption(&ms_params_, "-ms", "--magnetic-shell-params",
                   "Center, Inner Radius, Outer Radius, and Permeability of Magnetic Shell");
-   args.AddOption(&vp_params_, "-vp", "--voltaic-pile-params",
-                  "Axis End Points, Radius, and Polarization of Cylindrical Voltaic Pile");
-   args.AddOption(&cr_params_, "-cr", "--current-ring-params",
-                  "Axis End Points, Inner Radius, Outer Radius, Total Current of Annulus, and the Frequency of Oscillation");
-   args.AddOption(&cs_params_, "-cs", "--current-source-params",
+   args.AddOption(&cs_params_, "-cs", "--conductive-sphere-params",
+                  "Center, Radius, and Conductivity of Conductive Sphere");
+   //   args.AddOption(&vp_params_, "-vp", "--voltaic-pile-params",
+   //               "Axis End Points, Radius, and Polarization of Cylindrical Voltaic Pile");
+   // args.AddOption(&cr_params_, "-cr", "--current-ring-params",
+   //               "Axis End Points, Inner Radius, Outer Radius, Total Current of Annulus, and the Frequency of Oscillation");
+   args.AddOption(&dp_params_, "-dp", "--dipole-pulse-params",
                   "Axis End Points, Radius, Total Current, and the Frequency of Oscillation");
    /*
    args.AddOption(&cs_params_, "-cs", "--charged-sphere-params",
                   "Center, Radius, and Total Charge of Charged Sphere");
    */
+   args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
+                  "Absorbing Boundary Condition Surfaces");
    args.AddOption(&dbcs, "-dbcs", "--dirichlet-bc-surf",
                   "Dirichlet Boundary Condition Surfaces");
    /*
@@ -225,6 +242,7 @@ int main(int argc, char *argv[])
 
    // int sdim = mesh->SpaceDimension();
    // int dim = mesh->Dimension();
+   mesh->SetCurvature(2);
 
    // Refine the serial mesh on all processors to increase the resolution. In
    // this example we do 'ref_levels' of uniform refinement.
@@ -235,7 +253,7 @@ int main(int argc, char *argv[])
          mesh->UniformRefinement();
       }
    }
-   mesh->EnsureNCMesh();
+   // mesh->EnsureNCMesh();
 
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
    // this mesh further in parallel to increase the resolution. Once the
@@ -249,6 +267,7 @@ int main(int argc, char *argv[])
    {
       pmesh.UniformRefinement();
    }
+
    /*
    // If the gradient bc was selected but the E field was not specified
    // set a default vector value.
@@ -372,13 +391,15 @@ int main(int argc, char *argv[])
       }
    }
    */
+   // lossy = abcs.Size() > 0 || cs_params_.Size() > 0;
+
    // Create the Electromagnetic solver
    MaxwellSolver Maxwell(pmesh, sOrder,
                          ( ds_params_.Size() > 0 ) ? epsilon     : NULL,
                          ( ms_params_.Size() > 0 ) ? muInv       : NULL,
-                         ( vp_params_.Size() > 0 ) ||
-                         ( cs_params_.Size() > 0 ) ? dipole_current : NULL,
-                         dbcs,
+                         ( cs_params_.Size() > 0 ) ? sigma       : NULL,
+                         ( dp_params_.Size() > 0 ) ? dipole_pulse : NULL,
+                         abcs, dbcs,
                          (       dbcs.Size() > 0 ) ? dEdtBCFunc  : NULL
                         );
 
@@ -394,19 +415,22 @@ int main(int argc, char *argv[])
    double energy = Maxwell.GetEnergy();
    if ( mpi.Root() )
    {
-      cout << "Energy:  " << energy << endl;
+     cout << "Energy(" << t0 << "ns):  " << energy << "J" << endl;
    }
 
    double dtmax = Maxwell.GetMaximumTimeStep();
 
-   tmax *= 1e-9; // Convert from nanoseconds to seconds
+   // Convert times from nanoseconds to seconds
+   t0 *= tScale_;
+   tf *= tScale_;
+   ts *= tScale_;
 
    if ( mpi.Root() )
    {
       cout << "Maximum Time Step:  " << dtmax << endl;
    }
 
-   int nsteps = SnapTimeStep(tmax, dtmax, dt);
+   int nsteps = SnapTimeStep(tf-t0, dtmax, dt);
 
    if ( nsteps > max_its )
    {
@@ -420,11 +444,12 @@ int main(int argc, char *argv[])
    if ( mpi.Root() )
    {
       cout << "Number of Time Steps:  " << nsteps << endl;
-      cout << "Time Step Size:        " << dt << endl;
+      cout << "Time Step Size (ns):        " << dt/tScale_ << endl;
    }
 
    SIAVSolver siaSolver(tOrder);
    siaSolver.Init(Maxwell.GetNegCurl(), Maxwell);
+
 
    // Initialize GLVis visualization
    if (visualization)
@@ -435,7 +460,7 @@ int main(int argc, char *argv[])
    // Initialize VisIt visualization
    VisItDataCollection visit_dc("Maxwell-Parallel", &pmesh);
 
-   double t = 0.0;
+   double t = t0;
    Maxwell.SetTime(t);
 
    if ( visit )
@@ -456,42 +481,36 @@ int main(int argc, char *argv[])
    }
 
    // The main time evolution loop.
-   for (int it = 1; it <= nsteps; it++)
+   while (t < tf)
    {
       // Compute the next time step.
       // Maxwell.Solve();
       // cout << "siSolver.Step" << endl;
-      siaSolver.Step(Maxwell.GetBField(),Maxwell.GetEField(),t,dt);
+      siaSolver.Run(Maxwell.GetBField(), Maxwell.GetEField(), t, dt, t + ts);
 
-      Maxwell.SetTime(t);
+      // Maxwell.SetTime(t);
 
       energy = Maxwell.GetEnergy();
       if ( mpi.Root() )
       {
-         cout << "Energy:  " << energy << endl;
+ 	 cout << "Energy(" << t/tScale_ << "ns):  " << energy << "J" << endl;
       }
 
-      if ( it % 10 == 0 )
+      // cout << "Maxwell.Sync" << endl;
+      Maxwell.SyncGridFuncs();
+
+      // Write fields to disk for VisIt
+      if ( visit )
       {
-         // cout << "Maxwell.Sync" << endl;
-         Maxwell.SyncGridFuncs();
+         // cout << "Maxwell.WriteVisIt" << endl;
+         Maxwell.WriteVisItFields((int)( (t - t0) / ts ) );
+      }
 
-         // Write fields to disk for VisIt
-         if ( visit )
-         {
-            // cout << "Maxwell.WriteVisIt" << endl;
-            Maxwell.WriteVisItFields(it);
-         }
-
-         // Send the solution by socket to a GLVis server.
-         if (visualization)
-         {
-            if ( mpi.Root() )
-            {
-               cout << "Maxwell.DisplayGLVis" << endl;
-            }
-            Maxwell.DisplayToGLVis();
-         }
+      // Send the solution by socket to a GLVis server.
+      if (visualization)
+      {
+         // cout << "Maxwell.DisplayGLVis" << endl;
+         Maxwell.DisplayToGLVis();
       }
    }
 
@@ -501,14 +520,6 @@ int main(int argc, char *argv[])
 // Print the Maxwell ascii logo to the given ostream
 void display_banner(ostream & os)
 {
-   /*
-    os << "   _____                                .__  .__   " << endl
-       << "  /     \ _____  ___  _____  _  __ ____ |  | |  |  " << endl
-       << " /  \ /  \\__  \ \  \/  /\ \/ \/ // __ \|  | |  |  " << endl
-       << "/    Y    \/ __ \_>    <  \     /\  ___/|  |_|  |__" << endl
-       << "\____|__  (____  /__/\_ \  \/\_/  \___  >____/____/" << endl
-       << "        \/     \/      \/             \/           " << endl << flush;
-   */
    os << "     ___    ____                                      " << endl
       << "    /   |  /   /                           __   __    " << endl
       << "   /    |_/ _ /__  ___  _____  _  __ ____ |  | |  |   " << endl
@@ -559,6 +570,25 @@ double magnetic_shell(const Vector &x)
    return mu0_;
 }
 
+// A sphere with constant conductivity.  The sphere has a radius,
+// center, and conductivity specified on the command line and stored
+// in ls_params_.
+double conductive_sphere(const Vector &x)
+{
+   double r2 = 0.0;
+
+   for (int i=0; i<x.Size(); i++)
+   {
+      r2 += (x(i)-cs_params_(i))*(x(i)-cs_params_(i));
+   }
+
+   if ( sqrt(r2) <= cs_params_(x.Size()) )
+   {
+      return cs_params_(x.Size()+1);
+   }
+   return 0.0;
+}
+
 // A sphere with constant charge density.  The sphere has a radius,
 // center, and total charge specified on the command line and stored
 // in cs_params_.
@@ -594,96 +624,53 @@ double charged_sphere(const Vector &x)
    return 0.0;
 }
 
-// A Cylindrical Rod of constant polarization.  The cylinder has two
-// axis end points, a radius, and a constant electric polarization oriented
-// along the axis.
-void voltaic_pile(const Vector &x, double t, Vector &p)
-{
-   p.SetSize(x.Size());
-   p = 0.0;
-
-   Vector  a(x.Size());  // Normalized Axis vector
-   Vector xu(x.Size());  // x vector relative to the axis end-point
-
-   xu = x;
-
-   for (int i=0; i<x.Size(); i++)
-   {
-      xu[i] -= vp_params_[i];
-      a[i]   = vp_params_[x.Size()+i] - vp_params_[i];
-   }
-
-   double h = a.Norml2();
-
-   if ( h == 0.0 )
-   {
-      return;
-   }
-
-   double  r = vp_params_[2*x.Size()];
-   double xa = xu*a;
-
-   if ( h > 0.0 )
-   {
-      xu.Add(-xa/(h*h),a);
-   }
-
-   double xp = xu.Norml2();
-
-   if ( xa >= 0.0 && xa <= h*h && xp <= r )
-   {
-      p.Add(vp_params_[2*x.Size()+1]/h,a);
-   }
-
-   p *= sin(2.0 * M_PI * vp_params_[2*x.Size()+2] * t);
-}
-
 // A cylindrical rod of current density.  The rod has two axis end
 // points, a radus, a current amplitude in Amperes, and a frequency.
-void dipole_current(const Vector &x, double t, Vector &j)
+void dipole_pulse(const Vector &x, double t, Vector &j)
 {
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
 
    j.SetSize(x.Size());
    j = 0.0;
 
-   Vector  a(x.Size());  // Normalized Axis vector
+   Vector  v(x.Size());  // Normalized Axis vector
    Vector xu(x.Size());  // x vector relative to the axis end-point
 
    xu = x;
 
    for (int i=0; i<x.Size(); i++)
    {
-      xu[i] -= cs_params_[i];
-      a[i]   = cs_params_[x.Size()+i] - cs_params_[i];
+      xu[i] -= dp_params_[i];
+      v[i]   = dp_params_[x.Size()+i] - dp_params_[i];
    }
 
-   double h = a.Norml2();
+   double h = v.Norml2();
 
    if ( h == 0.0 )
    {
       return;
    }
 
-   double r = cs_params_[2*x.Size()+0];
-   double amp = cs_params_[2*x.Size()+1];
-   double freq = cs_params_[2*x.Size()+2];
+   double r = dp_params_[2*x.Size()+0];
+   double a = dp_params_[2*x.Size()+1];
+   double b = dp_params_[2*x.Size()+2] * tScale_;
+   double c = dp_params_[2*x.Size()+3] * tScale_;
 
-   double xa = xu*a;
+   double xv = xu * v;
 
    if ( h > 0.0 )
    {
-      xu.Add(-xa/(h*h),a);
+      xu.Add(-xv/(h*h), v);
    }
 
    double xp = xu.Norml2();
 
-   if ( xa >= 0.0 && xa <= h*h && xp <= r )
+   if ( xv >= 0.0 && xv <= h*h && xp <= r )
    {
-      j.Add(amp/(h*M_PI*r*r), a);
+      j.Add(1.0/(h*M_PI*r*r), v);
    }
 
-   j *= sin(2.0 * M_PI * freq * t);
+   j *= a * (t - b) * exp(-0.5 * pow((t-b)/c, 2)) / (c * c);
 }
 /*
 // To produce a uniform electric field the potential can be set
