@@ -45,21 +45,23 @@ static void BuildDofMaps(FiniteElementSpace *fespace, Array<int> *&off,
    {
       const FiniteElement *fe = fespace->GetFE(e);
       const int dofs = fe->GetDof();
-      const int vdofs = dofs * vdim;
       const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement *>(fe);
       const Array<int> &dof_map = tfe->GetDofMap();
 
       fespace->GetElementVDofs(e, elem_vdof);
 
       for (int vd = 0; vd < vdim; vd++)
-         for (int i = 0; i < vdofs; i++)
+         for (int i = 0; i < dofs; i++)
          {
             global_map[offset + dofs*vd + i] = elem_vdof[dofs*vd + dof_map[i]];
          }
-      offset += vdofs;
+      offset += dofs * vdim;
    }
 
-   // Store and use a set of offsets and indices instead of this map
+   // global_map[i] = index in global vector for local dof i
+   // NOTE: multiple i values will yield same global_map[i] for shared DOF.
+
+   // We want to now invert this map so we have indices[j] = (local dof for global dof j).
 
    // Zero the offset vector
    offsets = 0;
@@ -202,7 +204,7 @@ void BilinearFormOperator::Clear()
 }
 
 void BilinearFormOperator::Init(FiniteElementSpace *_trial_fes,
-                           FiniteElementSpace *_test_fes)
+                                FiniteElementSpace *_test_fes)
 {
    if ((_trial_fes != trial_fes) || (_test_fes != test_fes))
    {
