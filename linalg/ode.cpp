@@ -560,7 +560,7 @@ SIAVSolver::SIAVSolver(int order)
          b_[3] = b_[1];
          break;
       default:
-         MFEM_ASSERT(false, "Unsupported order in SInSolver");
+         MFEM_ASSERT(false, "Unsupported order in SIAVSolver");
    };
 }
 
@@ -572,14 +572,21 @@ SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
       if ( b_[i] != 0.0 )
       {
          F_->SetTime(t);
-         F_->Mult(q,dp_);
-         p.Add(b_[i]*dt,dp_);
+         if ( F_->isExplicit() )
+         {
+            F_->Mult(q, dp_);
+         }
+         else
+         {
+            F_->ImplicitSolve(b_[i] * dt, q, dp_);
+         }
+         p.Add(b_[i] * dt, dp_);
       }
 
-      P_->Mult(p,dq_);
-      q.Add(a_[i]*dt,dq_);
+      P_->Mult(p, dq_);
+      q.Add(a_[i] * dt, dq_);
 
-      t += a_[i]*dt;
+      t += a_[i] * dt;
    }
 }
 
