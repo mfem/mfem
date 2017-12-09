@@ -77,8 +77,6 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
      muInv_(muInv),
      sigma_(sigma),
      j_src_(j_src),
-     abcs_(&abcs),
-     dbcs_(&dbcs),
      dEdt_bc_(dEdt_bc),
      dtMax_(-1.0),
      dtScale_(1.0e6)
@@ -98,7 +96,7 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    this->width  = HDivFESpace_->GlobalTrueVSize();
 
    // Check for absorbing materials or boundaries
-   lossy_ = abcs_->Size() > 0 || sigma_ != NULL;
+   lossy_ = abcs.Size() > 0 || sigma_ != NULL;
 
    type = lossy_ ? IMPLICIT : EXPLICIT;
 
@@ -141,12 +139,20 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    }
 
    // Impedance of free space
-   if ( abcs_->Size() > 0 )
+   if ( abcs.Size() > 0 )
    {
       if ( myid_ == 0 && logging_ > 0 )
       {
          cout << "Creating Admittance Coefficient" << endl;
       }
+
+      abc_marker_.SetSize(pmesh.bdr_attributes.Max());
+      abc_marker_ = 0;
+      for (int i=0; i<abcs.Size(); i++)
+      {
+         abc_marker_[abcs[i]-1] = 1;
+      }
+
       // etaCoef_ = new ConstantCoefficient(sqrt(mu0_/epsilon0_));
       etaInvCoef_ = new ConstantCoefficient(sqrt(epsilon0_/mu0_));
    }
@@ -158,7 +164,14 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
       {
          cout << "Configuring Dirichlet BC" << endl;
       }
-      HCurlFESpace_->GetEssentialTrueDofs(dbcs, dbc_dofs_);
+      dbc_marker_.SetSize(pmesh.bdr_attributes.Max());
+      dbc_marker_ = 0;
+      for (int i=0; i<dbcs.Size(); i++)
+      {
+         dbc_marker_[dbcs[i]-1] = 1;
+      }
+
+      HCurlFESpace_->GetEssentialTrueDofs(dbc_marker_, dbc_dofs_);
 
       if ( dEdt_bc_ != NULL )
       {
@@ -215,23 +228,18 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
          hCurlLosses_->AddDomainIntegrator(
             new VectorFEMassIntegrator(*sigmaCoef_));
       }
-      if ( etaInvCoef_ && abcs_ )
+      if ( etaInvCoef_ )
       {
          if ( myid_ == 0 && logging_ > 0 )
          {
             cout << "Adding boundary integrator for absorbing boundary" << endl;
          }
          hCurlLosses_->AddBoundaryIntegrator(
-            new VectorFEMassIntegrator(*etaInvCoef_), *abcs_);
+            new VectorFEMassIntegrator(*etaInvCoef_), abc_marker_);
       }
       hCurlLosses_->Assemble();
       hCurlLosses_->Finalize();
       M1Losses_ = hCurlLosses_->ParallelAssemble();
-      {
-	//ofstream ofs("M1L.mat");
-	M1Losses_->Print("M1L.mat");
-	//ofs.close();
-      }
    }
 
    // Create Linear Algebra Matrices
@@ -489,13 +497,14 @@ MaxwellSolver::setupSolver(const int idt, const double dt) const
             a1_[idt]->AddDomainIntegrator(
                new VectorFEMassIntegrator(dtSigmaCoef_[idt]));
          }
-         if ( etaInvCoef_ && abcs_ )
+         if ( etaInvCoef_ )
          {
             dtEtaInvCoef_[idt] = new TransformedCoefficient(dtCoef_[idt],
-							    etaInvCoef_,
-							    prodFunc);
+                                                            etaInvCoef_,
+                                                            prodFunc);
             a1_[idt]->AddBoundaryIntegrator(
-               new VectorFEMassIntegrator(dtEtaInvCoef_[idt]), *abcs_);
+               new VectorFEMassIntegrator(dtEtaInvCoef_[idt]),
+               const_cast<Array<int>&>(abc_marker_));
          }
       }
 
@@ -541,9 +550,10 @@ MaxwellSolver::implicitSolve(double dt, const Vector &B, Vector &dEdt) const
       *rhs_ -= *jd_;
    }
 
-   if ( dEdtBCCoef_ && dbcs_ )
+   if ( dEdtBCCoef_ )
    {
-      dedt_->ProjectBdrCoefficientTangent(*dEdtBCCoef_,*dbcs_);
+      dedt_->ProjectBdrCoefficientTangent(*dEdtBCCoef_,
+                                          const_cast<Array<int>&>(dbc_marker_));
    }
 
    // hCurlMassEps_->FormLinearSystem(dbc_dofs_,*dedt_,*rhs_,*M1Eps_,dEdt,*RHS_);
@@ -601,7 +611,6 @@ MaxwellSolver::GetMaximumTimeStep() const
 
    // Create Solver
    setupSolver(0, 0.0);
-   A1_[0]->Print("M1.mat");
    /*
    if ( pcg_.find(0) == pcg_.end() )
    {

@@ -158,9 +158,9 @@ private:
    double (*sigma_  )(const Vector&);
    void   (*j_src_  )(const Vector&, double, Vector&);
 
-   Array<int> * abcs_;
+   Array<int> abc_marker_;
 
-   Array<int> * dbcs_;
+   Array<int> dbc_marker_;
    void   (*dEdt_bc_)(const Vector&, double, Vector&);
 
    Array<int>   dbc_dofs_;
