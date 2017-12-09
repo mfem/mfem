@@ -308,6 +308,11 @@ public:
 
    virtual void Step(Vector &q, Vector &p, double &t, double &dt) = 0;
 
+   virtual void Run(Vector &q, Vector &p, double &t, double &dt, double tf)
+   {
+      while (t < tf) { Step(q, p, t, dt); }
+   }
+
    virtual ~SIASolver() {}
 
 protected:
