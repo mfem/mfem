@@ -1924,12 +1924,12 @@ double DenseMatrix::CalcSingularvalue(const int i) const
          {
             if (R < 0.)
             {
-               R = -1.;
+               // R = -1.;
                r = 2*sqrtQ;
             }
             else
             {
-               R = 1.;
+               // R = 1.;
                r = -2*sqrtQ;
             }
          }
@@ -2142,12 +2142,12 @@ void DenseMatrix::CalcEigenvalues(double *lambda, double *vec) const
          {
             if (R < 0.)
             {
-               R = -1.;
+               // R = -1.;
                r = 2*sqrtQ;
             }
             else
             {
-               R = 1.;
+               // R = 1.;
                r = -2*sqrtQ;
             }
          }
