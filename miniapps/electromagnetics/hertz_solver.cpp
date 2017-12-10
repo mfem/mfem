@@ -68,11 +68,11 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order,
      jrCoef_(NULL),
      jiCoef_(NULL),
      // mCoef_(NULL),
-     visit_dc_(NULL),
      // a_bc_(a_bc),
      j_r_src_(j_r_src),
-     j_i_src_(j_i_src)//,
+     j_i_src_(j_i_src),
      // m_src_(m_src)
+     visit_dc_(NULL)
 {
    // Initialize MPI variables
    MPI_Comm_size(pmesh_->GetComm(), &num_procs_);
