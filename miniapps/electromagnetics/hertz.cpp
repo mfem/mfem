@@ -9,9 +9,9 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 //
-//            -----------------------------------------------------
-//            Hertz Miniapp:  Simple Magnetostatics Simulation Code
-//            -----------------------------------------------------
+//   -----------------------------------------------------------------------
+//   Hertz Miniapp:  Simple Frequency-Domain Electromagnetic Simulation Code
+//   -----------------------------------------------------------------------
 //
 
 #include "hertz_solver.hpp"
@@ -39,6 +39,16 @@ static Vector ms_params_(0);  // Center, Inner and Outer Radii, and
 //                               Permeability of magnetic shell
 double magnetic_shell(const Vector &);
 double magnetic_shell_inv(const Vector & x) { return 1.0/magnetic_shell(x); }
+
+// Conductivity Functions
+Coefficient * SetupConductivityCoefficient();
+
+static Vector pw_sigma_(0);   // Piecewise conductivity values
+static Vector cs_params_(0);  // Center, Radius, and Conductivity
+//                               of conductive sphere
+double conductive_sphere(const Vector &);
+
+static double freq_;
 
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
@@ -72,6 +82,8 @@ int main(int argc, char *argv[])
                   "Number of serial refinement levels.");
    args.AddOption(&parallel_ref_levels, "-rp", "--parallel-ref-levels",
                   "Number of parallel refinement levels.");
+   args.AddOption(&freq_, "-f", "--frequency",
+                  "Frequency in Hertz (of course...)");
    args.AddOption(&pw_eps_, "-pwe", "--piecewise-eps",
                   "Piecewise values of Permittivity");
    args.AddOption(&ds_params_, "-ds", "--dielectric-sphere-params",
@@ -79,7 +91,12 @@ int main(int argc, char *argv[])
    args.AddOption(&pw_mu_, "-pwm", "--piecewise-mu",
                   "Piecewise values of Permeability");
    args.AddOption(&ms_params_, "-ms", "--magnetic-shell-params",
-                  "Center, Inner Radius, Outer Radius, and Permeability of Magnetic Shell");
+                  "Center, Inner Radius, Outer Radius, "
+                  "and Permeability of Magnetic Shell");
+   args.AddOption(&pw_sigma_, "-pws", "--piecewise-sigma",
+                  "Piecewise values of Conductivity");
+   args.AddOption(&cs_params_, "-cs", "--conductive-sphere-params",
+                  "Center, Radius, and Conductivity of Conductive Sphere");
    /*
    args.AddOption(&dbcs, "-dbcs", "--dirichlet-bc-surf",
                   "Dirichlet Boundary Condition Surfaces");
@@ -184,12 +201,20 @@ int main(int argc, char *argv[])
    // Create a coefficient describing the magnetic permeability
    Coefficient * muInvCoef = SetupInvPermeabilityCoefficient();
 
+   // Create a coefficient describing the electrical conductivity
+   Coefficient * sigmaCoef = SetupConductivityCoefficient();
+
    // Create the Magnetostatic solver
-   HertzSolver Hertz(pmesh, order, kbcs, vbcs, vbcv, *epsCoef, *muInvCoef);
-                     //(b_uniform_.Size() > 0 ) ? a_bc_uniform  : NULL,
-                     //(cr_params_.Size() > 0 ) ? current_ring  : NULL,
-                     //(bm_params_.Size() > 0 ) ? bar_magnet    :
-                     //(ha_params_.Size() > 0 ) ? halbach_array : NULL);
+   HertzSolver Hertz(pmesh, order, kbcs, vbcs, vbcv,
+                     *epsCoef, *muInvCoef, sigmaCoef,
+		     NULL, NULL,
+		     NULL, NULL
+		     );
+
+   //(b_uniform_.Size() > 0 ) ? a_bc_uniform  : NULL,
+   //(cr_params_.Size() > 0 ) ? current_ring  : NULL,
+   //(bm_params_.Size() > 0 ) ? bar_magnet    :
+   //(ha_params_.Size() > 0 ) ? halbach_array : NULL);
 
    // Initialize GLVis visualization
    if (visualization)
@@ -307,31 +332,15 @@ int main(int argc, char *argv[])
 
    delete epsCoef;
    delete muInvCoef;
+   delete sigmaCoef;
 
    return 0;
 }
 
-// Print the Volta ascii logo to the given ostream
+// Print the Hertz ascii logo to the given ostream
 void display_banner(ostream & os)
 {
-  /*
-   os << "  _    _           _        " << endl
-      << " | |  | |         | |       " << endl
-      << " | |__| | ___ _ __| |_ ____ " << endl
-      << " |  __  |/ _ \\ '__| __|_  / " << endl
-      << " | |  | |  __/ |  | |_ / /  " << endl
-      << " |_|  |_|\\___|_|   \\__/___| " << endl
-      << "                            " << endl << flush;
-  */
-  /*
-   os << "  ___ ___                 __           " << endl 
-      << " /   |   \\   ____________/  |_________ " << endl
-      << "/    ~    \\_/ __ \\_  __ \\   __\\___   / " << endl
-      << "\\    Y    /\\  ___/|  | \\/|  |  /    /  " << endl
-      << " \\___|_  /  \\___  >__|   |__| /_____ \\ " << endl
-      << "       \\/       \\/                  \\/ " << endl << flush;
-  */
-   os << "     ____  ____              __           " << endl 
+   os << "     ____  ____              __           " << endl
       << "    /   / /   / ____________/  |_________ " << endl
       << "   /   /_/   /_/ __ \\_  __ \\   __\\___   / " << endl
       << "  /   __    / \\  ___/|  | \\/|  |  /   _/  " << endl
@@ -391,6 +400,25 @@ SetupInvPermeabilityCoefficient()
    return coef;
 }
 
+// The Conductivity is an optional coefficient which may be defined in
+// various ways so we'll determine the appropriate coefficient type here.
+Coefficient *
+SetupConductivityCoefficient()
+{
+   Coefficient * coef = NULL;
+
+   if ( cs_params_.Size() > 0 )
+   {
+      coef = new FunctionCoefficient(conductive_sphere);
+   }
+   else if ( pw_sigma_.Size() > 0 )
+   {
+      coef = new PWConstCoefficient(pw_sigma_);
+   }
+
+   return coef;
+}
+
 // A sphere with constant permittivity.  The sphere has a radius,
 // center, and permittivity specified on the command line and stored
 // in ds_params_.
@@ -428,4 +456,23 @@ double magnetic_shell(const Vector &x)
       return mu0_*ms_params_(x.Size()+2);
    }
    return mu0_;
+}
+
+// A sphere with constant conductivity.  The sphere has a radius,
+// center, and conductivity specified on the command line and stored
+// in ls_params_.
+double conductive_sphere(const Vector &x)
+{
+   double r2 = 0.0;
+
+   for (int i=0; i<x.Size(); i++)
+   {
+      r2 += (x(i)-cs_params_(i))*(x(i)-cs_params_(i));
+   }
+
+   if ( sqrt(r2) <= cs_params_(x.Size()) )
+   {
+      return cs_params_(x.Size()+1);
+   }
+   return 0.0;
 }
