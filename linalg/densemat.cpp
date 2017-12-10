@@ -484,7 +484,7 @@ double DenseMatrix::Det() const
          return lu_factors.Det();
       }
    }
-   return 0.0;
+   // return 0.0; // not reachable
 }
 
 double DenseMatrix::Weight() const
