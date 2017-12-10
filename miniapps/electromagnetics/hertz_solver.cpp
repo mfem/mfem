@@ -25,43 +25,54 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order,
                          Array<int> & kbcs,
                          Array<int> & vbcs, Vector & vbcv,
                          Coefficient & epsCoef,
-                         Coefficient & muInvCoef/*,
-                         void   (*a_bc )(const Vector&, Vector&),
-                         void   (*j_src)(const Vector&, Vector&),
-                         void   (*m_src)(const Vector&, Vector&)*/)
+                         Coefficient & muInvCoef,
+                         Coefficient * sigmaCoef,
+			 void   (*e_r_bc )(const Vector&, Vector&),
+			 void   (*e_i_bc )(const Vector&, Vector&),
+			 void   (*j_r_src)(const Vector&, Vector&),
+			 void   (*j_i_src)(const Vector&, Vector&))
    : myid_(0),
      num_procs_(1),
      order_(order),
+     logging_(1),
+     freq_(0.0),
      pmesh_(&pmesh),
-     visit_dc_(NULL),
-     H1FESpace_(NULL),
+     // H1FESpace_(NULL),
      HCurlFESpace_(NULL),
-     HDivFESpace_(NULL),
-     curlMuInvCurl_(NULL),
-     hCurlMass_(NULL),
-     hDivHCurlMuInv_(NULL),
-     weakCurlMuInv_(NULL),
-     grad_(NULL),
-     curl_(NULL),
-     a_(NULL),
-     b_(NULL),
-     h_(NULL),
-     jr_(NULL),
-     j_(NULL),
-     k_(NULL),
-     m_(NULL),
-     bd_(NULL),
-     jd_(NULL),
-     DivFreeProj_(NULL),
-     SurfCur_(NULL),
+     // HDivFESpace_(NULL),
+     // curlMuInvCurl_(NULL),
+     // hCurlMass_(NULL),
+     // hDivHCurlMuInv_(NULL),
+     // weakCurlMuInv_(NULL),
+     // grad_(NULL),
+     // curl_(NULL),
+     a1_(NULL),
+     e_r_(NULL),
+     e_i_(NULL),
+     // b_(NULL),
+     // h_(NULL),
+     j_r_(NULL),
+     j_i_(NULL),
+     jd_r_(NULL),
+     jd_i_(NULL),
+     // k_(NULL),
+     // m_(NULL),
+     // bd_(NULL),
+     // jd_(NULL),
+     // DivFreeProj_(NULL),
+     // SurfCur_(NULL),
      epsCoef_(&epsCoef),
      muInvCoef_(&muInvCoef),
-     aBCCoef_(NULL),
-     jCoef_(NULL),
-     mCoef_(NULL)/*,
-     a_bc_(a_bc),
-     j_src_(j_src),
-     m_src_(m_src)*/
+     sigmaCoef_(sigmaCoef),
+     // aBCCoef_(NULL),
+     jrCoef_(NULL),
+     jiCoef_(NULL),
+     // mCoef_(NULL),
+     visit_dc_(NULL),
+     // a_bc_(a_bc),
+     j_r_src_(j_r_src),
+     j_i_src_(j_i_src)//,
+     // m_src_(m_src)
 {
    // Initialize MPI variables
    MPI_Comm_size(pmesh_->GetComm(), &num_procs_);
@@ -70,15 +81,15 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order,
    // Define compatible parallel finite element spaces on the parallel
    // mesh. Here we use arbitrary order H1, Nedelec, and Raviart-Thomas finite
    // elements.
-   H1FESpace_    = new H1_ParFESpace(pmesh_,order,pmesh_->Dimension());
+   // H1FESpace_    = new H1_ParFESpace(pmesh_,order,pmesh_->Dimension());
    HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
-   HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
+   // HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
 
-   int irOrder = H1FESpace_->GetElementTransformation(0)->OrderW()
-                 + 2 * order;
-   int geom = H1FESpace_->GetFE(0)->GetGeomType();
-   const IntegrationRule * ir = &IntRules.Get(geom, irOrder);
-
+   // int irOrder = H1FESpace_->GetElementTransformation(0)->OrderW()
+   //            + 2 * order;
+   // int geom = H1FESpace_->GetFE(0)->GetGeomType();
+   // const IntegrationRule * ir = &IntRules.Get(geom, irOrder);
+   /*
    // Select surface attributes for Dirichlet BCs
    ess_bdr_.SetSize(pmesh.bdr_attributes.Max());
    non_k_bdr_.SetSize(pmesh.bdr_attributes.Max());
@@ -89,9 +100,9 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order,
    {
       non_k_bdr_[kbcs[i]-1] = 0;
    }
-
+   */
    // Setup various coefficients
-
+   /*
    // Vector Potential on the outer surface
    if ( a_bc_ == NULL )
    {
@@ -104,22 +115,29 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order,
       aBCCoef_ = new VectorFunctionCoefficient(pmesh_->SpaceDimension(),
                                                *a_bc_);
    }
-
+   */
    // Volume Current Density
-   if ( j_src_ != NULL )
+   if ( j_r_src_ != NULL )
    {
-      jCoef_ = new VectorFunctionCoefficient(pmesh_->SpaceDimension(),
-                                             j_src_);
+      jrCoef_ = new VectorFunctionCoefficient(pmesh_->SpaceDimension(),
+					      j_r_src_);
    }
-
+   if ( j_i_src_ != NULL )
+   {
+      jiCoef_ = new VectorFunctionCoefficient(pmesh_->SpaceDimension(),
+					      j_i_src_);
+   }
+   /*
    // Magnetization
    if ( m_src_ != NULL )
    {
       mCoef_ = new VectorFunctionCoefficient(pmesh_->SpaceDimension(),
                                              m_src_);
    }
-
+   */
    // Bilinear Forms
+   a1_ = new ParSesquilinearForm(HCurlFESpace_);
+   /*
    curlMuInvCurl_  = new ParBilinearForm(HCurlFESpace_);
    curlMuInvCurl_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_));
 
@@ -136,14 +154,20 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order,
 
    // Discrete Curl operator
    curl_ = new ParDiscreteCurlOperator(HCurlFESpace_, HDivFESpace_);
-
+   */
+   
    // Build grid functions
-   a_  = new ParGridFunction(HCurlFESpace_);
-   b_  = new ParGridFunction(HDivFESpace_);
-   h_  = new ParGridFunction(HCurlFESpace_);
-   bd_ = new ParGridFunction(HCurlFESpace_);
-   jd_ = new ParGridFunction(HCurlFESpace_);
+   e_r_  = new ParGridFunction(HCurlFESpace_);
+   e_i_  = new ParGridFunction(HCurlFESpace_);
+   // b_  = new ParGridFunction(HDivFESpace_);
+   // h_  = new ParGridFunction(HCurlFESpace_);
+   // bd_ = new ParGridFunction(HCurlFESpace_);
+   j_r_ = new ParGridFunction(HCurlFESpace_);
+   j_i_ = new ParGridFunction(HCurlFESpace_);
 
+   jd_r_ = new ParLinearForm(HCurlFESpace_);
+   jd_i_ = new ParLinearForm(HCurlFESpace_);
+   /*
    if ( jCoef_ || kbcs.Size() > 0 )
    {
       grad_ = new ParDiscreteGradOperator(H1FESpace_, HCurlFESpace_);
@@ -173,38 +197,43 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order,
       weakCurlMuInv_->AddDomainIntegrator(
          new VectorFECurlIntegrator(*muInvCoef_));
    }
+   */
 }
 
 HertzSolver::~HertzSolver()
 {
-   delete jCoef_;
-   delete mCoef_;
-   delete aBCCoef_;
+   delete jrCoef_;
+   delete jiCoef_;
+   //  delete aBCCoef_;
 
-   delete DivFreeProj_;
-   delete SurfCur_;
+   // delete DivFreeProj_;
+   // delete SurfCur_;
 
-   delete a_;
-   delete b_;
-   delete h_;
-   delete jr_;
-   delete j_;
-   delete k_;
-   delete m_;
-   delete bd_;
-   delete jd_;
+   delete e_r_;
+   delete e_i_;
+   // delete b_;
+   // delete h_;
+   delete j_r_;
+   delete j_i_;
+   // delete j_;
+   // delete k_;
+   // delete m_;
+   // delete bd_;
+   delete jd_r_;
+   delete jd_i_;
 
-   delete grad_;
-   delete curl_;
+   // delete grad_;
+   // delete curl_;
 
-   delete curlMuInvCurl_;
-   delete hCurlMass_;
-   delete hDivHCurlMuInv_;
-   delete weakCurlMuInv_;
+   delete a1_;
+   // delete curlMuInvCurl_;
+   // delete hCurlMass_;
+   // delete hDivHCurlMuInv_;
+   // delete weakCurlMuInv_;
 
-   delete H1FESpace_;
+   // delete H1FESpace_;
    delete HCurlFESpace_;
-   delete HDivFESpace_;
+   // delete HDivFESpace_;
 
    map<string,socketstream*>::iterator mit;
    for (mit=socks_.begin(); mit!=socks_.end(); mit++)
@@ -216,28 +245,31 @@ HertzSolver::~HertzSolver()
 HYPRE_Int
 HertzSolver::GetProblemSize()
 {
-   return HCurlFESpace_->GlobalTrueVSize();
+   return 2 * HCurlFESpace_->GlobalTrueVSize();
 }
 
 void
 HertzSolver::PrintSizes()
 {
-   HYPRE_Int size_h1 = H1FESpace_->GlobalTrueVSize();
+  // HYPRE_Int size_h1 = H1FESpace_->GlobalTrueVSize();
    HYPRE_Int size_nd = HCurlFESpace_->GlobalTrueVSize();
-   HYPRE_Int size_rt = HDivFESpace_->GlobalTrueVSize();
+   // HYPRE_Int size_rt = HDivFESpace_->GlobalTrueVSize();
    if (myid_ == 0)
    {
-      cout << "Number of H1      unknowns: " << size_h1 << endl;
+     // cout << "Number of H1      unknowns: " << size_h1 << endl;
       cout << "Number of H(Curl) unknowns: " << size_nd << endl;
-      cout << "Number of H(Div)  unknowns: " << size_rt << endl;
+      // cout << "Number of H(Div)  unknowns: " << size_rt << endl;
    }
 }
 
 void
 HertzSolver::Assemble()
 {
-   if (myid_ == 0) { cout << "Assembling ..." << flush; }
+   if ( myid_ == 0 && logging_ > 0 ) { cout << "Assembling ..." << flush; }
 
+   a1_->Assemble();
+   a1_->Finalize();
+   /*
    curlMuInvCurl_->Assemble();
    curlMuInvCurl_->Finalize();
 
@@ -260,53 +292,57 @@ HertzSolver::Assemble()
       weakCurlMuInv_->Assemble();
       weakCurlMuInv_->Finalize();
    }
-
-   if (myid_ == 0) { cout << " done." << endl; }
+   */
+   if ( myid_ == 0 && logging_ > 0 ) { cout << " done." << endl; }
 }
 
 void
 HertzSolver::Update()
 {
-   if (myid_ == 0) { cout << "Updating ..." << endl; }
+   if ( myid_ == 0 && logging_ > 0 ) { cout << "Updating ..." << endl; }
 
    // Inform the spaces that the mesh has changed
    // Note: we don't need to interpolate any GridFunctions on the new mesh
    // so we pass 'false' to skip creation of any transformation matrices.
-   H1FESpace_->Update(false);
+   // H1FESpace_->Update(false);
    HCurlFESpace_->Update(false);
-   HDivFESpace_->Update(false);
+   // HDivFESpace_->Update(false);
 
    HCurlFESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
 
    // Inform the grid functions that the space has changed.
-   a_->Update();
-   h_->Update();
-   b_->Update();
-   bd_->Update();
-   jd_->Update();
-   if ( jr_ ) { jr_->Update(); }
-   if ( j_  ) {  j_->Update(); }
-   if ( k_  ) {  k_->Update(); }
-   if ( m_  ) {  m_->Update(); }
+   e_r_->Update();
+   e_i_->Update();
+   // h_->Update();
+   // b_->Update();
+   // bd_->Update();
+   jd_r_->Update();
+   jd_i_->Update();
+   // if ( jr_ ) { jr_->Update(); }
+   if ( j_r_  ) {  j_r_->Update(); }
+   if ( j_i_  ) {  j_i_->Update(); }
+   // if ( k_  ) {  k_->Update(); }
+   // if ( m_  ) {  m_->Update(); }
 
    // Inform the bilinear forms that the space has changed.
-   curlMuInvCurl_->Update();
-   hCurlMass_->Update();
-   hDivHCurlMuInv_->Update();
-   if ( weakCurlMuInv_ ) { weakCurlMuInv_->Update(); }
+   a1_->Update();
+   // curlMuInvCurl_->Update();
+   // hCurlMass_->Update();
+   // hDivHCurlMuInv_->Update();
+   // if ( weakCurlMuInv_ ) { weakCurlMuInv_->Update(); }
 
    // Inform the other objects that the space has changed.
-   curl_->Update();
-   if ( grad_        ) { grad_->Update(); }
-   if ( DivFreeProj_ ) { DivFreeProj_->Update(); }
-   if ( SurfCur_     ) { SurfCur_->Update(); }
+   // curl_->Update();
+   // if ( grad_        ) { grad_->Update(); }
+   // if ( DivFreeProj_ ) { DivFreeProj_->Update(); }
+   // if ( SurfCur_     ) { SurfCur_->Update(); }
 }
 
 void
 HertzSolver::Solve()
 {
-   if (myid_ == 0) { cout << "Running solver ... " << endl; }
-
+   if ( myid_ == 0 && logging_ > 0 ) { cout << "Running solver ... " << endl; }
+   /*
    // Initialize the magnetic vector potential with its boundary conditions
    *a_ = 0.0;
 
@@ -397,16 +433,17 @@ HertzSolver::Solve()
    pcgM.Mult(BD, H);
 
    hCurlMass_->RecoverFEMSolution(H, *bd_, *h_);
+   */
+   if ( myid_ == 0 && logging_ > 0 ) { cout << "done." << flush; }
 
-   if (myid_ == 0) { cout << "done." << flush; }
-
-   if (myid_ == 0) { cout << " Solver done. " << endl; }
+   if ( myid_ == 0 && logging_ > 0 ) { cout << " Solver done. " << endl; }
 }
 
 void
 HertzSolver::GetErrorEstimates(Vector & errors)
 {
-   if (myid_ == 0) { cout << "Estimating Error ... " << flush; }
+   if ( myid_ == 0 && logging_ > 0 )
+   { cout << "Estimating Error ... " << flush; }
 
    // Space for the discontinuous (original) flux
    CurlCurlIntegrator flux_integrator(*muInvCoef_);
@@ -418,10 +455,10 @@ HertzSolver::GetErrorEstimates(Vector & errors)
    ND_FECollection smooth_flux_fec(order_, pmesh_->Dimension());
    ParFiniteElementSpace smooth_flux_fes(pmesh_, &smooth_flux_fec);
 
-   L2ZZErrorEstimator(flux_integrator, *a_,
+   L2ZZErrorEstimator(flux_integrator, *e_r_,
                       smooth_flux_fes, flux_fes, errors, norm_p);
 
-   if (myid_ == 0) { cout << "done." << endl; }
+   if ( myid_ == 0 && logging_ > 0 ) { cout << "done." << endl; }
 }
 
 void
@@ -429,13 +466,15 @@ HertzSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
    visit_dc_ = &visit_dc;
 
-   visit_dc.RegisterField("A", a_);
-   visit_dc.RegisterField("B", b_);
-   visit_dc.RegisterField("H", h_);
-   if ( j_ ) { visit_dc.RegisterField("J", j_); }
-   if ( k_ ) { visit_dc.RegisterField("K", k_); }
-   if ( m_ ) { visit_dc.RegisterField("M", m_); }
-   if ( SurfCur_ ) { visit_dc.RegisterField("Psi", SurfCur_->GetPsi()); }
+   visit_dc.RegisterField("Er", e_r_);
+   visit_dc.RegisterField("Ei", e_i_);
+   // visit_dc.RegisterField("B", b_);
+   // visit_dc.RegisterField("H", h_);
+   if ( j_r_ ) { visit_dc.RegisterField("Jr", j_r_); }
+   if ( j_i_ ) { visit_dc.RegisterField("Ji", j_i_); }
+   // if ( k_ ) { visit_dc.RegisterField("K", k_); }
+   // if ( m_ ) { visit_dc.RegisterField("M", m_); }
+   // if ( SurfCur_ ) { visit_dc.RegisterField("Psi", SurfCur_->GetPsi()); }
 }
 
 void
@@ -459,20 +498,29 @@ HertzSolver::InitializeGLVis()
 {
    if ( myid_ == 0 ) { cout << "Opening GLVis sockets." << endl; }
 
-   socks_["A"] = new socketstream;
-   socks_["A"]->precision(8);
+   socks_["Er"] = new socketstream;
+   socks_["Er"]->precision(8);
 
-   socks_["B"] = new socketstream;
-   socks_["B"]->precision(8);
+   socks_["Ei"] = new socketstream;
+   socks_["Ei"]->precision(8);
 
-   socks_["H"] = new socketstream;
-   socks_["H"]->precision(8);
+   // socks_["B"] = new socketstream;
+   // socks_["B"]->precision(8);
 
-   if ( j_ )
+   // socks_["H"] = new socketstream;
+   // socks_["H"]->precision(8);
+
+   if ( j_r_ )
    {
-      socks_["J"] = new socketstream;
-      socks_["J"]->precision(8);
+      socks_["Jr"] = new socketstream;
+      socks_["Jr"]->precision(8);
    }
+   if ( j_i_ )
+   {
+      socks_["Ji"] = new socketstream;
+      socks_["Ji"]->precision(8);
+   }
+   /*
    if ( k_ )
    {
       socks_["K"] = new socketstream;
@@ -486,6 +534,7 @@ HertzSolver::InitializeGLVis()
       socks_["M"] = new socketstream;
       socks_["M"]->precision(8);
    }
+   */
    if ( myid_ == 0 ) { cout << "GLVis sockets open." << endl; }
 }
 
@@ -501,10 +550,14 @@ HertzSolver::DisplayToGLVis()
    int Ww = 350, Wh = 350; // window size
    int offx = Ww+10, offy = Wh+45; // window offsets
 
-   VisualizeField(*socks_["A"], vishost, visport,
-                  *a_, "Vector Potential (A)", Wx, Wy, Ww, Wh);
+   VisualizeField(*socks_["Er"], vishost, visport,
+                  *e_r_, "Electric Field (Er)", Wx, Wy, Ww, Wh);
    Wx += offx;
 
+   VisualizeField(*socks_["Ei"], vishost, visport,
+                  *e_i_, "Electric Field (Ei)", Wx, Wy, Ww, Wh);
+   Wx += offx;
+   /*
    VisualizeField(*socks_["B"], vishost, visport,
                   *b_, "Magnetic Flux Density (B)", Wx, Wy, Ww, Wh);
    Wx += offx;
@@ -512,15 +565,22 @@ HertzSolver::DisplayToGLVis()
    VisualizeField(*socks_["H"], vishost, visport,
                   *h_, "Magnetic Field (H)", Wx, Wy, Ww, Wh);
    Wx += offx;
+   */
+   Wx = 0; Wy += offy; // next line
 
-   if ( j_ )
+   if ( j_r_ )
    {
-      VisualizeField(*socks_["J"], vishost, visport,
-                     *j_, "Current Density (J)", Wx, Wy, Ww, Wh);
+      VisualizeField(*socks_["Jr"], vishost, visport,
+                     *j_r_, "Current Density (Jr)", Wx, Wy, Ww, Wh);
+   }
+   if ( j_i_ )
+   {
+      VisualizeField(*socks_["Ji"], vishost, visport,
+                     *j_i_, "Current Density (Ji)", Wx, Wy, Ww, Wh);
    }
 
    Wx = 0; Wy += offy; // next line
-
+   /*
    if ( k_ )
    {
       VisualizeField(*socks_["K"], vishost, visport,
@@ -538,9 +598,10 @@ HertzSolver::DisplayToGLVis()
                      *m_, "Magnetization (M)", Wx, Wy, Ww, Wh);
       Wx += offx;
    }
+   */
    if (myid_ == 0) { cout << " done." << endl; }
 }
-
+  /*
 SurfaceCurrent::SurfaceCurrent(ParFiniteElementSpace & H1FESpace,
                                ParDiscreteGradOperator & grad,
                                Array<int> & kbcs,
@@ -667,7 +728,7 @@ SurfaceCurrent::Update()
 
    H1FESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
 }
-
+  */
 } // namespace electromagnetics
 
 } // namespace mfem

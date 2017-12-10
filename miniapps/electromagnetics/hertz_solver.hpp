@@ -38,17 +38,19 @@ static double epsilon0_ = 8.8541878176e-12;
 // Permeability of Free Space (units H/m)
 static double mu0_ = 4.0e-7*M_PI;
 
-class SurfaceCurrent;
+  //class SurfaceCurrent;
 class HertzSolver
 {
 public:
    HertzSolver(ParMesh & pmesh, int order, Array<int> & kbcs,
                Array<int> & vbcs, Vector & vbcv,
                Coefficient & epsCoef,
-               Coefficient & muInvCoef/*,
-               void   (*a_bc )(const Vector&, Vector&),
-               void   (*j_src)(const Vector&, Vector&),
-               void   (*m_src)(const Vector&, Vector&)*/);
+               Coefficient & muInvCoef,
+               Coefficient * sigmaCoef,
+               void   (*e_r_bc )(const Vector&, Vector&),
+               void   (*e_i_bc )(const Vector&, Vector&),
+               void   (*j_r_src)(const Vector&, Vector&),
+               void   (*j_i_src)(const Vector&, Vector&));
    ~HertzSolver();
 
    HYPRE_Int GetProblemSize();
@@ -71,30 +73,42 @@ public:
 
    void DisplayToGLVis();
 
-   const ParGridFunction & GetVectorPotential() { return *a_; }
+  // const ParGridFunction & GetVectorPotential() { return *a_; }
 
 private:
 
    int myid_;
    int num_procs_;
    int order_;
-
+   int logging_;
+  
+   double freq_;
+  
    ParMesh * pmesh_;
 
-   VisItDataCollection * visit_dc_;
-
-   H1_ParFESpace * H1FESpace_;
+   // H1_ParFESpace * H1FESpace_;
    ND_ParFESpace * HCurlFESpace_;
-   RT_ParFESpace * HDivFESpace_;
+   // RT_ParFESpace * HDivFESpace_;
 
+   ParSesquilinearForm * a1_;
+
+   ParGridFunction * e_r_;  // Real part of electric field (HCurl)
+   ParGridFunction * e_i_;  // Imaginary part of electric field (HCurl)
+   ParGridFunction * e_;  // Complex electric field (HCurl)
+   ParGridFunction * j_r_;  // Real part of current density (HCurl)
+   ParGridFunction * j_i_;  // Imaginary part of current density (HCurl)
+
+   ParLinearForm   * jd_r_; // Dual of real part of current density (HCurl)
+   ParLinearForm   * jd_i_; // Dual of imaginary part of current density (HCurl)
+  /*
    ParBilinearForm * curlMuInvCurl_;
    ParBilinearForm * hCurlMass_;
    ParMixedBilinearForm * hDivHCurlMuInv_;
    ParMixedBilinearForm * weakCurlMuInv_;
-
-   ParDiscreteGradOperator * grad_;
-   ParDiscreteCurlOperator * curl_;
-
+  */
+  // ParDiscreteGradOperator * grad_;
+  // ParDiscreteCurlOperator * curl_;
+  /*
    ParGridFunction * a_;  // Vector Potential (HCurl)
    ParGridFunction * b_;  // Magnetic Flux (HDiv)
    ParGridFunction * h_;  // Magnetic Field (HCurl)
@@ -104,23 +118,28 @@ private:
    ParGridFunction * m_;  // Magnetization (HDiv)
    ParGridFunction * bd_; // Dual of B (HCurl)
    ParGridFunction * jd_; // Dual of J, the rhs vector (HCurl)
-
-   DivergenceFreeProjector * DivFreeProj_;
-   SurfaceCurrent          * SurfCur_;
+  */
+  // DivergenceFreeProjector * DivFreeProj_;
+  // SurfaceCurrent          * SurfCur_;
 
    Coefficient       * epsCoef_;   // Dielectric Material Coefficient
    Coefficient       * muInvCoef_; // Dia/Paramagnetic Material Coefficient
-   VectorCoefficient * aBCCoef_;   // Vector Potential BC Function
-   VectorCoefficient * jCoef_;     // Volume Current Density Function
-   VectorCoefficient * mCoef_;     // Magnetization Vector Function
+   Coefficient       * sigmaCoef_; // Electrical Conductivity Coefficient
+  // VectorCoefficient * aBCCoef_;   // Vector Potential BC Function
+   VectorCoefficient * jrCoef_;     // Volume Current Density Function
+   VectorCoefficient * jiCoef_;     // Volume Current Density Function
+  // VectorCoefficient * mCoef_;     // Magnetization Vector Function
 
-   void   (*a_bc_ )(const Vector&, Vector&);
-   void   (*j_src_)(const Vector&, Vector&);
-   void   (*m_src_)(const Vector&, Vector&);
+  // void   (*a_bc_ )(const Vector&, Vector&);
+   void   (*j_r_src_)(const Vector&, Vector&);
+   void   (*j_i_src_)(const Vector&, Vector&);
+  // void   (*m_src_)(const Vector&, Vector&);
 
    Array<int> ess_bdr_;
    Array<int> ess_bdr_tdofs_;
    Array<int> non_k_bdr_;
+
+   VisItDataCollection * visit_dc_;
 
    std::map<std::string,socketstream*> socks_;
 };
