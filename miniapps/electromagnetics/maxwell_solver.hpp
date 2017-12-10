@@ -22,14 +22,6 @@
 using namespace std;
 using namespace mfem;
 
-// Physical Constants
-
-// Permittivity of Free Space (units F/m)
-static double epsilon0_ = 8.8541878176e-12;
-
-// Permeability of Free Space (units H/m)
-static double mu0_ = 4.0e-7*M_PI;
-
 namespace mfem
 {
 
@@ -40,12 +32,14 @@ using miniapps::ParDiscreteCurlOperator;
 namespace electromagnetics
 {
 
-/**
+// Physical Constants
 
-   dE/dt = epsilon^{-1} [ Curl ( mu^{-1} B ) - J(t) ]
-   dB/dt = - Curl E
+// Permittivity of Free Space (units F/m)
+static double epsilon0_ = 8.8541878176e-12;
 
-*/
+// Permeability of Free Space (units H/m)
+static double mu0_ = 4.0e-7*M_PI;
+
 class MaxwellSolver : public TimeDependentOperator
 {
 public:
@@ -98,9 +92,6 @@ private:
    void setupSolver(const int idt, const double dt) const;
 
    void implicitSolve(const double dt, const Vector &x, Vector &k) const;
-   // void SetupImplicitSolver();
-
-   // double SnapTimeStep(int n, double dt);
 
    int myid_;
    int num_procs_;
@@ -109,65 +100,66 @@ private:
 
    bool lossy_;
 
-   double dt_;
+   double dtMax_;   // Maximum stable time step
+   double dtScale_; // Used to scale dt before converting to an integer
 
    ParMesh * pmesh_;
-
-   VisItDataCollection * visit_dc_;
 
    ND_ParFESpace * HCurlFESpace_;
    RT_ParFESpace * HDivFESpace_;
 
-   // ParBilinearForm * hCurlMassEps_;
    ParBilinearForm * hDivMassMuInv_;
    ParBilinearForm * hCurlLosses_;
    ParMixedBilinearForm * weakCurlMuInv_;
 
    ParDiscreteCurlOperator * Curl_;
 
-   ParGridFunction * e_;
-   ParGridFunction * b_;
-   ParGridFunction * j_;
-   ParGridFunction * dedt_;
-   ParGridFunction * rhs_;
-   ParLinearForm   * jd_;
+   ParGridFunction * e_;    // Electric Field (HCurl)
+   ParGridFunction * b_;    // Magnetic Flux (HDiv)
+   ParGridFunction * j_;    // Volumetric Current Density (HCurl)
+   ParGridFunction * dedt_; // Time Derivative of Electric Field (HCurl)
+   ParGridFunction * rhs_;  // Dual of displacement current, rhs vector (HCurl)
+   ParLinearForm   * jd_;   // Dual of current density (HCurl)
 
-   // HypreParMatrix * M1Eps_;
    HypreParMatrix * M1Losses_;
    HypreParMatrix * M2MuInv_;
    HypreParMatrix * NegCurl_;
    HypreParMatrix * WeakCurlMuInv_;
-   HypreParVector * E_;
-   HypreParVector * B_;
-   mutable HypreParVector * HD_;
-   mutable HypreParVector * J_;
-   mutable HypreParVector * JD_;
+   HypreParVector * E_; // Current value of the electric field DoFs
+   HypreParVector * B_; // Current value of the magnetic flux DoFs
+   mutable HypreParVector * HD_; // Used in energy calculation
    mutable HypreParVector * RHS_;
 
    Coefficient       * epsCoef_;    // Electric Permittivity Coefficient
    Coefficient       * muInvCoef_;  // Magnetic Permeability Coefficient
    Coefficient       * sigmaCoef_;  // Electric Conductivity Coefficient
    Coefficient       * etaInvCoef_; // Admittance Coefficient
-   VectorCoefficient * eCoef_;
-   VectorCoefficient * bCoef_;
-   VectorCoefficient * jCoef_;
-   VectorCoefficient * dEdtBCCoef_;
+   VectorCoefficient * eCoef_;      // Initial Electric Field
+   VectorCoefficient * bCoef_;      // Initial Magnetic Flux
+   VectorCoefficient * jCoef_;      // Time dependent current density
+   VectorCoefficient * dEdtBCCoef_; // Time dependent boundary condition
 
    double (*eps_    )(const Vector&);
    double (*muInv_  )(const Vector&);
    double (*sigma_  )(const Vector&);
    void   (*j_src_  )(const Vector&, double, Vector&);
 
+   // Array of 0's and 1's marking the location of absorbing surfaces
    Array<int> abc_marker_;
 
+   // Array of 0's and 1's marking the location of Dirichlet boundaries
    Array<int> dbc_marker_;
    void   (*dEdt_bc_)(const Vector&, double, Vector&);
 
+   // Dirichlet degrees of freedom
    Array<int>   dbc_dofs_;
 
-   double dtMax_;
-   double dtScale_;
-
+   // High order simplectic integration requires partial time steps of
+   // differing lengths.  If losses are present the system matrix
+   // includes a portion scaled by the time step.  Consequently, high
+   // order time integration requires different system matrices.  The
+   // following maps contain various objects that depend on the time
+   // step.
    mutable std::map<int, ParBilinearForm *> a1_;
    mutable std::map<int, HypreParMatrix  *> A1_;
    mutable std::map<int, Coefficient     *> dtCoef_;
@@ -176,7 +168,11 @@ private:
    mutable std::map<int, HypreDiagScale  *> diagScale_;
    mutable std::map<int, HyprePCG        *> pcg_;
 
-   std::map<std::string,socketstream*> socks_;
+   // Data collection used to write VisIt files
+   VisItDataCollection * visit_dc_;
+
+   // Sockets used to communicate with GLVis
+   std::map<std::string, socketstream*> socks_;
 };
 
 } // namespace electromagnetics
