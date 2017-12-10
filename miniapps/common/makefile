@@ -39,7 +39,7 @@ endif
 
 # Replace the default implicit rule for *.cpp files
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@ $(MFEM_LIBS)
 
 all: $(MINIOBJS)
 
