@@ -436,7 +436,8 @@ int main (int argc, char *argv[])
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
       case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
       case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
-      default: cout << "Unknown target_id: " << target_id << endl; return 3;
+      default: cout << "Unknown target_id: " << target_id << endl;
+         delete metric; return 3;
    }
    TargetConstructor *target_c = new TargetConstructor(target_t);
    target_c->SetNodes(*x);
@@ -450,7 +451,8 @@ int main (int argc, char *argv[])
       case 1: ir = &IntRulesLo.Get(geom_type, quad_order); break;
       case 2: ir = &IntRules.Get(geom_type, quad_order); break;
       case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
-      default: cout << "Unknown quad_type: " << quad_type << endl; return 3;
+      default: cout << "Unknown quad_type: " << quad_type << endl;
+         delete he_nlf_integ; return 3;
    }
    cout << "Quadrature points per cell: " << ir->GetNPoints() << endl;
    he_nlf_integ->SetIntegrationRule(*ir);
