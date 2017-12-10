@@ -246,6 +246,52 @@ public:
    virtual ~ParMixedBilinearForm() { }
 };
 
+// Class for parallel sesquilinear form
+class ParSesquilinearForm
+{
+protected:
+   ParBilinearForm *pblfr_;
+   ParBilinearForm *pblfi_;
+
+public:
+   ParSesquilinearForm(ParFiniteElementSpace *pf);    
+
+   /// Adds new Domain Integrator.
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
+			    BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
+			      BilinearFormIntegrator *bfi_imag);
+
+   /// Assemble the local matrix
+   void Assemble(int skip_zeros = 1);
+
+   /// Finalizes the matrix initialization.
+   void Finalize(int skip_zeros = 1);
+
+   /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
+   /** The returned matrix has to be deleted by the caller. */
+   ComplexOperator *ParallelAssemble(const ComplexOperator::Convention & conv
+				     = ComplexOperator::BLOCK_ANTISYMMETRIC);
+
+   /// Return the parallel FE space associated with the ParBilinearForm.
+   ParFiniteElementSpace *ParFESpace() const { return pblfr_->ParFESpace(); }
+
+   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                         OperatorHandle &A, Vector &X, Vector &B,
+                         int copy_interior = 0);
+
+   /** Call this method after solving a linear system constructed using the
+       FormLinearSystem method to recover the solution as a ParGridFunction-size
+       vector in x. Use the same arguments as in the FormLinearSystem call. */
+   virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+
+   virtual void Update(FiniteElementSpace *nfes = NULL);
+
+   virtual ~ParSesquilinearForm();
+};
+  
 /** The parallel matrix representation a linear operator between parallel finite
     element spaces */
 class ParDiscreteLinearOperator : public DiscreteLinearOperator
