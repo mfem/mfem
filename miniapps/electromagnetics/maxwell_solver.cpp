@@ -25,6 +25,7 @@ using namespace miniapps;
 namespace electromagnetics
 {
 
+// Used for combining scalar coefficients
 double prodFunc(double a, double b) { return a * b; }
 
 MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
@@ -39,23 +40,21 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
      num_procs_(1),
      order_(order),
      logging_(1),
+     dtMax_(-1.0),
+     dtScale_(1.0e6),
      pmesh_(&pmesh),
-     visit_dc_(NULL),
      HCurlFESpace_(NULL),
      HDivFESpace_(NULL),
-     // hCurlMassEps_(NULL),
      hDivMassMuInv_(NULL),
      hCurlLosses_(NULL),
      weakCurlMuInv_(NULL),
      Curl_(NULL),
-     // pcg_(NULL),
      e_(NULL),
      b_(NULL),
      j_(NULL),
      dedt_(NULL),
      rhs_(NULL),
      jd_(NULL),
-     // M1Eps_(NULL),
      M1Losses_(NULL),
      M2MuInv_(NULL),
      NegCurl_(NULL),
@@ -63,7 +62,6 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
      E_(NULL),
      B_(NULL),
      HD_(NULL),
-     JD_(NULL),
      RHS_(NULL),
      epsCoef_(NULL),
      muInvCoef_(NULL),
@@ -78,8 +76,7 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
      sigma_(sigma),
      j_src_(j_src),
      dEdt_bc_(dEdt_bc),
-     dtMax_(-1.0),
-     dtScale_(1.0e6)
+     visit_dc_(NULL)
 {
    // Initialize MPI variables
    MPI_Comm_size(pmesh_->GetComm(), &num_procs_);
@@ -88,7 +85,6 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    // Define compatible parallel finite element spaces on the parallel
    // mesh. Here we use arbitrary order H1, Nedelec, and Raviart-Thomas finite
    // elements.
-   // H1FESpace_    = new H1_ParFESpace(pmesh_,order,pmesh_->Dimension());
    HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
    HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
 
@@ -98,6 +94,7 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    // Check for absorbing materials or boundaries
    lossy_ = abcs.Size() > 0 || sigma_ != NULL;
 
+   // Require implicit handling of loss terms
    type = lossy_ ? IMPLICIT : EXPLICIT;
 
    // Electric permittivity
@@ -161,8 +158,6 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
             abc_marker_[abcs[i]-1] = 1;
          }
       }
-
-      // etaCoef_ = new ConstantCoefficient(sqrt(mu0_/epsilon0_));
       etaInvCoef_ = new ConstantCoefficient(sqrt(epsilon0_/mu0_));
    }
 
@@ -207,26 +202,21 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    {
       cout << "Creating H(Div) Mass Operator" << endl;
    }
-   // hCurlMassEps_  = new ParBilinearForm(HCurlFESpace_);
    hDivMassMuInv_ = new ParBilinearForm(HDivFESpace_);
+   hDivMassMuInv_->AddDomainIntegrator(new VectorFEMassIntegrator(*muInvCoef_));
+
    if ( myid_ == 0 && logging_ > 0 )
    {
       cout << "Creating Weak Curl Operator" << endl;
    }
    weakCurlMuInv_ = new ParMixedBilinearForm(HDivFESpace_,HCurlFESpace_);
-
-
-   // hCurlMassEps_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsCoef_));
-   hDivMassMuInv_->AddDomainIntegrator(new VectorFEMassIntegrator(*muInvCoef_));
    weakCurlMuInv_->AddDomainIntegrator(
       new MixedVectorWeakCurlIntegrator(*muInvCoef_));
 
    // Assemble Matrices
-   // hCurlMassEps_->Assemble();
    hDivMassMuInv_->Assemble();
    weakCurlMuInv_->Assemble();
 
-   // hCurlMassEps_->Finalize();
    hDivMassMuInv_->Finalize();
    weakCurlMuInv_->Finalize();
 
@@ -261,36 +251,8 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    }
 
    // Create Linear Algebra Matrices
-   // M1Eps_   = hCurlMassEps_->ParallelAssemble();
    M2MuInv_ = hDivMassMuInv_->ParallelAssemble();
    WeakCurlMuInv_ = weakCurlMuInv_->ParallelAssemble();
-   /*
-   {
-     ParMixedBilinearForm curlMuInv(HCurlFESpace_,HDivFESpace_);
-     curlMuInv.AddDomainIntegrator(new VectorFECurlIntegrator(*muInvCoef_));
-     curlMuInv.Assemble();
-     curlMuInv.Finalize();
-     HypreParMatrix * CurlMuInv = curlMuInv.ParallelAssemble();
-     HypreParMatrix * WeakCurlMuInv = weakCurlMuInv_->ParallelAssemble();
-
-     CurlMuInv->Print("CurlMuInv.mat");
-     WeakCurlMuInv->Print("WeakCurlMuInv.mat");
-     // delete CurlMuInv;
-     // delete WeakCurlMuInv;
-   }
-   */
-   /*
-   {
-      ConstantCoefficient etaCoef(1.0);
-      ParBilinearForm m1eta(HCurlFESpace_);
-      m1eta.AddBoundaryIntegrator(new VectorFEMassIntegrator(etaCoef));
-      m1eta.Assemble();
-      m1eta.Finalize();
-      HypreParMatrix * M1eta = m1eta.ParallelAssemble();
-      M1eta->Print("M1eta.mat");
-      delete M1eta;
-   }
-   */
 
    if ( myid_ == 0 && logging_ > 0 )
    {
@@ -300,13 +262,8 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    Curl_->Assemble();
    Curl_->Finalize();
    NegCurl_ = Curl_->ParallelAssemble();
-   // NegCurl_->Print("T12.mat");
-   *NegCurl_ *= -1.0; // Beware this modifies the matrix stored within
-   // the Curl_ object.
-
-   // HypreParMatrix * MT12 = ParMult(M2MuInv_,NegCurl_);
-   // MT12->Print("M2MuInvT12.mat");
-   // delete MT12;
+   // Beware this modifies the matrix stored within the Curl_ object.
+   *NegCurl_ *= -1.0;
 
    // Build grid functions
    e_    = new ParGridFunction(HCurlFESpace_);
@@ -320,41 +277,9 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    HD_  = new HypreParVector(HDivFESpace_);
    RHS_ = new HypreParVector(HCurlFESpace_);
 
-   // Eliminate essential BC dofs from M1Eps
+   // Initialize dedt to zero
    *dedt_ = 0.0;
-   // hCurlMassEps_->FormLinearSystem(dbc_dofs_,*dedt_,*rhs_,*M1Eps_,*E_,*RHS_);
 
-   /*
-   // Create Solver
-   diagScale_ = new HypreDiagScale(*M1Eps_);
-
-   pcg_ = new HyprePCG(*M1Eps_);
-   pcg_->SetTol(1e-12);
-   pcg_->SetMaxIter(1000);
-   pcg_->SetLogging(0);
-   pcg_->SetPreconditioner(*diagScale_);
-   */
-   /*
-   {
-     // Just testing
-
-     B_->Randomize(123);
-     *b_ = *B_;
-
-     M2MuInv_->Mult(*B_,*HD_);
-     NegCurl_->MultTranspose(*HD_,*RHS_,-1.0,0.0);
-     RHS_->Print("RHS.vec");
-
-     weakCurlMuInv_->Mult(*b_,*e_);
-
-     e_->ParallelAssemble(*E_);
-     E_->Print("E.vec");
-     E_->Add(1.0,*RHS_);
-     double nrm = E_->Norml2();
-
-     cout << "Norm of diff: " << nrm << endl;
-   }
-   */
    if ( j_src_)
    {
       if ( myid_ == 0 && logging_ > 0 )
@@ -369,8 +294,6 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
       jd_ = new ParLinearForm(HCurlFESpace_);
       jd_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*jCoef_));
       jd_->Assemble();
-
-      JD_ = new HypreParVector(HCurlFESpace_);
    }
 
    dtMax_ = GetMaximumTimeStep();
@@ -398,14 +321,9 @@ MaxwellSolver::~MaxwellSolver()
 
    delete Curl_;
 
-   // delete pcg_;
-   // delete diagScale_;
-
-   // delete M1Eps_;
    delete M1Losses_;
    delete M2MuInv_;
 
-   // delete hCurlMassEps_;
    delete hDivMassMuInv_;
    delete hCurlLosses_;
    delete weakCurlMuInv_;
@@ -542,12 +460,6 @@ MaxwellSolver::setupSolver(const int idt, const double dt) const
 void
 MaxwellSolver::implicitSolve(double dt, const Vector &B, Vector &dEdt) const
 {
-   // cout << "MaxwellSolver::Mult 0" << endl;
-   // M2MuInv_->Mult(B,*HD_);
-   // cout << "MaxwellSolver::Mult 1" << endl;
-   // NegCurl_->MultTranspose(*HD_,*RHS_,-1.0,0.0);
-   // cout << "MaxwellSolver::Mult 2" << endl;
-   //WeakCurlMuInv_->Mult(B,*RHS_);
    int idt = hCurlLosses_ ? ((int)(dtScale_ * dt / dtMax_)) : 0;
 
    b_->Distribute(B);
@@ -572,39 +484,24 @@ MaxwellSolver::implicitSolve(double dt, const Vector &B, Vector &dEdt) const
                                           const_cast<Array<int>&>(dbc_marker_));
    }
 
-   // hCurlMassEps_->FormLinearSystem(dbc_dofs_,*dedt_,*rhs_,*M1Eps_,dEdt,*RHS_);
-   // rhs_->ParallelAssemble(*RHS_);
-   /*
-   if (diagScale_ == NULL)
-   {
-     diagScale_ = new HypreDiagScale(*M1Eps_);
-   }
-   if (pcg_ == NULL)
-   {
-     pcg_ = new HyprePCG(*M1Eps_);
-     pcg_->SetTol(1.0e-12);
-     pcg_->SetMaxIter(200);
-     pcg_->SetPrintLevel(0);
-     pcg_->SetPreconditioner(*diagScale_);
-   }
-   */
+   // Create objects and matrices for solving with the given time step
    setupSolver(idt, dt);
 
+   // Apply essential BCs and determine true DoFs for the right hand side
    a1_[idt]->FormLinearSystem(dbc_dofs_, *dedt_, *rhs_, *A1_[idt], dEdt, *RHS_);
+
+   // Solve for the time derivative of the electric field (true DoFs)
    pcg_[idt]->Mult(*RHS_, dEdt);
+
+   // Distribute shared DoFs to relevant processors
    a1_[idt]->RecoverFEMSolution(dEdt, *rhs_, *dedt_);
-
-   // pcg_[idt]->Mult(*RHS_,dEdt);
-   // hCurlMassEps_->ReconverFEMSolution(dE,*rhs_,*de_);
-
-   // cout << "MaxwellSolver::Mult 3" << endl;
 }
 
 void
 MaxwellSolver::SyncGridFuncs()
 {
-   *e_ = *E_;
-   *b_ = *B_;
+   e_->Distribute(*E_);
+   b_->Distribute(*B_);
 }
 
 double
@@ -625,25 +522,11 @@ MaxwellSolver::GetMaximumTimeStep() const
    int iter = 0, nstep = 20;
    double dt0 = 1.0, dt1 = 1.0, change = 1.0, ptol = 0.001;
 
-   // Create Solver
+   // Create Solver assuming no loss operators
    setupSolver(0, 0.0);
-   /*
-   if ( pcg_.find(0) == pcg_.end() )
-   {
-      a1_[0] = new ParBilinearForm(HCurlFESpace_);
-      a1_[0]->AddDomainIntegrator(new VectorFEMassIntegrator(epsCoef_));
-      a1_[0]->Assemble();
-      a1_[0]->Finalize();
-      A1_[0] = a1_[0]->ParallelAssemble();
 
-      diagScale_[0] = new HypreDiagScale(*A1_[0]);
-      pcg_[0] = new HyprePCG(*A1_[0]);
-      pcg_[0]->SetTol(1.0e-12);
-      pcg_[0]->SetMaxIter(200);
-      pcg_[0]->SetPrintLevel(0);
-      pcg_[0]->SetPreconditioner(*diagScale_[0]);
-   }
-   */
+   // Use power method to approximate the largest eigenvalue of the
+   // update operator.
    while ( iter < nstep && change > ptol )
    {
       double normV0 = InnerProduct(*v0,*v0);
@@ -684,7 +567,6 @@ MaxwellSolver::GetEnergy() const
 {
    double energy = 0.0;
 
-   // M1Eps_->Mult(*E_,*RHS_);
    A1_[0]->Mult(*E_,*RHS_);
    M2MuInv_->Mult(*B_,*HD_);
 
@@ -711,11 +593,12 @@ MaxwellSolver::WriteVisItFields(int it)
 {
    if ( visit_dc_ )
    {
-      // if (myid_ == 0) { cout << "Writing VisIt files ..." << flush; }
+      if ( myid_ == 0 && logging_ > 1 )
+      { cout << "Writing VisIt files ..." << flush; }
 
       if ( j_ )
       {
-         jCoef_->SetTime(t); // Is member data from mfem::TimeDependentOperator
+         jCoef_->SetTime(t);
          j_->ProjectCoefficient(*jCoef_);
       }
 
@@ -723,7 +606,7 @@ MaxwellSolver::WriteVisItFields(int it)
       visit_dc_->SetTime(t);
       visit_dc_->Save();
 
-      // if (myid_ == 0) { cout << " " << endl << flush; }
+      if ( myid_ == 0 && logging_ > 1 ) { cout << " " << endl << flush; }
    }
 }
 
@@ -783,22 +666,6 @@ MaxwellSolver::DisplayToGLVis()
    if ( myid_ == 0 && logging_ > 1 ) { cout << " " << flush; }
 }
 
-/// Returns the largest number less than or equal to dt which is of the form
-///    ( p / n ) * 10^m
-/// Where m, n, and p are integers: n is given (must be greater than 1), m is
-/// arbitrary, and p is in the range 1 <= p < n.
-/*
-double
-MaxwellSolver::SnapTimeStep(int n, double dt)
-{
-  MFEM_ASSERT(n > 1,"The integer must be greater than one.");
-  double a = log10(n);
-  double b = 1.0 + log10(dt) / a;
-  int    c = (int)floor( a * b );
-  double d = b - c / a;
-  return floor(pow(n,d))*pow(10.0,c)/n;
-}
-*/
 } // namespace electromagnetics
 
 } // namespace mfem
