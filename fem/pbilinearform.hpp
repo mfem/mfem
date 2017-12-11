@@ -256,6 +256,11 @@ protected:
 public:
    ParSesquilinearForm(ParFiniteElementSpace *pf);
 
+   ParBilinearForm & real() { return *pblfr_; }
+   ParBilinearForm & imag() { return *pblfi_; }
+   const ParBilinearForm & real() const { return *pblfr_; }
+   const ParBilinearForm & imag() const { return *pblfi_; }
+
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
                             BilinearFormIntegrator *bfi_imag);
