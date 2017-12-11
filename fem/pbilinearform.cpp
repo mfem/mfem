@@ -462,71 +462,71 @@ void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
 
 
 ParSesquilinearForm::ParSesquilinearForm(ParFiniteElementSpace *pf)
-  : pblfr_(new ParBilinearForm(pf)),
-    pblfi_(new ParBilinearForm(pf))
+   : pblfr_(new ParBilinearForm(pf)),
+     pblfi_(new ParBilinearForm(pf))
 {}
 
 ParSesquilinearForm::~ParSesquilinearForm()
 {
-  delete pblfr_;
-  delete pblfi_;
+   delete pblfr_;
+   delete pblfi_;
 }
 
 void ParSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
-					      BilinearFormIntegrator *bfi_imag)
+                                              BilinearFormIntegrator *bfi_imag)
 {
-  if (bfi_real) pblfr_->AddDomainIntegrator(bfi_real);
-  if (bfi_imag) pblfr_->AddDomainIntegrator(bfi_imag);
+   if (bfi_real) { pblfr_->AddDomainIntegrator(bfi_real); }
+   if (bfi_imag) { pblfr_->AddDomainIntegrator(bfi_imag); }
 }
 
 void
 ParSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
-					   BilinearFormIntegrator *bfi_imag)
+                                           BilinearFormIntegrator *bfi_imag)
 {
-  if (bfi_real) pblfr_->AddBoundaryIntegrator(bfi_real);
-  if (bfi_imag) pblfr_->AddBoundaryIntegrator(bfi_imag);
+   if (bfi_real) { pblfr_->AddBoundaryIntegrator(bfi_real); }
+   if (bfi_imag) { pblfr_->AddBoundaryIntegrator(bfi_imag); }
 }
 
 void
 ParSesquilinearForm::Assemble(int skip_zeros)
 {
-  pblfr_->Assemble(skip_zeros);
-  pblfi_->Assemble(skip_zeros);
+   pblfr_->Assemble(skip_zeros);
+   pblfi_->Assemble(skip_zeros);
 }
 
 void
 ParSesquilinearForm::Finalize(int skip_zeros)
 {
-  pblfr_->Finalize(skip_zeros);
-  pblfi_->Finalize(skip_zeros);
+   pblfr_->Finalize(skip_zeros);
+   pblfi_->Finalize(skip_zeros);
 }
 
 ComplexOperator *
 ParSesquilinearForm::ParallelAssemble(const ComplexOperator::Convention &conv)
-{ 
-  return new ComplexOperator(pblfr_->ParallelAssemble(),
-			     pblfi_->ParallelAssemble(),
-			     true, true, conv);
+{
+   return new ComplexOperator(pblfr_->ParallelAssemble(),
+                              pblfi_->ParallelAssemble(),
+                              true, true, conv);
 }
 
 void
 ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
-				      Vector &x, Vector &b,
-				      OperatorHandle &A,
-				      Vector &X, Vector &B,
-				      int copy_interior)
+                                      Vector &x, Vector &b,
+                                      OperatorHandle &A,
+                                      Vector &X, Vector &B,
+                                      int copy_interior)
 {}
 
 void
 ParSesquilinearForm::RecoverFEMSolution(const Vector &X, const Vector &b,
-					Vector &x)
+                                        Vector &x)
 {}
 
 void
 ParSesquilinearForm::Update(FiniteElementSpace *nfes)
 {
-  if ( pblfr_ ) pblfr_->Update(nfes);
-  if ( pblfi_ ) pblfi_->Update(nfes);
+   if ( pblfr_ ) { pblfr_->Update(nfes); }
+   if ( pblfi_ ) { pblfi_->Update(nfes); }
 }
 
 

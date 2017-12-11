@@ -254,15 +254,15 @@ protected:
    ParBilinearForm *pblfi_;
 
 public:
-   ParSesquilinearForm(ParFiniteElementSpace *pf);    
+   ParSesquilinearForm(ParFiniteElementSpace *pf);
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
-			    BilinearFormIntegrator *bfi_imag);
+                            BilinearFormIntegrator *bfi_imag);
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
-			      BilinearFormIntegrator *bfi_imag);
+                              BilinearFormIntegrator *bfi_imag);
 
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
@@ -273,7 +273,7 @@ public:
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
    ComplexOperator *ParallelAssemble(const ComplexOperator::Convention & conv
-				     = ComplexOperator::BLOCK_ANTISYMMETRIC);
+                                     = ComplexOperator::BLOCK_ANTISYMMETRIC);
 
    /// Return the parallel FE space associated with the ParBilinearForm.
    ParFiniteElementSpace *ParFESpace() const { return pblfr_->ParFESpace(); }
@@ -291,7 +291,7 @@ public:
 
    virtual ~ParSesquilinearForm();
 };
-  
+
 /** The parallel matrix representation a linear operator between parallel finite
     element spaces */
 class ParDiscreteLinearOperator : public DiscreteLinearOperator
