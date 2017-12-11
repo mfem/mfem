@@ -3186,7 +3186,7 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
    int    *J = new int[nnz];
    double *D = new double[nnz];
 
-   const double factor = (convention_ == BLOCK_ANTISYMMETRIC) ? 1.0 : -1.0;
+   const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
 
    I[0] = 0;
    I[nrows] = nnz_r + nnz_i;
