@@ -70,10 +70,10 @@ public:
 class ParComplexLinearForm : public Vector
 {
 protected:
-  ParLinearForm * plfr_;
-  ParLinearForm * plfi_;
+   ParLinearForm * plfr_;
+   ParLinearForm * plfi_;
 
-  HYPRE_Int * tdof_offsets_;
+   HYPRE_Int * tdof_offsets_;
 
 public:
 
@@ -83,7 +83,7 @@ public:
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
-			    LinearFormIntegrator *lfi_imag);
+                            LinearFormIntegrator *lfi_imag);
 
    ParFiniteElementSpace *ParFESpace() const { return plfr_->ParFESpace(); }
 
@@ -101,7 +101,7 @@ public:
    std::complex<double> operator()(const ParComplexGridFunction &gf) const;
 
 };
-  
+
 }
 
 #endif // MFEM_USE_MPI

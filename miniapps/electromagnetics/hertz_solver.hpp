@@ -38,12 +38,12 @@ static double epsilon0_ = 8.8541878176e-12;
 // Permeability of Free Space (units H/m)
 static double mu0_ = 4.0e-7*M_PI;
 
-  //class SurfaceCurrent;
+//class SurfaceCurrent;
 class HertzSolver
 {
 public:
    HertzSolver(ParMesh & pmesh, int order, double freq,
-	       Array<int> & kbcs,
+               Array<int> & kbcs,
                Array<int> & vbcs, Vector & vbcv,
                Coefficient & epsCoef,
                Coefficient & muInvCoef,
@@ -74,7 +74,7 @@ public:
 
    void DisplayToGLVis();
 
-  // const ParGridFunction & GetVectorPotential() { return *a_; }
+   // const ParGridFunction & GetVectorPotential() { return *a_; }
 
 private:
 
@@ -82,9 +82,9 @@ private:
    int num_procs_;
    int order_;
    int logging_;
-  
+
    double freq_;
-  
+
    ParMesh * pmesh_;
 
    // H1_ParFESpace * H1FESpace_;
@@ -93,36 +93,36 @@ private:
 
    ParSesquilinearForm * a1_;
 
-  // ParGridFunction * e_r_;  // Real part of electric field (HCurl)
-  // ParGridFunction * e_i_;  // Imaginary part of electric field (HCurl)
+   // ParGridFunction * e_r_;  // Real part of electric field (HCurl)
+   // ParGridFunction * e_i_;  // Imaginary part of electric field (HCurl)
    ParComplexGridFunction * e_;  // Complex electric field (HCurl)
    ParComplexGridFunction * j_;  // Complex current density (HCurl)
    // ParGridFunction * j_i_;  // Imaginary part of current density (HCurl)
 
    ParComplexLinearForm   * jd_; // Dual of complex current density (HCurl)
-  // ParLinearForm   * jd_r_; // Dual of real part of current density (HCurl)
-  // ParLinearForm   * jd_i_; // Dual of imaginary part of current density (HCurl)
-  /*
-   ParBilinearForm * curlMuInvCurl_;
-   ParBilinearForm * hCurlMass_;
-   ParMixedBilinearForm * hDivHCurlMuInv_;
-   ParMixedBilinearForm * weakCurlMuInv_;
-  */
-  // ParDiscreteGradOperator * grad_;
-  // ParDiscreteCurlOperator * curl_;
-  /*
-   ParGridFunction * a_;  // Vector Potential (HCurl)
-   ParGridFunction * b_;  // Magnetic Flux (HDiv)
-   ParGridFunction * h_;  // Magnetic Field (HCurl)
-   ParGridFunction * jr_; // Raw Volumetric Current Density (HCurl)
-   ParGridFunction * j_;  // Volumetric Current Density (HCurl)
-   ParGridFunction * k_;  // Surface Current Density (HCurl)
-   ParGridFunction * m_;  // Magnetization (HDiv)
-   ParGridFunction * bd_; // Dual of B (HCurl)
-   ParGridFunction * jd_; // Dual of J, the rhs vector (HCurl)
-  */
-  // DivergenceFreeProjector * DivFreeProj_;
-  // SurfaceCurrent          * SurfCur_;
+   // ParLinearForm   * jd_r_; // Dual of real part of current density (HCurl)
+   // ParLinearForm   * jd_i_; // Dual of imaginary part of current density (HCurl)
+   /*
+    ParBilinearForm * curlMuInvCurl_;
+    ParBilinearForm * hCurlMass_;
+    ParMixedBilinearForm * hDivHCurlMuInv_;
+    ParMixedBilinearForm * weakCurlMuInv_;
+   */
+   // ParDiscreteGradOperator * grad_;
+   // ParDiscreteCurlOperator * curl_;
+   /*
+    ParGridFunction * a_;  // Vector Potential (HCurl)
+    ParGridFunction * b_;  // Magnetic Flux (HDiv)
+    ParGridFunction * h_;  // Magnetic Field (HCurl)
+    ParGridFunction * jr_; // Raw Volumetric Current Density (HCurl)
+    ParGridFunction * j_;  // Volumetric Current Density (HCurl)
+    ParGridFunction * k_;  // Surface Current Density (HCurl)
+    ParGridFunction * m_;  // Magnetization (HDiv)
+    ParGridFunction * bd_; // Dual of B (HCurl)
+    ParGridFunction * jd_; // Dual of J, the rhs vector (HCurl)
+   */
+   // DivergenceFreeProjector * DivFreeProj_;
+   // SurfaceCurrent          * SurfCur_;
 
    Coefficient       * epsCoef_;   // Dielectric Material Coefficient
    Coefficient       * muInvCoef_; // Dia/Paramagnetic Material Coefficient
@@ -133,15 +133,15 @@ private:
    Coefficient * massCoef_;   // -omega^2 epsilon
    Coefficient * lossCoef_;   // -omega sigma
 
-  // VectorCoefficient * aBCCoef_;   // Vector Potential BC Function
+   // VectorCoefficient * aBCCoef_;   // Vector Potential BC Function
    VectorCoefficient * jrCoef_;     // Volume Current Density Function
    VectorCoefficient * jiCoef_;     // Volume Current Density Function
-  // VectorCoefficient * mCoef_;     // Magnetization Vector Function
+   // VectorCoefficient * mCoef_;     // Magnetization Vector Function
 
-  // void   (*a_bc_ )(const Vector&, Vector&);
+   // void   (*a_bc_ )(const Vector&, Vector&);
    void   (*j_r_src_)(const Vector&, Vector&);
    void   (*j_i_src_)(const Vector&, Vector&);
-  // void   (*m_src_)(const Vector&, Vector&);
+   // void   (*m_src_)(const Vector&, Vector&);
 
    Array<int> ess_bdr_;
    Array<int> ess_bdr_tdofs_;
@@ -151,47 +151,47 @@ private:
 
    std::map<std::string,socketstream*> socks_;
 };
-  /*
+/*
 class SurfaceCurrent
 {
 public:
-   SurfaceCurrent(ParFiniteElementSpace & H1FESpace,
-                  ParDiscreteGradOperator & Grad,
-                  Array<int> & kbcs, Array<int> & vbcs, Vector & vbcv);
-   ~SurfaceCurrent();
+ SurfaceCurrent(ParFiniteElementSpace & H1FESpace,
+                ParDiscreteGradOperator & Grad,
+                Array<int> & kbcs, Array<int> & vbcs, Vector & vbcv);
+ ~SurfaceCurrent();
 
-   void InitSolver() const;
+ void InitSolver() const;
 
-   void ComputeSurfaceCurrent(ParGridFunction & k);
+ void ComputeSurfaceCurrent(ParGridFunction & k);
 
-   void Update();
+ void Update();
 
-   ParGridFunction * GetPsi() { return psi_; }
+ ParGridFunction * GetPsi() { return psi_; }
 
 private:
-   int myid_;
+ int myid_;
 
-   ParFiniteElementSpace   * H1FESpace_;
-   ParDiscreteGradOperator * grad_;
-   Array<int>              * kbcs_;
-   Array<int>              * vbcs_;
-   Vector                  * vbcv_;
+ ParFiniteElementSpace   * H1FESpace_;
+ ParDiscreteGradOperator * grad_;
+ Array<int>              * kbcs_;
+ Array<int>              * vbcs_;
+ Vector                  * vbcv_;
 
-   ParBilinearForm * s0_;
-   ParGridFunction * psi_;
-   ParGridFunction * rhs_;
+ ParBilinearForm * s0_;
+ ParGridFunction * psi_;
+ ParGridFunction * rhs_;
 
-   HypreParMatrix  * S0_;
-   mutable Vector Psi_;
-   mutable Vector RHS_;
+ HypreParMatrix  * S0_;
+ mutable Vector Psi_;
+ mutable Vector RHS_;
 
-   mutable HypreBoomerAMG  * amg_;
-   mutable HyprePCG        * pcg_;
+ mutable HypreBoomerAMG  * amg_;
+ mutable HyprePCG        * pcg_;
 
-   Array<int> ess_bdr_, ess_bdr_tdofs_;
-   Array<int> non_k_bdr_;
+ Array<int> ess_bdr_, ess_bdr_tdofs_;
+ Array<int> non_k_bdr_;
 };
-  */
+*/
 } // namespace electromagnetics
 
 } // namespace mfem

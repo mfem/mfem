@@ -215,9 +215,9 @@ int main(int argc, char *argv[])
    // Create the Magnetostatic solver
    HertzSolver Hertz(pmesh, order, freq_, kbcs, vbcs, vbcv,
                      *epsCoef, *muInvCoef, sigmaCoef,
-		     NULL, NULL,
-		     (do_params_.Size() > 0 ) ? j_src : NULL, NULL
-		     );
+                     NULL, NULL,
+                     (do_params_.Size() > 0 ) ? j_src : NULL, NULL
+                    );
 
    //(b_uniform_.Size() > 0 ) ? a_bc_uniform  : NULL,
    //(cr_params_.Size() > 0 ) ? current_ring  : NULL,
@@ -516,7 +516,7 @@ void dipole_oscillator(const Vector &x, Vector &j)
 
    double r = do_params_[2*x.Size()+0];
    double a = do_params_[2*x.Size()+1];
-   
+
    double xv = xu * v;
 
    // Compute perpendicular vector from axis to x
@@ -526,6 +526,6 @@ void dipole_oscillator(const Vector &x, Vector &j)
 
    if ( xv >= 0.0 && xv <= h && xp <= r )
    {
-     j.Add(a, v);
+      j.Add(a, v);
    }
 }

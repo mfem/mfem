@@ -30,10 +30,10 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
                          Coefficient & epsCoef,
                          Coefficient & muInvCoef,
                          Coefficient * sigmaCoef,
-			 void   (*e_r_bc )(const Vector&, Vector&),
-			 void   (*e_i_bc )(const Vector&, Vector&),
-			 void   (*j_r_src)(const Vector&, Vector&),
-			 void   (*j_i_src)(const Vector&, Vector&))
+                         void   (*e_r_bc )(const Vector&, Vector&),
+                         void   (*e_i_bc )(const Vector&, Vector&),
+                         void   (*j_r_src)(const Vector&, Vector&),
+                         void   (*j_i_src)(const Vector&, Vector&))
    : myid_(0),
      num_procs_(1),
      order_(order),
@@ -127,30 +127,30 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
    massCoef_ = new TransformedCoefficient(omega2Coef_, epsCoef_, prodFunc);
    if ( sigmaCoef_ )
    {
-     lossCoef_ = new TransformedCoefficient(omegaCoef_, sigmaCoef_, prodFunc);
+      lossCoef_ = new TransformedCoefficient(omegaCoef_, sigmaCoef_, prodFunc);
    }
-   
+
    // Volume Current Density
    if ( j_r_src_ != NULL )
    {
       jrCoef_ = new VectorFunctionCoefficient(pmesh_->SpaceDimension(),
-					      j_r_src_);
+                                              j_r_src_);
    }
    else
-     {
-       Vector j(3); j = 0.0;
-       jrCoef_ = new VectorConstantCoefficient(j);
-     }
+   {
+      Vector j(3); j = 0.0;
+      jrCoef_ = new VectorConstantCoefficient(j);
+   }
    if ( j_i_src_ != NULL )
    {
       jiCoef_ = new VectorFunctionCoefficient(pmesh_->SpaceDimension(),
-					      j_i_src_);
+                                              j_i_src_);
    }
    else
-     {
-       Vector j(3); j = 0.0;
-       jiCoef_ = new VectorConstantCoefficient(j);
-     }
+   {
+      Vector j(3); j = 0.0;
+      jiCoef_ = new VectorConstantCoefficient(j);
+   }
    /*
    // Magnetization
    if ( m_src_ != NULL )
@@ -165,7 +165,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
    a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massCoef_), NULL);
    if ( lossCoef_ )
    {
-     a1_->AddDomainIntegrator(NULL, new VectorFEMassIntegrator(*lossCoef_));
+      a1_->AddDomainIntegrator(NULL, new VectorFEMassIntegrator(*lossCoef_));
    }
    /*
    curlMuInvCurl_  = new ParBilinearForm(HCurlFESpace_);
@@ -185,20 +185,20 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
    // Discrete Curl operator
    curl_ = new ParDiscreteCurlOperator(HCurlFESpace_, HDivFESpace_);
    */
-   
+
    // Build grid functions
-    e_  = new ParComplexGridFunction(HCurlFESpace_);
-  *e_ = 0.0;
- // e_r_  = new ParGridFunction(HCurlFESpace_);
+   e_  = new ParComplexGridFunction(HCurlFESpace_);
+   *e_ = 0.0;
+   // e_r_  = new ParGridFunction(HCurlFESpace_);
    // e_i_  = new ParGridFunction(HCurlFESpace_);
    // b_  = new ParGridFunction(HDivFESpace_);
    // h_  = new ParGridFunction(HCurlFESpace_);
    // bd_ = new ParGridFunction(HCurlFESpace_);
-    // j_r_ = new ParGridFunction(HCurlFESpace_);
+   // j_r_ = new ParGridFunction(HCurlFESpace_);
    // j_i_ = new ParGridFunction(HCurlFESpace_);
    j_ = new ParComplexGridFunction(HCurlFESpace_);
    j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
-   /* 
+   /*
    jd_r_ = new ParLinearForm(HCurlFESpace_);
    jd_i_ = new ParLinearForm(HCurlFESpace_);
 
@@ -213,7 +213,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
    */
    jd_ = new ParComplexLinearForm(HCurlFESpace_);
    jd_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*jrCoef_),
-			    new VectorFEDomainLFIntegrator(*jiCoef_));
+                            new VectorFEDomainLFIntegrator(*jiCoef_));
    /*
    if ( jCoef_ || kbcs.Size() > 0 )
    {
@@ -258,7 +258,7 @@ HertzSolver::~HertzSolver()
 
    // delete e_r_;
    // delete e_i_;
-    delete e_;
+   delete e_;
    // delete b_;
    // delete h_;
    delete j_;
@@ -301,12 +301,12 @@ HertzSolver::GetProblemSize()
 void
 HertzSolver::PrintSizes()
 {
-  // HYPRE_Int size_h1 = H1FESpace_->GlobalTrueVSize();
+   // HYPRE_Int size_h1 = H1FESpace_->GlobalTrueVSize();
    HYPRE_Int size_nd = HCurlFESpace_->GlobalTrueVSize();
    // HYPRE_Int size_rt = HDivFESpace_->GlobalTrueVSize();
    if (myid_ == 0)
    {
-     // cout << "Number of H1      unknowns: " << size_h1 << endl;
+      // cout << "Number of H1      unknowns: " << size_h1 << endl;
       cout << "Number of H(Curl) unknowns: " << size_nd << endl;
       // cout << "Number of H(Div)  unknowns: " << size_rt << endl;
    }
@@ -362,9 +362,9 @@ HertzSolver::Update()
 
    if ( ess_bdr_.Size() > 0 )
    {
-     HCurlFESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
+      HCurlFESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
    }
-   
+
    // Inform the grid functions that the space has changed.
    e_->Update();
    // e_r_->Update();
@@ -403,7 +403,7 @@ HertzSolver::Solve()
    // *e_ = 0.0;
 
    /// For testing
-   // e_->ProjectCoefficient(*jrCoef_, *jiCoef_);   
+   // e_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
    ComplexOperator * A1 = a1_->ParallelAssemble();
 
@@ -417,11 +417,11 @@ HertzSolver::Solve()
    HYPRE_Int size = HCurlFESpace_->GetTrueVSize();
    Vector E(2*size), RHS(2*size);
    jd_->ParallelAssemble(RHS);
-   
+
    minres.Mult(RHS, E);
 
    e_->Distribute(E);
-   
+
    delete A1;
    /*
    // Initialize the magnetic vector potential with its boundary conditions
@@ -553,9 +553,10 @@ HertzSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
    // visit_dc.RegisterField("Ei", e_i_);
    // visit_dc.RegisterField("B", b_);
    // visit_dc.RegisterField("H", h_);
-   if ( j_ ) {
-     visit_dc.RegisterField("Re(J)", &j_->RealPart());
-     visit_dc.RegisterField("Im(J)", &j_->ImagPart());
+   if ( j_ )
+   {
+      visit_dc.RegisterField("Re(J)", &j_->RealPart());
+      visit_dc.RegisterField("Im(J)", &j_->ImagPart());
    }
    // if ( j_r_ ) { visit_dc.RegisterField("Jr", j_r_); }
    // if ( j_i_ ) { visit_dc.RegisterField("Ji", j_i_); }
@@ -573,9 +574,9 @@ HertzSolver::WriteVisItFields(int it)
 
       if ( j_ )
       {
-	j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
+         j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
       }
-      
+
       HYPRE_Int prob_size = this->GetProblemSize();
       visit_dc_->SetCycle(it);
       visit_dc_->SetTime(prob_size);
@@ -661,7 +662,7 @@ HertzSolver::DisplayToGLVis()
    if ( j_ )
    {
       j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
-     
+
       VisualizeField(*socks_["Jr"], vishost, visport,
                      j_->RealPart(), "Current Density, Re(J)", Wx, Wy, Ww, Wh);
       Wx += offx;
@@ -691,134 +692,134 @@ HertzSolver::DisplayToGLVis()
    */
    if (myid_ == 0) { cout << " done." << endl; }
 }
-  /*
+/*
 SurfaceCurrent::SurfaceCurrent(ParFiniteElementSpace & H1FESpace,
-                               ParDiscreteGradOperator & grad,
-                               Array<int> & kbcs,
-                               Array<int> & vbcs, Vector & vbcv)
-   : H1FESpace_(&H1FESpace),
-     grad_(&grad),
-     kbcs_(&kbcs),
-     vbcs_(&vbcs),
-     vbcv_(&vbcv),
-     s0_(NULL),
-     psi_(NULL),
-     rhs_(NULL)
+                             ParDiscreteGradOperator & grad,
+                             Array<int> & kbcs,
+                             Array<int> & vbcs, Vector & vbcv)
+ : H1FESpace_(&H1FESpace),
+   grad_(&grad),
+   kbcs_(&kbcs),
+   vbcs_(&vbcs),
+   vbcv_(&vbcv),
+   s0_(NULL),
+   psi_(NULL),
+   rhs_(NULL)
 {
-   // Initialize MPI variables
-   MPI_Comm_rank(H1FESpace_->GetParMesh()->GetComm(), &myid_);
+ // Initialize MPI variables
+ MPI_Comm_rank(H1FESpace_->GetParMesh()->GetComm(), &myid_);
 
-   s0_ = new ParBilinearForm(H1FESpace_);
-   s0_->AddBoundaryIntegrator(new DiffusionIntegrator);
-   s0_->Assemble();
-   s0_->Finalize();
-   S0_ = new HypreParMatrix;
+ s0_ = new ParBilinearForm(H1FESpace_);
+ s0_->AddBoundaryIntegrator(new DiffusionIntegrator);
+ s0_->Assemble();
+ s0_->Finalize();
+ S0_ = new HypreParMatrix;
 
-   ess_bdr_.SetSize(H1FESpace_->GetParMesh()->bdr_attributes.Max());
-   ess_bdr_ = 0;
-   for (int i=0; i<vbcs_->Size(); i++)
-   {
-      ess_bdr_[(*vbcs_)[i]-1] = 1;
-   }
-   H1FESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
+ ess_bdr_.SetSize(H1FESpace_->GetParMesh()->bdr_attributes.Max());
+ ess_bdr_ = 0;
+ for (int i=0; i<vbcs_->Size(); i++)
+ {
+    ess_bdr_[(*vbcs_)[i]-1] = 1;
+ }
+ H1FESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
 
-   non_k_bdr_.SetSize(H1FESpace_->GetParMesh()->bdr_attributes.Max());
-   non_k_bdr_ = 1;
-   for (int i=0; i<kbcs_->Size(); i++)
-   {
-      non_k_bdr_[(*kbcs_)[i]-1] = 0;
-   }
+ non_k_bdr_.SetSize(H1FESpace_->GetParMesh()->bdr_attributes.Max());
+ non_k_bdr_ = 1;
+ for (int i=0; i<kbcs_->Size(); i++)
+ {
+    non_k_bdr_[(*kbcs_)[i]-1] = 0;
+ }
 
-   psi_ = new ParGridFunction(H1FESpace_);
-   rhs_ = new ParGridFunction(H1FESpace_);
+ psi_ = new ParGridFunction(H1FESpace_);
+ rhs_ = new ParGridFunction(H1FESpace_);
 
-   pcg_ = NULL;
-   amg_ = NULL;
+ pcg_ = NULL;
+ amg_ = NULL;
 }
 
 SurfaceCurrent::~SurfaceCurrent()
 {
-   delete psi_;
-   delete rhs_;
+ delete psi_;
+ delete rhs_;
 
-   delete pcg_;
-   delete amg_;
+ delete pcg_;
+ delete amg_;
 
-   delete S0_;
+ delete S0_;
 
-   delete s0_;
+ delete s0_;
 }
 
 void
 SurfaceCurrent::InitSolver() const
 {
-   delete pcg_;
-   delete amg_;
+ delete pcg_;
+ delete amg_;
 
-   amg_ = new HypreBoomerAMG(*S0_);
-   amg_->SetPrintLevel(0);
-   pcg_ = new HyprePCG(*S0_);
-   pcg_->SetTol(1e-14);
-   pcg_->SetMaxIter(200);
-   pcg_->SetPrintLevel(0);
-   pcg_->SetPreconditioner(*amg_);
+ amg_ = new HypreBoomerAMG(*S0_);
+ amg_->SetPrintLevel(0);
+ pcg_ = new HyprePCG(*S0_);
+ pcg_->SetTol(1e-14);
+ pcg_->SetMaxIter(200);
+ pcg_->SetPrintLevel(0);
+ pcg_->SetPreconditioner(*amg_);
 }
 
 void
 SurfaceCurrent::ComputeSurfaceCurrent(ParGridFunction & k)
 {
-   if (myid_ == 0) { cout << "Computing K ... " << flush; }
+ if (myid_ == 0) { cout << "Computing K ... " << flush; }
 
-   // Apply piecewise constant voltage boundary condition
-   *psi_ = 0.0;
-   *rhs_ = 0.0;
-   Array<int> vbc_bdr_attr(H1FESpace_->GetParMesh()->bdr_attributes.Max());
-   for (int i=0; i<vbcs_->Size(); i++)
-   {
-      ConstantCoefficient voltage((*vbcv_)[i]);
-      vbc_bdr_attr = 0;
-      vbc_bdr_attr[(*vbcs_)[i]-1] = 1;
-      psi_->ProjectBdrCoefficient(voltage, vbc_bdr_attr);
-   }
+ // Apply piecewise constant voltage boundary condition
+ *psi_ = 0.0;
+ *rhs_ = 0.0;
+ Array<int> vbc_bdr_attr(H1FESpace_->GetParMesh()->bdr_attributes.Max());
+ for (int i=0; i<vbcs_->Size(); i++)
+ {
+    ConstantCoefficient voltage((*vbcv_)[i]);
+    vbc_bdr_attr = 0;
+    vbc_bdr_attr[(*vbcs_)[i]-1] = 1;
+    psi_->ProjectBdrCoefficient(voltage, vbc_bdr_attr);
+ }
 
-   // Apply essential BC and form linear system
-   s0_->FormLinearSystem(ess_bdr_tdofs_, *psi_, *rhs_, *S0_, Psi_, RHS_);
+ // Apply essential BC and form linear system
+ s0_->FormLinearSystem(ess_bdr_tdofs_, *psi_, *rhs_, *S0_, Psi_, RHS_);
 
-   // Solve the linear system for Psi
-   if ( pcg_ == NULL ) { this->InitSolver(); }
-   pcg_->Mult(RHS_, Psi_);
+ // Solve the linear system for Psi
+ if ( pcg_ == NULL ) { this->InitSolver(); }
+ pcg_->Mult(RHS_, Psi_);
 
-   // Compute the parallel grid function corresponding to Psi
-   s0_->RecoverFEMSolution(Psi_, *rhs_, *psi_);
+ // Compute the parallel grid function corresponding to Psi
+ s0_->RecoverFEMSolution(Psi_, *rhs_, *psi_);
 
-   // Compute the surface current from psi
-   grad_->Mult(*psi_, k);
+ // Compute the surface current from psi
+ grad_->Mult(*psi_, k);
 
-   // Force the tangential part of k to be zero away from the intended surfaces
-   Vector vZero(3); vZero = 0.0;
-   VectorConstantCoefficient Zero(vZero);
-   k.ProjectBdrCoefficientTangent(Zero, non_k_bdr_);
+ // Force the tangential part of k to be zero away from the intended surfaces
+ Vector vZero(3); vZero = 0.0;
+ VectorConstantCoefficient Zero(vZero);
+ k.ProjectBdrCoefficientTangent(Zero, non_k_bdr_);
 
-   if (myid_ == 0) { cout << "done." << endl; }
+ if (myid_ == 0) { cout << "done." << endl; }
 }
 
 void
 SurfaceCurrent::Update()
 {
-   delete pcg_; pcg_ = NULL;
-   delete amg_; amg_ = NULL;
-   delete S0_;  S0_  = new HypreParMatrix;
+ delete pcg_; pcg_ = NULL;
+ delete amg_; amg_ = NULL;
+ delete S0_;  S0_  = new HypreParMatrix;
 
-   psi_->Update();
-   rhs_->Update();
+ psi_->Update();
+ rhs_->Update();
 
-   s0_->Update();
-   s0_->Assemble();
-   s0_->Finalize();
+ s0_->Update();
+ s0_->Assemble();
+ s0_->Finalize();
 
-   H1FESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
+ H1FESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
 }
-  */
+*/
 } // namespace electromagnetics
 
 } // namespace mfem

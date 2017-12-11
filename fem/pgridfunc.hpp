@@ -278,7 +278,7 @@ public:
    virtual ~ParGridFunction() { }
 };
 
-  
+
 /// Class for complex-valued grid function - Vector with associated FE space.
 class ParComplexGridFunction : public Vector
 {
@@ -287,9 +287,9 @@ private:
    ParGridFunction * pgfr_;
    ParGridFunction * pgfi_;
 
-protected:  
+protected:
    void Destroy() { delete pgfr_; delete pgfi_; }
-  
+
 public:
 
    /* @brief Construct a ParComplexGridFunction associated with the
@@ -297,19 +297,19 @@ public:
    ParComplexGridFunction(ParFiniteElementSpace *f);
 
    void Update() { pgfr_->Update(); pgfi_->Update(); }
-  
+
    /// Assign constant values to the ParComplexGridFunction data.
    ParComplexGridFunction &operator=(const std::complex<double> & value)
    { *pgfr_ = value.real(); *pgfi_ = value.imag(); return *this; }
 
    virtual void ProjectCoefficient(Coefficient &real_coeff,
-				   Coefficient &imag_coeff);
+                                   Coefficient &imag_coeff);
    virtual void ProjectCoefficient(VectorCoefficient &real_vcoeff,
-				   VectorCoefficient &imag_vcoeff);
+                                   VectorCoefficient &imag_vcoeff);
 
    void Distribute(const Vector *tv);
    void Distribute(const Vector &tv) { Distribute(&tv); }
-  
+
    FiniteElementSpace *FESpace() { return pgfr_->FESpace(); }
    const FiniteElementSpace *FESpace() const { return pgfr_->FESpace(); }
 
@@ -317,10 +317,10 @@ public:
    ParGridFunction & ImagPart() { return *pgfi_; }
    const ParGridFunction & RealPart() const { return *pgfr_; }
    const ParGridFunction & ImagPart() const { return *pgfi_; }
-  
+
    /// Destroys grid function.
    virtual ~ParComplexGridFunction() { Destroy(); }
-  
+
 };
 
 /** Performs a global L2 projection (through a HypreBoomerAMG solve) of flux
