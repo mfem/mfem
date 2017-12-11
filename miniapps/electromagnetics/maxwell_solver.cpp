@@ -515,7 +515,6 @@ MaxwellSolver::GetMaximumTimeStep() const
    HypreParVector * v0 = new HypreParVector(HCurlFESpace_);
    HypreParVector * v1 = new HypreParVector(HCurlFESpace_);
    HypreParVector * u0 = new HypreParVector(HDivFESpace_);
-   HypreParVector * vTmp = NULL;
 
    v0->Randomize(1234);
 
@@ -543,15 +542,13 @@ MaxwellSolver::GetMaximumTimeStep() const
       change = fabs((dt1-dt0)/dt0);
       dt0 = dt1;
 
-      if ( myid_ == 0 && logging_ > 0 )
+      if ( myid_ == 0 && logging_ > 1 )
       {
          cout << iter << ":  " << dt0 << " " << change << endl;
       }
 
-      vTmp = v0;
-      v0   = v1;
-      v1   = vTmp;
-
+      std::swap(v0, v1);
+      
       iter++;
    }
 
