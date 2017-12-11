@@ -407,6 +407,7 @@ HertzSolver::Solve()
 
    ComplexOperator * A1 = a1_->ParallelAssemble();
 
+   ComplexOperator * A1 = a1_->ParallelAssemble(ComplexOperator::BLOCK_SYMMETRIC);
    MINRESSolver minres(HCurlFESpace_->GetComm());
    minres.SetOperator(*A1);
    minres.SetRelTol(1e-6);
