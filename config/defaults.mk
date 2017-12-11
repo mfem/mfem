@@ -130,7 +130,7 @@ OPENMP_LIB =
 POSIX_CLOCKS_LIB = -lrt
 
 # SUNDIALS library configuration
-SUNDIALS_DIR = @MFEM_DIR@/../sundials-2.7.0
+SUNDIALS_DIR = @MFEM_DIR@/../sundials-3.0.0
 SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
 SUNDIALS_LIB = -Wl,-rpath,$(SUNDIALS_DIR)/lib -L$(SUNDIALS_DIR)/lib\
   -lsundials_arkode -lsundials_cvode -lsundials_nvecserial -lsundials_kinsol
@@ -204,15 +204,17 @@ NETCDF_LIB  = -L$(NETCDF_DIR)/lib -lnetcdf -L$(HDF5_DIR)/lib -lhdf5_hl -lhdf5\
  -L$(ZLIB_DIR)/lib -lz
 
 # PETSc library configuration (version greater or equal to 3.8 or the dev branch)
-ifeq ($(MFEM_USE_PETSC),YES)
-   PETSC_ARCH:=arch-linux2-c-debug
-   PETSC_DIR := $(MFEM_DIR)/../petsc/$(PETSC_ARCH)
-   PETSC_PC  := $(PETSC_DIR)/lib/pkgconfig/PETSc.pc
-   $(if $(wildcard $(PETSC_PC)),,$(error PETSc config not found - $(PETSC_PC)))
-   PETSC_OPT := $(shell sed -n "s/Cflags: *//p" $(PETSC_PC))
-   PETSC_LIBS_PRIVATE := $(shell sed -n "s/Libs\.private: *//p" $(PETSC_PC))
-   PETSC_LIB := -Wl,-rpath -Wl,$(abspath $(PETSC_DIR))/lib\
- -L$(abspath $(PETSC_DIR))/lib -lpetsc $(PETSC_LIBS_PRIVATE)
+PETSC_ARCH := arch-linux2-c-debug
+PETSC_DIR  := $(MFEM_DIR)/../petsc/$(PETSC_ARCH)
+PETSC_VARS := $(PETSC_DIR)/lib/petsc/conf/petscvariables
+PETSC_FOUND := $(if $(wildcard $(PETSC_VARS)),YES,)
+PETSC_INC_VAR = PETSC_CC_INCLUDES
+PETSC_LIB_VAR = PETSC_EXTERNAL_LIB_BASIC
+ifeq ($(PETSC_FOUND),YES)
+   PETSC_OPT := $(shell sed -n "s/$(PETSC_INC_VAR) = *//p" $(PETSC_VARS))
+   PETSC_LIB := $(shell sed -n "s/$(PETSC_LIB_VAR) = *//p" $(PETSC_VARS))
+   PETSC_LIB := -Wl,-rpath,$(abspath $(PETSC_DIR))/lib\
+      -L$(abspath $(PETSC_DIR))/lib -lpetsc $(PETSC_LIB)
 endif
 
 # MPFR library configuration

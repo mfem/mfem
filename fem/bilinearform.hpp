@@ -24,16 +24,26 @@
 namespace mfem
 {
 
+// Forward declare BilinearFormOperator
+class BilinearFormOperator;
+
 /** Class for bilinear form - "Matrix" with associated FE space and
     BLFIntegrators. */
 class BilinearForm : public Matrix
 {
 protected:
+   // TODO remove mat
    /// Sparse matrix to be associated with the form.
    SparseMatrix *mat;
 
    /// Matrix used to eliminate b.c.
    SparseMatrix *mat_e;
+
+   /// Generic operator associated with the form.
+   Operator *oper;
+
+   /// Operator type.
+   enum Type oper_type;
 
    /// FE space on which the form lives.
    FiniteElementSpace *fes;
@@ -57,6 +67,9 @@ protected:
    Array<BilinearFormIntegrator*> bfbfi;
    Array<Array<int>*>             bfbfi_marker;
 
+   /// Set of fespace integrators (does not matter what type)
+   Array<LinearFESpaceIntegrator*> fesi;
+
    DenseMatrix elemmat;
    Array<int>  vdofs;
 
@@ -75,7 +88,9 @@ protected:
    BilinearForm() : Matrix (0)
    {
       fes = NULL; sequence = -1;
-      mat = mat_e = NULL; extern_bfs = 0; element_matrices = NULL;
+      mat = mat_e = NULL;
+      oper = NULL; oper_type = MFEM_SPARSEMAT;
+      extern_bfs = 0; element_matrices = NULL;
       static_cond = NULL; hybridization = NULL;
       precompute_sparsity = 0;
    }
@@ -141,6 +156,8 @@ public:
    Array<BilinearFormIntegrator*> *GetFBFI() { return &fbfi; }
 
    Array<BilinearFormIntegrator*> *GetBFBFI() { return &bfbfi; }
+
+   Array<LinearFESpaceIntegrator*> *GetFESI() { return &fesi; }
 
    const double &operator()(int i, int j) { return (*mat)(i,j); }
 
@@ -218,6 +235,9 @@ public:
    /// Adds new boundary Face Integrator.
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
 
+   /// Adds a LinearFESpaceIntegrator.
+   void AddIntegrator(LinearFESpaceIntegrator *integ);
+
    /** @brief Adds new boundary Face Integrator, restricted to specific boundary
        attributes. */
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
@@ -231,6 +251,9 @@ public:
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
+
+   void AssembleForm(BilinearFormOperator &A);
+   void AssembleForm(SparseMatrix &A, int skip_zeros = 1);
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
@@ -262,10 +285,16 @@ public:
 
        NOTE: If there are no transformations, X simply reuses the data of x. */
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                         Operator * &A, Vector &X, Vector &B,
+                         int copy_interior = 0);
+
+   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
                          SparseMatrix &A, Vector &X, Vector &B,
                          int copy_interior = 0);
 
    /// Form the linear system matrix A, see FormLinearSystem for details.
+   void FormSystemOperator(const Array<int> &ess_tdof_list, Operator * &Aoper);
+
    void FormSystemMatrix(const Array<int> &ess_tdof_list, SparseMatrix &A);
 
    /** Call this method after solving a linear system constructed using the
@@ -330,12 +359,19 @@ public:
 
    virtual void Update(FiniteElementSpace *nfes = NULL);
 
-   /// Return the FE space associated with the BilinearForm.
+   /// (DEPRECATED) Return the FE space associated with the BilinearForm.
+   /** @deprecated Use FESpace() instead. */
    FiniteElementSpace *GetFES() { return fes; }
+
+   /// Return the FE space associated with the BilinearForm.
+   FiniteElementSpace *FESpace() { return fes; }
+   /// Read-only access to the associated FiniteElementSpace.
+   const FiniteElementSpace *FESpace() const { return fes; }
 
    /// Destroys bilinear form.
    virtual ~BilinearForm();
 };
+
 
 /**
    Class for assembling of bilinear forms `a(u,v)` defined on different
@@ -356,12 +392,14 @@ class MixedBilinearForm : public Matrix
 {
 protected:
    SparseMatrix *mat;
+   Operator *oper;
 
    FiniteElementSpace *trial_fes, *test_fes;
 
    Array<BilinearFormIntegrator*> dom;
    Array<BilinearFormIntegrator*> bdr;
    Array<BilinearFormIntegrator*> skt; // trace face integrators
+   Array<LinearFESpaceIntegrator*> fesi;
 
 public:
    MixedBilinearForm (FiniteElementSpace *tr_fes,
@@ -404,15 +442,23 @@ public:
        two adjacent volume FEs from the test space. */
    void AddTraceFaceIntegrator (BilinearFormIntegrator * bfi);
 
+   /// Add an FESpaceIntegrator
+   void AddIntegrator (LinearFESpaceIntegrator *integ);
+
    Array<BilinearFormIntegrator*> *GetDBFI() { return &dom; }
 
    Array<BilinearFormIntegrator*> *GetBBFI() { return &bdr; }
 
    Array<BilinearFormIntegrator*> *GetTFBFI() { return &skt; }
 
+   Array<LinearFESpaceIntegrator*> *GetFESI() { return &fesi; }
+
    void operator= (const double a) { *mat = a; }
 
    void Assemble (int skip_zeros = 1);
+
+   void AssembleForm(BilinearFormOperator &A, int skip_zeros = 1);
+   void AssembleForm(SparseMatrix &A, int skip_zeros = 1);
 
    /** For partially conforming trial and/or test FE spaces, complete the
        assembly process by performing A := P2^t A P1 where A is the internal
@@ -430,6 +476,10 @@ public:
    virtual void EliminateTestDofs(Array<int> &bdr_attr_is_ess);
 
    void Update();
+
+   FiniteElementSpace *TrialFESpace() const { return trial_fes; }
+
+   FiniteElementSpace *TestFESpace() const { return test_fes; }
 
    virtual ~MixedBilinearForm();
 };
@@ -481,31 +531,6 @@ public:
    Array<BilinearFormIntegrator*> *GetDI() { return &dom; }
 
    virtual void Assemble(int skip_zeros = 1);
-};
-
-// Matrix-free bilinear form
-class BilinearFormOperator : public BilinearForm
-{
-protected:
-   mutable Vector X;
-   mutable Vector Y;
-   Array<int> offsets, indices;
-
-   // Convert between vector types before calling Mult.
-   void LToEVector(const Vector &v, Vector &V) const;
-   void EToLVector(const Vector &V, Vector &v) const;
-
-public:
-   BilinearFormOperator(FiniteElementSpace *f);
-
-   /// Perform the action of the bilinear form on a vector.
-   virtual void Mult(const Vector &x, Vector &y) const;
-
-   /// For the linear system.
-   virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                                 Operator* &A, Vector &X, Vector &B,
-                                 int copy_interior = 0)
-      { Operator::FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior); }
 };
 
 }

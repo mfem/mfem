@@ -70,6 +70,9 @@ public:
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
 
+   void AssembleForm(BilinearFormOperator &A, int skip_zeros = 1);
+   void AssembleForm(HypreParMatrix &A, int skip_zeros = 1);
+
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
    HypreParMatrix *ParallelAssemble() { return ParallelAssemble(mat); }
@@ -178,14 +181,7 @@ public:
    template <typename OpType>
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
                          OpType &A, Vector &X, Vector &B,
-                         int copy_interior = 0)
-   {
-      OperatorHandle Ah;
-      FormLinearSystem(ess_tdof_list, x, b, Ah, X, B, copy_interior);
-      OpType *A_ptr = Ah.Is<OpType>();
-      MFEM_VERIFY(A_ptr, "invalid OpType used");
-      A.MakeRef(*A_ptr);
-   }
+                         int copy_interior = 0);
 
    /// Form the linear system matrix @a A, see FormLinearSystem() for details.
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);

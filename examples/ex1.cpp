@@ -144,32 +144,30 @@ int main(int argc, char *argv[])
    // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   SparseMatrix A_sp;
-   BilinearForm *a;
-   Operator *A;
    Vector B, X;
-   if (use_partial_assembly)
+   BilinearForm *a = new BilinearForm(fespace);
+   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+
+   BilinearFormOperator A_pa(new PAIntegratorMap);
+   SparseMatrix A_sp;
+   if (!use_partial_assembly)
    {
-      BilinearFormOperator *a_oper = new BilinearFormOperator(fespace);
-      const int ir_order = 2 * order + dim - 1;
-      a_oper->AddDomainIntegrator(new PADiffusionIntegrator(fespace, ir_order));
-      a_oper->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-      a = a_oper;
+      a->AssembleForm(A_sp);
    }
    else
    {
-      a = new BilinearForm(fespace);
-      a->AddDomainIntegrator(new DiffusionIntegrator(one));
-
-      // 9. Assemble the bilinear form and the corresponding linear system,
-      //    applying any necessary transformations such as: eliminating boundary
-      //    conditions, applying conforming constraints for non-conforming AMR,
-      //    static condensation, etc.
-      if (static_cond) { a->EnableStaticCondensation(); }
-      a->Assemble();
-      a->FormLinearSystem(ess_tdof_list, x, *b, A_sp, X, B);
-      A = &A_sp;
+      // Can add a custom FESpaceIntegrator in this way:
+      // a->AddIntegrator(new PADiffusionIntegrator(new DiffusionIntegrator(one)));
+      a->AssembleForm(A_pa);
    }
+
+   Operator *A;
+   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+
+   // 9. Assemble the bilinear form and the corresponding linear system,
+   //    applying any necessary transformations such as: eliminating boundary
+   //    conditions, applying conforming constraints for non-conforming AMR,
+   //    static condensation, etc.
 
    cout << "Size of linear system: " << A->Height() << endl;
 
@@ -179,13 +177,8 @@ int main(int argc, char *argv[])
 
    if (use_smoother && !use_partial_assembly)
    {
-      // Preserve the original feature to use the GSSmoother option
       GSSmoother M(A_sp);
       PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
-   }
-   else if (use_smoother)
-   {
-      mfem_error("Cannot use GSSmoother with partial assembly");
    }
    else
    {
@@ -226,6 +219,7 @@ int main(int argc, char *argv[])
    }
 
    // 14. Free the used memory.
+   delete A;
    delete a;
    delete b;
    delete fespace;

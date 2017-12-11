@@ -22,10 +22,8 @@ namespace mfem
 class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
 protected:
-   const IntegrationRule *IntRule;
-
-   BilinearFormIntegrator(const IntegrationRule *ir = NULL)
-   { IntRule = ir; }
+   BilinearFormIntegrator(const IntegrationRule *ir = NULL) :
+      NonlinearFormIntegrator(ir) { }
 
 public:
    /// Given a particular Finite Element computes the element matrix elmat.
@@ -60,14 +58,16 @@ public:
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
 
-   /// Perform the action of the BilinearFormIntegrator
-   virtual void AssembleVector(const FiniteElementSpace &fes,
-                               const Vector &fun, Vector &vect);
-
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &Tr,
                                     const Vector &elfun, DenseMatrix &elmat)
    { AssembleElementMatrix(el, Tr, elmat); }
+
+   virtual void AssembleFaceGrad(const FiniteElement &el1,
+                                 const FiniteElement &el2,
+                                 FaceElementTransformations &Tr,
+                                 const Vector &elfun, DenseMatrix &elmat)
+   { AssembleFaceMatrix(el1, el2, Tr, elmat); }
 
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
@@ -80,7 +80,16 @@ public:
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
 
-   void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
+   /** Assemble any element or face-specific terms required for the
+       action with the bilinear form integrator. Later applied with
+       AssembleVector. */
+   virtual void AssembleOperator(const FiniteElementSpace *trial_fes,
+                                 const FiniteElementSpace *test_fes) { }
+
+   /** Compute `y = A * x` where A is the bilinear form integrator for
+       all elements/faces. */
+   virtual void AssembleMult(const Vector &fun, Vector &vect);
+   virtual void AssembleMultTranspose(const Vector &fun, Vector &vect);
 
    virtual ~BilinearFormIntegrator() { }
 };
@@ -1624,6 +1633,11 @@ public:
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
+
+   // Friend partial assembly version so it has access to the coefficients.
+   friend class PADiffusionIntegrator;
+   // TODO: Add a GetPAIntegrator method here
+   // PAIntegrator* GetPAIntegrator(type);
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -1651,6 +1665,9 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   // Friend partial assembly version so it has access to the coefficients.
+   friend class PAMassIntegrator;
 };
 
 class BoundaryMassIntegrator : public MassIntegrator
@@ -1744,6 +1761,9 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   // Friend partial assembly version so it has access to the coefficients.
+   friend class PAMassIntegrator;
 };
 
 

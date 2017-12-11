@@ -10,7 +10,7 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 30301
+MFEM_VERSION = 30303
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -73,6 +73,8 @@ endef
 
 # Do not pass down variables from the command-line to sub-make:
 MAKEOVERRIDES =
+# Note: this produces some undesired results, e.g. the following does not work
+# as expected: "make pdebug -j 4 MPICXX=mpic++".
 
 # Path to the mfem source directory, defaults to this makefile's directory:
 THIS_MK := $(lastword $(MAKEFILE_LIST))
@@ -82,6 +84,9 @@ MFEM_REAL_DIR := $(realpath $(MFEM_DIR))
 $(if $(MFEM_REAL_DIR),,$(error Source directory "$(MFEM_DIR)" is not valid))
 SRC := $(if $(MFEM_REAL_DIR:$(CURDIR)=),$(MFEM_DIR)/,)
 $(if $(word 2,$(SRC)),$(error Spaces in SRC = "$(SRC)" are not supported))
+
+MFEM_GIT_STRING = $(shell [ -d $(MFEM_DIR)/.git ] && git -C $(MFEM_DIR) \
+   describe --all --long --abbrev=40 --dirty --always 2> /dev/null)
 
 EXAMPLE_SUBDIRS = sundials petsc
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
@@ -181,9 +186,25 @@ ifeq ($(MFEM_USE_OPENMP),YES)
    endif
 endif
 
+# List of MFEM dependencies, that require the *_LIB variable to be non-empty
+MFEM_REQ_LIB_DEPS = METIS SIDRE LAPACK SUNDIALS MESQUITE SUITESPARSE SUPERLU\
+ STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR
+PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
+
+define mfem_check_dependency
+ifeq ($$(MFEM_USE_$(1)),YES)
+   $$(if $$($(1)_LIB),,$$(error $(1)_LIB is empty$$($(1)_ERROR_MSG)))
+endif
+endef
+
+# During configuration, check dependencies from MFEM_REQ_LIB_DEPS
+ifeq ($(MAKECMDGOALS),config)
+   $(foreach dep,$(MFEM_REQ_LIB_DEPS),\
+      $(eval $(call mfem_check_dependency,$(dep))))
+endif
+
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = METIS LIBUNWIND SIDRE LAPACK EIGEN OPENMP SUNDIALS MESQUITE\
- SUITESPARSE SUPERLU STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR
+MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP
 
 # Macro for adding dependencies
 define mfem_add_dependency
@@ -207,12 +228,12 @@ ifeq ($(MFEM_USE_GZSTREAM),YES)
 endif
 
 # List of all defines that may be enabled in config.hpp and config.mk:
-MFEM_DEFINES = MFEM_VERSION MFEM_USE_MPI MFEM_USE_METIS MFEM_USE_METIS_5\
- MFEM_DEBUG MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_USE_EIGEN\
- MFEM_THREAD_SAFE MFEM_USE_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE\
- MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO\
- MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF\
- MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE
+MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
+ MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_GZSTREAM\
+ MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP\
+ MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS MFEM_USE_MESQUITE\
+ MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU MFEM_USE_STRUMPACK\
+ MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -378,11 +399,15 @@ install: $(BLD)libmfem.a
 	$(INSTALL) -m 640 $(SRC)config/test.mk $(PREFIX_SHARE)/test.mk
 
 $(CONFIG_MK):
+# Skip the error message when '-B' make flag is used (unconditionally
+# make all targets), but still check for the $(CONFIG_MK) file
+ifeq (,$(and $(findstring B,$(MAKEFLAGS)),$(wildcard $(CONFIG_MK))))
 	$(info )
 	$(info MFEM is not configured.)
 	$(info Run "make config" first, or see "make help".)
 	$(info )
 	$(error )
+endif
 
 config: $(if $(BUILD_DIR_DEF),build-config,local-config)
 
@@ -413,6 +438,7 @@ help:
 
 status info:
 	$(info MFEM_VERSION         = $(MFEM_VERSION) [v$(MFEM_VERSION_STRING)])
+	$(info MFEM_GIT_STRING      = $(MFEM_GIT_STRING))
 	$(info MFEM_USE_MPI         = $(MFEM_USE_MPI))
 	$(info MFEM_USE_METIS       = $(MFEM_USE_METIS))
 	$(info MFEM_USE_METIS_5     = $(MFEM_USE_METIS_5))
@@ -462,5 +488,15 @@ style:
 	fi
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
-print-%: ; @printf "%s:\n" $*
-	@printf "%s\n" $($*)
+print-%:
+	$(info [ variable name]: $*)
+	$(info [        origin]: $(origin $*))
+	$(info [         value]: $(value $*))
+	$(info [expanded value]: $($*))
+	$(info )
+	@true
+
+# Print the contents of all makefile variables.
+.PHONY: printall
+printall: $(foreach var,$(.VARIABLES),print-$(var))
+	@true

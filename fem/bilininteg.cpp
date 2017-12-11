@@ -61,10 +61,17 @@ void BilinearFormIntegrator::AssembleElementVector(
               "   is not implemented fot this class.");
 }
 
-void BilinearFormIntegrator::AssembleVector(
-   const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
+void BilinearFormIntegrator::AssembleMult(
+   const Vector &x, Vector& y)
 {
-   mfem_error("BilinearFormIntegrator::AssembleVector\n"
+   mfem_error("BilinearFormIntegrator::AssembleMult\n"
+              "   is not implemented fot this class.");
+}
+
+void BilinearFormIntegrator::AssembleMultTranspose(
+   const Vector &x, Vector& y)
+{
+   mfem_error("BilinearFormIntegrator::AssembleMultTranspose\n"
               "   is not implemented fot this class.");
 }
 
@@ -2057,7 +2064,6 @@ void DivDivIntegrator::AssembleElementMatrix(
       AddMult_a_VVt (c, divshape, elmat);
    }
 }
-
 
 void VectorDiffusionIntegrator::AssembleElementMatrix(
    const FiniteElement &el,
