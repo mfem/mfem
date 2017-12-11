@@ -405,8 +405,6 @@ HertzSolver::Solve()
    /// For testing
    // e_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
-   ComplexOperator * A1 = a1_->ParallelAssemble();
-
    ComplexOperator * A1 = a1_->ParallelAssemble(ComplexOperator::BLOCK_SYMMETRIC);
    MINRESSolver minres(HCurlFESpace_->GetComm());
    minres.SetOperator(*A1);
