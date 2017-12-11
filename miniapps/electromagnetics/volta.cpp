@@ -362,8 +362,6 @@ int main(int argc, char *argv[])
 
    delete epsCoef;
 
-   MPI_Finalize();
-
    return 0;
 }
 
