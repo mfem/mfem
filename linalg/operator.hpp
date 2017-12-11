@@ -436,7 +436,7 @@ public:
 
     Matrix-vector products are then computed as:
 
-    1. When Convention::BLOCK_ANTISYMMETRIC is used (default)
+    1. When Convention::HERMITIAN is used (default)
     / y_r \   / Op_r -Op_i \ / x_r \
     |     | = |            | |     |
     \ y_i /   \ Op_i  Op_r / \ x_i /
@@ -450,7 +450,7 @@ public:
     however, each of them is best suited for certain classes of
     problems.  For example:
 
-    1. Convention::BLOCK_ANTISYMMETRIC, is well suited for Hermitian operators,
+    1. Convention::HERMITIAN, is well suited for Hermitian operators,
     i.e. operators where the real part is symmetric and the imaginary part of
     the operator is anti-symmetric, hence the name. In such cases the resulting
     2 x 2 operator will be symmetric.
@@ -465,13 +465,13 @@ class ComplexOperator : public Operator
 public:
    enum Convention
    {
-      BLOCK_ANTISYMMETRIC,  ///< Native convention for Hermitian operators
-      BLOCK_SYMMETRIC       ///< Alternate convention for damping operators
+      HERMITIAN,      ///< Native convention for Hermitian operators
+      BLOCK_SYMMETRIC ///< Alternate convention for damping operators
    };
 
    ComplexOperator(Operator * Op_Real, Operator * Op_Imag,
                    bool ownReal, bool ownImag,
-                   Convention convention = BLOCK_ANTISYMMETRIC);
+                   Convention convention = HERMITIAN);
 
    virtual ~ComplexOperator();
 
