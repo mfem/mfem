@@ -621,7 +621,7 @@ class ComplexSparseMatrix : public ComplexOperator
 public:
    ComplexSparseMatrix(SparseMatrix * A_Real, SparseMatrix * A_Imag,
                        bool ownReal, bool ownImag,
-                       Convention convention = BLOCK_ANTISYMMETRIC)
+                       Convention convention = HERMITIAN)
       : ComplexOperator(A_Real, A_Imag, ownReal, ownImag, convention)
    {}
 
