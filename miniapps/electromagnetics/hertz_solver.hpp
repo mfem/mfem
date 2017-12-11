@@ -42,7 +42,8 @@ static double mu0_ = 4.0e-7*M_PI;
 class HertzSolver
 {
 public:
-   HertzSolver(ParMesh & pmesh, int order, Array<int> & kbcs,
+   HertzSolver(ParMesh & pmesh, int order, double freq,
+	       Array<int> & kbcs,
                Array<int> & vbcs, Vector & vbcv,
                Coefficient & epsCoef,
                Coefficient & muInvCoef,
@@ -125,6 +126,12 @@ private:
    Coefficient       * epsCoef_;   // Dielectric Material Coefficient
    Coefficient       * muInvCoef_; // Dia/Paramagnetic Material Coefficient
    Coefficient       * sigmaCoef_; // Electrical Conductivity Coefficient
+
+   Coefficient * omegaCoef_;  // -omega expressed as a Coefficient
+   Coefficient * omega2Coef_; // -omega^2 expressed as a Coefficient
+   Coefficient * massCoef_;   // -omega^2 epsilon
+   Coefficient * lossCoef_;   // -omega sigma
+
   // VectorCoefficient * aBCCoef_;   // Vector Potential BC Function
    VectorCoefficient * jrCoef_;     // Volume Current Density Function
    VectorCoefficient * jiCoef_;     // Volume Current Density Function
@@ -143,7 +150,7 @@ private:
 
    std::map<std::string,socketstream*> socks_;
 };
-
+  /*
 class SurfaceCurrent
 {
 public:
@@ -183,7 +190,7 @@ private:
    Array<int> ess_bdr_, ess_bdr_tdofs_;
    Array<int> non_k_bdr_;
 };
-
+  */
 } // namespace electromagnetics
 
 } // namespace mfem
