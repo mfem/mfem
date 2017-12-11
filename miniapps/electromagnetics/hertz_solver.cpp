@@ -21,7 +21,10 @@ using namespace miniapps;
 namespace electromagnetics
 {
 
-HertzSolver::HertzSolver(ParMesh & pmesh, int order,
+// Used for combining scalar coefficients
+double prodFunc(double a, double b) { return a * b; }
+
+HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
                          Array<int> & kbcs,
                          Array<int> & vbcs, Vector & vbcv,
                          Coefficient & epsCoef,
@@ -35,7 +38,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order,
      num_procs_(1),
      order_(order),
      logging_(1),
-     freq_(0.0),
+     freq_(freq),
      pmesh_(&pmesh),
      // H1FESpace_(NULL),
      HCurlFESpace_(NULL),
@@ -64,6 +67,8 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order,
      epsCoef_(&epsCoef),
      muInvCoef_(&muInvCoef),
      sigmaCoef_(sigmaCoef),
+     omegaCoef_(new ConstantCoefficient(-2.0 * M_PI * freq)),
+     omega2Coef_(new ConstantCoefficient(-pow(2.0 * M_PI * freq, 2))),
      // aBCCoef_(NULL),
      jrCoef_(NULL),
      jiCoef_(NULL),
@@ -116,6 +121,12 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order,
                                                *a_bc_);
    }
    */
+   massCoef_ = new TransformedCoefficient(omega2Coef_, epsCoef_, prodFunc);
+   if ( sigmaCoef_ )
+   {
+     lossCoef_ = new TransformedCoefficient(omegaCoef_, sigmaCoef_, prodFunc);
+   }
+   
    // Volume Current Density
    if ( j_r_src_ != NULL )
    {
@@ -137,6 +148,12 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order,
    */
    // Bilinear Forms
    a1_ = new ParSesquilinearForm(HCurlFESpace_);
+   a1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_), NULL);
+   a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massCoef_), NULL);
+   if ( lossCoef_ )
+   {
+     a1_->AddDomainIntegrator(NULL, new VectorFEMassIntegrator(*lossCoef_));
+   }
    /*
    curlMuInvCurl_  = new ParBilinearForm(HCurlFESpace_);
    curlMuInvCurl_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_));
@@ -167,6 +184,15 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order,
 
    jd_r_ = new ParLinearForm(HCurlFESpace_);
    jd_i_ = new ParLinearForm(HCurlFESpace_);
+
+   if ( jrCoef_ )
+   {
+     jd_r_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*jrCoef_));
+   }
+   if ( jiCoef_ )
+   {
+     jd_i_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*jiCoef_));
+   }
    /*
    if ( jCoef_ || kbcs.Size() > 0 )
    {
@@ -269,6 +295,9 @@ HertzSolver::Assemble()
 
    a1_->Assemble();
    a1_->Finalize();
+
+   jd_r_->Assemble();
+   jd_i_->Assemble();
    /*
    curlMuInvCurl_->Assemble();
    curlMuInvCurl_->Finalize();
@@ -342,6 +371,7 @@ void
 HertzSolver::Solve()
 {
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Running solver ... " << endl; }
+
    /*
    // Initialize the magnetic vector potential with its boundary conditions
    *a_ = 0.0;

@@ -48,6 +48,12 @@ static Vector cs_params_(0);  // Center, Radius, and Conductivity
 //                               of conductive sphere
 double conductive_sphere(const Vector &);
 
+// Current Density Function
+static Vector do_params_(0);  // Axis Start, Axis End, Rod Radius,
+//                               Total Current of Rod
+void dipole_oscillator(const Vector &x, Vector &j);
+void j_src(const Vector &x, Vector &j) { dipole_oscillator(x, j); }
+
 static double freq_;
 
 // Prints the program's logo to the given output stream
@@ -97,6 +103,8 @@ int main(int argc, char *argv[])
                   "Piecewise values of Conductivity");
    args.AddOption(&cs_params_, "-cs", "--conductive-sphere-params",
                   "Center, Radius, and Conductivity of Conductive Sphere");
+   args.AddOption(&do_params_, "-do", "--dipole-oscillator-params",
+                  "Axis End Points, Radius, and Amplitude");
    /*
    args.AddOption(&dbcs, "-dbcs", "--dirichlet-bc-surf",
                   "Dirichlet Boundary Condition Surfaces");
@@ -205,10 +213,10 @@ int main(int argc, char *argv[])
    Coefficient * sigmaCoef = SetupConductivityCoefficient();
 
    // Create the Magnetostatic solver
-   HertzSolver Hertz(pmesh, order, kbcs, vbcs, vbcv,
+   HertzSolver Hertz(pmesh, order, freq_, kbcs, vbcs, vbcv,
                      *epsCoef, *muInvCoef, sigmaCoef,
 		     NULL, NULL,
-		     NULL, NULL
+		     (do_params_.Size() > 0 ) ? j_src : NULL, NULL
 		     );
 
    //(b_uniform_.Size() > 0 ) ? a_bc_uniform  : NULL,
@@ -475,4 +483,49 @@ double conductive_sphere(const Vector &x)
       return cs_params_(x.Size()+1);
    }
    return 0.0;
+}
+
+// A cylindrical rod of current density.  The rod has two axis end
+// points, a radus, a current amplitude in Amperes.  All of these
+// parameters are stored in do_params_.
+void dipole_oscillator(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   Vector  v(x.Size());  // Normalized Axis vector
+   Vector xu(x.Size());  // x vector relative to the axis end-point
+
+   xu = x;
+
+   for (int i=0; i<x.Size(); i++)
+   {
+      xu[i] -= do_params_[i];
+      v[i]   = do_params_[x.Size()+i] - do_params_[i];
+   }
+
+   double h = v.Norml2();
+
+   if ( h == 0.0 )
+   {
+      return;
+   }
+   v /= h;
+
+   double r = do_params_[2*x.Size()+0];
+   double a = do_params_[2*x.Size()+1];
+   
+   double xv = xu * v;
+
+   // Compute perpendicular vector from axis to x
+   xu.Add(-xv, v);
+
+   double xp = xu.Norml2();
+
+   if ( xv >= 0.0 && xv <= h && xp <= r )
+   {
+     j.Add(a, v);
+   }
 }
