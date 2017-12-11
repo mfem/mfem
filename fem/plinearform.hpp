@@ -18,6 +18,7 @@
 
 #include "pgridfunc.hpp"
 #include "linearform.hpp"
+#include <complex>
 
 namespace mfem
 {
@@ -32,6 +33,16 @@ public:
    ParLinearForm() : LinearForm() { pfes = NULL; }
 
    ParLinearForm(ParFiniteElementSpace *pf) : LinearForm(pf) { pfes = pf; }
+
+   /// Construct a ParLinearForm using previously allocated array @a data.
+   /** The ParLinearForm does not assume ownership of @a data which is assumed
+       to be of size at least `pf->GetVSize()`. Similar to the LinearForm and
+       Vector constructors for externally allocated array, the pointer @a data
+       can be NULL. The data array can be replaced later using the method
+       SetData().
+    */
+   ParLinearForm(ParFiniteElementSpace *pf, double *data) :
+      LinearForm(pf, data), pfes(pf) { }
 
    ParFiniteElementSpace *ParFESpace() const { return pfes; }
 
@@ -56,6 +67,41 @@ public:
    }
 };
 
+class ParComplexLinearForm : public Vector
+{
+protected:
+  ParLinearForm * plfr_;
+  ParLinearForm * plfi_;
+
+  HYPRE_Int * tdof_offsets_;
+
+public:
+
+   ParComplexLinearForm(ParFiniteElementSpace *pf);
+
+   virtual ~ParComplexLinearForm();
+
+   /// Adds new Domain Integrator.
+   void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
+			    LinearFormIntegrator *lfi_imag);
+
+   ParFiniteElementSpace *ParFESpace() const { return plfr_->ParFESpace(); }
+
+   void Update(ParFiniteElementSpace *pf = NULL);
+
+   /// Assembles the linear form i.e. sums over all domain/bdr integrators.
+   void Assemble();
+
+   /// Assemble the vector on the true dofs, i.e. P^t v.
+   void ParallelAssemble(Vector &tv);
+
+   /// Returns the vector assembled on the true dofs, i.e. P^t v.
+   HypreParVector *ParallelAssemble();
+
+   std::complex<double> operator()(const ParComplexGridFunction &gf) const;
+
+};
+  
 }
 
 #endif // MFEM_USE_MPI
