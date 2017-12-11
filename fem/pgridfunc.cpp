@@ -588,6 +588,44 @@ void ParGridFunction::ComputeFlux(
 }
 
 
+ParComplexGridFunction::ParComplexGridFunction(ParFiniteElementSpace *f)
+  : Vector(2*(f->GetVSize()))
+{
+  pgfr_ = new ParGridFunction(f, &data[0]);
+  pgfi_ = new ParGridFunction(f, &data[f->GetVSize()]);
+} 
+
+void
+ParComplexGridFunction::ProjectCoefficient(Coefficient &real_coeff,
+					   Coefficient &imag_coeff)
+{
+  pgfr_->ProjectCoefficient(real_coeff);
+  pgfi_->ProjectCoefficient(imag_coeff);
+}
+
+void
+ParComplexGridFunction::ProjectCoefficient(VectorCoefficient &real_vcoeff,
+					   VectorCoefficient &imag_vcoeff)
+{
+  pgfr_->ProjectCoefficient(real_vcoeff);
+  pgfi_->ProjectCoefficient(imag_vcoeff);
+}
+
+void
+ParComplexGridFunction::Distribute(const Vector *tv)
+{
+  ParFiniteElementSpace * pfes = pgfr_->ParFESpace();
+  HYPRE_Int size = pfes->GetTrueVSize();
+
+  double * tvd = tv->GetData();
+  Vector tvr(tvd, size);
+  Vector tvi(&tvd[size], size);
+
+  pgfr_->Distribute(tvr);
+  pgfi_->Distribute(tvi);
+}
+
+  
 double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
                           const ParGridFunction &x,
                           ParFiniteElementSpace &smooth_flux_fes,
