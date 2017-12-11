@@ -535,7 +535,7 @@ HertzSolver::GetErrorEstimates(Vector & errors)
    ND_FECollection smooth_flux_fec(order_, pmesh_->Dimension());
    ParFiniteElementSpace smooth_flux_fes(pmesh_, &smooth_flux_fec);
 
-   L2ZZErrorEstimator(flux_integrator, e_->RealPart(),
+   L2ZZErrorEstimator(flux_integrator, e_->real(),
                       smooth_flux_fes, flux_fes, errors, norm_p);
 
    if ( myid_ == 0 && logging_ > 0 ) { cout << "done." << endl; }
@@ -546,16 +546,16 @@ HertzSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
    visit_dc_ = &visit_dc;
 
-   visit_dc.RegisterField("Re(E)", &e_->RealPart());
-   visit_dc.RegisterField("Im(E)", &e_->ImagPart());
+   visit_dc.RegisterField("Re(E)", &e_->real());
+   visit_dc.RegisterField("Im(E)", &e_->imag());
    // visit_dc.RegisterField("Er", e_r_);
    // visit_dc.RegisterField("Ei", e_i_);
    // visit_dc.RegisterField("B", b_);
    // visit_dc.RegisterField("H", h_);
    if ( j_ )
    {
-      visit_dc.RegisterField("Re(J)", &j_->RealPart());
-      visit_dc.RegisterField("Im(J)", &j_->ImagPart());
+      visit_dc.RegisterField("Re(J)", &j_->real());
+      visit_dc.RegisterField("Im(J)", &j_->imag());
    }
    // if ( j_r_ ) { visit_dc.RegisterField("Jr", j_r_); }
    // if ( j_i_ ) { visit_dc.RegisterField("Ji", j_i_); }
@@ -641,11 +641,11 @@ HertzSolver::DisplayToGLVis()
    int offx = Ww+10, offy = Wh+45; // window offsets
 
    VisualizeField(*socks_["Er"], vishost, visport,
-                  e_->RealPart(), "Electric Field, Re(E)", Wx, Wy, Ww, Wh);
+                  e_->real(), "Electric Field, Re(E)", Wx, Wy, Ww, Wh);
    Wx += offx;
 
    VisualizeField(*socks_["Ei"], vishost, visport,
-                  e_->ImagPart(), "Electric Field, Im(E)", Wx, Wy, Ww, Wh);
+                  e_->imag(), "Electric Field, Im(E)", Wx, Wy, Ww, Wh);
    /*
    Wx += offx;
    VisualizeField(*socks_["B"], vishost, visport,
@@ -663,10 +663,10 @@ HertzSolver::DisplayToGLVis()
       j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
       VisualizeField(*socks_["Jr"], vishost, visport,
-                     j_->RealPart(), "Current Density, Re(J)", Wx, Wy, Ww, Wh);
+                     j_->real(), "Current Density, Re(J)", Wx, Wy, Ww, Wh);
       Wx += offx;
       VisualizeField(*socks_["Ji"], vishost, visport,
-                     j_->ImagPart(), "Current Density, Im(J)", Wx, Wy, Ww, Wh);
+                     j_->imag(), "Current Density, Im(J)", Wx, Wy, Ww, Wh);
    }
 
    Wx = 0; Wy += offy; // next line
