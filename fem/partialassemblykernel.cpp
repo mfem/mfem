@@ -24,815 +24,803 @@ namespace mfem
 //////////////////////////////////
 
 
-void DummyMultBtDB::MultBtDB1(FiniteElementSpace* fes, const Tensor2d & shape1d,
-   DTensor & D, const Vector &V, Vector &U)
-{
-   const int dofs1d = shape1d.Height();
-   const int quads1d = shape1d.Width();
-   const int quads = quads1d;
-
-   Vector Q(quads1d);
-
-   int offset = 0;
-   for (int e = 0; e < fes->GetNE(); e++)
-   {
-      const Vector Vmat(V.GetData() + offset, dofs1d);
-      Vector Umat(U.GetData() + offset, dofs1d);
-
-      // Q_k1 = dshape_j1_k1 * V_i1
-      shape1d.MultTranspose(Vmat, Q);
-
-      double *data_q = Q.GetData();
-      // const double *data_d = D.GetElmtData(e);
-      for (int k = 0; k < quads; ++k) { data_q[k] *= D(k,e); }
-
-      // Q_k1 = dshape_j1_k1 * Q_k1
-      shape1d.AddMult(Q, Umat);
-   }
-}
-
-void DummyMultBtDB::MultBtDB2(FiniteElementSpace* fes, const Tensor2d & shape1d,
-   DTensor & D, const Vector &V, Vector &U)
-{
-   const FiniteElement *fe = fes->GetFE(0);
-   const int dofs   = fe->GetDof();
-
-   const int dofs1d = shape1d.Height();
-   const int quads1d = shape1d.Width();
-   const int quads  = quads1d*quads1d;
-
-   DenseMatrix QQ(quads1d, quads1d);
-   DenseMatrix DQ(dofs1d, quads1d);
-
-   int offset = 0;
-   for (int e = 0; e < fes->GetNE(); e++)
-   {
-      const DenseMatrix Vmat(V.GetData() + offset, dofs1d, dofs1d);
-      DenseMatrix Umat(U.GetData() + offset, dofs1d, dofs1d);
-
-      // DQ_j2_k1   = E_j1_j2  * shape_j1_k1 -- contract in x direction
-      // QQ_0_k1_k2 = DQ_j2_k1 * shape_j2_k2  -- contract in y direction
-      MultAtB(Vmat, shape1d, DQ);
-      MultAtB(DQ, shape1d, QQ);
-
-      // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
-      // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
-      double *data_qq = QQ.GetData();
-      // const double *data_d = D.GetElmtData(e);
-      for (int k = 0; k < quads; ++k) { data_qq[k] *= D(k,e); }
-
-      // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
-      // U_i1_i2   += dshape_i1_k1 * DQ_i2_k1
-      MultABt(shape1d, QQ, DQ);
-      AddMultABt(shape1d, DQ, Umat);
-
-      // increment offset
-      offset += dofs;
-   }
-}
-
-void DummyMultBtDB::MultBtDB3(FiniteElementSpace* fes, const Tensor2d & shape1d,
-   DTensor & D, const Vector &V, Vector &U)
-{
-   const FiniteElement *fe = fes->GetFE(0);
-   const int dofs   = fe->GetDof();
-
-   const int dofs1d = shape1d.Height();
-   const int quads1d = shape1d.Width();
-   const int quads  = quads1d * quads1d * quads1d;
-
-   Vector Q(quads1d);
-   DenseMatrix QQ(quads1d, quads1d);
-   DenseTensor QQQ(quads1d, quads1d, quads1d);
-
-   int offset = 0;
-   for (int e = 0; e < fes->GetNE(); e++)
-   {
-      const DenseTensor Vmat(V.GetData() + offset, dofs1d, dofs1d, dofs1d);
-      DenseTensor Umat(U.GetData() + offset, dofs1d, dofs1d, dofs1d);
-
-      // QQQ_k1_k2_k3 = shape_j1_k1 * shape_j2_k2  * shape_j3_k3  * Vmat_j1_j2_j3
-      QQQ = 0.;
-      for (int j3 = 0; j3 < dofs1d; ++j3)
-      {
-         QQ = 0.;
-         for (int j2 = 0; j2 < dofs1d; ++j2)
-         {
-            Q = 0.;
-            for (int j1 = 0; j1 < dofs1d; ++j1)
-            {
-               for (int k1 = 0; k1 < quads1d; ++k1)
-               {
-                  Q(k1) += Vmat(j1, j2, j3) * shape1d(j1, k1);
-               }
-            }
-            for (int k2 = 0; k2 < quads1d; ++k2)
-               for (int k1 = 0; k1 < quads1d; ++k1)
-               {
-                  QQ(k1, k2) += Q(k1) * shape1d(j2, k2);
-               }
-         }
-         for (int k3 = 0; k3 < quads1d; ++k3)
-            for (int k2 = 0; k2 < quads1d; ++k2)
-               for (int k1 = 0; k1 < quads1d; ++k1)
-               {
-                  QQQ(k1, k2, k3) += QQ(k1, k2) * shape1d(j3, k3);
-               }
-      }
-
-      // QQQ_k1_k2_k3 = Dmat_k1_k2_k3 * QQQ_k1_k2_k3
-      // NOTE: (k1, k2, k3) = q -- 1d quad point index
-      double *data_qqq = QQQ.GetData(0);
-      // const double *data_d = D.GetElmtData(e);
-      for (int k = 0; k < quads; ++k) { data_qqq[k] *= D(k,e); }
-
-      // Apply transpose of the first operator that takes V -> QQQ -- QQQ -> U
-      for (int k3 = 0; k3 < quads1d; ++k3)
-      {
-         QQ = 0.;
-         for (int k2 = 0; k2 < quads1d; ++k2)
-         {
-            Q = 0.;
-            for (int k1 = 0; k1 < quads1d; ++k1)
-            {
-               for (int i1 = 0; i1 < dofs1d; ++i1)
-               {
-                  Q(i1) += QQQ(k1, k2, k3) * shape1d(i1, k1);
-               }
-            }
-            for (int i2 = 0; i2 < dofs1d; ++i2)
-               for (int i1 = 0; i1 < dofs1d; ++i1)
-               {
-                  QQ(i1, i2) += Q(i1) * shape1d(i2, k2);
-               }
-         }
-         for (int i3 = 0; i3 < dofs1d; ++i3)
-            for (int i2 = 0; i2 < dofs1d; ++i2)
-               for (int i1 = 0; i1 < dofs1d; ++i1)
-               {
-                  Umat(i1, i2, i3) += shape1d(i3, k3) * QQ(i1, i2);
-               }
-      }
-
-      // increment offset
-      offset += dofs;
-   }  
-}
-
-void DummyMultGtDG::MultGtDG1(FiniteElementSpace* fes, const Tensor2d & shape1d,
-   const Tensor2d & dshape1d, DTensor & D, const Vector &V, Vector &U)
-{
-   const int dofs1d = shape1d.Height();
-   const int quads1d = shape1d.Width();
-   const int quads = quads1d;
-
-   Vector Q(quads1d);
-
-   int offset = 0;
-   for (int e = 0; e < fes->GetNE(); e++)
-   {
-      const Vector Vmat(V.GetData() + offset, dofs1d);
-      Vector Umat(U.GetData() + offset, dofs1d);
-
-      // Q_k1 = dshape_j1_k1 * V_i1
-      dshape1d.MultTranspose(Vmat, Q);
-
-      double *data_q = Q.GetData();
-      // const double *data_d = D.GetElmtData(e);
-      for (int k = 0; k < quads; ++k)
-      {
-         data_q[k] *= D(0,0,k,e);
-      }
-
-      // Q_k1 = dshape_j1_k1 * Q_k1
-      dshape1d.AddMult(Q, Umat);
-   }   
-}
-
-void DummyMultGtDG::MultGtDG2(FiniteElementSpace* fes, const Tensor2d & shape1d,
-   const Tensor2d & dshape1d, DTensor & D, const Vector &V, Vector &U)
-{
-   const int dim = 2;
-   const int terms = dim*dim;
-
-   const FiniteElement *fe = fes->GetFE(0);
-   const int dofs   = fe->GetDof();
-
-   const int dofs1d = shape1d.Height();
-   const int quads1d = shape1d.Width();
-   const int quads  = quads1d * quads1d;
-
-   DenseTensor QQ(quads1d, quads1d, dim);
-   DenseMatrix DQ(dofs1d, quads1d);
-
-   int offset = 0;
-   for (int e = 0; e < fes->GetNE(); e++)
-   {
-      const DenseMatrix Vmat(V.GetData() + offset, dofs1d, dofs1d);
-      DenseMatrix Umat(U.GetData() + offset, dofs1d, dofs1d);
-
-      // DQ_j2_k1   = E_j1_j2  * dshape_j1_k1 -- contract in x direction
-      // QQ_0_k1_k2 = DQ_j2_k1 * shape_j2_k2  -- contract in y direction
-      MultAtB(Vmat, dshape1d, DQ);
-      MultAtB(DQ, shape1d, QQ(0));
-
-      // DQ_j2_k1   = E_j1_j2  * shape_j1_k1  -- contract in x direction
-      // QQ_1_k1_k2 = DQ_j2_k1 * dshape_j2_k2 -- contract in y direction
-      MultAtB(Vmat, shape1d, DQ);
-      MultAtB(DQ, dshape1d, QQ(1));
-
-      // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
-      // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
-      double *data_qq = QQ(0).GetData();
-      // const double *data_d = D.GetElmtData(e);
-      for (int k = 0; k < quads; ++k)
-      {
-         // int ind00[] = {0,0,k,e};
-         const double D00 = D(0,0,k,e);
-         // int ind10[] = {1,0,k,e};
-         const double D10 = D(1,0,k,e);
-         // int ind01[] = {0,1,k,e};
-         const double D01 = D(0,1,k,e);
-         // int ind11[] = {1,1,k,e};
-         const double D11 = D(1,1,k,e);
-
-         const double q0 = data_qq[0*quads + k];
-         const double q1 = data_qq[1*quads + k];
-
-         data_qq[0*quads + k] = D00 * q0 + D01 * q1;
-         data_qq[1*quads + k] = D10 * q0 + D11 * q1;
-      }
-
-      // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
-      // U_i1_i2   += dshape_i1_k1 * DQ_i2_k1
-      MultABt(shape1d, QQ(0), DQ);
-      AddMultABt(dshape1d, DQ, Umat);
-
-      // DQ_i2_k1   = dshape_i2_k2 * QQ_1_k1_k2
-      // U_i1_i2   += shape_i1_k1  * DQ_i2_k1
-      MultABt(dshape1d, QQ(1), DQ);
-      AddMultABt(shape1d, DQ, Umat);
-
-      // increment offset
-      offset += dofs;
-   }   
-}
-
-void DummyMultGtDG::MultGtDG3(FiniteElementSpace* fes, const Tensor2d & shape1d,
-   const Tensor2d & dshape1d, DTensor & D, const Vector &V, Vector &U)
-{
-   const int dim = 3;
-   const int terms = dim*dim;
-
-   const FiniteElement *fe = fes->GetFE(0);
-   const int dofs   = fe->GetDof();
-
-   const int dofs1d = shape1d.Height();
-   const int quads1d = shape1d.Width();
-   const int quads  = quads1d * quads1d * quads1d;
-
-   DenseMatrix Q(quads1d, dim);
-   DenseTensor QQ(quads1d, quads1d, dim);
-
-   Array<double> QQQmem(quads1d * quads1d * quads1d * dim);
-   double *data_qqq = QQQmem.GetData();
-   DenseTensor QQQ0(data_qqq + 0*quads, quads1d, quads1d, quads1d);
-   DenseTensor QQQ1(data_qqq + 1*quads, quads1d, quads1d, quads1d);
-   DenseTensor QQQ2(data_qqq + 2*quads, quads1d, quads1d, quads1d);
-
-   int offset = 0;
-   for (int e = 0; e < fes->GetNE(); e++)
-   {
-      const DenseTensor Vmat(V.GetData() + offset, dofs1d, dofs1d, dofs1d);
-      DenseTensor Umat(U.GetData() + offset, dofs1d, dofs1d, dofs1d);
-
-      // QQQ_0_k1_k2_k3 = dshape_j1_k1 * shape_j2_k2  * shape_j3_k3  * Vmat_j1_j2_j3
-      // QQQ_1_k1_k2_k3 = shape_j1_k1  * dshape_j2_k2 * shape_j3_k3  * Vmat_j1_j2_j3
-      // QQQ_2_k1_k2_k3 = shape_j1_k1  * shape_j2_k2  * dshape_j3_k3 * Vmat_j1_j2_j3
-      QQQ0 = 0.; QQQ1 = 0.; QQQ2 = 0.;
-      for (int j3 = 0; j3 < dofs1d; ++j3)
-      {
-         QQ = 0.;
-         for (int j2 = 0; j2 < dofs1d; ++j2)
-         {
-            Q = 0.;
-            for (int j1 = 0; j1 < dofs1d; ++j1)
-            {
-               for (int k1 = 0; k1 < quads1d; ++k1)
-               {
-                  Q(k1, 0) += Vmat(j1, j2, j3) * dshape1d(j1, k1);
-                  Q(k1, 1) += Vmat(j1, j2, j3) * shape1d(j1, k1);
-               }
-            }
-            for (int k2 = 0; k2 < quads1d; ++k2)
-               for (int k1 = 0; k1 < quads1d; ++k1)
-               {
-                  QQ(k1, k2, 0) += Q(k1, 0) * shape1d(j2, k2);
-                  QQ(k1, k2, 1) += Q(k1, 1) * dshape1d(j2, k2);
-                  QQ(k1, k2, 2) += Q(k1, 1) * shape1d(j2, k2);
-               }
-         }
-         for (int k3 = 0; k3 < quads1d; ++k3)
-            for (int k2 = 0; k2 < quads1d; ++k2)
-               for (int k1 = 0; k1 < quads1d; ++k1)
-               {
-                  QQQ0(k1, k2, k3) += QQ(k1, k2, 0) * shape1d(j3, k3);
-                  QQQ1(k1, k2, k3) += QQ(k1, k2, 1) * shape1d(j3, k3);
-                  QQQ2(k1, k2, k3) += QQ(k1, k2, 2) * dshape1d(j3, k3);
-               }
-      }
-
-      // QQQ_c_k1_k2_k3 = Dmat_c_d_k1_k2_k3 * QQQ_d_k1_k2_k3
-      // NOTE: (k1, k2, k3) = q -- 1d quad point index
-      // const double *data_d = D.GetElmtData(e);
-      for (int k = 0; k < quads; ++k)
-      {
-         // int ind00[] = {0,0,k,e};
-         const double D00 = D(0,0,k,e);
-         // int ind10[] = {1,0,k,e};
-         const double D10 = D(1,0,k,e);
-         // int ind20[] = {2,0,k,e};
-         const double D20 = D(2,0,k,e);
-         // int ind01[] = {0,1,k,e};
-         const double D01 = D(0,1,k,e);
-         // int ind11[] = {1,1,k,e};
-         const double D11 = D(1,1,k,e);
-         // int ind21[] = {2,1,k,e};
-         const double D21 = D(2,1,k,e);
-         // int ind02[] = {0,2,k,e};
-         const double D02 = D(0,2,k,e);
-         // int ind12[] = {1,2,k,e};
-         const double D12 = D(1,2,k,e);
-         // int ind22[] = {2,2,k,e};
-         const double D22 = D(2,2,k,e);
-
-         const double q0 = data_qqq[0*quads + k];
-         const double q1 = data_qqq[1*quads + k];
-         const double q2 = data_qqq[2*quads + k];
-
-         data_qqq[0*quads + k] = D00 * q0 + D01 * q1 + D02 * q2;
-         data_qqq[1*quads + k] = D10 * q0 + D11 * q1 + D12 * q2;
-         data_qqq[2*quads + k] = D20 * q0 + D21 * q1 + D22 * q2;
-      }
-
-      // Apply transpose of the first operator that takes V -> QQQd -- QQQd -> U
-      for (int k3 = 0; k3 < quads1d; ++k3)
-      {
-         QQ = 0.;
-         for (int k2 = 0; k2 < quads1d; ++k2)
-         {
-            Q = 0.;
-            for (int k1 = 0; k1 < quads1d; ++k1)
-            {
-               for (int i1 = 0; i1 < dofs1d; ++i1)
-               {
-                  Q(i1, 0) += QQQ0(k1, k2, k3) * dshape1d(i1, k1);
-                  Q(i1, 1) += QQQ1(k1, k2, k3) * shape1d(i1, k1);
-                  Q(i1, 2) += QQQ2(k1, k2, k3) * shape1d(i1, k1);
-               }
-            }
-            for (int i2 = 0; i2 < dofs1d; ++i2)
-               for (int i1 = 0; i1 < dofs1d; ++i1)
-               {
-                  QQ(i1, i2, 0) += Q(i1, 0) * shape1d(i2, k2);
-                  QQ(i1, i2, 1) += Q(i1, 1) * dshape1d(i2, k2);
-                  QQ(i1, i2, 2) += Q(i1, 2) * shape1d(i2, k2);
-               }
-         }
-         for (int i3 = 0; i3 < dofs1d; ++i3)
-            for (int i2 = 0; i2 < dofs1d; ++i2)
-               for (int i1 = 0; i1 < dofs1d; ++i1)
-               {
-                  Umat(i1, i2, i3) +=
-                     QQ(i1, i2, 0) * shape1d(i3, k3) +
-                     QQ(i1, i2, 1) * shape1d(i3, k3) +
-                     QQ(i1, i2, 2) * dshape1d(i3, k3);
-               }
-      }
-
-      // increment offset
-      offset += dofs;
-   }
-}
-
-void DummyMultBtDG::MultBtDG1(FiniteElementSpace* fes, const Tensor2d & shape1d,
-   const Tensor2d & dshape1d, DTensor & D, const Vector &V, Vector &U)
-{
-   const int dofs1d = shape1d.Height();
-   const int quads1d = shape1d.Width();
-   const int quads = quads1d;
-
-   Vector Q(quads1d);
-
-   int offset = 0;
-   for (int e = 0; e < fes->GetNE(); e++)
-   {
-      const Vector Vmat(V.GetData() + offset, dofs1d);
-      Vector Umat(U.GetData() + offset, dofs1d);
-
-      // Q_k1 = dshape_j1_k1 * V_i1
-      dshape1d.MultTranspose(Vmat, Q);
-
-      double *data_q = Q.GetData();
-      // const double *data_d = D.GetElmtData(e);
-      for (int k = 0; k < quads; ++k)
-      {
-         data_q[k] *= D(0,k,e);
-      }
-
-      // Q_k1 = dshape_j1_k1 * Q_k1
-      shape1d.AddMult(Q, Umat);
-   }   
-}
-
-void DummyMultBtDG::MultBtDG2(FiniteElementSpace* fes, const Tensor2d & shape1d,
-   const Tensor2d & dshape1d, DTensor & D, const Vector &V, Vector &U)
-{
-   const int dim = 2;
-
-   const FiniteElement *fe = fes->GetFE(0);
-   const int dofs   = fe->GetDof();
-
-   const int dofs1d = shape1d.Height();
-   const int quads1d = shape1d.Width();
-   const int quads  = quads1d * quads1d;
-
-   DenseTensor QQ(quads1d, quads1d, dim);
-   DenseMatrix DQ(dofs1d, quads1d);
-
-   int offset = 0;
-   for (int e = 0; e < fes->GetNE(); e++)
-   {
-      const DenseMatrix Vmat(V.GetData() + offset, dofs1d, dofs1d);
-      DenseMatrix Umat(U.GetData() + offset, dofs1d, dofs1d);
-
-      // DQ_j2_k1   = E_j1_j2  * dshape_j1_k1 -- contract in x direction
-      // QQ_0_k1_k2 = DQ_j2_k1 * shape_j2_k2  -- contract in y direction
-      MultAtB(Vmat, dshape1d, DQ);
-      MultAtB(DQ, shape1d, QQ(0));
-
-      // DQ_j2_k1   = E_j1_j2  * shape_j1_k1  -- contract in x direction
-      // QQ_1_k1_k2 = DQ_j2_k1 * dshape_j2_k2 -- contract in y direction
-      MultAtB(Vmat, shape1d, DQ);
-      MultAtB(DQ, dshape1d, QQ(1));
-
-      // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
-      // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
-      double *data_qq = QQ(0).GetData();
-      for (int k = 0; k < quads; ++k)
-      {
-         // int ind0[] = {0,k,e};
-         const double D0 = D(0,k,e);
-         // int ind1[] = {1,k,e};
-         const double D1 = D(1,k,e);
-
-         const double q0 = data_qq[0*quads + k];
-         const double q1 = data_qq[1*quads + k];
-
-         data_qq[0*quads + k] = D0 * q0 + D1 * q1;
-      }
-
-      // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
-      // U_i1_i2   += dshape_i1_k1 * DQ_i2_k1
-      MultABt(shape1d, QQ(0), DQ);
-      AddMultABt(shape1d, DQ, Umat);
-
-      // increment offset
-      offset += dofs;
-   }
-}
-
-void DummyMultBtDG::MultBtDG3(FiniteElementSpace* fes, const Tensor2d & shape1d,
-   const Tensor2d & dshape1d, DTensor & D, const Vector &V, Vector &U)
-{
-   const int dim = 3;
-   const int terms = dim*dim;
-
-   const FiniteElement *fe = fes->GetFE(0);
-   const int dofs   = fe->GetDof();
-
-   const int dofs1d = shape1d.Height();
-   const int quads1d = shape1d.Width();
-   const int quads  = quads1d * quads1d * quads1d;
-
-   DenseMatrix Q(quads1d, dim);
-   DenseTensor QQ(quads1d, quads1d, dim);
-
-   Array<double> QQQmem(quads1d * quads1d * quads1d * dim);
-   double *data_qqq = QQQmem.GetData();
-   DenseTensor QQQ0(data_qqq + 0*quads, quads1d, quads1d, quads1d);
-   DenseTensor QQQ1(data_qqq + 1*quads, quads1d, quads1d, quads1d);
-   DenseTensor QQQ2(data_qqq + 2*quads, quads1d, quads1d, quads1d);
-
-   int offset = 0;
-   for (int e = 0; e < fes->GetNE(); e++)
-   {
-      const DenseTensor Vmat(V.GetData() + offset, dofs1d, dofs1d, dofs1d);
-      DenseTensor Umat(U.GetData() + offset, dofs1d, dofs1d, dofs1d);
-
-      // QQQ_0_k1_k2_k3 = dshape_j1_k1 * shape_j2_k2  * shape_j3_k3  * Vmat_j1_j2_j3
-      // QQQ_1_k1_k2_k3 = shape_j1_k1  * dshape_j2_k2 * shape_j3_k3  * Vmat_j1_j2_j3
-      // QQQ_2_k1_k2_k3 = shape_j1_k1  * shape_j2_k2  * dshape_j3_k3 * Vmat_j1_j2_j3
-      QQQ0 = 0.; QQQ1 = 0.; QQQ2 = 0.;
-      for (int j3 = 0; j3 < dofs1d; ++j3)
-      {
-         QQ = 0.;
-         for (int j2 = 0; j2 < dofs1d; ++j2)
-         {
-            Q = 0.;
-            for (int j1 = 0; j1 < dofs1d; ++j1)
-            {
-               for (int k1 = 0; k1 < quads1d; ++k1)
-               {
-                  Q(k1, 0) += Vmat(j1, j2, j3) * dshape1d(j1, k1);
-                  Q(k1, 1) += Vmat(j1, j2, j3) * shape1d(j1, k1);
-               }
-            }
-            for (int k2 = 0; k2 < quads1d; ++k2)
-               for (int k1 = 0; k1 < quads1d; ++k1)
-               {
-                  QQ(k1, k2, 0) += Q(k1, 0) * shape1d(j2, k2);
-                  QQ(k1, k2, 1) += Q(k1, 1) * dshape1d(j2, k2);
-                  QQ(k1, k2, 2) += Q(k1, 1) * shape1d(j2, k2);
-               }
-         }
-         for (int k3 = 0; k3 < quads1d; ++k3)
-            for (int k2 = 0; k2 < quads1d; ++k2)
-               for (int k1 = 0; k1 < quads1d; ++k1)
-               {
-                  QQQ0(k1, k2, k3) += QQ(k1, k2, 0) * shape1d(j3, k3);
-                  QQQ1(k1, k2, k3) += QQ(k1, k2, 1) * shape1d(j3, k3);
-                  QQQ2(k1, k2, k3) += QQ(k1, k2, 2) * dshape1d(j3, k3);
-               }
-      }
-
-      // QQQ_c_k1_k2_k3 = Dmat_c_d_k1_k2_k3 * QQQ_d_k1_k2_k3
-      // NOTE: (k1, k2, k3) = q -- 1d quad point index
-      // const double *data_d = D.GetElmtData(e);
-      for (int k = 0; k < quads; ++k)
-      {
-         // int ind0[] = {0,k,e};
-         const double D0 = D(0,k,e);
-         // int ind1[] = {1,k,e};
-         const double D1 = D(1,k,e);
-         // int ind2[] = {2,k,e};
-         const double D2 = D(2,k,e);
-
-         const double q0 = data_qqq[0*quads + k];
-         const double q1 = data_qqq[1*quads + k];
-         const double q2 = data_qqq[2*quads + k];
-
-         data_qqq[0*quads + k] = D0 * q0 + D1 * q1 + D2 * q2;
-      }
-
-      // Apply transpose of the first operator that takes V -> QQQd -- QQQd -> U
-      for (int k3 = 0; k3 < quads1d; ++k3)
-      {
-         QQ = 0.;
-         for (int k2 = 0; k2 < quads1d; ++k2)
-         {
-            Q = 0.;
-            for (int k1 = 0; k1 < quads1d; ++k1)
-            {
-               for (int i1 = 0; i1 < dofs1d; ++i1)
-               {
-                  Q(i1, 0) += QQQ0(k1, k2, k3) * shape1d(i1, k1);
-               }
-            }
-            for (int i2 = 0; i2 < dofs1d; ++i2)
-               for (int i1 = 0; i1 < dofs1d; ++i1)
-               {
-                  QQ(i1, i2, 0) += Q(i1, 0) * shape1d(i2, k2);
-               }
-         }
-         for (int i3 = 0; i3 < dofs1d; ++i3)
-            for (int i2 = 0; i2 < dofs1d; ++i2)
-               for (int i1 = 0; i1 < dofs1d; ++i1)
-               {
-                  Umat(i1, i2, i3) += QQ(i1, i2, 0) * shape1d(i3, k3);
-               }
-      }
-
-      // increment offset
-      offset += dofs;
-   }
-}
-
-void DummyMultGtDB::MultGtDB1(FiniteElementSpace* fes, const Tensor2d & shape1d,
-   const Tensor2d & dshape1d, DTensor & D, const Vector &V, Vector &U)
-{
-   const int dofs1d = shape1d.Height();
-   const int quads1d = shape1d.Width();
-   const int quads = quads1d;
-
-   Vector Q(quads1d);
-
-   int offset = 0;
-   for (int e = 0; e < fes->GetNE(); e++)
-   {
-      const Vector Vmat(V.GetData() + offset, dofs1d);
-      Vector Umat(U.GetData() + offset, dofs1d);
-
-      // Q_k1 = shape_j1_k1 * V_i1
-      shape1d.MultTranspose(Vmat, Q);
-
-      double *data_q = Q.GetData();
-      // const double *data_d = D.GetElmtData(e);
-      for (int k = 0; k < quads; ++k)
-      {
-         data_q[k] *= D(0,k,e);
-      }
-
-      // Q_k1 = dshape_j1_k1 * Q_k1
-      dshape1d.AddMult(Q, Umat);
-   }    
-}
-
-void DummyMultGtDB::MultGtDB2(FiniteElementSpace* fes, const Tensor2d & shape1d,
-   const Tensor2d & dshape1d, DTensor& D, const Vector &V, Vector &U)
-{
-   const int dim = 2;
-
-   const FiniteElement *fe = fes->GetFE(0);
-   const int dofs   = fe->GetDof();
-
-   const int dofs1d = shape1d.Height();
-   const int quads1d = shape1d.Width();
-   const int quads  = quads1d * quads1d;
-
-   DenseTensor QQ(quads1d, quads1d, dim);
-   DenseMatrix DQ(dofs1d, quads1d);
-
-   int offset = 0;
-   for (int e = 0; e < fes->GetNE(); e++)
-   {
-      const DenseMatrix Vmat(V.GetData() + offset, dofs1d, dofs1d);
-      DenseMatrix Umat(U.GetData() + offset, dofs1d, dofs1d);
-
-      //TODO One QQ should be enough
-      // DQ_j2_k1   = E_j1_j2  * shape_j1_k1 -- contract in x direction
-      // QQ_k1_k2 = DQ_j2_k1 * shape_j2_k2  -- contract in y direction
-      MultAtB(Vmat, shape1d, DQ);
-      MultAtB(DQ, shape1d, QQ(0));
-
-      // DQ_j2_k1   = E_j1_j2  * shape_j1_k1  -- contract in x direction
-      // QQ_1_k1_k2 = DQ_j2_k1 * dshape_j2_k2 -- contract in y direction
-      //Can be optimized since this is the same data
-      //MultAtB(Vmat, shape1d, DQ);
-      //MultAtB(DQ, shape1d, QQ(1));
-
-      // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
-      // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
-      double *data_qq = QQ(0).GetData();
-      //const double *data_d = D.GetElmtData(e);
-      for (int k = 0; k < quads; ++k)
-      {
-         // const double D0 = data_d[terms*k + 0];
-         // const double D1 = data_d[terms*k + 1];
-         // int ind0[] = {0,k,e};
-         const double D0 = D(0,k,e);
-         // int ind1[] = {1,k,e};
-         const double D1 = D(1,k,e);
-         const double q = data_qq[0*quads + k];
-
-         data_qq[0*quads + k] = D0 * q;
-         data_qq[1*quads + k] = D1 * q;
-      }
-
-      // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
-      // U_i1_i2   += dshape_i1_k1 * DQ_i2_k1
-      MultABt(shape1d, QQ(0), DQ);
-      AddMultABt(dshape1d, DQ, Umat);
-
-      // DQ_i2_k1   = dshape_i2_k2 * QQ_1_k1_k2
-      // U_i1_i2   += shape_i1_k1  * DQ_i2_k1
-      MultABt(dshape1d, QQ(1), DQ);
-      AddMultABt(shape1d, DQ, Umat);
-
-      // increment offset
-      offset += dofs;
-   }    
-}
-
-void DummyMultGtDB::MultGtDB3(FiniteElementSpace* fes, const Tensor2d & shape1d,
-   const Tensor2d & dshape1d, DTensor & D, const Vector &V, Vector &U)
-{
-   const int dim = 3;
-   const int terms = dim*(dim+1)/2;
-
-   const FiniteElement *fe = fes->GetFE(0);
-   const int dofs   = fe->GetDof();
-
-   const int dofs1d = shape1d.Height();
-   const int quads1d = shape1d.Width();
-   const int quads  = quads1d * quads1d * quads1d;
-
-   DenseMatrix Q(quads1d, dim);
-   DenseTensor QQ(quads1d, quads1d, dim);
-
-   Array<double> QQQmem(quads1d * quads1d * quads1d * dim);
-   double *data_qqq = QQQmem.GetData();
-   DenseTensor QQQ0(data_qqq + 0*quads, quads1d, quads1d, quads1d);
-   DenseTensor QQQ1(data_qqq + 1*quads, quads1d, quads1d, quads1d);
-   DenseTensor QQQ2(data_qqq + 2*quads, quads1d, quads1d, quads1d);
-
-   int offset = 0;
-   for (int e = 0; e < fes->GetNE(); e++)
-   {
-      const DenseTensor Vmat(V.GetData() + offset, dofs1d, dofs1d, dofs1d);
-      DenseTensor Umat(U.GetData() + offset, dofs1d, dofs1d, dofs1d);
-
-      // TODO One QQQ should be enough
-      // QQQ_0_k1_k2_k3 = shape_j1_k1 * shape_j2_k2 * shape_j3_k3 * Vmat_j1_j2_j3
-      // QQQ_1_k1_k2_k3 = shape_j1_k1 * shape_j2_k2 * shape_j3_k3 * Vmat_j1_j2_j3
-      // QQQ_2_k1_k2_k3 = shape_j1_k1 * shape_j2_k2 * shape_j3_k3 * Vmat_j1_j2_j3
-      QQQ0 = 0.; QQQ1 = 0.; QQQ2 = 0.;
-      for (int j3 = 0; j3 < dofs1d; ++j3)
-      {
-         QQ = 0.;
-         for (int j2 = 0; j2 < dofs1d; ++j2)
-         {
-            Q = 0.;
-            for (int j1 = 0; j1 < dofs1d; ++j1)
-            {
-               for (int k1 = 0; k1 < quads1d; ++k1)
-               {
-                  Q(k1, 0) += Vmat(j1, j2, j3) * shape1d(j1, k1);
-               }
-            }
-            for (int k2 = 0; k2 < quads1d; ++k2)
-               for (int k1 = 0; k1 < quads1d; ++k1)
-               {
-                  QQ(k1, k2, 0) += Q(k1, 0) * shape1d(j2, k2);
-               }
-         }
-         for (int k3 = 0; k3 < quads1d; ++k3)
-            for (int k2 = 0; k2 < quads1d; ++k2)
-               for (int k1 = 0; k1 < quads1d; ++k1)
-               {
-                  QQQ0(k1, k2, k3) += QQ(k1, k2, 0) * shape1d(j3, k3);
-               }
-      }
-
-      //TODO insert the three QQQ only here
-      // QQQ_c_k1_k2_k3 = Dmat_c_d_k1_k2_k3 * QQQ_d_k1_k2_k3
-      // NOTE: (k1, k2, k3) = q -- 1d quad point index
-      // const double *data_d = D.GetElmtData(e);
-      for (int k = 0; k < quads; ++k)
-      {
-         // int ind0[] = {0,k,e};
-         const double D0 = D(0,k,e);
-         // int ind1[] = {1,k,e};
-         const double D1 = D(1,k,e);
-         // int ind2[] = {2,k,e};
-         const double D2 = D(2,k,e);
-
-         const double q0 = data_qqq[0*quads + k];
-
-         data_qqq[0*quads + k] = D0 * q0;
-         data_qqq[1*quads + k] = D1 * q0;
-         data_qqq[2*quads + k] = D2 * q0;
-      }
-
-      // Apply transpose of the first operator that takes V -> QQQd -- QQQd -> U
-      for (int k3 = 0; k3 < quads1d; ++k3)
-      {
-         QQ = 0.;
-         for (int k2 = 0; k2 < quads1d; ++k2)
-         {
-            Q = 0.;
-            for (int k1 = 0; k1 < quads1d; ++k1)
-            {
-               for (int i1 = 0; i1 < dofs1d; ++i1)
-               {
-                  Q(i1, 0) += QQQ0(k1, k2, k3) * dshape1d(i1, k1);
-                  Q(i1, 1) += QQQ1(k1, k2, k3) * shape1d(i1, k1);
-                  Q(i1, 2) += QQQ2(k1, k2, k3) * shape1d(i1, k1);
-               }
-            }
-            for (int i2 = 0; i2 < dofs1d; ++i2)
-               for (int i1 = 0; i1 < dofs1d; ++i1)
-               {
-                  QQ(i1, i2, 0) += Q(i1, 0) * shape1d(i2, k2);
-                  QQ(i1, i2, 1) += Q(i1, 1) * dshape1d(i2, k2);
-                  QQ(i1, i2, 2) += Q(i1, 2) * shape1d(i2, k2);
-               }
-         }
-         for (int i3 = 0; i3 < dofs1d; ++i3)
-            for (int i2 = 0; i2 < dofs1d; ++i2)
-               for (int i1 = 0; i1 < dofs1d; ++i1)
-               {
-                  Umat(i1, i2, i3) +=
-                     QQ(i1, i2, 0) * shape1d(i3, k3) +
-                     QQ(i1, i2, 1) * shape1d(i3, k3) +
-                     QQ(i1, i2, 2) * dshape1d(i3, k3);
-               }
-      }
-
-      // increment offset
-      offset += dofs;
-   }   
-}
+// void DummyMultBtDB::MultBtDB1(const Vector &V, Vector &U)
+// {
+//    const int dofs1d = shape1d.Height();
+//    const int quads1d = shape1d.Width();
+//    const int quads = quads1d;
+
+//    Vector Q(quads1d);
+
+//    int offset = 0;
+//    for (int e = 0; e < fes->GetNE(); e++)
+//    {
+//       const Vector Vmat(V.GetData() + offset, dofs1d);
+//       Vector Umat(U.GetData() + offset, dofs1d);
+
+//       // Q_k1 = dshape_j1_k1 * V_i1
+//       shape1d.MultTranspose(Vmat, Q);
+
+//       double *data_q = Q.GetData();
+//       // const double *data_d = D.GetElmtData(e);
+//       for (int k = 0; k < quads; ++k) { data_q[k] *= D(k,e); }
+
+//       // Q_k1 = dshape_j1_k1 * Q_k1
+//       shape1d.AddMult(Q, Umat);
+//    }
+// }
+
+// void DummyMultBtDB::MultBtDB2(const Vector &V, Vector &U)
+// {
+//    const FiniteElement *fe = fes->GetFE(0);
+//    const int dofs   = fe->GetDof();
+
+//    const int dofs1d = shape1d.Height();
+//    const int quads1d = shape1d.Width();
+//    const int quads  = quads1d*quads1d;
+
+//    DenseMatrix QQ(quads1d, quads1d);
+//    DenseMatrix DQ(dofs1d, quads1d);
+
+//    int offset = 0;
+//    for (int e = 0; e < fes->GetNE(); e++)
+//    {
+//       const DenseMatrix Vmat(V.GetData() + offset, dofs1d, dofs1d);
+//       DenseMatrix Umat(U.GetData() + offset, dofs1d, dofs1d);
+
+//       // DQ_j2_k1   = E_j1_j2  * shape_j1_k1 -- contract in x direction
+//       // QQ_0_k1_k2 = DQ_j2_k1 * shape_j2_k2  -- contract in y direction
+//       MultAtB(Vmat, shape1d, DQ);
+//       MultAtB(DQ, shape1d, QQ);
+
+//       // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
+//       // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
+//       double *data_qq = QQ.GetData();
+//       // const double *data_d = D.GetElmtData(e);
+//       for (int k = 0; k < quads; ++k) { data_qq[k] *= D(k,e); }
+
+//       // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
+//       // U_i1_i2   += dshape_i1_k1 * DQ_i2_k1
+//       MultABt(shape1d, QQ, DQ);
+//       AddMultABt(shape1d, DQ, Umat);
+
+//       // increment offset
+//       offset += dofs;
+//    }
+// }
+
+// void DummyMultBtDB::MultBtDB3(const Vector &V, Vector &U)
+// {
+//    const FiniteElement *fe = fes->GetFE(0);
+//    const int dofs   = fe->GetDof();
+
+//    const int dofs1d = shape1d.Height();
+//    const int quads1d = shape1d.Width();
+//    const int quads  = quads1d * quads1d * quads1d;
+
+//    Vector Q(quads1d);
+//    DenseMatrix QQ(quads1d, quads1d);
+//    DenseTensor QQQ(quads1d, quads1d, quads1d);
+
+//    int offset = 0;
+//    for (int e = 0; e < fes->GetNE(); e++)
+//    {
+//       const DenseTensor Vmat(V.GetData() + offset, dofs1d, dofs1d, dofs1d);
+//       DenseTensor Umat(U.GetData() + offset, dofs1d, dofs1d, dofs1d);
+
+//       // QQQ_k1_k2_k3 = shape_j1_k1 * shape_j2_k2  * shape_j3_k3  * Vmat_j1_j2_j3
+//       QQQ = 0.;
+//       for (int j3 = 0; j3 < dofs1d; ++j3)
+//       {
+//          QQ = 0.;
+//          for (int j2 = 0; j2 < dofs1d; ++j2)
+//          {
+//             Q = 0.;
+//             for (int j1 = 0; j1 < dofs1d; ++j1)
+//             {
+//                for (int k1 = 0; k1 < quads1d; ++k1)
+//                {
+//                   Q(k1) += Vmat(j1, j2, j3) * shape1d(j1, k1);
+//                }
+//             }
+//             for (int k2 = 0; k2 < quads1d; ++k2)
+//                for (int k1 = 0; k1 < quads1d; ++k1)
+//                {
+//                   QQ(k1, k2) += Q(k1) * shape1d(j2, k2);
+//                }
+//          }
+//          for (int k3 = 0; k3 < quads1d; ++k3)
+//             for (int k2 = 0; k2 < quads1d; ++k2)
+//                for (int k1 = 0; k1 < quads1d; ++k1)
+//                {
+//                   QQQ(k1, k2, k3) += QQ(k1, k2) * shape1d(j3, k3);
+//                }
+//       }
+
+//       // QQQ_k1_k2_k3 = Dmat_k1_k2_k3 * QQQ_k1_k2_k3
+//       // NOTE: (k1, k2, k3) = q -- 1d quad point index
+//       double *data_qqq = QQQ.GetData(0);
+//       // const double *data_d = D.GetElmtData(e);
+//       for (int k = 0; k < quads; ++k) { data_qqq[k] *= D(k,e); }
+
+//       // Apply transpose of the first operator that takes V -> QQQ -- QQQ -> U
+//       for (int k3 = 0; k3 < quads1d; ++k3)
+//       {
+//          QQ = 0.;
+//          for (int k2 = 0; k2 < quads1d; ++k2)
+//          {
+//             Q = 0.;
+//             for (int k1 = 0; k1 < quads1d; ++k1)
+//             {
+//                for (int i1 = 0; i1 < dofs1d; ++i1)
+//                {
+//                   Q(i1) += QQQ(k1, k2, k3) * shape1d(i1, k1);
+//                }
+//             }
+//             for (int i2 = 0; i2 < dofs1d; ++i2)
+//                for (int i1 = 0; i1 < dofs1d; ++i1)
+//                {
+//                   QQ(i1, i2) += Q(i1) * shape1d(i2, k2);
+//                }
+//          }
+//          for (int i3 = 0; i3 < dofs1d; ++i3)
+//             for (int i2 = 0; i2 < dofs1d; ++i2)
+//                for (int i1 = 0; i1 < dofs1d; ++i1)
+//                {
+//                   Umat(i1, i2, i3) += shape1d(i3, k3) * QQ(i1, i2);
+//                }
+//       }
+
+//       // increment offset
+//       offset += dofs;
+//    }  
+// }
+
+// void DummyMultGtDG::MultGtDG1(const Vector &V, Vector &U)
+// {
+//    const int dofs1d = shape1d.Height();
+//    const int quads1d = shape1d.Width();
+//    const int quads = quads1d;
+
+//    Vector Q(quads1d);
+
+//    int offset = 0;
+//    for (int e = 0; e < fes->GetNE(); e++)
+//    {
+//       const Vector Vmat(V.GetData() + offset, dofs1d);
+//       Vector Umat(U.GetData() + offset, dofs1d);
+
+//       // Q_k1 = dshape_j1_k1 * V_i1
+//       dshape1d.MultTranspose(Vmat, Q);
+
+//       double *data_q = Q.GetData();
+//       // const double *data_d = D.GetElmtData(e);
+//       for (int k = 0; k < quads; ++k)
+//       {
+//          data_q[k] *= D(0,0,k,e);
+//       }
+
+//       // Q_k1 = dshape_j1_k1 * Q_k1
+//       dshape1d.AddMult(Q, Umat);
+//    }   
+// }
+
+// void DummyMultGtDG::MultGtDG2(const Vector &V, Vector &U)
+// {
+//    const int dim = 2;
+//    const int terms = dim*dim;
+
+//    const FiniteElement *fe = fes->GetFE(0);
+//    const int dofs   = fe->GetDof();
+
+//    const int dofs1d = shape1d.Height();
+//    const int quads1d = shape1d.Width();
+//    const int quads  = quads1d * quads1d;
+
+//    DenseTensor QQ(quads1d, quads1d, dim);
+//    DenseMatrix DQ(dofs1d, quads1d);
+
+//    int offset = 0;
+//    for (int e = 0; e < fes->GetNE(); e++)
+//    {
+//       const DenseMatrix Vmat(V.GetData() + offset, dofs1d, dofs1d);
+//       DenseMatrix Umat(U.GetData() + offset, dofs1d, dofs1d);
+
+//       // DQ_j2_k1   = E_j1_j2  * dshape_j1_k1 -- contract in x direction
+//       // QQ_0_k1_k2 = DQ_j2_k1 * shape_j2_k2  -- contract in y direction
+//       MultAtB(Vmat, dshape1d, DQ);
+//       MultAtB(DQ, shape1d, QQ(0));
+
+//       // DQ_j2_k1   = E_j1_j2  * shape_j1_k1  -- contract in x direction
+//       // QQ_1_k1_k2 = DQ_j2_k1 * dshape_j2_k2 -- contract in y direction
+//       MultAtB(Vmat, shape1d, DQ);
+//       MultAtB(DQ, dshape1d, QQ(1));
+
+//       // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
+//       // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
+//       double *data_qq = QQ(0).GetData();
+//       // const double *data_d = D.GetElmtData(e);
+//       for (int k = 0; k < quads; ++k)
+//       {
+//          // int ind00[] = {0,0,k,e};
+//          const double D00 = D(0,0,k,e);
+//          // int ind10[] = {1,0,k,e};
+//          const double D10 = D(1,0,k,e);
+//          // int ind01[] = {0,1,k,e};
+//          const double D01 = D(0,1,k,e);
+//          // int ind11[] = {1,1,k,e};
+//          const double D11 = D(1,1,k,e);
+
+//          const double q0 = data_qq[0*quads + k];
+//          const double q1 = data_qq[1*quads + k];
+
+//          data_qq[0*quads + k] = D00 * q0 + D01 * q1;
+//          data_qq[1*quads + k] = D10 * q0 + D11 * q1;
+//       }
+
+//       // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
+//       // U_i1_i2   += dshape_i1_k1 * DQ_i2_k1
+//       MultABt(shape1d, QQ(0), DQ);
+//       AddMultABt(dshape1d, DQ, Umat);
+
+//       // DQ_i2_k1   = dshape_i2_k2 * QQ_1_k1_k2
+//       // U_i1_i2   += shape_i1_k1  * DQ_i2_k1
+//       MultABt(dshape1d, QQ(1), DQ);
+//       AddMultABt(shape1d, DQ, Umat);
+
+//       // increment offset
+//       offset += dofs;
+//    }   
+// }
+
+// void DummyMultGtDG::MultGtDG3(const Vector &V, Vector &U)
+// {
+//    const int dim = 3;
+//    const int terms = dim*dim;
+
+//    const FiniteElement *fe = fes->GetFE(0);
+//    const int dofs   = fe->GetDof();
+
+//    const int dofs1d = shape1d.Height();
+//    const int quads1d = shape1d.Width();
+//    const int quads  = quads1d * quads1d * quads1d;
+
+//    DenseMatrix Q(quads1d, dim);
+//    DenseTensor QQ(quads1d, quads1d, dim);
+
+//    Array<double> QQQmem(quads1d * quads1d * quads1d * dim);
+//    double *data_qqq = QQQmem.GetData();
+//    DenseTensor QQQ0(data_qqq + 0*quads, quads1d, quads1d, quads1d);
+//    DenseTensor QQQ1(data_qqq + 1*quads, quads1d, quads1d, quads1d);
+//    DenseTensor QQQ2(data_qqq + 2*quads, quads1d, quads1d, quads1d);
+
+//    int offset = 0;
+//    for (int e = 0; e < fes->GetNE(); e++)
+//    {
+//       const DenseTensor Vmat(V.GetData() + offset, dofs1d, dofs1d, dofs1d);
+//       DenseTensor Umat(U.GetData() + offset, dofs1d, dofs1d, dofs1d);
+
+//       // QQQ_0_k1_k2_k3 = dshape_j1_k1 * shape_j2_k2  * shape_j3_k3  * Vmat_j1_j2_j3
+//       // QQQ_1_k1_k2_k3 = shape_j1_k1  * dshape_j2_k2 * shape_j3_k3  * Vmat_j1_j2_j3
+//       // QQQ_2_k1_k2_k3 = shape_j1_k1  * shape_j2_k2  * dshape_j3_k3 * Vmat_j1_j2_j3
+//       QQQ0 = 0.; QQQ1 = 0.; QQQ2 = 0.;
+//       for (int j3 = 0; j3 < dofs1d; ++j3)
+//       {
+//          QQ = 0.;
+//          for (int j2 = 0; j2 < dofs1d; ++j2)
+//          {
+//             Q = 0.;
+//             for (int j1 = 0; j1 < dofs1d; ++j1)
+//             {
+//                for (int k1 = 0; k1 < quads1d; ++k1)
+//                {
+//                   Q(k1, 0) += Vmat(j1, j2, j3) * dshape1d(j1, k1);
+//                   Q(k1, 1) += Vmat(j1, j2, j3) * shape1d(j1, k1);
+//                }
+//             }
+//             for (int k2 = 0; k2 < quads1d; ++k2)
+//                for (int k1 = 0; k1 < quads1d; ++k1)
+//                {
+//                   QQ(k1, k2, 0) += Q(k1, 0) * shape1d(j2, k2);
+//                   QQ(k1, k2, 1) += Q(k1, 1) * dshape1d(j2, k2);
+//                   QQ(k1, k2, 2) += Q(k1, 1) * shape1d(j2, k2);
+//                }
+//          }
+//          for (int k3 = 0; k3 < quads1d; ++k3)
+//             for (int k2 = 0; k2 < quads1d; ++k2)
+//                for (int k1 = 0; k1 < quads1d; ++k1)
+//                {
+//                   QQQ0(k1, k2, k3) += QQ(k1, k2, 0) * shape1d(j3, k3);
+//                   QQQ1(k1, k2, k3) += QQ(k1, k2, 1) * shape1d(j3, k3);
+//                   QQQ2(k1, k2, k3) += QQ(k1, k2, 2) * dshape1d(j3, k3);
+//                }
+//       }
+
+//       // QQQ_c_k1_k2_k3 = Dmat_c_d_k1_k2_k3 * QQQ_d_k1_k2_k3
+//       // NOTE: (k1, k2, k3) = q -- 1d quad point index
+//       // const double *data_d = D.GetElmtData(e);
+//       for (int k = 0; k < quads; ++k)
+//       {
+//          // int ind00[] = {0,0,k,e};
+//          const double D00 = D(0,0,k,e);
+//          // int ind10[] = {1,0,k,e};
+//          const double D10 = D(1,0,k,e);
+//          // int ind20[] = {2,0,k,e};
+//          const double D20 = D(2,0,k,e);
+//          // int ind01[] = {0,1,k,e};
+//          const double D01 = D(0,1,k,e);
+//          // int ind11[] = {1,1,k,e};
+//          const double D11 = D(1,1,k,e);
+//          // int ind21[] = {2,1,k,e};
+//          const double D21 = D(2,1,k,e);
+//          // int ind02[] = {0,2,k,e};
+//          const double D02 = D(0,2,k,e);
+//          // int ind12[] = {1,2,k,e};
+//          const double D12 = D(1,2,k,e);
+//          // int ind22[] = {2,2,k,e};
+//          const double D22 = D(2,2,k,e);
+
+//          const double q0 = data_qqq[0*quads + k];
+//          const double q1 = data_qqq[1*quads + k];
+//          const double q2 = data_qqq[2*quads + k];
+
+//          data_qqq[0*quads + k] = D00 * q0 + D01 * q1 + D02 * q2;
+//          data_qqq[1*quads + k] = D10 * q0 + D11 * q1 + D12 * q2;
+//          data_qqq[2*quads + k] = D20 * q0 + D21 * q1 + D22 * q2;
+//       }
+
+//       // Apply transpose of the first operator that takes V -> QQQd -- QQQd -> U
+//       for (int k3 = 0; k3 < quads1d; ++k3)
+//       {
+//          QQ = 0.;
+//          for (int k2 = 0; k2 < quads1d; ++k2)
+//          {
+//             Q = 0.;
+//             for (int k1 = 0; k1 < quads1d; ++k1)
+//             {
+//                for (int i1 = 0; i1 < dofs1d; ++i1)
+//                {
+//                   Q(i1, 0) += QQQ0(k1, k2, k3) * dshape1d(i1, k1);
+//                   Q(i1, 1) += QQQ1(k1, k2, k3) * shape1d(i1, k1);
+//                   Q(i1, 2) += QQQ2(k1, k2, k3) * shape1d(i1, k1);
+//                }
+//             }
+//             for (int i2 = 0; i2 < dofs1d; ++i2)
+//                for (int i1 = 0; i1 < dofs1d; ++i1)
+//                {
+//                   QQ(i1, i2, 0) += Q(i1, 0) * shape1d(i2, k2);
+//                   QQ(i1, i2, 1) += Q(i1, 1) * dshape1d(i2, k2);
+//                   QQ(i1, i2, 2) += Q(i1, 2) * shape1d(i2, k2);
+//                }
+//          }
+//          for (int i3 = 0; i3 < dofs1d; ++i3)
+//             for (int i2 = 0; i2 < dofs1d; ++i2)
+//                for (int i1 = 0; i1 < dofs1d; ++i1)
+//                {
+//                   Umat(i1, i2, i3) +=
+//                      QQ(i1, i2, 0) * shape1d(i3, k3) +
+//                      QQ(i1, i2, 1) * shape1d(i3, k3) +
+//                      QQ(i1, i2, 2) * dshape1d(i3, k3);
+//                }
+//       }
+
+//       // increment offset
+//       offset += dofs;
+//    }
+// }
+
+// void DummyMultBtDG::MultBtDG1(const Vector &V, Vector &U)
+// {
+//    const int dofs1d = shape1d.Height();
+//    const int quads1d = shape1d.Width();
+//    const int quads = quads1d;
+
+//    Vector Q(quads1d);
+
+//    int offset = 0;
+//    for (int e = 0; e < fes->GetNE(); e++)
+//    {
+//       const Vector Vmat(V.GetData() + offset, dofs1d);
+//       Vector Umat(U.GetData() + offset, dofs1d);
+
+//       // Q_k1 = dshape_j1_k1 * V_i1
+//       dshape1d.MultTranspose(Vmat, Q);
+
+//       double *data_q = Q.GetData();
+//       // const double *data_d = D.GetElmtData(e);
+//       for (int k = 0; k < quads; ++k)
+//       {
+//          data_q[k] *= D(0,k,e);
+//       }
+
+//       // Q_k1 = dshape_j1_k1 * Q_k1
+//       shape1d.AddMult(Q, Umat);
+//    }   
+// }
+
+// void DummyMultBtDG::MultBtDG2(const Vector &V, Vector &U)
+// {
+//    const int dim = 2;
+
+//    const FiniteElement *fe = fes->GetFE(0);
+//    const int dofs   = fe->GetDof();
+
+//    const int dofs1d = shape1d.Height();
+//    const int quads1d = shape1d.Width();
+//    const int quads  = quads1d * quads1d;
+
+//    DenseTensor QQ(quads1d, quads1d, dim);
+//    DenseMatrix DQ(dofs1d, quads1d);
+
+//    int offset = 0;
+//    for (int e = 0; e < fes->GetNE(); e++)
+//    {
+//       const DenseMatrix Vmat(V.GetData() + offset, dofs1d, dofs1d);
+//       DenseMatrix Umat(U.GetData() + offset, dofs1d, dofs1d);
+
+//       // DQ_j2_k1   = E_j1_j2  * dshape_j1_k1 -- contract in x direction
+//       // QQ_0_k1_k2 = DQ_j2_k1 * shape_j2_k2  -- contract in y direction
+//       MultAtB(Vmat, dshape1d, DQ);
+//       MultAtB(DQ, shape1d, QQ(0));
+
+//       // DQ_j2_k1   = E_j1_j2  * shape_j1_k1  -- contract in x direction
+//       // QQ_1_k1_k2 = DQ_j2_k1 * dshape_j2_k2 -- contract in y direction
+//       MultAtB(Vmat, shape1d, DQ);
+//       MultAtB(DQ, dshape1d, QQ(1));
+
+//       // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
+//       // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
+//       double *data_qq = QQ(0).GetData();
+//       for (int k = 0; k < quads; ++k)
+//       {
+//          // int ind0[] = {0,k,e};
+//          const double D0 = D(0,k,e);
+//          // int ind1[] = {1,k,e};
+//          const double D1 = D(1,k,e);
+
+//          const double q0 = data_qq[0*quads + k];
+//          const double q1 = data_qq[1*quads + k];
+
+//          data_qq[0*quads + k] = D0 * q0 + D1 * q1;
+//       }
+
+//       // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
+//       // U_i1_i2   += dshape_i1_k1 * DQ_i2_k1
+//       MultABt(shape1d, QQ(0), DQ);
+//       AddMultABt(shape1d, DQ, Umat);
+
+//       // increment offset
+//       offset += dofs;
+//    }
+// }
+
+// void DummyMultBtDG::MultBtDG3(const Vector &V, Vector &U)
+// {
+//    const int dim = 3;
+//    const int terms = dim*dim;
+
+//    const FiniteElement *fe = fes->GetFE(0);
+//    const int dofs   = fe->GetDof();
+
+//    const int dofs1d = shape1d.Height();
+//    const int quads1d = shape1d.Width();
+//    const int quads  = quads1d * quads1d * quads1d;
+
+//    DenseMatrix Q(quads1d, dim);
+//    DenseTensor QQ(quads1d, quads1d, dim);
+
+//    Array<double> QQQmem(quads1d * quads1d * quads1d * dim);
+//    double *data_qqq = QQQmem.GetData();
+//    DenseTensor QQQ0(data_qqq + 0*quads, quads1d, quads1d, quads1d);
+//    DenseTensor QQQ1(data_qqq + 1*quads, quads1d, quads1d, quads1d);
+//    DenseTensor QQQ2(data_qqq + 2*quads, quads1d, quads1d, quads1d);
+
+//    int offset = 0;
+//    for (int e = 0; e < fes->GetNE(); e++)
+//    {
+//       const DenseTensor Vmat(V.GetData() + offset, dofs1d, dofs1d, dofs1d);
+//       DenseTensor Umat(U.GetData() + offset, dofs1d, dofs1d, dofs1d);
+
+//       // QQQ_0_k1_k2_k3 = dshape_j1_k1 * shape_j2_k2  * shape_j3_k3  * Vmat_j1_j2_j3
+//       // QQQ_1_k1_k2_k3 = shape_j1_k1  * dshape_j2_k2 * shape_j3_k3  * Vmat_j1_j2_j3
+//       // QQQ_2_k1_k2_k3 = shape_j1_k1  * shape_j2_k2  * dshape_j3_k3 * Vmat_j1_j2_j3
+//       QQQ0 = 0.; QQQ1 = 0.; QQQ2 = 0.;
+//       for (int j3 = 0; j3 < dofs1d; ++j3)
+//       {
+//          QQ = 0.;
+//          for (int j2 = 0; j2 < dofs1d; ++j2)
+//          {
+//             Q = 0.;
+//             for (int j1 = 0; j1 < dofs1d; ++j1)
+//             {
+//                for (int k1 = 0; k1 < quads1d; ++k1)
+//                {
+//                   Q(k1, 0) += Vmat(j1, j2, j3) * dshape1d(j1, k1);
+//                   Q(k1, 1) += Vmat(j1, j2, j3) * shape1d(j1, k1);
+//                }
+//             }
+//             for (int k2 = 0; k2 < quads1d; ++k2)
+//                for (int k1 = 0; k1 < quads1d; ++k1)
+//                {
+//                   QQ(k1, k2, 0) += Q(k1, 0) * shape1d(j2, k2);
+//                   QQ(k1, k2, 1) += Q(k1, 1) * dshape1d(j2, k2);
+//                   QQ(k1, k2, 2) += Q(k1, 1) * shape1d(j2, k2);
+//                }
+//          }
+//          for (int k3 = 0; k3 < quads1d; ++k3)
+//             for (int k2 = 0; k2 < quads1d; ++k2)
+//                for (int k1 = 0; k1 < quads1d; ++k1)
+//                {
+//                   QQQ0(k1, k2, k3) += QQ(k1, k2, 0) * shape1d(j3, k3);
+//                   QQQ1(k1, k2, k3) += QQ(k1, k2, 1) * shape1d(j3, k3);
+//                   QQQ2(k1, k2, k3) += QQ(k1, k2, 2) * dshape1d(j3, k3);
+//                }
+//       }
+
+//       // QQQ_c_k1_k2_k3 = Dmat_c_d_k1_k2_k3 * QQQ_d_k1_k2_k3
+//       // NOTE: (k1, k2, k3) = q -- 1d quad point index
+//       // const double *data_d = D.GetElmtData(e);
+//       for (int k = 0; k < quads; ++k)
+//       {
+//          // int ind0[] = {0,k,e};
+//          const double D0 = D(0,k,e);
+//          // int ind1[] = {1,k,e};
+//          const double D1 = D(1,k,e);
+//          // int ind2[] = {2,k,e};
+//          const double D2 = D(2,k,e);
+
+//          const double q0 = data_qqq[0*quads + k];
+//          const double q1 = data_qqq[1*quads + k];
+//          const double q2 = data_qqq[2*quads + k];
+
+//          data_qqq[0*quads + k] = D0 * q0 + D1 * q1 + D2 * q2;
+//       }
+
+//       // Apply transpose of the first operator that takes V -> QQQd -- QQQd -> U
+//       for (int k3 = 0; k3 < quads1d; ++k3)
+//       {
+//          QQ = 0.;
+//          for (int k2 = 0; k2 < quads1d; ++k2)
+//          {
+//             Q = 0.;
+//             for (int k1 = 0; k1 < quads1d; ++k1)
+//             {
+//                for (int i1 = 0; i1 < dofs1d; ++i1)
+//                {
+//                   Q(i1, 0) += QQQ0(k1, k2, k3) * shape1d(i1, k1);
+//                }
+//             }
+//             for (int i2 = 0; i2 < dofs1d; ++i2)
+//                for (int i1 = 0; i1 < dofs1d; ++i1)
+//                {
+//                   QQ(i1, i2, 0) += Q(i1, 0) * shape1d(i2, k2);
+//                }
+//          }
+//          for (int i3 = 0; i3 < dofs1d; ++i3)
+//             for (int i2 = 0; i2 < dofs1d; ++i2)
+//                for (int i1 = 0; i1 < dofs1d; ++i1)
+//                {
+//                   Umat(i1, i2, i3) += QQ(i1, i2, 0) * shape1d(i3, k3);
+//                }
+//       }
+
+//       // increment offset
+//       offset += dofs;
+//    }
+// }
+
+// void DummyMultGtDB::MultGtDB1(const Vector &V, Vector &U)
+// {
+//    const int dofs1d = shape1d.Height();
+//    const int quads1d = shape1d.Width();
+//    const int quads = quads1d;
+
+//    Vector Q(quads1d);
+
+//    int offset = 0;
+//    for (int e = 0; e < fes->GetNE(); e++)
+//    {
+//       const Vector Vmat(V.GetData() + offset, dofs1d);
+//       Vector Umat(U.GetData() + offset, dofs1d);
+
+//       // Q_k1 = shape_j1_k1 * V_i1
+//       shape1d.MultTranspose(Vmat, Q);
+
+//       double *data_q = Q.GetData();
+//       // const double *data_d = D.GetElmtData(e);
+//       for (int k = 0; k < quads; ++k)
+//       {
+//          data_q[k] *= D(0,k,e);
+//       }
+
+//       // Q_k1 = dshape_j1_k1 * Q_k1
+//       dshape1d.AddMult(Q, Umat);
+//    }    
+// }
+
+// void DummyMultGtDB::MultGtDB2(const Vector &V, Vector &U)
+// {
+//    const int dim = 2;
+
+//    const FiniteElement *fe = fes->GetFE(0);
+//    const int dofs   = fe->GetDof();
+
+//    const int dofs1d = shape1d.Height();
+//    const int quads1d = shape1d.Width();
+//    const int quads  = quads1d * quads1d;
+
+//    DenseTensor QQ(quads1d, quads1d, dim);
+//    DenseMatrix DQ(dofs1d, quads1d);
+
+//    int offset = 0;
+//    for (int e = 0; e < fes->GetNE(); e++)
+//    {
+//       const DenseMatrix Vmat(V.GetData() + offset, dofs1d, dofs1d);
+//       DenseMatrix Umat(U.GetData() + offset, dofs1d, dofs1d);
+
+//       //TODO One QQ should be enough
+//       // DQ_j2_k1   = E_j1_j2  * shape_j1_k1 -- contract in x direction
+//       // QQ_k1_k2 = DQ_j2_k1 * shape_j2_k2  -- contract in y direction
+//       MultAtB(Vmat, shape1d, DQ);
+//       MultAtB(DQ, shape1d, QQ(0));
+
+//       // DQ_j2_k1   = E_j1_j2  * shape_j1_k1  -- contract in x direction
+//       // QQ_1_k1_k2 = DQ_j2_k1 * dshape_j2_k2 -- contract in y direction
+//       //Can be optimized since this is the same data
+//       //MultAtB(Vmat, shape1d, DQ);
+//       //MultAtB(DQ, shape1d, QQ(1));
+
+//       // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
+//       // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
+//       double *data_qq = QQ(0).GetData();
+//       //const double *data_d = D.GetElmtData(e);
+//       for (int k = 0; k < quads; ++k)
+//       {
+//          // const double D0 = data_d[terms*k + 0];
+//          // const double D1 = data_d[terms*k + 1];
+//          // int ind0[] = {0,k,e};
+//          const double D0 = D(0,k,e);
+//          // int ind1[] = {1,k,e};
+//          const double D1 = D(1,k,e);
+//          const double q = data_qq[0*quads + k];
+
+//          data_qq[0*quads + k] = D0 * q;
+//          data_qq[1*quads + k] = D1 * q;
+//       }
+
+//       // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
+//       // U_i1_i2   += dshape_i1_k1 * DQ_i2_k1
+//       MultABt(shape1d, QQ(0), DQ);
+//       AddMultABt(dshape1d, DQ, Umat);
+
+//       // DQ_i2_k1   = dshape_i2_k2 * QQ_1_k1_k2
+//       // U_i1_i2   += shape_i1_k1  * DQ_i2_k1
+//       MultABt(dshape1d, QQ(1), DQ);
+//       AddMultABt(shape1d, DQ, Umat);
+
+//       // increment offset
+//       offset += dofs;
+//    }    
+// }
+
+// void DummyMultGtDB::MultGtDB3(const Vector &V, Vector &U)
+// {
+//    const int dim = 3;
+//    const int terms = dim*(dim+1)/2;
+
+//    const FiniteElement *fe = fes->GetFE(0);
+//    const int dofs   = fe->GetDof();
+
+//    const int dofs1d = shape1d.Height();
+//    const int quads1d = shape1d.Width();
+//    const int quads  = quads1d * quads1d * quads1d;
+
+//    DenseMatrix Q(quads1d, dim);
+//    DenseTensor QQ(quads1d, quads1d, dim);
+
+//    Array<double> QQQmem(quads1d * quads1d * quads1d * dim);
+//    double *data_qqq = QQQmem.GetData();
+//    DenseTensor QQQ0(data_qqq + 0*quads, quads1d, quads1d, quads1d);
+//    DenseTensor QQQ1(data_qqq + 1*quads, quads1d, quads1d, quads1d);
+//    DenseTensor QQQ2(data_qqq + 2*quads, quads1d, quads1d, quads1d);
+
+//    int offset = 0;
+//    for (int e = 0; e < fes->GetNE(); e++)
+//    {
+//       const DenseTensor Vmat(V.GetData() + offset, dofs1d, dofs1d, dofs1d);
+//       DenseTensor Umat(U.GetData() + offset, dofs1d, dofs1d, dofs1d);
+
+//       // TODO One QQQ should be enough
+//       // QQQ_0_k1_k2_k3 = shape_j1_k1 * shape_j2_k2 * shape_j3_k3 * Vmat_j1_j2_j3
+//       // QQQ_1_k1_k2_k3 = shape_j1_k1 * shape_j2_k2 * shape_j3_k3 * Vmat_j1_j2_j3
+//       // QQQ_2_k1_k2_k3 = shape_j1_k1 * shape_j2_k2 * shape_j3_k3 * Vmat_j1_j2_j3
+//       QQQ0 = 0.; QQQ1 = 0.; QQQ2 = 0.;
+//       for (int j3 = 0; j3 < dofs1d; ++j3)
+//       {
+//          QQ = 0.;
+//          for (int j2 = 0; j2 < dofs1d; ++j2)
+//          {
+//             Q = 0.;
+//             for (int j1 = 0; j1 < dofs1d; ++j1)
+//             {
+//                for (int k1 = 0; k1 < quads1d; ++k1)
+//                {
+//                   Q(k1, 0) += Vmat(j1, j2, j3) * shape1d(j1, k1);
+//                }
+//             }
+//             for (int k2 = 0; k2 < quads1d; ++k2)
+//                for (int k1 = 0; k1 < quads1d; ++k1)
+//                {
+//                   QQ(k1, k2, 0) += Q(k1, 0) * shape1d(j2, k2);
+//                }
+//          }
+//          for (int k3 = 0; k3 < quads1d; ++k3)
+//             for (int k2 = 0; k2 < quads1d; ++k2)
+//                for (int k1 = 0; k1 < quads1d; ++k1)
+//                {
+//                   QQQ0(k1, k2, k3) += QQ(k1, k2, 0) * shape1d(j3, k3);
+//                }
+//       }
+
+//       //TODO insert the three QQQ only here
+//       // QQQ_c_k1_k2_k3 = Dmat_c_d_k1_k2_k3 * QQQ_d_k1_k2_k3
+//       // NOTE: (k1, k2, k3) = q -- 1d quad point index
+//       // const double *data_d = D.GetElmtData(e);
+//       for (int k = 0; k < quads; ++k)
+//       {
+//          // int ind0[] = {0,k,e};
+//          const double D0 = D(0,k,e);
+//          // int ind1[] = {1,k,e};
+//          const double D1 = D(1,k,e);
+//          // int ind2[] = {2,k,e};
+//          const double D2 = D(2,k,e);
+
+//          const double q0 = data_qqq[0*quads + k];
+
+//          data_qqq[0*quads + k] = D0 * q0;
+//          data_qqq[1*quads + k] = D1 * q0;
+//          data_qqq[2*quads + k] = D2 * q0;
+//       }
+
+//       // Apply transpose of the first operator that takes V -> QQQd -- QQQd -> U
+//       for (int k3 = 0; k3 < quads1d; ++k3)
+//       {
+//          QQ = 0.;
+//          for (int k2 = 0; k2 < quads1d; ++k2)
+//          {
+//             Q = 0.;
+//             for (int k1 = 0; k1 < quads1d; ++k1)
+//             {
+//                for (int i1 = 0; i1 < dofs1d; ++i1)
+//                {
+//                   Q(i1, 0) += QQQ0(k1, k2, k3) * dshape1d(i1, k1);
+//                   Q(i1, 1) += QQQ1(k1, k2, k3) * shape1d(i1, k1);
+//                   Q(i1, 2) += QQQ2(k1, k2, k3) * shape1d(i1, k1);
+//                }
+//             }
+//             for (int i2 = 0; i2 < dofs1d; ++i2)
+//                for (int i1 = 0; i1 < dofs1d; ++i1)
+//                {
+//                   QQ(i1, i2, 0) += Q(i1, 0) * shape1d(i2, k2);
+//                   QQ(i1, i2, 1) += Q(i1, 1) * dshape1d(i2, k2);
+//                   QQ(i1, i2, 2) += Q(i1, 2) * shape1d(i2, k2);
+//                }
+//          }
+//          for (int i3 = 0; i3 < dofs1d; ++i3)
+//             for (int i2 = 0; i2 < dofs1d; ++i2)
+//                for (int i1 = 0; i1 < dofs1d; ++i1)
+//                {
+//                   Umat(i1, i2, i3) +=
+//                      QQ(i1, i2, 0) * shape1d(i3, k3) +
+//                      QQ(i1, i2, 1) * shape1d(i3, k3) +
+//                      QQ(i1, i2, 2) * dshape1d(i3, k3);
+//                }
+//       }
+
+//       // increment offset
+//       offset += dofs;
+//    }   
+// }
 
 
 //////////////////////////////////
@@ -1604,60 +1592,126 @@ void MultBtDB3(FiniteElementSpace* fes,
 //    }
 // }
 
-void DummyFaceMultBtDB::MultBtDBintX(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
-                        DTensor& D, int face_id, const Vector& U, Vector& V)
-{
-   // nunber of elements
-   const int nbe = fes->GetNE();
-   // number of degrees of freedom in 1d (assumes that i1=i2=i3)
-   const int dofs1d = B.Height();
-   // number of quadrature points
-   const int quads1d = B.Width();
-   DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
-   DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
-   Tensor<1> T1(dofs1d),T2(quads1d),T3(dofs1d);
-   for (int e = 0; e < nbe; ++e)
-   {
-      // T1.zero();
-      for (int i2 = 0; i2 < dofs1d; ++i2)
-      {
-         T1(i2) = 0.0;
-         for (int i1 = 0; i1 < dofs1d; ++i1)
-         {
-            T1(i2) += B0d(i1,0) * T0(i1,i2,e);
-         }
-      }
-      // T2.zero();
-      for (int k2 = 0; k2 < quads1d; ++k2)
-      {
-         T2(k2) = 0.0;
-         for (int i2 = 0; i2 < dofs1d; ++i2)
-         {
-            T2(k2) += B(i2,k2) * T1(i2);
-         }
-      }
-      for (int k2 = 0; k2 < quads1d; ++k2)
-      {
-         T2(k2) = D(k2,e,face_id) * T2(k2);
-      }
-      // T3.zero();
-      for (int j2 = 0; j2 < dofs1d; ++j2)
-      {
-         T3(j2) = 0.0;
-         for (int k2 = 0; k2 < quads1d; ++k2)
-         {
-            T3(j2) += B(j2,k2) * T2(k2);
-         }
-      }
-      for (int j2 = 0; j2 < dofs1d; ++j2)
-      {
-         for (int j1 = 0; j1 < dofs1d; ++j1)
-         {
-            R(j1,j2,e) += B0d(j1,0) * T3(j2);
-         }
-      }
-   }
-}
+// void DummyFaceMultBtDB::MultBtDBintX(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+//                         DTensor& D, int face_id, const Vector& U, Vector& V)
+// {
+//    // nunber of elements
+//    const int nbe = fes->GetNE();
+//    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+//    const int dofs1d = B.Height();
+//    // number of quadrature points
+//    const int quads1d = B.Width();
+//    DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
+//    DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
+//    Tensor<1> T1(dofs1d),T2(quads1d),T3(dofs1d);
+//    for (int e = 0; e < nbe; ++e)
+//    {
+//       // T1.zero();
+//       for (int i2 = 0; i2 < dofs1d; ++i2)
+//       {
+//          T1(i2) = 0.0;
+//          for (int i1 = 0; i1 < dofs1d; ++i1)
+//          {
+//             T1(i2) += B0d(i1,0) * T0(i1,i2,e);
+//          }
+//       }
+//       // T2.zero();
+//       for (int k2 = 0; k2 < quads1d; ++k2)
+//       {
+//          T2(k2) = 0.0;
+//          for (int i2 = 0; i2 < dofs1d; ++i2)
+//          {
+//             T2(k2) += B(i2,k2) * T1(i2);
+//          }
+//       }
+//       for (int k2 = 0; k2 < quads1d; ++k2)
+//       {
+//          T2(k2) = D(k2,e,face_id) * T2(k2);
+//       }
+//       // T3.zero();
+//       for (int j2 = 0; j2 < dofs1d; ++j2)
+//       {
+//          T3(j2) = 0.0;
+//          for (int k2 = 0; k2 < quads1d; ++k2)
+//          {
+//             T3(j2) += B(j2,k2) * T2(k2);
+//          }
+//       }
+//       for (int j2 = 0; j2 < dofs1d; ++j2)
+//       {
+//          for (int j1 = 0; j1 < dofs1d; ++j1)
+//          {
+//             R(j1,j2,e) += B0d(j1,0) * T3(j2);
+//          }
+//       }
+//    }
+// }
+
+// // void DummyFaceMultBtDB::MultBtDBintY(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+// //                         DTensor& D, int face_id, const Vector& U, Vector& V)
+// // {
+// //    // nunber of elements
+// //    const int nbe = fes->GetNE();
+// //    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+// //    const int dofs1d = B.Height();
+// //    // number of quadrature points
+// //    const int quads1d = B.Width();
+// //    DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
+// //    DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
+// //    Tensor2d T1(dofs1d,nbe),T2(quads1d,nbe),T3(dofs1d,nbe);
+// //    //T1_i1 = B0d^i2 U_i1i2
+// //    for (int e = 0; e < nbe; ++e)
+// //    {
+// //       for (int i2 = 0; i2 < dofs1d; ++i2)
+// //       {
+// //          for (int i1 = 0; i1 < dofs1d; ++i1)
+// //          {
+// //             T1(i1,e) += B0d(i2,0) * T0(i1,i2,e);
+// //          }
+// //       }
+// //    }
+// //    //T2_k1 = B_k1^i1 T1_i1
+// //    for (int e = 0; e < nbe; ++e)
+// //    {
+// //       for (int k1 = 0; k1 < quads1d; ++k1)
+// //       {
+// //          for (int i1 = 0; i1 < dofs1d; ++i1)
+// //          {
+// //             T2(k1,e) += B(i1,k1) * T1(i1,e);
+// //          }
+// //       }
+// //    }
+// //    //T2_k1 = D_k1 * T2_k1
+// //    for (int e = 0; e < nbe; ++e)
+// //    {
+// //       for (int k1 = 0; k1 < quads1d; ++k1)
+// //       {
+// //          T2(k1,e) = D(k1,e,face_id) * T2(k1,e);
+// //       }
+// //    }
+// //    //T3_j1 = B^k1_j1 T2_k1
+// //    for (int e = 0; e < nbe; ++e)
+// //    {
+// //       for (int k1 = 0; k1 < quads1d; ++k1)
+// //       {
+// //          for (int j1 = 0; j1 < dofs1d; ++j1)
+// //          {
+// //             T3(j1,e) += B(j1,k1) * T2(k1,e);
+// //          }
+// //       }
+// //    }
+// //    //T4_j1j2 = B0d_j2 T3_j1
+// //    for (int e = 0; e < nbe; ++e)
+// //    {
+// //       for (int j2 = 0; j2 < dofs1d; ++j2)
+// //       {
+// //          for (int j1 = 0; j1 < dofs1d; ++j1)
+// //          {
+// //             R(j1,j2,e) += B0d(j2,0) * T3(j1,e);
+// //          }
+// //       }
+// //    }
+// // }
 
 // void DummyFaceMultBtDB::MultBtDBintY(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
 //                         DTensor& D, int face_id, const Vector& U, Vector& V)
@@ -1670,174 +1724,178 @@ void DummyFaceMultBtDB::MultBtDBintX(FiniteElementSpace* fes, Tensor2d& B, Tenso
 //    const int quads1d = B.Width();
 //    DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
 //    DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
-//    Tensor2d T1(dofs1d,nbe),T2(quads1d,nbe),T3(dofs1d,nbe);
+//    Tensor<1> T1(dofs1d),T2(quads1d),T3(dofs1d);
 //    //T1_i1 = B0d^i2 U_i1i2
 //    for (int e = 0; e < nbe; ++e)
 //    {
-//       for (int i2 = 0; i2 < dofs1d; ++i2)
+//       // T1.zero();
+//       for (int i1 = 0; i1 < dofs1d; ++i1)
 //       {
+//          T1(i1) = 0.0;
+//          for (int i2 = 0; i2 < dofs1d; ++i2)
+//          {
+//             T1(i1) += B0d(i2,0) * T0(i1,i2,e);
+//          }
+//       }
+//       // T2.zero();
+//       for (int k1 = 0; k1 < quads1d; ++k1)
+//       {
+//          T2(k1) = 0.0;
 //          for (int i1 = 0; i1 < dofs1d; ++i1)
 //          {
-//             T1(i1,e) += B0d(i2,0) * T0(i1,i2,e);
+//             T2(k1) += B(i1,k1) * T1(i1);
 //          }
 //       }
-//    }
-//    //T2_k1 = B_k1^i1 T1_i1
-//    for (int e = 0; e < nbe; ++e)
-//    {
 //       for (int k1 = 0; k1 < quads1d; ++k1)
 //       {
-//          for (int i1 = 0; i1 < dofs1d; ++i1)
+//          T2(k1) = D(k1,e,face_id) * T2(k1);
+//       }
+//       // T3.zero();
+//       for (int j1 = 0; j1 < dofs1d; ++j1)
+//       {
+//          T3(j1) = 0.0;
+//          for (int k1 = 0; k1 < quads1d; ++k1)
 //          {
-//             T2(k1,e) += B(i1,k1) * T1(i1,e);
+//             T3(j1) += B(j1,k1) * T2(k1);
 //          }
 //       }
-//    }
-//    //T2_k1 = D_k1 * T2_k1
-//    for (int e = 0; e < nbe; ++e)
-//    {
-//       for (int k1 = 0; k1 < quads1d; ++k1)
-//       {
-//          T2(k1,e) = D(k1,e,face_id) * T2(k1,e);
-//       }
-//    }
-//    //T3_j1 = B^k1_j1 T2_k1
-//    for (int e = 0; e < nbe; ++e)
-//    {
-//       for (int k1 = 0; k1 < quads1d; ++k1)
-//       {
-//          for (int j1 = 0; j1 < dofs1d; ++j1)
-//          {
-//             T3(j1,e) += B(j1,k1) * T2(k1,e);
-//          }
-//       }
-//    }
-//    //T4_j1j2 = B0d_j2 T3_j1
-//    for (int e = 0; e < nbe; ++e)
-//    {
 //       for (int j2 = 0; j2 < dofs1d; ++j2)
 //       {
 //          for (int j1 = 0; j1 < dofs1d; ++j1)
 //          {
-//             R(j1,j2,e) += B0d(j2,0) * T3(j1,e);
+//             R(j1,j2,e) += B0d(j2,0) * T3(j1);
 //          }
 //       }
 //    }
 // }
 
-void DummyFaceMultBtDB::MultBtDBintY(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
-                        DTensor& D, int face_id, const Vector& U, Vector& V)
-{
-   // nunber of elements
-   const int nbe = fes->GetNE();
-   // number of degrees of freedom in 1d (assumes that i1=i2=i3)
-   const int dofs1d = B.Height();
-   // number of quadrature points
-   const int quads1d = B.Width();
-   DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
-   DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
-   Tensor<1> T1(dofs1d),T2(quads1d),T3(dofs1d);
-   //T1_i1 = B0d^i2 U_i1i2
-   for (int e = 0; e < nbe; ++e)
-   {
-      // T1.zero();
-      for (int i1 = 0; i1 < dofs1d; ++i1)
-      {
-         T1(i1) = 0.0;
-         for (int i2 = 0; i2 < dofs1d; ++i2)
-         {
-            T1(i1) += B0d(i2,0) * T0(i1,i2,e);
-         }
-      }
-      // T2.zero();
-      for (int k1 = 0; k1 < quads1d; ++k1)
-      {
-         T2(k1) = 0.0;
-         for (int i1 = 0; i1 < dofs1d; ++i1)
-         {
-            T2(k1) += B(i1,k1) * T1(i1);
-         }
-      }
-      for (int k1 = 0; k1 < quads1d; ++k1)
-      {
-         T2(k1) = D(k1,e,face_id) * T2(k1);
-      }
-      // T3.zero();
-      for (int j1 = 0; j1 < dofs1d; ++j1)
-      {
-         T3(j1) = 0.0;
-         for (int k1 = 0; k1 < quads1d; ++k1)
-         {
-            T3(j1) += B(j1,k1) * T2(k1);
-         }
-      }
-      for (int j2 = 0; j2 < dofs1d; ++j2)
-      {
-         for (int j1 = 0; j1 < dofs1d; ++j1)
-         {
-            R(j1,j2,e) += B0d(j2,0) * T3(j1);
-         }
-      }
-   }
-}
+// void DummyFaceMultBtDB::Permutation(int face_id, int nbe, int dofs1d, KData& kernel_data,
+//                                     const Tensor3d& T0, Tensor3d& T0p)
+// {
+//    for (int e = 0; e < nbe; ++e)
+//    {
+//       const int trial = kernel_data(e,face_id).indirection;
+//       const int permutation = kernel_data(e,face_id).permutation;
+//       if(trial!=-1)
+//       {
+//          if(permutation==0)
+//          {
+//             for (int i2 = 0; i2 < dofs1d; ++i2)
+//             {
+//                for (int i1 = 0; i1 < dofs1d; ++i1)
+//                {
+//                   T0p(i1,i2,e) = T0(i1,i2,trial);
+//                }
+//             }
+//          }else if(permutation==1){
+//             for (int i2 = 0, j1 = dofs1d-1; i2 < dofs1d; ++i2, --j1)
+//             {
+//                for (int i1 = 0, j2 = 0; i1 < dofs1d; ++i1, ++j2)
+//                {
+//                   T0p(i1,i2,e) = T0(j1,j2,trial);
+//                }
+//             }
+//          }else if(permutation==2){
+//             for (int i2 = 0, j2 = dofs1d-1; i2 < dofs1d; ++i2, --j2)
+//             {
+//                for (int i1 = 0, j1 = dofs1d-1; i1 < dofs1d; ++i1, --j1)
+//                {
+//                   T0p(i1,i2,e) = T0(j1,j2,trial);
+//                }
+//             }
+//          }else if(permutation==3){
+//             // cout << "perm" << permutation << endl;
+//             for (int i2 = 0, j1 = 0; i2 < dofs1d; ++i2, ++j1)
+//             {
+//                for (int i1 = 0, j2 = dofs1d-1; i1 < dofs1d; ++i1, --j2)
+//                {
+//                   T0p(i1,i2,e) = T0(j1,j2,trial);
+//                }
+//             }
+//          }else{
+//             mfem_error("This permutation id does not exist");
+//          }
+//       }else{
+//          for (int i2 = 0; i2 < dofs1d; ++i2)
+//          {
+//             for (int i1 = 0; i1 < dofs1d; ++i1)
+//             {
+//                T0p(i1,i2,e) = 0.0;
+//             }
+//          }
+//       }
+//    }
+// }
 
-void DummyFaceMultBtDB::Permutation(int face_id, int nbe, int dofs1d, KData& kernel_data,
-                                    const Tensor3d& T0, Tensor3d& T0p)
-{
-   for (int e = 0; e < nbe; ++e)
-   {
-      const int trial = kernel_data(e,face_id).indirection;
-      const int permutation = kernel_data(e,face_id).permutation;
-      if(trial!=-1)
-      {
-         if(permutation==0)
-         {
-            for (int i2 = 0; i2 < dofs1d; ++i2)
-            {
-               for (int i1 = 0; i1 < dofs1d; ++i1)
-               {
-                  T0p(i1,i2,e) = T0(i1,i2,trial);
-               }
-            }
-         }else if(permutation==1){
-            for (int i2 = 0, j1 = dofs1d-1; i2 < dofs1d; ++i2, --j1)
-            {
-               for (int i1 = 0, j2 = 0; i1 < dofs1d; ++i1, ++j2)
-               {
-                  T0p(i1,i2,e) = T0(j1,j2,trial);
-               }
-            }
-         }else if(permutation==2){
-            for (int i2 = 0, j2 = dofs1d-1; i2 < dofs1d; ++i2, --j2)
-            {
-               for (int i1 = 0, j1 = dofs1d-1; i1 < dofs1d; ++i1, --j1)
-               {
-                  T0p(i1,i2,e) = T0(j1,j2,trial);
-               }
-            }
-         }else if(permutation==3){
-            // cout << "perm" << permutation << endl;
-            for (int i2 = 0, j1 = 0; i2 < dofs1d; ++i2, ++j1)
-            {
-               for (int i1 = 0, j2 = dofs1d-1; i1 < dofs1d; ++i1, --j2)
-               {
-                  T0p(i1,i2,e) = T0(j1,j2,trial);
-               }
-            }
-         }else{
-            mfem_error("This permutation id does not exist");
-         }
-      }else{
-         for (int i2 = 0; i2 < dofs1d; ++i2)
-         {
-            for (int i1 = 0; i1 < dofs1d; ++i1)
-            {
-               T0p(i1,i2,e) = 0.0;
-            }
-         }
-      }
-   }
-}
+// // void DummyFaceMultBtDB::MultBtDBextX(FiniteElementSpace* fes, Tensor2d& B,
+// //                         Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
+// //                         DTensor& D, int face_id, const Vector& U, Vector& V)
+// // {
+// //    // nunber of elements
+// //    const int nbe = fes->GetNE();
+// //    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+// //    const int dofs1d = B.Height();
+// //    // number of quadrature points
+// //    const int quads1d = B.Width();
+// //    Tensor3d T0(U.GetData(),dofs1d,dofs1d,nbe);
+// //    Tensor3d R(V.GetData(),dofs1d,dofs1d,nbe);
+// //    Tensor2d T1(dofs1d,nbe),T2(quads1d,nbe),T3(dofs1d,nbe);
+// //    // Indirections
+// //    Tensor3d T0p(dofs1d,dofs1d,nbe);
+// //    Permutation(face_id,nbe,dofs1d,kernel_data,T0,T0p);
+// //    //T1_i2 = B0d^i1 U_i1i2
+// //    for (int e = 0; e < nbe; ++e)
+// //    {
+// //       for (int i2 = 0; i2 < dofs1d; ++i2)
+// //       {
+// //          for (int i1 = 0; i1 < dofs1d; ++i1)
+// //          {
+// //             T1(i2,e) += B0dTrial(i1,0) * T0p(i1,i2,e);
+// //          }
+// //       }
+// //    }
+// //    //T2_k2 = B_k2^i2 T1_k1
+// //    for (int e = 0; e < nbe; ++e)
+// //    {
+// //       for (int i2 = 0; i2 < dofs1d; ++i2)
+// //       {
+// //          for (int k2 = 0; k2 < quads1d; ++k2)
+// //          {
+// //             T2(k2,e) += B(i2,k2) * T1(i2,e);
+// //          }
+// //       }
+// //    }
+// //    //T2_k2 = D_k2 T2_k2
+// //    for (int e = 0; e < nbe; ++e)
+// //    {
+// //       for (int k2 = 0; k2 < quads1d; ++k2)
+// //       {
+// //          T2(k2,e) = D(k2,e,face_id) * T2(k2,e);
+// //       }
+// //    }
+// //    //T3_j2 = B_j2^k2 T2_k2
+// //    for (int e = 0; e < nbe; ++e)
+// //    {
+// //       for (int k2 = 0; k2 < quads1d; ++k2)
+// //       {
+// //          for (int j2 = 0; j2 < dofs1d; ++j2)
+// //          {
+// //             T3(j2,e) += B(j2,k2) * T2(k2,e);
+// //          }
+// //       }
+// //    }
+// //    //R_j1j2 = B0d_j1 T3_j2
+// //    for (int e = 0; e < nbe; ++e)
+// //    {
+// //       for (int j2 = 0; j2 < dofs1d; ++j2)
+// //       {
+// //          for (int j1 = 0; j1 < dofs1d; ++j1)
+// //          {
+// //             R(j1,j2,e) += B0dTest(j1,0) * T3(j2,e);
+// //          }
+// //       }
+// //    }
+// // }
 
 // void DummyFaceMultBtDB::MultBtDBextX(FiniteElementSpace* fes, Tensor2d& B,
 //                         Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
@@ -1851,123 +1909,123 @@ void DummyFaceMultBtDB::Permutation(int face_id, int nbe, int dofs1d, KData& ker
 //    const int quads1d = B.Width();
 //    Tensor3d T0(U.GetData(),dofs1d,dofs1d,nbe);
 //    Tensor3d R(V.GetData(),dofs1d,dofs1d,nbe);
-//    Tensor2d T1(dofs1d,nbe),T2(quads1d,nbe),T3(dofs1d,nbe);
+//    Tensor<1,double> T1(dofs1d),T2(quads1d),T3(dofs1d);
 //    // Indirections
 //    Tensor3d T0p(dofs1d,dofs1d,nbe);
 //    Permutation(face_id,nbe,dofs1d,kernel_data,T0,T0p);
 //    //T1_i2 = B0d^i1 U_i1i2
 //    for (int e = 0; e < nbe; ++e)
 //    {
+//       // T1.zero();
 //       for (int i2 = 0; i2 < dofs1d; ++i2)
 //       {
+//          T1(i2) = 0.0;
 //          for (int i1 = 0; i1 < dofs1d; ++i1)
 //          {
-//             T1(i2,e) += B0dTrial(i1,0) * T0p(i1,i2,e);
+//             T1(i2) += B0dTrial(i1,0) * T0p(i1,i2,e);
 //          }
 //       }
-//    }
-//    //T2_k2 = B_k2^i2 T1_k1
-//    for (int e = 0; e < nbe; ++e)
-//    {
-//       for (int i2 = 0; i2 < dofs1d; ++i2)
+//       // T2.zero();
+//       for (int k2 = 0; k2 < quads1d; ++k2)
 //       {
+//          T2(k2) = 0.0;
+//          for (int i2 = 0; i2 < dofs1d; ++i2)
+//          {
+//             T2(k2) += B(i2,k2) * T1(i2);
+//          }
+//       }
+//       for (int k2 = 0; k2 < quads1d; ++k2)
+//       {
+//          T2(k2) = D(k2,e,face_id) * T2(k2);
+//       }
+//       // T3.zero();
+//       for (int j2 = 0; j2 < dofs1d; ++j2)
+//       {
+//          T3(j2) = 0.0;
 //          for (int k2 = 0; k2 < quads1d; ++k2)
 //          {
-//             T2(k2,e) += B(i2,k2) * T1(i2,e);
+//             T3(j2) += B(j2,k2) * T2(k2);
 //          }
 //       }
-//    }
-//    //T2_k2 = D_k2 T2_k2
-//    for (int e = 0; e < nbe; ++e)
-//    {
-//       for (int k2 = 0; k2 < quads1d; ++k2)
-//       {
-//          T2(k2,e) = D(k2,e,face_id) * T2(k2,e);
-//       }
-//    }
-//    //T3_j2 = B_j2^k2 T2_k2
-//    for (int e = 0; e < nbe; ++e)
-//    {
-//       for (int k2 = 0; k2 < quads1d; ++k2)
-//       {
-//          for (int j2 = 0; j2 < dofs1d; ++j2)
-//          {
-//             T3(j2,e) += B(j2,k2) * T2(k2,e);
-//          }
-//       }
-//    }
-//    //R_j1j2 = B0d_j1 T3_j2
-//    for (int e = 0; e < nbe; ++e)
-//    {
 //       for (int j2 = 0; j2 < dofs1d; ++j2)
 //       {
 //          for (int j1 = 0; j1 < dofs1d; ++j1)
 //          {
-//             R(j1,j2,e) += B0dTest(j1,0) * T3(j2,e);
+//             R(j1,j2,e) += B0dTest(j1,0) * T3(j2);
 //          }
 //       }
 //    }
 // }
 
-void DummyFaceMultBtDB::MultBtDBextX(FiniteElementSpace* fes, Tensor2d& B,
-                        Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
-                        DTensor& D, int face_id, const Vector& U, Vector& V)
-{
-   // nunber of elements
-   const int nbe = fes->GetNE();
-   // number of degrees of freedom in 1d (assumes that i1=i2=i3)
-   const int dofs1d = B.Height();
-   // number of quadrature points
-   const int quads1d = B.Width();
-   Tensor3d T0(U.GetData(),dofs1d,dofs1d,nbe);
-   Tensor3d R(V.GetData(),dofs1d,dofs1d,nbe);
-   Tensor<1,double> T1(dofs1d),T2(quads1d),T3(dofs1d);
-   // Indirections
-   Tensor3d T0p(dofs1d,dofs1d,nbe);
-   Permutation(face_id,nbe,dofs1d,kernel_data,T0,T0p);
-   //T1_i2 = B0d^i1 U_i1i2
-   for (int e = 0; e < nbe; ++e)
-   {
-      // T1.zero();
-      for (int i2 = 0; i2 < dofs1d; ++i2)
-      {
-         T1(i2) = 0.0;
-         for (int i1 = 0; i1 < dofs1d; ++i1)
-         {
-            T1(i2) += B0dTrial(i1,0) * T0p(i1,i2,e);
-         }
-      }
-      // T2.zero();
-      for (int k2 = 0; k2 < quads1d; ++k2)
-      {
-         T2(k2) = 0.0;
-         for (int i2 = 0; i2 < dofs1d; ++i2)
-         {
-            T2(k2) += B(i2,k2) * T1(i2);
-         }
-      }
-      for (int k2 = 0; k2 < quads1d; ++k2)
-      {
-         T2(k2) = D(k2,e,face_id) * T2(k2);
-      }
-      // T3.zero();
-      for (int j2 = 0; j2 < dofs1d; ++j2)
-      {
-         T3(j2) = 0.0;
-         for (int k2 = 0; k2 < quads1d; ++k2)
-         {
-            T3(j2) += B(j2,k2) * T2(k2);
-         }
-      }
-      for (int j2 = 0; j2 < dofs1d; ++j2)
-      {
-         for (int j1 = 0; j1 < dofs1d; ++j1)
-         {
-            R(j1,j2,e) += B0dTest(j1,0) * T3(j2);
-         }
-      }
-   }
-}
+// // void DummyFaceMultBtDB::MultBtDBextY(FiniteElementSpace* fes, Tensor2d& B,
+// //                         Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
+// //                         DTensor& D, int face_id, const Vector& U, Vector& V)
+// // {
+// //    // nunber of elements
+// //    const int nbe = fes->GetNE();
+// //    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+// //    const int dofs1d = B.Height();
+// //    // number of quadrature points
+// //    const int quads1d = B.Width();
+// //    DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
+// //    DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
+// //    Tensor2d T1(dofs1d,nbe),T2(quads1d,nbe),T3(dofs1d,nbe);
+// //    // Indirections
+// //    DTensor T0p(dofs1d,dofs1d,nbe);
+// //    Permutation(face_id,nbe,dofs1d,kernel_data,T0,T0p);
+// //    //T1_i1 = B0d^i2 U_i1i2
+// //    for (int e = 0; e < nbe; ++e)
+// //    {
+// //       for (int i2 = 0; i2 < dofs1d; ++i2)
+// //       {
+// //          for (int i1 = 0; i1 < dofs1d; ++i1)
+// //          {
+// //             T1(i1,e) += B0dTrial(i2,0) * T0p(i1,i2,e);
+// //          }
+// //       }
+// //    }
+// //    //T2_k1 = B_k1^i1 T1_i1
+// //    for (int e = 0; e < nbe; ++e)
+// //    {
+// //       for (int k1 = 0; k1 < quads1d; ++k1)
+// //       {
+// //          for (int i1 = 0; i1 < dofs1d; ++i1)
+// //          {
+// //             T2(k1,e) += B(i1,k1) * T1(i1,e);
+// //          }
+// //       }
+// //    }
+// //    //T2_k1 = D_k1 * T2_k1
+// //    for (int e = 0; e < nbe; ++e)
+// //    {
+// //       for (int k1 = 0; k1 < quads1d; ++k1)
+// //       {
+// //          T2(k1,e) = D(k1,e,face_id) * T2(k1,e);
+// //       }
+// //    }
+// //    //T3_j1 = B^k1_j1 T2_k1
+// //    for (int e = 0; e < nbe; ++e)
+// //    {
+// //       for (int k1 = 0; k1 < quads1d; ++k1)
+// //       {
+// //          for (int j1 = 0; j1 < dofs1d; ++j1)
+// //          {
+// //             T3(j1,e) += B(j1,k1) * T2(k1,e);
+// //          }
+// //       }
+// //    }
+// //    //T4_j1j2 = B0d_j2 T3_j1
+// //    for (int e = 0; e < nbe; ++e)
+// //    {
+// //       for (int j2 = 0; j2 < dofs1d; ++j2)
+// //       {
+// //          for (int j1 = 0; j1 < dofs1d; ++j1)
+// //          {
+// //             R(j1,j2,e) += B0dTest(j2,0) * T3(j1,e);
+// //          }
+// //       }
+// //    }
+// // }
 
 // void DummyFaceMultBtDB::MultBtDBextY(FiniteElementSpace* fes, Tensor2d& B,
 //                         Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
@@ -1981,122 +2039,52 @@ void DummyFaceMultBtDB::MultBtDBextX(FiniteElementSpace* fes, Tensor2d& B,
 //    const int quads1d = B.Width();
 //    DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
 //    DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
-//    Tensor2d T1(dofs1d,nbe),T2(quads1d,nbe),T3(dofs1d,nbe);
+//    Tensor<1,double> T1(dofs1d),T2(quads1d),T3(dofs1d);
 //    // Indirections
 //    DTensor T0p(dofs1d,dofs1d,nbe);
 //    Permutation(face_id,nbe,dofs1d,kernel_data,T0,T0p);
 //    //T1_i1 = B0d^i2 U_i1i2
 //    for (int e = 0; e < nbe; ++e)
 //    {
-//       for (int i2 = 0; i2 < dofs1d; ++i2)
+//       // T1.zero();
+//       for (int i1 = 0; i1 < dofs1d; ++i1)
 //       {
+//          T1(i1) = 0.0;
+//          for (int i2 = 0; i2 < dofs1d; ++i2)
+//          {
+//             T1(i1) += B0dTrial(i2,0) * T0p(i1,i2,e);
+//          }
+//       }
+//       // T2.zero();
+//       for (int k1 = 0; k1 < quads1d; ++k1)
+//       {
+//          T2(k1) = 0.0;
 //          for (int i1 = 0; i1 < dofs1d; ++i1)
 //          {
-//             T1(i1,e) += B0dTrial(i2,0) * T0p(i1,i2,e);
+//             T2(k1) += B(i1,k1) * T1(i1);
 //          }
 //       }
-//    }
-//    //T2_k1 = B_k1^i1 T1_i1
-//    for (int e = 0; e < nbe; ++e)
-//    {
 //       for (int k1 = 0; k1 < quads1d; ++k1)
 //       {
-//          for (int i1 = 0; i1 < dofs1d; ++i1)
+//          T2(k1) = D(k1,e,face_id) * T2(k1);
+//       }
+//       // T3.zero();
+//       for (int j1 = 0; j1 < dofs1d; ++j1)
+//       {
+//          T3(j1) = 0.0;
+//          for (int k1 = 0; k1 < quads1d; ++k1)
 //          {
-//             T2(k1,e) += B(i1,k1) * T1(i1,e);
+//             T3(j1) += B(j1,k1) * T2(k1);
 //          }
 //       }
-//    }
-//    //T2_k1 = D_k1 * T2_k1
-//    for (int e = 0; e < nbe; ++e)
-//    {
-//       for (int k1 = 0; k1 < quads1d; ++k1)
-//       {
-//          T2(k1,e) = D(k1,e,face_id) * T2(k1,e);
-//       }
-//    }
-//    //T3_j1 = B^k1_j1 T2_k1
-//    for (int e = 0; e < nbe; ++e)
-//    {
-//       for (int k1 = 0; k1 < quads1d; ++k1)
-//       {
-//          for (int j1 = 0; j1 < dofs1d; ++j1)
-//          {
-//             T3(j1,e) += B(j1,k1) * T2(k1,e);
-//          }
-//       }
-//    }
-//    //T4_j1j2 = B0d_j2 T3_j1
-//    for (int e = 0; e < nbe; ++e)
-//    {
 //       for (int j2 = 0; j2 < dofs1d; ++j2)
 //       {
 //          for (int j1 = 0; j1 < dofs1d; ++j1)
 //          {
-//             R(j1,j2,e) += B0dTest(j2,0) * T3(j1,e);
+//             R(j1,j2,e) += B0dTest(j2,0) * T3(j1);
 //          }
 //       }
 //    }
 // }
-
-void DummyFaceMultBtDB::MultBtDBextY(FiniteElementSpace* fes, Tensor2d& B,
-                        Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
-                        DTensor& D, int face_id, const Vector& U, Vector& V)
-{
-   // nunber of elements
-   const int nbe = fes->GetNE();
-   // number of degrees of freedom in 1d (assumes that i1=i2=i3)
-   const int dofs1d = B.Height();
-   // number of quadrature points
-   const int quads1d = B.Width();
-   DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
-   DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
-   Tensor<1,double> T1(dofs1d),T2(quads1d),T3(dofs1d);
-   // Indirections
-   DTensor T0p(dofs1d,dofs1d,nbe);
-   Permutation(face_id,nbe,dofs1d,kernel_data,T0,T0p);
-   //T1_i1 = B0d^i2 U_i1i2
-   for (int e = 0; e < nbe; ++e)
-   {
-      // T1.zero();
-      for (int i1 = 0; i1 < dofs1d; ++i1)
-      {
-         T1(i1) = 0.0;
-         for (int i2 = 0; i2 < dofs1d; ++i2)
-         {
-            T1(i1) += B0dTrial(i2,0) * T0p(i1,i2,e);
-         }
-      }
-      // T2.zero();
-      for (int k1 = 0; k1 < quads1d; ++k1)
-      {
-         T2(k1) = 0.0;
-         for (int i1 = 0; i1 < dofs1d; ++i1)
-         {
-            T2(k1) += B(i1,k1) * T1(i1);
-         }
-      }
-      for (int k1 = 0; k1 < quads1d; ++k1)
-      {
-         T2(k1) = D(k1,e,face_id) * T2(k1);
-      }
-      // T3.zero();
-      for (int j1 = 0; j1 < dofs1d; ++j1)
-      {
-         T3(j1) = 0.0;
-         for (int k1 = 0; k1 < quads1d; ++k1)
-         {
-            T3(j1) += B(j1,k1) * T2(k1);
-         }
-      }
-      for (int j2 = 0; j2 < dofs1d; ++j2)
-      {
-         for (int j1 = 0; j1 < dofs1d; ++j1)
-         {
-            R(j1,j2,e) += B0dTest(j2,0) * T3(j1);
-         }
-      }
-   }
-}
 
 }

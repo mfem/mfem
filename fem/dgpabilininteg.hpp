@@ -29,313 +29,62 @@ namespace mfem
 {
 
 /**
-* PAK (Partial Assembly Kernel) dependent partial assembly for Convection Integrator.
-* Assumes:
-*  - MultGtDB Operation and SetSizeD, SetValD for the D tensor inside the Kernel
+*	A class that describes the Convection Equation using DG for Partial Assembly.
 */
-template <template<PAOp> class PAK = DummyDomainPAK >
-class PAConvectionIntegrator
-	: public BilinearFormIntegrator, private PADomainIntegrator<PAOp::BtDG, PAK>
+class DGConvectionEquation
 {
 public:
-  	PAConvectionIntegrator(FiniteElementSpace *fes, const int order,
-                        VectorCoefficient &q, double a = 1.0)
-  	: BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
-  	  PADomainIntegrator<PAOp::BtDG, PAK>(fes,order)
-  	{
-	  	const int nb_elts = fes->GetNE();
-		const int quads  = IntRule->GetNPoints();
-	   const FiniteElement* fe = fes->GetFE(0);
-	   int dim = fe->GetDim();
-		Vector qvec(dim);
-		// Initialization of the size of the D tensor
-		//ToSelf: should initialization change since we know the number of args
-		// int sizes[] = {dim,quads,nb_elts};
-		// this->SetSizeD(sizes);
-		this->SetSizeD(dim,quads,nb_elts);
-		for (int e = 0; e < nb_elts; ++e)
-		{
-		   ElementTransformation *Tr = fes->GetElementTransformation(e);
-		   for (int k = 0; k < quads; ++k)
-		   {
-		     	const IntegrationPoint &ip = IntRule->IntPoint(k);
-			   Tr->SetIntPoint(&ip);
-		     	const DenseMatrix& locD = Tr->AdjugateJacobian();
-		     	q.Eval(qvec, *Tr, ip);
-		     	for (int i = 0; i < dim; ++i)
-		     	{
-		     		double val = 0;
-		     		for (int j = 0; j < dim; ++j)
-		       	{
-		         	val += locD(i,j) * qvec(j);
-		       	}
-					//ToSelf: should SetValD change since we know the number of args
-	         	// int ind[] = {i,k,e};
-	         	// this->SetValD(ind, ip.weight * a * val);
-	         	this->SetValD(ip.weight * a * val, i,k,e);
-		     	}
-		   }
-		}
-  	}
+   /**
+   *  Defines the Kernel to apply to the Domain
+   */
+   static const PAOp OpName = BtDG;
 
-  virtual void AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
-  {
-    //We assume that the kernel has such a method.
-    this->Mult(fun,vect);
-  }
-
-};
-
-/** Class for computing the action of 
-    (alpha < rho_q (q.n) {u},[v] > + beta < rho_q |q.n| [u],[v] >),
-    where u and v are the trial and test variables, respectively, and rho_q are
-    given scalar/vector coefficients. The vector coefficient, q, is assumed to
-    be continuous across the faces and when given the scalar coefficient, rho,
-    is assumed to be discontinuous. The integrator uses the upwind value of rho,
-    rho_q, which is value from the side into which the vector coefficient, q,
-    points. This uses a partially assembled operator at quadrature points.
-    Assumes:
-      - IntegrationRule for PAK
-* */
-template <typename PAK>
-class PADGConvectionFaceIntegrator : public BilinearFormIntegrator
-{
-protected:
-   PAK pak;
-
-public:
-
-  	PADGConvectionFaceIntegrator(FiniteElementSpace *fes, const int order,
-                        VectorCoefficient &q, double a = 1.0, double b = 1.0)
-  	:BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
-  	pak(fes,order,2)
-	{
-		const int dim = fes->GetFE(0)->GetDim();
-	   Mesh* mesh = fes->GetMesh();
-	   const int nb_faces = mesh->GetNumFaces();
-	   int geom;
-	   switch(dim){
-	   	case 1:geom = Geometry::POINT;break;
-	   	case 2:geom = Geometry::SEGMENT;break;
-	   	case 3:geom = Geometry::SQUARE;break;
-	   }
-		const int quads  = IntRules.Get(geom, order).GetNPoints();//pow(ir_order,dim-1);
-		Vector qvec(dim);
-	   // D11 and D22 are the matrices for the flux of the element on himself for elemt 1 and 2
-	   // respectively
-	   // (ToSelf: element approach > face approach?)
-	   // D12 and D21 are the flux matrices for Element 1 on Element 2, and Element 2 on Element 1
-	   // respectively.
-	   typename PAK::Tensor& D11 = pak.GetD11();
-	   typename PAK::Tensor& D12 = pak.GetD12();
-	   typename PAK::Tensor& D21 = pak.GetD21();
-	   typename PAK::Tensor& D22 = pak.GetD22();
-	   int sizes[] = {quads,nb_faces};
-	   D11.SetSize(sizes);
-	   D12.SetSize(sizes);
-	   D21.SetSize(sizes);
-	   D22.SetSize(sizes);
-	   IntMatrix P(dim,dim);
-	   // We have a per face approach for the fluxes, so we should initialize the four different
-	   // fluxes.
-	   for (int face = 0; face < nb_faces; ++face)
-	   {
-	      int ind_elt1, ind_elt2;
-	      // We collect the indices of the two elements on the face, element1 is the master element,
-	      // the one that defines the normal to the face.
-	      mesh->GetFaceElements(face,&ind_elt1,&ind_elt2);
-	      int info_elt1, info_elt2;
-	      // We collect the informations on the face for the two elements.
-	      mesh->GetFaceInfos(face,&info_elt1,&info_elt2);
-	      int nb_rot1, nb_rot2;
-	      int face_id1, face_id2;
-	      GetIdRotInfo(info_elt1,face_id1,nb_rot1);
-	      GetIdRotInfo(info_elt2,face_id2,nb_rot2);
-	      // Trial basis shouldn't rotate, since we apply B1d to dofs directly
-	      //int nb_rot = nb_rot1 - nb_rot2;//TODO check that it's correct!!!
-	      //IntMatrix base_E1(dim,dim), base_E2(dim,dim);
-	      // The mapping "map" stores the cahnge of basis from element e1 to element e2
-	      //vector<pair<int,int> > map;
-	      // //TODO: This code should be factorized and put somewhere else
-	      switch(dim){
-	      	case 1:mfem_error("1D Advection not yet implemented");break;
-	      	case 2:
-	      		GetChangeOfBasis2D(face_id1,face_id2,P);
-	      		/*GetLocalCoordMap2D(map,nb_rot);
-	      		InitFaceCoord2D(face_id1,base_E1);
-	      		InitFaceCoord2D(face_id2,base_E2);*/
-	      		break;
-	      	case 3:
-	      		mfem_error("3D Advection not yet implemented");
-	      		/*GetLocalCoordMap3D(map,nb_rot);
-	      		InitFaceCoord3D(face_id1,base_E1);
-	      		InitFaceCoord3D(face_id2,base_E2);*/
-	      		break;
-	      	default:
-	      		mfem_error("Wrong dimension");break;
-	      }
-	      //GetChangeOfBasis(base_E1,base_E2,map,P);
-	      pak.InitPb(face,P);
-   		FaceElementTransformations* face_tr = mesh->GetFaceElementTransformations(face);
-	      for (int k = 0; k < quads; ++k)
-	      {
-	      	// We need to be sure that we go in the same order as for the partial assembly.
-	      	// So we take the points on the face for the element that has the trial function.
-	      	// So we can only compute 2 of the 4 matrices with a set of points.
-	      	// IntPoint are not the same from e1 to e2 than from e2 to e1, because
-	      	// dofs are usually not oriented the same way on the face.
-	      	// IntPoints are the same for e1 to e2 (D21) and for e1 to e1 (D11).
-	         // Shared parameters
-	         int ind[] = {k,face};
-	         double val = 0;
-	         Vector n(dim);
-	         double res;
-	      	const IntegrationRule& ir = IntRules.Get(geom, order);
-        		const IntegrationPoint &ip = ir.IntPoint(k);
-	      	// We compute D11 and D21
-      		IntegrationPoint eip1;
-        		eip1 = pak.IntPoint( face_id1, k );//2D point ordered according to coord on element 1
-      		//face_tr->Loc1.Transform( ip, eip1 );
-	         face_tr->Face->SetIntPoint( &ip );
-				face_tr->Elem1->SetIntPoint( &eip1 );
-	         q.Eval( qvec, *(face_tr->Elem1), eip1 );
-	         CalcOrtho( face_tr->Face->Jacobian(), n );
-	         res = qvec * n;
-	         if(face_tr->Elem2No!=-1){
-		         val = eip1.weight * (   a/2 * res + b * abs(res) );
-		         D11(ind) = val;
-		         val = eip1.weight * (   a/2 * res - b * abs(res) );
-		         D21(ind) = val;
-		         // We compute D12 and D22
-	      		IntegrationPoint eip2;
-	      		eip2 = pak.IntPoint( face_id2, k );
-	      		//face_tr->Loc2.Transform( ip, eip2 );
-		        	face_tr->Face->SetIntPoint( &ip );
-					face_tr->Elem2->SetIntPoint( &eip2 );
-			      q.Eval( qvec, *(face_tr->Elem2), eip2 );
-			      CalcOrtho( face_tr->Face->Jacobian(), n );
-			      res = qvec * n;
-			      val = eip2.weight * ( - a/2 * res + b * abs(res) );
-			      D22(ind) = val;
-			      val = eip2.weight * ( - a/2 * res - b * abs(res) );
-			      D12(ind) = val;
-		      }else{//Boundary face
-		        	D11(ind) = 0;	      	
-		      }
-	      }
-	   }
-	}
-   
-   // Perform the action of the BilinearFormIntegrator
-   virtual void AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
+   /**
+   *  Returns the values of the D tensor at a given integration Point.
+   */
+   void evalD(Tensor<1>& res, ElementTransformation *Tr, const IntegrationPoint& ip,
+                  VectorCoefficient& q, double a = 1.0)
    {
-  		pak.MultBtDB(fun,vect);
+      int dim = res.size(0);
+      Vector qvec(dim);
+      const DenseMatrix& locD = Tr->AdjugateJacobian();
+      q.Eval(qvec, *Tr, ip);
+      for (int i = 0; i < dim; ++i)
+      {
+         double val = 0.0;
+         for (int j = 0; j < dim; ++j)
+         {
+            val += locD(i,j) * qvec(j);
+         }
+         res(i) = ip.weight * a * val;
+      }
    }
-};
 
-template <template<PAOp> class PAK = FacePAK>
-class PADGConvectionFaceIntegrator2
-	: public BilinearFormIntegrator, private PAFaceIntegrator<PAOp::BtDB, PAK>
-{
-public:
+   /**
+   *  Defines the Kernel to apply to the Faces
+   */
+   static const PAOp FaceOpName = BtDB;
 
-  	PADGConvectionFaceIntegrator2(FiniteElementSpace *fes, const int order,
-                        VectorCoefficient &q, double a = 1.0, double b = 1.0)
-  	:BilinearFormIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
-  	PAFaceIntegrator<PAOp::BtDB, PAK>(fes,order)
-  	// pak(fes,order)
-	{
-		const int dim = fes->GetFE(0)->GetDim();
-	   Mesh* mesh = fes->GetMesh();
-	   const int nb_elts = fes->GetNE();
-	   const int nb_faces_elt = 2*dim;
-	   const int nb_faces = mesh->GetNumFaces();
-	   int geom;
-	   switch(dim){
-	   	case 1:geom = Geometry::POINT;break;
-	   	case 2:geom = Geometry::SEGMENT;break;
-	   	case 3:geom = Geometry::SQUARE;break;
-	   }
-		const int quads  = IntRules.Get(geom, order).GetNPoints();//pow(ir_order,dim-1);
-		Vector qvec(dim);
-	   int sizes[] = {quads,nb_elts,nb_faces_elt};
-	   this->SetSize(sizes);
-	   // We have a per face approach for the fluxes, so we should initialize the four different
-	   // fluxes.
-	   for (int face = 0; face < nb_faces; ++face)
-	   {
-	   	// cout << "face=" << face << endl;
-	      int ind_elt1, ind_elt2;
-	      // We collect the indices of the two elements on the face, element1 is the master element,
-	      // the one that defines the normal to the face.
-	      mesh->GetFaceElements(face,&ind_elt1,&ind_elt2);
-	      int info_elt1, info_elt2;
-	      // We collect the informations on the face for the two elements.
-	      mesh->GetFaceInfos(face,&info_elt1,&info_elt2);
-	      int nb_rot1, nb_rot2;
-	      int face_id1, face_id2;
-	      GetIdRotInfo(info_elt1,face_id1,nb_rot1);
-	      GetIdRotInfo(info_elt2,face_id2,nb_rot2);
-   		FaceElementTransformations* face_tr = mesh->GetFaceElementTransformations(face);
-	      for (int k = 0; k < quads; ++k)
-	      {
-	      	// We need to be sure that we go in the same order as for the partial assembly.
-	      	// So we take the points on the face for the element that has the trial function.
-	      	// So we can only compute 2 of the 4 matrices with a set of points.
-	      	// IntPoint are not the same from e1 to e2 than from e2 to e1, because
-	      	// dofs are usually not oriented the same way on the face.
-	      	// IntPoints are the same for e1 to e2 (D21) and for e1 to e1 (D11).
-	         // Shared parameters
-	         double val = 0;
-	         Vector n(dim);
-	         double res;
-	      	const IntegrationRule& ir = IntRules.Get(geom, order);
-        		const IntegrationPoint& ip = ir.IntPoint(k);
-	         if(face_tr->Elem2No!=-1){
-		      	// We compute D11 and D21
-		      	// TODO: maybe pak.IntPoint should return two points, one for each side
-		      	// in case any field is discontinuous
-	      		IntegrationPoint&	eip1 = this->IntPoint( face_id1, k );
-		         face_tr->Face->SetIntPoint( &ip );
-					face_tr->Elem1->SetIntPoint( &eip1 );
-		         q.Eval( qvec, *(face_tr->Elem1), eip1 );
-		         CalcOrtho( face_tr->Face->Jacobian(), n );
-		         res = qvec * n;
-	         	// D11
-		         val = eip1.weight * (   a/2 * res + b * abs(res) );
-		         int ind11[3] = {k, ind_elt1, face_id1};
-		         this->SetValDint(ind11, val);
-		         // D21
-		         val = eip1.weight * (   a/2 * res - b * abs(res) );
-		         int ind21[5] = {k, ind_elt1, face_id1, ind_elt2, face_id2};
-		         this->SetValDext(ind21, val);
-		         // We compute D12 and D22
-					// IntegrationPoint& eip2 = pak.IntPoint( face_id2, k );
-					// face_tr->Face->SetIntPoint( &ip );
-					// face_tr->Elem2->SetIntPoint( &eip2 );
-					// q.Eval( qvec, *(face_tr->Elem2), eip2 );
-					// CalcOrtho( face_tr->Face->Jacobian(), n );
-					// res = qvec * n;
-			      // D22
-			      val = eip1.weight * ( - a/2 * res + b * abs(res) );
-			      int ind22[3] = {k, ind_elt2, face_id2};
-			      this->SetValDint(ind22, val);
-			      // D12
-			      val = eip1.weight * ( - a/2 * res - b * abs(res) );
-		         int ind12[5] = {k, ind_elt2, face_id2, ind_elt1, face_id1};
-		         this->SetValDext(ind12, val);
-		      }else{//Boundary face
-		        	// D11(ind) = 0;	
-		      }
-	      }
-	   }
-	}
-   
-   // Perform the action of the BilinearFormIntegrator
-   virtual void AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
+   /**
+   *  Returns the values of the Dint and Dext tensors at a given integration Point for
+   *  each element over a face.
+   */
+   void evalFaceD(double& res11, double& res21, double& res22, double& res12,
+      const FaceElementTransformations* face_tr, const Vector& normal,
+      const IntegrationPoint& ip1, const IntegrationPoint& ip2,
+      VectorCoefficient &q, double a = 1.0, double b = 1.0)
    {
-  		this->Mult(fun,vect);
-   }
+      int dim = normal.Size();
+      Vector qvec(dim);
+      double res = 0.0;
+      q.Eval( qvec, *(face_tr->Elem1), ip1 );
+      res = qvec * normal;
+      res11 = ip1.weight * (   a/2 * res + b * abs(res) );
+      res21 = ip1.weight * (   a/2 * res - b * abs(res) );
+      res22 = ip1.weight * ( - a/2 * res + b * abs(res) );
+      res12 = ip1.weight * ( - a/2 * res - b * abs(res) );
+   }  
+
 };
 
 }

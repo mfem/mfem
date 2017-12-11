@@ -200,14 +200,17 @@ int main(int argc, char *argv[])
    m.AddDomainIntegrator(new MassIntegrator());
    m.Assemble();
    m.Finalize();
+   // auto useless = PADomainInt<>(&fes,ir_order,velocity,-1.0);
    //Initialization of the Stiffness operator
    BilinearFormOperator k(&fes);
    //k.AddDomainIntegrator(new EigenPAConvectionIntegrator<2>(&fes,ir_order,velocity, -1.0));
-   k.AddDomainIntegrator(new PAConvectionIntegrator<DummyDomainPAK>(&fes,ir_order,velocity, -1.0));
+   // k.AddDomainIntegrator(new PAConvectionIntegrator<DummyDomainPAK>(&fes,ir_order,velocity, -1.0));
+   k.AddDomainIntegrator(new PADomainInt<DGConvectionEquation>(&fes,ir_order,velocity,-1.0));
    // k.AddDomainIntegrator(
    //       new PADGConvectionFaceIntegrator<DummyFacePAK>(&fes,ir_order,velocity, 1.0, -0.5));
-   k.AddDomainIntegrator(
-         new PADGConvectionFaceIntegrator2<DummyFacePAK2>(&fes,ir_order,velocity, 1.0, -0.5));
+   // k.AddDomainIntegrator(
+   //       new PADGConvectionFaceIntegrator2<FacePAK>(&fes,ir_order,velocity, 1.0, -0.5));
+   k.AddDomainIntegrator(new PAFaceInt<DGConvectionEquation>(&fes,ir_order,velocity, 1.0, -0.5));
    //No need to do PA
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
@@ -416,7 +419,8 @@ void velocity_function(const Vector &x, Vector &v)
          switch (dim)
          {
             case 1: v(0) = 1.0; break;
-            case 2: v(0) = sqrt(2./3.); v(1) = -sqrt(1./3.); break;
+            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
+            // case 2: v(0) = 1+abs(X(0)); v(1) = 1+abs(X(0)); break;
             case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
                break;
          }
@@ -478,7 +482,8 @@ double u0_function(const Vector &x)
             case 2:
             case 3:
             {
-               double rx = 0.05, ry = 0.05, cx = -0., cy = -0.5, w = 10.;
+               double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
+               // double rx = 0.05, ry = 0.05, cx = -0., cy = -0.5, w = 10.;
                if (dim == 3)
                {
                   const double s = (1. + 0.25*cos(2*M_PI*X(2)));
