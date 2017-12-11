@@ -104,10 +104,12 @@ public:
 
    /// Matrix-Vector Multiplication y = A*x
    virtual void Mult(const Vector & x, Vector & y) const;
+   virtual void Mult(const RajaVector & x, RajaVector & y) const;
    /// Matrix-Vector Multiplication y = y + val*A*x
    virtual void AddMult(const Vector & x, Vector & y, const double val = 1.) const;
    /// MatrixTranspose-Vector Multiplication y = A'*x
    virtual void MultTranspose(const Vector & x, Vector & y) const;
+   virtual void MultTranspose(const RajaVector & x, RajaVector & y) const;
    /// MatrixTranspose-Vector Multiplication y = y + val*A'*x
    virtual void AddMultTranspose(const Vector & x, Vector & y,
                                  const double val = 1.) const;

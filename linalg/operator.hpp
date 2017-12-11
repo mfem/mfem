@@ -18,7 +18,8 @@ namespace mfem
 {
 
 /// Abstract operator
-class Operator
+template <class TVector>
+class TOperator
 {
 protected:
    int height; ///< Dimension of the output / number of rows in the matrix.
@@ -26,11 +27,11 @@ protected:
 
 public:
    /// Construct a square Operator with given size s (default 0).
-   explicit Operator(int s = 0) { height = width = s; }
+   explicit TOperator(int s = 0) { height = width = s; }
 
    /** @brief Construct an Operator with the given height (output size) and
        width (input size). */
-   Operator(int h, int w) { height = h; width = w; }
+   TOperator(int h, int w) { height = h; width = w; }
 
    /// Get the height (size of output) of the Operator. Synonym with NumRows().
    inline int Height() const { return height; }
@@ -45,38 +46,28 @@ public:
    inline int NumCols() const { return width; }
 
    /// Operator application: `y=A(x)`.
-   virtual void Mult(const Vector &x, Vector &y) const
+   virtual void Mult(const TVector &x, TVector &y) const
    { mfem_error("Operator::Mult(Vector) is not overloaded!"); };
-  
-#if defined(MFEM_USE_RAJA)
-   inline virtual void Mult(const RajaVector &x, RajaVector &y) const
-   { mfem_error("Operator::Mult(RajaVector) is not overloaded!"); }
-#endif
 
    /** @brief Action of the transpose operator: `y=A^t(x)`. The default behavior
        in class Operator is to generate an error. */
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   virtual void MultTranspose(const TVector &x, TVector &y) const
    { mfem_error("Operator::MultTranspose() is not overloaded!"); }
   
-#if defined(MFEM_USE_RAJA)
-   inline virtual void MultTranspose(const RajaVector &x, RajaVector &y) const
-   { mfem_error("Operator::MultTranspose() is not overloaded!"); }
-#endif
-
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
-   virtual Operator &GetGradient(const Vector &x) const
+  virtual TOperator<TVector> &GetGradient(const TVector &x) const
    {
       mfem_error("Operator::GetGradient() is not overloaded!");
-      return const_cast<Operator &>(*this);
+      return const_cast<TOperator<TVector> &>(*this);
    }
 
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
        to input vectors for the operator. `NULL` means identity. */
-   virtual const Operator *GetProlongation() const { return NULL; }
+  virtual const TOperator<TVector> *GetProlongation() const { return NULL; }
    /** @brief Restriction operator from input vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
-   virtual const Operator *GetRestriction() const  { return NULL; }
+  virtual const TOperator<TVector> *GetRestriction() const  { return NULL; }
 
    /** @brief Form a constrained linear system using a matrix-free approach.
 
@@ -109,8 +100,8 @@ public:
        @note If there are no transformations, @a X simply reuses the data of @a
        x. */
    void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x, Vector &b,
-                         Operator* &A, Vector &X, Vector &B,
+                         TVector &x, TVector &b,
+                         TOperator<TVector>* &A, TVector &X, TVector &B,
                          int copy_interior = 0);
 
    /** @brief Reconstruct a solution vector @a x (e.g. a GridFunction) from the
@@ -122,15 +113,13 @@ public:
        @a x, for this Operator (presumably a finite element grid function). This
        method has identical signature to the analogous method for bilinear
        forms, though currently @a b is not used in the implementation. */
-   virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
-   template <class TVector>
-   void TRecoverFEMSolution(const TVector &X, const TVector &b, TVector &x);
+   virtual void RecoverFEMSolution(const TVector &X, const TVector &b, TVector &x);
 
    /// Prints operator with input size n and output size m in Matlab format.
    void PrintMatlab(std::ostream & out, int n = 0, int m = 0) const;
 
    /// Virtual destructor.
-   virtual ~Operator() { }
+   virtual ~TOperator() { }
 
    /// Enumeration defining IDs for some classes derived from Operator.
    enum Type
@@ -145,14 +134,15 @@ public:
       PETSC_MATGENERIC
    };
 };
-
+typedef TOperator<Vector> Operator;
 
 /// Base abstract class for time dependent operators.
 /** Operator of the form: (x,t) -> f(x,t), where k = f(x,t) generally solves the
     algebraic equation F(x,k,t) = G(x,t). The functions F and G represent the
     _implicit_ and _explicit_ parts of the operator, respectively. For explicit
     operators, F(x,k,t) = k, so f(x,t) = G(x,t).*/
-class TimeDependentOperator : public Operator
+template <class TVector>
+class TTimeDependentOperator : public TOperator<TVector>
 {
 public:
    enum Type
@@ -169,14 +159,14 @@ protected:
 public:
    /** @brief Construct a "square" TimeDependentOperator y = f(x,t), where x and
        y have the same dimension @a n. */
-   explicit TimeDependentOperator(int n = 0, double t_ = 0.0,
+   explicit TTimeDependentOperator(int n = 0, double t_ = 0.0,
                                   Type type_ = EXPLICIT)
-      : Operator(n) { t = t_; type = type_; }
+      : TOperator<TVector>(n) { t = t_; type = type_; }
 
    /** @brief Construct a TimeDependentOperator y = f(x,t), where x and y have
        dimensions @a w and @a h, respectively. */
-   TimeDependentOperator(int h, int w, double t_ = 0.0, Type type_ = EXPLICIT)
-      : Operator(h, w) { t = t_; type = type_; }
+   TTimeDependentOperator(int h, int w, double t_ = 0.0, Type type_ = EXPLICIT)
+      : TOperator<TVector>(h, w) { t = t_; type = type_; }
 
    /// Read the currently set time.
    virtual double GetTime() const { return t; }
@@ -196,7 +186,7 @@ public:
 
        Presently, this method is used by some PETSc ODE solvers, for more
        details, see the PETSc Manual. */
-   virtual void ExplicitMult(const Vector &x, Vector &y) const
+   virtual void ExplicitMult(const TVector &x, TVector &y) const
    {
       mfem_error("TimeDependentOperator::ExplicitMult() is not overridden!");
    }
@@ -206,7 +196,7 @@ public:
 
        Presently, this method is used by some PETSc ODE solvers, for more
        details, see the PETSc Manual.*/
-   virtual void ImplicitMult(const Vector &x, const Vector &k, Vector &y) const
+   virtual void ImplicitMult(const TVector &x, const TVector &k, TVector &y) const
    {
       mfem_error("TimeDependentOperator::ImplicitMult() is not overridden!");
    }
@@ -214,14 +204,14 @@ public:
    /** @brief Perform the action of the operator: @a y = k = f(@a x, t), where
        k solves the algebraic equation F(@a x, k, t) = G(@a x, t) and t is the
        current time. */
-   virtual void Mult(const Vector &x, Vector &y) const
+   virtual void Mult(const TVector &x, TVector &y) const
    {
       mfem_error("TimeDependentOperator::Mult() is not overridden!");
    }
-#if defined(MFEM_USE_RAJA)
-   virtual void Mult(const RajaVector &x, RajaVector &y) const
-   { mfem_error("TimeDependentOperator::Mult() is not overridden!"); }
-#endif
+  
+   inline virtual void MultTranspose(const TVector &x, TVector &y) const
+   { mfem_error("Operator::MultTranspose() is not overloaded!"); }
+
 
    /** @brief Solve the equation: @a k = f(@a x + @a dt @a k, t), for the
        unknown @a k at the current time t.
@@ -239,26 +229,23 @@ public:
        methods and the backward Euler method in particular.
 
        If not re-implemented, this method simply generates an error. */
-   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k)
+   virtual void ImplicitSolve(const double dt, const TVector &x, TVector &k)
    {
       mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
    }
-#if defined(MFEM_USE_RAJA)
-   virtual void ImplicitSolve(const double dt, const RajaVector &x, RajaVector &k)
-   { mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!"); }
-#endif
 
    /** @brief Return an Operator representing (dF/dk @a shift + dF/dx) at the
        given @a x, @a k, and the currently set time.
 
        Presently, this method is used by some PETSc ODE solvers, for more
        details, see the PETSc Manual. */
-   virtual Operator& GetImplicitGradient(const Vector &x, const Vector &k,
-                                         double shift) const
+   virtual TOperator<TVector>& GetImplicitGradient(const TVector &x,
+                                                   const TVector &k,
+                                                   double shift) const
    {
       mfem_error("TimeDependentOperator::GetImplicitGradient() is "
                  "not overridden!");
-      return const_cast<Operator &>(dynamic_cast<const Operator &>(*this));
+      return const_cast<TOperator<TVector> &>(dynamic_cast<const TOperator<TVector> &>(*this));
    }
 
    /** @brief Return an Operator representing dG/dx at the given point @a x and
@@ -266,18 +253,24 @@ public:
 
        Presently, this method is used by some PETSc ODE solvers, for more
        details, see the PETSc Manual. */
-   virtual Operator& GetExplicitGradient(const Vector &x) const
+  virtual TOperator<TVector>& GetExplicitGradient(const TVector &x) const
    {
       mfem_error("TimeDependentOperator::GetExplicitGradient() is "
                  "not overridden!");
-      return const_cast<Operator &>(dynamic_cast<const Operator &>(*this));
+      return const_cast<TOperator<TVector> &>
+        (dynamic_cast<const TOperator<TVector> &>(*this));
    }
 
-   virtual ~TimeDependentOperator() { }
+   virtual ~TTimeDependentOperator() { }
 };
-
+typedef TTimeDependentOperator<Vector> TimeDependentOperator;
+#if defined(MFEM_USE_RAJA)
+typedef TTimeDependentOperator<RajaVector> RajaTimeDependentOperator;
+#endif
+  
 /// Base class for solvers
-class Solver : public Operator
+template <class TVector>
+class TSolver : public TOperator<TVector>
 {
 public:
    /// If true, use the second argument of Mult() as an initial guess.
@@ -287,25 +280,29 @@ public:
 
        @warning Use a Boolean expression for the second parameter (not an int)
        to distinguish this call from the general rectangular constructor. */
-   explicit Solver(int s = 0, bool iter_mode = false)
-      : Operator(s) { iterative_mode = iter_mode; }
+   explicit TSolver(int s = 0, bool iter_mode = false)
+      : TOperator<TVector>(s) { iterative_mode = iter_mode; }
 
    /// Initialize a Solver with height @a h and width @a w.
-   Solver(int h, int w, bool iter_mode = false)
-      : Operator(h, w) { iterative_mode = iter_mode; }
+   TSolver(int h, int w, bool iter_mode = false)
+      : TOperator<TVector>(h, w) { iterative_mode = iter_mode; }
 
    /// Set/update the solver for the given operator.
-   virtual void SetOperator(const Operator &op) = 0;
+   virtual void SetOperator(const TOperator<TVector> &op) = 0;
 };
-
+typedef TSolver<Vector> Solver;
+#if defined(MFEM_USE_RAJA)
+typedef TSolver<RajaVector> RajaSolver;
+#endif
+ 
 
 /// Identity Operator I: x -> x.
 template <class TVector>
-class TIdentityOperator : public Operator
+class TIdentityOperator : public TOperator<TVector>
 {
 public:
    /// Create an identity operator of size @a n.
-   explicit TIdentityOperator(int n) : Operator(n) { }
+   explicit TIdentityOperator(int n) : TOperator<TVector>(n) { }
 
    /// Operator application
    virtual void Mult(const TVector &x, TVector &y) const { y = x; }
@@ -313,9 +310,7 @@ public:
    /// Operator application
    virtual void MultTranspose(const TVector &x, TVector &y) const { y = x; }
 };
-
 typedef TIdentityOperator<Vector> IdentityOperator;
-
 #if defined(MFEM_USE_RAJA)
 typedef TIdentityOperator<RajaVector> RajaIdentityOperator;
 #endif
@@ -323,75 +318,78 @@ typedef TIdentityOperator<RajaVector> RajaIdentityOperator;
 
 /** @brief The transpose of a given operator. Switches the roles of the methods
     Mult() and MultTranspose(). */
-class TransposeOperator : public Operator
+template <class TVector>
+class TTransposeOperator : public TOperator<TVector>
 {
 private:
    const Operator &A;
 
 public:
    /// Construct the transpose of a given operator @a *a.
-   TransposeOperator(const Operator *a)
-      : Operator(a->Width(), a->Height()), A(*a) { }
+   TTransposeOperator(const TOperator<TVector> *a)
+      : TOperator<TVector>(a->Width(), a->Height()), A(*a) { }
 
    /// Construct the transpose of a given operator @a a.
-   TransposeOperator(const Operator &a)
-      : Operator(a.Width(), a.Height()), A(a) { }
+   TTransposeOperator(const TOperator<TVector> &a)
+      : TOperator<TVector>(a.Width(), a.Height()), A(a) { }
 
    /// Operator application. Apply the transpose of the original Operator.
-   virtual void Mult(const Vector &x, Vector &y) const
+   virtual void Mult(const TVector &x, TVector &y) const
    { A.MultTranspose(x, y); }
-
+  
    /// Application of the transpose. Apply the original Operator.
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   virtual void MultTranspose(const TVector &x, TVector &y) const
    { A.Mult(x, y); }
 };
-
+typedef TTransposeOperator<Vector> TransposeOperator;
+#if defined(MFEM_USE_RAJA)
+typedef TTransposeOperator<RajaVector> RajaTransposeOperator;
+#endif
 
 /// The operator x -> R*A*P*x.
 template <class TVector>
-class TRAPOperator : public Operator
+class TRAPOperator : public TOperator<TVector>
 {
 private:
-   const Operator & Rt;
-   const Operator & A;
-   const Operator & P;
+   const TOperator<TVector> & Rt;
+   const TOperator<TVector> & A;
+   const TOperator<TVector> & P;
    mutable TVector Px;
    mutable TVector APx;
 
 public:
    /// Construct the RAP operator given R^T, A and P.
-   TRAPOperator(const Operator &Rt_, const Operator &A_, const Operator &P_)
-      : Operator(Rt_.Width(), P_.Width()), Rt(Rt_), A(A_), P(P_),
+   TRAPOperator(const TOperator<TVector> &Rt_, const TOperator<TVector> &A_, const TOperator<TVector> &P_)
+      : TOperator<TVector>(Rt_.Width(), P_.Width()), Rt(Rt_), A(A_), P(P_),
         Px(P.Height()), APx(A.Height()) { }
 
    /// Operator application.
    virtual void Mult(const TVector & x, TVector & y) const
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
-
+  
    /// Application of the transpose.
    virtual void MultTranspose(const TVector & x, TVector & y) const
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
 };
-
 typedef TRAPOperator<Vector> RAPOperator;
-
 #if defined(MFEM_USE_RAJA)
 typedef TRAPOperator<RajaVector> RajaRAPOperator;
 #endif
 
 /// General triple product operator x -> A*B*C*x, with ownership of the factors.
-class TripleProductOperator : public Operator
+template <class TVector>
+class TTripleProductOperator : public TOperator<TVector>
 {
-   Operator *A;
-   Operator *B;
-   Operator *C;
+   TOperator<TVector> *A;
+   TOperator<TVector> *B;
+   TOperator<TVector> *C;
    bool ownA, ownB, ownC;
    mutable Vector t1, t2;
 
 public:
-   TripleProductOperator(Operator *A, Operator *B, Operator *C,
+   TTripleProductOperator(TOperator<TVector> *A, TOperator<TVector> *B, TOperator<TVector> *C,
                          bool ownA, bool ownB, bool ownC)
-      : Operator(A->Height(), C->Width())
+      : TOperator<TVector>(A->Height(), C->Width())
       , A(A), B(B), C(C)
       , ownA(ownA), ownB(ownB), ownC(ownC)
       , t1(C->Height()), t2(B->Height())
@@ -399,17 +397,21 @@ public:
 
    virtual void Mult(const Vector &x, Vector &y) const
    { C->Mult(x, t1); B->Mult(t1, t2); A->Mult(t2, y); }
-
+  
    virtual void MultTranspose(const Vector &x, Vector &y) const
    { A->MultTranspose(x, t2); B->MultTranspose(t2, t1); C->MultTranspose(t1, y); }
-
-   virtual ~TripleProductOperator()
+  
+   virtual ~TTripleProductOperator()
    {
       if (ownA) { delete A; }
       if (ownB) { delete B; }
       if (ownC) { delete C; }
    }
 };
+typedef TTripleProductOperator<Vector> TripleProductOperator;
+#if defined(MFEM_USE_RAJA)
+typedef TTripleProductOperator<RajaVector> RajaTripleProductOperator;
+#endif
 
 
 /** @brief Square Operator for imposing essential boundary conditions using only
@@ -418,11 +420,12 @@ public:
     Square operator constrained by fixing certain entries in the solution to
     given "essential boundary condition" values. This class is used by the
     general, matrix-free system formulation of Operator::FormLinearSystem. */
-class ConstrainedOperator : public Operator
+template <class TVector>
+class TConstrainedOperator : public TOperator<TVector>
 {
 protected:
    Array<int> constraint_list;  ///< List of constrained indices/dofs.
-   Operator *A;                 ///< The unconstrained Operator.
+   TOperator<TVector> *A;       ///< The unconstrained Operator.
    bool own_A;                  ///< Ownership flag for A.
    mutable Vector z, w;         ///< Auxiliary vectors.
 
@@ -434,7 +437,7 @@ public:
        constrain, i.e. each entry @a list[i] represents an essential-dof. If the
        ownership flag @a own_A is true, the operator @a *A will be destroyed
        when this object is destroyed. */
-   ConstrainedOperator(Operator *A, const Array<int> &list, bool own_A = false);
+   TConstrainedOperator(TOperator<TVector> *A, const Array<int> &list, bool own_A = false);
 
    /** @brief Eliminate "essential boundary condition" values specified in @a x
        from the given right-hand side @a b.
@@ -445,7 +448,7 @@ public:
 
        where the "_b" subscripts denote the essential (boundary) indices/dofs of
        the vectors, and "_i" -- the rest of the entries. */
-   void EliminateRHS(const Vector &x, Vector &b) const;
+   void EliminateRHS(const TVector &x, TVector &b) const;
 
    /** @brief Constrained operator action.
 
@@ -455,27 +458,18 @@ public:
 
        where the "_b" subscripts denote the essential (boundary) indices/dofs of
        the vectors, and "_i" -- the rest of the entries. */
-   virtual void Mult(const Vector &x, Vector &y) const;
-
+   virtual void Mult(const TVector &x, TVector &y) const;
+  
    /// Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
-   virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
+   virtual ~TConstrainedOperator() { if (own_A) { delete A; } }
 };
-
-template <class TVector>
-void Operator::TRecoverFEMSolution(const TVector &X,
-                                   const TVector &b,
-                                   TVector &x)
-{
-   const Operator *P = this->GetProlongation();
-   if (P)
-   {
-      // Apply conforming prolongation
-      x.SetSize(P->Height());
-      P->Mult(X, x);
-   }
-   // Otherwise X and x point to the same data
-}
+typedef TConstrainedOperator<Vector> ConstrainedOperator;
+//#if defined(MFEM_USE_RAJA)
+//typedef TConstrainedOperator<RajaVector> RajaConstrainedOperator;
+//#endif
 
 }
+
+#include "operator.tpp"
 
 #endif

@@ -19,14 +19,15 @@ namespace mfem
 {
 
 /// Abstract class for solving systems of ODEs: dx/dt = f(x,t)
-class ODESolver
+template <class TVector>
+class TODESolver
 {
 protected:
    /// Pointer to the associated TimeDependentOperator.
-   TimeDependentOperator *f;  // f(.,t) : R^n --> R^n
+  TTimeDependentOperator<TVector> *f;  // f(.,t) : R^n --> R^n
 
 public:
-   ODESolver() : f(NULL) { }
+   TODESolver() : f(NULL) { }
 
    /// Associate a TimeDependentOperator with the ODE solver.
    /** This method has to be called:
@@ -34,7 +35,7 @@ public:
        - When the dimensions of the associated TimeDependentOperator change.
        - When a time stepping sequence has to be restarted.
        - To change the associated TimeDependentOperator. */
-   virtual void Init(TimeDependentOperator &f)
+   virtual void Init(TTimeDependentOperator<TVector> &f)
    {
       this->f = &f;
    }
@@ -70,14 +71,9 @@ public:
        - If the previous rule has to be broken, e.g. to restart a time stepping
          sequence, then the ODE solver must be re-initialized by calling Init()
          between the two Step() calls. */
-   virtual void Step(Vector &x, double &t, double &dt)
+   virtual void Step(TVector &x, double &t, double &dt)
    { mfem_error("ODESolver::Step(Vector) is not overloaded!"); }
   
-#if defined(MFEM_USE_RAJA)
-   virtual void Step(RajaVector &x, double &t, double &dt)
-   { mfem_error("ODESolver::Step(RajaVector) is not overloaded!"); }
-#endif
-
    /// Perform time integration from time @a t [in] to time @a tf [in].
    /** @param[in,out] x   Approximate solution.
        @param[in,out] t   Time associated with the approximate solution @a x.
@@ -94,31 +90,28 @@ public:
          may be smaller or larger than the input @a dt [in] value, e.g. because
          of time step control.
        - The output value of @a t [out] is not smaller than @a tf [in]. */
-   virtual void Run(Vector &x, double &t, double &dt, double tf)
+   virtual void Run(TVector &x, double &t, double &dt, double tf)
    {
       while (t < tf) { Step(x, t, dt); }
    }
 
-#if defined(MFEM_USE_RAJA)
-  virtual void Run(RajaVector &x, double &t, double &dt, double tf)
-  {
-    while (t < tf) { Step(x, t, dt); }
-  }
-#endif
-
-   virtual ~ODESolver() { }
+   virtual ~TODESolver() { }
 };
+typedef TODESolver<Vector> ODESolver;
+#if defined(MFEM_USE_RAJA)
+typedef TODESolver<RajaVector> RajaODESolver;
+#endif
 
 
 /// The classical forward Euler method
 template <class TVector>
-class TForwardEulerSolver : public ODESolver
+class TForwardEulerSolver : public TODESolver<TVector>
 {
 private:
    TVector dxdt;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   virtual void Init(TTimeDependentOperator<TVector> &_f);
 
    virtual void Step(TVector &x, double &t, double &dt);
 };
@@ -130,7 +123,7 @@ public:
     a =  1  - Heun's method
     a = 2/3 - default, has minimal truncation error. */
 template <class TVector>
-class TRK2Solver : public ODESolver
+class TRK2Solver : public TODESolver<TVector>
 {
 private:
    double a;
@@ -139,7 +132,7 @@ private:
 public:
    TRK2Solver(const double _a = 2./3.) : a(_a) { }
 
-   virtual void Init(TimeDependentOperator &_f);
+   virtual void Init(TTimeDependentOperator<TVector> &_f);
 
    virtual void Step(TVector &x, double &t, double &dt);
 };
@@ -147,13 +140,13 @@ public:
 
 /// Third-order, strong stability preserving (SSP) Runge-Kutta method
 template <class TVector>
-class TRK3SSPSolver : public ODESolver
+class TRK3SSPSolver : public TODESolver<TVector>
 {
 private:
    TVector y, k;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   virtual void Init(TTimeDependentOperator<TVector> &_f);
 
    virtual void Step(TVector &x, double &t, double &dt);
 };
@@ -161,13 +154,13 @@ public:
 
 /// The classical explicit forth-order Runge-Kutta method, RK4
 template <class TVector>
-class TRK4Solver : public ODESolver
+class TRK4Solver : public TODESolver<TVector>
 {
 private:
    TVector y, k, z;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   virtual void Init(TTimeDependentOperator<TVector> &_f);
 
    virtual void Step(TVector &x, double &t, double &dt);
 };
@@ -183,7 +176,7 @@ public:
     |        | b[0] b[1] ... b[s-1] |
     +--------+----------------------+ */
 template <class TVector>
-class TExplicitRKSolver : public ODESolver
+class TExplicitRKSolver : public TODESolver<TVector>
 {
 private:
    int s;
@@ -194,7 +187,7 @@ public:
    TExplicitRKSolver(int _s, const double *_a, const double *_b,
                     const double *_c);
 
-   virtual void Init(TimeDependentOperator &_f);
+   virtual void Init(TTimeDependentOperator<TVector> &_f);
 
    virtual void Step(TVector &x, double &t, double &dt);
 
@@ -230,13 +223,13 @@ public:
 
 /// Backward Euler ODE solver. L-stable.
 template <class TVector>
-class TBackwardEulerSolver : public ODESolver
+class TBackwardEulerSolver : public TODESolver<TVector>
 {
 protected:
    TVector k;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   virtual void Init(TTimeDependentOperator<TVector> &_f);
 
    virtual void Step(TVector &x, double &t, double &dt);
 };
@@ -244,13 +237,13 @@ public:
 
 /// Implicit midpoint method. A-stable, not L-stable.
 template <class TVector>
-class TImplicitMidpointSolver : public ODESolver
+class TImplicitMidpointSolver : public TODESolver<TVector>
 {
 protected:
    TVector k;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   virtual void Init(TTimeDependentOperator<TVector> &_f);
 
    virtual void Step(TVector &x, double &t, double &dt);
 };
@@ -263,7 +256,7 @@ public:
     2 - 2nd order method, L-stable
     3 - 2nd order method, L-stable (has solves outside [t,t+dt]). */
 template <class TVector>
-class TSDIRK23Solver : public ODESolver
+class TSDIRK23Solver : public TODESolver<TVector>
 {
 protected:
    double gamma;
@@ -272,7 +265,7 @@ protected:
 public:
    TSDIRK23Solver(int gamma_opt = 1);
 
-   virtual void Init(TimeDependentOperator &_f);
+   virtual void Init(TTimeDependentOperator<TVector> &_f);
 
    virtual void Step(TVector &x, double &t, double &dt);
 };
@@ -281,13 +274,13 @@ public:
 /** Three stage, singly diagonal implicit Runge-Kutta (SDIRK) method of
     order 4. A-stable, not L-stable. */
 template <class TVector>
-class TSDIRK34Solver : public ODESolver
+class TSDIRK34Solver : public TODESolver<TVector>
 {
 protected:
    TVector k, y, z;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   virtual void Init(TTimeDependentOperator<TVector> &_f);
 
    virtual void Step(TVector &x, double &t, double &dt);
 };
@@ -296,13 +289,13 @@ public:
 /** Three stage, singly diagonal implicit Runge-Kutta (SDIRK) method of
     order 3. L-stable. */
 template <class TVector>
-class TSDIRK33Solver : public ODESolver
+class TSDIRK33Solver : public TODESolver<TVector>
 {
 protected:
    TVector k, y;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   virtual void Init(TTimeDependentOperator<TVector> &_f);
 
    virtual void Step(TVector &x, double &t, double &dt);
 };

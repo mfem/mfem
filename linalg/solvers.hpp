@@ -29,7 +29,8 @@ namespace mfem
 {
 
 /// Abstract base class for iterative solver
-class IterativeSolver : public Solver
+template <class TVector>
+class TIterativeSolver : public TSolver<TVector>
 {
 #ifdef MFEM_USE_MPI
 private:
@@ -38,8 +39,8 @@ private:
 #endif
 
 protected:
-   const Operator *oper;
-   Solver *prec;
+   const TOperator<TVector> *oper;
+   TSolver<TVector> *prec;
 
    int max_iter, print_level;
    double rel_tol, abs_tol;
@@ -48,7 +49,6 @@ protected:
    mutable int final_iter, converged;
    mutable double final_norm;
 
-   template <class TVector>
    double Dot(const TVector &x, const TVector &y) const
    {
 #ifndef MFEM_USE_MPI
@@ -67,14 +67,13 @@ protected:
 #endif
    }
 
-   template <class TVector>
    double Norm(const TVector &x) const { return sqrt(Dot(x, x)); }
 
 public:
-   IterativeSolver();
-
+  TIterativeSolver();
+  
 #ifdef MFEM_USE_MPI
-   IterativeSolver(MPI_Comm _comm);
+   TIterativeSolver(MPI_Comm _comm);
 #endif
 
    void SetRelTol(double rtol) { rel_tol = rtol; }
@@ -87,11 +86,16 @@ public:
    double GetFinalNorm() const { return final_norm; }
 
    /// This should be called before SetOperator
-   virtual void SetPreconditioner(Solver &pr);
+  virtual void SetPreconditioner(TSolver<TVector> &pr);
 
    /// Also calls SetOperator for the preconditioner if there is one
-   virtual void SetOperator(const Operator &op);
+   virtual void SetOperator(const TOperator<TVector> &op);
 };
+typedef TIterativeSolver<Vector> IterativeSolver;
+#if defined(MFEM_USE_RAJA)
+typedef TIterativeSolver<RajaVector> RajaIterativeSolver;
+#endif
+
 
 
 /// Stationary linear iteration: x <- x + B (b - A x)
@@ -110,7 +114,7 @@ public:
 #endif
 
    virtual void SetOperator(const Operator &op)
-   { IterativeSolver::SetOperator(op); UpdateVectors(); }
+   { SetOperator(op); UpdateVectors(); }
 
    virtual void Mult(const Vector &b, Vector &x) const;
 };
@@ -128,36 +132,36 @@ void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
 
 /// Conjugate gradient method
 template <class TVector>
-class TCGSolver : public IterativeSolver
+class TCGSolver : public TIterativeSolver<TVector>
 {
 protected:
    mutable TVector r, d, z;
 
    void UpdateVectors()
    {
-      r.SetSize(width);
-      d.SetSize(width);
-      z.SetSize(width);
+     r.SetSize(TIterativeSolver<TVector>::width);
+     d.SetSize(TIterativeSolver<TVector>::width);
+     z.SetSize(TIterativeSolver<TVector>::width);
    }
 
 public:
    TCGSolver() { }
 
 #ifdef MFEM_USE_MPI
-   TCGSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   TCGSolver(MPI_Comm _comm) : TIterativeSolver<TVector>(_comm) { }
 #endif
 
-   virtual void SetOperator(const Operator &op)
-   { IterativeSolver::SetOperator(op); UpdateVectors(); }
+   virtual void SetOperator(const TOperator<TVector> &op)
+   { TIterativeSolver<TVector>::SetOperator(op); UpdateVectors(); }
 
    virtual void Mult(const TVector &b, TVector &x) const
    {
       int i;
       double r0, den, nom, nom0, betanom, alpha, beta;
 
-      if (iterative_mode)
+      if (TIterativeSolver<TVector>::iterative_mode)
       {
-         oper->Mult(x, r);
+         TIterativeSolver<TVector>::oper->Mult(x, r);
          subtract(b, r, r); // r = b - A x
       }
       else
@@ -166,72 +170,74 @@ public:
          x = 0.0;
       }
 
-      if (prec)
+      if (TIterativeSolver<TVector>::prec)
       {
-         prec->Mult(r, z); // z = B r
+         TIterativeSolver<TVector>::prec->Mult(r, z); // z = B r
          d = z;
       }
       else
       {
          d = r;
       }
-      nom0 = nom = Dot(d, r);
+      nom0 = nom = TIterativeSolver<TVector>::Dot(d, r);
       MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
 
-      if (print_level == 1 || print_level == 3)
+      if (TIterativeSolver<TVector>::print_level == 1
+          || TIterativeSolver<TVector>::print_level == 3)
       {
          mfem::out << "   Iteration : " << std::setw(3) << 0 << "  (B r, r) = "
-                   << nom << (print_level == 3 ? " ...\n" : "\n");
+                   << nom << (TIterativeSolver<TVector>::print_level == 3 ? " ...\n" : "\n");
       }
 
-      r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
+      r0 = std::max(nom*TIterativeSolver<TVector>::rel_tol*TIterativeSolver<TVector>::rel_tol,
+                    TIterativeSolver<TVector>::abs_tol*TIterativeSolver<TVector>::abs_tol);
       if (nom <= r0)
       {
-         converged = 1;
-         final_iter = 0;
-         final_norm = sqrt(nom);
+         TIterativeSolver<TVector>::converged = 1;
+         TIterativeSolver<TVector>::final_iter = 0;
+         TIterativeSolver<TVector>::final_norm = sqrt(nom);
          return;
       }
 
-      oper->Mult(d, z);  // z = A d
+      TIterativeSolver<TVector>::oper->Mult(d, z);  // z = A d
 
-      den = Dot(z, d);
+      den = TIterativeSolver<TVector>::Dot(z, d);
       MFEM_ASSERT(IsFinite(den), "den = " << den);
 
-      if (print_level >= 0 && den < 0.0)
+      if (TIterativeSolver<TVector>::print_level >= 0 && den < 0.0)
       {
          mfem::out << "Negative denominator in step 0 of PCG: " << den << '\n';
       }
 
       if (den == 0.0)
       {
-         converged = 0;
-         final_iter = 0;
-         final_norm = sqrt(nom);
+         TIterativeSolver<TVector>::converged = 0;
+         TIterativeSolver<TVector>::final_iter = 0;
+         TIterativeSolver<TVector>::final_norm = sqrt(nom);
          return;
       }
 
       // start iteration
-      converged = 0;
-      final_iter = max_iter;
+      TIterativeSolver<TVector>::converged = 0;
+      TIterativeSolver<TVector>::final_iter = TIterativeSolver<TVector>::max_iter;
       for (i = 1; true; )
       {
          alpha = nom/den;
          add(x,  alpha, d, x);     //  x = x + alpha d
          add(r, -alpha, z, r);     //  r = r - alpha A d
 
-         if (prec)
+         if (TIterativeSolver<TVector>::prec)
          {
-            prec->Mult(r, z);      //  z = B r
-            betanom = Dot(r, z);
+            TIterativeSolver<TVector>::prec->Mult(r, z);      //  z = B r
+            betanom = TIterativeSolver<TVector>::Dot(r, z);
          }
          else
          {
-            betanom = Dot(r, r);
+            betanom = TIterativeSolver<TVector>::Dot(r, r);
          }
          MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
 
-         if (print_level == 1)
+         if (TIterativeSolver<TVector>::print_level == 1)
          {
             mfem::out << "   Iteration : " << std::setw(3) << i << "  (B r, r) = "
                       << betanom << '\n';
@@ -239,27 +245,27 @@ public:
 
          if (betanom < r0)
          {
-            if (print_level == 2)
+            if (TIterativeSolver<TVector>::print_level == 2)
             {
                mfem::out << "Number of PCG iterations: " << i << '\n';
             }
-            else if (print_level == 3)
+            else if (TIterativeSolver<TVector>::print_level == 3)
             {
                mfem::out << "   Iteration : " << std::setw(3) << i << "  (B r, r) = "
                          << betanom << '\n';
             }
-            converged = 1;
-            final_iter = i;
+            TIterativeSolver<TVector>::converged = 1;
+            TIterativeSolver<TVector>::final_iter = i;
             break;
          }
 
-         if (++i > max_iter)
+         if (++i > TIterativeSolver<TVector>::max_iter)
          {
             break;
          }
 
          beta = betanom/nom;
-         if (prec)
+         if (TIterativeSolver<TVector>::prec)
          {
             add(z, beta, d, d);   //  d = z + beta d
          }
@@ -267,41 +273,44 @@ public:
          {
             add(r, beta, d, d);
          }
-         oper->Mult(d, z);       //  z = A d
-         den = Dot(d, z);
+         TIterativeSolver<TVector>::oper->Mult(d, z);       //  z = A d
+         den = TIterativeSolver<TVector>::Dot(d, z);
          MFEM_ASSERT(IsFinite(den), "den = " << den);
          if (den <= 0.0)
          {
-            if (print_level >= 0 && Dot(d, d) > 0.0)
+            if (TIterativeSolver<TVector>::print_level >= 0 && TIterativeSolver<TVector>::Dot(d, d) > 0.0)
                mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
                          << den << '\n';
          }
          nom = betanom;
       }
-      if (print_level >= 0 && !converged)
+      if (TIterativeSolver<TVector>::print_level >= 0 && !TIterativeSolver<TVector>::converged)
       {
-         if (print_level != 1)
+         if (TIterativeSolver<TVector>::print_level != 1)
          {
-            if (print_level != 3)
+            if (TIterativeSolver<TVector>::print_level != 3)
             {
                mfem::out << "   Iteration : " << std::setw(3) << 0 << "  (B r, r) = "
                          << nom0 << " ...\n";
             }
-            mfem::out << "   Iteration : " << std::setw(3) << final_iter << "  (B r, r) = "
+            mfem::out << "   Iteration : " << std::setw(3) << TIterativeSolver<TVector>::final_iter << "  (B r, r) = "
                       << betanom << '\n';
          }
          mfem::out << "PCG: No convergence!" << '\n';
       }
-      if (print_level >= 1 || (print_level >= 0 && !converged))
+      if (TIterativeSolver<TVector>::print_level >= 1 || (TIterativeSolver<TVector>::print_level >= 0 && !TIterativeSolver<TVector>::converged))
       {
          mfem::out << "Average reduction factor = "
-                   << pow (betanom/nom0, 0.5/final_iter) << '\n';
+                   << pow (betanom/nom0, 0.5/TIterativeSolver<TVector>::final_iter) << '\n';
       }
-      final_norm = sqrt(betanom);
+      TIterativeSolver<TVector>::final_norm = sqrt(betanom);
    }
 };
 
 typedef TCGSolver<Vector> CGSolver;
+#if defined(MFEM_USE_RAJA)
+typedef TCGSolver<RajaVector> RajaCGSolver;
+#endif
 
 /// Conjugate gradient method. (tolerances are squared)
 template <class TVector>
@@ -688,5 +697,7 @@ public:
 #endif // MFEM_USE_SUITESPARSE
 
 }
+
+#include "solvers.tpp"
 
 #endif // MFEM_SOLVERS

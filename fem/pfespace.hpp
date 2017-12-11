@@ -295,8 +295,10 @@ public:
    ConformingProlongationOperator(ParFiniteElementSpace &pfes);
 
    virtual void Mult(const Vector &x, Vector &y) const;
+  //virtual void Mult(const RajaVector &x, RajaVector &y) const;
 
    virtual void MultTranspose(const Vector &x, Vector &y) const;
+  //virtual void MultTranspose(const RajaVector &x, RajaVector &y) const;
 };
 
 }
