@@ -144,6 +144,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool visit = true;
    double dt = 1.0e-12;
+   double dtsf = 0.95;
    double t0 = 0.0;
    double ts = 1.0;
    double tf = 40.0;
@@ -162,6 +163,8 @@ int main(int argc, char *argv[])
                   "Number of serial refinement levels.");
    args.AddOption(&parallel_ref_levels, "-rp", "--parallel-ref-levels",
                   "Number of parallel refinement levels.");
+   args.AddOption(&dtsf, "-sf", "--dt-safety-factor",
+                  "Used to reduce the time step below the upper bound.");
    args.AddOption(&t0, "-t0", "--initial-time",
                   "Beginning of time interval to simulate (ns).");
    args.AddOption(&tf, "-tf", "--final-time",
@@ -289,7 +292,7 @@ int main(int argc, char *argv[])
    }
 
    // Round down the time step so that tf-t0 is an integer multiple of dt
-   int nsteps = SnapTimeStep(tf-t0, dtmax, dt);
+   int nsteps = SnapTimeStep(tf-t0, dtsf * dtmax, dt);
    if ( mpi.Root() )
    {
       cout << "Number of Time Steps:  " << nsteps << endl;
