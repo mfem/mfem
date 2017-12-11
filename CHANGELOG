@@ -10,7 +10,11 @@
 
 Version 3.3.3 (development)
 ===========================
-
+- When building with the GnuTLS library, switch to using X.509 certificates for
+  secure socket authentication. Support for the previously used OpenPGP keys has
+  been deprecated in GnuTLS 3.5.x and removed in 3.6.0. For secure communication
+  with the visualization tool GLVis, a new set of certificates can be generated
+  using the latest version of the script 'glvis-keygen.sh' from GLVis.
 
 Version 3.3.2, released on Nov 10, 2017
 =======================================
