@@ -548,7 +548,7 @@ MaxwellSolver::GetMaximumTimeStep() const
       }
 
       std::swap(v0, v1);
-      
+
       iter++;
    }
 
