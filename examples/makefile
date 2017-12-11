@@ -105,7 +105,6 @@ clean-exec:
 	@rm -rf Example5* Example9* Example15* Example16*
 	@rm -f sphere_refined.* sol.* sol_u.* sol_p.*
 	@rm -f ex9.mesh ex9-mesh.* ex9-init.* ex9-final.*
-	@rm -f ex16.dat ex16p.dat gnuplot_ex16.inp gnuplot_ex16p.inp
 	@rm -f deformed.* velocity.* elastic_energy.* mode_*
 	@rm -f ex16.mesh ex16-mesh.* ex16-init.* ex16-final.*
 	@rm -f vortex-mesh.* vortex.mesh vortex-?-init.* vortex-?-final.*

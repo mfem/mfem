@@ -35,10 +35,6 @@
 //   A cylindrical bar magnet in a metal sphere:
 //      mpirun -np 4 tesla -bm '0 -0.5 0 0 0.5 0 0.2 1'
 //
-//   A Halbach array of permanent magnets:
-//      mpirun -np 4 tesla -m ../../data/beam-hex.mesh
-//                         -ha '1 0.1 0.3 7 0.9 0.7 0 1 12'
-//
 //   A spherical shell of paramagnetic material in a uniform B field:
 //      mpirun -np 4 tesla -ubbc '0 0 1' -ms '0 0 0 0.2 0.4 10'
 //
