@@ -50,14 +50,17 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
      // grad_(NULL),
      // curl_(NULL),
      a1_(NULL),
-     e_r_(NULL),
-     e_i_(NULL),
+     // e_r_(NULL),
+     // e_i_(NULL),
+     e_(NULL),
      // b_(NULL),
      // h_(NULL),
-     j_r_(NULL),
-     j_i_(NULL),
-     jd_r_(NULL),
-     jd_i_(NULL),
+     // j_r_(NULL),
+     // j_i_(NULL),
+     j_(NULL),
+     jd_(NULL),
+     // jd_r_(NULL),
+     // jd_i_(NULL),
      // k_(NULL),
      // m_(NULL),
      // bd_(NULL),
@@ -133,11 +136,21 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
       jrCoef_ = new VectorFunctionCoefficient(pmesh_->SpaceDimension(),
 					      j_r_src_);
    }
+   else
+     {
+       Vector j(3); j = 0.0;
+       jrCoef_ = new VectorConstantCoefficient(j);
+     }
    if ( j_i_src_ != NULL )
    {
       jiCoef_ = new VectorFunctionCoefficient(pmesh_->SpaceDimension(),
 					      j_i_src_);
    }
+   else
+     {
+       Vector j(3); j = 0.0;
+       jiCoef_ = new VectorConstantCoefficient(j);
+     }
    /*
    // Magnetization
    if ( m_src_ != NULL )
@@ -174,14 +187,18 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
    */
    
    // Build grid functions
-   e_r_  = new ParGridFunction(HCurlFESpace_);
-   e_i_  = new ParGridFunction(HCurlFESpace_);
+    e_  = new ParComplexGridFunction(HCurlFESpace_);
+  *e_ = 0.0;
+ // e_r_  = new ParGridFunction(HCurlFESpace_);
+   // e_i_  = new ParGridFunction(HCurlFESpace_);
    // b_  = new ParGridFunction(HDivFESpace_);
    // h_  = new ParGridFunction(HCurlFESpace_);
    // bd_ = new ParGridFunction(HCurlFESpace_);
-   j_r_ = new ParGridFunction(HCurlFESpace_);
-   j_i_ = new ParGridFunction(HCurlFESpace_);
-
+    // j_r_ = new ParGridFunction(HCurlFESpace_);
+   // j_i_ = new ParGridFunction(HCurlFESpace_);
+   j_ = new ParComplexGridFunction(HCurlFESpace_);
+   j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
+   /* 
    jd_r_ = new ParLinearForm(HCurlFESpace_);
    jd_i_ = new ParLinearForm(HCurlFESpace_);
 
@@ -193,6 +210,10 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
    {
      jd_i_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*jiCoef_));
    }
+   */
+   jd_ = new ParComplexLinearForm(HCurlFESpace_);
+   jd_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*jrCoef_),
+			    new VectorFEDomainLFIntegrator(*jiCoef_));
    /*
    if ( jCoef_ || kbcs.Size() > 0 )
    {
@@ -235,18 +256,21 @@ HertzSolver::~HertzSolver()
    // delete DivFreeProj_;
    // delete SurfCur_;
 
-   delete e_r_;
-   delete e_i_;
+   // delete e_r_;
+   // delete e_i_;
+    delete e_;
    // delete b_;
    // delete h_;
-   delete j_r_;
-   delete j_i_;
+   delete j_;
+   // delete j_r_;
+   // delete j_i_;
    // delete j_;
    // delete k_;
    // delete m_;
    // delete bd_;
-   delete jd_r_;
-   delete jd_i_;
+   delete jd_;
+   // delete jd_r_;
+   // delete jd_i_;
 
    // delete grad_;
    // delete curl_;
@@ -296,8 +320,7 @@ HertzSolver::Assemble()
    a1_->Assemble();
    a1_->Finalize();
 
-   jd_r_->Assemble();
-   jd_i_->Assemble();
+   jd_->Assemble();
    /*
    curlMuInvCurl_->Assemble();
    curlMuInvCurl_->Finalize();
@@ -337,19 +360,24 @@ HertzSolver::Update()
    HCurlFESpace_->Update(false);
    // HDivFESpace_->Update(false);
 
-   HCurlFESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
-
+   if ( ess_bdr_.Size() > 0 )
+   {
+     HCurlFESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
+   }
+   
    // Inform the grid functions that the space has changed.
-   e_r_->Update();
-   e_i_->Update();
+   e_->Update();
+   // e_r_->Update();
+   // e_i_->Update();
    // h_->Update();
    // b_->Update();
    // bd_->Update();
-   jd_r_->Update();
-   jd_i_->Update();
+   jd_->Update();
+   // jd_i_->Update();
    // if ( jr_ ) { jr_->Update(); }
-   if ( j_r_  ) {  j_r_->Update(); }
-   if ( j_i_  ) {  j_i_->Update(); }
+   if ( j_  ) {  j_->Update(); }
+   // if ( j_r_  ) {  j_r_->Update(); }
+   // if ( j_i_  ) {  j_i_->Update(); }
    // if ( k_  ) {  k_->Update(); }
    // if ( m_  ) {  m_->Update(); }
 
@@ -372,6 +400,29 @@ HertzSolver::Solve()
 {
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Running solver ... " << endl; }
 
+   // *e_ = 0.0;
+
+   /// For testing
+   // e_->ProjectCoefficient(*jrCoef_, *jiCoef_);   
+
+   ComplexOperator * A1 = a1_->ParallelAssemble();
+
+   MINRESSolver minres(HCurlFESpace_->GetComm());
+   minres.SetOperator(*A1);
+   minres.SetRelTol(1e-6);
+   minres.SetMaxIter(50);
+   minres.SetPrintLevel(2);
+   // pcg.SetPreconditioner(ams);
+
+   HYPRE_Int size = HCurlFESpace_->GetTrueVSize();
+   Vector E(2*size), RHS(2*size);
+   jd_->ParallelAssemble(RHS);
+   
+   minres.Mult(RHS, E);
+
+   e_->Distribute(E);
+   
+   delete A1;
    /*
    // Initialize the magnetic vector potential with its boundary conditions
    *a_ = 0.0;
@@ -485,7 +536,7 @@ HertzSolver::GetErrorEstimates(Vector & errors)
    ND_FECollection smooth_flux_fec(order_, pmesh_->Dimension());
    ParFiniteElementSpace smooth_flux_fes(pmesh_, &smooth_flux_fec);
 
-   L2ZZErrorEstimator(flux_integrator, *e_r_,
+   L2ZZErrorEstimator(flux_integrator, e_->RealPart(),
                       smooth_flux_fes, flux_fes, errors, norm_p);
 
    if ( myid_ == 0 && logging_ > 0 ) { cout << "done." << endl; }
@@ -496,12 +547,18 @@ HertzSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
    visit_dc_ = &visit_dc;
 
-   visit_dc.RegisterField("Er", e_r_);
-   visit_dc.RegisterField("Ei", e_i_);
+   visit_dc.RegisterField("Re(E)", &e_->RealPart());
+   visit_dc.RegisterField("Im(E)", &e_->ImagPart());
+   // visit_dc.RegisterField("Er", e_r_);
+   // visit_dc.RegisterField("Ei", e_i_);
    // visit_dc.RegisterField("B", b_);
    // visit_dc.RegisterField("H", h_);
-   if ( j_r_ ) { visit_dc.RegisterField("Jr", j_r_); }
-   if ( j_i_ ) { visit_dc.RegisterField("Ji", j_i_); }
+   if ( j_ ) {
+     visit_dc.RegisterField("Re(J)", &j_->RealPart());
+     visit_dc.RegisterField("Im(J)", &j_->ImagPart());
+   }
+   // if ( j_r_ ) { visit_dc.RegisterField("Jr", j_r_); }
+   // if ( j_i_ ) { visit_dc.RegisterField("Ji", j_i_); }
    // if ( k_ ) { visit_dc.RegisterField("K", k_); }
    // if ( m_ ) { visit_dc.RegisterField("M", m_); }
    // if ( SurfCur_ ) { visit_dc.RegisterField("Psi", SurfCur_->GetPsi()); }
@@ -514,6 +571,11 @@ HertzSolver::WriteVisItFields(int it)
    {
       if (myid_ == 0) { cout << "Writing VisIt files ..." << flush; }
 
+      if ( j_ )
+      {
+	j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
+      }
+      
       HYPRE_Int prob_size = this->GetProblemSize();
       visit_dc_->SetCycle(it);
       visit_dc_->SetTime(prob_size);
@@ -540,13 +602,11 @@ HertzSolver::InitializeGLVis()
    // socks_["H"] = new socketstream;
    // socks_["H"]->precision(8);
 
-   if ( j_r_ )
+   if ( j_ )
    {
       socks_["Jr"] = new socketstream;
       socks_["Jr"]->precision(8);
-   }
-   if ( j_i_ )
-   {
+
       socks_["Ji"] = new socketstream;
       socks_["Ji"]->precision(8);
    }
@@ -581,13 +641,13 @@ HertzSolver::DisplayToGLVis()
    int offx = Ww+10, offy = Wh+45; // window offsets
 
    VisualizeField(*socks_["Er"], vishost, visport,
-                  *e_r_, "Electric Field (Er)", Wx, Wy, Ww, Wh);
+                  e_->RealPart(), "Electric Field, Re(E)", Wx, Wy, Ww, Wh);
    Wx += offx;
 
    VisualizeField(*socks_["Ei"], vishost, visport,
-                  *e_i_, "Electric Field (Ei)", Wx, Wy, Ww, Wh);
-   Wx += offx;
+                  e_->ImagPart(), "Electric Field, Im(E)", Wx, Wy, Ww, Wh);
    /*
+   Wx += offx;
    VisualizeField(*socks_["B"], vishost, visport,
                   *b_, "Magnetic Flux Density (B)", Wx, Wy, Ww, Wh);
    Wx += offx;
@@ -598,15 +658,15 @@ HertzSolver::DisplayToGLVis()
    */
    Wx = 0; Wy += offy; // next line
 
-   if ( j_r_ )
+   if ( j_ )
    {
+      j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
+     
       VisualizeField(*socks_["Jr"], vishost, visport,
-                     *j_r_, "Current Density (Jr)", Wx, Wy, Ww, Wh);
-   }
-   if ( j_i_ )
-   {
+                     j_->RealPart(), "Current Density, Re(J)", Wx, Wy, Ww, Wh);
+      Wx += offx;
       VisualizeField(*socks_["Ji"], vishost, visport,
-                     *j_i_, "Current Density (Ji)", Wx, Wy, Ww, Wh);
+                     j_->ImagPart(), "Current Density, Im(J)", Wx, Wy, Ww, Wh);
    }
 
    Wx = 0; Wy += offy; // next line

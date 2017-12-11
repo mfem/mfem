@@ -93,14 +93,15 @@ private:
 
    ParSesquilinearForm * a1_;
 
-   ParGridFunction * e_r_;  // Real part of electric field (HCurl)
-   ParGridFunction * e_i_;  // Imaginary part of electric field (HCurl)
-   ParGridFunction * e_;  // Complex electric field (HCurl)
-   ParGridFunction * j_r_;  // Real part of current density (HCurl)
-   ParGridFunction * j_i_;  // Imaginary part of current density (HCurl)
+  // ParGridFunction * e_r_;  // Real part of electric field (HCurl)
+  // ParGridFunction * e_i_;  // Imaginary part of electric field (HCurl)
+   ParComplexGridFunction * e_;  // Complex electric field (HCurl)
+   ParComplexGridFunction * j_;  // Complex current density (HCurl)
+   // ParGridFunction * j_i_;  // Imaginary part of current density (HCurl)
 
-   ParLinearForm   * jd_r_; // Dual of real part of current density (HCurl)
-   ParLinearForm   * jd_i_; // Dual of imaginary part of current density (HCurl)
+   ParComplexLinearForm   * jd_; // Dual of complex current density (HCurl)
+  // ParLinearForm   * jd_r_; // Dual of real part of current density (HCurl)
+  // ParLinearForm   * jd_i_; // Dual of imaginary part of current density (HCurl)
   /*
    ParBilinearForm * curlMuInvCurl_;
    ParBilinearForm * hCurlMass_;
