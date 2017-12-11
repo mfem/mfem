@@ -313,10 +313,10 @@ public:
    FiniteElementSpace *FESpace() { return pgfr_->FESpace(); }
    const FiniteElementSpace *FESpace() const { return pgfr_->FESpace(); }
 
-   ParGridFunction & RealPart() { return *pgfr_; }
-   ParGridFunction & ImagPart() { return *pgfi_; }
-   const ParGridFunction & RealPart() const { return *pgfr_; }
-   const ParGridFunction & ImagPart() const { return *pgfi_; }
+   ParGridFunction & real() { return *pgfr_; }
+   ParGridFunction & imag() { return *pgfi_; }
+   const ParGridFunction & real() const { return *pgfr_; }
+   const ParGridFunction & imag() const { return *pgfi_; }
 
    /// Destroys grid function.
    virtual ~ParComplexGridFunction() { Destroy(); }

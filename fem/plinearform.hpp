@@ -87,6 +87,11 @@ public:
 
    ParFiniteElementSpace *ParFESpace() const { return plfr_->ParFESpace(); }
 
+   ParLinearForm & real() { return *plfr_; }
+   ParLinearForm & imag() { return *plfi_; }
+   const ParLinearForm & real() const { return *plfr_; }
+   const ParLinearForm & imag() const { return *plfi_; }
+
    void Update(ParFiniteElementSpace *pf = NULL);
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
