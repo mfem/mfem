@@ -16,10 +16,12 @@
 namespace mfem
 {
 
-static void ComputeBasis1d(const FiniteElement *fe,
-                           const TensorBasisElement *tfe, int ir_order,
-                           DenseMatrix &shape1d)
+void Get1DBasis(const FiniteElement *fe, int ir_order,
+                DenseMatrix &shape1d)
 {
+   // Get the corresponding tensor basis element
+   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+
    // Compute the 1d shape functions and gradients
    const Poly_1D::Basis &basis1d = tfe->GetBasis1D();
    const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, ir_order);
@@ -41,10 +43,12 @@ static void ComputeBasis1d(const FiniteElement *fe,
    }
 }
 
-static void ComputeBasis1d(const FiniteElement *fe,
-                           const TensorBasisElement *tfe, int ir_order,
-                           DenseMatrix &shape1d, DenseMatrix &dshape1d)
+void Get1DBasis(const FiniteElement *fe, int ir_order,
+                DenseMatrix &shape1d, DenseMatrix &dshape1d)
 {
+   // Get the corresponding tensor basis element
+   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+
    // Compute the 1d shape functions and gradients
    const Poly_1D::Basis &basis1d = tfe->GetBasis1D();
    const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, ir_order);
@@ -78,9 +82,6 @@ void PADiffusionIntegrator::Assemble(FiniteElementSpace *_trial_fes,
    // Assumption: all are same finite elements
    const FiniteElement *fe = fes->GetFE(0);
 
-   // Get the corresponding tensor basis element
-   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
-
    // Set integration rule
    int ir_order;
    if (!IntRule)
@@ -111,7 +112,7 @@ void PADiffusionIntegrator::Assemble(FiniteElementSpace *_trial_fes,
    }
 
    // Store the 1d shape functions and gradients
-   ComputeBasis1d(fes->GetFE(0), tfe, ir_order, shape1d, dshape1d);
+   Get1DBasis(fe, ir_order, shape1d, dshape1d);
 
    // Create the operator
    const int elems   = fes->GetNE();
@@ -425,9 +426,6 @@ void PAMassIntegrator::Assemble(FiniteElementSpace *_trial_fes,
    // Assumption: all are same finite elements
    const FiniteElement *fe = fes->GetFE(0);
 
-   // Get the corresponding tensor basis element
-   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
-
    // Set integration rule
    int ir_order;
    if (!IntRule)
@@ -450,7 +448,7 @@ void PAMassIntegrator::Assemble(FiniteElementSpace *_trial_fes,
       ir_order = IntRule->GetOrder();
    }
 
-   ComputeBasis1d(fes->GetFE(0), tfe, ir_order, shape1d);
+   Get1DBasis(fes->GetFE(0), ir_order, shape1d);
 
    // Create the operator
    const int nelem   = fes->GetNE();
@@ -680,25 +678,5 @@ void PAMassIntegrator::AddMult(const Vector &x, Vector &y)
    default: mfem_error("Not yet supported"); break;
    }
 }
-
-LinearFESpaceIntegrator *PAIntegratorMap::DomainIntegrator(BilinearFormIntegrator *integ) const
-{
-   {
-      DiffusionIntegrator *actual_integ = dynamic_cast<DiffusionIntegrator*>(integ);
-      if (actual_integ) { return new PADiffusionIntegrator(actual_integ); }
-   }
-   {
-      MassIntegrator *actual_integ = dynamic_cast<MassIntegrator*>(integ);
-      if (actual_integ) { return new PAMassIntegrator(actual_integ); }
-   }
-   {
-      VectorMassIntegrator *actual_integ = dynamic_cast<VectorMassIntegrator*>(integ);
-      if (actual_integ) { return new PAMassIntegrator(actual_integ); }
-   }
-
-   mfem_error("Not supported.");
-   return NULL;
-}
-
 
 }

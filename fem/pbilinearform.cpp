@@ -235,18 +235,32 @@ void ParBilinearForm::Assemble(int skip_zeros)
    }
 }
 
-void ParBilinearForm::AssembleForm(BilinearFormOperator &A, int skip_zeros)
+void ParBilinearForm::AssembleForm(enum Assembly type, int skip_zeros)
 {
-   A.Assemble(this);
-   oper = &A;
-   oper_type = MFEM_FORMOPER;
-}
+   if (!oper)
+   {
+      if (type == FULL)
+      {
+         oper_type = Hypre_ParCSR;
+         oper = new HypreParMatrix();
+      }
+      else
+      {
+         oper_type = MFEM_FORMOPER;
+         BilinearFormOperator *bfo = new BilinearFormOperator(this);
+         oper = bfo;
+      }
+   }
 
-void ParBilinearForm::AssembleForm(HypreParMatrix &A, int skip_zeros)
-{
-   Assemble(skip_zeros);
-   oper = &A;
-   oper_type = Hypre_ParCSR;
+   if (type == FULL)
+   {
+      Assemble(skip_zeros);
+   }
+   else if (type != NONE)
+   {
+      BilinearFormOperator *bfo = static_cast<BilinearFormOperator*>(oper);
+      bfo->Assemble();
+   }
 }
 
 void ParBilinearForm

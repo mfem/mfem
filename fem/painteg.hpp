@@ -22,6 +22,13 @@
 namespace mfem
 {
 
+/// Return the 1D basis for the given fe evaluated at the integration
+/// points for the standard internal rule with order ir_order.
+void Get1DBasis(const FiniteElement *fe, int ir_order,
+                DenseMatrix &shape1d);
+void Get1DBasis(const FiniteElement *fe, int ir_order,
+                DenseMatrix &shape1d, DenseMatrix &dshape1d);
+
 // These integrators use constructors based on the non-PA versions so
 // that the options are consistent. If that is not the case, the
 // friendship can be revoked and those constructors can be removed.
@@ -78,11 +85,6 @@ public:
                          FiniteElementSpace *_test_fes);
 
    virtual void AddMult(const Vector &x, Vector &y);
-};
-
-struct PAIntegratorMap : public IntegratorMap
-{
-   virtual LinearFESpaceIntegrator *DomainIntegrator(BilinearFormIntegrator *integ) const;
 };
 
 }

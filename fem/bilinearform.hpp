@@ -24,9 +24,6 @@
 namespace mfem
 {
 
-// Forward declare BilinearFormOperator
-class BilinearFormOperator;
-
 /** Class for bilinear form - "Matrix" with associated FE space and
     BLFIntegrators. */
 class BilinearForm : public Matrix
@@ -96,6 +93,14 @@ protected:
    }
 
 public:
+   /// Assmbly type.
+   enum Assembly
+   {
+      FULL,
+      PARTIAL,
+      NONE
+   };
+
    /// Creates bilinear form associated with FE space *f.
    BilinearForm(FiniteElementSpace *f);
 
@@ -168,7 +173,7 @@ public:
    virtual const double &Elem(int i, int j) const;
 
    /// Matrix vector multiplication.
-   virtual void Mult(const Vector &x, Vector &y) const { mat->Mult(x, y); }
+   virtual void Mult(const Vector &x, Vector &y) const { oper->Mult(x, y); }
 
    void FullMult(const Vector &x, Vector &y) const
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
@@ -252,8 +257,10 @@ public:
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
 
-   void AssembleForm(BilinearFormOperator &A);
-   void AssembleForm(SparseMatrix &A, int skip_zeros = 1);
+   /** @brief Assembles the form with type Atype (one of enum AssemblyType) into
+       an operator of type Otype (one of enum Operator::Type). */
+   void AssembleForm(enum Assembly type = FULL, int skip_zeros = 1);
+   Operator *FinalizeForm();
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
@@ -391,8 +398,14 @@ public:
 class MixedBilinearForm : public Matrix
 {
 protected:
+   /// Sparse matrix to be associated with the form.
    SparseMatrix *mat;
+
+   /// Generic operator associated with the form.
    Operator *oper;
+
+   /// Operator type.
+   enum Type oper_type;
 
    FiniteElementSpace *trial_fes, *test_fes;
 
@@ -402,6 +415,14 @@ protected:
    Array<LinearFESpaceIntegrator*> fesi;
 
 public:
+   /// Assmbly type.
+   enum Assembly
+   {
+      FULL,
+      PARTIAL,
+      NONE
+   };
+
    MixedBilinearForm (FiniteElementSpace *tr_fes,
                       FiniteElementSpace *te_fes);
 
@@ -456,9 +477,10 @@ public:
    void operator= (const double a) { *mat = a; }
 
    void Assemble (int skip_zeros = 1);
-
-   void AssembleForm(BilinearFormOperator &A, int skip_zeros = 1);
-   void AssembleForm(SparseMatrix &A, int skip_zeros = 1);
+   /** @brief Assembles the form with type Atype (one of enum AssemblyType) into
+       an operator of type Otype (one of enum Operator::Type). */
+   void AssembleForm(enum Assembly type = FULL, int skip_zeros = 1);
+   Operator *FinalizeForm();
 
    /** For partially conforming trial and/or test FE spaces, complete the
        assembly process by performing A := P2^t A P1 where A is the internal

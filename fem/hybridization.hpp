@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "fespace.hpp"
 #include "bilininteg.hpp"
+#include "bilinearformoper.hpp"
 
 namespace mfem
 {

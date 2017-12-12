@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool visualization = true;
-   bool use_partial_assembly = false;
+   bool p_assembly = false;
    bool use_smoother = true;
 
    OptionsParser args(argc, argv);
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&use_partial_assembly, "-pa", "--partial-assembly",
+   args.AddOption(&p_assembly, "-pa", "--partial-assembly",
                   "-no-pa", "--no-partial-assembly", "Enable partial assembly.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
@@ -146,23 +146,26 @@ int main(int argc, char *argv[])
    //    domain integrator.
    Vector B, X;
    BilinearForm *a = new BilinearForm(fespace);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
-
-   BilinearFormOperator A_pa(new PAIntegratorMap);
-   SparseMatrix A_sp;
-   if (!use_partial_assembly)
+   // a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   // Can add a custom FESpaceIntegrator in this way:
+   if (!p_assembly)
    {
-      a->AssembleForm(A_sp);
+      a->AddDomainIntegrator(new DiffusionIntegrator(one));
    }
    else
    {
-      // Can add a custom FESpaceIntegrator in this way:
-      // a->AddIntegrator(new PADiffusionIntegrator(new DiffusionIntegrator(one)));
-      a->AssembleForm(A_pa);
+      a->AddIntegrator(new PADiffusionIntegrator(new DiffusionIntegrator(one)));
    }
+   a->AssembleForm(p_assembly ? BilinearForm::PARTIAL : BilinearForm::FULL);
 
    Operator *A;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+
+   SparseMatrix A_sp;
+   if (!p_assembly)
+   {
+      A_sp.MakeRef(static_cast<SparseMatrix&>(*A));
+   }
 
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
@@ -175,7 +178,7 @@ int main(int argc, char *argv[])
    // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //     solve the system A X = B with PCG.
 
-   if (use_smoother && !use_partial_assembly)
+   if (use_smoother && !p_assembly)
    {
       GSSmoother M(A_sp);
       PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
@@ -187,7 +190,7 @@ int main(int argc, char *argv[])
 
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-   if (!use_partial_assembly)
+   if (!p_assembly)
    {
       UMFPackSolver umf_solver;
       umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;

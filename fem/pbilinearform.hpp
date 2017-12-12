@@ -70,8 +70,7 @@ public:
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
 
-   void AssembleForm(BilinearFormOperator &A, int skip_zeros = 1);
-   void AssembleForm(HypreParMatrix &A, int skip_zeros = 1);
+   void AssembleForm(enum Assembly type, int skip_zeros = 1);
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */

@@ -80,17 +80,6 @@ public:
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
 
-   /** Assemble any element or face-specific terms required for the
-       action with the bilinear form integrator. Later applied with
-       AssembleVector. */
-   virtual void AssembleOperator(const FiniteElementSpace *trial_fes,
-                                 const FiniteElementSpace *test_fes) { }
-
-   /** Compute `y = A * x` where A is the bilinear form integrator for
-       all elements/faces. */
-   virtual void AssembleMult(const Vector &fun, Vector &vect);
-   virtual void AssembleMultTranspose(const Vector &fun, Vector &vect);
-
    virtual ~BilinearFormIntegrator() { }
 };
 

@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool visualization = true;
-   bool use_partial_assembly = false;
+   bool p_assembly = false;
    bool use_amg = true;
 
    OptionsParser args(argc, argv);
@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&use_partial_assembly, "-pa", "--partial-assembly",
+   args.AddOption(&p_assembly, "-pa", "--partial-assembly",
                   "-no-pa", "--no-partial-assembly", "Enable partial assembly.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
@@ -177,11 +177,16 @@ int main(int argc, char *argv[])
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
    ParBilinearForm *a = new ParBilinearForm(fespace);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   if (!p_assembly)
+   {
+      a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   }
+   else
+   {
+      a->AddIntegrator(new PADiffusionIntegrator(new DiffusionIntegrator(one)));
+   }
 
    // Use the global map instead
-   BilinearFormOperator A_pa(new PAIntegratorMap);
-   HypreParMatrix A_hpm;
    Vector B, X;
 
    if (static_cond) { a->EnableStaticCondensation(); }
@@ -189,17 +194,17 @@ int main(int argc, char *argv[])
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
-   if (!use_partial_assembly)
-   {
-      a->AssembleForm(A_hpm);
-   }
-   else
-   {
-      a->AssembleForm(A_pa);
-   }
+   a->AssembleForm(p_assembly ?
+                   BilinearForm::PARTIAL : BilinearForm::FULL);
 
    Operator *A;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+
+   HypreParMatrix A_hpm;
+   if (!p_assembly)
+   {
+      A_hpm.MakeRef(static_cast<HypreParMatrix&>(*A));
+   }
 
    if (myid == 0)
    {
@@ -210,7 +215,7 @@ int main(int argc, char *argv[])
    //     preconditioner from hypre.
    Solver *pcg = NULL;
    HypreSolver *amg = NULL;
-   if (!use_partial_assembly)
+   if (!p_assembly)
    {
       HyprePCG *hypre_pcg = new HyprePCG(A_hpm);
       pcg = hypre_pcg;

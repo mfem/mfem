@@ -477,20 +477,43 @@ void BilinearForm::Assemble (int skip_zeros)
 #endif
 }
 
-void BilinearForm::AssembleForm(SparseMatrix &A, int skip_zeros)
+void BilinearForm::AssembleForm(enum Assembly type, int skip_zeros)
 {
-   Assemble(skip_zeros);
-   oper = &A;
-   oper_type = MFEM_SPARSEMAT;
+   if (!oper)
+   {
+      if (type == FULL)
+      {
+         oper_type = MFEM_SPARSEMAT;
+         oper = new SparseMatrix();
+      }
+      else
+      {
+         oper_type = MFEM_FORMOPER;
+         BilinearFormOperator *bfo = new BilinearFormOperator(this);
+         oper = bfo;
+      }
+   }
+
+   if (type == FULL)
+   {
+      Assemble(skip_zeros);
+   }
+   else if (type != NONE)
+   {
+      BilinearFormOperator *bfo = static_cast<BilinearFormOperator*>(oper);
+      bfo->Assemble();
+   }
 }
 
-void BilinearForm::AssembleForm(BilinearFormOperator &A)
+Operator *BilinearForm::FinalizeForm()
 {
-   A.Assemble(this);
-   oper = &A;
-   oper_type = MFEM_FORMOPER;
+   if (oper_type == MFEM_SPARSEMAT)
+   {
+      Finalize();
+      static_cast<SparseMatrix*>(oper)->MakeRef(*mat);
+   }
+   return oper;
 }
-
 
 void BilinearForm::ConformingAssemble()
 {
@@ -944,6 +967,7 @@ BilinearForm::~BilinearForm()
    delete element_matrices;
    delete static_cond;
    delete hybridization;
+   delete oper;
 
    if (!extern_bfs)
    {
@@ -1122,17 +1146,43 @@ void MixedBilinearForm::Assemble (int skip_zeros)
    oper = mat;
 }
 
-void MixedBilinearForm::AssembleForm(SparseMatrix &A, int skip_zeros)
+
+void MixedBilinearForm::AssembleForm(enum Assembly type, int skip_zeros)
 {
-   Assemble(skip_zeros);
-   oper = mat;
-   A.MakeRef(*mat);
+   if (!oper)
+   {
+      if (type == FULL)
+      {
+         oper_type = MFEM_SPARSEMAT;
+         oper = new SparseMatrix();
+      }
+      else
+      {
+         oper_type = MFEM_FORMOPER;
+         BilinearFormOperator *bfo = new BilinearFormOperator(this);
+         oper = bfo;
+      }
+   }
+
+   if (type == FULL)
+   {
+      Assemble(skip_zeros);
+   }
+   else if (type != NONE)
+   {
+      BilinearFormOperator *bfo = static_cast<BilinearFormOperator*>(oper);
+      bfo->Assemble();
+   }
 }
 
-void MixedBilinearForm::AssembleForm(BilinearFormOperator &A, int skip_zeros)
+Operator *MixedBilinearForm::FinalizeForm()
 {
-   A.Assemble(this);
-   oper = &A;
+   if (oper_type == MFEM_SPARSEMAT)
+   {
+      Finalize();
+      static_cast<SparseMatrix*>(oper)->MakeRef(*mat);
+   }
+   return oper;
 }
 
 void MixedBilinearForm::ConformingAssemble()
