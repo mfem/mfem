@@ -74,7 +74,7 @@ protected:
    HypreParMatrix *pC, *P_pc; // for parallel non-conforming meshes
    OperatorHandle pH;
 
-   Array<int> P_pc_row_starts, P_pc_col_starts;
+   Array<HYPRE_Int> P_pc_row_starts, P_pc_col_starts;
 #endif
 
    void ConstructC();
