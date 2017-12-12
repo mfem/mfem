@@ -2514,6 +2514,7 @@ Element *Mesh::ReadElementWithoutAttr(std::istream &input)
 
    input >> geom;
    el = NewElement(geom);
+   if (!el) MFEM_ABORT("Unsupported element type " << geom);
    nv = el->GetNVertices();
    v  = el->GetVertices();
    for (int i = 0; i < nv; i++)
