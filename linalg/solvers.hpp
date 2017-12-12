@@ -92,11 +92,6 @@ public:
    virtual void SetOperator(const TOperator<TVector> &op);
 };
 typedef TIterativeSolver<Vector> IterativeSolver;
-#if defined(MFEM_USE_RAJA)
-typedef TIterativeSolver<RajaVector> RajaIterativeSolver;
-#endif
-
-
 
 /// Stationary linear iteration: x <- x + B (b - A x)
 class SLISolver : public IterativeSolver
@@ -306,11 +301,7 @@ public:
       TIterativeSolver<TVector>::final_norm = sqrt(betanom);
    }
 };
-
 typedef TCGSolver<Vector> CGSolver;
-#if defined(MFEM_USE_RAJA)
-typedef TCGSolver<RajaVector> RajaCGSolver;
-#endif
 
 /// Conjugate gradient method. (tolerances are squared)
 template <class TVector>

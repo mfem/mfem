@@ -185,19 +185,12 @@ public:
 
    /// Matrix vector multiplication.
    virtual void Mult(const Vector &x, Vector &y) const;
-#if defined(MFEM_USE_RAJA)
-  //virtual void Mult(const RajaVector &x, RajaVector &y) const;
-#endif
 
    /// y += A * x (default)  or  y += a * A * x
    void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 
    /// Multiply a vector with the transposed matrix. y = At * x
    void MultTranspose(const Vector &x, Vector &y) const;
-/*#if defined(MFEM_USE_RAJA)
-   void MultTranspose(const RajaVector &x, RajaVector &y) const
-  {  mfem_error("SparseMatrix::MultTranspose(RajaVector) is not overloaded!"); }
-  #endif*/
 
    /// y += At * x (default)  or  y += a * At * x
    void AddMultTranspose(const Vector &x, Vector &y,

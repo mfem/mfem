@@ -103,9 +103,6 @@
 // Enable functionality based on the MPFR library.
 // #define MFEM_USE_MPFR
 
-// Enable functionality based on RAJA
-// #define MFEM_USE_RAJA
-
 // Windows specific options
 #ifdef _WIN32
 // Macro needed to get defines like M_PI from <cmath>. (Visual Studio C++ only?)

@@ -33,10 +33,6 @@
 namespace mfem
 {
 
-#if defined(MFEM_USE_RAJA)
-class RajaVector;
-#endif
-
 /** Count the number of entries in an array of doubles for which isfinite
     is false, i.e. the entry is a NaN or +/-Inf. */
 inline int CheckFinite(const double *v, const int n);
@@ -171,10 +167,6 @@ public:
 
    /// Redefine '=' for vector = constant.
    Vector & operator=(double value);
-
-#if defined(MFEM_USE_RAJA)
-   Vector & operator=(const RajaVector &v);
-#endif
 
    Vector & operator*=(double c);
 

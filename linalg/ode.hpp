@@ -98,9 +98,6 @@ public:
    virtual ~TODESolver() { }
 };
 typedef TODESolver<Vector> ODESolver;
-#if defined(MFEM_USE_RAJA)
-typedef TODESolver<RajaVector> RajaODESolver;
-#endif
 
 
 /// The classical forward Euler method
@@ -312,21 +309,6 @@ typedef TImplicitMidpointSolver<Vector> ImplicitMidpointSolver;
 typedef TSDIRK23Solver<Vector>          SDIRK23Solver;
 typedef TSDIRK34Solver<Vector>          SDIRK34Solver;
 typedef TSDIRK33Solver<Vector>          SDIRK33Solver;
-
-#if defined(MFEM_USE_RAJA)
-typedef TForwardEulerSolver<RajaVector>     RajaForwardEulerSolver;
-typedef TRK2Solver<RajaVector>              RajaRK2Solver;
-typedef TRK3SSPSolver<RajaVector>           RajaRK3SSPSolver;
-typedef TRK4Solver<RajaVector>              RajaRK4Solver;
-typedef TExplicitRKSolver<RajaVector>       RajaExplicitRKSolver;
-typedef TRK6Solver<RajaVector>              RajaRK6Solver;
-typedef TRK8Solver<RajaVector>              RajaRK8Solver;
-typedef TBackwardEulerSolver<RajaVector>    RajaBackwardEulerSolver;
-typedef TImplicitMidpointSolver<RajaVector> RajaImplicitMidpointSolver;
-typedef TSDIRK23Solver<RajaVector>          RajaSDIRK23Solver;
-typedef TSDIRK34Solver<RajaVector>          RajaSDIRK34Solver;
-typedef TSDIRK33Solver<RajaVector>          RajaSDIRK33Solver;
-#endif
 
 }
 

@@ -264,9 +264,6 @@ public:
    virtual ~TTimeDependentOperator() { }
 };
 typedef TTimeDependentOperator<Vector> TimeDependentOperator;
-#if defined(MFEM_USE_RAJA)
-typedef TTimeDependentOperator<RajaVector> RajaTimeDependentOperator;
-#endif
   
 /// Base class for solvers
 template <class TVector>
@@ -291,10 +288,6 @@ public:
    virtual void SetOperator(const TOperator<TVector> &op) = 0;
 };
 typedef TSolver<Vector> Solver;
-#if defined(MFEM_USE_RAJA)
-typedef TSolver<RajaVector> RajaSolver;
-#endif
- 
 
 /// Identity Operator I: x -> x.
 template <class TVector>
@@ -311,10 +304,6 @@ public:
    virtual void MultTranspose(const TVector &x, TVector &y) const { y = x; }
 };
 typedef TIdentityOperator<Vector> IdentityOperator;
-#if defined(MFEM_USE_RAJA)
-typedef TIdentityOperator<RajaVector> RajaIdentityOperator;
-#endif
-
 
 /** @brief The transpose of a given operator. Switches the roles of the methods
     Mult() and MultTranspose(). */
@@ -342,9 +331,6 @@ public:
    { A.Mult(x, y); }
 };
 typedef TTransposeOperator<Vector> TransposeOperator;
-#if defined(MFEM_USE_RAJA)
-typedef TTransposeOperator<RajaVector> RajaTransposeOperator;
-#endif
 
 /// The operator x -> R*A*P*x.
 template <class TVector>
@@ -372,9 +358,6 @@ public:
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
 };
 typedef TRAPOperator<Vector> RAPOperator;
-#if defined(MFEM_USE_RAJA)
-typedef TRAPOperator<RajaVector> RajaRAPOperator;
-#endif
 
 /// General triple product operator x -> A*B*C*x, with ownership of the factors.
 template <class TVector>
@@ -409,10 +392,6 @@ public:
    }
 };
 typedef TTripleProductOperator<Vector> TripleProductOperator;
-#if defined(MFEM_USE_RAJA)
-typedef TTripleProductOperator<RajaVector> RajaTripleProductOperator;
-#endif
-
 
 /** @brief Square Operator for imposing essential boundary conditions using only
     the action, Mult(), of a given unconstrained Operator.
@@ -464,9 +443,6 @@ public:
    virtual ~TConstrainedOperator() { if (own_A) { delete A; } }
 };
 typedef TConstrainedOperator<Vector> ConstrainedOperator;
-//#if defined(MFEM_USE_RAJA)
-//typedef TConstrainedOperator<RajaVector> RajaConstrainedOperator;
-//#endif
 
 }
 

@@ -85,16 +85,15 @@ public:
 
    //! Return the row offsets for block starts
    Array<int> & RowOffsets() { return row_offsets; }
+  
    //! Return the columns offsets for block starts
    Array<int> & ColOffsets() { return col_offsets; }
 
    /// Operator application
    virtual void Mult (const Vector & x, Vector & y) const;
-   virtual void Mult (const RajaVector & x, RajaVector & y) const;
-
+  
    /// Action of the transpose operator
    virtual void MultTranspose (const Vector & x, Vector & y) const;
-   virtual void MultTranspose (const RajaVector & x, RajaVector & y) const;
 
    ~BlockOperator();
 
@@ -160,11 +159,9 @@ public:
 
    /// Operator application
    virtual void Mult (const Vector & x, Vector & y) const;
-   virtual void Mult (const RajaVector & x, RajaVector & y) const;
 
    /// Action of the transpose operator
    virtual void MultTranspose (const Vector & x, Vector & y) const;
-   virtual void MultTranspose (const RajaVector & x, RajaVector & y) const;
 
    ~BlockDiagonalPreconditioner();
 
@@ -245,11 +242,9 @@ public:
 
    /// Operator application
    virtual void Mult (const Vector & x, Vector & y) const;
-   virtual void Mult (const RajaVector & x, RajaVector & y) const;
 
    /// Action of the transpose operator
    virtual void MultTranspose (const Vector & x, Vector & y) const;
-   virtual void MultTranspose (const RajaVector & x, RajaVector & y) const;
 
    ~BlockLowerTriangularPreconditioner();
 
