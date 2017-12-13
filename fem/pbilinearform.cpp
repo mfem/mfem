@@ -476,7 +476,7 @@ void ParSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
                                               BilinearFormIntegrator *bfi_imag)
 {
    if (bfi_real) { pblfr_->AddDomainIntegrator(bfi_real); }
-   if (bfi_imag) { pblfr_->AddDomainIntegrator(bfi_imag); }
+   if (bfi_imag) { pblfi_->AddDomainIntegrator(bfi_imag); }
 }
 
 void
@@ -484,7 +484,7 @@ ParSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
                                            BilinearFormIntegrator *bfi_imag)
 {
    if (bfi_real) { pblfr_->AddBoundaryIntegrator(bfi_real); }
-   if (bfi_imag) { pblfr_->AddBoundaryIntegrator(bfi_imag); }
+   if (bfi_imag) { pblfi_->AddBoundaryIntegrator(bfi_imag); }
 }
 
 void
