@@ -475,6 +475,14 @@ public:
 
    virtual ~ComplexOperator();
 
+   bool hasRealPart() const { return Op_Real_ != NULL; }
+   bool hasImagPart() const { return Op_Imag_ != NULL; }
+  
+   virtual Operator & real();
+   virtual Operator & imag();
+   virtual const Operator & real() const;
+   virtual const Operator & imag() const;
+
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void MultTranspose(const Vector &x, Vector &y) const;
 

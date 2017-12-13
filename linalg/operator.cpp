@@ -172,7 +172,31 @@ ComplexOperator::~ComplexOperator()
    delete v_;
 }
 
-void ComplexOperator::Mult(const Vector &x, Vector &y) const
+Operator & ComplexOperator::real()
+{
+  MFEM_ASSERT(Op_Real_, "ComplexOperator has no real part!");
+  return *Op_Real_;
+}
+
+Operator & ComplexOperator::imag()
+{
+  MFEM_ASSERT(Op_Imag_, "ComplexOperator has no imaginary part!");
+  return *Op_Imag_;
+}
+
+const Operator & ComplexOperator::real() const
+{
+  MFEM_ASSERT(Op_Real_, "ComplexOperator has no real part!");
+  return *Op_Real_;
+}
+
+const Operator & ComplexOperator::imag() const
+{
+  MFEM_ASSERT(Op_Imag_, "ComplexOperator has no imaginary part!");
+  return *Op_Imag_;
+}
+
+  void ComplexOperator::Mult(const Vector &x, Vector &y) const
 {
    double * x_data = x.GetData();
    x_r_.SetData(x_data);
