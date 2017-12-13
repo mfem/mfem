@@ -310,6 +310,9 @@ public:
    void Distribute(const Vector *tv);
    void Distribute(const Vector &tv) { Distribute(&tv); }
 
+   /// Returns the vector restricted to the true dofs.
+   void ParallelProject(Vector &tv) const;
+
    FiniteElementSpace *FESpace() { return pgfr_->FESpace(); }
    const FiniteElementSpace *FESpace() const { return pgfr_->FESpace(); }
 
