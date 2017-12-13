@@ -25,6 +25,8 @@ using namespace std;
 namespace mfem
 {
 
+bool Mesh::remove_unused_vertices = true;
+
 void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
 {
    // Read MFEM mesh v1.0 format
@@ -108,7 +110,7 @@ void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
 
    // When visualizing solutions on non-conforming grids, PETSc
    // may dump additional vertices
-   RemoveUnusedVertices();
+   if (remove_unused_vertices) { RemoveUnusedVertices(); }
 }
 
 void Mesh::ReadLineMesh(std::istream &input)
