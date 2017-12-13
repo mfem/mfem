@@ -625,6 +625,20 @@ ParComplexGridFunction::Distribute(const Vector *tv)
    pgfi_->Distribute(tvi);
 }
 
+void
+ParComplexGridFunction::ParallelProject(Vector &tv) const
+{
+   ParFiniteElementSpace * pfes = pgfr_->ParFESpace();
+   HYPRE_Int size = pfes->GetTrueVSize();
+
+   double * tvd = tv.GetData();
+   Vector tvr(tvd, size);
+   Vector tvi(&tvd[size], size);
+
+   pgfr_->ParallelProject(tvr);
+   pgfi_->ParallelProject(tvi);
+}
+  
 
 double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
                           const ParGridFunction &x,
