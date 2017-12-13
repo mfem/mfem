@@ -74,7 +74,7 @@ ParComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                                           LinearFormIntegrator *lfi_imag)
 {
    if ( lfi_real ) { plfr_->AddDomainIntegrator(lfi_real); }
-   if ( lfi_imag ) { plfi_->AddDomainIntegrator(lfi_real); }
+   if ( lfi_imag ) { plfi_->AddDomainIntegrator(lfi_imag); }
 }
 
 void
