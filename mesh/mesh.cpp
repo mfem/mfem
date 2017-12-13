@@ -166,13 +166,14 @@ void Mesh::GetCharacteristics(double &h_min, double &h_max,
 
    dim = Dimension();
    sdim = SpaceDimension();
-   J.SetSize(sdim, dim);
 
    if (Vh) { Vh->SetSize(NumOfElements); }
    if (Vk) { Vk->SetSize(NumOfElements); }
 
    h_min = kappa_min = numeric_limits<double>::infinity();
    h_max = kappa_max = -h_min;
+   if (dim == 0) { if (Vh) { *Vh = 1.0; } if (Vk) {*Vk = 1.0; } return; }
+   J.SetSize(sdim, dim);
    for (i = 0; i < NumOfElements; i++)
    {
       GetElementJacobian(i, J);
@@ -197,7 +198,17 @@ void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &out)
 
    this->GetCharacteristics(h_min, h_max, kappa_min, kappa_max, Vh, Vk);
 
-   if (Dim == 1)
+   out << '\n'
+       << "Dimension          : " << Dimension() << '\n'
+       << "Space dimension    : " << SpaceDimension();
+   if (Dim == 0)
+   {
+      out << '\n'
+          << "Number of vertices : " << GetNV() << '\n'
+          << "Number of elements : " << GetNE() << '\n'
+          << "Number of bdr elem : " << GetNBE() << '\n';
+   }
+   else if (Dim == 1)
    {
       out << '\n'
           << "Number of vertices : " << GetNV() << '\n'
@@ -2561,6 +2572,7 @@ void Mesh::SetMeshGen()
    {
       switch (elements[i]->GetType())
       {
+         case Element::POINT:
          case Element::SEGMENT:
          case Element::TRIANGLE:
          case Element::TETRAHEDRON:
