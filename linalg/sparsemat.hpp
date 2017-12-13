@@ -625,6 +625,12 @@ public:
       : ComplexOperator(A_Real, A_Imag, ownReal, ownImag, convention)
    {}
 
+   virtual SparseMatrix & real();
+   virtual SparseMatrix & imag();
+
+   virtual const SparseMatrix & real() const;
+   virtual const SparseMatrix & imag() const;
+
    SparseMatrix * GetSystemMatrix() const;
 };
 

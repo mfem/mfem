@@ -505,6 +505,37 @@ void EliminateBC(HypreParMatrix &A, HypreParMatrix &Ae,
                  const Array<int> &ess_dof_list, const Vector &X, Vector &B);
 
 
+/** @brief Specialization of the ComplexOperator built from a pair of
+    HypreParMatrices.
+
+    The purpose of this specialization is to construct a single
+    HypreParMatrix object which is equivalent to the 2x2 block system
+    that the ComplexOperator mimics. The resulting HypreParMatrix can
+    then be passed along to solvers which require access to the CSR
+    matrix data such as SuperLU, STRUMPACK, or similar sparse linear
+    solvers.
+
+    See ComplexOperator documentation in operator.hpp for more information.
+ */
+class ComplexHypreParMatrix : public ComplexOperator
+{
+public:
+   ComplexHypreParMatrix(HypreParMatrix * A_Real, HypreParMatrix * A_Imag,
+			 bool ownReal, bool ownImag,
+			 Convention convention = HERMITIAN)
+      : ComplexOperator(A_Real, A_Imag, ownReal, ownImag, convention)
+   {}
+
+   virtual HypreParMatrix & real();
+   virtual HypreParMatrix & imag();
+
+   virtual const HypreParMatrix & real() const;
+   virtual const HypreParMatrix & imag() const;
+
+   HypreParMatrix * GetSystemMatrix() const;
+};
+  
+
 /// Parallel smoothers in hypre
 class HypreSmoother : public Solver
 {

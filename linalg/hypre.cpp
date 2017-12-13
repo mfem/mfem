@@ -1694,6 +1694,208 @@ int ParCSRRelax_FIR(hypre_ParCSRMatrix *A, // matrix to relax with
    return 0;
 }
 
+HypreParMatrix & ComplexHypreParMatrix::real()
+{
+  MFEM_ASSERT(Op_Real_, "ComplexHypreParMatrix has no real part!");
+  return dynamic_cast<HypreParMatrix &>(*Op_Real_);
+}
+
+HypreParMatrix & ComplexHypreParMatrix::imag()
+{
+  MFEM_ASSERT(Op_Imag_, "ComplexHypreParMatrix has no imaginary part!");
+  return dynamic_cast<HypreParMatrix &>(*Op_Imag_);
+}
+
+const HypreParMatrix & ComplexHypreParMatrix::real() const
+{
+  MFEM_ASSERT(Op_Real_, "ComplexHypreParMatrix has no real part!");
+  return dynamic_cast<const HypreParMatrix &>(*Op_Real_);
+}
+
+const HypreParMatrix & ComplexHypreParMatrix::imag() const
+{
+  MFEM_ASSERT(Op_Imag_, "ComplexHypreParMatrix has no imaginary part!");
+  return dynamic_cast<const HypreParMatrix &>(*Op_Imag_);
+}
+
+HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
+{
+   HypreParMatrix * A_r = dynamic_cast<HypreParMatrix*>(Op_Real_);
+   HypreParMatrix * A_i = dynamic_cast<HypreParMatrix*>(Op_Imag_);
+
+   if ( A_r == NULL && A_i == NULL ) return NULL;
+   
+   MPI_Comm comm = (A_r) ? A_r->GetComm() :
+     ((A_i) ? A_i->GetComm() : MPI_COMM_WORLD);
+   int myid = -1;
+   int nranks = -1;
+   MPI_Comm_rank(comm, &myid);
+   MPI_Comm_size(comm, &nranks);
+   
+   HYPRE_Int global_num_rows_r = (A_r) ? A_r->GetGlobalNumRows() : 0;
+   HYPRE_Int global_num_rows_i = (A_i) ? A_i->GetGlobalNumRows() : 0;
+   HYPRE_Int global_num_rows = std::max(global_num_rows_r, global_num_rows_i);
+
+   HYPRE_Int global_num_cols_r = (A_r) ? A_r->GetGlobalNumCols() : 0;
+   HYPRE_Int global_num_cols_i = (A_i) ? A_i->GetGlobalNumCols() : 0;
+   HYPRE_Int global_num_cols = std::max(global_num_cols_r, global_num_cols_i);
+
+   int row_starts_size;
+   if (HYPRE_AssumedPartitionCheck())
+   {
+      row_starts_size = 2;
+   }
+   else
+   {
+      row_starts_size = nranks + 1;
+   }
+   HYPRE_Int * row_starts = hypre_CTAlloc(HYPRE_Int, row_starts_size);
+   HYPRE_Int * col_starts = hypre_CTAlloc(HYPRE_Int, row_starts_size);
+
+   const HYPRE_Int * row_starts_z = (A_r) ? A_r->RowPart() :
+     ((A_i) ? A_i->RowPart() : NULL);
+   const HYPRE_Int * col_starts_z = (A_r) ? A_r->ColPart() :
+     ((A_i) ? A_i->ColPart() : NULL);
+
+   for (int i = 0; i < row_starts_size; i++)
+   {
+     row_starts[i] = 2 * row_starts_z[i];
+     col_starts[i] = 2 * col_starts_z[i];
+   }
+   
+   SparseMatrix diag_r, diag_i, offd_r, offd_i;
+   HYPRE_Int * cmap_r, * cmap_i;
+
+   int nrows_r = 0, nrows_i = 0, ncols_r = 0, ncols_i = 0;
+   int ncols_offd_r = 0, ncols_offd_i = 0;
+   if (A_r)
+   {
+     A_r->GetDiag(diag_r);
+     A_r->GetOffd(offd_r, cmap_r);
+     nrows_r = diag_r.Height();
+     ncols_r = diag_r.Width();
+     ncols_offd_r = offd_r.Width();
+   }
+   if (A_i)
+   {
+     A_i->GetDiag(diag_i);
+     A_i->GetOffd(offd_i, cmap_i);
+     nrows_i = diag_i.Height();
+     ncols_i = diag_i.Width();
+     ncols_offd_i = offd_i.Width();
+   }
+   int nrows = std::max(nrows_r, nrows_i);
+   int ncols = std::max(ncols_r, ncols_i);
+
+   std::map<int, int> cinvmap;
+   if ( cmap_r )
+     {
+       for (int i=0; i<ncols_offd_r; i++)
+	 {
+	   cinvmap[cmap_r[i]] = -1;
+	 }
+     }
+   if ( cmap_i )
+     {
+       for (int i=0; i<ncols_offd_i; i++)
+	 {
+	   cinvmap[cmap_i[i]] = -1;
+	 }
+     }
+   std::map<int, int>::iterator mit;
+   int i = 0;
+   for (mit=cinvmap.begin(); mit!=cinvmap.end(); mit++, i++)
+     {
+       mit->second = i;
+     }
+   int num_cols_offd = 2 * (int)cinvmap.size();
+
+   const int * diag_r_I = (A_r) ? diag_r.GetI() : NULL;
+   const int * diag_i_I = (A_i) ? diag_i.GetI() : NULL;
+   
+   const int * diag_r_J = (A_r) ? diag_r.GetJ() : NULL;
+   const int * diag_i_J = (A_i) ? diag_i.GetJ() : NULL;
+
+   const double * diag_r_D = (A_r) ? diag_r.GetData() : NULL;
+   const double * diag_i_D = (A_i) ? diag_i.GetData() : NULL;
+
+   int diag_r_nnz = (diag_r_I) ? diag_r_I[nrows] : 0;
+   int diag_i_nnz = (diag_i_I) ? diag_i_I[nrows] : 0;
+   int diag_nnz = 2 * (diag_r_nnz + diag_i_nnz);
+   {
+     int minj = global_num_cols;
+     int maxj = -1;
+     for (int i=0; i<diag_r_nnz; i++)
+       {
+	 minj = std::min(minj, diag_r_J[i]);
+	 maxj = std::max(maxj, diag_r_J[i]);
+       }
+     if ( myid == 0 )
+       cout << "col range in diag_r" << endl;
+     for (int i=0; i<nranks; i++)
+       {
+	 if ( myid == i )
+	   cout << myid << ": [" << minj << "," << maxj << "]" << endl;
+	 MPI_Barrier(comm);
+       }
+   }     
+   const int * offd_r_I = (A_r) ? offd_r.GetI() : NULL;
+   const int * offd_i_I = (A_i) ? offd_i.GetI() : NULL;
+   
+   const int * offd_r_J = (A_r) ? offd_r.GetJ() : NULL;
+   const int * offd_i_J = (A_i) ? offd_i.GetJ() : NULL;
+
+   const double * offd_r_D = (A_r) ? offd_r.GetData() : NULL;
+   const double * offd_i_D = (A_i) ? offd_i.GetData() : NULL;
+   
+   int offd_r_nnz = (offd_r_I) ? offd_r_I[nrows] : 0;
+   int offd_i_nnz = (offd_i_I) ? offd_i_I[nrows] : 0;
+   int offd_nnz = 2 * (offd_r_nnz + offd_i_nnz);
+
+   {
+     int minj = global_num_cols;
+     int maxj = -1;
+     int minmj = global_num_cols;
+     int maxmj = -1;
+     for (int i=0; i<offd_r_nnz; i++)
+       {
+	 minj = std::min(minj, offd_r_J[i]);
+	 maxj = std::max(maxj, offd_r_J[i]);
+	 minmj = std::min(minmj, cmap_r[offd_r_J[i]]);
+	 maxmj = std::max(maxmj, cmap_r[offd_r_J[i]]);
+       }
+     if ( myid == 0 )
+       cout << "col range in offd_r" << endl;
+     for (int i=0; i<nranks; i++)
+       {
+	 if ( myid == i )
+	   cout << myid << ": [" << minj << "," << maxj << "]" << ", ["
+		<< minmj << "," << maxmj << "]" << endl;
+	 MPI_Barrier(comm);
+       }
+   }     
+
+   HYPRE_Int * diag_I = hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
+   HYPRE_Int * diag_J = hypre_CTAlloc(HYPRE_Int, diag_nnz);
+   double    * diag_D = hypre_CTAlloc(double, diag_nnz);
+
+   HYPRE_Int * offd_I = hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
+   HYPRE_Int * offd_J = hypre_CTAlloc(HYPRE_Int, offd_nnz);
+   double    * offd_D = hypre_CTAlloc(double, offd_nnz);
+   HYPRE_Int * cmap   = hypre_CTAlloc(HYPRE_Int, num_cols_offd);
+
+   const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
+
+
+   
+   return new HypreParMatrix(comm,
+			     2 * global_num_rows, 2 * global_num_cols,
+			     row_starts, col_starts,
+			     diag_I, diag_J, diag_D,
+			     offd_I, offd_J, offd_D,
+			     num_cols_offd, cmap);
+}
+
 HypreSmoother::HypreSmoother() : Solver()
 {
    type = 2;
