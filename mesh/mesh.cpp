@@ -7327,6 +7327,8 @@ void Mesh::PrintVTK(std::ostream &out)
       {
          switch (elements[i]->GetGeometryType())
          {
+            case Geometry::POINT:        vtk_cell_type = 1;   break;
+            case Geometry::SEGMENT:      vtk_cell_type = 3;   break;
             case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
             case Geometry::SQUARE:       vtk_cell_type = 9;   break;
             case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
@@ -7337,6 +7339,7 @@ void Mesh::PrintVTK(std::ostream &out)
       {
          switch (elements[i]->GetGeometryType())
          {
+            case Geometry::SEGMENT:      vtk_cell_type = 21;  break;
             case Geometry::TRIANGLE:     vtk_cell_type = 22;  break;
             case Geometry::SQUARE:       vtk_cell_type = 28;  break;
             case Geometry::TETRAHEDRON:  vtk_cell_type = 24;  break;
@@ -7457,6 +7460,7 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
 
       switch (geom)
       {
+         case Geometry::POINT:        vtk_cell_type = 1;   break;
          case Geometry::SEGMENT:      vtk_cell_type = 3;   break;
          case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
          case Geometry::SQUARE:       vtk_cell_type = 9;   break;
@@ -7485,23 +7489,27 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
       }
    }
 
-   Array<int> coloring;
-   srand((unsigned)time(0));
-   double a = double(rand()) / (double(RAND_MAX) + 1.);
-   int el0 = (int)floor(a * GetNE());
-   GetElementColoring(coloring, el0);
-   out << "SCALARS element_coloring int\n"
-       << "LOOKUP_TABLE default\n";
-   for (int i = 0; i < GetNE(); i++)
+   if (Dim > 1)
    {
-      int geom = GetElementBaseGeometry(i);
-      int nv = Geometries.GetVertices(geom)->GetNPoints();
-      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
-      for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
+      Array<int> coloring;
+      srand((unsigned)time(0));
+      double a = double(rand()) / (double(RAND_MAX) + 1.);
+      int el0 = (int)floor(a * GetNE());
+      GetElementColoring(coloring, el0);
+      out << "SCALARS element_coloring int\n"
+          << "LOOKUP_TABLE default\n";
+      for (int i = 0; i < GetNE(); i++)
       {
-         out << coloring[i] + 1 << '\n';
+         int geom = GetElementBaseGeometry(i);
+         int nv = Geometries.GetVertices(geom)->GetNPoints();
+         RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+         for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
+         {
+            out << coloring[i] + 1 << '\n';
+         }
       }
    }
+
    // prepare to write data
    out << "POINT_DATA " << np << '\n' << flush;
 }
