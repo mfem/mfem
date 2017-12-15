@@ -11,6 +11,12 @@
 Version 3.3.3 (development)
 ===========================
 
+Miscellaneous
+-------------
+- Upgraded MFEM to support Axom 0.2.8. Prior versions are no longer supported.
+
+- Add support for building a shared version of the MFEM library with GNU make.
+
 
 Version 3.3.2, released on Nov 10, 2017
 =======================================

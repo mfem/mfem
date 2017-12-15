@@ -236,11 +236,7 @@ endif()
 
 # Axom/Sidre
 if (MFEM_USE_SIDRE)
-  if (NOT MFEM_USE_MPI)
-    find_package(Axom REQUIRED Sidre SLIC axom_utils)
-  else()
-    find_package(Axom REQUIRED Sidre SPIO SLIC axom_utils)
-  endif()
+  find_package(Axom REQUIRED Sidre SLIC axom_utils)
 endif()
 
 # MFEM_TIMER_TYPE
