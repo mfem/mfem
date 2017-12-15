@@ -277,8 +277,8 @@ public:
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
-   ComplexOperator *ParallelAssemble(const ComplexOperator::Convention & conv
-                                     = ComplexOperator::HERMITIAN);
+   ComplexHypreParMatrix *ParallelAssemble(
+      const ComplexOperator::Convention & conv = ComplexOperator::HERMITIAN);
 
    /// Return the parallel FE space associated with the ParBilinearForm.
    ParFiniteElementSpace *ParFESpace() const { return pblfr_->ParFESpace(); }

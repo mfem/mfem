@@ -501,12 +501,13 @@ ParSesquilinearForm::Finalize(int skip_zeros)
    pblfi_->Finalize(skip_zeros);
 }
 
-ComplexOperator *
+ComplexHypreParMatrix *
 ParSesquilinearForm::ParallelAssemble(const ComplexOperator::Convention &conv)
 {
-   return new ComplexOperator(pblfr_->ParallelAssemble(),
-                              pblfi_->ParallelAssemble(),
-                              true, true, conv);
+   return new ComplexHypreParMatrix(pblfr_->ParallelAssemble(),
+				    pblfi_->ParallelAssemble(),
+				    true, true, conv);
+
 }
 
 void
