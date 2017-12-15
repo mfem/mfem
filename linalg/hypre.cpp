@@ -1694,6 +1694,20 @@ int ParCSRRelax_FIR(hypre_ParCSRMatrix *A, // matrix to relax with
    return 0;
 }
 
+
+ComplexHypreParMatrix::ComplexHypreParMatrix(HypreParMatrix * A_Real,
+					     HypreParMatrix * A_Imag,
+					     bool ownReal, bool ownImag,
+					     Convention convention)
+  : ComplexOperator(A_Real, A_Imag, ownReal, ownImag, convention)
+{
+   comm_ = (A_Real) ? A_Real->GetComm() :
+     ((A_Imag) ? A_Imag->GetComm() : MPI_COMM_WORLD);
+
+   MPI_Comm_rank(comm_, &myid_);
+   MPI_Comm_size(comm_, &nranks_);
+}
+  
 HypreParMatrix & ComplexHypreParMatrix::real()
 {
   MFEM_ASSERT(Op_Real_, "ComplexHypreParMatrix has no real part!");
@@ -1724,14 +1738,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    HypreParMatrix * A_i = dynamic_cast<HypreParMatrix*>(Op_Imag_);
 
    if ( A_r == NULL && A_i == NULL ) return NULL;
-   
-   MPI_Comm comm = (A_r) ? A_r->GetComm() :
-     ((A_i) ? A_i->GetComm() : MPI_COMM_WORLD);
-   int myid = -1;
-   int nranks = -1;
-   MPI_Comm_rank(comm, &myid);
-   MPI_Comm_size(comm, &nranks);
-   
+      
    HYPRE_Int global_num_rows_r = (A_r) ? A_r->GetGlobalNumRows() : 0;
    HYPRE_Int global_num_rows_i = (A_i) ? A_i->GetGlobalNumRows() : 0;
    HYPRE_Int global_num_rows = std::max(global_num_rows_r, global_num_rows_i);
@@ -1747,7 +1754,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    }
    else
    {
-      row_starts_size = nranks + 1;
+      row_starts_size = nranks_ + 1;
    }
    HYPRE_Int * row_starts = hypre_CTAlloc(HYPRE_Int, row_starts_size);
    HYPRE_Int * col_starts = hypre_CTAlloc(HYPRE_Int, row_starts_size);
@@ -1808,7 +1815,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
      {
        mit->second = i;
      }
-   int num_cols_offd = 2 * (int)cinvmap.size();
+   int num_cols_offd = (int)cinvmap.size();
 
    const int * diag_r_I = (A_r) ? diag_r.GetI() : NULL;
    const int * diag_i_I = (A_i) ? diag_i.GetI() : NULL;
@@ -1822,6 +1829,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    int diag_r_nnz = (diag_r_I) ? diag_r_I[nrows] : 0;
    int diag_i_nnz = (diag_i_I) ? diag_i_I[nrows] : 0;
    int diag_nnz = 2 * (diag_r_nnz + diag_i_nnz);
+   /*
    {
      int minj = global_num_cols;
      int maxj = -1;
@@ -1838,7 +1846,8 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
 	   cout << myid << ": [" << minj << "," << maxj << "]" << endl;
 	 MPI_Barrier(comm);
        }
-   }     
+   } 
+   */    
    const int * offd_r_I = (A_r) ? offd_r.GetI() : NULL;
    const int * offd_i_I = (A_i) ? offd_i.GetI() : NULL;
    
@@ -1851,7 +1860,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    int offd_r_nnz = (offd_r_I) ? offd_r_I[nrows] : 0;
    int offd_i_nnz = (offd_i_I) ? offd_i_I[nrows] : 0;
    int offd_nnz = 2 * (offd_r_nnz + offd_i_nnz);
-
+   /*
    {
      int minj = global_num_cols;
      int maxj = -1;
@@ -1874,7 +1883,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
 	 MPI_Barrier(comm);
        }
    }     
-
+   */
    HYPRE_Int * diag_I = hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
    HYPRE_Int * diag_J = hypre_CTAlloc(HYPRE_Int, diag_nnz);
    double    * diag_D = hypre_CTAlloc(double, diag_nnz);
@@ -1882,19 +1891,199 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    HYPRE_Int * offd_I = hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
    HYPRE_Int * offd_J = hypre_CTAlloc(HYPRE_Int, offd_nnz);
    double    * offd_D = hypre_CTAlloc(double, offd_nnz);
-   HYPRE_Int * cmap   = hypre_CTAlloc(HYPRE_Int, num_cols_offd);
+   HYPRE_Int * cmap   = hypre_CTAlloc(HYPRE_Int, 2 * num_cols_offd);
 
    const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
 
+   diag_I[0] = 0;
+   diag_I[nrows] = diag_r_nnz + diag_i_nnz;
+   for (int i=0; i<nrows; i++)
+   {
+      diag_I[i + 1]         = ((diag_r_I)?diag_r_I[i+1]:0) +
+	((diag_i_I)?diag_i_I[i+1]:0);
+      diag_I[i + nrows + 1] = diag_I[i+1] + diag_r_nnz + diag_i_nnz;
 
+      if (diag_r_I)
+      {
+         const int off_i = (diag_i_I)?(diag_i_I[i+1] - diag_i_I[i]):0;
+         for (int j=0; j<diag_r_I[i+1] - diag_r_I[i]; j++)
+         {
+            diag_J[diag_I[i] + j] = diag_r_J[diag_r_I[i] + j];
+            diag_D[diag_I[i] + j] = diag_r_D[diag_r_I[i] + j];
+
+            diag_J[diag_I[i+nrows] + off_i + j] =
+	      diag_r_J[diag_r_I[i] + j] + ncols;
+            diag_D[diag_I[i+nrows] + off_i + j] =
+	      factor * diag_r_D[diag_r_I[i] + j];
+         }
+      }
+      if (diag_i_I)
+      {
+         const int off_r = (diag_r_I)?(diag_r_I[i+1] - diag_r_I[i]):0;
+         for (int j=0; j<diag_i_I[i+1] - diag_i_I[i]; j++)
+         {
+            diag_J[diag_I[i] + off_r + j] =  diag_i_J[diag_i_I[i] + j] + ncols;
+            diag_D[diag_I[i] + off_r + j] = -diag_i_D[diag_i_I[i] + j];
+
+            diag_J[diag_I[i+nrows] + j] = diag_i_J[diag_i_I[i] + j];
+            diag_D[diag_I[i+nrows] + j] = factor * diag_i_D[diag_i_I[i] + j];
+         }
+      }
+   }
+
+   int num_recv_procs = 0;
+   HYPRE_Int * offd_col_start_stop = NULL;
+   this->getColStartStop(A_r, A_i, num_recv_procs, offd_col_start_stop);
    
-   return new HypreParMatrix(comm,
-			     2 * global_num_rows, 2 * global_num_cols,
-			     row_starts, col_starts,
-			     diag_I, diag_J, diag_D,
-			     offd_I, offd_J, offd_D,
-			     num_cols_offd, cmap);
+   for (mit=cinvmap.begin(); mit!=cinvmap.end(); mit++)
+   {
+      int col_orig = mit->first;
+      int col_2x2  = -1;
+      for (int i=0; i<num_recv_procs; i++)
+      {
+	if (offd_col_start_stop[2*i] <= col_orig &&
+	    col_orig < offd_col_start_stop[2*i+1])
+	{
+	  col_2x2 = offd_col_start_stop[2*i] + col_orig;
+	  break;
+	}
+      }
+      cmap[mit->second] = col_2x2;
+      cmap[mit->second+num_cols_offd] = col_2x2 + ncols;
+   }
+   delete [] offd_col_start_stop;
+   
+   offd_I[0] = 0;
+   offd_I[nrows] = offd_r_nnz + offd_i_nnz;
+   for (int i=0; i<nrows; i++)
+   {
+      offd_I[i + 1]         = ((offd_r_I)?offd_r_I[i+1]:0) +
+	((offd_i_I)?offd_i_I[i+1]:0);
+      offd_I[i + nrows + 1] = offd_I[i+1] + offd_r_nnz + offd_i_nnz;
+
+      if (offd_r_I)
+      {
+         const int off_i = (offd_i_I)?(offd_i_I[i+1] - offd_i_I[i]):0;
+         for (int j=0; j<offd_r_I[i+1] - offd_r_I[i]; j++)
+         {
+            offd_J[offd_I[i] + j] = cinvmap[cmap_r[offd_r_J[offd_r_I[i] + j]]];
+            offd_D[offd_I[i] + j] = offd_r_D[offd_r_I[i] + j];
+
+            offd_J[offd_I[i+nrows] + off_i + j] =
+	      cinvmap[cmap_r[offd_r_J[offd_r_I[i] + j]]] + num_cols_offd;
+            offd_D[offd_I[i+nrows] + off_i + j] =
+	      factor * offd_r_D[offd_r_I[i] + j];
+         }
+      }
+      if (offd_i_I)
+      {
+         const int off_r = (offd_r_I)?(offd_r_I[i+1] - offd_r_I[i]):0;
+         for (int j=0; j<offd_i_I[i+1] - offd_i_I[i]; j++)
+         {
+            offd_J[offd_I[i] + off_r + j] =
+	      cinvmap[cmap_i[offd_i_J[offd_i_I[i] + j]]] + num_cols_offd;
+            offd_D[offd_I[i] + off_r + j] = -offd_i_D[offd_i_I[i] + j];
+
+            offd_J[offd_I[i+nrows] + j] =
+	      cinvmap[cmap_i[offd_i_J[offd_i_I[i] + j]]];
+            offd_D[offd_I[i+nrows] + j] = factor * offd_i_D[offd_i_I[i] + j];
+         }
+      }
+   }
+
+   HypreParMatrix * A = new HypreParMatrix(comm_,
+					   2 * global_num_rows,
+					   2 * global_num_cols,
+					   row_starts, col_starts,
+					   diag_I, diag_J, diag_D,
+					   offd_I, offd_J, offd_D,
+					   2 * num_cols_offd, cmap);
+   
+   hypre_ParCSRMatrixSetRowStartsOwner((hypre_ParCSRMatrix*)(*A),1);
+   hypre_ParCSRMatrixSetColStartsOwner((hypre_ParCSRMatrix*)(*A),1);
+
+   return A;
 }
+
+void
+ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
+				       const HypreParMatrix * A_i,
+				       int & num_recv_procs,
+				       HYPRE_Int *& offd_col_start_stop) const
+{
+   hypre_ParCSRCommPkg * comm_pkg_r =
+     (A_r) ? hypre_ParCSRMatrixCommPkg((hypre_ParCSRMatrix*)(*A_r)) : NULL;
+   hypre_ParCSRCommPkg * comm_pkg_i =
+     (A_i) ? hypre_ParCSRMatrixCommPkg((hypre_ParCSRMatrix*)(*A_i)) : NULL;
+
+   // map<int, int> col_start_size;
+   set<HYPRE_Int> send_procs, recv_procs;
+   if ( comm_pkg_r )
+   {
+     for (HYPRE_Int i=0; i<comm_pkg_r->num_sends; i++)
+       {
+	 send_procs.insert(comm_pkg_r->send_procs[i]);
+       }
+     for (HYPRE_Int i=0; i<comm_pkg_r->num_recvs; i++)
+       {
+	 recv_procs.insert(comm_pkg_r->recv_procs[i]);
+       }
+   }
+   if ( comm_pkg_i )
+   {
+     for (HYPRE_Int i=0; i<comm_pkg_i->num_sends; i++)
+       {
+	 send_procs.insert(comm_pkg_i->send_procs[i]);
+       }
+     for (HYPRE_Int i=0; i<comm_pkg_i->num_recvs; i++)
+       {
+	 recv_procs.insert(comm_pkg_i->recv_procs[i]);
+       }
+   }
+
+   num_recv_procs = (int)recv_procs.size();
+   
+   HYPRE_Int loc_start_stop[2];
+   offd_col_start_stop = new HYPRE_Int[2 * num_recv_procs];
+   
+   const HYPRE_Int * row_part = (A_r) ? A_r->RowPart() :
+     ((A_i) ? A_i->RowPart() : NULL);
+
+   int row_part_ind = (HYPRE_AssumedPartitionCheck()) ? 0 : myid_;
+   loc_start_stop[0] = row_part[row_part_ind];
+   loc_start_stop[1] = row_part[row_part_ind+1];
+
+   if ( myid_ == 0 )
+     cout << "sizeof(HYPRE_Int) " << sizeof(HYPRE_Int) << endl
+	  << "sizeof(int) " << sizeof(int) << endl;
+   
+   MPI_Request * req = new MPI_Request[send_procs.size()+recv_procs.size()];
+   MPI_Status * stat = new MPI_Status[send_procs.size()+recv_procs.size()];
+   int send_count = 0;
+   int recv_count = 0;
+   int tag = 0;
+   set<HYPRE_Int>::iterator sit;
+   for (sit=send_procs.begin(); sit!=send_procs.end(); sit++)
+   {
+     if ( *sit >= nranks_ ) cout << myid_ << ": send procs " << *sit
+				 << " (nranks = "<< nranks_ << ")"<< endl;
+     MPI_Isend(loc_start_stop, 2, HYPRE_MPI_INT,
+	       *sit, tag, comm_, &req[send_count]);
+     send_count++;
+   }
+   for (sit=recv_procs.begin(); sit!=recv_procs.end(); sit++)
+   {
+     if ( *sit >= nranks_ ) cout << myid_ << ": recv procs " << *sit
+				 << " (nranks = "<< nranks_ << ")" << endl;
+     MPI_Irecv(&offd_col_start_stop[2*recv_count], 2, HYPRE_MPI_INT,
+	       *sit, tag, comm_, &req[send_count+recv_count]);
+     recv_count++;
+   }
+   MPI_Waitall(send_count+recv_count, req, stat);
+   delete [] req;
+   delete [] stat;
+}
+
 
 HypreSmoother::HypreSmoother() : Solver()
 {
