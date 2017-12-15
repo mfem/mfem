@@ -88,13 +88,15 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
+   mesh->EnsureNCMesh();
+
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
       int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -202,6 +204,17 @@ int main(int argc, char *argv[])
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
+
+   /////// TEST TEST /////////
+
+   for (int i = 0; i < 4; i++)
+   {
+      pmesh->RandomRefinement(0.5);
+      fespace->Update();
+      x.Update();
+   }
+
+   /////// TEST TEST /////////
 
    // 14. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".

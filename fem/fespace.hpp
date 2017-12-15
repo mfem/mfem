@@ -108,6 +108,10 @@ protected:
 
    void BuildElementToDofTable() const;
 
+   /// Helper to remove encoded sign from a DOF
+   static inline int DecodeDof(int dof, double& sign)
+   { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
+
    /** This is a helper function to get edge (type == 0) or face (type == 1)
        DOFs. The function is aware of ghost edges/faces in parallel, for which
        an empty DOF list is returned. */
@@ -118,11 +122,22 @@ protected:
 
    void MakeVDimMatrix(SparseMatrix &mat) const;
 
-   /// Calculate GridFunction interpolation matrix after mesh refinement.
-   SparseMatrix* RefinementMatrix(int old_ndofs, const Table* old_elem_dof);
+   /// GridFunction interpolation operator applicable after mesh refinement.
+   class RefinementOperator : public Operator
+   {
+      const FiniteElementSpace* fespace;
+      DenseTensor localP;
+      Table* old_elem_dof; // owned
 
-   void GetLocalDerefinementMatrices(int geom, const CoarseFineTransformations &dt,
-                                     DenseTensor &localR);
+   public:
+      virtual ~RefinementOperator();
+      RefinementOperator(const FiniteElementSpace* fespace,
+                         Table *old_elem_dof, int old_ndofs);
+      virtual void Mult(const Vector &x, Vector &y) const;
+   };
+
+   void GetLocalDerefinementMatrices(
+      int geom, const CoarseFineTransformations &dt, DenseTensor &localR);
 
    /// Calculate GridFunction restriction matrix after mesh derefinement.
    SparseMatrix* DerefinementMatrix(int old_ndofs, const Table* old_elem_dof);
