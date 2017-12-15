@@ -27,16 +27,16 @@ void Get1DBasis(const FiniteElement *fe, int ir_order,
    const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, ir_order);
 
    const int quads1d = ir1d.GetNPoints();
-   const int dofs = fe->GetOrder() + 1;
+   const int dofs1d = fe->GetOrder() + 1;
 
-   shape1d.SetSize(dofs, quads1d);
+   shape1d.SetSize(dofs1d, quads1d);
 
-   Vector u(dofs);
+   Vector u(dofs1d);
    for (int k = 0; k < quads1d; k++)
    {
       const IntegrationPoint &ip = ir1d.IntPoint(k);
       basis1d.Eval(ip.x, u);
-      for (int i = 0; i < dofs; i++)
+      for (int i = 0; i < dofs1d; i++)
       {
          shape1d(i, k) = u(i);
       }
@@ -54,18 +54,18 @@ void Get1DBasis(const FiniteElement *fe, int ir_order,
    const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, ir_order);
 
    const int quads1d = ir1d.GetNPoints();
-   const int dofs = fe->GetOrder() + 1;
+   const int dofs1d = fe->GetOrder() + 1;
 
-   shape1d.SetSize(dofs, quads1d);
-   dshape1d.SetSize(dofs, quads1d);
+   shape1d.SetSize(dofs1d, quads1d);
+   dshape1d.SetSize(dofs1d, quads1d);
 
-   Vector u(dofs);
-   Vector d(dofs);
+   Vector u(dofs1d);
+   Vector d(dofs1d);
    for (int k = 0; k < quads1d; k++)
    {
       const IntegrationPoint &ip = ir1d.IntPoint(k);
       basis1d.Eval(ip.x, u, d);
-      for (int i = 0; i < dofs; i++)
+      for (int i = 0; i < dofs1d; i++)
       {
          shape1d(i, k) = u(i);
          dshape1d(i, k) = d(i);
@@ -175,37 +175,55 @@ void PADiffusionIntegrator::Assemble(FiniteElementSpace *_trial_fes,
 
 void PADiffusionIntegrator::MultSeg(const Vector &V, Vector &U)
 {
+   const int dim = 1;
+   const int terms = dim*(dim+1)/2;
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
    const int quads = quads1d;
    const int vdim = fes->GetVDim();
 
-   Vector Q(quads1d);
+   DenseMatrix Q(quads1d, dim);
+   double *data_q = Q.GetData();
+   const double *data_d0 = Dtensor.GetData(0);
 
-   int offset = 0;
+   int e_offset = 0, d_offset = 0;
    for (int e = 0; e < fes->GetNE(); ++e)
    {
       for (int vd = 0; vd < vdim; ++vd)
       {
-         const Vector Vmat(V.GetData() + offset, dofs1d);
-         Vector Umat(U.GetData() + offset, dofs1d);
+         const Vector Vmat(V.GetData() + e_offset, dofs1d);
+         Vector Umat(U.GetData() + e_offset, dofs1d);
 
-         // Q_k1 = dshape_j1_k1 * V_i1
-         dshape1d.MultTranspose(Vmat, Q);
+         // Q_k1 = dshape_j1_k1 * Vmat_j1
+         Q = 0.;
+         for (int j1 = 0; j1 < dofs1d; ++j1)
+         {
+            const double v = Vmat(j1);
+            for (int k1 = 0; k1 < quads1d; ++k1)
+            {
+               Q(k1, 0) += v * dshape1d(j1, k1);
+            }
+         }
 
-         double *data_q = Q.GetData();
-         const double *data_d = Dtensor(e).GetData();
+         const double *data_d = data_d0 + d_offset;
          for (int k = 0; k < quads; ++k)
          {
             data_q[k] *= data_d[k];
          }
 
-         // Q_k1 = dshape_j1_k1 * Q_k1
-         dshape1d.AddMult(Q, Umat);
+         // Umat_k1 = dshape_j1_k1 * Q_k1
+         for (int k1 = 0; k1 < quads1d; ++k1)
+         {
+            const double q = Q(k1, 0);
+            for (int i1 = 0; i1 < dofs1d; ++i1)
+            {
+               Umat(i1) += q * dshape1d(i1, k1);
+            }
+         }
 
-         // increment offset into E-vectors.
-         offset += dofs1d;
+         e_offset += dofs1d;
       }
+      d_offset += quads1d * terms;
    }
 }
 
@@ -218,35 +236,52 @@ void PADiffusionIntegrator::MultQuad(const Vector &V, Vector &U)
 
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
+   const int msize = std::max(dofs1d, quads1d);
 
    const int dofs   = dofs1d * dofs1d;
    const int quads  = IntRule->GetNPoints();
 
+   DenseMatrix Q(msize, dim);
    DenseTensor QQ(quads1d, quads1d, dim);
-   DenseMatrix DQ(dofs1d, quads1d);
+   double *data_qq = QQ.GetData(0);
+   const double *data_d0 = Dtensor.GetData(0);
 
-   int offset = 0;
+   int e_offset = 0, d_offset = 0;
    for (int e = 0; e < fes->GetNE(); ++e)
    {
       for (int vd = 0; vd < vdim; ++vd)
       {
-         const DenseMatrix Vmat(V.GetData() + offset, dofs1d, dofs1d);
-         DenseMatrix Umat(U.GetData() + offset, dofs1d, dofs1d);
+         const DenseMatrix Vmat(V.GetData() + e_offset, dofs1d, dofs1d);
+         DenseMatrix Umat(U.GetData() + e_offset, dofs1d, dofs1d);
 
-         // DQ_j2_k1   = E_j1_j2  * dshape_j1_k1 -- contract in x direction
-         // QQ_0_k1_k2 = DQ_j2_k1 * shape_j2_k2  -- contract in y direction
-         MultAtB(Vmat, dshape1d, DQ);
-         MultAtB(DQ, shape1d, QQ(0));
-
-         // DQ_j2_k1   = E_j1_j2  * shape_j1_k1  -- contract in x direction
-         // QQ_1_k1_k2 = DQ_j2_k1 * dshape_j2_k2 -- contract in y direction
-         MultAtB(Vmat, shape1d, DQ);
-         MultAtB(DQ, dshape1d, QQ(1));
+         QQ = 0.;
+         for (int j2 = 0; j2 < dofs1d; ++j2)
+         {
+            Q = 0.;
+            for (int j1 = 0; j1 < dofs1d; ++j1)
+            {
+               const double v = Vmat(j1, j2);
+               for (int k1 = 0; k1 < quads1d; ++k1)
+               {
+                  Q(k1, 0) += v * dshape1d(j1, k1);
+                  Q(k1, 1) += v * shape1d(j1, k1);
+               }
+            }
+            for (int k2 = 0; k2 < quads1d; ++k2)
+            {
+               const double s = shape1d(j2, k2);
+               const double d = dshape1d(j2, k2);
+               for (int k1 = 0; k1 < quads1d; ++k1)
+               {
+                  QQ(k1, k2, 0) += Q(k1, 0) * s;
+                  QQ(k1, k2, 1) += Q(k1, 1) * d;
+               }
+            }
+         }
 
          // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
          // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
-         double *data_qq = QQ(0).GetData();
-         const double *data_d = Dtensor(e).GetData();
+         const double *data_d = data_d0 + d_offset;
          for (int k = 0; k < quads; ++k)
          {
             const double D00 = data_d[terms*k + 0];
@@ -260,19 +295,35 @@ void PADiffusionIntegrator::MultQuad(const Vector &V, Vector &U)
             data_qq[1*quads + k] = D01 * q0 + D11 * q1;
          }
 
-         // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
-         // U_i1_i2   += dshape_i1_k1 * DQ_i2_k1
-         MultABt(shape1d, QQ(0), DQ);
-         AddMultABt(dshape1d, DQ, Umat);
+         for (int k2 = 0; k2 < quads1d; ++k2)
+         {
+            Q = 0.;
+            for (int k1 = 0; k1 < quads1d; ++k1)
+            {
+               const double q0 = QQ(k1, k2, 0);
+               const double q1 = QQ(k1, k2, 1);
+               for (int i1 = 0; i1 < dofs1d; ++i1)
+               {
+                  Q(i1, 0) += q0 * dshape1d(i1, k1);
+                  Q(i1, 1) += q1 * shape1d(i1, k1);
+               }
+            }
+            for (int i2 = 0; i2 < dofs1d; ++i2)
+            {
+               const double s = shape1d(i2, k2);
+               const double d = dshape1d(i2, k2);
+               for (int i1 = 0; i1 < dofs1d; ++i1)
+               {
+                  Umat(i1, i2) +=
+                     Q(i1, 0) * s +
+                     Q(i1, 1) * d;
+               }
+            }
+         }
 
-         // DQ_i2_k1   = dshape_i2_k2 * QQ_1_k1_k2
-         // U_i1_i2   += shape_i1_k1  * DQ_i2_k1
-         MultABt(dshape1d, QQ(1), DQ);
-         AddMultABt(shape1d, DQ, Umat);
-
-         // increment offset
-         offset += dofs;
+         e_offset += dofs;
       }
+      d_offset += quads * terms;
    }
 }
 
@@ -284,26 +335,28 @@ void PADiffusionIntegrator::MultHex(const Vector &V, Vector &U)
 
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
+   const int msize = std::max(dofs1d, quads1d);
 
    const int dofs   = dofs1d * dofs1d * dofs1d;
    const int quads  = IntRule->GetNPoints();
 
-   DenseMatrix Q(quads1d, dim);
-   DenseTensor QQ(quads1d, quads1d, dim);
+   DenseMatrix Q(msize, dim);
+   DenseTensor QQ(msize, msize, dim);
 
    Array<double> QQQmem(quads1d * quads1d * quads1d * dim);
    double *data_qqq = QQQmem.GetData();
    DenseTensor QQQ0(data_qqq + 0*quads, quads1d, quads1d, quads1d);
    DenseTensor QQQ1(data_qqq + 1*quads, quads1d, quads1d, quads1d);
    DenseTensor QQQ2(data_qqq + 2*quads, quads1d, quads1d, quads1d);
+   const double *data_d0 = Dtensor.GetData(0);
 
-   int offset = 0;
+   int e_offset = 0, d_offset = 0;
    for (int e = 0; e < fes->GetNE(); ++e)
    {
       for (int vd = 0; vd < vdim; ++vd)
       {
-         const DenseTensor Vmat(V.GetData() + offset, dofs1d, dofs1d, dofs1d);
-         DenseTensor Umat(U.GetData() + offset, dofs1d, dofs1d, dofs1d);
+         const DenseTensor Vmat(V.GetData() + e_offset, dofs1d, dofs1d, dofs1d);
+         DenseTensor Umat(U.GetData() + e_offset, dofs1d, dofs1d, dofs1d);
 
          // QQQ_0_k1_k2_k3 = dshape_j1_k1 * shape_j2_k2  * shape_j3_k3  * Vmat_j1_j2_j3
          // QQQ_1_k1_k2_k3 = shape_j1_k1  * dshape_j2_k2 * shape_j3_k3  * Vmat_j1_j2_j3
@@ -317,33 +370,42 @@ void PADiffusionIntegrator::MultHex(const Vector &V, Vector &U)
                Q = 0.;
                for (int j1 = 0; j1 < dofs1d; ++j1)
                {
+                  const double v = Vmat(j1, j2, j3);
                   for (int k1 = 0; k1 < quads1d; ++k1)
                   {
-                     Q(k1, 0) += Vmat(j1, j2, j3) * dshape1d(j1, k1);
-                     Q(k1, 1) += Vmat(j1, j2, j3) * shape1d(j1, k1);
+                     Q(k1, 0) += v * dshape1d(j1, k1);
+                     Q(k1, 1) += v * shape1d(j1, k1);
                   }
                }
                for (int k2 = 0; k2 < quads1d; ++k2)
+               {
+                  const double s = shape1d(j2, k2);
+                  const double d = dshape1d(j2, k2);
                   for (int k1 = 0; k1 < quads1d; ++k1)
                   {
-                     QQ(k1, k2, 0) += Q(k1, 0) * shape1d(j2, k2);
-                     QQ(k1, k2, 1) += Q(k1, 1) * dshape1d(j2, k2);
-                     QQ(k1, k2, 2) += Q(k1, 1) * shape1d(j2, k2);
+                     QQ(k1, k2, 0) += Q(k1, 0) * s;
+                     QQ(k1, k2, 1) += Q(k1, 1) * d;
+                     QQ(k1, k2, 2) += Q(k1, 1) * s;
                   }
+               }
             }
             for (int k3 = 0; k3 < quads1d; ++k3)
+            {
+               const double s = shape1d(j3, k3);
+               const double d = dshape1d(j3, k3);
                for (int k2 = 0; k2 < quads1d; ++k2)
                   for (int k1 = 0; k1 < quads1d; ++k1)
                   {
-                     QQQ0(k1, k2, k3) += QQ(k1, k2, 0) * shape1d(j3, k3);
-                     QQQ1(k1, k2, k3) += QQ(k1, k2, 1) * shape1d(j3, k3);
-                     QQQ2(k1, k2, k3) += QQ(k1, k2, 2) * dshape1d(j3, k3);
+                     QQQ0(k1, k2, k3) += QQ(k1, k2, 0) * s;
+                     QQQ1(k1, k2, k3) += QQ(k1, k2, 1) * s;
+                     QQQ2(k1, k2, k3) += QQ(k1, k2, 2) * d;
                   }
+            }
          }
 
          // QQQ_c_k1_k2_k3 = Dmat_c_d_k1_k2_k3 * QQQ_d_k1_k2_k3
          // NOTE: (k1, k2, k3) = q -- 1d quad point index
-         const double *data_d = Dtensor(e).GetData();
+         const double *data_d = data_d0 + d_offset;
          for (int k = 0; k < quads; ++k)
          {
             const double D00 = data_d[terms*k + 0];
@@ -371,35 +433,46 @@ void PADiffusionIntegrator::MultHex(const Vector &V, Vector &U)
                Q = 0.;
                for (int k1 = 0; k1 < quads1d; ++k1)
                {
+                  const double q0 = QQQ0(k1, k2, k3);
+                  const double q1 = QQQ1(k1, k2, k3);
+                  const double q2 = QQQ2(k1, k2, k3);
                   for (int i1 = 0; i1 < dofs1d; ++i1)
                   {
-                     Q(i1, 0) += QQQ0(k1, k2, k3) * dshape1d(i1, k1);
-                     Q(i1, 1) += QQQ1(k1, k2, k3) * shape1d(i1, k1);
-                     Q(i1, 2) += QQQ2(k1, k2, k3) * shape1d(i1, k1);
+                     Q(i1, 0) += q0 * dshape1d(i1, k1);
+                     Q(i1, 1) += q1 * shape1d(i1, k1);
+                     Q(i1, 2) += q2 * shape1d(i1, k1);
                   }
                }
                for (int i2 = 0; i2 < dofs1d; ++i2)
+               {
+                  const double s = shape1d(i2, k2);
+                  const double d = dshape1d(i2, k2);
                   for (int i1 = 0; i1 < dofs1d; ++i1)
                   {
-                     QQ(i1, i2, 0) += Q(i1, 0) * shape1d(i2, k2);
-                     QQ(i1, i2, 1) += Q(i1, 1) * dshape1d(i2, k2);
-                     QQ(i1, i2, 2) += Q(i1, 2) * shape1d(i2, k2);
+                     QQ(i1, i2, 0) += Q(i1, 0) * s;
+                     QQ(i1, i2, 1) += Q(i1, 1) * d;
+                     QQ(i1, i2, 2) += Q(i1, 2) * s;
                   }
+               }
             }
             for (int i3 = 0; i3 < dofs1d; ++i3)
+            {
+               const double s = shape1d(i3, k3);
+               const double d = dshape1d(i3, k3);
                for (int i2 = 0; i2 < dofs1d; ++i2)
                   for (int i1 = 0; i1 < dofs1d; ++i1)
                   {
                      Umat(i1, i2, i3) +=
-                        QQ(i1, i2, 0) * shape1d(i3, k3) +
-                        QQ(i1, i2, 1) * shape1d(i3, k3) +
-                        QQ(i1, i2, 2) * dshape1d(i3, k3);
+                        QQ(i1, i2, 0) * s + 
+                        QQ(i1, i2, 1) * s +
+                        QQ(i1, i2, 2) * d;
                   }
+            }
          }
 
-         // increment offset
-         offset += dofs;
+         e_offset += dofs;
       }
+      d_offset += quads * terms;
    }
 }
 
@@ -505,30 +578,43 @@ void PAMassIntegrator::MultSeg(const Vector &V, Vector &U)
    const int quads = quads1d;
    const int vdim = fes->GetVDim();
 
-   Vector Q(quads1d);
+   Vector Q(dofs1d);
+   double *data_q = Q.GetData();
+   const double *data_d0 = Dtensor.GetData(0);
 
-   int offset = 0;
+   int e_offset = 0, d_offset = 0;
    for (int e = 0; e < fes->GetNE(); ++e)
    {
-      DenseMatrix &Dmat = Dtensor(e);
       for (int vd = 0; vd < vdim; ++vd)
       {
-         const Vector Vmat(V.GetData() + offset, dofs1d);
-         Vector Umat(U.GetData() + offset, dofs1d);
+         const Vector Vmat(V.GetData() + e_offset, dofs1d);
+         Vector Umat(U.GetData() + e_offset, dofs1d);
 
-         // Q_k1 = dshape_j1_k1 * V_i1
-         shape1d.MultTranspose(Vmat, Q);
+         Q = 0.;
+         for (int j1 = 0; j1 < dofs1d; ++j1)
+         {
+            const double v = Vmat(j1);
+            for (int k1 = 0; k1 < quads1d; ++k1)
+            {
+               Q(k1) += v * shape1d(j1, k1);
+            }
+         }
 
-         double *data_q = Q.GetData();
-         const double *data_d = Dmat.GetColumn(vd);
+         const double *data_d = data_d0 + d_offset;
          for (int k = 0; k < quads; ++k) { data_q[k] *= data_d[k]; }
 
-         // Q_k1 = dshape_j1_k1 * Q_k1
-         shape1d.AddMult(Q, Umat);
+         for (int k1 = 0; k1 < quads1d; ++k1)
+         {
+            const double q = Q(k1);
+            for (int i1 = 0; i1 < dofs1d; ++i1)
+            {
+               Umat(i1) += q * shape1d(i1, k1);
+            }
+         }
 
-         // Increment offset into E-vectors.
-         offset += dofs1d;
+         e_offset += dofs1d;
       }
+      d_offset += quads1d;
    }
 }
 
@@ -536,42 +622,76 @@ void PAMassIntegrator::MultQuad(const Vector &V, Vector &U)
 {
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
+   const int msize = std::max(dofs1d, quads1d);
 
    const int dofs   = dofs1d * dofs1d;
    const int quads  = IntRule->GetNPoints();
    const int vdim = fes->GetVDim();
 
+   Vector Q(msize);
    DenseMatrix QQ(quads1d, quads1d);
-   DenseMatrix DQ(dofs1d, quads1d);
+   double *data_qq = QQ.GetData();
+   const double *data_d0 = Dtensor.GetData(0);
 
-   int offset = 0;
+   int e_offset = 0, d_offset = 0;
    for (int e = 0; e < fes->GetNE(); ++e)
    {
-      DenseMatrix &Dmat = Dtensor(e);
       for (int vd = 0; vd < vdim; ++vd)
       {
-         const DenseMatrix Vmat(V.GetData() + offset, dofs1d, dofs1d);
-         DenseMatrix Umat(U.GetData() + offset, dofs1d, dofs1d);
+         const DenseMatrix Vmat(V.GetData() + e_offset, dofs1d, dofs1d);
+         DenseMatrix Umat(U.GetData() + e_offset, dofs1d, dofs1d);
 
-         // DQ_j2_k1   = E_j1_j2  * dshape_j1_k1 -- contract in x direction
-         // QQ_0_k1_k2 = DQ_j2_k1 * shape_j2_k2  -- contract in y direction
-         MultAtB(Vmat, shape1d, DQ);
-         MultAtB(DQ, shape1d, QQ);
+         QQ = 0.;
+         for (int j2 = 0; j2 < dofs1d; ++j2)
+         {
+            Q = 0.;
+            for (int j1 = 0; j1 < dofs1d; ++j1)
+            {
+               const double v = Vmat(j1, j2);
+               for (int k1 = 0; k1 < quads1d; ++k1)
+               {
+                  Q(k1) += v * shape1d(j1, k1);
+               }
+            }
+            for (int k2 = 0; k2 < quads1d; ++k2)
+            {
+               const double s = shape1d(j2, k2);
+               for (int k1 = 0; k1 < quads1d; ++k1)
+               {
+                  QQ(k1, k2) += Q(k1) * s;
+               }
+            }
+         }
 
          // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
          // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
-         double *data_qq = QQ.GetData();
-         const double *data_d = Dmat.GetColumn(vd);
+         const double *data_d = data_d0 + d_offset;
          for (int k = 0; k < quads; ++k) { data_qq[k] *= data_d[k]; }
 
-         // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
-         // U_i1_i2   += dshape_i1_k1 * DQ_i2_k1
-         MultABt(shape1d, QQ, DQ);
-         AddMultABt(shape1d, DQ, Umat);
+         for (int k2 = 0; k2 < quads1d; ++k2)
+         {
+            Q = 0.;
+            for (int k1 = 0; k1 < quads1d; ++k1)
+            {
+               const double q = QQ(k1, k2);
+               for (int i1 = 0; i1 < dofs1d; ++i1)
+               {
+                  Q(i1) += q * shape1d(i1, k1);
+               }
+            }
+            for (int i2 = 0; i2 < dofs1d; ++i2)
+            {
+               const double s = shape1d(i2, k2);
+               for (int i1 = 0; i1 < dofs1d; ++i1)
+               {
+                  Umat(i1, i2) += Q(i1) * s;
+               }
+            }
+         }
 
-         // increment offset
-         offset += dofs;
+         e_offset += dofs;
       }
+      d_offset += quads;
    }
 }
 
@@ -579,23 +699,25 @@ void PAMassIntegrator::MultHex(const Vector &V, Vector &U)
 {
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
+   const int msize = std::max(dofs1d, quads1d);
 
    const int dofs   = dofs1d * dofs1d * dofs1d;
    const int quads  = IntRule->GetNPoints();
    const int vdim = fes->GetVDim();
 
-   Vector Q(quads1d);
-   DenseMatrix QQ(quads1d, quads1d);
+   Vector Q(msize);
+   DenseMatrix QQ(msize, msize);
    DenseTensor QQQ(quads1d, quads1d, quads1d);
+   double *data_qqq = QQQ.GetData(0);
+   const double *data_d0 = Dtensor.GetData(0);
 
-   int offset = 0;
+   int e_offset = 0, d_offset = 0;
    for (int e = 0; e < fes->GetNE(); ++e)
    {
-      DenseMatrix &Dmat = Dtensor(e);
       for (int vd = 0; vd < vdim; ++vd)
       {
-         const DenseTensor Vmat(V.GetData() + offset, dofs1d, dofs1d, dofs1d);
-         DenseTensor Umat(U.GetData() + offset, dofs1d, dofs1d, dofs1d);
+         const DenseTensor Vmat(V.GetData() + e_offset, dofs1d, dofs1d, dofs1d);
+         DenseTensor Umat(U.GetData() + e_offset, dofs1d, dofs1d, dofs1d);
 
          // QQQ_k1_k2_k3 = shape_j1_k1 * shape_j2_k2  * shape_j3_k3  * Vmat_j1_j2_j3
          QQQ = 0.;
@@ -607,29 +729,35 @@ void PAMassIntegrator::MultHex(const Vector &V, Vector &U)
                Q = 0.;
                for (int j1 = 0; j1 < dofs1d; ++j1)
                {
+                  const double v = Vmat(j1, j2, j3);
                   for (int k1 = 0; k1 < quads1d; ++k1)
                   {
-                     Q(k1) += Vmat(j1, j2, j3) * shape1d(j1, k1);
+                     Q(k1) += v * shape1d(j1, k1);
                   }
                }
                for (int k2 = 0; k2 < quads1d; ++k2)
+               {
+                  const double s = shape1d(j2, k2);
                   for (int k1 = 0; k1 < quads1d; ++k1)
                   {
-                     QQ(k1, k2) += Q(k1) * shape1d(j2, k2);
+                     QQ(k1, k2) += Q(k1) * s;
                   }
+               }
             }
             for (int k3 = 0; k3 < quads1d; ++k3)
+            {
+               const double s = shape1d(j3, k3);
                for (int k2 = 0; k2 < quads1d; ++k2)
                   for (int k1 = 0; k1 < quads1d; ++k1)
                   {
-                     QQQ(k1, k2, k3) += QQ(k1, k2) * shape1d(j3, k3);
+                     QQQ(k1, k2, k3) += QQ(k1, k2) * s;
                   }
+            }
          }
 
          // QQQ_k1_k2_k3 = Dmat_k1_k2_k3 * QQQ_k1_k2_k3
          // NOTE: (k1, k2, k3) = q -- 1d quad point index
-         double *data_qqq = QQQ.GetData(0);
-         const double *data_d = Dmat.GetColumn(vd);
+         const double *data_d = data_d0 + d_offset;
          for (int k = 0; k < quads; ++k) { data_qqq[k] *= data_d[k]; }
 
          // Apply transpose of the first operator that takes V -> QQQ -- QQQ -> U
@@ -641,28 +769,35 @@ void PAMassIntegrator::MultHex(const Vector &V, Vector &U)
                Q = 0.;
                for (int k1 = 0; k1 < quads1d; ++k1)
                {
+                  const double q = QQQ(k1, k2, k3);
                   for (int i1 = 0; i1 < dofs1d; ++i1)
                   {
-                     Q(i1) += QQQ(k1, k2, k3) * shape1d(i1, k1);
+                     Q(i1) += q * shape1d(i1, k1);
                   }
                }
                for (int i2 = 0; i2 < dofs1d; ++i2)
+               {
+                  const double s = shape1d(i2, k2);
                   for (int i1 = 0; i1 < dofs1d; ++i1)
                   {
-                     QQ(i1, i2) += Q(i1) * shape1d(i2, k2);
+                     QQ(i1, i2) += Q(i1) * s;
                   }
+               }
             }
             for (int i3 = 0; i3 < dofs1d; ++i3)
+            {
+               const double s = shape1d(i3, k3);
                for (int i2 = 0; i2 < dofs1d; ++i2)
                   for (int i1 = 0; i1 < dofs1d; ++i1)
                   {
-                     Umat(i1, i2, i3) += shape1d(i3, k3) * QQ(i1, i2);
+                     Umat(i1, i2, i3) += s * QQ(i1, i2);
                   }
+            }
          }
 
-         // increment offset
-         offset += dofs;
+         e_offset += dofs;
       }
+      d_offset += quads;
    }
 }
 
