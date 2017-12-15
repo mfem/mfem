@@ -1026,11 +1026,6 @@ void ParFiniteElementSpace::ConstructTrueNURBSDofs()
    gcomm->Bcast(ldof_ltdof);
 }
 
-inline int decode_dof(int dof, double& sign)
-{
-   return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof));
-}
-
 const int INVALID_DOF = INT_MAX;
 
 static void MaskSlaveDofs(Array<int> &slave_dofs, const DenseMatrix &pm,
@@ -1104,7 +1099,7 @@ void ParFiniteElementSpace
    for (int i = 0; i < slave_dofs.Size(); i++)
    {
       double ss, ms;
-      int sdof = decode_dof(slave_dofs[i], ss);
+      int sdof = DecodeDof(slave_dofs[i], ss);
       if (sdof == INVALID_DOF) { continue; }
 
       for (int vd = 0; vd < vdim; vd++)
@@ -1118,7 +1113,7 @@ void ParFiniteElementSpace
                double coef = I(i, j);
                if (std::abs(coef) > 1e-12)
                {
-                  int mdof = decode_dof(master_dofs[j], ms);
+                  int mdof = DecodeDof(master_dofs[j], ms);
                   int mvdof = DofToVDof(mdof, vd, master_ndofs);
                   tmp_list.Append(Dependency(master_rank, mvdof, coef*ms*ss));
                }
@@ -1142,8 +1137,8 @@ void ParFiniteElementSpace
       for (int i = 0; i < owner_dofs.Size(); i++)
       {
          double osign, dsign;
-         int odof = decode_dof(owner_dofs[i], osign);
-         int ddof = decode_dof(dependent_dofs[i], dsign);
+         int odof = DecodeDof(owner_dofs[i], osign);
+         int ddof = DecodeDof(dependent_dofs[i], dsign);
          if (odof == INVALID_DOF || ddof == INVALID_DOF) { continue; }
 
          int ovdof = DofToVDof(odof, vd, owner_ndofs);
@@ -2268,7 +2263,8 @@ void ParFiniteElementSpace::Update(bool want_transform)
       {
          case Mesh::REFINE:
          {
-            T = RefinementMatrix(old_ndofs, old_elem_dof);
+            T = new RefinementOperator(this, old_elem_dof, old_ndofs);
+            // T takes ownership of 'old_elem_dofs'
             break;
          }
 
@@ -2279,19 +2275,21 @@ void ParFiniteElementSpace::Update(bool want_transform)
             {
                T = new TripleProductOperator(P, R, T, false, false, true);
             }
+            delete old_elem_dof;
             break;
          }
 
          case Mesh::REBALANCE:
          {
             T = RebalanceMatrix(old_ndofs, old_elem_dof);
+            delete old_elem_dof;
             break;
          }
 
          default:
+            delete old_elem_dof;
             break; // T stays NULL
       }
-      delete old_elem_dof;
    }
 }
 
