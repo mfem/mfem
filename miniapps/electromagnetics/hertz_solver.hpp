@@ -34,9 +34,9 @@ namespace electromagnetics
 
 // Physical Constants
 // Permittivity of Free Space (units F/m)
-static double epsilon0_ = 8.8541878176e-12;
+static const double epsilon0_ = 8.8541878176e-12;
 // Permeability of Free Space (units H/m)
-static double mu0_ = 4.0e-7*M_PI;
+static const double mu0_ = 4.0e-7*M_PI;
 
 //class SurfaceCurrent;
 class HertzSolver
