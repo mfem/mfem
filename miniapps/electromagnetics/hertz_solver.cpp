@@ -405,23 +405,71 @@ HertzSolver::Solve()
    /// For testing
    // e_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
-   ComplexOperator * A1 = a1_->ParallelAssemble(ComplexOperator::BLOCK_SYMMETRIC);
-   MINRESSolver minres(HCurlFESpace_->GetComm());
-   minres.SetOperator(*A1);
-   minres.SetRelTol(1e-6);
-   minres.SetMaxIter(50);
-   minres.SetPrintLevel(2);
-   // pcg.SetPreconditioner(ams);
+   ComplexHypreParMatrix * A1 =
+     a1_->ParallelAssemble(ComplexOperator::BLOCK_SYMMETRIC);
 
+  if ( A1->hasRealPart() ) A1->real().Print("A_real.mat");
+  if ( A1->hasImagPart() ) A1->imag().Print("A_imag.mat");
+   
+   HypreParMatrix * A = A1->GetSystemMatrix();
+   A->Print("A_combined.mat");
+
+   HypreParVector ra(*A); ra.Randomize(123);
+   HypreParVector A1ra(*A);
+   HypreParVector Ara(*A);
+   HypreParVector diff(*A);
+
+   A1->Mult(ra, A1ra);
+   A->Mult(ra, Ara);
+
+   subtract(A1ra, Ara, diff);
+
+   A1ra.Print("A1r.vec");
+   Ara.Print("Ar.vec");
+   diff.Print("diff.vec");
+   
+   double nrm = Ara.Norml2();
+   double nrm1 = A1ra.Norml2();
+   double nrmdiff = diff.Norml2();
+
+   if ( myid_ == 0 )
+     cout << "norms " << nrm << " " << nrm1 << " " << nrmdiff << endl;
+   
    HYPRE_Int size = HCurlFESpace_->GetTrueVSize();
    Vector E(2*size), RHS(2*size);
    jd_->ParallelAssemble(RHS);
-
+   e_->ParallelProject(E);
+   /*
+   MINRESSolver minres(HCurlFESpace_->GetComm());
+   minres.SetOperator(*A1);
+   minres.SetRelTol(1e-6);
+   minres.SetMaxIter(5000);
+   minres.SetPrintLevel(1);
+   // pcg.SetPreconditioner(ams);
    minres.Mult(RHS, E);
+   */
 
+   GMRESSolver gmres(HCurlFESpace_->GetComm());
+   gmres.SetOperator(*A1);
+   gmres.SetRelTol(1e-4);
+   gmres.SetMaxIter(10000);
+   gmres.SetPrintLevel(1);
+
+   gmres.Mult(RHS, E);
+   /*
+   FGMRESSolver fgmres(HCurlFESpace_->GetComm());
+   fgmres.SetOperator(*A1);
+   fgmres.SetRelTol(1e-6);
+   fgmres.SetMaxIter(10000);
+   fgmres.SetPrintLevel(1);
+   fgmres.SetPreconditioner(ams);
+   
+   fgmres.Mult(RHS, E);
+   */
    e_->Distribute(E);
 
    delete A1;
+   delete A;
    /*
    // Initialize the magnetic vector potential with its boundary conditions
    *a_ = 0.0;
