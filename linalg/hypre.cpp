@@ -1999,6 +1999,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
                                            offd_I, offd_J, offd_D,
                                            2 * num_cols_offd, cmap);
 
+   A->SetOwnerFlags(-1,-1,-1);
    hypre_ParCSRMatrixSetRowStartsOwner((hypre_ParCSRMatrix*)(*A),1);
    hypre_ParCSRMatrixSetColStartsOwner((hypre_ParCSRMatrix*)(*A),1);
 
@@ -2062,24 +2063,31 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
    int send_count = 0;
    int recv_count = 0;
    int tag = 0;
+
    set<HYPRE_Int>::iterator sit;
    for (sit=send_procs.begin(); sit!=send_procs.end(); sit++)
    {
       if ( *sit >= nranks_ ) cout << myid_ << ": send procs " << *sit
                                      << " (nranks = "<< nranks_ << ")"<< endl;
+      int dest = *sit;
       MPI_Isend(loc_start_stop, 2, HYPRE_MPI_INT,
-                *sit, tag, comm_, &req[send_count]);
+                dest, tag, comm_, &req[send_count]);
       send_count++;
    }
    for (sit=recv_procs.begin(); sit!=recv_procs.end(); sit++)
    {
       if ( *sit >= nranks_ ) cout << myid_ << ": recv procs " << *sit
                                      << " (nranks = "<< nranks_ << ")" << endl;
+      cout << "MPI_Irecv("<<&offd_col_start_stop[2*recv_count]<<","<< 2<<","<< HYPRE_MPI_INT<<","<<
+	*sit<<","<< tag<<","<< comm_<<","<< &req[send_count+recv_count]<<")" << endl << flush;
+      int src = *sit;
       MPI_Irecv(&offd_col_start_stop[2*recv_count], 2, HYPRE_MPI_INT,
-                *sit, tag, comm_, &req[send_count+recv_count]);
+                src, tag, comm_, &req[send_count+recv_count]);
       recv_count++;
    }
+
    MPI_Waitall(send_count+recv_count, req, stat);
+
    delete [] req;
    delete [] stat;
 }
