@@ -7859,12 +7859,9 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
             }
             out << '\n';
          }
-      out << flush;
-      return;
    }
-
    //  Dim is 3
-   if (meshgen == 1)
+   else if (meshgen == 1)
    {
       out << "NETGEN_Neutral_Format\n";
       // print the vertices
@@ -7959,12 +7956,8 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
                   }
             out << '\n';
          }
-
-      for (i = 0; i < NumOfVertices; i++)
-      {
-         delete [] vown[i];
-      }
    }
+   //  Dim is 3
    else if (meshgen == 2) // TrueGrid
    {
       // count the number of the boundary elements.
@@ -8062,6 +8055,11 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
    }
 
    out << flush;
+
+   for (i = 0; i < NumOfVertices; i++)
+   {
+      delete [] vown[i];
+   }
 
    delete [] vcount;
    delete [] voff;
