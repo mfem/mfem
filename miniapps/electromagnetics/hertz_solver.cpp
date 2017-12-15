@@ -406,11 +406,11 @@ HertzSolver::Solve()
    // e_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
    ComplexHypreParMatrix * A1 =
-     a1_->ParallelAssemble(ComplexOperator::BLOCK_SYMMETRIC);
+      a1_->ParallelAssemble(ComplexOperator::BLOCK_SYMMETRIC);
 
-  if ( A1->hasRealPart() ) A1->real().Print("A_real.mat");
-  if ( A1->hasImagPart() ) A1->imag().Print("A_imag.mat");
-   
+   if ( A1->hasRealPart() ) { A1->real().Print("A_real.mat"); }
+   if ( A1->hasImagPart() ) { A1->imag().Print("A_imag.mat"); }
+
    HypreParMatrix * A = A1->GetSystemMatrix();
    A->Print("A_combined.mat");
 
@@ -427,14 +427,16 @@ HertzSolver::Solve()
    A1ra.Print("A1r.vec");
    Ara.Print("Ar.vec");
    diff.Print("diff.vec");
-   
+
    double nrm = Ara.Norml2();
    double nrm1 = A1ra.Norml2();
    double nrmdiff = diff.Norml2();
 
    if ( myid_ == 0 )
-     cout << "norms " << nrm << " " << nrm1 << " " << nrmdiff << endl;
-   
+   {
+      cout << "norms " << nrm << " " << nrm1 << " " << nrmdiff << endl;
+   }
+
    HYPRE_Int size = HCurlFESpace_->GetTrueVSize();
    Vector E(2*size), RHS(2*size);
    jd_->ParallelAssemble(RHS);
@@ -463,7 +465,7 @@ HertzSolver::Solve()
    fgmres.SetMaxIter(10000);
    fgmres.SetPrintLevel(1);
    fgmres.SetPreconditioner(ams);
-   
+
    fgmres.Mult(RHS, E);
    */
    e_->Distribute(E);

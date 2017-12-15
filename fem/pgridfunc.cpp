@@ -638,7 +638,7 @@ ParComplexGridFunction::ParallelProject(Vector &tv) const
    pgfr_->ParallelProject(tvr);
    pgfi_->ParallelProject(tvi);
 }
-  
+
 
 double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
                           const ParGridFunction &x,

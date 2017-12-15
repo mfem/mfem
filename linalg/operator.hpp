@@ -477,7 +477,7 @@ public:
 
    bool hasRealPart() const { return Op_Real_ != NULL; }
    bool hasImagPart() const { return Op_Imag_ != NULL; }
-  
+
    virtual Operator & real();
    virtual Operator & imag();
    virtual const Operator & real() const;

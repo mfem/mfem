@@ -3162,26 +3162,26 @@ void SparseMatrix::Swap(SparseMatrix &other)
 
 SparseMatrix & ComplexSparseMatrix::real()
 {
-  MFEM_ASSERT(Op_Real_, "ComplexSparseMatrix has no real part!");
-  return dynamic_cast<SparseMatrix &>(*Op_Real_);
+   MFEM_ASSERT(Op_Real_, "ComplexSparseMatrix has no real part!");
+   return dynamic_cast<SparseMatrix &>(*Op_Real_);
 }
 
 SparseMatrix & ComplexSparseMatrix::imag()
 {
-  MFEM_ASSERT(Op_Imag_, "ComplexSparseMatrix has no imaginary part!");
-  return dynamic_cast<SparseMatrix &>(*Op_Imag_);
+   MFEM_ASSERT(Op_Imag_, "ComplexSparseMatrix has no imaginary part!");
+   return dynamic_cast<SparseMatrix &>(*Op_Imag_);
 }
 
 const SparseMatrix & ComplexSparseMatrix::real() const
 {
-  MFEM_ASSERT(Op_Real_, "ComplexSparseMatrix has no real part!");
-  return dynamic_cast<const SparseMatrix &>(*Op_Real_);
+   MFEM_ASSERT(Op_Real_, "ComplexSparseMatrix has no real part!");
+   return dynamic_cast<const SparseMatrix &>(*Op_Real_);
 }
 
 const SparseMatrix & ComplexSparseMatrix::imag() const
 {
-  MFEM_ASSERT(Op_Imag_, "ComplexSparseMatrix has no imaginary part!");
-  return dynamic_cast<const SparseMatrix &>(*Op_Imag_);
+   MFEM_ASSERT(Op_Imag_, "ComplexSparseMatrix has no imaginary part!");
+   return dynamic_cast<const SparseMatrix &>(*Op_Imag_);
 }
 
 SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
