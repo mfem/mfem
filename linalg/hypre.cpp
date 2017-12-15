@@ -2000,6 +2000,8 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
                                            2 * num_cols_offd, cmap);
 
    A->SetOwnerFlags(-1,-1,-1);
+   hypre_CSRMatrixSetDataOwner(((hypre_ParCSRMatrix*)(*A))->diag,1);
+   hypre_CSRMatrixSetDataOwner(((hypre_ParCSRMatrix*)(*A))->offd,1);
    hypre_ParCSRMatrixSetRowStartsOwner((hypre_ParCSRMatrix*)(*A),1);
    hypre_ParCSRMatrixSetColStartsOwner((hypre_ParCSRMatrix*)(*A),1);
 
