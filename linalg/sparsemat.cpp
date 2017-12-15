@@ -3232,7 +3232,7 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
             D[I[i] + j] = D_r[I_r[i] + j];
 
             J[I[i+nrows] + off_i + j] = J_r[I_r[i] + j] + ncols;
-            D[I[i+nrows] + off_i + j] = factor*D_r[I_r[i] + j];
+            D[I[i+nrows] + off_i + j] = factor * D_r[I_r[i] + j];
          }
       }
       if (I_i)
@@ -3244,7 +3244,7 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
             D[I[i] + off_r + j] = -D_i[I_i[i] + j];
 
             J[I[i+nrows] + j] = J_i[I_i[i] + j];
-            D[I[i+nrows] + j] = factor*D_i[I_i[i] + j];
+            D[I[i+nrows] + j] = factor * D_i[I_i[i] + j];
          }
       }
    }
