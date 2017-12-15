@@ -1444,7 +1444,7 @@ void NeighborRowMessage::Encode(int rank)
          MFEM_ASSERT(ent == ri.entity, "");
 
 #ifdef MFEM_DEBUG_PMATRIX
-         std::cout << "Rank " << pncmesh->MyRank << " sending to " << rank
+         mfem::out << "Rank " << pncmesh->MyRank << " sending to " << rank
                    << ": ent " << ri.entity << ", index " << ri.index
                    << ", edof " << ri.edof << " (id " << id.element << "/"
                    << id.local << ")" << std::endl;
@@ -1525,7 +1525,7 @@ void NeighborRowMessage::Decode(int rank)
          rows.back().row.read(stream, s);
 
 #ifdef MFEM_DEBUG_PMATRIX
-         std::cout << "Rank " << pncmesh->MyRank << " receiving from " << rank
+         mfem::out << "Rank " << pncmesh->MyRank << " receiving from " << rank
                    << ": ent " << rows.back().entity << ", index "
                    << rows.back().index << ", edof " << rows.back().edof
                    << std::endl;
@@ -1576,7 +1576,7 @@ void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
          msg.SetFEC(fec);
 
 #ifdef MFEM_DEBUG_PMATRIX
-         std::cout << "Rank " << pncmesh->GetMyRank() << " forwarding to "
+         mfem::out << "Rank " << pncmesh->GetMyRank() << " forwarding to "
                    << rank << ": ent " << ent << ", index" << idx
                    << ", edof " << edof << std::endl;
 #endif

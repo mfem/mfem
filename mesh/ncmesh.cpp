@@ -2349,7 +2349,7 @@ void NCMesh::FindNeighbors(int elem, Array<int> &neighbors,
    // TODO future: this function is inefficient. For a single element, an
    // octree neighbor search algorithm would be better. However, the octree
    // neighbor algorithm is hard to get right in the multi-octree case due to
-   // the differrent orientations of the octrees (i.e., the root elements).
+   // the different orientations of the octrees (i.e., the root elements).
 
    UpdateElementToVertexTable();
 
