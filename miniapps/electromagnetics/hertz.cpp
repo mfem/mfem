@@ -54,7 +54,7 @@ static Vector do_params_(0);  // Axis Start, Axis End, Rod Radius,
 void dipole_oscillator(const Vector &x, Vector &j);
 void j_src(const Vector &x, Vector &j) { dipole_oscillator(x, j); }
 
-static double freq_;
+static double freq_ = 1.0;
 
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
