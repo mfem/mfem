@@ -605,7 +605,7 @@ void ParNCMesh::CalcFaceOrientations()
 
          face_orient[face->index] = get_face_orientation(*face, *e1, *e2);
 
-         /*std::cout << "Rank " << MyRank << " face " << face->index << " ("
+         /*mfem::out << "Rank " << MyRank << " face " << face->index << " ("
                    << face->p1 << ", " << face->p2 << ", " << face->p3 << ") ori "
                    << (int) face_orient[face->index] << std::endl;*/
       }
