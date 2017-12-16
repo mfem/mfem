@@ -1786,29 +1786,24 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    int nrows = std::max(nrows_r, nrows_i);
    int ncols = std::max(ncols_r, ncols_i);
 
-   std::map<int, int> cinvmap;
-   if ( cmap_r )
+   std::set<int> cset;
+   for (int i=0; i<ncols_offd_r; i++)
    {
-      for (int i=0; i<ncols_offd_r; i++)
-      {
-         cinvmap[cmap_r[i]] = -1;
-      }
+      cset.insert(cmap_r[i]);
    }
-   if ( cmap_i )
+   for (int i=0; i<ncols_offd_i; i++)
    {
-      for (int i=0; i<ncols_offd_i; i++)
-      {
-         cinvmap[cmap_i[i]] = -1;
-      }
+      cset.insert(cmap_i[i]);
    }
+   int num_cols_offd = (int)cset.size();
+   /*
    std::map<int, int>::iterator mit;
    int i = 0;
    for (mit=cinvmap.begin(); mit!=cinvmap.end(); mit++, i++)
    {
       mit->second = i;
    }
-   int num_cols_offd = (int)cinvmap.size();
-
+   */
    const int * diag_r_I = (A_r) ? diag_r.GetI() : NULL;
    const int * diag_i_I = (A_i) ? diag_i.GetI() : NULL;
 
@@ -1897,15 +1892,20 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
 
       if (diag_r_I)
       {
-         const int off_i = (diag_i_I)?(diag_i_I[i+1] - diag_i_I[i]):0;
+        // const int off_i = (diag_i_I)?(diag_i_I[i+1] - diag_i_I[i]):0;
          for (int j=0; j<diag_r_I[i+1] - diag_r_I[i]; j++)
          {
             diag_J[diag_I[i] + j] = diag_r_J[diag_r_I[i] + j];
             diag_D[diag_I[i] + j] = diag_r_D[diag_r_I[i] + j];
-
+	    /*
             diag_J[diag_I[i+nrows] + off_i + j] =
                diag_r_J[diag_r_I[i] + j] + ncols;
             diag_D[diag_I[i+nrows] + off_i + j] =
+               factor * diag_r_D[diag_r_I[i] + j];
+	    */
+            diag_J[diag_I[i+nrows] + j] =
+               diag_r_J[diag_r_I[i] + j] + ncols;
+            diag_D[diag_I[i+nrows] + j] =
                factor * diag_r_D[diag_r_I[i] + j];
          }
       }
@@ -1917,19 +1917,24 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
             diag_J[diag_I[i] + off_r + j] =  diag_i_J[diag_i_I[i] + j] + ncols;
             diag_D[diag_I[i] + off_r + j] = -diag_i_D[diag_i_I[i] + j];
 
-            diag_J[diag_I[i+nrows] + j] = diag_i_J[diag_i_I[i] + j];
-            diag_D[diag_I[i+nrows] + j] = factor * diag_i_D[diag_i_I[i] + j];
+            diag_J[diag_I[i+nrows] + off_r + j] = diag_i_J[diag_i_I[i] + j];
+            diag_D[diag_I[i+nrows] + off_r + j] = factor * diag_i_D[diag_i_I[i] + j];
          }
       }
    }
 
+   if ( offd_nnz || true)
+   {
    int num_recv_procs = 0;
    HYPRE_Int * offd_col_start_stop = NULL;
+   cout << "calling getColStarStop" << endl << flush;
    this->getColStartStop(A_r, A_i, num_recv_procs, offd_col_start_stop);
-
-   for (mit=cinvmap.begin(); mit!=cinvmap.end(); mit++)
+   cout << "filling cmap" << endl << flush;
+   std::set<int>::iterator sit;
+   std::map<int,int> cmapa, cmapb, cinvmap;
+   for (sit=cset.begin(); sit!=cset.end(); sit++)
    {
-      int col_orig = mit->first;
+      int col_orig = *sit;
       int col_2x2  = -1;
       int col_size = 0;
       for (int i=0; i<num_recv_procs; i++)
@@ -1942,11 +1947,35 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
             break;
          }
       }
-      cmap[mit->second] = col_2x2;
-      cmap[mit->second+num_cols_offd] = col_2x2 + col_size;
+      cmapa[*sit] = col_2x2;
+      cmapb[*sit] = col_2x2 + col_size;
+      cinvmap[col_2x2] = -1;
+      cinvmap[col_2x2 + col_size] = -1;
    }
    delete [] offd_col_start_stop;
 
+   std::map<int, int>::iterator mit;
+   int i = 0;
+   for (mit=cinvmap.begin(); mit!=cinvmap.end(); mit++, i++)
+   {
+      mit->second = i;
+      cmap[i] = mit->first;
+   }
+   /*
+      for (int i=0; i<nranks_; i++)
+	{
+	  if (i == myid_)
+	    {
+	      cout << "cmap";
+	      for (int j=0; j<2*num_cols_offd; j++)
+		cout << " " << cmap[j];
+	      cout << endl << flush;
+	    }
+	  
+	  MPI_Barrier(comm_);
+	}
+   */
+   cout << "filling offd_I, offd_J, and offd_D" << endl << flush;
    offd_I[0] = 0;
    offd_I[nrows] = offd_r_nnz + offd_i_nnz;
    for (int i=0; i<nrows; i++)
@@ -1960,11 +1989,12 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
          const int off_i = (offd_i_I)?(offd_i_I[i+1] - offd_i_I[i]):0;
          for (int j=0; j<offd_r_I[i+1] - offd_r_I[i]; j++)
          {
-            offd_J[offd_I[i] + j] = cinvmap[cmap_r[offd_r_J[offd_r_I[i] + j]]];
+            offd_J[offd_I[i] + j] =
+	      cinvmap[cmapa[cmap_r[offd_r_J[offd_r_I[i] + j]]]];
             offd_D[offd_I[i] + j] = offd_r_D[offd_r_I[i] + j];
 
             offd_J[offd_I[i+nrows] + off_i + j] =
-               cinvmap[cmap_r[offd_r_J[offd_r_I[i] + j]]] + num_cols_offd;
+	      cinvmap[cmapb[cmap_r[offd_r_J[offd_r_I[i] + j]]]];
             offd_D[offd_I[i+nrows] + off_i + j] =
                factor * offd_r_D[offd_r_I[i] + j];
          }
@@ -1975,11 +2005,11 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
          for (int j=0; j<offd_i_I[i+1] - offd_i_I[i]; j++)
          {
             offd_J[offd_I[i] + off_r + j] =
-               cinvmap[cmap_i[offd_i_J[offd_i_I[i] + j]]] + num_cols_offd;
+	      cinvmap[cmapa[cmap_i[offd_i_J[offd_i_I[i] + j]]]];
             offd_D[offd_I[i] + off_r + j] = -offd_i_D[offd_i_I[i] + j];
 
             offd_J[offd_I[i+nrows] + j] =
-               cinvmap[cmap_i[offd_i_J[offd_i_I[i] + j]]];
+               cinvmap[cmapb[cmap_i[offd_i_J[offd_i_I[i] + j]]]];
             offd_D[offd_I[i+nrows] + j] = factor * offd_i_D[offd_i_I[i] + j];
          }
       }
