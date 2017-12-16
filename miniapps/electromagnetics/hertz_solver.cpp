@@ -251,6 +251,10 @@ HertzSolver::~HertzSolver()
 {
    delete jrCoef_;
    delete jiCoef_;
+   delete massCoef_;
+   delete lossCoef_;
+   delete omegaCoef_;
+   delete omega2Coef_;
    //  delete aBCCoef_;
 
    // delete DivFreeProj_;
