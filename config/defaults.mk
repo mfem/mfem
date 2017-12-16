@@ -104,6 +104,7 @@ MFEM_USE_NETCDF      = NO
 MFEM_USE_PETSC       = NO
 MFEM_USE_MPFR        = NO
 MFEM_USE_SIDRE       = NO
+MFEM_USE_CONDUIT     = NO
 
 LIBUNWIND_OPT = -g
 LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
