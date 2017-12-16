@@ -57,9 +57,15 @@ ConduitDataCollection::~ConduitDataCollection()
 void
 ConduitDataCollection::Save()
 {
-   create_directory(MeshDirectoryName(), mesh, myid);
-   
+   std::string dir_name = MeshDirectoryName();
+   int err = create_directory(dir_name, mesh, myid);
+   if (err)
+   {
+      MFEM_ABORT("Error creating directory: " << dir_name);
+   }
+
    Node n_mesh;
+   // future? If moved into Mesh class
    //mesh->toConduitBlueprint(n_mesh);
    MeshToBlueprintMesh(mesh,n_mesh);
    
@@ -67,13 +73,14 @@ ConduitDataCollection::Save()
    if(!blueprint::mesh::verify(n_mesh,verify_info))
    {
       MFEM_ABORT("Conduit Mesh Blueprint Verify Failed:\n"
-                  << verify_info.to_json());
+                    << verify_info.to_json());
    }
    
    FieldMapConstIterator itr;
    for( itr = field_map.begin(); itr != field_map.end(); itr++)
    {
       GridFunction *gf = itr->second;
+      // future? If moved into GridFunction class
       //gf->toConduitBlueprint(n_mesh["fields"][it->first]);
       GridFunctionToBlueprintField(gf,
                                    n_mesh["fields"][itr->first]);
@@ -346,9 +353,6 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
    Node n_conv;
 
    const double *vals_ptr = NULL;
-
-   // TODO: USE ORDERING IN FiniteElementSpace CONSTRUCTOR TO AVOID REPACKING?
-   // TODO: deal with double conversions for vec case... 
 
    int vdim = 1;
 
@@ -761,7 +765,69 @@ ConduitDataCollection::SaveMeshAndFields(int domain_id,
 void
 ConduitDataCollection::LoadRootFile(Node &root_out)
 {
-   relay::io::load(RootFileName(), relay_protocol, root_out);
+#ifdef MFEM_USE_MPI
+   // TODO, get mpi comm from ParMesh?
+   MPI_Comm par_comm = MPI_COMM_WORLD;
+#endif
+
+   if(myid == 0)
+   {
+      relay::io::load(RootFileName(), relay_protocol, root_out);
+#ifdef MFEM_USE_MPI
+      // broadcast contents of root file other ranks 
+      // (conduit relay mpi  would simplify, but we would need to link another 
+      // lib for mpi case)
+      
+      // create json string
+      std::string root_json = root_out.to_json();
+      // string size +1 for null term
+      int json_str_size = root_json.size() + 1;
+
+      // broadcast json string buffer size
+      MPI_Bcast(&json_str_size, // ptr
+                1, // size
+                MPI_INT, // type
+                0, // root
+                par_comm); // comm
+
+      // broadcast json string
+      MPI_Bcast(&root_json.c_str(), // ptr
+                json_str_size, // size
+                MPI_CHAR, // type
+                0, // root 
+                par_comm); // comm
+#endif
+   }
+
+#ifdef MFEM_USE_MPI
+   else
+   {
+      // recv json string buffer size via broadcast
+      int json_str_size = -1;
+      MPI_Bcast(&json_str_size, // ptr
+                1, // size
+                MPI_INT, // type
+                0, // root
+                par_comm); // comm
+
+      // TODO? check size -1, or MPI error
+
+      // recv json string buffer via broadcast
+      char *json_buff = new char[json_str_size];
+      MPI_Bcast(json_buff,  // ptr
+                json_str_size, // size
+                MPI_CHAR, // type
+                0, // root 
+                par_comm); // comm
+                
+      // reconstruct root file contents
+      Generator g(std::string(json_buff),"json");
+      g.walk(root_out)
+      // cleanup temp buffer
+      delete json_buff;
+   }
+#endif
+
 }
 
 //---------------------------------------------------------------------------//
@@ -788,7 +854,7 @@ ConduitDataCollection::LoadMeshAndFields(int domain_id,
    
    NodeConstIterator itr = n_mesh["fields"].children();
    
-   // TODO: do we need to filter mesh_nodes, material_att, etc?
+   // TODO: do we need to filter mesh_nodes, main_attribute, etc?
    while(itr.has_next())
    {
       const Node &n_field = itr.next();
