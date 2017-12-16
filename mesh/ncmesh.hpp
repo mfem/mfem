@@ -727,11 +727,6 @@ protected: // implementation
 
 #ifdef MFEM_DEBUG
 public:
-   void DebugNeighbors(Array<char> &elem_set);
-
-   /// Print the space-filling curve formed by the sequence of leaf elements.
-   void DebugLeafOrder() const;
-
    void DebugDump(std::ostream &out) const;
 #endif
 

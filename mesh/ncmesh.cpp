@@ -2485,19 +2485,6 @@ void NCMesh::NeighborExpand(const Array<int> &elems,
    }
 }
 
-#ifdef MFEM_DEBUG
-void NCMesh::DebugNeighbors(Array<char> &elem_set)
-{
-   Array<int> neighbors;
-   FindSetNeighbors(elem_set, &neighbors);
-
-   for (int i = 0; i < neighbors.Size(); i++)
-   {
-      elem_set[elements[neighbors[i]].index] = 2;
-   }
-}
-#endif
-
 
 //// Coarse/fine transformations ///////////////////////////////////////////////
 
@@ -3625,31 +3612,6 @@ void NCMesh::PrintStats(std::ostream &out) const
        << "[ " << std::setw(9) << MemoryUsage()/MiB << " MiB ]\n"
        ;
 }
-
-#if 0//def MFEM_DEBUG
-void NCMesh::DebugLeafOrder() const
-{
-   for (int i = 0; i < leaf_elements.Size(); i++)
-   {
-      Element* elem = leaf_elements[i];
-      for (int j = 0; j < Dim; j++)
-      {
-         double sum = 0.0;
-         int count = 0;
-         for (int k = 0; k < 8; k++)
-         {
-            if (elem->node[k])
-            {
-               sum += elem->node[k]->vertex->pos[j];
-               count++;
-            }
-         }
-         mfem::out << sum / count << " ";
-      }
-      mfem::out << "\n";
-   }
-}
-#endif
 
 #ifdef MFEM_DEBUG
 void NCMesh::DebugDump(std::ostream &out) const
