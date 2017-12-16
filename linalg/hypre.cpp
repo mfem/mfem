@@ -1870,7 +1870,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
 
             diag_J[diag_I[i+nrows] + off_r + j] = diag_i_J[diag_i_I[i] + j];
             diag_D[diag_I[i+nrows] + off_r + j] =
-	      factor * diag_i_D[diag_i_I[i] + j];
+               factor * diag_i_D[diag_i_I[i] + j];
          }
       }
    }
@@ -1893,7 +1893,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
              col_orig < offd_col_start_stop[2*i+1])
          {
             col_2x2 = offd_col_start_stop[2*i] + col_orig;
-	    col_size = offd_col_start_stop[2*i+1] - offd_col_start_stop[2*i];
+            col_size = offd_col_start_stop[2*i+1] - offd_col_start_stop[2*i];
             break;
          }
       }
@@ -1927,11 +1927,11 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
          for (int j=0; j<offd_r_I[i+1] - offd_r_I[i]; j++)
          {
             offd_J[offd_I[i] + j] =
-	      cinvmap[cmapa[cmap_r[offd_r_J[offd_r_I[i] + j]]]];
+               cinvmap[cmapa[cmap_r[offd_r_J[offd_r_I[i] + j]]]];
             offd_D[offd_I[i] + j] = offd_r_D[offd_r_I[i] + j];
 
             offd_J[offd_I[i+nrows] + off_i + j] =
-	      cinvmap[cmapb[cmap_r[offd_r_J[offd_r_I[i] + j]]]];
+               cinvmap[cmapb[cmap_r[offd_r_J[offd_r_I[i] + j]]]];
             offd_D[offd_I[i+nrows] + off_i + j] =
                factor * offd_r_D[offd_r_I[i] + j];
          }
@@ -1942,7 +1942,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
          for (int j=0; j<offd_i_I[i+1] - offd_i_I[i]; j++)
          {
             offd_J[offd_I[i] + off_r + j] =
-	      cinvmap[cmapa[cmap_i[offd_i_J[offd_i_I[i] + j]]]];
+               cinvmap[cmapa[cmap_i[offd_i_J[offd_i_I[i] + j]]]];
             offd_D[offd_I[i] + off_r + j] = -offd_i_D[offd_i_I[i] + j];
 
             offd_J[offd_I[i+nrows] + j] =
