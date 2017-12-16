@@ -1786,6 +1786,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    int nrows = std::max(nrows_r, nrows_i);
    int ncols = std::max(ncols_r, ncols_i);
 
+   // Determine the unique set of off-diagonal columns global indices
    std::set<int> cset;
    for (int i=0; i<ncols_offd_r; i++)
    {
@@ -1796,14 +1797,8 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
       cset.insert(cmap_i[i]);
    }
    int num_cols_offd = (int)cset.size();
-   /*
-   std::map<int, int>::iterator mit;
-   int i = 0;
-   for (mit=cinvmap.begin(); mit!=cinvmap.end(); mit++, i++)
-   {
-      mit->second = i;
-   }
-   */
+
+   // Exatract pointers to the various CSR arrays of the diagonal blocks
    const int * diag_r_I = (A_r) ? diag_r.GetI() : NULL;
    const int * diag_i_I = (A_i) ? diag_i.GetI() : NULL;
 
@@ -1816,25 +1811,8 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    int diag_r_nnz = (diag_r_I) ? diag_r_I[nrows] : 0;
    int diag_i_nnz = (diag_i_I) ? diag_i_I[nrows] : 0;
    int diag_nnz = 2 * (diag_r_nnz + diag_i_nnz);
-   /*
-   {
-     int minj = global_num_cols;
-     int maxj = -1;
-     for (int i=0; i<diag_r_nnz; i++)
-       {
-    minj = std::min(minj, diag_r_J[i]);
-    maxj = std::max(maxj, diag_r_J[i]);
-       }
-     if ( myid == 0 )
-       cout << "col range in diag_r" << endl;
-     for (int i=0; i<nranks; i++)
-       {
-    if ( myid == i )
-      cout << myid << ": [" << minj << "," << maxj << "]" << endl;
-    MPI_Barrier(comm);
-       }
-   }
-   */
+
+   // Exatract pointers to the various CSR arrays of the off-diagonal blocks
    const int * offd_r_I = (A_r) ? offd_r.GetI() : NULL;
    const int * offd_i_I = (A_i) ? offd_i.GetI() : NULL;
 
@@ -1847,30 +1825,8 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    int offd_r_nnz = (offd_r_I) ? offd_r_I[nrows] : 0;
    int offd_i_nnz = (offd_i_I) ? offd_i_I[nrows] : 0;
    int offd_nnz = 2 * (offd_r_nnz + offd_i_nnz);
-   /*
-   {
-     int minj = global_num_cols;
-     int maxj = -1;
-     int minmj = global_num_cols;
-     int maxmj = -1;
-     for (int i=0; i<offd_r_nnz; i++)
-       {
-    minj = std::min(minj, offd_r_J[i]);
-    maxj = std::max(maxj, offd_r_J[i]);
-    minmj = std::min(minmj, cmap_r[offd_r_J[i]]);
-    maxmj = std::max(maxmj, cmap_r[offd_r_J[i]]);
-       }
-     if ( myid == 0 )
-       cout << "col range in offd_r" << endl;
-     for (int i=0; i<nranks; i++)
-       {
-    if ( myid == i )
-      cout << myid << ": [" << minj << "," << maxj << "]" << ", ["
-      << minmj << "," << maxmj << "]" << endl;
-    MPI_Barrier(comm);
-       }
-   }
-   */
+
+   // Allocate CSR arrays for the combined matrix
    HYPRE_Int * diag_I = hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
    HYPRE_Int * diag_J = hypre_CTAlloc(HYPRE_Int, diag_nnz);
    double    * diag_D = hypre_CTAlloc(double, diag_nnz);
@@ -1880,6 +1836,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    double    * offd_D = hypre_CTAlloc(double, offd_nnz);
    HYPRE_Int * cmap   = hypre_CTAlloc(HYPRE_Int, 2 * num_cols_offd);
 
+   // Fill the CSR arrays for the diagonal portion of the matrix
    const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
 
    diag_I[0] = 0;
@@ -1892,17 +1849,11 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
 
       if (diag_r_I)
       {
-        // const int off_i = (diag_i_I)?(diag_i_I[i+1] - diag_i_I[i]):0;
          for (int j=0; j<diag_r_I[i+1] - diag_r_I[i]; j++)
          {
             diag_J[diag_I[i] + j] = diag_r_J[diag_r_I[i] + j];
             diag_D[diag_I[i] + j] = diag_r_D[diag_r_I[i] + j];
-	    /*
-            diag_J[diag_I[i+nrows] + off_i + j] =
-               diag_r_J[diag_r_I[i] + j] + ncols;
-            diag_D[diag_I[i+nrows] + off_i + j] =
-               factor * diag_r_D[diag_r_I[i] + j];
-	    */
+
             diag_J[diag_I[i+nrows] + j] =
                diag_r_J[diag_r_I[i] + j] + ncols;
             diag_D[diag_I[i+nrows] + j] =
@@ -1918,18 +1869,17 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
             diag_D[diag_I[i] + off_r + j] = -diag_i_D[diag_i_I[i] + j];
 
             diag_J[diag_I[i+nrows] + off_r + j] = diag_i_J[diag_i_I[i] + j];
-            diag_D[diag_I[i+nrows] + off_r + j] = factor * diag_i_D[diag_i_I[i] + j];
+            diag_D[diag_I[i+nrows] + off_r + j] =
+	      factor * diag_i_D[diag_i_I[i] + j];
          }
       }
    }
 
-   if ( offd_nnz || true)
-   {
+   // Determine the mappings describing the layout of off-diagonal columns
    int num_recv_procs = 0;
    HYPRE_Int * offd_col_start_stop = NULL;
-   cout << "calling getColStarStop" << endl << flush;
    this->getColStartStop(A_r, A_i, num_recv_procs, offd_col_start_stop);
-   cout << "filling cmap" << endl << flush;
+
    std::set<int>::iterator sit;
    std::map<int,int> cmapa, cmapb, cinvmap;
    for (sit=cset.begin(); sit!=cset.end(); sit++)
@@ -1961,21 +1911,8 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
       mit->second = i;
       cmap[i] = mit->first;
    }
-   /*
-      for (int i=0; i<nranks_; i++)
-	{
-	  if (i == myid_)
-	    {
-	      cout << "cmap";
-	      for (int j=0; j<2*num_cols_offd; j++)
-		cout << " " << cmap[j];
-	      cout << endl << flush;
-	    }
-	  
-	  MPI_Barrier(comm_);
-	}
-   */
-   cout << "filling offd_I, offd_J, and offd_D" << endl << flush;
+
+   // Fill the CSR arrays for the off-diagonal portion of the matrix
    offd_I[0] = 0;
    offd_I[nrows] = offd_r_nnz + offd_i_nnz;
    for (int i=0; i<nrows; i++)
@@ -2015,6 +1952,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
       }
    }
 
+   // Construct the combined matrix
    HypreParMatrix * A = new HypreParMatrix(comm_,
                                            2 * global_num_rows,
                                            2 * global_num_cols,
@@ -2023,6 +1961,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
                                            offd_I, offd_J, offd_D,
                                            2 * num_cols_offd, cmap);
 
+   // Give the new matrix ownership of its interanl arrays
    A->SetOwnerFlags(-1,-1,-1);
    hypre_CSRMatrixSetDataOwner(((hypre_ParCSRMatrix*)(*A))->diag,1);
    hypre_CSRMatrixSetDataOwner(((hypre_ParCSRMatrix*)(*A))->offd,1);
@@ -2043,7 +1982,6 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
    hypre_ParCSRCommPkg * comm_pkg_i =
       (A_i) ? hypre_ParCSRMatrixCommPkg((hypre_ParCSRMatrix*)(*A_i)) : NULL;
 
-   // map<int, int> col_start_size;
    set<HYPRE_Int> send_procs, recv_procs;
    if ( comm_pkg_r )
    {
@@ -2080,10 +2018,6 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
    loc_start_stop[0] = row_part[row_part_ind];
    loc_start_stop[1] = row_part[row_part_ind+1];
 
-   if ( myid_ == 0 )
-      cout << "sizeof(HYPRE_Int) " << sizeof(HYPRE_Int) << endl
-           << "sizeof(int) " << sizeof(int) << endl;
-
    MPI_Request * req = new MPI_Request[send_procs.size()+recv_procs.size()];
    MPI_Status * stat = new MPI_Status[send_procs.size()+recv_procs.size()];
    int send_count = 0;
@@ -2093,22 +2027,14 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
    set<HYPRE_Int>::iterator sit;
    for (sit=send_procs.begin(); sit!=send_procs.end(); sit++)
    {
-      if ( *sit >= nranks_ ) cout << myid_ << ": send procs " << *sit
-                                     << " (nranks = "<< nranks_ << ")"<< endl;
-      int dest = *sit;
       MPI_Isend(loc_start_stop, 2, HYPRE_MPI_INT,
-                dest, tag, comm_, &req[send_count]);
+                *sit, tag, comm_, &req[send_count]);
       send_count++;
    }
    for (sit=recv_procs.begin(); sit!=recv_procs.end(); sit++)
    {
-      if ( *sit >= nranks_ ) cout << myid_ << ": recv procs " << *sit
-                                     << " (nranks = "<< nranks_ << ")" << endl;
-      cout << "MPI_Irecv("<<&offd_col_start_stop[2*recv_count]<<","<< 2<<","<< HYPRE_MPI_INT<<","<<
-	*sit<<","<< tag<<","<< comm_<<","<< &req[send_count+recv_count]<<")" << endl << flush;
-      int src = *sit;
       MPI_Irecv(&offd_col_start_stop[2*recv_count], 2, HYPRE_MPI_INT,
-                src, tag, comm_, &req[send_count+recv_count]);
+                *sit, tag, comm_, &req[send_count+recv_count]);
       recv_count++;
    }
 
