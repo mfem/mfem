@@ -102,7 +102,7 @@ ConduitDataCollection::Load(int cycle)
    DeleteAll();
    this->cycle = cycle;
    
-   // Note: We aren't currently using any info from the root file ...
+   // Note: We aren't currently using much info from the root file ...
    // with cycle, we can use implicit mfem conduit file layout
    
    Node n_root;
@@ -125,226 +125,17 @@ ConduitDataCollection::SetProtocol(const std::string &protocol)
 }
 
 //------------------------------
-// end public methods
+// begin static public methods
 //------------------------------
-
-//------------------------------
-// begin protected methods
-//------------------------------
-
-//---------------------------------------------------------------------------//
-std::string
-ConduitDataCollection::RootFileName()
-{
-    std::string res = prefix_path + name + "_" +
-                      to_padded_string(cycle, pad_digits_cycle) +
-                      ".root";
-    return res;
-}
-
-//---------------------------------------------------------------------------//
-std::string
-ConduitDataCollection::MeshFileName(int domain_id,
-                                    const std::string &relay_protocol)
-{
-   std::string res = prefix_path + 
-                     name  + 
-                     "_" +
-                     to_padded_string(cycle, pad_digits_cycle) +
-                     "/domain_" +
-                     to_padded_string(domain_id, pad_digits_rank) +
-                     "." +
-                     relay_protocol;
-
-   return res;
-}
-
-//---------------------------------------------------------------------------//
-std::string
-ConduitDataCollection::MeshDirectoryName()
-{
-   std::string res = prefix_path +
-                     name +
-                     "_" +
-                     to_padded_string(cycle, pad_digits_cycle);
-   return res;
-}
-
-//---------------------------------------------------------------------------//
-std::string
-ConduitDataCollection::MeshFilePattern(const std::string &relay_protocol)
-{
-   std::ostringstream oss;
-   oss << prefix_path 
-       << name 
-       << "_"
-       << to_padded_string(cycle, pad_digits_cycle)
-       << "/domain_%0"
-       << pad_digits_rank
-       << "d."
-       << relay_protocol;
-
-   return oss.str();
-}
-
-
-//---------------------------------------------------------------------------//
-void
-ConduitDataCollection::SaveRootFile(int num_domains,
-                                    const Node &n_mesh, 
-                                    const std::string &relay_protocol)
-{
-   // default to json root file, except for hdf5 case
-   std::string root_proto = "json";
-   
-   if(relay_protocol == "hdf5")
-   {
-      root_proto = relay_protocol;
-   }
-
-   Node n_root;
-   // create blueprint index
-   Node &n_bp_idx = n_root["blueprint_index"];
-
-   blueprint::mesh::generate_index(n_mesh,
-                                   "",
-                                   num_domains,
-                                   n_bp_idx["mesh"]);
-   
-   // add extra header info
-   n_root["protocol/name"]    =  relay_protocol;
-   n_root["protocol/version"] = "0.3.1";
-
-   
-   // we will save one file per domain, so trees == files
-   n_root["number_of_files"]  = num_domains;
-   n_root["number_of_trees"]  = num_domains;
-   n_root["file_pattern"]     = MeshFilePattern(relay_protocol);
-   n_root["tree_pattern"]     = "/";
-
-   relay::io::save(n_root, RootFileName(), root_proto);
-}
-
-//---------------------------------------------------------------------------//
-void
-ConduitDataCollection::SaveMeshAndFields(int domain_id,
-                                         const Node &n_mesh,
-                                         const std::string &relay_protocol)
-{
-   relay::io::save(n_mesh, MeshFileName(domain_id, relay_protocol));
-}
-
-
-
-//---------------------------------------------------------------------------//
-void
-ConduitDataCollection::LoadRootFile(Node &root_out)
-{
-   relay::io::load(RootFileName(), relay_protocol, root_out);
-}
-
-//---------------------------------------------------------------------------//
-void
-ConduitDataCollection::LoadMeshAndFields(int domain_id, 
-                                         const std::string &relay_protocol)
-{ 
-   // Note this path doesn't use any info from the root file
-   // it uses the implicit mfem layout
-   
-   Node n_mesh;
-   relay::io::load( MeshFileName(domain_id, relay_protocol), n_mesh);
-
-   Node verify_info;
-   if(!blueprint::mesh::verify(n_mesh,verify_info))
-   {
-      MFEM_ABORT("Conduit Mesh Blueprint Verify Failed:\n"
-                  << verify_info.to_json());
-   }
-
-   mesh = BlueprintMeshToMesh(n_mesh);
-
-   field_map.clear();
-   
-   NodeConstIterator itr = n_mesh["fields"].children();
-   
-   // todo: do we need to filter mesh_nodes, material_att, etc?
-   while(itr.has_next())
-   {
-      const Node &n_field = itr.next();
-      std::string field_name = itr.name();
-
-      GridFunction *gf = BlueprintFieldToGridFunction(mesh, n_field);
-      field_map[field_name] = gf;
-   }
-}
-
-
-//------------------------------
-// end protected methods
-//------------------------------
-
-
-//------------------------------
-// begin static private methods
-//------------------------------
-
-
-//---------------------------------------------------------------------------//
-std::string 
-ConduitDataCollection::ElementTypeToShapeName(Element::Type element_type)
-{
-   // Note -- the mapping from Element::Type to string is based on
-   //   enum Element::Type { POINT, SEGMENT, TRIANGLE, QUADRILATERAL,
-   //                        TETRAHEDRON, HEXAHEDRON };
-   // Note: -- the string names are from conduit's blueprint
-
-   switch (element_type)
-   {
-      case Element::POINT:          return "point";
-      case Element::SEGMENT:        return "line";
-      case Element::TRIANGLE:       return "tri";
-      case Element::QUADRILATERAL:  return "quad";
-      case Element::TETRAHEDRON:    return "tet";
-      case Element::HEXAHEDRON:     return "hex";
-   }
-
-   return "unknown";
-}
-
-
-//---------------------------------------------------------------------------//
-mfem::Geometry::Type
-ConduitDataCollection::ShapeNameToGeomType(const std::string &shape_name)
-{
-    // init to something to avoid invalid memory access 
-    // in the mfem mesh constructor 
-    mfem::Geometry::Type res = mfem::Geometry::POINT;
-    
-    if(shape_name == "point")
-        res = mfem::Geometry::POINT;
-    else if(shape_name == "line")
-        res =  mfem::Geometry::SEGMENT;
-    else if(shape_name == "tri")
-        res =  mfem::Geometry::TRIANGLE;
-    else if(shape_name == "quad")
-        res =  mfem::Geometry::SQUARE;
-    else if(shape_name == "tet")
-        res =  mfem::Geometry::TETRAHEDRON;
-    else if(shape_name == "hex")
-        res =  mfem::Geometry::CUBE;
-    else
-    {
-       MFEM_ABORT("Unsupported Element Shape: " << shape_name);
-    }
-
-    return res;
-}
 
 //---------------------------------------------------------------------------//
 mfem::Mesh *
-ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh)
+ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
+                                           bool zero_copy)
 {
-
+   /// holds converted data (when necessary for mfem api)
+   Node n_conv;
+      
    MFEM_ASSERT(n_mesh.has_path("coordsets/coords"),
                "Expected topology named \"coords\" "
                "(node is missing path \"coordsets/coords\")");
@@ -371,7 +162,22 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh)
    mfem::Geometry::Type mesh_geo = ShapeNameToGeomType(mesh_ele_shape);
    int num_idxs_per_ele = Geometry::NumVerts[mesh_geo];
 
-   const int *elem_indices = n_mesh_topo["elements/connectivity"].value();
+   const Node &n_mesh_conn = n_mesh_topo["elements/connectivity"];
+   
+   const int *elem_indices = NULL;
+   // mfem requires ints, we could have int64s, etc convert if necessary
+   if(n_mesh_conn.dtype().is_int() &&
+      n_mesh_conn.is_compact() )
+   {
+      elem_indices = n_mesh_topo["elements/connectivity"].value();
+   }
+   else
+   {
+      Node &n_mesh_conn_conv= n_conv["topologies/main/elements/connectivity"];
+      n_mesh_conn.to_int_array(n_mesh_conn_conv);
+      elem_indices = n_mesh_conn_conv.value();
+   }
+   
    int num_mesh_ele        = n_mesh_topo["elements/connectivity"].dtype().number_of_elements();
    num_mesh_ele            = num_mesh_ele / num_idxs_per_ele;
 
@@ -390,8 +196,22 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh)
       bndry_geo = ShapeNameToGeomType(bndry_ele_shape);
       int num_idxs_per_bndry_ele = Geometry::NumVerts[mesh_geo];
       
+      const Node &n_bndry_conn = n_bndry_topo["elements/connectivity"];
       
-      bndry_indices = n_bndry_topo["elements/connectivity"].value();
+      // mfem requires ints, we could have int64s, etc convert if necessary
+      if( n_bndry_conn.dtype().is_int() &&
+          n_bndry_conn.is_compact())
+      {
+         bndry_indices = n_bndry_conn.value();
+      }
+      else             
+      {
+         Node &(n_bndry_conn_conv) = n_conv["topologies/boundary/elements/connectivity"];
+         n_bndry_conn.to_int_array(n_bndry_conn_conv);
+         bndry_indices = (n_bndry_conn_conv).value();
+
+      }
+
       num_bndry_ele = n_bndry_topo["elements/connectivity"].dtype().number_of_elements();
       num_bndry_ele = num_bndry_ele / num_idxs_per_bndry_ele;
    }
@@ -409,7 +229,20 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh)
    if( n_mesh.has_child("fields/main_attribute") )
    {
       const Node &n_mesh_atts_vals = n_mesh["fields/mesh_attribute/values"];
-      mesh_atts  = n_mesh_atts_vals.value();
+     
+      // mfem requires ints, we could have int64s, etc convert if necessary
+      if(n_mesh_atts_vals.dtype().is_int() &&
+         n_mesh_atts_vals.is_compact() )
+      {
+         mesh_atts  = n_mesh_atts_vals.value();
+      }
+      else
+      {
+         Node &n_mesh_atts_vals_conv = n_conv["fields/mesh_attribute/values"];
+         n_mesh_atts_vals.to_int_array(n_mesh_atts_vals_conv);
+         mesh_atts  = n_mesh_atts_vals_conv.value();
+      }
+      
       num_mesh_atts_entires = n_mesh_atts_vals.dtype().number_of_elements();
    }
    else
@@ -420,9 +253,22 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh)
    if( n_mesh.has_child("fields/boundary_attribute") )
    {
       // BP_PLUGIN_INFO("Getting Boundary Attribute Data");
-      bndry_atts = n_mesh["fields/boundary_attribute/values"].value();
       const Node &n_bndry_atts_vals = n_mesh["fields/boundary_attribute/values"];
-      bndry_atts  = n_bndry_atts_vals.value();
+      
+      // mfem requires ints, we could have int64s, etc convert if necessary
+      if( n_bndry_atts_vals.dtype().is_int() &&
+          n_bndry_atts_vals.is_compact())
+      {
+         bndry_atts = n_bndry_atts_vals.value();
+      }
+      else
+      {
+         Node &n_bndry_atts_vals_conv = n_conv["fields/boundary_attribute/values"];
+         n_bndry_atts_vals.to_int_array(n_bndry_atts_vals_conv);
+         mesh_atts  = n_bndry_atts_vals_conv.value();
+      }
+
+      
       num_bndry_atts_entires = n_bndry_atts_vals.dtype().number_of_elements();
   
    }
@@ -465,12 +311,26 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh)
 
    mesh->NewNodes(*nodes,true);
 
+   if(zero_copy && !n_conv.dtype().is_empty())
+   {
+      //Info: "Cannot zero-copy since data conversions were necessary"
+      zero_copy = false;
+   }
+
    // the mesh above contains references to external data, to get a
    // copy independent of the conduit data, we use:
 
-   Mesh *res = new Mesh(*mesh,true);
-
-   delete mesh;
+   Mesh *res = NULL;
+   
+   if(zero_copy)
+   {
+      res = mesh;
+   }
+   else
+   {
+      res = new Mesh(*mesh,true);
+      delete mesh;
+   }
 
    return res;
 }
@@ -479,52 +339,87 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh)
 //---------------------------------------------------------------------------//
 mfem::GridFunction *
 ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
-                                                    const Node &n_field)
+                                                    const Node &n_field,
+                                                    bool zero_copy)
 {
-   // we need basis name to create the proper mfem fec
-   std::string fec_name = n_field["basis"].as_string();
+   /// holds converted data (when necessary for mfem api)
+   Node n_conv;
 
-   mfem::FiniteElementCollection *fec = FiniteElementCollection::New(fec_name.c_str());
-
-
-   Node n_field_vals;
+   const double *vals_ptr = NULL;
 
    // TODO: USE ORDERING IN FiniteElementSpace CONSTRUCTOR TO AVOID REPACKING?
+   // TODO: deal with double conversions for vec case... 
+
    int vdim = 1;
+
+   Ordering::Type ordering = Ordering::byNODES;
+
    if(n_field["values"].dtype().is_object())
    {
-      // for mcarray case, the mfem gf constructor we need to use 
-      // requires a contiguous (soa) ordering
       vdim = n_field["values"].number_of_children();
-      blueprint::mcarray::to_contiguous(n_field["values"],
-                                        n_field_vals);
+      // check for contig
+      if(n_field["values"].is_contiguous())
+      {
+         // conduit mcarray contig  == mfem byNODES
+         vals_ptr = n_field["values"].child(0).value();
+      }
+      // check for interleaved
+      else if(blueprint::mcarray::is_interleaved(n_field["values"])) 
+      {
+         // conduit mcarray interleaved == mfem byVDIM
+         ordering = Ordering::byVDIM;
+         vals_ptr = n_field["values"].child(0).value();
+      }
+      else 
+      {
+         // for mcarray generic case --  default to byNODES
+         // and provide values w/ contiguous (soa) ordering
+         blueprint::mcarray::to_contiguous(n_field["values"],
+                                           n_conv["values"]);
+         vals_ptr = n_conv["values"].child(0).value();
+      }
    }
    else
    {
-      n_field["values"].compact_to(n_field_vals);
+      if(n_field["values"].dtype().is_double() &&
+         n_field["values"].is_compact())
+      {
+         vals_ptr = n_field["values"].value();
+      }
+      else
+      {
+         n_field["values"].to_double_array(n_conv["values"]);
+         vals_ptr = n_conv["values"].value();
+      }
    }
 
-   mfem::FiniteElementSpace *fes = new FiniteElementSpace(mesh, fec, vdim);
 
-
-   double *vals_ptr = NULL;
-   if(n_field["values"].dtype().is_object())
+   if(zero_copy && !n_conv.dtype().is_empty())
    {
-      //the vals are contiguous, we fetch the pointer
-      // to the first component in the mcarray
-      vals_ptr = n_field_vals.child_ptr(0)->value();
+      //Info: "Cannot zero-copy since data conversions were necessary"
+      zero_copy = false;
    }
-   else
-   {
-      vals_ptr = n_field_vals.value();
-   }
-
-   // zero copy case:
-   // mfem::GridFunction *res = new GridFunction(fes,vals_ptr);
    
-   // copy case
-   mfem::GridFunction *res = new GridFunction(fes,NULL);
-   res->NewDataAndSize(vals_ptr,fes->GetVSize());
+   // we need basis name to create the proper mfem fec
+   std::string fec_name = n_field["basis"].as_string();
+   
+   GridFunction *res = NULL;
+   mfem::FiniteElementCollection *fec = FiniteElementCollection::New(fec_name.c_str());
+   mfem::FiniteElementSpace *fes = new FiniteElementSpace(mesh,
+                                                          fec,
+                                                          vdim,
+                                                          ordering);
+   
+   if(zero_copy)
+   {
+      res = new GridFunction(fes,const_cast<double*>(vals_ptr));
+   }
+   else
+   {
+      // copy case
+      res = new GridFunction(fes,NULL);
+      res->NewDataAndSize(const_cast<double*>(vals_ptr),fes->GetVSize());
+   }
 
    // TODO: I believe the GF already has ownership of fes, so this
    // should be all we need to do to avoid leaking objs created
@@ -746,6 +641,227 @@ ConduitDataCollection::GridFunctionToBlueprintField(mfem::GridFunction *gf,
    }
 }
 
+
+//------------------------------
+// end static public methods
+//------------------------------
+
+//------------------------------
+// end public methods
+//------------------------------
+
+//------------------------------
+// begin protected methods
+//------------------------------
+
+//---------------------------------------------------------------------------//
+std::string
+ConduitDataCollection::RootFileName()
+{
+    std::string res = prefix_path + name + "_" +
+                      to_padded_string(cycle, pad_digits_cycle) +
+                      ".root";
+    return res;
+}
+
+//---------------------------------------------------------------------------//
+std::string
+ConduitDataCollection::MeshFileName(int domain_id,
+                                    const std::string &relay_protocol)
+{
+   std::string res = prefix_path + 
+                     name  + 
+                     "_" +
+                     to_padded_string(cycle, pad_digits_cycle) +
+                     "/domain_" +
+                     to_padded_string(domain_id, pad_digits_rank) +
+                     "." +
+                     relay_protocol;
+
+   return res;
+}
+
+//---------------------------------------------------------------------------//
+std::string
+ConduitDataCollection::MeshDirectoryName()
+{
+   std::string res = prefix_path +
+                     name +
+                     "_" +
+                     to_padded_string(cycle, pad_digits_cycle);
+   return res;
+}
+
+//---------------------------------------------------------------------------//
+std::string
+ConduitDataCollection::MeshFilePattern(const std::string &relay_protocol)
+{
+   std::ostringstream oss;
+   oss << prefix_path 
+       << name 
+       << "_"
+       << to_padded_string(cycle, pad_digits_cycle)
+       << "/domain_%0"
+       << pad_digits_rank
+       << "d."
+       << relay_protocol;
+
+   return oss.str();
+}
+
+
+//---------------------------------------------------------------------------//
+void
+ConduitDataCollection::SaveRootFile(int num_domains,
+                                    const Node &n_mesh, 
+                                    const std::string &relay_protocol)
+{
+   // default to json root file, except for hdf5 case
+   std::string root_proto = "json";
+   
+   if(relay_protocol == "hdf5")
+   {
+      root_proto = relay_protocol;
+   }
+
+   Node n_root;
+   // create blueprint index
+   Node &n_bp_idx = n_root["blueprint_index"];
+
+   blueprint::mesh::generate_index(n_mesh,
+                                   "",
+                                   num_domains,
+                                   n_bp_idx["mesh"]);
+   
+   // add extra header info
+   n_root["protocol/name"]    =  relay_protocol;
+   n_root["protocol/version"] = "0.3.1";
+
+   
+   // we will save one file per domain, so trees == files
+   n_root["number_of_files"]  = num_domains;
+   n_root["number_of_trees"]  = num_domains;
+   n_root["file_pattern"]     = MeshFilePattern(relay_protocol);
+   n_root["tree_pattern"]     = "/";
+
+   relay::io::save(n_root, RootFileName(), root_proto);
+}
+
+//---------------------------------------------------------------------------//
+void
+ConduitDataCollection::SaveMeshAndFields(int domain_id,
+                                         const Node &n_mesh,
+                                         const std::string &relay_protocol)
+{
+   relay::io::save(n_mesh, MeshFileName(domain_id, relay_protocol));
+}
+
+
+//---------------------------------------------------------------------------//
+void
+ConduitDataCollection::LoadRootFile(Node &root_out)
+{
+   relay::io::load(RootFileName(), relay_protocol, root_out);
+}
+
+//---------------------------------------------------------------------------//
+void
+ConduitDataCollection::LoadMeshAndFields(int domain_id, 
+                                         const std::string &relay_protocol)
+{ 
+   // Note: This path doesn't use any info from the root file
+   // it uses the implicit mfem ConduitDataCollection layout
+   
+   Node n_mesh;
+   relay::io::load( MeshFileName(domain_id, relay_protocol), n_mesh);
+
+   Node verify_info;
+   if(!blueprint::mesh::verify(n_mesh,verify_info))
+   {
+      MFEM_ABORT("Conduit Mesh Blueprint Verify Failed:\n"
+                  << verify_info.to_json());
+   }
+
+   mesh = BlueprintMeshToMesh(n_mesh);
+
+   field_map.clear();
+   
+   NodeConstIterator itr = n_mesh["fields"].children();
+   
+   // TODO: do we need to filter mesh_nodes, material_att, etc?
+   while(itr.has_next())
+   {
+      const Node &n_field = itr.next();
+      std::string field_name = itr.name();
+
+      GridFunction *gf = BlueprintFieldToGridFunction(mesh, n_field);
+      field_map[field_name] = gf;
+   }
+}
+
+
+//------------------------------
+// end protected methods
+//------------------------------
+
+
+//------------------------------
+// begin static private methods
+//------------------------------
+
+
+//---------------------------------------------------------------------------//
+std::string 
+ConduitDataCollection::ElementTypeToShapeName(Element::Type element_type)
+{
+   // Adapted from SidreDataCollection
+
+   // Note -- the mapping from Element::Type to string is based on
+   //   enum Element::Type { POINT, SEGMENT, TRIANGLE, QUADRILATERAL,
+   //                        TETRAHEDRON, HEXAHEDRON };
+   // Note: -- the string names are from conduit's blueprint
+
+   switch (element_type)
+   {
+      case Element::POINT:          return "point";
+      case Element::SEGMENT:        return "line";
+      case Element::TRIANGLE:       return "tri";
+      case Element::QUADRILATERAL:  return "quad";
+      case Element::TETRAHEDRON:    return "tet";
+      case Element::HEXAHEDRON:     return "hex";
+   }
+
+   return "unknown";
+}
+
+
+//---------------------------------------------------------------------------//
+mfem::Geometry::Type
+ConduitDataCollection::ShapeNameToGeomType(const std::string &shape_name)
+{
+    // Note: must init to something to avoid invalid memory access
+    // in the mfem mesh constructor 
+    mfem::Geometry::Type res = mfem::Geometry::POINT;
+    
+    if(shape_name == "point")
+        res = mfem::Geometry::POINT;
+    else if(shape_name == "line")
+        res =  mfem::Geometry::SEGMENT;
+    else if(shape_name == "tri")
+        res =  mfem::Geometry::TRIANGLE;
+    else if(shape_name == "quad")
+        res =  mfem::Geometry::SQUARE;
+    else if(shape_name == "tet")
+        res =  mfem::Geometry::TETRAHEDRON;
+    else if(shape_name == "hex")
+        res =  mfem::Geometry::CUBE;
+    else
+    {
+       MFEM_ABORT("Unsupported Element Shape: " << shape_name);
+    }
+
+    return res;
+}
 
 //------------------------------
 // end static private methods
