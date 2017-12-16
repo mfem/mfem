@@ -1747,15 +1747,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    HYPRE_Int global_num_cols_i = (A_i) ? A_i->GetGlobalNumCols() : 0;
    HYPRE_Int global_num_cols = std::max(global_num_cols_r, global_num_cols_i);
 
-   int row_starts_size;
-   if (HYPRE_AssumedPartitionCheck())
-   {
-      row_starts_size = 2;
-   }
-   else
-   {
-      row_starts_size = nranks_ + 1;
-   }
+   int row_starts_size = (HYPRE_AssumedPartitionCheck()) ? 2 : nranks_ + 1;
    HYPRE_Int * row_starts = hypre_CTAlloc(HYPRE_Int, row_starts_size);
    HYPRE_Int * col_starts = hypre_CTAlloc(HYPRE_Int, row_starts_size);
 
@@ -1939,17 +1931,19 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    {
       int col_orig = mit->first;
       int col_2x2  = -1;
+      int col_size = 0;
       for (int i=0; i<num_recv_procs; i++)
       {
          if (offd_col_start_stop[2*i] <= col_orig &&
              col_orig < offd_col_start_stop[2*i+1])
          {
             col_2x2 = offd_col_start_stop[2*i] + col_orig;
+	    col_size = offd_col_start_stop[2*i+1] - offd_col_start_stop[2*i];
             break;
          }
       }
       cmap[mit->second] = col_2x2;
-      cmap[mit->second+num_cols_offd] = col_2x2 + ncols;
+      cmap[mit->second+num_cols_offd] = col_2x2 + col_size;
    }
    delete [] offd_col_start_stop;
 
