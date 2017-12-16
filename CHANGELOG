@@ -11,6 +11,13 @@
 Version 3.3.3 (development)
 ===========================
 
+More efficient parallel non-conforming AMR
+------------------------------------------
+- Significantly reduced MPI communication in the construction of the ParFinite-
+  ElementSpace leads to much improved parallel scaling of non-conforming AMR on
+  hundreds of thousands of MPI processes. Memory footprint of the ParNCMesh
+  class has also been reduced.
+
 Miscellaneous
 -------------
 - Upgraded MFEM to support Axom 0.2.8. Prior versions are no longer supported.
