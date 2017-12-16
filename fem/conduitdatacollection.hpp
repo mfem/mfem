@@ -169,8 +169,8 @@ public:
        connectivity, doubles for field values, etc). If these constraints are 
        not met, a mesh that owns the data is created and returned. 
    */
-   static Mesh         *BlueprintMeshToMesh(const conduit::Node &n_mesh,
-                                            bool zero_copy = false);
+   static Mesh *BlueprintMeshToMesh(const conduit::Node &n_mesh,
+                                    bool zero_copy = false);
    
    /// Constructs and MFEM Grid Function from a Conduit Blueprint Description 
    /** If zero_copy == true, tries to construct a grid function that points to
@@ -186,15 +186,12 @@ public:
                                                      bool zero_copy = false);
 
 private:
-
    /// Converts from MFEM element type enum to mesh bp shape name 
    static std::string ElementTypeToShapeName(Element::Type element_type);
    
    /// Converts a mesh bp shape name to a MFEM geom type
    static mfem::Geometry::Type ShapeNameToGeomType(const std::string &shape_name);
-   
 
-   
 };
 
 
