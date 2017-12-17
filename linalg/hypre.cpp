@@ -1942,11 +1942,11 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
          for (int j=0; j<offd_i_I[i+1] - offd_i_I[i]; j++)
          {
             offd_J[offd_I[i] + off_r + j] =
-               cinvmap[cmapa[cmap_i[offd_i_J[offd_i_I[i] + j]]]];
+               cinvmap[cmapb[cmap_i[offd_i_J[offd_i_I[i] + j]]]];
             offd_D[offd_I[i] + off_r + j] = -offd_i_D[offd_i_I[i] + j];
 
             offd_J[offd_I[i+nrows] + j] =
-               cinvmap[cmapb[cmap_i[offd_i_J[offd_i_I[i] + j]]]];
+               cinvmap[cmapa[cmap_i[offd_i_J[offd_i_I[i] + j]]]];
             offd_D[offd_I[i+nrows] + j] = factor * offd_i_D[offd_i_I[i] + j];
          }
       }
