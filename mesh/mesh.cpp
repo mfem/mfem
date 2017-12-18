@@ -1844,7 +1844,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
    }
 
    // Requirements:
-   //  1) FinilizeTopology() or equivalent was called
+   //  1) FinalizeTopology() or equivalent was called
    //  2) if (Nodes == NULL), vertices must be defined
    //  3) if (Nodes != NULL), Nodes must be defined
 
