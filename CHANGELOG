@@ -8,6 +8,15 @@
                                http://mfem.org
 
 
+Version 3.4, released on Jan nn, 2018
+=====================================
+
+New and updated examples and miniapps
+-------------------------------------
+- Added a new electromagnetics miniapp, called "maxwell",  for simulating
+  time-domain electromagnetics phenomena as a coupled first order system
+  of equations.
+
 Version 3.3.3 (development)
 ===========================
 
