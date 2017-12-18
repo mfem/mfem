@@ -83,4 +83,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf Volta-AMR* Tesla-AMR* Joule_*
+	@rm -rf Volta-AMR* Tesla-AMR* Maxwell-Parallel* Joule_*
