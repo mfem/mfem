@@ -226,8 +226,8 @@ void MagneticDiffusionEOperator::Mult(const Vector &X, Vector &dX_dt) const
       for (int i = 0; i < my_ess_dof_list.Size(); i++)
       {
          int dof = my_ess_dof_list[i];
-         if (dof < 0) { dof = -1 - dof; }
-         Phi_gf[i] = homer[i];
+         // if (dof < 0) { dof = -1 - dof; }
+         Phi_gf[dof] = homer[dof];
       }
    }
    // end of hack
@@ -482,8 +482,8 @@ void MagneticDiffusionEOperator::ImplicitSolve(const double dt,
       for (int i = 0; i < my_ess_dof_list.Size(); i++)
       {
          int dof = my_ess_dof_list[i];
-         if (dof < 0) { dof = -1 - dof; }
-         Phi_gf[i] = homer[i];
+         // if (dof < 0) { dof = -1 - dof; }
+         Phi_gf[dof] = homer[dof];
       }
    }
    // end of hack
