@@ -746,7 +746,7 @@ ConduitDataCollection::SaveRootFile(int num_domains,
    n_root["number_of_files"]  = num_domains;
    n_root["number_of_trees"]  = num_domains;
    n_root["file_pattern"]     = MeshFilePattern(relay_protocol);
-   n_root["tree_pattern"]     = "/";
+   n_root["tree_pattern"]     = "";
 
    relay::io::save(n_root, RootFileName(), root_proto);
 }
