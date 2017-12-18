@@ -12,13 +12,13 @@
 #ifndef MFEM_MAXWELL_SOLVER
 #define MFEM_MAXWELL_SOLVER
 
-#include "../../config/config.hpp"
+#include "../common/pfem_extras.hpp"
+#include "electromagnetics.hpp"
 
 #ifdef MFEM_USE_MPI
 
-#include "mfem.hpp"
-#include "../common/pfem_extras.hpp"
-#include "electromagnetics.hpp"
+#include <string>
+#include <map>
 
 using namespace std;
 using namespace mfem;
