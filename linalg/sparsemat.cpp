@@ -2821,7 +2821,7 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
                   << " ncolsB = " << ncolsB
                   << ", C->Width() = " << C->Width());
 
-      C_i    = C -> GetI();
+      // C_i    = C -> GetI(); // not used
       C_j    = C -> GetJ();
       C_data = C -> GetData();
    }

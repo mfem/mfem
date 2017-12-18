@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../config/config.hpp"
+#include "../general/error.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -1330,6 +1331,8 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
 
       /* delete CSR version of C */
       ierr += hypre_CSRMatrixDestroy(csr_C_temp);
+
+      MFEM_VERIFY(ierr == 0, "");
    }
 
    /* hypre_ParCSRMatrixSetNumNonzeros(A); */

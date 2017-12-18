@@ -167,9 +167,9 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
    const int dim = T->GetDimension();
    const int sdim = T->GetSpaceDim();
    IntegrationPoint xip, prev_xip;
-   double xd[3], yd[3], dxd[3], dx_norm = -1.0, err_phys, real_dx_norm;
+   double xd[3], yd[3], dxd[3], dx_norm = -1.0, err_phys, real_dx_norm = -1.0;
    Vector x(xd, dim), y(yd, sdim), dx(dxd, dim);
-   bool hit_bdr = false, prev_hit_bdr;
+   bool hit_bdr = false, prev_hit_bdr = false;
 
    // Use ip0 as initial guess:
    xip = *ip0;
