@@ -78,10 +78,9 @@
 // Description:
 //
 
-#include "mfem.hpp"
+#include "maxwell_solver.hpp"
 #include <fstream>
 #include <iostream>
-#include "maxwell_solver.hpp"
 
 using namespace std;
 using namespace mfem;
