@@ -61,7 +61,7 @@
 //     mpirun -np 4 maxwell -m ../../data/ball-nurbs.mesh -rs 2
 //                          -dbcs '-1'
 //                          -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
-//                          -cs '0.0 0.0 -0.5 .2 10'
+//                          -cs '0.0 0.0 -0.5 .2 3e6'
 //                          -ds '0.0 0.0 0.5 .2 10'
 //
 //   Current source in a metal box
@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
    bool visit = true;
    double dt = 1.0e-12;
    double dtsf = 0.95;
-   double t0 = 0.0;
+   double ti = 0.0;
    double ts = 1.0;
    double tf = 40.0;
 
@@ -164,7 +164,7 @@ int main(int argc, char *argv[])
                   "Number of parallel refinement levels.");
    args.AddOption(&dtsf, "-sf", "--dt-safety-factor",
                   "Used to reduce the time step below the upper bound.");
-   args.AddOption(&t0, "-t0", "--initial-time",
+   args.AddOption(&ti, "-ti", "--initial-time",
                   "Beginning of time interval to simulate (ns).");
    args.AddOption(&tf, "-tf", "--final-time",
                   "End of time interval to simulate (ns).");
@@ -274,14 +274,14 @@ int main(int argc, char *argv[])
    double energy = Maxwell.GetEnergy();
    if ( mpi.Root() )
    {
-      cout << "Energy(" << t0 << "ns):  " << energy << "J" << endl;
+      cout << "Energy(" << ti << "ns):  " << energy << "J" << endl;
    }
 
    // Approximate the largest stable time step
    double dtmax = Maxwell.GetMaximumTimeStep();
 
    // Convert times from nanoseconds to seconds
-   t0 *= tScale_;
+   ti *= tScale_;
    tf *= tScale_;
    ts *= tScale_;
 
@@ -290,8 +290,8 @@ int main(int argc, char *argv[])
       cout << "Maximum Time Step:     " << dtmax / tScale_ << "ns" << endl;
    }
 
-   // Round down the time step so that tf-t0 is an integer multiple of dt
-   int nsteps = SnapTimeStep(tf-t0, dtsf * dtmax, dt);
+   // Round down the time step so that tf-ti is an integer multiple of dt
+   int nsteps = SnapTimeStep(tf-ti, dtsf * dtmax, dt);
    if ( mpi.Root() )
    {
       cout << "Number of Time Steps:  " << nsteps << endl;
@@ -312,7 +312,7 @@ int main(int argc, char *argv[])
    // Initialize VisIt visualization
    VisItDataCollection visit_dc("Maxwell-Parallel", &pmesh);
 
-   double t = t0;
+   double t = ti;
    Maxwell.SetTime(t);
 
    if ( visit )
@@ -351,7 +351,7 @@ int main(int argc, char *argv[])
       // Write fields to disk for VisIt
       if ( visit )
       {
-         Maxwell.WriteVisItFields((int)( (t - t0) / ts ) );
+         Maxwell.WriteVisItFields((int)( (t - ti) / ts ) );
       }
 
       // Send the solution by socket to a GLVis server.
