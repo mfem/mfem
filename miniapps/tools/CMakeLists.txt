@@ -14,5 +14,5 @@ add_mfem_miniapp(display-basis
   EXTRA_HEADERS ${MFEM_MINIAPPS_COMMON_HEADERS}
   LIBRARIES mfem mfem_miniapps_common)
 
-add_test(NAME display-basis_ser
-  COMMAND display-basis -no-vis)
+add_mfem_miniapp(load-visit-dc
+  MAIN load-visit-dc.cpp LIBRARIES mfem)
