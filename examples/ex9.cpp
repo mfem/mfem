@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
          MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
 #endif
       }
-      else if( conduit_output )
+      else if ( conduit_output )
       {
 #ifdef MFEM_USE_CONDUIT
          ConduitDataCollection *conduit_dc = new ConduitDataCollection("Example9", mesh);
