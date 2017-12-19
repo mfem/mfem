@@ -240,14 +240,25 @@ MPFR_OPT =
 MPFR_LIB = -lmpfr
 
 # Conduit and required libraries configuration
-# Be sure to check the HDF5_DIR (set above) is correct
 CONDUIT_DIR = @MFEM_DIR@/../conduit
-CONDUIT_OPT = -I$(CONDUIT_DIR)/include/conduit\
-              -I$(HDF5_DIR)/include
+CONDUIT_OPT = -I$(CONDUIT_DIR)/include/conduit
 CONDUIT_LIB = \
    -Wl,-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
-   -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
-   -lconduit -lconduit_relay -lconduit_blueprint -lhdf5 -lz -ldl
+   -lconduit -lconduit_relay -lconduit_blueprint  -ldl
+
+#
+# Check if Conduit was built with hdf5 support, by looking
+# for the relay hdf5 header
+#
+
+CONDUIT_HDF5_HEADER=$(CONDUIT_DIR)/include/conduit/conduit_relay_hdf5.hpp
+ifneq (,$(wildcard $(CONDUIT_HDF5_HEADER)))
+   CONDUIT_OPT += -I$(HDF5_DIR)/include
+   CONDUIT_LIB += -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
+                  -lhdf5 -lz
+endif
+
+
 
 # Sidre and required libraries configuration
 # Be sure to check the HDF5_DIR (set above) is correct
