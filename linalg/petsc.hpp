@@ -181,8 +181,8 @@ public:
        PETSc format @a tid. */
    /** The supported type ids are: Operator::PETSC_MATAIJ,
        Operator::PETSC_MATIS, and Operator::PETSC_MATSHELL. */
-   PetscParMatrix(const HypreParMatrix *ha,
-                  Operator::Type tid = Operator::PETSC_MATAIJ);
+   explicit PetscParMatrix(const HypreParMatrix *ha,
+                           Operator::Type tid = Operator::PETSC_MATAIJ);
 
    /** @brief Convert an mfem::Operator into a PetscParMatrix in the given PETSc
        format @a tid. */
