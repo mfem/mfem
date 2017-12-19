@@ -65,6 +65,13 @@ public:
        If partitioning == NULL (default), the data from 'gf' is NOT copied. */
    ParGridFunction(ParMesh *pmesh, GridFunction *gf, int * partitioning = NULL);
 
+   /** @brief Construct a ParGridFunction on a given ParMesh, @a pmesh, reading
+       from an std::istream.
+
+       In the process, a ParFiniteElementSpace and a FiniteElementCollection are
+       constructed. The new ParGridFunction assumes ownership of both. */
+   ParGridFunction(ParMesh *pmesh, std::istream &input);
+
    /// Assign constant values to the ParGridFunction data.
    ParGridFunction &operator=(double value)
    { GridFunction::operator=(value); return *this; }
