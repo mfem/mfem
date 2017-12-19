@@ -63,7 +63,7 @@ protected:
    /// Time step i.e. delta_t (for time-dependent simulations)
    double time_step;
 
-   /// Serial or parallel run?
+   /// Serial or parallel run? True iff mesh is a ParMesh
    bool serial;
    /// Append rank to any output file names.
    bool appendRankToFileName;
@@ -72,6 +72,10 @@ protected:
    int myid;
    /// Number of MPI ranks (in parallel)
    int num_procs;
+#ifdef MFEM_USE_MPI
+   /// Associated MPI communicator
+   MPI_Comm m_comm;
+#endif
 
    /// Precision (number of digits) used for the text output of doubles
    int precision;
@@ -112,7 +116,8 @@ protected:
 public:
    /// Initialize the collection with its name and Mesh.
    /** When @a mesh_ is NULL, then the real mesh can be set with SetMesh(). */
-   DataCollection(const std::string& collection_name, Mesh *mesh_ = NULL);
+   explicit DataCollection(const std::string& collection_name,
+                           Mesh *mesh_ = NULL);
 
    /// Add a grid function to the collection
    virtual void RegisterField(const std::string& field_name, GridFunction *gf);
@@ -136,6 +141,9 @@ public:
    GridFunction *GetField(const std::string& field_name);
 
 #ifdef MFEM_USE_MPI
+   /// Return the associated MPI communicator or MPI_COMM_NULL.
+   MPI_Comm GetComm() const { return m_comm; }
+
    /// Get a pointer to a parallel grid function in the collection.
    /** Returns NULL if @a field_name is not in the collection.
        @note The GridFunction pointer stored in the collection is statically
@@ -269,6 +277,13 @@ public:
    /** If @a mesh_ is NULL, then the mesh can be set later by calling either
        SetMesh() or Load(). The latter works only in serial. */
    VisItDataCollection(const std::string& collection_name, Mesh *mesh_ = NULL);
+
+#ifdef MFEM_USE_MPI
+   /// Construct a parallel VisItDataCollection to be loaded from files.
+   /** Before loading the collection with Load(), some parameters in the
+       collection can be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
+   VisItDataCollection(MPI_Comm comm, const std::string& collection_name);
+#endif
 
    /// Set/change the mesh associated with the collection
    virtual void SetMesh(Mesh *new_mesh);
