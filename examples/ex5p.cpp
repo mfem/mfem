@@ -317,6 +317,7 @@ int main(int argc, char *argv[])
    VisItDataCollection visit_dc("Example5-Parallel", pmesh);
    visit_dc.RegisterField("velocity", u);
    visit_dc.RegisterField("pressure", p);
+   // visit_dc.SetFormat(1); // save the mesh using MFEM's parallel mesh format
    visit_dc.Save();
 
    // 16. Send the solution by socket to a GLVis server.
