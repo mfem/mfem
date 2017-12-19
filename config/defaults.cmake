@@ -138,8 +138,6 @@ set(MPFR_DIR "" CACHE PATH "Path to the MPFR library.")
 
 set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
     "Path to the Conduit library.")
-set(Conduit_REQUIRED_PACKAGES "HDF5" CACHE STRING
-    "Additional packages required by Conduit.")
 
 set(AXOM_DIR "${MFEM_DIR}/../axom" CACHE PATH "Path to the Axom library.")
 # May need to add "Boost" as requirement.
