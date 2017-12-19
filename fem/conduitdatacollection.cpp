@@ -507,7 +507,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    int num_ele = mesh->GetNE();
    int geom = mesh->GetElementBaseGeometry(0);
    int idxs_per_ele = Geometry::NumVerts[geom];
-   std::cout << "idxs_per_ele" <<  idxs_per_ele << std::endl;
+   mfem::out << "idxs_per_ele" <<  idxs_per_ele << std::endl;
    int num_conn_idxs =  num_ele * idxs_per_ele;
 
    n_topo["elements/connectivity"].set(DataType::c_int(num_conn_idxs));
