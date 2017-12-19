@@ -478,6 +478,7 @@ MaxwellSolver::implicitSolve(double dt, const Vector &B, Vector &dEdt) const
 
    if ( dEdtBCCoef_ )
    {
+      dEdtBCCoef_->SetTime(t);
       dedt_->ProjectBdrCoefficientTangent(*dEdtBCCoef_,
                                           const_cast<Array<int>&>(dbc_marker_));
    }
