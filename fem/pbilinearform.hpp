@@ -269,6 +269,11 @@ public:
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
                               BilinearFormIntegrator *bfi_imag);
 
+   /// Adds new Boundary Integrator, restricted to specific boundary attributes.
+   void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
+                              BilinearFormIntegrator *bfi_imag,
+			      Array<int> &bdr_marker);
+
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
 

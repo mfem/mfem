@@ -83,6 +83,11 @@ static Vector do_params_(0);  // Axis Start, Axis End, Rod Radius,
 void dipole_oscillator(const Vector &x, Vector &j);
 void j_src(const Vector &x, Vector &j) { dipole_oscillator(x, j); }
 
+// Electric Field Boundary Condition: The following function returns zero but
+// any function could be used.
+void e_bc_r(const Vector &x, Vector &E);
+void e_bc_i(const Vector &x, Vector &E);
+
 static double freq_ = 1.0;
 
 // Prints the program's logo to the given output stream
@@ -103,10 +108,8 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool visit = true;
 
-   Array<int> kbcs;
-   Array<int> vbcs;
-
-   Vector vbcv;
+   Array<int> abcs;
+   Array<int> dbcs;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -134,9 +137,11 @@ int main(int argc, char *argv[])
                   "Center, Radius, and Conductivity of Conductive Sphere");
    args.AddOption(&do_params_, "-do", "--dipole-oscillator-params",
                   "Axis End Points, Radius, and Amplitude");
-   /*
+   args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
+                  "Absorbing Boundary Condition Surfaces");
    args.AddOption(&dbcs, "-dbcs", "--dirichlet-bc-surf",
                   "Dirichlet Boundary Condition Surfaces");
+   /*
    args.AddOption(&dbcv, "-dbcv", "--dirichlet-bc-vals",
                   "Dirichlet Boundary Condition Values");
    args.AddOption(&dbcg, "-dbcg", "--dirichlet-bc-gradient",
@@ -217,6 +222,7 @@ int main(int argc, char *argv[])
    }
 
    // If values for Voltage BCs were not set issue a warning and exit
+   /*
    if ( ( vbcs.Size() > 0 && kbcs.Size() == 0 ) ||
         ( kbcs.Size() > 0 && vbcs.Size() == 0 ) ||
         ( vbcv.Size() < vbcs.Size() ) )
@@ -231,7 +237,7 @@ int main(int argc, char *argv[])
       }
       return 3;
    }
-
+   */
    // Create a coefficient describing the dielectric permittivity
    Coefficient * epsCoef = SetupPermittivityCoefficient();
 
@@ -242,9 +248,10 @@ int main(int argc, char *argv[])
    Coefficient * sigmaCoef = SetupConductivityCoefficient();
 
    // Create the Magnetostatic solver
-   HertzSolver Hertz(pmesh, order, freq_, kbcs, vbcs, vbcv,
+   HertzSolver Hertz(pmesh, order, freq_,
                      *epsCoef, *muInvCoef, sigmaCoef,
-                     NULL, NULL,
+		     abcs, dbcs,
+                     e_bc_r, e_bc_i,
                      (do_params_.Size() > 0 ) ? j_src : NULL, NULL
                     );
 
@@ -557,4 +564,17 @@ void dipole_oscillator(const Vector &x, Vector &j)
    {
       j.Add(a, v);
    }
+}
+
+void e_bc_r(const Vector &x, Vector &E)
+{
+   E.SetSize(3);
+   E = 0.0;
+
+}
+
+void e_bc_i(const Vector &x, Vector &E)
+{
+   E.SetSize(3);
+   E = 0.0;
 }
