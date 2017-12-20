@@ -808,34 +808,39 @@ We recommend viewing examples 2 and 14 before viewing this example.</em>
 </div>
 
 <div id="ex18" style="display: block;">
-
 <h2 id="example-18-dg-euler-equations">Example 18: DG Euler Equations</h2>
 <p><img class="floatright" src="../doc/web/examples/ex18.png"></p>
-<p>This example code solves the compressible Euler system of
-equations, a model nonlinear hyperbolic PDE, with a
-discontinuous Galerkin (DG) formulation.</p>
-<p>Specifically, it solves for an exact solution of the equations
-whereby a vortex is transported by a uniform flow. Since all
-boundaries are periodic here, the method's accuracy can be
-assessed by measuring the difference between the solution and
-the initial condition at a later time when the vortex returns to
-its initial location.</p>
-<p>Note that as the order of the spatial discretization increases,
-the timestep must become smaller. This example currently uses a
-simple estimate derived by Cockburn and Shu for the 1D RKDG
-method. An additional factor can be tuned by passing the
+<p>This example code solves the compressible Euler system of equations, a model
+nonlinear hyperbolic PDE, with a discontinuous Galerkin (DG) formulation. The
+primary purpose is to show how a transient system of nonlinear equations can be
+formulated in MFEM. It solves this in conservation form</p>
+<p>$$\frac{\partial u}{\partial t} + \nabla \cdot {\bf F}(u) = 0$$</p>
+<p>with a state vector $u = [ \rho, \rho v_0, \rho v_1, \rho E ]$, where $\rho$ is
+the density, $v_i$ is the velocity in the $i^{\rm th}$ direction, $E$ is the
+total specific energy, and $H = E + p / \rho$ is the total specific enthalpy.
+The pressure, $p$ is computed through a simple equation of state (EOS) call.
+The conservative hydrodynamic flux ${\bf F}$ in each direction $i$ is</p>
+<p>$${\bf F_{\it i}} = [ \rho v_i, \rho v_0 v_i + p \delta_{i,0}, \rho v_1 v_i + p \delta_{i,1}, \rho v_i H ]$$</p>
+<p>Specifically, the example solves for an exact solution of the equations whereby
+a vortex is transported by a uniform flow. Since all boundaries are periodic
+here, the method's accuracy can be assessed by measuring the difference between
+the solution and the initial condition at a later time when the vortex returns
+to its initial location.</p>
+<p>Note that as the order of the spatial discretization increases, the
+timestep must become smaller. This example currently uses a simple
+estimate derived by <a href="https://link.springer.com/article/10.1023/A:1012873910884">Cockburn and
+Shu</a> for the 1D RKDG method. An additional factor can be tuned by passing the
 <code>--cfl</code> (or <code>-c</code> shorter) flag.</p>
-<p>The example demonstrates user-defined bilinear and nonlinear
-form integrators for systems of equations that are defined with
-block vectors, and how these are used with an operator for
-explicit time integrators. In this case the system also
-involves an external approximate Riemann solver for the DG
-interface flux. It also demonstrates how to use GLVis for
-in-situ visualization of vector grid functions.</p>
+<p>The example demonstrates user-defined bilinear and nonlinear form integrators
+for systems of equations that are defined with block vectors, and how these are
+used with an operator for explicit time integrators. In this case the system
+also involves an external approximate Riemann solver for the DG interface flux.
+It also demonstrates how to use GLVis for in-situ visualization of vector grid
+functions.</p>
 <p><em>The example has a serial (<a href="https://github.com/mfem/mfem/blob/master/examples/ex18.cpp">ex18.cpp</a>)
 and a parallel (<a href="https://github.com/mfem/mfem/blob/master/examples/ex18p.cpp">ex18p.cpp</a>) version.
 We recommend viewing examples 9, 14 and 17 before viewing this example.</em>
-</p><div style="clear:both;"></div>
+<div style="clear:both;"/></div>
 <br><p></p>
 </div>
 
