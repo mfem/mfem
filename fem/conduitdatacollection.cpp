@@ -140,7 +140,10 @@ mfem::Mesh *
 ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
                                            bool zero_copy)
 {
-   /// holds converted data (when necessary for mfem api)
+   // n_conv holds converted data (when necessary for mfem api)
+   // if n_conv is used ( !n_conv.dtype().empty() ) we
+   // now that some data allocation was necessary, so we
+   // can't return a mesh that zero copies the conduit data
    Node n_conv;
 
    MFEM_ASSERT(n_mesh.has_path("coordsets/coords"),
@@ -235,21 +238,40 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
    int num_mesh_atts_entires = 0;
    int num_bndry_atts_entires = 0;
 
-   if ( n_mesh.has_child("fields/main_attribute") )
+   // the attribute fields could have several names
+   // for the element attributes check for first occurrence of field with
+   // name containing "_attribute", that doesn't contain "boundary"
+   std::string main_att_name = "";
+
+   const Node &n_fields = n_mesh["fields"];
+   NodeConstIterator itr = n_fields.children();
+
+   while ( itr.has_next() && main_att_name == "" )
    {
-      const Node &n_mesh_atts_vals = n_mesh["fields/mesh_attribute/values"];
+      itr.next();
+      std::string fld_name = itr.name();
+      if ( fld_name.find("boundary")   == std::string::npos &&
+           fld_name.find("_attribute") != std::string::npos )
+      {
+         main_att_name = fld_name;
+      }
+   }
+
+   if ( main_att_name != "" )
+   {
+      const Node &n_mesh_atts_vals = n_fields[main_att_name]["values"];
 
       // mfem requires ints, we could have int64s, etc convert if necessary
       if (n_mesh_atts_vals.dtype().is_int() &&
           n_mesh_atts_vals.is_compact() )
       {
-         mesh_atts  = n_mesh_atts_vals.value();
+         mesh_atts = n_mesh_atts_vals.value();
       }
       else
       {
-         Node &n_mesh_atts_vals_conv = n_conv["fields/mesh_attribute/values"];
+         Node &n_mesh_atts_vals_conv = n_conv["fields"][main_att_name]["values"];
          n_mesh_atts_vals.to_int_array(n_mesh_atts_vals_conv);
-         mesh_atts  = n_mesh_atts_vals_conv.value();
+         mesh_atts = n_mesh_atts_vals_conv.value();
       }
 
       num_mesh_atts_entires = n_mesh_atts_vals.dtype().number_of_elements();
@@ -259,10 +281,26 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
       // Skipping Mesh Attribute Data
    }
 
-   if ( n_mesh.has_child("fields/boundary_attribute") )
+   // for the boundary attributes check for first occurrence of field with
+   // name containing "_attribute", that also contains "boundary"
+   std::string bnd_att_name = "";
+   itr = n_fields.children();
+
+   while ( itr.has_next() && bnd_att_name == "" )
    {
-      // BP_PLUGIN_INFO("Getting Boundary Attribute Data");
-      const Node &n_bndry_atts_vals = n_mesh["fields/boundary_attribute/values"];
+      itr.next();
+      std::string fld_name = itr.name();
+      if ( fld_name.find("boundary")   != std::string::npos &&
+           fld_name.find("_attribute") != std::string::npos )
+      {
+         bnd_att_name = fld_name;
+      }
+   }
+
+   if ( bnd_att_name != "" )
+   {
+      // Info: "Getting Boundary Attribute Data"
+      const Node &n_bndry_atts_vals =n_fields[bnd_att_name]["values"];
 
       // mfem requires ints, we could have int64s, etc convert if necessary
       if ( n_bndry_atts_vals.dtype().is_int() &&
@@ -272,11 +310,10 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
       }
       else
       {
-         Node &n_bndry_atts_vals_conv = n_conv["fields/boundary_attribute/values"];
+         Node &n_bndry_atts_vals_conv = n_conv["fields"][bnd_att_name]["values"];
          n_bndry_atts_vals.to_int_array(n_bndry_atts_vals_conv);
          mesh_atts  = n_bndry_atts_vals_conv.value();
       }
-
 
       num_bndry_atts_entires = n_bndry_atts_vals.dtype().number_of_elements();
 
@@ -286,13 +323,13 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
       // Skipping Boundary Attribute Data
    }
 
-   // BP_PLUGIN_INFO("Number of Vertices: " << num_verts  << endl
-   //                << "Number of Mesh Elements: "    << num_mesh_ele   << endl
-   //                << "Number of Boundary Elements: " << num_bndry_ele  << endl
-   //                << "Number of Mesh Attribute Entries: "
-   //                << num_mesh_atts_entires << endl
-   //                << "Number of Boundary Attribute Entries: "
-   //                << num_bndry_atts_entires << endl);
+   // Info: "Number of Vertices: " << num_verts  << endl
+   //         << "Number of Mesh Elements: "    << num_mesh_ele   << endl
+   //         << "Number of Boundary Elements: " << num_bndry_ele  << endl
+   //         << "Number of Mesh Attribute Entries: "
+   //         << num_mesh_atts_entires << endl
+   //         << "Number of Boundary Attribute Entries: "
+   //          << num_bndry_atts_entires << endl);
    //
 
    // Construct MFEM Mesh Object with externally owned data
@@ -315,9 +352,14 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
       1); // we need this flag
 
    // Attach Nodes Grid Function
-   mfem::GridFunction *nodes = BlueprintFieldToGridFunction(mesh,
-                                                            n_mesh["grid_function"]);
 
+   // fetch blueprint field for the nodes gf
+   const Node &n_mesh_gf =
+      n_mesh["fields"][n_mesh_topo["grid_function"].as_string()];
+   // create gf
+   mfem::GridFunction *nodes = BlueprintFieldToGridFunction(mesh,
+                                                            n_mesh_gf);
+   // attach to mesh
    mesh->NewNodes(*nodes,true);
 
    if (zero_copy && !n_conv.dtype().is_empty())
@@ -325,9 +367,6 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
       //Info: "Cannot zero-copy since data conversions were necessary"
       zero_copy = false;
    }
-
-   // the mesh above contains references to external data, to get a
-   // copy independent of the conduit data, we use:
 
    Mesh *res = NULL;
 
@@ -337,6 +376,8 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
    }
    else
    {
+      // the mesh above contains references to external data, to get a
+      // copy independent of the conduit data, we use:
       res = new Mesh(*mesh,true);
       delete mesh;
    }
@@ -351,7 +392,10 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
                                                     const Node &n_field,
                                                     bool zero_copy)
 {
-   /// holds converted data (when necessary for mfem api)
+   // n_conv holds converted data (when necessary for mfem api)
+   // if n_conv is used ( !n_conv.dtype().empty() ) we
+   // now that some data allocation was necessary, so we
+   // can't return a gf that zero copies the conduit data
    Node n_conv;
 
    const double *vals_ptr = NULL;
@@ -502,12 +546,13 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    }
 
    // connectivity
-   // TODO: generic case, i don't think we can zero-copy (there is an
-   // alloc per element) so we alloc our own contig array and copy out
+   // TODO: generic case, i don't think we can zero-copy (mfem allocs
+   // an array per element) so we alloc our own contig array and
+   // copy out. Some other cases (sidre) may actually have contig
+   // allocation but I am  not sure how to detect this case from mfem
    int num_ele = mesh->GetNE();
    int geom = mesh->GetElementBaseGeometry(0);
    int idxs_per_ele = Geometry::NumVerts[geom];
-   mfem::out << "idxs_per_ele" <<  idxs_per_ele << std::endl;
    int num_conn_idxs =  num_ele * idxs_per_ele;
 
    n_topo["elements/connectivity"].set(DataType::c_int(num_conn_idxs));
@@ -534,8 +579,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    // Setup mesh attribute
    ////////////////////////////////////////////
 
-
-   Node &n_mesh_att = n_mesh["fields/mesh_attribute"];
+   Node &n_mesh_att = n_mesh["fields/element_attribute"];
 
    n_mesh_att["association"] = "element";
    n_mesh_att["topology"] = "main";
@@ -777,7 +821,16 @@ ConduitDataCollection::LoadRootFile(Node &root_out)
 
    if (myid == 0)
    {
-      relay::io::load(RootFileName(), relay_protocol, root_out);
+      // root is always json, unless hdf5 is used
+      std::string root_protocol = "json";
+
+      if ( relay_protocol.find("hdf5") != std::string::npos )
+      {
+         root_protocol = "hdf5";
+      }
+
+
+      relay::io::load(RootFileName(), root_protocol, root_out);
 #ifdef MFEM_USE_MPI
       // broadcast contents of root file other ranks
       // (conduit relay mpi  would simplify, but we would need to link another
@@ -859,14 +912,17 @@ ConduitDataCollection::LoadMeshAndFields(int domain_id,
 
    NodeConstIterator itr = n_mesh["fields"].children();
 
-   // TODO: do we need to filter mesh_nodes, main_attribute, etc?
    while (itr.has_next())
    {
       const Node &n_field = itr.next();
       std::string field_name = itr.name();
 
-      GridFunction *gf = BlueprintFieldToGridFunction(mesh, n_field);
-      field_map[field_name] = gf;
+      // skip attribute fields, they aren't grid functions
+      if (field_name.find("_attribute") == std::string::npos)
+      {
+         GridFunction *gf = BlueprintFieldToGridFunction(mesh, n_field);
+         field_map[field_name] = gf;
+      }
    }
 }
 
