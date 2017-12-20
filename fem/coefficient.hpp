@@ -415,6 +415,7 @@ public:
        DeltaCoefficient. */
    void EvalDelta(Vector &V, ElementTransformation &T,
                   const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
    /** @brief A VectorDeltaFunction cannot be evaluated. Calling this method
        will cause an MFEM error, terminating the application. */
    virtual void Eval(Vector &V, ElementTransformation &T,
