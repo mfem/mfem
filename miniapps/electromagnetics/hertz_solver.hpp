@@ -91,8 +91,12 @@ private:
    ND_ParFESpace * HCurlFESpace_;
    // RT_ParFESpace * HDivFESpace_;
 
+  Array<HYPRE_Int> blockTrueOffsets_;
+  
+   // ParSesquilinearForm * a0_;
    ParSesquilinearForm * a1_;
-
+   ParBilinearForm * b1_;
+  
    // ParGridFunction * e_r_;  // Real part of electric field (HCurl)
    // ParGridFunction * e_i_;  // Imaginary part of electric field (HCurl)
    ParComplexGridFunction * e_;  // Complex electric field (HCurl)
@@ -128,10 +132,12 @@ private:
    Coefficient       * muInvCoef_; // Dia/Paramagnetic Material Coefficient
    Coefficient       * sigmaCoef_; // Electrical Conductivity Coefficient
 
-   Coefficient * omegaCoef_;  // -omega expressed as a Coefficient
+   Coefficient * omegaCoef_;  // omega expressed as a Coefficient
+   Coefficient * negOmegaCoef_;  // -omega expressed as a Coefficient
    Coefficient * omega2Coef_; // -omega^2 expressed as a Coefficient
    Coefficient * massCoef_;   // -omega^2 epsilon
    Coefficient * lossCoef_;   // -omega sigma
+   Coefficient * gainCoef_;   // omega sigma
 
    // VectorCoefficient * aBCCoef_;   // Vector Potential BC Function
    VectorCoefficient * jrCoef_;     // Volume Current Density Function

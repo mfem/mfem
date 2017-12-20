@@ -50,6 +50,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
      // grad_(NULL),
      // curl_(NULL),
      a1_(NULL),
+     b1_(NULL),
      // e_r_(NULL),
      // e_i_(NULL),
      e_(NULL),
@@ -70,7 +71,8 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
      epsCoef_(&epsCoef),
      muInvCoef_(&muInvCoef),
      sigmaCoef_(sigmaCoef),
-     omegaCoef_(new ConstantCoefficient(-2.0 * M_PI * freq)),
+     omegaCoef_(new ConstantCoefficient(2.0 * M_PI * freq)),
+     negOmegaCoef_(new ConstantCoefficient(-2.0 * M_PI * freq)),
      omega2Coef_(new ConstantCoefficient(-pow(2.0 * M_PI * freq, 2))),
      // aBCCoef_(NULL),
      jrCoef_(NULL),
@@ -93,6 +95,12 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
    HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
    // HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
 
+   blockTrueOffsets_.SetSize(3);
+   blockTrueOffsets_[0] = 0;
+   blockTrueOffsets_[1] = HCurlFESpace_->TrueVSize();
+   blockTrueOffsets_[2] = HCurlFESpace_->TrueVSize();
+   blockTrueOffsets_.PartialSum();
+   
    // int irOrder = H1FESpace_->GetElementTransformation(0)->OrderW()
    //            + 2 * order;
    // int geom = H1FESpace_->GetFE(0)->GetGeomType();
@@ -127,7 +135,8 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
    massCoef_ = new TransformedCoefficient(omega2Coef_, epsCoef_, prodFunc);
    if ( sigmaCoef_ )
    {
-      lossCoef_ = new TransformedCoefficient(omegaCoef_, sigmaCoef_, prodFunc);
+      lossCoef_ = new TransformedCoefficient(negOmegaCoef_, sigmaCoef_, prodFunc);
+      gainCoef_ = new TransformedCoefficient(omegaCoef_, sigmaCoef_, prodFunc);
    }
 
    // Volume Current Density
@@ -166,6 +175,14 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
    if ( lossCoef_ )
    {
       a1_->AddDomainIntegrator(NULL, new VectorFEMassIntegrator(*lossCoef_));
+   }
+
+   b1_ = new ParBilinearForm(HCurlFESpace_);
+   b1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_));
+   b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massCoef_));
+   if ( gainCoef_ )
+   {
+      b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*gainCoef_));
    }
    /*
    curlMuInvCurl_  = new ParBilinearForm(HCurlFESpace_);
@@ -253,7 +270,9 @@ HertzSolver::~HertzSolver()
    delete jiCoef_;
    delete massCoef_;
    delete lossCoef_;
+   delete gainCoef_;
    delete omegaCoef_;
+   delete negOmegaCoef_;
    delete omega2Coef_;
    //  delete aBCCoef_;
 
@@ -280,6 +299,7 @@ HertzSolver::~HertzSolver()
    // delete curl_;
 
    delete a1_;
+   delete b1_;
    // delete curlMuInvCurl_;
    // delete hCurlMass_;
    // delete hDivHCurlMuInv_;
@@ -321,8 +341,14 @@ HertzSolver::Assemble()
 {
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Assembling ..." << flush; }
 
+   // a0_->Assemble();
+   // a0_->Finalize();
+
    a1_->Assemble();
    a1_->Finalize();
+
+   b1_->Assemble();
+   b1_->Finalize();
 
    jd_->Assemble();
    /*
@@ -386,7 +412,9 @@ HertzSolver::Update()
    // if ( m_  ) {  m_->Update(); }
 
    // Inform the bilinear forms that the space has changed.
+   // a0_->Update();
    a1_->Update();
+   b1_->Update();
    // curlMuInvCurl_->Update();
    // hCurlMass_->Update();
    // hDivHCurlMuInv_->Update();
@@ -412,22 +440,23 @@ HertzSolver::Solve()
    ComplexHypreParMatrix * A1 =
       a1_->ParallelAssemble(ComplexOperator::BLOCK_SYMMETRIC);
 
-   if ( A1->hasRealPart() ) { A1->real().Print("A_real.mat"); }
-   if ( A1->hasImagPart() ) { A1->imag().Print("A_imag.mat"); }
+   if ( A1->hasRealPart() ) { A1->real().Print("A1_real.mat"); }
+   if ( A1->hasImagPart() ) { A1->imag().Print("A1_imag.mat"); }
 
-   HypreParMatrix * A = A1->GetSystemMatrix();
-   A->Print("A_combined.mat");
+   HypreParMatrix * A1C = A1->GetSystemMatrix();
+   A1C->Print("A1_combined.mat");
 
-   HypreParVector ra(*A); ra.Randomize(123);
-   HypreParVector A1ra(*A);
-   HypreParVector Ara(*A);
-   HypreParVector diff(*A);
+   HypreParVector ra(*A1C); ra.Randomize(123);
+   HypreParVector A1ra(*A1C);
+   HypreParVector Ara(*A1C);
+   HypreParVector diff(*A1C);
 
    A1->Mult(ra, A1ra);
-   A->Mult(ra, Ara);
+   A1C->Mult(ra, Ara);
 
    subtract(A1ra, Ara, diff);
 
+   ra.Print("r.vec");
    A1ra.Print("A1r.vec");
    Ara.Print("Ar.vec");
    diff.Print("diff.vec");
@@ -445,6 +474,21 @@ HertzSolver::Solve()
    Vector E(2*size), RHS(2*size);
    jd_->ParallelAssemble(RHS);
    e_->ParallelProject(E);
+
+   /*
+#ifdef MFEM_USE_SUPERLU
+   SuperLURowLocMatrix A_SuperLU(*A1C);
+   SuperLUSolver solver(MPI_COMM_WORLD);
+   solver.SetOperator(A_SuperLU);
+   solver.Mult(RHS, E);
+#endif
+#ifdef MFEM_USE_STRUMPACK
+   STRUMPACKRowLocMatrix A_STRUMPACK(*A1C);
+   STRUMPACKSolver solver(0, NULL, MPI_COMM_WORLD);
+   solver.SetOperator(A_STRUMPACK);
+   solver.Mult(RHS, E);
+#endif
+   */
    /*
    MINRESSolver minres(HCurlFESpace_->GetComm());
    minres.SetOperator(*A1);
@@ -454,7 +498,15 @@ HertzSolver::Solve()
    // pcg.SetPreconditioner(ams);
    minres.Mult(RHS, E);
    */
+   HypreParMatrix * B1 = b1_->ParallelAssemble();
 
+   HypreAMS ams(*B1, HCurlFESpace_);
+
+   BlockDiagonalPreconditioner BDP(blockTrueOffsets_);
+   BDP.SetDiagonalBlock(0,&ams);
+   BDP.SetDiagonalBlock(1,&ams);
+   BDP.owns_blocks = 0;
+   /*
    GMRESSolver gmres(HCurlFESpace_->GetComm());
    gmres.SetOperator(*A1);
    gmres.SetRelTol(1e-4);
@@ -462,20 +514,22 @@ HertzSolver::Solve()
    gmres.SetPrintLevel(1);
 
    gmres.Mult(RHS, E);
-   /*
+   */
+   
    FGMRESSolver fgmres(HCurlFESpace_->GetComm());
    fgmres.SetOperator(*A1);
    fgmres.SetRelTol(1e-6);
    fgmres.SetMaxIter(10000);
    fgmres.SetPrintLevel(1);
-   fgmres.SetPreconditioner(ams);
+   fgmres.SetPreconditioner(BDP);
 
    fgmres.Mult(RHS, E);
-   */
+  
    e_->Distribute(E);
 
    delete A1;
-   delete A;
+   delete A1C;
+   delete B1;
    /*
    // Initialize the magnetic vector potential with its boundary conditions
    *a_ = 0.0;
