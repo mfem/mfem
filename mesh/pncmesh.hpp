@@ -243,6 +243,8 @@ public:
        The debug mesh will have element attributes set to element rank + 1. */
    void GetDebugMesh(Mesh &debug_mesh) const;
 
+   long MemoryUsage(bool with_base = true) const;
+
    int GetMyRank() const { return MyRank; }
 
 
@@ -494,6 +496,7 @@ protected:
 
       void SetElements(const Array<int> &elems, NCMesh *ncmesh);
       void SetNCMesh(NCMesh* ncmesh) { eset.SetNCMesh(ncmesh); }
+      long MemoryUsage() const;
 
       typedef std::map<int, RebalanceDofMessage> Map;
 
