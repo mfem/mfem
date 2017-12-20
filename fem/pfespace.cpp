@@ -810,7 +810,6 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
 
    // send/receive the J arrays of send_face_nbr_ldof/face_nbr_ldof,
    // respectively
-   send_J = send_face_nbr_ldof.GetJ();
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_rank = pmesh->GetFaceNbrRank(fn);

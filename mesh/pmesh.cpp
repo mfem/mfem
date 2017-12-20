@@ -2355,7 +2355,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       int uniform_refinement = 0;
       if (type < 0)
       {
-         type = -type;
+         // type = -type; // not used
          uniform_refinement = 1;
       }
 
@@ -4210,7 +4210,7 @@ void ParMesh::PrintAsOneXG(std::ostream &out)
          out << ne << '\n';
          for (i = 0; i < NumOfElements; i++)
          {
-            attr = elements[i]->GetAttribute();
+            // attr = elements[i]->GetAttribute(); // not used
             elements[i]->GetVertices(v);
             out << 1 << "   " << 3 << "   ";
             for (j = 0; j < v.Size(); j++)
