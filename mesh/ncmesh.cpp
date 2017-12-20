@@ -3531,6 +3531,7 @@ long NCMesh::MemoryUsage() const
           vertex_nodeId.MemoryUsage() +
           face_list.MemoryUsage() +
           edge_list.MemoryUsage() +
+          vertex_list.MemoryUsage() +
           boundary_faces.MemoryUsage() +
           element_vertex.MemoryUsage() +
           ref_stack.MemoryUsage() +

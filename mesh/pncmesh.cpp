@@ -2414,6 +2414,60 @@ void ParNCMesh::GetDebugMesh(Mesh &debug_mesh) const
    debug_mesh.ncmesh = copy;
 }
 
+long ParNCMesh::RebalanceDofMessage::MemoryUsage() const
+{
+   return (elem_ids.capacity() + dofs.capacity()) * sizeof(int);
+}
+
+template<typename K, typename V>
+static long map_memory_usage(const std::map<K, V> &map)
+{
+   long result = 0;
+   for (typename std::map<K, V>::const_iterator
+        it = map.begin(); it != map.end(); ++it)
+   {
+      result += it->second.MemoryUsage();
+      result += sizeof(std::pair<K, V>) + 3*sizeof(void*) + sizeof(bool);
+   }
+   return result;
+}
+
+long ParNCMesh::MemoryUsage(bool with_base) const
+{
+   long base_size = with_base ? NCMesh::MemoryUsage() : 0;
+
+   long groups_size = groups.capacity() * sizeof(CommGroup);
+   for (unsigned i = 0; i < groups.size(); i++)
+   {
+      groups_size += groups[i].capacity() * sizeof(int);
+   }
+   groups_size += group_id.size() * (sizeof(std::pair<CommGroup, GroupId>) +
+                  3*sizeof(void*) + sizeof(bool)); // approximate
+
+   return base_size + groups_size +
+          vertex_group.MemoryUsage() +
+          vertex_owner.MemoryUsage() +
+          edge_group.MemoryUsage() +
+          edge_owner.MemoryUsage() +
+          face_group.MemoryUsage() +
+          face_owner.MemoryUsage() +
+          shared_vertices.MemoryUsage() +
+          shared_edges.MemoryUsage() +
+          shared_faces.MemoryUsage() +
+          face_orient.MemoryUsage() +
+          element_type.MemoryUsage() +
+          ghost_layer.MemoryUsage() +
+          boundary_layer.MemoryUsage() +
+          tmp_owner.MemoryUsage() +
+          index_rank.MemoryUsage() +
+          tmp_neighbors.MemoryUsage() +
+          map_memory_usage(send_rebalance_dofs) +
+          map_memory_usage(recv_rebalance_dofs) +
+          old_index_or_rank.MemoryUsage() +
+          aux_pm_store.MemoryUsage() +
+          sizeof(ParNCMesh) - sizeof(NCMesh);
+}
+
 } // namespace mfem
 
 #endif // MFEM_USE_MPI
