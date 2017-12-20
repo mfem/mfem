@@ -13,6 +13,35 @@
 //   Hertz Miniapp:  Simple Frequency-Domain Electromagnetic Simulation Code
 //   -----------------------------------------------------------------------
 //
+// Compile with: make hertz
+//
+// Sample runs:
+//
+//   By default the sources and fields are all zero
+//     mpirun -np 4 hertz
+//
+//   Current source in a sphere with absorbing boundary conditions
+//     mpirun -np 4 hertz -m ../../data/ball-nurbs.mesh -rs 2
+//                        -abcs '-1'
+//                        -do '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
+//
+//   Current source in a metal sphere with dielectric and conducting materials
+//     mpirun -np 4 hertz -m ../../data/ball-nurbs.mesh -rs 2
+//                        -dbcs '-1'
+//                        -do '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
+//                        -cs '0.0 0.0 -0.5 .2 10'
+//                        -ds '0.0 0.0 0.5 .2 10'
+//
+//   Current source in a metal box
+//     mpirun -np 4 hertz -m ../../data/fichera.mesh -rs 3
+//                        -dbcs '-1'
+//                        -do '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
+//
+//   Current source with a mixture of absorbing and reflecting boundaries
+//     mpirun -np 4 hertz -m ../../data/fichera.mesh -rs 3
+//                        -do '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
+//                        -dbcs '4 8 19 21' -abcs '5 18'
+//
 
 #include "hertz_solver.hpp"
 #include <fstream>
