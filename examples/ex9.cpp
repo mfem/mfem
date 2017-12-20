@@ -81,7 +81,6 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../data/periodic-hexagon.mesh";
-   const char *conduit_protocol = "hdf5";
    int ref_levels = 2;
    int order = 3;
    int ode_solver_type = 4;
@@ -90,7 +89,6 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool visit = false;
    bool binary = false;
-   bool conduit_output = false;
    int vis_steps = 5;
 
    int precision = 8;
@@ -121,12 +119,6 @@ int main(int argc, char *argv[])
    args.AddOption(&binary, "-binary", "--binary-datafiles", "-ascii",
                   "--ascii-datafiles",
                   "Use binary (Sidre) or ascii format for VisIt data files.");
-   args.AddOption(&conduit_output, "-conduit", "--conduit-datafiles", "-ascii",
-                  "--ascii-datafiles",
-                  "Save data files with Conduit.");
-   args.AddOption(&conduit_protocol, "-cp", "--conduit-protocol",
-                  "Conduit relay I/O protocol to use: hdf5 (default), json,"
-                  "conduit_json, or conduit_bin");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.Parse();
@@ -231,16 +223,6 @@ int main(int argc, char *argv[])
          dc = new SidreDataCollection("Example9", mesh);
 #else
          MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
-#endif
-      }
-      else if ( conduit_output )
-      {
-#ifdef MFEM_USE_CONDUIT
-         ConduitDataCollection *conduit_dc = new ConduitDataCollection("Example9", mesh);
-         conduit_dc->SetProtocol(std::string(conduit_protocol));
-         dc = conduit_dc;
-#else
-         MFEM_ABORT("Must build with MFEM_USE_CONDUIT=YES for conduit output.");
 #endif
       }
       else
