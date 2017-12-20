@@ -43,11 +43,11 @@ class HertzSolver
 {
 public:
    HertzSolver(ParMesh & pmesh, int order, double freq,
-               Array<int> & kbcs,
-               Array<int> & vbcs, Vector & vbcv,
                Coefficient & epsCoef,
                Coefficient & muInvCoef,
                Coefficient * sigmaCoef,
+               Array<int> & abcs,
+               Array<int> & dbcs,
                void   (*e_r_bc )(const Vector&, Vector&),
                void   (*e_i_bc )(const Vector&, Vector&),
                void   (*j_r_src)(const Vector&, Vector&),
@@ -131,6 +131,7 @@ private:
    Coefficient       * epsCoef_;   // Dielectric Material Coefficient
    Coefficient       * muInvCoef_; // Dia/Paramagnetic Material Coefficient
    Coefficient       * sigmaCoef_; // Electrical Conductivity Coefficient
+   Coefficient       * etaInvCoef_; // Admittance Coefficient
 
    Coefficient * omegaCoef_;  // omega expressed as a Coefficient
    Coefficient * negOmegaCoef_;  // -omega expressed as a Coefficient
@@ -142,12 +143,22 @@ private:
    // VectorCoefficient * aBCCoef_;   // Vector Potential BC Function
    VectorCoefficient * jrCoef_;     // Volume Current Density Function
    VectorCoefficient * jiCoef_;     // Volume Current Density Function
+   VectorCoefficient * erCoef_;     // Electric Field Boundary Condition
+   VectorCoefficient * eiCoef_;     // Electric Field Boundary Condition
    // VectorCoefficient * mCoef_;     // Magnetization Vector Function
 
    // void   (*a_bc_ )(const Vector&, Vector&);
    void   (*j_r_src_)(const Vector&, Vector&);
    void   (*j_i_src_)(const Vector&, Vector&);
    // void   (*m_src_)(const Vector&, Vector&);
+
+   // Array of 0's and 1's marking the location of absorbing surfaces
+   Array<int> abc_marker_;
+
+   // Array of 0's and 1's marking the location of Dirichlet boundaries
+   Array<int> dbc_marker_;
+   void   (*e_r_bc_)(const Vector&, Vector&);
+   void   (*e_i_bc_)(const Vector&, Vector&);
 
    Array<int> ess_bdr_;
    Array<int> ess_bdr_tdofs_;

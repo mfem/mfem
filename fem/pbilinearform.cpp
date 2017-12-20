@@ -488,6 +488,15 @@ ParSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
 }
 
 void
+ParSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
+                                           BilinearFormIntegrator *bfi_imag,
+					   Array<int> & bdr_marker)
+{
+   if (bfi_real) { pblfr_->AddBoundaryIntegrator(bfi_real, bdr_marker); }
+   if (bfi_imag) { pblfi_->AddBoundaryIntegrator(bfi_imag, bdr_marker); }
+}
+
+void
 ParSesquilinearForm::Assemble(int skip_zeros)
 {
    pblfr_->Assemble(skip_zeros);

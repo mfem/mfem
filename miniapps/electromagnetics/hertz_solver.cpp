@@ -25,11 +25,11 @@ namespace electromagnetics
 double prodFunc(double a, double b) { return a * b; }
 
 HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
-                         Array<int> & kbcs,
-                         Array<int> & vbcs, Vector & vbcv,
                          Coefficient & epsCoef,
                          Coefficient & muInvCoef,
                          Coefficient * sigmaCoef,
+                         Array<int> & abcs,
+                         Array<int> & dbcs,
                          void   (*e_r_bc )(const Vector&, Vector&),
                          void   (*e_i_bc )(const Vector&, Vector&),
                          void   (*j_r_src)(const Vector&, Vector&),
@@ -71,16 +71,21 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
      epsCoef_(&epsCoef),
      muInvCoef_(&muInvCoef),
      sigmaCoef_(sigmaCoef),
+     etaInvCoef_(NULL),
      omegaCoef_(new ConstantCoefficient(2.0 * M_PI * freq)),
      negOmegaCoef_(new ConstantCoefficient(-2.0 * M_PI * freq)),
      omega2Coef_(new ConstantCoefficient(-pow(2.0 * M_PI * freq, 2))),
      // aBCCoef_(NULL),
      jrCoef_(NULL),
      jiCoef_(NULL),
+     erCoef_(NULL),
+     eiCoef_(NULL),
      // mCoef_(NULL),
      // a_bc_(a_bc),
      j_r_src_(j_r_src),
      j_i_src_(j_i_src),
+     e_r_bc_(e_r_bc),
+     e_i_bc_(e_i_bc),
      // m_src_(m_src)
      visit_dc_(NULL)
 {
@@ -139,6 +144,32 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
       gainCoef_ = new TransformedCoefficient(omegaCoef_, sigmaCoef_, prodFunc);
    }
 
+   // Impedance of free space
+   if ( abcs.Size() > 0 )
+   {
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "Creating Admittance Coefficient" << endl;
+      }
+
+      abc_marker_.SetSize(pmesh.bdr_attributes.Max());
+      if ( abcs.Size() == 1 && abcs[0] < 0 )
+      {
+         // Mark all boundaries as absorbing
+         abc_marker_ = 1;
+      }
+      else
+      {
+         // Mark select boundaries as absorbing
+         abc_marker_ = 0;
+         for (int i=0; i<abcs.Size(); i++)
+         {
+            abc_marker_[abcs[i]-1] = 1;
+         }
+      }
+      etaInvCoef_ = new ConstantCoefficient(sqrt(epsilon0_/mu0_));
+   }
+
    // Volume Current Density
    if ( j_r_src_ != NULL )
    {
@@ -175,6 +206,11 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
    if ( lossCoef_ )
    {
       a1_->AddDomainIntegrator(NULL, new VectorFEMassIntegrator(*lossCoef_));
+   }
+   if ( etaInvCoef_ )
+   {
+      a1_->AddBoundaryIntegrator(NULL, new VectorFEMassIntegrator(*etaInvCoef_),
+				 abc_marker_);
    }
 
    b1_ = new ParBilinearForm(HCurlFESpace_);
@@ -268,13 +304,15 @@ HertzSolver::~HertzSolver()
 {
    delete jrCoef_;
    delete jiCoef_;
+   delete erCoef_;
+   delete eiCoef_;
    delete massCoef_;
    delete lossCoef_;
    delete gainCoef_;
+   delete etaInvCoef_;
    delete omegaCoef_;
    delete negOmegaCoef_;
    delete omega2Coef_;
-   //  delete aBCCoef_;
 
    // delete DivFreeProj_;
    // delete SurfCur_;

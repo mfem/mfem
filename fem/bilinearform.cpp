@@ -205,6 +205,14 @@ void BilinearForm::AddDomainIntegrator (BilinearFormIntegrator * bfi)
 void BilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
 {
    bbfi.Append (bfi);
+   bbfi_marker.Append(NULL); // NULL marker means apply everywhere
+}
+
+void BilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
+					  Array<int> &bdr_marker)
+{
+   bbfi.Append (bfi);
+   bbfi_marker.Append(&bdr_marker);
 }
 
 void BilinearForm::AddInteriorFaceIntegrator (BilinearFormIntegrator * bfi)
