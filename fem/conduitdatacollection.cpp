@@ -79,11 +79,17 @@ ConduitDataCollection::Save()
    FieldMapConstIterator itr;
    for ( itr = field_map.begin(); itr != field_map.end(); itr++)
    {
+      std::string name = itr->first;
       GridFunction *gf = itr->second;
-      // future? If moved into GridFunction class
-      //gf->toConduitBlueprint(n_mesh["fields"][it->first]);
-      GridFunctionToBlueprintField(gf,
-                                   n_mesh["fields"][itr->first]);
+      // dont save mesh nodes twice ...
+      if (  gf != mesh->GetNodes())
+      {
+
+         // future? If moved into GridFunction class
+         //gf->toConduitBlueprint(n_mesh["fields"][it->first]);
+         GridFunctionToBlueprintField(gf,
+                                      n_mesh["fields"][name]);
+      }
    }
 
    // save mesh data
@@ -150,17 +156,73 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
                "Expected topology named \"coords\" "
                "(node is missing path \"coordsets/coords\")");
 
-   const Node n_coordset = n_mesh["coordsets/coords"];
+   const Node &n_coordset = n_mesh["coordsets/coords"];
+   const Node &n_coordset_vals = n_coordset["values"];
 
    // get the number of dims of the coordset
-   int ndims = n_coordset["values"].number_of_children();
+   int ndims = n_coordset_vals.number_of_children();
 
-   // mfem mesh constructor needs coords with interleaved (aos) type ordering
-   Node coords_values;
-   blueprint::mcarray::to_interleaved(n_coordset["values"],coords_values);
+   // get the number of points
+   int num_verts = n_coordset_vals[0].dtype().number_of_elements();
+   // get vals for points
+   const double *verts_ptr = NULL;
 
-   int num_verts         = coords_values[0].dtype().number_of_elements();
-   double *verts_indices = coords_values[0].value();
+   // the mfem mesh constructor needs coords with interleaved (aos) type
+   // ordering, even for 1d + 2d we always need 3 doubles b/c it uses
+   // Array<Vertex> and Vertex is a pod of 3 doubles. we check for this
+   // case, if we don't have it we convert the data
+
+   if (ndims == 3 &&
+       n_coordset_vals[0].dtype().is_double() &&
+       blueprint::mcarray::is_interleaved(n_coordset_vals) )
+   {
+      // already interleaved mcarray of 3 doubles,
+      // return ptr to beginning
+      verts_ptr = n_coordset_vals[0].value();
+   }
+   else
+   {
+      Node n_tmp;
+      // check all vals, if we don't have doubles convert
+      // to doubles
+      NodeConstIterator itr = n_coordset_vals.children();
+      while (itr.has_next())
+      {
+         const Node &c_vals = itr.next();
+         std::string c_name = itr.name();
+
+         if ( c_vals.dtype().is_double() )
+         {
+            // zero copy current coords
+            n_tmp[c_name].set_external(c_vals);
+
+         }
+         else
+         {
+            // convert
+            c_vals.to_double_array(n_tmp[c_name]);
+         }
+      }
+
+      // check if we need to add extra dims to get
+      // proper interleaved array
+      if (ndims < 3)
+      {
+         // add dummy z
+         n_tmp["z"].set(DataType::c_double(num_verts));
+      }
+
+      if (ndims < 2)
+      {
+         // add dummy y
+         n_tmp["y"].set(DataType::c_double(num_verts));
+      }
+
+      Node &n_conv_coords_vals = n_conv["coordsets/coords/values"];
+      blueprint::mcarray::to_interleaved(n_tmp,
+                                         n_conv_coords_vals);
+      verts_ptr = n_conv_coords_vals[0].value();
+   }
 
    MFEM_ASSERT(n_mesh.has_path("topologies/main"),
                "Expected topology named \"main\" "
@@ -334,7 +396,7 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
 
    // Construct MFEM Mesh Object with externally owned data
    Mesh *mesh = new Mesh(// from coordset
-      verts_indices,
+      const_cast<double*>(verts_ptr),
       num_verts,
       // from topology
       const_cast<int*>(elem_indices),
@@ -407,24 +469,61 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
    if (n_field["values"].dtype().is_object())
    {
       vdim = n_field["values"].number_of_children();
-      // check for contig
-      if (n_field["values"].is_contiguous())
+
+      // need to check that we have doubles and
+      // cover supported layouts
+
+      if ( n_field["values"][0].dtype().is_double() )
       {
-         // conduit mcarray contig  == mfem byNODES
-         vals_ptr = n_field["values"].child(0).value();
+         // check for contig
+         if (n_field["values"].is_contiguous())
+         {
+            // conduit mcarray contig  == mfem byNODES
+            vals_ptr = n_field["values"].child(0).value();
+         }
+         // check for interleaved
+         else if (blueprint::mcarray::is_interleaved(n_field["values"]))
+         {
+            // conduit mcarray interleaved == mfem byVDIM
+            ordering = Ordering::byVDIM;
+            vals_ptr = n_field["values"].child(0).value();
+         }
+         else
+         {
+            // for mcarray generic case --  default to byNODES
+            // and provide values w/ contiguous (soa) ordering
+            blueprint::mcarray::to_contiguous(n_field["values"],
+                                              n_conv["values"]);
+            vals_ptr = n_conv["values"].child(0).value();
+         }
       }
-      // check for interleaved
-      else if (blueprint::mcarray::is_interleaved(n_field["values"]))
+      else // convert to doubles and use contig
       {
-         // conduit mcarray interleaved == mfem byVDIM
-         ordering = Ordering::byVDIM;
-         vals_ptr = n_field["values"].child(0).value();
-      }
-      else
-      {
+         Node n_tmp;
+         // check all vals, if we don't have doubles convert
+         // to doubles
+         NodeConstIterator itr = n_field["values"].children();
+         while (itr.has_next())
+         {
+            const Node &c_vals = itr.next();
+            std::string c_name = itr.name();
+
+            if ( c_vals.dtype().is_double() )
+            {
+               // zero copy current coords
+               n_tmp[c_name].set_external(c_vals);
+
+            }
+            else
+            {
+               // convert
+               c_vals.to_double_array(n_tmp[c_name]);
+            }
+         }
+
          // for mcarray generic case --  default to byNODES
          // and provide values w/ contiguous (soa) ordering
-         blueprint::mcarray::to_contiguous(n_field["values"],
+         blueprint::mcarray::to_contiguous(n_tmp,
                                            n_conv["values"]);
          vals_ptr = n_conv["values"].child(0).value();
       }
@@ -442,7 +541,6 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
          vals_ptr = n_conv["values"].value();
       }
    }
-
 
    if (zero_copy && !n_conv.dtype().is_empty())
    {
@@ -494,8 +592,13 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    ////////////////////////////////////////////
 
    // Assumes  mfem::Vertex has the layout of a double array.
-   const int num_coords = sizeof(mfem::Vertex) / sizeof(double);
-   const int num_vertices = mesh->GetNV();
+
+   // this logic assumes an mfem vertex is always 3 doubles wide
+   int stride = sizeof(mfem::Vertex);
+   int num_vertices = mesh->GetNV();
+
+   MFEM_ASSERT( ( stride == 3 * sizeof(double) ),
+                "Unexpected stride for Vertex");
 
    n_mesh["coordsets/coords/type"] =  "explicit";
 
@@ -504,23 +607,22 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    n_mesh["coordsets/coords/values/x"].set_external(coords_ptr,
                                                     num_vertices,
                                                     0,
-                                                    sizeof(double) * num_coords);
+                                                    stride);
 
    if (dim >= 2)
    {
       n_mesh["coordsets/coords/values/y"].set_external(coords_ptr,
                                                        num_vertices,
                                                        sizeof(double),
-                                                       sizeof(double) * num_coords);
+                                                       stride);
    }
    if (dim >= 3)
    {
       n_mesh["coordsets/coords/values/z"].set_external(coords_ptr,
                                                        num_vertices,
                                                        sizeof(double) * 2,
-                                                       sizeof(double) * num_coords);
+                                                       stride);
    }
-
 
    ////////////////////////////////////////////
    // Setup main topo "main"
@@ -692,6 +794,7 @@ ConduitDataCollection::GridFunctionToBlueprintField(mfem::GridFunction *gf,
          offset +=  sizeof(double) * vdim_stride;
       }
    }
+
 }
 
 
@@ -912,13 +1015,24 @@ ConduitDataCollection::LoadMeshAndFields(int domain_id,
 
    NodeConstIterator itr = n_mesh["fields"].children();
 
+   std::string nodes_gf_name = "";
+
+   const Node &n_topo = n_mesh["topologies/main"];
+   if (n_topo.has_child("grid_function"))
+   {
+      nodes_gf_name = n_topo["grid_function"].as_string();
+   }
+
    while (itr.has_next())
    {
       const Node &n_field = itr.next();
       std::string field_name = itr.name();
 
+      // skip mesh nodes gf since they are already processed
       // skip attribute fields, they aren't grid functions
-      if (field_name.find("_attribute") == std::string::npos)
+      if ( field_name != nodes_gf_name &&
+           field_name.find("_attribute") == std::string::npos
+         )
       {
          GridFunction *gf = BlueprintFieldToGridFunction(mesh, n_field);
          field_map[field_name] = gf;
