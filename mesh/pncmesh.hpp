@@ -212,6 +212,8 @@ public:
 
    // utility
 
+   int GetMyRank() const { return MyRank; }
+
    /// Use the communication pattern from last Rebalance() to send element DOFs.
    void SendRebalanceDofs(int old_ndofs, const Table &old_element_dofs,
                           long old_global_offset, FiniteElementSpace* space);
@@ -239,13 +241,17 @@ public:
                                    Array<int> &bdr_vertices,
                                    Array<int> &bdr_edges);
 
+   /// Save memory by releasing all non-essential and cached data.
+   virtual void Trim();
+
+   /// Return total number of bytes allocated.
+   long MemoryUsage(bool with_base = true) const;
+
+   int PrintMemoryDetail(bool with_base = true) const;
+
    /** Extract a debugging Mesh containing all leaf elements, including ghosts.
        The debug mesh will have element attributes set to element rank + 1. */
    void GetDebugMesh(Mesh &debug_mesh) const;
-
-   long MemoryUsage(bool with_base = true) const;
-
-   int GetMyRank() const { return MyRank; }
 
 
 protected:
@@ -526,6 +532,8 @@ protected:
    /// Stores modified point matrices created by GetFaceNeighbors
    Array<DenseMatrix*> aux_pm_store;
    void ClearAuxPM();
+
+   long GroupsMemoryUsage() const;
 
    static bool compare_ranks_indices(const Element* a, const Element* b);
 

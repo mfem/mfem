@@ -2414,6 +2414,22 @@ void ParNCMesh::GetDebugMesh(Mesh &debug_mesh) const
    debug_mesh.ncmesh = copy;
 }
 
+void ParNCMesh::Trim()
+{
+   NCMesh::Trim();
+
+   shared_vertices.Clear(true);
+   shared_edges.Clear(true);
+   shared_faces.Clear(true);
+
+   send_rebalance_dofs.clear();
+   recv_rebalance_dofs.clear();
+
+   old_index_or_rank.DeleteAll();
+
+   ClearAuxPM();
+}
+
 long ParNCMesh::RebalanceDofMessage::MemoryUsage() const
 {
    return (elem_ids.capacity() + dofs.capacity()) * sizeof(int);
@@ -2432,19 +2448,22 @@ static long map_memory_usage(const std::map<K, V> &map)
    return result;
 }
 
-long ParNCMesh::MemoryUsage(bool with_base) const
+long ParNCMesh::GroupsMemoryUsage() const
 {
-   long base_size = with_base ? NCMesh::MemoryUsage() : 0;
-
    long groups_size = groups.capacity() * sizeof(CommGroup);
    for (unsigned i = 0; i < groups.size(); i++)
    {
       groups_size += groups[i].capacity() * sizeof(int);
    }
-   groups_size += group_id.size() * (sizeof(std::pair<CommGroup, GroupId>) +
-                  3*sizeof(void*) + sizeof(bool)); // approximate
+   const int approx_node_size =
+      sizeof(std::pair<CommGroup, GroupId>) + 3*sizeof(void*) + sizeof(bool);
+   return groups_size + group_id.size() * approx_node_size;
+}
 
-   return base_size + groups_size +
+long ParNCMesh::MemoryUsage(bool with_base) const
+{
+   return (with_base ? NCMesh::MemoryUsage() : 0) +
+          GroupsMemoryUsage() +
           vertex_group.MemoryUsage() +
           vertex_owner.MemoryUsage() +
           edge_group.MemoryUsage() +
@@ -2466,6 +2485,36 @@ long ParNCMesh::MemoryUsage(bool with_base) const
           old_index_or_rank.MemoryUsage() +
           aux_pm_store.MemoryUsage() +
           sizeof(ParNCMesh) - sizeof(NCMesh);
+}
+
+int ParNCMesh::PrintMemoryDetail(bool with_base) const
+{
+   if (with_base) { NCMesh::PrintMemoryDetail(); }
+
+   mfem::out << GroupsMemoryUsage() << " groups\n"
+             << vertex_group.MemoryUsage() << " vertex_group\n"
+             << vertex_owner.MemoryUsage() << " vertex_owner\n"
+             << edge_group.MemoryUsage() << " edge_group\n"
+             << edge_owner.MemoryUsage() << " edge_owner\n"
+             << face_group.MemoryUsage() << " face_group\n"
+             << face_owner.MemoryUsage() << " face_owner\n"
+             << shared_vertices.MemoryUsage() << " shared_vertices\n"
+             << shared_edges.MemoryUsage() << " shared_edges\n"
+             << shared_faces.MemoryUsage() << " shared_faces\n"
+             << face_orient.MemoryUsage() << " face_orient\n"
+             << element_type.MemoryUsage() << " element_type\n"
+             << ghost_layer.MemoryUsage() << " ghost_layer\n"
+             << boundary_layer.MemoryUsage() << " boundary_layer\n"
+             << tmp_owner.MemoryUsage() << " tmp_owner\n"
+             << index_rank.MemoryUsage() << " index_rank\n"
+             << tmp_neighbors.MemoryUsage() << " tmp_neighbors\n"
+             << map_memory_usage(send_rebalance_dofs) << " send_rebalance_dofs\n"
+             << map_memory_usage(recv_rebalance_dofs) << " recv_rebalance_dofs\n"
+             << old_index_or_rank.MemoryUsage() << " old_index_or_rank\n"
+             << aux_pm_store.MemoryUsage() << " aux_pm_store\n"
+             << sizeof(ParNCMesh) - sizeof(NCMesh) << " ParNCMesh" << std::endl;
+
+   return leaf_elements.Size();
 }
 
 } // namespace mfem
