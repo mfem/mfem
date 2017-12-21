@@ -2066,11 +2066,21 @@ void NCMesh::Slave::OrientedPointMatrix(DenseMatrix &oriented_matrix) const
    }
 }
 
-void NCMesh::NCList::Clear()
+void NCMesh::NCList::Clear(bool hard)
 {
-   conforming.clear();
-   masters.clear();
-   slaves.clear();
+   if (!hard)
+   {
+      conforming.clear();
+      masters.clear();
+      slaves.clear();
+   }
+   else
+   {
+      NCList empty;
+      conforming.swap(empty.conforming);
+      masters.swap(empty.masters);
+      slaves.swap(empty.slaves);
+   }
    inv_index.DeleteAll();
 }
 
@@ -3501,6 +3511,18 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    Update();
 }
 
+void NCMesh::Trim()
+{
+   vertex_list.Clear(true);
+   face_list.Clear(true);
+   edge_list.Clear(true);
+
+   boundary_faces.DeleteAll();
+   element_vertex.Clear();
+
+   ClearTransforms();
+}
+
 long NCMesh::NCList::MemoryUsage() const
 {
    int pmsize = 0;
@@ -3553,13 +3575,17 @@ int NCMesh::PrintMemoryDetail() const
              << vertex_nodeId.MemoryUsage() << " vertex_nodeId\n"
              << face_list.MemoryUsage() << " face_list\n"
              << edge_list.MemoryUsage() << " edge_list\n"
+             << vertex_list.MemoryUsage() << " vertex_list\n"
              << boundary_faces.MemoryUsage() << " boundary_faces\n"
              << element_vertex.MemoryUsage() << " element_vertex\n"
              << ref_stack.MemoryUsage() << " ref_stack\n"
+             << derefinements.MemoryUsage() << " derefinements\n"
+             << transforms.MemoryUsage() << " transforms\n"
              << coarse_elements.MemoryUsage() << " coarse_elements\n"
-             << sizeof(*this) << " NCMesh" << std::endl;
+             << sizeof(*this) << " NCMesh"
+             << std::endl;
 
-   return elements.Size()-free_element_ids.Size();
+   return elements.Size() - free_element_ids.Size();
 }
 
 void NCMesh::PrintStats(std::ostream &out) const

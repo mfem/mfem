@@ -174,7 +174,7 @@ public:
       // TODO: switch to Arrays when fixed for non-POD types
       // TODO: make a list of unique slave matrices to save memory (+ time later)
 
-      void Clear();
+      void Clear(bool hard = false);
       bool Empty() const { return !conforming.size() && !masters.size(); }
       long TotalSize() const;
       long MemoryUsage() const;
@@ -292,6 +292,9 @@ public:
 
    /// I/O: Set positions of all vertices (used by mesh loader).
    void SetVertexPositions(const Array<mfem::Vertex> &vertices);
+
+   /// Save memory by releasing all non-essential and cached data.
+   virtual void Trim();
 
    /// Return total number of bytes allocated.
    long MemoryUsage() const;
