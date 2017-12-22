@@ -811,18 +811,19 @@ void FiniteElementSpace::RefinementOperator
 
          for (int i = 0; i < dofs.Size(); i++)
          {
-            double sign;
+            double rsign, osign;
             int r = fespace->DofToVDof(dofs[i], vd);
-            r = DecodeDof(r, sign);
+            r = DecodeDof(r, rsign);
 
             if (!processed[r])
             {
                double value = 0.0;
                for (int j = 0; j < old_vdofs.Size(); j++)
                {
-                  value += x[old_vdofs[j]] * lP(i, j);
+                  int o = DecodeDof(old_vdofs[j], osign);
+                  value += x[o] * lP(i, j) * osign;
                }
-               y[r] = value * sign;
+               y[r] = value * rsign;
                processed[r] = 1;
             }
          }
