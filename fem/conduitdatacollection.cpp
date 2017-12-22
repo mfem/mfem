@@ -84,7 +84,6 @@ ConduitDataCollection::Save()
       // dont save mesh nodes twice ...
       if (  gf != mesh->GetNodes())
       {
-
          // future? If moved into GridFunction class
          //gf->toConduitBlueprint(n_mesh["fields"][it->first]);
          GridFunctionToBlueprintField(gf,
@@ -374,7 +373,7 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
       {
          Node &n_bndry_atts_vals_conv = n_conv["fields"][bnd_att_name]["values"];
          n_bndry_atts_vals.to_int_array(n_bndry_atts_vals_conv);
-         mesh_atts  = n_bndry_atts_vals_conv.value();
+         bndry_atts = n_bndry_atts_vals_conv.value();
       }
 
       num_bndry_atts_entires = n_bndry_atts_vals.dtype().number_of_elements();
@@ -395,6 +394,9 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
    //
 
    // Construct MFEM Mesh Object with externally owned data
+   // Note: if we don't have a gf, we need to provide the proper space dim
+   //       if nodes gf is attached later, it resets the space dim based
+   //       on the gf's fes.
    Mesh *mesh = new Mesh(// from coordset
       const_cast<double*>(verts_ptr),
       num_verts,
@@ -410,19 +412,23 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
       // from boundary_attribute field
       const_cast<int*>(bndry_atts),
       num_bndry_ele,
-      ndims,
-      1); // we need this flag
+      ndims, // dim
+      ndims); // space dim
 
-   // Attach Nodes Grid Function
+   // Attach Nodes Grid Function, if it exists
+   if (n_mesh_topo.has_child("grid_function"))
+   {
+      std::string nodes_gf_name = n_mesh_topo["grid_function"].as_string();
 
-   // fetch blueprint field for the nodes gf
-   const Node &n_mesh_gf =
-      n_mesh["fields"][n_mesh_topo["grid_function"].as_string()];
-   // create gf
-   mfem::GridFunction *nodes = BlueprintFieldToGridFunction(mesh,
-                                                            n_mesh_gf);
-   // attach to mesh
-   mesh->NewNodes(*nodes,true);
+      // fetch blueprint field for the nodes gf
+      const Node &n_mesh_gf = n_mesh["fields"][nodes_gf_name];
+      // create gf
+      mfem::GridFunction *nodes = BlueprintFieldToGridFunction(mesh,
+                                                               n_mesh_gf);
+      // attach to mesh
+      mesh->NewNodes(*nodes,true);
+   }
+
 
    if (zero_copy && !n_conv.dtype().is_empty())
    {
@@ -585,6 +591,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
                                            Node &n_mesh)
 {
    int dim = mesh->SpaceDimension();
+
    MFEM_ASSERT(dim >= 1 && dim <= 3, "invalid mesh dimension");
 
    ////////////////////////////////////////////
@@ -715,7 +722,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
 
       int num_bndry_ele = mesh->GetNBE();
       int bndry_geom    = mesh->GetBdrElementBaseGeometry(0);
-      int bndry_idxs_per_ele  = Geometry::NumVerts[geom];
+      int bndry_idxs_per_ele  = Geometry::NumVerts[bndry_geom];
       int num_bndry_conn_idxs =  num_bndry_ele * bndry_idxs_per_ele;
 
       n_bndry_topo["elements/connectivity"].set(DataType::c_int(num_bndry_conn_idxs));
@@ -724,10 +731,10 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
 
       for (int i=0; i < num_bndry_ele; i++)
       {
-         const Element *ele = mesh->GetBdrElement(i);
-         const int *ele_verts = ele->GetVertices();
+         const Element *bndry_ele = mesh->GetBdrElement(i);
+         const int *bndry_ele_verts = bndry_ele->GetVertices();
 
-         memcpy(bndry_conn_ptr, ele_verts, bndry_idxs_per_ele  * sizeof(int));
+         memcpy(bndry_conn_ptr, bndry_ele_verts, bndry_idxs_per_ele  * sizeof(int));
 
          bndry_conn_ptr += bndry_idxs_per_ele;
       }
@@ -740,10 +747,10 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
 
       n_bndry_mesh_att["association"] = "element";
       n_bndry_mesh_att["topology"] = "boundary";
-      n_bndry_mesh_att["values"].set(DataType::c_int(num_ele));
+      n_bndry_mesh_att["values"].set(DataType::c_int(num_bndry_ele));
 
       int_array bndry_att_vals = n_bndry_mesh_att["values"].value();
-      for (int i = 0; i < num_ele; i++)
+      for (int i = 0; i < num_bndry_ele; i++)
       {
          bndry_att_vals[i] = mesh->GetBdrAttribute(i);
       }
