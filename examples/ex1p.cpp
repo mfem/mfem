@@ -88,6 +88,10 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
+   if (mesh->NURBSext)
+   {
+      mesh->SetCurvature(order);
+   }
    mesh->EnsureNCMesh();
 
    // 4. Refine the serial mesh on all processors to increase the resolution. In
@@ -96,7 +100,7 @@ int main(int argc, char *argv[])
    //    more than 10,000 elements.
    {
       int ref_levels =
-         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(100./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -207,12 +211,19 @@ int main(int argc, char *argv[])
 
    /////// TEST TEST /////////
 
-   for (int i = 0; i < 4; i++)
+   double time = 0;
+   for (int i = 0; i < 3; i++)
    {
+      if (!myid) { cout << "Refining..." << endl; }
       pmesh->RandomRefinement(0.5);
+
+      if (!myid) { cout << "Updating..." << endl; }
+      tic();
       fespace->Update();
       x.Update();
+      time += toc();
    }
+   if (!myid) { cout << "Updated in " << time << endl; }
 
    /////// TEST TEST /////////
 

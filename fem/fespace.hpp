@@ -130,10 +130,10 @@ protected:
       Table* old_elem_dof; // owned
 
    public:
-      virtual ~RefinementOperator();
       RefinementOperator(const FiniteElementSpace* fespace,
-                         Table *old_elem_dof, int old_ndofs);
+                         Table *old_elem_dof/*takes ownership*/, int old_ndofs);
       virtual void Mult(const Vector &x, Vector &y) const;
+      virtual ~RefinementOperator();
    };
 
    void GetLocalDerefinementMatrices(

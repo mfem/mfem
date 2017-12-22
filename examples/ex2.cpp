@@ -220,6 +220,21 @@ int main(int argc, char *argv[])
       mesh->SetNodalFESpace(fespace);
    }
 
+   /////// TEST TEST /////////
+
+   for (int i = 0; i < 3; i++)
+   {
+      cout << "Refining..." << endl;
+      mesh->RandomRefinement(0.5);
+      //mesh->UniformRefinement();
+      cout << "Updating..." << endl;
+      fespace->Update();
+      x.Update();
+   }
+   cout << "Done." << endl;
+
+   /////// TEST TEST /////////
+
    // 14. Save the displaced mesh and the inverted solution (which gives the
    //     backward displacements to the original grid). This output can be
    //     viewed later using GLVis: "glvis -m displaced.mesh -g sol.gf".

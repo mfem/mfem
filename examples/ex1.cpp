@@ -172,12 +172,15 @@ int main(int argc, char *argv[])
 
    /////// TEST TEST /////////
 
-   for (int i = 0; i < 4; i++)
+   for (int i = 0; i < 3; i++)
    {
+      cout << "Refining..." << endl;
       mesh->RandomRefinement(0.5);
+      cout << "Updating..." << endl;
       fespace->Update();
       x.Update();
    }
+   cout << "Done." << endl;
 
    /////// TEST TEST /////////
 
