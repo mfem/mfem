@@ -896,6 +896,24 @@ ConduitDataCollection::SaveRootFile(int num_domains,
                                    num_domains,
                                    n_bp_idx["mesh"]);
 
+   // there are cases where the data backing the gf fields doesn't
+   // accurately represent the number of components in physical space,
+   // so we loop over all gfs and fix those that are incorrect
+
+   FieldMapConstIterator itr;
+   for ( itr = field_map.begin(); itr != field_map.end(); itr++)
+   {
+      std::string gf_name = itr->first;
+      GridFunction *gf = itr->second;
+
+      Node &idx_gf_ncomps = n_bp_idx["mesh/fields"][gf_name]["number_of_components"];
+      // check that the number_of_components in the index matches what we expect
+      // correct if necessary
+      if ( idx_gf_ncomps.to_int() != gf->VectorDim() )
+      {
+         idx_gf_ncomps = gf->VectorDim();
+      }
+   }
    // add extra header info
    n_root["protocol/name"]    =  relay_protocol;
    n_root["protocol/version"] = "0.3.1";
