@@ -471,8 +471,6 @@ SparseMatrix * BlockMatrix::CreateMonolithic() const
 
    int * i_amono_construction = i_amono+1;
 
-   int * i_it(i_amono_construction);
-
    for (int iblock = 0; iblock != nRowBlocks; ++iblock)
    {
       for (int irow(row_offsets[iblock]); irow < row_offsets[iblock+1]; ++irow)
@@ -500,7 +498,7 @@ SparseMatrix * BlockMatrix::CreateMonolithic() const
             int * i_aij = Aij(iblock, jblock)->GetI();
             int * j_aij = Aij(iblock, jblock)->GetJ();
             double * data_aij = Aij(iblock, jblock)->GetData();
-            i_it = i_amono_construction+row_offsets[iblock];
+            int *i_it = i_amono_construction+row_offsets[iblock];
 
             int loc_start_index = 0;
             int loc_end_index = 0;
