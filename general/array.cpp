@@ -13,6 +13,7 @@
 // Abstract array data type
 
 #include "array.hpp"
+#include <fstream>
 
 namespace mfem
 {
@@ -174,6 +175,17 @@ int Array<T>::IsSorted()
    }
 
    return 1;
+}
+
+
+template <class T>
+void Array2D<T>::Load(const char *filename, int fmt)
+{
+   std::ifstream in;
+   in.open(filename, std::ifstream::in);
+   MFEM_VERIFY(in.is_open(), "File " << filename << " does not exist.");
+   array1d.Load(in, fmt);
+   in.close();
 }
 
 template <class T>
