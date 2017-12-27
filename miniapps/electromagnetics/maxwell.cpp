@@ -333,10 +333,12 @@ int main(int argc, char *argv[])
    }
 
    // The main time evolution loop.
+   int it = 1;
    while (t < tf)
    {
       // Run the simulation until a snapshot is needed
-      siaSolver.Run(Maxwell.GetBField(), Maxwell.GetEField(), t, dt, t + ts);
+      siaSolver.Run(Maxwell.GetBField(), Maxwell.GetEField(), t, dt,
+		    max(t + dt, ti + ts * it));
 
       // Approximate the current energy if the fields
       energy = Maxwell.GetEnergy();
@@ -351,7 +353,7 @@ int main(int argc, char *argv[])
       // Write fields to disk for VisIt
       if ( visit )
       {
-         Maxwell.WriteVisItFields((int)( (t - ti) / ts ) );
+         Maxwell.WriteVisItFields(it) );
       }
 
       // Send the solution by socket to a GLVis server.
@@ -359,6 +361,8 @@ int main(int argc, char *argv[])
       {
          Maxwell.DisplayToGLVis();
       }
+
+      it++;
    }
 
    return 0;
