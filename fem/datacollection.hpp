@@ -32,12 +32,23 @@ public:
    typedef std::map<std::string, GridFunction*> FieldMapType;
    typedef std::map<std::string, QuadratureFunction*> QFieldMapType;
 
+   /// Format constants to be used with SetFormat().
+   enum Format
+   {
+      FMT_SERIAL = 0, /**<
+         MFEM's serial ascii format, using the methods Mesh::Print() /
+         ParMesh::Print(), and GridFunction::Save() / ParGridFunction::Save().*/
+      FMT_PARALLEL = 1  /**<
+         MFEM's parallel ascii format, using the methods ParMesh::ParPrint() and
+         GridFunction::Save() / ParGridFunction::Save(). */
+   };
+
 protected:
    /// Name of the collection, used as a directory name when saving
    std::string name;
 
-   /// A path where the directory with results is saved.
-   /// If not empty, it has '/' at the end.
+   /** @brief A path where the directory with results is saved.
+       If not empty, it has '/' at the end. */
    std::string prefix_path;
 
    /// The fields and their names (used when saving)
@@ -54,8 +65,8 @@ protected:
    /// The (common) mesh for the collected fields
    Mesh *mesh;
 
-   /** Time cycle; for time-dependent simulations cycle >= 0, otherwise = -1.
-       When cycle >= 0, it is appended to directory names. */
+   /// Time cycle; for time-dependent simulations cycle >= 0, otherwise = -1.
+   /**  When cycle >= 0, it is appended to directory names. */
    int cycle;
    /// Physical time (for time-dependent simulations)
    double time;
@@ -87,7 +98,7 @@ protected:
    /// Default value for pad_digits_*
    static const int pad_digits_default = 6;
 
-   /// Output mesh format: 0 - serial format (default), 1 - parallel format
+   /// Output mesh format: see the #Format enumeration
    int format;
 
    /// Should the collection delete its mesh and fields
@@ -203,9 +214,11 @@ public:
    void SetPadDigitsCycle(int digits) { pad_digits_cycle = digits; }
    /// Set the number of digits used for the MPI rank in filenames
    void SetPadDigitsRank(int digits) { pad_digits_rank = digits; }
-   /** @brief Set the desired output mesh format: 0 - serial format (default),
-       1 - parallel format. */
-   void SetFormat(int fmt) { format = fmt; }
+   /// Set the desired output mesh and data format.
+   /** See the enumeration #Format for valid options. Derived classes can define
+       their own format enumerations and override this method to perform input
+       validation. */
+   virtual void SetFormat(int fmt);
 
    /// Set the path where the DataCollection will be saved.
    void SetPrefixPath(const std::string &prefix);
@@ -213,8 +226,9 @@ public:
    /// Get the path where the DataCollection will be saved.
    const std::string &GetPrefixPath() const { return prefix_path; }
 
-   /** Save the collection to disk. By default, everything is saved in a
-       directory with name "collection_name" or "collection_name_cycle" for
+   /// Save the collection to disk.
+   /** By default, everything is saved in the "prefix_path" directory with
+       subdirectory name "collection_name" or "collection_name_cycle" for
        time-dependent simulations. */
    virtual void Save();
    /// Save the mesh, creating the collection directory.
@@ -294,7 +308,7 @@ public:
    /// Set VisIt parameter: maximum levels of detail for the MultiresControl
    void SetMaxLevelsOfDetail(int max_levels_of_detail);
 
-   /** Delete all data owned by VisItDataCollection including field data
+   /** @brief Delete all data owned by VisItDataCollection including field data
        information. */
    void DeleteAll();
 
