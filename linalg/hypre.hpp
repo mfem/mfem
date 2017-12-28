@@ -532,6 +532,8 @@ public:
 
    HypreParMatrix * GetSystemMatrix() const;
 
+   Type GetType() const { return Complex_Hypre_ParCSR; }
+
 private:
    void getColStartStop(const HypreParMatrix * A_r,
                         const HypreParMatrix * A_i,
