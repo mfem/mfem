@@ -46,6 +46,7 @@ public:
                Coefficient & epsCoef,
                Coefficient & muInvCoef,
                Coefficient * sigmaCoef,
+               Coefficient * etaInvCoef,
                Array<int> & abcs,
                Array<int> & dbcs,
                void   (*e_r_bc )(const Vector&, Vector&),
@@ -82,6 +83,8 @@ private:
    int num_procs_;
    int order_;
    int logging_;
+
+   bool ownsEtaInv_;
 
    double freq_;
 
