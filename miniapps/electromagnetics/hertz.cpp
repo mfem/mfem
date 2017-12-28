@@ -77,6 +77,13 @@ static Vector cs_params_(0);  // Center, Radius, and Conductivity
 //                               of conductive sphere
 double conductive_sphere(const Vector &);
 
+// Impedance
+Coefficient * SetupAdmittanceCoefficient(const Mesh & mesh,
+					 const Array<int> & abcs);
+
+static Vector pw_eta_(0);      // Piecewise impedance values
+static Vector pw_eta_inv_(0);  // Piecewise inverse impedance values
+
 // Current Density Function
 static Vector do_params_(0);  // Axis Start, Axis End, Rod Radius,
 //                               Total Current of Rod
@@ -135,6 +142,8 @@ int main(int argc, char *argv[])
                   "Piecewise values of Conductivity");
    args.AddOption(&cs_params_, "-cs", "--conductive-sphere-params",
                   "Center, Radius, and Conductivity of Conductive Sphere");
+   args.AddOption(&pw_eta_, "-pwz", "--piecewise-eta",
+                  "Piecewise values of Impedance (one value per abc surface)");
    args.AddOption(&do_params_, "-do", "--dipole-oscillator-params",
                   "Axis End Points, Radius, and Amplitude");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
@@ -247,9 +256,12 @@ int main(int argc, char *argv[])
    // Create a coefficient describing the electrical conductivity
    Coefficient * sigmaCoef = SetupConductivityCoefficient();
 
+   // Create a coefficient describing the surface admittance
+   Coefficient * etaInvCoef = SetupAdmittanceCoefficient(pmesh, abcs);
+
    // Create the Magnetostatic solver
    HertzSolver Hertz(pmesh, order, freq_,
-                     *epsCoef, *muInvCoef, sigmaCoef,
+                     *epsCoef, *muInvCoef, sigmaCoef, etaInvCoef,
 		     abcs, dbcs,
                      e_bc_r, e_bc_i,
                      (do_params_.Size() > 0 ) ? j_src : NULL, NULL
@@ -458,6 +470,40 @@ SetupConductivityCoefficient()
    else if ( pw_sigma_.Size() > 0 )
    {
       coef = new PWConstCoefficient(pw_sigma_);
+   }
+
+   return coef;
+}
+
+// The Admittance is an optional coefficient defined on boundary surfaces which
+// can be used in conjunction with absorbing boundary conditions.
+Coefficient *
+SetupAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
+{
+   Coefficient * coef = NULL;
+
+   if ( pw_eta_.Size() > 0 )
+   {
+      MFEM_VERIFY(pw_eta_.Size() == abcs.Size(),
+		  "Each impedance value must be associated with exactly one "
+		  "absorbing boundary surface.");
+
+      pw_eta_inv_.SetSize(mesh.bdr_attributes.Size());
+
+      if ( abcs[0] == -1 )
+      {
+	pw_eta_inv_ = 1.0 / pw_eta_[0];
+      }
+      else
+      {
+	pw_eta_inv_ = 0.0;
+
+	for (int i=0; i<pw_eta_.Size(); i++)
+	{
+	  pw_eta_inv_[abcs[i]] = 1.0 / pw_eta_[i];
+	}
+      }
+      coef = new PWConstCoefficient(pw_eta_inv_);
    }
 
    return coef;

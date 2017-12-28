@@ -28,6 +28,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
                          Coefficient & epsCoef,
                          Coefficient & muInvCoef,
                          Coefficient * sigmaCoef,
+                         Coefficient * etaInvCoef,
                          Array<int> & abcs,
                          Array<int> & dbcs,
                          void   (*e_r_bc )(const Vector&, Vector&),
@@ -38,6 +39,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
      num_procs_(1),
      order_(order),
      logging_(1),
+     ownsEtaInv_(etaInvCoef == NULL),
      freq_(freq),
      pmesh_(&pmesh),
      // H1FESpace_(NULL),
@@ -71,7 +73,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
      epsCoef_(&epsCoef),
      muInvCoef_(&muInvCoef),
      sigmaCoef_(sigmaCoef),
-     etaInvCoef_(NULL),
+     etaInvCoef_(etaInvCoef),
      omegaCoef_(new ConstantCoefficient(2.0 * M_PI * freq)),
      negOmegaCoef_(new ConstantCoefficient(-2.0 * M_PI * freq)),
      omega2Coef_(new ConstantCoefficient(-pow(2.0 * M_PI * freq, 2))),
@@ -167,7 +169,10 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
             abc_marker_[abcs[i]-1] = 1;
          }
       }
-      etaInvCoef_ = new ConstantCoefficient(sqrt(epsilon0_/mu0_));
+      if ( etaInvCoef_ == NULL )
+      {
+	etaInvCoef_ = new ConstantCoefficient(sqrt(epsilon0_/mu0_));
+      }
    }
 
    // Volume Current Density
@@ -309,7 +314,7 @@ HertzSolver::~HertzSolver()
    delete massCoef_;
    delete lossCoef_;
    delete gainCoef_;
-   delete etaInvCoef_;
+   if ( ownsEtaInv_ ) delete etaInvCoef_;
    delete omegaCoef_;
    delete negOmegaCoef_;
    delete omega2Coef_;
