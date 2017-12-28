@@ -249,13 +249,22 @@ public:
 // Class for parallel sesquilinear form
 class ParSesquilinearForm
 {
+private:
+   ComplexOperator::Convention conv_;
+  
 protected:
    ParBilinearForm *pblfr_;
    ParBilinearForm *pblfi_;
 
 public:
-   ParSesquilinearForm(ParFiniteElementSpace *pf);
+   ParSesquilinearForm(ParFiniteElementSpace *pf,
+		       const ComplexOperator::Convention &
+		       convention = ComplexOperator::HERMITIAN);
 
+   ComplexOperator::Convention GetConvention() const { return conv_; }
+   void SetConvention(const ComplexOperator::Convention &
+		      convention) { conv_  = convention; }
+  
    ParBilinearForm & real() { return *pblfr_; }
    ParBilinearForm & imag() { return *pblfi_; }
    const ParBilinearForm & real() const { return *pblfr_; }
@@ -282,8 +291,7 @@ public:
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
-   ComplexHypreParMatrix *ParallelAssemble(
-      const ComplexOperator::Convention & conv = ComplexOperator::HERMITIAN);
+   ComplexHypreParMatrix *ParallelAssemble();
 
    /// Return the parallel FE space associated with the ParBilinearForm.
    ParFiniteElementSpace *ParFESpace() const { return pblfr_->ParFESpace(); }

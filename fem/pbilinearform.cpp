@@ -461,8 +461,11 @@ void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
 }
 
 
-ParSesquilinearForm::ParSesquilinearForm(ParFiniteElementSpace *pf)
-   : pblfr_(new ParBilinearForm(pf)),
+ParSesquilinearForm::ParSesquilinearForm(ParFiniteElementSpace *pf,
+					 const ComplexOperator::Convention &
+					 convention)
+   : conv_(convention),
+     pblfr_(new ParBilinearForm(pf)),
      pblfi_(new ParBilinearForm(pf))
 {}
 
@@ -511,11 +514,11 @@ ParSesquilinearForm::Finalize(int skip_zeros)
 }
 
 ComplexHypreParMatrix *
-ParSesquilinearForm::ParallelAssemble(const ComplexOperator::Convention &conv)
+ParSesquilinearForm::ParallelAssemble()
 {
    return new ComplexHypreParMatrix(pblfr_->ParallelAssemble(),
                                     pblfi_->ParallelAssemble(),
-                                    true, true, conv);
+                                    true, true, conv_);
 
 }
 
