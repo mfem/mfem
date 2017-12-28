@@ -129,7 +129,10 @@ public:
       PETSC_MATSHELL,
       PETSC_MATNEST,
       PETSC_MATHYPRE,
-      PETSC_MATGENERIC
+      PETSC_MATGENERIC,
+      Complex_Operator,
+      Complex_MFEM_SPARSEMAT,
+      Complex_Hypre_ParCSR
    };
 };
 
@@ -485,6 +488,8 @@ public:
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void MultTranspose(const Vector &x, Vector &y) const;
+
+   Type GetType() const { return Complex_Operator; }
 
 protected:
    // Let this be hidden from the public interface since the implementation

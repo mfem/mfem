@@ -632,6 +632,8 @@ public:
    virtual const SparseMatrix & imag() const;
 
    SparseMatrix * GetSystemMatrix() const;
+
+   Type GetType() const { return Complex_MFEM_SPARSEMAT; }
 };
 
 }
