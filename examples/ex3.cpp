@@ -187,16 +187,19 @@ int main(int argc, char *argv[])
 
    /////// TEST TEST /////////
 
-   for (int i = 0; i < 3; i++)
+   if (!(mesh->MeshGenerator() & 1))
    {
-      cout << "Refining..." << endl;
-      mesh->RandomRefinement(0.5);
-      //mesh->UniformRefinement();
-      cout << "Updating..." << endl;
-      fespace->Update();
-      x.Update();
+      for (int i = 0; i < 3; i++)
+      {
+         cout << "Refining..." << endl;
+         mesh->RandomRefinement(0.5);
+         //mesh->UniformRefinement();
+         cout << "Updating..." << endl;
+         fespace->Update();
+         x.Update();
+      }
+      cout << "Done." << endl;
    }
-   cout << "Done." << endl;
 
    /////// TEST TEST /////////
 
