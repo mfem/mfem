@@ -184,7 +184,7 @@ void Array2D<T>::Load(const char *filename, int fmt)
    std::ifstream in;
    in.open(filename, std::ifstream::in);
    MFEM_VERIFY(in.is_open(), "File " << filename << " does not exist.");
-   array1d.Load(in, fmt);
+   Load(in, fmt);
    in.close();
 }
 
