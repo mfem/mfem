@@ -132,13 +132,13 @@ function extract_sample_runs()
    local app=${src%.cpp}
    local vg_app="${app}"
    if [ "${valgrind}" == "yes" ]; then vg_app="${run_vg} ${app}"; fi
-   # parallel sample runs are lines matching "^//.*  mpirun .* ${app}" with
+   # parallel sample runs are lines matching "^//.* mpirun .* ${app}" with
    # everything in front of "mpirun" removed:
    pruns=`grep "^//.*  mpirun .* ${app}" "${src}" |
           sed -e "s/.*  mpirun \(.*\) ${app}/${mpiexec} \1 ${app}/g" \
               -e "s/ -np\(.*\) ${app}/ ${mpiexec_np}\1 ${vg_app}/g"`
    # serial sample runs are lines that are not parallel sample runs and matching
-   # "^//.*  ${app}" with everything in front of "${app}" removed:
+   # "^//.* ${app}" with everything in front of "${app}" removed:
    sruns=`grep -v "^//.*  mpirun .* ${app}" "${src}" |
           grep "^//.*  ${app}" |
           sed -e "s/.*  ${app}/${vg_app}/g"`
@@ -302,7 +302,7 @@ build_log="${build_log:-${mfem_build_dir}/config/sample-runs-build.log}"
 
 if [ 0 -eq ${#groups[*]} ]; then
    groups=("${groups_all[@]}")
-   # These can be used as command-line arguments:
+   # These can be used as command line arguments:
    #   'groups=("${groups_serial[@]}")'
    #   'groups=("${groups_parallel[@]}")'
 fi

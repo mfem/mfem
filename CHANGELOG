@@ -14,6 +14,7 @@ Version 3.3.3 (development)
   runs from all examples and miniapps and runs them. Optionally, it can save the
   output from the execution to files, allowing comparison between different
   versions and builds of the library.
+
 - When building with the GnuTLS library, switch to using X.509 certificates for
   secure socket authentication. Support for the previously used OpenPGP keys has
   been deprecated in GnuTLS 3.5.x and removed in 3.6.0. For secure communication
