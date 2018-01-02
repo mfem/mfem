@@ -91,6 +91,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
      e_r_bc_(e_r_bc),
      e_i_bc_(e_i_bc),
      // m_src_(m_src)
+     dbcs_(&dbcs),
      visit_dc_(NULL)
 {
    // Initialize MPI variables
@@ -126,6 +127,23 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
       non_k_bdr_[kbcs[i]-1] = 0;
    }
    */
+   ess_bdr_.SetSize(pmesh.bdr_attributes.Max());
+   if ( dbcs_ != NULL )
+   {
+      if ( dbcs_->Size() == 1 && (*dbcs_)[0] == -1 )
+      {
+         ess_bdr_ = 1;
+      }
+      else
+      {
+         ess_bdr_ = 0;
+         for (int i=0; i<dbcs_->Size(); i++)
+         {
+            ess_bdr_[(*dbcs_)[i]-1] = 1;
+         }
+      }
+      HCurlFESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
+   }
    // Setup various coefficients
    /*
    // Vector Potential on the outer surface

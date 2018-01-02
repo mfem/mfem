@@ -178,6 +178,7 @@ private:
    void   (*e_r_bc_)(const Vector&, Vector&);
    void   (*e_i_bc_)(const Vector&, Vector&);
 
+   Array<int> * dbcs_;
    Array<int> ess_bdr_;
    Array<int> ess_bdr_tdofs_;
    Array<int> non_k_bdr_;
