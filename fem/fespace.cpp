@@ -745,7 +745,7 @@ int FiniteElementSpace::GetNConformingDofs() const
 
 
 FiniteElementSpace::RefinementOperator::RefinementOperator
-   (const FiniteElementSpace* fespace, Table* old_elem_dof, int old_ndofs)
+(const FiniteElementSpace* fespace, Table* old_elem_dof, int old_ndofs)
    : fespace(fespace)
    , old_elem_dof(old_elem_dof)
 {
