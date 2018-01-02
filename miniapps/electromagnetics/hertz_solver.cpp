@@ -298,6 +298,8 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
    jd_ = new ParComplexLinearForm(HCurlFESpace_);
    jd_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*jrCoef_),
                             new VectorFEDomainLFIntegrator(*jiCoef_));
+   jd_->real().Vector::operator=(0.0);
+   jd_->imag().Vector::operator=(0.0);
    /*
    if ( jCoef_ || kbcs.Size() > 0 )
    {
