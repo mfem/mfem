@@ -50,7 +50,7 @@ protected:
    /// Set of Boundary Integrators to be applied.
    Array<BilinearFormIntegrator*> bbfi;
    Array<Array<int>*>             bbfi_marker;
-  
+
    /// Set of interior face Integrators to be applied.
    Array<BilinearFormIntegrator*> fbfi;
 
@@ -215,7 +215,7 @@ public:
 
    /// Adds new Boundary Integrator, restricted to specific boundary attributes.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi,
-			      Array<int> &bdr_marker);
+                              Array<int> &bdr_marker);
 
    /// Adds new interior Face Integrator.
    void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
