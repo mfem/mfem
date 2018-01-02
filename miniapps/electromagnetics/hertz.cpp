@@ -147,6 +147,7 @@ int main(int argc, char *argv[])
    int maxit = 100;
    int serial_ref_levels = 0;
    int parallel_ref_levels = 0;
+   int sol = 1;
    bool visualization = true;
    bool visit = true;
 
@@ -164,6 +165,8 @@ int main(int argc, char *argv[])
                   "Number of parallel refinement levels.");
    args.AddOption(&freq_, "-f", "--frequency",
                   "Frequency in Hertz (of course...)");
+   args.AddOption(&sol, "-s", "--solver",
+                  "Solver: 1 - GMRES, 2 - FGMRES w/AMS");
    args.AddOption(&pw_eps_, "-pwe", "--piecewise-eps",
                   "Piecewise values of Permittivity");
    args.AddOption(&ds_params_, "-ds", "--dielectric-sphere-params",
@@ -295,7 +298,7 @@ int main(int argc, char *argv[])
    Coefficient * etaInvCoef = SetupAdmittanceCoefficient(pmesh, abcs);
 
    // Create the Magnetostatic solver
-   HertzSolver Hertz(pmesh, order, freq_,
+   HertzSolver Hertz(pmesh, order, freq_, (HertzSolver::SolverType)sol,
                      *epsCoef, *muInvCoef, sigmaCoef, etaInvCoef,
 		     abcs, dbcs,
                      e_bc_r, e_bc_i,

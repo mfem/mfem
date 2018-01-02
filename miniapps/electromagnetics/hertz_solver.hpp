@@ -42,7 +42,18 @@ static const double mu0_ = 4.0e-7*M_PI;
 class HertzSolver
 {
 public:
+
+   enum SolverType {
+     INVALID   = -1,
+     GMRES     =  1,
+     FGMRES    =  2,
+     MINRES    =  3,
+     SUPERLU   =  4,
+     STRUMPACK =  5
+   };
+  
    HertzSolver(ParMesh & pmesh, int order, double freq,
+ 	       const HertzSolver::SolverType &s,
                Coefficient & epsCoef,
                Coefficient & muInvCoef,
                Coefficient * sigmaCoef,
@@ -83,6 +94,8 @@ private:
    int num_procs_;
    int order_;
    int logging_;
+
+   SolverType sol_;
 
    bool ownsEtaInv_;
 
@@ -142,6 +155,7 @@ private:
    Coefficient * massCoef_;   // -omega^2 epsilon
    Coefficient * lossCoef_;   // -omega sigma
    Coefficient * gainCoef_;   // omega sigma
+   Coefficient * abcCoef_;   // -omega eta^{-1}
 
    // VectorCoefficient * aBCCoef_;   // Vector Potential BC Function
    VectorCoefficient * jrCoef_;     // Volume Current Density Function
