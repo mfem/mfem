@@ -179,7 +179,7 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
    DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
    Vector posV(pos.Data(), dof * dim);
 
-   double min_detJ = numeric_limits<double>::infinity();
+   double min_detJ = infinity();
    for (int i = 0; i < NE; i++)
    {
       fes->GetElementVDofs(i, xdofs);
@@ -353,7 +353,7 @@ int main (int argc, char *argv[])
    //    nodes. We index the nodes using the scalar version of the degrees of
    //    freedom in fespace.
    Vector h0(fespace->GetNDofs());
-   h0 = numeric_limits<double>::infinity();
+   h0 = infinity();
    Array<int> dofs;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
@@ -580,7 +580,7 @@ int main (int argc, char *argv[])
    }
 
    // 18. Compute the minimum det(J) of the starting mesh.
-   tauval = numeric_limits<double>::infinity();
+   tauval = infinity();
    const int NE = mesh->GetNE();
    for (int i = 0; i < NE; i++)
    {

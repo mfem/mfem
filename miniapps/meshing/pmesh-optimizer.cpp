@@ -217,7 +217,7 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
    ParGridFunction x_gf(pfes);
    x_gf.Distribute(x);
 
-   double min_detJ = numeric_limits<double>::infinity();
+   double min_detJ = infinity();
    for (int i = 0; i < NE; i++)
    {
       pfes->GetElementVDofs(i, xdofs);
@@ -415,7 +415,7 @@ int main (int argc, char *argv[])
    //    nodes. We index the nodes using the scalar version of the degrees of
    //    freedom in pfespace.
    Vector h0(pfespace->GetNDofs());
-   h0 = numeric_limits<double>::infinity();
+   h0 = infinity();
    Array<int> dofs;
    for (int i = 0; i < pmesh->GetNE(); i++)
    {
@@ -659,7 +659,7 @@ int main (int argc, char *argv[])
    }
 
    // 19. Compute the minimum det(J) of the starting mesh.
-   tauval = numeric_limits<double>::infinity();
+   tauval = infinity();
    const int NE = pmesh->GetNE();
    for (int i = 0; i < NE; i++)
    {
