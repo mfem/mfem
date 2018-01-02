@@ -2093,8 +2093,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
             for (int i = 0; i < lR.Height(); i++)
             {
-               if (lR(i, 0) == std::numeric_limits<double>::infinity())
-               { continue; }
+               if (lR(i, 0) == infinity()) { continue; }
 
                int r = DofToVDof(dofs[i], vd);
                int m = (r >= 0) ? r : (-1 - r);
@@ -2145,8 +2144,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
             for (int i = 0; i < lR.Height(); i++)
             {
-               if (lR(i, 0) == std::numeric_limits<double>::infinity())
-               { continue; }
+               if (lR(i, 0) == infinity()) { continue; }
 
                int r = DofToVDof(dofs[i], vd);
                int m = (r >= 0) ? r : (-1 - r);

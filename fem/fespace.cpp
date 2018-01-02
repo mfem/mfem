@@ -847,7 +847,7 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(
    for (int i = 0; i < nmat; i++)
    {
       DenseMatrix &lR = localR(i);
-      lR = numeric_limits<double>::infinity(); // marks invalid rows
+      lR = infinity(); // marks invalid rows
 
       isotr.GetPointMat() = dt.point_matrices(i);
       isotr.FinalizeTransformation();
@@ -908,7 +908,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
          for (int i = 0; i < lR.Height(); i++)
          {
-            if (lR(i, 0) == numeric_limits<double>::infinity()) { continue; }
+            if (lR(i, 0) == infinity()) { continue; }
 
             int r = DofToVDof(dofs[i], vd);
             int m = (r >= 0) ? r : (-1 - r);

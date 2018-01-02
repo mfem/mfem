@@ -21,6 +21,7 @@
 #endif
 #include <cmath>
 #include <iostream>
+#include <limits>
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
 #include <float.h>
 #define isfinite _finite
@@ -36,6 +37,12 @@ namespace mfem
 /** Count the number of entries in an array of doubles for which isfinite
     is false, i.e. the entry is a NaN or +/-Inf. */
 inline int CheckFinite(const double *v, const int n);
+
+/// Define a shortcut for std::numeric_limits<double>::infinity()
+inline double infinity()
+{
+   return std::numeric_limits<double>::infinity();
+}
 
 /// Vector data type.
 class Vector
