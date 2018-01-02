@@ -13,6 +13,41 @@
 //   Hertz Miniapp:  Simple Frequency-Domain Electromagnetic Simulation Code
 //   -----------------------------------------------------------------------
 //
+//   Assumes that all sources and boundary conditions oscillate with the same
+//   frequency although not necessarily in phase with one another.  This
+//   assumptions implies that we can factor out the time dependence which we
+//   take to be of the form exp(i omega t).  With these assumptions we can
+//   write the Maxwell equations in the form:
+//
+//   i omega epsilon E = Curl mu^{-1} B - J - sigma E
+//   i omega B         = - Curl E
+//
+//   Which combine to yield:
+//
+//   Curl mu^{-1} Curl E - omega^2 epsilon E + i omega sigma E = - i omega J
+//
+//   We discretize this equation with H(Curl) a.k.a Nedelec basis
+//   functions.  The curl curl operator must be handled with
+//   integration by parts which yields a surface integral:
+//
+//   (W, Curl mu^{-1} Curl E) = (Curl W, mu^{-1} Curl E)
+//               + (W, n x (mu^{-1} Curl E))_{\Gamma}
+//
+//   or
+//
+//   (W, Curl mu^{-1} Curl E) = (Curl W, mu^{-1} Curl E)
+//               - i omega (W, n x H)_{\Gamma}
+//
+//   For plane waves
+//     omega B = - k x E
+//     omega D = k x H, assuming n x k = 0 => n x H = omega epsilon E / |k|
+//
+//   c = omega/|k|
+//
+//   (W, Curl mu^{-1} Curl E) = (Curl W, mu^{-1} Curl E)
+//               - i omega sqrt{epsilon/mu} (W, E)_{\Gamma}
+//  
+//
 // Compile with: make hertz
 //
 // Sample runs:
