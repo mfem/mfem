@@ -251,20 +251,20 @@ class ParSesquilinearForm
 {
 private:
    ComplexOperator::Convention conv_;
-  
+
 protected:
    ParBilinearForm *pblfr_;
    ParBilinearForm *pblfi_;
 
 public:
    ParSesquilinearForm(ParFiniteElementSpace *pf,
-		       const ComplexOperator::Convention &
-		       convention = ComplexOperator::HERMITIAN);
+                       const ComplexOperator::Convention &
+                       convention = ComplexOperator::HERMITIAN);
 
    ComplexOperator::Convention GetConvention() const { return conv_; }
    void SetConvention(const ComplexOperator::Convention &
-		      convention) { conv_  = convention; }
-  
+                      convention) { conv_  = convention; }
+
    ParBilinearForm & real() { return *pblfr_; }
    ParBilinearForm & imag() { return *pblfi_; }
    const ParBilinearForm & real() const { return *pblfr_; }
@@ -281,7 +281,7 @@ public:
    /// Adds new Boundary Integrator, restricted to specific boundary attributes.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
                               BilinearFormIntegrator *bfi_imag,
-			      Array<int> &bdr_marker);
+                              Array<int> &bdr_marker);
 
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);

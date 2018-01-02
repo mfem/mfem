@@ -43,17 +43,18 @@ class HertzSolver
 {
 public:
 
-   enum SolverType {
-     INVALID   = -1,
-     GMRES     =  1,
-     FGMRES    =  2,
-     MINRES    =  3,
-     SUPERLU   =  4,
-     STRUMPACK =  5
+   enum SolverType
+   {
+      INVALID   = -1,
+      GMRES     =  1,
+      FGMRES    =  2,
+      MINRES    =  3,
+      SUPERLU   =  4,
+      STRUMPACK =  5
    };
-  
+
    HertzSolver(ParMesh & pmesh, int order, double freq,
- 	       const HertzSolver::SolverType &s,
+               const HertzSolver::SolverType &s,
                Coefficient & epsCoef,
                Coefficient & muInvCoef,
                Coefficient * sigmaCoef,
@@ -107,12 +108,12 @@ private:
    ND_ParFESpace * HCurlFESpace_;
    // RT_ParFESpace * HDivFESpace_;
 
-  Array<HYPRE_Int> blockTrueOffsets_;
-  
+   Array<HYPRE_Int> blockTrueOffsets_;
+
    // ParSesquilinearForm * a0_;
    ParSesquilinearForm * a1_;
    ParBilinearForm * b1_;
-  
+
    // ParGridFunction * e_r_;  // Real part of electric field (HCurl)
    // ParGridFunction * e_i_;  // Imaginary part of electric field (HCurl)
    ParComplexGridFunction * e_;  // Complex electric field (HCurl)
