@@ -25,6 +25,7 @@ namespace electromagnetics
 double prodFunc(double a, double b) { return a * b; }
 
 HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
+			 const HertzSolver::SolverType &sol,
                          Coefficient & epsCoef,
                          Coefficient & muInvCoef,
                          Coefficient * sigmaCoef,
@@ -39,6 +40,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
      num_procs_(1),
      order_(order),
      logging_(1),
+     sol_(sol),
      ownsEtaInv_(etaInvCoef == NULL),
      freq_(freq),
      pmesh_(&pmesh),
@@ -512,12 +514,21 @@ HertzSolver::Solve()
    {
       cout << "norms " << nrm << " " << nrm1 << " " << nrmdiff << endl;
    }
-
+   */
+   /*
    HYPRE_Int size = HCurlFESpace_->GetTrueVSize();
    Vector E(2*size), RHS(2*size);
    jd_->ParallelAssemble(RHS);
    e_->ParallelProject(E);
+   */
+   OperatorHandle A1;
+   Vector E, RHS;
+   cout << "Norm of jd (pre-fls): " << jd_->Norml2() << endl;
+   a1_->FormLinearSystem(ess_bdr_tdofs_, *e_, *jd_, A1, E, RHS);
 
+   cout << "Norm of jd (post-fls): " << jd_->Norml2() << endl;
+   cout << "Norm of RHS: " << RHS.Norml2() << endl;
+   
    /*
 #ifdef MFEM_USE_SUPERLU
    SuperLURowLocMatrix A_SuperLU(*A1C);
@@ -541,38 +552,78 @@ HertzSolver::Solve()
    // pcg.SetPreconditioner(ams);
    minres.Mult(RHS, E);
    */
-   HypreParMatrix * B1 = b1_->ParallelAssemble();
+   switch (sol_)
+     {
+     case GMRES:
+       {
+	 GMRESSolver gmres(HCurlFESpace_->GetComm());
+	 gmres.SetOperator(*A1.Ptr());
+	 gmres.SetRelTol(1e-4);
+	 gmres.SetMaxIter(10000);
+	 gmres.SetPrintLevel(1);
+	 
+	 gmres.Mult(RHS, E);
+       }
+       break;
+     case FGMRES:
+       {
+	 HypreParMatrix * B1 = b1_->ParallelAssemble();
+	 
+	 HypreAMS ams(*B1, HCurlFESpace_);
+	 
+	 BlockDiagonalPreconditioner BDP(blockTrueOffsets_);
+	 BDP.SetDiagonalBlock(0,&ams);
+	 BDP.SetDiagonalBlock(1,&ams);
+	 BDP.owns_blocks = 0;
 
-   HypreAMS ams(*B1, HCurlFESpace_);
+	 FGMRESSolver fgmres(HCurlFESpace_->GetComm());
+	 fgmres.SetOperator(*A1.Ptr());
+	 fgmres.SetRelTol(1e-4);
+	 fgmres.SetMaxIter(10000);
+	 fgmres.SetPrintLevel(1);
+	 fgmres.SetPreconditioner(BDP);
+	 
+	 fgmres.Mult(RHS, E);
+	 
+	 delete B1;
+       }
+       break;
+#ifdef MFEM_USE_SUPERLU
+     case SUPERLU:
+       {
+	 ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
+	 HypreParMatrix * A1C = A1Z->GetSystemMatrix();
+	 SuperLURowLocMatrix A_SuperLU(*A1C);
+	 SuperLUSolver solver(MPI_COMM_WORLD);
+	 solver.SetOperator(A_SuperLU);
+	 solver.Mult(RHS, E);
+	 delete A1C;
+	 delete A1Z;
+       }
+       break;
+#endif
+#ifdef MFEM_USE_STRUMPACK
+     case STRUMPACK:
+       {
+	 ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
+	 HypreParMatrix * A1C = A1Z->GetSystemMatrix();
+	 STRUMPACKRowLocMatrix A_STRUMPACK(*A1C);
+	 STRUMPACKSolver solver(0, NULL, MPI_COMM_WORLD);
+	 solver.SetOperator(A_STRUMPACK);
+	 solver.Mult(RHS, E);
+	 delete A1C;
+	 delete A1Z;
+       }
+       break;
+#endif
+     default:
+       break;
+     };
 
-   BlockDiagonalPreconditioner BDP(blockTrueOffsets_);
-   BDP.SetDiagonalBlock(0,&ams);
-   BDP.SetDiagonalBlock(1,&ams);
-   BDP.owns_blocks = 0;
-   /*
-   GMRESSolver gmres(HCurlFESpace_->GetComm());
-   gmres.SetOperator(*A1);
-   gmres.SetRelTol(1e-4);
-   gmres.SetMaxIter(10000);
-   gmres.SetPrintLevel(1);
-
-   gmres.Mult(RHS, E);
-   */
-   
-   FGMRESSolver fgmres(HCurlFESpace_->GetComm());
-   fgmres.SetOperator(*A1);
-   fgmres.SetRelTol(1e-6);
-   fgmres.SetMaxIter(10000);
-   fgmres.SetPrintLevel(1);
-   fgmres.SetPreconditioner(BDP);
-
-   fgmres.Mult(RHS, E);
-  
    e_->Distribute(E);
 
-   delete A1;
-   delete A1C;
-   delete B1;
+   // delete A1;
+   // delete A1C;
    /*
    // Initialize the magnetic vector potential with its boundary conditions
    *a_ = 0.0;
