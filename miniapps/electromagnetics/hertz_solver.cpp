@@ -79,7 +79,10 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
      omegaCoef_(new ConstantCoefficient(2.0 * M_PI * freq)),
      negOmegaCoef_(new ConstantCoefficient(-2.0 * M_PI * freq)),
      omega2Coef_(new ConstantCoefficient(-pow(2.0 * M_PI * freq, 2))),
-     // aBCCoef_(NULL),
+     massCoef_(NULL),
+     lossCoef_(NULL),
+     gainCoef_(NULL),
+     abcCoef_(NULL),
      jrCoef_(NULL),
      jiCoef_(NULL),
      erCoef_(NULL),
@@ -191,8 +194,10 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
       }
       if ( etaInvCoef_ == NULL )
       {
-	etaInvCoef_ = new ConstantCoefficient(sqrt(epsilon0_/mu0_));
+         etaInvCoef_ = new ConstantCoefficient(sqrt(epsilon0_/mu0_));
       }
+      abcCoef_ = new TransformedCoefficient(negOmegaCoef_, etaInvCoef_,
+                                            prodFunc);
    }
 
    // Volume Current Density
@@ -225,17 +230,18 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
    }
    */
    // Bilinear Forms
-   a1_ = new ParSesquilinearForm(HCurlFESpace_);
+   a1_ = new ParSesquilinearForm(HCurlFESpace_,
+                                 ComplexOperator::BLOCK_SYMMETRIC);
    a1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_), NULL);
    a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massCoef_), NULL);
    if ( lossCoef_ )
    {
       a1_->AddDomainIntegrator(NULL, new VectorFEMassIntegrator(*lossCoef_));
    }
-   if ( etaInvCoef_ )
+   if ( abcCoef_ )
    {
-      a1_->AddBoundaryIntegrator(NULL, new VectorFEMassIntegrator(*etaInvCoef_),
-				 abc_marker_);
+      a1_->AddBoundaryIntegrator(NULL, new VectorFEMassIntegrator(*abcCoef_),
+                                 abc_marker_);
    }
 
    b1_ = new ParBilinearForm(HCurlFESpace_);
@@ -334,7 +340,8 @@ HertzSolver::~HertzSolver()
    delete massCoef_;
    delete lossCoef_;
    delete gainCoef_;
-   if ( ownsEtaInv_ ) delete etaInvCoef_;
+   delete abcCoef_;
+   if ( ownsEtaInv_ ) { delete etaInvCoef_; }
    delete omegaCoef_;
    delete negOmegaCoef_;
    delete omega2Coef_;
@@ -499,9 +506,9 @@ HertzSolver::Solve()
 
    /// For testing
    // e_->ProjectCoefficient(*jrCoef_, *jiCoef_);
-
+   /*
    ComplexHypreParMatrix * A1 =
-      a1_->ParallelAssemble(ComplexOperator::BLOCK_SYMMETRIC);
+      a1_->ParallelAssemble();
 
    if ( A1->hasRealPart() ) { A1->real().Print("A1_real.mat"); }
    if ( A1->hasImagPart() ) { A1->imag().Print("A1_imag.mat"); }
