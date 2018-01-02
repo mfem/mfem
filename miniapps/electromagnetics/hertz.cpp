@@ -535,7 +535,7 @@ SetupAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
 
 	for (int i=0; i<pw_eta_.Size(); i++)
 	{
-	  pw_eta_inv_[abcs[i]] = 1.0 / pw_eta_[i];
+	  pw_eta_inv_[abcs[i]-1] = 1.0 / pw_eta_[i];
 	}
       }
       coef = new PWConstCoefficient(pw_eta_inv_);
