@@ -226,7 +226,7 @@ public:
     *    and all the others entries to 0.
     */
    void EliminateRow(int row, int setOneDiagonal = 0);
-   void EliminateCol(int col);
+   void EliminateCol(int col, int setOneDiagonal = 0);
    /// Eliminate all columns 'i' for which cols[i] != 0
    void EliminateCols(const Array<int> &cols, Vector *x = NULL, Vector *b = NULL);
 
