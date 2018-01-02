@@ -529,52 +529,62 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                       Vector &X, Vector &B,
                                       int ci)
 {
-  ParFiniteElementSpace * pfes = pblfr_->ParFESpace();
+   ParFiniteElementSpace * pfes = pblfr_->ParFESpace();
 
-  int vsize  = pfes->GetVSize();
-  int tvsize = pfes->GetTrueVSize();
-  
-  Vector b_0(vsize);  b_0 = 0.0;
-  Vector B_0(tvsize); B_0 = 0.0;
+   int vsize  = pfes->GetVSize();
+   int tvsize = pfes->GetTrueVSize();
 
-  Vector x_r(x.GetData(), vsize);
-  Vector x_i(&(x.GetData())[vsize], vsize);
-  
-  Vector b_r(b.GetData(), vsize);
-  Vector b_i(&(b.GetData())[vsize], vsize);
+   Vector b_0(vsize);  b_0 = 0.0;
+   Vector B_0(tvsize); B_0 = 0.0;
 
-  X.SetSize(2 * tvsize);
-  Vector X_r(X.GetData(), tvsize);
-  Vector X_i(&(X.GetData())[tvsize], tvsize);
+   Vector x_r(x.GetData(), vsize);
+   Vector x_i(&(x.GetData())[vsize], vsize);
 
-  B.SetSize(2 * tvsize);
-  Vector B_r(B.GetData(), tvsize);
-  Vector B_i(&(B.GetData())[tvsize], tvsize);
+   Vector b_r(b.GetData(), vsize);
+   Vector b_i(&(b.GetData())[vsize], vsize);
 
-  OperatorHandle A_r, A_i;
+   X.SetSize(2 * tvsize);
+   Vector X_r(X.GetData(), tvsize);
+   Vector X_i(&(X.GetData())[tvsize], tvsize);
 
-  pblfr_->FormLinearSystem(ess_tdof_list, x_r, b_r, A_r, X_r, B_r, ci);
-  pblfi_->FormLinearSystem(ess_tdof_list, x_i, b_0, A_i, X_r, B_0, ci);
-  B_r -= B_0;
+   B.SetSize(2 * tvsize);
+   Vector B_r(B.GetData(), tvsize);
+   Vector B_i(&(B.GetData())[tvsize], tvsize);
 
-  pblfr_->FormLinearSystem(ess_tdof_list, x_i, b_i, A_r, X_i, B_i, ci);
-  pblfi_->FormLinearSystem(ess_tdof_list, x_r, b_0, A_i, X_i, B_0, ci);
-  B_i += B_0;
+   OperatorHandle A_r, A_i;
 
-  // A = A_r + i A_i
-  A.Clear();
-  if ( A_r.Type() == Operator::Hypre_ParCSR &&
-       A_i.Type() == Operator::Hypre_ParCSR )
-    {
+   pblfr_->FormLinearSystem(ess_tdof_list, x_r, b_r, A_r, X_r, B_r, ci);
+   pblfi_->FormLinearSystem(ess_tdof_list, x_i, b_0, A_i, X_r, B_0, ci);
+   B_r -= B_0;
+
+   b_0 = 0.0;
+   pblfr_->FormLinearSystem(ess_tdof_list, x_i, b_i, A_r, X_i, B_i, ci);
+   pblfi_->FormLinearSystem(ess_tdof_list, x_r, b_0, A_i, X_i, B_0, ci);
+   B_i += B_0;
+
+   // A = A_r + i A_i
+   A.Clear();
+   if ( A_r.Type() == Operator::Hypre_ParCSR &&
+        A_i.Type() == Operator::Hypre_ParCSR )
+   {
       ComplexHypreParMatrix * A_hyp =
-	new ComplexHypreParMatrix(A_r.As<HypreParMatrix>(),
-				  A_i.As<HypreParMatrix>(),
-				  A_r.OwnsOperator(),
-				  A_i.OwnsOperator(),
-				  conv_);
-      A.ConvertFrom(A_hyp);
-      A.SetOperatorOwner();
-    }
+         new ComplexHypreParMatrix(A_r.As<HypreParMatrix>(),
+                                   A_i.As<HypreParMatrix>(),
+                                   A_r.OwnsOperator(),
+                                   A_i.OwnsOperator(),
+                                   conv_);
+      A.Reset<ComplexHypreParMatrix>(A_hyp, true);
+   }
+   else
+   {
+      ComplexOperator * A_op =
+         new ComplexOperator(A_r.As<Operator>(),
+                             A_i.As<Operator>(),
+                             A_r.OwnsOperator(),
+                             A_i.OwnsOperator(),
+                             conv_);
+      A.Reset<ComplexOperator>(A_op, true);
+   }
 }
 
 void
