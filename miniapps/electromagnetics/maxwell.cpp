@@ -353,7 +353,7 @@ int main(int argc, char *argv[])
       // Write fields to disk for VisIt
       if ( visit )
       {
-         Maxwell.WriteVisItFields(it) );
+         Maxwell.WriteVisItFields(it);
       }
 
       // Send the solution by socket to a GLVis server.
