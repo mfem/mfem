@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
    }
 
    // Determine the minimum element size.
-   double hmin;
+   double hmin = 0.0;
    if (cfl > 0)
    {
       hmin = mesh.GetElementSize(0, 1);
