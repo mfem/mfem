@@ -225,7 +225,7 @@ double ParNormlp(const Vector &vec, double p, MPI_Comm comm)
       MPI_Allreduce(&loc_norm, &norm, 1, MPI_DOUBLE, MPI_SUM, comm);
       norm = sqrt(norm);
    }
-   if (p < std::numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       double sum = 0.0;
       for (int i = 0; i < vec.Size(); i++)
