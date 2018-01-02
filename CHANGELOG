@@ -16,6 +16,30 @@ Version 3.3.3 (development)
   with the visualization tool GLVis, a new set of certificates can be generated
   using the latest version of the script 'glvis-keygen.sh' from GLVis.
 
+- In the classes NonlinearForm and ParNonlinearForm, added support for
+  non-conforming AMR meshes; see also the "API changes" section.
+
+Examples and miniapps
+---------------------
+- Example 10p with its SUNDIALS and PETSc versions have been updated to reflect
+  the change in the behavior of the method ParNonlinearForm::GetLocalGradient()
+  (see the "API changes" section) and now should work correctly on
+  non-conforming AMR meshes. Example 10 and its SUNDIALS version have also been
+  updated to support non-conforming ARM meshes.
+
+- A simple local refinement option has been added to the mesh-explorer miniapp
+  (menu option 'r', sub-option 'l') that selects elements for refinement based
+  on their spatial location - see the function 'region()' in the source file.
+
+API changes (that may affect existing code)
+-----------
+- In the classes NonlinearForm and ParNonlinearForm:
+  * The method GetLocalGradient() no longer imposes boundary conditions. The
+    motivation for the change is that, in the case of non-conforming AMR,
+    performing the elimination at the local level is incorrect - it must be
+    applied at the true-dof level.
+  * The method SetEssentialVDofs() is now depreacated.
+
 Miscellaneous
 -------------
 - Upgraded MFEM to support Axom 0.2.8. Prior versions are no longer supported.
