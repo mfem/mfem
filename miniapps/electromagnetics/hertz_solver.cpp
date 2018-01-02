@@ -25,7 +25,7 @@ namespace electromagnetics
 double prodFunc(double a, double b) { return a * b; }
 
 HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
-			 const HertzSolver::SolverType &sol,
+                         const HertzSolver::SolverType &sol,
                          Coefficient & epsCoef,
                          Coefficient & muInvCoef,
                          Coefficient * sigmaCoef,
@@ -109,7 +109,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
    blockTrueOffsets_[1] = HCurlFESpace_->TrueVSize();
    blockTrueOffsets_[2] = HCurlFESpace_->TrueVSize();
    blockTrueOffsets_.PartialSum();
-   
+
    // int irOrder = H1FESpace_->GetElementTransformation(0)->OrderW()
    //            + 2 * order;
    // int geom = H1FESpace_->GetFE(0)->GetGeomType();
@@ -528,20 +528,20 @@ HertzSolver::Solve()
 
    cout << "Norm of jd (post-fls): " << jd_->Norml2() << endl;
    cout << "Norm of RHS: " << RHS.Norml2() << endl;
-   
+
    /*
-#ifdef MFEM_USE_SUPERLU
+   #ifdef MFEM_USE_SUPERLU
    SuperLURowLocMatrix A_SuperLU(*A1C);
    SuperLUSolver solver(MPI_COMM_WORLD);
    solver.SetOperator(A_SuperLU);
    solver.Mult(RHS, E);
-#endif
-#ifdef MFEM_USE_STRUMPACK
+   #endif
+   #ifdef MFEM_USE_STRUMPACK
    STRUMPACKRowLocMatrix A_STRUMPACK(*A1C);
    STRUMPACKSolver solver(0, NULL, MPI_COMM_WORLD);
    solver.SetOperator(A_STRUMPACK);
    solver.Mult(RHS, E);
-#endif
+   #endif
    */
    /*
    MINRESSolver minres(HCurlFESpace_->GetComm());
@@ -553,72 +553,72 @@ HertzSolver::Solve()
    minres.Mult(RHS, E);
    */
    switch (sol_)
-     {
-     case GMRES:
-       {
-	 GMRESSolver gmres(HCurlFESpace_->GetComm());
-	 gmres.SetOperator(*A1.Ptr());
-	 gmres.SetRelTol(1e-4);
-	 gmres.SetMaxIter(10000);
-	 gmres.SetPrintLevel(1);
-	 
-	 gmres.Mult(RHS, E);
-       }
-       break;
-     case FGMRES:
-       {
-	 HypreParMatrix * B1 = b1_->ParallelAssemble();
-	 
-	 HypreAMS ams(*B1, HCurlFESpace_);
-	 
-	 BlockDiagonalPreconditioner BDP(blockTrueOffsets_);
-	 BDP.SetDiagonalBlock(0,&ams);
-	 BDP.SetDiagonalBlock(1,&ams);
-	 BDP.owns_blocks = 0;
+   {
+      case GMRES:
+      {
+         GMRESSolver gmres(HCurlFESpace_->GetComm());
+         gmres.SetOperator(*A1.Ptr());
+         gmres.SetRelTol(1e-4);
+         gmres.SetMaxIter(10000);
+         gmres.SetPrintLevel(1);
 
-	 FGMRESSolver fgmres(HCurlFESpace_->GetComm());
-	 fgmres.SetOperator(*A1.Ptr());
-	 fgmres.SetRelTol(1e-4);
-	 fgmres.SetMaxIter(10000);
-	 fgmres.SetPrintLevel(1);
-	 fgmres.SetPreconditioner(BDP);
-	 
-	 fgmres.Mult(RHS, E);
-	 
-	 delete B1;
-       }
-       break;
+         gmres.Mult(RHS, E);
+      }
+      break;
+      case FGMRES:
+      {
+         HypreParMatrix * B1 = b1_->ParallelAssemble();
+
+         HypreAMS ams(*B1, HCurlFESpace_);
+
+         BlockDiagonalPreconditioner BDP(blockTrueOffsets_);
+         BDP.SetDiagonalBlock(0,&ams);
+         BDP.SetDiagonalBlock(1,&ams);
+         BDP.owns_blocks = 0;
+
+         FGMRESSolver fgmres(HCurlFESpace_->GetComm());
+         fgmres.SetOperator(*A1.Ptr());
+         fgmres.SetRelTol(1e-4);
+         fgmres.SetMaxIter(10000);
+         fgmres.SetPrintLevel(1);
+         fgmres.SetPreconditioner(BDP);
+
+         fgmres.Mult(RHS, E);
+
+         delete B1;
+      }
+      break;
 #ifdef MFEM_USE_SUPERLU
-     case SUPERLU:
-       {
-	 ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
-	 HypreParMatrix * A1C = A1Z->GetSystemMatrix();
-	 SuperLURowLocMatrix A_SuperLU(*A1C);
-	 SuperLUSolver solver(MPI_COMM_WORLD);
-	 solver.SetOperator(A_SuperLU);
-	 solver.Mult(RHS, E);
-	 delete A1C;
-	 delete A1Z;
-       }
-       break;
+      case SUPERLU:
+      {
+         ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
+         HypreParMatrix * A1C = A1Z->GetSystemMatrix();
+         SuperLURowLocMatrix A_SuperLU(*A1C);
+         SuperLUSolver solver(MPI_COMM_WORLD);
+         solver.SetOperator(A_SuperLU);
+         solver.Mult(RHS, E);
+         delete A1C;
+         delete A1Z;
+      }
+      break;
 #endif
 #ifdef MFEM_USE_STRUMPACK
-     case STRUMPACK:
-       {
-	 ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
-	 HypreParMatrix * A1C = A1Z->GetSystemMatrix();
-	 STRUMPACKRowLocMatrix A_STRUMPACK(*A1C);
-	 STRUMPACKSolver solver(0, NULL, MPI_COMM_WORLD);
-	 solver.SetOperator(A_STRUMPACK);
-	 solver.Mult(RHS, E);
-	 delete A1C;
-	 delete A1Z;
-       }
-       break;
+      case STRUMPACK:
+      {
+         ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
+         HypreParMatrix * A1C = A1Z->GetSystemMatrix();
+         STRUMPACKRowLocMatrix A_STRUMPACK(*A1C);
+         STRUMPACKSolver solver(0, NULL, MPI_COMM_WORLD);
+         solver.SetOperator(A_STRUMPACK);
+         solver.Mult(RHS, E);
+         delete A1C;
+         delete A1Z;
+      }
+      break;
 #endif
-     default:
-       break;
-     };
+      default:
+         break;
+   };
 
    e_->Distribute(E);
 

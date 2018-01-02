@@ -462,8 +462,8 @@ void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
 
 
 ParSesquilinearForm::ParSesquilinearForm(ParFiniteElementSpace *pf,
-					 const ComplexOperator::Convention &
-					 convention)
+                                         const ComplexOperator::Convention &
+                                         convention)
    : conv_(convention),
      pblfr_(new ParBilinearForm(pf)),
      pblfi_(new ParBilinearForm(pf))
@@ -493,7 +493,7 @@ ParSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
 void
 ParSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
                                            BilinearFormIntegrator *bfi_imag,
-					   Array<int> & bdr_marker)
+                                           Array<int> & bdr_marker)
 {
    if (bfi_real) { pblfr_->AddBoundaryIntegrator(bfi_real, bdr_marker); }
    if (bfi_imag) { pblfi_->AddBoundaryIntegrator(bfi_imag, bdr_marker); }

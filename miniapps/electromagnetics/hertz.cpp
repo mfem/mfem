@@ -46,7 +46,7 @@
 //
 //   (W, Curl mu^{-1} Curl E) = (Curl W, mu^{-1} Curl E)
 //               - i omega sqrt{epsilon/mu} (W, E)_{\Gamma}
-//  
+//
 //
 // Compile with: make hertz
 //
@@ -114,7 +114,7 @@ double conductive_sphere(const Vector &);
 
 // Impedance
 Coefficient * SetupAdmittanceCoefficient(const Mesh & mesh,
-					 const Array<int> & abcs);
+                                         const Array<int> & abcs);
 
 static Vector pw_eta_(0);      // Piecewise impedance values
 static Vector pw_eta_inv_(0);  // Piecewise inverse impedance values
@@ -300,7 +300,7 @@ int main(int argc, char *argv[])
    // Create the Magnetostatic solver
    HertzSolver Hertz(pmesh, order, freq_, (HertzSolver::SolverType)sol,
                      *epsCoef, *muInvCoef, sigmaCoef, etaInvCoef,
-		     abcs, dbcs,
+                     abcs, dbcs,
                      e_bc_r, e_bc_i,
                      (do_params_.Size() > 0 ) ? j_src : NULL, NULL
                     );
@@ -523,23 +523,23 @@ SetupAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
    if ( pw_eta_.Size() > 0 )
    {
       MFEM_VERIFY(pw_eta_.Size() == abcs.Size(),
-		  "Each impedance value must be associated with exactly one "
-		  "absorbing boundary surface.");
+                  "Each impedance value must be associated with exactly one "
+                  "absorbing boundary surface.");
 
       pw_eta_inv_.SetSize(mesh.bdr_attributes.Size());
 
       if ( abcs[0] == -1 )
       {
-	pw_eta_inv_ = 1.0 / pw_eta_[0];
+         pw_eta_inv_ = 1.0 / pw_eta_[0];
       }
       else
       {
-	pw_eta_inv_ = 0.0;
+         pw_eta_inv_ = 0.0;
 
-	for (int i=0; i<pw_eta_.Size(); i++)
-	{
-	  pw_eta_inv_[abcs[i]-1] = 1.0 / pw_eta_[i];
-	}
+         for (int i=0; i<pw_eta_.Size(); i++)
+         {
+            pw_eta_inv_[abcs[i]-1] = 1.0 / pw_eta_[i];
+         }
       }
       coef = new PWConstCoefficient(pw_eta_inv_);
    }
