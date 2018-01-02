@@ -30,26 +30,29 @@ protected:
    mutable OperatorHandle pGrad;
 
 public:
-   ParNonlinearForm(ParFiniteElementSpace *pf)
-      : NonlinearForm(pf), X(pf), Y(pf), pGrad(Operator::Hypre_ParCSR)
-   { height = width = pf->TrueVSize(); }
+   ParNonlinearForm(ParFiniteElementSpace *pf);
 
    ParFiniteElementSpace *ParFESpace() const
    { return (ParFiniteElementSpace *)fes; }
 
-   // Here, rhs is a true dof vector
-   virtual void SetEssentialBC(const Array<int> &bdr_attr_is_ess,
-                               Vector *rhs = NULL);
+   /// Compute the enery corresponding to the state @a x.
+   /** In general, @a x may have non-homogeneous essential boundary values.
+
+       The state @a x must be a "GridFunction size" vector, i.e. its size must
+       be fes->GetVSize(). */
+   double GetParGridFunctionEnergy(const Vector &x) const;
 
    /// Compute the energy of a ParGridFunction
-   virtual double GetEnergy(const ParGridFunction &x) const;
+   double GetEnergy(const ParGridFunction &x) const
+   { return GetParGridFunctionEnergy(x); }
 
-   /// Compute the energy of a true-dof vector 'x'
-   virtual double GetEnergy(const Vector &x) const;
+   virtual double GetEnergy(const Vector &x) const
+   { return GetParGridFunctionEnergy(Prolongate(x)); }
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
-   /// Return the local gradient matrix for the given true-dof vector x
+   /// Return the local gradient matrix for the given true-dof vector x.
+   /** The returned matrix does NOT have any boundary conditions imposed. */
    const SparseMatrix &GetLocalGradient(const Vector &x) const;
 
    virtual Operator &GetGradient(const Vector &x) const;
@@ -57,12 +60,11 @@ public:
    /// Set the operator type id for the parallel gradient matrix/operator.
    void SetGradientType(Operator::Type tid) { pGrad.SetType(tid); }
 
-   /// Get the parallel finite element space prolongation matrix
-   virtual const Operator *GetProlongation() const
-   { return ParFESpace()->GetProlongationMatrix(); }
-   /// Get the parallel finite element space restriction matrix
-   virtual const Operator *GetRestriction() const
-   { return ParFESpace()->GetRestrictionMatrix(); }
+   /** @brief Update the ParNonlinearForm to propagate updates of the associated
+       parallel FE space. */
+   /** After calling this method, the essential boundary conditions need to be
+       set again. */
+   virtual void Update();
 
    virtual ~ParNonlinearForm() { }
 };
