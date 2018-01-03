@@ -1504,7 +1504,7 @@ private:
 public:
    Poly_1D() { }
 
-   /** @brief Get a poiner to an array containing the binomial coefficients "p
+   /** @brief Get a pointer to an array containing the binomial coefficients "p
        choose k" for k=0,...,p for the given p. */
    static const int *Binom(const int p);
 
@@ -1514,7 +1514,7 @@ public:
        @param[in] p      The polynomial degree; the number of points is `p+1`.
        @param[in] btype  The BasisType.
 
-       @return A pointer to an array containing the `p+1` coordiantes of the
+       @return A pointer to an array containing the `p+1` coordinates of the
                points. Returns NULL if the BasisType has no associated set of
                points. */
    const double *GetPoints(const int p, const int btype);

@@ -10,6 +10,8 @@
 
 Version 3.3.3 (development)
 ===========================
+- Inherit finite element classes from the new base class TensorBasisElement,
+  whenever the basis can be represented by a tensor product of 1D bases.
 
 
 Version 3.3.2, released on Nov 10, 2017
