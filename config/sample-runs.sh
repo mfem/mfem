@@ -137,9 +137,7 @@ function extract_sample_runs()
    pruns=`grep "^//.*  mpirun .* ${app}" "${src}" |
           sed -e "s/.*  mpirun \(.*\) ${app}/${mpiexec} \1 ${app}/g" \
               -e "s/ -np\(.*\) ${app}/ ${mpiexec_np}\1 ${vg_app}/g"`
-   # serial sample runs are lines that are not 
-   
-   runs and matching
+   # serial sample runs are lines that are not parallel sample runs and matching
    # "^//.*  ${app}" with everything in front of "${app}" removed:
    sruns=`grep -v "^//.*  mpirun .* ${app}" "${src}" |
           grep "^//.*  ${app}" |
