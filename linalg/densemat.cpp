@@ -45,12 +45,10 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
    int hw = height * width;
    if (hw > 0)
    {
+      MFEM_ASSERT(m.data, "invalid source matrix");
       data = new double[hw];
       capacity = hw;
-      for (int i = 0; i < hw; i++)
-      {
-         data[i] = m.data[i];
-      }
+      std::memcpy(data, m.data, sizeof(double)*hw);
    }
    else
    {
@@ -486,7 +484,7 @@ double DenseMatrix::Det() const
          return lu_factors.Det();
       }
    }
-   return 0.0;
+   // not reachable
 }
 
 double DenseMatrix::Weight() const
@@ -1714,9 +1712,9 @@ inline int Reduce3S(
       d2  -= 2*v2*w2;
       d23 -= v2*w3 + v3*w2;
       d3  -= 2*v3*w3;
-#ifdef MFEM_DEBUG
       // compute the offdiagonal entries on the first row/column of B which
-      // should be zero:
+      // should be zero (for debugging):
+#if 0
       s = d12 - v1*w2 - v2*w1;  // b12 = 0
       s = d13 - v1*w3 - v3*w1;  // b13 = 0
 #endif
@@ -1926,12 +1924,12 @@ double DenseMatrix::CalcSingularvalue(const int i) const
          {
             if (R < 0.)
             {
-               R = -1.;
+               // R = -1.;
                r = 2*sqrtQ;
             }
             else
             {
-               R = 1.;
+               // R = 1.;
                r = -2*sqrtQ;
             }
          }
@@ -2144,12 +2142,12 @@ void DenseMatrix::CalcEigenvalues(double *lambda, double *vec) const
          {
             if (R < 0.)
             {
-               R = -1.;
+               // R = -1.;
                r = 2*sqrtQ;
             }
             else
             {
-               R = 1.;
+               // R = 1.;
                r = -2*sqrtQ;
             }
          }
@@ -4219,6 +4217,20 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
           &qwork, &lwork, &info);
 
    lwork = (int) qwork;
+   work = new double[lwork];
+#endif
+}
+
+DenseMatrixEigensystem::DenseMatrixEigensystem(
+   const DenseMatrixEigensystem &other)
+   : mat(other.mat), EVal(other.EVal), EVect(other.EVect), ev(NULL, other.n),
+     n(other.n)
+{
+#ifdef MFEM_USE_LAPACK
+   jobz = other.jobz;
+   uplo = other.uplo;
+   lwork = other.lwork;
+
    work = new double[lwork];
 #endif
 }

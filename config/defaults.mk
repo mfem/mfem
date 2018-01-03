@@ -30,15 +30,36 @@ PREFIX = ./mfem
 # Install program
 INSTALL = /usr/bin/install
 
+STATIC = YES
+SHARED = NO
+
 ifneq ($(NOTMAC),)
    AR      = ar
    ARFLAGS = cruv
    RANLIB  = ranlib
+   PICFLAG = -fPIC
+   SO_EXT  = so
+   SO_VER  = so.$(MFEM_VERSION_STRING)
+   BUILD_SOFLAGS = -shared -Wl,-soname,libmfem.$(SO_VER)
+   BUILD_RPATH = -Wl,-rpath,$(BUILD_REAL_DIR)
+   INSTALL_SOFLAGS = $(BUILD_SOFLAGS)
+   INSTALL_RPATH = -Wl,-rpath,@MFEM_LIB_DIR@
 else
    # Silence "has no symbols" warnings on Mac OS X
    AR      = ar
    ARFLAGS = Scruv
    RANLIB  = ranlib -no_warning_for_no_symbols
+   PICFLAG = -fPIC
+   SO_EXT  = dylib
+   SO_VER  = $(MFEM_VERSION_STRING).dylib
+   MAKE_SOFLAGS = -Wl,-dylib,-install_name,$(1)/libmfem.$(SO_VER),\
+      -compatibility_version,$(MFEM_VERSION_STRING),\
+      -current_version,$(MFEM_VERSION_STRING),\
+      -undefined,dynamic_lookup
+   BUILD_SOFLAGS = $(subst $1 ,,$(call MAKE_SOFLAGS,$(BUILD_REAL_DIR)))
+   BUILD_RPATH = -Wl,-undefined,dynamic_lookup
+   INSTALL_SOFLAGS = $(subst $1 ,,$(call MAKE_SOFLAGS,$(MFEM_LIB_DIR)))
+   INSTALL_RPATH = -Wl,-undefined,dynamic_lookup
 endif
 
 # Set CXXFLAGS to overwrite the default selection of DEBUG_FLAGS/OPTIM_FLAGS
@@ -127,7 +148,7 @@ POSIX_CLOCKS_LIB = -lrt
 SUNDIALS_DIR = @MFEM_DIR@/../sundials-3.0.0
 SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
 SUNDIALS_LIB = -Wl,-rpath,$(SUNDIALS_DIR)/lib -L$(SUNDIALS_DIR)/lib\
-  -lsundials_arkode -lsundials_cvode -lsundials_nvecserial -lsundials_kinsol
+ -lsundials_arkode -lsundials_cvode -lsundials_nvecserial -lsundials_kinsol
 
 ifeq ($(MFEM_USE_MPI),YES)
    SUNDIALS_LIB += -lsundials_nvecparhyp -lsundials_nvecparallel
@@ -144,14 +165,14 @@ MESQUITE_LIB = -L$(MESQUITE_DIR)/lib -lmesquite
 LIB_RT = $(if $(NOTMAC),-lrt,)
 SUITESPARSE_DIR = @MFEM_DIR@/../SuiteSparse
 SUITESPARSE_OPT = -I$(SUITESPARSE_DIR)/include
-SUITESPARSE_LIB = -L$(SUITESPARSE_DIR)/lib -lklu -lbtf -lumfpack -lcholmod\
- -lcolamd -lamd -lcamd -lccolamd -lsuitesparseconfig $(LIB_RT) $(METIS_LIB)\
- $(LAPACK_LIB)
+SUITESPARSE_LIB = -Wl,-rpath,$(SUITESPARSE_DIR)/lib -L$(SUITESPARSE_DIR)/lib\
+ -lklu -lbtf -lumfpack -lcholmod -lcolamd -lamd -lcamd -lccolamd\
+ -lsuitesparseconfig $(LIB_RT) $(METIS_LIB) $(LAPACK_LIB)
 
 # SuperLU library configuration
 SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
 SUPERLU_OPT = -I$(SUPERLU_DIR)/SRC
-SUPERLU_LIB = -L$(SUPERLU_DIR)/SRC -lsuperlu_dist
+SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/SRC -L$(SUPERLU_DIR)/SRC -lsuperlu_dist
 
 # SCOTCH library configuration (required by STRUMPACK)
 SCOTCH_DIR = @MFEM_DIR@/../scotch_6.0.4
@@ -190,12 +211,14 @@ GNUTLS_OPT =
 GNUTLS_LIB = -lgnutls
 
 # NetCDF library configuration
-NETCDF_DIR  = $(HOME)/local
-HDF5_DIR    = $(HOME)/local
-ZLIB_DIR    = $(HOME)/local
-NETCDF_OPT  = -I$(NETCDF_DIR)/include
-NETCDF_LIB  = -L$(NETCDF_DIR)/lib -lnetcdf -L$(HDF5_DIR)/lib -lhdf5_hl -lhdf5\
- -L$(ZLIB_DIR)/lib -lz
+NETCDF_DIR = $(HOME)/local
+HDF5_DIR   = $(HOME)/local
+ZLIB_DIR   = $(HOME)/local
+NETCDF_OPT = -I$(NETCDF_DIR)/include -I$(HDF5_DIR)/include -I$(ZLIB_DIR)/include
+NETCDF_LIB = -Wl,-rpath,$(NETCDF_DIR)/lib -L$(NETCDF_DIR)/lib\
+ -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib\
+ -Wl,-rpath,$(ZLIB_DIR)/lib -L$(ZLIB_DIR)/lib\
+ -lnetcdf -lhdf5_hl -lhdf5 -lz
 
 # PETSc library configuration (version greater or equal to 3.8 or the dev branch)
 PETSC_ARCH := arch-linux2-c-debug
@@ -222,16 +245,10 @@ CONDUIT_DIR = @MFEM_DIR@/../conduit
 SIDRE_OPT = -I$(SIDRE_DIR)/include -I$(CONDUIT_DIR)/include/conduit\
  -I$(HDF5_DIR)/include
 SIDRE_LIB = \
-   -L$(SIDRE_DIR)/lib \
-   -L$(CONDUIT_DIR)/lib \
-   -Wl,-rpath -Wl,$(CONDUIT_DIR)/lib \
-   -L$(HDF5_DIR)/lib \
-   -Wl,-rpath -Wl,$(HDF5_DIR)/lib \
+   -Wl,-rpath,$(SIDRE_DIR)/lib -L$(SIDRE_DIR)/lib \
+   -Wl,-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
+   -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
    -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 -lz -ldl
-
-ifeq ($(MFEM_USE_MPI),YES)
-   SIDRE_LIB += -lspio
-endif
 
 # If YES, enable some informational messages
 VERBOSE = NO
