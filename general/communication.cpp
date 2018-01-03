@@ -266,9 +266,9 @@ void GroupTopology::Load(istream &in)
 }
 
 
-// specializations of the MPITypeMap static member
-template<> const MPI_Datatype MPITypeMap<int>::mpi_type = MPI_INT;
-template<> const MPI_Datatype MPITypeMap<double>::mpi_type = MPI_DOUBLE;
+// Initialize the static mpi_type for the specializations of MPITypeMap:
+const MPI_Datatype MPITypeMap<int>::mpi_type = MPI_INT;
+const MPI_Datatype MPITypeMap<double>::mpi_type = MPI_DOUBLE;
 
 
 GroupCommunicator::GroupCommunicator(GroupTopology &gt, Mode m)

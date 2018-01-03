@@ -781,6 +781,7 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
    }
    if ( FEC == NULL)
    {
+      delete mesh;
       return 1;
    }
 
