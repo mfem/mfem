@@ -123,8 +123,9 @@ public:
    /** It is always true that Capacity() >= Size(). */
    inline int Capacity() const { return abs(allocsize); }
 
-   // double *GetData() { return data; }
-
+   /// Return a pointer to the beginning of the Vector data.
+   /** @warning This method should be used with caution as it gives write access
+       to the data of const-qualified Vector%s. */
    inline double *GetData() const { return data; }
 
    /// Conversion to `double *`.
