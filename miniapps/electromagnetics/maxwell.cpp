@@ -338,7 +338,7 @@ int main(int argc, char *argv[])
    {
       // Run the simulation until a snapshot is needed
       siaSolver.Run(Maxwell.GetBField(), Maxwell.GetEField(), t, dt,
-		    max(t + dt, ti + ts * it));
+                    max(t + dt, ti + ts * it));
 
       // Approximate the current energy if the fields
       energy = Maxwell.GetEnergy();
