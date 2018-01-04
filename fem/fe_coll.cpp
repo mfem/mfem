@@ -1742,7 +1742,11 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type,
    }
    OtherDofOrd = NULL;
 
-   if (dim == 1)
+   if (dim == 0)
+   {
+      L2_Elements[Geometry::POINT] = new PointFiniteElement;
+   }
+   else if (dim == 1)
    {
       if (m_type == BasisType::Positive)
       {

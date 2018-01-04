@@ -184,6 +184,16 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
    isSorted = mat.isSorted;
 }
 
+SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
+{
+   Clear();
+
+   SparseMatrix copy(rhs);
+   Swap(copy);
+
+   return *this;
+}
+
 void SparseMatrix::MakeRef(const SparseMatrix &master)
 {
    MFEM_ASSERT(master.Finalized(), "'master' must be finalized");
@@ -1114,21 +1124,42 @@ void SparseMatrix::EliminateRow(int row, int setOneDiagonal)
    }
 }
 
-void SparseMatrix::EliminateCol(int col)
+void SparseMatrix::EliminateCol(int col, int setOneDiagonal)
 {
-   RowNode *aux;
+   MFEM_ASSERT(col < width && col >= 0,
+               "Col " << col << " not in matrix of width " << width);
 
-   MFEM_VERIFY(!Finalized(), "Matrix must NOT be finalized.");
+   MFEM_ASSERT(!setOneDiagonal || height == width,
+               "if setOneDiagonal, must be square matrix, not height = "
+               << height << ",  width = " << width);
 
-   for (int i = 0; i < height; i++)
-      for (aux = Rows[i]; aux != NULL; aux = aux->Prev)
-         if (aux -> Column == col)
-         {
-            aux->Value = 0.0;
-         }
+   if (Rows == NULL)
+   {
+      for (int i = 0; i < height; i++)
+         for (int jpos = I[i]; jpos != I[i+1]; ++jpos)
+            if (J[jpos] == col)
+            {
+               A[jpos] = 0.0;
+            }
+   }
+   else
+   {
+      RowNode *aux;
+      for (int i = 0; i < height; i++)
+         for (aux = Rows[i]; aux != NULL; aux = aux->Prev)
+            if (aux -> Column == col)
+            {
+               aux->Value = 0.0;
+            }
+   }
+
+   if (setOneDiagonal)
+   {
+      SearchRow(col, col) = 1.0;
+   }
 }
 
-void SparseMatrix::EliminateCols(Array<int> &cols, Vector *x, Vector *b)
+void SparseMatrix::EliminateCols(const Array<int> &cols, Vector *x, Vector *b)
 {
    if (Rows == NULL)
    {
@@ -1992,7 +2023,7 @@ void SparseMatrix::SetSubMatrixTranspose(const Array<int> &rows,
 }
 
 void SparseMatrix::GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
-                                DenseMatrix &subm)
+                                DenseMatrix &subm) const
 {
    int i, j, gi, gj, s, t;
    double a;
@@ -2811,7 +2842,7 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
                   << " ncolsB = " << ncolsB
                   << ", C->Width() = " << C->Width());
 
-      C_i    = C -> GetI();
+      // C_i    = C -> GetI(); // not used
       C_j    = C -> GetJ();
       C_data = C -> GetData();
    }
