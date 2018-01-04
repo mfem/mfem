@@ -175,11 +175,7 @@ ParBlockNonlinearForm::ParBlockNonlinearForm(Array<ParFiniteElementSpace *> &pf)
       }
    }
 
-   for (int i=0; i<fes.Size(); i++)
-   {
-      height += fes[i]->GetTrueVSize();
-      width += fes[i]->GetTrueVSize();
-   }
+   height = width = block_trueOffsets.Last();
 }
 
 ParFiniteElementSpace * ParBlockNonlinearForm::ParFESpace(int block) const
@@ -228,6 +224,7 @@ void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 
       X[s]->Distribute(xs_true);
 
+      // FIXME: avoid this copy
       bxs.SetVector(*X[s], block_offsets[s]);
    }
 
@@ -235,6 +232,8 @@ void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 
    for (int s=0; s<fes.Size(); s++)
    {
+      // FIXME: use P^T to do the parallel assembly
+      //        P = ParFESpace(s)->GetProlongationMatrix()
       ParFESpace(s)->GroupComm().Reduce<double>(bys, GroupCommunicator::Sum);
       *Y[s] = bys.GetBlock(s);
       ys_true.SetDataAndSize(y.GetData() + block_trueOffsets[s],
@@ -255,6 +254,7 @@ const BlockOperator & ParBlockNonlinearForm::GetLocalGradient(
       xs_true.SetDataAndSize(x.GetData() + block_offsets[s], fes[s]->GetTrueVSize());
       X[s]->Distribute(xs_true);
 
+      // FIXME: avoid this copy
       bxs.SetVector(*X[s], block_offsets[s]);
    }
 
@@ -343,6 +343,14 @@ BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
 
 ParBlockNonlinearForm::~ParBlockNonlinearForm()
 {
+   delete pBlockGrad;
+   for (int s1=0; s1<fes.Size(); s1++)
+   {
+      for (int s2=0; s2<fes.Size(); s2++)
+      {
+         delete phBlockGrad(s1,s2);
+      }
+   }
    for (int s1=0; s1<fes.Size(); s1++)
    {
       delete X[s1];
