@@ -42,10 +42,10 @@
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   ICF limited shape:
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 6.67
-//   ICF combo shape + size (rings):
+//   ICF combo shape + size (rings, slow convergence):
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 2 -ni 1000 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb
 //   3D pinched sphere shape (the mesh is in the mfem/data GitHub repository):
-//     mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -rs 0 -mid 303 -tid 1 -ni 20 -ls 2 -li 500 -fix-bnd
+//   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -rs 0 -mid 303 -tid 1 -ni 20 -ls 2 -li 500 -fix-bnd
 
 #include "mfem.hpp"
 #include <fstream>
@@ -293,8 +293,9 @@ int main (int argc, char *argv[])
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
-   bool visualization    = true;
    bool combomet         = 0;
+   bool visualization    = true;
+   int verbosity_level   = 0;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -353,11 +354,13 @@ int main (int argc, char *argv[])
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
                   "--fix-boundary",
                   "Enable motion along horizontal and vertical boundaries.");
+   args.AddOption(&combomet, "-cmb", "--combo-met", "-no-cmb", "--no-combo-met",
+                  "Combination of metrics.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&combomet, "-cmb", "--combo-met", "-no-cmb", "--no-combo-met",
-                  "Combination of metrics.");
+   args.AddOption(&verbosity_level, "-vl", "--verbosity-level",
+                  "Set the verbosity level - 0, 1, or 2.");
    args.Parse();
    if (!args.Good())
    {
@@ -524,7 +527,7 @@ int main (int argc, char *argv[])
       case 2: ir = &IntRules.Get(geom_type, quad_order); break;
       case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
       default:
-         if (myid == 0) { cout << "Unknown quad_type: " << target_id << endl; }
+         if (myid == 0) { cout << "Unknown quad_type: " << quad_type << endl; }
          return 3;
    }
    if (myid == 0)
@@ -642,7 +645,7 @@ int main (int argc, char *argv[])
       cg->SetMaxIter(max_lin_iter);
       cg->SetRelTol(linsol_rtol);
       cg->SetAbsTol(0.0);
-      cg->SetPrintLevel(3);
+      cg->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
       S = cg;
    }
    else
@@ -651,7 +654,7 @@ int main (int argc, char *argv[])
       minres->SetMaxIter(max_lin_iter);
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
-      minres->SetPrintLevel(3);
+      minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
       S = minres;
    }
 
@@ -702,7 +705,7 @@ int main (int argc, char *argv[])
    newton->SetMaxIter(newton_iter);
    newton->SetRelTol(newton_rtol);
    newton->SetAbsTol(0.0);
-   newton->SetPrintLevel(1);
+   newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    newton->SetOperator(a);
    Vector X(pfespace->TrueVSize());
    pfespace->GetRestrictionMatrix()->Mult(x, X);

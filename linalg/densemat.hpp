@@ -13,6 +13,7 @@
 #define MFEM_DENSEMAT
 
 #include "../config/config.hpp"
+#include "../general/globals.hpp"
 #include "matrix.hpp"
 
 namespace mfem
@@ -162,6 +163,9 @@ public:
    /// Replaces the current matrix with its inverse
    void Invert();
 
+   /// Replaces the current matrix with its square root inverse
+   void SquareRootInverse();
+
    /// Calculates the determinant of the matrix
    /// (optimized for 2x2, 3x3, and 4x4 matrices)
    double Det() const;
@@ -234,6 +238,7 @@ public:
    void GetRow(int r, Vector &row);
    void GetColumn(int c, Vector &col) const;
    double *GetColumn(int col) { return data + col*height; }
+   const double *GetColumn(int col) const { return data + col*height; }
 
    void GetColumnReference(int c, Vector &col)
    { col.SetDataAndSize(data + c * height, height); }
@@ -320,10 +325,10 @@ public:
    int CheckFinite() const { return mfem::CheckFinite(data, height*width); }
 
    /// Prints matrix to stream out.
-   virtual void Print(std::ostream &out = std::cout, int width_ = 4) const;
-   virtual void PrintMatlab(std::ostream &out = std::cout) const;
+   virtual void Print(std::ostream &out = mfem::out, int width_ = 4) const;
+   virtual void PrintMatlab(std::ostream &out = mfem::out) const;
    /// Prints the transpose matrix to stream out.
-   virtual void PrintT(std::ostream &out = std::cout, int width_ = 4) const;
+   virtual void PrintT(std::ostream &out = mfem::out, int width_ = 4) const;
 
    /// Invert and print the numerical conditioning of the inversion.
    void TestInversion();
@@ -588,6 +593,7 @@ class DenseMatrixEigensystem
 public:
 
    DenseMatrixEigensystem(DenseMatrix &m);
+   DenseMatrixEigensystem(const DenseMatrixEigensystem &other);
    void Eval();
    Vector &Eigenvalues() { return EVal; }
    DenseMatrix &Eigenvectors() { return EVect; }
@@ -648,6 +654,22 @@ public:
       nk = k;
       tdata = new double[i*j*k];
       own_data = true;
+   }
+
+   /// Copy constructor: deep copy
+   DenseTensor(const DenseTensor& other)
+      : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk), own_data(true)
+   {
+      const int size = Mk.Height()*Mk.Width()*nk;
+      if (size > 0)
+      {
+         tdata = new double[size];
+         std::memcpy(tdata, other.tdata, sizeof(double) * size);
+      }
+      else
+      {
+         tdata = NULL;
+      }
    }
 
    int SizeI() const { return Mk.Height(); }

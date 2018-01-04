@@ -16,6 +16,7 @@
 
 #include "mem_alloc.hpp"
 #include "array.hpp"
+#include "globals.hpp"
 #include <ostream>
 #include <istream>
 
@@ -56,6 +57,9 @@ public:
 
    /// Copy constructor
    Table(const Table &);
+
+   /// Assignment operator: deep copy
+   Table& operator=(const Table &rhs);
 
    /// Create a table with an upper limit for the number of connections.
    explicit Table (int dim, int connections_per_row = 3);
@@ -143,7 +147,7 @@ public:
    void LoseData() { size = -1; I = J = NULL; }
 
    /// Prints the table to stream out.
-   void Print(std::ostream & out = std::cout, int width = 4) const;
+   void Print(std::ostream & out = mfem::out, int width = 4) const;
    void PrintMatlab(std::ostream & out) const;
 
    void Save(std::ostream &out) const;
