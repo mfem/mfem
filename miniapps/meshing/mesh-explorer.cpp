@@ -255,7 +255,7 @@ int main (int argc, char *argv[])
          int p;
          cout << "enter new order for mesh curvature --> " << flush;
          cin >> p;
-         mesh->SetCurvature(p);
+         mesh->SetCurvature(p > 0 ? p : -p, p <= 0);
          print_char = 1;
       }
 

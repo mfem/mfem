@@ -227,6 +227,7 @@ int main(int argc, char *argv[])
       case 10: ode_solver = new SDIRK33Solver; break;
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         delete mesh;
          return 3;
    }
 

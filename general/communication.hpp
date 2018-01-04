@@ -415,8 +415,11 @@ protected:
 
 
 /// Helper struct to convert a C++ type to an MPI type
-template <typename Type>
-struct MPITypeMap { static const MPI_Datatype mpi_type; };
+template <typename Type> struct MPITypeMap;
+
+// Specializations of MPITypeMap; mpi_type initialized in communication.cpp:
+template<> struct MPITypeMap<int>    { static const MPI_Datatype mpi_type; };
+template<> struct MPITypeMap<double> { static const MPI_Datatype mpi_type; };
 
 
 /** Reorder MPI ranks to follow the Z-curve within the physical machine topology
