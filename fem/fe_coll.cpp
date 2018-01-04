@@ -1742,7 +1742,11 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type,
    }
    OtherDofOrd = NULL;
 
-   if (dim == 1)
+   if (dim == 0)
+   {
+      L2_Elements[Geometry::POINT] = new PointFiniteElement;
+   }
+   else if (dim == 1)
    {
       if (m_type == BasisType::Positive)
       {
@@ -1841,8 +1845,8 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type,
    }
    else
    {
-      cerr << "L2_FECollection::L2_FECollection : dim = "
-           << dim << endl;
+      mfem::err << "L2_FECollection::L2_FECollection : dim = "
+                << dim << endl;
       mfem_error();
    }
 }
@@ -2416,8 +2420,8 @@ Local_FECollection::Local_FECollection(const char *fe_name)
    }
    else
    {
-      cerr << "Local_FECollection::Local_FECollection : fe_name = "
-           << fe_name << endl;
+      mfem::err << "Local_FECollection::Local_FECollection : fe_name = "
+                << fe_name << endl;
       mfem_error();
    }
 }

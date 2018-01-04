@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "../general/array.hpp"
+#include "../general/globals.hpp"
 #include "vector.hpp"
 #include "sparsemat.hpp"
 
@@ -59,6 +60,10 @@ public:
    const Array<int> & ColOffsets() const { return col_offsets; }
    //! Return the number of non zeros in row i
    int RowSize(const int i) const;
+   /** Eliminates the column and row 'rc', replacing the element (rc,rc) with
+    *  1.0. Assumes that element (i,rc) is assembled if and only if the element
+    *  (rc,i) is assembled. If d != 0, the element (rc,rc) is kept the same. */
+   void EliminateRowCol(int rc, DiagonalPolicy dpolicy = DIAG_ONE);
    //! Symmetric elimination of the marked degree of freedom.
    /**
     * ess_bc_dofs: marker of the degree of freedom to be eliminated
@@ -68,10 +73,16 @@ public:
     * rhs: vector that stores the rhs of the system.
     */
    void EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol, Vector & rhs);
+
+   ///  Finalize all the submatrices
+   virtual void Finalize(int skip_zeros = 1) { Finalize(skip_zeros, false); }
+   /// A slightly more general version of the Finalize(int) method.
+   void Finalize(int skip_zeros, bool fix_empty_rows);
+
    //! Returns a monolithic CSR matrix that represents this operator.
    SparseMatrix * CreateMonolithic() const;
    //! Export the monolithic matrix to file.
-   void PrintMatlab(std::ostream & os = std::cout) const;
+   void PrintMatlab(std::ostream & os = mfem::out) const;
 
    //@name Matrix interface
    //@{

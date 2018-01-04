@@ -1105,7 +1105,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       Update: what about a FIFO instead of ref_stack? */
 
 #if defined(MFEM_DEBUG) && !defined(MFEM_USE_MPI)
-   std::cout << "Refined " << refinements.Size() << " + " << nforced
+   mfem::out << "Refined " << refinements.Size() << " + " << nforced
              << " elements" << std::endl;
 #endif
    ref_stack.DeleteAll();
@@ -3374,10 +3374,10 @@ long NCMesh::MemoryUsage() const
 
 int NCMesh::PrintMemoryDetail() const
 {
-   nodes.PrintMemoryDetail(); std::cout << " nodes\n";
-   faces.PrintMemoryDetail(); std::cout << " faces\n";
+   nodes.PrintMemoryDetail(); mfem::out << " nodes\n";
+   faces.PrintMemoryDetail(); mfem::out << " faces\n";
 
-   std::cout << elements.MemoryUsage() << " elements\n"
+   mfem::out << elements.MemoryUsage() << " elements\n"
              << free_element_ids.MemoryUsage() << " free_element_ids\n"
              << top_vertex_pos.MemoryUsage() << " top_vertex_pos\n"
              << leaf_elements.MemoryUsage() << " leaf_elements\n"
@@ -3463,9 +3463,9 @@ void NCMesh::DebugLeafOrder() const
                count++;
             }
          }
-         std::cout << sum / count << " ";
+         mfem::out << sum / count << " ";
       }
-      std::cout << "\n";
+      mfem::out << "\n";
    }
 }
 #endif

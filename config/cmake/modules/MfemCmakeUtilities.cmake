@@ -74,10 +74,8 @@ function(add_mfem_examples EXE_SRCS)
 
     string(REPLACE ".cpp" "" EXE_NAME "${EXE_PREFIX}${SRC_FILENAME}")
     add_executable(${EXE_NAME} ${SRC_FILE})
-    # If given a prefix, don't add the example to the list of examples to build.
-    if (NOT EXE_PREFIX)
-      add_dependencies(${MFEM_ALL_EXAMPLES_TARGET_NAME} ${EXE_NAME})
-    elseif (EXE_NEEDED_BY)
+    add_dependencies(${MFEM_ALL_EXAMPLES_TARGET_NAME} ${EXE_NAME})
+    if (EXE_NEEDED_BY)
       add_dependencies(${EXE_NEEDED_BY} ${EXE_NAME})
     endif()
     add_dependencies(${EXE_NAME}
