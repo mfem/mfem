@@ -130,6 +130,8 @@ protected:
       Table* old_elem_dof; // owned
 
    public:
+      /** Construct the operator based on the elem_dof table of the original
+          (coarse) space. The class takes ownership of the table. */
       RefinementOperator(const FiniteElementSpace* fespace,
                          Table *old_elem_dof/*takes ownership*/, int old_ndofs);
       virtual void Mult(const Vector &x, Vector &y) const;
