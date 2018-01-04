@@ -219,12 +219,18 @@ int main(int argc, char *argv[])
 
    /////// TEST TEST /////////
 
-   for (int i = 0; i < 1; i++)
+   if (!(pmesh->MeshGenerator() & 1))
    {
-      //pmesh->RandomRefinement(0.5);
-      pmesh->UniformRefinement();
-      fespace->Update();
-      x.Update();
+      for (int i = 0; i < 3; i++)
+      {
+         if (!myid) { cout << "Refining..." << endl; }
+         pmesh->RandomRefinement(0.5);
+         //pmesh->UniformRefinement();
+
+         if (!myid) { cout << "Updating..." << endl; }
+         fespace->Update();
+         x.Update();
+      }
    }
 
    /////// TEST TEST /////////
