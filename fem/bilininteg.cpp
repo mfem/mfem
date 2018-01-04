@@ -1212,7 +1212,7 @@ void VectorFEWeakDivergenceIntegrator::AssembleElementMatrix2(
       //   n = 2*(d-1)*k+(l-1)+(m-1)
       //
       // In the next formula we use the expressions for n with k=1, which means
-      // that the term Q/det(J) is disregard:
+      // that the term Q/det(J) is disregarded:
       int ir_order = (trial_fe.Space() == FunctionSpace::Pk) ?
                      (trial_fe.GetOrder() + test_fe.GetOrder() - 1) :
                      (trial_fe.GetOrder() + test_fe.GetOrder() + 2*(dim-2));

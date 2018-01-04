@@ -8,15 +8,6 @@
                                http://mfem.org
 
 
-Version 3.4, released on Jan nn, 2018
-=====================================
-
-New and updated examples and miniapps
--------------------------------------
-- Added a new electromagnetics miniapp, called "maxwell",  for simulating
-  time-domain electromagnetics phenomena as a coupled first order system
-  of equations.
-
 Version 3.3.3 (development)
 ===========================
 - Added support for elimination of boundary conditions in block matrices.
@@ -26,6 +17,16 @@ Version 3.3.3 (development)
   been deprecated in GnuTLS 3.5.x and removed in 3.6.0. For secure communication
   with the visualization tool GLVis, a new set of certificates can be generated
   using the latest version of the script 'glvis-keygen.sh' from GLVis.
+
+New and improved solvers and preconditioners
+--------------------------------------------
+- Added symplectic integrators of orders 1-4 for systems of first order ODEs
+  derived from a Hamiltonian, see class SIASolver in linalg/ode.hpp.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added a new electromagnetics miniapp, Maxwell, for simulating time-domain
+  electromagnetics phenomena as a coupled first order system of equations.
 
 Miscellaneous
 -------------

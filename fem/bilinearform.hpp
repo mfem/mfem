@@ -215,8 +215,8 @@ public:
 
    /** @brief Adds new Boundary Integrator, restricted to specific boundary
        attributes. */
-   void AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
-                               Array<int> &bdr_marker);
+   void AddBoundaryIntegrator(BilinearFormIntegrator * bfi,
+                              Array<int> &bdr_marker);
 
    /// Adds new interior Face Integrator.
    void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
