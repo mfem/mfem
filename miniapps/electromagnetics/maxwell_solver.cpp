@@ -523,8 +523,8 @@ MaxwellSolver::GetMaximumTimeStep() const
    // Create Solver assuming no loss operators
    setupSolver(0, 0.0);
 
-   // Use power method to approximate the largest eigenvalue of the
-   // update operator.
+   // Use power method to approximate the largest eigenvalue of the update
+   // operator.
    while ( iter < nstep && change > ptol )
    {
       double normV0 = InnerProduct(*v0,*v0);

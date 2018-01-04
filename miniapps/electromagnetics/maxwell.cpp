@@ -13,70 +13,66 @@
 //    Maxwell Miniapp:  Simple Full-Wave Electromagnetic Simulation Code
 //    ------------------------------------------------------------------
 //
-// This mini app solves a simple 3D full-wave electromagnetic problem using
-// the coupled, first-order equations:
+// This miniapp solves a simple 3D full-wave electromagnetic problem using the
+// coupled, first-order equations:
 //
-//    epsilon dE/dt = Curl 1/mu B - sigma E - J
-//            dB/dt = - Curl E
+//                 epsilon dE/dt = Curl 1/mu B - sigma E - J
+//                         dB/dt = - Curl E
 //
-// The permittivity function is that of the vacuum with an optional
-// dielectric sphere. The permeability function is that of the vacuum
-// with an optional diamagnetic or paramagnetic spherical shell.  The
-// optional conductivity function is also a user-defined sphere.
+// The permittivity function is that of the vacuum with an optional dielectric
+// sphere. The permeability function is that of the vacuum with an optional
+// diamagnetic or paramagnetic spherical shell. The optional conductivity
+// function is also a user-defined sphere.
 //
-// The optional current density is a pulse of current in the shape of
-// a cylinder with a time dependence resembling the derivative of a
-// Gaussian distribution.
+// The optional current density is a pulse of current in the shape of a cylinder
+// with a time dependence resembling the derivative of a Gaussian distribution.
 //
-// Boundary conditions can be 'Natural' meaning zero tangential
-// current, 'Dirichlet' which sets the time-derivative of the
-// tangential components of E, or 'Absorbing' (we use a simple
-// Sommerfeld first order absorbing boundary condition).
+// Boundary conditions can be 'natural' meaning zero tangential current,
+// 'Dirichlet' which sets the time-derivative of the tangential components of E,
+// or 'absorbing' (we use a simple Sommerfeld first order absorbing boundary
+// condition).
 //
-// We discretize the electric field with H(Curl) finite elements
-// (a.k.a. Nedelec elements) and the magnetic flux with H(Div) finite
-// elements (a.k.a. Raviart-Thomas elements).
+// We discretize the electric field with H(Curl) finite elements (Nedelec edge
+// elements) and the magnetic flux with H(Div) finite elements (Raviart-Thomas
+// elements).
 //
-// The simplectic time integration algorithm used below is designed to
-// conserve energy unless lossy materials or absorbing boundary
-// conditions are used.  When losses are expected, the algorithm uses
-// an implicit method which includes the loss operators in the left
-// hand side of the linear system.  For increased accuracy the time
-// integration order can be set to 2, 3, or 4 (the default is 1st
-// order).
+// The symplectic time integration algorithm used below is designed to conserve
+// energy unless lossy materials or absorbing boundary conditions are used.
+// When losses are expected, the algorithm uses an implicit method which
+// includes the loss operators in the left hand side of the linear system.
+//
+// For increased accuracy the time integration order can be set to 2, 3, or 4
+// (the default is 1st order).
 //
 // Compile with: make maxwell
 //
 // Sample runs:
 //
-//   By default the sources and fields are all zero
-//     mpirun -np 4 maxwell
-//
-//   Current source in a sphere with absorbing boundary conditions
+//   Current source in a sphere with absorbing boundary conditions:
 //     mpirun -np 4 maxwell -m ../../data/ball-nurbs.mesh -rs 2
 //                          -abcs '-1'
 //                          -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
 //
-//   Current source in a metal sphere with dielectric and conducting materials
+//   Current source in a metal sphere with dielectric and conducting materials:
 //     mpirun -np 4 maxwell -m ../../data/ball-nurbs.mesh -rs 2
 //                          -dbcs '-1'
 //                          -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
 //                          -cs '0.0 0.0 -0.5 .2 3e6'
 //                          -ds '0.0 0.0 0.5 .2 10'
 //
-//   Current source in a metal box
+//   Current source in a metal box:
 //     mpirun -np 4 maxwell -m ../../data/fichera.mesh -rs 3
 //                          -ts 0.25 -tf 10 -dbcs '-1'
 //                          -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
 //
-//   Current source with a mixture of absorbing and reflecting boundaries
+//   Current source with a mixture of absorbing and reflecting boundaries:
 //     mpirun -np 4 maxwell -m ../../data/fichera.mesh -rs 3
 //                          -ts 0.25 -tf 10
 //                          -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
 //                          -dbcs '4 8 19 21' -abcs '5 18'
 //
-// Description:
-//
+//   By default the sources and fields are all zero:
+//     mpirun -np 4 maxwell
 
 #include "maxwell_solver.hpp"
 #include <fstream>
@@ -111,12 +107,12 @@ static Vector dp_params_(0);  // Axis Start, Axis End, Rod Radius,
 void dipole_pulse(const Vector &x, double t, Vector &j);
 void j_src(const Vector &x, double t, Vector &j) { dipole_pulse(x, t, j); }
 
-// dE/dt Boundary Condition: The following function returns zero but
-// any time depenent function could be used.
+// dE/dt Boundary Condition: The following function returns zero but any time
+// depenent function could be used.
 void dEdtBCFunc(const Vector &x, double t, Vector &E);
 
-// The following functions return zero but they could be modified to
-// set initial conditions for the electric and magnetic fields
+// The following functions return zero but they could be modified to set initial
+// conditions for the electric and magnetic fields
 void EFieldFunc(const Vector &, Vector&);
 void BFieldFunc(const Vector &, Vector&);
 
@@ -197,7 +193,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (mpi.Root())
@@ -205,9 +200,9 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // Read the (serial) mesh from the given mesh file on all processors.  We
-   // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
-   // and volume meshes with the same code.
+   // Read the (serial) mesh from the given mesh file on all processors.  We can
+   // handle triangular, quadrilateral, tetrahedral, hexahedral, surface and
+   // volume meshes with the same code.
    Mesh *mesh;
    ifstream imesh(mesh_file);
    if (!imesh)
@@ -216,7 +211,6 @@ int main(int argc, char *argv[])
       {
          cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
       }
-      MPI_Finalize();
       return 2;
    }
    mesh = new Mesh(imesh, 1, 1);
@@ -238,9 +232,9 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   // Define a parallel mesh by a partitioning of the serial mesh. Refine
-   // this mesh further in parallel to increase the resolution. Once the
-   // parallel mesh is defined, the serial mesh can be deleted.
+   // Define a parallel mesh by a partitioning of the serial mesh. Refine this
+   // mesh further in parallel to increase the resolution. Once the parallel
+   // mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
@@ -382,9 +376,8 @@ void display_banner(ostream & os)
       << flush;
 }
 
-// A sphere with constant permittivity.  The sphere has a radius,
-// center, and permittivity specified on the command line and stored
-// in ds_params_.
+// A sphere with constant permittivity.  The sphere has a radius, center, and
+// permittivity specified on the command line and stored in ds_params_.
 double dielectric_sphere(const Vector &x)
 {
    double r2 = 0.0;
@@ -401,9 +394,9 @@ double dielectric_sphere(const Vector &x)
    return epsilon0_;
 }
 
-// A spherical shell with constant permeability.  The sphere has inner
-// and outer radii, center, and relative permeability specified on the
-// command line and stored in ms_params_.
+// A spherical shell with constant permeability.  The sphere has inner and outer
+// radii, center, and relative permeability specified on the command line and
+// stored in ms_params_.
 double magnetic_shell(const Vector &x)
 {
    double r2 = 0.0;
@@ -421,9 +414,8 @@ double magnetic_shell(const Vector &x)
    return mu0_;
 }
 
-// A sphere with constant conductivity.  The sphere has a radius,
-// center, and conductivity specified on the command line and stored
-// in ls_params_.
+// A sphere with constant conductivity.  The sphere has a radius, center, and
+// conductivity specified on the command line and stored in ls_params_.
 double conductive_sphere(const Vector &x)
 {
    double r2 = 0.0;
@@ -440,9 +432,9 @@ double conductive_sphere(const Vector &x)
    return 0.0;
 }
 
-// A cylindrical rod of current density.  The rod has two axis end
-// points, a radus, a current amplitude in Amperes, a center time, and
-// a width.  All of these parameters are stored in dp_params_.
+// A cylindrical rod of current density.  The rod has two axis end points, a
+// radus, a current amplitude in Amperes, a center time, and a width.  All of
+// these parameters are stored in dp_params_.
 void dipole_pulse(const Vector &x, double t, Vector &j)
 {
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
