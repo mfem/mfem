@@ -98,6 +98,9 @@ protected:
    Array<BlockNonlinearFormIntegrator*> bfnfi;
    Array<Array<int>*>           bfnfi_marker;
 
+   /// Auxiliary block-vectors for wrapping input and output vectors
+   mutable BlockVector xs, ys;
+
    mutable Array2D<SparseMatrix*> Grads;
    mutable BlockOperator *BlockGrad;
 
@@ -113,6 +116,7 @@ public:
 
    BlockNonlinearForm(Array<FiniteElementSpace *> &f);
 
+   /// After a call to SetSpaces(), the essential b.c. must be set again.
    void SetSpaces(Array<FiniteElementSpace *> &f);
 
    /// Adds new Domain Integrator.
