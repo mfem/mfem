@@ -17,6 +17,10 @@ Miscellaneous
 
 - Add support for building a shared version of the MFEM library with GNU make.
 
+- Replaced the method RefinementMatrix with class RefinementOperator inside
+  FiniteElementSpace. The operator is both faster and more memory efficient
+  than using the fully assembled refinement matrix.
+
 
 Version 3.3.2, released on Nov 10, 2017
 =======================================
