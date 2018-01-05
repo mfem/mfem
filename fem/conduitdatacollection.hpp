@@ -53,11 +53,11 @@ namespace mfem
     ints for connectivity arrays, doubles for field value arrays, allocations
     that match MFEM's striding options, etc. If these constraints are not met,
     MFEM objects that own the data are created and returned. In either case
-    pointers to new MFEM object instances are returned, the zero-copy only 
+    pointers to new MFEM object instances are returned, the zero-copy only
     applies to data backing the MFEM object instances.
 
     @note QuadratureFunction%s (q-fields) are not supported.
-   
+
     @note AMR Meshes are not fully supported.
 
     @warning This class is still _experimental_, meaning that in future
