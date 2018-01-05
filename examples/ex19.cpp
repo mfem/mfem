@@ -309,13 +309,13 @@ JacobianPreconditioner::JacobianPreconditioner(Array<FiniteElementSpace *> &fes,
 
    mass_prec = mass_prec_gs;
 
-   GMRESSolver *mass_pcg_iter = new GMRESSolver();
-   mass_pcg_iter->SetOperator(*pressure_mass);
+   CGSolver *mass_pcg_iter = new CGSolver();
    mass_pcg_iter->SetRelTol(1e-12);
    mass_pcg_iter->SetAbsTol(1e-12);
    mass_pcg_iter->SetMaxIter(200);
    mass_pcg_iter->SetPrintLevel(0);
    mass_pcg_iter->SetPreconditioner(*mass_prec);
+   mass_pcg_iter->SetOperator(*pressure_mass);
    mass_pcg_iter->iterative_mode = false;
 
    mass_pcg = mass_pcg_iter;
@@ -361,32 +361,28 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
 
    jacobian = (BlockOperator *) &op;
 
-   // Clean up the old stiffness solvers
-   if (stiff_prec != NULL)
+   // Initialize the stiffness preconditioner and solver
+   if (stiff_prec == NULL)
    {
-      delete stiff_prec;
-      delete stiff_pcg;
+      GSSmoother *stiff_prec_gs = new GSSmoother();
+
+      stiff_prec = stiff_prec_gs;
+
+
+      GMRESSolver *stiff_pcg_iter = new GMRESSolver();
+      stiff_pcg_iter->SetRelTol(1e-8);
+      stiff_pcg_iter->SetAbsTol(1e-8);
+      stiff_pcg_iter->SetMaxIter(200);
+      stiff_pcg_iter->SetPrintLevel(0);
+      stiff_pcg_iter->SetPreconditioner(*stiff_prec);
+      stiff_pcg_iter->iterative_mode = false;
+
+      stiff_pcg = stiff_pcg_iter;
    }
 
-   // At each Newton cycle, compute the new stiffness AMG
-   // preconditioner
-   GSSmoother *stiff_prec_gs = new GSSmoother(dynamic_cast<SparseMatrix&>
-                                              (jacobian->GetBlock(0,0)));
-
-   stiff_prec = stiff_prec_gs;
-
-
-   GMRESSolver *stiff_pcg_iter = new GMRESSolver();
-   stiff_pcg_iter->SetRelTol(1e-8);
-   stiff_pcg_iter->SetAbsTol(1e-8);
-   stiff_pcg_iter->SetMaxIter(200);
-   stiff_pcg_iter->SetPrintLevel(0);
-   stiff_pcg_iter->SetPreconditioner(*stiff_prec);
-   stiff_pcg_iter->SetOperator(jacobian->GetBlock(0,0));
-   stiff_pcg_iter->iterative_mode = false;
-
-   stiff_pcg = stiff_pcg_iter;
-
+   // At each Newton cycle, compute the new stiffness preconditioner by updating
+   // the iterative solver which, in turn, updates its preconditioner.
+   stiff_pcg->SetOperator(jacobian->GetBlock(0,0));
 
 }
 
@@ -409,9 +405,7 @@ RubberOperator::RubberOperator(Array<FiniteElementSpace *> &fes,
      newton_solver(), mu(c_mu), block_offsets(offsets)
 {
    Array<Vector *> rhs(2);
-
-   rhs[0] = NULL;
-   rhs[1] = NULL;
+   rhs = NULL; // Set all entries in the array
 
    fes.Copy(spaces);
 
@@ -430,7 +424,7 @@ RubberOperator::RubberOperator(Array<FiniteElementSpace *> &fes,
    a->AddDomainIntegrator(new MassIntegrator(one));
    a->Assemble();
    a->Finalize();
-   pressure_mass = new SparseMatrix(a->SpMat());
+   pressure_mass = a->LoseMat();
    delete a;
 
    // Initialize the Jacobian preconditioner
@@ -441,7 +435,7 @@ RubberOperator::RubberOperator(Array<FiniteElementSpace *> &fes,
 
    // Set up the Jacobian solver
    GMRESSolver *j_gmres = new GMRESSolver();
-   j_gmres->iterative_mode = true;
+   j_gmres->iterative_mode = false;
    j_gmres->SetRelTol(1.0e-12);
    j_gmres->SetAbsTol(1.0e-12);
    j_gmres->SetMaxIter(300);
