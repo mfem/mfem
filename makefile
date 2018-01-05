@@ -71,10 +71,11 @@ make style
 
 endef
 
+# Save the MAKEOVERRIDES for cases where we explicitly want to pass the command
+# line overrides to sub-make:
+override MAKEOVERRIDES_SAVE := $(MAKEOVERRIDES)
 # Do not pass down variables from the command-line to sub-make:
 MAKEOVERRIDES =
-# Note: this produces some undesired results, e.g. the following does not work
-# as expected: "make pdebug -j 4 MPICXX=mpic++".
 
 # Path to the mfem source directory, defaults to this makefile's directory:
 THIS_MK := $(lastword $(MAKEFILE_LIST))
@@ -360,8 +361,9 @@ parallel pdebug: M_MPI=YES
 serial parallel: M_DBG=NO
 debug pdebug:    M_DBG=YES
 serial parallel debug pdebug:
-	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG)
-	$(MAKE)
+	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
+	   $(MAKEOVERRIDES_SAVE)
+	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 deps:
 	rm -f $(BLD)deps.mk
@@ -378,7 +380,7 @@ check: lib
 test:
 	@echo "Testing the MFEM library. This may take a while..."
 	@echo "Building all examples and miniapps..."
-	@$(MAKE) all
+	@$(MAKE) $(MAKEOVERRIDES_SAVE) all
 	@echo "Running tests in: [ $(EM_TEST_DIRS) ] ..."
 	@ERR=0; for dir in $(EM_TEST_DIRS); do \
 	   echo "Running tests in $${dir} ..."; \
@@ -535,5 +537,5 @@ print-%:
 
 # Print the contents of all makefile variables.
 .PHONY: printall
-printall: $(foreach var,$(.VARIABLES),print-$(var))
+printall: $(subst :,\:,$(foreach var,$(.VARIABLES),print-$(var)))
 	@true
