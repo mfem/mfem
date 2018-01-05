@@ -203,6 +203,43 @@ int BlockMatrix::GetRow(const int row, Array<int> &cols, Vector &srow) const
    return 0;
 }
 
+void BlockMatrix::EliminateRowCol(int rc, int d)
+{
+   // Find the block to which the dof belongs and its local number
+   int idx, iiblock;
+   for (iiblock = 0; iiblock < nRowBlocks; ++iiblock)
+   {
+      idx = rc - row_offsets[iiblock];
+      if (idx < 0 ) { break; }
+   }
+   iiblock--;
+   idx = rc - row_offsets[iiblock];
+
+   // Asserts
+   MFEM_ASSERT(nRowBlocks == nColBlocks,
+               "BlockMatrix::EliminateRowCol: nRowBlocks != nColBlocks");
+
+   MFEM_ASSERT(row_offsets[iiblock] == col_offsets[iiblock],
+               "BlockMatrix::EliminateRowCol: row_offests["
+               << iiblock << "] != col_offsets["<<iiblock<<"]");
+
+   MFEM_ASSERT(Aij(iiblock, iiblock),
+               "BlockMatrix::EliminateRowCol: Null diagonal block");
+
+   // Apply the constraint idx to the iiblock
+   for (int jjblock = 0; jjblock < nRowBlocks; ++jjblock)
+   {
+      if (iiblock == jjblock) { continue; }
+      if (Aij(iiblock,jjblock)) { Aij(iiblock,jjblock)->EliminateRow(idx); }
+   }
+   for (int jjblock = 0; jjblock < nRowBlocks; ++jjblock)
+   {
+      if (iiblock == jjblock) { continue; }
+      if (Aij(jjblock,iiblock)) { Aij(jjblock,iiblock)->EliminateCol(idx); }
+   }
+   Aij(iiblock, iiblock)->EliminateRowCol(idx,d);
+}
+
 void BlockMatrix::EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol,
                                   Vector & rhs)
 {
@@ -316,6 +353,21 @@ void BlockMatrix::EliminateZeroRows()
                mfem::out<<"norm = " << norm << "\n";
                mfem_error("BlockMatrix::EliminateZeroRows() #2");
             }
+         }
+      }
+   }
+}
+
+void BlockMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
+{
+   for (int iblock = 0; iblock < nRowBlocks; ++iblock)
+   {
+      for (int jblock = 0; jblock < nColBlocks; ++jblock)
+      {
+         if (!Aij(iblock,jblock)) { continue; }
+         if (!Aij(iblock,jblock)->Finalized())
+         {
+            Aij(iblock,jblock)->Finalize(skip_zeros, fix_empty_rows);
          }
       }
    }
