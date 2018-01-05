@@ -8,7 +8,7 @@
 
 # Object and library files
 *.o
-/libmfem.a
+/libmfem.*
 
 # CMake generated files
 CMakeCache.txt
