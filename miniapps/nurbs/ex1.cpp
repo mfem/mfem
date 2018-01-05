@@ -1,24 +1,24 @@
-//                                MFEM Example 1
+//                          MFEM Example 1 - NURBS Version
 //
 // Compile with: make ex1
 //
-// Sample runs:  ex1 -m ../data/square-disc.mesh
-//               ex1 -m ../data/star.mesh
-//               ex1 -m ../data/escher.mesh
-//               ex1 -m ../data/fichera.mesh
-//               ex1 -m ../data/square-disc-p2.vtk -o 2
-//               ex1 -m ../data/square-disc-p3.mesh -o 3
-//               ex1 -m ../data/square-disc-nurbs.mesh -o -1
-//               ex1 -m ../data/disc-nurbs.mesh -o -1
-//               ex1 -m ../data/pipe-nurbs.mesh -o -1
-//               ex1 -m ../data/star-surf.mesh
-//               ex1 -m ../data/square-disc-surf.mesh
-//               ex1 -m ../data/inline-segment.mesh
-//               ex1 -m ../data/amr-quad.mesh
-//               ex1 -m ../data/amr-hex.mesh
-//               ex1 -m ../data/fichera-amr.mesh
-//               ex1 -m ../data/mobius-strip.mesh
-//               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
+// Sample runs:  ex1 -m ../../data/square-disc.mesh
+//               ex1 -m ../../data/star.mesh
+//               ex1 -m ../../data/escher.mesh
+//               ex1 -m ../../data/fichera.mesh
+//               ex1 -m ../../data/square-disc-p2.vtk -o 2
+//               ex1 -m ../../data/square-disc-p3.mesh -o 3
+//               ex1 -m ../../data/square-disc-nurbs.mesh -o -1
+//               ex1 -m ../../data/disc-nurbs.mesh -o -1
+//               ex1 -m ../../data/pipe-nurbs.mesh -o -1
+//               ex1 -m ../../data/star-surf.mesh
+//               ex1 -m ../../data/square-disc-surf.mesh
+//               ex1 -m ../../data/inline-segment.mesh
+//               ex1 -m ../../data/amr-quad.mesh
+//               ex1 -m ../../data/amr-hex.mesh
+//               ex1 -m ../../data/fichera-amr.mesh
+//               ex1 -m ../../data/mobius-strip.mesh
+//               ex1 -m ../../data/mobius-strip.mesh -o -1 -sc
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -45,10 +45,11 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
-   int order = 1;
+   const char *mesh_file = "../../data/star.mesh";
    bool static_cond = false;
    bool visualization = 1;
+   Array<int> order(1);
+   order[0] = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -92,20 +93,46 @@ int main(int argc, char *argv[])
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
-   if (order > 0)
+   NURBSExtension *NURBSext = NULL;
+   int own_fec = 0;
+
+   if (order[0] == -1) // Isoparametric
    {
-      fec = new H1_FECollection(order, dim);
+      if (mesh->GetNodes())
+      {
+         fec = mesh->GetNodes()->OwnFEC();
+         own_fec = 0;
+         cout << "Using isoparametric FEs: " << fec->Name() << endl;
+      }
+      else
+      {
+         cout <<"Mesh does not have FEs --> Assume order 1.\n";
+         fec = new H1_FECollection(1, dim);
+         own_fec = 1;
+      }
    }
-   else if (mesh->GetNodes())
+   else if (mesh->NURBSext && (order[0] > 0) )  // Subparametric NURBS
    {
-      fec = mesh->GetNodes()->OwnFEC();
-      cout << "Using isoparametric FEs: " << fec->Name() << endl;
+      fec = new NURBSFECollection(order[0]);
+      own_fec = 1;
+      int nkv = mesh->NURBSext->GetNKV();
+
+      if (order.Size() == 1)
+      {
+         int tmp = order[0];
+         order.SetSize(nkv);
+         order = tmp;
+      }
+      if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
+      NURBSext = new NURBSExtension(mesh->NURBSext, order);
    }
    else
    {
-      fec = new H1_FECollection(order = 1, dim);
+      if (order.Size() > 1) { cout <<"Wrong number of orders set, needs one.\n"; }
+      fec = new H1_FECollection(abs(order[0]), dim);
+      own_fec = 1;
    }
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, NURBSext, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
@@ -189,11 +216,16 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 14. Free the used memory.
+   // 14. Save data in the VisIt format
+   VisItDataCollection visit_dc("Example1", mesh);
+   visit_dc.RegisterField("solution", &x);
+   visit_dc.Save();
+
+   // 15. Free the used memory.
    delete a;
    delete b;
    delete fespace;
-   if (order > 0) { delete fec; }
+   if (own_fec) { delete fec; }
    delete mesh;
 
    return 0;
