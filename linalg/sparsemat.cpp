@@ -1126,16 +1126,23 @@ void SparseMatrix::EliminateRow(int row, int setOneDiagonal)
 
 void SparseMatrix::EliminateCol(int col)
 {
-   RowNode *aux;
-
-   MFEM_VERIFY(!Finalized(), "Matrix must NOT be finalized.");
-
-   for (int i = 0; i < height; i++)
-      for (aux = Rows[i]; aux != NULL; aux = aux->Prev)
-         if (aux -> Column == col)
-         {
-            aux->Value = 0.0;
-         }
+   if (Finalized())
+   {
+      const int nnz = I[height];
+      for (int j = 0; j < nnz; j++)
+      {
+         if (J[j] == col) { A[j] = 0.0; }
+      }
+   }
+   else
+   {
+      for (int i = 0; i < height; i++)
+         for (RowNode *aux = Rows[i]; aux != NULL; aux = aux->Prev)
+            if (aux -> Column == col)
+            {
+               aux->Value = 0.0;
+            }
+   }
 }
 
 void SparseMatrix::EliminateCols(const Array<int> &cols, Vector *x, Vector *b)

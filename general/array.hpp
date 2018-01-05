@@ -275,15 +275,15 @@ private:
    friend void Swap<T>(Array2D<T> &, Array2D<T> &);
 
    Array<T> array1d;
-   int N;
+   int M, N;
 
 public:
-   Array2D() { N = 0; }
-   Array2D(int m, int n) : array1d(m*n) { N = n; }
+   Array2D() { M = N = 0; }
+   Array2D(int m, int n) : array1d(m*n) { M = m; N = n; }
 
-   void SetSize(int m, int n) { array1d.SetSize(m*n); N = n; }
+   void SetSize(int m, int n) { array1d.SetSize(m*n); M = m; N = n; }
 
-   int NumRows() const { return array1d.Size()/N; }
+   int NumRows() const { return M; }
    int NumCols() const { return N; }
 
    inline const T &operator()(int i, int j) const;
@@ -299,14 +299,14 @@ public:
    T       *GetRow(int i)       { return (*this)[i]; }
 
    void Copy(Array2D &copy) const
-   { copy.N = N; array1d.Copy(copy.array1d); }
+   { copy.M = M; copy.N = N; array1d.Copy(copy.array1d); }
 
    inline void operator=(const T &a)
    { array1d = a; }
 
    /// Make this Array a reference to 'master'
    inline void MakeRef(const Array2D &master)
-   { N = master.N; array1d.MakeRef(master.array1d);}
+   { M = master.M; N = master.N; array1d.MakeRef(master.array1d); }
 
    /// Prints array to stream with width elements per row
    void Print(std::ostream &out = mfem::out, int width = 4);
