@@ -72,6 +72,7 @@ public:
 class ParBlockNonlinearForm : public BlockNonlinearForm
 {
 protected:
+   mutable BlockVector xs_true, ys_true;
    mutable Array2D<OperatorHandle *> phBlockGrad;
    mutable BlockOperator *pBlockGrad;
 

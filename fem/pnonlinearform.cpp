@@ -205,26 +205,23 @@ void ParBlockNonlinearForm::SetEssentialBC(const
 
 void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
-   Vector xs_true, ys_true;
+   xs_true.Update(x.GetData(), block_trueOffsets);
+   ys_true.Update(y.GetData(), block_trueOffsets);
    xs.Update(block_offsets);
    ys.Update(block_offsets);
 
    for (int s=0; s<fes.Size(); s++)
    {
-      xs_true.SetDataAndSize(x.GetData() + block_trueOffsets[s],
-                             fes[s]->GetTrueVSize());
-
-      fes[s]->GetProlongationMatrix()->Mult(xs_true, xs.GetBlock(s));
+      fes[s]->GetProlongationMatrix()->Mult(
+         xs_true.GetBlock(s), xs.GetBlock(s));
    }
 
    BlockNonlinearForm::MultBlocked(xs, ys);
 
    for (int s=0; s<fes.Size(); s++)
    {
-      ys_true.SetDataAndSize(y.GetData() + block_trueOffsets[s],
-                             fes[s]->GetTrueVSize());
-
-      fes[s]->GetProlongationMatrix()->MultTranspose(ys.GetBlock(s), ys_true);
+      fes[s]->GetProlongationMatrix()->MultTranspose(
+         ys.GetBlock(s), ys_true.GetBlock(s));
    }
 }
 
@@ -232,15 +229,13 @@ void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 const BlockOperator & ParBlockNonlinearForm::GetLocalGradient(
    const Vector &x) const
 {
-   Vector xs_true;
+   xs_true.Update(x.GetData(), block_trueOffsets);
    xs.Update(block_offsets);
 
    for (int s=0; s<fes.Size(); s++)
    {
-      xs_true.SetDataAndSize(x.GetData() + block_offsets[s],
-                             fes[s]->GetTrueVSize());
-
-      fes[s]->GetProlongationMatrix()->Mult(xs_true, xs.GetBlock(s));
+      fes[s]->GetProlongationMatrix()->Mult(
+         xs_true.GetBlock(s), xs.GetBlock(s));
    }
 
    BlockNonlinearForm::GetGradientBlocked(xs); // (re)assemble Grad with b.c.
