@@ -22,13 +22,15 @@
 namespace mfem
 {
 
-/** @brief Data collection that uses the the Conduit Mesh Blueprint
+/** @brief Data collection that uses the Conduit Mesh Blueprint
     specification. */
 /** ConduitDataCollection provides json, simple binary, and HDF5-based file
-    formats for visualization or restart.
+    formats for visualization or restart. It also provides methods that convert
+    between MFEM Meshes and GridFunctions and Conduit Mesh Blueprint
+    descriptions.
 
     For more information, see:
-    - LLNL conduit/blueprint library, https://github.com/LLNL/conduit
+    - LLNL conduit project, https://github.com/LLNL/conduit
     - HDF5 library, https://support.hdfgroup.org/HDF5
 
     @note The ConduitDataCollection only wraps the mfem objects to save them and
@@ -41,18 +43,22 @@ namespace mfem
     Meshes and GridFunctions and Conduit Mesh Blueprint descriptions.
 
     Those that describe MFEM data using Conduit (MFEM to Conduit Blueprint) try
-    to zero-copy as much of data MFEM as possible. As a result the conduit node
+    to zero-copy as much of data MFEM as possible. The Conduit node result
     will not own all of the data, however you can easily make a copy of
-    resulting node when necessary.
+    the result node using Conduit's API when necessary.
 
     Those that construct MFEM objects from Conduit Nodes (Conduit Blueprint to
     MFEM) provide a zero-copy option. Zero-copy is only possible if the
     blueprint data matches the data types provided by the MFEM API, for example:
     ints for connectivity arrays, doubles for field value arrays, allocations
     that match MFEM's striding options, etc. If these constraints are not met,
-    MFEM objects that own the data are created and returned.
+    MFEM objects that own the data are created and returned. In either case
+    pointers to new MFEM object instances are returned, the zero-copy only 
+    applies to data backing the MFEM object instances.
 
     @note QuadratureFunction%s (q-fields) are not supported.
+   
+    @note AMR Meshes are not fully supported.
 
     @warning This class is still _experimental_, meaning that in future
     releases, it may not be backward compatible, and the output files generated
