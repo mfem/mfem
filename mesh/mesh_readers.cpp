@@ -1268,6 +1268,7 @@ void Mesh::ReadGmshMesh(std::istream &input)
    } // we reach the end of the file
 }
 
+
 #ifdef MFEM_USE_NETCDF
 void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 {

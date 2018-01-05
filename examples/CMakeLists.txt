@@ -70,7 +70,7 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
   get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
   string(REPLACE ".cpp" "" TEST_NAME ${SRC_FILENAME})
 
-  string(REGEX MATCH "p$" is_parallel_test ${TEST_NAME})
+  string(REGEX MATCH 'p$' is_parallel_test ${TEST_NAME})
 
   set(THIS_TEST_OPTIONS "-no-vis")
   if (${TEST_NAME} MATCHES "ex10p*")
@@ -81,9 +81,7 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
 
   if ( NOT is_parallel_test STREQUAL "p" )
     add_test(NAME ${TEST_NAME}_ser
-      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 1
-      $<TARGET_FILE:${TEST_NAME}> ${THIS_TEST_OPTIONS}
-      ${MPIEXEC_POSTFLAGS})
+      COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
   else()
     add_test(NAME ${TEST_NAME}_np=4
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4
