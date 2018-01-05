@@ -1124,24 +1124,43 @@ void SparseMatrix::EliminateRow(int row, int setOneDiagonal)
    }
 }
 
-void SparseMatrix::EliminateCol(int col)
+void SparseMatrix::EliminateCol(int col, int setOneDiagonal)
 {
-   if (Finalized())
+   MFEM_ASSERT(col < width && col >= 0,
+               "Col " << col << " not in matrix of width " << width);
+
+   MFEM_ASSERT(!setOneDiagonal || height == width,
+               "if setOneDiagonal, must be square matrix, not height = "
+               << height << ",  width = " << width);
+
+   if (Rows == NULL)
    {
       const int nnz = I[height];
-      for (int j = 0; j < nnz; j++)
+      for (int jpos = 0; jpos != nnz; ++jpos)
       {
-         if (J[j] == col) { A[j] = 0.0; }
+         if (J[jpos] == col)
+         {
+           A[jpos] = 0.0;
+         }
       }
    }
    else
    {
       for (int i = 0; i < height; i++)
+      {
          for (RowNode *aux = Rows[i]; aux != NULL; aux = aux->Prev)
-            if (aux -> Column == col)
+         {
+            if (aux->Column == col)
             {
                aux->Value = 0.0;
             }
+         }
+      }
+   }
+
+   if (setOneDiagonal)
+   {
+      SearchRow(col, col) = 1.0;
    }
 }
 
