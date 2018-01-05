@@ -24,7 +24,6 @@
 #include "../general/gzstream.hpp"
 #include <iostream>
 
-
 namespace mfem
 {
 
@@ -601,9 +600,6 @@ public:
       Loader(input, generate_edges);
       Finalize(refine, fix_orientation);
    }
-
-   /**This is to load a PUMI mesh, it is written following the
-      steps in MFEM load function*/
 
    /// Clear the contents of the Mesh.
    void Clear() { Destroy(); SetEmpty(); }
