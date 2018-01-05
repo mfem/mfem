@@ -82,6 +82,7 @@ public:
    virtual ~NonlinearForm();
 };
 
+
 class BlockNonlinearForm : public Operator
 {
 protected:
@@ -98,7 +99,8 @@ protected:
    Array<BlockNonlinearFormIntegrator*> bfnfi;
    Array<Array<int>*>           bfnfi_marker;
 
-   /// Auxiliary block-vectors for wrapping input and output vectors
+   /** Auxiliary block-vectors for wrapping input and output vectors or holding
+       GridFunction-like block-vector data (e.g. in parallel). */
    mutable BlockVector xs, ys;
 
    mutable Array2D<SparseMatrix*> Grads;
@@ -110,6 +112,12 @@ protected:
 
    // A list of all essential vdofs
    Array<Array<int> *> ess_vdofs;
+
+   /// Specialized version of Mult() for BlockVector%s
+   void MultBlocked(const BlockVector &bx, BlockVector &by) const;
+
+   /// Specialized version of GetGradient() for BlockVector
+   Operator &GetGradientBlocked(const BlockVector &bx) const;
 
 public:
    BlockNonlinearForm();
