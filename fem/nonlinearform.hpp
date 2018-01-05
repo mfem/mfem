@@ -127,6 +127,9 @@ public:
    /// After a call to SetSpaces(), the essential b.c. must be set again.
    void SetSpaces(Array<FiniteElementSpace *> &f);
 
+   const Array<int> &GetBlockOffsets() const { return block_offsets; }
+   const Array<int> &GetBlockTrueOffsets() const { return block_trueOffsets; }
+
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BlockNonlinearFormIntegrator *nlfi)
    { dnfi.Append(nlfi); }
