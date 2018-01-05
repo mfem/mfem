@@ -3,10 +3,10 @@
 // Compile with: make ex19p
 //
 // Sample runs:
-//    mpirun -np 2 ex10p -m ../data/beam-quad.mesh
-//    mpirun -np 2 ex10p -m ../data/beam-tri.mesh
-//    mpirun -np 2 ex10p -m ../data/beam-hex.mesh
-//    mpirun -np 2 ex10p -m ../data/beam-tet.mesh
+//    mpirun -np 2 ex19p -m ../data/beam-quad.mesh
+//    mpirun -np 2 ex19p -m ../data/beam-tri.mesh
+//    mpirun -np 2 ex19p -m ../data/beam-hex.mesh
+//    mpirun -np 2 ex19p -m ../data/beam-tet.mesh
 //
 // Description:  This examples solves a quasi-static incompressible nonlinear
 //               elasticity problem of the form 0 = H(x), where H is an incompressible
@@ -83,9 +83,6 @@ protected:
 
    // Block nonlinear form
    ParBlockNonlinearForm *Hform;
-
-   // Jacobian of the nonlinear form
-   mutable Operator *jacobian;
 
    // Pressure mass matrix for the preconditioner
    Operator *pressure_mass;
@@ -372,7 +369,7 @@ JacobianPreconditioner::JacobianPreconditioner(Array<ParFiniteElementSpace *>
    mass_pcg_iter->SetMaxIter(200);
    mass_pcg_iter->SetPrintLevel(0);
    mass_pcg_iter->SetPreconditioner(*mass_prec);
-   mass_pcg_iter->iterative_mode = true;
+   mass_pcg_iter->iterative_mode = false;
 
    mass_pcg = mass_pcg_iter;
 
@@ -402,9 +399,8 @@ void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
    Vector temp2(block_trueOffsets[1]-block_trueOffsets[0]);
 
    // Perform the block elimination for the preconditioner
-   pres_in *= -1.0 * gamma;
-
    mass_pcg->Mult(pres_in, pres_out);
+   pres_out *= -gamma;
 
    jacobian->GetBlock(0,1).Mult(pres_out, temp);
    subtract(disp_in, temp, temp2);
@@ -442,10 +438,9 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
    stiff_pcg_iter->SetPrintLevel(0);
    stiff_pcg_iter->SetPreconditioner(*stiff_prec);
    stiff_pcg_iter->SetOperator(jacobian->GetBlock(0,0));
-   stiff_pcg_iter->iterative_mode = true;
+   stiff_pcg_iter->iterative_mode = false;
 
    stiff_pcg = stiff_pcg_iter;
-
 
 }
 
@@ -540,9 +535,7 @@ void RubberOperator::Mult(const Vector &k, Vector &y) const
 // Compute the Jacobian from the nonlinear form
 Operator &RubberOperator::GetGradient(const Vector &xp) const
 {
-   jacobian = &Hform->GetGradient(xp);
-
-   return *jacobian;
+   return Hform->GetGradient(xp);
 }
 
 RubberOperator::~RubberOperator()
