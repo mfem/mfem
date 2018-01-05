@@ -67,11 +67,11 @@ public:
    virtual ~ParNonlinearForm() { }
 };
 
+
 /// Parallel non-linear operator on the true dofs
 class ParBlockNonlinearForm : public BlockNonlinearForm
 {
 protected:
-   mutable Array<ParGridFunction *> X, Y;
    mutable Array2D<OperatorHandle *> phBlockGrad;
    mutable BlockOperator *pBlockGrad;
 

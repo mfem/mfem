@@ -157,15 +157,7 @@ ParBlockNonlinearForm::ParBlockNonlinearForm(Array<ParFiniteElementSpace *> &pf)
 
    SetSpaces(serialSpaces);
 
-   X.SetSize(fes.Size());
-   Y.SetSize(fes.Size());
    phBlockGrad.SetSize(fes.Size(), fes.Size());
-
-   for (int s=0; s<fes.Size(); s++)
-   {
-      X[s] = new ParGridFunction(pf[s]);
-      Y[s] = new ParGridFunction(pf[s]);
-   }
 
    for (int s1=0; s1<fes.Size(); s1++)
    {
@@ -214,31 +206,25 @@ void ParBlockNonlinearForm::SetEssentialBC(const
 void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
    Vector xs_true, ys_true;
-   BlockVector bxs(block_offsets), bys(block_offsets);
-
+   xs.Update(block_offsets);
+   ys.Update(block_offsets);
 
    for (int s=0; s<fes.Size(); s++)
    {
       xs_true.SetDataAndSize(x.GetData() + block_trueOffsets[s],
                              fes[s]->GetTrueVSize());
 
-      X[s]->Distribute(xs_true);
-
-      // FIXME: avoid this copy
-      bxs.SetVector(*X[s], block_offsets[s]);
+      fes[s]->GetProlongationMatrix()->Mult(xs_true, xs.GetBlock(s));
    }
 
-   BlockNonlinearForm::Mult(bxs,bys);
+   BlockNonlinearForm::MultBlocked(xs, ys);
 
    for (int s=0; s<fes.Size(); s++)
    {
-      // FIXME: use P^T to do the parallel assembly
-      //        P = ParFESpace(s)->GetProlongationMatrix()
-      ParFESpace(s)->GroupComm().Reduce<double>(bys, GroupCommunicator::Sum);
-      *Y[s] = bys.GetBlock(s);
       ys_true.SetDataAndSize(y.GetData() + block_trueOffsets[s],
                              fes[s]->GetTrueVSize());
-      Y[s]->GetTrueDofs(ys_true);
+
+      fes[s]->GetProlongationMatrix()->MultTranspose(ys.GetBlock(s), ys_true);
    }
 }
 
@@ -247,18 +233,17 @@ const BlockOperator & ParBlockNonlinearForm::GetLocalGradient(
    const Vector &x) const
 {
    Vector xs_true;
-   BlockVector bxs(block_offsets);
+   xs.Update(block_offsets);
 
    for (int s=0; s<fes.Size(); s++)
    {
-      xs_true.SetDataAndSize(x.GetData() + block_offsets[s], fes[s]->GetTrueVSize());
-      X[s]->Distribute(xs_true);
+      xs_true.SetDataAndSize(x.GetData() + block_offsets[s],
+                             fes[s]->GetTrueVSize());
 
-      // FIXME: avoid this copy
-      bxs.SetVector(*X[s], block_offsets[s]);
+      fes[s]->GetProlongationMatrix()->Mult(xs_true, xs.GetBlock(s));
    }
 
-   BlockNonlinearForm::GetGradient(bxs); // (re)assemble Grad with b.c.
+   BlockNonlinearForm::GetGradientBlocked(xs); // (re)assemble Grad with b.c.
 
    return *BlockGrad;
 
@@ -286,15 +271,8 @@ BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
 
    Array<ParFiniteElementSpace *> pfes(fes.Size());
 
-   Vector xs_true;
-   BlockVector bxs(block_offsets);
-
    for (int s1=0; s1<fes.Size(); s1++)
    {
-      xs_true.SetDataAndSize(x.GetData() + block_trueOffsets[s1],
-                             fes[s1]->GetTrueVSize());
-      X[s1]->Distribute(xs_true);
-      bxs.SetVector(*X[s1], block_offsets[s1]);
       pfes[s1] = ParFESpace(s1);
 
       for (int s2=0; s2<fes.Size(); s2++)
@@ -303,13 +281,14 @@ BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
       }
    }
 
-   BlockNonlinearForm::GetGradient(bxs); // (re)assemble Grad with b.c.
+   GetLocalGradient(x); // gradients are stored in 'Grads'
 
    for (int s1=0; s1<fes.Size(); s1++)
    {
       for (int s2=0; s2<fes.Size(); s2++)
       {
-         OperatorHandle dA(phBlockGrad(s1,s2)->Type()), Ph(phBlockGrad(s1,s2)->Type()),
+         OperatorHandle dA(phBlockGrad(s1,s2)->Type()),
+                        Ph(phBlockGrad(s1,s2)->Type()),
                         Rh(phBlockGrad(s1,s2)->Type());
 
          if (s1 == s2)
@@ -350,11 +329,6 @@ ParBlockNonlinearForm::~ParBlockNonlinearForm()
       {
          delete phBlockGrad(s1,s2);
       }
-   }
-   for (int s1=0; s1<fes.Size(); s1++)
-   {
-      delete X[s1];
-      delete Y[s1];
    }
 }
 
