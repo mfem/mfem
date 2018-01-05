@@ -297,6 +297,9 @@ MFEM_USE_GNUTLS = YES/NO
    the script 'glvis-keygen.sh' in the main GLVis directory can be used to do
    that:
       bash glvis-keygen.sh ["Your Name"] ["Your Email"]
+   In MFEM v3.3.2 and earlier, the secure authentication is based on OpenPGP
+   keys, while later versions use X.509 certificates. The latest version of the
+   script 'glvis-keygen.sh' can be used to generate both types of keys.
    When MFEM_USE_GNUTLS is enabled, the additional build options, GNUTLS_*, are
    also used, see below.
 

@@ -17,7 +17,7 @@
 #include "fem.hpp"
 
 #ifdef MFEM_USE_MPI
-#include <spio/IOManager.hpp>
+#include <sidre/IOManager.hpp>
 #endif
 
 #include <string>
@@ -695,7 +695,7 @@ void SidreDataCollection::Load(const std::string& path,
 #ifdef MFEM_USE_MPI
    if (m_comm != MPI_COMM_NULL)
    {
-      axom::spio::IOManager reader(m_comm);
+      axom::sidre::IOManager reader(m_comm);
       reader.read(bp_grp->getDataStore()->getRoot(), path);
    }
    else
@@ -724,7 +724,7 @@ void SidreDataCollection::LoadExternalData(const std::string& path)
 #ifdef MFEM_USE_MPI
    if (m_comm != MPI_COMM_NULL)
    {
-      axom::spio::IOManager reader(m_comm);
+      axom::sidre::IOManager reader(m_comm);
       reader.loadExternalData(bp_grp->getDataStore()->getRoot(), path);
    }
    else
@@ -781,7 +781,7 @@ void SidreDataCollection::Save(const std::string& filename,
 #ifdef MFEM_USE_MPI
    if (m_comm != MPI_COMM_NULL)
    {
-      axom::spio::IOManager writer(m_comm);
+      axom::sidre::IOManager writer(m_comm);
       sidre::DataStore *datastore = bp_grp->getDataStore();
       writer.write(datastore->getRoot(), num_procs, file_path, protocol);
       if (myid == 0)
