@@ -248,12 +248,6 @@ int main(int argc, char *argv[])
    }
 
    // 10. Define the block structure of the solution vector (u then p)
-   Array<int> block_offsets(3);
-   block_offsets[0] = 0;
-   block_offsets[1] = R_space.GetVSize();
-   block_offsets[2] = W_space.GetVSize();
-   block_offsets.PartialSum();
-
    Array<int> block_trueOffsets(3);
    block_trueOffsets[0] = 0;
    block_trueOffsets[1] = R_space.TrueVSize();
@@ -357,18 +351,17 @@ JacobianPreconditioner::JacobianPreconditioner(Array<ParFiniteElementSpace *>
    // The mass matrix and preconditioner do not change every Newton cycle, so
    // we only need to define them once
    HypreBoomerAMG *mass_prec_amg = new HypreBoomerAMG();
-   mass_prec_amg->SetOperator(*pressure_mass);
    mass_prec_amg->SetPrintLevel(0);
 
    mass_prec = mass_prec_amg;
 
-   GMRESSolver *mass_pcg_iter = new GMRESSolver(spaces[0]->GetComm());
-   mass_pcg_iter->SetOperator(*pressure_mass);
+   CGSolver *mass_pcg_iter = new CGSolver(spaces[0]->GetComm());
    mass_pcg_iter->SetRelTol(1e-12);
    mass_pcg_iter->SetAbsTol(1e-12);
    mass_pcg_iter->SetMaxIter(200);
    mass_pcg_iter->SetPrintLevel(0);
    mass_pcg_iter->SetPreconditioner(*mass_prec);
+   mass_pcg_iter->SetOperator(*pressure_mass);
    mass_pcg_iter->iterative_mode = false;
 
    mass_pcg = mass_pcg_iter;
@@ -414,34 +407,30 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
 
    jacobian = (BlockOperator *) &op;
 
-   // Clean up the old stiffness solvers
-   if (stiff_prec != NULL)
+   // Initialize the stiffness preconditioner and solver
+   if (stiff_prec == NULL)
    {
-      delete stiff_prec;
-      delete stiff_pcg;
+      HypreBoomerAMG *stiff_prec_amg = new HypreBoomerAMG();
+      stiff_prec_amg->SetPrintLevel(0);
+      stiff_prec_amg->SetElasticityOptions(spaces[0]);
+
+      stiff_prec = stiff_prec_amg;
+
+
+      GMRESSolver *stiff_pcg_iter = new GMRESSolver(spaces[0]->GetComm());
+      stiff_pcg_iter->SetRelTol(1e-8);
+      stiff_pcg_iter->SetAbsTol(1e-8);
+      stiff_pcg_iter->SetMaxIter(200);
+      stiff_pcg_iter->SetPrintLevel(0);
+      stiff_pcg_iter->SetPreconditioner(*stiff_prec);
+      stiff_pcg_iter->iterative_mode = false;
+
+      stiff_pcg = stiff_pcg_iter;
    }
 
-   // At each Newton cycle, compute the new stiffness AMG
-   // preconditioner
-   HypreBoomerAMG *stiff_prec_amg = new HypreBoomerAMG();
-   stiff_prec_amg->SetOperator(jacobian->GetBlock(0,0));
-   stiff_prec_amg->SetPrintLevel(0);
-   stiff_prec_amg->SetElasticityOptions(spaces[0]);
-
-   stiff_prec = stiff_prec_amg;
-
-
-   GMRESSolver *stiff_pcg_iter = new GMRESSolver(spaces[0]->GetComm());
-   stiff_pcg_iter->SetRelTol(1e-8);
-   stiff_pcg_iter->SetAbsTol(1e-8);
-   stiff_pcg_iter->SetMaxIter(200);
-   stiff_pcg_iter->SetPrintLevel(0);
-   stiff_pcg_iter->SetPreconditioner(*stiff_prec);
-   stiff_pcg_iter->SetOperator(jacobian->GetBlock(0,0));
-   stiff_pcg_iter->iterative_mode = false;
-
-   stiff_pcg = stiff_pcg_iter;
-
+   // At each Newton cycle, compute the new stiffness AMG preconditioner by
+   // updating the iterative solver which, in turn, updates its preconditioner.
+   stiff_pcg->SetOperator(jacobian->GetBlock(0,0));
 }
 
 JacobianPreconditioner::~JacobianPreconditioner()
@@ -463,9 +452,7 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
      newton_solver(fes[0]->GetComm()), mu(c_mu), block_trueOffsets(trueOffsets)
 {
    Array<Vector *> rhs(2);
-
-   rhs[0] = NULL;
-   rhs[1] = NULL;
+   rhs = NULL; // Set all entries in the array
 
    fes.Copy(spaces);
 
@@ -499,7 +486,7 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
 
    // Set up the Jacobian solver
    GMRESSolver *j_gmres = new GMRESSolver(spaces[0]->GetComm());
-   j_gmres->iterative_mode = true;
+   j_gmres->iterative_mode = false;
    j_gmres->SetRelTol(1.0e-12);
    j_gmres->SetAbsTol(1.0e-12);
    j_gmres->SetMaxIter(300);
