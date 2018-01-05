@@ -14,7 +14,7 @@ add_mfem_miniapp(nurbs_ex1
   LIBRARIES mfem)
 
 add_test(NAME nurbs_ex1_ser
-  COMMAND nurbs_ex1 -no-vis)
+  COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis)
 
 if (MFEM_USE_MPI)
   add_mfem_miniapp(nurbs_ex1p
