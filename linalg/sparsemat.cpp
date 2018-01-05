@@ -1140,7 +1140,7 @@ void SparseMatrix::EliminateCol(int col, int setOneDiagonal)
       {
          if (J[jpos] == col)
          {
-           A[jpos] = 0.0;
+            A[jpos] = 0.0;
          }
       }
    }
