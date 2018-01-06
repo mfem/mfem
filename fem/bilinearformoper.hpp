@@ -30,28 +30,21 @@ class MixedBilinearForm;
 class BilinearFormOperator : public Operator
 {
 protected:
-   BilinearForm *bf;  // Do not own
-   MixedBilinearForm *mbf;  // Do not own
-
-   FiniteElementSpace *trial_fes;  // Do not own
    FiniteElementSpace *test_fes;  // Do not own
-   bool trial_gs, test_gs;
+   FiniteElementSpace *trial_fes;  // Do not own
 
-   Array<int> *trial_offsets, *trial_indices;
-   Array<int> *test_offsets, *test_indices;
+   bool trial_gs, test_gs;
    mutable Vector *X;
    mutable Vector *Y;
+
+   mutable Vector y_add;
 
    Array<LinearFESpaceIntegrator*> lfesi;
    Array<NonlinearFESpaceIntegrator*> nlfesi;
 
-   // Convert between vector types before calling Mult.
-   void LToEVector(const Array<int> &offsets, const Array<int> &indices,
-                   const Vector &v, Vector &V) const;
-   void EToLVector(const Array<int> &offsets, const Array<int> &indices,
-                   const Vector &V, Vector &v) const;
-
    void Init(FiniteElementSpace *_trial_fes, FiniteElementSpace *_test_fes);
+
+   void DoMult(bool transpose, bool add, const Vector &x, Vector &y) const;
 
 public:
    // Create an empty object or assemble what is needed by the
@@ -64,6 +57,9 @@ public:
 
    /// Perform the action of the bilinear form on a vector and set y.
    virtual void Mult(const Vector &x, Vector &y) const;
+
+   /// Perform the (transposed) action of the bilinear form on a vector and set y.
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
 
    virtual const Operator *GetProlongation() const
    { return trial_fes->GetProlongationMatrix(); }

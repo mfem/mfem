@@ -939,6 +939,9 @@ FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
    elem_dof = NULL;
    sequence = mesh->GetSequence();
 
+   tensor_offsets = NULL;
+   tensor_indices = NULL;
+
    const NURBSFECollection *nurbs_fec =
       dynamic_cast<const NURBSFECollection *>(fec);
    if (nurbs_fec)
@@ -976,6 +979,14 @@ FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
    }
 
    BuildElementToDofTable();
+
+   // Calculate the local unrolled size.
+   nldofs = 0;
+   for (int e = 0; e < GetNE(); e++)
+   {
+      const FiniteElement *fe = GetFE(e);
+      nldofs += fe->GetDof();
+   }
 }
 
 NURBSExtension *FiniteElementSpace::StealNURBSext()
@@ -1489,6 +1500,9 @@ void FiniteElementSpace::Destroy()
       delete [] bdofs;
       delete [] fdofs;
    }
+
+   delete tensor_offsets;
+   delete tensor_indices;
 }
 
 void FiniteElementSpace::Update(bool want_transform)
@@ -1617,5 +1631,126 @@ void QuadratureSpace::Save(std::ostream &out) const
        << "Order: " << order << '\n';
 }
 
+static void BuildDofMaps(FiniteElementSpace *fes,
+                         Array<int> *&off, Array<int> *&ind)
+{
+   const int global_size = fes->GetVSize();
+   const int local_size = fes->GetLocalVSize();
+   const int vdim = fes->GetVDim();
+
+   // Now we can allocate and fill the global map
+   off = new Array<int>(global_size + 1);
+   ind = new Array<int>(local_size);
+
+   Array<int> &offsets = *off;
+   Array<int> &indices = *ind;
+
+   Array<int> global_map(local_size);
+   Array<int> elem_vdof;
+
+   int offset = 0;
+   for (int e = 0; e < fes->GetNE(); e++)
+   {
+      const FiniteElement *fe = fes->GetFE(e);
+      const int dofs = fe->GetDof();
+      const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement *>(fe);
+      const Array<int> &dof_map = tfe->GetDofMap();
+
+      fes->GetElementVDofs(e, elem_vdof);
+
+      for (int vd = 0; vd < vdim; vd++)
+         for (int i = 0; i < dofs; i++)
+         {
+            global_map[offset + dofs*vd + i] = elem_vdof[dofs*vd + dof_map[i]];
+         }
+      offset += dofs * vdim;
+   }
+
+   // global_map[i] = index in global vector for local dof i
+   // NOTE: multiple i values will yield same global_map[i] for shared DOF.
+
+   // We want to now invert this map so we have indices[j] = (local dof for global dof j).
+
+   // Zero the offset vector
+   offsets = 0;
+
+   // Keep track of how many local dof point to its global dof
+   // Count how many times each dof gets hit
+   for (int i = 0; i < local_size; i++)
+   {
+      const int g = global_map[i];
+      ++offsets[g + 1];
+   }
+   // Aggregate the offsets
+   for (int i = 1; i <= global_size; i++)
+   {
+      offsets[i] += offsets[i - 1];
+   }
+
+   for (int i = 0; i < local_size; i++)
+   {
+      const int g = global_map[i];
+      indices[offsets[g]++] = i;
+   }
+
+   // Shift the offset vector back by one, since it was used as a
+   // counter above.
+   for (int i = global_size; i > 0; i--)
+   {
+      offsets[i] = offsets[i - 1];
+   }
+   offsets[0] = 0;
+}
+
+void FiniteElementSpace::ToLocalVector(const Vector &v, Vector &V)
+{
+   if ((tensor_indices == NULL) || (tensor_offsets == NULL))
+   {
+      BuildDofMaps(this, tensor_offsets, tensor_indices);
+   }
+
+   V.SetSize(tensor_indices->Size());
+
+   const int size = v.Size();
+   const int *offsets = tensor_offsets->GetData();
+   const int *indices = tensor_indices->GetData();
+
+   for (int i = 0; i < size; i++)
+   {
+      const int offset = offsets[i];
+      const int next_offset = offsets[i + 1];
+      const double dof_value = v(i);
+      for (int j = offset; j < next_offset; j++)
+      {
+         V(indices[j]) = dof_value;
+      }
+   }
+}
+
+void FiniteElementSpace::ToGlobalVector(const Vector &V, Vector &v)
+{
+   if ((tensor_indices == NULL) || (tensor_offsets == NULL))
+   {
+      BuildDofMaps(this, tensor_offsets, tensor_indices);
+   }
+
+   v.SetSize(GetVSize());
+
+   const int size = v.Size();
+   const int *offsets = tensor_offsets->GetData();
+   const int *indices = tensor_indices->GetData();
+
+   for (int i = 0; i < size; i++)
+   {
+      const int offset = offsets[i];
+      const int next_offset = offsets[i + 1];
+      double dof_value = 0;
+      for (int j = offset; j < next_offset; j++)
+      {
+         dof_value += V(indices[j]);
+      }
+      v(i) = dof_value;
+   }
+}
 
 } // namespace mfem

@@ -343,8 +343,7 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
       M->AddIntegrator(new PAMassIntegrator(new MassIntegrator));
    }
 
-   M->AssembleForm(p_assembly_mass ?
-                   BilinearForm::PARTIAL : BilinearForm::FULL);
+   M->AssembleForm(p_assembly_mass ? PartialAssembly : FullAssembly);
 
    M->FormSystemOperator(ess_tdof_list, Moper);
    if (!p_assembly_mass)
@@ -443,8 +442,7 @@ void ConductionOperator::SetParameters(const Vector &u)
    {
       K->AddIntegrator(new PADiffusionIntegrator(new DiffusionIntegrator(u_coeff)));
    }
-   K->AssembleForm(p_assembly_diff ?
-                   BilinearForm::PARTIAL : BilinearForm::FULL);
+   K->AssembleForm(p_assembly_diff ? PartialAssembly : FullAssembly);
 
    K->FormSystemOperator(ess_tdof_list, Koper);
 

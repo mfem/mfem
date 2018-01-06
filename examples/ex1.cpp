@@ -146,7 +146,6 @@ int main(int argc, char *argv[])
    //    domain integrator.
    Vector B, X;
    BilinearForm *a = new BilinearForm(fespace);
-   // a->AddDomainIntegrator(new DiffusionIntegrator(one));
    // Can add a custom FESpaceIntegrator in this way:
    if (!p_assembly)
    {
@@ -156,7 +155,7 @@ int main(int argc, char *argv[])
    {
       a->AddIntegrator(new PADiffusionIntegrator(new DiffusionIntegrator(one)));
    }
-   a->AssembleForm(p_assembly ? BilinearForm::PARTIAL : BilinearForm::FULL);
+   a->AssembleForm(p_assembly ? PartialAssembly : FullAssembly);
 
    Operator *A;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);

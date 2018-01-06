@@ -235,11 +235,11 @@ void ParBilinearForm::Assemble(int skip_zeros)
    }
 }
 
-void ParBilinearForm::AssembleForm(enum Assembly type, int skip_zeros)
+void ParBilinearForm::AssembleForm(enum AssemblyType type, int skip_zeros)
 {
    if (!oper)
    {
-      if (type == FULL)
+      if (type == FullAssembly)
       {
          oper_type = Hypre_ParCSR;
          oper = new HypreParMatrix();
@@ -252,11 +252,11 @@ void ParBilinearForm::AssembleForm(enum Assembly type, int skip_zeros)
       }
    }
 
-   if (type == FULL)
+   if (type == FullAssembly)
    {
       Assemble(skip_zeros);
    }
-   else if (type != NONE)
+   else if (type != NoAssembly)
    {
       BilinearFormOperator *bfo = static_cast<BilinearFormOperator*>(oper);
       bfo->Assemble();

@@ -93,14 +93,6 @@ protected:
    }
 
 public:
-   /// Assmbly type.
-   enum Assembly
-   {
-      FULL,
-      PARTIAL,
-      NONE
-   };
-
    /// Creates bilinear form associated with FE space *f.
    BilinearForm(FiniteElementSpace *f);
 
@@ -259,7 +251,7 @@ public:
 
    /** @brief Assembles the form with type Atype (one of enum AssemblyType) into
        an operator of type Otype (one of enum Operator::Type). */
-   void AssembleForm(enum Assembly type = FULL, int skip_zeros = 1);
+   void AssembleForm(enum AssemblyType type = FullAssembly, int skip_zeros = 1);
    Operator *FinalizeForm();
 
    /// Get the finite element space prolongation matrix
@@ -415,13 +407,6 @@ protected:
    Array<LinearFESpaceIntegrator*> fesi;
 
 public:
-   /// Assmbly type.
-   enum Assembly
-   {
-      FULL,
-      PARTIAL,
-      NONE
-   };
 
    MixedBilinearForm (FiniteElementSpace *tr_fes,
                       FiniteElementSpace *te_fes);
@@ -479,7 +464,7 @@ public:
    void Assemble (int skip_zeros = 1);
    /** @brief Assembles the form with type Atype (one of enum AssemblyType) into
        an operator of type Otype (one of enum Operator::Type). */
-   void AssembleForm(enum Assembly type = FULL, int skip_zeros = 1);
+   void AssembleForm(enum AssemblyType type = FullAssembly, int skip_zeros = 1);
    Operator *FinalizeForm();
 
    /** For partially conforming trial and/or test FE spaces, complete the
