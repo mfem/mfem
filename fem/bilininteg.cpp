@@ -3057,6 +3057,7 @@ ScalarProductInterpolator::AssembleElementMatrix2(const FiniteElement &dom_fe,
       ShapeCoefficient(Coefficient &q, const FiniteElement &fe_)
          : VectorCoefficient(fe_.GetDof()), Q(q), fe(fe_) { }
 
+      using VectorCoefficient::Eval;
       virtual void Eval(Vector &V, ElementTransformation &T,
                         const IntegrationPoint &ip)
       {
@@ -3222,6 +3223,7 @@ VectorInnerProductInterpolator::AssembleElementMatrix2(
          : VectorCoefficient(fe_.GetDof()), VQ(vq), fe(fe_),
            vshape(vdim, vq.GetVDim()), vc(vq.GetVDim()) { }
 
+      using VectorCoefficient::Eval;
       virtual void Eval(Vector &V, ElementTransformation &T,
                         const IntegrationPoint &ip)
       {

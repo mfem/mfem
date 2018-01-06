@@ -105,7 +105,7 @@ void Triangle::MarkEdge(const DSTable &v_to_v, const int *length)
 
    L = length[ v_to_v(indices[0], indices[1]) ]; j = 0;
    if ( (l = length[ v_to_v(indices[1], indices[2]) ]) > L ) { L = l; j = 1; }
-   if ( (l = length[ v_to_v(indices[2], indices[0]) ]) > L ) { L = l; j = 2; }
+   if ( (l = length[ v_to_v(indices[2], indices[0]) ]) > L ) { j = 2; }
 
    for (i = 0; i < 3; i++)
    {
