@@ -304,12 +304,9 @@ void BlockMatrix::EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol,
    }
 }
 
-void BlockMatrix::EliminateZeroRows()
+void BlockMatrix::EliminateZeroRows(const double threshold)
 {
-   if (nRowBlocks != nColBlocks)
-   {
-      mfem_error("BlockMatrix::EliminateZeroRows() #1");
-   }
+   MFEM_VERIFY(nRowBlocks == nColBlocks, "not a square matrix");
 
    for (int iblock = 0; iblock < nRowBlocks; ++iblock)
    {
@@ -325,12 +322,13 @@ void BlockMatrix::EliminateZeroRows()
                   norm += Aij(iblock,jblock)->GetRowNorml1(i);
                }
 
-            if (norm < 1e-12)
+            if (norm <= threshold)
             {
                for (int jblock = 0; jblock < nColBlocks; ++jblock)
                   if (Aij(iblock,jblock))
                   {
-                     Aij(iblock,jblock)->EliminateRow(i, (iblock==jblock) ? DIAG_ONE : DIAG_ZERO);
+                     Aij(iblock,jblock)->EliminateRow(
+                        i, (iblock==jblock) ? DIAG_ONE : DIAG_ZERO);
                   }
             }
          }
@@ -347,12 +345,9 @@ void BlockMatrix::EliminateZeroRows()
                   norm += Aij(iblock,jblock)->GetRowNorml1(i);
                }
 
-            if (norm < 1e-12)
-            {
-               mfem::out<<"i = " << i << "\n";
-               mfem::out<<"norm = " << norm << "\n";
-               mfem_error("BlockMatrix::EliminateZeroRows() #2");
-            }
+            MFEM_VERIFY(!(norm <= threshold), "diagonal block is NULL:"
+                        " iblock = " << iblock << ", i = " << i << ", norm = "
+                        << norm);
          }
       }
    }
