@@ -24,6 +24,25 @@ Miscellaneous
 
 - Add support for building a shared version of the MFEM library with GNU make.
 
+API changes (that may affect existing code)
+-----------
+- Introduced a new enum, Matrix::DiagonalPolicy, that replaces the integer
+  parameters in a number of methods that perform elimination of rows and/or
+  columns in matrices. Examples of such methods are:
+  - in class SparseMatrix: EliminateRow(), EliminateCol(), EliminateRowCol(),
+    EliminateRowColMultipleRHS();
+  - in class BilinearForm: EliminateEssentialBC(), EliminateVDofs(),
+    EliminateEssentialBCFromDofs();
+  - in class StaticCondensation: EliminateReducedTrueDofs();
+  - in class BlockMatrix: EliminateRowCol().
+  Any existing code that uses these methods with an explicitly given (integer)
+  constants, will generate compilation errors - please replace such integers
+  with one of the new enum constants.
+
+- Modified the virtual method AbstractSparseMatrix::EliminateZeroRows() and its
+  implementations in derived classes, to accept an optional 'threshold'
+  parameter, replacing hard-coded threshold values.
+
 
 Version 3.3.2, released on Nov 10, 2017
 =======================================
