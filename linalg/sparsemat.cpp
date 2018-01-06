@@ -1181,9 +1181,8 @@ void SparseMatrix::EliminateCols(const Array<int> &cols, Vector *x, Vector *b)
    }
    else
    {
-      RowNode *aux;
       for (int i = 0; i < height; i++)
-         for (aux = Rows[i]; aux != NULL; aux = aux->Prev)
+         for (RowNode *aux = Rows[i]; aux != NULL; aux = aux->Prev)
             if (cols[aux -> Column])
             {
                if (x && b)
@@ -1304,7 +1303,9 @@ void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
                << ") must match rhs width (" << num_rhs << ")");
 
    if (Rows == NULL)
+   {
       for (int j = I[rc]; j < I[rc+1]; j++)
+      {
          if ((col = J[j]) == rc)
          {
             switch (dpolicy)
@@ -1338,6 +1339,7 @@ void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
          {
             A[j] = 0.0;
             for (int k = I[col]; 1; k++)
+            {
                if (k == I[col+1])
                {
                   mfem_error("SparseMatrix::EliminateRowColMultipleRHS() #4");
@@ -1351,9 +1353,14 @@ void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
                   A[k] = 0.0;
                   break;
                }
+            }
          }
+      }
+   }
    else
+   {
       for (RowNode *aux = Rows[rc]; aux != NULL; aux = aux->Prev)
+      {
          if ((col = aux->Column) == rc)
          {
             switch (dpolicy)
@@ -1387,6 +1394,7 @@ void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
          {
             aux->Value = 0.0;
             for (RowNode *node = Rows[col]; 1; node = node->Prev)
+            {
                if (node == NULL)
                {
                   mfem_error("SparseMatrix::EliminateRowColMultipleRHS() #6");
@@ -1400,7 +1408,10 @@ void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
                   node->Value = 0.0;
                   break;
                }
+            }
          }
+      }
+   }
 }
 
 void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
@@ -1636,7 +1647,7 @@ void SparseMatrix::SetDiagIdentity()
       }
 }
 
-void SparseMatrix::EliminateZeroRows()
+void SparseMatrix::EliminateZeroRows(const double threshold)
 {
    int i, j;
    double zero;
@@ -1648,7 +1659,7 @@ void SparseMatrix::EliminateZeroRows()
       {
          zero += fabs(A[j]);
       }
-      if (zero < 1e-12)
+      if (zero <= threshold)
       {
          for (j = I[i]; j < I[i+1]; j++)
             if (J[j] == i)
