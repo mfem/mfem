@@ -22,12 +22,24 @@ BilinearFormOperator::~BilinearFormOperator()
    if (test_gs) delete Y;
 }
 
+static void CheckIfValid(const FiniteElement *fe)
+{
+   const int geom = fe->GetGeomType();
+   if ((geom == Geometry::Type::TRIANGLE) || (geom == Geometry::Type::TETRAHEDRON))
+   {
+      mfem_error("Simplex elements are not supported.");
+   }
+}
+
 BilinearFormOperator::BilinearFormOperator(BilinearForm *bf)
 {
    height = bf->Height();
    width  = bf->Width();
 
    Init(bf->FESpace(), bf->FESpace());
+
+   // Does not currently support simplex elements
+   CheckIfValid(bf->FESpace()->GetFE(0));
 
    // Add the integrators from bf->fesi
    Array<LinearFESpaceIntegrator*> &other_fesi = *(bf->GetFESI());
@@ -45,6 +57,9 @@ BilinearFormOperator::BilinearFormOperator(MixedBilinearForm *mbf)
    width  = mbf->Width();
 
    Init(mbf->TrialFESpace(), mbf->TestFESpace());
+
+   // Does not currently support simplex elements
+   CheckIfValid(mbf->TrialFESpace()->GetFE(0));
 
    // Add the integrators from mbf->fesi
    Array<LinearFESpaceIntegrator*> &other_fesi = *(mbf->GetFESI());
@@ -142,12 +157,10 @@ void BilinearFormOperator::DoMult(bool transpose, bool add,
    }
 }
 
-
 void BilinearFormOperator::AddMult(const Vector &x, Vector &y) const
 {
    DoMult(false, true, x, y);
 }
-
 
 void BilinearFormOperator::AddMultTranspose(const Vector &x, Vector &y) const
 {
@@ -165,6 +178,3 @@ void BilinearFormOperator::MultTranspose(const Vector &x, Vector &y) const
 }
 
 }
-
-
-
