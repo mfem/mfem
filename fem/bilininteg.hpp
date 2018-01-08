@@ -83,6 +83,33 @@ public:
    virtual ~BilinearFormIntegrator() { }
 };
 
+class BilinearFESpaceIntegrator
+{
+protected:
+   const IntegrationRule *IntRule;
+
+public:
+   BilinearFESpaceIntegrator(const IntegrationRule *_IntRule = NULL) :
+      IntRule(_IntRule) { }
+
+   virtual ~BilinearFESpaceIntegrator() { }
+
+   void SetIntegrationRule(const IntegrationRule *ir) { IntRule = ir; }
+
+   /// Internally assemble the integrator for the specific trial and
+   /// test spaces
+   virtual void Assemble(FiniteElementSpace *trial_fes,
+                         FiniteElementSpace *test_fes) { }
+
+   /// Apply the action A * x = y.
+   virtual void AddMult(const Vector &x, Vector &y)
+   { mfem_error("Not supported"); }
+
+   /// Apply the transposed action A^T * x = y.
+   virtual void AddMultTranspose(const Vector &x, Vector &y)
+   { mfem_error("Not supported"); }
+};
+
 class TransposeIntegrator : public BilinearFormIntegrator
 {
 private:

@@ -14,6 +14,25 @@
 namespace mfem
 {
 
+NonlinearForm::NonlinearForm(FiniteElementSpace *f) : Operator(f->GetVSize())
+{
+   fes = f;
+   Grad = NULL;
+
+   needs_gs = false;
+   X = Y = NULL;
+   if (dynamic_cast<const L2_FECollection *>(fes->FEColl()))
+   {
+      needs_gs = false;
+   }
+   else
+   {
+      X = new Vector(fes->GetLocalVSize());
+      Y = new Vector(fes->GetLocalVSize());
+   }
+}
+
+
 void NonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
                                    Vector *rhs)
 {
@@ -79,7 +98,7 @@ double NonlinearForm::GetEnergy(const Vector &x) const
    return energy;
 }
 
-void NonlinearForm::Mult(const Vector &x, Vector &y) const
+void NonlinearForm::MultGeneral(const Vector &x, Vector &y) const
 {
    Array<int> vdofs;
    Vector el_x, el_y;
@@ -193,6 +212,51 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
       y(ess_vdofs[i]) = 0.0;
    }
    // y(ess_vdofs[i]) = x(ess_vdofs[i]);
+}
+
+static inline bool CanTensorizeAssembly(const FiniteElementSpace *fes)
+{
+   const Mesh *mesh = fes->GetMesh();
+
+   const int BaseGeom = mesh->GetElementBaseGeometry(mesh->GetNE());
+   // Would have to dynamic_cast every element if mesh were mixed.
+   if (BaseGeom < 0) return false;
+
+   // Dynamic cast only the first fe to check if it's supported
+   const FiniteElement *fe = fes->GetFE(0);
+   return (dynamic_cast<const TensorBasisElement *>(fe) != NULL);
+}
+
+void NonlinearForm::Mult(const Vector &x, Vector &y) const
+{
+   if (CanTensorizeAssembly(fes) && (fesi.Size() > 0))
+   {
+      if (needs_gs)
+      {
+         fes->ToLocalVector(x, *X);
+         *Y = 0.0;
+      }
+      else
+      {
+         X = const_cast<Vector *>(&x);
+         Y = &y;
+      }
+
+      for (int i = 0; i < fesi.Size(); i++)
+      {
+         fesi[i]->Assemble(fes, fes, *X);
+         fesi[i]->FormVector(*Y);
+      }
+
+      if (needs_gs)
+      {
+         fes->ToGlobalVector(*Y, y);
+      }
+   }
+   else
+   {
+      MultGeneral(x, y);
+   }
 }
 
 Operator &NonlinearForm::GetGradient(const Vector &x) const
@@ -330,6 +394,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
 NonlinearForm::~NonlinearForm()
 {
    delete Grad;
+   if (needs_gs) delete Y;
    for (int i = 0; i <  dnfi.Size(); i++) { delete  dnfi[i]; }
    for (int i = 0; i <  fnfi.Size(); i++) { delete  fnfi[i]; }
    for (int i = 0; i < bfnfi.Size(); i++) { delete bfnfi[i]; }

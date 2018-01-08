@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "coefficient.hpp"
+#include "fespace.hpp"
 
 namespace mfem
 {
@@ -42,6 +43,22 @@ public:
    virtual ~LinearFormIntegrator() { }
 };
 
+class LinearFESpaceIntegrator
+{
+protected:
+   const IntegrationRule *IntRule;
+
+public:
+   LinearFESpaceIntegrator(const IntegrationRule *_IntRule = NULL) :
+      IntRule(_IntRule) { }
+
+   virtual ~LinearFESpaceIntegrator() { }
+
+   void SetIntegrationRule(const IntegrationRule *ir) { IntRule = ir; }
+
+   /// Assemble the vector
+   virtual void Assemble(FiniteElementSpace *fes, Vector &vect) = 0;
+};
 
 /// Abstract class for integrators that support delta coefficients
 class DeltaLFIntegrator : public LinearFormIntegrator

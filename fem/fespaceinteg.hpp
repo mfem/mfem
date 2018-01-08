@@ -12,12 +12,11 @@
 // This file contains FESpaceIntegrators.
 
 
-#ifndef MFEM_PAINTEG
-#define MFEM_PAINTEG
+#ifndef MFEM_FESPACEINTEG
+#define MFEM_FESPACEINTEG
 
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
-#include "bilinearformoper.hpp"
 
 namespace mfem
 {
@@ -36,7 +35,7 @@ void Get1DBasis(const FiniteElement *fe, int ir_order,
 /** Class for computing the action of (grad(u), grad(v)) from a scalar
  * fespace using a partially assembled operator at quadrature
  * points. */
-class PADiffusionIntegrator : public LinearFESpaceIntegrator
+class PADiffusionIntegrator : public BilinearFESpaceIntegrator
 {
 protected:
    // Carry pointer in order to have access to coefficient
@@ -62,7 +61,7 @@ public:
 
 /** Class for computing the action of (u, v) from a scalar fespace
  * using a partially assembled operator at quadrature points. */
-class PAMassIntegrator : public LinearFESpaceIntegrator
+class PAMassIntegrator : public BilinearFESpaceIntegrator
 {
 protected:
    MassIntegrator *integ;     // Own this

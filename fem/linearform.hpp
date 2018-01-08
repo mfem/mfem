@@ -39,6 +39,12 @@ private:
    Array<LinearFormIntegrator*> flfi;
    Array<Array<int>*>           flfi_marker;
 
+   /// Set of fespace integrators (does not matter what type)
+   Array<LinearFESpaceIntegrator*> fesi;
+
+   /// Internal additional vector for tensorized assembly
+   Vector V;
+
    /// The element ids where the centers of the delta functions lie
    Array<int> dlfi_delta_elem_id;
 
@@ -81,8 +87,14 @@ public:
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
                              Array<int> &bdr_attr_marker);
 
+   /// Adds a LinearFESpaceIntegrator.
+   void AddIntegrator(LinearFESpaceIntegrator *integ);
+
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();
+
+   /// New interface for assembling the form that supports tensorized assembly.
+   void AssembleForm();
 
    /// Assembles delta functions of the linear form
    void AssembleDelta();

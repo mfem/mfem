@@ -229,7 +229,7 @@ void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
    bfbfi_marker.Append(&bdr_marker);
 }
 
-void BilinearForm::AddIntegrator(LinearFESpaceIntegrator *bfi)
+void BilinearForm::AddIntegrator(BilinearFESpaceIntegrator *bfi)
 {
    fesi.Append(bfi);
 }
@@ -477,31 +477,54 @@ void BilinearForm::Assemble (int skip_zeros)
 #endif
 }
 
+static bool CanTensorizeAssembly(const FiniteElementSpace *fes)
+{
+   const Mesh *mesh = fes->GetMesh();
+
+   const int BaseGeom = mesh->GetElementBaseGeometry(mesh->GetNE());
+   // Would have to dynamic_cast every element if mesh were mixed.
+   if (BaseGeom < 0) return false;
+
+   // Dynamic cast only the first fe to check if it's supported
+   const FiniteElement *fe = fes->GetFE(0);
+   return (dynamic_cast<const TensorBasisElement *>(fe) != NULL);
+}
+
 void BilinearForm::AssembleForm(enum AssemblyType type, int skip_zeros)
 {
-   if (!oper)
+   // Full assembly is not supported by the FESpace integrators, so
+   // just revert to the general assembly if possible for these
+   if (type == FullAssembly)
    {
-      if (type == FullAssembly)
+      if (!oper)
       {
          oper_type = MFEM_SPARSEMAT;
          oper = new SparseMatrix();
       }
-      else
-      {
-         oper_type = MFEM_FORMOPER;
-         BilinearFormOperator *bfo = new BilinearFormOperator(this);
-         oper = bfo;
-      }
+      Assemble(skip_zeros);
+      return;
    }
 
-   if (type == FullAssembly)
+   if (!CanTensorizeAssembly(fes))
    {
-      Assemble(skip_zeros);
+      mfem_error("This requires the ability to tensorize the assembly and/or action");
    }
-   else if (type != NoAssembly)
+
+   if (!oper)
    {
-      BilinearFormOperator *bfo = static_cast<BilinearFormOperator*>(oper);
-      bfo->Assemble();
+      if (!fesi.Size())
+      {
+         mfem_error("No FESpace tensorized integrators are present");
+      }
+      oper_type = MFEM_FORMOPER;
+      BilinearFormOperator *feso = new BilinearFormOperator(*this);
+      oper = feso;
+   }
+
+   if (type != NoAssembly)
+   {
+      BilinearFormOperator *feso = static_cast<BilinearFormOperator*>(oper);
+      feso->Assemble();
    }
 }
 
@@ -1053,7 +1076,7 @@ void MixedBilinearForm::AddTraceFaceIntegrator (BilinearFormIntegrator * bfi)
    skt.Append (bfi);
 }
 
-void MixedBilinearForm::AddIntegrator(LinearFESpaceIntegrator *integ)
+void MixedBilinearForm::AddIntegrator(BilinearFESpaceIntegrator *integ)
 {
    fesi.Append(integ);
 }
@@ -1146,32 +1169,41 @@ void MixedBilinearForm::Assemble (int skip_zeros)
    oper = mat;
 }
 
-
 void MixedBilinearForm::AssembleForm(enum AssemblyType type, int skip_zeros)
 {
-   if (!oper)
+   // Full assembly is not supported by the FESpace integrators, so
+   // just revert to the general assembly if possible for these
+   if (type == FullAssembly)
    {
-      if (type == FullAssembly)
+      if (!oper)
       {
          oper_type = MFEM_SPARSEMAT;
          oper = new SparseMatrix();
       }
-      else
-      {
-         oper_type = MFEM_FORMOPER;
-         BilinearFormOperator *bfo = new BilinearFormOperator(this);
-         oper = bfo;
-      }
+      Assemble(skip_zeros);
+      return;
    }
 
-   if (type == FullAssembly)
+   if (!CanTensorizeAssembly(trial_fes))
    {
-      Assemble(skip_zeros);
+      mfem_error("This requires the ability to tensorize the assembly and/or action");
    }
-   else if (type != NoAssembly)
+
+   if (!oper)
    {
-      BilinearFormOperator *bfo = static_cast<BilinearFormOperator*>(oper);
-      bfo->Assemble();
+      if (!fesi.Size())
+      {
+         mfem_error("No FESpace tensorized integrators are present");
+      }
+      oper_type = MFEM_FORMOPER;
+      BilinearFormOperator *feso = new BilinearFormOperator(*this);
+      oper = feso;
+   }
+
+   if (type != NoAssembly)
+   {
+      BilinearFormOperator *feso = static_cast<BilinearFormOperator*>(oper);
+      feso->Assemble();
    }
 }
 
@@ -1334,6 +1366,151 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
          mat->SetSubMatrix(ran_vdofs, dom_vdofs, totelmat, skip_zeros);
       }
    }
+}
+
+BilinearFormOperator::~BilinearFormOperator()
+{
+   if (trial_gs) delete X;
+   if (test_gs) delete Y;
+}
+
+BilinearFormOperator::BilinearFormOperator(BilinearForm &bf)
+{
+   height = bf.Height();
+   width  = bf.Width();
+
+   Init(bf.FESpace(), bf.FESpace());
+
+   // Add the integrators from bf.fesi
+   Array<BilinearFESpaceIntegrator*> &other_fesi = *(bf.GetFESI());
+   for (int i = 0; i < other_fesi.Size(); i++)
+   {
+      fesi.Append(other_fesi[i]);
+   }
+
+   Assemble();
+}
+
+BilinearFormOperator::BilinearFormOperator(MixedBilinearForm &mbf)
+{
+   height = mbf.Height();
+   width  = mbf.Width();
+
+   Init(mbf.TrialFESpace(), mbf.TestFESpace());
+
+   // Add the integrators from mbf.fesi
+   Array<BilinearFESpaceIntegrator*> &other_fesi = *(mbf.GetFESI());
+   for (int i = 0; i < other_fesi.Size(); i++)
+   {
+      fesi.Append(other_fesi[i]);
+   }
+
+   Assemble();
+}
+
+void BilinearFormOperator::Assemble()
+{
+   // Linear assembly
+   for (int i = 0; i < fesi.Size(); i++)
+   {
+      fesi[i]->Assemble(trial_fes, test_fes);
+   }
+}
+
+void BilinearFormOperator::Init(FiniteElementSpace *_trial_fes,
+                                FiniteElementSpace *_test_fes)
+{
+   trial_fes = _trial_fes;
+   test_fes = _test_fes;
+
+   trial_gs = true;
+   X = NULL;
+   if (dynamic_cast<const L2_FECollection *>(trial_fes->FEColl()))
+   {
+      trial_gs = false;
+   }
+   else
+   {
+      X = new Vector(trial_fes->GetLocalVSize());
+   }
+
+   test_gs = true;
+   Y = NULL;
+   if (dynamic_cast<const L2_FECollection *>(test_fes->FEColl()))
+   {
+      test_gs = false;
+   }
+   else
+   {
+      Y = new Vector(test_fes->GetLocalVSize());
+   }
+}
+
+void BilinearFormOperator::DoMult(bool transpose, bool add,
+                                  const Vector &x, Vector &y) const
+{
+   if (!transpose && trial_gs)
+   {
+      trial_fes->ToLocalVector(x, *X);
+   }
+   else if (transpose && test_gs)
+   {
+      test_fes->ToLocalVector(x, *X);
+   }
+   else
+   {
+      X = const_cast<Vector *>(&x);
+   }
+
+   if ((!transpose && !test_gs) || (transpose && !trial_gs)) { Y = &y; }
+   *Y = 0.0;
+
+   for (int i = 0; i < fesi.Size(); i++) fesi[i]->AddMult(*X, *Y);
+
+   if (!transpose && test_gs)
+   {
+      if (add)
+      {
+         test_fes->ToGlobalVector(*Y, y_add);
+         y += y_add;
+      }
+      else
+      {
+         test_fes->ToGlobalVector(*Y, y);
+      }
+   }
+   else if (transpose && trial_gs)
+   {
+      if (add)
+      {
+         trial_fes->ToGlobalVector(*Y, y_add);
+         y += y_add;
+      }
+      else
+      {
+         trial_fes->ToGlobalVector(*Y, y);
+      }
+   }
+}
+
+void BilinearFormOperator::AddMult(const Vector &x, Vector &y) const
+{
+   DoMult(false, true, x, y);
+}
+
+void BilinearFormOperator::AddMultTranspose(const Vector &x, Vector &y) const
+{
+   DoMult(true, true, x, y);
+}
+
+void BilinearFormOperator::Mult(const Vector &x, Vector &y) const
+{
+   DoMult(false, false, x, y);
+}
+
+void BilinearFormOperator::MultTranspose(const Vector &x, Vector &y) const
+{
+   DoMult(true, false, x, y);
 }
 
 }

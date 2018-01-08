@@ -65,7 +65,7 @@ protected:
    Array<Array<int>*>             bfbfi_marker;
 
    /// Set of fespace integrators (does not matter what type)
-   Array<LinearFESpaceIntegrator*> fesi;
+   Array<BilinearFESpaceIntegrator*> fesi;
 
    DenseMatrix elemmat;
    Array<int>  vdofs;
@@ -154,7 +154,7 @@ public:
 
    Array<BilinearFormIntegrator*> *GetBFBFI() { return &bfbfi; }
 
-   Array<LinearFESpaceIntegrator*> *GetFESI() { return &fesi; }
+   Array<BilinearFESpaceIntegrator*> *GetFESI() { return &fesi; }
 
    const double &operator()(int i, int j) { return (*mat)(i,j); }
 
@@ -232,8 +232,8 @@ public:
    /// Adds new boundary Face Integrator.
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
 
-   /// Adds a LinearFESpaceIntegrator.
-   void AddIntegrator(LinearFESpaceIntegrator *integ);
+   /// Adds a BilinearFESpaceIntegrator.
+   void AddIntegrator(BilinearFESpaceIntegrator *integ);
 
    /** @brief Adds new boundary Face Integrator, restricted to specific boundary
        attributes. */
@@ -248,6 +248,9 @@ public:
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
+
+   /// New interface for assembling the form that supports tensorized assembly.
+   void AssembleForm(int skip_zeros = 1);
 
    /** @brief Assembles the form with type Atype (one of enum AssemblyType) into
        an operator of type Otype (one of enum Operator::Type). */
@@ -404,7 +407,7 @@ protected:
    Array<BilinearFormIntegrator*> dom;
    Array<BilinearFormIntegrator*> bdr;
    Array<BilinearFormIntegrator*> skt; // trace face integrators
-   Array<LinearFESpaceIntegrator*> fesi;
+   Array<BilinearFESpaceIntegrator*> fesi;
 
 public:
 
@@ -448,8 +451,8 @@ public:
        two adjacent volume FEs from the test space. */
    void AddTraceFaceIntegrator (BilinearFormIntegrator * bfi);
 
-   /// Add an FESpaceIntegrator
-   void AddIntegrator (LinearFESpaceIntegrator *integ);
+   /// Adds a BilinearFESpaceIntegrator.
+   void AddIntegrator (BilinearFESpaceIntegrator *integ);
 
    Array<BilinearFormIntegrator*> *GetDBFI() { return &dom; }
 
@@ -457,7 +460,7 @@ public:
 
    Array<BilinearFormIntegrator*> *GetTFBFI() { return &skt; }
 
-   Array<LinearFESpaceIntegrator*> *GetFESI() { return &fesi; }
+   Array<BilinearFESpaceIntegrator*> *GetFESI() { return &fesi; }
 
    void operator= (const double a) { *mat = a; }
 
@@ -538,6 +541,57 @@ public:
    Array<BilinearFormIntegrator*> *GetDI() { return &dom; }
 
    virtual void Assemble(int skip_zeros = 1);
+};
+
+/**
+   Object encapsulated by BilinearForm and MixedBilinearForm to
+   perform the tensorized assembly and action.
+*/
+class BilinearFormOperator : public Operator
+{
+protected:
+   FiniteElementSpace *test_fes;  // Do not own
+   FiniteElementSpace *trial_fes;  // Do not own
+
+   bool trial_gs, test_gs;
+   mutable Vector *X;
+   mutable Vector *Y;
+
+   mutable Vector y_add;
+
+   Array<BilinearFESpaceIntegrator*> fesi;
+
+   void Init(FiniteElementSpace *_trial_fes, FiniteElementSpace *_test_fes);
+
+   void DoMult(bool transpose, bool add, const Vector &x, Vector &y) const;
+
+public:
+   // Create an empty object or assemble what is needed by the
+   // bilinear form integrators to later compute the action.
+   BilinearFormOperator(BilinearForm &bf);
+   BilinearFormOperator(MixedBilinearForm &mbf);
+   ~BilinearFormOperator();
+
+   /// Assemble the operator
+   void Assemble();
+
+   /// Perform the action of the bilinear form on a vector and set y.
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   /// Perform the (transposed) action of the bilinear form on a vector and set y.
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
+
+   virtual const Operator *GetProlongation() const
+   { return trial_fes->GetProlongationMatrix(); }
+
+   virtual const Operator *GetRestriction() const
+   { return trial_fes->GetRestrictionMatrix(); }
+
+   /// Perform the action of the bilinear form on a vector and add to y.
+   void AddMult(const Vector &x, Vector &y) const;
+
+   /// Perform the (transposed) action of the bilinear form on a vector and add to y.
+   void AddMultTranspose(const Vector &x, Vector &y) const;
 };
 
 }

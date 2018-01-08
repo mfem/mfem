@@ -48,6 +48,11 @@ void LinearForm::AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
    flfi_marker.Append(&bdr_attr_marker);
 }
 
+void LinearForm::AddIntegrator(LinearFESpaceIntegrator *integ)
+{
+   fesi.Append(integ);
+}
+
 void LinearForm::Assemble()
 {
    Array<int> vdofs;
@@ -130,6 +135,39 @@ void LinearForm::Assemble()
             }
          }
       }
+   }
+}
+
+static inline bool CanTensorizeAssembly(const FiniteElementSpace *fes)
+{
+   const Mesh *mesh = fes->GetMesh();
+
+   const int BaseGeom = mesh->GetElementBaseGeometry(mesh->GetNE());
+   // Would have to dynamic_cast every element if mesh were mixed.
+   if (BaseGeom < 0) return false;
+
+   // Dynamic cast only the first fe to check if it's supported
+   const FiniteElement *fe = fes->GetFE(0);
+   return (dynamic_cast<const TensorBasisElement *>(fe) != NULL);
+}
+
+void LinearForm::AssembleForm()
+{
+   if (CanTensorizeAssembly(fes) && (fesi.Size() > 0))
+   {
+      V.SetSize(fes->GetLocalVSize());
+      V = 0.0;
+
+      for (int i = 0; i < fesi.Size(); i++)
+      {
+         fesi[i]->Assemble(fes, V);
+      }
+
+      fes->ToGlobalVector(V, *this);
+   }
+   else
+   {
+      Assemble();
    }
 }
 

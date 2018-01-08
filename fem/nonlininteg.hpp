@@ -13,9 +13,9 @@
 #define MFEM_NONLININTEG
 
 #include "../config/config.hpp"
-#include "fespace.hpp"
 #include "fe.hpp"
 #include "coefficient.hpp"
+#include "fespace.hpp"
 
 namespace mfem
 {
@@ -72,61 +72,27 @@ public:
    virtual ~NonlinearFormIntegrator() { }
 };
 
-class Integrator
+class NonlinearFESpaceIntegrator
 {
 protected:
    const IntegrationRule *IntRule;
 
 public:
-   Integrator(const IntegrationRule *_IntRule = NULL) :
-      IntRule(_IntRule) { }
-
-   void SetIntegrationRule(const IntegrationRule *ir) { IntRule = ir; }
-};
-
-class LinearFESpaceIntegrator : public Integrator
-{
-public:
-   LinearFESpaceIntegrator(const IntegrationRule *_IntRule = NULL) :
-      Integrator(_IntRule) { }
-
-   virtual ~LinearFESpaceIntegrator() { }
-
-   /// Internally assemble the integrator for the specific trial and
-   /// test spaces (with an optional vector u for semilinear forms).
-   virtual void Assemble(FiniteElementSpace *trial_fes,
-                         FiniteElementSpace *test_fes) { }
-
-   /// Apply the action A * x = y.
-   virtual void AddMult(const Vector &x, Vector &y)
-   { mfem_error("Not supported"); }
-
-   /// Apply the transposed action A^T * x = y.
-   virtual void AddMultTranspose(const Vector &x, Vector &y)
-   { mfem_error("Not supported"); }
-};
-
-class NonlinearFESpaceIntegrator : public Integrator
-{
-public:
    NonlinearFESpaceIntegrator(const IntegrationRule *_IntRule = NULL) :
-      Integrator(_IntRule) { }
+      IntRule(_IntRule) { }
 
    virtual ~NonlinearFESpaceIntegrator() { }
 
+   void SetIntegrationRule(const IntegrationRule *ir) { IntRule = ir; }
+
    /// Internally assemble the integrator for the specific trial and
-   /// test spaces (with an optional vector u for semilinear forms).
+   /// test spaces, and a vector u to calculate the term.
    virtual void Assemble(FiniteElementSpace *trial_fes,
                          FiniteElementSpace *test_fes,
                          const Vector &u) { }
 
-   /// Apply the action A(u) * x = y.
-   virtual void AddMult(const Vector &x, Vector &y)
-   { mfem_error("Not supported"); }
-
-   /// Apply the transposed action A(u)^T * x = y.
-   virtual void AddMultTranspose(const Vector &x, Vector &y)
-   { mfem_error("Not supported"); }
+   /// Apply the operator/form the vector (assemble is called before this).
+   virtual void FormVector(Vector &y) = 0;
 };
 
 /// Abstract class for hyperelastic models

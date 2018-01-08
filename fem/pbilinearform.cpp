@@ -247,8 +247,8 @@ void ParBilinearForm::AssembleForm(enum AssemblyType type, int skip_zeros)
       else
       {
          oper_type = MFEM_FORMOPER;
-         BilinearFormOperator *bfo = new BilinearFormOperator(this);
-         oper = bfo;
+         BilinearFormOperator *feso = new BilinearFormOperator(*this);
+         oper = feso;
       }
    }
 
@@ -258,8 +258,8 @@ void ParBilinearForm::AssembleForm(enum AssemblyType type, int skip_zeros)
    }
    else if (type != NoAssembly)
    {
-      BilinearFormOperator *bfo = static_cast<BilinearFormOperator*>(oper);
-      bfo->Assemble();
+      BilinearFormOperator *feso = static_cast<BilinearFormOperator*>(oper);
+      feso->Assemble();
    }
 }
 
