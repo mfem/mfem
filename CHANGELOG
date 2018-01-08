@@ -10,6 +10,11 @@
 
 Version 3.3.3 (development)
 ===========================
+- Added a new developer tool, config/sample-runs.sh, that extracts the sample
+  runs from all examples and miniapps and runs them. Optionally, it can save the
+  output from the execution to files, allowing comparison between different
+  versions and builds of the library.
+
 - Added support for elimination of boundary conditions in block matrices.
 
 - When building with the GnuTLS library, switch to using X.509 certificates for
