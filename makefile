@@ -388,6 +388,12 @@ test:
 	   if [ 0 -ne $${ERR} ]; then echo "Some tests failed."; exit 1; \
 	   else echo "All tests passed."; fi
 
+.PHONY: test-print
+test-print:
+	@echo "Printing tests in: [ $(EM_TEST_DIRS) ] ..."
+	@for dir in $(EM_TEST_DIRS); do \
+	   $(MAKE) -j1 -C $(BLD)$${dir} test-print; done
+
 ALL_CLEAN_SUBDIRS = $(addsuffix /clean,config $(EM_DIRS) doc)
 .PHONY: $(ALL_CLEAN_SUBDIRS) miniapps/clean
 miniapps/clean: $(addsuffix /clean,$(MINIAPP_DIRS))
