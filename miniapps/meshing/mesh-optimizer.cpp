@@ -43,7 +43,7 @@
 //   ICF shape:
 //     ./mesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   ICF limited shape:
-//     ./mesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 6.67
+//     ./mesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 10
 //   ICF combo shape + size (rings, slow convergence):
 //     ./mesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 1000 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb
 //   3D pinched sphere shape (the mesh is in the mfem/data GitHub repository):
