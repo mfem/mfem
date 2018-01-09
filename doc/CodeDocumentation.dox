@@ -69,6 +69,8 @@ namespace mfem {
  * - <a class="el" href="ex17p_8cpp_source.html">Example 17p</a>: parallel Discontinuous Galerkin (DG) for linear elasticity
  * - <a class="el" href="ex18_8cpp_source.html">Example 18</a>: Discontinuous Galerkin (DG) for the Euler equations
  * - <a class="el" href="ex18p_8cpp_source.html">Example 18p</a>: parallel Discontinuous Galerkin (DG) for the Euler equations
+ * - <a class="el" href="ex19_8cpp_source.html">Example 19</a>: incompressible nonlinear elasticity
+ * - <a class="el" href="ex19p_8cpp_source.html">Example 19p</a>: parallel incompressible nonlinear elasticity
  *
  * <H4>SUNDIALS Examples</H4>
  * - Variants of Examples
