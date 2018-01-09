@@ -165,7 +165,7 @@ public:
    virtual ~L2_FECollection();
 };
 
-// Declare an alternative name for L2_FECollection = DG_FECollection
+/// Declare an alternative name for L2_FECollection = DG_FECollection
 typedef L2_FECollection DG_FECollection;
 
 /// Arbitrary order H(div)-conforming Raviart-Thomas finite elements.
