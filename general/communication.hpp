@@ -152,7 +152,7 @@ public:
 
    /** @brief Initialize the communicator from a local-dof to group map.
        Finalize() is called internally. */
-   void Create(Array<int> &ldof_group);
+   void Create(const Array<int> &ldof_group);
 
    /** @brief Fill-in the returned Table reference to initialize the
        GroupCommunicator then call Finalize(). */
@@ -164,7 +164,7 @@ public:
    /// Initialize the internal group_ltdof Table.
    /** This method must be called before performing operations that use local
        data layout 2, see CopyGroupToBuffer() for layout descriptions. */
-   void SetLTDofTable(Array<int> &ldof_ltdof);
+   void SetLTDofTable(const Array<int> &ldof_ltdof);
 
    /// Get a reference to the associated GroupTopology object
    GroupTopology &GetGroupTopology() { return gtopo; }
