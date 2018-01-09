@@ -15,7 +15,7 @@
 #   - CONDUIT_INCLUDE_DIRS
 
 
-# check to see if relay requires hdf5, if so make sure to set HDF5 
+# check to see if relay requires hdf5, if so make sure to set HDF5
 # as a required dep
 if(EXISTS ${CONDUIT_DIR}/include/conduit/conduit_relay_hdf5.hpp)
   message(STATUS "Conduit Relay HDF5 Support is ENABLED")
@@ -34,4 +34,3 @@ mfem_find_package(Conduit CONDUIT CONDUIT_DIR
     "include;include/conduit" conduit_relay.hpp "lib" conduit_relay
   ADD_COMPONENT blueprint
       "include;include/conduit" conduit_blueprint.hpp "lib" conduit_blueprint)
-    

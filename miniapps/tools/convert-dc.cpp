@@ -1,27 +1,37 @@
-// Tool for converting between diffrent types of data collections
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+//
+//      ----------------------------------------------------------------
+//      Convert DC : convert between different types of data collections
+//      ----------------------------------------------------------------
+//
+// This tool demonstrates how to convert between MFEM's different concrete
+// DataCollection options.
+//
+// Currently supported data collection type options:
+//    visit:                VisItDataCollection (default)
+//    sidre or sidre_hdf5:  SidreDataCollection
+//    json:                 ConduitDataCollection w/ protocol json
+//    conduit_json:         ConduitDataCollection w/ protocol conduit_json
+//    conduit_bin:          ConduitDataCollection w/ protocol conduit_bin
+//    conduit_hdf5:         ConduitDataCollection w/ protocol hdf5
 //
 // Compile with: make convert-dc
 //
-// Sample runs:
+// Serial sample runs:
+//    convert-dc -s ../../examples/Example5 -st visit -o Example5_Conduit -ot json
 //
-//    > convert-dc -s../../examples/Example5 -st visit\
-//                 -o Example5_Conduit -ot json
-//    > mpirun -np 4 convert-dc -s ../../examples/Example5-Parallel -st visit \
-//                              -o Example5-Parallel_Conduit -ot json
-//
-// Description:
-//
-//    This tool demonstrates how to convert between MFEM's different concrete DataCollection
-//    options.
-//
-//    Supported data collection type options:
-//      visit:                VisItDataCollection (default)
-//      sidre or sidre_hdf5:  SidreDataCollection
-//      json:                 ConduitDataCollection w/ protocol json
-//      conduit_json:         ConduitDataCollection w/ protocol conduit_json
-//      conduit_bin:          ConduitDataCollection w/ protocol conduit_bin
-//      conduit_hdf5:         ConduitDataCollection w/ protocol hdf5
-//
+// Parallel sample runs:
+//    mpirun -np 4 convert-dc -s ../../examples/Example5-Parallel -st visit
+//                            -o Example5-Parallel_Conduit -ot json
 
 #include "mfem.hpp"
 
@@ -77,32 +87,32 @@ int main(int argc, char *argv[])
    const char *src_coll_name = NULL;
    const char *src_coll_type = "visit";
    int src_cycle = 0;
-
    const char *out_coll_name = NULL;
    const char *out_coll_type = "visit";
 
    OptionsParser args(argc, argv);
    args.AddOption(&src_coll_name, "-s", "--source-root-prefix",
                   "Set the source data collection root file prefix.", true);
-
    args.AddOption(&out_coll_name, "-o", "--output-root-prefix",
                   "Set the source data collection root file prefix.", true);
-
    args.AddOption(&src_cycle, "-c", "--cycle",
                   "Set the source cycle index to read.");
-
-
    args.AddOption(&src_coll_type, "-st", "--source-type",
-                  "Set the source data collection type.");
-
-   /* options:
-       visit (default)
-       sidre or sidre_hdf5
-       conduit_json, conduit_bin, or conduit_hdf5
-   */
+                  "Set the source data collection type. Options:\n"
+                  "\t   visit:                VisItDataCollection (default)\n"
+                  "\t   sidre or sidre_hdf5:  SidreDataCollection\n"
+                  "\t   json:                 ConduitDataCollection w/ protocol json\n"
+                  "\t   conduit_json:         ConduitDataCollection w/ protocol conduit_json\n"
+                  "\t   conduit_bin:          ConduitDataCollection w/ protocol conduit_bin\n"
+                  "\t   conduit_hdf5:         ConduitDataCollection w/ protocol hdf5");
    args.AddOption(&out_coll_type, "-ot", "--output-type",
-                  "Set the output data collection type.");
-
+                  "Set the output data collection type. Options:\n"
+                  "\t   visit:                VisItDataCollection (default)\n"
+                  "\t   sidre or sidre_hdf5:  SidreDataCollection\n"
+                  "\t   json:                 ConduitDataCollection w/ protocol json\n"
+                  "\t   conduit_json:         ConduitDataCollection w/ protocol conduit_json\n"
+                  "\t   conduit_bin:          ConduitDataCollection w/ protocol conduit_bin\n"
+                  "\t   conduit_hdf5:         ConduitDataCollection w/ protocol hdf5");
    args.Parse();
    if (!args.Good())
    {
@@ -110,7 +120,6 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(mfem::out);
-
 
    DataCollection *src = create_data_collection(std::string(src_coll_name),
                                                 std::string(src_coll_type));
@@ -163,7 +172,6 @@ int main(int argc, char *argv[])
                 << endl;
       return 1;
    }
-
 
    // cleanup
    delete src;

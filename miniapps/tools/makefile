@@ -64,7 +64,6 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 # Do not test display-basis:
 display-basis-test-seq:
 	@true
-
 convert-dc-test-seq:
 	@true
 

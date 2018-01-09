@@ -24,11 +24,10 @@ Miscellaneous
 
 - Add support for building a shared version of the MFEM library with GNU make.
 
-- Added (optional) Conduit Mesh Blueprint support for the MFEM data for both
-  in-core and I/O use cases. This includes a new ConduitDataCollection that
-  provides json, simple binary, and HDF5-based I/O. Support requires 
-  Conduit >= v0.3.1 and VisIt >= v2.13.1 will read the new Data Collection
-  outputs.
+- Added (optional) Conduit Mesh Blueprint support of MFEM data for both in-core
+  and I/O use cases. This includes a new ConduitDataCollection that provides
+  json, simple binary, and HDF5-based I/O. Support requires Conduit >= v0.3.1
+  and VisIt >= v2.13.1 will read the new Data Collection outputs.
 
 Version 3.3.2, released on Nov 10, 2017
 =======================================
