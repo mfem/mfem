@@ -618,20 +618,24 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
                      for (int l=0; l<dim; l++)
                      {
 
-                        (*elmats(0,0))(i_u + i_dim*dof_u, j_u + j_dim*dof_u) += dJ * (mu * F(i_dim,
-                                                                                             l) - pres * FinvT(i_dim,l)) * FinvT(j_dim,n) * DS_u(i_u,l) * DS_u(j_u,
-                                                                                                   n) * ip.weight * Tr.Weight();
+                        (*elmats(0,0))(i_u + i_dim*dof_u, j_u + j_dim*dof_u) +=
+                           dJ * (mu * F(i_dim, l) - pres * FinvT(i_dim,l)) *
+                           FinvT(j_dim,n) * DS_u(i_u,l) * DS_u(j_u, n) *
+                           ip.weight * Tr.Weight();
 
                         if (j_dim == i_dim && n==l)
                         {
-                           (*elmats(0,0))(i_u + i_dim*dof_u, j_u + j_dim*dof_u) += dJ * mu * DS_u(i_u,
-                                                                                                  l) * DS_u(j_u,n) * ip.weight * Tr.Weight();
+                           (*elmats(0,0))(i_u + i_dim*dof_u, j_u + j_dim*dof_u) +=
+                              dJ * mu * DS_u(i_u, l) * DS_u(j_u,n) *
+                              ip.weight * Tr.Weight();
                         }
 
                         // a = n;
                         // b = m;
-                        (*elmats(0,0))(i_u + i_dim*dof_u, j_u + j_dim*dof_u) += dJ * pres * FinvT(i_dim,
-                                                                                                  n) * FinvT(j_dim,l) * DS_u(i_u,l) * DS_u(j_u,n) * ip.weight * Tr.Weight();
+                        (*elmats(0,0))(i_u + i_dim*dof_u, j_u + j_dim*dof_u) +=
+                           dJ * pres * FinvT(i_dim, n) *
+                           FinvT(j_dim,l) * DS_u(i_u,l) * DS_u(j_u,n) *
+                           ip.weight * Tr.Weight();
                      }
                   }
                }
@@ -648,7 +652,8 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
             {
                for (int l=0; l<dim; l++)
                {
-                  dJ_FinvT_DS = dJ * FinvT(dim_u,l) * DS_u(j_u,l) * Sh_p(i_p) * ip.weight * Tr.Weight();
+                  dJ_FinvT_DS = dJ * FinvT(dim_u,l) * DS_u(j_u, l) * Sh_p(i_p) *
+                                ip.weight * Tr.Weight();
                   (*elmats(1,0))(i_p, j_u + dof_u * dim_u) += dJ_FinvT_DS;
                   (*elmats(0,1))(j_u + dof_u * dim_u, i_p) -= dJ_FinvT_DS;
 
