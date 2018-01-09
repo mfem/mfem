@@ -3007,6 +3007,7 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    Swap(bel_to_IJK, parent->bel_to_IJK);
 
    Swap(weights, parent->weights);
+   MFEM_VERIFY(!parent->HavePatches(), "");
 
    delete parent;
 
