@@ -71,6 +71,7 @@ public:
    virtual ~NonlinearFormIntegrator() { }
 };
 
+
 class BlockNonlinearFormIntegrator
 {
 public:
@@ -105,6 +106,7 @@ public:
 
    virtual ~BlockNonlinearFormIntegrator() { }
 };
+
 
 /// Abstract class for hyperelastic models
 class HyperelasticModel
@@ -250,12 +252,13 @@ public:
                                     const Vector &elfun, DenseMatrix &elmat);
 };
 
+
 class IncompressibleNeoHookeanIntegrator : public BlockNonlinearFormIntegrator
 {
 private:
    Coefficient *c_mu;
-   DenseMatrix DSh_u, DS_u, J0i, J, J1, Finv, P, F, FinvT, PMatI_u, PMatO_u,
-               PMatI_p, PMatO_p, Z, G, C;
+   DenseMatrix DSh_u, DS_u, J0i, J, J1, Finv, P, F, FinvT;
+   DenseMatrix PMatI_u, PMatO_u, PMatI_p, PMatO_p, Z, G, C;
    Vector Sh_p;
 
 public:

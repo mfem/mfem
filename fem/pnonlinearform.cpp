@@ -140,9 +140,9 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
    return *pGrad.Ptr();
 }
 
+
 ParBlockNonlinearForm::ParBlockNonlinearForm(Array<ParFiniteElementSpace *> &pf)
-   :
-   BlockNonlinearForm()
+   : BlockNonlinearForm()
 {
    height = 0;
    width = 0;
@@ -180,7 +180,6 @@ void ParBlockNonlinearForm::SetEssentialBC(const
                                            Array<Array<int> *>&bdr_attr_is_ess,
                                            Array<Vector *> &rhs)
 {
-
    Array<Vector *> nullarray(fes.Size());
    nullarray = NULL;
 
@@ -255,7 +254,6 @@ void ParBlockNonlinearForm::SetGradientType(Operator::Type tid)
       }
    }
 }
-
 
 BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
 {
