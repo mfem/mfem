@@ -47,7 +47,6 @@ void NonlinearFormIntegrator::AssembleFaceGrad(
               " is not overloaded!");
 }
 
-
 double NonlinearFormIntegrator::GetElementEnergy(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
 {
@@ -55,6 +54,7 @@ double NonlinearFormIntegrator::GetElementEnergy(
               " is not overloaded!");
    return 0.0;
 }
+
 
 void BlockNonlinearFormIntegrator::AssembleElementVector(
    Array<const FiniteElement *> &el,
@@ -107,6 +107,7 @@ double BlockNonlinearFormIntegrator::GetElementEnergy(
               " is not overloaded!");
    return 0.0;
 }
+
 
 double InverseHarmonicModel::EvalW(const DenseMatrix &J) const
 {
@@ -324,6 +325,7 @@ void NeoHookeanModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
             }
 }
 
+
 double HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
                                                    ElementTransformation &Ttr,
                                                    const Vector &elfun)
@@ -436,6 +438,7 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
       model->AssembleH(Jpt, DS, ip.weight * Ttr.Weight(), elmat);
    }
 }
+
 
 double IncompressibleNeoHookeanIntegrator::GetElementEnergy(
    Array<const FiniteElement *>&el,

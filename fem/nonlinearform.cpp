@@ -335,6 +335,7 @@ NonlinearForm::~NonlinearForm()
    for (int i = 0; i < bfnfi.Size(); i++) { delete bfnfi[i]; }
 }
 
+
 BlockNonlinearForm::BlockNonlinearForm() :
    fes(0), BlockGrad(NULL)
 {
@@ -671,8 +672,8 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
             {
                for (int l=0; l<fes.Size(); l++)
                {
-                  Grads(j,l)->AddSubMatrix(*vdofs[j], *vdofs[l], *elmats(j,l),
-                                           skip_zeros);
+                  Grads(j,l)->AddSubMatrix(*vdofs[j], *vdofs[l],
+                                           *elmats(j,l), skip_zeros);
                }
             }
          }
@@ -707,8 +708,8 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
             {
                for (int l=0; l<fes.Size(); l++)
                {
-                  Grads(j,l)->AddSubMatrix(*vdofs[j], *vdofs[l], *elmats(j,l),
-                                           skip_zeros);
+                  Grads(j,l)->AddSubMatrix(*vdofs[j], *vdofs[l],
+                                           *elmats(j,l), skip_zeros);
                }
             }
          }

@@ -68,7 +68,7 @@ public:
 };
 
 
-/// Parallel non-linear operator on the true dofs
+/// Parallel block non-linear operator on the true dofs
 class ParBlockNonlinearForm : public BlockNonlinearForm
 {
 protected:
