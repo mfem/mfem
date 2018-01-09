@@ -10,6 +10,10 @@
 
 Version 3.3.3 (development)
 ===========================
+
+- Inherit finite element classes from the new base class TensorBasisElement,
+  whenever the basis can be represented by a tensor product of 1D bases.
+
 - Added a new developer tool, config/sample-runs.sh, that extracts the sample
   runs from all examples and miniapps and runs them. Optionally, it can save the
   output from the execution to files, allowing comparison between different
