@@ -31,6 +31,19 @@
 #include "metis.h"
 #endif
 
+// METIS 4 prototypes
+#if defined(MFEM_USE_METIS) && !defined(MFEM_USE_METIS_5)
+typedef int idxtype;
+extern "C" {
+   void METIS_PartGraphRecursive(int*, idxtype*, idxtype*, idxtype*, idxtype*,
+                                 int*, int*, int*, int*, int*, idxtype*);
+   void METIS_PartGraphKway(int*, idxtype*, idxtype*, idxtype*, idxtype*,
+                            int*, int*, int*, int*, int*, idxtype*);
+   void METIS_PartGraphVKway(int*, idxtype*, idxtype*, idxtype*, idxtype*,
+                             int*, int*, int*, int*, int*, idxtype*);
+}
+#endif
+
 #ifdef MFEM_USE_GECKO
 #include "graph.h"
 #endif
@@ -4570,19 +4583,6 @@ void Mesh::ReorientTetMesh()
       delete old_v_to_v;
    }
 }
-
-#if defined(MFEM_USE_METIS) && !defined(MFEM_USE_METIS_5)
-// METIS 4 prototypes
-typedef int idxtype;
-extern "C" {
-   void METIS_PartGraphRecursive(int*, idxtype*, idxtype*, idxtype*, idxtype*,
-                                 int*, int*, int*, int*, int*, idxtype*);
-   void METIS_PartGraphKway(int*, idxtype*, idxtype*, idxtype*, idxtype*,
-                            int*, int*, int*, int*, int*, idxtype*);
-   void METIS_PartGraphVKway(int*, idxtype*, idxtype*, idxtype*, idxtype*,
-                             int*, int*, int*, int*, int*, idxtype*);
-}
-#endif
 
 int *Mesh::CartesianPartitioning(int nxyz[])
 {
