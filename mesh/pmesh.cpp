@@ -643,13 +643,30 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
    if (mesh.NURBSext)
    {
+      MFEM_ASSERT(mesh.GetNodes() &&
+                  mesh.GetNodes()->FESpace()->GetNURBSext() == mesh.NURBSext,
+                  "invalid NURBS mesh");
       NURBSext = new ParNURBSExtension(comm, mesh.NURBSext, partitioning,
                                        activeBdrElem);
    }
 
    if (mesh.GetNodes()) // curved mesh
    {
-      Nodes = new ParGridFunction(this, mesh.GetNodes());
+      if (!NURBSext)
+      {
+         Nodes = new ParGridFunction(this, mesh.GetNodes());
+      }
+      else
+      {
+         const FiniteElementSpace *glob_fes = mesh.GetNodes()->FESpace();
+         FiniteElementCollection *nfec =
+            FiniteElementCollection::New(glob_fes->FEColl()->Name());
+         ParFiniteElementSpace *pfes =
+            new ParFiniteElementSpace(this, nfec, glob_fes->GetVDim(),
+                                      glob_fes->GetOrdering());
+         Nodes = new ParGridFunction(pfes);
+         Nodes->MakeOwner(nfec); // Nodes will own nfec and pfes
+      }
       own_nodes = 1;
 
       Array<int> gvdofs, lvdofs;
