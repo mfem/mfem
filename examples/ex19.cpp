@@ -3,10 +3,10 @@
 // Compile with: make ex19p
 //
 // Sample runs:
-//    ex10p -m ../data/beam-quad.mesh
-//    ex10p -m ../data/beam-tri.mesh
-//    ex10p -m ../data/beam-hex.mesh
-//    ex10p -m ../data/beam-tet.mesh
+//    ex19 -m ../data/beam-quad.mesh
+//    ex19 -m ../data/beam-tri.mesh
+//    ex19 -m ../data/beam-hex.mesh
+//    ex19 -m ../data/beam-tet.mesh
 //
 // Description:  This examples solves a quasi-static incompressible nonlinear
 //               elasticity problem of the form 0 = H(x), where H is an incompressible
@@ -72,9 +72,9 @@ public:
 };
 
 // After spatial discretization, the rubber model can be written as:
-//     0=H(x)
-//  where x is the block vector representing the deformation and pressure
-//  and H(x) is the nonlinear incompressible neo-Hookean operator. */
+//     0 = H(x)
+// where x is the block vector representing the deformation and pressure and
+// H(x) is the nonlinear incompressible neo-Hookean operator.
 class RubberOperator : public Operator
 {
 protected:
@@ -129,7 +129,7 @@ void InitialDeformation(const Vector &x, Vector &y);
 
 int main(int argc, char *argv[])
 {
-   // 1. Parse command-line options.
+   // 1. Parse command-line options
    const char *mesh_file = "../data/beam-hex.mesh";
    int ref_levels = 0;
    int order = 2;
@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
 
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
-   //    command-line parameter.
+   //    command-line parameter
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh->UniformRefinement();
@@ -183,7 +183,8 @@ int main(int argc, char *argv[])
    // 4. Define the shear modulus for the incompressible Neo-Hookean material
    ConstantCoefficient c_mu(mu);
 
-   // 5. Definie the finite element spaces for displacement and pressure (Taylor-Hood elements)
+   // 5. Define the finite element spaces for displacement and pressure
+   //    (Taylor-Hood elements)
    H1_FECollection quad_coll(order, dim);
    H1_FECollection lin_coll(order-1, dim);
 
@@ -227,8 +228,8 @@ int main(int argc, char *argv[])
 
    BlockVector xp(block_offsets);
 
-   // 9.  Define grid functions for the current configuration, reference configuration,
-   //     final deformation, and pressure
+   // 9. Define grid functions for the current configuration, reference
+   //    configuration, final deformation, and pressure
    GridFunction x_gf(&R_space);
    GridFunction x_ref(&R_space);
    GridFunction x_def(&R_space);
@@ -287,7 +288,7 @@ int main(int argc, char *argv[])
    }
 
 
-   // 15. Free the used memory.
+   // 15. Free the used memory
    delete mesh;
 
    return 0;
@@ -298,13 +299,12 @@ JacobianPreconditioner::JacobianPreconditioner(Array<FiniteElementSpace *> &fes,
                                                Array<int> &offsets)
    : Solver(offsets[2]), block_offsets(offsets), pressure_mass(&mass)
 {
-
    fes.Copy(spaces);
 
    gamma = 0.00001;
 
-   // The mass matrix and preconditioner do not change every Newton cycle, so
-   // we only need to define them once
+   // The mass matrix and preconditioner do not change every Newton cycle, so we
+   // only need to define them once
    GSSmoother *mass_prec_gs = new GSSmoother(*pressure_mass);
 
    mass_prec = mass_prec_gs;
@@ -324,13 +324,11 @@ JacobianPreconditioner::JacobianPreconditioner(Array<FiniteElementSpace *> &fes,
    // during SetOperator
    stiff_pcg = NULL;
    stiff_prec = NULL;
-
 }
 
 
 void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
 {
-
    // Extract the blocks from the input and output vectors
    Vector disp_in(k.GetData() + block_offsets[0],
                   block_offsets[1]-block_offsets[0]);
@@ -353,12 +351,10 @@ void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
    subtract(disp_in, temp, temp2);
 
    stiff_pcg->Mult(temp2, disp_out);
-
 }
 
 void JacobianPreconditioner::SetOperator(const Operator &op)
 {
-
    jacobian = (BlockOperator *) &op;
 
    // Initialize the stiffness preconditioner and solver
@@ -383,7 +379,6 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
    // At each Newton cycle, compute the new stiffness preconditioner by updating
    // the iterative solver which, in turn, updates its preconditioner.
    stiff_pcg->SetOperator(jacobian->GetBlock(0,0));
-
 }
 
 JacobianPreconditioner::~JacobianPreconditioner()
@@ -518,16 +513,15 @@ void visualize(ostream &out, Mesh *mesh, GridFunction *deformed_nodes,
 
 void ReferenceConfiguration(const Vector &x, Vector &y)
 {
-   // set the reference, stress
-   // free, configuration
+   // set the reference, stress free, configuration
    y = x;
 }
 
 
 void InitialDeformation(const Vector &x, Vector &y)
 {
-   // set the initial configuration. Having this different from the
-   // reference configuration can help convergence
+   // Set the initial configuration. Having this different from the reference
+   // configuration can help convergence.
    y = x;
    y[1] = x[1] + 0.25*x[0];
 }

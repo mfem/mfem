@@ -9,22 +9,22 @@
 //    mpirun -np 2 ex19p -m ../data/beam-tet.mesh
 //
 // Description:  This examples solves a quasi-static incompressible nonlinear
-//               elasticity problem of the form 0 = H(x), where H is an incompressible
-//               hyperelastic model and x is a block state vector containing
-//               displacement and pressure variables. The geometry of the domain
-//               is assumed to be as follows:
+//               elasticity problem of the form 0 = H(x), where H is an
+//               incompressible hyperelastic model and x is a block state vector
+//               containing displacement and pressure variables. The geometry of
+//               the domain is assumed to be as follows:
 //
 //                                 +---------------------+
 //                    boundary --->|                     |<--- boundary attribute 2
 //                    attribute 1  |                     |     (fixed)
 //                    (fixed)      +---------------------+
 //
-//               The example demonstrates the use of block nonlinear operators (the
-//               class RubberOperator defining H(x)) as well as a nonlinear
+//               The example demonstrates the use of block nonlinear operators
+//               (the class RubberOperator defining H(x)) as well as a nonlinear
 //               Newton solver for the quasi-static problem. Each Newton step
-//               requires the inversion of a Jacobian matrix, which is done through a
-//               (preconditioned) inner solver. The specialized block preconditioner
-//               is implemented as a user-defined solver.
+//               requires the inversion of a Jacobian matrix, which is done
+//               through a (preconditioned) inner solver. The specialized block
+//               preconditioner is implemented as a user-defined solver.
 //
 //               We recommend viewing examples 2, 5, and 10 before viewing this
 //               example.
@@ -50,8 +50,7 @@ protected:
    // Jacobian for block access
    BlockOperator *jacobian;
 
-   // Scaling factor for the pressure mass matrix in
-   // the block preconditioner
+   // Scaling factor for the pressure mass matrix in the block preconditioner
    double gamma;
 
    // Objects for the block preconditioner application
@@ -72,9 +71,9 @@ public:
 };
 
 // After spatial discretization, the rubber model can be written as:
-//     0=H(x)
-//  where x is the block vector representing the deformation and pressure
-//  and H(x) is the nonlinear incompressible neo-Hookean operator. */
+//     0 = H(x)
+// where x is the block vector representing the deformation and pressure and
+// H(x) is the nonlinear incompressible neo-Hookean operator.
 class RubberOperator : public Operator
 {
 protected:
@@ -129,13 +128,13 @@ void InitialDeformation(const Vector &x, Vector &y);
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
+   // 1. Initialize MPI
    int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   // 2. Parse command-line options.
+   // 2. Parse command-line options
    const char *mesh_file = "../data/beam-hex.mesh";
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
@@ -209,7 +208,8 @@ int main(int argc, char *argv[])
    // 6. Define the shear modulus for the incompressible Neo-Hookean material
    ConstantCoefficient c_mu(mu);
 
-   // 7. Definie the finite element spaces for displacement and pressure (Taylor-Hood elements)
+   // 7. Define the finite element spaces for displacement and pressure
+   //    (Taylor-Hood elements)
    H1_FECollection quad_coll(order, dim);
    H1_FECollection lin_coll(order-1, dim);
 
@@ -256,8 +256,8 @@ int main(int argc, char *argv[])
 
    BlockVector xp(block_trueOffsets);
 
-   // 11. Define grid functions for the current configuration, reference configuration,
-   //     final deformation, and pressure
+   // 11. Define grid functions for the current configuration, reference
+   //     configuration, final deformation, and pressure
    ParGridFunction x_gf(&R_space);
    ParGridFunction x_ref(&R_space);
    ParGridFunction x_def(&R_space);
@@ -329,7 +329,7 @@ int main(int argc, char *argv[])
    }
 
 
-   // 19. Free the used memory.
+   // 19. Free the used memory
    delete pmesh;
 
    MPI_Finalize();
