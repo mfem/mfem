@@ -23,6 +23,18 @@ Version 3.3.3 (development)
   with the visualization tool GLVis, a new set of certificates can be generated
   using the latest version of the script 'glvis-keygen.sh' from GLVis.
 
+- Added classes for general block nonlinear finite element operators (deriving
+  from BlockNonlinearForm/ParBlockNonlinearForm). Such operators have
+  assemble-based action and also support assembly of the gradient operator to
+  enable inversion with Newton iteration. This allows solution of nonlinear
+  systems with multiple unknowns which exist in different function spaces.
+
+New examples
+------------------------
+- Added a new serial and parallel example (ex19) that solves the quasi-static
+  incompressible hyperelastic equations. This demonstrates the use of block
+  nonlinear forms as well as custom block preconditioners.
+
 Miscellaneous
 -------------
 - Upgraded MFEM to support Axom 0.2.8. Prior versions are no longer supported.
