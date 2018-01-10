@@ -783,7 +783,7 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
          {
             if (s==j)
             {
-               Grads(s,s)->EliminateRowCol((*ess_vdofs[s])[i], 1);
+               Grads(s,s)->EliminateRowCol((*ess_vdofs[s])[i], Matrix::DIAG_ONE);
             }
             else
             {
