@@ -19,73 +19,6 @@
 namespace mfem
 {
 
-/// Possible basis types. Note that not all elements can use all BasisType(s).
-class BasisType
-{
-public:
-   enum
-   {
-      GaussLegendre   = 0,  ///< Open type
-      GaussLobatto    = 1,  ///< Closed type
-      Positive        = 2,  ///< Bernstein polynomials
-      OpenUniform     = 3,  ///< Nodes: x_i = (i+1)/(n+1), i=0,...,n-1
-      ClosedUniform   = 4,  ///< Nodes: x_i = i/(n-1),     i=0,...,n-1
-      OpenHalfUniform = 5   ///< Nodes: x_i = (i+1/2)/n,   i=0,...,n-1
-   };
-   /** @brief If the input does not represents a valid BasisType, abort with an
-       error; otherwise return the input. */
-   static int Check(int b_type)
-   {
-      MFEM_VERIFY(0 <= b_type && b_type < 6, "unknown BasisType: " << b_type);
-      return b_type;
-   }
-   /** @brief Get the corresponding Quadrature1D constant, when that makes
-       sense; otherwise return Quadrature1D::Invalid. */
-   static int GetQuadrature1D(int b_type)
-   {
-      switch (b_type)
-      {
-         case GaussLegendre:   return Quadrature1D::GaussLegendre;
-         case GaussLobatto:    return Quadrature1D::GaussLobatto;
-         case OpenUniform:     return Quadrature1D::OpenUniform;
-         case ClosedUniform:   return Quadrature1D::ClosedUniform;
-         case OpenHalfUniform: return Quadrature1D::OpenHalfUniform;
-      }
-      return Quadrature1D::Invalid;
-   }
-   /// Check and convert a BasisType constant to a string identifier.
-   static const char *Name(int b_type)
-   {
-      static const char *name[] =
-      {
-         "Gauss-Legendre", "Gauss-Lobatto", "Positive (Bernstein)",
-         "Open uniform", "Closed uniform", "Open half uniform"
-      };
-      return name[Check(b_type)];
-   }
-   /// Check and convert a BasisType constant to a char basis identifier.
-   static char GetChar(int b_type)
-   {
-      static const char ident[] = { 'g', 'G', 'P', 'u', 'U', 'o' };
-      return ident[Check(b_type)];
-   }
-   /// Convert char basis identifier to a BasisType constant.
-   static int GetType(char b_ident)
-   {
-      switch (b_ident)
-      {
-         case 'g': return GaussLegendre;
-         case 'G': return GaussLobatto;
-         case 'P': return Positive;
-         case 'u': return OpenUniform;
-         case 'U': return ClosedUniform;
-         case 'o': return OpenHalfUniform;
-      }
-      MFEM_ABORT("unknown BasisType identifier");
-      return -1;
-   }
-};
-
 /** Collection of finite elements from the same family in multiple dimensions.
     This class is used to match the degrees of freedom of a FiniteElementSpace
     between elements, and to provide the finite element restriction from an
@@ -147,7 +80,7 @@ class H1_FECollection : public FiniteElementCollection
 {
 
 protected:
-   int m_type;
+   int b_type;
    char h1_name[32];
    FiniteElement *H1_Elements[Geometry::NumGeom];
    int H1_dof[Geometry::NumGeom];
@@ -155,7 +88,7 @@ protected:
 
 public:
    explicit H1_FECollection(const int p, const int dim = 3,
-                            const int type = BasisType::GaussLobatto);
+                            const int btype = BasisType::GaussLobatto);
 
    virtual const FiniteElement *FiniteElementForGeometry(int GeomType) const
    { return H1_Elements[GeomType]; }
@@ -165,7 +98,7 @@ public:
    virtual const char *Name() const { return h1_name; }
    FiniteElementCollection *GetTraceCollection() const;
 
-   int GetBasisType() const { return m_type; }
+   int GetBasisType() const { return b_type; }
    /// Get the Cartesian to local H1 dof map
    const int *GetDofMap(int GeomType) const;
 
@@ -188,14 +121,14 @@ class H1_Trace_FECollection : public H1_FECollection
 {
 public:
    H1_Trace_FECollection(const int p, const int dim,
-                         const int type = BasisType::GaussLobatto);
+                         const int btype = BasisType::GaussLobatto);
 };
 
 /// Arbitrary order "L2-conforming" discontinuous finite elements.
 class L2_FECollection : public FiniteElementCollection
 {
 private:
-   int m_type; // BasisType
+   int b_type; // BasisType
    char d_name[32];
    ScalarFiniteElement *L2_Elements[Geometry::NumGeom];
    ScalarFiniteElement *Tr_Elements[Geometry::NumGeom];
@@ -205,7 +138,7 @@ private:
 
 public:
    L2_FECollection(const int p, const int dim,
-                   const int type = BasisType::GaussLegendre,
+                   const int btype = BasisType::GaussLegendre,
                    const int map_type = FiniteElement::VALUE);
 
    virtual const FiniteElement *FiniteElementForGeometry(int GeomType) const
@@ -227,7 +160,7 @@ public:
       return Tr_Elements[GeomType];
    }
 
-   int GetBasisType() const { return m_type; }
+   int GetBasisType() const { return b_type; }
 
    virtual ~L2_FECollection();
 };
