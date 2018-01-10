@@ -147,12 +147,11 @@ private:
    // Dirichlet degrees of freedom
    Array<int>   dbc_dofs_;
 
-   // High order simplectic integration requires partial time steps of
-   // differing lengths.  If losses are present the system matrix
-   // includes a portion scaled by the time step.  Consequently, high
-   // order time integration requires different system matrices.  The
-   // following maps contain various objects that depend on the time
-   // step.
+   // High order symplectic integration requires partial time steps of differing
+   // lengths. If losses are present the system matrix includes a portion scaled
+   // by the time step. Consequently, high order time integration requires
+   // different system matrices. The following maps contain various objects that
+   // depend on the time step.
    mutable std::map<int, ParBilinearForm *> a1_;
    mutable std::map<int, HypreParMatrix  *> A1_;
    mutable std::map<int, Coefficient     *> dtCoef_;

@@ -722,7 +722,8 @@ void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
          Vector posV(pos.Data(), dof * dim);
          double detW;
 
-         if (target_type == IDEAL_SHAPE_GIVEN_SIZE) { detW = Wideal.Det(); }
+         // always initialize detW to suppress a warning:
+         detW = (target_type == IDEAL_SHAPE_GIVEN_SIZE) ? Wideal.Det() : 0.0;
          nodes->FESpace()->GetElementVDofs(e_id, xdofs);
          nodes->GetSubVector(xdofs, posV);
          for (int i = 0; i < ir.GetNPoints(); i++)

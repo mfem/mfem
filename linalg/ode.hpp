@@ -282,15 +282,13 @@ public:
    virtual void Step(Vector &x, double &t, double &dt);
 };
 
-/// The SIASolver class is based on the Symplectic Integration
-/// Algorithm described in "A Symplectic Integration Algorithm for
-/// Separable Hamiltonian Functions" by J. Candy and W. Rozmus which
-/// can be found in the Journal of Computational Physics Vol. 92,
-/// pages 230-256 (1991).
+/// The SIASolver class is based on the Symplectic Integration Algorithm
+/// described in "A Symplectic Integration Algorithm for Separable Hamiltonian
+/// Functions" by J. Candy and W. Rozmus, Journal of Computational Physics,
+/// Vol. 92, pages 230-256 (1991).
 
-// Symplectic Integration Algorithm
-/** The Symplectic Integration Algorithm is designed for systems of
-    first order ODEs derived from a Hamiltonian.
+/** The Symplectic Integration Algorithm (SIA) is designed for systems of first
+    order ODEs derived from a Hamiltonian.
        H(q,p,t) = T(p) + V(q,t)
     Which leads to the equations:
        dq/dt = dT/dp
@@ -316,7 +314,6 @@ public:
    virtual ~SIASolver() {}
 
 protected:
-
    TimeDependentOperator * F_; // p_{i+1} = p_{i} + dt F(q_{i})
    Operator              * P_; // q_{i+1} = q_{i} + dt P(p_{i+1})
 
@@ -324,30 +321,27 @@ protected:
    mutable Vector dq_;
 };
 
-// First Order Symplectic Integration Algorithm
+// First order Symplectic Integration Algorithm
 class SIA1Solver : public SIASolver
 {
 public:
    SIA1Solver() {}
-
    void Step(Vector &q, Vector &p, double &t, double &dt);
 };
 
-// Second Order Symplectic Integration Algorithm
+// Second order Symplectic Integration Algorithm
 class SIA2Solver : public SIASolver
 {
 public:
    SIA2Solver() {}
-
    void Step(Vector &q, Vector &p, double &t, double &dt);
 };
 
-// Variable Order Symplectic Integration Algorithm (orders 1-4)
+// Variable order Symplectic Integration Algorithm (orders 1-4)
 class SIAVSolver : public SIASolver
 {
 public:
    SIAVSolver(int order);
-
    void Step(Vector &q, Vector &p, double &t, double &dt);
 
 private:
