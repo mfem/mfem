@@ -16,34 +16,37 @@
 namespace mfem
 {
 
-void Get1DBasis(const FiniteElement *fe, int ir_order,
-                DenseMatrix &shape1d)
-{
-   // Get the corresponding tensor basis element
-   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+static void GetJacobianTensor(FiniteElementSpace *fes,
+                              const DenseMatrix &shape1d, const DenseMatrix &dshape1d,
+                              DenseTensor &Jac);
 
-   // Compute the 1d shape functions and gradients
-   const Poly_1D::Basis &basis1d = tfe->GetBasis1D();
-   const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, ir_order);
+// void Get1DBasis(const FiniteElement *fe, const IntegrationRule &ir1d,
+//                 DenseMatrix &shape1d)
+// {
+//    // Get the corresponding tensor basis element
+//    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
 
-   const int quads1d = ir1d.GetNPoints();
-   const int dofs1d = fe->GetOrder() + 1;
+//    // Compute the 1d shape functions and gradients
+//    const Poly_1D::Basis &basis1d = tfe->GetBasis1D();
 
-   shape1d.SetSize(dofs1d, quads1d);
+//    const int quads1d = ir1d.GetNPoints();
+//    const int dofs1d = fe->GetOrder() + 1;
 
-   Vector u(dofs1d);
-   for (int k = 0; k < quads1d; k++)
-   {
-      const IntegrationPoint &ip = ir1d.IntPoint(k);
-      basis1d.Eval(ip.x, u);
-      for (int i = 0; i < dofs1d; i++)
-      {
-         shape1d(i, k) = u(i);
-      }
-   }
-}
+//    shape1d.SetSize(dofs1d, quads1d);
 
-void Get1DBasis(const FiniteElement *fe, int ir_order,
+//    Vector u(dofs1d);
+//    for (int k = 0; k < quads1d; k++)
+//    {
+//       const IntegrationPoint &ip = ir1d.IntPoint(k);
+//       basis1d.Eval(ip.x, u);
+//       for (int i = 0; i < dofs1d; i++)
+//       {
+//          shape1d(i, k) = u(i);
+//       }
+//    }
+// }
+
+void Get1DBasis(const FiniteElement *fe, const IntegrationRule &ir1d,
                 DenseMatrix &shape1d, DenseMatrix &dshape1d)
 {
    // Get the corresponding tensor basis element
@@ -51,7 +54,6 @@ void Get1DBasis(const FiniteElement *fe, int ir_order,
 
    // Compute the 1d shape functions and gradients
    const Poly_1D::Basis &basis1d = tfe->GetBasis1D();
-   const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, ir_order);
 
    const int quads1d = ir1d.GetNPoints();
    const int dofs1d = fe->GetOrder() + 1;
@@ -73,7 +75,7 @@ void Get1DBasis(const FiniteElement *fe, int ir_order,
    }
 }
 
-void PADiffusionIntegrator::Assemble(FiniteElementSpace *_trial_fes,
+void FESDiffusionIntegrator::Assemble(FiniteElementSpace *_trial_fes,
                                      FiniteElementSpace *_test_fes)
 {
    // Assumption: trial and test fespaces are the same (no mixed forms yet)
@@ -83,6 +85,7 @@ void PADiffusionIntegrator::Assemble(FiniteElementSpace *_trial_fes,
    const FiniteElement *fe = fes->GetFE(0);
 
    // Set integration rule
+   const IntegrationRule *IntRule = integ->IntRule;
    int ir_order;
    if (!IntRule)
    {
@@ -99,11 +102,11 @@ void PADiffusionIntegrator::Assemble(FiniteElementSpace *_trial_fes,
 
       if (fe->Space() == FunctionSpace::rQk)
       {
-         SetIntegrationRule(&RefinedIntRules.Get(fe->GetGeomType(), ir_order));
+         IntRule = &RefinedIntRules.Get(fe->GetGeomType(), ir_order);
       }
       else
       {
-         SetIntegrationRule(&IntRules.Get(fe->GetGeomType(), ir_order));
+         IntRule = &IntRules.Get(fe->GetGeomType(), ir_order);
       }
    }
    else
@@ -111,13 +114,16 @@ void PADiffusionIntegrator::Assemble(FiniteElementSpace *_trial_fes,
       ir_order = IntRule->GetOrder();
    }
 
+
    // Store the 1d shape functions and gradients
-   Get1DBasis(fe, ir_order, shape1d, dshape1d);
+   const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, ir_order);
+   Get1DBasis(fe, ir1d, shape1d, dshape1d);
 
    // Create the operator
    const int elems   = fes->GetNE();
    const int dim     = fe->GetDim();
-   const int quads   = IntRule->GetNPoints();
+   const int quads1d = shape1d.Width();
+   int quads = 1; for (int i = 0; i < dim; i++) quads *= quads1d;
    const int entries = dim * (dim + 1) / 2;
    Dtensor.SetSize(entries, quads, elems);
 
@@ -173,7 +179,7 @@ void PADiffusionIntegrator::Assemble(FiniteElementSpace *_trial_fes,
 }
 
 
-void PADiffusionIntegrator::MultSeg(const Vector &V, Vector &U)
+void FESDiffusionIntegrator::MultSeg(const Vector &V, Vector &U)
 {
    const int dim = 1;
    const int terms = dim*(dim+1)/2;
@@ -228,7 +234,7 @@ void PADiffusionIntegrator::MultSeg(const Vector &V, Vector &U)
 }
 
 
-void PADiffusionIntegrator::MultQuad(const Vector &V, Vector &U)
+void FESDiffusionIntegrator::MultQuad(const Vector &V, Vector &U)
 {
    const int dim = 2;
    const int terms = dim*(dim+1)/2;
@@ -239,7 +245,7 @@ void PADiffusionIntegrator::MultQuad(const Vector &V, Vector &U)
    const int msize = std::max(dofs1d, quads1d);
 
    const int dofs   = dofs1d * dofs1d;
-   const int quads  = IntRule->GetNPoints();
+   const int quads  = quads1d * quads1d;
 
    DenseMatrix Q(msize, dim);
    DenseTensor QQ(quads1d, quads1d, dim);
@@ -325,7 +331,7 @@ void PADiffusionIntegrator::MultQuad(const Vector &V, Vector &U)
    }
 }
 
-void PADiffusionIntegrator::MultHex(const Vector &V, Vector &U)
+void FESDiffusionIntegrator::MultHex(const Vector &V, Vector &U)
 {
    const int dim = 3;
    const int terms = dim*(dim+1)/2;
@@ -336,7 +342,7 @@ void PADiffusionIntegrator::MultHex(const Vector &V, Vector &U)
    const int msize = std::max(dofs1d, quads1d);
 
    const int dofs   = dofs1d * dofs1d * dofs1d;
-   const int quads  = IntRule->GetNPoints();
+   const int quads  = quads1d * quads1d * quads1d;
 
    DenseMatrix Q(msize, dim);
    DenseTensor QQ(msize, msize, dim);
@@ -462,7 +468,7 @@ void PADiffusionIntegrator::MultHex(const Vector &V, Vector &U)
                   for (int i1 = 0; i1 < dofs1d; ++i1)
                   {
                      Umat(i1, i2, i3) +=
-                        QQ(i1, i2, 0) * s + 
+                        QQ(i1, i2, 0) * s +
                         QQ(i1, i2, 1) * s +
                         QQ(i1, i2, 2) * d;
                   }
@@ -472,7 +478,7 @@ void PADiffusionIntegrator::MultHex(const Vector &V, Vector &U)
    }
 }
 
-void PADiffusionIntegrator::AddMult(const Vector &x, Vector &y)
+void FESDiffusionIntegrator::AddMult(const Vector &x, Vector &y)
 {
    const int dim = fes->GetMesh()->Dimension();
 
@@ -486,7 +492,7 @@ void PADiffusionIntegrator::AddMult(const Vector &x, Vector &y)
 }
 
 
-void PAMassIntegrator::Assemble(FiniteElementSpace *_trial_fes,
+void FESMassIntegrator::Assemble(FiniteElementSpace *_trial_fes,
                                 FiniteElementSpace *_test_fes)
 {
    // Assumption: trial and test fespaces are the same (no mixed forms yet)
@@ -496,6 +502,7 @@ void PAMassIntegrator::Assemble(FiniteElementSpace *_trial_fes,
    const FiniteElement *fe = fes->GetFE(0);
 
    // Set integration rule
+   const IntegrationRule *IntRule = integ->IntRule;
    int ir_order;
    if (!IntRule)
    {
@@ -505,11 +512,11 @@ void PAMassIntegrator::Assemble(FiniteElementSpace *_trial_fes,
 
       if (fe->Space() == FunctionSpace::rQk)
       {
-         SetIntegrationRule(&RefinedIntRules.Get(fe->GetGeomType(), ir_order));
+         IntRule = &RefinedIntRules.Get(fe->GetGeomType(), ir_order);
       }
       else
       {
-         SetIntegrationRule(&IntRules.Get(fe->GetGeomType(), ir_order));
+         IntRule = &IntRules.Get(fe->GetGeomType(), ir_order);
       }
    }
    else
@@ -517,12 +524,16 @@ void PAMassIntegrator::Assemble(FiniteElementSpace *_trial_fes,
       ir_order = IntRule->GetOrder();
    }
 
-   Get1DBasis(fes->GetFE(0), ir_order, shape1d);
+   // Store the 1d shape functions and gradients
+   const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, ir_order);
+   DenseMatrix dshape1d;
+   Get1DBasis(fe, ir1d, shape1d, dshape1d);
 
    // Create the operator
    const int nelem   = fes->GetNE();
    const int dim     = fe->GetDim();
-   const int quads   = IntRule->GetNPoints();
+   const int quads1d = shape1d.Width();
+   int quads = 1; for (int i = 0; i < dim; i++) quads *= quads1d;
    const int vdim    = integ ? 1 : dim;
    Dtensor.SetSize(quads, vdim, nelem);
 
@@ -567,7 +578,7 @@ void PAMassIntegrator::Assemble(FiniteElementSpace *_trial_fes,
    }
 }
 
-void PAMassIntegrator::MultSeg(const Vector &V, Vector &U)
+void FESMassIntegrator::MultSeg(const Vector &V, Vector &U)
 {
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
@@ -614,14 +625,14 @@ void PAMassIntegrator::MultSeg(const Vector &V, Vector &U)
    }
 }
 
-void PAMassIntegrator::MultQuad(const Vector &V, Vector &U)
+void FESMassIntegrator::MultQuad(const Vector &V, Vector &U)
 {
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
    const int msize = std::max(dofs1d, quads1d);
 
    const int dofs   = dofs1d * dofs1d;
-   const int quads  = IntRule->GetNPoints();
+   const int quads  = quads1d * quads1d;;
    const int vdim = fes->GetVDim();
 
    Vector Q(msize);
@@ -689,14 +700,14 @@ void PAMassIntegrator::MultQuad(const Vector &V, Vector &U)
    }
 }
 
-void PAMassIntegrator::MultHex(const Vector &V, Vector &U)
+void FESMassIntegrator::MultHex(const Vector &V, Vector &U)
 {
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
    const int msize = std::max(dofs1d, quads1d);
 
    const int dofs   = dofs1d * dofs1d * dofs1d;
-   const int quads  = IntRule->GetNPoints();
+   const int quads  = quads1d * quads1d * quads1d;
    const int vdim = fes->GetVDim();
 
    Vector Q(msize);
@@ -793,7 +804,7 @@ void PAMassIntegrator::MultHex(const Vector &V, Vector &U)
    }
 }
 
-void PAMassIntegrator::AddMult(const Vector &x, Vector &y)
+void FESMassIntegrator::AddMult(const Vector &x, Vector &y)
 {
    const int dim = fes->GetMesh()->Dimension();
 
@@ -805,5 +816,318 @@ void PAMassIntegrator::AddMult(const Vector &x, Vector &y)
    default: mfem_error("Not yet supported"); break;
    }
 }
+
+void FESDomainLFIntegrator::Assemble_Seg(FiniteElementSpace *fes,
+                                         const IntegrationRule &ir1d,
+                                         DenseMatrix &shape1d, DenseMatrix &dshape1d,
+                                         Vector &vect)
+{
+   const FiniteElement *fe = fes->GetFE(0);
+
+   const int NE      = fes->GetNE();
+   const int dim     = fe->GetDim();
+
+   const int quads1d = shape1d.Width();
+   const int quads = quads1d;
+
+   Coefficient &coeff = integ->Q;
+
+   mfem_error("Not yet functioning");
+}
+
+void FESDomainLFIntegrator::Assemble_Quad(FiniteElementSpace *fes,
+                                         const IntegrationRule &ir1d,
+                                         DenseMatrix &shape1d, DenseMatrix &dshape1d,
+                                         Vector &vect)
+{
+   const FiniteElement *fe = fes->GetFE(0);
+
+   const int NE      = fes->GetNE();
+   const int dim     = fe->GetDim();
+
+   const int quads1d = shape1d.Width();
+   const int quads = quads1d * quads1d;
+
+   Coefficient &coeff = integ->Q;
+
+   mfem_error("Not yet functioning");
+}
+
+void FESDomainLFIntegrator::Assemble_Hex(FiniteElementSpace *fes,
+                                         const IntegrationRule &ir1d,
+                                         DenseMatrix &shape1d, DenseMatrix &dshape1d,
+                                         Vector &vect)
+{
+   const FiniteElement *fe = fes->GetFE(0);
+
+   const int NE      = fes->GetNE();
+   const int dim     = fe->GetDim();
+
+   const int quads1d = shape1d.Width();
+   const int quads = quads1d * quads1d * quads1d;
+
+   Coefficient &coeff = integ->Q;
+
+   mfem_error("Not yet functioning");
+}
+
+void FESDomainLFIntegrator::Assemble(FiniteElementSpace *fes, Vector &vect)
+{
+   const int dim = fes->GetMesh()->Dimension();
+
+   // Assumes all the finite elements are the same order/type
+   const FiniteElement *fe = fes->GetFE(0);
+   const int ir_order = (integ->IntRule != NULL) ?
+      integ->IntRule->GetOrder() : 2 * fe->GetOrder() + 0;
+   const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, ir_order);
+
+   DenseMatrix shape1d;
+   DenseMatrix dshape1d;
+   Get1DBasis(fe, ir1d, shape1d, dshape1d);
+   GetJacobianTensor(fes, shape1d, dshape1d, Jac);
+
+   switch (dim)
+   {
+   case 1: Assemble_Seg(fes, ir1d, shape1d, dshape1d, vect);
+   case 2: Assemble_Quad(fes, ir1d, shape1d, dshape1d, vect);
+   case 3: Assemble_Hex(fes, ir1d, shape1d, dshape1d, vect);
+   default: mfem_error("Not yet supported"); break;
+   }
+}
+
+static void EvalJacobians1D(const Vector &X,
+                            const DenseMatrix &shape1d, const DenseMatrix &dshape1d,
+                            DenseTensor &Jac)
+{
+   const int dim = 1;
+   const int terms = dim * dim;
+   MFEM_ASSERT(Jac.SizeI() == dim, "");
+   MFEM_ASSERT(Jac.SizeJ() == dim, "");
+
+   const int NE = Jac.SizeK();
+
+   const int quads1d = shape1d.Width();
+   const int dofs1d = shape1d.Height();
+   const int quads = quads1d;
+   const int dofs = dofs1d;
+
+   const double *ds1d = dshape1d.GetData();
+
+   const double *Xd = X.GetData();
+   double *Jd = Jac.GetData(0);
+
+   for (int e = 0; e < NE; e++)
+   {
+      const int J_offset = e * quads * terms;
+      double *Je = Jd + J_offset;
+
+      const int x_offset = e * dofs * dim;
+      const double *Xe = Xd + x_offset;
+
+      for (int k = 0; k < quads * terms; k++) Je[k] = 0;
+
+      for (int j1 = 0; j1 < dofs1d; ++j1)
+      {
+         const double *x = Xe + j1;
+         for (int k1 = 0; k1 < quads1d; ++k1)
+         {
+            Je[k1] += x[0] * ds1d[j1 + dofs1d * k1];
+         }
+      }
+   }
+}
+
+static void EvalJacobians2D(const Vector &X,
+                            const DenseMatrix &shape1d, const DenseMatrix &dshape1d,
+                            DenseTensor &Jac)
+{
+   const int dim = 2;
+   const int terms = dim * dim;
+   MFEM_ASSERT(Jac.SizeI() == dim, "");
+   MFEM_ASSERT(Jac.SizeJ() == dim, "");
+
+   const int NE = Jac.SizeK();
+
+   const int quads1d = shape1d.Width();
+   const int dofs1d = shape1d.Height();
+
+   const int quads = quads1d * quads1d;
+   const int dofs = dofs1d * dofs1d;
+
+   const double *s1d = shape1d.GetData();
+   const double *ds1d = dshape1d.GetData();
+
+   const double *Xd = X.GetData();
+   double *Jd = Jac.GetData(0);
+
+   DenseMatrix Q(quads1d, dim);
+   double *Qd = Q.GetData();
+
+   for (int e = 0; e < NE; e++)
+   {
+      const int J_offset = e * quads * terms;
+      double *Je = Jd + J_offset;
+
+      const int x_offset = e * dofs * dim;
+      const double *Xe = Xd + x_offset;
+
+      for (int k = 0; k < quads * terms; k++) Je[k] = 0;
+
+      for (int l = 0; l < dim; l++)
+      {
+         for (int j2 = 0; j2 < dofs1d; ++j2)
+         {
+            for (int k = 0; k < quads1d * dim; k++) Qd[k] = 0;
+            for (int j1 = 0; j1 < dofs1d; ++j1)
+            {
+               const double *x = Xe + j1 + dofs1d * j2 + dim * dofs;
+               for (int k1 = 0; k1 < quads1d; ++k1)
+               {
+                  Qd[k1 + 0 * quads1d] += x[0] * ds1d[j1 + dofs1d * k1];
+                  Qd[k1 + 1 * quads1d] += x[1] * s1d[j1 + dofs1d * k1];
+               }
+            }
+            for (int k2 = 0; k2 < quads1d; ++k2)
+            {
+               const double s = s1d[j2 + dofs1d * k2];
+               const double d = ds1d[j2 + dofs1d * k2];
+               for (int k1 = 0; k1 < quads1d; ++k1)
+               {
+                  const int k = k1 + k2 * quads1d;
+                  Je[l + 0 * dim + terms * k] += Qd[k1 + 0 * quads1d] * s;
+                  Je[l + 1 * dim + terms * k] += Qd[k1 + 1 * quads1d] * d;
+               }
+            }
+         }
+      }
+   }
+}
+
+static void EvalJacobians3D(const Vector &X,
+                            const DenseMatrix &shape1d, const DenseMatrix &dshape1d,
+                            DenseTensor &Jac)
+{
+   const int dim = 3;
+   const int terms = dim * dim;
+   MFEM_ASSERT(Jac.SizeI() == dim, "");
+   MFEM_ASSERT(Jac.SizeJ() == dim, "");
+
+   const int NE = Jac.SizeK();
+
+   const int quads1d = shape1d.Width();
+   const int dofs1d = shape1d.Height();
+
+   const int quads = quads1d * quads1d * quads1d;
+   const int dofs = dofs1d * dofs1d * quads1d;
+
+   const double *s1d = shape1d.GetData();
+   const double *ds1d = dshape1d.GetData();
+
+   const double *Xd = X.GetData();
+   double *Jd = Jac.GetData(0);
+
+   DenseMatrix Q(quads1d, dim);
+   DenseTensor QQ(dim, quads1d, quads1d);
+   double *Qd = Q.GetData();
+   double *QQd = Q.GetData();
+
+   for (int e = 0; e < NE; e++)
+   {
+      const int J_offset = e * quads * terms;
+      double *Je = Jd + J_offset;
+
+      const int x_offset = e * dofs * dim;
+      const double *Xe = Xd + x_offset;
+
+      for (int k = 0; k < quads * terms; k++) Je[k] = 0;
+
+      for (int l = 0; l < dim; l++)
+      {
+         for (int j3 = 0; j3 < dofs1d; ++j3)
+         {
+            for (int k = 0; k < quads1d * quads1d * dim; k++) QQd[k] = 0;
+            for (int j2 = 0; j2 < dofs1d; ++j2)
+            {
+               for (int k = 0; k < quads1d * dim; k++) Qd[k] = 0;
+               for (int j1 = 0; j1 < dofs1d; ++j1)
+               {
+                  const double x = Xe[j1 + dofs1d * (j2 + dofs1d * j3) + dim * dofs];
+                  for (int k1 = 0; k1 < quads1d; ++k1)
+                  {
+                     Qd[k1 + 0 * quads1d] += x * ds1d[j1 + k1 * dofs1d];
+                     Qd[k1 + 1 * quads1d] += x * s1d[j1 + k1 * dofs1d];
+                  }
+               }
+               for (int k2 = 0; k2 < quads1d; ++k2)
+               {
+                  const double s = s1d[j2 + dofs1d * k2];
+                  const double d = ds1d[j2 + dofs1d * k2];
+                  for (int k1 = 0; k1 < quads1d; ++k1)
+                  {
+                     const int k = k1 + quads1d * k2;
+                     QQd[0 + dim * k] += s * Qd[k1 + 0 * quads1d];
+                     QQd[1 + dim * k] += d * Qd[k1 + 1 * quads1d];
+                     QQd[2 + dim * k] += s * Qd[k1 + 1 * quads1d];
+                  }
+               }
+            }
+            for (int k3 = 0; k3 < quads1d; ++k3)
+            {
+               const double s = s1d[j3 + dofs1d * k3];
+               const double d = ds1d[j3 + dofs1d * k3];
+               for (int k2 = 0; k2 < quads1d; ++k2)
+                  for (int k1 = 0; k1 < quads1d; ++k1)
+                  {
+                     const int k = k1 + quads1d * (k2 + quads1d * k3);
+                     Je[l + 0 * dim + terms * k] += s * QQd[0 + dim * k];
+                     Je[l + 1 * dim + terms * k] += s * QQd[1 + dim * k];
+                     Je[l + 2 * dim + terms * k] += d * QQd[2 + dim * k];
+                  }
+            }
+         }
+      }
+   }
+}
+
+static void GetJacobianTensor(FiniteElementSpace *fes,
+                              const DenseMatrix &shape1d, const DenseMatrix &dshape1d,
+                              DenseTensor &Jac)
+{
+   Mesh *mesh = fes->GetMesh();
+   const int dim = mesh->Dimension();
+   const int NE = mesh->GetNE();
+
+   // Get the vertices as a first order GridFunction if it hasn't already been created
+   if (!mesh->GetNodalFESpace())
+   {
+      mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
+   }
+
+   // Get the local veritices stored element-wise (with element boundary nodes duplicated)
+   FiniteElementSpace *mesh_fes = const_cast<FiniteElementSpace*>(mesh->GetNodalFESpace());
+   const GridFunction *nodes = mesh->GetNodes();
+
+   Vector X(mesh_fes->GetLocalVSize());
+   mesh_fes->ToLocalVector(*nodes, X);
+
+   // Set Jac size and calculate
+   Jac.SetSize(dim, dim, NE);
+   switch (dim)
+   {
+   case 1:
+      EvalJacobians1D(X, shape1d, dshape1d, Jac);
+      break;
+   case 2:
+      EvalJacobians2D(X, shape1d, dshape1d, Jac);
+      break;
+   case 3:
+      EvalJacobians3D(X, shape1d, dshape1d, Jac);
+      break;
+   default:
+      mfem_error("Not supported");
+      break;
+   }
+}
+
 
 }

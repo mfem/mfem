@@ -45,16 +45,10 @@ public:
 
 class LinearFESpaceIntegrator
 {
-protected:
-   const IntegrationRule *IntRule;
-
 public:
-   LinearFESpaceIntegrator(const IntegrationRule *_IntRule = NULL) :
-      IntRule(_IntRule) { }
+   LinearFESpaceIntegrator() { }
 
    virtual ~LinearFESpaceIntegrator() { }
-
-   void SetIntegrationRule(const IntegrationRule *ir) { IntRule = ir; }
 
    /// Assemble the vector
    virtual void Assemble(FiniteElementSpace *fes, Vector &vect) = 0;
@@ -134,6 +128,9 @@ public:
                                          Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
+
+   // Friend partial assembly version so it has access to the coefficients.
+   friend class FESDomainLFIntegrator;
 };
 
 /// Class for boundary integration L(v) := (g, v)

@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      a->AddIntegrator(new PADiffusionIntegrator(new DiffusionIntegrator(one)));
+      a->AddIntegrator(new FESDiffusionIntegrator(new DiffusionIntegrator(one)));
    }
    a->AssembleForm(p_assembly ? PartialAssembly : FullAssembly);
 

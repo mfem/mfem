@@ -35,7 +35,7 @@ void Get1DBasis(const FiniteElement *fe, int ir_order,
 /** Class for computing the action of (grad(u), grad(v)) from a scalar
  * fespace using a partially assembled operator at quadrature
  * points. */
-class PADiffusionIntegrator : public BilinearFESpaceIntegrator
+class FESDiffusionIntegrator : public BilinearFESpaceIntegrator
 {
 protected:
    // Carry pointer in order to have access to coefficient
@@ -43,6 +43,7 @@ protected:
    const FiniteElementSpace *fes;  // TODO: support mixed spaces
    DenseTensor Dtensor;
    DenseMatrix shape1d, dshape1d;
+   DenseTensor Jac;
 
    // Action methods
    void MultSeg(const Vector &V, Vector &U);
@@ -50,8 +51,8 @@ protected:
    void MultHex(const Vector &V, Vector &U);
 
 public:
-   PADiffusionIntegrator(DiffusionIntegrator *_integ) : integ(_integ) {}
-   ~PADiffusionIntegrator() { delete integ; }
+   FESDiffusionIntegrator(DiffusionIntegrator *_integ) : integ(_integ) { }
+   ~FESDiffusionIntegrator() { delete integ; }
 
    virtual void Assemble(FiniteElementSpace *trial_fes,
                          FiniteElementSpace *test_fes);
@@ -61,7 +62,7 @@ public:
 
 /** Class for computing the action of (u, v) from a scalar fespace
  * using a partially assembled operator at quadrature points. */
-class PAMassIntegrator : public BilinearFESpaceIntegrator
+class FESMassIntegrator : public BilinearFESpaceIntegrator
 {
 protected:
    MassIntegrator *integ;     // Own this
@@ -69,6 +70,7 @@ protected:
    const FiniteElementSpace *fes;  // TODO: support mixed spaces
    DenseTensor Dtensor;
    DenseMatrix shape1d;
+   DenseTensor Jac;
 
    // Action methods
    void MultSeg(const Vector &V, Vector &U);
@@ -76,14 +78,42 @@ protected:
    void MultHex(const Vector &V, Vector &U);
 
 public:
-   PAMassIntegrator(MassIntegrator *_integ) : integ(_integ), vinteg(NULL) {}
-   PAMassIntegrator(VectorMassIntegrator *_vinteg) : integ(NULL), vinteg(_vinteg) {}
-   ~PAMassIntegrator() { delete integ; delete vinteg; }
+   FESMassIntegrator(MassIntegrator *_integ) : integ(_integ), vinteg(NULL) { }
+   FESMassIntegrator(VectorMassIntegrator *_vinteg) : integ(NULL), vinteg(_vinteg) { }
+   ~FESMassIntegrator() { delete integ; delete vinteg; }
 
    virtual void Assemble(FiniteElementSpace *_trial_fes,
                          FiniteElementSpace *_test_fes);
 
    virtual void AddMult(const Vector &x, Vector &y);
+};
+
+class FESDomainLFIntegrator : public LinearFESpaceIntegrator
+{
+protected:
+   DomainLFIntegrator *integ;
+   DenseTensor Jac;
+
+   void Assemble_Seg(FiniteElementSpace *fes,
+                     const IntegrationRule &ir1d,
+                     DenseMatrix &shape1d, DenseMatrix &dshape1d,
+                     Vector &vect);
+
+   void Assemble_Quad(FiniteElementSpace *fes,
+                      const IntegrationRule &ir1d,
+                      DenseMatrix &shape1d, DenseMatrix &dshape1d,
+                      Vector &vect);
+
+   void Assemble_Hex(FiniteElementSpace *fes,
+                     const IntegrationRule &ir1d,
+                     DenseMatrix &shape1d, DenseMatrix &dshape1d,
+                     Vector &vect);
+
+public:
+   FESDomainLFIntegrator(DomainLFIntegrator *_integ) : integ(_integ) { }
+   FESDomainLFIntegrator() { delete integ; }
+
+   virtual void Assemble(FiniteElementSpace *fes, Vector &vect);
 };
 
 }

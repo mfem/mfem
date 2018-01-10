@@ -74,16 +74,10 @@ public:
 
 class NonlinearFESpaceIntegrator
 {
-protected:
-   const IntegrationRule *IntRule;
-
 public:
-   NonlinearFESpaceIntegrator(const IntegrationRule *_IntRule = NULL) :
-      IntRule(_IntRule) { }
+   NonlinearFESpaceIntegrator() { }
 
    virtual ~NonlinearFESpaceIntegrator() { }
-
-   void SetIntegrationRule(const IntegrationRule *ir) { IntRule = ir; }
 
    /// Internally assemble the integrator for the specific trial and
    /// test spaces, and a vector u to calculate the term.

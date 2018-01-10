@@ -341,7 +341,7 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
    }
    else
    {
-      M->AddIntegrator(new PAMassIntegrator(new MassIntegrator));
+      M->AddIntegrator(new FESMassIntegrator(new MassIntegrator));
    }
 
    M->AssembleForm(p_assembly_mass ? PartialAssembly : FullAssembly);
@@ -441,7 +441,7 @@ void ConductionOperator::SetParameters(const Vector &u)
    }
    else
    {
-      K->AddIntegrator(new PADiffusionIntegrator(new DiffusionIntegrator(u_coeff)));
+      K->AddIntegrator(new FESDiffusionIntegrator(new DiffusionIntegrator(u_coeff)));
    }
    K->AssembleForm(p_assembly_diff ? PartialAssembly : FullAssembly);
 
