@@ -1282,6 +1282,8 @@ void HypreParMatrix::Threshold(double threshold)
 
    ierr += hypre_ParCSRMatrixDestroy(A);
 
+   MFEM_VERIFY(ierr == 0, "");
+
    A = parcsr_A_ptr;
 }
 

@@ -142,7 +142,7 @@ int STable3D::Push4 (int r, int c, int f, int t)
 
    if (max < c) { max = c, i = 1; }
    if (max < f) { max = f, i = 2; }
-   if (max < t) { max = t, i = 3; }
+   if (max < t) { i = 3; }
 
    switch (i)
    {
@@ -166,7 +166,7 @@ int STable3D::operator() (int r, int c, int f, int t) const
 
    if (max < c) { max = c, i = 1; }
    if (max < f) { max = f, i = 2; }
-   if (max < t) { max = t, i = 3; }
+   if (max < t) { i = 3; }
 
    switch (i)
    {
