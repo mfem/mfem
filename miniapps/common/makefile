@@ -38,8 +38,8 @@ endif
 %.o: %.cpp
 
 # Replace the default implicit rule for *.cpp files
-%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@) $(MFEM_LIBS)
+%.o: $(SRC)%.cpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
 all: $(MINIOBJS)
 
