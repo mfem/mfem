@@ -181,7 +181,8 @@ public:
        PETSc format @a tid. */
    /** The supported type ids are: Operator::PETSC_MATAIJ,
        Operator::PETSC_MATIS, and Operator::PETSC_MATSHELL. */
-   PetscParMatrix(const HypreParMatrix *ha, Operator::Type tid);
+   explicit PetscParMatrix(const HypreParMatrix *ha,
+                           Operator::Type tid = Operator::PETSC_MATAIJ);
 
    /** @brief Convert an mfem::Operator into a PetscParMatrix in the given PETSc
        format @a tid. */
@@ -196,7 +197,8 @@ public:
        created using @a tid as the type for the blocks.
        Note that if @a op is already a PetscParMatrix of the same type as
        @a tid, the resulting PetscParMatrix will share the same Mat object */
-   PetscParMatrix(MPI_Comm comm, const Operator *op, Operator::Type tid);
+   PetscParMatrix(MPI_Comm comm, const Operator *op,
+                  Operator::Type tid = Operator::PETSC_MATSHELL);
 
    /// Creates block-diagonal square parallel matrix.
    /** The block-diagonal is given by @a diag which must be in CSR format
