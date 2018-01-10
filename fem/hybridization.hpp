@@ -73,8 +73,6 @@ protected:
 #ifdef MFEM_USE_MPI
    HypreParMatrix *pC, *P_pc; // for parallel non-conforming meshes
    OperatorHandle pH;
-
-   Array<HYPRE_Int> P_pc_row_starts, P_pc_col_starts;
 #endif
 
    void ConstructC();

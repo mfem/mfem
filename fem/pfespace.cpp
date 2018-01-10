@@ -478,6 +478,17 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    R = Transpose(Pdiag);
 }
 
+HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
+{
+   HypreParMatrix *P_pc;
+   Array<HYPRE_Int> P_pc_row_starts, P_pc_col_starts;
+   BuildParallelConformingInterpolation(&P_pc, NULL, P_pc_row_starts,
+                                        P_pc_col_starts, NULL, true);
+   P_pc->CopyRowStarts();
+   P_pc->CopyColStarts();
+   return P_pc;
+}
+
 void ParFiniteElementSpace::DivideByGroupSize(double *vec)
 {
    if (Nonconforming())

@@ -184,13 +184,16 @@ public:
    int GetNEDofs() const { return nedofs; }
    int GetNFDofs() const { return nfdofs; }
 
-   /// Returns number of nodes in the mesh.
+   /// Returns number of vertices in the mesh.
    inline int GetNV() const { return mesh->GetNV(); }
 
    /// Returns number of elements in the mesh.
    inline int GetNE() const { return mesh->GetNE(); }
 
-   /// Returns number of faces in the mesh.
+   /// Returns number of faces (i.e. co-dimension 1 entities) in the mesh.
+   /** The co-dimension 1 entities are those that have dimension 1 less than the
+       mesh dimension, e.g. for a 2D mesh, the faces are the 1D entities, i.e.
+       the edges. */
    inline int GetNF() const { return mesh->GetNumFaces(); }
 
    /// Returns number of boundary elements in the mesh.
@@ -208,16 +211,16 @@ public:
    inline int GetBdrElementType(int i) const
    { return mesh->GetBdrElementType(i); }
 
-   /// Returns ElementTransformation for the i'th element.
+   /// Returns ElementTransformation for the @a i-th element.
    ElementTransformation *GetElementTransformation(int i) const
    { return mesh->GetElementTransformation(i); }
 
-   /** Returns the transformation defining the i-th element in the user-defined
-       variable. */
+   /** @brief Returns the transformation defining the @a i-th element in the
+       user-defined variable @a ElTr. */
    void GetElementTransformation(int i, IsoparametricTransformation *ElTr)
    { mesh->GetElementTransformation(i, ElTr); }
 
-   /// Returns ElementTransformation for the i'th boundary element.
+   /// Returns ElementTransformation for the @a i-th boundary element.
    ElementTransformation *GetBdrElementTransformation(int i) const
    { return mesh->GetBdrElementTransformation(i); }
 

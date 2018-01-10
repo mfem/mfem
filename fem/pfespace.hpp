@@ -32,11 +32,13 @@ private:
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
-   /// Parallel mesh.
+   /// Parallel mesh; #mesh points to this object as well. Not owned.
    ParMesh *pmesh;
+   /** Parallel non-conforming mesh extension object; same as pmesh->pncmesh.
+       Not owned. */
    ParNCMesh *pncmesh;
 
-   /// GroupCommunicator on the local VDofs
+   /// GroupCommunicator on the local VDofs. Owned.
    GroupCommunicator *gcomm;
 
    /// Number of true dofs in this processor (local true dofs).
@@ -66,11 +68,12 @@ private:
    /// The sign of the basis functions at the scalar local dofs.
    Array<int> ldof_sign;
 
-   /// The matrix P (interpolation from true dof to dof).
+   /// The matrix P (interpolation from true dof to dof). Owned.
    mutable HypreParMatrix *P;
+   /// Optimized action-only prolongation operator for conforming meshes. Owned.
    class ConformingProlongationOperator *Pconf;
 
-   /// The (block-diagonal) matrix R (restriction of dof to true dof)
+   /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
 
    ParNURBSExtension *pNURBSext() const
@@ -103,6 +106,8 @@ private:
    void GetGhostFaceDofs(const MeshId &face_id, Array<int> &dofs) const;
 
    void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
+   // Return the dofs associated with the interior of the given mesh entity.
+   // The MeshId may be the id of a regular or a ghost mesh entity.
    void GetBareDofs(int entity, const MeshId &id, Array<int> &dofs) const;
 
    int  PackDof(int entity, int index, int edof) const;
@@ -205,6 +210,11 @@ public:
    HypreParMatrix *Dof_TrueDof_Matrix() const
    { if (!P) { Build_Dof_TrueDof_Matrix(); } return P; }
 
+   /** @brief For a non-conforming mesh, construct and return the interpolation
+       matrix from the partially conforming true dofs to the local dofs. */
+   /** @note The returned pointer must be deleted by the caller. */
+   HypreParMatrix *GetPartialConformingInterpolation();
+
    /** Create and return a new HypreParVector on the true dofs, which is
        owned by (i.e. it must be destroyed by) the calling function. */
    HypreParVector *NewTrueDofVector()
@@ -283,8 +293,6 @@ public:
 
    // Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }
-
-   friend class Hybridization;
 };
 
 
