@@ -144,9 +144,22 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
 ParBlockNonlinearForm::ParBlockNonlinearForm(Array<ParFiniteElementSpace *> &pf)
    : BlockNonlinearForm()
 {
-   height = 0;
-   width = 0;
    pBlockGrad = NULL;
+   SetParSpaces(pf);
+}
+
+void ParBlockNonlinearForm::SetParSpaces(Array<ParFiniteElementSpace *> &pf)
+{
+   delete pBlockGrad;
+   pBlockGrad = NULL;
+
+   for (int s1=0; s1<fes.Size(); s1++)
+   {
+      for (int s2=0; s2<fes.Size(); s2++)
+      {
+         delete phBlockGrad(s1,s2);
+      }
+   }
 
    Array<FiniteElementSpace *> serialSpaces(pf.Size());
 
@@ -166,13 +179,16 @@ ParBlockNonlinearForm::ParBlockNonlinearForm(Array<ParFiniteElementSpace *> &pf)
          phBlockGrad(s1,s2) = new OperatorHandle(Operator::Hypre_ParCSR);
       }
    }
-
-   height = width = block_trueOffsets.Last();
 }
 
-ParFiniteElementSpace * ParBlockNonlinearForm::ParFESpace(int block) const
+ParFiniteElementSpace * ParBlockNonlinearForm::ParFESpace(int k)
 {
-   return (ParFiniteElementSpace *)fes[block];
+   return (ParFiniteElementSpace *)fes[k];
+}
+
+const ParFiniteElementSpace *ParBlockNonlinearForm::ParFESpace(int k) const
+{
+   return (const ParFiniteElementSpace *)fes[k];
 }
 
 // Here, rhs is a true dof vector
@@ -243,7 +259,7 @@ const BlockOperator & ParBlockNonlinearForm::GetLocalGradient(
 
 }
 
-/// Set the operator type id for the parallel gradient matrix/operator.
+// Set the operator type id for the parallel gradient matrix/operator.
 void ParBlockNonlinearForm::SetGradientType(Operator::Type tid)
 {
    for (int s1=0; s1<fes.Size(); s1++)
@@ -262,7 +278,7 @@ BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
       pBlockGrad = new BlockOperator(block_trueOffsets);
    }
 
-   Array<ParFiniteElementSpace *> pfes(fes.Size());
+   Array<const ParFiniteElementSpace *> pfes(fes.Size());
 
    for (int s1=0; s1<fes.Size(); s1++)
    {
