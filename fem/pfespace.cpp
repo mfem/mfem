@@ -535,6 +535,19 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
 
    GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
    GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
+#ifdef MFEM_DEBUG
+   // Verify that in boolean arthmetic: P^T ess_dofs = R ess_dofs.
+   Array<int> true_ess_dofs2(true_ess_dofs.Size());
+   HypreParMatrix *Pt = Dof_TrueDof_Matrix()->Transpose();
+   Pt->BooleanMult(1, ess_dofs, 0, true_ess_dofs2);
+   delete Pt;
+   int counter = 0;
+   for (int i = 0; i < true_ess_dofs.Size(); i++)
+   {
+      if (bool(true_ess_dofs[i]) != bool(true_ess_dofs2[i])) { counter++; }
+   }
+   MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter);
+#endif
    MarkerToList(true_ess_dofs, ess_tdof_list);
 }
 
@@ -810,7 +823,6 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
 
    // send/receive the J arrays of send_face_nbr_ldof/face_nbr_ldof,
    // respectively
-   send_J = send_face_nbr_ldof.GetJ();
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_rank = pmesh->GetFaceNbrRank(fn);
