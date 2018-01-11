@@ -69,7 +69,7 @@ public:
 
 
 /** @brief A class representing a general parallel block nonlinear operator
-    defined on the Cartesian product of mutiple ParFiniteElementSpace%s. */
+    defined on the Cartesian product of multiple ParFiniteElementSpace%s. */
 /** The ParBlockNonlinearForm takes as input, and returns as output, vectors on
     the true dofs. */
 class ParBlockNonlinearForm : public BlockNonlinearForm

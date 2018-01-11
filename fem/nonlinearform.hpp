@@ -84,7 +84,7 @@ public:
 
 
 /** @brief A class representing a general block nonlinear operator defined on
-    the Cartesian product of mutiple FiniteElementSpace%s. */
+    the Cartesian product of multiple FiniteElementSpace%s. */
 class BlockNonlinearForm : public Operator
 {
 protected:
