@@ -2369,10 +2369,11 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    for (int i = 0; i < m; i++)
    {
       const int end = external_ldofs[i];
-      std::copy(xdata+j-i, xdata+end-i, ydata+j);
+      for (int k = 0; k < end-j; k++) ydata[k+j] = xdata[k+j-i];
       j = end+1;
    }
-   std::copy(xdata+j-m, xdata+Width(), ydata+j);
+   const int end = Width();
+   for (int k = 0; k < end-j+m; k++) ydata[k+j] = xdata[k+j-m];
 
    const int out_layout = 0; // 0 - output is ldofs array
    gc.BcastEnd(ydata, out_layout);
@@ -2394,10 +2395,11 @@ void ConformingProlongationOperator::MultTranspose(
    for (int i = 0; i < m; i++)
    {
       const int end = external_ldofs[i];
-      std::copy(xdata+j, xdata+end, ydata+j-i);
+      for (int k = 0; k < end-j; k++) ydata[k+j-i] = xdata[k+j];
       j = end+1;
    }
-   std::copy(xdata+j, xdata+Height(), ydata+j-m);
+   const int end = Height();
+   for (int k = 0; k < end-j; k++) ydata[k+j-m] = xdata[k+j];
 
    const int out_layout = 2; // 2 - output is an array on all ltdofs
    gc.ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
