@@ -241,6 +241,7 @@ int main(int argc, char *argv[])
 
    x_gf.ProjectCoefficient(deform);
    x_ref.ProjectCoefficient(refconfig);
+   p_gf = 0.0;
 
    // 10. Initialize the incompressible neo-Hookean operator
    RubberOperator oper(spaces, ess_bdr, block_offsets,

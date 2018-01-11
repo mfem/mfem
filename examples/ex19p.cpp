@@ -267,6 +267,7 @@ int main(int argc, char *argv[])
 
    x_gf.ProjectCoefficient(deform);
    x_ref.ProjectCoefficient(refconfig);
+   p_gf = 0.0;
 
    // 12. Set up the block solution vectors
    x_gf.GetTrueDofs(xp.GetBlock(0));
