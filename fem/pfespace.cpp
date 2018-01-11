@@ -2360,6 +2360,7 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
 
    const double *xdata = x.GetData();
    double *ydata = y.GetData();
+   const int *eldofdata = external_ldofs.GetData();
    const int m = external_ldofs.Size();
 
    const int in_layout = 2; // 2 - input is ltdofs array
@@ -2367,11 +2368,11 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
 
    for (int i = 0; i < m; i++)
    {
-      const int j = (i > 0) ? external_ldofs[i-1]+1 : 0;
-      const int end = external_ldofs[i];
+      const int j = (i > 0) ? eldofdata[i-1]+1 : 0;
+      const int end = eldofdata[i];
       for (int k = 0; k < end-j; k++) ydata[k+j] = xdata[k+j-i];
    }
-   const int j = (m > 0) ? external_ldofs[m-1]+1 : 0;
+   const int j = (m > 0) ? eldofdata[m-1]+1 : 0;
    const int end = Width();
    for (int k = 0; k < end-j+m; k++) ydata[k+j] = xdata[k+j-m];
 
@@ -2387,17 +2388,18 @@ void ConformingProlongationOperator::MultTranspose(
 
    const double *xdata = x.GetData();
    double *ydata = y.GetData();
+   const int *eldofdata = external_ldofs.GetData();
    const int m = external_ldofs.Size();
 
    gc.ReduceBegin(xdata);
 
    for (int i = 0; i < m; i++)
    {
-      const int j = (i > 0) ? external_ldofs[i-1]+1 : 0;
-      const int end = external_ldofs[i];
+      const int j = (i > 0) ? eldofdata[i-1]+1 : 0;
+      const int end = eldofdata[i];
       for (int k = 0; k < end-j; k++) ydata[k+j-i] = xdata[k+j];
    }
-   const int j = (m > 0) ? external_ldofs[m-1]+1 : 0;
+   const int j = (m > 0) ? eldofdata[m-1]+1 : 0;
    const int end = Height();
    for (int k = 0; k < end-j; k++) ydata[k+j-m] = xdata[k+j];
 
