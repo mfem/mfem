@@ -1003,7 +1003,7 @@ static void EvalJacobians3D(const Vector &X,
    DenseMatrix Q(quads1d, dim);
    DenseTensor QQ(dim, quads1d, quads1d);
    double *Qd = Q.GetData();
-   double *QQd = QQ.GetData();
+   double *QQd = QQ.GetData(0);
 
    for (int e = 0; e < NE; e++)
    {
