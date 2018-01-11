@@ -2365,13 +2365,13 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    const int in_layout = 2; // 2 - input is ltdofs array
    gc.BcastBegin(const_cast<double*>(xdata), in_layout);
 
-   int j = 0;
    for (int i = 0; i < m; i++)
    {
+      const int j = (i > 0) ? external_ldofs[i-1]+1 : 0;
       const int end = external_ldofs[i];
       for (int k = 0; k < end-j; k++) ydata[k+j] = xdata[k+j-i];
-      j = end+1;
    }
+   const int j = (m > 0) ? external_ldofs[m-1]+1 : 0;
    const int end = Width();
    for (int k = 0; k < end-j+m; k++) ydata[k+j] = xdata[k+j-m];
 
@@ -2391,13 +2391,13 @@ void ConformingProlongationOperator::MultTranspose(
 
    gc.ReduceBegin(xdata);
 
-   int j = 0;
    for (int i = 0; i < m; i++)
    {
+      const int j = (i > 0) ? external_ldofs[i-1]+1 : 0;
       const int end = external_ldofs[i];
       for (int k = 0; k < end-j; k++) ydata[k+j-i] = xdata[k+j];
-      j = end+1;
    }
+   const int j = (m > 0) ? external_ldofs[m-1]+1 : 0;
    const int end = Height();
    for (int k = 0; k < end-j; k++) ydata[k+j-m] = xdata[k+j];
 
