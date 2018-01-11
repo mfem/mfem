@@ -2135,7 +2135,7 @@ const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
       case 0: return conforming[key >> 2];
       case 1: return masters[key >> 2];
       case 2: return slaves[key >> 2];
-      default: MFEM_ABORT("internal error"); throw 0;
+      default: MFEM_ABORT("internal error"); return conforming[0];
    }
 }
 

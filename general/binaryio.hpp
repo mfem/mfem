@@ -21,6 +21,9 @@ namespace mfem
 
 // binary I/O helpers
 
+namespace bin_io
+{
+
 template<typename T>
 inline void write(std::ostream& os, T value)
 {
@@ -35,6 +38,7 @@ inline T read(std::istream& is)
    return value;
 }
 
+} // namespace mfem::bin_io
 
 } // namespace mfem
 

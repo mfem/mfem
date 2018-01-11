@@ -23,6 +23,8 @@
 namespace mfem
 {
 
+using namespace bin_io;
+
 ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh)
    : NCMesh(ncmesh)
 {
