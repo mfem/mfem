@@ -40,7 +40,6 @@ using namespace mfem;
 class JacobianPreconditioner : public Solver
 {
 protected:
-
    // Finite element spaces for setting up preconditioner blocks
    Array<ParFiniteElementSpace *> spaces;
 
@@ -103,8 +102,8 @@ protected:
 
 public:
    RubberOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
-                  Array<int> &block_trueOffsets, double rel_tol, double abs_tol, int iter,
-                  Coefficient &mu);
+                  Array<int> &block_trueOffsets, double rel_tol, double abs_tol,
+                  int iter, Coefficient &mu);
 
    /// Required to use the native newton solver
    virtual Operator &GetGradient(const Vector &xp) const;
@@ -182,8 +181,8 @@ int main(int argc, char *argv[])
    }
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
-   //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
-   //    and volume meshes with the same code.
+   //    can handle triangular, quadrilateral, tetrahedral and hexahedral meshes
+   //    with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
@@ -328,7 +327,6 @@ int main(int argc, char *argv[])
       x_def.Save(deformation_ofs);
    }
 
-
    // 19. Free the used memory
    delete pmesh;
 
@@ -337,13 +335,13 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+
 JacobianPreconditioner::JacobianPreconditioner(Array<ParFiniteElementSpace *>
                                                &fes,
                                                Operator &mass,
                                                Array<int> &offsets)
    : Solver(offsets[2]), block_trueOffsets(offsets), pressure_mass(&mass)
 {
-
    fes.Copy(spaces);
 
    gamma = 0.00001;
@@ -370,13 +368,10 @@ JacobianPreconditioner::JacobianPreconditioner(Array<ParFiniteElementSpace *>
    // during SetOperator
    stiff_pcg = NULL;
    stiff_prec = NULL;
-
 }
-
 
 void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
 {
-
    // Extract the blocks from the input and output vectors
    Vector disp_in(k.GetData() + block_trueOffsets[0],
                   block_trueOffsets[1]-block_trueOffsets[0]);
@@ -399,12 +394,10 @@ void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
    subtract(disp_in, temp, temp2);
 
    stiff_pcg->Mult(temp2, disp_out);
-
 }
 
 void JacobianPreconditioner::SetOperator(const Operator &op)
 {
-
    jacobian = (BlockOperator *) &op;
 
    // Initialize the stiffness preconditioner and solver
@@ -415,7 +408,6 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
       stiff_prec_amg->SetElasticityOptions(spaces[0]);
 
       stiff_prec = stiff_prec_amg;
-
 
       GMRESSolver *stiff_pcg_iter = new GMRESSolver(spaces[0]->GetComm());
       stiff_pcg_iter->SetRelTol(1e-8);
@@ -440,6 +432,7 @@ JacobianPreconditioner::~JacobianPreconditioner()
    delete stiff_prec;
    delete stiff_pcg;
 }
+
 
 RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
                                Array<Array<int> *> &ess_bdr,
@@ -479,9 +472,8 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    pressure_mass = mass.Ptr();
 
    // Initialize the Jacobian preconditioner
-   JacobianPreconditioner *jac_prec = new JacobianPreconditioner(fes,
-                                                                 *pressure_mass,
-                                                                 block_trueOffsets);
+   JacobianPreconditioner *jac_prec =
+      new JacobianPreconditioner(fes, *pressure_mass, block_trueOffsets);
    j_prec = jac_prec;
 
    // Set up the Jacobian solver
@@ -510,7 +502,8 @@ void RubberOperator::Solve(Vector &xp) const
 {
    Vector zero;
    newton_solver.Mult(zero, xp);
-   MFEM_VERIFY(newton_solver.GetConverged(), "Newton Solver did not converge.");
+   MFEM_VERIFY(newton_solver.GetConverged(),
+               "Newton Solver did not converge.");
 }
 
 // compute: y = H(x,p)
@@ -532,6 +525,7 @@ RubberOperator::~RubberOperator()
    delete j_solver;
    delete j_prec;
 }
+
 
 // In line visualization
 void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
@@ -570,16 +564,14 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
 
 void ReferenceConfiguration(const Vector &x, Vector &y)
 {
-   // set the reference, stress
-   // free, configuration
+   // Set the reference, stress free, configuration
    y = x;
 }
 
-
 void InitialDeformation(const Vector &x, Vector &y)
 {
-   // set the initial configuration. Having this different from the
-   // reference configuration can help convergence
+   // Set the initial configuration. Having this different from the reference
+   // configuration can help convergence.
    y = x;
    y[1] = x[1] + 0.25*x[0];
 }

@@ -1,6 +1,6 @@
-//                       MFEM Example 19 - Parallel Version
+//                                MFEM Example 19
 //
-// Compile with: make ex19p
+// Compile with: make ex19
 //
 // Sample runs:
 //    ex19 -m ../data/beam-quad.mesh
@@ -9,22 +9,22 @@
 //    ex19 -m ../data/beam-tet.mesh
 //
 // Description:  This examples solves a quasi-static incompressible nonlinear
-//               elasticity problem of the form 0 = H(x), where H is an incompressible
-//               hyperelastic model and x is a block state vector containing
-//               displacement and pressure variables. The geometry of the domain
-//               is assumed to be as follows:
+//               elasticity problem of the form 0 = H(x), where H is an
+//               incompressible hyperelastic model and x is a block state vector
+//               containing displacement and pressure variables. The geometry of
+//               the domain is assumed to be as follows:
 //
 //                                 +---------------------+
 //                    boundary --->|                     |<--- boundary attribute 2
 //                    attribute 1  |                     |     (fixed)
 //                    (fixed)      +---------------------+
 //
-//               The example demonstrates the use of block nonlinear operators (the
-//               class RubberOperator defining H(x)) as well as a nonlinear
+//               The example demonstrates the use of block nonlinear operators
+//               (the class RubberOperator defining H(x)) as well as a nonlinear
 //               Newton solver for the quasi-static problem. Each Newton step
-//               requires the inversion of a Jacobian matrix, which is done through a
-//               (preconditioned) inner solver. The specialized block preconditioner
-//               is implemented as a user-defined solver.
+//               requires the inversion of a Jacobian matrix, which is done
+//               through a (preconditioned) inner solver. The specialized block
+//               preconditioner is implemented as a user-defined solver.
 //
 //               We recommend viewing examples 2, 5, and 10 before viewing this
 //               example.
@@ -40,7 +40,6 @@ using namespace mfem;
 class JacobianPreconditioner : public Solver
 {
 protected:
-
    // Finite element spaces for setting up preconditioner blocks
    Array<FiniteElementSpace *> spaces;
 
@@ -50,8 +49,7 @@ protected:
    // Jacobian for block access
    BlockOperator *jacobian;
 
-   // Scaling factor for the pressure mass matrix in
-   // the block preconditioner
+   // Scaling factor for the pressure mass matrix in the block preconditioner
    double gamma;
 
    // Objects for the block preconditioner application
@@ -104,8 +102,8 @@ protected:
 
 public:
    RubberOperator(Array<FiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
-                  Array<int> &block_trueOffsets, double rel_tol, double abs_tol, int iter,
-                  Coefficient &mu);
+                  Array<int> &block_trueOffsets, double rel_tol, double abs_tol,
+                  int iter, Coefficient &mu);
 
    /// Required to use the native newton solver
    virtual Operator &GetGradient(const Vector &xp) const;
@@ -174,7 +172,7 @@ int main(int argc, char *argv[])
 
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
-   //    command-line parameter
+   //    command-line parameter.
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh->UniformRefinement();
@@ -287,12 +285,12 @@ int main(int argc, char *argv[])
       x_def.Save(deformation_ofs);
    }
 
-
    // 15. Free the used memory
    delete mesh;
 
    return 0;
 }
+
 
 JacobianPreconditioner::JacobianPreconditioner(Array<FiniteElementSpace *> &fes,
                                                SparseMatrix &mass,
@@ -325,7 +323,6 @@ JacobianPreconditioner::JacobianPreconditioner(Array<FiniteElementSpace *> &fes,
    stiff_pcg = NULL;
    stiff_prec = NULL;
 }
-
 
 void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
 {
@@ -364,7 +361,6 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
 
       stiff_prec = stiff_prec_gs;
 
-
       GMRESSolver *stiff_pcg_iter = new GMRESSolver();
       stiff_pcg_iter->SetRelTol(1e-8);
       stiff_pcg_iter->SetAbsTol(1e-8);
@@ -376,8 +372,8 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
       stiff_pcg = stiff_pcg_iter;
    }
 
-   // At each Newton cycle, compute the new stiffness preconditioner by updating
-   // the iterative solver which, in turn, updates its preconditioner.
+   // At each Newton cycle, compute the new stiffness preconditioner by
+   // updating the iterative solver which, in turn, updates its preconditioner.
    stiff_pcg->SetOperator(jacobian->GetBlock(0,0));
 }
 
@@ -388,6 +384,7 @@ JacobianPreconditioner::~JacobianPreconditioner()
    delete stiff_prec;
    delete stiff_pcg;
 }
+
 
 RubberOperator::RubberOperator(Array<FiniteElementSpace *> &fes,
                                Array<Array<int> *> &ess_bdr,
@@ -423,9 +420,8 @@ RubberOperator::RubberOperator(Array<FiniteElementSpace *> &fes,
    delete a;
 
    // Initialize the Jacobian preconditioner
-   JacobianPreconditioner *jac_prec = new JacobianPreconditioner(fes,
-                                                                 *pressure_mass,
-                                                                 block_offsets);
+   JacobianPreconditioner *jac_prec =
+      new JacobianPreconditioner(fes, *pressure_mass, block_offsets);
    j_prec = jac_prec;
 
    // Set up the Jacobian solver
@@ -454,7 +450,8 @@ void RubberOperator::Solve(Vector &xp) const
 {
    Vector zero;
    newton_solver.Mult(zero, xp);
-   MFEM_VERIFY(newton_solver.GetConverged(), "Newton Solver did not converge.");
+   MFEM_VERIFY(newton_solver.GetConverged(),
+               "Newton Solver did not converge.");
 }
 
 // compute: y = H(x,p)
@@ -476,6 +473,7 @@ RubberOperator::~RubberOperator()
    delete j_solver;
    delete j_prec;
 }
+
 
 // In line visualization
 void visualize(ostream &out, Mesh *mesh, GridFunction *deformed_nodes,
@@ -513,10 +511,9 @@ void visualize(ostream &out, Mesh *mesh, GridFunction *deformed_nodes,
 
 void ReferenceConfiguration(const Vector &x, Vector &y)
 {
-   // set the reference, stress free, configuration
+   // Set the reference, stress free, configuration
    y = x;
 }
-
 
 void InitialDeformation(const Vector &x, Vector &y)
 {
