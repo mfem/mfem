@@ -20,32 +20,6 @@ static void GetJacobianTensor(FiniteElementSpace *fes,
                               const DenseMatrix &shape1d, const DenseMatrix &dshape1d,
                               DenseTensor &Jac);
 
-// void Get1DBasis(const FiniteElement *fe, const IntegrationRule &ir1d,
-//                 DenseMatrix &shape1d)
-// {
-//    // Get the corresponding tensor basis element
-//    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
-
-//    // Compute the 1d shape functions and gradients
-//    const Poly_1D::Basis &basis1d = tfe->GetBasis1D();
-
-//    const int quads1d = ir1d.GetNPoints();
-//    const int dofs1d = fe->GetOrder() + 1;
-
-//    shape1d.SetSize(dofs1d, quads1d);
-
-//    Vector u(dofs1d);
-//    for (int k = 0; k < quads1d; k++)
-//    {
-//       const IntegrationPoint &ip = ir1d.IntPoint(k);
-//       basis1d.Eval(ip.x, u);
-//       for (int i = 0; i < dofs1d; i++)
-//       {
-//          shape1d(i, k) = u(i);
-//       }
-//    }
-// }
-
 void Get1DBasis(const FiniteElement *fe, const IntegrationRule &ir1d,
                 DenseMatrix &shape1d, DenseMatrix &dshape1d)
 {
