@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      a->AddIntegrator(new PADiffusionIntegrator(new DiffusionIntegrator(one)));
+      a->AddIntegrator(new FESDiffusionIntegrator(new DiffusionIntegrator(one)));
    }
 
    // Use the global map instead
@@ -194,8 +194,7 @@ int main(int argc, char *argv[])
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
-   a->AssembleForm(p_assembly ?
-                   BilinearForm::PARTIAL : BilinearForm::FULL);
+   a->AssembleForm(p_assembly ? PartialAssembly : FullAssembly);
 
    Operator *A;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
