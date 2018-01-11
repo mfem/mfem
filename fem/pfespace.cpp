@@ -1354,25 +1354,25 @@ struct PMatrixRow
 
    void write(std::ostream &os, double sign) const
    {
-      mfem::write<int>(os, elems.size());
+      bin_io::write<int>(os, elems.size());
       for (unsigned i = 0; i < elems.size(); i++)
       {
          const PMatrixElement &e = elems[i];
-         mfem::write<HYPRE_Int>(os, e.column);
-         mfem::write<int>(os, e.stride);
-         mfem::write<double>(os, e.value * sign);
+         bin_io::write<HYPRE_Int>(os, e.column);
+         bin_io::write<int>(os, e.stride); // truncate HYPRE_Int -> int
+         bin_io::write<double>(os, e.value * sign);
       }
    }
 
    void read(std::istream &is, double sign)
    {
-      elems.resize(mfem::read<int>(is));
+      elems.resize(bin_io::read<int>(is));
       for (unsigned i = 0; i < elems.size(); i++)
       {
          PMatrixElement &e = elems[i];
-         e.column = mfem::read<HYPRE_Int>(is);
-         e.stride = mfem::read<int>(is);
-         e.value = mfem::read<double>(is) * sign;
+         e.column = bin_io::read<HYPRE_Int>(is);
+         e.stride = bin_io::read<int>(is);
+         e.value = bin_io::read<double>(is) * sign;
       }
    }
 };
@@ -1487,7 +1487,7 @@ void NeighborRowMessage::Encode(int rank)
             }
          }
 
-         write<int>(stream, edof);
+         bin_io::write<int>(stream, edof);
          ri.row.write(stream, s);
       }
    }
@@ -1522,7 +1522,7 @@ void NeighborRowMessage::Decode(int rank)
       for (int i = 0; i < ids.Size(); i++)
       {
          const MeshId &id = ids[i];
-         int edof = read<int>(stream);
+         int edof = bin_io::read<int>(stream);
 
          // handle orientation and sign change
          const int *ind = NULL;

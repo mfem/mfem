@@ -120,11 +120,13 @@ private:
                    GroupId group_sent_id, GroupId group_id,
                    std::map<int, class NeighborRowMessage> &send_msg) const;
 
+#ifdef MFEM_DEBUG_PMATRIX
    void DebugDumpDOFs(std::ofstream &os,
                       const SparseMatrix &deps,
                       const Array<GroupId> &dof_group,
                       const Array<GroupId> &dof_owner,
                       const Array<bool> &finalized) const;
+#endif
 
    /// Helper: create a HypreParMatrix from a list of PMatrixRows.
    HypreParMatrix*
