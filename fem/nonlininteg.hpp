@@ -80,7 +80,7 @@ public:
                                    ElementTransformation &Tr,
                                    Array<const Vector *>&elfun);
 
-   /// Perform the local action of the NonlinearFormIntegrator
+   /// Perform the local action of the BlockNonlinearFormIntegrator
    virtual void AssembleElementVector(Array<const FiniteElement *> &el,
                                       ElementTransformation &Tr,
                                       Array<Vector *> &elfun,

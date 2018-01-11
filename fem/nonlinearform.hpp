@@ -83,6 +83,8 @@ public:
 };
 
 
+/** @brief A class representing a general block nonlinear operator defined on
+    the Cartesian product of mutiple FiniteElementSpace%s. */
 class BlockNonlinearForm : public Operator
 {
 protected:
@@ -110,7 +112,7 @@ protected:
    Array<int> block_offsets;
    Array<int> block_trueOffsets;
 
-   // A list of all essential vdofs
+   // Essential vdofs: one list of vdofs for each space in 'fes'
    Array<Array<int> *> ess_vdofs;
 
    /// Specialized version of Mult() for BlockVector%s
@@ -120,14 +122,24 @@ protected:
    Operator &GetGradientBlocked(const BlockVector &bx) const;
 
 public:
+   /// Construct an empty BlockNonlinearForm. Initialize with SetSpaces().
    BlockNonlinearForm();
 
+   /// Construct a BlockNonlinearForm on the given set of FiniteElementSpace%s.
    BlockNonlinearForm(Array<FiniteElementSpace *> &f);
 
-   /// After a call to SetSpaces(), the essential b.c. must be set again.
+   /// Return the @a k-th FE space of the BlockNonlinearForm.
+   FiniteElementSpace *FESpace(int k) { return fes[k]; }
+   /// Return the @a k-th FE space of the BlockNonlinearForm (const version).
+   const FiniteElementSpace *FESpace(int k) const { return fes[k]; }
+
+   /// (Re)initialize the BlockNonlinearForm.
+   /** After a call to SetSpaces(), the essential b.c. must be set again. */
    void SetSpaces(Array<FiniteElementSpace *> &f);
 
+   /// Return the regular dof offsets.
    const Array<int> &GetBlockOffsets() const { return block_offsets; }
+   /// Return the true-dof offsets.
    const Array<int> &GetBlockTrueOffsets() const { return block_trueOffsets; }
 
    /// Adds new Domain Integrator.
@@ -154,6 +166,7 @@ public:
 
    virtual Operator &GetGradient(const Vector &x) const;
 
+   /// Destructor.
    virtual ~BlockNonlinearForm();
 };
 
