@@ -196,7 +196,7 @@ public:
    int GetDim() const { return Dim; }
 
    /// Returns the Geometry::Type of the reference element
-   int GetGeomType() const { return GeomType; }
+   Geometry::Type GetGeomType() const { return (Geometry::Type)GeomType; }
 
    /// Returns the number of degrees of freedom in the finite element
    int GetDof() const { return Dof; }
