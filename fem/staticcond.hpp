@@ -130,12 +130,12 @@ public:
 
    /// Eliminate the given reduced true dofs from the Schur complement matrix S.
    void EliminateReducedTrueDofs(const Array<int> &ess_rtdof_list,
-                                 int keep_diagonal);
+                                 Matrix::DiagonalPolicy dpolicy);
 
    /// @brief Eliminate the internal reduced true dofs (set using
    /// SetEssentialTrueDofs()) from the Schur complement matrix S.
-   void EliminateReducedTrueDofs(int keep_diagonal)
-   { EliminateReducedTrueDofs(ess_rtdof_list, keep_diagonal); }
+   void EliminateReducedTrueDofs(Matrix::DiagonalPolicy dpolicy)
+   { EliminateReducedTrueDofs(ess_rtdof_list, dpolicy); }
 
    /** @brief Return true if essential boundary conditions have been eliminated
        from the Schur complement matrix. */

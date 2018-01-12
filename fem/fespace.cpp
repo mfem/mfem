@@ -601,6 +601,7 @@ void FiniteElementSpace::GetConformingInterpolation() const
             if (!slave_dofs.Size()) { continue; }
 
             slave.OrientedPointMatrix(T.GetPointMat());
+            T.FinalizeTransformation();
             fe->GetLocalInterpolation(T, I);
 
             // make each slave DOF dependent on all master DOFs
@@ -790,6 +791,7 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
    for (int i = 0; i < nmat; i++)
    {
       isotr.GetPointMat() = rtrans.point_matrices(i);
+      isotr.FinalizeTransformation();
       fe->GetLocalInterpolation(isotr, localP(i));
    }
 
@@ -896,6 +898,7 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(
       lR = numeric_limits<double>::infinity(); // marks invalid rows
 
       isotr.GetPointMat() = dt.point_matrices(i);
+      isotr.FinalizeTransformation();
       isotr.SetIntPoint(&nodes[0]);
       CalcInverse(isotr.Jacobian(), invdfdx);
 
@@ -1118,12 +1121,16 @@ void FiniteElementSpace::Construct()
       }
    }
 
-   bdofs = new int[mesh->GetNE()+1];
-   bdofs[0] = 0;
-   for (i = 0; i < mesh->GetNE(); i++)
+   if (mesh->Dimension() > 0)
    {
-      nbdofs += fec->DofForGeometry(mesh->GetElementBaseGeometry(i));
-      bdofs[i+1] = nbdofs;
+      bdofs = new int[mesh->GetNE()+1];
+      bdofs[0] = 0;
+      for (i = 0; i < mesh->GetNE(); i++)
+      {
+         int geom = mesh->GetElementBaseGeometry(i);
+         nbdofs += fec->DofForGeometry(geom);
+         bdofs[i+1] = nbdofs;
+      }
    }
 
    ndofs = nvdofs + nedofs + nfdofs + nbdofs;
@@ -1147,7 +1154,7 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
       dim = mesh->Dimension();
       nv = fec->DofForGeometry(Geometry::POINT);
       ne = (dim > 1) ? ( fec->DofForGeometry(Geometry::SEGMENT) ) : ( 0 );
-      nb = fec->DofForGeometry(mesh->GetElementBaseGeometry(i));
+      nb = (dim > 0) ? fec->DofForGeometry(mesh->GetElementBaseGeometry(i)) : 0;
       if (nv > 0)
       {
          mesh->GetElementVertices(i, V);
@@ -1223,10 +1230,13 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
             ne += nf;
          }
       }
-      k = nvdofs + nedofs + nfdofs + bdofs[i];
-      for (j = 0; j < nb; j++)
+      if (nb > 0)
       {
-         dofs[ne+j] = k + j;
+         k = nvdofs + nedofs + nfdofs + bdofs[i];
+         for (j = 0; j < nb; j++)
+         {
+            dofs[ne+j] = k + j;
+         }
       }
    }
 }
@@ -1430,6 +1440,7 @@ void FiniteElementSpace::GetVertexDofs(int i, Array<int> &dofs) const
 void FiniteElementSpace::GetElementInteriorDofs (int i, Array<int> &dofs) const
 {
    int j, k, nb;
+   if (mesh->Dimension() == 0) { dofs.SetSize(0); return; }
    nb = fec -> DofForGeometry (mesh -> GetElementBaseGeometry (i));
    dofs.SetSize (nb);
    k = nvdofs + nedofs + nfdofs + bdofs[i];

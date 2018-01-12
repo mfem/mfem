@@ -43,7 +43,6 @@ COMMON_O=../common/pfem_extras.o
 all: $(MINIAPPS)
 
 # Rules for building the miniapps
-$(MINIAPPS): \
 %: $(SRC)%.cpp %_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $@_solver.o $(COMMON_O) $(MFEM_LIBS)
 

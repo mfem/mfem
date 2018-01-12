@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "error.hpp"
+#include "globals.hpp"
 
 #include <iostream>
 #include <cstdlib>
@@ -172,7 +173,7 @@ public:
    inline void GetSubArray(int offset, int sa_size, Array<T> &sa);
 
    /// Prints array to stream with width elements per row
-   void Print(std::ostream &out = std::cout, int width = 4) const;
+   void Print(std::ostream &out = mfem::out, int width = 4) const;
 
    /** @brief Save the Array to the stream @a out using the format @a fmt.
        The format @a fmt can be:
@@ -267,6 +268,7 @@ class Array2D;
 template <class T>
 void Swap(Array2D<T> &, Array2D<T> &);
 
+/// Dynamic 2D array using row-major layout
 template <class T>
 class Array2D
 {
@@ -274,7 +276,7 @@ private:
    friend void Swap<T>(Array2D<T> &, Array2D<T> &);
 
    Array<T> array1d;
-   int N;
+   int N; // number of columns
 
 public:
    Array2D() { N = 0; }
@@ -297,6 +299,45 @@ public:
    const T *GetRow(int i) const { return (*this)[i]; }
    T       *GetRow(int i)       { return (*this)[i]; }
 
+   /// Extract a copy of the @a i-th row into the Array @a sa.
+   void GetRow(int i, Array<T> &sa) const
+   {
+      sa.SetSize(N);
+      sa.Assign(GetRow(i));
+   }
+
+   /** @brief Save the Array2D to the stream @a out using the format @a fmt.
+       The format @a fmt can be:
+
+          0 - write the number of rows and columns, followed by all entries
+          1 - write only the entries, using row-major layout
+   */
+   void Save(std::ostream &out, int fmt = 0) const
+   {
+      if (fmt == 0) { out << NumRows() << ' ' << NumCols() << '\n'; }
+      array1d.Save(out, 1);
+   }
+
+   /** @brief Read an Array2D from the stream @a in using format @a fmt.
+       The format @a fmt can be:
+
+          0 - read the number of rows and columns, then the entries
+          1 - read NumRows() x NumCols() entries, using row-major layout
+   */
+   void Load(std::istream &in, int fmt = 0)
+   {
+      if (fmt == 0) { int M; in >> M >> N; array1d.SetSize(M*N); }
+      array1d.Load(in, 1);
+   }
+
+   /// Read an Array2D from a file
+   void Load(const char *filename, int fmt = 0);
+
+   /** @brief Set the Array2D dimensions to @a new_size0 x @a new_size1 and read
+       that many entries from the stream @a in. */
+   void Load(int new_size0,int new_size1, std::istream &in)
+   { SetSize(new_size0,new_size1); Load(in, 1); }
+
    void Copy(Array2D &copy) const
    { copy.N = N; array1d.Copy(copy.array1d); }
 
@@ -308,7 +349,7 @@ public:
    { N = master.N; array1d.MakeRef(master.array1d);}
 
    /// Prints array to stream with width elements per row
-   void Print(std::ostream &out = std::cout, int width = 4);
+   void Print(std::ostream &out = mfem::out, int width = 4);
 };
 
 
