@@ -1127,7 +1127,7 @@ void FiniteElementSpace::Construct()
       bdofs[0] = 0;
       for (i = 0; i < mesh->GetNE(); i++)
       {
-         int geom = mesh->GetElementBaseGeometry(i);
+ 	 Geometry::Type geom = mesh->GetElementBaseGeometry(i);
          nbdofs += fec->DofForGeometry(geom);
          bdofs[i+1] = nbdofs;
       }
