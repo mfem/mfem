@@ -106,7 +106,7 @@ will allow us to reach you directly with project announcements.
 - *Keep the code general and reasonably efficient*
   - Main goal is fast prototyping for research.
   - When in doubt generality wins over efficiency.
-  - Respect the need of different users (current and/or future).
+  - Respect the needs of different users (current and/or future).
 
 - *Keep things separate and logically organized*
   - General usage features go in MFEM (implemented in as much generality as
