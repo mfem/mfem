@@ -9422,4 +9422,227 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy, const bool closed)
    return mesh2d;
 }
 
+Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
+{
+   if (mesh->Dimension() != 2)
+   {
+      mfem::err << "Extrude2D : Not a 2D mesh!" << endl;
+      mfem_error();
+   }
+
+   int nvz = nz + 1;
+   int nvt = mesh->GetNV() * nvz;
+
+   Mesh *mesh3d = new Mesh(3, nvt, mesh->GetNE()*nz,
+			   mesh->GetNBE()*nz+2*mesh->GetNE());
+
+   bool priMesh = false;
+   bool hexMesh = false;
+   
+   // vertices
+   double vc[3];
+   for (int i = 0; i < mesh->GetNV(); i++)
+   {
+      vc[0] = mesh->GetVertex(i)[0];
+      vc[1] = mesh->GetVertex(i)[1];
+      for (int j = 0; j < nvz; j++)
+      {
+         vc[2] = sz * (double(j) / nz);
+         mesh3d->AddVertex(vc);
+      }
+   }
+   // elements
+   Array<int> vert;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      const Element *elem = mesh->GetElement(i);
+      elem->GetVertices(vert);
+      const int attr = elem->GetAttribute();
+      Geometry::Type geom = elem->GetGeometryType();
+      switch(geom)
+      {
+      case Geometry::TRIANGLE:
+	priMesh = true;
+	for (int j = 0; j < nz; j++)
+	{
+	  int pv[6];
+	  pv[0] = vert[0] * nvz + j;
+	  pv[1] = vert[1] * nvz + j;
+	  pv[2] = vert[2] * nvz + j;
+	  pv[3] = vert[0] * nvz + (j + 1) % nvz;
+	  pv[4] = vert[1] * nvz + (j + 1) % nvz;
+	  pv[5] = vert[2] * nvz + (j + 1) % nvz;
+
+	  mesh3d->AddPri(pv, attr);
+	}
+	break;
+      case Geometry::SQUARE:
+	hexMesh = true;
+	for (int j = 0; j < nz; j++)
+	{
+	  int hv[8];
+	  hv[0] = vert[0] * nvz + j;
+	  hv[1] = vert[1] * nvz + j;
+	  hv[2] = vert[2] * nvz + j;
+	  hv[3] = vert[3] * nvz + j;
+	  hv[4] = vert[0] * nvz + (j + 1) % nvz;
+	  hv[5] = vert[1] * nvz + (j + 1) % nvz;
+	  hv[6] = vert[2] * nvz + (j + 1) % nvz;
+	  hv[7] = vert[3] * nvz + (j + 1) % nvz;
+
+	  mesh3d->AddHex(hv, attr);
+	}
+	break;
+      default:
+	mfem::err << "Extrude2D : Invalid 2D element type \'"
+		  << geom << "\'" << endl;
+	mfem_error();
+	break;
+      }
+   }
+   // 3D boundary from the 2D boundary
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      const Element *elem = mesh->GetBdrElement(i);
+      elem->GetVertices(vert);
+      const int attr = elem->GetAttribute();
+      for (int j = 0; j < nz; j++)
+      {
+         int qv[4];
+         qv[0] = vert[0] * nvz + j;
+         qv[1] = vert[1] * nvz + j;
+         qv[2] = vert[1] * nvz + (j + 1) % nvz;
+         qv[3] = vert[0] * nvz + (j + 1) % nvz;
+
+         mesh3d->AddBdrQuad(qv, attr);
+      }
+   }
+
+   // 3D boundary from the 2D elements (bottom + top)
+   int nba = (mesh->bdr_attributes.Size() > 0 ?
+	      mesh->bdr_attributes.Max() : 0);
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+     const Element *elem = mesh->GetElement(i);
+     elem->GetVertices(vert);
+     const int attr = nba + elem->GetAttribute();
+     Geometry::Type geom = elem->GetGeometryType();
+     switch(geom)
+     {
+     case Geometry::TRIANGLE:
+       {
+	  int tv[3];
+	  tv[0] = vert[0] * nvz;
+	  tv[1] = vert[2] * nvz;
+	  tv[2] = vert[1] * nvz;
+
+	  mesh3d->AddBdrTriangle(tv, attr);
+
+	  tv[0] = vert[0] * nvz + nz;
+	  tv[1] = vert[1] * nvz + nz;
+	  tv[2] = vert[2] * nvz + nz;
+
+	  mesh3d->AddBdrTriangle(tv, attr);
+	}
+	break;
+      case Geometry::SQUARE:
+	{
+	  int qv[4];
+	  qv[0] = vert[0] * nvz;
+	  qv[1] = vert[3] * nvz;
+	  qv[2] = vert[2] * nvz;
+	  qv[3] = vert[1] * nvz;
+
+	  mesh3d->AddBdrQuad(qv, attr);
+		  
+	  qv[0] = vert[0] * nvz + nz;
+	  qv[1] = vert[1] * nvz + nz;
+	  qv[2] = vert[2] * nvz + nz;
+	  qv[3] = vert[3] * nvz + nz;
+	  
+	  mesh3d->AddBdrQuad(qv, attr);
+	}
+	break;
+      default:
+	mfem::err << "Extrude2D : Invalid 2D element type \'"
+		  << geom << "\'" << endl;
+	mfem_error();
+	break;
+      }
+   }
+
+   // TODO: Support mixed meshes
+   if ( hexMesh )
+   {
+     mesh3d->FinalizeHexMesh(1, 0, false);
+   }
+   else if ( priMesh )
+   {
+     mesh3d->FinalizePriMesh(1, 0, false);
+   }
+     
+   GridFunction *nodes = mesh->GetNodes();
+   if (nodes)
+   {
+      // duplicate the fec of the 1D mesh so that it can be deleted safely
+      // along with its nodes, fes and fec
+      FiniteElementCollection *fec3d = NULL;
+      FiniteElementSpace *fes3d;
+      const char *name = nodes->FESpace()->FEColl()->Name();
+      string cname = name;
+      if (cname == "Linear")
+      {
+         fec3d = new LinearFECollection;
+      }
+      else if (cname == "Quadratic")
+      {
+         fec3d = new QuadraticFECollection;
+      }
+      else if (cname == "Cubic")
+      {
+         fec3d = new CubicFECollection;
+      }
+      else if (!strncmp(name, "H1_", 3))
+      {
+         fec3d = new H1_FECollection(atoi(name + 7), 2);
+      }
+      else if (!strncmp(name, "L2_T", 4))
+      {
+         fec3d = new L2_FECollection(atoi(name + 10), 2, atoi(name + 4));
+      }
+      else if (!strncmp(name, "L2_", 3))
+      {
+         fec3d = new L2_FECollection(atoi(name + 7), 2);
+      }
+      else
+      {
+         delete mesh3d;
+         mfem::err << "Extrude3D : The mesh uses unknown FE collection : "
+                   << cname << endl;
+         mfem_error();
+      }
+      fes3d = new FiniteElementSpace(mesh3d, fec3d, 3);
+      mesh3d->SetNodalFESpace(fes3d);
+      GridFunction *nodes3d = mesh3d->GetNodes();
+      nodes3d->MakeOwner(fec3d);
+
+      NodeExtrudeCoefficient ecoeff(3, nz, sz);
+      Vector lnodes;
+      Array<int> vdofs3d;
+      for (int i = 0; i < mesh->GetNE(); i++)
+      {
+         ElementTransformation &T = *mesh->GetElementTransformation(i);
+         for (int j = nz-1; j >= 0; j--)
+         {
+            fes3d->GetElementVDofs(i*nz+j, vdofs3d);
+            lnodes.SetSize(vdofs3d.Size());
+            ecoeff.SetLayer(j);
+            fes3d->GetFE(i*nz+j)->Project(ecoeff, T, lnodes);
+            nodes3d->SetSubVector(vdofs3d, lnodes);
+         }
+      }
+   }
+   return mesh3d;
+}
+
 }
