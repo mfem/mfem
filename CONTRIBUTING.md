@@ -179,7 +179,7 @@ Before a PR can be merged, it should satisfy the following:
       - [ ] Make sure THIS_TEST_OPTIONS is set correctly for the new example.
 - [ ] List the new example in doc/CodeDocumentation.dox
 - [ ] Companion pull request for documentation in mfem/web repo
-   - [ ] Update or add miniapp-specific documentation, see e.g. the src/meshing.md and src/electromagnetics.md.
+   - [ ] Update or add example-specific documentation, see e.g. the src/examples.md.
    - [ ] Add the description, labels and screenshots in src/examples.md and and src/img.
    - [ ] In examples.md, list the example under the appropriate categories, add new categories if necessary.
 - [ ] New miniapps:
