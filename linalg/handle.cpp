@@ -210,7 +210,7 @@ void OperatorHandle::EliminateRowsCols(OperatorHandle &A,
    {
       case Operator::MFEM_SPARSEMAT:
       {
-         const int preserve_diag = 1;
+         const Matrix::DiagonalPolicy preserve_diag = Matrix::DIAG_KEEP;
          SparseMatrix *sA = A.As<SparseMatrix>();
          SparseMatrix *Ae = new SparseMatrix(sA->Height());
          for (int i = 0; i < ess_dof_list.Size(); i++)

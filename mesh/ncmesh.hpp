@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "../general/hash.hpp"
+#include "../general/globals.hpp"
 #include "../linalg/densemat.hpp"
 #include "element.hpp"
 #include "vertex.hpp"
@@ -256,7 +257,7 @@ public:
 
    int PrintMemoryDetail() const;
 
-   void PrintStats(std::ostream &out = std::cout) const;
+   void PrintStats(std::ostream &out = mfem::out) const;
 
 
 protected: // interface for Mesh to be able to construct itself from NCMesh

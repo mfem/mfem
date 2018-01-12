@@ -164,6 +164,7 @@ int main(int argc, char *argv[])
          {
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
+         delete mesh;
          MPI_Finalize();
          return 3;
    }
