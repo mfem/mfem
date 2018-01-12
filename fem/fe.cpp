@@ -6950,9 +6950,9 @@ H1_QuadrilateralElement::H1_QuadrilateralElement(const int p, const int btype)
 {
    const double *cp = poly1d.ClosedPoints(p, b_type);
 
+#ifndef MFEM_THREAD_SAFE
    const int p1 = p + 1;
 
-#ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p1);
    shape_y.SetSize(p1);
    dshape_x.SetSize(p1);
@@ -7064,9 +7064,9 @@ H1_HexahedronElement::H1_HexahedronElement(const int p, const int btype)
 {
    const double *cp = poly1d.ClosedPoints(p, b_type);
 
+#ifndef MFEM_THREAD_SAFE
    const int p1 = p + 1;
 
-#ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p1);
    shape_y.SetSize(p1);
    shape_z.SetSize(p1);
@@ -7282,9 +7282,9 @@ void H1Pos_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 H1Pos_QuadrilateralElement::H1Pos_QuadrilateralElement(const int p)
    : PositiveTensorFiniteElement(2, p)
 {
+#ifndef MFEM_THREAD_SAFE
    const int p1 = p + 1;
 
-#ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p1);
    shape_y.SetSize(p1);
    dshape_x.SetSize(p1);
@@ -7350,9 +7350,9 @@ void H1Pos_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 H1Pos_HexahedronElement::H1Pos_HexahedronElement(const int p)
    : PositiveTensorFiniteElement(3, p)
 {
+#ifndef MFEM_THREAD_SAFE
    const int p1 = p + 1;
 
-#ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p1);
    shape_y.SetSize(p1);
    shape_z.SetSize(p1);
