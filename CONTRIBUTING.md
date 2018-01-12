@@ -197,7 +197,7 @@ Before a PR can be merged, it should satisfy the following:
 - [ ] New capability:
    - [ ] All significant new classes, methods and functions have Doxygen-style documentation in source comments
    - [ ] Consider adding new sample runs in existing examples to highlight the new capability
-   - [ ] Consider saving cool simulation pictures with the new capability in the Confluence gallery
+   - [ ] Consider saving cool simulation pictures with the new capability in the Confluence gallery or submitting them, via pull request, to the gallery section of the `web` repo.
    - [ ] List major new classes in doc/CodeDocumentation.dox (rare)
 - [ ] Update this checklist, if the new pull request affects it
 
