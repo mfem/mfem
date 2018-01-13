@@ -30,8 +30,8 @@ you are new to Git, see the [GitHub learning
 resources](https://help.github.com/articles/git-and-github-learning-resources/).
 To learn more about the finite element method, see our [FEM page](http://mfem.org/fem).
 
-By submitting a pull request, you are affirming the [Developer's Certificate of
-Origin](#developers-certificate-of-origin-11) at the end of the file.
+*By submitting a pull request, you are affirming the [Developer's Certificate of
+Origin](#developers-certificate-of-origin-11) at the end of the file.*
 
 
 ## GitHub Workflow
@@ -180,7 +180,7 @@ Before a PR can be merged, it should satisfy the following:
 - [ ] List the new example in doc/CodeDocumentation.dox
 - [ ] Companion pull request for documentation in mfem/web repo
    - [ ] Update or add example-specific documentation, see e.g. the src/examples.md.
-   - [ ] Add the description, labels and screenshots in src/examples.md and and src/img.
+   - [ ] Add the description, labels and screenshots in src/examples.md and src/img.
    - [ ] In examples.md, list the example under the appropriate categories, add new categories if necessary.
 - [ ] New miniapps:
    - [ ] All sample runs at the top of the miniapp work
@@ -192,12 +192,12 @@ Before a PR can be merged, it should satisfy the following:
    - [ ] List the new miniapp in doc/CodeDocumentation.dox
    - [ ] Companion pull request for documentation in mfem/web repo
      - [ ] Update or add miniapp-specific documentation, see e.g. the src/meshing.md and src/electromagnetics.md.
-     - [ ] Add the description, labels and screenshots in src/examples.md and and src/img in the mfem/web repo.
+     - [ ] Add the description, labels and screenshots in src/examples.md and src/img in the mfem/web repo.
      - [ ] The miniapps go at the end of the page, and are usually listed only under a specific "Application (PDE)" category.
 - [ ] New capability:
    - [ ] All significant new classes, methods and functions have Doxygen-style documentation in source comments
    - [ ] Consider adding new sample runs in existing examples to highlight the new capability
-   - [ ] Consider saving cool simulation pictures with the new capability in the Confluence gallery or submitting them, via pull request, to the gallery section of the `web` repo.
+   - [ ] Consider saving cool simulation pictures with the new capability in the Confluence gallery (LLNL only) or submitting them, via pull request, to the gallery section of the `web` repo.
    - [ ] List major new classes in doc/CodeDocumentation.dox (rare)
 - [ ] Update this checklist, if the new pull request affects it
 
@@ -269,13 +269,13 @@ MFEM uses a `master`/`next`-branch workflow as described below.
 MFEM has several levels of automated testing running on GitHub as well as on
 local Mac and Linux workstations, and Livermore Computing clusters at LLNL.
 
-### OSX and Linux smoke tests
+### OS X/macOS and Linux smoke tests
 We use Travis CI to drive the default tests on the `master` and `next`
 branches. See the `.travis` file and the logs at
 [https://travis-ci.org/mfem/mfem](https://travis-ci.org/mfem/mfem).
 
 Any testing using Travis CI should be kept lightweight, as there is a 50 minute
-time constraint on jobs. Two virtual machines are configured - OSX and Linux.
+time constraint on jobs. Two virtual machines are configured - OS X and Linux.
 
 - Tests on the `master` branch are triggered whenever a PR is issued on this branch.
 - Tests on the `next` branch are currently scheduled to run each night.
@@ -284,7 +284,7 @@ time constraint on jobs. Two virtual machines are configured - OSX and Linux.
 We use Appveyor to test building with the MS Visual C++ compiler in a Windows
 environment as well as to test the CMake build. See the `.appveyor` file and the
 logs at
-[https://ci.appveyor.com/project/tzanio/mfem](https://ci.appveyor.com/project/tzanio/mfem).
+[https://ci.appveyor.com/project/mfem/mfem](https://ci.appveyor.com/project/mfem/mfem).
 
 CMake is used to generate the MSVC Project files and drive the build.  A release
 and debug build is performed, with a simple run of `ex1` to verify the
