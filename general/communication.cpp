@@ -88,6 +88,7 @@ void GroupTopology::ProcToLProc()
 
 void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    groups.AsTable(group_lproc); // group_lproc = group_proc
 
    Table group_mgroupandproc;
@@ -204,6 +205,7 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
 
    delete [] statuses;
    delete [] requests;
+   MFEM_TRACE_BLOCK_END;
 }
 
 void GroupTopology::Save(ostream &out) const
@@ -311,6 +313,7 @@ void GroupCommunicator::Create(Array<int> &ldof_group)
 
 void GroupCommunicator::Finalize()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int request_counter = 0;
 
    // size buf_offsets = max(number of groups, number of neighbors)
@@ -416,6 +419,7 @@ void GroupCommunicator::Finalize()
          }
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void GroupCommunicator::SetLTDofTable(Array<int> &ldof_ltdof)

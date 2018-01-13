@@ -68,6 +68,9 @@ extern OutStream out;
     @sa OutStream. */
 extern OutStream err;
 
+// Tracing output stream
+extern OutStream trc;
+
 
 #ifdef MFEM_USE_MPI
 

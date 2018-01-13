@@ -27,13 +27,12 @@ namespace mfem
 {
 
 ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
-   : Mesh(pmesh, false),
+   : Mesh((MFEM_TRACE_BLOCK_BEGIN, pmesh), false),
      group_svert(pmesh.group_svert),
      group_sedge(pmesh.group_sedge),
      group_sface(pmesh.group_sface),
      gtopo(pmesh.gtopo)
 {
-   MFEM_TRACE_BLOCK_BEGIN;
    MyComm = pmesh.MyComm;
    NRanks = pmesh.NRanks;
    MyRank = pmesh.MyRank;
@@ -85,9 +84,8 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
 
 ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                  int part_method)
-   : gtopo(comm)
+   : gtopo((MFEM_TRACE_BLOCK_BEGIN, comm))
 {
-   MFEM_TRACE_BLOCK_BEGIN;
    int i, j;
    int *partitioning;
    Array<bool> activeBdrElem;
@@ -691,9 +689,8 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
 }
 
 ParMesh::ParMesh(MPI_Comm comm, istream &input)
-   : gtopo(comm)
+   : gtopo((MFEM_TRACE_BLOCK_BEGIN, comm))
 {
-   MFEM_TRACE_BLOCK_BEGIN;
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
@@ -850,7 +847,7 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input)
 }
 
 ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
-   : Mesh(orig_mesh, ref_factor, ref_type),
+   : Mesh((MFEM_TRACE_BLOCK_BEGIN, orig_mesh), ref_factor, ref_type),
      MyComm(orig_mesh->GetComm()),
      NRanks(orig_mesh->GetNRanks()),
      MyRank(orig_mesh->GetMyRank()),
@@ -858,7 +855,6 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
      have_face_nbr_data(false),
      pncmesh(NULL)
 {
-   MFEM_TRACE_BLOCK_BEGIN;
    // Need to initialize:
    // - shared_edges, shared_faces
    // - group_svert, group_sedge, group_sface
@@ -1372,12 +1368,13 @@ void ParMesh::DeleteFaceNbrData()
 
 void ParMesh::ExchangeFaceNbrData()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (have_face_nbr_data)
    {
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
-   MFEM_TRACE_BLOCK_BEGIN;
    if (Nonconforming())
    {
       // with ParNCMesh we can set up face neighbors without communication

@@ -137,24 +137,24 @@ void mfem_warning(const char *msg)
    }
 }
 
-// #ifdef MFEM_USE_TRACING
-#if 1
+#ifdef MFEM_USE_TRACING
 
 namespace internal
 {
 
-std::ostream *trace_out = NULL;
 int tracing_state = 0;  // 0 - disabled, 1 - enabled
 int tracing_depth = 0;
 
-// Initialize and enable tracing.
-void tracing_init(std::ostream *std_ostream_ptr)
+void tracing_msg(const char *func, const char *file, const int line,
+                 const char *prefix, const int depth_inc)
 {
-   if (!trace_out)
+   if (tracing_state)
    {
-      trace_out = std_ostream_ptr;
+      tracing_depth += (depth_inc < 0) ? depth_inc : 0;
+      mfem::trc << MFEM_TRACE_INDENT_WIDTH << prefix
+                << func << " @ " << file << ':' << line << std::endl;
+      tracing_depth += (depth_inc > 0) ? depth_inc : 0;
    }
-   tracing_state = 1;
 }
 
 } // namespace internal

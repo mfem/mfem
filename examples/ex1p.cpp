@@ -44,11 +44,18 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   MFEM_TRACING_ENABLE;
+
    // 1. Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
+   ostringstream trace_filename;
+   trace_filename << "ex1p_trace." << setfill('0') << setw(6) << myid;
+   ofstream trace_file(trace_filename.str().c_str());
+   mfem::trc.SetStream(trace_file);
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";

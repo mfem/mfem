@@ -20,6 +20,8 @@ namespace mfem
 OutStream out(std::cout);
 OutStream err(std::cerr);
 
+OutStream trc(std::cout);
+
 #ifdef MFEM_USE_MPI
 
 MPI_Comm MFEM_COMM_WORLD = MPI_COMM_WORLD;

@@ -1875,6 +1875,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
    {
       MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
       MFEM_ASSERT(CheckBdrElementOrientation() == 0, "");
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -4195,12 +4196,13 @@ int Mesh::GetElementToEdgeTable(Table & e_to_f, Array<int> &be_to_f)
 
 const Table & Mesh::ElementToElementTable()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (el_to_el)
    {
+      MFEM_TRACE_BLOCK_END;
       return *el_to_el;
    }
 
-   MFEM_TRACE_BLOCK_BEGIN;
    // Note that, for ParNCMeshes, faces_info will contain also the ghost faces
    MFEM_ASSERT(faces_info.Size() >= GetNumFaces(), "faces were not generated!");
 

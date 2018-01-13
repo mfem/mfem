@@ -108,62 +108,47 @@ void mfem_warning(const char *msg = NULL);
 
 // Tracing macros
 
-// #ifdef MFEM_USE_TRACING
-#if 1
+#define MFEM_USE_TRACING
+#ifdef MFEM_USE_TRACING
 namespace mfem
 {
 namespace internal
 {
 // Variables/functions defined in error.cpp
-extern std::ostream *trace_out;
 extern int tracing_state;  // 0 - disabled, 1 - enabled
 extern int tracing_depth;
-extern void tracing_init(std::ostream *std_ostream_ptr);
+extern void tracing_msg(const char *func, const char *file, const int line,
+                        const char *prefix, const int depth_inc);
 }
 }
 
-// Initialize and enable tracing.
-#define MFEM_TRACING_INIT(std_ostream_ptr) \
-   mfem::internal::tracing_init(std_ostream_ptr)
-
+// Enable/disable tracing.
 #define MFEM_TRACING_ENABLE (mfem::internal::tracing_state = 1)
 #define MFEM_TRACING_DISABLE (mfem::internal::tracing_state = 0)
 
+#define MFEM_TRACE_INDENT_WIDTH std::setw(3*mfem::internal::tracing_depth+3)
+
 #define MFEM_TRACE_BLOCK_BEGIN \
-   if (mfem::internal::trace_out && mfem::internal::tracing_state) \
-   { \
-      *mfem::internal::trace_out \
-         << std::setw(3*mfem::internal::tracing_depth+3) << ">> " \
-         << _MFEM_FUNC_NAME << " @ " << __FILE__ << ':' << __LINE__ \
-         << std::endl; \
-      mfem::internal::tracing_depth++; \
-   }
+   mfem::internal::tracing_msg(_MFEM_FUNC_NAME, __FILE__, __LINE__, ">> ", +1)
 
 #define MFEM_TRACE_BLOCK_END \
-   if (mfem::internal::trace_out && mfem::internal::tracing_state) \
-   { \
-      mfem::internal::tracing_depth--; \
-      *mfem::internal::trace_out \
-         << std::setw(3*mfem::internal::tracing_depth+3) << "<< " \
-         << _MFEM_FUNC_NAME << " @ " << __FILE__ << ':' << __LINE__ \
-         << std::endl; \
-   }
+   mfem::internal::tracing_msg(_MFEM_FUNC_NAME, __FILE__, __LINE__, "<< ", -1)
 
 #define MFEM_TRACE_POINT(msg) \
-   if (mfem::internal::trace_out && mfem::internal::tracing_state) \
+   if (mfem::internal::tracing_state) \
    { \
-      *mfem::internal::trace_out \
-         << std::setw(3*mfem::internal::tracing_depth+3) << "** " << msg \
-         << " @ " << __FILE__ << ':' << __LINE__  << std::endl; \
+      mfem::trc << MFEM_TRACE_INDENT_WIDTH << "** "  << msg << std::endl; \
+      mfem::internal::tracing_msg(_MFEM_FUNC_NAME, __FILE__, __LINE__, "@@ ", \
+      0); \
    }
 
 #define MFEM_TRACE_EVAL(code,msg) \
-   if (mfem::internal::trace_out && mfem::internal::tracing_state) \
+   if (mfem::internal::tracing_state) \
    { \
       code; \
-      *mfem::internal::trace_out \
-         << std::setw(3*mfem::internal::tracing_depth+3) << "** " << msg \
-         << " @ " << __FILE__ << ':' << __LINE__  << std::endl; \
+      mfem::trc << MFEM_TRACE_INDENT_WIDTH << "** "  << msg << std::endl; \
+      mfem::internal::tracing_msg(_MFEM_FUNC_NAME, __FILE__, __LINE__, "@@ ", \
+      0); \
    }
 
 #else // tracing is not enabled
@@ -171,8 +156,8 @@ extern void tracing_init(std::ostream *std_ostream_ptr);
 #define MFEM_TRACING_INIT(std_ostream_ptr)
 #define MFEM_TRACING_ENABLE
 #define MFEM_TRACING_DISABLE
-#define MFEM_TRACE_BLOCK_BEGIN
-#define MFEM_TRACE_BLOCK_END
+#define MFEM_TRACE_BLOCK_BEGIN ((void)0)
+#define MFEM_TRACE_BLOCK_END ((void)0)
 #define MFEM_TRACE_POINT(msg)
 #define MFEM_TRACE_EVAL(code,msg)
 
