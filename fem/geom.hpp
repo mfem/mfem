@@ -32,7 +32,7 @@ public:
    enum Type { POINT, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE };
 
    static const int NumGeom = 6;
-   static const int NumBdrArray[];
+   static const int NumBdrArray[NumGeom];
    static const char *Name[NumGeom];
    static const double Volume[NumGeom];
    static const int Dimension[NumGeom];
@@ -41,40 +41,60 @@ public:
    static const int NumFaces[NumGeom];
 
    // Structure that holds constants describing the Geometries.
-   // Currently it contains just the space dimension.
    template <Type Geom> struct Constants;
 
 private:
    IntegrationRule *GeomVert[NumGeom];
    IntegrationPoint GeomCenter[NumGeom];
+   DenseMatrix *GeomToPerfGeomJac[NumGeom];
    DenseMatrix *PerfGeomToGeomJac[NumGeom];
 
 public:
    Geometry();
    ~Geometry();
 
+   /** @brief Return an IntegrationRule consisting of all vertices of the given
+       Geometry::Type, @a GeomType. */
    const IntegrationRule *GetVertices(int GeomType);
+
+   /// Return the center of the given Geometry::Type, @a GeomType.
    const IntegrationPoint &GetCenter(int GeomType)
    { return GeomCenter[GeomType]; }
-   /** Get a random point in the reference element specified by GeomType.
-       This method uses the function rand() for random number generation. */
+
+   /// Get a random point in the reference element specified by @a GeomType.
+   /** This method uses the function rand() for random number generation. */
    static void GetRandomPoint(int GeomType, IntegrationPoint &ip);
+
    /// Check if the given point is inside the given reference element.
    static bool CheckPoint(int GeomType, const IntegrationPoint &ip);
-   /** Check if the end point is inside the reference element, if not overwrite
-       it with the point on the boundary that lies on the line segment between
-       beg and end (beg must be inside the element). Return true if end is
-       inside the element, and false otherwise. */
+   /** @brief Check if the given point is inside the given reference element.
+       Overload for fuzzy tolerance. */
+   static bool CheckPoint(int GeomType, const IntegrationPoint &ip, double eps);
+
+   /// Project a point @a end, onto the given Geometry::Type, @a GeomType.
+   /** Check if the @a end point is inside the reference element, if not
+       overwrite it with the point on the boundary that lies on the line segment
+       between @a beg and @a end (@a beg must be inside the element). Return
+       true if @a end is inside the element, and false otherwise. */
    static bool ProjectPoint(int GeomType, const IntegrationPoint &beg,
                             IntegrationPoint &end);
 
+   /// Project a point @a ip, onto the given Geometry::Type, @a GeomType.
+   /** If @a ip is outside the element, replace it with the point on the
+       boundary that is closest to the original @a ip and return false;
+       otherwise, return true without changing @a ip. */
+   static bool ProjectPoint(int GeomType, IntegrationPoint &ip);
+
+   const DenseMatrix &GetGeomToPerfGeomJac(int GeomType) const
+   { return *GeomToPerfGeomJac[GeomType]; }
    DenseMatrix *GetPerfGeomToGeomJac(int GeomType)
    { return PerfGeomToGeomJac[GeomType]; }
    void GetPerfPointMat(int GeomType, DenseMatrix &pm);
    void JacToPerfJac(int GeomType, const DenseMatrix &J,
                      DenseMatrix &PJ) const;
 
-   int NumBdr (int GeomType) { return NumBdrArray[GeomType]; }
+   /// Return the number of boundary "faces" of a given Geometry::Type.
+   int NumBdr(int GeomType) { return NumBdrArray[GeomType]; }
 };
 
 template <> struct Geometry::Constants<Geometry::POINT>
@@ -189,7 +209,8 @@ public:
    int Times, ETimes;
    IntegrationRule RefPts;
    Array<int> RefGeoms, RefEdges;
-   int NumBdrEdges; // at the begining of RefEdges
+   int NumBdrEdges; // at the beginning of RefEdges
+   int Type;
 
    RefinedGeometry(int NPts, int NRefG, int NRefE, int NBdrE = 0) :
       RefPts(NPts), RefGeoms(NRefG), RefEdges(NRefE), NumBdrEdges(NBdrE) { }
@@ -198,14 +219,24 @@ public:
 class GeometryRefiner
 {
 private:
-   int type; // 0 - uniform points, otherwise - poly1d.ClosedPoints
-   RefinedGeometry *RGeom[Geometry::NumGeom];
-   IntegrationRule *IntPts[Geometry::NumGeom];
+   int type; // Quadrature1D type (ClosedUniform is default)
+   Array<RefinedGeometry *> RGeom[Geometry::NumGeom];
+   Array<IntegrationRule *> IntPts[Geometry::NumGeom];
+
+   RefinedGeometry *FindInRGeom(int Geom, int Times, int ETimes, int Type);
+   IntegrationRule *FindInIntPts(int Geom, int NPts);
+
 public:
    GeometryRefiner();
 
+   /// Set the Quadrature1D type of points to use for subdivision.
    void SetType(const int t) { type = t; }
-   RefinedGeometry *Refine (int Geom, int Times, int ETimes = 1);
+   /// Get the Quadrature1D type of points used for subdivision.
+   int GetType() const { return type; }
+
+   RefinedGeometry *Refine(int Geom, int Times, int ETimes = 1);
+
+   /// @note This method always uses Quadrature1D::OpenUniform points.
    const IntegrationRule *RefineInterior(int Geom, int Times);
 
    ~GeometryRefiner();

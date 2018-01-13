@@ -18,12 +18,17 @@
 #define HYPRE_VERSION_STRING HYPRE_PACKAGE_VERSION
 #endif
 
+// Macros to expand a macro as a string
+#define STR_EXPAND(s) #s
+#define STR(s) STR_EXPAND(s)
+
 // Convert the HYPRE_RELEASE_VERSION macro (string) to integer.
 // Examples: "2.10.0b" --> 21000, "2.11.2"  --> 21102
 int main()
 {
 #ifdef HYPRE_VERSION_STRING
-   const char *ptr = HYPRE_VERSION_STRING;
+   const char *ptr = STR(HYPRE_VERSION_STRING);
+   if (*ptr == '"') { ptr++; }
    int version = 0;
    for (int i = 0; i < 3; i++, ptr++)
    {
@@ -36,6 +41,7 @@ int main()
       version = 100*version + pv;
    }
    printf("%i\n", version);
+   return 0;
 #else
    return 2;
 #endif

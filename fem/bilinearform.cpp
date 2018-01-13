@@ -574,7 +574,7 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 {
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
-   const int keep_diag = 1;
+   const DiagonalPolicy keep_diag = DIAG_KEEP;
    if (static_cond)
    {
       if (!static_cond->HasEliminatedBC())
@@ -698,36 +698,36 @@ void BilinearForm::ComputeElementMatrices()
 }
 
 void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-                                        Vector &sol, Vector &rhs, int d)
+                                        Vector &sol, Vector &rhs, DiagonalPolicy dpolicy)
 {
    Array<int> ess_dofs, conf_ess_dofs;
    fes->GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
 
    if (fes->GetVSize() == height)
    {
-      EliminateEssentialBCFromDofs(ess_dofs, sol, rhs, d);
+      EliminateEssentialBCFromDofs(ess_dofs, sol, rhs, dpolicy);
    }
    else
    {
       fes->GetRestrictionMatrix()->BooleanMult(ess_dofs, conf_ess_dofs);
-      EliminateEssentialBCFromDofs(conf_ess_dofs, sol, rhs, d);
+      EliminateEssentialBCFromDofs(conf_ess_dofs, sol, rhs, dpolicy);
    }
 }
 
 void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-                                        int d)
+                                        DiagonalPolicy dpolicy)
 {
    Array<int> ess_dofs, conf_ess_dofs;
    fes->GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
 
    if (fes->GetVSize() == height)
    {
-      EliminateEssentialBCFromDofs(ess_dofs, d);
+      EliminateEssentialBCFromDofs(ess_dofs, dpolicy);
    }
    else
    {
       fes->GetRestrictionMatrix()->BooleanMult(ess_dofs, conf_ess_dofs);
-      EliminateEssentialBCFromDofs(conf_ess_dofs, d);
+      EliminateEssentialBCFromDofs(conf_ess_dofs, dpolicy);
    }
 }
 
@@ -749,23 +749,25 @@ void BilinearForm::EliminateEssentialBCDiag (const Array<int> &bdr_attr_is_ess,
 }
 
 void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
-                                  Vector &sol, Vector &rhs, int d)
+                                  Vector &sol, Vector &rhs,
+                                  DiagonalPolicy dpolicy)
 {
    for (int i = 0; i < vdofs.Size(); i++)
    {
       int vdof = vdofs[i];
       if ( vdof >= 0 )
       {
-         mat -> EliminateRowCol (vdof, sol(vdof), rhs, d);
+         mat -> EliminateRowCol (vdof, sol(vdof), rhs, dpolicy);
       }
       else
       {
-         mat -> EliminateRowCol (-1-vdof, sol(-1-vdof), rhs, d);
+         mat -> EliminateRowCol (-1-vdof, sol(-1-vdof), rhs, dpolicy);
       }
    }
 }
 
-void BilinearForm::EliminateVDofs(const Array<int> &vdofs, int d)
+void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
+                                  DiagonalPolicy dpolicy)
 {
    if (mat_e == NULL)
    {
@@ -777,17 +779,17 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs, int d)
       int vdof = vdofs[i];
       if ( vdof >= 0 )
       {
-         mat -> EliminateRowCol (vdof, *mat_e, d);
+         mat -> EliminateRowCol (vdof, *mat_e, dpolicy);
       }
       else
       {
-         mat -> EliminateRowCol (-1-vdof, *mat_e, d);
+         mat -> EliminateRowCol (-1-vdof, *mat_e, dpolicy);
       }
    }
 }
 
 void BilinearForm::EliminateEssentialBCFromDofs(
-   const Array<int> &ess_dofs, Vector &sol, Vector &rhs, int d)
+   const Array<int> &ess_dofs, Vector &sol, Vector &rhs, DiagonalPolicy dpolicy)
 {
    MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
    MFEM_ASSERT(sol.Size() == height, "incorrect sol Vector size");
@@ -796,19 +798,19 @@ void BilinearForm::EliminateEssentialBCFromDofs(
    for (int i = 0; i < ess_dofs.Size(); i++)
       if (ess_dofs[i] < 0)
       {
-         mat -> EliminateRowCol (i, sol(i), rhs, d);
+         mat -> EliminateRowCol (i, sol(i), rhs, dpolicy);
       }
 }
 
 void BilinearForm::EliminateEssentialBCFromDofs (const Array<int> &ess_dofs,
-                                                 int d)
+                                                 DiagonalPolicy dpolicy)
 {
    MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
 
    for (int i = 0; i < ess_dofs.Size(); i++)
       if (ess_dofs[i] < 0)
       {
-         mat -> EliminateRowCol (i, d);
+         mat -> EliminateRowCol (i, dpolicy);
       }
 }
 

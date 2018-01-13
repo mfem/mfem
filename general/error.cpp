@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "error.hpp"
+#include "globals.hpp"
 #include "array.hpp"
 #include <cstdlib>
 #include <iostream>
@@ -62,7 +63,7 @@ void mfem_backtrace(int mode, int depth)
          name_p = name_demangle;
       }
 
-      std::cerr << addrs.Size() << ") [0x" << std::hex << ip - 1 << std::dec
+      mfem::err << addrs.Size() << ") [0x" << std::hex << ip - 1 << std::dec
                 << "]: " << name_p << std::endl;
       addrs.Append(ip - 1);
 
@@ -74,7 +75,7 @@ void mfem_backtrace(int mode, int depth)
 #if defined(__APPLE__) || defined(__linux__)
    if (addrs.Size() > 0 && (mode & 1))
    {
-      std::cerr << "\nLookup backtrace source lines:";
+      mfem::err << "\nLookup backtrace source lines:";
       const char *fname = NULL;
       for (int i = 0; i < addrs.Size(); i++)
       {
@@ -87,17 +88,17 @@ void mfem_backtrace(int mode, int depth)
          else if (fname != info.dli_fname)
          {
             fname = info.dli_fname;
-            std::cerr << '\n';
+            mfem::err << '\n';
 #ifdef __linux__
-            std::cerr << "addr2line -C -e " << fname;
+            mfem::err << "addr2line -C -e " << fname;
 #else
-            std::cerr << "atos -o " << fname << " -l "
+            mfem::err << "atos -o " << fname << " -l "
                       << (err ? 0 : info.dli_fbase);
 #endif
          }
-         std::cerr << " 0x" << std::hex << addrs[i] << std::dec;
+         mfem::err << " 0x" << std::hex << addrs[i] << std::dec;
       }
-      std::cerr << '\n';
+      mfem::err << '\n';
    }
 #endif
 #endif // MFEM_USE_LIBUNWIND
@@ -108,22 +109,22 @@ void mfem_error(const char *msg)
    if (msg)
    {
       // NOTE: By default, each call of the "operator <<" method of the
-      // std::cerr object results in flushing the I/O stream, which can be a
+      // mfem::err object results in flushing the I/O stream, which can be a
       // very bad thing if all your processors try to do it at the same time.
-      std::cerr << "\n\n" << msg << "\n";
+      mfem::err << "\n\n" << msg << "\n";
    }
 
 #ifdef MFEM_USE_LIBUNWIND
-   std::cerr << "Backtrace:" << std::endl;
+   mfem::err << "Backtrace:" << std::endl;
    mfem_backtrace(1, -1);
-   std::cerr << std::endl;
+   mfem::err << std::endl;
 #endif
 
 #ifdef MFEM_USE_MPI
    int init_flag, fin_flag;
    MPI_Initialized(&init_flag);
    MPI_Finalized(&fin_flag);
-   if (init_flag && !fin_flag) { MPI_Abort(MPI_COMM_WORLD, 1); }
+   if (init_flag && !fin_flag) { MPI_Abort(GetGlobalMPI_Comm(), 1); }
 #endif
    std::abort(); // force crash by calling abort
 }
@@ -132,7 +133,7 @@ void mfem_warning(const char *msg)
 {
    if (msg)
    {
-      std::cout << "\n\n" << msg << std::endl;
+      mfem::out << "\n\n" << msg << std::endl;
    }
 }
 
