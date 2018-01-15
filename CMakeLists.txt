@@ -45,7 +45,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 3.3.2)
+set(${PROJECT_NAME}_VERSION 3.3.3)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -100,13 +100,13 @@ mfem_version_to_int(${${PROJECT_NAME}_VERSION} ${PROJECT_NAME_UC}_VERSION)
 set(${PROJECT_NAME_UC}_VERSION_STRING ${${PROJECT_NAME}_VERSION})
 if (EXISTS ${PROJECT_SOURCE_DIR}/.git)
    execute_process(
-     COMMAND git -C ${PROJECT_SOURCE_DIR}
-                describe --all --long --abbrev=40 --dirty --always
+     COMMAND git describe --all --long --abbrev=40 --dirty --always
+     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
      OUTPUT_VARIABLE ${PROJECT_NAME_UC}_GIT_STRING
      ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
 endif()
 if (NOT ${PROJECT_NAME_UC}_GIT_STRING)
-   set(${PROJECT_NAME_UC}_GIT_STRING "")
+   set(${PROJECT_NAME_UC}_GIT_STRING "(unknown)")
 endif()
 
 #-------------------------------------------------------------------------------
@@ -236,11 +236,7 @@ endif()
 
 # Axom/Sidre
 if (MFEM_USE_SIDRE)
-  if (NOT MFEM_USE_MPI)
-    find_package(Axom REQUIRED Sidre SLIC axom_utils)
-  else()
-    find_package(Axom REQUIRED Sidre SPIO SLIC axom_utils)
-  endif()
+  find_package(Axom REQUIRED Sidre SLIC axom_utils)
 endif()
 
 # MFEM_TIMER_TYPE

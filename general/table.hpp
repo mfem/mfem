@@ -58,6 +58,9 @@ public:
    /// Copy constructor
    Table(const Table &);
 
+   /// Assignment operator: deep copy
+   Table& operator=(const Table &rhs);
+
    /// Create a table with an upper limit for the number of connections.
    explicit Table (int dim, int connections_per_row = 3);
 

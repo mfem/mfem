@@ -606,6 +606,7 @@ class DenseMatrixEigensystem
 public:
 
    DenseMatrixEigensystem(DenseMatrix &m);
+   DenseMatrixEigensystem(const DenseMatrixEigensystem &other);
    void Eval();
    Vector &Eigenvalues() { return EVal; }
    DenseMatrix &Eigenvectors() { return EVect; }
@@ -656,6 +657,13 @@ public:
 
    DenseTensor(int i, int j, int k)
       : tdata(i*j*k), Mk((double*)NULL, i, j), nk(k) { }
+
+   /// Copy constructor: deep copy
+   DenseTensor(const DenseTensor& other)
+      : Mk((double*)NULL, other.Mk.height, other.Mk.width), nk(other.nk)
+   {
+      other.tdata.Copy(tdata);
+   }
 
    int SizeI() const { return Mk.Height(); }
    int SizeJ() const { return Mk.Width(); }

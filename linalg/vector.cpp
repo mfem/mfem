@@ -97,9 +97,12 @@ double Vector::operator*(const Vector &v) const
 
 Vector &Vector::operator=(const double *v)
 {
-   for (int i = 0; i < Size(); i++)
+   if (data.GetData() != v)
    {
-      data[i] = v[i];
+      const int size = Size();
+      double *d = data.GetData();
+      MFEM_ASSERT(d + size <= v || v + size <= d, "Vectors overlap!");
+      std::memcpy(d, v, size * sizeof(double));
    }
    return *this;
 }
@@ -107,11 +110,7 @@ Vector &Vector::operator=(const double *v)
 Vector &Vector::operator=(const Vector &v)
 {
    SetSize(v.Size());
-   for (int i = 0; i < Size(); i++)
-   {
-      data[i] = v.data[i];
-   }
-   return *this;
+   return operator=(v.GetData());
 }
 
 Vector &Vector::operator=(double value)

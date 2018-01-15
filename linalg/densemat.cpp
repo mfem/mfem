@@ -29,6 +29,33 @@
 #define copysign _copysign
 #endif
 
+
+#ifdef MFEM_USE_LAPACK
+extern "C" void
+dgemm_(char *, char *, int *, int *, int *, double *, double *,
+       int *, double *, int *, double *, double *, int *);
+extern "C" void
+dgetrf_(int *, int *, double *, int *, int *, int *);
+extern "C" void
+dgetrs_(char *, int *, int *, double *, int *, int *, double *, int *, int *);
+extern "C" void
+dgetri_(int *N, double *A, int *LDA, int *IPIV, double *WORK,
+        int *LWORK, int *INFO);
+extern "C" void
+dsyevr_(char *JOBZ, char *RANGE, char *UPLO, int *N, double *A, int *LDA,
+        double *VL, double *VU, int *IL, int *IU, double *ABSTOL, int *M,
+        double *W, double *Z, int *LDZ, int *ISUPPZ, double *WORK, int *LWORK,
+        int *IWORK, int *LIWORK, int *INFO);
+extern "C" void
+dsyev_(char *JOBZ, char *UPLO, int *N, double *A, int *LDA, double *W,
+       double *WORK, int *LWORK, int *INFO);
+extern "C" void
+dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA,
+        double *S, double *U, int *LDU, double *VT, int *LDVT, double *WORK,
+        int *LWORK, int *INFO);
+#endif
+
+
 namespace mfem
 {
 
@@ -441,7 +468,7 @@ double DenseMatrix::Det() const
          return lu_factors.Det();
       }
    }
-   return 0.0;
+   // not reachable
 }
 
 double DenseMatrix::Weight() const
@@ -568,16 +595,6 @@ void DenseMatrix::Neg()
       data[i] = -data[i];
    }
 }
-
-#ifdef MFEM_USE_LAPACK
-extern "C" void
-dgetrf_(int *, int *, double *, int *, int *, int *);
-extern "C" void
-dgetrs_(char *, int *, int *, double *, int *, int *, double *, int *, int *);
-extern "C" void
-dgetri_(int *N, double *A, int *LDA, int *IPIV, double *WORK,
-        int *LWORK, int *INFO);
-#endif
 
 void DenseMatrix::Invert()
 {
@@ -794,21 +811,6 @@ void DenseMatrix::FNorm(double &scale_factor, double &scaled_fnorm2) const
    scale_factor = max_norm;
    scaled_fnorm2 = fnorm2;
 }
-
-#ifdef MFEM_USE_LAPACK
-extern "C" void
-dsyevr_(char *JOBZ, char *RANGE, char *UPLO, int *N, double *A, int *LDA,
-        double *VL, double *VU, int *IL, int *IU, double *ABSTOL, int *M,
-        double *W, double *Z, int *LDZ, int *ISUPPZ, double *WORK, int *LWORK,
-        int *IWORK, int *LIWORK, int *INFO);
-extern "C" void
-dsyev_(char *JOBZ, char *UPLO, int *N, double *A, int *LDA, double *W,
-       double *WORK, int *LWORK, int *INFO);
-extern "C" void
-dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA,
-        double *S, double *U, int *LDU, double *VT, int *LDVT, double *WORK,
-        int *LWORK, int *INFO);
-#endif
 
 void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 {
@@ -1668,9 +1670,9 @@ inline int Reduce3S(
       d2  -= 2*v2*w2;
       d23 -= v2*w3 + v3*w2;
       d3  -= 2*v3*w3;
-#ifdef MFEM_DEBUG
       // compute the offdiagonal entries on the first row/column of B which
-      // should be zero:
+      // should be zero (for debugging):
+#if 0
       s = d12 - v1*w2 - v2*w1;  // b12 = 0
       s = d13 - v1*w3 - v3*w1;  // b13 = 0
 #endif
@@ -1880,12 +1882,12 @@ double DenseMatrix::CalcSingularvalue(const int i) const
          {
             if (R < 0.)
             {
-               R = -1.;
+               // R = -1.;
                r = 2*sqrtQ;
             }
             else
             {
-               R = 1.;
+               // R = 1.;
                r = -2*sqrtQ;
             }
          }
@@ -2098,12 +2100,12 @@ void DenseMatrix::CalcEigenvalues(double *lambda, double *vec) const
          {
             if (R < 0.)
             {
-               R = -1.;
+               // R = -1.;
                r = 2*sqrtQ;
             }
             else
             {
-               R = 1.;
+               // R = 1.;
                r = -2*sqrtQ;
             }
          }
@@ -2917,12 +2919,6 @@ void Add(double alpha, const DenseMatrix &A,
    Add(alpha, A.GetData(), beta, B.GetData(), C);
 }
 
-
-#ifdef MFEM_USE_LAPACK
-extern "C" void
-dgemm_(char *, char *, int *, int *, int *, double *, double *,
-       int *, double *, int *, double *, double *, int *);
-#endif
 
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 {
@@ -4178,6 +4174,20 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
           &qwork, &lwork, &info);
 
    lwork = (int) qwork;
+   work = new double[lwork];
+#endif
+}
+
+DenseMatrixEigensystem::DenseMatrixEigensystem(
+   const DenseMatrixEigensystem &other)
+   : mat(other.mat), EVal(other.EVal), EVect(other.EVect), ev((double*)NULL, other.n),
+     n(other.n)
+{
+#ifdef MFEM_USE_LAPACK
+   jobz = other.jobz;
+   uplo = other.uplo;
+   lwork = other.lwork;
+
    work = new double[lwork];
 #endif
 }

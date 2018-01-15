@@ -2287,7 +2287,7 @@ void GridFunction::SaveVTK(std::ostream &out, const std::string &field_name,
          }
       }
    }
-   else if (vec_dim == mesh->Dimension())
+   else if ( (vec_dim == 2 || vec_dim == 3) && mesh->SpaceDimension() > 1)
    {
       // vector data
       out << "VECTORS " << field_name << " double\n";
