@@ -1162,6 +1162,7 @@ NURBSPatch *Revolve3D(NURBSPatch &patch, double n[], double ang, int times)
 
 NURBSExtension::NURBSExtension(std::istream &input)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    // Read topology
    patchTopo = new Mesh;
    patchTopo->LoadPatchTopo(input, edge_to_knot);
@@ -1175,6 +1176,7 @@ NURBSExtension::NURBSExtension(std::istream &input)
    // Read knotvectors or patches
    string ident;
    input >> ws >> ident; // 'knotvectors' or 'patches'
+   MFEM_TRACE_POINT("Reading NURBS format using: '" << ident << "' ...");
    if (ident == "knotvectors")
    {
       input >> NumOfKnotVectors;
@@ -1288,10 +1290,12 @@ NURBSExtension::NURBSExtension(std::istream &input)
          weights = 1.0;
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 NURBSExtension::NURBSExtension(NURBSExtension *parent, int Order_)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Order = Order_;
 
    patchTopo = parent->patchTopo;
@@ -1325,10 +1329,12 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int Order_)
 
    weights.SetSize(GetNDof());
    weights = 1.0;
+   MFEM_TRACE_BLOCK_END;
 }
 
 NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    NURBSExtension *parent = mesh_array[0]->NURBSext;
 
    if (!parent->own_topo)
@@ -1365,10 +1371,12 @@ NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
 
    weights.SetSize(GetNDof());
    MergeWeights(mesh_array, num_pieces);
+   MFEM_TRACE_BLOCK_END;
 }
 
 NURBSExtension::~NURBSExtension()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (patches.Size() == 0)
    {
       delete bel_dof;
@@ -1389,13 +1397,16 @@ NURBSExtension::~NURBSExtension()
    {
       delete patchTopo;
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void NURBSExtension::Print(std::ostream &out) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    patchTopo->PrintTopo(out, edge_to_knot);
    if (patches.Size() == 0)
    {
+      MFEM_TRACE_POINT("Writing NURBS format using 'knotvectors' ...");
       out << "\nknotvectors\n" << NumOfKnotVectors << '\n';
       for (int i = 0; i < NumOfKnotVectors; i++)
       {
@@ -1417,6 +1428,7 @@ void NURBSExtension::Print(std::ostream &out) const
    }
    else
    {
+      MFEM_TRACE_POINT("Writing NURBS format using 'patches' ...");
       out << "\npatches\n";
       for (int p = 0; p < patches.Size(); p++)
       {
@@ -1424,6 +1436,7 @@ void NURBSExtension::Print(std::ostream &out) const
          patches[p]->Print(out);
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void NURBSExtension::PrintCharacteristics(std::ostream &out)
@@ -1453,6 +1466,7 @@ void NURBSExtension::PrintCharacteristics(std::ostream &out)
 
 void NURBSExtension::GenerateActiveVertices()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int vert[8], nv, g_el, nx, ny, nz, dim = Dimension();
 
    NURBSPatchMap p2g(this);
@@ -1516,6 +1530,7 @@ void NURBSExtension::GenerateActiveVertices()
       {
          activeVert[i] = NumOfActiveVertices++;
       }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void NURBSExtension::GenerateActiveBdrElems()
@@ -1706,6 +1721,7 @@ void NURBSExtension::GetBdrPatchKnotVectors(int p, Array<KnotVector *> &kv)
 
 void NURBSExtension::GenerateOffsets()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int nv = patchTopo->GetNV();
    int ne = patchTopo->GetNEdges();
    int nf = patchTopo->GetNFaces();
@@ -1789,6 +1805,7 @@ void NURBSExtension::GenerateOffsets()
    }
    NumOfVertices = meshCounter;
    NumOfDofs     = spaceCounter;
+   MFEM_TRACE_BLOCK_END;
 }
 
 void NURBSExtension::CountElements()
@@ -2011,6 +2028,7 @@ void NURBSExtension::Get3DBdrElementTopo(Array<Element *> &boundary)
 
 void NURBSExtension::GenerateElementDofTable()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    activeDof.SetSize(GetNTotalDof());
    activeDof = 0;
 
@@ -2037,6 +2055,7 @@ void NURBSExtension::GenerateElementDofTable()
    {
       dof[i] = activeDof[dof[i]] - 1;
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void NURBSExtension::Generate2DElementDofTable()
@@ -2155,6 +2174,7 @@ void NURBSExtension::Generate3DElementDofTable()
 
 void NURBSExtension::GenerateBdrElementDofTable()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (Dimension() == 2)
    {
       Generate2DBdrElementDofTable();
@@ -2170,6 +2190,7 @@ void NURBSExtension::GenerateBdrElementDofTable()
    {
       dof[i] = activeDof[dof[i]] - 1;
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void NURBSExtension::Generate2DBdrElementDofTable()
@@ -2330,6 +2351,7 @@ void NURBSExtension::LoadBE(int i, const FiniteElement *BE)
 
 void NURBSExtension::ConvertToPatches(const Vector &Nodes)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    delete el_dof;
    delete bel_dof;
 
@@ -2337,18 +2359,22 @@ void NURBSExtension::ConvertToPatches(const Vector &Nodes)
    {
       GetPatchNets(Nodes);
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void NURBSExtension::SetCoordsFromPatches(Vector &Nodes)
 {
-   if (patches.Size() == 0) { return; }
+   MFEM_TRACE_BLOCK_BEGIN;
+   if (patches.Size() == 0) { MFEM_TRACE_BLOCK_END; return; }
 
    SetSolutionVector(Nodes);
    patches.SetSize(0);
+   MFEM_TRACE_BLOCK_END;
 }
 
 void NURBSExtension::SetKnotsFromPatches()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (patches.Size() == 0)
       mfem_error("NURBSExtension::SetKnotsFromPatches :"
                  " No patches available!");
@@ -2386,26 +2412,32 @@ void NURBSExtension::SetKnotsFromPatches()
    GenerateElementDofTable();
    GenerateActiveBdrElems();
    GenerateBdrElementDofTable();
+   MFEM_TRACE_BLOCK_END;
 }
 
 void NURBSExtension::DegreeElevate(int t)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    for (int p = 0; p < patches.Size(); p++)
    {
       patches[p]->DegreeElevate(t);
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void NURBSExtension::UniformRefinement()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    for (int p = 0; p < patches.Size(); p++)
    {
       patches[p]->UniformRefinement();
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Array<int> edges;
    Array<int> orient;
 
@@ -2429,6 +2461,7 @@ void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
 
       patches[p]->KnotInsert(pkv);
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void NURBSExtension::GetPatchNets(const Vector &coords)
@@ -2573,7 +2606,7 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords)
 #ifdef MFEM_USE_MPI
 ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
                                      int *part, const Array<bool> &active_bel)
-   : gtopo(comm)
+   : gtopo((MFEM_TRACE_BLOCK_BEGIN, comm))
 {
    if (parent->NumOfActiveElems < parent->NumOfElements)
       // SetActive (BuildGroups?) and the way the weights are copied
@@ -2636,11 +2669,12 @@ ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
          lel++;
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
                                      ParNURBSExtension *par_parent)
-   : gtopo(par_parent->gtopo.GetComm())
+   : gtopo((MFEM_TRACE_BLOCK_BEGIN, par_parent->gtopo.GetComm()))
 {
    // steal all data from parent
    Order = parent->Order;
@@ -2703,6 +2737,7 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    Table *serial_elem_dof = GetGlobalElementDofTable();
    BuildGroups(par_parent->partitioning, *serial_elem_dof);
    delete serial_elem_dof;
+   MFEM_TRACE_BLOCK_END;
 }
 
 Table *ParNURBSExtension::GetGlobalElementDofTable()
@@ -2809,6 +2844,7 @@ Table *ParNURBSExtension::Get3DGlobalElementDofTable()
 void ParNURBSExtension::SetActive(int *_partitioning,
                                   const Array<bool> &active_bel)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    activeElem.SetSize(GetGNE());
    activeElem = false;
    NumOfActiveElems = 0;
@@ -2827,10 +2863,12 @@ void ParNURBSExtension::SetActive(int *_partitioning,
       {
          NumOfActiveBdrElems++;
       }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParNURBSExtension::BuildGroups(int *_partitioning, const Table &elem_dof)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Table dof_proc;
 
    ListOfIntegerSets  groups;
@@ -2860,6 +2898,7 @@ void ParNURBSExtension::BuildGroups(int *_partitioning, const Table &elem_dof)
       }
 
    gtopo.Create(groups, 1822);
+   MFEM_TRACE_BLOCK_END;
 }
 #endif
 

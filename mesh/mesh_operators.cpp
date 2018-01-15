@@ -26,6 +26,7 @@ MeshOperatorSequence::~MeshOperatorSequence()
 
 int MeshOperatorSequence::ApplyImpl(Mesh &mesh)
 {
+   MFEM_TRACE_BLOCK;
    if (sequence.Size() == 0) { return NONE; }
 next_step:
    step = (step + 1) % sequence.Size();
@@ -83,20 +84,21 @@ double ThresholdRefiner::GetNorm(const Vector &local_err, Mesh &mesh) const
 
 int ThresholdRefiner::ApplyImpl(Mesh &mesh)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    threshold = 0.0;
    num_marked_elements = 0;
    marked_elements.SetSize(0);
    current_sequence = mesh.GetSequence();
 
    const long num_elements = mesh.GetGlobalNE();
-   if (num_elements >= max_elements) { return STOP; }
+   if (num_elements >= max_elements) { MFEM_TRACE_BLOCK_END; return STOP; }
 
    const int NE = mesh.GetNE();
    const Vector &local_err = estimator.GetLocalErrors();
    MFEM_ASSERT(local_err.Size() == NE, "invalid size of local_err");
 
    double total_err = GetNorm(local_err, mesh);
-   if (total_err <= total_err_goal) { return STOP; }
+   if (total_err <= total_err_goal) { MFEM_TRACE_BLOCK_END; return STOP; }
 
    threshold = std::max(total_err * total_fraction *
                         std::pow(num_elements, -1.0/total_norm_p),
@@ -124,9 +126,10 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    }
 
    num_marked_elements = mesh.ReduceInt(marked_elements.Size());
-   if (num_marked_elements == 0) { return STOP; }
+   if (num_marked_elements == 0) { MFEM_TRACE_BLOCK_END; return STOP; }
 
    mesh.GeneralRefinement(marked_elements, non_conforming, nc_limit);
+   MFEM_TRACE_BLOCK_END;
    return CONTINUE + REFINED;
 }
 
@@ -141,25 +144,30 @@ void ThresholdRefiner::Reset()
 
 int ThresholdDerefiner::ApplyImpl(Mesh &mesh)
 {
-   if (mesh.Conforming()) { return NONE; }
+   MFEM_TRACE_BLOCK_BEGIN;
+   if (mesh.Conforming()) { MFEM_TRACE_BLOCK_END; return NONE; }
 
    const Vector &local_err = estimator.GetLocalErrors();
    bool derefs = mesh.DerefineByError(local_err, threshold, nc_limit, op);
 
+   MFEM_TRACE_BLOCK_END;
    return derefs ? CONTINUE + DEREFINED : NONE;
 }
 
 
 int Rebalancer::ApplyImpl(Mesh &mesh)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
 #ifdef MFEM_USE_MPI
    ParMesh *pmesh = dynamic_cast<ParMesh*>(&mesh);
    if (pmesh && pmesh->Nonconforming())
    {
       pmesh->Rebalance();
+      MFEM_TRACE_BLOCK_END;
       return CONTINUE + REBALANCED;
    }
 #endif
+   MFEM_TRACE_BLOCK_END;
    return NONE;
 }
 

@@ -400,36 +400,44 @@ void PetscParMatrix::Init()
 
 PetscParMatrix::PetscParMatrix()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Init();
+   MFEM_TRACE_BLOCK_END;
 }
 
 PetscParMatrix::PetscParMatrix(const HypreParMatrix *ha, Operator::Type tid)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Init();
    height = ha->Height();
    width  = ha->Width();
    ConvertOperator(ha->GetComm(),*ha,&A,tid);
+   MFEM_TRACE_BLOCK_END;
 }
 
 PetscParMatrix::PetscParMatrix(MPI_Comm comm, const Operator *op,
                                Operator::Type tid)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Init();
    height = op->Height();
    width  = op->Width();
    ConvertOperator(comm,*op,&A,tid);
+   MFEM_TRACE_BLOCK_END;
 }
 
 PetscParMatrix::PetscParMatrix(MPI_Comm comm, PetscInt glob_size,
                                PetscInt *row_starts, SparseMatrix *diag,
                                Operator::Type tid)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Init();
    BlockDiagonalConstructor(comm,row_starts,row_starts,diag,
                             tid==PETSC_MATAIJ,&A);
    // update base class
    height = GetNumRows();
    width  = GetNumCols();
+   MFEM_TRACE_BLOCK_END;
 }
 
 PetscParMatrix::PetscParMatrix(MPI_Comm comm, PetscInt global_num_rows,
@@ -437,16 +445,19 @@ PetscParMatrix::PetscParMatrix(MPI_Comm comm, PetscInt global_num_rows,
                                PetscInt *col_starts, SparseMatrix *diag,
                                Operator::Type tid)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Init();
    BlockDiagonalConstructor(comm,row_starts,col_starts,diag,
                             tid==PETSC_MATAIJ,&A);
    // update base class
    height = GetNumRows();
    width  = GetNumCols();
+   MFEM_TRACE_BLOCK_END;
 }
 
 PetscParMatrix& PetscParMatrix::operator=(const HypreParMatrix& B)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (A)
    {
       MPI_Comm comm = PetscObjectComm((PetscObject)A);
@@ -462,11 +473,13 @@ PetscParMatrix& PetscParMatrix::operator=(const HypreParMatrix& B)
 #else
    ierr = MatConvert_hypreParCSR_AIJ(B,&A); CCHKERRQ(B.GetComm(),ierr);
 #endif
+   MFEM_TRACE_BLOCK_END;
    return *this;
 }
 
 PetscParMatrix& PetscParMatrix::operator=(const PetscParMatrix& B)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (A)
    {
       MPI_Comm comm = PetscObjectComm((PetscObject)A);
@@ -478,11 +491,13 @@ PetscParMatrix& PetscParMatrix::operator=(const PetscParMatrix& B)
    height = B.Height();
    width  = B.Width();
    ierr   = MatDuplicate(B,MAT_COPY_VALUES,&A); CCHKERRQ(B.GetComm(),ierr);
+   MFEM_TRACE_BLOCK_END;
    return *this;
 }
 
 PetscParMatrix& PetscParMatrix::operator+=(const PetscParMatrix& B)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (!A)
    {
       ierr = MatDuplicate(B,MAT_COPY_VALUES,&A); CCHKERRQ(B.GetComm(),ierr);
@@ -493,6 +508,7 @@ PetscParMatrix& PetscParMatrix::operator+=(const PetscParMatrix& B)
       MFEM_VERIFY(width  == B.Width(), "Invalid number of local columns");
       ierr = MatAXPY(A,1.0,B,DIFFERENT_NONZERO_PATTERN); CCHKERRQ(B.GetComm(),ierr);
    }
+   MFEM_TRACE_BLOCK_END;
    return *this;
 }
 
@@ -501,6 +517,7 @@ BlockDiagonalConstructor(MPI_Comm comm,
                          PetscInt *row_starts, PetscInt *col_starts,
                          SparseMatrix *diag, bool assembled, Mat* Ad)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Mat      A;
    PetscInt lrsize,lcsize,rstart,cstart;
    PetscMPIInt myid = 0,commsize;
@@ -622,6 +639,7 @@ BlockDiagonalConstructor(MPI_Comm comm,
    ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY); PCHKERRQ(A,ierr);
 
    *Ad = A;
+   MFEM_TRACE_BLOCK_END;
 }
 
 // TODO ADD THIS CONSTRUCTOR
@@ -634,6 +652,7 @@ BlockDiagonalConstructor(MPI_Comm comm,
 // TODO This should take a reference on op but how?
 void PetscParMatrix::MakeWrapper(MPI_Comm comm, const Operator* op, Mat *A)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    __mfem_mat_shell_ctx *ctx = new __mfem_mat_shell_ctx;
    ierr = MatCreate(comm,A); CCHKERRQ(comm,ierr);
    ierr = MatSetSizes(*A,op->Height(),op->Width(),
@@ -651,11 +670,13 @@ void PetscParMatrix::MakeWrapper(MPI_Comm comm, const Operator* op, Mat *A)
    PCHKERRQ(A,ierr);
    ierr = MatSetUp(*A); PCHKERRQ(*A,ierr);
    ctx->op = const_cast<Operator *>(op);
+   MFEM_TRACE_BLOCK_END;
 }
 
 void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
                                      Operator::Type tid)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    PetscParMatrix   *pA = const_cast<PetscParMatrix *>
                           (dynamic_cast<const PetscParMatrix *>(&op));
    HypreParMatrix   *pH = const_cast<HypreParMatrix *>
@@ -679,6 +700,7 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
             ierr = PetscObjectReference((PetscObject)(pA->A));
             CCHKERRQ(pA->GetComm(),ierr);
             *A = pA->A;
+            MFEM_TRACE_BLOCK_END;
             return;
          }
          ierr = PetscObjectTypeCompare((PetscObject)(pA->A),MATIS,&ismatis);
@@ -902,10 +924,12 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
    {
       MakeWrapper(comm,&op,A);
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void PetscParMatrix::Destroy()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (A != NULL)
    {
       MPI_Comm comm = MPI_COMM_NULL;
@@ -915,10 +939,12 @@ void PetscParMatrix::Destroy()
    delete X;
    delete Y;
    X = Y = NULL;
+   MFEM_TRACE_BLOCK_END;
 }
 
 PetscParMatrix::PetscParMatrix(Mat a, bool ref)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (ref)
    {
       ierr = PetscObjectReference((PetscObject)a); PCHKERRQ(a,ierr);
@@ -927,6 +953,7 @@ PetscParMatrix::PetscParMatrix(Mat a, bool ref)
    A = a;
    height = GetNumRows();
    width = GetNumCols();
+   MFEM_TRACE_BLOCK_END;
 }
 
 // Computes y = alpha * A  * x + beta * y
@@ -1019,6 +1046,7 @@ PetscParVector * PetscParMatrix::GetY() const
 
 PetscParMatrix * PetscParMatrix::Transpose(bool action)
 {
+   MFEM_TRACE_BLOCK;
    Mat B;
    if (action)
    {
@@ -1033,7 +1061,9 @@ PetscParMatrix * PetscParMatrix::Transpose(bool action)
 
 void PetscParMatrix::operator*=(double s)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    ierr = MatScale(A,s); PCHKERRQ(A,ierr);
+   MFEM_TRACE_BLOCK_END;
 }
 
 void PetscParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
@@ -1097,6 +1127,7 @@ void PetscParMatrix::Print(const char *fname, bool binary) const
 
 PetscParMatrix * RAP(PetscParMatrix *Rt, PetscParMatrix *A, PetscParMatrix *P)
 {
+   MFEM_TRACE_BLOCK;
    Mat       pA = *A,pP = *P,pRt = *Rt;
    Mat       B;
    PetscBool Aismatis,Pismatis,Rtismatis;
@@ -1200,6 +1231,7 @@ PetscParMatrix * RAP(PetscParMatrix *A, PetscParMatrix *P)
 
 PetscParMatrix* PetscParMatrix::EliminateRowsCols(const Array<int> &rows_cols)
 {
+   MFEM_TRACE_BLOCK;
    Mat Ae;
 
    PetscParVector dummy(GetComm(),0);
@@ -1246,6 +1278,7 @@ void PetscParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
 
 Mat PetscParMatrix::ReleaseMat(bool dereference)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
 
    Mat B = A;
    if (dereference)
@@ -1254,6 +1287,7 @@ Mat PetscParMatrix::ReleaseMat(bool dereference)
       ierr = PetscObjectDereference((PetscObject)A); CCHKERRQ(comm,ierr);
    }
    A = NULL;
+   MFEM_TRACE_BLOCK_END;
    return B;
 }
 
@@ -1286,6 +1320,7 @@ void EliminateBC(PetscParMatrix &A, PetscParMatrix &Ae,
                  const Array<int> &ess_dof_list,
                  const Vector &X, Vector &B)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    const PetscScalar *array;
    Mat pA = const_cast<PetscParMatrix&>(A);
 
@@ -1301,6 +1336,7 @@ void EliminateBC(PetscParMatrix &A, PetscParMatrix &Ae,
       B(r) = array[r] * X(r);
    }
    ierr = VecRestoreArrayRead(diag,&array); PCHKERRQ(diag,ierr);
+   MFEM_TRACE_BLOCK_END;
 }
 
 // PetscSolver methods

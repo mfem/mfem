@@ -123,6 +123,7 @@ void ParBilinearForm::pAllocMat()
 
 void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    A.Clear();
 
    if (A_local == NULL) { return; }
@@ -173,6 +174,7 @@ void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
    Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
 
    A.MakePtAP(dA, Ph);
+   MFEM_TRACE_BLOCK_END;
 }
 
 HypreParMatrix *ParBilinearForm::ParallelAssemble(SparseMatrix *m)
@@ -185,6 +187,7 @@ HypreParMatrix *ParBilinearForm::ParallelAssemble(SparseMatrix *m)
 
 void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    ParMesh *pmesh = pfes->GetParMesh();
    FaceElementTransformations *T;
    Array<int> vdofs1, vdofs2, vdofs_all;
@@ -217,10 +220,12 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
          }
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParBilinearForm::Assemble(int skip_zeros)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (mat == NULL && fbfi.Size() > 0)
    {
       pfes->ExchangeFaceNbrData();
@@ -233,6 +238,7 @@ void ParBilinearForm::Assemble(int skip_zeros)
    {
       AssembleSharedFaces(skip_zeros);
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParBilinearForm
@@ -280,6 +286,7 @@ void ParBilinearForm::FormLinearSystem(
    const Array<int> &ess_tdof_list, Vector &x, Vector &b,
    OperatorHandle &A, Vector &X, Vector &B, int copy_interior)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
    FormSystemMatrix(ess_tdof_list, A);
@@ -318,11 +325,13 @@ void ParBilinearForm::FormLinearSystem(
       p_mat.EliminateBC(p_mat_e, ess_tdof_list, X, B);
       if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
                                        OperatorHandle &A)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
    if (static_cond)
@@ -360,11 +369,13 @@ void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
          A = p_mat;
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParBilinearForm::RecoverFEMSolution(
    const Vector &X, const Vector &b, Vector &x)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    const Operator &P = *pfes->GetProlongationMatrix();
 
    if (static_cond)
@@ -389,10 +400,12 @@ void ParBilinearForm::RecoverFEMSolution(
       x.SetSize(P.Height());
       P.Mult(X, x);
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParBilinearForm::Update(FiniteElementSpace *nfes)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    BilinearForm::Update(nfes);
 
    if (nfes)
@@ -403,11 +416,13 @@ void ParBilinearForm::Update(FiniteElementSpace *nfes)
 
    p_mat.Clear();
    p_mat_e.Clear();
+   MFEM_TRACE_BLOCK_END;
 }
 
 
 HypreParMatrix *ParMixedBilinearForm::ParallelAssemble()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    // construct the block-diagonal matrix A
    HypreParMatrix *A =
       new HypreParMatrix(trial_pfes->GetComm(),
@@ -422,11 +437,13 @@ HypreParMatrix *ParMixedBilinearForm::ParallelAssemble()
 
    delete A;
 
+   MFEM_TRACE_BLOCK_END;
    return rap;
 }
 
 void ParMixedBilinearForm::ParallelAssemble(OperatorHandle &A)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    // construct the rectangular block-diagonal matrix dA
    OperatorHandle dA(A.Type());
    dA.MakeRectangularBlockDiag(trial_pfes->GetComm(),
@@ -443,6 +460,7 @@ void ParMixedBilinearForm::ParallelAssemble(OperatorHandle &A)
    P_trial.ConvertFrom(trial_pfes->Dof_TrueDof_Matrix());
 
    A.MakeRAP(P_test, dA, P_trial);
+   MFEM_TRACE_BLOCK_END;
 }
 
 /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
@@ -463,18 +481,21 @@ void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
 
 HypreParMatrix* ParDiscreteLinearOperator::ParallelAssemble() const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_ASSERT(mat, "matrix is not assembled");
    MFEM_ASSERT(mat->Finalized(), "matrix is not finalized");
    SparseMatrix* RA = mfem::Mult(*range_fes->GetRestrictionMatrix(), *mat);
    HypreParMatrix* P = domain_fes->Dof_TrueDof_Matrix();
    HypreParMatrix* RAP = P->LeftDiagMult(*RA, range_fes->GetTrueDofOffsets());
    delete RA;
+   MFEM_TRACE_BLOCK_END;
    return RAP;
 }
 
 void ParDiscreteLinearOperator::GetParBlocks(Array2D<HypreParMatrix *> &blocks)
 const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_VERIFY(mat->Finalized(), "local matrix needs to be finalized for "
                "GetParBlocks");
 
@@ -487,6 +508,7 @@ const
                   domain_fes->GetOrdering() == Ordering::byVDIM);
 
    delete RLP;
+   MFEM_TRACE_BLOCK_END;
 }
 
 }

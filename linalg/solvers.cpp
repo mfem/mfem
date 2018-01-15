@@ -116,6 +116,7 @@ void SLISolver::UpdateVectors()
 
 void SLISolver::Mult(const Vector &b, Vector &x) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i;
 
    // Optimized preconditioned SLI with fixed number of iterations and given
@@ -131,6 +132,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       }
       converged = 1;
       final_iter = i;
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -148,6 +150,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       }
       converged = 1;
       final_iter = i;
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -186,6 +189,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       converged = 1;
       final_iter = 0;
       final_norm = sqrt(nom);
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -255,6 +259,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
                 << pow (nom/nom0, 0.5/final_iter) << '\n';
    }
    final_norm = sqrt(nom);
+   MFEM_TRACE_BLOCK_END;
 }
 
 void SLI(const Operator &A, const Vector &b, Vector &x,
@@ -294,6 +299,7 @@ void CGSolver::UpdateVectors()
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
 
@@ -332,6 +338,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       converged = 1;
       final_iter = 0;
       final_norm = sqrt(nom);
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -349,6 +356,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       converged = 0;
       final_iter = 0;
       final_norm = sqrt(nom);
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -439,6 +447,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
                 << pow (betanom/nom0, 0.5/final_iter) << '\n';
    }
    final_norm = sqrt(betanom);
+   MFEM_TRACE_BLOCK_END;
 }
 
 void CG(const Operator &A, const Vector &b, Vector &x,
@@ -521,6 +530,7 @@ inline void Update(Vector &x, int k, DenseMatrix &h, Vector &s,
 
 void GMRESSolver::Mult(const Vector &b, Vector &x) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    // Generalized Minimum Residual method following the algorithm
    // on p. 20 of the SIAM Templates book.
 
@@ -697,10 +707,12 @@ finish:
    {
       delete v[i];
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    DenseMatrix H(m+1,m);
    Vector s(m+1), cs(m+1), sn(m+1);
    Vector r(b.Size());
@@ -728,6 +740,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       final_norm = beta;
       final_iter = 0;
       converged = 1;
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -799,6 +812,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                if (v[i]) { delete v[i]; }
                if (z[i]) { delete z[i]; }
             }
+            MFEM_TRACE_BLOCK_END;
             return;
          }
       }
@@ -824,6 +838,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
             if (v[i]) { delete v[i]; }
             if (z[i]) { delete z[i]; }
          }
+         MFEM_TRACE_BLOCK_END;
          return;
       }
 
@@ -836,6 +851,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       if (z[i]) { delete z[i]; }
    }
    converged = 0;
+   MFEM_TRACE_BLOCK_END;
    return;
 
 }
@@ -879,6 +895,7 @@ void BiCGSTABSolver::UpdateVectors()
 
 void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    // BiConjugate Gradient Stabilized method following the algorithm
    // on p. 27 of the SIAM Templates book.
 
@@ -911,6 +928,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       final_norm = resid;
       final_iter = 0;
       converged = 1;
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -925,6 +943,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          final_norm = resid;
          final_iter = i;
          converged = 0;
+         MFEM_TRACE_BLOCK_END;
          return;
       }
       if (i == 1)
@@ -959,6 +978,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          final_norm = resid;
          final_iter = i;
          converged = 1;
+         MFEM_TRACE_BLOCK_END;
          return;
       }
       if (print_level >= 0)
@@ -990,6 +1010,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          final_norm = resid;
          final_iter = i;
          converged = 1;
+         MFEM_TRACE_BLOCK_END;
          return;
       }
       if (omega == 0)
@@ -997,6 +1018,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          final_norm = resid;
          final_iter = i;
          converged = 0;
+         MFEM_TRACE_BLOCK_END;
          return;
       }
    }
@@ -1004,6 +1026,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    final_norm = resid;
    final_iter = max_iter;
    converged = 0;
+   MFEM_TRACE_BLOCK_END;
 }
 
 int BiCGSTAB(const Operator &A, Vector &x, const Vector &b, Solver &M,
@@ -1045,6 +1068,7 @@ void MINRESSolver::SetOperator(const Operator &op)
 
 void MINRESSolver::Mult(const Vector &b, Vector &x) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    // Based on the MINRES algorithm on p. 86, Fig. 6.9 in
    // "Iterative Krylov Methods for Large Linear Systems",
    // by Henk A. van der Vorst, 2003.
@@ -1199,6 +1223,7 @@ loop_end:
    {
       mfem::out << "MINRES: No convergence!\n";
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void MINRES(const Operator &A, const Vector &b, Vector &x, int print_it,
@@ -1240,6 +1265,7 @@ void NewtonSolver::SetOperator(const Operator &op)
 
 void NewtonSolver::Mult(const Vector &b, Vector &x) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
    MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
 
@@ -1312,6 +1338,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 
    final_iter = it;
    final_norm = norm;
+   MFEM_TRACE_BLOCK_END;
 }
 
 
@@ -1687,6 +1714,7 @@ void UMFPackSolver::Init()
 
 void UMFPackSolver::SetOperator(const Operator &op)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int *Ap, *Ai;
    void *Symbolic;
    double *Ax;
@@ -1780,6 +1808,7 @@ void UMFPackSolver::SetOperator(const Operator &op)
       }
       umfpack_dl_free_symbolic(&Symbolic);
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void UMFPackSolver::Mult(const Vector &b, Vector &x) const
@@ -1872,6 +1901,7 @@ void KLUSolver::Init()
 
 void KLUSolver::SetOperator(const Operator &op)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (Numeric)
    {
       MFEM_ASSERT(Symbolic != 0,
@@ -1899,6 +1929,7 @@ void KLUSolver::SetOperator(const Operator &op)
 
    Symbolic = klu_analyze( height, Ap, Ai, &Common);
    Numeric = klu_factor(Ap, Ai, Ax, Symbolic, &Common);
+   MFEM_TRACE_BLOCK_END;
 }
 
 void KLUSolver::Mult(const Vector &b, Vector &x) const

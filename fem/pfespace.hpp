@@ -277,7 +277,7 @@ public:
       old_dof_offsets.DeleteAll();
    }
 
-   virtual ~ParFiniteElementSpace() { Destroy(); }
+   virtual ~ParFiniteElementSpace() { MFEM_TRACE_BLOCK; Destroy(); }
 
    // Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }

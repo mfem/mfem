@@ -25,7 +25,7 @@ namespace mfem
 {
 
 ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh)
-   : NCMesh(ncmesh)
+   : NCMesh((MFEM_TRACE_BLOCK_BEGIN, ncmesh))
 {
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
@@ -44,11 +44,14 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh)
    // note that at this point all processors still have all the leaf elements;
    // we however may now start pruning the refinement tree to get rid of
    // branches that only contain someone else's leaves (see Prune())
+   MFEM_TRACE_BLOCK_END;
 }
 
 ParNCMesh::~ParNCMesh()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    ClearAuxPM();
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParNCMesh::Update()
@@ -146,6 +149,7 @@ void ParNCMesh::UpdateVertices()
 
 void ParNCMesh::OnMeshUpdated(Mesh *mesh)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    // This is an override (or extension of) NCMesh::OnMeshUpdated().
    // In addition to getting edge/face indices from 'mesh', we also
    // assign indices to ghost edges/faces that don't exist in the 'mesh'.
@@ -187,6 +191,7 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
       MFEM_ASSERT(NFaces == NEdges, "");
       MFEM_ASSERT(NGhostFaces == NGhostEdges, "");
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParNCMesh::ElementSharesEdge(int elem, int enode)
@@ -945,6 +950,7 @@ void ParNCMesh::Prune()
 
 void ParNCMesh::Refine(const Array<Refinement> &refinements)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    for (int i = 0; i < refinements.Size(); i++)
    {
       const Refinement &ref = refinements[i];
@@ -1012,6 +1018,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
 
    // make sure we can delete the send buffers
    NeighborRefinementMessage::WaitAllSent(send_ref);
+   MFEM_TRACE_BLOCK_END;
 }
 
 
@@ -1035,6 +1042,7 @@ void ParNCMesh::LimitNCLevel(int max_nc_level)
 
 void ParNCMesh::Derefine(const Array<int> &derefs)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_VERIFY(Dim < 3 || Iso,
                "derefinement of 3D anisotropic meshes not implemented yet.");
 
@@ -1201,6 +1209,7 @@ void ParNCMesh::Derefine(const Array<int> &derefs)
 
    // make sure we can delete all send buffers
    NeighborDerefinementMessage::WaitAllSent(send_deref);
+   MFEM_TRACE_BLOCK_END;
 }
 
 
@@ -1345,6 +1354,7 @@ void ParNCMesh::CheckDerefinementNCLevel(const Table &deref_table,
 
 void ParNCMesh::Rebalance()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    send_rebalance_dofs.clear();
    recv_rebalance_dofs.clear();
 
@@ -1387,6 +1397,7 @@ void ParNCMesh::Rebalance()
 
    // get rid of elements beyond the new ghost layer
    Prune();
+   MFEM_TRACE_BLOCK_END;
 }
 
 struct CompareRanks

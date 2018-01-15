@@ -119,6 +119,13 @@ extern int tracing_state;  // 0 - disabled, 1 - enabled
 extern int tracing_depth;
 extern void tracing_msg(const char *func, const char *file, const int line,
                         const char *prefix, const int depth_inc);
+struct TraceBlock
+{
+   const char *m_func, *m_file;
+   int m_line, m_ret_line;
+   TraceBlock(const char *func, const char *file, const int line);
+   ~TraceBlock();
+};
 }
 }
 
@@ -133,6 +140,11 @@ extern void tracing_msg(const char *func, const char *file, const int line,
 
 #define MFEM_TRACE_BLOCK_END \
    mfem::internal::tracing_msg(_MFEM_FUNC_NAME, __FILE__, __LINE__, "<< ", -1)
+
+#define MFEM_TRACE_BLOCK \
+   mfem::internal::TraceBlock mfem_trc_blk_(_MFEM_FUNC_NAME, __FILE__, __LINE__)
+
+#define MFEM_TRACE_BLOCK_RET (mfem_trc_blk_.m_ret_line = __LINE__)
 
 #define MFEM_TRACE_POINT(msg) \
    if (mfem::internal::tracing_state) \

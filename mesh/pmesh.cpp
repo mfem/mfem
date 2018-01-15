@@ -3217,10 +3217,13 @@ void ParMesh::HexUniformRefinement()
 
 void ParMesh::NURBSUniformRefinement()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
+   MFEM_TRACE_POINT("NOT supported yet!");
    if (MyRank == 0)
    {
       mfem::out << "\nParMesh::NURBSUniformRefinement : Not supported yet!\n";
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParMesh::PrintXG(std::ostream &out) const

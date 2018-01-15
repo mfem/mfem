@@ -42,14 +42,14 @@ protected:
 
 public:
    ParBilinearForm(ParFiniteElementSpace *pf)
-      : BilinearForm(pf), pfes(pf),
+      : BilinearForm((MFEM_TRACE_BLOCK_BEGIN, pf)), pfes(pf),
         p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
-   { keep_nbr_block = false; }
+   { keep_nbr_block = false; MFEM_TRACE_BLOCK_END; }
 
    ParBilinearForm(ParFiniteElementSpace *pf, ParBilinearForm *bf)
-      : BilinearForm(pf, bf), pfes(pf),
+      : BilinearForm((MFEM_TRACE_BLOCK_BEGIN, pf), bf), pfes(pf),
         p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
-   { keep_nbr_block = false; }
+   { keep_nbr_block = false; MFEM_TRACE_BLOCK_END; }
 
    /** When set to true and the ParBilinearForm has interior face integrators,
        the local SparseMatrix will include the rows (in addition to the columns)
@@ -212,7 +212,7 @@ public:
 
    virtual void Update(FiniteElementSpace *nfes = NULL);
 
-   virtual ~ParBilinearForm() { }
+   virtual ~ParBilinearForm() { MFEM_TRACE_BLOCK; }
 };
 
 /// Class for parallel bilinear form using different test and trial FE spaces.
@@ -226,10 +226,11 @@ protected:
 public:
    ParMixedBilinearForm(ParFiniteElementSpace *trial_fes,
                         ParFiniteElementSpace *test_fes)
-      : MixedBilinearForm(trial_fes, test_fes)
+      : MixedBilinearForm((MFEM_TRACE_BLOCK_BEGIN, trial_fes), test_fes)
    {
       trial_pfes = trial_fes;
       test_pfes  = test_fes;
+      MFEM_TRACE_BLOCK_END;
    }
 
    /// Returns the matrix assembled on the true dofs, i.e. P_test^t A P_trial.
@@ -243,7 +244,7 @@ public:
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
    void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 
-   virtual ~ParMixedBilinearForm() { }
+   virtual ~ParMixedBilinearForm() { MFEM_TRACE_BLOCK; }
 };
 
 /** The parallel matrix representation a linear operator between parallel finite
@@ -257,7 +258,8 @@ protected:
 public:
    ParDiscreteLinearOperator(ParFiniteElementSpace *dfes,
                              ParFiniteElementSpace *rfes)
-      : DiscreteLinearOperator(dfes, rfes) { domain_fes=dfes; range_fes=rfes; }
+      : DiscreteLinearOperator((MFEM_TRACE_BLOCK_BEGIN, dfes), rfes)
+   { domain_fes=dfes; range_fes=rfes; MFEM_TRACE_BLOCK_END; }
 
    /// Returns the matrix "assembled" on the true dofs
    HypreParMatrix *ParallelAssemble() const;
@@ -266,7 +268,7 @@ public:
        domain and range parallel finite element spaces */
    void GetParBlocks(Array2D<HypreParMatrix *> &blocks) const;
 
-   virtual ~ParDiscreteLinearOperator() { }
+   virtual ~ParDiscreteLinearOperator() { MFEM_TRACE_BLOCK; }
 };
 
 }

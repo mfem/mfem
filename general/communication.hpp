@@ -71,8 +71,8 @@ private:
    void ProcToLProc();
 
 public:
-   GroupTopology() : MyComm(0) {}
-   GroupTopology(MPI_Comm comm) { MyComm = comm; }
+   GroupTopology() : MyComm(0) { MFEM_TRACE_BLOCK; }
+   GroupTopology(MPI_Comm comm) { MFEM_TRACE_BLOCK; MyComm = comm; }
 
    /// Copy constructor
    GroupTopology(const GroupTopology &gt);
@@ -109,7 +109,7 @@ public:
    /// Load the data from a stream.
    void Load(std::istream &in);
 
-   virtual ~GroupTopology() {}
+   virtual ~GroupTopology() { MFEM_TRACE_BLOCK; }
 };
 
 /** @brief Communicator performing operations within groups defined by a

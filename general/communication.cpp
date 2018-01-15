@@ -42,12 +42,13 @@ void MPI_Session::GetRankAndSize()
 
 
 GroupTopology::GroupTopology(const GroupTopology &gt)
-   : MyComm(gt.MyComm),
+   : MyComm((MFEM_TRACE_BLOCK_BEGIN, gt.MyComm)),
      group_lproc(gt.group_lproc)
 {
    gt.groupmaster_lproc.Copy(groupmaster_lproc);
    gt.lproc_proc.Copy(lproc_proc);
    gt.group_mgroup.Copy(group_mgroup);
+   MFEM_TRACE_BLOCK_END;
 }
 
 void GroupTopology::ProcToLProc()
@@ -274,7 +275,7 @@ const MPI_Datatype MPITypeMap<double>::mpi_type = MPI_DOUBLE;
 
 
 GroupCommunicator::GroupCommunicator(GroupTopology &gt, Mode m)
-   : gtopo(gt), mode(m)
+   : gtopo((MFEM_TRACE_BLOCK_BEGIN, gt)), mode(m)
 {
    group_buf_size = 0;
    requests = NULL;
@@ -283,6 +284,7 @@ GroupCommunicator::GroupCommunicator(GroupTopology &gt, Mode m)
    num_requests = 0;
    request_marker = NULL;
    buf_offsets = NULL;
+   MFEM_TRACE_BLOCK_END;
 }
 
 void GroupCommunicator::Create(Array<int> &ldof_group)
@@ -1141,10 +1143,12 @@ void GroupCommunicator::PrintInfo(std::ostream &out) const
 
 GroupCommunicator::~GroupCommunicator()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    delete [] buf_offsets;
    delete [] request_marker;
    // delete [] statuses;
    delete [] requests;
+   MFEM_TRACE_BLOCK_END;
 }
 
 // @cond DOXYGEN_SKIP

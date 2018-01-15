@@ -491,7 +491,8 @@ class DiscreteLinearOperator : public MixedBilinearForm
 public:
    DiscreteLinearOperator(FiniteElementSpace *domain_fes,
                           FiniteElementSpace *range_fes)
-      : MixedBilinearForm(domain_fes, range_fes) { }
+      : MixedBilinearForm((MFEM_TRACE_BLOCK_BEGIN, domain_fes), range_fes)
+   { MFEM_TRACE_BLOCK_END; }
 
    void AddDomainInterpolator(DiscreteInterpolator *di)
    { AddDomainIntegrator(di); }

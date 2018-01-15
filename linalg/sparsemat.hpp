@@ -82,7 +82,7 @@ protected:
 
 public:
    /// Create an empty SparseMatrix.
-   SparseMatrix() { SetEmpty(); }
+   SparseMatrix() { MFEM_TRACE_BLOCK; SetEmpty(); }
 
    /** @brief Create a sparse matrix with flexible sparsity structure using a
        row-wise linked list (LIL) format. */
@@ -429,7 +429,7 @@ public:
    void Swap(SparseMatrix &other);
 
    /// Destroys sparse matrix.
-   virtual ~SparseMatrix() { Destroy(); }
+   virtual ~SparseMatrix() { MFEM_TRACE_BLOCK; Destroy(); }
 
    Type GetType() const { return MFEM_SPARSEMAT; }
 };

@@ -23,10 +23,12 @@ void ForwardEulerSolver::Init(TimeDependentOperator &_f)
 
 void ForwardEulerSolver::Step(Vector &x, double &t, double &dt)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    f->SetTime(t);
    f->Mult(x, dxdt);
    x.Add(dt, dxdt);
    t += dt;
+   MFEM_TRACE_BLOCK_END;
 }
 
 
@@ -40,6 +42,7 @@ void RK2Solver::Init(TimeDependentOperator &_f)
 
 void RK2Solver::Step(Vector &x, double &t, double &dt)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    //  0 |
    //  a |  a
    // ---+--------
@@ -56,6 +59,7 @@ void RK2Solver::Step(Vector &x, double &t, double &dt)
    f->Mult(x, dxdt);
    add(x1, b*dt, dxdt, x);
    t += dt;
+   MFEM_TRACE_BLOCK_END;
 }
 
 
@@ -69,6 +73,7 @@ void RK3SSPSolver::Init(TimeDependentOperator &_f)
 
 void RK3SSPSolver::Step(Vector &x, double &t, double &dt)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    // x0 = x, t0 = t, k0 = dt*f(t0, x0)
    f->SetTime(t);
    f->Mult(x, k);
@@ -88,6 +93,7 @@ void RK3SSPSolver::Step(Vector &x, double &t, double &dt)
    y.Add(dt, k);
    add(1./3, x, 2./3, y, x);
    t += dt;
+   MFEM_TRACE_BLOCK_END;
 }
 
 
@@ -102,6 +108,7 @@ void RK4Solver::Init(TimeDependentOperator &_f)
 
 void RK4Solver::Step(Vector &x, double &t, double &dt)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    //   0  |
    //  1/2 | 1/2
    //  1/2 |  0   1/2
@@ -127,6 +134,7 @@ void RK4Solver::Step(Vector &x, double &t, double &dt)
    f->Mult(y, k); // k4
    add(z, dt/6, k, x);
    t += dt;
+   MFEM_TRACE_BLOCK_END;
 }
 
 ExplicitRKSolver::ExplicitRKSolver(int _s, const double *_a, const double *_b,
@@ -152,6 +160,7 @@ void ExplicitRKSolver::Init(TimeDependentOperator &_f)
 
 void ExplicitRKSolver::Step(Vector &x, double &t, double &dt)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    //   0     |
    //  c[0]   | a[0]
    //  c[1]   | a[1] a[2]
@@ -178,6 +187,7 @@ void ExplicitRKSolver::Step(Vector &x, double &t, double &dt)
       x.Add(b[i]*dt, k[i]);
    }
    t += dt;
+   MFEM_TRACE_BLOCK_END;
 }
 
 ExplicitRKSolver::~ExplicitRKSolver()
@@ -346,10 +356,12 @@ void BackwardEulerSolver::Init(TimeDependentOperator &_f)
 
 void BackwardEulerSolver::Step(Vector &x, double &t, double &dt)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    f->SetTime(t + dt);
    f->ImplicitSolve(dt, x, k); // solve for k: k = f(x + dt*k, t + dt)
    x.Add(dt, k);
    t += dt;
+   MFEM_TRACE_BLOCK_END;
 }
 
 
@@ -361,10 +373,12 @@ void ImplicitMidpointSolver::Init(TimeDependentOperator &_f)
 
 void ImplicitMidpointSolver::Step(Vector &x, double &t, double &dt)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    f->SetTime(t + dt/2);
    f->ImplicitSolve(dt/2, x, k);
    x.Add(dt, k);
    t += dt;
+   MFEM_TRACE_BLOCK_END;
 }
 
 
@@ -397,6 +411,7 @@ void SDIRK23Solver::Init(TimeDependentOperator &_f)
 
 void SDIRK23Solver::Step(Vector &x, double &t, double &dt)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    // with a = gamma:
    //   a   |   a
    //  1-a  |  1-2a  a
@@ -412,6 +427,7 @@ void SDIRK23Solver::Step(Vector &x, double &t, double &dt)
    f->ImplicitSolve(gamma*dt, y, k);
    x.Add(dt/2, k);
    t += dt;
+   MFEM_TRACE_BLOCK_END;
 }
 
 
@@ -425,6 +441,7 @@ void SDIRK34Solver::Init(TimeDependentOperator &_f)
 
 void SDIRK34Solver::Step(Vector &x, double &t, double &dt)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    //   a   |    a
    //  1/2  |  1/2-a    a
    //  1-a  |   2a    1-4a   a
@@ -449,6 +466,7 @@ void SDIRK34Solver::Step(Vector &x, double &t, double &dt)
    f->ImplicitSolve(a*dt, z, k);
    x.Add(b*dt, k);
    t += dt;
+   MFEM_TRACE_BLOCK_END;
 }
 
 
@@ -461,6 +479,7 @@ void SDIRK33Solver::Init(TimeDependentOperator &_f)
 
 void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    //   a  |   a
    //   c  |  c-a    a
    //   1  |   b   1-a-b  a
@@ -483,6 +502,7 @@ void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
    f->ImplicitSolve(a*dt, x, k);
    x.Add(a*dt, k);
    t += dt;
+   MFEM_TRACE_BLOCK_END;
 }
 
 }

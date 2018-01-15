@@ -26,7 +26,7 @@ namespace mfem
 
 ParFiniteElementSpace::ParFiniteElementSpace(
    ParMesh *pm, const FiniteElementCollection *f, int dim, int ordering)
-   : FiniteElementSpace(pm, f, dim, ordering)
+   : FiniteElementSpace((MFEM_TRACE_BLOCK_BEGIN, pm), f, dim, ordering)
 {
    mesh = pmesh = pm;
 
@@ -53,10 +53,12 @@ ParFiniteElementSpace::ParFiniteElementSpace(
          ApplyLDofSigns(dofs);
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParFiniteElementSpace::Construct()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (NURBSext)
    {
       if (own_ext)
@@ -83,11 +85,13 @@ void ParFiniteElementSpace::Construct()
       // get P matrix and also initialize DOF offsets etc.
       GetParallelConformingInterpolation();
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParFiniteElementSpace::GetGroupComm(
    GroupCommunicator &gc, int ldof_type, Array<int> *ldof_sign)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int gr;
    int ng = pmesh->GetNGroups();
    int nvd, ned, nfd;
@@ -240,6 +244,7 @@ void ParFiniteElementSpace::GetGroupComm(
    }
 
    gc.Finalize();
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParFiniteElementSpace::ApplyLDofSigns(Array<int> &dofs) const
@@ -348,6 +353,7 @@ void ParFiniteElementSpace::GetSharedFaceDofs(
 
 void ParFiniteElementSpace::GenerateGlobalOffsets() const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    HYPRE_Int ldof[2];
    Array<HYPRE_Int> *offsets[2] = { &dof_offsets, &tdof_offsets };
 
@@ -392,15 +398,18 @@ void ParFiniteElementSpace::GenerateGlobalOffsets() const
          // Do nothing
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
 {
-   if (P) { return; }
+   MFEM_TRACE_BLOCK_BEGIN;
+   if (P) { MFEM_TRACE_BLOCK_END; return; }
 
    if (Nonconforming())
    {
       GetParallelConformingInterpolation();
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -455,6 +464,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    SparseMatrix Pdiag;
    P->GetDiag(Pdiag);
    R = Transpose(Pdiag);
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParFiniteElementSpace::DivideByGroupSize(double *vec)
@@ -477,9 +487,11 @@ void ParFiniteElementSpace::DivideByGroupSize(double *vec)
 
 GroupCommunicator *ParFiniteElementSpace::ScalarGroupComm()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (Nonconforming())
    {
       // MFEM_WARNING("Not implemented for NC mesh.");
+      MFEM_TRACE_BLOCK_END;
       return NULL;
    }
 
@@ -492,11 +504,13 @@ GroupCommunicator *ParFiniteElementSpace::ScalarGroupComm()
    {
       GetGroupComm(*gc, 0);
    }
+   MFEM_TRACE_BLOCK_END;
    return gc;
 }
 
 void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (Nonconforming())
    {
       MFEM_ABORT("Not implemented for NC mesh.");
@@ -510,12 +524,14 @@ void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
    // implement allreduce(|) as reduce(|) + broadcast
    gcomm->Reduce<int>(ldof_marker, GroupCommunicator::BitOR);
    gcomm->Bcast(ldof_marker);
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                               Array<int> &ess_dofs,
                                               int component) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
 
    if (Conforming())
@@ -524,6 +540,7 @@ void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
       // their boundary dofs (if they have any).
       Synchronize(ess_dofs);
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
@@ -531,6 +548,7 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
                                                  Array<int> &ess_tdof_list,
                                                  int component)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Array<int> ess_dofs, true_ess_dofs;
 
    GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
@@ -549,6 +567,7 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
    MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter);
 #endif
    MarkerToList(true_ess_dofs, ess_tdof_list);
+   MFEM_TRACE_BLOCK_END;
 }
 
 int ParFiniteElementSpace::GetLocalTDofNumber(int ldof) const
@@ -657,7 +676,8 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix()
 
 void ParFiniteElementSpace::ExchangeFaceNbrData()
 {
-   if (num_face_nbr_dofs >= 0) { return; }
+   MFEM_TRACE_BLOCK_BEGIN;
+   if (num_face_nbr_dofs >= 0) { MFEM_TRACE_BLOCK_END; return; }
 
    pmesh->ExchangeFaceNbrData();
 
@@ -666,6 +686,7 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
    if (num_face_nbrs == 0)
    {
       num_face_nbr_dofs = 0;
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -872,6 +893,7 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
 
    delete [] statuses;
    delete [] requests;
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParFiniteElementSpace::GetFaceNbrElementVDofs(
@@ -943,6 +965,7 @@ void ParFiniteElementSpace::Lose_Dof_TrueDof_Matrix()
 
 void ParFiniteElementSpace::ConstructTrueDofs()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i, gr, n = GetVSize();
    GroupTopology &gt = pmesh->gtopo;
    gcomm = new GroupCommunicator(gt);
@@ -989,10 +1012,12 @@ void ParFiniteElementSpace::ConstructTrueDofs()
 
    // have the group masters broadcast their ltdofs to the rest of the group
    gcomm->Bcast(ldof_ltdof);
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParFiniteElementSpace::ConstructTrueNURBSDofs()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int n = GetVSize();
    GroupTopology &gt = pNURBSext()->gtopo;
    gcomm = new GroupCommunicator(gt);
@@ -1036,6 +1061,7 @@ void ParFiniteElementSpace::ConstructTrueNURBSDofs()
 
    // have the group masters broadcast their ltdofs to the rest of the group
    gcomm->Bcast(ldof_ltdof);
+   MFEM_TRACE_BLOCK_END;
 }
 
 inline int decode_dof(int dof, double& sign)
@@ -1220,6 +1246,7 @@ void ParFiniteElementSpace::GetDofs(int type, int index, Array<int>& dofs) const
 
 void ParFiniteElementSpace::GetParallelConformingInterpolation() const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    ParNCMesh* pncmesh = pmesh->pncmesh;
 
    bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
@@ -1577,14 +1604,16 @@ void ParFiniteElementSpace::GetParallelConformingInterpolation() const
    {
       NeighborRowReply::WaitAllSent(*it);
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    // TODO: we should refactor the code to remove duplication in this
    // and the previous function
 
-   if (Conforming()) { return NULL; }
+   if (Conforming()) { MFEM_TRACE_BLOCK_END; return NULL; }
 
    ParNCMesh* pncmesh = pmesh->pncmesh;
 
@@ -1870,6 +1899,7 @@ HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
    {
       NeighborRowReply::WaitAllSent(*it);
    }
+   MFEM_TRACE_BLOCK_END;
    return PP;
 }
 
@@ -1904,6 +1934,7 @@ HypreParMatrix*
 ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
                                        const Table* old_elem_dof)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_VERIFY(Nonconforming(), "Only supported for nonconforming meshes.");
    MFEM_VERIFY(old_dof_offsets.Size(), "ParFiniteElementSpace::Update needs to "
                "be called before ParFiniteElementSpace::RebalanceMatrix");
@@ -1997,6 +2028,7 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
    HypreParMatrix *M;
    M = new HypreParMatrix(MyComm, MyRank, NRanks, dof_offsets, old_dof_offsets,
                           i_diag, j_diag, i_offd, j_offd, cmap, offd_cols);
+   MFEM_TRACE_BLOCK_END;
    return M;
 }
 
@@ -2011,6 +2043,7 @@ HypreParMatrix*
 ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                                                   const Table* old_elem_dof)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int nrk = HYPRE_AssumedPartitionCheck() ? 2 : NRanks;
 
    MFEM_VERIFY(Nonconforming(), "Not implemented for conforming meshes.");
@@ -2208,11 +2241,13 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
    R->SetOwnerFlags(3, 3, 1);
 
+   MFEM_TRACE_BLOCK_END;
    return R;
 }
 
 void ParFiniteElementSpace::Destroy()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    ldof_group.DeleteAll();
    ldof_ltdof.DeleteAll();
    dof_offsets.DeleteAll();
@@ -2232,12 +2267,15 @@ void ParFiniteElementSpace::Destroy()
    face_nbr_ldof.Clear();
    face_nbr_glob_dof_map.DeleteAll();
    send_face_nbr_ldof.Clear();
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ParFiniteElementSpace::Update(bool want_transform)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (mesh->GetSequence() == sequence)
    {
+      MFEM_TRACE_BLOCK_END;
       return; // no need to update, no-op
    }
    if (want_transform && mesh->GetSequence() != sequence + 1)
@@ -2250,6 +2288,7 @@ void ParFiniteElementSpace::Update(bool want_transform)
    if (NURBSext)
    {
       UpdateNURBS();
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -2305,12 +2344,13 @@ void ParFiniteElementSpace::Update(bool want_transform)
       }
       delete old_elem_dof;
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 
 ConformingProlongationOperator::ConformingProlongationOperator(
    ParFiniteElementSpace &pfes)
-   : Operator(pfes.GetVSize(), pfes.GetTrueVSize()),
+   : Operator((MFEM_TRACE_BLOCK_BEGIN, pfes.GetVSize()), pfes.GetTrueVSize()),
      external_ldofs(),
      gc(pfes.GroupComm())
 {
@@ -2351,6 +2391,7 @@ ConformingProlongationOperator::ConformingProlongationOperator(
    // gc.PrintInfo();
    // pfes.Dof_TrueDof_Matrix()->PrintCommPkg();
 #endif
+   MFEM_TRACE_BLOCK_END;
 }
 
 void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const

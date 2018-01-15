@@ -227,11 +227,13 @@ public:
    /** If @a owner is false, ownership of @a a is not transferred */
    explicit HypreParMatrix(hypre_ParCSRMatrix *a, bool owner = true)
    {
+      MFEM_TRACE_BLOCK_BEGIN;
       Init();
       A = a;
       if (!owner) { ParCSROwner = 0; }
       height = GetNumRows();
       width = GetNumCols();
+      MFEM_TRACE_BLOCK_END;
    }
 
    /** Creates block-diagonal square parallel matrix. Diagonal is given by diag
@@ -474,7 +476,7 @@ public:
    void PrintCommPkg(std::ostream &out = mfem::out) const;
 
    /// Calls hypre's destroy function
-   virtual ~HypreParMatrix() { Destroy(); }
+   virtual ~HypreParMatrix() { MFEM_TRACE_BLOCK; Destroy(); }
 
    Type GetType() const { return Hypre_ParCSR; }
 };
@@ -833,7 +835,7 @@ public:
    virtual operator HYPRE_Solver() const { return amg_precond; }
 
    virtual HYPRE_PtrToParSolverFcn SetupFcn() const
-   { return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSetup; }
+   { MFEM_TRACE_BLOCK; return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSetup; }
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSolve; }
 
@@ -872,7 +874,7 @@ public:
    virtual operator HYPRE_Solver() const { return ams; }
 
    virtual HYPRE_PtrToParSolverFcn SetupFcn() const
-   { return (HYPRE_PtrToParSolverFcn) HYPRE_AMSSetup; }
+   { MFEM_TRACE_BLOCK; return (HYPRE_PtrToParSolverFcn) HYPRE_AMSSetup; }
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_AMSSolve; }
 
@@ -905,7 +907,7 @@ public:
    virtual operator HYPRE_Solver() const { return ads; }
 
    virtual HYPRE_PtrToParSolverFcn SetupFcn() const
-   { return (HYPRE_PtrToParSolverFcn) HYPRE_ADSSetup; }
+   { MFEM_TRACE_BLOCK; return (HYPRE_PtrToParSolverFcn) HYPRE_ADSSetup; }
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ADSSolve; }
 

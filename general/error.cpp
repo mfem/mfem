@@ -157,6 +157,29 @@ void tracing_msg(const char *func, const char *file, const int line,
    }
 }
 
+TraceBlock::TraceBlock(const char *func, const char *file, const int line)
+   : m_func(func), m_file(file), m_line(line), m_ret_line(-1)
+{
+   if (tracing_state)
+   {
+      mfem::trc << MFEM_TRACE_INDENT_WIDTH << ">> "
+                << m_func << " @ " << m_file << ':' << m_line << std::endl;
+      tracing_depth += 1;
+   }
+}
+
+TraceBlock::~TraceBlock()
+{
+   if (tracing_state)
+   {
+      tracing_depth -= 1;
+      mfem::trc << MFEM_TRACE_INDENT_WIDTH << "<< "
+                << m_func << " @ " << m_file;
+      if (m_ret_line == -1) { mfem::trc << ":???" << std::endl; }
+      else { mfem::trc << ':' << m_ret_line << std::endl; }
+   }
+}
+
 } // namespace internal
 
 #endif // MFEM_USE_TRACING

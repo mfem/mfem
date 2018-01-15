@@ -174,7 +174,8 @@ void FiniteElementSpace::GetEdgeInteriorVDofs(int i, Array<int> &vdofs) const
 
 void FiniteElementSpace::BuildElementToDofTable() const
 {
-   if (elem_dof) { return; }
+   MFEM_TRACE_BLOCK_BEGIN;
+   if (elem_dof) { MFEM_TRACE_BLOCK_END; return; }
 
    Table *el_dof = new Table;
    Array<int> dofs;
@@ -192,6 +193,7 @@ void FiniteElementSpace::BuildElementToDofTable() const
    }
    el_dof -> ShiftUpI();
    elem_dof = el_dof;
+   MFEM_TRACE_BLOCK_END;
 }
 
 void FiniteElementSpace::RebuildElementToDofTable()
@@ -259,6 +261,7 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                            Array<int> &ess_vdofs,
                                            int component) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Array<int> vdofs, dofs;
 
    ess_vdofs.SetSize(GetVSize());
@@ -322,12 +325,14 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
          }
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                               Array<int> &ess_tdof_list,
                                               int component)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Array<int> ess_vdofs, ess_tdofs;
    GetEssentialVDofs(bdr_attr_is_ess, ess_vdofs, component);
    const SparseMatrix *R = GetConformingRestriction();
@@ -340,6 +345,7 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
       R->BooleanMult(ess_vdofs, ess_tdofs);
    }
    MarkerToList(ess_tdofs, ess_tdof_list);
+   MFEM_TRACE_BLOCK_END;
 }
 
 // static method
@@ -745,6 +751,7 @@ int FiniteElementSpace::GetNConformingDofs() const
 SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
                                                    const Table* old_elem_dof)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_VERIFY(mesh->GetLastOperation() == Mesh::REFINE, "");
    MFEM_VERIFY(ndofs >= old_ndofs, "Previous space is not coarser.");
 
@@ -804,6 +811,7 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
    }
 
    MFEM_ASSERT(mark.Sum() == P->Height(), "Not all rows of P set.");
+   MFEM_TRACE_BLOCK_END;
    return P;
 }
 
@@ -873,6 +881,7 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(
 SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
                                                      const Table* old_elem_dof)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_VERIFY(Nonconforming(), "Not implemented for conforming meshes.");
    MFEM_VERIFY(old_ndofs, "Missing previous (finer) space.");
    MFEM_VERIFY(ndofs <= old_ndofs, "Previous space is not finer.");
@@ -924,6 +933,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    }
 
    MFEM_ASSERT(mark.Sum() == R->Height(), "Not all rows of R set.");
+   MFEM_TRACE_BLOCK_END;
    return R;
 }
 
@@ -931,6 +941,7 @@ FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
                                        const FiniteElementCollection *fec,
                                        int vdim, int ordering)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    this->mesh = mesh;
    this->fec = fec;
    this->vdim = vdim;
@@ -976,6 +987,7 @@ FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
    }
 
    BuildElementToDofTable();
+   MFEM_TRACE_BLOCK_END;
 }
 
 NURBSExtension *FiniteElementSpace::StealNURBSext()
@@ -991,6 +1003,7 @@ NURBSExtension *FiniteElementSpace::StealNURBSext()
 
 void FiniteElementSpace::UpdateNURBS()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    nvdofs = 0;
    nedofs = 0;
    nfdofs = 0;
@@ -1003,10 +1016,12 @@ void FiniteElementSpace::UpdateNURBS()
    ndofs = NURBSext->GetNDof();
    elem_dof = NURBSext->GetElementDofTable();
    bdrElem_dof = NURBSext->GetBdrElementDofTable();
+   MFEM_TRACE_BLOCK_END;
 }
 
 void FiniteElementSpace::Construct()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i;
 
    elem_dof = NULL;
@@ -1071,6 +1086,7 @@ void FiniteElementSpace::Construct()
 
    // Do not build elem_dof Table here: in parallel it has to be constructed
    // later.
+   MFEM_TRACE_BLOCK_END;
 }
 
 void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
@@ -1473,11 +1489,14 @@ const FiniteElement *FiniteElementSpace::GetTraceElement(
 
 FiniteElementSpace::~FiniteElementSpace()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Destroy();
+   MFEM_TRACE_BLOCK_END;
 }
 
 void FiniteElementSpace::Destroy()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    delete cR;
    delete cP;
    if (own_T) { delete T; }
@@ -1497,12 +1516,15 @@ void FiniteElementSpace::Destroy()
       delete [] bdofs;
       delete [] fdofs;
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void FiniteElementSpace::Update(bool want_transform)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (mesh->GetSequence() == sequence)
    {
+      MFEM_TRACE_BLOCK_END;
       return; // mesh and space are in sync, no-op
    }
    if (want_transform && mesh->GetSequence() != sequence + 1)
@@ -1515,6 +1537,7 @@ void FiniteElementSpace::Update(bool want_transform)
    if (NURBSext)
    {
       UpdateNURBS();
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -1561,6 +1584,7 @@ void FiniteElementSpace::Update(bool want_transform)
    }
 
    delete old_elem_dof;
+   MFEM_TRACE_BLOCK_END;
 }
 
 void FiniteElementSpace::Save(std::ostream &out) const

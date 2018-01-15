@@ -219,7 +219,7 @@ public:
                   Operator::Type tid);
 
    /// Calls PETSc's destroy function.
-   virtual ~PetscParMatrix() { Destroy(); }
+   virtual ~PetscParMatrix() { MFEM_TRACE_BLOCK; Destroy(); }
 
    /// @name Assignment operators
    ///@{

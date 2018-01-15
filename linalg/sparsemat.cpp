@@ -28,7 +28,8 @@ namespace mfem
 using namespace std;
 
 SparseMatrix::SparseMatrix(int nrows, int ncols)
-   : AbstractSparseMatrix(nrows, (ncols >= 0) ? ncols : nrows),
+   : AbstractSparseMatrix((MFEM_TRACE_BLOCK_BEGIN, nrows),
+                          (ncols >= 0) ? ncols : nrows),
      I(NULL),
      J(NULL),
      A(NULL),
@@ -48,10 +49,11 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = new RowNodeAlloc;
 #endif
+   MFEM_TRACE_BLOCK_END;
 }
 
 SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n)
-   : AbstractSparseMatrix(m, n),
+   : AbstractSparseMatrix((MFEM_TRACE_BLOCK_BEGIN, m), n),
      I(i),
      J(j),
      A(data),
@@ -65,11 +67,12 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n)
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
+   MFEM_TRACE_BLOCK_END;
 }
 
 SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
                            bool ownij, bool owna, bool issorted)
-   : AbstractSparseMatrix(m, n),
+   : AbstractSparseMatrix((MFEM_TRACE_BLOCK_BEGIN, m), n),
      I(i),
      J(j),
      A(data),
@@ -94,10 +97,11 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
          A[i] = 0.0;
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
-   : AbstractSparseMatrix(nrows, ncols)
+   : AbstractSparseMatrix((MFEM_TRACE_BLOCK_BEGIN, nrows), ncols)
    , Rows(NULL)
    , ColPtrJ(NULL)
    , ColPtrNode(NULL)
@@ -116,10 +120,11 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
    {
       I[i] = i * rowsize;
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
-   : AbstractSparseMatrix(mat.Height(), mat.Width())
+   : AbstractSparseMatrix((MFEM_TRACE_BLOCK_BEGIN, mat.Height()), mat.Width())
 {
    if (mat.Finalized())
    {
@@ -182,15 +187,18 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
    ColPtrJ = NULL;
    ColPtrNode = NULL;
    isSorted = mat.isSorted;
+   MFEM_TRACE_BLOCK_END;
 }
 
 SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Clear();
 
    SparseMatrix copy(rhs);
    Swap(copy);
 
+   MFEM_TRACE_BLOCK_END;
    return *this;
 }
 
@@ -335,10 +343,12 @@ void SparseMatrix::SetWidth(int newWidth)
 
 void SparseMatrix::SortColumnIndices()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_VERIFY(Finalized(), "Matrix is not Finalized!");
 
    if (isSorted)
    {
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -360,10 +370,12 @@ void SparseMatrix::SortColumnIndices()
       }
    }
    isSorted = true;
+   MFEM_TRACE_BLOCK_END;
 }
 
 void SparseMatrix::MoveDiagonalFirst()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_VERIFY(Finalized(), "Matrix is not Finalized!");
 
    for (int row = 0, end = 0; row < height; row++)
@@ -384,6 +396,7 @@ void SparseMatrix::MoveDiagonalFirst()
       J[start] = row;
       A[start] = diag;
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 double &SparseMatrix::Elem(int i, int j)
@@ -753,11 +766,13 @@ double SparseMatrix::GetRowNorml1(int irow) const
 
 void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i, j, nr, nz;
    RowNode *aux;
 
    if (Finalized())
    {
+      MFEM_TRACE_BLOCK_END;
       return;
    }
 
@@ -830,10 +845,12 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
 
    delete [] Rows;
    Rows = NULL;
+   MFEM_TRACE_BLOCK_END;
 }
 
 void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int br = blocks.NumRows(), bc = blocks.NumCols();
    int nr = (height + br - 1)/br, nc = (width + bc - 1)/bc;
 
@@ -920,6 +937,7 @@ void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
          }
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 double SparseMatrix::IsSymmetric() const
@@ -966,6 +984,7 @@ double SparseMatrix::IsSymmetric() const
 
 void SparseMatrix::Symmetrize()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    int i, j;
@@ -977,6 +996,7 @@ void SparseMatrix::Symmetrize()
             A[j] *= 0.5;
             (*this)(J[j],i) = A[j];
          }
+   MFEM_TRACE_BLOCK_END;
 }
 
 int SparseMatrix::NumNonZeroElems() const
@@ -1054,6 +1074,7 @@ int SparseMatrix::CountSmallElems(double tol) const
 
 int SparseMatrix::CheckFinite() const
 {
+   MFEM_TRACE_BLOCK;
    if (Empty())
    {
       return 0;
@@ -1166,6 +1187,7 @@ void SparseMatrix::EliminateCol(int col, DiagonalPolicy dpolicy)
 
 void SparseMatrix::EliminateCols(const Array<int> &cols, Vector *x, Vector *b)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (Rows == NULL)
    {
       for (int i = 0; i < height; i++)
@@ -1192,6 +1214,7 @@ void SparseMatrix::EliminateCols(const Array<int> &cols, Vector *x, Vector *b)
                aux->Value = 0.0;
             }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void SparseMatrix::EliminateRowCol(int rc, const double sol, Vector &rhs,
@@ -1826,6 +1849,7 @@ void SparseMatrix::Gauss_Seidel_back(const Vector &x, Vector &y) const
 
 double SparseMatrix::GetJacobiScaling() const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    double sc = 1.0;
@@ -1854,6 +1878,7 @@ double SparseMatrix::GetJacobiScaling() const
          mfem_error("SparseMatrix::GetJacobiScaling() #2");
       }
    }
+   MFEM_TRACE_BLOCK_END;
    return sc;
 }
 
@@ -2341,6 +2366,7 @@ void SparseMatrix::ScaleRows(const Vector & sl)
 
 void SparseMatrix::ScaleColumns(const Vector & sr)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (Rows != NULL)
    {
       RowNode *aux;
@@ -2365,10 +2391,12 @@ void SparseMatrix::ScaleColumns(const Vector & sr)
          }
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 SparseMatrix &SparseMatrix::operator+=(const SparseMatrix &B)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_ASSERT(height == B.height && width == B.width,
                "Mismatch of this matrix size and rhs.  This height = "
                << height << ", width = " << width << ", B.height = "
@@ -2394,11 +2422,13 @@ SparseMatrix &SparseMatrix::operator+=(const SparseMatrix &B)
       ClearColPtr();
    }
 
+   MFEM_TRACE_BLOCK_END;
    return (*this);
 }
 
 void SparseMatrix::Add(const double a, const SparseMatrix &B)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    for (int i = 0; i < height; i++)
    {
       B.SetColPtr(i);
@@ -2418,10 +2448,12 @@ void SparseMatrix::Add(const double a, const SparseMatrix &B)
       }
       B.ClearColPtr();
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 SparseMatrix &SparseMatrix::operator=(double a)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (Rows == NULL)
       for (int i = 0, nnz = I[height]; i < nnz; i++)
       {
@@ -2435,11 +2467,13 @@ SparseMatrix &SparseMatrix::operator=(double a)
             node_p -> Value = a;
          }
 
+   MFEM_TRACE_BLOCK_END;
    return (*this);
 }
 
 SparseMatrix &SparseMatrix::operator*=(double a)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (Rows == NULL)
       for (int i = 0, nnz = I[height]; i < nnz; i++)
       {
@@ -2453,6 +2487,7 @@ SparseMatrix &SparseMatrix::operator*=(double a)
             node_p -> Value *= a;
          }
 
+   MFEM_TRACE_BLOCK_END;
    return (*this);
 }
 
@@ -2640,6 +2675,7 @@ void SparseMatrix::PrintInfo(std::ostream &out) const
 
 void SparseMatrix::Destroy()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    if (I != NULL && ownGraph)
    {
       delete [] I;
@@ -2684,6 +2720,7 @@ void SparseMatrix::Destroy()
       delete NodesMem;
    }
 #endif
+   MFEM_TRACE_BLOCK_END;
 }
 
 int SparseMatrix::ActualWidth()
@@ -2725,6 +2762,7 @@ void SparseMatrixFunction (SparseMatrix & S, double (*f)(double))
 
 SparseMatrix *Transpose (const SparseMatrix &A)
 {
+   MFEM_TRACE_BLOCK;
    MFEM_VERIFY(
       A.Finalized(),
       "Finalize must be called before Transpose. Use TransposeRowMatrix instead");
@@ -2780,6 +2818,7 @@ SparseMatrix *Transpose (const SparseMatrix &A)
 SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
                                              int useActualWidth)
 {
+   MFEM_TRACE_BLOCK;
    int i, j;
    int m, n, nnz, *At_i, *At_j;
    double *At_data;
@@ -2857,6 +2896,7 @@ SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
 SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
                     SparseMatrix *OAB)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int nrowsA, ncolsA, nrowsB, ncolsB;
    int *A_i, *A_j, *B_i, *B_j, *C_i, *C_j, *B_marker;
    double *A_data, *B_data, *C_data;
@@ -2977,12 +3017,14 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
 
    delete [] B_marker;
 
+   MFEM_TRACE_BLOCK_END;
    return C;
 }
 
 SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
                                         const AbstractSparseMatrix &B)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int nrowsA, ncolsA, nrowsB, ncolsB;
    int *C_i, *C_j, *B_marker;
    double *C_data;
@@ -3074,11 +3116,13 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
 
    delete [] B_marker;
 
+   MFEM_TRACE_BLOCK_END;
    return C;
 }
 
 DenseMatrix *Mult (const SparseMatrix &A, DenseMatrix &B)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    DenseMatrix *C = new DenseMatrix(A.Height(), B.Width());
    Vector columnB, columnC;
    for (int j = 0; j < B.Width(); ++j)
@@ -3087,44 +3131,52 @@ DenseMatrix *Mult (const SparseMatrix &A, DenseMatrix &B)
       C->GetColumnReference(j, columnC);
       A.Mult(columnB, columnC);
    }
+   MFEM_TRACE_BLOCK_END;
    return C;
 }
 
 DenseMatrix *RAP (const SparseMatrix &A, DenseMatrix &P)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    DenseMatrix R (P, 't'); // R = P^T
    DenseMatrix *AP   = Mult (A, P);
    DenseMatrix *_RAP = new DenseMatrix(R.Height(), AP->Width());
    Mult (R, *AP, *_RAP);
    delete AP;
+   MFEM_TRACE_BLOCK_END;
    return _RAP;
 }
 
 SparseMatrix *RAP (const SparseMatrix &A, const SparseMatrix &R,
                    SparseMatrix *ORAP)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    SparseMatrix *P  = Transpose (R);
    SparseMatrix *AP = Mult (A, *P);
    delete P;
    SparseMatrix *_RAP = Mult (R, *AP, ORAP);
    delete AP;
+   MFEM_TRACE_BLOCK_END;
    return _RAP;
 }
 
 SparseMatrix *RAP(const SparseMatrix &Rt, const SparseMatrix &A,
                   const SparseMatrix &P)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    SparseMatrix * R = Transpose(Rt);
    SparseMatrix * RA = Mult(*R,A);
    delete R;
    SparseMatrix * out = Mult(*RA, P);
    delete RA;
+   MFEM_TRACE_BLOCK_END;
    return out;
 }
 
 SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,
                          SparseMatrix *OAtDA)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    int i, At_nnz, *At_j;
    double *At_data;
 
@@ -3138,12 +3190,14 @@ SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,
    }
    SparseMatrix *AtDA = Mult (*At, A, OAtDA);
    delete At;
+   MFEM_TRACE_BLOCK_END;
    return AtDA;
 }
 
 SparseMatrix * Add(double a, const SparseMatrix & A, double b,
                    const SparseMatrix & B)
 {
+   MFEM_TRACE_BLOCK;
    int nrows = A.Height();
    int ncols = A.Width();
 
@@ -3231,6 +3285,7 @@ SparseMatrix * Add(const SparseMatrix & A, const SparseMatrix & B)
 
 SparseMatrix * Add(Array<SparseMatrix *> & Ai)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_ASSERT(Ai.Size() > 0, "invalid size Ai.Size() = " << Ai.Size());
 
    SparseMatrix * accumulate = Ai[0];
@@ -3247,6 +3302,7 @@ SparseMatrix * Add(Array<SparseMatrix *> & Ai)
       accumulate = result;
    }
 
+   MFEM_TRACE_BLOCK_END;
    return result;
 }
 

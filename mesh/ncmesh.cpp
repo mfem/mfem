@@ -67,6 +67,7 @@ void NCMesh::GeomInfo::Initialize(const mfem::Element* elem)
 
 NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Dim = mesh->Dimension();
    spaceDim = mesh->SpaceDimension();
 
@@ -170,10 +171,11 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
    }
 
    Update();
+   MFEM_TRACE_BLOCK_END;
 }
 
 NCMesh::NCMesh(const NCMesh &other)
-   : Dim(other.Dim)
+   : Dim((MFEM_TRACE_BLOCK_BEGIN, other.Dim))
    , spaceDim(other.spaceDim)
    , Iso(other.Iso)
    , nodes(other.nodes)
@@ -184,6 +186,7 @@ NCMesh::NCMesh(const NCMesh &other)
    other.free_element_ids.Copy(free_element_ids);
    other.top_vertex_pos.Copy(top_vertex_pos);
    Update();
+   MFEM_TRACE_BLOCK_END;
 }
 
 void NCMesh::Update()
@@ -199,6 +202,7 @@ void NCMesh::Update()
 
 NCMesh::~NCMesh()
 {
+   MFEM_TRACE_BLOCK_BEGIN;
 #ifdef MFEM_DEBUG
 #ifdef MFEM_USE_MPI
    // in parallel, update 'leaf_elements'
@@ -219,6 +223,7 @@ NCMesh::~NCMesh()
    }
    // NOTE: in release mode, we just throw away all faces and nodes at once
 #endif
+   MFEM_TRACE_BLOCK_END;
 }
 
 NCMesh::Node::~Node()
@@ -1074,6 +1079,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
 
 void NCMesh::Refine(const Array<Refinement>& refinements)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    // push all refinements on the stack in reverse order
    ref_stack.Reserve(refinements.Size());
    for (int i = refinements.Size()-1; i >= 0; i--)
@@ -1111,6 +1117,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    ref_stack.DeleteAll();
 
    Update();
+   MFEM_TRACE_BLOCK_END;
 }
 
 
@@ -1301,6 +1308,7 @@ void NCMesh::CheckDerefinementNCLevel(const Table &deref_table,
 
 void NCMesh::Derefine(const Array<int> &derefs)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    MFEM_VERIFY(Dim < 3 || Iso,
                "derefinement of 3D anisotropic meshes not implemented yet.");
 
@@ -1333,6 +1341,7 @@ void NCMesh::Derefine(const Array<int> &derefs)
    {
       transforms.embeddings[i].parent = elements[fine_coarse[i]].index;
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void NCMesh::InitDerefTransforms()
@@ -1525,6 +1534,7 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex>& mvertices,
                                Array<mfem::Element*>& melements,
                                Array<mfem::Element*>& mboundary) const
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    mvertices.SetSize(vertex_nodeId.Size());
    if (top_vertex_pos.Size())
    {
@@ -1594,10 +1604,12 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex>& mvertices,
          }
       }
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 void NCMesh::OnMeshUpdated(Mesh *mesh)
 {
+   MFEM_TRACE_BLOCK_BEGIN;
    Table *edge_vertex = mesh->GetEdgeVertexTable();
 
    // get edge enumeration from the Mesh
@@ -1637,6 +1649,7 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       MFEM_ASSERT(face, "face not found.");
       face->index = i;
    }
+   MFEM_TRACE_BLOCK_END;
 }
 
 
