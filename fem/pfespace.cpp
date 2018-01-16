@@ -25,33 +25,98 @@ namespace mfem
 {
 
 ParFiniteElementSpace::ParFiniteElementSpace(
+   const ParFiniteElementSpace &orig, ParMesh *pmesh,
+   const FiniteElementCollection *fec)
+   : FiniteElementSpace(orig, pmesh, fec)
+{
+   ParInit(pmesh ? pmesh : orig.pmesh);
+}
+
+ParFiniteElementSpace::ParFiniteElementSpace(
+   const FiniteElementSpace &orig, ParMesh &pmesh,
+   const FiniteElementCollection *fec)
+   : FiniteElementSpace(orig, &pmesh, fec)
+{
+   ParInit(&pmesh);
+}
+
+ParFiniteElementSpace::ParFiniteElementSpace(
+   ParMesh *pm, const FiniteElementSpace *global_fes, const int *partitioning,
+   const FiniteElementCollection *f)
+   : FiniteElementSpace(pm, MakeLocalNURBSext(global_fes->GetNURBSext(),
+                                              pm->NURBSext),
+                        f ? f : global_fes->FEColl(),
+                        global_fes->GetVDim(), global_fes->GetOrdering())
+{
+   ParInit(pm);
+   // For NURBS spaces, the variable-order data is contained in the
+   // NURBSExtension of 'global_fes' and inside the ParNURBSExtension of 'pm'.
+
+   // TODO: when general variable-order support is added, copy the local portion
+   // of the variable-oder data from 'global_fes' to 'this'.
+}
+
+ParFiniteElementSpace::ParFiniteElementSpace(
    ParMesh *pm, const FiniteElementCollection *f, int dim, int ordering)
    : FiniteElementSpace(pm, f, dim, ordering)
 {
-   mesh = pmesh = pm;
+   ParInit(pm);
+}
 
+ParFiniteElementSpace::ParFiniteElementSpace(
+   ParMesh *pm, NURBSExtension *ext, const FiniteElementCollection *f,
+   int dim, int ordering)
+   : FiniteElementSpace(pm, ext, f, dim, ordering)
+{
+   ParInit(pm);
+}
+
+// static method
+ParNURBSExtension *ParFiniteElementSpace::MakeLocalNURBSext(
+   const NURBSExtension *globNURBSext, const NURBSExtension *parNURBSext)
+{
+   if (globNURBSext == NULL) { return NULL; }
+   const ParNURBSExtension *pNURBSext =
+      dynamic_cast<const ParNURBSExtension*>(parNURBSext);
+   MFEM_ASSERT(pNURBSext, "need a ParNURBSExtension");
+   // make a copy of globNURBSext:
+   NURBSExtension *tmp_globNURBSext = new NURBSExtension(*globNURBSext);
+   // tmp_globNURBSext will be deleted by the following ParNURBSExtension ctor:
+   return new ParNURBSExtension(tmp_globNURBSext, pNURBSext);
+}
+
+void ParFiniteElementSpace::ParInit(ParMesh *pm)
+{
+   pmesh = pm;
    MyComm = pmesh->GetComm();
-   MPI_Comm_size(MyComm, &NRanks);
-   MPI_Comm_rank(MyComm, &MyRank);
-
-   num_face_nbr_dofs = -1;
-
+   NRanks = pmesh->GetNRanks();
+   MyRank = pmesh->GetMyRank();
+   gcomm = NULL;
    P = NULL;
    Pconf = NULL;
    R = NULL;
-   gcomm = NULL;
+   num_face_nbr_dofs = -1;
+
+   if (NURBSext && !pNURBSext())
+   {
+      // This is necessary in some cases: e.g. when the FiniteElementSpace
+      // constructor creates a serial NURBSExtension of higher order than the
+      // mesh NURBSExtension.
+      MFEM_ASSERT(own_ext, "internal error");
+
+      ParNURBSExtension *pNe = new ParNURBSExtension(
+         NURBSext, dynamic_cast<ParNURBSExtension *>(pmesh->NURBSext));
+      // serial NURBSext is destroyed by the above constructor
+      NURBSext = pNe;
+      UpdateNURBS();
+   }
 
    Construct();
 
    // Apply the ldof_signs to the elem_dof Table
    if (Conforming() && !NURBSext)
    {
-      Array<int> dofs;
-      for (int i = 0; i < elem_dof->Size(); i++)
-      {
-         dofs.MakeRef(elem_dof->GetRow(i), elem_dof->RowSize(i));
-         ApplyLDofSigns(dofs);
-      }
+      ApplyLDofSigns(*elem_dof);
    }
 }
 
@@ -59,17 +124,6 @@ void ParFiniteElementSpace::Construct()
 {
    if (NURBSext)
    {
-      if (own_ext)
-      {
-         // the FiniteElementSpace constructor created a serial
-         // NURBSExtension of higher order than the mesh NURBSExtension
-
-         ParNURBSExtension *pNe = new ParNURBSExtension(
-            NURBSext, dynamic_cast<ParNURBSExtension *>(pmesh->NURBSext));
-         // serial NURBSext is destroyed by the above constructor
-         NURBSext = pNe;
-         UpdateNURBS();
-      }
       ConstructTrueNURBSDofs();
       GenerateGlobalOffsets();
    }
@@ -98,6 +152,7 @@ void ParFiniteElementSpace::GetGroupComm(
 
    nvd = fec->DofForGeometry(Geometry::POINT);
    ned = fec->DofForGeometry(Geometry::SEGMENT);
+   // Assuming all faces are the same type:
    nfd = (fdofs) ? (fdofs[1]-fdofs[0]) : (0);
 
    if (ldof_sign)
@@ -261,6 +316,12 @@ void ParFiniteElementSpace::ApplyLDofSigns(Array<int> &dofs) const
          }
       }
    }
+}
+
+void ParFiniteElementSpace::ApplyLDofSigns(Table &el_dof) const
+{
+   Array<int> all_dofs(el_dof.GetJ(), el_dof.Size_of_connections());
+   ApplyLDofSigns(all_dofs);
 }
 
 void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
@@ -535,6 +596,19 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
 
    GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
    GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
+#ifdef MFEM_DEBUG
+   // Verify that in boolean arthmetic: P^T ess_dofs = R ess_dofs.
+   Array<int> true_ess_dofs2(true_ess_dofs.Size());
+   HypreParMatrix *Pt = Dof_TrueDof_Matrix()->Transpose();
+   Pt->BooleanMult(1, ess_dofs, 0, true_ess_dofs2);
+   delete Pt;
+   int counter = 0;
+   for (int i = 0; i < true_ess_dofs.Size(); i++)
+   {
+      if (bool(true_ess_dofs[i]) != bool(true_ess_dofs2[i])) { counter++; }
+   }
+   MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter);
+#endif
    MarkerToList(true_ess_dofs, ess_tdof_list);
 }
 
@@ -810,7 +884,6 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
 
    // send/receive the J arrays of send_face_nbr_ldof/face_nbr_ldof,
    // respectively
-   send_J = send_face_nbr_ldof.GetJ();
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_rank = pmesh->GetFaceNbrRank(fn);

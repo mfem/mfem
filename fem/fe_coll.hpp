@@ -80,7 +80,7 @@ class H1_FECollection : public FiniteElementCollection
 {
 
 protected:
-   int m_type;
+   int b_type;
    char h1_name[32];
    FiniteElement *H1_Elements[Geometry::NumGeom];
    int H1_dof[Geometry::NumGeom];
@@ -88,7 +88,7 @@ protected:
 
 public:
    explicit H1_FECollection(const int p, const int dim = 3,
-                            const int type = BasisType::GaussLobatto);
+                            const int btype = BasisType::GaussLobatto);
 
    virtual const FiniteElement *FiniteElementForGeometry(int GeomType) const
    { return H1_Elements[GeomType]; }
@@ -98,7 +98,7 @@ public:
    virtual const char *Name() const { return h1_name; }
    FiniteElementCollection *GetTraceCollection() const;
 
-   int GetBasisType() const { return m_type; }
+   int GetBasisType() const { return b_type; }
    /// Get the Cartesian to local H1 dof map
    const int *GetDofMap(int GeomType) const;
 
@@ -121,14 +121,14 @@ class H1_Trace_FECollection : public H1_FECollection
 {
 public:
    H1_Trace_FECollection(const int p, const int dim,
-                         const int type = BasisType::GaussLobatto);
+                         const int btype = BasisType::GaussLobatto);
 };
 
 /// Arbitrary order "L2-conforming" discontinuous finite elements.
 class L2_FECollection : public FiniteElementCollection
 {
 private:
-   int m_type; // BasisType
+   int b_type; // BasisType
    char d_name[32];
    ScalarFiniteElement *L2_Elements[Geometry::NumGeom];
    ScalarFiniteElement *Tr_Elements[Geometry::NumGeom];
@@ -138,7 +138,7 @@ private:
 
 public:
    L2_FECollection(const int p, const int dim,
-                   const int type = BasisType::GaussLegendre,
+                   const int btype = BasisType::GaussLegendre,
                    const int map_type = FiniteElement::VALUE);
 
    virtual const FiniteElement *FiniteElementForGeometry(int GeomType) const
@@ -160,12 +160,12 @@ public:
       return Tr_Elements[GeomType];
    }
 
-   int GetBasisType() const { return m_type; }
+   int GetBasisType() const { return b_type; }
 
    virtual ~L2_FECollection();
 };
 
-// Declare an alternative name for L2_FECollection = DG_FECollection
+/// Declare an alternative name for L2_FECollection = DG_FECollection
 typedef L2_FECollection DG_FECollection;
 
 /// Arbitrary order H(div)-conforming Raviart-Thomas finite elements.
@@ -270,18 +270,20 @@ private:
    NURBS2DFiniteElement *QuadrilateralFE;
    NURBS3DFiniteElement *ParallelepipedFE;
 
-   char name[16];
-
-   void Allocate(int Order);
-   void Deallocate();
+   mutable int mOrder; // >= 1 or VariableOrder
+   // The 'name' can be:
+   // 1) name = "NURBS" + "number", for fixed order, or
+   // 2) name = "NURBS", for VariableOrder.
+   // The name is updated before writing it to a stream, for example, see
+   // FiniteElementSpace::Save().
+   mutable char name[16];
 
 public:
-   explicit NURBSFECollection(int Order) { Allocate(Order); }
+   enum { VariableOrder = -1 };
 
-   int GetOrder() const { return SegmentFE->GetOrder(); }
-
-   /// Change the order of the collection
-   void UpdateOrder(int Order) { Deallocate(); Allocate(Order); }
+   /** @brief The parameter @a Order must be either a positive number, for fixed
+      order, or VariableOrder (default). */
+   explicit NURBSFECollection(int Order = VariableOrder);
 
    void Reset() const
    {
@@ -289,6 +291,14 @@ public:
       QuadrilateralFE->Reset();
       ParallelepipedFE->Reset();
    }
+
+   /** @brief Get the order of the NURBS collection: either a positive number,
+       when using fixed order, or VariableOrder. */
+   int GetOrder() const { return mOrder; }
+
+   /** @brief Set the order and the name, based on the given @a Order: either a
+       positive number for fixed order, or VariableOrder. */
+   void SetOrder(int Order) const;
 
    virtual const FiniteElement *
    FiniteElementForGeometry(int GeomType) const;
@@ -301,7 +311,7 @@ public:
 
    FiniteElementCollection *GetTraceCollection() const;
 
-   virtual ~NURBSFECollection() { Deallocate(); }
+   virtual ~NURBSFECollection();
 };
 
 

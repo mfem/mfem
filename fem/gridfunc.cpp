@@ -30,31 +30,32 @@ using namespace std;
 GridFunction::GridFunction(Mesh *m, std::istream &input)
    : Vector()
 {
-   std::string buff;
-   int vdim;
+   fes = new FiniteElementSpace;
+   fec = fes->Load(m, input);
 
-   input >> std::ws;
-   getline(input, buff);  // 'FiniteElementSpace'
-   filter_dos(buff);
-   if (buff != "FiniteElementSpace")
+   skip_comment_lines(input, '#');
+   istream::int_type next_char = input.peek();
+   if (next_char == 'N') // First letter of "NURBS_patches"
    {
-      mfem_error("GridFunction::GridFunction():"
-                 " input stream is not a GridFunction!");
+      string buff;
+      getline(input, buff);
+      filter_dos(buff);
+      if (buff == "NURBS_patches")
+      {
+         MFEM_VERIFY(fes->GetNURBSext(),
+                     "NURBS_patches requires NURBS FE space");
+         fes->GetNURBSext()->LoadSolution(input, *this);
+      }
+      else
+      {
+         MFEM_ABORT("unknown section: " << buff);
+      }
    }
-   getline(input, buff, ' '); // 'FiniteElementCollection:'
-   input >> std::ws;
-   getline(input, buff);
-   filter_dos(buff);
-   fec = FiniteElementCollection::New(buff.c_str());
-   getline(input, buff, ' '); // 'VDim:'
-   input >> vdim;
-   getline(input, buff, ' '); // 'Ordering:'
-   int ordering;
-   input >> ordering;
-   getline(input, buff); // read the empty line
-   fes = new FiniteElementSpace(m, fec, vdim, ordering);
-   Vector::Load(input, fes->GetVSize());
-   sequence = 0;
+   else
+   {
+      Vector::Load(input, fes->GetVSize());
+   }
+   sequence = fes->GetSequence();
 }
 
 GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
@@ -2287,6 +2288,16 @@ void GridFunction::Save(std::ostream &out) const
 {
    fes->Save(out);
    out << '\n';
+#if 0
+   // Testing: write NURBS GridFunctions using "NURBS_patches" format.
+   if (fes->GetNURBSext())
+   {
+      out << "NURBS_patches\n";
+      fes->GetNURBSext()->PrintSolution(*this, out);
+      out.flush();
+      return;
+   }
+#endif
    if (fes->GetOrdering() == Ordering::byNODES)
    {
       Vector::Print(out, 1);
@@ -2325,7 +2336,7 @@ void GridFunction::SaveVTK(std::ostream &out, const std::string &field_name,
          }
       }
    }
-   else if (vec_dim == mesh->Dimension())
+   else if ( (vec_dim == 2 || vec_dim == 3) && mesh->SpaceDimension() > 1)
    {
       // vector data
       out << "VECTORS " << field_name << " double\n";

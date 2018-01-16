@@ -593,6 +593,7 @@ class DenseMatrixEigensystem
 public:
 
    DenseMatrixEigensystem(DenseMatrix &m);
+   DenseMatrixEigensystem(const DenseMatrixEigensystem &other);
    void Eval();
    Vector &Eigenvalues() { return EVal; }
    DenseMatrix &Eigenvectors() { return EVect; }
@@ -653,6 +654,22 @@ public:
       nk = k;
       tdata = new double[i*j*k];
       own_data = true;
+   }
+
+   /// Copy constructor: deep copy
+   DenseTensor(const DenseTensor& other)
+      : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk), own_data(true)
+   {
+      const int size = Mk.Height()*Mk.Width()*nk;
+      if (size > 0)
+      {
+         tdata = new double[size];
+         std::memcpy(tdata, other.tdata, sizeof(double) * size);
+      }
+      else
+      {
+         tdata = NULL;
+      }
    }
 
    int SizeI() const { return Mk.Height(); }

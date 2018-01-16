@@ -370,6 +370,7 @@ int main(int argc, char *argv[])
          {
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
+         delete mesh;
          MPI_Finalize();
          return 3;
    }
@@ -383,6 +384,8 @@ int main(int argc, char *argv[])
       {
          cout << "Unknown type of nonlinear solver: " << nls << endl;
       }
+      delete ode_solver;
+      delete mesh;
       MPI_Finalize();
       return 4;
    }

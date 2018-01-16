@@ -1433,10 +1433,7 @@ void UMFPackSolver::SetOperator(const Operator &op)
    }
 
    mat = const_cast<SparseMatrix *>(dynamic_cast<const SparseMatrix *>(&op));
-   if (mat == NULL)
-   {
-      MFEM_ABORT("not a SparseMatrix");
-   }
+   MFEM_VERIFY(mat, "not a SparseMatrix");
 
    // UMFPack requires that the column-indices in mat corresponding to each
    // row be sorted.

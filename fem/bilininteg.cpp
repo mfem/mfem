@@ -34,7 +34,7 @@ void BilinearFormIntegrator::AssembleElementMatrix (
    DenseMatrix &elmat )
 {
    mfem_error ("BilinearFormIntegrator::AssembleElementMatrix (...)\n"
-               "   is not implemented fot this class.");
+               "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AssembleElementMatrix2 (
@@ -42,7 +42,7 @@ void BilinearFormIntegrator::AssembleElementMatrix2 (
    ElementTransformation &Trans, DenseMatrix &elmat )
 {
    mfem_error ("BilinearFormIntegrator::AssembleElementMatrix2 (...)\n"
-               "   is not implemented fot this class.");
+               "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AssembleFaceMatrix (
@@ -50,7 +50,7 @@ void BilinearFormIntegrator::AssembleFaceMatrix (
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
    mfem_error ("BilinearFormIntegrator::AssembleFaceMatrix (...)\n"
-               "   is not implemented fot this class.");
+               "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AssembleFaceMatrix(
@@ -67,7 +67,7 @@ void BilinearFormIntegrator::AssembleElementVector(
    Vector &elvect)
 {
    mfem_error("BilinearFormIntegrator::AssembleElementVector\n"
-              "   is not implemented fot this class.");
+              "   is not implemented for this class.");
 }
 
 
@@ -1219,7 +1219,7 @@ void VectorFEWeakDivergenceIntegrator::AssembleElementMatrix2(
       //   n = 2*(d-1)*k+(l-1)+(m-1)
       //
       // In the next formula we use the expressions for n with k=1, which means
-      // that the term Q/det(J) is disregard:
+      // that the term Q/det(J) is disregarded:
       int ir_order = (trial_fe.Space() == FunctionSpace::Pk) ?
                      (trial_fe.GetOrder() + test_fe.GetOrder() - 1) :
                      (trial_fe.GetOrder() + test_fe.GetOrder() + 2*(dim-2));
@@ -3068,6 +3068,7 @@ ScalarProductInterpolator::AssembleElementMatrix2(const FiniteElement &dom_fe,
       ShapeCoefficient(Coefficient &q, const FiniteElement &fe_)
          : VectorCoefficient(fe_.GetDof()), Q(q), fe(fe_) { }
 
+      using VectorCoefficient::Eval;
       virtual void Eval(Vector &V, ElementTransformation &T,
                         const IntegrationPoint &ip)
       {
@@ -3233,6 +3234,7 @@ VectorInnerProductInterpolator::AssembleElementMatrix2(
          : VectorCoefficient(fe_.GetDof()), VQ(vq), fe(fe_),
            vshape(vdim, vq.GetVDim()), vc(vq.GetVDim()) { }
 
+      using VectorCoefficient::Eval;
       virtual void Eval(Vector &V, ElementTransformation &T,
                         const IntegrationPoint &ip)
       {

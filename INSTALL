@@ -141,7 +141,7 @@ check the results from all the serial/parallel MFEM examples and miniapps use:
 
 Note that by default MFEM uses "mpirun -np" in its test runs (this is also what
 is used in the sample runs of its examples and miniapps). The MPI launcher can
-be changed by the user as described in the "Specifying a MPI job launcher"
+be changed by the user as described in the "Specifying an MPI job launcher"
 section at the end of this file.
 
 Running all the tests may take a while. Implementation details about the check
@@ -184,6 +184,8 @@ examples/ directory.
 
 Configuration options (GNU make)
 ================================
+See the configuration file config/defaults.mk for the default settings.
+
 Compilers:
    CXX    - C++ compiler, serial build
    MPICXX - MPI C++ compiler, parallel build
@@ -193,6 +195,10 @@ Compiler options:
    DEBUG_FLAGS - Options for debug build
    CXXFLAGS    - If not set, defined based on the above optimized/debug flags
    CPPFLAGS    - Additional compiler options
+
+Build options:
+   STATIC - Build a static version of the library (YES/NO), default = YES
+   SHARED - Build a shared version of the library (YES/NO), default = NO
 
 Installation options:
    PREFIX  - Specify the installation directory. The library (libmfem.a) will be
@@ -291,6 +297,9 @@ MFEM_USE_GNUTLS = YES/NO
    the script 'glvis-keygen.sh' in the main GLVis directory can be used to do
    that:
       bash glvis-keygen.sh ["Your Name"] ["Your Email"]
+   In MFEM v3.3.2 and earlier, the secure authentication is based on OpenPGP
+   keys, while later versions use X.509 certificates. The latest version of the
+   script 'glvis-keygen.sh' can be used to generate both types of keys.
    When MFEM_USE_GNUTLS is enabled, the additional build options, GNUTLS_*, are
    also used, see below.
 
@@ -528,6 +537,8 @@ and the configuration CMake files in <PREFIX>/lib/cmake/mfem.
 
 Configuration variables (CMake)
 ===============================
+See the configuration file config/defaults.cmake for the default settings.
+
 Non-standard CMake variables for compilers:
    CXX    - If set, overwrite the auto-detected C++ compiler, serial build
    MPICXX - If set, overwrite the auto-detected MPI C++ compiler, parallel build
@@ -623,8 +634,8 @@ MFEM library is simply a combination of all object files obtained by compiling
 the .cpp source files in the source directories: general, linalg, mesh, and fem.
 
 
-Specifying a MPI job launcher
-=============================
+Specifying an MPI job launcher
+==============================
 By default, MFEM will use 'mpirun -np #' to launch any of its parallel tests or
 miniapps, where # is the number of MPI tasks.  An alternate MPI launcher can be
 provided by setting the MFEM_MPIEXEC and MFEM_MPIEXEC_NP config variables.
