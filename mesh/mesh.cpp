@@ -622,34 +622,34 @@ void Mesh::GetLocalQuadToHexTransformation(
 }
 
 void Mesh::GetLocalFaceTransformation(
-   int face_type, int elem_type, IsoparametricTransformation &Transf, int inf)
+   int face_type, int elem_type, IsoparametricTransformation &Transf, int info)
 {
    switch (face_type)
    {
       case Element::POINT:
-         GetLocalPtToSegTransformation(Transf, inf);
+         GetLocalPtToSegTransformation(Transf, info);
          break;
 
       case Element::SEGMENT:
          if (elem_type == Element::TRIANGLE)
          {
-            GetLocalSegToTriTransformation(Transf, inf);
+            GetLocalSegToTriTransformation(Transf, info);
          }
          else
          {
             MFEM_ASSERT(elem_type == Element::QUADRILATERAL, "");
-            GetLocalSegToQuadTransformation(Transf, inf);
+            GetLocalSegToQuadTransformation(Transf, info);
          }
          break;
 
       case Element::TRIANGLE:
          MFEM_ASSERT(elem_type == Element::TETRAHEDRON, "");
-         GetLocalTriToTetTransformation(Transf, inf);
+         GetLocalTriToTetTransformation(Transf, info);
          break;
 
       case Element::QUADRILATERAL:
          MFEM_ASSERT(elem_type == Element::HEXAHEDRON, "");
-         GetLocalQuadToHexTransformation(Transf, inf);
+         GetLocalQuadToHexTransformation(Transf, info);
          break;
    }
 }
