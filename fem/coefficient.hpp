@@ -367,7 +367,7 @@ public:
 /// Vector coefficient defined by a vector GridFunction
 class VectorGridFunctionCoefficient : public VectorCoefficient
 {
-private:
+protected:
    GridFunction *GridFunc;
 
 public:
