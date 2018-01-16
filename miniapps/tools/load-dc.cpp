@@ -17,13 +17,13 @@
 // DataCollection sub-classes, see e.g. Example 5/5p. Currently, only the
 // VisItDataCollection class is supported.
 //
-// Compile with: make load-visit-dc
+// Compile with: make load-dc
 //
 // Serial sample runs:
-//    load-visit-dc -r ../../examples/Example5
+//   > load-dc -r ../../examples/Example5
 //
 // Paralle sample runs:
-//    mpirun -np 4 load-visit-dc -r ../../examples/Example5-Parallel
+//   > mpirun -np 4 load-dc -r ../../examples/Example5-Parallel
 
 #include "mfem.hpp"
 
