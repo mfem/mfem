@@ -1034,7 +1034,7 @@ void Mesh::ReadGmshMesh(std::istream &input)
                   serial_number = data[dd++];
                   // physical domain - the most important value (to distinguish
                   // materials with different properties)
-                  phys_domain = (n_tags > 0) ? data[dd++] : 0;
+                  phys_domain = (n_tags > 0) ? data[dd++] : 1;
                   // elementary domain - to distinguish different geometrical
                   // domains (typically, it's used rarely)
                   elem_domain = (n_tags > 1) ? data[dd++] : 0;
@@ -1117,7 +1117,7 @@ void Mesh::ReadGmshMesh(std::istream &input)
                for (int i = 0; i < n_tags; ++i) { input >> data[i]; }
                // physical domain - the most important value (to distinguish
                // materials with different properties)
-               phys_domain = (n_tags > 0) ? data[0] : 0;
+               phys_domain = (n_tags > 0) ? data[0] : 1;
                // elementary domain - to distinguish different geometrical
                // domains (typically, it's used rarely)
                elem_domain = (n_tags > 1) ? data[1] : 0;
