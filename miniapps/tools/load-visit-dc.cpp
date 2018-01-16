@@ -1,16 +1,29 @@
-//   Tool for visualizing (in GLVis) fields saved via class VisItDataCollection.
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+//
+//    -------------------------------------------------------------------
+//    Load DC Miniapp:  Visualize fields saved via DataCollection classes
+//    -------------------------------------------------------------------
+//
+// This miniapp loads and visualizes (in GLVis) previously saved data using
+// DataCollection sub-classes, see e.g. Example 5/5p. Currently, only the
+// VisItDataCollection class is supported.
 //
 // Compile with: make load-visit-dc
 //
-// Sample runs:
+// Serial sample runs:
+//    load-visit-dc -r ../../examples/Example5
 //
-//    > load-visit-dc -r ../../examples/Example5
-//    > mpirun -np 4 load-visit-dc -r ../../examples/Example5-Parallel
-//
-// Description:
-//
-//    This tool demonstrates the usage of class VisItDataCollection to load
-//    previously saved data using the same class, e.g. see Example 5/5p.
+// Paralle sample runs:
+//    mpirun -np 4 load-visit-dc -r ../../examples/Example5-Parallel
 
 #include "mfem.hpp"
 
