@@ -74,7 +74,7 @@ public:
    //! Check if block (i,j) is a zero block
    int IsZeroBlock(int i, int j) const { return (op(i,j)==NULL) ? 1 : 0; }
    //! Return a reference to block i,j
-   Operator & GetBlock(int i, int j) const
+   Operator & GetBlock(int i, int j)
    { MFEM_VERIFY(op(i,j), ""); return *op(i,j); }
    //! Return the coefficient for block i,j
    double GetBlockCoef(int i, int j) const
