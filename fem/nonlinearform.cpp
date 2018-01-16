@@ -341,7 +341,6 @@ BlockNonlinearForm::BlockNonlinearForm() :
 {
    height = 0;
    width = 0;
-
 }
 
 void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
@@ -390,7 +389,6 @@ void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
    }
 }
 
-
 BlockNonlinearForm::BlockNonlinearForm(Array<FiniteElementSpace *> &f) :
    fes(0), BlockGrad(NULL)
 {
@@ -403,7 +401,6 @@ void BlockNonlinearForm::AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *nfi,
    bfnfi.Append(nfi);
    bfnfi_marker.Append(&bdr_attr_marker);
 }
-
 
 void BlockNonlinearForm::SetEssentialBC(const
                                         Array<Array<int> *>&bdr_attr_is_ess,
@@ -585,7 +582,6 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
       }
    }
 
-
    if (bfnfi.Size())
    {
       Mesh *mesh = fes[0]->GetMesh();
@@ -673,7 +669,6 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
    Array<const FiniteElement *>fe(fes.Size());
    Array<const FiniteElement *>fe2(fes.Size());
    ElementTransformation * T;
-
 
    if (BlockGrad != NULL)
    {
@@ -864,7 +859,6 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
          }
       }
    }
-
 
    for (int i=0; i<fes.Size(); i++)
    {

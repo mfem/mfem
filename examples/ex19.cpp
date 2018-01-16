@@ -15,9 +15,9 @@
 //               the domain is assumed to be as follows:
 //
 //                                 +---------------------+
-//                    boundary --->|                     |<--- boundary attribute 2
-//                    attribute 1  |                     |     (fixed)
-//                    (fixed)      +---------------------+
+//                    boundary --->|                     |<--- boundary
+//                    attribute 1  |                     |     attribute 2
+//                    (fixed)      +---------------------+     (fixed, nonzero)
 //
 //               The example demonstrates the use of block nonlinear operators
 //               (the class RubberOperator defining H(x)) as well as a nonlinear
@@ -373,8 +373,8 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
       stiff_pcg = stiff_pcg_iter;
    }
 
-   // At each Newton cycle, compute the new stiffness preconditioner by
-   // updating the iterative solver which, in turn, updates its preconditioner.
+   // At each Newton cycle, compute the new stiffness preconditioner by updating
+   // the iterative solver which, in turn, updates its preconditioner
    stiff_pcg->SetOperator(jacobian->GetBlock(0,0));
 }
 
@@ -519,7 +519,7 @@ void ReferenceConfiguration(const Vector &x, Vector &y)
 void InitialDeformation(const Vector &x, Vector &y)
 {
    // Set the initial configuration. Having this different from the reference
-   // configuration can help convergence.
+   // configuration can help convergence
    y = x;
    y[1] = x[1] + 0.25*x[0];
 }

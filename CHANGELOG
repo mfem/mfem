@@ -19,10 +19,10 @@ Discretization improvements
   format need to be updated.
 
 - Added classes for general block nonlinear finite element operators (deriving
-  from BlockNonlinearForm/ParBlockNonlinearForm). Such operators have
-  assemble-based action and also support assembly of the gradient operator to
-  enable inversion with Newton iteration. This allows solution of nonlinear
-  systems with multiple unknowns which exist in different function spaces.
+  from BlockNonlinearForm and ParBlockNonlinearForm) enabling solution of
+  nonlinear systems with multiple unknowns in different function spaces. Such
+  operators have assemble-based action and also support assembly of the gradient
+  operator to enable inversion with Newton iteration.
 
 - Added support for elimination of boundary conditions in block matrices.
 
