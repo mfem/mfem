@@ -35,6 +35,7 @@ public:
              };
 
    static const int NumGeom = 7;
+   static const int MaxDim = 3;
    static const int NumBdrArray[NumGeom];
    static const char *Name[NumGeom];
    static const double Volume[NumGeom];

@@ -79,8 +79,31 @@ public:
    inline Array(T *_data, int asize, int ainc = 0)
    { data = _data; size = asize; allocsize = -asize; inc = ainc; }
 
+   /// Copy constructor: deep copy
+   Array(const Array<T> &src)
+      : BaseArray(src.size, 0, sizeof(T))
+   { std::memcpy(data, src.data, size*sizeof(T)); }
+
+   /// Copy constructor (deep copy) from an Array of convertable type
+   template <typename CT>
+   Array(const Array<CT> &src)
+      : BaseArray(src.Size(), 0, sizeof(T))
+   { for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); } }
+
    /// Destructor
    inline ~Array() { }
+
+   /// Assignment operator: deep copy
+   Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
+
+   /// Assignment operator (deep copy) from an Array of convertable type
+   template <typename CT>
+   Array<T> &operator=(const Array<CT> &src)
+   {
+      SetSize(src.Size());
+      for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
+      return *this;
+   }
 
    /// Return the data as 'T *'
    inline operator T *() { return (T *)data; }
@@ -161,7 +184,7 @@ public:
    inline void Copy(Array &copy) const
    {
       copy.SetSize(Size());
-      memcpy(copy.GetData(), data, Size()*sizeof(T));
+      std::memcpy(copy.GetData(), data, Size()*sizeof(T));
    }
 
    /// Make this Array a reference to a pointer
@@ -238,12 +261,6 @@ public:
    inline T* end() const { return (T*) data + size; }
 
    long MemoryUsage() const { return Capacity() * sizeof(T); }
-
-private:
-   /// Array copy is not supported
-   Array<T> &operator=(Array<T> &);
-   /// Array copy is not supported
-   Array(const Array<T> &);
 };
 
 template <class T>
@@ -346,7 +363,10 @@ public:
 
    /// Make this Array a reference to 'master'
    inline void MakeRef(const Array2D &master)
-   { N = master.N; array1d.MakeRef(master.array1d);}
+   { N = master.N; array1d.MakeRef(master.array1d); }
+
+   /// Delete all dynamically allocated memory, reseting all dimentions to zero.
+   inline void DeleteAll() { N = 0; array1d.DeleteAll(); }
 
    /// Prints array to stream with width elements per row
    void Print(std::ostream &out = mfem::out, int width = 4);

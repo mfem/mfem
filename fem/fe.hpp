@@ -129,10 +129,12 @@ class FiniteElement
 protected:
    int Dim,      ///< Dimension of reference space
        GeomType, ///< Geometry::Type of the reference element
-       Dof,      ///< Number of degrees of freedom
-       Order,    ///< Order/degree of the shape functions
        FuncSpace, RangeType, MapType,
        DerivType, DerivRangeType, DerivMapType;
+   mutable
+   int  Dof,      ///< Number of degrees of freedom
+        Order;    ///< Order/degree of the shape functions
+   mutable int Orders[Geometry::MaxDim]; ///< Anisotropic orders
    IntegrationRule Nodes;
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix vshape; // Dof x Dim
@@ -201,8 +203,16 @@ public:
    /// Returns the number of degrees of freedom in the finite element
    int GetDof() const { return Dof; }
 
-   /// Returns the order of the finite element
+   /** @brief Returns the order of the finite element. In the case of
+       anisotropic orders, returns the maximum order. */
    int GetOrder() const { return Order; }
+
+   /** @brief Returns true if the FiniteElement basis *may be using* different
+       orders/degrees in different spatial directions. */
+   bool HasAnisotropicOrders() const { return Orders[0] != -1; }
+
+   /// Returns an array containing the anisotropic orders/degrees.
+   const int *GetAnisotropicOrders() const { return Orders; }
 
    /// Returns the type of space on each element
    int Space() const { return FuncSpace; }
@@ -2603,8 +2613,9 @@ public:
 class NURBSFiniteElement : public ScalarFiniteElement
 {
 protected:
-   mutable Array <KnotVector*> kv;
-   mutable int *ijk, patch, elem;
+   mutable Array <const KnotVector*> kv;
+   mutable const int *ijk;
+   mutable int patch, elem;
    mutable Vector weights;
 
 public:
@@ -2619,13 +2630,15 @@ public:
    }
 
    void                 Reset      ()         const { patch = elem = -1; }
-   void                 SetIJK     (int *IJK) const { ijk = IJK; }
+   void                 SetIJK     (const int *IJK) const { ijk = IJK; }
    int                  GetPatch   ()         const { return patch; }
    void                 SetPatch   (int p)    const { patch = p; }
    int                  GetElement ()         const { return elem; }
    void                 SetElement (int e)    const { elem = e; }
-   Array <KnotVector*> &KnotVectors()         const { return kv; }
+   Array <const KnotVector*> &KnotVectors()   const { return kv; }
    Vector              &Weights    ()         const { return weights; }
+   /// Update the NURBSFiniteElement according to the currently set knot vectors
+   virtual void         SetOrder   ()         const { }
 };
 
 class NURBS1DFiniteElement : public NURBSFiniteElement
@@ -2638,6 +2651,7 @@ public:
       : NURBSFiniteElement(1, Geometry::SEGMENT, p + 1, p, FunctionSpace::Qk),
         shape_x(p + 1) { }
 
+   virtual void SetOrder() const;
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2651,9 +2665,18 @@ protected:
 public:
    NURBS2DFiniteElement(int p)
       : NURBSFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
-                           FunctionSpace::Qk), u(Dof),
-        shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1), dshape_y(p + 1) { }
+                           FunctionSpace::Qk),
+        u(Dof), shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1), dshape_y(p + 1)
+   { Orders[0] = Orders[1] = p; }
 
+   NURBS2DFiniteElement(int px, int py)
+      : NURBSFiniteElement(2, Geometry::SQUARE, (px + 1)*(py + 1),
+                           std::max(px, py), FunctionSpace::Qk),
+        u(Dof), shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
+        dshape_y(py + 1)
+   { Orders[0] = px; Orders[1] = py; }
+
+   virtual void SetOrder() const;
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2667,10 +2690,19 @@ protected:
 public:
    NURBS3DFiniteElement(int p)
       : NURBSFiniteElement(3, Geometry::CUBE, (p + 1)*(p + 1)*(p + 1), p,
-                           FunctionSpace::Qk), u(Dof),
-        shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
-        dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1) { }
+                           FunctionSpace::Qk),
+        u(Dof), shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
+        dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1)
+   { Orders[0] = Orders[1] = Orders[2] = p; }
 
+   NURBS3DFiniteElement(int px, int py, int pz)
+      : NURBSFiniteElement(3, Geometry::CUBE, (px + 1)*(py + 1)*(pz + 1),
+                           std::max(std::max(px,py),pz), FunctionSpace::Qk),
+        u(Dof), shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
+        dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1)
+   { Orders[0] = px; Orders[1] = py; Orders[2] = pz; }
+
+   virtual void SetOrder() const;
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;

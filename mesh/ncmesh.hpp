@@ -86,7 +86,7 @@ public:
    /** Initialize with elements from 'mesh'. If an already nonconforming mesh
        is being loaded, 'vertex_parents' must point to a stream at the appropriate
        section of the mesh file which contains the vertex hierarchy. */
-   NCMesh(const Mesh *mesh, std::istream *vertex_parents = NULL);
+   explicit NCMesh(const Mesh *mesh, std::istream *vertex_parents = NULL);
 
    NCMesh(const NCMesh &other); // deep copy
 
