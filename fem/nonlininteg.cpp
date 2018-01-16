@@ -439,7 +439,6 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
    }
 }
 
-
 double IncompressibleNeoHookeanIntegrator::GetElementEnergy(
    const Array<const FiniteElement *>&el,
    ElementTransformation &Tr,
@@ -483,7 +482,6 @@ double IncompressibleNeoHookeanIntegrator::GetElementEnergy(
 
    return energy;
 }
-
 
 void IncompressibleNeoHookeanIntegrator::AssembleElementVector(
    const Array<const FiniteElement *> &el,
@@ -620,7 +618,6 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
                   {
                      for (int l=0; l<dim; l++)
                      {
-
                         (*elmats(0,0))(i_u + i_dim*dof_u, j_u + j_dim*dof_u) +=
                            dJ * (mu * F(i_dim, l) - pres * FinvT(i_dim,l)) *
                            FinvT(j_dim,n) * DS_u(i_u,l) * DS_u(j_u, n) *

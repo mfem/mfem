@@ -256,7 +256,6 @@ const BlockOperator & ParBlockNonlinearForm::GetLocalGradient(
    BlockNonlinearForm::GetGradientBlocked(xs); // (re)assemble Grad with b.c.
 
    return *BlockGrad;
-
 }
 
 // Set the operator type id for the parallel gradient matrix/operator.
@@ -326,7 +325,6 @@ BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
    }
 
    return *pBlockGrad;
-
 }
 
 ParBlockNonlinearForm::~ParBlockNonlinearForm()
