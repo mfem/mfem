@@ -114,10 +114,12 @@ examples/petsc/elastic_energy.*
 
 miniapps/electromagnetics/volta
 miniapps/electromagnetics/tesla
+miniapps/electromagnetics/maxwell
 miniapps/electromagnetics/joule
 
 miniapps/electromagnetics/Volta-AMR*
 miniapps/electromagnetics/Tesla-AMR*
+miniapps/electromagnetics/Maxwell-Parallel*
 miniapps/electromagnetics/Joule_*
 
 miniapps/meshing/mobius-strip
@@ -143,3 +145,12 @@ miniapps/performance/mesh.*
 miniapps/performance/sol.*
 
 miniapps/tools/display-basis
+
+miniapps/nurbs/ex1
+miniapps/nurbs/ex1p
+miniapps/nurbs/ex11p
+miniapps/nurbs/refined.mesh
+miniapps/nurbs/mesh.*
+miniapps/nurbs/sol.*
+miniapps/nurbs/mode_*
+miniapps/nurbs/Example1*
