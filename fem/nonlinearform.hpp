@@ -115,6 +115,9 @@ protected:
    // Essential vdofs: one list of vdofs for each space in 'fes'
    Array<Array<int> *> ess_vdofs;
 
+   /// Specialized version of GetEnergy() for BlockVectors
+   double GetEnergyBlocked(const BlockVector &bx) const;
+
    /// Specialized version of Mult() for BlockVector%s
    void MultBlocked(const BlockVector &bx, BlockVector &by) const;
 
@@ -161,6 +164,8 @@ public:
 
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                Array<Vector *> &rhs);
+
+   virtual double GetEnergy(const Vector &x) const;
 
    virtual void Mult(const Vector &x, Vector &y) const;
 

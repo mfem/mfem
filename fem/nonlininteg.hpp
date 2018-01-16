@@ -76,32 +76,32 @@ class BlockNonlinearFormIntegrator
 {
 public:
    /// Compute the local energy
-   virtual double GetElementEnergy(Array<const FiniteElement *>&el,
+   virtual double GetElementEnergy(const Array<const FiniteElement *>&el,
                                    ElementTransformation &Tr,
-                                   Array<const Vector *>&elfun);
+                                   const Array<const Vector *>&elfun);
 
    /// Perform the local action of the BlockNonlinearFormIntegrator
-   virtual void AssembleElementVector(Array<const FiniteElement *> &el,
+   virtual void AssembleElementVector(const Array<const FiniteElement *> &el,
                                       ElementTransformation &Tr,
-                                      Array<Vector *> &elfun,
+                                      const Array<const Vector *> &elfun,
                                       Array<Vector *> &elvec);
 
-   virtual void AssembleFaceVector(Array<const FiniteElement *> &el1,
-                                   Array<const FiniteElement *> &el2,
+   virtual void AssembleFaceVector(const Array<const FiniteElement *> &el1,
+                                   const Array<const FiniteElement *> &el2,
                                    FaceElementTransformations &Tr,
-                                   Array<Vector *> &elfun,
+                                   const Array<const Vector *> &elfun,
                                    Array<Vector *> &elvect);
 
    /// Assemble the local gradient matrix
-   virtual void AssembleElementGrad(Array<const FiniteElement*> &el,
+   virtual void AssembleElementGrad(const Array<const FiniteElement*> &el,
                                     ElementTransformation &Tr,
-                                    Array<Vector *> &elfun,
+                                    const Array<const Vector *> &elfun,
                                     Array2D<DenseMatrix *> &elmats);
 
-   virtual void AssembleFaceGrad(Array<const FiniteElement *>&el1,
-                                 Array<const FiniteElement *>&el2,
+   virtual void AssembleFaceGrad(const Array<const FiniteElement *>&el1,
+                                 const Array<const FiniteElement *>&el2,
                                  FaceElementTransformations &Tr,
-                                 Array<Vector *> &elfun,
+                                 const Array<const Vector *> &elfun,
                                  Array2D<DenseMatrix *> &elmats);
 
    virtual ~BlockNonlinearFormIntegrator() { }
@@ -264,20 +264,20 @@ private:
 public:
    IncompressibleNeoHookeanIntegrator(Coefficient &_mu) : c_mu(&_mu) { }
 
-   virtual double GetElementEnergy(Array<const FiniteElement *>&el,
+   virtual double GetElementEnergy(const Array<const FiniteElement *>&el,
                                    ElementTransformation &Tr,
-                                   Array<const Vector *> &elfun);
+                                   const Array<const Vector *> &elfun);
 
    /// Perform the local action of the NonlinearFormIntegrator
-   virtual void AssembleElementVector(Array<const FiniteElement *> &el,
+   virtual void AssembleElementVector(const Array<const FiniteElement *> &el,
                                       ElementTransformation &Tr,
-                                      Array<Vector *> &elfun,
+                                      const Array<const Vector *> &elfun,
                                       Array<Vector *> &elvec);
 
    /// Assemble the local gradient matrix
-   virtual void AssembleElementGrad(Array<const FiniteElement*> &el,
+   virtual void AssembleElementGrad(const Array<const FiniteElement*> &el,
                                     ElementTransformation &Tr,
-                                    Array<Vector *> &elfun,
+                                    const Array<const Vector *> &elfun,
                                     Array2D<DenseMatrix *> &elmats);
 };
 

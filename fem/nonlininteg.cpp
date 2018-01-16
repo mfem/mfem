@@ -57,9 +57,9 @@ double NonlinearFormIntegrator::GetElementEnergy(
 
 
 void BlockNonlinearFormIntegrator::AssembleElementVector(
-   Array<const FiniteElement *> &el,
+   const Array<const FiniteElement *> &el,
    ElementTransformation &Tr,
-   Array<Vector *> &elfun,
+   const Array<const Vector *> &elfun,
    Array<Vector *> &elvec)
 {
    mfem_error("BlockNonlinearFormIntegrator::AssembleElementVector"
@@ -67,10 +67,10 @@ void BlockNonlinearFormIntegrator::AssembleElementVector(
 }
 
 void BlockNonlinearFormIntegrator::AssembleFaceVector(
-   Array<const FiniteElement *> &el1,
-   Array<const FiniteElement *> &el2,
+   const Array<const FiniteElement *> &el1,
+   const Array<const FiniteElement *> &el2,
    FaceElementTransformations &Tr,
-   Array<Vector *> &elfun,
+   const Array<const Vector *> &elfun,
    Array<Vector *> &elvect)
 {
    mfem_error("BlockNonlinearFormIntegrator::AssembleFaceVector"
@@ -78,9 +78,9 @@ void BlockNonlinearFormIntegrator::AssembleFaceVector(
 }
 
 void BlockNonlinearFormIntegrator::AssembleElementGrad(
-   Array<const FiniteElement*> &el,
+   const Array<const FiniteElement*> &el,
    ElementTransformation &Tr,
-   Array<Vector *> &elfun,
+   const Array<const Vector *> &elfun,
    Array2D<DenseMatrix *> &elmats)
 {
    mfem_error("BlockNonlinearFormIntegrator::AssembleElementGrad"
@@ -88,10 +88,10 @@ void BlockNonlinearFormIntegrator::AssembleElementGrad(
 }
 
 void BlockNonlinearFormIntegrator::AssembleFaceGrad(
-   Array<const FiniteElement *>&el1,
-   Array<const FiniteElement *>&el2,
+   const Array<const FiniteElement *>&el1,
+   const Array<const FiniteElement *>&el2,
    FaceElementTransformations &Tr,
-   Array<Vector *> &elfun,
+   const Array<const Vector *> &elfun,
    Array2D<DenseMatrix *> &elmats)
 {
    mfem_error("BlockNonlinearFormIntegrator::AssembleFaceGrad"
@@ -99,9 +99,9 @@ void BlockNonlinearFormIntegrator::AssembleFaceGrad(
 }
 
 double BlockNonlinearFormIntegrator::GetElementEnergy(
-   Array<const FiniteElement *>&el,
+   const Array<const FiniteElement *>&el,
    ElementTransformation &Tr,
-   Array<const Vector *>&elfun)
+   const Array<const Vector *>&elfun)
 {
    mfem_error("BlockNonlinearFormIntegrator::GetElementEnergy"
               " is not overloaded!");
@@ -441,9 +441,9 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
 
 
 double IncompressibleNeoHookeanIntegrator::GetElementEnergy(
-   Array<const FiniteElement *>&el,
+   const Array<const FiniteElement *>&el,
    ElementTransformation &Tr,
-   Array<const Vector *>&elfun)
+   const Array<const Vector *>&elfun)
 {
    if (el.Size() != 2)
    {
@@ -486,9 +486,9 @@ double IncompressibleNeoHookeanIntegrator::GetElementEnergy(
 
 
 void IncompressibleNeoHookeanIntegrator::AssembleElementVector(
-   Array<const FiniteElement *> &el,
+   const Array<const FiniteElement *> &el,
    ElementTransformation &Tr,
-   Array<Vector *> &elfun,
+   const Array<const Vector *> &elfun,
    Array<Vector *> &elvec)
 {
    if (el.Size() != 2)
@@ -552,9 +552,9 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementVector(
 }
 
 void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
-   Array<const FiniteElement*> &el,
+   const Array<const FiniteElement*> &el,
    ElementTransformation &Tr,
-   Array<Vector *> &elfun,
+   const Array<const Vector *> &elfun,
    Array2D<DenseMatrix *> &elmats)
 {
    int dof_u = el[0]->GetDof();

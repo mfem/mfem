@@ -448,12 +448,64 @@ void BlockNonlinearForm::SetEssentialBC(const
    }
 }
 
+double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
+{
+   Array<Array<int> *> vdofs(fes.Size());
+   Array<Vector *> el_x(fes.Size());
+   Array<const Vector *> el_x_const(fes.Size());
+   Array<const FiniteElement *> fe(fes.Size());
+   ElementTransformation *T;
+   double energy = 0.0;
+
+   for (int i=0; i<fes.Size(); i++)
+   {
+      el_x[i] = new Vector();
+      vdofs[i] = new Array<int>;
+   }
+
+   if (dnfi.Size())
+      for (int i = 0; i < fes[0]->GetNE(); i++)
+      {
+         T = fes[0]->GetElementTransformation(i);
+         for (int s=0; s<fes.Size(); s++) {
+            fe[s] = fes[s]->GetFE(i);
+            fes[s]->GetElementVDofs(i, *vdofs[s]);
+            bx.GetBlock(s).GetSubVector(*vdofs[s], *el_x[s]);
+            el_x_const[s] = el_x[s];
+         }
+
+         for (int k = 0; k < dnfi.Size(); k++)
+         {
+            energy += dnfi[k]->GetElementEnergy(fe, *T, el_x_const);
+         }
+      }
+
+   if (fnfi.Size())
+   {
+      MFEM_ABORT("TODO: add energy contribution from interior face terms");
+   }
+
+   if (bfnfi.Size())
+   {
+      MFEM_ABORT("TODO: add energy contribution from boundary face terms");
+   }
+
+   return energy;
+}
+
+double BlockNonlinearForm::GetEnergy(const Vector &x) const
+{
+   xs.Update(x.GetData(), block_offsets);
+   return GetEnergyBlocked(xs);
+}
+
 void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
                                      BlockVector &by) const
 {
    Array<Array<int> *>vdofs(fes.Size());
    Array<Array<int> *>vdofs2(fes.Size());
    Array<Vector *> el_x(fes.Size());
+   Array<const Vector *> el_x_const(fes.Size());
    Array<Vector *> el_y(fes.Size());
    Array<const FiniteElement *> fe(fes.Size());
    Array<const FiniteElement *> fe2(fes.Size());
@@ -478,12 +530,13 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
             fes[s]->GetElementVDofs(i, *(vdofs[s]));
             fe[s] = fes[s]->GetFE(i);
             bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
+            el_x_const[s] = el_x[s];
          }
 
          for (int k = 0; k < dnfi.Size(); k++)
          {
             dnfi[k]->AssembleElementVector(fe, *T,
-                                           el_x, el_y);
+                                           el_x_const, el_y);
 
             for (int s=0; s<fes.Size(); s++)
             {
@@ -514,12 +567,13 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
                vdofs[s]->Append(*(vdofs2[s]));
 
                bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
+               el_x_const[s] = el_x[s];
             }
 
             for (int k = 0; k < fnfi.Size(); k++)
             {
 
-               fnfi[k]->AssembleFaceVector(fe, fe2, *tr, el_x, el_y);
+               fnfi[k]->AssembleFaceVector(fe, fe2, *tr, el_x_const, el_y);
 
                for (int s=0; s<fes.Size(); s++)
                {
@@ -571,6 +625,7 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
 
                fes[s]->GetElementVDofs(tr->Elem1No, *(vdofs[s]));
                bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
+               el_x_const[s] = el_x[s];
             }
 
             for (int k = 0; k < bfnfi.Size(); k++)
@@ -578,7 +633,7 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
                if (bfnfi_marker[k] &&
                    (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
 
-               bfnfi[k]->AssembleFaceVector(fe, fe2, *tr, el_x, el_y);
+               bfnfi[k]->AssembleFaceVector(fe, fe2, *tr, el_x_const, el_y);
 
                for (int s=0; s<fes.Size(); s++)
                {
@@ -612,6 +667,7 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
    Array<Array<int> *> vdofs(fes.Size());
    Array<Array<int> *> vdofs2(fes.Size());
    Array<Vector *> el_x(fes.Size());
+   Array<const Vector *> el_x_const(fes.Size());
    Array2D<DenseMatrix *> elmats(fes.Size(), fes.Size());
    Array<const FiniteElement *>fe(fes.Size());
    Array<const FiniteElement *>fe2(fes.Size());
@@ -662,11 +718,12 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
             fe[s] = fes[s]->GetFE(i);
             fes[s]->GetElementVDofs(i, *vdofs[s]);
             bx.GetBlock(s).GetSubVector(*vdofs[s], *el_x[s]);
+            el_x_const[s] = el_x[s];
          }
 
          for (int k = 0; k < dnfi.Size(); k++)
          {
-            dnfi[k]->AssembleElementGrad(fe, *T, el_x, elmats);
+            dnfi[k]->AssembleElementGrad(fe, *T, el_x_const, elmats);
 
             for (int j=0; j<fes.Size(); j++)
             {
@@ -699,11 +756,12 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
             vdofs[s]->Append(*(vdofs2[s]));
 
             bx.GetBlock(s).GetSubVector(*vdofs[s], *el_x[s]);
+            el_x_const[s] = el_x[s];
          }
 
          for (int k = 0; k < fnfi.Size(); k++)
          {
-            fnfi[k]->AssembleFaceGrad(fe, fe2, *tr, el_x, elmats);
+            fnfi[k]->AssembleFaceGrad(fe, fe2, *tr, el_x_const, elmats);
             for (int j=0; j<fes.Size(); j++)
             {
                for (int l=0; l<fes.Size(); l++)
@@ -757,11 +815,12 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
 
                fes[s]->GetElementVDofs(i, *vdofs[s]);
                bx.GetBlock(s).GetSubVector(*vdofs[s], *el_x[s]);
+               el_x_const[s] = el_x[s];
             }
 
             for (int k = 0; k < bfnfi.Size(); k++)
             {
-               bfnfi[k]->AssembleFaceGrad(fe, fe2, *tr, el_x, elmats);
+               bfnfi[k]->AssembleFaceGrad(fe, fe2, *tr, el_x_const, elmats);
                for (int l=0; l<fes.Size(); l++)
                {
                   for (int j=0; j<fes.Size(); j++)
