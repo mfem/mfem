@@ -65,10 +65,6 @@ using namespace std;
 using namespace mfem;
 using namespace mfem::electromagnetics;
 
-// Physical Constants
-// Permittivity of Free Space (units F/m)
-static double epsilon0_ = 8.8541878176e-12;
-
 // Permittivity Functions
 Coefficient * SetupPermittivityCoefficient();
 
