@@ -1132,7 +1132,7 @@ void FiniteElementSpace::Construct()
          {
             fdofs = new int[mesh->GetNFaces()+1];
             fdofs[0] = 0;
-            for (i = 0; i < mesh->GetNFaces(); i++)
+            for (int i = 0; i < mesh->GetNFaces(); i++)
             {
                nfdofs += fdof;
                // nfdofs += fec->DofForGeometry(mesh->GetFaceBaseGeometry(i));
