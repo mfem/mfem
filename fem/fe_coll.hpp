@@ -80,7 +80,7 @@ class H1_FECollection : public FiniteElementCollection
 {
 
 protected:
-   int m_type;
+   int b_type;
    char h1_name[32];
    FiniteElement *H1_Elements[Geometry::NumGeom];
    int H1_dof[Geometry::NumGeom];
@@ -88,7 +88,7 @@ protected:
 
 public:
    explicit H1_FECollection(const int p, const int dim = 3,
-                            const int type = BasisType::GaussLobatto);
+                            const int btype = BasisType::GaussLobatto);
 
    virtual const FiniteElement *FiniteElementForGeometry(int GeomType) const
    { return H1_Elements[GeomType]; }
@@ -98,7 +98,7 @@ public:
    virtual const char *Name() const { return h1_name; }
    FiniteElementCollection *GetTraceCollection() const;
 
-   int GetBasisType() const { return m_type; }
+   int GetBasisType() const { return b_type; }
    /// Get the Cartesian to local H1 dof map
    const int *GetDofMap(int GeomType) const;
 
@@ -121,14 +121,14 @@ class H1_Trace_FECollection : public H1_FECollection
 {
 public:
    H1_Trace_FECollection(const int p, const int dim,
-                         const int type = BasisType::GaussLobatto);
+                         const int btype = BasisType::GaussLobatto);
 };
 
 /// Arbitrary order "L2-conforming" discontinuous finite elements.
 class L2_FECollection : public FiniteElementCollection
 {
 private:
-   int m_type; // BasisType
+   int b_type; // BasisType
    char d_name[32];
    ScalarFiniteElement *L2_Elements[Geometry::NumGeom];
    ScalarFiniteElement *Tr_Elements[Geometry::NumGeom];
@@ -138,7 +138,7 @@ private:
 
 public:
    L2_FECollection(const int p, const int dim,
-                   const int type = BasisType::GaussLegendre,
+                   const int btype = BasisType::GaussLegendre,
                    const int map_type = FiniteElement::VALUE);
 
    virtual const FiniteElement *FiniteElementForGeometry(int GeomType) const
@@ -160,12 +160,12 @@ public:
       return Tr_Elements[GeomType];
    }
 
-   int GetBasisType() const { return m_type; }
+   int GetBasisType() const { return b_type; }
 
    virtual ~L2_FECollection();
 };
 
-// Declare an alternative name for L2_FECollection = DG_FECollection
+/// Declare an alternative name for L2_FECollection = DG_FECollection
 typedef L2_FECollection DG_FECollection;
 
 /// Arbitrary order H(div)-conforming Raviart-Thomas finite elements.

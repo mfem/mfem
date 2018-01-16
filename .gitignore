@@ -24,6 +24,7 @@ CMakeFiles/
 /deps.mk
 config/_config.hpp
 config/config.mk
+config/sample-runs-build.log
 doc/CodeDocumentation.conf
 doc/CodeDocumentation.html
 doc/CodeDocumentation

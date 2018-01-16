@@ -10,6 +10,15 @@
 
 Version 3.3.3 (development)
 ===========================
+
+- Inherit finite element classes from the new base class TensorBasisElement,
+  whenever the basis can be represented by a tensor product of 1D bases.
+
+- Added a new developer tool, config/sample-runs.sh, that extracts the sample
+  runs from all examples and miniapps and runs them. Optionally, it can save the
+  output from the execution to files, allowing comparison between different
+  versions and builds of the library.
+
 - Added support for elimination of boundary conditions in block matrices.
 
 - When building with the GnuTLS library, switch to using X.509 certificates for
@@ -23,6 +32,25 @@ Miscellaneous
 - Upgraded MFEM to support Axom 0.2.8. Prior versions are no longer supported.
 
 - Add support for building a shared version of the MFEM library with GNU make.
+
+API changes (that may affect existing code)
+-----------
+- Introduced a new enum, Matrix::DiagonalPolicy, that replaces the integer
+  parameters in a number of methods that perform elimination of rows and/or
+  columns in matrices. Examples of such methods are:
+  - in class SparseMatrix: EliminateRow(), EliminateCol(), EliminateRowCol(),
+    EliminateRowColMultipleRHS();
+  - in class BilinearForm: EliminateEssentialBC(), EliminateVDofs(),
+    EliminateEssentialBCFromDofs();
+  - in class StaticCondensation: EliminateReducedTrueDofs();
+  - in class BlockMatrix: EliminateRowCol().
+  Any existing code that uses these methods with an explicitly given (integer)
+  constants, will generate compilation errors - please replace such integers
+  with one of the new enum constants.
+
+- Modified the virtual method AbstractSparseMatrix::EliminateZeroRows() and its
+  implementations in derived classes, to accept an optional 'threshold'
+  parameter, replacing hard-coded threshold values.
 
 
 Version 3.3.2, released on Nov 10, 2017

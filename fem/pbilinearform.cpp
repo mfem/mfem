@@ -396,7 +396,7 @@ void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
       {
          static_cond->SetEssentialTrueDofs(ess_tdof_list);
          static_cond->Finalize();
-         static_cond->EliminateReducedTrueDofs(0);
+         static_cond->EliminateReducedTrueDofs(Matrix::DIAG_ONE);
       }
       static_cond->GetParallelMatrix(A);
    }

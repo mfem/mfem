@@ -93,7 +93,7 @@ protected:
    }
 
 public:
-   /// Creates bilinear form associated with FE space *f.
+   /// Creates bilinear form associated with FE space @a *f.
    BilinearForm(FiniteElementSpace *f);
 
    BilinearForm(FiniteElementSpace *f, BilinearForm *bf, int ps = 0);
@@ -108,7 +108,7 @@ public:
    void EnableStaticCondensation();
 
    /** Check if static condensation was actually enabled by a previous call to
-       EnableStaticCondensation. */
+       EnableStaticCondensation(). */
    bool StaticCondensationIsEnabled() const { return static_cond; }
 
    /// Return the trace FE space associated with static condensation.
@@ -264,28 +264,31 @@ public:
    virtual const Operator *GetRestriction() const
    { return fes->GetConformingRestriction(); }
 
+   /// Form a linear system, A X = B.
    /** Form the linear system A X = B, corresponding to the current bilinear
        form and b(.), by applying any necessary transformations such as:
        eliminating boundary conditions; applying conforming constraints for
        non-conforming AMR; static condensation; hybridization.
 
-       The GridFunction-size vector x must contain the essential b.c. The
-       BilinearForm and the LinearForm-size vector b must be assembled.
+       The GridFunction-size vector @a x must contain the essential b.c. The
+       BilinearForm and the LinearForm-size vector @a b must be assembled.
 
-       The vector X is initialized with a suitable initial guess: when using
-       hybridization, the vector X is set to zero; otherwise, the essential
-       entries of X are set to the corresponding b.c. and all other entries are
-       set to zero (copy_interior == 0) or copied from x (copy_interior != 0).
+       The vector @a X is initialized with a suitable initial guess: when using
+       hybridization, the vector @a X is set to zero; otherwise, the essential
+       entries of @a X are set to the corresponding b.c. and all other entries
+       are set to zero (@a copy_interior == 0) or copied from @a x
+       (@a copy_interior != 0).
 
-       This method can be called multiple times (with the same ess_tdof_list
+       This method can be called multiple times (with the same @a ess_tdof_list
        array) to initialize different right-hand sides and boundary condition
        values.
 
-       After solving the linear system, the finite element solution x can be
-       recovered by calling RecoverFEMSolution (with the same vectors X, b, and
-       x).
+       After solving the linear system, the finite element solution @a x can be
+       recovered by calling RecoverFEMSolution() (with the same vectors @a X,
+       @a b, and @a x).
 
-       NOTE: If there are no transformations, X simply reuses the data of x. */
+       NOTE: If there are no transformations, @a X simply reuses the data of
+             @a x. */
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
                          Operator * &A, Vector &X, Vector &B,
                          int copy_interior = 0);
@@ -294,14 +297,16 @@ public:
                          SparseMatrix &A, Vector &X, Vector &B,
                          int copy_interior = 0);
 
-   /// Form the linear system matrix A, see FormLinearSystem for details.
+   /// Form the linear system matrix A, see FormLinearSystem() for details.
    void FormSystemOperator(const Array<int> &ess_tdof_list, Operator * &Aoper);
 
    void FormSystemMatrix(const Array<int> &ess_tdof_list, SparseMatrix &A);
 
+   /// Recover the solution of a linear system formed with FormLinearSystem().
    /** Call this method after solving a linear system constructed using the
-       FormLinearSystem method to recover the solution as a GridFunction-size
-       vector in x. Use the same arguments as in the FormLinearSystem call. */
+       FormLinearSystem() method to recover the solution as a GridFunction-size
+       vector in @a x. Use the same arguments as in the FormLinearSystem() call.
+   */
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
 
    /// Compute and store internally all element matrices.
@@ -317,42 +322,52 @@ public:
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
                                  Array<int> &vdofs, int skip_zeros = 1);
 
-   /** Eliminate essential boundary DOFs from the system. The array
-       'bdr_attr_is_ess' marks boundary attributes that constitute the essential
-       part of the boundary. If d == 0, the diagonal at the essential DOFs is
-       set to 1.0, otherwise it is left the same. */
+   /// Eliminate essential boundary DOFs from the system.
+   /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
+       the essential part of the boundary. By default, the diagonal at the
+       essential DOFs is set to 1.0. This behavior is controlled by the argument
+       @a dpolicy. */
    void EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-                             Vector &sol, Vector &rhs, int d = 0);
+                             Vector &sol, Vector &rhs,
+                             DiagonalPolicy dpolicy = DIAG_ONE);
 
-   void EliminateEssentialBC(const Array<int> &bdr_attr_is_ess, int d = 0);
+   /// Eliminate essential boundary DOFs from the system matrix.
+   void EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
+                             DiagonalPolicy dpolicy = DIAG_ONE);
    /// Perform elimination and set the diagonal entry to the given value
    void EliminateEssentialBCDiag(const Array<int> &bdr_attr_is_ess,
                                  double value);
 
-   /// Eliminate the given vdofs. NOTE: here, vdofs is a list of DOFs.
+   /// Eliminate the given @a vdofs. NOTE: here, @a vdofs is a list of DOFs.
    void EliminateVDofs(const Array<int> &vdofs, Vector &sol, Vector &rhs,
-                       int d = 0);
+                       DiagonalPolicy dpolicy = DIAG_ONE);
 
-   /** Eliminate the given vdofs storing the eliminated part internally; this
-       method works in conjunction with EliminateVDofsInRHS and allows
+   /// Eliminate the given @a vdofs, storing the eliminated part internally.
+   /** This method works in conjunction with EliminateVDofsInRHS() and allows
        elimination of boundary conditions in multiple right-hand sides. In this
-       method, vdofs is a list of DOFs. */
-   void EliminateVDofs(const Array<int> &vdofs, int d = 0);
+       method, @a vdofs is a list of DOFs. */
+   void EliminateVDofs(const Array<int> &vdofs,
+                       DiagonalPolicy dpolicy = DIAG_ONE);
 
-   /** Similar to EliminateVDofs but here ess_dofs is a marker
-       (boolean) array on all vdofs (ess_dofs[i] < 0 is true). */
+   /** @brief Similar to
+       EliminateVDofs(const Array<int> &, Vector &, Vector &, DiagonalPolicy)
+       but here @a ess_dofs is a marker (boolean) array on all vector-dofs
+       (@a ess_dofs[i] < 0 is true). */
    void EliminateEssentialBCFromDofs(const Array<int> &ess_dofs, Vector &sol,
-                                     Vector &rhs, int d = 0);
+                                     Vector &rhs, DiagonalPolicy dpolicy = DIAG_ONE);
 
-   /** Similar to EliminateVDofs but here ess_dofs is a marker
-       (boolean) array on all vdofs (ess_dofs[i] < 0 is true). */
-   void EliminateEssentialBCFromDofs(const Array<int> &ess_dofs, int d = 0);
+   /** @brief Similar to EliminateVDofs(const Array<int> &, DiagonalPolicy) but
+       here @a ess_dofs is a marker (boolean) array on all vector-dofs
+       (@a ess_dofs[i] < 0 is true). */
+   void EliminateEssentialBCFromDofs(const Array<int> &ess_dofs,
+                                     DiagonalPolicy dpolicy = DIAG_ONE);
    /// Perform elimination and set the diagonal entry to the given value
    void EliminateEssentialBCFromDofsDiag(const Array<int> &ess_dofs,
                                          double value);
 
-   /** Use the stored eliminated part of the matrix (see EliminateVDofs) to
-       modify r.h.s.; vdofs is a list of DOFs (non-directional, i.e. >= 0). */
+   /** @brief Use the stored eliminated part of the matrix (see
+       EliminateVDofs(const Array<int> &, DiagonalPolicy)) to modify the r.h.s.
+       @a b; @a vdofs is a list of DOFs (non-directional, i.e. >= 0). */
    void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x,
                             Vector &b);
 

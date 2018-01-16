@@ -213,45 +213,68 @@ public:
    /// For i = irow compute \f$ x_i = \sum_j | A_{i, j} | \f$
    double GetRowNorml1(int irow) const;
 
-   /// Returns a pointer to approximation of the matrix inverse.
+   /// This virtual method is not supported: it always returns NULL.
    virtual MatrixInverse *Inverse() const;
 
    /// Eliminates a column from the transpose matrix.
    void EliminateRow(int row, const double sol, Vector &rhs);
+
    /// Eliminates a row from the matrix.
    /*!
-    * If setOneDiagonal = 0, all the entries in the row will be set to 0.
-    * If setOneDiagonal = 1 (matrix must be square),
-    *    the diagonal entry will be set equal to 1
-    *    and all the others entries to 0.
+    * - If @a dpolicy = #DIAG_ZERO, all the entries in the row will be set to 0.
+    * - If @a dpolicy = #DIAG_ONE (matrix must be square), the diagonal entry
+    *   will be set equal to 1 and all other entries in the row to 0.
+    * - The policy #DIAG_KEEP is not supported.
     */
-   void EliminateRow(int row, int setOneDiagonal = 0);
-   void EliminateCol(int col, int setOneDiagonal = 0);
-   /// Eliminate all columns 'i' for which cols[i] != 0
+   void EliminateRow(int row, DiagonalPolicy dpolicy = DIAG_ZERO);
+
+   /// Eliminates the column @a col from the matrix.
+   /** - If @a dpolicy = #DIAG_ZERO, all entries in the column will be set to 0.
+       - If @a dpolicy = #DIAG_ONE (matrix must be square), the diagonal entry
+         will be set equal to 1 and all other entries in the column to 0.
+       - The policy #DIAG_KEEP is not supported. */
+   void EliminateCol(int col, DiagonalPolicy dpolicy = DIAG_ZERO);
+
+   /// Eliminate all columns i for which @a cols[i] != 0.
+   /** Elimination of a column means that all entries in the column are set to
+       zero. In addition, if the pointers @a x and @a b are not NULL, the
+       eliminated matrix entries are multiplied by the corresponding solution
+       value in @a *x and subtracted from the r.h.s. vector, @a *b. */
    void EliminateCols(const Array<int> &cols, Vector *x = NULL, Vector *b = NULL);
 
-   /** Eliminates the column 'rc' to the 'rhs', deletes the row 'rc' and
+   /// Eliminate row @a rc and column @a rc and modify the @a rhs using @a sol.
+   /** Eliminates the column @a rc to the @a rhs, deletes the row @a rc and
        replaces the element (rc,rc) with 1.0; assumes that element (i,rc)
        is assembled if and only if the element (rc,i) is assembled.
-       If d != 0 then the element (rc,rc) remains the same. */
-   void EliminateRowCol(int rc, const double sol, Vector &rhs, int d = 0);
+       By default, elements (rc,rc) are set to 1.0, although this behavior
+       can be adjusted by changing the @a dpolicy parameter. */
+   void EliminateRowCol(int rc, const double sol, Vector &rhs,
+                        DiagonalPolicy dpolicy = DIAG_ONE);
 
-   /** Like previous one, but multiple values for eliminated unknowns are
-       accepted, and accordingly multiple right-hand-sides are used. */
+   /** @brief Similar to
+       EliminateRowCol(int, const double, Vector &, DiagonalPolicy), but
+       multiple values for eliminated unknowns are accepted, and accordingly
+       multiple right-hand-sides are used. */
    void EliminateRowColMultipleRHS(int rc, const Vector &sol,
-                                   DenseMatrix &rhs, int d = 0);
+                                   DenseMatrix &rhs,
+                                   DiagonalPolicy dpolicy = DIAG_ONE);
 
-   void EliminateRowCol(int rc, int d = 0);
    /// Perform elimination and set the diagonal entry to the given value
    void EliminateRowColDiag(int rc, double value);
-   // Same as above + save the eliminated entries in Ae so that
-   // (*this) + Ae is the original matrix
-   void EliminateRowCol(int rc, SparseMatrix &Ae, int d = 0);
+
+   /// Eliminate row @a rc and column @a rc.
+   void EliminateRowCol(int rc, DiagonalPolicy dpolicy = DIAG_ONE);
+
+   /** @brief Similar to EliminateRowCol(int, DiagonalPolicy) + save the
+       eliminated entries into @a Ae so that (*this) + Ae is equal to the
+       original matrix */
+   void EliminateRowCol(int rc, SparseMatrix &Ae,
+                        DiagonalPolicy dpolicy = DIAG_ONE);
 
    /// If a row contains only one diag entry of zero, set it to 1.
    void SetDiagIdentity();
    /// If a row contains only zeros, set its diagonal to 1.
-   void EliminateZeroRows();
+   virtual void EliminateZeroRows(const double threshold = 1e-12);
 
    /// Gauss-Seidel forward and backward iterations over a vector x.
    void Gauss_Seidel_forw(const Vector &x, Vector &y) const;
