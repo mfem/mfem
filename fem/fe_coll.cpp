@@ -260,12 +260,20 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    }
    else if (!strncmp(name, "NURBS", 5))
    {
-      fec = new NURBSFECollection(atoi(name + 5));
+      if (name[5] != '\0')
+      {
+         // "NURBS" + "number" --> fixed order nurbs collection
+         fec = new NURBSFECollection(atoi(name + 5));
+      }
+      else
+      {
+         // "NURBS" --> variable order nurbs collection
+         fec = new NURBSFECollection();
+      }
    }
    else
    {
-      mfem_error("FiniteElementCollection::New : "
-                 "Unknown FiniteElementCollection!");
+      MFEM_ABORT("unknown FiniteElementCollection: " << name);
    }
    MFEM_VERIFY(!strcmp(fec->Name(), name), "input name: \"" << name
                << "\" does not match the created collection name: \""
@@ -2418,16 +2426,30 @@ Local_FECollection::Local_FECollection(const char *fe_name)
 }
 
 
-void NURBSFECollection::Allocate(int Order)
+NURBSFECollection::NURBSFECollection(int Order)
 {
-   SegmentFE        = new NURBS1DFiniteElement(Order);
-   QuadrilateralFE  = new NURBS2DFiniteElement(Order);
-   ParallelepipedFE = new NURBS3DFiniteElement(Order);
+   const int order = (Order == VariableOrder) ? 1 : Order;
+   SegmentFE        = new NURBS1DFiniteElement(order);
+   QuadrilateralFE  = new NURBS2DFiniteElement(order);
+   ParallelepipedFE = new NURBS3DFiniteElement(order);
 
-   snprintf(name, 16, "NURBS%i", Order);
+   SetOrder(Order);
 }
 
-void NURBSFECollection::Deallocate()
+void NURBSFECollection::SetOrder(int Order) const
+{
+   mOrder = Order;
+   if (Order != VariableOrder)
+   {
+      snprintf(name, 16, "NURBS%i", Order);
+   }
+   else
+   {
+      snprintf(name, 16, "NURBS");
+   }
+}
+
+NURBSFECollection::~NURBSFECollection()
 {
    delete ParallelepipedFE;
    delete QuadrilateralFE;
