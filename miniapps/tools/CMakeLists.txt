@@ -14,5 +14,5 @@ add_mfem_miniapp(display-basis
   EXTRA_HEADERS ${MFEM_MINIAPPS_COMMON_HEADERS}
   LIBRARIES mfem mfem_miniapps_common)
 
-add_mfem_miniapp(load-visit-dc
-  MAIN load-visit-dc.cpp LIBRARIES mfem)
+add_mfem_miniapp(load-dc
+  MAIN load-dc.cpp LIBRARIES mfem)

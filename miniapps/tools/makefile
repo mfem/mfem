@@ -21,7 +21,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = display-basis load-visit-dc
+SEQ_MINIAPPS = display-basis load-dc
 PAR_MINIAPPS =
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -65,8 +65,8 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 	@$(call mfem-test,$<,, Tools miniapp)
 
 # Testing: Specific execution options
-# Do not test: display-basis, load-visit-dc:
-NO_TEST_APPS = display-basis load-visit-dc
+# Do not test: display-basis, load-dc:
+NO_TEST_APPS = display-basis load-dc
 $(foreach app,$(NO_TEST_APPS),$(app)-test-seq $(app)-test-par):
 	@true
 
