@@ -11,6 +11,11 @@
 Version 3.3.3 (development)
 ===========================
 
+New and updated examples and miniapps
+-------------------------------------
+- Added a new miniapp: miniapps/tools/load-dc.cpp, that can be used to visualize
+  fields saved via DataCollection classes.
+
 Miscellaneous
 -------------
 - Upgraded MFEM to support Axom 0.2.8. Prior versions are no longer supported.
