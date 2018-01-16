@@ -13,6 +13,7 @@
 //    ex10 -m ../../data/beam-quad.mesh -r 2 -o 2 -s 15 -dt 5e-3 -vs 60
 //    ex10 -m ../../data/beam-tri.mesh  -r 2 -o 2 -s 16 -dt 0.01 -vs 30
 //    ex10 -m ../../data/beam-hex.mesh  -r 1 -o 2 -s 15 -dt 0.01 -vs 30
+//    ex10 -m ../../data/beam-quad-amr.mesh -r 2 -o 2 -s 5 -dt 0.15 -vs 10
 //
 // Description:  This examples solves a time dependent nonlinear elasticity
 //               problem of the form dv/dt = H(x) + S v, dx/dt = v, where H is a
@@ -650,7 +651,7 @@ HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
                                            Array<int> &ess_bdr, double visc,
                                            double mu, double K,
                                            NonlinearSolverType nls_type)
-   : TimeDependentOperator(2*f.GetVSize(), 0.0), fespace(f),
+   : TimeDependentOperator(2*f.GetTrueVSize(), 0.0), fespace(f),
      M(&fespace), S(&fespace), H(&fespace),
      viscosity(visc), z(height/2)
 {
