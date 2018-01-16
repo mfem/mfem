@@ -35,10 +35,10 @@ private:
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
-   /// Parallel mesh.
+   /// Parallel mesh; not owned.
    ParMesh *pmesh;
 
-   /// GroupCommunicator on the local VDofs
+   /// GroupCommunicator on the local VDofs; owned.
    GroupCommunicator *gcomm;
 
    /// Number of true dofs in this processor (local true dofs).
@@ -65,18 +65,24 @@ private:
    /// The sign of the basis functions at the scalar local dofs.
    Array<int> ldof_sign;
 
-   /// The matrix P (interpolation from true dof to dof).
+   /// The matrix P (interpolation from true dof to dof); owned.
    mutable HypreParMatrix *P;
    ConformingProlongationOperator *Pconf;
 
-   /// The (block-diagonal) matrix R (restriction of dof to true dof)
+   /// The (block-diagonal) matrix R (restriction of dof to true dof); owned.
    mutable SparseMatrix *R;
 
    ParNURBSExtension *pNURBSext() const
    { return dynamic_cast<ParNURBSExtension *>(NURBSext); }
 
+   static ParNURBSExtension *MakeLocalNURBSext(
+      const NURBSExtension *globNURBSext, const NURBSExtension *parNURBSext);
+
    GroupTopology &GetGroupTopo() const
    { return (NURBSext) ? pNURBSext()->gtopo : pmesh->gtopo; }
+
+   // Auxiliary method used in constructors
+   void ParInit(ParMesh *pm);
 
    void Construct();
    void Destroy();
@@ -93,6 +99,7 @@ private:
    void ConstructTrueNURBSDofs();
 
    void ApplyLDofSigns(Array<int> &dofs) const;
+   void ApplyLDofSigns(Table &el_dof) const;
 
    /// Helper struct to store DOF dependencies in a parallel NC mesh.
    struct Dependency
@@ -160,7 +167,55 @@ public:
    // Local face-neighbor data: face-neighbor to ldof
    Table send_face_nbr_ldof;
 
+   /** @brief Copy constructor: deep copy all data from @a orig except the
+       ParMesh, the FiniteElementCollection, and some derived data. */
+   /** If the @a pmesh or @a fec poiters are NULL (default), then the new
+       ParFiniteElementSpace will reuse the respective pointers from @a orig. If
+       any of these pointers is not NULL, the given pointer will be used instead
+       of the one used by @a orig.
+
+       @note The objects pointed to by the @a pmesh and @a fec parameters must
+       be either the same objects as the ones used by @a orig, or copies of
+       them. Otherwise, the behavior is undefined.
+
+       @note Derived data objects, such as the parallel prolongation and
+       restriction operators, the update operator, and any of the face-neighbor
+       data, will not be copied, even if they are created in the @a orig object.
+   */
+   ParFiniteElementSpace(const ParFiniteElementSpace &orig,
+                         ParMesh *pmesh = NULL,
+                         const FiniteElementCollection *fec = NULL);
+
+   /** @brief Convert/copy the *local* (Par)FiniteElementSpace @a orig to
+       ParFiniteElementSpace: deep copy all data from @a orig except the Mesh,
+       the FiniteElementCollection, and some derived data. */
+   ParFiniteElementSpace(const FiniteElementSpace &orig, ParMesh &pmesh,
+                         const FiniteElementCollection *fec = NULL);
+
+   /** @brief Construct the *local* ParFiniteElementSpace corresponing to the
+       global FE space, @a global_fes. */
+   /** The parameter @a pm is the *local* ParMesh obtained by decomposing the
+       global Mesh used by @a global_fes. The array @a partitioning represents
+       the parallel decomposition - it maps global element ids to MPI ranks.
+       If the FiniteElementCollection, @a f, is NULL (default), the FE
+       collection used by @a global_fes will be reused. If @a f is not NULL, it
+       must be the same as, or a copy of, the FE collection used by
+       @a global_fes. */
+   ParFiniteElementSpace(ParMesh *pm, const FiniteElementSpace *global_fes,
+                         const int *partitioning,
+                         const FiniteElementCollection *f = NULL);
+
    ParFiniteElementSpace(ParMesh *pm, const FiniteElementCollection *f,
+                         int dim = 1, int ordering = Ordering::byNODES);
+
+   /// Construct a NURBS FE space based on the given NURBSExtension, @a ext.
+   /** The parameter @a ext will be deleted by this constructor, replaced by a
+       ParNURBSExtension owned by the ParFiniteElementSpace.
+       @note If the pointer @a ext is NULL, this constructor is equivalent to
+       the standard constructor with the same arguments minus the
+       NURBSExtension, @a ext. */
+   ParFiniteElementSpace(ParMesh *pm, NURBSExtension *ext,
+                         const FiniteElementCollection *f,
                          int dim = 1, int ordering = Ordering::byNODES);
 
    MPI_Comm GetComm() const { return MyComm; }

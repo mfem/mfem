@@ -57,6 +57,9 @@ void GroupTopology::ProcToLProc()
 
    map<int, int> proc_lproc;
 
+   // The local processor ids are assigned following the group order and within
+   // a group following their ordering in the group. In other words, the ids are
+   // assigned based on their order in the J array of group_lproc.
    int lproc_counter = 0;
    for (int i = 0; i < group_lproc.Size_of_connections(); i++)
    {
@@ -122,88 +125,142 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
 
    ProcToLProc();
 
-   // build group_mgroup
+   // Build 'group_mgroup':
+
+   // Use aggregated neighbor communication: at most one send to and/or one
+   // receive from each neighbor.
+
    group_mgroup.SetSize(NGroups());
-   group_mgroup[0] = 0; // the local group
-
-   int send_counter = 0;
-   int recv_counter = 0;
-   for (int i = 1; i < NGroups(); i++)
-      if (groupmaster_lproc[i] != 0) // we are not the master
-      {
-         recv_counter++;
-      }
-      else
-      {
-         send_counter += group_lproc.RowSize(i)-1;
-      }
-
-   MPI_Request *requests = new MPI_Request[send_counter];
-   MPI_Status  *statuses = new MPI_Status[send_counter];
-
-   int max_recv_size = 0;
-   send_counter = 0;
-   for (int i = 1; i < NGroups(); i++)
+   MFEM_DEBUG_DO(group_mgroup = -1);
+   for (int g = 0; g < NGroups(); g++)
    {
-      if (groupmaster_lproc[i] == 0) // we are the master
-      {
-         group_mgroup[i] = i;
+      if (IAmMaster(g)) { group_mgroup[g] = g; }
+   }
 
-         for (int j = group_lproc.GetI()[i];
-              j < group_lproc.GetI()[i+1]; j++)
+   // The Table 'lproc_cgroup': for each lproc, list the groups that are owned
+   // by this rank or by that lproc.
+   Table lproc_cgroup;
+   {
+      Array<Connection> lproc_cgroup_list;
+      for (int g = 1; g < NGroups(); g++)
+      {
+         if (IAmMaster(g))
          {
-            if (group_lproc.GetJ()[j] != 0)
+            const int gs = GetGroupSize(g);
+            const int *lprocs = GetGroup(g);
+            for (int i = 0; i < gs; i++)
             {
-               MPI_Isend(group_mgroupandproc.GetRow(i),
-                         group_mgroupandproc.RowSize(i),
-                         MPI_INT,
-                         lproc_proc[group_lproc.GetJ()[j]],
-                         mpitag,
-                         MyComm,
-                         &requests[send_counter]);
-               send_counter++;
+               if (lprocs[i])
+               {
+                  lproc_cgroup_list.Append(Connection(lprocs[i],g));
+               }
             }
          }
-      }
-      else // we are not the master
-         if (max_recv_size < group_lproc.RowSize(i))
+         else
          {
-            max_recv_size = group_lproc.RowSize(i);
+            lproc_cgroup_list.Append(Connection(GetGroupMaster(g),g));
          }
+      }
+      lproc_cgroup_list.Sort();
+      lproc_cgroup_list.Unique();
+      lproc_cgroup.MakeFromList(GetNumNeighbors(), lproc_cgroup_list);
    }
-   max_recv_size++;
 
-   IntegerSet group;
-   if (recv_counter > 0)
+   // Determine size of the send-receive buffer. For each neighbor the buffer
+   // contains: <send-part><receive-part> with each part consisting of a list of
+   // groups. Each group, g, has group_lproc.RowSize(g)+2 integers: the first
+   // entry is group_lproc.RowSize(g) - the number of processors in the group,
+   // followed by the group-id in the master processor, followed by the ranks of
+   // the processors in the group.
+   Table buffer;
+   buffer.MakeI(2*lproc_cgroup.Size()-2); // excluding the "local" lproc, 0
+   for (int nbr = 1; nbr < lproc_cgroup.Size(); nbr++)
    {
-      int count;
-      MPI_Status status;
-      int *recv_buf = new int[max_recv_size];
-      for ( ; recv_counter > 0; recv_counter--)
+      const int send_row = 2*(nbr-1);
+      const int recv_row = send_row+1;
+      const int ng = lproc_cgroup.RowSize(nbr);
+      const int *g = lproc_cgroup.GetRow(nbr);
+      for (int j = 0; j < ng; j++)
       {
-         MPI_Recv(recv_buf, max_recv_size, MPI_INT,
-                  MPI_ANY_SOURCE, mpitag, MyComm, &status);
-
-         MPI_Get_count(&status, MPI_INT, &count);
-
-         group.Recreate(count-1, recv_buf+1);
-         int g = groups.Lookup(group);
-         group_mgroup[g] = recv_buf[0];
-
-         if (lproc_proc[groupmaster_lproc[g]] != status.MPI_SOURCE)
+         const int gs = group_lproc.RowSize(g[j]);
+         if (IAmMaster(g[j]))
          {
-            mfem::err << "\n\n\nGroupTopology::GroupTopology: "
-                      << MyRank() << ": ERROR\n\n\n" << endl;
-            mfem_error();
+            buffer.AddColumnsInRow(send_row, gs+2);
+         }
+         else
+         {
+            MFEM_ASSERT(GetGroupMaster(g[j]) == nbr, "internal error");
+            buffer.AddColumnsInRow(recv_row, gs+2);
          }
       }
-      delete [] recv_buf;
+   }
+   buffer.MakeJ();
+   for (int nbr = 1; nbr < lproc_cgroup.Size(); nbr++)
+   {
+      const int send_row = 2*(nbr-1);
+      const int recv_row = send_row+1;
+      const int ng = lproc_cgroup.RowSize(nbr);
+      const int *g = lproc_cgroup.GetRow(nbr);
+      for (int j = 0; j < ng; j++)
+      {
+         const int gs = group_lproc.RowSize(g[j]);
+         if (IAmMaster(g[j]))
+         {
+            buffer.AddConnection(send_row, gs);
+            buffer.AddConnections(
+               send_row, group_mgroupandproc.GetRow(g[j]), gs+1);
+         }
+         else
+         {
+            buffer.AddColumnsInRow(recv_row, gs+2);
+         }
+      }
+   }
+   buffer.ShiftUpI();
+   Array<MPI_Request> send_requests(lproc_cgroup.Size()-1);
+   Array<MPI_Request> recv_requests(lproc_cgroup.Size()-1);
+   send_requests = MPI_REQUEST_NULL;
+   recv_requests = MPI_REQUEST_NULL;
+   for (int nbr = 1; nbr < lproc_cgroup.Size(); nbr++)
+   {
+      const int send_row = 2*(nbr-1);
+      const int recv_row = send_row+1;
+      const int send_size = buffer.RowSize(send_row);
+      const int recv_size = buffer.RowSize(recv_row);
+      if (send_size > 0)
+      {
+         MPI_Isend(buffer.GetRow(send_row), send_size, MPI_INT, lproc_proc[nbr],
+                   mpitag, MyComm, &send_requests[nbr-1]);
+      }
+      if (recv_size > 0)
+      {
+         MPI_Irecv(buffer.GetRow(recv_row), recv_size, MPI_INT, lproc_proc[nbr],
+                   mpitag, MyComm, &recv_requests[nbr-1]);
+      }
+   }
+   {
+      int idx;
+      IntegerSet group;
+      while (MPI_Waitany(recv_requests.Size(), recv_requests.GetData(), &idx,
+                         MPI_STATUS_IGNORE),
+             idx != MPI_UNDEFINED)
+      {
+         const int recv_size = buffer.RowSize(2*idx+1);
+         const int *recv_buf = buffer.GetRow(2*idx+1);
+         for (int s = 0;  s < recv_size; s += recv_buf[s]+2)
+         {
+            group.Recreate(recv_buf[s], recv_buf+s+2);
+            const int g = groups.Lookup(group);
+            MFEM_ASSERT(group_mgroup[g] == -1, "communication error");
+            group_mgroup[g] = recv_buf[s+1];
+         }
+      }
    }
 
-   MPI_Waitall(send_counter, requests, statuses);
+   MPI_Waitall(send_requests.Size(), send_requests.GetData(),
+               MPI_STATUSES_IGNORE);
 
-   delete [] statuses;
-   delete [] requests;
+   // debug barrier: MPI_Barrier(MyComm);
 }
 
 void GroupTopology::Save(ostream &out) const
@@ -283,7 +340,7 @@ GroupCommunicator::GroupCommunicator(GroupTopology &gt, Mode m)
    buf_offsets = NULL;
 }
 
-void GroupCommunicator::Create(Array<int> &ldof_group)
+void GroupCommunicator::Create(const Array<int> &ldof_group)
 {
    group_ldof.MakeI(gtopo.NGroups());
    for (int i = 0; i < ldof_group.Size(); i++)
@@ -418,7 +475,7 @@ void GroupCommunicator::Finalize()
    }
 }
 
-void GroupCommunicator::SetLTDofTable(Array<int> &ldof_ltdof)
+void GroupCommunicator::SetLTDofTable(const Array<int> &ldof_ltdof)
 {
    if (group_ltdof.Size() == group_ldof.Size()) { return; }
 
