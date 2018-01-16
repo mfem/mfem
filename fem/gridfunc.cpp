@@ -698,9 +698,9 @@ void GridFunction::GetVectorFieldValues(
    }
 }
 
-void GridFunction::ReorderByNodes(const bool force)
+void GridFunction::ReorderByNodes()
 {
-   if (!force && (fes->GetOrdering() == Ordering::byNODES))
+   if (fes->GetOrdering() == Ordering::byNODES)
    {
       return;
    }
@@ -718,33 +718,6 @@ void GridFunction::ReorderByNodes(const bool force)
       }
 
    for (i = 0; i < size; i++)
-   {
-      data[i] = temp[i];
-   }
-
-   delete [] temp;
-}
-
-void GridFunction::ReorderByVDim(const bool force)
-{
-   if (!force && (fes->GetOrdering() == Ordering::byVDIM))
-   {
-      return;
-   }
-
-   const int vdim = fes->GetVDim();
-   const int ndofs = fes->GetNDofs();
-   double *temp = new double[size];
-
-   int k = 0;
-   for (int j = 0; j < ndofs; j++)
-   {
-      for (int i = 0; i < vdim; i++)
-      {
-         temp[k++] = data[j+i*ndofs];
-      }
-   }
-   for (int i = 0; i < size; i++)
    {
       data[i] = temp[i];
    }

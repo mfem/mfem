@@ -22,15 +22,10 @@ namespace mfem
 class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
 protected:
-   const IntegrationRule *IntRule;
-
-   BilinearFormIntegrator(const IntegrationRule *ir = NULL)
-   { IntRule = ir; }
+   BilinearFormIntegrator(const IntegrationRule *ir = NULL) :
+      NonlinearFormIntegrator(ir) { }
 
 public:
-   virtual const IntegrationRule &GetIntegrationRule(const FiniteElement &trial_fe,
-                                                     const FiniteElement &test_fe);
-
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -84,8 +79,6 @@ public:
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
-
-   void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
 
    virtual ~BilinearFormIntegrator() { }
 };
@@ -1581,10 +1574,6 @@ protected:
    }
 };
 
-const IntegrationRule &GetDiffusionIntegrationRule(const FiniteElement
-                                                   &trial_fe,
-                                                   const FiniteElement &test_fe);
-
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, grad v) where Q
     can be a scalar or a matrix coefficient. */
 class DiffusionIntegrator: public BilinearFormIntegrator
@@ -1607,10 +1596,6 @@ public:
 
    /// Construct a diffusion integrator with a matrix coefficient q
    DiffusionIntegrator (MatrixCoefficient &q) : MQ(&q) { Q = NULL; }
-
-   /// Return IntRule or the default integration rule
-   virtual const IntegrationRule &GetIntegrationRule(const FiniteElement &trial_fe,
-                                                     const FiniteElement &test_fe);
 
    /** Given a particular Finite Element
        computes the element stiffness matrix elmat. */
@@ -1639,9 +1624,6 @@ public:
                                     Vector &flux, Vector *d_energy = NULL);
 };
 
-const IntegrationRule &GetMassIntegrationRule(const FiniteElement &trial_fe,
-                                              const FiniteElement &test_fe);
-
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
 class MassIntegrator: public BilinearFormIntegrator
 {
@@ -1657,9 +1639,6 @@ public:
    /// Construct a mass integrator with coefficient q
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
       : BilinearFormIntegrator(ir), Q(&q) { }
-
-   virtual const IntegrationRule &GetIntegrationRule(const FiniteElement &trial_fe,
-                                                     const FiniteElement &test_fe);
 
    /** Given a particular Finite Element
        computes the element mass matrix elmat. */

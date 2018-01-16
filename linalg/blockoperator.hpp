@@ -85,13 +85,12 @@ public:
 
    //! Return the row offsets for block starts
    Array<int> & RowOffsets() { return row_offsets; }
-  
    //! Return the columns offsets for block starts
    Array<int> & ColOffsets() { return col_offsets; }
 
    /// Operator application
    virtual void Mult (const Vector & x, Vector & y) const;
-  
+
    /// Action of the transpose operator
    virtual void MultTranspose (const Vector & x, Vector & y) const;
 

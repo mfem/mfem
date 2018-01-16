@@ -35,7 +35,7 @@ private:
    void FNorm(double &scale_factor, double &scaled_fnorm2) const;
 
 public:
-  /** Default constructor for DenseMatrix.
+   /** Default constructor for DenseMatrix.
        Sets data = NULL and height = width = 0. */
    DenseMatrix();
 
