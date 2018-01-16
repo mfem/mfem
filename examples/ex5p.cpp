@@ -318,7 +318,7 @@ int main(int argc, char *argv[])
    visit_dc.RegisterField("velocity", u);
    visit_dc.RegisterField("pressure", p);
    // To save the mesh using MFEM's parallel mesh format:
-   // visit_dc.SetFormat(DataCollection::FMT_PARALLEL);
+   // visit_dc.SetFormat(DataCollection::PARALLEL_FORMAT);
    visit_dc.Save();
 
    // 16. Send the solution by socket to a GLVis server.
