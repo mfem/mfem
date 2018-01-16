@@ -467,7 +467,8 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
       for (int i = 0; i < fes[0]->GetNE(); i++)
       {
          T = fes[0]->GetElementTransformation(i);
-         for (int s=0; s<fes.Size(); s++) {
+         for (int s=0; s<fes.Size(); s++)
+         {
             fe[s] = fes[s]->GetFE(i);
             fes[s]->GetElementVDofs(i, *vdofs[s]);
             bx.GetBlock(s).GetSubVector(*vdofs[s], *el_x[s]);

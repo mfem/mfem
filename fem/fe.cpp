@@ -981,7 +981,7 @@ void Linear2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 BiLinear2DFiniteElement::BiLinear2DFiniteElement()
-   : NodalFiniteElement(2, Geometry::SQUARE , 4, 1, FunctionSpace::Qk)
+   : NodalFiniteElement(2, Geometry::SQUARE, 4, 1, FunctionSpace::Qk)
 {
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
@@ -1111,7 +1111,7 @@ void GaussBiLinear2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 P1OnQuadFiniteElement::P1OnQuadFiniteElement()
-   : NodalFiniteElement(2, Geometry::SQUARE , 3, 1, FunctionSpace::Qk)
+   : NodalFiniteElement(2, Geometry::SQUARE, 3, 1, FunctionSpace::Qk)
 {
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
@@ -2263,7 +2263,7 @@ void Cubic3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 
 P0TriangleFiniteElement::P0TriangleFiniteElement()
-   : NodalFiniteElement(2, Geometry::TRIANGLE , 1, 0)
+   : NodalFiniteElement(2, Geometry::TRIANGLE, 1, 0)
 {
    Nodes.IntPoint(0).x = 0.333333333333333333;
    Nodes.IntPoint(0).y = 0.333333333333333333;
@@ -2284,7 +2284,7 @@ void P0TriangleFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 
 P0QuadFiniteElement::P0QuadFiniteElement()
-   : NodalFiniteElement(2, Geometry::SQUARE , 1, 0, FunctionSpace::Qk)
+   : NodalFiniteElement(2, Geometry::SQUARE, 1, 0, FunctionSpace::Qk)
 {
    Nodes.IntPoint(0).x = 0.5;
    Nodes.IntPoint(0).y = 0.5;
@@ -2531,7 +2531,7 @@ void TriLinear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 P0SegmentFiniteElement::P0SegmentFiniteElement(int Ord)
-   : NodalFiniteElement(1, Geometry::SEGMENT , 1, Ord)  // defaul Ord = 0
+   : NodalFiniteElement(1, Geometry::SEGMENT, 1, Ord)   // defaul Ord = 0
 {
    Nodes.IntPoint(0).x = 0.5;
 }
@@ -2549,7 +2549,7 @@ void P0SegmentFiniteElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 CrouzeixRaviartFiniteElement::CrouzeixRaviartFiniteElement()
-   : NodalFiniteElement(2, Geometry::TRIANGLE , 3, 1)
+   : NodalFiniteElement(2, Geometry::TRIANGLE, 3, 1)
 {
    Nodes.IntPoint(0).x = 0.5;
    Nodes.IntPoint(0).y = 0.0;
@@ -2578,7 +2578,7 @@ void CrouzeixRaviartFiniteElement::CalcDShape(const IntegrationPoint &ip,
 CrouzeixRaviartQuadFiniteElement::CrouzeixRaviartQuadFiniteElement()
 // the FunctionSpace should be rotated (45 degrees) Q_1
 // i.e. the span of { 1, x, y, x^2 - y^2 }
-   : NodalFiniteElement(2, Geometry::SQUARE , 4, 2, FunctionSpace::Qk)
+   : NodalFiniteElement(2, Geometry::SQUARE, 4, 2, FunctionSpace::Qk)
 {
    Nodes.IntPoint(0).x = 0.5;
    Nodes.IntPoint(0).y = 0.0;
@@ -3857,7 +3857,7 @@ void P1TetNonConfFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 
 P0TetFiniteElement::P0TetFiniteElement()
-   : NodalFiniteElement(3, Geometry::TETRAHEDRON , 1, 0)
+   : NodalFiniteElement(3, Geometry::TETRAHEDRON, 1, 0)
 {
    Nodes.IntPoint(0).x = 0.25;
    Nodes.IntPoint(0).y = 0.25;
@@ -4501,7 +4501,7 @@ void RefinedLinear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 
 RefinedBiLinear2DFiniteElement::RefinedBiLinear2DFiniteElement()
-   : NodalFiniteElement(2, Geometry::SQUARE , 9, 1, FunctionSpace::rQk)
+   : NodalFiniteElement(2, Geometry::SQUARE, 9, 1, FunctionSpace::rQk)
 {
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
