@@ -35,10 +35,10 @@ public:
    /// Format constants to be used with SetFormat().
    enum Format
    {
-      FMT_SERIAL = 0, /**<
+      SERIAL_FORMAT = 0, /**<
          MFEM's serial ascii format, using the methods Mesh::Print() /
          ParMesh::Print(), and GridFunction::Save() / ParGridFunction::Save().*/
-      FMT_PARALLEL = 1  /**<
+      PARALLEL_FORMAT = 1  /**<
          MFEM's parallel ascii format, using the methods ParMesh::ParPrint() and
          GridFunction::Save() / ParGridFunction::Save(). */
    };

@@ -271,6 +271,8 @@ int main(int argc, char *argv[])
       {
          dc = new VisItDataCollection("Example9-Parallel", pmesh);
          dc->SetPrecision(precision);
+         // To save the mesh using MFEM's parallel mesh format:
+         // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
       }
       dc->RegisterField("solution", u);
       dc->SetCycle(0);

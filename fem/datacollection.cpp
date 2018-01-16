@@ -106,7 +106,7 @@ DataCollection::DataCollection(const std::string& collection_name, Mesh *mesh_)
    time_step = 0.0;
    precision = precision_default;
    pad_digits_cycle = pad_digits_rank = pad_digits_default;
-   format = FMT_SERIAL; // use serial mesh format
+   format = SERIAL_FORMAT; // use serial mesh format
    error = NO_ERROR;
 }
 
@@ -198,9 +198,9 @@ void DataCollection::SetFormat(int fmt)
 {
    switch (fmt)
    {
-      case FMT_SERIAL: break;
+      case SERIAL_FORMAT: break;
 #ifdef MFEM_USE_MPI
-      case FMT_PARALLEL: break;
+      case PARALLEL_FORMAT: break;
 #endif
       default: MFEM_ABORT("unknown format: " << fmt);
    }
@@ -265,7 +265,7 @@ void DataCollection::SaveMesh()
    }
 
    std::string mesh_name =
-      dir_name + ((serial || format == FMT_SERIAL) ? "/mesh" : "/pmesh");
+      dir_name + ((serial || format == SERIAL_FORMAT) ? "/mesh" : "/pmesh");
    if (appendRankToFileName)
    {
       mesh_name += "." + to_padded_string(myid, pad_digits_rank);
@@ -274,7 +274,7 @@ void DataCollection::SaveMesh()
    mesh_file.precision(precision);
 #ifdef MFEM_USE_MPI
    const ParMesh *pmesh = dynamic_cast<const ParMesh*>(mesh);
-   if (pmesh && format == FMT_PARALLEL)
+   if (pmesh && format == PARALLEL_FORMAT)
    {
       pmesh->ParPrint(mesh_file);
    }
@@ -475,7 +475,7 @@ void VisItDataCollection::Load(int cycle_)
                            to_padded_string(cycle, pad_digits_cycle) +
                            ".mfem_root";
    LoadVisItRootFile(root_name);
-   if (format != FMT_SERIAL || num_procs > 1)
+   if (format != SERIAL_FORMAT || num_procs > 1)
    {
 #ifndef MFEM_USE_MPI
       MFEM_WARNING("Cannot load parallel VisIt root file in serial.");
@@ -540,7 +540,7 @@ void VisItDataCollection::LoadMesh()
 {
    std::string mesh_fname = prefix_path + name + "_" +
                             to_padded_string(cycle, pad_digits_cycle) +
-                            (format == FMT_SERIAL ? "/mesh." : "/pmesh.") +
+                            (format == SERIAL_FORMAT ? "/mesh." : "/pmesh.") +
                             to_padded_string(myid, pad_digits_rank);
    named_ifgzstream file(mesh_fname.c_str());
    // TODO: in parallel, check for errors on all processors
@@ -551,7 +551,7 @@ void VisItDataCollection::LoadMesh()
       return;
    }
    // TODO: 1) load parallel mesh on one processor
-   if (format == FMT_SERIAL)
+   if (format == SERIAL_FORMAT)
    {
       mesh = new Mesh(file, 1, 0, false);
       serial = true;
@@ -624,7 +624,7 @@ std::string VisItDataCollection::GetVisItRootString()
    mtags["spatial_dim"] = picojson::value(to_string(spatial_dim));
    mtags["topo_dim"] = picojson::value(to_string(topo_dim));
    mtags["max_lods"] = picojson::value(to_string(visit_max_levels_of_detail));
-   mesh["path"] = picojson::value(path_str + ((format==FMT_SERIAL)?"":"p") +
+   mesh["path"] = picojson::value(path_str + ((format==SERIAL_FORMAT)?"":"p") +
                                   "mesh" + file_ext_format);
    mesh["tags"] = picojson::value(mtags);
    mesh["format"] = picojson::value(to_string(format));
