@@ -6,9 +6,9 @@
 //
 //       mpirun -np 4 ex18p -p 1 -rs 2 -rp 1 -o 1 -s 3
 //       mpirun -np 4 ex18p -p 1 -rs 1 -rp 1 -o 3 -s 4
-//       mpirun -np 4 ex18p -p 1 -rs 0 -rp 1 -o 5 -s 6
+//       mpirun -np 4 ex18p -p 1 -rs 1 -rp 1 -o 5 -s 6
 //       mpirun -np 4 ex18p -p 2 -rs 1 -rp 1 -o 1 -s 3
-//       mpirun -np 4 ex18p -p 2 -rs 0 -rp 1 -o 3 -s 3
+//       mpirun -np 4 ex18p -p 2 -rs 1 -rp 1 -o 3 -s 3
 //
 // Description:  This example code solves the compressible Euler system of
 //               equations, a model nonlinear hyperbolic PDE, with a

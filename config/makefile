@@ -80,4 +80,4 @@ config-mk:
 	sed "$$@" $(SRC)config.mk.in > $(CONFIG_MK)
 
 clean:
-	rm -f $(CONFIG_HPP) $(CONFIG_MK)
+	rm -f $(CONFIG_HPP) $(CONFIG_MK) sample-runs-build.log
