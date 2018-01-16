@@ -37,6 +37,8 @@
 using namespace std;
 using namespace mfem;
 
+// Custom block preconditioner for the Jacobian of the incompressible nonlinear
+// elasticity operator.
 class JacobianPreconditioner : public Solver
 {
 protected:
@@ -85,13 +87,13 @@ protected:
    // Pressure mass matrix for the preconditioner
    Operator *pressure_mass;
 
-   /// Newton solver for the hyperelastic operator
+   // Newton solver for the hyperelastic operator
    NewtonSolver newton_solver;
 
-   /// Solver for the Jacobian solve in the Newton method
+   // Solver for the Jacobian solve in the Newton method
    Solver *j_solver;
 
-   /// Preconditioner for the Jacobian
+   // Preconditioner for the Jacobian
    Solver *j_prec;
 
    // Shear modulus coefficient
@@ -105,11 +107,11 @@ public:
                   Array<int> &block_trueOffsets, double rel_tol, double abs_tol,
                   int iter, Coefficient &mu);
 
-   /// Required to use the native newton solver
+   // Required to use the native newton solver
    virtual Operator &GetGradient(const Vector &xp) const;
    virtual void Mult(const Vector &k, Vector &y) const;
 
-   /// Driver for the newton solver
+   // Driver for the newton solver
    void Solve(Vector &xp) const;
 
    virtual ~RubberOperator();
@@ -139,8 +141,8 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    int order = 2;
    bool visualization = true;
-   double newton_rel_tol = 1.0e-4;
-   double newton_abs_tol = 1.0e-6;
+   double newton_rel_tol = 1e-4;
+   double newton_abs_tol = 1e-6;
    int newton_iter = 500;
    double mu = 1.0;
 
@@ -164,7 +166,6 @@ int main(int argc, char *argv[])
                   "Maximum iterations for the Newton solve.");
    args.AddOption(&mu, "-mu", "--shear-modulus",
                   "Shear modulus for the neo-Hookean material.");
-
    args.Parse();
    if (!args.Good())
    {
@@ -208,7 +209,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient c_mu(mu);
 
    // 7. Define the finite element spaces for displacement and pressure
-   //    (Taylor-Hood elements)
+   //    (Taylor-Hood elements). By default, the displacement (u/x) is a second
+   //    order vector field, while the pressure (p) is a linear scalar function.
    H1_FECollection quad_coll(order, dim);
    H1_FECollection lin_coll(order-1, dim);
 
@@ -280,7 +282,7 @@ int main(int argc, char *argv[])
    // 14. Solve the Newton system
    oper.Solve(xp);
 
-   // 15. Distribute the ghost dofs
+   // 15. Distribute the shared degrees of freedom
    x_gf.Distribute(xp.GetBlock(0));
    p_gf.Distribute(xp.GetBlock(1));
 
@@ -480,8 +482,8 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    // Set up the Jacobian solver
    GMRESSolver *j_gmres = new GMRESSolver(spaces[0]->GetComm());
    j_gmres->iterative_mode = false;
-   j_gmres->SetRelTol(1.0e-12);
-   j_gmres->SetAbsTol(1.0e-12);
+   j_gmres->SetRelTol(1e-12);
+   j_gmres->SetAbsTol(1e-12);
    j_gmres->SetMaxIter(300);
    j_gmres->SetPrintLevel(0);
    j_gmres->SetPreconditioner(*j_prec);
@@ -495,7 +497,6 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    newton_solver.SetRelTol(rel_tol);
    newton_solver.SetAbsTol(abs_tol);
    newton_solver.SetMaxIter(iter);
-
 }
 
 // Solve the Newton system
@@ -528,7 +529,7 @@ RubberOperator::~RubberOperator()
 }
 
 
-// In line visualization
+// Inline visualization
 void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name, bool init_vis)
 {
@@ -554,11 +555,10 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
       if (mesh->SpaceDimension() == 2)
       {
          out << "view 0 0\n"; // view from top
-         out << "keys jl\n";  // turn off perspective and light
+         out << "keys jlA\n"; // turn off perspective and light, +anti-aliasing
       }
-      out << "keys cm\n";         // show colorbar and mesh
+      out << "keys cmA\n";        // show colorbar and mesh, +anti-aliasing
       out << "autoscale value\n"; // update value-range; keep mesh-extents fixed
-      out << "pause\n";
    }
    out << flush;
 }
