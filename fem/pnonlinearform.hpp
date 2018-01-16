@@ -35,7 +35,7 @@ public:
    ParFiniteElementSpace *ParFESpace() const
    { return (ParFiniteElementSpace *)fes; }
 
-   /// Compute the enery corresponding to the state @a x.
+   /// Compute the energy corresponding to the state @a x.
    /** In general, @a x may have non-homogeneous essential boundary values.
 
        The state @a x must be a "GridFunction size" vector, i.e. its size must
