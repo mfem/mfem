@@ -13,6 +13,11 @@ Version 3.3.3 (development)
 
 Discretization improvements
 ---------------------------
+- Added variable order NURBS: for each space each knot vector in the mesh can
+  have a different order. The order information is now part of the finite
+  element space header in the NURBS mesh output, so NURBS meshes in the old
+  format need to be updated.
+
 - Added classes for general block nonlinear finite element operators (deriving
   from BlockNonlinearForm/ParBlockNonlinearForm). Such operators have
   assemble-based action and also support assembly of the gradient operator to
@@ -26,9 +31,21 @@ Discretization improvements
 
 New and updated examples and miniapps
 -------------------------------------
+- Added a set of miniapps specifically focused on Isogeometric Analysis (IGA) on
+  NURBS meshes in the miniapps/nurbs directory. Currently the directory contains
+  variable order NURBS versions of examples 1, 1p and 11p.
+
+- Added a new electromagnetics miniapp, Maxwell, for simulating time-domain
+  electromagnetics phenomena as a coupled first order system of equations.
+
 - Added a new serial and parallel example (ex19) that solves the quasi-static
   incompressible hyperelastic equations. The example demonstrates the use of
   block nonlinear forms as well as custom block preconditioners.
+
+New and improved solvers and preconditioners
+--------------------------------------------
+- Added symplectic integrators of orders 1-4 for systems of first order ODEs
+  derived from a Hamiltonian, see class SIASolver in linalg/ode.hpp.
 
 Miscellaneous
 -------------

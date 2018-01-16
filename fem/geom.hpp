@@ -32,6 +32,7 @@ public:
    enum Type { POINT, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE };
 
    static const int NumGeom = 6;
+   static const int MaxDim = 3;
    static const int NumBdrArray[NumGeom];
    static const char *Name[NumGeom];
    static const double Volume[NumGeom];
