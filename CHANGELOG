@@ -13,11 +13,6 @@ Version 3.3.3 (development)
 
 Discretization improvements
 ---------------------------
-- Added variable order NURBS: for each space each knot vector in the mesh can
-  have a different order. The order information is now part of the finite
-  element space header in the NURBS mesh output, so NURBS meshes in the old
-  format need to be updated.
-
 - Added classes for general block nonlinear finite element operators (deriving
   from BlockNonlinearForm and ParBlockNonlinearForm) enabling solution of
   nonlinear systems with multiple unknowns in different function spaces. Such
@@ -26,21 +21,26 @@ Discretization improvements
 
 - Added support for elimination of boundary conditions in block matrices.
 
+- Added variable order NURBS: for each space each knot vector in the mesh can
+  have a different order. The order information is now part of the finite
+  element space header in the NURBS mesh output, so NURBS meshes in the old
+  format need to be updated.
+
 - Inherit finite element classes from the new base class TensorBasisElement,
   whenever the basis can be represented by a tensor product of 1D bases.
 
 New and updated examples and miniapps
 -------------------------------------
-- Added a set of miniapps specifically focused on Isogeometric Analysis (IGA) on
-  NURBS meshes in the miniapps/nurbs directory. Currently the directory contains
-  variable order NURBS versions of examples 1, 1p and 11p.
+- Added a new serial and parallel example (ex19) that solves the quasi-static
+  incompressible hyperelastic equations. The example demonstrates the use of
+  block nonlinear forms as well as custom block preconditioners.
 
 - Added a new electromagnetics miniapp, Maxwell, for simulating time-domain
   electromagnetics phenomena as a coupled first order system of equations.
 
-- Added a new serial and parallel example (ex19) that solves the quasi-static
-  incompressible hyperelastic equations. The example demonstrates the use of
-  block nonlinear forms as well as custom block preconditioners.
+- Added a set of miniapps specifically focused on Isogeometric Analysis (IGA) on
+  NURBS meshes in the miniapps/nurbs directory. Currently the directory contains
+  variable order NURBS versions of examples 1, 1p and 11p.
 
 New and improved solvers and preconditioners
 --------------------------------------------
