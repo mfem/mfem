@@ -312,52 +312,56 @@ public:
        P = dT/dp
        F = -dV/dq
  */
-class SIASolver
+template <class TVector>
+class TSIASolver
 {
 public:
-   SIASolver() : F_(NULL), P_(NULL) {}
+   TSIASolver() : F_(NULL), P_(NULL) {}
 
-   virtual void Init(Operator &P, TimeDependentOperator & F);
+   virtual void Init(TOperator<TVector> &P, TTimeDependentOperator<TVector> & F);
 
-   virtual void Step(Vector &q, Vector &p, double &t, double &dt) = 0;
+   virtual void Step(TVector &q, TVector &p, double &t, double &dt) = 0;
 
-   virtual void Run(Vector &q, Vector &p, double &t, double &dt, double tf)
+   virtual void Run(TVector &q, TVector &p, double &t, double &dt, double tf)
    {
       while (t < tf) { Step(q, p, t, dt); }
    }
 
-   virtual ~SIASolver() {}
+   virtual ~TSIASolver() {}
 
 protected:
-   TimeDependentOperator * F_; // p_{i+1} = p_{i} + dt F(q_{i})
-   Operator              * P_; // q_{i+1} = q_{i} + dt P(p_{i+1})
+   TTimeDependentOperator<TVector> * F_; // p_{i+1} = p_{i} + dt F(q_{i})
+   TOperator<TVector>              * P_; // q_{i+1} = q_{i} + dt P(p_{i+1})
 
-   mutable Vector dp_;
-   mutable Vector dq_;
+   mutable TVector dp_;
+   mutable TVector dq_;
 };
 
 // First order Symplectic Integration Algorithm
-class SIA1Solver : public SIASolver
+template <class TVector>
+class TSIA1Solver : public TSIASolver<TVector>
 {
 public:
-   SIA1Solver() {}
-   void Step(Vector &q, Vector &p, double &t, double &dt);
+  TSIA1Solver() {}
+   void Step(TVector &q, TVector &p, double &t, double &dt);
 };
 
 // Second order Symplectic Integration Algorithm
-class SIA2Solver : public SIASolver
+template <class TVector>
+class TSIA2Solver : public TSIASolver<TVector>
 {
 public:
-   SIA2Solver() {}
-   void Step(Vector &q, Vector &p, double &t, double &dt);
+   TSIA2Solver() {}
+   void Step(TVector &q, TVector &p, double &t, double &dt);
 };
 
 // Variable order Symplectic Integration Algorithm (orders 1-4)
-class SIAVSolver : public SIASolver
+template <class TVector>
+class TSIAVSolver : public TSIASolver<TVector>
 {
 public:
-   SIAVSolver(int order);
-   void Step(Vector &q, Vector &p, double &t, double &dt);
+   TSIAVSolver(int order);
+   void Step(TVector &q, TVector &p, double &t, double &dt);
 
 private:
    int order_;
@@ -378,7 +382,11 @@ typedef TImplicitMidpointSolver<Vector> ImplicitMidpointSolver;
 typedef TSDIRK23Solver<Vector>          SDIRK23Solver;
 typedef TSDIRK34Solver<Vector>          SDIRK34Solver;
 typedef TSDIRK33Solver<Vector>          SDIRK33Solver;
-  
+typedef TSIASolver<Vector>              SIASolver;
+typedef TSIA1Solver<Vector>             SIA1Solver;
+typedef TSIA2Solver<Vector>             SIA2Solver;
+typedef TSIAVSolver<Vector>             SIAVSolver;
+
 }
 
 #include "ode.tpp"
