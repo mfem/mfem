@@ -71,7 +71,7 @@ public:
    virtual ~NonlinearFormIntegrator() { }
 };
 
-/** The abstract base class BlockNonlinearFormIntegrator is 
+/** The abstract base class BlockNonlinearFormIntegrator is
     a generalization of the NonlinearFormIntegrator class suitable
     for block state vectors. */
 class BlockNonlinearFormIntegrator
@@ -254,8 +254,8 @@ public:
                                     const Vector &elfun, DenseMatrix &elmat);
 };
 
-/** Hyperelastic incompressible Neo-Hookean integrator with the PK1 stress 
-    \f$P = \mu F - p F^{-T}\f$ where \f$\mu\f$ is the shear modulus, 
+/** Hyperelastic incompressible Neo-Hookean integrator with the PK1 stress
+    \f$P = \mu F - p F^{-T}\f$ where \f$\mu\f$ is the shear modulus,
     \f$p\f$ is the pressure, and \f$F\f$ is the deformation gradient */
 class IncompressibleNeoHookeanIntegrator : public BlockNonlinearFormIntegrator
 {
