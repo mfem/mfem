@@ -633,8 +633,8 @@ bool Geometry::ProjectPoint(int GeomType, IntegrationPoint &ip)
 
       case PRISM:
       {
- 	 bool in_tri, in_z;
-	 in_tri = internal::ProjectTriangle(ip.x, ip.y);
+         bool in_tri, in_z;
+         in_tri = internal::ProjectTriangle(ip.x, ip.y);
          if (ip.z < 0.0)      { in_z = false; ip.z = 0.0; }
          else if (ip.z > 1.0) { in_z = false; ip.z = 1.0; }
          else                 { in_z = true; }
@@ -893,8 +893,8 @@ GeometryRefiner::~GeometryRefiner()
 }
 
 RefinedGeometry *GeometryRefiner::FindInRGeom(Geometry::Type Geom,
-					      int Times, int ETimes,
-					      int Type)
+                                              int Times, int ETimes,
+                                              int Type)
 {
    Array<RefinedGeometry *> &RGA = RGeom[Geom];
    for (int i = 0; i < RGA.Size(); i++)
@@ -920,7 +920,7 @@ IntegrationRule *GeometryRefiner::FindInIntPts(Geometry::Type Geom, int NPts)
 }
 
 RefinedGeometry * GeometryRefiner::Refine(Geometry::Type Geom,
-					  int Times, int ETimes)
+                                          int Times, int ETimes)
 {
    int i, j, k, l, m;
 
@@ -1238,12 +1238,12 @@ RefinedGeometry * GeometryRefiner::Refine(Geometry::Type Geom,
       case Geometry::PRISM:
       {
          const int n = Times;
-	 RG = new RefinedGeometry ((n+1)*(n+1)*(n+2)/2, 6*n*n*n, 0);
+         RG = new RefinedGeometry ((n+1)*(n+1)*(n+2)/2, 6*n*n*n, 0);
          RG->Times = Times;
          RG->ETimes = ETimes;
-	 RG->Type = type;
-	 // enumerate and define the vertices
-	 m = 0;
+         RG->Type = type;
+         // enumerate and define the vertices
+         m = 0;
          for (l = k = 0; k <= n; k++)
             for (j = 0; j <= n; j++)
                for (i = 0; i <= n-j; i++, l++)
@@ -1261,7 +1261,7 @@ RefinedGeometry * GeometryRefiner::Refine(Geometry::Type Geom,
                      ip.y = cp[j]/(cp[i] + cp[j] + cp[n-i-j]);
                      ip.z = cp[k];
                   }
-		  m++;
+                  m++;
                }
          if (m != (n+1)*(n+1)*(n+2)/2)
          {
@@ -1299,7 +1299,7 @@ RefinedGeometry * GeometryRefiner::Refine(Geometry::Type Geom,
             {
                mfem_error("GeometryRefiner::Refine() for PRISM #3");
             }
-	 
+
          RGeom[Geometry::PRISM].Append(RG);
          return RG;
       }

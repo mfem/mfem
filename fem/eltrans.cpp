@@ -368,7 +368,7 @@ int InverseElementTransformation::Transform(const Vector &pt,
 
 
 void IsoparametricTransformation::SetIdentityTransformation(
-					     Geometry::Type GeomType)
+   Geometry::Type GeomType)
 {
    switch (GeomType)
    {
