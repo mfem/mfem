@@ -84,6 +84,11 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
    }
 
    P->MultTranspose(Y, y);
+
+   for (int i = 0; i < ess_tdof_list.Size(); i++)
+   {
+      y(ess_tdof_list[i]) = 0.0;
+   }
 }
 
 const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
