@@ -23,7 +23,8 @@ const double Geometry::Volume[NumGeom] =
 Geometry::Geometry()
 {
    // Vertices for Geometry::POINT
-   GeomVert[0] = NULL; // No vertices, dimension is 0
+   GeomVert[0] =  new IntegrationRule(1);
+   GeomVert[0]->IntPoint(0).x = 0.0;
 
    // Vertices for Geometry::SEGMENT
    GeomVert[1] = new IntegrationRule(2);
@@ -812,6 +813,19 @@ RefinedGeometry * GeometryRefiner::Refine(int Geom, int Times, int ETimes)
 
    switch (Geom)
    {
+      case Geometry::POINT:
+      {
+         RG = new RefinedGeometry(1, 1, 0);
+         RG->Times = 1;
+         RG->ETimes = 0;
+         RG->Type = type;
+         RG->RefPts.IntPoint(0).x = cp[0];
+         RG->RefGeoms[0] = 0;
+
+         RGeom[Geometry::POINT].Append(RG);
+         return RG;
+      }
+
       case Geometry::SEGMENT:
       {
          RG = new RefinedGeometry(Times+1, 2*Times, 0);

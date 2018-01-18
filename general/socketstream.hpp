@@ -21,6 +21,8 @@
 #if GNUTLS_VERSION_NUMBER < 0x020800
 #error "MFEM requires GnuTLS version >= 2.8.0"
 #endif
+// Use X.509 certificates: (comment out to use OpenPGP keys)
+#define MFEM_USE_GNUTLS_X509
 #endif
 
 namespace mfem
