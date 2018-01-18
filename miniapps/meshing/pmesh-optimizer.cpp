@@ -121,7 +121,7 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
    for (int i = 0; i < 12; i++)
    {
       add(x, -scale, c, x_out);
-      x_gf.SetFromTVector();
+      x_gf.SetFromTrueVector();
 
       energy_out = nlf->GetParGridFunctionEnergy(x_gf);
       if (energy_out > 1.2*energy_in || isnan(energy_out) != 0)
@@ -209,7 +209,7 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
    Vector posV(pos.Data(), dof * dim);
 
    x_gf.MakeTRef(pfes, x.GetData());
-   x_gf.SetFromTVector();
+   x_gf.SetFromTrueVector();
 
    double min_detJ = infinity();
    for (int i = 0; i < NE; i++)
@@ -449,8 +449,8 @@ int main (int argc, char *argv[])
    }
    x -= rdm;
    // Set the perturbation of all nodes from the true nodes.
-   x.SetTVector();
-   x.SetFromTVector();
+   x.SetTrueVector();
+   x.SetFromTrueVector();
 
    // 10. Save the starting (prior to the optimization) mesh to a file. This
    //     output can be viewed later using GLVis: "glvis -m perturbed -np
@@ -700,8 +700,8 @@ int main (int argc, char *argv[])
    newton->SetAbsTol(0.0);
    newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    newton->SetOperator(a);
-   newton->Mult(b, x.GetTVector());
-   x.SetFromTVector();
+   newton->Mult(b, x.GetTrueVector());
+   x.SetFromTrueVector();
    if (myid == 0 && newton->GetConverged() == false)
    {
       cout << "NewtonIteration: rtol = " << newton_rtol << " not achieved."

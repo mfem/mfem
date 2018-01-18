@@ -102,24 +102,24 @@ public:
    /// Read only access to the (optional) internal true-dof Vector.
    /** Note that the returned Vector may be empty, if not previously allocated
        or set. */
-   const Vector &GetTVector() const { return t_vec; }
+   const Vector &GetTrueVector() const { return t_vec; }
    /// Read and write access to the (optional) internal true-dof Vector.
    /** Note that the returned Vector may be empty, if not previously allocated
        or set. */
-   Vector &GetTVector() { return t_vec; }
+   Vector &GetTrueVector() { return t_vec; }
 
    /// @brief Extract the true-dofs from the GridFunction. If all dofs are true,
    /// then `tv` will be set to point to the data of `*this`.
    void GetTrueDofs(Vector &tv) const;
 
-   /// Shortcut for calling GetTrueDofs() with GetTVector() as argument.
-   void SetTVector() { GetTrueDofs(GetTVector()); }
+   /// Shortcut for calling GetTrueDofs() with GetTrueVector() as argument.
+   void SetTrueVector() { GetTrueDofs(GetTrueVector()); }
 
    /// Set the GridFunction from the given true-dof vector.
    virtual void SetFromTrueDofs(const Vector &tv);
 
-   /// Shortcut for calling SetFromTrueDofs() with GetTVector() as argument.
-   void SetFromTVector() { SetFromTrueDofs(GetTVector()); }
+   /// Shortcut for calling SetFromTrueDofs() with GetTrueVector() as argument.
+   void SetFromTrueVector() { SetFromTrueDofs(GetTrueVector()); }
 
    /// Returns the values in the vertices of i'th element for dimension vdim.
    void GetNodalValues(int i, Array<double> &nval, int vdim = 1) const;

@@ -330,12 +330,12 @@ int main(int argc, char *argv[])
    //    boundary conditions on a beam-like mesh (see description above).
    VectorFunctionCoefficient velo(dim, InitialVelocity);
    v_gf.ProjectCoefficient(velo);
-   v_gf.SetTVector();
+   v_gf.SetTrueVector();
    VectorFunctionCoefficient deform(dim, InitialDeformation);
    x_gf.ProjectCoefficient(deform);
-   x_gf.SetTVector();
+   x_gf.SetTrueVector();
 
-   v_gf.SetFromTVector(); x_gf.SetFromTVector();
+   v_gf.SetFromTrueVector(); x_gf.SetFromTrueVector();
 
    Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
    ess_bdr = 0;
@@ -392,7 +392,7 @@ int main(int argc, char *argv[])
 
       if (last_step || (ti % vis_steps) == 0)
       {
-         v_gf.SetFromTVector(); x_gf.SetFromTVector();
+         v_gf.SetFromTrueVector(); x_gf.SetFromTrueVector();
 
          double ee = oper->ElasticEnergy(x_gf);
          double ke = oper->KineticEnergy(v_gf);
@@ -417,7 +417,7 @@ int main(int argc, char *argv[])
 
    // 11. Save the displaced mesh, the velocity and elastic energy.
    {
-      v_gf.SetFromTVector(); x_gf.SetFromTVector();
+      v_gf.SetFromTrueVector(); x_gf.SetFromTrueVector();
       GridFunction *nodes = &x_gf;
       int owns_nodes = 0;
       pmesh->SwapNodes(nodes, owns_nodes);
