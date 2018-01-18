@@ -233,6 +233,11 @@ void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 
    BlockNonlinearForm::MultBlocked(xs, ys);
 
+   if (fnfi.Size() > 0)
+   {
+      MFEM_ABORT("TODO: assemble contributions from shared face terms");
+   }
+
    for (int s=0; s<fes.Size(); s++)
    {
       fes[s]->GetProlongationMatrix()->MultTranspose(
@@ -290,6 +295,11 @@ BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
    }
 
    GetLocalGradient(x); // gradients are stored in 'Grads'
+
+   if (fnfi.Size() > 0)
+   {
+      MFEM_ABORT("TODO: assemble contributions from shared face terms");
+   }
 
    for (int s1=0; s1<fes.Size(); s1++)
    {
