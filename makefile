@@ -93,7 +93,7 @@ EXAMPLE_SUBDIRS = sundials petsc
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_SUBDIRS = common electromagnetics meshing performance tools
+MINIAPP_SUBDIRS = common electromagnetics meshing performance tools nurbs
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools)
@@ -387,6 +387,12 @@ test:
 	   ERR=1; fi; done; \
 	   if [ 0 -ne $${ERR} ]; then echo "Some tests failed."; exit 1; \
 	   else echo "All tests passed."; fi
+
+.PHONY: test-print
+test-print:
+	@echo "Printing tests in: [ $(EM_TEST_DIRS) ] ..."
+	@for dir in $(EM_TEST_DIRS); do \
+	   $(MAKE) -j1 -C $(BLD)$${dir} test-print; done
 
 ALL_CLEAN_SUBDIRS = $(addsuffix /clean,config $(EM_DIRS) doc)
 .PHONY: $(ALL_CLEAN_SUBDIRS) miniapps/clean
