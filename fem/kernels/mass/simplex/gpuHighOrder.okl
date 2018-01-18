@@ -1,0 +1,129 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+#include "occa://mfem/fem/defines.okl"
+
+//---[ 2D ]-----------------------------
+kernel void Assemble2D(const int numElements,
+                       const double * restrict quadWeights,
+                       const Jacobian2D_t restrict J,
+                       COEFF_ARGS
+                       QLocal_t restrict oper) {
+  for (int eOff = 0; eOff < numElements; eOff += A2_ELEMENT_BATCH; outer) {
+    for (int e = eOff; e < (eOff + A2_ELEMENT_BATCH); ++e; inner) {
+      if (e < numElements) {
+        for (int qOff = 0; qOff < A2_QUAD_BATCH; ++qOff; inner) {
+          for (int q = qOff; q < NUM_QUAD; q += A2_QUAD_BATCH) {
+            const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e);
+            const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e);
+
+            oper(q, e) = quadWeights[q] * COEFF * ((J11 * J22) - (J21 * J12));
+          }
+        }
+      }
+    }
+  }
+}
+
+kernel void MultAdd2D(const int numElements,
+                      const DofToQuad_t restrict dofToQuad,
+                      const DofToQuadD2D_t restrict dofToQuadD,
+                      const QuadToDof_t restrict quadToDof,
+                      const QuadToDofD2D_t restrict quadToDofD,
+                      const QLocal_t restrict oper,
+                      const DLocal_t restrict solIn,
+                      DLocal_t restrict solOut) {
+  for (int e = 0; e < numElements; ++e; outer) {
+    shared double s_sol[NUM_QUAD];
+
+    for (int qOff = 0; qOff < M2_INNER_BATCH; ++qOff; inner) {
+      for (int q = qOff; q < NUM_QUAD; q += M2_INNER_BATCH) {
+        double s = 0;
+        for (int d = 0; d < NUM_DOFS; ++d) {
+          s += solIn(d, e) * dofToQuad(d, q);
+        }
+        s_sol[q] = s * oper(q, e);
+      }
+    }
+
+    for (int dOff = 0; dOff < M2_INNER_BATCH; ++dOff) {
+      for (int d = dOff; d < NUM_DOFS; d += M2_INNER_BATCH) {
+        double r_sol = 0;
+        for (int q = 0; q < NUM_QUAD; ++q) {
+          r_sol += (s_sol[q] * quadToDof(d, q));
+        }
+        solOut(d, e) += r_sol;
+      }
+    }
+  }
+}
+//======================================
+
+
+//---[ 3D ]-----------------------------
+kernel void Assemble3D(const int numElements,
+                       const double * restrict quadWeights,
+                       const Jacobian3D_t restrict J,
+                       COEFF_ARGS
+                       QLocal_t restrict oper) {
+  for (int eOff = 0; eOff < numElements; eOff += A3_ELEMENT_BATCH; outer) {
+    for (int e = eOff; e < (eOff + A3_ELEMENT_BATCH); ++e; inner) {
+      if (e < numElements) {
+        for (int qOff = 0; qOff < A3_QUAD_BATCH; ++qOff; inner) {
+          for (int q = qOff; q < NUM_QUAD; q += A3_QUAD_BATCH) {
+            const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e), J13 = J(2, 0, q, e);
+            const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e), J23 = J(2, 1, q, e);
+            const double J31 = J(0, 2, q, e), J32 = J(1, 2, q, e), J33 = J(2, 2, q, e);
+
+            const double detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
+                                 (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
+
+            oper(q, e) = quadWeights[q] * COEFF * detJ;
+          }
+        }
+      }
+    }
+  }
+}
+
+kernel void MultAdd3D(const int numElements,
+                      const DofToQuad_t restrict dofToQuad,
+                      const DofToQuadD3D_t restrict dofToQuadD,
+                      const QuadToDof_t restrict quadToDof,
+                      const QuadToDofD3D_t restrict quadToDofD,
+                      const QLocal_t restrict oper,
+                      const DLocal_t restrict solIn,
+                      DLocal_t restrict solOut) {
+  for (int e = 0; e < numElements; ++e; outer) {
+    shared double s_sol[NUM_QUAD];
+
+    for (int qOff = 0; qOff < M3_INNER_BATCH; ++qOff; inner) {
+      for (int q = qOff; q < NUM_QUAD; q += M3_INNER_BATCH) {
+        double s = 0;
+        for (int d = 0; d < NUM_DOFS; ++d) {
+          s += solIn(d, e) * dofToQuad(d, q);
+        }
+        s_sol[q] = s * oper(q, e);
+      }
+    }
+
+    for (int dOff = 0; dOff < M3_INNER_BATCH; ++dOff) {
+      for (int d = dOff; d < NUM_DOFS; d += M3_INNER_BATCH) {
+        double r_sol = 0;
+        for (int q = 0; q < NUM_QUAD; ++q) {
+          r_sol += (s_sol[q] * quadToDof(d, q));
+        }
+        solOut(d, e) += r_sol;
+      }
+    }
+  }
+}
+//======================================

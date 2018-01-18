@@ -1,0 +1,66 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+/*
+  ---[ Defines Known At Compile-Time ]------------
+  ELEMENT_BATCH   : How many elements are in each
+  .                   computation batch
+  NUM_DOFS_1D     : Dofs in the 1D segments
+  NUM_DOFS_2D     : Dofs in the 2D faces
+  NUM_DOFS_3D     : Dofs in the 3D domain
+  NUM_QUAD_1D     : Dofs in the 1D segments
+  NUM_QUAD_2D     : Dofs in the 2D faces
+  NUM_QUAD_3D     : Dofs in the 3D domain
+  NUM_MAX_1D      : max(NUM_QUAD_1D, NUM_DOFS_1D)
+  NUM_QUAD_DOFS_1D: NUM_QUAD_1D * NUM_DOFS_1D
+  COEFF_ARGS      : Code that passes required arguments to the kernel
+  COEFF           : Code that computes the coefficient
+  ================================================
+
+  [MISSING]
+  - Add support to auto-pick @dim and use @idxOrder on stack arrays
+  |   double a[2][2];
+  |   a[0][1]; <-- regular index
+  |   a(0,1);  <-- uses @idxOrder a[0][1] or a[1][0]
+  - Add support for @idxOrder to change indexing order after allocation
+  |   double a[2][2] @idxOrder(0,1);
+  |   a(0,1) -> a[1][0]
+  |   @set(a, idxOrder(1,0));
+  |   a(0,1) -> a[0][1]
+  - Add support to iterate over loop depending on mode
+  |   for(i; inner) {
+  |     for(0 < j < N) {} <-- ++j or j += block?
+  |   }
+*/
+
+#include "occa://mfem/fem/defines.okl"
+
+#if USING_TENSOR_OPS
+#  if OCCA_USING_CPU
+#    include "occa://mfem/fem/diffusion/tensor/cpu.okl"
+#  else
+#    if USING_LOW_ORDER
+#      include "occa://mfem/fem/diffusion/tensor/gpuHighOrder.okl"
+#    else
+#      include "occa://mfem/fem/diffusion/tensor/gpuHighOrder.okl"
+#    endif
+#  endif
+#else
+#  if OCCA_USING_CPU
+#    include "occa://mfem/fem/diffusion/simplex/cpu.okl"
+#  else
+#    if USING_LOW_ORDER
+#      include "occa://mfem/fem/diffusion/simplex/gpuHighOrder.okl"
+#    else
+#      include "occa://mfem/fem/diffusion/simplex/gpuHighOrder.okl"
+#    endif
+#  endif
+#endif

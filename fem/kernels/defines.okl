@@ -1,0 +1,40 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+#ifndef MFEM_OCCA_DEFINES
+#define MFEM_OCCA_DEFINES
+
+#ifndef USING_TENSOR_OPS
+#  define USING_TENSOR_OPS 0
+#endif
+
+#if OCCA_USING_GPU
+#  define GPU_ORDER_2(I0, I1)         idxOrder(I0, I1)
+#  define GPU_ORDER_3(I0, I1, I2)     idxOrder(I0, I1, I2)
+#  define GPU_ORDER_4(I0, I1, I2, I3) idxOrder(I0, I1, I2, I3)
+#else
+#  define GPU_ORDER_2(I0, I1)         idxOrder(0, 1)
+#  define GPU_ORDER_3(I0, I1, I2)     idxOrder(0, 1, 2)
+#  define GPU_ORDER_4(I0, I1, I2, I3) idxOrder(0, 1, 2, 3)
+#endif
+
+#ifndef COEFF
+#  define COEFF 1.0
+#  define COEFF_ARGS
+#endif
+
+#if USING_TENSOR_OPS
+#  include "occa://mfem/fem/defines/tensor.okl"
+#else
+#  include "occa://mfem/fem/defines/simplex.okl"
+#endif
+
+#endif

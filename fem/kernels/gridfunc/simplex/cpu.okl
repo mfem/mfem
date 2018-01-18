@@ -1,0 +1,63 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+#include "occa://mfem/fem/defines.okl"
+
+//---[ 2D ]-----------------------------
+kernel void GridFuncToQuad2D(const int numElements,
+                             const DofToQuad_t restrict dofToQuad,
+                             const DLocalMap_t restrict l2gMap,
+                             const double * restrict gf,
+                             QVLocal_t restrict out) {
+  // Iterate over elements
+  for (int e = 0; e < numElements; ++e; outer) {
+    for (int dummy = 0; dummy < 1; ++dummy; inner) {
+      for (int d = 0; d < NUM_DOFS; ++d) {
+        const int gid = l2gMap(d, e);
+        for (int v = 0; v < NUM_VDIM; ++v) {
+          const double r_gf = gf[v + gid*NUM_VDIM];
+          double r_out = 0;
+          for (int q = 0; q < NUM_QUAD; ++q) {
+            r_out += r_gf * dofToQuad(d, q);
+          }
+          out(v, d, e) = r_out;
+        }
+      }
+    }
+  }
+}
+//======================================
+
+
+//---[ 3D ]-----------------------------
+kernel void GridFuncToQuad3D(const int numElements,
+                             const DofToQuad_t restrict dofToQuad,
+                             const DLocalMap_t restrict l2gMap,
+                             const double * restrict gf,
+                             QVLocal_t restrict out) {
+  // Iterate over elements
+  for (int e = 0; e < numElements; ++e; outer) {
+    for (int dummy = 0; dummy < 1; ++dummy; inner) {
+      for (int d = 0; d < NUM_DOFS; ++d) {
+        const int gid = l2gMap(d, e);
+        for (int v = 0; v < NUM_VDIM; ++v) {
+          const double r_gf = gf[v + gid*NUM_VDIM];
+          double r_out = 0;
+          for (int q = 0; q < NUM_QUAD; ++q) {
+            r_out += r_gf * dofToQuad(d, q);
+          }
+          out(v, d, e) = r_out;
+        }
+      }
+    }
+  }
+}
+//======================================

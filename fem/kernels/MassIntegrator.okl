@@ -1,0 +1,46 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+/*
+  ---[ Defines Known At Compile-Time ]------------
+  ELEMENT_BATCH   : How many elements are in each
+  .                   computation batch
+  NUM_DOFS_1D     : Dofs in the 1D segments
+  NUM_DOFS_2D     : Dofs in the 2D faces
+  NUM_DOFS_3D     : Dofs in the 3D domain
+  NUM_QUAD_1D     : Dofs in the 1D segments
+  NUM_QUAD_2D     : Dofs in the 2D faces
+  NUM_QUAD_3D     : Dofs in the 3D domain
+  NUM_MAX_1D      : max(NUM_QUAD_1D, NUM_DOFS_1D)
+  NUM_QUAD_DOFS_1D: NUM_QUAD_1D * NUM_DOFS_1D
+  CONST_COEFF     : If the coefficient is constant, pass it
+  .                   as a define
+  ================================================
+
+  [MISSING]
+  See kernels/DiffusionIntegrator.okl
+*/
+
+#include "occa://mfem/fem/defines.okl"
+
+#if USING_TENSOR_OPS
+#  if OCCA_USING_CPU
+#    include "occa://mfem/fem/mass/tensor/cpu.okl"
+#  else
+#    include "occa://mfem/fem/mass/tensor/gpuHighOrder.okl"
+#  endif
+#else
+#  if OCCA_USING_CPU
+#    include "occa://mfem/fem/mass/simplex/cpu.okl"
+#  else
+#    include "occa://mfem/fem/mass/simplex/gpuHighOrder.okl"
+#  endif
+#endif

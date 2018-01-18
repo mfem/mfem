@@ -1,0 +1,433 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+#include "occa://mfem/fem/defines.okl"
+
+//---[ 1D ]-----------------------------
+kernel void Assemble1D(const int numElements,
+                       const double *quadWeights,
+                       const Jacobian1D_t J,
+                       COEFF_ARGS
+                       SymmOperator1D_t oper) {
+  for (int eOff = 0; eOff < numElements; eOff += A1_ELEMENT_BATCH; outer) {
+    for (int e = eOff; e < (eOff + A1_ELEMENT_BATCH); ++e; inner) {
+      if (e < numElements) {
+        for (int q = 0; q < NUM_QUAD_1D; ++q; inner) {
+          oper(q, e) = quadWeights[q] * COEFF / J(q, e);
+        }
+      }
+    }
+  }
+}
+
+kernel void MultAdd1D(const int numElements,
+                      const DofToQuad_t restrict dofToQuad,
+                      const DofToQuad_t restrict dofToQuadD,
+                      const QuadToDof_t restrict quadToDof,
+                      const QuadToDof_t restrict quadToDofD,
+                      const SymmOperator1D_t restrict oper,
+                      const DLocal1D_t restrict solIn,
+                      DLocal1D_t restrict solOut) {
+  // Iterate over elements
+  for (int eOff = 0; eOff < numElements; eOff += M1_ELEMENT_BATCHES; outer) {
+    shared double s_dofToQuadD[NUM_QUAD_DOFS_1D] @dim(NUM_QUAD_1D, NUM_DOFS_1D);
+    shared double s_quadToDofD[NUM_QUAD_DOFS_1D] @dim(NUM_DOFS_1D, NUM_QUAD_1D);
+
+    exclusive double grad[NUM_QUAD_1D];
+
+    for (int el = 0; el < M1_INNER_ELEMENT_BATCH; ++el; inner) {
+      for (int i = el; i < NUM_QUAD_DOFS_1D; i += M1_INNER_ELEMENT_BATCH) {
+        s_dofToQuadD[i] = dofToQuadD[i];
+        s_quadToDofD[i] = quadToDofD[i];
+      }
+    }
+
+    for (int b = 0; b < M1_OUTER_ELEMENT_BATCH; ++b) {
+      for (int el = 0; el < M1_INNER_ELEMENT_BATCH; ++el; inner) {
+        const int e = eOff + b*M1_INNER_ELEMENT_BATCH + el;
+        if (e < numElements) {
+          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            grad[qx] = 0;
+          }
+          for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+            const double s = solIn(dx, e);
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+              grad[qx] += s * s_dofToQuadD(qx, dx);
+            }
+          }
+          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            grad[qx] *= oper(qx, e);
+          }
+          for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+            double s = 0;
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+              s += grad[qx] * s_quadToDofD(dx, qx);
+            }
+            solOut(dx, e) += s;
+          }
+        }
+      }
+    }
+  }
+}
+//======================================
+
+
+//---[ 2D ]-----------------------------
+kernel void Assemble2D(const int numElements,
+                       const double *quadWeights,
+                       const Jacobian2D_t J,
+                       COEFF_ARGS
+                       SymmOperator2D_t oper) {
+  for (int eOff = 0; eOff < numElements; eOff += A2_ELEMENT_BATCH; outer) {
+    for (int e = eOff; e < (eOff + A2_ELEMENT_BATCH); ++e; inner) {
+      if (e < numElements) {
+        for (int qOff = 0; qOff < A2_QUAD_BATCH; ++qOff; inner) {
+          for (int q = qOff; q < NUM_QUAD_2D; q += A2_QUAD_BATCH) {
+            const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e);
+            const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e);
+
+            const double c_detJ = quadWeights[q] * COEFF / ((J11 * J22) - (J21 * J12));
+
+            oper(0, q, e) =  c_detJ * (J21*J21 + J22*J22); // (1,1)
+            oper(1, q, e) = -c_detJ * (J21*J11 + J22*J12); // (1,2), (2,1)
+            oper(2, q, e) =  c_detJ * (J11*J11 + J12*J12); // (2,2)
+          }
+        }
+      }
+    }
+  }
+}
+
+kernel void MultAdd2D(const int numElements,
+                      const DofToQuad_t restrict dofToQuad,
+                      const DofToQuad_t restrict dofToQuadD,
+                      const QuadToDof_t restrict quadToDof,
+                      const QuadToDof_t restrict quadToDofD,
+                      const SymmOperator2D_t restrict oper,
+                      const DLocal2D_t restrict solIn,
+                      DLocal2D_t restrict solOut) {
+  // Iterate over elements
+  for (int eOff = 0; eOff < numElements; eOff += M2_ELEMENT_BATCH; outer) {
+    // Store dof <--> quad mappings
+    shared double s_dofToQuad[NUM_QUAD_DOFS_1D] @dim(NUM_QUAD_1D, NUM_DOFS_1D);
+    shared double s_dofToQuadD[NUM_QUAD_DOFS_1D] @dim(NUM_QUAD_1D, NUM_DOFS_1D);
+    shared double s_quadToDof[NUM_QUAD_DOFS_1D] @dim(NUM_DOFS_1D, NUM_QUAD_1D);
+    shared double s_quadToDofD[NUM_QUAD_DOFS_1D] @dim(NUM_DOFS_1D, NUM_QUAD_1D);
+
+    // Store xy planes in shared memory
+    shared double s_xy[NUM_QUAD_DOFS_1D] @dim(NUM_DOFS_1D, NUM_QUAD_1D);
+    shared double s_xDy[NUM_QUAD_DOFS_1D] @dim(NUM_DOFS_1D, NUM_QUAD_1D);
+    shared double s_grad[2 * NUM_QUAD_2D] @dim(2, NUM_QUAD_1D, NUM_QUAD_1D);
+
+    exclusive double r_x[NUM_MAX_1D];
+    exclusive double r_y[NUM_QUAD_1D];
+
+    for (int x = 0; x < NUM_MAX_1D; ++x; inner) {
+      for (int id = x; id < NUM_QUAD_DOFS_1D; id += NUM_MAX_1D) {
+        s_dofToQuad[id]  = dofToQuad[id];
+        s_dofToQuadD[id] = dofToQuadD[id];
+        s_quadToDof[id]  = quadToDof[id];
+        s_quadToDofD[id] = quadToDofD[id];
+      }
+    }
+
+    for (int e = eOff; e < (eOff + M2_ELEMENT_BATCH); ++e) {
+      if (e < numElements) {
+        for (int dx = 0; dx < NUM_DOFS_1D; ++dx; inner) {
+          if (dx < NUM_DOFS_1D) {
+            for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+              s_xy(dx, qy) = 0;
+              s_xDy(dx, qy) = 0;
+            }
+            for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+              r_x[dy] = solIn(dx, dy, e);
+            }
+            for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+              double xy = 0;
+              double xDy = 0;
+              for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+                xy  += r_x[dy] * s_dofToQuad(qy, dy);
+                xDy += r_x[dy] * s_dofToQuadD(qy, dy);
+              }
+              s_xy(dx, qy)  = xy;
+              s_xDy(dx, qy) = xDy;
+            }
+          }
+        }
+        for (int qy = 0; qy < NUM_MAX_1D; ++qy; inner) {
+          if (qy < NUM_QUAD_1D) {
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+              double gradX = 0, gradY = 0;
+              for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+                gradX += s_xy(dx, qy)  * s_dofToQuadD(qx, dx);
+                gradY += s_xDy(dx, qy) * s_dofToQuad(qx, dx);
+              }
+
+              const int q = QUAD_2D_ID(qx, qy);
+              const double O11 = oper(0, q, e);
+              const double O12 = oper(1, q, e);
+              const double O22 = oper(2, q, e);
+
+              s_grad(0, qx, qy) = (O11 * gradX) + (O12 * gradY);
+              s_grad(1, qx, qy) = (O12 * gradX) + (O22 * gradY);
+            }
+          }
+        }
+
+        for (int qx = 0; qx < NUM_QUAD_1D; ++qx; inner) {
+          if (qx < NUM_QUAD_1D) {
+            for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+              s_xy(dy, qx) = 0;
+              s_xDy(dy, qx) = 0;
+            }
+            for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+              r_x[qy] = s_grad(0, qx, qy);
+              r_y[qy] = s_grad(1, qx, qy);
+            }
+            for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+              double xy  = 0;
+              double xDy = 0;
+              for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+                xy  += r_x[qy] * s_quadToDof(dy, qy);
+                xDy += r_y[qy] * s_quadToDofD(dy, qy);
+              }
+              s_xy(dy, qx) = xy;
+              s_xDy(dy, qx) = xDy;
+            }
+          }
+        }
+        for (int dx = 0; dx < NUM_DOFS_1D; ++dx; inner) {
+          if (dx < NUM_DOFS_1D) {
+            for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+              double s = 0;
+              for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+                s += ((s_xy(dy, qx) * s_quadToDofD(dx, qx)) +
+                      (s_xDy(dy, qx) * s_quadToDof(dx, qx)));
+              }
+              solOut(dx, dy, e) += s;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+//======================================
+
+
+//---[ 3D ]-----------------------------
+kernel void Assemble3D(const int numElements,
+                       const double *quadWeights,
+                       const Jacobian3D_t J,
+                       COEFF_ARGS
+                       SymmOperator3D_t oper) {
+  for (int eOff = 0; eOff < numElements; eOff += A3_ELEMENT_BATCH; outer) {
+    for (int e = eOff; e < (eOff + A3_ELEMENT_BATCH); ++e; inner) {
+      if (e < numElements) {
+        for (int qOff = 0; qOff < A3_QUAD_BATCH; ++qOff; inner) {
+          for (int q = qOff; q < NUM_QUAD_3D; q += A3_QUAD_BATCH) {
+            const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e), J13 = J(2, 0, q, e);
+            const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e), J23 = J(2, 1, q, e);
+            const double J31 = J(0, 2, q, e), J32 = J(1, 2, q, e), J33 = J(2, 2, q, e);
+
+            const double detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
+                                 (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
+
+            const double c_detJ = quadWeights[q] * COEFF / detJ;
+
+            // adj(J)
+            const double A11 = (J22 * J33) - (J23 * J32);
+            const double A12 = (J23 * J31) - (J21 * J33);
+            const double A13 = (J21 * J32) - (J22 * J31);
+
+            const double A21 = (J13 * J32) - (J12 * J33);
+            const double A22 = (J11 * J33) - (J13 * J31);
+            const double A23 = (J12 * J31) - (J11 * J32);
+
+            const double A31 = (J12 * J23) - (J13 * J22);
+            const double A32 = (J13 * J21) - (J11 * J23);
+            const double A33 = (J11 * J22) - (J12 * J21);
+
+            // adj(J)^Tadj(J)
+            oper(0, q, e) = c_detJ * (A11*A11 + A21*A21 + A31*A31); // (1,1)
+            oper(1, q, e) = c_detJ * (A11*A12 + A21*A22 + A31*A32); // (1,2), (2,1)
+            oper(2, q, e) = c_detJ * (A11*A13 + A21*A23 + A31*A33); // (1,3), (3,1)
+            oper(3, q, e) = c_detJ * (A12*A12 + A22*A22 + A32*A32); // (2,2)
+            oper(4, q, e) = c_detJ * (A12*A13 + A22*A23 + A32*A33); // (2,3), (3,2)
+            oper(5, q, e) = c_detJ * (A13*A13 + A23*A23 + A33*A33); // (3,3)
+          }
+        }
+      }
+    }
+  }
+}
+
+kernel void MultAdd3D(const int numElements,
+                      const DofToQuad_t restrict dofToQuad,
+                      const DofToQuad_t restrict dofToQuadD,
+                      const QuadToDof_t restrict quadToDof,
+                      const QuadToDof_t restrict quadToDofD,
+                      const SymmOperator3D_t restrict oper,
+                      const DLocal3D_t restrict solIn,
+                      DLocal3D_t restrict solOut) {
+  // Iterate over elements
+  for (int e = 0; e < numElements; ++e; outer) {
+    // Store dof <--> quad mappings
+    shared double s_dofToQuad[NUM_QUAD_DOFS_1D] @dim(NUM_QUAD_1D, NUM_DOFS_1D);
+    shared double s_dofToQuadD[NUM_QUAD_DOFS_1D] @dim(NUM_QUAD_1D, NUM_DOFS_1D);
+    shared double s_quadToDof[NUM_QUAD_DOFS_1D] @dim(NUM_DOFS_1D, NUM_QUAD_1D);
+    shared double s_quadToDofD[NUM_QUAD_DOFS_1D] @dim(NUM_DOFS_1D, NUM_QUAD_1D);
+
+    // Store xy planes in shared memory
+    shared double s_z[NUM_MAX_2D] @dim(NUM_MAX_1D, NUM_MAX_1D);
+    shared double s_Dz[NUM_MAX_2D] @dim(NUM_MAX_1D, NUM_MAX_1D);
+    shared double s_xyDz[NUM_QUAD_2D] @dim(NUM_QUAD_1D, NUM_QUAD_1D);
+
+    // Store z axis as registers
+    exclusive double r_qz[NUM_QUAD_1D];
+    exclusive double r_qDz[NUM_QUAD_1D];
+    exclusive double r_dDxyz[NUM_DOFS_1D];
+    exclusive double r_dxDyz[NUM_DOFS_1D];
+    exclusive double r_dxyDz[NUM_DOFS_1D];
+
+    for (int y = 0; y < NUM_MAX_1D; ++y; inner) {
+      for (int x = 0; x < NUM_MAX_1D; ++x; inner) {
+        const int id = (y * NUM_MAX_1D) + x;
+        // Fetch Q <--> D maps
+        if (id < NUM_QUAD_DOFS_1D) {
+          s_dofToQuad[id]  = dofToQuad[id];
+          s_dofToQuadD[id] = dofToQuadD[id];
+          s_quadToDof[id]  = quadToDof[id];
+          s_quadToDofD[id] = quadToDofD[id];
+        }
+        // Initialize our Z axis
+        for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+          r_qz[qz] = 0;
+          r_qDz[qz] = 0;
+        }
+        // Initialize our solution updates in the Z axis
+        for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
+          r_dDxyz[dz] = 0;
+          r_dxDyz[dz] = 0;
+          r_dxyDz[dz] = 0;
+        }
+      }
+    }
+
+    for (int dy = 0; dy < NUM_MAX_1D; ++dy; inner) {
+      for (int dx = 0; dx < NUM_MAX_1D; ++dx; inner) {
+        if ((dx < NUM_DOFS_1D) && (dy < NUM_DOFS_1D)) {
+          for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
+            const double s = solIn(dx, dy, dz, e);
+            // Calculate D -> Q in the Z axis
+            for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+              r_qz[qz]  += s * s_dofToQuad(qz, dz);
+              r_qDz[qz] += s * s_dofToQuadD(qz, dz);
+            }
+          }
+        }
+      }
+    }
+    // For each xy plane
+    for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+      // Fill xy plane at given z position
+      for (int dy = 0; dy < NUM_MAX_1D; ++dy; inner) {
+        for (int dx = 0; dx < NUM_MAX_1D; ++dx; inner) {
+          if ((dx < NUM_DOFS_1D) && (dy < NUM_DOFS_1D)) {
+            s_z(dx, dy)  = r_qz[qz];
+            s_Dz(dx, dy) = r_qDz[qz];
+          }
+        }
+      }
+      // Calculate Dxyz, xDyz, xyDz in plane
+      for (int qy = 0; qy < NUM_MAX_1D; ++qy; inner) {
+        for (int qx = 0; qx < NUM_MAX_1D; ++qx; inner) {
+          if ((qx < NUM_QUAD_1D) && (qy < NUM_QUAD_1D)) {
+            double Dxyz = 0;
+            double xDyz = 0;
+            double xyDz = 0;
+            for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+              const double wy  = s_dofToQuad(qy, dy);
+              const double wDy = s_dofToQuadD(qy, dy);
+              for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+                const double wx  = s_dofToQuad(qx, dx);
+                const double wDx = s_dofToQuadD(qx, dx);
+                const double z  = s_z(dx, dy);
+                const double Dz = s_Dz(dx, dy);
+                Dxyz += wDx * wy  * z;
+                xDyz += wx  * wDy * z;
+                xyDz += wx  * wy  * Dz;
+              }
+            }
+
+            const int q = QUAD_3D_ID(qx, qy, qz);
+            const double O11 = oper(0, q, e);
+            const double O12 = oper(1, q, e);
+            const double O13 = oper(2, q, e);
+            const double O22 = oper(3, q, e);
+            const double O23 = oper(4, q, e);
+            const double O33 = oper(5, q, e);
+
+            const double qDxyz = (O11 * Dxyz) + (O12 * xDyz) + (O13 * xyDz);
+            const double qxDyz = (O12 * Dxyz) + (O22 * xDyz) + (O23 * xyDz);
+            const double qxyDz = (O13 * Dxyz) + (O23 * xDyz) + (O33 * xyDz);
+
+            for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
+              const double wz  = s_quadToDof(dz, qz);
+              const double wDz = s_quadToDofD(dz, qz);
+              r_dDxyz[dz] += wz  * qDxyz;
+              r_dxDyz[dz] += wz  * qxDyz;
+              r_dxyDz[dz] += wDz * qxyDz;
+            }
+          }
+        }
+      }
+    }
+    // Iterate over xy planes to compute solution
+    for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
+      // Place xy plane in shared memory
+      for (int qy = 0; qy < NUM_MAX_1D; ++qy; inner) {
+        for (int qx = 0; qx < NUM_MAX_1D; ++qx; inner) {
+          if ((qx < NUM_QUAD_1D) && (qy < NUM_QUAD_1D)) {
+            s_z(qx, qy)    = r_dDxyz[dz];
+            s_Dz(qx, qy)   = r_dxDyz[dz];
+            s_xyDz(qx, qy) = r_dxyDz[dz];
+          }
+        }
+      }
+      // Finalize solution in xy plane
+      for (int dy = 0; dy < NUM_MAX_1D; ++dy; inner) {
+        for (int dx = 0; dx < NUM_MAX_1D; ++dx; inner) {
+          if ((dx < NUM_DOFS_1D) && (dy < NUM_DOFS_1D)) {
+            double solZ = 0;
+            for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+              const double wy  = s_quadToDof(dy, qy);
+              const double wDy = s_quadToDofD(dy, qy);
+              for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+                const double wx  = s_quadToDof(dx, qx);
+                const double wDx = s_quadToDofD(dx, qx);
+                const double Dxyz = s_z(qx, qy);
+                const double xDyz = s_Dz(qx, qy);
+                const double xyDz = s_xyDz(qx, qy);
+                solZ += ((wDx * wy  * Dxyz) +
+                         (wx  * wDy * xDyz) +
+                         (wx  * wy  * xyDz));
+              }
+            }
+            solOut(dx, dy, dz, e) += solZ;
+          }
+        }
+      }
+    }
+  }
+}
+//======================================

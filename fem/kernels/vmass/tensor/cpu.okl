@@ -1,0 +1,321 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+#include "occa://mfem/fem/defines.okl"
+
+//---[ 1D ]-----------------------------
+kernel void Assemble1D(const int numElements,
+                       const double * restrict quadWeights,
+                       const Jacobian1D_t restrict J,
+                       COEFF_ARGS
+                       QLocal_t restrict oper) {
+  for (int e = 0; e < numElements; ++e; outer) {
+    for (int q = 0; q < NUM_QUAD_1D; ++q; inner) {
+      oper(q, e) = quadWeights[q] * COEFF * J(q, e);
+    }
+  }
+}
+
+kernel void MultAdd1D(const int numElements,
+                   const DofToQuad_t restrict dofToQuad,
+                   const DofToQuad_t restrict dofToQuadD,
+                   const QuadToDof_t restrict quadToDof,
+                   const QuadToDof_t restrict quadToDofD,
+                   const QLocal_t restrict oper,
+                   const DVLocal1D_t restrict solIn,
+                   DVLocal1D_t restrict solOut) {
+  // Iterate over elements
+  for (int e = 0; e < numElements; ++e; outer) {
+    for (int dummy = 0; dummy < 1; ++dummy; inner) {
+      double sol_x[1][NUM_QUAD_1D];
+      for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+        sol_x[0][qx] = 0;
+      }
+      // sol_x{qx} = dofToQuad{qx,dx} * sol{dx}
+      for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+        for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+          sol_x[0][qx] += dofToQuad(qx, dx) * solIn(0, dx, e);
+        }
+      }
+      // sol_x{q} *= oper{q}
+      for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+        sol_x[0][qx] *= oper(qx, e);
+      }
+      // sol{dx} = quadToDof{dx,qx} * sol_x{qx}
+      for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+        for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+          solOut(0, dx, e) += sol_x[0][qx] * quadToDof(dx, qx);
+        }
+      }
+    }
+  }
+}
+//======================================
+
+
+//---[ 2D ]-----------------------------
+kernel void Assemble2D(const int numElements,
+                       const double * restrict quadWeights,
+                       const Jacobian2D_t restrict J,
+                       COEFF_ARGS
+                       QLocal_t restrict oper) {
+  for (int e = 0; e < numElements; ++e; outer) {
+    for (int q = 0; q < NUM_QUAD_2D; ++q; inner) {
+      const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e);
+      const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e);
+
+      oper(q, e) = quadWeights[q] * COEFF * ((J11 * J22) - (J21 * J12));
+    }
+  } // e
+}
+
+kernel void MultAdd2D(const int numElements,
+                      const DofToQuad_t restrict dofToQuad,
+                      const DofToQuad_t restrict dofToQuadD,
+                      const QuadToDof_t restrict quadToDof,
+                      const QuadToDof_t restrict quadToDofD,
+                      const QLocal_t restrict oper,
+                      const DVLocal2D_t restrict solIn,
+                      DVLocal2D_t restrict solOut) {
+  // Iterate over elements
+  for (int e = 0; e < numElements; ++e; outer) {
+    for (int dummy=0; dummy<1; ++dummy; inner) {
+      double sol_xy[2][NUM_QUAD_1D][NUM_QUAD_1D];
+
+      for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+        for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+          sol_xy[0][qx][qy] = 0;
+          sol_xy[1][qx][qy] = 0;
+        }
+      }
+
+      for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+        double sol_x[2][NUM_QUAD_1D];
+        for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+          sol_x[0][qy] = 0;
+          sol_x[1][qy] = 0;
+        }
+
+        // sol_x{vd, dx, qy} = dofToQuad{qy, dy} * sol{vd, dx, dy}
+        for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+          for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+            sol_x[0][qy] += dofToQuad(qy, dx) * solIn(0, dx, dy, e);
+            sol_x[1][qy] += dofToQuad(qy, dx) * solIn(1, dx, dy, e);
+          }
+        }
+
+        // sol_xy{qx, qy} = dofToQuad{qx, dx} * sol_x{dx, qy}
+        for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+          const double d2q = dofToQuad(qy, dy);
+          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            sol_xy[0][qx][qy] += d2q * sol_x[0][qx];
+            sol_xy[1][qx][qy] += d2q * sol_x[1][qx];
+          }
+        }
+      } // dy
+
+      // sol_xy{qx, qy} = sol_xy{q} *= oper{q, e}
+      for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+        for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+          const int q = QUAD_2D_ID(qx, qy);
+          sol_xy[0][qx][qy] *= oper(q, e);
+          sol_xy[1][qx][qy] *= oper(q, e);
+        }
+      }
+
+      for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+        double sol_x[2][NUM_DOFS_1D];
+        for (int dx = 0; dx < NUM_QUAD_1D; ++dx) {
+          sol_x[0][dx] = 0;
+          sol_x[1][dx] = 0;
+        }
+
+        // sol_x{qx, dy} = quadToDof{dy, qy} * sol_xy{qx, qy}
+        for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+          for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+            sol_x[0][dx] += quadToDof(dx, qx) * sol_xy[0][qx][qy];
+            sol_x[1][dx] += quadToDof(dx, qx) * sol_xy[1][qx][qy];
+          }
+        }
+
+        // sol{dx, dy, e} = quadToDof{dx, qx} * sol_x{qx, dy}
+        for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+          const double q2d = quadToDof(dy, qy);
+          for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+            solOut(0, dx, dy, e) += q2d * sol_x[0][dx];
+            solOut(1, dx, dy, e) += q2d * sol_x[1][dx];
+          }
+        }
+      }
+    } // dummy
+  } // e
+}
+//======================================
+
+
+//---[ 3D ]-----------------------------
+kernel void Assemble3D(const int numElements,
+                       const double * restrict quadWeights,
+                       const Jacobian3D_t restrict J,
+                       COEFF_ARGS
+                       QLocal_t restrict oper) {
+  for (int e = 0; e < numElements; ++e; outer) {
+    for (int q = 0; q < NUM_QUAD_3D; ++q; inner) {
+      const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e), J13 = J(2, 0, q, e);
+      const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e), J23 = J(2, 1, q, e);
+      const double J31 = J(0, 2, q, e), J32 = J(1, 2, q, e), J33 = J(2, 2, q, e);
+
+      const double detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
+                           (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
+
+      oper(q, e) = quadWeights[q] * COEFF * detJ;
+    }
+  }
+}
+
+kernel void MultAdd3D(const int numElements,
+                      const DofToQuad_t restrict dofToQuad,
+                      const DofToQuad_t restrict dofToQuadD,
+                      const QuadToDof_t restrict quadToDof,
+                      const QuadToDof_t restrict quadToDofD,
+                      const QLocal_t restrict oper,
+                      const DVLocal3D_t restrict solIn,
+                      DVLocal3D_t restrict solOut) {
+  // Iterate over elements
+  for (int e = 0; e < numElements; ++e; outer) {
+    for (int dummy = 0; dummy < 1; ++dummy; inner) {
+      double sol_xyz[3][NUM_QUAD_1D][NUM_QUAD_1D][NUM_QUAD_1D];
+      for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+        for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            sol_xyz[0][qz][qy][qx] = 0;
+            sol_xyz[1][qz][qy][qx] = 0;
+            sol_xyz[2][qz][qy][qx] = 0;
+          }
+        }
+      }
+
+      for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
+        double sol_xy[3][NUM_QUAD_1D][NUM_QUAD_1D];
+        for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            sol_xy[0][qy][qx] = 0;
+            sol_xy[1][qy][qx] = 0;
+            sol_xy[2][qy][qx] = 0;
+          }
+        }
+
+        for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+          double sol_x[3][NUM_QUAD_1D];
+          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            sol_x[0][qx] = 0;
+            sol_x[1][qx] = 0;
+            sol_x[2][qx] = 0;
+          }
+
+          // sol_x{qx} = dofToQuad{qx, dx} * sol{dx, dy, dz, e}
+          for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+              sol_x[0][qx] += dofToQuad(qx, dx) * solIn(0, dx, dy, dz, e);
+              sol_x[1][qx] += dofToQuad(qx, dx) * solIn(1, dx, dy, dz, e);
+              sol_x[2][qx] += dofToQuad(qx, dx) * solIn(2, dx, dy, dz, e);
+            }
+          }
+
+          // sol_xy{qx, qy} = dofToQuad{qy, dy} * sol_x{dx}
+          for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+            const double wy = dofToQuad(qy, dy);
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+              sol_xy[0][qy][qx] += wy * sol_x[0][qx];
+              sol_xy[1][qy][qx] += wy * sol_x[1][qx];
+              sol_xy[2][qy][qx] += wy * sol_x[2][qx];
+            }
+          }
+        } // dy
+
+        for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+          const double wz = dofToQuad(qz, dz);
+          for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+              sol_xyz[0][qz][qy][qx] += wz * sol_xy[0][qy][qx];
+              sol_xyz[1][qz][qy][qx] += wz * sol_xy[1][qy][qx];
+              sol_xyz[2][qz][qy][qx] += wz * sol_xy[2][qy][qx];
+            }
+          }
+        }
+      } // dz
+
+      // sol_xyz{qz, qy, qx} *= oper{q, e}
+      for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+        for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            const int q = QUAD_3D_ID(qx, qy, qz);
+            sol_xyz[0][qz][qy][qx] *= oper(q, e);
+            sol_xyz[1][qz][qy][qx] *= oper(q, e);
+            sol_xyz[2][qz][qy][qx] *= oper(q, e);
+          }
+        }
+      }
+
+      for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+        double sol_xy[3][NUM_DOFS_1D][NUM_DOFS_1D];
+        for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+          for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+            sol_xy[0][dy][dx] = 0;
+            sol_xy[1][dy][dx] = 0;
+            sol_xy[2][dy][dx] = 0;
+          }
+        }
+
+        for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+          double sol_x[3][NUM_DOFS_1D];
+          for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+            sol_x[0][dx] = 0;
+            sol_x[1][dx] = 0;
+            sol_x[2][dx] = 0;
+          }
+
+          // sol_x{dx} = quadToDof{dx, qx} * sol_xyz{qz, qy, qx}
+          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+              sol_x[0][dx] += quadToDof(dx, qx) * sol_xyz[0][qz][qy][qx];
+              sol_x[1][dx] += quadToDof(dx, qx) * sol_xyz[1][qz][qy][qx];
+              sol_x[2][dx] += quadToDof(dx, qx) * sol_xyz[2][qz][qy][qx];
+            }
+          }
+
+          // sol_xy{dy, dx} = quadToDof{dy, qy} * sol_x{dx}
+          for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+            const double wy = quadToDof(dy, qy);
+            for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+              sol_xy[0][dy][dx] += wy * sol_x[0][dx];
+              sol_xy[1][dy][dx] += wy * sol_x[1][dx];
+              sol_xy[2][dy][dx] += wy * sol_x[2][dx];
+            }
+          }
+        } // qy
+
+        for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
+          const double wz = quadToDof(dz, qz);
+          for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+            for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+               solOut(0, dx, dy, dz, e) += wz * sol_xy[0][dy][dx];
+               solOut(1, dx, dy, dz, e) += wz * sol_xy[1][dy][dx];
+               solOut(2, dx, dy, dz, e) += wz * sol_xy[2][dy][dx];
+            }
+          }
+        }
+      } // qz
+    } // dummy
+  } // e
+
+}
+//======================================
