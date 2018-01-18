@@ -1056,10 +1056,17 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
    if (assumed_partition)
    {
       part_size = 2;
-      global_num_rows = row_starts[2];
-      // Here, we use row_starts[2], so row_starts must come from the methods
-      // GetDofOffsets/GetTrueDofOffsets of ParFiniteElementSpace (HYPRE's
-      // partitions have only 2 entries).
+      if (row_starts == NULL)
+      {
+         global_num_rows = hypre_ParCSRMatrixGlobalNumRows(A);
+      }
+      else
+      {
+         global_num_rows = row_starts[2];
+         // Here, we use row_starts[2], so row_starts must come from the
+         // methods GetDofOffsets/GetTrueDofOffsets of ParFiniteElementSpace
+         // (HYPRE's partitions have only 2 entries).
+      }
    }
    else
    {
