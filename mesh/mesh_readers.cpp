@@ -25,6 +25,8 @@ using namespace std;
 namespace mfem
 {
 
+bool Mesh::remove_unused_vertices = true;
+
 void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
 {
    // Read MFEM mesh v1.0 format
@@ -105,6 +107,10 @@ void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
       input >> ws;
       curved = 1;
    }
+
+   // When visualizing solutions on non-conforming grids, PETSc
+   // may dump additional vertices
+   if (remove_unused_vertices) { RemoveUnusedVertices(); }
 }
 
 void Mesh::ReadLineMesh(std::istream &input)
@@ -1028,7 +1034,7 @@ void Mesh::ReadGmshMesh(std::istream &input)
                   serial_number = data[dd++];
                   // physical domain - the most important value (to distinguish
                   // materials with different properties)
-                  phys_domain = (n_tags > 0) ? data[dd++] : 0;
+                  phys_domain = (n_tags > 0) ? data[dd++] : 1;
                   // elementary domain - to distinguish different geometrical
                   // domains (typically, it's used rarely)
                   elem_domain = (n_tags > 1) ? data[dd++] : 0;
@@ -1111,7 +1117,7 @@ void Mesh::ReadGmshMesh(std::istream &input)
                for (int i = 0; i < n_tags; ++i) { input >> data[i]; }
                // physical domain - the most important value (to distinguish
                // materials with different properties)
-               phys_domain = (n_tags > 0) ? data[0] : 0;
+               phys_domain = (n_tags > 0) ? data[0] : 1;
                // elementary domain - to distinguish different geometrical
                // domains (typically, it's used rarely)
                elem_domain = (n_tags > 1) ? data[1] : 0;
@@ -1794,18 +1800,32 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    }
 
    // clean up all netcdf stuff
+
+   nc_close(ncid);
+
+   for (int i = 0; i < (int) num_side_sets; i++)
+   {
+      delete [] elem_ss[i];
+      delete [] side_ss[i];
+   }
+
+   delete [] elem_ss;
+   delete [] side_ss;
    delete [] num_el_in_blk;
    delete [] num_nod_per_el;
    delete [] num_side_in_ss;
    delete [] coordx;
    delete [] coordy;
    delete [] coordz;
+
    for (int i = 0; i < (int) num_el_blk; i++)
    {
-      delete elem_blk[i];
+      delete [] elem_blk[i];
    }
+
    delete [] elem_blk;
    delete [] start_of_block;
+
    for (int i = 0; i < (int) num_side_sets; i++)
    {
       delete [] ss_node_id[i];

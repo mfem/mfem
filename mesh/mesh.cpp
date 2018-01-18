@@ -31,6 +31,19 @@
 #include "metis.h"
 #endif
 
+// METIS 4 prototypes
+#if defined(MFEM_USE_METIS) && !defined(MFEM_USE_METIS_5)
+typedef int idxtype;
+extern "C" {
+   void METIS_PartGraphRecursive(int*, idxtype*, idxtype*, idxtype*, idxtype*,
+                                 int*, int*, int*, int*, int*, idxtype*);
+   void METIS_PartGraphKway(int*, idxtype*, idxtype*, idxtype*, idxtype*,
+                            int*, int*, int*, int*, int*, idxtype*);
+   void METIS_PartGraphVKway(int*, idxtype*, idxtype*, idxtype*, idxtype*,
+                             int*, int*, int*, int*, int*, idxtype*);
+}
+#endif
+
 #ifdef MFEM_USE_GECKO
 #include "graph.h"
 #endif
@@ -166,13 +179,14 @@ void Mesh::GetCharacteristics(double &h_min, double &h_max,
 
    dim = Dimension();
    sdim = SpaceDimension();
-   J.SetSize(sdim, dim);
 
    if (Vh) { Vh->SetSize(NumOfElements); }
    if (Vk) { Vk->SetSize(NumOfElements); }
 
    h_min = kappa_min = numeric_limits<double>::infinity();
    h_max = kappa_max = -h_min;
+   if (dim == 0) { if (Vh) { *Vh = 1.0; } if (Vk) {*Vk = 1.0; } return; }
+   J.SetSize(sdim, dim);
    for (i = 0; i < NumOfElements; i++)
    {
       GetElementJacobian(i, J);
@@ -197,7 +211,17 @@ void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &out)
 
    this->GetCharacteristics(h_min, h_max, kappa_min, kappa_max, Vh, Vk);
 
-   if (Dim == 1)
+   out << '\n'
+       << "Dimension          : " << Dimension() << '\n'
+       << "Space dimension    : " << SpaceDimension();
+   if (Dim == 0)
+   {
+      out << '\n'
+          << "Number of vertices : " << GetNV() << '\n'
+          << "Number of elements : " << GetNE() << '\n'
+          << "Number of bdr elem : " << GetNBE() << '\n';
+   }
+   else if (Dim == 1)
    {
       out << '\n'
           << "Number of vertices : " << GetNV() << '\n'
@@ -598,34 +622,34 @@ void Mesh::GetLocalQuadToHexTransformation(
 }
 
 void Mesh::GetLocalFaceTransformation(
-   int face_type, int elem_type, IsoparametricTransformation &Transf, int inf)
+   int face_type, int elem_type, IsoparametricTransformation &Transf, int info)
 {
    switch (face_type)
    {
       case Element::POINT:
-         GetLocalPtToSegTransformation(Transf, inf);
+         GetLocalPtToSegTransformation(Transf, info);
          break;
 
       case Element::SEGMENT:
          if (elem_type == Element::TRIANGLE)
          {
-            GetLocalSegToTriTransformation(Transf, inf);
+            GetLocalSegToTriTransformation(Transf, info);
          }
          else
          {
             MFEM_ASSERT(elem_type == Element::QUADRILATERAL, "");
-            GetLocalSegToQuadTransformation(Transf, inf);
+            GetLocalSegToQuadTransformation(Transf, info);
          }
          break;
 
       case Element::TRIANGLE:
          MFEM_ASSERT(elem_type == Element::TETRAHEDRON, "");
-         GetLocalTriToTetTransformation(Transf, inf);
+         GetLocalTriToTetTransformation(Transf, info);
          break;
 
       case Element::QUADRILATERAL:
          MFEM_ASSERT(elem_type == Element::HEXAHEDRON, "");
-         GetLocalQuadToHexTransformation(Transf, inf);
+         GetLocalQuadToHexTransformation(Transf, info);
          break;
    }
 }
@@ -1844,7 +1868,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
    }
 
    // Requirements:
-   //  1) FinilizeTopology() or equivalent was called
+   //  1) FinalizeTopology() or equivalent was called
    //  2) if (Nodes == NULL), vertices must be defined
    //  3) if (Nodes != NULL), Nodes must be defined
 
@@ -2318,7 +2342,6 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    }
 
    // Copy the vertices
-   MFEM_ASSERT(mesh.vertices.Size() == NumOfVertices, "internal MFEM error!");
    mesh.vertices.Copy(vertices);
 
    // Duplicate the boundary
@@ -2365,12 +2388,23 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    mesh.attributes.Copy(attributes);
    mesh.bdr_attributes.Copy(bdr_attributes);
 
-   // No support for NURBS meshes, yet. Need deep copy for NURBSExtension.
-   MFEM_VERIFY(mesh.NURBSext == NULL,
-               "copying NURBS meshes is not implemented");
-   NURBSext = NULL;
+   // Deep copy the NURBSExtension.
+#ifdef MFEM_USE_MPI
+   ParNURBSExtension *pNURBSext =
+      dynamic_cast<ParNURBSExtension *>(mesh.NURBSext);
+   if (pNURBSext)
+   {
+      NURBSext = new ParNURBSExtension(*pNURBSext);
+   }
+   else
+#endif
+   {
+      NURBSext = mesh.NURBSext ? new NURBSExtension(*mesh.NURBSext) : NULL;
+   }
 
    // Deep copy the NCMesh.
+   // TODO: ParNCMesh; ParMesh has a separate 'pncmesh' pointer, and 'ncmesh'
+   //       is initialized from it. Need ParNCMesh copy constructor.
    ncmesh = mesh.ncmesh ? new NCMesh(*mesh.ncmesh) : NULL;
 
    // Duplicate the Nodes, including the FiniteElementCollection and the
@@ -2382,8 +2416,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
       FiniteElementCollection *fec_copy =
          FiniteElementCollection::New(fec->Name());
       FiniteElementSpace *fes_copy =
-         new FiniteElementSpace(this, fec_copy, fes->GetVDim(),
-                                fes->GetOrdering());
+         new FiniteElementSpace(*fes, this, fec_copy);
       Nodes = new GridFunction(fes_copy);
       Nodes->MakeOwner(fec_copy);
       *Nodes = *mesh.Nodes;
@@ -2514,6 +2547,7 @@ Element *Mesh::ReadElementWithoutAttr(std::istream &input)
 
    input >> geom;
    el = NewElement(geom);
+   MFEM_VERIFY(el, "Unsupported element type: " << geom);
    nv = el->GetNVertices();
    v  = el->GetVertices();
    for (int i = 0; i < nv; i++)
@@ -2561,6 +2595,7 @@ void Mesh::SetMeshGen()
    {
       switch (elements[i]->GetType())
       {
+         case Element::POINT:
          case Element::SEGMENT:
          case Element::TRIANGLE:
          case Element::TETRAHEDRON:
@@ -3056,6 +3091,9 @@ void Mesh::KnotInsert(Array<KnotVector *> &kv)
 
    NURBSext->KnotInsert(kv);
 
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+   sequence++;
+
    UpdateNURBS();
 }
 
@@ -3066,13 +3104,13 @@ void Mesh::NURBSUniformRefinement()
 
    NURBSext->UniformRefinement();
 
-   last_operation = Mesh::REFINE;
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
    sequence++;
 
    UpdateNURBS();
 }
 
-void Mesh::DegreeElevate(int t)
+void Mesh::DegreeElevate(int rel_degree, int degree)
 {
    if (NURBSext == NULL)
    {
@@ -3081,15 +3119,10 @@ void Mesh::DegreeElevate(int t)
 
    NURBSext->ConvertToPatches(*Nodes);
 
-   NURBSext->DegreeElevate(t);
+   NURBSext->DegreeElevate(rel_degree, degree);
 
-   NURBSFECollection *nurbs_fec =
-      dynamic_cast<NURBSFECollection *>(Nodes->OwnFEC());
-   if (!nurbs_fec)
-   {
-      mfem_error("Mesh::DegreeElevate");
-   }
-   nurbs_fec->UpdateOrder(nurbs_fec->GetOrder() + t);
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+   sequence++;
 
    UpdateNURBS();
 }
@@ -4557,19 +4590,6 @@ void Mesh::ReorientTetMesh()
       delete old_v_to_v;
    }
 }
-
-#if defined(MFEM_USE_METIS) && !defined(MFEM_USE_METIS_5)
-// METIS 4 prototypes
-typedef int idxtype;
-extern "C" {
-   void METIS_PartGraphRecursive(int*, idxtype*, idxtype*, idxtype*, idxtype*,
-                                 int*, int*, int*, int*, int*, idxtype*);
-   void METIS_PartGraphKway(int*, idxtype*, idxtype*, idxtype*, idxtype*,
-                            int*, int*, int*, int*, int*, idxtype*);
-   void METIS_PartGraphVKway(int*, idxtype*, idxtype*, idxtype*, idxtype*,
-                             int*, int*, int*, int*, int*, idxtype*);
-}
-#endif
 
 int *Mesh::CartesianPartitioning(int nxyz[])
 {
@@ -7315,6 +7335,8 @@ void Mesh::PrintVTK(std::ostream &out)
       {
          switch (elements[i]->GetGeometryType())
          {
+            case Geometry::POINT:        vtk_cell_type = 1;   break;
+            case Geometry::SEGMENT:      vtk_cell_type = 3;   break;
             case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
             case Geometry::SQUARE:       vtk_cell_type = 9;   break;
             case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
@@ -7325,6 +7347,7 @@ void Mesh::PrintVTK(std::ostream &out)
       {
          switch (elements[i]->GetGeometryType())
          {
+            case Geometry::SEGMENT:      vtk_cell_type = 21;  break;
             case Geometry::TRIANGLE:     vtk_cell_type = 22;  break;
             case Geometry::SQUARE:       vtk_cell_type = 28;  break;
             case Geometry::TETRAHEDRON:  vtk_cell_type = 24;  break;
@@ -7445,6 +7468,7 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
 
       switch (geom)
       {
+         case Geometry::POINT:        vtk_cell_type = 1;   break;
          case Geometry::SEGMENT:      vtk_cell_type = 3;   break;
          case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
          case Geometry::SQUARE:       vtk_cell_type = 9;   break;
@@ -7473,23 +7497,27 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
       }
    }
 
-   Array<int> coloring;
-   srand((unsigned)time(0));
-   double a = double(rand()) / (double(RAND_MAX) + 1.);
-   int el0 = (int)floor(a * GetNE());
-   GetElementColoring(coloring, el0);
-   out << "SCALARS element_coloring int\n"
-       << "LOOKUP_TABLE default\n";
-   for (int i = 0; i < GetNE(); i++)
+   if (Dim > 1)
    {
-      int geom = GetElementBaseGeometry(i);
-      int nv = Geometries.GetVertices(geom)->GetNPoints();
-      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
-      for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
+      Array<int> coloring;
+      srand((unsigned)time(0));
+      double a = double(rand()) / (double(RAND_MAX) + 1.);
+      int el0 = (int)floor(a * GetNE());
+      GetElementColoring(coloring, el0);
+      out << "SCALARS element_coloring int\n"
+          << "LOOKUP_TABLE default\n";
+      for (int i = 0; i < GetNE(); i++)
       {
-         out << coloring[i] + 1 << '\n';
+         int geom = GetElementBaseGeometry(i);
+         int nv = Geometries.GetVertices(geom)->GetNPoints();
+         RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+         for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
+         {
+            out << coloring[i] + 1 << '\n';
+         }
       }
    }
+
    // prepare to write data
    out << "POINT_DATA " << np << '\n' << flush;
 }
@@ -7852,12 +7880,9 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
             }
             out << '\n';
          }
-      out << flush;
-      return;
    }
-
    //  Dim is 3
-   if (meshgen == 1)
+   else if (meshgen == 1)
    {
       out << "NETGEN_Neutral_Format\n";
       // print the vertices
@@ -7952,12 +7977,8 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
                   }
             out << '\n';
          }
-
-      for (i = 0; i < NumOfVertices; i++)
-      {
-         delete [] vown[i];
-      }
    }
+   //  Dim is 3
    else if (meshgen == 2) // TrueGrid
    {
       // count the number of the boundary elements.
@@ -8055,6 +8076,11 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
    }
 
    out << flush;
+
+   for (i = 0; i < NumOfVertices; i++)
+   {
+      delete [] vown[i];
+   }
 
    delete [] vcount;
    delete [] voff;

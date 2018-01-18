@@ -79,8 +79,31 @@ public:
    inline Array(T *_data, int asize, int ainc = 0)
    { data = _data; size = asize; allocsize = -asize; inc = ainc; }
 
+   /// Copy constructor: deep copy
+   Array(const Array<T> &src)
+      : BaseArray(src.size, 0, sizeof(T))
+   { std::memcpy(data, src.data, size*sizeof(T)); }
+
+   /// Copy constructor (deep copy) from an Array of convertable type
+   template <typename CT>
+   Array(const Array<CT> &src)
+      : BaseArray(src.Size(), 0, sizeof(T))
+   { for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); } }
+
    /// Destructor
    inline ~Array() { }
+
+   /// Assignment operator: deep copy
+   Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
+
+   /// Assignment operator (deep copy) from an Array of convertable type
+   template <typename CT>
+   Array<T> &operator=(const Array<CT> &src)
+   {
+      SetSize(src.Size());
+      for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
+      return *this;
+   }
 
    /// Return the data as 'T *'
    inline operator T *() { return (T *)data; }
@@ -161,7 +184,7 @@ public:
    inline void Copy(Array &copy) const
    {
       copy.SetSize(Size());
-      memcpy(copy.GetData(), data, Size()*sizeof(T));
+      std::memcpy(copy.GetData(), data, Size()*sizeof(T));
    }
 
    /// Make this Array a reference to a pointer
@@ -238,12 +261,6 @@ public:
    inline T* end() const { return (T*) data + size; }
 
    long MemoryUsage() const { return Capacity() * sizeof(T); }
-
-private:
-   /// Array copy is not supported
-   Array<T> &operator=(Array<T> &);
-   /// Array copy is not supported
-   Array(const Array<T> &);
 };
 
 template <class T>
@@ -268,6 +285,7 @@ class Array2D;
 template <class T>
 void Swap(Array2D<T> &, Array2D<T> &);
 
+/// Dynamic 2D array using row-major layout
 template <class T>
 class Array2D
 {
@@ -275,7 +293,7 @@ private:
    friend void Swap<T>(Array2D<T> &, Array2D<T> &);
 
    Array<T> array1d;
-   int N;
+   int N; // number of columns
 
 public:
    Array2D() { N = 0; }
@@ -298,6 +316,45 @@ public:
    const T *GetRow(int i) const { return (*this)[i]; }
    T       *GetRow(int i)       { return (*this)[i]; }
 
+   /// Extract a copy of the @a i-th row into the Array @a sa.
+   void GetRow(int i, Array<T> &sa) const
+   {
+      sa.SetSize(N);
+      sa.Assign(GetRow(i));
+   }
+
+   /** @brief Save the Array2D to the stream @a out using the format @a fmt.
+       The format @a fmt can be:
+
+          0 - write the number of rows and columns, followed by all entries
+          1 - write only the entries, using row-major layout
+   */
+   void Save(std::ostream &out, int fmt = 0) const
+   {
+      if (fmt == 0) { out << NumRows() << ' ' << NumCols() << '\n'; }
+      array1d.Save(out, 1);
+   }
+
+   /** @brief Read an Array2D from the stream @a in using format @a fmt.
+       The format @a fmt can be:
+
+          0 - read the number of rows and columns, then the entries
+          1 - read NumRows() x NumCols() entries, using row-major layout
+   */
+   void Load(std::istream &in, int fmt = 0)
+   {
+      if (fmt == 0) { int M; in >> M >> N; array1d.SetSize(M*N); }
+      array1d.Load(in, 1);
+   }
+
+   /// Read an Array2D from a file
+   void Load(const char *filename, int fmt = 0);
+
+   /** @brief Set the Array2D dimensions to @a new_size0 x @a new_size1 and read
+       that many entries from the stream @a in. */
+   void Load(int new_size0,int new_size1, std::istream &in)
+   { SetSize(new_size0,new_size1); Load(in, 1); }
+
    void Copy(Array2D &copy) const
    { copy.N = N; array1d.Copy(copy.array1d); }
 
@@ -306,7 +363,10 @@ public:
 
    /// Make this Array a reference to 'master'
    inline void MakeRef(const Array2D &master)
-   { N = master.N; array1d.MakeRef(master.array1d);}
+   { N = master.N; array1d.MakeRef(master.array1d); }
+
+   /// Delete all dynamically allocated memory, reseting all dimentions to zero.
+   inline void DeleteAll() { N = 0; array1d.DeleteAll(); }
 
    /// Prints array to stream with width elements per row
    void Print(std::ostream &out = mfem::out, int width = 4);
