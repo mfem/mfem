@@ -89,7 +89,7 @@ $(if $(word 2,$(SRC)),$(error Spaces in SRC = "$(SRC)" are not supported))
 MFEM_GIT_STRING = $(shell [ -d $(MFEM_DIR)/.git ] && git -C $(MFEM_DIR) \
    describe --all --long --abbrev=40 --dirty --always 2> /dev/null)
 
-EXAMPLE_SUBDIRS = sundials petsc pumi
+EXAMPLE_SUBDIRS = sundials petsc pumi occa
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
@@ -133,10 +133,10 @@ export VERBOSE
 
 $(call mfem-info, MAKECMDGOALS = $(MAKECMDGOALS))
 $(call mfem-info, MAKEFLAGS    = $(MAKEFLAGS))
-$(call mfem-info, MFEM_DIR  = $(MFEM_DIR))
-$(call mfem-info, BUILD_DIR = $(BUILD_DIR))
-$(call mfem-info, SRC       = $(SRC))
-$(call mfem-info, BLD       = $(BLD))
+$(call mfem-info, MFEM_DIR     = $(MFEM_DIR))
+$(call mfem-info, BUILD_DIR    = $(BUILD_DIR))
+$(call mfem-info, SRC          = $(SRC))
+$(call mfem-info, BLD          = $(BLD))
 
 # Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
 SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug\
@@ -198,7 +198,7 @@ endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
- SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR PUMI
+ SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR PUMI OCCA
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
 define mfem_check_dependency
@@ -245,7 +245,8 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
  MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU\
  MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
- MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI
+ MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI\
+ MFEM_USE_OCCA MFEM_USE_ACROTENSOR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -308,6 +309,11 @@ DIRS = general linalg mesh fem
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
+
+LIB_DEPS =
+ifeq ($(MFEM_USE_OCCA),YES)
+  LIB_DEPS += cache-kernels
+endif
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
  debug pdebug style check test
@@ -406,7 +412,7 @@ $(ALL_CLEAN_SUBDIRS):
 clean: $(addsuffix /clean,$(EM_DIRS))
 	rm -f $(addprefix $(BLD),*/*.o */*~ *~ libmfem.* deps.mk)
 
-distclean: clean config/clean doc/clean
+distclean: clean config/clean doc/clean clear-kernels
 	rm -rf mfem/
 
 INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS)\
@@ -507,6 +513,8 @@ status info:
 	$(info MFEM_USE_SIDRE       = $(MFEM_USE_SIDRE))
 	$(info MFEM_USE_CONDUIT     = $(MFEM_USE_CONDUIT))
 	$(info MFEM_USE_PUMI        = $(MFEM_USE_PUMI))
+	$(info MFEM_USE_OCCA        = $(MFEM_USE_OCCA))
+	$(info MFEM_USE_ACROTENSOR  = $(MFEM_USE_ACROTENSOR))
 	$(info MFEM_CXX             = $(value MFEM_CXX))
 	$(info MFEM_CPPFLAGS        = $(value MFEM_CPPFLAGS))
 	$(info MFEM_CXXFLAGS        = $(value MFEM_CXXFLAGS))
@@ -549,3 +557,29 @@ print-%:
 .PHONY: printall
 printall: $(subst :,\:,$(foreach var,$(.VARIABLES),print-$(var)))
 	@true
+
+#---[ OCCA ]----------------------------
+OCCA_CACHE_DIR     ?= ${HOME}/.occa
+OCCA_LIB_CACHE_DIR := $(OCCA_CACHE_DIR)/libraries
+
+OKL_KERNELS        := $(realpath $(shell find $(MFEM_REAL_DIR) -type f -name '*.okl'))
+OKL_CACHED_KERNELS := $(subst kernels/,,$(subst $(MFEM_REAL_DIR)/,$(OCCA_LIB_CACHE_DIR)/mfem/,$(OKL_KERNELS)))
+
+# Cache kernels in the OCCA cache directory
+.PHONY: cache-kernels
+cache-kernels: $(OKL_CACHED_KERNELS)
+
+.PHONY: clear-kernels
+clear-kernels: clear-mfem-kernels
+
+clear-mfem-kernels:
+	@occa clear -y -l mfem
+
+$(OCCA_LIB_CACHE_DIR)/mfem/fem/%.okl: $(MFEM_REAL_DIR)/fem/kernels/%.okl
+	@echo "Caching: $(subst $(MFEM_REAL_DIR)/,,$<)"
+	@occa cache mfem/$(subst $(OCCA_LIB_CACHE_DIR)/mfem/,,$(dir $@)) $<
+
+$(OCCA_LIB_CACHE_DIR)/mfem/linalg/%.okl: $(MFEM_REAL_DIR)/linalg/kernels/%.okl
+	@echo "Caching: $(subst $(MFEM_REAL_DIR)/,,$<)"
+	@occa cache mfem/$(subst $(OCCA_LIB_CACHE_DIR)/mfem/,,$(dir $@)) $<
+#=======================================

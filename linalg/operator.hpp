@@ -12,7 +12,12 @@
 #ifndef MFEM_OPERATOR
 #define MFEM_OPERATOR
 
+#include "../config/config.hpp"
 #include "vector.hpp"
+
+#ifdef MFEM_USE_OCCA
+#include "ovector.hpp"
+#endif
 
 namespace mfem
 {
@@ -45,12 +50,25 @@ public:
    inline int NumCols() const { return width; }
 
    /// Operator application: `y=A(x)`.
-   virtual void Mult(const Vector &x, Vector &y) const = 0;
+   virtual void Mult(const Vector &x, Vector &y) const {
+    mfem_error("Operator::Mult(Vector) is not overloaded!");
+  }
+
+#ifdef MFEM_USE_OCCA
+  inline virtual void Mult(const OccaVector &x, OccaVector &y) const {
+    mfem_error("Operator::Mult(OccaVector) is not overloaded!");
+  }
+#endif
 
    /** @brief Action of the transpose operator: `y=A^t(x)`. The default behavior
        in class Operator is to generate an error. */
    virtual void MultTranspose(const Vector &x, Vector &y) const
    { mfem_error("Operator::MultTranspose() is not overloaded!"); }
+
+#ifdef MFEM_USE_OCCA
+   inline virtual void MultTranspose(const OccaVector &x, OccaVector &y) const
+   { mfem_error("Operator::MultTranspose() is not overloaded!"); }
+#endif
 
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
@@ -99,7 +117,8 @@ public:
        x. */
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x, Vector &b,
-                         Operator* &A, Vector &X, Vector &B,
+                         Operator* &Aout,
+                         Vector &X, Vector &B,
                          int copy_interior = 0);
 
    /** @brief Reconstruct a solution vector @a x (e.g. a GridFunction) from the
@@ -111,7 +130,10 @@ public:
        @a x, for this Operator (presumably a finite element grid function). This
        method has identical signature to the analogous method for bilinear
        forms, though currently @a b is not used in the implementation. */
-   virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+   template <class TVector>
+   void TRecoverFEMSolution(const TVector &X, const TVector &b, TVector &x);
+
+   void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
 
    /// Prints operator with input size n and output size m in Matlab format.
    void PrintMatlab(std::ostream & out, int n = 0, int m = 0) const;
@@ -214,6 +236,12 @@ public:
    {
       mfem_error("TimeDependentOperator::Mult() is not overridden!");
    }
+#ifdef MFEM_USE_OCCA
+   virtual void Mult(const OccaVector &x, OccaVector &y) const
+   {
+      mfem_error("TimeDependentOperator::Mult() is not overridden!");
+   }
+#endif
 
    /** @brief Solve the equation: @a k = f(@a x + @a dt @a k, t), for the
        unknown @a k at the current time t.
@@ -235,6 +263,12 @@ public:
    {
       mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
    }
+#ifdef MFEM_USE_OCCA
+   virtual void ImplicitSolve(const double dt, const OccaVector &x, OccaVector &k)
+   {
+      mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
+   }
+#endif
 
    /** @brief Return an Operator representing (dF/dk @a shift + dF/dx) at the
        given @a x, @a k, and the currently set time.
@@ -288,15 +322,25 @@ public:
 
 
 /// Identity Operator I: x -> x.
-class IdentityOperator : public Operator
+template <class TVector>
+class TIdentityOperator : public Operator
 {
 public:
    /// Create an identity operator of size @a n.
-   explicit IdentityOperator(int n) : Operator(n) { }
+   explicit TIdentityOperator(int n) : Operator(n) { }
 
    /// Operator application
-   virtual void Mult(const Vector &x, Vector &y) const { y = x; }
+   virtual void Mult(const TVector &x, TVector &y) const { y = x; }
+
+   /// Operator application
+   virtual void MultTranspose(const TVector &x, TVector &y) const { y = x; }
 };
+
+typedef TIdentityOperator<Vector> IdentityOperator;
+
+#ifdef MFEM_USE_OCCA
+typedef TIdentityOperator<OccaVector> OccaIdentityOperator;
+#endif
 
 
 /** @brief The transpose of a given operator. Switches the roles of the methods
@@ -324,7 +368,6 @@ public:
    { A.Mult(x, y); }
 };
 
-
 /// General product operator: x -> (A*B)(x) = A(B(x)).
 class ProductOperator : public Operator
 {
@@ -344,30 +387,45 @@ public:
    virtual ~ProductOperator();
 };
 
-
-/// The operator x -> R*A*P*x constructed through the actions of R^T, A and P
-class RAPOperator : public Operator
+/// The operator x -> R*A*P*x.
+template <class TVector>
+class TRAPOperator : public Operator
 {
 private:
    const Operator & Rt;
    const Operator & A;
    const Operator & P;
-   mutable Vector Px;
-   mutable Vector APx;
+   mutable TVector Px;
+   mutable TVector APx;
 
 public:
    /// Construct the RAP operator given R^T, A and P.
-   RAPOperator(const Operator &Rt_, const Operator &A_, const Operator &P_);
+  TRAPOperator(const Operator &Rt_, const Operator &A_, const Operator &P_)
+      : Operator(Rt_.Width(), P_.Width()), Rt(Rt_), A(A_), P(P_),
+        Px(P.Height()), APx(A.Height()) {
+
+    MFEM_VERIFY(Rt.Height() == A.Height(),
+                "incompatible Operators: Rt.Height() = " << Rt.Height()
+                << ", A.Height() = " << A.Height());
+    MFEM_VERIFY(A.Width() == P.Height(),
+                "incompatible Operators: A.Width() = " << A.Width()
+                << ", P.Height() = " << P.Height());
+  }
 
    /// Operator application.
-   virtual void Mult(const Vector & x, Vector & y) const
+   virtual void Mult(const TVector & x, TVector & y) const
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
    /// Application of the transpose.
-   virtual void MultTranspose(const Vector & x, Vector & y) const
+   virtual void MultTranspose(const TVector & x, TVector & y) const
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
 };
 
+typedef TRAPOperator<Vector> RAPOperator;
+
+#ifdef MFEM_USE_OCCA
+typedef TRAPOperator<OccaVector> OccaRAPOperator;
+#endif
 
 /// General triple product operator x -> A*B*C*x, with ownership of the factors.
 class TripleProductOperator : public Operator
@@ -440,6 +498,19 @@ public:
    /// Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
    virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
 };
+
+template <class TVector>
+void Operator::TRecoverFEMSolution(const TVector &X, const TVector &b, TVector &x)
+{
+  const Operator *P = this->GetProlongation();
+  if (P)
+  {
+    // Apply conforming prolongation
+    x.SetSize(P->Height());
+    P->Mult(X, x);
+  }
+  // Otherwise X and x point to the same data
+}
 
 }
 

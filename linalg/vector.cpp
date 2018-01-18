@@ -18,6 +18,10 @@
 #include <nvector/nvector_parhyp.h>
 #endif
 
+#ifdef MFEM_USE_OCCA
+#include "ovector.hpp"
+#endif
+
 #include <iostream>
 #include <iomanip>
 #include <cmath>
@@ -139,6 +143,15 @@ Vector &Vector::operator=(double value)
    }
    return *this;
 }
+
+#ifdef MFEM_USE_OCCA
+Vector &Vector::operator=(const OccaVector &ov)
+{
+  SetSize(ov.Size());
+  occa::memcpy(data, ov.GetData(), ov.Size() * sizeof(double));
+  return *this;
+}
+#endif
 
 Vector &Vector::operator*=(double c)
 {

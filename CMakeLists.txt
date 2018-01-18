@@ -316,6 +316,8 @@ message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
 # Define and configure the MFEM library
 #-------------------------------------------------------------------------------
 
+list(APPEND CMAKE_CXX_IGNORE_EXTENSIONS tpp)
+
 # Headers and sources
 set(SOURCES "")
 set(HEADERS "")

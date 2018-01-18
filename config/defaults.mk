@@ -107,6 +107,8 @@ MFEM_USE_MPFR        = NO
 MFEM_USE_SIDRE       = NO
 MFEM_USE_CONDUIT     = NO
 MFEM_USE_PUMI        = NO
+MFEM_USE_OCCA        = NO
+MFEM_USE_ACROTENSOR  = NO
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -278,6 +280,25 @@ PUMI_DIR = @MFEM_DIR@/../pumi-2.1.0
 PUMI_OPT = -I$(PUMI_DIR)/include
 PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
    -llion -lmth -lapf_zoltan -lspr
+
+# OCCA library configuration
+ifeq ($(MFEM_USE_OCCA),YES)
+  ifndef OCCA_DIR
+    OCCA_DIR := @MFEM_DIR@/../occa
+  endif
+  OCCA_OPT := -I$(OCCA_DIR)/include
+  OCCA_LIB := -L$(OCCA_DIR)/lib -locca
+endif
+
+#Acrotensor library configs
+ifeq ($(MFEM_USE_ACROTENSOR),YES)
+   ifndef CUDA_DIR
+      CUDA_DIR = /usr/local/cuda
+   endif
+   ACROTENSOR_DIR = @MFEM_DIR@/../acrotensor
+   ACROTENSOR_OPT = -I$(ACROTENSOR_DIR)/inc -I$(CUDA_DIR)/include -std=c++11 -DACRO_HAVE_CUDA
+   ACROTENSOR_LIB = -L$(ACROTENSOR_DIR)/lib -L$(CUDA_DIR)/lib64 -lacrotensor -lcuda -lcudart -lnvrtc
+endif
 
 # If YES, enable some informational messages
 VERBOSE = NO

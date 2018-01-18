@@ -23,50 +23,38 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
                                 Operator* &Aout, Vector &X, Vector &B,
                                 int copy_interior)
 {
-   const Operator *P = this->GetProlongation();
-   const Operator *R = this->GetRestriction();
-   Operator *rap;
+  const Operator *P = GetProlongation();
+  const Operator *R = GetRestriction();
+  Operator *rap;
 
-   if (P)
-   {
+  if (P)
+    {
       // Variational restriction with P
       B.SetSize(P->Width());
       P->MultTranspose(b, B);
       X.SetSize(R->Height());
       R->Mult(x, X);
       rap = new RAPOperator(*P, *this, *P);
-   }
-   else
-   {
+    }
+  else
+    {
       // rap, X and B point to the same data as this, x and b
       X.NewDataAndSize(x.GetData(), x.Size());
       B.NewDataAndSize(b.GetData(), b.Size());
       rap = this;
-   }
+    }
 
-   if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+  if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
 
-   // Impose the boundary conditions through a ConstrainedOperator, which owns
-   // the rap operator when P and R are non-trivial
-   ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
-                                                    rap != this);
-   A->EliminateRHS(X, B);
-   Aout = A;
+  ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
+                                                   rap != this);
+  A->EliminateRHS(X, B);
+  Aout = A;
 }
 
 void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
 {
-   const Operator *P = this->GetProlongation();
-   if (P)
-   {
-      // Apply conforming prolongation
-      x.SetSize(P->Height());
-      P->Mult(X, x);
-   }
-   else
-   {
-      // X and x point to the same data
-   }
+  TRecoverFEMSolution(X, b, x);
 }
 
 void Operator::PrintMatlab(std::ostream & out, int n, int m) const
@@ -110,21 +98,6 @@ ProductOperator::~ProductOperator()
    if (ownA) { delete A; }
    if (ownB) { delete B; }
 }
-
-
-RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
-                         const Operator &P_)
-   : Operator(Rt_.Width(), P_.Width()), Rt(Rt_), A(A_), P(P_),
-     Px(P.Height()), APx(A.Height())
-{
-   MFEM_VERIFY(Rt.Height() == A.Height(),
-               "incompatible Operators: Rt.Height() = " << Rt.Height()
-               << ", A.Height() = " << A.Height());
-   MFEM_VERIFY(A.Width() == P.Height(),
-               "incompatible Operators: A.Width() = " << A.Width()
-               << ", P.Height() = " << P.Height());
-}
-
 
 TripleProductOperator::TripleProductOperator(
    const Operator *A, const Operator *B, const Operator *C,

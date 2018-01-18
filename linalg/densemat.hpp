@@ -37,6 +37,13 @@ private:
    void FNorm(double &scale_factor, double &scaled_fnorm2) const;
 
 public:
+#ifdef MFEM_USE_OCCA
+   // Remove 'hidden overloaded virtual function' warning due
+   //  to not implementing the OccaVector methods
+   using Operator::Mult;
+   using Operator::MultTranspose;
+#endif
+
    /** Default constructor for DenseMatrix.
        Sets data = NULL and height = width = 0. */
    DenseMatrix();
@@ -553,6 +560,12 @@ private:
    LUFactors lu;
 
 public:
+#ifdef MFEM_USE_OCCA
+   // Remove 'hidden overloaded virtual function' warning due
+   //  to not implementing the OccaVector method
+   using Operator::Mult;
+#endif
+
    /// Default constructor.
    DenseMatrixInverse() : a(NULL), lu(NULL, NULL) { }
 

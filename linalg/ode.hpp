@@ -70,7 +70,14 @@ public:
        - If the previous rule has to be broken, e.g. to restart a time stepping
          sequence, then the ODE solver must be re-initialized by calling Init()
          between the two Step() calls. */
-   virtual void Step(Vector &x, double &t, double &dt) = 0;
+     virtual void Step(Vector &x, double &t, double &dt) {
+        mfem_error("ODESolver::Step(Vector) is not overloaded!");
+     }
+  #ifdef MFEM_USE_OCCA
+     virtual void Step(OccaVector &x, double &t, double &dt) {
+        mfem_error("ODESolver::Step(OccaVector) is not overloaded!");
+     }
+  #endif
 
    /// Perform time integration from time @a t [in] to time @a tf [in].
    /** @param[in,out] x   Approximate solution.
@@ -92,21 +99,28 @@ public:
    {
       while (t < tf) { Step(x, t, dt); }
    }
+#ifdef MFEM_USE_OCCA
+   virtual void Run(OccaVector &x, double &t, double &dt, double tf)
+   {
+      while (t < tf) { Step(x, t, dt); }
+   }
+#endif
 
    virtual ~ODESolver() { }
 };
 
 
 /// The classical forward Euler method
-class ForwardEulerSolver : public ODESolver
+template <class TVector>
+class TForwardEulerSolver : public ODESolver
 {
 private:
-   Vector dxdt;
+   TVector dxdt;
 
 public:
    virtual void Init(TimeDependentOperator &_f);
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   virtual void Step(TVector &x, double &t, double &dt);
 };
 
 
@@ -115,44 +129,47 @@ public:
     a = 1/2 - the midpoint method
     a =  1  - Heun's method
     a = 2/3 - default, has minimal truncation error. */
-class RK2Solver : public ODESolver
+template <class TVector>
+class TRK2Solver : public ODESolver
 {
 private:
    double a;
-   Vector dxdt, x1;
+   TVector dxdt, x1;
 
 public:
-   RK2Solver(const double _a = 2./3.) : a(_a) { }
+   TRK2Solver(const double _a = 2./3.) : a(_a) { }
 
    virtual void Init(TimeDependentOperator &_f);
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   virtual void Step(TVector &x, double &t, double &dt);
 };
 
 
 /// Third-order, strong stability preserving (SSP) Runge-Kutta method
-class RK3SSPSolver : public ODESolver
+template <class TVector>
+class TRK3SSPSolver : public ODESolver
 {
 private:
-   Vector y, k;
+   TVector y, k;
 
 public:
    virtual void Init(TimeDependentOperator &_f);
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   virtual void Step(TVector &x, double &t, double &dt);
 };
 
 
 /// The classical explicit forth-order Runge-Kutta method, RK4
-class RK4Solver : public ODESolver
+template <class TVector>
+class TRK4Solver : public ODESolver
 {
 private:
-   Vector y, k, z;
+   TVector y, k, z;
 
 public:
    virtual void Init(TimeDependentOperator &_f);
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   virtual void Step(TVector &x, double &t, double &dt);
 };
 
 
@@ -165,72 +182,77 @@ public:
     +--------+----------------------+
     |        | b[0] b[1] ... b[s-1] |
     +--------+----------------------+ */
-class ExplicitRKSolver : public ODESolver
+template <class TVector>
+class TExplicitRKSolver : public ODESolver
 {
 private:
    int s;
    const double *a, *b, *c;
-   Vector y, *k;
+   TVector y, *k;
 
 public:
-   ExplicitRKSolver(int _s, const double *_a, const double *_b,
+   TExplicitRKSolver(int _s, const double *_a, const double *_b,
                     const double *_c);
 
    virtual void Init(TimeDependentOperator &_f);
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   virtual void Step(TVector &x, double &t, double &dt);
 
-   virtual ~ExplicitRKSolver();
+   virtual ~TExplicitRKSolver();
 };
 
 
 /** An 8-stage, 6th order RK method. From Verner's "efficient" 9-stage 6(5)
     pair. */
-class RK6Solver : public ExplicitRKSolver
+template <class TVector>
+class TRK6Solver : public TExplicitRKSolver<TVector>
 {
 private:
    static const double a[28], b[8], c[7];
 
 public:
-   RK6Solver() : ExplicitRKSolver(8, a, b, c) { }
+   TRK6Solver() : TExplicitRKSolver<TVector>(8, a, b, c) { }
 };
 
 
 /** A 12-stage, 8th order RK method. From Verner's "efficient" 13-stage 8(7)
     pair. */
-class RK8Solver : public ExplicitRKSolver
+template <class TVector>
+class TRK8Solver : public TExplicitRKSolver<TVector>
 {
 private:
    static const double a[66], b[12], c[11];
 
 public:
-   RK8Solver() : ExplicitRKSolver(12, a, b, c) { }
+   TRK8Solver() : TExplicitRKSolver<TVector>(12, a, b, c) { }
 };
 
 
 /// Backward Euler ODE solver. L-stable.
-class BackwardEulerSolver : public ODESolver
+template <class TVector>
+class TBackwardEulerSolver : public ODESolver
 {
 protected:
-   Vector k;
+   TVector k;
 
 public:
    virtual void Init(TimeDependentOperator &_f);
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   virtual void Step(TVector &x, double &t, double &dt);
 };
 
 
 /// Implicit midpoint method. A-stable, not L-stable.
-class ImplicitMidpointSolver : public ODESolver
+template <class TVector>
+class TImplicitMidpointSolver : public ODESolver
 {
 protected:
-   Vector k;
+   TVector k;
 
 public:
    virtual void Init(TimeDependentOperator &_f);
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   virtual void Step(TVector &x, double &t, double &dt);
 };
 
 
@@ -240,56 +262,60 @@ public:
     1 - 3rd order method, A-stable, not L-stable (default)
     2 - 2nd order method, L-stable
     3 - 2nd order method, L-stable (has solves outside [t,t+dt]). */
-class SDIRK23Solver : public ODESolver
+template <class TVector>
+class TSDIRK23Solver : public ODESolver
 {
 protected:
    double gamma;
-   Vector k, y;
+   TVector k, y;
 
 public:
-   SDIRK23Solver(int gamma_opt = 1);
+   TSDIRK23Solver(int gamma_opt = 1);
 
    virtual void Init(TimeDependentOperator &_f);
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   virtual void Step(TVector &x, double &t, double &dt);
 };
 
 
 /** Three stage, singly diagonal implicit Runge-Kutta (SDIRK) method of
     order 4. A-stable, not L-stable. */
-class SDIRK34Solver : public ODESolver
+template <class TVector>
+class TSDIRK34Solver : public ODESolver
 {
 protected:
-   Vector k, y, z;
+   TVector k, y, z;
 
 public:
    virtual void Init(TimeDependentOperator &_f);
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   virtual void Step(TVector &x, double &t, double &dt);
 };
 
 
 /** Three stage, singly diagonal implicit Runge-Kutta (SDIRK) method of
     order 3. L-stable. */
-class SDIRK33Solver : public ODESolver
+template <class TVector>
+class TSDIRK33Solver : public ODESolver
 {
 protected:
-   Vector k, y;
+   TVector k, y;
 
 public:
    virtual void Init(TimeDependentOperator &_f);
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   virtual void Step(TVector &x, double &t, double &dt);
 };
 
 
 /// Generalized-alpha ODE solver from "A generalized-α method for integrating
 /// the filtered Navier–Stokes equations with a stabilized finite element
 /// method" by K.E. Jansen, C.H. Whiting and G.M. Hulbert.
-class GeneralizedAlphaSolver : public ODESolver
+template <class TVector>
+class TGeneralizedAlphaSolver : public ODESolver
 {
 protected:
-   Vector xdot,k,y;
+   TVector xdot,k,y;
    double alpha_f, alpha_m, gamma;
    bool first;
 
@@ -297,7 +323,7 @@ protected:
    void PrintProperties(std::ostream &out = mfem::out);
 public:
 
-   GeneralizedAlphaSolver(double rho = 1.0) { SetRhoInf(rho); };
+   TGeneralizedAlphaSolver(double rho = 1.0) { SetRhoInf(rho); };
 
    virtual void Init(TimeDependentOperator &_f);
 
@@ -320,52 +346,56 @@ public:
        P = dT/dp
        F = -dV/dq
  */
-class SIASolver
+template <class TVector>
+class TSIASolver
 {
 public:
-   SIASolver() : F_(NULL), P_(NULL) {}
+   TSIASolver() : F_(NULL), P_(NULL) {}
 
    virtual void Init(Operator &P, TimeDependentOperator & F);
 
-   virtual void Step(Vector &q, Vector &p, double &t, double &dt) = 0;
+   virtual void Step(TVector &q, TVector &p, double &t, double &dt) = 0;
 
-   virtual void Run(Vector &q, Vector &p, double &t, double &dt, double tf)
+   virtual void Run(TVector &q, TVector &p, double &t, double &dt, double tf)
    {
       while (t < tf) { Step(q, p, t, dt); }
    }
 
-   virtual ~SIASolver() {}
+   virtual ~TSIASolver() {}
 
 protected:
    TimeDependentOperator * F_; // p_{i+1} = p_{i} + dt F(q_{i})
    Operator              * P_; // q_{i+1} = q_{i} + dt P(p_{i+1})
 
-   mutable Vector dp_;
-   mutable Vector dq_;
+   mutable TVector dp_;
+   mutable TVector dq_;
 };
 
-// First Order Symplectic Integration Algorithm
-class SIA1Solver : public SIASolver
+// First order Symplectic Integration Algorithm
+template <class TVector>
+class TSIA1Solver : public TSIASolver<TVector>
 {
 public:
-   SIA1Solver() {}
-   void Step(Vector &q, Vector &p, double &t, double &dt);
+   TSIA1Solver() {}
+   void Step(TVector &q, TVector &p, double &t, double &dt);
 };
 
-// Second Order Symplectic Integration Algorithm
-class SIA2Solver : public SIASolver
+// Second order Symplectic Integration Algorithm
+template <class TVector>
+class TSIA2Solver : public TSIASolver<TVector>
 {
 public:
-   SIA2Solver() {}
-   void Step(Vector &q, Vector &p, double &t, double &dt);
+   TSIA2Solver() {}
+   void Step(TVector &q, TVector &p, double &t, double &dt);
 };
 
 // Variable order Symplectic Integration Algorithm (orders 1-4)
-class SIAVSolver : public SIASolver
+template <class TVector>
+class TSIAVSolver : public TSIASolver<TVector>
 {
 public:
-   SIAVSolver(int order);
-   void Step(Vector &q, Vector &p, double &t, double &dt);
+   TSIAVSolver(int order);
+   void Step(TVector &q, TVector &p, double &t, double &dt);
 
 private:
    int order_;
@@ -374,6 +404,46 @@ private:
    Array<double> b_;
 };
 
+typedef TForwardEulerSolver<Vector>     ForwardEulerSolver;
+typedef TRK2Solver<Vector>              RK2Solver;
+typedef TRK3SSPSolver<Vector>           RK3SSPSolver;
+typedef TRK4Solver<Vector>              RK4Solver;
+typedef TExplicitRKSolver<Vector>       ExplicitRKSolver;
+typedef TRK6Solver<Vector>              RK6Solver;
+typedef TRK8Solver<Vector>              RK8Solver;
+typedef TBackwardEulerSolver<Vector>    BackwardEulerSolver;
+typedef TImplicitMidpointSolver<Vector> ImplicitMidpointSolver;
+typedef TSDIRK23Solver<Vector>          SDIRK23Solver;
+typedef TSDIRK34Solver<Vector>          SDIRK34Solver;
+typedef TSDIRK33Solver<Vector>          SDIRK33Solver;
+typedef TGeneralizedAlphaSolver<Vector> GeneralizedAlphaSolver;
+typedef TSIASolver<Vector>              SIASolver;
+typedef TSIA1Solver<Vector>             SIA1Solver;
+typedef TSIA2Solver<Vector>             SIA2Solver;
+typedef TSIAVSolver<Vector>             SIAVSolver;
+
+#ifdef MFEM_USE_OCCA
+typedef TForwardEulerSolver<OccaVector>     OccaForwardEulerSolver;
+typedef TRK2Solver<OccaVector>              OccaRK2Solver;
+typedef TRK3SSPSolver<OccaVector>           OccaRK3SSPSolver;
+typedef TRK4Solver<OccaVector>              OccaRK4Solver;
+typedef TExplicitRKSolver<OccaVector>       OccaExplicitRKSolver;
+typedef TRK6Solver<OccaVector>              OccaRK6Solver;
+typedef TRK8Solver<OccaVector>              OccaRK8Solver;
+typedef TBackwardEulerSolver<OccaVector>    OccaBackwardEulerSolver;
+typedef TImplicitMidpointSolver<OccaVector> OccaImplicitMidpointSolver;
+typedef TSDIRK23Solver<OccaVector>          OccaSDIRK23Solver;
+typedef TSDIRK34Solver<OccaVector>          OccaSDIRK34Solver;
+typedef TSDIRK33Solver<OccaVector>          OccaSDIRK33Solver;
+typedef TGeneralizedAlphaSolver<OccaVector> OccaGeneralizedAlphaSolver;
+typedef TSIASolver<OccaVector>              OccaSIASolver;
+typedef TSIA1Solver<OccaVector>             OccaSIA1Solver;
+typedef TSIA2Solver<OccaVector>             OccaSIA2Solver;
+typedef TSIAVSolver<OccaVector>             OccaSIAVSolver;
+#endif
+
 }
+
+#include "ode.tpp"
 
 #endif
