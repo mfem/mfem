@@ -495,7 +495,7 @@ int main (int argc, char *argv[])
       target_c2 =
             new TargetConstructor(TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE);
       target_c2->SetVolumeScale(0.01);
-      target_c2->SetNodes(*x);
+      target_c2->SetNodes(x0);
       TMOP_Integrator *he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
       he_nlf_integ2->SetIntegrationRule(*ir);
 
