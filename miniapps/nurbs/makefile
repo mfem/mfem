@@ -12,44 +12,59 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/common/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/nurbs/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
 # CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
-ifneq (clean,$(MAKECMDGOALS))
-   -include $(CONFIG_MK)
-endif
+-include $(CONFIG_MK)
 
-SEQ_MINIOBJS = mesh_extras.o fem_extras.o
+SEQ_MINIAPPS = ex1
+PAR_MINIAPPS = ex1p ex11p
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIOBJS = $(SEQ_MINIOBJS)
+   MINIAPPS = $(SEQ_MINIAPPS)
 else
-   MINIOBJS = $(SEQ_MINIOBJS) pfem_extras.o
+   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: all clean
+.PHONY: all clean clean-build clean-exec
+.PRECIOUS: %.o
 
 # Remove built-in rule
-%.o: %.cpp
+%: %.cpp
 
 # Replace the default implicit rule for *.cpp files
-%.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
+%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
-all: $(MINIOBJS)
+all: $(MINIAPPS)
 
-# Generate an error message if the MFEM library is not configured and exit
-$(CONFIG_MK):
-	$(error The MFEM library is not configured)
+MFEM_TESTS = MINIAPPS
+include $(MFEM_TEST_MK)
+
+# Testing: Parallel vs. serial runs
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+%-test-par: %
+	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp)
+%-test-seq: %
+	@$(call mfem-test,$<,, NURBS miniapp)
+
+# Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
-clean:
-	rm -f *.o *~
+
+clean: clean-build clean-exec
+
+clean-build:
+	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
+
+clean-exec:
+	@rm -f refined.mesh mesh.* sol.* mode_*
+	@rm -rf Example1*
