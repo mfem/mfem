@@ -171,6 +171,7 @@ Geometry::Geometry()
    GeomToPerfGeomJac[TRIANGLE]    = new DenseMatrix(2);
    GeomToPerfGeomJac[SQUARE]      = new DenseMatrix(2);
    GeomToPerfGeomJac[TETRAHEDRON] = new DenseMatrix(3);
+   GeomToPerfGeomJac[PRISM]       = new DenseMatrix(3);
    GeomToPerfGeomJac[CUBE]        = new DenseMatrix(3);
 
    PerfGeomToGeomJac[POINT]       = NULL;
@@ -209,6 +210,7 @@ Geometry::Geometry()
       pri_T.SetFE(&PriFE);
       GetPerfPointMat (PRISM, pri_T.GetPointMat());
       pri_T.SetIntPoint(&GeomCenter[PRISM]);
+      *GeomToPerfGeomJac[PRISM] = pri_T.Jacobian();
       CalcInverse(pri_T.Jacobian(), *PerfGeomToGeomJac[PRISM]);
    }
    GeomToPerfGeomJac[CUBE]->Diag(1.0, 3);
