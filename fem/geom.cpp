@@ -424,6 +424,16 @@ bool Geometry::CheckPoint(int GeomType, const IntegrationPoint &ip, double eps)
             return false;
          }
          break;
+      case Geometry::PRISM:
+         if ( internal::FuzzyLT(ip.x, 0.0, eps)
+              || internal::FuzzyLT(ip.y, 0.0, eps)
+              || internal::FuzzyGT(ip.x+ip.y, 1.0, eps)
+              || internal::FuzzyLT(ip.z, 0.0, eps)
+              || internal::FuzzyGT(ip.z, 1.0, eps) )
+         {
+            return false;
+         }
+         break;
       case Geometry::CUBE:
          if ( internal::FuzzyLT(ip.x, 0.0, eps)
               || internal::FuzzyGT(ip.x, 1.0, eps)
