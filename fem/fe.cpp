@@ -6658,7 +6658,7 @@ TensorBasisElement::TensorBasisElement(const int dims, const int p,
    : b_type(btype),
      basis1d(poly1d.GetBasis(p, b_type))
 {
-   if (FiniteElement::IsClosedType(b_type))
+   if (b_type!=BasisType::Positive)
    {
       switch (dims)
       {
