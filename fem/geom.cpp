@@ -631,6 +631,16 @@ bool Geometry::ProjectPoint(int GeomType, IntegrationPoint &ip)
          return true;
       }
 
+      case PRISM:
+      {
+ 	 bool in_tri, in_z;
+	 in_tri = internal::ProjectTriangle(ip.x, ip.y);
+         if (ip.z < 0.0)      { in_z = false; ip.z = 0.0; }
+         else if (ip.z > 1.0) { in_z = false; ip.z = 1.0; }
+         else                 { in_z = true; }
+         return in_tri && in_z;
+      }
+
       case CUBE:
       {
          bool in_x, in_y, in_z;
