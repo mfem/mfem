@@ -1029,20 +1029,7 @@ void hypre_CSRMatrixBooleanMatvecT(hypre_CSRMatrix *A,
    HYPRE_Int         i, j, jj;
 
    /*-----------------------------------------------------------------------
-    * Do (alpha == 0.0) computation - RDF: USE MACHINE EPS
-    *-----------------------------------------------------------------------*/
-
-   if (alpha == 0)
-   {
-      for (i = 0; i < num_cols; i++)
-      {
-         y_data[i] = y_data[i] && beta;
-      }
-      return;
-   }
-
-   /*-----------------------------------------------------------------------
-    * y = (beta/alpha)*y
+    * y = beta*y
     *-----------------------------------------------------------------------*/
 
    if (beta == 0)
@@ -1057,23 +1044,32 @@ void hypre_CSRMatrixBooleanMatvecT(hypre_CSRMatrix *A,
       /* beta is true -> no change to y_data */
    }
 
+   /*-----------------------------------------------------------------------
+    * Check if (alpha == 0)
+    *-----------------------------------------------------------------------*/
+
+   if (alpha == 0)
+   {
+      return;
+   }
+
+   /* alpha is true */
+
    /*-----------------------------------------------------------------
     * y += A^T*x
     *-----------------------------------------------------------------*/
    for (i = 0; i < num_rows; i++)
    {
-      for (jj = A_i[i]; jj < A_i[i+1]; jj++)
+      if (x_data[i] != 0)
       {
-         j = A_j[jj];
-         /* y_data[j] += A_data[jj] * x_data[i]; */
-         y_data[j] = y_data[j] || x_data[i];
+         for (jj = A_i[i]; jj < A_i[i+1]; jj++)
+         {
+            j = A_j[jj];
+            /* y_data[j] += A_data[jj] * x_data[i]; */
+            y_data[j] = 1;
+         }
       }
    }
-
-   /*-----------------------------------------------------------------
-    * y = alpha*y
-    *-----------------------------------------------------------------*/
-   /* alpha is true */
 }
 
 /* Based on hypre_ParCSRCommHandleCreate in hypre's par_csr_communication.c. The
@@ -1239,7 +1235,7 @@ void hypre_ParCSRMatrixBooleanMatvecT(hypre_ParCSRMatrix *A,
 
    HYPRE_Int               num_cols_offd = hypre_CSRMatrixNumCols(offd);
 
-   HYPRE_Int               i, j, jj, index, end, num_sends;
+   HYPRE_Int               i, j, jj, end, num_sends;
 
    y_tmp = hypre_TAlloc(HYPRE_Bool, num_cols_offd);
 
@@ -1288,14 +1284,13 @@ void hypre_ParCSRMatrixBooleanMatvecT(hypre_ParCSRMatrix *A,
 
    hypre_ParCSRCommHandleDestroy(comm_handle);
 
-   index = 0;
    for (i = 0; i < num_sends; i++)
    {
       end = hypre_ParCSRCommPkgSendMapStart(comm_pkg, i+1);
       for (j = hypre_ParCSRCommPkgSendMapStart(comm_pkg, i); j < end; j++)
       {
          jj = hypre_ParCSRCommPkgSendMapElmt(comm_pkg, j);
-         y[jj] = y[jj] || y_buf[index++];
+         y[jj] = y[jj] || y_buf[j];
       }
    }
 
