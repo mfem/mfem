@@ -272,10 +272,10 @@ int main(int argc, char *argv[])
    //    a beam-like mesh (see description above).
    VectorFunctionCoefficient velo(dim, InitialVelocity);
    v.ProjectCoefficient(velo);
-   v.SetTVector();
+   v.SetTrueVector();
    VectorFunctionCoefficient deform(dim, InitialDeformation);
    x.ProjectCoefficient(deform);
-   x.SetTVector();
+   x.SetTrueVector();
 
    Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
    ess_bdr = 0;
@@ -292,7 +292,7 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       vis_v.open(vishost, visport);
       vis_v.precision(8);
-      v.SetFromTVector(); x.SetFromTVector();
+      v.SetFromTrueVector(); x.SetFromTrueVector();
       visualize(vis_v, mesh, &x, &v, "Velocity", true);
       vis_w.open(vishost, visport);
       if (vis_w)
@@ -303,8 +303,8 @@ int main(int argc, char *argv[])
       }
    }
 
-   double ee0 = oper.ElasticEnergy(x.GetTVector());
-   double ke0 = oper.KineticEnergy(v.GetTVector());
+   double ee0 = oper.ElasticEnergy(x.GetTrueVector());
+   double ke0 = oper.KineticEnergy(v.GetTrueVector());
    cout << "initial elastic energy (EE) = " << ee0 << endl;
    cout << "initial kinetic energy (KE) = " << ke0 << endl;
    cout << "initial   total energy (TE) = " << (ee0 + ke0) << endl;
@@ -326,15 +326,15 @@ int main(int argc, char *argv[])
 
       if (last_step || (ti % vis_steps) == 0)
       {
-         double ee = oper.ElasticEnergy(x.GetTVector());
-         double ke = oper.KineticEnergy(v.GetTVector());
+         double ee = oper.ElasticEnergy(x.GetTrueVector());
+         double ke = oper.KineticEnergy(v.GetTrueVector());
 
          cout << "step " << ti << ", t = " << t << ", EE = " << ee << ", KE = "
               << ke << ", ΔTE = " << (ee+ke)-(ee0+ke0) << endl;
 
          if (visualization)
          {
-            v.SetFromTVector(); x.SetFromTVector();
+            v.SetFromTrueVector(); x.SetFromTrueVector();
             visualize(vis_v, mesh, &x, &v);
             if (vis_w)
             {
@@ -347,7 +347,7 @@ int main(int argc, char *argv[])
 
    // 9. Save the displaced mesh, the velocity and elastic energy.
    {
-      v.SetFromTVector(); x.SetFromTVector();
+      v.SetFromTrueVector(); x.SetFromTrueVector();
       GridFunction *nodes = &x;
       int owns_nodes = 0;
       mesh->SwapNodes(nodes, owns_nodes);
