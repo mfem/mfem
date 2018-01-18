@@ -101,6 +101,9 @@ public:
    void SetEssentialTrueDofs(const Array<int> &ess_tdof_list)
    { ess_tdof_list.Copy(this->ess_tdof_list); }
 
+   /// Return a (read-only) list of all essential true dofs.
+   const Array<int> &GetEssentialTrueDofs() const { return ess_tdof_list; }
+
    /// Compute the enery corresponding to the state @a x.
    /** In general, @a x may have non-homogeneous essential boundary values.
 
