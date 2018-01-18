@@ -8096,7 +8096,7 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
           << "LOOKUP_TABLE default\n";
       for (int i = 0; i < GetNE(); i++)
       {
-	 Geometry::Type geom = GetElementBaseGeometry(i);
+         Geometry::Type geom = GetElementBaseGeometry(i);
          int nv = Geometries.GetVertices(geom)->GetNPoints();
          RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
          for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
@@ -9441,11 +9441,11 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
    int nvt = mesh->GetNV() * nvz;
 
    Mesh *mesh3d = new Mesh(3, nvt, mesh->GetNE()*nz,
-			   mesh->GetNBE()*nz+2*mesh->GetNE());
+                           mesh->GetNBE()*nz+2*mesh->GetNE());
 
    bool priMesh = false;
    bool hexMesh = false;
-   
+
    // vertices
    double vc[3];
    for (int i = 0; i < mesh->GetNV(); i++)
@@ -9466,45 +9466,45 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
       elem->GetVertices(vert);
       const int attr = elem->GetAttribute();
       Geometry::Type geom = elem->GetGeometryType();
-      switch(geom)
+      switch (geom)
       {
-      case Geometry::TRIANGLE:
-	priMesh = true;
-	for (int j = 0; j < nz; j++)
-	{
-	  int pv[6];
-	  pv[0] = vert[0] * nvz + j;
-	  pv[1] = vert[1] * nvz + j;
-	  pv[2] = vert[2] * nvz + j;
-	  pv[3] = vert[0] * nvz + (j + 1) % nvz;
-	  pv[4] = vert[1] * nvz + (j + 1) % nvz;
-	  pv[5] = vert[2] * nvz + (j + 1) % nvz;
+         case Geometry::TRIANGLE:
+            priMesh = true;
+            for (int j = 0; j < nz; j++)
+            {
+               int pv[6];
+               pv[0] = vert[0] * nvz + j;
+               pv[1] = vert[1] * nvz + j;
+               pv[2] = vert[2] * nvz + j;
+               pv[3] = vert[0] * nvz + (j + 1) % nvz;
+               pv[4] = vert[1] * nvz + (j + 1) % nvz;
+               pv[5] = vert[2] * nvz + (j + 1) % nvz;
 
-	  mesh3d->AddPri(pv, attr);
-	}
-	break;
-      case Geometry::SQUARE:
-	hexMesh = true;
-	for (int j = 0; j < nz; j++)
-	{
-	  int hv[8];
-	  hv[0] = vert[0] * nvz + j;
-	  hv[1] = vert[1] * nvz + j;
-	  hv[2] = vert[2] * nvz + j;
-	  hv[3] = vert[3] * nvz + j;
-	  hv[4] = vert[0] * nvz + (j + 1) % nvz;
-	  hv[5] = vert[1] * nvz + (j + 1) % nvz;
-	  hv[6] = vert[2] * nvz + (j + 1) % nvz;
-	  hv[7] = vert[3] * nvz + (j + 1) % nvz;
+               mesh3d->AddPri(pv, attr);
+            }
+            break;
+         case Geometry::SQUARE:
+            hexMesh = true;
+            for (int j = 0; j < nz; j++)
+            {
+               int hv[8];
+               hv[0] = vert[0] * nvz + j;
+               hv[1] = vert[1] * nvz + j;
+               hv[2] = vert[2] * nvz + j;
+               hv[3] = vert[3] * nvz + j;
+               hv[4] = vert[0] * nvz + (j + 1) % nvz;
+               hv[5] = vert[1] * nvz + (j + 1) % nvz;
+               hv[6] = vert[2] * nvz + (j + 1) % nvz;
+               hv[7] = vert[3] * nvz + (j + 1) % nvz;
 
-	  mesh3d->AddHex(hv, attr);
-	}
-	break;
-      default:
-	mfem::err << "Extrude2D : Invalid 2D element type \'"
-		  << geom << "\'" << endl;
-	mfem_error();
-	break;
+               mesh3d->AddHex(hv, attr);
+            }
+            break;
+         default:
+            mfem::err << "Extrude2D : Invalid 2D element type \'"
+                      << geom << "\'" << endl;
+            mfem_error();
+            break;
       }
    }
    // 3D boundary from the 2D boundary
@@ -9527,67 +9527,67 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
 
    // 3D boundary from the 2D elements (bottom + top)
    int nba = (mesh->bdr_attributes.Size() > 0 ?
-	      mesh->bdr_attributes.Max() : 0);
+              mesh->bdr_attributes.Max() : 0);
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-     const Element *elem = mesh->GetElement(i);
-     elem->GetVertices(vert);
-     const int attr = nba + elem->GetAttribute();
-     Geometry::Type geom = elem->GetGeometryType();
-     switch(geom)
-     {
-     case Geometry::TRIANGLE:
-       {
-	  int tv[3];
-	  tv[0] = vert[0] * nvz;
-	  tv[1] = vert[2] * nvz;
-	  tv[2] = vert[1] * nvz;
+      const Element *elem = mesh->GetElement(i);
+      elem->GetVertices(vert);
+      const int attr = nba + elem->GetAttribute();
+      Geometry::Type geom = elem->GetGeometryType();
+      switch (geom)
+      {
+         case Geometry::TRIANGLE:
+         {
+            int tv[3];
+            tv[0] = vert[0] * nvz;
+            tv[1] = vert[2] * nvz;
+            tv[2] = vert[1] * nvz;
 
-	  mesh3d->AddBdrTriangle(tv, attr);
+            mesh3d->AddBdrTriangle(tv, attr);
 
-	  tv[0] = vert[0] * nvz + nz;
-	  tv[1] = vert[1] * nvz + nz;
-	  tv[2] = vert[2] * nvz + nz;
+            tv[0] = vert[0] * nvz + nz;
+            tv[1] = vert[1] * nvz + nz;
+            tv[2] = vert[2] * nvz + nz;
 
-	  mesh3d->AddBdrTriangle(tv, attr);
-	}
-	break;
-      case Geometry::SQUARE:
-	{
-	  int qv[4];
-	  qv[0] = vert[0] * nvz;
-	  qv[1] = vert[3] * nvz;
-	  qv[2] = vert[2] * nvz;
-	  qv[3] = vert[1] * nvz;
+            mesh3d->AddBdrTriangle(tv, attr);
+         }
+         break;
+         case Geometry::SQUARE:
+         {
+            int qv[4];
+            qv[0] = vert[0] * nvz;
+            qv[1] = vert[3] * nvz;
+            qv[2] = vert[2] * nvz;
+            qv[3] = vert[1] * nvz;
 
-	  mesh3d->AddBdrQuad(qv, attr);
-		  
-	  qv[0] = vert[0] * nvz + nz;
-	  qv[1] = vert[1] * nvz + nz;
-	  qv[2] = vert[2] * nvz + nz;
-	  qv[3] = vert[3] * nvz + nz;
-	  
-	  mesh3d->AddBdrQuad(qv, attr);
-	}
-	break;
-      default:
-	mfem::err << "Extrude2D : Invalid 2D element type \'"
-		  << geom << "\'" << endl;
-	mfem_error();
-	break;
+            mesh3d->AddBdrQuad(qv, attr);
+
+            qv[0] = vert[0] * nvz + nz;
+            qv[1] = vert[1] * nvz + nz;
+            qv[2] = vert[2] * nvz + nz;
+            qv[3] = vert[3] * nvz + nz;
+
+            mesh3d->AddBdrQuad(qv, attr);
+         }
+         break;
+         default:
+            mfem::err << "Extrude2D : Invalid 2D element type \'"
+                      << geom << "\'" << endl;
+            mfem_error();
+            break;
       }
    }
 
    // TODO: Support mixed meshes
    if ( hexMesh )
    {
-     mesh3d->FinalizeHexMesh(1, 0, false);
+      mesh3d->FinalizeHexMesh(1, 0, false);
    }
    else if ( priMesh )
    {
-     mesh3d->FinalizePriMesh(1, 0, false);
+      mesh3d->FinalizePriMesh(1, 0, false);
    }
-     
+
    GridFunction *nodes = mesh->GetNodes();
    if (nodes)
    {

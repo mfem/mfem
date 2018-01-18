@@ -246,7 +246,7 @@ private:
    Array<IntegrationRule *> IntPts[Geometry::NumGeom];
 
    RefinedGeometry *FindInRGeom(Geometry::Type Geom, int Times, int ETimes,
-				int Type);
+                                int Type);
    IntegrationRule *FindInIntPts(Geometry::Type Geom, int NPts);
 
 public:
