@@ -7709,7 +7709,7 @@ H1_QuadrilateralElement::H1_QuadrilateralElement(const int p, const int btype)
 
 #ifndef MFEM_THREAD_SAFE
    const int p1 = p + 1;
-   
+
    shape_x.SetSize(p1);
    shape_y.SetSize(p1);
    dshape_x.SetSize(p1);
@@ -7823,7 +7823,7 @@ H1_HexahedronElement::H1_HexahedronElement(const int p, const int btype)
 
 #ifndef MFEM_THREAD_SAFE
    const int p1 = p + 1;
-   
+
    shape_x.SetSize(p1);
    shape_y.SetSize(p1);
    shape_z.SetSize(p1);
