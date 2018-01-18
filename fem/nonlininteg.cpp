@@ -43,7 +43,7 @@ void NonlinearFormIntegrator::AssembleFaceGrad(
    FaceElementTransformations &Tr, const Vector &elfun,
    DenseMatrix &elmat)
 {
-   mfem_error("NonlinearFormIntegrator::AssembleElementGrad"
+   mfem_error("NonlinearFormIntegrator::AssembleFaceGrad"
               " is not overloaded!");
 }
 
@@ -60,7 +60,7 @@ void BlockNonlinearFormIntegrator::AssembleElementVector(
    const Array<const FiniteElement *> &el,
    ElementTransformation &Tr,
    const Array<const Vector *> &elfun,
-   Array<Vector *> &elvec)
+   const Array<Vector *> &elvec)
 {
    mfem_error("BlockNonlinearFormIntegrator::AssembleElementVector"
               " is not overloaded!");
@@ -71,7 +71,7 @@ void BlockNonlinearFormIntegrator::AssembleFaceVector(
    const Array<const FiniteElement *> &el2,
    FaceElementTransformations &Tr,
    const Array<const Vector *> &elfun,
-   Array<Vector *> &elvect)
+   const Array<Vector *> &elvect)
 {
    mfem_error("BlockNonlinearFormIntegrator::AssembleFaceVector"
               " is not overloaded!");
@@ -81,7 +81,7 @@ void BlockNonlinearFormIntegrator::AssembleElementGrad(
    const Array<const FiniteElement*> &el,
    ElementTransformation &Tr,
    const Array<const Vector *> &elfun,
-   Array2D<DenseMatrix *> &elmats)
+   const Array2D<DenseMatrix *> &elmats)
 {
    mfem_error("BlockNonlinearFormIntegrator::AssembleElementGrad"
               " is not overloaded!");
@@ -92,7 +92,7 @@ void BlockNonlinearFormIntegrator::AssembleFaceGrad(
    const Array<const FiniteElement *>&el2,
    FaceElementTransformations &Tr,
    const Array<const Vector *> &elfun,
-   Array2D<DenseMatrix *> &elmats)
+   const Array2D<DenseMatrix *> &elmats)
 {
    mfem_error("BlockNonlinearFormIntegrator::AssembleFaceGrad"
               " is not overloaded!");
@@ -487,7 +487,7 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementVector(
    const Array<const FiniteElement *> &el,
    ElementTransformation &Tr,
    const Array<const Vector *> &elfun,
-   Array<Vector *> &elvec)
+   const Array<Vector *> &elvec)
 {
    if (el.Size() != 2)
    {
@@ -553,7 +553,7 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
    const Array<const FiniteElement*> &el,
    ElementTransformation &Tr,
    const Array<const Vector *> &elfun,
-   Array2D<DenseMatrix *> &elmats)
+   const Array2D<DenseMatrix *> &elmats)
 {
    int dof_u = el[0]->GetDof();
    int dof_p = el[1]->GetDof();
