@@ -33,32 +33,37 @@ ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf, HypreParVector *tv)
    Distribute(tv);
 }
 
-ParGridFunction::ParGridFunction(ParMesh *pmesh, GridFunction *gf,
-                                 int * partitioning)
+ParGridFunction::ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
+                                 const int *partitioning)
 {
+   const FiniteElementSpace *glob_fes = gf->FESpace();
    // duplicate the FiniteElementCollection from 'gf'
-   fec = FiniteElementCollection::New(gf->FESpace()->FEColl()->Name());
-   fes = pfes = new ParFiniteElementSpace(pmesh, fec, gf->FESpace()->GetVDim(),
-                                          gf->FESpace()->GetOrdering());
+   fec = FiniteElementCollection::New(glob_fes->FEColl()->Name());
+   // create a local ParFiniteElementSpace from the global one:
+   fes = pfes = new ParFiniteElementSpace(pmesh, glob_fes, partitioning, fec);
    SetSize(pfes->GetVSize());
 
    if (partitioning)
    {
+      // Assumption: the map "local element id" -> "global element id" is
+      // increasing, i.e. the local numbering preserves the element order from
+      // the global numbering.
       Array<int> gvdofs, lvdofs;
       Vector lnodes;
       int element_counter = 0;
-      Mesh & mesh(*gf->FESpace()->GetMesh());
-      int MyRank;
-      MPI_Comm_rank(pfes->GetComm(), &MyRank);
-      for (int i = 0; i < mesh.GetNE(); i++)
+      const int MyRank = pfes->GetMyRank();
+      const int glob_ne = glob_fes->GetNE();
+      for (int i = 0; i < glob_ne; i++)
+      {
          if (partitioning[i] == MyRank)
          {
             pfes->GetElementVDofs(element_counter, lvdofs);
-            gf->FESpace()->GetElementVDofs(i, gvdofs);
+            glob_fes->GetElementVDofs(i, gvdofs);
             gf->GetSubVector(gvdofs, lnodes);
             SetSubVector(lvdofs, lnodes);
             element_counter++;
          }
+      }
    }
 }
 

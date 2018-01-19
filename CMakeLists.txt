@@ -100,13 +100,13 @@ mfem_version_to_int(${${PROJECT_NAME}_VERSION} ${PROJECT_NAME_UC}_VERSION)
 set(${PROJECT_NAME_UC}_VERSION_STRING ${${PROJECT_NAME}_VERSION})
 if (EXISTS ${PROJECT_SOURCE_DIR}/.git)
    execute_process(
-     COMMAND git -C ${PROJECT_SOURCE_DIR}
-                describe --all --long --abbrev=40 --dirty --always
+     COMMAND git describe --all --long --abbrev=40 --dirty --always
+     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
      OUTPUT_VARIABLE ${PROJECT_NAME_UC}_GIT_STRING
      ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
 endif()
 if (NOT ${PROJECT_NAME_UC}_GIT_STRING)
-   set(${PROJECT_NAME_UC}_GIT_STRING "")
+   set(${PROJECT_NAME_UC}_GIT_STRING "(unknown)")
 endif()
 
 #-------------------------------------------------------------------------------
@@ -405,12 +405,12 @@ endif()
 # Add 'check' target - quick test
 if (NOT MFEM_USE_MPI)
   add_custom_target(check
-    ${CMAKE_CTEST_COMMAND} -R ex1_ser -E performance -C ${CMAKE_CFG_INTDIR}
+    ${CMAKE_CTEST_COMMAND} -R '^ex1_ser' -C ${CMAKE_CFG_INTDIR}
     USES_TERMINAL)
   add_dependencies(check ex1)
 else()
   add_custom_target(check
-    ${CMAKE_CTEST_COMMAND} -R ex1p -E performance -C ${CMAKE_CFG_INTDIR}
+    ${CMAKE_CTEST_COMMAND} -R '^ex1p' -C ${CMAKE_CFG_INTDIR}
     USES_TERMINAL)
   add_dependencies(check ex1p)
 endif()
