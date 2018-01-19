@@ -602,6 +602,9 @@ int main (int argc, char *argv[])
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+         MFEM_VERIFY(!(dim == 2 && attr == 3),
+                     "Boundary attribute 3 must be used only for 3D meshes. "
+                     "Adjust the attributes or use option -fix-bnd.");
          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
          if (attr == 4) { n += nd * dim; }
       }

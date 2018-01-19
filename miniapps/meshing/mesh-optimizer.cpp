@@ -35,7 +35,7 @@
 //   Blade shape:
 //     ./mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Blade limited shape:
-//    ./mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 5000
+//     ./mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
 //     ./mesh-optimizer -o 3 -rs 0 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   ICF shape and initial size:
@@ -534,6 +534,9 @@ int main (int argc, char *argv[])
       for (int i = 0; i < mesh->GetNBE(); i++)
       {
          const int attr = mesh->GetBdrElement(i)->GetAttribute();
+         MFEM_VERIFY(!(dim == 2 && attr == 3),
+                     "Boundary attribute 3 must be used only for 3D meshes. "
+                     "Adjust the attributes or use option -fix-bnd.");
          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
          if (attr == 4) { n += nd * dim; }
       }
