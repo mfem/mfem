@@ -2397,13 +2397,40 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    offd->Finalize(0);
    offd->SetWidth(col_map.size());
 
-   // finish the matrix
-   HYPRE_Int *cmap = new HYPRE_Int[col_map.size()];
+   // create offd column mapping for use by hypre
+   HYPRE_Int *cmap = new HYPRE_Int[offd->Width()];
    for (std::map<HYPRE_Int, int>::iterator
         it = col_map.begin(); it != col_map.end(); ++it)
    {
       cmap[it->second-1] = it->first;
-      // FIXME: it seems cmap is not monotonic here, hypre does not like that
+   }
+
+   // reorder offd columns so that 'cmap' is monotonic
+   // NOTE: this is easier and probably faster (offd is small) than making
+   // sure cmap is determined and sorted before the offd matrix is created
+   {
+      int width = offd->Width();
+      Array<Pair<int, int> > reorder(width);
+      for (int i = 0; i < width; i++)
+      {
+         reorder[i].one = cmap[i];
+         reorder[i].two = i;
+      }
+      reorder.Sort();
+
+      Array<int> reindex(width);
+      for (int i = 0; i < width; i++)
+      {
+         reindex[reorder[i].two] = i;
+         cmap[i] = reorder[i].one;
+      }
+
+      int *J = offd->GetJ();
+      for (int i = 0; i < offd->NumNonZeroElems(); i++)
+      {
+         J[i] = reindex[J[i]];
+      }
+      offd->SortColumnIndices();
    }
 
    HypreParMatrix* R;
