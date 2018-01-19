@@ -74,7 +74,7 @@ protected:
    /// Time step i.e. delta_t (for time-dependent simulations)
    double time_step;
 
-   /// Serial or parallel run? True iff mesh is a ParMesh
+   /// Serial or parallel run? False iff mesh is a ParMesh
    bool serial;
    /// Append rank to any output file names.
    bool appendRankToFileName;
@@ -112,7 +112,9 @@ protected:
    /// Delete data owned by the DataCollection including field information
    void DeleteAll();
 
-   std::string GetFieldFileName(const std::string &field_name);
+   std::string GetMeshShortFileName() const;
+   std::string GetMeshFileName() const;
+   std::string GetFieldFileName(const std::string &field_name) const;
 
    /// Save one field to disk, assuming the collection directory exists
    void SaveOneField(const FieldMapIterator &it);

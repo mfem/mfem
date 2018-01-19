@@ -264,12 +264,7 @@ void DataCollection::SaveMesh()
       return; // do not even try to write the mesh
    }
 
-   std::string mesh_name =
-      dir_name + ((serial || format == SERIAL_FORMAT) ? "/mesh" : "/pmesh");
-   if (appendRankToFileName)
-   {
-      mesh_name += "." + to_padded_string(myid, pad_digits_rank);
-   }
+   std::string mesh_name = GetMeshFileName();
    std::ofstream mesh_file(mesh_name.c_str());
    mesh_file.precision(precision);
 #ifdef MFEM_USE_MPI
@@ -290,7 +285,18 @@ void DataCollection::SaveMesh()
    }
 }
 
+std::string DataCollection::GetMeshShortFileName() const
+{
+   return (serial || format == SERIAL_FORMAT) ? "mesh" : "pmesh";
+}
+
+std::string DataCollection::GetMeshFileName() const
+{
+   return GetFieldFileName(GetMeshShortFileName());
+}
+
 std::string DataCollection::GetFieldFileName(const std::string &field_name)
+const
 {
    std::string dir_name = prefix_path + name;
    if (cycle != -1)
@@ -461,7 +467,7 @@ void VisItDataCollection::SaveRootFile()
    if (!root_file)
    {
       error = WRITE_ERROR;
-      MFEM_WARNING("Error writting VisIt root file: " << root_name);
+      MFEM_WARNING("Error writing VisIt root file: " << root_name);
    }
 }
 
@@ -538,10 +544,7 @@ void VisItDataCollection::LoadVisItRootFile(const std::string& root_name)
 
 void VisItDataCollection::LoadMesh()
 {
-   std::string mesh_fname = prefix_path + name + "_" +
-                            to_padded_string(cycle, pad_digits_cycle) +
-                            (format == SERIAL_FORMAT ? "/mesh." : "/pmesh.") +
-                            to_padded_string(myid, pad_digits_rank);
+   std::string mesh_fname = GetMeshFileName();
    named_ifgzstream file(mesh_fname.c_str());
    // TODO: in parallel, check for errors on all processors
    if (!file)
@@ -624,8 +627,8 @@ std::string VisItDataCollection::GetVisItRootString()
    mtags["spatial_dim"] = picojson::value(to_string(spatial_dim));
    mtags["topo_dim"] = picojson::value(to_string(topo_dim));
    mtags["max_lods"] = picojson::value(to_string(visit_max_levels_of_detail));
-   mesh["path"] = picojson::value(path_str + ((format==SERIAL_FORMAT)?"":"p") +
-                                  "mesh" + file_ext_format);
+   mesh["path"] = picojson::value(path_str + GetMeshShortFileName() +
+                                  file_ext_format);
    mesh["tags"] = picojson::value(mtags);
    mesh["format"] = picojson::value(to_string(format));
 

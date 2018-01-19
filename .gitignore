@@ -141,3 +141,4 @@ miniapps/performance/mesh.*
 miniapps/performance/sol.*
 
 miniapps/tools/display-basis
+miniapps/tools/load-dc
