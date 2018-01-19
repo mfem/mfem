@@ -10,6 +10,12 @@
 
 Version 3.3.3 (development)
 ===========================
+
+- Added variable order NURBS: for each space each knot vector in the mesh can
+  have a different order. The order information is now part of the finite
+  element space header in the NURBS mesh output, so NURBS meshes in the old
+  format need to be updated.
+
 - Inherit finite element classes from the new base class TensorBasisElement,
   whenever the basis can be represented by a tensor product of 1D bases.
 
@@ -26,6 +32,10 @@ Version 3.3.3 (development)
   with the visualization tool GLVis, a new set of certificates can be generated
   using the latest version of the script 'glvis-keygen.sh' from GLVis.
 
+- Added a set of miniapps specifically focused on Isogeometric Analysis (IGA) on
+  NURBS meshes in the miniapps/nurbs directory. Currently the directory contains
+  variable order NURBS versions of examples 1, 1p and 11p.
+
 More efficient parallel non-conforming AMR
 ------------------------------------------
 - Significantly reduced MPI communication in the construction of the ParFinite-
@@ -33,11 +43,40 @@ More efficient parallel non-conforming AMR
   hundreds of thousands of MPI processes. Memory footprint of the ParNCMesh
   class has also been reduced.
 
+New and improved solvers and preconditioners
+--------------------------------------------
+- Added symplectic integrators of orders 1-4 for systems of first order ODEs
+  derived from a Hamiltonian, see class SIASolver in linalg/ode.hpp.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added a new electromagnetics miniapp, Maxwell, for simulating time-domain
+  electromagnetics phenomena as a coupled first order system of equations.
+
 Miscellaneous
 -------------
 - Upgraded MFEM to support Axom 0.2.8. Prior versions are no longer supported.
 
 - Add support for building a shared version of the MFEM library with GNU make.
+
+API changes (that may affect existing code)
+-----------
+- Introduced a new enum, Matrix::DiagonalPolicy, that replaces the integer
+  parameters in a number of methods that perform elimination of rows and/or
+  columns in matrices. Examples of such methods are:
+  - in class SparseMatrix: EliminateRow(), EliminateCol(), EliminateRowCol(),
+    EliminateRowColMultipleRHS();
+  - in class BilinearForm: EliminateEssentialBC(), EliminateVDofs(),
+    EliminateEssentialBCFromDofs();
+  - in class StaticCondensation: EliminateReducedTrueDofs();
+  - in class BlockMatrix: EliminateRowCol().
+  Any existing code that uses these methods with an explicitly given (integer)
+  constants, will generate compilation errors - please replace such integers
+  with one of the new enum constants.
+
+- Modified the virtual method AbstractSparseMatrix::EliminateZeroRows() and its
+  implementations in derived classes, to accept an optional 'threshold'
+  parameter, replacing hard-coded threshold values.
 
 
 Version 3.3.2, released on Nov 10, 2017
