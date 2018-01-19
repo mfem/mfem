@@ -2382,7 +2382,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                   lR.GetRow(i, row);
                   for (int j = 0; j < ldof; j++)
                   {
-                     if (std::abs(row[j]) < 1e-12) { continue; }
+                     if (row[j] == 0.0) { continue; } // NOTE: lR thresholded
                      int &lcol = col_map[remote_dofs[j]];
                      if (!lcol) { lcol = col_map.size(); }
                      offd->_Set_(m, lcol-1, row[j]);

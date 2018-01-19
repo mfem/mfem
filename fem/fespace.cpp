@@ -864,6 +864,7 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(
             lR.SetRow(j, shape);
          }
       }
+      lR.Threshold(1e-12);
    }
 }
 
