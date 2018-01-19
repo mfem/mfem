@@ -270,18 +270,20 @@ private:
    NURBS2DFiniteElement *QuadrilateralFE;
    NURBS3DFiniteElement *ParallelepipedFE;
 
-   char name[16];
-
-   void Allocate(int Order);
-   void Deallocate();
+   mutable int mOrder; // >= 1 or VariableOrder
+   // The 'name' can be:
+   // 1) name = "NURBS" + "number", for fixed order, or
+   // 2) name = "NURBS", for VariableOrder.
+   // The name is updated before writing it to a stream, for example, see
+   // FiniteElementSpace::Save().
+   mutable char name[16];
 
 public:
-   explicit NURBSFECollection(int Order) { Allocate(Order); }
+   enum { VariableOrder = -1 };
 
-   int GetOrder() const { return SegmentFE->GetOrder(); }
-
-   /// Change the order of the collection
-   void UpdateOrder(int Order) { Deallocate(); Allocate(Order); }
+   /** @brief The parameter @a Order must be either a positive number, for fixed
+      order, or VariableOrder (default). */
+   explicit NURBSFECollection(int Order = VariableOrder);
 
    void Reset() const
    {
@@ -289,6 +291,14 @@ public:
       QuadrilateralFE->Reset();
       ParallelepipedFE->Reset();
    }
+
+   /** @brief Get the order of the NURBS collection: either a positive number,
+       when using fixed order, or VariableOrder. */
+   int GetOrder() const { return mOrder; }
+
+   /** @brief Set the order and the name, based on the given @a Order: either a
+       positive number for fixed order, or VariableOrder. */
+   void SetOrder(int Order) const;
 
    virtual const FiniteElement *
    FiniteElementForGeometry(int GeomType) const;
@@ -301,7 +311,7 @@ public:
 
    FiniteElementCollection *GetTraceCollection() const;
 
-   virtual ~NURBSFECollection() { Deallocate(); }
+   virtual ~NURBSFECollection();
 };
 
 
