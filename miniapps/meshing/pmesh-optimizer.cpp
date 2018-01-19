@@ -23,11 +23,11 @@
 // optimize the physical node positions, i.e., they must be as close as possible
 // to the shape / size / alignment of their targets. This code also demonstrates
 // a possible use of nonlinear operators (the class TMOP_QualityMetric, defining
-// mu(J), and the class TMOP_Integrator, defining int mu(J)), as well
-// as their coupling to Newton methods for solving minimization problems. Note
-// that the utilized Newton methods are oriented towards avoiding invalid meshes
-// with negative Jacobian determinants. Each Newton step requires the inversion
-// of a Jacobian matrix, which is done through an inner linear solver.
+// mu(J), and the class TMOP_Integrator, defining int mu(J)), as well as their
+// coupling to Newton methods for solving minimization problems. Note that the
+// utilized Newton methods are oriented towards avoiding invalid meshes with
+// negative Jacobian determinants. Each Newton step requires the inversion of a
+// Jacobian matrix, which is done through an inner linear solver.
 //
 // Compile with: make pmesh-optimizer
 //
@@ -560,9 +560,8 @@ int main (int argc, char *argv[])
       a.AddDomainIntegrator(he_nlf_integ);
 
       metric2 = new TMOP_Metric_077;
-      target_c2 =
-            new TargetConstructor(TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE,
-                                  MPI_COMM_WORLD);
+      target_c2 = new TargetConstructor(
+         TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE, MPI_COMM_WORLD);
       target_c2->SetVolumeScale(0.01);
       target_c2->SetNodes(x0);
       TMOP_Integrator *he_nlf_integ2;
@@ -604,7 +603,8 @@ int main (int argc, char *argv[])
          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
          MFEM_VERIFY(!(dim == 2 && attr == 3),
                      "Boundary attribute 3 must be used only for 3D meshes. "
-                     "Adjust the attributes or use option -fix-bnd.");
+                     "Adjust the attributes (1/2/3 for fixed x/y/z components, "
+                     "4 for free nodes), or use the option -fix-bnd.");
          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
          if (attr == 4) { n += nd * dim; }
       }
