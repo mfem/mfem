@@ -603,8 +603,8 @@ int main (int argc, char *argv[])
          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
          MFEM_VERIFY(!(dim == 2 && attr == 3),
                      "Boundary attribute 3 must be used only for 3D meshes. "
-                     "Adjust the attributes (1/2/3 for fixed x/y/z components, "
-                     "4 for free nodes), or use the option -fix-bnd.");
+                     "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
+                     "components, rest for free nodes), or use -fix-bnd.");
          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
          if (attr == 4) { n += nd * dim; }
       }
