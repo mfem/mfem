@@ -11,6 +11,11 @@
 Version 3.3.3 (development)
 ===========================
 
+- Added variable order NURBS: for each space each knot vector in the mesh can
+  have a different order. The order information is now part of the finite
+  element space header in the NURBS mesh output, so NURBS meshes in the old
+  format need to be updated.
+
 - Inherit finite element classes from the new base class TensorBasisElement,
   whenever the basis can be represented by a tensor product of 1D bases.
 
@@ -27,8 +32,20 @@ Version 3.3.3 (development)
   with the visualization tool GLVis, a new set of certificates can be generated
   using the latest version of the script 'glvis-keygen.sh' from GLVis.
 
+New and improved solvers and preconditioners
+--------------------------------------------
+- Added symplectic integrators of orders 1-4 for systems of first order ODEs
+  derived from a Hamiltonian, see class SIASolver in linalg/ode.hpp.
+
 New and updated examples and miniapps
 -------------------------------------
+- Added a set of miniapps specifically focused on Isogeometric Analysis (IGA) on
+  NURBS meshes in the miniapps/nurbs directory. Currently the directory contains
+  variable order NURBS versions of examples 1, 1p and 11p.
+
+- Added a new electromagnetics miniapp, Maxwell, for simulating time-domain
+  electromagnetics phenomena as a coupled first order system of equations.
+
 - Added a new miniapp: miniapps/tools/load-dc.cpp, that can be used to visualize
   fields saved via DataCollection classes.
 

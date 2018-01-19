@@ -68,7 +68,7 @@ void mfem_warning(const char *msg = NULL);
    if (!(x))                                            \
    {                                                    \
       _MFEM_MESSAGE("Verification failed: ("            \
-                    << #x << ") is false: " << msg, 0); \
+                    << #x << ") is false:\n --> " << msg, 0); \
    }
 
 // Use this if the only place your variable is used is in ASSERTs
@@ -86,7 +86,7 @@ void mfem_warning(const char *msg = NULL);
    if (!(x))                                            \
    {                                                    \
       _MFEM_MESSAGE("Assertion failed: ("               \
-                    << #x << ") is false: " << msg, 0); \
+                    << #x << ") is false:\n --> " << msg, 0); \
    }
 
 // A macro that exposes its argument in debug mode only.
