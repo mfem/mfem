@@ -153,9 +153,9 @@ void ParBlockNonlinearForm::SetParSpaces(Array<ParFiniteElementSpace *> &pf)
    delete pBlockGrad;
    pBlockGrad = NULL;
 
-   for (int s1=0; s1<fes.Size(); s1++)
+   for (int s1=0; s1<fes.Size(); ++s1)
    {
-      for (int s2=0; s2<fes.Size(); s2++)
+      for (int s2=0; s2<fes.Size(); ++s2)
       {
          delete phBlockGrad(s1,s2);
       }
@@ -172,9 +172,9 @@ void ParBlockNonlinearForm::SetParSpaces(Array<ParFiniteElementSpace *> &pf)
 
    phBlockGrad.SetSize(fes.Size(), fes.Size());
 
-   for (int s1=0; s1<fes.Size(); s1++)
+   for (int s1=0; s1<fes.Size(); ++s1)
    {
-      for (int s2=0; s2<fes.Size(); s2++)
+      for (int s2=0; s2<fes.Size(); ++s2)
       {
          phBlockGrad(s1,s2) = new OperatorHandle(Operator::Hypre_ParCSR);
       }
@@ -201,12 +201,12 @@ void ParBlockNonlinearForm::SetEssentialBC(const
 
    BlockNonlinearForm::SetEssentialBC(bdr_attr_is_ess, nullarray);
 
-   for (int s=0; s<fes.Size(); s++)
+   for (int s=0; s<fes.Size(); ++s)
    {
       if (rhs[s])
       {
          ParFiniteElementSpace *pfes = ParFESpace(s);
-         for (int i=0; i < ess_vdofs[s]->Size(); i++)
+         for (int i=0; i < ess_vdofs[s]->Size(); ++i)
          {
             int tdof = pfes->GetLocalTDofNumber((*(ess_vdofs[s]))[i]);
             if (tdof >= 0)
@@ -225,7 +225,7 @@ void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
    xs.Update(block_offsets);
    ys.Update(block_offsets);
 
-   for (int s=0; s<fes.Size(); s++)
+   for (int s=0; s<fes.Size(); ++s)
    {
       fes[s]->GetProlongationMatrix()->Mult(
          xs_true.GetBlock(s), xs.GetBlock(s));
@@ -238,7 +238,7 @@ void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
       MFEM_ABORT("TODO: assemble contributions from shared face terms");
    }
 
-   for (int s=0; s<fes.Size(); s++)
+   for (int s=0; s<fes.Size(); ++s)
    {
       fes[s]->GetProlongationMatrix()->MultTranspose(
          ys.GetBlock(s), ys_true.GetBlock(s));
@@ -252,7 +252,7 @@ const BlockOperator & ParBlockNonlinearForm::GetLocalGradient(
    xs_true.Update(x.GetData(), block_trueOffsets);
    xs.Update(block_offsets);
 
-   for (int s=0; s<fes.Size(); s++)
+   for (int s=0; s<fes.Size(); ++s)
    {
       fes[s]->GetProlongationMatrix()->Mult(
          xs_true.GetBlock(s), xs.GetBlock(s));
@@ -266,9 +266,9 @@ const BlockOperator & ParBlockNonlinearForm::GetLocalGradient(
 // Set the operator type id for the parallel gradient matrix/operator.
 void ParBlockNonlinearForm::SetGradientType(Operator::Type tid)
 {
-   for (int s1=0; s1<fes.Size(); s1++)
+   for (int s1=0; s1<fes.Size(); ++s1)
    {
-      for (int s2=0; s2<fes.Size(); s2++)
+      for (int s2=0; s2<fes.Size(); ++s2)
       {
          phBlockGrad(s1,s2)->SetType(tid);
       }
@@ -284,11 +284,11 @@ BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
 
    Array<const ParFiniteElementSpace *> pfes(fes.Size());
 
-   for (int s1=0; s1<fes.Size(); s1++)
+   for (int s1=0; s1<fes.Size(); ++s1)
    {
       pfes[s1] = ParFESpace(s1);
 
-      for (int s2=0; s2<fes.Size(); s2++)
+      for (int s2=0; s2<fes.Size(); ++s2)
       {
          phBlockGrad(s1,s2)->Clear();
       }
@@ -301,9 +301,9 @@ BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
       MFEM_ABORT("TODO: assemble contributions from shared face terms");
    }
 
-   for (int s1=0; s1<fes.Size(); s1++)
+   for (int s1=0; s1<fes.Size(); ++s1)
    {
-      for (int s2=0; s2<fes.Size(); s2++)
+      for (int s2=0; s2<fes.Size(); ++s2)
       {
          OperatorHandle dA(phBlockGrad(s1,s2)->Type()),
                         Ph(phBlockGrad(s1,s2)->Type()),
@@ -340,9 +340,9 @@ BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
 ParBlockNonlinearForm::~ParBlockNonlinearForm()
 {
    delete pBlockGrad;
-   for (int s1=0; s1<fes.Size(); s1++)
+   for (int s1=0; s1<fes.Size(); ++s1)
    {
-      for (int s2=0; s2<fes.Size(); s2++)
+      for (int s2=0; s2<fes.Size(); ++s2)
       {
          delete phBlockGrad(s1,s2);
       }

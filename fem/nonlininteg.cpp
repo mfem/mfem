@@ -465,7 +465,7 @@ double IncompressibleNeoHookeanIntegrator::GetElementEnergy(
    double energy = 0.0;
    double mu = 0.0;
 
-   for (int i = 0; i < ir.GetNPoints(); i++)
+   for (int i = 0; i < ir.GetNPoints(); ++i)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
       Tr.SetIntPoint(&ip);
@@ -499,6 +499,14 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementVector(
    int dof_p = el[1]->GetDof();
 
    int dim = el[0]->GetDim();
+   int spaceDim = Tr.GetSpaceDim();
+
+   if (dim != spaceDim)
+   {
+      mfem_error("IncompressibleNeoHookeanIntegrator::AssembleElementVector"
+                 " is not defined on manifold meshes");
+   }
+
 
    DSh_u.SetSize(dof_u, dim);
    DS_u.SetSize(dof_u, dim);
@@ -519,7 +527,7 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementVector(
    *elvec[0] = 0.0;
    *elvec[1] = 0.0;
 
-   for (int i = 0; i < ir.GetNPoints(); i++)
+   for (int i = 0; i < ir.GetNPoints(); ++i)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
       Tr.SetIntPoint(&ip);
@@ -583,7 +591,7 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
    int intorder = 2*el[0]->GetOrder() + 3; // <---
    const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
 
-   for (int i = 0; i < ir.GetNPoints(); i++)
+   for (int i = 0; i < ir.GetNPoints(); ++i)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
       Tr.SetIntPoint(&ip);
@@ -602,21 +610,21 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
       CalcInverseTranspose(F, FinvT);
 
       // u,u block
-      for (int i_u = 0; i_u < dof_u; i_u++)
+      for (int i_u = 0; i_u < dof_u; ++i_u)
       {
-         for (int i_dim = 0; i_dim < dim; i_dim++)
+         for (int i_dim = 0; i_dim < dim; ++i_dim)
          {
-            for (int j_u = 0; j_u < dof_u; j_u++)
+            for (int j_u = 0; j_u < dof_u; ++j_u)
             {
-               for (int j_dim = 0; j_dim < dim; j_dim++)
+               for (int j_dim = 0; j_dim < dim; ++j_dim)
                {
 
                   // m = j_dim;
                   // k = i_dim;
 
-                  for (int n=0; n<dim; n++)
+                  for (int n=0; n<dim; ++n)
                   {
-                     for (int l=0; l<dim; l++)
+                     for (int l=0; l<dim; ++l)
                      {
                         (*elmats(0,0))(i_u + i_dim*dof_u, j_u + j_dim*dof_u) +=
                            dJ * (mu * F(i_dim, l) - pres * FinvT(i_dim,l)) *
@@ -644,13 +652,13 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
       }
 
       // u,p and p,u blocks
-      for (int i_p = 0; i_p < dof_p; i_p++)
+      for (int i_p = 0; i_p < dof_p; ++i_p)
       {
-         for (int j_u = 0; j_u < dof_u; j_u++)
+         for (int j_u = 0; j_u < dof_u; ++j_u)
          {
-            for (int dim_u = 0; dim_u < dim; dim_u++)
+            for (int dim_u = 0; dim_u < dim; ++dim_u)
             {
-               for (int l=0; l<dim; l++)
+               for (int l=0; l<dim; ++l)
                {
                   dJ_FinvT_DS = dJ * FinvT(dim_u,l) * DS_u(j_u, l) * Sh_p(i_p) *
                                 ip.weight * Tr.Weight();
