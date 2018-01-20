@@ -49,6 +49,12 @@ will allow us to reach you directly with project announcements.
 
 ### MFEM Organization
 
+- Before you can start, you need a GitHub account, here are a few suggestions:
+  + Create the account at: github.com/join
+  + For easy identification, please add your name and maybe a picture of you at: https://github.com/settings/profile
+  + To receive notification, set a primary email at: https://github.com/settings/emails
+  + For password-less pull/push over SSH, add your SSH keys at: https://github.com/settings/keys
+
 - [Contact us](#contact-information) for an invitation to join the MFEM GitHub
   organization.
 
@@ -80,14 +86,33 @@ will allow us to reach you directly with project announcements.
 - A new feature should be important enough that at least one person, the
   proposer, is willing to work on it and be its champion.
 
-- The proposer creates a branch for the new feature (with suffix `-dev`) and
-  implements it according to the discussed design.
+- The proposer creates a branch for the new feature (with suffix `-dev`), off
+  the `master` branch, or another existing feature branch, for example:
+  ```
+  # Assuming you have setup your ssh keys on GitHub:
+  git clone git@github.com:mfem/mfem.git
+
+  # Using "https" protocol:
+  git clone https://github.com/mfem/mfem.git
+
+  # Create a new feature branch starting from "master":
+  git checkout master
+  git pull
+  git checkout -b feature-dev
+
+  # (One time only) Work on "feature-dev", push the branch to github and setup
+  # your local branch to track the github branch (for "git pull"):
+  git push -u origin feature-dev
+
+  ```
 
 - **We prefer that you create the new feature branch inside the MFEM organization
   as opposed to in a fork.** This allows everyone in the community to collaborate
   in one central place.
 
   - If you prefer to work in your fork, please [enable upstream edits](https://help.github.com/articles/allowing-changes-to-a-pull-request-branch-created-from-a-fork/).
+
+  - Never use the `next` branch to start a new feature branch!
 
 - The typical feature branch name is `new-feature-dev`, e.g. `pumi-dev`. While
   not frequent in MFEM, other suffixes are possible, e.g. `-fix`, `-doc`, etc.
@@ -123,6 +148,8 @@ will allow us to reach you directly with project announcements.
     specifically use version 2.05.1). See also the file `config/mfem.astylerc`.
   - Use `mfem::out` and `mfem::err` instead of `std::cout` and `std::cerr` in
     internal library code. (You can use `std` in examples and miniapps.)
+  - When manually resolving conflicts during a merge, make sure to mention the
+    conflicted files in the commit message.
 
 ### Pull Requests
 
