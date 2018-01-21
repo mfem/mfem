@@ -148,6 +148,8 @@ will allow us to reach you directly with project announcements.
   - New features should be added only if they are necessary or generally useful.
   - Introduction of language constructions not currently used in MFEM should be
     justified and generally avoided (so we can build on cutting-edge systems).
+  - We prefer basic C++ and the C++03 standard, to keep the code readable by
+    a large audience and to make sure it compiles anywhere.
 
 - *Keep the code general and reasonably efficient*
   - Main goal is fast prototyping for research.
