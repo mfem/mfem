@@ -1,8 +1,9 @@
 # How to Contribute
 
-The MFEM team welcomes contributions at all levels: from bugfixes, to code
-improvements and simplification; to new mesh, discretization or solver
-capabilities, improved documentation, new examples, miniapps, and more.
+The MFEM team welcomes contributions at all levels: bugfixes; code
+improvements; simplifications; new mesh, discretization or solver
+capabilities; improved documentation; new examples and miniapps;
+HPC performance improvements; ...
 
 Use a pull request (PR) toward the `mfem:master` branch to propose your
 contribution. If you are planning significant code changes, or have any
@@ -11,8 +12,9 @@ before issuing a PR.  We also welcome your [simulation
 images](http://mfem.org/gallery/), which you can submit via a pull request in
 [mfem/web](https://github.com/mfem/web).
 
-Please refer back to this document as a checklist before issuing any pull
-request and in particular consult the following sections:
+See the [Quick Summary](#quick-summary) section for the main highlights of our
+GitHub workflow. For more details, consult the following sections and refer
+back to them before issuing pull requests:
 
 - [GitHub Workflow](#github-workflow)
   - [MFEM Organization](#mfem-organization)
@@ -22,6 +24,7 @@ request and in particular consult the following sections:
   - [Pull Request Checklist](#pull-request-checklist)
   - [Master/Next Workflow](#masternext-workflow)
   - [Releases](#releases)
+  - [Release Checklist](#release-checklist)
 - [LLNL Workflow](#llnl-workflow)
 - [Automated Testing](#automated-testing)
 - [Contact Information](#contact-information)
@@ -33,6 +36,21 @@ To learn more about the finite element method, see our [FEM page](http://mfem.or
 
 *By submitting a pull request, you are affirming the [Developer's Certificate of
 Origin](#developers-certificate-of-origin-11) at the end of this file.*
+
+
+## Quick Summary
+
+- We encourage you to [join the MFEM organization](#mfem-organization) and create
+  development branches off `mfem:master`.
+- Please follow the [developer guidelines](#developer-guidelines), in particular
+  with regards to documentation and code styling.
+- Pull requests  should be issued toward `mfem:master`. Make sure
+  to check the items off the [Pull Request Checklist](#pull-request-checklist).
+- After approval, MFEM developers merge the PR manually in the [mfem:next branch](#masternext-workflow).
+- After a week of testing in `mfem:next`, the original PR is merged in `mfem:master`.
+- We use [milestones](https://github.com/mfem/mfem/milestones) to coordinate the
+  work on different PRs toward a release.
+- Don't hesitate to [contact us](#contact-information) if you have any questions.
 
 
 ## GitHub Workflow
@@ -50,10 +68,10 @@ will allow us to reach you directly with project announcements.
 ### MFEM Organization
 
 - Before you can start, you need a GitHub account, here are a few suggestions:
-  + Create the account at: github.com/join
-  + For easy identification, please add your name and maybe a picture of you at: https://github.com/settings/profile
-  + To receive notification, set a primary email at: https://github.com/settings/emails
-  + For password-less pull/push over SSH, add your SSH keys at: https://github.com/settings/keys
+  + Create the account at: github.com/join.
+  + For easy identification, please add your name and maybe a picture of you at: https://github.com/settings/profile.
+  + To receive notification, set a primary email at: https://github.com/settings/emails.
+  + For password-less pull/push over SSH, add your SSH keys at: https://github.com/settings/keys.
 
 - [Contact us](#contact-information) for an invitation to join the MFEM GitHub
   organization.
@@ -88,11 +106,12 @@ will allow us to reach you directly with project announcements.
 
 - The proposer creates a branch for the new feature (with suffix `-dev`), off
   the `master` branch, or another existing feature branch, for example:
+
   ```
-  # Assuming you have setup your ssh keys on GitHub:
+  # Clone assuming you have setup your ssh keys on GitHub:
   git clone git@github.com:mfem/mfem.git
 
-  # Using "https" protocol:
+  # Alternatively, clone using the "https" protocol:
   git clone https://github.com/mfem/mfem.git
 
   # Create a new feature branch starting from "master":
@@ -100,8 +119,11 @@ will allow us to reach you directly with project announcements.
   git pull
   git checkout -b feature-dev
 
-  # (One time only) Work on "feature-dev", push the branch to github and setup
-  # your local branch to track the github branch (for "git pull"):
+  # Work on "feature-dev", add local commits
+  # ...
+
+  # One time only) push the branch to github and setup your local
+  # branch to track the github branch (for "git pull"):
   git push -u origin feature-dev
 
   ```
@@ -253,6 +275,24 @@ MFEM uses a `master`/`next`-branch workflow as described below:
 
 - After approval, a pull request is merged manually (by MFEM developers) in the
   `next` branch for testing and the `in-next` label is added to the PR.
+  This can be done as follows:
+
+  ```
+  # Pull the latest version of the "feature-dev" branch
+  git checkout feature-dev
+  git pull
+
+  # Pull the latest version of the "next" branch
+  git checkout next
+  git pull
+
+  # Merge "feature-dev" into "next", resolving conflicts, if necessary.
+  # Use the "--no-ff" flag to create a new commit with merge message.
+  git merge --no-ff feature-dev
+
+  # Push the "next" branch to the server
+  git push
+  ```
 
 - After a week of testing in `next` (excluding bugfixes), both on GitHub, as
   well as [internally](#tests-at-llnl) at LLNL, the original PR is merged into
@@ -283,6 +323,31 @@ MFEM uses a `master`/`next`-branch workflow as described below:
   - Rename the current `next` branch to `next-pre-v3.3.2`.
   - Create a new `next` branch starting from the `v3.3.2` release.
   - Local copies of `next` can then be updated with `git checkout -B next origin/next`.
+
+### Release Checklist
+
+- [ ] Update the MFEM version in the following files:
+    - [ ] `CHANGELOG`
+    - [ ] `makefile`
+    - [ ] `CMakeLists.txt`
+    - [ ] `doc/CodeDocumentation.conf`
+- [ ] (LLNL only) Make sure all `README.html` files in the source repo are up to date.
+- [ ] Tag the repository:
+
+  ```
+  git tag -a v3.1 -m "Official release v3.1"
+  git push origin v3.1
+  ```
+- [ ] Create the release tarball and push to `mfem/releases`.
+- [ ] Recreate the `next` branch as described in previuos section.
+- [ ] Update and push documentation  to `mfem/doxygen`.
+- [ ] Update URL shorlinks:
+    - [ ] Create a shortlink at [https://goo.gl/](https://goo.gl/) for the release tarball, e.g. http://mfem.github.io/releases/mfem-3.1.tgz.
+    - [ ] (LLNL only) Add and commit the new shorlink in the `links` and `links-mfem` files of the internal `mfem/downloads` repo.
+    - [ ] Add the new shortlinks to the MFEM packages in `spack`, `homebrew/science`, `VisIt`, etc.
+- [ ] Update website in `mfem/web` repo:
+    - Update version and shortlinks in `src/index.md` and `src/download.md`.
+    -  Use [cloc-1.62.pl](http://cloc.sourceforge.net/) and `ls -lh` to estimate the SLOC and the tarball size in `src/download.md`.
 
 
 ## LLNL Workflow
@@ -340,6 +405,7 @@ from each example.
 ## Contact Information
 
 - Contact the MFEM team by posting to the [GitHub issue tracker](https://github.com/mfem/mfem).
+  Please perform a search to make sure your question has not been answered already.
 
 - Email communications should be sent to the MFEM developers mailing list,
   mfem-dev@llnl.gov.
