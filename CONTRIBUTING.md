@@ -341,7 +341,7 @@ MFEM uses a `master`/`next`-branch workflow as described below:
   git push origin v3.1
   ```
 - [ ] Create the release tarball and push to `mfem/releases`.
-- [ ] Recreate the `next` branch as described in previuos section.
+- [ ] Recreate the `next` branch as described in previous section.
 - [ ] Update and push documentation  to `mfem/doxygen`.
 - [ ] Update URL shorlinks:
     - [ ] Create a shortlink at [https://goo.gl/](https://goo.gl/) for the release tarball, e.g. http://mfem.github.io/releases/mfem-3.1.tgz.
