@@ -52,6 +52,9 @@ Miscellaneous
 
 - Add support for building a shared version of the MFEM library with GNU make.
 
+- Documented project workflow and provided contribution guidelines in the new
+  top-level file, CONTRIBUTING.md.
+
 API changes (that may affect existing code)
 -----------
 - Introduced a new enum, Matrix::DiagonalPolicy, that replaces the integer
