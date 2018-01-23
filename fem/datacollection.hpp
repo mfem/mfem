@@ -33,6 +33,8 @@ public:
    typedef std::map<std::string, QuadratureFunction*> QFieldMapType;
 
    /// Format constants to be used with SetFormat().
+   /** Derived classes can define their own format enumerations and override the
+       method SetFormat() to perform input validation. */
    enum Format
    {
       SERIAL_FORMAT = 0, /**<
