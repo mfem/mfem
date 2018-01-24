@@ -6149,7 +6149,7 @@ bool Mesh::DerefineByError(const Vector &elem_error, double threshold,
 }
 
 
-void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
+STable3D* Mesh::InitFromNCMesh(const NCMesh &ncmesh)
 {
    Dim = ncmesh.Dimension();
    spaceDim = ncmesh.SpaceDimension();
@@ -6186,14 +6186,18 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
       el_to_edge = new Table;
       NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
    }
+
+   STable3D *faces_tbl = NULL;
    if (Dim > 2)
    {
-      GetElementToFaceTable();
+     faces_tbl = GetElementToFaceTable(1);
    }
    GenerateFaces();
 #ifdef MFEM_DEBUG
    CheckBdrElementOrientation(false);
 #endif
+
+   return faces_tbl;
 
    // NOTE: ncmesh->OnMeshUpdated() and GenerateNCFaceInfo() should be called
    // outside after this method.
