@@ -4382,8 +4382,8 @@ void Mesh::GenerateNCFaceInfo()
       slave_fi.NCFace = nc_faces_info.Size();
       nc_faces_info.Append(NCFaceInfo(true, slave.master, &slave.point_matrix));
 
-      slave_fi.Elem2No = master_fi.Elem1No;
-      slave_fi.Elem2Inf = 64 * master_nc.MasterFace; // get lf no. stored above
+      // slave_fi.Elem2No = master_fi.Elem1No;
+      // slave_fi.Elem2Inf = 64 * master_nc.MasterFace; // get lf no. stored above
       // NOTE: orientation part of Elem2Inf is encoded in the point matrix
    }
 }
