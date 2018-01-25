@@ -11,6 +11,11 @@
 Version 3.3.3 (development)
 ===========================
 
+- Added variable order NURBS: for each space each knot vector in the mesh can
+  have a different order. The order information is now part of the finite
+  element space header in the NURBS mesh output, so NURBS meshes in the old
+  format need to be updated.
+
 - Inherit finite element classes from the new base class TensorBasisElement,
   whenever the basis can be represented by a tensor product of 1D bases.
 
@@ -27,15 +32,32 @@ Version 3.3.3 (development)
   with the visualization tool GLVis, a new set of certificates can be generated
   using the latest version of the script 'glvis-keygen.sh' from GLVis.
 
+- Added a set of miniapps specifically focused on Isogeometric Analysis (IGA) on
+  NURBS meshes in the miniapps/nurbs directory. Currently the directory contains
+  variable order NURBS versions of examples 1, 1p and 11p.
+
+New and improved solvers and preconditioners
+--------------------------------------------
+- Added symplectic integrators of orders 1-4 for systems of first order ODEs
+  derived from a Hamiltonian, see class SIASolver in linalg/ode.hpp.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added a new electromagnetics miniapp, Maxwell, for simulating time-domain
+  electromagnetics phenomena as a coupled first order system of equations.
+
 Miscellaneous
 -------------
 - Upgraded MFEM to support Axom 0.2.8. Prior versions are no longer supported.
 
 - Add support for building a shared version of the MFEM library with GNU make.
 
-- Replaced the method RefinementMatrix with class RefinementOperator inside
-  FiniteElementSpace. The operator is both faster and more memory efficient
-  than using the fully assembled refinement matrix.
+- In FiniteElementSpace, the fully assembled refinement matrix is now replaced
+  by a specialized refinement operator by default. The operator option is both
+  faster and more memory efficient than using the fully assembled matrix.
+
+- Documented project workflow and provided contribution guidelines in the new
+  top-level file, CONTRIBUTING.md.
 
 API changes (that may affect existing code)
 -----------

@@ -13,10 +13,11 @@
 #define MFEM_TEXT
 
 #include <istream>
+#include <iomanip>
 #include <sstream>
 #include <string>
 #include <limits>
-#include <iomanip>
+#include <algorithm>
 
 namespace mfem
 {
