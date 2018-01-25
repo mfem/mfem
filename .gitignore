@@ -8,7 +8,11 @@
 
 # Object and library files
 *.o
-/libmfem.a
+/libmfem.*
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
 
 # Backup files
 *~
@@ -20,9 +24,13 @@
 /deps.mk
 config/_config.hpp
 config/config.mk
+config/sample-runs-build.log
 doc/CodeDocumentation.conf
 doc/CodeDocumentation.html
 doc/CodeDocumentation
+
+# Temporary files created by the tests.
+*.stderr
 
 # Totalview breakpoint files
 *.TVD.*breakpoints
@@ -35,8 +43,8 @@ doc/CodeDocumentation
 
 examples/ex[1-9]
 examples/ex[1-9]p
-examples/ex1[04-7]
-examples/ex1[0-7]p
+examples/ex1[04-9]
+examples/ex1[0-9]p
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -62,6 +70,12 @@ examples/ex16.mesh
 examples/ex16-mesh.*
 examples/ex16-init.*
 examples/ex16-final.*
+examples/vortex-mesh.*
+examples/vortex.mesh
+examples/vortex-?-init.*
+examples/vortex-?-final.*
+examples/deformation.*
+examples/pressure.*
 
 examples/sundials/ex9
 examples/sundials/ex1[06]
@@ -100,22 +114,28 @@ examples/petsc/elastic_energy.*
 
 miniapps/electromagnetics/volta
 miniapps/electromagnetics/tesla
+miniapps/electromagnetics/maxwell
 miniapps/electromagnetics/joule
 
 miniapps/electromagnetics/Volta-AMR*
 miniapps/electromagnetics/Tesla-AMR*
+miniapps/electromagnetics/Maxwell-Parallel*
 miniapps/electromagnetics/Joule_*
 
 miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
 miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
+miniapps/meshing/mesh-optimizer
+miniapps/meshing/pmesh-optimizer
 
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/mesh-explorer.mesh
 miniapps/meshing/partitioning.txt
 miniapps/meshing/shaper.mesh
+miniapps/meshing/optimized*
+miniapps/meshing/perturbed*
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
@@ -125,3 +145,12 @@ miniapps/performance/mesh.*
 miniapps/performance/sol.*
 
 miniapps/tools/display-basis
+
+miniapps/nurbs/ex1
+miniapps/nurbs/ex1p
+miniapps/nurbs/ex11p
+miniapps/nurbs/refined.mesh
+miniapps/nurbs/mesh.*
+miniapps/nurbs/sol.*
+miniapps/nurbs/mode_*
+miniapps/nurbs/Example1*

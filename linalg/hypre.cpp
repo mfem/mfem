@@ -181,12 +181,16 @@ HypreParVector::~HypreParVector()
 
 #ifdef MFEM_USE_SUNDIALS
 
+#ifndef SUNFALSE
+#define SUNFALSE FALSE
+#endif
+
 void HypreParVector::ToNVector(N_Vector &nv)
 {
    MFEM_ASSERT(nv && N_VGetVectorID(nv) == SUNDIALS_NVEC_PARHYP,
                "invalid N_Vector");
    N_VectorContent_ParHyp nv_c = (N_VectorContent_ParHyp)(nv->content);
-   MFEM_ASSERT(nv_c->own_parvector == FALSE, "invalid N_Vector");
+   MFEM_ASSERT(nv_c->own_parvector == SUNFALSE, "invalid N_Vector");
    nv_c->local_length = x->local_vector->size;
    nv_c->global_length = x->global_size;
    nv_c->comm = x->comm;
@@ -221,7 +225,7 @@ double ParNormlp(const Vector &vec, double p, MPI_Comm comm)
       MPI_Allreduce(&loc_norm, &norm, 1, MPI_DOUBLE, MPI_SUM, comm);
       norm = sqrt(norm);
    }
-   if (p < std::numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       double sum = 0.0;
       for (int i = 0; i < vec.Size(); i++)
@@ -305,7 +309,7 @@ void HypreParMatrix::CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J)
    }
 }
 
-// Square block-diagonal constructor
+// Square block-diagonal constructor (4 arguments, v1)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size,
                                HYPRE_Int *row_starts, SparseMatrix *diag)
    : Operator(diag->Height(), diag->Width())
@@ -340,7 +344,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size,
    hypre_MatvecCommPkgCreate(A);
 }
 
-// Rectangular block-diagonal constructor
+// Rectangular block-diagonal constructor (6 arguments, v1)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                HYPRE_Int global_num_rows,
                                HYPRE_Int global_num_cols,
@@ -377,7 +381,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_MatvecCommPkgCreate(A);
 }
 
-// General rectangular constructor with diagonal and off-diagonal
+// General rectangular constructor with diagonal and off-diagonal (8 arguments)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                HYPRE_Int global_num_rows,
                                HYPRE_Int global_num_cols,
@@ -421,7 +425,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_MatvecCommPkgCreate(A);
 }
 
-// General rectangular constructor with diagonal and off-diagonal
+// General rectangular constructor with diagonal and off-diagonal (13 arguments)
 HypreParMatrix::HypreParMatrix(
    MPI_Comm comm,
    HYPRE_Int global_num_rows, HYPRE_Int global_num_cols,
@@ -475,7 +479,7 @@ HypreParMatrix::HypreParMatrix(
    width = GetNumCols();
 }
 
-// Constructor from a CSR matrix on rank 0
+// Constructor from a CSR matrix on rank 0 (4 arguments, v2)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                HYPRE_Int *row_starts, HYPRE_Int *col_starts,
                                SparseMatrix *sm_a)
@@ -515,7 +519,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_MatvecCommPkgCreate(A);
 }
 
-// Boolean, rectangular, block-diagonal constructor
+// Boolean, rectangular, block-diagonal constructor (6 arguments, v2)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                HYPRE_Int global_num_rows,
                                HYPRE_Int global_num_cols,
@@ -555,6 +559,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 }
 
 // Boolean, general rectangular constructor with diagonal and off-diagonal
+// (11 arguments)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
                                HYPRE_Int *row, HYPRE_Int *col,
                                HYPRE_Int *i_diag, HYPRE_Int *j_diag,
@@ -635,6 +640,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 
 // General rectangular constructor with diagonal and off-diagonal constructed
 // from a CSR matrix that contains both diagonal and off-diagonal blocks
+// (9 arguments)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
                                HYPRE_Int glob_ncols, int *I, HYPRE_Int *J,
                                double *data, HYPRE_Int *rows, HYPRE_Int *cols)
@@ -929,7 +935,7 @@ void HypreParMatrix::GetBlocks(Array2D<HypreParMatrix*> &blocks,
    delete [] hypre_blocks;
 }
 
-HypreParMatrix * HypreParMatrix::Transpose()
+HypreParMatrix * HypreParMatrix::Transpose() const
 {
    hypre_ParCSRMatrix * At;
    hypre_ParCSRMatrixTranspose(A, &At, 1);
@@ -1224,7 +1230,6 @@ void HypreParMatrix::Threshold(double threshold)
    int  ierr = 0;
 
    MPI_Comm comm;
-   int num_procs;
    hypre_CSRMatrix * csr_A;
    hypre_CSRMatrix * csr_A_wo_z;
    hypre_ParCSRMatrix * parcsr_A_ptr;
@@ -1234,8 +1239,6 @@ void HypreParMatrix::Threshold(double threshold)
 
    comm = hypre_ParCSRMatrixComm(A);
 
-   MPI_Comm_size(comm, &num_procs);
-
    ierr += hypre_ParCSRMatrixGetLocalRange(A,
                                            &row_start,&row_end,
                                            &col_start,&col_end );
@@ -1243,13 +1246,20 @@ void HypreParMatrix::Threshold(double threshold)
    row_starts = hypre_ParCSRMatrixRowStarts(A);
    col_starts = hypre_ParCSRMatrixColStarts(A);
 
-   parcsr_A_ptr = hypre_ParCSRMatrixCreate(comm,row_starts[num_procs],
-                                           col_starts[num_procs],row_starts,
-                                           col_starts,0,0,0);
+   bool old_owns_row = hypre_ParCSRMatrixOwnsRowStarts(A);
+   bool old_owns_col = hypre_ParCSRMatrixOwnsColStarts(A);
+   HYPRE_Int global_num_rows = hypre_ParCSRMatrixGlobalNumRows(A);
+   HYPRE_Int global_num_cols = hypre_ParCSRMatrixGlobalNumCols(A);
+   parcsr_A_ptr = hypre_ParCSRMatrixCreate(comm, global_num_rows,
+                                           global_num_cols,
+                                           row_starts, col_starts,
+                                           0, 0, 0);
+   hypre_ParCSRMatrixOwnsRowStarts(parcsr_A_ptr) = old_owns_row;
+   hypre_ParCSRMatrixOwnsColStarts(parcsr_A_ptr) = old_owns_col;
 
    csr_A = hypre_MergeDiagAndOffd(A);
 
-   csr_A_wo_z =  hypre_CSRMatrixDeleteZeros(csr_A,threshold);
+   csr_A_wo_z = hypre_CSRMatrixDeleteZeros(csr_A,threshold);
 
    /* hypre_CSRMatrixDeleteZeros will return a NULL pointer rather than a usable
       CSR matrix if it finds no non-zeros */
@@ -1262,12 +1272,17 @@ void HypreParMatrix::Threshold(double threshold)
       ierr += hypre_CSRMatrixDestroy(csr_A);
    }
 
+   /* FIXME: GenerateDiagAndOffd() uses an int array of size equal to the number
+      of columns in csr_A_wo_z which is the global number of columns in A. This
+      does not scale well. */
    ierr += GenerateDiagAndOffd(csr_A_wo_z,parcsr_A_ptr,
                                col_start,col_end);
 
    ierr += hypre_CSRMatrixDestroy(csr_A_wo_z);
 
    ierr += hypre_ParCSRMatrixDestroy(A);
+
+   MFEM_VERIFY(ierr == 0, "");
 
    A = parcsr_A_ptr;
 }
@@ -1442,7 +1457,7 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
    return C;
 }
 
-HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B)
+HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B)
 {
    hypre_ParCSRMatrix * ab;
    ab = hypre_ParMatmul(*A,*B);
@@ -1453,7 +1468,7 @@ HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B)
    return new HypreParMatrix(ab);
 }
 
-HypreParMatrix * ParAdd(HypreParMatrix *A, HypreParMatrix *B)
+HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
 {
    hypre_ParCSRMatrix * C = internal::hypre_ParCSRMatrixAdd(*A,*B);
 
@@ -1462,7 +1477,7 @@ HypreParMatrix * ParAdd(HypreParMatrix *A, HypreParMatrix *B)
    return new HypreParMatrix(C);
 }
 
-HypreParMatrix * RAP(HypreParMatrix *A, HypreParMatrix *P)
+HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
 {
    HYPRE_Int P_owns_its_col_starts =
       hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
@@ -1485,7 +1500,8 @@ HypreParMatrix * RAP(HypreParMatrix *A, HypreParMatrix *P)
    return new HypreParMatrix(rap);
 }
 
-HypreParMatrix * RAP(HypreParMatrix * Rt, HypreParMatrix *A, HypreParMatrix *P)
+HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
+                     const HypreParMatrix *P)
 {
    HYPRE_Int P_owns_its_col_starts =
       hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
@@ -1497,18 +1513,21 @@ HypreParMatrix * RAP(HypreParMatrix * Rt, HypreParMatrix *A, HypreParMatrix *P)
 
    hypre_ParCSRMatrixSetNumNonzeros(rap);
    // hypre_MatvecCommPkgCreate(rap);
-   if (!P_owns_its_col_starts)
+
+   /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
+      from Rt and P (even if they do not own them)! */
+   hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
+   hypre_ParCSRMatrixSetColStartsOwner(rap,0);
+
+   if (P_owns_its_col_starts)
    {
-      /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
-         from P (even if it does not own them)! */
-      hypre_ParCSRMatrixSetColStartsOwner(rap,0);
+      hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
    }
-   if (!Rt_owns_its_col_starts)
+   if (Rt_owns_its_col_starts)
    {
-      /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
-         from P (even if it does not own them)! */
-      hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
+      hypre_ParCSRMatrixSetColStartsOwner(*Rt, 1);
    }
+
    return new HypreParMatrix(rap);
 }
 
@@ -2176,9 +2195,9 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
 
       if (myid == 0)
       {
-         cout << "PCG Iterations = " << num_iterations << endl
-              << "Final PCG Relative Residual Norm = " << final_res_norm
-              << endl;
+         mfem::out << "PCG Iterations = " << num_iterations << endl
+                   << "Final PCG Relative Residual Norm = " << final_res_norm
+                   << endl;
       }
    }
    HYPRE_ParCSRPCGSetPrintLevel(pcg_solver, print_level);
@@ -2302,9 +2321,9 @@ void HypreGMRES::Mult(const HypreParVector &b, HypreParVector &x) const
 
       if (myid == 0)
       {
-         cout << "GMRES Iterations = " << num_iterations << endl
-              << "Final GMRES Relative Residual Norm = " << final_res_norm
-              << endl;
+         mfem::out << "GMRES Iterations = " << num_iterations << endl
+                   << "Final GMRES Relative Residual Norm = " << final_res_norm
+                   << endl;
       }
    }
 }

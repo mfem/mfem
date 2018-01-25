@@ -26,6 +26,7 @@
 #include "_hypre_parcsr_mv.h"
 #include "_hypre_parcsr_ls.h"
 #include "temp_multivector.h"
+#include "../general/globals.hpp"
 
 #ifdef HYPRE_COMPLEX
 #error "MFEM does not work with HYPRE's complex numbers support"
@@ -240,21 +241,22 @@ public:
        changed by this constructor to ensure that the first entry in each row is
        the diagonal one. This is expected by most hypre functions. */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *row_starts,
-                  SparseMatrix *diag);
+                  SparseMatrix *diag); // constructor with 4 arguments, v1
 
    /** Creates block-diagonal rectangular parallel matrix. Diagonal is given by
        diag which must be in CSR format (finalized). The new HypreParMatrix does
        not take ownership of any of the input arrays. */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int global_num_rows,
                   HYPRE_Int global_num_cols, HYPRE_Int *row_starts,
-                  HYPRE_Int *col_starts, SparseMatrix *diag);
+                  HYPRE_Int *col_starts,
+                  SparseMatrix *diag); // constructor with 6 arguments, v1
 
    /** Creates general (rectangular) parallel matrix. The new HypreParMatrix
        does not take ownership of any of the input arrays. */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int global_num_rows,
                   HYPRE_Int global_num_cols, HYPRE_Int *row_starts,
                   HYPRE_Int *col_starts, SparseMatrix *diag, SparseMatrix *offd,
-                  HYPRE_Int *cmap);
+                  HYPRE_Int *cmap); // constructor with 8 arguments
 
    /** Creates general (rectangular) parallel matrix. The new HypreParMatrix
        takes ownership of all input arrays, except col_starts and row_starts. */
@@ -263,24 +265,27 @@ public:
                   HYPRE_Int *row_starts, HYPRE_Int *col_starts,
                   HYPRE_Int *diag_i, HYPRE_Int *diag_j, double *diag_data,
                   HYPRE_Int *offd_i, HYPRE_Int *offd_j, double *offd_data,
-                  HYPRE_Int offd_num_cols, HYPRE_Int *offd_col_map);
+                  HYPRE_Int offd_num_cols,
+                  HYPRE_Int *offd_col_map); // constructor with 13 arguments
 
    /// Creates a parallel matrix from SparseMatrix on processor 0.
    HypreParMatrix(MPI_Comm comm, HYPRE_Int *row_starts, HYPRE_Int *col_starts,
-                  SparseMatrix *a);
+                  SparseMatrix *a); // constructor with 4 arguments, v2
 
    /** Creates boolean block-diagonal rectangular parallel matrix. The new
        HypreParMatrix does not take ownership of any of the input arrays. */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int global_num_rows,
                   HYPRE_Int global_num_cols, HYPRE_Int *row_starts,
-                  HYPRE_Int *col_starts, Table *diag);
+                  HYPRE_Int *col_starts,
+                  Table *diag); // constructor with 6 arguments, v2
 
    /** Creates boolean rectangular parallel matrix. The new HypreParMatrix takes
        ownership of the arrays i_diag, j_diag, i_offd, j_offd, and cmap; does
        not take ownership of the arrays row and col. */
    HypreParMatrix(MPI_Comm comm, int id, int np, HYPRE_Int *row, HYPRE_Int *col,
                   HYPRE_Int *i_diag, HYPRE_Int *j_diag, HYPRE_Int *i_offd,
-                  HYPRE_Int *j_offd, HYPRE_Int *cmap, HYPRE_Int cmap_size);
+                  HYPRE_Int *j_offd, HYPRE_Int *cmap,
+                  HYPRE_Int cmap_size); // constructor with 11 arguments
 
    /** Creates a general parallel matrix from a local CSR matrix on each
        processor described by the I, J and data arrays. The local matrix should
@@ -288,7 +293,8 @@ public:
        contains copies of all input arrays (so they can be deleted). */
    HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
                   HYPRE_Int glob_ncols, int *I, HYPRE_Int *J,
-                  double *data, HYPRE_Int *rows, HYPRE_Int *cols);
+                  double *data, HYPRE_Int *rows,
+                  HYPRE_Int *cols); // constructor with 9 arguments
 
    /// Make this HypreParMatrix a reference to 'master'
    void MakeRef(const HypreParMatrix &master);
@@ -354,7 +360,7 @@ public:
                   bool interleaved_cols = false) const;
 
    /// Returns the transpose of *this
-   HypreParMatrix * Transpose();
+   HypreParMatrix * Transpose() const;
 
    /// Returns the number of rows in the diagonal block of the ParCSRMatrix
    int GetNumRows() const
@@ -403,6 +409,13 @@ public:
    void BooleanMult(int alpha, int *x, int beta, int *y)
    {
       internal::hypre_ParCSRMatrixBooleanMatvec(A, alpha, x, beta, y);
+   }
+
+   /** The "Boolean" analog of y = alpha * A^T * x + beta * y, where elements in
+       the sparsity pattern of the matrix are treated as "true". */
+   void BooleanMultTranspose(int alpha, int *x, int beta, int *y)
+   {
+      internal::hypre_ParCSRMatrixBooleanMatvecT(A, alpha, x, beta, y);
    }
 
    /// Initialize all entries with value.
@@ -465,7 +478,7 @@ public:
    void Read_IJMatrix(MPI_Comm comm, const char *fname);
 
    /// Print information about the hypre_ParCSRCommPkg of the HypreParMatrix.
-   void PrintCommPkg(std::ostream &out = std::cout) const;
+   void PrintCommPkg(std::ostream &out = mfem::out) const;
 
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }
@@ -480,16 +493,17 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
                     double beta,  const HypreParMatrix &B);
 
 /// Returns the matrix A * B
-HypreParMatrix * ParMult(HypreParMatrix *A, HypreParMatrix *B);
+HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B);
 /// Returns the matrix A + B
 /** It is assumed that both matrices use the same row and column partitions and
     the same col_map_offd arrays. */
-HypreParMatrix * ParAdd(HypreParMatrix *A, HypreParMatrix *B);
+HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B);
 
 /// Returns the matrix P^t * A * P
-HypreParMatrix * RAP(HypreParMatrix *A, HypreParMatrix *P);
+HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P);
 /// Returns the matrix Rt^t * A * P
-HypreParMatrix * RAP(HypreParMatrix * Rt, HypreParMatrix *A, HypreParMatrix *P);
+HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
+                     const HypreParMatrix *P);
 
 /** Eliminate essential BC specified by 'ess_dof_list' from the solution X to
     the r.h.s. B. Here A is a matrix with eliminated BC, while Ae is such that

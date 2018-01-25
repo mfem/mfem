@@ -168,6 +168,7 @@ int main(int argc, char *argv[])
          ode_solver = arkode; break;
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         delete mesh;
          return 3;
    }
 

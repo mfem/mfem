@@ -13,6 +13,7 @@
 #define MFEM_DENSEMAT
 
 #include "../config/config.hpp"
+#include "../general/globals.hpp"
 #include "matrix.hpp"
 
 namespace mfem
@@ -29,6 +30,9 @@ private:
    int capacity; // zero or negative capacity means we do not own the data.
 
    void Eigensystem(Vector &ev, DenseMatrix *evect = NULL);
+
+   // Auxiliary method used in FNorm2() and FNorm()
+   void FNorm(double &scale_factor, double &scaled_fnorm2) const;
 
 public:
    /** Default constructor for DenseMatrix.
@@ -159,11 +163,24 @@ public:
    /// Replaces the current matrix with its inverse
    void Invert();
 
+   /// Replaces the current matrix with its square root inverse
+   void SquareRootInverse();
+
    /// Calculates the determinant of the matrix
    /// (optimized for 2x2, 3x3, and 4x4 matrices)
    double Det() const;
 
    double Weight() const;
+
+   /** @brief Set the matrix to alpha * A, assuming that A has the same
+       dimensions as the matrix and uses column-major layout. */
+   void Set(double alpha, const double *A);
+   /// Set the matrix to alpha * A.
+   void Set(double alpha, const DenseMatrix &A)
+   {
+      SetSize(A.Height(), A.Width());
+      Set(alpha, A.GetData());
+   }
 
    /// Adds the matrix A multiplied by the number c to the matrix
    void Add(const double c, const DenseMatrix &A);
@@ -177,9 +194,10 @@ public:
    /// Sets the matrix size and elements equal to those of m
    DenseMatrix &operator=(const DenseMatrix &m);
 
-   DenseMatrix &operator+=(DenseMatrix &m);
+   DenseMatrix &operator+=(const double *m);
+   DenseMatrix &operator+=(const DenseMatrix &m);
 
-   DenseMatrix &operator-=(DenseMatrix &m);
+   DenseMatrix &operator-=(const DenseMatrix &m);
 
    DenseMatrix &operator*=(double c);
 
@@ -193,7 +211,10 @@ public:
    double MaxMaxNorm() const;
 
    /// Compute the Frobenius norm of the matrix
-   double FNorm() const;
+   double FNorm() const { double s, n2; FNorm(s, n2); return s*sqrt(n2); }
+
+   /// Compute the square of the Frobenius norm of the matrix
+   double FNorm2() const { double s, n2; FNorm(s, n2); return s*s*n2; }
 
    void Eigenvalues(Vector &ev)
    { Eigensystem(ev); }
@@ -217,6 +238,7 @@ public:
    void GetRow(int r, Vector &row);
    void GetColumn(int c, Vector &col) const;
    double *GetColumn(int col) { return data + col*height; }
+   const double *GetColumn(int col) const { return data + col*height; }
 
    void GetColumnReference(int c, Vector &col)
    { col.SetDataAndSize(data + c * height, height); }
@@ -244,7 +266,7 @@ public:
    /// (*this) = (*this)^t
    void Transpose();
    /// (*this) = A^t
-   void Transpose(DenseMatrix &A);
+   void Transpose(const DenseMatrix &A);
    /// (*this) = 1/2 ((*this) + (*this)^t)
    void Symmetrize();
 
@@ -303,10 +325,10 @@ public:
    int CheckFinite() const { return mfem::CheckFinite(data, height*width); }
 
    /// Prints matrix to stream out.
-   virtual void Print(std::ostream &out = std::cout, int width_ = 4) const;
-   virtual void PrintMatlab(std::ostream &out = std::cout) const;
+   virtual void Print(std::ostream &out = mfem::out, int width_ = 4) const;
+   virtual void PrintMatlab(std::ostream &out = mfem::out) const;
    /// Prints the transpose matrix to stream out.
-   virtual void PrintT(std::ostream &out = std::cout, int width_ = 4) const;
+   virtual void PrintT(std::ostream &out = mfem::out, int width_ = 4) const;
 
    /// Invert and print the numerical conditioning of the inversion.
    void TestInversion();
@@ -320,6 +342,10 @@ public:
 /// C = A + alpha*B
 void Add(const DenseMatrix &A, const DenseMatrix &B,
          double alpha, DenseMatrix &C);
+
+/// C = alpha*A + beta*B
+void Add(double alpha, const double *A,
+         double beta,  const double *B, DenseMatrix &C);
 
 /// C = alpha*A + beta*B
 void Add(double alpha, const DenseMatrix &A,
@@ -567,6 +593,7 @@ class DenseMatrixEigensystem
 public:
 
    DenseMatrixEigensystem(DenseMatrix &m);
+   DenseMatrixEigensystem(const DenseMatrixEigensystem &other);
    void Eval();
    Vector &Eigenvalues() { return EVal; }
    DenseMatrix &Eigenvectors() { return EVect; }
@@ -627,6 +654,22 @@ public:
       nk = k;
       tdata = new double[i*j*k];
       own_data = true;
+   }
+
+   /// Copy constructor: deep copy
+   DenseTensor(const DenseTensor& other)
+      : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk), own_data(true)
+   {
+      const int size = Mk.Height()*Mk.Width()*nk;
+      if (size > 0)
+      {
+         tdata = new double[size];
+         std::memcpy(tdata, other.tdata, sizeof(double) * size);
+      }
+      else
+      {
+         tdata = NULL;
+      }
    }
 
    int SizeI() const { return Mk.Height(); }
