@@ -69,6 +69,55 @@ public:
    virtual ~ParNonlinearForm() { }
 };
 
+
+/** @brief A class representing a general parallel block nonlinear operator
+    defined on the Cartesian product of multiple ParFiniteElementSpace%s. */
+/** The ParBlockNonlinearForm takes as input, and returns as output, vectors on
+    the true dofs. */
+class ParBlockNonlinearForm : public BlockNonlinearForm
+{
+protected:
+   mutable BlockVector xs_true, ys_true;
+   mutable Array2D<OperatorHandle *> phBlockGrad;
+   mutable BlockOperator *pBlockGrad;
+
+public:
+   /// Construct an empty ParBlockNonlinearForm. Initialize with SetParSpaces().
+   ParBlockNonlinearForm() : pBlockGrad(NULL) { }
+
+   /** @brief Construct a ParBlockNonlinearForm on the given set of
+       ParFiniteElementSpace%s. */
+   ParBlockNonlinearForm(Array<ParFiniteElementSpace *> &pf);
+
+   /// Return the @a k-th parallel FE space of the ParBlockNonlinearForm.
+   ParFiniteElementSpace *ParFESpace(int k);
+   /** @brief Return the @a k-th parallel FE space of the ParBlockNonlinearForm
+       (const version). */
+   const ParFiniteElementSpace *ParFESpace(int k) const;
+
+   /** @brief After a call to SetParSpaces(), the essential b.c. and the
+       gradient-type (if different from the default) must be set again. */
+   void SetParSpaces(Array<ParFiniteElementSpace *> &pf);
+
+   // Here, rhs is a true dof vector
+   virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
+                               Array<Vector *> &rhs);
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   /// Return the local block gradient matrix for the given true-dof vector x
+   const BlockOperator &GetLocalGradient(const Vector &x) const;
+
+   virtual BlockOperator &GetGradient(const Vector &x) const;
+
+   /** @brief Set the operator type id for the blocks of the parallel gradient
+       matrix/operator. The default type is Operator::Hypre_ParCSR. */
+   void SetGradientType(Operator::Type tid);
+
+   /// Destructor.
+   virtual ~ParBlockNonlinearForm();
+};
+
 }
 
 #endif // MFEM_USE_MPI

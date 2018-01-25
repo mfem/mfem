@@ -155,6 +155,100 @@ public:
    virtual ~NonlinearForm();
 };
 
+
+/** @brief A class representing a general block nonlinear operator defined on
+    the Cartesian product of multiple FiniteElementSpace%s. */
+class BlockNonlinearForm : public Operator
+{
+protected:
+   /// FE spaces on which the form lives.
+   Array<FiniteElementSpace*> fes;
+
+   /// Set of Domain Integrators to be assembled (added).
+   Array<BlockNonlinearFormIntegrator*> dnfi;
+
+   /// Set of interior face Integrators to be assembled (added).
+   Array<BlockNonlinearFormIntegrator*> fnfi;
+
+   /// Set of Boundary Face Integrators to be assembled (added).
+   Array<BlockNonlinearFormIntegrator*> bfnfi;
+   Array<Array<int>*>           bfnfi_marker;
+
+   /** Auxiliary block-vectors for wrapping input and output vectors or holding
+       GridFunction-like block-vector data (e.g. in parallel). */
+   mutable BlockVector xs, ys;
+
+   mutable Array2D<SparseMatrix*> Grads;
+   mutable BlockOperator *BlockGrad;
+
+   // A list of the offsets
+   Array<int> block_offsets;
+   Array<int> block_trueOffsets;
+
+   // Essential vdofs: one list of vdofs for each space in 'fes'
+   Array<Array<int> *> ess_vdofs;
+
+   /// Specialized version of GetEnergy() for BlockVectors
+   double GetEnergyBlocked(const BlockVector &bx) const;
+
+   /// Specialized version of Mult() for BlockVector%s
+   void MultBlocked(const BlockVector &bx, BlockVector &by) const;
+
+   /// Specialized version of GetGradient() for BlockVector
+   Operator &GetGradientBlocked(const BlockVector &bx) const;
+
+public:
+   /// Construct an empty BlockNonlinearForm. Initialize with SetSpaces().
+   BlockNonlinearForm();
+
+   /// Construct a BlockNonlinearForm on the given set of FiniteElementSpace%s.
+   BlockNonlinearForm(Array<FiniteElementSpace *> &f);
+
+   /// Return the @a k-th FE space of the BlockNonlinearForm.
+   FiniteElementSpace *FESpace(int k) { return fes[k]; }
+   /// Return the @a k-th FE space of the BlockNonlinearForm (const version).
+   const FiniteElementSpace *FESpace(int k) const { return fes[k]; }
+
+   /// (Re)initialize the BlockNonlinearForm.
+   /** After a call to SetSpaces(), the essential b.c. must be set again. */
+   void SetSpaces(Array<FiniteElementSpace *> &f);
+
+   /// Return the regular dof offsets.
+   const Array<int> &GetBlockOffsets() const { return block_offsets; }
+   /// Return the true-dof offsets.
+   const Array<int> &GetBlockTrueOffsets() const { return block_trueOffsets; }
+
+   /// Adds new Domain Integrator.
+   void AddDomainIntegrator(BlockNonlinearFormIntegrator *nlfi)
+   { dnfi.Append(nlfi); }
+
+   /// Adds new Interior Face Integrator.
+   void AddInteriorFaceIntegrator(BlockNonlinearFormIntegrator *nlfi)
+   { fnfi.Append(nlfi); }
+
+   /// Adds new Boundary Face Integrator.
+   void AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *nlfi)
+   { bfnfi.Append(nlfi); bfnfi_marker.Append(NULL); }
+
+   /** @brief Adds new Boundary Face Integrator, restricted to specific boundary
+       attributes. */
+   void AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *nlfi,
+                             Array<int> &bdr_marker);
+
+   virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
+                               Array<Vector *> &rhs);
+
+   virtual double GetEnergy(const Vector &x) const;
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   virtual Operator &GetGradient(const Vector &x) const;
+
+   /// Destructor.
+   virtual ~BlockNonlinearForm();
+};
+
+
 }
 
 #endif
