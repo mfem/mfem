@@ -18,32 +18,24 @@
 namespace mfem
 {
 
-void ParNonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
-                                      Vector *rhs)
+ParNonlinearForm::ParNonlinearForm(ParFiniteElementSpace *pf)
+   : NonlinearForm(pf), pGrad(Operator::Hypre_ParCSR)
 {
-   ParFiniteElementSpace *pfes = ParFESpace();
-
-   NonlinearForm::SetEssentialBC(bdr_attr_is_ess);
-
-   // ess_vdofs is a list of local vdofs
-   if (rhs)
-   {
-      for (int i = 0; i < ess_vdofs.Size(); i++)
-      {
-         int tdof = pfes->GetLocalTDofNumber(ess_vdofs[i]);
-         if (tdof >= 0)
-         {
-            (*rhs)(tdof) = 0.0;
-         }
-      }
-   }
+   X.MakeRef(pf, NULL);
+   Y.MakeRef(pf, NULL);
+   MFEM_VERIFY(!Serial(), "internal MFEM error");
 }
 
-double ParNonlinearForm::GetEnergy(const ParGridFunction &x) const
+double ParNonlinearForm::GetParGridFunctionEnergy(const Vector &x) const
 {
    double loc_energy, glob_energy;
 
-   loc_energy = NonlinearForm::GetEnergy(x);
+   loc_energy = GetGridFunctionEnergy(x);
+
+   if (fnfi.Size())
+   {
+      MFEM_ABORT("TODO: add energy contribution from shared faces");
+   }
 
    MPI_Allreduce(&loc_energy, &glob_energy, 1, MPI_DOUBLE, MPI_SUM,
                  ParFESpace()->GetComm());
@@ -51,19 +43,10 @@ double ParNonlinearForm::GetEnergy(const ParGridFunction &x) const
    return glob_energy;
 }
 
-double ParNonlinearForm::GetEnergy(const Vector &x) const
-{
-   X.Distribute(&x);
-   return GetEnergy(X);
-}
-
 void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
-   const Operator *P = ParFESpace()->GetProlongationMatrix();
-
-   P->Mult(x, X);
-
-   NonlinearForm::Mult(X, Y);
+   NonlinearForm::Mult(x, y); // x --(P)--> aux1 --(A_local)--> aux2
+   Y.SetData(aux2.GetData()); // aux2 contains A_local.P.x
 
    if (fnfi.Size())
    {
@@ -75,6 +58,7 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
       Array<int> vdofs1, vdofs2;
       Vector el_x, el_y;
 
+      X.SetData(aux1.GetData()); // aux1 contains P.x
       X.ExchangeFaceNbrData();
       const int n_shared_faces = pmesh->GetNSharedFaces();
       for (int i = 0; i < n_shared_faces; i++)
@@ -100,13 +84,16 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
    }
 
    P->MultTranspose(Y, y);
+
+   for (int i = 0; i < ess_tdof_list.Size(); i++)
+   {
+      y(ess_tdof_list[i]) = 0.0;
+   }
 }
 
 const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
 {
-   X.Distribute(&x);
-
-   NonlinearForm::GetGradient(X); // (re)assemble Grad with b.c.
+   NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
 
    return *Grad;
 }
@@ -117,9 +104,7 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
 
    pGrad.Clear();
 
-   X.Distribute(&x);
-
-   NonlinearForm::GetGradient(X); // (re)assemble Grad with b.c.
+   NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
 
    OperatorHandle dA(pGrad.Type()), Ph(pGrad.Type());
 
@@ -137,7 +122,19 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
    Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
    pGrad.MakePtAP(dA, Ph);
 
+   // Impose b.c. on pGrad
+   OperatorHandle pGrad_e;
+   pGrad_e.EliminateRowsCols(pGrad, ess_tdof_list);
+
    return *pGrad.Ptr();
+}
+
+void ParNonlinearForm::Update()
+{
+   Y.MakeRef(ParFESpace(), NULL);
+   X.MakeRef(ParFESpace(), NULL);
+   pGrad.Clear();
+   NonlinearForm::Update();
 }
 
 }

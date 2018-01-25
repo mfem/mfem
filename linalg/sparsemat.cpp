@@ -203,6 +203,7 @@ void SparseMatrix::MakeRef(const SparseMatrix &master)
    I = master.I;
    J = master.J;
    A = master.A;
+   isSorted = master.isSorted;
 }
 
 void SparseMatrix::SetEmpty()
@@ -926,7 +927,7 @@ double SparseMatrix::IsSymmetric() const
 {
    if (height != width)
    {
-      return std::numeric_limits<double>::infinity();
+      return infinity();
    }
 
    double symm = 0.0;
