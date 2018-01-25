@@ -100,6 +100,7 @@ protected:
    bool own_T;
 
    long sequence; // should match Mesh::GetSequence
+   bool prefer_action_only; // see Update()
 
    void UpdateNURBS();
 
@@ -127,7 +128,7 @@ protected:
    {
       const FiniteElementSpace* fespace;
       DenseTensor localP;
-      Table* old_elem_dof; // owned
+      Table* old_elem_dof; // Owned.
 
    public:
       /** Construct the operator based on the elem_dof table of the original
@@ -138,8 +139,13 @@ protected:
       virtual ~RefinementOperator();
    };
 
-   void GetLocalDerefinementMatrices(
-      int geom, const CoarseFineTransformations &dt, DenseTensor &localR);
+   void GetLocalRefinementMatrices(DenseTensor &localP) const;
+   void GetLocalDerefinementMatrices(DenseTensor &localR) const;
+
+   /** Calculate explicit GridFunction interpolation matrix (after mesh
+       refinement). NOTE: consider using the RefinementOperator class instead
+       of the fully assembled matrix, which can take a lot of memory. */
+   SparseMatrix* RefinementMatrix(int old_ndofs, const Table* old_elem_dof);
 
    /// Calculate GridFunction restriction matrix after mesh derefinement.
    SparseMatrix* DerefinementMatrix(int old_ndofs, const Table* old_elem_dof);
@@ -378,13 +384,18 @@ public:
        Safe to call multiple times, does nothing if space already up to date. */
    virtual void Update(bool want_transform = true);
 
-   /// Get the GridFunction update matrix.
+   /// Get the GridFunction update operator.
    const Operator* GetUpdateOperator() { Update(); return T; }
 
    /** @brief Set the ownership of the update operator: if set to false, the
        Operator returned by GetUpdateOperator() must be deleted outside the
        FiniteElementSpace. */
    void SetUpdateOperatorOwner(bool own) { own_T = own; }
+
+   /** Set internal flag to prefer specialized GridFunction update operators
+       to explicit, fully assembled matrices. The default is 'true'. */
+   void PreferActionOnlyUpdateOperator(bool action_only)
+   { prefer_action_only = action_only; }
 
    /// Free GridFunction transformation matrix (if any), to save memory.
    virtual void UpdatesFinished() { if (own_T) { delete T; } T = NULL; }
