@@ -112,8 +112,8 @@ void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
 
    for (int d = 0; d < spaceDim; d++)
    {
-      min(d) = numeric_limits<double>::infinity();
-      max(d) = -numeric_limits<double>::infinity();
+      min(d) = infinity();
+      max(d) = -infinity();
    }
 
    if (Nodes == NULL)
@@ -183,7 +183,7 @@ void Mesh::GetCharacteristics(double &h_min, double &h_max,
    if (Vh) { Vh->SetSize(NumOfElements); }
    if (Vk) { Vk->SetSize(NumOfElements); }
 
-   h_min = kappa_min = numeric_limits<double>::infinity();
+   h_min = kappa_min = infinity();
    h_max = kappa_max = -h_min;
    if (dim == 0) { if (Vh) { *Vh = 1.0; } if (Vk) {*Vk = 1.0; } return; }
    J.SetSize(sdim, dim);
@@ -4594,14 +4594,8 @@ void Mesh::ReorientTetMesh()
 int *Mesh::CartesianPartitioning(int nxyz[])
 {
    int *partitioning;
-   double pmin[3] = { numeric_limits<double>::infinity(),
-                      numeric_limits<double>::infinity(),
-                      numeric_limits<double>::infinity()
-                    };
-   double pmax[3] = { -numeric_limits<double>::infinity(),
-                      -numeric_limits<double>::infinity(),
-                      -numeric_limits<double>::infinity()
-                    };
+   double pmin[3] = { infinity(), infinity(), infinity() };
+   double pmax[3] = { -infinity(), -infinity(), -infinity() };
    // find a bounding box using the vertices
    for (int vi = 0; vi < NumOfVertices; vi++)
    {

@@ -1010,6 +1010,68 @@ void hypre_CSRMatrixBooleanMatvec(hypre_CSRMatrix *A,
    /* alpha is true */
 }
 
+/* Based on hypre_CSRMatrixMatvecT in hypre's csr_matvec.c */
+void hypre_CSRMatrixBooleanMatvecT(hypre_CSRMatrix *A,
+                                   HYPRE_Bool alpha,
+                                   HYPRE_Bool *x,
+                                   HYPRE_Bool beta,
+                                   HYPRE_Bool *y)
+{
+   /* HYPRE_Complex    *A_data   = hypre_CSRMatrixData(A); */
+   HYPRE_Int        *A_i      = hypre_CSRMatrixI(A);
+   HYPRE_Int        *A_j      = hypre_CSRMatrixJ(A);
+   HYPRE_Int         num_rows = hypre_CSRMatrixNumRows(A);
+   HYPRE_Int         num_cols = hypre_CSRMatrixNumCols(A);
+
+   HYPRE_Bool       *x_data = x;
+   HYPRE_Bool       *y_data = y;
+
+   HYPRE_Int         i, j, jj;
+
+   /*-----------------------------------------------------------------------
+    * y = beta*y
+    *-----------------------------------------------------------------------*/
+
+   if (beta == 0)
+   {
+      for (i = 0; i < num_cols; i++)
+      {
+         y_data[i] = 0;
+      }
+   }
+   else
+   {
+      /* beta is true -> no change to y_data */
+   }
+
+   /*-----------------------------------------------------------------------
+    * Check if (alpha == 0)
+    *-----------------------------------------------------------------------*/
+
+   if (alpha == 0)
+   {
+      return;
+   }
+
+   /* alpha is true */
+
+   /*-----------------------------------------------------------------
+    * y += A^T*x
+    *-----------------------------------------------------------------*/
+   for (i = 0; i < num_rows; i++)
+   {
+      if (x_data[i] != 0)
+      {
+         for (jj = A_i[i]; jj < A_i[i+1]; jj++)
+         {
+            j = A_j[jj];
+            /* y_data[j] += A_data[jj] * x_data[i]; */
+            y_data[j] = 1;
+         }
+      }
+   }
+}
+
 /* Based on hypre_ParCSRCommHandleCreate in hypre's par_csr_communication.c. The
    input variable job controls the communication type: 1=Matvec, 2=MatvecT. */
 hypre_ParCSRCommHandle *
@@ -1155,6 +1217,85 @@ void hypre_ParCSRMatrixBooleanMatvec(hypre_ParCSRMatrix *A,
 
    hypre_TFree(x_buf);
    hypre_TFree(x_tmp);
+}
+
+/* Based on hypre_ParCSRMatrixMatvecT in par_csr_matvec.c */
+void hypre_ParCSRMatrixBooleanMatvecT(hypre_ParCSRMatrix *A,
+                                      HYPRE_Bool alpha,
+                                      HYPRE_Bool *x,
+                                      HYPRE_Bool beta,
+                                      HYPRE_Bool *y)
+{
+   hypre_ParCSRCommHandle *comm_handle;
+   hypre_ParCSRCommPkg    *comm_pkg = hypre_ParCSRMatrixCommPkg(A);
+   hypre_CSRMatrix        *diag = hypre_ParCSRMatrixDiag(A);
+   hypre_CSRMatrix        *offd = hypre_ParCSRMatrixOffd(A);
+   HYPRE_Bool             *y_tmp;
+   HYPRE_Bool             *y_buf;
+
+   HYPRE_Int               num_cols_offd = hypre_CSRMatrixNumCols(offd);
+
+   HYPRE_Int               i, j, jj, end, num_sends;
+
+   y_tmp = hypre_TAlloc(HYPRE_Bool, num_cols_offd);
+
+   /*---------------------------------------------------------------------
+    * If there exists no CommPkg for A, a CommPkg is generated using
+    * equally load balanced partitionings
+    *--------------------------------------------------------------------*/
+   if (!comm_pkg)
+   {
+      hypre_MatvecCommPkgCreate(A);
+      comm_pkg = hypre_ParCSRMatrixCommPkg(A);
+   }
+
+   num_sends = hypre_ParCSRCommPkgNumSends(comm_pkg);
+   y_buf = hypre_CTAlloc(HYPRE_Bool,
+                         hypre_ParCSRCommPkgSendMapStart(comm_pkg, num_sends));
+
+   if (num_cols_offd)
+   {
+#if MFEM_HYPRE_VERSION >= 21100
+      if (A->offdT)
+      {
+         // offdT is optional. Used only if it's present.
+         hypre_CSRMatrixBooleanMatvec(A->offdT, alpha, x, 0, y_tmp);
+      }
+      else
+#endif
+      {
+         hypre_CSRMatrixBooleanMatvecT(offd, alpha, x, 0, y_tmp);
+      }
+   }
+
+   comm_handle = hypre_ParCSRCommHandleCreate_bool(2, comm_pkg, y_tmp, y_buf);
+
+#if MFEM_HYPRE_VERSION >= 21100
+   if (A->diagT)
+   {
+      // diagT is optional. Used only if it's present.
+      hypre_CSRMatrixBooleanMatvec(A->diagT, alpha, x, beta, y);
+   }
+   else
+#endif
+   {
+      hypre_CSRMatrixBooleanMatvecT(diag, alpha, x, beta, y);
+   }
+
+   hypre_ParCSRCommHandleDestroy(comm_handle);
+
+   for (i = 0; i < num_sends; i++)
+   {
+      end = hypre_ParCSRCommPkgSendMapStart(comm_pkg, i+1);
+      for (j = hypre_ParCSRCommPkgSendMapStart(comm_pkg, i); j < end; j++)
+      {
+         jj = hypre_ParCSRCommPkgSendMapElmt(comm_pkg, j);
+         y[jj] = y[jj] || y_buf[j];
+      }
+   }
+
+   hypre_TFree(y_buf);
+   hypre_TFree(y_tmp);
 }
 
 HYPRE_Int
