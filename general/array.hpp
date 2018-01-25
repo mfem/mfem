@@ -171,6 +171,9 @@ public:
    /// Return the first index where 'el' is found; return -1 if not found
    inline int Find(const T &el) const;
 
+   /// Do bisection search for 'el' in a sorted array; return -1 if not found.
+   inline int FindSorted(const T &el) const;
+
    /// Delete the last entry
    inline void DeleteLast() { if (size > 0) { size--; } }
 
@@ -667,17 +670,26 @@ template <class T>
 inline int Array<T>::Find(const T &el) const
 {
    for (int i = 0; i < size; i++)
-      if (((T*)data)[i] == el)
-      {
-         return i;
-      }
+   {
+      if (((T*)data)[i] == el) { return i; }
+   }
    return -1;
+}
+
+template <class T>
+inline int Array<T>::FindSorted(const T &el) const
+{
+   const T *begin = (const T*) data, *end = begin + size;
+   const T* first = std::lower_bound(begin, end, el);
+   if (first == end || !(*first == el)) { return  -1; }
+   return first - begin;
 }
 
 template <class T>
 inline void Array<T>::DeleteFirst(const T &el)
 {
    for (int i = 0; i < size; i++)
+   {
       if (((T*)data)[i] == el)
       {
          for (i++; i < size; i++)
@@ -687,6 +699,7 @@ inline void Array<T>::DeleteFirst(const T &el)
          size--;
          return;
       }
+   }
 }
 
 template <class T>

@@ -36,6 +36,13 @@ Version 3.3.3 (development)
   NURBS meshes in the miniapps/nurbs directory. Currently the directory contains
   variable order NURBS versions of examples 1, 1p and 11p.
 
+More efficient parallel non-conforming AMR
+------------------------------------------
+- Significantly reduced MPI communication in the construction of the ParFinite-
+  ElementSpace leads to much improved parallel scaling of non-conforming AMR on
+  hundreds of thousands of MPI processes. Memory footprint of the ParNCMesh
+  class has also been reduced.
+
 New and improved solvers and preconditioners
 --------------------------------------------
 - Added symplectic integrators of orders 1-4 for systems of first order ODEs
