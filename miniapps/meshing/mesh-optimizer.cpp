@@ -69,9 +69,12 @@ class RelaxedNewtonSolver : public NewtonSolver
 private:
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
+   FiniteElementSpace *fes;
+   mutable GridFunction x_gf;
 
 public:
-   RelaxedNewtonSolver(const IntegrationRule &irule) : ir(irule) { }
+   RelaxedNewtonSolver(const IntegrationRule &irule, FiniteElementSpace *f)
+      : ir(irule), fes(f) { }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 };
@@ -82,7 +85,6 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
    MFEM_VERIFY(nlf != NULL, "invalid Operator subclass");
    const bool have_b = (b.Size() == Height());
-   const FiniteElementSpace *fes = nlf->FESpace();
 
    const int NE = fes->GetMesh()->GetNE(), dim = fes->GetFE(0)->GetDim(),
              dof = fes->GetFE(0)->GetDof(), nsp = ir.GetNPoints();
@@ -95,12 +97,15 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
    const double energy_in = nlf->GetEnergy(x);
    double scale = 1.0, energy_out;
    double norm0 = Norm(r);
+   x_gf.MakeTRef(fes, x_out, 0);
 
+   // Decreases the scaling of the update until the new mesh is valid.
    for (int i = 0; i < 12; i++)
    {
       add(x, -scale, c, x_out);
+      x_gf.SetFromTrueVector();
 
-      energy_out = nlf->GetEnergy(x_out);
+      energy_out = nlf->GetGridFunctionEnergy(x_gf);
       if (energy_out > 1.2*energy_in || isnan(energy_out) != 0)
       {
          if (print_level >= 0)
@@ -112,7 +117,7 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
       for (int i = 0; i < NE; i++)
       {
          fes->GetElementVDofs(i, xdofs);
-         x_out.GetSubVector(xdofs, posV);
+         x_gf.GetSubVector(xdofs, posV);
          for (int j = 0; j < nsp; j++)
          {
             fes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
@@ -159,9 +164,12 @@ class DescentNewtonSolver : public NewtonSolver
 private:
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
+   FiniteElementSpace *fes;
+   mutable GridFunction x_gf;
 
 public:
-   DescentNewtonSolver(const IntegrationRule &irule) : ir(irule) { }
+   DescentNewtonSolver(const IntegrationRule &irule, FiniteElementSpace *f)
+      : ir(irule), fes(f) { }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 };
@@ -171,7 +179,6 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
    MFEM_VERIFY(nlf != NULL, "invalid Operator subclass");
-   const FiniteElementSpace *fes = nlf->FESpace();
 
    const int NE = fes->GetMesh()->GetNE(), dim = fes->GetFE(0)->GetDim(),
              dof = fes->GetFE(0)->GetDof(), nsp = ir.GetNPoints();
@@ -179,11 +186,14 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
    DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
    Vector posV(pos.Data(), dof * dim);
 
-   double min_detJ = numeric_limits<double>::infinity();
+   x_gf.MakeTRef(fes, x.GetData());
+   x_gf.SetFromTrueVector();
+
+   double min_detJ = infinity();
    for (int i = 0; i < NE; i++)
    {
       fes->GetElementVDofs(i, xdofs);
-      x.GetSubVector(xdofs, posV);
+      x_gf.GetSubVector(xdofs, posV);
       for (int j = 0; j < nsp; j++)
       {
          fes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
@@ -195,7 +205,7 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    Vector x_out(x.Size());
    bool x_out_ok = false;
-   const double energy_in = nlf->GetEnergy(x);
+   const double energy_in = nlf->GetGridFunctionEnergy(x_gf);
    double scale = 1.0, energy_out;
 
    for (int i = 0; i < 7; i++)
@@ -353,7 +363,7 @@ int main (int argc, char *argv[])
    //    nodes. We index the nodes using the scalar version of the degrees of
    //    freedom in fespace.
    Vector h0(fespace->GetNDofs());
-   h0 = numeric_limits<double>::infinity();
+   h0 = infinity();
    Array<int> dofs;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
@@ -392,6 +402,9 @@ int main (int argc, char *argv[])
       for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
    }
    *x -= rdm;
+   // Set the perturbation of all nodes from the true nodes.
+   x->SetTrueVector();
+   x->SetFromTrueVector();
 
    // 9. Save the starting (prior to the optimization) mesh to a file. This
    //    output can be viewed later using GLVis: "glvis -m perturbed.mesh".
@@ -491,7 +504,7 @@ int main (int argc, char *argv[])
       a.AddDomainIntegrator(he_nlf_integ2);
    }
    else { a.AddDomainIntegrator(he_nlf_integ); }
-   const double init_en = a.GetEnergy(*x);
+   const double init_en = a.GetGridFunctionEnergy(*x);
    cout << "Initial strain energy: " << init_en << endl;
 
    // 15. Visualize the starting mesh and metric values.
@@ -580,7 +593,7 @@ int main (int argc, char *argv[])
    }
 
    // 18. Compute the minimum det(J) of the starting mesh.
-   tauval = numeric_limits<double>::infinity();
+   tauval = infinity();
    const int NE = mesh->GetNE();
    for (int i = 0; i < NE; i++)
    {
@@ -598,7 +611,7 @@ int main (int argc, char *argv[])
    if (tauval > 0.0)
    {
       tauval = 0.0;
-      newton = new RelaxedNewtonSolver(*ir);
+      newton = new RelaxedNewtonSolver(*ir, fespace);
       cout << "The RelaxedNewtonSolver is used (as all det(J)>0)." << endl;
    }
    else
@@ -610,7 +623,7 @@ int main (int argc, char *argv[])
          return 3;
       }
       tauval -= 0.01 * h0.Min(); // Slightly below minJ0 to avoid div by 0.
-      newton = new DescentNewtonSolver(*ir);
+      newton = new DescentNewtonSolver(*ir, fespace);
       cout << "The DescentNewtonSolver is used (as some det(J)<0)." << endl;
    }
    newton->SetPreconditioner(*S);
@@ -619,7 +632,8 @@ int main (int argc, char *argv[])
    newton->SetAbsTol(0.0);
    newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    newton->SetOperator(a);
-   newton->Mult(b, *x);
+   newton->Mult(b, x->GetTrueVector());
+   x->SetFromTrueVector();
    if (newton->GetConverged() == false)
    {
       cout << "NewtonIteration: rtol = " << newton_rtol << " not achieved."
@@ -636,7 +650,7 @@ int main (int argc, char *argv[])
    }
 
    // 21. Compute the amount of energy decrease.
-   const double fin_en = a.GetEnergy(*x);
+   const double fin_en = a.GetGridFunctionEnergy(*x);
    cout << "Final strain energy : " << fin_en << endl;
    cout << "The strain energy decreased by: " << setprecision(12)
         << (init_en - fin_en) * 100.0 / init_en << " %." << endl;
