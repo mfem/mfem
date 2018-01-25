@@ -38,7 +38,9 @@ protected:
     */
    const int *blockOffsets;
    //! array of Vector objects used to extract blocks without allocating memory.
-   Array<Vector *> tmp_block;
+   Vector *blocks;
+
+   void SetBlocks();
 
 public:
    //! empty constructor
@@ -72,9 +74,9 @@ public:
    ~BlockVector();
 
    //! Get the i-th vector in the block.
-   Vector & GetBlock(int i);
+   Vector & GetBlock(int i) { return blocks[i]; }
    //! Get the i-th vector in the block (const version).
-   const Vector & GetBlock(int i) const;
+   const Vector & GetBlock(int i) const { return blocks[i]; }
 
    //! Get the i-th vector in the block
    void GetBlockView(int i, Vector & blockView);
@@ -89,6 +91,12 @@ public:
     * nBlocks is the number of blocks.
     */
    void Update(double *data, const Array<int> & bOffsets);
+
+   /// Update a BlockVector with new @a bOffsets and make sure it owns its data.
+   /** The block-vector will be re-allocated if either:
+       - the offsets @a bOffsets are different from the current offsets, or
+       - currently, the block-vector does not own its data. */
+   void Update(const Array<int> &bOffsets);
 };
 
 }

@@ -83,8 +83,8 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    // Define compatible parallel finite element spaces on the parallel
    // mesh. Here we use arbitrary order H1, Nedelec, and Raviart-Thomas finite
    // elements.
-   HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
-   HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
+   HCurlFESpace_ = new ND_ParFESpace(pmesh_,order_,pmesh_->Dimension());
+   HDivFESpace_  = new RT_ParFESpace(pmesh_,order_,pmesh_->Dimension());
 
    this->height = HCurlFESpace_->GlobalTrueVSize();
    this->width  = HDivFESpace_->GlobalTrueVSize();

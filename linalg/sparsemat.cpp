@@ -1141,22 +1141,27 @@ void SparseMatrix::EliminateCol(int col, DiagonalPolicy dpolicy)
 
    if (Rows == NULL)
    {
-      for (int i = 0; i < height; i++)
-         for (int jpos = I[i]; jpos != I[i+1]; ++jpos)
-            if (J[jpos] == col)
-            {
-               A[jpos] = 0.0;
-            }
+      const int nnz = I[height];
+      for (int jpos = 0; jpos != nnz; ++jpos)
+      {
+         if (J[jpos] == col)
+         {
+            A[jpos] = 0.0;
+         }
+      }
    }
    else
    {
-      RowNode *aux;
       for (int i = 0; i < height; i++)
-         for (aux = Rows[i]; aux != NULL; aux = aux->Prev)
-            if (aux -> Column == col)
+      {
+         for (RowNode *aux = Rows[i]; aux != NULL; aux = aux->Prev)
+         {
+            if (aux->Column == col)
             {
                aux->Value = 0.0;
             }
+         }
+      }
    }
 
    if (dpolicy == DIAG_ONE)

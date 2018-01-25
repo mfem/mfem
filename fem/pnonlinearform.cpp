@@ -137,6 +137,215 @@ void ParNonlinearForm::Update()
    NonlinearForm::Update();
 }
 
+
+ParBlockNonlinearForm::ParBlockNonlinearForm(Array<ParFiniteElementSpace *> &pf)
+   : BlockNonlinearForm()
+{
+   pBlockGrad = NULL;
+   SetParSpaces(pf);
+}
+
+void ParBlockNonlinearForm::SetParSpaces(Array<ParFiniteElementSpace *> &pf)
+{
+   delete pBlockGrad;
+   pBlockGrad = NULL;
+
+   for (int s1=0; s1<fes.Size(); ++s1)
+   {
+      for (int s2=0; s2<fes.Size(); ++s2)
+      {
+         delete phBlockGrad(s1,s2);
+      }
+   }
+
+   Array<FiniteElementSpace *> serialSpaces(pf.Size());
+
+   for (int s=0; s<pf.Size(); s++)
+   {
+      serialSpaces[s] = (FiniteElementSpace *) pf[s];
+   }
+
+   SetSpaces(serialSpaces);
+
+   phBlockGrad.SetSize(fes.Size(), fes.Size());
+
+   for (int s1=0; s1<fes.Size(); ++s1)
+   {
+      for (int s2=0; s2<fes.Size(); ++s2)
+      {
+         phBlockGrad(s1,s2) = new OperatorHandle(Operator::Hypre_ParCSR);
+      }
+   }
+}
+
+ParFiniteElementSpace * ParBlockNonlinearForm::ParFESpace(int k)
+{
+   return (ParFiniteElementSpace *)fes[k];
+}
+
+const ParFiniteElementSpace *ParBlockNonlinearForm::ParFESpace(int k) const
+{
+   return (const ParFiniteElementSpace *)fes[k];
+}
+
+// Here, rhs is a true dof vector
+void ParBlockNonlinearForm::SetEssentialBC(const
+                                           Array<Array<int> *>&bdr_attr_is_ess,
+                                           Array<Vector *> &rhs)
+{
+   Array<Vector *> nullarray(fes.Size());
+   nullarray = NULL;
+
+   BlockNonlinearForm::SetEssentialBC(bdr_attr_is_ess, nullarray);
+
+   for (int s=0; s<fes.Size(); ++s)
+   {
+      if (rhs[s])
+      {
+         ParFiniteElementSpace *pfes = ParFESpace(s);
+         for (int i=0; i < ess_vdofs[s]->Size(); ++i)
+         {
+            int tdof = pfes->GetLocalTDofNumber((*(ess_vdofs[s]))[i]);
+            if (tdof >= 0)
+            {
+               (*rhs[s])(tdof) = 0.0;
+            }
+         }
+      }
+   }
+}
+
+void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
+{
+   xs_true.Update(x.GetData(), block_trueOffsets);
+   ys_true.Update(y.GetData(), block_trueOffsets);
+   xs.Update(block_offsets);
+   ys.Update(block_offsets);
+
+   for (int s=0; s<fes.Size(); ++s)
+   {
+      fes[s]->GetProlongationMatrix()->Mult(
+         xs_true.GetBlock(s), xs.GetBlock(s));
+   }
+
+   BlockNonlinearForm::MultBlocked(xs, ys);
+
+   if (fnfi.Size() > 0)
+   {
+      MFEM_ABORT("TODO: assemble contributions from shared face terms");
+   }
+
+   for (int s=0; s<fes.Size(); ++s)
+   {
+      fes[s]->GetProlongationMatrix()->MultTranspose(
+         ys.GetBlock(s), ys_true.GetBlock(s));
+   }
+}
+
+/// Return the local gradient matrix for the given true-dof vector x
+const BlockOperator & ParBlockNonlinearForm::GetLocalGradient(
+   const Vector &x) const
+{
+   xs_true.Update(x.GetData(), block_trueOffsets);
+   xs.Update(block_offsets);
+
+   for (int s=0; s<fes.Size(); ++s)
+   {
+      fes[s]->GetProlongationMatrix()->Mult(
+         xs_true.GetBlock(s), xs.GetBlock(s));
+   }
+
+   BlockNonlinearForm::GetGradientBlocked(xs); // (re)assemble Grad with b.c.
+
+   return *BlockGrad;
+}
+
+// Set the operator type id for the parallel gradient matrix/operator.
+void ParBlockNonlinearForm::SetGradientType(Operator::Type tid)
+{
+   for (int s1=0; s1<fes.Size(); ++s1)
+   {
+      for (int s2=0; s2<fes.Size(); ++s2)
+      {
+         phBlockGrad(s1,s2)->SetType(tid);
+      }
+   }
+}
+
+BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
+{
+   if (pBlockGrad == NULL)
+   {
+      pBlockGrad = new BlockOperator(block_trueOffsets);
+   }
+
+   Array<const ParFiniteElementSpace *> pfes(fes.Size());
+
+   for (int s1=0; s1<fes.Size(); ++s1)
+   {
+      pfes[s1] = ParFESpace(s1);
+
+      for (int s2=0; s2<fes.Size(); ++s2)
+      {
+         phBlockGrad(s1,s2)->Clear();
+      }
+   }
+
+   GetLocalGradient(x); // gradients are stored in 'Grads'
+
+   if (fnfi.Size() > 0)
+   {
+      MFEM_ABORT("TODO: assemble contributions from shared face terms");
+   }
+
+   for (int s1=0; s1<fes.Size(); ++s1)
+   {
+      for (int s2=0; s2<fes.Size(); ++s2)
+      {
+         OperatorHandle dA(phBlockGrad(s1,s2)->Type()),
+                        Ph(phBlockGrad(s1,s2)->Type()),
+                        Rh(phBlockGrad(s1,s2)->Type());
+
+         if (s1 == s2)
+         {
+            dA.MakeSquareBlockDiag(pfes[s1]->GetComm(), pfes[s1]->GlobalVSize(),
+                                   pfes[s1]->GetDofOffsets(), Grads(s1,s1));
+            Ph.ConvertFrom(pfes[s1]->Dof_TrueDof_Matrix());
+            phBlockGrad(s1,s1)->MakePtAP(dA, Ph);
+         }
+         else
+         {
+            dA.MakeRectangularBlockDiag(pfes[s1]->GetComm(),
+                                        pfes[s1]->GlobalVSize(),
+                                        pfes[s2]->GlobalVSize(),
+                                        pfes[s1]->GetDofOffsets(),
+                                        pfes[s2]->GetDofOffsets(),
+                                        Grads(s1,s2));
+            Rh.ConvertFrom(pfes[s1]->Dof_TrueDof_Matrix());
+            Ph.ConvertFrom(pfes[s2]->Dof_TrueDof_Matrix());
+
+            phBlockGrad(s1,s2)->MakeRAP(Rh, dA, Ph);
+         }
+
+         pBlockGrad->SetBlock(s1, s2, phBlockGrad(s1,s2)->Ptr());
+      }
+   }
+
+   return *pBlockGrad;
+}
+
+ParBlockNonlinearForm::~ParBlockNonlinearForm()
+{
+   delete pBlockGrad;
+   for (int s1=0; s1<fes.Size(); ++s1)
+   {
+      for (int s2=0; s2<fes.Size(); ++s2)
+      {
+         delete phBlockGrad(s1,s2);
+      }
+   }
+}
+
 }
 
 #endif
