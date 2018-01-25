@@ -115,13 +115,17 @@ protected:
 
    void BuildElementToDofTable() const;
 
-   /** This is a helper function to get edge (type == 0) or face (type == 1)
-       DOFs. The function is aware of ghost edges/faces in parallel, for which
-       an empty DOF list is returned. */
-   void GetEdgeFaceDofs(int type, int index, Array<int> &dofs) const;
+   /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
+   void GetEntityDofs(int entity, int index, Array<int> &dofs) const;
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
-   void GetConformingInterpolation() const;
+   void BuildConformingInterpolation() const;
+
+   static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
+                               Array<int>& slave_dofs, DenseMatrix& I);
+
+   static bool DofFinalizable(int dof, const Array<bool>& finalized,
+                              const SparseMatrix& deps);
 
    void MakeVDimMatrix(SparseMatrix &mat) const;
 
@@ -225,11 +229,17 @@ public:
    int GetNEDofs() const { return nedofs; }
    int GetNFDofs() const { return nfdofs; }
 
+   /// Returns number of vertices in the mesh.
+   inline int GetNV() const { return mesh->GetNV(); }
+
    /// Returns number of elements in the mesh.
    inline int GetNE() const { return mesh->GetNE(); }
 
-   /// Returns number of nodes in the mesh.
-   inline int GetNV() const { return mesh->GetNV(); }
+   /// Returns number of faces (i.e. co-dimension 1 entities) in the mesh.
+   /** The co-dimension 1 entities are those that have dimension 1 less than the
+       mesh dimension, e.g. for a 2D mesh, the faces are the 1D entities, i.e.
+       the edges. */
+   inline int GetNF() const { return mesh->GetNumFaces(); }
 
    /// Returns number of boundary elements in the mesh.
    inline int GetNBE() const { return mesh->GetNBE(); }
@@ -246,16 +256,16 @@ public:
    inline int GetBdrElementType(int i) const
    { return mesh->GetBdrElementType(i); }
 
-   /// Returns ElementTransformation for the i'th element.
+   /// Returns ElementTransformation for the @a i-th element.
    ElementTransformation *GetElementTransformation(int i) const
    { return mesh->GetElementTransformation(i); }
 
-   /** Returns the transformation defining the i-th element in the user-defined
-       variable. */
+   /** @brief Returns the transformation defining the @a i-th element in the
+       user-defined variable @a ElTr. */
    void GetElementTransformation(int i, IsoparametricTransformation *ElTr)
    { mesh->GetElementTransformation(i, ElTr); }
 
-   /// Returns ElementTransformation for the i'th boundary element.
+   /// Returns ElementTransformation for the @a i-th boundary element.
    ElementTransformation *GetBdrElementTransformation(int i) const
    { return mesh->GetBdrElementTransformation(i); }
 
