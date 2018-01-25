@@ -42,10 +42,35 @@ New and updated examples and miniapps
   NURBS meshes in the miniapps/nurbs directory. Currently the directory contains
   variable order NURBS versions of examples 1, 1p and 11p.
 
+- In the classes NonlinearForm and ParNonlinearForm, added support for
+  non-conforming AMR meshes; see also the "API changes" section.
+
+More efficient parallel non-conforming AMR
+------------------------------------------
+- Significantly reduced MPI communication in the construction of the ParFinite-
+  ElementSpace leads to much improved parallel scaling of non-conforming AMR on
+  hundreds of thousands of MPI processes. Memory footprint of the ParNCMesh
+  class has also been reduced.
+
 New and improved solvers and preconditioners
 --------------------------------------------
 - Added symplectic integrators of orders 1-4 for systems of first order ODEs
   derived from a Hamiltonian, see class SIASolver in linalg/ode.hpp.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added a new electromagnetics miniapp, Maxwell, for simulating time-domain
+  electromagnetics phenomena as a coupled first order system of equations.
+
+- Example 10p with its SUNDIALS and PETSc versions have been updated to reflect
+  the change in the behavior of the method ParNonlinearForm::GetLocalGradient()
+  (see the "API changes" section) and now should work correctly on
+  non-conforming AMR meshes. Example 10 and its SUNDIALS version have also been
+  updated to support non-conforming ARM meshes.
+
+- A simple local refinement option has been added to the mesh-explorer miniapp
+  (menu option 'r', sub-option 'l') that selects elements for refinement based
+  on their spatial location - see the function 'region()' in the source file.
 
 Miscellaneous
 -------------
@@ -64,6 +89,9 @@ Miscellaneous
 
 - Upgraded MFEM to support Axom 0.2.8. Prior versions are no longer supported.
 
+- Documented project workflow and provided contribution guidelines in the new
+  top-level file, CONTRIBUTING.md.
+
 API changes
 -----------
 - Introduced a new enum, Matrix::DiagonalPolicy, that replaces the integer
@@ -79,6 +107,13 @@ API changes
 - Modified the virtual method AbstractSparseMatrix::EliminateZeroRows() and its
   implementations in derived classes, to accept an optional 'threshold'
   parameter, replacing previously hard-coded threshold values.
+
+- In the classes NonlinearForm and ParNonlinearForm:
+  * The method GetLocalGradient() no longer imposes boundary conditions. The
+    motivation for the change is that, in the case of non-conforming AMR,
+    performing the elimination at the local level is incorrect - it must be
+    applied at the true-dof level.
+  * The method SetEssentialVDofs() is now depreacated.
 
 
 Version 3.3.2, released on Nov 10, 2017

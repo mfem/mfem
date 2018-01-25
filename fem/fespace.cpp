@@ -522,8 +522,9 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
    return R;
 }
 
-static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
-                            Array<int>& slave_dofs, DenseMatrix& I)
+void
+FiniteElementSpace::AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
+                                    Array<int>& slave_dofs, DenseMatrix& I)
 {
    for (int i = 0; i < slave_dofs.Size(); i++)
    {
@@ -546,8 +547,8 @@ static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
    }
 }
 
-static bool DofFinalizable(int dof, const Array<bool>& finalized,
-                           const SparseMatrix& deps)
+bool FiniteElementSpace::DofFinalizable(int dof, const Array<bool>& finalized,
+                                        const SparseMatrix& deps)
 {
    const int* dep = deps.GetRowColumns(dof);
    int ndep = deps.RowSize(dof);
@@ -560,29 +561,25 @@ static bool DofFinalizable(int dof, const Array<bool>& finalized,
    return true;
 }
 
-/** This is a helper function to get edge (type == 0) or face (type == 1) DOFs.
-    The function is aware of ghost edges/faces in parallel, for which an empty
-    DOF list is returned. */
-void FiniteElementSpace::GetEdgeFaceDofs(int type, int index, Array<int> &dofs)
-const
+void
+FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs) const
 {
-   dofs.SetSize(0);
-   if (type)
+   switch (entity)
    {
-      if (index < mesh->GetNFaces()) { GetFaceDofs(index, dofs); }
-   }
-   else
-   {
-      if (index < mesh->GetNEdges()) { GetEdgeDofs(index, dofs); }
+      case 0: GetVertexDofs(index, dofs); break;
+      case 1: GetEdgeDofs(index, dofs); break;
+      case 2: GetFaceDofs(index, dofs); break;
    }
 }
 
-void FiniteElementSpace::GetConformingInterpolation() const
+
+void FiniteElementSpace::BuildConformingInterpolation() const
 {
 #ifdef MFEM_USE_MPI
    MFEM_VERIFY(dynamic_cast<const ParFiniteElementSpace*>(this) == NULL,
                "This method should not be used with a ParFiniteElementSpace!");
 #endif
+
    if (cP_is_set) { return; }
    cP_is_set = true;
 
@@ -592,17 +589,17 @@ void FiniteElementSpace::GetConformingInterpolation() const
    SparseMatrix deps(ndofs);
 
    // collect local edge/face dependencies
-   for (int type = 0; type <= 1; type++)
+   for (int entity = 1; entity <= 2; entity++)
    {
-      const NCMesh::NCList &list = type ? mesh->ncmesh->GetFaceList()
-                                   /**/ : mesh->ncmesh->GetEdgeList();
+      const NCMesh::NCList &list = (entity > 1) ? mesh->ncmesh->GetFaceList()
+                                   /*        */ : mesh->ncmesh->GetEdgeList();
       if (!list.masters.size()) { continue; }
 
       IsoparametricTransformation T;
-      if (type) { T.SetFE(&QuadrilateralFE); }
+      if (entity > 1) { T.SetFE(&QuadrilateralFE); }
       else { T.SetFE(&SegmentFE); }
 
-      int geom = type ? Geometry::SQUARE : Geometry::SEGMENT;
+      int geom = (entity > 1) ? Geometry::SQUARE : Geometry::SEGMENT;
       const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
       if (!fe) { continue; }
 
@@ -613,13 +610,13 @@ void FiniteElementSpace::GetConformingInterpolation() const
       for (unsigned mi = 0; mi < list.masters.size(); mi++)
       {
          const NCMesh::Master &master = list.masters[mi];
-         GetEdgeFaceDofs(type, master.index, master_dofs);
+         GetEntityDofs(entity, master.index, master_dofs);
          if (!master_dofs.Size()) { continue; }
 
          for (int si = master.slaves_begin; si < master.slaves_end; si++)
          {
             const NCMesh::Slave &slave = list.slaves[si];
-            GetEdgeFaceDofs(type, slave.index, slave_dofs);
+            GetEntityDofs(entity, slave.index, slave_dofs);
             if (!slave_dofs.Size()) { continue; }
 
             slave.OrientedPointMatrix(T.GetPointMat());
@@ -763,14 +760,14 @@ void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
 const SparseMatrix* FiniteElementSpace::GetConformingProlongation() const
 {
    if (Conforming()) { return NULL; }
-   if (!cP_is_set) { GetConformingInterpolation(); }
+   if (!cP_is_set) { BuildConformingInterpolation(); }
    return cP;
 }
 
 const SparseMatrix* FiniteElementSpace::GetConformingRestriction() const
 {
    if (Conforming()) { return NULL; }
-   if (!cP_is_set) { GetConformingInterpolation(); }
+   if (!cP_is_set) { BuildConformingInterpolation(); }
    return cR;
 }
 
@@ -885,7 +882,7 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(
    for (int i = 0; i < nmat; i++)
    {
       DenseMatrix &lR = localR(i);
-      lR = numeric_limits<double>::infinity(); // marks invalid rows
+      lR = infinity(); // marks invalid rows
 
       isotr.GetPointMat() = dt.point_matrices(i);
       isotr.FinalizeTransformation();
@@ -905,6 +902,7 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(
             lR.SetRow(j, shape);
          }
       }
+      lR.Threshold(1e-12);
    }
 }
 
@@ -946,7 +944,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
          for (int i = 0; i < lR.Height(); i++)
          {
-            if (lR(i, 0) == numeric_limits<double>::infinity()) { continue; }
+            if (lR(i, 0) == infinity()) { continue; }
 
             int r = DofToVDof(dofs[i], vd);
             int m = (r >= 0) ? r : (-1 - r);
@@ -1581,7 +1579,7 @@ void FiniteElementSpace::Update(bool want_transform)
 
          case Mesh::DEREFINE:
          {
-            GetConformingInterpolation();
+            BuildConformingInterpolation();
             T = DerefinementMatrix(old_ndofs, old_elem_dof);
             if (cP && cR)
             {

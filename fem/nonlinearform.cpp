@@ -17,35 +17,49 @@ namespace mfem
 void NonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
                                    Vector *rhs)
 {
-   int i, j, vsize, nv;
-   vsize = fes->GetVSize();
-   Array<int> vdof_marker(vsize);
-
    // virtual call, works in parallel too
-   fes->GetEssentialVDofs(bdr_attr_is_ess, vdof_marker);
-   nv = 0;
-   for (i = 0; i < vsize; i++)
-      if (vdof_marker[i])
-      {
-         nv++;
-      }
-
-   ess_vdofs.SetSize(nv);
-
-   for (i = j = 0; i < vsize; i++)
-      if (vdof_marker[i])
-      {
-         ess_vdofs[j++] = i;
-      }
+   fes->GetEssentialTrueDofs(bdr_attr_is_ess, ess_tdof_list);
 
    if (rhs)
-      for (i = 0; i < nv; i++)
+   {
+      for (int i = 0; i < ess_tdof_list.Size(); i++)
       {
-         (*rhs)(ess_vdofs[i]) = 0.0;
+         (*rhs)(ess_tdof_list[i]) = 0.0;
       }
+   }
 }
 
-double NonlinearForm::GetEnergy(const Vector &x) const
+void NonlinearForm::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
+{
+   if (!P)
+   {
+      ess_vdofs_list.Copy(ess_tdof_list); // ess_vdofs_list --> ess_tdof_list
+   }
+   else
+   {
+      Array<int> ess_vdof_marker, ess_tdof_marker;
+      FiniteElementSpace::ListToMarker(ess_vdofs_list, fes->GetVSize(),
+                                       ess_vdof_marker);
+      if (Serial())
+      {
+         fes->ConvertToConformingVDofs(ess_vdof_marker, ess_tdof_marker);
+      }
+      else
+      {
+#ifdef MFEM_USE_MPI
+         ParFiniteElementSpace *pf = dynamic_cast<ParFiniteElementSpace*>(fes);
+         ess_tdof_marker.SetSize(pf->GetTrueVSize());
+         pf->Dof_TrueDof_Matrix()->BooleanMultTranspose(1, ess_vdof_marker,
+                                                        0, ess_tdof_marker);
+#else
+         MFEM_ABORT("internal MFEM error");
+#endif
+      }
+      FiniteElementSpace::MarkerToList(ess_tdof_marker, ess_tdof_list);
+   }
+}
+
+double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 {
    Array<int> vdofs;
    Vector el_x;
@@ -54,6 +68,7 @@ double NonlinearForm::GetEnergy(const Vector &x) const
    double energy = 0.0;
 
    if (dnfi.Size())
+   {
       for (int i = 0; i < fes->GetNE(); i++)
       {
          fe = fes->GetFE(i);
@@ -65,6 +80,7 @@ double NonlinearForm::GetEnergy(const Vector &x) const
             energy += dnfi[k]->GetElementEnergy(*fe, *T, el_x);
          }
       }
+   }
 
    if (fnfi.Size())
    {
@@ -79,6 +95,18 @@ double NonlinearForm::GetEnergy(const Vector &x) const
    return energy;
 }
 
+const Vector &NonlinearForm::Prolongate(const Vector &x) const
+{
+   MFEM_VERIFY(x.Size() == Width(), "invalid input Vector size");
+   if (P)
+   {
+      aux1.SetSize(P->Height());
+      P->Mult(x, aux1);
+      return aux1;
+   }
+   return x;
+}
+
 void NonlinearForm::Mult(const Vector &x, Vector &y) const
 {
    Array<int> vdofs;
@@ -86,8 +114,10 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    const FiniteElement *fe;
    ElementTransformation *T;
    Mesh *mesh = fes->GetMesh();
+   const Vector &px = Prolongate(x);
+   Vector &py = P ? aux2.SetSize(P->Height()), aux2 : y;
 
-   y = 0.0;
+   py = 0.0;
 
    if (dnfi.Size())
    {
@@ -96,11 +126,11 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
          fe = fes->GetFE(i);
          fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
-         x.GetSubVector(vdofs, el_x);
+         px.GetSubVector(vdofs, el_x);
          for (int k = 0; k < dnfi.Size(); k++)
          {
             dnfi[k]->AssembleElementVector(*fe, *T, el_x, el_y);
-            y.AddElementVector(vdofs, el_y);
+            py.AddElementVector(vdofs, el_y);
          }
       }
    }
@@ -120,7 +150,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
             fes->GetElementVDofs(tr->Elem2No, vdofs2);
             vdofs.Append (vdofs2);
 
-            x.GetSubVector(vdofs, el_x);
+            px.GetSubVector(vdofs, el_x);
 
             fe1 = fes->GetFE(tr->Elem1No);
             fe2 = fes->GetFE(tr->Elem2No);
@@ -128,7 +158,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
             for (int k = 0; k < fnfi.Size(); k++)
             {
                fnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
-               y.AddElementVector(vdofs, el_y);
+               py.AddElementVector(vdofs, el_y);
             }
          }
       }
@@ -169,7 +199,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
          if (tr != NULL)
          {
             fes->GetElementVDofs(tr->Elem1No, vdofs);
-            x.GetSubVector(vdofs, el_x);
+            px.GetSubVector(vdofs, el_x);
 
             fe1 = fes->GetFE(tr->Elem1No);
             // The fe2 object is really a dummy and not used on the boundaries,
@@ -182,17 +212,22 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
                    (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
 
                bfnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
-               y.AddElementVector(vdofs, el_y);
+               py.AddElementVector(vdofs, el_y);
             }
          }
       }
    }
 
-   for (int i = 0; i < ess_vdofs.Size(); i++)
+   if (Serial())
    {
-      y(ess_vdofs[i]) = 0.0;
+      if (cP) { cP->MultTranspose(py, y); }
+
+      for (int i = 0; i < ess_tdof_list.Size(); i++)
+      {
+         y(ess_tdof_list[i]) = 0.0;
+      }
+      // y(ess_tdof_list[i]) = x(ess_tdof_list[i]);
    }
-   // y(ess_vdofs[i]) = x(ess_vdofs[i]);
 }
 
 Operator &NonlinearForm::GetGradient(const Vector &x) const
@@ -204,6 +239,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    const FiniteElement *fe;
    ElementTransformation *T;
    Mesh *mesh = fes->GetMesh();
+   const Vector &px = Prolongate(x);
 
    if (Grad == NULL)
    {
@@ -221,7 +257,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
          fe = fes->GetFE(i);
          fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
-         x.GetSubVector(vdofs, el_x);
+         px.GetSubVector(vdofs, el_x);
          for (int k = 0; k < dnfi.Size(); k++)
          {
             dnfi[k]->AssembleElementGrad(*fe, *T, el_x, elmat);
@@ -246,7 +282,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
             fes->GetElementVDofs(tr->Elem2No, vdofs2);
             vdofs.Append (vdofs2);
 
-            x.GetSubVector(vdofs, el_x);
+            px.GetSubVector(vdofs, el_x);
 
             fe1 = fes->GetFE(tr->Elem1No);
             fe2 = fes->GetFE(tr->Elem2No);
@@ -295,7 +331,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
          if (tr != NULL)
          {
             fes->GetElementVDofs(tr->Elem1No, vdofs);
-            x.GetSubVector(vdofs, el_x);
+            px.GetSubVector(vdofs, el_x);
 
             fe1 = fes->GetFE(tr->Elem1No);
             // The fe2 object is really a dummy and not used on the boundaries,
@@ -314,21 +350,46 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
       }
    }
 
-   for (int i = 0; i < ess_vdofs.Size(); i++)
-   {
-      Grad->EliminateRowCol(ess_vdofs[i]);
-   }
-
    if (!Grad->Finalized())
    {
       Grad->Finalize(skip_zeros);
    }
 
-   return *Grad;
+   SparseMatrix *mGrad = Grad;
+   if (Serial())
+   {
+      if (cP)
+      {
+         delete cGrad;
+         cGrad = RAP(*cP, *Grad, *cP);
+         mGrad = cGrad;
+      }
+      for (int i = 0; i < ess_tdof_list.Size(); i++)
+      {
+         mGrad->EliminateRowCol(ess_tdof_list[i]);
+      }
+   }
+
+   return *mGrad;
+}
+
+void NonlinearForm::Update()
+{
+   if (sequence == fes->GetSequence()) { return; }
+
+   height = width = fes->GetTrueVSize();
+   delete cGrad; cGrad = NULL;
+   delete Grad; Grad = NULL;
+   ess_tdof_list.SetSize(0); // essential b.c. will need to be set again
+   sequence = fes->GetSequence();
+   // Do not modify aux1 and aux2, their size will be set before use.
+   P = fes->GetProlongationMatrix();
+   cP = dynamic_cast<const SparseMatrix*>(P);
 }
 
 NonlinearForm::~NonlinearForm()
 {
+   delete cGrad;
    delete Grad;
    for (int i = 0; i <  dnfi.Size(); i++) { delete  dnfi[i]; }
    for (int i = 0; i <  fnfi.Size(); i++) { delete  fnfi[i]; }
