@@ -2072,7 +2072,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    }
 
    DenseTensor localR;
-   GetLocalDerefinementMatrices(geom, dtrans, localR);
+   GetLocalDerefinementMatrices(localR);
 
    // create the diagonal part of the derefinement matrix
    SparseMatrix *diag = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
@@ -2275,8 +2275,17 @@ void ParFiniteElementSpace::Update(bool want_transform)
       {
          case Mesh::REFINE:
          {
-            T = new RefinementOperator(this, old_elem_dof, old_ndofs);
-            // T takes ownership of 'old_elem_dofs'
+            if (prefer_action_only)
+            {
+               T = new RefinementOperator(this, old_elem_dof, old_ndofs);
+               // T takes ownership of 'old_elem_dofs', we no longer own it
+               old_elem_dof = NULL;
+            }
+            else
+            {
+               // calculate fully assembled matrix
+               T = RefinementMatrix(old_ndofs, old_elem_dof);
+            }
             break;
          }
 
@@ -2287,21 +2296,20 @@ void ParFiniteElementSpace::Update(bool want_transform)
             {
                T = new TripleProductOperator(P, R, T, false, false, true);
             }
-            delete old_elem_dof;
             break;
          }
 
          case Mesh::REBALANCE:
          {
             T = RebalanceMatrix(old_ndofs, old_elem_dof);
-            delete old_elem_dof;
             break;
          }
 
          default:
-            delete old_elem_dof;
-            break; // T stays NULL
+            break;
       }
+
+      delete old_elem_dof;
    }
 }
 
