@@ -39,6 +39,13 @@ Version 3.3.3 (development)
 - In the classes NonlinearForm and ParNonlinearForm, added support for
   non-conforming AMR meshes; see also the "API changes" section.
 
+More efficient parallel non-conforming AMR
+------------------------------------------
+- Significantly reduced MPI communication in the construction of the ParFinite-
+  ElementSpace leads to much improved parallel scaling of non-conforming AMR on
+  hundreds of thousands of MPI processes. Memory footprint of the ParNCMesh
+  class has also been reduced.
+
 New and improved solvers and preconditioners
 --------------------------------------------
 - Added symplectic integrators of orders 1-4 for systems of first order ODEs
@@ -64,6 +71,9 @@ Miscellaneous
 - Upgraded MFEM to support Axom 0.2.8. Prior versions are no longer supported.
 
 - Add support for building a shared version of the MFEM library with GNU make.
+
+- Documented project workflow and provided contribution guidelines in the new
+  top-level file, CONTRIBUTING.md.
 
 API changes (that may affect existing code)
 -----------
