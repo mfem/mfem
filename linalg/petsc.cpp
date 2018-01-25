@@ -2357,7 +2357,7 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
       bool      edgespace, rtspace;
       bool      needint = false;
       bool      tracespace, rt_tracespace, edge_tracespace;
-      int       dim , p;
+      int       dim, p;
       PetscBool B_is_Trans = PETSC_FALSE;
 
       ParMesh *pmesh = (ParMesh *) fespace->GetMesh();

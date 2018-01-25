@@ -24,9 +24,6 @@
 namespace mfem
 {
 
-class ConformingProlongationOperator;
-
-
 /// Abstract parallel finite element space.
 class ParFiniteElementSpace : public FiniteElementSpace
 {
@@ -35,14 +32,20 @@ private:
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
-   /// Parallel mesh; not owned.
+   /// Parallel mesh; #mesh points to this object as well. Not owned.
    ParMesh *pmesh;
+   /** Parallel non-conforming mesh extension object; same as pmesh->pncmesh.
+       Not owned. */
+   ParNCMesh *pncmesh;
 
-   /// GroupCommunicator on the local VDofs; owned.
+   /// GroupCommunicator on the local VDofs. Owned.
    GroupCommunicator *gcomm;
 
    /// Number of true dofs in this processor (local true dofs).
    mutable int ltdof_size;
+
+   /// Number of vertex/edge/face/total ghost DOFs (nonconforming case).
+   int ngvdofs, ngedofs, ngfdofs, ngdofs;
 
    /// The group of each local dof.
    Array<int> ldof_group;
@@ -65,11 +68,12 @@ private:
    /// The sign of the basis functions at the scalar local dofs.
    Array<int> ldof_sign;
 
-   /// The matrix P (interpolation from true dof to dof); owned.
+   /// The matrix P (interpolation from true dof to dof). Owned.
    mutable HypreParMatrix *P;
-   ConformingProlongationOperator *Pconf;
+   /// Optimized action-only prolongation operator for conforming meshes. Owned.
+   class ConformingProlongationOperator *Pconf;
 
-   /// The (block-diagonal) matrix R (restriction of dof to true dof); owned.
+   /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
 
    ParNURBSExtension *pNURBSext() const
@@ -101,45 +105,55 @@ private:
    void ApplyLDofSigns(Array<int> &dofs) const;
    void ApplyLDofSigns(Table &el_dof) const;
 
-   /// Helper struct to store DOF dependencies in a parallel NC mesh.
-   struct Dependency
-   {
-      int rank, dof; ///< master DOF, may be on another processor
-      double coef;
-      Dependency(int r, int d, double c) : rank(r), dof(d), coef(c) {}
-   };
+   typedef NCMesh::MeshId MeshId;
+   typedef ParNCMesh::GroupId GroupId;
 
-   /// Dependency list for a local vdof.
-   struct DepList
-   {
-      Array<Dependency> list;
-      int type; ///< 0 = independent, 1 = one-to-one (conforming), 2 = slave
+   void GetGhostVertexDofs(const MeshId &id, Array<int> &dofs) const;
+   void GetGhostEdgeDofs(const MeshId &edge_id, Array<int> &dofs) const;
+   void GetGhostFaceDofs(const MeshId &face_id, Array<int> &dofs) const;
 
-      DepList() : type(0) {}
+   void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
+   // Return the dofs associated with the interior of the given mesh entity.
+   // The MeshId may be the id of a regular or a ghost mesh entity.
+   void GetBareDofs(int entity, const MeshId &id, Array<int> &dofs) const;
 
-      bool IsTrueDof(int my_rank) const
-      { return type == 0 || (type == 1 && list[0].rank == my_rank); }
-   };
+   int  PackDof(int entity, int index, int edof) const;
+   void UnpackDof(int dof, int &entity, int &index, int &edof) const;
 
-   void AddSlaveDependencies(DepList deps[], int master_rank,
-                             const Array<int> &master_dofs, int master_ndofs,
-                             const Array<int> &slave_dofs, DenseMatrix& I)
-   const;
+   void ScheduleSendRow(const struct PMatrixRow &row, int dof, GroupId group_id,
+                        std::map<int, class NeighborRowMessage> &send_msg) const;
 
-   void Add1To1Dependencies(DepList deps[], int owner_rank,
-                            const Array<int> &owner_dofs, int owner_ndofs,
-                            const Array<int> &dependent_dofs) const;
+   void ForwardRow(const struct PMatrixRow &row, int dof,
+                   GroupId group_sent_id, GroupId group_id,
+                   std::map<int, class NeighborRowMessage> &send_msg) const;
 
-   void GetDofs(int type, int index, Array<int>& dofs) const;
-   void ReorderFaceDofs(Array<int> &dofs, int orient) const;
+#ifdef MFEM_DEBUG_PMATRIX
+   void DebugDumpDOFs(std::ofstream &os,
+                      const SparseMatrix &deps,
+                      const Array<GroupId> &dof_group,
+                      const Array<GroupId> &dof_owner,
+                      const Array<bool> &finalized) const;
+#endif
+
+   /// Helper: create a HypreParMatrix from a list of PMatrixRows.
+   HypreParMatrix*
+   MakeVDimHypreMatrix(const std::vector<struct PMatrixRow> &rows,
+                       int local_rows, int local_cols,
+                       Array<HYPRE_Int> &row_starts,
+                       Array<HYPRE_Int> &col_starts) const;
 
    /// Build the P and R matrices.
    void Build_Dof_TrueDof_Matrix() const;
 
-   // Used when the ParMesh is non-conforming, i.e. pmesh->pncmesh != NULL.
-   // Constructs the matrices P and R. Determines ltdof_size. Calls
-   // GenerateGlobalOffsets(). Constructs ldof_ltdof.
-   void GetParallelConformingInterpolation() const;
+   /** Used when the ParMesh is non-conforming, i.e. pmesh->pncmesh != NULL.
+       Constructs the matrices P and R, the DOF and true DOF offset arrays,
+       and the DOF -> true DOF map ('dof_tdof'). Returns the number of
+       vector true DOFs. All pointer arguments are optional and can be NULL. */
+   int BuildParallelConformingInterpolation(HypreParMatrix **P, SparseMatrix **R,
+                                            Array<HYPRE_Int> &dof_offs,
+                                            Array<HYPRE_Int> &tdof_offs,
+                                            Array<int> *dof_tdof,
+                                            bool partial = false) const;
 
    /** Calculate a GridFunction migration matrix after mesh load balancing.
        The result is a parallel permutation matrix that can be used to update
@@ -254,8 +268,8 @@ public:
    { if (!P) { Build_Dof_TrueDof_Matrix(); } return P; }
 
    /** @brief For a non-conforming mesh, construct and return the interpolation
-       matrix from the partially conforming true dofs to the local dofs. The
-       returned pointer must be deleted by the caller. */
+       matrix from the partially conforming true dofs to the local dofs. */
+   /** @note The returned pointer must be deleted by the caller. */
    HypreParMatrix *GetPartialConformingInterpolation();
 
    /** Create and return a new HypreParVector on the true dofs, which is
