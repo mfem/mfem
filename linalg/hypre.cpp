@@ -943,6 +943,13 @@ HypreParMatrix * HypreParMatrix::Transpose() const
 
    hypre_MatvecCommPkgCreate(At);
 
+   if ( M() == N() )
+   {
+      /* If the matrix is square make sure that the first entry in each
+      row is the diagonal one. */
+      hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(At));
+   }
+
    return new HypreParMatrix(At);
 }
 
