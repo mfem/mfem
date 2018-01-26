@@ -54,7 +54,7 @@ ParFiniteElementSpace::ParFiniteElementSpace(
    // NURBSExtension of 'global_fes' and inside the ParNURBSExtension of 'pm'.
 
    // TODO: when general variable-order support is added, copy the local portion
-   // of the variable-oder data from 'global_fes' to 'this'.
+   // of the variable-order data from 'global_fes' to 'this'.
 }
 
 ParFiniteElementSpace::ParFiniteElementSpace(
@@ -633,7 +633,7 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
    GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
    GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
 #ifdef MFEM_DEBUG
-   // Verify that in boolean arthmetic: P^T ess_dofs = R ess_dofs.
+   // Verify that in boolean arithmetic: P^T ess_dofs = R ess_dofs.
    Array<int> true_ess_dofs2(true_ess_dofs.Size());
    HypreParMatrix *Pt = Dof_TrueDof_Matrix()->Transpose();
    Pt->BooleanMult(1, ess_dofs, 0, true_ess_dofs2);

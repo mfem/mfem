@@ -137,7 +137,7 @@ public:
    /// Return the type ID of the Operator class.
    /** This method is intentionally non-virtual, so that it returns the ID of
        the specific pointer or reference type used when calling this method. If
-       not overriden by derived classes, they will automatically use the type ID
+       not overridden by derived classes, they will automatically use the type ID
        of the base Operator class, ANY_TYPE. */
    Type GetType() const { return ANY_TYPE; }
 };

@@ -162,7 +162,7 @@ public:
 
    /// Convert the given OperatorHandle @a A to the currently set type id.
    /** The operator ownership flag is set to false if the object held by @a A
-       will be held by this object as well, e.g. when the source and destanation
+       will be held by this object as well, e.g. when the source and destination
        types are the same; otherwise it is set to true. */
    void ConvertFrom(OperatorHandle &A);
 
