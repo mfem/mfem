@@ -209,6 +209,7 @@ Geometry::Geometry()
       IsoparametricTransformation pri_T;
       pri_T.SetFE(&PriFE);
       GetPerfPointMat (PRISM, pri_T.GetPointMat());
+      pri_T.FinalizeTransformation();
       pri_T.SetIntPoint(&GeomCenter[PRISM]);
       *GeomToPerfGeomJac[PRISM] = pri_T.Jacobian();
       CalcInverse(pri_T.Jacobian(), *PerfGeomToGeomJac[PRISM]);
