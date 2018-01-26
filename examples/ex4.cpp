@@ -203,21 +203,6 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   /////// TEST TEST /////////
-
-   for (int i = 0; i < 3; i++)
-   {
-      cout << "Refining..." << endl;
-      mesh->RandomRefinement(0.5);
-      //mesh->UniformRefinement();
-      cout << "Updating..." << endl;
-      fespace->Update();
-      x.Update();
-   }
-   cout << "Done." << endl;
-
-   /////// TEST TEST /////////
-
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {

@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -169,20 +169,6 @@ int main(int argc, char *argv[])
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
-
-   /////// TEST TEST /////////
-
-   for (int i = 0; i < 3; i++)
-   {
-      cout << "Refining..." << endl;
-      mesh->RandomRefinement(0.5);
-      cout << "Updating..." << endl;
-      fespace->Update();
-      x.Update();
-   }
-   cout << "Done." << endl;
-
-   /////// TEST TEST /////////
 
    // 12. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
