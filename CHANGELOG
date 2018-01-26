@@ -11,6 +11,19 @@
 Version 3.3.3 (development)
 ===========================
 
+More efficient non-conforming adaptive mesh refinement
+------------------------------------------------------
+- Significantly reduced MPI communication in the construction of the ParFinite-
+  ElementSpace prolongation matrix leads to much improved parallel scaling of
+  non-conforming AMR on hundreds of thousands of MPI processes. Memory footprint
+  of the ParNCMesh class has also been reduced.
+
+- In FiniteElementSpace, the fully assembled refinement matrix is now replaced
+  by default by a specialized refinement operator. The operator option is both
+  faster and more memory efficient than using the fully assembled matrix. The
+  old approach is still available and can be reenabled, if needed, using the
+  new method FiniteElementSpace::SetUpdateOperatorType().
+
 Discretization improvements
 ---------------------------
 - Added classes for general block nonlinear finite element operators (deriving
@@ -19,15 +32,18 @@ Discretization improvements
   operators have assemble-based action and also support assembly of the gradient
   operator to enable inversion with Newton iteration.
 
-- Added support for elimination of boundary conditions in block matrices.
-
 - Added variable order NURBS: for each space each knot vector in the mesh can
   have a different order. The order information is now part of the finite
   element space header in the NURBS mesh output, so NURBS meshes in the old
   format need to be updated.
 
+- Added symplectic integrators of orders 1-4 for systems of first order ODEs
+  derived from a Hamiltonian, see class SIASolver in linalg/ode.hpp.
+
 - Inherit finite element classes from the new base class TensorBasisElement,
   whenever the basis can be represented by a tensor product of 1D bases.
+
+- Added support for elimination of boundary conditions in block matrices.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -38,6 +54,10 @@ New and updated examples and miniapps
 - Added a new electromagnetics miniapp, Maxwell, for simulating time-domain
   electromagnetics phenomena as a coupled first order system of equations.
 
+- A simple local refinement option has been added to the mesh-explorer miniapp
+  (menu option 'r', sub-option 'l') that selects elements for refinement based
+  on their spatial location - see the function 'region()' in the source file.
+
 - Added a set of miniapps specifically focused on Isogeometric Analysis (IGA) on
   NURBS meshes in the miniapps/nurbs directory. Currently the directory contains
   variable order NURBS versions of examples 1, 1p and 11p.
@@ -45,47 +65,23 @@ New and updated examples and miniapps
 - In the classes NonlinearForm and ParNonlinearForm, added support for
   non-conforming AMR meshes; see also the "API changes" section.
 
-More efficient parallel non-conforming AMR
-------------------------------------------
-- Significantly reduced MPI communication in the construction of the ParFinite-
-  ElementSpace leads to much improved parallel scaling of non-conforming AMR on
-  hundreds of thousands of MPI processes. Memory footprint of the ParNCMesh
-  class has also been reduced.
-
-New and improved solvers and preconditioners
---------------------------------------------
-- Added symplectic integrators of orders 1-4 for systems of first order ODEs
-  derived from a Hamiltonian, see class SIASolver in linalg/ode.hpp.
-
-New and updated examples and miniapps
--------------------------------------
-- Added a new electromagnetics miniapp, Maxwell, for simulating time-domain
-  electromagnetics phenomena as a coupled first order system of equations.
-
 - Example 10p with its SUNDIALS and PETSc versions have been updated to reflect
   the change in the behavior of the method ParNonlinearForm::GetLocalGradient()
   (see the "API changes" section) and now should work correctly on
   non-conforming AMR meshes. Example 10 and its SUNDIALS version have also been
   updated to support non-conforming ARM meshes.
 
-- A simple local refinement option has been added to the mesh-explorer miniapp
-  (menu option 'r', sub-option 'l') that selects elements for refinement based
-  on their spatial location - see the function 'region()' in the source file.
-
 Miscellaneous
 -------------
+- Documented project workflow and provided contribution guidelines in the new
+  top-level file, CONTRIBUTING.md.
+
 - Added a new developer tool, config/sample-runs.sh, that extracts the sample
   runs from all examples and miniapps and runs them. Optionally, it can save the
   output from the execution to files, allowing comparison between different
   versions and builds of the library.
 
 - Add support for building a shared version of the MFEM library with GNU make.
-
-- In FiniteElementSpace, the fully assembled refinement matrix is now replaced
-  by default by a specialized refinement operator. The operator option is both
-  faster and more memory efficient than using the fully assembled matrix. The
-  old approach is still available and can be reenabled, if needed, using the
-  new method FiniteElementSpace::SetUpdateOperatorType().
 
 - When building with the GnuTLS library, switch to using X.509 certificates for
   secure socket authentication. Support for the previously used OpenPGP keys has
@@ -94,9 +90,6 @@ Miscellaneous
   using the latest version of the script 'glvis-keygen.sh' from GLVis.
 
 - Upgraded MFEM to support Axom 0.2.8. Prior versions are no longer supported.
-
-- Documented project workflow and provided contribution guidelines in the new
-  top-level file, CONTRIBUTING.md.
 
 API changes
 -----------
