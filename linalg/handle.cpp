@@ -215,7 +215,9 @@ void OperatorHandle::ConvertFrom(OperatorHandle &A)
       }
       case Operator::Hypre_ParCSR:
       {
+#ifdef MFEM_USE_MPI
          oper = A.Is<HypreParMatrix>();
+#endif
          break;
       }
       case Operator::PETSC_MATAIJ:
@@ -230,7 +232,13 @@ void OperatorHandle::ConvertFrom(OperatorHandle &A)
                break;
             default: break;
          }
-         if (!oper) { oper = A.Is<PetscParMatrix>(); }
+#ifdef MFEM_USE_PETSC
+         if (!oper)
+         {
+            PetscParMatrix *pA = A.Is<PetscParMatrix>();
+            if (pA->GetType() == Type()) { oper = pA; }
+         }
+#endif
          break;
       }
       default: break;
