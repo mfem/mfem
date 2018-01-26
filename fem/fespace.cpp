@@ -62,7 +62,7 @@ FiniteElementSpace::FiniteElementSpace()
      elem_dof(NULL), bdrElem_dof(NULL),
      NURBSext(NULL), own_ext(false),
      cP(NULL), cR(NULL), cP_is_set(false),
-     T(NULL), own_T(false),
+     Th(Operator::ANY_TYPE),
      sequence(0)
 { }
 
@@ -1054,7 +1054,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
 
    elem_dof = NULL;
    sequence = mesh->GetSequence();
-   prefer_action_only = true;
+   Th.SetType(Operator::ANY_TYPE);
 
    const NURBSFECollection *nurbs_fec =
       dynamic_cast<const NURBSFECollection *>(fec);
@@ -1079,8 +1079,6 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
       UpdateNURBS();
       cP = cR = NULL;
       cP_is_set = false;
-      T = NULL;
-      own_T = true;
    }
    else
    {
@@ -1145,8 +1143,7 @@ void FiniteElementSpace::Construct()
    cP = NULL;
    cR = NULL;
    cP_is_set = false;
-   T = NULL;
-   own_T = true;
+   // Th is initialized/destroyed before this method is called.
 
    if (mesh->Dimension() == 3 && mesh->GetNE())
    {
@@ -1594,7 +1591,7 @@ void FiniteElementSpace::Destroy()
 {
    delete cR;
    delete cP;
-   if (own_T) { delete T; }
+   Th.Clear();
 
    dof_elem_array.DeleteAll();
    dof_ldof_array.DeleteAll();
@@ -1643,8 +1640,8 @@ void FiniteElementSpace::Update(bool want_transform)
       old_ndofs = ndofs;
    }
 
-   Destroy();
-   Construct(); // sets T to NULL, own_T to true
+   Destroy(); // calls Th.Clear()
+   Construct();
    BuildElementToDofTable();
 
    if (want_transform)
@@ -1654,16 +1651,17 @@ void FiniteElementSpace::Update(bool want_transform)
       {
          case Mesh::REFINE:
          {
-            if (prefer_action_only)
+            if (Th.Type() != Operator::MFEM_SPARSEMAT)
             {
-               T = new RefinementOperator(this, old_elem_dof, old_ndofs);
-               // T takes ownership of 'old_elem_dof', we no longer own it
+               Th.Reset(new RefinementOperator(this, old_elem_dof, old_ndofs));
+               // The RefinementOperator takes ownership of 'old_elem_dof', so
+               // we no longer own it:
                old_elem_dof = NULL;
             }
             else
             {
                // calculate fully assembled matrix
-               T = RefinementMatrix(old_ndofs, old_elem_dof);
+               Th.Reset(RefinementMatrix(old_ndofs, old_elem_dof));
             }
             break;
          }
@@ -1671,10 +1669,12 @@ void FiniteElementSpace::Update(bool want_transform)
          case Mesh::DEREFINE:
          {
             BuildConformingInterpolation();
-            T = DerefinementMatrix(old_ndofs, old_elem_dof);
+            Th.Reset(DerefinementMatrix(old_ndofs, old_elem_dof));
             if (cP && cR)
             {
-               T = new TripleProductOperator(cP, cR, T, false, false, true);
+               Th.SetOperatorOwner(false);
+               Th.Reset(new TripleProductOperator(cP, cR, Th.Ptr(),
+                                                  false, false, true));
             }
             break;
          }
