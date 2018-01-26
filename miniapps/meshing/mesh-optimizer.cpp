@@ -23,17 +23,31 @@
 // optimize the physical node positions, i.e., they must be as close as possible
 // to the shape / size / alignment of their targets. This code also demonstrates
 // a possible use of nonlinear operators (the class TMOP_QualityMetric, defining
-// mu(J), and the class TMOP_Integrator, defining int mu(J)), as well
-// as their coupling to Newton methods for solving minimization problems. Note
-// that the utilized Newton methods are oriented towards avoiding invalid meshes
-// with negative Jacobian determinants. Each Newton step requires the inversion
-// of a Jacobian matrix, which is done through an inner linear solver.
+// mu(J), and the class TMOP_Integrator, defining int mu(J)), as well as their
+// coupling to Newton methods for solving minimization problems. Note that the
+// utilized Newton methods are oriented towards avoiding invalid meshes with
+// negative Jacobian determinants. Each Newton step requires the inversion of a
+// Jacobian matrix, which is done through an inner linear solver.
 //
 // Compile with: make mesh-optimizer
 //
 // Sample runs:
-//   mesh-optimizer -m blade.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 20 -ls 2 -bnd
-//   mesh-optimizer -o 2 -rs 0 -ji 0.0 -mid 2 -tid 1 -lc 1e3 -ni 20 -ls 2 -bnd
+//   Blade shape:
+//     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   Blade limited shape:
+//     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 5000
+//   ICF shape and equal size:
+//     mesh-optimizer -o 3 -rs 0 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   ICF shape and initial size:
+//     mesh-optimizer -o 3 -rs 0 -mid 9 -tid 3 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   ICF shape:
+//     mesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   ICF limited shape:
+//     mesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 10
+//   ICF combo shape + size (rings, slow convergence):
+//     mesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 1000 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb
+//   3D pinched sphere shape (the mesh is in the mfem/data GitHub repository):
+//   * mesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -rs 0 -mid 303 -tid 1 -ni 20 -ls 2 -li 500 -fix-bnd
 
 #include "mfem.hpp"
 #include <fstream>
@@ -453,7 +467,7 @@ int main (int argc, char *argv[])
          delete metric; return 3;
    }
    TargetConstructor *target_c = new TargetConstructor(target_t);
-   target_c->SetNodes(*x);
+   target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
@@ -493,9 +507,10 @@ int main (int argc, char *argv[])
       a.AddDomainIntegrator(he_nlf_integ);
 
       metric2 = new TMOP_Metric_077;
-      target_c2 = new TargetConstructor(target_t);
+      target_c2 = new TargetConstructor(
+         TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE);
       target_c2->SetVolumeScale(0.01);
-      target_c2->SetNodes(*x);
+      target_c2->SetNodes(x0);
       TMOP_Integrator *he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
       he_nlf_integ2->SetIntegrationRule(*ir);
 
@@ -532,6 +547,10 @@ int main (int argc, char *argv[])
       for (int i = 0; i < mesh->GetNBE(); i++)
       {
          const int attr = mesh->GetBdrElement(i)->GetAttribute();
+         MFEM_VERIFY(!(dim == 2 && attr == 3),
+                     "Boundary attribute 3 must be used only for 3D meshes. "
+                     "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
+                     "components, rest for free nodes), or use -fix-bnd.");
          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
          if (attr == 4) { n += nd * dim; }
       }
