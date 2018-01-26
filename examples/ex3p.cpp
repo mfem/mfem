@@ -96,15 +96,13 @@ int main(int argc, char *argv[])
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
-   mesh->EnsureNCMesh();
-
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
    {
-      int ref_levels = 1;
-      //(int)floor(log(100./mesh->GetNE())/log(2.)/dim);
+      int ref_levels =
+         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -119,7 +117,7 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 0;//2;
+      int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -216,24 +214,6 @@ int main(int argc, char *argv[])
          cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
       }
    }
-
-   /////// TEST TEST /////////
-
-   if (!(pmesh->MeshGenerator() & 1))
-   {
-      for (int i = 0; i < 3; i++)
-      {
-         if (!myid) { cout << "Refining..." << endl; }
-         pmesh->RandomRefinement(0.5);
-         //pmesh->UniformRefinement();
-
-         if (!myid) { cout << "Updating..." << endl; }
-         fespace->Update();
-         x.Update();
-      }
-   }
-
-   /////// TEST TEST /////////
 
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
