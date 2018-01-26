@@ -430,13 +430,14 @@ public:
       return *this;
    }
 
-   /** Multiply A on the left by a block-diagonal parallel matrix D. Return
-       a new parallel matrix, D*A. If D has a different number of rows than A,
-       D's row starts array needs to be given (as returned by the methods
-       GetDofOffsets/GetTrueDofOffsets of ParFiniteElementSpace). The new matrix
-       D*A uses copies of the row-, column-starts arrays, so "this" matrix and
-       "row_starts" can be deleted.
-       NOTE: this operation is local and does not require communication. */
+   /** @brief Multiply the HypreParMatrix on the left by a block-diagonal
+       parallel matrix @a D and return the result as a new HypreParMatrix. */
+   /** If @a D has a different number of rows than @a A (this matrix), @a D's
+       row starts array needs to be given (as returned by the methods
+       GetDofOffsets/GetTrueDofOffsets of ParFiniteElementSpace). The new
+       matrix @a D*A uses copies of the row- and column-starts arrays, so "this"
+       matrix and @a row_starts can be deleted.
+       @note This operation is local and does not require communication. */
    HypreParMatrix* LeftDiagMult(const SparseMatrix &D,
                                 HYPRE_Int* row_starts = NULL) const;
 
