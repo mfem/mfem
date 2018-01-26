@@ -171,7 +171,7 @@ public:
 
    /** @brief Copy constructor: deep copy all data from @a orig except the Mesh,
        the FiniteElementCollection, ans some derived data. */
-   /** If the @a mesh or @a fec poiters are NULL (default), then the new
+   /** If the @a mesh or @a fec pointers are NULL (default), then the new
        FiniteElementSpace will reuse the respective pointers from @a orig. If
        any of these pointers is not NULL, the given pointer will be used instead
        of the one used by @a orig.
