@@ -11,15 +11,75 @@
 Version 3.3.3 (development)
 ===========================
 
+Discretization improvements
+---------------------------
+- Added classes for general block nonlinear finite element operators (deriving
+  from BlockNonlinearForm and ParBlockNonlinearForm) enabling solution of
+  nonlinear systems with multiple unknowns in different function spaces. Such
+  operators have assemble-based action and also support assembly of the gradient
+  operator to enable inversion with Newton iteration.
+
+- Added support for elimination of boundary conditions in block matrices.
+
+- Added variable order NURBS: for each space each knot vector in the mesh can
+  have a different order. The order information is now part of the finite
+  element space header in the NURBS mesh output, so NURBS meshes in the old
+  format need to be updated.
+
 - Inherit finite element classes from the new base class TensorBasisElement,
   whenever the basis can be represented by a tensor product of 1D bases.
 
+New and updated examples and miniapps
+-------------------------------------
+- Added a new serial and parallel example (ex19) that solves the quasi-static
+  incompressible hyperelastic equations. The example demonstrates the use of
+  block nonlinear forms as well as custom block preconditioners.
+
+- Added a new electromagnetics miniapp, Maxwell, for simulating time-domain
+  electromagnetics phenomena as a coupled first order system of equations.
+
+- Added a set of miniapps specifically focused on Isogeometric Analysis (IGA) on
+  NURBS meshes in the miniapps/nurbs directory. Currently the directory contains
+  variable order NURBS versions of examples 1, 1p and 11p.
+
+- In the classes NonlinearForm and ParNonlinearForm, added support for
+  non-conforming AMR meshes; see also the "API changes" section.
+
+More efficient parallel non-conforming AMR
+------------------------------------------
+- Significantly reduced MPI communication in the construction of the ParFinite-
+  ElementSpace leads to much improved parallel scaling of non-conforming AMR on
+  hundreds of thousands of MPI processes. Memory footprint of the ParNCMesh
+  class has also been reduced.
+
+New and improved solvers and preconditioners
+--------------------------------------------
+- Added symplectic integrators of orders 1-4 for systems of first order ODEs
+  derived from a Hamiltonian, see class SIASolver in linalg/ode.hpp.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added a new electromagnetics miniapp, Maxwell, for simulating time-domain
+  electromagnetics phenomena as a coupled first order system of equations.
+
+- Example 10p with its SUNDIALS and PETSc versions have been updated to reflect
+  the change in the behavior of the method ParNonlinearForm::GetLocalGradient()
+  (see the "API changes" section) and now should work correctly on
+  non-conforming AMR meshes. Example 10 and its SUNDIALS version have also been
+  updated to support non-conforming ARM meshes.
+
+- A simple local refinement option has been added to the mesh-explorer miniapp
+  (menu option 'r', sub-option 'l') that selects elements for refinement based
+  on their spatial location - see the function 'region()' in the source file.
+
+Miscellaneous
+-------------
 - Added a new developer tool, config/sample-runs.sh, that extracts the sample
   runs from all examples and miniapps and runs them. Optionally, it can save the
   output from the execution to files, allowing comparison between different
   versions and builds of the library.
 
-- Added support for elimination of boundary conditions in block matrices.
+- Add support for building a shared version of the MFEM library with GNU make.
 
 - When building with the GnuTLS library, switch to using X.509 certificates for
   secure socket authentication. Support for the previously used OpenPGP keys has
@@ -27,30 +87,33 @@ Version 3.3.3 (development)
   with the visualization tool GLVis, a new set of certificates can be generated
   using the latest version of the script 'glvis-keygen.sh' from GLVis.
 
-Miscellaneous
--------------
 - Upgraded MFEM to support Axom 0.2.8. Prior versions are no longer supported.
 
-- Add support for building a shared version of the MFEM library with GNU make.
+- Documented project workflow and provided contribution guidelines in the new
+  top-level file, CONTRIBUTING.md.
 
-API changes (that may affect existing code)
+API changes
 -----------
 - Introduced a new enum, Matrix::DiagonalPolicy, that replaces the integer
-  parameters in a number of methods that perform elimination of rows and/or
-  columns in matrices. Examples of such methods are:
-  - in class SparseMatrix: EliminateRow(), EliminateCol(), EliminateRowCol(),
-    EliminateRowColMultipleRHS();
-  - in class BilinearForm: EliminateEssentialBC(), EliminateVDofs(),
-    EliminateEssentialBCFromDofs();
-  - in class StaticCondensation: EliminateReducedTrueDofs();
-  - in class BlockMatrix: EliminateRowCol().
-  Any existing code that uses these methods with an explicitly given (integer)
-  constants, will generate compilation errors - please replace such integers
-  with one of the new enum constants.
+  parameters in many methods that perform elimination of rows and/or columns in
+  matrices. Some examples of such methods are:
+  * class SparseMatrix: EliminateRow(), EliminateCol(), EliminateRowCol(), ...
+  * class BilinearForm: EliminateEssentialBC(), EliminateVDofs(), ...
+  * class StaticCondensation: EliminateReducedTrueDofs()
+  * class BlockMatrix: EliminateRowCol()
+  Calling these methods with an explicitly given (integer) constants, will now
+  generate compilation errors, please use one of the new enum constants instead.
 
 - Modified the virtual method AbstractSparseMatrix::EliminateZeroRows() and its
   implementations in derived classes, to accept an optional 'threshold'
-  parameter, replacing hard-coded threshold values.
+  parameter, replacing previously hard-coded threshold values.
+
+- In the classes NonlinearForm and ParNonlinearForm:
+  * The method GetLocalGradient() no longer imposes boundary conditions. The
+    motivation for the change is that, in the case of non-conforming AMR,
+    performing the elimination at the local level is incorrect - it must be
+    applied at the true-dof level.
+  * The method SetEssentialVDofs() is now depreacated.
 
 
 Version 3.3.2, released on Nov 10, 2017

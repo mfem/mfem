@@ -13,6 +13,7 @@
 //    mpirun -np 4 ex10p -m ../../data/beam-quad.mesh -rp 1 -o 2 -s 15 -dt 3e-3 -vs 120
 //    mpirun -np 4 ex10p -m ../../data/beam-tri.mesh  -rp 1 -o 2 -s 16 -dt 5e-3 -vs 60
 //    mpirun -np 4 ex10p -m ../../data/beam-hex.mesh  -rp 0 -o 2 -s 15 -dt 5e-3 -vs 60
+//    mpirun -np 4 ex10p -m ../../data/beam-quad-amr.mesh -rp 1 -o 2 -s 5 -dt 0.15 -vs 10
 //
 // Description:  This examples solves a time dependent nonlinear elasticity
 //               problem of the form dv/dt = H(x) + S v, dx/dt = v, where H is a
@@ -68,6 +69,7 @@ class HyperelasticOperator : public TimeDependentOperator
 {
 protected:
    ParFiniteElementSpace &fespace;
+   Array<int> ess_tdof_list;
 
    ParBilinearForm M, S;
    ParNonlinearForm H;
@@ -116,9 +118,10 @@ public:
        method of SundialsJacSolver. */
    void InitSundialsJacSolver(SundialsJacSolver &sjsolv);
 
-   double ElasticEnergy(ParGridFunction &x) const;
-   double KineticEnergy(ParGridFunction &v) const;
-   void GetElasticEnergyDensity(ParGridFunction &x, ParGridFunction &w) const;
+   double ElasticEnergy(const ParGridFunction &x) const;
+   double KineticEnergy(const ParGridFunction &v) const;
+   void GetElasticEnergyDensity(const ParGridFunction &x,
+                                ParGridFunction &w) const;
 
    virtual ~HyperelasticOperator();
 };
@@ -136,10 +139,11 @@ private:
    double dt;
    const Vector *v, *x;
    mutable Vector w, z;
+   const Array<int> &ess_tdof_list;
 
 public:
    ReducedSystemOperator(ParBilinearForm *M_, ParBilinearForm *S_,
-                         ParNonlinearForm *H_);
+                         ParNonlinearForm *H_, const Array<int> &ess_tdof_list);
 
    /// Set current dt, v, x values - needed to compute action and Jacobian.
    void SetParameters(double dt_, const Vector *v_, const Vector *x_);
@@ -173,6 +177,7 @@ private:
    const SparseMatrix *local_grad_H;
    HypreParMatrix *Jacobian;
    Solver *J_solver;
+   const Array<int> *ess_tdof_list;
 
 public:
    SundialsJacSolver()
@@ -180,9 +185,11 @@ public:
 
    /// Connect the solver to the objects created inside HyperelasticOperator.
    void SetOperators(ParBilinearForm &M_, ParBilinearForm &S_,
-                     ParNonlinearForm &H_, Solver &solver)
+                     ParNonlinearForm &H_, Solver &solver,
+                     const Array<int> &ess_tdof_list_)
    {
       M = &M_; S = &S_; H = &H_; J_solver = &solver;
+      ess_tdof_list = &ess_tdof_list_;
    }
 
    /** Linear solve applicable to the SUNDIALS format.
@@ -207,12 +214,12 @@ public:
 class ElasticEnergyCoefficient : public Coefficient
 {
 private:
-   HyperelasticModel &model;
-   ParGridFunction   &x;
-   DenseMatrix        J;
+   HyperelasticModel     &model;
+   const ParGridFunction &x;
+   DenseMatrix            J;
 
 public:
-   ElasticEnergyCoefficient(HyperelasticModel &m, ParGridFunction &x_)
+   ElasticEnergyCoefficient(HyperelasticModel &m, const ParGridFunction &x_)
       : model(m), x(x_) { }
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
    virtual ~ElasticEnergyCoefficient() { }
@@ -429,7 +436,9 @@ int main(int argc, char *argv[])
    true_offset[2] = 2*true_size;
 
    BlockVector vx(true_offset);
-   ParGridFunction v_gf(&fespace), x_gf(&fespace);
+   ParGridFunction v_gf, x_gf;
+   v_gf.MakeTRef(&fespace, vx, true_offset[0]);
+   x_gf.MakeTRef(&fespace, vx, true_offset[1]);
 
    ParGridFunction x_ref(&fespace);
    pmesh->GetNodes(x_ref);
@@ -442,11 +451,12 @@ int main(int argc, char *argv[])
    //    boundary conditions on a beam-like mesh (see description above).
    VectorFunctionCoefficient velo(dim, InitialVelocity);
    v_gf.ProjectCoefficient(velo);
+   v_gf.SetTrueVector();
    VectorFunctionCoefficient deform(dim, InitialDeformation);
    x_gf.ProjectCoefficient(deform);
+   x_gf.SetTrueVector();
 
-   v_gf.GetTrueDofs(vx.GetBlock(0));
-   x_gf.GetTrueDofs(vx.GetBlock(1));
+   v_gf.SetFromTrueVector(); x_gf.SetFromTrueVector();
 
    Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
    ess_bdr = 0;
@@ -502,8 +512,7 @@ int main(int argc, char *argv[])
 
       if (last_step || (ti % vis_steps) == 0)
       {
-         v_gf.Distribute(vx.GetBlock(0));
-         x_gf.Distribute(vx.GetBlock(1));
+         v_gf.SetFromTrueVector(); x_gf.SetFromTrueVector();
 
          double ee = oper.ElasticEnergy(x_gf);
          double ke = oper.KineticEnergy(v_gf);
@@ -531,6 +540,7 @@ int main(int argc, char *argv[])
 
    // 11. Save the displaced mesh, the velocity and elastic energy.
    {
+      v_gf.SetFromTrueVector(); x_gf.SetFromTrueVector();
       GridFunction *nodes = &x_gf;
       int owns_nodes = 0;
       pmesh->SwapNodes(nodes, owns_nodes);
@@ -599,9 +609,11 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
 
 
 ReducedSystemOperator::ReducedSystemOperator(
-   ParBilinearForm *M_, ParBilinearForm *S_, ParNonlinearForm *H_)
+   ParBilinearForm *M_, ParBilinearForm *S_, ParNonlinearForm *H_,
+   const Array<int> &ess_tdof_list_)
    : Operator(M_->ParFESpace()->TrueVSize()), M(M_), S(S_), H(H_),
-     Jacobian(NULL), dt(0.0), v(NULL), x(NULL), w(height), z(height)
+     Jacobian(NULL), dt(0.0), v(NULL), x(NULL), w(height), z(height),
+     ess_tdof_list(ess_tdof_list_)
 { }
 
 void ReducedSystemOperator::SetParameters(double dt_, const Vector *v_,
@@ -618,6 +630,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    H->Mult(z, y);
    M->TrueAddMult(k, y);
    S->TrueAddMult(w, y);
+   y.SetSubVector(ess_tdof_list, 0.0);
 }
 
 Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
@@ -629,6 +642,8 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
    localJ->Add(dt*dt, H->GetLocalGradient(z));
    Jacobian = M->ParallelAssemble(localJ);
    delete localJ;
+   HypreParMatrix *Je = Jacobian->EliminateRowsCols(ess_tdof_list);
+   delete Je;
    return *Jacobian;
 }
 
@@ -670,6 +685,8 @@ int SundialsJacSolver::SetupSystem(void *sundials_mem, int conv_fail,
    localJ->Add(dt*dt, *local_grad_H);
    Jacobian = M->ParallelAssemble(localJ);
    delete localJ;
+   HypreParMatrix *Je = Jacobian->EliminateRowsCols(*ess_tdof_list);
+   delete Je;
 
    J_solver->SetOperator(*Jacobian);
 
@@ -689,6 +706,8 @@ int SundialsJacSolver::SolveSystem(void *sundials_mem, Vector &b,
    Vector rhs(sc);
    double dt = GetTimeStep(sundials_mem);
 
+   // We can assume that b_v and b_x have zeros at essential tdofs.
+
    // rhs = M b_v - dt*grad(H) b_x
    ParGridFunction lb_x(fes), lrhs(fes);
    lb_x.Distribute(b_x);
@@ -696,6 +715,7 @@ int SundialsJacSolver::SolveSystem(void *sundials_mem, Vector &b,
    lrhs.ParallelAssemble(rhs);
    rhs *= -dt;
    M->TrueAddMult(b_v, rhs);
+   rhs.SetSubVector(*ess_tdof_list, 0.0);
 
    J_solver->iterative_mode = false;
    J_solver->Mult(rhs, b_v);
@@ -727,9 +747,11 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    ConstantCoefficient rho0(ref_density);
    M.AddDomainIntegrator(new VectorMassIntegrator(rho0));
    M.Assemble(skip_zero_entries);
-   M.EliminateEssentialBC(ess_bdr);
    M.Finalize(skip_zero_entries);
    Mmat = M.ParallelAssemble();
+   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   HypreParMatrix *Me = Mmat->EliminateRowsCols(ess_tdof_list);
+   delete Me;
 
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(rel_tol);
@@ -742,15 +764,14 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
 
    model = new NeoHookeanModel(mu, K);
    H.AddDomainIntegrator(new HyperelasticNLFIntegrator(model));
-   H.SetEssentialBC(ess_bdr);
+   H.SetEssentialTrueDofs(ess_tdof_list);
 
    ConstantCoefficient visc_coeff(viscosity);
    S.AddDomainIntegrator(new VectorDiffusionIntegrator(visc_coeff));
    S.Assemble(skip_zero_entries);
-   S.EliminateEssentialBC(ess_bdr);
    S.Finalize(skip_zero_entries);
 
-   reduced_oper = new ReducedSystemOperator(&M, &S, &H);
+   reduced_oper = new ReducedSystemOperator(&M, &S, &H, ess_tdof_list);
 
    HypreSmoother *J_hypreSmoother = new HypreSmoother;
    J_hypreSmoother->SetType(HypreSmoother::l1Jacobi);
@@ -799,6 +820,7 @@ void HyperelasticOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    if (viscosity != 0.0)
    {
       S.TrueAddMult(v, z);
+      z.SetSubVector(ess_tdof_list, 0.0);
    }
    z.Neg(); // z = -z
    M_solver.Mult(z, dv_dt);
@@ -838,15 +860,15 @@ void HyperelasticOperator::ImplicitSolve(const double dt,
 
 void HyperelasticOperator::InitSundialsJacSolver(SundialsJacSolver &sjsolv)
 {
-   sjsolv.SetOperators(M, S, H, *J_solver);
+   sjsolv.SetOperators(M, S, H, *J_solver, ess_tdof_list);
 }
 
-double HyperelasticOperator::ElasticEnergy(ParGridFunction &x) const
+double HyperelasticOperator::ElasticEnergy(const ParGridFunction &x) const
 {
    return H.GetEnergy(x);
 }
 
-double HyperelasticOperator::KineticEnergy(ParGridFunction &v) const
+double HyperelasticOperator::KineticEnergy(const ParGridFunction &v) const
 {
    double loc_energy = 0.5*M.InnerProduct(v, v);
    double energy;
@@ -856,7 +878,7 @@ double HyperelasticOperator::KineticEnergy(ParGridFunction &v) const
 }
 
 void HyperelasticOperator::GetElasticEnergyDensity(
-   ParGridFunction &x, ParGridFunction &w) const
+   const ParGridFunction &x, ParGridFunction &w) const
 {
    ElasticEnergyCoefficient w_coeff(*model, x);
    w.ProjectCoefficient(w_coeff);

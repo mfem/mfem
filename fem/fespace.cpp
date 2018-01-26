@@ -11,6 +11,7 @@
 
 // Implementation of FiniteElementSpace
 
+#include "../general/text.hpp"
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
 
@@ -51,6 +52,43 @@ DofsToVDofs<Ordering::byVDIM>(int ndofs, int vdim, Array<int> &dofs)
          dofs[i+size*vd] = Map<byVDIM>(ndofs, vdim, dofs[i], vd);
       }
    }
+}
+
+
+FiniteElementSpace::FiniteElementSpace()
+   : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
+     ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0),
+     fdofs(NULL), bdofs(NULL),
+     elem_dof(NULL), bdrElem_dof(NULL),
+     NURBSext(NULL), own_ext(false),
+     cP(NULL), cR(NULL), cP_is_set(false),
+     T(NULL), own_T(false),
+     sequence(0)
+{ }
+
+FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
+                                       Mesh *mesh,
+                                       const FiniteElementCollection *fec)
+{
+   mesh = mesh ? mesh : orig.mesh;
+   fec = fec ? fec : orig.fec;
+   NURBSExtension *NURBSext = NULL;
+   if (orig.NURBSext && orig.NURBSext != orig.mesh->NURBSext)
+   {
+#ifdef MFEM_USE_MPI
+      ParNURBSExtension *pNURBSext =
+         dynamic_cast<ParNURBSExtension *>(orig.NURBSext);
+      if (pNURBSext)
+      {
+         NURBSext = new ParNURBSExtension(*pNURBSext);
+      }
+      else
+#endif
+      {
+         NURBSext = new NURBSExtension(*orig.NURBSext);
+      }
+   }
+   Constructor(mesh, NURBSext, fec, orig.vdim, orig.ordering);
 }
 
 int FiniteElementSpace::GetOrder(int i) const
@@ -484,8 +522,9 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
    return R;
 }
 
-static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
-                            Array<int>& slave_dofs, DenseMatrix& I)
+void
+FiniteElementSpace::AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
+                                    Array<int>& slave_dofs, DenseMatrix& I)
 {
    for (int i = 0; i < slave_dofs.Size(); i++)
    {
@@ -508,8 +547,8 @@ static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
    }
 }
 
-static bool DofFinalizable(int dof, const Array<bool>& finalized,
-                           const SparseMatrix& deps)
+bool FiniteElementSpace::DofFinalizable(int dof, const Array<bool>& finalized,
+                                        const SparseMatrix& deps)
 {
    const int* dep = deps.GetRowColumns(dof);
    int ndep = deps.RowSize(dof);
@@ -522,29 +561,25 @@ static bool DofFinalizable(int dof, const Array<bool>& finalized,
    return true;
 }
 
-/** This is a helper function to get edge (type == 0) or face (type == 1) DOFs.
-    The function is aware of ghost edges/faces in parallel, for which an empty
-    DOF list is returned. */
-void FiniteElementSpace::GetEdgeFaceDofs(int type, int index, Array<int> &dofs)
-const
+void
+FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs) const
 {
-   dofs.SetSize(0);
-   if (type)
+   switch (entity)
    {
-      if (index < mesh->GetNFaces()) { GetFaceDofs(index, dofs); }
-   }
-   else
-   {
-      if (index < mesh->GetNEdges()) { GetEdgeDofs(index, dofs); }
+      case 0: GetVertexDofs(index, dofs); break;
+      case 1: GetEdgeDofs(index, dofs); break;
+      case 2: GetFaceDofs(index, dofs); break;
    }
 }
 
-void FiniteElementSpace::GetConformingInterpolation() const
+
+void FiniteElementSpace::BuildConformingInterpolation() const
 {
 #ifdef MFEM_USE_MPI
    MFEM_VERIFY(dynamic_cast<const ParFiniteElementSpace*>(this) == NULL,
                "This method should not be used with a ParFiniteElementSpace!");
 #endif
+
    if (cP_is_set) { return; }
    cP_is_set = true;
 
@@ -554,17 +589,17 @@ void FiniteElementSpace::GetConformingInterpolation() const
    SparseMatrix deps(ndofs);
 
    // collect local edge/face dependencies
-   for (int type = 0; type <= 1; type++)
+   for (int entity = 1; entity <= 2; entity++)
    {
-      const NCMesh::NCList &list = type ? mesh->ncmesh->GetFaceList()
-                                   /**/ : mesh->ncmesh->GetEdgeList();
+      const NCMesh::NCList &list = (entity > 1) ? mesh->ncmesh->GetFaceList()
+                                   /*        */ : mesh->ncmesh->GetEdgeList();
       if (!list.masters.size()) { continue; }
 
       IsoparametricTransformation T;
-      if (type) { T.SetFE(&QuadrilateralFE); }
+      if (entity > 1) { T.SetFE(&QuadrilateralFE); }
       else { T.SetFE(&SegmentFE); }
 
-      int geom = type ? Geometry::SQUARE : Geometry::SEGMENT;
+      int geom = (entity > 1) ? Geometry::SQUARE : Geometry::SEGMENT;
       const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
       if (!fe) { continue; }
 
@@ -575,13 +610,13 @@ void FiniteElementSpace::GetConformingInterpolation() const
       for (unsigned mi = 0; mi < list.masters.size(); mi++)
       {
          const NCMesh::Master &master = list.masters[mi];
-         GetEdgeFaceDofs(type, master.index, master_dofs);
+         GetEntityDofs(entity, master.index, master_dofs);
          if (!master_dofs.Size()) { continue; }
 
          for (int si = master.slaves_begin; si < master.slaves_end; si++)
          {
             const NCMesh::Slave &slave = list.slaves[si];
-            GetEdgeFaceDofs(type, slave.index, slave_dofs);
+            GetEntityDofs(entity, slave.index, slave_dofs);
             if (!slave_dofs.Size()) { continue; }
 
             slave.OrientedPointMatrix(T.GetPointMat());
@@ -725,14 +760,14 @@ void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
 const SparseMatrix* FiniteElementSpace::GetConformingProlongation() const
 {
    if (Conforming()) { return NULL; }
-   if (!cP_is_set) { GetConformingInterpolation(); }
+   if (!cP_is_set) { BuildConformingInterpolation(); }
    return cP;
 }
 
 const SparseMatrix* FiniteElementSpace::GetConformingRestriction() const
 {
    if (Conforming()) { return NULL; }
-   if (!cP_is_set) { GetConformingInterpolation(); }
+   if (!cP_is_set) { BuildConformingInterpolation(); }
    return cR;
 }
 
@@ -847,7 +882,7 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(
    for (int i = 0; i < nmat; i++)
    {
       DenseMatrix &lR = localR(i);
-      lR = numeric_limits<double>::infinity(); // marks invalid rows
+      lR = infinity(); // marks invalid rows
 
       isotr.GetPointMat() = dt.point_matrices(i);
       isotr.FinalizeTransformation();
@@ -861,12 +896,13 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(
          {
             IntegrationPoint ip;
             ip.Set(pt, dim);
-            fe->CalcShape(ip, shape); // TODO: H(curl), etc.?
             MFEM_ASSERT(dynamic_cast<const NodalFiniteElement*>(fe),
                         "only nodal FEs are implemented");
+            fe->CalcShape(ip, shape); // TODO: H(curl), etc.?
             lR.SetRow(j, shape);
          }
       }
+      lR.Threshold(1e-12);
    }
 }
 
@@ -908,7 +944,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
          for (int i = 0; i < lR.Height(); i++)
          {
-            if (lR(i, 0) == numeric_limits<double>::infinity()) { continue; }
+            if (lR(i, 0) == infinity()) { continue; }
 
             int r = DofToVDof(dofs[i], vd);
             int m = (r >= 0) ? r : (-1 - r);
@@ -927,9 +963,9 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    return R;
 }
 
-FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
-                                       const FiniteElementCollection *fec,
-                                       int vdim, int ordering)
+void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
+                                     const FiniteElementCollection *fec,
+                                     int vdim, int ordering)
 {
    this->mesh = mesh;
    this->fec = fec;
@@ -951,33 +987,29 @@ FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
          mfem_error("FiniteElementSpace::FiniteElementSpace :\n"
                     "   NURBS FE space requires NURBS mesh.");
       }
+
+      if (NURBSext == NULL)
+      {
+         this->NURBSext = mesh->NURBSext;
+         own_ext = 0;
+      }
       else
       {
-         int Order = nurbs_fec->GetOrder();
-         if (mesh->NURBSext->GetOrder() == Order)
-         {
-            NURBSext = mesh->NURBSext;
-            own_ext = 0;
-         }
-         else
-         {
-            NURBSext = new NURBSExtension(mesh->NURBSext, Order);
-            own_ext = 1;
-         }
-         UpdateNURBS();
-         cP = cR = NULL;
-         cP_is_set = false;
-         T = NULL;
-         own_T = true;
+         this->NURBSext = NURBSext;
+         own_ext = 1;
       }
+      UpdateNURBS();
+      cP = cR = NULL;
+      cP_is_set = false;
+      T = NULL;
+      own_T = true;
    }
    else
    {
-      NURBSext = NULL;
+      this->NURBSext = NULL;
       own_ext = 0;
       Construct();
    }
-
    BuildElementToDofTable();
 
    // Calculate the local unrolled size.
@@ -1018,7 +1050,8 @@ void FiniteElementSpace::UpdateNURBS()
 
 void FiniteElementSpace::Construct()
 {
-   int i;
+   // This method should be used only for non-NURBS spaces.
+   MFEM_ASSERT(!NURBSext, "internal error");
 
    elem_dof = NULL;
    bdrElem_dof = NULL;
@@ -1057,7 +1090,7 @@ void FiniteElementSpace::Construct()
       {
          fdofs = new int[mesh->GetNFaces()+1];
          fdofs[0] = 0;
-         for (i = 0; i < mesh->GetNFaces(); i++)
+         for (int i = 0; i < mesh->GetNFaces(); i++)
          {
             nfdofs += fdof;
             // nfdofs += fec->DofForGeometry(mesh->GetFaceBaseGeometry(i));
@@ -1070,7 +1103,7 @@ void FiniteElementSpace::Construct()
    {
       bdofs = new int[mesh->GetNE()+1];
       bdofs[0] = 0;
-      for (i = 0; i < mesh->GetNE(); i++)
+      for (int i = 0; i < mesh->GetNE(); i++)
       {
          int geom = mesh->GetElementBaseGeometry(i);
          nbdofs += fec->DofForGeometry(geom);
@@ -1560,7 +1593,7 @@ void FiniteElementSpace::Update(bool want_transform)
 
          case Mesh::DEREFINE:
          {
-            GetConformingInterpolation();
+            BuildConformingInterpolation();
             T = DerefinementMatrix(old_ndofs, old_elem_dof);
             if (cP && cR)
             {
@@ -1579,10 +1612,157 @@ void FiniteElementSpace::Update(bool want_transform)
 
 void FiniteElementSpace::Save(std::ostream &out) const
 {
-   out << "FiniteElementSpace\n"
+   int fes_format = 90; // the original format, v0.9
+   bool nurbs_unit_weights = false;
+
+   // Determine the format that should be used.
+   if (!NURBSext)
+   {
+      // TODO: if this is a variable-order FE space, use fes_format = 100.
+   }
+   else
+   {
+      const NURBSFECollection *nurbs_fec =
+         dynamic_cast<const NURBSFECollection *>(fec);
+      MFEM_VERIFY(nurbs_fec, "invalid FE collection");
+      nurbs_fec->SetOrder(NURBSext->GetOrder());
+      const double eps = 5e-14;
+      nurbs_unit_weights = (NURBSext->GetWeights().Min() >= 1.0-eps &&
+                            NURBSext->GetWeights().Max() <= 1.0+eps);
+      if (NURBSext->GetOrder() == NURBSFECollection::VariableOrder ||
+          (NURBSext != mesh->NURBSext && !nurbs_unit_weights))
+      {
+         fes_format = 100; // v1.0 format
+      }
+   }
+
+   out << (fes_format == 90 ?
+           "FiniteElementSpace\n" : "MFEM FiniteElementSpace v1.0\n")
        << "FiniteElementCollection: " << fec->Name() << '\n'
        << "VDim: " << vdim << '\n'
        << "Ordering: " << ordering << '\n';
+
+   if (fes_format == 100) // v1.0
+   {
+      if (!NURBSext)
+      {
+         // TODO: this is a variable-order FE space --> write 'element_orders'.
+      }
+      else if (NURBSext != mesh->NURBSext)
+      {
+         if (NURBSext->GetOrder() != NURBSFECollection::VariableOrder)
+         {
+            out << "NURBS_order\n" << NURBSext->GetOrder() << '\n';
+         }
+         else
+         {
+            out << "NURBS_orders\n";
+            // 1 = do not write the size, just the entries:
+            NURBSext->GetOrders().Save(out, 1);
+         }
+         // If the weights are not unit, write them to the output:
+         if (!nurbs_unit_weights)
+         {
+            out << "NURBS_weights\n";
+            NURBSext->GetWeights().Print(out, 1);
+         }
+      }
+      out << "End: MFEM FiniteElementSpace v1.0\n";
+   }
+}
+
+FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
+{
+   string buff;
+   int fes_format = 0, ord;
+   FiniteElementCollection *r_fec;
+
+   Destroy();
+
+   input >> std::ws;
+   getline(input, buff);  // 'FiniteElementSpace'
+   filter_dos(buff);
+   if (buff == "FiniteElementSpace") { fes_format = 90; /* v0.9 */ }
+   else if (buff == "MFEM FiniteElementSpace v1.0") { fes_format = 100; }
+   else { MFEM_ABORT("input stream is not a FiniteElementSpace!"); }
+   getline(input, buff, ' '); // 'FiniteElementCollection:'
+   input >> std::ws;
+   getline(input, buff);
+   filter_dos(buff);
+   r_fec = FiniteElementCollection::New(buff.c_str());
+   getline(input, buff, ' '); // 'VDim:'
+   input >> vdim;
+   getline(input, buff, ' '); // 'Ordering:'
+   input >> ord;
+
+   NURBSFECollection *nurbs_fec = dynamic_cast<NURBSFECollection*>(r_fec);
+   NURBSExtension *NURBSext = NULL;
+   if (fes_format == 90) // original format, v0.9
+   {
+      if (nurbs_fec)
+      {
+         MFEM_VERIFY(m->NURBSext, "NURBS FE collection requires a NURBS mesh!");
+         const int order = nurbs_fec->GetOrder();
+         if (order != m->NURBSext->GetOrder() &&
+             order != NURBSFECollection::VariableOrder)
+         {
+            NURBSext = new NURBSExtension(m->NURBSext, order);
+         }
+      }
+   }
+   else if (fes_format == 100) // v1.0
+   {
+      while (1)
+      {
+         skip_comment_lines(input, '#');
+         MFEM_VERIFY(input.good(), "error reading FiniteElementSpace v1.0");
+         getline(input, buff);
+         filter_dos(buff);
+         if (buff == "NURBS_order" || buff == "NURBS_orders")
+         {
+            MFEM_VERIFY(nurbs_fec,
+                        buff << ": NURBS FE collection is required!");
+            MFEM_VERIFY(m->NURBSext, buff << ": NURBS mesh is required!");
+            MFEM_VERIFY(!NURBSext, buff << ": order redefinition!");
+            if (buff == "NURBS_order")
+            {
+               int order;
+               input >> order;
+               NURBSext = new NURBSExtension(m->NURBSext, order);
+            }
+            else
+            {
+               Array<int> orders;
+               orders.Load(m->NURBSext->GetNKV(), input);
+               NURBSext = new NURBSExtension(m->NURBSext, orders);
+            }
+         }
+         else if (buff == "NURBS_weights")
+         {
+            MFEM_VERIFY(NURBSext, "NURBS_weights: NURBS_orders have to be "
+                        "specified before NURBS_weights!");
+            NURBSext->GetWeights().Load(input, NURBSext->GetNDof());
+         }
+         else if (buff == "element_orders")
+         {
+            MFEM_VERIFY(!nurbs_fec, "section element_orders cannot be used "
+                        "with a NURBS FE collection");
+            MFEM_ABORT("element_orders: not implemented yet!");
+         }
+         else if (buff == "End: MFEM FiniteElementSpace v1.0")
+         {
+            break;
+         }
+         else
+         {
+            MFEM_ABORT("unknown section: " << buff);
+         }
+      }
+   }
+
+   Constructor(m, NURBSext, r_fec, vdim, ord);
+
+   return r_fec;
 }
 
 

@@ -354,7 +354,7 @@ protected:
 
    MixedScalarVectorIntegrator(VectorCoefficient &vq, bool _transpose = false,
                                bool _cross_2d = false)
-      : VQ(&vq), transpose(_transpose) , cross_2d(_cross_2d) {}
+      : VQ(&vq), transpose(_transpose), cross_2d(_cross_2d) {}
 
    inline virtual bool VerifyFiniteElementTypes(
       const FiniteElement & trial_fe,

@@ -112,8 +112,8 @@ void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
 
    for (int d = 0; d < spaceDim; d++)
    {
-      min(d) = numeric_limits<double>::infinity();
-      max(d) = -numeric_limits<double>::infinity();
+      min(d) = infinity();
+      max(d) = -infinity();
    }
 
    if (Nodes == NULL)
@@ -183,7 +183,7 @@ void Mesh::GetCharacteristics(double &h_min, double &h_max,
    if (Vh) { Vh->SetSize(NumOfElements); }
    if (Vk) { Vk->SetSize(NumOfElements); }
 
-   h_min = kappa_min = numeric_limits<double>::infinity();
+   h_min = kappa_min = infinity();
    h_max = kappa_max = -h_min;
    if (dim == 0) { if (Vh) { *Vh = 1.0; } if (Vk) {*Vk = 1.0; } return; }
    J.SetSize(sdim, dim);
@@ -622,34 +622,34 @@ void Mesh::GetLocalQuadToHexTransformation(
 }
 
 void Mesh::GetLocalFaceTransformation(
-   int face_type, int elem_type, IsoparametricTransformation &Transf, int inf)
+   int face_type, int elem_type, IsoparametricTransformation &Transf, int info)
 {
    switch (face_type)
    {
       case Element::POINT:
-         GetLocalPtToSegTransformation(Transf, inf);
+         GetLocalPtToSegTransformation(Transf, info);
          break;
 
       case Element::SEGMENT:
          if (elem_type == Element::TRIANGLE)
          {
-            GetLocalSegToTriTransformation(Transf, inf);
+            GetLocalSegToTriTransformation(Transf, info);
          }
          else
          {
             MFEM_ASSERT(elem_type == Element::QUADRILATERAL, "");
-            GetLocalSegToQuadTransformation(Transf, inf);
+            GetLocalSegToQuadTransformation(Transf, info);
          }
          break;
 
       case Element::TRIANGLE:
          MFEM_ASSERT(elem_type == Element::TETRAHEDRON, "");
-         GetLocalTriToTetTransformation(Transf, inf);
+         GetLocalTriToTetTransformation(Transf, info);
          break;
 
       case Element::QUADRILATERAL:
          MFEM_ASSERT(elem_type == Element::HEXAHEDRON, "");
-         GetLocalQuadToHexTransformation(Transf, inf);
+         GetLocalQuadToHexTransformation(Transf, info);
          break;
    }
 }
@@ -2342,7 +2342,6 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    }
 
    // Copy the vertices
-   MFEM_ASSERT(mesh.vertices.Size() == NumOfVertices, "internal MFEM error!");
    mesh.vertices.Copy(vertices);
 
    // Duplicate the boundary
@@ -2389,12 +2388,23 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    mesh.attributes.Copy(attributes);
    mesh.bdr_attributes.Copy(bdr_attributes);
 
-   // No support for NURBS meshes, yet. Need deep copy for NURBSExtension.
-   MFEM_VERIFY(mesh.NURBSext == NULL,
-               "copying NURBS meshes is not implemented");
-   NURBSext = NULL;
+   // Deep copy the NURBSExtension.
+#ifdef MFEM_USE_MPI
+   ParNURBSExtension *pNURBSext =
+      dynamic_cast<ParNURBSExtension *>(mesh.NURBSext);
+   if (pNURBSext)
+   {
+      NURBSext = new ParNURBSExtension(*pNURBSext);
+   }
+   else
+#endif
+   {
+      NURBSext = mesh.NURBSext ? new NURBSExtension(*mesh.NURBSext) : NULL;
+   }
 
    // Deep copy the NCMesh.
+   // TODO: ParNCMesh; ParMesh has a separate 'pncmesh' pointer, and 'ncmesh'
+   //       is initialized from it. Need ParNCMesh copy constructor.
    ncmesh = mesh.ncmesh ? new NCMesh(*mesh.ncmesh) : NULL;
 
    // Duplicate the Nodes, including the FiniteElementCollection and the
@@ -2406,8 +2416,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
       FiniteElementCollection *fec_copy =
          FiniteElementCollection::New(fec->Name());
       FiniteElementSpace *fes_copy =
-         new FiniteElementSpace(this, fec_copy, fes->GetVDim(),
-                                fes->GetOrdering());
+         new FiniteElementSpace(*fes, this, fec_copy);
       Nodes = new GridFunction(fes_copy);
       Nodes->MakeOwner(fec_copy);
       *Nodes = *mesh.Nodes;
@@ -3082,6 +3091,9 @@ void Mesh::KnotInsert(Array<KnotVector *> &kv)
 
    NURBSext->KnotInsert(kv);
 
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+   sequence++;
+
    UpdateNURBS();
 }
 
@@ -3092,13 +3104,13 @@ void Mesh::NURBSUniformRefinement()
 
    NURBSext->UniformRefinement();
 
-   last_operation = Mesh::REFINE;
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
    sequence++;
 
    UpdateNURBS();
 }
 
-void Mesh::DegreeElevate(int t)
+void Mesh::DegreeElevate(int rel_degree, int degree)
 {
    if (NURBSext == NULL)
    {
@@ -3107,15 +3119,10 @@ void Mesh::DegreeElevate(int t)
 
    NURBSext->ConvertToPatches(*Nodes);
 
-   NURBSext->DegreeElevate(t);
+   NURBSext->DegreeElevate(rel_degree, degree);
 
-   NURBSFECollection *nurbs_fec =
-      dynamic_cast<NURBSFECollection *>(Nodes->OwnFEC());
-   if (!nurbs_fec)
-   {
-      mfem_error("Mesh::DegreeElevate");
-   }
-   nurbs_fec->UpdateOrder(nurbs_fec->GetOrder() + t);
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+   sequence++;
 
    UpdateNURBS();
 }
@@ -4587,14 +4594,8 @@ void Mesh::ReorientTetMesh()
 int *Mesh::CartesianPartitioning(int nxyz[])
 {
    int *partitioning;
-   double pmin[3] = { numeric_limits<double>::infinity(),
-                      numeric_limits<double>::infinity(),
-                      numeric_limits<double>::infinity()
-                    };
-   double pmax[3] = { -numeric_limits<double>::infinity(),
-                      -numeric_limits<double>::infinity(),
-                      -numeric_limits<double>::infinity()
-                    };
+   double pmin[3] = { infinity(), infinity(), infinity() };
+   double pmax[3] = { -infinity(), -infinity(), -infinity() };
    // find a bounding box using the vertices
    for (int vi = 0; vi < NumOfVertices; vi++)
    {

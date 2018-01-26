@@ -28,6 +28,12 @@ if (MFEM_USE_MPI)
    EXTRA_HEADERS joule_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
    LIBRARIES mfem mfem_miniapps_common)
 
+ add_mfem_miniapp(maxwell
+   MAIN maxwell.cpp
+   EXTRA_SOURCES maxwell_solver.cpp
+   EXTRA_HEADERS maxwell_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+   LIBRARIES mfem mfem_miniapps_common)
+
   # Add the corresponding tests to the "test" target
   add_test(NAME tesla_np=4
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4
@@ -46,6 +52,13 @@ if (MFEM_USE_MPI)
    ${MPIEXEC_PREFLAGS}
    $<TARGET_FILE:joule>
    -no-vis -p rod -tf 3 -m ${CMAKE_CURRENT_SOURCE_DIR}/cylinder-hex.mesh
+   ${MPIEXEC_POSTFLAGS})
+
+ add_test(NAME maxwell_np=4
+   COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4
+   ${MPIEXEC_PREFLAGS}
+   $<TARGET_FILE:maxwell>
+   -no-vis -abcs "-1" -dp "-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5"
    ${MPIEXEC_POSTFLAGS})
 
 endif()

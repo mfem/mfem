@@ -28,15 +28,21 @@ enum AssemblyType
    NoAssembly
 };
 
-/** The ordering method used when the number of unknowns per mesh
-    node (vector dimension) is bigger than 1. */
+/** @brief The ordering method used when the number of unknowns per mesh node
+    (vector dimension) is bigger than 1. */
 class Ordering
 {
 public:
-   /** Ordering methods:
-       byNODES - loop first over the nodes (inner loop) then over the vector dimension (outer loop),
-       byVDIM  - loop first over the vector dimension (inner loop) then over the nodes (outer loop)  */
-   enum Type { byNODES, byVDIM };
+   /// %Ordering methods:
+   enum Type
+   {
+      byNODES, /**< loop first over the nodes (inner loop) then over the vector
+                    dimension (outer loop); symbolically it can be represented
+                    as: XXX...,YYY...,ZZZ... */
+      byVDIM   /**< loop first over the vector dimension (inner loop) then over
+                    the nodes (outer loop); symbolically it can be represented
+                    as: XYZ,XYZ,XYZ,... */
+   };
 
    template <Type Ord>
    static inline int Map(int ndofs, int vdim, int dof, int vd);
@@ -62,32 +68,33 @@ Ordering::Map<Ordering::byVDIM>(int ndofs, int vdim, int dof, int vd)
 
 class NURBSExtension;
 
-/** Class FiniteElementSpace - responsible for providing FEM view of the mesh
-    (mainly managing the set of degrees of freedom). */
+/** @brief Class FiniteElementSpace - responsible for providing FEM view of the
+    mesh, mainly managing the set of degrees of freedom. */
 class FiniteElementSpace
 {
 protected:
-   /// The mesh that FE space lives on.
+   /// The mesh that FE space lives on (not owned).
    Mesh *mesh;
 
+   /// Associated FE collection (not owned).
    const FiniteElementCollection *fec;
 
-   /// Vector dimension (number of unknowns per degree of freedom).
+   /// %Vector dimension (number of unknowns per degree of freedom).
    int vdim;
 
-   /** Type of ordering of dofs.
-       Ordering::byNODES - first nodes, then vector dimension,
-       Ordering::byVDIM  - first vector dimension, then nodes  */
+   /** Type of ordering of the vector dofs when #vdim > 1.
+       - Ordering::byNODES - first nodes, then vector dimension,
+       - Ordering::byVDIM  - first vector dimension, then nodes */
    Ordering::Type ordering;
 
-   /// Number of degrees of freedom. Number of unknowns are ndofs*vdim.
+   /// Number of degrees of freedom. Number of unknowns is #ndofs * #vdim.
    int ndofs;
 
    int nvdofs, nedofs, nfdofs, nbdofs, nldofs;
    int *fdofs, *bdofs;
 
-   mutable Table *elem_dof;
-   Table *bdrElem_dof;
+   mutable Table *elem_dof; // if NURBS FE space, not owned; otherwise, owned.
+   Table *bdrElem_dof; // used only with NURBS FE spaces; not owned.
 
    Array<int> dof_elem_array, dof_ldof_array;
    Array<int> *tensor_offsets, *tensor_indices;
@@ -98,9 +105,9 @@ protected:
    /** Matrix representing the prolongation from the global conforming dofs to
        a set of intermediate partially conforming dofs, e.g. the dofs associated
        with a "cut" space on a non-conforming mesh. */
-   mutable SparseMatrix *cP;
+   mutable SparseMatrix *cP; // owned
    /// Conforming restriction matrix such that cR.cP=I.
-   mutable SparseMatrix *cR;
+   mutable SparseMatrix *cR; // owned
    mutable bool cP_is_set;
 
    /// Transformation to apply to GridFunctions after space Update().
@@ -116,13 +123,17 @@ protected:
 
    void BuildElementToDofTable() const;
 
-   /** This is a helper function to get edge (type == 0) or face (type == 1)
-       DOFs. The function is aware of ghost edges/faces in parallel, for which
-       an empty DOF list is returned. */
-   void GetEdgeFaceDofs(int type, int index, Array<int> &dofs) const;
+   /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
+   void GetEntityDofs(int entity, int index, Array<int> &dofs) const;
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
-   void GetConformingInterpolation() const;
+   void BuildConformingInterpolation() const;
+
+   static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
+                               Array<int>& slave_dofs, DenseMatrix& I);
+
+   static bool DofFinalizable(int dof, const Array<bool>& finalized,
+                              const SparseMatrix& deps);
 
    void MakeVDimMatrix(SparseMatrix &mat) const;
 
@@ -135,14 +146,51 @@ protected:
    /// Calculate GridFunction restriction matrix after mesh derefinement.
    SparseMatrix* DerefinementMatrix(int old_ndofs, const Table* old_elem_dof);
 
+   /// Help function for constructors.
+   void Constructor(Mesh *mesh, NURBSExtension *ext,
+                    const FiniteElementCollection *fec,
+                    int vdim = 1, int ordering = Ordering::byNODES);
 
 public:
-   FiniteElementSpace(Mesh *mesh, const FiniteElementCollection *fec,
-                      int vdim = 1, int ordering = Ordering::byNODES);
+   /** @brief Default constructor: the object is invalid until initialized using
+       the method Load(). */
+   FiniteElementSpace();
+
+   /** @brief Copy constructor: deep copy all data from @a orig except the Mesh,
+       the FiniteElementCollection, ans some derived data. */
+   /** If the @a mesh or @a fec poiters are NULL (default), then the new
+       FiniteElementSpace will reuse the respective pointers from @a orig. If
+       any of these pointers is not NULL, the given pointer will be used instead
+       of the one used by @a orig.
+
+       @note The objects pointed to by the @a mesh and @a fec parameters must be
+       either the same objects as the ones used by @a orig, or copies of them.
+       Otherwise, the behavior is undefined.
+
+       @note Derived data objects, such as the conforming prolongation and
+       restriction matrices, and the update operator, will not be copied, even
+       if they are created in the @a orig object. */
+   FiniteElementSpace(const FiniteElementSpace &orig, Mesh *mesh = NULL,
+                      const FiniteElementCollection *fec = NULL);
+
+   FiniteElementSpace(Mesh *mesh,
+                      const FiniteElementCollection *fec,
+                      int vdim = 1, int ordering = Ordering::byNODES)
+   { Constructor(mesh, NULL, fec, vdim, ordering); }
+
+   /// Construct a NURBS FE space based on the given NURBSExtension, @a ext.
+   /** @note If the pointer @a ext is NULL, this constructor is equivalent to
+       the standard constructor with the same arguments minus the
+       NURBSExtension, @a ext. */
+   FiniteElementSpace(Mesh *mesh, NURBSExtension *ext,
+                      const FiniteElementCollection *fec,
+                      int vdim = 1, int ordering = Ordering::byNODES)
+   { Constructor(mesh, ext, fec, vdim, ordering); }
 
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }
 
+   const NURBSExtension *GetNURBSext() const { return NURBSext; }
    NURBSExtension *GetNURBSext() { return NURBSext; }
    NURBSExtension *StealNURBSext();
 
@@ -168,6 +216,7 @@ public:
    /// Returns number of degrees of freedom.
    inline int GetNDofs() const { return ndofs; }
 
+   /// Return the number of vector dofs, i.e. GetNDofs() x GetVDim().
    inline int GetVSize() const { return vdim * ndofs; }
 
    /// Return the number of vector true (conforming) dofs.
@@ -191,11 +240,17 @@ public:
    int GetNEDofs() const { return nedofs; }
    int GetNFDofs() const { return nfdofs; }
 
+   /// Returns number of vertices in the mesh.
+   inline int GetNV() const { return mesh->GetNV(); }
+
    /// Returns number of elements in the mesh.
    inline int GetNE() const { return mesh->GetNE(); }
 
-   /// Returns number of nodes in the mesh.
-   inline int GetNV() const { return mesh->GetNV(); }
+   /// Returns number of faces (i.e. co-dimension 1 entities) in the mesh.
+   /** The co-dimension 1 entities are those that have dimension 1 less than the
+       mesh dimension, e.g. for a 2D mesh, the faces are the 1D entities, i.e.
+       the edges. */
+   inline int GetNF() const { return mesh->GetNumFaces(); }
 
    /// Returns number of boundary elements in the mesh.
    inline int GetNBE() const { return mesh->GetNBE(); }
@@ -212,16 +267,16 @@ public:
    inline int GetBdrElementType(int i) const
    { return mesh->GetBdrElementType(i); }
 
-   /// Returns ElementTransformation for the i'th element.
+   /// Returns ElementTransformation for the @a i-th element.
    ElementTransformation *GetElementTransformation(int i) const
    { return mesh->GetElementTransformation(i); }
 
-   /** Returns the transformation defining the i-th element in the user-defined
-       variable. */
+   /** @brief Returns the transformation defining the @a i-th element in the
+       user-defined variable @a ElTr. */
    void GetElementTransformation(int i, IsoparametricTransformation *ElTr)
    { mesh->GetElementTransformation(i, ElTr); }
 
-   /// Returns ElementTransformation for the i'th boundary element.
+   /// Returns ElementTransformation for the @a i-th boundary element.
    ElementTransformation *GetBdrElementTransformation(int i) const
    { return mesh->GetBdrElementTransformation(i); }
 
@@ -388,9 +443,13 @@ public:
 
    void Save(std::ostream &out) const;
 
-   /// Make a vector corresponding to a grid function on the finite element space 
+   /// Make a vector corresponding to a grid function on the finite element space
    void ToLocalVector(const Vector &v, Vector &V);
    void ToGlobalVector(const Vector &V, Vector &v);
+
+   /** @brief Read a FiniteElementSpace from a stream. The returned
+       FiniteElementCollection is owned by the caller. */
+   FiniteElementCollection *Load(Mesh *m, std::istream &input);
 
    virtual ~FiniteElementSpace();
 };

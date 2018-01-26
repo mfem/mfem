@@ -93,7 +93,7 @@ EXAMPLE_SUBDIRS = sundials petsc
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_SUBDIRS = common electromagnetics meshing performance tools
+MINIAPP_SUBDIRS = common electromagnetics meshing performance tools nurbs
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools)
@@ -196,7 +196,7 @@ ifeq ($(MFEM_USE_OPENMP),YES)
 endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
-MFEM_REQ_LIB_DEPS = METIS SIDRE LAPACK SUNDIALS MESQUITE SUITESPARSE SUPERLU\
+MFEM_REQ_LIB_DEPS = SUPERLU METIS SIDRE LAPACK SUNDIALS MESQUITE SUITESPARSE\
  STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 

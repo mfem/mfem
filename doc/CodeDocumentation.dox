@@ -69,6 +69,8 @@ namespace mfem {
  * - <a class="el" href="ex17p_8cpp_source.html">Example 17p</a>: parallel Discontinuous Galerkin (DG) for linear elasticity
  * - <a class="el" href="ex18_8cpp_source.html">Example 18</a>: Discontinuous Galerkin (DG) for the Euler equations
  * - <a class="el" href="ex18p_8cpp_source.html">Example 18p</a>: parallel Discontinuous Galerkin (DG) for the Euler equations
+ * - <a class="el" href="ex19_8cpp_source.html">Example 19</a>: incompressible nonlinear elasticity
+ * - <a class="el" href="ex19p_8cpp_source.html">Example 19p</a>: parallel incompressible nonlinear elasticity
  *
  * <H4>SUNDIALS Examples</H4>
  * - Variants of Examples
@@ -97,6 +99,7 @@ namespace mfem {
  * <H3>Miniapps</H3>
  * - <a class="el" href="volta_8cpp_source.html">Volta</a>: simple electrostatics simulation code
  * - <a class="el" href="tesla_8cpp_source.html">Tesla</a>: simple magnetostatics simulation code
+ * - <a class="el" href="maxwell_8cpp_source.html">Maxwell</a>: simple transient full-wave electromagnetics simulation code
  * - <a class="el" href="joule_8cpp_source.html">Joule</a>: transient magnetics and Joule heating miniapp
  * - <a class="el" href="mobius-strip_8cpp_source.html">Mobius Strip</a>: generate various Mobius strip-like meshes
  * - <a class="el" href="klein-bottle_8cpp_source.html">Klein Bottle</a>: generate three types of Klein bottle surfaces

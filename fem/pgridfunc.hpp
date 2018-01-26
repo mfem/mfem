@@ -57,13 +57,15 @@ public:
        processor. The ParGridFunction does not assume ownership of the data. */
    ParGridFunction(ParFiniteElementSpace *pf, GridFunction *gf);
 
-   /** Creates grid function on (all) dofs from a given vector on the true dofs,
-       i.e. P tv. */
+   /** @brief Creates grid function on (all) dofs from a given vector on the
+       true dofs, i.e. P tv. */
    ParGridFunction(ParFiniteElementSpace *pf, HypreParVector *tv);
 
-   /** Construct a ParGridFunction from the given serial GridFunction.
-       If partitioning == NULL (default), the data from 'gf' is NOT copied. */
-   ParGridFunction(ParMesh *pmesh, GridFunction *gf, int * partitioning = NULL);
+   /** @brief Construct a local ParGridFunction from the given *global*
+       GridFunction. If @a partitioning is NULL (default), the data from @a gf
+       is NOT copied. */
+   ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
+                   const int *partitioning = NULL);
 
    /// Assign constant values to the ParGridFunction data.
    ParGridFunction &operator=(double value)
@@ -223,7 +225,7 @@ public:
    virtual double ComputeMaxError(Coefficient *exsol[],
                                   const IntegrationRule *irs[] = NULL) const
    {
-      return GlobalLpNorm(std::numeric_limits<double>::infinity(),
+      return GlobalLpNorm(infinity(),
                           GridFunction::ComputeMaxError(exsol, irs),
                           pfes->GetComm());
    }
@@ -231,15 +233,13 @@ public:
    virtual double ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
-      return ComputeLpError(std::numeric_limits<double>::infinity(),
-                            exsol, NULL, irs);
+      return ComputeLpError(infinity(), exsol, NULL, irs);
    }
 
    virtual double ComputeMaxError(VectorCoefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
-      return ComputeLpError(std::numeric_limits<double>::infinity(),
-                            exsol, NULL, NULL, irs);
+      return ComputeLpError(infinity(), exsol, NULL, NULL, irs);
    }
 
    virtual double ComputeLpError(const double p, Coefficient &exsol,
