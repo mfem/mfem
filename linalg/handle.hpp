@@ -57,7 +57,7 @@ public:
 
    /** @brief Create a OperatorHandle with a specified type id, @a tid, without
        allocating the actual matrix. */
-   OperatorHandle(Operator::Type tid)
+   explicit OperatorHandle(Operator::Type tid)
       : oper(NULL), type_id(CheckType(tid)), own_oper(false) { }
 
    /// Create an OperatorHandle for the given OpType pointer, @a A.
@@ -161,8 +161,9 @@ public:
    void MakeRAP(OperatorHandle &Rt, OperatorHandle &A, OperatorHandle &P);
 
    /// Convert the given OperatorHandle @a A to the currently set type id.
-   /** The operator ownership flag is set to false if the target type id is the
-       same as the input; otherwise it is set to true. */
+   /** The operator ownership flag is set to false if the object held by @a A
+       will be held by this object as well, e.g. when the source and destanation
+       types are the same; otherwise it is set to true. */
    void ConvertFrom(OperatorHandle &A);
 
    /// Convert the given OpType pointer, @a A, to the currently set type id.
