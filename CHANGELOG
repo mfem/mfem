@@ -82,8 +82,10 @@ Miscellaneous
 - Add support for building a shared version of the MFEM library with GNU make.
 
 - In FiniteElementSpace, the fully assembled refinement matrix is now replaced
-  by a specialized refinement operator by default. The operator option is both
-  faster and more memory efficient than using the fully assembled matrix.
+  by default by a specialized refinement operator. The operator option is both
+  faster and more memory efficient than using the fully assembled matrix. The
+  old approach is still available and can be reenabled, if needed, using the
+  new method FiniteElementSpace::SetUpdateOperatorType().
 
 - When building with the GnuTLS library, switch to using X.509 certificates for
   secure socket authentication. Support for the previously used OpenPGP keys has

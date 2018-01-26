@@ -433,7 +433,7 @@ public:
    SparseMatrix *H2L_GlobalRestrictionMatrix(FiniteElementSpace *lfes);
 
    /** Reflect changes in the mesh: update number of DOFs, etc. Also, calculate
-       GridFunction transformation matrix (unless want_transform is false).
+       GridFunction transformation operator (unless want_transform is false).
        Safe to call multiple times, does nothing if space already up to date. */
    virtual void Update(bool want_transform = true);
 
