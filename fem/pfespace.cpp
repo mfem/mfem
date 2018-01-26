@@ -117,7 +117,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
       UpdateNURBS();
    }
 
-   Construct();
+   Construct(); // parallel version of Construct().
 
    // Apply the ldof_signs to the elem_dof Table
    if (Conforming() && !NURBSext)
@@ -2570,9 +2570,9 @@ void ParFiniteElementSpace::Update(bool want_transform)
    }
 
    Destroy();
-   FiniteElementSpace::Destroy();
+   FiniteElementSpace::Destroy(); // calls Th.Clear()
 
-   FiniteElementSpace::Construct(); // sets T to NULL, own_T to true
+   FiniteElementSpace::Construct();
    Construct();
 
    BuildElementToDofTable();
@@ -2584,33 +2584,36 @@ void ParFiniteElementSpace::Update(bool want_transform)
       {
          case Mesh::REFINE:
          {
-            if (prefer_action_only)
+            if (Th.Type() != Operator::MFEM_SPARSEMAT)
             {
-               T = new RefinementOperator(this, old_elem_dof, old_ndofs);
-               // T takes ownership of 'old_elem_dofs', we no longer own it
+               Th.Reset(new RefinementOperator(this, old_elem_dof, old_ndofs));
+               // The RefinementOperator takes ownership of 'old_elem_dofs', so
+               // we no longer own it:
                old_elem_dof = NULL;
             }
             else
             {
                // calculate fully assembled matrix
-               T = RefinementMatrix(old_ndofs, old_elem_dof);
+               Th.Reset(RefinementMatrix(old_ndofs, old_elem_dof));
             }
             break;
          }
 
          case Mesh::DEREFINE:
          {
-            T = ParallelDerefinementMatrix(old_ndofs, old_elem_dof);
+            Th.Reset(ParallelDerefinementMatrix(old_ndofs, old_elem_dof));
             if (Nonconforming())
             {
-               T = new TripleProductOperator(P, R, T, false, false, true);
+               Th.SetOperatorOwner(false);
+               Th.Reset(new TripleProductOperator(P, R, Th.Ptr(),
+                                                  false, false, true));
             }
             break;
          }
 
          case Mesh::REBALANCE:
          {
-            T = RebalanceMatrix(old_ndofs, old_elem_dof);
+            Th.Reset(RebalanceMatrix(old_ndofs, old_elem_dof));
             break;
          }
 
