@@ -171,6 +171,9 @@ public:
    /// Return the first index where 'el' is found; return -1 if not found
    inline int Find(const T &el) const;
 
+   /// Do bisection search for 'el' in a sorted array; return -1 if not found.
+   inline int FindSorted(const T &el) const;
+
    /// Delete the last entry
    inline void DeleteLast() { if (size > 0) { size--; } }
 
@@ -293,15 +296,15 @@ private:
    friend void Swap<T>(Array2D<T> &, Array2D<T> &);
 
    Array<T> array1d;
-   int N; // number of columns
+   int M, N; // number of rows and columns
 
 public:
-   Array2D() { N = 0; }
-   Array2D(int m, int n) : array1d(m*n) { N = n; }
+   Array2D() { M = N = 0; }
+   Array2D(int m, int n) : array1d(m*n) { M = m; N = n; }
 
-   void SetSize(int m, int n) { array1d.SetSize(m*n); N = n; }
+   void SetSize(int m, int n) { array1d.SetSize(m*n); M = m; N = n; }
 
-   int NumRows() const { return array1d.Size()/N; }
+   int NumRows() const { return M; }
    int NumCols() const { return N; }
 
    inline const T &operator()(int i, int j) const;
@@ -343,7 +346,7 @@ public:
    */
    void Load(std::istream &in, int fmt = 0)
    {
-      if (fmt == 0) { int M; in >> M >> N; array1d.SetSize(M*N); }
+      if (fmt == 0) { in >> M >> N; array1d.SetSize(M*N); }
       array1d.Load(in, 1);
    }
 
@@ -356,17 +359,17 @@ public:
    { SetSize(new_size0,new_size1); Load(in, 1); }
 
    void Copy(Array2D &copy) const
-   { copy.N = N; array1d.Copy(copy.array1d); }
+   { copy.M = M; copy.N = N; array1d.Copy(copy.array1d); }
 
    inline void operator=(const T &a)
    { array1d = a; }
 
    /// Make this Array a reference to 'master'
    inline void MakeRef(const Array2D &master)
-   { N = master.N; array1d.MakeRef(master.array1d); }
+   { M = master.M; N = master.N; array1d.MakeRef(master.array1d); }
 
    /// Delete all dynamically allocated memory, reseting all dimentions to zero.
-   inline void DeleteAll() { N = 0; array1d.DeleteAll(); }
+   inline void DeleteAll() { M = 0; N = 0; array1d.DeleteAll(); }
 
    /// Prints array to stream with width elements per row
    void Print(std::ostream &out = mfem::out, int width = 4);
@@ -667,17 +670,26 @@ template <class T>
 inline int Array<T>::Find(const T &el) const
 {
    for (int i = 0; i < size; i++)
-      if (((T*)data)[i] == el)
-      {
-         return i;
-      }
+   {
+      if (((T*)data)[i] == el) { return i; }
+   }
    return -1;
+}
+
+template <class T>
+inline int Array<T>::FindSorted(const T &el) const
+{
+   const T *begin = (const T*) data, *end = begin + size;
+   const T* first = std::lower_bound(begin, end, el);
+   if (first == end || !(*first == el)) { return  -1; }
+   return first - begin;
 }
 
 template <class T>
 inline void Array<T>::DeleteFirst(const T &el)
 {
    for (int i = 0; i < size; i++)
+   {
       if (((T*)data)[i] == el)
       {
          for (i++; i < size; i++)
@@ -687,6 +699,7 @@ inline void Array<T>::DeleteFirst(const T &el)
          size--;
          return;
       }
+   }
 }
 
 template <class T>

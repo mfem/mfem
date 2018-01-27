@@ -69,6 +69,14 @@ void hypre_CSRMatrixBooleanMatvec(hypre_CSRMatrix *A,
                                   HYPRE_Bool beta,
                                   HYPRE_Bool *y);
 
+/** The "Boolean" analog of y = alpha * A^T * x + beta * y, where elements in
+    the sparsity pattern of the CSR matrix A are treated as "true". */
+void hypre_CSRMatrixBooleanMatvecT(hypre_CSRMatrix *A,
+                                   HYPRE_Bool alpha,
+                                   HYPRE_Bool *x,
+                                   HYPRE_Bool beta,
+                                   HYPRE_Bool *y);
+
 hypre_ParCSRCommHandle *
 hypre_ParCSRCommHandleCreate_bool(HYPRE_Int            job,
                                   hypre_ParCSRCommPkg *comm_pkg,
@@ -82,6 +90,14 @@ void hypre_ParCSRMatrixBooleanMatvec(hypre_ParCSRMatrix *A,
                                      HYPRE_Bool *x,
                                      HYPRE_Bool beta,
                                      HYPRE_Bool *y);
+
+/** The "Boolean" analog of y = alpha * A^T * x + beta * y, where elements in
+    the sparsity pattern of the ParCSR matrix A are treated as "true". */
+void hypre_ParCSRMatrixBooleanMatvecT(hypre_ParCSRMatrix *A,
+                                      HYPRE_Bool alpha,
+                                      HYPRE_Bool *x,
+                                      HYPRE_Bool beta,
+                                      HYPRE_Bool *y);
 
 /** Perform the operation A += beta*B, assuming that the sparsity pattern of A
     contains that of B. */

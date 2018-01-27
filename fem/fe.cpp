@@ -982,7 +982,7 @@ void Linear2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 BiLinear2DFiniteElement::BiLinear2DFiniteElement()
-   : NodalFiniteElement(2, Geometry::SQUARE , 4, 1, FunctionSpace::Qk)
+   : NodalFiniteElement(2, Geometry::SQUARE, 4, 1, FunctionSpace::Qk)
 {
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
@@ -1112,7 +1112,7 @@ void GaussBiLinear2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 P1OnQuadFiniteElement::P1OnQuadFiniteElement()
-   : NodalFiniteElement(2, Geometry::SQUARE , 3, 1, FunctionSpace::Qk)
+   : NodalFiniteElement(2, Geometry::SQUARE, 3, 1, FunctionSpace::Qk)
 {
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
@@ -2264,7 +2264,7 @@ void Cubic3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 
 P0TriangleFiniteElement::P0TriangleFiniteElement()
-   : NodalFiniteElement(2, Geometry::TRIANGLE , 1, 0)
+   : NodalFiniteElement(2, Geometry::TRIANGLE, 1, 0)
 {
    Nodes.IntPoint(0).x = 0.333333333333333333;
    Nodes.IntPoint(0).y = 0.333333333333333333;
@@ -2285,7 +2285,7 @@ void P0TriangleFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 
 P0QuadFiniteElement::P0QuadFiniteElement()
-   : NodalFiniteElement(2, Geometry::SQUARE , 1, 0, FunctionSpace::Qk)
+   : NodalFiniteElement(2, Geometry::SQUARE, 1, 0, FunctionSpace::Qk)
 {
    Nodes.IntPoint(0).x = 0.5;
    Nodes.IntPoint(0).y = 0.5;
@@ -3267,7 +3267,7 @@ void BiCubic3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 
 P0SegmentFiniteElement::P0SegmentFiniteElement(int Ord)
-   : NodalFiniteElement(1, Geometry::SEGMENT , 1, Ord)  // defaul Ord = 0
+   : NodalFiniteElement(1, Geometry::SEGMENT, 1, Ord)   // defaul Ord = 0
 {
    Nodes.IntPoint(0).x = 0.5;
 }
@@ -3285,7 +3285,7 @@ void P0SegmentFiniteElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 CrouzeixRaviartFiniteElement::CrouzeixRaviartFiniteElement()
-   : NodalFiniteElement(2, Geometry::TRIANGLE , 3, 1)
+   : NodalFiniteElement(2, Geometry::TRIANGLE, 3, 1)
 {
    Nodes.IntPoint(0).x = 0.5;
    Nodes.IntPoint(0).y = 0.0;
@@ -3314,7 +3314,7 @@ void CrouzeixRaviartFiniteElement::CalcDShape(const IntegrationPoint &ip,
 CrouzeixRaviartQuadFiniteElement::CrouzeixRaviartQuadFiniteElement()
 // the FunctionSpace should be rotated (45 degrees) Q_1
 // i.e. the span of { 1, x, y, x^2 - y^2 }
-   : NodalFiniteElement(2, Geometry::SQUARE , 4, 2, FunctionSpace::Qk)
+   : NodalFiniteElement(2, Geometry::SQUARE, 4, 2, FunctionSpace::Qk)
 {
    Nodes.IntPoint(0).x = 0.5;
    Nodes.IntPoint(0).y = 0.0;
@@ -4593,7 +4593,7 @@ void P1TetNonConfFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 
 P0TetFiniteElement::P0TetFiniteElement()
-   : NodalFiniteElement(3, Geometry::TETRAHEDRON , 1, 0)
+   : NodalFiniteElement(3, Geometry::TETRAHEDRON, 1, 0)
 {
    Nodes.IntPoint(0).x = 0.25;
    Nodes.IntPoint(0).y = 0.25;
@@ -5258,7 +5258,7 @@ void RefinedLinear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 
 RefinedBiLinear2DFiniteElement::RefinedBiLinear2DFiniteElement()
-   : NodalFiniteElement(2, Geometry::SQUARE , 9, 1, FunctionSpace::rQk)
+   : NodalFiniteElement(2, Geometry::SQUARE, 9, 1, FunctionSpace::rQk)
 {
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
@@ -7409,12 +7409,13 @@ Poly_1D::~Poly_1D()
 Poly_1D poly1d;
 Array2D<int> Poly_1D::binom;
 
+
 TensorBasisElement::TensorBasisElement(const int dims, const int p,
-                                       const int btype)
+                                       const int btype, const DofMapType dmtype)
    : b_type(btype),
      basis1d(poly1d.GetBasis(p, b_type))
 {
-   if (FiniteElement::IsClosedType(b_type))
+   if (dmtype == H1_DOF_MAP)
    {
       switch (dims)
       {
@@ -7597,29 +7598,37 @@ TensorBasisElement::TensorBasisElement(const int dims, const int p,
             break;
       }
    }
-   else
+   else if (dmtype == L2_DOF_MAP)
    {
       // leave dof_map empty, indicating that the dofs are ordered
       // lexicographically, i.e. the dof_map is identity
    }
+   else
+   {
+      MFEM_ABORT("invalid DofMapType: " << dmtype);
+   }
 }
+
 
 NodalTensorFiniteElement::NodalTensorFiniteElement(const int dims,
                                                    const int p,
-                                                   const int btype)
+                                                   const int btype,
+                                                   const DofMapType dmtype)
    : NodalFiniteElement(dims, GetTensorProductGeometry(dims), Pow(p + 1, dims),
                         p, dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
-     TensorBasisElement(dims, p, VerifyNodal(btype)) { }
+     TensorBasisElement(dims, p, VerifyNodal(btype), dmtype) { }
 
-PositiveTensorFiniteElement::PositiveTensorFiniteElement(const int dims,
-                                                         const int p)
+
+PositiveTensorFiniteElement::PositiveTensorFiniteElement(
+   const int dims, const int p, const DofMapType dmtype)
    : PositiveFiniteElement(dims, GetTensorProductGeometry(dims),
                            Pow(p + 1, dims), p,
                            dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
-     TensorBasisElement(dims, p, BasisType::Positive) { }
+     TensorBasisElement(dims, p, BasisType::Positive, dmtype) { }
+
 
 H1_SegmentElement::H1_SegmentElement(const int p, const int btype)
-   : NodalTensorFiniteElement(1, p, VerifyClosed(btype))
+   : NodalTensorFiniteElement(1, p, VerifyClosed(btype), H1_DOF_MAP)
 {
    const double *cp = poly1d.ClosedPoints(p, b_type);
 
@@ -7703,7 +7712,7 @@ void H1_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1_QuadrilateralElement::H1_QuadrilateralElement(const int p, const int btype)
-   : NodalTensorFiniteElement(2, p, VerifyClosed(btype))
+   : NodalTensorFiniteElement(2, p, VerifyClosed(btype), H1_DOF_MAP)
 {
    const double *cp = poly1d.ClosedPoints(p, b_type);
 
@@ -7817,7 +7826,7 @@ void H1_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1_HexahedronElement::H1_HexahedronElement(const int p, const int btype)
-   : NodalTensorFiniteElement(3, p, VerifyClosed(btype))
+   : NodalTensorFiniteElement(3, p, VerifyClosed(btype), H1_DOF_MAP)
 {
    const double *cp = poly1d.ClosedPoints(p, b_type);
 
@@ -7972,7 +7981,7 @@ void H1_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1Pos_SegmentElement::H1Pos_SegmentElement(const int p)
-   : PositiveTensorFiniteElement(1, p)
+   : PositiveTensorFiniteElement(1, p, H1_DOF_MAP)
 {
 #ifndef MFEM_THREAD_SAFE
    // thread private versions; see class header.
@@ -8037,7 +8046,7 @@ void H1Pos_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1Pos_QuadrilateralElement::H1Pos_QuadrilateralElement(const int p)
-   : PositiveTensorFiniteElement(2, p)
+   : PositiveTensorFiniteElement(2, p, H1_DOF_MAP)
 {
 #ifndef MFEM_THREAD_SAFE
    const int p1 = p + 1;
@@ -8105,7 +8114,7 @@ void H1Pos_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1Pos_HexahedronElement::H1Pos_HexahedronElement(const int p)
-   : PositiveTensorFiniteElement(3, p)
+   : PositiveTensorFiniteElement(3, p, H1_DOF_MAP)
 {
 #ifndef MFEM_THREAD_SAFE
    const int p1 = p + 1;
@@ -9153,7 +9162,7 @@ void H1Pos_PrismElement::CalcDShape(const IntegrationPoint &ip,
 
 
 L2_SegmentElement::L2_SegmentElement(const int p, const int btype)
-   : NodalTensorFiniteElement(1, p, VerifyOpen(btype))
+   : NodalTensorFiniteElement(1, p, VerifyOpen(btype), L2_DOF_MAP)
 {
    const double *op = poly1d.OpenPoints(p, btype);
 
@@ -9210,7 +9219,7 @@ void L2_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 L2Pos_SegmentElement::L2Pos_SegmentElement(const int p)
-   : PositiveTensorFiniteElement(1, p)
+   : PositiveTensorFiniteElement(1, p, L2_DOF_MAP)
 {
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -9255,7 +9264,7 @@ void L2Pos_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 L2_QuadrilateralElement::L2_QuadrilateralElement(const int p, const int btype)
-   : NodalTensorFiniteElement(2, p, VerifyOpen(btype))
+   : NodalTensorFiniteElement(2, p, VerifyOpen(btype), L2_DOF_MAP)
 {
    const double *op = poly1d.OpenPoints(p, b_type);
 
@@ -9362,7 +9371,7 @@ void L2_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 L2Pos_QuadrilateralElement::L2Pos_QuadrilateralElement(const int p)
-   : PositiveTensorFiniteElement(2, p)
+   : PositiveTensorFiniteElement(2, p, L2_DOF_MAP)
 {
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -9440,7 +9449,7 @@ void L2Pos_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 L2_HexahedronElement::L2_HexahedronElement(const int p, const int btype)
-   : NodalTensorFiniteElement(3, p, VerifyOpen(btype))
+   : NodalTensorFiniteElement(3, p, VerifyOpen(btype), L2_DOF_MAP)
 {
    const double *op = poly1d.OpenPoints(p, btype);
 
@@ -9592,7 +9601,7 @@ void L2_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 L2Pos_HexahedronElement::L2Pos_HexahedronElement(const int p)
-   : PositiveTensorFiniteElement(3, p)
+   : PositiveTensorFiniteElement(3, p, L2_DOF_MAP)
 {
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
