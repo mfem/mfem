@@ -1578,7 +1578,7 @@ void NeighborRowMessage::Decode(int rank)
    rows.clear();
    rows.reserve(nrows);
 
-   int fgeom = pncmesh->GetFaceGeometry();
+   Geometry::Type fgeom = pncmesh->GetFaceGeometry();
 
    // read rows
    for (int ent = 0, gi = 0; ent < 3; ent++)
