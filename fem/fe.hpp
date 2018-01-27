@@ -2640,7 +2640,7 @@ private:
 #ifndef MFEM_THREAD_SAFE
    mutable Vector      t1_shape, s1_shape;
    mutable DenseMatrix tn_shape, sn_shape;
-  mutable DenseMatrix t1_dshape, s1_dshape, tn_dshape;
+   mutable DenseMatrix t1_dshape, s1_dshape, tn_dshape;
 #endif
    Array<int> dof2tk, t_dof, s_dof;
 

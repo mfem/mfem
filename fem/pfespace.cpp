@@ -1764,7 +1764,7 @@ int ParFiniteElementSpace
          else { T.SetFE(&SegmentFE); }
 
          Geometry::Type geom = (entity > 1) ?
-	   Geometry::SQUARE : Geometry::SEGMENT;
+                               Geometry::SQUARE : Geometry::SEGMENT;
          const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
          if (!fe) { continue; }
 
