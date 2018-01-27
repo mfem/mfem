@@ -272,7 +272,7 @@ public:
    /// Return the type of elements in the mesh.
    Geometry::Type GetElementGeometry() const { return elements[0].geom; }
 
-   int GetFaceGeometry() const { return Geometry::SQUARE; }
+   Geometry::Type GetFaceGeometry() const { return Geometry::SQUARE; }
 
    /// Return the distance of leaf 'i' from the root.
    int GetElementDepth(int i) const;
