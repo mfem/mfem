@@ -12294,27 +12294,27 @@ void ND_PrismElement::CalcVShape(const IntegrationPoint &ip,
    */
    for (int i=0; i<Dof; i++)
    {
-     if ( dof2tk[i] != 3 )
-       {
-	 //cout << i << " xy dof " << t_dof[i] << " " << s_dof[i] << endl;
-	 shape(i, 0) = tn_shape(t_dof[i], 0) * s1_shape[s_dof[i]];
-	 shape(i, 1) = tn_shape(t_dof[i], 1) * s1_shape[s_dof[i]];
-	 shape(i, 2) = 0.0;
-       }
-     else
-       {
-	 //cout << i << " z  dof " << t_dof[i] << " " << s_dof[i] << endl;
-	 shape(i, 0) = 0.0;
-	 shape(i, 1) = 0.0;
-	 shape(i, 2) = t1_shape[t_dof[i]] * sn_shape(s_dof[i], 0);
-       }
+      if ( dof2tk[i] != 3 )
+      {
+         //cout << i << " xy dof " << t_dof[i] << " " << s_dof[i] << endl;
+         shape(i, 0) = tn_shape(t_dof[i], 0) * s1_shape[s_dof[i]];
+         shape(i, 1) = tn_shape(t_dof[i], 1) * s1_shape[s_dof[i]];
+         shape(i, 2) = 0.0;
+      }
+      else
+      {
+         //cout << i << " z  dof " << t_dof[i] << " " << s_dof[i] << endl;
+         shape(i, 0) = 0.0;
+         shape(i, 1) = 0.0;
+         shape(i, 2) = t1_shape[t_dof[i]] * sn_shape(s_dof[i], 0);
+      }
    }
 }
 
 void ND_PrismElement::CalcCurlShape(const IntegrationPoint &ip,
                                     DenseMatrix &curl_shape) const
 {
-  // cout << "Entering CalcCurlShape" << endl << flush;
+   // cout << "Entering CalcCurlShape" << endl << flush;
 #ifdef MFEM_THREAD_SAFE
    Vector s1_shape(H1SegmentFE.GetDof());
    DenseMatrix t1_dshape(H1TriangleFE.GetDof(), 2);
@@ -12344,19 +12344,19 @@ void ND_PrismElement::CalcCurlShape(const IntegrationPoint &ip,
    */
    for (int i=0; i<Dof; i++)
    {
-     if ( dof2tk[i] != 3 )
-       {
-	 curl_shape(i, 0) = -tn_shape(t_dof[i], 1) * s1_dshape(s_dof[i], 0);
-	 curl_shape(i, 1) =  tn_shape(t_dof[i], 0) * s1_dshape(s_dof[i], 0);
-	 curl_shape(i, 2) =  tn_dshape(t_dof[i], 0) * s1_shape[s_dof[i]];
-       }
-     else
-       {
-	 // cout << i << " z  dof " << t_dof[i] << " " << s_dof[i] << endl;
-	 curl_shape(i, 0) =  t1_dshape(t_dof[i], 1) * sn_shape(s_dof[i], 0);
-	 curl_shape(i, 1) = -t1_dshape(t_dof[i], 0) * sn_shape(s_dof[i], 0);
-	 curl_shape(i, 2) =  0.0;
-       }
+      if ( dof2tk[i] != 3 )
+      {
+         curl_shape(i, 0) = -tn_shape(t_dof[i], 1) * s1_dshape(s_dof[i], 0);
+         curl_shape(i, 1) =  tn_shape(t_dof[i], 0) * s1_dshape(s_dof[i], 0);
+         curl_shape(i, 2) =  tn_dshape(t_dof[i], 0) * s1_shape[s_dof[i]];
+      }
+      else
+      {
+         // cout << i << " z  dof " << t_dof[i] << " " << s_dof[i] << endl;
+         curl_shape(i, 0) =  t1_dshape(t_dof[i], 1) * sn_shape(s_dof[i], 0);
+         curl_shape(i, 1) = -t1_dshape(t_dof[i], 0) * sn_shape(s_dof[i], 0);
+         curl_shape(i, 2) =  0.0;
+      }
    }
 
    // cout << "Leaving CalcCurlShape" << endl << flush;
