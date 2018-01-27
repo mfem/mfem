@@ -94,7 +94,8 @@ public:
 typedef TIterativeSolver<Vector> IterativeSolver;
 
 /// Stationary linear iteration: x <- x + B (b - A x)
-class SLISolver : public IterativeSolver
+template <class TVector>
+class TSLISolver : public TIterativeSolver<TVector>
 {
 protected:
    mutable Vector r, z;
@@ -102,27 +103,31 @@ protected:
    void UpdateVectors();
 
 public:
-   SLISolver() { }
+   TSLISolver() { }
 
 #ifdef MFEM_USE_MPI
-   SLISolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   TSLISolver(MPI_Comm _comm) : TIterativeSolver<TVector>(_comm) { }
 #endif
 
-   virtual void SetOperator(const Operator &op)
+   virtual void SetOperator(const TOperator<TVector> &op)
    { SetOperator(op); UpdateVectors(); }
 
-   virtual void Mult(const Vector &b, Vector &x) const;
+   virtual void Mult(const TVector &b, TVector &x) const;
 };
 
 /// Stationary linear iteration. (tolerances are squared)
-void SLI(const Operator &A, const Vector &b, Vector &x,
-         int print_iter = 0, int max_num_iter = 1000,
-         double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
+template <class TVector>
+void TSLI(const TOperator<TVector> &A,
+          const TVector &b, TVector &x,
+          int print_iter = 0, int max_num_iter = 1000,
+          double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
 
 /// Preconditioned stationary linear iteration. (tolerances are squared)
-void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
-         int print_iter = 0, int max_num_iter = 1000,
-         double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
+template <class TVector>
+void TSLI(const TOperator<TVector> &A, TSolver<TVector> &B,
+          const TVector &b, TVector &x,
+          int print_iter = 0, int max_num_iter = 1000,
+          double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
 
 
 /// Conjugate gradient method
