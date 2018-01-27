@@ -91,14 +91,14 @@ public:
    { return geom_t::Edges[ei]; }
 
    virtual int GetNFaces(int &nFaceVertices) const
-   { nFaceVertices = 3; return 5; }
+   { nFaceVertices = 4; return 5; }
 
    virtual int GetNFaceVerticess(int fi) const
    { return ( ( fi < 2 ) ? 3 : 4); }
 
    virtual const int *GetFaceVertices(int fi) const
-   { MFEM_ABORT("not implemented"); return NULL; }
-
+   { return geom_t::FaceVert[fi]; }
+  
    virtual Element *Duplicate(Mesh *m) const
    { return new Prism(indices, attribute); }
 
