@@ -70,6 +70,19 @@ public:
       }
       return Quadrature1D::Invalid;
    }
+   /// Return the nodal BasisType corresponding to the Quadrature1D type.
+   static int GetNodalBasis(int qpt_type)
+   {
+      switch (qpt_type)
+      {
+         case Quadrature1D::GaussLegendre:   return GaussLegendre;
+         case Quadrature1D::GaussLobatto:    return GaussLobatto;
+         case Quadrature1D::OpenUniform:     return OpenUniform;
+         case Quadrature1D::ClosedUniform:   return ClosedUniform;
+         case Quadrature1D::OpenHalfUniform: return OpenHalfUniform;
+      }
+      return Invalid;
+   }
    /// Check and convert a BasisType constant to a string identifier.
    static const char *Name(int b_type)
    {
@@ -1682,7 +1695,14 @@ protected:
    Poly_1D::Basis &basis1d;
 
 public:
-   TensorBasisElement(const int dims, const int p, const int btype);
+   enum DofMapType
+   {
+      L2_DOF_MAP = 0,
+      H1_DOF_MAP = 1
+   };
+
+   TensorBasisElement(const int dims, const int p, const int btype,
+                      const DofMapType dmtype);
 
    int GetBasisType() const { return b_type; }
 
@@ -1722,14 +1742,16 @@ class NodalTensorFiniteElement : public NodalFiniteElement,
    public TensorBasisElement
 {
 public:
-   NodalTensorFiniteElement(const int dims, const int p, const int btype);
+   NodalTensorFiniteElement(const int dims, const int p, const int btype,
+                            const DofMapType dmtype);
 };
 
 class PositiveTensorFiniteElement : public PositiveFiniteElement,
    public TensorBasisElement
 {
 public:
-   PositiveTensorFiniteElement(const int dims, const int p);
+   PositiveTensorFiniteElement(const int dims, const int p,
+                               const DofMapType dmtype);
 };
 
 class H1_SegmentElement : public NodalTensorFiniteElement

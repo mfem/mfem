@@ -733,7 +733,7 @@ double Vector::Normlp(double p) const
    {
       return Norml2();
    }
-   if (p < std::numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       // Scale entries of Vector on the fly, using algorithms from
       // std::hypot() and LAPACK's drm2. This scaling ensures that the
@@ -766,9 +766,9 @@ double Vector::Normlp(double p) const
          } // end if data[i] != 0
       }
       return scale * std::pow(sum, 1.0/p);
-   } // end if p < std::numeric_limits<double>::infinity()
+   } // end if p < infinity()
 
-   return Normlinf(); // else p >= std::numeric_limits<double>::infinity()
+   return Normlinf(); // else p >= infinity()
 }
 
 double Vector::Max() const

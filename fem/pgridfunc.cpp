@@ -514,7 +514,7 @@ double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm)
 {
    double glob_norm;
 
-   if (p < numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       // negative quadrature weights may cause the error to be negative
       if (loc_norm < 0.0)
