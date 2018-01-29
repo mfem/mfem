@@ -45,6 +45,19 @@ New and updated examples and miniapps
 - In the classes NonlinearForm and ParNonlinearForm, added support for
   non-conforming AMR meshes; see also the "API changes" section.
 
+- Added a new miniapp: miniapps/tools/load-dc.cpp, that can be used to visualize
+  fields saved via DataCollection classes.
+
+- Example 10p with its SUNDIALS and PETSc versions have been updated to reflect
+  the change in the behavior of the method ParNonlinearForm::GetLocalGradient()
+  (see the "API changes" section) and now should work correctly on
+  non-conforming AMR meshes. Example 10 and its SUNDIALS version have also been
+  updated to support non-conforming ARM meshes.
+
+- A simple local refinement option has been added to the mesh-explorer miniapp
+  (menu option 'r', sub-option 'l') that selects elements for refinement based
+  on their spatial location - see the function 'region()' in the source file.
+
 More efficient parallel non-conforming AMR
 ------------------------------------------
 - Significantly reduced MPI communication in the construction of the ParFinite-
@@ -56,21 +69,6 @@ New and improved solvers and preconditioners
 --------------------------------------------
 - Added symplectic integrators of orders 1-4 for systems of first order ODEs
   derived from a Hamiltonian, see class SIASolver in linalg/ode.hpp.
-
-New and updated examples and miniapps
--------------------------------------
-- Added a new electromagnetics miniapp, Maxwell, for simulating time-domain
-  electromagnetics phenomena as a coupled first order system of equations.
-
-- Example 10p with its SUNDIALS and PETSc versions have been updated to reflect
-  the change in the behavior of the method ParNonlinearForm::GetLocalGradient()
-  (see the "API changes" section) and now should work correctly on
-  non-conforming AMR meshes. Example 10 and its SUNDIALS version have also been
-  updated to support non-conforming ARM meshes.
-
-- A simple local refinement option has been added to the mesh-explorer miniapp
-  (menu option 'r', sub-option 'l') that selects elements for refinement based
-  on their spatial location - see the function 'region()' in the source file.
 
 Miscellaneous
 -------------
