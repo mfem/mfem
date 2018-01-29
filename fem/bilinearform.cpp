@@ -541,11 +541,12 @@ void BilinearForm::ConformingAssemble()
 void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                     Vector &x, Vector &b,
                                     SparseMatrix &A, Vector &X, Vector &B,
-                                    int copy_interior)
+                                    int copy_interior,
+                                    DiagonalPolicy diag_policy)
 {
    const SparseMatrix *P = fes->GetConformingProlongation();
 
-   FormSystemMatrix(ess_tdof_list, A);
+   FormSystemMatrix(ess_tdof_list, A, diag_policy);
 
    // Transform the system and perform the elimination in B, based on the
    // essential BC values from x. Restrict the BC part of x in X, and set the
@@ -605,18 +606,18 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 }
 
 void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
-                                    SparseMatrix &A)
+                                    SparseMatrix &A,
+                                    DiagonalPolicy diag_policy)
 {
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
-   const DiagonalPolicy keep_diag = DIAG_KEEP;
    if (static_cond)
    {
       if (!static_cond->HasEliminatedBC())
       {
          static_cond->SetEssentialTrueDofs(ess_tdof_list);
          static_cond->Finalize(); // finalize Schur complement (to true dofs)
-         static_cond->EliminateReducedTrueDofs(keep_diag);
+         static_cond->EliminateReducedTrueDofs(diag_policy);
          static_cond->Finalize(); // finalize eliminated part
       }
       A.MakeRef(static_cond->GetMatrix());
@@ -627,7 +628,7 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
       {
          const SparseMatrix *P = fes->GetConformingProlongation();
          if (P) { ConformingAssemble(); }
-         EliminateVDofs(ess_tdof_list, keep_diag);
+         EliminateVDofs(ess_tdof_list, diag_policy);
          const int remove_zeros = 0;
          Finalize(remove_zeros);
       }

@@ -260,6 +260,10 @@ public:
        are set to zero (@a copy_interior == 0) or copied from @a x
        (@a copy_interior != 0).
 
+       The parameter @a diag_policy allows one to specify what should be done
+       to the diagonal matrix entries and corresponding RHS values upon
+       elimination of the constrained DoFs.
+
        This method can be called multiple times (with the same @a ess_tdof_list
        array) to initialize different right-hand sides and boundary condition
        values.
@@ -272,10 +276,12 @@ public:
              @a x. */
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
                          SparseMatrix &A, Vector &X, Vector &B,
-                         int copy_interior = 0);
+                         int copy_interior = 0,
+                         DiagonalPolicy diag_policy = DIAG_KEEP);
 
    /// Form the linear system matrix A, see FormLinearSystem() for details.
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, SparseMatrix &A);
+   void FormSystemMatrix(const Array<int> &ess_tdof_list, SparseMatrix &A,
+                         DiagonalPolicy diag_policy = DIAG_KEEP);
 
    /// Recover the solution of a linear system formed with FormLinearSystem().
    /** Call this method after solving a linear system constructed using the
