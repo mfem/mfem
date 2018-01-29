@@ -13,6 +13,7 @@
 //    ex10 -m ../../data/beam-quad.mesh -r 2 -o 2 -s 15 -dt 5e-3 -vs 60
 //    ex10 -m ../../data/beam-tri.mesh  -r 2 -o 2 -s 16 -dt 0.01 -vs 30
 //    ex10 -m ../../data/beam-hex.mesh  -r 1 -o 2 -s 15 -dt 0.01 -vs 30
+//    ex10 -m ../../data/beam-quad-amr.mesh -r 2 -o 2 -s 5 -dt 0.15 -vs 10
 //
 // Description:  This examples solves a time dependent nonlinear elasticity
 //               problem of the form dv/dt = H(x) + S v, dx/dt = v, where H is a
@@ -115,9 +116,9 @@ public:
        method of SundialsJacSolver. */
    void InitSundialsJacSolver(SundialsJacSolver &sjsolv);
 
-   double ElasticEnergy(Vector &x) const;
-   double KineticEnergy(Vector &v) const;
-   void GetElasticEnergyDensity(GridFunction &x, GridFunction &w) const;
+   double ElasticEnergy(const Vector &x) const;
+   double KineticEnergy(const Vector &v) const;
+   void GetElasticEnergyDensity(const GridFunction &x, GridFunction &w) const;
 
    virtual ~HyperelasticOperator();
 };
@@ -204,12 +205,12 @@ public:
 class ElasticEnergyCoefficient : public Coefficient
 {
 private:
-   HyperelasticModel &model;
-   GridFunction      &x;
-   DenseMatrix        J;
+   HyperelasticModel  &model;
+   const GridFunction &x;
+   DenseMatrix         J;
 
 public:
-   ElasticEnergyCoefficient(HyperelasticModel &m, GridFunction &x_)
+   ElasticEnergyCoefficient(HyperelasticModel &m, const GridFunction &x_)
       : model(m), x(x_) { }
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
    virtual ~ElasticEnergyCoefficient() { }
@@ -378,7 +379,7 @@ int main(int argc, char *argv[])
    H1_FECollection fe_coll(order, dim);
    FiniteElementSpace fespace(mesh, &fe_coll, dim);
 
-   int fe_size = fespace.GetVSize();
+   int fe_size = fespace.GetTrueVSize();
    cout << "Number of velocity/deformation unknowns: " << fe_size << endl;
    Array<int> fe_offset(3);
    fe_offset[0] = 0;
@@ -387,8 +388,8 @@ int main(int argc, char *argv[])
 
    BlockVector vx(fe_offset);
    GridFunction v, x;
-   v.MakeRef(&fespace, vx.GetBlock(0), 0);
-   x.MakeRef(&fespace, vx.GetBlock(1), 0);
+   v.MakeTRef(&fespace, vx.GetBlock(0), 0);
+   x.MakeTRef(&fespace, vx.GetBlock(1), 0);
 
    GridFunction x_ref(&fespace);
    mesh->GetNodes(x_ref);
@@ -401,8 +402,10 @@ int main(int argc, char *argv[])
    //    a beam-like mesh (see description above).
    VectorFunctionCoefficient velo(dim, InitialVelocity);
    v.ProjectCoefficient(velo);
+   v.SetTrueVector();
    VectorFunctionCoefficient deform(dim, InitialDeformation);
    x.ProjectCoefficient(deform);
+   x.SetTrueVector();
 
    Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
    ess_bdr = 0;
@@ -419,6 +422,7 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       vis_v.open(vishost, visport);
       vis_v.precision(8);
+      v.SetFromTrueVector(); x.SetFromTrueVector();
       visualize(vis_v, mesh, &x, &v, "Velocity", true);
       vis_w.open(vishost, visport);
       if (vis_w)
@@ -429,8 +433,8 @@ int main(int argc, char *argv[])
       }
    }
 
-   double ee0 = oper.ElasticEnergy(x);
-   double ke0 = oper.KineticEnergy(v);
+   double ee0 = oper.ElasticEnergy(x.GetTrueVector());
+   double ke0 = oper.KineticEnergy(v.GetTrueVector());
    cout << "initial elastic energy (EE) = " << ee0 << endl;
    cout << "initial kinetic energy (KE) = " << ke0 << endl;
    cout << "initial   total energy (TE) = " << (ee0 + ke0) << endl;
@@ -452,8 +456,8 @@ int main(int argc, char *argv[])
 
       if (last_step || (ti % vis_steps) == 0)
       {
-         double ee = oper.ElasticEnergy(x);
-         double ke = oper.KineticEnergy(v);
+         double ee = oper.ElasticEnergy(x.GetTrueVector());
+         double ke = oper.KineticEnergy(v.GetTrueVector());
 
          cout << "step " << ti << ", t = " << t << ", EE = " << ee << ", KE = "
               << ke << ", ΔTE = " << (ee+ke)-(ee0+ke0) << endl;
@@ -463,6 +467,7 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
+            v.SetFromTrueVector(); x.SetFromTrueVector();
             visualize(vis_v, mesh, &x, &v);
             if (vis_w)
             {
@@ -475,6 +480,7 @@ int main(int argc, char *argv[])
 
    // 9. Save the displaced mesh, the velocity and elastic energy.
    {
+      v.SetFromTrueVector(); x.SetFromTrueVector();
       GridFunction *nodes = &x;
       int owns_nodes = 0;
       mesh->SwapNodes(nodes, owns_nodes);
@@ -645,7 +651,7 @@ HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
                                            Array<int> &ess_bdr, double visc,
                                            double mu, double K,
                                            NonlinearSolverType nls_type)
-   : TimeDependentOperator(2*f.GetVSize(), 0.0), fespace(f),
+   : TimeDependentOperator(2*f.GetTrueVSize(), 0.0), fespace(f),
      M(&fespace), S(&fespace), H(&fespace),
      viscosity(visc), z(height/2)
 {
@@ -656,8 +662,10 @@ HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
    ConstantCoefficient rho0(ref_density);
    M.AddDomainIntegrator(new VectorMassIntegrator(rho0));
    M.Assemble(skip_zero_entries);
-   M.EliminateEssentialBC(ess_bdr);
-   M.Finalize(skip_zero_entries);
+   Array<int> ess_tdof_list;
+   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   SparseMatrix tmp;
+   M.FormSystemMatrix(ess_tdof_list, tmp);
 
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(rel_tol);
@@ -669,13 +677,12 @@ HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
 
    model = new NeoHookeanModel(mu, K);
    H.AddDomainIntegrator(new HyperelasticNLFIntegrator(model));
-   H.SetEssentialBC(ess_bdr);
+   H.SetEssentialTrueDofs(ess_tdof_list);
 
    ConstantCoefficient visc_coeff(viscosity);
    S.AddDomainIntegrator(new VectorDiffusionIntegrator(visc_coeff));
    S.Assemble(skip_zero_entries);
-   S.EliminateEssentialBC(ess_bdr);
-   S.Finalize(skip_zero_entries);
+   S.FormSystemMatrix(ess_tdof_list, tmp);
 
    reduced_oper = new ReducedSystemOperator(&M, &S, &H);
 
@@ -766,18 +773,18 @@ void HyperelasticOperator::InitSundialsJacSolver(SundialsJacSolver &sjsolv)
    sjsolv.SetOperators(M, S, H, *J_solver);
 }
 
-double HyperelasticOperator::ElasticEnergy(Vector &x) const
+double HyperelasticOperator::ElasticEnergy(const Vector &x) const
 {
    return H.GetEnergy(x);
 }
 
-double HyperelasticOperator::KineticEnergy(Vector &v) const
+double HyperelasticOperator::KineticEnergy(const Vector &v) const
 {
    return 0.5*M.InnerProduct(v, v);
 }
 
 void HyperelasticOperator::GetElasticEnergyDensity(
-   GridFunction &x, GridFunction &w) const
+   const GridFunction &x, GridFunction &w) const
 {
    ElasticEnergyCoefficient w_coeff(*model, x);
    w.ProjectCoefficient(w_coeff);

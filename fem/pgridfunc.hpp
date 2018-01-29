@@ -232,7 +232,7 @@ public:
    virtual double ComputeMaxError(Coefficient *exsol[],
                                   const IntegrationRule *irs[] = NULL) const
    {
-      return GlobalLpNorm(std::numeric_limits<double>::infinity(),
+      return GlobalLpNorm(infinity(),
                           GridFunction::ComputeMaxError(exsol, irs),
                           pfes->GetComm());
    }
@@ -240,15 +240,13 @@ public:
    virtual double ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
-      return ComputeLpError(std::numeric_limits<double>::infinity(),
-                            exsol, NULL, irs);
+      return ComputeLpError(infinity(), exsol, NULL, irs);
    }
 
    virtual double ComputeMaxError(VectorCoefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
-      return ComputeLpError(std::numeric_limits<double>::infinity(),
-                            exsol, NULL, NULL, irs);
+      return ComputeLpError(infinity(), exsol, NULL, NULL, irs);
    }
 
    virtual double ComputeLpError(const double p, Coefficient &exsol,
