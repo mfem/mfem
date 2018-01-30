@@ -19,6 +19,3 @@ add_mfem_miniapp(load-dc
 
 add_mfem_miniapp(convert-dc
     MAIN convert-dc.cpp LIBRARIES mfem)
-
-add_test(NAME display-basis_ser
-  COMMAND display-basis -no-vis)
