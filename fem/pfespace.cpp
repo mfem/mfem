@@ -176,7 +176,8 @@ void ParFiniteElementSpace::GetGroupComm(
 {
    int gr;
    int ng = pmesh->GetNGroups();
-   int nvd, ned, nfd;
+   int nvd, ned, ntd = 0, nqd = 0, nfd = 0;
+   bool mixed = false;
    Array<int> dofs;
 
    int group_ldof_counter;
@@ -184,8 +185,22 @@ void ParFiniteElementSpace::GetGroupComm(
 
    nvd = fec->DofForGeometry(Geometry::POINT);
    ned = fec->DofForGeometry(Geometry::SEGMENT);
-   // Assuming all faces are the same type:
-   nfd = (fdofs) ? (fdofs[1]-fdofs[0]) : (0);
+
+   if (fdofs)
+   {
+      mixed = mesh->GetFaceBaseGeometry(-1) == Geometry::MIXED;
+
+      if (!mixed)
+      {
+         nfd = fdofs[1] - fdofs[0];
+      }
+      else
+      {
+         ntd = fec->DofForGeometry(Geometry::TRIANGLE);
+         nqd = fec->DofForGeometry(Geometry::SQUARE);
+         nfd = std::max(ntd, nqd);
+      }
+   }
 
    if (ldof_sign)
    {
@@ -199,7 +214,24 @@ void ParFiniteElementSpace::GetGroupComm(
    {
       group_ldof_counter += nvd * pmesh->GroupNVertices(gr);
       group_ldof_counter += ned * pmesh->GroupNEdges(gr);
-      group_ldof_counter += nfd * pmesh->GroupNFaces(gr);
+      if (!mixed)
+      {
+         group_ldof_counter += nfd * pmesh->GroupNFaces(gr);
+      }
+      else
+      {
+         // count face dofs for each face separately
+         int j, k, o, nf;
+
+         nf = pmesh->GroupNFaces(gr);
+
+         for (j = 0; j < nf; j++)
+         {
+            pmesh->GroupFace(gr, j, k, o);
+            Geometry::Type face_geom = mesh->GetFaceBaseGeometry(k);
+            group_ldof_counter += fec->DofForGeometry(face_geom);
+         }
+      }
    }
    if (ldof_type)
    {
@@ -291,10 +323,16 @@ void ParFiniteElementSpace::GetGroupComm(
          {
             pmesh->GroupFace(gr, j, k, o);
 
+            Geometry::Type face_geom = mesh->GetFaceBaseGeometry(k);
+
+            if (mixed)
+            {
+               nfd = fec->DofForGeometry(face_geom);
+            }
+
             dofs.SetSize(nfd);
             m = nvdofs+nedofs+fdofs[k];
-            ind = fec->DofOrderForOrientation(
-                     mesh->GetFaceBaseGeometry(k), o);
+            ind = fec->DofOrderForOrientation(face_geom, o);
             for (l = 0; l < nfd; l++)
             {
                if (ind[l] < 0)
