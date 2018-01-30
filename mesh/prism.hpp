@@ -98,7 +98,7 @@ public:
 
    virtual const int *GetFaceVertices(int fi) const
    { return geom_t::FaceVert[fi]; }
-  
+
    virtual Element *Duplicate(Mesh *m) const
    { return new Prism(indices, attribute); }
 
