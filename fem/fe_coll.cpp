@@ -27,7 +27,9 @@ int FiniteElementCollection::HasFaceDofs(Geometry::Type GeomType) const
    switch (GeomType)
    {
       case Geometry::TETRAHEDRON: return DofForGeometry (Geometry::TRIANGLE);
-      case Geometry::PRISM:       return DofForGeometry (Geometry::SQUARE);
+      case Geometry::PRISM:
+         return max(DofForGeometry (Geometry::TRIANGLE),
+                    DofForGeometry (Geometry::SQUARE));
       case Geometry::CUBE:        return DofForGeometry (Geometry::SQUARE);
       default:
          mfem_error ("FiniteElementCollection::HasFaceDofs:"
