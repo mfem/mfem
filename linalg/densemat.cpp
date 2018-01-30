@@ -29,6 +29,33 @@
 #define copysign _copysign
 #endif
 
+
+#ifdef MFEM_USE_LAPACK
+extern "C" void
+dgemm_(char *, char *, int *, int *, int *, double *, double *,
+       int *, double *, int *, double *, double *, int *);
+extern "C" void
+dgetrf_(int *, int *, double *, int *, int *, int *);
+extern "C" void
+dgetrs_(char *, int *, int *, double *, int *, int *, double *, int *, int *);
+extern "C" void
+dgetri_(int *N, double *A, int *LDA, int *IPIV, double *WORK,
+        int *LWORK, int *INFO);
+extern "C" void
+dsyevr_(char *JOBZ, char *RANGE, char *UPLO, int *N, double *A, int *LDA,
+        double *VL, double *VU, int *IL, int *IU, double *ABSTOL, int *M,
+        double *W, double *Z, int *LDZ, int *ISUPPZ, double *WORK, int *LWORK,
+        int *IWORK, int *LIWORK, int *INFO);
+extern "C" void
+dsyev_(char *JOBZ, char *UPLO, int *N, double *A, int *LDA, double *W,
+       double *WORK, int *LWORK, int *INFO);
+extern "C" void
+dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA,
+        double *S, double *U, int *LDU, double *VT, int *LDVT, double *WORK,
+        int *LWORK, int *INFO);
+#endif
+
+
 namespace mfem
 {
 
@@ -612,16 +639,6 @@ void DenseMatrix::Neg()
    }
 }
 
-#ifdef MFEM_USE_LAPACK
-extern "C" void
-dgetrf_(int *, int *, double *, int *, int *, int *);
-extern "C" void
-dgetrs_(char *, int *, int *, double *, int *, int *, double *, int *, int *);
-extern "C" void
-dgetri_(int *N, double *A, int *LDA, int *IPIV, double *WORK,
-        int *LWORK, int *INFO);
-#endif
-
 void DenseMatrix::Invert()
 {
 #ifdef MFEM_DEBUG
@@ -838,21 +855,6 @@ void DenseMatrix::FNorm(double &scale_factor, double &scaled_fnorm2) const
    scale_factor = max_norm;
    scaled_fnorm2 = fnorm2;
 }
-
-#ifdef MFEM_USE_LAPACK
-extern "C" void
-dsyevr_(char *JOBZ, char *RANGE, char *UPLO, int *N, double *A, int *LDA,
-        double *VL, double *VU, int *IL, int *IU, double *ABSTOL, int *M,
-        double *W, double *Z, int *LDZ, int *ISUPPZ, double *WORK, int *LWORK,
-        int *IWORK, int *LIWORK, int *INFO);
-extern "C" void
-dsyev_(char *JOBZ, char *UPLO, int *N, double *A, int *LDA, double *W,
-       double *WORK, int *LWORK, int *INFO);
-extern "C" void
-dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA,
-        double *S, double *U, int *LDU, double *VT, int *LDVT, double *WORK,
-        int *LWORK, int *INFO);
-#endif
 
 void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 {
@@ -2968,12 +2970,6 @@ void Add(double alpha, const DenseMatrix &A,
    Add(alpha, A.GetData(), beta, B.GetData(), C);
 }
 
-
-#ifdef MFEM_USE_LAPACK
-extern "C" void
-dgemm_(char *, char *, int *, int *, int *, double *, double *,
-       int *, double *, int *, double *, double *, int *);
-#endif
 
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 {
