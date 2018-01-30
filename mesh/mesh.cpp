@@ -672,6 +672,7 @@ void Mesh::GetLocalQuadToPriTransformation(
       locpm(1, j) = vert.y;
       locpm(2, j) = vert.z;
    }
+   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalFaceTransformation(
