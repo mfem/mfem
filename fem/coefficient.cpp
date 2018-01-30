@@ -302,7 +302,7 @@ double LpNormLoop(double p, Coefficient &coeff, Mesh &mesh,
          const IntegrationPoint &ip = ir.IntPoint(j);
          tr->SetIntPoint(&ip);
          double val = fabs(coeff.Eval(*tr, ip));
-         if (p < numeric_limits<double>::infinity())
+         if (p < infinity())
          {
             norm += ip.weight * tr->Weight() * pow(val, p);
          }
@@ -336,7 +336,7 @@ double LpNormLoop(double p, VectorCoefficient &coeff, Mesh &mesh,
          const IntegrationPoint &ip = ir.IntPoint(j);
          tr->SetIntPoint(&ip);
          coeff.Eval(vval, *tr, ip);
-         if (p < numeric_limits<double>::infinity())
+         if (p < infinity())
          {
             for (int idim(0); idim < vdim; ++idim)
             {
@@ -365,7 +365,7 @@ double ComputeLpNorm(double p, Coefficient &coeff, Mesh &mesh,
 {
    double norm = LpNormLoop(p, coeff, mesh, irs);
 
-   if (p < numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       // negative quadrature weights may cause norm to be negative
       if (norm < 0.0)
@@ -386,7 +386,7 @@ double ComputeLpNorm(double p, VectorCoefficient &coeff, Mesh &mesh,
 {
    double norm = LpNormLoop(p, coeff, mesh, irs);
 
-   if (p < numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       // negative quadrature weights may cause norm to be negative
       if (norm < 0.0)
@@ -411,7 +411,7 @@ double ComputeGlobalLpNorm(double p, Coefficient &coeff, ParMesh &pmesh,
 
    MPI_Comm comm = pmesh.GetComm();
 
-   if (p < numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       MPI_Allreduce(&loc_norm, &glob_norm, 1, MPI_DOUBLE, MPI_SUM, comm);
 
@@ -441,7 +441,7 @@ double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
 
    MPI_Comm comm = pmesh.GetComm();
 
-   if (p < numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       MPI_Allreduce(&loc_norm, &glob_norm, 1, MPI_DOUBLE, MPI_SUM, comm);
 

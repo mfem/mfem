@@ -26,15 +26,18 @@ class BlockMatrix : public AbstractSparseMatrix
 public:
    //! Constructor for square block matrices
    /**
-    *  offsets: offsets that mark the start of each row/column block (size nRowBlocks+1).
-    *  Note: BlockMatrix will not own/copy the data contained in offsets.
+     @param offsets  offsets that mark the start of each row/column block (size
+                     nRowBlocks+1).
+     @note BlockMatrix will not own/copy the data contained in offsets.
     */
    BlockMatrix(const Array<int> & offsets);
    //! Constructor for rectangular block matrices
    /**
-    *  row_offsets: offsets that mark the start of each row block (size nRowBlocks+1).
-    *  col_offsets: offsets that mark the start of each column block (size nColBlocks+1).
-    *  Note: BlockMatrix will not own/copy the data contained in offsets.
+     @param row_offsets  offsets that mark the start of each row block (size
+                         nRowBlocks+1).
+     @param col_offsets  offsets that mark the start of each column block (size
+                         nColBlocks+1).
+     @note BlockMatrix will not own/copy the data contained in offsets.
     */
    BlockMatrix(const Array<int> & row_offsets, const Array<int> & col_offsets);
    //! Set A(i,j) = mat
@@ -60,18 +63,22 @@ public:
    const Array<int> & ColOffsets() const { return col_offsets; }
    //! Return the number of non zeros in row i
    int RowSize(const int i) const;
-   /** Eliminates the column and row 'rc', replacing the element (rc,rc) with
-    *  1.0. Assumes that element (i,rc) is assembled if and only if the element
-    *  (rc,i) is assembled. If d != 0, the element (rc,rc) is kept the same. */
-   void EliminateRowCol(int rc, int d = 0);
+
+   /// Eliminate the row and column @a rc from the matrix.
+   /** Eliminates the column and row @a rc, replacing the element (rc,rc) with
+       1.0. Assumes that element (i,rc) is assembled if and only if the element
+       (rc,i) is assembled. If @a dpolicy is specified, the element (rc,rc) is
+       treated according to that policy. */
+   void EliminateRowCol(int rc, DiagonalPolicy dpolicy = DIAG_ONE);
+
    //! Symmetric elimination of the marked degree of freedom.
    /**
-    * ess_bc_dofs: marker of the degree of freedom to be eliminated
-    *              dof i is eliminated if ess_bc_dofs[i] = 1.
-    * sol: vector that stores the values of the degree of freedom that need to
-    *       be eliminated
-    * rhs: vector that stores the rhs of the system.
-    */
+     @param ess_bc_dofs  marker of the degree of freedom to be eliminated
+                         dof i is eliminated if @a ess_bc_dofs[i] = 1.
+     @param sol          vector that stores the values of the degree of freedom
+                         that need to be eliminated
+     @param rhs          vector that stores the rhs of the system.
+   */
    void EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol, Vector & rhs);
 
    ///  Finalize all the submatrices
@@ -84,8 +91,9 @@ public:
    //! Export the monolithic matrix to file.
    void PrintMatlab(std::ostream & os = mfem::out) const;
 
-   //@name Matrix interface
-   //@{
+   /// @name Matrix interface
+   ///@{
+
    /// Returns reference to a_{ij}.
    virtual double& Elem (int i, int j);
    /// Returns constant reference to a_{ij}.
@@ -96,21 +104,23 @@ public:
       mfem_error("BlockMatrix::Inverse not implemented \n");
       return static_cast<MatrixInverse*>(NULL);
    }
-   //@}
+   ///@}
 
-   //@name AbstractSparseMatrix interface
-   //@{
+   ///@name AbstractSparseMatrix interface
+   ///@{
+
    //! Returns the total number of non zeros in the matrix.
    virtual int NumNonZeroElems() const;
    /// Gets the columns indexes and values for row *row*.
-   /// The return value is always 0 since cols and srow are copies of the values in the matrix.
+   /** The return value is always 0 since @a cols and @a srow are copies of the
+       values in the matrix. */
    virtual int GetRow(const int row, Array<int> &cols, Vector &srow) const;
-   //! If the matrix is square, it will place 1 on the diagonal (i,i) if row i
-   //! has "almost" zero l1-norm.
-   /**
-    * If entry (i,i) does not belong to the sparsity pattern of A, then a error will occur.
-    */
-   virtual void EliminateZeroRows();
+   /** @brief If the matrix is square, this method will place 1 on the diagonal
+       (i,i) if row i has "almost" zero l1-norm.
+
+       If entry (i,i) does not belong to the sparsity pattern of A, then a error
+       will occur. */
+   virtual void EliminateZeroRows(const double threshold = 1e-12);
 
    /// Matrix-Vector Multiplication y = A*x
    virtual void Mult(const Vector & x, Vector & y) const;
@@ -121,11 +131,11 @@ public:
    /// MatrixTranspose-Vector Multiplication y = y + val*A'*x
    virtual void AddMultTranspose(const Vector & x, Vector & y,
                                  const double val = 1.) const;
-   //@}
+   ///@}
 
    //! Destructor
    virtual ~BlockMatrix();
-   //! if owns_blocks the SparseMatrix objects Aij will be deallocated.
+   //! If owns_blocks the SparseMatrix objects Aij will be deallocated.
    int owns_blocks;
 
 private:

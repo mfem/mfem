@@ -78,9 +78,9 @@ public:
    GroupTopology(const GroupTopology &gt);
    void SetComm(MPI_Comm comm) { MyComm = comm; }
 
-   MPI_Comm GetComm() { return MyComm; }
-   int MyRank() { int r; MPI_Comm_rank(MyComm, &r); return r; }
-   int NRanks() { int s; MPI_Comm_size(MyComm, &s); return s; }
+   MPI_Comm GetComm() const { return MyComm; }
+   int MyRank() const { int r; MPI_Comm_rank(MyComm, &r); return r; }
+   int NRanks() const { int s; MPI_Comm_size(MyComm, &s); return s; }
 
    void Create(ListOfIntegerSets &groups, int mpitag);
 
@@ -152,7 +152,7 @@ public:
 
    /** @brief Initialize the communicator from a local-dof to group map.
        Finalize() is called internally. */
-   void Create(Array<int> &ldof_group);
+   void Create(const Array<int> &ldof_group);
 
    /** @brief Fill-in the returned Table reference to initialize the
        GroupCommunicator then call Finalize(). */
@@ -164,7 +164,7 @@ public:
    /// Initialize the internal group_ltdof Table.
    /** This method must be called before performing operations that use local
        data layout 2, see CopyGroupToBuffer() for layout descriptions. */
-   void SetLTDofTable(Array<int> &ldof_ltdof);
+   void SetLTDofTable(const Array<int> &ldof_ltdof);
 
    /// Get a reference to the associated GroupTopology object
    GroupTopology &GetGroupTopology() { return gtopo; }
@@ -307,7 +307,7 @@ struct VarMessage
    /// Non-blocking send to processor 'rank'.
    void Isend(int rank, MPI_Comm comm)
    {
-      Encode();
+      Encode(rank);
       MPI_Isend((void*) data.data(), data.length(), MPI_BYTE, rank, Tag, comm,
                 &send_request);
    }
@@ -372,7 +372,16 @@ struct VarMessage
       MPI_Get_count(&status, MPI_BYTE, &count);
       MFEM_VERIFY(count == size, "");
 #endif
-      Decode();
+      Decode(rank);
+   }
+
+   /// Like Recv(), but throw away the messsage.
+   void RecvDrop(int rank, int size, MPI_Comm comm)
+   {
+      data.resize(size);
+      MPI_Status status;
+      MPI_Recv((void*) data.data(), size, MPI_BYTE, rank, Tag, comm, &status);
+      data.resize(0); // don't decode
    }
 
    /// Helper to receive all messages in a rank-to-message map container.
@@ -409,8 +418,8 @@ struct VarMessage
    }
 
 protected:
-   virtual void Encode() {}
-   virtual void Decode() {}
+   virtual void Encode(int rank) {}
+   virtual void Decode(int rank) {}
 };
 
 
