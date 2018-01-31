@@ -1026,7 +1026,8 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
                                              HYPRE_Int* row_starts) const
 {
    const bool assumed_partition = HYPRE_AssumedPartitionCheck();
-   if (row_starts == NULL)
+   const bool row_starts_given = (row_starts != NULL);
+   if (!row_starts_given)
    {
       row_starts = hypre_ParCSRMatrixRowStarts(A);
       MFEM_VERIFY(D.Height() == hypre_CSRMatrixNumRows(A->diag),
@@ -1056,10 +1057,17 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
    if (assumed_partition)
    {
       part_size = 2;
-      global_num_rows = row_starts[2];
-      // Here, we use row_starts[2], so row_starts must come from the methods
-      // GetDofOffsets/GetTrueDofOffsets of ParFiniteElementSpace (HYPRE's
-      // partitions have only 2 entries).
+      if (row_starts_given)
+      {
+         global_num_rows = row_starts[2];
+         // Here, we use row_starts[2], so row_starts must come from the
+         // methods GetDofOffsets/GetTrueDofOffsets of ParFiniteElementSpace
+         // (HYPRE's partitions have only 2 entries).
+      }
+      else
+      {
+         global_num_rows = hypre_ParCSRMatrixGlobalNumRows(A);
+      }
    }
    else
    {
