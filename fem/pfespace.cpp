@@ -54,7 +54,7 @@ ParFiniteElementSpace::ParFiniteElementSpace(
    // NURBSExtension of 'global_fes' and inside the ParNURBSExtension of 'pm'.
 
    // TODO: when general variable-order support is added, copy the local portion
-   // of the variable-oder data from 'global_fes' to 'this'.
+   // of the variable-order data from 'global_fes' to 'this'.
 }
 
 ParFiniteElementSpace::ParFiniteElementSpace(
@@ -117,7 +117,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
       UpdateNURBS();
    }
 
-   Construct();
+   Construct(); // parallel version of Construct().
 
    // Apply the ldof_signs to the elem_dof Table
    if (Conforming() && !NURBSext)
@@ -633,7 +633,7 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
    GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
    GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
 #ifdef MFEM_DEBUG
-   // Verify that in boolean arthmetic: P^T ess_dofs = R ess_dofs.
+   // Verify that in boolean arithmetic: P^T ess_dofs = R ess_dofs.
    Array<int> true_ess_dofs2(true_ess_dofs.Size());
    HypreParMatrix *Pt = Dof_TrueDof_Matrix()->Transpose();
    Pt->BooleanMult(1, ess_dofs, 0, true_ess_dofs2);
@@ -2355,7 +2355,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    }
 
    DenseTensor localR;
-   GetLocalDerefinementMatrices(geom, dtrans, localR);
+   GetLocalDerefinementMatrices(localR);
 
    // create the diagonal part of the derefinement matrix
    SparseMatrix *diag = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
@@ -2570,9 +2570,9 @@ void ParFiniteElementSpace::Update(bool want_transform)
    }
 
    Destroy();
-   FiniteElementSpace::Destroy();
+   FiniteElementSpace::Destroy(); // calls Th.Clear()
 
-   FiniteElementSpace::Construct(); // sets T to NULL, own_T to true
+   FiniteElementSpace::Construct();
    Construct();
 
    BuildElementToDofTable();
@@ -2584,29 +2584,43 @@ void ParFiniteElementSpace::Update(bool want_transform)
       {
          case Mesh::REFINE:
          {
-            T = RefinementMatrix(old_ndofs, old_elem_dof);
+            if (Th.Type() != Operator::MFEM_SPARSEMAT)
+            {
+               Th.Reset(new RefinementOperator(this, old_elem_dof, old_ndofs));
+               // The RefinementOperator takes ownership of 'old_elem_dofs', so
+               // we no longer own it:
+               old_elem_dof = NULL;
+            }
+            else
+            {
+               // calculate fully assembled matrix
+               Th.Reset(RefinementMatrix(old_ndofs, old_elem_dof));
+            }
             break;
          }
 
          case Mesh::DEREFINE:
          {
-            T = ParallelDerefinementMatrix(old_ndofs, old_elem_dof);
+            Th.Reset(ParallelDerefinementMatrix(old_ndofs, old_elem_dof));
             if (Nonconforming())
             {
-               T = new TripleProductOperator(P, R, T, false, false, true);
+               Th.SetOperatorOwner(false);
+               Th.Reset(new TripleProductOperator(P, R, Th.Ptr(),
+                                                  false, false, true));
             }
             break;
          }
 
          case Mesh::REBALANCE:
          {
-            T = RebalanceMatrix(old_ndofs, old_elem_dof);
+            Th.Reset(RebalanceMatrix(old_ndofs, old_elem_dof));
             break;
          }
 
          default:
-            break; // T stays NULL
+            break;
       }
+
       delete old_elem_dof;
    }
 }
