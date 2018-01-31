@@ -40,6 +40,16 @@ Table::Table(const Table &table)
    }
 }
 
+Table& Table::operator=(const Table &rhs)
+{
+   Clear();
+
+   Table copy(rhs);
+   Swap(copy);
+
+   return *this;
+}
+
 Table::Table (int dim, int connections_per_row)
 {
    int i, j, sum = dim * connections_per_row;

@@ -241,21 +241,22 @@ public:
        changed by this constructor to ensure that the first entry in each row is
        the diagonal one. This is expected by most hypre functions. */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *row_starts,
-                  SparseMatrix *diag);
+                  SparseMatrix *diag); // constructor with 4 arguments, v1
 
    /** Creates block-diagonal rectangular parallel matrix. Diagonal is given by
        diag which must be in CSR format (finalized). The new HypreParMatrix does
        not take ownership of any of the input arrays. */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int global_num_rows,
                   HYPRE_Int global_num_cols, HYPRE_Int *row_starts,
-                  HYPRE_Int *col_starts, SparseMatrix *diag);
+                  HYPRE_Int *col_starts,
+                  SparseMatrix *diag); // constructor with 6 arguments, v1
 
    /** Creates general (rectangular) parallel matrix. The new HypreParMatrix
        does not take ownership of any of the input arrays. */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int global_num_rows,
                   HYPRE_Int global_num_cols, HYPRE_Int *row_starts,
                   HYPRE_Int *col_starts, SparseMatrix *diag, SparseMatrix *offd,
-                  HYPRE_Int *cmap);
+                  HYPRE_Int *cmap); // constructor with 8 arguments
 
    /** Creates general (rectangular) parallel matrix. The new HypreParMatrix
        takes ownership of all input arrays, except col_starts and row_starts. */
@@ -264,24 +265,27 @@ public:
                   HYPRE_Int *row_starts, HYPRE_Int *col_starts,
                   HYPRE_Int *diag_i, HYPRE_Int *diag_j, double *diag_data,
                   HYPRE_Int *offd_i, HYPRE_Int *offd_j, double *offd_data,
-                  HYPRE_Int offd_num_cols, HYPRE_Int *offd_col_map);
+                  HYPRE_Int offd_num_cols,
+                  HYPRE_Int *offd_col_map); // constructor with 13 arguments
 
    /// Creates a parallel matrix from SparseMatrix on processor 0.
    HypreParMatrix(MPI_Comm comm, HYPRE_Int *row_starts, HYPRE_Int *col_starts,
-                  SparseMatrix *a);
+                  SparseMatrix *a); // constructor with 4 arguments, v2
 
    /** Creates boolean block-diagonal rectangular parallel matrix. The new
        HypreParMatrix does not take ownership of any of the input arrays. */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int global_num_rows,
                   HYPRE_Int global_num_cols, HYPRE_Int *row_starts,
-                  HYPRE_Int *col_starts, Table *diag);
+                  HYPRE_Int *col_starts,
+                  Table *diag); // constructor with 6 arguments, v2
 
    /** Creates boolean rectangular parallel matrix. The new HypreParMatrix takes
        ownership of the arrays i_diag, j_diag, i_offd, j_offd, and cmap; does
        not take ownership of the arrays row and col. */
    HypreParMatrix(MPI_Comm comm, int id, int np, HYPRE_Int *row, HYPRE_Int *col,
                   HYPRE_Int *i_diag, HYPRE_Int *j_diag, HYPRE_Int *i_offd,
-                  HYPRE_Int *j_offd, HYPRE_Int *cmap, HYPRE_Int cmap_size);
+                  HYPRE_Int *j_offd, HYPRE_Int *cmap,
+                  HYPRE_Int cmap_size); // constructor with 11 arguments
 
    /** Creates a general parallel matrix from a local CSR matrix on each
        processor described by the I, J and data arrays. The local matrix should
@@ -289,7 +293,8 @@ public:
        contains copies of all input arrays (so they can be deleted). */
    HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
                   HYPRE_Int glob_ncols, int *I, HYPRE_Int *J,
-                  double *data, HYPRE_Int *rows, HYPRE_Int *cols);
+                  double *data, HYPRE_Int *rows,
+                  HYPRE_Int *cols); // constructor with 9 arguments
 
    /// Make this HypreParMatrix a reference to 'master'
    void MakeRef(const HypreParMatrix &master);
@@ -406,6 +411,13 @@ public:
       internal::hypre_ParCSRMatrixBooleanMatvec(A, alpha, x, beta, y);
    }
 
+   /** The "Boolean" analog of y = alpha * A^T * x + beta * y, where elements in
+       the sparsity pattern of the matrix are treated as "true". */
+   void BooleanMultTranspose(int alpha, int *x, int beta, int *y)
+   {
+      internal::hypre_ParCSRMatrixBooleanMatvecT(A, alpha, x, beta, y);
+   }
+
    /// Initialize all entries with value.
    HypreParMatrix &operator=(double value)
    { internal::hypre_ParCSRMatrixSetConstantValues(A, value); return *this; }
@@ -425,13 +437,14 @@ public:
       return *this;
    }
 
-   /** Multiply A on the left by a block-diagonal parallel matrix D. Return
-       a new parallel matrix, D*A. If D has a different number of rows than A,
-       D's row starts array needs to be given (as returned by the methods
-       GetDofOffsets/GetTrueDofOffsets of ParFiniteElementSpace). The new matrix
-       D*A uses copies of the row-, column-starts arrays, so "this" matrix and
-       "row_starts" can be deleted.
-       NOTE: this operation is local and does not require communication. */
+   /** @brief Multiply the HypreParMatrix on the left by a block-diagonal
+       parallel matrix @a D and return the result as a new HypreParMatrix. */
+   /** If @a D has a different number of rows than @a A (this matrix), @a D's
+       row starts array needs to be given (as returned by the methods
+       GetDofOffsets/GetTrueDofOffsets of ParFiniteElementSpace). The new
+       matrix @a D*A uses copies of the row- and column-starts arrays, so "this"
+       matrix and @a row_starts can be deleted.
+       @note This operation is local and does not require communication. */
    HypreParMatrix* LeftDiagMult(const SparseMatrix &D,
                                 HYPRE_Int* row_starts = NULL) const;
 
