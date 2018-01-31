@@ -1354,7 +1354,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
        (retval = nc_inq_dimid(ncid, "num_nodes", &id)) ||
        (retval = nc_inq_dim(ncid, id, str_dummy, &num_nodes)) ||
 
-       (retval = nc_inq_dimid(ncid, "num_elem" ,&id)) ||
+       (retval = nc_inq_dimid(ncid, "num_elem", &id)) ||
        (retval = nc_inq_dim(ncid, id, str_dummy, &num_elem)) ||
 
        (retval = nc_inq_dimid(ncid, "num_el_blk", &id)) ||
@@ -1385,7 +1385,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       }
 
       sprintf(temp_str, "num_nod_per_el%d", i+1);
-      if ((retval = nc_inq_dimid(ncid, temp_str ,&temp_id)) ||
+      if ((retval = nc_inq_dimid(ncid, temp_str, &temp_id)) ||
           (retval = nc_inq_dim(ncid, temp_id, str_dummy, &num_nod_per_el[i])))
       {
          MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
@@ -1421,7 +1421,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    for (int i = 0; i < (int) num_side_sets; i++)
    {
       sprintf(temp_str, "num_side_ss%d", i+1);
-      if ((retval = nc_inq_dimid(ncid, temp_str ,&temp_id)) ||
+      if ((retval = nc_inq_dimid(ncid, temp_str, &temp_id)) ||
           (retval = nc_inq_dim(ncid, temp_id, str_dummy, &num_side_in_ss[i])))
       {
          MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
@@ -1433,7 +1433,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    double *coordy = new double[num_nodes];
    double *coordz = new double[num_nodes];
 
-   if ((retval = nc_inq_varid(ncid, "coordx" ,&id)) ||
+   if ((retval = nc_inq_varid(ncid, "coordx", &id)) ||
        (retval = nc_get_var_double(ncid, id, coordx)) ||
        (retval = nc_inq_varid(ncid, "coordy", &id)) ||
        (retval = nc_get_var_double(ncid, id, coordy)))
@@ -1480,14 +1480,14 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       side_ss[i] = new int[num_side_in_ss[i]];
 
       sprintf(temp_str, "elem_ss%d", i+1);
-      if ((retval = nc_inq_varid(ncid, temp_str ,&temp_id)) ||
+      if ((retval = nc_inq_varid(ncid, temp_str, &temp_id)) ||
           (retval = nc_get_var_int(ncid, temp_id, elem_ss[i])))
       {
          MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
       }
 
       sprintf(temp_str,"side_ss%d",i+1);
-      if ((retval = nc_inq_varid(ncid, temp_str ,&temp_id)) ||
+      if ((retval = nc_inq_varid(ncid, temp_str, &temp_id)) ||
           (retval = nc_get_var_int(ncid, temp_id, side_ss[i])))
       {
          MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
@@ -1495,7 +1495,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    }
 
    int *ssprop = new int[num_side_sets];
-   if ((retval = nc_inq_varid(ncid, "ss_prop1" ,&id)) ||
+   if ((retval = nc_inq_varid(ncid, "ss_prop1", &id)) ||
        (retval = nc_get_var_int(ncid, id, ssprop)))
    {
       MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
