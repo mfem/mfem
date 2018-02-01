@@ -503,16 +503,31 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
       return R;
    }
 
-   const FiniteElement *h_fe = this -> GetFE (0);
-   const FiniteElement *l_fe = lfes -> GetFE (0);
+   bool mixedMesh = this->GetMesh()->GetElementBaseGeometry();
+
+   const FiniteElement *h_fe = NULL;
+   const FiniteElement *l_fe = NULL;
    IsoparametricTransformation T;
-   T.SetIdentityTransformation(h_fe->GetGeomType());
-   h_fe->Project(*l_fe, T, loc_restr);
+   if ( !mixedMesh )
+   {
+      h_fe = this -> GetFE (0);
+      l_fe = lfes -> GetFE (0);
+      T.SetIdentityTransformation(h_fe->GetGeomType());
+      h_fe->Project(*l_fe, T, loc_restr);
+   }
 
    for (int i = 0; i < mesh -> GetNE(); i++)
    {
       this -> GetElementDofs (i, h_dofs);
       lfes -> GetElementDofs (i, l_dofs);
+
+      if ( mixedMesh )
+      {
+         h_fe = this -> GetFE (i);
+         l_fe = lfes -> GetFE (i);
+         T.SetIdentityTransformation(h_fe->GetGeomType());
+         h_fe->Project(*l_fe, T, loc_restr);
+      }
 
       R -> SetSubMatrix (l_dofs, h_dofs, loc_restr, 1);
    }
@@ -1149,21 +1164,41 @@ void FiniteElementSpace::Construct()
 
    if (mesh->Dimension() == 3 && mesh->GetNE())
    {
-      // Here we assume that all faces in the mesh have the same base
-      // geometry -- the base geometry of the 0-th face element.
-      // The class Mesh assumes the same inside GetFaceBaseGeometry(...).
-      // Thus we do not need to generate all the faces in the mesh
-      // if we do not need them.
-      int fdof = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
-      if (fdof > 0)
+      Geometry::Type face_geom = mesh->GetFaceBaseGeometry(-1);
+      MFEM_VERIFY(face_geom != Geometry::INVALID,
+                  "Invalid face geometry!");
+
+      if ( face_geom != Geometry::MIXED )
       {
+         // All faces are the same type thus we do not need to generate
+         // all the faces in the mesh since we do not need them.
+         int fdof = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
+         if (fdof > 0)
+         {
+            fdofs = new int[mesh->GetNFaces()+1];
+            fdofs[0] = 0;
+            for (int i = 0; i < mesh->GetNFaces(); i++)
+            {
+               nfdofs += fdof;
+               // nfdofs += fec->DofForGeometry(mesh->GetFaceBaseGeometry(i));
+               fdofs[i+1] = nfdofs;
+            }
+         }
+      }
+      else
+      {
+         // All faces are not the same type so we must query each face
+         // to determine its number of degrees of freedom
          fdofs = new int[mesh->GetNFaces()+1];
          fdofs[0] = 0;
          for (int i = 0; i < mesh->GetNFaces(); i++)
          {
-            nfdofs += fdof;
-            // nfdofs += fec->DofForGeometry(mesh->GetFaceBaseGeometry(i));
+            nfdofs += fec->DofForGeometry(mesh->GetFaceBaseGeometry(i));
             fdofs[i+1] = nfdofs;
+         }
+         if (nfdofs == 0)
+         {
+            delete fdofs; fdofs = NULL;
          }
       }
    }
