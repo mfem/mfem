@@ -145,6 +145,7 @@ miniapps/performance/mesh.*
 miniapps/performance/sol.*
 
 miniapps/tools/display-basis
+miniapps/tools/load-dc
 
 miniapps/nurbs/ex1
 miniapps/nurbs/ex1p
