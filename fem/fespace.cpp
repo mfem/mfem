@@ -93,13 +93,13 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
 
 int FiniteElementSpace::GetOrder(int i) const
 {
-   int GeomType = mesh->GetElementBaseGeometry(i);
+   Geometry::Type GeomType = mesh->GetElementBaseGeometry(i);
    return fec->FiniteElementForGeometry(GeomType)->GetOrder();
 }
 
 int FiniteElementSpace::GetFaceOrder(int i) const
 {
-   int GeomType = mesh->GetFaceBaseGeometry(i);
+   Geometry::Type GeomType = mesh->GetFaceBaseGeometry(i);
    return fec->FiniteElementForGeometry(GeomType)->GetOrder();
 }
 
@@ -599,7 +599,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       if (entity > 1) { T.SetFE(&QuadrilateralFE); }
       else { T.SetFE(&SegmentFE); }
 
-      int geom = (entity > 1) ? Geometry::SQUARE : Geometry::SEGMENT;
+      Geometry::Type geom = (entity > 1) ? Geometry::SQUARE : Geometry::SEGMENT;
       const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
       if (!fe) { continue; }
 
@@ -780,7 +780,8 @@ int FiniteElementSpace::GetNConformingDofs() const
 
 void FiniteElementSpace::GetLocalRefinementMatrices(DenseTensor &localP) const
 {
-   int geom = mesh->GetElementBaseGeometry(); // assuming the same geom
+   Geometry::Type geom =
+      mesh->GetElementBaseGeometry(); // assuming the same geom
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
@@ -940,7 +941,8 @@ void InvertLinearTrans(IsoparametricTransformation &trans,
 
 void FiniteElementSpace::GetLocalDerefinementMatrices(DenseTensor &localR) const
 {
-   int geom = mesh->GetElementBaseGeometry(); // assuming the same geom
+   Geometry::Type geom =
+      mesh->GetElementBaseGeometry(); // assuming the same geom
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
    const IntegrationRule &nodes = fe->GetNodes();
 
@@ -1172,7 +1174,7 @@ void FiniteElementSpace::Construct()
       bdofs[0] = 0;
       for (int i = 0; i < mesh->GetNE(); i++)
       {
-         int geom = mesh->GetElementBaseGeometry(i);
+         Geometry::Type geom = mesh->GetElementBaseGeometry(i);
          nbdofs += fec->DofForGeometry(geom);
          bdofs[i+1] = nbdofs;
       }
@@ -1577,7 +1579,7 @@ const FiniteElement *FiniteElementSpace::GetEdgeElement(int i) const
 }
 
 const FiniteElement *FiniteElementSpace::GetTraceElement(
-   int i, int geom_type) const
+   int i, Geometry::Type geom_type) const
 {
    return fec->TraceFiniteElementForGeometry(geom_type);
 }
