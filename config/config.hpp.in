@@ -97,6 +97,12 @@
 // Enable functionality based on the NetCDF library (reading CUBIT files)
 // #define MFEM_USE_NETCDF
 
+// Enable binary HDF5 File I/O
+// #define MFEM_USE_HDF5
+
+// Enable ZFP compression for HDF5
+// #define MFEM_USE_ZFP
+
 // Enable functionality based on the PETSc library
 // #define MFEM_USE_PETSC
 

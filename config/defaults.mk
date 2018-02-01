@@ -104,6 +104,8 @@ MFEM_USE_NETCDF      = NO
 MFEM_USE_PETSC       = NO
 MFEM_USE_MPFR        = NO
 MFEM_USE_SIDRE       = NO
+MFEM_USE_HDF5        = NO
+MFEM_USE_ZFP         = NO
 
 LIBUNWIND_OPT = -g
 LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
@@ -210,15 +212,20 @@ GECKO_LIB = -L$(GECKO_DIR)/lib -lgecko
 GNUTLS_OPT =
 GNUTLS_LIB = -lgnutls
 
+# HDF5 library configuration
+HDF5_DIR = @MFEM_DIR@/../hdf5
+HDF5_OPT = -I$(HDF5_DIR)/include
+HDF5_LIB = -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib -lhdf5 -ldl -lz
+
 # NetCDF library configuration
 NETCDF_DIR = $(HOME)/local
-HDF5_DIR   = $(HOME)/local
+#HDF5_DIR   = $(HOME)/local
 ZLIB_DIR   = $(HOME)/local
 NETCDF_OPT = -I$(NETCDF_DIR)/include -I$(HDF5_DIR)/include -I$(ZLIB_DIR)/include
 NETCDF_LIB = -Wl,-rpath,$(NETCDF_DIR)/lib -L$(NETCDF_DIR)/lib\
  -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib\
  -Wl,-rpath,$(ZLIB_DIR)/lib -L$(ZLIB_DIR)/lib\
- -lnetcdf -lhdf5_hl -lhdf5 -lz
+ -lnetcdf -lhdf5_hl $(HDF5_LIB)
 
 # PETSc library configuration (version greater or equal to 3.8 or the dev branch)
 PETSC_ARCH := arch-linux2-c-debug

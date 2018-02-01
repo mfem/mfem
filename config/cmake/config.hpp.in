@@ -86,6 +86,9 @@
 // Enable MFEM functionality based on the NetCDF library
 #cmakedefine MFEM_USE_NETCDF
 
+// Enable HDF5 (binary) I/O
+#cmakedefine MFEM_USE_HDF5
+
 // Enable MFEM functionality based on the PETSc library
 #cmakedefine MFEM_USE_PETSC
 

@@ -239,6 +239,17 @@ if (MFEM_USE_SIDRE)
   find_package(Axom REQUIRED Sidre SLIC axom_utils)
 endif()
 
+# ZFP
+if (MFEM_USE_ZFP)
+  find_package(ZFP REQUIRED)
+  set(MFEM_USE_HDF5 ON CACHE BOOL "requires HDF5" FORCE)
+endif()
+
+# HDF5
+if (MFEM_USE_HDF5)
+  find_package(HDF5 REQUIRED)
+endif()
+
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
@@ -263,8 +274,8 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK AXOM GECKO GNUTLS NETCDF MPFR POSIXCLOCKS
-    MFEMBacktrace ZLIB)
+    MESQUITE SuperLUDist STRUMPACK AXOM GECKO GNUTLS NETCDF HDF5 MPFR POSIXCLOCKS
+    MFEMBacktrace ZFP ZLIB)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")

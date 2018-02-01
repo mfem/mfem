@@ -221,7 +221,7 @@ void DataCollection::Save()
    }
 }
 
-void DataCollection::SaveMesh()
+void DataCollection::SaveMesh(std::string *_dir_name, std::ostringstream *_ostrstr)
 {
    int err;
 
@@ -237,31 +237,45 @@ void DataCollection::SaveMesh()
       MFEM_WARNING("Error creating directory: " << dir_name);
       return; // do not even try to write the mesh
    }
-
    std::string mesh_name = dir_name +
                            ((serial || format == 0 )? "/mesh" : "/pmesh");
    if (appendRankToFileName)
    {
       mesh_name += "." + to_padded_string(myid, pad_digits_rank);
    }
-   std::ofstream mesh_file(mesh_name.c_str());
-   mesh_file.precision(precision);
+
+   std::ostream *mesh_file = _ostrstr;
+   if (!mesh_file)
+   {
+       mesh_file = new std::ofstream(mesh_name.c_str());
+       if (!mesh_file || !mesh_file->good())
+       {
+          error = WRITE_ERROR;
+          MFEM_WARNING("Error writing mesh to file: " << mesh_name);
+          return;
+       }
+   }
+   mesh_file->precision(precision);
 #ifdef MFEM_USE_MPI
    const ParMesh *pmesh = dynamic_cast<const ParMesh*>(mesh);
    if (pmesh && format == 1 )
    {
-      pmesh->ParPrint(mesh_file);
+      pmesh->ParPrint(*mesh_file);
    }
    else
 #endif
    {
-      mesh->Print(mesh_file);
+      mesh->Print(*mesh_file);
    }
-   if (!mesh_file)
+   if (!mesh_file->good())
    {
       error = WRITE_ERROR;
       MFEM_WARNING("Error writing mesh to file: " << mesh_name);
    }
+   if (_dir_name)
+       *_dir_name = dir_name;
+   if (!_ostrstr)
+      delete mesh_file;
 }
 
 std::string DataCollection::GetFieldFileName(const std::string &field_name)
@@ -279,28 +293,48 @@ std::string DataCollection::GetFieldFileName(const std::string &field_name)
    return file_name;
 }
 
-void DataCollection::SaveOneField(const FieldMapIterator &it)
+void DataCollection::SaveOneField(const FieldMapIterator &it, std::ostringstream *_ostrstr)
 {
-   std::ofstream field_file(GetFieldFileName(it->first).c_str());
-   field_file.precision(precision);
-   (it->second)->Save(field_file);
+   std::ostream *field_file = _ostrstr;
    if (!field_file)
+       field_file = new std::ofstream(GetFieldFileName(it->first).c_str());
+   if (!field_file || !field_file->good())
+   {
+      error = WRITE_ERROR;
+      MFEM_WARNING("Error writing field to file: " << it->first);
+      return;
+   }
+   field_file->precision(precision);
+   (it->second)->Save(*field_file);
+   if (!field_file->good())
    {
       error = WRITE_ERROR;
       MFEM_WARNING("Error writing field to file: " << it->first);
    }
+   if (!_ostrstr)
+      delete field_file;
 }
 
-void DataCollection::SaveOneQField(const QFieldMapIterator &it)
+void DataCollection::SaveOneQField(const QFieldMapIterator &it, std::ostringstream *_ostrstr)
 {
-   std::ofstream q_field_file(GetFieldFileName(it->first).c_str());
-   q_field_file.precision(precision);
-   (it->second)->Save(q_field_file);
+   std::ostream *q_field_file = _ostrstr;
    if (!q_field_file)
+      q_field_file = new std::ofstream(GetFieldFileName(it->first).c_str());
+   if (!q_field_file || !q_field_file->good())
+   {
+      error = WRITE_ERROR;
+      MFEM_WARNING("Error writing q-field to file: " << it->first);
+      return;
+   }
+   q_field_file->precision(precision);
+   (it->second)->Save(*q_field_file);
+   if (!q_field_file->good())
    {
       error = WRITE_ERROR;
       MFEM_WARNING("Error writing q-field to file: " << it->first);
    }
+   if (!_ostrstr)
+      delete q_field_file;
 }
 
 void DataCollection::SaveField(const std::string &field_name)
@@ -605,5 +639,161 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
       }
    }
 }
+
+#ifdef MFEM_USE_HDF5
+#include <hdf5.h>
+#include <libgen.h>
+
+/* useful macro for comparing HDF5 versions */
+#define HDF5_VERSION_GE(Maj,Min,Rel)  \
+        (((H5_VERS_MAJOR==Maj) && (H5_VERS_MINOR==Min) && (H5_VERS_RELEASE>=Rel)) || \
+         ((H5_VERS_MAJOR==Maj) && (H5_VERS_MINOR>Min)) || \
+         (H5_VERS_MAJOR>Maj))
+
+Hdf5ZfpDataCollection::Hdf5ZfpDataCollection(const std::string &name, Mesh *mesh)
+   : DataCollection(name, mesh)
+{
+}
+
+#if 0
+void Hdf5ZfpDataCollection::SaveMesh(hid_t fid)
+{
+#ifdef MFEM_USE_MPI
+   const ParMesh *pmesh = dynamic_cast<const ParMesh*>(mesh);
+   if (pmesh && format == 1 )
+   {
+      pmesh->ParPrint(mesh_file);
+   }
+   else
+#endif
+   {
+      mesh->Print(mesh_file);
+   }
+
+   if (!mesh_file)
+   {
+      error = WRITE_ERROR;
+      MFEM_WARNING("Error writing mesh to file: " << mesh_name);
+   }
+}
+#endif
+void
+Hdf5ZfpDataCollection::SaveMeshInStringStreamToHDF5(hid_t fid, std::string const &str)
+{
+    int ndims = 1;
+    hsize_t dims = (hsize_t) str.size();
+    hid_t spid = H5Screate_simple(ndims, &dims, 0);
+#if HDF5_VERSION_GE(1,8,0)
+    hid_t dsid = H5Dcreate(fid, "foo", H5T_NATIVE_CHAR, spid, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+#else
+    hid_t dsid = H5Dcreate(fid, "foo", H5T_NATIVE_CHAR, spid, H5P_DEFAULT);
+#endif
+    H5Dwrite(dsid, H5T_NATIVE_CHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, &str[0]);
+    H5Dclose(dsid);
+    H5Sclose(spid);
+}
+
+void
+Hdf5ZfpDataCollection::SaveFieldInStringStreamToHDF5(
+    hid_t fid, std::string const &name, std::string const &str)
+{
+    int ndims = 1;
+    hsize_t dims = (hsize_t) str.size();
+    hid_t spid = H5Screate_simple(ndims, &dims, 0);
+    char bname[512];
+    strncpy(bname, name.c_str(), sizeof(bname));
+    bname[511] = '\0';
+
+std::cout << "name = \"" << name << "\"" << std::endl;
+#if HDF5_VERSION_GE(1,8,0)
+    hid_t dsid = H5Dcreate(fid, basename(bname), H5T_NATIVE_CHAR, spid, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+#else
+    hid_t dsid = H5Dcreate(fid, basename(bname), H5T_NATIVE_CHAR, spid, H5P_DEFAULT);
+#endif
+    H5Dwrite(dsid, H5T_NATIVE_CHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, &str[0]);
+    H5Dclose(dsid);
+    H5Sclose(spid);
+}
+
+void Hdf5ZfpDataCollection::Save()
+{
+#if 0
+   int err;
+
+   std::string dir_name = prefix_path + name;
+   if (cycle != -1)
+   {
+      dir_name += "_" + to_padded_string(cycle, pad_digits_cycle);
+   }
+   err = create_directory(dir_name, mesh, myid);
+   if (err)
+   {
+      error = WRITE_ERROR;
+      MFEM_WARNING("Error creating directory: " << dir_name);
+      return; // do not even try to write the mesh
+   }
+
+   std::string file_name = dir_name +
+                           ((serial || format == 0 )? "/mfem" : "/pmfem");
+   if (appendRankToFileName)
+   {
+      file_name += "." + to_padded_string(myid, pad_digits_rank) + ".h5";
+   }
+
+   // Here is where decide to create file in memory if 
+   // wanna gather many outputs to single writer
+   fid = H5Fcreate(file_name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+
+   SaveMesh(fid);
+   if (error) return;
+
+   SaveFields(fid);
+#else
+
+   // Save mesh like we ordinarily would except to an ostring stream.
+   // Would be best to use a compressed stream here. But, gzstream is for
+   // *file* streams and won't work on string streams alone.
+   std::string dir_name;
+   std::ostringstream ostrstr;
+   SaveMesh(&dir_name, &ostrstr);
+   if (error) { return; }
+
+   // Create HDF5 File
+   std::string file_name = dir_name +
+                           ((serial || format == 0 )? "/mfem" : "/pmfem");
+   if (appendRankToFileName)
+   {
+      file_name += "." + to_padded_string(myid, pad_digits_rank) + ".h5";
+   }
+
+   hid_t fid = H5Fcreate(file_name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+   SaveMeshInStringStreamToHDF5(fid, ostrstr.str());
+   ostrstr.str("");
+
+   for (FieldMapIterator it = field_map.begin(); it != field_map.end(); ++it)
+   {
+      SaveOneField(it, &ostrstr);
+      SaveFieldInStringStreamToHDF5(fid, GetFieldFileName(it->first), ostrstr.str());
+      ostrstr.str("");
+      // Even if there is an error, try saving the other fields
+   }
+
+   for (QFieldMapIterator it = q_field_map.begin(); it != q_field_map.end();
+        ++it)
+   {
+      SaveOneQField(it, &ostrstr);
+      SaveFieldInStringStreamToHDF5(fid, GetFieldFileName(it->first), ostrstr.str());
+      ostrstr.str("");
+   }
+
+   H5Fclose(fid);
+
+#endif
+}
+
+void Hdf5ZfpDataCollection::Load(int cycle)
+{
+}
+#endif // MFEM_USE_HDF5
 
 }  // end namespace MFEM
