@@ -73,6 +73,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f)
    static_cond = NULL;
    hybridization = NULL;
    precompute_sparsity = 0;
+   diag_policy = DIAG_KEEP;
 }
 
 BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
@@ -89,6 +90,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    static_cond = NULL;
    hybridization = NULL;
    precompute_sparsity = ps;
+   diag_policy = DIAG_KEEP;
 
    bfi = bf->GetDBFI();
    dbfi.SetSize (bfi->Size());
@@ -545,7 +547,7 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 {
    const SparseMatrix *P = fes->GetConformingProlongation();
 
-   FormSystemMatrix(ess_tdof_list, A, diag_policy);
+   FormSystemMatrix(ess_tdof_list, A);
 
    // Transform the system and perform the elimination in B, based on the
    // essential BC values from x. Restrict the BC part of x in X, and set the
