@@ -541,8 +541,7 @@ void BilinearForm::ConformingAssemble()
 void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                     Vector &x, Vector &b,
                                     SparseMatrix &A, Vector &X, Vector &B,
-                                    int copy_interior,
-                                    DiagonalPolicy diag_policy)
+                                    int copy_interior)
 {
    const SparseMatrix *P = fes->GetConformingProlongation();
 
@@ -606,8 +605,7 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 }
 
 void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
-                                    SparseMatrix &A,
-                                    DiagonalPolicy diag_policy)
+                                    SparseMatrix &A)
 {
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
@@ -907,6 +905,11 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
    }
 
    height = width = fes->GetVSize();
+}
+
+void BilinearForm::SetDiagonalPolicy(DiagonalPolicy policy)
+{
+  diag_policy = policy;
 }
 
 BilinearForm::~BilinearForm()
