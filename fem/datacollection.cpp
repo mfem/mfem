@@ -71,8 +71,17 @@ int DataCollection::create_directory(const std::string &dir_name,
 
 DataCollection::DataCollection(const std::string& collection_name, Mesh *mesh_)
 {
-   name = collection_name;
-   // leave prefix_path empty
+   std::string::size_type pos = collection_name.find_last_of('/');
+   if (pos == std::string::npos)
+   {
+      name = collection_name;
+      // leave prefix_path empty
+   }
+   else
+   {
+      prefix_path = collection_name.substr(0, pos+1);
+      name = collection_name.substr(pos+1);
+   }
    mesh = mesh_;
    myid = 0;
    num_procs = 1;
@@ -80,11 +89,13 @@ DataCollection::DataCollection(const std::string& collection_name, Mesh *mesh_)
    appendRankToFileName = false;
 
 #ifdef MFEM_USE_MPI
+   m_comm = MPI_COMM_NULL;
    ParMesh *par_mesh = dynamic_cast<ParMesh*>(mesh);
    if (par_mesh)
    {
       myid = par_mesh->GetMyRank();
       num_procs = par_mesh->GetNRanks();
+      m_comm = par_mesh->GetComm();
       serial = false;
       appendRankToFileName = true;
    }
@@ -95,7 +106,7 @@ DataCollection::DataCollection(const std::string& collection_name, Mesh *mesh_)
    time_step = 0.0;
    precision = precision_default;
    pad_digits_cycle = pad_digits_rank = pad_digits_default;
-   format = 0; // use older serial mesh format
+   format = SERIAL_FORMAT; // use serial mesh format
    error = NO_ERROR;
 }
 
@@ -109,11 +120,13 @@ void DataCollection::SetMesh(Mesh *new_mesh)
    appendRankToFileName = false;
 
 #ifdef MFEM_USE_MPI
+   m_comm = MPI_COMM_NULL;
    ParMesh *par_mesh = dynamic_cast<ParMesh*>(mesh);
    if (par_mesh)
    {
       myid = par_mesh->GetMyRank();
       num_procs = par_mesh->GetNRanks();
+      m_comm = par_mesh->GetComm();
       serial = false;
       appendRankToFileName = true;
    }
@@ -181,6 +194,19 @@ QuadratureFunction *DataCollection::GetQField(const std::string& q_field_name)
    return (it != q_field_map.end()) ? it->second : NULL;
 }
 
+void DataCollection::SetFormat(int fmt)
+{
+   switch (fmt)
+   {
+      case SERIAL_FORMAT: break;
+#ifdef MFEM_USE_MPI
+      case PARALLEL_FORMAT: break;
+#endif
+      default: MFEM_ABORT("unknown format: " << fmt);
+   }
+   format = fmt;
+}
+
 void DataCollection::SetPrefixPath(const std::string& prefix)
 {
    if (!prefix.empty())
@@ -238,17 +264,12 @@ void DataCollection::SaveMesh()
       return; // do not even try to write the mesh
    }
 
-   std::string mesh_name = dir_name +
-                           ((serial || format == 0 )? "/mesh" : "/pmesh");
-   if (appendRankToFileName)
-   {
-      mesh_name += "." + to_padded_string(myid, pad_digits_rank);
-   }
+   std::string mesh_name = GetMeshFileName();
    std::ofstream mesh_file(mesh_name.c_str());
    mesh_file.precision(precision);
 #ifdef MFEM_USE_MPI
    const ParMesh *pmesh = dynamic_cast<const ParMesh*>(mesh);
-   if (pmesh && format == 1 )
+   if (pmesh && format == PARALLEL_FORMAT)
    {
       pmesh->ParPrint(mesh_file);
    }
@@ -264,7 +285,18 @@ void DataCollection::SaveMesh()
    }
 }
 
+std::string DataCollection::GetMeshShortFileName() const
+{
+   return (serial || format == SERIAL_FORMAT) ? "mesh" : "pmesh";
+}
+
+std::string DataCollection::GetMeshFileName() const
+{
+   return GetFieldFileName(GetMeshShortFileName());
+}
+
 std::string DataCollection::GetFieldFileName(const std::string &field_name)
+const
 {
    std::string dir_name = prefix_path + name;
    if (cycle != -1)
@@ -375,6 +407,22 @@ VisItDataCollection::VisItDataCollection(const std::string& collection_name,
    visit_max_levels_of_detail = 32;
 }
 
+#ifdef MFEM_USE_MPI
+VisItDataCollection::VisItDataCollection(MPI_Comm comm,
+                                         const std::string& collection_name)
+   : DataCollection(collection_name, NULL)
+{
+   m_comm = comm;
+   MPI_Comm_rank(comm, &myid);
+   MPI_Comm_size(comm, &num_procs);
+   appendRankToFileName = true; // always include rank in file names
+   cycle = 0;                   // always include cycle in directory names
+   spatial_dim = 0;
+   topo_dim = 0;
+   visit_max_levels_of_detail = 32;
+}
+#endif
+
 void VisItDataCollection::SetMesh(Mesh *new_mesh)
 {
    DataCollection::SetMesh(new_mesh);
@@ -419,31 +467,60 @@ void VisItDataCollection::SaveRootFile()
    if (!root_file)
    {
       error = WRITE_ERROR;
-      MFEM_WARNING("Error writting VisIt Root file: " << root_name);
+      MFEM_WARNING("Error writing VisIt root file: " << root_name);
    }
 }
 
 void VisItDataCollection::Load(int cycle_)
 {
    DeleteAll();
+   time_step = 0.0;
+   error = NO_ERROR;
    cycle = cycle_;
    std::string root_name = prefix_path + name + "_" +
                            to_padded_string(cycle, pad_digits_cycle) +
                            ".mfem_root";
    LoadVisItRootFile(root_name);
+   if (format != SERIAL_FORMAT || num_procs > 1)
+   {
+#ifndef MFEM_USE_MPI
+      MFEM_WARNING("Cannot load parallel VisIt root file in serial.");
+      error = READ_ERROR;
+#else
+      if (m_comm == MPI_COMM_NULL)
+      {
+         MFEM_WARNING("Cannot load parallel VisIt root file without MPI"
+                      " communicator");
+         error = READ_ERROR;
+      }
+      else
+      {
+         // num_procs was read from the root file, check for consistency with
+         // the associated MPI_Comm, m_comm:
+         int comm_size;
+         MPI_Comm_size(m_comm, &comm_size);
+         if (comm_size != num_procs)
+         {
+            MFEM_WARNING("Processor number missmatch: VisIt root file: "
+                         << num_procs << ", MPI_comm: " << comm_size);
+            error = READ_ERROR;
+         }
+         else
+         {
+            // myid was set when setting m_comm
+         }
+      }
+#endif
+   }
    if (!error)
    {
-      LoadMesh();
+      LoadMesh(); // sets own_data to true, when there is no error
    }
    if (!error)
    {
       LoadFields();
    }
-   if (!error)
-   {
-      own_data = true;
-   }
-   else
+   if (error)
    {
       DeleteAll();
    }
@@ -457,7 +534,7 @@ void VisItDataCollection::LoadVisItRootFile(const std::string& root_name)
    if (!buffer)
    {
       error = READ_ERROR;
-      MFEM_WARNING("Error reading the VisIt Root file: " << root_name);
+      MFEM_WARNING("Error reading the VisIt root file: " << root_name);
    }
    else
    {
@@ -467,10 +544,9 @@ void VisItDataCollection::LoadVisItRootFile(const std::string& root_name)
 
 void VisItDataCollection::LoadMesh()
 {
-   std::string mesh_fname = prefix_path + name + "_" +
-                            to_padded_string(cycle, pad_digits_cycle) +
-                            "/mesh." + to_padded_string(myid, pad_digits_rank);
+   std::string mesh_fname = GetMeshFileName();
    named_ifgzstream file(mesh_fname.c_str());
+   // TODO: in parallel, check for errors on all processors
    if (!file)
    {
       error = READ_ERROR;
@@ -478,10 +554,25 @@ void VisItDataCollection::LoadMesh()
       return;
    }
    // TODO: 1) load parallel mesh on one processor
-   //       2) load parallel mesh on the same number of processors
-   mesh = new Mesh(file, 1, 1);
+   if (format == SERIAL_FORMAT)
+   {
+      mesh = new Mesh(file, 1, 0, false);
+      serial = true;
+   }
+   else
+   {
+#ifdef MFEM_USE_MPI
+      mesh = new ParMesh(m_comm, file);
+      serial = false;
+#else
+      error = READ_ERROR;
+      MFEM_WARNING("Reading parallel format in serial is not supported");
+      return;
+#endif
+   }
    spatial_dim = mesh->SpaceDimension();
    topo_dim = mesh->Dimension();
+   own_data = true;
 }
 
 void VisItDataCollection::LoadFields()
@@ -496,6 +587,7 @@ void VisItDataCollection::LoadFields()
    {
       std::string fname = path_left + it->first + path_right;
       std::ifstream file(fname.c_str());
+      // TODO: in parallel, check for errors on all processors
       if (!file)
       {
          error = READ_ERROR;
@@ -503,8 +595,21 @@ void VisItDataCollection::LoadFields()
          return;
       }
       // TODO: 1) load parallel GridFunction on one processor
-      //       2) load parallel GridFunction on the same number of processors
-      field_map[it->first] = new GridFunction(mesh, file);
+      if (serial)
+      {
+         field_map[it->first] = new GridFunction(mesh, file);
+      }
+      else
+      {
+#ifdef MFEM_USE_MPI
+         field_map[it->first] =
+            new ParGridFunction(dynamic_cast<ParMesh*>(mesh), file);
+#else
+         error = READ_ERROR;
+         MFEM_WARNING("Reading parallel format in serial is not supported");
+         return;
+#endif
+      }
    }
 }
 
@@ -522,9 +627,10 @@ std::string VisItDataCollection::GetVisItRootString()
    mtags["spatial_dim"] = picojson::value(to_string(spatial_dim));
    mtags["topo_dim"] = picojson::value(to_string(topo_dim));
    mtags["max_lods"] = picojson::value(to_string(visit_max_levels_of_detail));
-   mesh["path"] = picojson::value(path_str + ((format==0)?"":"p") + "mesh" +
+   mesh["path"] = picojson::value(path_str + GetMeshShortFileName() +
                                   file_ext_format);
    mesh["tags"] = picojson::value(mtags);
+   mesh["format"] = picojson::value(to_string(format));
 
    // Build the fields data entries
    for (FieldInfoMapIterator it = field_info_map.begin();
@@ -539,6 +645,7 @@ std::string VisItDataCollection::GetVisItRootString()
 
    main["cycle"] = picojson::value(double(cycle));
    main["time"] = picojson::value(time);
+   main["time_step"] = picojson::value(time_step);
    main["domains"] = picojson::value(double(num_procs));
    main["mesh"] = picojson::value(mesh);
    if (!field_info_map.empty())
@@ -559,7 +666,7 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
    if (!parse_err.empty())
    {
       error = READ_ERROR;
-      MFEM_WARNING("Unable to parse visit root data.");
+      MFEM_WARNING("Unable to parse VisIt root data.");
       return;
    }
 
@@ -568,6 +675,10 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
    main = dsets.get("main");
    cycle = int(main.get("cycle").get<double>());
    time = main.get("time").get<double>();
+   if (main.contains("time_step"))
+   {
+      time_step = main.get("time_step").get<double>();
+   }
    num_procs = int(main.get("domains").get<double>());
    mesh = main.get("mesh");
    fields = main.get("fields");
@@ -580,11 +691,15 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
    if (right_sep == std::string::npos)
    {
       error = READ_ERROR;
-      MFEM_WARNING("Unable to parse visit root data.");
+      MFEM_WARNING("Unable to parse VisIt root data.");
       return;
    }
    name = path.substr(0, right_sep);
 
+   if (mesh.contains("format"))
+   {
+      format = to_int(mesh.get("format").get<std::string>());
+   }
    spatial_dim = to_int(mesh.get("tags").get("spatial_dim").get<std::string>());
    topo_dim = to_int(mesh.get("tags").get("topo_dim").get<std::string>());
    visit_max_levels_of_detail =
