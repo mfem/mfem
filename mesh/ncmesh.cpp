@@ -1154,7 +1154,9 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 
    Update();
 
+#ifdef MFEM_DEBUG
    DebugCheckConsistency();
+#endif
 }
 
 
