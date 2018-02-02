@@ -28,7 +28,7 @@ void mfem_warning(const char *msg = NULL);
 }
 
 #ifndef _MFEM_FUNC_NAME
-#ifndef _WIN32
+#ifndef _MSC_VER
 // This is nice because it shows the class and method name
 #define _MFEM_FUNC_NAME __PRETTY_FUNCTION__
 // This one is C99 standard.
@@ -68,7 +68,7 @@ void mfem_warning(const char *msg = NULL);
    if (!(x))                                            \
    {                                                    \
       _MFEM_MESSAGE("Verification failed: ("            \
-                    << #x << ") is false: " << msg, 0); \
+                    << #x << ") is false:\n --> " << msg, 0); \
    }
 
 // Use this if the only place your variable is used is in ASSERTs
@@ -86,7 +86,7 @@ void mfem_warning(const char *msg = NULL);
    if (!(x))                                            \
    {                                                    \
       _MFEM_MESSAGE("Assertion failed: ("               \
-                    << #x << ") is false: " << msg, 0); \
+                    << #x << ") is false:\n --> " << msg, 0); \
    }
 
 // A macro that exposes its argument in debug mode only.

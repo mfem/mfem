@@ -25,7 +25,7 @@ void BilinearFormIntegrator::AssembleElementMatrix (
    DenseMatrix &elmat )
 {
    mfem_error ("BilinearFormIntegrator::AssembleElementMatrix (...)\n"
-               "   is not implemented fot this class.");
+               "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AssembleElementMatrix2 (
@@ -33,7 +33,7 @@ void BilinearFormIntegrator::AssembleElementMatrix2 (
    ElementTransformation &Trans, DenseMatrix &elmat )
 {
    mfem_error ("BilinearFormIntegrator::AssembleElementMatrix2 (...)\n"
-               "   is not implemented fot this class.");
+               "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AssembleFaceMatrix (
@@ -41,7 +41,7 @@ void BilinearFormIntegrator::AssembleFaceMatrix (
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
    mfem_error ("BilinearFormIntegrator::AssembleFaceMatrix (...)\n"
-               "   is not implemented fot this class.");
+               "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AssembleFaceMatrix(
@@ -58,7 +58,7 @@ void BilinearFormIntegrator::AssembleElementVector(
    Vector &elvect)
 {
    mfem_error("BilinearFormIntegrator::AssembleElementVector\n"
-              "   is not implemented fot this class.");
+              "   is not implemented for this class.");
 }
 
 
@@ -725,6 +725,9 @@ void MassIntegrator::AssembleElementMatrix
    // int dim = el.GetDim();
    double w;
 
+#ifdef MFEM_THREAD_SAFE
+   Vector shape;
+#endif
    elmat.SetSize(nd);
    shape.SetSize(nd);
 
@@ -770,9 +773,12 @@ void MassIntegrator::AssembleElementMatrix2(
    // int dim = trial_fe.GetDim();
    double w;
 
-   elmat.SetSize (te_nd, tr_nd);
-   shape.SetSize (tr_nd);
-   te_shape.SetSize (te_nd);
+#ifdef MFEM_THREAD_SAFE
+   Vector shape, te_shape;
+#endif
+   elmat.SetSize(te_nd, tr_nd);
+   shape.SetSize(tr_nd);
+   te_shape.SetSize(te_nd);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -812,6 +818,9 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
    int nd1 = el1.GetDof();
    double w;
 
+#ifdef MFEM_THREAD_SAFE
+   Vector shape;
+#endif
    elmat.SetSize(nd1);
    shape.SetSize(nd1);
 
@@ -849,6 +858,10 @@ void ConvectionIntegrator::AssembleElementMatrix(
    int nd = el.GetDof();
    int dim = el.GetDim();
 
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix dshape, adjJ, Q_ir;
+   Vector shape, vec2, BdFidxT;
+#endif
    elmat.SetSize(nd);
    dshape.SetSize(nd,dim);
    adjJ.SetSize(dim);
@@ -1199,7 +1212,7 @@ void VectorFEWeakDivergenceIntegrator::AssembleElementMatrix2(
       //   n = 2*(d-1)*k+(l-1)+(m-1)
       //
       // In the next formula we use the expressions for n with k=1, which means
-      // that the term Q/det(J) is disregard:
+      // that the term Q/det(J) is disregarded:
       int ir_order = (trial_fe.Space() == FunctionSpace::Pk) ?
                      (trial_fe.GetOrder() + test_fe.GetOrder() - 1) :
                      (trial_fe.GetOrder() + test_fe.GetOrder() + 2*(dim-2));
@@ -1404,12 +1417,13 @@ void CurlCurlIntegrator::AssembleElementMatrix
    double w;
 
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix curlshape(nd,dimc), curlshape_dFt(nd,dimc);
+   DenseMatrix curlshape(nd,dimc), curlshape_dFt(nd,dimc), M;
 #else
    curlshape.SetSize(nd,dimc);
    curlshape_dFt.SetSize(nd,dimc);
 #endif
    elmat.SetSize(nd);
+   if (MQ) { M.SetSize(dimc); }
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -1446,12 +1460,22 @@ void CurlCurlIntegrator::AssembleElementMatrix
          el.CalcCurlShape(ip, curlshape_dFt);
       }
 
-      if (Q)
+      if (MQ)
+      {
+         MQ->Eval(M, Trans, ip);
+         M *= w;
+         Mult(curlshape_dFt, M, curlshape);
+         AddMultABt(curlshape, curlshape_dFt, elmat);
+      }
+      else if (Q)
       {
          w *= Q->Eval(Trans, ip);
+         AddMult_a_AAt(w, curlshape_dFt, elmat);
       }
-
-      AddMult_a_AAt(w, curlshape_dFt, elmat);
+      else
+      {
+         AddMult_a_AAt(w, curlshape_dFt, elmat);
+      }
    }
 }
 
@@ -3019,6 +3043,208 @@ void NormalInterpolator::AssembleElementMatrix2(
          }
       }
    }
+}
+
+
+void
+ScalarProductInterpolator::AssembleElementMatrix2(const FiniteElement &dom_fe,
+                                                  const FiniteElement &ran_fe,
+                                                  ElementTransformation &Trans,
+                                                  DenseMatrix &elmat)
+{
+   // Scalar shape functions scaled by scalar coefficient
+   struct ShapeCoefficient : public VectorCoefficient
+   {
+      Coefficient &Q;
+      const FiniteElement &fe;
+
+      ShapeCoefficient(Coefficient &q, const FiniteElement &fe_)
+         : VectorCoefficient(fe_.GetDof()), Q(q), fe(fe_) { }
+
+      using VectorCoefficient::Eval;
+      virtual void Eval(Vector &V, ElementTransformation &T,
+                        const IntegrationPoint &ip)
+      {
+         V.SetSize(vdim);
+         fe.CalcPhysShape(T, V);
+         V *= Q.Eval(T, ip);
+      }
+   };
+
+   ShapeCoefficient dom_shape_coeff(Q, dom_fe);
+
+   elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
+
+   Vector elmat_as_vec(elmat.Data(), ran_fe.GetDof()*dom_fe.GetDof());
+
+   ran_fe.Project(dom_shape_coeff, Trans, elmat_as_vec);
+}
+
+
+void
+ScalarVectorProductInterpolator::AssembleElementMatrix2(
+   const FiniteElement &dom_fe,
+   const FiniteElement &ran_fe,
+   ElementTransformation &Trans,
+   DenseMatrix &elmat)
+{
+   // Vector shape functions scaled by scalar coefficient
+   struct VShapeCoefficient : public MatrixCoefficient
+   {
+      Coefficient &Q;
+      const FiniteElement &fe;
+
+      VShapeCoefficient(Coefficient &q, const FiniteElement &fe_, int sdim)
+         : MatrixCoefficient(fe_.GetDof(), sdim), Q(q), fe(fe_) { }
+
+      virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                        const IntegrationPoint &ip)
+      {
+         M.SetSize(height, width);
+         fe.CalcPhysVShape(T, M);
+         M *= Q.Eval(T, ip);
+      }
+   };
+
+   VShapeCoefficient dom_shape_coeff(Q, dom_fe, Trans.GetSpaceDim());
+
+   elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
+
+   Vector elmat_as_vec(elmat.Data(), ran_fe.GetDof()*dom_fe.GetDof());
+
+   ran_fe.ProjectMatrixCoefficient(dom_shape_coeff, Trans, elmat_as_vec);
+}
+
+
+void
+VectorScalarProductInterpolator::AssembleElementMatrix2(
+   const FiniteElement &dom_fe,
+   const FiniteElement &ran_fe,
+   ElementTransformation &Trans,
+   DenseMatrix &elmat)
+{
+   // Scalar shape functions scaled by vector coefficient
+   struct VecShapeCoefficient : public MatrixCoefficient
+   {
+      VectorCoefficient &VQ;
+      const FiniteElement &fe;
+      Vector vc, shape;
+
+      VecShapeCoefficient(VectorCoefficient &vq, const FiniteElement &fe_)
+         : MatrixCoefficient(fe_.GetDof(), vq.GetVDim()), VQ(vq), fe(fe_),
+           vc(width), shape(height) { }
+
+      virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                        const IntegrationPoint &ip)
+      {
+         M.SetSize(height, width);
+         VQ.Eval(vc, T, ip);
+         fe.CalcPhysShape(T, shape);
+         MultVWt(shape, vc, M);
+      }
+   };
+
+   VecShapeCoefficient dom_shape_coeff(VQ, dom_fe);
+
+   elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
+
+   Vector elmat_as_vec(elmat.Data(), ran_fe.GetDof()*dom_fe.GetDof());
+
+   ran_fe.ProjectMatrixCoefficient(dom_shape_coeff, Trans, elmat_as_vec);
+}
+
+
+void
+VectorCrossProductInterpolator::AssembleElementMatrix2(
+   const FiniteElement &dom_fe,
+   const FiniteElement &ran_fe,
+   ElementTransformation &Trans,
+   DenseMatrix &elmat)
+{
+   // Vector coefficient product with vector shape functions
+   struct VCrossVShapeCoefficient : public MatrixCoefficient
+   {
+      VectorCoefficient &VQ;
+      const FiniteElement &fe;
+      DenseMatrix vshape;
+      Vector vc;
+
+      VCrossVShapeCoefficient(VectorCoefficient &vq, const FiniteElement &fe_)
+         : MatrixCoefficient(fe_.GetDof(), vq.GetVDim()), VQ(vq), fe(fe_),
+           vshape(height, width), vc(width)
+      {
+         MFEM_ASSERT(width == 3, "");
+      }
+
+      virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                        const IntegrationPoint &ip)
+      {
+         M.SetSize(height, width);
+         VQ.Eval(vc, T, ip);
+         fe.CalcPhysVShape(T, vshape);
+         for (int k = 0; k < height; k++)
+         {
+            M(k,0) = vc(1) * vshape(k,2) - vc(2) * vshape(k,1);
+            M(k,1) = vc(2) * vshape(k,0) - vc(0) * vshape(k,2);
+            M(k,2) = vc(0) * vshape(k,1) - vc(1) * vshape(k,0);
+         }
+      }
+   };
+
+   VCrossVShapeCoefficient dom_shape_coeff(VQ, dom_fe);
+
+   if (ran_fe.GetRangeType() == FiniteElement::SCALAR)
+   {
+      elmat.SetSize(ran_fe.GetDof()*VQ.GetVDim(),dom_fe.GetDof());
+   }
+   else
+   {
+      elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
+   }
+
+   Vector elmat_as_vec(elmat.Data(), elmat.Height()*elmat.Width());
+
+   ran_fe.ProjectMatrixCoefficient(dom_shape_coeff, Trans, elmat_as_vec);
+}
+
+
+void
+VectorInnerProductInterpolator::AssembleElementMatrix2(
+   const FiniteElement &dom_fe,
+   const FiniteElement &ran_fe,
+   ElementTransformation &Trans,
+   DenseMatrix &elmat)
+{
+   // Vector shape functions dot product with a vector coefficient
+   struct VDotVShapeCoefficient : public VectorCoefficient
+   {
+      VectorCoefficient &VQ;
+      const FiniteElement &fe;
+      DenseMatrix vshape;
+      Vector vc;
+
+      VDotVShapeCoefficient(VectorCoefficient &vq, const FiniteElement &fe_)
+         : VectorCoefficient(fe_.GetDof()), VQ(vq), fe(fe_),
+           vshape(vdim, vq.GetVDim()), vc(vq.GetVDim()) { }
+
+      using VectorCoefficient::Eval;
+      virtual void Eval(Vector &V, ElementTransformation &T,
+                        const IntegrationPoint &ip)
+      {
+         V.SetSize(vdim);
+         VQ.Eval(vc, T, ip);
+         fe.CalcPhysVShape(T, vshape);
+         vshape.Mult(vc, V);
+      }
+   };
+
+   VDotVShapeCoefficient dom_shape_coeff(VQ, dom_fe);
+
+   elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
+
+   Vector elmat_as_vec(elmat.Data(), elmat.Height()*elmat.Width());
+
+   ran_fe.Project(dom_shape_coeff, Trans, elmat_as_vec);
 }
 
 }

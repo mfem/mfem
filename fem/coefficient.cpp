@@ -66,6 +66,28 @@ double TransformedCoefficient::Eval(ElementTransformation &T,
    }
 }
 
+void DeltaCoefficient::SetDeltaCenter(const Vector& vcenter)
+{
+   MFEM_VERIFY(vcenter.Size() <= 3,
+               "SetDeltaCenter::Maximum number of dim supported is 3")
+   for (int i = 0; i < vcenter.Size(); i++) { center[i] = vcenter[i]; }
+   sdim = vcenter.Size();
+}
+
+void DeltaCoefficient::GetDeltaCenter(Vector& vcenter)
+{
+   vcenter.SetSize(sdim);
+   vcenter = center;
+}
+
+double DeltaCoefficient::EvalDelta(ElementTransformation &T,
+                                   const IntegrationPoint &ip)
+{
+   double w = Scale();
+   return weight ? weight->Eval(T, ip, GetTime())*w : w;
+}
+
+
 void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
                              const IntegrationRule &ir)
 {
@@ -126,7 +148,7 @@ void VectorArrayCoefficient::Eval(Vector &V, ElementTransformation &T,
    V.SetSize(vdim);
    for (int i = 0; i < vdim; i++)
    {
-      V(i) = Coeff[i]->Eval(T, ip, GetTime());
+      V(i) = this->Eval(i, T, ip);
    }
 }
 
@@ -146,6 +168,20 @@ void VectorGridFunctionCoefficient::Eval(
    DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
 {
    GridFunc->GetVectorValues(T, ir, M);
+}
+
+void VectorDeltaCoefficient::SetDirection(const Vector &_d)
+{
+   dir = _d;
+   (*this).vdim = dir.Size();
+}
+
+void VectorDeltaCoefficient::EvalDelta(
+   Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
+{
+   V = dir;
+   d.SetTime(GetTime());
+   V *= d.EvalDelta(T, ip);
 }
 
 void VectorRestrictedCoefficient::Eval(Vector &V, ElementTransformation &T,
@@ -186,7 +222,7 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 
    T.Transform(ip, transip);
 
-   K.SetSize(vdim);
+   K.SetSize(height, width);
 
    if (Function)
    {
@@ -209,27 +245,31 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 MatrixArrayCoefficient::MatrixArrayCoefficient (int dim)
    : MatrixCoefficient (dim)
 {
-   Coeff.SetSize (vdim*vdim);
+   Coeff.SetSize(height*width);
+   for (int i = 0; i < (height*width); i++)
+   {
+      Coeff[i] = NULL;
+   }
 }
 
 MatrixArrayCoefficient::~MatrixArrayCoefficient ()
 {
-   for (int i=0; i< vdim*vdim; i++)
+   for (int i=0; i < height*width; i++)
    {
       delete Coeff[i];
    }
 }
 
-void MatrixArrayCoefficient::Eval (DenseMatrix &K, ElementTransformation &T,
-                                   const IntegrationPoint &ip)
+void MatrixArrayCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
+                                  const IntegrationPoint &ip)
 {
-   int i, j;
-
-   for (i = 0; i < vdim; i++)
-      for (j = 0; j < vdim; j++)
+   for (int i = 0; i < height; i++)
+   {
+      for (int j = 0; j < width; j++)
       {
-         K(i,j) = Coeff[i*vdim+j] -> Eval(T, ip, GetTime());
+         K(i,j) = this->Eval(i, j, T, ip);
       }
+   }
 }
 
 void MatrixRestrictedCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
@@ -242,7 +282,7 @@ void MatrixRestrictedCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
    else
    {
-      K.SetSize(vdim);
+      K.SetSize(height, width);
       K = 0.0;
    }
 }
@@ -262,7 +302,7 @@ double LpNormLoop(double p, Coefficient &coeff, Mesh &mesh,
          const IntegrationPoint &ip = ir.IntPoint(j);
          tr->SetIntPoint(&ip);
          double val = fabs(coeff.Eval(*tr, ip));
-         if (p < numeric_limits<double>::infinity())
+         if (p < infinity())
          {
             norm += ip.weight * tr->Weight() * pow(val, p);
          }
@@ -296,7 +336,7 @@ double LpNormLoop(double p, VectorCoefficient &coeff, Mesh &mesh,
          const IntegrationPoint &ip = ir.IntPoint(j);
          tr->SetIntPoint(&ip);
          coeff.Eval(vval, *tr, ip);
-         if (p < numeric_limits<double>::infinity())
+         if (p < infinity())
          {
             for (int idim(0); idim < vdim; ++idim)
             {
@@ -325,7 +365,7 @@ double ComputeLpNorm(double p, Coefficient &coeff, Mesh &mesh,
 {
    double norm = LpNormLoop(p, coeff, mesh, irs);
 
-   if (p < numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       // negative quadrature weights may cause norm to be negative
       if (norm < 0.0)
@@ -346,7 +386,7 @@ double ComputeLpNorm(double p, VectorCoefficient &coeff, Mesh &mesh,
 {
    double norm = LpNormLoop(p, coeff, mesh, irs);
 
-   if (p < numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       // negative quadrature weights may cause norm to be negative
       if (norm < 0.0)
@@ -371,7 +411,7 @@ double ComputeGlobalLpNorm(double p, Coefficient &coeff, ParMesh &pmesh,
 
    MPI_Comm comm = pmesh.GetComm();
 
-   if (p < numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       MPI_Allreduce(&loc_norm, &glob_norm, 1, MPI_DOUBLE, MPI_SUM, comm);
 
@@ -401,7 +441,7 @@ double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
 
    MPI_Comm comm = pmesh.GetComm();
 
-   if (p < numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       MPI_Allreduce(&loc_norm, &glob_norm, 1, MPI_DOUBLE, MPI_SUM, comm);
 

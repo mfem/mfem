@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../general/array.hpp"
+#include "../general/globals.hpp"
 #include "matrix.hpp"
 #include "sparsemat.hpp"
 #include "blockvector.hpp"
@@ -202,6 +203,43 @@ int BlockMatrix::GetRow(const int row, Array<int> &cols, Vector &srow) const
    return 0;
 }
 
+void BlockMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
+{
+   // Find the block to which the dof belongs and its local number
+   int idx, iiblock;
+   for (iiblock = 0; iiblock < nRowBlocks; ++iiblock)
+   {
+      idx = rc - row_offsets[iiblock];
+      if (idx < 0 ) { break; }
+   }
+   iiblock--;
+   idx = rc - row_offsets[iiblock];
+
+   // Asserts
+   MFEM_ASSERT(nRowBlocks == nColBlocks,
+               "BlockMatrix::EliminateRowCol: nRowBlocks != nColBlocks");
+
+   MFEM_ASSERT(row_offsets[iiblock] == col_offsets[iiblock],
+               "BlockMatrix::EliminateRowCol: row_offests["
+               << iiblock << "] != col_offsets["<<iiblock<<"]");
+
+   MFEM_ASSERT(Aij(iiblock, iiblock),
+               "BlockMatrix::EliminateRowCol: Null diagonal block");
+
+   // Apply the constraint idx to the iiblock
+   for (int jjblock = 0; jjblock < nRowBlocks; ++jjblock)
+   {
+      if (iiblock == jjblock) { continue; }
+      if (Aij(iiblock,jjblock)) { Aij(iiblock,jjblock)->EliminateRow(idx); }
+   }
+   for (int jjblock = 0; jjblock < nRowBlocks; ++jjblock)
+   {
+      if (iiblock == jjblock) { continue; }
+      if (Aij(jjblock,iiblock)) { Aij(jjblock,iiblock)->EliminateCol(idx); }
+   }
+   Aij(iiblock, iiblock)->EliminateRowCol(idx,dpolicy);
+}
+
 void BlockMatrix::EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol,
                                   Vector & rhs)
 {
@@ -213,7 +251,7 @@ void BlockMatrix::EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol,
    for (int iiblock = 0; iiblock < nRowBlocks; ++iiblock)
       if (row_offsets[iiblock] != col_offsets[iiblock])
       {
-         std::cout << "BlockMatrix::EliminateRowCol: row_offests["
+         mfem::out << "BlockMatrix::EliminateRowCol: row_offests["
                    << iiblock << "] != col_offsets["<<iiblock<<"]\n";
          mfem_error();
       }
@@ -266,12 +304,9 @@ void BlockMatrix::EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol,
    }
 }
 
-void BlockMatrix::EliminateZeroRows()
+void BlockMatrix::EliminateZeroRows(const double threshold)
 {
-   if (nRowBlocks != nColBlocks)
-   {
-      mfem_error("BlockMatrix::EliminateZeroRows() #1");
-   }
+   MFEM_VERIFY(nRowBlocks == nColBlocks, "not a square matrix");
 
    for (int iblock = 0; iblock < nRowBlocks; ++iblock)
    {
@@ -287,12 +322,13 @@ void BlockMatrix::EliminateZeroRows()
                   norm += Aij(iblock,jblock)->GetRowNorml1(i);
                }
 
-            if (norm < 1e-12)
+            if (norm <= threshold)
             {
                for (int jblock = 0; jblock < nColBlocks; ++jblock)
                   if (Aij(iblock,jblock))
                   {
-                     Aij(iblock,jblock)->EliminateRow(i, iblock==jblock);
+                     Aij(iblock,jblock)->EliminateRow(
+                        i, (iblock==jblock) ? DIAG_ONE : DIAG_ZERO);
                   }
             }
          }
@@ -309,12 +345,24 @@ void BlockMatrix::EliminateZeroRows()
                   norm += Aij(iblock,jblock)->GetRowNorml1(i);
                }
 
-            if (norm < 1e-12)
-            {
-               std::cout<<"i = " << i << "\n";
-               std::cout<<"norm = " << norm << "\n";
-               mfem_error("BlockMatrix::EliminateZeroRows() #2");
-            }
+            MFEM_VERIFY(!(norm <= threshold), "diagonal block is NULL:"
+                        " iblock = " << iblock << ", i = " << i << ", norm = "
+                        << norm);
+         }
+      }
+   }
+}
+
+void BlockMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
+{
+   for (int iblock = 0; iblock < nRowBlocks; ++iblock)
+   {
+      for (int jblock = 0; jblock < nColBlocks; ++jblock)
+      {
+         if (!Aij(iblock,jblock)) { continue; }
+         if (!Aij(iblock,jblock)->Finalized())
+         {
+            Aij(iblock,jblock)->Finalize(skip_zeros, fix_empty_rows);
          }
       }
    }
@@ -327,6 +375,10 @@ void BlockMatrix::Mult(const Vector & x, Vector & y) const
       mfem_error("Error: x and y can't point to the same datas \n");
    }
 
+   MFEM_ASSERT(width == x.Size(), "Input vector size (" << x.Size()
+               << ") must match matrix width (" << width << ")");
+   MFEM_ASSERT(height == y.Size(), "Output vector size (" << y.Size()
+               << ") must match matrix height (" << height << ")");
    y = 0.;
    AddMult(x, y, 1.0);
 }
@@ -414,8 +466,6 @@ SparseMatrix * BlockMatrix::CreateMonolithic() const
 
    int * i_amono_construction = i_amono+1;
 
-   int * i_it(i_amono_construction);
-
    for (int iblock = 0; iblock != nRowBlocks; ++iblock)
    {
       for (int irow(row_offsets[iblock]); irow < row_offsets[iblock+1]; ++irow)
@@ -443,7 +493,7 @@ SparseMatrix * BlockMatrix::CreateMonolithic() const
             int * i_aij = Aij(iblock, jblock)->GetI();
             int * j_aij = Aij(iblock, jblock)->GetJ();
             double * data_aij = Aij(iblock, jblock)->GetData();
-            i_it = i_amono_construction+row_offsets[iblock];
+            int *i_it = i_amono_construction+row_offsets[iblock];
 
             int loc_start_index = 0;
             int loc_end_index = 0;
@@ -457,9 +507,9 @@ SparseMatrix * BlockMatrix::CreateMonolithic() const
 #ifdef MFEM_DEBUG
                if (glob_start_index > nnz)
                {
-                  std::cout<<"glob_start_index = " << glob_start_index << "\n";
-                  std::cout<<"Block:" << iblock << " " << jblock << "\n";
-                  std::cout<<std::endl;
+                  mfem::out<<"glob_start_index = " << glob_start_index << "\n";
+                  mfem::out<<"Block:" << iblock << " " << jblock << "\n";
+                  mfem::out<<std::endl;
                }
 #endif
                loc_end_index = *(i_it_aij);
