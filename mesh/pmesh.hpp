@@ -74,7 +74,7 @@ protected:
    virtual void HexUniformRefinement();
 
    /// Refine a prism mesh.
-   virtual void PriUniformRefinement();
+   virtual void PriUniformRefinement(std::map<int,int> * f2qf = NULL);
 
    virtual void NURBSUniformRefinement();
 

@@ -6088,7 +6088,7 @@ void Mesh::HexUniformRefinement()
    UpdateNodes();
 }
 
-void Mesh::PriUniformRefinement()
+void Mesh::PriUniformRefinement(map<int,int> * f2qf_ptr)
 {
    int i;
    int * v;
@@ -6107,7 +6107,11 @@ void Mesh::PriUniformRefinement()
 
    int NumOfTriFaces  = 0;
    int NumOfQuadFaces = 0;
-   map<int,int> f2qf;
+   map<int,int> f2qf_loc;
+   if (f2qf_ptr == NULL)
+   {
+     f2qf_ptr = &f2qf_loc;
+   }
    for (i = 0; i<faces.Size(); i++)
    {
       if (faces[i]->GetType() == Element::TRIANGLE)
@@ -6116,7 +6120,7 @@ void Mesh::PriUniformRefinement()
       }
       else
       {
-         f2qf[i] = NumOfQuadFaces;
+	(*f2qf_ptr)[i] = NumOfQuadFaces;
          NumOfQuadFaces++;
       }
    }
@@ -6141,7 +6145,7 @@ void Mesh::PriUniformRefinement()
          {
             vv[k] = v[pri_t::FaceVert[j][k]];
          }
-         AverageVertices(vv, 4, oface+f2qf[f[j]]);
+         AverageVertices(vv, 4, oface+(*f2qf_ptr)[f[j]]);
       }
 
       e = el_to_edge->GetRow(i);
@@ -6166,9 +6170,9 @@ void Mesh::PriUniformRefinement()
       f = el_to_face->GetRow(i);
       j = NumOfElements + 7 * i;
 
-      int qf2 = f2qf[f[2]];
-      int qf3 = f2qf[f[3]];
-      int qf4 = f2qf[f[4]];
+      int qf2 = (*f2qf_ptr)[f[2]];
+      int qf3 = (*f2qf_ptr)[f[3]];
+      int qf4 = (*f2qf_ptr)[f[4]];
 
       elements[j+0] = new Prism(oedge+e[1], oedge+e[2], oedge+e[0],
                                 oface+qf3, oface+qf4, oface+qf2,
@@ -6219,7 +6223,7 @@ void Mesh::PriUniformRefinement()
       }
       else if (boundary[i]->GetType() == Element::QUADRILATERAL)
       {
-         int qf = f2qf[f[0]];
+	 int qf = (*f2qf_ptr)[f[0]];
          boundary[j+0] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
                                            oface+qf, attr);
          boundary[j+1] = new Quadrilateral(oface+qf, oedge+e[1], v[2],
