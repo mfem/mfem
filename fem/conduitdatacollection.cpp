@@ -47,6 +47,22 @@ ConduitDataCollection::ConduitDataCollection(const std::string& coll_name,
 }
 
 
+#ifdef MFEM_USE_MPI
+//---------------------------------------------------------------------------//
+ConduitDataCollection::ConduitDataCollection(MPI_Comm comm, 
+                                             const std::string& coll_name)
+   : DataCollection(coll_name, NULL),
+     relay_protocol("hdf5")
+{
+   m_comm = comm;
+   MPI_Comm_rank(comm, &myid);
+   MPI_Comm_size(comm, &num_procs);
+   appendRankToFileName = true; // always include rank in file names
+   cycle = 0;                   // always include cycle in directory names
+}
+#endif
+
+
 //---------------------------------------------------------------------------//
 ConduitDataCollection::~ConduitDataCollection()
 {
@@ -942,14 +958,9 @@ ConduitDataCollection::SaveMeshAndFields(int domain_id,
 void
 ConduitDataCollection::LoadRootFile(Node &root_out)
 {
-#ifdef MFEM_USE_MPI
-   // TODO, get mpi comm from ParMesh?
-   MPI_Comm par_comm = MPI_COMM_WORLD;
-#endif
-
    if (myid == 0)
    {
-      // root is always json, unless hdf5 is used
+      // assume root file is json, unless hdf5 is specified
       std::string root_protocol = "json";
 
       if ( relay_protocol.find("hdf5") != std::string::npos )
@@ -970,18 +981,29 @@ ConduitDataCollection::LoadRootFile(Node &root_out)
       int json_str_size = root_json.size() + 1;
 
       // broadcast json string buffer size
-      MPI_Bcast(&json_str_size, // ptr
-                1, // size
-                MPI_INT, // type
-                0, // root
-                par_comm); // comm
+      int mpi_status = MPI_Bcast((void*)&json_str_size, // ptr
+                                 1, // size
+                                 MPI_INT, // type
+                                 0, // root
+                                 m_comm); // comm
+
+      if(mpi_status != MPI_SUCCESS)
+      {
+         MFEM_ABORT("Broadcast of root file json string size failed");
+      }
 
       // broadcast json string
-      MPI_Bcast(&root_json.c_str(), // ptr
-                json_str_size, // size
-                MPI_CHAR, // type
-                0, // root
-                par_comm); // comm
+      mpi_status = MPI_Bcast((void*)root_json.c_str(), // ptr
+                             json_str_size, // size
+                             MPI_CHAR, // type
+                             0, // root
+                             m_comm); // comm
+
+      if(mpi_status != MPI_SUCCESS)
+      {
+         MFEM_ABORT("Broadcast of root file json string failed");
+      }
+
 #endif
    }
 
@@ -990,27 +1012,35 @@ ConduitDataCollection::LoadRootFile(Node &root_out)
    {
       // recv json string buffer size via broadcast
       int json_str_size = -1;
-      MPI_Bcast(&json_str_size, // ptr
-                1, // size
-                MPI_INT, // type
-                0, // root
-                par_comm); // comm
+      int mpi_status = MPI_Bcast(&json_str_size, // ptr
+                                 1, // size
+                                 MPI_INT, // type
+                                 0, // root
+                                 m_comm); // comm
 
-      // TODO? check size -1, or MPI error
+      if(mpi_status != MPI_SUCCESS)
+      {
+         MFEM_ABORT("Broadcast of root file json string size failed");
+      }
 
       // recv json string buffer via broadcast
       char *json_buff = new char[json_str_size];
-      MPI_Bcast(json_buff,  // ptr
-                json_str_size, // size
-                MPI_CHAR, // type
-                0, // root
-                par_comm); // comm
+      mpi_status = MPI_Bcast(json_buff,  // ptr
+                             json_str_size, // size
+                             MPI_CHAR, // type
+                             0, // root
+                             m_comm); // comm
+
+      if(mpi_status != MPI_SUCCESS)
+      {
+         MFEM_ABORT("Broadcast of root file json string failed");
+      }
 
       // reconstruct root file contents
       Generator g(std::string(json_buff),"json");
-      g.walk(root_out)
+      g.walk(root_out);
       // cleanup temp buffer
-      delete json_buff;
+      delete [] json_buff;
    }
 #endif
 

@@ -116,6 +116,10 @@ public:
        SetMesh() or Load(). The latter works only in serial. */
    ConduitDataCollection(const std::string& collection_name,
                          Mesh *mesh = NULL);
+#ifdef MFEM_USE_MPI
+   /// Construct a parallel ConduitDataCollection.
+   ConduitDataCollection(MPI_Comm comm, const std::string& collection_name);
+#endif
 
    /// We will delete the mesh and fields if we own them
    virtual ~ConduitDataCollection();
