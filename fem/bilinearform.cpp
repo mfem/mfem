@@ -911,7 +911,7 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
 
 void BilinearForm::SetDiagonalPolicy(DiagonalPolicy policy)
 {
-  diag_policy = policy;
+   diag_policy = policy;
 }
 
 BilinearForm::~BilinearForm()
