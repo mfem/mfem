@@ -641,12 +641,13 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
 }
 
 #ifdef MFEM_USE_HDF5
+
 #include <hdf5.h>
 #include <libgen.h> // for basename, may relplace with find_last_of('/')
 
 #include <vector>
 
-/* useful macro for comparing HDF5 versions */
+// useful macro for comparing HDF5 versions
 #define HDF5_VERSION_GE(Maj,Min,Rel)  \
         (((H5_VERS_MAJOR==Maj) && (H5_VERS_MINOR==Min) && (H5_VERS_RELEASE>=Rel)) || \
          ((H5_VERS_MAJOR==Maj) && (H5_VERS_MINOR>Min)) || \
@@ -657,29 +658,8 @@ Hdf5ZfpDataCollection::Hdf5ZfpDataCollection(const std::string &name, Mesh *mesh
 {
 }
 
-#if 0
-void Hdf5ZfpDataCollection::SaveMesh(hid_t fid)
-{
-#ifdef MFEM_USE_MPI
-   const ParMesh *pmesh = dynamic_cast<const ParMesh*>(mesh);
-   if (pmesh && format == 1 )
-   {
-      pmesh->ParPrint(mesh_file);
-   }
-   else
-#endif
-   {
-      mesh->Print(mesh_file);
-   }
-
-   if (!mesh_file)
-   {
-      error = WRITE_ERROR;
-      MFEM_WARNING("Error writing mesh to file: " << mesh_name);
-   }
-}
-#endif
-
+// Read either fixed or variable length lines of data from stringstream
+// and populate a vector of appropriate type
 template <class T> static std::vector<T>
 GetLinesToVec(std::stringstream &strm, int nlines, int nfixed, int sizer,
     int &d2size, int &etag, int &etyp)
@@ -722,7 +702,7 @@ GetLinesToVec(std::stringstream &strm, int nlines, int nfixed, int sizer,
         else
         {
             if (d2size != size)
-                d2size = -1; 
+                d2size = etag = etyp = -1;
         }
     }
     if (sizer >= 0)
@@ -735,13 +715,25 @@ GetLinesToVec(std::stringstream &strm, int nlines, int nfixed, int sizer,
     return vecb; // C++-11 and RVO in most compilers ==> !copy
 }
 
-// convenienc functions for templetizing HDF5 types
+// Convenience functions for templetizing HDF5 type constants
 inline hid_t HDF5Type(const int &) { return H5T_NATIVE_INT; }
 inline hid_t HDF5Type(const float &) { return H5T_NATIVE_FLOAT; }
 inline hid_t HDF5Type(const double &) { return H5T_NATIVE_DOUBLE; }
 template <typename T>
 inline hid_t HDF5Type() { return HDF5Type(T()); }
 
+static void
+WriteIntAttrToHDF5Dataset(hid_t dsid, char const *name, int attr)
+{
+    hsize_t const dims = 1;
+    hid_t aspid = H5Screate_simple(1, &dims, 0);
+    hid_t aid = H5Acreate(dsid, name, H5T_NATIVE_INT, aspid, H5P_DEFAULT, H5P_DEFAULT);
+    H5Awrite(aid, H5T_NATIVE_INT, &attr);
+    H5Sclose(aspid);
+    H5Aclose(aid);
+}
+
+// Write a vector to HDF5 as either 1D or 2D depending on d2size
 template <class T> static void
 WriteVecToHDF5(hid_t fid, char const *name, std::vector<T> const &vec,
     int d2size, int attrA, int attrB)
@@ -749,12 +741,15 @@ WriteVecToHDF5(hid_t fid, char const *name, std::vector<T> const &vec,
     hsize_t d2s = d2size>1?d2size:1;
     hsize_t siz2d[2] = {(hsize_t) vec.size() / d2s, d2s};
     hid_t spid = H5Screate_simple(d2size>1?2:1, siz2d, 0);
-#warning CREATE ATTRIBUTE DATA
 #if HDF5_VERSION_GE(1,8,0)
     hid_t dsid = H5Dcreate(fid, name, HDF5Type<T>(), spid, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 #else
     hid_t dsid = H5Dcreate(fid, name, HDF5Type<T>(), spid, H5P_DEFAULT);
 #endif
+    if (attrA != -1)
+        WriteIntAttrToHDF5Dataset(dsid, "elem_tag", attrA);
+    if (attrB != -1)
+        WriteIntAttrToHDF5Dataset(dsid, "elem_typ", attrB);
     H5Dwrite(dsid, HDF5Type<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, &vec[0]);
     H5Dclose(dsid);
     H5Sclose(spid);
@@ -854,11 +849,29 @@ Hdf5ZfpDataCollection::SaveMfemStringStreamToHDF5(
         strstrm >> nverts;
         strstrm >> vertsize;
 
-        // Get nverts lines of vertex data and write to HDF5
-        std::vector<double> vertdata =
-            GetLinesToVec<double>(strstrm, nverts, vertsize, -1, d2size, etag, etyp);
-        WriteVecToHDF5<double>(fid, "vertices", vertdata, vertsize, etag, etyp);
-        vertdata.clear(); // get rid of bulk data
+        // Query stream's precision and float format to determine if
+        // intention is float or double precision 
+        bool isDouble = false;
+        std::ios_base::fmtflags ff = strstrm.flags();
+        int ndigits = (int) strstrm.precision();
+        if (!(ff & std::ios_base::fixed) && ndigits > 7)
+            isDouble = true;
+        if (isDouble)
+        {
+            // Get nverts lines of vertex data and write to HDF5 as double
+            std::vector<double> vertdata =
+                GetLinesToVec<double>(strstrm, nverts, vertsize, -1, d2size, etag, etyp);
+            WriteVecToHDF5<double>(fid, "vertices", vertdata, vertsize, etag, etyp);
+            vertdata.clear(); // get rid of bulk data
+        }
+        else
+        {
+            // Get nverts lines of vertex data and write to HDF5 as float
+            std::vector<float> vertdata =
+                GetLinesToVec<float>(strstrm, nverts, vertsize, -1, d2size, etag, etyp);
+            WriteVecToHDF5<float>(fid, "vertices", vertdata, vertsize, etag, etyp);
+            vertdata.clear(); // get rid of bulk data
+        }
     }
 
 #if HDF5_VERSION_GE(1,8,0)
