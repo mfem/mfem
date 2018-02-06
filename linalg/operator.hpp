@@ -120,17 +120,26 @@ public:
    virtual ~Operator() { }
 
    /// Enumeration defining IDs for some classes derived from Operator.
+   /** This enumeration is primarily used with class OperatorHandle. */
    enum Type
    {
-      MFEM_SPARSEMAT,
-      HYPRE_PARCSR,
-      PETSC_MATAIJ,
-      PETSC_MATIS,
-      PETSC_MATSHELL,
-      PETSC_MATNEST,
-      PETSC_MATHYPRE,
-      PETSC_MATGENERIC
+      ANY_TYPE,         ///< ID for the base class Operator, i.e. any type.
+      MFEM_SPARSEMAT,   ///< ID for class SparseMatrix
+      Hypre_ParCSR,     ///< ID for class HypreParMatrix.
+      PETSC_MATAIJ,     ///< ID for class PetscParMatrix, MATAIJ format.
+      PETSC_MATIS,      ///< ID for class PetscParMatrix, MATIS format.
+      PETSC_MATSHELL,   ///< ID for class PetscParMatrix, MATSHELL format.
+      PETSC_MATNEST,    ///< ID for class PetscParMatrix, MATNEST format.
+      PETSC_MATHYPRE,   ///< ID for class PetscParMatrix, MATHYPRE format.
+      PETSC_MATGENERIC  ///< ID for class PetscParMatrix, unspecified format.
    };
+
+   /// Return the type ID of the Operator class.
+   /** This method is intentionally non-virtual, so that it returns the ID of
+       the specific pointer or reference type used when calling this method. If
+       not overridden by derived classes, they will automatically use the type ID
+       of the base Operator class, ANY_TYPE. */
+   Type GetType() const { return ANY_TYPE; }
 };
 
 

@@ -485,4 +485,109 @@ void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
    t += dt;
 }
 
+void
+SIASolver::Init(Operator &P, TimeDependentOperator & F)
+{
+   P_ = &P; F_ = &F;
+
+   dp_.SetSize(F_->Height());
+   dq_.SetSize(P_->Height());
+}
+
+void
+SIA1Solver::Step(Vector &q, Vector &p, double &t, double &dt)
+{
+   F_->SetTime(t);
+   F_->Mult(q,dp_);
+   p.Add(dt,dp_);
+
+   P_->Mult(p,dq_);
+   q.Add(dt,dq_);
+
+   t += dt;
+}
+
+void
+SIA2Solver::Step(Vector &q, Vector &p, double &t, double &dt)
+{
+   P_->Mult(p,dq_);
+   q.Add(0.5*dt,dq_);
+
+   F_->SetTime(t+0.5*dt);
+   F_->Mult(q,dp_);
+   p.Add(dt,dp_);
+
+   P_->Mult(p,dq_);
+   q.Add(0.5*dt,dq_);
+
+   t += dt;
+}
+
+SIAVSolver::SIAVSolver(int order)
+   : order_(order)
+{
+   a_.SetSize(order);
+   b_.SetSize(order);
+
+   switch (order_)
+   {
+      case 1:
+         a_[0] = 1.0;
+         b_[0] = 1.0;
+         break;
+      case 2:
+         a_[0] = 0.5;
+         a_[1] = 0.5;
+         b_[0] = 0.0;
+         b_[1] = 1.0;
+         break;
+      case 3:
+         a_[0] =  2.0/3.0;
+         a_[1] = -2.0/3.0;
+         a_[2] =  1.0;
+         b_[0] =  7.0/24.0;
+         b_[1] =  0.75;
+         b_[2] = -1.0/24.0;
+         break;
+      case 4:
+         a_[0] = (2.0+pow(2.0,1.0/3.0)+pow(2.0,-1.0/3.0))/6.0;
+         a_[1] = (1.0-pow(2.0,1.0/3.0)-pow(2.0,-1.0/3.0))/6.0;
+         a_[2] = a_[1];
+         a_[3] = a_[0];
+         b_[0] = 0.0;
+         b_[1] = 1.0/(2.0-pow(2.0,1.0/3.0));
+         b_[2] = 1.0/(1.0-pow(2.0,2.0/3.0));
+         b_[3] = b_[1];
+         break;
+      default:
+         MFEM_ASSERT(false, "Unsupported order in SIAVSolver");
+   };
+}
+
+void
+SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
+{
+   for (int i=0; i<order_; i++)
+   {
+      if ( b_[i] != 0.0 )
+      {
+         F_->SetTime(t);
+         if ( F_->isExplicit() )
+         {
+            F_->Mult(q, dp_);
+         }
+         else
+         {
+            F_->ImplicitSolve(b_[i] * dt, q, dp_);
+         }
+         p.Add(b_[i] * dt, dp_);
+      }
+
+      P_->Mult(p, dq_);
+      q.Add(a_[i] * dt, dq_);
+
+      t += a_[i] * dt;
+   }
+}
+
 }

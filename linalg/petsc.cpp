@@ -57,6 +57,7 @@ static PetscErrorCode __mfem_ts_ifunction(TS,PetscReal,Vec,Vec,Vec,void*);
 static PetscErrorCode __mfem_ts_ijacobian(TS,PetscReal,Vec,Vec,
                                           PetscReal,Mat,
                                           Mat,void*);
+static PetscErrorCode __mfem_snes_monitor(SNES,PetscInt,PetscReal,void*);
 static PetscErrorCode __mfem_snes_jacobian(SNES,Vec,Mat,Mat,void*);
 static PetscErrorCode __mfem_snes_function(SNES,Vec,Vec,void*);
 static PetscErrorCode __mfem_ksp_monitor(KSP,PetscInt,PetscReal,void*);
@@ -118,11 +119,12 @@ typedef struct
    mfem::Operator::Type            jacType;    // OperatorType for the Jacobian
    enum mfem::PetscODESolver::Type type;
    PetscReal                       cached_shift;
-   bool                            computed_rhsjac;
+   PetscObjectState                cached_ijacstate;
+   PetscObjectState                cached_rhsjacstate;
 } __mfem_ts_ctx;
 
 // use global scope ierr to check PETSc errors inside mfem calls
-PetscErrorCode ierr;
+static PetscErrorCode ierr;
 
 using namespace std;
 
@@ -147,6 +149,14 @@ PetscInt PetscParVector::GlobalSize() const
    PetscInt N;
    ierr = VecGetSize(x,&N); PCHKERRQ(x,ierr);
    return N;
+}
+
+PetscParVector::PetscParVector(MPI_Comm comm, const Vector &_x) : Vector()
+{
+   ierr = VecCreate(comm,&x); CCHKERRQ(comm,ierr);
+   ierr = VecSetSizes(x,_x.Size(),PETSC_DECIDE); PCHKERRQ(x,ierr);
+   ierr = VecSetType(x,VECSTANDARD); PCHKERRQ(x,ierr);
+   _SetDataAndSize_();
 }
 
 PetscParVector::PetscParVector(MPI_Comm comm, PetscInt glob_size,
@@ -1300,7 +1310,6 @@ PetscSolver::PetscSolver() : clcustom(false)
    obj = NULL;
    B = X = NULL;
    cid         = -1;
-   monitor_ctx = NULL;
    operatorset = false;
    bchandler   = NULL;
    private_ctx = NULL;
@@ -1385,7 +1394,7 @@ void PetscSolver::SetMaxIter(int max_iter)
    else if (cid == TS_CLASSID)
    {
       TS ts = (TS)obj;
-      ierr = TSSetDuration(ts,max_iter,PETSC_DEFAULT);
+      ierr = TSSetMaxSteps(ts,max_iter);
    }
    else
    {
@@ -1437,12 +1446,6 @@ void PetscSolver::SetPrintLevel(int plev)
             PCHKERRQ(ksp,ierr);
          }
       }
-      // user defined monitor
-      if (monitor_ctx)
-      {
-         ierr = KSPMonitorSet(ksp,__mfem_ksp_monitor,monitor_ctx,NULL);
-         PCHKERRQ(ksp,ierr);
-      }
    }
    else if (cid == SNES_CLASSID)
    {
@@ -1466,12 +1469,6 @@ void PetscSolver::SetPrintLevel(int plev)
       {
          ierr = TSMonitorCancel(ts); PCHKERRQ(ts,ierr);
       }
-      // user defined monitor
-      if (monitor_ctx)
-      {
-         ierr = TSMonitorSet(ts,__mfem_ts_monitor,monitor_ctx,NULL);
-         PCHKERRQ(ts,ierr);
-      }
    }
    else
    {
@@ -1481,8 +1478,25 @@ void PetscSolver::SetPrintLevel(int plev)
 
 void PetscSolver::SetMonitor(PetscSolverMonitor *ctx)
 {
-   monitor_ctx = ctx;
-   SetPrintLevel(-1);
+   if (cid == KSP_CLASSID)
+   {
+      ierr = KSPMonitorSet((KSP)obj,__mfem_ksp_monitor,ctx,NULL);
+      PCHKERRQ(obj,ierr);
+   }
+   else if (cid == SNES_CLASSID)
+   {
+      ierr = SNESMonitorSet((SNES)obj,__mfem_snes_monitor,ctx,NULL);
+      PCHKERRQ(obj,ierr);
+   }
+   else if (cid == TS_CLASSID)
+   {
+      ierr = TSMonitorSet((TS)obj,__mfem_ts_monitor,ctx,NULL);
+      PCHKERRQ(obj,ierr);
+   }
+   else
+   {
+      MFEM_ABORT("CLASSID = " << cid << " is not implemented!");
+   }
 }
 
 void PetscSolver::SetBCHandler(PetscBCHandler *bch)
@@ -1683,8 +1697,9 @@ void PetscSolver::CreatePrivateContext()
       ts_ctx->bchandler = NULL;
       ts_ctx->work = NULL;
       ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
+      ts_ctx->cached_ijacstate = -1;
+      ts_ctx->cached_rhsjacstate = -1;
       ts_ctx->type = PetscODESolver::ODE_SOLVER_GENERAL;
-      ts_ctx->computed_rhsjac = false;
       ts_ctx->jacType = Operator::PETSC_MATAIJ;
       private_ctx = (void*) ts_ctx;
    }
@@ -2342,7 +2357,7 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
       bool      edgespace, rtspace;
       bool      needint = false;
       bool      tracespace, rt_tracespace, edge_tracespace;
-      int       dim , p;
+      int       dim, p;
       PetscBool B_is_Trans = PETSC_FALSE;
 
       ParMesh *pmesh = (ParMesh *) fespace->GetMesh();
@@ -2688,6 +2703,8 @@ PetscODESolver::PetscODESolver(MPI_Comm comm, const string &prefix)
    CreatePrivateContext();
 
    // Default options, to comply with the current interface to ODESolver.
+   ierr = TSSetMaxSteps(ts,PETSC_MAX_INT-1);
+   PCHKERRQ(ts,ierr);
    ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);
    PCHKERRQ(ts,ierr);
    TSAdapt tsad;
@@ -2710,6 +2727,7 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
 {
    TS ts = (TS)obj;
 
+   __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
    if (operatorset)
    {
       PetscBool ls,gs;
@@ -2731,6 +2749,7 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
       }
       ls = (PetscBool)(f->Height() == f_.Height() &&
                        f->Width() == f_.Width() &&
+                       f->isExplicit() == f_.isExplicit() &&
                        f->isImplicit() == f_.isImplicit() &&
                        f->isHomogeneous() == f_.isHomogeneous());
       if (ls && f_.isImplicit())
@@ -2749,12 +2768,14 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
          ierr = TSReset(ts); PCHKERRQ(ts,ierr);
          delete X;
          X = NULL;
+         ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
+         ts_ctx->cached_ijacstate = -1;
+         ts_ctx->cached_rhsjacstate = -1;
       }
    }
    f = &f_;
 
    // Set functions in TS
-   __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
    ts_ctx->op = &f_;
    if (f_.isImplicit())
    {
@@ -2779,14 +2800,15 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
    }
    operatorset = true;
 
-   // PetscODESolver::Type
-   // Support for this is still partial in PETSc, so we handle it from MFEM
-   ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
    ts_ctx->type = type;
-   ts_ctx->computed_rhsjac = false;
    if (type == ODE_SOLVER_LINEAR)
    {
       ierr = TSSetProblemType(ts, TS_LINEAR);
+      PCHKERRQ(ts, ierr);
+   }
+   else
+   {
+      ierr = TSSetProblemType(ts, TS_NONLINEAR);
       PCHKERRQ(ts, ierr);
    }
 }
@@ -2816,12 +2838,12 @@ void PetscODESolver::Step(Vector &x, double &t, double &dt)
    ierr = TSStep(ts); PCHKERRQ(ts, ierr);
    X->ResetArray();
 
-   // Get back current time and time step to caller.
+   // Get back current time and the time step used to caller.
+   // We cannot use TSGetTimeStep() as it returns the next candidate step
    PetscReal pt;
    ierr = TSGetTime(ts,&pt); PCHKERRQ(ts,ierr);
+   dt = pt - (PetscReal)t;
    t = pt;
-   ierr = TSGetTimeStep(ts,&pt); PCHKERRQ(ts,ierr);
-   dt = pt;
 }
 
 void PetscODESolver::Run(Vector &x, double &t, double &dt, double t_final)
@@ -2830,7 +2852,7 @@ void PetscODESolver::Run(Vector &x, double &t, double &dt, double t_final)
    TS ts = (TS)obj;
    ierr = TSSetTime(ts, t); PCHKERRQ(ts, ierr);
    ierr = TSSetTimeStep(ts, dt); PCHKERRQ(ts, ierr);
-   ierr = TSSetDuration(ts, PETSC_DECIDE, t_final); PCHKERRQ(ts, ierr);
+   ierr = TSSetMaxTime(ts, t_final); PCHKERRQ(ts, ierr);
    ierr = TSSetExactFinalTime(ts, TS_EXACTFINALTIME_MATCHSTEP);
    PCHKERRQ(ts, ierr);
 
@@ -2970,12 +2992,13 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
                                           Vec xp, PetscReal shift, Mat A, Mat P,
                                           void *ctx)
 {
-   __mfem_ts_ctx* ts_ctx = (__mfem_ts_ctx*)ctx;
-   mfem::Vector   *xx;
-   PetscScalar    *array;
-   PetscReal      eps = 0.001; /* 0.1% difference */
-   PetscInt       n;
-   PetscErrorCode ierr;
+   __mfem_ts_ctx*   ts_ctx = (__mfem_ts_ctx*)ctx;
+   mfem::Vector     *xx;
+   PetscScalar      *array;
+   PetscReal        eps = 0.001; /* 0.1% difference */
+   PetscInt         n;
+   PetscObjectState state;
+   PetscErrorCode   ierr;
 
    PetscFunctionBeginUser;
    // update time
@@ -2985,8 +3008,10 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    // prevent to recompute a Jacobian if we already did so
    // the relative tolerance comparison should be fine given the fact
    // that two consecutive shifts should have similar magnitude
+   ierr = PetscObjectStateGet((PetscObject)A,&state); CHKERRQ(ierr);
    if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
-       std::abs(ts_ctx->cached_shift/shift - 1.0) < eps) { PetscFunctionReturn(0); }
+       std::abs(ts_ctx->cached_shift/shift - 1.0) < eps &&
+       state == ts_ctx->cached_ijacstate) { PetscFunctionReturn(0); }
 
    // wrap Vecs with Vectors
    ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
@@ -3019,7 +3044,7 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (!pA)
+   if (!pA || pA->GetType() != ts_ctx->jacType)
    {
       pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)ts),&J,
                                     ts_ctx->jacType);
@@ -3039,17 +3064,22 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    B = pA->ReleaseMat(false);
    ierr = MatHeaderReplace(A,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
+
+   // Jacobian reusage
+   ierr = PetscObjectStateGet((PetscObject)A,&ts_ctx->cached_ijacstate);
+   CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
 
 static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
                                             Mat A, Mat P, void *ctx)
 {
-   __mfem_ts_ctx* ts_ctx = (__mfem_ts_ctx*)ctx;
-   mfem::Vector   *xx;
-   PetscScalar    *array;
-   PetscInt       n;
-   PetscErrorCode ierr;
+   __mfem_ts_ctx*   ts_ctx = (__mfem_ts_ctx*)ctx;
+   mfem::Vector     *xx;
+   PetscScalar      *array;
+   PetscInt         n;
+   PetscObjectState state;
+   PetscErrorCode   ierr;
 
    PetscFunctionBeginUser;
    // update time
@@ -3057,8 +3087,9 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    op->SetTime(t);
 
    // prevent to recompute a Jacobian if we already did so
+   ierr = PetscObjectStateGet((PetscObject)A,&state); CHKERRQ(ierr);
    if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
-       ts_ctx->computed_rhsjac) { PetscFunctionReturn(0); }
+       state == ts_ctx->cached_rhsjacstate) { PetscFunctionReturn(0); }
 
    // wrap Vec with Vector
    ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
@@ -3082,13 +3113,12 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    // Use TimeDependentOperator::GetExplicitGradient(x)
    mfem::Operator& J = op->GetExplicitGradient(*xx);
    if (!ts_ctx->bchandler) { delete xx; }
-   ts_ctx->computed_rhsjac = true;
 
    // Convert to the operator type requested if needed
    bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (!pA)
+   if (!pA || pA->GetType() != ts_ctx->jacType)
    {
       pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)ts),&J,
                                     ts_ctx->jacType);
@@ -3108,6 +3138,41 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    B = pA->ReleaseMat(false);
    ierr = MatHeaderReplace(A,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
+
+   // Jacobian reusage
+   if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR)
+   {
+      ierr = TSRHSJacobianSetReuse(ts,PETSC_TRUE); PCHKERRQ(ts,ierr);
+   }
+   ierr = PetscObjectStateGet((PetscObject)A,&ts_ctx->cached_rhsjacstate);
+   CHKERRQ(ierr);
+   PetscFunctionReturn(0);
+}
+
+static PetscErrorCode __mfem_snes_monitor(SNES snes, PetscInt it, PetscReal res,
+                                          void* ctx)
+{
+   mfem::PetscSolverMonitor *monitor_ctx = (mfem::PetscSolverMonitor *)ctx;
+   Vec x;
+   PetscErrorCode ierr;
+
+   PetscFunctionBeginUser;
+   if (!ctx)
+   {
+      SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"No monitor context provided");
+   }
+   if (monitor_ctx->mon_sol)
+   {
+      ierr = SNESGetSolution(snes,&x); CHKERRQ(ierr);
+      mfem::PetscParVector V(x,true);
+      monitor_ctx->MonitorSolution(it,res,V);
+   }
+   if (monitor_ctx->mon_res)
+   {
+      ierr = SNESGetFunction(snes,&x,NULL,NULL); CHKERRQ(ierr);
+      mfem::PetscParVector V(x,true);
+      monitor_ctx->MonitorResidual(it,res,V);
+   }
    PetscFunctionReturn(0);
 }
 
@@ -3146,7 +3211,7 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
    bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (!pA)
+   if (!pA || pA->GetType() != snes_ctx->jacType)
    {
       pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)snes),&J,
                                     snes_ctx->jacType);

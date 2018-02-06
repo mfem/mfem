@@ -23,6 +23,26 @@
 #include <cmath>
 #include <cstring>
 #include <ctime>
+#include <functional>
+
+// Include the METIS header, if using version 5. If using METIS 4, the needed
+// declarations are inlined below, i.e. no header is needed.
+#if defined(MFEM_USE_METIS) && defined(MFEM_USE_METIS_5)
+#include "metis.h"
+#endif
+
+// METIS 4 prototypes
+#if defined(MFEM_USE_METIS) && !defined(MFEM_USE_METIS_5)
+typedef int idxtype;
+extern "C" {
+   void METIS_PartGraphRecursive(int*, idxtype*, idxtype*, idxtype*, idxtype*,
+                                 int*, int*, int*, int*, int*, idxtype*);
+   void METIS_PartGraphKway(int*, idxtype*, idxtype*, idxtype*, idxtype*,
+                            int*, int*, int*, int*, int*, idxtype*);
+   void METIS_PartGraphVKway(int*, idxtype*, idxtype*, idxtype*, idxtype*,
+                             int*, int*, int*, int*, int*, idxtype*);
+}
+#endif
 
 #ifdef MFEM_USE_GECKO
 #include "graph.h"
@@ -92,8 +112,8 @@ void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
 
    for (int d = 0; d < spaceDim; d++)
    {
-      min(d) = numeric_limits<double>::infinity();
-      max(d) = -numeric_limits<double>::infinity();
+      min(d) = infinity();
+      max(d) = -infinity();
    }
 
    if (Nodes == NULL)
@@ -159,13 +179,14 @@ void Mesh::GetCharacteristics(double &h_min, double &h_max,
 
    dim = Dimension();
    sdim = SpaceDimension();
-   J.SetSize(sdim, dim);
 
    if (Vh) { Vh->SetSize(NumOfElements); }
    if (Vk) { Vk->SetSize(NumOfElements); }
 
-   h_min = kappa_min = numeric_limits<double>::infinity();
+   h_min = kappa_min = infinity();
    h_max = kappa_max = -h_min;
+   if (dim == 0) { if (Vh) { *Vh = 1.0; } if (Vk) {*Vk = 1.0; } return; }
+   J.SetSize(sdim, dim);
    for (i = 0; i < NumOfElements; i++)
    {
       GetElementJacobian(i, J);
@@ -190,7 +211,17 @@ void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &out)
 
    this->GetCharacteristics(h_min, h_max, kappa_min, kappa_max, Vh, Vk);
 
-   if (Dim == 1)
+   out << '\n'
+       << "Dimension          : " << Dimension() << '\n'
+       << "Space dimension    : " << SpaceDimension();
+   if (Dim == 0)
+   {
+      out << '\n'
+          << "Number of vertices : " << GetNV() << '\n'
+          << "Number of elements : " << GetNE() << '\n'
+          << "Number of bdr elem : " << GetNBE() << '\n';
+   }
+   else if (Dim == 1)
    {
       out << '\n'
           << "Number of vertices : " << GetNV() << '\n'
@@ -271,6 +302,7 @@ void Mesh::GetElementTransformation(int i, IsoparametricTransformation *ElTr)
       }
       ElTr->SetFE(Nodes->FESpace()->GetFE(i));
    }
+   ElTr->FinalizeTransformation();
 }
 
 void Mesh::GetElementTransformation(int i, const Vector &nodes,
@@ -281,6 +313,7 @@ void Mesh::GetElementTransformation(int i, const Vector &nodes,
    DenseMatrix &pm = ElTr->GetPointMat();
    if (Nodes == NULL)
    {
+      MFEM_ASSERT(nodes.Size() == spaceDim*GetNV(), "");
       int       nv = elements[i]->GetNVertices();
       const int *v = elements[i]->GetVertices();
       int n = vertices.Size();
@@ -296,6 +329,7 @@ void Mesh::GetElementTransformation(int i, const Vector &nodes,
    }
    else
    {
+      MFEM_ASSERT(nodes.Size() == Nodes->Size(), "");
       Array<int> vdofs;
       Nodes->FESpace()->GetElementVDofs(i, vdofs);
       int n = vdofs.Size()/spaceDim;
@@ -309,6 +343,7 @@ void Mesh::GetElementTransformation(int i, const Vector &nodes,
       }
       ElTr->SetFE(Nodes->FESpace()->GetFE(i));
    }
+   ElTr->FinalizeTransformation();
 }
 
 ElementTransformation *Mesh::GetElementTransformation(int i)
@@ -350,6 +385,7 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
       }
       ElTr->SetFE(Nodes->FESpace()->GetBE(i));
    }
+   ElTr->FinalizeTransformation();
 }
 
 void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
@@ -412,6 +448,7 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
          FTr->SetFE(face_el);
       }
    }
+   FTr->FinalizeTransformation();
 }
 
 ElementTransformation *Mesh::GetFaceTransformation(int FaceNo)
@@ -473,6 +510,7 @@ void Mesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
          MFEM_ABORT("Not implemented.");
       }
    }
+   EdTr->FinalizeTransformation();
 }
 
 ElementTransformation *Mesh::GetEdgeTransformation(int EdgeNo)
@@ -494,6 +532,7 @@ void Mesh::GetLocalPtToSegTransformation(
    locpm(0, 0) = SegVert->IntPoint(i/64).x;
    //  (i/64) is the local face no. in the segment
    //  (i%64) is the orientation of the point (not used)
+   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalSegToTriTransformation(
@@ -513,6 +552,7 @@ void Mesh::GetLocalSegToTriTransformation(
       locpm(0, so[j]) = TriVert->IntPoint(tv[j]).x;
       locpm(1, so[j]) = TriVert->IntPoint(tv[j]).y;
    }
+   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalSegToQuadTransformation(
@@ -532,6 +572,7 @@ void Mesh::GetLocalSegToQuadTransformation(
       locpm(0, so[j]) = QuadVert->IntPoint(qv[j]).x;
       locpm(1, so[j]) = QuadVert->IntPoint(qv[j]).y;
    }
+   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalTriToTetTransformation(
@@ -555,6 +596,7 @@ void Mesh::GetLocalTriToTetTransformation(
       locpm(1, j) = vert.y;
       locpm(2, j) = vert.z;
    }
+   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalQuadToHexTransformation(
@@ -576,37 +618,38 @@ void Mesh::GetLocalQuadToHexTransformation(
       locpm(1, j) = vert.y;
       locpm(2, j) = vert.z;
    }
+   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalFaceTransformation(
-   int face_type, int elem_type, IsoparametricTransformation &Transf, int inf)
+   int face_type, int elem_type, IsoparametricTransformation &Transf, int info)
 {
    switch (face_type)
    {
       case Element::POINT:
-         GetLocalPtToSegTransformation(Transf, inf);
+         GetLocalPtToSegTransformation(Transf, info);
          break;
 
       case Element::SEGMENT:
          if (elem_type == Element::TRIANGLE)
          {
-            GetLocalSegToTriTransformation(Transf, inf);
+            GetLocalSegToTriTransformation(Transf, info);
          }
          else
          {
             MFEM_ASSERT(elem_type == Element::QUADRILATERAL, "");
-            GetLocalSegToQuadTransformation(Transf, inf);
+            GetLocalSegToQuadTransformation(Transf, info);
          }
          break;
 
       case Element::TRIANGLE:
          MFEM_ASSERT(elem_type == Element::TETRAHEDRON, "");
-         GetLocalTriToTetTransformation(Transf, inf);
+         GetLocalTriToTetTransformation(Transf, info);
          break;
 
       case Element::QUADRILATERAL:
          MFEM_ASSERT(elem_type == Element::HEXAHEDRON, "");
-         GetLocalQuadToHexTransformation(Transf, inf);
+         GetLocalQuadToHexTransformation(Transf, info);
          break;
    }
 }
@@ -692,6 +735,7 @@ void Mesh::ApplyLocalSlaveTransformation(IsoparametricTransformation &transf,
    MFEM_ASSERT(fi.NCFace >= 0, "");
    transf.Transform(*nc_faces_info[fi.NCFace].PointMatrix, composition);
    transf.GetPointMat() = composition;
+   transf.FinalizeTransformation();
 }
 
 FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
@@ -1500,7 +1544,7 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
       offset += NumOfEdges * num_edge_dofs;
    }
 #ifdef MFEM_DEBUG
-   cout << "Mesh::DoNodeReorder : redges = " << redges << endl;
+   mfem::out << "Mesh::DoNodeReorder : redges = " << redges << endl;
 #endif
 
    // face dofs:
@@ -1600,18 +1644,18 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
                break;
             default:
                new_or = 0;
-               cerr << "Mesh::DoNodeReorder : " << Geometry::Name[geom]
-                    << " elements (" << fec->Name()
-                    << " FE collection) are not supported yet!" << endl;
+               mfem::err << "Mesh::DoNodeReorder : " << Geometry::Name[geom]
+                         << " elements (" << fec->Name()
+                         << " FE collection) are not supported yet!" << endl;
                mfem_error();
                break;
          }
          dof_ord = fec->DofOrderForOrientation(geom, new_or);
          if (dof_ord == NULL)
          {
-            cerr << "Mesh::DoNodeReorder : FE collection '" << fec->Name()
-                 << "' does not define reordering for " << Geometry::Name[geom]
-                 << " elements!" << endl;
+            mfem::err << "Mesh::DoNodeReorder : FE collection '" << fec->Name()
+                      << "' does not define reordering for " << Geometry::Name[geom]
+                      << " elements!" << endl;
             mfem_error();
          }
          old_dofs.SetSize(num_elem_dofs);
@@ -1824,7 +1868,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
    }
 
    // Requirements:
-   //  1) FinilizeTopology() or equivalent was called
+   //  1) FinalizeTopology() or equivalent was called
    //  2) if (Nodes == NULL), vertices must be defined
    //  3) if (Nodes != NULL), Nodes must be defined
 
@@ -2298,7 +2342,6 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    }
 
    // Copy the vertices
-   MFEM_ASSERT(mesh.vertices.Size() == NumOfVertices, "internal MFEM error!");
    mesh.vertices.Copy(vertices);
 
    // Duplicate the boundary
@@ -2345,12 +2388,23 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    mesh.attributes.Copy(attributes);
    mesh.bdr_attributes.Copy(bdr_attributes);
 
-   // No support for NURBS meshes, yet. Need deep copy for NURBSExtension.
-   MFEM_VERIFY(mesh.NURBSext == NULL,
-               "copying NURBS meshes is not implemented");
-   NURBSext = NULL;
+   // Deep copy the NURBSExtension.
+#ifdef MFEM_USE_MPI
+   ParNURBSExtension *pNURBSext =
+      dynamic_cast<ParNURBSExtension *>(mesh.NURBSext);
+   if (pNURBSext)
+   {
+      NURBSext = new ParNURBSExtension(*pNURBSext);
+   }
+   else
+#endif
+   {
+      NURBSext = mesh.NURBSext ? new NURBSExtension(*mesh.NURBSext) : NULL;
+   }
 
    // Deep copy the NCMesh.
+   // TODO: ParNCMesh; ParMesh has a separate 'pncmesh' pointer, and 'ncmesh'
+   //       is initialized from it. Need ParNCMesh copy constructor.
    ncmesh = mesh.ncmesh ? new NCMesh(*mesh.ncmesh) : NULL;
 
    // Duplicate the Nodes, including the FiniteElementCollection and the
@@ -2362,8 +2416,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
       FiniteElementCollection *fec_copy =
          FiniteElementCollection::New(fec->Name());
       FiniteElementSpace *fes_copy =
-         new FiniteElementSpace(this, fec_copy, fes->GetVDim(),
-                                fes->GetOrdering());
+         new FiniteElementSpace(*fes, this, fec_copy);
       Nodes = new GridFunction(fes_copy);
       Nodes->MakeOwner(fec_copy);
       *Nodes = *mesh.Nodes;
@@ -2441,7 +2494,8 @@ Mesh::Mesh(double *_vertices, int num_vertices,
             num_boundary_elements);
 
    int element_index_stride = Geometry::NumVerts[element_type];
-   int boundary_index_stride = Geometry::NumVerts[boundary_type];
+   int boundary_index_stride = num_boundary_elements > 0 ?
+                               Geometry::NumVerts[boundary_type] : 0;
 
    // assuming Vertex is POD
    vertices.MakeRef(reinterpret_cast<Vertex*>(_vertices), num_vertices);
@@ -2493,6 +2547,7 @@ Element *Mesh::ReadElementWithoutAttr(std::istream &input)
 
    input >> geom;
    el = NewElement(geom);
+   MFEM_VERIFY(el, "Unsupported element type: " << geom);
    nv = el->GetNVertices();
    v  = el->GetVertices();
    for (int i = 0; i < nv; i++)
@@ -2540,6 +2595,7 @@ void Mesh::SetMeshGen()
    {
       switch (elements[i]->GetType())
       {
+         case Element::POINT:
          case Element::SEGMENT:
          case Element::TRIANGLE:
          case Element::TETRAHEDRON:
@@ -3035,6 +3091,9 @@ void Mesh::KnotInsert(Array<KnotVector *> &kv)
 
    NURBSext->KnotInsert(kv);
 
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+   sequence++;
+
    UpdateNURBS();
 }
 
@@ -3045,13 +3104,13 @@ void Mesh::NURBSUniformRefinement()
 
    NURBSext->UniformRefinement();
 
-   last_operation = Mesh::REFINE;
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
    sequence++;
 
    UpdateNURBS();
 }
 
-void Mesh::DegreeElevate(int t)
+void Mesh::DegreeElevate(int rel_degree, int degree)
 {
    if (NURBSext == NULL)
    {
@@ -3060,15 +3119,10 @@ void Mesh::DegreeElevate(int t)
 
    NURBSext->ConvertToPatches(*Nodes);
 
-   NURBSext->DegreeElevate(t);
+   NURBSext->DegreeElevate(rel_degree, degree);
 
-   NURBSFECollection *nurbs_fec =
-      dynamic_cast<NURBSFECollection *>(Nodes->OwnFEC());
-   if (!nurbs_fec)
-   {
-      mfem_error("Mesh::DegreeElevate");
-   }
-   nurbs_fec->UpdateOrder(nurbs_fec->GetOrder() + t);
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+   sequence++;
 
    UpdateNURBS();
 }
@@ -3429,9 +3483,9 @@ int Mesh::CheckElementOrientation(bool fix_it)
    }
 #if (!defined(MFEM_USE_MPI) || defined(MFEM_DEBUG))
    if (wo > 0)
-      cout << "Elements with wrong orientation: " << wo << " / "
-           << NumOfElements << " (" << fixed_or_not[(wo == fo) ? 0 : 1]
-           << ")" << endl;
+      mfem::out << "Elements with wrong orientation: " << wo << " / "
+                << NumOfElements << " (" << fixed_or_not[(wo == fo) ? 0 : 1]
+                << ")" << endl;
 #endif
    return wo;
 }
@@ -3508,18 +3562,18 @@ int Mesh::GetQuadOrientation(const int *base, const int *test)
    for (int j = 0; j < 4; j++)
       if (test[aor[j]] != base[j])
       {
-         cerr << "Mesh::GetQuadOrientation(...)" << endl;
-         cerr << " base = [";
+         mfem::err << "Mesh::GetQuadOrientation(...)" << endl;
+         mfem::err << " base = [";
          for (int k = 0; k < 4; k++)
          {
-            cerr << " " << base[k];
+            mfem::err << " " << base[k];
          }
-         cerr << " ]\n test = [";
+         mfem::err << " ]\n test = [";
          for (int k = 0; k < 4; k++)
          {
-            cerr << " " << test[k];
+            mfem::err << " " << test[k];
          }
-         cerr << " ]" << endl;
+         mfem::err << " ]" << endl;
          mfem_error();
       }
 #endif
@@ -3626,9 +3680,9 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
 #ifdef MFEM_DEBUG
    if (wo > 0)
    {
-      cout << "Boundary elements with wrong orientation: " << wo << " / "
-           << NumOfBdrElements << " (" << fixed_or_not[fix_it ? 0 : 1]
-           << ")" << endl;
+      mfem::out << "Boundary elements with wrong orientation: " << wo << " / "
+                << NumOfBdrElements << " (" << fixed_or_not[fix_it ? 0 : 1]
+                << ")" << endl;
    }
 #endif
    return wo;
@@ -4115,11 +4169,11 @@ const Table & Mesh::ElementToElementTable()
       return *el_to_el;
    }
 
-   int num_faces = GetNumFaces();
-   MFEM_ASSERT(faces_info.Size() == num_faces, "faces were not generated!");
+   // Note that, for ParNCMeshes, faces_info will contain also the ghost faces
+   MFEM_ASSERT(faces_info.Size() >= GetNumFaces(), "faces were not generated!");
 
    Array<Connection> conn;
-   conn.Reserve(2*num_faces);
+   conn.Reserve(2*faces_info.Size());
 
    for (int i = 0; i < faces_info.Size(); i++)
    {
@@ -4537,34 +4591,11 @@ void Mesh::ReorientTetMesh()
    }
 }
 
-#ifdef MFEM_USE_MPI
-#ifndef MFEM_USE_METIS_5
-// METIS 4 prototypes
-typedef int idxtype;
-extern "C" {
-   void METIS_PartGraphRecursive(int*, idxtype*, idxtype*, idxtype*, idxtype*,
-                                 int*, int*, int*, int*, int*, idxtype*);
-   void METIS_PartGraphKway(int*, idxtype*, idxtype*, idxtype*, idxtype*,
-                            int*, int*, int*, int*, int*, idxtype*);
-   void METIS_PartGraphVKway(int*, idxtype*, idxtype*, idxtype*, idxtype*,
-                             int*, int*, int*, int*, int*, idxtype*);
-}
-#else
-#include "metis.h"
-#endif
-#endif
-
 int *Mesh::CartesianPartitioning(int nxyz[])
 {
    int *partitioning;
-   double pmin[3] = { numeric_limits<double>::infinity(),
-                      numeric_limits<double>::infinity(),
-                      numeric_limits<double>::infinity()
-                    };
-   double pmax[3] = { -numeric_limits<double>::infinity(),
-                      -numeric_limits<double>::infinity(),
-                      -numeric_limits<double>::infinity()
-                    };
+   double pmin[3] = { infinity(), infinity(), infinity() };
+   double pmax[3] = { -infinity(), -infinity(), -infinity() };
    // find a bounding box using the vertices
    for (int vi = 0; vi < NumOfVertices; vi++)
    {
@@ -4601,7 +4632,7 @@ int *Mesh::CartesianPartitioning(int nxyz[])
 
 int *Mesh::GeneratePartitioning(int nparts, int part_method)
 {
-#ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_METIS
    int i, *partitioning;
 
    ElementToElementTable();
@@ -4762,8 +4793,8 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       }
 
 #ifdef MFEM_DEBUG
-      cout << "Mesh::GeneratePartitioning(...): edgecut = "
-           << edgecut << endl;
+      mfem::out << "Mesh::GeneratePartitioning(...): edgecut = "
+                << edgecut << endl;
 #endif
    }
 
@@ -4798,8 +4829,8 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       // Do we need to replace it with something better?
       if (empty_parts)
       {
-         cerr << "Mesh::GeneratePartitioning returned " << empty_parts
-              << " empty parts!" << endl;
+         mfem::err << "Mesh::GeneratePartitioning returned " << empty_parts
+                   << " empty parts!" << endl;
 
          SortPairs<int,int>(psize, nparts);
 
@@ -4929,29 +4960,29 @@ void Mesh::CheckPartitioning(int *partitioning)
 
    if (n_empty > 0)
    {
-      cout << "Mesh::CheckPartitioning(...) :\n"
-           << "The following subdomains are empty :\n";
+      mfem::out << "Mesh::CheckPartitioning(...) :\n"
+                << "The following subdomains are empty :\n";
       for (i = 0; i < num_comp.Size(); i++)
          if (num_comp[i] == 0)
          {
-            cout << ' ' << i;
+            mfem::out << ' ' << i;
          }
-      cout << endl;
+      mfem::out << endl;
    }
    if (n_mcomp > 0)
    {
-      cout << "Mesh::CheckPartitioning(...) :\n"
-           << "The following subdomains are NOT connected :\n";
+      mfem::out << "Mesh::CheckPartitioning(...) :\n"
+                << "The following subdomains are NOT connected :\n";
       for (i = 0; i < num_comp.Size(); i++)
          if (num_comp[i] > 1)
          {
-            cout << ' ' << i;
+            mfem::out << ' ' << i;
          }
-      cout << endl;
+      mfem::out << endl;
    }
    if (n_empty == 0 && n_mcomp == 0)
-      cout << "Mesh::CheckPartitioning(...) : "
-           "All subdomains are connected." << endl;
+      mfem::out << "Mesh::CheckPartitioning(...) : "
+                "All subdomains are connected." << endl;
 
    if (el_to_el)
    {
@@ -5916,7 +5947,8 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
          // for (i = 0; i < onoe; i++)
          for (i = 0; i < NumOfElements; i++)
          {
-            // ((Tetrahedron *)elements[i])->ParseRefinementFlag(redges, type, flag);
+            // ((Tetrahedron *)elements[i])->
+            // ParseRefinementFlag(redges, type, flag);
             // if (flag > max_gen)  max_gen = flag;
             if (elements[i]->NeedRefinement(v_to_v, middle))
             {
@@ -5927,7 +5959,7 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       }
       while (need_refinement == 1);
 
-      // cout << "Maximum generation: " << max_gen << endl;
+      // mfem::out << "Maximum generation: " << max_gen << endl;
 
       // 5. Update the boundary elements.
       do
@@ -6153,8 +6185,7 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
 
    DeleteTables();
 
-   bool linear = (Nodes == NULL);
-   ncmesh.GetMeshComponents(vertices, elements, boundary, linear);
+   ncmesh.GetMeshComponents(vertices, elements, boundary);
 
    NumOfVertices = vertices.Size();
    NumOfElements = elements.Size();
@@ -6553,11 +6584,11 @@ void Mesh::Bisection(int i, const DSTable &v_to_v,
       if (bisect == -1)
       {
          tet->ParseRefinementFlag(old_redges, type, flag);
-         cerr << "Error in Bisection(...) of tetrahedron!" << endl
-              << "   redge[0] = " << old_redges[0]
-              << "   redge[1] = " << old_redges[1]
-              << "   type = " << type
-              << "   flag = " << flag << endl;
+         mfem::err << "Error in Bisection(...) of tetrahedron!" << endl
+                   << "   redge[0] = " << old_redges[0]
+                   << "   redge[1] = " << old_redges[1]
+                   << "   type = " << type
+                   << "   flag = " << flag << endl;
          mfem_error();
       }
 
@@ -7252,8 +7283,8 @@ void Mesh::PrintVTK(std::ostream &out)
       }
       if (order == -1)
       {
-         cerr << "Mesh::PrintVTK : can not save '"
-              << fec_name << "' elements!" << endl;
+         mfem::err << "Mesh::PrintVTK : can not save '"
+                   << fec_name << "' elements!" << endl;
          mfem_error();
       }
       for (int i = 0; i < NumOfElements; i++)
@@ -7298,6 +7329,8 @@ void Mesh::PrintVTK(std::ostream &out)
       {
          switch (elements[i]->GetGeometryType())
          {
+            case Geometry::POINT:        vtk_cell_type = 1;   break;
+            case Geometry::SEGMENT:      vtk_cell_type = 3;   break;
             case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
             case Geometry::SQUARE:       vtk_cell_type = 9;   break;
             case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
@@ -7308,6 +7341,7 @@ void Mesh::PrintVTK(std::ostream &out)
       {
          switch (elements[i]->GetGeometryType())
          {
+            case Geometry::SEGMENT:      vtk_cell_type = 21;  break;
             case Geometry::TRIANGLE:     vtk_cell_type = 22;  break;
             case Geometry::SQUARE:       vtk_cell_type = 28;  break;
             case Geometry::TETRAHEDRON:  vtk_cell_type = 24;  break;
@@ -7428,6 +7462,7 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
 
       switch (geom)
       {
+         case Geometry::POINT:        vtk_cell_type = 1;   break;
          case Geometry::SEGMENT:      vtk_cell_type = 3;   break;
          case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
          case Geometry::SQUARE:       vtk_cell_type = 9;   break;
@@ -7456,23 +7491,27 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
       }
    }
 
-   Array<int> coloring;
-   srand((unsigned)time(0));
-   double a = double(rand()) / (double(RAND_MAX) + 1.);
-   int el0 = (int)floor(a * GetNE());
-   GetElementColoring(coloring, el0);
-   out << "SCALARS element_coloring int\n"
-       << "LOOKUP_TABLE default\n";
-   for (int i = 0; i < GetNE(); i++)
+   if (Dim > 1)
    {
-      int geom = GetElementBaseGeometry(i);
-      int nv = Geometries.GetVertices(geom)->GetNPoints();
-      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
-      for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
+      Array<int> coloring;
+      srand((unsigned)time(0));
+      double a = double(rand()) / (double(RAND_MAX) + 1.);
+      int el0 = (int)floor(a * GetNE());
+      GetElementColoring(coloring, el0);
+      out << "SCALARS element_coloring int\n"
+          << "LOOKUP_TABLE default\n";
+      for (int i = 0; i < GetNE(); i++)
       {
-         out << coloring[i] + 1 << '\n';
+         int geom = GetElementBaseGeometry(i);
+         int nv = Geometries.GetVertices(geom)->GetNPoints();
+         RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+         for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
+         {
+            out << coloring[i] + 1 << '\n';
+         }
       }
    }
+
    // prepare to write data
    out << "POINT_DATA " << np << '\n' << flush;
 }
@@ -7835,12 +7874,9 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
             }
             out << '\n';
          }
-      out << flush;
-      return;
    }
-
    //  Dim is 3
-   if (meshgen == 1)
+   else if (meshgen == 1)
    {
       out << "NETGEN_Neutral_Format\n";
       // print the vertices
@@ -7935,12 +7971,8 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
                   }
             out << '\n';
          }
-
-      for (i = 0; i < NumOfVertices; i++)
-      {
-         delete [] vown[i];
-      }
    }
+   //  Dim is 3
    else if (meshgen == 2) // TrueGrid
    {
       // count the number of the boundary elements.
@@ -8039,6 +8071,11 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
 
    out << flush;
 
+   for (i = 0; i < NumOfVertices; i++)
+   {
+      delete [] vown[i];
+   }
+
    delete [] vcount;
    delete [] voff;
    delete [] vown;
@@ -8080,7 +8117,8 @@ void Mesh::PrintSurfaces(const Table & Aface_face, std::ostream &out) const
    const int * const j_AF_f = Aface_face.GetJ();
 
    for (int iAF=0; iAF < Aface_face.Size(); ++iAF)
-      for (const int * iface = j_AF_f + i_AF_f[iAF]; iface < j_AF_f + i_AF_f[iAF+1];
+      for (const int * iface = j_AF_f + i_AF_f[iAF];
+           iface < j_AF_f + i_AF_f[iAF+1];
            ++iface)
       {
          out << iAF+1 << ' ';
@@ -8518,6 +8556,98 @@ std::ostream &operator<<(std::ostream &out, const Mesh &mesh)
    return out;
 }
 
+int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
+                     Array<IntegrationPoint>& ips, bool warn,
+                     InverseElementTransformation *inv_trans)
+{
+   const int npts = point_mat.Width();
+   if (!npts) { return 0; }
+   MFEM_VERIFY(point_mat.Height() == spaceDim,"Invalid points matrix");
+   elem_ids.SetSize(npts);
+   ips.SetSize(npts);
+   elem_ids = -1;
+   if (!GetNE()) { return 0; }
+
+   double *data = point_mat.GetData();
+   InverseElementTransformation *inv_tr = inv_trans;
+   inv_tr = inv_tr ? inv_tr : new InverseElementTransformation;
+
+   // For each point in 'point_mat', find the element whose center is closest.
+   Vector min_dist(npts);
+   Array<int> e_idx(npts);
+   min_dist = std::numeric_limits<double>::max();
+   e_idx = -1;
+
+   Vector pt(spaceDim);
+   for (int i = 0; i < GetNE(); i++)
+   {
+      GetElementTransformation(i)->Transform(
+         Geometries.GetCenter(GetElementBaseGeometry(i)), pt);
+      for (int k = 0; k < npts; k++)
+      {
+         double dist = pt.DistanceTo(data+k*spaceDim);
+         if (dist < min_dist(k))
+         {
+            min_dist(k) = dist;
+            e_idx[k] = i;
+         }
+      }
+   }
+
+   // Checks if the points lie in the closest element
+   int pts_found = 0;
+   pt.NewDataAndSize(NULL, spaceDim);
+   for (int k = 0; k < npts; k++)
+   {
+      pt.SetData(data+k*spaceDim);
+      inv_tr->SetTransformation(*GetElementTransformation(e_idx[k]));
+      int res = inv_tr->Transform(pt, ips[k]);
+      if (res == InverseElementTransformation::Inside)
+      {
+         elem_ids[k] = e_idx[k];
+         pts_found++;
+      }
+   }
+   if (pts_found != npts)
+   {
+      Array<int> vertices;
+      Table *vtoel = GetVertexToElementTable();
+      for (int k = 0; k < npts; k++)
+      {
+         if (elem_ids[k] != -1) { continue; }
+         // Try all vertex-neighbors of element e_idx[k]
+         pt.SetData(data+k*spaceDim);
+         GetElementVertices(e_idx[k], vertices);
+         for (int v = 0; v < vertices.Size(); v++)
+         {
+            int vv = vertices[v];
+            int ne = vtoel->RowSize(vv);
+            const int* els = vtoel->GetRow(vv);
+            for (int e = 0; e < ne; e++)
+            {
+               if (els[e] == e_idx[k]) { continue; }
+               inv_tr->SetTransformation(*GetElementTransformation(els[e]));
+               int res = inv_tr->Transform(pt, ips[k]);
+               if (res == InverseElementTransformation::Inside)
+               {
+                  elem_ids[k] = els[e];
+                  pts_found++;
+                  goto next_point;
+               }
+            }
+         }
+      next_point: ;
+      }
+      delete vtoel;
+   }
+   if (inv_trans == NULL) { delete inv_tr; }
+
+   if (warn && pts_found != npts)
+   {
+      MFEM_WARNING((npts-pts_found) << " points were not found");
+   }
+   return pts_found;
+}
 
 NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int _n,
                                                const double _s)
@@ -8547,7 +8677,7 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy, const bool closed)
 {
    if (mesh->Dimension() != 1)
    {
-      cerr << "Extrude1D : Not a 1D mesh!" << endl;
+      mfem::err << "Extrude1D : Not a 1D mesh!" << endl;
       mfem_error();
    }
 
@@ -8675,8 +8805,8 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy, const bool closed)
       else
       {
          delete mesh2d;
-         cerr << "Extrude1D : The mesh uses unknown FE collection : "
-              << cname << endl;
+         mfem::err << "Extrude1D : The mesh uses unknown FE collection : "
+                   << cname << endl;
          mfem_error();
       }
       fes2d = new FiniteElementSpace(mesh2d, fec2d, 2);

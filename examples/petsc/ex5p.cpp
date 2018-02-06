@@ -60,6 +60,7 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    int order = 1;
+   bool par_format = false;
    bool visualization = 1;
    bool use_petsc = true;
    bool use_nonoverlapping = false;
@@ -70,6 +71,9 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&par_format, "-pf", "--parallel-format", "-sf",
+                  "--serial-format",
+                  "Format to use when saving the results for VisIt.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -210,7 +214,7 @@ int main(int argc, char *argv[])
    PetscParMatrix *pM = NULL, *pB = NULL, *pBT = NULL;
    HypreParMatrix *M = NULL, *B = NULL, *BT = NULL;
    Operator::Type tid =
-      !use_petsc ? Operator::HYPRE_PARCSR :
+      !use_petsc ? Operator::Hypre_ParCSR :
       (use_nonoverlapping ? Operator::PETSC_MATIS : Operator::PETSC_MATAIJ);
    OperatorHandle Mh(tid), Bh(tid);
 
@@ -478,6 +482,9 @@ int main(int argc, char *argv[])
    VisItDataCollection visit_dc("Example5-Parallel", pmesh);
    visit_dc.RegisterField("velocity", u);
    visit_dc.RegisterField("pressure", p);
+   visit_dc.SetFormat(!par_format ?
+                      DataCollection::SERIAL_FORMAT :
+                      DataCollection::PARALLEL_FORMAT);
    visit_dc.Save();
 
    // 16. Send the solution by socket to a GLVis server.

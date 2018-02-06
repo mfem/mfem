@@ -15,6 +15,9 @@
 // MFEM version: integer of the form: (major*100 + minor)*100 + patch.
 // #define MFEM_VERSION @MFEM_VERSION@
 
+// MFEM version string of the form "3.3" or "3.3.1".
+// #define MFEM_VERSION_STRING "@MFEM_VERSION_STRING@"
+
 // MFEM version type, see the MFEM_VERSION_TYPE_* constants below.
 #define MFEM_VERSION_TYPE ((MFEM_VERSION)%2)
 
@@ -26,6 +29,9 @@
 #define MFEM_VERSION_MAJOR ((MFEM_VERSION)/10000)
 #define MFEM_VERSION_MINOR (((MFEM_VERSION)/100)%100)
 #define MFEM_VERSION_PATCH ((MFEM_VERSION)%100)
+
+// Description of the git commit used to build MFEM.
+// #define MFEM_GIT_STRING "@MFEM_GIT_STRING@"
 
 // Build the parallel MFEM library.
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
@@ -39,6 +45,9 @@
 
 // Enable backtraces for mfem_error through libunwind.
 // #define MFEM_USE_LIBUNWIND
+
+// Enable MFEM features that use the METIS library (parallel MFEM).
+// #define MFEM_USE_METIS
 
 // Enable this option if linking with METIS version 5 (parallel MFEM).
 // #define MFEM_USE_METIS_5

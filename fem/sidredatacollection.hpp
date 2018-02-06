@@ -373,10 +373,6 @@ private:
    // Otherwise, this pointer is NULL.
    axom::sidre::DataStore * m_datastore_ptr;
 
-#ifdef MFEM_USE_MPI
-   MPI_Comm m_comm;
-#endif
-
 protected:
    axom::sidre::Group *named_buffers_grp() const;
 
