@@ -197,8 +197,8 @@ int main(int argc, char *argv[])
    // 10. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
    int maxIter(1000);
-   double rtol(1.e-6);
-   double atol(1.e-10);
+   double rtol(1.e-2);
+   double atol(1.e-4);
 
    chrono.Clear();
    chrono.Start();
@@ -259,8 +259,8 @@ int main(int argc, char *argv[])
    }
 
    // 13. Save data in the VisIt format
-   //VisItDataCollection visit_dc("Example5", mesh);
-   Hdf5ZfpDataCollection visit_dc("Example5", mesh);
+   VisItDataCollection visit_dc("Example5", mesh);
+   //Hdf5ZfpDataCollection visit_dc("Example5", mesh);
    visit_dc.RegisterField("velocity", &u);
    visit_dc.RegisterField("pressure", &p);
    visit_dc.Save();

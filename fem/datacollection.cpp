@@ -221,7 +221,7 @@ void DataCollection::Save()
    }
 }
 
-void DataCollection::SaveMesh(std::string *_dir_name, std::ostringstream *_ostrstr)
+void DataCollection::SaveMesh(std::string *_dir_name, std::stringstream *_strstrm)
 {
    int err;
 
@@ -244,7 +244,7 @@ void DataCollection::SaveMesh(std::string *_dir_name, std::ostringstream *_ostrs
       mesh_name += "." + to_padded_string(myid, pad_digits_rank);
    }
 
-   std::ostream *mesh_file = _ostrstr;
+   std::ostream *mesh_file = _strstrm;
    if (!mesh_file)
    {
        mesh_file = new std::ofstream(mesh_name.c_str());
@@ -274,7 +274,7 @@ void DataCollection::SaveMesh(std::string *_dir_name, std::ostringstream *_ostrs
    }
    if (_dir_name)
        *_dir_name = dir_name;
-   if (!_ostrstr)
+   if (!_strstrm)
       delete mesh_file;
 }
 
@@ -293,9 +293,9 @@ std::string DataCollection::GetFieldFileName(const std::string &field_name)
    return file_name;
 }
 
-void DataCollection::SaveOneField(const FieldMapIterator &it, std::ostringstream *_ostrstr)
+void DataCollection::SaveOneField(const FieldMapIterator &it, std::stringstream *_strstrm)
 {
-   std::ostream *field_file = _ostrstr;
+   std::ostream *field_file = _strstrm;
    if (!field_file)
        field_file = new std::ofstream(GetFieldFileName(it->first).c_str());
    if (!field_file || !field_file->good())
@@ -311,13 +311,13 @@ void DataCollection::SaveOneField(const FieldMapIterator &it, std::ostringstream
       error = WRITE_ERROR;
       MFEM_WARNING("Error writing field to file: " << it->first);
    }
-   if (!_ostrstr)
+   if (!_strstrm)
       delete field_file;
 }
 
-void DataCollection::SaveOneQField(const QFieldMapIterator &it, std::ostringstream *_ostrstr)
+void DataCollection::SaveOneQField(const QFieldMapIterator &it, std::stringstream *_strstrm)
 {
-   std::ostream *q_field_file = _ostrstr;
+   std::ostream *q_field_file = _strstrm;
    if (!q_field_file)
       q_field_file = new std::ofstream(GetFieldFileName(it->first).c_str());
    if (!q_field_file || !q_field_file->good())
@@ -333,7 +333,7 @@ void DataCollection::SaveOneQField(const QFieldMapIterator &it, std::ostringstre
       error = WRITE_ERROR;
       MFEM_WARNING("Error writing q-field to file: " << it->first);
    }
-   if (!_ostrstr)
+   if (!_strstrm)
       delete q_field_file;
 }
 
@@ -642,7 +642,9 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
 
 #ifdef MFEM_USE_HDF5
 #include <hdf5.h>
-#include <libgen.h>
+#include <libgen.h> // for basename, may relplace with find_last_of('/')
+
+#include <vector>
 
 /* useful macro for comparing HDF5 versions */
 #define HDF5_VERSION_GE(Maj,Min,Rel)  \
@@ -677,34 +679,188 @@ void Hdf5ZfpDataCollection::SaveMesh(hid_t fid)
    }
 }
 #endif
-void
-Hdf5ZfpDataCollection::SaveMeshInStringStreamToHDF5(hid_t fid, std::string const &str)
+
+template <class T> static std::vector<T>
+GetLinesToVec(std::stringstream &strm, int nlines, int nfixed, int sizer,
+    int &d2size, int &etag, int &etyp)
 {
-    int ndims = 1;
-    hsize_t dims = (hsize_t) str.size();
-    hid_t spid = H5Screate_simple(ndims, &dims, 0);
+    int const elsiz[6] = {1,2,3,4,4,8};
+    std::vector<T> veca; // all data
+    std::vector<T> vecb; // nfixed data stripped
+    d2size = etag = etyp = -1;
+    for (int l = 0; l < nlines; l++)
+    {
+        int size = 0;
+        for (int f = 0; f < nfixed; f++)
+        {
+            T val;
+            strm >> val;
+            veca.push_back(val);
+            if (sizer >= 0)
+            {
+                if (f == sizer)
+                    size = elsiz[(int)val];
+            }
+            else
+            {
+                vecb.push_back(val);
+            }
+        }
+        for (int v = 0; v < size; v++)
+        {
+            T val;
+            strm >> val;
+            veca.push_back(val);
+            vecb.push_back(val);
+        }
+        if (l == 0)
+        {
+            d2size = size;
+            etag = veca[0];
+            etyp = veca[1];
+        }
+        else
+        {
+            if (d2size != size)
+                d2size = -1; 
+        }
+    }
+    if (sizer >= 0)
+    {
+        if (d2size == -1)
+            return veca; // C++-11 and RVO in most compilers ==> !copy
+        else
+            return vecb; // C++-11 and RVO in most compilers ==> !copy
+    }
+    return vecb; // C++-11 and RVO in most compilers ==> !copy
+}
+
+// convenienc functions for templetizing HDF5 types
+inline hid_t HDF5Type(const int &) { return H5T_NATIVE_INT; }
+inline hid_t HDF5Type(const float &) { return H5T_NATIVE_FLOAT; }
+inline hid_t HDF5Type(const double &) { return H5T_NATIVE_DOUBLE; }
+template <typename T>
+inline hid_t HDF5Type() { return HDF5Type(T()); }
+
+template <class T> static void
+WriteVecToHDF5(hid_t fid, char const *name, std::vector<T> const &vec,
+    int d2size, int attrA, int attrB)
+{
+    hsize_t d2s = d2size>1?d2size:1;
+    hsize_t siz2d[2] = {(hsize_t) vec.size() / d2s, d2s};
+    hid_t spid = H5Screate_simple(d2size>1?2:1, siz2d, 0);
+#warning CREATE ATTRIBUTE DATA
 #if HDF5_VERSION_GE(1,8,0)
-    hid_t dsid = H5Dcreate(fid, "foo", H5T_NATIVE_CHAR, spid, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t dsid = H5Dcreate(fid, name, HDF5Type<T>(), spid, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 #else
-    hid_t dsid = H5Dcreate(fid, "foo", H5T_NATIVE_CHAR, spid, H5P_DEFAULT);
+    hid_t dsid = H5Dcreate(fid, name, HDF5Type<T>(), spid, H5P_DEFAULT);
 #endif
-    H5Dwrite(dsid, H5T_NATIVE_CHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, &str[0]);
+    H5Dwrite(dsid, HDF5Type<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, &vec[0]);
     H5Dclose(dsid);
     H5Sclose(spid);
 }
 
 void
-Hdf5ZfpDataCollection::SaveFieldInStringStreamToHDF5(
-    hid_t fid, std::string const &name, std::string const &str)
+Hdf5ZfpDataCollection::SaveMfemStringStreamToHDF5(
+    hid_t fid, std::string const &name, std::stringstream &strstrm)
 {
-    int ndims = 1;
-    hsize_t dims = (hsize_t) str.size();
-    hid_t spid = H5Screate_simple(ndims, &dims, 0);
+    std::string const &str = strstrm.str();
+    hsize_t len = (hsize_t) str.size();
+    hid_t spid = H5Screate_simple(1, &len, 0);
+    int ndims = 0, nels = 0, nbnd = 0, nverts = 0, vertsize = 0;
+    int eltyp;
     char bname[512];
+
     strncpy(bname, name.c_str(), sizeof(bname));
     bname[511] = '\0';
 
-std::cout << "name = \"" << name << "\"" << std::endl;
+    if (name == "mesh")
+    {
+        size_t n;
+
+        // read dimension
+        n = str.find("\ndimension\n");
+        if (n == str.npos)
+        {
+            error = WRITE_ERROR;
+            MFEM_WARNING("Error finding dimension.");
+            return;
+        }
+        strstrm.clear();
+        strstrm.seekg(n+11);
+        strstrm >> ndims;
+
+        // read element count
+        n = str.find("\nelements\n", n);
+        if (n == str.npos)
+        {
+            error = WRITE_ERROR;
+            MFEM_WARNING("Error element count.");
+            return;
+        }
+        strstrm.clear();
+        strstrm.seekg(n+10);
+        strstrm >> nels;
+
+        // Get nels lines of main topology data and write to HDF5
+        int d2size, etag, etyp;
+        std::vector<int> topodata =
+            GetLinesToVec<int>(strstrm, nels, 2, 1, d2size, etag, etyp);
+        WriteVecToHDF5<int>(fid, (name+"_topo").c_str(), topodata, d2size, etag, etyp);
+        topodata.clear(); // get rid of bulk data
+
+#if 0
+        bool nozfp = false;
+        if (elmap[2] || elmap[4]) // no tris or tets
+            nozfp = true;
+        int emsum = 0;
+        for (int i = 0; i < (int) sizeof(elmap)/sizeof(elmap[0]); emsum+=elmap[i], i++);
+        if (emsum > 1) // only one elem type
+            nozfp = true;
+        if (nozfp) 
+            MFEM_WARNING("ZFP compression not possible on this mesh.");
+#endif
+
+        // read boundary info
+        strstrm.clear();
+        n = strstrm.tellg();
+        n = str.find("\nboundary\n", n);
+        if (n == str.npos)
+        {
+            error = WRITE_ERROR;
+            MFEM_WARNING("Error finding boundary section.");
+            return;
+        }
+        strstrm.seekg(n+10);
+        strstrm >> nbnd;
+
+        // Get nbnd lines of boundary topology data and write to HDF5
+        std::vector<int> bnd_topodata =
+            GetLinesToVec<int>(strstrm, nbnd, 2, 1, d2size, etag, etyp);
+        WriteVecToHDF5<int>(fid, ("bnd_"+name+"_topo").c_str(), bnd_topodata, d2size, etag, etyp);
+        bnd_topodata.clear(); // get rid of bulk data
+        strstrm.clear();
+        n = strstrm.tellg();
+
+        // read vertices info
+        n = str.find("\nvertices\n", n);
+        if (n == str.npos)
+        {
+            error = WRITE_ERROR;
+            MFEM_WARNING("Error finding vertex section.");
+            return;
+        }
+        strstrm.seekg(n+10);
+        strstrm >> nverts;
+        strstrm >> vertsize;
+
+        // Get nverts lines of vertex data and write to HDF5
+        std::vector<double> vertdata =
+            GetLinesToVec<double>(strstrm, nverts, vertsize, -1, d2size, etag, etyp);
+        WriteVecToHDF5<double>(fid, "vertices", vertdata, vertsize, etag, etyp);
+        vertdata.clear(); // get rid of bulk data
+    }
+
 #if HDF5_VERSION_GE(1,8,0)
     hid_t dsid = H5Dcreate(fid, basename(bname), H5T_NATIVE_CHAR, spid, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 #else
@@ -754,8 +910,8 @@ void Hdf5ZfpDataCollection::Save()
    // Would be best to use a compressed stream here. But, gzstream is for
    // *file* streams and won't work on string streams alone.
    std::string dir_name;
-   std::ostringstream ostrstr;
-   SaveMesh(&dir_name, &ostrstr);
+   std::stringstream strstrm;
+   SaveMesh(&dir_name, &strstrm);
    if (error) { return; }
 
    // Create HDF5 File
@@ -767,23 +923,24 @@ void Hdf5ZfpDataCollection::Save()
    }
 
    hid_t fid = H5Fcreate(file_name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-   SaveMeshInStringStreamToHDF5(fid, ostrstr.str());
-   ostrstr.str("");
+   SaveMfemStringStreamToHDF5(fid, "mesh", strstrm);
+   if (error) { return; }
+   strstrm.str("");
 
    for (FieldMapIterator it = field_map.begin(); it != field_map.end(); ++it)
    {
-      SaveOneField(it, &ostrstr);
-      SaveFieldInStringStreamToHDF5(fid, GetFieldFileName(it->first), ostrstr.str());
-      ostrstr.str("");
+      SaveOneField(it, &strstrm);
+      SaveMfemStringStreamToHDF5(fid, GetFieldFileName(it->first), strstrm);
+      strstrm.str("");
       // Even if there is an error, try saving the other fields
    }
 
    for (QFieldMapIterator it = q_field_map.begin(); it != q_field_map.end();
         ++it)
    {
-      SaveOneQField(it, &ostrstr);
-      SaveFieldInStringStreamToHDF5(fid, GetFieldFileName(it->first), ostrstr.str());
-      ostrstr.str("");
+      SaveOneQField(it, &strstrm);
+      SaveMfemStringStreamToHDF5(fid, GetFieldFileName(it->first), strstrm);
+      strstrm.str("");
    }
 
    H5Fclose(fid);

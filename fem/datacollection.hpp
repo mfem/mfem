@@ -102,10 +102,10 @@ protected:
    std::string GetFieldFileName(const std::string &field_name);
 
    /// Save one field to disk, assuming the collection directory exists
-   void SaveOneField(const FieldMapIterator &it, std::ostringstream*p=0);
+   void SaveOneField(const FieldMapIterator &it, std::stringstream*p=0);
 
    /// Save one q-field to disk, assuming the collection directory exists
-   void SaveOneQField(const QFieldMapIterator &it, std::ostringstream*p=0);
+   void SaveOneQField(const QFieldMapIterator &it, std::stringstream*p=0);
 
    // Helper method
    static int create_directory(const std::string &dir_name,
@@ -212,7 +212,7 @@ public:
        time-dependent simulations. */
    virtual void Save();
    /// Save the mesh, creating the collection directory.
-   virtual void SaveMesh(std::string*s=0,std::ostringstream*p=0);
+   virtual void SaveMesh(std::string*s=0,std::stringstream*p=0);
    /// Save one field, assuming the collection directory already exists.
    virtual void SaveField(const std::string &field_name);
    /// Save one q-field, assuming the collection directory already exists.
@@ -307,8 +307,7 @@ class Hdf5ZfpDataCollection : public DataCollection
 protected:
     hid_t fid; // hdf5 file id
 
-    void SaveMeshInStringStreamToHDF5(hid_t fid, std::string const &str);
-    void SaveFieldInStringStreamToHDF5(hid_t fid, std::string const &name, std::string const &str);
+    void SaveMfemStringStreamToHDF5(hid_t fid, std::string const &name, std::stringstream &strstrm);
 
 public:
     Hdf5ZfpDataCollection(const std::string &name, Mesh *mesh_ = NULL);
