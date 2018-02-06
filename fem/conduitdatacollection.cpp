@@ -49,7 +49,7 @@ ConduitDataCollection::ConduitDataCollection(const std::string& coll_name,
 
 #ifdef MFEM_USE_MPI
 //---------------------------------------------------------------------------//
-ConduitDataCollection::ConduitDataCollection(MPI_Comm comm, 
+ConduitDataCollection::ConduitDataCollection(MPI_Comm comm,
                                              const std::string& coll_name)
    : DataCollection(coll_name, NULL),
      relay_protocol("hdf5")
@@ -987,7 +987,7 @@ ConduitDataCollection::LoadRootFile(Node &root_out)
                                  0, // root
                                  m_comm); // comm
 
-      if(mpi_status != MPI_SUCCESS)
+      if (mpi_status != MPI_SUCCESS)
       {
          MFEM_ABORT("Broadcast of root file json string size failed");
       }
@@ -999,7 +999,7 @@ ConduitDataCollection::LoadRootFile(Node &root_out)
                              0, // root
                              m_comm); // comm
 
-      if(mpi_status != MPI_SUCCESS)
+      if (mpi_status != MPI_SUCCESS)
       {
          MFEM_ABORT("Broadcast of root file json string failed");
       }
@@ -1018,7 +1018,7 @@ ConduitDataCollection::LoadRootFile(Node &root_out)
                                  0, // root
                                  m_comm); // comm
 
-      if(mpi_status != MPI_SUCCESS)
+      if (mpi_status != MPI_SUCCESS)
       {
          MFEM_ABORT("Broadcast of root file json string size failed");
       }
@@ -1031,7 +1031,7 @@ ConduitDataCollection::LoadRootFile(Node &root_out)
                              0, // root
                              m_comm); // comm
 
-      if(mpi_status != MPI_SUCCESS)
+      if (mpi_status != MPI_SUCCESS)
       {
          MFEM_ABORT("Broadcast of root file json string failed");
       }
