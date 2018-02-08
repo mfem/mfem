@@ -280,15 +280,8 @@ int main(int argc, char *argv[])
       SC = NULL;
 
       // 11. Reconstruction
-      // Create a gridfunction from the right hand side.
-      // It is mostly important for the parallel code,
-      // here it is done this way to make the serial and parallel
-      // codes more similar
-      GridFunction *R = new GridFunction(V_space, rhs_R);
-      GridFunction *F = new GridFunction(W_space, rhs_F);
-
       // Reconstruct the solution u and q from the facet solution lambda
-      AVarf->Reconstruct(R, F, lambda_variable, &q_variable, &u_variable);
+      AVarf->Reconstruct(&rhs_R, &rhs_F, lambda_variable, &q_variable, &u_variable);
 
       // 12. Compute the discretization error
       int order_quad = max(2, 2*order+2);

@@ -189,7 +189,7 @@ public:
                      DenseMatrix *B_local, DenseMatrix *C_local, DenseMatrix *D_local);
 
    /// Reconstructs u and q from the facet unknowns
-   void Reconstruct(const GridFunction *R, const GridFunction *F,
+   void Reconstruct(const Vector *R, const Vector *F,
                     Vector &sol,
                     GridFunction *q, GridFunction *u);
 

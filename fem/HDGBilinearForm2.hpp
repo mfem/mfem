@@ -168,7 +168,7 @@ public:
                                DenseMatrix *D_local);
 
    /// Reconstructs u from the facet unknowns
-   void Reconstruct(const GridFunction *F, const GridFunction *ubar,
+   void Reconstruct(const Vector *F, const Vector *ubar,
                     GridFunction *u);
 
    /// Updates the spaces

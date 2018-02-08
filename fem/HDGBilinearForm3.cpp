@@ -102,7 +102,11 @@ void HDGBilinearForm3::Allocate(Array<int> &bdr_attr_is_ess, const double memA,
    mesh->GetEdgeToBdrFace(Edge_to_Be);
 
    // Get the list of the faces of every element
-   el_to_face = mesh->GetElementEdges();
+   if (mesh->Dimension() == 2)
+      el_to_face = new Table(mesh->ElementToEdgeTable());
+   else if (mesh->Dimension() == 3)
+      el_to_face = new Table(mesh->ElementToFaceTable());
+
 
    if (mat == NULL)
    {
@@ -491,7 +495,7 @@ void HDGBilinearForm3::Eliminate_BC(const Array<int> &vdofs_e1,
 }
 
 // Reconstruct u and q from the facet solution
-void HDGBilinearForm3::Reconstruct(const GridFunction *R, const GridFunction *F,
+void HDGBilinearForm3::Reconstruct(const Vector *R, const Vector *F,
                                    Vector &sol,
                                    GridFunction *q, GridFunction *u)
 {

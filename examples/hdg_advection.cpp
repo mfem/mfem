@@ -272,16 +272,8 @@ int main(int argc, char *argv[])
       SC = NULL;
 
       // 10. Reconstruction
-      // Create a grid function from the solution to the linear system
-      ubar = GridFunction(Uhbar_space, UBAR);
-
-      // Create a gridfunction from the right hand side.
-      // It is mostly important for the parallel code,
-      // here it is done this way to make the 2 codes more similar
-      GridFunction *F = new GridFunction(Uh_space, rhs_F);
-
       // Reconstruct the solution u from the facet solution ubar
-      AVarf->Reconstruct(F, &ubar, &u);
+      AVarf->Reconstruct(&rhs_F, &UBAR, &u);
 
       // 11. Compute the discretization error
       const int order_quad = max(2, 2*order+2);

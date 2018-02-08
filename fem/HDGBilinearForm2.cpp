@@ -101,7 +101,10 @@ void HDGBilinearForm2::Allocate(const double memA, const double memB)
    mesh->GetEdgeToBdrFace(Edge_to_Be);
 
    // Get the list of the faces of every elementbdr
-   el_to_face = mesh->GetElementEdges();
+   if (mesh->Dimension() == 2)
+      el_to_face = new Table(mesh->ElementToEdgeTable());
+   else if (mesh->Dimension() == 3)
+      el_to_face = new Table(mesh->ElementToFaceTable());
 
    if (mat == NULL)
    {
@@ -394,8 +397,8 @@ void HDGBilinearForm2::compute_face_integrals(const int elem,
 }
 
 // Reconstruct u from the facet solution
-void HDGBilinearForm2::Reconstruct(const GridFunction *F,
-                                   const GridFunction *ubar, GridFunction *u)
+void HDGBilinearForm2::Reconstruct(const Vector *F,
+                                   const Vector *ubar, GridFunction *u)
 {
    DenseMatrix A_local;
    Vector u_local, F_local, ubar_local, Bubar_local;
