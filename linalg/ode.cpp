@@ -94,14 +94,15 @@ void RK3SSPSolver::Step(Vector &x, double &t, double &dt)
 void RK4Solver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
-   int n = f->Width();
-   y.SetSize(n);
-   k.SetSize(n);
-   z.SetSize(n);
 }
 
 void RK4Solver::Step(Vector &x, double &t, double &dt)
 {
+   int n = f->Width();
+   y.SetSize(n);
+   k.SetSize(n);
+   z.SetSize(n);
+
    //   0  |
    //  1/2 | 1/2
    //  1/2 |  0   1/2
