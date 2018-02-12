@@ -105,6 +105,10 @@ MFEM_USE_PETSC       = NO
 MFEM_USE_MPFR        = NO
 MFEM_USE_SIDRE       = NO
 
+# Compile and link options for zlib.
+ZLIB_OPT =
+ZLIB_LIB = -lz
+
 LIBUNWIND_OPT = -g
 LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
 
