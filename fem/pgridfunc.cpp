@@ -67,6 +67,16 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
    }
 }
 
+ParGridFunction::ParGridFunction(ParMesh *pmesh, std::istream &input)
+   : GridFunction(pmesh, input)
+{
+   // Convert the FiniteElementSpace, fes, to a ParFiniteElementSpace:
+   pfes = new ParFiniteElementSpace(pmesh, fec, fes->GetVDim(),
+                                    fes->GetOrdering());
+   delete fes;
+   fes = pfes;
+}
+
 void ParGridFunction::Update()
 {
    face_nbr_data.Destroy();
@@ -514,7 +524,7 @@ double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm)
 {
    double glob_norm;
 
-   if (p < numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       // negative quadrature weights may cause the error to be negative
       if (loc_norm < 0.0)

@@ -43,8 +43,8 @@ doc/CodeDocumentation
 
 examples/ex[1-9]
 examples/ex[1-9]p
-examples/ex1[04-8]
-examples/ex1[0-8]p
+examples/ex1[04-9]
+examples/ex1[0-9]p
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -74,6 +74,8 @@ examples/vortex-mesh.*
 examples/vortex.mesh
 examples/vortex-?-init.*
 examples/vortex-?-final.*
+examples/deformation.*
+examples/pressure.*
 
 examples/sundials/ex9
 examples/sundials/ex1[06]
@@ -143,6 +145,7 @@ miniapps/performance/mesh.*
 miniapps/performance/sol.*
 
 miniapps/tools/display-basis
+miniapps/tools/load-dc
 
 miniapps/nurbs/ex1
 miniapps/nurbs/ex1p

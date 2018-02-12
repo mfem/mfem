@@ -68,6 +68,13 @@ public:
    ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
                    const int *partitioning = NULL);
 
+   /** @brief Construct a ParGridFunction on a given ParMesh, @a pmesh, reading
+       from an std::istream.
+
+       In the process, a ParFiniteElementSpace and a FiniteElementCollection are
+       constructed. The new ParGridFunction assumes ownership of both. */
+   ParGridFunction(ParMesh *pmesh, std::istream &input);
+
    /// Assign constant values to the ParGridFunction data.
    ParGridFunction &operator=(double value)
    { GridFunction::operator=(value); return *this; }
@@ -226,7 +233,7 @@ public:
    virtual double ComputeMaxError(Coefficient *exsol[],
                                   const IntegrationRule *irs[] = NULL) const
    {
-      return GlobalLpNorm(std::numeric_limits<double>::infinity(),
+      return GlobalLpNorm(infinity(),
                           GridFunction::ComputeMaxError(exsol, irs),
                           pfes->GetComm());
    }
@@ -234,15 +241,13 @@ public:
    virtual double ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
-      return ComputeLpError(std::numeric_limits<double>::infinity(),
-                            exsol, NULL, irs);
+      return ComputeLpError(infinity(), exsol, NULL, irs);
    }
 
    virtual double ComputeMaxError(VectorCoefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
-      return ComputeLpError(std::numeric_limits<double>::infinity(),
-                            exsol, NULL, NULL, irs);
+      return ComputeLpError(infinity(), exsol, NULL, NULL, irs);
    }
 
    virtual double ComputeLpError(const double p, Coefficient &exsol,
