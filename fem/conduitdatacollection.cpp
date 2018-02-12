@@ -49,9 +49,10 @@ ConduitDataCollection::ConduitDataCollection(const std::string& coll_name,
 
 #ifdef MFEM_USE_MPI
 //---------------------------------------------------------------------------//
-ConduitDataCollection::ConduitDataCollection(MPI_Comm comm, 
-                                             const std::string& coll_name)
-   : DataCollection(coll_name, NULL),
+ConduitDataCollection::ConduitDataCollection(MPI_Comm comm,
+                                             const std::string& coll_name,
+                                             Mesh *mesh)
+   : DataCollection(coll_name, mesh),
      relay_protocol("hdf5")
 {
    m_comm = comm;
@@ -136,6 +137,18 @@ ConduitDataCollection::Load(int cycle)
    Node n_root;
    LoadRootFile(n_root);
    relay_protocol = n_root["protocol/name"].as_string();
+
+   // for MPI case, we assume that we have # of mpi tasks
+   //  == number of domains
+
+   int num_domains = n_root["number_of_trees"].to_int();
+
+   if (num_procs != num_domains)
+   {
+      error = READ_ERROR;
+      MFEM_WARNING("num_procs must equal num_domains");
+      return;
+   }
 
    // load the mesh and fields
    LoadMeshAndFields(myid,relay_protocol);
@@ -478,7 +491,7 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
 {
    // n_conv holds converted data (when necessary for mfem api)
    // if n_conv is used ( !n_conv.dtype().empty() ) we
-   // now that some data allocation was necessary, so we
+   // know that some data allocation was necessary, so we
    // can't return a gf that zero copies the conduit data
    Node n_conv;
 
@@ -587,9 +600,12 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
    }
    else
    {
-      // copy case
-      res = new GridFunction(fes,NULL);
-      res->NewDataAndSize(const_cast<double*>(vals_ptr),fes->GetVSize());
+      // copy case, this constructor will alloc the space for the GF data
+      res = new GridFunction(fes);
+      // create an mfem vector that wraps the conduit data
+      Vector vals_vec(const_cast<double*>(vals_ptr),fes->GetVSize());
+      // copy values into the result
+      (*res) = vals_vec;
    }
 
    // TODO: I believe the GF already has ownership of fes, so this
@@ -987,7 +1003,7 @@ ConduitDataCollection::LoadRootFile(Node &root_out)
                                  0, // root
                                  m_comm); // comm
 
-      if(mpi_status != MPI_SUCCESS)
+      if (mpi_status != MPI_SUCCESS)
       {
          MFEM_ABORT("Broadcast of root file json string size failed");
       }
@@ -999,7 +1015,7 @@ ConduitDataCollection::LoadRootFile(Node &root_out)
                              0, // root
                              m_comm); // comm
 
-      if(mpi_status != MPI_SUCCESS)
+      if (mpi_status != MPI_SUCCESS)
       {
          MFEM_ABORT("Broadcast of root file json string failed");
       }
@@ -1018,7 +1034,7 @@ ConduitDataCollection::LoadRootFile(Node &root_out)
                                  0, // root
                                  m_comm); // comm
 
-      if(mpi_status != MPI_SUCCESS)
+      if (mpi_status != MPI_SUCCESS)
       {
          MFEM_ABORT("Broadcast of root file json string size failed");
       }
@@ -1031,7 +1047,7 @@ ConduitDataCollection::LoadRootFile(Node &root_out)
                              0, // root
                              m_comm); // comm
 
-      if(mpi_status != MPI_SUCCESS)
+      if (mpi_status != MPI_SUCCESS)
       {
          MFEM_ABORT("Broadcast of root file json string failed");
       }
@@ -1056,6 +1072,7 @@ ConduitDataCollection::LoadMeshAndFields(int domain_id,
 
    Node n_mesh;
    relay::io::load( MeshFileName(domain_id, relay_protocol), n_mesh);
+
 
    Node verify_info;
    if (!blueprint::mesh::verify(n_mesh,verify_info))

@@ -118,7 +118,8 @@ public:
                          Mesh *mesh = NULL);
 #ifdef MFEM_USE_MPI
    /// Construct a parallel ConduitDataCollection.
-   ConduitDataCollection(MPI_Comm comm, const std::string& collection_name);
+   ConduitDataCollection(MPI_Comm comm, const std::string& collection_name,
+                         Mesh *mesh = NULL);
 #endif
 
    /// We will delete the mesh and fields if we own them
