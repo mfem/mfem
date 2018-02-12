@@ -15,7 +15,7 @@ add_mfem_miniapp(display-basis
   LIBRARIES mfem mfem_miniapps_common)
 
 add_mfem_miniapp(load-dc
-    MAIN load-dc.cpp LIBRARIES mfem)
+  MAIN load-dc.cpp LIBRARIES mfem)
 
 add_mfem_miniapp(convert-dc
-    MAIN convert-dc.cpp LIBRARIES mfem)
+  MAIN convert-dc.cpp LIBRARIES mfem)
