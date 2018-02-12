@@ -35,9 +35,14 @@ protected:
 
    long sequence; // see FiniteElementSpace::sequence, Mesh::sequence
 
+   /** Optional, internal true-dof vector: if the FiniteElementSpace #fes has a
+       non-trivial (i.e. not NULL) prolongation operator, this Vector may hold
+       associated true-dof values - either owned or external. */
+   Vector t_vec;
+
    void SaveSTLTri(std::ostream &out, double p1[], double p2[], double p3[]);
 
-   void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh);
+   void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
 
    // Project the delta coefficient without scaling and return the (local)
    // integral of the projection.
@@ -94,12 +99,27 @@ public:
 
    int VectorDim() const;
 
+   /// Read only access to the (optional) internal true-dof Vector.
+   /** Note that the returned Vector may be empty, if not previously allocated
+       or set. */
+   const Vector &GetTrueVector() const { return t_vec; }
+   /// Read and write access to the (optional) internal true-dof Vector.
+   /** Note that the returned Vector may be empty, if not previously allocated
+       or set. */
+   Vector &GetTrueVector() { return t_vec; }
+
    /// @brief Extract the true-dofs from the GridFunction. If all dofs are true,
    /// then `tv` will be set to point to the data of `*this`.
    void GetTrueDofs(Vector &tv) const;
 
+   /// Shortcut for calling GetTrueDofs() with GetTrueVector() as argument.
+   void SetTrueVector() { GetTrueDofs(GetTrueVector()); }
+
    /// Set the GridFunction from the given true-dof vector.
    virtual void SetFromTrueDofs(const Vector &tv);
+
+   /// Shortcut for calling SetFromTrueDofs() with GetTrueVector() as argument.
+   void SetFromTrueVector() { SetFromTrueDofs(GetTrueVector()); }
 
    /// Returns the values in the vertices of i'th element for dimension vdim.
    void GetNodalValues(int i, Array<double> &nval, int vdim = 1) const;
@@ -127,9 +147,9 @@ public:
    int GetFaceVectorValues(int i, int side, const IntegrationRule &ir,
                            DenseMatrix &vals, DenseMatrix &tr) const;
 
-   void GetValuesFrom(GridFunction &);
+   void GetValuesFrom(const GridFunction &orig_func);
 
-   void GetBdrValuesFrom(GridFunction &);
+   void GetBdrValuesFrom(const GridFunction &orig_func);
 
    void GetVectorFieldValues(int i, const IntegrationRule &ir,
                              DenseMatrix &vals,
@@ -147,21 +167,21 @@ public:
 
    void GetDerivative(int comp, int der_comp, GridFunction &der);
 
-   double GetDivergence(ElementTransformation &tr);
+   double GetDivergence(ElementTransformation &tr) const;
 
-   void GetCurl(ElementTransformation &tr, Vector &curl);
+   void GetCurl(ElementTransformation &tr, Vector &curl) const;
 
-   void GetGradient(ElementTransformation &tr, Vector &grad);
+   void GetGradient(ElementTransformation &tr, Vector &grad) const;
 
    void GetGradients(const int elem, const IntegrationRule &ir,
-                     DenseMatrix &grad);
+                     DenseMatrix &grad) const;
 
-   void GetVectorGradient(ElementTransformation &tr, DenseMatrix &grad);
+   void GetVectorGradient(ElementTransformation &tr, DenseMatrix &grad) const;
 
    /** Compute \f$ (\int_{\Omega} (*this) \psi_i)/(\int_{\Omega} \psi_i) \f$,
        where \f$ \psi_i \f$ are the basis functions for the FE space of avgs.
        Both FE spaces should be scalar and on the same mesh. */
-   void GetElementAverages(GridFunction &avgs);
+   void GetElementAverages(GridFunction &avgs) const;
 
    /** Impose the given bounds on the function's DOFs while preserving its local
     *  integral (described in terms of the given weights) on the i'th element
@@ -170,7 +190,7 @@ public:
    void ImposeBounds(int i, const Vector &weights,
                      const Vector &_lo, const Vector &_hi);
    void ImposeBounds(int i, const Vector &weights,
-                     double _min = 0.0, double _max = std::numeric_limits<double>::infinity());
+                     double _min = 0.0, double _max = infinity());
 
    /** Project the given 'src' GridFunction to 'this' GridFunction, both of
        which must be on the same mesh. The current implementation assumes that
@@ -248,8 +268,7 @@ public:
    virtual double ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
-      return ComputeLpError(std::numeric_limits<double>::infinity(),
-                            exsol, NULL, irs);
+      return ComputeLpError(infinity(), exsol, NULL, irs);
    }
 
    virtual double ComputeMaxError(Coefficient *exsol[],
@@ -258,8 +277,7 @@ public:
    virtual double ComputeMaxError(VectorCoefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
-      return ComputeLpError(std::numeric_limits<double>::infinity(),
-                            exsol, NULL, NULL, irs);
+      return ComputeLpError(infinity(), exsol, NULL, NULL, irs);
    }
 
    virtual double ComputeL1Error(Coefficient &exsol,
@@ -328,6 +346,25 @@ public:
        @note This version of the method will also perform bounds checks when
        the build option MFEM_DEBUG is enabled. */
    virtual void MakeRef(FiniteElementSpace *f, Vector &v, int v_offset);
+
+   /** @brief Associate a new FiniteElementSpace and new true-dof data with the
+       GridFunction. */
+   /** - If the prolongation matrix of @a f is trivial (i.e. its method
+         FiniteElementSpace::GetProlongationMatrix() returns NULL), then the
+         method MakeRef() is called with the same arguments.
+       - Otherwise, the method SetSpace() is called with argument @a f.
+       - The internal true-dof vector is set to reference @a tv. */
+   void MakeTRef(FiniteElementSpace *f, double *tv);
+
+   /** @brief Associate a new FiniteElementSpace and new true-dof data with the
+       GridFunction. */
+   /** - If the prolongation matrix of @a f is trivial (i.e. its method
+         FiniteElementSpace::GetProlongationMatrix() returns NULL), this method
+         calls MakeRef() with the same arguments.
+       - Otherwise, this method calls SetSpace() with argument @a f.
+       - The internal true-dof vector is set to reference the sub-vector of
+         @a tv starting at the offset @a tv_offset. */
+   void MakeTRef(FiniteElementSpace *f, Vector &tv, int tv_offset);
 
    /// Save the GridFunction to an output stream.
    virtual void Save(std::ostream &out) const;
