@@ -65,12 +65,12 @@ DataCollection *create_data_collection(const std::string &dc_name,
              dc_type == "hdf5")
    {
 #ifdef MFEM_USE_CONDUIT
-   #ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_MPI
       ConduitDataCollection *conduit_dc = new ConduitDataCollection(MPI_COMM_WORLD,
                                                                     dc_name);
-   #else
+#else
       ConduitDataCollection *conduit_dc = new ConduitDataCollection(dc_name);
-   #endif
+#endif
       conduit_dc->SetProtocol(dc_type);
       dc = conduit_dc;
 #else
@@ -152,7 +152,13 @@ int main(int argc, char *argv[])
    out->SetOwnData(false);
 
    // add mesh from source dc to output dc
+#ifdef MFEM_USE_MPI
+   out->SetMesh(MPI_COMM_WORLD,src->GetMesh());
+#else
+
    out->SetMesh(src->GetMesh());
+#endif
+
 
    // propagate the basics
    out->SetCycle(src->GetCycle());

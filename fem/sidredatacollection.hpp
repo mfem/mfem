@@ -256,6 +256,13 @@ public:
        to register the mesh nodes GridFunction, if the mesh uses nodes. */
    virtual void SetMesh(Mesh *new_mesh);
 
+#ifdef MFEM_USE_MPI
+   /// Set/change the mesh associated with the collection
+   /** Uses the field name "mesh_nodes" or the value set by SetMeshNodesName()
+       to register the mesh nodes GridFunction, if the mesh uses nodes. */
+   virtual void SetMesh(MPI_Comm comm, Mesh *new_mesh);
+#endif
+
    /// Reset the domain and global datastore group pointers.
    /** These are set in the constructor, but if a host code changes the
        datastore contents ( such as wiping out the datastore and loading in new

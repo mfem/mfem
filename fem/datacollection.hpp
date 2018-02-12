@@ -188,7 +188,18 @@ public:
    /// Get a pointer to the mesh in the collection
    Mesh *GetMesh() { return mesh; }
    /// Set/change the mesh associated with the collection
+   /** When passed a Mesh, assumes the serial case:
+       MPI rank id is set to 0 and MPI num_procs is set to 1.
+       When passed a ParMesh, MPI info from the ParMesh is used to set
+       the DataCollection's MPI rank id and MPI num_procs. */
    virtual void SetMesh(Mesh *new_mesh);
+#ifdef MFEM_USE_MPI
+   /// Set/change the mesh associated with the collection.
+   /** For this case, @a comm is used to set the DataCollection's
+       MPI rank id and MPI num_procs, which influences the how
+       files are saved for domain decomposed meshes. */
+   virtual void SetMesh(MPI_Comm comm, Mesh *new_mesh);
+#endif
 
    /// Set time cycle (for time-dependent simulations)
    void SetCycle(int c) { cycle = c; }
@@ -300,11 +311,17 @@ public:
    /// Construct a parallel VisItDataCollection to be loaded from files.
    /** Before loading the collection with Load(), some parameters in the
        collection can be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
-   VisItDataCollection(MPI_Comm comm, const std::string& collection_name);
+   VisItDataCollection(MPI_Comm comm, const std::string& collection_name,
+                       Mesh *mesh_ = NULL);
 #endif
 
    /// Set/change the mesh associated with the collection
    virtual void SetMesh(Mesh *new_mesh);
+
+#ifdef MFEM_USE_MPI
+   /// Set/change the mesh associated with the collection.
+   virtual void SetMesh(MPI_Comm comm, Mesh *new_mesh);
+#endif
 
    /// Add a grid function to the collection and update the root file
    virtual void RegisterField(const std::string& field_name, GridFunction *gf);
