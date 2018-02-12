@@ -65,6 +65,11 @@ New and updated examples and miniapps
 - In the classes NonlinearForm and ParNonlinearForm, added support for
   non-conforming AMR meshes; see also the "API changes" section.
 
+- Added two new miniapps related to DataCollection I/O in miniapps/tools:
+  load-dc.cpp can be used to visualize fields saved via DataCollection classes;
+  convert-dc.cpp demonstrates how to convert between MFEM's different concrete
+  DataCollection options.
+
 - Added a new miniapp: miniapps/tools/load-dc.cpp, that can be used to visualize
   fields saved via DataCollection classes.
 
@@ -78,6 +83,11 @@ Miscellaneous
 -------------
 - Documented project workflow and provided contribution guidelines in the new
   top-level file, CONTRIBUTING.md.
+
+- Added (optional) Conduit Mesh Blueprint support of MFEM data for both in-core
+  and I/O use cases. This includes a new ConduitDataCollection that provides
+  json, simple binary, and HDF5-based I/O. Support requires Conduit >= v0.3.1
+  and VisIt >= v2.13.1 will read the new Data Collection outputs.
 
 - Added a new developer tool, config/sample-runs.sh, that extracts the sample
   runs from all examples and miniapps and runs them. Optionally, it can save the
@@ -117,10 +127,6 @@ API changes
     applied at the true-dof level.
   * The method SetEssentialVDofs() is now deprecated.
 
-- Added (optional) Conduit Mesh Blueprint support of MFEM data for both in-core
-  and I/O use cases. This includes a new ConduitDataCollection that provides
-  json, simple binary, and HDF5-based I/O. Support requires Conduit >= v0.3.1
-  and VisIt >= v2.13.1 will read the new Data Collection outputs.
 
 Version 3.3.2, released on Nov 10, 2017
 =======================================
