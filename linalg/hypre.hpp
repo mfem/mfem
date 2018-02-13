@@ -826,6 +826,12 @@ public:
        As with SetSystemsOptions(), this solver assumes Ordering::byVDIM. */
    void SetElasticityOptions(ParFiniteElementSpace *fespace);
 
+   void SetAIROptions(int block_size=-1,
+                      int distance=2,  std::string prerelax="",
+                      std::string postrelax="FFC", double strength_tol=0.1,
+                      int interp_type=100, int relax_type=0, double filterA_tol=0.0, 
+                      int splitting=6);
+
    void SetPrintLevel(int print_level)
    { HYPRE_BoomerAMGSetPrintLevel(amg_precond, print_level); }
 
