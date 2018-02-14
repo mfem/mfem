@@ -62,15 +62,49 @@ typedef ND_FiniteElementSpace<sol_fe_t>       sol_fes_t;
 // Static quadrature, coefficient and integrator types
 typedef TIntegrationRule<geom,ir_order>       int_rule_t;
 typedef TConstantCoefficient<>                coeff_t;
-//typedef TIntegrator<coeff_t,THcurlMassKernel> integ_t;
-typedef TIntegrator<coeff_t,THcurlcurlKernel> integ_t;
+typedef TIntegrator<coeff_t,THcurlMassKernel> mass_integ_t;
+typedef TIntegrator<coeff_t,THcurlcurlKernel> curl_integ_t;
 
 typedef NDShapeEvaluator<sol_fe_t,int_rule_t>  sol_Shape_Eval;
 typedef NDFieldEvaluator<sol_fes_t,ScalarLayout,int_rule_t> sol_Field_Eval;
 
 // Static bilinear form type, combining the above types
-typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t,sol_Shape_Eval,sol_Field_Eval>
-HPCBilinearForm;
+typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,
+                      mass_integ_t,sol_Shape_Eval,sol_Field_Eval> HPCMassBilinearForm;
+typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,
+                      curl_integ_t,sol_Shape_Eval,sol_Field_Eval> HPCCurlBilinearForm;
+
+class SumOperator : public Operator
+{
+public:
+   SumOperator(const Operator& a_mass_oper,
+               const Operator& a_curl_oper);
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+private:
+   const Operator& a_mass_oper_;
+   const Operator& a_curl_oper_;
+
+   mutable Vector temp_;
+};
+
+SumOperator::SumOperator(const Operator& a_mass_oper,
+                         const Operator& a_curl_oper)
+   :
+   Operator(a_mass_oper.Height()),
+   a_mass_oper_(a_mass_oper),
+   a_curl_oper_(a_curl_oper),
+   temp_(a_mass_oper.Height())
+{
+}
+
+void SumOperator::Mult(const Vector &x, Vector &y) const
+{
+   a_mass_oper_.Mult(x, y);
+   a_curl_oper_.Mult(x, temp_);
+   y += temp_;
+}
 
 int main(int argc, char *argv[])
 {
@@ -286,7 +320,7 @@ int main(int argc, char *argv[])
 
    // 12. Set up the parallel bilinear form a(.,.) on the finite element space
    //     that will hold the matrix corresponding to the Laplacian operator.
-   ParBilinearForm *a = new ParBilinearForm(fespace);
+   ParBilinearForm *a_form = new ParBilinearForm(fespace);
    ParBilinearForm *a_pc = NULL;
    if (pc_choice == LOR) { a_pc = new ParBilinearForm(fespace_lor); }
    if (pc_choice == HO)  { a_pc = new ParBilinearForm(fespace); }
@@ -297,7 +331,7 @@ int main(int argc, char *argv[])
    //     constraints for non-conforming AMR, static condensation, etc.
    if (static_cond)
    {
-      a->EnableStaticCondensation();
+      a_form->EnableStaticCondensation();
       MFEM_VERIFY(pc_choice != LOR,
                   "cannot use LOR preconditioner with static condensation");
    }
@@ -309,29 +343,35 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
    // Pre-allocate sparsity assuming dense element matrices
-   a->UsePrecomputedSparsity();
+   a_form->UsePrecomputedSparsity();
 
-   HPCBilinearForm *a_hpc = NULL;
+   HPCMassBilinearForm *a_mass_hpc = NULL;
+   HPCCurlBilinearForm *a_curl_hpc = NULL;
    Operator *a_oper = NULL;
+   Operator *a_unconstrained_oper = NULL;
    Coefficient *muinv = new ConstantCoefficient(1.0);
-
+   Coefficient *sigma = new ConstantCoefficient(1.0);
    if (!perf)
    {
       // Standard assembly using a diffusion domain integrator
-      a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
-      a->Assemble();
+      a_form->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
+      a_form->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
+      a_form->Assemble();
    }
    else
    {
       // High-performance assembly/evaluation using the templated operator type
-      a_hpc = new HPCBilinearForm(integ_t(coeff_t(1.0)), *fespace);
+      a_mass_hpc = new HPCMassBilinearForm(mass_integ_t(coeff_t(1.0)), *fespace);
+      a_curl_hpc = new HPCCurlBilinearForm(curl_integ_t(coeff_t(1.0)), *fespace);
       if (matrix_free)
       {
-         a_hpc->Assemble(); // partial assembly
+         a_mass_hpc->Assemble(); // partial assembly
+         a_curl_hpc->Assemble();
       }
       else
       {
-         a_hpc->AssembleBilinearForm(*a); // full matrix assembly
+         a_mass_hpc->AssembleBilinearForm(*a_form); // full matrix assembly
+         a_curl_hpc->AssembleBilinearForm(*a_form);
       }
    }
    tic_toc.Stop();
@@ -340,15 +380,15 @@ int main(int argc, char *argv[])
       cout << " done, " << tic_toc.RealTime() << "s." << endl;
    }
 
-   // 14. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
-   //     preconditioner from hypre.
+   // 14. Define and apply a parallel PCG solver for AX=B
 
    // Setup the operator matrix (if applicable)
    HypreParMatrix A;
    Vector B, X;
    if (perf && matrix_free)
    {
-      a_hpc->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
+      a_unconstrained_oper = new SumOperator(*a_mass_hpc, *a_curl_hpc);
+      a_unconstrained_oper->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
       HYPRE_Int glob_size = fespace->GlobalTrueVSize();
       if (myid == 0)
       {
@@ -357,7 +397,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+      a_form->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
       HYPRE_Int glob_size = A.GetGlobalNumRows();
       if (myid == 0)
       {
@@ -378,6 +418,7 @@ int main(int argc, char *argv[])
    if (pc_choice == LOR)
    {
       // TODO: assemble the LOR matrix using the performance code
+      a_pc->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
       a_pc->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
       a_pc->UsePrecomputedSparsity();
       a_pc->Assemble();
@@ -392,7 +433,8 @@ int main(int argc, char *argv[])
       else
       {
          a_pc->UsePrecomputedSparsity();
-         a_hpc->AssembleBilinearForm(*a_pc);
+         a_mass_hpc->AssembleBilinearForm(*a_pc);
+         a_curl_hpc->AssembleBilinearForm(*a_pc);
          a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
       }
    }
@@ -438,11 +480,11 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    if (perf && matrix_free)
    {
-      a_hpc->RecoverFEMSolution(X, *b, x);
+      a_oper->RecoverFEMSolution(X, *b, x);
    }
    else
    {
-      a->RecoverFEMSolution(X, *b, x);
+      a_form->RecoverFEMSolution(X, *b, x);
    }
 
    // 16. Save the refined mesh and the solution in parallel. This output can
@@ -473,10 +515,13 @@ int main(int argc, char *argv[])
    }
 
    // 18. Free the used memory.
-   delete a;
-   delete a_hpc;
+   delete a_form;
+   delete a_mass_hpc;
+   delete a_curl_hpc;
    delete muinv;
+   delete sigma;
    if (a_oper != &A) { delete a_oper; }
+   delete a_unconstrained_oper;
    delete a_pc;
    delete b;
    delete fespace;
