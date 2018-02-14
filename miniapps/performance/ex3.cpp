@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
       if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
 
-      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+      a->FormLinearSystem(ess_tdof_list, x1, *b1, A, X, B);
 
       SparseMatrix A1;
       Vector B1, X1;
@@ -424,7 +424,7 @@ int main(int argc, char *argv[])
    delete a_mass_hpc;
    delete a_curl_hpc;
    delete a_unconstrained_oper;
-   delete a_oper;
+   if (a_oper != &A) { delete a_oper; }
    delete muinv;
    delete sigma;
    delete b;
