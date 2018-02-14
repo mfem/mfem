@@ -78,23 +78,23 @@ class SumOperator : public Operator
 {
 public:
    SumOperator(const Operator& a_mass_oper,
-               const Operator& a_curl_oper);
+               const Operator& a_der_oper);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
 private:
    const Operator& a_mass_oper_;
-   const Operator& a_curl_oper_;
+   const Operator& a_der_oper_;
 
    mutable Vector temp_;
 };
 
 SumOperator::SumOperator(const Operator& a_mass_oper,
-                         const Operator& a_curl_oper)
+                         const Operator& a_der_oper)
    :
    Operator(a_mass_oper.Height()),
    a_mass_oper_(a_mass_oper),
-   a_curl_oper_(a_curl_oper),
+   a_der_oper_(a_der_oper),
    temp_(a_mass_oper.Height())
 {
 }
@@ -102,7 +102,7 @@ SumOperator::SumOperator(const Operator& a_mass_oper,
 void SumOperator::Mult(const Vector &x, Vector &y) const
 {
    a_mass_oper_.Mult(x, y);
-   a_curl_oper_.Mult(x, temp_);
+   a_der_oper_.Mult(x, temp_);
    y += temp_;
 }
 
