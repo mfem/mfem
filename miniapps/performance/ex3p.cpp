@@ -37,8 +37,6 @@
 using namespace std;
 using namespace mfem;
 
-#define TWO_DIMENSIONS 0
-
 // Exact solution, E, and r.h.s., f. See below for implementation.
 void E_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
@@ -46,11 +44,7 @@ double freq = 1.0, kappa;
 int dim;
 
 // Define template parameters for optimized build.
-#if TWO_DIMENSIONS
-const Geometry::Type geom     = Geometry::SQUARE;
-#else
 const Geometry::Type geom     = Geometry::CUBE; // mesh elements  (default: hex)
-#endif
 const int            mesh_p   = 3;              // mesh curvature (default: 3)
 const int            sol_p    = 3;              // solution order (default: 3)
 const int            rdim     = Geometry::Constants<geom>::Dimension;
@@ -121,11 +115,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
-#if TWO_DIMENSIONS
-   const char *mesh_file = "../../data/beam-quad.mesh";
-#else
    const char *mesh_file = "../../data/beam-hex.mesh";
-#endif
    int ser_ref_levels = -1;
    int par_ref_levels = 1;
    int order = sol_p;
@@ -316,10 +306,21 @@ int main(int argc, char *argv[])
    // 10. Set up the parallel linear form b(.) which corresponds to the
    //     right-hand side of the FEM linear system, which in this case is
    //     (1,phi_i) where phi_i are the basis functions in fespace.
+   if (myid == 0)
+   {
+      cout << "Assembling the right hand side ..." << flush;
+   }
+   tic_toc.Clear();
+   tic_toc.Start();
    VectorFunctionCoefficient f(sdim, f_exact);
    ParLinearForm *b = new ParLinearForm(fespace);
    b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
    b->Assemble();
+   tic_toc.Stop();
+   if (myid == 0)
+   {
+      cout << " done, " << tic_toc.RealTime() << "s." << endl;
+   }
 
    // 11. Define the solution vector x as a parallel finite element grid
    //     function corresponding to fespace. Initialize x with initial guess of
@@ -330,7 +331,7 @@ int main(int argc, char *argv[])
 
    // 12. Set up the parallel bilinear form a(.,.) on the finite element space
    //     that will hold the matrix corresponding to the Laplacian operator.
-   ParBilinearForm *a_form = new ParBilinearForm(fespace);
+   ParBilinearForm *a = new ParBilinearForm(fespace);
    ParBilinearForm *a_pc = NULL;
    if (pc_choice == LOR) { a_pc = new ParBilinearForm(fespace_lor); }
    if (pc_choice == HO)  { a_pc = new ParBilinearForm(fespace); }
@@ -341,7 +342,7 @@ int main(int argc, char *argv[])
    //     constraints for non-conforming AMR, static condensation, etc.
    if (static_cond)
    {
-      a_form->EnableStaticCondensation();
+      a->EnableStaticCondensation();
       MFEM_VERIFY(pc_choice != LOR,
                   "cannot use LOR preconditioner with static condensation");
    }
@@ -353,7 +354,7 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
    // Pre-allocate sparsity assuming dense element matrices
-   a_form->UsePrecomputedSparsity();
+   a->UsePrecomputedSparsity();
 
    HPCMassBilinearForm *a_mass_hpc = NULL;
    HPCCurlBilinearForm *a_curl_hpc = NULL;
@@ -364,9 +365,9 @@ int main(int argc, char *argv[])
    if (!perf)
    {
       // Standard assembly using a diffusion domain integrator
-      a_form->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
-      a_form->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
-      a_form->Assemble();
+      a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
+      a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
+      a->Assemble();
    }
    else
    {
@@ -380,8 +381,8 @@ int main(int argc, char *argv[])
       }
       else
       {
-         a_mass_hpc->AssembleBilinearForm(*a_form); // full matrix assembly
-         a_curl_hpc->AssembleBilinearForm(*a_form);
+         a_mass_hpc->AssembleBilinearForm(*a); // full matrix assembly
+         a_curl_hpc->AssembleBilinearForm(*a);
       }
    }
    tic_toc.Stop();
@@ -407,7 +408,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      a_form->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
       HYPRE_Int glob_size = A.GetGlobalNumRows();
       if (myid == 0)
       {
@@ -494,7 +495,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      a_form->RecoverFEMSolution(X, *b, x);
+      a->RecoverFEMSolution(X, *b, x);
    }
 
    // 14. Compute and print the L^2 norm of the error.
@@ -534,7 +535,7 @@ int main(int argc, char *argv[])
    }
 
    // 18. Free the used memory.
-   delete a_form;
+   delete a;
    delete a_mass_hpc;
    delete a_curl_hpc;
    delete muinv;
