@@ -37,6 +37,8 @@
 using namespace std;
 using namespace mfem;
 
+#define TWO_DIMENSIONS 0
+
 // Exact solution, E, and r.h.s., f. See below for implementation.
 void E_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
@@ -44,7 +46,11 @@ double freq = 1.0, kappa;
 int dim;
 
 // Define template parameters for optimized build.
+#if TWO_DIMENSIONS
+const Geometry::Type geom     = Geometry::SQUARE;
+#else
 const Geometry::Type geom     = Geometry::CUBE; // mesh elements  (default: hex)
+#endif
 const int            mesh_p   = 3;              // mesh curvature (default: 3)
 const int            sol_p    = 3;              // solution order (default: 3)
 const int            rdim     = Geometry::Constants<geom>::Dimension;
@@ -115,7 +121,11 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
+#if TWO_DIMENSIONS
+   const char *mesh_file = "../../data/beam-quad.mesh";
+#else
    const char *mesh_file = "../../data/beam-hex.mesh";
+#endif
    int ser_ref_levels = -1;
    int par_ref_levels = 1;
    int order = sol_p;
@@ -175,6 +185,7 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+   kappa = freq * M_PI;
 
    enum PCType { NONE, LOR, HO };
    PCType pc_choice;
@@ -314,9 +325,8 @@ int main(int argc, char *argv[])
    //     function corresponding to fespace. Initialize x with initial guess of
    //     zero, which satisfies the boundary conditions.
    ParGridFunction x(fespace);
-   x = 1.0;
-   //VectorFunctionCoefficient E(sdim, E_exact);
-   //x.ProjectCoefficient(E);
+   VectorFunctionCoefficient E(sdim, E_exact);
+   x.ProjectCoefficient(E);
 
    // 12. Set up the parallel bilinear form a(.,.) on the finite element space
    //     that will hold the matrix corresponding to the Laplacian operator.
@@ -354,8 +364,8 @@ int main(int argc, char *argv[])
    if (!perf)
    {
       // Standard assembly using a diffusion domain integrator
-      a_form->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
       a_form->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
+      a_form->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
       a_form->Assemble();
    }
    else
@@ -485,6 +495,15 @@ int main(int argc, char *argv[])
    else
    {
       a_form->RecoverFEMSolution(X, *b, x);
+   }
+
+   // 14. Compute and print the L^2 norm of the error.
+   {
+      double err = x.ComputeL2Error(E);
+      if (myid == 0)
+      {
+         cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
+      }
    }
 
    // 16. Save the refined mesh and the solution in parallel. This output can
