@@ -490,7 +490,7 @@ int main(int argc, char *argv[])
       a->RecoverFEMSolution(X, *b, x);
    }
 
-   // 14. Compute and print the L^2 norm of the error.
+   // 16. Compute and print the L^2 norm of the error.
    {
       double err = x.ComputeL2Error(F);
       if (myid == 0)
@@ -499,7 +499,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 16. Save the refined mesh and the solution in parallel. This output can
+   // 17. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
@@ -515,7 +515,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 17. Send the solution by socket to a GLVis server.
+   // 18. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -526,7 +526,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // 18. Free the used memory.
+   // 19. Free the used memory.
    delete a;
    delete a_mass_hpc;
    delete a_div_hpc;

@@ -399,10 +399,10 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 12. Compute and print the L^2 norm of the error.
+   // 13. Compute and print the L^2 norm of the error.
    cout << "\n|| F_h - F ||_{L^2} = " << x.ComputeL2Error(F) << '\n' << endl;
 
-   // 13. Save the refined mesh and the solution. This output can be viewed
+   // 14. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
    {
       ofstream mesh_ofs("refined.mesh");
@@ -413,7 +413,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 14. Send the solution by socket to a GLVis server.
+   // 15. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -423,7 +423,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 15. Free the used memory.
+   // 16. Free the used memory.
    delete a_h;
    delete a_mass_hpc;
    delete a_div_hpc;
