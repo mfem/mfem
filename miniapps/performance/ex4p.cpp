@@ -37,7 +37,7 @@ using namespace std;
 using namespace mfem;
 
 // Exact solution, E, and r.h.s., f. See below for implementation.
-void E_exact(const Vector &, Vector &);
+void F_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
 double freq = 1.0, kappa;
 int dim;
@@ -61,15 +61,51 @@ typedef RT_FiniteElementSpace<sol_fe_t>       sol_fes_t;
 // Static quadrature, coefficient and integrator types
 typedef TIntegrationRule<geom,ir_order>       int_rule_t;
 typedef TConstantCoefficient<>                coeff_t;
-//typedef TIntegrator<coeff_t,THDivMassKernel> integ_t;
-typedef TIntegrator<coeff_t,THDivDivKernel>  integ_t;
+typedef TIntegrator<coeff_t,THDivMassKernel> mass_integ_t;
+typedef TIntegrator<coeff_t,THDivDivKernel>  div_integ_t;
 
 typedef RTShapeEvaluator<sol_fe_t,int_rule_t>  sol_Shape_Eval;
 typedef RTFieldEvaluator<sol_fes_t,ScalarLayout,int_rule_t> sol_Field_Eval;
 
 // Static bilinear form type, combining the above types
-typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t,sol_Shape_Eval,sol_Field_Eval>
-HPCBilinearForm;
+typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,
+                      mass_integ_t,sol_Shape_Eval,sol_Field_Eval>
+HPCMassBilinearForm;
+typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,
+                      div_integ_t,sol_Shape_Eval,sol_Field_Eval>
+HPCDivBilinearForm;
+
+class SumOperator : public Operator
+{
+public:
+   SumOperator(const Operator& a_mass_oper,
+               const Operator& a_der_oper);
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+private:
+   const Operator& a_mass_oper_;
+   const Operator& a_der_oper_;
+
+   mutable Vector temp_;
+};
+
+SumOperator::SumOperator(const Operator& a_mass_oper,
+                         const Operator& a_der_oper)
+   :
+   Operator(a_mass_oper.Height()),
+   a_mass_oper_(a_mass_oper),
+   a_der_oper_(a_der_oper),
+   temp_(a_mass_oper.Height())
+{
+}
+
+void SumOperator::Mult(const Vector &x, Vector &y) const
+{
+   a_mass_oper_.Mult(x, y);
+   a_der_oper_.Mult(x, temp_);
+   y += temp_;
+}
 
 int main(int argc, char *argv[])
 {
@@ -140,6 +176,7 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+   kappa = freq * M_PI;
 
    enum PCType { NONE, LOR, HO };
    PCType pc_choice;
@@ -279,9 +316,8 @@ int main(int argc, char *argv[])
    //     function corresponding to fespace. Initialize x with initial guess of
    //     zero, which satisfies the boundary conditions.
    ParGridFunction x(fespace);
-   x = 1.0;
-   //VectorFunctionCoefficient E(sdim, E_exact);
-   //x.ProjectCoefficient(E);
+   VectorFunctionCoefficient F(sdim, F_exact);
+   x.ProjectCoefficient(F);
 
    // 12. Set up the parallel bilinear form a(.,.) on the finite element space
    //     that will hold the matrix corresponding to the Laplacian operator.
@@ -310,28 +346,34 @@ int main(int argc, char *argv[])
    // Pre-allocate sparsity assuming dense element matrices
    a->UsePrecomputedSparsity();
 
-   HPCBilinearForm *a_hpc = NULL;
+   HPCMassBilinearForm *a_mass_hpc = NULL;
+   HPCDivBilinearForm *a_div_hpc = NULL;
+   Operator *a_unconstrained_oper = NULL;
    Operator *a_oper = NULL;
    Coefficient *alpha = new ConstantCoefficient(1.0);
+   Coefficient *beta  = new ConstantCoefficient(1.0);
 
    if (!perf)
    {
       // Standard assembly using a diffusion domain integrator
       a->AddDomainIntegrator(new DivDivIntegrator(*alpha));
-      //a->AddDomainIntegrator(new VectorFEMassIntegrator(*alpha));
+      a->AddDomainIntegrator(new VectorFEMassIntegrator(*beta));
       a->Assemble();
    }
    else
    {
       // High-performance assembly/evaluation using the templated operator type
-      a_hpc = new HPCBilinearForm(integ_t(coeff_t(1.0)), *fespace);
+      a_mass_hpc = new HPCMassBilinearForm(mass_integ_t(coeff_t(1.0)), *fespace);
+      a_div_hpc = new HPCDivBilinearForm(div_integ_t(coeff_t(1.0)), *fespace);
       if (matrix_free)
       {
-         a_hpc->Assemble(); // partial assembly
+         a_mass_hpc->Assemble(); // partial assembly
+         a_div_hpc->Assemble();
       }
       else
       {
-         a_hpc->AssembleBilinearForm(*a); // full matrix assembly
+         a_mass_hpc->AssembleBilinearForm(*a); // full matrix assembly
+         a_div_hpc->AssembleBilinearForm(*a);
       }
    }
    tic_toc.Stop();
@@ -348,7 +390,8 @@ int main(int argc, char *argv[])
    Vector B, X;
    if (perf && matrix_free)
    {
-      a_hpc->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
+      a_unconstrained_oper = new SumOperator(*a_mass_hpc, *a_div_hpc);
+      a_unconstrained_oper->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
       HYPRE_Int glob_size = fespace->GlobalTrueVSize();
       if (myid == 0)
       {
@@ -379,6 +422,7 @@ int main(int argc, char *argv[])
    {
       // TODO: assemble the LOR matrix using the performance code
       a_pc->AddDomainIntegrator(new DivDivIntegrator(*alpha));
+      a_pc->AddDomainIntegrator(new VectorFEMassIntegrator(*beta));
       a_pc->UsePrecomputedSparsity();
       a_pc->Assemble();
       a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
@@ -392,7 +436,8 @@ int main(int argc, char *argv[])
       else
       {
          a_pc->UsePrecomputedSparsity();
-         a_hpc->AssembleBilinearForm(*a_pc);
+         a_mass_hpc->AssembleBilinearForm(*a_pc);
+         a_div_hpc->AssembleBilinearForm(*a_pc);
          a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
       }
    }
@@ -438,11 +483,20 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    if (perf && matrix_free)
    {
-      a_hpc->RecoverFEMSolution(X, *b, x);
+      a_oper->RecoverFEMSolution(X, *b, x);
    }
    else
    {
       a->RecoverFEMSolution(X, *b, x);
+   }
+
+   // 14. Compute and print the L^2 norm of the error.
+   {
+      double err = x.ComputeL2Error(F);
+      if (myid == 0)
+      {
+         cout << "\n|| F_h - F ||_{L^2} = " << err << '\n' << endl;
+      }
    }
 
    // 16. Save the refined mesh and the solution in parallel. This output can
@@ -474,9 +528,12 @@ int main(int argc, char *argv[])
 
    // 18. Free the used memory.
    delete a;
-   delete a_hpc;
+   delete a_mass_hpc;
+   delete a_div_hpc;
    delete alpha;
+   delete beta;
    if (a_oper != &A) { delete a_oper; }
+   delete a_unconstrained_oper;
    delete a_pc;
    delete b;
    delete fespace;
@@ -492,6 +549,8 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+
+// The exact solution (for non-surface meshes)
 void F_exact(const Vector &p, Vector &F)
 {
    int dim = p.Size();
@@ -508,6 +567,7 @@ void F_exact(const Vector &p, Vector &F)
    }
 }
 
+// The right hand side
 void f_exact(const Vector &p, Vector &f)
 {
    int dim = p.Size();
