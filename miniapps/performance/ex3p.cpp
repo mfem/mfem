@@ -464,9 +464,14 @@ int main(int argc, char *argv[])
 
    HypreSolver *amg = NULL;
    pcg->SetOperator(*a_oper);
-   if (pc_choice != NONE)
+   if (pc_choice == LOR)
    {
       amg = new HypreAMS(A_pc, fespace_lor);
+      pcg->SetPreconditioner(*amg);
+   }
+   else if (pc_choice == HO)
+   {
+      amg = new HypreAMS(A_pc, fespace);
       pcg->SetPreconditioner(*amg);
    }
 
