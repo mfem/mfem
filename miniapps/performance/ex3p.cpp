@@ -271,7 +271,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *fespace_lor = NULL;
    if (pc_choice == LOR)
    {
-      pmesh_lor = new ParMesh(*pmesh);
+      pmesh_lor = new ParMesh(pmesh, order, BasisType::GaussLobatto);
       fec_lor = new ND_FECollection(1, dim);
       fespace_lor = new ParFiniteElementSpace(pmesh_lor, fec_lor);
    }
@@ -463,12 +463,11 @@ int main(int argc, char *argv[])
    pcg->SetPrintLevel(1);
 
    HypreSolver *amg = NULL;
-
    pcg->SetOperator(*a_oper);
    if (pc_choice != NONE)
    {
-      //amg = new HypreBoomerAMG(A_pc);
-      //pcg->SetPreconditioner(*amg);
+      amg = new HypreAMS(A_pc, fespace_lor);
+      pcg->SetPreconditioner(*amg);
    }
 
    tic_toc.Clear();
