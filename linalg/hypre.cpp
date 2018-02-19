@@ -225,7 +225,7 @@ double ParNormlp(const Vector &vec, double p, MPI_Comm comm)
       MPI_Allreduce(&loc_norm, &norm, 1, MPI_DOUBLE, MPI_SUM, comm);
       norm = sqrt(norm);
    }
-   if (p < std::numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       double sum = 0.0;
       for (int i = 0; i < vec.Size(); i++)
@@ -309,7 +309,7 @@ void HypreParMatrix::CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J)
    }
 }
 
-// Square block-diagonal constructor
+// Square block-diagonal constructor (4 arguments, v1)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size,
                                HYPRE_Int *row_starts, SparseMatrix *diag)
    : Operator(diag->Height(), diag->Width())
@@ -344,7 +344,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size,
    hypre_MatvecCommPkgCreate(A);
 }
 
-// Rectangular block-diagonal constructor
+// Rectangular block-diagonal constructor (6 arguments, v1)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                HYPRE_Int global_num_rows,
                                HYPRE_Int global_num_cols,
@@ -381,7 +381,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_MatvecCommPkgCreate(A);
 }
 
-// General rectangular constructor with diagonal and off-diagonal
+// General rectangular constructor with diagonal and off-diagonal (8 arguments)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                HYPRE_Int global_num_rows,
                                HYPRE_Int global_num_cols,
@@ -425,7 +425,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_MatvecCommPkgCreate(A);
 }
 
-// General rectangular constructor with diagonal and off-diagonal
+// General rectangular constructor with diagonal and off-diagonal (13 arguments)
 HypreParMatrix::HypreParMatrix(
    MPI_Comm comm,
    HYPRE_Int global_num_rows, HYPRE_Int global_num_cols,
@@ -479,7 +479,7 @@ HypreParMatrix::HypreParMatrix(
    width = GetNumCols();
 }
 
-// Constructor from a CSR matrix on rank 0
+// Constructor from a CSR matrix on rank 0 (4 arguments, v2)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                HYPRE_Int *row_starts, HYPRE_Int *col_starts,
                                SparseMatrix *sm_a)
@@ -519,7 +519,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_MatvecCommPkgCreate(A);
 }
 
-// Boolean, rectangular, block-diagonal constructor
+// Boolean, rectangular, block-diagonal constructor (6 arguments, v2)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                HYPRE_Int global_num_rows,
                                HYPRE_Int global_num_cols,
@@ -559,6 +559,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 }
 
 // Boolean, general rectangular constructor with diagonal and off-diagonal
+// (11 arguments)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
                                HYPRE_Int *row, HYPRE_Int *col,
                                HYPRE_Int *i_diag, HYPRE_Int *j_diag,
@@ -639,6 +640,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 
 // General rectangular constructor with diagonal and off-diagonal constructed
 // from a CSR matrix that contains both diagonal and off-diagonal blocks
+// (9 arguments)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
                                HYPRE_Int glob_ncols, int *I, HYPRE_Int *J,
                                double *data, HYPRE_Int *rows, HYPRE_Int *cols)
@@ -941,6 +943,13 @@ HypreParMatrix * HypreParMatrix::Transpose() const
 
    hypre_MatvecCommPkgCreate(At);
 
+   if ( M() == N() )
+   {
+      /* If the matrix is square, make sure that the first entry in each
+         row is the diagonal one. */
+      hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(At));
+   }
+
    return new HypreParMatrix(At);
 }
 
@@ -1024,7 +1033,8 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
                                              HYPRE_Int* row_starts) const
 {
    const bool assumed_partition = HYPRE_AssumedPartitionCheck();
-   if (row_starts == NULL)
+   const bool row_starts_given = (row_starts != NULL);
+   if (!row_starts_given)
    {
       row_starts = hypre_ParCSRMatrixRowStarts(A);
       MFEM_VERIFY(D.Height() == hypre_CSRMatrixNumRows(A->diag),
@@ -1054,10 +1064,17 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
    if (assumed_partition)
    {
       part_size = 2;
-      global_num_rows = row_starts[2];
-      // Here, we use row_starts[2], so row_starts must come from the methods
-      // GetDofOffsets/GetTrueDofOffsets of ParFiniteElementSpace (HYPRE's
-      // partitions have only 2 entries).
+      if (row_starts_given)
+      {
+         global_num_rows = row_starts[2];
+         // Here, we use row_starts[2], so row_starts must come from the
+         // methods GetDofOffsets/GetTrueDofOffsets of ParFiniteElementSpace
+         // (HYPRE's partitions have only 2 entries).
+      }
+      else
+      {
+         global_num_rows = hypre_ParCSRMatrixGlobalNumRows(A);
+      }
    }
    else
    {
@@ -1279,6 +1296,8 @@ void HypreParMatrix::Threshold(double threshold)
    ierr += hypre_CSRMatrixDestroy(csr_A_wo_z);
 
    ierr += hypre_ParCSRMatrixDestroy(A);
+
+   MFEM_VERIFY(ierr == 0, "");
 
    A = parcsr_A_ptr;
 }

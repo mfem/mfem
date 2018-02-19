@@ -86,7 +86,7 @@ public:
    /** Initialize with elements from 'mesh'. If an already nonconforming mesh
        is being loaded, 'vertex_parents' must point to a stream at the appropriate
        section of the mesh file which contains the vertex hierarchy. */
-   NCMesh(const Mesh *mesh, std::istream *vertex_parents = NULL);
+   explicit NCMesh(const Mesh *mesh, std::istream *vertex_parents = NULL);
 
    NCMesh(const NCMesh &other); // deep copy
 
@@ -94,6 +94,10 @@ public:
 
    int Dimension() const { return Dim; }
    int SpaceDimension() const { return spaceDim; }
+
+   int GetNVertices() const { return NVertices; }
+   int GetNEdges() const { return NEdges; }
+   int GetNFaces() const { return NFaces; }
 
    /** Perform the given batch of refinements. Please note that in the presence
        of anisotropic splits additional refinements may be necessary to keep
@@ -147,8 +151,7 @@ public:
          : MeshId(index, element, local), slaves_begin(sb), slaves_end(se) {}
    };
 
-   /** Nonconforming edge/face within a bigger edge/face.
-       NOTE: only the 'index' member of MeshId is currently valid for slaves. */
+   /// Nonconforming edge/face within a bigger edge/face.
    struct Slave : public MeshId
    {
       int master; ///< master number (in Mesh numbering)
@@ -171,11 +174,14 @@ public:
       // TODO: switch to Arrays when fixed for non-POD types
       // TODO: make a list of unique slave matrices to save memory (+ time later)
 
-      void Clear() { conforming.clear(); masters.clear(); slaves.clear(); }
+      void Clear(bool hard = false);
       bool Empty() const { return !conforming.size() && !masters.size(); }
-      std::size_t TotalSize() const
-      { return conforming.size() + masters.size() + slaves.size(); }
+      long TotalSize() const;
       long MemoryUsage() const;
+
+      const MeshId& LookUp(int index, int *type = NULL) const;
+   private:
+      mutable Array<int> inv_index;
    };
 
    /// Return the current list of conforming and nonconforming faces.
@@ -190,6 +196,25 @@ public:
    {
       if (edge_list.Empty()) { BuildEdgeList(); }
       return edge_list;
+   }
+
+   /** Return a list of vertices (in 'conforming'); this function is provided
+       for uniformity/completeness. Needed in ParNCMesh/ParFESpace. */
+   const NCList& GetVertexList()
+   {
+      if (vertex_list.Empty()) { BuildVertexList(); }
+      return vertex_list;
+   }
+
+   /// Return vertex/edge/face list (entity = 0/1/2, respectively).
+   const NCList& GetNCList(int entity)
+   {
+      switch (entity)
+      {
+         case 0: return GetVertexList();
+         case 1: return GetEdgeList();
+         default: return GetFaceList();
+      }
    }
 
 
@@ -216,6 +241,20 @@ public:
 
    // utility
 
+   /// Return Mesh vertex indices of an edge identified by 'edge_id'.
+   void GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const;
+
+   /** Return "NC" orientation of an edge. As opposed standard Mesh edge
+       orientation based on vertex IDs, "NC" edge orientation follows the local
+       edge orientation within the element 'edge_id.element' and is thus
+       processor independent. */
+   int GetEdgeNCOrientation(const MeshId &edge_id) const;
+
+   /// Return Mesh vertex and edge indices of a face identified by 'face_id'.
+   void GetFaceVerticesEdges(const MeshId &face_id,
+                             int vert_index[4], int edge_index[4],
+                             int edge_orientation[4]) const;
+
    /** Given an edge (by its vertex indices v1 and v2) return the first
        (geometric) parent edge that exists in the Mesh or -1 if there is no such
        parent. */
@@ -232,6 +271,8 @@ public:
 
    /// Return the type of elements in the mesh.
    int GetElementGeometry() const { return elements[0].geom; }
+
+   int GetFaceGeometry() const { return Geometry::SQUARE; }
 
    /// Return the distance of leaf 'i' from the root.
    int GetElementDepth(int i) const;
@@ -251,6 +292,9 @@ public:
 
    /// I/O: Set positions of all vertices (used by mesh loader).
    void SetVertexPositions(const Array<mfem::Vertex> &vertices);
+
+   /// Save memory by releasing all non-essential and cached data.
+   virtual void Trim();
 
    /// Return total number of bytes allocated.
    long MemoryUsage() const;
@@ -347,26 +391,25 @@ protected: // implementation
       Element(int geom, int attr);
    };
 
-
    // primary data
 
    HashTable<Node> nodes; // associative container holding all Nodes
    HashTable<Face> faces; // associative container holding all Faces
 
-   typedef HashTable<Node>::iterator node_iterator;
-   typedef HashTable<Node>::const_iterator node_const_iterator;
-   typedef HashTable<Face>::iterator face_iterator;
-
    BlockArray<Element> elements; // storage for all Elements
-   Array<int> free_element_ids;  // free element ids - indices into 'elements'
-
-   typedef BlockArray<Element>::iterator elem_iterator;
+   Array<int> free_element_ids;  // unused element ids - indices into 'elements'
 
    // the first 'root_count' entries of 'elements' is the coarse mesh
    int root_count;
 
    // coordinates of top-level vertices (organized as triples)
    Array<double> top_vertex_pos;
+
+   typedef HashTable<Node>::iterator node_iterator;
+   typedef HashTable<Face>::iterator face_iterator;
+   typedef HashTable<Node>::const_iterator node_const_iterator;
+   typedef HashTable<Face>::const_iterator face_const_iterator;
+   typedef BlockArray<Element>::iterator elem_iterator;
 
 
    // secondary data
@@ -375,15 +418,18 @@ protected: // implementation
        hierarchy, there is secondary data that is derived from the primary
        data and needs to be updated when the primary data changes. Update()
        takes care of that and needs to be called after refinement and
-       derefinement. Secondary data includes: leaf_elements, vertex_nodeId,
-       face_list, edge_list, and everything in ParNCMesh. */
+       derefinement. */
    virtual void Update();
+
+   int NVertices; // set by UpdateVertices
+   int NEdges, NFaces; // set by OnMeshUpdated
 
    Array<int> leaf_elements; // finest level, calculated by UpdateLeafElements
    Array<int> vertex_nodeId; // vertex-index to node-id map, see UpdateVertices
 
    NCList face_list; ///< lazy-initialized list of faces, see GetFaceList
    NCList edge_list; ///< lazy-initialized list of edges, see GetEdgeList
+   NCList vertex_list; ///< lazy-initialized list of vertices, see GetVertexList
 
    Array<int> boundary_faces; ///< subset of all faces, set by BuildFaceList
 
@@ -398,7 +444,8 @@ protected: // implementation
    virtual void AssignLeafIndices();
 
    virtual bool IsGhost(const Element &el) const { return false; }
-   virtual int GetNumGhosts() const { return 0; }
+   virtual int GetNumGhostElements() const { return 0; }
+   virtual int GetNumGhostVertices() const { return 0; }
 
 
    // refinement/derefinement
@@ -492,9 +539,11 @@ protected: // implementation
 
    virtual void BuildFaceList();
    virtual void BuildEdgeList();
+   virtual void BuildVertexList();
 
-   virtual void ElementSharesEdge(int elem, int enode) {} // ParNCMesh
    virtual void ElementSharesFace(int elem, int face) {} // ParNCMesh
+   virtual void ElementSharesEdge(int elem, int enode) {} // ParNCMesh
+   virtual void ElementSharesVertex(int elem, int vnode) {} // ParNCMesh
 
 
    // neighbors / element_vertex table
@@ -660,8 +709,7 @@ protected: // implementation
    void CopyElements(int elem, const BlockArray<Element> &tmp_elements,
                      Array<int> &index_map);
 
-
-public: // TODO: maybe make this part of mfem::Geometry?
+   // geometry
 
    /** This holds in one place the constants about the geometries we support
        (triangles, quads, cubes) */
@@ -678,12 +726,11 @@ public: // TODO: maybe make this part of mfem::Geometry?
 
    static GeomInfo GI[Geometry::NumGeom];
 
+   static GeomInfo &gi_hex, &gi_quad, &gi_tri;
+
 #ifdef MFEM_DEBUG
 public:
-   void DebugNeighbors(Array<char> &elem_set);
-
-   /// Print the space-filling curve formed by the sequence of leaf elements.
-   void DebugLeafOrder() const;
+   void DebugDump(std::ostream &out) const;
 #endif
 
    friend class ParNCMesh; // for ParNCMesh::ElementSet
