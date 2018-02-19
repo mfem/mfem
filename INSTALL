@@ -336,6 +336,7 @@ MFEM_USE_GZSTREAM = YES/NO
    able to properly read an input file if it is gzip compressed. In that case,
    the solution is to uncompress the file with an external tool (such as gunzip)
    before attempting to use it with MFEM.
+   When enabled, this option uses the ZLIB_* library options, see below.
 
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
@@ -449,6 +450,11 @@ The specific libraries and their options are:
   the libunwind-devel package.
   URL: http://www.nongnu.org/libunwind
   Options: LIBUNWIND_OPT, LIBUNWIND_LIB.
+
+- ZLIB (optional), used when MFEM_USE_GZSTREAM = YES, or when MFEM_USE_NETCDF =
+  YES (in the default settings for NETCDF_OPT and NETCDF_LIB).
+  URL: https://zlib.net
+  Options: ZLIB_OPT, ZLIB_LIB.
 
 
 Building with CMake
