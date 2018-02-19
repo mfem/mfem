@@ -34,6 +34,17 @@
 
 namespace mfem
 {
+const char* MFEM_Exception::what() const throw(){
+    return msg.c_str();
+}
+  
+bool mfem_use_throw = false;
+void set_use_throw(bool mode){
+    mfem_use_throw = mode;
+}
+bool get_use_throw(){
+    return mfem_use_throw;
+}
 
 void mfem_backtrace(int mode, int depth)
 {
@@ -119,6 +130,10 @@ void mfem_error(const char *msg)
    mfem_backtrace(1, -1);
    mfem::err << std::endl;
 #endif
+   
+   if (mfem_use_throw){
+     throw MFEM_Exception(msg);
+   }
 
 #ifdef MFEM_USE_MPI
    int init_flag, fin_flag;
