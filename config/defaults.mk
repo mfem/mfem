@@ -105,6 +105,12 @@ MFEM_USE_PETSC       = NO
 MFEM_USE_MPFR        = NO
 MFEM_USE_SIDRE       = NO
 
+# Compile and link options for zlib.
+ZLIB_DIR =
+ZLIB_OPT = $(if $(ZLIB_DIR),-I$(ZLIB_DIR)/include)
+ZLIB_LIB = $(if $(ZLIB_DIR),$(ZLIB_RPATH) -L$(ZLIB_DIR)/lib ,)-lz
+ZLIB_RPATH = -Wl,-rpath,$(ZLIB_DIR)/lib
+
 LIBUNWIND_OPT = -g
 LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
 
@@ -213,12 +219,10 @@ GNUTLS_LIB = -lgnutls
 # NetCDF library configuration
 NETCDF_DIR = $(HOME)/local
 HDF5_DIR   = $(HOME)/local
-ZLIB_DIR   = $(HOME)/local
-NETCDF_OPT = -I$(NETCDF_DIR)/include -I$(HDF5_DIR)/include -I$(ZLIB_DIR)/include
+NETCDF_OPT = -I$(NETCDF_DIR)/include -I$(HDF5_DIR)/include $(ZLIB_OPT)
 NETCDF_LIB = -Wl,-rpath,$(NETCDF_DIR)/lib -L$(NETCDF_DIR)/lib\
  -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib\
- -Wl,-rpath,$(ZLIB_DIR)/lib -L$(ZLIB_DIR)/lib\
- -lnetcdf -lhdf5_hl -lhdf5 -lz
+ -lnetcdf -lhdf5_hl -lhdf5 $(ZLIB_LIB)
 
 # PETSc library configuration (version greater or equal to 3.8 or the dev branch)
 PETSC_ARCH := arch-linux2-c-debug
