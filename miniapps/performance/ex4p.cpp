@@ -69,11 +69,11 @@ typedef RTFieldEvaluator<sol_fes_t,ScalarLayout,int_rule_t> sol_Field_Eval;
 
 // Static bilinear form type, combining the above types
 typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,
-                      mass_integ_t,sol_Shape_Eval,sol_Field_Eval>
-HPCMassBilinearForm;
+        mass_integ_t,sol_Shape_Eval,sol_Field_Eval>
+        HPCMassBilinearForm;
 typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,
-                      div_integ_t,sol_Shape_Eval,sol_Field_Eval>
-HPCDivBilinearForm;
+        div_integ_t,sol_Shape_Eval,sol_Field_Eval>
+        HPCDivBilinearForm;
 
 class SumOperator : public Operator
 {
