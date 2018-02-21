@@ -37,6 +37,9 @@ Discretization improvements
   element space header in the NURBS mesh output, so NURBS meshes in the old
   format need to be updated.
 
+- Added support for low-order refined interpolation in H(curl) and H(div)
+  spaces and with a LOR mesh whose polynomial order is not necessarily 1.
+
 - Added symplectic integrators of orders 1-4 for systems of first order ODEs
   derived from a Hamiltonian, see class SIASolver in linalg/ode.hpp.
 

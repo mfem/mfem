@@ -2721,6 +2721,35 @@ void ConformingProlongationOperator::MultTranspose(
    gc.ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
 }
 
+HypreParMatrix *ParBuildNestedInterpolation(ParFiniteElementSpace &ho_fespace,
+                                            ParFiniteElementSpace &lor_fespace)
+{
+   SparseMatrix *mat = BuildNestedInterpolation(ho_fespace, lor_fespace);
+
+   // construct the block-diagonal matrix A
+   HypreParMatrix *A = new HypreParMatrix(ho_fespace.GetComm(),
+                                          lor_fespace.GlobalVSize(),
+                                          ho_fespace.GlobalVSize(),
+                                          lor_fespace.GetDofOffsets(),
+                                          ho_fespace.GetDofOffsets(),
+                                          mat);
+
+   // this *adds* in some places where we want to *set*
+   HypreParMatrix *rap = RAP(lor_fespace.Dof_TrueDof_Matrix(), A,
+                             ho_fespace.Dof_TrueDof_Matrix());
+
+   // so we scale to account for that difference
+   Vector ones(lor_fespace.GetTrueVSize());
+   ones = 1.0;
+   lor_fespace.DivideByGroupSize(ones);
+   rap->ScaleRows(ones);
+
+   delete mat;
+   delete A;
+
+   return rap;
+}
+
 } // namespace mfem
 
 #endif

@@ -515,6 +515,43 @@ public:
    void Save(std::ostream &out) const;
 };
 
+/** This coefficient evaluates a GridFunctionCoefficient that lives on a coarser
+    mesh on "this" mesh which is a refinement of the coarse one. Auxiliary class
+    used by BuildNestedInterpolation. */
+class RefinedCoefficient : public Coefficient
+{
+public:
+   /// @param refine_relation: for each fine cell the coarse cell it comes from
+   RefinedCoefficient(const Array<int>& refine_relation,
+                      GridFunctionCoefficient& ho_coeff);
+   ~RefinedCoefficient() {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+
+private:
+   const Array<int>& refine_relation_;
+   GridFunctionCoefficient& ho_coeff_;
+};
+
+/// Vector version of RefinedCoefficient
+class VectorRefinedCoefficient : public VectorCoefficient
+{
+public:
+   VectorRefinedCoefficient(const Array<int>& refine_relation,
+                            VectorGridFunctionCoefficient& ho_coeff);
+   ~VectorRefinedCoefficient() {}
+
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+private:
+   const Array<int>& refine_relation_;
+   VectorGridFunctionCoefficient& ho_coeff_;
+};
+
+SparseMatrix *BuildNestedInterpolation(FiniteElementSpace &ho_fespace,
+                                       FiniteElementSpace &lor_fespace);
+
 }
 
 #endif

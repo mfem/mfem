@@ -368,6 +368,20 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const;
 };
 
+/** For a low-order refined ParFiniteElementSpace created on a ParMesh that was
+    built with the LOR constructor:
+
+      ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
+
+    This returns an interpolation operator from the original (high-order) FE
+    space to the LOR space.
+
+    For traditional H1 LOR this operator is the identity, but for different
+    quadrature rules (ref_type above) and also for H(curl) and H(div) spaces the
+    operator may be more complex. */
+HypreParMatrix *ParBuildNestedInterpolation(ParFiniteElementSpace &ho_fespace,
+                                            ParFiniteElementSpace &lor_fespace);
+
 }
 
 #endif // MFEM_USE_MPI
