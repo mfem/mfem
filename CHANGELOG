@@ -161,12 +161,10 @@ New and improved solvers and preconditioners
   subspace (e.g. divergence-free). Other small changes in LOBPCG include the
   ability to set the starting vectors and support for relative tolerance.
 
-Performance improvements
-------------------------
-- Memory optimizations in the NCMesh class, which now uses 50% less memory.
-  The average cost of an NC element in a uniformly refined mesh (including the
-  refinement hierarchy, but excluding the temporary face_list and edge_list)
-  is now only about 290 bytes. This also makes the class faster.
+- The Newton solver supports an optional scaling factor, that can limit the
+  increment in the Newton step, see e.g. the Mesh Optimizer miniapp.
+
+- Updated MFEM integration to support the new SUNDIALS 3.0.0 interface.
 
 New and updated examples and miniapps
 -------------------------------------
