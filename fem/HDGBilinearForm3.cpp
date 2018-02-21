@@ -396,18 +396,10 @@ void HDGBilinearForm3::compute_face_integrals(const int elem,
       const FiniteElement &testu_fe2 = *fes2->GetFE(tr->Elem2No);
 
       // Compute the integrals depending on which element do we need to use
-      if (tr->Elem2No == elem)
-      {
-         hdg_bbfi[0]->AssembleFaceMatrixOneElement2and1FES(testq_fe1, testq_fe2,
-                                                           testu_fe1, testu_fe2, trial_face_fe,
-                                                           *tr, 2, is_reconstruction, elemmat1, elemmat2, elemmat3, elemmat4);
-      }
-      else
-      {
-         hdg_bbfi[0]->AssembleFaceMatrixOneElement2and1FES(testq_fe1, testq_fe2,
-                                                           testu_fe1, testu_fe2, trial_face_fe,
-                                                           *tr, 1, is_reconstruction, elemmat1, elemmat2, elemmat3, elemmat4);
-      }
+      int elem_1or2 = 1 + (tr->Elem2No == elem);
+      hdg_bbfi[0]->AssembleFaceMatrixOneElement2and1FES(testq_fe1, testq_fe2,
+                                                        testu_fe1, testu_fe2, trial_face_fe,
+                                                        *tr, elem_1or2, is_reconstruction, elemmat1, elemmat2, elemmat3, elemmat4);
    }
    else
    {
