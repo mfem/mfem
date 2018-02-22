@@ -62,9 +62,11 @@ private:
    HypreParMatrix &M, &K, *T; // T = M - dt K;
    HypreSmoother M_prec;
    CGSolver M_solver;
-   /* For T */
+   /* Precond/Solver for T */
    HypreBoomerAMG *AMG_solver;
    HypreGMRES     *GMRES_solver;
+   /* scaled version of T and z */
+   HypreParMatrix T_s;
 
    const Vector &b;
    mutable Vector z;
@@ -79,7 +81,15 @@ public:
        This is the only requirement for high-order SDIRK implicit integration.*/
    virtual void ImplicitSolve(const double dt, const Vector &u, Vector &k);
 
-   virtual ~FE_Evolution() { }
+   void Destroy()
+   {
+      BlockInvScal(NULL, NULL, NULL, NULL, 0, -1);
+      if (T) delete T;
+      if (AMG_solver) delete AMG_solver;
+      if (GMRES_solver) delete GMRES_solver;
+   }
+
+   //virtual ~FE_Evolution() { }
 };
 
 
@@ -387,6 +397,8 @@ int main(int argc, char *argv[])
    delete ode_solver;
    delete dc;
 
+   adv.Destroy();
+
    MPI_Finalize();
    return 0;
 }
@@ -409,6 +421,8 @@ FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
    M_solver.SetPrintLevel(0);
 
    T = NULL;
+   AMG_solver = NULL;
+   GMRES_solver = NULL;
    //GMRES_solver.SetRelTol(1e-12);
    //GMRES_solver.SetMaxIter(500);
    //GMRES_solver.SetPrintLevel(2);
@@ -427,23 +441,26 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 
 void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt)
 {
-   printf("111\n");
+   HypreParVector z_s;
+
    // Solve the equation:
    //    u_t = M^{-1}(Ku + b), 
    // by solving associated linear system
    //    (M - dt*K) d = K*u + b
    if (!T)
    {
-      printf("!!!!\n");
       /* T is NULL, this should be the first solve with T,
-       * setup AMG and GMRES */
-      T = Add(1.0, M, -1.0*dt, K);
+       * scale T, setup AMG and GMRES */
+      //T = Add(1.0, M, -1.0*dt, K);
+      T = Add(-1.0*dt, K, 1.0, M);
       current_dt = dt;
+      /* scale T, TODO what's the block size? */
+      BlockInvScal(T, &T_s, NULL, NULL, 3, 0);
 
-      AMG_solver = new HypreBoomerAMG(*T);
+      AMG_solver = new HypreBoomerAMG(T_s);
       AMG_solver->SetAIROptions();
       //AMG_solver.SetOperator(*T);
-      GMRES_solver = new HypreGMRES(*T);
+      GMRES_solver = new HypreGMRES(T_s);
       GMRES_solver->SetTol(1e-12);
       GMRES_solver->SetMaxIter(500);
       GMRES_solver->SetPrintLevel(2);
@@ -455,9 +472,19 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt
    MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
    K.Mult(u, z);
    z += b;
+   /* scale the rhs */
+   BlockInvScal(&T_s, NULL, &z, &z_s, 3, 2);
    // AMG_solver.Mult(z, du_dt);
-   GMRES_solver->Mult(z, du_dt);
+   GMRES_solver->Mult(z_s, du_dt);
    cout << "Implicit step, size(A) = " << T->N() << "\n";
+ 
+   /*
+   static int counter = 0;
+   counter ++;
+   T->Mult(-1.0, du_dt, 1.0, z);
+   printf("res %e\n", ParNormlp(z, 2.0, MPI_COMM_WORLD));
+   if (counter == 20) { exit(0); }
+   */
 }
 
 

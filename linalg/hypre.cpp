@@ -2756,6 +2756,7 @@ void HypreBoomerAMG::SetAIROptions(int distance,  std::string prerelax,
    
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, splitting);
    
+   /* does not support aggressive coarsening */
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
    
    HYPRE_ParCSRHybridSetStrongThreshold(amg_precond, strength_tol);
