@@ -84,6 +84,8 @@ private:
    inline void _SetDataAndSize_();
 
 public:
+   HypreParVector() {}
+
    /** Creates vector with given global size and partitioning of the columns.
        Processor P owns columns [col[P],col[P+1]) */
    HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
@@ -105,6 +107,8 @@ public:
    /// MPI communicator
    MPI_Comm GetComm() { return x->comm; }
 
+   void WrapHypreParVector(hypre_ParVector *y);
+   
    /// Returns the row partitioning
    inline HYPRE_Int *Partitioning() { return x->partitioning; }
 
@@ -223,15 +227,20 @@ public:
    /// An empty matrix to be used as a reference to an existing matrix
    HypreParMatrix();
 
+   void WrapHypreParCSRMatrix(hypre_ParCSRMatrix *a, bool owner = true)
+   {
+      A = a;
+      if (!owner) { ParCSROwner = 0; }
+      height = GetNumRows();
+      width = GetNumCols();
+   }
+
    /// Converts hypre's format to HypreParMatrix
    /** If @a owner is false, ownership of @a a is not transferred */
    explicit HypreParMatrix(hypre_ParCSRMatrix *a, bool owner = true)
    {
       Init();
-      A = a;
-      if (!owner) { ParCSROwner = 0; }
-      height = GetNumRows();
-      width = GetNumCols();
+      WrapHypreParCSRMatrix(a, owner);
    }
 
    /** Creates block-diagonal square parallel matrix. Diagonal is given by diag
@@ -486,6 +495,9 @@ public:
 
    Type GetType() const { return Hypre_ParCSR; }
 };
+
+int BlockInvScal(const HypreParMatrix *A, HypreParMatrix *C,
+                 const Vector *b, HypreParVector *d, int block, int job);
 
 /** @brief Return a new matrix `C = alpha*A + beta*B`, assuming that both `A`
     and `B` use the same row and column partitions and the same `col_map_offd`
@@ -834,8 +846,7 @@ public:
        As with SetSystemsOptions(), this solver assumes Ordering::byVDIM. */
    void SetElasticityOptions(ParFiniteElementSpace *fespace);
 
-   void SetAIROptions(int block_size=-1,
-                      int distance=2,  std::string prerelax="",
+   void SetAIROptions(int distance=2,  std::string prerelax="",
                       std::string postrelax="FFC", double strength_tol=0.1,
                       int interp_type=100, int relax_type=0, double filterA_tol=0.0, 
                       int splitting=6);

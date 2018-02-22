@@ -123,6 +123,13 @@ HypreParVector::HypreParVector(ParFiniteElementSpace *pfes)
    _SetDataAndSize_();
    own_ParVector = 1;
 }
+  
+void HypreParVector::WrapHypreParVector(hypre_ParVector *y)
+{
+   x = y;
+   _SetDataAndSize_();
+   own_ParVector = 0;
+}
 
 Vector * HypreParVector::GlobalVector() const
 {
@@ -1455,6 +1462,63 @@ void HypreParMatrix::Destroy()
    }
 }
 
+/* job = -1, free the stored data
+ * job =  0, extract block diagonal of A, store data internally, scale A into C
+ * job =  1, job 0 + scale b into d
+ * job =  2, use the stored data to scale b only
+ */
+int BlockInvScal(const HypreParMatrix *A, HypreParMatrix *C,
+                 const Vector *b, HypreParVector *d, int block, int job)
+{
+   static HYPRE_Complex *bdiaginv = NULL;
+   static hypre_ParCSRCommPkg *commpkg = NULL;
+   static int block_saved = -1;
+   
+   if (-1 == job)
+   {
+      hypre_TFree(bdiaginv);
+      if (commpkg)
+      {
+         hypre_MatvecCommPkgDestroy(commpkg);
+      }
+      bdiaginv = NULL;
+      commpkg = NULL;
+      block_saved = -1;
+
+      return 0;
+   }
+
+   if (0 == job || 1 == job)
+   {
+      block_saved = block;
+      hypre_ParCSRMatrix *C_hypre;
+      hypre_ParcsrBdiagInvScal(*A, block, &C_hypre, &bdiaginv, &commpkg);
+      (*C).WrapHypreParCSRMatrix(C_hypre);
+   }
+
+   if (1 == job || 2 == job)
+   {
+      if (!bdiaginv || !commpkg || block != block_saved)
+      {
+         return 1;
+      }
+
+      HypreParVector *b_Hypre = new HypreParVector(A->GetComm(), A->GetGlobalNumRows(), 
+                                                   b->GetData(), A->GetRowStarts());
+      hypre_ParVector *d_hypre;
+      hypre_ParvecBdiagInvScal(*b_Hypre, block, &d_hypre, bdiaginv, commpkg);
+      
+      delete b_Hypre;
+
+      d->WrapHypreParVector(d_hypre);
+      d->SetOwnership(true);
+
+      return 0;
+   }
+
+   return -1;
+}
+
 HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
                     double beta,  const HypreParMatrix &B)
 {
@@ -2636,8 +2700,7 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace)
    HYPRE_BoomerAMGSetInterpVectors(amg_precond, rbms.Size(), rbms.GetData());
 }
 
-void HypreBoomerAMG::SetAIROptions(int block_size,
-                                   int distance,  std::string prerelax,
+void HypreBoomerAMG::SetAIROptions(int distance,  std::string prerelax,
                                    std::string postrelax, double strength_tol,
                                    int interp_type, 
                                    int relax_type,
@@ -2703,11 +2766,6 @@ void HypreBoomerAMG::SetAIROptions(int block_size,
    HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_coarse, 3);
    HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_down,   1);
    HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_up,     2);
-
-   if (block_size > -1)
-   {
-      // set a flag in amg_precond to scale by inv of diag blocks
-   }
 
    if (filterA_tol > 0.0)
    {
