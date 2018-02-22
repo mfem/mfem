@@ -2756,6 +2756,8 @@ void HypreBoomerAMG::SetAIROptions(int distance,  std::string prerelax,
    
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, splitting);
    
+   HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
+   
    HYPRE_ParCSRHybridSetStrongThreshold(amg_precond, strength_tol);
 
    if (relax_type > -1)
@@ -2767,12 +2769,7 @@ void HypreBoomerAMG::SetAIROptions(int distance,  std::string prerelax,
    HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_down,   1);
    HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_up,     2);
 
-   if (filterA_tol > 0.0)
-   {
-      // set a flag in amg_precond
-   }
-
-
+   HYPRE_BoomerAMGSetADropTol(amg_precond, filterA_tol);
 }
 
 HypreBoomerAMG::~HypreBoomerAMG()

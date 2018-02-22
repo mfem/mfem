@@ -62,8 +62,10 @@ private:
    HypreParMatrix &M, &K, *T; // T = M - dt K;
    HypreSmoother M_prec;
    CGSolver M_solver;
-   HypreBoomerAMG AMG_solver;
-   GMRESSolver GMRES_solver;
+   /* For T */
+   HypreBoomerAMG *AMG_solver;
+   HypreGMRES     *GMRES_solver;
+
    const Vector &b;
    mutable Vector z;
    double current_dt;
@@ -406,9 +408,10 @@ FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
    M_solver.SetMaxIter(100);
    M_solver.SetPrintLevel(0);
 
-   GMRES_solver.SetRelTol(1e-12);
-   GMRES_solver.SetMaxIter(500);
-   GMRES_solver.SetPrintLevel(2);
+   T = NULL;
+   //GMRES_solver.SetRelTol(1e-12);
+   //GMRES_solver.SetMaxIter(500);
+   //GMRES_solver.SetPrintLevel(2);
 
    // TODO: Need to figure out how to set Hypre flags here, specifically, to use AIR
 }
@@ -424,24 +427,36 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 
 void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt)
 {
+   printf("111\n");
    // Solve the equation:
    //    u_t = M^{-1}(Ku + b), 
    // by solving associated linear system
    //    (M - dt*K) d = K*u + b
    if (!T)
    {
+      printf("!!!!\n");
+      /* T is NULL, this should be the first solve with T,
+       * setup AMG and GMRES */
       T = Add(1.0, M, -1.0*dt, K);
       current_dt = dt;
-      AMG_solver.SetOperator(*T);
-      // GMRES_solver.SetPreconditioner(AMG_solver);
-      GMRES_solver.SetPreconditioner(M_prec);
-      GMRES_solver.SetOperator(*T);
+
+      AMG_solver = new HypreBoomerAMG(*T);
+      AMG_solver->SetAIROptions();
+      //AMG_solver.SetOperator(*T);
+      GMRES_solver = new HypreGMRES(*T);
+      GMRES_solver->SetTol(1e-12);
+      GMRES_solver->SetMaxIter(500);
+      GMRES_solver->SetPrintLevel(2);
+      GMRES_solver->SetPreconditioner(*AMG_solver);
+      //GMRES_solver.SetPreconditioner(M_prec);
+      //GMRES_solver.SetOperator(*T);
    }
+
    MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
    K.Mult(u, z);
    z += b;
    // AMG_solver.Mult(z, du_dt);
-   GMRES_solver.Mult(z, du_dt);
+   GMRES_solver->Mult(z, du_dt);
    cout << "Implicit step, size(A) = " << T->N() << "\n";
 }
 
