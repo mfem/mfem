@@ -465,8 +465,9 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt
       GMRES_solver->SetMaxIter(500);
       GMRES_solver->SetPrintLevel(2);
       GMRES_solver->SetPreconditioner(*AMG_solver);
-      //GMRES_solver.SetPreconditioner(M_prec);
-      //GMRES_solver.SetOperator(*T);
+      /* TODO zero init guess ? */
+      //GMRES_solver->SetZeroInintialIterate();
+      //GMRES_solver->iterative_mode = false;
    }
 
    MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
@@ -483,7 +484,7 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt
    counter ++;
    T->Mult(-1.0, du_dt, 1.0, z);
    printf("res %e\n", ParNormlp(z, 2.0, MPI_COMM_WORLD));
-   if (counter == 20) { exit(0); }
+   if (counter == 3) { exit(0); }
    */
 }
 
