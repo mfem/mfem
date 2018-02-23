@@ -516,6 +516,19 @@ double DenseMatrix::Weight() const
       double F = d[0] * d[3] + d[1] * d[4] + d[2] * d[5];
       return sqrt(E * G - F * F);
    }
+   else if ((Height() == 4) && (Width() == 3))
+   {
+	   const double *d = data;
+	   double A = d[0]*d[0] + d[1]*d[1] + d[2]*d[2] + d[3]*d[3];
+	   double B = d[0]*d[4] + d[1]*d[5] + d[2]*d[6] + d[3]*d[7];
+	   double C = d[0]*d[8] + d[1]*d[9] + d[2]*d[10] + d[3]*d[11];
+	   double D = d[4]*d[4] + d[5]*d[5] + d[6]*d[6] + d[7]*d[7];
+	   double E = d[4]*d[8] + d[5]*d[9] + d[6]*d[10] + d[7]*d[11];
+	   double F = d[8]*d[8] + d[9]*d[9] + d[10]*d[10] + d[11]*d[11];
+
+
+	   return sqrt( C *( 2*B*E - C*D ) - A*E*E + F * ( A * D - B * B) );
+   }
    mfem_error("DenseMatrix::Weight()");
    return 0.0;
 }
