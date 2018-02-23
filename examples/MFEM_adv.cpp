@@ -71,9 +71,11 @@ private:
    const Vector &b;
    mutable Vector z;
    double current_dt;
+   int blocksize;
 
 public:
-   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b);
+   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b,
+                const int order);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -331,7 +333,7 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*M, *K, *B);
+   FE_Evolution adv(*M, *K, *B, order);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -406,7 +408,7 @@ int main(int argc, char *argv[])
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
-                           const Vector &_b)
+                           const Vector &_b, const int order)
    : TimeDependentOperator(_M.Height()),
      M(_M), K(_K), b(_b), M_solver(M.GetComm()), z(_M.Height())
 {
@@ -423,11 +425,9 @@ FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
    T = NULL;
    AMG_solver = NULL;
    GMRES_solver = NULL;
-   //GMRES_solver.SetRelTol(1e-12);
-   //GMRES_solver.SetMaxIter(500);
-   //GMRES_solver.SetPrintLevel(2);
 
-   // TODO: Need to figure out how to set Hypre flags here, specifically, to use AIR
+   // DG block size given by (FEorder+1)^2 on square meshes.
+   blocksize = (order+1)*(order+1);
 }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
@@ -447,37 +447,33 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt
    //    u_t = M^{-1}(Ku + b), 
    // by solving associated linear system
    //    (M - dt*K) d = K*u + b
-   if (!T)
-   {
+   if (!T) {
       /* T is NULL, this should be the first solve with T,
        * scale T, setup AMG and GMRES */
       //T = Add(1.0, M, -1.0*dt, K);
       T = Add(-1.0*dt, K, 1.0, M);
       current_dt = dt;
-      /* scale T, TODO what's the block size? */
-      BlockInvScal(T, &T_s, NULL, NULL, 3, 0);
+      /* scale T by block-diagonal inverse */
+      BlockInvScal(T, &T_s, NULL, NULL, blocksize, 0);
 
       AMG_solver = new HypreBoomerAMG(T_s);
       AMG_solver->SetAIROptions();
-      //AMG_solver.SetOperator(*T);
       GMRES_solver = new HypreGMRES(T_s);
       GMRES_solver->SetTol(1e-12);
       GMRES_solver->SetMaxIter(500);
       GMRES_solver->SetPrintLevel(2);
       GMRES_solver->SetPreconditioner(*AMG_solver);
-      //GMRES_solver.SetPreconditioner(M_prec);
-      //GMRES_solver.SetOperator(*T);
    }
 
    MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
    K.Mult(u, z);
    z += b;
+
    /* scale the rhs */
-   BlockInvScal(&T_s, NULL, &z, &z_s, 3, 2);
-   // AMG_solver.Mult(z, du_dt);
+   BlockInvScal(&T_s, NULL, &z, &z_s, blocksize, 2);
+   
    GMRES_solver->Mult(z_s, du_dt);
-   cout << "Implicit step, size(A) = " << T->N() << "\n";
- 
+   
    /*
    static int counter = 0;
    counter ++;
