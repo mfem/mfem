@@ -755,6 +755,8 @@ public:
 
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+                           
+   virtual void CalcHessian(const IntegrationPoint &ip, DenseMatrix &h) const;
 };
 
 /// Class for constant FE on triangle
@@ -823,6 +825,9 @@ public:
 
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+                           
+   virtual void CalcHessian(const IntegrationPoint &ip, 
+                           DenseMatrix &h) const;
 };
 
 /// Class for tri-linear FE on cube
