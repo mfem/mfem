@@ -392,6 +392,12 @@ bool Geometry::ProjectPoint(int GeomType, const IntegrationPoint &beg,
                           };
          return internal::IntersectSegment<6,3>(lbeg, lend, end);
       }
+      case Geometry::PENTATOPE:
+      {
+          double lend[5] = { end.x, end.y, end.z, end.t, 1.0-end.x-end.y-end.z-end.t };
+          double lbeg[5] = { beg.x, beg.y, beg.z, beg.t, 1.0-beg.x-beg.y-beg.z-beg.t };
+          return internal::IntersectSegment<5,4>(lbeg,lend,end);
+      }
       default:
          MFEM_ABORT("Unknown type of reference element!");
    }
