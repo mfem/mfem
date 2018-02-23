@@ -50,6 +50,27 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
+struct AIR_parameters {
+   int distance;
+   std::string prerelax;
+   std::string postrelax;
+   double strength_tol;
+   int interp_type;
+   int relax_type;
+   double filterA_tol;
+   int coarsening;
+};
+
+void print_AIR(AIR_parameters AIR) {
+   std::cout << "Distance R:   " << AIR.distance << "\n" \
+             << "Prerelax:     " << AIR.prerelax << "\n" \
+             << "Postrelax:    " << AIR.postrelax << "\n" \
+             << "Strength tol: " << AIR.strength_tol << "\n" \
+             << "Interp type:  " << AIR.interp_type << "\n" \
+             << "Relax type:   " << AIR.relax_type << "\n" \
+             << "Coarsen type: " << AIR.coarsening << "\n" \
+             << "Filter tol:  " << AIR.filterA_tol << ".\n";
+}
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
     form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
@@ -72,10 +93,11 @@ private:
    mutable Vector z;
    double current_dt;
    int blocksize;
+   AIR_parameters AIR;
 
 public:
    FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b,
-                const int order);
+                const int order, const AIR_parameters *AIR_init=NULL);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -116,9 +138,11 @@ int main(int argc, char *argv[])
    bool visit = false;
    bool binary = false;
    int vis_steps = 5;
-
    int precision = 8;
    cout.precision(precision);
+   AIR_parameters AIR = {2, "", "FFC", 0.1, 100, 0, 0.0, 6};
+   const char* temp_prerelax = "";
+   const char* temp_postrelax = "FFC";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -149,7 +173,23 @@ int main(int argc, char *argv[])
                   "Use binary (Sidre) or ascii format for VisIt data files.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&(AIR.distance), "-Ad", "--AIR-distance",
+                  "Distance restriction neighborhood for AIR.");
+   args.AddOption(&(AIR.interp_type), "-Ai", "--AIR-interpolation",
+                  "Index for hypre interpolation routine.");
+   args.AddOption(&(AIR.coarsening), "-Ac", "--AIR-coarsening",
+                  "Index for hypre coarsening routine.");
+   args.AddOption(&(AIR.strength_tol), "-As", "--AIR-strength",
+                  "Theta value determining strong connections for AIR.");
+   args.AddOption(&(AIR.filterA_tol), "-Af", "--AIR-filter",
+                  "Theta value to eliminate small connections in AIR hierarchy.");
+   args.AddOption(&temp_prerelax, "-Ar1", "--AIR-prerelax",
+                  "String denoting prerelaxation scheme; e.g., FCC.");
+   args.AddOption(&temp_postrelax, "-Ar2", "--AIR-postrelax",
+                  "String denoting postrelaxation scheme; e.g., FFC.");
    args.Parse();
+   AIR.prerelax = std::string(temp_prerelax);
+   AIR.postrelax = std::string(temp_postrelax);
    if (!args.Good())
    {
       if (myid == 0)
@@ -333,7 +373,7 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*M, *K, *B, order);
+   FE_Evolution adv(*M, *K, *B, order, &AIR);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -408,7 +448,8 @@ int main(int argc, char *argv[])
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
-                           const Vector &_b, const int order)
+                           const Vector &_b, const int order,
+                           const AIR_parameters *AIR_init)
    : TimeDependentOperator(_M.Height()),
      M(_M), K(_K), b(_b), M_solver(M.GetComm()), z(_M.Height())
 {
@@ -425,6 +466,10 @@ FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
    T = NULL;
    AMG_solver = NULL;
    GMRES_solver = NULL;
+
+   if (AIR_init) AIR = *AIR_init;
+
+   print_AIR(AIR);
 
    // DG block size given by (FEorder+1)^2 on square meshes.
    blocksize = (order+1)*(order+1);
@@ -457,7 +502,10 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt
       BlockInvScal(T, &T_s, NULL, NULL, blocksize, 0);
 
       AMG_solver = new HypreBoomerAMG(T_s);
-      AMG_solver->SetAIROptions();
+      AMG_solver->SetAIROptions(AIR.distance, AIR.prerelax, AIR.postrelax,
+                                AIR.strength_tol, AIR.interp_type, AIR.relax_type,
+                                AIR.filterA_tol, AIR.coarsening);
+      // AMG_solver->SetAIROptions();
       GMRES_solver = new HypreGMRES(T_s);
       GMRES_solver->SetTol(1e-12);
       GMRES_solver->SetMaxIter(500);
