@@ -211,7 +211,7 @@ int IsoparametricTransformation::TransformBack(const Vector &pt,
    const int sdim = PointMat.Height();
    const int geom = FElem->GetGeomType();
    IntegrationPoint xip, prev_xip;
-   double xd[3], yd[3], dxd[3], Jid[9];
+   double xd[4], yd[4], dxd[4], Jid[16];
    Vector x(xd, dim), y(yd, sdim), dx(dxd, dim);
    DenseMatrix Jinv(Jid, dim, sdim);
    bool hit_bdr = false, prev_hit_bdr;
