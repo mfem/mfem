@@ -505,6 +505,9 @@ int BlockInvScal(const HypreParMatrix *A, HypreParMatrix *C,
 HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
                     double beta,  const HypreParMatrix &B);
 
+HypreParMatrix *HypreParMatrixAdd(double alpha, const HypreParMatrix &A,
+                                  double beta,  const HypreParMatrix &B);
+
 /// Returns the matrix A * B
 HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B);
 /// Returns the matrix A + B

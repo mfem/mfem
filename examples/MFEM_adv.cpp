@@ -451,8 +451,7 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt
    {
       /* T is NULL, this should be the first solve with T,
        * scale T, setup AMG and GMRES */
-      //T = Add(1.0, M, -1.0*dt, K);
-      T = Add(-1.0*dt, K, 1.0, M);
+      T = HypreParMatrixAdd(1.0, M, -1.0*dt, K);
       current_dt = dt;
       /* scale T, TODO what's the block size? */
       BlockInvScal(T, &T_s, NULL, NULL, 3, 0);
