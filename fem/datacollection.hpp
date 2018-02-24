@@ -188,16 +188,15 @@ public:
    /// Get a pointer to the mesh in the collection
    Mesh *GetMesh() { return mesh; }
    /// Set/change the mesh associated with the collection
-   /** When passed a Mesh, assumes the serial case:
-       MPI rank id is set to 0 and MPI num_procs is set to 1.
-       When passed a ParMesh, MPI info from the ParMesh is used to set
-       the DataCollection's MPI rank id and MPI num_procs. */
+   /** When passed a Mesh, assumes the serial case: MPI rank id is set to 0 and
+       MPI num_procs is set to 1.  When passed a ParMesh, MPI info from the
+       ParMesh is used to set the DataCollection's MPI rank and num_procs. */
    virtual void SetMesh(Mesh *new_mesh);
 #ifdef MFEM_USE_MPI
    /// Set/change the mesh associated with the collection.
-   /** For this case, @a comm is used to set the DataCollection's
-       MPI rank id and MPI num_procs, which influences the how
-       files are saved for domain decomposed meshes. */
+   /** For this case, @a comm is used to set the DataCollection's MPI rank id
+       and MPI num_procs, which influences the how files are saved for domain
+       decomposed meshes. */
    virtual void SetMesh(MPI_Comm comm, Mesh *new_mesh);
 #endif
 

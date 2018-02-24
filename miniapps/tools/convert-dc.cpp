@@ -9,9 +9,9 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 //
-//      ----------------------------------------------------------------
-//      Convert DC : convert between different types of data collections
-//      ----------------------------------------------------------------
+//      ---------------------------------------------------------------
+//      Convert DC: Convert between different types of data collections
+//      ---------------------------------------------------------------
 //
 // This tool demonstrates how to convert between MFEM's different concrete
 // DataCollection options.
@@ -155,10 +155,8 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_MPI
    out->SetMesh(MPI_COMM_WORLD,src->GetMesh());
 #else
-
    out->SetMesh(src->GetMesh());
 #endif
-
 
    // propagate the basics
    out->SetCycle(src->GetCycle());
