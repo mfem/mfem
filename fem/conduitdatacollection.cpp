@@ -9,7 +9,6 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_CONDUIT
@@ -30,7 +29,6 @@ namespace mfem
 //---------------------------------------------------------------------------//
 // class ConduitDataCollection implementation
 //---------------------------------------------------------------------------//
-
 
 //------------------------------
 // begin public methods
@@ -83,7 +81,7 @@ ConduitDataCollection::Save()
 
    Node n_mesh;
    // future? If moved into Mesh class
-   //mesh->toConduitBlueprint(n_mesh);
+   // mesh->toConduitBlueprint(n_mesh);
    MeshToBlueprintMesh(mesh,n_mesh);
 
    Node verify_info;
@@ -98,7 +96,7 @@ ConduitDataCollection::Save()
    {
       std::string name = itr->first;
       GridFunction *gf = itr->second;
-      // dont save mesh nodes twice ...
+      // don't save mesh nodes twice ...
       if (  gf != mesh->GetNodes())
       {
          // future? If moved into GridFunction class
@@ -419,8 +417,7 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
    //         << "Number of Mesh Attribute Entries: "
    //         << num_mesh_atts_entires << endl
    //         << "Number of Boundary Attribute Entries: "
-   //          << num_bndry_atts_entires << endl);
-   //
+   //         << num_bndry_atts_entires << endl);
 
    // Construct MFEM Mesh Object with externally owned data
    // Note: if we don't have a gf, we need to provide the proper space dim
@@ -608,9 +605,8 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
       (*res) = vals_vec;
    }
 
-   // TODO: I believe the GF already has ownership of fes, so this
-   // should be all we need to do to avoid leaking objs created
-   // here?
+   // TODO: I believe the GF already has ownership of fes, so this should be all
+   // we need to do to avoid leaking objs created here?
    res->MakeOwner(fec);
 
    return res;
@@ -787,9 +783,6 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
          bndry_att_vals[i] = mesh->GetBdrAttribute(i);
       }
    }
-
-
-
 }
 
 //---------------------------------------------------------------------------//
@@ -797,7 +790,6 @@ void
 ConduitDataCollection::GridFunctionToBlueprintField(mfem::GridFunction *gf,
                                                     Node &n_field)
 {
-
    n_field["basis"] = gf->FESpace()->FEColl()->Name();
    n_field["topology"] = "main";
 
@@ -1191,9 +1183,6 @@ ConduitDataCollection::ShapeNameToGeomType(const std::string &shape_name)
 //------------------------------
 // end static private methods
 //------------------------------
-
-
-
 
 } // end namespace mfem
 

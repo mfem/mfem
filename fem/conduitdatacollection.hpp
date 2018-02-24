@@ -43,9 +43,9 @@ namespace mfem
     Meshes and GridFunctions and Conduit Mesh Blueprint descriptions.
 
     Those that describe MFEM data using Conduit (MFEM to Conduit Blueprint) try
-    to zero-copy as much of data MFEM as possible. The Conduit node result
-    will not own all of the data, however you can easily make a copy of
-    the result node using Conduit's API when necessary.
+    to zero-copy as much of data MFEM as possible. The Conduit node result will
+    not own all of the data, however you can easily make a copy of the result
+    node using Conduit's API when necessary.
 
     Those that construct MFEM objects from Conduit Nodes (Conduit Blueprint to
     MFEM) provide a zero-copy option. Zero-copy is only possible if the
@@ -69,7 +69,6 @@ namespace mfem
 class ConduitDataCollection : public DataCollection
 {
 protected:
-
    // file name helpers
 
    /// Returns blueprint root file name for the current cycle
@@ -109,7 +108,6 @@ protected:
    // holds currently active conduit relay i/o protocol
    std::string relay_protocol;
 
-
 public:
    /// Constructor. The collection name is used when saving the data.
    /** If @a mesh is NULL, then the mesh can be set later by calling either
@@ -135,18 +133,18 @@ public:
    /// Load the collection based blueprint data
    virtual void Load(int cycle = 0);
 
-   /** Methods that convert to and from MFEM objects and Conduit Nodes
-       that conform to the mesh blueprint.
+   /* Methods that convert to and from MFEM objects and Conduit Nodes that
+      conform to the mesh blueprint.
 
-       These methods could be public Mesh and GF members in the future.  One
-       draw back is that would require use of MFEM_USE_CONDUIT in the mesh and
-       gridfunc sources vs having everything contained in the
-       conduitdatacollection sources.
+      These methods could be public Mesh and GF members in the future.  One draw
+      back is that would require use of MFEM_USE_CONDUIT in the mesh and
+      gridfunc sources vs having everything contained in the
+      conduitdatacollection sources.
    */
 
    /// Describes a MFEM mesh using the mesh blueprint
-   /** Sets up passed conduit::Node to describe the given mesh
-       using the mesh blueprint.
+   /** Sets up passed conduit::Node to describe the given mesh using the mesh
+       blueprint.
 
        Zero-copies as much data as possible.
 
@@ -159,7 +157,7 @@ public:
        If the mesh has boundary info, this is described in a topology entry
        named `boundary`. If the boundary has an attribute field, this is
        described in a field entry named `boundary_attribute`.
-       */
+   */
    static void MeshToBlueprintMesh(Mesh *m, conduit::Node &out);
 
    /// Describes a MFEM grid function using the mesh blueprint
@@ -190,7 +188,6 @@ public:
        constraints are not met, a grid function that owns the data is created
        and returned.
    */
-
    static GridFunction *BlueprintFieldToGridFunction(Mesh *mesh,
                                                      const conduit::Node &n_field,
                                                      bool zero_copy = false);
@@ -201,9 +198,7 @@ private:
 
    /// Converts a mesh bp shape name to a MFEM geom type
    static mfem::Geometry::Type ShapeNameToGeomType(const std::string &shape_name);
-
 };
-
 
 } // end namespace mfem
 

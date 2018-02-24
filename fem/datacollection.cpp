@@ -280,7 +280,6 @@ void DataCollection::SaveMesh()
 
    std::string mesh_name = GetMeshFileName();
    std::ofstream mesh_file(mesh_name.c_str());
-
    mesh_file.precision(precision);
 #ifdef MFEM_USE_MPI
    const ParMesh *pmesh = dynamic_cast<const ParMesh*>(mesh);
