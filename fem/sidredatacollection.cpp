@@ -1073,13 +1073,13 @@ void SidreDataCollection::RegisterAttributeField(const std::string& attr_name,
 
       if (isAttr)
       {
-         MFEM_WARNING("field with the name '" << attr_name<< "' is already "
+         MFEM_WARNING("field with the name '" << attr_name << "' is already "
                       " registered as an attribute, overwriting old values.");
          DeregisterAttributeField(attr_name);
       }
       else if (isFld)
       {
-         MFEM_WARNING("field with the name '" << attr_name<< "' is already "
+         MFEM_WARNING("field with the name '" << attr_name << "' is already "
                       " registered as a field, skipping register attribute.");
          return;
       }
@@ -1162,7 +1162,6 @@ void SidreDataCollection::DeregisterAttributeFieldInBPIndex(
    // unless it's referenced somewhere else in sidre.
    fields_grp->destroyGroup(attr_name);
 }
-
 
 void SidreDataCollection::
 addIntegerAttributeField(const std::string& attr_name, bool is_bdry)

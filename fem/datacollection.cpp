@@ -431,7 +431,7 @@ void VisItDataCollection::Load(int cycle_)
          MPI_Comm_size(m_comm, &comm_size);
          if (comm_size != num_procs)
          {
-            MFEM_WARNING("Processor number missmatch: VisIt root file: "
+            MFEM_WARNING("Processor number mismatch: VisIt root file: "
                          << num_procs << ", MPI_comm: " << comm_size);
             error = READ_ERROR;
          }
