@@ -330,11 +330,20 @@ public:
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &h) const;
 
-   /** Return the local interpolation matrix I (Dof x Dof) where the
+   /** @brief Return the local interpolation matrix @a I (Dof x Dof) where the
        fine element is the image of the base geometry under the given
        transformation. */
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const;
+
+   /** @brief Return interpolation matrix, @a I, which maps dofs from a coarse
+       element, @a fe, to the fine dofs on @a this finite element. */
+   /** @a Trans represents the mapping from the reference element of @a this
+       element into a subset of the reference space of the element @a fe. It is
+       assumed that both finite elements use the same MapType. */
+   virtual void GetLocalInterpolation(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &I) const;
 
    /** Given a coefficient and a transformation, compute its projection
        (approximation) in the local finite dimensional space in terms
@@ -421,9 +430,24 @@ public:
 
 class ScalarFiniteElement : public FiniteElement
 {
+protected:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector c_shape;
+#endif
+
+   static const ScalarFiniteElement &CheckScalarFE(const FiniteElement &fe)
+   {
+      if (fe.GetRangeType() != SCALAR)
+      { mfem_error("'fe' must be a ScalarFiniteElement"); }
+      return static_cast<const ScalarFiniteElement &>(fe);
+   }
+
 public:
    ScalarFiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk)
       : FiniteElement(D, G, Do, O, F)
+#ifndef MFEM_THREAD_SAFE
+      , c_shape(Dof)
+#endif
    { DerivType = GRAD; DerivRangeType = VECTOR; DerivMapType = H_CURL; }
 
    void SetMapType(int M)
@@ -432,35 +456,40 @@ public:
       MapType = M;
       DerivType = (M == VALUE) ? GRAD : NONE;
    }
+
+   /// Nodal interpolation.
+   void NodalLocalInterpolation(ElementTransformation &Trans,
+                                DenseMatrix &I,
+                                const ScalarFiniteElement &fine_fe) const;
+
+   /// "Interpolation" defined through local L2-projection.
+   /** If the "fine" elements cannot represent all basis functions of the
+       "coarse" element, then boundary values from different sub-elements are
+       generally different. */
+   void ScalarLocalInterpolation(ElementTransformation &Trans,
+                                 DenseMatrix &I,
+                                 const ScalarFiniteElement &fine_fe) const;
 };
 
 class NodalFiniteElement : public ScalarFiniteElement
 {
 protected:
-   void NodalLocalInterpolation (ElementTransformation &Trans,
-                                 DenseMatrix &I,
-                                 const NodalFiniteElement &fine_fe) const;
-
    void ProjectCurl_2D(const FiniteElement &fe,
                        ElementTransformation &Trans,
                        DenseMatrix &curl) const;
 
-#ifndef MFEM_THREAD_SAFE
-   mutable Vector c_shape;
-#endif
-
 public:
-#ifdef MFEM_THREAD_SAFE
    NodalFiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk)
       : ScalarFiniteElement(D, G, Do, O, F) { }
-#else
-   NodalFiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk)
-      : ScalarFiniteElement(D, G, Do, O, F), c_shape(Do) { }
-#endif
 
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const
-   { NodalLocalInterpolation (Trans, I, *this); }
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { NodalLocalInterpolation(Trans, I, *this); }
+
+   virtual void GetLocalInterpolation(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { CheckScalarFE(fe).NodalLocalInterpolation(Trans, I, *this); }
 
    virtual void Project (Coefficient &coeff,
                          ElementTransformation &Trans, Vector &dofs) const;
@@ -487,11 +516,6 @@ public:
 
 class PositiveFiniteElement : public ScalarFiniteElement
 {
-protected:
-   void PositiveLocalInterpolation(ElementTransformation &Trans,
-                                   DenseMatrix &I,
-                                   const PositiveFiniteElement &fine_fe) const;
-
 public:
    PositiveFiniteElement(int D, int G, int Do, int O,
                          int F = FunctionSpace::Pk) :
@@ -500,7 +524,12 @@ public:
 
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { PositiveLocalInterpolation(Trans, I, *this); }
+   { ScalarLocalInterpolation(Trans, I, *this); }
+
+   virtual void GetLocalInterpolation(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { CheckScalarFE(fe).ScalarLocalInterpolation(Trans, I, *this); }
 
    using FiniteElement::Project;
 
@@ -583,13 +612,22 @@ protected:
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &grad) const;
 
-   void LocalInterpolation_RT(const double *nk, const Array<int> &d2n,
+   void LocalInterpolation_RT(const VectorFiniteElement &cfe,
+                              const double *nk, const Array<int> &d2n,
                               ElementTransformation &Trans,
                               DenseMatrix &I) const;
 
-   void LocalInterpolation_ND(const double *tk, const Array<int> &d2t,
+   void LocalInterpolation_ND(const VectorFiniteElement &cfe,
+                              const double *tk, const Array<int> &d2t,
                               ElementTransformation &Trans,
                               DenseMatrix &I) const;
+
+   static const VectorFiniteElement &CheckVectorFE(const FiniteElement &fe)
+   {
+      if (fe.GetRangeType() != VECTOR)
+      { mfem_error("'fe' must be a VectorFiniteElement"); }
+      return static_cast<const VectorFiniteElement &>(fe);
+   }
 
 public:
    VectorFiniteElement (int D, int G, int Do, int O, int M,
@@ -2062,7 +2100,11 @@ public:
                              Vector &divshape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_RT(nk, dof2nk, Trans, I); }
+   { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalInterpolation(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -2111,7 +2153,11 @@ public:
                              Vector &divshape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_RT(nk, dof2nk, Trans, I); }
+   { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalInterpolation(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -2153,7 +2199,11 @@ public:
                              Vector &divshape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_RT(nk, dof2nk, Trans, I); }
+   { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalInterpolation(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -2201,7 +2251,11 @@ public:
                              Vector &divshape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_RT(nk, dof2nk, Trans, I); }
+   { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalInterpolation(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -2247,7 +2301,12 @@ public:
 
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_ND(tk, dof2tk, Trans, I); }
+   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+
+   virtual void GetLocalInterpolation(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
 
    using FiniteElement::Project;
 
@@ -2300,7 +2359,11 @@ public:
                               DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_ND(tk, dof2tk, Trans, I); }
+   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+   virtual void GetLocalInterpolation(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -2342,7 +2405,11 @@ public:
                               DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_ND(tk, dof2tk, Trans, I); }
+   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+   virtual void GetLocalInterpolation(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -2389,7 +2456,11 @@ public:
                               DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_ND(tk, dof2tk, Trans, I); }
+   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+   virtual void GetLocalInterpolation(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -2428,7 +2499,11 @@ public:
    //                            DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_ND(tk, dof2tk, Trans, I); }
+   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+   virtual void GetLocalInterpolation(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
