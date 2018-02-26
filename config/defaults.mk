@@ -256,7 +256,7 @@ CONDUIT_HDF5_HEADER=$(CONDUIT_DIR)/include/conduit/conduit_relay_hdf5.hpp
 ifneq (,$(wildcard $(CONDUIT_HDF5_HEADER)))
    CONDUIT_OPT += -I$(HDF5_DIR)/include
    CONDUIT_LIB += -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
-                  -lhdf5 -lz
+                  -lhdf5 $(ZLIB_LIB)
 endif
 
 # Sidre and required libraries configuration
@@ -268,7 +268,7 @@ SIDRE_LIB = \
    -Wl,-rpath,$(SIDRE_DIR)/lib -L$(SIDRE_DIR)/lib \
    -Wl,-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
    -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
-   -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 -lz -ldl
+   -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 $(ZLIB_LIB) -ldl
 
 # If YES, enable some informational messages
 VERBOSE = NO
