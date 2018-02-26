@@ -14,7 +14,6 @@
 #   - CONDUIT_LIBRARIES
 #   - CONDUIT_INCLUDE_DIRS
 
-
 # check to see if relay requires hdf5, if so make sure to set HDF5
 # as a required dep
 if(EXISTS ${CONDUIT_DIR}/include/conduit/conduit_relay_hdf5.hpp)

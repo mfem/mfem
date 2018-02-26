@@ -44,7 +44,6 @@ ConduitDataCollection::ConduitDataCollection(const std::string& coll_name,
    cycle = 0;                   // always include cycle in directory names
 }
 
-
 #ifdef MFEM_USE_MPI
 //---------------------------------------------------------------------------//
 ConduitDataCollection::ConduitDataCollection(MPI_Comm comm,
@@ -61,7 +60,6 @@ ConduitDataCollection::ConduitDataCollection(MPI_Comm comm,
 }
 #endif
 
-
 //---------------------------------------------------------------------------//
 ConduitDataCollection::~ConduitDataCollection()
 {
@@ -69,8 +67,7 @@ ConduitDataCollection::~ConduitDataCollection()
 }
 
 //---------------------------------------------------------------------------//
-void
-ConduitDataCollection::Save()
+void ConduitDataCollection::Save()
 {
    std::string dir_name = MeshDirectoryName();
    int err = create_directory(dir_name, mesh, myid);
@@ -120,11 +117,8 @@ ConduitDataCollection::Save()
    }
 }
 
-
-
 //---------------------------------------------------------------------------//
-void
-ConduitDataCollection::Load(int cycle)
+void ConduitDataCollection::Load(int cycle)
 {
    DeleteAll();
    this->cycle = cycle;
@@ -480,7 +474,6 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
    return res;
 }
 
-
 //---------------------------------------------------------------------------//
 mfem::GridFunction *
 ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
@@ -612,7 +605,6 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
 
    return res;
 }
-
 
 //---------------------------------------------------------------------------//
 void
@@ -829,7 +821,6 @@ ConduitDataCollection::GridFunctionToBlueprintField(mfem::GridFunction *gf,
 
 }
 
-
 //------------------------------
 // end static public methods
 //------------------------------
@@ -962,7 +953,6 @@ ConduitDataCollection::SaveMeshAndFields(int domain_id,
    relay::io::save(n_mesh, MeshFileName(domain_id, relay_protocol));
 }
 
-
 //---------------------------------------------------------------------------//
 void
 ConduitDataCollection::LoadRootFile(Node &root_out)
@@ -1052,7 +1042,6 @@ ConduitDataCollection::LoadRootFile(Node &root_out)
       delete [] json_buff;
    }
 #endif
-
 }
 
 //---------------------------------------------------------------------------//
@@ -1105,16 +1094,13 @@ ConduitDataCollection::LoadMeshAndFields(int domain_id,
    }
 }
 
-
 //------------------------------
 // end protected methods
 //------------------------------
 
-
 //------------------------------
 // begin static private methods
 //------------------------------
-
 
 //---------------------------------------------------------------------------//
 std::string
@@ -1139,7 +1125,6 @@ ConduitDataCollection::ElementTypeToShapeName(Element::Type element_type)
 
    return "unknown";
 }
-
 
 //---------------------------------------------------------------------------//
 mfem::Geometry::Type
