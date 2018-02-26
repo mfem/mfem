@@ -648,7 +648,7 @@ protected:
    std::streambuf *buf;
    static bool maybe_gz(const char *fn);
 
-public:
+private:
    ifgzstream(const ifgzstream&);            // Prevent object copy
    ifgzstream& operator=(const ifgzstream&); // Prevent object assignment
 };
@@ -699,7 +699,7 @@ public:
 protected:
    std::streambuf *buf;
 
-public:
+private:
    ofgzstream(const ofgzstream&);            // Prevent object copy
    ofgzstream& operator=(const ofgzstream&); // Prevent object assignment
 };
