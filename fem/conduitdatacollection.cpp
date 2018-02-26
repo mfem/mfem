@@ -323,8 +323,9 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
    const int *mesh_atts  = NULL;
    const int *bndry_atts = NULL;
 
-   int num_mesh_atts_entires = 0;
-   int num_bndry_atts_entires = 0;
+   // These variables are used in debug code below.
+   // int num_mesh_atts_entires = 0;
+   // int num_bndry_atts_entires = 0;
 
    // the attribute fields could have several names
    // for the element attributes check for first occurrence of field with
@@ -362,7 +363,7 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
          mesh_atts = n_mesh_atts_vals_conv.value();
       }
 
-      num_mesh_atts_entires = n_mesh_atts_vals.dtype().number_of_elements();
+      // num_mesh_atts_entires = n_mesh_atts_vals.dtype().number_of_elements();
    }
    else
    {
@@ -403,7 +404,7 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
          bndry_atts = n_bndry_atts_vals_conv.value();
       }
 
-      num_bndry_atts_entires = n_bndry_atts_vals.dtype().number_of_elements();
+      // num_bndry_atts_entires = n_bndry_atts_vals.dtype().number_of_elements();
 
    }
    else
