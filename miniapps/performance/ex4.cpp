@@ -68,15 +68,51 @@ typedef RT_FiniteElementSpace<sol_fe_t>       sol_fes_t;
 // Static quadrature, coefficient and integrator types
 typedef TIntegrationRule<geom,ir_order>       int_rule_t;
 typedef TConstantCoefficient<>                coeff_t;
-//typedef TIntegrator<coeff_t,THDivMassKernel> integ_t;
-typedef TIntegrator<coeff_t,THDivDivKernel>  integ_t;
+typedef TIntegrator<coeff_t,THDivMassKernel> mass_integ_t;
+typedef TIntegrator<coeff_t,THDivDivKernel>  div_integ_t;
 
 typedef RTShapeEvaluator<sol_fe_t,int_rule_t>  sol_Shape_Eval;
 typedef RTFieldEvaluator<sol_fes_t,ScalarLayout,int_rule_t> sol_Field_Eval;
 
 // Static bilinear form type, combining the above types
-typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t,sol_Shape_Eval,sol_Field_Eval>
-HPCBilinearForm;
+typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,
+        mass_integ_t,sol_Shape_Eval,sol_Field_Eval>
+        HPCMassBilinearForm;
+typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,
+        div_integ_t,sol_Shape_Eval,sol_Field_Eval>
+        HPCDivBilinearForm;
+
+class SumOperator : public Operator
+{
+public:
+   SumOperator(const Operator& a_mass_oper,
+               const Operator& a_der_oper);
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+private:
+   const Operator& a_mass_oper_;
+   const Operator& a_der_oper_;
+
+   mutable Vector temp_;
+};
+
+SumOperator::SumOperator(const Operator& a_mass_oper,
+                         const Operator& a_der_oper)
+   :
+   Operator(a_mass_oper.Height()),
+   a_mass_oper_(a_mass_oper),
+   a_der_oper_(a_der_oper),
+   temp_(a_mass_oper.Height())
+{
+}
+
+void SumOperator::Mult(const Vector &x, Vector &y) const
+{
+   a_mass_oper_.Mult(x, y);
+   a_der_oper_.Mult(x, temp_);
+   y += temp_;
+}
 
 int main(int argc, char *argv[])
 {
@@ -214,13 +250,14 @@ int main(int argc, char *argv[])
    //    when eliminating the non-homogeneous boundary condition to modify the
    //    r.h.s. vector b.
    GridFunction x(fespace);
+   VectorFunctionCoefficient F(sdim, F_exact);
+   x.ProjectCoefficient(F);
 
-   x = 1.0;
-
-   // 10. Set up the bilinear form corresponding to the EM diffusion operator
-   //     curl muinv curl + sigma I, by adding the curl-curl and the mass domain
+   // 10. Set up the bilinear form corresponding to the H(div) diffusion operator
+   //     grad alpha div + beta I, by adding the div-div and the mass domain
    //     integrators.
    Coefficient *alpha = new ConstantCoefficient(1.0);
+   Coefficient *beta  = new ConstantCoefficient(1.0);
    BilinearForm *a_h = new BilinearForm(fespace);
 
    // 11. Assemble the bilinear form and the corresponding linear system,
@@ -239,27 +276,32 @@ int main(int argc, char *argv[])
    // Pre-allocate sparsity assuming dense element matrices
    a_h->UsePrecomputedSparsity();
 
-   HPCBilinearForm *a_hpc = NULL;
+   HPCMassBilinearForm *a_mass_hpc = NULL;
+   HPCDivBilinearForm *a_div_hpc = NULL;
    Operator *a_oper = NULL;
+   Operator *a_unconstrained_oper = NULL;
 
    if (!perf)
    {
       a_h->AddDomainIntegrator(new DivDivIntegrator(*alpha));
-      //a_h->AddDomainIntegrator(new VectorFEMassIntegrator(*alpha));
+      a_h->AddDomainIntegrator(new VectorFEMassIntegrator(*beta));
       if (static_cond) { a_h->EnableStaticCondensation(); }
       a_h->Assemble();
    }
    else
    {
       // High-performance assembly/evaluation using the templated operator type
-      a_hpc = new HPCBilinearForm(integ_t(coeff_t(1.0)), *fespace);
+      a_mass_hpc = new HPCMassBilinearForm(mass_integ_t(coeff_t(1.0)), *fespace);
+      a_div_hpc = new HPCDivBilinearForm(div_integ_t(coeff_t(1.0)), *fespace);
       if (matrix_free)
       {
-         a_hpc->Assemble(); // partial assembly
+         a_mass_hpc->Assemble(); // partial assembly
+         a_div_hpc->Assemble();
       }
       else
       {
-         a_hpc->AssembleBilinearForm(*a_h); // full matrix assembly
+         a_mass_hpc->AssembleBilinearForm(*a_h); // full matrix assembly
+         a_div_hpc->AssembleBilinearForm(*a_h);
       }
    }
    tic_toc.Stop();
@@ -288,19 +330,20 @@ int main(int argc, char *argv[])
       }
       a->UsePrecomputedSparsity();
       a->AddDomainIntegrator(new DivDivIntegrator(*alpha));
-      //a->AddDomainIntegrator(new VectorFEMassIntegrator(*alpha));
+      a->AddDomainIntegrator(new VectorFEMassIntegrator(*beta));
       if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
 
-      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+      a->FormLinearSystem(ess_tdof_list, x1, *b1, A, X, B);
 
       SparseMatrix A1;
       Vector B1, X1;
 
       if (matrix_free)
       {
-         a_hpc->FormLinearSystem(ess_tdof_list, x1, *b1, a_oper, X1, B1);
-         cout << "Size of linear system: " << a_hpc->Height() << endl;
+         a_unconstrained_oper = new SumOperator(*a_mass_hpc, *a_div_hpc);
+         a_unconstrained_oper->FormLinearSystem(ess_tdof_list, x1, *b1, a_oper, X1, B1);
+         cout << "Size of linear system: " << a_oper->Height() << endl;
          Vector BB(B1);
          BB = 1.0;
          BB.Add(-1.0, X);
@@ -332,8 +375,9 @@ int main(int argc, char *argv[])
    {
       if (perf && matrix_free)
       {
-         a_hpc->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
-         cout << "Size of linear system: " << a_hpc->Height() << endl;
+         a_unconstrained_oper = new SumOperator(*a_mass_hpc, *a_div_hpc);
+         a_unconstrained_oper->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
+         cout << "Size of linear system: " << a_oper->Height() << endl;
       }
       else
       {
@@ -347,7 +391,7 @@ int main(int argc, char *argv[])
       // 11. Recover the solution as a finite element grid function.
       if (perf && matrix_free)
       {
-         a_hpc->RecoverFEMSolution(X, *b, x);
+         a_oper->RecoverFEMSolution(X, *b, x);
       }
       else
       {
@@ -355,7 +399,21 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 13. Send the solution by socket to a GLVis server.
+   // 13. Compute and print the L^2 norm of the error.
+   cout << "\n|| F_h - F ||_{L^2} = " << x.ComputeL2Error(F) << '\n' << endl;
+
+   // 14. Save the refined mesh and the solution. This output can be viewed
+   //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
+   {
+      ofstream mesh_ofs("refined.mesh");
+      mesh_ofs.precision(8);
+      mesh->Print(mesh_ofs);
+      ofstream sol_ofs("sol.gf");
+      sol_ofs.precision(8);
+      x.Save(sol_ofs);
+   }
+
+   // 15. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -365,9 +423,14 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 14. Free the used memory.
+   // 16. Free the used memory.
    delete a_h;
+   delete a_mass_hpc;
+   delete a_div_hpc;
+   delete a_unconstrained_oper;
+   if (a_oper != &A) { delete a_oper; }
    delete alpha;
+   delete beta;
    delete b;
    delete fespace;
    delete fec;

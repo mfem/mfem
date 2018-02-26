@@ -82,6 +82,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f)
    static_cond = NULL;
    hybridization = NULL;
    precompute_sparsity = 0;
+   diag_policy = DIAG_KEEP;
 }
 
 BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
@@ -98,6 +99,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    static_cond = NULL;
    hybridization = NULL;
    precompute_sparsity = ps;
+   diag_policy = DIAG_KEEP;
 
    bfi = bf->GetDBFI();
    dbfi.SetSize (bfi->Size());
@@ -618,14 +620,13 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 {
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
-   const DiagonalPolicy keep_diag = DIAG_KEEP;
    if (static_cond)
    {
       if (!static_cond->HasEliminatedBC())
       {
          static_cond->SetEssentialTrueDofs(ess_tdof_list);
          static_cond->Finalize(); // finalize Schur complement (to true dofs)
-         static_cond->EliminateReducedTrueDofs(keep_diag);
+         static_cond->EliminateReducedTrueDofs(diag_policy);
          static_cond->Finalize(); // finalize eliminated part
       }
       A.MakeRef(static_cond->GetMatrix());
@@ -636,7 +637,7 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
       {
          const SparseMatrix *P = fes->GetConformingProlongation();
          if (P) { ConformingAssemble(); }
-         EliminateVDofs(ess_tdof_list, keep_diag);
+         EliminateVDofs(ess_tdof_list, diag_policy);
          const int remove_zeros = 0;
          Finalize(remove_zeros);
       }
@@ -915,6 +916,11 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
    }
 
    height = width = fes->GetVSize();
+}
+
+void BilinearForm::SetDiagonalPolicy(DiagonalPolicy policy)
+{
+   diag_policy = policy;
 }
 
 BilinearForm::~BilinearForm()
