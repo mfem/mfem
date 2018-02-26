@@ -144,9 +144,20 @@ protected:
           (coarse) space. The class takes ownership of the table. */
       RefinementOperator(const FiniteElementSpace* fespace,
                          Table *old_elem_dof/*takes ownership*/, int old_ndofs);
+      RefinementOperator(const FiniteElementSpace *fespace,
+                         const FiniteElementSpace *coarse_fes);
       virtual void Mult(const Vector &x, Vector &y) const;
       virtual ~RefinementOperator();
    };
+
+   // This method makes the same assumptions as the method:
+   //    void GetLocalRefinementMatrices(
+   //       const FiniteElementSpace &coarse_fes, DenseTensor &localP) const
+   // which is defined below. It also assumes that the coarse fes and this have
+   // the same vector dimension, vdim.
+   SparseMatrix *RefinementMatrix_main(const int coarse_ndofs,
+                                       const Table &coarse_elem_dof,
+                                       const DenseTensor &localP) const;
 
    void GetLocalRefinementMatrices(DenseTensor &localP) const;
    void GetLocalDerefinementMatrices(DenseTensor &localR) const;
@@ -158,6 +169,15 @@ protected:
 
    /// Calculate GridFunction restriction matrix after mesh derefinement.
    SparseMatrix* DerefinementMatrix(int old_ndofs, const Table* old_elem_dof);
+
+   // This method assumes that this->mesh is a refinement of coarse_fes->mesh
+   // and that the CoarseFineTransformations of this->mesh are set accordingly.
+   // Another assumption is that the FEs of this use the same MapType as the
+   // FEs of coarse_fes. Finally, it assumes that this->mesh and
+   // coarse_fes->mesh are NOT mixed meshes, and the spaces this and coarse_fes
+   // are NOT variable-order spaces.
+   void GetLocalRefinementMatrices(const FiniteElementSpace &coarse_fes,
+                                   DenseTensor &localP) const;
 
    /// Help function for constructors + Load().
    void Constructor(Mesh *mesh, NURBSExtension *ext,
@@ -431,6 +451,18 @@ public:
        (*this) to the lower degree FE space given by (*lfes) which
        is defined on the same mesh. */
    SparseMatrix *H2L_GlobalRestrictionMatrix(FiniteElementSpace *lfes);
+
+   /** @brief Construct and return an Operator that can be used to transfer
+       GridFunction data from the @a coarse_fes to @a this FE space. */
+   /** It is assumed that the mesh of this FE space is a refinement of the mesh
+       of @a coarse_fes and the CoarseFineTransformations returned by the method
+       Mesh::GetRefinementTransforms() of the refined mesh are set accordingly.
+       The Operator::Type of @a T can be set to request an Operator of the set
+       type. Currently, only Operator::MFEM_SPARSEMAT and Operator::ANY_TYPE are
+       supported. When Operator::ANY_TYPE is requested, the choice of the
+       particular Operator sub-class is left to the method. */
+   void GetTransferOperator(const FiniteElementSpace &coarse_fes,
+                            OperatorHandle &T) const;
 
    /** Reflect changes in the mesh: update number of DOFs, etc. Also, calculate
        GridFunction transformation operator (unless want_transform is false).
