@@ -22,7 +22,7 @@
 //    json:                 ConduitDataCollection w/ protocol json
 //    conduit_json:         ConduitDataCollection w/ protocol conduit_json
 //    conduit_bin:          ConduitDataCollection w/ protocol conduit_bin
-//    conduit_hdf5:         ConduitDataCollection w/ protocol hdf5
+//    hdf5:                 ConduitDataCollection w/ protocol hdf5
 //
 // Compile with: make convert-dc
 //
@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
                   "\t   json:                 ConduitDataCollection w/ protocol json\n"
                   "\t   conduit_json:         ConduitDataCollection w/ protocol conduit_json\n"
                   "\t   conduit_bin:          ConduitDataCollection w/ protocol conduit_bin\n"
-                  "\t   conduit_hdf5:         ConduitDataCollection w/ protocol hdf5");
+                  "\t   hdf5:                 ConduitDataCollection w/ protocol hdf5");
    args.AddOption(&out_coll_type, "-ot", "--output-type",
                   "Set the output data collection type. Options:\n"
                   "\t   visit:                VisItDataCollection (default)\n"
@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
                   "\t   json:                 ConduitDataCollection w/ protocol json\n"
                   "\t   conduit_json:         ConduitDataCollection w/ protocol conduit_json\n"
                   "\t   conduit_bin:          ConduitDataCollection w/ protocol conduit_bin\n"
-                  "\t   conduit_hdf5:         ConduitDataCollection w/ protocol hdf5");
+                  "\t   hdf5:                 ConduitDataCollection w/ protocol hdf5");
    args.Parse();
    if (!args.Good())
    {
