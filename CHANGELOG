@@ -26,6 +26,13 @@ More efficient non-conforming adaptive mesh refinement
 
 Discretization improvements
 ---------------------------
+- Added general support for transfer of GridFunction data from one finite
+  element space on a coarse mesh to another finite element space on a refined
+  mesh (a "low-order-refined" space). The new method, GetTransferOperator in the
+  FiniteElementSpace class, works both in serial and parallel, and is based on a
+  version of the GetLocalInterpolation method in the FiniteElement class, that
+  allows the coarse FiniteElement to be different from the fine FiniteElement.
+
 - Added classes for general block nonlinear finite element operators (deriving
   from BlockNonlinearForm and ParBlockNonlinearForm) enabling solution of
   nonlinear systems with multiple unknowns in different function spaces. Such
@@ -36,6 +43,9 @@ Discretization improvements
   have a different order. The order information is now part of the finite
   element space header in the NURBS mesh output, so NURBS meshes in the old
   format need to be updated.
+
+- In the classes NonlinearForm and ParNonlinearForm, added support for
+  non-conforming AMR meshes; see also the "API changes" section.
 
 - Added symplectic integrators of orders 1-4 for systems of first order ODEs
   derived from a Hamiltonian, see class SIASolver in linalg/ode.hpp.
@@ -62,17 +72,14 @@ New and updated examples and miniapps
   NURBS meshes in the miniapps/nurbs directory. Currently the directory contains
   variable order NURBS versions of examples 1, 1p and 11p.
 
-- In the classes NonlinearForm and ParNonlinearForm, added support for
-  non-conforming AMR meshes; see also the "API changes" section.
-
 - Added a new miniapp: miniapps/tools/load-dc.cpp, that can be used to visualize
   fields saved via DataCollection classes.
 
 - Example 10p with its SUNDIALS and PETSc versions have been updated to reflect
   the change in the behavior of the method ParNonlinearForm::GetLocalGradient()
-  (see the "API changes" section) and now should work correctly on
-  non-conforming AMR meshes. Example 10 and its SUNDIALS version have also been
-  updated to support non-conforming ARM meshes.
+  (see the "API changes" section) and now works correctly on non-conforming AMR
+  meshes. Example 10 and its SUNDIALS version have also been updated to support
+  non-conforming ARM meshes.
 
 Miscellaneous
 -------------

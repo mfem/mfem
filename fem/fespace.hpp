@@ -172,10 +172,10 @@ protected:
 
    // This method assumes that this->mesh is a refinement of coarse_fes->mesh
    // and that the CoarseFineTransformations of this->mesh are set accordingly.
-   // Another assumption is that the FEs of this use the same MapType as the
-   // FEs of coarse_fes. Finally, it assumes that this->mesh and
-   // coarse_fes->mesh are NOT mixed meshes, and the spaces this and coarse_fes
-   // are NOT variable-order spaces.
+   // Another assumption is that the FEs of this use the same MapType as the FEs
+   // of coarse_fes. Finally, it assumes that this->mesh and coarse_fes->mesh
+   // are NOT mixed meshes, and that the spaces this and coarse_fes are NOT
+   // variable-order spaces.
    void GetLocalRefinementMatrices(const FiniteElementSpace &coarse_fes,
                                    DenseTensor &localP) const;
 
@@ -453,14 +453,17 @@ public:
    SparseMatrix *H2L_GlobalRestrictionMatrix(FiniteElementSpace *lfes);
 
    /** @brief Construct and return an Operator that can be used to transfer
-       GridFunction data from the @a coarse_fes to @a this FE space. */
+       GridFunction data from @a coarse_fes, defined on a coarse mesh, to @a
+       this FE space, defined on a refined mesh. */
    /** It is assumed that the mesh of this FE space is a refinement of the mesh
        of @a coarse_fes and the CoarseFineTransformations returned by the method
        Mesh::GetRefinementTransforms() of the refined mesh are set accordingly.
        The Operator::Type of @a T can be set to request an Operator of the set
        type. Currently, only Operator::MFEM_SPARSEMAT and Operator::ANY_TYPE are
        supported. When Operator::ANY_TYPE is requested, the choice of the
-       particular Operator sub-class is left to the method. */
+       particular Operator sub-class is left to the method.  This method also
+       works in parallel because the transfer operator is local to the MPI task
+       when the input is a synchronized ParGridFunction. */
    void GetTransferOperator(const FiniteElementSpace &coarse_fes,
                             OperatorHandle &T) const;
 
