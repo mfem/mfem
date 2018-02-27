@@ -339,8 +339,11 @@ public:
    /** @brief Return interpolation matrix, @a I, which maps dofs from a coarse
        element, @a fe, to the fine dofs on @a this finite element. */
    /** @a Trans represents the mapping from the reference element of @a this
-       element into a subset of the reference space of the element @a fe. It is
-       assumed that both finite elements use the same MapType. */
+       element into a subset of the reference space of the element @a fe, thus
+       allowing the "coarse" FiniteElement to be different from the "fine"
+       FiniteElement as when h-refinement is combined with p-refinement or
+       p-derefinement. It is assumed that both finite elements use the same
+       MapType. */
    virtual void GetLocalInterpolation(const FiniteElement &fe,
                                       ElementTransformation &Trans,
                                       DenseMatrix &I) const;

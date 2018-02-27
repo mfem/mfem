@@ -236,7 +236,7 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
    ElementTransformation &Trans, DenseMatrix &I,
    const ScalarFiniteElement &fine_fe) const
 {
-   // General "interpolation", defined based on L2 projection
+   // General "interpolation", defined by L2 projection
 
    double v[Geometry::MaxDim];
    Vector vv (v, Dim);
