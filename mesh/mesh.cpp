@@ -4909,8 +4909,16 @@ void Mesh::AddTetrahedralFaceElement(int lf, int gf, int el,
       //   double w = eltransf->SignedWeight();
       //   int oEl = 0; if(w < 0.0) oEl = 1;
       //   if(oEl==1) cout << "negative weight!" << endl;
-
+#ifdef MFEM_USE_MEMALLOC
+   Tetrahedron *tet;
+   int vi[]={v0,v1,v2,v3};
+   tet = TetMemory.Alloc();
+   tet->SetVertices(vi);
+   tet->SetAttribute(1);
+   faces[gf] = tet;
+#else
       faces[gf] = new Tetrahedron(v0, v1, v2, v3);
+#endif
       faces_info[gf].Elem1No  = el;
       //   faces_info[gf].Elem1Inf = 64 * lf+ lf%2 + oEl;
       faces_info[gf].Elem1Inf = 64 * lf; // face lf with orientation 0
