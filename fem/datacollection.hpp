@@ -132,13 +132,13 @@ private:
    /// A collection of named QuadratureFunctions
    typedef NamedFieldsMap<QuadratureFunction> QFieldMap;
 public:
-   typedef typename GFieldMap::MapType FieldMapType;
-   typedef typename GFieldMap::iterator FieldMapIterator;
-   typedef typename GFieldMap::const_iterator FieldMapConstIterator;
+   typedef GFieldMap::MapType FieldMapType;
+   typedef GFieldMap::iterator FieldMapIterator;
+   typedef GFieldMap::const_iterator FieldMapConstIterator;
 
-   typedef typename QFieldMap::MapType QFieldMapType;
-   typedef typename QFieldMap::iterator QFieldMapIterator;
-   typedef typename QFieldMap::const_iterator QFieldMapConstIterator;
+   typedef QFieldMap::MapType QFieldMapType;
+   typedef QFieldMap::iterator QFieldMapIterator;
+   typedef QFieldMap::const_iterator QFieldMapConstIterator;
 
    /// Format constants to be used with SetFormat().
    /** Derived classes can define their own format enumerations and override the
