@@ -18,6 +18,7 @@
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
 #include "densemat.hpp"
+#include "complex_operator.hpp"
 
 namespace mfem
 {
