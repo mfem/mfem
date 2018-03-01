@@ -233,7 +233,8 @@ endif
 
 # gzstream configuration
 ifeq ($(MFEM_USE_GZSTREAM),YES)
-   ALL_LIBS += -lz
+   INCFLAGS += $(ZLIB_OPT)
+   ALL_LIBS += $(ZLIB_LIB)
 endif
 
 # List of all defines that may be enabled in config.hpp and config.mk:
