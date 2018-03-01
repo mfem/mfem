@@ -69,6 +69,9 @@ public:
 
 class ParComplexLinearForm : public Vector
 {
+private:
+   ComplexOperator::Convention conv_;
+
 protected:
    ParLinearForm * plfr_;
    ParLinearForm * plfi_;
@@ -77,7 +80,9 @@ protected:
 
 public:
 
-   ParComplexLinearForm(ParFiniteElementSpace *pf);
+   ParComplexLinearForm(ParFiniteElementSpace *pf,
+                        const ComplexOperator::Convention &
+                        convention = ComplexOperator::HERMITIAN);
 
    virtual ~ParComplexLinearForm();
 
