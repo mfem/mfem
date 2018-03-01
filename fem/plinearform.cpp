@@ -45,8 +45,11 @@ HypreParVector *ParLinearForm::ParallelAssemble()
 }
 
 
-ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pf)
-   : Vector(2*(pf->GetVSize()))
+ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pf,
+                                           const ComplexOperator::Convention &
+                                           convention)
+   : Vector(2*(pf->GetVSize())),
+     conv_(convention)
 {
    plfr_ = new ParLinearForm(pf, &data[0]);
    plfi_ = new ParLinearForm(pf, &data[pf->GetVSize()]);
@@ -89,6 +92,10 @@ ParComplexLinearForm::Assemble()
 {
    plfr_->Assemble();
    plfi_->Assemble();
+   if (conv_ == ComplexOperator::BLOCK_SYMMETRIC)
+   {
+      *plfi_ *= -1.0;
+   }
 }
 
 void
@@ -128,8 +135,9 @@ ParComplexLinearForm::ParallelAssemble()
 complex<double>
 ParComplexLinearForm::operator()(const ParComplexGridFunction &gf) const
 {
-   // return InnerProduct(plfr_->ParFESpace()->GetComm(), *this, gf);
-   return 0.0;
+   double s = (conv_ == ComplexOperator::HERMITIAN)?1.0:-1.0;
+   return complex<double>((*plfr_)(gf.real()) - s * (*plfi_)(gf.imag()),
+                          (*plfr_)(gf.imag()) + s * (*plfi_)(gf.real()));
 }
 
 }
