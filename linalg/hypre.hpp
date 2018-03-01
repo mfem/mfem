@@ -726,6 +726,7 @@ public:
    HypreGMRES(HypreParMatrix &_A);
 
    void SetTol(double tol);
+   void SetAbsTol(double tol);
    void SetMaxIter(int max_iter);
    void SetKDim(int dim);
    void SetLogging(int logging);
