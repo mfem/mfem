@@ -79,6 +79,9 @@ Miscellaneous
 - Documented project workflow and provided contribution guidelines in the new
   top-level file, CONTRIBUTING.md.
 
+- Added a build option, MFEM_USE_EXCEPTIONS=YES, to throw an exception instead
+  of calling abort on mfem errors.
+
 - Added a new developer tool, config/sample-runs.sh, that extracts the sample
   runs from all examples and miniapps and runs them. Optionally, it can save the
   output from the execution to files, allowing comparison between different
