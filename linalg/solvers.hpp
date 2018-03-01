@@ -29,8 +29,7 @@ namespace mfem
 {
 
 /// Abstract base class for iterative solver
-template <class TVector>
-class TIterativeSolver : public TSolver<TVector>
+class IterativeSolver : public Solver
 {
 #ifdef MFEM_USE_MPI
 private:
@@ -39,8 +38,8 @@ private:
 #endif
 
 protected:
-   const TOperator<TVector> *oper;
-   TSolver<TVector> *prec;
+   const Operator *oper;
+   Solver *prec;
 
    int max_iter, print_level;
    double rel_tol, abs_tol;
@@ -49,31 +48,14 @@ protected:
    mutable int final_iter, converged;
    mutable double final_norm;
 
-   double Dot(const TVector &x, const TVector &y) const
-   {
-#ifndef MFEM_USE_MPI
-      return (x * y);
-#else
-      if (dot_prod_type == 0)
-      {
-         return (x * y);
-      }
-      double local_dot = (x * y);
-      double global_dot;
-
-      MPI_Allreduce(&local_dot, &global_dot, 1, MPI_DOUBLE, MPI_SUM, comm);
-
-      return global_dot;
-#endif
-   }
-
-   double Norm(const TVector &x) const { return sqrt(Dot(x, x)); }
+   double Dot(const Vector &x, const Vector &y) const;
+   double Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
 
 public:
-  TIterativeSolver();
-  
+   IterativeSolver();
+
 #ifdef MFEM_USE_MPI
-   TIterativeSolver(MPI_Comm _comm);
+   IterativeSolver(MPI_Comm _comm);
 #endif
 
    void SetRelTol(double rtol) { rel_tol = rtol; }
@@ -86,16 +68,15 @@ public:
    double GetFinalNorm() const { return final_norm; }
 
    /// This should be called before SetOperator
-  virtual void SetPreconditioner(TSolver<TVector> &pr);
+   virtual void SetPreconditioner(Solver &pr);
 
    /// Also calls SetOperator for the preconditioner if there is one
-   virtual void SetOperator(const TOperator<TVector> &op);
+   virtual void SetOperator(const Operator &op);
 };
-typedef TIterativeSolver<Vector> IterativeSolver;
+
 
 /// Stationary linear iteration: x <- x + B (b - A x)
-template <class TVector>
-class TSLISolver : public TIterativeSolver<TVector>
+class SLISolver : public IterativeSolver
 {
 protected:
    mutable Vector r, z;
@@ -103,322 +84,60 @@ protected:
    void UpdateVectors();
 
 public:
-   TSLISolver() { }
+   SLISolver() { }
 
 #ifdef MFEM_USE_MPI
-   TSLISolver(MPI_Comm _comm) : TIterativeSolver<TVector>(_comm) { }
+   SLISolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
 #endif
 
-   virtual void SetOperator(const TOperator<TVector> &op)
-   { SetOperator(op); UpdateVectors(); }
+   virtual void SetOperator(const Operator &op)
+   { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
-   virtual void Mult(const TVector &b, TVector &x) const;
+   virtual void Mult(const Vector &b, Vector &x) const;
 };
 
 /// Stationary linear iteration. (tolerances are squared)
-template <class TVector>
-void TSLI(const TOperator<TVector> &A,
-          const TVector &b, TVector &x,
-          int print_iter = 0, int max_num_iter = 1000,
-          double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
+void SLI(const Operator &A, const Vector &b, Vector &x,
+         int print_iter = 0, int max_num_iter = 1000,
+         double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
 
 /// Preconditioned stationary linear iteration. (tolerances are squared)
-template <class TVector>
-void TSLI(const TOperator<TVector> &A, TSolver<TVector> &B,
-          const TVector &b, TVector &x,
-          int print_iter = 0, int max_num_iter = 1000,
-          double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
+void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
+         int print_iter = 0, int max_num_iter = 1000,
+         double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
 
 
 /// Conjugate gradient method
-template <class TVector>
-class TCGSolver : public TIterativeSolver<TVector>
+class CGSolver : public IterativeSolver
 {
 protected:
-   mutable TVector r, d, z;
+   mutable Vector r, d, z;
 
-   void UpdateVectors()
-   {
-     r.SetSize(TIterativeSolver<TVector>::width);
-     d.SetSize(TIterativeSolver<TVector>::width);
-     z.SetSize(TIterativeSolver<TVector>::width);
-   }
+   void UpdateVectors();
 
 public:
-   TCGSolver() { }
+   CGSolver() { }
 
 #ifdef MFEM_USE_MPI
-   TCGSolver(MPI_Comm _comm) : TIterativeSolver<TVector>(_comm) { }
+   CGSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
 #endif
 
-   virtual void SetOperator(const TOperator<TVector> &op)
-   { TIterativeSolver<TVector>::SetOperator(op); UpdateVectors(); }
+   virtual void SetOperator(const Operator &op)
+   { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
-   virtual void Mult(const TVector &b, TVector &x) const
-   {
-      int i;
-      double r0, den, nom, nom0, betanom, alpha, beta;
-
-      if (TIterativeSolver<TVector>::iterative_mode)
-      {
-         TIterativeSolver<TVector>::oper->Mult(x, r);
-         subtract(b, r, r); // r = b - A x
-      }
-      else
-      {
-         r = b;
-         x = 0.0;
-      }
-
-      if (TIterativeSolver<TVector>::prec)
-      {
-         TIterativeSolver<TVector>::prec->Mult(r, z); // z = B r
-         d = z;
-      }
-      else
-      {
-         d = r;
-      }
-      nom0 = nom = TIterativeSolver<TVector>::Dot(d, r);
-      MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
-
-      if (TIterativeSolver<TVector>::print_level == 1
-          || TIterativeSolver<TVector>::print_level == 3)
-      {
-         mfem::out << "   Iteration : " << std::setw(3) << 0 << "  (B r, r) = "
-                   << nom << (TIterativeSolver<TVector>::print_level == 3 ? " ...\n" : "\n");
-      }
-
-      r0 = std::max(nom*TIterativeSolver<TVector>::rel_tol*TIterativeSolver<TVector>::rel_tol,
-                    TIterativeSolver<TVector>::abs_tol*TIterativeSolver<TVector>::abs_tol);
-      if (nom <= r0)
-      {
-         TIterativeSolver<TVector>::converged = 1;
-         TIterativeSolver<TVector>::final_iter = 0;
-         TIterativeSolver<TVector>::final_norm = sqrt(nom);
-         return;
-      }
-
-      TIterativeSolver<TVector>::oper->Mult(d, z);  // z = A d
-
-      den = TIterativeSolver<TVector>::Dot(z, d);
-      MFEM_ASSERT(IsFinite(den), "den = " << den);
-
-      if (TIterativeSolver<TVector>::print_level >= 0 && den < 0.0)
-      {
-         mfem::out << "Negative denominator in step 0 of PCG: " << den << '\n';
-      }
-
-      if (den == 0.0)
-      {
-         TIterativeSolver<TVector>::converged = 0;
-         TIterativeSolver<TVector>::final_iter = 0;
-         TIterativeSolver<TVector>::final_norm = sqrt(nom);
-         return;
-      }
-
-      // start iteration
-      TIterativeSolver<TVector>::converged = 0;
-      TIterativeSolver<TVector>::final_iter = TIterativeSolver<TVector>::max_iter;
-      for (i = 1; true; )
-      {
-         alpha = nom/den;
-         add(x,  alpha, d, x);     //  x = x + alpha d
-         add(r, -alpha, z, r);     //  r = r - alpha A d
-
-         if (TIterativeSolver<TVector>::prec)
-         {
-            TIterativeSolver<TVector>::prec->Mult(r, z);      //  z = B r
-            betanom = TIterativeSolver<TVector>::Dot(r, z);
-         }
-         else
-         {
-            betanom = TIterativeSolver<TVector>::Dot(r, r);
-         }
-         MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
-
-         if (TIterativeSolver<TVector>::print_level == 1)
-         {
-            mfem::out << "   Iteration : " << std::setw(3) << i << "  (B r, r) = "
-                      << betanom << '\n';
-         }
-
-         if (betanom < r0)
-         {
-            if (TIterativeSolver<TVector>::print_level == 2)
-            {
-               mfem::out << "Number of PCG iterations: " << i << '\n';
-            }
-            else if (TIterativeSolver<TVector>::print_level == 3)
-            {
-               mfem::out << "   Iteration : " << std::setw(3) << i << "  (B r, r) = "
-                         << betanom << '\n';
-            }
-            TIterativeSolver<TVector>::converged = 1;
-            TIterativeSolver<TVector>::final_iter = i;
-            break;
-         }
-
-         if (++i > TIterativeSolver<TVector>::max_iter)
-         {
-            break;
-         }
-
-         beta = betanom/nom;
-         if (TIterativeSolver<TVector>::prec)
-         {
-            add(z, beta, d, d);   //  d = z + beta d
-         }
-         else
-         {
-            add(r, beta, d, d);
-         }
-         TIterativeSolver<TVector>::oper->Mult(d, z);       //  z = A d
-         den = TIterativeSolver<TVector>::Dot(d, z);
-         MFEM_ASSERT(IsFinite(den), "den = " << den);
-         if (den <= 0.0)
-         {
-            if (TIterativeSolver<TVector>::print_level >= 0 && TIterativeSolver<TVector>::Dot(d, d) > 0.0)
-               mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
-                         << den << '\n';
-         }
-         nom = betanom;
-      }
-      if (TIterativeSolver<TVector>::print_level >= 0 && !TIterativeSolver<TVector>::converged)
-      {
-         if (TIterativeSolver<TVector>::print_level != 1)
-         {
-            if (TIterativeSolver<TVector>::print_level != 3)
-            {
-               mfem::out << "   Iteration : " << std::setw(3) << 0 << "  (B r, r) = "
-                         << nom0 << " ...\n";
-            }
-            mfem::out << "   Iteration : " << std::setw(3) << TIterativeSolver<TVector>::final_iter << "  (B r, r) = "
-                      << betanom << '\n';
-         }
-         mfem::out << "PCG: No convergence!" << '\n';
-      }
-      if (TIterativeSolver<TVector>::print_level >= 1 || (TIterativeSolver<TVector>::print_level >= 0 && !TIterativeSolver<TVector>::converged))
-      {
-         mfem::out << "Average reduction factor = "
-                   << pow (betanom/nom0, 0.5/TIterativeSolver<TVector>::final_iter) << '\n';
-      }
-      TIterativeSolver<TVector>::final_norm = sqrt(betanom);
-   }
+   virtual void Mult(const Vector &b, Vector &x) const;
 };
-typedef TCGSolver<Vector> CGSolver;
 
 /// Conjugate gradient method. (tolerances are squared)
-template <class TVector>
-void TCG(const Operator &A, const TVector &b, TVector &x,
-         int print_iter = 0, int max_num_iter = 1000,
-         double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24)
-{
-   TCGSolver<TVector> cg;
-   cg.SetPrintLevel(print_iter);
-   cg.SetMaxIter(max_num_iter);
-   cg.SetRelTol(sqrt(RTOLERANCE));
-   cg.SetAbsTol(sqrt(ATOLERANCE));
-   cg.SetOperator(A);
-   cg.Mult(b, x);
-}
-
-#ifdef MFEM_USE_MPI
-/// Conjugate gradient method. (tolerances are squared)
-template <class TVector>
-void TCG(MPI_Comm comm,
-         const Operator &A, const TVector &b, TVector &x,
-         int print_iter = 0, int max_num_iter = 1000,
-         double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24)
-{
-   TCGSolver<TVector> cg(comm);
-   cg.SetPrintLevel(print_iter);
-   cg.SetMaxIter(max_num_iter);
-   cg.SetRelTol(sqrt(RTOLERANCE));
-   cg.SetAbsTol(sqrt(ATOLERANCE));
-   cg.SetOperator(A);
-   cg.Mult(b, x);
-}
-#endif
+void CG(const Operator &A, const Vector &b, Vector &x,
+        int print_iter = 0, int max_num_iter = 1000,
+        double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
 
 /// Preconditioned conjugate gradient method. (tolerances are squared)
-template <class TVector>
-void TPCG(const Operator &A, Solver &B, const TVector &b, TVector &x,
-          int print_iter = 0, int max_num_iter = 1000,
-          double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24)
-{
-   TCGSolver<TVector> pcg;
-   pcg.SetPrintLevel(print_iter);
-   pcg.SetMaxIter(max_num_iter);
-   pcg.SetRelTol(sqrt(RTOLERANCE));
-   pcg.SetAbsTol(sqrt(ATOLERANCE));
-   pcg.SetOperator(A);
-   pcg.SetPreconditioner(B);
-   pcg.Mult(b, x);
-}
+void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
+         int print_iter = 0, int max_num_iter = 1000,
+         double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
 
-#ifdef MFEM_USE_MPI
-/// Preconditioned conjugate gradient method. (tolerances are squared)
-template <class TVector>
-void TPCG(MPI_Comm comm,
-          const Operator &A, Solver &B, const TVector &b, TVector &x,
-          int print_iter = 0, int max_num_iter = 1000,
-          double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24)
-{
-   TCGSolver<TVector> pcg(comm);
-   pcg.SetPrintLevel(print_iter);
-   pcg.SetMaxIter(max_num_iter);
-   pcg.SetRelTol(sqrt(RTOLERANCE));
-   pcg.SetAbsTol(sqrt(ATOLERANCE));
-   pcg.SetOperator(A);
-   pcg.SetPreconditioner(B);
-   pcg.Mult(b, x);
-}
-#endif
-
-inline void CG(const Operator &A, const Vector &b, Vector &x,
-               int print_iter = 0, int max_num_iter = 1000,
-               double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24)
-{
-   TCG<Vector>(A, b, x,
-               print_iter, max_num_iter,
-               RTOLERANCE, ATOLERANCE);
-}
-
-#ifdef MFEM_USE_MPI
-inline void CG(MPI_Comm comm,
-               const Operator &A, const Vector &b, Vector &x,
-               int print_iter = 0, int max_num_iter = 1000,
-               double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24)
-{
-   TCG<Vector>(comm,
-               A, b, x,
-               print_iter, max_num_iter,
-               RTOLERANCE, ATOLERANCE);
-}
-#endif
-
-inline void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
-                int print_iter = 0, int max_num_iter = 1000,
-                double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24)
-{
-   TPCG<Vector>(A, B, b, x,
-                print_iter, max_num_iter,
-                RTOLERANCE, ATOLERANCE);
-}
-
-#ifdef MFEM_USE_MPI
-inline void PCG(MPI_Comm comm,
-                const Operator &A, Solver &B, const Vector &b, Vector &x,
-                int print_iter = 0, int max_num_iter = 1000,
-                double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24)
-{
-   TPCG<Vector>(comm,
-                A, B, b, x,
-                print_iter, max_num_iter,
-                RTOLERANCE, ATOLERANCE);
-}
-#endif
 
 /// GMRES method
 class GMRESSolver : public IterativeSolver
@@ -694,7 +413,5 @@ public:
 #endif // MFEM_USE_SUITESPARSE
 
 }
-
-#include "solvers.tpp"
 
 #endif // MFEM_SOLVERS

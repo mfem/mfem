@@ -21,6 +21,454 @@ namespace mfem
 
 using namespace std;
 
+IterativeSolver::IterativeSolver()
+   : Solver(0, true)
+{
+   oper = NULL;
+   prec = NULL;
+   max_iter = 10;
+   print_level = -1;
+   rel_tol = abs_tol = 0.0;
+#ifdef MFEM_USE_MPI
+   dot_prod_type = 0;
+#endif
+}
+
+#ifdef MFEM_USE_MPI
+IterativeSolver::IterativeSolver(MPI_Comm _comm)
+   : Solver(0, true)
+{
+   oper = NULL;
+   prec = NULL;
+   max_iter = 10;
+   print_level = -1;
+   rel_tol = abs_tol = 0.0;
+   dot_prod_type = 1;
+   comm = _comm;
+}
+#endif
+
+double IterativeSolver::Dot(const Vector &x, const Vector &y) const
+{
+#ifndef MFEM_USE_MPI
+   return (x * y);
+#else
+   if (dot_prod_type == 0)
+   {
+      return (x * y);
+   }
+   else
+   {
+      double local_dot = (x * y);
+      double global_dot;
+
+      MPI_Allreduce(&local_dot, &global_dot, 1, MPI_DOUBLE, MPI_SUM, comm);
+
+      return global_dot;
+   }
+#endif
+}
+
+void IterativeSolver::SetPrintLevel(int print_lvl)
+{
+#ifndef MFEM_USE_MPI
+   print_level = print_lvl;
+#else
+   if (dot_prod_type == 0)
+   {
+      print_level = print_lvl;
+   }
+   else
+   {
+      int rank;
+      MPI_Comm_rank(comm, &rank);
+      if (rank == 0)
+      {
+         print_level = print_lvl;
+      }
+   }
+#endif
+}
+
+void IterativeSolver::SetPreconditioner(Solver &pr)
+{
+   prec = &pr;
+   prec->iterative_mode = false;
+}
+
+void IterativeSolver::SetOperator(const Operator &op)
+{
+   oper = &op;
+   height = op.Height();
+   width = op.Width();
+   if (prec)
+   {
+      prec->SetOperator(*oper);
+   }
+}
+
+
+void SLISolver::UpdateVectors()
+{
+   r.SetSize(width);
+   z.SetSize(width);
+}
+
+void SLISolver::Mult(const Vector &b, Vector &x) const
+{
+   int i;
+
+   // Optimized preconditioned SLI with fixed number of iterations and given
+   // initial guess
+   if (!rel_tol && iterative_mode && prec)
+   {
+      for (i = 0; i < max_iter; i++)
+      {
+         oper->Mult(x, r);  // r = A x
+         subtract(b, r, r); // r = b - A x
+         prec->Mult(r, z);  // z = B r
+         add(x, 1.0, z, x); // x = x + B (b - A x)
+      }
+      converged = 1;
+      final_iter = i;
+      return;
+   }
+
+   // Optimized preconditioned SLI with fixed number of iterations and zero
+   // initial guess
+   if (!rel_tol && !iterative_mode && prec)
+   {
+      prec->Mult(b, x);     // x = B b (initial guess 0)
+      for (i = 1; i < max_iter; i++)
+      {
+         oper->Mult(x, r);  // r = A x
+         subtract(b, r, r); // r = b - A x
+         prec->Mult(r, z);  // z = B r
+         add(x, 1.0, z, x); // x = x + B (b - A x)
+      }
+      converged = 1;
+      final_iter = i;
+      return;
+   }
+
+   // General version of SLI with a relative tolerance, optional preconditioner
+   // and optional initial guess
+   double r0, nom, nom0, nomold = 1, cf;
+
+   if (iterative_mode)
+   {
+      oper->Mult(x, r);
+      subtract(b, r, r); // r = b - A x
+   }
+   else
+   {
+      r = b;
+      x = 0.0;
+   }
+
+   if (prec)
+   {
+      prec->Mult(r, z); // z = B r
+      nom0 = nom = Dot(z, r);
+   }
+   else
+   {
+      nom0 = nom = Dot(r, r);
+   }
+
+   if (print_level == 1)
+      mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
+                << nom << '\n';
+
+   r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
+   if (nom <= r0)
+   {
+      converged = 1;
+      final_iter = 0;
+      final_norm = sqrt(nom);
+      return;
+   }
+
+   // start iteration
+   converged = 0;
+   final_iter = max_iter;
+   for (i = 1; true; )
+   {
+      if (prec) //  x = x + B (b - A x)
+      {
+         add(x, 1.0, z, x);
+      }
+      else
+      {
+         add(x, 1.0, r, x);
+      }
+
+      oper->Mult(x, r);
+      subtract(b, r, r); // r = b - A x
+
+      if (prec)
+      {
+         prec->Mult(r, z); //  z = B r
+         nom = Dot(z, r);
+      }
+      else
+      {
+         nom = Dot(r, r);
+      }
+
+      cf = sqrt(nom/nomold);
+      if (print_level == 1)
+         mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
+                   << nom << "\tConv. rate: " << cf << '\n';
+      nomold = nom;
+
+      if (nom < r0)
+      {
+         if (print_level == 2)
+            mfem::out << "Number of SLI iterations: " << i << '\n'
+                      << "Conv. rate: " << cf << '\n';
+         else if (print_level == 3)
+            mfem::out << "(B r_0, r_0) = " << nom0 << '\n'
+                      << "(B r_N, r_N) = " << nom << '\n'
+                      << "Number of SLI iterations: " << i << '\n';
+         converged = 1;
+         final_iter = i;
+         break;
+      }
+
+      if (++i > max_iter)
+      {
+         break;
+      }
+   }
+
+   if (print_level >= 0 && !converged)
+   {
+      mfem::err << "SLI: No convergence!" << '\n';
+      mfem::out << "(B r_0, r_0) = " << nom0 << '\n'
+                << "(B r_N, r_N) = " << nom << '\n'
+                << "Number of SLI iterations: " << final_iter << '\n';
+   }
+   if (print_level >= 1 || (print_level >= 0 && !converged))
+   {
+      mfem::out << "Average reduction factor = "
+                << pow (nom/nom0, 0.5/final_iter) << '\n';
+   }
+   final_norm = sqrt(nom);
+}
+
+void SLI(const Operator &A, const Vector &b, Vector &x,
+         int print_iter, int max_num_iter,
+         double RTOLERANCE, double ATOLERANCE)
+{
+   SLISolver sli;
+   sli.SetPrintLevel(print_iter);
+   sli.SetMaxIter(max_num_iter);
+   sli.SetRelTol(sqrt(RTOLERANCE));
+   sli.SetAbsTol(sqrt(ATOLERANCE));
+   sli.SetOperator(A);
+   sli.Mult(b, x);
+}
+
+void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
+         int print_iter, int max_num_iter,
+         double RTOLERANCE, double ATOLERANCE)
+{
+   SLISolver sli;
+   sli.SetPrintLevel(print_iter);
+   sli.SetMaxIter(max_num_iter);
+   sli.SetRelTol(sqrt(RTOLERANCE));
+   sli.SetAbsTol(sqrt(ATOLERANCE));
+   sli.SetOperator(A);
+   sli.SetPreconditioner(B);
+   sli.Mult(b, x);
+}
+
+
+void CGSolver::UpdateVectors()
+{
+   r.SetSize(width);
+   d.SetSize(width);
+   z.SetSize(width);
+}
+
+void CGSolver::Mult(const Vector &b, Vector &x) const
+{
+   int i;
+   double r0, den, nom, nom0, betanom, alpha, beta;
+
+   if (iterative_mode)
+   {
+      oper->Mult(x, r);
+      subtract(b, r, r); // r = b - A x
+   }
+   else
+   {
+      r = b;
+      x = 0.0;
+   }
+
+   if (prec)
+   {
+      prec->Mult(r, z); // z = B r
+      d = z;
+   }
+   else
+   {
+      d = r;
+   }
+   nom0 = nom = Dot(d, r);
+   MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
+
+   if (print_level == 1 || print_level == 3)
+   {
+      mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
+                << nom << (print_level == 3 ? " ...\n" : "\n");
+   }
+
+   r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
+   if (nom <= r0)
+   {
+      converged = 1;
+      final_iter = 0;
+      final_norm = sqrt(nom);
+      return;
+   }
+
+   oper->Mult(d, z);  // z = A d
+   den = Dot(z, d);
+   MFEM_ASSERT(IsFinite(den), "den = " << den);
+
+   if (print_level >= 0 && den < 0.0)
+   {
+      mfem::out << "Negative denominator in step 0 of PCG: " << den << '\n';
+   }
+
+   if (den == 0.0)
+   {
+      converged = 0;
+      final_iter = 0;
+      final_norm = sqrt(nom);
+      return;
+   }
+
+   // start iteration
+   converged = 0;
+   final_iter = max_iter;
+   for (i = 1; true; )
+   {
+      alpha = nom/den;
+      add(x,  alpha, d, x);     //  x = x + alpha d
+      add(r, -alpha, z, r);     //  r = r - alpha A d
+
+      if (prec)
+      {
+         prec->Mult(r, z);      //  z = B r
+         betanom = Dot(r, z);
+      }
+      else
+      {
+         betanom = Dot(r, r);
+      }
+      MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
+
+      if (print_level == 1)
+      {
+         mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
+                   << betanom << '\n';
+      }
+
+      if (betanom < r0)
+      {
+         if (print_level == 2)
+         {
+            mfem::out << "Number of PCG iterations: " << i << '\n';
+         }
+         else if (print_level == 3)
+         {
+            mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
+                      << betanom << '\n';
+         }
+         converged = 1;
+         final_iter = i;
+         break;
+      }
+
+      if (++i > max_iter)
+      {
+         break;
+      }
+
+      beta = betanom/nom;
+      if (prec)
+      {
+         add(z, beta, d, d);   //  d = z + beta d
+      }
+      else
+      {
+         add(r, beta, d, d);
+      }
+      oper->Mult(d, z);       //  z = A d
+      den = Dot(d, z);
+      MFEM_ASSERT(IsFinite(den), "den = " << den);
+      if (den <= 0.0)
+      {
+         if (print_level >= 0 && Dot(d, d) > 0.0)
+            mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
+                      << den << '\n';
+      }
+      nom = betanom;
+   }
+   if (print_level >= 0 && !converged)
+   {
+      if (print_level != 1)
+      {
+         if (print_level != 3)
+         {
+            mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
+                      << nom0 << " ...\n";
+         }
+         mfem::out << "   Iteration : " << setw(3) << final_iter << "  (B r, r) = "
+                   << betanom << '\n';
+      }
+      mfem::out << "PCG: No convergence!" << '\n';
+   }
+   if (print_level >= 1 || (print_level >= 0 && !converged))
+   {
+      mfem::out << "Average reduction factor = "
+                << pow (betanom/nom0, 0.5/final_iter) << '\n';
+   }
+   final_norm = sqrt(betanom);
+}
+
+void CG(const Operator &A, const Vector &b, Vector &x,
+        int print_iter, int max_num_iter,
+        double RTOLERANCE, double ATOLERANCE)
+{
+   CGSolver cg;
+   cg.SetPrintLevel(print_iter);
+   cg.SetMaxIter(max_num_iter);
+   cg.SetRelTol(sqrt(RTOLERANCE));
+   cg.SetAbsTol(sqrt(ATOLERANCE));
+   cg.SetOperator(A);
+   cg.Mult(b, x);
+}
+
+void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
+         int print_iter, int max_num_iter,
+         double RTOLERANCE, double ATOLERANCE)
+{
+   CGSolver pcg;
+   pcg.SetPrintLevel(print_iter);
+   pcg.SetMaxIter(max_num_iter);
+   pcg.SetRelTol(sqrt(RTOLERANCE));
+   pcg.SetAbsTol(sqrt(ATOLERANCE));
+   pcg.SetOperator(A);
+   pcg.SetPreconditioner(B);
+   pcg.Mult(b, x);
+}
+
+
 inline void GeneratePlaneRotation(double &dx, double &dy,
                                   double &cs, double &sn)
 {
@@ -583,7 +1031,7 @@ void BiCGSTAB(const Operator &A, Solver &B, const Vector &b, Vector &x,
 
 void MINRESSolver::SetOperator(const Operator &op)
 {
-   SetOperator(op);
+   IterativeSolver::SetOperator(op);
    v0.SetSize(width);
    v1.SetSize(width);
    w0.SetSize(width);

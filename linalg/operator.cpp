@@ -18,15 +18,14 @@
 namespace mfem
 {
 
-template <class TVector>
-void TOperator<TVector>::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                TVector &x, TVector &b,
-                                TOperator<TVector>* &Aout, TVector &X, TVector &B,
+void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
+                                Vector &x, Vector &b,
+                                Operator* &Aout, Vector &X, Vector &B,
                                 int copy_interior)
 {
-   const TOperator<TVector> *P = this->GetProlongation();
-   const TOperator<TVector> *R = this->GetRestriction();
-   TOperator<TVector> *rap;
+   const Operator *P = this->GetProlongation();
+   const Operator *R = this->GetRestriction();
+   Operator *rap;
 
    if (P)
    {
@@ -55,29 +54,28 @@ void TOperator<TVector>::FormLinearSystem(const Array<int> &ess_tdof_list,
    Aout = A;
 }
 
-template <class TVector>
-void TOperator<TVector>::RecoverFEMSolution(const TVector &X,
-                                            const TVector &b,
-                                            TVector &x)
+void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
 {
-   const TOperator<TVector> *P = this->GetProlongation();
+   const Operator *P = this->GetProlongation();
    if (P)
    {
       // Apply conforming prolongation
       x.SetSize(P->Height());
       P->Mult(X, x);
    }
-   // Otherwise X and x point to the same data
+   else
+   {
+      // X and x point to the same data
+   }
 }
 
-template <class TVector>
-void TOperator<TVector>::PrintMatlab(std::ostream & out, int n, int m) const
+void Operator::PrintMatlab(std::ostream & out, int n, int m) const
 {
    using namespace std;
    if (n == 0) { n = width; }
    if (m == 0) { m = height; }
 
-   TVector x(n), y(m);
+   Vector x(n), y(m);
    x = 0.0;
 
    out << setiosflags(ios::scientific | ios::showpos);
@@ -97,20 +95,16 @@ void TOperator<TVector>::PrintMatlab(std::ostream & out, int n, int m) const
 }
 
 
-template <class TVector>
-TConstrainedOperator<TVector>::TConstrainedOperator(TOperator<TVector> *A,
-                                                    const Array<int> &list,
-                                                    bool _own_A)
-   : TOperator<TVector>(A->Height(), A->Width()), A(A), own_A(_own_A)
+ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
+                                         bool _own_A)
+   : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
 {
    constraint_list.MakeRef(list);
-   z.SetSize(TOperator<TVector>::height);
-   w.SetSize(TOperator<TVector>::height);
+   z.SetSize(height);
+   w.SetSize(height);
 }
 
-template <class TVector>
-void TConstrainedOperator<TVector>::EliminateRHS(const TVector &x,
-                                                 TVector &b) const
+void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
    w = 0.0;
 
@@ -128,9 +122,8 @@ void TConstrainedOperator<TVector>::EliminateRHS(const TVector &x,
       b(constraint_list[i]) = x(constraint_list[i]);
    }
 }
-  
-template <class TVector>
-void TConstrainedOperator<TVector>::Mult(const TVector &x, TVector &y) const
+
+void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
    if (constraint_list.Size() == 0)
    {

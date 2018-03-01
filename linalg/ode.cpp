@@ -10,39 +10,35 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "operator.hpp"
-//#include "ode.hpp"
+#include "ode.hpp"
 
 namespace mfem
 {
 
-template <class TVector>
-void TForwardEulerSolver<TVector>::Init(TTimeDependentOperator<TVector> &_f)
+void ForwardEulerSolver::Init(TimeDependentOperator &_f)
 {
-   TODESolver<TVector>::Init(_f);
-   dxdt.SetSize(TODESolver<TVector>::f->Width());
+   ODESolver::Init(_f);
+   dxdt.SetSize(f->Width());
 }
 
-template <class TVector>
-void TForwardEulerSolver<TVector>::Step(TVector &x, double &t, double &dt)
+void ForwardEulerSolver::Step(Vector &x, double &t, double &dt)
 {
-  TODESolver<TVector>::f->SetTime(t);
-  TODESolver<TVector>::f->Mult(x, dxdt);
+   f->SetTime(t);
+   f->Mult(x, dxdt);
    x.Add(dt, dxdt);
    t += dt;
 }
 
 
-template <class TVector>
-void TRK2Solver<TVector>::Init(TTimeDependentOperator<TVector> &_f)
+void RK2Solver::Init(TimeDependentOperator &_f)
 {
-   TODESolver<TVector>::Init(_f);
-   int n = TODESolver<TVector>::f->Width();
+   ODESolver::Init(_f);
+   int n = f->Width();
    dxdt.SetSize(n);
    x1.SetSize(n);
 }
 
-template <class TVector>
-void TRK2Solver<TVector>::Step(TVector &x, double &t, double &dt)
+void RK2Solver::Step(Vector &x, double &t, double &dt)
 {
    //  0 |
    //  a |  a
@@ -51,44 +47,42 @@ void TRK2Solver<TVector>::Step(TVector &x, double &t, double &dt)
 
    const double b = 0.5/a;
 
-   TODESolver<TVector>::f->SetTime(t);
-   TODESolver<TVector>::f->Mult(x, dxdt);
+   f->SetTime(t);
+   f->Mult(x, dxdt);
    add(x, (1. - b)*dt, dxdt, x1);
    x.Add(a*dt, dxdt);
 
-   TODESolver<TVector>::f->SetTime(t + a*dt);
-   TODESolver<TVector>::f->Mult(x, dxdt);
+   f->SetTime(t + a*dt);
+   f->Mult(x, dxdt);
    add(x1, b*dt, dxdt, x);
    t += dt;
 }
 
 
-template <class TVector>
-void TRK3SSPSolver<TVector>::Init(TTimeDependentOperator<TVector> &_f)
+void RK3SSPSolver::Init(TimeDependentOperator &_f)
 {
-   TODESolver<TVector>::Init(_f);
-   int n = TODESolver<TVector>::f->Width();
+   ODESolver::Init(_f);
+   int n = f->Width();
    y.SetSize(n);
    k.SetSize(n);
 }
 
-template <class TVector>
-void TRK3SSPSolver<TVector>::Step(TVector &x, double &t, double &dt)
+void RK3SSPSolver::Step(Vector &x, double &t, double &dt)
 {
    // x0 = x, t0 = t, k0 = dt*f(t0, x0)
-   TODESolver<TVector>::f->SetTime(t);
-   TODESolver<TVector>::f->Mult(x, k);
+   f->SetTime(t);
+   f->Mult(x, k);
 
    // x1 = x + k0, t1 = t + dt, k1 = dt*f(t1, x1)
    add(x, dt, k, y);
-   TODESolver<TVector>::f->SetTime(t + dt);
-   TODESolver<TVector>::f->Mult(y, k);
+   f->SetTime(t + dt);
+   f->Mult(y, k);
 
    // x2 = 3/4*x + 1/4*(x1 + k1), t2 = t + 1/2*dt, k2 = dt*f(t2, x2)
    y.Add(dt, k);
    add(3./4, x, 1./4, y, y);
-   TODESolver<TVector>::f->SetTime(t + dt/2);
-   TODESolver<TVector>::f->Mult(y, k);
+   f->SetTime(t + dt/2);
+   f->Mult(y, k);
 
    // x3 = 1/3*x + 2/3*(x2 + k2), t3 = t + dt
    y.Add(dt, k);
@@ -97,18 +91,16 @@ void TRK3SSPSolver<TVector>::Step(TVector &x, double &t, double &dt)
 }
 
 
-template <class TVector>
-void TRK4Solver<TVector>::Init(TTimeDependentOperator<TVector> &_f)
+void RK4Solver::Init(TimeDependentOperator &_f)
 {
-   TODESolver<TVector>::Init(_f);
-   int n = TODESolver<TVector>::f->Width();
+   ODESolver::Init(_f);
+   int n = f->Width();
    y.SetSize(n);
    k.SetSize(n);
    z.SetSize(n);
 }
 
-template <class TVector>
-void TRK4Solver<TVector>::Step(TVector &x, double &t, double &dt)
+void RK4Solver::Step(Vector &x, double &t, double &dt)
 {
    //   0  |
    //  1/2 | 1/2
@@ -117,43 +109,40 @@ void TRK4Solver<TVector>::Step(TVector &x, double &t, double &dt)
    // -----+-------------------
    //      | 1/6  1/3  1/3  1/6
 
-   TODESolver<TVector>::f->SetTime(t);
-   TODESolver<TVector>::f->Mult(x, k); // k1
+   f->SetTime(t);
+   f->Mult(x, k); // k1
    add(x, dt/2, k, y);
    add(x, dt/6, k, z);
 
-   TODESolver<TVector>::f->SetTime(t + dt/2);
-   TODESolver<TVector>::f->Mult(y, k); // k2
+   f->SetTime(t + dt/2);
+   f->Mult(y, k); // k2
    add(x, dt/2, k, y);
    z.Add(dt/3, k);
 
-   TODESolver<TVector>::f->Mult(y, k); // k3
+   f->Mult(y, k); // k3
    add(x, dt, k, y);
    z.Add(dt/3, k);
 
-   TODESolver<TVector>::f->SetTime(t + dt);
-   TODESolver<TVector>::f->Mult(y, k); // k4
+   f->SetTime(t + dt);
+   f->Mult(y, k); // k4
    add(z, dt/6, k, x);
    t += dt;
 }
 
-template <class TVector>
-TExplicitRKSolver<TVector>::TExplicitRKSolver(int _s, const double *_a,
-                                              const double *_b,
-                                              const double *_c)
+ExplicitRKSolver::ExplicitRKSolver(int _s, const double *_a, const double *_b,
+                                   const double *_c)
 {
    s = _s;
    a = _a;
    b = _b;
    c = _c;
-   k = new TVector[s];
+   k = new Vector[s];
 }
 
-template <class TVector>
-void TExplicitRKSolver<TVector>::Init(TTimeDependentOperator<TVector> &_f)
+void ExplicitRKSolver::Init(TimeDependentOperator &_f)
 {
-   TODESolver<TVector>::Init(_f);
-   int n = TODESolver<TVector>::f->Width();
+   ODESolver::Init(_f);
+   int n = f->Width();
    y.SetSize(n);
    for (int i = 0; i < s; i++)
    {
@@ -161,8 +150,7 @@ void TExplicitRKSolver<TVector>::Init(TTimeDependentOperator<TVector> &_f)
    }
 }
 
-template <class TVector>
-void TExplicitRKSolver<TVector>::Step(TVector &x, double &t, double &dt)
+void ExplicitRKSolver::Step(Vector &x, double &t, double &dt)
 {
    //   0     |
    //  c[0]   | a[0]
@@ -172,8 +160,8 @@ void TExplicitRKSolver<TVector>::Step(TVector &x, double &t, double &dt)
    // --------+---------------------
    //         | b[0] b[1] ... b[s-1]
 
-   TODESolver<TVector>::f->SetTime(t);
-   TODESolver<TVector>::f->Mult(x, k[0]);
+   f->SetTime(t);
+   f->Mult(x, k[0]);
    for (int l = 0, i = 1; i < s; i++)
    {
       add(x, a[l++]*dt, k[0], y);
@@ -182,8 +170,8 @@ void TExplicitRKSolver<TVector>::Step(TVector &x, double &t, double &dt)
          y.Add(a[l++]*dt, k[j]);
       }
 
-      TODESolver<TVector>::f->SetTime(t + c[i-1]*dt);
-      TODESolver<TVector>::f->Mult(y, k[i]);
+      f->SetTime(t + c[i-1]*dt);
+      f->Mult(y, k[i]);
    }
    for (int i = 0; i < s; i++)
    {
@@ -192,14 +180,12 @@ void TExplicitRKSolver<TVector>::Step(TVector &x, double &t, double &dt)
    t += dt;
 }
 
-template <class TVector>
-TExplicitRKSolver<TVector>::~TExplicitRKSolver()
+ExplicitRKSolver::~ExplicitRKSolver()
 {
    delete [] k;
 }
 
-template <class TVector>
-const double TRK6Solver<TVector>::a[] =
+const double RK6Solver::a[] =
 {
    .6e-1,
    .1923996296296296296296296296296296296296e-1,
@@ -230,8 +216,7 @@ const double TRK6Solver<TVector>::a[] =
    -.1833878590504572306472782005141738268361e-1,
    -.5119484997882099077875432497245168395840e-3
 };
-template <class TVector>
-const double TRK6Solver<TVector>::b[] =
+const double RK6Solver::b[] =
 {
    .3438957868357036009278820124728322386520e-1,
    0.,
@@ -242,8 +227,7 @@ const double TRK6Solver<TVector>::b[] =
    -176.4831190242986576151740942499002125029,
    172.3641334014150730294022582711902413315
 };
-template <class TVector>
-const double TRK6Solver<TVector>::c[] =
+const double RK6Solver::c[] =
 {
    .6e-1,
    .9593333333333333333333333333333333333333e-1,
@@ -254,8 +238,7 @@ const double TRK6Solver<TVector>::c[] =
    1.,
 };
 
-template <class TVector>
-const double TRK8Solver<TVector>::a[] =
+const double RK8Solver::a[] =
 {
    .5e-1,
    -.69931640625e-2,
@@ -324,8 +307,7 @@ const double TRK8Solver<TVector>::a[] =
    4.527592100324618189451265339351129035325,
    -5.828495485811622963193088019162985703755
 };
-template <class TVector>
-const double TRK8Solver<TVector>::b[] =
+const double RK8Solver::b[] =
 {
    .4427989419007951074716746668098518862111e-1,
    0.,
@@ -340,8 +322,7 @@ const double TRK8Solver<TVector>::b[] =
    22.93828327398878395231483560344797018313,
    -.2361324633071542145259900641263517600737
 };
-template <class TVector>
-const double TRK8Solver<TVector>::c[] =
+const double RK8Solver::c[] =
 {
    .5e-1,
    .1065625,
@@ -357,42 +338,37 @@ const double TRK8Solver<TVector>::c[] =
 };
 
 
-template <class TVector>
-void TBackwardEulerSolver<TVector>::Init(TTimeDependentOperator<TVector> &_f)
+void BackwardEulerSolver::Init(TimeDependentOperator &_f)
 {
-   TODESolver<TVector>::Init(_f);
-   k.SetSize(TODESolver<TVector>::f->Width());
+   ODESolver::Init(_f);
+   k.SetSize(f->Width());
 }
 
-template <class TVector>
-void TBackwardEulerSolver<TVector>::Step(TVector &x, double &t, double &dt)
+void BackwardEulerSolver::Step(Vector &x, double &t, double &dt)
 {
-   TODESolver<TVector>::f->SetTime(t + dt);
-   TODESolver<TVector>::f->ImplicitSolve(dt, x, k); // solve for k: k = f(x + dt*k, t + dt)
+   f->SetTime(t + dt);
+   f->ImplicitSolve(dt, x, k); // solve for k: k = f(x + dt*k, t + dt)
    x.Add(dt, k);
    t += dt;
 }
 
 
-template <class TVector>
-void TImplicitMidpointSolver<TVector>::Init(TTimeDependentOperator<TVector> &_f)
+void ImplicitMidpointSolver::Init(TimeDependentOperator &_f)
 {
-   TODESolver<TVector>::Init(_f);
-   k.SetSize(TODESolver<TVector>::f->Width());
+   ODESolver::Init(_f);
+   k.SetSize(f->Width());
 }
 
-template <class TVector>
-void TImplicitMidpointSolver<TVector>::Step(TVector &x, double &t, double &dt)
+void ImplicitMidpointSolver::Step(Vector &x, double &t, double &dt)
 {
-   TODESolver<TVector>::f->SetTime(t + dt/2);
-   TODESolver<TVector>::f->ImplicitSolve(dt/2, x, k);
+   f->SetTime(t + dt/2);
+   f->ImplicitSolve(dt/2, x, k);
    x.Add(dt, k);
    t += dt;
 }
 
 
-template <class TVector>
-TSDIRK23Solver<TVector>::TSDIRK23Solver(int gamma_opt)
+SDIRK23Solver::SDIRK23Solver(int gamma_opt)
 {
    if (gamma_opt == 0)
    {
@@ -412,16 +388,14 @@ TSDIRK23Solver<TVector>::TSDIRK23Solver(int gamma_opt)
    }
 }
 
-template <class TVector>
-void TSDIRK23Solver<TVector>::Init(TTimeDependentOperator<TVector> &_f)
+void SDIRK23Solver::Init(TimeDependentOperator &_f)
 {
-   TODESolver<TVector>::Init(_f);
-   k.SetSize(TODESolver<TVector>::f->Width());
-   y.SetSize(TODESolver<TVector>::f->Width());
+   ODESolver::Init(_f);
+   k.SetSize(f->Width());
+   y.SetSize(f->Width());
 }
 
-template <class TVector>
-void TSDIRK23Solver<TVector>::Step(TVector &x, double &t, double &dt)
+void SDIRK23Solver::Step(Vector &x, double &t, double &dt)
 {
    // with a = gamma:
    //   a   |   a
@@ -429,29 +403,27 @@ void TSDIRK23Solver<TVector>::Step(TVector &x, double &t, double &dt)
    // ------+-----------
    //       |  1/2  1/2
    // note: with gamma_opt=3, both solve are outside [t,t+dt] since a>1
-   TODESolver<TVector>::f->SetTime(t + gamma*dt);
-   TODESolver<TVector>::f->ImplicitSolve(gamma*dt, x, k);
+   f->SetTime(t + gamma*dt);
+   f->ImplicitSolve(gamma*dt, x, k);
    add(x, (1.-2.*gamma)*dt, k, y); // y = x + (1-2*gamma)*dt*k
    x.Add(dt/2, k);
 
-   TODESolver<TVector>::f->SetTime(t + (1.-gamma)*dt);
-   TODESolver<TVector>::f->ImplicitSolve(gamma*dt, y, k);
+   f->SetTime(t + (1.-gamma)*dt);
+   f->ImplicitSolve(gamma*dt, y, k);
    x.Add(dt/2, k);
    t += dt;
 }
 
 
-template <class TVector>
-void TSDIRK34Solver<TVector>::Init(TTimeDependentOperator<TVector> &_f)
+void SDIRK34Solver::Init(TimeDependentOperator &_f)
 {
-   TODESolver<TVector>::Init(_f);
-   k.SetSize(TODESolver<TVector>::f->Width());
-   y.SetSize(TODESolver<TVector>::f->Width());
-   z.SetSize(TODESolver<TVector>::f->Width());
+   ODESolver::Init(_f);
+   k.SetSize(f->Width());
+   y.SetSize(f->Width());
+   z.SetSize(f->Width());
 }
 
-template <class TVector>
-void TSDIRK34Solver<TVector>::Step(TVector &x, double &t, double &dt)
+void SDIRK34Solver::Step(Vector &x, double &t, double &dt)
 {
    //   a   |    a
    //  1/2  |  1/2-a    a
@@ -462,34 +434,32 @@ void TSDIRK34Solver<TVector>::Step(TVector &x, double &t, double &dt)
    const double a = 1./sqrt(3.)*cos(M_PI/18.) + 0.5;
    const double b = 1./(6.*(2.*a-1.)*(2.*a-1.));
 
-   TODESolver<TVector>::f->SetTime(t + a*dt);
-   TODESolver<TVector>::f->ImplicitSolve(a*dt, x, k);
+   f->SetTime(t + a*dt);
+   f->ImplicitSolve(a*dt, x, k);
    add(x, (0.5-a)*dt, k, y);
    add(x,  (2.*a)*dt, k, z);
    x.Add(b*dt, k);
 
-   TODESolver<TVector>::f->SetTime(t + dt/2);
-   TODESolver<TVector>::f->ImplicitSolve(a*dt, y, k);
+   f->SetTime(t + dt/2);
+   f->ImplicitSolve(a*dt, y, k);
    z.Add((1.-4.*a)*dt, k);
    x.Add((1.-2.*b)*dt, k);
 
-   TODESolver<TVector>::f->SetTime(t + (1.-a)*dt);
-   TODESolver<TVector>::f->ImplicitSolve(a*dt, z, k);
+   f->SetTime(t + (1.-a)*dt);
+   f->ImplicitSolve(a*dt, z, k);
    x.Add(b*dt, k);
    t += dt;
 }
 
 
-template <class TVector>
-void TSDIRK33Solver<TVector>::Init(TTimeDependentOperator<TVector> &_f)
+void SDIRK33Solver::Init(TimeDependentOperator &_f)
 {
-   TODESolver<TVector>::Init(_f);
-   k.SetSize(TODESolver<TVector>::f->Width());
-   y.SetSize(TODESolver<TVector>::f->Width());
+   ODESolver::Init(_f);
+   k.SetSize(f->Width());
+   y.SetSize(f->Width());
 }
 
-template <class TVector>
-void TSDIRK33Solver<TVector>::Step(TVector &x, double &t, double &dt)
+void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
 {
    //   a  |   a
    //   c  |  c-a    a
@@ -500,64 +470,60 @@ void TSDIRK33Solver<TVector>::Step(TVector &x, double &t, double &dt)
    const double b = 1.20849664917601007033648;
    const double c = 0.717933260754229499708010;
 
-   TODESolver<TVector>::f->SetTime(t + a*dt);
-   TODESolver<TVector>::f->ImplicitSolve(a*dt, x, k);
+   f->SetTime(t + a*dt);
+   f->ImplicitSolve(a*dt, x, k);
    add(x, (c-a)*dt, k, y);
    x.Add(b*dt, k);
 
-   TODESolver<TVector>::f->SetTime(t + c*dt);
-   TODESolver<TVector>::f->ImplicitSolve(a*dt, y, k);
+   f->SetTime(t + c*dt);
+   f->ImplicitSolve(a*dt, y, k);
    x.Add((1.-a-b)*dt, k);
 
-   TODESolver<TVector>::f->SetTime(t + dt);
-   TODESolver<TVector>::f->ImplicitSolve(a*dt, x, k);
+   f->SetTime(t + dt);
+   f->ImplicitSolve(a*dt, x, k);
    x.Add(a*dt, k);
    t += dt;
 }
 
-template <class TVector>
 void
-TSIASolver<TVector>::Init(TOperator<TVector> &P, TTimeDependentOperator<TVector> & F)
+SIASolver::Init(Operator &P, TimeDependentOperator & F)
 {
-   TSIASolver<TVector>::P_ = &P; TSIASolver<TVector>::F_ = &F;
+   P_ = &P; F_ = &F;
 
-   TSIASolver<TVector>::dp_.SetSize(TSIASolver<TVector>::F_->Height());
-   TSIASolver<TVector>::dq_.SetSize(TSIASolver<TVector>::P_->Height());
+   dp_.SetSize(F_->Height());
+   dq_.SetSize(P_->Height());
 }
 
-template <class TVector>
 void
-TSIA1Solver<TVector>::Step(TVector &q, TVector &p, double &t, double &dt)
+SIA1Solver::Step(Vector &q, Vector &p, double &t, double &dt)
 {
-   TSIASolver<TVector>::F_->SetTime(t);
-   TSIASolver<TVector>::F_->Mult(q,TSIASolver<TVector>::dp_);
-   p.Add(dt,TSIASolver<TVector>::dp_);
+   F_->SetTime(t);
+   F_->Mult(q,dp_);
+   p.Add(dt,dp_);
 
-   TSIASolver<TVector>::P_->Mult(p,TSIASolver<TVector>::dq_);
-   q.Add(dt,TSIASolver<TVector>::dq_);
+   P_->Mult(p,dq_);
+   q.Add(dt,dq_);
 
    t += dt;
 }
 
-template <class TVector>
 void
-TSIA2Solver<TVector>::Step(TVector &q, TVector &p, double &t, double &dt)
+SIA2Solver::Step(Vector &q, Vector &p, double &t, double &dt)
 {
-   TSIASolver<TVector>::P_->Mult(p,TSIASolver<TVector>::dq_);
-   q.Add(0.5*dt,TSIASolver<TVector>::dq_);
- 
-   TSIASolver<TVector>::F_->SetTime(t+0.5*dt);
-   TSIASolver<TVector>::F_->Mult(q,TSIASolver<TVector>::dp_);
-   p.Add(dt,TSIASolver<TVector>::dp_);
+   P_->Mult(p,dq_);
+   q.Add(0.5*dt,dq_);
 
-   TSIASolver<TVector>::P_->Mult(p,TSIASolver<TVector>::dq_);
-   q.Add(0.5*dt,TSIASolver<TVector>::dq_);
+   F_->SetTime(t+0.5*dt);
+   F_->Mult(q,dp_);
+   p.Add(dt,dp_);
+
+   P_->Mult(p,dq_);
+   q.Add(0.5*dt,dq_);
 
    t += dt;
 }
 
-template <class TVector>
-TSIAVSolver<TVector>::TSIAVSolver(int order)
+SIAVSolver::SIAVSolver(int order)
    : order_(order)
 {
    a_.SetSize(order);
@@ -598,28 +564,27 @@ TSIAVSolver<TVector>::TSIAVSolver(int order)
    };
 }
 
-template <class TVector>
 void
-TSIAVSolver<TVector>::Step(TVector &q, TVector &p, double &t, double &dt)
+SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
 {
    for (int i=0; i<order_; i++)
    {
       if ( b_[i] != 0.0 )
       {
-         TSIASolver<TVector>::F_->SetTime(t);
-         if ( TSIASolver<TVector>::F_->isExplicit() )
+         F_->SetTime(t);
+         if ( F_->isExplicit() )
          {
-            TSIASolver<TVector>::F_->Mult(q, TSIASolver<TVector>::dp_);
+            F_->Mult(q, dp_);
          }
          else
          {
-            TSIASolver<TVector>::F_->ImplicitSolve(b_[i] * dt, q, TSIASolver<TVector>::dp_);
+            F_->ImplicitSolve(b_[i] * dt, q, dp_);
          }
-         p.Add(b_[i] * dt, TSIASolver<TVector>::dp_);
+         p.Add(b_[i] * dt, dp_);
       }
 
-      TSIASolver<TVector>::P_->Mult(p, TSIASolver<TVector>::dq_);
-      q.Add(a_[i] * dt, TSIASolver<TVector>::dq_);
+      P_->Mult(p, dq_);
+      q.Add(a_[i] * dt, dq_);
 
       t += a_[i] * dt;
    }

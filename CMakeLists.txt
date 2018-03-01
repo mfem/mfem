@@ -453,7 +453,7 @@ install(FILES ${MASTER_HEADERS} DESTINATION ${INSTALL_INCLUDE_DIR}/mfem)
 # Install the headers; currently, the miniapps headers are excluded
 install(DIRECTORY ${MFEM_SOURCE_DIRS}
   DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
-  FILES_MATCHING PATTERN "*.[ht]pp")
+  FILES_MATCHING PATTERN "*.hpp")
 
 # Install ${HEADERS}
 # ---
