@@ -538,14 +538,21 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    int vsize  = pfes->GetVSize();
    int tvsize = pfes->GetTrueVSize();
 
+   double s = (conv_ == ComplexOperator::HERMITIAN)?1.0:-1.0;
+
+   // Allocate temporary vectors
    Vector b_0(vsize);  b_0 = 0.0;
    Vector B_0(tvsize); B_0 = 0.0;
 
+   // Extract the real and imaginary parts of the input vectors
+   MFEM_ASSERT(x.Size() == 2 * vsize, "Input GridFunction of incorrect size!");
    Vector x_r(x.GetData(), vsize);
    Vector x_i(&(x.GetData())[vsize], vsize);
 
+   MFEM_ASSERT(b.Size() == 2 * vsize, "Input LinearForm of incorrect size!");
    Vector b_r(b.GetData(), vsize);
    Vector b_i(&(b.GetData())[vsize], vsize);
+   b_i *= s;
 
    X.SetSize(2 * tvsize);
    Vector X_r(X.GetData(), tvsize);
@@ -566,6 +573,8 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    pblfi_->FormLinearSystem(ess_tdof_list, x_r, b_0, A_i, X_i, B_0, ci);
    B_i += B_0;
 
+   B_i *= s;
+   b_i *= s;
    // A = A_r + i A_i
    A.Clear();
    if ( A_r.Type() == Operator::Hypre_ParCSR &&
@@ -594,7 +603,48 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 void
 ParSesquilinearForm::RecoverFEMSolution(const Vector &X, const Vector &b,
                                         Vector &x)
-{}
+{
+   ParFiniteElementSpace * pfes = pblfr_->ParFESpace();
+
+   const Operator &P = *pfes->GetProlongationMatrix();
+
+   int vsize  = pfes->GetVSize();
+   int tvsize = pfes->GetTrueVSize();
+
+   Vector X_r(X.GetData(), tvsize);
+   Vector X_i(&(X.GetData())[tvsize], tvsize);
+
+   Vector b_r(b.GetData(), vsize);
+   Vector b_i(&(b.GetData())[vsize], vsize);
+
+   Vector x_r(x.GetData(), vsize);
+   Vector x_i(&(x.GetData())[vsize], vsize);
+
+   /*
+   if (static_cond)
+   {
+      // Private dofs back solve
+      static_cond->ComputeSolution(b, X, x);
+   }
+   else if (hybridization)
+   {
+      // Primal unknowns recovery
+      HypreParVector true_X(pfes), true_B(pfes);
+      P.MultTranspose(b, true_B);
+      const SparseMatrix &R = *pfes->GetRestrictionMatrix();
+      R.Mult(x, true_X); // get essential b.c. from x
+      hybridization->ComputeSolution(true_B, X, true_X);
+      x.SetSize(P.Height());
+      P.Mult(true_X, x);
+   }
+   else
+   */
+   {
+      // Apply conforming prolongation
+      P.Mult(X_r, x_r);
+      P.Mult(X_i, x_i);
+   }
+}
 
 void
 ParSesquilinearForm::Update(FiniteElementSpace *nfes)
