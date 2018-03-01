@@ -18,6 +18,8 @@
 
 namespace mfem
 {
+
+#ifdef MFEM_USE_EXCEPTIONS
 class MFEM_Exception: public std::exception
 {
 private:
@@ -31,6 +33,7 @@ public:
 extern bool mfem_use_throw;
 void set_use_throw(bool mode);
 bool get_use_throw();
+#endif
 
 void mfem_backtrace(int mode = 0, int depth = -1);
 
