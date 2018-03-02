@@ -36,11 +36,6 @@ public:
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
 
-   /* HDG */
-   virtual void AssembleRHSFaceVectNeumann(const FiniteElement &face_S,
-                                           FaceElementTransformations &Trans,
-                                           Vector &favect);
-
    void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
    const IntegrationRule* GetIntRule() { return IntRule; }
 
@@ -71,11 +66,6 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
-
-   using LinearFormIntegrator::AssembleRHSFaceVectNeumann;
-   virtual void AssembleRHSFaceVectNeumann(const FiniteElement &face_S,
-                                           FaceElementTransformations &Trans,
-                                           Vector &favect);
 };
 
 /// Abstract class for integrators that support delta coefficients

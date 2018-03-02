@@ -272,12 +272,6 @@ void HDGInflowLFIntegrator::AssembleRHSElementVect(
 }
 
 void HDGInflowLFIntegrator::AssembleRHSElementVect(
-   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
-{
-   mfem_error("Not implemented \n");
-}
-
-void HDGInflowLFIntegrator::AssembleRHSFaceVectNeumann(
    const FiniteElement &face_S, FaceElementTransformations &Trans,
    Vector &favect)
 {

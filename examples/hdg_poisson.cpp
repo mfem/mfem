@@ -15,7 +15,10 @@
 //                     -\nu Delta u = f
 //               with Dirichlet boundary conditions, using HDG discretization.
 //
-// The weak form is: seek (q,u,\lamda) such that for all (v, w, \mu)
+// The methods approximates the solution u, the diffusive flux q = -\nu \nabla u, 
+// and the restriction of u to the faces, denoted by lambda.
+//
+// The weak form is: seek (q,u,\lambda) such that for all (v, w, \mu)
 //
 // -\nu^{-1}(q, v)       + (u, div(v))       - <\lambda, v \cdot n>      = 0
 //  (div(q), w)          + (\tau u, w)_T     - <\tau \lambda, w>         = (f, w)
@@ -48,7 +51,7 @@ void qFun_ex(const Vector & x, Vector & q);
 double fFun(const Vector & x);
 double diff;
 
-// We can minimize the expression |\nu \nable u_h^* + q_h |^2 over a single element K,
+// We can minimize the expression |\nu \nabla u_h^* + q_h |^2 over a single element K,
 // for p+1 degree u_h^*, with the constraint \int_K u_h^* = \int_K u_h, so the mean
 // of u_h^* is the same as the one of u_h.
 //

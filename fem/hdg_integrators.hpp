@@ -111,11 +111,6 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
-
-   using LinearFormIntegrator::AssembleRHSFaceVectNeumann;
-   virtual void AssembleRHSFaceVectNeumann(const FiniteElement &face_S,
-                                           FaceElementTransformations &Trans,
-                                           Vector &favect);
 };
 
 //---------------------------------------------------------------------

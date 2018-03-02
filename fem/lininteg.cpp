@@ -22,13 +22,6 @@ void LinearFormIntegrator::AssembleRHSElementVect(
    mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
 }
 
-/* HDG */
-void LinearFormIntegrator::AssembleRHSFaceVectNeumann(
-   const FiniteElement &face_S, FaceElementTransformations &Trans, Vector &favect)
-{
-   mfem_error("LinearFormIntegrator::AssembleRHSFaceVectNeumann(...)");
-}
-
 void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
                                                 ElementTransformation &Tr,
                                                 Vector &elvect)
@@ -102,14 +95,6 @@ void SkeletonMassIntegratorRHS::AssembleRHSElementVect(const FiniteElement &el,
 /* HDG */
 void SkeletonMassIntegratorRHS::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
-{
-   mfem_error("Not implemented \n");
-}
-
-/* HDG */
-void SkeletonMassIntegratorRHS::AssembleRHSFaceVectNeumann(
-   const FiniteElement &face_S, FaceElementTransformations &Trans,
-   Vector &favect)
 {
    mfem_error("Not implemented \n");
 }

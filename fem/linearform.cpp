@@ -155,7 +155,7 @@ void LinearForm::Assemble()
          {
             for (int k = 0; k < bdrsklneufi.Size(); k++) // Loop over the related interals
             {
-               bdrsklneufi[k] -> AssembleRHSFaceVectNeumann (*face_fe, *ftr, elemvect);
+               bdrsklneufi[k] -> AssembleRHSElementVect (*face_fe, *ftr, elemvect);
                AddElementVector (vdofs, elemvect);
             }
          }

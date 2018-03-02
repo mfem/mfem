@@ -14,7 +14,7 @@
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               finite element discretization of the advection-reaction problem
-//               mu u + a.grad(u) = f with inhomogeneous Dirichlet boundary conditions.
+//               mu u + a.grad(u) = f with inhomogeneous Neumann boundary conditions.
 //               Specifically, we discretize using a HDG space of the
 //               specified order.
 //
