@@ -2538,11 +2538,11 @@ void ParFiniteElementSpace::Destroy()
    send_face_nbr_ldof.Clear();
 }
 
-/// implementation echoes ParDiscreteLinearOperator::ParallelAssemble
-HypreParMatrix* ParFiniteElementSpace::ParallelAssembleTransferOperator(
+// Implementation echoes ParDiscreteLinearOperator::ParallelAssemble
+HypreParMatrix* ParFiniteElementSpace::GetTransferMatrix(
    const ParFiniteElementSpace &coarse_fes)
 {
-   OperatorHandle transfer_h;
+   OperatorHandle transfer_h(Operator::MFEM_SPARSEMAT);
    FiniteElementSpace::GetTransferOperator(coarse_fes, transfer_h);
    SparseMatrix* transfer;
    transfer_h.Get(transfer);

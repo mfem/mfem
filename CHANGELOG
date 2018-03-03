@@ -28,10 +28,11 @@ Discretization improvements
 ---------------------------
 - Added general support for transfer of GridFunction data from one finite
   element space on a coarse mesh to another finite element space on a refined
-  mesh (a "low-order-refined" space). The new method, GetTransferOperator in the
-  FiniteElementSpace class, works both in serial and parallel, and is based on a
-  version of the GetLocalInterpolation method in the FiniteElement class, that
-  allows the coarse FiniteElement to be different from the fine FiniteElement.
+  mesh (a "low-order-refined" space). The new methods, GetTransferOperator and
+  GetTransferMatrix, in the FiniteElementSpace and ParFiniteElementSpace classes
+  respectivelly are based on a version of the GetLocalInterpolation method in
+  the FiniteElement class, that allows the coarse FiniteElement to be different
+  from the fine FiniteElement.
 
 - Added classes for general block nonlinear finite element operators (deriving
   from BlockNonlinearForm and ParBlockNonlinearForm) enabling solution of
