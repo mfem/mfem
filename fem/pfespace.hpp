@@ -335,6 +335,11 @@ public:
    bool Conforming() const { return pmesh->pncmesh == NULL; }
    bool Nonconforming() const { return pmesh->pncmesh != NULL; }
 
+   /** @brief Construct the parallel assembled version of the operator
+       from FiniteElementSpace::GetTransferOperator() */
+   HypreParMatrix* ParallelAssembleTransferOperator(
+      const ParFiniteElementSpace &coarse_fes);
+
    /** Reflect changes in the mesh. Calculate one of the refinement/derefinement
        /rebalance matrices, unless want_transform is false. */
    virtual void Update(bool want_transform = true);

@@ -2538,6 +2538,21 @@ void ParFiniteElementSpace::Destroy()
    send_face_nbr_ldof.Clear();
 }
 
+/// implementation echoes ParDiscreteLinearOperator::ParallelAssemble
+HypreParMatrix* ParFiniteElementSpace::ParallelAssembleTransferOperator(
+   const ParFiniteElementSpace &coarse_fes)
+{
+   OperatorHandle transfer_h;
+   FiniteElementSpace::GetTransferOperator(coarse_fes, transfer_h);
+   SparseMatrix* transfer;
+   transfer_h.Get(transfer);
+   SparseMatrix* RA = mfem::Mult(*GetRestrictionMatrix(), *transfer);
+   HypreParMatrix* P = coarse_fes.Dof_TrueDof_Matrix();
+   HypreParMatrix* RAP = P->LeftDiagMult(*RA, GetTrueDofOffsets());
+   delete RA;
+   return RAP;
+}
+
 void ParFiniteElementSpace::Update(bool want_transform)
 {
    if (mesh->GetSequence() == sequence)
