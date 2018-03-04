@@ -338,7 +338,9 @@ public:
    bool Conforming() const { return pmesh->pncmesh == NULL; }
    bool Nonconforming() const { return pmesh->pncmesh != NULL; }
 
-   // Documentation is at FiniteElementSpace::GetTrueTransferOperator.
+   // Transfer parallel true-dof data from coarse_fes, defined on a coarse mesh,
+   // to this FE space, defined on a refined mesh. See full documentation in the
+   // base class, FiniteElementSpace::GetTrueTransferOperator.
    virtual void GetTrueTransferOperator(const FiniteElementSpace &coarse_fes,
                                         OperatorHandle &T) const;
 

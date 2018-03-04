@@ -459,11 +459,11 @@ public:
        of @a coarse_fes and the CoarseFineTransformations returned by the method
        Mesh::GetRefinementTransforms() of the refined mesh are set accordingly.
        The Operator::Type of @a T can be set to request an Operator of the set
-       type. Currently, only Operator::MFEM_SPARSEMAT and Operator::ANY_TYPE are
-       supported. When Operator::ANY_TYPE is requested, the choice of the
-       particular Operator sub-class is left to the method.  This method also
-       works in parallel because the transfer operator is local to the MPI task
-       when the input is a synchronized ParGridFunction. */
+       type. Currently, only Operator::MFEM_SPARSEMAT and Operator::ANY_TYPE
+       (matrix-free) are supported. When Operator::ANY_TYPE is requested, the
+       choice of the particular Operator sub-class is left to the method.  This
+       method also works in parallel because the transfer operator is local to
+       the MPI task when the input is a synchronized ParGridFunction. */
    void GetTransferOperator(const FiniteElementSpace &coarse_fes,
                             OperatorHandle &T) const;
 
@@ -477,7 +477,7 @@ public:
 
        The Operator::Type of @a T can be set to request an Operator of the set
        type. In serial, the supported types are: Operator::MFEM_SPARSEMAT and
-       Operator::ANY_TYPE. In parallel, the supported types are:
+       Operator::ANY_TYPE (matrix-free). In parallel, the supported types are:
        Operator::Hypre_ParCSR and Operator::ANY_TYPE. Any other type is treated
        as Operator::ANY_TYPE: the operator representation choice is made by this
        method. */

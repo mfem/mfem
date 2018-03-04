@@ -26,13 +26,14 @@ More efficient non-conforming adaptive mesh refinement
 
 Discretization improvements
 ---------------------------
-- Added general support for transfer of GridFunction data from one finite
-  element space on a coarse mesh to another finite element space on a refined
-  mesh (a "low-order-refined" space). The new methods, GetTransferOperator and
-  GetTransferMatrix, in the FiniteElementSpace and ParFiniteElementSpace classes
-  respectivelly are based on a version of the GetLocalInterpolation method in
-  the FiniteElement class, that allows the coarse FiniteElement to be different
-  from the fine FiniteElement.
+- Added support for a general "high-order"-to-"low-order refined" transfer of
+  GridFunction and true-dof data from a "high-order" finite element space
+  defined on a coarse mesh, to a "low-order refined" space defined on a refined
+  mesh. The new methods, GetTransferOperator and GetTrueTransferOperator in the
+  FiniteElementSpace classes, work in both serial and parallel and support
+  matrix-based as well as matrix-free transfer operator representations. They
+  use a version of GetLocalInterpolation in the FiniteElement class that allows
+  the coarse FiniteElement to be different from the fine FiniteElement.
 
 - Added classes for general block nonlinear finite element operators (deriving
   from BlockNonlinearForm and ParBlockNonlinearForm) enabling solution of

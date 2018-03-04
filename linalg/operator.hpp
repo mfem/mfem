@@ -345,7 +345,7 @@ public:
 };
 
 
-/// The operator x -> R*A*P*x.
+/// The operator x -> R*A*P*x constructed through the actions of R^T, A and P
 class RAPOperator : public Operator
 {
 private:
