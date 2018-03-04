@@ -233,9 +233,9 @@ public:
    const SparseMatrix *GetConformingProlongation() const;
    const SparseMatrix *GetConformingRestriction() const;
 
-   virtual const Operator *GetProlongationMatrix()
+   virtual const Operator *GetProlongationMatrix() const
    { return GetConformingProlongation(); }
-   virtual const SparseMatrix *GetRestrictionMatrix()
+   virtual const SparseMatrix *GetRestrictionMatrix() const
    { return GetConformingRestriction(); }
 
    /// Returns vector dimension.
@@ -466,6 +466,23 @@ public:
        when the input is a synchronized ParGridFunction. */
    void GetTransferOperator(const FiniteElementSpace &coarse_fes,
                             OperatorHandle &T) const;
+
+   /** @brief Construct and return an Operator that can be used to transfer
+       true-dof data from @a coarse_fes, defined on a coarse mesh, to @a this FE
+       space, defined on a refined mesh.
+
+       This method calls GetTransferOperator() and multiplies the result by the
+       prolongation operator of @a coarse_fes on the right, and by the
+       restriction operator of this FE space on the left.
+
+       The Operator::Type of @a T can be set to request an Operator of the set
+       type. In serial, the supported types are: Operator::MFEM_SPARSEMAT and
+       Operator::ANY_TYPE. In parallel, the supported types are:
+       Operator::Hypre_ParCSR and Operator::ANY_TYPE. Any other type is treated
+       as Operator::ANY_TYPE: the operator representation choice is made by this
+       method. */
+   virtual void GetTrueTransferOperator(const FiniteElementSpace &coarse_fes,
+                                        OperatorHandle &T) const;
 
    /** Reflect changes in the mesh: update number of DOFs, etc. Also, calculate
        GridFunction transformation operator (unless want_transform is false).
