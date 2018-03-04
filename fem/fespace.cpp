@@ -1675,6 +1675,47 @@ void FiniteElementSpace::GetTransferOperator(
    }
 }
 
+void FiniteElementSpace::GetTrueTransferOperator(
+   const FiniteElementSpace &coarse_fes, OperatorHandle &T) const
+{
+   const SparseMatrix *coarse_P = coarse_fes.GetConformingProlongation();
+
+   Operator::Type req_type = T.Type();
+   GetTransferOperator(coarse_fes, T);
+
+   if (req_type == Operator::MFEM_SPARSEMAT)
+   {
+      if (GetConformingRestriction())
+      {
+         T.Reset(mfem::Mult(*cR, *T.As<SparseMatrix>()));
+      }
+      if (coarse_P)
+      {
+         T.Reset(mfem::Mult(*T.As<SparseMatrix>(), *coarse_P));
+      }
+   }
+   else
+   {
+      const int RP_case = bool(GetConformingRestriction()) + 2*bool(coarse_P);
+      if (RP_case == 0) { return; }
+      const bool owner = T.OwnsOperator();
+      T.SetOperatorOwner(false);
+      switch (RP_case)
+      {
+         case 1:
+            T.Reset(new ProductOperator(cR, T.Ptr(), false, owner));
+            break;
+         case 2:
+            T.Reset(new ProductOperator(T.Ptr(), coarse_P, owner, false));
+            break;
+         case 3:
+            T.Reset(new TripleProductOperator(
+                       cR, T.Ptr(), coarse_P, false, owner, false));
+            break;
+      }
+   }
+}
+
 void FiniteElementSpace::Update(bool want_transform)
 {
    if (mesh->GetSequence() == sequence)
