@@ -612,7 +612,7 @@ const T *GroupCommunicator::ReduceGroupFromBuffer(const T *buf, T *ldata,
 }
 
 template <class T>
-void GroupCommunicator::BcastBegin(T *ldata, int layout)
+void GroupCommunicator::BcastBegin(T *ldata, int layout) const
 {
    MFEM_VERIFY(comm_lock == 0, "object is already in use");
 
@@ -749,7 +749,7 @@ void GroupCommunicator::BcastBegin(T *ldata, int layout)
 }
 
 template <class T>
-void GroupCommunicator::BcastEnd(T *ldata, int layout)
+void GroupCommunicator::BcastEnd(T *ldata, int layout) const
 {
    if (comm_lock == 0) { return; }
    // The above also handles the case (group_buf_size == 0).
@@ -811,7 +811,7 @@ void GroupCommunicator::BcastEnd(T *ldata, int layout)
 }
 
 template <class T>
-void GroupCommunicator::ReduceBegin(const T *ldata)
+void GroupCommunicator::ReduceBegin(const T *ldata) const
 {
    MFEM_VERIFY(comm_lock == 0, "object is already in use");
 
@@ -930,7 +930,8 @@ void GroupCommunicator::ReduceBegin(const T *ldata)
 }
 
 template <class T>
-void GroupCommunicator::ReduceEnd(T *ldata, int layout, void (*Op)(OpData<T>))
+void GroupCommunicator::ReduceEnd(T *ldata, int layout,
+                                  void (*Op)(OpData<T>)) const
 {
    if (comm_lock == 0) { return; }
    // The above also handles the case (group_buf_size == 0).
@@ -1203,17 +1204,17 @@ GroupCommunicator::~GroupCommunicator()
 // @cond DOXYGEN_SKIP
 
 // instantiate GroupCommunicator::Bcast and Reduce for int and double
-template void GroupCommunicator::BcastBegin<int>(int *, int);
-template void GroupCommunicator::BcastEnd<int>(int *, int);
-template void GroupCommunicator::ReduceBegin<int>(const int *);
+template void GroupCommunicator::BcastBegin<int>(int *, int) const;
+template void GroupCommunicator::BcastEnd<int>(int *, int) const;
+template void GroupCommunicator::ReduceBegin<int>(const int *) const;
 template void GroupCommunicator::ReduceEnd<int>(
-   int *, int, void (*)(OpData<int>));
+   int *, int, void (*)(OpData<int>)) const;
 
-template void GroupCommunicator::BcastBegin<double>(double *, int);
-template void GroupCommunicator::BcastEnd<double>(double *, int);
-template void GroupCommunicator::ReduceBegin<double>(const double *);
+template void GroupCommunicator::BcastBegin<double>(double *, int) const;
+template void GroupCommunicator::BcastEnd<double>(double *, int) const;
+template void GroupCommunicator::ReduceBegin<double>(const double *) const;
 template void GroupCommunicator::ReduceEnd<double>(
-   double *, int, void (*)(OpData<double>));
+   double *, int, void (*)(OpData<double>)) const;
 
 // @endcond
 
