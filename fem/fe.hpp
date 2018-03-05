@@ -447,11 +447,13 @@ protected:
 
 public:
    ScalarFiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk)
+#ifdef MFEM_THREAD_SAFE
       : FiniteElement(D, G, Do, O, F)
-#ifndef MFEM_THREAD_SAFE
-      , c_shape(Dof)
-#endif
    { DerivType = GRAD; DerivRangeType = VECTOR; DerivMapType = H_CURL; }
+#else
+      : FiniteElement(D, G, Do, O, F), c_shape(Dof)
+   { DerivType = GRAD; DerivRangeType = VECTOR; DerivMapType = H_CURL; }
+#endif
 
    void SetMapType(int M)
    {
