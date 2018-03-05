@@ -628,37 +628,6 @@ template<> inline void Swap<SparseMatrix>(SparseMatrix &a, SparseMatrix &b)
    a.Swap(b);
 }
 
-/** @brief Specialization of the ComplexOperator built from a pair of Sparse
-    Matrices.
-
-    The purpose of this specialization is to construct a single SparseMatrix
-    object which is equivalent to the 2x2 block system that the ComplexOperator
-    mimics. The resulting SparseMatrix can then be passed along to solvers which
-    require access to the CSR matrix data such as SuperLU, STRUMPACK, or similar
-    sparse linear solvers.
-
-    See ComplexOperator documentation in operator.hpp for more information.
- */
-class ComplexSparseMatrix : public ComplexOperator
-{
-public:
-   ComplexSparseMatrix(SparseMatrix * A_Real, SparseMatrix * A_Imag,
-                       bool ownReal, bool ownImag,
-                       Convention convention = HERMITIAN)
-      : ComplexOperator(A_Real, A_Imag, ownReal, ownImag, convention)
-   {}
-
-   virtual SparseMatrix & real();
-   virtual SparseMatrix & imag();
-
-   virtual const SparseMatrix & real() const;
-   virtual const SparseMatrix & imag() const;
-
-   SparseMatrix * GetSystemMatrix() const;
-
-   Type GetType() const { return Complex_MFEM_SPARSEMAT; }
-};
-
 }
 
 #endif

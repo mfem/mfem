@@ -238,6 +238,8 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
                    mpitag, MyComm, &recv_requests[nbr-1]);
       }
    }
+
+   if (recv_requests.Size() > 0)
    {
       int idx;
       IntegerSet group;
