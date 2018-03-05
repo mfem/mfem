@@ -27,7 +27,8 @@ namespace mfem
     ComplexOperator allows one to choose a convention upon construction, which
     facilitates symmetry.
 
-    Matrix-vector products are then computed as:
+    If we let (y_r + i y_i) = (Op_r + i Op_i)(x_r + i x_i) then Matrix-vector
+    products are then computed as:
 
     1. When Convention::HERMITIAN is used (default)
     / y_r \   / Op_r -Op_i \ / x_r \
@@ -38,6 +39,8 @@ namespace mfem
     / y_r \   / Op_r -Op_i \ / x_r \
     |     | = |            | |     |
     \-y_i /   \-Op_i -Op_r / \ x_i /
+    In other words, Matrix-vector products with Convention::BLOCK_SYMMETRIC 
+    compute the complex conjugate of Op*x. 
 
     Either convention can be used with a given complex operator,
     however, each of them is best suited for certain classes of
@@ -157,4 +160,4 @@ public:
 
 }
 
-#endif
+#endif // MFEM_COMPLEX_OPERATOR
