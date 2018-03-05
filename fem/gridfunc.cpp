@@ -1257,19 +1257,31 @@ void GridFunction::AccumulateAndCountZones(VectorCoefficient &vcoeff,
       // Accumulate values in all dofs, count the zones.
       for (int j = 0; j < vdofs.Size(); j++)
       {
+	int ldof;
+	int isign;
+	if (vdofs[j] < 0 ) {
+	  ldof = -1-vdofs[j];
+	  isign = -1;
+	}
+	else {
+	  ldof = vdofs[j];
+	  isign = 1;
+	}
+
          if (type == HARMONIC)
          {
             MFEM_VERIFY(vals[j] != 0.0,
                         "Coefficient has zeros, harmonic avg is undefined!");
-            (*this)(vdofs[j]) += 1.0 / vals[j];
+	   (*this)(ldof) += isign / vals[j];
          }
          else if (type == ARITHMETIC)
          {
-            (*this)(vdofs[j]) += vals[j];
+	   (*this)(ldof) += isign*vals[j];
+
          }
          else { MFEM_ABORT("Not implemented"); }
 
-         zones_per_vdof[vdofs[j]]++;
+         zones_per_vdof[ldof]++;
       }
    }
 }
