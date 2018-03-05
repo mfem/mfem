@@ -107,6 +107,8 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void MultTranspose(const Vector &x, Vector &y) const;
 
+   virtual Type GetType() const { return Complex_Operator; }
+
 protected:
    // Let this be hidden from the public interface since the implementation
    // depends on internal members
@@ -156,6 +158,8 @@ public:
    virtual const SparseMatrix & imag() const;
 
    SparseMatrix * GetSystemMatrix() const;
+  
+   virtual Type GetType() const { return MFEM_ComplexSparseMat; }
 };
 
 }
