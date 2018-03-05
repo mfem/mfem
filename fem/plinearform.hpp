@@ -18,7 +18,6 @@
 
 #include "pgridfunc.hpp"
 #include "linearform.hpp"
-#include <complex>
 
 namespace mfem
 {
@@ -65,51 +64,6 @@ public:
    {
       return InnerProduct(pfes->GetComm(), *this, gf);
    }
-};
-
-class ParComplexLinearForm : public Vector
-{
-private:
-   ComplexOperator::Convention conv_;
-
-protected:
-   ParLinearForm * plfr_;
-   ParLinearForm * plfi_;
-
-   HYPRE_Int * tdof_offsets_;
-
-public:
-
-   ParComplexLinearForm(ParFiniteElementSpace *pf,
-                        const ComplexOperator::Convention &
-                        convention = ComplexOperator::HERMITIAN);
-
-   virtual ~ParComplexLinearForm();
-
-   /// Adds new Domain Integrator.
-   void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
-                            LinearFormIntegrator *lfi_imag);
-
-   ParFiniteElementSpace *ParFESpace() const { return plfr_->ParFESpace(); }
-
-   ParLinearForm & real() { return *plfr_; }
-   ParLinearForm & imag() { return *plfi_; }
-   const ParLinearForm & real() const { return *plfr_; }
-   const ParLinearForm & imag() const { return *plfi_; }
-
-   void Update(ParFiniteElementSpace *pf = NULL);
-
-   /// Assembles the linear form i.e. sums over all domain/bdr integrators.
-   void Assemble();
-
-   /// Assemble the vector on the true dofs, i.e. P^t v.
-   void ParallelAssemble(Vector &tv);
-
-   /// Returns the vector assembled on the true dofs, i.e. P^t v.
-   HypreParVector *ParallelAssemble();
-
-   std::complex<double> operator()(const ParComplexGridFunction &gf) const;
-
 };
 
 }

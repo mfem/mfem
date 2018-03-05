@@ -21,7 +21,6 @@
 #include "gridfunc.hpp"
 #include <iostream>
 #include <limits>
-#include <complex>
 
 namespace mfem
 {
@@ -285,53 +284,6 @@ public:
    virtual ~ParGridFunction() { }
 };
 
-
-/// Class for complex-valued grid function - Vector with associated FE space.
-class ParComplexGridFunction : public Vector
-{
-private:
-
-   ParGridFunction * pgfr_;
-   ParGridFunction * pgfi_;
-
-protected:
-   void Destroy() { delete pgfr_; delete pgfi_; }
-
-public:
-
-   /* @brief Construct a ParComplexGridFunction associated with the
-      ParFiniteElementSpace @a *f. */
-   ParComplexGridFunction(ParFiniteElementSpace *f);
-
-   void Update() { pgfr_->Update(); pgfi_->Update(); }
-
-   /// Assign constant values to the ParComplexGridFunction data.
-   ParComplexGridFunction &operator=(const std::complex<double> & value)
-   { *pgfr_ = value.real(); *pgfi_ = value.imag(); return *this; }
-
-   virtual void ProjectCoefficient(Coefficient &real_coeff,
-                                   Coefficient &imag_coeff);
-   virtual void ProjectCoefficient(VectorCoefficient &real_vcoeff,
-                                   VectorCoefficient &imag_vcoeff);
-
-   void Distribute(const Vector *tv);
-   void Distribute(const Vector &tv) { Distribute(&tv); }
-
-   /// Returns the vector restricted to the true dofs.
-   void ParallelProject(Vector &tv) const;
-
-   FiniteElementSpace *FESpace() { return pgfr_->FESpace(); }
-   const FiniteElementSpace *FESpace() const { return pgfr_->FESpace(); }
-
-   ParGridFunction & real() { return *pgfr_; }
-   ParGridFunction & imag() { return *pgfi_; }
-   const ParGridFunction & real() const { return *pgfr_; }
-   const ParGridFunction & imag() const { return *pgfi_; }
-
-   /// Destroys grid function.
-   virtual ~ParComplexGridFunction() { Destroy(); }
-
-};
 
 /** Performs a global L2 projection (through a HypreBoomerAMG solve) of flux
     from supplied discontinuous space into supplied smooth (continuous, or at
