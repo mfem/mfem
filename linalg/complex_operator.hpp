@@ -82,6 +82,25 @@ public:
 
    virtual ~ComplexOperator();
 
+   /** @brief Check for existence of real or imaginary part of the operator
+       
+       These methods do not check that the operators are non-zero but
+       only that the operators have been set.
+    */
+   bool hasRealPart() const { return Op_Real_ != NULL; }
+   bool hasImagPart() const { return Op_Imag_ != NULL; }
+
+   /** @brief Real or imaginary part accessor methods
+
+       The following accessor methods should only be called if the
+       requested part of the opertor is known to exist.  This
+       can be checked with hasRealPart() or hasImagPart().
+   */
+   virtual Operator & real();
+   virtual Operator & imag();
+   virtual const Operator & real() const;
+   virtual const Operator & imag() const;
+
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void MultTranspose(const Vector &x, Vector &y) const;
 
@@ -126,6 +145,12 @@ public:
                        Convention convention = HERMITIAN)
       : ComplexOperator(A_Real, A_Imag, ownReal, ownImag, convention)
    {}
+
+   virtual SparseMatrix & real();
+   virtual SparseMatrix & imag();
+
+   virtual const SparseMatrix & real() const;
+   virtual const SparseMatrix & imag() const;
 
    SparseMatrix * GetSystemMatrix() const;
 };
