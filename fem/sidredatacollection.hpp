@@ -159,6 +159,10 @@ namespace mfem
 class SidreDataCollection : public DataCollection
 {
 public:
+   typedef NamedFieldsMap< Array<int> > AttributeFieldMap;
+   AttributeFieldMap attr_map;
+
+public:
 
    /// Constructor that allocates and initializes a Sidre DataStore.
    /**
@@ -232,6 +236,24 @@ public:
    void RegisterField(const std::string &field_name, GridFunction *gf,
                       const std::string &buffer_name,
                       axom::sidre::SidreLength offset);
+
+   /// Registers an attribute field in the Sidre DataStore
+   /** The registration process is similar to that of RegisterField()
+       The attribute field is associated with the elements of the mesh
+       when @a is_bdry is false, and with the boundary elements, when
+       @a is_bdry is true.
+       @sa RegisterField()  */
+   void RegisterAttributeField(const std::string& name, bool is_bdry);
+   void DeregisterAttributeField(const std::string& name);
+
+   /** Returns a pointer to the attribute field associated with
+       @a field_name, or NULL when there is no associated field */
+   Array<int>* GetAttributeField(const std::string& field_name) const
+   { return attr_map.Get(field_name); }
+
+   /** Checks if there is an attribute field associated with @a field_name */
+   bool HasAttributeField(const std::string& field_name) const
+   { return attr_map.Has(field_name); }
 
    /// Set the name of the mesh nodes field.
    /** This name will be used by SetMesh() to register the mesh nodes, if not
@@ -414,6 +436,9 @@ private:
                                GridFunction *gf);
    void DeregisterFieldInBPIndex(const std::string & field_name);
 
+   void RegisterAttributeFieldInBPIndex(const std::string& attr_name);
+   void DeregisterAttributeFieldInBPIndex(const std::string& attr_name);
+
    /** @brief Return a string with the conduit blueprint name for the given
        Element::Type. */
    std::string getElementName( Element::Type elementEnum );
@@ -445,6 +470,10 @@ private:
                                    GridFunction* gf,
                                    const std::string &buffer_name,
                                    axom::sidre::SidreLength offset);
+
+   /** @brief A private helper function to set up the Views associated with
+       attribute field named @a field_name */
+   void addIntegerAttributeField(const std::string& field_name, bool is_bdry);
 
    /// Sets up the four main mesh blueprint groups.
    /**
