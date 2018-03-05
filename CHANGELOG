@@ -10,9 +10,6 @@
 
 Version 3.3.3 (development)
 ===========================
-- Added class ComplexOperator, that implements the action of a complex operator
-  through the equivalent 2x2 real formulation. Both symmetric and antisymmetric
-  block structures are supported.
 
 More efficient non-conforming adaptive mesh refinement
 ------------------------------------------------------
@@ -29,6 +26,10 @@ More efficient non-conforming adaptive mesh refinement
 
 Discretization improvements
 ---------------------------
+- Added class ComplexOperator, that implements the action of a complex operator
+  through the equivalent 2x2 real formulation. Both symmetric and antisymmetric
+  block structures are supported.
+
 - Added classes for general block nonlinear finite element operators (deriving
   from BlockNonlinearForm and ParBlockNonlinearForm) enabling solution of
   nonlinear systems with multiple unknowns in different function spaces. Such
