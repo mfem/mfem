@@ -18,6 +18,7 @@
 #include "fe_coll.hpp"
 #include "eltrans.hpp"
 #include "coefficient.hpp"
+#include "complex_fem.hpp"
 #include "lininteg.hpp"
 #include "nonlininteg.hpp"
 #include "bilininteg.hpp"
