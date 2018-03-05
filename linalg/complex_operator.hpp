@@ -14,6 +14,9 @@
 
 #include "operator.hpp"
 #include "sparsemat.hpp"
+#ifdef MFEM_USE_MPI
+#include "hypre.hpp"
+#endif
 
 namespace mfem
 {
@@ -161,6 +164,50 @@ public:
   
    virtual Type GetType() const { return MFEM_ComplexSparseMat; }
 };
+
+#ifdef MFEM_USE_MPI
+
+/** @brief Specialization of the ComplexOperator built from a pair of
+    HypreParMatrices.
+
+    The purpose of this specialization is to construct a single
+    HypreParMatrix object which is equivalent to the 2x2 block system
+    that the ComplexOperator mimics. The resulting HypreParMatrix can
+    then be passed along to solvers which require access to the CSR
+    matrix data such as SuperLU, STRUMPACK, or similar sparse linear
+    solvers.
+
+    See ComplexOperator documentation in operator.hpp for more information.
+ */
+class ComplexHypreParMatrix : public ComplexOperator
+{
+public:
+   ComplexHypreParMatrix(HypreParMatrix * A_Real, HypreParMatrix * A_Imag,
+                         bool ownReal, bool ownImag,
+                         Convention convention = HERMITIAN);
+
+   virtual HypreParMatrix & real();
+   virtual HypreParMatrix & imag();
+
+   virtual const HypreParMatrix & real() const;
+   virtual const HypreParMatrix & imag() const;
+
+   HypreParMatrix * GetSystemMatrix() const;
+
+   virtual Type GetType() const { return Complex_Hypre_ParCSR; }
+
+private:
+   void getColStartStop(const HypreParMatrix * A_r,
+                        const HypreParMatrix * A_i,
+                        int & num_recv_procs,
+                        HYPRE_Int *& offd_col_start_stop) const;
+
+   MPI_Comm comm_;
+   int myid_;
+   int nranks_;
+};
+
+#endif // MFEM_USE_MPI
 
 }
 
