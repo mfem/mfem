@@ -35,6 +35,10 @@ Discretization improvements
   use a version of GetLocalInterpolation in the FiniteElement class that allows
   the coarse FiniteElement to be different from the fine FiniteElement.
 
+- Added class ComplexOperator, that implements the action of a complex operator
+  through the equivalent 2x2 real formulation. Both symmetric and antisymmetric
+  block structures are supported.
+
 - Added classes for general block nonlinear finite element operators (deriving
   from BlockNonlinearForm and ParBlockNonlinearForm) enabling solution of
   nonlinear systems with multiple unknowns in different function spaces. Such
