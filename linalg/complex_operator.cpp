@@ -39,6 +39,30 @@ ComplexOperator::~ComplexOperator()
    delete v_;
 }
 
+Operator & ComplexOperator::real()
+{
+   MFEM_ASSERT(Op_Real_, "ComplexOperator has no real part!");
+   return *Op_Real_;
+}
+
+Operator & ComplexOperator::imag()
+{
+   MFEM_ASSERT(Op_Imag_, "ComplexOperator has no imaginary part!");
+   return *Op_Imag_;
+}
+
+const Operator & ComplexOperator::real() const
+{
+   MFEM_ASSERT(Op_Real_, "ComplexOperator has no real part!");
+   return *Op_Real_;
+}
+
+const Operator & ComplexOperator::imag() const
+{
+   MFEM_ASSERT(Op_Imag_, "ComplexOperator has no imaginary part!");
+   return *Op_Imag_;
+}
+
 void ComplexOperator::Mult(const Vector &x, Vector &y) const
 {
    double * x_data = x.GetData();
@@ -119,6 +143,30 @@ void ComplexOperator::MultTranspose(const Vector &x_r, const Vector &x_i,
    }
 }
 
+
+SparseMatrix & ComplexSparseMatrix::real()
+{
+   MFEM_ASSERT(Op_Real_, "ComplexSparseMatrix has no real part!");
+   return dynamic_cast<SparseMatrix &>(*Op_Real_);
+}
+
+SparseMatrix & ComplexSparseMatrix::imag()
+{
+   MFEM_ASSERT(Op_Imag_, "ComplexSparseMatrix has no imaginary part!");
+   return dynamic_cast<SparseMatrix &>(*Op_Imag_);
+}
+
+const SparseMatrix & ComplexSparseMatrix::real() const
+{
+   MFEM_ASSERT(Op_Real_, "ComplexSparseMatrix has no real part!");
+   return dynamic_cast<const SparseMatrix &>(*Op_Real_);
+}
+
+const SparseMatrix & ComplexSparseMatrix::imag() const
+{
+   MFEM_ASSERT(Op_Imag_, "ComplexSparseMatrix has no imaginary part!");
+   return dynamic_cast<const SparseMatrix &>(*Op_Imag_);
+}
 
 SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
 {
