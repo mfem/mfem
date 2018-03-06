@@ -223,6 +223,10 @@ MFEM_DEBUG = YES/NO
    Choose debug/optimized build. The debug build enables a number of messages
    and consistency checks that may simplify bug-hunting.
 
+MFEM_USE_EXCEPTIONS = YES/NO
+   Enable the use of exceptions. In particular, modifies the default bahavior
+   when errors are encountered: throw an exception, instead of aborting.
+
 MFEM_USE_LIBUNWIND = YES/NO
    Use libunwind to print a stacktrace whenever mfem_error is raised. The
    information printed is enough to determine the line numbers where the

@@ -21,6 +21,7 @@ endif()
 # MFEM options. Set to mimic the default "defaults.mk" file.
 option(MFEM_USE_MPI "Enable MPI parallel build" OFF)
 option(MFEM_USE_METIS "Enable METIS usage" ${MFEM_USE_MPI})
+option(MFEM_USE_EXCEPTIONS "Enable the use of exceptions" OFF)
 option(MFEM_USE_GZSTREAM "Enable gzstream for compressed data streams." OFF)
 option(MFEM_USE_LIBUNWIND "Enable backtrace for errors." OFF)
 option(MFEM_USE_LAPACK "Enable LAPACK usage" OFF)
