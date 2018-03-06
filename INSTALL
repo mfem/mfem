@@ -223,6 +223,10 @@ MFEM_DEBUG = YES/NO
    Choose debug/optimized build. The debug build enables a number of messages
    and consistency checks that may simplify bug-hunting.
 
+MFEM_USE_EXCEPTIONS = YES/NO
+   Enable the use of exceptions. In particular, modifies the default bahavior
+   when errors are encountered: throw an exception, instead of aborting.
+
 MFEM_USE_LIBUNWIND = YES/NO
    Use libunwind to print a stacktrace whenever mfem_error is raised. The
    information printed is enough to determine the line numbers where the
@@ -326,6 +330,13 @@ MFEM_USE_SIDRE = YES/NO
    specification. When enabled, this option requires installation of HDF5 (see
    also MFEM_USE_NETCDF), Conduit and LLNL's axom project.
 
+MFEM_USE_CONDUIT = YES/NO
+   Enables support for converting MFEM Mesh and Grid Function objects to and
+   from Conduit Mesh Blueprint Descriptions (https://github.com/LLNL/conduit/)
+   and support for JSON and Binary I/O via Conduit Relay. This option requires
+   an installation of Conduit. If Conduit was built with HDF5 support, it also
+   requires an installation of HDF5 (see also MFEM_USE_NETCDF).
+
 MFEM_USE_GZSTREAM = YES/NO
    Enables use of on-the-fly gzip compressed streams. With this feature enabled
    (YES), MFEM can compress its output files on-the-fly. In addition, it can
@@ -424,7 +435,7 @@ The specific libraries and their options are:
   URL: www.unidata.ucar.edu/software/netcdf
   Options: NETCDF_OPT, NETCDF_LIB.
 
-- PETSc (optional), used when MFEM_USE_PETSC = YES.  Version 3.8 or higher of
+- PETSc (optional), used when MFEM_USE_PETSC = YES. Version 3.8 or higher of
   the PETSC dev branch is required. The MFEM and PETSc builds can share common
   libraries, e.g., hypre and SUNDIALS. Here's an example configuration, assuming
   PETSc has been cloned on the same level as mfem and hypre:
@@ -440,6 +451,12 @@ The specific libraries and their options are:
        https://github.com/LLNL/conduit (Conduit)
        https://support.hdfgroup.org/HDF5 (HDF5)
   Options: SIDRE_OPT, SIDRE_LIB.
+
+- Conduit, used when MFEM_USE_CONDUIT = YES. Direct Conduit Mesh Blueprint
+  support requires Conduit >= v0.3.1 and VisIt >= v2.13.1 to read the output.
+  URL: https://github.com/LLNL/conduit (Conduit)
+       https://support.hdfgroup.org/HDF5 (HDF5)
+  Options: CONDUIT_OPT, CONDUIT_LIB.
 
 - MPFR (optional), used when MFEM_USE_MPFR = YES.
   URL: http://mpfr.org, it depends on the GMP library: https://gmplib.org

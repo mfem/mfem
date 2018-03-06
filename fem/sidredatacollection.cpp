@@ -654,6 +654,18 @@ void SidreDataCollection::SetMesh(Mesh *new_mesh)
    }
 }
 
+#ifdef MFEM_USE_MPI
+void SidreDataCollection::SetMesh(MPI_Comm comm, Mesh *new_mesh)
+{
+   // use SidreDataCollection's custom SetMesh, then set MPI info
+   SetMesh(new_mesh);
+
+   m_comm = comm;
+   MPI_Comm_rank(comm, &myid);
+   MPI_Comm_size(comm, &num_procs);
+}
+#endif
+
 void SidreDataCollection::
 SetGroupPointers(axom::sidre::Group *global_grp,
                  axom::sidre::Group *domain_grp)
