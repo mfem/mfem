@@ -89,7 +89,7 @@ protected:
 public:
 
    ParComplexLinearForm(ParFiniteElementSpace *pf,
-                        const ComplexOperator::Convention &
+                        ComplexOperator::Convention
                         convention = ComplexOperator::HERMITIAN);
 
    virtual ~ParComplexLinearForm();
@@ -132,7 +132,7 @@ private:
 
 public:
    ParSesquilinearForm(ParFiniteElementSpace *pf,
-                       const ComplexOperator::Convention &
+                       ComplexOperator::Convention
                        convention = ComplexOperator::HERMITIAN);
 
    ComplexOperator::Convention GetConvention() const { return conv_; }
