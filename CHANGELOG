@@ -10,7 +10,6 @@
 
 Version 3.3.3 (development)
 ===========================
-
 More efficient non-conforming adaptive mesh refinement
 ------------------------------------------------------
 - Significantly reduced MPI communication in the construction of the parallel
@@ -110,6 +109,8 @@ Miscellaneous
   using the latest version of the script 'glvis-keygen.sh' from GLVis.
 
 - Upgraded MFEM to support Axom 0.2.8. Prior versions are no longer supported.
+
+- Addition of XSDK CMAKE options.
 
 API changes
 -----------
