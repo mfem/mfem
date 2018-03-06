@@ -16,6 +16,279 @@ using namespace std;
 namespace mfem
 {
   
+ComplexGridFunction::ComplexGridFunction(FiniteElementSpace *f)
+   : Vector(2*(f->GetVSize()))
+{
+   gfr_ = new GridFunction(f, &data[0]);
+   gfi_ = new GridFunction(f, &data[f->GetVSize()]);
+}
+
+void
+ComplexGridFunction::ProjectCoefficient(Coefficient &real_coeff,
+					Coefficient &imag_coeff)
+{
+   gfr_->ProjectCoefficient(real_coeff);
+   gfi_->ProjectCoefficient(imag_coeff);
+}
+
+void
+ComplexGridFunction::ProjectCoefficient(VectorCoefficient &real_vcoeff,
+					VectorCoefficient &imag_vcoeff)
+{
+   gfr_->ProjectCoefficient(real_vcoeff);
+   gfi_->ProjectCoefficient(imag_vcoeff);
+}
+
+
+ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *f,
+				     ComplexOperator::Convention convention)
+   : Vector(2*(f->GetVSize())),
+     conv_(convention)
+{
+   lfr_ = new LinearForm(f, &data[0]);
+   lfi_ = new LinearForm(f, &data[f->GetVSize()]);
+}
+
+ComplexLinearForm::~ComplexLinearForm()
+{
+   delete lfr_;
+   delete lfi_;
+}
+
+void
+ComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
+				       LinearFormIntegrator *lfi_imag)
+{
+   if ( lfi_real ) { lfr_->AddDomainIntegrator(lfi_real); }
+   if ( lfi_imag ) { lfi_->AddDomainIntegrator(lfi_imag); }
+}
+
+void
+ComplexLinearForm::Update(FiniteElementSpace *f)
+{
+   lfr_->Update(f);
+   lfi_->Update(f);
+}
+
+void
+ComplexLinearForm::Assemble()
+{
+   lfr_->Assemble();
+   lfi_->Assemble();
+   if (conv_ == ComplexOperator::BLOCK_SYMMETRIC)
+   {
+      *lfi_ *= -1.0;
+   }
+}
+
+complex<double>
+ComplexLinearForm::operator()(const ComplexGridFunction &gf) const
+{
+   double s = (conv_ == ComplexOperator::HERMITIAN)?1.0:-1.0;
+   return complex<double>((*lfr_)(gf.real()) - s * (*lfi_)(gf.imag()),
+                          (*lfr_)(gf.imag()) + s * (*lfi_)(gf.real()));
+}
+
+
+SesquilinearForm::SesquilinearForm(FiniteElementSpace *f,
+				   ComplexOperator::Convention convention)
+   : conv_(convention),
+     blfr_(new BilinearForm(f)),
+     blfi_(new BilinearForm(f))
+{}
+
+SesquilinearForm::~SesquilinearForm()
+{
+   delete blfr_;
+   delete blfi_;
+}
+
+void SesquilinearForm::EnableStaticCondensation()
+{
+  blfr_->EnableStaticCondensation();
+  blfi_->EnableStaticCondensation();
+}
+  
+void SesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
+					   BilinearFormIntegrator *bfi_imag)
+{
+   if (bfi_real) { blfr_->AddDomainIntegrator(bfi_real); }
+   if (bfi_imag) { blfi_->AddDomainIntegrator(bfi_imag); }
+}
+
+void
+SesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
+					BilinearFormIntegrator *bfi_imag)
+{
+   if (bfi_real) { blfr_->AddBoundaryIntegrator(bfi_real); }
+   if (bfi_imag) { blfi_->AddBoundaryIntegrator(bfi_imag); }
+}
+
+void
+SesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
+					BilinearFormIntegrator *bfi_imag,
+					Array<int> & bdr_marker)
+{
+   if (bfi_real) { blfr_->AddBoundaryIntegrator(bfi_real, bdr_marker); }
+   if (bfi_imag) { blfi_->AddBoundaryIntegrator(bfi_imag, bdr_marker); }
+}
+
+void
+SesquilinearForm::Assemble(int skip_zeros)
+{
+   blfr_->Assemble(skip_zeros);
+   blfi_->Assemble(skip_zeros);
+}
+
+void
+SesquilinearForm::Finalize(int skip_zeros)
+{
+   blfr_->Finalize(skip_zeros);
+   blfi_->Finalize(skip_zeros);
+}
+
+ComplexSparseMatrix *
+SesquilinearForm::AssembleCompSpMat()
+{
+   return new ComplexSparseMatrix(&blfr_->SpMat(),
+				  &blfi_->SpMat(),
+				  false, false, conv_);
+
+}
+
+void
+SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
+				   Vector &x, Vector &b,
+				   OperatorHandle &A,
+				   Vector &X, Vector &B,
+				   int ci)
+{
+   FiniteElementSpace * fes = blfr_->FESpace();
+
+   int vsize  = fes->GetVSize();
+   // int tvsize = pfes->GetTrueVSize();
+
+   double s = (conv_ == ComplexOperator::HERMITIAN)?1.0:-1.0;
+
+   // Allocate temporary vectors
+   Vector b_0(vsize);  b_0 = 0.0;
+   // Vector B_0(tvsize); B_0 = 0.0;
+
+   // Extract the real and imaginary parts of the input vectors
+   MFEM_ASSERT(x.Size() == 2 * vsize, "Input GridFunction of incorrect size!");
+   Vector x_r(x.GetData(), vsize);
+   Vector x_i(&(x.GetData())[vsize], vsize);
+
+   MFEM_ASSERT(b.Size() == 2 * vsize, "Input LinearForm of incorrect size!");
+   Vector b_r(b.GetData(), vsize);
+   Vector b_i(&(b.GetData())[vsize], vsize);
+   b_i *= s;
+   /*
+   X.SetSize(2 * tvsize);
+   Vector X_r(X.GetData(), tvsize);
+   Vector X_i(&(X.GetData())[tvsize], tvsize);
+
+   B.SetSize(2 * tvsize);
+   Vector B_r(B.GetData(), tvsize);
+   Vector B_i(&(B.GetData())[tvsize], tvsize);
+   */
+   SparseMatrix * A_r = new SparseMatrix;
+   SparseMatrix * A_i = new SparseMatrix;
+   Vector X_0, B_0;
+
+   b_0 = b_r;
+   blfr_->FormLinearSystem(ess_tdof_list, x_r, b_r, *A_r, X_0, B_0, ci);
+
+   int tvsize = B_0.Size();
+   X.SetSize(2 * tvsize);
+   B.SetSize(2 * tvsize);
+   Vector X_r(X.GetData(), tvsize);
+   Vector X_i(&(X.GetData())[tvsize], tvsize);
+   Vector B_r(B.GetData(), tvsize);
+   Vector B_i(&(B.GetData())[tvsize], tvsize);
+   X_r = X_0; B_r = B_0;
+
+   b_0 = 0.0;
+   blfi_->FormLinearSystem(ess_tdof_list, x_i, b_0, *A_i, X_0, B_0, false);
+   B_r -= B_0;
+
+   b_0 = b_i;
+   blfr_->FormLinearSystem(ess_tdof_list, x_i, b_0, *A_r, X_0, B_0, ci);
+   X_i = X_0; B_i = B_0;
+
+   b_0 = 0.0;
+   blfi_->FormLinearSystem(ess_tdof_list, x_r, b_0, *A_i, X_0, B_0, false);
+   B_i += B_0;
+
+   B_i *= s;
+   b_i *= s;
+
+   // A = A_r + i A_i
+   A.Clear();
+   ComplexSparseMatrix * A_sp =
+     new ComplexSparseMatrix(A_r, A_i, true, true, conv_);
+   A.Reset<ComplexSparseMatrix>(A_sp, true);
+}
+
+void
+SesquilinearForm::RecoverFEMSolution(const Vector &X, const Vector &b,
+				     Vector &x)
+{
+   FiniteElementSpace * fes = blfr_->FESpace();
+
+   const SparseMatrix *P = fes->GetConformingProlongation();
+
+   int vsize  = fes->GetVSize();
+   int tvsize = X.Size() / 2;
+
+   Vector X_r(X.GetData(), tvsize);
+   Vector X_i(&(X.GetData())[tvsize], tvsize);
+
+   Vector b_r(b.GetData(), vsize);
+   Vector b_i(&(b.GetData())[vsize], vsize);
+
+   Vector x_r(x.GetData(), vsize);
+   Vector x_i(&(x.GetData())[vsize], vsize);
+
+   /*
+   if (static_cond)
+   {
+      // Private dofs back solve
+      static_cond->ComputeSolution(b, X, x);
+   }
+   else if (hybridization)
+   {
+      // Primal unknowns recovery
+      HypreParVector true_X(pfes), true_B(pfes);
+      P.MultTranspose(b, true_B);
+      const SparseMatrix &R = *pfes->GetRestrictionMatrix();
+      R.Mult(x, true_X); // get essential b.c. from x
+      hybridization->ComputeSolution(true_B, X, true_X);
+      x.SetSize(P.Height());
+      P.Mult(true_X, x);
+   }
+   else
+   */
+   if (!P)
+     {
+       x = X;
+     }
+   else
+     {
+      // Apply conforming prolongation
+      P->Mult(X_r, x_r);
+      P->Mult(X_i, x_i);
+   }
+}
+
+void
+SesquilinearForm::Update(FiniteElementSpace *nfes)
+{
+   if ( blfr_ ) { blfr_->Update(nfes); }
+   if ( blfi_ ) { blfi_->Update(nfes); }
+}
+
+
 #ifdef MFEM_USE_MPI
 
 ParComplexGridFunction::ParComplexGridFunction(ParFiniteElementSpace *f)
