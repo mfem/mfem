@@ -40,6 +40,9 @@
 // Enable debug checks in MFEM.
 #cmakedefine MFEM_DEBUG
 
+// Throw an exception on errors.
+#cmakedefine MFEM_USE_EXCEPTIONS
+
 // Enable gzstream in MFEM.
 #cmakedefine MFEM_USE_GZSTREAM
 

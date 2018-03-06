@@ -40,6 +40,9 @@
 // Enable debug checks in MFEM.
 // #define MFEM_DEBUG
 
+// Throw an exception on errors.
+// #define MFEM_USE_EXCEPTIONS
+
 // Enable gzstream in MFEM.
 // #define MFEM_USE_GZSTREAM
 
