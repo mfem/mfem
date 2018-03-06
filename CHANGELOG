@@ -98,7 +98,10 @@ Miscellaneous
   output from the execution to files, allowing comparison between different
   versions and builds of the library.
 
-- Add support for building a shared version of the MFEM library with GNU make.
+- Support for building a shared version of the MFEM library with GNU make.
+
+- Added a build option, MFEM_USE_EXCEPTIONS=YES, to throw an exception instead
+  of calling abort on mfem errors.
 
 - When building with the GnuTLS library, switch to using X.509 certificates for
   secure socket authentication. Support for the previously used OpenPGP keys has

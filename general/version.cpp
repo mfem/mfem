@@ -79,6 +79,9 @@ const char *GetConfigStr()
 #ifdef MFEM_DEBUG
       "MFEM_DEBUG\n"
 #endif
+#ifdef MFEM_USE_EXCEPTIONS
+      "MFEM_USE_EXCEPTIONS\n"
+#endif
 #ifdef MFEM_USE_GZSTREAM
       "MFEM_USE_GZSTREAM\n"
 #endif
