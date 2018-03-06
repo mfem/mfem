@@ -865,7 +865,7 @@ public:
    { HYPRE_BoomerAMGSetTol(amg_precond, tol); }
 
    void GetNumIterations(int &num_it)
-   { HYPRE_BoomerAMGGetNumIterations(amg_precond, num_it); }
+   { HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_it); }
 
    /// The typecast to HYPRE_Solver returns the internal amg_precond
    virtual operator HYPRE_Solver() const { return amg_precond; }
