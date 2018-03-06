@@ -71,7 +71,7 @@ ParComplexGridFunction::ParallelProject(Vector &tv) const
 
 
 ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pf,
-                                           const ComplexOperator::Convention &
+                                           ComplexOperator::Convention
                                            convention)
    : Vector(2*(pf->GetVSize())),
      conv_(convention)
@@ -167,7 +167,7 @@ ParComplexLinearForm::operator()(const ParComplexGridFunction &gf) const
 
 
 ParSesquilinearForm::ParSesquilinearForm(ParFiniteElementSpace *pf,
-                                         const ComplexOperator::Convention &
+                                         ComplexOperator::Convention
                                          convention)
    : conv_(convention),
      pblfr_(new ParBilinearForm(pf)),
