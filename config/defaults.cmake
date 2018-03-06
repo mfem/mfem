@@ -39,6 +39,7 @@ option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
 option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
+option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
 
 # Allow a user to disable testing, examples, and/or miniapps at CONFIGURE TIME
 # if they don't want/need them (e.g. if MFEM is "just a dependency" and all they
@@ -138,8 +139,6 @@ set(MPFR_DIR "" CACHE PATH "Path to the MPFR library.")
 
 set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
     "Path to the Conduit library.")
-set(Conduit_REQUIRED_PACKAGES "HDF5" CACHE STRING
-    "Additional packages required by Conduit.")
 
 set(AXOM_DIR "${MFEM_DIR}/../axom" CACHE PATH "Path to the Axom library.")
 # May need to add "Boost" as requirement.

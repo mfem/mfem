@@ -133,6 +133,20 @@ void DataCollection::SetMesh(Mesh *new_mesh)
 #endif
 }
 
+#ifdef MFEM_USE_MPI
+void DataCollection::SetMesh(MPI_Comm comm, Mesh *new_mesh)
+{
+   // This seems to be the cleanest way to accomplish this
+   // and avoid duplicating fine grained details:
+
+   SetMesh(new_mesh);
+
+   m_comm = comm;
+   MPI_Comm_rank(comm, &myid);
+   MPI_Comm_size(comm, &num_procs);
+}
+#endif
+
 void DataCollection::SetFormat(int fmt)
 {
    switch (fmt)
@@ -339,8 +353,9 @@ VisItDataCollection::VisItDataCollection(const std::string& collection_name,
 
 #ifdef MFEM_USE_MPI
 VisItDataCollection::VisItDataCollection(MPI_Comm comm,
-                                         const std::string& collection_name)
-   : DataCollection(collection_name, NULL)
+                                         const std::string& collection_name,
+                                         Mesh *mesh)
+   : DataCollection(collection_name, mesh)
 {
    m_comm = comm;
    MPI_Comm_rank(comm, &myid);
@@ -360,6 +375,17 @@ void VisItDataCollection::SetMesh(Mesh *new_mesh)
    spatial_dim = mesh->SpaceDimension();
    topo_dim = mesh->Dimension();
 }
+
+#ifdef MFEM_USE_MPI
+void VisItDataCollection::SetMesh(MPI_Comm comm, Mesh *new_mesh)
+{
+   // use VisItDataCollection's custom SetMesh, then set MPI info
+   SetMesh(new_mesh);
+   m_comm = comm;
+   MPI_Comm_rank(comm, &myid);
+   MPI_Comm_size(comm, &num_procs);
+}
+#endif
 
 void VisItDataCollection::RegisterField(const std::string& name,
                                         GridFunction *gf)
