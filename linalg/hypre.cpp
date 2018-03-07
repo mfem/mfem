@@ -2783,6 +2783,8 @@ void HypreBoomerAMG::SetAIROptions(int distance,  std::string prerelax,
    HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_up,     2);
 
    HYPRE_BoomerAMGSetADropTol(amg_precond, filterA_tol);
+   /* type = -1: drop based on row inf-norm */
+   HYPRE_BoomerAMGSetADropType(amg_precond, -1);
 }
 
 HypreBoomerAMG::~HypreBoomerAMG()
