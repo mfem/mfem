@@ -2323,6 +2323,12 @@ void HypreGMRES::SetTol(double tol)
    HYPRE_GMRESSetTol(gmres_solver, tol);
 }
 
+void HypreGMRES::SetAbsTol(double tol)
+{
+   HYPRE_GMRESSetTol(gmres_solver, 0.0);
+   HYPRE_GMRESSetAbsoluteTol(gmres_solver, tol);
+}
+
 void HypreGMRES::SetMaxIter(int max_iter)
 {
    HYPRE_GMRESSetMaxIter(gmres_solver, max_iter);

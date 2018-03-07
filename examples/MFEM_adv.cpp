@@ -27,6 +27,7 @@
 //               saving of time-dependent data files for external visualization
 //               with VisIt (visit.llnl.gov) is also illustrated.
 
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -37,6 +38,11 @@ using namespace mfem;
 // Choice for the problem setup. The fluid velocity, initial condition and
 // inflow boundary condition are chosen based on this parameter.
 int problem;
+
+// Tolerance to solve linear system to
+double solve_tol;
+int use_gmres;
+int myid;
 
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v);
@@ -69,7 +75,7 @@ void print_AIR(AIR_parameters AIR) {
              << "Interp type:  " << AIR.interp_type << "\n" \
              << "Relax type:   " << AIR.relax_type << "\n" \
              << "Coarsen type: " << AIR.coarsening << "\n" \
-             << "Filter tol:  " << AIR.filterA_tol << ".\n";
+             << "Filter tol:   " << AIR.filterA_tol << ".\n";
 }
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
@@ -120,29 +126,33 @@ public:
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
-   int num_procs, myid;
+   int num_procs;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
    problem = 0;
-   const char *mesh_file = "../data/periodic-hexagon.mesh";
+   solve_tol = 1e-8;
+   use_gmres = 0;
+   const char *mesh_file = "./meshes/periodic-hexagon.mesh";
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 3;
    int ode_solver_type = 14;
    double t_final = 10.0;
    double dt = 0.01;
-   bool visualization = true;
+   int num_time_steps = -1;
+   bool visualization = false;
    bool visit = false;
    bool binary = false;
    int vis_steps = 5;
    int precision = 8;
    cout.precision(precision);
-   AIR_parameters AIR = {2, "", "FFC", 0.1, 100, 0, 0.0, 6};
+   AIR_parameters AIR = {2, "", "FFF", 0.005, 100, 0, 1e-4, 22};
    const char* temp_prerelax = "";
-   const char* temp_postrelax = "FFC";
+   const char* temp_postrelax = "FFF";
+   double h_min, h_max, k_min, k_max;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -155,13 +165,19 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&use_gmres, "-gmres", "--use-gmres",
+                  "Boolean to use GMRES acceleration with AIR.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
                   "\t   11 - Forward Euler, 12 - RK2, 13 - RK3 SSP, 14 - RK4.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
+   args.AddOption(&num_time_steps, "-nt", "--num-time-steps",
+                  "Number of time steps to take. Uses dt and overrides final time.");
+   args.AddOption(&solve_tol, "-tol", "--tolerance",
+                  "Tolerance to solve linear system to. Use -1 for tol=dt.");
    args.AddOption(&dt, "-dt", "--time-step",
-                  "Time step.");
+                  "Time step. If dt = z < 0, dt := h^z, for mesh size h.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -201,7 +217,7 @@ int main(int argc, char *argv[])
    }
    if (myid == 0)
    {
-      args.PrintOptions(cout);
+      // args.PrintOptions(cout);
    }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
@@ -256,16 +272,21 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
 
+   // Get mesh size, set time step and solve tol accordingly, if specified
+   pmesh->GetCharacteristics(h_min, h_max, k_min, k_max);
+   if (dt < 0) dt = pow(h_max,-dt);
+   if (solve_tol < 0) {
+      solve_tol = dt;
+      if (myid == 0) std::cout << "Solve tolerance = dt = " << dt << "\n";
+   }
+
    // 7. Define the parallel discontinuous DG finite element space on the
    //    parallel refined mesh of the given polynomial order.
    DG_FECollection fec(order, dim);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
    HYPRE_Int global_vSize = fes->GlobalTrueVSize();
-   if (myid == 0)
-   {
-      cout << "Number of unknowns: " << global_vSize << endl;
-   }
+   if (myid == 0) cout << "Number of unknowns: " << global_vSize << endl;
 
    // 8. Set up and assemble the parallel bilinear and linear forms (and the
    //    parallel hypre matrices) corresponding to the DG discretization. The
@@ -376,6 +397,7 @@ int main(int argc, char *argv[])
    FE_Evolution adv(*M, *K, *B, order, &AIR);
 
    double t = 0.0;
+   if (num_time_steps > 0) t_final = num_time_steps * dt;
    adv.SetTime(t);
    ode_solver->Init(adv);
 
@@ -466,10 +488,7 @@ FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
    T = NULL;
    AMG_solver = NULL;
    GMRES_solver = NULL;
-
    if (AIR_init) AIR = *AIR_init;
-
-   print_AIR(AIR);
 
    // DG block size given by (FEorder+1)^2 on square meshes.
    blocksize = (order+1)*(order+1);
@@ -492,28 +511,38 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt
    //    u_t = M^{-1}(Ku + b), 
    // by solving associated linear system
    //    (M - dt*K) d = K*u + b
+   //    TODO: Is mass matrix lower triangular??
    if (!T) {
       /* T is NULL, this should be the first solve with T,
        * scale T, setup AMG and GMRES */
       T = HypreParMatrixAdd(1.0, M, -1.0*dt, K);
       current_dt = dt;
+   
       /* scale T by block-diagonal inverse */
       BlockInvScal(T, &T_s, NULL, NULL, blocksize, 0);
+      if (myid == 0) std::cout << "assembled matrices: " << T->GetNumRows() << ", " \
+                               << T->GetNumCols() << ", " << T->NNZ() << "\n";
 
       AMG_solver = new HypreBoomerAMG(T_s);
       AMG_solver->SetAIROptions(AIR.distance, AIR.prerelax, AIR.postrelax,
                                 AIR.strength_tol, AIR.interp_type, AIR.relax_type,
                                 AIR.filterA_tol, AIR.coarsening);
-      // AMG_solver->SetAIROptions();
-      GMRES_solver = new HypreGMRES(T_s);
-      GMRES_solver->SetTol(1e-12);
-      GMRES_solver->SetMaxIter(500);
-      GMRES_solver->SetPrintLevel(2);
-      GMRES_solver->SetPreconditioner(*AMG_solver);
+      if (!use_gmres) {
+         AMG_solver->SetPrintLevel(2);
+         AMG_solver->SetTol(solve_tol);
+         AMG_solver->SetMaxIter(500);
+      }
+      else {
+         GMRES_solver = new HypreGMRES(T_s);
+         GMRES_solver->SetAbsTol(solve_tol);
+         GMRES_solver->SetMaxIter(500);
+         GMRES_solver->SetPrintLevel(1);
+         GMRES_solver->SetPreconditioner(*AMG_solver);
 
-      /* TODO zero init guess ? */
-      //GMRES_solver->SetZeroInintialIterate();
-      //GMRES_solver->iterative_mode = false;
+         /* TODO zero init guess ? */
+         GMRES_solver->SetZeroInintialIterate();
+         GMRES_solver->iterative_mode = false;
+      }
    }
 
    MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
@@ -522,8 +551,14 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt
 
    /* scale the rhs and solve system */
    BlockInvScal(&T_s, NULL, &z, &z_s, blocksize, 2);
-   GMRES_solver->Mult(z_s, du_dt);
    
+   if (use_gmres){
+      GMRES_solver->Mult(z_s, du_dt);
+   }
+   else {
+      AMG_solver->Mult(z_s, du_dt);
+   }
+
    /*
    static int counter = 0;
    counter ++;

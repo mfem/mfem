@@ -726,6 +726,7 @@ public:
    HypreGMRES(HypreParMatrix &_A);
 
    void SetTol(double tol);
+   void SetAbsTol(double tol);
    void SetMaxIter(int max_iter);
    void SetKDim(int dim);
    void SetLogging(int logging);
@@ -856,6 +857,15 @@ public:
 
    void SetPrintLevel(int print_level)
    { HYPRE_BoomerAMGSetPrintLevel(amg_precond, print_level); }
+
+   void SetMaxIter(int max_iter)
+   { HYPRE_BoomerAMGSetMaxIter(amg_precond, max_iter); }
+
+   void SetTol(double tol)
+   { HYPRE_BoomerAMGSetTol(amg_precond, tol); }
+
+   void GetNumIterations(int &num_it)
+   { HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_it); }
 
    /// The typecast to HYPRE_Solver returns the internal amg_precond
    virtual operator HYPRE_Solver() const { return amg_precond; }
